@@ -35,6 +35,30 @@ class TestPrometheusMetricsEndpoint:
         assert "# HELP cpu_system" in response.text
         assert "# TYPE cpu_system gauge" in response.text
 
+    def test_voice_round_trip_metric_preserves_field_name_and_tags(
+        self, client: TestClient
+    ):
+        response = client.post(
+            "/api/v1/metrics",
+            json={
+                "metrics": [
+                    {
+                        "name": "voice_asr",
+                        "fields": {"service_round_trip_ms": 321.5},
+                        "tags": {"device": "service-default", "language": "en"},
+                    }
+                ]
+            },
+        )
+        assert response.status_code == 202
+
+        response = client.get("/metrics")
+        assert "# TYPE voice_asr_service_round_trip_ms gauge" in response.text
+        assert (
+            'voice_asr_service_round_trip_ms{device="service-default",language="en"} 321.5'
+            in response.text
+        )
+
 
 class TestHealthEndpoints:
     def test_basic_health_returns_healthy(self, client: TestClient):

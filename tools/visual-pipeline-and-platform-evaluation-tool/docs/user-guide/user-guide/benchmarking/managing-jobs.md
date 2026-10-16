@@ -1,8 +1,12 @@
+<!-- SPDX-FileCopyrightText: (C) 2026 Intel Corporation -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Managing Jobs
 
-Every performance test and density test creates a **job** — a tracked unit of work with a unique ID,
-state, timing information, and results. The Jobs page lets you monitor running tests, review completed
-results, and stop jobs that are no longer needed.
+Every performance test, density test, and managed Audio pipeline run creates a **job** — a tracked
+unit of work with a unique ID, state, timing information, and results. The Jobs page lets you monitor
+running work, review completed results, and stop supported test jobs that are no longer needed. The
+Audio list is ordered from oldest to newest, matching the Vision job list.
 
 ![Jobs](../../_assets/ViPPET-UI-Jobs-light.png)
 
@@ -10,24 +14,26 @@ results, and stop jobs that are no longer needed.
 
 Each job transitions through the following states:
 
-| State         | Description                                                                           |
-|---------------|---------------------------------------------------------------------------------------|
-| **RUNNING**   | The job is currently executing. Pipelines are active and metrics are being collected. |
-| **COMPLETED** | The job finished successfully. Full results (FPS, output paths) are available.        |
-| **FAILED**    | The job terminated with an error, or was cancelled before producing valid results.    |
+| State         | Description                                                                  |
+| ------------- | ---------------------------------------------------------------------------- |
+| **QUEUED**    | The Audio job was accepted and is waiting to start.                          |
+| **RUNNING**   | The job is currently executing.                                              |
+| **COMPLETED** | The job finished successfully. Results are available in the job detail view. |
+| **FAILED**    | The job terminated with an error.                                            |
+| **CANCELLED** | The Audio job ended before completion.                                       |
 
 ## Job information
 
 The Jobs page displays the following information for each job:
 
-| Field            | Description                                                                 |
-|------------------|-----------------------------------------------------------------------------|
-| **Job ID**       | Unique identifier assigned when the job is created                          |
-| **Type**         | `performance` or `density`                                                  |
-| **State**        | Current state (RUNNING, COMPLETED, or FAILED)                               |
-| **Start time**   | When the job was created                                                    |
-| **Elapsed time** | Duration from start to current time (or end time if completed)              |
-| **Details**      | Human-readable status messages (e.g., current iteration in density testing) |
+| Field            | Description                                                                    |
+| ---------------- | ------------------------------------------------------------------------------ |
+| **Job ID**       | Unique identifier assigned when the job is created                             |
+| **Type**         | Performance, Density, Optimize, or Audio                                       |
+| **State**        | Current lifecycle state                                                        |
+| **Start time**   | When the job was created                                                       |
+| **Elapsed time** | Duration from start to current time, or to the terminal state                  |
+| **Details**      | Type-specific status, metrics, pipeline, variant, device, or artifact metadata |
 
 ## Viewing job results
 
@@ -37,12 +43,25 @@ Click on a completed job to view its detailed results:
 - **Density jobs** — Maximum sustainable stream count, per-stream FPS at that count, and stream distribution
   across pipelines. In mixed density mode the pinned pipeline always reports its fixed `streams` value
   while the other pipeline reports the highest count that still met `fps_floor`.
+- **Audio jobs** — Pipeline, operation, variant, device, state, timestamps, and service latency. A
+  completed Speech to Text detail shows its transcript. A completed Text to Speech detail links to
+  its WAV artifact. The Audio jobs list excludes transcript and TTS input content, uploaded
+  filenames, and local filesystem paths.
 - **Latency metrics** — If latency metrics were enabled for the job, the results include avg/min/max latency
   values (in milliseconds) per reporting interval.
 
-## Stopping a running job
+## Audio job retention
 
-To stop a job that is currently running:
+Audio job state is process-local and is cleared when the ViPPET backend
+restarts. The manager retains every active Audio job and at most 500 terminal
+jobs. The list remains ordered from oldest to newest among retained jobs. When
+an older terminal Text to Speech job is evicted, ViPPET removes its managed WAV
+artifact. Other Audio Analyzer storage and deployment cleanup remain governed
+by the retention guidance in the [Audio Pipelines guide](../voice-conversion.md).
+
+## Stopping a running test job
+
+To stop a performance or density job that is currently running:
 
 1. Locate the job in the list (state = RUNNING).
 2. Click the **Stop** button.
@@ -60,17 +79,23 @@ To stop a job that is currently running:
 > Stopping a job sends a cancellation signal to the underlying GStreamer subprocesses.
 > The actual termination may take a few seconds while pipelines flush their buffers.
 
+Audio jobs do not provide a Stop action. Cancel in the Audio pipeline workflow
+stops monitoring in that browser view; it does not cancel an accepted backend
+job. Continue observing that run under **Jobs > Audio**.
+
 ## API endpoints
 
 Jobs can also be managed programmatically via the REST API:
 
 | Operation                  | Endpoint                                         | Method |
-|----------------------------|--------------------------------------------------|--------|
+| -------------------------- | ------------------------------------------------ | ------ |
 | List all performance jobs  | `/api/v1/jobs/tests/performance/status`          | GET    |
 | Get performance job status | `/api/v1/jobs/tests/performance/{job_id}/status` | GET    |
 | Stop performance job       | `/api/v1/jobs/tests/performance/{job_id}`        | DELETE |
 | List all density jobs      | `/api/v1/jobs/tests/density/status`              | GET    |
 | Get density job status     | `/api/v1/jobs/tests/density/{job_id}/status`     | GET    |
 | Stop density job           | `/api/v1/jobs/tests/density/{job_id}`            | DELETE |
+| List all Audio jobs        | `/api/v1/jobs/audio/status`                      | GET    |
+| Get Audio job status       | `/api/v1/jobs/audio/{job_id}/status`             | GET    |
 
 For full API documentation, see the auto-generated OpenAPI docs at `/docs` on the backend service.

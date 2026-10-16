@@ -703,6 +703,73 @@
         }
       }
     },
+    "/jobs/audio/status": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Get Audio Statuses",
+        "operationId": "get_audio_statuses",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AudioJobSummary"
+                  },
+                  "type": "array",
+                  "title": "Response Get Audio Statuses"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/audio/{job_id}/status": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Get Audio Job Status",
+        "operationId": "get_audio_job_status",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AudioJobStatus"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/jobs/tests/performance/status": {
       "get": {
         "tags": [
@@ -3840,6 +3907,416 @@
           }
         }
       }
+    },
+    "/voice/pipelines": {
+      "get": {
+        "tags": [
+          "voice"
+        ],
+        "summary": "List Audio Pipelines",
+        "operationId": "list_audio_pipelines_voice_pipelines_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AudioPipelineResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Audio Pipelines Voice Pipelines Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/voice/pipelines/{pipeline_id}/runs": {
+      "post": {
+        "tags": [
+          "voice"
+        ],
+        "summary": "Run Audio Pipeline",
+        "operationId": "run_audio_pipeline_voice_pipelines__pipeline_id__runs_post",
+        "parameters": [
+          {
+            "name": "pipeline_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pipeline Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AudioPipelineJobStartResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "input": {
+                    "maxLength": 200,
+                    "minLength": 1,
+                    "title": "Input",
+                    "type": "string"
+                  },
+                  "voice": {
+                    "enum": [
+                      "Ryan",
+                      "Miles",
+                      "Aaron",
+                      "Nora",
+                      "Elena",
+                      "Kabir",
+                      "Angus"
+                    ],
+                    "title": "Voice",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "input",
+                  "voice"
+                ],
+                "title": "AudioPipelineRunRequest",
+                "type": "object"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file",
+                  "language"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "language": {
+                    "type": "string",
+                    "pattern": "^[a-z]{2}$"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/voice/pipelines/{pipeline_id}/variants/{variant_id}/runs": {
+      "post": {
+        "tags": [
+          "voice"
+        ],
+        "summary": "Run Audio Pipeline Variant",
+        "operationId": "run_audio_pipeline_variant_voice_pipelines__pipeline_id__variants__variant_id__runs_post",
+        "parameters": [
+          {
+            "name": "pipeline_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pipeline Id"
+            }
+          },
+          {
+            "name": "variant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Variant Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AudioPipelineJobStartResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "input": {
+                    "maxLength": 200,
+                    "minLength": 1,
+                    "title": "Input",
+                    "type": "string"
+                  },
+                  "voice": {
+                    "enum": [
+                      "Ryan",
+                      "Miles",
+                      "Aaron",
+                      "Nora",
+                      "Elena",
+                      "Kabir",
+                      "Angus"
+                    ],
+                    "title": "Voice",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "input",
+                  "voice"
+                ],
+                "title": "AudioPipelineRunRequest",
+                "type": "object"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file",
+                  "language"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "language": {
+                    "type": "string",
+                    "pattern": "^[a-z]{2}$"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/voice/jobs/{job_id}": {
+      "get": {
+        "tags": [
+          "voice"
+        ],
+        "summary": "Get Audio Pipeline Job",
+        "operationId": "get_audio_pipeline_job_voice_jobs__job_id__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AudioPipelineJobResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/voice/jobs/{job_id}/artifact": {
+      "get": {
+        "tags": [
+          "voice"
+        ],
+        "summary": "Get Audio Pipeline Artifact",
+        "operationId": "get_audio_pipeline_artifact_voice_jobs__job_id__artifact_get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/voice/transcriptions": {
+      "post": {
+        "tags": [
+          "voice"
+        ],
+        "summary": "Transcribe Voice",
+        "description": "Transcribe one independent recording. Previous recordings are never used as context.",
+        "operationId": "transcribe_voice",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_transcribe_voice"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "headers": {
+              "X-Voice-Service-Duration-Ms": {
+                "description": "Request-scoped upstream round-trip time in milliseconds, measured by ViPPET through receipt of the full response body. Includes service queueing and transport, not just model inference. Excludes browser upload/download.",
+                "schema": {
+                  "type": "number",
+                  "minimum": 0.0
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/voice/speech": {
+      "post": {
+        "tags": [
+          "voice"
+        ],
+        "summary": "Synthesize Voice",
+        "description": "Synthesize one sentence with the selected voice. Returns WAV audio.",
+        "operationId": "synthesize_voice",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpeechRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "headers": {
+              "X-Voice-Service-Duration-Ms": {
+                "description": "Request-scoped upstream round-trip time in milliseconds, measured by ViPPET through receipt of the full response body. Includes service queueing and transport, not just model inference. Excludes browser upload/download.",
+                "schema": {
+                  "type": "number",
+                  "minimum": 0.0
+                }
+              }
+            },
+            "content": {
+              "audio/wav": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3854,6 +4331,542 @@
         ],
         "title": "AppStatus",
         "description": "**Application status enum for tracking initialization progress.**\n\n## Values\n- `STARTING` - Application is starting, no initialization yet\n- `INITIALIZING` - Application is initializing resources (e.g., loading videos)\n- `READY` - Application is fully initialized and ready to serve requests\n- `SHUTDOWN` - Application is shutting down\n\n### Example\n```json\n\"ready\"\n```"
+      },
+      "AudioJobState": {
+        "type": "string",
+        "enum": [
+          "QUEUED",
+          "RUNNING",
+          "COMPLETED",
+          "FAILED",
+          "CANCELLED"
+        ],
+        "title": "AudioJobState"
+      },
+      "AudioJobStatus": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "pipeline_id": {
+            "type": "string",
+            "title": "Pipeline Id"
+          },
+          "pipeline_name": {
+            "type": "string",
+            "title": "Pipeline Name"
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "speech_to_text",
+              "text_to_speech"
+            ],
+            "title": "Operation"
+          },
+          "variant_id": {
+            "type": "string",
+            "title": "Variant Id"
+          },
+          "variant_name": {
+            "type": "string",
+            "title": "Variant Name"
+          },
+          "device": {
+            "type": "string",
+            "enum": [
+              "CPU",
+              "GPU",
+              "NPU"
+            ],
+            "title": "Device"
+          },
+          "state": {
+            "$ref": "#/components/schemas/AudioJobState"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "modified_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Modified At"
+          },
+          "service_round_trip_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Round Trip Ms"
+          },
+          "artifact_available": {
+            "type": "boolean",
+            "title": "Artifact Available"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "transcript": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcript"
+          },
+          "artifact_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifact Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "pipeline_id",
+          "pipeline_name",
+          "operation",
+          "variant_id",
+          "variant_name",
+          "device",
+          "state",
+          "created_at",
+          "modified_at",
+          "artifact_available"
+        ],
+        "title": "AudioJobStatus"
+      },
+      "AudioJobSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "pipeline_id": {
+            "type": "string",
+            "title": "Pipeline Id"
+          },
+          "pipeline_name": {
+            "type": "string",
+            "title": "Pipeline Name"
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "speech_to_text",
+              "text_to_speech"
+            ],
+            "title": "Operation"
+          },
+          "variant_id": {
+            "type": "string",
+            "title": "Variant Id"
+          },
+          "variant_name": {
+            "type": "string",
+            "title": "Variant Name"
+          },
+          "device": {
+            "type": "string",
+            "enum": [
+              "CPU",
+              "GPU",
+              "NPU"
+            ],
+            "title": "Device"
+          },
+          "state": {
+            "$ref": "#/components/schemas/AudioJobState"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "modified_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Modified At"
+          },
+          "service_round_trip_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Round Trip Ms"
+          },
+          "artifact_available": {
+            "type": "boolean",
+            "title": "Artifact Available"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "pipeline_id",
+          "pipeline_name",
+          "operation",
+          "variant_id",
+          "variant_name",
+          "device",
+          "state",
+          "created_at",
+          "modified_at",
+          "artifact_available"
+        ],
+        "title": "AudioJobSummary"
+      },
+      "AudioPipelineDefaultsResponse": {
+        "properties": {
+          "audio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "voice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voice"
+          }
+        },
+        "type": "object",
+        "title": "AudioPipelineDefaultsResponse"
+      },
+      "AudioPipelineJobResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "pipeline_id": {
+            "type": "string",
+            "title": "Pipeline Id"
+          },
+          "pipeline_name": {
+            "type": "string",
+            "title": "Pipeline Name"
+          },
+          "variant_id": {
+            "type": "string",
+            "title": "Variant Id"
+          },
+          "variant_name": {
+            "type": "string",
+            "title": "Variant Name"
+          },
+          "device": {
+            "type": "string",
+            "enum": [
+              "CPU",
+              "GPU",
+              "NPU"
+            ],
+            "title": "Device"
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "speech_to_text",
+              "text_to_speech"
+            ],
+            "title": "Operation"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "QUEUED",
+              "RUNNING",
+              "COMPLETED",
+              "FAILED",
+              "CANCELLED"
+            ],
+            "title": "Status"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "modified_at": {
+            "type": "string",
+            "title": "Modified At"
+          },
+          "transcript": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcript"
+          },
+          "artifact_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifact Url"
+          },
+          "service_round_trip_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Round Trip Ms"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "pipeline_id",
+          "pipeline_name",
+          "variant_id",
+          "variant_name",
+          "device",
+          "operation",
+          "status",
+          "created_at",
+          "modified_at"
+        ],
+        "title": "AudioPipelineJobResponse"
+      },
+      "AudioPipelineJobStartResponse": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "QUEUED",
+              "RUNNING",
+              "COMPLETED",
+              "FAILED"
+            ],
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "status"
+        ],
+        "title": "AudioPipelineJobStartResponse"
+      },
+      "AudioPipelineResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "type": {
+            "type": "string",
+            "const": "audio",
+            "title": "Type"
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "speech_to_text",
+              "text_to_speech"
+            ],
+            "title": "Operation"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          },
+          "thumbnail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thumbnail"
+          },
+          "required_models": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Required Models"
+          },
+          "variants": {
+            "items": {
+              "$ref": "#/components/schemas/AudioPipelineVariantResponse"
+            },
+            "type": "array",
+            "title": "Variants"
+          },
+          "defaults": {
+            "$ref": "#/components/schemas/AudioPipelineDefaultsResponse"
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "type",
+          "operation",
+          "tags",
+          "required_models",
+          "variants",
+          "defaults",
+          "available"
+        ],
+        "title": "AudioPipelineResponse"
+      },
+      "AudioPipelineVariantResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "device": {
+            "type": "string",
+            "enum": [
+              "CPU",
+              "GPU",
+              "NPU"
+            ],
+            "title": "Device"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "device"
+        ],
+        "title": "AudioPipelineVariantResponse"
       },
       "BenchmarkJobResponse": {
         "properties": {
@@ -5053,6 +6066,43 @@
         ],
         "title": "BenchmarkWorkloadRun",
         "description": "Historical run record for one workload within a suite run."
+      },
+      "Body_transcribe_voice": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "description": "Audio file"
+          },
+          "language": {
+            "type": "string",
+            "pattern": "^[a-z]{2}$",
+            "title": "Language",
+            "default": "en"
+          },
+          "device": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "CPU",
+                  "GPU",
+                  "NPU"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_transcribe_voice"
       },
       "Body_upload_image_archive": {
         "properties": {
@@ -7334,6 +8384,52 @@
         "title": "PipelineValidation",
         "description": "**Request body for pipeline validation.**\n\n## Attributes\n- `pipeline_graph` - Structured graph representation of the pipeline\n- `parameters` - Optional parameter set for validation (e.g., `{\"max-runtime\": 10}`)\n\n### Example\n```json\n{\n  \"pipeline_graph\": {\n    \"nodes\": [...],\n    \"edges\": [...]\n  },\n  \"parameters\": {\n    \"max-runtime\": 10\n  }\n}\n```"
       },
+      "SpeechRequest": {
+        "properties": {
+          "input": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Input"
+          },
+          "voice": {
+            "type": "string",
+            "enum": [
+              "Ryan",
+              "Miles",
+              "Aaron",
+              "Nora",
+              "Elena",
+              "Kabir",
+              "Angus"
+            ],
+            "title": "Voice"
+          },
+          "device": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "CPU",
+                  "GPU",
+                  "NPU"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "input",
+          "voice"
+        ],
+        "title": "SpeechRequest"
+      },
       "StatusResponse": {
         "properties": {
           "status": {
@@ -7401,6 +8497,20 @@
         ],
         "title": "TestJobState",
         "description": "**Generic state of a long-running test job (performance or density).**\n\n## Values\n- `RUNNING` - Job is still executing\n- `COMPLETED` - Job finished successfully\n- `FAILED` - Job finished unsuccessfully\n\n### Example\n```json\n\"RUNNING\"\n```"
+      },
+      "TranscriptionResponse": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 16000,
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "TranscriptionResponse"
       },
       "USBCameraDetails": {
         "properties": {

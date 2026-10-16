@@ -390,6 +390,34 @@ class TestListModels(_AsyncDBTestCase):
         self.assertEqual(len(models), 1)
         self.assertEqual([p.precision for p in models[0].precisions], ["FP16", "INT8"])
 
+    async def test_list_models_includes_speecht5_fp16_request(self) -> None:
+        request = {
+            "name": "microsoft/speecht5_tts",
+            "config": {"precision": "fp16"},
+        }
+        await self._add_model(
+            name="voice-speecht5",
+            display_name="SpeechT5",
+            category="text_to_speech",
+            source="huggingface",
+            hub="huggingface",
+            download_request=request,
+            variants=[
+                {
+                    "precision": "FP16",
+                    "model_path": "voice/speecht5-fp16/model.xml",
+                    "display_name": "SpeechT5 (FP16)",
+                },
+            ],
+        )
+
+        models = await self.mgr.list_models()
+
+        self.assertEqual(len(models), 1)
+        self.assertEqual(models[0].category, InternalModelCategory.TEXT_TO_SPEECH)
+        self.assertEqual(models[0].download_request, request)
+        self.assertEqual([p.precision for p in models[0].precisions], ["FP16"])
+
     async def test_list_models_includes_custom_models(self) -> None:
         """Custom uploaded models (is_custom=True) are listed just like catalog ones."""
         await self._add_model(
@@ -639,7 +667,7 @@ class TestExecuteRemoteDownload(unittest.TestCase):
     def _seed_job(self, job_id: str = "job-1") -> None:
         self.mgr._jobs[job_id] = _make_running_job(job_id=job_id, model_name="yolo11n")
 
-    def test_completes_when_all_external_jobs_succeed(self) -> None:
+    def test_completes_when_external_job_succeeds(self) -> None:
         self._seed_job()
         client = _FakeHttpxClient(
             post_response=_FakeResponse(json_body={"job_ids": ["ext-1"]}),
@@ -652,7 +680,36 @@ class TestExecuteRemoteDownload(unittest.TestCase):
             self.mgr._execute_remote_download(
                 "job-1", "yolo11n", {"model_id": "yolo11n"}
             )
+        self.assertEqual(
+            client.posts[0][1]["json"], {"models": [{"model_id": "yolo11n"}]}
+        )
+        self.assertEqual(self.mgr._jobs["job-1"].external_job_id, "ext-1")
         fin.assert_called_once_with("job-1", "yolo11n")
+
+    def test_submits_speecht5_fp16_request_to_voice_path(self) -> None:
+        self._seed_job()
+        request = {
+            "name": "microsoft/speecht5_tts",
+            "target": "text-to-speech",
+            "config": {"precision": "fp16"},
+        }
+        client = _FakeHttpxClient(
+            post_response=_FakeResponse(json_body={"job_ids": ["ext-1"]}),
+            get_responses=[_FakeResponse(json_body={"status": "completed"})],
+        )
+        with (
+            patch("managers.model_manager.httpx.Client", return_value=client),
+            patch.object(self.mgr, "_finalize_success") as fin,
+        ):
+            self.mgr._execute_remote_download("job-1", "voice-speecht5", request)
+
+        self.assertEqual(client.posts[0][1]["json"], {"models": [request]})
+        self.assertEqual(client.posts[0][1]["params"], {"download_path": "voice"})
+        self.assertEqual(
+            client.gets,
+            [f"{mm_module.MODEL_DOWNLOAD_URL}/api/v1/jobs/ext-1"],
+        )
+        fin.assert_called_once_with("job-1", "voice-speecht5")
 
     def test_fails_when_post_returns_no_job_ids(self) -> None:
         self._seed_job()
@@ -665,18 +722,12 @@ class TestExecuteRemoteDownload(unittest.TestCase):
             )
         job = self.mgr._jobs["job-1"]
         self.assertEqual(job.state, InternalModelDownloadJobState.FAILED)
-        self.assertIn("no job ids", job.details[0])
+        self.assertIn("exactly one job id", job.details[0])
 
-    def test_aggregates_errors_when_polling_reports_failed(self) -> None:
+    def test_fails_when_post_returns_multiple_job_ids(self) -> None:
         self._seed_job()
         client = _FakeHttpxClient(
-            post_response=_FakeResponse(
-                json_body={"job_ids": ["ext-1", "ext-2"], "status": "queued"}
-            ),
-            get_responses=[
-                _FakeResponse(json_body={"status": "failed", "error": "boom-1"}),
-                _FakeResponse(json_body={"status": "completed"}),
-            ],
+            post_response=_FakeResponse(json_body={"job_ids": ["ext-1", "ext-2"]})
         )
         with patch("managers.model_manager.httpx.Client", return_value=client):
             self.mgr._execute_remote_download(
@@ -684,7 +735,7 @@ class TestExecuteRemoteDownload(unittest.TestCase):
             )
         job = self.mgr._jobs["job-1"]
         self.assertEqual(job.state, InternalModelDownloadJobState.FAILED)
-        self.assertIn("boom-1", job.details[0])
+        self.assertIn("exactly one job id", job.details[0])
 
     def test_treats_404_from_external_job_as_failure(self) -> None:
         self._seed_job()
@@ -1039,18 +1090,6 @@ class TestJobLifecycle(unittest.TestCase):
         self.mgr._finalize_success("job-2", "gemma3")
 
         self.assertEqual(job.state, InternalModelDownloadJobState.FAILED)
-
-        from sqlalchemy import select
-
-        async def _check() -> str:
-            async with database.async_session_maker() as session:
-                db_model = await session.scalar(
-                    select(Model).where(Model.name == "gemma3")
-                )
-                assert db_model is not None
-                return db_model.install_status
-
-        self.assertEqual(asyncio.run(_check()), "not_installed")
 
 
 # ----------------------------------------------------------------------

@@ -43,12 +43,14 @@ type PipelineCardsProps = {
   pipelines: Pipeline[];
   maxCards?: number;
   source: "dashboard" | "pipelines";
+  showCreate?: boolean;
 };
 
 export const PipelineCards = ({
   pipelines,
   maxCards,
   source,
+  showCreate = true,
 }: PipelineCardsProps) => {
   const { theme } = useTheme();
   const { tagColorMap } = usePipelineTagColors(pipelines);
@@ -81,15 +83,17 @@ export const PipelineCards = ({
   return (
     <>
       <div className={CARDS_GRID_CLASS}>
-        <CreatePipelineDialog>
-          <Button
-            variant="ghost"
-            className="w-full h-full min-h-[12.5rem] border-2 border-dashed border-border hover:border-brand-accent hover:bg-brand-accent/5 flex flex-col items-center justify-center gap-3 text-muted-foreground hover:text-brand-accent"
-          >
-            <Plus className="size-12" />
-            <span className="text-lg font-medium">Create Pipeline</span>
-          </Button>
-        </CreatePipelineDialog>
+        {showCreate && (
+          <CreatePipelineDialog>
+            <Button
+              variant="ghost"
+              className="w-full h-full min-h-[12.5rem] border-2 border-dashed border-border hover:border-brand-accent hover:bg-brand-accent/5 flex flex-col items-center justify-center gap-3 text-muted-foreground hover:text-brand-accent"
+            >
+              <Plus className="size-12" />
+              <span className="text-lg font-medium">Create Pipeline</span>
+            </Button>
+          </CreatePipelineDialog>
+        )}
 
         {displayedPipelines.map((pipeline) => (
           <Card

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
+
 import { defineConfig, devices } from "@playwright/test";
 
 /**
@@ -22,7 +25,8 @@ const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost";
 const crossBrowserDir = "tests/e2e/cross-browser/**";
 
 export default defineConfig({
-  testDir: "./tests/e2e",
+  testDir: "./tests",
+  outputDir: "/tmp/vippet-ui-test-results",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
@@ -37,7 +41,16 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
+      use: {
+        ...devices["Desktop Chrome"],
+        permissions: ["microphone"],
+        launchOptions: {
+          args: [
+            "--use-fake-device-for-media-stream",
+            "--use-fake-ui-for-media-stream",
+          ],
+        },
+      },
     },
     {
       name: "firefox",

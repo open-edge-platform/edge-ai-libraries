@@ -6,7 +6,7 @@ SHELL := bash -eu -o pipefail
 # default goal to show help
 .DEFAULT_GOAL := help
 .PHONY: all lint build mdlint ruff fix-linter format pyright run run-prebuilt build-dev run-dev test \
-	shell shell-vippet shell-model-download shell-metrics-manager shell-videogenerator shell-dlsps stop clean clean-output-videos help \
+	shell shell-vippet shell-model-download shell-metrics-manager shell-videogenerator shell-dlsps stop clean clean-output-videos clean-output-audio help \
 	build-videogenerator build-sensor-manager build-onvif-discovery docker-build env-setup build-test \
 	test-smoke test-full test-performance build-experimental run-experimental stop-experimental clean-experimental \
 	ui-e2e-setup ui-e2e-setup-cross-browser
@@ -19,6 +19,26 @@ PROJECT_DIR := $(shell pwd)
 COMPOSE_FILE := compose.yml
 DEV_COMPOSE_FILE := compose.dev.yml
 EXPERIMENTAL_COMPOSE_FILE := compose.experimental.yml
+export AUDIO_ANALYZER_TAG ?= 2026.2.0
+export TEXT_TO_SPEECH_TAG ?= 2026.2.0
+
+define base-compose
+	. .env && \
+	compose_files=(-f $(COMPOSE_FILE) $(2) -f compose.$$COMPOSE_PROFILES.yml) && \
+	$(if $(strip $(3)),$(3) &&) \
+	docker compose "$${compose_files[@]}" $(1)
+endef
+
+define standard-compose
+	$(call base-compose,$(1),,$(if $(DLSPS2_COMPOSE),compose_files+=($(DLSPS2_COMPOSE))))
+endef
+
+define experimental-compose
+	$(call base-compose,$(1),-f $(EXPERIMENTAL_COMPOSE_FILE),\
+		case "$$COMPOSE_PROFILES" in \
+			(igpu-wsl) compose_files+=(-f compose.experimental.$$COMPOSE_PROFILES.yml) ;; \
+		esac)
+endef
 
 # Set DLSPS2=1 to run pipelines on a DLSPS 2.0 container (see compose.dlsps2.yml).
 DLSPS2 ?= 0
@@ -129,6 +149,8 @@ $(ENV_DIRS_SENTINEL): Makefile
 	mkdir -p shared/videos/input && chmod o+w shared/videos/input
 	mkdir -p shared/videos/output && chmod o+w shared/videos/output
 	mkdir -p shared/videos/video-generator && chmod o+w shared/videos/video-generator
+	mkdir -p shared/audio/input/auto && chmod o+w shared/audio/input/auto
+	mkdir -p shared/audio/output && chmod o+w shared/audio/output
 	@touch $@
 
 # env-setup must run on every invocation: setup_env.sh detects the
@@ -138,10 +160,10 @@ $(ENV_DIRS_SENTINEL): Makefile
 env-setup: $(ENV_DIRS_SENTINEL) ## Create shared/ dirs and (always) re-run setup_env.sh
 	./setup_env.sh
 
-build: env-setup ## Build core images (vippet-app, vippet-ui, sensor-manager); DLSPS2=1 adds DLSPS 2.0
-	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(DLSPS2_COMPOSE) build
+build: env-setup ## Build core, Voice, and sensor-manager images; DLSPS2=1 adds DLSPS 2.0
+	$(call standard-compose,build)
 
-build-dev: env-setup ## Build core dev images (vippet-app, vippet-ui, sensor-manager)
+build-dev: env-setup ## Build core, Voice, and sensor-manager development images
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) build
 
 build-videogenerator: env-setup ## Build videogenerator image
@@ -154,8 +176,8 @@ build-onvif-discovery: build-sensor-manager ## Deprecated alias of build-sensor-
 
 docker-build: build build-videogenerator ## Build all images
 
-run: env-setup ## Run the docker compose services; DLSPS2=1 runs pipelines on DLSPS 2.0
-	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(DLSPS2_COMPOSE) up -d
+run: env-setup ## Run ViPPET core and Voice services; DLSPS2=1 uses DLSPS 2.0
+	$(call standard-compose,up -d)
 
 run-prebuilt: env-setup ## Pull and run the published images tagged PREBUILT_TAG (latest on main); never builds from source
 	. .env && export DOCKER_TAG="$$PREBUILT_TAG" && echo "Running published images tagged $$DOCKER_TAG" && \
@@ -169,16 +191,16 @@ run-dev: env-setup ## Run the docker compose services for development
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) up -d
 
 build-experimental: env-setup ## Build core images for experimental timeseries setup
-	. .env && docker compose -f $(COMPOSE_FILE) -f $(EXPERIMENTAL_COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build
+	$(call experimental-compose,build)
 
 run-experimental: env-setup ## Run the docker compose services with experimental timeseries features
-	. .env && docker compose -f $(COMPOSE_FILE) -f $(EXPERIMENTAL_COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d --remove-orphans
+	$(call experimental-compose,up -d --remove-orphans)
 
 stop-experimental: ## Stop experimental docker compose services
-	docker compose -f $(COMPOSE_FILE) -f $(EXPERIMENTAL_COMPOSE_FILE) down
+	$(call experimental-compose,down)
 
 clean-experimental: ## Clean experimental setup artifacts
-	docker compose -f $(COMPOSE_FILE) -f $(EXPERIMENTAL_COMPOSE_FILE) down -v
+	$(call experimental-compose,down -v)
 
 # Build the test image only when its inputs change. Source files are
 # bind-mounted at run-time (see `test` target), so changing application
@@ -266,11 +288,11 @@ shell-videogenerator: ## Open shell in videogenerator container
 shell-dlsps: ## Open shell in DLSPS 2.0 container (started with DLSPS2=1)
 	$(MAKE) shell SERVICE=dlstreamer-pipeline-server
 
-stop: ## Stop the docker compose services
-	docker compose $(if $(DLSPS2_COMPOSE),-f $(COMPOSE_FILE) $(DLSPS2_COMPOSE)) down
+stop: ## Stop ViPPET core and Voice services, preserving named volumes
+	$(call standard-compose,down)
 
-clean: clean-model-download clean-models clean-output-videos ## Clean all build artifacts
-	rm -rf shared/videos/input shared/videos/video-generator
+clean: clean-model-download clean-models clean-output-videos clean-output-audio ## Clean all build artifacts
+	rm -rf shared/videos/input shared/videos/video-generator shared/audio/input
 	rm -f $(ENV_DIRS_SENTINEL) $(TEST_IMAGE_SENTINEL) \
 		$(UI_NPM_SENTINEL) $(UI_PW_CHROMIUM_SENTINEL) $(UI_PW_CROSS_SENTINEL)
 
@@ -279,9 +301,13 @@ clean-model-download: ## Clean only model-download artifacts
 
 clean-models: ## Clean only models
 	docker run --rm -v "${PWD}"/shared/models/:/mnt/models/ python:3.12-slim sh -c 'rm -rf /mnt/models/output/'
+	rm -f $(ENV_DIRS_SENTINEL)
 
 clean-output-videos: ## Clean only output videos
 	rm -rf shared/videos/output/*
+
+clean-output-audio: ## Clean only output audio
+	rm -rf shared/audio/output/*
 
 help: ## Print help for each target
 	@echo ViPPET make targets

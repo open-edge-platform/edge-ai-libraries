@@ -1,7 +1,0 @@
-services:
-  vippet:
-    profiles: [gpu-wsl]
-    devices:
-      - /dev/dxg
-    volumes:
-      - /usr/lib/wsl:/usr/lib/wsl

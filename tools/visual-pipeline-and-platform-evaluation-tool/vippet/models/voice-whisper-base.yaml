@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+name: voice-whisper-base
+display_name: Whisper Base
+description: "OpenVINO Whisper Base model used by Audio Analyzer for speech recognition."
+source: huggingface
+hub: huggingface
+type: automatic_speech_recognition
+precisions:
+  - precision: INT8
+    model_path: voice/audio-analyzer/openvino/whisper-base/openvino_encoder_model.xml
+    model_proc: ""
+extra_model_procs: []
+unsupported_devices: ""
+download_request:
+  hub: openvino
+  name: openai/whisper-base
+  type: speech2text
+  target: audio-analyzer
+  config:
+    precision: int8
+    device: CPU

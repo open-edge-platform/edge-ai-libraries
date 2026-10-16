@@ -158,6 +158,40 @@ curl -X POST "http://localhost:8200/api/v1/models/download?download_path=my-mode
   }'
 ```
 
+  ```bash
+  # Export the supported Voice runtime models
+  curl -X POST "http://localhost:8200/api/v1/models/download?download_path=voice" \
+    -H "Content-Type: application/json" \
+    -d '{
+      "models": [
+        {
+          "name": "openai/whisper-base",
+          "hub": "openvino",
+          "type": "speech2text",
+          "target": "audio-analyzer",
+          "config": {"precision": "int8", "device": "CPU"}
+        },
+        {
+          "name": "microsoft/speecht5_tts",
+          "hub": "openvino",
+          "type": "text2speech",
+          "target": "text-to-speech",
+          "config": {"precision": "int8", "device": "CPU"}
+        }
+      ]
+    }'
+  ```
+
+  Voice targets are restricted to the combinations shown above. They publish
+  consumer-ready artifacts under
+  `<download_path>/audio-analyzer/openvino/whisper-base` and
+  `<download_path>/text-to-speech/openvino/microsoft_speecht5_tts__<precision>`.
+  Whisper supports INT8; SpeechT5 supports INT8 and FP16. Precision defaults to
+  INT8 when omitted. Voice export requests require `config.device` to be `CPU`;
+  the resulting OpenVINO IR is consumed by the runtime device selected in the
+  Voice service configuration. Use `is_ovms` instead when an OVMS model
+  repository layout is required.
+
 ```bash
 # Download from a remote URL
 curl -X POST "http://localhost:8200/api/v1/models/download?download_path=my-models" \
@@ -195,6 +229,7 @@ curl -X POST "http://localhost:8200/api/v1/models/download?download_path=my-mode
 | `name`                  | string  | yes      | Model name/ID (format is hub-specific)                                      |
 | `hub`                   | string  | yes      | Source hub (see Supported Hubs below)                                       |
 | `type`                  | string  | no       | Model type (determines conversion behavior)                                 |
+| `target`                | string  | no       | Runtime layout: `audio-analyzer` or `text-to-speech`                         |
 | `is_ovms`               | boolean | no       | Convert to OpenVINO IR format (default `false`)                             |
 | `revision`              | string  | no       | Specific model revision/version to download                                 |
 | `config`                | object  | no       | Configuration for OpenVINO conversion (required if `is_ovms` is `true`)     |

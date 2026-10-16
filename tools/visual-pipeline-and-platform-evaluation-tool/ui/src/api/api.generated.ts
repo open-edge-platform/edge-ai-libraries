@@ -13,6 +13,7 @@ export const addTagTypes = [
   "videos",
   "images",
   "cameras",
+  "voice",
 ] as const;
 const injectedRtkApi = api
   .enhanceEndpoints({
@@ -116,6 +117,20 @@ const injectedRtkApi = api
       getDevices: build.query<GetDevicesApiResponse, GetDevicesApiArg>({
         query: () => ({ url: `/devices` }),
         providesTags: ["devices"],
+      }),
+      getAudioStatuses: build.query<
+        GetAudioStatusesApiResponse,
+        GetAudioStatusesApiArg
+      >({
+        query: () => ({ url: `/jobs/audio/status` }),
+        providesTags: ["jobs"],
+      }),
+      getAudioJobStatus: build.query<
+        GetAudioJobStatusApiResponse,
+        GetAudioJobStatusApiArg
+      >({
+        query: (queryArg) => ({ url: `/jobs/audio/${queryArg.jobId}/status` }),
+        providesTags: ["jobs"],
       }),
       getPerformanceStatuses: build.query<
         GetPerformanceStatusesApiResponse,
@@ -592,6 +607,74 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["cameras"],
       }),
+      listAudioPipelinesVoicePipelinesGet: build.query<
+        ListAudioPipelinesVoicePipelinesGetApiResponse,
+        ListAudioPipelinesVoicePipelinesGetApiArg
+      >({
+        query: () => ({ url: `/voice/pipelines` }),
+        providesTags: ["voice"],
+      }),
+      runAudioPipelineVoicePipelinesPipelineIdRunsPost: build.mutation<
+        RunAudioPipelineVoicePipelinesPipelineIdRunsPostApiResponse,
+        RunAudioPipelineVoicePipelinesPipelineIdRunsPostApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/voice/pipelines/${queryArg.pipelineId}/runs`,
+          method: "POST",
+          body: queryArg.audioPipelineRunRequest,
+        }),
+        invalidatesTags: ["voice"],
+      }),
+      runAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPost:
+        build.mutation<
+          RunAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPostApiResponse,
+          RunAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPostApiArg
+        >({
+          query: (queryArg) => ({
+            url: `/voice/pipelines/${queryArg.pipelineId}/variants/${queryArg.variantId}/runs`,
+            method: "POST",
+            body: queryArg.audioPipelineRunRequest,
+          }),
+          invalidatesTags: ["voice"],
+        }),
+      getAudioPipelineJobVoiceJobsJobIdGet: build.query<
+        GetAudioPipelineJobVoiceJobsJobIdGetApiResponse,
+        GetAudioPipelineJobVoiceJobsJobIdGetApiArg
+      >({
+        query: (queryArg) => ({ url: `/voice/jobs/${queryArg.jobId}` }),
+        providesTags: ["voice"],
+      }),
+      getAudioPipelineArtifactVoiceJobsJobIdArtifactGet: build.query<
+        GetAudioPipelineArtifactVoiceJobsJobIdArtifactGetApiResponse,
+        GetAudioPipelineArtifactVoiceJobsJobIdArtifactGetApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/voice/jobs/${queryArg.jobId}/artifact`,
+        }),
+        providesTags: ["voice"],
+      }),
+      transcribeVoice: build.mutation<
+        TranscribeVoiceApiResponse,
+        TranscribeVoiceApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/voice/transcriptions`,
+          method: "POST",
+          body: queryArg.bodyTranscribeVoice,
+        }),
+        invalidatesTags: ["voice"],
+      }),
+      synthesizeVoice: build.mutation<
+        SynthesizeVoiceApiResponse,
+        SynthesizeVoiceApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/voice/speech`,
+          method: "POST",
+          body: queryArg.speechRequest,
+        }),
+        invalidatesTags: ["voice"],
+      }),
     }),
     overrideExisting: false,
   });
@@ -655,6 +738,14 @@ export type ToDescriptionApiArg = {
 export type GetDevicesApiResponse =
   /** status 200 List of devices successfully retrieved. */ Device[];
 export type GetDevicesApiArg = void;
+export type GetAudioStatusesApiResponse =
+  /** status 200 Successful Response */ AudioJobSummary[];
+export type GetAudioStatusesApiArg = void;
+export type GetAudioJobStatusApiResponse =
+  /** status 200 Successful Response */ AudioJobStatus;
+export type GetAudioJobStatusApiArg = {
+  jobId: string;
+};
 export type GetPerformanceStatusesApiResponse =
   /** status 200 Successful Response */ PerformanceJobStatus[];
 export type GetPerformanceStatusesApiArg = void;
@@ -766,16 +857,17 @@ export type GetModelDownloadJobStatusApiArg = {
 export type GetModelsApiResponse =
   /** status 200 List of all installed and available models */ Model[];
 export type GetModelsApiArg = void;
-export type UploadModelApiResponse =
-  | /** status 200 Successful Response */ any
+export type UploadModelApiResponse = /** status 200 Successful Response */
+  | any
   | /** status 201 Model uploaded successfully */ ModelUploadResponse;
 export type UploadModelApiArg = {
   bodyUploadModel: BodyUploadModel;
 };
 export type StartModelDownloadApiResponse =
-  | /** status 200 Successful Response */ any
-  | /** status 202 All requested downloads accepted */ ModelDownloadJobResponse
-  | /** status 207 Multi-Status: some downloads accepted, some rejected. Inspect `jobs[<name>].status_code` for per-model outcome. */ ModelDownloadJobResponse;
+  /** status 200 Successful Response */
+    | any
+    | /** status 202 All requested downloads accepted */ ModelDownloadJobResponse
+    | /** status 207 Multi-Status: some downloads accepted, some rejected. Inspect `jobs[<name>].status_code` for per-model outcome. */ ModelDownloadJobResponse;
 export type StartModelDownloadApiArg = {
   modelDownloadRequest: ModelDownloadRequest;
 };
@@ -927,6 +1019,49 @@ export type LoadCameraProfilesApiArg = {
   cameraId: string;
   cameraProfilesRequest: CameraProfilesRequest;
 };
+export type ListAudioPipelinesVoicePipelinesGetApiResponse =
+  /** status 200 Successful Response */ AudioPipelineResponse[];
+export type ListAudioPipelinesVoicePipelinesGetApiArg = void;
+export type RunAudioPipelineVoicePipelinesPipelineIdRunsPostApiResponse =
+  /** status 202 Successful Response */ AudioPipelineJobStartResponse;
+export type RunAudioPipelineVoicePipelinesPipelineIdRunsPostApiArg = {
+  pipelineId: string;
+  audioPipelineRunRequest: {
+    input: string;
+    voice: "Ryan" | "Miles" | "Aaron" | "Nora" | "Elena" | "Kabir" | "Angus";
+  };
+};
+export type RunAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPostApiResponse =
+  /** status 202 Successful Response */ AudioPipelineJobStartResponse;
+export type RunAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPostApiArg =
+  {
+    pipelineId: string;
+    variantId: string;
+    audioPipelineRunRequest: {
+      input: string;
+      voice: "Ryan" | "Miles" | "Aaron" | "Nora" | "Elena" | "Kabir" | "Angus";
+    };
+  };
+export type GetAudioPipelineJobVoiceJobsJobIdGetApiResponse =
+  /** status 200 Successful Response */ AudioPipelineJobResponse;
+export type GetAudioPipelineJobVoiceJobsJobIdGetApiArg = {
+  jobId: string;
+};
+export type GetAudioPipelineArtifactVoiceJobsJobIdArtifactGetApiResponse =
+  unknown;
+export type GetAudioPipelineArtifactVoiceJobsJobIdArtifactGetApiArg = {
+  jobId: string;
+};
+export type TranscribeVoiceApiResponse =
+  /** status 200 Successful Response */ TranscriptionResponse;
+export type TranscribeVoiceApiArg = {
+  bodyTranscribeVoice: BodyTranscribeVoice;
+};
+export type SynthesizeVoiceApiResponse =
+  /** status 200 Successful Response */ Blob;
+export type SynthesizeVoiceApiArg = {
+  speechRequest: SpeechRequest;
+};
 export type HealthResponse = {
   healthy: boolean;
 };
@@ -963,7 +1098,12 @@ export type MessageResponse = {
   message: string;
 };
 export type BenchmarkTestCaseRunStatus =
-  "created" | "running" | "completed" | "failed" | "cancelled" | "skipped";
+  | "created"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "skipped";
 export type BenchmarkSuiteRun = {
   id: number;
   suite_id: number;
@@ -1134,6 +1274,44 @@ export type Device = {
   device_family: DeviceFamily;
   gpu_id: number | null;
 };
+export type AudioJobState =
+  | "QUEUED"
+  | "RUNNING"
+  | "COMPLETED"
+  | "FAILED"
+  | "CANCELLED";
+export type AudioJobSummary = {
+  id: string;
+  pipeline_id: string;
+  pipeline_name: string;
+  operation: "speech_to_text" | "text_to_speech";
+  variant_id: string;
+  variant_name: string;
+  device: "CPU" | "GPU" | "NPU";
+  state: AudioJobState;
+  created_at: string;
+  modified_at: string;
+  service_round_trip_ms?: number | null;
+  artifact_available: boolean;
+  error?: string | null;
+};
+export type AudioJobStatus = {
+  id: string;
+  pipeline_id: string;
+  pipeline_name: string;
+  operation: "speech_to_text" | "text_to_speech";
+  variant_id: string;
+  variant_name: string;
+  device: "CPU" | "GPU" | "NPU";
+  state: AudioJobState;
+  created_at: string;
+  modified_at: string;
+  service_round_trip_ms?: number | null;
+  artifact_available: boolean;
+  error?: string | null;
+  transcript?: string | null;
+  artifact_url?: string | null;
+};
 export type TestJobState = "RUNNING" | "COMPLETED" | "FAILED";
 export type PipelineStreamSpec = {
   /** Pipeline identifier - variant path or synthetic graph ID. */
@@ -1274,7 +1452,11 @@ export type ValidationJobSummary = {
   request: PipelineValidation;
 };
 export type ModelSource =
-  "huggingface" | "ultralytics" | "pipeline-zoo-models" | "omz" | "custom";
+  | "huggingface"
+  | "ultralytics"
+  | "pipeline-zoo-models"
+  | "omz"
+  | "custom";
 export type ModelDownloadJobState = "RUNNING" | "COMPLETED" | "FAILED";
 export type ModelDownloadJobStatus = {
   id: string;
@@ -1302,7 +1484,10 @@ export type ModelCategory =
   | "automatic_speech_recognition"
   | "text_to_speech";
 export type ModelInstallStatus =
-  "installed" | "not_installed" | "installing" | "failed";
+  | "installed"
+  | "not_installed"
+  | "installing"
+  | "failed";
 export type ModelVariant = {
   /** Stable variant identifier. */
   name: string;
@@ -1686,6 +1871,65 @@ export type CameraProfilesRequest = {
   username: string;
   password: string;
 };
+export type AudioPipelineVariantResponse = {
+  id: string;
+  name: string;
+  device: "CPU" | "GPU" | "NPU";
+};
+export type AudioPipelineDefaultsResponse = {
+  audio?: string | null;
+  language?: string | null;
+  text?: string | null;
+  voice?: string | null;
+};
+export type AudioPipelineResponse = {
+  id: string;
+  name: string;
+  description: string;
+  type: "audio";
+  operation: "speech_to_text" | "text_to_speech";
+  tags: string[];
+  thumbnail?: string | null;
+  required_models: string[];
+  variants: AudioPipelineVariantResponse[];
+  defaults: AudioPipelineDefaultsResponse;
+  available: boolean;
+  unavailable_reason?: string | null;
+};
+export type AudioPipelineJobStartResponse = {
+  job_id: string;
+  status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
+};
+export type AudioPipelineJobResponse = {
+  id: string;
+  pipeline_id: string;
+  pipeline_name: string;
+  variant_id: string;
+  variant_name: string;
+  device: "CPU" | "GPU" | "NPU";
+  operation: "speech_to_text" | "text_to_speech";
+  status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
+  created_at: string;
+  modified_at: string;
+  transcript?: string | null;
+  artifact_url?: string | null;
+  service_round_trip_ms?: number | null;
+  error?: string | null;
+};
+export type TranscriptionResponse = {
+  text: string;
+};
+export type BodyTranscribeVoice = {
+  /** Audio file */
+  file: string;
+  language?: string;
+  device?: ("CPU" | "GPU" | "NPU") | null;
+};
+export type SpeechRequest = {
+  input: string;
+  voice: "Ryan" | "Miles" | "Aaron" | "Nora" | "Elena" | "Kabir" | "Angus";
+  device?: ("CPU" | "GPU" | "NPU") | null;
+};
 export const {
   useGetHealthQuery,
   useLazyGetHealthQuery,
@@ -1710,6 +1954,10 @@ export const {
   useToDescriptionMutation,
   useGetDevicesQuery,
   useLazyGetDevicesQuery,
+  useGetAudioStatusesQuery,
+  useLazyGetAudioStatusesQuery,
+  useGetAudioJobStatusQuery,
+  useLazyGetAudioJobStatusQuery,
   useGetPerformanceStatusesQuery,
   useLazyGetPerformanceStatusesQuery,
   useGetPerformanceJobStatusQuery,
@@ -1799,4 +2047,14 @@ export const {
   useGetCameraQuery,
   useLazyGetCameraQuery,
   useLoadCameraProfilesMutation,
+  useListAudioPipelinesVoicePipelinesGetQuery,
+  useLazyListAudioPipelinesVoicePipelinesGetQuery,
+  useRunAudioPipelineVoicePipelinesPipelineIdRunsPostMutation,
+  useRunAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPostMutation,
+  useGetAudioPipelineJobVoiceJobsJobIdGetQuery,
+  useLazyGetAudioPipelineJobVoiceJobsJobIdGetQuery,
+  useGetAudioPipelineArtifactVoiceJobsJobIdArtifactGetQuery,
+  useLazyGetAudioPipelineArtifactVoiceJobsJobIdArtifactGetQuery,
+  useTranscribeVoiceMutation,
+  useSynthesizeVoiceMutation,
 } = injectedRtkApi;
