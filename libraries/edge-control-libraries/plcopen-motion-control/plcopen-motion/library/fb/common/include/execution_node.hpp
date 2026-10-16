@@ -57,6 +57,12 @@ public:
   void setEndPos(mcLREAL pos);
   void setReplan();
   void setVelocity(mcLREAL velocity);
+  void prepareBlendEntry(mcLREAL position, mcLREAL velocity,
+                         mcLREAL acceleration);
+  void scheduleBlendReplan(mcLREAL current_position, mcLREAL current_velocity,
+                           mcLREAL end_velocity);
+  void applyBlendReplanIfDue(mcLREAL position, mcLREAL velocity,
+                             mcLREAL acceleration);
   void offsetFB(mcLREAL home_pos);
   void setPosDoneFactor(mcLREAL factor);
   void setVelDoneFactor(mcLREAL factor);
@@ -133,17 +139,17 @@ protected:
   mcBOOL need_plan_;
   mcLREAL pos_done_factor_;
   mcLREAL vel_done_factor_;
-  // Tracks the previous cycle's position error so checkMissionDone() can
-  // detect a target crossing that skipped the (fixed, narrow) done-tolerance
-  // band entirely within a single control cycle. See docs/07-blending-bug.md.
-  mcLREAL prev_pos_err_    = 0;
-  bool has_prev_pos_err_   = false;
   MC_MOTION_MODE motion_mode_;
   OverrideFactors override_factors_ = {};
 
   mcLREAL node_freq_;
   mcLREAL node_delta_time_;
   mcLREAL node_active_time_;
+  // Deferred outgoing blend trigger; NAN means no replan is pending.
+  mcLREAL blend_replan_position_;
+  // Original target saved while an overspeed entry uses a temporary endpoint.
+  mcLREAL blend_resume_position_;
+  mcLREAL blend_resume_velocity_;
 
   // Trajectory generator variables
   trajectory_processing::AxisPlanner planner_;
