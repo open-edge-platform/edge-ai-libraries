@@ -1,0 +1,33 @@
+
+validate_openvino () {
+  if [[ " $* " = *" --validate "* ]]; then
+    [ -r "$workspace"/${model##*/} ] || {
+      mkdir -p "$workspace"
+      ensure_fetch "$model" "$workspace"/${model##*/} || {
+        echo "Failed to fetch ${model##*/}" >&2
+        return 3
+      }
+    }
+    local benchmark_app="$(find "$workspace" -type f -name benchmark_app -perm -u+x || true)"
+    [ -x "$benchmark_app" ] || {
+      mkdir -p "$workspace"/benchmark_app
+      cd "$workspace"/benchmark_app
+      cmake -S /usr/share/openvino/samples/cpp -B . -DCMAKE_BUILD_TYPE=Release
+      cmake --build . --target benchmark_app -j
+
+      benchmark_app="$(find "$workspace" -type f -name benchmark_app -perm -u+x || true)"
+      [ -x "$benchmark_app" ] || {
+        echo "Failed to build benchmark_app" >&2
+        return 3
+      }
+    }
+    local validated=()
+    for device in CPU GPU NPU; do
+      echo "Validating ${model##*/} inferencing on $device..."
+      "$benchmark_app" -t 5 -m "$workspace"/${model##*/} -d $device && validated+=("$device ok") || validated+=("$device failed")
+    done
+    echo "Validation: ${validated[*]}"
+    [[ " ${validated[*]} " != *failed* ]] || return 3
+  fi
+}
+
