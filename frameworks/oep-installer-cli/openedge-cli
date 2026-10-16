@@ -280,7 +280,13 @@ subcommand_bootstrap () {
     for p in ${!known[*]}; do
       for d in ${depsof[$p]}; do [ "$d" = "$p" ] || echo "$d $p"; done
     done | tsort > /dev/null || bad=1
-    [ $bad -eq 0 ] || exit 3
+    if [ $bad -eq 0 ]; then
+      echo "OK"
+      exit 0
+    else
+      echo "Failed"
+      exit 3
+    fi
   fi
 
   # construct final installer
