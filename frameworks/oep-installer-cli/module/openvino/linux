@@ -26,7 +26,7 @@ validate_openvino () {
       echo "Validating ${model##*/} inferencing on $device..."
       "$benchmark_app" -t 5 -m "$workspace"/${model##*/} -d $device && validated+=("$device ok") || validated+=("$device failed")
     done
-    echo "Validation: ${validated[*]}"
+    echo "@@HIGHLIGHT Validation: ${validated[*]}"
     [[ " ${validated[*]} " != *failed* ]] || return 3
   fi
 }

@@ -56,7 +56,7 @@ validate_dlstreamer () {
         )
       ) && validated+=("$device ok") || validated+=("$device failed")
     done
-    echo "Validation: ${validated[*]}"
+    echo "@@HIGHLIGHT Validation: ${validated[*]}"
     [[ " ${validated[*]} " != *failed* ]] || return 3
   fi
 }
