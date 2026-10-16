@@ -150,6 +150,7 @@ class StopPipelineResponse(BaseModel):
 
 class ValidateRequest(BaseModel):
     pipeline: str
+    timeout: Optional[int] = Field(default=30, description="Timeout in seconds for the validation request")
 
 
 class ValidateResponse(BaseModel):

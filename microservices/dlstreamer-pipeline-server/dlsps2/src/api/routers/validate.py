@@ -37,7 +37,7 @@ async def validate_pipeline(request: ValidateRequest):
     """
     if not request.pipeline.strip():
         raise HTTPException(status_code=400, detail="pipeline must not be empty")
-    validation_id = _get_manager().validate(request.pipeline)
+    validation_id = _get_manager().validate(request.pipeline, request.timeout)
     return {"validation_id": validation_id}
 
 

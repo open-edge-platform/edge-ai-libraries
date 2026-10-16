@@ -52,13 +52,19 @@ authoritative schema for the version you are running:
 - Instance IDs are UUID strings, for example
   `3f1c0d2e-8a4b-4d6c-9e1f-2a3b4c5d6e7f`.
 - `POST` start endpoints return a JSON object `{"instance_id": "<uuid>"}`.
-- Status responses include a new `frame_fps` field. They do not include
-  `avg_pipeline_latency`, which 2.0 does not track yet.
+- Status responses include new fields:
+  - `frame_fps`: Current (instantaneous) frames per second.
+  - `first_frame_time`: Unix epoch time when the first frame was received.
+  - They do not include `avg_pipeline_latency`, which 2.0 does not track yet.
+- Automatic pipeline restart on error or EOS is new. Pass `restart_config` in the
+  start request to enable it with configurable max attempts and backoff delay.
+- Pipeline instances can now be in the `RESTARTING` state (waiting for backoff before
+  an automatic restart attempt).
 - 2.0 does not implement the following 1.0 endpoints:
   - `POST /pipelines/{name}/{version}/{instance_id}`: `image_ingestor` requests.
   - `POST /pipelines/{name}/{version}/{instance_id}/models`: model registry deployment.
-- `DELETE /pipelines/{instance_id}` stops `RUNNING` instances only. It does not
-  cancel `QUEUED` instances.
+- `DELETE /pipelines/{instance_id}` now works on both `RUNNING` and `RESTARTING` instances.
+  It does not cancel `QUEUED` instances.
 
 ## Pipeline Instance Lifecycle
 
@@ -73,12 +79,17 @@ stateDiagram-v2
     RUNNING --> COMPLETED: end of stream
     RUNNING --> ERROR: runtime error
     RUNNING --> ABORTED: DELETE /pipelines/{instance_id}
+    RUNNING --> RESTARTING: error or EOS, restart enabled
+    RESTARTING --> RUNNING: restart attempt submitted
+    RESTARTING --> ERROR: max attempts reached
+    RESTARTING --> ABORTED: DELETE /pipelines/{instance_id}
 ```
 
 | State | Description |
 |-------|-------------|
 | `QUEUED` | The instance was accepted and is being validated or submitted to the worker. |
 | `RUNNING` | The pipeline is playing. |
+| `RESTARTING` | The pipeline stopped or errored, and automatic restart is scheduled (waiting for backoff delay). |
 | `COMPLETED` | The pipeline reached end of stream. |
 | `ERROR` | Validation or execution failed. The `message` field contains the error. |
 | `ABORTED` | A client stopped the pipeline with `DELETE /pipelines/{instance_id}`. |
@@ -168,13 +179,19 @@ string exactly as submitted.
 | `validate_pipeline` | boolean | No | `true` | Whether to validate the pipeline before starting. Set to `false` to skip validation. |
 | `cpu_cores` | array[int] | No | - | CPU core indices to pin this pipeline to (e.g., `[0, 1, 2]`). |
 | `warmup_frames` | integer | No | `0` | Number of frames to warm up before reporting FPS. |
+| `restart_config` | [RestartConfig](#restartconfig) | No | - | Configuration for automatic pipeline restart on error or EOS. |
 
 ```json
 {
   "pipeline": "filesrc location=/home/pipeline-server/resources/videos/sample.mp4 ! decodebin3 ! gvadetect model=/home/pipeline-server/resources/models/yolo/model.xml device=CPU ! gvametaconvert ! gvametapublish method=file file-path=/tmp/results.jsonl file-format=json-lines ! fakesink sync=false",
   "validate_pipeline": true,
   "cpu_cores": null,
-  "warmup_frames": 0
+  "warmup_frames": 0,
+  "restart_config": {
+    "enabled": true,
+    "max_attempts": 5,
+    "backoff_seconds": 30
+  }
 }
 ```
 
@@ -214,6 +231,21 @@ curl -X POST http://localhost:8080/pipelines \
 curl -X POST http://localhost:8080/pipelines \
   -H 'Content-Type: application/json' \
   -d '{"pipeline": "videotestsrc num-buffers=300 ! videoconvert ! fakesink", "validate_pipeline": false}'
+```
+
+**Enable automatic restart on error or EOS:**
+```bash
+curl -X POST http://localhost:8080/pipelines \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "pipeline": "filesrc location=/tmp/video.mp4 ! decodebin3 ! fakesink",
+    "validate_pipeline": true,
+    "restart_config": {
+      "enabled": true,
+      "max_attempts": 5,
+      "backoff_seconds": 30
+    }
+  }'
 ```
 
 ---
@@ -383,9 +415,11 @@ curl http://localhost:8080/pipelines/3f1c0d2e-8a4b-4d6c-9e1f-2a3b4c5d6e7f/status
 
 ## `DELETE` /pipelines/{instance_id}
 
-Requests a graceful stop of a running pipeline instance. The instance state
+Requests a graceful stop of a running or restarting pipeline instance. The instance state
 changes to `ABORTED` immediately, and the shared worker then tears down the
-pipeline. Other running pipelines are not affected.
+pipeline. Other running pipelines are not affected. If the pipeline is in `RESTARTING` state
+(waiting for the backoff delay before an automatic restart), this endpoint will cancel the
+pending restart.
 
 ### Path Parameters
 
@@ -413,7 +447,7 @@ pipeline. Other running pipelines are not affected.
 
 #### `409 Conflict`
 
-Returned when the instance is not `RUNNING`, for example when it is `QUEUED`,
+Returned when the instance is not `RUNNING` or `RESTARTING`, for example when it is `QUEUED`,
 `COMPLETED`, `ERROR`, or already `ABORTED`.
 
 ```json
@@ -511,6 +545,18 @@ curl http://localhost:8080/elements/gvadetect
 | Field | Type | Required | Default | Description |
 |-------|------|:--------:|---------|-------------|
 | `pipeline` | string | Yes | - | GStreamer launch string. |
+| `validate_pipeline` | boolean | No | `true` | Whether to validate the pipeline before starting. |
+| `cpu_cores` | array[int] | No | - | CPU core indices to pin this pipeline to. |
+| `warmup_frames` | integer | No | `0` | Number of frames to warm up before reporting FPS. |
+| `restart_config` | [RestartConfig](#restartconfig) | No | - | Configuration for automatic pipeline restart on error or EOS. |
+
+### RestartConfig
+
+| Field | Type | Required | Default | Description |
+|-------|------|:--------:|---------|-------------|
+| `enabled` | boolean | Yes | - | Whether to enable automatic restart. |
+| `max_attempts` | integer | No | `5` | Maximum number of restart attempts. |
+| `backoff_seconds` | integer | No | `30` | Seconds to wait between restart attempts. |
 
 ### StartPipelineResponse
 
@@ -529,7 +575,7 @@ curl http://localhost:8080/elements/gvadetect
 | Field | Type | Description |
 |-------|------|-------------|
 | `id` | string | Instance UUID. |
-| `state` | string | One of `QUEUED`, `RUNNING`, `COMPLETED`, `ERROR`, `ABORTED`. |
+| `state` | string | One of `QUEUED`, `RUNNING`, `RESTARTING`, `COMPLETED`, `ERROR`, `ABORTED`. |
 | `avg_fps` | number | Average frames per second since the pipeline started. |
 | `frame_fps` | number | Current (instantaneous) frames per second. |
 | `start_time` | number or null | Unix epoch start time in seconds. `null` until the instance is running. |

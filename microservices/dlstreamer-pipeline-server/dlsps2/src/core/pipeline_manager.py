@@ -71,6 +71,7 @@ class ValidationTicket:
 
     validation_id: str
     pipeline_description: str
+    timeout: int = 30  # Timeout in seconds for the validation request
     state: ValidationState = ValidationState.QUEUED
     message: Optional[str] = None  # error reason if state is INVALID
     submitted_time: Optional[float] = None
@@ -288,7 +289,7 @@ class PipelineManager:
         with self._lock:
             return [i for i in self._instances.values() if i.state == PipelineState.RUNNING]
 
-    def validate(self, pipeline_description: str) -> str:
+    def validate(self, pipeline_description: str, timeout: int = 30) -> str:
         """Start validation of a pipeline in the background.
 
         Returns immediately with a validation_id; the validation runs on
@@ -296,6 +297,7 @@ class PipelineManager:
 
         Args:
             pipeline_description: GStreamer pipeline string.
+            timeout: Timeout in seconds for the validation request.
 
         Returns:
             validation_id (UUID string) assigned to this validation.
@@ -305,6 +307,7 @@ class PipelineManager:
             validation_id=validation_id,
             pipeline_description=pipeline_description,
             submitted_time=time.time(),
+            timeout=timeout,
         )
 
         with self._lock:
@@ -345,7 +348,7 @@ class PipelineManager:
         logger.debug("Processing pipeline %s (validate=%s)", instance.instance_id, instance.validate)
         if instance.validate:
             logger.info("Validating pipeline %s before submission", instance.instance_id)
-            ok, reason = self._validate(instance.pipeline_description)
+            ok, reason = self._validate(instance.pipeline_description, _VALIDATION_SUBPROCESS_TIMEOUT_SECONDS)
         else:
             logger.info("Skipping validation for pipeline %s before submission", instance.instance_id)
             ok, reason = True, None
@@ -390,7 +393,7 @@ class PipelineManager:
             logger.error("Pipeline %s failed to submit to worker", instance.instance_id)
 
     @staticmethod
-    def _validate(pipeline_description: str) -> Tuple[bool, Optional[str]]:
+    def _validate(pipeline_description: str, timeout: int = 30) -> Tuple[bool, Optional[str]]:
         """Run gst_validator.py in its own short-lived subprocess.
 
         Returns:
@@ -412,7 +415,7 @@ class PipelineManager:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                timeout=_VALIDATION_SUBPROCESS_TIMEOUT_SECONDS,
+                timeout=timeout,
             )
         except subprocess.TimeoutExpired:
             return False, "validation subprocess timed out"
@@ -444,7 +447,7 @@ class PipelineManager:
     def _run_validation(self, ticket: ValidationTicket) -> None:
         """Background-thread body: run validation on a ticket."""
         logger.debug("Validating pipeline %s", ticket.validation_id)
-        ok, reason = self._validate(ticket.pipeline_description)
+        ok, reason = self._validate(ticket.pipeline_description, ticket.timeout)
 
         with self._lock:
             if ok:
