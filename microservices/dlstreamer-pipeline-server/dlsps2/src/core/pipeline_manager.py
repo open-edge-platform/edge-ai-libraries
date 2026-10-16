@@ -58,12 +58,30 @@ class PipelineState(str, Enum):
     ABORTED = "ABORTED"
 
 
+class ValidationState(str, Enum):
+    QUEUED = "QUEUED"
+    VALID = "VALID"
+    INVALID = "INVALID"
+
+
+@dataclass
+class ValidationTicket:
+    """Represents a single pipeline validation request."""
+
+    validation_id: str
+    pipeline_description: str
+    state: ValidationState = ValidationState.QUEUED
+    message: Optional[str] = None  # error reason if state is INVALID
+    submitted_time: Optional[float] = None
+
+
 @dataclass
 class PipelineInstance:
     """Represents a single running or completed pipeline instance."""
 
     instance_id: str
     pipeline_description: str
+    validate: bool = True
     state: PipelineState = PipelineState.QUEUED
     error: Optional[str] = None
 
@@ -85,6 +103,7 @@ class PipelineInstance:
 
     # CPU affinity: list of core indices to pin this pipeline to, or None for unpinned
     cpu_cores: Optional[List[int]] = None
+    warmup_frames: Optional[int] = 0
 
     def elapsed_time(self) -> Optional[float]:
         if self.start_time is None:
@@ -152,6 +171,7 @@ class PipelineManager:
 
     def __init__(self) -> None:
         self._instances: Dict[str, PipelineInstance] = {}
+        self._validations: Dict[str, ValidationTicket] = {}
         self._lock = threading.RLock()
 
         # Worker pool: manages multiple gst_worker subprocesses keyed by CPU affinity
@@ -166,10 +186,12 @@ class PipelineManager:
         self,
         pipeline_description: str,
         *,
+        validate: Optional[bool] = True,
         name: Optional[str] = None,
         version: Optional[str] = None,
         request: Optional[dict] = None,
         cpu_cores: Optional[List[int]] = None,
+        warmup_frames: Optional[int] = 0,
     ) -> str:
         """Validate and submit a new pipeline instance.
 
@@ -194,10 +216,12 @@ class PipelineManager:
         instance = PipelineInstance(
             instance_id=instance_id,
             pipeline_description=pipeline_description,
+            validate=validate,
             name=name,
             version=version,
             request=request,
             cpu_cores=cpu_cores,
+            warmup_frames=warmup_frames,
         )
 
         with self._lock:
@@ -211,7 +235,8 @@ class PipelineManager:
         )
         thread.start()
 
-        logger.info("Submitted pipeline instance %s for validation", instance_id)
+        validation_status = "validation enabled" if validate else "validation skipped"
+        logger.info("Submitted pipeline instance %s (%s)", instance_id, validation_status)
         return instance_id
 
     def stop(self, instance_id: str) -> bool:
@@ -253,6 +278,49 @@ class PipelineManager:
         with self._lock:
             return [i for i in self._instances.values() if i.state == PipelineState.RUNNING]
 
+    def validate(self, pipeline_description: str) -> str:
+        """Start validation of a pipeline in the background.
+
+        Returns immediately with a validation_id; the validation runs on
+        a background thread and the result can be polled via get_validation().
+
+        Args:
+            pipeline_description: GStreamer pipeline string.
+
+        Returns:
+            validation_id (UUID string) assigned to this validation.
+        """
+        validation_id = str(uuid.uuid4())
+        ticket = ValidationTicket(
+            validation_id=validation_id,
+            pipeline_description=pipeline_description,
+            submitted_time=time.time(),
+        )
+
+        with self._lock:
+            self._validations[validation_id] = ticket
+
+        thread = threading.Thread(
+            target=self._run_validation,
+            args=(ticket,),
+            name=f"validate-{validation_id[:8]}",
+            daemon=True,
+        )
+        thread.start()
+
+        logger.info("Submitted validation request %s", validation_id)
+        return validation_id
+
+    def get_validation(self, validation_id: str) -> Optional[ValidationTicket]:
+        """Return the validation ticket for the given ID, or None if not found."""
+        with self._lock:
+            return self._validations.get(validation_id)
+
+    def list_validations(self) -> list[ValidationTicket]:
+        """Return a snapshot of all validations."""
+        with self._lock:
+            return list(self._validations.values())
+
     def shutdown(self) -> None:
         """Shut down all worker processes. Call this on application shutdown."""
         self._shutting_down.set()
@@ -264,8 +332,13 @@ class PipelineManager:
 
     def _validate_and_submit(self, instance: PipelineInstance) -> None:
         """Background-thread body: validate, then submit to the appropriate worker."""
-        logger.debug("Validating pipeline %s before submission", instance.instance_id)
-        ok, reason = self._validate(instance.pipeline_description)
+        logger.debug("Processing pipeline %s (validate=%s)", instance.instance_id, instance.validate)
+        if instance.validate:
+            logger.info("Validating pipeline %s before submission", instance.instance_id)
+            ok, reason = self._validate(instance.pipeline_description)
+        else:
+            logger.info("Skipping validation for pipeline %s before submission", instance.instance_id)
+            ok, reason = True, None
 
         if not ok:
             with self._lock:
@@ -286,14 +359,17 @@ class PipelineManager:
             {
                 "cmd": "start",
                 "pipeline": instance.pipeline_description,
+                "warmup_frames": instance.warmup_frames,
             },
             cpu_cores=instance.cpu_cores,
         )
 
         if success:
+            validation_status = "passed validation" if instance.validate else "submitted (validation skipped)"
             logger.info(
-                "Pipeline %s passed validation and was submitted to gst_worker (affinity: %s)",
+                "Pipeline %s %s to gst_worker (affinity: %s)",
                 instance.instance_id,
+                validation_status,
                 instance.cpu_cores,
             )
         else:
@@ -354,6 +430,21 @@ class PipelineManager:
                     reason = line.strip()
                     break
         return False, reason or f"validator exited with code {result.returncode}"
+
+    def _run_validation(self, ticket: ValidationTicket) -> None:
+        """Background-thread body: run validation on a ticket."""
+        logger.debug("Validating pipeline %s", ticket.validation_id)
+        ok, reason = self._validate(ticket.pipeline_description)
+
+        with self._lock:
+            if ok:
+                ticket.state = ValidationState.VALID
+                ticket.message = ""
+                logger.info("Pipeline %s validation PASSED", ticket.validation_id)
+            else:
+                ticket.state = ValidationState.INVALID
+                ticket.message = reason or "validation failed"
+                logger.warning("Pipeline %s validation FAILED: %s", ticket.validation_id, reason)
 
     # ------------------------------------------------------------------
     # ------------------------------------------------------------------

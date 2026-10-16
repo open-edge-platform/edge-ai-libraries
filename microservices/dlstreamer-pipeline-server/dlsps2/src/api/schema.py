@@ -23,7 +23,9 @@ def _validate_cpu_cores(value: Optional[List[int]]) -> Optional[List[int]]:
 
 class StartPipelineRequest(BaseModel):
     pipeline: str
+    validate_pipeline: Optional[bool] = Field(default=True, description="Whether to validate the pipeline before starting")
     cpu_cores: Optional[List[int]] = None  # CPU core indices to pin this pipeline to (e.g., [0, 1, 2])
+    warmup_frames: Optional[int] = Field(default=0, description="Number of frames to warm up the FPS counter before reporting")
 
     _check_cpu_cores = field_validator("cpu_cores")(_validate_cpu_cores)
 
@@ -134,3 +136,21 @@ class StartPipelineResponse(BaseModel):
 
 class StopPipelineResponse(BaseModel):
     instance_id: str
+
+
+# ---------------------------------------------------------------------------
+# Validation
+# ---------------------------------------------------------------------------
+
+class ValidateRequest(BaseModel):
+    pipeline: str
+
+
+class ValidateResponse(BaseModel):
+    validation_id: str
+
+
+class ValidationStatus(BaseModel):
+    validation_id: str
+    state: str  # One of: QUEUED, VALID, INVALID
+    message: str  # error reason if state is INVALID, otherwise empty string

@@ -39,6 +39,9 @@ authoritative schema for the version you are running:
 | `GET` | [/pipelines/{instance_id}](#get-pipelinesinstance_id) | Return the status and configuration of a pipeline instance. | |
 | `GET` | [/pipelines/{instance_id}/status](#get-pipelinesinstance_idstatus) | Return the status of a pipeline instance. | |
 | `DELETE` | [/pipelines/{instance_id}](#delete-pipelinesinstance_id) | Stop a running pipeline instance. | |
+| `POST` | [/validate](#post-validate) | Validate a pipeline without starting it. | Yes |
+| `GET` | [/validate/status](#get-validatestatus) | Return the status of all validation requests. | Yes |
+| `GET` | [/validate/status/{validation_id}](#get-validatestatusvalidation_id) | Return the status of a specific validation request. | Yes |
 
 ### Differences from DLSPS 1.0
 
@@ -157,13 +160,19 @@ string exactly as submitted.
 
 ### Request Body: [StartPipelineRequest](#startpipelinerequest)
 
-| Field | Type | Required | Description |
-|-------|------|:--------:|-------------|
-| `pipeline` | string | Yes | GStreamer launch string. Must not be empty or whitespace-only. |
+| Field | Type | Required | Default | Description |
+|-------|------|:--------:|---------|-------------|
+| `pipeline` | string | Yes | - | GStreamer launch string. Must not be empty or whitespace-only. |
+| `validate_pipeline` | boolean | No | `true` | Whether to validate the pipeline before starting. Set to `false` to skip validation. |
+| `cpu_cores` | array[int] | No | - | CPU core indices to pin this pipeline to (e.g., `[0, 1, 2]`). |
+| `warmup_frames` | integer | No | `0` | Number of frames to warm up before reporting FPS. |
 
 ```json
 {
-  "pipeline": "filesrc location=/home/pipeline-server/resources/videos/sample.mp4 ! decodebin3 ! gvadetect model=/home/pipeline-server/resources/models/yolo/model.xml device=CPU ! gvametaconvert ! gvametapublish method=file file-path=/tmp/results.jsonl file-format=json-lines ! fakesink sync=false"
+  "pipeline": "filesrc location=/home/pipeline-server/resources/videos/sample.mp4 ! decodebin3 ! gvadetect model=/home/pipeline-server/resources/models/yolo/model.xml device=CPU ! gvametaconvert ! gvametapublish method=file file-path=/tmp/results.jsonl file-format=json-lines ! fakesink sync=false",
+  "validate_pipeline": true,
+  "cpu_cores": null,
+  "warmup_frames": 0
 }
 ```
 
@@ -189,12 +198,20 @@ string exactly as submitted.
 
 Returned when the `pipeline` field is missing or is not a string.
 
-### Example
+### Examples
 
+**Basic request (validation enabled by default):**
 ```bash
 curl -X POST http://localhost:8080/pipelines \
   -H 'Content-Type: application/json' \
   -d '{"pipeline": "videotestsrc num-buffers=300 ! videoconvert ! fakesink"}'
+```
+
+**Skip validation for a pipeline:**
+```bash
+curl -X POST http://localhost:8080/pipelines \
+  -H 'Content-Type: application/json' \
+  -d '{"pipeline": "videotestsrc num-buffers=300 ! videoconvert ! fakesink", "validate_pipeline": false}'
 ```
 
 ---
@@ -464,3 +481,146 @@ Contains all [PipelineStatus](#pipelinestatus) fields plus the following:
 | `type` | string | Always `GStreamer`. |
 | `description` | string | Always `DL Streamer Pipeline Server pipeline`. |
 | `parameters` | object or null | The pipeline's `parameters` JSON Schema fragment from `config.json`, with `null` fields omitted. |
+
+---
+
+## `POST` /validate
+
+**New in 2.0.** Validates a GStreamer pipeline without starting it. The validation
+runs in the background; poll `GET /validate/status/{validation_id}` for the result.
+
+### Request Body: [ValidateRequest](#validaterequest)
+
+| Field | Type | Required | Description |
+|-------|------|:--------:|-------------|
+| `pipeline` | string | Yes | GStreamer launch string. Must not be empty or whitespace-only. |
+
+```json
+{
+  "pipeline": "videotestsrc num-buffers=300 ! videoconvert ! fakesink"
+}
+```
+
+### Responses
+
+#### `200 OK`: [ValidateResponse](#validateresponse)
+
+```json
+{
+  "validation_id": "3f1c0d2e-8a4b-4d6c-9e1f-2a3b4c5d6e7f"
+}
+```
+
+#### `400 Bad Request`
+
+```json
+{
+  "detail": "pipeline must not be empty"
+}
+```
+
+### Example
+
+```bash
+curl -X POST http://localhost:8080/validate \
+  -H 'Content-Type: application/json' \
+  -d '{"pipeline": "videotestsrc ! videoconvert ! fakesink"}'
+```
+
+---
+
+## `GET` /validate/status
+
+Returns the status of all validation requests.
+
+### Responses
+
+#### `200 OK`: array of [ValidationStatus](#validationstatus)
+
+```json
+[
+  {
+    "validation_id": "3f1c0d2e-8a4b-4d6c-9e1f-2a3b4c5d6e7f",
+    "state": "VALID",
+    "message": ""
+  },
+  {
+    "validation_id": "9b2e7a10-4c3d-4f5e-8a6b-1c2d3e4f5a6b",
+    "state": "QUEUED",
+    "message": ""
+  },
+  {
+    "validation_id": "5d7e8f9a-1b2c-3d4e-5f6a-7b8c9d0e1f2a",
+    "state": "INVALID",
+    "message": "no element \"badelement\""
+  }
+]
+```
+
+### Example
+
+```bash
+curl http://localhost:8080/validate/status
+```
+
+---
+
+## `GET` /validate/status/{validation_id}
+
+Returns the status of a specific validation request.
+
+### Path Parameters
+
+| Name | Type | Required | Description |
+|------|------|:--------:|-------------|
+| `validation_id` | string | Yes | Validation request identifier (UUID). |
+
+### Responses
+
+#### `200 OK`: [ValidationStatus](#validationstatus)
+
+```json
+{
+  "validation_id": "3f1c0d2e-8a4b-4d6c-9e1f-2a3b4c5d6e7f",
+  "state": "VALID",
+  "message": ""
+}
+```
+
+#### `404 Not Found`
+
+```json
+{
+  "detail": "Validation '3f1c0d2e-8a4b-4d6c-9e1f-2a3b4c5d6e7f' not found"
+}
+```
+
+### Example
+
+```bash
+curl http://localhost:8080/validate/status/3f1c0d2e-8a4b-4d6c-9e1f-2a3b4c5d6e7f
+```
+
+---
+
+## Validation Schemas
+
+### ValidateRequest
+
+| Field | Type | Required | Default | Description |
+|-------|------|:--------:|---------|-------------|
+| `pipeline` | string | Yes | - | GStreamer launch string. |
+
+### ValidateResponse
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `validation_id` | string | UUID of the validation request. |
+
+### ValidationStatus
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `validation_id` | string | Validation request UUID. |
+| `state` | string | One of `QUEUED`, `VALID`, `INVALID`. |
+| `message` | string | Error reason if state is `INVALID`. Otherwise empty string. |

@@ -138,7 +138,7 @@ async def run_pipeline(request: StartPipelineRequest):
     """
     if not request.pipeline.strip():
         raise HTTPException(status_code=400, detail="pipeline must not be empty")
-    instance_id = _get_manager().start(request.pipeline, cpu_cores=request.cpu_cores)
+    instance_id = _get_manager().start(request.pipeline, validate=request.validate_pipeline, cpu_cores=request.cpu_cores, warmup_frames=request.warmup_frames)
     return {"instance_id": instance_id}
 
 
@@ -211,5 +211,4 @@ async def run_named_pipeline(
 
     instance_id = start_named_pipeline(pipeline_cfg, name=name, version=version, request=request)
     return {"instance_id": instance_id}
-
 
