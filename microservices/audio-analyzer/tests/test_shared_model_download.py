@@ -15,7 +15,7 @@ from utils.model_download_client import get_model_from_service
 class SharedModelTests(unittest.TestCase):
     def test_openvino_exports_locally_downloaded_hf_snapshot(self):
         with tempfile.TemporaryDirectory() as base, \
-             patch.object(ensure_model, "_ir_exists", side_effect=[False, True]), \
+             patch.object(ensure_model, "_whisper_ir_exists", side_effect=[False, True]), \
              patch.object(ensure_model, "get_model_from_service", return_value="/shared/whisper") as fetch, \
              patch.object(ensure_model, "run_cli", return_value=0) as run:
             success, _ = ensure_model._download_openvino_model("openai/whisper-base", base, None)
@@ -25,6 +25,23 @@ class SharedModelTests(unittest.TestCase):
             required_files=["config.json"],
         )
         self.assertEqual(run.call_args.kwargs["cmd"][run.call_args.kwargs["cmd"].index("--model") + 1], "/shared/whisper")
+        self.assertEqual(
+            run.call_args.kwargs["cmd"][run.call_args.kwargs["cmd"].index("--task") + 1],
+            "automatic-speech-recognition-with-past",
+        )
+
+    def test_whisper_ir_rejects_decoder_without_beam_index(self):
+        with tempfile.TemporaryDirectory() as base, \
+             patch.object(ensure_model, "_ir_exists", return_value=True), \
+             patch("openvino.Core") as core:
+            core.return_value.read_model.return_value.inputs = [
+                type("Port", (), {"get_names": lambda self: {"input_ids"}})()
+            ]
+            self.assertFalse(ensure_model._whisper_ir_exists(base))
+            core.return_value.read_model.return_value.inputs = [
+                type("Port", (), {"get_names": lambda self: {"beam_idx"}})()
+            ]
+            self.assertTrue(ensure_model._whisper_ir_exists(base))
 
     def test_whispercpp_uses_single_requested_file(self):
         with tempfile.TemporaryDirectory() as base, tempfile.TemporaryDirectory() as source:

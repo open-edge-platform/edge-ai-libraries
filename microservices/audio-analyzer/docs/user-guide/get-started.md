@@ -46,7 +46,8 @@ unreachable, the job fails, or the models are not accessible on that volume.
 Whisper and pyannote are fetched by the same downloader from their existing
 sources (Hugging Face for OpenVINO Whisper source, whisper.cpp, and pyannote;
 official OpenAI checkpoints for native Whisper). OpenVINO conversion still
-runs locally in Audio Analyzer, using the downloaded source snapshot. For
+runs locally in Audio Analyzer, using the downloaded source snapshot and the
+past-aware ASR export required by OpenVINO GenAI. For
 gated pyannote, configure `HF_TOKEN` on **both** containers; the downloader
 uses it to fetch the snapshot. An explicit `models.asr.hf_token` override is
 passed to the downloader for pyannote requests; only use HTTPS if the service

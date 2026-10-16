@@ -52,7 +52,7 @@ COPY src /opt/src
 COPY .github/skills/model-download-user /opt/.github/skills/model-download-user
 COPY scripts /opt/scripts
 COPY requirements /opt/requirements
-COPY pyproject.toml /opt/
+COPY pyproject.toml uv.lock /opt/
 COPY docs/user-guide/_assets/openapi.yaml /opt/docs/user-guide/_assets/openapi.yaml
 
 WORKDIR /opt

@@ -127,8 +127,8 @@ install_dependencies() {
             fi
             echo "0" > "${status_file}"
             ;;
-        huggingface)
-            echo -e "${BLUE}INFO:${NC} HuggingFace dependencies will be installed via uv sync"
+        huggingface|modelscope|openai-whisper)
+            echo -e "${BLUE}INFO:${NC} ${plugin} dependencies will be installed via uv sync"
             echo "0" > "${status_file}"
             ;;
         ollama)
@@ -367,15 +367,16 @@ cd /opt
 # ollama to PATH if it's not already there
 export PATH="/opt/bin/:$PATH"
 
-# Generate a lockfile so per-plugin venv syncs below can resolve packages from
-# the current pyproject.toml and any declared extras/conflicts.
-print_info "Generating lockfile..."
-if ! uv lock; then
-    print_warning "Failed to generate lockfile; plugin venvs may be incomplete"
+# Use the checked-in lockfile rather than re-resolving every optional plugin
+# from the network on each container start.
+print_info "Checking lockfile..."
+if ! uv lock --check --offline; then
+    print_error "The bundled lockfile is missing or out of date"
+    exit 1
 fi
 
 print_info "Installing core dependencies from pyproject.toml..."
-if ! uv sync --no-dev; then
+if ! uv sync --locked --no-dev; then
     print_error "Failed to sync base dependencies"
     exit 1
 fi
@@ -396,7 +397,7 @@ for plugin in "${ACTIVATED_PLUGIN_LIST[@]}"; do
     if [[ "$plugin" == "omz" ]]; then
         OMZ_VENV="/opt/.venv-omz"
         print_info "Creating isolated OMZ venv at ${OMZ_VENV} with openvino-dev==2024.6.0"
-        if UV_PROJECT_ENVIRONMENT="${OMZ_VENV}" uv sync --extra omz --no-dev; then
+        if UV_PROJECT_ENVIRONMENT="${OMZ_VENV}" uv sync --locked --extra omz --no-dev; then
             if uv pip install --python "${OMZ_VENV}/bin/python" -r /opt/requirements/omz.txt --index-url https://pypi.org/simple --extra-index-url https://download.pytorch.org/whl/cpu; then
                 if "${OMZ_VENV}/bin/omz_downloader" --help > /dev/null 2>&1; then
                     print_success "OMZ venv created with openvino-dev and OMZ tools ready"
@@ -425,7 +426,7 @@ for plugin in "${ACTIVATED_PLUGIN_LIST[@]}"; do
     PLUGIN_VENV="/opt/.venv-${plugin}"
     print_info "Creating venv for plugin '${plugin}' at ${PLUGIN_VENV} ..."
 
-    if UV_PROJECT_ENVIRONMENT="${PLUGIN_VENV}" uv sync --extra "${plugin}" --no-dev; then
+    if UV_PROJECT_ENVIRONMENT="${PLUGIN_VENV}" uv sync --locked --extra "${plugin}" --no-dev; then
         print_success "Plugin venv created: ${plugin}"
 
         # For openvino with a custom OVMS release tag, also install the

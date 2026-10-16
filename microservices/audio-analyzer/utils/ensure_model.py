@@ -212,6 +212,14 @@ def _ir_exists(output_dir: str) -> bool:
     de_bin_file = os.path.join(output_dir, "openvino_decoder_model.bin")
     return (os.path.exists(xml_file) and os.path.exists(bin_file)) or (os.path.exists(en_xml_file) and os.path.exists(en_bin_file) and os.path.exists(de_xml_file) and os.path.exists(de_bin_file))
 
+def _whisper_ir_exists(output_dir: str) -> bool:
+    if not _ir_exists(output_dir):
+        return False
+    import openvino as ov
+
+    decoder = ov.Core().read_model(os.path.join(output_dir, "openvino_decoder_model.xml"))
+    return any("beam_idx" in port.get_names() for port in decoder.inputs)
+
 def _download_openvino_model(
     model_name: str,
     output_dir: str,
@@ -221,7 +229,9 @@ def _download_openvino_model(
     """Export a HuggingFace model to OpenVINO IR using optimum-cli."""
     os.makedirs(output_dir, exist_ok=True)
 
-    if not force and _ir_exists(output_dir):
+    is_whisper = model_name.startswith("openai/whisper-")
+    is_exported = _whisper_ir_exists if is_whisper else _ir_exists
+    if not force and is_exported(output_dir):
         logger.info(f"⚡ Using cached export at {output_dir}")
         return True, output_dir
 
@@ -235,11 +245,12 @@ def _download_openvino_model(
             model_name, hub="huggingface", download_path="whisper-source",
             required_files=["config.json"],
         )
-        if model_name.startswith("openai/whisper-") else model_name
+        if is_whisper else model_name
     )
     cmd = [
         sys.executable, "-m", "optimum.commands.optimum_cli", "export", "openvino",
         "--model", source_dir,
+        *(["--task", "automatic-speech-recognition-with-past"] if is_whisper else []),
         "--trust-remote-code",
         output_dir,
     ] + (["--weight-format", weight_format] if weight_format else [])
@@ -253,7 +264,7 @@ def _download_openvino_model(
         logger.error(f"❌ Export failed: {return_code}")
         return False, output_dir
 
-    success = _ir_exists(output_dir)
+    success = is_exported(output_dir)
     logger.info("✅ Export successful" if success else "❌ Export incomplete")
     return success, output_dir
 
