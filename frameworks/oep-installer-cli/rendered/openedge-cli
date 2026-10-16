@@ -1,11 +1,17 @@
 #!/bin/bash
 
 main () {
-  . /etc/os-release
-  ID_LIKE="$(echo "$ID_LIKE" | tr -cd 'a-zA-Z0-9')" # sanitize
+  if [ -z "$HOME" ]; then
+    echo "\$HOME must be set" >&2
+    return 3
+  fi
+
   red="\033[31m" green="\033[32m" yellow="\033[33m" reset="\033[0m"
   installer_name=openedge-cli
   installer_bin="$HOME/.local/bin/$installer_name"
+
+  . /etc/os-release
+  installer_family="$(x="${ID_LIKE:-$ID}";x="${x##* }";echo "${x//[^a-zA-Z0-9]/}")"
 
   local _globals=() _cmds=() _args=() cur=-1 v
   for v in "$@"; do
@@ -80,7 +86,7 @@ main () {
           for _dep in ${_deps[*]}; do
             _gf=${_dep/_install_/_group_}
             declare -F $_gf > /dev/null 2>&1 || continue
-            for _g in $($_gf $(act_extract_args group ${_dep#*_*_*_} "${_deps[*]#${ID_LIKE}_*_install_}" ${_resolved[*]})); do
+            for _g in $($_gf $(act_extract_args group ${_dep#*_*_*_} "${_deps[*]#${installer_family}_*_install_}" ${_resolved[*]})); do
               _groups["$_g"]=1
             done
           done
@@ -240,13 +246,13 @@ act_get ()
         ;;
         init)
             declare -g _act_cache_cmds=($(declare -F | grep -E " subcommand_" | grep -v -E 'subcommand_(list|setup)$' | cut -f2- -d_));
-            declare -g _act_cache_modules=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_($(IFS='|'; echo "${_act_cache_cmds[*]}"))_" | cut -f2,4- -d_ | sort | cut -f2- -d_ | awk '!seen[$0]++'));
+            declare -g _act_cache_modules=($(declare -F | grep -E " ${installer_family}_[0-9]+_($(IFS='|'; echo "${_act_cache_cmds[*]}"))_" | cut -f2,4- -d_ | sort | cut -f2- -d_ | awk '!seen[$0]++'));
             declare -gA _act_cache_functions=();
             local f rest;
             while read -r _ _ f; do
                 case $f in 
-                    "${ID_LIKE}_"*)
-                        rest=${f#"${ID_LIKE}_"};
+                    "${installer_family}_"*)
+                        rest=${f#"${installer_family}_"};
                         _act_cache_functions[${rest#*_}]=$f
                     ;;
                 esac;
@@ -267,13 +273,6 @@ act_helper ()
     local sort_options="$2";
     shift;
     shift;
-    if [[ " $* " = *" --help "* ]]; then
-        echo "${act_name} options:";
-        echo "  --dry-run       dry-run operations";
-        echo "  --continue      ignore errors and proceed to the end";
-        echo;
-        return 0;
-    fi;
     local mods_file="$(ensure_project_path)/$installer_name/modules";
     local explicit_mods="$(act_extract_modules $act_name "$@")";
     local remove_all=0;
@@ -314,7 +313,7 @@ act_helper ()
     if [ ${#handles[@]} -gt 0 ]; then
         if [ "$act_name" = "install" ]; then
             local -A licenses=() licenses_text=();
-            local all_install_modules="${handles[*]#${ID_LIKE}_*_install_}";
+            local all_install_modules="${handles[*]#${installer_family}_*_install_}";
             for licenser in ${handles[*]/_install_/_license_};
             do
                 if declare -F $licenser > /dev/null 2>&1; then
@@ -371,7 +370,7 @@ act_helper ()
                     [ "$order" -gt 0 ] || order=$order1;
                     [ "$order1" -ge "$order" ] || break;
                 fi;
-                local invoke_args="$(act_extract_args $act_name $name1 "${handles[*]#${ID_LIKE}_*_${act_name}_}" "$@")";
+                local invoke_args="$(act_extract_args $act_name $name1 "${handles[*]#${installer_family}_*_${act_name}_}" "$@")";
                 if [[ " $* " = *" --dry-run "* ]]; then
                     echo "@@COMP $name1";
                     echo "Invoke $handler with $invoke_args";
@@ -399,7 +398,7 @@ act_helper ()
             local scan_handler="${_act_cache_functions[${act_name}_pre_system_scan]:-}";
             if [[ " $* " != *" --dry-run "* && $rc -eq 0 && -n "$scan_handler" && " ${handles[*]} " = *" $scan_handler "* ]]; then
                 echo "@@REPORT SYSTEM SUMMARY";
-                $scan_handler $(act_extract_args $act_name pre_system_scan "${handles[*]#${ID_LIKE}_*_${act_name}_}" "$@");
+                $scan_handler $(act_extract_args $act_name pre_system_scan "${handles[*]#${installer_family}_*_${act_name}_}" "$@");
             fi
         } > >(LOG_FILE="$(ensure_project_path)/$installer_name/$(date +%m-%d-%Y).logs"
 mkdir -p "$(dirname "$LOG_FILE")"
@@ -2945,6 +2944,7 @@ configure_visual_search_question_and_answering ()
     version=release-2026.2.0;
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(17580 19530 9764 9990 6008 9777);
+    demo_dataset="https://data.vision.ee.ethz.ch/csergi/share/davis/DAVIS-2017-test-dev-480p.zip";
     export EMBEDDING_MODEL_NAME=CLIP/clip-vit-h-14;
     export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-7B-Instruct;
     export DOCKER_VOLUME_DIRECTORY="$workspace";
@@ -3516,6 +3516,7 @@ debian_30_install_docker_io ()
                 ensure_apt install -y docker-buildx-plugin docker-compose-plugin;
             else
                 ensure_prop set installed/docker_io/owned true;
+                ensure_disk_size 800;
                 echo "Remove legacy installation";
                 debian_30_remove_docker_io "$@";
                 ensure_sudo mkdir -p /etc/systemd/system/docker.service.d;
@@ -3581,6 +3582,10 @@ debian_30_install_kernel_module_essential ()
         echo ensure_apt update;
         ensure_apt install --no-install-recommends -y "${pkgs[@]}";
     fi
+}
+debian_30_install_libpcre2_dev () 
+{ 
+    ensure_apt_install_package libpcre2-dev
 }
 debian_30_install_make () 
 { 
@@ -3674,6 +3679,10 @@ debian_30_sbom_kernel_module_essential ()
     configure_kernel_module_essential_debian;
     ensure_sbom_format pkg-list ${install_pkgs[*]}
 }
+debian_30_sbom_libpcre2_dev () 
+{ 
+    ensure_sbom_format pkg-list libpcre2-dev
+}
 debian_30_sbom_make () 
 { 
     ensure_sbom_format pkg-list make
@@ -3733,6 +3742,7 @@ debian_40_install_libyang ()
     if verify_libyang && [[ " $* " != *" --reinstall "* ]]; then
         echo "libyang is installed. Skipping..." 1>&2;
     else
+        configure_kernel_module_essential_debian "$@";
         ensure_git_export "$workspace" "$version" "$repository";
         mkdir "$workspace"/build;
         cd "$workspace"/build;
@@ -3779,6 +3789,7 @@ debian_40_install_pcm ()
     if verify_pcm && [[ " $* " != *" --reinstall "* ]]; then
         echo "pcm is installed. Skipping";
     else
+        configure_kernel_module_essential_debian "$@";
         ensure_git_export "$workspace" "$version" "$repository";
         rm -rf "$workspace"/tests "$workspace"/examples;
         mkdir "$workspace"/build "$workspace"/tests "$workspace"/examples;
@@ -3801,7 +3812,7 @@ debian_40_profile_gpu_accel ()
 }
 debian_40_profile_libyang () 
 { 
-    echo "git cmake make kernel_module_essential"
+    echo "git cmake make kernel_module_essential libpcre2_dev"
 }
 debian_40_profile_npu_accel () 
 { 
@@ -4104,6 +4115,7 @@ debian_70_install_openvino ()
     if verify_openvino && [[ " $* " != *" --reinstall "* ]]; then
         echo "openvino-${version} already installed. Skipping";
     else
+        ensure_disk_size 1500;
         debian_70_remove_openvino "$@";
         ensure_apt_key $key_file $key_url --dearmor;
         ensure_apt_source $apt_file "$apt_entry";
@@ -4132,6 +4144,7 @@ debian_70_install_time_confighub ()
     if verify_pcm && [[ " $* " != *" --reinstall "* ]]; then
         echo "pcm is installed. Skipping";
     else
+        configure_kernel_module_essential_debian "$@";
         ensure_git_export "$workspace" "$version" "$repository";
         cd "$workspace";
         chmod a+rx install.sh uninstall.sh;
@@ -4233,6 +4246,7 @@ debian_75_install_dlstreamer ()
     if verify_dlstreamer && [[ " $* " != *" --reinstall "* ]]; then
         echo "dlstreamer-${version} already installed. Skipping";
     else
+        ensure_disk_size 15000;
         debian_75_remove_dlstreamer "$@";
         ensure_apt_key $key_file $key_url --dearmor;
         ensure_apt_source $list_file "$deb_entry";
@@ -4303,7 +4317,7 @@ debian_80_install_anomalib ()
     if verify_anomalib && [[ " $* " != *" --reinstall "* ]]; then
         echo "Anomalib already installed. Skipping";
     else
-        ensure_disk_size 6000;
+        ensure_disk_size 15000;
         mkdir -p "$workspace";
         cd "$workspace";
         python3 -m venv .venv;
@@ -4401,6 +4415,7 @@ debian_85_install_esq ()
     if uv tool list 2> /dev/null | grep -q -E "^esq " && [[ " $* " != *" --reinstall "* ]]; then
         echo "Esq is already installed. Skipping...";
     else
+        ensure_disk_size 25000;
         curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-system-qualification/refs/heads/main/scripts/system-setup.sh | ensure_sudo bash -s -- -f || true;
         curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-system-qualification/refs/heads/main/scripts/system-setup-advanced.sh | ensure_sudo bash -s -- -f || true;
         uv tool install --force --refresh git+https://github.com/open-edge-platform/edge-system-qualification.git@main;
@@ -4445,7 +4460,7 @@ debian_85_remove_esq ()
     configure_uv;
     configure_esq;
     esq clean --all || true;
-    uv tool uninstall --force esq || true;
+    uv tool uninstall esq || true;
     ensure_rm "$workspace"
 }
 debian_85_remove_video_search_and_summarization () 
@@ -4492,7 +4507,7 @@ debian_90_install_agentic_predictive_maintenance_pipeline ()
         echo "Agentic Predictive Maintenance Pipeline already installed. Skipping" 1>&2;
     else
         ensure_ports_open "${used_ports[*]}" return 3;
-        ensure_disk_size 60;
+        ensure_disk_size 15000;
         ensure_git_export "$workspace" "$version" "$repository" agentic-predictive-maintenance-pipeline;
         cd "$workspace"/agentic-predictive-maintenance-pipeline/apps/pipeline-defect-detection;
         sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env_pipeline-defect-detection;
@@ -4515,7 +4530,7 @@ debian_90_install_agentic_smart_community ()
         echo "Agentic Smart Community already installed. Skipping" 1>&2;
     else
         ensure_ports_open "${used_ports[*]}" return 3;
-        ensure_disk_size 128000;
+        ensure_disk_size 2000;
         ensure_ram_size 65011712 33554432;
         ensure_git_export "$workspace" "$version" "$repository" agentic-smart-community;
         mkdir -p "${mlvu_workspace%/*}";
@@ -4558,7 +4573,7 @@ debian_90_install_dine_in ()
         echo "Order accuracy is already installed. Skipping";
     else
         ensure_ports_open "${ports[*]}" return 3;
-        ensure_disk_size 10000;
+        ensure_disk_size 45000;
         ensure_git_clone "$workspace" $version $repository;
         cd "$workspace"/dine-in;
         make init-env;
@@ -4582,7 +4597,7 @@ debian_90_install_geti ()
         echo "Geti already installed. Skipping.";
     else
         ensure_ports_open "$port" return 3;
-        ensure_disk_size 40000;
+        ensure_disk_size 20000;
         ensure_ram_size 16777216;
         docker pull $image_name;
     fi
@@ -4594,7 +4609,7 @@ debian_90_install_handheld_multi_modal ()
         echo "handheld_multi_modal already installed. Skipping";
     else
         ensure_ports_open "${used_ports[*]}" return 3;
-        ensure_disk_size 300;
+        ensure_disk_size 45000;
         ensure_git_clone "$workspace" $version $repository handheld-multi-modal;
         cd "$workspace"/handheld-multi-modal;
         make setup;
@@ -4683,7 +4698,7 @@ debian_90_install_live_video_alert_agent ()
         echo "Live Video Alert Agent is already installed. Skipping";
     else
         ensure_ports_open "${used_ports[*]}" return 3;
-        ensure_disk_size 64000;
+        ensure_disk_size 15000;
         ensure_git_clone "$workspace" $version $repository live-video-analysis/live-video-alert-agent;
         verify_live_video_alert_agent;
     fi;
@@ -4700,7 +4715,7 @@ debian_90_install_live_video_captioning ()
         echo "Live Video Captioning is already installed. Skipping";
     else
         ensure_ports_open "${used_ports[*]}" return 3;
-        ensure_disk_size 64000;
+        ensure_disk_size 10000;
         ensure_git_clone "$workspace" $version $repository live-video-analysis/live-video-captioning;
         export -n socks_server ftp_proxy;
         cd "$workspace/live-video-analysis/live-video-captioning";
@@ -4723,7 +4738,7 @@ debian_90_install_live_video_captioning_rag ()
         echo "Live Video Captioning RAG is already installed. Skipping";
     else
         ensure_ports_open "${used_ports[*]}" return 3;
-        ensure_disk_size 64000;
+        ensure_disk_size 20000;
         ensure_git_clone "$workspace" $version $repository live-video-analysis/live-video-captioning live-video-analysis/live-video-captioning-rag;
         export -n socks_server ftp_proxy;
         cd "$workspace/live-video-analysis/live-video-captioning-rag";
@@ -4747,7 +4762,7 @@ debian_90_install_live_video_search ()
         echo "Live Video Search is already installed. Skipping";
     else
         ensure_ports_open "${used_ports[*]}" return 3;
-        ensure_disk_size 64000;
+        ensure_disk_size 25000;
         ensure_git_clone "$workspace" $version $repository live-video-analysis/live-video-search;
         verify_live_video_search;
     fi;
@@ -4763,7 +4778,7 @@ debian_90_install_loitering_detection ()
         echo "Loitering detection is already installed. Skipping";
     else
         ensure_ports_open "${used_ports[*]}" return 3;
-        ensure_disk_size 280;
+        ensure_disk_size 10000;
         ensure_git_export "$workspace" $version $repository metro-vision-ai-app-recipe;
         cd "$workspace/metro-vision-ai-app-recipe";
         sed -i 's|curl |curl -f |' loitering-detection/install.sh;
@@ -4782,7 +4797,7 @@ debian_90_install_loss_prevention ()
     if verify_loss_prevention && [[ " $* " != *" --reinstall "* ]]; then
         echo "Loss prevention is already installed. Skipping";
     else
-        ensure_disk_size 300;
+        ensure_disk_size 15000;
         ensure_git_clone "$workspace" $version $repository;
         pushd "$workspace" > /dev/null;
         cat > src/.env <<EOF
@@ -4830,7 +4845,7 @@ debian_90_install_multimodal_weld_defect_detection ()
         echo "Multimodal weld defect detection is already installed. Skipping";
     else
         ensure_ports_open "${used_ports[*]}" return 3;
-        ensure_disk_size 64000;
+        ensure_disk_size 15000;
         ensure_ram_size 16777216;
         ensure_git_export "$workspace" "$version" "$repository" industrial-edge-insights-multimodal;
         cd "$workspace"/industrial-edge-insights-multimodal;
@@ -4857,7 +4872,7 @@ debian_90_install_nicu_warmer ()
         echo "NICU Warmer is already installed. Skipping" 1>&2;
     else
         ensure_ports_open "${used_ports[*]}" return 3;
-        ensure_disk_size 160;
+        ensure_disk_size 15000;
         ensure_git_clone "$workspace" $version $repository NICU-Warmer;
         cd "$workspace"/NICU-Warmer;
         sed -i 's|decodebin3 ! .*|decodebin3|' configs/res/all-gpu.env;
@@ -4887,7 +4902,7 @@ debian_90_install_pallet_defect_detection ()
         echo "Pallet defect detection is already installed. Skipping";
     else
         ensure_ports_open "${used_ports[*]}" return 3;
-        ensure_disk_size 50;
+        ensure_disk_size 10000;
         ensure_git_export "$workspace" $version $repository industrial-edge-insights-vision;
         cd "$workspace"/industrial-edge-insights-vision;
         cat > .env <<EOF
@@ -4920,7 +4935,7 @@ debian_90_install_pcb_anomaly_detection ()
         echo "PCB anomaly detection is already installed. Skipping";
     else
         ensure_ports_open "${used_ports[*]}" return 3;
-        ensure_disk_size 60;
+        ensure_disk_size 10000;
         ensure_git_export "$workspace" $version $repository industrial-edge-insights-vision;
         cd "$workspace/industrial-edge-insights-vision";
         cat > .env <<EOF
@@ -5326,7 +5341,14 @@ debian_90_install_visual_search_question_and_answering ()
         cd "$workspace"/visual-search-question-and-answering/deployment/docker-compose;
         sed -i -e "s|^host_ip=.*|host_ip=$(ensure_ip)|" -e "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" env.sh;
         sed -i "s|^export HOST_DATA_PATH=.*|export HOST_DATA_PATH=\"$HOST_DATA_PATH\"|" env.sh;
+        echo "Fetch $(basename "$demo_dataset")...";
         mkdir -p "$HOST_DATA_PATH";
+        ensure_fetch "$demo_dataset" "$HOST_DATA_PATH"/$(basename "$demo_dataset");
+        docker run --rm --group-add $(id -g) -v "${HOST_DATA_PATH}":/home/user/data:rw ${REGISTRY}dataprep-visualdata-milvus:${TAG} python example/example_utils.py -d DAVIS || { 
+            echo "failed to process demo dataset" 1>&2;
+            return 3
+        };
+        ensure_rm "$HOST_DATA_PATH"/$(basename "$demo_dataset");
         verify_visual_search_question_and_answering;
     fi;
     local device=$(ensure_select_device "$@");
@@ -5475,7 +5497,7 @@ debian_90_profile_smart_intersection ()
 }
 debian_90_profile_smart_kiosk_assistant () 
 { 
-    echo "docker_io make edge_base"
+    echo "docker_io make edge_base python3_venv"
 }
 debian_90_profile_smart_nvr () 
 { 
@@ -5511,7 +5533,7 @@ debian_90_profile_vippet ()
 }
 debian_90_profile_visual_search_question_and_answering () 
 { 
-    echo "git curl gawk python3_venv edge_base docker_io"
+    echo "git curl gawk python3_venv edge_base docker_io unzip"
 }
 debian_90_profile_wind_turbine_anomaly_detection () 
 { 
@@ -6249,16 +6271,6 @@ debian_90_start_visual_search_question_and_answering ()
     docker compose -f compose_milvus.yaml up -d;
     echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}";
     echo "@@HIGHLIGHT $installer_name stop|remove";
-    if [ ! -e "$HOST_DATA_PATH"/DAVIS/subset ]; then
-        echo "Fetching demo dataset";
-        local cids=($(docker ps -a --filter "status=running" -q | xargs -r docker inspect --format '{{.Config.Image}} {{.Id}}' | grep "dataprep-visualdata-milvus" | awk '{print $2}'));
-        [ "${#cids[*]}" -gt 0 ] || { 
-            echo "No milvus containers found" 1>&2;
-            return 1
-        };
-        docker exec ${cids[0]} python example/example_utils.py -d DAVIS;
-        [ -d "$HOST_DATA_PATH"/DAVIS/subset ];
-    fi;
     echo "@@HIGHLIGHT dataset: $HOST_DATA_PATH/DAVIS/subset"
 }
 debian_90_start_wind_turbine_anomaly_detection () 
@@ -6347,7 +6359,7 @@ debian_90_stop_agentic_smart_community ()
 debian_90_stop_dine_in () 
 { 
     configure_dine_in "$@";
-    cd "$workspace"/dine-in && make down || true
+    cd "$workspace"/dine-in && make clean || true
 }
 debian_90_stop_geti () 
 { 
@@ -6505,7 +6517,7 @@ debian_90_stop_smart_traffic_intersection_agent ()
 debian_90_stop_take_away () 
 { 
     configure_take_away "$@";
-    cd "$workspace"/take-away && make down || true
+    cd "$workspace"/take-away && make clean || true
 }
 debian_90_stop_uav_mission_compute_sdk () 
 { 
@@ -6533,7 +6545,11 @@ debian_90_stop_vippet ()
 debian_90_stop_visual_search_question_and_answering () 
 { 
     configure_visual_search_question_and_answering "$@";
-    cd "$workspace"/visual-search-question-and-answering/deployment/docker-compose && . ./env.sh && docker compose -f compose_milvus.yaml down -v --remove-orphans || true
+    cd "$workspace"/visual-search-question-and-answering/deployment/docker-compose && { 
+        . ./env.sh || true;
+        docker compose -f compose_milvus.yaml down -v --remove-orphans
+    } || true;
+    docker volume rm -f ov-models || true
 }
 debian_90_stop_wind_turbine_anomaly_detection () 
 { 
@@ -6726,6 +6742,7 @@ ensure_columns ()
 import sys,re
 ansi_re = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]|\033\[[0-9;]*[a-zA-Z]")
 rows=[line.strip().split(sys.argv[1]) for line in sys.stdin]
+if not rows: sys.exit(0)
 cols=max(len(r) for r in rows)
 widths=[max((len(ansi_re.sub("",r[c])) for r in rows if c < len(r)-1),default=0) for c in range(cols-1)]
 for r in rows:
@@ -7243,77 +7260,104 @@ subcommand_install ()
 }
 subcommand_list () 
 { 
-    [[ " $* " != *" --help "* ]] || return;
-    echo "Mapping profiles and components..." 1>&2;
-    local all_cmds=(${_act_cache_cmds[*]});
-    act_get prefix profile_;
-    local all_profiles=(${_act_reply[*]});
-    local all_modules=(${_act_cache_modules[*]});
-    local profile_lines=() module_lines=();
-    local -A module_act_cache=();
-    if [ ${#all_modules[@]} -gt 0 ]; then
-        local module_name;
-        for module_name in ${all_modules[*]};
-        do
-            local module_cmds=() mname cmd;
-            for cmd in ${all_cmds[*]};
+    case " $* " in 
+        *" --help "*)
+            echo "list options:";
+            echo "  --sbom          show component SBOM items";
+            echo
+        ;;
+        *" --sbom "*)
+            if [ ${#*} -eq 1 ]; then
+                act_get prefix profile_;
+                local all_profiles=(${_act_reply[*]});
+                local all_modules=(${_act_cache_modules[*]});
+                set -- ${all_modules[*]} ${all_profiles[*]#*_*_*_};
+            fi;
+            local handles=($(act_find_deps install $(act_resolve_args install "$@")));
+            local all_install_modules="${handles[*]#${installer_family}_*_install_}";
+            local handler sbomer;
+            for handler in $(printf '%s\n' "${handles[@]}" | sort);
             do
-                for mname in $(act_expand_modules $cmd $module_name "$@");
+                sbomer=${handler/_install_/_sbom_};
+                declare -F $sbomer > /dev/null 2>&1 || continue;
+                $sbomer $(act_extract_args sbom ${handler#*_*_*_} "$all_install_modules" "$@");
+                echo "---";
+            done
+        ;;
+        *)
+            local all_cmds=(${_act_cache_cmds[*]});
+            act_get prefix profile_;
+            local all_profiles=(${_act_reply[*]});
+            local all_modules=(${_act_cache_modules[*]});
+            local profile_lines=() module_lines=();
+            local -A module_act_cache=();
+            if [ ${#all_modules[@]} -gt 0 ]; then
+                local module_name;
+                for module_name in "${all_modules[@]}";
                 do
-                    if [[ -v _act_cache_functions[${cmd}_${mname}] ]]; then
-                        module_cmds+=($cmd);
-                        break;
-                    fi;
-                done;
-            done;
-            module_act_cache[$module_name]="${module_cmds[*]}";
-            module_lines+=("|$module_name|[${module_act_cache[$module_name]}]");
-        done;
-    fi;
-    if [ ${#all_profiles[@]} -gt 0 ]; then
-        local profiler;
-        for profiler in ${all_profiles[*]};
-        do
-            local profile_name=${profiler#*_*_*_};
-            [[ " ${all_modules[*]} " != *" $profile_name "* ]] || continue;
-            local profile_cmds=() mname1 mname2 cmd found;
-            for cmd in ${all_cmds[*]};
-            do
-                for mname1 in $($profiler $cmd "$@");
-                do
-                    if [[ " ${module_act_cache[$mname1]:-} " = *" $cmd "* ]]; then
-                        profile_cmds+=($cmd);
-                        break;
-                    fi;
-                    found=0;
-                    for mname2 in $(act_expand_modules $cmd $mname1 "$@");
+                    [ ${#*} -eq 0 ] || [[ " $* " = *" $module_name "* ]] || continue;
+                    local module_cmds=() mname cmd;
+                    for cmd in ${all_cmds[*]};
                     do
-                        if [[ -v _act_cache_functions[${cmd}_${mname2}] ]]; then
-                            found=1;
-                            break;
-                        fi;
+                        for mname in $(act_expand_modules $cmd $module_name "$@");
+                        do
+                            if [[ -v _act_cache_functions[${cmd}_${mname}] ]]; then
+                                module_cmds+=($cmd);
+                                break;
+                            fi;
+                        done;
                     done;
-                    if [ $found -eq 1 ]; then
-                        profile_cmds+=($cmd);
-                        break;
-                    fi;
+                    module_act_cache[$module_name]="${module_cmds[*]}";
+                    module_lines+=("|$module_name|[${module_act_cache[$module_name]}]");
                 done;
-            done;
-            profile_lines+=("|$profile_name|[${profile_cmds[*]}]");
-        done;
-    fi;
-    { 
-        if [ ${#profile_lines[@]} -gt 0 ]; then
-            printf "List of Profiles:\n";
-            printf "%s\n" "${profile_lines[@]}" | sort;
-            printf "\n";
-        fi;
-        if [ ${#module_lines[@]} -gt 0 ]; then
-            printf "List of Components:\n";
-            printf "%s\n" "${module_lines[@]}" | sort;
-            printf "\n";
-        fi
-    } | ensure_columns
+            fi;
+            if [ ${#all_profiles[@]} -gt 0 ]; then
+                local profiler;
+                for profiler in "${all_profiles[@]}";
+                do
+                    local profile_name=${profiler#*_*_*_};
+                    [ ${#*} -eq 0 ] || [[ " $* " = *" $profile_name "* ]] || continue;
+                    [[ " ${all_modules[*]} " != *" $profile_name "* ]] || continue;
+                    local profile_cmds=() mname1 mname2 cmd found;
+                    for cmd in ${all_cmds[*]};
+                    do
+                        for mname1 in $($profiler $cmd "$@");
+                        do
+                            if [[ " ${module_act_cache[$mname1]:-} " = *" $cmd "* ]]; then
+                                profile_cmds+=($cmd);
+                                break;
+                            fi;
+                            found=0;
+                            for mname2 in $(act_expand_modules $cmd $mname1 "$@");
+                            do
+                                if [[ -v _act_cache_functions[${cmd}_${mname2}] ]]; then
+                                    found=1;
+                                    break;
+                                fi;
+                            done;
+                            if [ $found -eq 1 ]; then
+                                profile_cmds+=($cmd);
+                                break;
+                            fi;
+                        done;
+                    done;
+                    profile_lines+=("|$profile_name|[${profile_cmds[*]}]");
+                done;
+            fi;
+            { 
+                if [ ${#profile_lines[@]} -gt 0 ]; then
+                    printf "List of Profiles:\n";
+                    printf "%s\n" "${profile_lines[@]}" | sort;
+                    printf "\n";
+                fi;
+                if [ ${#module_lines[@]} -gt 0 ]; then
+                    printf "List of Components:\n";
+                    printf "%s\n" "${module_lines[@]}" | sort;
+                    printf "\n";
+                fi
+            } | ensure_columns
+        ;;
+    esac
 }
 subcommand_remove () 
 { 
@@ -7327,20 +7371,6 @@ subcommand_remove ()
     fi;
     act_helper "remove,Removal,Removing,Removed" "-r" "$@"
 }
-subcommand_sbom () 
-{ 
-    [[ " $* " != *" --help "* ]] || return;
-    local handles=($(act_find_deps install $(act_resolve_args install "$@")));
-    local all_install_modules="${handles[*]#${ID_LIKE}_*_install_}";
-    local handler sbomer;
-    for handler in $(printf '%s\n' "${handles[@]}" | sort);
-    do
-        sbomer=${handler/_install_/_sbom_};
-        declare -F $sbomer > /dev/null 2>&1 || continue;
-        $sbomer $(act_extract_args sbom ${handler#*_*_*_} "$all_install_modules" "$@");
-        echo "---";
-    done
-}
 subcommand_setup () 
 { 
     [[ " $* " != *" --help "* ]] || return;
@@ -7349,7 +7379,7 @@ subcommand_setup ()
     cat > "$installer_bin" <<EOF
 #!/bin/bash
 $(declare -f ${installer_misc_functions[*]})
-$(declare -f $(declare -F | grep -v '^declare -fx' | grep -E " (${ID_LIKE}_[0-9]+_|ensure_|act_|verify_|configure_|subcommand_|main$)" | cut -f3 -d' ' | tr '\n' ' '))
+$(declare -f $(declare -F | grep -v '^declare -fx' | grep -E " (${installer_family}_[0-9]+_|ensure_|act_|verify_|configure_|subcommand_|main$)" | cut -f3 -d' ' | tr '\n' ' '))
 main "\$@"
 EOF
 
@@ -7418,10 +7448,23 @@ EOF
 }
 subcommand_start () 
 { 
+    if [[ " $* " = *" --help "* ]]; then
+        echo "start options:";
+        echo "  --dry-run       dry-run operations";
+        echo "  --continue      ignore errors and proceed to the end";
+        echo;
+        return 0;
+    fi;
     act_helper "start,Start,Starting,Started" "" "$@"
 }
 subcommand_stop () 
 { 
+    if [[ " $* " = *" --help "* ]]; then
+        echo "stop options:";
+        echo "  --dry-run       dry-run operations";
+        echo;
+        return 0;
+    fi;
     act_helper "stop,Stop,Stopping,Stopped" "-r" "$@" --continue
 }
 system_scan_check_cpu_instructions () 
@@ -7910,7 +7953,14 @@ verify_vippet ()
 }
 verify_visual_search_question_and_answering () 
 { 
-    [ -r "$workspace" ]
+    [ -r "$workspace" ] || { 
+        echo "Missing $workspace" 1>&2;
+        return 1
+    };
+    [ -d "$HOST_DATA_PATH"/DAVIS/subset ] || { 
+        echo "Missing demo dataset" 1>&2;
+        return 1
+    }
 }
 verify_wind_turbine_anomaly_detection () 
 { 

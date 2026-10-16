@@ -53,82 +53,119 @@ subcommand_remove () {
 }
 
 subcommand_start () {
+  if [[ " $* " = *" --help "* ]]; then
+    echo "start options:"
+    echo "  --dry-run       dry-run operations"
+    echo "  --continue      ignore errors and proceed to the end"
+    echo
+    return 0
+  fi
   act_helper "start,Start,Starting,Started" "" "$@"
 }
 
 subcommand_stop () {
+  if [[ " $* " = *" --help "* ]]; then
+    echo "stop options:"
+    echo "  --dry-run       dry-run operations"
+    echo
+    return 0
+  fi
   act_helper "stop,Stop,Stopping,Stopped" "-r" "$@" --continue
 }
 
 subcommand_list () {
-  [[ " $* " != *" --help "* ]] || return
-
-  echo "Mapping profiles and components..." 1>&2
-  
-  local all_cmds=(${_act_cache_cmds[*]})
-  act_get prefix profile_; local all_profiles=(${_act_reply[*]})
-  local all_modules=(${_act_cache_modules[*]})
-  local profile_lines=() module_lines=()
-
-  local -A module_act_cache=()
-  if [ ${#all_modules[@]} -gt 0 ]; then
-    local module_name
-    for module_name in ${all_modules[*]}; do
-      local module_cmds=() mname cmd
-      for cmd in ${all_cmds[*]}; do
-        for mname in $(act_expand_modules $cmd $module_name "$@"); do
-          if [[ -v _act_cache_functions[${cmd}_${mname}] ]]; then
-            module_cmds+=($cmd)
-            break
-          fi
-        done
-      done
-      module_act_cache[$module_name]="${module_cmds[*]}"
-      module_lines+=("|$module_name|[${module_act_cache[$module_name]}]")
+  case " $* " in
+  *" --help "*)
+    echo "list options:"
+    echo "  --sbom          show component SBOM items"
+    echo
+    ;;
+  *" --sbom "*)
+    # scan for dependencies
+    if [ ${#*} -eq 1 ]; then
+      act_get prefix profile_; local all_profiles=(${_act_reply[*]})
+      local all_modules=(${_act_cache_modules[*]})
+      set -- ${all_modules[*]} ${all_profiles[*]#*_*_*_}
+    fi
+    local handles=($(act_find_deps install $(act_resolve_args install "$@")))
+    local all_install_modules="${handles[*]#${installer_family}_*_install_}"
+    local handler sbomer
+    for handler in $(printf '%s\n' "${handles[@]}" | sort); do
+      sbomer=${handler/_install_/_sbom_}
+      declare -F $sbomer > /dev/null 2>&1 || continue
+      $sbomer $(act_extract_args sbom ${handler#*_*_*_} "$all_install_modules" "$@")
+      echo "---"
     done
-  fi
+    ;;
+  *)
+    local all_cmds=(${_act_cache_cmds[*]})
+    act_get prefix profile_; local all_profiles=(${_act_reply[*]})
+    local all_modules=(${_act_cache_modules[*]})
+    local profile_lines=() module_lines=()
 
-  if [ ${#all_profiles[@]} -gt 0 ]; then
-    local profiler
-    for profiler in ${all_profiles[*]}; do
-      local profile_name=${profiler#*_*_*_}
-      [[ " ${all_modules[*]} " != *" $profile_name "* ]] || continue
-      local profile_cmds=() mname1 mname2 cmd found
-      for cmd in ${all_cmds[*]}; do
-        for mname1 in $($profiler $cmd "$@"); do
-          if [[ " ${module_act_cache[$mname1]:-} " = *" $cmd "* ]]; then
-            profile_cmds+=($cmd)
-            break
-          fi
-          found=0
-          for mname2 in $(act_expand_modules $cmd $mname1 "$@"); do
-            if [[ -v _act_cache_functions[${cmd}_${mname2}] ]]; then
-              found=1
+    local -A module_act_cache=()
+    if [ ${#all_modules[@]} -gt 0 ]; then
+      local module_name
+      for module_name in "${all_modules[@]}"; do
+        [ ${#*} -eq 0 ] || [[ " $* " = *" $module_name "* ]] || continue
+        local module_cmds=() mname cmd
+        for cmd in ${all_cmds[*]}; do
+          for mname in $(act_expand_modules $cmd $module_name "$@"); do
+            if [[ -v _act_cache_functions[${cmd}_${mname}] ]]; then
+              module_cmds+=($cmd)
               break
             fi
           done
-          if [ $found -eq 1 ]; then
-            profile_cmds+=($cmd)
-            break
-          fi
         done
+        module_act_cache[$module_name]="${module_cmds[*]}"
+        module_lines+=("|$module_name|[${module_act_cache[$module_name]}]")
       done
-      profile_lines+=("|$profile_name|[${profile_cmds[*]}]")
-    done
-  fi
+    fi
   
-  {
-    if [ ${#profile_lines[@]} -gt 0 ]; then
-      printf "List of Profiles:\n"
-      printf "%s\n" "${profile_lines[@]}" | sort
-      printf "\n"
+    if [ ${#all_profiles[@]} -gt 0 ]; then
+      local profiler
+      for profiler in "${all_profiles[@]}"; do
+        local profile_name=${profiler#*_*_*_}
+        [ ${#*} -eq 0 ] || [[ " $* " = *" $profile_name "* ]] || continue
+        [[ " ${all_modules[*]} " != *" $profile_name "* ]] || continue
+        local profile_cmds=() mname1 mname2 cmd found
+        for cmd in ${all_cmds[*]}; do
+          for mname1 in $($profiler $cmd "$@"); do
+            if [[ " ${module_act_cache[$mname1]:-} " = *" $cmd "* ]]; then
+              profile_cmds+=($cmd)
+              break
+            fi
+            found=0
+            for mname2 in $(act_expand_modules $cmd $mname1 "$@"); do
+              if [[ -v _act_cache_functions[${cmd}_${mname2}] ]]; then
+                found=1
+                break
+              fi
+            done
+            if [ $found -eq 1 ]; then
+              profile_cmds+=($cmd)
+              break
+            fi
+          done
+        done
+        profile_lines+=("|$profile_name|[${profile_cmds[*]}]")
+      done
     fi
-    if [ ${#module_lines[@]} -gt 0 ]; then
-      printf "List of Components:\n"
-      printf "%s\n" "${module_lines[@]}" | sort
-      printf "\n"
-    fi
-  } | ensure_columns
+    
+    {
+      if [ ${#profile_lines[@]} -gt 0 ]; then
+        printf "List of Profiles:\n"
+        printf "%s\n" "${profile_lines[@]}" | sort
+        printf "\n"
+      fi
+      if [ ${#module_lines[@]} -gt 0 ]; then
+        printf "List of Components:\n"
+        printf "%s\n" "${module_lines[@]}" | sort
+        printf "\n"
+      fi
+    } | ensure_columns
+    ;;
+  esac
 }
 
 subcommand_setup () {
@@ -140,7 +177,7 @@ subcommand_setup () {
   cat > "$installer_bin" <<EOF
 #!/bin/bash
 $(declare -f ${installer_misc_functions[*]})
-$(declare -f $(declare -F | grep -v '^declare -fx' | grep -E " (${ID_LIKE}_[0-9]+_|ensure_|act_|verify_|configure_|subcommand_|main$)" | cut -f3 -d' ' | tr '\n' ' '))
+$(declare -f $(declare -F | grep -v '^declare -fx' | grep -E " (${installer_family}_[0-9]+_|ensure_|act_|verify_|configure_|subcommand_|main$)" | cut -f3 -d' ' | tr '\n' ' '))
 main "\$@"
 EOF
   chmod a+rx "$installer_bin"
@@ -207,20 +244,5 @@ $(
 complete -F _${installer_name//-/_}_completion $installer_name
 EOF
   echo "bash completion created at $completion_script"
-}
-
-subcommand_sbom () {
-  [[ " $* " != *" --help "* ]] || return
-
-  # scan for dependencies
-  local handles=($(act_find_deps install $(act_resolve_args install "$@")))
-  local all_install_modules="${handles[*]#${ID_LIKE}_*_install_}"
-  local handler sbomer
-  for handler in $(printf '%s\n' "${handles[@]}" | sort); do
-    sbomer=${handler/_install_/_sbom_}
-    declare -F $sbomer > /dev/null 2>&1 || continue
-    $sbomer $(act_extract_args sbom ${handler#*_*_*_} "$all_install_modules" "$@")
-    echo "---"
-  done
 }
 

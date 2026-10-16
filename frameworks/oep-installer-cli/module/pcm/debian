@@ -18,6 +18,7 @@ debian_40_install_pcm () {
   if verify_pcm && [[ " $* " != *" --reinstall "* ]]; then
     echo "pcm is installed. Skipping"
   else
+    configure_kernel_module_essential_debian "$@"
     ensure_git_export "$workspace" "$version" "$repository"
     rm -rf "$workspace"/tests "$workspace"/examples
     mkdir "$workspace"/build "$workspace"/tests "$workspace"/examples

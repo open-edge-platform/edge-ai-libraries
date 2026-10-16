@@ -49,7 +49,7 @@ verify_smart_kiosk_assistant () {
 }
 
 debian_90_profile_smart_kiosk_assistant () {
-  echo "docker_io make edge_base"
+  echo "docker_io make edge_base python3_venv"
 }
 
 debian_90_install_smart_kiosk_assistant () {

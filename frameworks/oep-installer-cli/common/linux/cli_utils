@@ -11,14 +11,14 @@ act_get () {
     ;;
   init)
     declare -g _act_cache_cmds=($(declare -F | grep -E " subcommand_" | grep -v -E 'subcommand_(list|setup)$' | cut -f2- -d_))
-    declare -g _act_cache_modules=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_($(IFS='|';echo "${_act_cache_cmds[*]}"))_" | cut -f2,4- -d_ | sort | cut -f2- -d_ | awk '!seen[$0]++'))
+    declare -g _act_cache_modules=($(declare -F | grep -E " ${installer_family}_[0-9]+_($(IFS='|';echo "${_act_cache_cmds[*]}"))_" | cut -f2,4- -d_ | sort | cut -f2- -d_ | awk '!seen[$0]++'))
     declare -gA _act_cache_functions=()
 
     local f rest
     while read -r _ _ f; do
       case $f in
-        "${ID_LIKE}_"*)
-          rest=${f#"${ID_LIKE}_"}                  # e.g. 10_install_foo
+        "${installer_family}_"*)
+          rest=${f#"${installer_family}_"}                  # e.g. 10_install_foo
           _act_cache_functions[${rest#*_}]=$f      # strip the numeric order -> install_foo
           ;;
       esac
@@ -100,14 +100,6 @@ act_helper () {
   shift
   shift
 
-  if [[ " $* " = *" --help "* ]]; then
-    echo "${act_name} options:"
-    echo "  --dry-run       dry-run operations"
-    echo "  --continue      ignore errors and proceed to the end"
-    echo
-    return 0
-  fi
-
   # fill in the saved module list if none is named; remember explicit ones
   local mods_file="$(ensure_project_path)/$installer_name/modules"
   local explicit_mods="$(act_extract_modules $act_name "$@")"
@@ -153,7 +145,7 @@ act_helper () {
     if [ "$act_name" = "install" ]; then
       # build license gate
       local -A licenses=() licenses_text=()
-      local all_install_modules="${handles[*]#${ID_LIKE}_*_install_}"
+      local all_install_modules="${handles[*]#${installer_family}_*_install_}"
       for licenser in ${handles[*]/_install_/_license_}; do
         if declare -F $licenser > /dev/null 2>&1; then
           local name1=${licenser#*_*_*_} license_line license_id="" license_keep=0
@@ -204,7 +196,7 @@ act_helper () {
           [ "$order" -gt 0 ] || order=$order1
           [ "$order1" -ge "$order" ] || break
         fi
-        local invoke_args="$(act_extract_args $act_name $name1 "${handles[*]#${ID_LIKE}_*_${act_name}_}" "$@")"
+        local invoke_args="$(act_extract_args $act_name $name1 "${handles[*]#${installer_family}_*_${act_name}_}" "$@")"
         if [[ " $* " = *" --dry-run "* ]]; then
           echo "@@COMP $name1"
           echo "Invoke $handler with $invoke_args" 
@@ -235,7 +227,7 @@ act_helper () {
       local scan_handler="${_act_cache_functions[${act_name}_pre_system_scan]:-}"
       if [[ " $* " != *" --dry-run "* && $rc -eq 0 && -n "$scan_handler" && " ${handles[*]} " = *" $scan_handler "* ]]; then
         echo "@@REPORT SYSTEM SUMMARY"
-        $scan_handler $(act_extract_args $act_name pre_system_scan "${handles[*]#${ID_LIKE}_*_${act_name}_}" "$@")
+        $scan_handler $(act_extract_args $act_name pre_system_scan "${handles[*]#${installer_family}_*_${act_name}_}" "$@")
       fi
     } > >(
       LOG_FILE="$(ensure_project_path)/$installer_name/$(date +%m-%d-%Y).logs"

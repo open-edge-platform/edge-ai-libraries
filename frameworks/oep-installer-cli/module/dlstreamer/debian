@@ -33,6 +33,8 @@ debian_75_install_dlstreamer () {
   if verify_dlstreamer && [[ " $* " != *" --reinstall "* ]]; then
     echo "dlstreamer-${version} already installed. Skipping"
   else
+    ensure_disk_size 15000
+
     # remove old versions
     debian_75_remove_dlstreamer "$@"
 

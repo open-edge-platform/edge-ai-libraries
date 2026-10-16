@@ -46,6 +46,7 @@ debian_30_install_docker_io () {
     ensure_apt install -y docker-buildx-plugin docker-compose-plugin
   else
     ensure_prop set installed/docker_io/owned true
+    ensure_disk_size 800
 
     echo "Remove legacy installation"
     debian_30_remove_docker_io "$@"

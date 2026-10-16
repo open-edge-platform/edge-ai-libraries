@@ -1,13 +1,13 @@
 
 ### Introduction
 
-Components are installable modules within the OEP installer. Their filenames are in the pattern of `<component-name>/linux` (distribution neutral) or `<component-name>/<OS_LIKE>` (distribution specific), where `<OS_LIKE>` is the OS family identifier (from `/etc/os-release`.) Windows modules use `OS_LIKE=windows`.  
+Components are installable modules within the OEP installer. Their filenames are in the pattern of `<component-name>/linux` (distribution neutral) or `<component-name>/<OS_FAMILY>` (distribution specific), where `<OS_FAMILY>` is derived from `/etc/os-release` (`debian` for Ubuntu). Windows modules use `OS_FAMILY=windows`.  
 The component name should contain no whitespace or special character except '_'.  
 
 ### Develop a component
 
-A component can be defined in optional shell functions: `<OS_LIKE>_<order>_<profile|install|remove|start|stop>_<component-name>` (Windows functions use the Camel case pattern: `Windows<order><Profile|Install|Remove|Start|Stop><ComponentName>`), where 
-- `<OS_LIKE>`: The OS family identifier such as `debian`. You can get it from `/etc/os-release`.
+A component can be defined in optional shell functions: `<OS_FAMILY>_<order>_<profile|install|remove|start|stop>_<component-name>` (Windows functions use the Camel case pattern: `Windows<order><Profile|Install|Remove|Start|Stop><ComponentName>`), where 
+- `<OS_FAMILY>`: The OS family identifier such as `debian`. You can get it from `/etc/os-release`.
 - `<order>`: A number (prefixed with `0` if less than 10) from 0 to 99 to specify the installation order. The OEP installer will install components in the following order:
 
 ```
