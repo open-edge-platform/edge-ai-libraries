@@ -15,14 +15,14 @@ fastapi = ">=0.121.3,<1.0.0"   # for 0.x.y, all minor versions > x are considere
 uvicorn = ">=0.38.0,<1.0.0"
 gunicorn = "^26.0.0"
 pydantic-settings = "^2.10.1"
-opencv-python-headless = "==4.14.0.94"  # pinned: 5.0.0.93's bundled IPP segfaults on some new Intel CPUs (NVL); unpin once a fixed 5.x wheel ships
+opencv-python-headless = "==5.0.0.93"  # pinned: 5.0.0.93's bundled IPP segfaults on some new Intel CPUs (NVL); unpin once a fixed 5.x wheel ships
 einops = ">=0.8.1,<1.0.0"
 av = "^18.0.0"
 # openvino/nncf are held below the next minor pending inference validation.
 # Raising these changes model conversion and runtime behaviour, so they must be
 # upgraded deliberately with a full accuracy/perf test pass, not by a routine
 # dependency refresh.
-openvino = ">=2026.0.0,<=2026.4.0"
+openvino = ">=2026.0.0,<=2026.4.1"
 optimum-intel = { git = "https://github.com/huggingface/optimum-intel.git", rev = "348272d241b16935c5e8cfda224c531391ed947a" }
 httpx = ">=0.27.2,<1.0.0"
 cn-clip = "^1.6.0"
