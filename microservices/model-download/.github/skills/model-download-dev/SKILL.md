@@ -236,3 +236,22 @@ Common causes of stuck jobs:
 - Lock held by a crashed previous job (Ollama `_ollama_download_lock`) — restart container
 - Plugin was implemented but not activated — verify `docker/entrypoint.sh`, `ENABLED_PLUGINS`, and `ACTIVATED_PLUGINS`
 - Job submitted via MCP behaves like REST (same `ModelManager`) — if only the MCP path is stuck, check that `main.py` called `configure_runtime(...)` so `src/mcp/server.py` isn't using its own separate module-level instances
+
+---
+
+## Procedure: Bumping the Baked-In Ollama Binary
+
+`docker/Dockerfile` pins `OLLAMA_VERSION`/`OLLAMA_SHA256` ARGs and downloads
+`bin/ollama` once at build time (verified via `sha256sum -c`) instead of at
+container startup, so restarts don't re-download it. Dependabot cannot track
+this pin (it's an ARG/curl, not a `FROM` image), so bump it manually:
+
+1. Pick the new release tag from the [Ollama releases page](https://github.com/ollama/ollama/releases).
+2. Get the digest for `ollama-linux-amd64.tar.zst` from that release's
+   `sha256sum.txt` asset, or:
+   `curl -s https://api.github.com/repos/ollama/ollama/releases/tags/<tag> | grep -A1 ollama-linux-amd64.tar.zst`
+3. Update both `OLLAMA_VERSION` and `OLLAMA_SHA256` in `docker/Dockerfile`.
+4. Rebuild and confirm `/opt/bin/ollama --version` in the container logs
+   (`docker/entrypoint.sh` already logs this on startup).
+5. Verify an actual model pull completes (not just `--version`) before
+   merging the bump.

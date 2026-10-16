@@ -19,6 +19,8 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
     rm -rf /var/lib/apt/lists/*
 
 # Only bin/ollama is kept; the archive also bundles large GPU runtime libraries.
+# Not tracked by Dependabot (ARG/curl, not FROM); bump manually — see
+# "Procedure: Bumping the Baked-In Ollama Binary" in .github/skills/model-download-dev/SKILL.md.
 ARG OLLAMA_VERSION=v0.32.0
 ARG OLLAMA_SHA256=56362d7609dfa9e35aaebb7c9cab25605d8f0528ec3d5d585dc83d6642002bab
 RUN curl -fSL --retry 3 --connect-timeout 20 -o /tmp/ollama.tar.zst \
