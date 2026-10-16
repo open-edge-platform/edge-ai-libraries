@@ -184,6 +184,7 @@ services:
       - ${USE_CASE_MODELS_DIR:-aqh_model_cache}:/opt/models:ro
     group_add:
       - ${USER_GROUP_ID:-1001}
+      - ${RENDER_DEVICE_GID:-992}
     ports:
       - "${LLM_PORT:-8010}:8010"
     networks:
@@ -193,6 +194,8 @@ services:
         condition: service_healthy
     security_opt:
       - no-new-privileges
+    devices:
+      - "/dev/dri:/dev/dri"
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8010/v1/config || exit 1"]
       interval: 10s

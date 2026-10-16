@@ -64,6 +64,9 @@ PROJECT_NAME="$(basename -- "${PROJECT_DIR}")"
 # Supply credentials through the calling environment or a secret manager.
 : "${HUGGINGFACEHUB_API_TOKEN:=}"
 
+# For GPU
+RENDER_DEVICE_GID="$(stat -c "%g" /dev/dri/render* 2>/dev/null | head -n 1 || echo 992)"
+
 export REGISTRY TAG
 export STORAGE_SERVICE_URL STORAGE_CONNECT_TIMEOUT_SECONDS
 export STORAGE_READ_TIMEOUT_SECONDS STORAGE_READ_MAX_ATTEMPTS
@@ -78,6 +81,8 @@ export AGENT_PORT LLM_PORT MODEL_DOWNLOAD_PORT MOCK_STORAGE_PORT
 export OVMS_TAG MODEL_DOWNLOAD_URL MODEL_DOWNLOAD_TIMEOUT_SECONDS
 export MODEL_DOWNLOAD_PLUGINS USER_GROUP_ID COMPOSE_PROFILES
 export HUGGINGFACEHUB_API_TOKEN
+export RENDER_DEVICE_GID
+echo $RENDER_DEVICE_GID
 export http_proxy https_proxy no_proxy
 
 if ! command -v docker >/dev/null 2>&1; then
