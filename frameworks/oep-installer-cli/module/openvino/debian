@@ -27,6 +27,8 @@ debian_70_install_openvino () {
   if verify_openvino && [[ " $* " != *" --reinstall "* ]]; then
     echo "openvino-${version} is installed." >&2
   else
+    ensure_prop set installed/openvino/owned true
+
     ensure_disk_size 1500
     # remove old versions
     debian_70_remove_openvino "$@"
@@ -66,6 +68,7 @@ debian_70_install_openvino () {
 }
 
 debian_70_remove_openvino () {
+  [ "$(ensure_prop get installed/openvino/owned)" = "true" ] || return 0
   ensure_apt autoremove -m -y $(dpkg -l | grep openvino | awk '{print$2}') || true
 }
 
