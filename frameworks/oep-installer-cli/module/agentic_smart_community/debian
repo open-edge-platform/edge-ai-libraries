@@ -24,7 +24,7 @@ verify_agentic_smart_community () {
 }
 
 debian_90_profile_agentic_smart_community () {
-  echo "curl wget git jq python3_venv ffmpeg nodejs docker edge_base mediamtx"
+  echo "curl wget git jq python3_venv ffmpeg nodejs docker_io edge_base mediamtx"
 }
 
 debian_90_install_agentic_smart_community () {
@@ -33,7 +33,7 @@ debian_90_install_agentic_smart_community () {
     echo "Agentic Smart Community already installed. Skipping" 1>&2
   else
     ensure_ports_open "${used_ports[*]}" return 3
-    ensure_disk_size 128000
+    ensure_disk_size 2000
     ensure_ram_size 65011712 33554432 # 62 GiB and 32 GiB
 
     ensure_git_export "$workspace" "$version" "$repository" agentic-smart-community

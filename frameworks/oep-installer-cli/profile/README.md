@@ -65,9 +65,17 @@ point. The schema is:
   // Required. The modules that belong to this profile.
   //   startStop: true   -> the module exposes start/stop lifecycle commands and
   //                        gets a "Next Steps" (Start/Stop) section.
+  //   options: [...]    -> CLI flags the user can pick in the "Options" section,
+  //                        e.g. ["--gpu", "--cpu", "--npu"] or ["--docker", "--k3s"].
+  //                        The first flag is pre-selected; the selection is
+  //                        appended to the install command only. Button labels
+  //                        come from "options.labels" in config.base.json
+  //                        (the flag itself is shown if no label is defined).
+  //   multiSelect: true -> allow selecting several options at once (default:
+  //                        only one option can be selected).
   "modules": [
     { "label": "My Module", "value": "my_module" },
-    { "label": "My Service", "value": "my_service", "startStop": true }
+    { "label": "My Service", "value": "my_service", "startStop": true, "options": ["--gpu", "--cpu", "--npu"] }
   ],
 
   // Optional. A profile-level install command (typically used with installAll).

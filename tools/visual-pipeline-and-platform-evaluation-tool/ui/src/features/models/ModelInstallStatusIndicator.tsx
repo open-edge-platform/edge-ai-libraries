@@ -15,9 +15,9 @@ const formatInstallStatus = (status: ModelInstallStatus): string =>
 
 const STATUS_BADGE_VARIANT: Record<
   ModelInstallStatus,
-  "default" | "secondary" | "destructive" | "outline"
+  "default" | "secondary" | "success" | "destructive" | "outline"
 > = {
-  installed: "default",
+  installed: "success",
   installing: "secondary",
   not_installed: "outline",
   failed: "destructive",

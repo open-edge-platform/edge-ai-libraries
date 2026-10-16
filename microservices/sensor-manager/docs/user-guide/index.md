@@ -11,7 +11,7 @@
 </div>
 hide_directive-->
 
-Sensor Manager discovers the cameras available to an edge node and exposes them through a REST
+Sensor Manager is a microservice that discovers the cameras available to an edge node and exposes them through a REST
 API, so that applications such as the Visual Pipeline and Platform Evaluation Tool (ViPPET) can
 build GStreamer pipelines for them without implementing device discovery themselves.
 
@@ -35,10 +35,10 @@ returned by the service; clients that open RTSP streams must keep them on their 
 
 ## Sensor identifiers
 
-| Type | Identifier | Example |
-|------|------------|---------|
-| USB | `usb-camera-{slugified device name}-{video device number}` | `usb-camera-integrated-camera-0` |
-| ONVIF | `network-camera-{host}-{port}` | `network-camera-192.168.1.100-80` |
+| Type  | Identifier                                                 | Example                           |
+| ----- | ---------------------------------------------------------- | --------------------------------- |
+| USB   | `usb-camera-{slugified device name}-{video device number}` | `usb-camera-integrated-camera-0`  |
+| ONVIF | `network-camera-{host}-{port}`                             | `network-camera-192.168.1.100-80` |
 
 ## Learn More
 
