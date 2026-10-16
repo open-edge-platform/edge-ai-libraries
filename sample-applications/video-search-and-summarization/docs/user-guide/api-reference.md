@@ -63,6 +63,25 @@ The Pipeline Manager is the primary API for interacting with the application. It
 
 For full request/response schemas, refer to the interactive docs or the OpenAPI spec.
 
+## Video Embedding Status
+
+Each video returned by `GET /videos` and `GET /videos/{videoId}` records which
+search index it has been embedded into. These flags apply to **uploaded videos
+only**; live RTSP cameras have no video record, and their ingestion progress is
+reported by `GET /streams` (`stats.embeddings_created`).
+
+| Field | Set by | Meaning |
+| ----- | ------ | ------- |
+| `searchEmbeddings` | `POST /videos/search-embeddings/{videoId}` and `POST /videos/search-embeddings-batch` | `true` once frame embeddings were created (`--search`, `--dual`); `false` if DataPrep rejected the request or the batch item failed |
+| `textEmbeddings` | Summary pipeline, when search is enabled (`--unified`, `--dual`) | `true` once at least one chunk caption was embedded |
+
+`null` means no outcome has been recorded, either because embedding was never
+requested or because the video was embedded before this status was tracked. A
+`true` flag is never reset by a later failed attempt, and a timed-out request
+leaves the flag unchanged because DataPrep may still complete it. Batch jobs are
+followed by Pipeline Manager until they finish, so their result is recorded even
+if no client polls `GET /videos/search-embeddings-jobs/{jobId}`.
+
 ## Search by an Uploaded Image
 
 In `--search` and `--dual` modes, search-by-image can use an image stored in the

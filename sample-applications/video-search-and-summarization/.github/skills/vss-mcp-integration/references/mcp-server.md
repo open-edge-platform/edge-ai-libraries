@@ -86,7 +86,9 @@ it hands to an agent is one it has reached itself.
   explicitly unset, `null` if neither is reported. The field (and
   `videos_indexed`/`videos_index_unknown` on `vss_get_deployment_info`) is
   absent entirely in a summary-only deployment, which has no search index.
-  Do not re-index just because the value is `null`.
+  Pipeline Manager writes these flags when frame embeddings (single or batch)
+  or summary-caption embeddings finish; videos embedded before that tracking
+  existed stay `null`. Do not re-index just because the value is `null`.
 - **Search hits carry a reachable `url`** under
   `http://<VSS_IP>:<APP_HOST_PORT>/datastore`, with `start_s`/`end_s`/`seek_s`
   in seconds. Search hits, captions and summaries are never truncated; only

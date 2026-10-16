@@ -40,6 +40,26 @@ export enum StreamEvents {
   TAGS_SEEN = 'streams.tags.seen',
 }
 
+export enum VideoEvents {
+  /** Payload: `VideoEmbeddingsStatusEvent`. */
+  EMBEDDINGS_STATUS = 'video.embeddings.status',
+}
+
+/**
+ * Which index a stored video has been embedded into:
+ * - `searchEmbeddings`: frame/object embeddings from dataprep `/media/process`
+ *   (`POST /videos/search-embeddings[-batch]`).
+ * - `textEmbeddings`: chunk-caption embeddings from dataprep `/summary`,
+ *   written by the summary pipeline when search is enabled.
+ */
+export type VideoEmbeddingKind = 'searchEmbeddings' | 'textEmbeddings';
+
+export interface VideoEmbeddingsStatusEvent {
+  videoId: string;
+  kind: VideoEmbeddingKind;
+  created: boolean;
+}
+
 export enum PipelineErrors {}
 
 export interface PipelineDTOBase {

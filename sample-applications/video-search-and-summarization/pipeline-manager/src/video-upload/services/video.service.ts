@@ -4,8 +4,16 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  OnModuleDestroy,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import { OnEvent } from '@nestjs/event-emitter';
+import { AxiosResponse, isAxiosError } from 'axios';
+import {
+  VideoEmbeddingKind,
+  VideoEmbeddingsStatusEvent,
+  VideoEvents,
+} from 'src/events/Pipeline.events';
 import { Video, VideoDTO } from '../models/video.model';
 import { VideoValidatorService } from './video-validator.service';
 import { DatastoreService } from 'src/datastore/services/datastore.service';
@@ -20,16 +28,32 @@ import {
   DataPrepBatchProcessDTO,
   DataPrepBatchSubmitRO,
   DataPrepMinioDTO,
+  DataPrepMinioRO,
 } from 'src/data-prep/models/data-prep.models';
 
 @Injectable()
-export class VideoService {
+export class VideoService implements OnModuleDestroy {
   // Matches the data-prep duplicate-content rejection message
   // (Strings.duplicate_upload: "A video with identical content already exists").
   private static readonly DUPLICATE_CONTENT_PATTERN =
     /identical content|duplicate/i;
 
+  // Data-prep batch job states after which no item changes any more.
+  private static readonly TERMINAL_BATCH_STATES = new Set([
+    'completed',
+    'completed_with_errors',
+    'failed',
+    'cancelled',
+  ]);
+
+  // A submitted batch job is followed server-side until it finishes so the
+  // per-video embedding status is persisted even when no client polls it.
+  static readonly BATCH_TRACK_INTERVAL_MS = 5000;
+  static readonly BATCH_TRACK_MAX_MS = 6 * 60 * 60 * 1000;
+
   private videoMap: Map<string, Video> = new Map();
+
+  private batchTrackers: Map<string, NodeJS.Timeout> = new Map();
 
   constructor(
     private $validator: VideoValidatorService,
@@ -98,10 +122,74 @@ export class VideoService {
     };
   }
 
+  onModuleDestroy() {
+    for (const timer of this.batchTrackers.values()) {
+      clearTimeout(timer);
+    }
+    this.batchTrackers.clear();
+  }
+
+  /**
+   * Persist whether a video's embeddings of `kind` exist. Never downgrades a
+   * `true`: a failed re-run does not remove embeddings already in the index.
+   * Best-effort -- status bookkeeping must never fail the embedding request.
+   */
+  async setEmbeddingStatus(
+    videoId: string,
+    kind: VideoEmbeddingKind,
+    created: boolean,
+  ): Promise<void> {
+    try {
+      const video = await this.getVideo(videoId);
+      if (!video) {
+        return;
+      }
+      if (video[kind] === created || (video[kind] === true && !created)) {
+        return;
+      }
+      const updated = await this.$videoDb.setEmbeddingFlags(videoId, {
+        [kind]: created,
+      });
+      if (updated) {
+        this.videoMap.set(videoId, updated);
+      }
+    } catch (error) {
+      Logger.warn(
+        `Could not record ${kind}=${created} for video ${videoId}: ${String(error)}`,
+        VideoService.name,
+      );
+    }
+  }
+
+  @OnEvent(VideoEvents.EMBEDDINGS_STATUS)
+  async onEmbeddingsStatus(event: VideoEmbeddingsStatusEvent) {
+    await this.setEmbeddingStatus(event.videoId, event.kind, event.created);
+  }
+
   async createSearchEmbeddings(videoId: string, tagsToMerge: string[] = []) {
     const videoData = await this.prepareVideoForEmbedding(videoId, tagsToMerge);
 
-    return await lastValueFrom(this.$dataprep.createEmbeddings(videoData));
+    let response: AxiosResponse<DataPrepMinioRO>;
+    try {
+      response = await lastValueFrom(
+        this.$dataprep.createEmbeddings(videoData),
+      );
+    } catch (error) {
+      // Only a definitive answer from data-prep means "not embedded". A
+      // client-side timeout or connection drop leaves data-prep possibly
+      // still working, so the status stays as it was.
+      if (isAxiosError(error) && error.response) {
+        await this.setEmbeddingStatus(videoId, 'searchEmbeddings', false);
+      }
+      throw error;
+    }
+
+    await this.setEmbeddingStatus(
+      videoId,
+      'searchEmbeddings',
+      response.data?.status === 'success',
+    );
+    return response;
   }
 
   // Remove a video row/object that was just uploaded but failed embedding due to
@@ -149,6 +237,9 @@ export class VideoService {
     const response = await lastValueFrom(
       this.$dataprep.createEmbeddingsBatch(payload),
     );
+    if (response.data?.job_id) {
+      this.trackBatchJob(response.data.job_id);
+    }
     return response.data;
   }
 
@@ -166,8 +257,72 @@ export class VideoService {
     // otherwise the rejected video lingers as an orphan the UI can never play.
     // cleanupFailedDuplicateVideo is idempotent, so repeated polling is safe.
     await this.cleanupDuplicateBatchFailures(status);
+    await this.recordBatchEmbeddingStatus(status);
 
     return status;
+  }
+
+  // Persist searchEmbeddings for every finished item. Idempotent, so it is
+  // safe on every poll from the UI and from the server-side tracker.
+  private async recordBatchEmbeddingStatus(
+    status: DataPrepBatchJobStatusRO,
+  ): Promise<void> {
+    for (const item of status?.items ?? []) {
+      if (!item.video_id) {
+        continue;
+      }
+      if (item.status === 'success') {
+        await this.setEmbeddingStatus(item.video_id, 'searchEmbeddings', true);
+      } else if (
+        item.status === 'error' &&
+        !VideoService.DUPLICATE_CONTENT_PATTERN.test(item.message ?? '')
+      ) {
+        await this.setEmbeddingStatus(item.video_id, 'searchEmbeddings', false);
+      }
+    }
+  }
+
+  // Follow a batch job until it reaches a terminal state (or is evicted, or
+  // the time budget runs out), so its results reach the video rows even if
+  // the submitting client goes away.
+  private trackBatchJob(jobId: string): void {
+    if (this.batchTrackers.has(jobId)) {
+      return;
+    }
+    const deadline = Date.now() + VideoService.BATCH_TRACK_MAX_MS;
+
+    const schedule = () => {
+      const timer = setTimeout(
+        () => void tick(),
+        VideoService.BATCH_TRACK_INTERVAL_MS,
+      );
+      timer.unref?.();
+      this.batchTrackers.set(jobId, timer);
+    };
+
+    const tick = async () => {
+      let done = Date.now() >= deadline;
+      try {
+        const status = await this.getSearchEmbeddingsJobStatus(jobId);
+        done ||= VideoService.TERMINAL_BATCH_STATES.has(status?.state);
+      } catch (error) {
+        if (isAxiosError(error) && error.response?.status === 404) {
+          done = true;
+        } else {
+          Logger.warn(
+            `Batch embeddings job ${jobId} status poll failed: ${String(error)}`,
+            VideoService.name,
+          );
+        }
+      }
+      if (done || !this.batchTrackers.has(jobId)) {
+        this.batchTrackers.delete(jobId);
+        return;
+      }
+      schedule();
+    };
+
+    schedule();
   }
 
   // Best-effort cleanup of items a batch job rejected as duplicate content.
