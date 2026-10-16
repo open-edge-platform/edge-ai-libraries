@@ -27,7 +27,7 @@ marketing segments. The table lists the profiles:
 | `federal_and_aerospace_ai_suite` | Multi-modal federal and aerospace use cases |
 | `health_and_life_science_ai_suite` | Patient and vitals monitoring |
 
-> See [`module`](module) for the list of available modules.   
+> See [`modules`](module) or [`packages`](package) for the list of available modules.   
 
 ## Installation
 
@@ -134,25 +134,23 @@ openedge-cli install edge_node_infrastructure_blueprint --k3s
 
 ### List Profiles and Components
 
-Use the `list` subcommand to list all components and profiles 
+Use the `list` subcommand to list components and profiles properties:
 
 ```bash
-openedge-cli list
+openedge-cli list                          # list supported subcommands of all components
+openedge-cli list openvino                 # list supported subcommands of specific component(s)
+openedge-cli list --sbom computer_vision   # list installed system-level components
 ```
 
-### List SBOM
+> The `sbom` listing is limited to system-level installation only. 
 
-Use the `sbom` subcommand to discover what is installed by the OEP installer system wide. 
+### Installation Locations 
 
-```bash
-openedge-cli sbom computer_vision
-```
-
-> The listing is limited to system-level installation only.
-
-> User level installation is under `~/.local/open-edge-platform/<component-name>`.  
-
-> The OEP installer script is installed under `~/.local/bin` with bash completion under `~/.local/share/bash-completion`, and logs under `~/.local/open-edge-platform/openedge-cli/*.logs`.  
+The OEP installer installs the specified components under the following locations:
+- Any component workspace files under `~/.local/open-edge-platform/<component-name>`.  
+- Installation logs under `~/.local/open-edge-platform/openedge-cli/*.logs`.  
+- A replica of the OEP installer under `~/.local/bin`.  
+- A bash auto-completion script under `~/.local/share/bash-completion`.  
 
 ### Bootstrapping
 

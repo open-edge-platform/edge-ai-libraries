@@ -91,7 +91,7 @@ debian_90_start_take_away () {
 
 debian_90_stop_take_away () {
   configure_take_away "$@"
-  cd "$workspace"/take-away && make down || true
+  cd "$workspace"/take-away && make clean || true
 }
 
 debian_90_remove_take_away () {

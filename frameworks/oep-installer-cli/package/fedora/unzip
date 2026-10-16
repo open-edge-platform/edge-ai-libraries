@@ -1,0 +1,8 @@
+
+fedora_15_install_unzip () {
+  ensure_dnf_install_package unzip
+}
+
+fedora_15_sbom_unzip () {
+  ensure_sbom_format pkg-list unzip
+}

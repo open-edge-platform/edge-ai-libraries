@@ -1,0 +1,8 @@
+
+fedora_30_install_rsync () {
+  ensure_dnf_install_package rsync
+}
+
+fedora_30_sbom_rsync () {
+  ensure_sbom_format pkg-list rsync
+}

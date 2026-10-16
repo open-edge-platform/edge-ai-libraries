@@ -1,8 +1,12 @@
-# Release Notes
+# Release Notes: Sensor Manager
 
-## Version 1.0.0
+## Version 2026.3.0
 
-### New
+Initial release of Sensor Manager as a camera discovery service.
+
+**Release Date:** TBD
+
+**New:**
 
 - **USB and ONVIF camera discovery**: Initial release of Sensor Manager, with USB and ONVIF camera
   discovery moved out of the Visual Pipeline and Platform Evaluation Tool.

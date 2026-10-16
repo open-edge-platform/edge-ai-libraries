@@ -34,8 +34,9 @@ Sensor Manager discovers USB and ONVIF network cameras and exposes them through 
      -d '{"username": "<user>", "password": "<password>"}'
    ```
 
-   Avoid putting real passwords in your shell history. For example, read them from a file or an
-   environment variable.
+   > [!CAUTION]
+   > Avoid putting real passwords in your shell history. For example, read them from a file or an
+   > environment variable.
 
 5. Stop the service:
 
@@ -45,14 +46,14 @@ Sensor Manager discovers USB and ONVIF network cameras and exposes them through 
 
 ## Configuration
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `SENSOR_MANAGER_HOST` | `0.0.0.0` | Bind address of the HTTP server |
-| `SENSOR_MANAGER_PORT` | `8090` | HTTP port |
-| `ONVIF_DISCOVERY_ENABLED` | `true` | Enable the periodic WS-Discovery sweep |
-| `ONVIF_DISCOVERY_INTERVAL_S` | `20` | Seconds between discovery sweeps (minimum 1) |
-| `LOG_LEVEL` | `INFO` | Python log level |
-| `VIDEO_GID` | `44` | Host GID of the `video` group (Docker Compose only) |
+| Variable                     | Default   | Description                                         |
+| ---------------------------- | --------- | --------------------------------------------------- |
+| `SENSOR_MANAGER_HOST`        | `0.0.0.0` | Bind address of the HTTP server                     |
+| `SENSOR_MANAGER_PORT`        | `8090`    | HTTP port                                           |
+| `ONVIF_DISCOVERY_ENABLED`    | `true`    | Enable the periodic WS-Discovery sweep              |
+| `ONVIF_DISCOVERY_INTERVAL_S` | `20`      | Seconds between discovery sweeps (minimum 1)        |
+| `LOG_LEVEL`                  | `INFO`    | Python log level                                    |
+| `VIDEO_GID`                  | `44`      | Host GID of the `video` group (Docker Compose only) |
 
 ## Networking and Security Notes
 
@@ -78,9 +79,9 @@ Sensor Manager discovers USB and ONVIF network cameras and exposes them through 
 :::{toctree}
 :hidden:
 
-./get-started/system-requirements
-./get-started/build-from-source
-./get-started/deploy-with-helm-chart
+./get-started/system-requirements.md
+./get-started/build-from-source.md
+./get-started/deploy-with-helm-chart.md
 
 :::
 hide_directive-->

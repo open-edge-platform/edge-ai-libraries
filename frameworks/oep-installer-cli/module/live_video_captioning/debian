@@ -34,7 +34,7 @@ debian_90_install_live_video_captioning () {
     ensure_ports_open "${used_ports[*]}" return 3
 
     # clone the repository
-    ensure_disk_size 64000
+    ensure_disk_size 10000
     ensure_git_clone "$workspace" $version $repository live-video-analysis/live-video-captioning
     export -n socks_server ftp_proxy
 
