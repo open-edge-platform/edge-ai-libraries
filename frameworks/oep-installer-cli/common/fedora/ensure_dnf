@@ -27,15 +27,6 @@ ensure_dnf_is_installed () {
   done
 }
 
-# install simple package
-ensure_dnf_install_package () {
-  if ensure_dnf_is_installed "${@%%"*"}"; then
-    echo "${*%%=*} is/are already installed. Skipping..."
-  else
-    ensure_dnf install "$@"
-  fi
-}
-
 # enable epel
 ensure_dnf_enable_epel () {
   local rhel=$(rpm -E %rhel)
