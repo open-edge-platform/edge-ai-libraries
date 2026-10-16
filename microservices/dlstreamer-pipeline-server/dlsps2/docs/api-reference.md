@@ -533,6 +533,7 @@ curl http://localhost:8080/elements/gvadetect
 | `avg_fps` | number | Average frames per second since the pipeline started. |
 | `frame_fps` | number | Current (instantaneous) frames per second. |
 | `start_time` | number or null | Unix epoch start time in seconds. `null` until the instance is running. |
+| `first_frame_time` | number or null | Unix epoch time when the first frame was received. `null` until the first frame arrives. |
 | `elapsed_time` | number or null | Seconds the instance has been running, or ran in total if it has stopped. `null` until it starts. |
 | `message` | string | Error details when `state` is `ERROR`. Otherwise an empty string. |
 

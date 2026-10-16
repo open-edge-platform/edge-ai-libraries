@@ -101,9 +101,9 @@ class _Instance:
     frame_count: int = 0
     total_frame_count: int = 0
     frames_after_warmup: int = 0
+    first_frame_sent: bool = False  # Flag to emit firstframe event only once
     frame_count_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
     start_time: float = field(default_factory=time.monotonic)
-    first_frame_time: float = field(default_factory=time.monotonic)
     warmup_frame_time: float = field(default_factory=time.monotonic)
     last_poll_time: float = field(default_factory=time.monotonic)
 
@@ -221,52 +221,68 @@ class GstWorker:
     def _on_buffer_probe(pad, info, inst: "_Instance"):
         """Pad probe callback: count one frame. Runs on a streaming thread."""
         with inst.frame_count_lock:
-            if inst.frame_count == 0:
-                inst.first_frame_time = time.monotonic()
+            if not inst.first_frame_sent:
+                # Emit firstframe event exactly once when first frame arrives (Unix epoch time)
+                _emit({
+                    "instance_id": inst.instance_id,
+                    "event": "firstframe",
+                    "first_frame_time": time.time(),
+                })
+                inst.first_frame_sent = True
+                # Start fps polling window from first frame (so fps is accurate from frame 1)
+                inst.last_poll_time = time.monotonic()
             inst.frame_count += 1
             inst.total_frame_count += 1
             # Count frames after warmup threshold for avg_fps calculation
-            if inst.total_frame_count > inst.warmup_frames:
+            if inst.total_frame_count >= inst.warmup_frames:
                 if inst.frames_after_warmup == 0:
                     inst.warmup_frame_time = time.monotonic()
                 inst.frames_after_warmup += 1
         return Gst.PadProbeReturn.OK
 
     def _poll_fps(self, inst: "_Instance") -> bool:
-        """GLib timeout callback: emit this instance's own avg/last FPS.
+        """GLib timeout callback: emit this instance's own last/avg FPS.
 
         ``last_fps`` covers just the window since the previous poll (about
-        _FPS_POLL_INTERVAL_SECONDS); ``avg_fps`` covers the pipeline after
-        warmup frames are excluded (measured from first frame after warmup).
+        _FPS_POLL_INTERVAL_SECONDS) and is emitted during both warmup and
+        steady state. ``avg_fps`` covers the pipeline after warmup frames are
+        excluded (measured from first frame after warmup) and is only emitted
+        once warmup is complete.
+
         Returns GLib.SOURCE_CONTINUE to keep firing every
         _FPS_POLL_INTERVAL_SECONDS until the pipeline's main loop exits.
 
         Also called one last time from ``_teardown`` (on a different thread)
         to flush a final fps event for pipelines stopped/aborted before this
-        timer ever got to fire on its own; ``start_time``/``last_poll_time``
-        are therefore read and updated under ``frame_count_lock`` too, not
-        just ``frame_count``/``total_frame_count``.
+        timer ever got to fire on its own; ``last_poll_time`` is therefore
+        read and updated under ``frame_count_lock``.
         """
         now = time.monotonic()
         with inst.frame_count_lock:
             window_count = inst.frame_count
             inst.frame_count = 0
-            warmup_count = inst.warmup_frames
             frames_after = inst.frames_after_warmup
             window_elapsed = now - inst.last_poll_time
             inst.last_poll_time = now
             # avg_fps is calculated only from frames after warmup period
             total_elapsed = now - inst.warmup_frame_time if frames_after > 0 else 0
-        if window_elapsed > 0 and total_elapsed > 0 and frames_after > 0:
-            _emit({
-                "instance_id": inst.instance_id,
-                "event": "fps",
-                "avg_fps": frames_after / total_elapsed,
-                "last_fps": window_count / window_elapsed,
-            })
-        elif window_elapsed > 0 and warmup_count > 0 and frames_after == 0:
-            # Still in warmup phase, don't emit fps yet
-            pass
+
+        payload = {
+            "instance_id": inst.instance_id,
+            "event": "fps",
+        }
+
+        # Always emit last_fps when we have frames in the window (works during warmup)
+        if window_elapsed > 0 and window_count > 0:
+            payload["last_fps"] = window_count / window_elapsed
+
+        # Emit avg_fps only after warmup is complete
+        if total_elapsed > 0 and frames_after > 0:
+            payload["avg_fps"] = frames_after / total_elapsed
+
+        if len(payload) > 2:  # More than just instance_id and event keys
+            _emit(payload)
+
         return GLib.SOURCE_CONTINUE
 
     # ------------------------------------------------------------------
@@ -340,7 +356,6 @@ class GstWorker:
         # still fully isolated per instance — no shared/native aggregation.
         self._attach_fps_probes(pipeline, inst)
         inst.start_time = time.monotonic()
-        inst.last_poll_time = inst.start_time
         fps_source = GLib.timeout_source_new_seconds(_FPS_POLL_INTERVAL_SECONDS)
         fps_source.set_callback(self._poll_fps, inst)
         fps_source.attach(None)

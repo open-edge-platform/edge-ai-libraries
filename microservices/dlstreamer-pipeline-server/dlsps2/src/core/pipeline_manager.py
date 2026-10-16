@@ -90,6 +90,7 @@ class PipelineInstance:
     frame_fps: float = 0.0
     start_time: Optional[float] = None
     stop_time: Optional[float] = None
+    first_frame_time: Optional[float] = None  # Unix epoch time when first frame was received
 
     # Optional request metadata, populated when the instance was started via
     # the legacy named-pipeline API (POST /pipelines/{name}/{version}). Mirrors
@@ -121,6 +122,7 @@ class PipelineInstance:
             "avg_fps": self.avg_fps,
             "frame_fps": self.frame_fps,
             "start_time": self.start_time,
+            "first_frame_time": self.first_frame_time,
             "elapsed_time": self.elapsed_time(),
             "message": self.error or "",
         }
@@ -468,6 +470,12 @@ class PipelineManager:
                     instance.avg_fps = float(event["avg_fps"])
                 if event.get("last_fps") is not None:
                     instance.frame_fps = float(event["last_fps"])
+        elif evt == "firstframe":
+            first_frame_time = event.get("first_frame_time")
+            if first_frame_time is not None:
+                with self._lock:
+                    instance.first_frame_time = first_frame_time
+                logger.info("Pipeline %s received first frame at %.3f", instance_id, instance.first_frame_time)
         elif evt == "started":
             logger.debug("Pipeline %s started", instance_id)
         elif evt == "eos":
