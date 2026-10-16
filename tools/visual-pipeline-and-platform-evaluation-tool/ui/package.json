@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
+    "typecheck:e2e": "tsc -p tsconfig.playwright.json",
     "preview": "vite preview",
     "generate:api": "npx @rtk-query/codegen-openapi src/api/api.config.json",
     "test:e2e": "playwright test",
