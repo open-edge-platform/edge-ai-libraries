@@ -43,7 +43,7 @@ fedora_70_install_openvino () {
     # remove old versions
     fedora_70_remove_openvino "$@"
 
-    # product k
+    # product entrypoint
     printf "%s\n" "${yum_repo_conf[@]}" | ensure_sudo tee "$yum_repo_file"
 
     # install openvino
