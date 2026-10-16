@@ -20,12 +20,17 @@ def _validate_cpu_cores(value: Optional[List[int]]) -> Optional[List[int]]:
 # ---------------------------------------------------------------------------
 # Requests
 # ---------------------------------------------------------------------------
+class RestartConfig(BaseModel):
+    enabled: bool = False
+    max_attempts: int = 5
+    backoff_seconds: int = 30
 
 class StartPipelineRequest(BaseModel):
     pipeline: str
     validate_pipeline: Optional[bool] = Field(default=True, description="Whether to validate the pipeline before starting")
     cpu_cores: Optional[List[int]] = None  # CPU core indices to pin this pipeline to (e.g., [0, 1, 2])
     warmup_frames: Optional[int] = Field(default=0, description="Number of frames to warm up the FPS counter before reporting")
+    restart_config: Optional[RestartConfig] = None
 
     _check_cpu_cores = field_validator("cpu_cores")(_validate_cpu_cores)
 

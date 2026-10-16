@@ -35,7 +35,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from core.worker_pool import WorkerPool
 
@@ -53,6 +53,7 @@ _VALIDATION_SUBPROCESS_TIMEOUT_SECONDS = 30.0
 class PipelineState(str, Enum):
     QUEUED = "QUEUED"
     RUNNING = "RUNNING"
+    RESTARTING = "RESTARTING"  # Pipeline stopped/errored, attempting automatic restart
     COMPLETED = "COMPLETED"
     ERROR = "ERROR"
     ABORTED = "ABORTED"
@@ -105,6 +106,11 @@ class PipelineInstance:
     # CPU affinity: list of core indices to pin this pipeline to, or None for unpinned
     cpu_cores: Optional[List[int]] = None
     warmup_frames: Optional[int] = 0
+
+    # Restart configuration and state
+    restart_config: Optional[dict] = None  # {"enabled": bool, "max_attempts": int, "backoff_seconds": int}
+    restart_attempts: int = 0  # Current restart attempt count
+    restart_timer: Optional[Any] = None  # Scheduled restart GLib.timeout_source or thread timer
 
     def elapsed_time(self) -> Optional[float]:
         if self.start_time is None:
@@ -194,6 +200,7 @@ class PipelineManager:
         request: Optional[dict] = None,
         cpu_cores: Optional[List[int]] = None,
         warmup_frames: Optional[int] = 0,
+        restart_config: Optional[dict] = None,
     ) -> str:
         """Validate and submit a new pipeline instance.
 
@@ -224,6 +231,7 @@ class PipelineManager:
             request=request,
             cpu_cores=cpu_cores,
             warmup_frames=warmup_frames,
+            restart_config=restart_config,
         )
 
         with self._lock:
@@ -245,14 +253,14 @@ class PipelineManager:
         """Request a graceful stop of one pipeline instance.
 
         Returns:
-            True if the instance was running and the stop request was sent,
-            False if the instance was not found or not in RUNNING state.
+            True if the instance was running/restarting and the stop request was sent,
+            False if the instance was not found or not in RUNNING/RESTARTING state.
         """
         with self._lock:
             instance = self._instances.get(instance_id)
             if not instance:
                 return False
-            if instance.state != PipelineState.RUNNING:
+            if instance.state not in (PipelineState.RUNNING, PipelineState.RESTARTING):
                 return False
             instance.state = PipelineState.ABORTED
 
@@ -471,15 +479,19 @@ class PipelineManager:
                 if event.get("last_fps") is not None:
                     instance.frame_fps = float(event["last_fps"])
         elif evt == "firstframe":
-            first_frame_time = event.get("first_frame_time")
-            if first_frame_time is not None:
-                with self._lock:
+            # Reset restart attempts on first frame (restart was successful)
+            with self._lock:
+                instance.restart_attempts = 0
+                first_frame_time = event.get("first_frame_time")
+                if first_frame_time is not None:
                     instance.first_frame_time = first_frame_time
-                logger.info("Pipeline %s received first frame at %.3f", instance_id, instance.first_frame_time)
+            logger.info("Pipeline %s received first frame at %.3f (restart attempts reset)", instance_id, instance.first_frame_time)
         elif evt == "started":
             logger.debug("Pipeline %s started", instance_id)
         elif evt == "eos":
             logger.info("Pipeline %s reached EOS", instance_id)
+            if instance.restart_config and instance.restart_config.get("enabled"):
+                self._attempt_restart(instance)
         elif evt == "error":
             with self._lock:
                 instance.error = event.get("reason") or instance.error
@@ -498,6 +510,8 @@ class PipelineManager:
                     instance.stop_time = time.time()
             logger.error("Pipeline %s error: %s", instance_id, event.get("reason"))
             self._worker_pool.untrack_pipeline(instance_id, instance.cpu_cores)
+            if instance.restart_config and instance.restart_config.get("enabled"):
+                self._attempt_restart(instance)
         elif evt == "stopped":
             with self._lock:
                 instance.stop_time = time.time()
@@ -512,3 +526,82 @@ class PipelineManager:
             )
         else:
             logger.debug("Unknown event for pipeline %s: %s", instance_id, event)
+
+    def _attempt_restart(self, instance: PipelineInstance) -> None:
+        """Check if automatic restart should be triggered for a failed/stopped pipeline."""
+        with self._lock:
+            # Not enabled or already restarting/aborted
+            if not instance.restart_config or not instance.restart_config.get("enabled"):
+                return
+            if instance.state in (PipelineState.RESTARTING, PipelineState.ABORTED):
+                return
+
+            max_attempts = instance.restart_config.get("max_attempts", 5)
+            # Check if we haven't exceeded max attempts yet
+            if instance.restart_attempts >= max_attempts:
+                logger.warning(
+                    "Pipeline %s reached max restart attempts (%d); giving up",
+                    instance.instance_id,
+                    max_attempts,
+                )
+                return
+
+            instance.restart_attempts += 1
+            instance.state = PipelineState.RESTARTING
+
+        backoff_seconds = instance.restart_config.get("backoff_seconds", 30)
+        logger.info(
+            "Pipeline %s scheduled for restart (attempt %d/%d, backoff %.0fs)",
+            instance.instance_id,
+            instance.restart_attempts,
+            instance.restart_config.get("max_attempts", 5),
+            backoff_seconds,
+        )
+
+        # Schedule restart on a background thread after backoff
+        thread = threading.Thread(
+            target=self._restart_pipeline_delayed,
+            args=(instance, backoff_seconds),
+            name=f"restart-{instance.instance_id[:8]}",
+            daemon=True,
+        )
+        thread.start()
+
+    def _restart_pipeline_delayed(self, instance: PipelineInstance, backoff_seconds: float) -> None:
+        """Background thread: wait for backoff, then restart the pipeline."""
+        time.sleep(backoff_seconds)
+        self._restart_pipeline(instance)
+
+    def _restart_pipeline(self, instance: PipelineInstance) -> None:
+        """Restart a failed pipeline: resubmit without revalidation."""
+        logger.info("Restarting pipeline %s (attempt %d)", instance.instance_id, instance.restart_attempts)
+
+        # Reset metrics for this restart attempt
+        with self._lock:
+            if instance.state != PipelineState.RESTARTING:
+                logger.warning("Pipeline %s no longer in RESTARTING state; aborting restart", instance.instance_id)
+                return
+            instance.first_frame_time = None
+            instance.error = None
+            instance.stop_time = None
+            instance.state = PipelineState.RUNNING
+            instance.start_time = time.time()
+
+        success = self._worker_pool.send_command(
+            instance.instance_id,
+            {
+                "cmd": "start",
+                "pipeline": instance.pipeline_description,
+                "warmup_frames": instance.warmup_frames,
+            },
+            cpu_cores=instance.cpu_cores,
+        )
+
+        if success:
+            logger.info("Restart submitted for pipeline %s (attempt %d)", instance.instance_id, instance.restart_attempts)
+        else:
+            with self._lock:
+                instance.state = PipelineState.ERROR
+                instance.error = "restart failed to submit to worker"
+                instance.stop_time = time.time()
+            logger.error("Failed to submit restart for pipeline %s", instance.instance_id)
