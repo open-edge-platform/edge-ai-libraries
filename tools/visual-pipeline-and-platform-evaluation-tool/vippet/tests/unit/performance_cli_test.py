@@ -316,6 +316,21 @@ class TestReportOnly(unittest.TestCase):
         with self.subTest("missing path"):
             self.assertEqual(self._run(str(self.tmp / "nope")), 2)
             self.assertIn("error:", self.err.getvalue())
+            # An explicit (user-supplied) path that is missing gets the
+            # plain not-found error, no implicit-default hint.
+            self.assertNotIn("Run a benchmark first", self.err.getvalue())
+
+    def test_missing_default_target_gives_helpful_hint(self) -> None:
+        # No inputs and no "latest" symlink: the implicit default target
+        # is missing, which should nudge the user toward running a
+        # benchmark first instead of a bare "not found" error.
+        rc = self._run()
+
+        self.assertEqual(rc, 2)
+        message = self.err.getvalue()
+        self.assertIn("error:", message)
+        self.assertIn("Run a benchmark first", message)
+        self.assertIn("--report-only PATH", message)
 
         with self.subTest("directory with no JSON"):
             empty_dir = self.tmp / "bench_empty"
@@ -339,6 +354,28 @@ class TestReportOnly(unittest.TestCase):
             )
             self.assertEqual(rc, 2)
             self.assertIn("error:", err.getvalue())
+
+    def test_missing_default_target_hints_at_running_a_benchmark(self) -> None:
+        # No inputs given and no "latest" link exists: nothing has been
+        # benchmarked yet in self.tmp. The error should explain that,
+        # instead of just reporting a bare "not found".
+        rc = self._run()
+
+        self.assertEqual(rc, 2)
+        message = self.err.getvalue()
+        self.assertIn("error:", message)
+        self.assertIn("result path not found", message)
+        self.assertIn(str(self.tmp), message)
+        self.assertIn("make test-performance", message)
+
+    def test_explicit_missing_path_has_no_benchmark_hint(self) -> None:
+        # The hint only makes sense for the implicit <results-dir>/latest
+        # default; an explicit, user-supplied path that is missing should
+        # not claim "no benchmark results yet".
+        rc = self._run(str(self.tmp / "nope"))
+
+        self.assertEqual(rc, 2)
+        self.assertNotIn("make test-performance", self.err.getvalue())
 
         with self.subTest(".txt file"):
             txt_path = self.tmp / "result.txt"

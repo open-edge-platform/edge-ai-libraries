@@ -100,6 +100,30 @@ class TestPrecedence(_TmpConfigMixin):
         resolved = s.resolve_settings(path, env={"PERF_RESULTS_DIR": ""})
         self.assertEqual(resolved["results.output_dir"], "/yaml")
 
+    def test_presets_do_not_override_output_dir(self) -> None:
+        for preset in ("default", "quick", "full"):
+            with self.subTest(preset=preset):
+                resolved = s.resolve_settings(preset, env={})
+                self.assertEqual(
+                    resolved.sources["results.output_dir"], s.SOURCE_DEFAULT
+                )
+
+    def test_default_output_dir_is_absolute(self) -> None:
+        resolved = s.resolve_settings("default", env={})
+        self.assertEqual(Path(resolved["results.output_dir"]), s.PERF_DIR / "results")
+
+    def test_absolute_output_dir_overrides_are_unaffected(self) -> None:
+        resolved = s.resolve_settings(
+            "default", env={}, cli_overrides={"results.output_dir": "/abs/path"}
+        )
+        self.assertEqual(resolved["results.output_dir"], "/abs/path")
+
+    def test_relative_output_dir_override_resolves_against_cwd(self) -> None:
+        resolved = s.resolve_settings(
+            "default", env={}, cli_overrides={"results.output_dir": "./my-results"}
+        )
+        self.assertEqual(resolved["results.output_dir"], "./my-results")
+
     def test_none_cli_override_is_ignored(self) -> None:
         resolved = s.resolve_settings(
             "quick", env={}, cli_overrides={"benchmark.stream_counts": None}

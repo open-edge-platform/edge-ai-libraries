@@ -49,7 +49,6 @@ FUNCTIONAL_DIR: Path = PERF_DIR.parent / "functional"
 
 EXIT_OK = 0
 EXIT_USAGE = 2
-EXIT_NOT_IMPLEMENTED = 3
 LATEST_LINK_NAME = "latest"
 
 
@@ -355,6 +354,7 @@ def run_report_only(
     stderr = stderr or sys.stderr
 
     results_dir = Path(settings["results.output_dir"])
+    using_default = not inputs
     targets = list(inputs) or [str(results_dir / LATEST_LINK_NAME)]
 
     try:
@@ -366,7 +366,15 @@ def run_report_only(
         runs = [load_result(p) for p in paths]
         html = generate_html_report(runs)
     except ReportInputError as exc:
-        print(f"error: {exc}", file=stderr)
+        message = str(exc)
+        if using_default and message.startswith("result path not found"):
+            message += (
+                f"; no benchmark results in {results_dir} yet. Run a "
+                "benchmark first (e.g. `make test-performance` or "
+                "`python -m perf_helpers.cli`), or rebuild from a specific "
+                "run with --report-only PATH."
+            )
+        print(f"error: {message}", file=stderr)
         return EXIT_USAGE
     except (KeyError, TypeError, ValueError, AttributeError) as exc:
         print(

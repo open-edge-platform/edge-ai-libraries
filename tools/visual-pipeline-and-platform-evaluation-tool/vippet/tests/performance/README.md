@@ -111,7 +111,9 @@ python -m perf_helpers.cli --report-only results/bench_A results/bench_B --repor
 - The JSON must have been saved by the run (`json` listed in
   `results.formats` / `--formats`).
 - Exit codes: `0` on success; `2` for a missing, unreadable or invalid
-  input; `2` for `--report-output` without `--report-only`.
+  input; `2` for `--report-output` without `--report-only`. If the
+  implicit default (`<results-dir>/latest`) is missing, the error
+  suggests running a benchmark first or passing an explicit path.
 
 ### Direct pytest
 
@@ -178,23 +180,30 @@ Notes:
 - `--no-skip-missing-models` lets pipelines with missing models run anyway
   (and fail at runtime) instead of being skipped with the missing-model
   reason shown.
+- A relative `--results-dir` / `results.output_dir` / `PERF_RESULTS_DIR`
+  value is resolved against the current working directory, like any other
+  path argument. If you don't set it, it defaults to `results` inside
+  `vippet/tests/performance` (an absolute path), so a benchmark run and a
+  later `--report-only` agree on where results live regardless of which
+  directory the CLI is invoked from — as long as you don't override it
+  with a relative path from a different directory.
 - The CLI always passes `vippet/tests/performance` to pytest, so arguments after
   `--` can't move collection elsewhere. Paths or node ids after `--` don't narrow
   the run; use `--pipelines`, `--variants`, `--streams` or `-k` instead.
 
 Environment variable defaults:
 
-| Env var                      | Default                           | Description                                                                                                                    |
-|------------------------------|-----------------------------------|--------------------------------------------------------------------------------------------------------------------------------|
-| `VIPPET_BASE_URL`            | `http://localhost/api/v1`         | VIPPET API endpoint                                                                                                            |
-| `VIPPET_METRICS_URL`         | `http://localhost/metrics/stream` | Metrics endpoint (via nginx proxy)                                                                                             |
-| `VIPPET_JOB_POLL_INTERVAL`   | `2.0`                             | Job status polling interval (seconds)                                                                                          |
-| `VIPPET_JOB_TIMEOUT_SECONDS` | `600`                             | Max wait for a job, whole seconds                                                                                              |
-| `PERF_CONFIG`                | `default`                         | Config preset (`default`, `quick`, `full`)                                                                                     |
-| `PERF_CONFIG_FILE`           | (unset)                           | Explicit YAML path; wins over `PERF_CONFIG`                                                                                    |
-| `PERF_RESULTS_DIR`           | `./results`                       | Output directory for reports                                                                                                   |
-| `PERF_METRICS_INTERVAL`      | `2.0`                             | HW sampling interval (seconds)                                                                                                 |
-| `PERF_ON_UNKNOWN_ID`         | `fail`                            | Unknown id in `pipelines` / `skip_pipelines` / `skip_variants` / `variants`: `fail` aborts the run, `warn` only logs a warning |
+| Env var                      | Default                            | Description                                                                                                                    |
+|------------------------------|------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|
+| `VIPPET_BASE_URL`            | `http://localhost/api/v1`          | VIPPET API endpoint                                                                                                            |
+| `VIPPET_METRICS_URL`         | `http://localhost/metrics/stream`  | Metrics endpoint (via nginx proxy)                                                                                             |
+| `VIPPET_JOB_POLL_INTERVAL`   | `2.0`                              | Job status polling interval (seconds)                                                                                          |
+| `VIPPET_JOB_TIMEOUT_SECONDS` | `600`                              | Max wait for a job, whole seconds                                                                                              |
+| `PERF_CONFIG`                | `default`                          | Config preset (`default`, `quick`, `full`)                                                                                     |
+| `PERF_CONFIG_FILE`           | (unset)                            | Explicit YAML path; wins over `PERF_CONFIG`                                                                                    |
+| `PERF_RESULTS_DIR`           | `vippet/tests/performance/results` | Output directory for reports                                                                                                   |
+| `PERF_METRICS_INTERVAL`      | `2.0`                              | HW sampling interval (seconds)                                                                                                 |
+| `PERF_ON_UNKNOWN_ID`         | `fail`                             | Unknown id in `pipelines` / `skip_pipelines` / `skip_variants` / `variants`: `fail` aborts the run, `warn` only logs a warning |
 
 `VIPPET_JOB_POLL_INTERVAL` and `VIPPET_JOB_TIMEOUT_SECONDS` are also read by the
 functional-test helpers. The CLI and direct pytest both resolve them the same way.
