@@ -36,7 +36,7 @@ debian_90_install_dine_in () {
   else 
     ensure_ports_open "${ports[*]}" return 3
     # clone the repository
-    ensure_disk_size 10000
+    ensure_disk_size 45000
     ensure_git_clone "$workspace" $version $repository
 
     # initialize .env
@@ -80,7 +80,7 @@ debian_90_start_dine_in () {
 
 debian_90_stop_dine_in () {
   configure_dine_in "$@"
-  cd "$workspace"/dine-in && make down || true
+  cd "$workspace"/dine-in && make clean || true
 }
 
 debian_90_remove_dine_in () {

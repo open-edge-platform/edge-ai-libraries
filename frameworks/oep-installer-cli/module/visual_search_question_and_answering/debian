@@ -4,6 +4,7 @@ configure_visual_search_question_and_answering () {
   version=release-2026.2.0
   repository="https://github.com/open-edge-platform/metro-ai-suite.git"
   used_ports=(17580 19530 9764 9990 6008 9777)
+  demo_dataset="https://data.vision.ee.ethz.ch/csergi/share/davis/DAVIS-2017-test-dev-480p.zip"
 
   export EMBEDDING_MODEL_NAME=CLIP/clip-vit-h-14
   export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-7B-Instruct
@@ -20,11 +21,18 @@ configure_visual_search_question_and_answering () {
 }
 
 verify_visual_search_question_and_answering () {
-  [ -r "$workspace" ]
+  [ -r "$workspace" ] || { 
+    echo "Missing $workspace" >&2
+    return 1
+  }
+  [ -d "$HOST_DATA_PATH"/DAVIS/subset ] || {
+    echo "Missing demo dataset" >&2
+    return 1
+  }
 }
 
 debian_90_profile_visual_search_question_and_answering () {
-  echo "git curl gawk python3_venv edge_base docker_io"
+  echo "git curl gawk python3_venv edge_base docker_io unzip"
 }
 
 debian_90_install_visual_search_question_and_answering () {
@@ -42,8 +50,15 @@ debian_90_install_visual_search_question_and_answering () {
     sed -i -e "s|^host_ip=.*|host_ip=$(ensure_ip)|" -e "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" env.sh
     sed -i "s|^export HOST_DATA_PATH=.*|export HOST_DATA_PATH=\"$HOST_DATA_PATH\"|" env.sh
 
-    # create data path
+    # create dataset
+    echo "Fetch $(basename "$demo_dataset")..."
     mkdir -p "$HOST_DATA_PATH"
+    ensure_fetch "$demo_dataset" "$HOST_DATA_PATH"/$(basename "$demo_dataset")
+    docker run --rm --group-add $(id -g) -v "${HOST_DATA_PATH}":/home/user/data:rw ${REGISTRY}dataprep-visualdata-milvus:${TAG} python example/example_utils.py -d DAVIS || {
+      echo "failed to process demo dataset" >&2
+      return 3
+    }
+    ensure_rm "$HOST_DATA_PATH"/$(basename "$demo_dataset")
 
     verify_visual_search_question_and_answering
   fi
@@ -65,24 +80,16 @@ debian_90_start_visual_search_question_and_answering () {
   
   echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}"
   echo "@@HIGHLIGHT $installer_name stop|remove"
-
-  if [ ! -e "$HOST_DATA_PATH"/DAVIS/subset ]; then
-    echo "Fetching demo dataset"
-    local cids=($(docker ps -a --filter "status=running" -q | xargs -r docker inspect --format '{{.Config.Image}} {{.Id}}' | grep "dataprep-visualdata-milvus" | awk '{print $2}'))
-    [ "${#cids[*]}" -gt 0 ] || {
-      echo "No milvus containers found" 1>&2
-      return 1
-    }
-    docker exec ${cids[0]} python example/example_utils.py -d DAVIS
-    [ -d "$HOST_DATA_PATH"/DAVIS/subset ]
-  fi
-
   echo "@@HIGHLIGHT dataset: $HOST_DATA_PATH/DAVIS/subset"
 }
 
 debian_90_stop_visual_search_question_and_answering () {
   configure_visual_search_question_and_answering "$@"
-  cd "$workspace"/visual-search-question-and-answering/deployment/docker-compose && . ./env.sh && docker compose -f compose_milvus.yaml down -v --remove-orphans || true
+  cd "$workspace"/visual-search-question-and-answering/deployment/docker-compose && {
+    . ./env.sh || true
+    docker compose -f compose_milvus.yaml down -v --remove-orphans
+  } || true
+  docker volume rm -f ov-models || true
 }
 
 debian_90_remove_visual_search_question_and_answering () {
