@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 use_case_id: pipeline-defect-detection
 
 analysis:
@@ -23,3 +26,41 @@ ticketing:
     high: [Rupture, Disconnect]
     medium: [Deformation]
     low: [Obstacle]
+
+# Optional: config-driven agent registry
+# If this key is omitted (or left empty), AQH uses the built-in registry:
+# policy, analysis, evidence, ticketing.
+# If you provide this key, declare the full registry for the use case.
+# agent_registry:
+#   - name: policy
+#     module: src.agents.policy_agent
+#     depends_on: []
+#     prompt_section: POLICY
+#   - name: sensor_correlation
+#     module: src.agents.generic_prompt_agent
+#     depends_on: [policy]
+#     prompt_section: SENSOR_CORRELATION
+#   - name: analysis
+#     module: src.agents.analysis_agent
+#     depends_on: []
+#     prompt_section: ANALYSIS
+#   - name: evidence
+#     module: src.agents.evidence_agent
+#     depends_on: []
+#     prompt_section: EVIDENCE
+#   - name: ticketing
+#     module: src.agents.ticketing_agent
+#     depends_on: [policy, analysis]
+#     prompt_section: TICKETING
+# `prompt_section` defaults to the uppercased agent name when omitted.
+
+# Optional: per-agent config block for a generic_prompt_agent-backed entry.
+# Key must match the agent's `name` in agent_registry. `instructions` is
+# used only as a fallback when prompt_section isn't found in the use-case
+# prompt file; `max_tokens` bounds the LLM response (default 512).
+# sensor_correlation:
+#   max_tokens: 512
+#   instructions: >
+#     Correlate vibration/temperature sensor anomalies with the vision
+#     detections in context. Flag cases where both modalities agree.
+

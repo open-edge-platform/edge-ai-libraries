@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Integrating the Agent Microservice into Another Application
 
 The agent-service is detection-agnostic: it never talks to DL Streamer or any
@@ -108,13 +113,70 @@ REST API:
 | Method | Path | Purpose |
 |--------|------|---------|
 | `GET` | `/agents/status/{run_id}` | `{"run_id", "status", "phase"}` — `status` is `running`/`completed`/`error` |
-| `GET` | `/agents/results/{run_id}` | Full pipeline output (policy, analysis, evidence, ticketing) once completed |
+| `GET` | `/agents/results/{run_id}` | Full pipeline output (built-in `policy`/`analysis`/`evidence`/`ticket`, plus `extra_agents` for any custom specialists) once completed |
 | `GET` | `/agents/runs` | List all known runs |
 | `GET` | `/health` | Liveness/readiness check |
 
 Results are held **in-memory** for the life of the agent-service process —
 persist them yourself (e.g. write `GET /agents/results/{run_id}` output to
 your own datastore) if you need durable history across restarts.
+
+## Extending the Specialist Agent Set
+
+The built-in specialists remain `policy`, `analysis`, `evidence`, and
+`ticketing`, but downstream integrators are no longer limited to that fixed
+set. If your application needs additional reasoning for a custom modality —
+for example, fusing vision detections with sensor or time-series signals for
+defect correlation — mount an `agents.yaml` that defines an `agent_registry`.
+
+When `agent_registry` is omitted, AQH uses the built-in four automatically.
+When it is present, it becomes the full registry for that use case, so the
+common pattern is to copy the built-in entries and insert your custom
+specialist:
+
+```yaml
+agent_registry:
+  - name: policy
+    module: src.agents.policy_agent
+    depends_on: []
+    prompt_section: POLICY
+  - name: sensor_correlation
+    module: src.agents.generic_prompt_agent
+    depends_on: [policy]
+    prompt_section: SENSOR_CORRELATION
+  - name: analysis
+    module: src.agents.analysis_agent
+    depends_on: []
+    prompt_section: ANALYSIS
+  - name: evidence
+    module: src.agents.evidence_agent
+    depends_on: []
+    prompt_section: EVIDENCE
+  - name: ticketing
+    module: src.agents.ticketing_agent
+    depends_on: [policy, analysis]
+    prompt_section: TICKETING
+```
+
+AQH validates that registry, builds the execution graph from it, and enforces
+dependency-safe ordering automatically. `module` must still resolve to an
+importable Python module exposing `run(context) -> dict`; no changes to AQH
+orchestration code are required, but a new agent is not entirely code-free
+unless it reuses the built-in `src.agents.generic_prompt_agent` module shown
+above. That module is a generic, prompt-driven specialist: it reads its
+`[<prompt_section>]` block from the use-case prompt file (or a configured
+`instructions` fallback), threads in `depends_on` outputs and the detection
+summary, and asks the LLM one question — covering most custom-specialist
+use cases without writing new Python. Only agents needing logic beyond
+"ask the LLM with some JSON context" require a bespoke module.
+
+Custom-agent outputs surface additively:
+
+- in `GET /agents/results/{run_id}` under `extra_agents.sensor_correlation`
+- in persisted history via `GET /agents/outputs/sensor_correlation`
+
+The built-in API contract stays stable: `policy`, `analysis`, `evidence`,
+and `ticket` remain the top-level result keys used by existing integrators.
 
 ## Configuration Reference
 
@@ -128,7 +190,7 @@ broker/topic, or use-case config:
 | `MQTT_HOST` / `MQTT_PORT` | `mqtt-broker` / `1883` | Broker for Contract 2a |
 | `MQTT_BATCH_TOPIC` | `apm/batch-complete` | Topic for Contract 2a |
 | `MQTT_DISABLED` | `false` | Set `true` to disable the event subscriber entirely and rely only on Contract 2b |
-| `AGENTS_CONFIG_PATH` | — | Path to `agents.yaml` (agent policy/config) |
+| `AGENTS_CONFIG_PATH` | — | Path to `agents.yaml` (agent policy/config, including optional `agent_registry`) |
 | `USE_CASE_PROMPTS_DIR` | — | Path to prompt templates for the LLM-backed agents |
 | `LLM_BASE_URL` / `LLM_MODE` | — | LLM backend (OVMS) or `fallback` for rule-based reasoning without an LLM |
 | `APM_API_KEY` | — | Sent as `X-API-Key` header on storage-service calls, if your storage API enforces it |

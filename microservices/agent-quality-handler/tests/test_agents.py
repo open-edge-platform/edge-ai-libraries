@@ -138,7 +138,8 @@ def test_policy_agent_fallback(monkeypatch, tmp_path):
     monkeypatch.setattr(pa.storage_client, "get_summary", lambda **kwargs: summary)
     monkeypatch.setattr(pa, "llm_client", lc)
 
-    result = pa.run("test-case", {})
+    from src.agents.context import AgentContext
+    result = pa.run(AgentContext(use_case_id="test-case", config={}))
     assert result["mode"] == "fallback"
     assert any(v["label"] == "Rupture" for v in result["violations"])
     assert not any(v["label"] == "Deformation" for v in result["violations"])
@@ -165,7 +166,8 @@ def test_policy_agent_fallback_uses_configured_action(monkeypatch, tmp_path):
         },
     )
 
-    result = pa.run("test-case", {})
+    from src.agents.context import AgentContext
+    result = pa.run(AgentContext(use_case_id="test-case", config={}))
 
     assert result["violations"][0]["action"] == "MONITOR"
     assert result["recommendation"] == "MONITOR"
@@ -196,9 +198,12 @@ def test_analysis_agent_fallback(monkeypatch):
 
     monkeypatch.setattr(aa.storage_client, "get_detections", get_detections)
 
+    from src.agents.context import AgentContext
     result = aa.run(
-        "test-case",
-        {"analysis": {"min_confidence": 0.65, "max_detections_per_run": 25}},
+        AgentContext(
+            use_case_id="test-case",
+            config={"analysis": {"min_confidence": 0.65, "max_detections_per_run": 25}},
+        )
     )
     assert result["mode"] == "fallback"
     assert result["total_detections"] == 3
@@ -230,11 +235,46 @@ def test_evidence_agent_fallback(monkeypatch):
     monkeypatch.setattr(ea, "llm_client", lc)
     monkeypatch.setattr(ea.storage_client, "get_summary", lambda **kwargs: summary)
 
-    result = ea.run("test-case", {})
+    from src.agents.context import AgentContext
+    result = ea.run(AgentContext(use_case_id="test-case", config={}))
     assert result["mode"] == "fallback"
     assert result["record_count"] == 3
     assert result["unique_labels"] == ["Rupture", "Disconnect"]
     assert result["max_confidence"] == 0.9
+
+
+# ── evidence_agent (_build_detection_entry: vision vs. sensor/fused) ─────────
+
+def test_build_detection_entry_uses_bbox_when_vision_fields_present():
+    from src.agents.evidence_agent import _build_detection_entry
+
+    entry = _build_detection_entry(
+        {"frame_id": 7, "label": "Rupture", "confidence": 0.91,
+         "x": 10, "y": 20, "width": 30, "height": 40}
+    )
+    assert entry["bbox"] == [10, 20, 30, 40]
+    assert "metadata" not in entry
+
+
+def test_build_detection_entry_falls_back_to_metadata_without_bbox():
+    from src.agents.evidence_agent import _build_detection_entry
+
+    entry = _build_detection_entry(
+        {"frame_id": 12, "label": "VibrationSpike", "confidence": 0.77,
+         "sensor_id": "vib-042", "value": 3.4, "modality": "timeseries"}
+    )
+    assert "bbox" not in entry
+    assert entry["metadata"] == {
+        "sensor_id": "vib-042", "value": 3.4, "modality": "timeseries",
+    }
+
+
+def test_build_detection_entry_omits_metadata_when_no_extra_fields():
+    from src.agents.evidence_agent import _build_detection_entry
+
+    entry = _build_detection_entry({"frame_id": 3, "label": "Obstacle", "confidence": 0.6})
+    assert "bbox" not in entry
+    assert "metadata" not in entry
 
 
 # ── ticketing_agent (fallback mode) ───────────────────────────────────────────
@@ -252,7 +292,14 @@ def test_ticketing_agent_fallback(monkeypatch):
     policy = {"violations": [{"label": "Rupture", "avg_confidence": 0.9}], "recommendation": "Halt pipeline"}
     analysis = {"total_detections": 15, "mode": "fallback"}
 
-    result = ta.run("test-case", {}, policy, analysis)
+    from src.agents.context import AgentContext
+    result = ta.run(
+        AgentContext(
+            use_case_id="test-case",
+            config={},
+            upstream_results={"policy": policy, "analysis": analysis},
+        )
+    )
     assert result["mode"] == "fallback"
     assert result["priority"] == "HIGH"
     assert "TICKET-" in result["ticket_id"]

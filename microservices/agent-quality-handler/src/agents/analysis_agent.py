@@ -9,28 +9,22 @@ from collections import defaultdict
 from typing import Any
 
 from ..utility import llm_client, storage_client, prompt_loader
+from .context import AgentContext
 
 log = logging.getLogger(__name__)
 
 
-def run(
-    use_case_id: str,
-    config: dict,
-    prompts_dir: str | None = None,
-    min_confidence: float | None = None,
-    min_id: int | None = None,
-    max_id: int | None = None,
-) -> dict[str, Any]:
+def run(context: AgentContext) -> dict[str, Any]:
     """Analyse detections and return a structured report."""
+    use_case_id, config, prompts_dir = context.use_case_id, context.config, context.prompts_dir
     analysis_config = config.get("analysis", {})
-    if min_confidence is None:
-        min_confidence = analysis_config.get("min_confidence", 0.5)
+    min_confidence = analysis_config.get("min_confidence", 0.5)
     limit = analysis_config.get("max_detections_per_run", 500)
     detections = storage_client.get_detections(
         min_confidence=min_confidence,
         limit=limit,
-        min_id=min_id,
-        max_id=max_id,
+        min_id=context.min_id,
+        max_id=context.max_id,
     )
 
     if llm_client.is_fallback_mode():

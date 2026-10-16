@@ -12,19 +12,15 @@ import logging
 from typing import Any
 
 from ..utility import llm_client, storage_client, prompt_loader
+from .context import AgentContext
 
 log = logging.getLogger(__name__)
 
 
-def run(
-    use_case_id: str,
-    config: dict,
-    prompts_dir: str | None = None,
-    min_id: int | None = None,
-    max_id: int | None = None,
-) -> dict[str, Any]:
+def run(context: AgentContext) -> dict[str, Any]:
     """Return a policy dict based on current detections."""
-    summary = storage_client.get_summary(min_id=min_id, max_id=max_id) or {}
+    use_case_id, config, prompts_dir = context.use_case_id, context.config, context.prompts_dir
+    summary = storage_client.get_summary(min_id=context.min_id, max_id=context.max_id) or {}
     if not isinstance(summary, dict):
         summary = {}
 

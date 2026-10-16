@@ -137,6 +137,7 @@ class RuntimeSettings:
     agents_config_path: str
     prompts_dir: str
     fallback_policy_path: str
+    agent_mode: str
 
 
 def load_runtime_settings(*, validate_assets: bool = True) -> RuntimeSettings:
@@ -144,6 +145,10 @@ def load_runtime_settings(*, validate_assets: bool = True) -> RuntimeSettings:
     llm_mode = os.environ.get("LLM_MODE", "fallback").strip().lower()
     if llm_mode not in {"llm", "fallback"}:
         raise ConfigurationError("LLM_MODE must be 'llm' or 'fallback'")
+
+    agent_mode = os.environ.get("AGENT_MODE", "routing").strip().lower()
+    if agent_mode not in {"routing", "sequential"}:
+        raise ConfigurationError("AGENT_MODE must be 'routing' or 'sequential'")
 
     storage_url = _validate_http_url(
         "STORAGE_SERVICE_URL",
@@ -209,7 +214,7 @@ def load_runtime_settings(*, validate_assets: bool = True) -> RuntimeSettings:
     ).rstrip("/")
     if llm_mode == "llm":
         llm_base_url = _validate_http_url("LLM_BASE_URL", llm_base_url)
-    llm_model_name = os.environ.get("LLM_MODEL_NAME", "Phi-4-mini-instruct").strip()
+    llm_model_name = os.environ.get("LLM_MODEL_NAME", "Qwen2.5-3B-Instruct").strip()
     if llm_mode == "llm" and not llm_model_name:
         raise ConfigurationError("LLM_MODEL_NAME is required in LLM mode")
     llm_api_key = os.environ.get("LLM_API_KEY", "UNUSED").strip() or "UNUSED"
@@ -263,6 +268,7 @@ def load_runtime_settings(*, validate_assets: bool = True) -> RuntimeSettings:
         agents_config_path=agents_config_path,
         prompts_dir=prompts_dir,
         fallback_policy_path=fallback_policy_path,
+        agent_mode=agent_mode,
     )
 
 
