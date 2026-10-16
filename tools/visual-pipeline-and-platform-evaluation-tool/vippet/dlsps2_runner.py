@@ -16,11 +16,14 @@ supported today:
   the pipeline is valid if it stays ``RUNNING`` for ``max_runtime`` seconds or
   reaches ``COMPLETED`` sooner; ``ERROR``/``ABORTED`` is invalid. The
   instance is then torn down with ``DELETE /pipelines/{id}``.
-* ``mode="normal"`` (performance and density tests) — every stream runs as
-  its own instance (``POST /pipelines`` per stream, all in the unpinned
-  worker). ``GET /pipelines/status`` is polled for each stream's
-  ``frame_fps``; every instance is stopped with ``DELETE /pipelines/{id}``
-  once ``max_runtime`` elapses, all instances end, or the caller cancels.
+* ``mode="normal"`` (performance and density tests) — every launch string
+  not yet validated by this runner is checked first with ``POST /validate``,
+  all at once. Every stream then runs as its own instance (``POST /pipelines``
+  per stream with ``validate_pipeline=false``, all in the unpinned worker),
+  so the instances start together. ``GET /pipelines/status`` is polled for
+  each stream's ``frame_fps``; every instance is stopped with
+  ``DELETE /pipelines/{id}`` once ``max_runtime`` elapses, all instances end,
+  or the caller cancels.
   The result carries the FPS of each stream, so callers can judge the
   slowest one.
 
@@ -146,6 +149,8 @@ class Dlsps2PipelineRunner:
         self.base_url = (base_url or DLSPS2_BASE_URL).rstrip("/")
         self.cancelled = False
         self.logger = logger
+        # Launch strings DLSPS 2.0 already accepted, reused across density iterations.
+        self._validated: set[str] = set()
         # Same attribute as PipelineRunner; DLSPS 2.0 has no latency tracer.
         self.latency_tracer_metrics: dict[str, LatencyTracerSample] | None = None
 
@@ -215,12 +220,72 @@ class Dlsps2PipelineRunner:
     def _client(self) -> httpx.Client:
         return httpx.Client(timeout=DLSPS2_HTTP_TIMEOUT_S, verify=DLSPS2_VERIFY_TLS)
 
-    def _start(self, client: httpx.Client, pipeline_command: str) -> str:
+    def _start(
+        self,
+        client: httpx.Client,
+        pipeline_command: str,
+        validate_pipeline: bool = True,
+    ) -> str:
         response = client.post(
-            f"{self.base_url}/pipelines", json={"pipeline": pipeline_command}
+            f"{self.base_url}/pipelines",
+            json={
+                "pipeline": pipeline_command,
+                "validate_pipeline": validate_pipeline,
+            },
         )
         response.raise_for_status()
         return response.json()["instance_id"]
+
+    def _validate_new(self, client: httpx.Client, commands: list[str]) -> None:
+        """Validate every command not validated yet, all at once.
+
+        Uses ``POST /validate`` and polls ``GET /validate/status/{id}``.
+        Stops early, without raising, once the run is cancelled.
+
+        Raises:
+            RuntimeError: If a command is invalid, a request fails, or not
+                every verdict arrives within ``inactivity_timeout`` seconds.
+        """
+        pending: dict[str, str] = {}
+        try:
+            for command in dict.fromkeys(commands):
+                if command in self._validated:
+                    continue
+                response = client.post(
+                    f"{self.base_url}/validate", json={"pipeline": command}
+                )
+                response.raise_for_status()
+                pending[response.json()["validation_id"]] = command
+
+            deadline = time.monotonic() + self.inactivity_timeout
+            while pending and not self.cancelled:
+                for validation_id, command in list(pending.items()):
+                    response = client.get(
+                        f"{self.base_url}/validate/status/{validation_id}"
+                    )
+                    response.raise_for_status()
+                    status = response.json()
+                    if status.get("state") == "INVALID":
+                        raise RuntimeError(
+                            "Pipeline validation failed on DLSPS 2.0: "
+                            f"{status.get('message') or 'invalid pipeline'}"
+                        )
+                    if status.get("state") == "VALID":
+                        self._validated.add(command)
+                        del pending[validation_id]
+                if not pending:
+                    break
+                if time.monotonic() >= deadline:
+                    raise RuntimeError(
+                        "Pipeline validation timed out: DLSPS 2.0 gave no verdict "
+                        f"for {len(pending)} launch string(s) within "
+                        f"{self.inactivity_timeout}s"
+                    )
+                time.sleep(self.poll_interval)
+        except httpx.HTTPError as exc:
+            raise RuntimeError(
+                f"Failed to validate pipeline on DLSPS 2.0: {self._error_detail(exc)}"
+            ) from exc
 
     def _status(self, client: httpx.Client, instance_id: str) -> dict:
         response = client.get(f"{self.base_url}/pipelines/{instance_id}/status")
@@ -418,7 +483,9 @@ class Dlsps2PipelineRunner:
     def _run_streams(self, stream_commands: dict[str, str]) -> PipelineResult:
         """Run every stream as its own DLSPS 2.0 instance and measure each one.
 
-        All instances go to the unpinned worker. The run lasts
+        Launch strings are validated first (see :meth:`_validate_new`), so
+        the instances skip DLSPS's own per-instance validation and start
+        together. All instances go to the unpinned worker. The run lasts
         ``max_runtime`` seconds from the moment every stream produces frames
         (``0``: until every instance ends on its own), or until
         :meth:`cancel`. Every instance is stopped before returning.
@@ -430,8 +497,8 @@ class Dlsps2PipelineRunner:
         (ITEP-97433).
 
         Raises:
-            RuntimeError: If a submit fails, an instance ends in ``ERROR`` or
-                ``ABORTED``, a stream produces no frames for
+            RuntimeError: If validation fails, a submit fails, an instance
+                ends in ``ERROR`` or ``ABORTED``, a stream produces no frames for
                 ``inactivity_timeout`` seconds, or DLSPS stays unreachable for
                 that long. Not raised once the run is cancelled.
         """
@@ -440,10 +507,13 @@ class Dlsps2PipelineRunner:
         statuses: dict[str, dict] = {}
 
         with self._client() as client:
+            self._validate_new(client, list(stream_commands.values()))
             try:
                 for stream_id, command in stream_commands.items():
                     try:
-                        instances[stream_id] = self._start(client, command)
+                        instances[stream_id] = self._start(
+                            client, command, validate_pipeline=False
+                        )
                     except httpx.HTTPError as exc:
                         raise RuntimeError(
                             f"Failed to submit stream {stream_id} to DLSPS 2.0: "

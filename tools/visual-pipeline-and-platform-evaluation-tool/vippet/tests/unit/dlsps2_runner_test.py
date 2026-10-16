@@ -65,7 +65,8 @@ class _FakeStreamSet:
     Each item of ``polls`` answers one ``GET /pipelines/status``: a list with
     one status dict per instance in POST order, an ``httpx.Response``, or a
     callable producing either. The last item repeats. Stopped instances are
-    reported as ``ABORTED``.
+    reported as ``ABORTED``. Each item of ``validations`` answers one
+    ``GET /validate/status/{id}`` the same way; the default is ``VALID``.
     """
 
     def __init__(
@@ -74,13 +75,16 @@ class _FakeStreamSet:
         post_responses: list[httpx.Response | None] | None = None,
         delete_codes: dict[str, list[int]] | None = None,
         instance_states: dict[str, list[str]] | None = None,
+        validations: list[dict | httpx.Response] | None = None,
     ):
         self.polls = list(polls)
         self.post_responses = list(post_responses or [])
         self.delete_codes = delete_codes or {}
         self.instance_states = instance_states or {}
+        self.validations = list(validations or [{"state": "VALID"}])
         self.requests: list[httpx.Request] = []
         self.posted = 0
+        self.validated = 0
         self.stopped: set[str] = set()
 
     @staticmethod
@@ -90,6 +94,14 @@ class _FakeStreamSet:
     def handler(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
         path = request.url.path
+        if path == "/validate":
+            self.validated += 1
+            return httpx.Response(200, json={"validation_id": f"val-{self.validated}"})
+        if path.startswith("/validate/status/"):
+            item = self._next(self.validations)
+            if isinstance(item, httpx.Response):
+                return item
+            return httpx.Response(200, json={"validation_id": path[17:], **item})
         if request.method == "POST":
             response = self.post_responses.pop(0) if self.post_responses else None
             if response is not None:
@@ -124,8 +136,20 @@ class _FakeStreamSet:
     def client(self) -> httpx.Client:
         return httpx.Client(transport=httpx.MockTransport(self.handler))
 
+    @property
+    def pipeline_requests(self) -> list[httpx.Request]:
+        return [r for r in self.requests if r.url.path.startswith("/pipelines")]
+
     def calls(self, method: str) -> list[httpx.Request]:
-        return [r for r in self.requests if r.method == method]
+        """Requests to ``/pipelines`` only; ``/validate`` ones are left out."""
+        return [r for r in self.pipeline_requests if r.method == method]
+
+    def validate_posts(self) -> list[dict]:
+        return [
+            json.loads(r.content)
+            for r in self.requests
+            if r.method == "POST" and r.url.path == "/validate"
+        ]
 
 
 def _running(fps: float, **extra) -> dict:
@@ -219,7 +243,10 @@ class TestDlsps2RunnerValidation(Dlsps2RunnerTestBase):
         self.assertEqual(result.stderr, [])
         post = fake.calls("POST")[0]
         self.assertEqual(str(post.url), "http://dlsps:8080/pipelines")
-        self.assertEqual(json.loads(post.content), {"pipeline": PIPELINE})
+        self.assertEqual(
+            json.loads(post.content),
+            {"pipeline": PIPELINE, "validate_pipeline": True},
+        )
         delete = fake.calls("DELETE")
         self.assertEqual(len(delete), 1)
         self.assertEqual(delete[0].url.path, f"/pipelines/{INSTANCE_ID}")
@@ -355,8 +382,15 @@ class TestDlsps2RunnerNormal(Dlsps2RunnerTestBase):
 
         posts = fake.calls("POST")
         self.assertEqual(
-            [json.loads(p.content) for p in posts],
+            fake.validate_posts(),
             [{"pipeline": "pipeline a"}, {"pipeline": "pipeline b"}],
+        )
+        self.assertEqual(
+            [json.loads(p.content) for p in posts],
+            [
+                {"pipeline": "pipeline a", "validate_pipeline": False},
+                {"pipeline": "pipeline b", "validate_pipeline": False},
+            ],
         )
         # All streams play from t=2; samples count after the 5 s warm-up.
         self.assertEqual(result.stream_fps, {"a": 30.0, "b": 20.0})
@@ -449,8 +483,64 @@ class TestDlsps2RunnerNormal(Dlsps2RunnerTestBase):
         with self.assertRaises(RuntimeError):
             self._run_streams(self._runner(), fake)
 
-        self.assertEqual(len(fake.requests), 1)
+        self.assertEqual(len(fake.pipeline_requests), 1)
         self.assertEqual(self._pushed_values(), [])
+
+    def test_each_launch_string_is_validated_once_per_runner(self):
+        runner = self._runner()
+        done = {"state": "COMPLETED", "avg_fps": 10.0}
+        first = _FakeStreamSet([[done, done]])
+        second = _FakeStreamSet([[done, done, done]])
+
+        self._run_streams(runner, first)
+        self._run(
+            runner,
+            second,
+            total_streams=3,
+            stream_commands={**self.STREAMS, "c": "pipeline b"},
+        )
+
+        self.assertEqual(len(first.validate_posts()), 2)
+        self.assertEqual(second.validate_posts(), [])
+        self.assertEqual(len(second.calls("POST")), 3)
+
+    def test_invalid_launch_string_raises_before_any_instance_starts(self):
+        fake = _FakeStreamSet(
+            [[_running(30.0)]],
+            validations=[
+                {"state": "VALID"},
+                {"state": "INVALID", "message": "no element foo"},
+            ],
+        )
+
+        with self.assertRaises(RuntimeError) as ctx:
+            self._run_streams(self._runner(), fake)
+
+        self.assertIn(
+            "validation failed on DLSPS 2.0: no element foo", str(ctx.exception)
+        )
+        self.assertEqual(fake.pipeline_requests, [])
+
+    def test_no_validation_verdict_within_inactivity_timeout_raises(self):
+        fake = _FakeStreamSet([[_running(30.0)]], validations=[{"state": "QUEUED"}])
+
+        with self.assertRaises(RuntimeError) as ctx:
+            self._run_streams(self._runner(inactivity_timeout=3), fake)
+
+        self.assertIn("no verdict for 2 launch string(s)", str(ctx.exception))
+        self.assertEqual(fake.pipeline_requests, [])
+
+    def test_validation_request_error_reports_server_detail(self):
+        fake = _FakeStreamSet(
+            [[_running(30.0)]],
+            validations=[httpx.Response(404, json={"detail": "not found"})],
+        )
+
+        with self.assertRaises(RuntimeError) as ctx:
+            self._run_streams(self._runner(), fake)
+
+        self.assertIn("HTTP 404: not found", str(ctx.exception))
+        self.assertEqual(fake.pipeline_requests, [])
 
     def test_stream_without_frames_beyond_inactivity_timeout_raises(self):
         fake = _FakeStreamSet([[_running(30.0), _running(0.0)]])
