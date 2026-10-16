@@ -24,6 +24,13 @@ This enables dynamic configuration at runtime. The service will apply the update
 > [!NOTE]
 > If you restart the Time Series Analytics Microservice, it will start with the default configuration present in the `config.json` file.
 
+### Stop the configured UDF pipeline
+
+Send `POST /stop_pipeline` with no request body (for example, `curl -X POST http://localhost:5000/stop_pipeline`).
+The response includes the disabled `task_id`. This stops only the configured Kapacitor task; the daemon remains running.
+Use the optional `expected_task_id` query parameter to stop only if that task is currently configured.
+The API returns `409` if no UDF is configured or the task differs, `502` if Kapacitor rejects the request, or `503` if Kapacitor is unreachable.
+
 ### Send input data to the Time Series Analytics Microservice
 
 1. Open the Swagger UI in your browser.
