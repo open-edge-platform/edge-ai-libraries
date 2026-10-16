@@ -3,31 +3,69 @@
 """Tests for the optional FunASR Paraformer provider (Chinese/English ASR).
 
 These assert the provider is genuinely opt-in: the module imports cleanly
-without ``funasr``/``modelscope`` installed, and the download/instantiation
-guards raise actionable errors. This protects existing Whisper/OpenVINO
-consumers from being affected by the new provider.
+without ``funasr`` installed, and the instantiation guards raise actionable
+errors. This protects existing Whisper/OpenVINO consumers.
 """
+import os
 import sys
+import tempfile
 import types
 import unittest
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 
-class ModelDownloadHelperTests(unittest.TestCase):
-    def test_missing_modelscope_raises_actionable_error(self):
-        from utils.model_download_helper import get_or_download_model_dir
+JOB_ID = "e8f1892a-8c08-401f-a37a-d48957f206c1"
 
-        # modelscope is an optional (requirements-cjk.txt) dependency.
-        if "modelscope" in sys.modules:
-            self.skipTest("modelscope is installed; opt-in guard not exercised")
-        with self.assertRaises(RuntimeError) as ctx:
-            get_or_download_model_dir("iic/whatever", hub="ms")
-        self.assertIn("modelscope", str(ctx.exception).lower())
 
-    def test_rejects_unknown_hub(self):
-        from utils.model_download_helper import get_or_download_model_dir
+class ModelDownloadClientTests(unittest.TestCase):
+    def test_requests_modelscope_and_loads_shared_snapshot(self):
+        from utils.model_download_client import get_model_from_service
+
+        with tempfile.TemporaryDirectory() as base:
+            model_dir = Path(base) / "funasr" / "modelscope" / "iic_example"
+            model_dir.mkdir(parents=True)
+            (model_dir / "configuration.json").write_text("{}", encoding="utf-8")
+            with patch.dict(os.environ, {"AUDIO_ANALYZER_MODEL_DOWNLOAD_URL": "http://model-downloader:8000"}), \
+                 patch("utils.model_download_client.config.models.asr.models_base_path", base), \
+                 patch("utils.model_download_client._request_json", side_effect=[
+                     {"job_ids": [JOB_ID]},
+                     {"status": "completed", "result": {"source": "modelscope", "model_name": "iic/example"}},
+                 ]) as request:
+                self.assertEqual(get_model_from_service("iic/example", "v2.0.4"), str(model_dir))
+            self.assertIn("download_path=funasr", request.call_args_list[0].args[0])
+            self.assertEqual(
+                request.call_args_list[0].args[1],
+                {"models": [{"name": "iic/example", "hub": "modelscope", "revision": "v2.0.4"}]},
+            )
+
+    def test_fails_without_service_or_shared_snapshot(self):
+        from utils.model_download_client import get_model_from_service
+
+        with patch.dict(os.environ, {"AUDIO_ANALYZER_MODEL_DOWNLOAD_URL": ""}):
+            with self.assertRaisesRegex(RuntimeError, "AUDIO_ANALYZER_MODEL_DOWNLOAD_URL"):
+                get_model_from_service("iic/example", "v2.0.4")
+        with tempfile.TemporaryDirectory() as base, \
+             patch.dict(os.environ, {"AUDIO_ANALYZER_MODEL_DOWNLOAD_URL": "http://model-downloader:8000"}), \
+             patch("utils.model_download_client.config.models.asr.models_base_path", base), \
+             patch("utils.model_download_client._request_json", side_effect=[
+                 {"job_ids": [JOB_ID]},
+                 {"status": "completed", "result": {"source": "modelscope", "model_name": "iic/example"}},
+             ]):
+            with self.assertRaisesRegex(RuntimeError, "shared models volume"):
+                get_model_from_service("iic/example", "v2.0.4")
+
+    def test_rejects_bad_model_id_and_failed_job(self):
+        from utils.model_download_client import get_model_from_service
 
         with self.assertRaises(ValueError):
-            get_or_download_model_dir("iic/whatever", hub="bogus")  # type: ignore[arg-type]
+            get_model_from_service("../escape", "v2.0.4")
+        with patch.dict(os.environ, {"AUDIO_ANALYZER_MODEL_DOWNLOAD_URL": "http://model-downloader:8000"}), \
+             patch("utils.model_download_client._request_json", side_effect=[
+                 {"job_ids": [JOB_ID]}, {"status": "failed", "error": "not found"}
+             ]):
+            with self.assertRaisesRegex(RuntimeError, "not found"):
+                get_model_from_service("iic/example", "v2.0.4")
 
 
 class ParaformerProviderTests(unittest.TestCase):
@@ -42,10 +80,19 @@ class ParaformerProviderTests(unittest.TestCase):
         self.assertEqual(pf._MODEL_LANGUAGE["paraformer-zh"], "zh")
         self.assertEqual(pf._MODEL_LANGUAGE["paraformer-en"], "en")
 
-    def test_default_hub_is_modelscope(self):
+    def test_uses_model_download_service_for_all_three_snapshots(self):
         import components.asr.funasr.paraformer as pf
 
-        self.assertEqual(pf._resolve_hub(), "ms")
+        fake_funasr = types.ModuleType("funasr")
+        fake_funasr.AutoModel = MagicMock()
+        with patch.dict(sys.modules, {"funasr": fake_funasr}), \
+             patch.object(pf, "get_model_from_service", side_effect=["asr", "vad", "punc"]) as download:
+            pf.Paraformer("paraformer-zh")
+        self.assertEqual(download.call_count, 3)
+        self.assertEqual(download.call_args_list[0].args, (pf.FUNASR_MODEL_MAP["paraformer-zh"], "v2.0.4"))
+        self.assertEqual(download.call_args_list[1].args, (pf.VAD_MODEL, "v2.0.4"))
+        self.assertEqual(download.call_args_list[2].args, (pf.PUNC_MODEL, "v2.0.4"))
+        fake_funasr.AutoModel.assert_called_once()
 
     def test_invalid_model_name_raises_value_error(self):
         import components.asr.funasr.paraformer as pf

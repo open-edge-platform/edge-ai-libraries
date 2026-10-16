@@ -28,6 +28,7 @@ services:
       - "${RENDER_GID:-992}"
     environment:
       HF_HOME: /app/audio_analyzer/.cache/huggingface
+      AUDIO_ANALYZER_MODEL_DOWNLOAD_URL: ${AUDIO_ANALYZER_MODEL_DOWNLOAD_URL:-http://model-downloader:8000}
       # NPU runtime selection. ZE_ENABLE_ALT_DRIVERS is required for Intel NPU
       # enumeration; ACCEL_MOUNT_PATH should point to the host NPU device node
       # (for example /dev/accel/accel0 on Meteor Lake systems).
@@ -49,6 +50,9 @@ services:
       - audio_analyzer_chunks:/app/audio_analyzer/chunks
       - audio_analyzer_storage:/app/audio_analyzer/storage
       - audio_analyzer_cache:/app/audio_analyzer/.cache
+    depends_on:
+      model-downloader:
+        condition: service_healthy
     devices:
       - /dev/dri:/dev/dri
       - ${ACCEL_MOUNT_PATH:-/dev/null}:/dev/accel/accel0
@@ -65,6 +69,26 @@ services:
     # Uncomment the next lines if you also need microphone capture from the host.
     # devices:
     #   - /dev/snd:/dev/snd
+
+  model-downloader:
+    build:
+      context: ../model-download
+      dockerfile: docker/Dockerfile
+    image: model-download:local
+    command: --plugins huggingface,modelscope,openai-whisper
+    environment:
+      ENABLED_PLUGINS: huggingface,modelscope,openai-whisper
+      MODEL_PATH: /opt/models
+      HF_TOKEN: ${HF_TOKEN:-}
+    volumes:
+      - audio_analyzer_models:/opt/models
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      start_period: 180s
+      retries: 5
+    restart: unless-stopped
 
 volumes:
   audio_analyzer_models:

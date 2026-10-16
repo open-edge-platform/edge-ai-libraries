@@ -40,6 +40,15 @@ huggingface = [
     "torchvision==0.24.1+cpu",
 ]
 
+modelscope = [
+    "modelscope>=1.15.0,<2",
+]
+
+openai-whisper = [
+    "openai-whisper==20250625",
+    "torch==2.9.1+cpu",
+]
+
 ultralytics = [
     "ultralytics==8.2.3",
     "torch==2.9.1+cpu",

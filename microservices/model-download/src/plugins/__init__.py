@@ -11,6 +11,8 @@ PLUGINS = {
     'external-sources': ('src.plugins.external_sources_plugin', 'ExternalSourcesPlugin'),
     'ollama': ('src.plugins.ollama_plugin', 'OllamaPlugin'),
     'huggingface': ('src.plugins.huggingface_plugin', 'HuggingFacePlugin'),
+    'modelscope': ('src.plugins.modelscope_plugin', 'ModelScopePlugin'),
+    'openai-whisper': ('src.plugins.openai_whisper_plugin', 'OpenAIWhisperPlugin'),
     'openvino': ('src.plugins.openvino_plugin', 'OpenVINOConverter'),
     'geti': ('src.plugins.geti_plugin', 'GetiPlugin'),
     'hls': ('src.plugins.hls_plugin', 'HlsPlugin'),
@@ -82,4 +84,3 @@ for plugin_name, (module_path, class_name) in PLUGINS.items():
         # already-imported modules remain available via sys.modules.
         if _injected and site_pkgs in sys.path:
             sys.path.remove(site_pkgs)
-

@@ -1,8 +1,7 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-import sys
-from types import ModuleType, SimpleNamespace
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -40,20 +39,12 @@ class EnsureModelDiarizationStartupPolicyTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "HF_TOKEN is not configured"):
                 ensure_model.ensure_model()
 
-    def test_ensure_model_fails_when_hf_token_has_no_access(self):
+    def test_ensure_model_propagates_downloader_access_error(self):
         cfg = _cfg(diarization_enabled=True, hf_token="hf_bad")
-        fake_hf = ModuleType("huggingface_hub")
-
-        class FakeHfApi:
-            def model_info(self, repo_id, token):
-                del repo_id, token
-                raise RuntimeError("403 Forbidden")
-
-        fake_hf.HfApi = FakeHfApi
         with patch.object(ensure_model, "config", cfg), patch.object(
             ensure_model, "_download_openvino_model", return_value=(True, "/tmp/asr")
-        ), patch.dict(sys.modules, {"huggingface_hub": fake_hf}):
-            with self.assertRaisesRegex(RuntimeError, "HF_TOKEN is invalid or does not have access"):
+        ), patch.object(ensure_model, "_download_hf_model", side_effect=RuntimeError("403 Forbidden")):
+            with self.assertRaisesRegex(RuntimeError, "403 Forbidden"):
                 ensure_model.ensure_model()
 
     def test_ensure_model_allows_missing_hf_token_when_diarization_disabled(self):

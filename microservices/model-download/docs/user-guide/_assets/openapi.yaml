@@ -2,12 +2,12 @@ openapi: 3.0.0
 info:
   title: Model Download Service API
   description: |
-    API for downloading models from HuggingFace, Ollama, Ultralytics, Pipeline Zoo Models, Geti™ hubs and HLS, converting models to OpenVINO IR format.
+    API for downloading models from HuggingFace, ModelScope, official OpenAI Whisper checkpoints, Ollama, Ultralytics, Pipeline Zoo Models, Geti™ hubs and HLS, converting models to OpenVINO IR format.
     This service provides endpoints to download models and optionally convert them to 
     OpenVINO Intermediate Representation (IR) format for optimized inference on Intel hardware.
 
     **Features:**
-    - Download models from multiple hubs (HuggingFace, Ollama, Ultralytics, Pipeline Zoo Models, Geti™, HLS)
+    - Download models from multiple hubs (HuggingFace, ModelScope, Ollama, Ultralytics, Pipeline Zoo Models, Geti™, HLS)
     - Convert models to OpenVINO IR format with configurable precision and device targets for huggingface hub models
     - Asynchronous job processing with status tracking
     - Plugin-based architecture for extensibility
@@ -36,6 +36,8 @@ components:
       type: string
       enum:
         - huggingface
+        - modelscope
+        - openai-whisper
         - ollama
         - ultralytics
         - pipeline-zoo-models

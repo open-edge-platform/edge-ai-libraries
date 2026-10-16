@@ -81,7 +81,13 @@ async def _submit_startup_models(config: StartupModelsConfig) -> None:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    startup_config = load_startup_models_config()
+    required_profile = os.getenv("STARTUP_MODELS_REQUIRED_PROFILE", "").strip()
+    active_profiles = set(os.getenv("COMPOSE_PROFILES", "").split(","))
+    startup_config = (
+        load_startup_models_config()
+        if not required_profile or required_profile in active_profiles
+        else None
+    )
     if startup_config is not None:
         await _submit_startup_models(startup_config)
 

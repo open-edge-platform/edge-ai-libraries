@@ -206,6 +206,8 @@ curl -X POST "http://localhost:8200/api/v1/models/download?download_path=my-mode
 | Hub                  | Description                          |
 | -------------------- | ------------------------------------ |
 | `huggingface`        | HuggingFace model hub               |
+| `modelscope`         | ModelScope model hub                |
+| `openai-whisper`     | Official OpenAI Whisper checkpoints (`tiny`, `base`, `small`, `medium`, `large-v3`) |
 | `ollama`             | Ollama model registry                |
 | `ultralytics`        | Ultralytics YOLO models             |
 | `pipeline-zoo-models`| Pipeline Zoo Models                  |
@@ -214,6 +216,27 @@ curl -X POST "http://localhost:8200/api/v1/models/download?download_path=my-mode
 | `geti`               | Intel Geti™                          |
 | `hls`                | HLS model source                     |
 | `remote-url`         | Download from a remote URL           |
+
+ModelScope requests can be made by any client application. For example,
+with the `modelscope` plugin activated on the service:
+
+```bash
+curl -X POST "http://localhost:8200/models/download?download_path=funasr" \
+  -H 'Content-Type: application/json' \
+  -d '{"models":[{"name":"iic/speech_fsmn_vad_zh-cn-16k-common-pytorch","hub":"modelscope","revision":"v2.0.4"}]}'
+```
+
+The response contains a `job_ids` array. Poll `GET /jobs/<job_id>` until
+`status` is `completed`; the model files are then available to containers
+sharing the downloader's model storage volume. ModelScope downloads do not
+perform OpenVINO conversion.
+
+For whisper.cpp, request `hub: "huggingface"` with
+`name: "ggerganov/whisper.cpp"` and `config: {"files": ["ggml-base.bin"]}`
+to fetch only that filename. The `files` option is limited to plain filenames.
+For native OpenAI Whisper `.pt` checkpoints, use `hub: "openai-whisper"`
+and one of the supported checkpoint names. Both can share the same storage
+volume with client services; these hubs do not convert the checkpoints.
 
 **Model Types:**
 

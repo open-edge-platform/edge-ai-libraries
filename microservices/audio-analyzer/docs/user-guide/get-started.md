@@ -21,6 +21,37 @@ the service continues running and logs a warning while disabling diarization for
 - Review the [Configuration Guide](./get-started/configuration.md) if you plan to change
   models, devices, or chunking behavior.
 
+### FunASR Paraformer with ModelScope
+
+FunASR is opt-in: set `models.asr.provider: funasr` and `models.asr.name:
+paraformer-zh` (or `paraformer-en` / `paraformer-online`) in `config.yaml`.
+Build Audio Analyzer with `INSTALL_CJK=true`. Paraformer, VAD, and punctuation
+snapshots are requested **only through the model-download service's ModelScope
+plugin**; Audio Analyzer never downloads these snapshots directly or falls back
+to Hugging Face.
+
+For this repository's Compose deployment, start both services with
+`INSTALL_CJK=true docker compose up -d --build`. Compose waits for the
+downloader's health check before starting Audio Analyzer.
+They share the `audio_analyzer_models` volume. The ModelScope plugin is
+enabled in the downloader automatically. With a separate deployment (including Smart
+Classroom), enable `modelscope`, `huggingface`, and `openai-whisper` alongside
+any existing downloader plugins (for example
+`--plugins huggingface,openvino,modelscope,openai-whisper`), set
+`AUDIO_ANALYZER_MODEL_DOWNLOAD_URL=http://model-downloader:8000` on Audio
+Analyzer, and mount the **same** volume at `/opt/models` in model-download
+and `/app/audio_analyzer/models` in Audio Analyzer. Start the downloader
+before Audio Analyzer. ASR startup fails visibly if the downloader is
+unreachable, the job fails, or the models are not accessible on that volume.
+Whisper and pyannote are fetched by the same downloader from their existing
+sources (Hugging Face for OpenVINO Whisper source, whisper.cpp, and pyannote;
+official OpenAI checkpoints for native Whisper). OpenVINO conversion still
+runs locally in Audio Analyzer, using the downloaded source snapshot. For
+gated pyannote, configure `HF_TOKEN` on **both** containers; the downloader
+uses it to fetch the snapshot. An explicit `models.asr.hf_token` override is
+passed to the downloader for pyannote requests; only use HTTPS if the service
+is reachable outside the private container network.
+
 ## Choose Deployment Path
 
 <!--hide_directive::::{tab-set}
