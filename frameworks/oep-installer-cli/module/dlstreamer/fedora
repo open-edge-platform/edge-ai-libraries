@@ -35,6 +35,7 @@ fedora_75_install_dlstreamer () {
     echo "dlstreamer-${version} is installed." >&2
   else
     ensure_disk_size 15000
+    ensure_prop set installed/dlstreamer/owned true
 
     # remove old versions
     fedora_75_remove_dlstreamer "$@"
@@ -60,6 +61,7 @@ fedora_75_install_dlstreamer () {
 
 fedora_75_remove_dlstreamer () {
   configure_dlstreamer
+  [ "$(ensure_prop get installed/dlstreamer/owned)" = "true" ] || return 0
   ensure_dnf autoremove -y $(dnf list --installed | grep openvino | awk '{print$1}') || true
   ensure_rm "$workspace"
 }

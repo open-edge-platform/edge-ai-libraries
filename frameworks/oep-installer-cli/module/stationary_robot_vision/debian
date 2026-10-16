@@ -31,9 +31,8 @@ debian_90_install_stationary_robot_vision () {
     echo "Stationary Robot Vision & Control is installed." >&2
   else
     # declare ownership
-    ensure_prop set installed/stationary_robot_vision/owned true
-
     ensure_disk_size 15000
+    ensure_prop set installed/stationary_robot_vision/owned true
 
     ensure_oneapi_ros_openvino
     ensure_apt update -y

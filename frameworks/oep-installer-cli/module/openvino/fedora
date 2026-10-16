@@ -37,9 +37,9 @@ fedora_70_install_openvino () {
   if verify_openvino && [[ " $* " != *" --reinstall "* ]]; then
     echo "openvino-${version} is installed." >&2
   else
+    ensure_disk_size 1500
     ensure_prop set installed/openvino/owned true
 
-    ensure_disk_size 1500
     # remove old versions
     fedora_70_remove_openvino "$@"
 

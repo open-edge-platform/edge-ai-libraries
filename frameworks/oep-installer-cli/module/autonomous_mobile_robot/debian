@@ -55,9 +55,8 @@ debian_90_install_autonomous_mobile_robot () {
     echo "Autonomous Mobile Robot is installed." >&2
   else
     # declare ownership
-    ensure_prop set installed/autonomous_mobile_robot/owned true
-
     ensure_disk_size $([[ "$amr_sdk_pkg" = *complete ]] && echo 40000 || echo 15000)
+    ensure_prop set installed/autonomous_mobile_robot/owned true
 
     ensure_oneapi_ros_openvino
 
