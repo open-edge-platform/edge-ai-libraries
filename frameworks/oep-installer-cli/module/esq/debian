@@ -12,6 +12,8 @@ debian_85_install_esq () {
   if uv tool list 2> /dev/null | grep -q -E "^esq " && [[ " $* " != *" --reinstall "* ]]; then
     echo "Esq is already installed. Skipping..."
   else
+    ensure_disk_size 25000
+
     curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-system-qualification/refs/heads/main/scripts/system-setup.sh | ensure_sudo bash -s -- -f || true
     curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-system-qualification/refs/heads/main/scripts/system-setup-advanced.sh | ensure_sudo bash -s -- -f || true
     uv tool install --force --refresh git+https://github.com/open-edge-platform/edge-system-qualification.git@main
@@ -44,6 +46,6 @@ debian_85_remove_esq () {
   configure_uv
   configure_esq
   esq clean --all || true
-  uv tool uninstall --force esq || true
+  uv tool uninstall esq || true
   ensure_rm "$workspace"
 }

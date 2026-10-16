@@ -41,7 +41,7 @@ debian_90_install_live_video_search () {
     ensure_ports_open "${used_ports[*]}" return 3
 
     # clone the repository
-    ensure_disk_size 64000
+    ensure_disk_size 25000
     ensure_git_clone "$workspace" $version $repository live-video-analysis/live-video-search
     verify_live_video_search
   fi

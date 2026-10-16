@@ -14,7 +14,7 @@ helm install sensor-manager ./chart \
 ## Key Values
 
 | Value | Default | Description |
-|-------|---------|-------------|
+| ----- | ------- | ----------- |
 | `hostNetwork` | `true` | Required for ONVIF WS-Discovery. The service listens on the node's interfaces on `port`. |
 | `port` | `8090` | HTTP port of the service |
 | `env.ONVIF_DISCOVERY_ENABLED` | `"true"` | Enable ONVIF discovery |

@@ -381,8 +381,19 @@ SPECS: tuple[SettingSpec, ...] = (
         "--metrics-url",
         "url",
         "http://localhost/metrics/stream",
-        "Hardware metrics endpoint.",
+        "Hardware metrics endpoint (nginx-proxied). Defaults to "
+        "vippet.base_url's host/port.",
         env="VIPPET_METRICS_URL",
+        metavar="URL",
+    ),
+    SettingSpec(
+        "metrics.capabilities_url",
+        "--capabilities-url",
+        "url",
+        "http://localhost:9090/api/v1/capabilities",
+        "metrics-manager capabilities endpoint (direct, not nginx-proxied). "
+        "Defaults to vippet.base_url's host on port 9090.",
+        env="VIPPET_CAPABILITIES_URL",
         metavar="URL",
     ),
     SettingSpec(
@@ -561,4 +572,32 @@ def resolve_settings(
             raise SettingsError(f"invalid {spec.key} from {origin}: {exc}") from exc
         sources[spec.key] = source
 
+    _derive_metrics_defaults_from_base_url(values, sources, config_path)
+
     return ResolvedSettings(values=values, sources=sources, config_path=config_path)
+
+
+def _derive_metrics_defaults_from_base_url(
+    values: dict[str, Any],
+    sources: dict[str, str],
+    config_path: Path,
+) -> None:
+    """Default metrics/capabilities URLs to vippet.base_url's host.
+    Only applied when the key was *not* explicitly set via YAML/env/CLI
+    (i.e. still at its built-in default), so explicit overrides always win.
+    """
+    parsed = urlparse(values["vippet.base_url"])
+    if not parsed.hostname:
+        raise SettingsError(
+            f"vippet.base_url {values['vippet.base_url']!r} is missing a host; "
+            "cannot derive metrics.metrics_url/metrics.capabilities_url defaults "
+            f"from it (config: {config_path})"
+        )
+    if sources["metrics.metrics_url"] == SOURCE_DEFAULT:
+        values["metrics.metrics_url"] = (
+            f"{parsed.scheme}://{parsed.netloc}/metrics/stream"
+        )
+    if sources["metrics.capabilities_url"] == SOURCE_DEFAULT:
+        values["metrics.capabilities_url"] = (
+            f"{parsed.scheme}://{parsed.hostname}:9090/api/v1/capabilities"
+        )

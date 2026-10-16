@@ -23,6 +23,7 @@ POLL_TIMEOUT: int = SETTINGS["vippet.max_job_duration"]
 
 # --- metrics section ---
 METRICS_URL: str = SETTINGS["metrics.metrics_url"]
+CAPABILITIES_URL: str = SETTINGS["metrics.capabilities_url"]
 METRICS_SAMPLE_INTERVAL: float = SETTINGS["metrics.sample_interval_seconds"]
 
 # --- benchmark section ---
