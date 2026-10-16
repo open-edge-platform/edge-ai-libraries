@@ -98,7 +98,7 @@ root_path = Path(sys.argv[1])
 dataset_path = root_path / "mock_dataset"
 create_mock_dataset(dataset_path)
 test_anomalib_pipeline(root_path, dataset_path, sys.argv[2])
-' test $(ensure_select_device "$@" | tr 'a-z' 'A-Z') && echo "Anomalib test passed."
+' test $(ensure_select_device "$@" | tr 'a-z' 'A-Z') && echo "@@HIGHLIGHT Anomalib test passed."
       rm -rf test
     fi
   fi
