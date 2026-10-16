@@ -81,9 +81,10 @@ services:
     user: "0:0"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
-      interval: 30s
+      interval: 5s
       timeout: 10s
-      retries: 3
+      retries: 40
+      start_period: 10s
     networks:
       - vs_network
 
