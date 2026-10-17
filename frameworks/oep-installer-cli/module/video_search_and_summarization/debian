@@ -82,6 +82,7 @@ debian_85_install_video_search_and_summarization () {
   if verify_video_search_and_summarization && [[ " $* " != *" --reinstall "* ]]; then
     echo "Video Search and Summarization is installed." >&2
   else
+    ensure_ports_open "${used_ports[*]}" docker rm -f vss-model-download || true
     ensure_ports_open "${used_ports[*]}" return 3
 
     # clone the repository
