@@ -705,8 +705,8 @@ phase_08_agent_resolution() {
 phase_09_other_agents() {
   phase_banner "09-install: remaining agents"
   if agent_in_list deepagents-code; then
-    check "full install: --harness deepagents-code (dcode, unverified installer accepted for this test)" \
-      env NON_INTERACTIVE=1 HARNESS_ALLOW_UNVERIFIED_DCODE_INSTALL=1 \
+    check "full install: --harness deepagents-code (dcode, pinned verified installer)" \
+      env NON_INTERACTIVE=1 \
       bash "$REPO_ROOT/install.sh" --harness deepagents-code --non-interactive --skip-gpu-check
     export PATH="$HOME/.local/bin:$PATH"
     check "dcode CLI resolves on PATH after install" bash -c 'command -v dcode'
@@ -720,8 +720,8 @@ phase_09_other_agents() {
   fi
 
   if agent_in_list hermes; then
-    check "full install: --harness hermes (unverified installer accepted for this test)" \
-      env NON_INTERACTIVE=1 HERMES_ALLOW_UNVERIFIED_INSTALL=1 \
+    check "full install: --harness hermes (pinned verified installer)" \
+      env NON_INTERACTIVE=1 \
       bash "$REPO_ROOT/install.sh" --harness hermes --non-interactive --skip-gpu-check
     export PATH="$HOME/.local/bin:$PATH"
     check "hermes CLI resolves on PATH after install" bash -c 'command -v hermes'

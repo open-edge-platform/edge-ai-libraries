@@ -58,12 +58,13 @@ usage() {
 
   Environment:
     HARNESS_AGENT               openclaw | deepagents-code | hermes (default: openclaw)
-    HERMES_INSTALL_URL            Hermes's official installer URL (default: hermes-agent.nousresearch.com)
-    HERMES_INSTALL_SHA256         Pin the Hermes installer's expected SHA-256 (required unless HERMES_ALLOW_UNVERIFIED_INSTALL=1)
-    HERMES_ALLOW_UNVERIFIED_INSTALL  Run the Hermes installer without a pinned checksum (not recommended)
-    DCODE_INSTALL_SHA256          Pin dcode's (langch.in/dcode) installer SHA-256 (required unless HARNESS_ALLOW_UNVERIFIED_DCODE_INSTALL=1)
-    HARNESS_ALLOW_UNVERIFIED_DCODE_INSTALL  Run dcode's installer without a pinned checksum (not recommended)
-    DEEPAGENTS_CODE_VERSION       Pin an exact dcode version (passed through to its own installer)
+    HERMES_INSTALL_URL            Custom Hermes installer URL (default: scripts/install.sh at a pinned hermes-agent commit, checksum built in)
+    HERMES_INSTALL_SHA256         Expected SHA-256 of the Hermes installer (required with HERMES_INSTALL_URL unless HERMES_ALLOW_UNVERIFIED_INSTALL=1)
+    HERMES_ALLOW_UNVERIFIED_INSTALL  Run a custom Hermes installer without a pinned checksum (not recommended)
+    DCODE_INSTALL_URL             Custom dcode installer URL (default: libs/code/scripts/install.sh at a pinned deepagents commit, checksum built in)
+    DCODE_INSTALL_SHA256          Expected SHA-256 of the dcode installer (required with DCODE_INSTALL_URL unless HARNESS_ALLOW_UNVERIFIED_DCODE_INSTALL=1)
+    HARNESS_ALLOW_UNVERIFIED_DCODE_INSTALL  Run a custom dcode installer without a pinned checksum (not recommended)
+    DEEPAGENTS_CODE_VERSION       Exact dcode version to install (default: the pinned version)
     DEEPAGENTS_HOME               Path to dcode's profile dir (default: ~/.deepagents)
     HARNESS_LLM_ENDPOINT         OpenAI-compatible endpoint (default: local OpenVINO Model Server)
     HARNESS_LLM_PROVIDER         ovms (default) — the only backend this installer manages itself

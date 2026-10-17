@@ -12,7 +12,7 @@ projects** rather than something invented for Intel:
 |---|---|---|
 | `openclaw` | npm `openclaw` — github.com/openclaw/openclaw | MIT |
 | `deepagents-code` | `dcode` (Deep Agents Code) — github.com/langchain-ai/deepagents | MIT |
-| `hermes` | Nous Research's official installer — github.com/NousResearch/hermes-agent (curl \| bash from hermes-agent.nousresearch.com, not npm) | MIT |
+| `hermes` | Nous Research's official installer — github.com/NousResearch/hermes-agent (pinned installer script from the repo, not npm) | MIT |
 
 The inference backend is **configurable**. By default it's a local
 **OpenVINO Model Server** (OVMS) serving an OpenAI-compatible
@@ -95,8 +95,10 @@ flowchart TD
 ```
 
 Third-party downloads (the Hermes and dcode installers, Docker's convenience
-script) are fetched over HTTPS and verified against a SHA-256 before they run;
-the installer stops if no digest is available unless you opt out explicitly.
+script) are fetched over HTTPS and verified against a SHA-256 before they run.
+The Hermes and dcode installers come from pinned upstream commits with their
+digests built in, so no flags are needed; the Docker convenience script still
+needs a digest or an explicit opt-out.
 
 ### Runtime architecture
 
@@ -178,8 +180,9 @@ verified agent catalog (openclaw, hermes, dcode), built specifically for
 Intel Core Ultra iGPU / Arc (CRI) hardware (CPU fallback otherwise). No
 fixed appliance concept, no CDI (Intel render nodes pass through directly
 via `--device`). Downloaded third-party scripts are fetched over HTTPS only and
-verified against a SHA-256 (`scripts/lib/verify.sh`); where the vendor
-publishes none (Hermes, dcode, Docker's convenience script) the installer
+verified against a SHA-256 (`scripts/lib/verify.sh`). The Hermes and dcode
+installers are fetched from pinned upstream commits with built-in digests;
+where the vendor publishes none (Docker's convenience script) the installer
 refuses to run the download unless you pin a digest or explicitly opt out.
 Source builds (the Inference Router) and the Model Download script are pinned
 to full commit SHAs. The standalone-fetch

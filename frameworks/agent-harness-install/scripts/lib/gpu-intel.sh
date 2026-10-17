@@ -39,8 +39,10 @@ describe_intel_gpu() {
 
 # Returns 0 if the kernel-mode driver (i915 legacy or xe, for Battlemage+) is loaded.
 intel_gpu_kernel_driver_loaded() {
+  [[ -d /sys/module/xe || -d /sys/module/i915 ]] && return 0
   command_exists lsmod || return 1
-  lsmod | grep -qE '^(i915|xe)\b'
+  # No -q: an early grep exit would SIGPIPE lsmod and fail the pipeline under pipefail.
+  lsmod | grep -E '^(i915|xe)\b' >/dev/null
 }
 
 # Returns 0 if render nodes are present and accessible (needed for container
@@ -52,12 +54,12 @@ intel_gpu_render_nodes_available() {
 # Returns 0 if the user-space compute runtime (Level Zero / OpenCL ICD) is installed.
 intel_compute_runtime_installed() {
   local found=1
-  if command_exists clinfo && clinfo 2>/dev/null | grep -qi intel; then
+  if command_exists clinfo && clinfo 2>/dev/null | grep -i intel >/dev/null; then
     found=0
   fi
   if [[ -e /usr/lib/x86_64-linux-gnu/libze_intel_gpu.so.1 ]] \
     || [[ -e /usr/lib/libze_intel_gpu.so.1 ]] \
-    || ldconfig -p 2>/dev/null | grep -q libze_intel_gpu; then
+    || ldconfig -p 2>/dev/null | grep libze_intel_gpu >/dev/null; then
     found=0
   fi
   return "$found"

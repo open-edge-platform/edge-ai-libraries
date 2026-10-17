@@ -117,12 +117,6 @@ export HARNESS_OVMS_EXPORTER="${TEST_OVMS_EXPORTER:-docker-pull}"
 export HARNESS_SHIM_DIR="/tmp/test-full-shim"
 export NON_INTERACTIVE=1
 export NO_COLOR=1
-# These two agents' installers have no vendor-published static checksum
-# (same fail-closed-by-default design this installer uses elsewhere) --
-# accepted here the same way test/smoke-test.sh's own real-install phases
-# do, since this is explicitly a disposable test host.
-export HARNESS_ALLOW_UNVERIFIED_DCODE_INSTALL=1
-export HERMES_ALLOW_UNVERIFIED_INSTALL=1
 
 PASS=0
 FAIL=0

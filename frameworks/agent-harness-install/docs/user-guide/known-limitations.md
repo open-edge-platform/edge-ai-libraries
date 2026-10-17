@@ -22,13 +22,21 @@
   environments that already manage Node.js.
 - "Hermes" installs via its own official installer (curl | bash), not npm —
   this installer downloads and runs it unattended (`--skip-setup --non-interactive`).
-  Nous Research doesn't publish a static checksum for it, so this installer
-  refuses to run it unverified: set `HERMES_INSTALL_SHA256` (once you've
-  reviewed a known-good copy) or `HERMES_ALLOW_UNVERIFIED_INSTALL=1` before
-  installing the `hermes` agent, or it will fail with guidance.
+  Nous Research doesn't publish a checksum for it, and the
+  `hermes-agent.nousresearch.com` URL always serves the latest script, so
+  this installer instead fetches `scripts/install.sh` from a pinned
+  `NousResearch/hermes-agent` commit (the `v0.22.2` tag), verifies its
+  SHA-256, and passes the same commit via `--commit`. No flags are needed.
+  To use a different installer, set `HERMES_INSTALL_URL` together with
+  `HERMES_INSTALL_SHA256` (or `HERMES_ALLOW_UNVERIFIED_INSTALL=1`, not
+  recommended); `HERMES_INSTALL_SHA256` alone overrides the built-in digest.
 - "deepagents-code" installs LangChain's official `dcode` CLI via its own
-  installer (`https://langch.in/dcode`, no static checksum published either
-  — same fail-closed stance: set `DCODE_INSTALL_SHA256` or
+  installer. As with Hermes, this installer fetches `libs/code/scripts/install.sh`
+  from a pinned `langchain-ai/deepagents` commit (the `deepagents-code==0.1.86`
+  tag, byte-identical to what `https://langch.in/dcode` served for that
+  release), verifies its SHA-256 and installs that exact dcode version.
+  Override with `DEEPAGENTS_CODE_VERSION`, or use a different installer via
+  `DCODE_INSTALL_URL` plus `DCODE_INSTALL_SHA256` (or
   `HARNESS_ALLOW_UNVERIFIED_DCODE_INSTALL=1`). It's wired to OVMS by writing
   a `[models.providers.openai]` block into `~/.deepagents/config.toml`
   (dcode's own "Compatible APIs" mechanism) inside `BEGIN`/`END` markers, so

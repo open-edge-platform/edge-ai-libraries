@@ -150,22 +150,35 @@ stop it first ('openclaw gateway stop'), then re-run: ./install.sh onboard."; re
 # the bare deepagents library itself. Supports pointing at an arbitrary
 # OpenAI-compatible endpoint out of the box (see configure_dcode_provider),
 # so no Intel-specific code is needed beyond that wiring.
+
+# Default dcode installer: libs/code/scripts/install.sh at the commit tagged
+# deepagents-code==0.1.86 (byte-identical to what https://langch.in/dcode
+# served for that release), with its SHA-256. Bump all three together.
+DCODE_PINNED_VERSION="0.1.86"
+DCODE_PINNED_COMMIT="577e3f1f2376f8522c47aedc9423de3805e9deb8"
+DCODE_PINNED_SHA256="1961f5eb8d338e668b3f5afc34ad15e87e6602bdec56cfe261265462228d8639"
+
 install_dcode() {
-  local installer_url="https://langch.in/dcode"
+  local installer_url installer_sha256="${DCODE_INSTALL_SHA256:-}"
   local installer_tmp
   installer_tmp="$(mktemp)"
+  if [[ -n "${DCODE_INSTALL_URL:-}" ]]; then
+    installer_url="$DCODE_INSTALL_URL"
+  else
+    installer_url="https://raw.githubusercontent.com/langchain-ai/deepagents/${DCODE_PINNED_COMMIT}/libs/code/scripts/install.sh"
+    installer_sha256="${installer_sha256:-$DCODE_PINNED_SHA256}"
+    export DEEPAGENTS_CODE_VERSION="${DEEPAGENTS_CODE_VERSION:-$DCODE_PINNED_VERSION}"
+  fi
   info "Installing Deep Agents Code (dcode) from ${installer_url}…"
-  # LangChain does not publish a static checksum for this installer either.
-  # Same fail-closed-by-default stance as Hermes/Docker: set
-  # DCODE_INSTALL_SHA256 once you've reviewed a known-good copy, or
-  # HARNESS_ALLOW_UNVERIFIED_DCODE_INSTALL=1 to accept the risk.
-  if [[ -z "${DCODE_INSTALL_SHA256:-}" && "${HARNESS_ALLOW_UNVERIFIED_DCODE_INSTALL:-}" != "1" ]]; then
+  # A custom DCODE_INSTALL_URL has no built-in digest: fail closed unless the
+  # caller pins DCODE_INSTALL_SHA256 or opts out explicitly.
+  if [[ -z "$installer_sha256" && "${HARNESS_ALLOW_UNVERIFIED_DCODE_INSTALL:-}" != "1" ]]; then
     error "DCODE_INSTALL_SHA256 is not set, so refusing to run dcode's installer
 unverified. Download and review ${installer_url} yourself, then set
 DCODE_INSTALL_SHA256=<sha256> to pin it (or HARNESS_ALLOW_UNVERIFIED_DCODE_INSTALL=1
 to accept the risk and proceed without pinning)."
   fi
-  fetch_and_verify "$installer_url" "$installer_tmp" "dcode installer" "${DCODE_INSTALL_SHA256:-}"
+  fetch_and_verify "$installer_url" "$installer_tmp" "dcode installer" "$installer_sha256"
   assert_shell_script "$installer_tmp" "dcode installer"
   spin "Installing dcode" bash "$installer_tmp"
   rm -f "$installer_tmp"
@@ -220,23 +233,35 @@ EOF
   rm -f "$tmp"
 }
 
+# Default Hermes installer: scripts/install.sh at the commit tagged v0.22.2,
+# with its SHA-256; --commit makes the installer check out that same commit.
+# The hermes-agent.nousresearch.com URL serves a moving target, so it is not
+# used by default. Bump all three together.
+HERMES_PINNED_COMMIT="d923a5eb487a17c0a68801bba9ef0f56c81040a8"
+HERMES_PINNED_SHA256="f4cdb0e20f1aca2c3871a76b962fd4db61510f549cf973759c753ac13349beb5"
+
 install_hermes() {
-  local installer_url="${HERMES_INSTALL_URL:-https://hermes-agent.nousresearch.com/install.sh}"
+  local installer_url installer_sha256="${HERMES_INSTALL_SHA256:-}"
+  local -a installer_args=(--skip-setup --non-interactive)
   local installer_tmp
   installer_tmp="$(mktemp)"
+  if [[ -n "${HERMES_INSTALL_URL:-}" ]]; then
+    installer_url="$HERMES_INSTALL_URL"
+  else
+    installer_url="https://raw.githubusercontent.com/NousResearch/hermes-agent/${HERMES_PINNED_COMMIT}/scripts/install.sh"
+    installer_sha256="${installer_sha256:-$HERMES_PINNED_SHA256}"
+    installer_args+=(--commit "$HERMES_PINNED_COMMIT")
+  fi
   info "Installing Hermes Agent from ${installer_url}…"
-  # Nous Research does not publish a static checksum for this installer.
-  # Refuse to run it unverified by default -- HTTPS + a shebang check alone
-  # don't establish artifact integrity. Set HERMES_INSTALL_SHA256 once you've
-  # reviewed a known-good copy, or HERMES_ALLOW_UNVERIFIED_INSTALL=1 to
-  # accept the risk and proceed without pinning.
-  if [[ -z "${HERMES_INSTALL_SHA256:-}" && "${HERMES_ALLOW_UNVERIFIED_INSTALL:-}" != "1" ]]; then
+  # A custom HERMES_INSTALL_URL has no built-in digest: fail closed unless the
+  # caller pins HERMES_INSTALL_SHA256 or opts out explicitly.
+  if [[ -z "$installer_sha256" && "${HERMES_ALLOW_UNVERIFIED_INSTALL:-}" != "1" ]]; then
     error "HERMES_INSTALL_SHA256 is not set, so refusing to run the Hermes installer
 unverified. Download and review ${installer_url} yourself, then set
 HERMES_INSTALL_SHA256=<sha256> to pin it (or HERMES_ALLOW_UNVERIFIED_INSTALL=1
 to accept the risk and proceed without pinning)."
   fi
-  fetch_and_verify "$installer_url" "$installer_tmp" "Hermes installer" "${HERMES_INSTALL_SHA256:-}"
+  fetch_and_verify "$installer_url" "$installer_tmp" "Hermes installer" "$installer_sha256"
   assert_shell_script "$installer_tmp" "Hermes installer"
   # Hermes's own installer bootstraps a standalone Python build via plain
   # urllib (unlike uv's own downloader moments earlier in the same install,
@@ -268,8 +293,8 @@ to accept the risk and proceed without pinning)."
     # tee into hermes_log so the failure can be classified; spin still
     # shows/prints the output as before.
     if spin "Installing Hermes" bash -c \
-      'bash "$1" --skip-setup --non-interactive 2>&1 | tee "$2"; exit "${PIPESTATUS[0]}"' \
-      _ "$installer_tmp" "$hermes_log"; then
+      'bash "$1" "${@:3}" 2>&1 | tee "$2"; exit "${PIPESTATUS[0]}"' \
+      _ "$installer_tmp" "$hermes_log" "${installer_args[@]}"; then
       hermes_installed=1
       break
     fi
