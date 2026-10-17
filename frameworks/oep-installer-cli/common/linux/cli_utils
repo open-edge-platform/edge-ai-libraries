@@ -43,7 +43,7 @@ act_expand_modules () {
     [ -z "${seen[$n]:-}" ] || continue
     seen[$n]=1
     local p="${_act_cache_functions[profile_$n]:-}"
-    [ -n "$p" ] && q+=($($p $act_name "${@:3}"))
+    [ -n "$p" ] && q+=($($p $act_name $(act_extract_args $act_name $n "${q[*]}" "${@:3}")))
   done
   echo "${!seen[*]}"
 }

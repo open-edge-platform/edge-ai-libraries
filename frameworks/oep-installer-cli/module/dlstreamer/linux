@@ -35,7 +35,13 @@ test_dlstreamer_pipeline () {
     . /opt/intel/dlstreamer/scripts/setup_dls_env.sh || return 3
 
     local validated=()
-    for device in CPU GPU NPU; do
+    local -A device_map=(
+      [CPU]=/proc/cpuinfo
+      [GPU]=/dev/dri/renderD128
+      [NPU]=/dev/accel/accel0
+    )
+    for device in ${!device_map[*]}; do
+      [ -e ${device_map[$device]} ] || continue
       echo "Validating $od_model and $oc_model on device $device..."
       (
         set -o pipefail
