@@ -190,15 +190,18 @@ subcommand_bootstrap () {
     --start=*)
       start_modules+=("${v#*=}")
       ;;
-    --output|-o)
-      ;;
     --output=*)
       rendered="${v#*=}"
+      ;;
+    --output|-o|--family)
       ;;
     *)
       case "$vlast" in
       --output|-o)
         rendered="$v"
+        ;;
+      --family)
+        installer_family="$v"
         ;;
       *)
         [[ "$v" = -* ]] || modules+=("$v")
