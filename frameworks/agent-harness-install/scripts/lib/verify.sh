@@ -46,7 +46,10 @@ fetch_and_verify() {
   local actual_sha256
   actual_sha256="$(sha256_of "$dest")"
   if [[ -n "$expected_sha256" ]]; then
-    if [[ "${actual_sha256,,}" != "${expected_sha256,,}" ]]; then
+    local actual_lc expected_lc
+    actual_lc="$(printf '%s' "$actual_sha256" | tr '[:upper:]' '[:lower:]')"
+    expected_lc="$(printf '%s' "$expected_sha256" | tr '[:upper:]' '[:lower:]')"
+    if [[ "$actual_lc" != "$expected_lc" ]]; then
       rm -f "$dest"
       error "$label failed SHA-256 verification.
   URL:      $url

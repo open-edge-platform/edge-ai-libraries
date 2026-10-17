@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # shellcheck shell=bash
 #
-# Intel Agentic Harness -- end-to-end smoke test suite.
+# agent-harness-install -- end-to-end smoke test suite.
 #
 # Targets: Ubuntu, CPU-only host (no Intel GPU required -- the installer's
 # own CPU fallback path is exercised). Installs real things on this machine
@@ -23,7 +23,6 @@
 #   --hf-model <id>         Also export+serve a real Hugging Face model via
 #                           OVMS and smoke-test chat completions (slow,
 #                           downloads several hundred MB-GB; default: skipped)
-#   --sandbox-image <ref>   Image for sandbox tests (default: nginx:alpine)
 #   --allow-clone-test      Also test the live git-clone standalone bootstrap
 #                           path (does a real shallow git fetch of this repo)
 #   --no-cleanup            Skip the final uninstall/cleanup phase (leaves
@@ -39,7 +38,7 @@
 #   -h, --help              Show this help
 #
 # Environment overrides (same effect as the matching flag):
-#   SMOKE_AGENTS, SMOKE_HF_MODEL, SMOKE_SANDBOX_IMAGE, SMOKE_CLEANUP (0/1),
+#   SMOKE_AGENTS, SMOKE_HF_MODEL, SMOKE_CLEANUP (0/1),
 #   SMOKE_TEST_BOOTSTRAP_CLONE (0/1)
 #
 # Exit code: 0 if every check passed (or was skipped), 1 if any check failed.
@@ -86,7 +85,6 @@ cd "$REPO_ROOT" || exit 1
 # ---------------------------------------------------------------- options --
 SMOKE_AGENTS="${SMOKE_AGENTS:-openclaw deepagents-code hermes}"
 SMOKE_HF_MODEL="${SMOKE_HF_MODEL:-}"
-SMOKE_SANDBOX_IMAGE="${SMOKE_SANDBOX_IMAGE:-docker.io/library/nginx:alpine}"
 SMOKE_CLEANUP="${SMOKE_CLEANUP:-1}"
 SMOKE_TEST_BOOTSTRAP_CLONE="${SMOKE_TEST_BOOTSTRAP_CLONE:-0}"
 ONLY_IDS=""
@@ -100,7 +98,6 @@ while [[ $# -gt 0 ]]; do
     --skip) SKIP_IDS="${2:?--skip requires a value}"; shift ;;
     --agents) SMOKE_AGENTS="${2:?--agents requires a value}"; shift ;;
     --hf-model) SMOKE_HF_MODEL="${2:?--hf-model requires a value}"; shift ;;
-    --sandbox-image) SMOKE_SANDBOX_IMAGE="${2:?--sandbox-image requires a value}"; shift ;;
     --allow-clone-test) SMOKE_TEST_BOOTSTRAP_CLONE=1 ;;
     --no-cleanup) SMOKE_CLEANUP=0 ;;
     # Already fully handled by the re-exec-through-tee wrapper above; just
@@ -108,7 +105,7 @@ while [[ $# -gt 0 ]]; do
     # already-wrapped invocation re-parsing the same original arguments.
     --log-file) shift ;;
     --no-log) ;;
-    -h | --help) sed -n '/^# Intel Agentic Harness/,/^# Exit code:/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h | --help) sed -n '/^# agent-harness-install/,/^# Exit code:/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "Unknown option: $1" >&2; exit 2 ;;
   esac
   shift
@@ -153,6 +150,21 @@ check_fail() {
   if [[ $rc -ne 0 ]]; then pass "$desc"; else fail "$desc" "expected failure, got success. output:
 $out"; fi
 }
+# check_with_retry DESC RETRIES -- CMD [ARGS...]   (expects exit 0, retrying
+# on failure -- only for genuinely network-dependent checks, e.g. a remote
+# registry API through a corporate proxy, where a transient blip isn't a
+# real bug; a persistent failure still reports FAIL after RETRIES attempts)
+check_with_retry() {
+  local desc="$1" retries="$2"; shift 2
+  local out attempt=1
+  while :; do
+    out="$("$@" 2>&1)" && { pass "$desc"; return; }
+    [[ $attempt -lt $retries ]] || break
+    attempt=$((attempt + 1))
+    sleep 2
+  done
+  fail "$desc" "$out"
+}
 # check_output_contains DESC PATTERN -- CMD [ARGS...]   (expects exit 0 AND pattern in output)
 check_output_contains() {
   local desc="$1" pattern="$2"; shift 2
@@ -180,33 +192,12 @@ $out"
 
 agent_in_list() { [[ " $SMOKE_AGENTS " == *" $1 "* ]]; }
 
-# smoke_port_free PORT -- mirrors scripts/lib/sandbox.sh's own
-# port_is_available() logic. Only phase_12 (direct-port mode) actually binds
-# a host port, so only it needs this; gateway mode never publishes a host
-# port at all. nginx:alpine (the default lifecycle-test image) is a fixed
-# port-80 listener the installer's sandbox CLI has no way to remap (it
-# always sets host_port=container_port=HARNESS_DEFAULT_SANDBOX_PORT, which
-# the harness itself requires to be >= 1024) -- so a separate, dedicated
-# hashicorp/http-echo sandbox (default port 5678, listen text supplied via
-# its ECHO_TEXT env var, which the CLI's [env-pairs] argument already
-# supports) is used for actual HTTP-reachability checks instead.
-smoke_port_free() {
-  local port="$1"
-  if command -v ss >/dev/null 2>&1; then
-    ! ss -H -t -l -n "sport = :${port}" 2>/dev/null | grep -q .
-  elif command -v lsof >/dev/null 2>&1; then
-    ! lsof -nP -iTCP:"${port}" -sTCP:LISTEN -t >/dev/null 2>&1
-  else
-    return 0
-  fi
-}
-
 # ------------------------------------------------- isolated lib unit-test --
 # Sources every scripts/lib/*.sh file (same order as scripts/install.sh) in
 # a disposable bash -c subshell, then evaluates $1. Isolated because several
 # lib functions call error() -> exit 1 on failure; running them in a nested
 # subshell means that exit only ends the subshell, never this test runner.
-LIB_ORDER="colors verify state sudo shim gpu-intel docker-setup nodejs gateway sandbox express openvino agents harness-mcp"
+LIB_ORDER="colors verify state sudo shim gpu-intel docker-setup nodejs python-setup express openvino inference-router agents harness-mcp"
 lib_eval() {
   local snippet="$1"
   bash -c '
@@ -221,7 +212,10 @@ lib_eval() {
 phase_00_prereqs() {
   phase_banner "00-prereqs: tool prerequisites"
   local tool
-  for tool in curl git sudo sha256sum; do
+  # sudo/sha256sum are base-OS tools this suite assumes are already present
+  # (not something ./startup.sh installs) -- checked up front since nothing
+  # below can even run without them.
+  for tool in sudo sha256sum; do
     check "required tool present: $tool" bash -c "command -v $tool"
   done
 
@@ -240,13 +234,22 @@ phase_00_prereqs() {
     sudo apt-get update -qq >/dev/null 2>&1 || true
     sudo apt-get install -y -qq shellcheck >/dev/null 2>&1 || true
   fi
-  if ! command -v python3 >/dev/null 2>&1 || ! python3 -c 'import yaml' >/dev/null 2>&1; then
-    note "python3/PyYAML needed for Hermes MCP registration; attempting install"
-    sudo apt-get update -qq >/dev/null 2>&1 || true
-    sudo apt-get install -y -qq python3 python3-pip >/dev/null 2>&1 || true
-    pip3 install --user --quiet pyyaml >/dev/null 2>&1 || true
-  fi
+
+  # install.sh now runs ./startup.sh automatically as its first step (see
+  # scripts/install.sh's prepare_installer_host) -- called explicitly here
+  # too so a prerequisite problem is reported in this early phase, not
+  # buried inside phase_05's first real ./install.sh run. Also the thing
+  # that actually installs curl/git on a fresh host (see below) -- checked
+  # for *before* this, curl/git would always spuriously fail here on a
+  # truly fresh machine even though this same phase goes on to fix it.
+  check "./startup.sh installs/verifies Docker, Node.js, and Python" \
+    env NON_INTERACTIVE=1 bash "$REPO_ROOT/startup.sh" --non-interactive
+
+  for tool in curl git; do
+    check "required tool present: $tool" bash -c "command -v $tool"
+  done
 }
+
 
 phase_01_static() {
   phase_banner "01-static: syntax + shellcheck"
@@ -275,12 +278,10 @@ phase_02_selfcheck() {
     bash -c "grep -q 'lib notice' '$REPO_ROOT/uninstall.sh'"
   check "agents.sh defines resolve_installed_agent (stale-default-agent fix)" \
     bash -c "grep -q 'resolve_installed_agent()' '$REPO_ROOT/scripts/lib/agents.sh'"
-  check "gateway.sh pins an immutable image digest (not just a floating tag)" \
-    bash -c "grep -q 'HARNESS_GATEWAY_IMAGE=.*@sha256:' '$REPO_ROOT/scripts/lib/gateway.sh'"
   check "openvino.sh defines ovms_is_managed (OVMS-managed-state fix)" \
     bash -c "grep -q 'ovms_is_managed()' '$REPO_ROOT/scripts/lib/openvino.sh'"
-  check "install.sh validates --agent/--hf-model have a value before use" \
-    bash -c "grep -q -- '--agent requires a value' '$REPO_ROOT/scripts/install.sh'"
+  check "install.sh validates --harness/--model have a value before use" \
+    bash -c "grep -q -- '--harness requires a value' '$REPO_ROOT/scripts/install.sh'"
   check_fail "openvino.sh no longer pins the stale HARNESS_OVMS_IMAGE with no matching -py tag" \
     bash -c "grep -q '2026\\.4\\.0-gpu' '$REPO_ROOT/scripts/lib/openvino.sh'"
   # Regression guard for the fix's own consistency invariant: openvino.sh's
@@ -303,9 +304,11 @@ phase_02_selfcheck() {
   # assignment (not embedded as a printf argument) so a failure inside it
   # (e.g. an advertised-host state-file tamper check) aborts via set -e
   # instead of silently producing a malformed empty-host endpoint that then
-  # gets persisted into the agent's own config file.
-  check "harness_llm_endpoint propagates resolve_advertised_host failures (not embedded in printf)" \
-    bash -c "awk '/^harness_llm_endpoint\\(\\)/,/^\\}/' '$REPO_ROOT/scripts/lib/openvino.sh' | grep -q 'host=\"\$(resolve_advertised_host)\" || return 1'"
+  # gets persisted into the agent's own config file. This logic now lives
+  # in inference_router_endpoint (inference-router.sh), which
+  # harness_llm_endpoint delegates to, not in harness_llm_endpoint itself.
+  check "inference_router_endpoint propagates resolve_advertised_host failures (not embedded in printf)" \
+    bash -c "awk '/^inference_router_endpoint\\(\\)/,/^\\}/' '$REPO_ROOT/scripts/lib/inference-router.sh' | grep -q 'host=\"\$(resolve_advertised_host)\" || return 1'"
   # wait_for_ovms_model_ready returns 1 on a plain readiness-poll timeout
   # (its own warn() is the complete, non-fatal signal) -- a bare call with
   # no `|| true` was silently killing the *entire* installer under set -e
@@ -347,7 +350,7 @@ phase_02_selfcheck() {
   # run_agent_onboard's model_hint fallback must not be the bare literal
   # "default" anymore -- that never matches a real registered model name
   # (exports register under the HF model's own basename), so a standalone
-  # "./install.sh onboard" run (no --hf-model/HARNESS_LLM_MODEL) against an
+  # "./install.sh onboard" run (no --model/HARNESS_LLM_MODEL) against an
   # already-exported model always 404'd even though the server was healthy.
   check "run_agent_onboard auto-discovers the sole registered model instead of a bare 'default'" \
     bash -c "grep -q 'ovms_sole_registered_model_name' '$REPO_ROOT/scripts/lib/agents.sh'"
@@ -373,8 +376,6 @@ phase_02_selfcheck() {
     bash -c "awk '/^ensure_openvino_model_server\\(\\)/,/^}/' '$REPO_ROOT/scripts/lib/openvino.sh' | grep -q 'group_add_args=\"\$(intel_gpu_docker_group_add_args)\"'"
   check "export_model_via_docker_pull passes --device/--group-add when targeting GPU (was missing --device entirely)" \
     bash -c "awk '/^export_model_via_docker_pull\\(\\)/,/^}/' '$REPO_ROOT/scripts/lib/openvino.sh' | grep -q 'gpu_args=\"\$(intel_gpu_docker_device_args)\"'"
-  check "create_sandbox passes --group-add alongside --device" \
-    bash -c "awk '/^create_sandbox\\(\\)/,/^}/' '$REPO_ROOT/scripts/lib/sandbox.sh' | grep -q 'group_add_args=\"\$(intel_gpu_docker_group_add_args)\"'"
 }
 
 phase_03_libunit() {
@@ -397,17 +398,6 @@ phase_03_libunit() {
   check_fail "agent_cli_bin: unknown agent returns nonzero (regression: was silent empty string)" \
     lib_eval 'agent_cli_bin bogus-agent'
 
-  check "validate_sandbox_name: accepts my-app" lib_eval 'validate_sandbox_name my-app'
-  check_fail "validate_sandbox_name: rejects My_App (uppercase/underscore)" lib_eval 'validate_sandbox_name My_App'
-  check_fail "validate_sandbox_name: rejects consecutive hyphens" lib_eval 'validate_sandbox_name ab--cd'
-  check_fail "validate_sandbox_name: rejects leading digit" lib_eval 'validate_sandbox_name 1abc'
-
-  check "validate_image_reference: accepts nginx:alpine" lib_eval 'validate_image_reference nginx:alpine'
-  check "validate_image_reference: accepts a digest-pinned reference" \
-    lib_eval 'validate_image_reference "alpine@sha256:0000000000000000000000000000000000000000000000000000000000000000"'
-  check_fail "validate_image_reference: rejects a reference containing spaces" \
-    lib_eval 'validate_image_reference "bad image ref"'
-
   check "validate_model_name: accepts qwen2.5-7b" lib_eval 'validate_model_name qwen2.5-7b'
   check_fail "validate_model_name: rejects a dot-prefixed name" lib_eval 'validate_model_name .hidden'
   check_fail "validate_model_name: rejects path traversal" lib_eval 'validate_model_name ../etc'
@@ -416,21 +406,49 @@ phase_03_libunit() {
   check_fail "validate_skill_name: rejects .." lib_eval 'validate_skill_name ..'
   check_fail "validate_skill_name: rejects a path separator" lib_eval 'validate_skill_name a/b'
 
-  check_output_contains "detect_intel_harness_profile: cpu-only on this declared no-GPU host" \
-    "cpu-only" lib_eval 'detect_intel_harness_profile'
+  check "validate_hf_model_id: accepts org/name" lib_eval 'validate_hf_model_id Qwen/Qwen2.5-0.5B-Instruct'
+  check "validate_hf_model_id: accepts a bare name" lib_eval 'validate_hf_model_id my-model'
+  check_fail "validate_hf_model_id: rejects a trailing slash" lib_eval 'validate_hf_model_id org/'
+  check_fail "validate_hf_model_id: rejects traversal" lib_eval 'validate_hf_model_id ../../x'
+  check_fail "validate_hf_model_id: rejects empty" lib_eval 'validate_hf_model_id ""'
+  check_fail "validate_hf_model_id: rejects a leading dot" lib_eval 'validate_hf_model_id org/.hidden'
+
+  check "safe_agent_data_dir: accepts a dir under \$HOME" lib_eval 'safe_agent_data_dir "$HOME/.hermes"'
+  check_fail "safe_agent_data_dir: rejects /" lib_eval 'safe_agent_data_dir /'
+  check_fail "safe_agent_data_dir: rejects \$HOME" lib_eval 'safe_agent_data_dir "$HOME"'
+  check_fail "safe_agent_data_dir: rejects a parent of \$HOME" lib_eval 'safe_agent_data_dir "$(dirname "$HOME")"'
+  check_fail "safe_agent_data_dir: rejects a relative path" lib_eval 'safe_agent_data_dir .hermes'
+
+  # detect_intel_harness_profile correctly reports a real Intel GPU when one
+  # is actually present (e.g. running this suite on real Intel hardware,
+  # not just a GPU-less CI host) -- assert whichever outcome actually
+  # matches this host instead of hardcoding "cpu-only" and failing on any
+  # host with a real Intel GPU.
+  local profile_result
+  if lib_eval 'detect_intel_gpu' >/dev/null 2>&1; then
+    profile_result="$(lib_eval 'detect_intel_harness_profile')"
+    if [[ "$profile_result" == "arc" || "$profile_result" == "intel-gpu-other" ]]; then
+      pass "detect_intel_harness_profile: reports a GPU profile (${profile_result}) on this GPU-equipped host"
+    else
+      fail "detect_intel_harness_profile: reports a GPU profile on this GPU-equipped host" "got: ${profile_result}"
+    fi
+  else
+    check_output_contains "detect_intel_harness_profile: cpu-only on this declared no-GPU host" \
+      "cpu-only" lib_eval 'detect_intel_harness_profile'
+  fi
 
   check_output_contains "resolve_installed_agent: defaults to openclaw with no marker/env" \
     "openclaw" lib_eval 'export HOME=$(mktemp -d); unset HARNESS_AGENT; resolve_installed_agent'
   check_output_contains "resolve_installed_agent: HARNESS_AGENT wins over a persisted marker" \
     "hermes" lib_eval '
       export HOME=$(mktemp -d)
-      mkdir -p "$HOME/.intel-agent"; printf openclaw > "$HOME/.intel-agent/installed-agent"
+      mkdir -p "$HOME/.agent-harness-install"; printf openclaw > "$HOME/.agent-harness-install/installed-agent"
       export HARNESS_AGENT=hermes
       resolve_installed_agent'
   check_output_contains "resolve_installed_agent: falls back to the persisted marker, not a hardcoded default (regression)" \
     "hermes" lib_eval '
       export HOME=$(mktemp -d)
-      mkdir -p "$HOME/.intel-agent"; printf hermes > "$HOME/.intel-agent/installed-agent"
+      mkdir -p "$HOME/.agent-harness-install"; printf hermes > "$HOME/.agent-harness-install/installed-agent"
       unset HARNESS_AGENT
       resolve_installed_agent'
 
@@ -452,6 +470,19 @@ phase_03_libunit() {
       record_ovms_managed 1
       export HARNESS_LLM_ROUTER_ENDPOINT=http://example:1/v1
       ovms_is_managed && echo managed || echo not-managed'
+
+  # ovms_internal_endpoint: IR must address OVMS by container name + its
+  # internal port (8000), never the host-published/loopback address --
+  # see ensure_backend_network (regression: IR couldn't reach OVMS at all
+  # when this used ovms_endpoint's host-facing URL instead).
+  check_output_contains "ovms_internal_endpoint: container-name URL, not loopback" \
+    "http://agent-harness-install-ovms:8000/v3" lib_eval 'ovms_internal_endpoint'
+  check_output_contains "harness_llm_endpoint: delegates to inference_router_endpoint (no duplicated URL logic)" \
+    "/v1" lib_eval 'export HOME=$(mktemp -d); harness_llm_endpoint'
+  check_output_contains "HARNESS_MODEL_HUB defaults to openvino (the only hub OVMS can serve)" \
+    "openvino" lib_eval 'printf "%s" "$HARNESS_MODEL_HUB"'
+  check_output_contains "HARNESS_MODEL_TYPE has no blanket default (hub-specific, not always llm)" \
+    "empty-ok" lib_eval '[[ -z "$HARNESS_MODEL_TYPE" ]] && echo empty-ok || echo "got: $HARNESS_MODEL_TYPE"'
 }
 
 phase_04_bootstrap() {
@@ -475,7 +506,7 @@ phase_04_bootstrap() {
     origin_url="$(git -C "$REPO_ROOT" remote get-url origin 2>/dev/null || true)"
     head_sha="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || true)"
     if [[ -n "$origin_url" && -n "$head_sha" ]]; then
-      check_output_contains "standalone fetch clones a real pinned ref and delegates" "Intel Agentic Harness" \
+      check_output_contains "standalone fetch clones a real pinned ref and delegates" "agent-harness-install" \
         env HARNESS_INSTALL_REPO="$origin_url" HARNESS_INSTALL_REF="$head_sha" bash "$tmp/install.sh" --help
     else
       skip "live git-clone bootstrap test" "could not resolve this repo's origin/HEAD"
@@ -491,8 +522,8 @@ phase_05_install_primary() {
   check "./install.sh status is read-only and does not crash before anything is installed" \
     env NON_INTERACTIVE=1 bash "$REPO_ROOT/install.sh" status
 
-  check "full install: --agent openclaw --non-interactive --skip-gpu-check" \
-    env NON_INTERACTIVE=1 bash "$REPO_ROOT/install.sh" --agent openclaw --non-interactive --skip-gpu-check
+  check "full install: --harness openclaw --non-interactive --skip-gpu-check" \
+    env NON_INTERACTIVE=1 bash "$REPO_ROOT/install.sh" --harness openclaw --non-interactive --skip-gpu-check
 
   # Mirrors the installer's own "open a new terminal" guidance so later
   # phases (separate processes) can resolve node/openclaw/dcode/hermes the
@@ -502,11 +533,11 @@ phase_05_install_primary() {
   [[ -s "$NVM_DIR/nvm.sh" ]] && . "$NVM_DIR/nvm.sh"
   export PATH="$HOME/.local/bin:$PATH"
 
-  check "docker info succeeds after install" docker info
-  check "node --version resolves after install" bash -c 'command -v node'
+  check "docker info succeeds (via ./startup.sh in phase 00)" docker info
+  check "node --version resolves (via ./startup.sh in phase 00)" bash -c 'command -v node'
   check "openclaw CLI resolves on PATH after install" bash -c 'command -v openclaw'
-  check_output_contains "installed-agent marker == openclaw" "openclaw" cat "$HOME/.intel-agent/installed-agent"
-  check_output_contains "ovms-managed marker == 1 (no external router configured)" "1" cat "$HOME/.intel-agent/ovms-managed"
+  check_output_contains "installed-agent marker == openclaw" "openclaw" cat "$HOME/.agent-harness-install/installed-agent"
+  check_output_contains "ovms-managed marker == 1 (no external router configured)" "1" cat "$HOME/.agent-harness-install/ovms-managed"
   check_output_contains "OpenClaw's 'ovms' provider was registered (onboarding fix)" "ovms" \
     bash -c "openclaw config get models.providers --json | grep -o ovms"
 }
@@ -519,17 +550,17 @@ phase_06_status() {
 
 phase_07_optparsing() {
   phase_banner "07-optparsing: unbound-variable regression checks"
-  check_fail_output_contains "install.sh --agent with no value errors (not 'unbound variable')" "requires a value" \
-    bash "$REPO_ROOT/install.sh" --agent
-  check_fail_output_contains "install.sh --hf-model with no value errors (not 'unbound variable')" "requires a value" \
-    bash "$REPO_ROOT/install.sh" --hf-model
-  check_fail_output_contains "uninstall.sh --agent with no value errors (not 'unbound variable')" "requires a value" \
-    bash "$REPO_ROOT/uninstall.sh" --agent
+  check_fail_output_contains "install.sh --harness with no value errors (not 'unbound variable')" "requires a value" \
+    bash "$REPO_ROOT/install.sh" --harness
+  check_fail_output_contains "install.sh --model with no value errors (not 'unbound variable')" "requires a value" \
+    bash "$REPO_ROOT/install.sh" --model
+  check_fail_output_contains "uninstall.sh --harness with no value errors (not 'unbound variable')" "requires a value" \
+    bash "$REPO_ROOT/uninstall.sh" --harness
 }
 
 phase_08_agent_resolution() {
   phase_banner "08-agent-resolution: stale-default + silent-no-op regression checks (live)"
-  local marker="$HOME/.intel-agent/installed-agent"
+  local marker="$HOME/.agent-harness-install/installed-agent"
   local saved; saved="$(cat "$marker" 2>/dev/null || true)"
 
   check_output_contains "onboard (HARNESS_AGENT unset) operates on the persisted agent, not a hardcoded default" \
@@ -547,14 +578,14 @@ phase_08_agent_resolution() {
 phase_09_other_agents() {
   phase_banner "09-install: remaining agents"
   if agent_in_list deepagents-code; then
-    check "full install: --agent deepagents-code (dcode, unverified installer accepted for this test)" \
+    check "full install: --harness deepagents-code (dcode, unverified installer accepted for this test)" \
       env NON_INTERACTIVE=1 HARNESS_ALLOW_UNVERIFIED_DCODE_INSTALL=1 \
-      bash "$REPO_ROOT/install.sh" --agent deepagents-code --non-interactive --skip-gpu-check
+      bash "$REPO_ROOT/install.sh" --harness deepagents-code --non-interactive --skip-gpu-check
     export PATH="$HOME/.local/bin:$PATH"
     check "dcode CLI resolves on PATH after install" bash -c 'command -v dcode'
-    check_output_contains "installed-agent marker == deepagents-code" "deepagents-code" cat "$HOME/.intel-agent/installed-agent"
+    check_output_contains "installed-agent marker == deepagents-code" "deepagents-code" cat "$HOME/.agent-harness-install/installed-agent"
     check "dcode's config.toml carries the managed-provider markers (onboarding wiring)" \
-      bash -c "grep -q 'BEGIN intel-agent-harness managed provider' '${DEEPAGENTS_HOME:-$HOME/.deepagents}/config.toml'"
+      bash -c "grep -q 'BEGIN agent-harness-install managed provider' '${DEEPAGENTS_HOME:-$HOME/.deepagents}/config.toml'"
     check_output_contains "onboard (HARNESS_AGENT unset) now resolves to dcode (persisted marker updated)" \
       "dcode" env -u HARNESS_AGENT bash "$REPO_ROOT/install.sh" onboard
   else
@@ -562,12 +593,12 @@ phase_09_other_agents() {
   fi
 
   if agent_in_list hermes; then
-    check "full install: --agent hermes (unverified installer accepted for this test)" \
+    check "full install: --harness hermes (unverified installer accepted for this test)" \
       env NON_INTERACTIVE=1 HERMES_ALLOW_UNVERIFIED_INSTALL=1 \
-      bash "$REPO_ROOT/install.sh" --agent hermes --non-interactive --skip-gpu-check
+      bash "$REPO_ROOT/install.sh" --harness hermes --non-interactive --skip-gpu-check
     export PATH="$HOME/.local/bin:$PATH"
     check "hermes CLI resolves on PATH after install" bash -c 'command -v hermes'
-    check_output_contains "installed-agent marker == hermes" "hermes" cat "$HOME/.intel-agent/installed-agent"
+    check_output_contains "installed-agent marker == hermes" "hermes" cat "$HOME/.agent-harness-install/installed-agent"
     check_output_contains "onboard (HARNESS_AGENT unset) now resolves to hermes (persisted marker updated)" \
       "Hermes" env -u HARNESS_AGENT bash "$REPO_ROOT/install.sh" onboard
   else
@@ -616,88 +647,8 @@ phase_11_skills() {
     bash -c "mkdir -p /tmp/smoke-skill-parent/.. 2>/dev/null; bash '$REPO_ROOT/install.sh' skill install /tmp/.."
 }
 
-phase_12_sandbox() {
-  phase_banner "12-sandbox: Docker-based sandbox manager (direct port mode)"
-  local name=smoke-nginx container=iplat-smoke-nginx
-
-  check "sandbox create" bash "$REPO_ROOT/install.sh" sandbox create "$name" "$SMOKE_SANDBOX_IMAGE"
-  check "container is running" bash -c "docker inspect -f '{{.State.Running}}' $container | grep -q true"
-  check_output_contains "sandbox list shows it as running" "status=running" bash "$REPO_ROOT/install.sh" sandbox list
-  check_fail "creating a duplicate-named sandbox is rejected" bash "$REPO_ROOT/install.sh" sandbox create "$name" "$SMOKE_SANDBOX_IMAGE"
-  check_fail "creating a sandbox with an invalid name is rejected" bash "$REPO_ROOT/install.sh" sandbox create "Bad_Name" "$SMOKE_SANDBOX_IMAGE"
-  check_fail "creating a sandbox with an invalid image reference is rejected" bash "$REPO_ROOT/install.sh" sandbox create smoke-bad "bad image ref"
-  check "container responds to a shell probe (what 'connect' itself checks)" \
-    bash -c "docker exec $container sh -c 'exit 0'"
-
-  check "sandbox stop" bash "$REPO_ROOT/install.sh" sandbox stop "$name"
-  check_output_contains "sandbox list reflects stopped status (not stale 'running')" "status=stopped" bash "$REPO_ROOT/install.sh" sandbox list
-  check "sandbox start" bash "$REPO_ROOT/install.sh" sandbox start "$name"
-  check_output_contains "sandbox list reflects running status again" "status=running" bash "$REPO_ROOT/install.sh" sandbox list
-
-  local backup_count_before backup_count_after
-  backup_count_before="$(docker images --format '{{.Repository}}:{{.Tag}}' | grep -c "^${container}:backup-" || true)"
-  check "sandbox backup" bash "$REPO_ROOT/install.sh" sandbox backup "$name"
-  backup_count_after="$(docker images --format '{{.Repository}}:{{.Tag}}' | grep -c "^${container}:backup-" || true)"
-  if [[ "$backup_count_after" -gt "$backup_count_before" ]]; then pass "a new backup image was created"; else fail "a new backup image was created" "before=$backup_count_before after=$backup_count_after"; fi
-
-  docker rm -f "$container" >/dev/null 2>&1
-  check "sandbox recover rebuilds a lost container from its backup image" bash "$REPO_ROOT/install.sh" sandbox recover "$name"
-  check "recovered container is running" bash -c "docker inspect -f '{{.State.Running}}' $container | grep -q true"
-
-  check "sandbox destroy --force" bash "$REPO_ROOT/install.sh" sandbox destroy "$name" --force
-  check_fail "destroyed container no longer exists" bash -c "docker inspect $container"
-  local out; out="$(bash "$REPO_ROOT/install.sh" sandbox list 2>&1)"
-  if ! grep -qF "$name" <<<"$out"; then pass "sandbox list no longer shows the destroyed sandbox"; else fail "sandbox list no longer shows the destroyed sandbox" "$out"; fi
-
-  # Separate, dedicated sandbox for actual HTTP-reachability: the sandbox
-  # CLI has no port_spec passthrough, forcing host_port=container_port=
-  # HARNESS_DEFAULT_SANDBOX_PORT (which must be >= 1024, so a fixed
-  # port-80 listener like nginx can never be matched). hashicorp/http-echo
-  # defaults to port 5678 and takes its response text from an ECHO_TEXT env
-  # var, which the CLI's [env-pairs] argument already supports -- a
-  # combination that actually works within the existing CLI surface.
-  local echo_name=smoke-echo echo_container=iplat-smoke-echo
-  if smoke_port_free 5678; then
-    check "sandbox create (http-echo, for HTTP-reachability testing)" \
-      env HARNESS_DEFAULT_SANDBOX_PORT=5678 \
-      bash "$REPO_ROOT/install.sh" sandbox create "$echo_name" hashicorp/http-echo "ECHO_TEXT=smoke-test-ok"
-    sleep 1
-    check_output_contains "sandbox is reachable on its published host port" "smoke-test-ok" \
-      curl -sf "http://127.0.0.1:5678/"
-    check "cleanup: destroy http-echo sandbox" bash "$REPO_ROOT/install.sh" sandbox destroy "$echo_name" --force
-  else
-    skip "sandbox HTTP reachability (direct port mode)" "host port 5678 already in use"
-  fi
-}
-
-phase_13_gateway() {
-  phase_banner "13-gateway: shared reverse-proxy mode"
-  # Uses hashicorp/http-echo (see phase_12's comment) rather than the
-  # general-purpose $SMOKE_SANDBOX_IMAGE: this phase's whole point is
-  # validating the gateway actually proxies real HTTP traffic end-to-end,
-  # which needs an image whose internal port (>= 1024, since gateway mode
-  # bottoms out at the same HARNESS_DEFAULT_SANDBOX_PORT requirement) is
-  # both known and reachable through the CLI's existing [env-pairs] support.
-  local name=smoke-gw container=iplat-smoke-gw
-
-  check "sandbox create (gateway mode)" \
-    env HARNESS_GATEWAY_ENABLED=1 HARNESS_DEFAULT_SANDBOX_PORT=5678 \
-    bash "$REPO_ROOT/install.sh" sandbox create "$name" hashicorp/http-echo "ECHO_TEXT=smoke-gateway-ok"
-  check "gateway container is running" bash -c "docker inspect -f '{{.State.Running}}' intel-agent-gateway | grep -q true"
-  check "sandbox has no published host port (only reachable via the gateway)" \
-    bash -c "[[ -z \"\$(docker port $container 2>/dev/null)\" ]]"
-  check_output_contains "sandbox list shows the gateway route for it" "gateway->" env HARNESS_GATEWAY_ENABLED=1 bash "$REPO_ROOT/install.sh" sandbox list
-
-  local gw_port; gw_port="$(cat "$HOME/.intel-agent/gateway/port" 2>/dev/null || echo 8888)"
-  sleep 1
-  check_output_contains "gateway proxies to the sandbox (real response content reachable through it)" "smoke-gateway-ok" \
-    curl -sf "http://127.0.0.1:${gw_port}/${name}/"
-
-  check "sandbox destroy removes its gateway route too" env HARNESS_GATEWAY_ENABLED=1 bash "$REPO_ROOT/install.sh" sandbox destroy "$name" --force
-}
-
-phase_14_inference() {
-  phase_banner "14-inference: OVMS exporter image resolution + model export + external-router bypass"
+phase_12_inference() {
+  phase_banner "12-inference: OVMS exporter image resolution + model export + external-router bypass"
 
   # Fast, always-on regression test for the stale "-py" tag bug: derives the
   # exact pull_image the default docker-pull exporter would use (same -gpu
@@ -711,33 +662,50 @@ phase_14_inference() {
     *-gpu) pull_image="${ovms_image%-gpu}-py" ;;
     *) pull_image="${ovms_image}-py" ;;
   esac
-  check "OVMS serving image tag resolves on the registry (${ovms_image})" \
+  check_with_retry "OVMS serving image tag resolves on the registry (${ovms_image})" 3 \
     docker buildx imagetools inspect "$ovms_image"
-  check "OVMS docker-pull exporter's derived image tag resolves on the registry (${pull_image})" \
+  check_with_retry "OVMS docker-pull exporter's derived image tag resolves on the registry (${pull_image})" 3 \
     docker buildx imagetools inspect "$pull_image"
 
   if [[ -n "$SMOKE_HF_MODEL" ]]; then
-    check "install --hf-model exports and registers a real model (slow)" \
-      env NON_INTERACTIVE=1 bash "$REPO_ROOT/install.sh" --agent openclaw --non-interactive --skip-gpu-check --hf-model "$SMOKE_HF_MODEL"
+    check "install --model exports and registers a real model (slow)" \
+      env NON_INTERACTIVE=1 bash "$REPO_ROOT/install.sh" --harness openclaw --non-interactive --skip-gpu-check --model "$SMOKE_HF_MODEL"
     local model_name="${SMOKE_HF_MODEL##*/}"
     check_output_contains "models list shows the exported model" "$model_name" bash "$REPO_ROOT/install.sh" models list
     check_output_contains "OVMS readiness endpoint responds for the exported model" "" \
       curl -sf "http://127.0.0.1:8000/v2/models/${model_name}/ready"
     check "models remove cleans it up" bash "$REPO_ROOT/install.sh" models remove "$model_name"
+
+    # HARNESS_MODEL_HUB generalization (model-download exporter can pull
+    # from hubs other than Hugging Face) + unregistered-downloads tracking
+    # for hubs that don't produce an OVMS-servable artifact -- see
+    # export_model_via_model_download/list_exported_models/
+    # remove_exported_model in scripts/lib/openvino.sh.
+    local hub_model="hf-internal-testing/tiny-random-gpt2" hub_model_name="tiny-random-gpt2"
+    check "install --model-hub huggingface (raw download, no OVMS registration)" \
+      env NON_INTERACTIVE=1 HARNESS_OVMS_EXPORTER=model-download HARNESS_ALLOW_UNVERIFIED_MODEL_DOWNLOAD_SCRIPT=1 \
+      bash "$REPO_ROOT/install.sh" --harness openclaw --non-interactive --skip-gpu-check \
+        --model "$hub_model" --model-hub huggingface
+    check_output_contains "models list shows the hub download, labeled not served by OVMS" \
+      "not served by OVMS" bash "$REPO_ROOT/install.sh" models list
+    check_output_contains "models list labels it with its hub" \
+      "hub: huggingface" bash "$REPO_ROOT/install.sh" models list
+    check "models remove also cleans up an untracked (non-config.json) hub download" \
+      bash "$REPO_ROOT/install.sh" models remove "$hub_model_name"
   else
     skip "real HF model export + chat-completion test" "pass --hf-model <id> to enable (slow, downloads a model)"
   fi
 
   check "external router bypass: OVMS is skipped, status reports 'Routed externally'" \
-    bash -c "cd '$REPO_ROOT' && HARNESS_LLM_ROUTER_ENDPOINT=http://127.0.0.1:1/fake NON_INTERACTIVE=1 bash install.sh --agent openclaw --non-interactive --skip-gpu-check >/tmp/smoke-router.log 2>&1; HARNESS_LLM_ROUTER_ENDPOINT=http://127.0.0.1:1/fake bash install.sh status | grep -q 'Routed externally'"
-  check_output_contains "ovms-managed marker flips to 0 when routed externally" "0" cat "$HOME/.intel-agent/ovms-managed"
+    bash -c "cd '$REPO_ROOT' && HARNESS_LLM_ROUTER_ENDPOINT=http://127.0.0.1:1/fake NON_INTERACTIVE=1 bash install.sh --harness openclaw --non-interactive --skip-gpu-check >/tmp/smoke-router.log 2>&1; HARNESS_LLM_ROUTER_ENDPOINT=http://127.0.0.1:1/fake bash install.sh status | grep -q 'Routed externally'"
+  check_output_contains "ovms-managed marker flips to 0 when routed externally" "0" cat "$HOME/.agent-harness-install/ovms-managed"
 
   # Restore local-OVMS management for the uninstall phase below.
-  env NON_INTERACTIVE=1 bash "$REPO_ROOT/install.sh" --agent openclaw --non-interactive --skip-gpu-check >/dev/null 2>&1 || true
+  env NON_INTERACTIVE=1 bash "$REPO_ROOT/install.sh" --harness openclaw --non-interactive --skip-gpu-check >/dev/null 2>&1 || true
 }
 
-phase_15_uninstall() {
-  phase_banner "15-uninstall: per-agent removal + final cleanup"
+phase_13_uninstall() {
+  phase_banner "13-uninstall: per-agent removal + final cleanup"
   if [[ "$SMOKE_CLEANUP" != "1" ]]; then
     skip "uninstall / cleanup" "--no-cleanup was passed"
     return
@@ -745,7 +713,7 @@ phase_15_uninstall() {
 
   local agent
   for agent in $SMOKE_AGENTS; do
-    check "uninstall --agent $agent --yes" bash "$REPO_ROOT/uninstall.sh" --yes --agent "$agent"
+    check "uninstall --harness $agent --yes" bash "$REPO_ROOT/uninstall.sh" --yes --harness "$agent"
   done
 
   if agent_in_list openclaw; then
@@ -759,7 +727,7 @@ phase_15_uninstall() {
   fi
 
   check "state directory is gone (or contains only a kept models dir)" \
-    bash -c '[[ ! -d "$HOME/.intel-agent" ]] || [[ -z "$(ls -A "$HOME/.intel-agent" 2>/dev/null | grep -v "^models$")" ]]'
+    bash -c '[[ ! -d "$HOME/.agent-harness-install" ]] || [[ -z "$(ls -A "$HOME/.agent-harness-install" 2>/dev/null | grep -v "^models$")" ]]'
 }
 
 phase_99_summary() {
@@ -790,14 +758,12 @@ declare -A PHASE_FN=(
   [09-other-agents]=phase_09_other_agents
   [10-mcp]=phase_10_mcp
   [11-skills]=phase_11_skills
-  [12-sandbox]=phase_12_sandbox
-  [13-gateway]=phase_13_gateway
-  [14-inference]=phase_14_inference
-  [15-uninstall]=phase_15_uninstall
+  [12-inference]=phase_12_inference
+  [13-uninstall]=phase_13_uninstall
 )
 PHASE_ORDER=(00-prereqs 01-static 02-selfcheck 03-libunit 04-bootstrap 05-install-primary \
   06-status 07-optparsing 08-agent-resolution 09-other-agents 10-mcp 11-skills \
-  12-sandbox 13-gateway 14-inference 15-uninstall)
+  12-inference 13-uninstall)
 
 if [[ "$LIST_ONLY" == "1" ]]; then
   printf '%s\n' "${PHASE_ORDER[@]}"

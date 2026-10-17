@@ -23,7 +23,9 @@ ensure_local_bin_in_profile() {
   local profile shell_name path_line
   profile="$(detect_shell_profile)"
   [[ -n "$profile" ]] || return 0
-  if [[ -f "$profile" ]] && grep -qF '# Intel Agentic Harness PATH setup' "$profile" 2>/dev/null; then
+  # The older marker text is still recognised so profiles written before the
+  # rename aren't given a second PATH block.
+  if [[ -f "$profile" ]] && grep -qE '# (agent-harness-install|Agent Harness Install) PATH setup' "$profile" 2>/dev/null; then
     return 0
   fi
   shell_name="$(basename "${SHELL:-bash}")"
@@ -34,9 +36,9 @@ ensure_local_bin_in_profile() {
   esac
   mkdir -p "$(dirname "$profile")"
   {
-    printf '\n# Intel Agentic Harness PATH setup\n'
+    printf '\n# agent-harness-install PATH setup\n'
     printf '%s\n' "$path_line"
-    printf '# end Intel Agentic Harness PATH setup\n'
+    printf '# end agent-harness-install PATH setup\n'
   } >>"$profile"
 }
 

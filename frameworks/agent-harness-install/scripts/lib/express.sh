@@ -10,6 +10,7 @@
 #
 # Known Intel discrete GPU PCI device-ID prefixes (subset; extend as needed):
 #   0x56xx = Arc (Alchemist/Battlemage, consumer & workstation)
+#   0xb0xx = Arc (Panther Lake integrated, e.g. Arc B390 -- confirmed 0xb080)
 detect_intel_harness_profile() {
   local dev vendor device root="/sys/bus/pci/devices"
 
@@ -22,7 +23,7 @@ detect_intel_harness_profile() {
       device="${device#0x}"
       [[ "$vendor" == "8086" ]] || continue
       case "$device" in
-        56*) printf 'arc'; return ;;
+        56* | b0*) printf 'arc'; return ;;
       esac
     done
   fi

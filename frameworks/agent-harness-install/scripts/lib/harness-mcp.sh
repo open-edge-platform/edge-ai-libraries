@@ -26,7 +26,7 @@ _hermes_register_mcp_endpoint_locked() {
   local name="$1" url="$2" config
   config="$(hermes_config_path)"
   command_exists python3 || error "python3 is required to register MCP endpoints
-with Hermes (edit ${config} manually instead)."
+with Hermes (run ./startup.sh first, or edit ${config} manually instead)."
   mkdir -p "$(dirname "$config")"
   python3 - "$config" "$name" "$url" <<'PY' || error "Could not update the Hermes
 config (install PyYAML: pip install pyyaml — or edit the file manually)."
@@ -53,23 +53,27 @@ data.setdefault("mcp_servers", {})[name] = {
 }
 
 # Hermes's config can carry provider API keys, so write it 0600 -- plain
-# open(..., "w") would use the process umask (commonly 0644) -- and refuse
-# to follow a symlink swapped in at the destination path. The mode argument
-# to os.open() is only applied when O_CREAT actually creates a *new* file;
-# it has no effect on a pre-existing file (e.g. one Hermes's own installer
-# already created with looser permissions before this ever runs) -- an
-# explicit os.fchmod() on the already-open descriptor (not a second,
-# path-based chmod, which would re-resolve the path and reopen a TOCTOU
-# window the O_NOFOLLOW open above was meant to close) enforces 0600
-# unconditionally, regardless of whether the file was just created or
-# already existed.
+# open(..., "w") would use the process umask (commonly 0644) -- via a
+# same-directory temp file (mkstemp creates it 0600) renamed into place, so a
+# crash mid-write can't leave a truncated config. A symlink at the
+# destination is refused rather than followed or silently replaced.
 import os
+import tempfile
 
-flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0)
-fd = os.open(config_path, flags, 0o600)
-os.fchmod(fd, 0o600)
-with os.fdopen(fd, "w") as f:
-    yaml.safe_dump(data, f, default_flow_style=False, sort_keys=False)
+if os.path.islink(config_path):
+    sys.exit("Refusing to write through a symlink: " + config_path)
+fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(os.path.abspath(config_path)), prefix=".config.", suffix=".tmp")
+try:
+    os.fchmod(fd, 0o600)
+    with os.fdopen(fd, "w") as f:
+        yaml.safe_dump(data, f, default_flow_style=False, sort_keys=False)
+    os.replace(tmp_path, config_path)
+except BaseException:
+    try:
+        os.unlink(tmp_path)
+    except OSError:
+        pass
+    raise
 PY
   ok "Registered '${name}' with Hermes (${config})"
 }

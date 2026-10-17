@@ -61,6 +61,12 @@ agent_cli_is_trusted_path() {
   npm_bin="$(resolve_npm_bin 2>/dev/null || true)"
   [[ "$resolved" == "${HARNESS_SHIM_DIR}/"* ]] && return 0
   [[ -n "$npm_bin" && "$resolved" == "${npm_bin}/"* ]] && return 0
+  # dcode's own upstream installer (https://langch.in/dcode, a uv-based
+  # installer with no knowledge of this project's HARNESS_SHIM_DIR) always
+  # installs to this fixed location regardless -- trusted the same way
+  # npm's resolved global bin is, independent of this installer's own
+  # (user-configurable, e.g. test-isolated) shim dir.
+  [[ "$resolved" == "$HOME/.local/bin/"* ]] && return 0
   return 1
 }
 
@@ -127,7 +133,7 @@ configure_openclaw_provider() {
   endpoint_esc="$(printf '%s' "$endpoint" | sed 's/\\/\\\\/g; s/"/\\"/g')"
   model_name_esc="$(printf '%s' "$model_name" | sed 's/\\/\\\\/g; s/"/\\"/g')"
   # contextWindow/maxTokens are required-ish catalog fields with no per-model
-  # value this installer can verify for an arbitrary --hf-model; these are
+  # value this installer can verify for an arbitrary --model; these are
   # conservative generic defaults the operator can override afterward with
   # another `openclaw config set models.providers.ovms.models ...`.
   provider_json="{\"baseUrl\":\"${endpoint_esc}\",\"api\":\"openai-completions\",\"apiKey\":\"not-needed\",\"models\":[{\"id\":\"${model_name_esc}\",\"name\":\"${model_name_esc}\",\"reasoning\":false,\"input\":[\"text\"],\"cost\":{\"input\":0,\"output\":0,\"cacheRead\":0,\"cacheWrite\":0},\"contextWindow\":32768,\"maxTokens\":4096}]}"
@@ -188,15 +194,15 @@ configure_dcode_provider() {
   tmp="$(mktemp)"
   if [[ -f "$config_file" ]]; then
     awk '
-      /# BEGIN intel-agent-harness managed provider/ { skip=1 }
-      /# END intel-agent-harness managed provider/ { skip=0; next }
+      /# BEGIN agent-harness-install managed provider/ { skip=1 }
+      /# END agent-harness-install managed provider/ { skip=0; next }
       !skip
     ' "$config_file" >"$tmp"
   fi
   {
     cat "$tmp"
     cat <<EOF
-# BEGIN intel-agent-harness managed provider -- do not edit between markers
+# BEGIN agent-harness-install managed provider -- do not edit between markers
 [models]
 default = "openai:${model_name_esc}"
 
@@ -207,7 +213,7 @@ models = ["${model_name_esc}"]
 
 [models.providers.openai.params]
 use_responses_api = false
-# END intel-agent-harness managed provider
+# END agent-harness-install managed provider
 EOF
   } >"${tmp}.new"
   mv -f "${tmp}.new" "$config_file"
@@ -232,18 +238,62 @@ to accept the risk and proceed without pinning)."
   fi
   fetch_and_verify "$installer_url" "$installer_tmp" "Hermes installer" "${HERMES_INSTALL_SHA256:-}"
   assert_shell_script "$installer_tmp" "Hermes installer"
-  spin "Installing Hermes" bash "$installer_tmp" --skip-setup --non-interactive
-  rm -f "$installer_tmp"
+  # Hermes's own installer bootstraps a standalone Python build via plain
+  # urllib (unlike uv's own downloader moments earlier in the same install,
+  # which already trusts the system CA store fine) -- on a host with a
+  # corporate TLS-inspecting proxy, Python's ssl module needs an explicit
+  # nudge towards the system CA bundle rather than whatever it defaults to.
+  # Only set if the caller hasn't already pointed Python at a bundle
+  # themselves.
+  local system_ca_bundle="/etc/ssl/certs/ca-certificates.crt"
+  if [[ -z "${SSL_CERT_FILE:-}" && -r "$system_ca_bundle" ]]; then
+    export SSL_CERT_FILE="$system_ca_bundle"
+  fi
+  # Observed in practice: Hermes's own downloads (ffmpeg/node/python/ripgrep/
+  # uv, fetched independently of each other) intermittently hit a transient
+  # TLS verification blip on a corporate-proxied network -- which *specific*
+  # download hits it varies run to run, consistent with an occasional
+  # network/proxy hiccup rather than a deterministic missing-CA problem.
+  # Hermes's own installer is incremental (already-downloaded components are
+  # skipped on a re-run), and its own error message suggests retrying -- so
+  # retry the whole install a few times -- but only when the failure output
+  # actually looks like a network/TLS problem; anything else (bad args,
+  # missing deps, a real installer bug) fails immediately instead of being
+  # masked behind retries.
+  local hermes_attempt hermes_installed="" hermes_log
+  local transient_re='SSL|TLS|certificate|timed out|timeout|Connection (reset|refused|aborted)|Temporary failure|Could not resolve|Name or service not known|curl: \([0-9]+\)|URLError'
+  hermes_log="$(mktemp)"
+  for hermes_attempt in 1 2 3; do
+    : >"$hermes_log"
+    # tee into hermes_log so the failure can be classified; spin still
+    # shows/prints the output as before.
+    if spin "Installing Hermes" bash -c \
+      'bash "$1" --skip-setup --non-interactive 2>&1 | tee "$2"; exit "${PIPESTATUS[0]}"' \
+      _ "$installer_tmp" "$hermes_log"; then
+      hermes_installed=1
+      break
+    fi
+    if ! grep -Eqi "$transient_re" "$hermes_log"; then
+      rm -f "$hermes_log" "$installer_tmp"
+      error "Hermes install failed with a non-network error (see output above); not retrying."
+    fi
+    [[ "$hermes_attempt" -lt 3 ]] || break
+    warn "Hermes install failed (attempt ${hermes_attempt}/3) -- retrying after a
+transient-looking network/TLS blip…"
+    sleep 5
+  done
+  rm -f "$installer_tmp" "$hermes_log"
+  [[ -n "$hermes_installed" ]] || error "Hermes install failed after 3 attempts (see output above)."
   export PATH="$HOME/.local/bin:$PATH"
 }
 
 # resolve_installed_agent — the agent to operate on when the caller didn't
 # pin one explicitly via HARNESS_AGENT: whatever install_selected_agent last
-# recorded as actually installed (~/.intel-agent/installed-agent), falling
-# back to openclaw only if nothing was ever recorded. Without this,
+# recorded as actually installed (~/.agent-harness-install/installed-agent),
+# falling back to openclaw only if nothing was ever recorded. Without this,
 # run_agent_onboard/print_status defaulted straight to "openclaw" whenever
 # HARNESS_AGENT wasn't re-exported in the current shell -- silently
-# onboarding/reporting the wrong agent after e.g. `--agent hermes` in an
+# onboarding/reporting the wrong agent after e.g. `--harness hermes` in an
 # earlier session. Shared with uninstall.sh so all four read paths
 # (install/onboard/status/uninstall) agree on the same installed agent.
 resolve_installed_agent() {
@@ -299,6 +349,17 @@ remove_openclaw_package() {
   fi
 }
 
+# safe_agent_data_dir PATH -- true only for an absolute, non-symlink path that
+# is not "/", $HOME, or an ancestor of $HOME. Guards the rm -rf of an agent
+# data directory against a mistyped or hostile DEEPAGENTS_HOME/HERMES_HOME.
+safe_agent_data_dir() {
+  local dir="${1%/}"
+  [[ "$dir" == /* && -n "$dir" && ! -L "$dir" ]] || return 1
+  [[ "$dir" != "${HOME%/}" ]] || return 1
+  [[ "${HOME%/}/" != "${dir}/"* ]] || return 1
+  return 0
+}
+
 remove_dcode_package() {
   if command_exists uv; then
     if uv tool uninstall deepagents-code >/dev/null 2>&1; then
@@ -314,6 +375,11 @@ remove_dcode_package() {
     return 0
   fi
   local dcode_home="${DEEPAGENTS_HOME:-$HOME/.deepagents}"
+  if [[ -d "$dcode_home" ]] && ! safe_agent_data_dir "$dcode_home"; then
+    warn "Refusing to delete '${dcode_home}' (not an absolute, non-symlink path distinct
+from \$HOME and its parents) -- remove it manually if intended."
+    return 0
+  fi
   if [[ -d "$dcode_home" && ! -L "$dcode_home" ]]; then
     info "Removing dcode data directory (${dcode_home})…"
     rm -rf -- "$dcode_home"
@@ -337,6 +403,11 @@ remove_hermes_package() {
     return 0
   fi
   hermes_home="${HERMES_HOME:-$HOME/.hermes}"
+  if [[ -d "$hermes_home" ]] && ! safe_agent_data_dir "$hermes_home"; then
+    warn "Refusing to delete '${hermes_home}' (not an absolute, non-symlink path distinct
+from \$HOME and its parents) -- remove it manually if intended."
+    return 0
+  fi
   if [[ -d "$hermes_home" && ! -L "$hermes_home" ]]; then
     info "Removing Hermes data directory (${hermes_home})…"
     rm -rf -- "$hermes_home"
@@ -409,17 +480,26 @@ run_agent_onboard() {
   endpoint="${HARNESS_LLM_ENDPOINT:-$(harness_llm_endpoint)}"
   cli_bin="$(agent_cli_bin "$agent")" \
     || error "Unknown agent: '${agent}' (expected openclaw, deepagents-code, or hermes).
-Check HARNESS_AGENT, or re-install with --agent <name>."
+Check HARNESS_AGENT, or re-install with --harness <name>."
 
   # Resolved once, shared by both the openclaw and dcode branches below.
-  # Precedence: an explicit --hf-model/HARNESS_HF_MODEL always wins; then,
+  # Precedence: an explicit --model/HARNESS_HF_MODEL always wins; then,
   # if nothing was given (e.g. a standalone "./install.sh onboard" run after
-  # an earlier --hf-model install), fall back to whatever single model is
+  # an earlier --model install), fall back to whatever single model is
   # already registered with OVMS rather than the literal string "default"
   # (which never matches a real registered model name and always 404s);
   # HARNESS_LLM_MODEL overrides all of the above when set explicitly.
+  # HARNESS_HF_MODEL is skipped when HARNESS_OVMS_EXPORTER=model-download
+  # was used with a non-openvino HARNESS_MODEL_HUB -- that combination
+  # deliberately downloads without registering anything with OVMS (see
+  # export_model_via_model_download in openvino.sh), so the downloaded
+  # name is not a real registered model and must not be guessed as one
+  # here either (must stay in sync with ensure_inference_backend's own
+  # model_download_unregistered gate).
   model_hint=""
-  [[ -n "${HARNESS_HF_MODEL:-}" ]] && model_hint="${HARNESS_HF_MODEL##*/}"
+  if [[ "$HARNESS_OVMS_EXPORTER" != "model-download" || "${HARNESS_MODEL_HUB:-openvino}" == "openvino" ]]; then
+    [[ -n "${HARNESS_HF_MODEL:-}" ]] && model_hint="${HARNESS_HF_MODEL##*/}"
+  fi
   [[ -n "$model_hint" ]] || model_hint="$(ovms_sole_registered_model_name 2>/dev/null || true)"
   [[ -n "$model_hint" ]] || model_hint="default"
   model_hint="${HARNESS_LLM_MODEL:-$model_hint}"
@@ -429,9 +509,16 @@ Check HARNESS_AGENT, or re-install with --agent <name>."
       command_exists "$cli_bin" || error "openclaw CLI not found after install."
       if configure_openclaw_provider "$endpoint" "$model_hint"; then
         info "Smoke-testing OpenClaw against ${endpoint} (model: ovms/${model_hint})…"
-        "$cli_bin" infer model run --prompt "Say hello." --model "ovms/${model_hint}" --json >/dev/null \
-          || warn "Smoke test failed — check that the model server at ${endpoint} is reachable and that
+        # The CLI can exit 0 with no output when the upstream call fails
+        # after the HTTP 200 (e.g. a streaming error), so require output too.
+        local openclaw_out=""
+        if openclaw_out="$("$cli_bin" infer model run --prompt "Say hello." --model "ovms/${model_hint}" --json 2>/dev/null)" \
+          && [[ -n "${openclaw_out//[[:space:]]/}" ]]; then
+          ok "OpenClaw smoke test passed"
+        else
+          warn "Smoke test failed — check that the model server at ${endpoint} is reachable and that
 '${model_hint}' matches a model name registered with it."
+        fi
       else
         warn "Could not configure OpenClaw's 'ovms' provider automatically. Configure it
 manually instead: openclaw config set models.providers.ovms '{\"baseUrl\":\"${endpoint}\",
@@ -456,9 +543,16 @@ manually instead: openclaw config set models.providers.ovms '{\"baseUrl\":\"${en
       # instead of always failing behind a proxy -- confirmed empirically
       # (reproduced the 403/60s-timeout with proxy vars set, confirmed
       # clean success within ~1-2s with them unset).
+      # dcode exits 0 even when its model call fails (it just prints "[ERROR]"
+      # and reports 0 requests), so the exit status alone can't be trusted.
+      local dcode_log dcode_ok=1
+      dcode_log="$(mktemp)"
       HARNESS_DCODE_API_KEY="${HARNESS_DCODE_API_KEY:-not-needed}" DEEPAGENTS_CODE_NO_UPDATE_CHECK=1 \
         env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy -u ALL_PROXY -u all_proxy \
-        "$cli_bin" -n "Say hello." --model "openai:${model_hint}" \
+        "$cli_bin" -n "Say hello." --model "openai:${model_hint}" 2>&1 | tee "$dcode_log" || dcode_ok=""
+      grep -q '^\[ERROR\]' "$dcode_log" && dcode_ok=""
+      rm -f "$dcode_log"
+      [[ -n "$dcode_ok" ]] \
         || warn "Smoke test failed — check that the model server at ${endpoint} is reachable and that
 '${model_hint}' matches a model name registered with it."
       ;;

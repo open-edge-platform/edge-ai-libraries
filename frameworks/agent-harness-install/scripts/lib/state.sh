@@ -4,10 +4,10 @@
 # State directory management — an owner-only, symlink-refusing state root
 # under the user's home directory.
 
-HARNESS_STATE_DIRNAME="${HARNESS_STATE_DIRNAME:-.intel-agent}"
-# Host/IP advertised in printed endpoint URLs (OVMS, sandboxes, gateway
-# routes). Defaults to loopback; Docker's -p already binds 0.0.0.0, so this
-# only affects what gets displayed, not what's reachable. Captured before
+HARNESS_STATE_DIRNAME="${HARNESS_STATE_DIRNAME:-.agent-harness-install}"
+# Host/IP advertised in printed endpoint URLs (OVMS, the Inference Router), and the default address Docker binds published ports to (see
+# resolve_bind_host). Defaults to loopback, so nothing is exposed beyond this
+# host unless the operator opts in. Captured before
 # defaulting so resolve_advertised_host can tell "caller set it explicitly
 # (even to 127.0.0.1)" apart from "never set" and let the former win over a
 # persisted choice from a previous interactive prompt.
@@ -113,7 +113,7 @@ harness_advertised_host_file() {
 # a host previously chosen at the install prompt (persist_advertised_host),
 # then loopback. Deliberately does not create the state dir on a pure read —
 # callers like print_status are documented read-only and must not create
-# ~/.intel-agent as a side effect of just checking status.
+# ~/.agent-harness-install as a side effect of just checking status.
 resolve_advertised_host() {
   local file
   if [[ -n "$HARNESS_ADVERTISED_HOST_WAS_SET" || "$HARNESS_ADVERTISED_HOST" != "127.0.0.1" ]]; then

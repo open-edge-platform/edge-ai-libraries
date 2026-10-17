@@ -17,8 +17,15 @@
 # Bump this once OVMS publishes a newer matching "-py" tag.
 HARNESS_OVMS_IMAGE="${HARNESS_OVMS_IMAGE:-openvino/model_server:2026.1-gpu}"
 HARNESS_OVMS_REST_PORT="${HARNESS_OVMS_REST_PORT:-8000}"
-HARNESS_MODELS_DIR="${HARNESS_MODELS_DIR:-$HOME/.intel-agent/models}"
-HARNESS_OVMS_CONTAINER="${HARNESS_OVMS_CONTAINER:-intel-agent-ovms}"
+HARNESS_MODELS_DIR="${HARNESS_MODELS_DIR:-$HOME/.agent-harness-install/models}"
+HARNESS_OVMS_CONTAINER="${HARNESS_OVMS_CONTAINER:-agent-harness-install-ovms}"
+# Shared user-defined network joining OVMS and the Inference Router, so IR
+# can reach OVMS by container name + its internal port (8000) regardless of
+# HARNESS_OVMS_REST_PORT/HARNESS_BIND_HOST -- the default bridge network
+# gives containers no DNS-by-name resolution, and OVMS's host-published port
+# is loopback-only by default (resolve_bind_host), neither of which a
+# separate container (IR) can reach. See ensure_backend_network.
+HARNESS_BACKEND_NETWORK="${HARNESS_BACKEND_NETWORK:-agent-harness-install-backend}"
 # Extra OVMS server flags, e.g. "--tool_parser hermes3 --task text_generation"
 # for agents that need OpenAI-style tool calls.
 HARNESS_OVMS_EXTRA_ARGS="${HARNESS_OVMS_EXTRA_ARGS:-}"
@@ -31,7 +38,7 @@ HARNESS_OVMS_EXTRA_ARGS="${HARNESS_OVMS_EXTRA_ARGS:-}"
 HARNESS_LLM_PROVIDER="${HARNESS_LLM_PROVIDER:-ovms}"
 HARNESS_LLM_ROUTER_ENDPOINT="${HARNESS_LLM_ROUTER_ENDPOINT:-}"
 
-# Which tool performs --hf-model export: docker-pull (default) runs OVMS's
+# Which tool performs --model export: docker-pull (default) runs OVMS's
 # own "-py" Docker image in --pull mode to download/convert/quantize a HF
 # model entirely via Docker -- no host Python venv or separate script fetch
 # needed, since it reuses the same trusted, version-pinned image this
@@ -40,9 +47,19 @@ HARNESS_LLM_ROUTER_ENDPOINT="${HARNESS_LLM_ROUTER_ENDPOINT:-}"
 # raw content -- kept for hosts that can't/won't run the conversion inside
 # Docker. model-download is a third, newer/less battle-tested alternative
 # (edge-ai-libraries' Model Download microservice -- see
-# export_model_via_model_download below). All three register the resulting
-# model into config.json the same way (a model_config_list entry).
+# export_model_via_model_download below). hf-snapshot is a fourth option
+# for HF repos that are already published as ready-to-serve OpenVINO IR +
+# an OVMS MediaPipe graph (e.g. the OpenVINO organization's own
+# pre-converted model repos) -- a plain huggingface_hub.snapshot_download,
+# no optimum-cli conversion step at all (see export_model_via_hf_snapshot
+# below). All four register the resulting model into config.json the same
+# way (a model_config_list entry).
 HARNESS_OVMS_EXPORTER="${HARNESS_OVMS_EXPORTER:-docker-pull}"
+
+# Pins an exact HF revision (commit SHA/tag/branch) for the hf-snapshot
+# exporter, so a model author updating "main" underneath you can't silently
+# change what gets deployed. Empty means "main"/the repo's default branch.
+HARNESS_HF_MODEL_REVISION="${HARNESS_HF_MODEL_REVISION:-}"
 
 # export_model.py is OVMS's own model-export tool — unlike plain
 # `optimum-cli export openvino`, it also writes the graph.pbtxt MediaPipe
@@ -164,6 +181,12 @@ OVMS config.json registration -- add a model_config_list entry for base_path
   fi
   local -a proxy_args=()
   docker_proxy_env_args_into proxy_args
+  # Forward a Hugging Face token (by name, so it never appears on the
+  # command line) for gated/private models.
+  local hf_var
+  for hf_var in HF_TOKEN HUGGINGFACEHUB_API_TOKEN; do
+    [[ -z "${!hf_var:-}" ]] || proxy_args+=(-e "$hf_var")
+  done
   # shellcheck disable=SC2086
   if ! spin "Pulling+converting ${hf_model_id} via ${pull_image} (--pull, target: ${target_device})" \
     docker run --rm -u "$(id -u):$(id -g)" \
@@ -209,11 +232,15 @@ add a model_config_list entry for base_path '${relative_base_path}' manually."
 export_model_to_openvino() {
   local hf_model_id="$1" model_name="${2:-${1##*/}}" out_dir venv exporter requirements_file
   out_dir="${HARNESS_MODELS_DIR}/${model_name}"
-  if [[ -d "$out_dir" ]]; then
+  if [[ -f "${out_dir}/graph.pbtxt" ]]; then
     info "Model '${model_name}' is already exported."
     return 0
   fi
-  command_exists python3 || error "python3 is required to export models to OpenVINO IR."
+  command_exists python3 || error "python3 is required to export models to OpenVINO IR --
+was it skipped via SKIP_PYTHON=1? Run ./startup.sh --skip-docker --skip-nodejs."
+  python_venv_usable || error "python3's venv module is not usable (python3 -m venv
+--help fails) -- Debian/Ubuntu ship this as the separate python3-venv package.
+Run ./startup.sh --skip-docker --skip-nodejs."
   assert_proxy_scheme_supported
   ensure_ovms_config
   venv="${HARNESS_MODELS_DIR}/.export-venv"
@@ -288,28 +315,61 @@ inside the venv to check its exact current flags if this keeps failing."
 # by side with this exporter; OVMS itself auto-detects the graph.pbtxt
 # within base_path, no separate mediapipe_config_list entry is involved).
 # Newer/less battle-tested than docker-pull or export-model-py.
-HARNESS_MODEL_DOWNLOAD_SCRIPT_REF="${HARNESS_MODEL_DOWNLOAD_SCRIPT_REF:-main}"
+# Pinned get_model.sh: commit 45fa231a (microservices/model-download/scripts/
+# get_model.sh, unchanged on main as of this writing) and its SHA-256, so the
+# default configuration verifies out of the box. A custom ref needs its own
+# HARNESS_MODEL_DOWNLOAD_SCRIPT_SHA256 (or the explicit unverified opt-out).
+_MODEL_DOWNLOAD_PINNED_REF="45fa231a51b63423b3698282aa83ccb1e5b4685a"
+_MODEL_DOWNLOAD_PINNED_SHA256="7267ef551f1a4baba560982be7f1b5df33a557dc1849147a978cc00636db46dc"
+HARNESS_MODEL_DOWNLOAD_SCRIPT_REF="${HARNESS_MODEL_DOWNLOAD_SCRIPT_REF:-$_MODEL_DOWNLOAD_PINNED_REF}"
 HARNESS_MODEL_DOWNLOAD_IMAGE_TAG="${HARNESS_MODEL_DOWNLOAD_IMAGE_TAG:-}"
+# get_model.sh converts with its own OVMS release (default v2025.4.1), which
+# can differ from the OVMS image this installer serves with; set this to pass
+# --ovms-release-tag explicitly. Unset leaves get_model.sh's default.
+HARNESS_MODEL_DOWNLOAD_OVMS_RELEASE_TAG="${HARNESS_MODEL_DOWNLOAD_OVMS_RELEASE_TAG:-}"
+# Model Download pulls from several hubs (see its own docs:
+# microservices/model-download/docs/user-guide/get-started.md) -- "openvino"
+# is not a separate source, it means "pull from Hugging Face and convert to
+# OpenVINO IR" (--is-ovms), which is the only combination that produces an
+# artifact OVMS can actually serve as a chat-completion endpoint. The other
+# hubs (huggingface without conversion, ollama, ultralytics, geti,
+# pipeline-zoo-models, omz, remote-url, hls) download models in their own
+# native formats for their own runtimes -- useful to fetch via this same
+# exporter, but not something OVMS can load, so they're downloaded without
+# being registered (see the hub != openvino branch below).
+HARNESS_MODEL_HUB="${HARNESS_MODEL_HUB:-openvino}"
+HARNESS_MODEL_TYPE="${HARNESS_MODEL_TYPE:-}"
+HARNESS_MODEL_DOWNLOAD_REVISION="${HARNESS_MODEL_DOWNLOAD_REVISION:-}"
+HARNESS_MODEL_PRECISION="${HARNESS_MODEL_PRECISION:-int8}"
+HARNESS_MODEL_DEVICE="${HARNESS_MODEL_DEVICE:-CPU}"
+HARNESS_MODEL_CONFIG_JSON="${HARNESS_MODEL_CONFIG_JSON:-}"
+HARNESS_MODEL_PLUGINS="${HARNESS_MODEL_PLUGINS:-}"
 export_model_via_model_download() {
   local hf_model_id="$1" model_name="${2:-${1##*/}}" script_url script out result_line
+  local hub="$HARNESS_MODEL_HUB" plugins="$HARNESS_MODEL_PLUGINS"
   command_exists docker || error "Docker is required by the Model Download microservice's ephemeral container."
-  command_exists python3 || error "python3 is required by get_model.sh (builds/parses its request payloads)."
+  command_exists python3 || error "python3 is required by get_model.sh (builds/parses its
+request payloads) -- was it skipped via SKIP_PYTHON=1? Run ./startup.sh --skip-docker --skip-nodejs."
   assert_proxy_scheme_supported
   mkdir -p "$HARNESS_MODELS_DIR"
   script="$(harness_state_root)/model-download/get_model.sh"
   mkdir -p "$(dirname "$script")"
   script_url="https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/${HARNESS_MODEL_DOWNLOAD_SCRIPT_REF}/microservices/model-download/scripts/get_model.sh"
-  # This integration is newly explored, unlike the Hermes/Docker installers
-  # there is no independently-reviewed hash hardcoded here yet -- same
-  # fail-closed-by-default stance until one is pinned.
-  if [[ -z "${HARNESS_MODEL_DOWNLOAD_SCRIPT_SHA256:-}" && "${HARNESS_ALLOW_UNVERIFIED_MODEL_DOWNLOAD_SCRIPT:-}" != "1" ]]; then
-    error "HARNESS_MODEL_DOWNLOAD_SCRIPT_SHA256 is not set, so refusing to run
-get_model.sh unverified. Download and review ${script_url} yourself, then set
+  # Same fail-closed stance as the other downloaded installers: the default
+  # ref is pinned above; any other ref needs a caller-supplied digest.
+  local script_sha256="${HARNESS_MODEL_DOWNLOAD_SCRIPT_SHA256:-}"
+  if [[ -z "$script_sha256" && "$HARNESS_MODEL_DOWNLOAD_SCRIPT_REF" == "$_MODEL_DOWNLOAD_PINNED_REF" ]]; then
+    script_sha256="$_MODEL_DOWNLOAD_PINNED_SHA256"
+  fi
+  if [[ -z "$script_sha256" && "${HARNESS_ALLOW_UNVERIFIED_MODEL_DOWNLOAD_SCRIPT:-}" != "1" ]]; then
+    error "HARNESS_MODEL_DOWNLOAD_SCRIPT_REF is set to a non-default ref
+(${HARNESS_MODEL_DOWNLOAD_SCRIPT_REF}) with no known-good checksum. Download and
+review ${script_url} yourself, then set
 HARNESS_MODEL_DOWNLOAD_SCRIPT_SHA256=<sha256> to pin it (or
 HARNESS_ALLOW_UNVERIFIED_MODEL_DOWNLOAD_SCRIPT=1 to accept the risk)."
   fi
   info "Fetching the Model Download microservice's get_model.sh (ref: ${HARNESS_MODEL_DOWNLOAD_SCRIPT_REF})…"
-  fetch_and_verify "$script_url" "$script" "get_model.sh" "${HARNESS_MODEL_DOWNLOAD_SCRIPT_SHA256:-}"
+  fetch_and_verify "$script_url" "$script" "get_model.sh" "$script_sha256"
   assert_shell_script "$script" "get_model.sh"
   chmod +x "$script"
 
@@ -322,24 +382,89 @@ floating 'latest' tag for intel/model-download. Set it once you've picked a
 known-good version for reproducible exports."
   fi
 
+  [[ -n "$HARNESS_MODEL_DOWNLOAD_OVMS_RELEASE_TAG" ]] \
+    && image_tag_args+=(--ovms-release-tag "$HARNESS_MODEL_DOWNLOAD_OVMS_RELEASE_TAG")
+
+  # get_model.sh rejects a --hub it wasn't told to activate via --plugins
+  # ("Plugin 'X' was not activated during container startup"). Default to
+  # activating just the requested hub, plus huggingface for the "openvino"
+  # hub specifically (its HF->OpenVINO conversion depends on the
+  # huggingface plugin too -- confirmed against get_model.sh's own quickstart
+  # examples), unless HARNESS_MODEL_PLUGINS already overrides this.
+  if [[ -z "$plugins" ]]; then
+    case "$hub" in
+      openvino) plugins="huggingface,openvino" ;;
+      *) plugins="$hub" ;;
+    esac
+  fi
+
+  local -a model_args=(--model-name "$hf_model_id" --hub "$hub")
+  # --type isn't universal across hubs (llm/vlm/embeddings/rerank apply to
+  # huggingface/openvino; vision/3d-pose/rppg/ai-ecg to ultralytics/hls,
+  # etc.) -- only default it for the hubs this installer actually targets
+  # (HF-sourced, LLM chat serving); leave it unset for anything else so
+  # get_model.sh falls back to its own per-hub default instead of silently
+  # getting a wrong/inapplicable --type llm.
+  local model_type="$HARNESS_MODEL_TYPE"
+  if [[ -z "$model_type" ]]; then
+    case "$hub" in
+      openvino | huggingface) model_type="llm" ;;
+    esac
+  fi
+  [[ -n "$model_type" ]] && model_args+=(--type "$model_type")
+  [[ -n "$HARNESS_MODEL_DOWNLOAD_REVISION" ]] && model_args+=(--revision "$HARNESS_MODEL_DOWNLOAD_REVISION")
+  [[ -n "$HARNESS_MODEL_CONFIG_JSON" ]] && model_args+=(--config-json "$HARNESS_MODEL_CONFIG_JSON")
+  # --is-ovms (conversion to an OVMS-servable graph.pbtxt) only applies to
+  # the "openvino" hub -- the other hubs download models in formats their
+  # own runtimes consume directly (Ollama, vision pipelines, etc.), not
+  # something OVMS can load.
+  if [[ "$hub" == "openvino" ]]; then
+    model_args+=(--is-ovms --precision "$HARNESS_MODEL_PRECISION" --device "$HARNESS_MODEL_DEVICE")
+  fi
+
   out="$(mktemp)"
-  info "Downloading+converting ${hf_model_id} via the Model Download microservice (ephemeral, experimental)…"
+  info "Downloading '${hf_model_id}' via the Model Download microservice (hub: ${hub}, ephemeral, experimental)…"
   # PIPESTATUS, not `if ! ... | tee`, because the pipeline's own exit status
   # is tee's (always 0) unless the caller's shell happens to have pipefail
   # set -- true for scripts/install.sh, but not guaranteed for anyone
   # sourcing this function directly, so don't rely on an external shell
   # option for correctness here.
-  bash "$script" --model-name "$hf_model_id" --hub openvino --type llm \
-      --is-ovms --precision int8 --device CPU \
+  bash "$script" "${model_args[@]}" \
       --model-path "$HARNESS_MODELS_DIR" --download-path "$model_name" \
-      --plugins huggingface,openvino "${image_tag_args[@]}" 2>&1 | tee "$out"
+      --plugins "$plugins" "${image_tag_args[@]}" 2>&1 | tee "$out"
   if [[ "${PIPESTATUS[0]}" -ne 0 ]]; then
     rm -f "$out"
-    error "get_model.sh failed to download/convert ${hf_model_id}. See its output above."
+    error "get_model.sh failed to download '${hf_model_id}' (hub: ${hub}). See its output above."
   fi
   result_line="$(grep -o 'output: .*' "$out" | tail -1)"
   rm -f "$out"
-  ok "Downloaded/converted ${hf_model_id} via the Model Download microservice${result_line:+ (${result_line})}."
+  ok "Downloaded '${hf_model_id}' via the Model Download microservice${result_line:+ (${result_line})}."
+
+  if [[ "$hub" != "openvino" ]]; then
+    # get_model.sh reports the *container's* view of the output dir (it
+    # bind-mounts $HARNESS_MODELS_DIR at /opt/models); translate back to
+    # the host path the same way the openvino branch below does.
+    local container_output_dir host_output_dir
+    container_output_dir="${result_line#output: }"
+    host_output_dir="${HARNESS_MODELS_DIR}${container_output_dir#/opt/models}"
+    [[ -n "$host_output_dir" && "$host_output_dir" != "$HARNESS_MODELS_DIR" ]] \
+      || host_output_dir="${HARNESS_MODELS_DIR}/${model_name}"
+    # Tracked separately from config.json (which only ever holds
+    # OVMS-servable models) so this download isn't simply invisible to
+    # ./install.sh models list/remove -- see list_exported_models/
+    # remove_exported_model.
+    if with_state_lock model-download-registry _add_unregistered_download_entry_locked \
+        "$model_name" "$hub" "$host_output_dir"; then
+      info "hub '${hub}' does not produce an OVMS-servable artifact -- downloaded to
+${host_output_dir} for your own use, not registered with OVMS. Tracked for
+'./install.sh models list' / 'models remove ${model_name}'."
+    else
+      warn "hub '${hub}' does not produce an OVMS-servable artifact -- downloaded to
+${host_output_dir} for your own use, not registered with OVMS, and could not be
+tracked for './install.sh models list/remove' -- remove it manually if needed."
+    fi
+    return 0
+  fi
 
   # get_model.sh reports the *container's* view of the output dir (it bind-
   # mounts $HARNESS_MODELS_DIR at /opt/models); translate back to the host
@@ -365,6 +490,134 @@ add a model_config_list entry for base_path '${relative_base_path}' manually."
     warn "No graph.pbtxt found at ${graph_dir} -- OVMS will not serve chat
 completions for '${model_name}' until this is resolved (check the Model
 Download microservice's logs above)."
+  fi
+}
+
+# unregistered_downloads_file — tracks model-download fetches that were
+# deliberately not registered with OVMS (HARNESS_MODEL_HUB != openvino --
+# see export_model_via_model_download above), so they aren't simply
+# invisible to ./install.sh models list/remove once config.json already
+# has entries (list_exported_models' directory-scan fallback only runs
+# when config.json has none at all).
+unregistered_downloads_file() {
+  printf '%s/unregistered-downloads.json' "$HARNESS_MODELS_DIR"
+}
+
+_add_unregistered_download_entry_locked() {
+  local name="$1" hub="$2" path="$3" reg_file tmp
+  reg_file="$(unregistered_downloads_file)"
+  tmp="$(mktemp)"
+  node -e '
+    const fs = require("node:fs");
+    const [regFile, name, hub, modelPath] = process.argv.slice(1);
+    let data = {};
+    try { data = JSON.parse(fs.readFileSync(regFile, "utf8")); } catch {}
+    data[name] = { hub, path: modelPath };
+    process.stdout.write(JSON.stringify(data, null, 2));
+  ' "$reg_file" "$name" "$hub" "$path" >"$tmp" || { rm -f "$tmp"; return 1; }
+  chmod 644 "$tmp"
+  mv -f "$tmp" "$reg_file"
+}
+
+# _unregistered_download_field name field — prints one field ("hub" or
+# "path") for a tracked unregistered download, empty if not found/no
+# registry file yet.
+_unregistered_download_field() {
+  local name="$1" field="$2" reg_file
+  reg_file="$(unregistered_downloads_file)"
+  [[ -f "$reg_file" ]] || return 0
+  node -e '
+    try {
+      const data = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
+      const v = data[process.argv[2]]?.[process.argv[3]];
+      if (v) process.stdout.write(String(v));
+    } catch {}
+  ' "$reg_file" "$name" "$field"
+}
+
+_remove_unregistered_download_entry_locked() {
+  local name="$1" reg_file tmp
+  reg_file="$(unregistered_downloads_file)"
+  [[ -f "$reg_file" ]] || return 0
+  tmp="$(mktemp)"
+  node -e '
+    const fs = require("node:fs");
+    const [regFile, name] = process.argv.slice(1);
+    let data = {};
+    try { data = JSON.parse(fs.readFileSync(regFile, "utf8")); } catch {}
+    delete data[name];
+    process.stdout.write(JSON.stringify(data, null, 2));
+  ' "$reg_file" "$name" >"$tmp" || { rm -f "$tmp"; return 1; }
+  chmod 644 "$tmp"
+  mv -f "$tmp" "$reg_file"
+}
+
+# export_model_via_hf_snapshot hf_model_id [model_name] — exporter
+# (HARNESS_OVMS_EXPORTER=hf-snapshot) for HF repos that are already
+# published as ready-to-serve OpenVINO IR + an OVMS MediaPipe graph.pbtxt
+# (e.g. the OpenVINO organization's own pre-converted model repos) -- a
+# plain huggingface_hub.snapshot_download, unlike the other three exporters
+# which all run an optimum-cli-based conversion step. Set
+# HARNESS_HF_MODEL_REVISION to pin an exact commit/tag for reproducible
+# deployments.
+export_model_via_hf_snapshot() {
+  local hf_model_id="$1" model_name="${2:-${1##*/}}" out_dir venv revision_desc
+  out_dir="${HARNESS_MODELS_DIR}/${model_name}"
+  revision_desc="${HARNESS_HF_MODEL_REVISION:-main}"
+  if [[ -f "${out_dir}/graph.pbtxt" ]]; then
+    info "Model '${model_name}' is already downloaded."
+    ensure_ovms_config
+    with_state_lock ovms-config _add_model_config_entry_locked \
+      "${HARNESS_MODELS_DIR}/config.json" "$model_name" "$model_name" \
+      || warn "Model '${model_name}' is already downloaded but could not confirm its
+OVMS config.json registration -- add a model_config_list entry for base_path
+'${model_name}' manually if it doesn't serve requests."
+    return 0
+  fi
+  command_exists python3 || error "python3 is required to download a pre-converted
+model via huggingface_hub -- was it skipped via SKIP_PYTHON=1? Run ./startup.sh
+--skip-docker --skip-nodejs."
+  python_venv_usable || error "python3's venv module is not usable (python3 -m venv
+--help fails) -- Debian/Ubuntu ship this as the separate python3-venv package.
+Run ./startup.sh --skip-docker --skip-nodejs."
+  assert_proxy_scheme_supported
+  ensure_ovms_config
+  venv="${HARNESS_MODELS_DIR}/.hf-snapshot-venv"
+  [[ -d "$venv" ]] || python3 -m venv "$venv"
+  # shellcheck disable=SC1091
+  . "${venv}/bin/activate"
+  spin "Installing huggingface_hub in the download venv" pip install --quiet --upgrade pip huggingface_hub
+  if ! spin "Downloading pre-converted ${hf_model_id} (revision: ${revision_desc})" \
+    python3 - "$hf_model_id" "$out_dir" "${HARNESS_HF_MODEL_REVISION:-}" <<'PY'
+import sys
+
+from huggingface_hub import snapshot_download
+
+repo_id, local_dir, revision = sys.argv[1], sys.argv[2], (sys.argv[3] or None)
+snapshot_download(repo_id=repo_id, local_dir=local_dir, revision=revision)
+PY
+  then
+    rm -rf -- "$out_dir"
+    deactivate
+    error "Downloading ${hf_model_id} via huggingface_hub failed. Check network
+access to huggingface.co, and that '${hf_model_id}' (revision: ${revision_desc})
+exists."
+  fi
+  deactivate
+  if [[ ! -f "${out_dir}/graph.pbtxt" ]]; then
+    rm -rf -- "$out_dir"
+    error "Downloaded ${hf_model_id} to ${out_dir} but it has no graph.pbtxt -- this
+exporter only supports HF repos already published as ready-to-serve OpenVINO
+IR + an OVMS MediaPipe graph (e.g. OpenVINO/Qwen3.8-27B-int8-ov). Use
+HARNESS_OVMS_EXPORTER=docker-pull or export-model-py to convert a plain
+(non-OpenVINO-IR) HF model instead."
+  fi
+  if with_state_lock ovms-config _add_model_config_entry_locked \
+      "${HARNESS_MODELS_DIR}/config.json" "$model_name" "$model_name"; then
+    ok "Downloaded ${hf_model_id} -> ${out_dir} (registered with OVMS)"
+  else
+    error "Downloaded ${hf_model_id} but could not update OVMS's config.json --
+add a model_config_list entry for base_path '${model_name}' manually."
   fi
 }
 
@@ -400,21 +653,30 @@ _add_model_config_entry_locked() {
     ' "$config_file" "$name" "$base_path" >"$tmp" && mv -f "$tmp" "$config_file" || { rm -f "$tmp"; return 1; }
 }
 
+# ensure_backend_network — idempotent create of the user-defined network
+# joining OVMS and the Inference Router, so they can resolve each other by
+# container name (the default bridge network gives containers no DNS-by-name
+# resolution between each other).
+ensure_backend_network() {
+  docker network inspect "$HARNESS_BACKEND_NETWORK" >/dev/null 2>&1 \
+    || docker network create "$HARNESS_BACKEND_NETWORK" >/dev/null \
+    || error "Could not create backend network '${HARNESS_BACKEND_NETWORK}'."
+}
+
 ensure_openvino_model_server() {
   local gpu_args group_add_args
   local -a proxy_args=()
   ensure_ovms_config
+  ensure_backend_network
   if docker inspect "$HARNESS_OVMS_CONTAINER" >/dev/null 2>&1; then
-    docker restart "$HARNESS_OVMS_CONTAINER" >/dev/null 2>&1
-    if [[ "$(docker inspect -f '{{.State.Running}}' "$HARNESS_OVMS_CONTAINER" 2>/dev/null)" != "true" ]]; then
-      error "OpenVINO Model Server container exists but failed to come back up
-after restart (${HARNESS_OVMS_CONTAINER}). Check 'docker logs
-${HARNESS_OVMS_CONTAINER}' -- a common cause is another process already
-using port ${HARNESS_OVMS_REST_PORT} (check with 'docker ps -a' and
-'ss -tlnp | grep :${HARNESS_OVMS_REST_PORT}')."
-    fi
-    ok "OpenVINO Model Server restarted (${HARNESS_OVMS_CONTAINER})"
-    return 0
+    # Recreated, not just restarted -- a plain `docker restart` keeps
+    # whatever GPU/proxy/network/port args the container was first created
+    # with, silently ignoring any change to those in the current run (e.g.
+    # a GPU that's now present, a newly-set HTTP_PROXY, or a changed
+    # HARNESS_OVMS_REST_PORT/HARNESS_BIND_HOST). Every run already forces a
+    # full OVMS restart (and model reload) either way, so recreating costs
+    # nothing extra over the restart this replaces.
+    docker rm -f "$HARNESS_OVMS_CONTAINER" >/dev/null 2>&1 || true
   fi
   gpu_args="$(intel_gpu_docker_device_args)"
   # --device alone doesn't grant GPU access -- the server runs as the
@@ -425,14 +687,27 @@ using port ${HARNESS_OVMS_REST_PORT} (check with 'docker ps -a' and
   group_add_args="$(intel_gpu_docker_group_add_args)"
   docker_proxy_env_args_into proxy_args
   info "Starting OpenVINO Model Server on port ${HARNESS_OVMS_REST_PORT}…"
+  local docker_run_output
   # shellcheck disable=SC2086
-  docker run -d --name "$HARNESS_OVMS_CONTAINER" --restart unless-stopped \
+  if ! docker_run_output="$(docker run -d --name "$HARNESS_OVMS_CONTAINER" --restart unless-stopped \
+    --network "$HARNESS_BACKEND_NETWORK" \
     -p "$(resolve_bind_host):${HARNESS_OVMS_REST_PORT}:8000" $gpu_args $group_add_args \
     "${proxy_args[@]}" \
     -v "${HARNESS_MODELS_DIR}:/models" \
     "$HARNESS_OVMS_IMAGE" \
-    --rest_port 8000 --config_path /models/config.json $HARNESS_OVMS_EXTRA_ARGS \
-    || error "Could not start OpenVINO Model Server."
+    --rest_port 8000 --config_path /models/config.json $HARNESS_OVMS_EXTRA_ARGS 2>&1)"; then
+    printf '%s\n' "$docker_run_output" >&2
+    case "$docker_run_output" in
+      *"429"* | *"Too Many Requests"* | *toomanyrequests*)
+        error "Could not start OpenVINO Model Server -- Docker Hub rate-limited the
+image pull (429 Too Many Requests), common on a shared/proxied IP. Try
+'docker login' (raises the anonymous pull limit) or wait and retry." ;;
+      *)
+        error "Could not start OpenVINO Model Server -- a common cause is another
+process already using port ${HARNESS_OVMS_REST_PORT} (check with 'docker ps -a'
+and 'ss -tlnp | grep :${HARNESS_OVMS_REST_PORT}')." ;;
+    esac
+  fi
   ok "OpenVINO Model Server is running on port ${HARNESS_OVMS_REST_PORT}"
 }
 
@@ -471,15 +746,32 @@ no local model export happens; the external endpoint owns model selection."
   fi
   case "$HARNESS_LLM_PROVIDER" in
     ovms)
+      # Validated before anything touches disk: all exporters except
+      # model-download (whose non-HF hubs take URLs/tags) build rm -rf
+      # cleanup paths from this value.
+      if [[ -n "${HARNESS_HF_MODEL:-}" && "$HARNESS_OVMS_EXPORTER" != "model-download" ]]; then
+        validate_hf_model_id "$HARNESS_HF_MODEL" \
+          || error "Invalid model id '${HARNESS_HF_MODEL}' -- expected a Hugging Face id like 'org/name'
+(letters, digits, '.', '_' and '-' only; no empty parts, '..', or trailing '/')."
+      fi
       record_ovms_managed 1
       ensure_openvino_model_server
+      # model-download with a non-openvino HARNESS_MODEL_HUB deliberately
+      # downloads without registering anything with OVMS (see
+      # export_model_via_model_download) -- HARNESS_HF_MODEL's value is not
+      # an OVMS-registered model name in that case, so it must not be
+      # treated as one below (readiness poll, Router provider wiring).
+      local model_download_unregistered=0
+      [[ "$HARNESS_OVMS_EXPORTER" == "model-download" && "${HARNESS_MODEL_HUB:-openvino}" != "openvino" ]] \
+        && model_download_unregistered=1
       if [[ -n "${HARNESS_HF_MODEL:-}" ]]; then
         case "$HARNESS_OVMS_EXPORTER" in
           docker-pull) export_model_via_docker_pull "$HARNESS_HF_MODEL" ;;
           export-model-py) export_model_to_openvino "$HARNESS_HF_MODEL" ;;
           model-download) export_model_via_model_download "$HARNESS_HF_MODEL" ;;
+          hf-snapshot) export_model_via_hf_snapshot "$HARNESS_HF_MODEL" ;;
           *) error "Unknown HARNESS_OVMS_EXPORTER: ${HARNESS_OVMS_EXPORTER} (expected
-docker-pull, export-model-py, or model-download)." ;;
+docker-pull, export-model-py, model-download, or hf-snapshot)." ;;
         esac
         ensure_openvino_model_server
         # wait_for_ovms_model_ready returning 1 means "still loading, not
@@ -489,14 +781,38 @@ docker-pull, export-model-py, or model-download)." ;;
         # silently killing the *entire* installer right here under set -e
         # (no [ERROR], the script just exited) whenever a model took longer
         # than 60s to report ready, well before reaching the "next step" the
-        # warning itself refers to.
-        wait_for_ovms_model_ready "${HARNESS_HF_MODEL##*/}" || true
+        # warning itself refers to. Skipped entirely when nothing was
+        # actually registered with OVMS (see model_download_unregistered).
+        [[ "$model_download_unregistered" -eq 1 ]] \
+          || wait_for_ovms_model_ready "${HARNESS_HF_MODEL##*/}" || true
       elif ! ovms_has_exported_models; then
         warn "No model is exported yet and no HARNESS_HF_MODEL was given -- OVMS is
 running but will not serve chat completions until a model is exported.
-Re-run with --hf-model <huggingface-model-id>, or set
+Re-run with --model <huggingface-model-id>, or set
 HARNESS_LLM_ROUTER_ENDPOINT to route to an existing external endpoint instead."
       fi
+      # The Inference Router always sits in front of OVMS -- agents are
+      # wired to its endpoint (see harness_llm_endpoint above), never
+      # directly to OVMS's. Resolves the model name with the exact same
+      # precedence as run_agent_onboard's own model_hint (including the
+      # HARNESS_LLM_MODEL override) -- the two values must agree, since IR
+      # matches a client's request.model against this provider's `model`
+      # field literally; a mismatch would make IR reject every request.
+      # HARNESS_HF_MODEL is skipped here when model_download_unregistered
+      # (it names a download that was never registered with OVMS), so this
+      # falls through to whatever's actually registered instead.
+      local ir_model_name=""
+      [[ "$model_download_unregistered" -eq 1 ]] || { [[ -n "${HARNESS_HF_MODEL:-}" ]] && ir_model_name="${HARNESS_HF_MODEL##*/}"; }
+      [[ -n "$ir_model_name" ]] || ir_model_name="$(ovms_sole_registered_model_name 2>/dev/null || true)"
+      [[ -n "$ir_model_name" ]] || ir_model_name="default"
+      ir_model_name="${HARNESS_LLM_MODEL:-$ir_model_name}"
+      if [[ "$model_download_unregistered" -eq 1 && -z "${HARNESS_LLM_MODEL:-}" ]]; then
+        warn "HARNESS_MODEL_HUB='${HARNESS_MODEL_HUB}' was downloaded but not
+registered with OVMS -- the Inference Router is wired to '${ir_model_name}'
+instead (whatever's already registered, or 'default'). Set HARNESS_LLM_MODEL
+explicitly if you want the Router to target a different model."
+      fi
+      ensure_inference_router "$ir_model_name"
       ;;
     *)
       error "Unknown HARNESS_LLM_PROVIDER: ${HARNESS_LLM_PROVIDER} (expected: ovms).
@@ -507,7 +823,7 @@ OpenAI-compatible endpoint without this installer managing a backend."
 }
 
 # ovms_has_exported_models — true if config.json already lists at least one
-# exported servable, so a fresh install without --hf-model can tell "nothing
+# exported servable, so a fresh install without --model can tell "nothing
 # to serve yet" apart from "already has models from a prior export". Checks
 # model_config_list -- confirmed (by inspecting a real export) to be what
 # export_model.py actually populates; OVMS serves chat completions via the
@@ -530,7 +846,7 @@ ovms_has_exported_models() {
 # printed only when config.json's model_config_list has *exactly* one entry
 # (unambiguous). Used by run_agent_onboard as a smarter fallback than the
 # literal string "default" for a standalone "./install.sh onboard" run with
-# neither --hf-model nor HARNESS_LLM_MODEL given -- "default" never matches
+# neither --model nor HARNESS_LLM_MODEL given -- "default" never matches
 # a real registered model name (exports are always registered under the HF
 # model's own basename), so that fallback previously 404'd unconditionally
 # whenever a model was already exported and serving. Deliberately returns
@@ -554,24 +870,39 @@ ovms_sole_registered_model_name() {
 }
 
 harness_llm_endpoint() {
-  local host
   if [[ -n "$HARNESS_LLM_ROUTER_ENDPOINT" ]]; then
     printf '%s' "$HARNESS_LLM_ROUTER_ENDPOINT"
     return 0
   fi
-  # Assigned as its own plain statement (not inlined into the printf below)
-  # so a failure inside resolve_advertised_host (e.g. its
-  # assert_state_path_safe/assert_owned_by_current_user tamper checks on
-  # ~/.intel-agent/advertised-host) actually aborts via set -e instead of
-  # being silently discarded -- a command substitution's exit status is
-  # only checked by set -e when it's a bare assignment, not when embedded
-  # as another command's argument (confirmed: printf always "succeeds"
-  # regardless of what its arguments evaluated to, so the failure would
-  # otherwise go unnoticed and harness_llm_endpoint() would return a
-  # malformed empty-host URL that then gets persisted into the agent's own
-  # config file by run_agent_onboard's callers).
+  # Agents are always wired to the Inference Router's endpoint, never
+  # directly to OVMS's -- the Router is a mandatory part of the managed
+  # backend (see ensure_inference_router in inference-router.sh), sitting
+  # in front of OVMS the same way it would sit in front of any other
+  # provider. Delegates to inference_router_endpoint (inference-router.sh)
+  # rather than re-deriving the same host:port/v1 URL here, so there is one
+  # place that can go stale if HARNESS_IR_PORT's meaning ever changes.
+  inference_router_endpoint
+}
+
+# ovms_endpoint — this installer's own OVMS container's URL, as reachable
+# from the install host (not from inside another container -- see
+# ovms_internal_endpoint for that). Distinct from harness_llm_endpoint()
+# (what agents are actually wired to, i.e. the Inference Router sitting in
+# front of OVMS) -- used for status/diagnostics.
+ovms_endpoint() {
+  local host
   host="$(resolve_advertised_host)" || return 1
   printf 'http://%s:%s/v3' "$host" "$HARNESS_OVMS_REST_PORT"
+}
+
+# ovms_internal_endpoint — OVMS's URL as reachable from another container on
+# HARNESS_BACKEND_NETWORK (container name as hostname, OVMS's own internal
+# --rest_port, not the host-published HARNESS_OVMS_REST_PORT/resolve_bind_host
+# mapping). This is what the Inference Router's provider config must use --
+# a container cannot reach another container via the host's loopback or a
+# host-only-bound published port (see ensure_backend_network).
+ovms_internal_endpoint() {
+  printf 'http://%s:8000/v3' "$HARNESS_OVMS_CONTAINER"
 }
 
 # Rejects path-traversal/empty/current-dir/hidden names before any
@@ -582,17 +913,28 @@ validate_model_name() {
   [[ -n "$name" && "$name" != .* && "$name" != *"/"* && "$name" != *".."* ]]
 }
 
+# Hugging Face model id: "name" or "org/name", each part starting with an
+# alphanumeric and containing no "..".
+validate_hf_model_id() {
+  local id="$1"
+  [[ "$id" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*(/[A-Za-z0-9][A-Za-z0-9._-]*)?$ && "$id" != *".."* ]]
+}
+
 # Reads registered models from config.json (the same authoritative source
 # remove_exported_model now consults) rather than only scanning top-level
 # directories -- some exporters nest an export's files one level deeper
 # than the user-facing model name (see export_model_via_docker_pull's
 # comment), which a raw directory scan would otherwise misreport (e.g.
 # showing "Qwen" instead of "Qwen2.5-0.5B-Instruct" for a model nested
-# under "Qwen/..."). Falls back to a directory scan if config.json has no
-# entries yet, so models from an exporter/version that registered nothing
-# there are still visible.
+# under "Qwen/..."). Also lists model-download downloads tracked in
+# unregistered_downloads_file (hub != openvino fetches, never registered
+# with OVMS -- see export_model_via_model_download) unconditionally, not
+# just as part of the directory-scan fallback below, so they stay visible
+# even once config.json already has other, real entries. Falls back to a
+# directory scan only when both of those are empty, so models from an
+# exporter/version that registered nothing anywhere are still visible.
 list_exported_models() {
-  local dir="$HARNESS_MODELS_DIR" entry name found=0 line config_file
+  local dir="$HARNESS_MODELS_DIR" entry name found=0 line config_file reg_file
   config_file="${dir}/config.json"
   if [[ -f "$config_file" ]]; then
     while IFS= read -r line; do
@@ -606,8 +948,24 @@ list_exported_models() {
         for (const e of list) { if (e?.config?.name) console.log(e.config.name); }
       } catch {}
     ' "$config_file")
-    [[ "$found" -eq 1 ]] && return 0
   fi
+  reg_file="$(unregistered_downloads_file)"
+  if [[ -f "$reg_file" ]]; then
+    while IFS= read -r line; do
+      [[ -n "$line" ]] || continue
+      found=1
+      printf '  %s\n' "$line"
+    done < <(node -e '
+      try {
+        const data = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
+        for (const name of Object.keys(data)) {
+          const hub = data[name]?.hub || "?";
+          console.log(`${name}\t(hub: ${hub}, not served by OVMS)`);
+        }
+      } catch {}
+    ' "$reg_file")
+  fi
+  [[ "$found" -eq 1 ]] && return 0
   [[ -d "$dir" ]] || { info "No models exported yet (${dir})."; return 0; }
   for entry in "$dir"/*/; do
     [[ -d "$entry" ]] || continue
@@ -623,11 +981,28 @@ list_exported_models() {
 # its entry from config.json (export_model.py appends to model_config_list /
 # mediapipe_config_list and never removes), and restarts OVMS so it stops
 # serving it. Lets you export/test/delete a small model repeatedly without
-# wiping every other exported model.
+# wiping every other exported model. Also handles models tracked in
+# unregistered_downloads_file (model-download with a non-openvino hub --
+# never touched config.json/OVMS, so just removes the directory + entry).
 remove_exported_model() {
   local name="$1" dir="$HARNESS_MODELS_DIR" model_dir config_file base_path
   [[ -n "$name" ]] || error "Usage: ./install.sh models remove <name>"
   validate_model_name "$name" || error "Invalid model name: ${name}"
+
+  local unregistered_path
+  unregistered_path="$(_unregistered_download_field "$name" "path")"
+  if [[ -n "$unregistered_path" ]]; then
+    [[ -d "$unregistered_path" ]] || error "Model '${name}' is tracked but its directory
+is missing (${unregistered_path}) -- edit $(unregistered_downloads_file) to drop
+the stale entry."
+    rm -rf -- "$unregistered_path"
+    with_state_lock model-download-registry _remove_unregistered_download_entry_locked "$name" \
+      || warn "Removed ${unregistered_path} but could not update
+$(unregistered_downloads_file) -- it may still list '${name}'."
+    ok "Removed downloaded model '${name}' (${unregistered_path}, was not served by OVMS)"
+    return 0
+  fi
+
   config_file="${dir}/config.json"
   # Prefer the base_path OVMS was actually registered with over assuming a
   # flat <models-dir>/<name> layout -- some exporters (docker-pull, at
@@ -696,8 +1071,8 @@ _remove_model_from_ovms_config_locked() {
   node -e '
       const fs = require("node:fs");
       const [configFile, name] = process.argv.slice(1);
-      let data = {};
-      try { data = JSON.parse(fs.readFileSync(configFile, "utf8")); } catch {}
+      let data;
+      try { data = JSON.parse(fs.readFileSync(configFile, "utf8")); } catch { process.exit(1); }
       for (const key of ["model_config_list", "mediapipe_config_list"]) {
         if (Array.isArray(data[key])) {
           data[key] = data[key].filter((e) => e && e.name !== name && e.config?.name !== name);
@@ -744,4 +1119,9 @@ remove_openvino_model_server() {
   ovms_is_managed || return 0
   command_exists docker || return 0
   docker rm -f "$HARNESS_OVMS_CONTAINER" >/dev/null 2>&1 || true
+  # Only succeeds once no container is still attached (IR is removed first
+  # by uninstall.sh's call order) -- a no-op/failure otherwise is fine,
+  # since a stale empty network left behind is harmless and
+  # ensure_backend_network recreates it idempotently on the next install.
+  docker network rm "$HARNESS_BACKEND_NETWORK" >/dev/null 2>&1 || true
 }

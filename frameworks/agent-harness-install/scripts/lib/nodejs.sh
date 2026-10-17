@@ -37,8 +37,13 @@ ensure_nvm_loaded() {
   # PATH" was wrong whenever that node was a pre-existing system install
   # rather than nvm's own: NVM_DIR never got set, and the next line's
   # unguarded "$NVM_DIR" reference crashed under `set -u`.
-  [[ -z "${NVM_DIR:-}" ]] && export NVM_DIR="$HOME/.nvm"
-  [[ -s "$NVM_DIR/nvm.sh" ]] && \. "$NVM_DIR/nvm.sh"
+  [[ -n "${NVM_DIR:-}" ]] || export NVM_DIR="$HOME/.nvm"
+  # Explicit return 0: a missing nvm.sh (non-nvm Node) is not an error, and a
+  # trailing failed `[[ ]] &&` would otherwise abort `set -e` callers.
+  if [[ -s "$NVM_DIR/nvm.sh" ]]; then
+    \. "$NVM_DIR/nvm.sh"
+  fi
+  return 0
 }
 
 # A system-package Node (e.g. apt) commonly puts npm's global prefix under
@@ -59,12 +64,23 @@ npm_global_prefix_writable() {
   fi
 }
 
+# node_meets_requirements -- true if the Node on PATH already satisfies
+# MIN_NODE_VERSION and isn't in openclaw's unsupported version gap. Shared
+# by install_nodejs (startup.sh's bootstrap) and scripts/install.sh's own
+# pre-flight check (which only verifies readiness -- see ./startup.sh,
+# which now owns actually installing Node.js).
+node_meets_requirements() {
+  local current_version=""
+  command_exists node && current_version="$(node --version | tr -d v)"
+  [[ -n "$current_version" ]] \
+    && version_gte "$current_version" "$MIN_NODE_VERSION" \
+    && ! node_version_in_unsupported_gap "$current_version"
+}
+
 install_nodejs() {
   local current_version=""
   command_exists node && current_version="$(node --version | tr -d v)"
-  if [[ -n "$current_version" ]] && version_gte "$current_version" "$MIN_NODE_VERSION" \
-    && ! node_version_in_unsupported_gap "$current_version" \
-    && npm_global_prefix_writable; then
+  if node_meets_requirements && npm_global_prefix_writable; then
     info "Node.js found: $(node --version)"
     return 0
   fi
