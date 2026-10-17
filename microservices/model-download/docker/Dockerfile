@@ -13,9 +13,23 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
     libsm6 \
     curl \
     git \
+    zstd \
     build-essential && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+# Only bin/ollama is kept; the archive also bundles large GPU runtime libraries.
+# Not tracked by Dependabot (ARG/curl, not FROM); bump manually — see
+# "Procedure: Bumping the Baked-In Ollama Binary" in .github/skills/model-download-dev/SKILL.md.
+ARG OLLAMA_VERSION=v0.32.0
+ARG OLLAMA_SHA256=56362d7609dfa9e35aaebb7c9cab25605d8f0528ec3d5d585dc83d6642002bab
+RUN curl -fSL --retry 3 --connect-timeout 20 -o /tmp/ollama.tar.zst \
+        "https://github.com/ollama/ollama/releases/download/${OLLAMA_VERSION}/ollama-linux-amd64.tar.zst" && \
+    echo "${OLLAMA_SHA256}  /tmp/ollama.tar.zst" | sha256sum -c - && \
+    mkdir -p /opt/bin && \
+    tar --use-compress-program=unzstd -xf /tmp/ollama.tar.zst -C /opt/bin --strip-components=1 bin/ollama && \
+    chmod 0755 /opt/bin/ollama && \
+    rm -f /tmp/ollama.tar.zst
 
 # Install uv
 RUN pip install uv==0.12.5
@@ -38,7 +52,6 @@ RUN apt-get update -y && apt-get upgrade -y && apt-get install -y --no-install-r
     libsm6 \
     curl \
     git \
-    zstd \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 RUN groupadd -g ${GID} appuser && \
@@ -62,6 +75,9 @@ COPY docker/entrypoint.sh /opt/entrypoint.sh
 RUN chown -R appuser:appuser /opt && \
     chmod +x /opt/entrypoint.sh && \
     chown -R appuser:appuser /usr/local
+
+# Copy Ollama after the ownership step so the binary remains root-owned.
+COPY --from=python-base /opt/bin/ollama /opt/bin/ollama
 
 # Switch to non-root user
 USER appuser
