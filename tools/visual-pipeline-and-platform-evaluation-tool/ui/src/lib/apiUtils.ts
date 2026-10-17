@@ -17,6 +17,33 @@ export const isApiError = (error: unknown): error is RTKQueryError =>
   (error as RTKQueryError).data !== null &&
   "message" in (error as RTKQueryError).data;
 
+type ValidationErrorItem = { loc?: unknown[]; msg?: string };
+
+// FastAPI reports request-validation failures as `detail`, not `message`.
+const getValidationErrorMessage = (error: unknown): string | null => {
+  if (typeof error !== "object" || error === null || !("data" in error)) {
+    return null;
+  }
+  const data = (error as { data?: unknown }).data;
+  if (typeof data !== "object" || data === null || !("detail" in data)) {
+    return null;
+  }
+  const detail = (data as { detail?: unknown }).detail;
+  if (typeof detail === "string") {
+    return detail;
+  }
+  if (!Array.isArray(detail)) {
+    return null;
+  }
+  const described = (detail as ValidationErrorItem[])
+    .map((item) => {
+      const field = Array.isArray(item.loc) ? item.loc.join(" > ") : "";
+      return field ? `${field}: ${item.msg ?? "invalid value"}` : item.msg;
+    })
+    .filter(Boolean);
+  return described.length > 0 ? described.join("; ") : null;
+};
+
 export const isAsyncJobError = (error: unknown): error is AsyncJobStatus =>
   error !== null &&
   typeof error === "object" &&
@@ -47,7 +74,9 @@ export const handleAsyncJobError = (
 };
 
 export const handleApiError = (error: unknown, title: string) => {
-  const errorMessage = isApiError(error) ? error.data.message : "Unknown error";
+  const errorMessage = isApiError(error)
+    ? error.data.message
+    : (getValidationErrorMessage(error) ?? "Unknown error");
   toast.error(title, {
     description: errorMessage,
   });

@@ -210,6 +210,32 @@ class PipelineRunner:
     # ------------------------------------------------------------------
     GENAI_METRICS_GST_DEBUG = "gvagenai:4"
     GENAI_PIPELINE_ELEMENT = "gvagenai"
+
+    # ------------------------------------------------------------------
+    # Broker publishing configuration
+    #
+    # `gvametapublish` uses the Paho MQTT C client, which may route broker
+    # traffic through a configured HTTP proxy and ignore `no_proxy`, making
+    # every CONNECT fail. DL Streamer documents unsetting all proxy
+    # variables for the GStreamer process as the workaround, see
+    # https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/elements/gvametapublish.html
+    #
+    # They are only stripped for pipelines that actually publish to a
+    # broker (see `run`), so proxied HTTP(S) video sources keep working
+    # everywhere else.
+    # ------------------------------------------------------------------
+    BROKER_PUBLISH_METHODS = ("mqtt", "kafka")
+    PROXY_ENV_VARS = (
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+        "no_proxy",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "NO_PROXY",
+    )
+
     _GENAI_METRICS_MARKER = "Added meta message:"
     # Extracts the emitting element name from a genai log line of the
     # form ``... <element_name> Added meta message: {...}``. The
@@ -394,6 +420,10 @@ class PipelineRunner:
         # element. Set per-run from `PipelineRunner.run()`.
         self._genai_metrics_enabled = False
 
+        # Whether the pipeline of the current run publishes metadata to a
+        # message broker. Set per-run from `PipelineRunner.run()`.
+        self._broker_publishing_enabled = False
+
         # Validate mode
         if self.mode not in ("normal", "validation"):
             raise ValueError(
@@ -455,6 +485,11 @@ class PipelineRunner:
         self._allowed_stream_ids: set[str] | None = allowed_stream_ids
 
         self._genai_metrics_enabled = self.GENAI_PIPELINE_ELEMENT in pipeline_command
+
+        self._broker_publishing_enabled = any(
+            f"method={method}" in pipeline_command
+            for method in self.BROKER_PUBLISH_METHODS
+        )
 
         if self.mode == "validation":
             return self._run_validation(pipeline_command)
@@ -1405,11 +1440,18 @@ class PipelineRunner:
         separator. When no metric needs a category, the environment is
         passed through unchanged.
 
+        Proxy variables are removed when the pipeline publishes metadata to
+        a message broker (see ``PROXY_ENV_VARS``).
+
         Returns:
             A new dict suitable for passing as the ``env`` argument to
             ``subprocess.Popen``.
         """
         env = os.environ.copy()
+
+        if self._broker_publishing_enabled:
+            for proxy_var in self.PROXY_ENV_VARS:
+                env.pop(proxy_var, None)
 
         gst_debug_categories: list[str] = []
 

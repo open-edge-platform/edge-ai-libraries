@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# Optional overlay: runs a Mosquitto MQTT broker alongside VIPPET so that
+# pipelines publishing with `gvametapublish method=mqtt` have a destination.
+#
+# Usage: make run MQTT=1
+#   (or: docker compose -f compose.yml -f compose.$COMPOSE_PROFILES.yml -f compose.mqtt.yml up -d)
+#
+# In the pipeline editor, open the GVAMetaPublish node in advanced view, set
+# Method to 'mqtt' and Broker Address to 'mqtt-broker:1883'. The address is
+# resolved from inside the vippet container, so 'localhost' refers to that
+# container and will not reach the broker.
+#
+# Watch the published metadata with:
+#   docker exec mqtt-broker mosquitto_sub -h localhost -t '#' -v
+services:
+  mqtt-broker:
+    image: eclipse-mosquitto:2.0.22
+    container_name: mqtt-broker
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ./vippet-mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    ports:
+      # The broker is unauthenticated, so it is bound to loopback by default.
+      # Override MQTT_BROKER_PUBLISH only on a trusted network.
+      - "${MQTT_BROKER_PUBLISH:-127.0.0.1:1883}:1883"
+    healthcheck:
+      test: ["CMD", "mosquitto_pub", "-h", "localhost", "-t", "healthcheck", "-m", "ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  vippet:
+    depends_on:
+      mqtt-broker:
+        condition: service_started

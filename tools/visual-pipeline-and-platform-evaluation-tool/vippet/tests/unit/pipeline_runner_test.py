@@ -856,6 +856,51 @@ class TestPipelineRunnerLatencyMetrics(unittest.TestCase):
         )
         self._assert_tracer_env_applied(env)
 
+    # --- Pure _build_subprocess_env unit tests: proxy stripping ---------------
+
+    PROXY_ENVIRONMENT = {
+        "http_proxy": "http://proxy:912",
+        "https_proxy": "http://proxy:912",
+        "no_proxy": "localhost",
+        "HTTP_PROXY": "http://proxy:912",
+        "HTTPS_PROXY": "http://proxy:912",
+        "NO_PROXY": "localhost",
+        "PATH": "/usr/bin",
+    }
+
+    @patch.dict("os.environ", PROXY_ENVIRONMENT, clear=True)
+    def test_build_env_keeps_proxy_vars_without_broker_publishing(self):
+        """Proxy variables must survive for pipelines that do not use a broker."""
+        runner = PipelineRunner(mode="normal")
+        env = runner._build_subprocess_env()
+        for proxy_var in PipelineRunner.PROXY_ENV_VARS:
+            if proxy_var in self.PROXY_ENVIRONMENT:
+                self.assertIn(proxy_var, env)
+
+    @patch.dict("os.environ", PROXY_ENVIRONMENT, clear=True)
+    def test_build_env_strips_proxy_vars_for_broker_publishing(self):
+        """Paho ignores no_proxy, so every proxy variable is removed."""
+        runner = PipelineRunner(mode="normal")
+        runner._broker_publishing_enabled = True
+        env = runner._build_subprocess_env()
+        for proxy_var in PipelineRunner.PROXY_ENV_VARS:
+            self.assertNotIn(proxy_var, env)
+        self.assertEqual(env["PATH"], "/usr/bin")
+
+    def test_run_detects_mqtt_publishing_from_command(self):
+        """A pipeline publishing over MQTT enables proxy stripping."""
+        runner = PipelineRunner(mode="normal")
+        with patch.object(runner, "_run_normal", return_value=None):
+            runner.run("videotestsrc ! gvametapublish method=mqtt ! fakesink")
+        self.assertTrue(runner._broker_publishing_enabled)
+
+    def test_run_leaves_broker_publishing_disabled_for_file_method(self):
+        """A file-publishing pipeline keeps the proxy configuration."""
+        runner = PipelineRunner(mode="normal")
+        with patch.object(runner, "_run_normal", return_value=None):
+            runner.run("videotestsrc ! gvametapublish method=file ! fakesink")
+        self.assertFalse(runner._broker_publishing_enabled)
+
     # --- Popen-level integration: normal mode ---------------------------------
 
     @patch("pipeline_runner.Popen")

@@ -1220,28 +1220,35 @@ class Graph:
 
     def inject_metadata_file_paths(self, metadata_dir: str) -> list[str]:
         """
-        Assign output file paths to all gvametapublish nodes and configure them for file output.
+        Assign output file paths to all file-publishing gvametapublish nodes.
 
-        Sets method=file, file-format=json-lines, and file-path on every gvametapublish
-        node found in the graph, overwriting any existing values.
+        Sets method=file, file-format=json-lines, and file-path on every
+        gvametapublish node found in the graph, overwriting any existing values.
+        Nodes explicitly configured to publish to a message broker (for example
+        ``method=mqtt``) are left untouched so that a user-configured broker
+        destination is not silently replaced by a file.
 
         Args:
             metadata_dir: Directory where metadata files will be written.
 
         Returns:
-            list[str]: Paths of the metadata files that were injected (one per gvametapublish node).
+            list[str]: Paths of the metadata files that were injected (one per
+                file-publishing gvametapublish node).
         """
         metadata_file_paths: list[str] = []
         for node in self.nodes:
-            if node.type == "gvametapublish":
-                meta_path = os.path.join(
-                    metadata_dir,
-                    f"metadata_{node.id}.jsonl",
-                )
-                node.data["method"] = "file"
-                node.data["file-format"] = "json-lines"
-                node.data["file-path"] = meta_path
-                metadata_file_paths.append(meta_path)
+            if node.type != "gvametapublish":
+                continue
+            if node.data.get("method", "file") != "file":
+                continue
+            meta_path = os.path.join(
+                metadata_dir,
+                f"metadata_{node.id}.jsonl",
+            )
+            node.data["method"] = "file"
+            node.data["file-format"] = "json-lines"
+            node.data["file-path"] = meta_path
+            metadata_file_paths.append(meta_path)
         return metadata_file_paths
 
     def unify_model_instance_ids(self) -> "Graph":
@@ -1804,6 +1811,20 @@ class Graph:
             True if at least one gvametapublish node is present, False otherwise.
         """
         return any(node.type == "gvametapublish" for node in self.nodes)
+
+    def has_file_gvametapublish(self) -> bool:
+        """Check whether the graph publishes metadata to a file.
+
+        A gvametapublish node without an explicit ``method`` counts as a file
+        publisher, mirroring the element's own default.
+
+        Returns:
+            True if at least one file-publishing gvametapublish node is present.
+        """
+        return any(
+            node.type == "gvametapublish" and node.data.get("method", "file") == "file"
+            for node in self.nodes
+        )
 
     def has_decodebin3(self) -> bool:
         """Check whether the graph contains a decodebin3 element."""
@@ -3429,6 +3450,38 @@ class Graph:
                 raise ValueError(
                     f"Camera source '{node.type}' requires a decodebin3 element to follow it, "
                     f"but found '{next_type}' instead"
+                )
+
+    def validate_broker_metadata_publishers(self) -> None:
+        """Validate that broker-publishing gvametapublish elements are configured.
+
+        ``gvametapublish`` accepts ``method=mqtt`` with an empty ``address`` or
+        ``topic`` and then silently fails to connect, so the pipeline runs with
+        no metadata output and no error. Catch the missing configuration before
+        the pipeline is started.
+
+        Raises:
+            ValueError: If a broker publisher is missing ``address`` or ``topic``.
+        """
+        broker_methods = {"mqtt", "kafka"}
+        for node in self.nodes:
+            if node.type != "gvametapublish":
+                continue
+            method = node.data.get("method", "file")
+            if method not in broker_methods:
+                continue
+            missing = [
+                prop
+                for prop in ("address", "topic")
+                if not str(node.data.get(prop, "")).strip()
+            ]
+            if missing:
+                raise ValueError(
+                    f"gvametapublish is set to method={method} but "
+                    f"{' and '.join(missing)} "
+                    f"{'is' if len(missing) == 1 else 'are'} empty. "
+                    f"Set the broker address (for example 'localhost:1883') and "
+                    f"topic, or switch the element back to method=file."
                 )
 
     def validate_inference_devices_share_va_display(self) -> None:

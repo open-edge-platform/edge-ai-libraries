@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Node } from "@xyflow/react";
 import { gvaMetaConvertConfig } from "./nodes/GVAMetaConvertNode.config.ts";
+import { gvaMetaPublishConfig } from "./nodes/GVAMetaPublishNode.config.ts";
 import {
   DEEP_SORT_TRACKING_TYPE,
   GVA_TRACKING_TYPES,
@@ -44,6 +45,7 @@ type NodePropertyConfig = {
   description?: string;
   required?: boolean;
   params?: { [key: string]: string };
+  visibleWhen?: { key: string; equals: readonly string[] };
 };
 
 const getOptionValue = (option: SelectOptionConfig): string =>
@@ -51,6 +53,10 @@ const getOptionValue = (option: SelectOptionConfig): string =>
 
 const getOptionLabel = (option: SelectOptionConfig): string =>
   Array.isArray(option) ? option[1] : (option as string);
+
+// Boolean element properties round-trip through the API as "true"/"false".
+const isTruthyProperty = (value: unknown): boolean =>
+  value === true || String(value ?? "").toLowerCase() === "true";
 
 type NodeConfig = {
   editableProperties: NodePropertyConfig[];
@@ -273,6 +279,33 @@ const NodeDataPanel = ({
     const nextValue = key === "kind" ? normalizeKindValue(value) : value;
     const updatedData = { ...editableData, [key]: nextValue };
 
+    if (selectedNode.type === "gvametapublish") {
+      // An empty property would still be emitted as `key=` onto the command
+      // line, which the element reads as a configured empty value.
+      if (key !== "method" && String(nextValue ?? "") === "") {
+        delete updatedData[key];
+      }
+
+      if (key === "method") {
+        // Properties of the de-selected method would still be emitted, so swap
+        // them for the defaults of the chosen one.
+        for (const prop of gvaMetaPublishConfig.editableProperties) {
+          if (!prop.visibleWhen) {
+            continue;
+          }
+          const selected = prop.visibleWhen.equals.includes(
+            String(nextValue ?? ""),
+          );
+          const seeded = editableData[prop.key] ?? prop.defaultValue;
+          if (selected && String(seeded ?? "") !== "") {
+            updatedData[prop.key] = seeded;
+          } else {
+            delete updatedData[prop.key];
+          }
+        }
+      }
+    }
+
     if (selectedNode.type === "source" && key === "kind") {
       const sourceOptions = getSourceOptionsForKind(nextValue);
       const defaultSource = getDefaultSourceValue(sourceOptions);
@@ -314,6 +347,8 @@ const NodeDataPanel = ({
     switch (nodeType) {
       case "gvametaconvert":
         return gvaMetaConvertConfig;
+      case "gvametapublish":
+        return gvaMetaPublishConfig;
       case "gvatrack":
         return gvaTrackConfig;
       case "gvaclassify":
@@ -337,10 +372,23 @@ const NodeDataPanel = ({
 
   const editableProperties = nodeConfig?.editableProperties ?? [];
 
+  const isPropertyVisible = (prop: NodePropertyConfig): boolean => {
+    if (!prop.visibleWhen) {
+      return true;
+    }
+    const controllingProp = editableProperties.find(
+      (candidate) => candidate.key === prop.visibleWhen?.key,
+    );
+    const current =
+      editableData[prop.visibleWhen.key] ?? controllingProp?.defaultValue;
+    return prop.visibleWhen.equals.includes(String(current ?? ""));
+  };
+
   // TODO: maybe it should only display defined fields
   const dataEntries = nodeConfig
     ? editableProperties
         .filter((prop) => !prop.key.startsWith("__"))
+        .filter(isPropertyVisible)
         .map((prop) => [prop.key, editableData[prop.key] ?? prop.defaultValue])
     : Object.entries(editableData ?? {}).filter(
         // Keys starting with '__' are internal/private properties and should not be displayed to users.
@@ -543,22 +591,23 @@ const NodeDataPanel = ({
                 ) : inputType === "boolean" ? (
                   <div className="flex items-center gap-2">
                     <Checkbox
-                      checked={Boolean(value)}
+                      checked={isTruthyProperty(value)}
                       onCheckedChange={(checked) =>
-                        handleInputChange(keyStr, checked)
+                        // Node data is serialised as element properties, always strings.
+                        handleInputChange(keyStr, checked ? "true" : "false")
                       }
                     />
-                    <span className="text-xs">{value ? "True" : "False"}</span>
+                    <span className="text-xs">
+                      {isTruthyProperty(value) ? "True" : "False"}
+                    </span>
                   </div>
                 ) : inputType === "number" ? (
                   <Input
                     type="number"
                     value={String(value ?? "")}
                     onChange={(e) =>
-                      handleInputChange(
-                        keyStr,
-                        e.target.value ? Number(e.target.value) : "",
-                      )
+                      // Node data is serialised as element properties, always strings.
+                      handleInputChange(keyStr, e.target.value)
                     }
                     className={FIELD_INPUT_CLASS}
                     placeholder={`Enter ${propConfig?.label ?? keyStr}`}
