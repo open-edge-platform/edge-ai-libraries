@@ -1,5 +1,5 @@
 
-configure_docker_io () {
+configure_docker () {
   if [ -n "${http_proxy:-$HTTP_PROXY}${https_proxy:-$HTTPS_PROXY}" ]; then
     echo "Configure docker engine proxies..."
     grep -q -E 'HTTPS*_PROXY=' /etc/systemd/system/docker.service.d/*.conf 2>/dev/null || (
@@ -37,7 +37,7 @@ debian_30_group_docker_io () {
 
 debian_30_install_docker_io () {
   if docker version > /dev/null 2>&1 && docker buildx version > /dev/null 2>&1 && docker compose version > /dev/null 2>&1 && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Docker is already installed. Skipping..."
+    echo "docker is already installed." >&2
   elif ensure_apt_is_installed docker.io && [[ " $* " != *" --reinstall "* ]]; then
     ensure_apt update
     ensure_apt install -y docker-buildx docker-compose-v2
@@ -45,8 +45,11 @@ debian_30_install_docker_io () {
     ensure_apt update
     ensure_apt install -y docker-buildx-plugin docker-compose-plugin
   else
-    ensure_prop set installed/docker_io/owned true
     ensure_disk_size 800
+
+    # claim ownership
+    ensure_prop set installed/docker_io/owned true
+    ensure_prop remove installed/docker_ce/owned
 
     echo "Remove legacy installation"
     debian_30_remove_docker_io "$@"
@@ -93,7 +96,7 @@ EOF
       sleep 1
     done
   fi
-  configure_docker_io
+  configure_docker
 }
 
 debian_30_remove_docker_io () {
@@ -102,7 +105,11 @@ debian_30_remove_docker_io () {
   ensure_sudo systemctl reset-failed docker.service docker.socket containerd.service 2>/dev/null || true
   ensure_sudo systemctl stop docker.socket docker.service 2>/dev/null || true
   ensure_apt purge -y docker docker-engine docker.io docker-ce docker-ce-cli docker-compose-plugin docker-compose-v2 docker-buildx-plugin docker-ce-rootless-extras docker-scan-plugin docker-doc docker-compose podman-docker containerd containerd.io runc || true
-  ensure_rm /etc/systemd/system/docker.service.d || true
+  ensure_rm /etc/systemd/system/docker.service.d
+  if declare -F configure_docker_ce > /dev/null; then
+    configure_docker_ce "$@"
+    ensure_rm "$apt_file" "$key_file"
+  fi
   ensure_sudo systemctl daemon-reload || true
 }
 
