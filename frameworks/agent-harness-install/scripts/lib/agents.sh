@@ -472,6 +472,27 @@ hermes_skill_remove() {
   ok "Removed Hermes skill '${name}'"
 }
 
+# resolve_onboarding_model_hint -- the model name onboarding wires an agent to
+# (before the HARNESS_LLM_MODEL override). With an external router the name
+# belongs to that endpoint, so it is used exactly as given (minus any
+# leading "org/"): sanitising it would break names such as "llama3.2:3b".
+# With OVMS, HARNESS_HF_MODEL counts only if OVMS actually serves it under
+# its on-disk name (model_dir_name); otherwise fall back to the one model
+# OVMS has registered, else "default".
+resolve_onboarding_model_hint() {
+  local hint=""
+  if [[ -n "${HARNESS_HF_MODEL:-}" ]]; then
+    if [[ -n "${HARNESS_LLM_ROUTER_ENDPOINT:-}" ]]; then
+      hint="${HARNESS_HF_MODEL##*/}"
+    elif ovms_model_registered "$(model_dir_name "$HARNESS_HF_MODEL")"; then
+      hint="$(model_dir_name "$HARNESS_HF_MODEL")"
+    fi
+  fi
+  [[ -n "$hint" ]] || hint="$(ovms_sole_registered_model_name 2>/dev/null || true)"
+  [[ -n "$hint" ]] || hint="default"
+  printf '%s' "$hint"
+}
+
 # run_agent_onboard — wires the installed agent to HARNESS_LLM_ENDPOINT and
 # verifies it runs.
 run_agent_onboard() {
@@ -489,19 +510,13 @@ Check HARNESS_AGENT, or re-install with --harness <name>."
   # already registered with OVMS rather than the literal string "default"
   # (which never matches a real registered model name and always 404s);
   # HARNESS_LLM_MODEL overrides all of the above when set explicitly.
-  # HARNESS_HF_MODEL is skipped when HARNESS_OVMS_EXPORTER=model-download
-  # was used with a non-openvino HARNESS_MODEL_HUB -- that combination
-  # deliberately downloads without registering anything with OVMS (see
-  # export_model_via_model_download in openvino.sh), so the downloaded
-  # name is not a real registered model and must not be guessed as one
-  # here either (must stay in sync with ensure_inference_backend's own
-  # model_download_unregistered gate).
-  model_hint=""
-  if [[ "$HARNESS_OVMS_EXPORTER" != "model-download" || "${HARNESS_MODEL_HUB:-openvino}" == "openvino" ]]; then
-    [[ -n "${HARNESS_HF_MODEL:-}" ]] && model_hint="${HARNESS_HF_MODEL##*/}"
-  fi
-  [[ -n "$model_hint" ]] || model_hint="$(ovms_sole_registered_model_name 2>/dev/null || true)"
-  [[ -n "$model_hint" ]] || model_hint="default"
+  # HARNESS_HF_MODEL is only used as the model name when OVMS actually
+  # serves it (a download that wasn't registered -- see
+  # export_model_via_model_download in openvino.sh -- is not a real model
+  # name and must not be guessed as one), or when routing to an external
+  # endpoint, where the caller names the model. Must stay in sync with
+  # ensure_inference_backend's ir_model_name.
+  model_hint="$(resolve_onboarding_model_hint)"
   model_hint="${HARNESS_LLM_MODEL:-$model_hint}"
 
   case "$agent" in

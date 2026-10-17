@@ -315,7 +315,7 @@ phase_02_selfcheck() {
   # partway through step 2, with no [ERROR] at all, whenever a model took
   # longer than 60s to report ready.
   check "ensure_inference_backend tolerates a wait_for_ovms_model_ready timeout" \
-    bash -c "grep -q 'wait_for_ovms_model_ready \"\${HARNESS_HF_MODEL##\\*/}\" || true' '$REPO_ROOT/scripts/lib/openvino.sh'"
+    bash -c "grep -qF 'wait_for_ovms_model_ready \"\$(model_dir_name \"\$HARNESS_HF_MODEL\")\" || true' '$REPO_ROOT/scripts/lib/openvino.sh'"
   # install.sh's own HARNESS_LLM_ENDPOINT resolution must not combine
   # `export VAR=\"\$(...)\"` into one statement -- export is a builtin
   # command, so (like printf/ok above) a failing command substitution
@@ -413,6 +413,114 @@ phase_03_libunit() {
   check_fail "validate_hf_model_id: rejects empty" lib_eval 'validate_hf_model_id ""'
   check_fail "validate_hf_model_id: rejects a leading dot" lib_eval 'validate_hf_model_id org/.hidden'
 
+  # Per-hub --model validation (the Model Download hubs).
+  check "validate_model_for_hub: openvino accepts org/name" lib_eval 'validate_model_for_hub openvino Qwen/Qwen2.5-0.5B-Instruct'
+  check_fail "validate_model_for_hub: openvino rejects a trailing slash" lib_eval 'validate_model_for_hub openvino org/'
+  check "validate_model_for_hub: ollama accepts name:tag" lib_eval 'validate_model_for_hub ollama llama3.2:3b'
+  check "validate_model_for_hub: ollama accepts a namespaced name" lib_eval 'validate_model_for_hub ollama library/llama3.2'
+  check "validate_model_for_hub: ollama accepts a Hugging Face GGUF reference with an upper-case tag" \
+    lib_eval 'validate_model_for_hub ollama hf.co/bartowski/Llama-3.2-1B-Instruct-GGUF:Q4_K_M'
+  check_fail "validate_model_for_hub: ollama rejects a second colon" lib_eval 'validate_model_for_hub ollama a:b:c'
+  check_fail "validate_model_for_hub: ollama rejects more than three path parts" lib_eval 'validate_model_for_hub ollama a/b/c/d'
+  check_fail "validate_model_for_hub: ollama rejects spaces" lib_eval 'validate_model_for_hub ollama "llama 3"'
+  check_fail "validate_model_for_hub: ollama rejects traversal" lib_eval 'validate_model_for_hub ollama ../x'
+  check_fail "validate_model_for_hub: remote-url needs a url in --model-config" lib_eval 'validate_model_for_hub remote-url my-model'
+  check "validate_model_for_hub: remote-url accepts a name once a url is configured" \
+    lib_eval 'HARNESS_MODEL_CONFIG_JSON="{\"url\":\"https://github.com/o/r/raw/main/{name}.tar\"}"; validate_model_for_hub remote-url my-model'
+  check_fail "validate_model_for_hub: remote-url rejects a slash in the name" \
+    lib_eval 'HARNESS_MODEL_CONFIG_JSON="{\"url\":\"u\"}"; validate_model_for_hub remote-url a/b'
+  check "validate_model_for_hub: ultralytics accepts a comma-separated list" lib_eval 'validate_model_for_hub ultralytics yolov8n,yolov8s'
+  check_fail "validate_model_for_hub: ultralytics rejects shell metacharacters" lib_eval 'validate_model_for_hub ultralytics "yolo;rm"'
+  check_fail "validate_model_for_hub: geti needs GETI_* in the environment" \
+    lib_eval 'unset GETI_HOST GETI_TOKEN GETI_WORKSPACE_ID; validate_model_for_hub geti "My Project"'
+  check "validate_model_for_hub: geti accepts a project name with spaces once configured" \
+    lib_eval 'GETI_HOST=h GETI_TOKEN=t GETI_WORKSPACE_ID=w; validate_model_for_hub geti "My Project"'
+  check_fail "validate_model_for_hub: hls needs --model-type" lib_eval 'HARNESS_MODEL_TYPE=; validate_model_for_hub hls hls-3d-pose'
+  check "validate_model_for_hub: hls accepts a valid type" lib_eval 'HARNESS_MODEL_TYPE=3d-pose; validate_model_for_hub hls hls-3d-pose'
+  check_fail "validate_model_for_hub: unknown hub is rejected" lib_eval 'validate_model_for_hub bogus x'
+
+  check_output_contains "model_dir_name: strips the org prefix" "Qwen2.5-0.5B-Instruct" lib_eval 'model_dir_name Qwen/Qwen2.5-0.5B-Instruct'
+  check_output_contains "model_dir_name: makes an Ollama tag filesystem-safe" "llama3.2-3b" lib_eval 'model_dir_name llama3.2:3b'
+
+  check "model_hub_unserved_reason: openvino may be served" lib_eval 'model_hub_unserved_reason openvino'
+  check "model_hub_unserved_reason: remote-url may be served (if it has a graph.pbtxt)" lib_eval 'model_hub_unserved_reason remote-url'
+  check_fail "model_hub_unserved_reason: ollama is not served (yet)" lib_eval 'model_hub_unserved_reason ollama'
+  check_output_contains "model_hub_unserved_reason: ollama explains why" "not loadable by OVMS" lib_eval 'model_hub_unserved_reason ollama || true'
+  check_fail "model_hub_unserved_reason: ultralytics is not served" lib_eval 'model_hub_unserved_reason ultralytics'
+
+  # --model-hub alone selects the Model Download exporter.
+  check_output_contains "apply_model_source_defaults: default hub keeps the docker-pull exporter" "docker-pull" \
+    lib_eval 'apply_model_source_defaults; printf "%s" "$HARNESS_OVMS_EXPORTER"'
+  check_output_contains "apply_model_source_defaults: explicit openvino hub keeps docker-pull" "docker-pull" \
+    lib_eval 'HARNESS_MODEL_HUB=openvino HARNESS_MODEL_HUB_WAS_SET=1; apply_model_source_defaults; printf "%s" "$HARNESS_OVMS_EXPORTER"'
+  check_output_contains "apply_model_source_defaults: --model-hub ollama selects model-download" "model-download" \
+    lib_eval 'HARNESS_MODEL_HUB=ollama HARNESS_MODEL_HUB_WAS_SET=1; apply_model_source_defaults; printf "%s" "$HARNESS_OVMS_EXPORTER"'
+  check_fail "apply_model_source_defaults: a conflicting explicit exporter is rejected" \
+    lib_eval 'HARNESS_MODEL_HUB=ollama HARNESS_MODEL_HUB_WAS_SET=1 HARNESS_OVMS_EXPORTER=docker-pull HARNESS_OVMS_EXPORTER_WAS_SET=1; apply_model_source_defaults'
+  check_fail "apply_model_source_defaults: an unknown hub is rejected" lib_eval 'HARNESS_MODEL_HUB=bogus; apply_model_source_defaults'
+  check_fail "apply_model_source_defaults: an invalid precision is rejected" lib_eval 'HARNESS_MODEL_PRECISION=int3; apply_model_source_defaults'
+  check_fail "apply_model_source_defaults: an invalid --model for the hub is rejected before any install work" \
+    lib_eval 'HARNESS_HF_MODEL="org/"; apply_model_source_defaults'
+  check "apply_model_source_defaults: --model is not validated when routing to an external endpoint" \
+    lib_eval 'HARNESS_LLM_ROUTER_ENDPOINT=http://x/v1 HARNESS_HF_MODEL="any name"; apply_model_source_defaults'
+  check_output_contains "apply_model_source_defaults: warns about a model option the exporter ignores" "is ignored by" \
+    lib_eval 'HARNESS_HF_MODEL=org/m HARNESS_MODEL_OPTS_GIVEN=" device"; apply_model_source_defaults 2>&1'
+
+  # Model Download's docker client config: proxy settings are injected into
+  # a private DOCKER_CONFIG copy so get_model.sh's container can reach the
+  # network behind a proxy.
+  check_output_contains "model_download_docker_config: prints nothing when no proxy is set" "[none]" \
+    lib_eval 'unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy; export HOME=$(mktemp -d); out=$(model_download_docker_config); echo "[${out:-none}]"'
+  check_output_contains "model_download_docker_config: writes the proxy into a private config.json" "http://p:3128" \
+    lib_eval 'unset http_proxy https_proxy; export HOME=$(mktemp -d); HTTP_PROXY=http://p:3128; d=$(model_download_docker_config); cat "$d/config.json"'
+  check_output_contains "model_download_docker_config: keeps existing Docker client settings (e.g. credsStore)" "desktop" \
+    lib_eval 'unset http_proxy https_proxy; export HOME=$(mktemp -d); mkdir -p "$HOME/.docker"; printf "%s" "{\"credsStore\":\"desktop\"}" > "$HOME/.docker/config.json"; HTTPS_PROXY=http://p:3128; d=$(model_download_docker_config); cat "$d/config.json"'
+  check_output_contains "model_download_docker_config: config.json is owner-only" "600" \
+    lib_eval 'unset http_proxy https_proxy; export HOME=$(mktemp -d); HTTP_PROXY=http://p:3128; d=$(model_download_docker_config); stat -c %a "$d/config.json"'
+  check_output_contains "model_download_docker_config: links an existing contexts dir so a non-default context keeps working" "contexts" \
+    lib_eval 'unset http_proxy https_proxy; export HOME=$(mktemp -d); mkdir -p "$HOME/.docker/contexts"; HTTP_PROXY=http://p:3128; d=$(model_download_docker_config); ls "$d"'
+
+  check "ovms_model_registered: finds a registered model" \
+    lib_eval 'HARNESS_MODELS_DIR=$(mktemp -d); printf "%s" "{\"model_config_list\":[{\"config\":{\"name\":\"a\",\"base_path\":\"a\"}}]}" > "$HARNESS_MODELS_DIR/config.json"; ovms_model_registered a'
+  check_fail "ovms_model_registered: does not match a different name" \
+    lib_eval 'HARNESS_MODELS_DIR=$(mktemp -d); printf "%s" "{\"model_config_list\":[{\"config\":{\"name\":\"a\",\"base_path\":\"a\"}}]}" > "$HARNESS_MODELS_DIR/config.json"; ovms_model_registered b'
+  check_fail "ovms_model_registered: false when there is no config.json" lib_eval 'HARNESS_MODELS_DIR=$(mktemp -d); ovms_model_registered a'
+
+  # The model name onboarding wires an agent to.
+  local hint_cfg='HARNESS_MODELS_DIR=$(mktemp -d); printf "%s" "{\"model_config_list\":[{\"config\":{\"name\":\"a\",\"base_path\":\"a\"}}]}" > "$HARNESS_MODELS_DIR/config.json"; '
+  check_output_contains "resolve_onboarding_model_hint: an external router keeps the model name exactly as given (minus org/)" "llama3.2:3b" \
+    lib_eval 'HARNESS_LLM_ROUTER_ENDPOINT=http://x/v1 HARNESS_HF_MODEL=library/llama3.2:3b; resolve_onboarding_model_hint'
+  check_output_contains "resolve_onboarding_model_hint: a model OVMS serves is used" "a" \
+    lib_eval "${hint_cfg}"'HARNESS_HF_MODEL=org/a; resolve_onboarding_model_hint'
+  check_output_contains "resolve_onboarding_model_hint: an unserved download falls back to the one registered model" "a" \
+    lib_eval "${hint_cfg}"'HARNESS_HF_MODEL=ollama-x; resolve_onboarding_model_hint'
+  check_output_contains "resolve_onboarding_model_hint: nothing registered falls back to default" "default" \
+    lib_eval 'HARNESS_MODELS_DIR=$(mktemp -d); HARNESS_HF_MODEL=org/zz; resolve_onboarding_model_hint'
+
+  # What a finished Model Download run means for OVMS (_finish_model_download):
+  # served iff the download contains a graph.pbtxt and the hub can produce one.
+  local fin_prefix='export HOME=$(mktemp -d); HARNESS_MODELS_DIR=$(mktemp -d); '
+  check_output_contains "_finish_model_download: an Ollama download is tracked, not registered, and explains why" "not loadable by OVMS" \
+    lib_eval "${fin_prefix}"'mkdir -p "$HARNESS_MODELS_DIR/o/ollama/llama3"; _finish_model_download ollama llama3.2:3b llama3.2-3b "$HARNESS_MODELS_DIR/o/ollama/llama3" 2>&1; echo "registered=$HARNESS_LAST_MODEL_REGISTERED"'
+  check_output_contains "_finish_model_download: an Ollama download leaves HARNESS_LAST_MODEL_REGISTERED=0" "registered=0" \
+    lib_eval "${fin_prefix}"'mkdir -p "$HARNESS_MODELS_DIR/o/ollama/llama3"; _finish_model_download ollama llama3.2:3b llama3.2-3b "$HARNESS_MODELS_DIR/o/ollama/llama3" >/dev/null 2>&1; echo "registered=$HARNESS_LAST_MODEL_REGISTERED"'
+  check_output_contains "_finish_model_download: an Ollama download is listed as tracked in unregistered-downloads.json" "llama3.2-3b" \
+    lib_eval "${fin_prefix}"'mkdir -p "$HARNESS_MODELS_DIR/o/ollama/llama3"; _finish_model_download ollama llama3.2:3b llama3.2-3b "$HARNESS_MODELS_DIR/o/ollama/llama3" >/dev/null 2>&1; cat "$HARNESS_MODELS_DIR/unregistered-downloads.json"'
+  check_output_contains "_finish_model_download: a vision hub is never served, even if a graph.pbtxt is present" "registered=0" \
+    lib_eval "${fin_prefix}"'mkdir -p "$HARNESS_MODELS_DIR/y"; touch "$HARNESS_MODELS_DIR/y/graph.pbtxt"; _finish_model_download ultralytics yolov8n yolov8n "$HARNESS_MODELS_DIR/y" >/dev/null 2>&1; echo "registered=$HARNESS_LAST_MODEL_REGISTERED"'
+  check_output_contains "_finish_model_download: a remote-url tarball with a graph.pbtxt is registered" "registered=1" \
+    lib_eval "${fin_prefix}"'mkdir -p "$HARNESS_MODELS_DIR/r/remote-url/m/sub"; touch "$HARNESS_MODELS_DIR/r/remote-url/m/sub/graph.pbtxt"; _finish_model_download remote-url m m "$HARNESS_MODELS_DIR/r/remote-url/m" >/dev/null 2>&1; echo "registered=$HARNESS_LAST_MODEL_REGISTERED"'
+  check_output_contains "_finish_model_download: the registered base_path points at the directory holding graph.pbtxt" "r/remote-url/m/sub" \
+    lib_eval "${fin_prefix}"'mkdir -p "$HARNESS_MODELS_DIR/r/remote-url/m/sub"; touch "$HARNESS_MODELS_DIR/r/remote-url/m/sub/graph.pbtxt"; _finish_model_download remote-url m m "$HARNESS_MODELS_DIR/r/remote-url/m" >/dev/null 2>&1; cat "$HARNESS_MODELS_DIR/config.json"'
+  check_output_contains "_finish_model_download: a remote-url tarball without a graph.pbtxt is tracked" "registered=0" \
+    lib_eval "${fin_prefix}"'mkdir -p "$HARNESS_MODELS_DIR/r/remote-url/m"; touch "$HARNESS_MODELS_DIR/r/remote-url/m/model.xml"; _finish_model_download remote-url m m "$HARNESS_MODELS_DIR/r/remote-url/m" >/dev/null 2>&1; echo "registered=$HARNESS_LAST_MODEL_REGISTERED"'
+  check_output_contains "_finish_model_download: a pre-converted Hugging Face repo with a graph.pbtxt is registered" "registered=1" \
+    lib_eval "${fin_prefix}"'mkdir -p "$HARNESS_MODELS_DIR/h/huggingface/p"; touch "$HARNESS_MODELS_DIR/h/huggingface/p/graph.pbtxt"; _finish_model_download huggingface org/p p "$HARNESS_MODELS_DIR/h/huggingface/p" >/dev/null 2>&1; echo "registered=$HARNESS_LAST_MODEL_REGISTERED"'
+  check_output_contains "_finish_model_download: the openvino hub registers the graph under <output>/<model id>/" "registered=1" \
+    lib_eval "${fin_prefix}"'mkdir -p "$HARNESS_MODELS_DIR/m/org/model"; touch "$HARNESS_MODELS_DIR/m/org/model/graph.pbtxt"; _finish_model_download openvino org/model model "$HARNESS_MODELS_DIR/m" >/dev/null 2>&1; echo "registered=$HARNESS_LAST_MODEL_REGISTERED"'
+  check_output_contains "_finish_model_download: the openvino hub without a graph.pbtxt warns and registers nothing" "registered=0" \
+    lib_eval "${fin_prefix}"'mkdir -p "$HARNESS_MODELS_DIR/m"; _finish_model_download openvino org/model model "$HARNESS_MODELS_DIR/m" >/dev/null 2>&1; echo "registered=$HARNESS_LAST_MODEL_REGISTERED"'
+
   check "safe_agent_data_dir: accepts a dir under \$HOME" lib_eval 'safe_agent_data_dir "$HOME/.hermes"'
   check_fail "safe_agent_data_dir: rejects /" lib_eval 'safe_agent_data_dir /'
   check_fail "safe_agent_data_dir: rejects \$HOME" lib_eval 'safe_agent_data_dir "$HOME"'
@@ -479,7 +587,7 @@ phase_03_libunit() {
     "http://agent-harness-install-ovms:8000/v3" lib_eval 'ovms_internal_endpoint'
   check_output_contains "harness_llm_endpoint: delegates to inference_router_endpoint (no duplicated URL logic)" \
     "/v1" lib_eval 'export HOME=$(mktemp -d); harness_llm_endpoint'
-  check_output_contains "HARNESS_MODEL_HUB defaults to openvino (the only hub OVMS can serve)" \
+  check_output_contains "HARNESS_MODEL_HUB defaults to openvino (Hugging Face + conversion)" \
     "openvino" lib_eval 'printf "%s" "$HARNESS_MODEL_HUB"'
   check_output_contains "HARNESS_MODEL_TYPE has no blanket default (hub-specific, not always llm)" \
     "empty-ok" lib_eval '[[ -z "$HARNESS_MODEL_TYPE" ]] && echo empty-ok || echo "got: $HARNESS_MODEL_TYPE"'
@@ -556,6 +664,25 @@ phase_07_optparsing() {
     bash "$REPO_ROOT/install.sh" --model
   check_fail_output_contains "uninstall.sh --harness with no value errors (not 'unbound variable')" "requires a value" \
     bash "$REPO_ROOT/uninstall.sh" --harness
+  # The --model-* options are validated before startup.sh installs anything,
+  # so these fail fast without touching the host.
+  local opt
+  for opt in --model-hub --model-config --model-revision --model-type --model-precision --model-device; do
+    check_fail_output_contains "install.sh $opt with no value errors (not 'unbound variable')" "requires a value" \
+      bash "$REPO_ROOT/install.sh" "$opt"
+  done
+  check_fail_output_contains "install.sh rejects an unknown --model-hub" "Unknown model hub" \
+    bash "$REPO_ROOT/install.sh" --model-hub bogus
+  check_fail_output_contains "install.sh rejects an invalid --model-precision" "Invalid model precision" \
+    bash "$REPO_ROOT/install.sh" --model-precision int3
+  check_fail_output_contains "install.sh rejects a malformed Hugging Face --model before installing anything" "Invalid --model" \
+    bash "$REPO_ROOT/install.sh" --model "org/"
+  check_fail_output_contains "install.sh rejects remote-url without --model-config" "--model-config" \
+    bash "$REPO_ROOT/install.sh" --model-hub remote-url --model my-model
+  check_fail_output_contains "install.sh rejects a conflicting HARNESS_OVMS_EXPORTER for a non-default hub" "needs the model-download exporter" \
+    env HARNESS_OVMS_EXPORTER=docker-pull bash "$REPO_ROOT/install.sh" --model-hub ollama --model llama3.2
+  check_fail_output_contains "install.sh rejects geti without GETI_* in the environment" "GETI_HOST" \
+    env -u GETI_HOST -u GETI_TOKEN -u GETI_WORKSPACE_ID bash "$REPO_ROOT/install.sh" --model-hub geti --model "My Project"
 }
 
 phase_08_agent_resolution() {
@@ -676,14 +803,14 @@ phase_12_inference() {
       curl -sf "http://127.0.0.1:8000/v2/models/${model_name}/ready"
     check "models remove cleans it up" bash "$REPO_ROOT/install.sh" models remove "$model_name"
 
-    # HARNESS_MODEL_HUB generalization (model-download exporter can pull
-    # from hubs other than Hugging Face) + unregistered-downloads tracking
-    # for hubs that don't produce an OVMS-servable artifact -- see
+    # --model-hub alone selects the Model Download exporter (no
+    # HARNESS_OVMS_EXPORTER needed), and downloads OVMS can't serve (no
+    # graph.pbtxt) are tracked instead of registered -- see
     # export_model_via_model_download/list_exported_models/
     # remove_exported_model in scripts/lib/openvino.sh.
     local hub_model="hf-internal-testing/tiny-random-gpt2" hub_model_name="tiny-random-gpt2"
     check "install --model-hub huggingface (raw download, no OVMS registration)" \
-      env NON_INTERACTIVE=1 HARNESS_OVMS_EXPORTER=model-download HARNESS_ALLOW_UNVERIFIED_MODEL_DOWNLOAD_SCRIPT=1 \
+      env NON_INTERACTIVE=1 \
       bash "$REPO_ROOT/install.sh" --harness openclaw --non-interactive --skip-gpu-check \
         --model "$hub_model" --model-hub huggingface
     check_output_contains "models list shows the hub download, labeled not served by OVMS" \
@@ -692,6 +819,17 @@ phase_12_inference() {
       "hub: huggingface" bash "$REPO_ROOT/install.sh" models list
     check "models remove also cleans up an untracked (non-config.json) hub download" \
       bash "$REPO_ROOT/install.sh" models remove "$hub_model_name"
+
+    # A non-LLM-servable hub: Ollama is downloaded and tracked, not served,
+    # and the install still succeeds with the Router on what OVMS serves.
+    check "install --model-hub ollama (downloaded and tracked, not served by OVMS)" \
+      env NON_INTERACTIVE=1 \
+      bash "$REPO_ROOT/install.sh" --harness openclaw --non-interactive --skip-gpu-check \
+        --model-hub ollama --model smollm:135m
+    check_output_contains "models list shows the Ollama download with its hub, labeled not served" \
+      "hub: ollama" bash "$REPO_ROOT/install.sh" models list
+    check "models remove cleans up the Ollama download" \
+      bash "$REPO_ROOT/install.sh" models remove smollm-135m
   else
     skip "real HF model export + chat-completion test" "pass --hf-model <id> to enable (slow, downloads a model)"
   fi

@@ -42,8 +42,18 @@ usage() {
     --non-interactive                Skip prompts (uses env vars / defaults)
     --skip-gpu-check                  Skip Intel GPU detection/driver checks
     --harness <openclaw|deepagents-code|hermes>  Real agent to install (sets HARNESS_AGENT)
-    --model <hf-model-id>             Hugging Face model to export to OpenVINO IR
-    --model-hub <hub>                  Source hub for HARNESS_OVMS_EXPORTER=model-download (sets HARNESS_MODEL_HUB; default: openvino)
+    --model <model-name>              Model to serve, named as its hub names it (default hub: Hugging Face id such as org/name,
+                                       exported to OpenVINO IR). Sets HARNESS_HF_MODEL.
+    --model-hub <hub>                  Source hub (default: openvino = Hugging Face + conversion). Any other hub selects the
+                                       Model Download exporter automatically. Hubs: openvino, huggingface, ollama, remote-url,
+                                       ultralytics, geti, pipeline-zoo-models, omz, hls. Only results with an OVMS graph.pbtxt
+                                       are served to agents; the rest are downloaded and tracked (sets HARNESS_MODEL_HUB)
+    --model-config <json>              Hub-specific settings as JSON, e.g. '{"url":"https://…/{name}.tar"}' for remote-url
+                                       (sets HARNESS_MODEL_CONFIG_JSON)
+    --model-revision <rev>             Branch, tag or commit (model-download and hf-snapshot exporters)
+    --model-type <type>                Model type, e.g. llm (model-download exporter; hls needs 3d-pose|rppg|ai-ecg)
+    --model-precision <int4|int8|fp16|fp32>  Weight precision (default: int8; model-download and docker-pull exporters)
+    --model-device <CPU|GPU|NPU|HETERO:…>    Conversion target device (model-download exporter; default: CPU)
     --help, -h                        Show this help message and exit
 
   Environment:
@@ -58,7 +68,8 @@ usage() {
     HARNESS_LLM_ENDPOINT         OpenAI-compatible endpoint (default: local OpenVINO Model Server)
     HARNESS_LLM_PROVIDER         ovms (default) — the only backend this installer manages itself
     HARNESS_LLM_ROUTER_ENDPOINT  Route to an existing external OpenAI-compatible router instead of OVMS
-    HARNESS_HF_MODEL             Hugging Face model to export/serve via OpenVINO
+    HARNESS_HF_MODEL                Same as --model: the model to serve, named as its hub names it
+                                    (default hub: a Hugging Face id such as org/name)
     HARNESS_OVMS_REST_PORT, HARNESS_MODELS_DIR
     HARNESS_BACKEND_NETWORK      Docker network joining OVMS + the Inference Router so they can reach each other by name (default: agent-harness-install-backend)
     HARNESS_GPU_PROFILE          arc | intel-gpu-other | cpu-only — forces non-interactive mode
@@ -72,11 +83,15 @@ usage() {
     HARNESS_ALLOW_UNVERIFIED_OVMS_EXPORTER  Skip pinning for a custom HARNESS_OVMS_EXPORT_MODEL_REF (export-model-py exporter only, not recommended)
     HARNESS_MODEL_DOWNLOAD_SCRIPT_REF, HARNESS_MODEL_DOWNLOAD_SCRIPT_SHA256, HARNESS_MODEL_DOWNLOAD_IMAGE_TAG, HARNESS_MODEL_DOWNLOAD_OVMS_RELEASE_TAG
     HARNESS_ALLOW_UNVERIFIED_MODEL_DOWNLOAD_SCRIPT  Skip pinning get_model.sh's checksum (not recommended)
-    HARNESS_MODEL_HUB             Source hub for the model-download exporter: openvino (default, HF+convert, the only hub
-                                  OVMS can serve) | huggingface | ollama | ultralytics | geti | pipeline-zoo-models | omz |
-                                  remote-url | hls -- non-openvino hubs are downloaded but not registered with OVMS
-    HARNESS_MODEL_TYPE             get_model.sh --type (default: llm for the openvino/huggingface hubs, unset otherwise)
-    HARNESS_MODEL_DOWNLOAD_REVISION, HARNESS_MODEL_PRECISION, HARNESS_MODEL_DEVICE, HARNESS_MODEL_CONFIG_JSON, HARNESS_MODEL_PLUGINS
+    HARNESS_MODEL_HUB             Same as --model-hub: openvino (default, HF+convert) | huggingface | ollama | remote-url |
+                                  ultralytics | geti | pipeline-zoo-models | omz | hls. A non-default hub selects the
+                                  model-download exporter unless HARNESS_OVMS_EXPORTER is set; only downloads that contain an
+                                  OVMS graph.pbtxt are served, the rest are downloaded and tracked (see Known limitations)
+    HARNESS_MODEL_TYPE             Same as --model-type (default: llm for the openvino/huggingface hubs, unset otherwise)
+    HARNESS_MODEL_DOWNLOAD_REVISION, HARNESS_MODEL_PRECISION, HARNESS_MODEL_DEVICE, HARNESS_MODEL_CONFIG_JSON  Same as the matching --model-* options
+    HARNESS_MODEL_PLUGINS          Model Download plugins to enable (default: the hub, plus huggingface for openvino)
+    GETI_HOST, GETI_TOKEN, GETI_WORKSPACE_ID  Required by --model-hub geti
+    HF_TOKEN                       Hugging Face token for gated models (forwarded to the exporters)
     HARNESS_IR_SOURCE_REPO, HARNESS_IR_SOURCE_REF  Inference Router source repo/pinned commit SHA to build from
     HARNESS_ALLOW_UNVERIFIED_IR_SOURCE  Build the Inference Router from a branch/tag instead of a pinned commit SHA (not recommended)
     HARNESS_IR_IMAGE, HARNESS_IR_CONTAINER, HARNESS_IR_PORT, HARNESS_IR_WORKSPACE_DIR
@@ -374,11 +389,26 @@ main() {
         [[ -n "${2:-}" ]] || { usage; error "--harness requires a value (openclaw|deepagents-code|hermes)."; }
         HARNESS_AGENT="$2"; shift ;;
       --model)
-        [[ -n "${2:-}" ]] || { usage; error "--model requires a value (a Hugging Face model id)."; }
+        [[ -n "${2:-}" ]] || { usage; error "--model requires a value (the model name as its hub names it, e.g. a Hugging Face id)."; }
         HARNESS_HF_MODEL="$2"; shift ;;
       --model-hub)
         [[ -n "${2:-}" ]] || { usage; error "--model-hub requires a value (e.g. openvino, huggingface, ollama)."; }
-        HARNESS_MODEL_HUB="$2"; shift ;;
+        HARNESS_MODEL_HUB="$2"; HARNESS_MODEL_HUB_WAS_SET=1; shift ;;
+      --model-config)
+        [[ -n "${2:-}" ]] || { usage; error "--model-config requires a value (a JSON object)."; }
+        HARNESS_MODEL_CONFIG_JSON="$2"; HARNESS_MODEL_OPTS_GIVEN+=" config"; shift ;;
+      --model-revision)
+        [[ -n "${2:-}" ]] || { usage; error "--model-revision requires a value (branch, tag or commit)."; }
+        HARNESS_MODEL_DOWNLOAD_REVISION="$2"; HARNESS_HF_MODEL_REVISION="$2"; HARNESS_MODEL_OPTS_GIVEN+=" revision"; shift ;;
+      --model-type)
+        [[ -n "${2:-}" ]] || { usage; error "--model-type requires a value (e.g. llm)."; }
+        HARNESS_MODEL_TYPE="$2"; HARNESS_MODEL_OPTS_GIVEN+=" type"; shift ;;
+      --model-precision)
+        [[ -n "${2:-}" ]] || { usage; error "--model-precision requires a value (int4, int8, fp16 or fp32)."; }
+        HARNESS_MODEL_PRECISION="$2"; HARNESS_MODEL_OPTS_GIVEN+=" precision"; shift ;;
+      --model-device)
+        [[ -n "${2:-}" ]] || { usage; error "--model-device requires a value (CPU, GPU, NPU or HETERO:…)."; }
+        HARNESS_MODEL_DEVICE="$2"; HARNESS_MODEL_OPTS_GIVEN+=" device"; shift ;;
       --agent) usage; error "--agent was renamed to --harness." ;;
       --hf-model) usage; error "--hf-model was renamed to --model." ;;
       --help | -h) usage; exit 0 ;;
@@ -388,7 +418,9 @@ main() {
     shift
   done
   export NON_INTERACTIVE
-  export HARNESS_AGENT HARNESS_HF_MODEL HARNESS_MODEL_HUB
+  export HARNESS_AGENT HARNESS_HF_MODEL HARNESS_MODEL_HUB HARNESS_MODEL_HUB_WAS_SET HARNESS_MODEL_CONFIG_JSON HARNESS_MODEL_TYPE
+  export HARNESS_MODEL_PRECISION HARNESS_MODEL_DEVICE HARNESS_MODEL_DOWNLOAD_REVISION HARNESS_HF_MODEL_REVISION
+  apply_model_source_defaults
 
   if [[ "${positional[0]:-}" == "models" ]]; then
     run_models_command "${positional[@]:1}"

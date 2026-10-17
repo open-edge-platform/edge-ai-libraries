@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# Full-flow end-to-end test for the Inference Router (IR) + hf-snapshot
-# changes to agent-harness-install: drives the REAL ./install.sh entry point
-# per agent (openclaw, deepagents-code, hermes), exercising the actual
-# production flow in order every real install goes through:
-#   Node.js (nvm) -> OVMS pulled/started -> model downloaded+registered
-#   (hf-snapshot exporter) -> Inference Router built+started in front of
-#   OVMS -> agent installed -> agent onboarded (wired to IR, not OVMS).
+# Full-flow end-to-end test for agent-harness-install: drives the REAL
+# ./install.sh entry point per agent (openclaw, deepagents-code, hermes),
+# exercising the actual production flow in order every real install goes
+# through:
+#   Node.js (nvm) -> OVMS pulled/started -> model downloaded+converted and
+#   registered (default docker-pull exporter) -> Inference Router built+started
+#   in front of OVMS -> agent installed -> agent onboarded (wired to the
+#   Router, not OVMS) -> real chat completion through Router -> OVMS ->
+#   uninstall.
 #
 # Run this on a disposable/reflash-able Linux host with Docker (+ ideally
 # an Intel GPU) -- it installs real things on the machine (Docker, Node.js
@@ -25,29 +27,19 @@
 #
 # Options (env vars):
 #   TEST_AGENTS            Space-separated agent list (default: "openclaw deepagents-code hermes")
-#   TEST_OVMS_EXPORTER      HARNESS_OVMS_EXPORTER to exercise (default: hf-snapshot,
-#                           the subject of this test). hf-snapshot only works
-#                           against a HF repo already published as a
-#                           ready-to-serve OpenVINO IR + OVMS MediaPipe
-#                           graph.pbtxt -- as of this writing, no such repo is
-#                           known to exist under a verified Intel/OpenVINO-owned
-#                           HF account (only unverified third-party community
-#                           uploads do, which this test deliberately refuses to
-#                           default to -- same supply-chain-trust stance this
-#                           installer applies everywhere else). The pre-flight
-#                           check below confirms TEST_HF_MODEL actually has a
-#                           graph.pbtxt before running anything, and fails fast
-#                           with guidance if not. To exercise the IR integration
-#                           without a verified hf-snapshot fixture, set
-#                           TEST_OVMS_EXPORTER=docker-pull with a *raw*
-#                           (non-OpenVINO) TEST_HF_MODEL instead.
-#   TEST_HF_MODEL           A HF model id matching TEST_OVMS_EXPORTER's
-#                           expected input (default:
-#                           OpenVINO/Qwen2.5-Coder-0.5B-Instruct-int8-ov, a
-#                           real, small, ~0.5B repo -- but NOT hf-snapshot-
-#                           compatible, see TEST_OVMS_EXPORTER above; you must
-#                           supply your own verified repo to actually exercise
-#                           hf-snapshot).
+#   TEST_OVMS_EXPORTER      HARNESS_OVMS_EXPORTER to exercise (default: docker-pull,
+#                           the installer's default: a raw Hugging Face model is
+#                           downloaded and converted to OpenVINO IR by OVMS's own
+#                           "-py" image). Set hf-snapshot to exercise that
+#                           exporter instead -- it only works against a HF repo
+#                           already published as a ready-to-serve OpenVINO IR +
+#                           OVMS MediaPipe graph.pbtxt, which the pre-flight check
+#                           below confirms (remotely, no download) before running
+#                           anything, failing fast with guidance if not. You must
+#                           then also set TEST_HF_MODEL to such a repo.
+#   TEST_HF_MODEL           A HF model id matching TEST_OVMS_EXPORTER's expected
+#                           input (default: Qwen/Qwen2.5-0.5B-Instruct, a small
+#                           raw ~0.5B repo that docker-pull converts).
 #   KEEP_FINAL_STATE        1 = don't uninstall after the last agent (default: 0)
 #   SKIP_GPU_CHECK          Forwarded to install.sh (default: 1, since GPU passthrough
 #                           itself still works regardless -- this only skips the
@@ -91,7 +83,7 @@ fi
 cd "$REPO_ROOT" || exit 1
 
 TEST_AGENTS="${TEST_AGENTS:-openclaw deepagents-code hermes}"
-TEST_HF_MODEL="${TEST_HF_MODEL:-OpenVINO/Qwen2.5-Coder-0.5B-Instruct-int8-ov}"
+TEST_HF_MODEL="${TEST_HF_MODEL:-Qwen/Qwen2.5-0.5B-Instruct}"
 KEEP_FINAL_STATE="${KEEP_FINAL_STATE:-0}"
 # install.sh (like startup.sh's own SKIP_* vars) treats ANY non-empty value
 # as "skip", not specifically "1" -- so a caller's SKIP_GPU_CHECK=0
@@ -116,7 +108,7 @@ export HARNESS_MODELS_DIR="/tmp/test-full-models"
 export HARNESS_IR_WORKSPACE_DIR="/tmp/test-full-ir-workspace"
 export HARNESS_IR_IMAGE="test-full-ir:local"
 export HARNESS_STATE_DIRNAME=".test-full-agent-harness-install"
-export HARNESS_OVMS_EXPORTER="${TEST_OVMS_EXPORTER:-hf-snapshot}"
+export HARNESS_OVMS_EXPORTER="${TEST_OVMS_EXPORTER:-docker-pull}"
 # A real agent CLI shim (e.g. an operator's own openclaw/dcode/hermes
 # install) commonly already lives at HARNESS_SHIM_DIR's default
 # ($HOME/.local/bin) -- without its own override here, this test would
@@ -176,7 +168,7 @@ for f in scripts/lib/inference-router.sh scripts/lib/openvino.sh scripts/install
   if [[ -f "$f" ]]; then
     if bash -n "$f" 2>/tmp/synerr; then pass "bash -n $f"; else fail "bash -n $f" "$(cat /tmp/synerr)"; fi
   else
-    fail "bash -n $f" "file not found -- are the IR/hf-snapshot changes present in this checkout?"
+    fail "bash -n $f" "file not found -- is this checkout complete?"
   fi
 done
 
@@ -220,9 +212,9 @@ repos already published as ready-to-serve OVMS servables, not plain OpenVINO
 IR exports. No verified Intel/OpenVINO-owned public example of such a repo
 is known at the time of writing (only unverified third-party community
 uploads do, which this test deliberately won't default to). Set
-TEST_HF_MODEL to a repo you've verified yourself, or set
-TEST_OVMS_EXPORTER=docker-pull with a *raw* (non-OpenVINO) TEST_HF_MODEL to
-exercise the Inference Router integration with a working exporter instead."
+TEST_HF_MODEL to a repo you've verified yourself, or drop
+TEST_OVMS_EXPORTER to use the default docker-pull exporter with a *raw*
+(non-OpenVINO) TEST_HF_MODEL instead."
     print_summary
     exit 1
   fi

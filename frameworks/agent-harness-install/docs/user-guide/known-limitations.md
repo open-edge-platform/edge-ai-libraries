@@ -63,29 +63,39 @@
     converts with its own OVMS release (default `v2025.4.1`), which may
     differ from the OVMS image served here; set
     `HARNESS_MODEL_DOWNLOAD_OVMS_RELEASE_TAG` to pass `--ovms-release-tag`.
-    For gated Hugging Face models, export `HF_TOKEN`. This is the one exporter
-    that can pull from sources other than Hugging Face — set
-    `HARNESS_MODEL_HUB` (default `openvino`, i.e. today's HF+convert
-    behavior) to any hub the microservice itself supports: `huggingface`
-    (raw download, no conversion), `ollama`, `ultralytics`, `geti`,
-    `pipeline-zoo-models`, `omz`, `remote-url`, or `hls`. Only the
-    `openvino` hub produces an artifact OVMS can actually serve as a
-    chat-completion endpoint (it's still HF-sourced under the hood — "pull
-    from Hugging Face and convert to OpenVINO IR", not a separate source);
-    the other hubs download models in their own native formats for their
-    own runtimes (Ollama's server, vision pipelines, etc.), so this
-    installer downloads them without attempting to register anything with
-    OVMS. These are tracked separately (`<models-dir>/unregistered-downloads.json`)
-    so they still show up under `./install.sh models list` (labeled "not
-    served by OVMS") and can be removed with `./install.sh models remove
-    <name>` even though `config.json` never gets an entry for them.
-    `HARNESS_MODEL_TYPE` (default `llm`), `HARNESS_MODEL_DOWNLOAD_REVISION`,
-    `HARNESS_MODEL_PRECISION` (default `int8`), `HARNESS_MODEL_DEVICE`
-    (default `CPU`), `HARNESS_MODEL_CONFIG_JSON`, and `HARNESS_MODEL_PLUGINS`
-    mirror `get_model.sh`'s own `--type`/`--revision`/`--precision`/`--device`/
-    `--config-json`/`--plugins` flags — see
-    microservices/model-download/docs/user-guide/get-started.md in
-    edge-ai-libraries for the full parameter reference per hub.
+    For gated Hugging Face models, export `HF_TOKEN`. It is also what
+    `--model-hub` selects: any hub other than the default `openvino` chooses
+    this exporter automatically (unless `HARNESS_OVMS_EXPORTER` is set to
+    something else, which is then rejected as a conflict). The hubs are the
+    microservice's own: `openvino` (Hugging Face + conversion, the default),
+    `huggingface` (raw download), `ollama`, `remote-url`, `ultralytics`,
+    `geti`, `pipeline-zoo-models`, `omz` and `hls`. A download is registered
+    with OVMS, and wired to the Inference Router, only when it contains a
+    `graph.pbtxt` — the `openvino` hub always produces one, a pre-converted
+    `huggingface` repo or a `remote-url` tarball may, and the other hubs
+    never can (Ollama-format models are not loadable by OVMS yet; Ultralytics,
+    Geti, the zoos and HLS are vision/other-runtime models, not something an
+    agent can use). Whatever is not served is still downloaded and tracked
+    (`<models-dir>/unregistered-downloads.json`), so it shows up under
+    `./install.sh models list` (labeled "not served by OVMS") and can be
+    removed with `./install.sh models remove <name>` even though
+    `config.json` never gets an entry for it. Which hubs can be served is
+    decided in one place, `model_hub_unserved_reason` in
+    `scripts/lib/openvino.sh`, so Ollama can be enabled there once OVMS
+    supports it. `--model` is validated per hub before anything is
+    installed (for example `org/name` for Hugging Face, `name[:tag]` for
+    Ollama, a URL in `--model-config` for `remote-url`, `GETI_*` for
+    Geti). `--model-type` (default `llm` for `openvino`/`huggingface`),
+    `--model-revision`, `--model-precision` (default `int8`),
+    `--model-device` (default `CPU`), `--model-config` and
+    `HARNESS_MODEL_PLUGINS` mirror `get_model.sh`'s own
+    `--type`/`--revision`/`--precision`/`--device`/`--config-json`/`--plugins`
+    flags (the matching `HARNESS_MODEL_*` environment variables work too) —
+    see microservices/model-download/docs/user-guide/get-started.md in
+    edge-ai-libraries for the full parameter reference per hub. Other
+    exporters ignore the options that don't apply to them and say so
+    (`--model-precision` also applies to the default `docker-pull`
+    exporter; `--model-revision` also to `hf-snapshot`).
   - `hf-snapshot` — a plain `huggingface_hub.snapshot_download` in a host
     Python venv, no `optimum-cli` conversion step at all. For HF repos
     already published as ready-to-serve OpenVINO IR + an OVMS MediaPipe
@@ -102,8 +112,8 @@
   All four register the resulting model into `config.json` the same way (a
   `model_config_list` entry — confirmed by comparing exporters' output side
   by side; OVMS itself auto-detects the `graph.pbtxt` sitting in
-  `base_path`) whenever they produce one; `model-download` with a non-`openvino`
-  `HARNESS_MODEL_HUB` deliberately doesn't (see above).
+  `base_path`) whenever they produce one. `model-download` registers a
+  download only if it contains a `graph.pbtxt` (see above).
 - The **Inference Router** (IR) always sits in front of OVMS and is what
   agents are actually wired to (`harness_llm_endpoint`) — not optional. This
   installer builds it locally from a pinned commit SHA of

@@ -36,20 +36,16 @@ Notes on what it does with Docker:
    assumed already provisioned, e.g. via Edge Pack, not installed by this
    step).
 3. **Inference backend** — starts OpenVINO Model Server (Docker, GPU
-   passthrough); optionally exports a Hugging Face model to OpenVINO IR via
-   OVMS's own "-py" Docker image in `--pull` mode (`--model <id>`, a Hugging
-   Face id such as `org/name`) --
-   unlike plain `optimum-cli`, it also generates the MediaPipe graph OVMS's
-   `/v3/chat/completions` endpoint needs. For gated Hugging Face models,
-   export `HF_TOKEN` first. Set `HARNESS_OVMS_EXPORTER=export-model-py`,
-   `=model-download`, or `=hf-snapshot` (a plain download, no conversion, for
-   HF repos already published as ready-to-serve OpenVINO IR) for alternate
-   exporters (see [Known limitations](known-limitations.md)). `model-download`
-   can also pull from hubs other than Hugging Face (`--model-hub`/
-   `HARNESS_MODEL_HUB`: `ollama`, `ultralytics`, `geti`, `pipeline-zoo-models`,
-   `omz`, `remote-url`, `hls`) — only the default `openvino` hub produces
-   something OVMS can serve; the rest are downloaded for your own use, not
-   registered with OVMS. Always also builds/starts the **Inference Router**
+   passthrough) and, if you pass `--model`, fetches that model from its hub
+   (see [Model sources](#model-sources)). By default a Hugging Face id such
+   as `org/name` is converted to OpenVINO IR via OVMS's own "-py" Docker image
+   in `--pull` mode — unlike plain `optimum-cli`, that also generates the
+   MediaPipe graph OVMS's `/v3/chat/completions` endpoint needs. For gated
+   Hugging Face models, export `HF_TOKEN` first. Set
+   `HARNESS_OVMS_EXPORTER=export-model-py` or `=hf-snapshot` (a plain
+   download, no conversion, for HF repos already published as ready-to-serve
+   OpenVINO IR) for alternate exporters (see
+   [Known limitations](known-limitations.md)). Always also builds/starts the **Inference Router**
    (IR) in front of OVMS, pointed at it as IR's one configured provider —
    this step is mandatory whenever OVMS is the managed backend, not
    optional. The router image is built locally from a pinned commit of
@@ -79,7 +75,7 @@ you opt in with `HARNESS_ADVERTISED_HOST` (or the prompt that sets it) or
 ## Usage
 
 ```bash
-./install.sh --harness openclaw --model <huggingface-model-id>
+./install.sh --harness openclaw --model Qwen/Qwen2.5-0.5B-Instruct
 ```
 
 ```bash
@@ -90,13 +86,56 @@ Or configure via environment variables:
 
 ```bash
 export HARNESS_AGENT=openclaw
-export HARNESS_HF_MODEL=<huggingface-model-id>
+export HARNESS_HF_MODEL=Qwen/Qwen2.5-0.5B-Instruct
 ./install.sh --non-interactive
 ```
 
 Options: `--non-interactive`, `--skip-gpu-check`, `--harness <name>`,
-`--model <id>`, `--model-hub <hub>`; run `./install.sh --help` for the full
-list of options and environment variables.
+`--model <model-name>`, `--model-hub <hub>`, `--model-config <json>`,
+`--model-revision <rev>`, `--model-type <type>`,
+`--model-precision <int4|int8|fp16|fp32>`, `--model-device <device>`; run
+`./install.sh --help` for the full list of options and environment variables.
+
+## Model sources
+
+`--model` is the model's name as its hub names it, and `--model-hub` says
+which hub to fetch it from. Without `--model-hub` the hub is `openvino`: a
+Hugging Face id that is converted to OpenVINO IR. Any other hub selects the
+Model Download service's ephemeral container (`get_model.sh`, pinned and
+checksum-verified) on its own — there is no need to set
+`HARNESS_OVMS_EXPORTER`.
+
+| `--model-hub` | `--model` is | Extra input | Served to agents |
+|---|---|---|---|
+| `openvino` (default) | Hugging Face id, `org/name` | `--model-precision`, `--model-device`; `HF_TOKEN` for gated models | yes |
+| `huggingface` | Hugging Face id, `org/name` | `--model-revision`; `HF_TOKEN` for gated models | only if the repo already contains an OVMS `graph.pbtxt` |
+| `remote-url` | plain name substituted for `{name}` | `--model-config '{"url":"https://…/{name}.tar"}'`; the URL must match Model Download's allowlist | only if the tarball contains a `graph.pbtxt` |
+| `ollama` | `name`, `name:tag`, or a namespaced reference such as `hf.co/user/repo:tag` | | no (OVMS cannot load Ollama models yet) |
+| `ultralytics` | model name or a comma-separated list | `--model-config '{"quantize":"coco128"}'` for INT8 | no |
+| `geti` | Geti project name | `GETI_HOST`, `GETI_TOKEN`, `GETI_WORKSPACE_ID` | no |
+| `pipeline-zoo-models`, `omz` | model name or a comma-separated list | | no |
+| `hls` | any label | `--model-type 3d-pose`, `rppg` or `ai-ecg` | no |
+
+A model is served — registered with OVMS and wired to the Inference Router
+— only when the download contains an OVMS `graph.pbtxt`. Everything else is
+downloaded and tracked (`./install.sh models list` shows it as "not served by
+OVMS"), and the installer says why agents will not use it. The router stays
+on whatever OVMS already serves, so one model is served at a time.
+
+```bash
+# default: Hugging Face id, converted to OpenVINO IR
+./install.sh --harness openclaw --model Qwen/Qwen2.5-0.5B-Instruct
+
+# Ollama: downloaded and tracked, not served by OVMS yet
+./install.sh --harness openclaw --model-hub ollama --model llama3.2:3b
+
+# a model tarball from an allowed URL
+./install.sh --harness openclaw --model-hub remote-url --model my-model \
+  --model-config '{"url":"https://github.com/open-edge-platform/edge-ai-resources/raw/main/{name}.tar"}'
+```
+
+Options that an exporter does not use (for example `--model-device` with the
+default exporter) are reported as ignored.
 
 Other commands:
 

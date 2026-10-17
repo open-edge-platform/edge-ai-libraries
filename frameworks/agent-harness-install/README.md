@@ -62,7 +62,7 @@ flowchart TD
         EXT{"External router<br/>endpoint set?"}:::decision
         USEEXT["Use that OpenAI-compatible endpoint<br/>(HARNESS_LLM_ROUTER_ENDPOINT)<br/>OVMS and the Router are not started"]:::step
         OVMS["Start OpenVINO Model Server<br/>Docker, GPU via --device"]:::step
-        EXPORT["Export --model to OpenVINO IR<br/>and register it with OVMS"]:::step
+        EXPORT["Fetch --model from its hub (default: Hugging Face,<br/>converted to OpenVINO IR) and register it<br/>with OVMS when it has a graph.pbtxt"]:::step
         IR["Build and start the Inference Router<br/>pinned upstream commit, in front of OVMS"]:::step
         EXT -- "yes" --> USEEXT
         EXT -- "no" --> OVMS --> EXPORT --> IR
@@ -136,7 +136,9 @@ flowchart LR
 
 ## Documentation
 
-- [Get Started](docs/user-guide/get-started.md): install flow and basic usage.
+- [Get Started](docs/user-guide/get-started.md): install flow, usage and
+  [model sources](docs/user-guide/get-started.md#model-sources) (Hugging Face,
+  Ollama, remote URL and the other Model Download hubs).
 - [Running Without a Checkout](docs/user-guide/running-without-a-checkout.md):
   the standalone `curl | bash` bootstrap path.
 - [Uninstall](docs/user-guide/uninstall.md).
