@@ -157,7 +157,7 @@ class SettingSpec:
     flag: str
     """Long CLI flag, e.g. ``--base-url``."""
     kind: str
-    """One of: str, url, int, float, bool, str_list, int_list, pipelines, choice, choice_list."""
+    """One of: str, path, url, int, float, bool, str_list, int_list, pipelines, choice, choice_list."""
     default: Any
     help: str
     env: str | None = None
@@ -176,6 +176,8 @@ class SettingSpec:
         """Convert *value* (from YAML, env or CLI) to the canonical type."""
         kind = self.kind
         if kind == "str":
+            return _as_path_str(value)
+        if kind == "path":
             return _as_path_str(value)
         if kind == "url":
             return _as_url(value)
@@ -411,9 +413,13 @@ SPECS: tuple[SettingSpec, ...] = (
     SettingSpec(
         "results.output_dir",
         "--results-dir",
-        "str",
+        "path",
         str(PERF_DIR / "results"),
-        "Output directory for benchmark reports.",
+        "Output directory for benchmark reports. Defaults to "
+        "'results' inside the performance test directory (absolute, "
+        "so it does not depend on the current working directory); an "
+        "explicit override is resolved against the current working "
+        "directory, like any other path argument.",
         env="PERF_RESULTS_DIR",
         metavar="DIR",
     ),
