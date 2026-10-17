@@ -598,9 +598,12 @@ manually instead: openclaw config set models.providers.ovms '{\"baseUrl\":\"${en
       ;;
     hermes)
       command_exists "$cli_bin" || warn "'${cli_bin}' was not found on PATH after install."
-      info "Hermes is installed. Its own config lives at $(hermes_config_path)
-(providers.<name>.base_url) — point a provider at ${endpoint}, or run 'hermes setup'
-for the interactive wizard. See github.com/NousResearch/hermes-agent for details."
+      info "Hermes is installed. Its own config lives at $(hermes_config_path).
+Point it at ${endpoint} with:
+  hermes config set model.provider custom
+  hermes config set model.base_url ${endpoint}
+  hermes config set model.default ${model_hint}
+or choose 'Custom endpoint' in 'hermes model'. See github.com/NousResearch/hermes-agent for details."
       ;;
     *) error "Unknown agent: $agent (expected openclaw, deepagents-code, or hermes)" ;;
   esac
