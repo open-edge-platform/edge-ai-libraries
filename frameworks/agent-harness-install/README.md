@@ -108,7 +108,7 @@ dedicated Docker network. Published ports bind to loopback by default.
 
 ```mermaid
 %%{init: {"flowchart": {"wrappingWidth": 420, "nodeSpacing": 40, "rankSpacing": 60, "curve": "basis"}}}%%
-flowchart LR
+flowchart TD
     classDef host fill:#EAF3FB,stroke:#0068B5,color:#0A2A43
     classDef box fill:#FFFFFF,stroke:#0068B5,color:#0A2A43
     classDef store fill:#FFF6DD,stroke:#B38600,color:#4A3900
@@ -116,7 +116,7 @@ flowchart LR
     classDef ext fill:#F3F3F3,stroke:#777777,color:#222222,stroke-dasharray: 4 3
 
     subgraph HOST["Intel host: Core Ultra iGPU or Arc, or CPU-only"]
-        direction LR
+        direction TB
         AGENT["Agent CLI<br/>OpenClaw, Deep Agents Code, or Hermes"]:::box
         subgraph NET["Docker network: agent-harness-install-backend"]
             direction TB
