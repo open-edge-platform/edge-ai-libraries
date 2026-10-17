@@ -8,11 +8,11 @@ GPU is present).
 This installer installs **real, independently-published open-source agent
 projects** rather than something invented for Intel:
 
-| Agent | Verified package | License |
-|---|---|---|
-| `openclaw` | npm `openclaw` — github.com/openclaw/openclaw | MIT |
-| `deepagents-code` | `dcode` (Deep Agents Code) — github.com/langchain-ai/deepagents | MIT |
-| `hermes` | Nous Research's official installer — github.com/NousResearch/hermes-agent (pinned installer script from the repo, not npm) | MIT |
+| Agent | Verified package |
+|---|---|
+| `openclaw` | npm `openclaw` — github.com/openclaw/openclaw |
+| `deepagents-code` | `dcode` (Deep Agents Code) — github.com/langchain-ai/deepagents |
+| `hermes` | Nous Research's official installer — github.com/NousResearch/hermes-agent (pinned installer script from the repo, not npm) |
 
 The inference backend is **configurable**. By default it's a local
 **OpenVINO Model Server** (OVMS) serving an OpenAI-compatible
