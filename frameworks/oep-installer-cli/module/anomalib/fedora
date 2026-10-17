@@ -1,0 +1,43 @@
+
+configure_anomalib () {
+  workspace="$(ensure_project_path)/anomalib"
+  version=2.6.2
+  repository=https://github.com/open-edge-platform/anomalib.git
+}
+
+verify_anomalib () {
+  [ -r "$workspace"/.venv/bin/activate ] || return 1
+  . "$workspace"/.venv/bin/activate && python3 -c "import anomalib; assert anomalib.__version__ == '$version'"
+}
+
+fedora_80_profile_anomalib () {
+  :
+}
+
+fedora_80_install_anomalib () {
+  configure_anomalib $*
+  if verify_anomalib && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Anomalib is installed." >&2
+  else
+    ensure_disk_size 15000
+
+    mkdir -p "$workspace"
+    cd "$workspace"
+    python3 -m venv .venv
+    . .venv/bin/activate
+    pip install "anomalib[openvino,cpu]==${version}"
+
+    verify_anomalib
+  fi
+
+  # validation
+  test_anomalib "$@"
+
+  echo "@@HIGHLIGHT venv: $workspace/.venv"
+}
+
+fedora_80_remove_anomalib () {
+  configure_anomalib $*
+  ensure_rm "$workspace"
+}
+
