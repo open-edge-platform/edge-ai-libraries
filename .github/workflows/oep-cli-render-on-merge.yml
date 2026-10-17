@@ -74,7 +74,7 @@ jobs:
           persist-credentials: true
           token: ${{ secrets.SIV_USER_TOKEN_GH }}
 
-      - name: Regenerate installer
+      - name: Regenerate installers
         working-directory: frameworks/oep-installer-cli
         run: |
           set -euo pipefail
@@ -88,17 +88,18 @@ jobs:
         run: |
           set -euo pipefail
 
-          if git diff --quiet -- rendered/openedge-cli rendered/openedge-cli-fedora; then
-            echo "::notice::rendered already up to date — nothing to commit."
-            exit 0
-          fi
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           # -f is required: rendered/.gitignore contains "*", which would otherwise
           # block staging the (already tracked) rendered artifact.
           git add -f rendered/openedge-cli rendered/openedge-cli-fedora
+
+          if git diff --cached --quiet -- rendered/openedge-cli rendered/openedge-cli-fedora; then
+            echo "::notice::rendered already up to date — nothing to commit."
+            exit 0
+          fi
+
           git commit -m "chore(oep-cli): regenerate rendered"
           git push origin "HEAD:${BRANCH}"
 
