@@ -188,6 +188,8 @@ act_helper () {
     local rc=0 order=0
     local installer_state=""
     ensure_tmpdir create installer_state states /dev/shm
+    export _INSTALLER_PANEL_ACTIVE=
+    [ -t 1 ] && export _INSTALLER_PANEL_ACTIVE=1
     {
       for handler in $(echo "${handles[*]}" | tr ' ' '\n' | sort $sort_options); do
         local name1=${handler#*_*_*_}
