@@ -63,13 +63,26 @@ SHA, or set HARNESS_ALLOW_UNVERIFIED_IR_SOURCE=1 to accept the risk (e.g.
 for local development against a moving branch)."
   fi
   tmp="$(mktemp -d)"
-  (
-    cd "$tmp" \
-      && git init -q \
-      && git remote add origin "$HARNESS_IR_SOURCE_REPO" \
-      && git fetch -q --depth 1 origin "$HARNESS_IR_SOURCE_REF" \
-      && git checkout -q FETCH_HEAD -- microservices/inference-router
-  ) || { rm -rf -- "$tmp"; error "Could not fetch microservices/inference-router at
+  local attempt fetched=""
+  # Corporate TLS-inspecting proxies intermittently fail a single git fetch
+  # ("certificate signer not trusted"); a retry on a fresh repo usually succeeds.
+  for attempt in 1 2 3; do
+    rm -rf -- "${tmp:?}"/.git "${tmp:?}"/microservices
+    if (
+      cd "$tmp" \
+        && git init -q \
+        && git remote add origin "$HARNESS_IR_SOURCE_REPO" \
+        && git fetch -q --depth 1 origin "$HARNESS_IR_SOURCE_REF" \
+        && git checkout -q FETCH_HEAD -- microservices/inference-router
+    ); then
+      fetched=1
+      break
+    fi
+    [[ "$attempt" -lt 3 ]] || break
+    warn "Fetching the Inference Router source failed (attempt ${attempt}/3); retrying…"
+    sleep 5
+  done
+  [[ -n "$fetched" ]] || { rm -rf -- "$tmp"; error "Could not fetch microservices/inference-router at
 '${HARNESS_IR_SOURCE_REF}' from ${HARNESS_IR_SOURCE_REPO} -- check network
 access and that the ref/path exist."; }
   [[ -d "${tmp}/microservices/inference-router" ]] \
