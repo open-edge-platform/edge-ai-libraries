@@ -14,7 +14,7 @@ debian_20_group_edge_pack_graphics_core () {
 
 debian_20_install_edge_pack_graphics_core () {
   configure_edge_pack_graphics_core "$@"
-  if ensure_apt_is_installed intel-edge-graphics-core=$version && [[ " $* " != *" --reinstall "* ]]; then
+  if ensure_apt_is_installed intel-edge-graphics-core && [[ " $* " != *" --reinstall "* ]]; then
     echo "intel-edge-graphics-core is installed." >&2
   else
     ensure_prop set installed/edge_pack_graphics_core/owned true

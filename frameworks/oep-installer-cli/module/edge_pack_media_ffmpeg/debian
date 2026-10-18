@@ -10,7 +10,7 @@ debian_70_profile_edge_pack_media_ffmpeg () {
 
 debian_70_install_edge_pack_media_ffmpeg () {
   configure_edge_pack_media_ffmpeg "$@"
-  if ensure_apt_is_installed intel-edge-media-ffmpeg=$version && [[ " $* " != *" --reinstall "* ]]; then
+  if ensure_apt_is_installed intel-edge-media-ffmpeg && [[ " $* " != *" --reinstall "* ]]; then
     echo "intel-edge-media-ffmpeg is installed." >&2
   else
     ensure_prop set installed/edge_pack_media_ffmpeg/owned true

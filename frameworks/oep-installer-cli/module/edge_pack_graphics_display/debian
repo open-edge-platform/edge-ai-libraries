@@ -14,7 +14,7 @@ debian_20_group_edge_pack_graphics_display () {
 
 debian_20_install_edge_pack_graphics_display () {
   configure_edge_pack_graphics_display "$@"
-  if ensure_apt_is_installed intel-edge-graphics-display=$version && [[ " $* " != *" --reinstall "* ]]; then
+  if ensure_apt_is_installed intel-edge-graphics-display && [[ " $* " != *" --reinstall "* ]]; then
     echo "intel-edge-graphics-display is installed." >&2
   else
     ensure_prop set installed/edge_pack_graphics_display/owned true
