@@ -44,6 +44,7 @@ debian_30_group_docker_ce () {
 }
 
 debian_30_install_docker_ce () {
+  configure_docker_ce "$@"
   if docker version > /dev/null 2>&1 && docker buildx version > /dev/null 2>&1 && docker compose version > /dev/null 2>&1 && [[ " $* " != *" --reinstall "* ]]; then
     echo "docker is installed." >&2
   elif ensure_apt_is_installed docker.io && [[ " $* " != *" --reinstall "* ]]; then

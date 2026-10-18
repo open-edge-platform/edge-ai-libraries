@@ -1,0 +1,153 @@
+
+configure_docker_ce () {
+  repo_name="download.docker.com"
+  key_url="https://$repo_name/linux/fedora/gpg"
+  yum_repo_conf=(
+"[docker-ce-stable]"
+"name=Docker CE Stable - \$basearch"
+"baseurl=https://$repo_name/linux/$ID/\$releasever/\$basearch/stable"
+"enabled=1"
+"gpgcheck=1"
+"gpgkey=$key_url"
+)
+  yum_repo_file="/etc/yum.repos.d/docker-ce.repo"
+  docker_compose_plugin="https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$(uname -m)"
+  docker_compose_bin="/usr/local/docker-compose"
+}
+
+configure_docker_proxy () {
+  if [ -n "${http_proxy:-$HTTP_PROXY}${https_proxy:-$HTTPS_PROXY}" ]; then
+    if ensure_dnf_is_installed podman; then
+      ensure_sudo mkdir -p /etc/systemd/system/podman.socket.d
+      cat | ensure_sudo tee /etc/systemd/system/podman.socket.d/20-proxy.conf <<EOF
+[Service]
+Environment="HTTP_PROXY=${http_proxy:-$HTTP_PROXY}"
+Environment="HTTPS_PROXY=${https_proxy:-$HTTPS_PROXY}"
+Environment="NO_PROXY=${no_proxy:-$NO_PROXY}"
+EOF
+      ensure_sudo systemctl daemon-reload
+      ensure_sudo systemctl restart podman.socket
+    elif ensure_dnf_is_installed docker-ce; then
+      grep -q -E 'HTTPS*_PROXY=' /etc/systemd/system/docker.service.d/*.conf 2>/dev/null || (
+        ensure_sudo mkdir -p /etc/systemd/system/docker.service.d
+        ensure_sudo tee /etc/systemd/system/docker.service.d/99-oep-proxy.conf <<EOF
+[Service]
+Environment="HTTP_PROXY=${http_proxy:-$HTTP_PROXY}"
+Environment="HTTPS_PROXY=${https_proxy:-$HTTPS_PROXY}"
+Environment="NO_PROXY=${no_proxy:-$NO_PROXY}"
+EOF
+        ensure_sudo systemctl daemon-reload
+        ensure_sudo systemctl restart docker
+      )
+
+      local CONFIG_JSON="$HOME/.docker/config.json"
+      echo "Configure docker client proxies..."
+      mkdir -p "$(dirname "$CONFIG_JSON")"
+      python3 - "$CONFIG_JSON" <<'EOF'
+import json, os, sys
+p = sys.argv[1]
+cfg = json.load(open(p)) if os.path.exists(p) else {}
+cfg.setdefault("proxies", {})["default"] = {
+    "httpProxy":  os.environ.get("http_proxy",  os.environ.get("HTTP_PROXY", "")),
+    "httpsProxy": os.environ.get("https_proxy", os.environ.get("HTTPS_PROXY", "")),
+    "noProxy":    os.environ.get("no_proxy",    os.environ.get("NO_PROXY", "")),
+}
+json.dump(cfg, open(p, "w"), indent=2)
+EOF
+    fi
+  fi
+}
+
+fedora_30_group_docker_ce () {
+  echo "docker:"
+}
+
+fedora_30_install_docker_ce () {
+  configure_docker_ce "$@"
+  if docker version > /dev/null 2>&1 && docker buildx version > /dev/null 2>&1 && docker compose version > /dev/null 2>&1 && [[ " $* " != *" --reinstall "* ]]; then
+    echo "docker is installed." >&2
+  elif ensure_dnf_is_installed docker-ce && [[ " $* " != *" --reinstall "* ]]; then 
+    ensure_dnf install -y docker-buildx-plugin docker-compose-plugin
+  elif ensure_dnf_is_installed podman && [[ " $* " != *" --reinstall "* ]]; then
+    ensure_dnf install -y podman-docker
+    [ -x /usr/local/bin/docker-compose ] || {
+      ensure_fetch "$docker_compose_plugin" /usr/local/bin/docker-compose && 
+      ensure_sudo chmod a+rx /usr/local/bin/docker-compose
+    }
+  else
+    ensure_disk_size 800
+
+    # claim ownership
+    ensure_prop set installed/docker_ce/owned true
+    ensure_prop remove installed/podman_docker/owned
+
+    echo "Remove legacy installation"
+    fedora_30_remove_docker_ce "$@"
+
+    # reset systemd states
+    ensure_sudo mkdir -p /etc/systemd/system/docker.service.d
+    ensure_sudo tee /etc/systemd/system/docker.service.d/10-socket.conf <<EOF
+[Unit]
+Requires=docker.socket
+After=docker.socket
+EOF
+    ensure_sudo systemctl daemon-reload
+    ensure_sudo systemctl reset-failed docker.service docker.socket containerd.service 2>/dev/null || true
+
+    # create docker group
+    ensure_group_add $(fedora_30_group_docker_ce)
+
+    # create repo entry
+    printf "%s\n" "${yum_repo_conf[@]}" | ensure_sudo tee "$yum_repo_file"
+
+    # install docker-ce
+    ensure_dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+    # recover and start — must be AFTER the install
+    ensure_sudo systemctl daemon-reload
+    ensure_sudo systemctl reset-failed docker.service docker.socket containerd.service 2>/dev/null || true
+    ensure_sudo systemctl enable --now containerd.service
+    ensure_sudo systemctl enable --now docker.socket
+    ensure_sudo systemctl start docker.service
+
+    # wait
+    local deadline=$((SECONDS+60))
+    until ensure_sudo docker info >/dev/null 2>&1; do
+      [ $SECONDS -lt $deadline ] || {
+        echo -e "${red}dockerd did not become ready${reset}" 1>&2
+        ensure_sudo systemctl status docker.socket --no-pager 1>&2
+        ensure_sudo systemctl status docker.service --no-pager 1>&2
+        ensure_sudo journalctl -u docker.socket -u docker.service --since "-5 min" --no-pager 1>&2
+        return 1
+      }
+      if ensure_sudo systemctl is-failed --quiet docker.service docker.socket; then
+        ensure_sudo systemctl reset-failed docker.service docker.socket 2>/dev/null || true
+        ensure_sudo systemctl start docker.socket 2>/dev/null || true
+        ensure_sudo systemctl start docker.service 2>/dev/null || true
+      fi
+      sleep 1
+    done
+  fi
+  configure_docker_proxy
+}
+
+fedora_30_remove_docker_ce () {
+  configure_docker_ce "$@"
+  [ "$(ensure_prop get installed/docker_ce/owned)" = "true" ] || return 0
+
+  ensure_sudo systemctl reset-failed docker.service docker.socket containerd.service 2>/dev/null || true
+  ensure_sudo systemctl stop docker.socket docker.service 2>/dev/null || true
+  ensure_dnf autoremove -y docker docker-ce-cli docker-client docker-client-latest docker-common docker-latest docker-latest-logrotate docker-logrotate docker-engine docker-selinux docker-engine-selinux podman runc podman-docker docker-ce containerd.io docker-buildx-plugin docker-compose-plugin || true
+  ensure_rm /etc/systemd/system/docker.service.d /etc/systemd/system/podman.socket.d "$docker_compose_bin" "$apt_file" "$key_file"
+  ensure_sudo systemctl daemon-reload || true
+}
+
+fedora_30_sbom_docker_ce () {
+  configure_docker_ce "$@"
+  ensure_sbom_format name $repo_name
+  ensure_sbom_format gpg-key "$key_url"
+  ensure_sbom_format yum-repo-conf "${yum_repo_conf[@]}"
+  ensure_sbom_format yum-repo-file "$yum_repo_file"
+  ensure_sbom_format pkg-list docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+}
+

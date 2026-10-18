@@ -16,8 +16,10 @@ system_scan_summary_report () {
     echo -e "RAM|$membank_info|$pass"
     [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT RAM|$membank_info|$pass" 1>&2
 
-    pass=$ok
-    [[ $PRETTY_NAME = *"24.04"* ]] || pass="${nok/MSG/Not supported}"
+    case "$PRETTY_NAME" in
+    *"24.04"*|*"26.04"*|*"Red Hat Enterprise"*) pass=$ok;;
+    *) pass="${nok/MSG/Not supported}";;
+    esac
     echo -e "OS|$PRETTY_NAME|$pass"
     [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT OS|$PRETTY_NAME|$pass" 1>&2
 
