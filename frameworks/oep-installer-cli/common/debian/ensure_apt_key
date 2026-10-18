@@ -2,11 +2,19 @@
 ensure_apt_key () {
   local key_file="$1" key_url="$2"
 
-  ensure_sudo mkdir -p "$(dirname "$key_file")"
-  if [[ "$*" = *"--dearmor"* ]]; then
-    curl -fsSL "$key_url" | gpg --dearmor | ensure_sudo tee "$key_file" > /dev/null
-  else
-    curl -fsSL "$key_url" | ensure_sudo tee "$key_file" > /dev/null
+  local tmp_dir rc=0
+  ensure_tmpdir create tmp_dir apt_key || return 1
+  ensure_fetch "$key_url" "$tmp_dir/key" || rc=$?
+  if [ $rc -eq 0 ]; then
+    ensure_sudo mkdir -p "$(dirname "$key_file")"
+    if [[ "$*" = *"--dearmor"* ]]; then
+      gpg --batch --yes --dearmor -o "$tmp_dir/key.gpg" "$tmp_dir/key" && \
+        ensure_sudo install -m 0644 "$tmp_dir/key.gpg" "$key_file" || rc=$?
+    else
+      ensure_sudo install -m 0644 "$tmp_dir/key" "$key_file" || rc=$?
+    fi
   fi
+  ensure_tmpdir destroy "$tmp_dir" || true
+  return $rc
 }
 

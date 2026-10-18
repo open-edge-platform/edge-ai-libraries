@@ -1,10 +1,10 @@
 {
   "profile": { "label": "Manufacturing AI Suite", "value": "manufacturing_ai_suite" },
   "modules": [
-    { "label": "Pallet Defect Detection", "value": "pallet_defect_detection", "startStop": true, "device": true },
-    { "label": "PCB Anomaly Detection", "value": "pcb_anomaly_detection", "startStop": true, "device": true },
-    { "label": "Wind Turbine Anormaly Detection", "value": "wind_turbine_anomaly_detection", "startStop": true, "device": true },
-    { "label": "Multimodal Weld Defect Detection", "value": "multimodal_weld_defect_detection", "startStop": true, "device": true }
+    { "label": "Pallet Defect Detection", "value": "pallet_defect_detection", "startStop": true, "options": ["--gpu", "--cpu", "--npu"] },
+    { "label": "PCB Anomaly Detection", "value": "pcb_anomaly_detection", "startStop": true, "options": ["--gpu", "--cpu", "--npu"] },
+    { "label": "Wind Turbine Anormaly Detection", "value": "wind_turbine_anomaly_detection", "startStop": true, "options": ["--gpu", "--cpu", "--npu"] },
+    { "label": "Multimodal Weld Defect Detection", "value": "multimodal_weld_defect_detection", "startStop": true, "options": ["--gpu", "--cpu", "--npu"] }
   ],
   "getStarted": {
     "text": "Get Started",

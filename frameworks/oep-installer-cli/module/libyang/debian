@@ -6,18 +6,19 @@ configure_libyang () {
 }
   
 debian_40_profile_libyang () {
-  echo "cmake make git"
+  echo "git cmake make kernel_module_essential libpcre2_dev"
 }
 
 verify_libyang () {
-  command yanglint > /dev/null 2>&1
+  command -v yanglint > /dev/null 2>&1
 }
 
 debian_40_install_libyang () {
   configure_libyang
   if verify_libyang && [[ " $* " != *" --reinstall "* ]]; then
-    echo "libyang is installed. Skipping..." 1>&2
+    echo "libyang is installed." >&2
   else
+    configure_kernel_module_essential_debian "$@"
     ensure_git_export "$workspace" "$version" "$repository"
     mkdir "$workspace"/build
     cd "$workspace"/build
@@ -32,6 +33,6 @@ debian_40_install_libyang () {
 debian_40_remove_libyang () {
   configure_libyang
   cd "$workspace/build" && ensure_sudo make uninstall || true
-  rm -rf "$workspace"
+  ensure_rm "$workspace"
 }
 

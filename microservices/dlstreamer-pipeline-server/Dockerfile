@@ -72,10 +72,13 @@ COPY ./plugins/gst-udf-loader/ /home/pipeline-server/gst-udf-loader
 
 RUN apt-get install -y --no-install-recommends python3-dev
 
-# Build UDF loader lib
+# Build UDF loader lib (Cython 0.29.x imports cgi, removed in Python 3.13)
 RUN /bin/bash -c "echo $PATH && \
-                  pip3 install --no-cache-dir numpy==1.26.4 && \
-                  pip3 install --no-cache-dir Cython==0.29.34 && \
+                  if python3 -c 'import sys; sys.exit(sys.version_info < (3, 13))'; then \
+                     pip3 install --no-cache-dir numpy==2.2.0 Cython==3.1.4 ; \
+                  else \
+                     pip3 install --no-cache-dir numpy==1.26.4 Cython==0.29.34 ; \
+                  fi && \
                   cd /home/pipeline-server/UDFLoader && \
                   rm -rf build && \
                   mkdir build && \
@@ -125,7 +128,22 @@ ARG WORKDIR=/home/pipeline-server
 WORKDIR ${WORKDIR}
 
 RUN . /etc/os-release && \
-    if [ "$VERSION_ID" = "24.04" ]; then \
+    if [ "$VERSION_ID" = "26.04" ]; then \
+        export no_proxy= && \
+        apt-get update --allow-releaseinfo-change && apt-get install -y --no-install-recommends \
+        cpuid \
+        util-linux \
+        python3-venv \
+        libglib2.0-0t64 \
+        libusb-1.0-0 \
+        libtool \
+        zlib1g \
+        libopencv-core410 \
+        libopencv-imgcodecs410 \
+        libcjson1 \
+        libxtst6 && \
+        ln -sf /usr/lib/x86_64-linux-gnu/libpython3.14.so.1.0 /usr/lib/x86_64-linux-gnu/libpython3.14.so; \
+    elif [ "$VERSION_ID" = "24.04" ]; then \
         export no_proxy= && \
         apt-get update --allow-releaseinfo-change && apt-get install -y --no-install-recommends \
         cpuid \

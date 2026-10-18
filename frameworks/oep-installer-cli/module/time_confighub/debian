@@ -6,20 +6,21 @@ configure_time_confighub () {
 }
 
 verify_time_confighub () {
-  [ -e "$workspace" ]
-  [ -d /opt/tch ]
+  [ -e "$workspace" ] &&
+  [ -d /opt/tch ] &&
   [ -x /usr/local/bin/tch ]
 }
 
 debian_70_profile_time_confighub () {
-  echo "cmake make libyang git"
+  echo "libyang git cmake make kernel_module_essential"
 }
 
 debian_70_install_time_confighub () {
   configure_time_confighub
   if verify_pcm && [[ " $* " != *" --reinstall "* ]]; then
-    echo "pcm is installed. Skipping"
+    echo "Time-Confighub is installed." >&2
   else
+    configure_kernel_module_essential_debian "$@"
     ensure_git_export "$workspace" "$version" "$repository"
     cd "$workspace"
     chmod a+rx install.sh uninstall.sh
@@ -31,6 +32,6 @@ debian_70_install_time_confighub () {
 debian_70_remove_time_confighub () {
   configure_time_confighub
   cd "$workspace" && ensure_sudo ./uninstall.sh --force || true
-  rm -rf "$workspace"
+  ensure_rm "$workspace"
 }
 
