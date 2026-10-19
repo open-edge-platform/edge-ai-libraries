@@ -403,6 +403,16 @@ class Settings(BaseSettings):
         gt=0,
         description="Queue get timeout in seconds for pipeline workers",
     )
+    PIPELINE_STALL_TIMEOUT_S: float = Field(
+        default=300.0,
+        ge=0,
+        description=(
+            "Fail a video pipeline when no stage hands an item to the next one for "
+            "this many seconds while the pipeline is waiting on them (e.g. a "
+            "detection or embedding inference wedged by a GPU hang). Without it the "
+            "job stays 'running' forever. 0 disables the watchdog."
+        ),
+    )
     VIDEO_SHM_ACQUIRE_TIMEOUT_S: float = Field(
         default=30.0,
         gt=0,

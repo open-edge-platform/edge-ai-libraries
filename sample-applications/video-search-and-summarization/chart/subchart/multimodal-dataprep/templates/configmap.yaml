@@ -70,6 +70,7 @@ data:
   MM_DATAPREP_DETECTION_WORKER_THREADS: {{ .Values.sdkPipeline.detectionWorkerThreads | default .Values.global.env.SDK_DETECTION_WORKER_THREADS | default 2 | quote }}
   MM_DATAPREP_EMBED_WORKER_THREADS: {{ .Values.sdkPipeline.embedWorkerThreads | default .Values.global.env.SDK_EMBED_WORKER_THREADS | default 2 | quote }}
   MM_DATAPREP_PIPELINE_QUEUE_GET_TIMEOUT_S: {{ .Values.sdkPipeline.pipelineQueueGetTimeoutS | default .Values.global.env.SDK_PIPELINE_QUEUE_GET_TIMEOUT_S | default 1.0 | quote }}
+  MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S: {{ hasKey .Values.sdkPipeline "pipelineStallTimeoutS" | ternary .Values.sdkPipeline.pipelineStallTimeoutS 300 | quote }}
   MM_DATAPREP_SAVE_RUNTIME_PIPELINE_STATS: {{ .Values.sdkPipeline.saveRuntimePipelineStats | default .Values.global.env.SAVE_RUNTIME_PIPELINE_STATS | default false | quote }}
   MM_DATAPREP_ENABLE_TRACING: {{ .Values.sdkPipeline.enableTracing | default .Values.global.env.SDK_ENABLE_TRACING | default false | quote }}
   MM_DATAPREP_VIDEO_FRAME_DECODER_WORKERS: {{ .Values.sdkPipeline.videoFrameDecoderWorkers | default .Values.global.env.VIDEO_FRAME_DECODER_WORKERS | default 2 | quote }}

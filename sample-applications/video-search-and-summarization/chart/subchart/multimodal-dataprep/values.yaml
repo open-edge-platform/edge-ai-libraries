@@ -187,6 +187,8 @@ sdkPipeline:
   detectionWorkerThreads: 2
   embedWorkerThreads: 2
   pipelineQueueGetTimeoutS: 1.0
+  # Fail an ingestion when no pipeline stage makes progress for this many seconds (e.g. GPU hang). 0 disables.
+  pipelineStallTimeoutS: 300
   saveRuntimePipelineStats: false
   enableTracing: false
   videoFrameDecoderWorkers: 2
