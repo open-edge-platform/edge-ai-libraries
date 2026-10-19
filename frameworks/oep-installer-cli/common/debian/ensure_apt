@@ -46,16 +46,6 @@ ensure_apt_is_installed () {
   done
 }
 
-# install simple package
-ensure_apt_install_package () {
-  if ensure_apt_is_installed "${@%%"*"}"; then
-    echo "${*%%=*} is/are already installed. Skipping..."
-  else
-    ensure_apt update
-    ensure_apt install --no-install-recommends -y "$@"
-  fi
-}
-
 # check downgrades
 ensure_apt_allow_downgrades () {
   local allow_downgrades=($1); shift

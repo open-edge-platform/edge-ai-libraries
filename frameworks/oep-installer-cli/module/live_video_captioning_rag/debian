@@ -32,7 +32,7 @@ debian_90_profile_live_video_captioning_rag () {
 debian_90_install_live_video_captioning_rag () {
   configure_live_video_captioning_rag
   if verify_live_video_captioning_rag && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Live Video Captioning RAG is already installed. Skipping"
+    echo "Live Video Captioning RAG is installed." >&2
   else
     ensure_ports_open "${used_ports[*]}" return 3
 

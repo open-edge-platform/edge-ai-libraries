@@ -30,7 +30,7 @@ debian_90_profile_agentic_smart_community () {
 debian_90_install_agentic_smart_community () {
   configure_agentic_smart_community
   if verify_agentic_smart_community && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Agentic Smart Community already installed. Skipping" 1>&2
+    echo "Agentic Smart Community is installed." 1>&2
   else
     ensure_ports_open "${used_ports[*]}" return 3
     ensure_disk_size 2000

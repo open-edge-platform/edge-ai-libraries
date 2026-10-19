@@ -32,7 +32,7 @@ debian_90_install_dine_in () {
   configure_dine_in
 
   if verify_dine_in && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Order accuracy is already installed. Skipping"
+    echo "Order accuracy is installed." >&2
   else 
     ensure_ports_open "${ports[*]}" return 3
     # clone the repository
