@@ -125,11 +125,12 @@ Reference: `education-ai-suite/smart-classroom/ui`
 - No shared `Card` primitive. Each feature has its own container + dedicated `.css` file
   (`LeftPanel.css`, `RightPanel.css`, etc.).
 - Closest shared pattern: `Accordion` (`components/common/Accordion.tsx` + `Accordion.css`).
-  - Flat background `#f8f8f8`, no shadow.
-  - Full-width `1px solid #e6e7e8` separator.
+  - Flat background `var(--control-background)` (`#f8f8f8` in light), no shadow.
+  - Full-width `1px solid var(--panel-border)` (`#e6e7e8` in light) separator.
   - Blue (`#0071c5`) toggle icon.
   - 16px section title / 14px body.
   - Use for collapsible grouped content.
+  - Use the theme-aware tokens above, not raw light-mode hex (breaks in dark mode).
 - Everything else: plain `<section>` + dedicated CSS file.
 
 ### Buttons

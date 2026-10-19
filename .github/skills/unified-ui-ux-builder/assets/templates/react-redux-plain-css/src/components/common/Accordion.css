@@ -6,7 +6,7 @@
   border: none;
   border-radius: 0;
   margin-bottom: 0;
-  background: #f8f8f8;
+  background: var(--control-background);
   box-shadow: none;
 }
 
@@ -17,7 +17,7 @@
   padding: 0.75rem 0;
   cursor: pointer;
   background: none;
-  border-bottom: 1px solid #e6e7e8;
+  border-bottom: 1px solid var(--panel-border);
   font-family: var(--font-text);
   font-size: 16px;
   font-weight: 500;
@@ -49,7 +49,7 @@
 }
 
 .accordion-toggle:hover {
-  background: #e6e7e8;
+  background: var(--panel-border);
 }
 
 .accordion-content {
@@ -60,5 +60,5 @@
   color: var(--color-dark);
   line-height: 20px;
   background: none;
-  border-bottom: 1px solid #e6e7e8;
+  border-bottom: 1px solid var(--panel-border);
 }
