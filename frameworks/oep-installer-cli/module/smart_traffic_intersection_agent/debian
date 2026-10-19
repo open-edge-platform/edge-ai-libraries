@@ -21,7 +21,7 @@ debian_90_install_smart_traffic_intersection_agent () {
   configure_smart_traffic_intersection_agent "$@"
 
   if verify_smart_traffic_intersection_agent && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Smart Traffic Intersection Agent is already installed. Skipping" 1>&2
+    echo "Smart Traffic Intersection Agent is installed." >&2
   else
     ensure_disk_size 16000
     ensure_ram_size 52428800 # 50GiB

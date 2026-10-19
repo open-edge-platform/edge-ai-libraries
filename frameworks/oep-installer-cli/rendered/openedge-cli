@@ -1,11 +1,17 @@
 #!/bin/bash
 
 main () {
-  . /etc/os-release
-  ID_LIKE="$(echo "$ID_LIKE" | tr -cd 'a-zA-Z0-9')" # sanitize
+  if [ -z "$HOME" ]; then
+    echo "\$HOME must be set" >&2
+    return 3
+  fi
+
   red="\033[31m" green="\033[32m" yellow="\033[33m" reset="\033[0m"
   installer_name=openedge-cli
   installer_bin="$HOME/.local/bin/$installer_name"
+
+  . /etc/os-release
+  installer_family="$(x="${ID_LIKE:-$ID}";x="${x##* }";echo "${x//[^a-zA-Z0-9]/}")"
 
   local _globals=() _cmds=() _args=() cur=-1 v
   for v in "$@"; do
@@ -80,7 +86,7 @@ main () {
           for _dep in ${_deps[*]}; do
             _gf=${_dep/_install_/_group_}
             declare -F $_gf > /dev/null 2>&1 || continue
-            for _g in $($_gf $(act_extract_args group ${_dep#*_*_*_} "${_deps[*]#${ID_LIKE}_*_install_}" ${_resolved[*]})); do
+            for _g in $($_gf $(act_extract_args group ${_dep#*_*_*_} "${_deps[*]#${installer_family}_*_install_}" ${_resolved[*]})); do
               _groups["$_g"]=1
             done
           done
@@ -155,7 +161,7 @@ act_expand_modules ()
         [ -z "${seen[$n]:-}" ] || continue;
         seen[$n]=1;
         local p="${_act_cache_functions[profile_$n]:-}";
-        [ -n "$p" ] && q+=($($p $act_name "${@:3}"));
+        [ -n "$p" ] && q+=($($p $act_name $(act_extract_args $act_name $n "${q[*]}" "${@:3}")));
     done;
     echo "${!seen[*]}"
 }
@@ -240,13 +246,13 @@ act_get ()
         ;;
         init)
             declare -g _act_cache_cmds=($(declare -F | grep -E " subcommand_" | grep -v -E 'subcommand_(list|setup)$' | cut -f2- -d_));
-            declare -g _act_cache_modules=($(declare -F | grep -E " ${ID_LIKE}_[0-9]+_($(IFS='|'; echo "${_act_cache_cmds[*]}"))_" | cut -f2,4- -d_ | sort | cut -f2- -d_ | awk '!seen[$0]++'));
+            declare -g _act_cache_modules=($(declare -F | grep -E " ${installer_family}_[0-9]+_($(IFS='|'; echo "${_act_cache_cmds[*]}"))_" | cut -f2,4- -d_ | sort | cut -f2- -d_ | awk '!seen[$0]++'));
             declare -gA _act_cache_functions=();
             local f rest;
             while read -r _ _ f; do
                 case $f in 
-                    "${ID_LIKE}_"*)
-                        rest=${f#"${ID_LIKE}_"};
+                    "${installer_family}_"*)
+                        rest=${f#"${installer_family}_"};
                         _act_cache_functions[${rest#*_}]=$f
                     ;;
                 esac;
@@ -267,13 +273,6 @@ act_helper ()
     local sort_options="$2";
     shift;
     shift;
-    if [[ " $* " = *" --help "* ]]; then
-        echo "${act_name} options:";
-        echo "  --dry-run       dry-run operations";
-        echo "  --continue      ignore errors and proceed to the end";
-        echo;
-        return 0;
-    fi;
     local mods_file="$(ensure_project_path)/$installer_name/modules";
     local explicit_mods="$(act_extract_modules $act_name "$@")";
     local remove_all=0;
@@ -314,7 +313,7 @@ act_helper ()
     if [ ${#handles[@]} -gt 0 ]; then
         if [ "$act_name" = "install" ]; then
             local -A licenses=() licenses_text=();
-            local all_install_modules="${handles[*]#${ID_LIKE}_*_install_}";
+            local all_install_modules="${handles[*]#${installer_family}_*_install_}";
             for licenser in ${handles[*]/_install_/_license_};
             do
                 if declare -F $licenser > /dev/null 2>&1; then
@@ -361,6 +360,8 @@ act_helper ()
         local rc=0 order=0;
         local installer_state="";
         ensure_tmpdir create installer_state states /dev/shm;
+        export _INSTALLER_PANEL_ACTIVE=;
+        [ -t 1 ] && export _INSTALLER_PANEL_ACTIVE=1;
         { 
             for handler in $(echo "${handles[*]}" | tr ' ' '\n' | sort $sort_options);
             do
@@ -371,7 +372,7 @@ act_helper ()
                     [ "$order" -gt 0 ] || order=$order1;
                     [ "$order1" -ge "$order" ] || break;
                 fi;
-                local invoke_args="$(act_extract_args $act_name $name1 "${handles[*]#${ID_LIKE}_*_${act_name}_}" "$@")";
+                local invoke_args="$(act_extract_args $act_name $name1 "${handles[*]#${installer_family}_*_${act_name}_}" "$@")";
                 if [[ " $* " = *" --dry-run "* ]]; then
                     echo "@@COMP $name1";
                     echo "Invoke $handler with $invoke_args";
@@ -399,13 +400,17 @@ act_helper ()
             local scan_handler="${_act_cache_functions[${act_name}_pre_system_scan]:-}";
             if [[ " $* " != *" --dry-run "* && $rc -eq 0 && -n "$scan_handler" && " ${handles[*]} " = *" $scan_handler "* ]]; then
                 echo "@@REPORT SYSTEM SUMMARY";
-                $scan_handler $(act_extract_args $act_name pre_system_scan "${handles[*]#${ID_LIKE}_*_${act_name}_}" "$@");
+                $scan_handler $(act_extract_args $act_name pre_system_scan "${handles[*]#${installer_family}_*_${act_name}_}" "$@");
             fi
         } > >(LOG_FILE="$(ensure_project_path)/$installer_name/$(date +%m-%d-%Y).logs"
 mkdir -p "$(dirname "$LOG_FILE")"
 echo "========== $(date -Ins) ==========" >> "$LOG_FILE"
 echo "@@COMMAND $act_name $*" >> "$LOG_FILE"
-act_panelled_logs ${act_text//,/ }) 2>&1;
+if [ -n "$_INSTALLER_PANEL_ACTIVE" ]; then
+    act_panelled_logs ${act_text//,/ };
+else
+    tee -a "$LOG_FILE";
+fi) 2>&1;
         wait;
         ensure_tmpdir destroy $installer_state;
         if [[ " $* " != *" --dry-run "* && -n "${explicit_mods// }" ]]; then
@@ -1818,10 +1823,6 @@ act_panelled_logs ()
         _push_log "$CURRENT" "$clean";
         _draw
     };
-    [[ -t 1 ]] || { 
-        [ -z "$LOG_FILE" ] && cat || tee -a "$LOG_FILE";
-        return
-    };
     _open_tty;
     _read_geom;
     printf '\033[?25l';
@@ -2020,7 +2021,7 @@ configure_dlstreamer ()
     model_repo=https://raw.githubusercontent.com/dlstreamer/pipeline-zoo-models/ee73878abc6fb6d864e59a5cd80016de4fc1d194;
     allow_downgrades=(libgbm1 libva-wayland2 libwayland-bin mesa-libgallium)
 }
-configure_docker_io () 
+configure_docker () 
 { 
     if [ -n "${http_proxy:-$HTTP_PROXY}${https_proxy:-$HTTPS_PROXY}" ]; then
         echo "Configure docker engine proxies...";
@@ -2050,6 +2051,14 @@ json.dump(cfg, open(p, "w"), indent=2)
 EOF
 
     fi
+}
+configure_docker_ce () 
+{ 
+    repo_name="download.docker.com";
+    key_url="https://$repo_name/linux/$ID/gpg";
+    key_file="/etc/apt/keyrings/docker.asc";
+    apt_entry="deb [signed-by=$key_file] https://$repo_name/linux/$ID/ ${VERSION_CODENAME} stable";
+    apt_file=/etc/apt/sources.list.d/docker.list
 }
 configure_edge_node_infrastructure_blueprint () 
 { 
@@ -2529,8 +2538,8 @@ configure_openvino ()
     key_file=/usr/share/keyrings/intel-gpg-archive-keyring.gpg;
     apt_entry="deb [signed-by=$key_file] https://$repo_name/openvino ${ID}${VERSION_ID%.*} main";
     apt_file=/etc/apt/sources.list.d/intel-openvino.list;
-    version=$([[ " $* " = *" dlstreamer "* ]] && echo 2026.2.0 || echo 2026.3.0);
     workspace="$(ensure_project_path)/openvino";
+    version=$([[ " $* " = *" dlstreamer "* ]] && echo 2026.2.0 || echo 2026.3.0);
     model="https://github.com/onnx/models/raw/4c46cd00fbdb7cd30b6c1c17ab54f2e1f4f7b177/validated/vision/classification/squeezenet/model/squeezenet1.0-12.onnx"
 }
 configure_osrf_gazebo_ros2 () 
@@ -2883,7 +2892,7 @@ configure_video_processing_for_nvr ()
 configure_video_search_and_summarization () 
 { 
     workspace="$(ensure_project_path)/video-search-and-summarization";
-    version=release-2026.2.0;
+    version=1c5fdc1f440e685c8f82322ec09b60b7320ea404;
     repository="https://github.com/open-edge-platform/edge-ai-libraries.git";
     export APP_HOST_PORT=${APP_HOST_PORT:-12345};
     used_ports=($APP_HOST_PORT 3001 7890 6016 6008 8999 9777 8300 9300 8090 4001 4002 55555 9090 9273 5432 1883 5672 8640);
@@ -2892,7 +2901,7 @@ configure_video_search_and_summarization ()
     export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct;
     export ENABLED_WHISPER_MODELS=tiny.en,small.en,medium.en;
     export OD_MODEL_NAME=yolov8l-worldv2;
-    export TEXT_EMBEDDING_MODEL=Qwen/qwen3-embedding-0.6b;
+    export TEXT_EMBEDDING_MODEL=QwenText/qwen3-embedding-0.6b;
     export OVMS_LLM_MODEL_NAME=meta-llama/Llama-3.2-3B-Instruct;
     export PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY=false;
     export MULTIMODAL_EMBEDDING_MODEL=CLIP/clip-vit-b-32;
@@ -2929,7 +2938,7 @@ configure_video_search_and_summarization ()
 }
 configure_video_search_and_summarization_gated () 
 { 
-    ensure_hf_token $VLM_MODEL_NAME $TEXT_EMBEDDING_MODEL $OVMS_LLM_MODEL_NAME;
+    ensure_hf_token $VLM_MODEL_NAME ${TEXT_EMBEDDING_MODEL/QwenText/Qwen} $OVMS_LLM_MODEL_NAME;
     export HUGGINGFACE_TOKEN="$HF_TOKEN";
     export GATED_MODEL=$([ -n "$HF_TOKEN" ] && echo true || echo false)
 }
@@ -2945,6 +2954,7 @@ configure_visual_search_question_and_answering ()
     version=release-2026.2.0;
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(17580 19530 9764 9990 6008 9777);
+    demo_dataset="https://data.vision.ee.ethz.ch/csergi/share/davis/DAVIS-2017-test-dev-480p.zip";
     export EMBEDDING_MODEL_NAME=CLIP/clip-vit-h-14;
     export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-7B-Instruct;
     export DOCKER_VOLUME_DIRECTORY="$workspace";
@@ -2986,6 +2996,10 @@ debian_05_install_pciutils ()
 { 
     ensure_apt_install_package pciutils
 }
+debian_05_remove_dmidecode () 
+{ 
+    ensure_apt_remove_package dmidecode
+}
 debian_05_sbom_curl () 
 { 
     ensure_sbom_format pkg-list curl ca-certificates
@@ -3000,61 +3014,7 @@ debian_05_sbom_pciutils ()
 }
 debian_08_install_pre_system_scan () 
 { 
-    set -o pipefail;
-    ( echo "----------------------------------------------------------------";
-    ok="${green}✓  PASS${reset}";
-    nok="${red}⚠  MSG${reset}";
-    system_summary="$(system_scan_get_system_summary)";
-    echo "System|$system_summary";
-    pass=$ok;
-    membank_info="$(system_scan_check_membank)";
-    [ "$membank_info" = "DUAL/MULTI-CHANNELS" ] || pass="${nok/MSG/Check Memory}";
-    echo -e "RAM|$membank_info|$pass";
-    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT RAM|$membank_info|$pass" 1>&2;
-    pass=$ok;
-    [[ $PRETTY_NAME = *"24.04"* ]] || pass="${nok/MSG/Not supported}";
-    echo -e "OS|$PRETTY_NAME|$pass";
-    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT OS|$PRETTY_NAME|$pass" 1>&2;
-    pass=$ok;
-    docker_ver="$(system_scan_check_docker)";
-    [[ "$docker_ver" = *Compose* ]] || pass="${nok/MSG/Missing Docker Compose}";
-    [ -n "$docker_ver" ] || pass="${nok} Missing Docker";
-    echo -e "Docker|$docker_ver|$pass";
-    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT Docker|$docker_ver|$pass" 1>&2;
-    net_pass=$ok;
-    net_access="$(system_scan_check_network_access)";
-    [[ "$net_access" = *reachable* ]] || net_pass="${nok/MSG/Check Proxies}";
-    echo -e "Network|$net_access|$net_pass";
-    [ "$net_pass" = "$ok" ] || echo -e "@@HIGHLIGHT Network|$net_access|$net_pass" 1>&2;
-    echo;
-    echo "Accelerators:";
-    pass=$ok;
-    cpuinst_info="$(system_scan_check_cpu_instructions)";
-    [[ "$cpuinst_info" != *Missing* ]] || pass="${nok/MSG/Check CPU}";
-    echo -e "CPU|$cpuinst_info|$pass";
-    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT CPU|$cpuinst_info|$pass";
-    for accel in $(lspci -d 8086::0300 -n | cut -f3 -d' ');
-    do
-        pass=$ok;
-        accel_info="$(system_scan_check_pci_device $accel "Intel Integrated Graphics")";
-        if [ -n "$accel_info" ]; then
-            [[ "$accel_info" = *driver* ]] || pass="${nok/MSG/Missing Driver}";
-            echo -e "GPU|$accel_info|$pass";
-            [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT GPU|$accel_info|$pass" 1>&2;
-        fi;
-    done;
-    for accel in $(lspci -d 8086::1200 -n | cut -f3 -d' ');
-    do
-        pass=$ok;
-        accel_info="$(system_scan_check_pci_device $accel "Intel AI Boost")";
-        if [ -n "$accel_info" ]; then
-            [[ "$accel_info" = *driver* ]] || pass="${nok/MSG/Missing Driver}";
-            echo -e "NPU|$accel_info|$pass";
-            [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT NPU|$accel_info|$pass" 1>&2;
-        fi;
-    done;
-    echo "----------------------------------------------------------------";
-    [ "$net_pass" = "$ok" ] ) | ensure_columns
+    system_scan_summary_report
 }
 debian_08_profile_pre_system_scan () 
 { 
@@ -3127,7 +3087,7 @@ debian_15_install_libze1 ()
 { 
     configure_libze1 "$@";
     if ensure_apt_is_installed libze1=$version && [[ " $* " != *" --reinstall "* ]]; then
-        echo "libze1 is already installed. Skipping...";
+        echo "libze1 is installed." 1>&2;
     else
         local deb="/tmp/$(basename "$libze1_deb")";
         ensure_fetch "$libze1_deb" "$deb" && { 
@@ -3138,10 +3098,6 @@ debian_15_install_libze1 ()
         };
         rm -f "$deb";
     fi
-}
-debian_15_install_pipx () 
-{ 
-    ensure_apt_install_package pipx
 }
 debian_15_install_unzip () 
 { 
@@ -3159,12 +3115,32 @@ debian_15_profile_libze1 ()
 { 
     echo "curl"
 }
+debian_15_remove_cpuid () 
+{ 
+    ensure_apt_remove_package cpuid
+}
+debian_15_remove_debconf_utils () 
+{ 
+    ensure_apt_remove_package debconf-utils
+}
 debian_15_remove_edge_pack () 
 { 
     dpkg -l | grep -q -F intel-edge- || { 
         configure_edge_pack "$@";
         ensure_sudo rm -f "$edge_pack_key_file" "$edge_pack_source_file" "$edge_pack_pref_file"
     }
+}
+debian_15_remove_jq () 
+{ 
+    ensure_apt_remove_package jq
+}
+debian_15_remove_unzip () 
+{ 
+    ensure_apt_remove_package unzip
+}
+debian_15_remove_yq () 
+{ 
+    ensure_apt_remove_package yq
 }
 debian_15_sbom_cpuid () 
 { 
@@ -3194,10 +3170,6 @@ debian_15_sbom_libze1 ()
 { 
     configure_libze1 "$@";
     ensure_sbom_format pkg-list "$libze1_deb"
-}
-debian_15_sbom_pipx () 
-{ 
-    ensure_sbom_format pkg-list pipx
 }
 debian_15_sbom_unzip () 
 { 
@@ -3230,20 +3202,20 @@ debian_20_group_edge_pack_npu ()
 debian_20_install_core_types () 
 { 
     if [ -e /etc/core-types ] && [[ " $* " != *" --reinstall "* ]]; then
-        echo "/etc/core-types exists. Skipping";
-        return;
-    fi;
-    local script="https://raw.githubusercontent.com/open-edge-platform/edge-workloads-and-benchmarks/refs/heads/main/utils/obtain_cores.sh";
-    set -o pipefail;
-    ensure_fetch "$script" - | bash | sed -n -E 's/^[[:space:]]*([a-zA-Z0-9_-]+)[[:space:]]*:[[:space:]]*(.*)/\U\1\E=\2/p' | ensure_sudo tee /etc/core-types;
-    ensure_prop set installed/core_types/owned true;
-    echo "Core types are detected and written to /etc/core-types"
+        echo "/etc/core-types exists." 1>&2;
+    else
+        ensure_prop set installed/core_types/owned true;
+        local script="https://raw.githubusercontent.com/open-edge-platform/edge-workloads-and-benchmarks/refs/heads/main/utils/obtain_cores.sh";
+        set -o pipefail;
+        ensure_fetch "$script" - | bash | sed -n -E 's/^[[:space:]]*([a-zA-Z0-9_-]+)[[:space:]]*:[[:space:]]*(.*)/\U\1\E=\2/p' | ensure_sudo tee /etc/core-types;
+        echo "@@HIGHLIGHT Core types are detected and written to /etc/core-types";
+    fi
 }
 debian_20_install_edge_pack_base_realtime () 
 { 
     configure_edge_pack_base_realtime "$@";
-    if ensure_apt_is_installed intel-edge-base-realtime=$version && [[ " $* " != *" --reinstall "* ]]; then
-        echo "intel-edge-base-realtime already installed. Skipping" 1>&2;
+    if ensure_apt_is_installed intel-edge-base-realtime && [[ " $* " != *" --reinstall "* ]]; then
+        echo "intel-edge-base-realtime is installed." 1>&2;
     else
         local candidate;
         candidate="$(apt-cache policy intel-edge-base-realtime 2> /dev/null | awk '/Candidate:/{print $2}')";
@@ -3269,8 +3241,8 @@ debian_20_install_edge_pack_base_realtime ()
 debian_20_install_edge_pack_base_standard () 
 { 
     configure_edge_pack_base_standard "$@";
-    if ensure_apt_is_installed intel-edge-base-standard=$version && [[ " $* " != *" --reinstall "* ]]; then
-        echo "intel-edge-base-standard already installed. Skipping" 1>&2;
+    if ensure_apt_is_installed intel-edge-base-standard && [[ " $* " != *" --reinstall "* ]]; then
+        echo "intel-edge-base-standard is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_base_standard/owned true;
         ensure_apt autoremove -y intel-edge-base-standard || true;
@@ -3283,8 +3255,8 @@ debian_20_install_edge_pack_base_standard ()
 debian_20_install_edge_pack_graphics_core () 
 { 
     configure_edge_pack_graphics_core "$@";
-    if ensure_apt_is_installed intel-edge-graphics-core=$version && [[ " $* " != *" --reinstall "* ]]; then
-        echo "intel-edge-graphics-core already installed. Skipping" 1>&2;
+    if ensure_apt_is_installed intel-edge-graphics-core && [[ " $* " != *" --reinstall "* ]]; then
+        echo "intel-edge-graphics-core is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_graphics_core/owned true;
         debian_20_remove_edge_pack_graphics_core;
@@ -3297,8 +3269,8 @@ debian_20_install_edge_pack_graphics_core ()
 debian_20_install_edge_pack_graphics_display () 
 { 
     configure_edge_pack_graphics_display "$@";
-    if ensure_apt_is_installed intel-edge-graphics-display=$version && [[ " $* " != *" --reinstall "* ]]; then
-        echo "intel-edge-graphics-display already installed. Skipping" 1>&2;
+    if ensure_apt_is_installed intel-edge-graphics-display && [[ " $* " != *" --reinstall "* ]]; then
+        echo "intel-edge-graphics-display is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_graphics_display/owned true;
         debian_20_remove_edge_pack_graphics_display;
@@ -3311,8 +3283,8 @@ debian_20_install_edge_pack_graphics_display ()
 debian_20_install_edge_pack_media_core () 
 { 
     configure_edge_pack_media_core "$@";
-    if ensure_apt_is_installed intel-edge-media-core=$version && [[ " $* " != *" --reinstall "* ]]; then
-        echo "intel-edge-media-core already installed. Skipping" 1>&2;
+    if ensure_apt_is_installed intel-edge-media-core && [[ " $* " != *" --reinstall "* ]]; then
+        echo "intel-edge-media-core is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_media_core/owned true;
         ensure_apt autoremove -y intel-edge-media-core || true;
@@ -3322,8 +3294,8 @@ debian_20_install_edge_pack_media_core ()
 debian_20_install_edge_pack_npu () 
 { 
     configure_edge_pack_npu "$@";
-    if ensure_apt_is_installed intel-edge-npu=$version && [[ " $* " != *" --reinstall "* ]]; then
-        echo "intel-edge-npu already installed. Skipping" 1>&2;
+    if ensure_apt_is_installed intel-edge-npu && [[ " $* " != *" --reinstall "* ]]; then
+        echo "intel-edge-npu is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_npu/owned true;
         ensure_apt autoremove -y intel-edge-npu || true;
@@ -3490,9 +3462,17 @@ debian_29_install_reboot ()
     rm -f "${installer_state?}"/reboot_required;
     sleep infinity
 }
+debian_30_group_docker_ce () 
+{ 
+    echo "docker:"
+}
 debian_30_group_docker_io () 
 { 
     echo "docker:"
+}
+debian_30_install_build_essential () 
+{ 
+    ensure_apt_install_package build-essential
 }
 debian_30_install_chrony () 
 { 
@@ -3502,10 +3482,11 @@ debian_30_install_cmake ()
 { 
     ensure_apt_install_package cmake
 }
-debian_30_install_docker_io () 
+debian_30_install_docker_ce () 
 { 
+    configure_docker_ce "$@";
     if docker version > /dev/null 2>&1 && docker buildx version > /dev/null 2>&1 && docker compose version > /dev/null 2>&1 && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Docker is already installed. Skipping...";
+        echo "docker is installed." 1>&2;
     else
         if ensure_apt_is_installed docker.io && [[ " $* " != *" --reinstall "* ]]; then
             ensure_apt update;
@@ -3515,7 +3496,67 @@ debian_30_install_docker_io ()
                 ensure_apt update;
                 ensure_apt install -y docker-buildx-plugin docker-compose-plugin;
             else
+                ensure_disk_size 800;
+                ensure_prop set installed/docker_ce/owned true;
+                ensure_prop remove installed/docker_io/owned;
+                echo "Remove legacy installation";
+                debian_30_remove_docker_ce "$@";
+                ensure_sudo mkdir -p /etc/systemd/system/docker.service.d;
+                ensure_sudo tee /etc/systemd/system/docker.service.d/10-socket.conf <<EOF
+[Unit]
+Requires=docker.socket
+After=docker.socket
+EOF
+
+                ensure_sudo systemctl daemon-reload;
+                ensure_sudo systemctl reset-failed docker.service docker.socket containerd.service 2> /dev/null || true;
+                ensure_group_add docker:;
+                ensure_apt_key $key_file $key_url;
+                ensure_apt_source $apt_file "$apt_entry";
+                ensure_apt update -y;
+                ensure_apt install -y docker-ce docker-buildx-plugin docker-compose-plugin;
+                ensure_sudo systemctl daemon-reload;
+                ensure_sudo systemctl reset-failed docker.service docker.socket containerd.service 2> /dev/null || true;
+                ensure_sudo systemctl enable --now containerd.service;
+                ensure_sudo systemctl enable --now docker.socket;
+                ensure_sudo systemctl start docker.service;
+                local deadline=$((SECONDS+60));
+                until ensure_sudo docker info > /dev/null 2>&1; do
+                    [ $SECONDS -lt $deadline ] || { 
+                        echo -e "${red}dockerd did not become ready${reset}" 1>&2;
+                        ensure_sudo systemctl status docker.socket --no-pager 1>&2;
+                        ensure_sudo systemctl status docker.service --no-pager 1>&2;
+                        ensure_sudo journalctl -u docker.socket -u docker.service --since "-5 min" --no-pager 1>&2;
+                        return 1
+                    };
+                    if ensure_sudo systemctl is-failed --quiet docker.service docker.socket; then
+                        ensure_sudo systemctl reset-failed docker.service docker.socket 2> /dev/null || true;
+                        ensure_sudo systemctl start docker.socket 2> /dev/null || true;
+                        ensure_sudo systemctl start docker.service 2> /dev/null || true;
+                    fi;
+                    sleep 1;
+                done;
+            fi;
+        fi;
+    fi;
+    configure_docker
+}
+debian_30_install_docker_io () 
+{ 
+    if docker version > /dev/null 2>&1 && docker buildx version > /dev/null 2>&1 && docker compose version > /dev/null 2>&1 && [[ " $* " != *" --reinstall "* ]]; then
+        echo "docker is already installed." 1>&2;
+    else
+        if ensure_apt_is_installed docker.io && [[ " $* " != *" --reinstall "* ]]; then
+            ensure_apt update;
+            ensure_apt install -y docker-buildx docker-compose-v2;
+        else
+            if ensure_apt_is_installed docker-ce && [[ " $* " != *" --reinstall "* ]]; then
+                ensure_apt update;
+                ensure_apt install -y docker-buildx-plugin docker-compose-plugin;
+            else
+                ensure_disk_size 800;
                 ensure_prop set installed/docker_io/owned true;
+                ensure_prop remove installed/docker_ce/owned;
                 echo "Remove legacy installation";
                 debian_30_remove_docker_io "$@";
                 ensure_sudo mkdir -p /etc/systemd/system/docker.service.d;
@@ -3554,7 +3595,7 @@ EOF
             fi;
         fi;
     fi;
-    configure_docker_io
+    configure_docker
 }
 debian_30_install_git () 
 { 
@@ -3571,7 +3612,7 @@ debian_30_install_kernel_module_essential ()
     for p in ${install_pkgs[*]};
     do
         if ensure_apt_is_installed $p; then
-            echo "$p is installed. Skipping" 1>&2;
+            echo "$p is installed." 1>&2;
         else
             ensure_prop set installed/kernel_module_essential/owned_$p true;
             pkgs+=($p);
@@ -3581,6 +3622,10 @@ debian_30_install_kernel_module_essential ()
         echo ensure_apt update;
         ensure_apt install --no-install-recommends -y "${pkgs[@]}";
     fi
+}
+debian_30_install_libpcre2_dev () 
+{ 
+    ensure_apt_install_package libpcre2-dev
 }
 debian_30_install_make () 
 { 
@@ -3606,23 +3651,27 @@ debian_30_install_sysbench ()
 { 
     ensure_apt_install_package sysbench
 }
-debian_30_install_uv () 
-{ 
-    configure_uv;
-    if uv --version 2> /dev/null && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Uv is already installed. Skipping...";
-    else
-        pipx install uv;
-        ensure_prop set installed/uv/owned true;
-    fi
-}
 debian_30_install_v4l_utils () 
 { 
     ensure_apt_install_package v4l-utils
 }
-debian_30_profile_uv () 
+debian_30_remove_build_essential () 
 { 
-    echo "pipx"
+    ensure_apt_remove_package build-essential
+}
+debian_30_remove_cmake () 
+{ 
+    ensure_apt_remove_package cmake
+}
+debian_30_remove_docker_ce () 
+{ 
+    configure_docker_ce "$@";
+    [ "$(ensure_prop get installed/docker_ce/owned)" = "true" ] || return 0;
+    ensure_sudo systemctl reset-failed docker.service docker.socket containerd.service 2> /dev/null || true;
+    ensure_sudo systemctl stop docker.socket docker.service 2> /dev/null || true;
+    ensure_apt purge -y docker docker-engine docker.io docker-ce docker-ce-cli docker-compose-plugin docker-compose-v2 docker-buildx-plugin docker-ce-rootless-extras docker-scan-plugin docker-doc docker-compose podman-docker containerd containerd.io runc || true;
+    ensure_rm /etc/systemd/system/docker.service.d "$apt_file" "$key_file";
+    ensure_sudo systemctl daemon-reload || true
 }
 debian_30_remove_docker_io () 
 { 
@@ -3630,8 +3679,16 @@ debian_30_remove_docker_io ()
     ensure_sudo systemctl reset-failed docker.service docker.socket containerd.service 2> /dev/null || true;
     ensure_sudo systemctl stop docker.socket docker.service 2> /dev/null || true;
     ensure_apt purge -y docker docker-engine docker.io docker-ce docker-ce-cli docker-compose-plugin docker-compose-v2 docker-buildx-plugin docker-ce-rootless-extras docker-scan-plugin docker-doc docker-compose podman-docker containerd containerd.io runc || true;
-    ensure_rm /etc/systemd/system/docker.service.d || true;
+    ensure_rm /etc/systemd/system/docker.service.d;
+    if declare -F configure_docker_ce > /dev/null; then
+        configure_docker_ce "$@";
+        ensure_rm "$apt_file" "$key_file";
+    fi;
     ensure_sudo systemctl daemon-reload || true
+}
+debian_30_remove_git () 
+{ 
+    ensure_apt_remove_package git
 }
 debian_30_remove_kernel_module_essential () 
 { 
@@ -3644,10 +3701,33 @@ debian_30_remove_kernel_module_essential ()
     done;
     [ ${#pkgs[@]} -eq 0 ] || ensure_apt autoremove -y "${pkgs[@]}"
 }
-debian_30_remove_uv () 
+debian_30_remove_make () 
 { 
-    [ "$(ensure_prop get installed/uv/owned)" = "true" ] || return 0;
-    pipx uninstall uv
+    ensure_apt_remove_package make
+}
+debian_30_remove_msr_tools () 
+{ 
+    ensure_apt_remove_package msr-tools
+}
+debian_30_remove_rsync () 
+{ 
+    ensure_apt_remove_package rsync
+}
+debian_30_remove_stress_ng () 
+{ 
+    ensure_apt_remove_package stress-ng
+}
+debian_30_remove_sysbench () 
+{ 
+    ensure_apt_install_package sysbench
+}
+debian_30_remove_v4l_utils () 
+{ 
+    ensure_apt_remove_package v4l-utils
+}
+debian_30_sbom_build_essential () 
+{ 
+    ensure_sbom_format pkg-list build-essential
 }
 debian_30_sbom_chrony () 
 { 
@@ -3656,6 +3736,16 @@ debian_30_sbom_chrony ()
 debian_30_sbom_cmake () 
 { 
     ensure_sbom_format pkg-list cmake
+}
+debian_30_sbom_docker_ce () 
+{ 
+    configure_docker_ce "$@";
+    ensure_sbom_format name $repo_name;
+    ensure_sbom_format gpg-key "$key_url";
+    ensure_sbom_format key-file "$key_file";
+    ensure_sbom_format apt-entry "$apt_entry";
+    ensure_sbom_format apt-file "$apt_file";
+    ensure_sbom_format pkg-list docker-ce docker-buildx-plugin docker-compose-plugin
 }
 debian_30_sbom_docker_io () 
 { 
@@ -3673,6 +3763,10 @@ debian_30_sbom_kernel_module_essential ()
 { 
     configure_kernel_module_essential_debian;
     ensure_sbom_format pkg-list ${install_pkgs[*]}
+}
+debian_30_sbom_libpcre2_dev () 
+{ 
+    ensure_sbom_format pkg-list libpcre2-dev
 }
 debian_30_sbom_make () 
 { 
@@ -3714,7 +3808,7 @@ debian_40_install_gpu_accel ()
 { 
     configure_gpu_accel "$@";
     if verify_gpu_accel && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Gpu drivers are already installed. Skipping...";
+        echo "Gpu drivers are installed." 1>&2;
     else
         ensure_prop set installed/gpu_accel/owned true;
         debian_40_remove_gpu_accel || true;
@@ -3731,8 +3825,9 @@ debian_40_install_libyang ()
 { 
     configure_libyang;
     if verify_libyang && [[ " $* " != *" --reinstall "* ]]; then
-        echo "libyang is installed. Skipping..." 1>&2;
+        echo "libyang is installed." 1>&2;
     else
+        configure_kernel_module_essential_debian "$@";
         ensure_git_export "$workspace" "$version" "$repository";
         mkdir "$workspace"/build;
         cd "$workspace"/build;
@@ -3751,7 +3846,7 @@ debian_40_install_npu_accel ()
 { 
     configure_npu_accel "$@";
     if verify_npu_accel && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Npu drivers are already installed. Skipping...";
+        echo "Npu drivers are installed." 1>&2;
     else
         ensure_prop set installed/npu_accel/owned true;
         debian_40_remove_npu_accel "$@";
@@ -3777,8 +3872,9 @@ debian_40_install_pcm ()
 { 
     configure_pcm;
     if verify_pcm && [[ " $* " != *" --reinstall "* ]]; then
-        echo "pcm is installed. Skipping";
+        echo "pcm is installed." 1>&2;
     else
+        configure_kernel_module_essential_debian "$@";
         ensure_git_export "$workspace" "$version" "$repository";
         rm -rf "$workspace"/tests "$workspace"/examples;
         mkdir "$workspace"/build "$workspace"/tests "$workspace"/examples;
@@ -3801,7 +3897,7 @@ debian_40_profile_gpu_accel ()
 }
 debian_40_profile_libyang () 
 { 
-    echo "git cmake make kernel_module_essential"
+    echo "git cmake make kernel_module_essential libpcre2_dev"
 }
 debian_40_profile_npu_accel () 
 { 
@@ -3861,11 +3957,95 @@ debian_40_sbom_software_properties_common ()
 { 
     ensure_sbom_format pkg-list software-properties-common
 }
+debian_45_install_cloud_image_utils () 
+{ 
+    ensure_apt_install_package cloud-image-utils
+}
+debian_45_install_libcap2_bin () 
+{ 
+    ensure_apt_install_package libcap2-bin
+}
+debian_45_install_memtester () 
+{ 
+    ensure_apt_install_package memtester
+}
+debian_45_install_ovmf () 
+{ 
+    ensure_apt_install_package ovmf
+}
+debian_45_install_pipx () 
+{ 
+    ensure_apt_install_package pipx
+}
+debian_45_install_qemu_system_x86 () 
+{ 
+    ensure_apt_install_package qemu-system-x86
+}
+debian_45_install_qemu_utils () 
+{ 
+    ensure_apt_install_package qemu-utils
+}
+debian_45_install_rt_tests () 
+{ 
+    ensure_apt_install_package rt-tests
+}
+debian_45_profile_pipx () 
+{ 
+    echo "python3_venv"
+}
+debian_45_remove_cloud_image_utils () 
+{ 
+    ensure_apt_remove_package cloud-image-utils
+}
+debian_45_remove_memtester () 
+{ 
+    ensure_apt_remove_package memtester
+}
+debian_45_remove_ovmf () 
+{ 
+    ensure_apt_remove_package ovmf
+}
+debian_45_remove_rt_tests () 
+{ 
+    ensure_apt_remove_package rt-tests
+}
+debian_45_sbom_cloud_image_utils () 
+{ 
+    ensure_sbom_format pkg-list cloud-image-utils
+}
+debian_45_sbom_libcap2_bin () 
+{ 
+    ensure_sbom_format pkg-list libcap2-bin
+}
+debian_45_sbom_memtester () 
+{ 
+    ensure_sbom_format pkg-list memtester
+}
+debian_45_sbom_ovmf () 
+{ 
+    ensure_sbom_format pkg-list ovmf
+}
+debian_45_sbom_pipx () 
+{ 
+    ensure_sbom_format pkg-list pipx
+}
+debian_45_sbom_qemu_system_x86 () 
+{ 
+    ensure_sbom_format pkg-list eqmu-system-x86
+}
+debian_45_sbom_qemu_utils () 
+{ 
+    ensure_sbom_format pkg-list qemu-utils
+}
+debian_45_sbom_rt_tests () 
+{ 
+    ensure_sbom_format pkg-list rt-tests
+}
 debian_50_install_ros2 () 
 { 
     configure_ros2;
     if verify_ros2 && [[ " $* " != *" --reinstall "* ]]; then
-        echo "ROS 2 $ros_distro is already installed. Skipping...";
+        echo "ROS 2 $ros_distro is installed." 1>&2;
     else
         configure_ros2_apt_source || return 1;
         ensure_prop set installed/ros2/owned true;
@@ -3883,10 +4063,24 @@ debian_50_install_ros2 ()
     echo "@@HIGHLIGHT ROS 2 $ros_distro @/opt/ros/$ros_distro";
     echo "@@HIGHLIGHT shell env @source /opt/ros/$ros_distro/setup.bash"
 }
+debian_50_install_uv () 
+{ 
+    configure_uv;
+    if uv --version 2> /dev/null && [[ " $* " != *" --reinstall "* ]]; then
+        echo "Uv is installed." 1>&2;
+    else
+        ensure_prop set installed/uv/owned true;
+        pipx install uv;
+    fi
+}
 debian_50_profile_ros2 () 
 { 
     echo "curl gnupg git software_properties_common lsb_release";
     [[ " $* " = *" --realtime "* ]] || echo "edge_base"
+}
+debian_50_profile_uv () 
+{ 
+    echo "pipx"
 }
 debian_50_remove_ros2 () 
 { 
@@ -3900,6 +4094,11 @@ debian_50_remove_ros2 ()
         echo "ROS 2 already removed. Skipping";
     fi
 }
+debian_50_remove_uv () 
+{ 
+    [ "$(ensure_prop get installed/uv/owned)" = "true" ] || return 0;
+    pipx uninstall uv
+}
 debian_50_sbom_ros2 () 
 { 
     configure_ros2 "$@";
@@ -3910,7 +4109,7 @@ debian_55_install_realsense ()
 { 
     configure_realsense;
     if verify_realsense && [[ " $* " != *" --reinstall "* ]]; then
-        echo "RealSense SDK is already installed. Skipping...";
+        echo "RealSense SDK is installed." 1>&2;
     else
         ensure_prop set installed/realsense/owned true;
         ensure_sudo mkdir -p /etc/apt/keyrings;
@@ -3925,7 +4124,7 @@ debian_55_install_ros_openvino ()
 { 
     configure_ros_openvino;
     if verify_ros_openvino && [[ " $* " != *" --reinstall "* ]]; then
-        echo "ROS 2 OpenVINO toolkit is already installed. Skipping...";
+        echo "ROS 2 OpenVINO toolkit is installed." 1>&2;
     else
         ensure_prop set installed/ros_openvino/owned true;
         ensure_sudo mkdir -p "$(dirname "$amr_key_file")";
@@ -4035,7 +4234,7 @@ debian_60_install_edge_node_infrastructure_blueprint ()
         return 1;
     fi;
     if verify_edge_node_infrastructure_blueprint && [[ " $* " != *" --reinstall "* ]]; then
-        echo "edge_node_infrastructure_blueprint ($deployment) already installed. Skipping";
+        echo "edge_node_infrastructure_blueprint ($deployment) is installed." 1>&2;
     else
         [ "$deployment" = k3s ] || uninstall_k3s_edge_node_infrastructure_blueprint;
         ensure_git_clone "$workspace" $version $repository;
@@ -4061,8 +4260,8 @@ debian_60_remove_edge_node_infrastructure_blueprint ()
 debian_70_install_edge_pack_media_ffmpeg () 
 { 
     configure_edge_pack_media_ffmpeg "$@";
-    if ensure_apt_is_installed intel-edge-media-ffmpeg=$version && [[ " $* " != *" --reinstall "* ]]; then
-        echo "intel-edge-media-ffmpeg already installed. Skipping" 1>&2;
+    if ensure_apt_is_installed intel-edge-media-ffmpeg && [[ " $* " != *" --reinstall "* ]]; then
+        echo "intel-edge-media-ffmpeg is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_media_ffmpeg/owned true;
         ensure_apt autoremove -y intel-edge-media-ffmpeg || true;
@@ -4072,8 +4271,8 @@ debian_70_install_edge_pack_media_ffmpeg ()
 debian_70_install_edge_pack_media_gst () 
 { 
     configure_edge_pack_media_gst "$@";
-    if ensure_apt_is_installed intel-edge-media-gst=$version && [[ " $* " != *" --reinstall "* ]]; then
-        echo "intel-edge-media-gst already installed. Skipping" 1>&2;
+    if ensure_apt_is_installed intel-edge-media-gst && [[ " $* " != *" --reinstall "* ]]; then
+        echo "intel-edge-media-gst is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_media_gst/owned true;
         ensure_apt autoremove -y intel-edge-media-gst || true;
@@ -4088,7 +4287,7 @@ debian_70_install_mediamtx ()
 { 
     configure_mediamtx;
     if [ -x "$bin_path/mediamtx" ] && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Mediamtx already installed. Skipping" 1>&2;
+        echo "Mediamtx is installed." 1>&2;
     else
         ensure_fetch "$repository" - | ensure_sudo tar xz -C "$bin_path" mediamtx;
         [ -x "$bin_path/mediamtx" ];
@@ -4100,38 +4299,30 @@ debian_70_install_nodejs ()
 }
 debian_70_install_openvino () 
 { 
-    configure_openvino $*;
+    configure_openvino "$@";
     if verify_openvino && [[ " $* " != *" --reinstall "* ]]; then
-        echo "openvino-${version} already installed. Skipping";
+        echo "openvino-${version} is installed." 1>&2;
     else
+        ensure_disk_size 1500;
+        ensure_prop set installed/openvino/owned true;
         debian_70_remove_openvino "$@";
         ensure_apt_key $key_file $key_url --dearmor;
         ensure_apt_source $apt_file "$apt_entry";
         ensure_apt update -y;
         ensure_apt install --no-install-recommends -y openvino-$version;
-        mkdir -p "$workspace";
-        python3 -m venv "$workspace"/.venv;
-        . "$workspace"/.venv/bin/activate;
-        pip install openvino-genai==${version};
+        verify_openvino;
         echo "openvino-${version} installed successfully.";
-        if [[ " $* " = *" --validate "* ]]; then
-            [ -e "$workspace"/${model##*/} ] || ensure_fetch "$model" "$workspace"/${model##*/};
-            for device in CPU GPU NPU;
-            do
-                echo "Validating ${model##*/} inferencing on $device...";
-                benchmark_app -t 5 -m "$workspace"/${model##*/} -d $device;
-            done;
-        fi;
     fi;
-    echo "@@HIGHLIGHT openvino-genai @$workspace/.venv";
+    test_openvino "$@";
     echo "@@HIGHLIGHT openvino samples @/usr/share/openvino"
 }
 debian_70_install_time_confighub () 
 { 
     configure_time_confighub;
     if verify_pcm && [[ " $* " != *" --reinstall "* ]]; then
-        echo "pcm is installed. Skipping";
+        echo "Time-Confighub is installed." 1>&2;
     else
+        configure_kernel_module_essential_debian "$@";
         ensure_git_export "$workspace" "$version" "$repository";
         cd "$workspace";
         chmod a+rx install.sh uninstall.sh;
@@ -4153,7 +4344,10 @@ debian_70_profile_mediamtx ()
 }
 debian_70_profile_openvino () 
 { 
-    echo "curl gnupg python3_venv edge_base"
+    echo "curl gnupg python3_venv edge_base";
+    if [[ " $* " = *" --validate "* ]]; then
+        echo "build_essential cmake";
+    fi
 }
 debian_70_profile_time_confighub () 
 { 
@@ -4171,12 +4365,21 @@ debian_70_remove_edge_pack_media_gst ()
     ensure_apt autoremove -y intel-edge-media-gst || true;
     debian_15_remove_edge_pack "$@" || true
 }
+debian_70_remove_ffmpeg () 
+{ 
+    ensure_apt_remove_package ffmpeg
+}
 debian_70_remove_mediamtx () 
 { 
     ensure_rm "$bin_path/mediamtx"
 }
+debian_70_remove_nodejs () 
+{ 
+    ensure_apt_remove_package nodejs
+}
 debian_70_remove_openvino () 
 { 
+    [ "$(ensure_prop get installed/openvino/owned)" = "true" ] || return 0;
     ensure_apt autoremove -m -y $(dpkg -l | grep openvino | awk '{print$2}') || true
 }
 debian_70_remove_time_confighub () 
@@ -4231,53 +4434,23 @@ debian_75_install_dlstreamer ()
 { 
     configure_dlstreamer;
     if verify_dlstreamer && [[ " $* " != *" --reinstall "* ]]; then
-        echo "dlstreamer-${version} already installed. Skipping";
+        echo "dlstreamer-${version} is installed." 1>&2;
     else
+        ensure_disk_size 15000;
+        ensure_prop set installed/dlstreamer/owned true;
         debian_75_remove_dlstreamer "$@";
         ensure_apt_key $key_file $key_url --dearmor;
         ensure_apt_source $list_file "$deb_entry";
         ensure_apt update -y;
         ensure_apt_allow_downgrades "${allow_downgrades[*]}" --no-install-recommends -y intel-dlstreamer=$version;
         ensure_apt install --allow-downgrades --no-install-recommends -y intel-dlstreamer=$version;
-        ensure_git_clone "$workspace" v$version $repository;
-        cd "$workspace";
-        python3 -m venv .venv;
-        . .venv/bin/activate;
-        pip install nncf==3.0.0 ultralytics==8.4.57;
+        verify_dlstreamer;
         echo "intel-dlstreamer=$version installed successfully.";
-        if [[ " $* " = *" --validate "* ]]; then
-            ( mkdir -p models/${od_model%/*};
-            ensure_fetch $model_repo/storage/$od_model.bin models/$od_model.bin;
-            ensure_fetch $model_repo/storage/$od_model.xml models/$od_model.xml;
-            ensure_fetch $model_repo/storage/${od_model_proc}.json models/$od_model.json );
-            ( mkdir -p models/${oc_model%/*};
-            ensure_fetch $model_repo/storage/$oc_model.bin models/$oc_model.bin;
-            ensure_fetch $model_repo/storage/$oc_model.xml models/$oc_model.xml );
-            set -o pipefail;
-            local -A device_map=([GPU]=/dev/dri/renderD128 [NPU]=/dev/accel/accel0);
-            . /opt/intel/dlstreamer/scripts/setup_dls_env.sh;
-            for device in ${!device_map[*]};
-            do
-                [ -e ${device_map[$device]} ] || continue;
-                echo "Validating $od_model and $oc_model on device $device...";
-                gst-launch-1.0 videotestsrc num-buffers=150 ! 'video/x-raw,format=BGRx,width=640,height=640' ! gvadetect model=models/$od_model.xml model_proc=models/$od_model.json device=$device ! gvainference model=models/$oc_model.xml device=$device ! gvafpscounter ! fakesink sync=false | ( info=0;
-                while IFS= read -r line; do
-                    echo "$line";
-                    case "$line" in 
-                        *"FpsCounter(last"*"sec): total="*)
-                            info=1
-                        ;;
-                    esac;
-                done;
-                [ $info -eq 1 ] );
-            done;
-        fi;
-        rm -rf .git;
     fi;
+    test_dlstreamer_pipeline "$@";
     echo "@@HIGHLIGHT shell env @/opt/intel/dlstreamer/scripts/setup_dls_env.sh";
     echo "@@HIGHLIGHT samples @/opt/intel/dlstreamer/samples";
-    echo "@@HIGHLIGHT optimizer @/opt/intel/dlstreamer/scripts/optimizer";
-    echo "@@HIGHLIGHT python venv @$workspace/.venv"
+    echo "@@HIGHLIGHT optimizer @/opt/intel/dlstreamer/scripts/optimizer"
 }
 debian_75_profile_dlstreamer () 
 { 
@@ -4285,7 +4458,10 @@ debian_75_profile_dlstreamer ()
 }
 debian_75_remove_dlstreamer () 
 { 
-    ensure_apt autoremove -m -y $(dpkg-query -l | awk '/^ii/&&/dlstreamer/{print$2}') || true
+    configure_dlstreamer;
+    [ "$(ensure_prop get installed/dlstreamer/owned)" = "true" ] || return 0;
+    ensure_apt autoremove -m -y $(dpkg-query -l | awk '/^ii/&&/dlstreamer/{print$2}') || true;
+    ensure_rm "$workspace"
 }
 debian_75_sbom_dlstreamer () 
 { 
@@ -4301,89 +4477,17 @@ debian_80_install_anomalib ()
 { 
     configure_anomalib $*;
     if verify_anomalib && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Anomalib already installed. Skipping";
+        echo "Anomalib is installed." 1>&2;
     else
-        ensure_disk_size 6000;
+        ensure_disk_size 15000;
         mkdir -p "$workspace";
         cd "$workspace";
         python3 -m venv .venv;
         . .venv/bin/activate;
         pip install "anomalib[openvino,cpu]==${version}";
-        if [[ " $* " = *" --validate "* ]]; then
-            mkdir -p test;
-            python3 -c '
-from pathlib import Path
-from PIL import Image
-from anomalib.data import Folder
-from anomalib.models import Padim
-from anomalib.engine import Engine
-from anomalib.deploy import ExportType, OpenVINOInferencer
-import sys
-
-def create_mock_dataset(dataset_path):
-  train_good = dataset_path / "train" / "good"
-  test_good = dataset_path / "test" / "good"
-  test_defect = dataset_path / "test" / "defect"
-  for d in [train_good, test_good, test_defect]:
-    d.mkdir(parents=True, exist_ok=True)
-  for i in range(5):
-    img = Image.new("RGB", (256, 256), color=(200, 200, 200))
-    img.save(train_good / f"normal_{i}.png")
-    if i < 2:
-      img.save(test_good / f"normal_test_{i}.png")
-  for i in range(2):
-    img = Image.new("RGB", (256, 256), color=(200, 200, 200))
-    for x in range(100, 150):
-      for y in range(100, 150):
-        img.putpixel((x, y), (50, 50, 50))  # Synthetic anomaly block
-    img.save(test_defect / f"defect_{i}.png")
-
-def test_anomalib_pipeline(root_path, dataset_path, device):
-  datamodule = Folder(
-    name="synthetic_test",
-    root=dataset_path,
-    normal_dir="train/good",
-    abnormal_dir="test/defect",
-    normal_test_dir="test/good",
-    train_batch_size=2,
-    eval_batch_size=2,
-  )
-  model = Padim()
-  engine = Engine(
-    default_root_dir=root_path / "results",
-    max_epochs=1,
-    accelerator="auto",
-    devices=1,
-  )
-  engine.fit(model=model, datamodule=datamodule)
-  test_results = engine.test(model=model, datamodule=datamodule)
-  assert test_results is not None, "Evaluation test results returned None."
-  export_dir = root_path / "export"
-  engine.export(
-    model=model,
-    export_type=ExportType.OPENVINO,
-    export_root=export_dir,
-    input_size=(256, 256),
-  )
-  model_xml_files = list(export_dir.glob("**/*.xml"))
-  assert len(model_xml_files) > 0, "OpenVINO model XML representation was not generated."
-  inferencer = OpenVINOInferencer(
-    path=model_xml_files[0],
-    device=device,
-  )
-  sample_image_path = dataset_path / "test" / "defect" / "defect_0.png"
-  prediction = inferencer.predict(str(sample_image_path))
-  assert prediction is not None, "Inference prediction failed."
-  assert hasattr(prediction, "pred_score") or hasattr(prediction, "anomaly_map"), "Prediction output missing anomaly score or map attributes."
-
-root_path = Path(sys.argv[1])
-dataset_path = root_path / "mock_dataset"
-create_mock_dataset(dataset_path)
-test_anomalib_pipeline(root_path, dataset_path, sys.argv[2])
-' test $(ensure_select_device "$@" | tr 'a-z' 'A-Z') && echo "Anomalib test passed.";
-            rm -rf test;
-        fi;
+        verify_anomalib;
     fi;
+    test_anomalib "$@";
     echo "@@HIGHLIGHT venv: $workspace/.venv"
 }
 debian_80_profile_anomalib () 
@@ -4399,8 +4503,9 @@ debian_85_install_esq ()
 { 
     configure_uv;
     if uv tool list 2> /dev/null | grep -q -E "^esq " && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Esq is already installed. Skipping...";
+        echo "Esq is installed." 1>&2;
     else
+        ensure_disk_size 25000;
         curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-system-qualification/refs/heads/main/scripts/system-setup.sh | ensure_sudo bash -s -- -f || true;
         curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-system-qualification/refs/heads/main/scripts/system-setup-advanced.sh | ensure_sudo bash -s -- -f || true;
         uv tool install --force --refresh git+https://github.com/open-edge-platform/edge-system-qualification.git@main;
@@ -4414,17 +4519,18 @@ debian_85_install_video_search_and_summarization ()
 { 
     configure_video_search_and_summarization "$@";
     if verify_video_search_and_summarization && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Video Search and Summarization is already installed. Skipping...";
+        echo "Video Search and Summarization is installed." 1>&2;
     else
+        ensure_ports_open "${used_ports[*]}" docker rm -f vss-model-download || true;
         ensure_ports_open "${used_ports[*]}" return 3;
         ensure_disk_size 8000;
         ensure_git_export "$workspace" $version $repository sample-applications/video-search-and-summarization;
         configure_video_search_and_summarization_gated;
         cd "$workspace"/sample-applications/video-search-and-summarization;
         sed -i "s|export HOST_IP=.*|export HOST_IP=$(ensure_ip)|" setup.sh;
-        sed -i 's|FINAL_ARG=.*|FINAL_ARG="${FINAL_ARG:-up -d}"|' setup.sh;
-        export FINAL_ARG=pull;
-        . ./setup.sh --search-and-summary;
+        sed 's|FINAL_ARG=.*|FINAL_ARG="pull --ignore-pull-failures"|' setup.sh > .setup.sh;
+        sed -i 's|"Unified Summarization/Search UI is now available.*"|""|' .setup.sh;
+        . ./.setup.sh --search-and-summary;
         verify_video_search_and_summarization;
     fi;
     local device=$(ensure_select_device "$@");
@@ -4434,7 +4540,7 @@ debian_85_install_video_search_and_summarization ()
 }
 debian_85_profile_esq () 
 { 
-    echo "curl git libgl1 make docker_io uv edge_base openvino dlstreamer"
+    echo "curl git libgl1 make docker_io uv edge_base openvino dlstreamer libcap2_bin memtester qemu_system_x86 qemu_utils cloud_image_utils ovmf rt_tests"
 }
 debian_85_profile_video_search_and_summarization () 
 { 
@@ -4445,7 +4551,7 @@ debian_85_remove_esq ()
     configure_uv;
     configure_esq;
     esq clean --all || true;
-    uv tool uninstall --force esq || true;
+    uv tool uninstall esq || true;
     ensure_rm "$workspace"
 }
 debian_85_remove_video_search_and_summarization () 
@@ -4472,7 +4578,6 @@ debian_85_start_video_search_and_summarization ()
     ensure_ports_open "${used_ports[*]}" debian_85_stop_video_search_and_summarization $*;
     configure_video_search_and_summarization_gated;
     cd "$workspace"/sample-applications/video-search-and-summarization;
-    export FINAL_ARG=;
     . ./setup.sh --search-and-summary;
     echo "@@HIGHLIGHT URL: http://$(ensure_ip):${APP_HOST_PORT}";
     echo "@@HIGHLIGHT stop|remove"
@@ -4480,6 +4585,7 @@ debian_85_start_video_search_and_summarization ()
 debian_85_stop_video_search_and_summarization () 
 { 
     configure_video_search_and_summarization "$@" || true;
+    docker rm -f vss-model-download || true;
     cd "$workspace"/sample-applications/video-search-and-summarization && { 
         . ./setup.sh --stop || true;
         . ./setup.sh --clean-data
@@ -4489,10 +4595,10 @@ debian_90_install_agentic_predictive_maintenance_pipeline ()
 { 
     configure_agentic_predictive_maintenance_pipeline;
     if verify_agentic_predictive_maintenance_pipeline && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Agentic Predictive Maintenance Pipeline already installed. Skipping" 1>&2;
+        echo "Agentic Predictive Maintenance Pipeline is installed." 1>&2;
     else
         ensure_ports_open "${used_ports[*]}" return 3;
-        ensure_disk_size 60;
+        ensure_disk_size 15000;
         ensure_git_export "$workspace" "$version" "$repository" agentic-predictive-maintenance-pipeline;
         cd "$workspace"/agentic-predictive-maintenance-pipeline/apps/pipeline-defect-detection;
         sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env_pipeline-defect-detection;
@@ -4512,10 +4618,10 @@ debian_90_install_agentic_smart_community ()
 { 
     configure_agentic_smart_community;
     if verify_agentic_smart_community && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Agentic Smart Community already installed. Skipping" 1>&2;
+        echo "Agentic Smart Community is installed." 1>&2;
     else
         ensure_ports_open "${used_ports[*]}" return 3;
-        ensure_disk_size 128000;
+        ensure_disk_size 2000;
         ensure_ram_size 65011712 33554432;
         ensure_git_export "$workspace" "$version" "$repository" agentic-smart-community;
         mkdir -p "${mlvu_workspace%/*}";
@@ -4529,10 +4635,10 @@ debian_90_install_autonomous_mobile_robot ()
 { 
     configure_autonomous_mobile_robot "$@";
     if verify_autonomous_mobile_robot "$@" && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Autonomous Mobile Robot is already installed. Skipping...";
+        echo "Autonomous Mobile Robot is installed." 1>&2;
     else
-        ensure_prop set installed/autonomous_mobile_robot/owned true;
         ensure_disk_size $([[ "$amr_sdk_pkg" = *complete ]] && echo 40000 || echo 15000);
+        ensure_prop set installed/autonomous_mobile_robot/owned true;
         ensure_oneapi_ros_openvino;
         ensure_apt update -y;
         ensure_osrf_gazebo_ros2;
@@ -4555,10 +4661,10 @@ debian_90_install_dine_in ()
 { 
     configure_dine_in;
     if verify_dine_in && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Order accuracy is already installed. Skipping";
+        echo "Order accuracy is installed." 1>&2;
     else
         ensure_ports_open "${ports[*]}" return 3;
-        ensure_disk_size 10000;
+        ensure_disk_size 45000;
         ensure_git_clone "$workspace" $version $repository;
         cd "$workspace"/dine-in;
         make init-env;
@@ -4577,24 +4683,16 @@ debian_90_install_dine_in ()
 }
 debian_90_install_geti () 
 { 
-    configure_geti "$@";
-    if verify_geti && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Geti already installed. Skipping.";
-    else
-        ensure_ports_open "$port" return 3;
-        ensure_disk_size 40000;
-        ensure_ram_size 16777216;
-        docker pull $image_name;
-    fi
+    install_geti "$@"
 }
 debian_90_install_handheld_multi_modal () 
 { 
     configure_handheld_multi_modal;
     if verify_handheld_multi_modal $* && [[ " $* " != *" --reinstall "* ]]; then
-        echo "handheld_multi_modal already installed. Skipping";
+        echo "handheld_multi_modal is installed." 1>&2;
     else
         ensure_ports_open "${used_ports[*]}" return 3;
-        ensure_disk_size 300;
+        ensure_disk_size 45000;
         ensure_git_clone "$workspace" $version $repository handheld-multi-modal;
         cd "$workspace"/handheld-multi-modal;
         make setup;
@@ -4611,7 +4709,7 @@ debian_90_install_humanoid_imitation_learning ()
 { 
     configure_humanoid_imitation_learning "$@";
     if verify_humanoid_imitation_learning "$@" && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Humanoid - Imitation Learning is already installed. Skipping...";
+        echo "Humanoid - Imitation Learning is installed." 1>&2;
     else
         ensure_disk_size 25000;
         if ! verify_humanoid_imitation_learning_workspace || [[ " $* " = *" --reinstall "* ]]; then
@@ -4644,7 +4742,7 @@ debian_90_install_image_based_video_search ()
 { 
     configure_image_based_video_search "$@";
     if verify_image_based_video_search && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Video Search and Summarization is already installed. Skipping...";
+        echo "Video Search and Summarization is installed." 1>&2;
     else
         ensure_ports_open "${used_ports[*]}" return 3;
         ensure_disk_size 8000;
@@ -4680,10 +4778,10 @@ debian_90_install_live_video_alert_agent ()
 { 
     configure_live_video_alert_agent;
     if verify_live_video_alert_agent && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Live Video Alert Agent is already installed. Skipping";
+        echo "Live Video Alert Agent is installed." 1>&2;
     else
         ensure_ports_open "${used_ports[*]}" return 3;
-        ensure_disk_size 64000;
+        ensure_disk_size 15000;
         ensure_git_clone "$workspace" $version $repository live-video-analysis/live-video-alert-agent;
         verify_live_video_alert_agent;
     fi;
@@ -4697,10 +4795,10 @@ debian_90_install_live_video_captioning ()
 { 
     configure_live_video_captioning;
     if verify_live_video_captioning && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Live Video Captioning is already installed. Skipping";
+        echo "Live Video Captioning is installed." 1>&2;
     else
         ensure_ports_open "${used_ports[*]}" return 3;
-        ensure_disk_size 64000;
+        ensure_disk_size 10000;
         ensure_git_clone "$workspace" $version $repository live-video-analysis/live-video-captioning;
         export -n socks_server ftp_proxy;
         cd "$workspace/live-video-analysis/live-video-captioning";
@@ -4720,10 +4818,10 @@ debian_90_install_live_video_captioning_rag ()
 { 
     configure_live_video_captioning_rag;
     if verify_live_video_captioning_rag && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Live Video Captioning RAG is already installed. Skipping";
+        echo "Live Video Captioning RAG is installed." 1>&2;
     else
         ensure_ports_open "${used_ports[*]}" return 3;
-        ensure_disk_size 64000;
+        ensure_disk_size 20000;
         ensure_git_clone "$workspace" $version $repository live-video-analysis/live-video-captioning live-video-analysis/live-video-captioning-rag;
         export -n socks_server ftp_proxy;
         cd "$workspace/live-video-analysis/live-video-captioning-rag";
@@ -4744,10 +4842,10 @@ debian_90_install_live_video_search ()
 { 
     configure_live_video_search;
     if verify_live_video_search && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Live Video Search is already installed. Skipping";
+        echo "Live Video Search is installed." 1>&2;
     else
         ensure_ports_open "${used_ports[*]}" return 3;
-        ensure_disk_size 64000;
+        ensure_disk_size 25000;
         ensure_git_clone "$workspace" $version $repository live-video-analysis/live-video-search;
         verify_live_video_search;
     fi;
@@ -4760,10 +4858,10 @@ debian_90_install_loitering_detection ()
 { 
     configure_loitering_detection;
     if verify_loitering_detection && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Loitering detection is already installed. Skipping";
+        echo "Loitering detection is installed." 1>&2;
     else
         ensure_ports_open "${used_ports[*]}" return 3;
-        ensure_disk_size 280;
+        ensure_disk_size 10000;
         ensure_git_export "$workspace" $version $repository metro-vision-ai-app-recipe;
         cd "$workspace/metro-vision-ai-app-recipe";
         sed -i 's|curl |curl -f |' loitering-detection/install.sh;
@@ -4780,9 +4878,9 @@ debian_90_install_loss_prevention ()
 { 
     configure_loss_prevention;
     if verify_loss_prevention && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Loss prevention is already installed. Skipping";
+        echo "Loss prevention is installed." 1>&2;
     else
-        ensure_disk_size 300;
+        ensure_disk_size 15000;
         ensure_git_clone "$workspace" $version $repository;
         pushd "$workspace" > /dev/null;
         cat > src/.env <<EOF
@@ -4827,10 +4925,10 @@ debian_90_install_multimodal_weld_defect_detection ()
 { 
     configure_multimodal_weld_defect_detection;
     if verify_multimodal_weld_defect_detection && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Multimodal weld defect detection is already installed. Skipping";
+        echo "Multimodal weld defect detection is installed." 1>&2;
     else
         ensure_ports_open "${used_ports[*]}" return 3;
-        ensure_disk_size 64000;
+        ensure_disk_size 15000;
         ensure_ram_size 16777216;
         ensure_git_export "$workspace" "$version" "$repository" industrial-edge-insights-multimodal;
         cd "$workspace"/industrial-edge-insights-multimodal;
@@ -4854,10 +4952,10 @@ debian_90_install_nicu_warmer ()
 { 
     configure_nicu_warmer $*;
     if verify_nicu_warmer && [[ " $* " != *" --reinstall "* ]]; then
-        echo "NICU Warmer is already installed. Skipping" 1>&2;
+        echo "NICU Warmer is installed." 1>&2;
     else
         ensure_ports_open "${used_ports[*]}" return 3;
-        ensure_disk_size 160;
+        ensure_disk_size 15000;
         ensure_git_clone "$workspace" $version $repository NICU-Warmer;
         cd "$workspace"/NICU-Warmer;
         sed -i 's|decodebin3 ! .*|decodebin3|' configs/res/all-gpu.env;
@@ -4884,10 +4982,10 @@ debian_90_install_pallet_defect_detection ()
 { 
     configure_pallet_defect_detection;
     if verify_pallet_defect_detection && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Pallet defect detection is already installed. Skipping";
+        echo "Pallet defect detection is installed." 1>&2;
     else
         ensure_ports_open "${used_ports[*]}" return 3;
-        ensure_disk_size 50;
+        ensure_disk_size 10000;
         ensure_git_export "$workspace" $version $repository industrial-edge-insights-vision;
         cd "$workspace"/industrial-edge-insights-vision;
         cat > .env <<EOF
@@ -4917,10 +5015,10 @@ debian_90_install_pcb_anomaly_detection ()
 { 
     configure_pcb_anomaly_detection;
     if verify_pcb_anomaly_detection && [[ " $* " != *" --reinstall "* ]]; then
-        echo "PCB anomaly detection is already installed. Skipping";
+        echo "PCB anomaly detection is installed." 1>&2;
     else
         ensure_ports_open "${used_ports[*]}" return 3;
-        ensure_disk_size 60;
+        ensure_disk_size 10000;
         ensure_git_export "$workspace" $version $repository industrial-edge-insights-vision;
         cd "$workspace/industrial-edge-insights-vision";
         cat > .env <<EOF
@@ -4952,7 +5050,7 @@ debian_90_install_physical_ai_framework ()
     configure_physical_ai_framework_device "$@";
     configure_uv;
     if verify_physical_ai_framework "$@" && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Physical AI Framework is already installed. Skipping...";
+        echo "Physical AI Framework is installed." 1>&2;
     else
         ensure_disk_size 15000;
         ensure_rm "$paif_venv" "$paif_device_file";
@@ -4995,7 +5093,7 @@ debian_90_install_physical_ai_studio ()
     configure_physical_ai_studio_device "$@";
     configure_uv;
     if verify_physical_ai_studio "$@" && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Physical AI Studio is already installed. Skipping...";
+        echo "Physical AI Studio is installed." 1>&2;
     else
         ensure_disk_size 20000;
         debian_90_stop_physical_ai_studio "$@" || true;
@@ -5019,7 +5117,7 @@ debian_90_install_post_fusion ()
 { 
     configure_post_fusion "$@";
     if verify_post_fusion && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Sensor Fusion for Traffic Management - Post Fusion is installed. Skipping" 1>&2;
+        echo "Sensor Fusion for Traffic Management - Post Fusion is installed." 1>&2;
     else
         ensure_disk_size 300;
         ensure_git_export "$workspace" "$version" "$repository" sensor-fusion-for-traffic-management/post-fusion;
@@ -5044,7 +5142,7 @@ debian_90_install_real_time_scene_understanding ()
 { 
     configure_real_time_scene_understanding;
     if verify_real_time_scene_understanding && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Live Video Captioning is already installed. Skipping";
+        echo "Live Video Captioning is installed." 1>&2;
     else
         ensure_ports_open "${used_ports[*]}" return 3;
         ensure_disk_size 64000;
@@ -5068,7 +5166,7 @@ debian_90_install_scenescape ()
 { 
     configure_scenescape;
     if verify_scenescape && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Scenescape already installed. Skipping" 1>&2;
+        echo "Scenescape is installed." 1>&2;
     else
         ensure_disk_size 300;
         ensure_git_export "$workspace" "$version" "$repository";
@@ -5082,7 +5180,7 @@ debian_90_install_smart_intersection ()
 { 
     configure_smart_intersection;
     if verify_smart_intersection && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Smart intersection is already installed. Skipping";
+        echo "Smart intersection is installed." 1>&2;
     else
         ensure_ports_open "${used_ports[*]}" return 3;
         ensure_disk_size 1500;
@@ -5103,7 +5201,7 @@ debian_90_install_smart_kiosk_assistant ()
 { 
     configure_smart_kiosk_assistant;
     if verify_smart_kiosk_assistant && [[ " $* " = *" --reinstall "* ]]; then
-        echo "Smart Kiosk Assistant is installed. Skipping" 1>&2;
+        echo "Smart Kiosk Assistant is installed." 1>&2;
     else
         ensure_ports_open "${used_ports[*]}" debian_90_remove_smart_kiosk_assistant "$@";
         ensure_disk_size 300;
@@ -5131,7 +5229,7 @@ debian_90_install_smart_nvr ()
 { 
     configure_smart_nvr "$@";
     if verify_smart_nvr && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Smart NVR is already installed. Skipping" 1>&2;
+        echo "Smart NVR is installed." 1>&2;
     else
         ensure_ports_open "${used_ports[*]}" return 3;
         ensure_disk_size 3000;
@@ -5144,7 +5242,7 @@ debian_90_install_smart_parking ()
 { 
     configure_smart_parking;
     if verify_smart_parking && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Smart parking is already installed. Skipping...";
+        echo "Smart parking is installed." 1>&2;
     else
         ensure_ports_open "${used_ports[*]}" return 3;
         ensure_disk_size 300;
@@ -5165,7 +5263,7 @@ debian_90_install_smart_traffic_intersection_agent ()
 { 
     configure_smart_traffic_intersection_agent "$@";
     if verify_smart_traffic_intersection_agent && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Smart Traffic Intersection Agent is already installed. Skipping" 1>&2;
+        echo "Smart Traffic Intersection Agent is installed." 1>&2;
     else
         ensure_disk_size 16000;
         ensure_ram_size 52428800;
@@ -5187,10 +5285,10 @@ debian_90_install_stationary_robot_vision ()
 { 
     configure_stationary_robot_vision;
     if verify_stationary_robot_vision && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Stationary Robot Vision & Control is already installed. Skipping...";
+        echo "Stationary Robot Vision & Control is installed." 1>&2;
     else
-        ensure_prop set installed/stationary_robot_vision/owned true;
         ensure_disk_size 15000;
+        ensure_prop set installed/stationary_robot_vision/owned true;
         ensure_oneapi_ros_openvino;
         ensure_apt update -y;
         ensure_osrf_gazebo_ros2;
@@ -5209,7 +5307,7 @@ debian_90_install_take_away ()
 { 
     configure_take_away;
     if verify_take_away && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Order accuracy Take Away is already installed. Skipping";
+        echo "Order accuracy Take Away is installed." 1>&2;
     else
         ensure_ports_open "${used_ports[*]}" return 3;
         ensure_disk_size 10000;
@@ -5235,7 +5333,7 @@ debian_90_install_uav_mission_compute_sdk ()
 { 
     configure_uav_mission_compute_sdk;
     if verify_uav_mission_compute_sdk && [[ " $* " != *" --reinstall "* ]]; then
-        echo "UAV mission compute sdk is already installed. Skipping..." 1>&2;
+        echo "UAV mission compute sdk is installed." 1>&2;
     else
         ensure_ports_open "${used_ports[*]}" return 3;
         ensure_git_export "$workspace" "$version" "$repository" uav-mission-compute-sdk;
@@ -5306,7 +5404,7 @@ debian_90_install_vippet ()
 { 
     configure_vippet;
     if verify_vippet && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Vipet is already installed. Skipping...";
+        echo "Vipet is installed." 1>&2;
     else
         ensure_git_clone "$workspace" $version $repository tools/visual-pipeline-and-platform-evaluation-tool;
         cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool";
@@ -5318,7 +5416,7 @@ debian_90_install_visual_search_question_and_answering ()
 { 
     configure_visual_search_question_and_answering "$@";
     if verify_visual_search_question_and_answering && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Visual search question and answering is already installed. Skipping...";
+        echo "Visual search question and answering is installed." 1>&2;
     else
         ensure_disk_size 8000;
         ensure_ports_open "${used_ports[*]}" return 3;
@@ -5326,7 +5424,14 @@ debian_90_install_visual_search_question_and_answering ()
         cd "$workspace"/visual-search-question-and-answering/deployment/docker-compose;
         sed -i -e "s|^host_ip=.*|host_ip=$(ensure_ip)|" -e "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" env.sh;
         sed -i "s|^export HOST_DATA_PATH=.*|export HOST_DATA_PATH=\"$HOST_DATA_PATH\"|" env.sh;
+        echo "Fetch $(basename "$demo_dataset")...";
         mkdir -p "$HOST_DATA_PATH";
+        ensure_fetch "$demo_dataset" "$HOST_DATA_PATH"/$(basename "$demo_dataset");
+        docker run --rm --group-add $(id -g) -v "${HOST_DATA_PATH}":/home/user/data:rw ${REGISTRY}dataprep-visualdata-milvus:${TAG} python example/example_utils.py -d DAVIS || { 
+            echo "failed to process demo dataset" 1>&2;
+            return 3
+        };
+        ensure_rm "$HOST_DATA_PATH"/$(basename "$demo_dataset");
         verify_visual_search_question_and_answering;
     fi;
     local device=$(ensure_select_device "$@");
@@ -5338,7 +5443,7 @@ debian_90_install_wind_turbine_anomaly_detection ()
 { 
     configure_wind_turbine_anomaly_detection;
     if verify_wind_turbine_anomaly_detection && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Wind turbine anomaly detection already installed. Skipping..." 1>&2;
+        echo "Wind turbine anomaly detection is installed." 1>&2;
     else
         ensure_disk_size 64000;
         ensure_ram_size 16777216;
@@ -5475,7 +5580,7 @@ debian_90_profile_smart_intersection ()
 }
 debian_90_profile_smart_kiosk_assistant () 
 { 
-    echo "docker_io make edge_base"
+    echo "docker_io make edge_base python3_venv"
 }
 debian_90_profile_smart_nvr () 
 { 
@@ -5511,7 +5616,7 @@ debian_90_profile_vippet ()
 }
 debian_90_profile_visual_search_question_and_answering () 
 { 
-    echo "git curl gawk python3_venv edge_base docker_io"
+    echo "git curl gawk python3_venv edge_base docker_io unzip"
 }
 debian_90_profile_wind_turbine_anomaly_detection () 
 { 
@@ -5546,8 +5651,7 @@ debian_90_remove_dine_in ()
 }
 debian_90_remove_geti () 
 { 
-    debian_90_stop_geti "$@";
-    docker image rm -f $image_name || true
+    remove_geti "$@"
 }
 debian_90_remove_handheld_multi_modal () 
 { 
@@ -5791,12 +5895,7 @@ debian_90_start_dine_in ()
 }
 debian_90_start_geti () 
 { 
-    configure_geti "$@";
-    ensure_ports_open "$port" debian_90_stop_geti;
-    mkdir -p "$workspace"/geti-data;
-    docker run --rm --name geti-app -d -v "$workspace"/geti-data:/application/data:rw -e HOST=0.0.0.0 -e PORT=$port -p $port:$port -e http_proxy -e https_proxy -e no_proxy -e HTTP_PROXY -e HTTPS_PROXY -e NO_PROXY --device /dev/dri:/dev/dri --group-add $(getent group render | cut -d: -f3) --group-add $(id -g) --shm-size 8g $image_name;
-    echo "@@HIGHLIGHT URL: http://$(ensure_ip):$port";
-    echo "@@HIGHLIGHT workspace: $workspace/geti-data"
+    start_geti "$@"
 }
 debian_90_start_handheld_multi_modal () 
 { 
@@ -6249,16 +6348,6 @@ debian_90_start_visual_search_question_and_answering ()
     docker compose -f compose_milvus.yaml up -d;
     echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}";
     echo "@@HIGHLIGHT $installer_name stop|remove";
-    if [ ! -e "$HOST_DATA_PATH"/DAVIS/subset ]; then
-        echo "Fetching demo dataset";
-        local cids=($(docker ps -a --filter "status=running" -q | xargs -r docker inspect --format '{{.Config.Image}} {{.Id}}' | grep "dataprep-visualdata-milvus" | awk '{print $2}'));
-        [ "${#cids[*]}" -gt 0 ] || { 
-            echo "No milvus containers found" 1>&2;
-            return 1
-        };
-        docker exec ${cids[0]} python example/example_utils.py -d DAVIS;
-        [ -d "$HOST_DATA_PATH"/DAVIS/subset ];
-    fi;
     echo "@@HIGHLIGHT dataset: $HOST_DATA_PATH/DAVIS/subset"
 }
 debian_90_start_wind_turbine_anomaly_detection () 
@@ -6347,12 +6436,11 @@ debian_90_stop_agentic_smart_community ()
 debian_90_stop_dine_in () 
 { 
     configure_dine_in "$@";
-    cd "$workspace"/dine-in && make down || true
+    cd "$workspace"/dine-in && make clean || true
 }
 debian_90_stop_geti () 
 { 
-    configure_geti "$@";
-    docker rm -f geti-app || true
+    stop_geti "$@"
 }
 debian_90_stop_handheld_multi_modal () 
 { 
@@ -6505,7 +6593,7 @@ debian_90_stop_smart_traffic_intersection_agent ()
 debian_90_stop_take_away () 
 { 
     configure_take_away "$@";
-    cd "$workspace"/take-away && make down || true
+    cd "$workspace"/take-away && make clean || true
 }
 debian_90_stop_uav_mission_compute_sdk () 
 { 
@@ -6533,7 +6621,11 @@ debian_90_stop_vippet ()
 debian_90_stop_visual_search_question_and_answering () 
 { 
     configure_visual_search_question_and_answering "$@";
-    cd "$workspace"/visual-search-question-and-answering/deployment/docker-compose && . ./env.sh && docker compose -f compose_milvus.yaml down -v --remove-orphans || true
+    cd "$workspace"/visual-search-question-and-answering/deployment/docker-compose && { 
+        . ./env.sh || true;
+        docker compose -f compose_milvus.yaml down -v --remove-orphans
+    } || true;
+    docker volume rm -f ov-models || true
 }
 debian_90_stop_wind_turbine_anomaly_detection () 
 { 
@@ -6655,9 +6747,11 @@ flag&&$1{for(i=1;i<=NF;i++)print$i}
 }
 ensure_apt_install_package () 
 { 
+    local module="${1%%=*}";
     if ensure_apt_is_installed "${@%%"*"}"; then
-        echo "${*%%=*} is/are already installed. Skipping...";
+        echo "${*%%=*} $([ ${#*} -eq 1 ] && echo is || echo are) installed." 1>&2;
     else
+        ensure_prop set installed/${module//[^a-zA-Z0-9]/_}/owned true;
         ensure_apt update;
         ensure_apt install --no-install-recommends -y "$@";
     fi
@@ -6699,6 +6793,12 @@ ensure_apt_preference ()
         echo "$line";
     done | ensure_sudo tee "$pref_file" > /dev/null
 }
+ensure_apt_remove_package () 
+{ 
+    local module="${1%%=*}";
+    [ "$(ensure_prop get installed/${module//[^a-zA-Z0-9]/_}/owned)" = "true" ] || return 0;
+    ensure_apt autoremove -y "$@"
+}
 ensure_apt_source () 
 { 
     local list_file=$1;
@@ -6726,6 +6826,7 @@ ensure_columns ()
 import sys,re
 ansi_re = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]|\033\[[0-9;]*[a-zA-Z]")
 rows=[line.strip().split(sys.argv[1]) for line in sys.stdin]
+if not rows: sys.exit(0)
 cols=max(len(r) for r in rows)
 widths=[max((len(ansi_re.sub("",r[c])) for r in rows if c < len(r)-1),default=0) for c in range(cols-1)]
 for r in rows:
@@ -7002,14 +7103,17 @@ ensure_project_path ()
 }
 ensure_prop () 
 { 
-    local op=$1 key_path=$2 value=${3:-};
+    local op=$1 key_path=$2 value="${3:-}";
     local f="$(ensure_project_path)/${installer_name:?}/${key_path:?}";
     case "$op" in 
         set)
-            printf '%s' "$value" > "$f"
+            mkdir -p "$(dirname "$f")" && printf '%s' "$value" > "$f"
         ;;
         get)
             [ -r "$f" ] && cat "$f" || printf '%s' "$value"
+        ;;
+        remove)
+            [ ! -r "$f" ] || rm -f "$f"
         ;;
     esac
 }
@@ -7058,12 +7162,12 @@ ensure_sbom_format ()
     local key=$1;
     shift;
     case "$key" in 
-        pkg-list | apt-pref)
-            IFS='|';
+        pkg-list | apt-pref | yum-repo-conf)
+            local IFS='|';
             local pkg_str="$*";
             echo "\"$key\": [\"${pkg_str//'|'/\",\"}\"]"
         ;;
-        name | gpg-key | key-file | apt-source | apt-src-source | apt-list-file | apt-pref-file | apt-repository)
+        name | gpg-key | key-file | apt-source | apt-src-source | apt-list-file | apt-pref-file | apt-repository | yum-repo-file)
             echo "\"$key\": \"$*\""
         ;;
         *)
@@ -7089,10 +7193,30 @@ ensure_sudo ()
     [ -z "$hp" ] || proxy_args+=("http_proxy=$hp" "HTTP_PROXY=$hp");
     [ -z "$sp" ] || proxy_args+=("https_proxy=$sp" "HTTPS_PROXY=$sp");
     [ -z "$np" ] || proxy_args+=("no_proxy=$np" "NO_PROXY=$np");
+    if [ -e /dev/tty ] && : < /dev/tty 2> /dev/null; then
+        local ppid=$$;
+        local pid="$(ensure_prop get pids/sudo/pid$ppid)";
+        if [ -z "$pid" ] || ! kill -0 "$pid" 2> /dev/null; then
+            ( set +e;
+            trap - ERR EXIT INT TERM;
+            for fd in /proc/$BASHPID/fd/*;
+            do
+                fd=${fd##*/};
+                (( fd > 2 )) && eval "exec $fd>&-";
+            done 2> /dev/null;
+            while kill -0 $ppid 2> /dev/null; do
+                sleep 60;
+                sudo -n -v 2> /dev/null || break;
+            done;
+            ensure_prop remove pids/sudo/pid$ppid ) < /dev/null > /dev/null 2>&1 & pid=$!;
+            ensure_prop set pids/sudo/pid$ppid "$pid";
+            disown $pid;
+        fi;
+    fi;
     if sudo -n true 2> /dev/null; then
         sudo env "${proxy_args[@]}" "$@";
     else
-        if [ -t 0 ] && [ -z "$SUDO_PASSWORD" ]; then
+        if [ -t 0 ] && [ -z "$SUDO_PASSWORD" ] && [ -z "$_INSTALLER_PANEL_ACTIVE" ]; then
             sudo env "${proxy_args[@]}" "$@";
         else
             local rundir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}";
@@ -7163,6 +7287,23 @@ ensure_trap ()
         fi;
     done
 }
+install_geti () 
+{ 
+    configure_geti "$@";
+    if verify_geti && [[ " $* " != *" --reinstall "* ]]; then
+        echo "Geti is installed." 1>&2;
+    else
+        ensure_ports_open "$port" docker rm -f geti-app || true;
+        ensure_ports_open "$port" return 3;
+        ensure_disk_size 20000;
+        docker pull $image_name;
+    fi
+}
+remove_geti () 
+{ 
+    stop_geti "$@";
+    docker image rm -f $image_name || true
+}
 remove_oneapi_ros_openvino () 
 { 
     configure_oneapi_ros_openvino;
@@ -7197,6 +7338,20 @@ sbom_osrf_gazebo_ros2 ()
     ensure_sbom_format apt-source "$osrf_entry";
     ensure_sbom_format apt-list-file "$osrf_list";
     ensure_sbom_format pkg-list curl lsb-release gnupg $([ "$ros_distro" != jazzy ] || echo gz-harmonic)
+}
+start_geti () 
+{ 
+    configure_geti "$@";
+    ensure_ports_open "$port" stop_geti;
+    mkdir -p "$workspace"/geti-data;
+    docker run --rm --name geti-app -d -v "$workspace"/geti-data:/application/data:rw -e HOST=0.0.0.0 -e PORT=$port -p $port:$port -e http_proxy -e https_proxy -e no_proxy -e HTTP_PROXY -e HTTPS_PROXY -e NO_PROXY $([ ! -d /dev/dri ] || echo "--device /dev/dri:/dev/dri") --group-add $(getent group render | cut -d: -f3 || echo 992) --group-add $(id -g) --shm-size 8g $image_name;
+    echo "@@HIGHLIGHT URL: http://$(ensure_ip):$port";
+    echo "@@HIGHLIGHT workspace: $workspace/geti-data"
+}
+stop_geti () 
+{ 
+    configure_geti "$@";
+    docker rm -f geti-app || true
 }
 subcommand_install () 
 { 
@@ -7243,77 +7398,104 @@ subcommand_install ()
 }
 subcommand_list () 
 { 
-    [[ " $* " != *" --help "* ]] || return;
-    echo "Mapping profiles and components..." 1>&2;
-    local all_cmds=(${_act_cache_cmds[*]});
-    act_get prefix profile_;
-    local all_profiles=(${_act_reply[*]});
-    local all_modules=(${_act_cache_modules[*]});
-    local profile_lines=() module_lines=();
-    local -A module_act_cache=();
-    if [ ${#all_modules[@]} -gt 0 ]; then
-        local module_name;
-        for module_name in ${all_modules[*]};
-        do
-            local module_cmds=() mname cmd;
-            for cmd in ${all_cmds[*]};
+    case " $* " in 
+        *" --help "*)
+            echo "list options:";
+            echo "  --sbom          show component SBOM items";
+            echo
+        ;;
+        *" --sbom "*)
+            if [ ${#*} -eq 1 ]; then
+                act_get prefix profile_;
+                local all_profiles=(${_act_reply[*]});
+                local all_modules=(${_act_cache_modules[*]});
+                set -- ${all_modules[*]} ${all_profiles[*]#*_*_*_};
+            fi;
+            local handles=($(act_find_deps install $(act_resolve_args install "$@")));
+            local all_install_modules="${handles[*]#${installer_family}_*_install_}";
+            local handler sbomer;
+            for handler in $(printf '%s\n' "${handles[@]}" | sort);
             do
-                for mname in $(act_expand_modules $cmd $module_name "$@");
+                sbomer=${handler/_install_/_sbom_};
+                declare -F $sbomer > /dev/null 2>&1 || continue;
+                $sbomer $(act_extract_args sbom ${handler#*_*_*_} "$all_install_modules" "$@");
+                echo "---";
+            done
+        ;;
+        *)
+            local all_cmds=(${_act_cache_cmds[*]});
+            act_get prefix profile_;
+            local all_profiles=(${_act_reply[*]});
+            local all_modules=(${_act_cache_modules[*]});
+            local profile_lines=() module_lines=();
+            local -A module_act_cache=();
+            if [ ${#all_modules[@]} -gt 0 ]; then
+                local module_name;
+                for module_name in "${all_modules[@]}";
                 do
-                    if [[ -v _act_cache_functions[${cmd}_${mname}] ]]; then
-                        module_cmds+=($cmd);
-                        break;
-                    fi;
-                done;
-            done;
-            module_act_cache[$module_name]="${module_cmds[*]}";
-            module_lines+=("|$module_name|[${module_act_cache[$module_name]}]");
-        done;
-    fi;
-    if [ ${#all_profiles[@]} -gt 0 ]; then
-        local profiler;
-        for profiler in ${all_profiles[*]};
-        do
-            local profile_name=${profiler#*_*_*_};
-            [[ " ${all_modules[*]} " != *" $profile_name "* ]] || continue;
-            local profile_cmds=() mname1 mname2 cmd found;
-            for cmd in ${all_cmds[*]};
-            do
-                for mname1 in $($profiler $cmd "$@");
-                do
-                    if [[ " ${module_act_cache[$mname1]:-} " = *" $cmd "* ]]; then
-                        profile_cmds+=($cmd);
-                        break;
-                    fi;
-                    found=0;
-                    for mname2 in $(act_expand_modules $cmd $mname1 "$@");
+                    [ ${#*} -eq 0 ] || [[ " $* " = *" $module_name "* ]] || continue;
+                    local module_cmds=() mname cmd;
+                    for cmd in ${all_cmds[*]};
                     do
-                        if [[ -v _act_cache_functions[${cmd}_${mname2}] ]]; then
-                            found=1;
-                            break;
-                        fi;
+                        for mname in $(act_expand_modules $cmd $module_name "$@");
+                        do
+                            if [[ -v _act_cache_functions[${cmd}_${mname}] ]]; then
+                                module_cmds+=($cmd);
+                                break;
+                            fi;
+                        done;
                     done;
-                    if [ $found -eq 1 ]; then
-                        profile_cmds+=($cmd);
-                        break;
-                    fi;
+                    module_act_cache[$module_name]="${module_cmds[*]}";
+                    module_lines+=("|$module_name|[${module_act_cache[$module_name]}]");
                 done;
-            done;
-            profile_lines+=("|$profile_name|[${profile_cmds[*]}]");
-        done;
-    fi;
-    { 
-        if [ ${#profile_lines[@]} -gt 0 ]; then
-            printf "List of Profiles:\n";
-            printf "%s\n" "${profile_lines[@]}" | sort;
-            printf "\n";
-        fi;
-        if [ ${#module_lines[@]} -gt 0 ]; then
-            printf "List of Components:\n";
-            printf "%s\n" "${module_lines[@]}" | sort;
-            printf "\n";
-        fi
-    } | ensure_columns
+            fi;
+            if [ ${#all_profiles[@]} -gt 0 ]; then
+                local profiler;
+                for profiler in "${all_profiles[@]}";
+                do
+                    local profile_name=${profiler#*_*_*_};
+                    [ ${#*} -eq 0 ] || [[ " $* " = *" $profile_name "* ]] || continue;
+                    [[ " ${all_modules[*]} " != *" $profile_name "* ]] || continue;
+                    local profile_cmds=() mname1 mname2 cmd found;
+                    for cmd in ${all_cmds[*]};
+                    do
+                        for mname1 in $($profiler $cmd "$@");
+                        do
+                            if [[ " ${module_act_cache[$mname1]:-} " = *" $cmd "* ]]; then
+                                profile_cmds+=($cmd);
+                                break;
+                            fi;
+                            found=0;
+                            for mname2 in $(act_expand_modules $cmd $mname1 "$@");
+                            do
+                                if [[ -v _act_cache_functions[${cmd}_${mname2}] ]]; then
+                                    found=1;
+                                    break;
+                                fi;
+                            done;
+                            if [ $found -eq 1 ]; then
+                                profile_cmds+=($cmd);
+                                break;
+                            fi;
+                        done;
+                    done;
+                    profile_lines+=("|$profile_name|[${profile_cmds[*]}]");
+                done;
+            fi;
+            { 
+                if [ ${#profile_lines[@]} -gt 0 ]; then
+                    printf "List of Profiles:\n";
+                    printf "%s\n" "${profile_lines[@]}" | sort;
+                    printf "\n";
+                fi;
+                if [ ${#module_lines[@]} -gt 0 ]; then
+                    printf "List of Components:\n";
+                    printf "%s\n" "${module_lines[@]}" | sort;
+                    printf "\n";
+                fi
+            } | ensure_columns
+        ;;
+    esac
 }
 subcommand_remove () 
 { 
@@ -7327,29 +7509,15 @@ subcommand_remove ()
     fi;
     act_helper "remove,Removal,Removing,Removed" "-r" "$@"
 }
-subcommand_sbom () 
-{ 
-    [[ " $* " != *" --help "* ]] || return;
-    local handles=($(act_find_deps install $(act_resolve_args install "$@")));
-    local all_install_modules="${handles[*]#${ID_LIKE}_*_install_}";
-    local handler sbomer;
-    for handler in $(printf '%s\n' "${handles[@]}" | sort);
-    do
-        sbomer=${handler/_install_/_sbom_};
-        declare -F $sbomer > /dev/null 2>&1 || continue;
-        $sbomer $(act_extract_args sbom ${handler#*_*_*_} "$all_install_modules" "$@");
-        echo "---";
-    done
-}
 subcommand_setup () 
 { 
     [[ " $* " != *" --help "* ]] || return;
-    local installer_misc_functions=(remove_oneapi_ros_openvino remove_osrf_gazebo_ros2 sbom_oneapi_ros_openvino sbom_osrf_gazebo_ros2 system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary uninstall_k3s_edge_node_infrastructure_blueprint);
+    local installer_misc_functions=(install_geti remove_geti remove_oneapi_ros_openvino remove_osrf_gazebo_ros2 sbom_oneapi_ros_openvino sbom_osrf_gazebo_ros2 start_geti stop_geti system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary system_scan_summary_report test_anomalib test_dlstreamer_pipeline test_openvino uninstall_k3s_edge_node_infrastructure_blueprint);
     mkdir -p "$(dirname "$installer_bin")";
     cat > "$installer_bin" <<EOF
 #!/bin/bash
 $(declare -f ${installer_misc_functions[*]})
-$(declare -f $(declare -F | grep -v '^declare -fx' | grep -E " (${ID_LIKE}_[0-9]+_|ensure_|act_|verify_|configure_|subcommand_|main$)" | cut -f3 -d' ' | tr '\n' ' '))
+$(declare -f $(declare -F | grep -v '^declare -fx' | grep -E " (${installer_family}_[0-9]+_|ensure_|act_|verify_|configure_|subcommand_|main$)" | cut -f3 -d' ' | tr '\n' ' '))
 main "\$@"
 EOF
 
@@ -7418,10 +7586,23 @@ EOF
 }
 subcommand_start () 
 { 
+    if [[ " $* " = *" --help "* ]]; then
+        echo "start options:";
+        echo "  --dry-run       dry-run operations";
+        echo "  --continue      ignore errors and proceed to the end";
+        echo;
+        return 0;
+    fi;
     act_helper "start,Start,Starting,Started" "" "$@"
 }
 subcommand_stop () 
 { 
+    if [[ " $* " = *" --help "* ]]; then
+        echo "stop options:";
+        echo "  --dry-run       dry-run operations";
+        echo;
+        return 0;
+    fi;
     act_helper "stop,Stop,Stopping,Stopped" "-r" "$@" --continue
 }
 system_scan_check_cpu_instructions () 
@@ -7451,7 +7632,11 @@ system_scan_check_docker ()
 }
 system_scan_check_membank () 
 { 
-    local dmi_out="$(ensure_sudo dmidecode -t memory 2> /dev/null)";
+    local dmi_out="$(ensure_prop get installed/pre_system_scan/membank)";
+    [ -n "$dmi_out" ] || { 
+        dmi_out="$(ensure_sudo dmidecode -t memory 2> /dev/null)";
+        [ -z "$dmi_out" ] || ensure_prop set installed/pre_system_scan/membank "$dmi_out"
+    };
     local installed_modules=();
     mapfile -t installed_modules < <(echo "$dmi_out" | awk -v in_dev=0 '
     /^Memory Device$/ {
@@ -7551,6 +7736,253 @@ system_scan_get_system_summary ()
     [[ "$meminfo" != *mB ]] || meminfo="$(( ${meminfo%mB} / 1024 ))GB";
     echo "$cpuinfo · $coreinfo · $meminfo RAM"
 }
+system_scan_summary_report () 
+{ 
+    set -o pipefail;
+    ( echo "----------------------------------------------------------------";
+    ok="${green}✓  PASS${reset}";
+    nok="${red}⚠  MSG${reset}";
+    system_summary="$(system_scan_get_system_summary)";
+    echo "System|$system_summary";
+    pass=$ok;
+    membank_info="$(system_scan_check_membank)";
+    [ "$membank_info" = "DUAL/MULTI-CHANNELS" ] || pass="${nok/MSG/Check Memory}";
+    echo -e "RAM|$membank_info|$pass";
+    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT RAM|$membank_info|$pass" 1>&2;
+    case "$PRETTY_NAME" in 
+        *"24.04"* | *"26.04"* | *"Red Hat Enterprise"*)
+            pass=$ok
+        ;;
+        *)
+            pass="${nok/MSG/Not supported}"
+        ;;
+    esac;
+    echo -e "OS|$PRETTY_NAME|$pass";
+    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT OS|$PRETTY_NAME|$pass" 1>&2;
+    pass=$ok;
+    docker_ver="$(system_scan_check_docker)";
+    [[ "$docker_ver" = *Compose* ]] || pass="${nok/MSG/Missing Docker Compose}";
+    [ -n "$docker_ver" ] || pass="${nok} Missing Docker";
+    echo -e "Docker|$docker_ver|$pass";
+    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT Docker|$docker_ver|$pass" 1>&2;
+    net_pass=$ok;
+    net_access="$(system_scan_check_network_access)";
+    [[ "$net_access" = *reachable* ]] || net_pass="${nok/MSG/Check Proxies}";
+    echo -e "Network|$net_access|$net_pass";
+    [ "$net_pass" = "$ok" ] || echo -e "@@HIGHLIGHT Network|$net_access|$net_pass" 1>&2;
+    echo;
+    echo "Accelerators:";
+    pass=$ok;
+    cpuinst_info="$(system_scan_check_cpu_instructions)";
+    [[ "$cpuinst_info" != *Missing* ]] || pass="${nok/MSG/Check CPU}";
+    echo -e "CPU|$cpuinst_info|$pass";
+    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT CPU|$cpuinst_info|$pass";
+    for accel in $(lspci -d 8086::0300 -n | cut -f3 -d' ');
+    do
+        pass=$ok;
+        accel_info="$(system_scan_check_pci_device $accel "Intel Integrated Graphics")";
+        if [ -n "$accel_info" ]; then
+            [[ "$accel_info" = *driver* ]] || pass="${nok/MSG/Missing Driver}";
+            echo -e "GPU|$accel_info|$pass";
+            [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT GPU|$accel_info|$pass" 1>&2;
+        fi;
+    done;
+    for accel in $(lspci -d 8086::1200 -n | cut -f3 -d' ');
+    do
+        pass=$ok;
+        accel_info="$(system_scan_check_pci_device $accel "Intel AI Boost")";
+        if [ -n "$accel_info" ]; then
+            [[ "$accel_info" = *driver* ]] || pass="${nok/MSG/Missing Driver}";
+            echo -e "NPU|$accel_info|$pass";
+            [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT NPU|$accel_info|$pass" 1>&2;
+        fi;
+    done;
+    echo "----------------------------------------------------------------";
+    [ "$net_pass" = "$ok" ] ) | ensure_columns
+}
+test_anomalib () 
+{ 
+    if [[ " $* " = *" --validate "* ]]; then
+        . "$workspace"/.venv/bin/activate;
+        ensure_rm "$workspace"/test;
+        mkdir -p "$workspace"/test;
+        cd "$workspace"/test;
+        local validated=();
+        local -A device_map=([CPU]=/proc/cpuinfo [GPU]=/dev/dri/renderD128);
+        for device in ${!device_map[*]};
+        do
+            [ -e ${device_map[$device]} ] || continue;
+            echo "Validating anomalib on device $device...";
+            PYTHONWARNINGS=ignore python3 -c '
+import sys
+import os
+import logging
+import warnings
+warnings.filterwarnings("ignore")
+logging.disable(logging.WARNING)
+from pathlib import Path
+from PIL import Image
+from anomalib.data import Folder
+from anomalib.models import Padim
+from anomalib.engine import Engine
+from anomalib.deploy import ExportType, OpenVINOInferencer
+from anomalib.data.utils import ValSplitMode
+
+def create_mock_dataset(dataset_path):
+  train_good = dataset_path / "train" / "good"
+  test_good = dataset_path / "test" / "good"
+  test_defect = dataset_path / "test" / "defect"
+  for d in [train_good, test_good, test_defect]:
+    d.mkdir(parents=True, exist_ok=True)
+  for i in range(5):
+    img = Image.new("RGB", (256, 256), color=(200, 200, 200))
+    img.save(train_good / f"normal_{i}.png")
+    if i < 2:
+      img.save(test_good / f"normal_test_{i}.png")
+  for i in range(2):
+    img = Image.new("RGB", (256, 256), color=(200, 200, 200))
+    for x in range(100, 150):
+      for y in range(100, 150):
+        img.putpixel((x, y), (50, 50, 50))  # Synthetic anomaly block
+    img.save(test_defect / f"defect_{i}.png")
+
+def test_anomalib_pipeline(dataset_path, device):
+  datamodule = Folder(
+    name="synthetic_test",
+    root=dataset_path,
+    normal_dir="train/good",
+    abnormal_dir="test/defect",
+    normal_test_dir="test/good",
+    train_batch_size=2,
+    eval_batch_size=2,
+    val_split_mode=ValSplitMode.SAME_AS_TEST,
+  )
+  model = Padim()
+  engine = Engine(
+    default_root_dir="results",
+    max_epochs=1,
+    accelerator="auto",
+    devices=1,
+  )
+  engine.fit(model=model, datamodule=datamodule)
+  test_results = engine.test(model=model, datamodule=datamodule)
+  assert test_results is not None, "Evaluation test results returned None."
+  assert "image_AUROC" in test_results[0]
+  export_dir = Path("export")
+  engine.export(
+    model=model,
+    export_type=ExportType.OPENVINO,
+    export_root=export_dir,
+    input_size=(256, 256),
+  )
+  model_xml_files = list(export_dir.glob("**/*.xml"))
+  assert len(model_xml_files) > 0, "OpenVINO model XML representation was not generated."
+  inferencer = OpenVINOInferencer(
+    path=model_xml_files[0],
+    device=device,
+  )
+  sample_image_path = dataset_path / "test" / "defect" / "defect_0.png"
+  prediction = inferencer.predict(str(sample_image_path))
+  assert prediction is not None, "Inference prediction failed."
+  assert hasattr(prediction, "pred_score") or hasattr(prediction, "anomaly_map"), "Prediction output missing anomaly score or map attributes."
+
+dataset_path = Path("mock_dataset")
+create_mock_dataset(dataset_path)
+test_anomalib_pipeline(dataset_path, sys.argv[1])
+' $device && validated+=("$device ok") || validated+=("$device failed");
+        done;
+        echo "@@HIGHLIGHT Validation: ${validated[*]}";
+        [[ "${validated[*]}" != *failed* ]] || return 3;
+    fi
+}
+test_dlstreamer_pipeline () 
+{ 
+    if [[ " $* " = *" --validate "* ]]; then
+        mkdir -p "$workspace";
+        cd "$workspace";
+        { 
+            mkdir -p models/${od_model%/*};
+            [ -e models/$od_model.bin ] || ensure_fetch $model_repo/storage/$od_model.bin models/$od_model.bin || { 
+                echo "Failed to download $models/$od_model.bin" 1>&2;
+                return 3
+            };
+            [ -e models/$od_model.xml ] || ensure_fetch $model_repo/storage/$od_model.xml models/$od_model.xml || { 
+                echo "Failed to download models/$od_model.xml" 1>&2;
+                return 3
+            };
+            [ -e models/$od_model.json ] || ensure_fetch $model_repo/storage/${od_model_proc}.json models/$od_model.json || { 
+                echo "Failed to download models/$od_model.json" 1>&2;
+                return 3
+            }
+        };
+        { 
+            mkdir -p models/${oc_model%/*};
+            [ -e models/$oc_model.bin ] || ensure_fetch $model_repo/storage/$oc_model.bin models/$oc_model.bin || { 
+                echo "Failed to download models/$oc_model.bin" 1>&2;
+                return 3
+            };
+            [ -e models/$oc_model.xml ] || ensure_fetch $model_repo/storage/$oc_model.xml models/$oc_model.xml || { 
+                echo "Failed to download models/$oc_model.xml" 1>&2;
+                return 3
+            }
+        };
+        . /opt/intel/dlstreamer/scripts/setup_dls_env.sh || return 3;
+        local validated=();
+        local -A device_map=([CPU]=/proc/cpuinfo [GPU]=/dev/dri/renderD128 [NPU]=/dev/accel/accel0);
+        for device in ${!device_map[*]};
+        do
+            [ -e ${device_map[$device]} ] || continue;
+            echo "Validating $od_model and $oc_model on device $device...";
+            ( set -o pipefail;
+            gst-launch-1.0 videotestsrc num-buffers=150 ! 'video/x-raw,format=BGRx,width=640,height=640' ! gvadetect model=models/$od_model.xml model_proc=models/$od_model.json device=$device ! gvainference model=models/$oc_model.xml device=$device ! gvafpscounter ! fakesink sync=false | ( info=0;
+            while IFS= read -r line; do
+                echo "$line";
+                case "$line" in 
+                    *"FpsCounter(last"*"sec): total="*)
+                        info=1
+                    ;;
+                esac;
+            done;
+            [ $info -eq 1 ] || exit 3 ) ) && validated+=("$device ok") || validated+=("$device failed");
+        done;
+        echo "@@HIGHLIGHT Validation: ${validated[*]}";
+        [[ " ${validated[*]} " != *failed* ]] || return 3;
+    fi
+}
+test_openvino () 
+{ 
+    if [[ " $* " = *" --validate "* ]]; then
+        [ -r "$workspace"/${model##*/} ] || { 
+            mkdir -p "$workspace";
+            ensure_fetch "$model" "$workspace"/${model##*/} || { 
+                echo "Failed to fetch ${model##*/}" 1>&2;
+                return 3
+            }
+        };
+        local benchmark_app="$(find "$workspace" -type f -name benchmark_app -perm -u+x || true)";
+        [ -x "$benchmark_app" ] || { 
+            mkdir -p "$workspace"/benchmark_app;
+            cd "$workspace"/benchmark_app;
+            cmake -S /usr/share/openvino/samples/cpp -B . -DCMAKE_BUILD_TYPE=Release;
+            cmake --build . --target benchmark_app -j;
+            benchmark_app="$(find "$workspace" -type f -name benchmark_app -perm -u+x || true)";
+            [ -x "$benchmark_app" ] || { 
+                echo "Failed to build benchmark_app" 1>&2;
+                return 3
+            }
+        };
+        local validated=();
+        local -A device_map=([CPU]=/proc/cpuinfo [GPU]=/dev/dri/renderD128 [NPU]=/dev/accel/accel0);
+        for device in ${!device_map[*]};
+        do
+            [ -e ${device_map[$device]} ] || continue;
+            echo "Validating ${model##*/} inferencing on $device...";
+            "$benchmark_app" -t 5 -m "$workspace"/${model##*/} -d $device --cache_dir "$workspace"/cache && validated+=("$device ok") || validated+=("$device failed");
+        done;
+        echo "@@HIGHLIGHT Validation: ${validated[*]}";
+        [[ " ${validated[*]} " != *failed* ]] || return 3;
+    fi
+}
 uninstall_k3s_edge_node_infrastructure_blueprint () 
 { 
     [ "$installed_deployment" = k3s ] || return 0;
@@ -7582,8 +8014,7 @@ verify_agentic_smart_community ()
 verify_anomalib () 
 { 
     [ -r "$workspace"/.venv/bin/activate ] || return 1;
-    . "$workspace"/.venv/bin/activate;
-    python3 -c "import anomalib; assert anomalib.__version__ == '$version'"
+    . "$workspace"/.venv/bin/activate && python3 -c "import anomalib; assert anomalib.__version__ == '$version'"
 }
 verify_autonomous_mobile_robot () 
 { 
@@ -7596,11 +8027,7 @@ verify_dine_in ()
 }
 verify_dlstreamer () 
 { 
-    ensure_apt_is_installed intel-dlstreamer | grep -q -F ${version} > /dev/null 2>&1 || return 1;
-    [ -r "$workspace/.venv/bin/activate" ] || return 1;
-    cd "$workspace";
-    . .venv/bin/activate;
-    pip show ultralytics nncf
+    ensure_apt_is_installed intel-dlstreamer=${version} || return 1
 }
 verify_edge_node_infrastructure_blueprint () 
 { 
@@ -7714,10 +8141,7 @@ verify_npu_accel_packages ()
 }
 verify_openvino () 
 { 
-    ensure_apt_is_installed openvino-${version} || return 1;
-    [ -r "$workspace"/.venv/bin/activate ] || return 1;
-    . "$workspace"/.venv/bin/activate;
-    pip show openvino-genai 2> /dev/null | grep -q -F ${version}
+    ensure_apt_is_installed openvino-${version} || return 1
 }
 verify_pallet_defect_detection () 
 { 
@@ -7910,7 +8334,14 @@ verify_vippet ()
 }
 verify_visual_search_question_and_answering () 
 { 
-    [ -r "$workspace" ]
+    [ -r "$workspace" ] || { 
+        echo "Missing $workspace" 1>&2;
+        return 1
+    };
+    [ -d "$HOST_DATA_PATH"/DAVIS/subset ] || { 
+        echo "Missing demo dataset" 1>&2;
+        return 1
+    }
 }
 verify_wind_turbine_anomaly_detection () 
 { 

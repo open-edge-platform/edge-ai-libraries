@@ -29,12 +29,12 @@ debian_90_profile_live_video_captioning () {
 debian_90_install_live_video_captioning () {
   configure_live_video_captioning
   if verify_live_video_captioning && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Live Video Captioning is already installed. Skipping"
+    echo "Live Video Captioning is installed." >&2
   else
     ensure_ports_open "${used_ports[*]}" return 3
 
     # clone the repository
-    ensure_disk_size 64000
+    ensure_disk_size 10000
     ensure_git_clone "$workspace" $version $repository live-video-analysis/live-video-captioning
     export -n socks_server ftp_proxy
 

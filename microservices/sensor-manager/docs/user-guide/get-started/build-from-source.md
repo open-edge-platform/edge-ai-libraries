@@ -31,7 +31,7 @@ make coverage   # tests with coverage report in coverage/
 make lint       # ruff check and format check
 ```
 
-## Update the dlstreamer.onvif Library
+## Update the `dlstreamer.onvif` Library
 
 The library is pinned to a DL Streamer commit in `pyproject.toml`
 (`[tool.uv.sources] intel-dlstreamer`). To update it, change `rev` to the new commit SHA, run

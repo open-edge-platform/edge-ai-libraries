@@ -29,7 +29,7 @@ debian_90_profile_real_time_scene_understanding () {
 debian_90_install_real_time_scene_understanding () {
   configure_real_time_scene_understanding
   if verify_real_time_scene_understanding && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Live Video Captioning is already installed. Skipping"
+    echo "Live Video Captioning is installed." >&2
   else
     ensure_ports_open "${used_ports[*]}" return 3
 
