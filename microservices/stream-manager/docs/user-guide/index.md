@@ -46,10 +46,16 @@ API docs: http://localhost:49173/docs/v1/index.html
 ## Documentation
 
 - [Get Started](get-started.md): Run the application as a container.
-- [Build From Source](build-from-source.md): Build and run on a host or as a container image.
 - [Configuration](configuration.md): All `config.json` settings and their defaults.
 - [API Reference](api-docs/api-reference.md): All REST API endpoints.
+- [Build From Source](build-from-source.md): Build and run on a host or as a container image.
 
+## Third-party Sources
+
+Stream Manager includes FFmpeg and other third-party libraries.
+A separate source image is provided which contains source archives, license notices,
+and build records. See [Third-Party Sources](third-party-sources.md)
+to learn how to access this source image and the bundled source code files.
 
 
 <!--hide_directive

@@ -66,11 +66,22 @@ Build the image:
 make docker-build
 ```
 
-The default image is `intel/stream-manager:latest`. To use a different image name or tag:
+The default image is `intel/stream-manager:latest`. To use a different image name or tag. For example:
 
 ```bash
-make docker-build IMAGE=my-registry/stream-manager:v1.2.3
+make docker-build IMAGE=my-registry/stream-manager:v1-dev
 ```
+
+> [!NOTE]
+> The image contains FFmpeg license files, notices, version information, and
+> checksums in `/usr/share/licenses/ffmpeg/`.
+> The image keeps the base image's license files in `/usr/share/common-licenses/`
+> and `/usr/share/doc/`.
+
+> [!IMPORTANT]
+> The third-party source archives are provided in a separate source image.
+> See [Third-Party Sources](third-party-sources.md) for instructions to copy the
+> FFmpeg, its dependencies, and base image source files.
 
 Run the image you built, or a published image you already have:
 

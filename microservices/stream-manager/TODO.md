@@ -42,10 +42,12 @@ Items are listed roughly in order of priority.
 - [ ] Make the derived media TTL (fixed 15 min for replay frames and clips) configurable via `config.json`
 - [ ] Add a cleanup job that deletes expired derived media in `<recording-dir>/derived/` and expired recordings with all their derived media. A recording's `expiry_ts` always wins: when the recording expires, its derived items are deleted with it even if their own TTL has not run out
 - [ ] Decide whether `PUT /streams/{stream-id}/buffer` should reject resizing a stream that is in `failed` state, or whether resizing an already-failed stream's buffer should keep succeeding as it does today
+- [ ] Should recording IDs be prefixed with `rec-` as stream IDs are prefixed with `str-`?
 
 ## Research/Exploration
 - [x] Weigh in tradeoffs of using random UUIDs as primary key in the database - should UUIDv7 be used or a shorter UUID or incremental int prefixed to UUIDs.
 - [x] Analyse tradeoffs of using distroless/scratch base image for the container - whether its even feasible or practical for our use case.
+- [ ] Should the retrieval (replay APIs) of clip and frame be supported while the recording is ongoing - and not `finalized` or `ready` yet.
 - [ ] Evaluate S3-compatible storage tradeoffs for video recordings, especially open recordings and real-time ingestion
 - [ ] Evaluate whether fMP4 or another format can reduce MPEG-TS storage overhead while retaining its robustness
 - [ ] Evaluate WebM instead of MP4 as the default Replay API clip format to use fully open-source codecs
@@ -58,7 +60,9 @@ Items are listed roughly in order of priority.
 - [x] Update OpenAPI specs error response and error codes to be inline with actual implementation.
 - [x] Fix incorrect examples for /clip and /frame endpoints in OpenAPI specs.
 - [ ] MPEG-TS (and also other alternative fMP4) are unseekable. Cut clips are seekable (MP4). Analyze whether this is a prospective issue.
-- [ ] Debug - (intermittent) not disk space left issue in docker container while buffering.
+- [ ] Debug - (intermittent) "no space left on device" issue in docker container while buffering.
+- [ ] API Best Practices: /clip and /clip/url (similarly /frame and /frame/url) - Not following the best practice for resource retrieval and URL-based access.
+- [ ] Confusing `content_type` field in /clip and /frame endpoints.
 
 # Deferred
 

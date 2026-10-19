@@ -41,6 +41,13 @@ docker stop stream-manager
 ## Documentation
 
 - [Get Started](docs/user-guide/get-started.md): Run the application as a container.
-- [Build From Source](docs/user-guide/build-from-source.md): Build and run on a host or as a container image.
 - [Configuration](docs/user-guide/configuration.md): All `config.json` settings and their defaults.
 - [API Reference](docs/user-guide/api-docs/api-reference.md): All REST API endpoints.
+- [Build From Source](docs/user-guide/build-from-source.md): Build and run on a host or as a container image.
+
+## Third-party Sources
+
+Stream Manager includes FFmpeg and other third-party libraries.
+A separate source image is provided which contains source archives, license notices,
+and build records. See [Third-Party Sources](docs/user-guide/third-party-sources.md)
+to learn how to access this source image and the bundled source code files.
