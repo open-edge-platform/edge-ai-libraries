@@ -13,7 +13,8 @@ All endpoints return JSON unless noted. Error responses use the `DataPrepRespons
 ## `GET /health`
 
 Liveness probe. Also reports the active service configuration (embedding model
-and device, detection model, vector DB and storage backends, default bucket) so a
+and device, detection model, vector DB and storage backends, default bucket,
+live-stream counts by state) so a
 client can display what the service is running without a separate info call. The
 configured fields are always present; `embedding_client_status` additionally
 reports whether the in-process embedding client has been preloaded.
@@ -34,7 +35,9 @@ reports whether the in-process embedding client has been preloaded.
       "vectordb_backend": "milvus",
       "vectordb_status": "ok",
       "storage_backend": "minio",
-      "default_bucket_name": "video-summary"
+      "default_bucket_name": "video-summary",
+      "live_streams_enabled": true,
+      "live_streams": {"running": 2, "error": 1, "total": 3}
   }
   ```
 
@@ -611,7 +614,19 @@ request, so only files inside the mount can ever be served.
 | ------------- | ------- | -------- | ------- | ------------------------------------------------------------------------------------ |
 | `video_id`    | string  | Yes      | —       | Video directory (ID) containing the video to download.                               |
 | `bucket_name` | string  | No       | config  | Storage bucket. Falls back to the application default bucket.                        |
+| `media_path`  | string  | No       | —       | Relative path of a specific object **within** `video_id`, e.g. `segments/1790655530.mp4`. Required to address live-stream media, which is stored one or more levels below the stream prefix. |
 | `download`    | boolean | No       | `false` | Set to `true` to send `Content-Disposition: attachment` (force download).            |
+
+`media_path` is resolved strictly inside the `video_id` prefix: it must be
+relative, use `/` as the separator, contain no `..` segment, and be at most four
+components deep. Anything else is rejected with `400`. When it is supplied the
+object must exist at exactly that path — the endpoint does not fall back to
+picking some other file from the directory.
+
+This is how a retrieval hit on a live camera is played back: a live embedding's
+`video_url` has the form `<bucket>/<stream_id>/segments/<epoch>.mp4`, which maps
+to `bucket_name=<bucket>`, `video_id=<stream_id>`, and
+`media_path=segments/<epoch>.mp4`.
 
 **Request Headers:**
 
@@ -649,7 +664,129 @@ curl -O "http://localhost:8000/v1/dataprep/media/download?video_id=video-dir-001
 # Request a byte range (seek) — returns 206 Partial Content
 curl -H "Range: bytes=0-1023" \
   "http://localhost:8000/v1/dataprep/media/download?video_id=video-dir-001"
+
+# Play back a recorded live-stream segment
+curl -O "http://localhost:8000/v1/dataprep/media/download\
+?bucket_name=live-streams&video_id=<stream_id>&media_path=segments/1790655530.mp4"
 ```
+
+## `GET /media/frame`
+
+Extract **one frame** from already-stored media and return it as JPEG bytes (or
+base64 inside JSON). The frame is decoded on demand and **never written back to
+storage**, so this endpoint adds no persistent footprint.
+
+The endpoint is deliberately **query-agnostic**: it addresses a frame purely by
+location + time (+ an optional crop box). The search service (`search-ms`)
+already decides *which* frame matters — e.g. the peak-scoring frame of a ranked
+segment — and emits its address under `best_frame_info`. A downstream consumer
+(a VLM re-verification agent, the UI) then fetches the pixels here.
+
+**Typical agent flow**
+
+1. Run a search. Each result segment carries `best_frame_info` (see the field
+   glossary below) identifying the peak frame.
+2. Call `GET /media/frame` with those values to fetch that exact frame.
+
+**Query Parameters:**
+
+| Parameter     | Type    | Required | Default | Description                                                                                                   |
+| ------------- | ------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------- |
+| `video_id`    | string  | Yes      | —       | Uploaded `video_id` or live `stream_id`.                                                                       |
+| `timestamp`   | float   | Yes      | —       | Seconds from the start of the **addressed media** (see note). Pass `best_frame_info.timestamp`.               |
+| `bucket_name` | string  | No       | config  | Bucket/top-level directory holding the media. Falls back to the configured default bucket.                    |
+| `media_path`  | string  | No       | —       | Relative object path within `video_id`, e.g. `segments/1790655530.mp4`. **Required for live-stream frames.**   |
+| `variant`     | string  | No       | `full`  | `full` returns the whole frame; `crop` returns the `crop_bbox` region (a detected object).                    |
+| `crop_bbox`   | string  | No       | —       | Pixel box `x1,y1,x2,y2` for `variant=crop`. Pass `best_frame_info.crop_bbox`. Ignored when `variant=full`.      |
+| `format`      | string  | No       | `image` | `image` returns raw `image/jpeg`; `json` returns base64 + metadata.                                           |
+| `quality`     | integer | No       | `90`    | Output JPEG quality, 1-100.                                                                                    |
+
+**`timestamp` semantics.** `timestamp` is always *seconds into the object you
+addressed*. For an uploaded video that is the position within the file. For a
+live stream it is the offset **within the segment** named by `media_path` — which
+is exactly what `best_frame_info.timestamp` carries, so no conversion is needed.
+Use `best_frame_info.timestamp` (the peak/anchor frame), **not** `seek_timestamp`
+(which search-ms rewinds a few seconds earlier only to give the UI playback
+context).
+
+The nearest decodable frame at or after `timestamp` is returned (the last frame
+if `timestamp` is past the end).
+
+**Response (`format=image`, default):** raw `image/jpeg` body with headers:
+
+| Header                        | Description                                        |
+| ----------------------------- | -------------------------------------------------- |
+| `X-Frame-Requested-Timestamp` | The `timestamp` that was requested.                |
+| `X-Frame-Actual-Timestamp`    | Timestamp of the frame actually returned.          |
+| `X-Frame-Width` / `-Height`   | Decoded frame dimensions in pixels.                |
+| `X-Frame-Variant`             | `full` or `crop`.                                  |
+| `Cache-Control`               | `no-store`.                                        |
+
+**Response (`format=json`):** `application/json`:
+
+```json
+{
+  "mime": "image/jpeg",
+  "image_base64": "<base64 JPEG, no data-URL prefix>",
+  "frame": {
+    "video_id": "cam-lobby-01",
+    "bucket_name": "live-streams",
+    "media_path": "segments/1790655530.mp4",
+    "requested_timestamp": 4.5,
+    "actual_timestamp": 4.53,
+    "variant": "crop",
+    "width": 240,
+    "height": 340,
+    "cropped": true
+  }
+}
+```
+
+`format=json` is the recommended contract for agents/VLMs: most VLM chat APIs
+accept a base64 data URL directly, so the caller builds
+`data:image/jpeg;base64,<image_base64>` with no file handling. Neither variant
+stores an object — `image` streams raw bytes, `json` returns base64 in the body.
+
+**Response codes:** `200 OK`; `400 Bad Request` (invalid params or undecodable
+media); `404 Not Found` (media/segment cannot be resolved); `500 Internal
+Server Error`.
+
+### `best_frame_info` field glossary (search-ms → `/media/frame`)
+
+`search-ms` attaches `best_frame_info` to each ranked result. These are the
+fields an agent needs to call `/media/frame`:
+
+| Field               | Maps to `/media/frame` param | Meaning                                                                 |
+| ------------------- | ---------------------------- | ----------------------------------------------------------------------- |
+| `video_id`          | `video_id`                   | Uploaded `video_id` or live `stream_id`.                                |
+| `bucket_name`       | `bucket_name`                | Bucket holding the media.                                               |
+| `timestamp`         | `timestamp`                  | Offset of the peak frame **within the addressed media** — pass as-is.   |
+| `media_path`        | `media_path`                 | Set for live hits (segment object); absent/null for uploads.            |
+| `is_live`           | —                            | `true` when the hit is a live-stream segment (then `media_path` is set). |
+| `is_detected_crop`  | `variant`                    | `true` → the peak frame was an object crop; use `variant=crop`.         |
+| `crop_bbox`         | `crop_bbox`                  | Pixel box `x1,y1,x2,y2` of that detection; pass for `variant=crop`.     |
+| `crop_index`        | —                            | Which detection on the frame (ordinal), for correlation/debugging.      |
+| `detected_label`    | —                            | Detected object class, if any.                                          |
+| `detection_confidence` | —                         | Detector confidence for the crop, if any.                              |
+| `frame_number`      | —                            | Original frame index at ingest, for correlation/debugging.             |
+
+**Examples:**
+
+```bash
+# Peak frame of an uploaded video as raw JPEG
+curl -o frame.jpg \
+  "http://localhost:8000/v1/dataprep/media/frame?video_id=video-dir-001&timestamp=12.5"
+
+# Peak detected-object crop of a live-stream hit, as base64 JSON (for a VLM)
+curl "http://localhost:8000/v1/dataprep/media/frame\
+?video_id=<stream_id>&bucket_name=live-streams\
+&media_path=segments/1790655530.mp4&timestamp=4.5\
+&variant=crop&crop_bbox=120,80,360,420&format=json"
+```
+
+In the VSS deployment this endpoint is also reachable through pipeline-manager
+at `GET /manager/frames` (same query parameters), so a browser or agent inside
+the app can fetch a frame without talking to dataprep directly.
 
 ## `DELETE /media/{bucket_name}`
 
@@ -741,6 +878,234 @@ first, so a failure never leaves orphaned vectors behind.
 curl -X DELETE "http://localhost:8000/v1/dataprep/media/my-bucket/video-dir-001"
 ```
 
+## Live stream ingestion (`/media/streams`)
+
+A live stream is a **long-lived resource**, not a request: registering one
+returns immediately and a background worker keeps decoding, embedding, and
+storing frames until the stream is paused or deleted. The worker reconnects on
+transport failures and records playback media (N-second MP4 segments,
+remuxed off the single decode connection) so a retrieval hit on a live frame
+is playable.
+
+**Identity.** Every live embedding and media object is stored under
+`bucket_name = MM_DATAPREP_LIVE_STREAM_BUCKET` (default `live-streams`) and
+`video_id = stream_id`. `GET /media`, `GET /media/download` (with `media_path`
+for a specific segment or frame), and
+`DELETE /media/{bucket_name}/{video_id}` therefore work on live data unchanged.
+
+**Codecs.** Use **H.264 (AVC)** RTSP sources. Playback segments are *remuxed*,
+not re-encoded, so the stream codec must be MP4-compatible: H.264 is recommended
+and validated, HEVC/H.265 muxes but browser playback varies. A codec that cannot
+be remuxed into MP4 (e.g. MJPEG) disables segment recording for that stream with
+a warning — embedding generation still continues, but retrieval hits are not
+playable.
+
+**Credentials.** RTSP URLs may embed `user:pass@`. Credentials are used to
+connect and are stored only in the service's local registry; they are **never**
+returned by these endpoints, written to the vector database, or logged. Every
+response carries the redacted form (`rtsp://***@camera-1.local:554/stream1`).
+
+**Retention.** Live ingestion grows the index forever by default. Set
+`MM_DATAPREP_LIVE_RETENTION_HOURS` to a positive value to prune live embeddings
+and media older than that window.
+
+### `POST /media/streams`
+
+Register an RTSP stream and start ingesting it.
+
+**Request Body (JSON):**
+
+| Field                     | Type          | Required | Default                             | Description                                                     |
+| ------------------------- | ------------- | -------- | ----------------------------------- | --------------------------------------------------------------- |
+| `stream_url`              | string        | Yes      | –                                   | `rtsp://` or `rtsps://` source URL.                              |
+| `stream_name`             | string        | No       | derived from the redacted URL       | Friendly label.                                                  |
+| `description`             | string        | No       | `null`                              | Free-text description.                                           |
+| `frame_interval`          | integer       | No       | `MM_DATAPREP_FRAME_INTERVAL`        | Embed every Nth frame (1 – 60).                                  |
+| `enable_object_detection` | boolean       | No       | service default                     | Generate object crops in addition to full frames.                |
+| `detection_confidence`    | number        | No       | service default                     | Detection threshold (0.1 – 1.0).                                 |
+| `tags`                    | array(string) | No       | `[]`                                | Applied to every embedding from this stream.                     |
+| `start`                   | boolean       | No       | `true`                              | Register without starting ingestion when `false`.                |
+
+**Responses:**
+
+- 202 Accepted — registered:
+
+  ```json
+  {
+      "status": "success",
+      "message": "Live stream registered with id 2f6c1d....",
+      "stream": {
+          "stream_id": "2f6c1d...",
+          "stream_url": "rtsp://***@camera-1.local:554/stream1",
+          "stream_name": "camera-1.local:554/stream1",
+          "state": "running",
+          "bucket_name": "live-streams",
+          "video_id": "2f6c1d...",
+          "frame_interval": 15,
+          "enable_object_detection": true,
+          "detection_confidence": 0.85,
+          "tags": ["lobby"],
+          "stats": {
+              "frames_processed": 0,
+              "embeddings_created": 0,
+              "segments_stored": 0,
+              "reconnect_count": 0
+          }
+      }
+  }
+  ```
+
+- 400 Bad Request — the URL is not a valid `rtsp(s)://` URL.
+- 422 Unprocessable Entity — a processing parameter is out of range.
+- 503 Service Unavailable — the concurrency limit
+  (`MM_DATAPREP_LIVE_STREAM_MAX_CONCURRENT`) is reached, or live ingestion is
+  disabled.
+
+**Example:**
+
+```bash
+curl -X POST "http://localhost:8000/v1/dataprep/media/streams" \
+  -H "Content-Type: application/json" \
+  -d '{"stream_url": "rtsp://camera-1.local:554/stream1", "stream_name": "lobby-cam", "tags": ["lobby"]}'
+```
+
+### `POST /media/streams/batch`
+
+Register several streams in one call. Items are processed independently: one
+rejected URL does not prevent the rest from being registered.
+
+**Request Body (JSON):** `{"items": [ <create body>, ... ]}`
+
+**Responses:**
+
+- 202 Accepted:
+
+  ```json
+  {
+      "status": "success",
+      "message": "1 live stream(s) registered, 1 rejected.",
+      "accepted": 1,
+      "rejected": 1,
+      "items": [
+          {"identifier": "rtsp://cam-a/s", "stream_id": "2f6c1d...", "status": "success", "message": "Registered."},
+          {"identifier": "http://cam-b/s", "status": "error", "message": "Only rtsp:// and rtsps:// URLs are supported."}
+      ]
+  }
+  ```
+
+### `GET /media/streams`
+
+List registered streams with their state and ingestion counters.
+
+**Query Parameters:**
+
+| Parameter | Type          | Required | Description                                                              |
+| --------- | ------------- | -------- | ------------------------------------------------------------------------ |
+| `state`   | string        | No       | Filter by `pending`, `starting`, `running`, `paused`, `reconnecting`, `error`, `stopped`. |
+| `tags`    | array(string) | No       | Only streams carrying **all** of these tags.                             |
+
+**Response:**
+
+- 200 OK: `{"status": "success", "count": 2, "streams": [ ... ]}`
+
+### `GET /media/streams/{stream_id}`
+
+Return one stream, including `stats` (frames processed, embeddings created,
+segments stored, reconnect count, uptime, last frame time) and
+`last_error`.
+
+- 200 OK / 404 Not Found.
+
+### `PATCH /media/streams/{stream_id}`
+
+Update a stream, or pause/resume it. Only supplied fields change.
+
+**Request Body (JSON):**
+
+| Field                                                              | Type          | Description                                                        |
+| ------------------------------------------------------------------ | ------------- | ------------------------------------------------------------------ |
+| `stream_name`, `description`                                        | string        | Descriptive fields.                                                |
+| `frame_interval`, `enable_object_detection`, `detection_confidence` | –             | Processing parameters; a running stream restarts its session so the new value applies immediately. |
+| `tags`                                                              | array(string) | Replaces the existing tag list.                                    |
+| `state`                                                             | string        | `paused` to stop ingesting while staying registered, `running` to resume. |
+
+- 200 OK / 400 Bad Request (unsupported transition) / 404 Not Found /
+  503 Service Unavailable (resuming would exceed the concurrency limit).
+
+**Example:**
+
+```bash
+curl -X PATCH "http://localhost:8000/v1/dataprep/media/streams/2f6c1d..." \
+  -H "Content-Type: application/json" -d '{"state": "paused"}'
+```
+
+### `DELETE /media/streams/{stream_id}`
+
+Stop ingestion and deregister the stream. Embeddings and recorded media are
+**kept by default**, so historical search results keep working after a camera is
+decommissioned.
+
+When retention is enabled (`MM_DATAPREP_LIVE_RETENTION_HOURS > 0`) and you delete
+without purging, the kept data is still aged out by the retention sweeper and
+removed once it passes the retention window. If a requested purge fails, the
+stream is **not** deleted (it is marked `error`) and the call returns `502` so
+you can retry once the backend recovers.
+
+**Query Parameters:**
+
+| Parameter          | Type    | Default | Description                                        |
+| ------------------ | ------- | ------- | -------------------------------------------------- |
+| `purge_embeddings` | boolean | `false` | Also delete every vector generated from the stream. |
+| `purge_media`      | boolean | `false` | Also delete the stream's recorded segments. |
+
+- 200 OK:
+
+  ```json
+  {
+      "status": "success",
+      "message": "Live stream stopped and deregistered.",
+      "stream_id": "2f6c1d...",
+      "embeddings_purged": 1420,
+      "media_purged": 96
+  }
+  ```
+
+  A purge count of `-1` means the backend could not report an exact number.
+
+- 404 Not Found / 502 Bad Gateway.
+
+### `DELETE /media/streams`
+
+Stop and deregister several streams. Accepts the same `purge_embeddings` and
+`purge_media` query parameters; unknown ids are reported per item rather than
+failing the call.
+
+**Request Body (JSON):** `{"stream_ids": ["2f6c1d...", "8ab390..."]}`
+
+### Consuming live streams from an application
+
+Applications such as Video Search and Summarization integrate with this surface
+as follows:
+
+1. **Register** the camera with `POST /media/streams` and store the returned
+   `stream_id`. Treat it as the media identity: it is also the `video_id` of
+   every embedding and recorded object the stream produces.
+2. **Poll** `GET /media/streams` (or a single `GET /media/streams/{stream_id}`)
+   for `state`, `stats`, and `last_error` to drive a status indicator. A stream
+   in `reconnecting` is self-healing; `error` requires operator action.
+3. **Search** through the retrieval service as usual. Live results carry
+   `is_live: true`, `live_stream_id`, `live_stream_name`, the redacted
+   `stream_url`, `segment_id`, `segment_start_time`, `wall_clock_time`, and the
+   external-correlation fields `sensor_id`, `capture_time`, `capture_time_source`
+   and `media_owner`.
+4. **Play back** a hit using its `video_url`, which points at the recorded
+   segment covering the frame. It has the form
+   `<bucket>/<stream_id>/segments/<epoch>.mp4`; split it into
+   `bucket_name`, `video_id`, and `media_path` for
+   `GET /media/download` (see that endpoint for the exact mapping).
+5. **Stop** with `DELETE /media/streams/{stream_id}`, choosing whether to purge
+   the accumulated embeddings and media.
+
 ## `GET /telemetry`
 
 Return the most recent video-processing telemetry records, newest first.
@@ -822,7 +1187,7 @@ http://<HOST_IP>:6007/openapi.json
 
 For collection generation and API testing, import the checked-in spec:
 
-- File: `docs/user-guide/api-docs/openapi.yaml`
+- File: `docs/user-guide/_assets/openapi.yaml`
 - Bruno: **Collections → Import OpenAPI** and select this YAML file
 
 This file is generated from the FastAPI app and is the recommended source for reproducible Bruno collections.

@@ -1,0 +1,8 @@
+
+debian_05_install_curl () {
+  ensure_apt_install_package curl ca-certificates
+}
+
+debian_05_sbom_curl () {
+  ensure_sbom_format pkg-list curl ca-certificates
+}
