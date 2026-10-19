@@ -153,7 +153,9 @@ class _FakeStreamSet:
 
 
 def _running(fps: float, **extra) -> dict:
-    return {"state": "RUNNING", "frame_fps": fps, **extra}
+    # A stream reporting frames has had its first frame.
+    first = {"first_frame_time": 1000.0} if fps > 0 else {}
+    return {"state": "RUNNING", "frame_fps": fps, **first, **extra}
 
 
 class _FakeClock:
@@ -383,7 +385,10 @@ class TestDlsps2RunnerNormal(Dlsps2RunnerTestBase):
         posts = fake.calls("POST")
         self.assertEqual(
             fake.validate_posts(),
-            [{"pipeline": "pipeline a"}, {"pipeline": "pipeline b"}],
+            [
+                {"pipeline": "pipeline a", "timeout": 120},
+                {"pipeline": "pipeline b", "timeout": 120},
+            ],
         )
         self.assertEqual(
             [json.loads(p.content) for p in posts],
@@ -409,6 +414,19 @@ class TestDlsps2RunnerNormal(Dlsps2RunnerTestBase):
         pushed = self._pushed_values()
         self.assertEqual(pushed[:3], [0.0, 15.0, 25.0])
         self.assertEqual(pushed[-1], 0.0)
+
+    def test_window_starts_at_first_frame_before_any_fps_report(self):
+        fake = _FakeStreamSet(
+            [
+                [_running(30.0), _running(0.0, first_frame_time=1000.5)],
+                [_running(30.0), _running(20.0)],
+            ]
+        )
+
+        result = self._run_streams(self._runner(max_runtime=10), fake)
+
+        self.assertEqual(self.clock.now, 10.0)
+        self.assertEqual(result.stream_fps, {"a": 30.0, "b": 20.0})
 
     def test_run_shorter_than_warm_up_falls_back_to_final_avg_fps(self):
         fake = _FakeStreamSet(

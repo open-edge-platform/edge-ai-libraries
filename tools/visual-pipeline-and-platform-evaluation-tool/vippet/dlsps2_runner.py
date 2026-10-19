@@ -89,7 +89,7 @@ DLSPS2_HTTP_TIMEOUT_S: float = float(os.environ.get("DLSPS2_HTTP_TIMEOUT_S", "30
 # Default interval used to poll GET /pipelines/{id}/status, seconds.
 DLSPS2_POLL_INTERVAL_S: float = float(os.environ.get("DLSPS2_POLL_INTERVAL_S", "1"))
 
-# Seconds after every stream produces frames before FPS samples count.
+# Seconds after every stream's first frame before FPS samples count.
 DLSPS2_WARMUP_S: float = float(os.environ.get("DLSPS2_WARMUP_S", "5"))
 
 # How long to retry DELETE on instances still in validation (capped at 30 s by DLSPS).
@@ -252,7 +252,8 @@ class Dlsps2PipelineRunner:
                 if command in self._validated:
                     continue
                 response = client.post(
-                    f"{self.base_url}/validate", json={"pipeline": command}
+                    f"{self.base_url}/validate",
+                    json={"pipeline": command, "timeout": self.inactivity_timeout},
                 )
                 response.raise_for_status()
                 pending[response.json()["validation_id"]] = command
@@ -486,9 +487,9 @@ class Dlsps2PipelineRunner:
         Launch strings are validated first (see :meth:`_validate_new`), so
         the instances skip DLSPS's own per-instance validation and start
         together. All instances go to the unpinned worker. The run lasts
-        ``max_runtime`` seconds from the moment every stream produces frames
-        (``0``: until every instance ends on its own), or until
-        :meth:`cancel`. Every instance is stopped before returning.
+        ``max_runtime`` seconds from the moment every stream reports a
+        ``first_frame_time`` (``0``: until every instance ends on its own),
+        or until :meth:`cancel`. Every instance is stopped before returning.
 
         A stream's FPS is the mean of its ``frame_fps`` samples taken while
         all streams are running, after the warm-up. A stream without such
@@ -579,7 +580,8 @@ class Dlsps2PipelineRunner:
                         )
 
                     all_playing = all(
-                        states.get(sid) == "RUNNING" and fps[sid] > 0
+                        states.get(sid) == "RUNNING"
+                        and statuses[sid].get("first_frame_time") is not None
                         for sid in instances
                     )
                     if all_playing and playing_since is None:
