@@ -110,7 +110,8 @@ If the user wants to index **live RTSP cameras**, route to `--search` or
 `--dual`. Live ingestion is deliberately off in `--summary` (no dataprep) and
 in `--unified` (text-only embedding model, which cannot embed video frames).
 See [references/modes-and-overlays.md](references/modes-and-overlays.md) for the
-`UI_LIVE_STREAMS_FEATURE` / `LIVE_STREAM_ENABLED` / `LIVE_RETENTION_HOURS` knobs.
+`UI_LIVE_STREAMS_FEATURE` / `LIVE_STREAM_ENABLED` / `LIVE_RETENTION_HOURS` /
+`LIVE_STREAM_MAX_CONCURRENT` knobs.
 
 ## Quick deployment flow
 

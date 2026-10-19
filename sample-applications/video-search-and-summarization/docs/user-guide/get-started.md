@@ -207,6 +207,10 @@ Before running the application, you need to set several environment variables:
       # Hours of live footage and embeddings to retain. 0 keeps everything,
       # which grows the index without bound.
       export LIVE_RETENTION_HOURS=24
+
+      # Maximum cameras ingesting at once. Registering more returns 503;
+      # pause or delete a camera to free a slot.
+      export LIVE_STREAM_MAX_CONCURRENT=8
       ```
 
    > **Credentials:** An RTSP URL may embed `user:password`. DataPrep stores

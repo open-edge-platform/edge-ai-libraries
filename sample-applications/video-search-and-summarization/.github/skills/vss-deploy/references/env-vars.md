@@ -150,6 +150,7 @@ written to `ov_models/model-download-*.log`.
 | `AGGREGATION_MAX_RESULTS` | `20` | Aggregated result limit. |
 | `AGGREGATION_INITIAL_K` | `1000` | Initial vector search K. |
 | `AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS` | `0` | Context seek offset. |
+| `LIVE_STREAM_MAX_CONCURRENT` | `8` | Maximum live RTSP streams ingesting at once (`MM_DATAPREP_LIVE_STREAM_MAX_CONCURRENT` in `multimodal-dataprep`). Further registrations return `503`. |
 | `SEARCH_MIN_PEAK_SCORE` | `0` | Default minimum peak score (0-1) for search; frames below it are dropped at retrieval. `0` disables the filter. Passed to `pipeline-manager` and `video-search`; a request's `minPeakScore` overrides it. |
 
 ## UI and telemetry controls

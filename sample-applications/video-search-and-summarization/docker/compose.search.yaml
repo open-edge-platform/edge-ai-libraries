@@ -140,8 +140,11 @@ services:
             # 0 (keep forever): a live stream writes continuously, so an
             # unbounded index is a guaranteed disk-exhaustion path in a demo
             # deployment. Set LIVE_RETENTION_HOURS=0 to keep everything.
+            # LIVE_STREAM_MAX_CONCURRENT caps simultaneously ingesting cameras;
+            # further registrations return 503.
             MM_DATAPREP_LIVE_STREAM_ENABLED: ${LIVE_STREAM_ENABLED:-true}
             MM_DATAPREP_LIVE_RETENTION_HOURS: ${LIVE_RETENTION_HOURS:-24}
+            MM_DATAPREP_LIVE_STREAM_MAX_CONCURRENT: ${LIVE_STREAM_MAX_CONCURRENT:-8}
 
             # Live-stream registry persistence (reuses the shared PostgreSQL
             # instance; the registry is a separate `live_streams` table).

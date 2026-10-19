@@ -204,6 +204,9 @@ liveStream:
   # Delete embeddings and media older than this many hours. 0 keeps everything
   # (unbounded index growth); 24h is a safe default for continuous live streams.
   retentionHours: 24
+  # Maximum simultaneously ingesting streams (>= 1). Each running stream holds
+  # decode/detect/embed threads; further registrations return 503.
+  maxConcurrent: 8
 
 minioServer:
   name: minio-server
