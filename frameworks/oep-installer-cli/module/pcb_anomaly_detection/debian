@@ -24,7 +24,7 @@ debian_90_profile_pcb_anomaly_detection () {
 debian_90_install_pcb_anomaly_detection () {
   configure_pcb_anomaly_detection
   if verify_pcb_anomaly_detection && [[ " $* " != *" --reinstall "* ]]; then
-    echo "PCB anomaly detection is already installed. Skipping"
+    echo "PCB anomaly detection is installed." >&2
   else
     ensure_ports_open "${used_ports[*]}" return 3
     # clone the repository

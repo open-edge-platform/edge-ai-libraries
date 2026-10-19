@@ -190,15 +190,18 @@ subcommand_bootstrap () {
     --start=*)
       start_modules+=("${v#*=}")
       ;;
-    --output|-o)
-      ;;
     --output=*)
       rendered="${v#*=}"
+      ;;
+    --output|-o|--family)
       ;;
     *)
       case "$vlast" in
       --output|-o)
         rendered="$v"
+        ;;
+      --family)
+        installer_family="$v"
         ;;
       *)
         [[ "$v" = -* ]] || modules+=("$v")
@@ -280,7 +283,13 @@ subcommand_bootstrap () {
     for p in ${!known[*]}; do
       for d in ${depsof[$p]}; do [ "$d" = "$p" ] || echo "$d $p"; done
     done | tsort > /dev/null || bad=1
-    [ $bad -eq 0 ] || exit 3
+    if [ $bad -eq 0 ]; then
+      echo "OK"
+      exit 0
+    else
+      echo "Failed"
+      exit 3
+    fi
   fi
 
   # construct final installer

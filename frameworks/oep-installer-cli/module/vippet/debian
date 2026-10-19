@@ -16,7 +16,7 @@ debian_90_profile_vippet () {
 debian_90_install_vippet () {
   configure_vippet
   if verify_vippet && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Vipet is already installed. Skipping..."
+    echo "Vipet is installed." >&2
   else
     ensure_git_clone "$workspace" $version $repository tools/visual-pipeline-and-platform-evaluation-tool
     cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool"

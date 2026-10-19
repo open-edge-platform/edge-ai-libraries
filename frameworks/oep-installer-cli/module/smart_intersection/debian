@@ -48,7 +48,7 @@ debian_90_profile_smart_intersection () {
 debian_90_install_smart_intersection () {
   configure_smart_intersection
   if verify_smart_intersection && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Smart intersection is already installed. Skipping"
+    echo "Smart intersection is installed." >&2
   else
     ensure_ports_open "${used_ports[*]}" return 3
     ensure_disk_size 1500

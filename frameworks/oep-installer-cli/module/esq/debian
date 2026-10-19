@@ -4,13 +4,13 @@ configure_esq () {
 }
 
 debian_85_profile_esq () {
-  echo "curl git libgl1 make docker_io uv edge_base openvino dlstreamer"
+  echo "curl git libgl1 make docker_io uv edge_base openvino dlstreamer libcap2_bin memtester qemu_system_x86 qemu_utils cloud_image_utils ovmf rt_tests"
 }
 
 debian_85_install_esq () {
   configure_uv
   if uv tool list 2> /dev/null | grep -q -E "^esq " && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Esq is already installed. Skipping..."
+    echo "Esq is installed." >&2
   else
     ensure_disk_size 25000
 

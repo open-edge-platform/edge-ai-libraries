@@ -1,4 +1,9 @@
 import { expect, test } from "@playwright/test";
+import { mockDemoApi } from "./fixtures/demo-api";
+
+test.beforeEach(async ({ page }) => {
+  await mockDemoApi(page);
+});
 
 test.describe("Demo mode", () => {
   test("opens the demo mode landing screen", async ({ page }) => {
