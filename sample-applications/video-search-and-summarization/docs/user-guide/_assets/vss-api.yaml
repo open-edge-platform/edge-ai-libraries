@@ -983,6 +983,15 @@ components:
         watch:
           type: boolean
           description: Whether to watch this query
+        minPeakScore:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: >-
+            Optional minimum peak score (0-1, 0 = off) saved on the query and
+            applied at retrieval by every watched refresh. When it changes,
+            the query re-runs immediately. Omit to keep the current threshold.
+          example: 0.3
       required:
         - watch
     VideoDTOSwagger:

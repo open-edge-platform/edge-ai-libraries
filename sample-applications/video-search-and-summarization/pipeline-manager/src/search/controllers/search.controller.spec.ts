@@ -482,7 +482,29 @@ describe('SearchController', () => {
       const result = await controller.watchQuery({ queryId }, body);
 
       expect(result).toBe(true);
-      expect(searchStateService.addToWatch).toHaveBeenCalledWith(queryId);
+      expect(searchStateService.addToWatch).toHaveBeenCalledWith(
+        queryId,
+        undefined,
+      );
+    });
+
+    it('should pass a valid minPeakScore through', async () => {
+      await controller.watchQuery(
+        { queryId: 'q1' },
+        { watch: true, minPeakScore: 0.3 },
+      );
+
+      expect(searchStateService.addToWatch).toHaveBeenCalledWith('q1', 0.3);
+    });
+
+    it('should reject an out-of-range minPeakScore', () => {
+      expect(() =>
+        controller.watchQuery(
+          { queryId: 'q1' },
+          { watch: true, minPeakScore: 1.5 },
+        ),
+      ).toThrow(BadRequestException);
+      expect(searchStateService.addToWatch).not.toHaveBeenCalled();
     });
 
     it('should remove query from watch when watch is false', async () => {
@@ -492,7 +514,10 @@ describe('SearchController', () => {
       const result = await controller.watchQuery({ queryId }, body);
 
       expect(result).toBe(true);
-      expect(searchStateService.removeFromWatch).toHaveBeenCalledWith(queryId);
+      expect(searchStateService.removeFromWatch).toHaveBeenCalledWith(
+        queryId,
+        undefined,
+      );
     });
 
     it('should throw BadRequestException when watch property is missing', () => {

@@ -396,7 +396,9 @@ What the agent does:
 
 You can also start from a description (*"track a white van"*) or a reference
 image instead of a hit. VSS refreshes the watched search on its own as new
-footage arrives. The agent picks up new sightings only while it keeps polling
+footage arrives. To cut look-alike noise, ask for strong matches only (*"only
+report strong matches"*): the agent sets `min_peak_score` (for example `0.3`),
+which VSS saves on the search and applies to every refresh. The agent picks up new sightings only while it keeps polling
 in the conversation.
 
 ### 5. Summarize a video

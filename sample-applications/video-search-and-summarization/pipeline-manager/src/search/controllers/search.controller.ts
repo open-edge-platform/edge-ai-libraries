@@ -262,9 +262,13 @@ export class SearchController {
       throw new BadRequestException('Watch property is required');
     }
 
+    const minPeakScore = this.$searchConfig.parseMinPeakScore(
+      body.minPeakScore,
+    );
+
     return body.watch
-      ? this.$search.addToWatch(params.queryId)
-      : this.$search.removeFromWatch(params.queryId);
+      ? this.$search.addToWatch(params.queryId, minPeakScore)
+      : this.$search.removeFromWatch(params.queryId, minPeakScore);
   }
 
   @Delete(':queryId')

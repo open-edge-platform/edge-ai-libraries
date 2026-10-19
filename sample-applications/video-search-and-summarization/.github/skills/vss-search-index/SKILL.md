@@ -243,6 +243,8 @@ curl -s -X POST --json '{"minPeakScore":0.25}' \
   "$HOST/manager/search/<QUERY_ID>/refetch" | jq .   # re-run with a new saved threshold
 curl -s --request PATCH --json '{"watch":true}' \
   "$HOST/manager/search/<QUERY_ID>/watch" | jq .             # auto-refresh
+curl -s --request PATCH --json '{"watch":true,"minPeakScore":0.3}' \
+  "$HOST/manager/search/<QUERY_ID>/watch" | jq .   # auto-refresh, gated by score
 curl -s "$HOST/manager/search/watched" | jq .
 curl -s -X DELETE "$HOST/manager/search/<QUERY_ID>"
 ```

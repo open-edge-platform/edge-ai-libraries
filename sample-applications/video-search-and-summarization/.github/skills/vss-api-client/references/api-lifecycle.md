@@ -320,6 +320,11 @@ curl -sS "http://localhost:12345/manager/search/$QUERY_ID" | python3 -m json.too
 curl -sS -X PATCH "http://localhost:12345/manager/search/$QUERY_ID/watch" \
   -H 'Content-Type: application/json' -d '{"watch": true}'
 
+# Watch, gated by score: only frames scoring >= 0.3 are ranked on each refresh
+# (saved on the query; a changed value re-runs it right away)
+curl -sS -X PATCH "http://localhost:12345/manager/search/$QUERY_ID/watch" \
+  -H 'Content-Type: application/json' -d '{"watch": true, "minPeakScore": 0.3}'
+
 # Refetch with stored filter
 curl -sS -X POST "http://localhost:12345/manager/search/$QUERY_ID/refetch"
 

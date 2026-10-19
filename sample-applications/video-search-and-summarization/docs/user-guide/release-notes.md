@@ -5,6 +5,7 @@
 **New:**
 
 - **Live RTSP stream ingestion:** Register RTSP cameras from the new **Live Streams** panel in the search UI and ingest them continuously into the search index. Cameras can be listed, filtered by state or tag, paused, resumed, reconfigured, and removed, with live frame and embedding counts refreshed over the existing websocket. Backed by new Pipeline Manager `/streams` endpoints that proxy the Multimodal DataPrep live-stream API. Available in `--search` and `--dual` (`--summary --search`) modes, but not in `--summary-and-search`/`--unified`, where the index holds text embeddings of summaries; enable or disable the UI with `UI_LIVE_STREAMS_FEATURE` and bound index growth with `LIVE_RETENTION_HOURS` (defaults to 24 hours). RTSP credentials are redacted from all API responses, logs, and search results.
+- **Minimum peak score filter:** Search can drop weak matches at retrieval: frames scoring below `minPeakScore` (0-1) are filtered in the Vector Retriever before aggregation, so every returned result's best frame scores at least that value. Set it per search in the UI (off by default; starts at 0.2 when turned on), on `POST /search`, `POST /search/query`, `POST /search/{queryId}/refetch` and `PATCH /search/{queryId}/watch`, or as the deployment default with `SEARCH_MIN_PEAK_SCORE` (default `0`, off). The value is saved with each query, so watched-query refreshes are gated by it. The MCP `vss_search_video`, `vss_get_search` and `vss_watch_search` tools accept it as `min_peak_score`.
 
 **Improved:**
 

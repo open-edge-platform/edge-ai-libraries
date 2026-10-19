@@ -1173,6 +1173,54 @@ async def test_watch_search_toggles_the_flag(fake: FakeVss, deps: Deps) -> None:
     assert posted_body(fake, "/search/q1/watch") == {"watch": True}
 
 
+async def test_watch_search_starts_with_a_min_peak_score(
+    fake: FakeVss, deps: Deps
+) -> None:
+    result = await watch_search(deps, query="forklift", min_peak_score=0.3)
+
+    assert posted_body(fake, "/search")["minPeakScore"] == 0.3
+    assert posted_body(fake, "/search/q1/watch") == {"watch": True}
+    assert result["min_peak_score"] == 0.3
+
+
+async def test_watch_search_saves_a_changed_min_peak_score(
+    fake: FakeVss, deps: Deps
+) -> None:
+    seed_searches(fake, 1)
+    fake.searches["q1"].update(watch=True, minPeakScore=0.2)
+
+    result = await watch_search(deps, "q1", min_peak_score=0.35)
+
+    assert posted_body(fake, "/search/q1/watch") == {
+        "watch": True,
+        "minPeakScore": 0.35,
+    }
+    assert result["min_peak_score"] == 0.35
+    assert fake.searches["q1"]["minPeakScore"] == 0.35
+
+
+async def test_watch_search_skips_an_unchanged_min_peak_score(
+    fake: FakeVss, deps: Deps
+) -> None:
+    seed_searches(fake, 1)
+    fake.searches["q1"].update(watch=True, minPeakScore=0.2)
+
+    await watch_search(deps, "q1", min_peak_score=0.2)
+
+    assert "/search/q1/watch" not in request_paths(fake, "PATCH")
+
+
+async def test_watch_search_rejects_an_out_of_range_min_peak_score(
+    fake: FakeVss, deps: Deps
+) -> None:
+    seed_searches(fake, 1)
+
+    with pytest.raises(VssError, match="min_peak_score"):
+        await watch_search(deps, "q1", min_peak_score=1.5)
+
+    assert not request_paths(fake, "PATCH")
+
+
 # Summary options
 
 

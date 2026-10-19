@@ -457,6 +457,58 @@ describe('SearchStateService', () => {
     });
   });
 
+  describe('watch minimum peak score', () => {
+    beforeEach(() => {
+      searchDbService.updateWatch.mockResolvedValue({} as SearchEntity);
+      searchDbService.read.mockResolvedValue({
+        queryId: 'q1',
+        minPeakScore: 0.25,
+      } as unknown as SearchEntity);
+    });
+
+    it('should leave the threshold alone when none is given', async () => {
+      const rerun = jest.spyOn(service, 'reRunQuery');
+
+      await service.addToWatch('q1');
+
+      expect(searchDbService.update).not.toHaveBeenCalled();
+      expect(rerun).not.toHaveBeenCalled();
+    });
+
+    it('should save a changed threshold and re-run the query', async () => {
+      const rerun = jest
+        .spyOn(service, 'reRunQuery')
+        .mockResolvedValue({} as any);
+
+      await service.addToWatch('q1', 0.4);
+
+      expect(searchDbService.update).toHaveBeenCalledWith('q1', {
+        minPeakScore: 0.4,
+      });
+      expect(rerun).toHaveBeenCalledWith('q1');
+      expect(searchDbService.updateWatch).toHaveBeenCalledWith('q1', true);
+    });
+
+    it('should not re-run when the threshold is unchanged', async () => {
+      const rerun = jest.spyOn(service, 'reRunQuery');
+
+      await service.removeFromWatch('q1', 0.25);
+
+      expect(searchDbService.update).not.toHaveBeenCalled();
+      expect(rerun).not.toHaveBeenCalled();
+      expect(searchDbService.updateWatch).toHaveBeenCalledWith('q1', false);
+    });
+
+    it('should 404 for an unknown query', async () => {
+      searchDbService.read.mockResolvedValue(null);
+
+      await expect(service.addToWatch('missing', 0.4)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      expect(searchDbService.updateWatch).not.toHaveBeenCalled();
+    });
+  });
+
   describe('reRunQuery', () => {
     it('should throw error when query not found', async () => {
       const queryId = 'non-existent-id';

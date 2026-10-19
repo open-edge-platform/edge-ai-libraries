@@ -280,12 +280,39 @@ export class SearchStateService {
     });
   }
 
-  async addToWatch(queryId: string) {
+  async addToWatch(queryId: string, minPeakScore?: number) {
+    await this.applyWatchMinPeakScore(queryId, minPeakScore);
     await this.$searchDB.updateWatch(queryId, true);
   }
 
-  async removeFromWatch(queryId: string) {
+  async removeFromWatch(queryId: string, minPeakScore?: number) {
+    await this.applyWatchMinPeakScore(queryId, minPeakScore);
     await this.$searchDB.updateWatch(queryId, false);
+  }
+
+  /**
+   * Saves a minimum peak score sent with a watch toggle. When it changes, the
+   * query re-runs in the background so the stored results match the new
+   * threshold now, instead of only after new footage triggers a refresh.
+   */
+  private async applyWatchMinPeakScore(queryId: string, minPeakScore?: number) {
+    if (minPeakScore === undefined) {
+      return;
+    }
+    const query = await this.$searchDB.read(queryId);
+    if (!query) {
+      throw new NotFoundException(`Query with ID ${queryId} not found`);
+    }
+    if (query.minPeakScore === minPeakScore) {
+      return;
+    }
+    await this.$searchDB.update(queryId, { minPeakScore });
+    this.reRunQuery(queryId).catch((error) =>
+      Logger.error(
+        `Re-run after minPeakScore change failed for query ID ${queryId}`,
+        error,
+      ),
+    );
   }
 
   @OnEvent(SearchEvents.RUN_QUERY)

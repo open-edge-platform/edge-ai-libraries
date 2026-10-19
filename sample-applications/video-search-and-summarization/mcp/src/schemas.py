@@ -331,6 +331,7 @@ class WatchResult(TypedDict):
     query: NotRequired[str]
     image_search: bool
     window_minutes: NotRequired[int]
+    min_peak_score: NotRequired[float]
     stream_ids: NotRequired[list[str]]
     last_refreshed: NotRequired[str]
     server_time_utc: str

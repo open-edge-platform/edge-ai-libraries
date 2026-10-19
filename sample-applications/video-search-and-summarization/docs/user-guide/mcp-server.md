@@ -82,7 +82,7 @@ the feature set behind the decision. **live** means search with a frame-embeddin
 | `vss_search_video` | search | Find moments across indexed videos and live cameras; the search is saved in VSS's search history |
 | `vss_get_search` | search | A saved search and its latest results; `refresh=true` re-runs it first |
 | `vss_list_searches` | search | Saved searches, newest first |
-| `vss_watch_search` | search | Track a person or object live: start a watched search, poll it for new sightings, stop it (or let it expire after `duration_minutes`) |
+| `vss_watch_search` | search | Track a person or object live: start a watched search, poll it for new sightings, stop it (or let it expire after `duration_minutes`). Optional `min_peak_score` (0-1) keeps weak matches out of every refresh |
 | `vss_get_media_frame` | search | The image of a search hit's best-matching frame (or its detected object), from the hit's `frame` locator |
 | `vss_list_streams` | live | Registered RTSP cameras, with state and ingest stats |
 | `vss_get_stream` | live | One camera's state, stats and last error |

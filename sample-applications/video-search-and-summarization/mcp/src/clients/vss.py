@@ -353,12 +353,17 @@ class VssClient:
             body["minPeakScore"] = min_peak_score
         await self._request("POST", f"/search/{query_id}/refetch", json=body)
 
-    async def set_search_watch(self, query_id: str, watch: bool) -> None:
-        """Watch or unwatch a persisted search query."""
+    async def set_search_watch(
+        self, query_id: str, watch: bool, min_peak_score: float | None = None
+    ) -> None:
+        """Watch or unwatch a persisted search query. ``min_peak_score``
+        replaces the query's saved threshold; when it changes, VSS re-runs
+        the query in the background."""
 
-        await self._request(
-            "PATCH", f"/search/{query_id}/watch", json={"watch": watch}
-        )
+        body: dict[str, Any] = {"watch": watch}
+        if min_peak_score is not None:
+            body["minPeakScore"] = min_peak_score
+        await self._request("PATCH", f"/search/{query_id}/watch", json=body)
 
     async def get_refresh_config(self) -> dict[str, Any]:
         """Return how Pipeline Manager auto-refreshes watched queries."""

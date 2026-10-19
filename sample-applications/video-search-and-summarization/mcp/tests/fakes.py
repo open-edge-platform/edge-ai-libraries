@@ -539,6 +539,8 @@ class FakeVss:
             return httpx.Response(201, json=_search_result(self, stored))
         if parts[2:] == ["watch"] and method == "PATCH":
             stored["watch"] = bool((body or {}).get("watch"))
+            if "minPeakScore" in (body or {}):
+                stored["minPeakScore"] = body["minPeakScore"]
             return httpx.Response(200)
         return httpx.Response(404, json={"message": f"no route {path}"})
 

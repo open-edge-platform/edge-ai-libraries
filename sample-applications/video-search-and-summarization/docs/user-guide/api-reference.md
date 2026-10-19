@@ -108,8 +108,8 @@ instead.
 
 ## Filtering Search Results by Minimum Peak Score
 
-`POST /search`, `POST /search/query` and `POST /search/{queryId}/refetch`
-accept an optional `minPeakScore` (a number from 0 to 1). Frames whose
+`POST /search`, `POST /search/query`, `POST /search/{queryId}/refetch` and
+`PATCH /search/{queryId}/watch` accept an optional `minPeakScore` (a number from 0 to 1). Frames whose
 similarity score is below it are dropped at retrieval, in the Vector Retriever,
 before frames are aggregated into segments. Every returned result's peak
 (best-frame) score is therefore at least `minPeakScore`, and the
@@ -118,13 +118,18 @@ filter rather than what remains of an unfiltered top N.
 
 | Value | Behavior |
 | ----- | -------- |
-| omitted | The query's saved value (refetch only), otherwise the deployment default `SEARCH_MIN_PEAK_SCORE` |
+| omitted | The query's saved value (refetch and watch), otherwise the deployment default `SEARCH_MIN_PEAK_SCORE` |
 | `0` | Filter off (the default) |
 | `0` < value ≤ `1` | Only frames scoring at least `value` are ranked; outside `[0, 1]` returns `400` |
 
 A query created with `POST /search` saves the value it ran with. Refetching
 with a new `minPeakScore` replaces the saved value, and watched-query refreshes
-reuse it. `GET /search/config` returns `{ "minPeakScoreDefault": <number> }` so
+reuse it, so a watch only ever reports matches above the threshold. To gate a
+watch while turning it on, send the threshold with the toggle:
+`PATCH /search/{queryId}/watch` with `{"watch": true, "minPeakScore": 0.3}`.
+When the value differs from the saved one, it is saved and the query re-runs
+in the background, so its stored results match the new threshold straight
+away; omit `minPeakScore` to keep the saved value. `GET /search/config` returns `{ "minPeakScoreDefault": <number> }` so
 clients can show the deployment default.
 
 ```bash
@@ -132,6 +137,8 @@ curl -s -X POST "$BASE/search" -H 'Content-Type: application/json' \
   -d '{"query": "forklift", "minPeakScore": 0.2}'
 curl -s -X POST "$BASE/search/<queryId>/refetch" -H 'Content-Type: application/json' \
   -d '{"minPeakScore": 0.3}'
+curl -s -X PATCH "$BASE/search/<queryId>/watch" -H 'Content-Type: application/json' \
+  -d '{"watch": true, "minPeakScore": 0.3}'
 ```
 
 > [!NOTE]

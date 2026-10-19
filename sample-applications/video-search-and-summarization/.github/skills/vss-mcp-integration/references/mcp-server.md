@@ -66,11 +66,16 @@ it hands to an agent is one it has reached itself.
   (segment epoch from `media_path` plus the frame offset) and `raw_score`;
   their gateway-relative segment URL is prefixed with the datastore URL.
   `stream_ids` on search and watch is a post-filter on the ranked hits.
-- **Minimum peak score.** `min_peak_score` (0-1) on `vss_search_video` and
-  `vss_get_search` is sent as `minPeakScore`; unlike `stream_ids` it filters at
-  retrieval, so the ranked hits are the best ones above it. Omitted means the
-  deployment default (`SEARCH_MIN_PEAK_SCORE`, 0 = off). Watches use the
-  default; their `min_raw_score` is a separate client-side filter on sightings.
+- **Minimum peak score.** `min_peak_score` (0-1) on `vss_search_video`,
+  `vss_get_search` and `vss_watch_search` is sent as `minPeakScore`; unlike
+  `stream_ids` it filters at retrieval, so the ranked hits are the best ones
+  above it. Omitted means the search's saved value, or for a new search the
+  deployment default (`SEARCH_MIN_PEAK_SCORE`, 0 = off). A watch saves it on
+  the query, so every VSS refresh is gated by it: when starting, it goes on
+  `POST /search`; on an existing `query_id` a changed value goes with the
+  `PATCH /search/{id}/watch` toggle and VSS re-runs the search. The watch
+  result echoes it as `min_peak_score`. `min_raw_score` is different: a
+  client-side filter on the sightings one call reports.
 - **Hits locate their best frame.** A hit's `frame` is the search backend's
   `best_frame_info` cut down to what `GET /frames` takes (`video_id`,
   `timestamp`, `bucket_name`, `media_path` for live streams, `crop_bbox` for

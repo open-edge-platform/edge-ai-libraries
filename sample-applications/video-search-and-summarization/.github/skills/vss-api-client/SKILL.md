@@ -140,7 +140,8 @@ Managed query lifecycle:
 - `POST /manager/search` creates and runs a saved query.
 - `GET /manager/search/{queryId}` fetches it.
 - `POST /manager/search/{queryId}/refetch` reruns it, optionally with `{ "timeFilter": ... }`.
-- `PATCH /manager/search/{queryId}/watch` with `{ "watch": true }` enables watch updates.
+- `POST /manager/search/{queryId}/refetch` also takes `minPeakScore` (0-1), saved on the query.
+- `PATCH /manager/search/{queryId}/watch` with `{ "watch": true }` enables watch updates; add `"minPeakScore": 0.3` to gate every watched refresh at that score (saved on the query; a changed value re-runs it). Out-of-range values return 400.
 - `GET /manager/search/watched` lists watched queries.
 
 Direct search microservice (bypasses Pipeline Manager) accepts a list at `POST http://localhost:7890/query`:

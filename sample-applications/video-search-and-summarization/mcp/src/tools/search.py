@@ -623,6 +623,7 @@ async def _start_watch(
     from_hit: dict[str, Any] | None,
     tags: list[str] | None,
     window_minutes: int | None,
+    min_peak_score: float | None = None,
 ) -> dict[str, Any]:
     """Create a persisted search for the target and wait for its first
     results. Returns the stored query (not yet watched)."""
@@ -663,6 +664,7 @@ async def _start_watch(
         image_url=image_url,
         tags=[tag.strip() for tag in tags if tag.strip()] if tags else None,
         time_filter=time_filter,
+        min_peak_score=min_peak_score,
     )
     stored, _ = await deps.client.poll_search(
         created["queryId"],
@@ -736,6 +738,7 @@ async def watch_search(
     duration_minutes: float | None = None,
     cursor: str | None = None,
     min_raw_score: float | None = None,
+    min_peak_score: float | None = None,
     limit: int = DEFAULT_SIGHTINGS,
     wait_seconds: float | None = None,
     ctx: Context | None = None,
@@ -765,6 +768,7 @@ async def watch_search(
         raise VssError(
             f"wait_seconds must be from 0 to {MAX_WATCH_WAIT_SECONDS:g}."
         )
+    min_peak_score = check_min_peak_score(min_peak_score)
     newest, expires = decode_cursor(cursor) if cursor else (0.0, None)
     now = time.time()
     if duration_minutes is not None:
@@ -787,14 +791,26 @@ async def watch_search(
             from_hit=from_hit,
             tags=tags,
             window_minutes=window_minutes,
+            min_peak_score=min_peak_score,
         )
     qid = stored["queryId"]
 
     expired = bool(watch and expires is not None and now >= expires)
     want_watch = bool(watch) and not expired
-    if bool(stored.get("watch")) != want_watch:
-        await deps.client.set_search_watch(qid, want_watch)
+    # A changed threshold is saved with the watch toggle; VSS then re-runs
+    # the query in the background, so a later poll sees the gated results.
+    new_threshold = (
+        min_peak_score
+        if query_id
+        and min_peak_score is not None
+        and stored.get("minPeakScore") != min_peak_score
+        else None
+    )
+    if bool(stored.get("watch")) != want_watch or new_threshold is not None:
+        await deps.client.set_search_watch(qid, want_watch, new_threshold)
         stored = {**stored, "watch": want_watch}
+        if new_threshold is not None:
+            stored["minPeakScore"] = new_threshold
     # Unreadable: assume VSS's defaults.
     refresh_on, interval = await read_refresh_config(deps) or (
         True,
@@ -864,6 +880,8 @@ async def watch_search(
         selection.get("value"), int
     ):
         payload["window_minutes"] = selection["value"]
+    if stored.get("minPeakScore") is not None:
+        payload["min_peak_score"] = stored["minPeakScore"]
     if wanted is not None:
         payload["stream_ids"] = sorted(wanted)
     if stored.get("lastRefreshedAt"):
@@ -1166,6 +1184,7 @@ def register(mcp: FastMCP, deps: Deps) -> None:
         duration_minutes: float | None = None,
         cursor: str | None = None,
         min_raw_score: float | None = None,
+        min_peak_score: float | None = None,
         limit: int = DEFAULT_SIGHTINGS,
         wait_seconds: float | None = None,
     ) -> WatchResult:
@@ -1205,7 +1224,14 @@ def register(mcp: FastMCP, deps: Deps) -> None:
                 searches, in minutes (start only).
             duration_minutes: Stop watching after this many minutes.
             cursor: next_cursor from the previous call.
-            min_raw_score: Drop sightings whose raw_score is below this.
+            min_raw_score: Drop sightings whose raw_score is below this
+                when reporting them (this call only; VSS still stores them).
+            min_peak_score: Gate the watch itself: only frames scoring at
+                least this (0-1) are ranked on every VSS refresh, so weak
+                matches never become sightings. 0 turns it off; omit to keep
+                the search's saved value (the deployment default for a new
+                watch). Changing it on an existing query_id saves it and
+                re-runs the search; the next poll sees the gated results.
             limit: Maximum sightings per call.
             wait_seconds: How long a poll waits for a new sighting (default
                 30, at most 120; 0 returns at once).
@@ -1224,6 +1250,7 @@ def register(mcp: FastMCP, deps: Deps) -> None:
             duration_minutes=duration_minutes,
             cursor=cursor,
             min_raw_score=min_raw_score,
+            min_peak_score=min_peak_score,
             limit=limit,
             wait_seconds=wait_seconds,
             ctx=ctx,

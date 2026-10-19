@@ -65,6 +65,8 @@ In the VSS stack, `docker/compose.mcp.yaml` starts it only after
 `vss_watch_search` is also the live tracker: start (`query`/`image`/`from_hit`,
 `window_minutes`, `duration_minutes`), poll (`query_id` + `cursor`), stop
 (`watch=false`, or auto-expiry on the first poll after `duration_minutes`).
+`min_peak_score` (0-1) gates the watch at retrieval on every VSS refresh and is
+saved on the search; `min_raw_score` only filters the sightings one call reports.
 `vss_remove_stream` is the only destructive tool and never purges footage.
 
 Resources: `vss://deployment`, `vss://videos`, `vss://tags`, plus

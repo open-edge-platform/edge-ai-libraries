@@ -106,6 +106,16 @@ export class RefetchBodyDTO {
 export class WatchBodyDTO {
   @ApiProperty({ description: 'Whether to watch this query' })
   watch: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Optional minimum peak score (0-1, 0 = off) saved on the query and ' +
+      'applied at retrieval by every watched refresh. When it changes, the ' +
+      'query re-runs immediately. Omit to keep the current threshold.',
+    minimum: 0,
+    maximum: 1,
+  })
+  minPeakScore?: number;
 }
 
 export enum SearchQueryStatus {
