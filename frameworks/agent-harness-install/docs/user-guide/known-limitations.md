@@ -182,6 +182,19 @@
   already exist, so a container from an older version of this installer
   (before this network existed) picks it up automatically, along with any
   other changed GPU/proxy/port configuration, on the next run.
+- Published ports of OVMS (`8000`) and the Inference Router (`8010`) bind to
+  `127.0.0.1` by default. `HARNESS_ADVERTISED_HOST=<ip>` binds them to that
+  address and prints it in endpoint URLs; `HARNESS_BIND_HOST=0.0.0.0` binds
+  all interfaces but does not change the printed URLs, so set
+  `HARNESS_ADVERTISED_HOST` as well (or use the machine's real address).
+  Neither service authenticates inbound requests, and Docker-published ports
+  bypass `ufw`; restrict access with the `DOCKER-USER` iptables chain or bind
+  to a specific interface. Only the advertised host is persisted
+  (`~/.agent-harness-install/advertised-host`); `HARNESS_BIND_HOST` must be
+  set again on every run. Binding a specific address requires it to exist on
+  the host: an address that is not assigned yet (for example a DHCP lease
+  that arrives after Docker starts at boot) stops the container from
+  starting.
 - Switching from a locally-managed OVMS install to
   `HARNESS_LLM_ROUTER_ENDPOINT` does not stop/remove the previously-managed
   OVMS container: re-running `ensure_inference_backend` with the router

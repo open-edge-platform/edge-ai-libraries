@@ -111,7 +111,11 @@ needs a digest or an explicit opt-out.
 Once installed, the agent talks to a single OpenAI-compatible endpoint. The
 Inference Router sits in front of OVMS (or of an external endpoint), and the
 local containers run on a dedicated Docker network. Published ports bind to
-loopback by default.
+127.0.0.1 by default; set `HARNESS_ADVERTISED_HOST` (a specific address) or
+`HARNESS_BIND_HOST=0.0.0.0` (all interfaces) to reach them from other machines.
+Neither service authenticates inbound requests, and Docker-published ports
+bypass `ufw`, so restrict access with the `DOCKER-USER` iptables chain or bind
+to a specific interface address.
 
 ```mermaid
 %%{init: {"flowchart": {"wrappingWidth": 420, "nodeSpacing": 40, "rankSpacing": 60, "curve": "basis"}}}%%
@@ -127,19 +131,21 @@ flowchart TD
         AGENT["Agent CLI<br/>OpenClaw, Deep Agents Code, or Hermes"]:::box
         subgraph NET["Docker network: agent-harness-install-backend"]
             direction TB
-            IRC["Inference Router<br/>127.0.0.1:8010/v1"]:::box
-            OVMSC["OpenVINO Model Server<br/>127.0.0.1:8000/v3"]:::box
+            IRC["Inference Router<br/>#lt;host-ip#gt;:8010/v1"]:::box
+            OVMSC["OpenVINO Model Server<br/>#lt;host-ip#gt;:8000/v3"]:::box
         end
         MODELS[("OpenVINO models<br/>~/.agent-harness-install/models")]:::store
         GPUD["Intel GPU<br/>/dev/dri render nodes"]:::hw
     end
     EXTR["External OpenAI-compatible endpoint<br/>HARNESS_LLM_ROUTER_ENDPOINT"]:::ext
+    REMOTE["Other machines on the network<br/>optional"]:::ext
 
-    AGENT -- "OpenAI-compatible API" --> IRC
+    AGENT -- "OpenAI-compatible API<br/>host-ip is 127.0.0.1 by default" --> IRC
     IRC -- "container name" --> OVMSC
     OVMSC --- MODELS
     OVMSC -. "--device and --group-add" .-> GPUD
     IRC -. "or, when HARNESS_LLM_ROUTER_ENDPOINT is set" .-> EXTR
+    REMOTE -. "only when HARNESS_ADVERTISED_HOST or HARNESS_BIND_HOST is set" .-> IRC
     class HOST host
 ```
 
