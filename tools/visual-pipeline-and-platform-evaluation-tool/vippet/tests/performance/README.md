@@ -18,9 +18,13 @@ make test-performance PERF_CONFIG=full   # all variants, 1/3/5/10 streams
 # Extra CLI flags via PERF_ARGS
 make test-performance PERF_ARGS="--dry-run"
 make test-performance PERF_CONFIG=quick PERF_ARGS="--streams 1,5 --pipelines object-detection"
+
+# Verbose: stream INFO logs live (arguments after `--` go to pytest)
+make test-performance PERF_ARGS="-- --log-cli-level=INFO"
 ```
 
-`make test-performance` delegates to the CLI below.
+`make test-performance` delegates to the CLI below and prints the same console output
+(see [Console output](#console-output)).
 
 ### CLI
 
@@ -106,7 +110,7 @@ CLI flags in this mode:
 python -m pytest --collect-only vippet/tests/performance/
 
 # Run a specific pipeline
-python -m pytest --log-cli-level=INFO -m perf -k "object_detection" vippet/tests/performance/
+python -m pytest -m perf -k "object_detection" vippet/tests/performance/
 
 # Generate JUnit XML for CI
 python -m pytest -m perf --junitxml=results/perf.xml vippet/tests/performance/
@@ -127,6 +131,13 @@ Every run (CLI or direct pytest) prints these sections in order:
    `latest` link, or why nothing was written. Also a warning if no hardware metrics
    were sampled.
 6. pytest's short summary with every skip and failure reason.
+
+Logs are not streamed by default; the INFO log of a failed test is shown in its
+"Captured log" block. Passing `--log-cli-level=INFO` to pytest (after `--` for the CLI)
+streams logs live, which adds `live log ...` blocks between these sections and splits
+each per-test status line around the logs of its job. Per-request `httpx`/`httpcore`
+lines are always suppressed below WARNING because the readiness lines already report
+each request.
 
 Every error says what happened, why, and how to fix it ("To fix: ..."), naming the
 flag, env var or file to change. Errors that stop the run:

@@ -114,6 +114,18 @@ _FILTER_PROBLEM: tuple[str, bool] | None = None
 _QUICK_STREAM_COUNTS: set[int] = {1, 3}
 _QUICK_VARIANTS: set[str] = {"CPU", "GPU"}
 
+# Loggers whose per-request INFO lines ("HTTP Request: GET ...") only repeat
+# what the [pre-flight] lines and helpers.api_helpers already report. With
+# --log-cli-level=INFO they would be printed inline and split the console
+# sections, so only their warnings and errors are kept.
+_NOISY_LOGGERS: tuple[str, ...] = ("httpx", "httpcore")
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """Keep per-request HTTP client logs out of the console and reports."""
+    for name in _NOISY_LOGGERS:
+        logging.getLogger(name).setLevel(logging.WARNING)
+
 
 # --------------------------------------------------------------------------- #
 # Console output

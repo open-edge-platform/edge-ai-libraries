@@ -313,6 +313,7 @@ class TestConsoleOutputEndToEnd(unittest.TestCase):
         post_status: int = 200,
         skip_missing_models: bool = True,
         prepare: Any = None,
+        pytest_args: tuple[str, ...] = (),
     ) -> subprocess.CompletedProcess[str]:
         handler = type(
             "Handler",
@@ -365,6 +366,7 @@ class TestConsoleOutputEndToEnd(unittest.TestCase):
                 "-p",
                 "no:cacheprovider",
                 str(PERF_DIR),
+                *pytest_args,
             ],
             env=env,
             capture_output=True,
@@ -402,6 +404,26 @@ class TestConsoleOutputEndToEnd(unittest.TestCase):
         )
         self.assertNotIn("Traceback", out + completed.stderr)
 
+    def test_live_logging_keeps_sections_without_http_client_noise(self) -> None:
+        completed = self._run(
+            "COMPLETED", pipelines="[od]", pytest_args=("--log-cli-level=INFO",)
+        )
+        out = completed.stdout
+        self.assertEqual(completed.returncode, 0, out + completed.stderr)
+        self._assert_in_order(
+            out,
+            "ViPPET readiness",
+            "/status: READY",
+            "Discovered hardware",
+            "Benchmark matrix",
+            "Matrix: 1 run(s)",
+            "Benchmark artefacts",
+            "HTML report",
+        )
+        # httpx/httpcore per-request INFO lines repeat the [pre-flight] lines.
+        self.assertNotIn("HTTP Request:", out)
+        self.assertNotIn("live log sessionstart", out)
+
     def test_missing_model_runs_counted_when_not_skipped(self) -> None:
         completed = self._run("COMPLETED", skip_missing_models=False)
         out = completed.stdout
@@ -426,7 +448,7 @@ class TestConsoleOutputEndToEnd(unittest.TestCase):
         self._assert_in_order(
             out,
             "Benchmark artefacts",
-            "No reports were written because no benchmark results were recorded",
+            "No reports were written because no benchmark result records were produced",
         )
         self.assertNotIn("no benchmark test ran", out)
 

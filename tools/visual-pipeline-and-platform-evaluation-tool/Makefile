@@ -224,7 +224,7 @@ test-full: $(VENV_SENTINEL) ## Run full functional tests
 test-performance: $(VENV_SENTINEL) ## Run performance benchmarks (PERF_CONFIG=default|quick|full, PERF_ARGS="--dry-run ...")
 	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\
 	PYTHONPATH=vippet/tests/performance PERF_CONFIG=$(or $(PERF_CONFIG),default) \
-		python -m perf_helpers.cli $(PERF_ARGS) -- --log-cli-level=INFO
+		python -m perf_helpers.cli $(PERF_ARGS)
 
 # UI end-to-end setup — Playwright installs are slow, so both recipes are
 # sentinel-gated. Re-runs are a no-op unless package-lock.json changes or
