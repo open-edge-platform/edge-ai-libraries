@@ -82,6 +82,30 @@ leaves the flag unchanged because DataPrep may still complete it. Batch jobs are
 followed by Pipeline Manager until they finish, so their result is recorded even
 if no client polls `GET /videos/search-embeddings-jobs/{jobId}`.
 
+## Re-adding an Existing Video
+
+`POST /videos/{videoId}/copy` adds an already-uploaded video again as a new,
+independent video, exactly as if its file were uploaded again. The stored file
+is copied inside the object store to a new `videoId`, and a new record with the
+same name is created. The response is `{ "videoId": "<new id>" }`.
+
+- Tags are the source video's tags plus any passed in the optional `tags` body
+  field (comma-separated).
+- Embeddings, embedding status and summaries are not copied. Call
+  `POST /videos/search-embeddings/{videoId}` (or the batch endpoint) with the
+  new ID to index it.
+- The source video is not changed.
+- Each copy is indexed and ranked separately, so a query can return the same
+  moment once per copy.
+- With `MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS=false`, embedding a copy is
+  rejected with `409` and the copy is removed, the same as a content-identical
+  upload.
+
+The UI uses this when you pick videos from **recent uploads** in the search
+upload dialog. Calling `POST /videos/search-embeddings/{videoId}` on a video
+that is already indexed adds a second set of embeddings under the same ID
+instead.
+
 ## Filtering Search Results by Minimum Peak Score
 
 `POST /search`, `POST /search/query` and `POST /search/{queryId}/refetch`

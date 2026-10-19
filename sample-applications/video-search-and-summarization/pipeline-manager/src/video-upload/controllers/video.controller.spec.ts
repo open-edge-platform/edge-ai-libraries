@@ -53,6 +53,7 @@ describe('VideoController', () => {
             getVideos: jest.fn().mockResolvedValue(mockVideos),
             getVideo: jest.fn().mockResolvedValue(mockVideo),
             uploadVideo: jest.fn().mockResolvedValue('test-video-123'),
+            copyVideo: jest.fn().mockResolvedValue('copied-video-456'),
             cleanupFailedDuplicateVideo: jest.fn().mockResolvedValue(undefined),
             createSearchEmbeddings: jest.fn().mockResolvedValue({
               data: { status: 'success', embeddings: [] }
@@ -212,6 +213,50 @@ describe('VideoController', () => {
 
       await expect(controller.getVideos())
         .rejects.toThrow('Service error');
+    });
+  });
+
+  describe('copyVideo', () => {
+    it('should copy the video and return the new id', async () => {
+      const result = await controller.copyVideo({ videoId: 'test-video-123' });
+
+      expect(videoService.copyVideo).toHaveBeenCalledWith('test-video-123', []);
+      expect(result).toEqual({ videoId: 'copied-video-456' });
+    });
+
+    it('should parse comma-separated tags', async () => {
+      await controller.copyVideo(
+        { videoId: 'test-video-123' },
+        { tags: ' a, b ,,c ' },
+      );
+
+      expect(videoService.copyVideo).toHaveBeenCalledWith('test-video-123', [
+        'a',
+        'b',
+        'c',
+      ]);
+    });
+
+    it('should work without the search feature', async () => {
+      featuresService.getFeatures.mockReturnValueOnce({
+        search: FEATURE_STATE.OFF,
+      } as any);
+
+      await expect(
+        controller.copyVideo({ videoId: 'test-video-123' }),
+      ).resolves.toEqual({
+        videoId: 'copied-video-456',
+      });
+    });
+
+    it('should propagate a missing source video', async () => {
+      videoService.copyVideo.mockRejectedValueOnce(
+        new NotFoundException('Video not found'),
+      );
+
+      await expect(
+        controller.copyVideo({ videoId: 'missing' }),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 

@@ -294,6 +294,44 @@ describe('DatastoreService', () => {
     });
   });
 
+  describe('copyObject', () => {
+    it('should copy within the app bucket', async () => {
+      mockClientImplementation.copyObject = jest
+        .fn()
+        .mockResolvedValueOnce({ etag: 'e1' });
+
+      await service.copyObject('src-id/source.mp4', 'dst-id/source.mp4');
+
+      expect(mockClientImplementation.copyObject).toHaveBeenCalledWith(
+        'test-bucket',
+        'dst-id/source.mp4',
+        '/test-bucket/src-id/source.mp4',
+      );
+    });
+
+    it('should strip leading slashes from the source object', async () => {
+      mockClientImplementation.copyObject = jest.fn().mockResolvedValueOnce({});
+
+      await service.copyObject('/src-id/source.mp4', 'dst-id/source.mp4');
+
+      expect(mockClientImplementation.copyObject).toHaveBeenCalledWith(
+        'test-bucket',
+        'dst-id/source.mp4',
+        '/test-bucket/src-id/source.mp4',
+      );
+    });
+
+    it('should propagate copy errors', async () => {
+      mockClientImplementation.copyObject = jest
+        .fn()
+        .mockRejectedValueOnce(new Error('NoSuchKey'));
+
+      await expect(
+        service.copyObject('src-id/source.mp4', 'dst-id/source.mp4'),
+      ).rejects.toThrow('NoSuchKey');
+    });
+  });
+
   describe('uploadFile', () => {
     it('should call fPutObject with correct parameters', async () => {
       mockClientImplementation.fPutObject.mockResolvedValueOnce('etag-123');

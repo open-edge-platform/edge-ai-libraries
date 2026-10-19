@@ -132,6 +132,16 @@ export class DatastoreService {
     return filePath;
   }
 
+  /** Server-side copy within the app bucket; the bytes never leave MinIO. */
+  async copyObject(sourceObject: string, destinationObject: string) {
+    const source = sourceObject.replace(/^\/+/, '');
+    return this.client.copyObject(
+      this.bucket,
+      destinationObject,
+      `/${this.bucket}/${source}`,
+    );
+  }
+
   async deleteObject(objectName: string): Promise<void> {
     await this.client.removeObject(this.bucket, objectName);
   }

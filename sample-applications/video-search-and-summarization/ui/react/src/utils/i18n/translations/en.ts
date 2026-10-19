@@ -280,6 +280,9 @@ export const enTranslations = {
 
   // Video selector translations
   orSelectExisting: 'Or select from recent uploads',
+  orSelectExistingMultiple: 'Or select one or more recent uploads',
+  existingAddedAsNewCopy: 'Selected videos are added again as new videos with the same name and indexed separately.',
+  copyingVideo: 'Adding Video',
   recentUploads: 'Recent Uploads',
   noRecentVideos: 'No recent videos available',
   uploadNew: 'Upload New Video',

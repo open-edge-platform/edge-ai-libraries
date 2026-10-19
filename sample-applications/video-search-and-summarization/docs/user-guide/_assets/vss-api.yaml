@@ -291,6 +291,39 @@ paths:
       summary: Get a video by ID
       tags:
         - Video
+  /videos/{videoId}/copy:
+    post:
+      operationId: VideoController_copyVideo
+      description: >-
+        Copies the stored file to a new video ID with the same name, as if it
+        were uploaded again. Embeddings and summaries are not copied; create
+        them for the returned videoId.
+      parameters:
+        - name: videoId
+          required: true
+          in: path
+          description: ID of the video to copy
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tags:
+                  type: string
+                  example: outdoor,daytime
+                  description: >-
+                    Optional comma-separated tags to add to the copy on top of
+                    the source tags
+      responses:
+        '201':
+          description: Video copied; returns the new videoId
+      summary: Add an existing video again as a new video
+      tags:
+        - Video
   /videos/search-embeddings/{videoId}:
     post:
       operationId: VideoController_createSearchEmbeddings

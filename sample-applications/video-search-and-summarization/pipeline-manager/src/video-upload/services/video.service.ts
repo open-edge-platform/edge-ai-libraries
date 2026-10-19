@@ -417,6 +417,86 @@ export class VideoService implements OnModuleDestroy {
     return videoId;
   }
 
+  /**
+   * Add an existing video again as a new, independent video, as if its file
+   * were uploaded again: the stored file is copied server-side to a new id and
+   * a new record is created with the same name. Embeddings and summaries are
+   * not carried over; callers create them for the returned id.
+   */
+  async copyVideo(
+    sourceVideoId: string,
+    tagsToMerge: string[] = [],
+  ): Promise<string> {
+    const source = await this.getVideo(sourceVideoId);
+
+    if (!source) {
+      throw new NotFoundException('Video not found');
+    }
+
+    if (!source.dataStore || !source.url) {
+      throw new UnprocessableEntityException(
+        'Video not available in object store',
+      );
+    }
+
+    const videoId = uuidv4();
+    const fileName = source.dataStore.fileName || source.name;
+    const { objectPath } = this.$datastore.getObjectName(videoId, fileName);
+
+    try {
+      await this.$datastore.copyObject(source.url, objectPath);
+    } catch (error) {
+      Logger.error('Error copying video in object storage', error);
+      throw new UnprocessableEntityException(
+        'Error copying video in object storage',
+      );
+    }
+
+    const tags = this.normalizeTags([...(source.tags || []), ...tagsToMerge]);
+    const now = new Date().toISOString();
+    const video: Video = {
+      name: source.name,
+      tags,
+      dataStore: {
+        bucket: this.$datastore.bucket,
+        fileName,
+        objectName: videoId,
+      },
+      videoId,
+      createdAt: now,
+      updatedAt: now,
+      url: objectPath,
+    };
+
+    let videoDB: Video;
+    try {
+      videoDB = await this.$videoDb.create(video);
+    } catch (error) {
+      Logger.error('Error saving video copy to database', error);
+      try {
+        await this.$datastore.deleteObject(objectPath);
+      } catch (cleanupError) {
+        Logger.warn(
+          `Best-effort cleanup failed for copied object ${objectPath}: ${String(cleanupError)}`,
+        );
+      }
+      throw new UnprocessableEntityException('Error saving video to database');
+    }
+    this.videoMap.set(videoId, videoDB);
+
+    if (tags.length > 0) {
+      try {
+        await this.$tags.addTags(tags);
+      } catch (error) {
+        Logger.warn(
+          `Could not register tags for video copy ${videoId}: ${String(error)}`,
+        );
+      }
+    }
+
+    return videoId;
+  }
+
   async getVideos(): Promise<Video[]> {
     const videoList = await this.$videoDb.readAll();
 

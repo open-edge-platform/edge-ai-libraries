@@ -116,6 +116,7 @@ describe('VideoService', () => {
 
     const datastoreServiceMock = {
       uploadFile: jest.fn(),
+      copyObject: jest.fn(),
       deleteFile: jest.fn(),
       deleteObject: jest.fn(),
       getFile: jest.fn(),
@@ -859,6 +860,144 @@ describe('VideoService', () => {
       expect(tagsService.addTags).toHaveBeenCalledWith(['tag1', 'tag2']);
 
       logSpy.mockRestore();
+    });
+  });
+
+  describe('copyVideo', () => {
+    beforeEach(() => {
+      (uuidv4 as jest.Mock).mockReturnValue('copy-video-id');
+      videoDbService.read.mockResolvedValue(mockVideo);
+      datastoreService.getObjectName.mockReturnValue({
+        objectPath: 'copy-video-id/source.mp4',
+        fileExtn: 'mp4',
+      });
+      datastoreService.copyObject.mockResolvedValue({} as any);
+      videoDbService.create.mockImplementation(async (video: Video) => video);
+      tagsService.addTags.mockResolvedValue(undefined);
+    });
+
+    it('should copy the stored file to a new id and keep the same name', async () => {
+      const result = await service.copyVideo('test-video-id');
+
+      expect(result).toBe('copy-video-id');
+      expect(datastoreService.getObjectName).toHaveBeenCalledWith(
+        'copy-video-id',
+        'test-video.mp4',
+      );
+      expect(datastoreService.copyObject).toHaveBeenCalledWith(
+        'test-video-id/test-video.mp4',
+        'copy-video-id/source.mp4',
+      );
+      expect(videoDbService.create).toHaveBeenCalledWith({
+        name: 'test-video.mp4',
+        tags: ['tag1', 'tag2'],
+        dataStore: {
+          bucket: 'test-bucket',
+          fileName: 'test-video.mp4',
+          objectName: 'copy-video-id',
+        },
+        videoId: 'copy-video-id',
+        createdAt: expect.any(String),
+        updatedAt: expect.any(String),
+        url: 'copy-video-id/source.mp4',
+      });
+      expect(await service.getVideo('copy-video-id')).toEqual(
+        expect.objectContaining({ videoId: 'copy-video-id' }),
+      );
+    });
+
+    it('should not carry over embedding flags or summaries', async () => {
+      videoDbService.read.mockResolvedValue({
+        ...mockVideo,
+        searchEmbeddings: true,
+        textEmbeddings: true,
+        summaryId: 's1',
+      } as any);
+
+      await service.copyVideo('test-video-id');
+
+      const created = videoDbService.create.mock.calls[0][0];
+      expect(created).not.toHaveProperty('searchEmbeddings');
+      expect(created).not.toHaveProperty('textEmbeddings');
+      expect(created).not.toHaveProperty('summaryId');
+    });
+
+    it('should merge new tags into the source tags', async () => {
+      await service.copyVideo('test-video-id', ['tag2', ' tag3 ', '']);
+
+      expect(videoDbService.create).toHaveBeenCalledWith(
+        expect.objectContaining({ tags: ['tag1', 'tag2', 'tag3'] }),
+      );
+      expect(tagsService.addTags).toHaveBeenCalledWith([
+        'tag1',
+        'tag2',
+        'tag3',
+      ]);
+    });
+
+    it('should leave the source video untouched', async () => {
+      await service.copyVideo('test-video-id', ['tag3']);
+
+      expect(videoDbService.update).not.toHaveBeenCalled();
+      expect(datastoreService.deleteObject).not.toHaveBeenCalled();
+    });
+
+    it('should throw NotFoundException for an unknown video', async () => {
+      videoDbService.read.mockResolvedValue(null as any);
+
+      await expect(service.copyVideo('missing')).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(datastoreService.copyObject).not.toHaveBeenCalled();
+    });
+
+    it('should reject a video without a stored file', async () => {
+      videoDbService.read.mockResolvedValue({
+        ...mockVideo,
+        dataStore: undefined,
+      });
+
+      await expect(service.copyVideo('test-video-id')).rejects.toThrow(
+        UnprocessableEntityException,
+      );
+      expect(datastoreService.copyObject).not.toHaveBeenCalled();
+    });
+
+    it('should not create a record when the object copy fails', async () => {
+      const errorSpy = jest.spyOn(Logger, 'error').mockImplementation();
+      datastoreService.copyObject.mockRejectedValue(new Error('copy failed'));
+
+      await expect(service.copyVideo('test-video-id')).rejects.toThrow(
+        UnprocessableEntityException,
+      );
+      expect(videoDbService.create).not.toHaveBeenCalled();
+
+      errorSpy.mockRestore();
+    });
+
+    it('should remove the copied object when saving the record fails', async () => {
+      const errorSpy = jest.spyOn(Logger, 'error').mockImplementation();
+      videoDbService.create.mockRejectedValue(new Error('db down'));
+
+      await expect(service.copyVideo('test-video-id')).rejects.toThrow(
+        UnprocessableEntityException,
+      );
+      expect(datastoreService.deleteObject).toHaveBeenCalledWith(
+        'copy-video-id/source.mp4',
+      );
+
+      errorSpy.mockRestore();
+    });
+
+    it('should still return the copy when tag registration fails', async () => {
+      const warnSpy = jest.spyOn(Logger, 'warn').mockImplementation();
+      tagsService.addTags.mockRejectedValue(new Error('tags down'));
+
+      await expect(service.copyVideo('test-video-id')).resolves.toBe(
+        'copy-video-id',
+      );
+
+      warnSpy.mockRestore();
     });
   });
 

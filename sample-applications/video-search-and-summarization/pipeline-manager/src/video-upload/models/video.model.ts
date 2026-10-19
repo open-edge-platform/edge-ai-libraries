@@ -38,3 +38,7 @@ export interface SearchEmbeddingsBatchDTO {
   videoIds: string[];
   tags?: string;
 }
+
+export interface CopyVideoDTO {
+  tags?: string;
+}
