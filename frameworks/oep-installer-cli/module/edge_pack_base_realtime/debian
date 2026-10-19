@@ -49,7 +49,7 @@ debian_20_remove_edge_pack_base_realtime () {
   if [ "$(ensure_prop get installed/edge_pack_base_realtime/fallback)" != "true" ]; then
     [ "$(ensure_prop get installed/edge_pack_base_realtime/owned)" = "true" ] || return 0
     ensure_apt autoremove -y intel-edge-base-realtime || true
-    debian_15_remove_edge_pack "$@" || true
+    debian_19_remove_edge_pack "$@" || true
   else
     debian_20_remove_edge_pack_base_standard "$@"
   fi
@@ -57,7 +57,7 @@ debian_20_remove_edge_pack_base_realtime () {
 
 debian_20_sbom_edge_pack_base_realtime () {
   configure_edge_pack_base_realtime "$@"
-  debian_15_sbom_edge_pack_repo_entries "$@"
+  debian_19_sbom_edge_pack_repo_entries "$@"
   if [ "$(ensure_prop get installed/edge_pack_base_realtime/fallback)" = "true" ]; then
     ensure_sbom_format pkg-list "intel-edge-base-standard=$version*"
   else

@@ -29,12 +29,12 @@ debian_20_install_edge_pack_base_standard () {
 debian_20_remove_edge_pack_base_standard () {
   [ "$(ensure_prop get installed/edge_pack_base_standard/owned)" = "true" ] || return 0
   ensure_apt autoremove -y intel-edge-base-standard || true
-  debian_15_remove_edge_pack "$@" || true
+  debian_19_remove_edge_pack "$@" || true
 }
 
 debian_20_sbom_edge_pack_base_standard () {
   configure_edge_pack_base_standard "$@"
-  debian_15_sbom_edge_pack_repo_entries "$@"
+  debian_19_sbom_edge_pack_repo_entries "$@"
   ensure_sbom_format pkg-list "intel-edge-base-standard=$version*"
 }
 

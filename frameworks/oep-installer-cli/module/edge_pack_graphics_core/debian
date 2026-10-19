@@ -29,12 +29,12 @@ debian_20_install_edge_pack_graphics_core () {
 debian_20_remove_edge_pack_graphics_core () {
   [ "$(ensure_prop get installed/edge_pack_graphics_core/owned)" = "true" ] || return 0
   ensure_apt autoremove -y intel-edge-graphics-core || true
-  debian_15_remove_edge_pack "$@" || true
+  debian_19_remove_edge_pack "$@" || true
 }
 
 debian_20_sbom_edge_pack_graphics_core () {
   configure_edge_pack_graphics_core "$@"
-  debian_15_sbom_edge_pack_repo_entries "$@"
+  debian_19_sbom_edge_pack_repo_entries "$@"
   ensure_sbom_format pkg-list "intel-edge-graphics-core=$version*"
 }
 
