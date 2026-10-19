@@ -181,8 +181,7 @@ async def vss_transcribe(
     if requested_device and requested_device not in _SUPPORTED_ASR_DEVICES:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported device '{request.device}'. Supported values: "
-                    f"{sorted(_SUPPORTED_ASR_DEVICES)}",
+            detail=f"Unsupported device '{request.device}'. Supported values: {sorted(_SUPPORTED_ASR_DEVICES)}",
         )
 
     # model_name: this service exposes exactly one configured ASR model (see
@@ -192,7 +191,7 @@ async def vss_transcribe(
         raise HTTPException(
             status_code=400,
             detail=f"Unsupported model_name '{request.model_name}'. This service only supports "
-                    f"the configured model '{config.models.asr.name}' (see GET /models).",
+            f"the configured model '{config.models.asr.name}' (see GET /models).",
         )
 
     job_id = generate_session_id()
