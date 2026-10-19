@@ -1,0 +1,73 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# Dependencies required by the SLIM image variant (review point #4): the
+# default OpenVINO GenAI Whisper transcription path, VSS/MinIO ingestion,
+# and on-first-run OpenVINO model export (optimum-cli). This is the
+# dependency floor of the service -- every package listed here is needed
+# even with every optional provider/feature disabled.
+#
+# Excluded from this file (see requirements-optional.txt): the openai
+# and whispercpp ASR provider backends, and diarization/sentiment
+# (pyannote.audio, speechbrain). Those providers' classes are imported
+# lazily (components/asr_component.py, components/sentiment_component.py)
+# only when actually selected/enabled, so omitting their packages here
+# does not break slim-image startup -- selecting an excluded provider at
+# runtime fails with a clear ImportError instead (see whispercpp/whisper.py
+# for the existing pattern).
+#
+# The FULL image installs this file AND requirements-optional.txt.
+#
+# Pin consistency: resolved versions for every package below are also
+# constrained via requirements-lock.txt (`pip install -r ... -c
+# requirements-lock.txt`), which was generated from a full-variant install
+# and verified (by rebuilding) to resolve identically for this reduced set.
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+fastapi==0.141.1
+openvino==2026.1.0
+openvino-genai==2026.1.0.0
+openvino-tokenizers==2026.1.0.0
+pydantic==2.11.7
+python-multipart>=0.0.31
+PyYAML==6.0.2
+# torch is NOT used directly by the default openvino-genai transcription
+# path, but optimum-intel's OpenVINO export (invoked via `optimum-cli` by
+# utils/ensure_model.py on first run, to convert the configured HF Whisper
+# checkpoint to OpenVINO IR) loads the HF model via PyTorch and traces it
+# before conversion. It is therefore required in the slim image too, as
+# long as on-container model export is part of the architecture (seeing
+# review point #4's suggestion to move export to a separate tool/init
+# container -- not implemented in this pass; see optimization log).
+torch==2.8.0+cpu
+# onnx is not imported directly anywhere in this codebase, but it is an
+# unconditional transitive dependency of optimum-onnx, which is itself an
+# unconditional dependency of optimum-intel (used below for the OpenVINO
+# export path). Pinned explicitly (rather than left to float) purely for
+# reproducibility, since it is pulled in either way.
+onnx==1.21.0
+transformers==4.53.3
+uvicorn==0.35.0
+# WebSocket transport for uvicorn — required by the realtime transcription
+# endpoint (api/realtime_endpoints.py); uvicorn has no WS support without it.
+websockets==15.0.1
+fsspec>=2023.1.0,<=2025.3.0
+numpy==2.2.6
+optimum==2.1.0
+optimum-intel[openvino]==1.27.0
+# nncf is not imported directly anywhere in this codebase, but it is an
+# unconditional dependency of optimum-intel's "openvino" extra (activated
+# above), which this service relies on for OpenVINO model export/quantization.
+# Pinned explicitly for reproducibility since it is pulled in either way.
+nncf==3.1.0
+huggingface-hub==0.34.4
+hf_xet==1.4.3
+librosa==0.11.0
+# numba/llvmlite are pulled in transitively via librosa. Newer numba (0.66.x)
+# ships unsigned native DLLs that Windows Smart App Control / WDAC blocks at load
+# time ("Application Control policy has blocked this file" on _typeconv). Pin to
+# an older, reputable build that still supports the pinned numpy 2.2.x.
+numba==0.61.2
+llvmlite==0.44.0
+soundfile==0.13.1
+minio==7.2.9

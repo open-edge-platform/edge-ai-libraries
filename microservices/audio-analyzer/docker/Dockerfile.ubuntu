@@ -1,0 +1,264 @@
+# syntax=docker/dockerfile:1
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# ================================================================
+# CANDIDATE — NOT USED BY PRODUCTION BUILDS OR CI (docker-compose.yml
+# still points at docker/Dockerfile, the intel/dlstreamer-based image).
+# ================================================================
+# Multi-stage Ubuntu 24.04 replacement for the DLStreamer base image
+# (review points #3, #4, #5). Supersedes the earlier python:3.12-slim
+# draft (docker/Dockerfile.poc-python-slim) -- Ubuntu 24.04 is used here
+# because it is the native/documented target distribution for Intel's
+# GPU (intel/compute-runtime, intel/intel-graphics-compiler) and NPU
+# (intel/linux-npu-driver) userspace runtime packages, avoiding any
+# cross-distro ABI guesswork.
+#
+# Why not the DLStreamer base: nothing in this service imports GStreamer,
+# librealsense, or rdkafka, all of which the DLStreamer image ships
+# unconditionally, and it bundles its own OpenVINO 2026.2.0 runtime
+# alongside the pip-installed OpenVINO 2026.1.0 the app actually imports
+# -- two versions of the same runtime in one image. This Dockerfile
+# installs nothing OpenVINO-related at the OS level; the OpenVINO Python
+# wheel (pulled in by requirements-slim.txt) is the only OpenVINO runtime
+# present, eliminating that duplication entirely.
+#
+# Variants (review point #4):
+#   --build-arg IMAGE_VARIANT=slim   (default) -- openvino-genai Whisper
+#       transcription + VSS/MinIO ingestion + on-first-run OpenVINO model
+#       export only. See requirements-slim.txt for the exact package list
+#       and the reasoning for what is/isn't included.
+#   --build-arg IMAGE_VARIANT=full   -- everything in slim, plus the
+#       openai/whispercpp ASR providers, diarization (pyannote.audio) and
+#       sentiment analysis (speechbrain). See requirements-optional.txt.
+# Do not change docker-compose.yml's default variant without confirming
+# which features existing deployments actually rely on -- "full" exists
+# so that switching to this Dockerfile does not silently remove
+# functionality current users may depend on.
+#
+# A model-export-separation prototype (pre-exporting the default model at
+# build time via a `builder-minimal`/`exporter`/`runtime-minimal` stage set,
+# excluding torch/onnx/transformers/optimum/optimum-intel/nncf entirely) was
+# built and measured at ~2.09GB during evaluation, but was removed after the
+# mentor confirmed the current slim (2.65GB)/full (2.92GB) sizes already meet
+# the target and further reduction is not required. It duplicated most of
+# the `builder` stage, needed its own dependency file, and only worked for
+# whichever single model was pre-exported at build time (any other
+# models.asr.name/weight_format failed at startup instead of exporting on
+# demand). See docs/audio-analyzer-image-optimization.md's "rejected
+# experiments" section for the full measurement and rationale if this is
+# revisited later.
+#
+# GPU/NPU userspace runtime (review point #3 validation):
+#   --build-arg INSTALL_GPU_NPU_RUNTIME=true installs the Intel compute-
+#   runtime (GPU) and linux-npu-driver (NPU) userspace packages, following
+#   the same install pattern as microservices/multimodal-embedding-serving/
+#   docker/Dockerfile. Exact package/version provenance is documented next
+#   to the ARGs below. This is OPTIONAL and defaults to false; the OpenVINO
+#   GPU/NPU plugin .so files ship inside the pip `openvino` wheel itself,
+#   so only these userspace driver libraries are needed for the plugins to
+#   dlopen successfully -- no system OpenVINO package is installed.
+#
+# Build (from microservices/audio-analyzer/):
+#   docker build -f docker/Dockerfile.ubuntu -t audio-analyzer:ubuntu-slim-cpu .
+#   docker build -f docker/Dockerfile.ubuntu -t audio-analyzer:ubuntu-full-cpu \
+#       --build-arg IMAGE_VARIANT=full .
+#   docker build -f docker/Dockerfile.ubuntu -t audio-analyzer:ubuntu-slim-gpu-npu \
+#       --build-arg INSTALL_GPU_NPU_RUNTIME=true .
+# ================================================================
+
+ARG IMAGE_VARIANT=slim
+
+# ---------------------------------------------------------------- builder --
+FROM ubuntu:24.04 AS builder
+
+ARG IMAGE_VARIANT
+ARG DEBIAN_FRONTEND=noninteractive
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    VIRTUAL_ENV=/opt/venv \
+    PATH="/opt/venv/bin:$PATH"
+
+WORKDIR /app/audio_analyzer
+
+# python3.12 ships in Ubuntu 24.04's (noble) default archive -- no deadsnakes
+# PPA or source build required, unlike older Ubuntu releases.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        python3.12 python3.12-venv python3-pip ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements-slim.txt requirements-optional.txt requirements-lock.txt ./
+
+# requirements-lock.txt was generated via `pip freeze --all` from a known-
+# working FULL install (review point #9) and is reused unmodified as a
+# constraints file for both variants here: `pip install -c` only
+# constrains packages that are actually being installed, so entries for
+# full-only packages are simply ignored when building slim. This was
+# verified empirically (see docs/audio-analyzer-image-optimization.md)
+# by building the slim variant with this file and confirming every
+# resolved version matches its pinned entry with no conflicts.
+RUN python3.12 -m venv "$VIRTUAL_ENV" \
+    && "$VIRTUAL_ENV/bin/pip" install --upgrade pip \
+    && "$VIRTUAL_ENV/bin/pip" install -r requirements-slim.txt -c requirements-lock.txt \
+    && if [ "$IMAGE_VARIANT" = "full" ]; then \
+        "$VIRTUAL_ENV/bin/pip" install -r requirements-optional.txt -c requirements-lock.txt; \
+    fi \
+    && ("$VIRTUAL_ENV/bin/pip" uninstall -y torchcodec || true) \
+    # triton (~0.9GB installed) is a hard dependency of openai-whisper on
+    # x86_64 Linux (full variant only), but is only ever imported lazily
+    # behind CUDA-only code paths (whisper/timing.py: `if x.is_cuda`).
+    # This service's openai provider is CPU-only by design (config.yaml),
+    # so that code path never executes and triton is never needed.
+    && ("$VIRTUAL_ENV/bin/pip" uninstall -y triton || true) \
+    # Strip bundled test directories from installed packages (review point
+    # #5). Conservative pattern: only directories literally named "tests"
+    # or "test" directly under a package/dist-info tree -- not a recursive
+    # wildcard over arbitrary depth -- to avoid touching anything that
+    # happens to have "test" as a meaningful non-test path component.
+    # Verified empirically (full regression suite) that removing these
+    # does not break imports or runtime behavior; the packages are not
+    # byte-compiled against their own test modules.
+    && find "$VIRTUAL_ENV/lib/python3.12/site-packages" -maxdepth 2 \
+        -type d \( -name "tests" -o -name "test" \) -prune -exec rm -rf {} + \
+    # Remove pip itself and its bundled vendor libs from the venv that will
+    # be copied into the runtime stage -- the application never invokes
+    # pip at runtime (model export shells out to `optimum-cli`, a console
+    # script backed by the `optimum` package already installed above, not
+    # by pip). Re-installing dependencies later requires rebuilding the
+    # image, which is the intended workflow.
+    && rm -rf "$VIRTUAL_ENV"/lib/python3.12/site-packages/pip* \
+        "$VIRTUAL_ENV"/lib/python3.12/site-packages/setuptools* \
+        "$VIRTUAL_ENV"/lib/python3.12/site-packages/wheel* \
+        "$VIRTUAL_ENV"/bin/pip* \
+    && find "$VIRTUAL_ENV" -type d -name "__pycache__" -prune -exec rm -rf {} +
+
+# ---------------------------------------------------------------- runtime --
+FROM ubuntu:24.04 AS runtime
+
+ARG APP_UID=1000
+ARG APP_GID=1000
+ARG DEBIAN_FRONTEND=noninteractive
+
+# --- Intel GPU/NPU userspace runtime (OPTIONAL) ---------------------------
+# Only required if models.asr.device / models.diarization.device / sentiment
+# device is set to GPU or NPU. CPU-only deployments (the documented
+# default) do not need this layer. Versions below are pinned to the exact
+# files validated (device enumeration + real compile_model()+infer() on
+# both GPU and NPU) during the Dockerfile.poc-python-slim POC investigation
+# against this hardware/driver matrix; re-validate if the pip `openvino`
+# version changes. No system-level OpenVINO package is installed here --
+# the GPU/NPU plugin .so files ship inside the pip `openvino` package
+# itself; only these userspace driver/runtime libs let the plugins dlopen.
+ARG INSTALL_GPU_NPU_RUNTIME=false
+ARG GPU_DRIVER_VERSION="26.18.38308.1"
+ARG IGC_VERSION="2.34.4+21428"
+ARG NPU_DRIVER_VERSION="1.33.0"
+ARG NPU_DRIVER_BUILD="v1.33.0.20260529-26625960453-ubuntu2404"
+ARG LEVEL_ZERO_VERSION="1.32.0-1~24.04~ppa1"
+
+# Optional corporate TLS-inspection CA (NOT baked into the repo or the image
+# by default -- this RUN step is a no-op unless a build invoker explicitly
+# supplies one). Some corporate networks terminate/re-sign outbound HTTPS to
+# GitHub Releases/Launchpad through an SSL-inspecting proxy; the CA that
+# re-signs that traffic is not in Ubuntu's default trust store, which can
+# make the curl calls below fail intermittently with "unable to get local
+# issuer certificate" depending on which proxy backend handles the request.
+# This was observed and root-caused on one such network (see
+# docs/audio-analyzer-image-optimization.md, section on the GPU/NPU TLS
+# investigation) -- it was transient/proxy-routing-dependent, not a
+# permanent block, and resolved on retry without any special handling in
+# most cases. For environments where it is NOT transient, pass the
+# environment's own approved root CA (PEM) at build time via a BuildKit
+# secret -- it is never written into the Dockerfile, never committed to
+# the repo, and only read for the duration of this RUN step:
+#   docker build --secret id=corporate_ca,src=/path/to/corporate-ca.pem ...
+# TLS verification is never disabled (no curl -k/--insecure); if no secret
+# is supplied, this is a pure no-op and behaves exactly as before.
+RUN --mount=type=secret,id=corporate_ca,required=false \
+    if [ -s /run/secrets/corporate_ca ]; then \
+        apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+        && cp /run/secrets/corporate_ca /usr/local/share/ca-certificates/corporate-ca.crt \
+        && update-ca-certificates; \
+    fi
+
+RUN if [ "$INSTALL_GPU_NPU_RUNTIME" = "true" ]; then \
+        apt-get update && apt-get install -y --no-install-recommends \
+            ca-certificates curl libnuma1 ocl-icd-libopencl1 libtbb12 \
+        && mkdir -p /tmp/gpu_deps && cd /tmp/gpu_deps \
+        && curl -fL --retry 5 --retry-delay 5 --retry-all-errors -O \
+            "https://github.com/intel/compute-runtime/releases/download/${GPU_DRIVER_VERSION}/libze-intel-gpu1_${GPU_DRIVER_VERSION}-0_amd64.deb" \
+        && curl -fL --retry 5 --retry-delay 5 --retry-all-errors -O \
+            "https://github.com/intel/compute-runtime/releases/download/${GPU_DRIVER_VERSION}/intel-opencl-icd_${GPU_DRIVER_VERSION}-0_amd64.deb" \
+        && curl -fL --retry 5 --retry-delay 5 --retry-all-errors -O \
+            "https://github.com/intel/compute-runtime/releases/download/${GPU_DRIVER_VERSION}/libigdgmm12_22.10.0_amd64.deb" \
+        && curl -fL --retry 5 --retry-delay 5 --retry-all-errors -O \
+            "https://github.com/intel/intel-graphics-compiler/releases/download/v2.34.4/intel-igc-core-2_${IGC_VERSION}_amd64.deb" \
+        && curl -fL --retry 5 --retry-delay 5 --retry-all-errors -O \
+            "https://github.com/intel/intel-graphics-compiler/releases/download/v2.34.4/intel-igc-opencl-2_${IGC_VERSION}_amd64.deb" \
+        && dpkg -i ./*.deb && cd / && rm -rf /tmp/gpu_deps \
+        && mkdir -p /tmp/npu_deps && cd /tmp/npu_deps \
+        && curl -fL --retry 5 --retry-delay 5 --retry-all-errors -O \
+            "https://github.com/intel/linux-npu-driver/releases/download/v${NPU_DRIVER_VERSION}/linux-npu-driver-${NPU_DRIVER_BUILD}.tar.gz" \
+        && tar -xf "linux-npu-driver-${NPU_DRIVER_BUILD}.tar.gz" \
+        && curl -fL --retry 5 --retry-delay 5 --retry-all-errors -O \
+            "https://ppa.launchpadcontent.net/kobuk-team/intel-graphics/ubuntu/pool/main/l/level-zero-loader/libze1_${LEVEL_ZERO_VERSION}_amd64.deb" \
+        && dpkg -i ./*.deb && ldconfig \
+        && test -e /usr/lib/x86_64-linux-gnu/libze_loader.so.1 \
+        && cd / && rm -rf /tmp/npu_deps \
+        && apt-get purge -y curl && apt-get autoremove -y; \
+    fi \
+    && rm -rf /var/lib/apt/lists/*
+
+# Audio/runtime OS libraries + bare python3.12 interpreter (no venv/pip
+# toolchain needed here -- the fully built venv is copied from the
+# builder stage below). ffmpeg/libsndfile1 are required by librosa/
+# soundfile for audio decoding; alsa-utils matches the production
+# Dockerfile's package list (ALSA userspace utilities some audio codecs
+# probe for at import time). ca-certificates is required for any
+# outbound TLS call made from this stage at runtime (Hugging Face Hub
+# model downloads during on-first-run `optimum-cli` export, MinIO/VSS
+# HTTPS calls, etc.) -- Ubuntu's base image does NOT ship a CA trust
+# store, so without this package every HTTPS request fails with
+# "No CA certificates were loaded from the system" (confirmed via a
+# real container run attempting to export the default Whisper model).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        python3.12 alsa-utils ffmpeg libsndfile1 ca-certificates \
+    && rm -rf /var/lib/apt/lists/* /usr/share/doc/* /usr/share/man/*
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    VIRTUAL_ENV=/opt/venv \
+    PATH="/opt/venv/bin:$PATH" \
+    AUDIO_ANALYZER_SERVER_PORT=8010
+
+WORKDIR /app/audio_analyzer
+
+COPY --from=builder /opt/venv /opt/venv
+COPY . .
+
+RUN mkdir -p /app/audio_analyzer/models/openvino \
+    && mkdir -p /app/audio_analyzer/models/dummy \
+    && mkdir -p /app/audio_analyzer/chunks/dummy \
+    && mkdir -p /app/audio_analyzer/storage/dummy \
+    && mkdir -p /app/audio_analyzer/.cache/dummy \
+    && touch /app/audio_analyzer/models/.keep \
+    && touch /app/audio_analyzer/models/openvino/.keep \
+    && touch /app/audio_analyzer/chunks/.keep \
+    && touch /app/audio_analyzer/storage/.keep \
+    && touch /app/audio_analyzer/.cache/.keep \
+    && groupadd -g ${APP_GID} appuser 2>/dev/null || true \
+    && useradd -m --no-log-init -u ${APP_UID} -g ${APP_GID} appuser 2>/dev/null || true \
+    && chown -R ${APP_UID}:${APP_GID} /app/audio_analyzer
+
+USER ${APP_UID}:${APP_GID}
+
+EXPOSE 8010
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD python3.12 -c "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:'+os.environ.get('AUDIO_ANALYZER_SERVER_PORT','8010')+'/health', timeout=5).read()"
+
+CMD ["sh", "-c", "exec python3.12 -m uvicorn main:app --host 0.0.0.0 --port \"${AUDIO_ANALYZER_SERVER_PORT:-8010}\""]

@@ -4,9 +4,6 @@ FROM intel/dlstreamer:2026.2.0-ubuntu24
 
 ARG APP_UID=1000
 ARG APP_GID=1000
-# HF_TOKEN: HuggingFace token required to download gated pyannote models.
-# Pass at build time with --build-arg HF_TOKEN=<token> or at runtime via -e HF_TOKEN=<token>.
-ARG HF_TOKEN=""
 # INSTALL_CJK: set to "true" to add the optional FunASR Paraformer provider for
 # Chinese/English ASR (requirements-cjk.txt). Off by default so the standard
 # image and its existing consumers stay unchanged.
@@ -18,8 +15,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     VIRTUAL_ENV=/opt/venv \
-    PATH="/opt/venv/bin:$PATH" \
-    HF_TOKEN=${HF_TOKEN}
+    PATH="/opt/venv/bin:$PATH"
 
 WORKDIR /app/audio_analyzer
 
@@ -32,12 +28,19 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends alsa-utils ffmpeg libsndfile1 python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt ./requirements.txt
+COPY requirements.txt requirements-lock.txt ./
 
 RUN python3 -m venv "$VIRTUAL_ENV" \
     && "$VIRTUAL_ENV/bin/pip" install --upgrade pip \
-    && "$VIRTUAL_ENV/bin/pip" install -r requirements.txt \
-    && "$VIRTUAL_ENV/bin/pip" uninstall -y torchcodec || true
+    && "$VIRTUAL_ENV/bin/pip" install -r requirements.txt -c requirements-lock.txt \
+    && ("$VIRTUAL_ENV/bin/pip" uninstall -y torchcodec || true) \
+    # triton (~0.9GB installed) is a hard dependency of openai-whisper on
+    # x86_64 Linux, but is only ever imported lazily behind CUDA-only code
+    # paths (whisper/timing.py: `if x.is_cuda`). This service's openai
+    # provider is CPU-only by design (see config.yaml), so that code path
+    # never executes and triton is never needed at runtime. No other
+    # installed package depends on it, so it is safe to drop post-install.
+    && ("$VIRTUAL_ENV/bin/pip" uninstall -y triton || true)
 
 # Optional Chinese/English FunASR Paraformer provider. Only installed when the
 # image is built with --build-arg INSTALL_CJK=true; the default build is
