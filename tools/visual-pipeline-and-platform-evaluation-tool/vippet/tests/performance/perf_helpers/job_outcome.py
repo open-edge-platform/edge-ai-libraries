@@ -39,11 +39,17 @@ def describe_job_failure(
         f"state {state}{job}: {detail}."
     )
     if state == "TIMEOUT":
+        where = (
+            f"at {job_status_url(base_url, job_id)}" if job_id else "in the ViPPET UI"
+        )
         why = (
-            "The job was still running when the job timeout expired, so it "
-            "was stopped. To fix: allow more time with --max-job-duration / "
-            "VIPPET_JOB_TIMEOUT_SECONDS, or shorten each run with "
-            "--max-runtime."
+            "The job was still running when the job timeout expired. The "
+            "suite asked ViPPET to cancel it, but cancellation is best-effort, "
+            "so the job may still be running and would make the next run hit "
+            f"a conflict. To fix: check the job state {where} and wait for it "
+            "to finish (or stop it) before rerunning; then allow more time "
+            "with --max-job-duration / VIPPET_JOB_TIMEOUT_SECONDS, or shorten "
+            "each run with --max-runtime."
         )
     elif state == "CONFLICT":
         why = (

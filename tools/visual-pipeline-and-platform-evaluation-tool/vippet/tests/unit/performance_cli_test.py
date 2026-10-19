@@ -145,6 +145,29 @@ class TestDryRun(unittest.TestCase):
         self.assertIn("LPR Net", text)
         self.assertIn("benchmark.filters.skip_pipelines", text)
 
+    def test_dry_run_counts_missing_model_runs_when_not_skipped(self) -> None:
+        settings = resolve_settings(
+            "default",
+            env={},
+            cli_overrides={
+                "benchmark.filters.skip_pipelines": ["sp"],
+                "benchmark.filters.skip_missing_models": False,
+            },
+        )
+        out = io.StringIO()
+        rc = cli.run_dry_run(
+            settings,
+            discover=self._discover,
+            preflight=Mock(),
+            stdout=out,
+            stderr=io.StringIO(),
+        )
+        self.assertEqual(rc, 0)
+        text = out.getvalue()
+        self.assertIn("Matrix: 4 run(s)", text)
+        self.assertIn("Missing models, will run anyway: 2 run(s)", text)
+        self.assertNotIn("Skipped at run time", text)
+
     def test_main_dry_run_does_not_submit_jobs(self) -> None:
         runner = Mock()
         with (

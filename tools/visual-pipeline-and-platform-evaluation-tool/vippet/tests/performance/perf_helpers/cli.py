@@ -256,7 +256,13 @@ def run_dry_run(
             file=stderr,
         )
         return FATAL_PREFLIGHT_EXIT_CODE
-    print(format_matrix(matrix), file=stdout)
+    print(
+        format_matrix(
+            matrix,
+            skip_missing_models=settings["benchmark.filters.skip_missing_models"],
+        ),
+        file=stdout,
+    )
     if not matrix.included:
         print(f"\nnote: {describe_no_cases(matrix)}", file=stdout)
     return EXIT_OK

@@ -67,7 +67,10 @@ exits with pytest's exit code. If the config or a flag is invalid, it exits with
   | `malformed`          | Pipeline/variant entry from the API has no id or name                   |
 
 - **Skipped at run time: missing_models**: runs that are in the matrix but that pytest
-  will skip because their models are not installed, with the model names
+  will skip because their models are not installed, with the model names. With
+  `--no-skip-missing-models` (`benchmark.filters.skip_missing_models: false`) these
+  runs are counted in the matrix and listed as **Missing models, will run anyway**
+  instead.
 
 ```text
 Matrix: 4 run(s) = pipeline x variant x streams [1, 3]

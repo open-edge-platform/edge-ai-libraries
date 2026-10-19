@@ -390,7 +390,9 @@ def pytest_report_collectionfinish(
         _error_console(config)(_DISCOVERED_CASES.error or "matrix not available")
         return []
     write = _console(config)
-    write(format_matrix(_DISCOVERED_CASES.matrix))
+    write(
+        format_matrix(_DISCOVERED_CASES.matrix, skip_missing_models=SKIP_MISSING_MODELS)
+    )
     if not _DISCOVERED_CASES.matrix.included:
         _console(config, yellow=True)(
             f"note: {describe_no_cases(_DISCOVERED_CASES.matrix)}"
@@ -416,17 +418,16 @@ def pytest_terminal_summary(
     tr.section("Benchmark artefacts", sep="-")
     if _HW_WARNING:
         tr.write_line(f"warning: {_HW_WARNING}", yellow=True)
-    if _ARTEFACT_ERROR:
-        tr.write_line(f"error: {_ARTEFACT_ERROR}", red=True, bold=True)
-    elif _ARTEFACTS:
+    if _ARTEFACTS:
         width = max(len(label) for label, _ in _ARTEFACTS)
         for label, path in _ARTEFACTS:
             tr.write_line(f"{label:<{width}}  {path}")
-    else:
+    if _ARTEFACT_ERROR:
+        tr.write_line(f"error: {_ARTEFACT_ERROR}", red=True, bold=True)
+    if not (_ARTEFACTS or _ARTEFACT_ERROR):
         tr.write_line(
-            "No reports were written because no benchmark test ran: every "
-            "case was skipped, deselected or not reached (see the reasons "
-            "above)."
+            "No reports were written because no benchmark result records "
+            "were produced (see the failures, skips or deselections above)."
         )
 
 
@@ -522,12 +523,17 @@ def results_collector(
                 _ARTEFACTS.append(("Latest link", latest_link))
                 logger.info("Latest results symlink: %s", latest_link)
         except OSError as exc:
+            written = (
+                " The files listed above were written before the failure."
+                if _ARTEFACTS
+                else ""
+            )
             _ARTEFACT_ERROR = (
                 f"Writing the benchmark reports to {output_dir} failed "
-                f"({type(exc).__name__}: {exc}). To fix: point --results-dir "
-                "/ PERF_RESULTS_DIR at a writable directory (or pass "
-                "--no-latest-link if the file system has no symlinks), then "
-                "rerun."
+                f"({type(exc).__name__}: {exc}).{written} To fix: point "
+                "--results-dir / PERF_RESULTS_DIR at a writable directory (or "
+                "pass --no-latest-link if the file system has no symlinks), "
+                "then rerun."
             )
             raise
 

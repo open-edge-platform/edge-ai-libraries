@@ -25,6 +25,7 @@ from tests.performance.perf_helpers.matrix import (
     describe_no_cases,
     describe_unknown_filter_ids,
     find_unknown_filter_ids,
+    format_matrix,
 )
 from tests.performance.perf_helpers.preflight import format_discovered_hardware
 from tests.performance.perf_helpers.settings import PERF_DIR
@@ -51,6 +52,29 @@ class TestMatrixMessages(unittest.TestCase):
         message = describe_no_cases(matrix)
         self.assertIn("no pipelines with variants", message)
         self.assertIn("To fix:", message)
+
+    def _matrix_with_missing_models(self) -> Any:
+        return build_matrix(
+            _PIPELINES,
+            [{"device_family": "CPU"}],
+            {"lpr": ["LPR Net"]},
+            MatrixFilters(stream_counts=(1,)),
+        )
+
+    def test_missing_models_are_skipped_by_default(self) -> None:
+        text = format_matrix(self._matrix_with_missing_models())
+        self.assertIn("Matrix: 1 run(s)", text)
+        self.assertIn("Skipped at run time: missing_models: 1 run(s)", text)
+
+    def test_missing_models_counted_as_runs_when_not_skipped(self) -> None:
+        matrix = self._matrix_with_missing_models()
+        text = format_matrix(matrix, skip_missing_models=False)
+        self.assertIn("Matrix: 2 run(s)", text)
+        self.assertIn("lpr_cpu_x1", text.split("Excluded:")[0])
+        self.assertIn("Missing models, will run anyway: 1 run(s)", text)
+        self.assertNotIn("Skipped at run time", text)
+        # Display only: the matrix itself is unchanged.
+        self.assertEqual(matrix.missing_models, {"lpr": ["LPR Net"]})
 
 
 class TestUnknownFilterIds(unittest.TestCase):
@@ -134,6 +158,20 @@ class TestJobOutcomeMessages(unittest.TestCase):
         )
         self.assertIn("--max-job-duration", message)
         self.assertIn("--max-runtime", message)
+        # Cancellation is best-effort: do not claim the job was stopped.
+        self.assertNotIn("was stopped", message)
+        self.assertIn("cancellation is best-effort", message)
+        self.assertIn("may still be running", message)
+        self.assertIn(
+            f"check the job state at {self.BASE}/jobs/tests/performance/j1/status",
+            message,
+        )
+
+    def test_timeout_without_job_id_points_at_ui(self) -> None:
+        message = job_outcome.describe_job_failure(
+            self.LABEL, {"state": "TIMEOUT"}, 1, self.BASE
+        )
+        self.assertIn("check the job state in the ViPPET UI", message)
 
     def test_conflict_explains_single_job_slot(self) -> None:
         message = job_outcome.describe_job_failure(
@@ -205,6 +243,7 @@ class TestJobOutcomeMessages(unittest.TestCase):
 
 class _FakeVippet(BaseHTTPRequestHandler):
     job_state = "COMPLETED"
+    post_status = 200  # HTTP status for POST /tests/performance
     status_polls = 0  # the first job status poll answers RUNNING
 
     def log_message(self, format: str, *args: Any) -> None:  # noqa: A002 - quiet
@@ -259,6 +298,9 @@ class _FakeVippet(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802 - http.server API
         self.rfile.read(int(self.headers.get("Content-Length") or 0))
+        if self.post_status != 200:
+            self._send(self.post_status, {"detail": "bad variant"})
+            return
         self._send(200, {"job_id": "j1"})
 
 
@@ -268,8 +310,15 @@ class TestConsoleOutputEndToEnd(unittest.TestCase):
         job_state: str,
         pipelines: str = '"*"',
         extra_env: dict[str, str] | None = None,
+        post_status: int = 200,
+        skip_missing_models: bool = True,
+        prepare: Any = None,
     ) -> subprocess.CompletedProcess[str]:
-        handler = type("Handler", (_FakeVippet,), {"job_state": job_state})
+        handler = type(
+            "Handler",
+            (_FakeVippet,),
+            {"job_state": job_state, "post_status": post_status},
+        )
         server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
         threading.Thread(target=server.serve_forever, daemon=True).start()
         self.addCleanup(server.server_close)
@@ -278,12 +327,16 @@ class TestConsoleOutputEndToEnd(unittest.TestCase):
 
         tmp = Path(tempfile.mkdtemp())
         self.addCleanup(lambda: __import__("shutil").rmtree(tmp, ignore_errors=True))
+        if prepare is not None:
+            prepare(tmp / "results")
         config = tmp / "perf.yaml"
         config.write_text(
             "vippet:\n  poll_interval: 0.1\n  readiness_timeout_seconds: 10\n"
             f"benchmark:\n  pipelines: {pipelines}\n"
             "  variants: [cpu]\n  stream_counts: [1]\n"
             "  execution:\n    max_retries: 0\n"
+            "  filters:\n"
+            f"    skip_missing_models: {str(skip_missing_models).lower()}\n"
             "metrics:\n  sample_interval_seconds: 0.1\n"
             f"results:\n  output_dir: {json.dumps(str(tmp / 'results'))}\n"
             "  formats: [json]\n",
@@ -348,6 +401,56 @@ class TestConsoleOutputEndToEnd(unittest.TestCase):
             "HTML report",
         )
         self.assertNotIn("Traceback", out + completed.stderr)
+
+    def test_missing_model_runs_counted_when_not_skipped(self) -> None:
+        completed = self._run("COMPLETED", skip_missing_models=False)
+        out = completed.stdout
+        self._assert_in_order(
+            out,
+            "Matrix: 2 run(s)",
+            "lpr_cpu_x1",
+            "Missing models, will run anyway: 1 run(s)",
+            "[object_detection_cpu_x1] PASSED",
+            "[lpr_cpu_x1] ",
+        )
+        self.assertNotIn("Skipped at run time", out)
+        # Scheduled, not skipped (the run outcome itself is not under test).
+        self.assertNotIn("[lpr_cpu_x1] SKIPPED", out)
+
+    def test_failure_without_results_is_not_reported_as_not_run(self) -> None:
+        completed = self._run("COMPLETED", pipelines="[od]", post_status=422)
+        out = completed.stdout
+        self.assertEqual(completed.returncode, 1, out + completed.stderr)
+        self.assertIn("[object_detection_cpu_x1] FAILED", out)
+        self.assertIn("ViPPET rejected the performance job", out)
+        self._assert_in_order(
+            out,
+            "Benchmark artefacts",
+            "No reports were written because no benchmark results were recorded",
+        )
+        self.assertNotIn("no benchmark test ran", out)
+
+    def test_written_reports_listed_alongside_write_error(self) -> None:
+        def block_latest_link(results: Path) -> None:
+            # A non-empty directory named "latest" makes the symlink update
+            # fail after the JSON and HTML reports have been written.
+            (results / "latest").mkdir(parents=True)
+            (results / "latest" / "keep").write_text("x", encoding="utf-8")
+
+        completed = self._run("COMPLETED", pipelines="[od]", prepare=block_latest_link)
+        out = completed.stdout
+        self.assertEqual(completed.returncode, 1, out + completed.stderr)
+        self.assertIn("Benchmark artefacts", out)
+        section = out.rsplit("Benchmark artefacts", 1)[1]
+        self._assert_in_order(
+            section,
+            "\nDirectory ",
+            "\nJSON ",
+            "\nHTML report ",
+            "\nerror: Writing the benchmark reports to",
+            "The files listed above were written before the failure.",
+        )
+        self.assertNotIn("No reports were written", out)
 
     def test_failed_job_is_explained_without_traceback(self) -> None:
         completed = self._run("FAILED")

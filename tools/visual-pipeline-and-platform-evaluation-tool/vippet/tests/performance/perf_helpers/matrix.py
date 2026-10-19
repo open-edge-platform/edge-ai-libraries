@@ -252,8 +252,14 @@ def format_table(headers: Sequence[str], rows: Sequence[Sequence[Any]]) -> str:
     return "\n".join(lines)
 
 
-def format_matrix(matrix: Matrix) -> str:
-    """Render the matrix, exclusions and run-time skips as plain text."""
+def format_matrix(matrix: Matrix, skip_missing_models: bool = True) -> str:
+    """Render the matrix, exclusions and missing-model runs as plain text.
+
+    ``skip_missing_models`` mirrors ``benchmark.filters.skip_missing_models``:
+    when false, runs whose models are missing are scheduled anyway, so they
+    are counted as runs and listed as "will run anyway" instead of skipped.
+    The ``matrix`` itself is not modified.
+    """
     out: list[str] = []
     families = ", ".join(matrix.available_families) or "(none)"
     out.append(f"Host device families: {families}")
@@ -263,7 +269,7 @@ def format_matrix(matrix: Matrix) -> str:
     will_run = [
         (case.pipeline_id, case.device_family, s, case.case_id + f"_x{s}")
         for case, s in rows
-        if case.pipeline_id not in matrix.missing_models
+        if not skip_missing_models or case.pipeline_id not in matrix.missing_models
     ]
     out.append("")
     out.append(
@@ -294,7 +300,7 @@ def format_matrix(matrix: Matrix) -> str:
         else "  (none)"
     )
 
-    skipped = [
+    missing = [
         (
             case.pipeline_id,
             case.device_family,
@@ -305,10 +311,17 @@ def format_matrix(matrix: Matrix) -> str:
         if case.pipeline_id in matrix.missing_models
     ]
     out.append("")
-    out.append(f"Skipped at run time: missing_models: {len(skipped)} run(s)")
+    if skip_missing_models:
+        out.append(f"Skipped at run time: missing_models: {len(missing)} run(s)")
+    else:
+        out.append(
+            f"Missing models, will run anyway: {len(missing)} run(s) "
+            "(benchmark.filters.skip_missing_models is false; these runs may "
+            "fail)"
+        )
     out.append(
-        format_table(("pipeline", "variant", "streams", "missing models"), skipped)
-        if skipped
+        format_table(("pipeline", "variant", "streams", "missing models"), missing)
+        if missing
         else "  (none)"
     )
     return "\n".join(out)
