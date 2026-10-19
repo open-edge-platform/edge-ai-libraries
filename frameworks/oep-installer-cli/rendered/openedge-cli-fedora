@@ -2120,6 +2120,10 @@ configure_podman_docker ()
     docker_compose_plugin="https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$(uname -m)";
     docker_compose_bin=/usr/local/bin/docker-compose
 }
+configure_reboot () 
+{ 
+    touch "${installer_state?}"/reboot_required
+}
 configure_uv () 
 { 
     configure_pipx "$@"
@@ -2705,6 +2709,14 @@ fedora_15_sbom_jq ()
 fedora_15_sbom_unzip () 
 { 
     ensure_sbom_format pkg-list unzip
+}
+fedora_29_install_reboot () 
+{ 
+    [ -e "${installer_state?}"/reboot_required ] || return;
+    local delay=2;
+    ensure_sudo shutdown -r +$delay "$installer_name scheduled a reboot in $delay minutes. Rerun $* after system is back.";
+    rm -f "${installer_state?}"/reboot_required;
+    sleep infinity
 }
 fedora_30_group_docker_ce () 
 { 
