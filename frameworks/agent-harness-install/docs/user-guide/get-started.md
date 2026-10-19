@@ -86,6 +86,12 @@ you opt in with `HARNESS_ADVERTISED_HOST` (or the prompt that sets it) or
 ./install.sh --harness openclaw --model <org/name>
 ```
 
+For example, with a small Hugging Face model (any supported model works):
+
+```bash
+./install.sh --harness openclaw --model Qwen/Qwen2.5-0.5B-Instruct
+```
+
 ```bash
 ./install.sh --harness deepagents-code --model <org/name> --non-interactive
 ```

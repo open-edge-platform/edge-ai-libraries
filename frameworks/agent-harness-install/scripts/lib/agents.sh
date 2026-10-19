@@ -614,6 +614,8 @@ manually instead: openclaw config set models.providers.ovms '{\"baseUrl\":\"${en
       [[ -n "$dcode_ok" ]] \
         || warn "Smoke test failed — check that the model server at ${endpoint} is reachable and that
 '${model_hint}' matches a model name registered with it."
+      info "To run dcode yourself, export HARNESS_DCODE_API_KEY=not-needed first (any non-empty value).
+Behind a proxy, also run it as: env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY dcode …"
       ;;
     hermes)
       command_exists "$cli_bin" || warn "'${cli_bin}' was not found on PATH after install."

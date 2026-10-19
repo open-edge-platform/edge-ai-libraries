@@ -48,6 +48,15 @@
   a re-run replaces only that block and leaves any other provider config
   alone — but a config.toml a user already hand-edited to use a *different*
   `openai` provider block (outside those markers) would end up with two.
+  The managed block reads its API key from `HARNESS_DCODE_API_KEY`, which
+  only the installer's own smoke test sets; running `dcode` yourself needs
+  `export HARNESS_DCODE_API_KEY=not-needed` (any non-empty value; the local
+  endpoint ignores it) or it fails with `MissingCredentialsError`. Behind a
+  corporate proxy, dcode's local LangGraph health check is also sent through
+  the proxy and rejected (`Server did not become healthy within 60s (last
+  status: 403)`), because many HTTP clients ignore `localhost` and CIDR
+  entries in `no_proxy` for `127.0.0.1`. Run it without the proxy variables:
+  `env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY dcode ...`.
 - Intel's Core Ultra iGPU/Arc lineup has no fixed appliance concept, so
   there's no dual-node pairing/reboot-resume receipt handling.
 - Model export (`optimum-cli export openvino`) is CPU/host-bound and can be
