@@ -36,6 +36,10 @@ Worth knowing:
 - The base URL is taken from `PLAYWRIGHT_BASE_URL`. Default is
   `http://localhost`, which matches the Nginx-served UI from `make run`.
   For a plain Vite dev server use `http://localhost:5173`.
+- With `PLAYWRIGHT_WEB_SERVER=1`, Playwright starts `vite preview` itself
+  (port `4173`, override with `PLAYWRIGHT_PREVIEW_PORT`) and serves the
+  production bundle from `ui/dist/`. No backend is involved. This is what
+  CI uses, and it is available locally through `make ui-e2e`.
 
 ## One-time setup
 
@@ -91,6 +95,13 @@ the tests. Start it in a separate terminal with `make run` (Nginx on
 `http://localhost`) or `npm run dev` from `ui/` (Vite on
 `http://localhost:5173`).
 
+Alternatively, let Playwright build and serve the UI for you — this needs
+no running backend and reproduces the CI run exactly:
+
+```bash
+make ui-e2e
+```
+
 All commands run from `ui/`.
 
 ### Common commands
@@ -141,6 +152,45 @@ To view a single trace file directly:
 ```bash
 npx playwright show-trace ui/test-results/<test-dir>/trace.zip
 ```
+
+## Continuous integration
+
+[`.github/workflows/vippet-ui-pr-workflow.yaml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/.github/workflows/vippet-ui-pr-workflow.yaml)
+runs on every pull request that touches `tools/visual-pipeline-and-platform-evaluation-tool/ui/**`.
+
+| Job | What it does | Local equivalent |
+| --- | --- | --- |
+| `lint` | `npm run lint` (ESLint + Prettier) and `npm run typecheck:e2e` (strict TS for the Playwright suite) | `make ui-lint` |
+| `e2e` | `npm run build`, then the Playwright suite against the built bundle served by Playwright itself | `make ui-e2e` |
+| `final-check` | Fails the PR if either job above failed | — |
+
+Only the Playwright suite is type-checked in CI; the application sources
+are covered by the production build step in the `e2e` job.
+
+### Reports produced by CI
+
+- **Job summary** — a pass/fail/flaky/skipped table is written to the
+  GitHub Actions run summary, with the titles of failing tests expanded
+  below it.
+- **Inline annotations** — the `github` reporter is enabled in CI, so
+  failures appear directly on the diff.
+- **Artifact** `vippet-ui-playwright-report-<project>` — the full HTML
+  report plus `test-results/` (traces, screenshots, videos, `junit.xml`,
+  `report.json`), retained for 14 days. Download it, unzip, then:
+
+  ```bash
+  npx playwright show-report playwright-report
+  ```
+
+### Cross-browser runs
+
+Pull requests run the `chromium` project only, which already covers every
+spec. To additionally exercise Firefox and WebKit, trigger the workflow
+manually (**Actions** → **[ViPPET] UI PR workflow** → **Run workflow**)
+and tick **Also run the cross-browser suite on Firefox and WebKit**.
+
+The `chrome` and `msedge` projects are not run in CI — they target
+locally installed real browsers and are a developer-machine concern.
 
 ## VS Code integration
 

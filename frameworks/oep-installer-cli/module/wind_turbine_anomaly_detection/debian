@@ -29,7 +29,7 @@ debian_90_profile_wind_turbine_anomaly_detection () {
 debian_90_install_wind_turbine_anomaly_detection () {
   configure_wind_turbine_anomaly_detection
   if verify_wind_turbine_anomaly_detection && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Wind turbine anomaly detection already installed. Skipping..." 1>&2
+    echo "Wind turbine anomaly detection is installed." >&2
   else
     ensure_disk_size 64000
     ensure_ram_size 16777216 # 16 GiB

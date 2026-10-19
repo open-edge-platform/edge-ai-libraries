@@ -32,7 +32,7 @@ debian_40_install_gpu_accel () {
   configure_gpu_accel "$@"
 
   if verify_gpu_accel && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Gpu drivers are already installed. Skipping..."
+    echo "Gpu drivers are installed." >&2
   else
     # declare stack ownership
     ensure_prop set installed/gpu_accel/owned true

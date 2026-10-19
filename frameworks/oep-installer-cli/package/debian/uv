@@ -10,15 +10,14 @@ debian_50_profile_uv () {
 debian_50_install_uv () {
   configure_uv
   if uv --version 2> /dev/null && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Uv is already installed. Skipping..."
+    echo "Uv is installed." >&2
   else
-    pipx install uv
     ensure_prop set installed/uv/owned true
+    pipx install uv
   fi
 }
 
 debian_50_remove_uv () {
-  # leave untouched if not installed by uv
   [ "$(ensure_prop get installed/uv/owned)" = "true" ] || return 0
   pipx uninstall uv
 }

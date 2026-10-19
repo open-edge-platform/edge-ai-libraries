@@ -17,7 +17,7 @@ debian_90_profile_handheld_multi_modal () {
 debian_90_install_handheld_multi_modal () {
   configure_handheld_multi_modal
   if verify_handheld_multi_modal $* && [[ " $* " != *" --reinstall "* ]]; then
-    echo "handheld_multi_modal already installed. Skipping"
+    echo "handheld_multi_modal is installed." >&2
   else
     ensure_ports_open "${used_ports[*]}" return 3
     ensure_disk_size 45000
