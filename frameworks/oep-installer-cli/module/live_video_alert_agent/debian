@@ -34,18 +34,18 @@ verify_live_video_alert_agent () {
 }
 
 debian_90_profile_live_video_alert_agent () {
-  echo "git curl gawk jq edge_base docker"
+  echo "git curl gawk jq edge_base docker_io"
 }
 
 debian_90_install_live_video_alert_agent () {
   configure_live_video_alert_agent
   if verify_live_video_alert_agent && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Live Video Alert Agent is already installed. Skipping"
+    echo "Live Video Alert Agent is installed." >&2
   else
     ensure_ports_open "${used_ports[*]}" return 3
 
     # clone the repository
-    ensure_disk_size 64000
+    ensure_disk_size 15000
     ensure_git_clone "$workspace" $version $repository live-video-analysis/live-video-alert-agent
     verify_live_video_alert_agent
   fi

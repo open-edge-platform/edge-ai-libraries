@@ -1069,12 +1069,6 @@ _handle_line() {
   _draw
 }
 
-# ------------------------------------------------------------------ main loop
-  [[ -t 1 ]] || { 
-    [ -z "$LOG_FILE" ] && cat || tee -a "$LOG_FILE"
-    return
-  }
-
   _open_tty
   _read_geom
 

@@ -1,0 +1,12 @@
+
+debian_45_profile_pipx () {
+  echo "python3_venv"
+}
+
+debian_45_install_pipx () {
+  ensure_apt_install_package pipx
+}
+
+debian_45_sbom_pipx () {
+  ensure_sbom_format pkg-list pipx
+}

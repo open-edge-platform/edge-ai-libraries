@@ -1,0 +1,135 @@
+{
+  "skill_name": "audio-analyzer-dev",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I want to deploy the audio-analyzer microservice on a machine with an Intel GPU. I don't want to rebuild from source, just pull the published image. Walk me through the exact steps, the env vars I need, and how to confirm the GPU is actually being used after startup.",
+      "expected_output": "A Docker Compose deployment walkthrough grounded in this service's actual compose file, env vars, and device passthrough behavior.",
+      "files": [],
+      "expectations": [
+        "Uses docker compose pull followed by docker compose up -d rather than build.",
+        "Mentions REGISTRY and RELEASE_TAG in .env.",
+        "States that /dev/dri is passed through by default, but RENDER_GID must also be set in .env to the host's actual render group GID (found via stat -c '%g' /dev/dri/renderD128) \u2014 does not claim GPU works with zero extra env vars beyond REGISTRY/RELEASE_TAG.",
+        "Shows checking ov.Core().available_devices inside the container to confirm GPU visibility.",
+        "Uses port 8010 and curl http://127.0.0.1:8010/health to verify health."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "The container starts and /health is fine, but inside the container openvino.Core().available_devices only shows CPU even though I set ACCEL_MOUNT_PATH to /dev/accel/accel0 in my .env before starting. Give me a focused debug sequence specific to this service, not generic Docker advice.",
+      "expected_output": "An NPU-specific debug checklist grounded in this service's Compose device mapping and known failure modes.",
+      "files": [],
+      "expectations": [
+        "Recommends docker compose config to check the resolved services.audio-analyzer.devices mapping.",
+        "Recommends ls -l /dev/accel/ on the host and inside the container to confirm the node exists.",
+        "Mentions ZE_ENABLE_ALT_DRIVERS=libze_intel_npu.so must remain set in the container environment.",
+        "Mentions RENDER_GID / host render group access as a possible cause.",
+        "Notes that .env changes require the container to have been started (or restarted) after the variable was set, not just present in .env."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "I configured models.asr.name: whisper-large with provider openvino and device NPU, and it fails during or right after startup with something about pfnAppendGraphExecute. Is this an audio-analyzer bug I should try to patch around, and what should I actually do?",
+      "expected_output": "An accurate explanation that this is a known NPU driver/firmware inference limitation for whisper-large, not an application bug, with a concrete recommended fix.",
+      "files": [],
+      "expectations": [
+        "States this is a confirmed NPU driver/firmware limitation, not an audio-analyzer defect.",
+        "Explains that whisper-large compiles but fails at inference time on NPU.",
+        "States that whisper-tiny/base/small/medium are validated to work on NPU.",
+        "Recommends switching whisper-large to CPU or GPU instead of trying to patch code.",
+        "Does not suggest disabling OpenVINO validation or bypassing the startup check as a fix."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "I want to turn on speaker diarization for my deployment. What do I need to set up, and what happens if I get the Hugging Face token or license acceptance wrong — does the whole service go down?",
+      "expected_output": "A diarization setup guide that correctly describes the soft-fail behavior when credentials are missing or incomplete.",
+      "files": [],
+      "expectations": [
+        "Mentions setting models.asr.diarization: true in config.yaml.",
+        "Mentions obtaining an HF token and accepting the Pyannote speaker-diarization model license as a one-time gate.",
+        "Explains HF_TOKEN must be set (env or .env) before starting the service.",
+        "States clearly that missing/invalid credentials cause a warning and diarization is disabled for that session, not a service crash.",
+        "Distinguishes this from a hard startup validation failure (e.g. invalid provider/device)."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "After a host reboot and some volume cleanup, the container now fails with PermissionError: [Errno 13] Permission denied on /app/audio_analyzer/storage/... What's actually going on and how do I fix it without just chmod -R 777'ing things?",
+      "expected_output": "A grounded explanation of the UID/GID 1000:1000 ownership model and the correct volume-reset remedy.",
+      "files": [],
+      "expectations": [
+        "Explains the container always runs as UID/GID 1000:1000, baked into the image.",
+        "Explains named volumes are initialized with that ownership on a fresh run, and the error usually means a volume was created by an earlier root-only run.",
+        "Recommends docker compose down followed by removing the specific named volumes and docker compose up -d again.",
+        "Warns that removing the volumes deletes cached models and session data, and to confirm before doing it.",
+        "Does not recommend chmod 777 or changing the user: directive in docker-compose.yml as the fix."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "I need to run the audio-analyzer test suite in CI without any GPU, Docker daemon, or downloaded model weights available. Which tests should I run and how do I invoke just those?",
+      "expected_output": "A CI-safe test invocation that correctly distinguishes this project's two test suites and uses the right marker/path for each.",
+      "files": [],
+      "expectations": [
+        "Identifies that this codebase has two test suites: the unmarked root-level tests/*.py and the tier-marked tests/functional/ suite.",
+        "States tier1 is CI-safe: no model weights, no Docker, no GPU required.",
+        "Shows a command that targets tests/functional with -m tier1 (e.g. pytest tests/functional -v -m tier1), not a bare pytest with no path.",
+        "Explains that tier2 needs HF_TOKEN and tier3 needs a Docker daemon or live server, and why those are unsuitable for the stated CI constraint.",
+        "Does not recommend running the full suite unfiltered, and does not claim a bare `pytest -m tier1` with no path argument would find the functional tests."
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "I want to run the streaming and VSS endpoint tests for audio-analyzer, but when I add -m tier1 to the pytest command nothing gets collected. What am I doing wrong?",
+      "expected_output": "A correct explanation that these particular tests belong to the unmarked root-level suite and must be run without any -m filter.",
+      "files": [],
+      "expectations": [
+        "Identifies tests/test_streaming_endpoints.py and tests/test_vss_endpoints.py as part of the root-level suite that has no tier1/tier2/tier3 markers at all.",
+        "Explains that adding -m tier1 excludes every test in this suite because none of them carry that marker.",
+        "Gives the correct invocation without a -m filter, e.g. pytest tests/test_streaming_endpoints.py tests/test_vss_endpoints.py -v.",
+        "States these tests require no model weights or GPU.",
+        "Distinguishes this suite from the separate tier-marked tests/functional/ suite."
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "Before deploying a Dockerfile change for audio-analyzer, I want to verify the image actually builds and that the NPU device mapping in docker-compose.yml still resolves correctly, without standing up the full service. What's the right test to run?",
+      "expected_output": "A correct pointer to the Tier-3 Docker build verification suite and an accurate description of what it checks.",
+      "files": [],
+      "expectations": [
+        "Points to tests/functional/build/test_build.py and the command pytest tests/functional/build/test_build.py -m tier3 -v -s.",
+        "States this suite runs real docker compose build --no-cache against a live Docker daemon, not mocked.",
+        "Mentions it verifies the built image appears in the local Docker image store using the image name read from docker-compose.yml.",
+        "Mentions it verifies the ACCEL_MOUNT_PATH to /dev/accel/accel0 device mapping resolves correctly, including the /dev/null fallback when unset.",
+        "Notes that tests in this file skip (not fail) when no Docker daemon is reachable."
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "A teammate says transcription on our audio-analyzer deployment feels slower than before, but we aren't sure if that's real or just their network. Is there a way to check the actual last-call latency and confirm which model/device is active without digging through container logs?",
+      "expected_output": "A correct pointer to the service's undocumented debug endpoints for model introspection and latency.",
+      "files": [],
+      "expectations": [
+        "References GET /v1/model-info to confirm the active model, provider, device, and weight_format.",
+        "References GET /v1/performance to retrieve the last ASR call's latency in milliseconds.",
+        "Notes that /v1/performance reports only the most recent call's latency, not a rolling history or average.",
+        "Notes these endpoints are not part of the published OpenAI-compatible API reference but exist in api/custom_endpoints.py.",
+        "Uses port 8010 in any example given."
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "I'm adding a new endpoint that accepts a client-supplied session_id to resume a prior session before building a storage path from it. What do I need to do before using it, and why?",
+      "expected_output": "A correct explanation of the required validation pattern, grounded in the actual fix applied to this codebase.",
+      "files": [],
+      "expectations": [
+        "States that the session_id must be passed through utils/session_manager.py's resolve_requested_session_id() (or normalize_session_id()) before being used to build any path.",
+        "Explains that utils/app_paths.py::get_session_dir() does a raw os.path.join(STORAGE_ROOT, session_id) with no sanitization of its own, and os.path.join silently discards STORAGE_ROOT if session_id is an absolute path.",
+        "States the allowed character set is letters, digits, '-', and '_' only, with a 128-character maximum.",
+        "References that the /v1/realtime WebSocket endpoint previously skipped this validation and required a fix for exactly this reason.",
+        "Recommends rejecting invalid input (HTTP 400, or a WebSocket error event plus close) rather than silently sanitizing or truncating it."
+      ]
+    }
+  ]
+}
