@@ -1,0 +1,12 @@
+
+debian_15_install_unzip () {
+  ensure_apt_install_package unzip
+}
+
+debian_15_remove_unzip () {
+  ensure_apt_remove_package unzip
+}
+
+debian_15_sbom_unzip () {
+  ensure_sbom_format pkg-list unzip
+}

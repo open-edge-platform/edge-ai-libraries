@@ -24,7 +24,7 @@ debian_90_profile_smart_nvr () {
 debian_90_install_smart_nvr () {
   configure_smart_nvr "$@"
   if verify_smart_nvr && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Smart NVR is already installed. Skipping" 1>&2
+    echo "Smart NVR is installed." >&2
   else
     ensure_ports_open "${used_ports[*]}" return 3
     ensure_disk_size 3000

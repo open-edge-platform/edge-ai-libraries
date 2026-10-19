@@ -1,0 +1,13 @@
+
+debian_30_install_msr_tools () {
+  ensure_apt_install_package msr-tools
+}
+
+debian_30_remove_msr_tools () {
+  ensure_apt_remove_package msr-tools
+}
+
+debian_30_sbom_msr_tools () {
+  ensure_sbom_format pkg-list msr-tools
+}
+

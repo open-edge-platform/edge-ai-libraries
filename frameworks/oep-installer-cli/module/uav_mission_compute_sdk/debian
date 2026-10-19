@@ -17,7 +17,7 @@ debian_90_profile_uav_mission_compute_sdk () {
 debian_90_install_uav_mission_compute_sdk () {
   configure_uav_mission_compute_sdk
   if verify_uav_mission_compute_sdk && [[ " $* " != *" --reinstall "* ]]; then
-    echo "UAV mission compute sdk is already installed. Skipping..." 1>&2
+    echo "UAV mission compute sdk is installed." >&2
   else
     ensure_ports_open "${used_ports[*]}" return 3
     ensure_git_export "$workspace" "$version" "$repository" uav-mission-compute-sdk

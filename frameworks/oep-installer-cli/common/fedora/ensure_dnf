@@ -1,0 +1,36 @@
+
+ensure_dnf () {
+  case "$1" in
+  *)
+    ensure_sudo dnf -y "$@"
+    ;;
+  esac
+}
+
+# check pacakge installation. add =<version> to check version.
+ensure_dnf_is_installed () {
+  for pkg in $*; do
+    local pkg_name="${pkg%%=*}" pkg_ver="${pkg#*=}" matched=0 versions vr
+
+    versions=$(rpm -q --qf '%{VERSION}-%{RELEASE}\n' "$pkg_name" 2>/dev/null) || return 1
+    [[ "$pkg" = *=* ]] && [ -n "$pkg_ver" ] || continue
+
+    while IFS= read -r vr; do
+      # Unquoted $pattern on the right of == is a glob match
+      if [[ $vr == $pkg_ver || ${vr%%-*} == $pkg_ver ]]; then
+        matched=1
+        break
+      fi
+    done <<< "$versions"
+
+    [ $matched -eq 1 ] || return 1
+  done
+}
+
+# enable epel
+ensure_dnf_enable_epel () {
+  local rhel=$(rpm -E %rhel)
+  ensure_sudo subscription-manager repos --enable=codeready-builder-for-rhel-${rhel}-$(arch)-rpms
+  ensure_sudo dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-${rhel}.noarch.rpm
+}
+

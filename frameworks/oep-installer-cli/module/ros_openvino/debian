@@ -127,7 +127,7 @@ debian_55_install_ros_openvino () {
   configure_ros_openvino
 
   if verify_ros_openvino && [[ " $* " != *" --reinstall "* ]]; then
-    echo "ROS 2 OpenVINO toolkit is already installed. Skipping..."
+    echo "ROS 2 OpenVINO toolkit is installed." >&2
   else
     # declare ownership
     ensure_prop set installed/ros_openvino/owned true
