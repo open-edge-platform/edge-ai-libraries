@@ -210,7 +210,9 @@ func (s *Service) run(ctx context.Context, entry *attachedStream) {
 		select {
 		case <-ctx.Done():
 			if finished != nil {
-				<-finished
+				if err := <-finished; err != nil && !errors.Is(err, context.Canceled) {
+					slog.Debug("ingest stopped with an error during shutdown", "error", err)
+				}
 			}
 			entry.closeErr = errors.Join(entry.buffer.Close(), s.root.RemoveAll(entry.directory))
 			return

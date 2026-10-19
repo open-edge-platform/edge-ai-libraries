@@ -10,7 +10,8 @@ BUILD_DATE     := $(shell date +%Y-%m-%dT%H:%M:%S%z)
 LDFLAGS        := -s -w \
 	-X main.Version=$(VERSION) \
 	-X main.BuildNumber=$(BUILD_NUMBER) \
-	-X main.BuildDate=$(BUILD_DATE)
+	-X main.BuildDate=$(BUILD_DATE) \
+	-extldflags '-z relro -z now'
 
 IMAGE          ?= intel/stream-manager:latest
 IMAGE_REF      := $(if $(findstring :,$(notdir $(IMAGE))),$(IMAGE),$(IMAGE):latest-dev)
@@ -55,7 +56,7 @@ help: ## Show this help
 
 build: ## Build the binary on host into ./bin
 	@mkdir -p $(BIN_DIR)
-	go build -ldflags "$(LDFLAGS)" -o $(BINARY_PATH) ./cmd/api-server
+	CGO_ENABLED=0 GOOS=linux go build -buildmode=pie -ldflags "$(LDFLAGS)" -o $(BINARY_PATH) ./cmd/api-server
 	@echo "Built $(BINARY_PATH) (version $(VERSION), build $(BUILD_NUMBER))"
 
 run: ## Run the binary already built in ./bin
