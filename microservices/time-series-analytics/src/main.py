@@ -184,7 +184,11 @@ def restart_kapacitor():
     start_kapacitor_service(config)
 
 
-@app.post("/stop_pipeline")
+@app.post("/stop_pipeline", responses={
+    409: {"description": "No UDF task is configured or the expected task does not match"},
+    502: {"description": "Kapacitor failed to disable the task"},
+    503: {"description": "Kapacitor is unavailable"},
+})
 def stop_pipeline(expected_task_id: Optional[str] = None):
     """Disable the configured UDF task without stopping the Kapacitor daemon."""
     task_id = config.get("udfs", {}).get("name")
@@ -210,7 +214,11 @@ def stop_pipeline(expected_task_id: Optional[str] = None):
     return {"status": "success", "task_id": task_id}
 
 
-@app.get("/pipeline_status")
+@app.get("/pipeline_status", responses={
+    409: {"description": "No UDF task is configured or the expected task does not match"},
+    502: {"description": "Kapacitor failed to retrieve the task"},
+    503: {"description": "Kapacitor is unavailable"},
+})
 def pipeline_status(expected_task_id: Optional[str] = None):
     """Return the status of the configured UDF task."""
     task_id = config.get("udfs", {}).get("name")

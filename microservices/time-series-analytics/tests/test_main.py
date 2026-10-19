@@ -100,6 +100,23 @@ def test_stop_pipeline_disables_only_configured_task(monkeypatch, expected_task_
         timeout=30,
     )
 
+def test_stop_pipeline_quotes_task_id(monkeypatch):
+    task_id = "sensor/zone #1"
+    main.config["udfs"]["name"] = task_id
+    monkeypatch.setattr(main, "KAPACITOR_URL", "http://kapacitor:9092")
+    disable_task = mock.Mock(return_value=mock.Mock(status_code=200))
+    monkeypatch.setattr(main.requests, "patch", disable_task)
+
+    resp = client.post("/stop_pipeline", params={"expected_task_id": task_id})
+
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "success", "task_id": task_id}
+    disable_task.assert_called_once_with(
+        "http://kapacitor:9092/kapacitor/v1/tasks/sensor%2Fzone%20%231",
+        json={"status": "disabled"},
+        timeout=30,
+    )
+
 def test_stop_pipeline_without_configured_task(monkeypatch):
     main.config["udfs"] = {}
     disable_task = mock.Mock()
@@ -155,6 +172,21 @@ def test_pipeline_status_reports_configured_task(monkeypatch, task_status, expec
     assert resp.status_code == 200
     assert resp.json() == {"task_id": "udf_name", "status": task_status}
     get_task.assert_called_once_with("http://kapacitor:9092/kapacitor/v1/tasks/udf_name", timeout=30)
+
+def test_pipeline_status_quotes_task_id(monkeypatch):
+    task_id = "sensor/zone #1"
+    main.config["udfs"]["name"] = task_id
+    monkeypatch.setattr(main, "KAPACITOR_URL", "http://kapacitor:9092")
+    get_task = mock.Mock(return_value=mock.Mock(json=lambda: {"status": "enabled"}))
+    monkeypatch.setattr(main.requests, "get", get_task)
+
+    resp = client.get("/pipeline_status", params={"expected_task_id": task_id})
+
+    assert resp.status_code == 200
+    assert resp.json() == {"task_id": task_id, "status": "enabled"}
+    get_task.assert_called_once_with(
+        "http://kapacitor:9092/kapacitor/v1/tasks/sensor%2Fzone%20%231", timeout=30,
+    )
 
 def test_pipeline_status_without_configured_task(monkeypatch):
     main.config["udfs"] = {}
