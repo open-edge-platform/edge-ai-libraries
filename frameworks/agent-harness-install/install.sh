@@ -112,7 +112,7 @@ resolve_payload_dir() {
 
 main() {
   if is_source_checkout; then
-    exec "${SCRIPT_DIR}/scripts/install.sh" "$@"
+    exec bash "${SCRIPT_DIR}/scripts/install.sh" "$@"
   fi
 
   [[ -n "$HARNESS_INSTALL_REPO" ]] || {
@@ -123,14 +123,16 @@ main() {
     exit 1
   }
 
-  local ref clone_dir payload_dir
+  local ref clone_dir payload_dir cleanup_cmd
   ref="$(resolve_install_ref)" || exit 1
   clone_dir="$(mktemp -d)"
-  trap 'rm -rf "$clone_dir"' EXIT
+  # Expanded now: the EXIT trap runs after main returns, when locals are gone.
+  printf -v cleanup_cmd 'rm -rf -- %q' "$clone_dir"
+  trap "$cleanup_cmd" EXIT
   echo "Fetching agent-harness-install @ ${ref}…" >&2
   clone_installer_ref "$ref" "$clone_dir"
   payload_dir="$(resolve_payload_dir "$clone_dir")" || exit 1
-  "${payload_dir}/scripts/install.sh" "$@"
+  bash "${payload_dir}/scripts/install.sh" "$@"
 }
 
 main "$@"

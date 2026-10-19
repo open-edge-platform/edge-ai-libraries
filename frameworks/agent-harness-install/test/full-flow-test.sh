@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 # Full-flow end-to-end test for agent-harness-install: drives the REAL
 # ./install.sh entry point per agent (openclaw, deepagents-code, hermes),
 # exercising the actual production flow in order every real install goes
@@ -106,7 +108,6 @@ export HARNESS_OVMS_REST_PORT="18000"
 export HARNESS_IR_PORT="18010"
 export HARNESS_MODELS_DIR="/tmp/test-full-models"
 export HARNESS_IR_WORKSPACE_DIR="/tmp/test-full-ir-workspace"
-export HARNESS_IR_IMAGE="test-full-ir:local"
 export HARNESS_STATE_DIRNAME=".test-full-agent-harness-install"
 export HARNESS_OVMS_EXPORTER="${TEST_OVMS_EXPORTER:-docker-pull}"
 # A real agent CLI shim (e.g. an operator's own openclaw/dcode/hermes
@@ -136,7 +137,6 @@ final_cleanup() {
   cleanup_backend
   docker network rm "$HARNESS_BACKEND_NETWORK" >/dev/null 2>&1 || true
   rm -rf -- "$HARNESS_MODELS_DIR" "$HARNESS_IR_WORKSPACE_DIR" "$HOME/${HARNESS_STATE_DIRNAME:?}" "$HARNESS_SHIM_DIR"
-  docker rmi "$HARNESS_IR_IMAGE" >/dev/null 2>&1 || true
 }
 trap final_cleanup EXIT
 

@@ -7,12 +7,17 @@
 # left entirely to the operator to install by hand (see
 # docs/user-guide/known-limitations.md); ./startup.sh now automates it.
 
-# python_venv_usable -- true if python3's venv module actually works.
+# python_venv_usable -- true if python3 can actually create a venv.
 # Debian/Ubuntu ship python3-venv as a separate package from base python3;
-# without it, `python3 -m venv` fails partway through with an ensurepip
-# error rather than a clean "module not found".
+# `python3 -m venv --help` succeeds without it, but creating a venv fails
+# partway through on the missing ensurepip bootstrap, so probe a real one.
 python_venv_usable() {
-  command_exists python3 && python3 -m venv --help >/dev/null 2>&1
+  local probe rc=0
+  command_exists python3 || return 1
+  probe="$(mktemp -d)" || return 1
+  python3 -m venv "${probe}/venv" >/dev/null 2>&1 || rc=1
+  rm -rf -- "$probe"
+  return "$rc"
 }
 
 python_yaml_usable() {
@@ -34,7 +39,7 @@ ensure_python_prereqs() {
 only knows how to install it via apt-get. Install python3, python3-venv, and
 python3-pip yourself, then re-run."
     fi
-    python_venv_usable || error "python3-venv install did not take effect (python3 -m venv --help still fails)."
+    python_venv_usable || error "python3-venv install did not take effect (creating a test venv still fails)."
   fi
   ok "Python 3 + venv ready ($(python3 --version 2>&1))"
 

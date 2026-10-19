@@ -4,14 +4,14 @@
 # Intel-platform installer payload — the actual install flow, invoked by the
 # thin bootstrap at the repo root (../install.sh). Automatically runs
 # ../startup.sh first to install/verify Docker/Node.js/Python, so there is
-# only one script for the user to run. Staged install flow: express
-# install, host prep (GPU), inference routing, agent install, onboarding
+# only one script for the user to run. Staged install flow: host prep (GPU),
+# inference routing, agent install, onboarding
 # (no CDI needed; Intel render nodes pass through to containers via --device).
 set -euo pipefail
 
 # Repo root is one level up from this payload script.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)"
-for lib in colors verify state sudo shim gpu-intel docker-setup nodejs python-setup express openvino inference-router agents harness-mcp; do
+for lib in colors verify state sudo shim gpu-intel docker-setup nodejs python-setup openvino inference-router agents harness-mcp; do
   # shellcheck disable=SC1090
   . "${SCRIPT_DIR}/scripts/lib/${lib}.sh"
 done
@@ -26,7 +26,7 @@ usage() {
   ${C_BOLD}agent-harness-install${C_RESET}
 
   Usage:
-    ./install.sh [options]                      Run the full install + onboarding
+    ./install.sh [options]                      Run the full install + onboarding (requires --model)
     ./install.sh models <list|remove> [name]     List or delete exported OpenVINO models
     ./install.sh mcp register <name> <url> [agent]  Register an arbitrary MCP endpoint URL
     ./install.sh skill <install|list|remove> [path|name]  Manage Hermes skills
@@ -41,9 +41,10 @@ usage() {
   Options:
     --non-interactive                Skip prompts (uses env vars / defaults)
     --skip-gpu-check                  Skip Intel GPU detection/driver checks
-    --harness <openclaw|deepagents-code|hermes>  Real agent to install (sets HARNESS_AGENT)
-    --model <model-name>              Model to serve, named as its hub names it (default hub: Hugging Face id such as org/name,
-                                       exported to OpenVINO IR). Sets HARNESS_HF_MODEL.
+    --harness <openclaw|deepagents-code|hermes>  Agent harness to install (sets HARNESS_AGENT)
+    --model <model-name>              Model to serve (required; prompted for on a terminal, an error otherwise), named as its hub
+                                       names it (default hub: Hugging Face id such as org/name, exported to OpenVINO IR).
+                                       Sets HARNESS_HF_MODEL.
     --model-hub <hub>                  Source hub (default: openvino = Hugging Face + conversion). Any other hub selects the
                                        Model Download exporter automatically. Hubs: openvino, huggingface, ollama, remote-url,
                                        ultralytics, geti, pipeline-zoo-models, omz, hls. Only results with an OVMS graph.pbtxt
@@ -68,14 +69,15 @@ usage() {
     DEEPAGENTS_HOME               Path to dcode's profile dir (default: ~/.deepagents)
     HARNESS_LLM_ENDPOINT         OpenAI-compatible endpoint (default: local OpenVINO Model Server)
     HARNESS_LLM_PROVIDER         ovms (default) — the only backend this installer manages itself
-    HARNESS_LLM_ROUTER_ENDPOINT  Route to an existing external OpenAI-compatible router instead of OVMS
+    HARNESS_LLM_ROUTER_ENDPOINT  Point the Inference Router at an existing external OpenAI-compatible endpoint instead of OVMS
+                                  (inference still goes through the Router; --model names the model that endpoint serves)
+    HARNESS_LLM_ROUTER_API_KEY   Bearer token the Router sends to HARNESS_LLM_ROUTER_ENDPOINT (optional; passed to the container by name, never written to disk)
     HARNESS_HF_MODEL                Same as --model: the model to serve, named as its hub names it
                                     (default hub: a Hugging Face id such as org/name)
     HARNESS_OVMS_REST_PORT, HARNESS_MODELS_DIR
+    HARNESS_OVMS_IMAGE            OVMS serving image (default: openvino/model_server:2026.4.1-gpu)
+    HARNESS_OVMS_EXPORT_IMAGE     OVMS "-py" image used by the docker-pull exporter (default: openvino/model_server:2026.1-py)
     HARNESS_BACKEND_NETWORK      Docker network joining OVMS + the Inference Router so they can reach each other by name (default: agent-harness-install-backend)
-    HARNESS_GPU_PROFILE          arc | intel-gpu-other | cpu-only — forces non-interactive mode
-                                  with that profile's defaults (arc/intel-gpu-other also skip the
-                                  GPU check); set directly, or accepted via the express-install prompt
     MIN_NODE_VERSION
     HARNESS_OVMS_EXTRA_ARGS       Extra OVMS server flags (e.g. --tool_parser hermes3)
     HARNESS_OVMS_EXPORTER         docker-pull (default) | export-model-py | model-download | hf-snapshot (see Known limitations)
@@ -93,10 +95,12 @@ usage() {
     HARNESS_MODEL_PLUGINS          Model Download plugins to enable (default: the hub, plus huggingface for openvino)
     GETI_HOST, GETI_TOKEN, GETI_WORKSPACE_ID  Required by --model-hub geti
     HF_TOKEN                       Hugging Face token for gated models (forwarded to the exporters)
-    HARNESS_IR_SOURCE_REPO, HARNESS_IR_SOURCE_REF  Inference Router source repo/pinned commit SHA to build from
+    HARNESS_IR_SOURCE_REPO, HARNESS_IR_SOURCE_REF  Inference Router source repo/pinned commit SHA (only with HARNESS_IR_BUILD_FROM_SOURCE=1)
+    HARNESS_IR_BUILD_FROM_SOURCE   1 = build the Inference Router from source instead of pulling the published image
     HARNESS_ALLOW_UNVERIFIED_IR_SOURCE  Build the Inference Router from a branch/tag instead of a pinned commit SHA (not recommended)
-    HARNESS_IR_IMAGE, HARNESS_IR_CONTAINER, HARNESS_IR_PORT, HARNESS_IR_WORKSPACE_DIR
-    HARNESS_IR_PROVIDER_TYPE       LiteLLM provider-type prefix for OVMS's entry in the Router's config (default: hosted_vllm)
+    HARNESS_IR_IMAGE               Inference Router image (default: intel/inference-router:2026.2.0)
+    HARNESS_IR_CONTAINER, HARNESS_IR_PORT, HARNESS_IR_WORKSPACE_DIR
+    HARNESS_IR_PROVIDER_TYPE       LiteLLM provider-type prefix for the Router's provider entry (default: hosted_vllm)
     HARNESS_IR_ROUTING_POLICY      Balanced (default, only supported value today) | Intelligent — see Known limitations (Intelligent needs a classifier model this installer does not yet provision)
     HERMES_CONFIG                  Path to Hermes's config.yaml (default: ~/.hermes/config.yaml)
     HARNESS_MCP_REGISTER_CMD       Script to register an MCP endpoint with a non-Hermes agent
@@ -117,6 +121,11 @@ EOF
 # non-interactively or without a TTY; the chosen value is persisted so later
 # invocations (status) keep showing it.
 maybe_prompt_advertised_host() {
+  # An explicit env value is saved too, so later `status` runs (without the
+  # variable) print the address the ports were actually published on.
+  if [[ -n "$HARNESS_ADVERTISED_HOST_WAS_SET" && "$HARNESS_ADVERTISED_HOST" =~ ^[A-Za-z0-9.:-]+$ ]]; then
+    persist_advertised_host "$HARNESS_ADVERTISED_HOST"
+  fi
   [[ "${NON_INTERACTIVE:-}" != "1" ]] || return 0
   local reply=""
   if [[ -t 0 ]]; then
@@ -180,8 +189,7 @@ grained control (--skip-docker/--skip-nodejs/--skip-python)."
   # against a group that isn't active in this process yet.
   ensure_docker_group_active "$0" "${original_args[@]}"
 
-  maybe_offer_express_install
-  apply_gpu_profile_defaults
+  prompt_for_model_if_missing
   maybe_prompt_advertised_host
 
   info "Checking Intel GPU…"
@@ -205,7 +213,6 @@ via Edge Pack: github.com/open-edge-platform/edge-pack) rather than
 installing them itself -- GPU acceleration may be unavailable until that's
 done."
     fi
-    ensure_intel_gpu_group_access || true
   fi
 
   # Node.js itself (not just npm -- that's only needed to install openclaw,
@@ -228,8 +235,9 @@ done."
   # nvm.sh and its functions aren't `set -u` safe.
   set +u
   ensure_nvm_loaded
-  if ! command_exists node && command -v nvm >/dev/null 2>&1; then
-    nvm use default --silent 2>/dev/null || true
+  if ! node_meets_requirements && command -v nvm >/dev/null 2>&1; then
+    nvm use "$HARNESS_NODE_VERSION" --silent 2>/dev/null \
+      || nvm use default --silent 2>/dev/null || true
   fi
   set -u
   command_exists node \
@@ -262,8 +270,9 @@ print_status() {
 
   printf "\n${C_BOLD}Inference backend${C_RESET}\n"
   if [[ -n "${HARNESS_LLM_ROUTER_ENDPOINT:-}" ]]; then
-    ok "Routed externally — ${HARNESS_LLM_ROUTER_ENDPOINT} (not managed by this installer)"
-  elif ! command_exists docker; then
+    ok "Upstream routed externally — ${HARNESS_LLM_ROUTER_ENDPOINT} (not managed by this installer)"
+  fi
+  if ! command_exists docker; then
     info "Docker not installed"
   else
     # OVMS and the Inference Router are reported separately: OVMS's own
@@ -272,7 +281,10 @@ print_status() {
     # only one of the two under a single "Running" line would otherwise
     # conflate "OVMS is up" with "the agent's endpoint is reachable",
     # which are only the same thing when the Router is also healthy.
-    if docker inspect "$HARNESS_OVMS_CONTAINER" >/dev/null 2>&1; then
+    # OVMS is skipped when routing externally (the Router is still checked).
+    if [[ -n "${HARNESS_LLM_ROUTER_ENDPOINT:-}" ]]; then
+      :
+    elif docker inspect "$HARNESS_OVMS_CONTAINER" >/dev/null 2>&1; then
       if [[ "$(docker inspect -f '{{.State.Running}}' "$HARNESS_OVMS_CONTAINER" 2>/dev/null)" == "true" ]]; then
         # Assigned via `if endpoint=$(...); then` (not inlined into ok's
         # argument list) so a failure inside ovms_endpoint (e.g. its
@@ -447,6 +459,8 @@ main() {
     usage
     error "Unknown command: ${positional[0]}"
   fi
+
+  require_model_selection
 
   printf "\n${C_GREEN}${C_BOLD}agent-harness-install${C_RESET}\n\n"
 

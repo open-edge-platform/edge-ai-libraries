@@ -8,7 +8,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
-for lib in colors state sudo shim gpu-intel docker-setup nodejs express openvino inference-router agents; do
+for lib in colors state sudo shim gpu-intel docker-setup nodejs openvino inference-router agents; do
   # shellcheck disable=SC1090
   . "${SCRIPT_DIR}/scripts/lib/${lib}.sh"
 done
@@ -65,8 +65,24 @@ confirm_uninstall() {
   esac
 }
 
-# Clears the state directory's own files/locks, but leaves the models dir
-# alone unless --delete-models already removed it above.
+# Refuses a models directory whose recursive deletion could take more than
+# exported models with it: relative or empty paths, symlinks, /, the home
+# directory, or any ancestor of it.
+assert_models_dir_safe() {
+  local dir="$1" resolved home_resolved
+  [[ "$dir" == /* ]] || error "Refusing to delete HARNESS_MODELS_DIR='${dir}': not an absolute path."
+  [[ ! -L "$dir" ]] || error "Refusing to delete HARNESS_MODELS_DIR='${dir}': it is a symlink."
+  resolved="$(realpath -m -- "$dir" 2>/dev/null || true)"
+  home_resolved="$(realpath -m -- "$HOME" 2>/dev/null || true)"
+  [[ -n "$resolved" && -n "$home_resolved" ]] \
+    || error "Refusing to delete HARNESS_MODELS_DIR='${dir}': could not resolve its canonical path."
+  if [[ "$resolved" == "/" || "$resolved" == "$home_resolved" || "$home_resolved" == "$resolved"/* ]]; then
+    error "Refusing to delete HARNESS_MODELS_DIR='${dir}': it is, or contains, your home directory."
+  fi
+}
+
+# Clears the state directory's own files/locks, but keeps the models dir (and
+# any entry that contains it) unless --delete-models already removed it.
 remove_state_dir() {
   local state_root models_dir entry
   state_root="$(harness_state_root)"
@@ -75,7 +91,9 @@ remove_state_dir() {
   models_dir="$HARNESS_MODELS_DIR"
   for entry in "$state_root"/* "$state_root"/.[!.]*; do
     [[ -e "$entry" ]] || continue
-    [[ "$entry" == "$models_dir" ]] && continue
+    if [[ -z "$DELETE_MODELS" ]]; then
+      [[ "$entry" == "$models_dir" || "$models_dir" == "$entry"/* ]] && continue
+    fi
     rm -rf -- "$entry"
   done
   rmdir "$state_root" 2>/dev/null || true
@@ -103,6 +121,7 @@ main() {
     shift
   done
   export KEEP_AGENT_DATA
+  [[ -z "$DELETE_MODELS" ]] || assert_models_dir_safe "${HARNESS_MODELS_DIR:-}"
 
   local agent_desc
   agent_desc="the installed agent ('$(canonical_agent_name "$agent")')"
@@ -116,22 +135,26 @@ main() {
   printf "\n${C_YELLOW}${C_BOLD}agent-harness-install — Uninstall${C_RESET}\n\n"
   confirm_uninstall "$agent_desc"
 
+  info "Removing Inference Router…"
+  remove_inference_router
+  ok "Inference Router removed"
   if ovms_is_managed; then
-    info "Removing Inference Router…"
-    remove_inference_router
-    ok "Inference Router removed"
     info "Removing OpenVINO Model Server…"
     remove_openvino_model_server
     ok "OpenVINO Model Server removed"
   else
-    info "Skipping Inference Router/OpenVINO Model Server removal (this install
-routed externally; this installer never started them)."
+    info "Skipping OpenVINO Model Server removal (this install routed to an external
+endpoint; this installer never started one)."
   fi
 
-  remove_cli_shim "$(agent_cli_bin "$(canonical_agent_name "$agent")")" || true
+  # Only OpenClaw gets an installer-made shim; dcode and Hermes ship their own links.
+  if [[ "$(canonical_agent_name "$agent")" == "openclaw" ]]; then
+    remove_cli_shim "$(agent_cli_bin openclaw)" || true
+  fi
   remove_agent_package "$agent" || true
 
   if [[ -n "$DELETE_MODELS" ]]; then
+    assert_models_dir_safe "${HARNESS_MODELS_DIR:-}"
     info "Deleting exported models (${HARNESS_MODELS_DIR})…"
     rm -rf -- "${HARNESS_MODELS_DIR:?}"
     ok "Models deleted"

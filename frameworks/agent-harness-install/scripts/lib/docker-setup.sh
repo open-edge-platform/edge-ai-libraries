@@ -159,15 +159,11 @@ pulls fail, configure it yourself (${conf_file})."
   _restart_docker_daemon_for_proxy
 }
 
-# _docker_proxy_dropin_is_ours FILE MARKER -- true if FILE carries MARKER, or
-# is an unmarked drop-in from an earlier version of this installer (nothing
-# but [Service] and HTTP_PROXY/HTTPS_PROXY/NO_PROXY Environment= lines).
-# Requires sudo (the file is root-only).
+# _docker_proxy_dropin_is_ours FILE MARKER -- true only if FILE carries MARKER;
+# an unmarked drop-in is never touched. Requires sudo (the file is root-only).
 _docker_proxy_dropin_is_ours() {
   local file="$1" marker="$2"
-  sudo grep -qxF "$marker" "$file" 2>/dev/null && return 0
-  sudo test -r "$file" || return 1
-  ! sudo grep -qvE '^(\[Service\]|Environment="(HTTP_PROXY|HTTPS_PROXY|NO_PROXY)=[^"]*")$' "$file"
+  sudo grep -qxF "$marker" "$file" 2>/dev/null
 }
 
 # _restart_docker_daemon_for_proxy -- applies a changed proxy drop-in.
@@ -291,7 +287,8 @@ intel_gpu_docker_device_args() {
     [[ "$vendor" == "0x${INTEL_PCI_VENDOR_ID}" ]] || continue
     render_num="${drm_dir##*/renderD}"
     node="/dev/dri/renderD${render_num}"
-    [[ -e "$node" ]] && printf ' --device=%s' "$node"
+    [[ -e "$node" ]] || continue
+    printf ' --device=%s' "$node"
   done
 }
 

@@ -1,3 +1,8 @@
+<!--
+  Copyright (C) 2026 Intel Corporation
+  SPDX-License-Identifier: Apache-2.0
+-->
+
 # Known Limitations
 
 - OpenClaw onboarding registers the inference endpoint as a custom model
@@ -122,14 +127,21 @@
   by side; OVMS itself auto-detects the `graph.pbtxt` sitting in
   `base_path`) whenever they produce one. `model-download` registers a
   download only if it contains a `graph.pbtxt` (see above).
-- The **Inference Router** (IR) always sits in front of OVMS and is what
-  agents are actually wired to (`harness_llm_endpoint`) — not optional. This
-  installer builds it locally from a pinned commit SHA of
-  `microservices/inference-router` in `open-edge-platform/edge-ai-libraries`
-  (`HARNESS_IR_SOURCE_REPO`/`HARNESS_IR_SOURCE_REF`; a full 40-character SHA
-  is required unless `HARNESS_ALLOW_UNVERIFIED_IR_SOURCE=1`). IR also
-  publishes a prebuilt `intel/inference-router` image, which this installer
-  does not use so that the exact reviewed commit is what runs. IR limits
+- The **Inference Router** (IR) always sits in front of the model backend and
+  is what agents are actually wired to (`harness_llm_endpoint`) — not
+  optional, including when `HARNESS_LLM_ROUTER_ENDPOINT` points at an
+  external endpoint (IR's provider is then that endpoint instead of OVMS;
+  `HARNESS_LLM_ROUTER_API_KEY` is sent as a bearer token, and a
+  `localhost`/`127.0.0.1` endpoint is unreachable from inside the IR
+  container, so use the host's LAN address or `host.docker.internal`). This
+  installer pulls the published `intel/inference-router` image
+  (`HARNESS_IR_IMAGE`, default tag `2026.2.0`). That image is a release
+  build and may not match the pinned source commit below exactly; set
+  `HARNESS_IR_BUILD_FROM_SOURCE=1` to build it locally from a pinned commit
+  SHA of `microservices/inference-router` in `open-edge-platform/edge-ai-libraries`
+  instead (`HARNESS_IR_SOURCE_REPO`/`HARNESS_IR_SOURCE_REF`; a full
+  40-character SHA is required unless `HARNESS_ALLOW_UNVERIFIED_IR_SOURCE=1`).
+  IR limits
   concurrent requests (3 by default) and answers `429` above that. IR's `providers[].type` is passed
   straight through to LiteLLM as a `type/model` prefix with no allowlist
   enforced by IR's own config loader; `HARNESS_IR_PROVIDER_TYPE` defaults
@@ -161,16 +173,27 @@
   already exist, so a container from an older version of this installer
   (before this network existed) picks it up automatically, along with any
   other changed GPU/proxy/port configuration, on the next run.
-- Switching from a locally-managed OVMS+IR install to
-  `HARNESS_LLM_ROUTER_ENDPOINT` (or back) does not stop/remove the
-  previously-managed containers — re-running `ensure_inference_backend`
-  with the router endpoint set only updates the `ovms-managed` marker and
-  returns; it never calls `remove_openvino_model_server`/
-  `remove_inference_router`. A prior OVMS and/or IR container is left
-  running, orphaned, until an explicit `./uninstall.sh` (which still
-  checks the marker correctly) or a manual `docker rm -f`. This limitation
-  pre-dates IR (OVMS alone already had it); IR's addition just means a
-  second orphaned container in the same scenario.
+- Switching from a locally-managed OVMS install to
+  `HARNESS_LLM_ROUTER_ENDPOINT` does not stop/remove the previously-managed
+  OVMS container: re-running `ensure_inference_backend` with the router
+  endpoint set only updates the `ovms-managed` marker and restarts the
+  Inference Router against the new provider; it never calls
+  `remove_openvino_model_server`. The Router is always removed by
+  `./uninstall.sh`, but OVMS is skipped once the marker says the last install
+  routed externally, so that earlier OVMS container (and its image) must be
+  removed manually: `docker rm -f agent-harness-install-ovms`, or re-run
+  `./install.sh` without the router endpoint and then `./uninstall.sh`.
+- `HARNESS_OVMS_IMAGE` (the serving image, default `2026.4.1-gpu`) and
+  `HARNESS_OVMS_EXPORT_IMAGE` (the "-py" image the default `docker-pull`
+  exporter converts models with, default `2026.1-py`) are pinned separately
+  because OVMS has not published a newer "-py" tag. The export is therefore
+  produced by an older OVMS than the one that serves it; this pairing is
+  only exercised by `test/full-flow-test.sh` on real hardware.
+- There is no default model: a full install needs `--model` (or
+  `HARNESS_HF_MODEL`), prompted for on a terminal and an error otherwise,
+  unless a model is already exported from an earlier run. With
+  `HARNESS_LLM_ROUTER_ENDPOINT`, `--model`/`HARNESS_LLM_MODEL` names the model
+  the external endpoint serves.
 - Docker, Node.js/npm, and Python (venv + PyYAML) are installed/verified by
   `./startup.sh`, which `./install.sh` now runs automatically as its first
   step (see [Get Started](get-started.md)) -- there's still only one

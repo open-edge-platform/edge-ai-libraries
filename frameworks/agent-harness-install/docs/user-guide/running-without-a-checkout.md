@@ -1,3 +1,8 @@
+<!--
+  Copyright (C) 2026 Intel Corporation
+  SPDX-License-Identifier: Apache-2.0
+-->
+
 # Running Without a Checkout
 
 `install.sh` is a thin bootstrap: if it finds `scripts/install.sh` next to it

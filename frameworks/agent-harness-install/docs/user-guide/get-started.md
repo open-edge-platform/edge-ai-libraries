@@ -1,3 +1,8 @@
+<!--
+  Copyright (C) 2026 Intel Corporation
+  SPDX-License-Identifier: Apache-2.0
+-->
+
 # Get Started
 
 ## Prerequisites
@@ -28,15 +33,16 @@ Notes on what it does with Docker:
 
 ## What it does
 
-1. **Express install** — detects Core Ultra iGPU / Arc (CRI) and offers to
-   proceed non-interactively with profile defaults.
-2. **Host prep** — runs `startup.sh` (curl/git, Docker, Node.js, Python),
+1. **Host prep** — runs `startup.sh` (curl/git, Docker, Node.js, Python),
    then an Intel GPU check (PCI vendor `8086`, `i915`/`xe` driver,
    `/dev/dri` render nodes, Level-Zero/OpenCL compute runtime readiness --
    assumed already provisioned, e.g. via Edge Pack, not installed by this
-   step).
-3. **Inference backend** — starts OpenVINO Model Server (Docker, GPU
-   passthrough) and, if you pass `--model`, fetches that model from its hub
+   step). Host users and groups are not modified: containers get render-node
+   access through `--device` and `--group-add`.
+2. **Inference backend** — requires a model: pass `--model` (the installer
+   prompts for it on a terminal and fails otherwise, unless a model is already
+   exported from an earlier run). Starts OpenVINO Model Server (Docker, GPU
+   passthrough) and fetches that model from its hub
    (see [Model sources](#model-sources)). By default a Hugging Face id such
    as `org/name` is converted to OpenVINO IR via OVMS's own "-py" Docker image
    in `--pull` mode — unlike plain `optimum-cli`, that also generates the
@@ -45,18 +51,20 @@ Notes on what it does with Docker:
    `HARNESS_OVMS_EXPORTER=export-model-py` or `=hf-snapshot` (a plain
    download, no conversion, for HF repos already published as ready-to-serve
    OpenVINO IR) for alternate exporters (see
-   [Known limitations](known-limitations.md)). Always also builds/starts the **Inference Router**
-   (IR) in front of OVMS, pointed at it as IR's one configured provider —
-   this step is mandatory whenever OVMS is the managed backend, not
-   optional. The router image is built locally from a pinned commit of
-   `microservices/inference-router` in `open-edge-platform/edge-ai-libraries`.
-   Set `HARNESS_LLM_ROUTER_ENDPOINT` instead to route the agent
-   at an existing external OpenAI-compatible router/gateway and skip OVMS
-   and IR entirely.
-4. **Agent install** — installs the selected agent via its own official
+   [Known limitations](known-limitations.md)). Always also starts the
+   **Inference Router** (IR) — every inference request goes through it. The
+   router is the published `intel/inference-router` image, pulled once
+   (set `HARNESS_IR_BUILD_FROM_SOURCE=1` to build it from a pinned commit of
+   `microservices/inference-router` in `open-edge-platform/edge-ai-libraries`
+   instead). By default IR's one configured provider is the local OVMS. Set
+   `HARNESS_LLM_ROUTER_ENDPOINT` (and, if it needs one,
+   `HARNESS_LLM_ROUTER_API_KEY`) to point IR at an existing external
+   OpenAI-compatible endpoint instead; OVMS is then not started, and
+   `--model` names the model that endpoint serves.
+3. **Agent install** — installs the selected agent harness via its own official
    installer/package (`openclaw`, `dcode`, or Hermes's installer), wired to
-   the Inference Router's endpoint (or the external router endpoint, if set).
-5. **Onboarding** — wires the installed agent to that endpoint and checks it:
+   the Inference Router's endpoint.
+4. **Onboarding** — wires the installed agent to that endpoint and checks it:
    - **OpenClaw:** registers the endpoint as a custom `ovms` model provider
      (`openclaw config set models.providers.ovms …`), sets it as the default
      model, and runs a smoke test. If `openclaw config set` fails (e.g. its
@@ -79,7 +87,7 @@ you opt in with `HARNESS_ADVERTISED_HOST` (or the prompt that sets it) or
 ```
 
 ```bash
-./install.sh --harness deepagents-code --non-interactive
+./install.sh --harness deepagents-code --model Qwen/Qwen2.5-0.5B-Instruct --non-interactive
 ```
 
 Or configure via environment variables:

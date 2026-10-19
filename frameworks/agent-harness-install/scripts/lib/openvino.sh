@@ -4,18 +4,17 @@
 # OpenVINO Model Server (OVMS) — serves an OpenAI-compatible chat-completions
 # endpoint on Intel Core Ultra iGPU and Arc (CRI) GPUs.
 
-# Pinned to 2026.1 rather than a newer release (e.g. 2026.4.x) because
-# OVMS's "-py" convenience variant (used by the default docker-pull
-# exporter below) is published under a different, coarser version scheme
-# than "-gpu"/the base serving image -- two-part "X.Y-py" tags, not
-# "X.Y.Z-py" -- and has not had a new "-py" tag published since 2026.1,
-# even though "-gpu"/base images have since moved through 2026.2.x,
-# 2026.3.x, and 2026.4.x. Confirmed against the openvino/model_server
-# Docker Hub tag list (2026-10-14): "2026.1-gpu" and "2026.1-py" are the
-# newest release where both variants actually exist together, so this is
-# the newest version the default exporter can actually pull working.
-# Bump this once OVMS publishes a newer matching "-py" tag.
-HARNESS_OVMS_IMAGE="${HARNESS_OVMS_IMAGE:-openvino/model_server:2026.1-gpu}"
+# Serving image: tracks a recent OVMS release. The default docker-pull
+# exporter below needs OVMS's "-py" convenience variant, which is published
+# under a coarser version scheme (two-part "X.Y-py" tags) and has not had a
+# new tag since 2026.1 -- so the export image is pinned separately
+# (HARNESS_OVMS_EXPORT_IMAGE) instead of being derived from this one.
+# Exported model directories are plain OpenVINO IR + graph.pbtxt, which a
+# newer serving image is expected to load; that pairing is not covered by
+# the smoke test, only by test/full-flow-test.sh on real hardware.
+HARNESS_OVMS_IMAGE="${HARNESS_OVMS_IMAGE:-openvino/model_server:2026.4.1-gpu}"
+# Image used only by the docker-pull exporter (needs the "-py" variant).
+HARNESS_OVMS_EXPORT_IMAGE="${HARNESS_OVMS_EXPORT_IMAGE:-openvino/model_server:2026.1-py}"
 HARNESS_OVMS_REST_PORT="${HARNESS_OVMS_REST_PORT:-8000}"
 HARNESS_MODELS_DIR="${HARNESS_MODELS_DIR:-$HOME/.agent-harness-install/models}"
 HARNESS_OVMS_CONTAINER="${HARNESS_OVMS_CONTAINER:-agent-harness-install-ovms}"
@@ -30,11 +29,15 @@ HARNESS_BACKEND_NETWORK="${HARNESS_BACKEND_NETWORK:-agent-harness-install-backen
 # for agents that need OpenAI-style tool calls.
 HARNESS_OVMS_EXTRA_ARGS="${HARNESS_OVMS_EXTRA_ARGS:-}"
 
-# Set HARNESS_LLM_ROUTER_ENDPOINT to route the agent at an existing
-# OpenAI-compatible router/gateway instead of this installer's own OVMS
-# container — e.g. an internal LiteLLM instance, a corporate API gateway, or
-# a cloud endpoint. When set, this installer never starts, stops, or
-# health-checks OVMS; HARNESS_LLM_PROVIDER is then ignored.
+# Set HARNESS_LLM_ROUTER_ENDPOINT to point this installer's Inference Router
+# (IR) at an existing OpenAI-compatible server instead of its own OVMS
+# container -- e.g. an internal LiteLLM instance, a corporate API gateway, or
+# a cloud endpoint. Inference still goes through IR (agents are wired to IR
+# either way); only IR's upstream provider changes. When set, this installer
+# never starts, stops, or health-checks OVMS, and HARNESS_LLM_PROVIDER is
+# ignored. HARNESS_LLM_ROUTER_API_KEY, if set, is sent as a bearer token.
+# The model name IR forwards upstream comes from --model/HARNESS_HF_MODEL (or
+# HARNESS_LLM_MODEL).
 HARNESS_LLM_PROVIDER="${HARNESS_LLM_PROVIDER:-ovms}"
 HARNESS_LLM_ROUTER_ENDPOINT="${HARNESS_LLM_ROUTER_ENDPOINT:-}"
 
@@ -67,8 +70,8 @@ HARNESS_HF_MODEL_REVISION="${HARNESS_HF_MODEL_REVISION:-}"
 # export_model.py is OVMS's own model-export tool — unlike plain
 # `optimum-cli export openvino`, it also writes the graph.pbtxt MediaPipe
 # servable definition OVMS's /v3/chat/completions endpoint requires for LLMs.
-# Pinned to the release tag matching HARNESS_OVMS_IMAGE for reproducible,
-# version-compatible exports.
+# Pinned to the release tag matching HARNESS_OVMS_EXPORT_IMAGE for
+# reproducible, version-compatible exports.
 HARNESS_OVMS_EXPORT_MODEL_REF="${HARNESS_OVMS_EXPORT_MODEL_REF:-v2026.1}"
 
 # Known-good SHA-256 for export_model.py / requirements.txt at the pinned
@@ -122,7 +125,8 @@ export step's HTTP client may not support (only http/https/socks5/socks5h are)."
 # own "Pull mode with optimum cli" docs. No host Python venv, no separate
 # GitHub-raw script fetch/pinning: supply-chain trust rides on the same
 # versioned, officially-published OVMS image this installer already runs
-# the server itself from (HARNESS_OVMS_IMAGE).
+# the server itself from (HARNESS_OVMS_EXPORT_IMAGE, pinned separately from the
+# serving image -- see its comment above).
 export_model_via_docker_pull() {
   local hf_model_id="$1" model_name="${2:-${1##*/}}" out_dir pull_image target_device
   local gpu_args group_add_args
@@ -166,10 +170,7 @@ OVMS config.json registration -- add a model_config_list entry for base_path
   ensure_ovms_config
   # The "-py" variant bundles optimum-cli for on-the-fly conversion -- the
   # regular serving image (HARNESS_OVMS_IMAGE) doesn't carry it at runtime.
-  case "$HARNESS_OVMS_IMAGE" in
-    *-gpu) pull_image="${HARNESS_OVMS_IMAGE%-gpu}-py" ;;
-    *) pull_image="${HARNESS_OVMS_IMAGE}-py" ;;
-  esac
+  pull_image="$HARNESS_OVMS_EXPORT_IMAGE"
   target_device="CPU"
   gpu_args="$(intel_gpu_docker_device_args)"
   group_add_args=""
@@ -470,6 +471,59 @@ Unset HARNESS_OVMS_EXPORTER (or set it to model-download), or drop --model-hub."
     esac
     warn "--model-${opt} is ignored by the '${HARNESS_OVMS_EXPORTER}' exporter (it applies to: ${applies_to})."
   done
+}
+
+# There is deliberately no default model: a full install needs one named
+# explicitly. model_selection_satisfied reports whether it has one -- --model
+# / HARNESS_HF_MODEL, or (external router) HARNESS_LLM_MODEL, or (local OVMS
+# re-run) at least one model already registered in config.json. The latter is
+# a plain grep rather than ovms_has_exported_models since this runs before
+# Node.js is guaranteed to be installed.
+model_selection_satisfied() {
+  [[ -z "${HARNESS_HF_MODEL:-}" ]] || return 0
+  if [[ -n "${HARNESS_LLM_ROUTER_ENDPOINT:-}" ]]; then
+    [[ -n "${HARNESS_LLM_MODEL:-}" ]]
+    return
+  fi
+  grep -q '"base_path"' "${HARNESS_MODELS_DIR}/config.json" 2>/dev/null
+}
+
+can_prompt_for_model() {
+  [[ "${NON_INTERACTIVE:-}" != "1" ]] || return 1
+  [[ -t 0 ]] && return 0
+  { exec 3</dev/tty; } 2>/dev/null || return 1
+  exec 3<&-
+}
+
+# require_model_selection -- fail-fast check run before startup.sh installs
+# anything: errors out when no model is selected and the user can't be asked.
+require_model_selection() {
+  model_selection_satisfied && return 0
+  can_prompt_for_model && return 0
+  error "No model selected. Re-run with --model <model-name> (default hub: a Hugging Face
+id such as org/name; add --model-hub <hub> for another source). With
+HARNESS_LLM_ROUTER_ENDPOINT set, --model (or HARNESS_LLM_MODEL) names the model that
+endpoint serves."
+}
+
+# prompt_for_model_if_missing -- asks for the model on a TTY, then validates it
+# like a --model given up front. Called after startup.sh (which may re-exec the
+# installer under a new group and would otherwise ask twice).
+prompt_for_model_if_missing() {
+  model_selection_satisfied && return 0
+  local reply=""
+  if [[ -t 0 ]]; then
+    printf "  Model to serve (e.g. a Hugging Face id such as org/name): "
+    IFS= read -r reply || reply=""
+  elif { exec 3</dev/tty; } 2>/dev/null; then
+    printf "  Model to serve (e.g. a Hugging Face id such as org/name): "
+    IFS= read -r reply <&3 || reply=""
+    exec 3<&-
+  fi
+  [[ -n "$reply" ]] || error "No model selected. Re-run with --model <model-name>."
+  HARNESS_HF_MODEL="$reply"
+  export HARNESS_HF_MODEL
+  apply_model_source_defaults
 }
 
 # model_download_docker_config -- get_model.sh starts its container with a
@@ -859,7 +913,7 @@ ensure_backend_network() {
 }
 
 ensure_openvino_model_server() {
-  local gpu_args group_add_args
+  local gpu_args group_add_args bind_host
   local -a proxy_args=()
   ensure_ovms_config
   ensure_backend_network
@@ -881,12 +935,14 @@ ensure_openvino_model_server() {
   # exact extra flag for GPU-targeted containers).
   group_add_args="$(intel_gpu_docker_group_add_args)"
   docker_proxy_env_args_into proxy_args
+  bind_host="$(resolve_bind_host)" && [[ -n "$bind_host" ]] \
+    || error "Could not resolve the address to publish OpenVINO Model Server on; refusing to publish on all interfaces."
   info "Starting OpenVINO Model Server on port ${HARNESS_OVMS_REST_PORT}…"
   local docker_run_output
   # shellcheck disable=SC2086
   if ! docker_run_output="$(docker run -d --name "$HARNESS_OVMS_CONTAINER" --restart unless-stopped \
     --network "$HARNESS_BACKEND_NETWORK" \
-    -p "$(resolve_bind_host):${HARNESS_OVMS_REST_PORT}:8000" $gpu_args $group_add_args \
+    -p "${bind_host}:${HARNESS_OVMS_REST_PORT}:8000" $gpu_args $group_add_args \
     "${proxy_args[@]}" \
     -v "${HARNESS_MODELS_DIR}:/models" \
     "$HARNESS_OVMS_IMAGE" \
@@ -913,9 +969,10 @@ and 'ss -tlnp | grep :${HARNESS_OVMS_REST_PORT}')." ;;
 # an immediate request (e.g. the onboarding smoke test) can race a model
 # that's still loading and get a spurious "graph definition not found".
 wait_for_ovms_model_ready() {
-  local model_name="$1" endpoint _
+  local model_name="$1" endpoint probe_host _
   command_exists curl || return 0
-  endpoint="http://127.0.0.1:${HARNESS_OVMS_REST_PORT}/v2/models/${model_name}/ready"
+  probe_host="$(resolve_probe_host)" || probe_host="127.0.0.1"
+  endpoint="http://${probe_host}:${HARNESS_OVMS_REST_PORT}/v2/models/${model_name}/ready"
   for _ in $(seq 1 30); do
     curl -sf "$endpoint" >/dev/null 2>&1 && return 0
     sleep 2
@@ -928,15 +985,18 @@ ${endpoint}); it may still be loading. Retry if the next step fails."
 # ensure_inference_backend — starts/health-checks whichever backend is
 # selected. An explicit router endpoint always wins over HARNESS_LLM_PROVIDER,
 # since routing to infrastructure this installer doesn't own is the point.
+# Either way, every request goes through the Inference Router: with an
+# external endpoint, IR just has that endpoint as its provider instead of OVMS.
 ensure_inference_backend() {
   if [[ -n "$HARNESS_LLM_ROUTER_ENDPOINT" ]]; then
     record_ovms_managed 0
-    if [[ -n "${HARNESS_HF_MODEL:-}" ]]; then
-      warn "HARNESS_HF_MODEL is ignored when HARNESS_LLM_ROUTER_ENDPOINT is set —
-no local model export happens; the external endpoint owns model selection."
-    fi
-    info "Routing to external endpoint: ${HARNESS_LLM_ROUTER_ENDPOINT}"
-    info "This installer will not start, stop, or health-check that endpoint."
+    info "Routing through the Inference Router to external endpoint: ${HARNESS_LLM_ROUTER_ENDPOINT}"
+    info "This installer will not start, stop, or health-check that endpoint itself."
+    # Same precedence as run_agent_onboard's model_hint, so the model the
+    # agent asks IR for matches IR's provider `model` literally.
+    local external_ir_model
+    external_ir_model="${HARNESS_LLM_MODEL:-$(resolve_onboarding_model_hint)}"
+    ensure_inference_router "$external_ir_model"
     return 0
   fi
   case "$HARNESS_LLM_PROVIDER" in
@@ -983,11 +1043,8 @@ docker-pull, export-model-py, model-download, or hf-snapshot)." ;;
         [[ "$model_download_unregistered" -eq 1 ]] \
           || wait_for_ovms_model_ready "$(model_dir_name "$HARNESS_HF_MODEL")" || true
       elif ! ovms_has_exported_models; then
-        warn "No model is exported yet and no --model was given -- OVMS is
-running but will not serve chat completions until a model is exported.
-Re-run with --model <model-name> (and --model-hub <hub> for a non-default
-source), or set HARNESS_LLM_ROUTER_ENDPOINT to route to an existing external
-endpoint instead."
+        error "No model is exported yet and no --model was given. Re-run with
+--model <model-name> (and --model-hub <hub> for a non-default source)."
       fi
       # The Inference Router always sits in front of OVMS -- agents are
       # wired to its endpoint (see harness_llm_endpoint above), never
@@ -1083,15 +1140,11 @@ ovms_model_registered() {
 }
 
 harness_llm_endpoint() {
-  if [[ -n "$HARNESS_LLM_ROUTER_ENDPOINT" ]]; then
-    printf '%s' "$HARNESS_LLM_ROUTER_ENDPOINT"
-    return 0
-  fi
   # Agents are always wired to the Inference Router's endpoint, never
-  # directly to OVMS's -- the Router is a mandatory part of the managed
-  # backend (see ensure_inference_router in inference-router.sh), sitting
-  # in front of OVMS the same way it would sit in front of any other
-  # provider. Delegates to inference_router_endpoint (inference-router.sh)
+  # directly to OVMS's or to an external endpoint -- the Router is a
+  # mandatory part of the backend (see ensure_inference_router in
+  # inference-router.sh), whichever provider sits behind it. Delegates to
+  # inference_router_endpoint (inference-router.sh)
   # rather than re-deriving the same host:port/v1 URL here, so there is one
   # place that can go stale if HARNESS_IR_PORT's meaning ever changes.
   inference_router_endpoint

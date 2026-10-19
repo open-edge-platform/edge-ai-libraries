@@ -212,6 +212,22 @@ configure_dcode_provider() {
       !skip
     ' "$config_file" >"$tmp"
   fi
+  # A second [models] (or provider) table would make the whole file invalid
+  # TOML, so leave the operator's own tables alone and say what to add.
+  if grep -qE '^[[:space:]]*\[models(\.providers\.openai(\.params)?)?\][[:space:]]*(#.*)?$' "$tmp"; then
+    rm -f "$tmp"
+    warn "${config_file} already defines [models] or [models.providers.openai] outside this
+installer's managed block; leaving it untouched. To point dcode at this endpoint, merge into
+those tables yourself:
+  default = \"openai:${model_name_esc}\"
+  [models.providers.openai]
+  base_url = \"${endpoint_esc}\"
+  api_key_env = \"HARNESS_DCODE_API_KEY\"
+  models = [\"${model_name_esc}\"]
+  [models.providers.openai.params]
+  use_responses_api = false"
+    return 1
+  fi
   {
     cat "$tmp"
     cat <<EOF
@@ -568,7 +584,10 @@ manually instead: openclaw config set models.providers.ovms '{\"baseUrl\":\"${en
       ;;
     deepagents-code)
       command_exists "$cli_bin" || error "dcode not found after install."
-      configure_dcode_provider "$endpoint" "$model_hint"
+      configure_dcode_provider "$endpoint" "$model_hint" || {
+        info "Skipping the dcode smoke test: its config.toml was not updated (see the warning above)."
+        return 0
+      }
       info "Smoke-testing dcode against ${endpoint} (model: ${model_hint})…"
       # dcode starts its own local LangGraph dev server as part of this
       # invocation and health-checks it over plain HTTP before running the

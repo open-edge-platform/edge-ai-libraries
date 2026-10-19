@@ -20,9 +20,10 @@
 #   --skip ID[,ID...]       Skip these phases
 #   --agents "a b c"        Space-separated agent list to install/onboard/
 #                           uninstall (default: "openclaw deepagents-code hermes")
-#   --hf-model <id>         Also export+serve a real Hugging Face model via
-#                           OVMS and smoke-test chat completions (slow,
-#                           downloads several hundred MB-GB; default: skipped)
+#   --hf-model <id>         Hugging Face model the installer exports+serves via
+#                           OVMS (the installer requires a model; default:
+#                           Qwen/Qwen2.5-0.5B-Instruct -- downloads several
+#                           hundred MB-GB)
 #   --allow-clone-test      Also test the live git-clone standalone bootstrap
 #                           path (does a real shallow git fetch of this repo)
 #   --no-cleanup            Skip the final uninstall/cleanup phase (leaves
@@ -84,7 +85,7 @@ cd "$REPO_ROOT" || exit 1
 
 # ---------------------------------------------------------------- options --
 SMOKE_AGENTS="${SMOKE_AGENTS:-openclaw deepagents-code hermes}"
-SMOKE_HF_MODEL="${SMOKE_HF_MODEL:-}"
+SMOKE_HF_MODEL="${SMOKE_HF_MODEL:-Qwen/Qwen2.5-0.5B-Instruct}"
 SMOKE_CLEANUP="${SMOKE_CLEANUP:-1}"
 SMOKE_TEST_BOOTSTRAP_CLONE="${SMOKE_TEST_BOOTSTRAP_CLONE:-0}"
 ONLY_IDS=""
@@ -110,6 +111,15 @@ while [[ $# -gt 0 ]]; do
   esac
   shift
 done
+
+# The first --agents entry is installed in phase 05; later phases reuse it.
+read -r SMOKE_PRIMARY_AGENT _ <<<"$SMOKE_AGENTS"
+case "$SMOKE_PRIMARY_AGENT" in
+  openclaw) SMOKE_PRIMARY_CLI=openclaw; SMOKE_PRIMARY_LABEL=OpenClaw ;;
+  deepagents-code) SMOKE_PRIMARY_CLI=dcode; SMOKE_PRIMARY_LABEL=dcode ;;
+  hermes) SMOKE_PRIMARY_CLI=hermes; SMOKE_PRIMARY_LABEL=Hermes ;;
+  *) echo "--agents must start with openclaw, deepagents-code or hermes (got '${SMOKE_PRIMARY_AGENT}')" >&2; exit 2 ;;
+esac
 
 # -------------------------------------------------------------- reporting --
 PASS_COUNT=0
@@ -197,7 +207,7 @@ agent_in_list() { [[ " $SMOKE_AGENTS " == *" $1 "* ]]; }
 # a disposable bash -c subshell, then evaluates $1. Isolated because several
 # lib functions call error() -> exit 1 on failure; running them in a nested
 # subshell means that exit only ends the subshell, never this test runner.
-LIB_ORDER="colors verify state sudo shim gpu-intel docker-setup nodejs python-setup express openvino inference-router agents harness-mcp"
+LIB_ORDER="colors verify state sudo shim gpu-intel docker-setup nodejs python-setup openvino inference-router agents harness-mcp"
 lib_eval() {
   local snippet="$1"
   bash -c '
@@ -286,12 +296,13 @@ phase_02_selfcheck() {
     bash -c "grep -q '2026\\.4\\.0-gpu' '$REPO_ROOT/scripts/lib/openvino.sh'"
   # Regression guard for the fix's own consistency invariant: openvino.sh's
   # comments document that HARNESS_OVMS_EXPORT_MODEL_REF (the export-model-py
-  # fallback exporter's pin) must track HARNESS_OVMS_IMAGE's version --
-  # catches a future version bump to one without updating the other.
-  check "HARNESS_OVMS_EXPORT_MODEL_REF stays in sync with HARNESS_OVMS_IMAGE's pinned version" \
+  # fallback exporter's pin) must track HARNESS_OVMS_EXPORT_IMAGE's version --
+  # catches a future version bump to one without updating the other. (The
+  # serving image, HARNESS_OVMS_IMAGE, is pinned independently of both.)
+  check "HARNESS_OVMS_EXPORT_MODEL_REF stays in sync with HARNESS_OVMS_EXPORT_IMAGE's pinned version" \
     lib_eval '
       [[ "$HARNESS_OVMS_EXPORT_MODEL_REF" == "$_OVMS_EXPORT_MODEL_PINNED_REF" ]] || exit 1
-      image_version="${HARNESS_OVMS_IMAGE#*:}"; image_version="${image_version%-gpu}"
+      image_version="${HARNESS_OVMS_EXPORT_IMAGE#*:}"; image_version="${image_version%-py}"
       export_version="${HARNESS_OVMS_EXPORT_MODEL_REF#v}"
       [[ "$image_version" == "$export_version" ]]'
   # export_model_via_docker_pull (the default exporter) runs the same
@@ -527,24 +538,6 @@ phase_03_libunit() {
   check_fail "safe_agent_data_dir: rejects a parent of \$HOME" lib_eval 'safe_agent_data_dir "$(dirname "$HOME")"'
   check_fail "safe_agent_data_dir: rejects a relative path" lib_eval 'safe_agent_data_dir .hermes'
 
-  # detect_intel_harness_profile correctly reports a real Intel GPU when one
-  # is actually present (e.g. running this suite on real Intel hardware,
-  # not just a GPU-less CI host) -- assert whichever outcome actually
-  # matches this host instead of hardcoding "cpu-only" and failing on any
-  # host with a real Intel GPU.
-  local profile_result
-  if lib_eval 'detect_intel_gpu' >/dev/null 2>&1; then
-    profile_result="$(lib_eval 'detect_intel_harness_profile')"
-    if [[ "$profile_result" == "arc" || "$profile_result" == "intel-gpu-other" ]]; then
-      pass "detect_intel_harness_profile: reports a GPU profile (${profile_result}) on this GPU-equipped host"
-    else
-      fail "detect_intel_harness_profile: reports a GPU profile on this GPU-equipped host" "got: ${profile_result}"
-    fi
-  else
-    check_output_contains "detect_intel_harness_profile: cpu-only on this declared no-GPU host" \
-      "cpu-only" lib_eval 'detect_intel_harness_profile'
-  fi
-
   check_output_contains "resolve_installed_agent: defaults to openclaw with no marker/env" \
     "openclaw" lib_eval 'export HOME=$(mktemp -d); unset HARNESS_AGENT; resolve_installed_agent'
   check_output_contains "resolve_installed_agent: HARNESS_AGENT wins over a persisted marker" \
@@ -626,12 +619,12 @@ phase_04_bootstrap() {
 }
 
 phase_05_install_primary() {
-  phase_banner "05-install: first agent (openclaw), CPU-only, no model export"
+  phase_banner "05-install: first agent (${SMOKE_PRIMARY_AGENT}), CPU-only, exports the smoke model"
   check "./install.sh status is read-only and does not crash before anything is installed" \
     env NON_INTERACTIVE=1 bash "$REPO_ROOT/install.sh" status
 
-  check "full install: --harness openclaw --non-interactive --skip-gpu-check" \
-    env NON_INTERACTIVE=1 bash "$REPO_ROOT/install.sh" --harness openclaw --non-interactive --skip-gpu-check
+  check "full install: --harness ${SMOKE_PRIMARY_AGENT} --non-interactive --skip-gpu-check --model ${SMOKE_HF_MODEL}" \
+    env NON_INTERACTIVE=1 bash "$REPO_ROOT/install.sh" --harness "$SMOKE_PRIMARY_AGENT" --non-interactive --skip-gpu-check --model "$SMOKE_HF_MODEL"
 
   # Mirrors the installer's own "open a new terminal" guidance so later
   # phases (separate processes) can resolve node/openclaw/dcode/hermes the
@@ -643,17 +636,19 @@ phase_05_install_primary() {
 
   check "docker info succeeds (via ./startup.sh in phase 00)" docker info
   check "node --version resolves (via ./startup.sh in phase 00)" bash -c 'command -v node'
-  check "openclaw CLI resolves on PATH after install" bash -c 'command -v openclaw'
-  check_output_contains "installed-agent marker == openclaw" "openclaw" cat "$HOME/.agent-harness-install/installed-agent"
+  check "${SMOKE_PRIMARY_CLI} CLI resolves on PATH after install" bash -c "command -v ${SMOKE_PRIMARY_CLI}"
+  check_output_contains "installed-agent marker == ${SMOKE_PRIMARY_AGENT}" "$SMOKE_PRIMARY_AGENT" cat "$HOME/.agent-harness-install/installed-agent"
   check_output_contains "ovms-managed marker == 1 (no external router configured)" "1" cat "$HOME/.agent-harness-install/ovms-managed"
-  check_output_contains "OpenClaw's 'ovms' provider was registered (onboarding fix)" "ovms" \
-    bash -c "openclaw config get models.providers --json | grep -o ovms"
+  if [[ "$SMOKE_PRIMARY_AGENT" == "openclaw" ]]; then
+    check_output_contains "OpenClaw's 'ovms' provider was registered (onboarding fix)" "ovms" \
+      bash -c "openclaw config get models.providers --json | grep -o ovms"
+  fi
 }
 
 phase_06_status() {
   phase_banner "06-status: combined health view"
   check "./install.sh status succeeds post-install" bash "$REPO_ROOT/install.sh" status
-  check_output_contains "status mentions OpenClaw as installed" "OpenClaw" bash "$REPO_ROOT/install.sh" status
+  check_output_contains "status mentions ${SMOKE_PRIMARY_LABEL} as installed" "$SMOKE_PRIMARY_LABEL" bash "$REPO_ROOT/install.sh" status
 }
 
 phase_07_optparsing() {
@@ -673,6 +668,8 @@ phase_07_optparsing() {
   done
   check_fail_output_contains "install.sh rejects an unknown --model-hub" "Unknown model hub" \
     bash "$REPO_ROOT/install.sh" --model-hub bogus
+  check_fail_output_contains "install.sh without --model fails fast when it cannot prompt (no default model)" "No model selected" \
+    env NON_INTERACTIVE=1 HARNESS_MODELS_DIR=/nonexistent-smoke-models-dir bash "$REPO_ROOT/install.sh"
   check_fail_output_contains "install.sh rejects an invalid --model-precision" "Invalid model precision" \
     bash "$REPO_ROOT/install.sh" --model-precision int3
   check_fail_output_contains "install.sh rejects a malformed Hugging Face --model before installing anything" "Invalid --model" \
@@ -691,7 +688,7 @@ phase_08_agent_resolution() {
   local saved; saved="$(cat "$marker" 2>/dev/null || true)"
 
   check_output_contains "onboard (HARNESS_AGENT unset) operates on the persisted agent, not a hardcoded default" \
-    "OpenClaw" env -u HARNESS_AGENT bash "$REPO_ROOT/install.sh" onboard
+    "$SMOKE_PRIMARY_LABEL" env -u HARNESS_AGENT bash "$REPO_ROOT/install.sh" onboard
 
   printf 'totally-bogus' >"$marker"
   check_fail_output_contains "onboard errors loudly on an unrecognized persisted agent (regression: was a silent no-op)" \
@@ -704,7 +701,7 @@ phase_08_agent_resolution() {
 
 phase_09_other_agents() {
   phase_banner "09-install: remaining agents"
-  if agent_in_list deepagents-code; then
+  if agent_in_list deepagents-code && [[ "$SMOKE_PRIMARY_AGENT" != "deepagents-code" ]]; then
     check "full install: --harness deepagents-code (dcode, pinned verified installer)" \
       env NON_INTERACTIVE=1 \
       bash "$REPO_ROOT/install.sh" --harness deepagents-code --non-interactive --skip-gpu-check
@@ -716,10 +713,10 @@ phase_09_other_agents() {
     check_output_contains "onboard (HARNESS_AGENT unset) now resolves to dcode (persisted marker updated)" \
       "dcode" env -u HARNESS_AGENT bash "$REPO_ROOT/install.sh" onboard
   else
-    skip "deepagents-code install" "not in --agents list"
+    skip "deepagents-code install" "not in --agents list, or already installed as the primary agent"
   fi
 
-  if agent_in_list hermes; then
+  if agent_in_list hermes && [[ "$SMOKE_PRIMARY_AGENT" != "hermes" ]]; then
     check "full install: --harness hermes (pinned verified installer)" \
       env NON_INTERACTIVE=1 \
       bash "$REPO_ROOT/install.sh" --harness hermes --non-interactive --skip-gpu-check
@@ -729,7 +726,7 @@ phase_09_other_agents() {
     check_output_contains "onboard (HARNESS_AGENT unset) now resolves to hermes (persisted marker updated)" \
       "Hermes" env -u HARNESS_AGENT bash "$REPO_ROOT/install.sh" onboard
   else
-    skip "hermes install" "not in --agents list"
+    skip "hermes install" "not in --agents list, or already installed as the primary agent"
   fi
 }
 
@@ -775,20 +772,16 @@ phase_11_skills() {
 }
 
 phase_12_inference() {
-  phase_banner "12-inference: OVMS exporter image resolution + model export + external-router bypass"
+  phase_banner "12-inference: OVMS exporter image resolution + model export + external endpoint via the Router"
 
-  # Fast, always-on regression test for the stale "-py" tag bug: derives the
-  # exact pull_image the default docker-pull exporter would use (same -gpu
-  # -> -py swap as export_model_via_docker_pull in scripts/lib/openvino.sh),
-  # then confirms the registry actually has that tag via the manifest API
-  # only (no image layers downloaded) -- catches the exact failure mode
-  # from the 2026.4.0 pin without waiting for a full slow model conversion.
+  # Fast, always-on regression test for the stale "-py" tag bug: confirms
+  # the registry actually has the export image the default docker-pull
+  # exporter would use (HARNESS_OVMS_EXPORT_IMAGE) via the manifest API
+  # only (no image layers downloaded) -- catches an unpublished tag without
+  # waiting for a full slow model conversion.
   local ovms_image pull_image
   ovms_image="$(lib_eval 'printf "%s" "$HARNESS_OVMS_IMAGE"')"
-  case "$ovms_image" in
-    *-gpu) pull_image="${ovms_image%-gpu}-py" ;;
-    *) pull_image="${ovms_image}-py" ;;
-  esac
+  pull_image="$(lib_eval 'printf "%s" "$HARNESS_OVMS_EXPORT_IMAGE"')"
   check_with_retry "OVMS serving image tag resolves on the registry (${ovms_image})" 3 \
     docker buildx imagetools inspect "$ovms_image"
   check_with_retry "OVMS docker-pull exporter's derived image tag resolves on the registry (${pull_image})" 3 \
@@ -796,7 +789,7 @@ phase_12_inference() {
 
   if [[ -n "$SMOKE_HF_MODEL" ]]; then
     check "install --model exports and registers a real model (slow)" \
-      env NON_INTERACTIVE=1 bash "$REPO_ROOT/install.sh" --harness openclaw --non-interactive --skip-gpu-check --model "$SMOKE_HF_MODEL"
+      env NON_INTERACTIVE=1 bash "$REPO_ROOT/install.sh" --harness "$SMOKE_PRIMARY_AGENT" --non-interactive --skip-gpu-check --model "$SMOKE_HF_MODEL"
     local model_name="${SMOKE_HF_MODEL##*/}"
     check_output_contains "models list shows the exported model" "$model_name" bash "$REPO_ROOT/install.sh" models list
     check_output_contains "OVMS readiness endpoint responds for the exported model" "" \
@@ -811,7 +804,7 @@ phase_12_inference() {
     local hub_model="hf-internal-testing/tiny-random-gpt2" hub_model_name="tiny-random-gpt2"
     check "install --model-hub huggingface (raw download, no OVMS registration)" \
       env NON_INTERACTIVE=1 \
-      bash "$REPO_ROOT/install.sh" --harness openclaw --non-interactive --skip-gpu-check \
+      bash "$REPO_ROOT/install.sh" --harness "$SMOKE_PRIMARY_AGENT" --non-interactive --skip-gpu-check \
         --model "$hub_model" --model-hub huggingface
     check_output_contains "models list shows the hub download, labeled not served by OVMS" \
       "not served by OVMS" bash "$REPO_ROOT/install.sh" models list
@@ -824,7 +817,7 @@ phase_12_inference() {
     # and the install still succeeds with the Router on what OVMS serves.
     check "install --model-hub ollama (downloaded and tracked, not served by OVMS)" \
       env NON_INTERACTIVE=1 \
-      bash "$REPO_ROOT/install.sh" --harness openclaw --non-interactive --skip-gpu-check \
+      bash "$REPO_ROOT/install.sh" --harness "$SMOKE_PRIMARY_AGENT" --non-interactive --skip-gpu-check \
         --model-hub ollama --model smollm:135m
     check_output_contains "models list shows the Ollama download with its hub, labeled not served" \
       "hub: ollama" bash "$REPO_ROOT/install.sh" models list
@@ -834,12 +827,14 @@ phase_12_inference() {
     skip "real HF model export + chat-completion test" "pass --hf-model <id> to enable (slow, downloads a model)"
   fi
 
-  check "external router bypass: OVMS is skipped, status reports 'Routed externally'" \
-    bash -c "cd '$REPO_ROOT' && HARNESS_LLM_ROUTER_ENDPOINT=http://127.0.0.1:1/fake NON_INTERACTIVE=1 bash install.sh --harness openclaw --non-interactive --skip-gpu-check >/tmp/smoke-router.log 2>&1; HARNESS_LLM_ROUTER_ENDPOINT=http://127.0.0.1:1/fake bash install.sh status | grep -q 'Routed externally'"
+  check "external endpoint: OVMS is skipped, the Router is started in front of it, status reports 'routed externally'" \
+    bash -c "cd '$REPO_ROOT' && HARNESS_LLM_ROUTER_ENDPOINT=http://127.0.0.1:1/fake NON_INTERACTIVE=1 bash install.sh --harness ${SMOKE_PRIMARY_AGENT} --non-interactive --skip-gpu-check --model fake-model >/tmp/smoke-router.log 2>&1 && HARNESS_LLM_ROUTER_ENDPOINT=http://127.0.0.1:1/fake bash install.sh status | grep -q 'routed externally'"
+  check_output_contains "external endpoint: the Router's provider points at it" 'name: "external"' \
+    lib_eval 'cat "$(inference_router_workspace_dir)/config.yaml"'
   check_output_contains "ovms-managed marker flips to 0 when routed externally" "0" cat "$HOME/.agent-harness-install/ovms-managed"
 
   # Restore local-OVMS management for the uninstall phase below.
-  env NON_INTERACTIVE=1 bash "$REPO_ROOT/install.sh" --harness openclaw --non-interactive --skip-gpu-check >/dev/null 2>&1 || true
+  lib_eval 'record_ovms_managed 1' >/dev/null 2>&1 || true
 }
 
 phase_13_uninstall() {

@@ -5,6 +5,13 @@
 # under the user's home directory.
 
 HARNESS_STATE_DIRNAME="${HARNESS_STATE_DIRNAME:-.agent-harness-install}"
+# Checked at load time (not in harness_state_root, which runs in subshells
+# where error's exit would not stop the caller). "." would make the state
+# root $HOME itself, which uninstall deletes recursively.
+case "$HARNESS_STATE_DIRNAME" in
+  . | .. | */* | *[[:cntrl:]]*)
+    error "HARNESS_STATE_DIRNAME must be a single directory name, not '.', '..' or a path: '${HARNESS_STATE_DIRNAME}'" ;;
+esac
 # Host/IP advertised in printed endpoint URLs (OVMS, the Inference Router), and the default address Docker binds published ports to (see
 # resolve_bind_host). Defaults to loopback, so nothing is exposed beyond this
 # host unless the operator opts in. Captured before
@@ -141,6 +148,17 @@ resolve_bind_host() {
   else
     resolve_advertised_host
   fi
+}
+
+# resolve_probe_host — address for host-side health checks of published ports.
+# A port published on a specific IP is not reachable via 127.0.0.1.
+resolve_probe_host() {
+  local host
+  host="$(resolve_bind_host)" || return 1
+  case "$host" in
+    "" | 0.0.0.0 | "::" | "[::]") printf '127.0.0.1' ;;
+    *) printf '%s' "$host" ;;
+  esac
 }
 
 persist_advertised_host() {

@@ -64,23 +64,3 @@ intel_compute_runtime_installed() {
   fi
   return "$found"
 }
-
-# Ensures the current user can access /dev/dri render nodes (the 'render'
-# group on most distros, 'video' as a fallback on older ones).
-ensure_intel_gpu_group_access() {
-  local current_user render_node group_name
-  current_user="$(id -un)"
-  render_node="$(compgen -G "/dev/dri/renderD*" | head -1 || true)"
-  [[ -n "$render_node" ]] || return 0
-  group_name="$(stat -c '%G' "$render_node" 2>/dev/null || true)"
-  [[ -n "$group_name" ]] || return 0
-  if id -nG "$current_user" 2>/dev/null | tr ' ' '\n' | grep -qx "$group_name"; then
-    return 0
-  fi
-  info "Adding '$current_user' to the '$group_name' group for GPU device access."
-  info "You may be asked for your password."
-  sudo usermod -aG "$group_name" "$current_user"
-  warn "Group membership needs a new login/shell session ('newgrp $group_name'
-or log out and back in) before containers can use the GPU."
-  return 1
-}
