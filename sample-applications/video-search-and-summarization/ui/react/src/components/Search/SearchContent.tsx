@@ -5,7 +5,6 @@ import styled from 'styled-components';
 import { useAppDispatch, useAppSelector } from '../../redux/store';
 import { useTranslation } from 'react-i18next';
 import {
-  Slider,
   Tag,
   Tooltip,
   Button,
@@ -20,6 +19,9 @@ import {
 import { RerunSearch, SearchActions, SearchSelector } from '../../redux/search/searchSlice';
 import { SearchResult, TimeFilterSelection } from '../../redux/search/search';
 import TimeFilterControl from './TimeFilterControl';
+import MinPeakScoreControl, { formatMinPeakScore, minPeakScoreOnValue } from './MinPeakScoreControl';
+import SearchOutputCountControl from './SearchOutputCountControl';
+import { FILTER_BODY_SLIDER_HEIGHT, FilterBody } from './FilterField';
 import { StateActionStatus } from '../../redux/summary/summary';
 import { VideoTile } from '../../redux/search/VideoTile';
 import VideoGroupsView from '../VideoGroups/VideoGroupsView';
@@ -28,6 +30,7 @@ import { imageSearchEnabled } from '../../utils/featureFlags';
 
 // Keying by clip identity rather than array position keeps unchanged tiles mounted when a
 // watched query refreshes, so their <video> elements are not torn down and reloaded.
+
 const searchResultKey = (result: SearchResult, index: number): string => {
   const videoId = result?.metadata?.video_id;
   const timestamp = result?.metadata?.timestamp;
@@ -85,43 +88,53 @@ const SettingsContainer = styled.div`
   .cds--accordion__item {
     padding-inline-end: 0rem;
   }
+  /* Carbon reserves 25% on the right for text; the filter cards use the full
+     width, with a right gap mirroring the left one (padding + start-align margin). */
+  .cds--accordion__content {
+    padding-inline-end: 3rem;
+  }
 `;
 
 const SettingsBar = styled.div`
   display: flex;
-  align-items: stretch;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 0.75rem;
   padding: 1rem 0;
   width: 100%;
-  gap: 0.75rem;
-  flex-wrap: wrap;
+  container-type: inline-size;
 `;
 
-const SettingsSection = styled.div`
+const StatusRow = styled.div`
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  flex: 1 1 0;
-  /* min-width: 10rem; */
+`;
+
+/* Equal columns and gaps; stacks into one column when the panel is narrow. */
+const FilterGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  width: 100%;
+
+  @container (max-width: 46rem) {
+    grid-template-columns: minmax(0, 1fr);
+  }
 `;
 
 const ControlCard = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  padding: 0.75rem;
-  border: .1px solid #a8a8a8;
+  min-width: 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid #c6c6c6;
   border-radius: 0.5rem;
   background: #f4f4f4;
-`;
 
-const SliderBlock = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  min-width: 8rem;
+  ${FilterBody} {
+    min-height: ${FILTER_BODY_SLIDER_HEIGHT};
+  }
 `;
-
 
 const QueryBar = styled.div`
   display: flex;
@@ -155,10 +168,6 @@ const QueryBar = styled.div`
     white-space: nowrap;
     max-width: 40rem;
   }
-`;
-
-const SliderLabel = styled.div`
-  margin-right: 1rem;
 `;
 
 const IntervalNotice = styled.div`
@@ -241,7 +250,7 @@ const ErrorMessageWrapper = styled.div`
 `;
 
 export const QuerySettings: FC = () => {
-  const { selectedQuery, isSelectedInProgress, isSelectedHasError } = useAppSelector(SearchSelector);
+  const { selectedQuery, isSelectedInProgress, isSelectedHasError, searchConfig } = useAppSelector(SearchSelector);
   const dispatch = useAppDispatch();
   const { t } = useTranslation();
 
@@ -259,6 +268,17 @@ export const QuerySettings: FC = () => {
     dispatch(RerunSearch({ queryId: selectedQuery.queryId, timeFilter }));
   };
 
+  const minPeakScoreDefault = searchConfig?.minPeakScoreDefault ?? 0;
+
+  // The control only reports applied values (slider released, Enter, blur),
+  // so each one re-runs the query straight away.
+  const updateMinPeakScore = (minPeakScore: number) => {
+    if (!selectedQuery) return;
+    const change = { queryId: selectedQuery.queryId, minPeakScore };
+    dispatch(SearchActions.updateMinPeakScore(change));
+    dispatch(RerunSearch(change));
+  };
+
   return (
     <SettingsContainer>
       <Accordion align='start' size='sm'>
@@ -271,41 +291,23 @@ export const QuerySettings: FC = () => {
           }}
         >
           <SettingsBar>
-            <SettingsSection style={{ justifyContent: 'flex-start' }}>
-              {isSelectedInProgress && (
-                <Tag size='sm' type='blue'>
-                  {t('searchInProgress')}
-                </Tag>
-              )}
-              {isSelectedHasError && (
-                <Tag size='sm' type='red'>
-                  {t('searchError')}
-                </Tag>
-              )}
-            </SettingsSection>
+            {(isSelectedInProgress || isSelectedHasError) && (
+              <StatusRow>
+                {isSelectedInProgress && (
+                  <Tag size='sm' type='blue'>
+                    {t('searchInProgress')}
+                  </Tag>
+                )}
+                {isSelectedHasError && (
+                  <Tag size='sm' type='red'>
+                    {t('searchError')}
+                  </Tag>
+                )}
+              </StatusRow>
+            )}
 
-            <SettingsSection style={{ justifyContent: 'center' }}>
-              {selectedQuery && (
-                <ControlCard>
-                  <SliderBlock>
-                    <SliderLabel>{t('searchOutputCount', 'Search Output Count')}</SliderLabel>
-                    <Slider
-                      min={1}
-                      max={20}
-                      step={1}
-                      value={selectedQuery.topK}
-                      hideTextInput
-                      onChange={({ value }) => {
-                        dispatch(SearchActions.updateTopK({ queryId: selectedQuery.queryId, topK: value }));
-                      }}
-                    />
-                  </SliderBlock>
-                </ControlCard>
-              )}
-            </SettingsSection>
-
-            <SettingsSection style={{ justifyContent: 'flex-end' }}>
-              {selectedQuery && (
+            {selectedQuery && (
+              <FilterGrid>
                 <ControlCard>
                   <TimeFilterControl
                     key={selectedQuery.queryId}
@@ -313,10 +315,30 @@ export const QuerySettings: FC = () => {
                     onChange={updateTimeFilter}
                     idPrefix='time-filter'
                     size='sm'
+                    fullWidth
                   />
                 </ControlCard>
-              )}
-            </SettingsSection>
+                <ControlCard>
+                  <SearchOutputCountControl
+                    idPrefix='search-output-count'
+                    value={selectedQuery.topK}
+                    onChange={(topK) => {
+                      dispatch(SearchActions.updateTopK({ queryId: selectedQuery.queryId, topK }));
+                    }}
+                  />
+                </ControlCard>
+                <ControlCard>
+                  <MinPeakScoreControl
+                    key={`${selectedQuery.queryId}-${minPeakScoreDefault}`}
+                    value={selectedQuery.minPeakScore ?? minPeakScoreDefault}
+                    onValue={minPeakScoreOnValue(minPeakScoreDefault)}
+                    onChange={updateMinPeakScore}
+                    idPrefix='min-peak-score'
+                    fullWidth
+                  />
+                </ControlCard>
+              </FilterGrid>
+            )}
           </SettingsBar>
         </AccordionItem>
       </Accordion>
@@ -416,14 +438,25 @@ export const QueryInfo: FC = () => {
 
 export const IntervalDisplay: FC = () => {
   const { selectedQuery } = useAppSelector(SearchSelector);
-  if (!selectedQuery || !selectedQuery.timeFilter || !selectedQuery.timeFilter.value || !selectedQuery.timeFilter.unit) {
+  const { t } = useTranslation();
+  if (!selectedQuery) {
     return null;
   }
 
-  const { value, unit } = selectedQuery.timeFilter;
-  const unitLabel = unit.charAt(0).toUpperCase() + unit.slice(1);
+  const notices: string[] = [];
+  const timeFilter = selectedQuery.timeFilter;
+  if (timeFilter && timeFilter.value && timeFilter.unit) {
+    const unitLabel = timeFilter.unit.charAt(0).toUpperCase() + timeFilter.unit.slice(1);
+    notices.push(`Time Range: Last ${timeFilter.value} ${unitLabel}`);
+  }
+  if (selectedQuery.minPeakScore && selectedQuery.minPeakScore > 0) {
+    notices.push(t('minPeakScoreDisplay', { value: formatMinPeakScore(selectedQuery.minPeakScore) }));
+  }
+  if (notices.length === 0) {
+    return null;
+  }
 
-  return <IntervalNotice>{`Time Range: Last ${value} ${unitLabel}`}</IntervalNotice>;
+  return <IntervalNotice>{notices.join(' · ')}</IntervalNotice>;
 };
 
 const NoQuerySelected: FC = () => <NothingSelectedWrapper></NothingSelectedWrapper>;

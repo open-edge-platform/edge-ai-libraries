@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { createAsyncThunk, createSelector, createSlice, PayloadAction } from '@reduxjs/toolkit';
 import {
+  SearchConfig,
   SearchQuery,
   SearchQueryDTO,
   SearchQueryStatus,
@@ -22,6 +23,7 @@ const initialState: SearchState = {
   triggerLoad: true,
   suggestedTags: [],
   refreshConfig: null,
+  searchConfig: null,
 };
 
 const defaultTopk = 4;
@@ -139,6 +141,13 @@ export const SearchSlice = createSlice({
         state.searchQueries[index].queryStatus = SearchQueryStatus.RUNNING; // mark in-progress so UI greys out
       }
     },
+    updateMinPeakScore: (state: SearchState, action: PayloadAction<{ queryId: string; minPeakScore: number }>) => {
+      const index = state.searchQueries.findIndex((query) => query.queryId === action.payload.queryId);
+      if (index !== -1) {
+        state.searchQueries[index].minPeakScore = action.payload.minPeakScore;
+        state.searchQueries[index].queryStatus = SearchQueryStatus.RUNNING;
+      }
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -172,6 +181,9 @@ export const SearchSlice = createSlice({
       })
       .addCase(LoadRefreshConfig.fulfilled, (state, action) => {
         state.refreshConfig = action.payload;
+      })
+      .addCase(LoadSearchConfig.fulfilled, (state, action) => {
+        state.searchConfig = action.payload;
       })
       .addCase(SearchLoad.rejected, (state) => {
         state.triggerLoad = false;
@@ -245,12 +257,31 @@ export const LoadRefreshConfig = createAsyncThunk('search/loadRefreshConfig', as
   return res.data;
 });
 
+export const LoadSearchConfig = createAsyncThunk('search/loadSearchConfig', async () => {
+  const res = await axios.get<SearchConfig>(`${APP_URL}/search/config`);
+  return res.data;
+});
+
 export const RerunSearch = createAsyncThunk(
   'search/rerun',
-  async ({ queryId, timeFilter }: { queryId: string; timeFilter?: TimeFilterSelection | null }) => {
-    console.log('[RerunSearch] start', { queryId, timeFilter });
-    const body = timeFilter !== undefined ? { timeFilter } : undefined;
-    const queryRes = await axios.post<SearchQuery>(`${APP_URL}/search/${queryId}/refetch`, body);
+  async ({
+    queryId,
+    timeFilter,
+    minPeakScore,
+  }: {
+    queryId: string;
+    timeFilter?: TimeFilterSelection | null;
+    // Omitted: the server reuses the query's saved value.
+    minPeakScore?: number;
+  }) => {
+    console.log('[RerunSearch] start', { queryId, timeFilter, minPeakScore });
+    const body: { timeFilter?: TimeFilterSelection | null; minPeakScore?: number } = {};
+    if (timeFilter !== undefined) body.timeFilter = timeFilter;
+    if (minPeakScore !== undefined) body.minPeakScore = minPeakScore;
+    const queryRes = await axios.post<SearchQuery>(
+      `${APP_URL}/search/${queryId}/refetch`,
+      Object.keys(body).length > 0 ? body : undefined,
+    );
     console.log('[RerunSearch] success', { queryId, timeFilter, results: queryRes.data?.results?.length });
     return queryRes.data;
   },
@@ -283,11 +314,13 @@ export const SearchAdd = createAsyncThunk(
     image,
     tags,
     timeFilter,
+    minPeakScore,
   }: {
     query?: string;
     image?: string;
     tags: string[];
     timeFilter?: TimeFilterSelection | null;
+    minPeakScore?: number;
   }) => {
     // Image-based search sends `image` and omits the text query; otherwise `query`.
     const searchQuery: SearchQueryDTO = image ? { image } : { query };
@@ -298,6 +331,10 @@ export const SearchAdd = createAsyncThunk(
 
     if (timeFilter !== undefined) {
       searchQuery.timeFilter = timeFilter;
+    }
+
+    if (minPeakScore !== undefined) {
+      searchQuery.minPeakScore = minPeakScore;
     }
 
     const queryRes = await axios.post<SearchQuery>(`${APP_URL}/search`, searchQuery);
@@ -323,6 +360,7 @@ export const SearchSelector = createSelector([selectSearchState], (state) => {
     unreads: state.unreads,
     triggerLoad: state.triggerLoad,
     refreshConfig: state.refreshConfig,
+    searchConfig: state.searchConfig,
     selectedQuery: selected,
     suggestedTags: state.suggestedTags,
     queriesInProgress: state.searchQueries.filter((query) => query.queryStatus === SearchQueryStatus.RUNNING),

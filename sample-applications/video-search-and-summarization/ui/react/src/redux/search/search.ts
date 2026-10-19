@@ -17,6 +17,8 @@ export interface SearchQueryDTO {
   image?: string;
   tags?: string;
   timeFilter?: TimeFilterSelection | null;
+  /** Minimum peak score (0-1); 0 disables the filter. */
+  minPeakScore?: number;
 }
 
 export interface SearchShimQuery {
@@ -102,6 +104,8 @@ export interface SearchQuery {
   queryStatus: SearchQueryStatus;
   tags: string[];
   timeFilter?: TimeFilterSelection | null;
+  /** Minimum peak score the query searches with; 0 = no filtering. */
+  minPeakScore?: number | null;
   createdAt: string;
   updatedAt: string;
   errorMessage?: string;
@@ -132,6 +136,12 @@ export interface SearchRefreshConfig {
   maxQueriesPerTick: number;
 }
 
+/** Search settings resolved by the pipeline manager (`GET /search/config`). */
+export interface SearchConfig {
+  /** Default minimum peak score (SEARCH_MIN_PEAK_SCORE); 0 = filter off. */
+  minPeakScoreDefault: number;
+}
+
 export interface SearchState {
   searchQueries: SearchQueryUI[];
   suggestedTags: string[];
@@ -139,4 +149,5 @@ export interface SearchState {
   selectedQuery: string | null;
   triggerLoad: boolean;
   refreshConfig?: SearchRefreshConfig | null;
+  searchConfig?: SearchConfig | null;
 }
