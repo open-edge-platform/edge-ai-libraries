@@ -72,6 +72,18 @@ export class SearchQueryDTO {
     nullable: true,
   })
   timeFilter?: TimeFilterSelection | null;
+
+  @ApiPropertyOptional({
+    description:
+      'Minimum peak score (0-1). Frames whose similarity is below it are ' +
+      'dropped at retrieval, so every returned segment has a best frame at ' +
+      'or above it. 0 disables the filter; omit to use the deployment ' +
+      'default (SEARCH_MIN_PEAK_SCORE, see GET /search/config).',
+    minimum: 0,
+    maximum: 1,
+    example: 0.2,
+  })
+  minPeakScore?: number;
 }
 
 export class RefetchBodyDTO {
@@ -80,6 +92,15 @@ export class RefetchBodyDTO {
     description: 'Optional time filter override',
   })
   timeFilter?: TimeFilterSelection;
+
+  @ApiPropertyOptional({
+    description:
+      'Optional minimum peak score override (0-1, 0 = off). Saved on the ' +
+      'query and used by later refetches and watched-query refreshes.',
+    minimum: 0,
+    maximum: 1,
+  })
+  minPeakScore?: number;
 }
 
 export class WatchBodyDTO {
@@ -99,6 +120,7 @@ export interface SearchShimQuery {
   image_base64?: string;
   tags?: string[];
   time_filter?: { start: string; end: string };
+  min_peak_score?: number;
 }
 
 export interface SearchResultRO {
@@ -221,6 +243,8 @@ export interface SearchQuery {
   queryStatus: SearchQueryStatus;
   tags: string[];
   timeFilter?: TimeFilterSelection | null;
+  /** Minimum peak score the query searches with (0 = no filtering). */
+  minPeakScore?: number | null;
   createdAt: string;
   updatedAt: string;
   errorMessage?: string;

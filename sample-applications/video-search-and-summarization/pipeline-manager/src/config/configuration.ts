@@ -28,6 +28,8 @@ export default () => ({
       : 30000,
     dataPrep: process.env.SEARCH_DATAPREP_ENDPOINT,
     vsIndexName: process.env.VS_INDEX_NAME,
+    // Default minimum peak (frame) similarity a search keeps; 0 disables it.
+    minPeakScore: process.env.SEARCH_MIN_PEAK_SCORE,
     dataPrepTimeoutMs: process.env.SEARCH_DATAPREP_TIMEOUT_MS
       ? Number(process.env.SEARCH_DATAPREP_TIMEOUT_MS)
       : 30000,

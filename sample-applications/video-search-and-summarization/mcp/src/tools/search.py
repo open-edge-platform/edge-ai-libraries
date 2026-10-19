@@ -102,6 +102,23 @@ def _parse_iso(name: str, value: str) -> datetime:
     return moment
 
 
+def check_min_peak_score(value: float | None) -> float | None:
+    """Return ``value`` if it is a valid minimum peak score (0-1), else raise.
+
+    Raises:
+        VssError: If ``value`` is outside [0, 1].
+    """
+
+    if value is None:
+        return None
+    if isinstance(value, bool) or not 0 <= value <= 1:
+        raise VssError(
+            f"min_peak_score={value!r} must be between 0 and 1 (0 turns the "
+            "filter off)."
+        )
+    return float(value)
+
+
 def build_time_filter(start: str | None, end: str | None) -> dict[str, Any] | None:
     """Validate an absolute range and shape it as ``timeFilter``, or ``None``.
 
@@ -303,6 +320,8 @@ async def _stored_search_payload(
     time_range = _time_range(stored.get("timeFilter"))
     if time_range:
         payload["time_range"] = time_range
+    if stored.get("minPeakScore"):
+        payload["min_peak_score"] = stored["minPeakScore"]
     return payload
 
 
@@ -379,6 +398,7 @@ async def search_video(
     limit: int = DEFAULT_LIMIT,
     wait_seconds: float | None = None,
     stream_ids: list[str] | None = None,
+    min_peak_score: float | None = None,
 ) -> SearchResult:
     """Back :func:`vss_search_video` (see its docstring for the contract).
 
@@ -404,6 +424,7 @@ async def search_video(
 
     image_url = _require_image_reference(image) if image else None
     time_filter = build_time_filter(start, end)
+    min_peak_score = check_min_peak_score(min_peak_score)
 
     existing = sorted(await deps.client.list_tags()) if tags else []
     matched, unmatched = match_tags(tags or [], existing)
@@ -423,6 +444,7 @@ async def search_video(
         image_url=image_url,
         tags=matched or None,
         time_filter=time_filter,
+        min_peak_score=min_peak_score,
     )
     stored, _ = await deps.client.poll_search(
         created["queryId"],
@@ -449,6 +471,8 @@ async def search_video(
     time_range = _time_range(time_filter)
     if time_range:
         payload["time_range"] = time_range
+    if stored.get("minPeakScore"):
+        payload["min_peak_score"] = stored["minPeakScore"]
     return payload
 
 
@@ -500,18 +524,22 @@ async def refetch_search(
     end: str | None = None,
     limit: int = DEFAULT_LIMIT,
     wait_seconds: float | None = None,
+    min_peak_score: float | None = None,
 ) -> StoredSearch:
-    """Re-run a persisted search query, optionally over a new time range,
-    and return its fresh hits.
+    """Re-run a persisted search query, optionally over a new time range
+    or with a new minimum peak score, and return its fresh hits.
 
     Raises:
-        VssError: If no query has that id, the time range is invalid, or the
-            search failed.
+        VssError: If no query has that id, the time range or score is
+            invalid, or the search failed.
     """
 
     time_filter = build_time_filter(start, end)
+    min_peak_score = check_min_peak_score(min_peak_score)
     stored = await _require_search(deps, query_id)
-    await deps.client.refetch_search(stored["queryId"], time_filter)
+    await deps.client.refetch_search(
+        stored["queryId"], time_filter, min_peak_score
+    )
     refreshed, _ = await deps.client.poll_search(
         stored["queryId"],
         wait_seconds=_wait_budget(deps, wait_seconds),
@@ -1001,6 +1029,7 @@ def register(mcp: FastMCP, deps: Deps) -> None:
         limit: int = DEFAULT_LIMIT,
         wait_seconds: float | None = None,
         stream_ids: list[str] | None = None,
+        min_peak_score: float | None = None,
     ) -> ToolResult:
         """Find moments across all indexed videos and live cameras matching
         a description or an image.
@@ -1029,6 +1058,12 @@ def register(mcp: FastMCP, deps: Deps) -> None:
             stream_ids: Only keep hits from these cameras (or video ids).
                 Applied to the ranked results, so it can return fewer than
                 limit; tag the cameras to narrow the search itself.
+            min_peak_score: Drop weak matches: only frames whose similarity
+                is at least this (0-1) are ranked, so every hit's best frame
+                scores at or above it. 0 turns the filter off; omit to use
+                the deployment default (off unless configured). The VSS UI
+                starts the filter at 0.2, the score below which it labels a
+                hit a weak match; lower it if a search returns nothing.
 
         Results are best first; each hit's url plays its video, with
         start_s/end_s bounding the moment and seek_s where to start; a
@@ -1052,6 +1087,7 @@ def register(mcp: FastMCP, deps: Deps) -> None:
             limit=limit,
             wait_seconds=wait_seconds,
             stream_ids=stream_ids,
+            min_peak_score=min_peak_score,
         )
         return search_tool_result(payload)
 
@@ -1063,6 +1099,7 @@ def register(mcp: FastMCP, deps: Deps) -> None:
         end: str | None = None,
         limit: int = DEFAULT_LIMIT,
         wait_seconds: float | None = None,
+        min_peak_score: float | None = None,
     ) -> ToolResult:
         """Return a saved search and its results, optionally re-running it
         first.
@@ -1082,9 +1119,11 @@ def register(mcp: FastMCP, deps: Deps) -> None:
                 start.
             limit: Maximum results to return.
             wait_seconds: How long to wait for re-run results.
+            min_peak_score: New minimum peak score (0-1, 0 = off) for the
+                re-run; implies refresh and is saved with the search.
         """
 
-        if refresh or start or end:
+        if refresh or start or end or min_peak_score is not None:
             payload = await refetch_search(
                 deps,
                 query_id,
@@ -1092,6 +1131,7 @@ def register(mcp: FastMCP, deps: Deps) -> None:
                 end=end,
                 limit=limit,
                 wait_seconds=wait_seconds,
+                min_peak_score=min_peak_score,
             )
         else:
             payload = await get_search(deps, query_id, limit=limit)

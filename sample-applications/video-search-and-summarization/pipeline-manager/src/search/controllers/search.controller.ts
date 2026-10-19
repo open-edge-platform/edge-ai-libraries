@@ -32,6 +32,7 @@ import { SearchDbService } from '../services/search-db.service';
 import { SearchShimService } from '../services/search-shim.service';
 import { SearchRefreshConfigService } from '../services/search-refresh-config.service';
 import { SearchImageService } from '../services/search-image.service';
+import { SearchConfigService } from '../services/search-config.service';
 import { FeaturesService } from 'src/features/features.service';
 import { lastValueFrom } from 'rxjs';
 
@@ -47,6 +48,7 @@ export class SearchController {
     private $feature: FeaturesService,
     private $refreshConfig: SearchRefreshConfigService,
     private $searchImage: SearchImageService,
+    private $searchConfig: SearchConfigService,
   ) {}
 
   private static isNonBlank(value: unknown): value is string {
@@ -115,6 +117,18 @@ export class SearchController {
     return this.$refreshConfig.getConfig();
   }
 
+  @Get('config')
+  @ApiOperation({
+    summary: 'Get search settings such as the default minimum peak score',
+  })
+  @ApiOkResponse({
+    description:
+      '`minPeakScoreDefault`: minimum peak score used when a query sets none (0 = off)',
+  })
+  getSearchConfig() {
+    return this.$searchConfig.getConfig();
+  }
+
   @Get(':queryId')
   @ApiOperation({ summary: 'Get a search query by ID' })
   @ApiParam({
@@ -135,6 +149,9 @@ export class SearchController {
   @ApiNotFoundResponse({ description: 'imageUrl does not refer to a stored image' })
   async addQuery(@Body() reqBody: SearchQueryDTO) {
     const image = await this.resolveSearchImage(reqBody);
+    const minPeakScore = this.$searchConfig.parseMinPeakScore(
+      reqBody.minPeakScore,
+    );
 
     try {
       let tags: string[] = [];
@@ -150,6 +167,7 @@ export class SearchController {
         tags,
         reqBody.timeFilter,
         image,
+        minPeakScore,
       );
       return query;
     } catch (error) {
@@ -175,7 +193,14 @@ export class SearchController {
     @Param() params: { queryId: string },
     @Body() body?: RefetchBodyDTO,
   ) {
-    const res = await this.$search.reRunQuery(params.queryId, body?.timeFilter);
+    const minPeakScore = this.$searchConfig.parseMinPeakScore(
+      body?.minPeakScore,
+    );
+    const res = await this.$search.reRunQuery(
+      params.queryId,
+      body?.timeFilter,
+      minPeakScore,
+    );
     return res;
   }
 
@@ -187,6 +212,9 @@ export class SearchController {
   @ApiNotFoundResponse({ description: 'imageUrl does not refer to a stored image' })
   async searchQuery(@Body() reqBody: SearchQueryDTO) {
     const image = await this.resolveSearchImage(reqBody);
+    const minPeakScore = this.$searchConfig.resolveMinPeakScore(
+      this.$searchConfig.parseMinPeakScore(reqBody.minPeakScore),
+    );
 
     const normalized = this.$search.buildTimeFilterRange(reqBody.timeFilter);
     const tags = reqBody.tags
@@ -197,6 +225,7 @@ export class SearchController {
       : [];
     const queryShim: SearchShimQuery = {
       query_id: uuidV4(),
+      min_peak_score: minPeakScore,
     };
     if (tags.length > 0) {
       queryShim.tags = tags;

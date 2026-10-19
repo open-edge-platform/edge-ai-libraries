@@ -1113,6 +1113,46 @@ async def test_refetch_search_reruns_with_a_new_time_range(
     assert result["time_range"]["start"] == "2026-08-04T00:00:00.000Z"
 
 
+async def test_search_sends_the_minimum_peak_score(
+    fake: FakeVss, deps: Deps
+) -> None:
+    result = await search_video(deps, "forklift", min_peak_score=0.25)
+
+    assert posted_body(fake, "/search")["minPeakScore"] == 0.25
+    assert result["min_peak_score"] == 0.25
+
+
+async def test_search_without_a_minimum_peak_score_sends_none(
+    fake: FakeVss, deps: Deps
+) -> None:
+    result = await search_video(deps, "forklift")
+
+    assert "minPeakScore" not in posted_body(fake, "/search")
+    assert "min_peak_score" not in result
+
+
+@pytest.mark.parametrize("bad", [-0.1, 1.5, True])
+async def test_search_rejects_an_out_of_range_minimum_peak_score(
+    fake: FakeVss, deps: Deps, bad: float
+) -> None:
+    with pytest.raises(VssError, match="between 0 and 1"):
+        await search_video(deps, "forklift", min_peak_score=bad)
+
+    assert "/search" not in request_paths(fake)
+
+
+async def test_refetch_search_overrides_the_minimum_peak_score(
+    fake: FakeVss, deps: Deps
+) -> None:
+    fake.hits = [make_hit("v1", 0.9, 10)]
+    seed_searches(fake, 1)
+
+    result = await refetch_search(deps, "q1", min_peak_score=0.3)
+
+    assert posted_body(fake, "/search/q1/refetch") == {"minPeakScore": 0.3}
+    assert result["min_peak_score"] == 0.3
+
+
 async def test_refetch_search_checks_the_id_first(fake: FakeVss, deps: Deps) -> None:
     """Pipeline Manager answers an unknown id with a bare 500."""
 

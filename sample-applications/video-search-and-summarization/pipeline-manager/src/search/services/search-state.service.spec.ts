@@ -14,6 +14,8 @@ import { of, throwError } from 'rxjs';
 import { SearchEvents } from 'src/events/Pipeline.events';
 import { SocketEvent } from 'src/events/socket.events';
 import { DatastoreService } from 'src/datastore/services/datastore.service';
+import { ConfigService } from '@nestjs/config';
+import { SearchConfigService } from './search-config.service';
 
 jest.mock('uuid', () => ({
   v4: jest.fn(() => 'mock-query-id'),
@@ -80,6 +82,11 @@ describe('SearchStateService', () => {
         {
           provide: DatastoreService,
           useValue: mockDatastoreService,
+        },
+        SearchConfigService,
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn().mockReturnValue(undefined) },
         },
       ],
     }).compile();
@@ -387,6 +394,7 @@ describe('SearchStateService', () => {
           results: [],
           tags,
           timeFilter: null,
+          minPeakScore: 0,
           queryStatus: SearchQueryStatus.RUNNING,
           createdAt: expect.any(String),
           updatedAt: expect.any(String),
@@ -397,6 +405,18 @@ describe('SearchStateService', () => {
         mockCreatedQuery.queryId,
       );
       expect(result).toEqual(expect.objectContaining(mockCreatedQuery));
+    });
+
+    it('should save the requested minimum peak score', async () => {
+      searchDbService.create.mockResolvedValue({
+        queryId: 'new-query-id',
+      } as SearchEntity);
+
+      await service.newQuery('test query', [], null, null, 0.3);
+
+      expect(searchDbService.create).toHaveBeenCalledWith(
+        expect.objectContaining({ minPeakScore: 0.3 }),
+      );
     });
 
     it('should create query with default empty tags', async () => {
@@ -504,6 +524,7 @@ describe('SearchStateService', () => {
           query: mockQuery.query,
           query_id: queryId,
           tags: mockQuery.tags,
+          min_peak_score: 0,
         },
       ]);
       expect(eventEmitter.emit).toHaveBeenCalledWith(
@@ -664,6 +685,50 @@ describe('SearchStateService', () => {
     });
   });
 
+  describe('reRunQuery minimum peak score', () => {
+    const arrange = (minPeakScore: number | null) => {
+      const entity = {
+        queryId: 'q1',
+        query: 'test query',
+        tags: [],
+        minPeakScore,
+      } as unknown as SearchEntity;
+      searchDbService.read.mockResolvedValue(entity);
+      searchDbService.updateQueryStatus.mockResolvedValue(entity);
+      searchShimService.search.mockReturnValue(
+        of({ data: { results: [] } } as any),
+      );
+      videoService.getVideos.mockResolvedValue([]);
+    };
+
+    it('should reuse the saved value when no override is given', async () => {
+      arrange(0.25);
+
+      await service.reRunQuery('q1');
+
+      expect(searchDbService.update).not.toHaveBeenCalledWith(
+        'q1',
+        expect.objectContaining({ minPeakScore: expect.anything() }),
+      );
+      expect(searchShimService.search).toHaveBeenCalledWith([
+        expect.objectContaining({ min_peak_score: 0.25 }),
+      ]);
+    });
+
+    it('should save and use an override', async () => {
+      arrange(0.25);
+
+      await service.reRunQuery('q1', undefined, 0);
+
+      expect(searchDbService.update).toHaveBeenCalledWith('q1', {
+        minPeakScore: 0,
+      });
+      expect(searchShimService.search).toHaveBeenCalledWith([
+        expect.objectContaining({ min_peak_score: 0 }),
+      ]);
+    });
+  });
+
   describe('runSearch', () => {
     it('should run search and return results', async () => {
       const queryId = 'test-query-id';
@@ -688,9 +753,22 @@ describe('SearchStateService', () => {
           query,
           query_id: queryId,
           tags,
+          min_peak_score: 0,
         },
       ]);
       expect(result).toEqual(mockResults);
+    });
+
+    it('should forward the minimum peak score to the search service', async () => {
+      searchShimService.search.mockReturnValue(
+        of({ data: { results: [] } } as any),
+      );
+
+      await service.runSearch('q', 'test query', [], null, null, null, 0.4);
+
+      expect(searchShimService.search).toHaveBeenCalledWith([
+        expect.objectContaining({ min_peak_score: 0.4 }),
+      ]);
     });
 
     it('should return default results when data is null', async () => {
@@ -825,6 +903,26 @@ describe('SearchStateService', () => {
         expect.objectContaining({ query_id: 'query-2' }),
       ]);
       expect(summary.refreshed).toBe(2);
+    });
+
+    it('should refresh each query with its saved minimum peak score', async () => {
+      searchDbService.read.mockImplementation(async (queryId: string) =>
+        watchedEntity({
+          queryId,
+          query: `query for ${queryId}`,
+          minPeakScore: queryId === 'query-1' ? 0.3 : null,
+        }),
+      );
+      searchShimService.search.mockReturnValue(
+        of({ data: { results: [] } } as any),
+      );
+
+      await service.refreshQueries(['query-1', 'query-2']);
+
+      expect(searchShimService.search).toHaveBeenCalledWith([
+        expect.objectContaining({ query_id: 'query-1', min_peak_score: 0.3 }),
+        expect.objectContaining({ query_id: 'query-2', min_peak_score: 0 }),
+      ]);
     });
 
     it('should skip persistence and socket emission when results are unchanged', async () => {

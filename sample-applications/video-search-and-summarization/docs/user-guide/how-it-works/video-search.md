@@ -138,6 +138,27 @@ The effective values are also served by `GET /search/refresh-config` (through
 nginx: `GET /manager/search/refresh-config`), which the UI uses to describe the
 behavior accurately.
 
+## Minimum Peak Score Filter
+
+A search can drop weak matches by setting a minimum peak score (0 to 1). The
+Video Search backend passes it to the Vector Retriever as `min_score`. The
+retriever discards frames scoring below it before it keeps the top
+`AGGREGATION_INITIAL_K` frames, and the backend re-checks it in case an older
+retriever ignores the field. Only the remaining frames are aggregated into
+segments, so each result's best frame scores at least the threshold.
+
+- The deployment default is `SEARCH_MIN_PEAK_SCORE` (default `0`, which
+  disables the filter). It is read by both Pipeline Manager and the Video
+  Search backend.
+- In the UI, use **Filter by minimum peak score** in the search dialog or in a
+  saved query's settings. Turning it on starts at `0.2`, or at the deployment
+  default when that is higher than 0. Set an exact value with the slider or by
+  typing up to three decimals.
+- The value is saved with each query and reused by its watched refreshes.
+
+See [API Reference](../api-reference.md#filtering-search-results-by-minimum-peak-score)
+for the request fields and caveats.
+
 ## Live Stream Storage and Retention Sizing
 
 A registered RTSP camera ingests continuously, so — unlike a one-off upload — its

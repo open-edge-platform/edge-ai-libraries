@@ -45,7 +45,7 @@ The Pipeline Manager is the primary API for interacting with the application. It
 | **Audio** | `GET /audio/models` | Available audio transcription models |
 | **Tags** | `GET /tags`, `DELETE /tags/{tagId}` | Tag management |
 | **Video** | `POST /videos`, `GET /videos`, `GET /videos/{videoId}`, `POST /videos/search-embeddings/{videoId}` | Video upload, listing, and embedding creation |
-| **Search** | `POST /search`, `GET /search`, `POST /search/query`, `GET /search/{queryId}`, `DELETE /search/{queryId}`, `POST /search/{queryId}/refetch`, `PATCH /search/{queryId}/watch`, `GET /search/watched`, `GET /search/refresh-config`, `POST /search/images`, `DELETE /search/images/{imageId}` | Search query management and execution; query-image upload for search-by-image. `GET /search/refresh-config` returns the effective auto-refresh settings applied to watched queries. |
+| **Search** | `POST /search`, `GET /search`, `POST /search/query`, `GET /search/{queryId}`, `DELETE /search/{queryId}`, `POST /search/{queryId}/refetch`, `PATCH /search/{queryId}/watch`, `GET /search/watched`, `GET /search/refresh-config`, `GET /search/config`, `POST /search/images`, `DELETE /search/images/{imageId}` | Search query management and execution; query-image upload for search-by-image. `GET /search/refresh-config` returns the effective auto-refresh settings applied to watched queries; `GET /search/config` returns search defaults such as `minPeakScoreDefault`. |
 | **Frames** | `GET /frames` | One stored frame (whole, or cropped to a detected object) located by a search hit's `best_frame_info`; raw JPEG, or base64 JSON with `format=json` (search deployments only) |
 | **Live Streams** | `POST /streams`, `POST /streams/batch`, `GET /streams`, `GET /streams/{streamId}`, `PATCH /streams/{streamId}`, `DELETE /streams/{streamId}`, `DELETE /streams` | RTSP camera registration and lifecycle (search deployments only) |
 | **Summary** | `POST /summary`, `GET /summary`, `GET /summary/ui`, `GET /summary/{stateId}`, `GET /summary/{stateId}/raw`, `DELETE /summary/{stateId}` | Video summarization pipeline |
@@ -81,6 +81,45 @@ requested or because the video was embedded before this status was tracked. A
 leaves the flag unchanged because DataPrep may still complete it. Batch jobs are
 followed by Pipeline Manager until they finish, so their result is recorded even
 if no client polls `GET /videos/search-embeddings-jobs/{jobId}`.
+
+## Filtering Search Results by Minimum Peak Score
+
+`POST /search`, `POST /search/query` and `POST /search/{queryId}/refetch`
+accept an optional `minPeakScore` (a number from 0 to 1). Frames whose
+similarity score is below it are dropped at retrieval, in the Vector Retriever,
+before frames are aggregated into segments. Every returned result's peak
+(best-frame) score is therefore at least `minPeakScore`, and the
+`AGGREGATION_MAX_RESULTS` results returned are the best ones that pass the
+filter rather than what remains of an unfiltered top N.
+
+| Value | Behavior |
+| ----- | -------- |
+| omitted | The query's saved value (refetch only), otherwise the deployment default `SEARCH_MIN_PEAK_SCORE` |
+| `0` | Filter off (the default) |
+| `0` < value ≤ `1` | Only frames scoring at least `value` are ranked; outside `[0, 1]` returns `400` |
+
+A query created with `POST /search` saves the value it ran with. Refetching
+with a new `minPeakScore` replaces the saved value, and watched-query refreshes
+reuse it. `GET /search/config` returns `{ "minPeakScoreDefault": <number> }` so
+clients can show the deployment default.
+
+```bash
+curl -s -X POST "$BASE/search" -H 'Content-Type: application/json' \
+  -d '{"query": "forklift", "minPeakScore": 0.2}'
+curl -s -X POST "$BASE/search/<queryId>/refetch" -H 'Content-Type: application/json' \
+  -d '{"minPeakScore": 0.3}'
+```
+
+> [!NOTE]
+> - Scores are compared to the raw similarity the vector database returns,
+>   which assumes higher is better (inner product, the VSS default for both
+>   VDMS and Milvus).
+> - With the filter on, segment scores are computed only from frames that pass
+>   it, so the ranking can also change, not only the number of results.
+> - A high threshold can return no results. In unified mode (`--unified`), the
+>   score is a text-to-text similarity over summaries and is distributed
+>   differently from frame similarity, so choose the threshold separately.
+> - Live-stream hits go through the same path and are filtered the same way.
 
 ## Search by an Uploaded Image
 

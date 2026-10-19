@@ -16,6 +16,8 @@ services:
             SEARCH_DATAPREP_ENDPOINT: http://${MM_DATAPREP_HOST:-multimodal-dataprep}:8000
             SEARCH_FEATURE: "FEATURE_ON"
             VS_INDEX_NAME: ${VS_INDEX_NAME}
+            # Default minimum peak score for searches (0-1, 0 = off)
+            SEARCH_MIN_PEAK_SCORE: ${SEARCH_MIN_PEAK_SCORE:-0}
 
     video-search:
         image: ${REGISTRY:-}video-search:${TAG:-latest}
@@ -62,6 +64,8 @@ services:
             AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS: ${AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS:-0}
             AGGREGATION_PREFER_FULL_FRAME_SEEK: ${AGGREGATION_PREFER_FULL_FRAME_SEEK:-true}
             AGGREGATION_FULL_FRAME_SEEK_BAND: ${AGGREGATION_FULL_FRAME_SEEK_BAND:-0.06}
+            # Default minimum peak score for direct callers (Pipeline Manager always sends one)
+            SEARCH_MIN_PEAK_SCORE: ${SEARCH_MIN_PEAK_SCORE:-0}
         restart: unless-stopped
         volumes:
             - '${VS_WATCHER_DIR:-/dev/null}:/tmp/watcher-dir'

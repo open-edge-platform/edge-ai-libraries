@@ -199,6 +199,7 @@ class SearchResult(TypedDict):
     available_tags: NotRequired[list[str]]
     stream_ids: NotRequired[list[str]]
     time_range: NotRequired[TimeRange]
+    min_peak_score: NotRequired[float]
 
 
 class StoredSearch(SearchResult):

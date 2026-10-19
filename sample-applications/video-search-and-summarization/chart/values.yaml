@@ -200,6 +200,9 @@ pipelinemanager:
     SEARCH_DATAPREP_POLL_MAX_RETRIES: "3"
     SEARCH_DATAPREP_POLL_TIMEOUT_MS: "10000"
     SEARCH_DATAPREP_POLL_RETRY_DELAY_MS: "500"
+    # Default minimum peak score for searches (0-1). 0 disables the filter;
+    # the UI and API can set a per-query value.
+    SEARCH_MIN_PEAK_SCORE: "0"
   nodeSelector: {}
   affinity: {}
   tolerations: []

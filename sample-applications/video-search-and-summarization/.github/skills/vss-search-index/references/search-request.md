@@ -19,9 +19,16 @@ Source: `pipeline-manager/src/search/models/*` (`SearchQueryDTO`,
     "unit": "days",                 // ...with unit: minutes | hours | days | weeks
     "start": "2025-01-01T00:00:00Z",// absolute: ISO-8601 start
     "end":   "2025-12-31T23:59:59Z" // absolute: ISO-8601 end
-  }
+  },
+  "minPeakScore": 0.2               // optional: 0..1, 0 = off; default SEARCH_MIN_PEAK_SCORE
 }
 ```
+
+`minPeakScore` drops frames scoring below it in the Vector Retriever, before
+aggregation, so every result's peak score is at least that value. Values
+outside `[0, 1]` return `400`. `POST /manager/search` saves it with the query;
+`POST /manager/search/{id}/refetch` accepts `{"minPeakScore": n}` to replace
+it.
 
 To search by image instead of text (`--search`/`--dual` only), replace
 `query` with exactly one of:

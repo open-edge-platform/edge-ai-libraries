@@ -22,6 +22,7 @@ import { v4 as uuidV4 } from 'uuid';
 import { VideoService } from 'src/video-upload/services/video.service';
 import { VideoEntity } from 'src/video-upload/models/video.entity';
 import { DatastoreService } from 'src/datastore/services/datastore.service';
+import { SearchConfigService } from './search-config.service';
 
 @Injectable()
 export class SearchStateService {
@@ -31,6 +32,7 @@ export class SearchStateService {
     private $emitter: EventEmitter2,
     private $searchShim: SearchShimService,
     private $datastore: DatastoreService,
+    private $searchConfig: SearchConfigService,
   ) {}
 
   private normalizeTimeFilter(timeFilter?: TimeFilterSelection | null): {
@@ -159,6 +161,9 @@ export class SearchStateService {
     return {
       ...(rest as SearchQuery),
       timeFilter,
+      // Rows saved before the filter existed carry null: report the default
+      // they actually run with.
+      minPeakScore: this.$searchConfig.resolveMinPeakScore(entity.minPeakScore),
     };
   }
 
@@ -187,6 +192,7 @@ export class SearchStateService {
     tags: string[] = [],
     timeFilter?: TimeFilterSelection | null,
     image?: string | null,
+    minPeakScore?: number,
   ) {
     const normalized = this.normalizeTimeFilter(timeFilter);
     const searchQuery: SearchQuery = {
@@ -198,6 +204,9 @@ export class SearchStateService {
       results: [],
       tags,
       timeFilter: normalized.selection,
+      // Saved explicitly so a later change of the default does not silently
+      // change what an existing (e.g. watched) query returns.
+      minPeakScore: this.$searchConfig.resolveMinPeakScore(minPeakScore),
       queryStatus: SearchQueryStatus.RUNNING,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -280,13 +289,22 @@ export class SearchStateService {
   }
 
   @OnEvent(SearchEvents.RUN_QUERY)
-  async reRunQuery(queryId: string, timeFilter?: TimeFilterSelection | null) {
+  async reRunQuery(
+    queryId: string,
+    timeFilter?: TimeFilterSelection | null,
+    minPeakScore?: number,
+  ) {
     const query = await this.$searchDB.read(queryId);
     if (!query) {
       // A stale query the server no longer has (e.g. a client re-running a
       // query that only survived in its local cache). Return 404 so the client
       // can prune it, instead of a bare throw that surfaces as a 500.
       throw new NotFoundException(`Query with ID ${queryId} not found`);
+    }
+
+    if (minPeakScore !== undefined) {
+      await this.$searchDB.update(queryId, { minPeakScore });
+      query.minPeakScore = minPeakScore;
     }
 
     // Resolve the time filter for this run. A relative selection (value+unit)
@@ -348,6 +366,7 @@ export class SearchStateService {
         query.timeFilterStart,
         query.timeFilterEnd,
         query.image,
+        this.$searchConfig.resolveMinPeakScore(query.minPeakScore),
       );
 
       console.log('=== SEARCH RESULTS PROCESSING ===');
@@ -421,10 +440,12 @@ export class SearchStateService {
     timeFilterStart?: string | null,
     timeFilterEnd?: string | null,
     image?: string | null,
+    minPeakScore?: number,
   ) {
     const queryShim: SearchShimQuery = {
       query_id: queryId,
       tags,
+      min_peak_score: this.$searchConfig.resolveMinPeakScore(minPeakScore),
     };
 
     // Image-only search: send the image and omit the text query so search-ms
@@ -630,6 +651,9 @@ export class SearchStateService {
       const shimQuery: SearchShimQuery = {
         query_id: entity.queryId,
         tags: entity.tags,
+        min_peak_score: this.$searchConfig.resolveMinPeakScore(
+          entity.minPeakScore,
+        ),
       };
 
       // Image-based watched queries carry no text: send the image and take the

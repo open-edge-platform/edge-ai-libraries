@@ -186,6 +186,11 @@ curl -s -X POST "$HOST/manager/search/query" \
 - `timeFilter` (optional): **either** relative (`value` + `unit` =
   `minutes|hours|days|weeks`) **or** absolute (`start`/`end` ISO-8601). See
   [`references/search-request.md`](./references/search-request.md).
+- `minPeakScore` (optional, 0..1): drop frames whose similarity is below it
+  **at retrieval**, so every returned clip's best frame scores at least this.
+  `0` = off; omitted = the deployment default `SEARCH_MIN_PEAK_SCORE` (0).
+  `GET /manager/search/config` returns `minPeakScoreDefault`. A high value can
+  return no results.
 
 Each clip's `metadata` carries `relevance_score` (0..1; top hit can be exactly
 `1`), `video_id`, `video_url`, `segment_start`/`segment_end`, `seek_timestamp`,
@@ -234,6 +239,8 @@ curl -s -X POST "$HOST/manager/search" -H 'Content-Type: application/json' \
   -d '{"query":"forklift"}' | jq .          # create a persistent query → queryId
 curl -s "$HOST/manager/search/<QUERY_ID>" | jq .          # fetch results
 curl -s -X POST "$HOST/manager/search/<QUERY_ID>/refetch" | jq .   # re-run
+curl -s -X POST --json '{"minPeakScore":0.25}' \
+  "$HOST/manager/search/<QUERY_ID>/refetch" | jq .   # re-run with a new saved threshold
 curl -s --request PATCH --json '{"watch":true}' \
   "$HOST/manager/search/<QUERY_ID>/watch" | jq .             # auto-refresh
 curl -s "$HOST/manager/search/watched" | jq .

@@ -511,6 +511,7 @@ class FakeVss:
                 "watch": False,
                 "tags": [t for t in (body.get("tags") or "").split(",") if t],
                 "timeFilter": body.get("timeFilter"),
+                "minPeakScore": body.get("minPeakScore", 0),
                 "queryStatus": "running",
                 "results": [],
                 "createdAt": f"2026-01-01T00:00:{len(self.searches):02d}Z",
@@ -533,6 +534,8 @@ class FakeVss:
         if parts[2:] == ["refetch"] and method == "POST":
             if (body or {}).get("timeFilter"):
                 stored["timeFilter"] = body["timeFilter"]
+            if "minPeakScore" in (body or {}):
+                stored["minPeakScore"] = body["minPeakScore"]
             return httpx.Response(201, json=_search_result(self, stored))
         if parts[2:] == ["watch"] and method == "PATCH":
             stored["watch"] = bool((body or {}).get("watch"))

@@ -27,8 +27,8 @@ is the only tool that deletes anything, and is annotated destructive.
 | `vss_list_tags` | — | The tag vocabulary a filter has to be drawn from |
 | `vss_resolve_video` | — | Turn "the warehouse clip" into a video id |
 | `vss_index_video` | search | Make a video searchable (call once per video) |
-| `vss_search_video` | search | Find moments across indexed videos and live cameras, by text query or by image, optionally kept to some cameras (`stream_ids`); the search is saved in VSS's search history |
-| `vss_get_search` | search | A saved search and its latest results, by `query_id`; `refresh=true` (or `start`/`end`) re-runs it first |
+| `vss_search_video` | search | Find moments across indexed videos and live cameras, by text query or by image, optionally kept to some cameras (`stream_ids`) or to strong matches (`min_peak_score`, 0-1); the search is saved in VSS's search history |
+| `vss_get_search` | search | A saved search and its latest results, by `query_id`; `refresh=true` (or `start`/`end`/`min_peak_score`) re-runs it first |
 | `vss_list_searches` | search | Saved searches (VSS search history), newest first; `watched_only` for active watches |
 | `vss_watch_search` | search | Track someone or something live: start a watched search (from a `query`, `image`, or a hit's `frame` via `from_hit`, over a rolling `window_minutes`), poll it with `cursor` (each poll waits up to `wait_seconds`, default 30, for a new sighting) for new sightings and `last_seen` per camera, and stop it (`watch=false`, or automatically after `duration_minutes`) |
 | `vss_get_media_frame` | search | The image of a search hit's best-matching frame, from the hit's `frame` locator; crops to the detected object when the hit has a `crop_bbox`. Returns the image inline plus a shareable `url` |

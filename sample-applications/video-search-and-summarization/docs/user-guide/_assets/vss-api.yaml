@@ -93,6 +93,18 @@ paths:
       summary: Get all watched search queries
       tags:
         - Search
+  /search/config:
+    get:
+      operationId: SearchController_getSearchConfig
+      parameters: []
+      responses:
+        '200':
+          description: >-
+            Search defaults for clients, e.g. `{ "minPeakScoreDefault": 0 }`
+            (from `SEARCH_MIN_PEAK_SCORE`).
+      summary: Get search defaults
+      tags:
+        - Search
   /search/{queryId}:
     get:
       operationId: SearchController_getQuery
@@ -854,6 +866,17 @@ components:
           type: object
           allOf:
             - $ref: '#/components/schemas/TimeFilterSelection'
+        minPeakScore:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: >-
+            Minimum peak (best-frame) similarity score, 0-1. Frames scoring
+            below it are dropped at retrieval, before segment aggregation, so
+            every returned result's peak score is at least this value. 0
+            turns the filter off. Defaults to `SEARCH_MIN_PEAK_SCORE` (0).
+            Saved with a query created by `POST /search`.
+          example: 0.2
     SearchImageUploadDTO:
       type: object
       properties:
@@ -913,6 +936,14 @@ components:
           description: Optional time filter override
           allOf:
             - $ref: '#/components/schemas/TimeFilterSelection'
+        minPeakScore:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: >-
+            Optional minimum peak score override (0-1, 0 = off). Saved with
+            the query, so later refetches and watched-query refreshes use it.
+          example: 0.2
     WatchBodyDTO:
       type: object
       properties:

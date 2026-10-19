@@ -298,6 +298,7 @@ class VssClient:
         image_url: str | None = None,
         tags: list[str] | None = None,
         time_filter: dict[str, Any] | None = None,
+        min_peak_score: float | None = None,
     ) -> dict[str, Any]:
         """Create a persisted search (as the UI does); poll it with
         :meth:`poll_search`. Searches by text, ``image`` (a data URL) or
@@ -319,6 +320,8 @@ class VssClient:
             body["tags"] = ",".join(tags)
         if time_filter:
             body["timeFilter"] = time_filter
+        if min_peak_score is not None:
+            body["minPeakScore"] = min_peak_score
         payload = await self._request("POST", "/search", json=body)
         if not isinstance(payload, dict) or not payload.get("queryId"):
             raise VssError(f"Search request returned no query id: {payload!r}")
@@ -337,11 +340,17 @@ class VssClient:
         return [item for item in payload if isinstance(item, dict) and item]
 
     async def refetch_search(
-        self, query_id: str, time_filter: dict[str, Any] | None = None
+        self,
+        query_id: str,
+        time_filter: dict[str, Any] | None = None,
+        min_peak_score: float | None = None,
     ) -> None:
-        """Re-run a persisted search query. Blocks until it has run."""
+        """Re-run a persisted search query. Blocks until it has run.
+        ``min_peak_score`` replaces the query's saved threshold."""
 
-        body = {"timeFilter": time_filter} if time_filter else {}
+        body: dict[str, Any] = {"timeFilter": time_filter} if time_filter else {}
+        if min_peak_score is not None:
+            body["minPeakScore"] = min_peak_score
         await self._request("POST", f"/search/{query_id}/refetch", json=body)
 
     async def set_search_watch(self, query_id: str, watch: bool) -> None:
