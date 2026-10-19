@@ -6,27 +6,27 @@
   "modules": [
     {
       "label": "Loss Prevention",
-      "value": "loss_prevention"
+      "value": "loss_prevention",
       "startStop": true, 
-      "device": true
+      "options": ["--gpu", "--cpu", "--npu"]
     },
     {
       "label": "Order Accuracy - Dine In",
-      "value": "dine_in"
+      "value": "dine_in",
       "startStop": true, 
-      "device": true
+      "options": ["--gpu", "--cpu", "--npu"]
     },
     {
       "label": "Order Accuracy - Take Away",
-      "value": "take_away"
+      "value": "take_away",
       "startStop": true, 
-      "device": true
+      "options": ["--gpu", "--cpu", "--npu"]
     },
     {
       "label": "Voice Enabled Interactions - Smart Kiosk Assistant",
       "value": "smart_kiosk_assistant",
       "startStop": true, 
-      "device": true
+      "options": ["--gpu", "--cpu", "--npu"]
     }
   ],
   "getStarted": {

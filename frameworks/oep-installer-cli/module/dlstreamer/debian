@@ -20,19 +20,18 @@ debian_75_profile_dlstreamer () {
 }
 
 verify_dlstreamer () {
-  ensure_apt_is_installed intel-dlstreamer | grep -q -F ${version} > /dev/null 2>&1 || return 1
-  [ -r "$workspace/.venv/bin/activate" ] || return 1
-  cd "$workspace"
-  . .venv/bin/activate
-  pip show ultralytics nncf
+  ensure_apt_is_installed intel-dlstreamer=${version} || return 1
 }
 
 debian_75_install_dlstreamer () {
   configure_dlstreamer
   
   if verify_dlstreamer && [[ " $* " != *" --reinstall "* ]]; then
-    echo "dlstreamer-${version} already installed. Skipping"
+    echo "dlstreamer-${version} is installed." >&2
   else
+    ensure_disk_size 15000
+    ensure_prop set installed/dlstreamer/owned true
+
     # remove old versions
     debian_75_remove_dlstreamer "$@"
 
@@ -47,70 +46,24 @@ debian_75_install_dlstreamer () {
     ensure_apt_allow_downgrades "${allow_downgrades[*]}" --no-install-recommends -y intel-dlstreamer=$version
     ensure_apt install --allow-downgrades --no-install-recommends -y intel-dlstreamer=$version
 
-    # clone the dlstreamer repostiory
-    ensure_git_clone "$workspace" v$version $repository
-
-    # create the dlstreamer venv
-    cd "$workspace"
-    python3 -m venv .venv
-    . .venv/bin/activate
-    pip install nncf==3.0.0 ultralytics==8.4.57
-
+    verify_dlstreamer
     echo "intel-dlstreamer=$version installed successfully."
-
-    if [[ " $* " = *" --validate "* ]]; then
-      ( 
-        mkdir -p models/${od_model%/*}
-        ensure_fetch $model_repo/storage/$od_model.bin models/$od_model.bin
-        ensure_fetch $model_repo/storage/$od_model.xml models/$od_model.xml
-        ensure_fetch $model_repo/storage/${od_model_proc}.json models/$od_model.json
-      )
-
-      (
-        mkdir -p models/${oc_model%/*}
-        ensure_fetch $model_repo/storage/$oc_model.bin models/$oc_model.bin
-        ensure_fetch $model_repo/storage/$oc_model.xml models/$oc_model.xml
-      )
-
-      set -o pipefail
-      local -A device_map=(
-        [GPU]=/dev/dri/renderD128
-        [NPU]=/dev/accel/accel0
-      )
-      . /opt/intel/dlstreamer/scripts/setup_dls_env.sh
-      for device in ${!device_map[*]}; do
-        [ -e ${device_map[$device]} ] || continue
-        echo "Validating $od_model and $oc_model on device $device..."
-        gst-launch-1.0 videotestsrc num-buffers=150 ! 'video/x-raw,format=BGRx,width=640,height=640' ! \
-            gvadetect model=models/$od_model.xml model_proc=models/$od_model.json device=$device ! \
-            gvainference model=models/$oc_model.xml device=$device ! \
-            gvafpscounter ! fakesink sync=false | ( \
-          info=0
-          while IFS= read -r line; do
-            echo "$line"
-            case "$line" in
-            *"FpsCounter(last"*"sec): total="*)
-            info=1
-            ;;
-            esac
-          done
-          [ $info -eq 1 ]
-        )
-      done
-    fi
-
-    rm -rf .git
   fi
 
+  # validate dlstreamer
+  test_dlstreamer_pipeline "$@"
+    
   # info
   echo "@@HIGHLIGHT shell env @/opt/intel/dlstreamer/scripts/setup_dls_env.sh"
   echo "@@HIGHLIGHT samples @/opt/intel/dlstreamer/samples"
   echo "@@HIGHLIGHT optimizer @/opt/intel/dlstreamer/scripts/optimizer"
-  echo "@@HIGHLIGHT python venv @$workspace/.venv"
 }
 
 debian_75_remove_dlstreamer () {
+  configure_dlstreamer
+  [ "$(ensure_prop get installed/dlstreamer/owned)" = "true" ] || return 0
   ensure_apt autoremove -m -y $(dpkg-query -l | awk '/^ii/&&/dlstreamer/{print$2}') || true
+  ensure_rm "$workspace"
 }
 
 debian_75_sbom_dlstreamer () {

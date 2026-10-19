@@ -26,18 +26,18 @@ verify_live_video_captioning_rag () {
 }
 
 debian_90_profile_live_video_captioning_rag () {
-  echo "git curl gawk jq edge_base docker"
+  echo "git curl gawk jq edge_base docker_io"
 }
 
 debian_90_install_live_video_captioning_rag () {
   configure_live_video_captioning_rag
   if verify_live_video_captioning_rag && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Live Video Captioning RAG is already installed. Skipping"
+    echo "Live Video Captioning RAG is installed." >&2
   else
     ensure_ports_open "${used_ports[*]}" return 3
 
     # clone the repository
-    ensure_disk_size 64000
+    ensure_disk_size 20000
     ensure_git_clone "$workspace" $version $repository live-video-analysis/live-video-captioning live-video-analysis/live-video-captioning-rag
     export -n socks_server ftp_proxy
 

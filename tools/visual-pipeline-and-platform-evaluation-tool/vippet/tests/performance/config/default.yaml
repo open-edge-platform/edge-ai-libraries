@@ -70,11 +70,19 @@ benchmark:
 
 # Hardware metrics collection
 metrics:
-  # Metrics endpoint via nginx proxy (override with VIPPET_METRICS_URL env var)
-  metrics_url: "http://localhost/metrics/stream"
+  # Metrics endpoint via nginx proxy; defaults to the same host/port as
+  # vippet.base_url. Override with VIPPET_METRICS_URL env var, or uncomment
+  # and set this explicitly for non-standard topologies.
+  # metrics_url: "http://localhost/metrics/stream"
 
   # Sampling interval in seconds while a job runs
   sample_interval_seconds: 2.0
+
+  # metrics-manager capabilities endpoint (direct, not nginx-proxied);
+  # defaults to vippet.base_url's host on port 9090. Override with
+  # VIPPET_CAPABILITIES_URL env var, or uncomment and set this explicitly
+  # for non-standard topologies.
+  # capabilities_url: "http://localhost:9090/api/v1/capabilities"
 
 # Results configuration
 results:
