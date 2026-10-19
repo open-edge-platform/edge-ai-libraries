@@ -79,7 +79,7 @@ usage() {
     HARNESS_OVMS_EXPORT_IMAGE     OVMS "-py" image used by the docker-pull exporter (default: openvino/model_server:2026.1-py)
     HARNESS_BACKEND_NETWORK      Docker network joining OVMS + the Inference Router so they can reach each other by name (default: agent-harness-install-backend)
     MIN_NODE_VERSION
-    HARNESS_OVMS_EXTRA_ARGS       Extra OVMS server flags (e.g. --tool_parser hermes3)
+    HARNESS_OVMS_EXTRA_ARGS       Extra OVMS server flags (e.g. --tool_parser <parser>)
     HARNESS_OVMS_EXPORTER         docker-pull (default) | export-model-py | model-download | hf-snapshot (see Known limitations)
     HARNESS_HF_MODEL_REVISION     Pin an exact HF revision (commit/tag/branch) for the hf-snapshot exporter
     HARNESS_OVMS_EXPORT_MODEL_PY_SHA256, HARNESS_OVMS_EXPORT_MODEL_REQUIREMENTS_SHA256  Pin export_model.py/requirements.txt (export-model-py exporter only)

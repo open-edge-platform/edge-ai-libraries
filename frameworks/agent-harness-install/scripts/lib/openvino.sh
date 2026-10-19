@@ -25,7 +25,7 @@ HARNESS_OVMS_CONTAINER="${HARNESS_OVMS_CONTAINER:-agent-harness-install-ovms}"
 # is loopback-only by default (resolve_bind_host), neither of which a
 # separate container (IR) can reach. See ensure_backend_network.
 HARNESS_BACKEND_NETWORK="${HARNESS_BACKEND_NETWORK:-agent-harness-install-backend}"
-# Extra OVMS server flags, e.g. "--tool_parser hermes3 --task text_generation"
+# Extra OVMS server flags, e.g. "--tool_parser <parser> --task text_generation"
 # for agents that need OpenAI-style tool calls.
 HARNESS_OVMS_EXTRA_ARGS="${HARNESS_OVMS_EXTRA_ARGS:-}"
 
@@ -400,7 +400,7 @@ validate_model_for_hub() {
       # name[:tag], optionally namespaced (e.g. hf.co/user/Repo-GGUF:Q4_K_M)
       local ollama_re='^[A-Za-z0-9][A-Za-z0-9._-]*(/[A-Za-z0-9][A-Za-z0-9._-]*){0,2}(:[A-Za-z0-9._-]+)?$'
       [[ "$id" =~ $ollama_re && "$id" != *".."* ]] \
-        || { printf "expected an Ollama name like 'llama3.2' or 'llama3.2:3b'"; return 1; } ;;
+        || { printf "expected an Ollama name like 'name' or 'name:tag'"; return 1; } ;;
     remote-url)
       [[ "$id" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && "$id" != *".."* ]] \
         || { printf "expected a plain model name (letters, digits, '.', '_', '-'), substituted for {name} in the URL"; return 1; }
@@ -857,7 +857,7 @@ exists."
     rm -rf -- "$out_dir"
     error "Downloaded ${hf_model_id} to ${out_dir} but it has no graph.pbtxt -- this
 exporter only supports HF repos already published as ready-to-serve OpenVINO
-IR + an OVMS MediaPipe graph (e.g. OpenVINO/Qwen3.8-27B-int8-ov). Use
+IR + an OVMS MediaPipe graph. Use
 HARNESS_OVMS_EXPORTER=docker-pull or export-model-py to convert a plain
 (non-OpenVINO-IR) HF model instead."
   fi
@@ -1191,8 +1191,8 @@ validate_hf_model_id() {
 # directories -- some exporters nest an export's files one level deeper
 # than the user-facing model name (see export_model_via_docker_pull's
 # comment), which a raw directory scan would otherwise misreport (e.g.
-# showing "Qwen" instead of "Qwen2.5-0.5B-Instruct" for a model nested
-# under "Qwen/..."). Also lists model-download downloads tracked in
+# showing "org" instead of "name" for a model nested under "org/...").
+# Also lists model-download downloads tracked in
 # unregistered_downloads_file (hub != openvino fetches, never registered
 # with OVMS -- see export_model_via_model_download) unconditionally, not
 # just as part of the directory-scan fallback below, so they stay visible
@@ -1273,7 +1273,7 @@ $(unregistered_downloads_file) -- it may still list '${name}'."
   # Prefer the base_path OVMS was actually registered with over assuming a
   # flat <models-dir>/<name> layout -- some exporters (docker-pull, at
   # least on OVMS 2026.1-py, and model-download) nest the export under the
-  # full HF source_model path (e.g. "Qwen/Qwen2.5-0.5B-Instruct") instead
+  # full HF source_model path (e.g. "org/name") instead
   # of the flat model name. Falls back to the flat guess for models
   # registered under the older convention or with no config.json entry.
   base_path="$(_ovms_config_base_path_for "$config_file" "$name")"
@@ -1291,8 +1291,8 @@ directory in place so OVMS's config and the exported files don't disagree.
 Check disk space/permissions on ${config_file} and retry."
   fi
   rm -rf -- "$model_dir"
-  # A nested base_path (e.g. "Qwen/Qwen2.5-0.5B-Instruct") leaves an empty
-  # parent directory ("Qwen/") behind after removing just the leaf -- clean
+  # A nested base_path (e.g. "org/name") leaves an empty
+  # parent directory ("org/") behind after removing just the leaf -- clean
   # it up too so list_exported_models' directory-scan fallback doesn't
   # later misreport it as a phantom model. rmdir only succeeds on a truly
   # empty directory, so this is a safe no-op for a flat (non-nested) layout.

@@ -83,18 +83,18 @@ you opt in with `HARNESS_ADVERTISED_HOST` (or the prompt that sets it) or
 ## Usage
 
 ```bash
-./install.sh --harness openclaw --model Qwen/Qwen2.5-0.5B-Instruct
+./install.sh --harness openclaw --model <org/name>
 ```
 
 ```bash
-./install.sh --harness deepagents-code --model Qwen/Qwen2.5-0.5B-Instruct --non-interactive
+./install.sh --harness deepagents-code --model <org/name> --non-interactive
 ```
 
 Or configure via environment variables:
 
 ```bash
 export HARNESS_AGENT=openclaw
-export HARNESS_HF_MODEL=Qwen/Qwen2.5-0.5B-Instruct
+export HARNESS_HF_MODEL=<org/name>
 ./install.sh --non-interactive
 ```
 
@@ -132,13 +132,13 @@ on whatever OVMS already serves, so one model is served at a time.
 
 ```bash
 # default: Hugging Face id, converted to OpenVINO IR
-./install.sh --harness openclaw --model Qwen/Qwen2.5-0.5B-Instruct
+./install.sh --harness openclaw --model <org/name>
 
 # Ollama: downloaded and tracked, not served by OVMS yet
-./install.sh --harness openclaw --model-hub ollama --model llama3.2:3b
+./install.sh --harness openclaw --model-hub ollama --model <name:tag>
 
 # a model tarball from an allowed URL
-./install.sh --harness openclaw --model-hub remote-url --model my-model \
+./install.sh --harness openclaw --model-hub remote-url --model <name> \
   --model-config '{"url":"https://github.com/open-edge-platform/edge-ai-resources/raw/main/{name}.tar"}'
 ```
 

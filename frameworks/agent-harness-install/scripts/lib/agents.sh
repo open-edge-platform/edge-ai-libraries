@@ -516,7 +516,7 @@ hermes_skill_remove() {
 # resolve_onboarding_model_hint -- the model name onboarding wires an agent to
 # (before the HARNESS_LLM_MODEL override). With an external router the name
 # belongs to that endpoint, so it is used exactly as given (minus any
-# leading "org/"): sanitising it would break names such as "llama3.2:3b".
+# leading "org/"): sanitising it would break names such as "name:tag".
 # With OVMS, HARNESS_HF_MODEL counts only if OVMS actually serves it under
 # its on-disk name (model_dir_name); otherwise fall back to the one model
 # OVMS has registered, else "default".
