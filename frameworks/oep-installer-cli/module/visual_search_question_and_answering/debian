@@ -38,7 +38,7 @@ debian_90_profile_visual_search_question_and_answering () {
 debian_90_install_visual_search_question_and_answering () {
   configure_visual_search_question_and_answering "$@"
   if verify_visual_search_question_and_answering && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Visual search question and answering is already installed. Skipping..."
+    echo "Visual search question and answering is installed." >&2
   else
     # clone the repository
     ensure_disk_size 8000

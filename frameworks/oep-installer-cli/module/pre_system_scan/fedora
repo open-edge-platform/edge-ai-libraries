@@ -1,0 +1,9 @@
+
+fedora_08_profile_pre_system_scan () {
+  [ "$1" != "install" ] || echo "curl dmidecode pciutils"
+}
+
+fedora_08_install_pre_system_scan () {
+  system_scan_summary_report
+}
+

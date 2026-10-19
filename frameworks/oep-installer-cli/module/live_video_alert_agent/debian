@@ -40,7 +40,7 @@ debian_90_profile_live_video_alert_agent () {
 debian_90_install_live_video_alert_agent () {
   configure_live_video_alert_agent
   if verify_live_video_alert_agent && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Live Video Alert Agent is already installed. Skipping"
+    echo "Live Video Alert Agent is installed." >&2
   else
     ensure_ports_open "${used_ports[*]}" return 3
 

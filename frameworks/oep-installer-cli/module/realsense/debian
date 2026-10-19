@@ -27,7 +27,7 @@ debian_55_install_realsense () {
   configure_realsense
 
   if verify_realsense && [[ " $* " != *" --reinstall "* ]]; then
-    echo "RealSense SDK is already installed. Skipping..."
+    echo "RealSense SDK is installed." >&2
   else
     # declare ownership
     ensure_prop set installed/realsense/owned true
