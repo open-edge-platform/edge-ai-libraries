@@ -104,6 +104,14 @@ export HARNESS_HF_MODEL=<org/name>
 ./install.sh --non-interactive
 ```
 
+For example:
+
+```bash
+export HARNESS_AGENT=openclaw
+export HARNESS_HF_MODEL=Qwen/Qwen2.5-0.5B-Instruct
+./install.sh --non-interactive
+```
+
 Options: `--non-interactive`, `--skip-gpu-check`, `--harness <name>`,
 `--model <model-name>`, `--model-hub <hub>`, `--model-config <json>`,
 `--model-revision <rev>`, `--model-type <type>`,
