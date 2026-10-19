@@ -168,14 +168,43 @@ class TestDryRun(unittest.TestCase):
         self.assertIn("down", err.getvalue())
 
     def test_discovery_failure_exits_2(self) -> None:
+        err = io.StringIO()
         rc = cli.run_dry_run(
             self.settings,
             discover=Mock(side_effect=RuntimeError("boom")),
             preflight=Mock(),
             stdout=io.StringIO(),
-            stderr=io.StringIO(),
+            stderr=err,
         )
         self.assertEqual(rc, 2)
+        self.assertIn(
+            "ViPPET reported ready, but reading its inventory", err.getvalue()
+        )
+        self.assertIn("RuntimeError: boom", err.getvalue())
+        self.assertIn("To fix:", err.getvalue())
+
+    def test_all_excluded_explains_what_to_change(self) -> None:
+        out = io.StringIO()
+        rc = cli.run_dry_run(
+            self.settings,
+            discover=lambda settings: build_matrix(
+                _PIPELINES,
+                [{"device_family": "GPU"}],
+                {},
+                MatrixFilters.from_settings(settings),
+            ),
+            preflight=Mock(),
+            stdout=out,
+            stderr=io.StringIO(),
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("note: All 4 discovered pipeline/variant(s)", out.getvalue())
+        self.assertIn("To fix: widen --pipelines / --variants", out.getvalue())
+
+    def test_matrix_renderer_is_shared_with_pytest(self) -> None:
+        from tests.performance.perf_helpers import matrix
+
+        self.assertIs(cli.format_matrix, matrix.format_matrix)
 
 
 class TestReportOnly(unittest.TestCase):
@@ -184,6 +213,7 @@ class TestReportOnly(unittest.TestCase):
         err = io.StringIO()
         self.assertNotEqual(cli.run_report_only(settings, stderr=err), 0)
         self.assertIn("not yet implemented", err.getvalue())
+        self.assertIn("To fix: run without --report-only", err.getvalue())
 
 
 class TestRunPytest(unittest.TestCase):

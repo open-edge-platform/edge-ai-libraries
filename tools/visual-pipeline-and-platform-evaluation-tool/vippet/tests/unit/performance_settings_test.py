@@ -144,8 +144,61 @@ class TestValidation(_TmpConfigMixin):
             s.resolve_settings(path, env={})
 
     def test_invalid_env_value_names_the_source(self) -> None:
-        with self.assertRaisesRegex(s.SettingsError, "env VIPPET_BASE_URL"):
+        with self.assertRaisesRegex(s.SettingsError, "env VIPPET_BASE_URL") as ctx:
             s.resolve_settings(env={"VIPPET_BASE_URL": "ftp://host"})
+        self.assertIn(
+            "To fix: change or unset the VIPPET_BASE_URL environment variable",
+            str(ctx.exception),
+        )
+
+    def test_invalid_value_fix_matches_its_source(self) -> None:
+        path = self.write_config("benchmark:\n  stream_counts: [0]\n")
+        with self.assertRaises(s.SettingsError) as ctx:
+            s.resolve_settings(path, env={})
+        self.assertIn(
+            f"To fix: edit benchmark.stream_counts in {path}", str(ctx.exception)
+        )
+        with self.assertRaises(s.SettingsError) as ctx:
+            s.resolve_settings(
+                "default", env={}, cli_overrides={"benchmark.stream_counts": "0"}
+            )
+        self.assertIn("To fix: correct the --streams flag", str(ctx.exception))
+
+    def test_config_errors_name_their_origin_and_fix(self) -> None:
+        with self.assertRaises(s.SettingsError) as ctx:
+            s.select_config_source(None, {s.ENV_CONFIG: "nope"})
+        message = str(ctx.exception)
+        self.assertIn(f"given via env {s.ENV_CONFIG}", message)
+        self.assertIn("To fix: use one of these presets", message)
+        with self.assertRaises(s.SettingsError) as ctx:
+            s.select_config_source(None, {s.ENV_CONFIG_FILE: "/no/such.yaml"})
+        self.assertIn(f"given via env {s.ENV_CONFIG_FILE}", str(ctx.exception))
+        self.assertIn("To fix: check the path", str(ctx.exception))
+        with self.assertRaises(s.SettingsError) as ctx:
+            s.select_config_source(" ", {})
+        self.assertIn("given via --config is empty", str(ctx.exception))
+
+    def test_unknown_key_suggests_closest_valid_key(self) -> None:
+        path = self.write_config("vippet:\n  base_ulr: x\n")
+        with self.assertRaises(s.SettingsError) as ctx:
+            s.resolve_settings(path, env={})
+        message = str(ctx.exception)
+        self.assertIn("Did you mean: 'vippet.base_ulr' -> 'vippet.base_url'?", message)
+        self.assertIn("To fix: rename or remove them", message)
+
+    def test_malformed_yaml_is_actionable(self) -> None:
+        not_mapping = self.write_config("- a\n- b\n")
+        with self.assertRaises(s.SettingsError) as ctx:
+            s.resolve_settings(not_mapping, env={})
+        self.assertIn(
+            "must be a YAML mapping at the top level, got list", str(ctx.exception)
+        )
+        self.assertIn("To fix: start the file with sections", str(ctx.exception))
+        broken = self.write_config("vippet: [unclosed\n", "broken.yaml")
+        with self.assertRaises(s.SettingsError) as ctx:
+            s.resolve_settings(broken, env={})
+        self.assertIn("cannot read config", str(ctx.exception))
+        self.assertIn("valid YAML", str(ctx.exception))
 
     def test_coercions(self) -> None:
         spec = s.SPECS_BY_KEY

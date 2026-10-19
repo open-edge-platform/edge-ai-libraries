@@ -85,7 +85,8 @@ smart-parking     (all)    skip_pipelines      listed in benchmark.filters.skip_
 If ViPPET cannot be reached, `--dry-run` exits with `2`. It exits with `0` in every
 other case.
 
-`--collect-only` lists the collected tests, but it does not say why a case was left out.
+A normal run and direct `pytest --collect-only` print the same matrix after collection
+(see [Console output](#console-output)).
 
 #### Report only
 
@@ -107,6 +108,31 @@ python -m pytest --log-cli-level=INFO -m perf -k "object_detection" vippet/tests
 # Generate JUnit XML for CI
 python -m pytest -m perf --junitxml=results/perf.xml vippet/tests/performance/
 ```
+
+### Console output
+
+Every run (CLI or direct pytest) prints these sections in order:
+
+1. **ViPPET readiness**: the `/health` and `/status` checks, then the `/devices`,
+   capabilities and version snapshots used for the report.
+2. **Discovered hardware**: the ViPPET version and the device names per CPU/GPU/NPU family.
+3. **Benchmark matrix**: the same tables as `--dry-run`, covering runs, exclusions
+   with reasons, and runs skipped for missing models.
+4. **Per-test status**: one `PASSED`/`FAILED`/`SKIPPED` line per run (`-v` is set in
+   `pytest.ini`; pass `-q` after `--` for dots).
+5. **Benchmark artefacts**: the result directory, the JSON/CSV/HTML files and the
+   `latest` link, or why nothing was written. Also a warning if no hardware metrics
+   were sampled.
+6. pytest's short summary with every skip and failure reason.
+
+Every error says what happened, why, and how to fix it ("To fix: ..."), naming the
+flag, env var or file to change. Errors that stop the run:
+
+| Exit code | Cause                                                                                                  |
+|-----------|--------------------------------------------------------------------------------------------------------|
+| `2`       | Invalid config, or ViPPET unreachable, not the ViPPET API, or not ready within `--readiness-timeout`   |
+| `4`       | A filter id in `pipelines`/`variants`/`skip_*` matches nothing and `PERF_ON_UNKNOWN_ID=fail` (default) |
+| `1`       | At least one benchmark failed (state, attempts, job id and the fix are shown per test)                 |
 
 ## Configuration
 
@@ -197,8 +223,9 @@ perf_helpers/
 ├── config.py               # module constants derived from settings.py
 ├── discovery.py            # read-only ViPPET queries feeding matrix.py
 ├── hw_monitor.py           # background HW metric sampler
-├── matrix.py               # pure pipeline x variant x streams builder with exclusion reasons
-├── preflight.py            # readiness checks + /devices, /capabilities, /status snapshots
+├── job_outcome.py          # actionable messages for failed/rejected/empty jobs
+├── matrix.py               # pure matrix builder, exclusion reasons, matrix rendering, filter-id checks
+├── preflight.py            # readiness checks + /devices, /capabilities, /status snapshots, hardware lines
 ├── reporters.py            # JSON/CSV export + HTML report generation
 ├── settings.py             # setting specs + defaults -> YAML -> env -> CLI resolver
 └── system_info.py          # builds the report's System info block
@@ -210,7 +237,8 @@ config/
 
 ## Reports
 
-After a run, results are saved to `results/bench_YYYYMMDD_HHMMSS/`:
+After a run, results are saved to `results/bench_YYYYMMDD_HHMMSS/`. The exact paths
+are listed in the run's **Benchmark artefacts** section:
 
 - `.json` — structured results (all test cases + HW metrics)
 - `.csv` — flat table for spreadsheet analysis

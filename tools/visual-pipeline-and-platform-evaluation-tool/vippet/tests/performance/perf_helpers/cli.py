@@ -26,8 +26,19 @@ import tempfile
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any, TextIO
-from .matrix import Matrix, MatrixFilters
-from .preflight import FATAL_PREFLIGHT_EXIT_CODE, PreflightError, wait_for_vippet_ready
+from .matrix import (
+    Matrix,
+    MatrixFilters,
+    describe_no_cases,
+    format_matrix,
+    format_table,
+)
+from .preflight import (
+    FATAL_PREFLIGHT_EXIT_CODE,
+    PreflightError,
+    describe_discovery_error,
+    wait_for_vippet_ready,
+)
 from .settings import (
     ENV_CONFIG_FILE,
     PERF_DIR,
@@ -169,23 +180,12 @@ def _ensure_import_paths() -> None:
 # --------------------------------------------------------------------------- #
 
 
-def _table(headers: Sequence[str], rows: Sequence[Sequence[Any]]) -> str:
-    cells = [list(map(str, headers))] + [[str(c) for c in row] for row in rows]
-    widths = [max(len(row[i]) for row in cells) for i in range(len(headers))]
-    lines = []
-    for n, row in enumerate(cells):
-        lines.append("  ".join(c.ljust(w) for c, w in zip(row, widths)).rstrip())
-        if n == 0:
-            lines.append("  ".join("-" * w for w in widths))
-    return "\n".join(lines)
-
-
 def format_settings(settings: ResolvedSettings) -> str:
     rows = [
         (spec.key, _render(settings[spec.key]), settings.sources[spec.key])
         for spec in SPECS
     ]
-    return f"Config file: {settings.config_path}\n" + _table(
+    return f"Config file: {settings.config_path}\n" + format_table(
         ("setting", "value", "source"), rows
     )
 
@@ -194,68 +194,6 @@ def _render(value: Any) -> str:
     if isinstance(value, list):
         return ",".join(map(str, value)) if value else "(none)"
     return str(value)
-
-
-def format_matrix(matrix: Matrix) -> str:
-    """Render the dry-run report: matrix, exclusions and run-time skips."""
-    out: list[str] = []
-    families = ", ".join(matrix.available_families) or "(none)"
-    out.append(f"Host device families: {families}")
-    streams = ", ".join(map(str, matrix.stream_counts))
-
-    rows = matrix.rows()
-    will_run = [
-        (case.pipeline_id, case.device_family, s, case.case_id + f"_x{s}")
-        for case, s in rows
-        if case.pipeline_id not in matrix.missing_models
-    ]
-    out.append("")
-    out.append(
-        f"Matrix: {len(will_run)} run(s) = pipeline x variant x streams [{streams}]"
-    )
-    out.append(
-        _table(("pipeline", "variant", "streams", "test id"), will_run)
-        if will_run
-        else "  (empty)"
-    )
-
-    out.append("")
-    out.append(f"Excluded: {len(matrix.excluded)} pipeline/variant(s)")
-    out.append(
-        _table(
-            ("pipeline", "variant", "reason", "detail"),
-            [
-                (
-                    e.pipeline_id or e.pipeline_name or "?",
-                    e.variant,
-                    e.reason.value,
-                    e.detail,
-                )
-                for e in matrix.excluded
-            ],
-        )
-        if matrix.excluded
-        else "  (none)"
-    )
-
-    skipped = [
-        (
-            case.pipeline_id,
-            case.device_family,
-            s,
-            ", ".join(matrix.missing_models[case.pipeline_id]),
-        )
-        for case, s in rows
-        if case.pipeline_id in matrix.missing_models
-    ]
-    out.append("")
-    out.append(f"Skipped at run time: missing_models: {len(skipped)} run(s)")
-    out.append(
-        _table(("pipeline", "variant", "streams", "missing models"), skipped)
-        if skipped
-        else "  (none)"
-    )
-    return "\n".join(out)
 
 
 def _default_discover(settings: ResolvedSettings) -> Matrix:
@@ -314,11 +252,13 @@ def run_dry_run(
         return FATAL_PREFLIGHT_EXIT_CODE
     except Exception as exc:  # report any discovery failure, never crash
         print(
-            f"error: pipeline discovery failed: {type(exc).__name__}: {exc}",
+            f"error: {describe_discovery_error(exc, settings['vippet.base_url'])}",
             file=stderr,
         )
         return FATAL_PREFLIGHT_EXIT_CODE
     print(format_matrix(matrix), file=stdout)
+    if not matrix.included:
+        print(f"\nnote: {describe_no_cases(matrix)}", file=stdout)
     return EXIT_OK
 
 
@@ -330,8 +270,10 @@ def run_dry_run(
 def run_report_only(settings: ResolvedSettings, *, stderr: TextIO | None = None) -> int:
     """Placeholder: report regeneration will be implemented within ITEP-96716."""
     print(
-        "error: --report-only is not yet implemented "
-        f"(results dir: {settings['results.output_dir']})",
+        "error: --report-only is not yet implemented, so no reports were "
+        "regenerated. To fix: run without --report-only to benchmark and "
+        "write new reports; existing reports are in "
+        f"{settings['results.output_dir']}.",
         file=stderr or sys.stderr,
     )
     return EXIT_NOT_IMPLEMENTED

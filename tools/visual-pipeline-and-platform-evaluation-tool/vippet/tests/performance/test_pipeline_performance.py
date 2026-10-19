@@ -31,6 +31,12 @@ from perf_helpers.config import (
     RETRY_DELAY_SECONDS,
 )
 from perf_helpers.hw_monitor import HardwareMonitor
+from perf_helpers.job_outcome import (
+    describe_connection_lost,
+    describe_job_failure,
+    describe_rejected_submission,
+    describe_zero_fps,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +106,7 @@ def _confirm_job_stopped(
 
 
 def _attempt_performance_job(
-    session: httpx.Client, payload: dict[str, Any]
+    session: httpx.Client, payload: dict[str, Any], label: str = "this case"
 ) -> dict[str, Any]:
     """Submit a performance job and wait for it to finish.
 
@@ -114,19 +120,29 @@ def _attempt_performance_job(
     is best-effort, a 409 from submitting the next attempt is still
     possible; it is caught here and reported as a synthetic ``CONFLICT``
     state so the retry loop can treat it the same way, instead of letting
-    the exception abort the test.
+    the exception abort the test. Any other HTTP error on submission fails
+    the test with an explanation of what to change.
     """
     try:
         job_id = start_performance_job(session, payload)  # type: ignore[arg-type]
     except httpx.HTTPStatusError as exc:
         if exc.response.status_code == 409:
-            message = f"Job submission conflicted with a still-active job (409): {exc}"
+            message = (
+                "ViPPET answered HTTP 409: another job was still running when "
+                "this one was submitted"
+            )
             logger.warning(message)
             return {"state": "CONFLICT", "error_message": message}
-        raise
+        pytest.fail(
+            describe_rejected_submission(
+                label, exc.response.status_code, exc.response.text
+            ),
+            pytrace=False,
+        )
 
     status_url = f"{BASE_URL}/jobs/tests/performance/{job_id}/status"
     status = wait_for_job_completion(session, status_url, fail_on_timeout=False)  # type: ignore[arg-type]
+    status = {**status, "job_id": status.get("job_id") or job_id}
 
     if status.get("state") == "TIMEOUT":
         try:
@@ -162,13 +178,18 @@ def test_pipeline_performance(
     )
 
     payload = _build_performance_payload(pipeline_case, stream_count)
+    pipeline_label = (
+        f"pipeline_id={pipeline_case.pipeline_id} "
+        f"variant_id={pipeline_case.variant_id} "
+        f"streams={stream_count}"
+    )
 
     start_time = time.time()
     hw_monitor.start()
 
+    retries = 0
     try:
-        final_status = _attempt_performance_job(http_client, payload)
-        retries = 0
+        final_status = _attempt_performance_job(http_client, payload, pipeline_label)
         while final_status.get("state") != "COMPLETED" and retries < MAX_RETRIES:
             retries += 1
             logger.warning(
@@ -180,7 +201,13 @@ def test_pipeline_performance(
                 RETRY_DELAY_SECONDS,
             )
             time.sleep(RETRY_DELAY_SECONDS)
-            final_status = _attempt_performance_job(http_client, payload)
+            final_status = _attempt_performance_job(
+                http_client, payload, pipeline_label
+            )
+    except httpx.TransportError as exc:
+        pytest.fail(
+            describe_connection_lost(pipeline_label, BASE_URL, exc), pytrace=False
+        )
     finally:
         hw_stats = hw_monitor.stop()
 
@@ -208,17 +235,15 @@ def test_pipeline_performance(
         }
     )
 
-    pipeline_label = (
-        f"pipeline_id={pipeline_case.pipeline_id} "
-        f"variant_id={pipeline_case.variant_id} "
-        f"streams={stream_count}"
-    )
-    assert final_status.get("state") == "COMPLETED", (
-        f"{pipeline_label} finished in unexpected state {final_status.get('state')}"
-    )
-    assert (final_status.get("total_fps") or 0) > 0, (
-        f"{pipeline_label} total_fps must be greater than zero"
-    )
-    assert (final_status.get("per_stream_fps") or 0) > 0, (
-        f"{pipeline_label} per_stream_fps must be greater than zero"
-    )
+    if not is_success:
+        pytest.fail(
+            describe_job_failure(pipeline_label, final_status, retries + 1, BASE_URL),
+            pytrace=False,
+        )
+    if not (
+        (final_status.get("total_fps") or 0) > 0
+        and (final_status.get("per_stream_fps") or 0) > 0
+    ):
+        pytest.fail(
+            describe_zero_fps(pipeline_label, final_status, BASE_URL), pytrace=False
+        )
