@@ -82,8 +82,8 @@ class GStreamerPipeline(Pipeline):
         self.start_time = None
         self.stop_time = None
         self._avg_fps = 0
-        self._frame_fps = 0
-        self._frame_interval = 0
+        self._frame_fps = 0.0
+        self._frame_interval = 0.0
         self._last_frame_count = 0
         self._last_frame_time = 0
         self._gst_launch_string = None
@@ -791,19 +791,19 @@ class GStreamerPipeline(Pipeline):
 
         current_time = time.time()
         if current_time > self.start_time:
-          self._avg_fps = self.frame_count / (current_time - self.start_time)
+            self._avg_fps = self.frame_count / (current_time - self.start_time)
 
         delta_time = current_time - self._last_frame_time
         if delta_time >= 1:
-          self._frame_interval = delta_time
-          self._frame_fps = (self.frame_count - self._last_frame_count) / delta_time
-          self._last_frame_count = self.frame_count
-          self._last_frame_time = current_time
-          if self._last_latency_count > 0:
-            self._frame_latency = self._last_latency_sum / self._last_latency_count
-            self._last_latency_sum = 0
-            self._last_latency_count = 0
-        
+            self._frame_interval = delta_time
+            self._frame_fps = (self.frame_count - self._last_frame_count) / delta_time
+            self._last_frame_count = self.frame_count
+            self._last_frame_time = current_time
+            if self._last_latency_count > 0:
+                self._frame_latency = self._last_latency_sum / self._last_latency_count
+                self._last_latency_sum = 0
+                self._last_latency_count = 0
+
     def on_sample_app_destination(self, sink):
         self._logger.debug("Received Sample from Pipeline {id}".format(
             id=self.identifier))
