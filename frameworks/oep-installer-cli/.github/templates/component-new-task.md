@@ -59,13 +59,13 @@ pull request adding `module/{{NAME}}/debian`.
    `_{{NAME}}` is the recommended way to ensure uniqueness.
 
 - **File location**: `module/{{NAME}}/debian` for debian specific functions or `module/{{NAME}}/linux` for distribution agnostic functions. The location of the functions does not
-  make a difference but at least a `module/{{NAME}}/<ID_LIKE>` file must exist for the OEP bootstrapper to recognize the module.  
+  make a difference but at least a `module/{{NAME}}/<OS_FAMILY>` file must exist for the OEP bootstrapper to recognize the module.  
 
 - **Functions to implement**:
    - Always implement `install`, `remove`, `start`, and `stop`. Follow `profile/README.md` and `module/README.md` for implementation requirements. 
    - Omit `start`/`stop` **only** when the spec describes a stateless system package with no runtime service, for example, a library or SDK that has no explicit start/stop operation.   
    - Omit `remove` **only** for trivial system packages where removal could cause unintended side-effects (cite `module/curl/debian`).
-   - Add `debian_<NN>_license_{{NAME}}` if the spec requires a click-through license; the function must print `@@LICENSE-ID`, `@@LICENSE-TITLE`, and the full license text (use `ensure_license_fetch` if fetching from a URL).
+   - Add `debian_<NN>_license_{{NAME}}` if the spec requires a click-through license; the function must print `@@LICENSE-ID`, `@@LICENSE-TITLE`, and the full license text (use `ensure_fetch` if fetching from a URL).
    - Reuse common functions actually defined under common/ or license/. Do not invent new helpers. Available helpers: {{HELPERS_LIST}}
    - Must implement `sbom` if the component installs system-wide packages.  
 

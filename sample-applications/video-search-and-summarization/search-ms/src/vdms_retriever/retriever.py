@@ -10,12 +10,44 @@ from src.utils.common import settings, logger
 DEBUG = False
 
 
+def _derive_media_path(video_url: Optional[str], video_id: str) -> Optional[str]:
+    """Return the object sub-path inside ``video_id`` from a media URL.
+
+    Live frames point ``video_url`` at their covering segment object, e.g.
+    ``/live-streams/<stream_id>/segments/1790655530.mp4``. The frame-fetch
+    endpoint (``GET /media/frame``) addresses that object with a ``media_path``
+    relative to ``video_id`` (here ``segments/1790655530.mp4``). Uploaded videos
+    have a single object directly under ``video_id`` and need no media_path, so
+    this returns None for them.
+
+    Args:
+        video_url: Stored media URL/path (``video_url`` or ``video_rel_url``).
+        video_id: The media identifier that prefixes the object path.
+
+    Returns:
+        The path after ``<video_id>/`` when it is nested (e.g. a live segment),
+        otherwise None.
+    """
+    if not video_url or not video_id:
+        return None
+    parts = [p for p in str(video_url).split("/") if p]
+    if video_id not in parts:
+        return None
+    tail = parts[parts.index(video_id) + 1:]
+    # A single trailing component is the video's own file (upload case); only a
+    # nested path (e.g. segments/<ts>.mp4) is a real media_path.
+    if len(tail) <= 1:
+        return None
+    return "/".join(tail)
+
+
+
 # Frame-to-Video Aggregation Configuration
 def get_aggregation_config():
     """Get aggregation configuration from settings with fallback defaults."""
     return {
         "strategy": "temporal_segment_clustering",
-        "segment_duration_seconds": getattr(settings, 'AGGREGATION_SEGMENT_DURATION', 8),
+        "segment_duration_seconds": getattr(settings, 'AGGREGATION_SEGMENT_DURATION', 10),
         "min_temporal_gap_seconds": getattr(settings, 'AGGREGATION_MIN_GAP', 0),
         "final_max_results": getattr(settings, 'AGGREGATION_MAX_RESULTS', 20),
         # Baseline duration is retained for metadata fallbacks only (no length bonus applied)
@@ -53,7 +85,7 @@ def get_aggregation_config():
 
 def create_temporal_segments(
     frame_matches: List[Dict],
-    segment_duration: int = 8,
+    segment_duration: int = 10,
     aggregation_config: Optional[Dict[str, Any]] = None,
 ) -> List[Dict]:
     """
@@ -100,22 +132,60 @@ def create_temporal_segments(
                 raw_duration = None
         if raw_duration is None or raw_duration <= 0:
             raw_duration = baseline_duration
-        
-        segment_id = int(timestamp // segment_duration)
-        key = f"{video_id}_seg_{segment_id}"
-        segment_start = segment_id * segment_duration
-        segment_end = (segment_id + 1) * segment_duration
-        
+
+        # Live-stream results need a different grouping key. For an uploaded
+        # video, `video_id` is unique per file and `timestamp` is a position in
+        # that whole file, so `timestamp // segment_duration` yields many
+        # distinct temporal buckets. For a live stream, every embedding shares
+        # one `video_id` (the stream id) and `timestamp` is the offset *within*
+        # its ~10s recorded segment (each a distinct playable file / video_url).
+        # Bucketing that by `timestamp // 8` collapses an entire stream into just
+        # the [0,8) and [8,16) buckets -> only two result tiles per stream that
+        # never grow. Group live results by the recorded segment itself instead,
+        # so each matched segment is its own tile and the count grows with the
+        # stream.
+        is_live = str(metadata.get("is_live", "")).strip().lower() in ("true", "1")
+        if is_live:
+            live_segment_key = (
+                metadata.get("segment_id")
+                or metadata.get("segment_start_time")
+                or metadata.get("video_url")
+                or timestamp
+            )
+            key = f"{video_id}_live_{live_segment_key}"
+            # The tile represents one recorded segment; the per-frame timestamp
+            # (in-segment offset) still drives seeking. Start/end are refined to
+            # the matched frames' span below.
+            segment_start = timestamp
+            segment_end = timestamp
+        else:
+            segment_id = int(timestamp // segment_duration)
+            key = f"{video_id}_seg_{segment_id}"
+            segment_start = segment_id * segment_duration
+            segment_end = (segment_id + 1) * segment_duration
+
         logger.debug(f"Frame at {timestamp}s (score={relevance_score:.4f}) → Segment [{segment_start}-{segment_end}s] in video {video_id[:8]}...")
         
         if key not in segments:
             segments[key] = {
                 "video_id": video_id,
+                # Overlap de-duplication identity. For an uploaded video this is
+                # the video itself, so temporally close matches in one file
+                # collapse. For a live stream every segment shares one video_id
+                # but is a distinct playable file, so the segment key is used --
+                # otherwise the overlap filter, seeing identical in-segment
+                # offsets across different segments, would discard all but one.
+                "dedup_id": key if is_live else video_id,
                 "segment_start": segment_start,
                 "segment_end": segment_end,
                 "frames": [],
                 "video_duration": raw_duration,
             }
+        elif is_live:
+            # Widen the live tile's displayed range to cover all matched frames
+            # in this segment.
+            segments[key]["segment_start"] = min(segments[key]["segment_start"], segment_start)
+            segments[key]["segment_end"] = max(segments[key]["segment_end"], segment_end)
         
         segments[key]["frames"].append(frame)
     
@@ -382,7 +452,9 @@ def apply_temporal_overlap_filtering(segments: List[Dict], min_gap_seconds: int 
         should_keep = True
 
         for kept_segment in filtered_segments:
-            if segment["video_id"] != kept_segment["video_id"]:
+            if segment.get("dedup_id", segment["video_id"]) != kept_segment.get(
+                "dedup_id", kept_segment["video_id"]
+            ):
                 continue
 
             segment_start = segment["segment_start"]
@@ -679,11 +751,28 @@ def aggregate_frame_results_to_videos(frame_results: List[Any], max_results: int
             "relevance_score": result["final_score"],
             "score_breakdown": result["score_breakdown"],
             "best_frame_info": {
+                # The exact scored (peak/anchor) frame. Use THIS timestamp to
+                # fetch the frame from dataprep's GET /media/frame; do NOT use
+                # the segment-level seek_timestamp, which is offset earlier for
+                # playback context. Timestamp is seconds from the start of the
+                # addressed media (within-file for uploads, within-segment for
+                # live). All fields below are what /media/frame needs.
+                "video_id": result["video_id"],
+                "bucket_name": best_frame_meta.get("bucket_name", ""),
                 "timestamp": result["seek_info"]["best_frame_timestamp"],
                 "frame_number": best_frame_meta.get("frame_number", 0),
                 "frame_type": best_frame_meta.get("frame_type", "full_frame"),
                 "detection_confidence": best_frame_meta.get("detection_confidence"),
-                "detected_label": best_frame_meta.get("detected_label")
+                "detected_label": best_frame_meta.get("detected_label"),
+                # Detected-crop addressing: pass crop_bbox with variant=crop to
+                # get just the detected region; omit for the full frame.
+                "is_detected_crop": bool(best_frame_meta.get("is_detected_crop", False)),
+                "crop_index": best_frame_meta.get("crop_index"),
+                "crop_bbox": best_frame_meta.get("crop_bbox"),
+                # Live frames live in a per-stream segment object; media_path
+                # addresses it and is REQUIRED when is_live is true.
+                "is_live": bool(best_frame_meta.get("is_live", False)),
+                "media_path": _derive_media_path(video_url or video_rel_url, result["video_id"]),
             },
             "video_metadata": {
                 "duration": result["video_duration"],

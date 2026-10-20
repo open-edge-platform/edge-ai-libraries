@@ -75,6 +75,10 @@ README.md           @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 # /microservices/scene-understanding-service/          owners needed
 # /microservices/semantic-search-agent/                owners needed
 
+/microservices/sensor-manager/                         @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @piotrgrubicki @LenaRudaya
+/microservices/sensor-manager/docs/                    @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @piotrgrubicki @LenaRudaya @open-edge-platform/open-edge-platform-docs-write
+/microservices/sensor-manager/README.md                @KaliszWiktoria @dlemiech @staszczuk @grey-eminence @kkepka @piotrgrubicki @LenaRudaya @open-edge-platform/open-edge-platform-docs-write
+
 /microservices/text-to-speech/                         @avinash-palleti @sachinkaushik @unarayan
 /microservices/text-to-speech/docs/                    @avinash-palleti @sachinkaushik @unarayan  @open-edge-platform/open-edge-platform-docs-write
 /microservices/text-to-speech/README.md                @avinash-palleti @sachinkaushik @unarayan  @open-edge-platform/open-edge-platform-docs-write

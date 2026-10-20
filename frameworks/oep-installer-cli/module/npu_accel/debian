@@ -6,20 +6,22 @@ configure_npu_accel () {
   workspace="$(ensure_project_path)/npu"
 }
 
+# resolve the release tarball URLs: GitHub API first, release page as fallback
+configure_npu_accel_packages () {
+  local suffix="${ID}${VERSION_ID//./}.tar.gz"
+  (set -o pipefail
+   ensure_fetch "$repository/releases/tags/v$version" - | jq -r ".assets[] | select(.name|endswith(\"-$suffix\")) | .browser_download_url" ||
+   ensure_fetch "$releases/expanded_assets/v$version" - --html | grep -oP 'href="\K/([^"]+/releases/download/[^"]+'"$suffix"')' | sed 's|^|https://github.com|')
+}
+
 verify_npu_accel () {
-  [ -c /dev/accel/accel0 ] &&
-  getent group render >/dev/null 2>&1 &&
-  id -nG | grep -qw render &&
-  verify_npu_accel_packages
+  [ -c /dev/accel/accel0 ] && verify_npu_accel_packages
 }
 
 # checks the driver packages only, independent of NPU hardware being present.
 # used to confirm a fresh install succeeded even on systems without an NPU device.
 verify_npu_accel_packages () {
-  (
-    set -o pipefail
-    ensure_apt_is_installed intel-level-zero-npu=$version intel-fw-npu=$version intel-driver-compiler-npu=$version
-  )
+  ensure_apt_is_installed intel-level-zero-npu=$version intel-fw-npu=$version intel-driver-compiler-npu=$version
 }
 
 debian_40_profile_npu_accel () {
@@ -34,43 +36,54 @@ debian_40_install_npu_accel () {
   configure_npu_accel "$@"
 
   if verify_npu_accel && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Npu drivers are already installed. Skipping..."
+    echo "Npu drivers are installed." >&2
   else
-    # remove legacies
-    ensure_apt autoremove -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
+    # declare ownership
+    ensure_prop set installed/npu_accel/owned true
 
-    # create the render group
-    ensure_group_add $(debian_40_group_npu_accel)
-  
+    # remove legacies
+    debian_40_remove_npu_accel "$@"
+
     mkdir -p "$workspace"
     cd "$workspace"
 
     # download deb packages
-    local packages=($(set -o pipefail;curl -fsSL -A Mozilla/5.0 $repository/releases/tags/v$version | jq -r ".assets[] | select(.name|endswith(\"-${ID}${VERSION_ID//./}.tar.gz\")) | .browser_download_url" || curl -fsSL -A Mozilla/5.0 $releases/expanded_assets/v$version | grep -oP 'href="\K/([^"]+/releases/download/[^"]+'$ID${VERSION_ID//./}'.tar.gz)' | sed 's/^/https:\/\/github.com/'))
+    local packages=($(configure_npu_accel_packages))
     [ ${#packages[*]} -gt 0 ] || return 3
 
     for p in ${packages[*]}; do
-      curl -fsSL -A Mozilla/5.0 "$p" | tar xfz -
+      (set -o pipefail; ensure_fetch "$p" - | tar xfz -) || {
+        echo "npu_accel: failed to download/extract $p" >&2
+        return 3
+      }
     done 
 
     # install the debs
     ensure_apt install -y $(find . -name "*.deb" -print)
-    ensure_sudo rm -rf "$workspace"
+    ensure_rm "$workspace"
     verify_npu_accel_packages
   fi
+
+  # create the render group
+  ensure_group_add $(debian_40_group_npu_accel)
 }
 
 debian_40_remove_npu_accel () {
-  ensure_apt autoremove -m -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
-  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+  # leave untouched if not installed by npu_accel
+  [ "$(ensure_prop get installed/npu_accel/owned)" = "true" ] || return 0
+
+  configure_npu_accel "$@"
+  ensure_apt purge --auto-remove -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true
+  ensure_rm "$workspace"
 }
 
 debian_40_sbom_npu_accel () {
   configure_npu_accel "$@"
-  local packages=($(set -o pipefail;curl -fsSL -A Mozilla/5.0 $repository/releases/tags/v$version | jq -r ".assets[] | select(.name|endswith(\"-${ID}${VERSION_ID//./}.tar.gz\")) | .browser_download_url" || curl -fsSL -A Mozilla/5.0 $releases/expanded_assets/v$version | grep -oP 'href="\K/([^"]+/releases/download/[^"]+'$ID${VERSION_ID//./}'.tar.gz)' | sed 's/^/https:\/\/github.com/'))
-  [ ${#packages[*]} -gt 0 ] || return 3
-  cat <<EOF
-$(ensure_sbom_format pkg-list "${packages[@]}")
-EOF
+  local packages=($(configure_npu_accel_packages))
+  [ ${#packages[*]} -gt 0 ] || {
+    echo "Failed to fetch npu_accel latest package" >&2
+    return 3
+  }
+  ensure_sbom_format pkg-list "${packages[@]}"
 }
 
