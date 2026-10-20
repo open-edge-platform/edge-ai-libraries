@@ -1,0 +1,9 @@
+
+debian_30_install_python3_venv () {
+  ensure_apt_install_package python3-venv
+}
+
+debian_30_sbom_python3_venv () {
+  ensure_sbom_format pkg-list python3-venv
+}
+

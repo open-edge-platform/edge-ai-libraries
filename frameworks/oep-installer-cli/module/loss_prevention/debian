@@ -55,17 +55,17 @@ verify_loss_prevention () {
 }
 
 debian_90_profile_loss_prevention () {
-  echo "git curl gawk make python3_venv docker edge_base"
+  echo "git curl gawk make python3_venv docker_io edge_base"
 }
 
 debian_90_install_loss_prevention () {
   configure_loss_prevention
 
   if verify_loss_prevention && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Loss prevention is already installed. Skipping"
+    echo "Loss prevention is installed." >&2
   else 
     # clone the repository
-    ensure_disk_size 300
+    ensure_disk_size 15000
     ensure_git_clone "$workspace" $version $repository
 
     # setup
@@ -142,6 +142,6 @@ debian_90_start_loss_prevention () {
 debian_90_remove_loss_prevention () {
   configure_loss_prevention
   cd "$workspace" && make down-lp || true
-  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+  ensure_rm "$workspace"
 }
 

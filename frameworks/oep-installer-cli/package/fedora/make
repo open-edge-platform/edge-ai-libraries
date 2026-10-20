@@ -1,0 +1,12 @@
+
+fedora_30_install_make () {
+  ensure_dnf_install_package make
+}
+
+fedora_30_remove_make () {
+  ensure_dnf_remove_package make
+}
+
+fedora_30_sbom_make () {
+  ensure_sbom_format pkg-list make
+}

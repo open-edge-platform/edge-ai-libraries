@@ -1,0 +1,12 @@
+
+debian_15_install_cpuid () {
+  ensure_apt_install_package cpuid
+}
+
+debian_15_remove_cpuid () {
+  ensure_apt_remove_package cpuid
+}
+
+debian_15_sbom_cpuid () {
+  ensure_sbom_format pkg-list cpuid
+}

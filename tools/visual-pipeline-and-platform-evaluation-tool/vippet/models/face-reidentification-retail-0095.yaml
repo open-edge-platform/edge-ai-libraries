@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: Apache-2.0
+name: face-reidentification-retail-0095
+display_name: Face Reidentification Retail 0095
+description: "Face re-identification feature extractor that turns an already-detected face crop into a 256-dimensional embedding used to match the same person across frames and cameras."
+source: omz
+hub: omz
+type: image_classification
+precisions:
+  - precision: INT8
+    model_path: omz/face-reidentification-retail-0095/FP16-INT8/face-reidentification-retail-0095.xml
+    model_proc: ""
+  - precision: FP16
+    model_path: omz/face-reidentification-retail-0095/FP16/face-reidentification-retail-0095.xml
+    model_proc: ""
+extra_model_procs: []
+unsupported_devices: ""
+download_request:
+  hub: omz
+  name: face-reidentification-retail-0095
