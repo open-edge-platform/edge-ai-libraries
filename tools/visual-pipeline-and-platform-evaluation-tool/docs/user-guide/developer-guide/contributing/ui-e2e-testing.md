@@ -158,11 +158,11 @@ npx playwright show-trace ui/test-results/<test-dir>/trace.zip
 [`.github/workflows/vippet-ui-pr-workflow.yaml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/.github/workflows/vippet-ui-pr-workflow.yaml)
 runs on every pull request that touches `tools/visual-pipeline-and-platform-evaluation-tool/ui/**`.
 
-| Job | What it does | Local equivalent |
-| --- | --- | --- |
-| `lint` | `npm run lint` (ESLint + Prettier) and `npm run typecheck:e2e` (strict TS for the Playwright suite) | `make ui-lint` |
-| `e2e` | `npm run build`, then the Playwright suite against the built bundle served by Playwright itself | `make ui-e2e` |
-| `final-check` | Fails the PR if either job above failed | — |
+| Job           | What it does                                                                                        | Local equivalent |
+| ------------- | --------------------------------------------------------------------------------------------------- | ---------------- |
+| `lint`        | `npm run lint` (ESLint + Prettier) and `npm run typecheck:e2e` (strict TS for the Playwright suite) | `make ui-lint`   |
+| `e2e`         | `npm run build`, then the Playwright suite against the built bundle served by Playwright itself     | `make ui-e2e`    |
+| `final-check` | Fails the PR if either job above failed                                                             | —                |
 
 Only the Playwright suite is type-checked in CI; the application sources
 are covered by the production build step in the `e2e` job.

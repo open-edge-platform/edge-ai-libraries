@@ -84,11 +84,11 @@ Before benchmarking, confirm:
 
 In Pipeline Builder, verify the following defaults for the predefined pipeline:
 
-| Node | Default | Description |
-|------|---------|-------------|
-| **Object Detection** (`gvadetect`) | `yolo11s INT8`, `device=GPU`, `threshold=0.5` | Detects person ROIs on the GPU and establishes the baseline detection sensitivity used by the pipeline. |
+| Node                                 | Default                                                                                | Description                                                                                                                                         |
+| ------------------------------------ | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Object Detection** (`gvadetect`)   | `yolo11s INT8`, `device=GPU`, `threshold=0.5`                                          | Detects person ROIs on the GPU and establishes the baseline detection sensitivity used by the pipeline.                                             |
 | **Re-ID Inference** (`gvainference`) | `mars-small128 FP32`, `device=GPU`, `inference-region=roi-list`, `object-class=person` | Computes person embeddings for re-identification on detected ROIs only, which helps preserve track identity across brief occlusions and re-entries. |
-| **Tracker** (`gvatrack`) | `tracking-type=deep-sort` | Links detections over time into stable person tracks using Deep SORT. |
+| **Tracker** (`gvatrack`)             | `tracking-type=deep-sort`                                                              | Links detections over time into stable person tracks using Deep SORT.                                                                               |
 
 For benchmark parity, keep these defaults unchanged and only vary one factor at a time
 (for example stream count or output mode).
