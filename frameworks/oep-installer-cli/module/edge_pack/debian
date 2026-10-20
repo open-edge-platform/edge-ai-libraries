@@ -12,7 +12,7 @@ configure_edge_pack () {
   )
   edge_pack_pref_file=/etc/apt/preferences.d/edgepack.pref
   edge_pack_install_options=("--no-install-recommends")
-  edge_pack_allow_downgrades=(libgbm1 libgstreamer-gl1.0-0 libva-wayland2 mesa-libgallium weston)
+  edge_pack_allow_downgrades=(libgbm1 libgstreamer-gl1.0-0 libva-wayland2 mesa-libgallium weston libegl-mesa0 libgbm-dev libgl1-mesa-dev libgl1-mesa-dri libglx-mesa0 mesa-common-dev mesa-vulkan-drivers)
 
   edge_pack_ppa_repo=
   edge_pack_ppa_key_url=
@@ -37,6 +37,10 @@ debian_19_install_edge_pack () {
     ensure_apt_source "$edge_pack_list_file" "$edge_pack_source"
     reconfigured=1
   fi
+  if [ ! -e "$edge_pack_pref_file" ] || [ $reinstall -eq 1 ]; then
+    ensure_apt_preference "$edge_pack_pref_file" "${edge_pack_pref[@]}"
+    reconfigured=1
+  fi
   if [ -n "$edge_pack_ppa_repo" ]; then
     if [ ! -e "$edge_pack_ppa_key_file" ] || [ $reinstall -eq 1 ]; then
       ensure_apt_key "$edge_pack_ppa_key_file" "$edge_pack_ppa_key_url" --dearmor
@@ -46,10 +50,6 @@ debian_19_install_edge_pack () {
       ensure_apt_source "$edge_pack_ppa_list_file" "$edge_pack_ppa_source"
       reconfigured=1
     fi
-  fi
-  if [ ! -e "$edge_pack_pref_file" ] || [ $reinstall -eq 1 ]; then
-    ensure_apt_preference "$edge_pack_pref_file" "${edge_pack_pref[@]}"
-    reconfigured=1
   fi
   [ $reconfigured -eq 0 ] || ensure_apt update -y
 }
