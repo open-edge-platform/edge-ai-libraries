@@ -39,7 +39,7 @@ debian_30_remove_kernel_module_essential () {
     [ "$(ensure_prop get installed/kernel_module_essential/owned_$p)" = "true" ] || continue
     pkgs+=($p)
   done
-  [ ${#pkgs[@]} -eq 0 ] || ensure_apt autoremove -y "${pkgs[@]}"
+  [ ${#pkgs[@]} -eq 0 ] || ensure_apt purge --auto-remove -y "${pkgs[@]}"
 }
 
 debian_30_sbom_kernel_module_essential () {

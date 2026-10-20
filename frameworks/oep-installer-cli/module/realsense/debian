@@ -48,7 +48,7 @@ debian_55_remove_realsense () {
 
   configure_realsense
   if verify_realsense; then
-    ensure_apt autoremove -m -y librealsense2 librealsense2-dkms ros-$ros_distro-librealsense2 || true
+    ensure_apt purge --auto-remove -y librealsense2 librealsense2-dkms ros-$ros_distro-librealsense2 || true
     ensure_rm "$rs_key_file" "$rs_list"
   else
     echo "RealSense SDK already removed. Skipping"
