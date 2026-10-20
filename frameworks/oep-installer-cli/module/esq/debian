@@ -6,7 +6,7 @@ configure_esq () {
 }
 
 debian_85_profile_esq () {
-  echo "curl git libgl1 make docker_io uv edge_base openvino dlstreamer libcap2_bin memtester qemu_system_x86 qemu_utils cloud_image_utils ovmf rt_tests stress_ng msr_tools powercap gpu_perf_events rustup"
+  echo "curl git libgl1 make docker_io uv edge_base openvino dlstreamer libcap2_bin memtester qemu_system_x86 qemu_utils cloud_image_utils ovmf rt_tests stress_ng msr_tools rustup"
 }
 
 debian_85_install_esq () {
