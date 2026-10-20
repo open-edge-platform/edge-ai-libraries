@@ -6,8 +6,7 @@ ensure_ports_open () {
   shift 2
 
   if [ "$act_name" = "start" ]; then
-    # record my port usage
-    ensure_prop set started/$name/ports " $* "
+    ensure_prop set started/$name/ports "$*"
   fi
 
   if command -v ss > /dev/null; then
