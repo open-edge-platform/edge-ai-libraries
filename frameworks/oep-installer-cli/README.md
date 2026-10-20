@@ -54,19 +54,6 @@ curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-librarie
 > Prefer a guided experience? **[Open the OEP CLI Installer Web UI »](https://docs.openedgeplatform.intel.com/dev/OEP-articles/oep-cli-installer/index.html)**
 > to pick a profile and module and copy the exact install command.
 
-The Web UI offers Ubuntu 24.04 and Ubuntu 26.04. Module compatibility restrictions,
-when configured, control availability; the OS choice alone does not certify
-upstream component support. Options are developer-defined flag combinations,
-with exactly one selected: up to five combinations appear as blocks, and six or
-more appear in a dropdown. Labels such as **GPU & Docker** are generated
-automatically.
-
-For modules that support Start/Stop, the Web UI includes `start` after the install
-arguments, for example `install smart_parking --gpu start`. Other modules and
-install-all profiles remain install-only. Next Steps offers standalone
-Start/Stop and Remove commands where supported, including profile-level Remove
-for install-all profiles.
-
 <hr>
 
 > After the very first invocation, the OEP installer saves itself under `~/.local/bin/openedge-cli`. You can subsequently invoke any installer command locally:
@@ -223,27 +210,6 @@ for the fragment format and the step-by-step guide to adding a new profile.
 > regenerates `config.json` and commits it back after merge when the base config,
 > a profile fragment, or the generator changes, and fails pull requests whose
 > committed `config.json` is stale.
-
-### Web UI validation
-
-Run the generator regression tests without additional dependencies:
-
-```bash
-python3 -m unittest discover -s tests -p 'test_build_web_config.py' -v
-python3 scripts/build-web-config.py --check
-```
-
-The full suite also exercises the real selector in headless Chromium using
-Playwright. With `uv` available, restore the isolated test dependency and browser,
-then run:
-
-```bash
-uv run --no-project --with playwright==1.64.0 python -m playwright install chromium
-uv run --no-project --with playwright==1.64.0 python -m unittest discover -s tests -v
-```
-
-Browser tests use a temporary loopback HTTP server and controlled configuration
-fixtures. They do not install, start, or remove any components.
 
 ### Credentials
 
