@@ -95,15 +95,33 @@ debian_90_start_physical_ai_studio () {
   fi
 
   mkdir -p "$pais_run_dir"
-  # launch the FastAPI backend + UI detached
-  setsid nohup "$pais_bin" serve --port "$pais_port" > "$pais_log_file" 2>&1 < /dev/null &
+  # launch the FastAPI backend + UI fully detached; close inherited fds > 2 so
+  # the long-running server does not keep the CLI's log pipes (and any CI
+  # step capturing them) open after start returns
+  (
+    set +e
+    for fd in /proc/$BASHPID/fd/*; do
+      fd=${fd##*/}; (( fd > 2 )) && eval "exec $fd>&-"
+    done 2> /dev/null
+    exec setsid nohup "$pais_bin" serve --port "$pais_port" > "$pais_log_file" 2>&1 < /dev/null
+  ) &
   echo $! > "$pais_pid_file"
+  disown $! 2> /dev/null || true
 
-  sleep 3
-  if ! kill -0 "$(cat "$pais_pid_file")" > /dev/null 2>&1; then
-    echo "Physical AI Studio exited during startup. See $pais_log_file" 1>&2
-    rm -f "$pais_pid_file"
-    return 3
+  # wait for the server to accept connections instead of a fixed delay
+  local pid i ready=0
+  pid="$(cat "$pais_pid_file")"
+  for i in $(seq 1 60); do
+    if ! kill -0 "$pid" > /dev/null 2>&1; then
+      echo "Physical AI Studio exited during startup. See $pais_log_file" 1>&2
+      rm -f "$pais_pid_file"
+      return 3
+    fi
+    curl -s -o /dev/null --max-time 2 "http://127.0.0.1:$pais_port/" && { ready=1; break; }
+    sleep 2
+  done
+  if [ $ready -eq 0 ]; then
+    echo "Physical AI Studio did not respond on port $pais_port yet. See $pais_log_file" 1>&2
   fi
 
   echo "@@HIGHLIGHT Physical AI Studio started (PID $(cat "$pais_pid_file"))"

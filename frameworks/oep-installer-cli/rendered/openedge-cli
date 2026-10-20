@@ -2709,10 +2709,15 @@ configure_ros2 ()
 configure_ros2_apt_source () 
 { 
     local codename="${UBUNTU_CODENAME:-$VERSION_CODENAME}";
-    ros_apt_ver="$(ensure_fetch https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest - | grep -oE '"tag_name": *"[^"]*"' | head -n 1 | awk -F'"' '{print $4}')";
-    if [ -z "$ros_apt_ver" ]; then
-        echo "configure_ros2_apt_source: could not determine the latest ros-apt-source release" "(the GitHub API lookup returned nothing - it may be unreachable or rate-limited)." "Check network/proxy access to api.github.com and github.com and retry." 1>&2;
-        return 1;
+    local repo=ros-infrastructure/ros-apt-source;
+    local pinned_ver=1.3.0;
+    ros_apt_ver="$(curl -fsSL -o /dev/null -w '%{url_effective}' --retry 3 --retry-delay 5 "https://github.com/$repo/releases/latest" 2> /dev/null | sed -n 's|.*/releases/tag/||p')";
+    if ! [[ "$ros_apt_ver" =~ ^[0-9A-Za-z._-]+$ ]]; then
+        ros_apt_ver="$(curl -fsSL --retry 2 --retry-delay 5 "https://api.github.com/repos/$repo/releases/latest" 2> /dev/null | grep -oE '"tag_name": *"[^"]*"' | head -n 1 | awk -F'"' '{print $4}')";
+    fi;
+    if ! [[ "$ros_apt_ver" =~ ^[0-9A-Za-z._-]+$ ]]; then
+        echo "configure_ros2_apt_source: could not determine the latest ros-apt-source release" "(github.com/api.github.com unreachable or rate-limited); using pinned release $pinned_ver." 1>&2;
+        ros_apt_ver=$pinned_ver;
     fi;
     ros_deb_src="https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ros_apt_ver}/ros2-apt-source_${ros_apt_ver}.${codename}_all.deb"
 }
@@ -3258,11 +3263,13 @@ debian_20_install_edge_pack_base_realtime ()
             echo "Falling back to the standard edge-pack base bundle (intel-edge-base-standard) instead." 1>&2;
             ensure_prop set installed/edge_pack_base_realtime/fallback true;
             debian_20_install_edge_pack_base_standard "$@";
+            [ -n "$(ensure_prop get installed/edge_pack_base_standard/owned)" ] || ensure_prop set installed/edge_pack_base_standard/owned false;
             [ -c /dev/dri/renderD128 ];
             ensure_group_add $(debian_20_group_edge_pack_base_realtime);
             echo "@@HIGHLIGHT intel-edge-base-realtime unavailable @installed intel-edge-base-standard instead";
             return 0;
         fi;
+        ensure_prop remove installed/edge_pack_base_realtime/fallback;
         ensure_prop set installed/edge_pack_base_realtime/owned true;
         ensure_apt purge --auto-remove -y intel-edge-base-realtime || true;
         ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*";
@@ -3379,7 +3386,8 @@ debian_20_remove_edge_pack_base_realtime ()
         debian_19_remove_edge_pack "$@" || true;
     else
         debian_20_remove_edge_pack_base_standard "$@";
-    fi
+    fi;
+    ensure_prop remove installed/edge_pack_base_realtime/fallback
 }
 debian_20_remove_edge_pack_base_standard () 
 { 
@@ -4148,7 +4156,7 @@ debian_55_install_ros_openvino ()
 }
 debian_55_profile_realsense () 
 { 
-    echo "curl gnupg"
+    echo "curl gnupg ros2"
 }
 debian_55_profile_ros_openvino () 
 { 
@@ -6144,12 +6152,31 @@ debian_90_start_physical_ai_studio ()
         return 3;
     fi;
     mkdir -p "$pais_run_dir";
-    setsid nohup "$pais_bin" serve --port "$pais_port" > "$pais_log_file" 2>&1 < /dev/null & echo $! > "$pais_pid_file";
-    sleep 3;
-    if ! kill -0 "$(cat "$pais_pid_file")" > /dev/null 2>&1; then
-        echo "Physical AI Studio exited during startup. See $pais_log_file" 1>&2;
-        rm -f "$pais_pid_file";
-        return 3;
+    ( set +e;
+    for fd in /proc/$BASHPID/fd/*;
+    do
+        fd=${fd##*/};
+        (( fd > 2 )) && eval "exec $fd>&-";
+    done 2> /dev/null;
+    exec setsid nohup "$pais_bin" serve --port "$pais_port" > "$pais_log_file" 2>&1 < /dev/null ) & echo $! > "$pais_pid_file";
+    disown $! 2> /dev/null || true;
+    local pid i ready=0;
+    pid="$(cat "$pais_pid_file")";
+    for i in $(seq 1 60);
+    do
+        if ! kill -0 "$pid" > /dev/null 2>&1; then
+            echo "Physical AI Studio exited during startup. See $pais_log_file" 1>&2;
+            rm -f "$pais_pid_file";
+            return 3;
+        fi;
+        curl -s -o /dev/null --max-time 2 "http://127.0.0.1:$pais_port/" && { 
+            ready=1;
+            break
+        };
+        sleep 2;
+    done;
+    if [ $ready -eq 0 ]; then
+        echo "Physical AI Studio did not respond on port $pais_port yet. See $pais_log_file" 1>&2;
     fi;
     echo "@@HIGHLIGHT Physical AI Studio started (PID $(cat "$pais_pid_file"))";
     echo "@@HIGHLIGHT URL: http://localhost:$pais_port";

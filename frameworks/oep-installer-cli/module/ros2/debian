@@ -16,12 +16,21 @@ configure_ros2 () {
 # ros_deb_src - aren't affected if the GitHub API lookup fails.
 configure_ros2_apt_source () {
   local codename="${UBUNTU_CODENAME:-$VERSION_CODENAME}"
-  ros_apt_ver="$(ensure_fetch https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest - | grep -oE '"tag_name": *"[^"]*"' | head -n 1 | awk -F'"' '{print $4}')"
-  if [ -z "$ros_apt_ver" ]; then
+  local repo=ros-infrastructure/ros-apt-source
+  # known-good release, used only when the latest release cannot be resolved
+  local pinned_ver=1.3.0
+  # resolve via the releases/latest web redirect first: unlike api.github.com
+  # it is not subject to the 60 requests/hour unauthenticated rate limit
+  ros_apt_ver="$(curl -fsSL -o /dev/null -w '%{url_effective}' --retry 3 --retry-delay 5 \
+    "https://github.com/$repo/releases/latest" 2> /dev/null | sed -n 's|.*/releases/tag/||p')"
+  if ! [[ "$ros_apt_ver" =~ ^[0-9A-Za-z._-]+$ ]]; then
+    ros_apt_ver="$(curl -fsSL --retry 2 --retry-delay 5 "https://api.github.com/repos/$repo/releases/latest" 2> /dev/null | \
+      grep -oE '"tag_name": *"[^"]*"' | head -n 1 | awk -F'"' '{print $4}')"
+  fi
+  if ! [[ "$ros_apt_ver" =~ ^[0-9A-Za-z._-]+$ ]]; then
     echo "configure_ros2_apt_source: could not determine the latest ros-apt-source release" \
-      "(the GitHub API lookup returned nothing - it may be unreachable or rate-limited)." \
-      "Check network/proxy access to api.github.com and github.com and retry." 1>&2
-    return 1
+      "(github.com/api.github.com unreachable or rate-limited); using pinned release $pinned_ver." 1>&2
+    ros_apt_ver=$pinned_ver
   fi
   ros_deb_src="https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ros_apt_ver}/ros2-apt-source_${ros_apt_ver}.${codename}_all.deb"
 }
