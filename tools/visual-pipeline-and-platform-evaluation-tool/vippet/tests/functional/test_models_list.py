@@ -177,6 +177,29 @@ def test_models_check_status_returns_matching_models(
     )
 
 
+@pytest.mark.smoke
+@pytest.mark.parametrize(
+    "body",
+    [
+        {},
+        {"hub": "huggingface", "limit": 0},
+        {"hub": "huggingface", "limit": 201},
+        {"hub": "huggingface", "offset": -1},
+    ],
+    ids=["missing-hub", "limit-zero", "limit-too-large", "negative-offset"],
+)
+def test_models_list_rejects_invalid_body(
+    http_client: requests.Session, body: dict[str, Any]
+) -> None:
+    """POST /models/list returns 422 for bodies that fail schema validation."""
+    response = http_client.post(f"{BASE_URL}/models/list", json=body, timeout=30)
+
+    assert response.status_code == 422, (
+        f"Expected 422 from /models/list for {body}, "
+        f"got {response.status_code}, body={response.text}"
+    )
+
+
 @pytest.mark.full
 def test_all_models_present_in_api(
     http_client: requests.Session,
