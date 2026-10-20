@@ -6,7 +6,7 @@ fedora_99_profile_edge_base () {
     ;;
   *)
     echo "core_types pre_system_scan"
-    if [[ " $* " = *" --edgepack "* ]]; then
+    if [[ " $* " = *" --edgepack "* ]] && [[ "$(uname -r)" = "7."* ]]; then
       echo "edge_pack_base_standard edge_pack_npu"
     else
       echo "gpu_accel npu_accel"

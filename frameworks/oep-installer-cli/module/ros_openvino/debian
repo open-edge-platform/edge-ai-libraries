@@ -148,8 +148,7 @@ debian_55_install_ros_openvino () {
     ensure_apt update -y
 
     # clear any stale openvino-node debconf configuration
-    ensure_apt purge -y ros-$ros_distro-openvino-node || true
-    ensure_apt autoremove -y || true
+    ensure_apt purge --auto-remove -y ros-$ros_distro-openvino-node || true
     echo PURGE | ensure_sudo debconf-communicate ros-$ros_distro-openvino-node > /dev/null 2>&1 || true
 
     # preseed the "install OpenVINO IR models" prompt to yes (tutorials need it)
@@ -161,7 +160,7 @@ debian_55_install_ros_openvino () {
     local ov_installed
     ov_installed="$(dpkg-query -W -f='${Version}' openvino 2> /dev/null | cut -d. -f1-3)"
     if [ -n "$ov_installed" ] && [ "$ov_installed" != "$ov_version" ]; then
-      ensure_apt remove -y openvino $(dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' "*openvino*-$ov_installed" 2> /dev/null | awk '$1 == "ii" {print $2}')
+      ensure_apt purge --auto-remove -y openvino $(dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' "*openvino*-$ov_installed" 2> /dev/null | awk '$1 == "ii" {print $2}')
     fi
 
     ensure_apt install -y --allow-downgrades "openvino=$ov_version*"
@@ -178,7 +177,7 @@ debian_55_remove_ros_openvino () {
 
   configure_ros_openvino
   if verify_ros_openvino; then
-    ensure_apt autoremove -m -y ros-$ros_distro-openvino-node openvino || true
+    ensure_apt purge --auto-remove -y ros-$ros_distro-openvino-node openvino || true
     ensure_rm "$ov_key_file" "$ov_list" "$ov_pref" \
       "$amr_key_file" "$amr_list" "$amr_pref_file"
   else

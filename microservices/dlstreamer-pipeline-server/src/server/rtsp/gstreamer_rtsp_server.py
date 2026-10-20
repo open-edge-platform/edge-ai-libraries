@@ -16,8 +16,8 @@ from src.server.common.utils import logging
 from src.server.rtsp.gstreamer_rtsp_factory import GStreamerRtspFactory
 # pylint: enable=wrong-import-position
 
-Stream = namedtuple('stream', ['source', 'caps', 'overlay', 'overlay_properties'])
-Stream.__new__.__defaults__ = (None, None, True, None)
+Stream = namedtuple('stream', ['source', 'caps', 'overlay', 'overlay_properties', 'encoding'])
+Stream.__new__.__defaults__ = (None, None, True, None, 'mjpeg')
 
 class GStreamerRtspServer():
     def __init__(self, port):
@@ -40,8 +40,13 @@ class GStreamerRtspServer():
             self._logger.error("RTSP Stream at {} already exists, use different path".format(rtsp_path))
             raise Exception("RTSP Stream at {} already exists, use different path".format(rtsp_path))
 
-    def add_stream(self, identifier, rtsp_path, caps, source, overlay, overlay_properties=None):
-        self._streams[rtsp_path] = Stream(source, caps, overlay, overlay_properties)
+    def add_stream(self, identifier, rtsp_path, stream):
+        """Register a stream for the given RTSP path.
+
+        `stream` is a `Stream` namedtuple instance describing the source,
+        caps, overlay settings and encoding to mount at `rtsp_path`.
+        """
+        self._streams[rtsp_path] = stream
         self._mount_points.add_factory(rtsp_path, self._factory)
         url = "rtsp:://<host ip>:{}{}".format(self._port, rtsp_path)
         self._logger.info("Created RTSP Stream for instance {} at {}".format(identifier, url))

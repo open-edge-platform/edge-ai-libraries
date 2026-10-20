@@ -10,7 +10,11 @@ gi.require_version('Gst', '1.0')
 from gi.repository import Gst
 from src.server.common.utils import logging
 from src.server.app_destination import AppDestination
+from src.server.rtsp.gstreamer_rtsp_server import Stream
 # pylint: enable=wrong-import-position
+
+_SUPPORTED_ENCODINGS = ("mjpeg", "h264")
+
 
 class GStreamerRtspDestination(AppDestination):
 
@@ -43,15 +47,24 @@ class GStreamerRtspDestination(AppDestination):
         self._sync_with_source = request.get("sync-with-source")
         self._sync_with_destination = request.get("sync-with-destination", True)
         self._encode_quality = request.get("encode-quality", 85)
+        self._encode_bitrate = request.get("encode-bitrate", 4000000)
         self.overlay = request.get("overlay", True)
         self.overlay_properties = request.get("overlay-properties", request.get("gvawatermark", {}))
+        encoding = str(request.get("encoding", "mjpeg")).lower()
+        if encoding not in _SUPPORTED_ENCODINGS:
+            self._logger.warning(
+                "Unsupported RTSP 'encoding' value '%s', falling back to 'mjpeg'. "
+                "Supported values: %s", encoding, _SUPPORTED_ENCODINGS)
+            encoding = "mjpeg"
+        self.encoding = encoding
 
     def _init_stream(self, sample):
         self._frame_size = sample.get_buffer().get_size()
         caps = sample.get_caps()
         self._pipeline.appsink_element.props.caps = caps
         self._need_data = False
-        self._rtsp_server.add_stream(self._identifier, self._rtsp_path, caps, self, self.overlay, self.overlay_properties)
+        stream = Stream(self, caps, self.overlay, self.overlay_properties, self.encoding)
+        self._rtsp_server.add_stream(self._identifier, self._rtsp_path, stream)
         self._last_timestamp = self._clock.get_time()
         if self._sync_with_source is not None:
             self._pipeline.appsink_element.set_property("sync", self._sync_with_source)
@@ -79,6 +92,19 @@ class GStreamerRtspDestination(AppDestination):
         encoder = rtsp_pipeline.get_by_name("jpegencoder")
         if self._encode_quality and encoder:
             encoder.set_property("quality", self._encode_quality)
+        h264_encoder = rtsp_pipeline.get_by_name("h264encoder")
+        if self._encode_bitrate and h264_encoder:
+            # Only openh264enc's "bitrate" property is in bits/sec, matching
+            # the units of `encode-bitrate`. vah264enc (used for VAMemory GPU
+            # buffers) expects kbit/s, so its bitrate is left at the
+            # element's own default to avoid silently mis-configuring it.
+            factory = h264_encoder.get_factory()
+            if factory and factory.get_name() == "openh264enc":
+                h264_encoder.set_property("bitrate", self._encode_bitrate)
+            else:
+                self._logger.debug(
+                    "Skipping encode-bitrate for non-openh264enc H.264 encoder '%s'; "
+                    "using element default.", factory.get_name() if factory else "unknown")
 
     def _push_buffer(self, buffer):
         buffer.make_writable()
