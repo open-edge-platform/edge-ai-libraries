@@ -6,12 +6,10 @@
 # agent-harness-install
 
 An installer that deploys an agent harness onto Intel hardware and wires it
-to a local, OpenAI-compatible inference endpoint (tested against Intel Core
-Ultra iGPU and Arc (CRI) GPUs; degrades gracefully to CPU-only when no Intel
-GPU is present).
+to a local, OpenAI-compatible inference endpoint.
 
-This installer installs **real, independently-published open-source agent
-projects** rather than something invented for Intel:
+The installer deploys one of three open-source agent projects, each
+published independently:
 
 | Agent | Verified package |
 |---|---|
