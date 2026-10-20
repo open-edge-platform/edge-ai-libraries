@@ -10,23 +10,18 @@ ensure_ports_open () {
   fi
 
   if command -v ss > /dev/null; then
-    local port out
+    local port out stopper
     for port in $*; do
       out="$(ss -Hltunp "sport = :$port")"
       [ -n "$out" ] || continue
 
       printf "${red}port %s is occupied${reset}\n" "$port" >&2
-      local started_path="$(ensure_project_path)/${installer_name:?}/started" kpath mname
-      for kpath in $(ensure_prop find "started/*/ports"); do
-        local mname="$(echo "$kpath" | cut -f2 -d/)"
-        if [[ " $(ensure_prop get "$kpath") " = *" $port "* ]]; then
-          local stopper="${_act_cache_functions[stop_$mname]:-}"
-          if [ -n "$stopper" ]; then
-            printf "${red}Stopping $mname to release port %s${reset}\n" "$port" >&2
-            ( set -e; $stopper "$mname" -- ) >&2 || true
-            break
-          fi
-        fi
+      for mname in $(ensure_prop find "started/*/ports" | cut -f2 -d/); do
+        [[ " $(ensure_prop get started/$mname/ports) " = *" $port "* ]] || continue
+        stopper="${_act_cache_functions[stop_$mname]:-}"
+        [ -n "$stopper" ] || continue
+        printf "${red}Stopping $mname to release port %s${reset}\n" "$port" >&2
+        ( set -e; $stopper "$mname" -- ) >&2 || true
       done
 
       out="$(ss -Hltunp "sport = :$port")"
