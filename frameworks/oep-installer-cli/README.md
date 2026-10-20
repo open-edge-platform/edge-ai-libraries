@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Open Edge Platform (OEP) CLI Installer
 
 The **OEP CLI Installer** (`openedge-cli`) is a modular, self-contained shell

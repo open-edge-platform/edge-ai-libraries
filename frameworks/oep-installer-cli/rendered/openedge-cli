@@ -1970,7 +1970,7 @@ configure_autonomous_mobile_robot_device ()
 { 
     configure_autonomous_mobile_robot_slam "$1";
     ensure_apt_is_installed "$amr_slam_pkg" && return 0;
-    ensure_apt remove -y $(printf '%s\n' "${amr_slam_pkgs[@]}" | grep -v -x -F "$amr_slam_pkg");
+    ensure_apt purge --auto-remove -y $(printf '%s\n' "${amr_slam_pkgs[@]}" | grep -v -x -F "$amr_slam_pkg");
     ensure_apt install -y "$amr_slam_pkg";
     ensure_apt_is_installed "$amr_slam_pkg"
 }
@@ -2091,13 +2091,18 @@ configure_edge_pack ()
 { 
     edge_pack_repo="apt.repos.intel.com";
     edge_pack_key_url="https://$edge_pack_repo/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB";
-    edge_pack_key_file=/etc/apt/keyrings/edgepack.gpg;
+    edge_pack_key_file=/etc/apt/keyrings/intel-edge-pack.gpg;
     edge_pack_source="deb [signed-by=$edge_pack_key_file] https://$edge_pack_repo/edgepack $VERSION_CODENAME stable";
-    edge_pack_list_file=/etc/apt/sources.list.d/edgepack.list;
+    edge_pack_list_file=/etc/apt/sources.list.d/intel-edge-pack.list;
     edge_pack_pref=("Package: *" "Pin: origin $edge_pack_repo" "Pin-Priority: 1001");
     edge_pack_pref_file=/etc/apt/preferences.d/edgepack.pref;
     edge_pack_install_options=("--no-install-recommends");
-    edge_pack_allow_downgrades=(libgbm1 libgstreamer-gl1.0-0 libva-wayland2 mesa-libgallium weston)
+    edge_pack_allow_downgrades=(libgbm1 libgstreamer-gl1.0-0 libva-wayland2 mesa-libgallium weston libegl-mesa0 libgbm-dev libgl1-mesa-dev libgl1-mesa-dri libglx-mesa0 mesa-common-dev mesa-vulkan-drivers);
+    edge_pack_ppa_repo=;
+    edge_pack_ppa_key_url=;
+    edge_pack_ppa_key_file=;
+    edge_pack_ppa_source=;
+    edge_pack_ppa_list_file=
 }
 configure_edge_pack_base_realtime () 
 { 
@@ -2704,10 +2709,15 @@ configure_ros2 ()
 configure_ros2_apt_source () 
 { 
     local codename="${UBUNTU_CODENAME:-$VERSION_CODENAME}";
-    ros_apt_ver="$(ensure_fetch https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest - | grep -oE '"tag_name": *"[^"]*"' | head -n 1 | awk -F'"' '{print $4}')";
-    if [ -z "$ros_apt_ver" ]; then
-        echo "configure_ros2_apt_source: could not determine the latest ros-apt-source release" "(the GitHub API lookup returned nothing - it may be unreachable or rate-limited)." "Check network/proxy access to api.github.com and github.com and retry." 1>&2;
-        return 1;
+    local repo=ros-infrastructure/ros-apt-source;
+    local pinned_ver=1.3.0;
+    ros_apt_ver="$(curl -fsSL -o /dev/null -w '%{url_effective}' --retry 3 --retry-delay 5 "https://github.com/$repo/releases/latest" 2> /dev/null | sed -n 's|.*/releases/tag/||p')";
+    if ! [[ "$ros_apt_ver" =~ ^[0-9A-Za-z._-]+$ ]]; then
+        ros_apt_ver="$(curl -fsSL --retry 2 --retry-delay 5 "https://api.github.com/repos/$repo/releases/latest" 2> /dev/null | grep -oE '"tag_name": *"[^"]*"' | head -n 1 | awk -F'"' '{print $4}')";
+    fi;
+    if ! [[ "$ros_apt_ver" =~ ^[0-9A-Za-z._-]+$ ]]; then
+        echo "configure_ros2_apt_source: could not determine the latest ros-apt-source release" "(github.com/api.github.com unreachable or rate-limited); using pinned release $pinned_ver." 1>&2;
+        ros_apt_ver=$pinned_ver;
     fi;
     ros_deb_src="https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ros_apt_ver}/ros2-apt-source_${ros_apt_ver}.${codename}_all.deb"
 }
@@ -3048,25 +3058,6 @@ debian_15_install_debconf_utils ()
 { 
     ensure_apt_install_package debconf-utils
 }
-debian_15_install_edge_pack () 
-{ 
-    configure_edge_pack "$@";
-    local reinstall=$([[ " $* " = *" --reinstall "* ]] && echo 1 || echo 0);
-    local reconfigured=0;
-    if [ ! -e "$edge_pack_key_file" ] || [ $reinstall -eq 1 ]; then
-        ensure_apt_key "$edge_pack_key_file" "$edge_pack_key_url" --dearmor;
-        reconfigured=1;
-    fi;
-    if [ ! -e "$edge_pack_source_file" ] || [ $reinstall -eq 1 ]; then
-        ensure_apt_source "$edge_pack_list_file" "$edge_pack_source";
-        reconfigured=1;
-    fi;
-    if [ ! -e "$edge_pack_pref_file" ] || [ $reinstall -eq 1 ]; then
-        ensure_apt_preference "$edge_pack_pref_file" "${edge_pack_pref[@]}";
-        reconfigured=1;
-    fi;
-    [ $reconfigured -eq 0 ] || ensure_apt update -y
-}
 debian_15_install_gawk () 
 { 
     ensure_apt_install_package gawk
@@ -3107,10 +3098,6 @@ debian_15_install_yq ()
 { 
     ensure_apt_install_package yq
 }
-debian_15_profile_edge_pack () 
-{ 
-    echo "curl gnupg"
-}
 debian_15_profile_libze1 () 
 { 
     echo "curl"
@@ -3122,13 +3109,6 @@ debian_15_remove_cpuid ()
 debian_15_remove_debconf_utils () 
 { 
     ensure_apt_remove_package debconf-utils
-}
-debian_15_remove_edge_pack () 
-{ 
-    dpkg -l | grep -q -F intel-edge- || { 
-        configure_edge_pack "$@";
-        ensure_sudo rm -f "$edge_pack_key_file" "$edge_pack_source_file" "$edge_pack_pref_file"
-    }
 }
 debian_15_remove_jq () 
 { 
@@ -3179,6 +3159,64 @@ debian_15_sbom_yq ()
 { 
     ensure_sbom_format pkg-list yq
 }
+debian_19_install_edge_pack () 
+{ 
+    configure_edge_pack "$@";
+    local reinstall=$([[ " $* " = *" --reinstall "* ]] && echo 1 || echo 0);
+    local reconfigured=0;
+    if [ ! -e "$edge_pack_key_file" ] || [ $reinstall -eq 1 ]; then
+        ensure_apt_key "$edge_pack_key_file" "$edge_pack_key_url" --dearmor;
+        reconfigured=1;
+    fi;
+    if [ ! -e "$edge_pack_source_file" ] || [ $reinstall -eq 1 ]; then
+        ensure_apt_source "$edge_pack_list_file" "$edge_pack_source";
+        reconfigured=1;
+    fi;
+    if [ ! -e "$edge_pack_pref_file" ] || [ $reinstall -eq 1 ]; then
+        ensure_apt_preference "$edge_pack_pref_file" "${edge_pack_pref[@]}";
+        reconfigured=1;
+    fi;
+    if [ -n "$edge_pack_ppa_repo" ]; then
+        if [ ! -e "$edge_pack_ppa_key_file" ] || [ $reinstall -eq 1 ]; then
+            ensure_apt_key "$edge_pack_ppa_key_file" "$edge_pack_ppa_key_url" --dearmor;
+            reconfigured=1;
+        fi;
+        if [ ! -e "$edge_pack_ppa_source_file" ] || [ $reinstall -eq 1 ]; then
+            ensure_apt_source "$edge_pack_ppa_list_file" "$edge_pack_ppa_source";
+            reconfigured=1;
+        fi;
+    fi;
+    [ $reconfigured -eq 0 ] || ensure_apt update -y
+}
+debian_19_profile_edge_pack () 
+{ 
+    echo "curl gnupg"
+}
+debian_19_remove_edge_pack () 
+{ 
+    dpkg -l | grep -q -F intel-edge- || { 
+        configure_edge_pack "$@";
+        ensure_rm "$edge_pack_key_file" "$edge_pack_source_file" "$edge_pack_pref_file";
+        [ -z "$edge_pack_ppa_repo" ] || ensure_rm "$edge_pack_ppa_list_file" "$edge_pack_ppa_key_file"
+    }
+}
+debian_19_sbom_edge_pack_repo_entries () 
+{ 
+    if [ -n "$edge_pack_ppa_repo" ]; then
+        ensure_sbom_format gpg-key "$edge_pack_ppa_key_url";
+        ensure_sbom_format key-file "$edge_pack_ppa_key_file";
+        ensure_sbom_format apt-source "$edge_pack_ppa_source";
+        ensure_sbom_format apt-list-file "$edge_pack_ppa_list_file";
+        echo "---";
+    fi;
+    ensure_sbom_format name "$edge_pack_repo";
+    ensure_sbom_format gpg-key "$edge_pack_key_url";
+    ensure_sbom_format key-file "$edge_pack_key_file";
+    ensure_sbom_format apt-source "$edge_pack_source";
+    ensure_sbom_format apt-list-file "$edge_pack_list_file";
+    ensure_sbom_format apt-pref "${edge_pack_pref[@]}";
+    ensure_sbom_format apt-pref-file "$edge_pack_pref_file"
+}
 debian_20_group_edge_pack_base_realtime () 
 { 
     echo "render:992 video:"
@@ -3225,13 +3263,15 @@ debian_20_install_edge_pack_base_realtime ()
             echo "Falling back to the standard edge-pack base bundle (intel-edge-base-standard) instead." 1>&2;
             ensure_prop set installed/edge_pack_base_realtime/fallback true;
             debian_20_install_edge_pack_base_standard "$@";
+            [ -n "$(ensure_prop get installed/edge_pack_base_standard/owned)" ] || ensure_prop set installed/edge_pack_base_standard/owned false;
             [ -c /dev/dri/renderD128 ];
             ensure_group_add $(debian_20_group_edge_pack_base_realtime);
             echo "@@HIGHLIGHT intel-edge-base-realtime unavailable @installed intel-edge-base-standard instead";
             return 0;
         fi;
+        ensure_prop remove installed/edge_pack_base_realtime/fallback;
         ensure_prop set installed/edge_pack_base_realtime/owned true;
-        ensure_apt autoremove -y intel-edge-base-realtime || true;
+        ensure_apt purge --auto-remove -y intel-edge-base-realtime || true;
         ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*";
         ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*";
     fi;
@@ -3245,7 +3285,7 @@ debian_20_install_edge_pack_base_standard ()
         echo "intel-edge-base-standard is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_base_standard/owned true;
-        ensure_apt autoremove -y intel-edge-base-standard || true;
+        ensure_apt purge --auto-remove -y intel-edge-base-standard || true;
         ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*";
         ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*";
     fi;
@@ -3259,7 +3299,7 @@ debian_20_install_edge_pack_graphics_core ()
         echo "intel-edge-graphics-core is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_graphics_core/owned true;
-        debian_20_remove_edge_pack_graphics_core;
+        ensure_apt purge --auto-remove -y intel-edge-graphics-core || true;
         ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-graphics-core=$version*";
         ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-graphics-core=$version*";
     fi;
@@ -3273,7 +3313,7 @@ debian_20_install_edge_pack_graphics_display ()
         echo "intel-edge-graphics-display is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_graphics_display/owned true;
-        debian_20_remove_edge_pack_graphics_display;
+        ensure_apt purge --auto-remove -y intel-edge-graphics-display || true;
         ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-graphics-display=$version*";
         ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-graphics-display=$version*";
     fi;
@@ -3287,7 +3327,7 @@ debian_20_install_edge_pack_media_core ()
         echo "intel-edge-media-core is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_media_core/owned true;
-        ensure_apt autoremove -y intel-edge-media-core || true;
+        ensure_apt purge --auto-remove -y intel-edge-media-core || true;
         ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-core=$version*";
     fi
 }
@@ -3298,7 +3338,7 @@ debian_20_install_edge_pack_npu ()
         echo "intel-edge-npu is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_npu/owned true;
-        ensure_apt autoremove -y intel-edge-npu || true;
+        ensure_apt purge --auto-remove -y intel-edge-npu || true;
         ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-npu=$version*";
         ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-npu=$version*";
     fi;
@@ -3342,52 +3382,47 @@ debian_20_remove_edge_pack_base_realtime ()
 { 
     if [ "$(ensure_prop get installed/edge_pack_base_realtime/fallback)" != "true" ]; then
         [ "$(ensure_prop get installed/edge_pack_base_realtime/owned)" = "true" ] || return 0;
-        ensure_apt autoremove -y intel-edge-base-realtime || true;
-        debian_15_remove_edge_pack "$@" || true;
+        ensure_apt purge --auto-remove -y intel-edge-base-realtime || true;
+        debian_19_remove_edge_pack "$@" || true;
     else
         debian_20_remove_edge_pack_base_standard "$@";
-    fi
+    fi;
+    ensure_prop remove installed/edge_pack_base_realtime/fallback
 }
 debian_20_remove_edge_pack_base_standard () 
 { 
     [ "$(ensure_prop get installed/edge_pack_base_standard/owned)" = "true" ] || return 0;
-    ensure_apt autoremove -y intel-edge-base-standard || true;
-    debian_15_remove_edge_pack "$@" || true
+    ensure_apt purge --auto-remove -y intel-edge-base-standard || true;
+    debian_19_remove_edge_pack "$@" || true
 }
 debian_20_remove_edge_pack_graphics_core () 
 { 
     [ "$(ensure_prop get installed/edge_pack_graphics_core/owned)" = "true" ] || return 0;
-    ensure_apt autoremove -y intel-edge-graphics-core || true;
-    debian_15_remove_edge_pack "$@" || true
+    ensure_apt purge --auto-remove -y intel-edge-graphics-core || true;
+    debian_19_remove_edge_pack "$@" || true
 }
 debian_20_remove_edge_pack_graphics_display () 
 { 
     [ "$(ensure_prop get installed/edge_pack_graphics_display/owned)" = "true" ] || return 0;
-    ensure_apt autoremove -y intel-edge-graphics-display || true;
-    debian_15_remove_edge_pack "$@" || true
+    ensure_apt purge --auto-remove -y intel-edge-graphics-display || true;
+    debian_19_remove_edge_pack "$@" || true
 }
 debian_20_remove_edge_pack_media_core () 
 { 
     [ "$(ensure_prop get installed/edge_pack_media_core/owned)" = "true" ] || return 0;
-    ensure_apt autoremove -y intel-edge-media-core || true;
-    debian_15_remove_edge_pack "$@" || true
+    ensure_apt purge --auto-remove -y intel-edge-media-core || true;
+    debian_19_remove_edge_pack "$@" || true
 }
 debian_20_remove_edge_pack_npu () 
 { 
     [ "$(ensure_prop get installed/edge_pack_npu/owned)" = "true" ] || return 0;
-    ensure_apt autoremove -y intel-edge-npu || true;
-    debian_15_remove_edge_pack "$@" || true
+    ensure_apt purge --auto-remove -y intel-edge-npu || true;
+    debian_19_remove_edge_pack "$@" || true
 }
 debian_20_sbom_edge_pack_base_realtime () 
 { 
     configure_edge_pack_base_realtime "$@";
-    ensure_sbom_format name "$edge_pack_repo";
-    ensure_sbom_format gpg-key "$edge_pack_key_url";
-    ensure_sbom_format key-file "$edge_pack_key_file";
-    ensure_sbom_format apt-source "$edge_pack_source";
-    ensure_sbom_format apt-list-file "$edge_pack_list_file";
-    ensure_sbom_format apt-pref "${edge_pack_pref[@]}";
-    ensure_sbom_format apt-pref-file "$edge_pack_pref_file";
+    debian_19_sbom_edge_pack_repo_entries "$@";
     if [ "$(ensure_prop get installed/edge_pack_base_realtime/fallback)" = "true" ]; then
         ensure_sbom_format pkg-list "intel-edge-base-standard=$version*";
     else
@@ -3397,61 +3432,31 @@ debian_20_sbom_edge_pack_base_realtime ()
 debian_20_sbom_edge_pack_base_standard () 
 { 
     configure_edge_pack_base_standard "$@";
-    ensure_sbom_format name "$edge_pack_repo";
-    ensure_sbom_format gpg-key "$edge_pack_key_url";
-    ensure_sbom_format key-file "$edge_pack_key_file";
-    ensure_sbom_format apt-source "$edge_pack_source";
-    ensure_sbom_format apt-list-file "$edge_pack_list_file";
-    ensure_sbom_format apt-pref "${edge_pack_pref[@]}";
-    ensure_sbom_format apt-pref-file "$edge_pack_pref_file";
+    debian_19_sbom_edge_pack_repo_entries "$@";
     ensure_sbom_format pkg-list "intel-edge-base-standard=$version*"
 }
 debian_20_sbom_edge_pack_graphics_core () 
 { 
     configure_edge_pack_graphics_core "$@";
-    ensure_sbom_format name "$edge_pack_repo";
-    ensure_sbom_format gpg-key "$edge_pack_key_url";
-    ensure_sbom_format key-file "$edge_pack_key_file";
-    ensure_sbom_format apt-source "$edge_pack_source";
-    ensure_sbom_format apt-list-file "$edge_pack_list_file";
-    ensure_sbom_format apt-pref "${edge_pack_pref[@]}";
-    ensure_sbom_format apt-pref-file "$edge_pack_pref_file";
+    debian_19_sbom_edge_pack_repo_entries "$@";
     ensure_sbom_format pkg-list "intel-edge-graphics-core=$version*"
 }
 debian_20_sbom_edge_pack_graphics_display () 
 { 
     configure_edge_pack_graphics_display "$@";
-    ensure_sbom_format name "$edge_pack_repo";
-    ensure_sbom_format gpg-key "$edge_pack_key_url";
-    ensure_sbom_format key-file "$edge_pack_key_file";
-    ensure_sbom_format apt-source "$edge_pack_source";
-    ensure_sbom_format apt-list-file "$edge_pack_list_file";
-    ensure_sbom_format apt-pref "${edge_pack_pref[@]}";
-    ensure_sbom_format apt-pref-file "$edge_pack_pref_file";
+    debian_19_sbom_edge_pack_repo_entries "$@";
     ensure_sbom_format pkg-list "intel-edge-graphics-display=$version*"
 }
 debian_20_sbom_edge_pack_media_core () 
 { 
     configure_edge_pack_media_core "$@";
-    ensure_sbom_format name "$edge_pack_repo";
-    ensure_sbom_format gpg-key "$edge_pack_key_url";
-    ensure_sbom_format key-file "$edge_pack_key_file";
-    ensure_sbom_format apt-source "$edge_pack_source";
-    ensure_sbom_format apt-list-file "$edge_pack_list_file";
-    ensure_sbom_format apt-pref "${edge_pack_pref[@]}";
-    ensure_sbom_format apt-pref-file "$edge_pack_pref_file";
+    debian_19_sbom_edge_pack_repo_entries "$@";
     ensure_sbom_format pkg-list "intel-edge-media-core=$version*"
 }
 debian_20_sbom_edge_pack_npu () 
 { 
     configure_edge_pack_npu "$@";
-    ensure_sbom_format name "$edge_pack_repo";
-    ensure_sbom_format gpg-key "$edge_pack_key_url";
-    ensure_sbom_format key-file "$edge_pack_key_file";
-    ensure_sbom_format apt-source "$edge_pack_source";
-    ensure_sbom_format apt-list-file "$edge_pack_list_file";
-    ensure_sbom_format apt-pref "${edge_pack_pref[@]}";
-    ensure_sbom_format apt-pref-file "$edge_pack_pref_file";
+    debian_19_sbom_edge_pack_repo_entries "$@";
     ensure_sbom_format pkg-list "intel-edge-npu=$version*"
 }
 debian_29_install_reboot () 
@@ -3699,7 +3704,7 @@ debian_30_remove_kernel_module_essential ()
         [ "$(ensure_prop get installed/kernel_module_essential/owned_$p)" = "true" ] || continue;
         pkgs+=($p);
     done;
-    [ ${#pkgs[@]} -eq 0 ] || ensure_apt autoremove -y "${pkgs[@]}"
+    [ ${#pkgs[@]} -eq 0 ] || ensure_apt purge --auto-remove -y "${pkgs[@]}"
 }
 debian_30_remove_make () 
 { 
@@ -3911,7 +3916,7 @@ debian_40_remove_gpu_accel ()
 { 
     [ "$(ensure_prop get installed/gpu_accel/owned)" = "true" ] || return 0;
     configure_gpu_accel "$@";
-    ensure_apt autoremove -m -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || true;
+    ensure_apt purge --auto-remove -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || true;
     ensure_apt_source_remove https://repositories.intel.com/gpu;
     ensure_rm /usr/share/keyrings/intel-gpu-archive-keyring.gpg "$key_file" "$apt_file"
 }
@@ -3925,7 +3930,7 @@ debian_40_remove_npu_accel ()
 { 
     [ "$(ensure_prop get installed/npu_accel/owned)" = "true" ] || return 0;
     configure_npu_accel "$@";
-    ensure_apt autoremove -m -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true;
+    ensure_apt purge --auto-remove -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true;
     ensure_rm "$workspace"
 }
 debian_40_remove_pcm () 
@@ -4087,8 +4092,8 @@ debian_50_remove_ros2 ()
     [ "$(ensure_prop get installed/ros2/owned)" = "true" ] || return 0;
     configure_ros2;
     if verify_ros2; then
-        ensure_apt autoremove -m -y ros-$ros_distro-desktop ros-dev-tools || true;
-        ensure_apt purge -y ros2-apt-source || true;
+        ensure_apt purge --auto-remove -y ros-$ros_distro-desktop ros-dev-tools || true;
+        ensure_apt purge --auto-remove -y ros2-apt-source || true;
         [ ! -w ~/.bashrc ] || sed -i "\|^source /opt/ros/$ros_distro/setup.bash\$|d" ~/.bashrc;
     else
         echo "ROS 2 already removed. Skipping";
@@ -4135,14 +4140,13 @@ debian_55_install_ros_openvino ()
         ensure_apt_source $ov_list "$ov_deb_entry";
         ensure_apt_preference $ov_pref "${ov_deb_pref[@]}";
         ensure_apt update -y;
-        ensure_apt purge -y ros-$ros_distro-openvino-node || true;
-        ensure_apt autoremove -y || true;
+        ensure_apt purge --auto-remove -y ros-$ros_distro-openvino-node || true;
         echo PURGE | ensure_sudo debconf-communicate ros-$ros_distro-openvino-node > /dev/null 2>&1 || true;
         echo "ros-$ros_distro-openvino-node ros-$ros_distro-openvino-node/install_models boolean true" | ensure_sudo debconf-set-selections > /dev/null 2>&1 || true;
         local ov_installed;
         ov_installed="$(dpkg-query -W -f='${Version}' openvino 2> /dev/null | cut -d. -f1-3)";
         if [ -n "$ov_installed" ] && [ "$ov_installed" != "$ov_version" ]; then
-            ensure_apt remove -y openvino $(dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' "*openvino*-$ov_installed" 2> /dev/null | awk '$1 == "ii" {print $2}');
+            ensure_apt purge --auto-remove -y openvino $(dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' "*openvino*-$ov_installed" 2> /dev/null | awk '$1 == "ii" {print $2}');
         fi;
         ensure_apt install -y --allow-downgrades "openvino=$ov_version*";
         ensure_apt install -y ros-$ros_distro-openvino-node;
@@ -4152,7 +4156,7 @@ debian_55_install_ros_openvino ()
 }
 debian_55_profile_realsense () 
 { 
-    echo "curl gnupg"
+    echo "curl gnupg ros2"
 }
 debian_55_profile_ros_openvino () 
 { 
@@ -4164,7 +4168,7 @@ debian_55_remove_realsense ()
     [ "$(ensure_prop get installed/realsense/owned)" = "true" ] || return 0;
     configure_realsense;
     if verify_realsense; then
-        ensure_apt autoremove -m -y librealsense2 librealsense2-dkms ros-$ros_distro-librealsense2 || true;
+        ensure_apt purge --auto-remove -y librealsense2 librealsense2-dkms ros-$ros_distro-librealsense2 || true;
         ensure_rm "$rs_key_file" "$rs_list";
     else
         echo "RealSense SDK already removed. Skipping";
@@ -4175,7 +4179,7 @@ debian_55_remove_ros_openvino ()
     [ "$(ensure_prop get installed/ros_openvino/owned)" = "true" ] || return 0;
     configure_ros_openvino;
     if verify_ros_openvino; then
-        ensure_apt autoremove -m -y ros-$ros_distro-openvino-node openvino || true;
+        ensure_apt purge --auto-remove -y ros-$ros_distro-openvino-node openvino || true;
         ensure_rm "$ov_key_file" "$ov_list" "$ov_pref" "$amr_key_file" "$amr_list" "$amr_pref_file";
     else
         echo "ROS 2 OpenVINO toolkit already removed. Skipping";
@@ -4264,7 +4268,7 @@ debian_70_install_edge_pack_media_ffmpeg ()
         echo "intel-edge-media-ffmpeg is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_media_ffmpeg/owned true;
-        ensure_apt autoremove -y intel-edge-media-ffmpeg || true;
+        ensure_apt purge --auto-remove -y intel-edge-media-ffmpeg || true;
         ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-ffmpeg=$version*";
     fi
 }
@@ -4275,7 +4279,7 @@ debian_70_install_edge_pack_media_gst ()
         echo "intel-edge-media-gst is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_media_gst/owned true;
-        ensure_apt autoremove -y intel-edge-media-gst || true;
+        ensure_apt purge --auto-remove -y intel-edge-media-gst || true;
         ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-gst=$version*";
     fi
 }
@@ -4356,14 +4360,14 @@ debian_70_profile_time_confighub ()
 debian_70_remove_edge_pack_media_ffmpeg () 
 { 
     [ "$(ensure_prop get installed/edge_pack_media_ffmpeg/owned)" = "true" ] || return 0;
-    ensure_apt autoremove -y intel-edge-media-ffmpeg || true;
-    debian_15_remove_edge_pack "$@" || true
+    ensure_apt purge --auto-remove -y intel-edge-media-ffmpeg || true;
+    debian_19_remove_edge_pack "$@" || true
 }
 debian_70_remove_edge_pack_media_gst () 
 { 
     [ "$(ensure_prop get installed/edge_pack_media_gst/owned)" = "true" ] || return 0;
-    ensure_apt autoremove -y intel-edge-media-gst || true;
-    debian_15_remove_edge_pack "$@" || true
+    ensure_apt purge --auto-remove -y intel-edge-media-gst || true;
+    debian_19_remove_edge_pack "$@" || true
 }
 debian_70_remove_ffmpeg () 
 { 
@@ -4380,7 +4384,7 @@ debian_70_remove_nodejs ()
 debian_70_remove_openvino () 
 { 
     [ "$(ensure_prop get installed/openvino/owned)" = "true" ] || return 0;
-    ensure_apt autoremove -m -y $(dpkg -l | grep openvino | awk '{print$2}') || true
+    ensure_apt purge --auto-remove -y $(dpkg -l | grep openvino | awk '{print$2}') || true
 }
 debian_70_remove_time_confighub () 
 { 
@@ -4391,25 +4395,13 @@ debian_70_remove_time_confighub ()
 debian_70_sbom_edge_pack_media_ffmpeg () 
 { 
     configure_edge_pack_media_ffmpeg "$@";
-    ensure_sbom_format name "$edge_pack_repo";
-    ensure_sbom_format gpg-key "$edge_pack_key_url";
-    ensure_sbom_format key-file "$edge_pack_key_file";
-    ensure_sbom_format apt-source "$edge_pack_source";
-    ensure_sbom_format apt-list-file "$edge_pack_list_file";
-    ensure_sbom_format apt-pref "${edge_pack_pref[@]}";
-    ensure_sbom_format apt-pref-file "$edge_pack_pref_file";
+    debian_19_sbom_edge_pack_repo_entries "$@";
     ensure_sbom_format pkg-list "intel-edge-media-ffmpeg=$version*"
 }
 debian_70_sbom_edge_pack_media_gst () 
 { 
     configure_edge_pack_media_gst "$@";
-    ensure_sbom_format name "$edge_pack_repo";
-    ensure_sbom_format gpg-key "$edge_pack_key_url";
-    ensure_sbom_format key-file "$edge_pack_key_file";
-    ensure_sbom_format apt-source "$edge_pack_source";
-    ensure_sbom_format apt-list-file "$edge_pack_list_file";
-    ensure_sbom_format apt-pref "${edge_pack_pref[@]}";
-    ensure_sbom_format apt-pref-file "$edge_pack_pref_file";
+    debian_19_sbom_edge_pack_repo_entries "$@";
     ensure_sbom_format pkg-list "intel-edge-media-gst=$version*"
 }
 debian_70_sbom_ffmpeg () 
@@ -4460,7 +4452,7 @@ debian_75_remove_dlstreamer ()
 { 
     configure_dlstreamer;
     [ "$(ensure_prop get installed/dlstreamer/owned)" = "true" ] || return 0;
-    ensure_apt autoremove -m -y $(dpkg-query -l | awk '/^ii/&&/dlstreamer/{print$2}') || true;
+    ensure_apt purge --auto-remove -y $(dpkg-query -l | awk '/^ii/&&/dlstreamer/{print$2}') || true;
     ensure_rm "$workspace"
 }
 debian_75_sbom_dlstreamer () 
@@ -5490,7 +5482,7 @@ debian_90_profile_edge_base_robotics ()
         ;;
         *)
             echo "ros2 ros_openvino realsense";
-            if [[ " $* " = *" --realtime "* ]]; then
+            if [[ " $* " = *" --realtime "* ]] && [[ "$(uname -r)" = "7."* ]]; then
                 echo "core_types pre_system_scan edge_pack_base_realtime edge_pack_npu";
             else
                 echo "edge_base";
@@ -5637,7 +5629,7 @@ debian_90_remove_autonomous_mobile_robot ()
     [ "$(ensure_prop get installed/autonomous_mobile_robot/owned)" = "true" ] || return 0;
     configure_autonomous_mobile_robot;
     if ensure_apt_is_installed ros-$ros_distro-robotics-sdk || ensure_apt_is_installed ros-$ros_distro-robotics-sdk-complete; then
-        ensure_apt autoremove -m -y ros-$ros_distro-robotics-sdk ros-$ros_distro-robotics-sdk-complete "${amr_slam_pkgs[@]}" || true;
+        ensure_apt purge --auto-remove -y ros-$ros_distro-robotics-sdk ros-$ros_distro-robotics-sdk-complete "${amr_slam_pkgs[@]}" || true;
         verify_robotics_in_use_ros_openvino || remove_osrf_gazebo_ros2;
         remove_oneapi_ros_openvino;
     else
@@ -5792,7 +5784,7 @@ debian_90_remove_stationary_robot_vision ()
     [ "$(ensure_prop get installed/stationary_robot_vision/owned)" = "true" ] || return 0;
     configure_stationary_robot_vision;
     if ensure_apt_is_installed ros-$ros_distro-rvc-simulation || ensure_apt_is_installed ros-$ros_distro-rvc; then
-        ensure_apt autoremove -m -y ros-$ros_distro-rvc-simulation ros-$ros_distro-rvc ros-$ros_distro-robot-config ros-$ros_distro-robot-config-plugins || true;
+        ensure_apt purge --auto-remove -y ros-$ros_distro-rvc-simulation ros-$ros_distro-rvc ros-$ros_distro-robot-config ros-$ros_distro-robot-config-plugins || true;
         verify_robotics_in_use_ros_openvino || remove_osrf_gazebo_ros2;
         remove_oneapi_ros_openvino;
     else
@@ -6160,12 +6152,31 @@ debian_90_start_physical_ai_studio ()
         return 3;
     fi;
     mkdir -p "$pais_run_dir";
-    setsid nohup "$pais_bin" serve --port "$pais_port" > "$pais_log_file" 2>&1 < /dev/null & echo $! > "$pais_pid_file";
-    sleep 3;
-    if ! kill -0 "$(cat "$pais_pid_file")" > /dev/null 2>&1; then
-        echo "Physical AI Studio exited during startup. See $pais_log_file" 1>&2;
-        rm -f "$pais_pid_file";
-        return 3;
+    ( set +e;
+    for fd in /proc/$BASHPID/fd/*;
+    do
+        fd=${fd##*/};
+        (( fd > 2 )) && eval "exec $fd>&-";
+    done 2> /dev/null;
+    exec setsid nohup "$pais_bin" serve --port "$pais_port" > "$pais_log_file" 2>&1 < /dev/null ) & echo $! > "$pais_pid_file";
+    disown $! 2> /dev/null || true;
+    local pid i ready=0;
+    pid="$(cat "$pais_pid_file")";
+    for i in $(seq 1 60);
+    do
+        if ! kill -0 "$pid" > /dev/null 2>&1; then
+            echo "Physical AI Studio exited during startup. See $pais_log_file" 1>&2;
+            rm -f "$pais_pid_file";
+            return 3;
+        fi;
+        curl -s -o /dev/null --max-time 2 "http://127.0.0.1:$pais_port/" && { 
+            ready=1;
+            break
+        };
+        sleep 2;
+    done;
+    if [ $ready -eq 0 ]; then
+        echo "Physical AI Studio did not respond on port $pais_port yet. See $pais_log_file" 1>&2;
     fi;
     echo "@@HIGHLIGHT Physical AI Studio started (PID $(cat "$pais_pid_file"))";
     echo "@@HIGHLIGHT URL: http://localhost:$pais_port";
@@ -6644,7 +6655,7 @@ debian_99_profile_edge_base ()
         ;;
         *)
             echo "core_types pre_system_scan";
-            if [[ " $* " = *" --edgepack "* ]]; then
+            if [[ " $* " = *" --edgepack "* ]] && [[ "$(uname -r)" = "7."* ]]; then
                 echo "edge_pack_base_standard edge_pack_npu";
             else
                 echo "gpu_accel npu_accel";
@@ -7075,19 +7086,22 @@ ensure_osrf_gazebo_ros2 ()
 }
 ensure_ports_open () 
 { 
-    local ports="$1";
+    local ports="$1" out;
     shift;
     for port in $ports;
     do
-        if command -v lsof > /dev/null; then
-            ensure_sudo lsof -nP -i TCP:$port -s TCP:LISTEN || continue;
+        if command -v ss > /dev/null; then
+            out="$(ss -Hltn "sport = :$port")" || continue;
+            [ -n "$out" ] || continue;
+            printf "${red}port %s occupied${reset}\n%s\n" "$port" "$out" 1>&2;
             "$@" || true;
-            ensure_sudo lsof -nP -i TCP:$port -s TCP:LISTEN || continue;
+            [ -n "$(ss -Hltn "sport = :$port")" ] || continue;
         else
-            if command -v ss > /dev/null; then
-                [ -n "$(ensure_sudo ss -Hltn "sport = :$port")" ] || continue;
+            if command -v lsof > /dev/null; then
+                ensure_sudo lsof -nP -i TCP:$port -s TCP:LISTEN || continue;
+                printf "${red}port %s occupied${reset}\n" "$port" 1>&2;
                 "$@" || true;
-                [ -n "$(ensure_sudo ss -Hltn "sport = :$port")" ] || continue;
+                ensure_sudo lsof -nP -i TCP:$port -s TCP:LISTEN || continue;
             else
                 echo "Missing ss or lsof" 1>&2;
                 return 1;
@@ -7632,11 +7646,8 @@ system_scan_check_docker ()
 }
 system_scan_check_membank () 
 { 
-    local dmi_out="$(ensure_prop get installed/pre_system_scan/membank)";
-    [ -n "$dmi_out" ] || { 
-        dmi_out="$(ensure_sudo dmidecode -t memory 2> /dev/null)";
-        [ -z "$dmi_out" ] || ensure_prop set installed/pre_system_scan/membank "$dmi_out"
-    };
+    local dmi_out;
+    dmi_out="$(ensure_sudo dmidecode -t memory 2> /dev/null)" || return 0;
     local installed_modules=();
     mapfile -t installed_modules < <(echo "$dmi_out" | awk -v in_dev=0 '
     /^Memory Device$/ {
@@ -7663,7 +7674,7 @@ system_scan_check_membank ()
     local populated_count=${#installed_modules[@]};
     if [[ ${populated_count} -eq 0 ]]; then
         echo "Not detected";
-        return;
+        return 0;
     fi;
     local channels=() mod;
     for mod in "${installed_modules[@]}";
@@ -7745,7 +7756,9 @@ system_scan_summary_report ()
     system_summary="$(system_scan_get_system_summary)";
     echo "System|$system_summary";
     pass=$ok;
-    membank_info="$(system_scan_check_membank)";
+    membank_info="$(ensure_prop get installed/pre_system_scan/membank)";
+    [ -n "$membank_info" ] || membank_info="$(system_scan_check_membank)";
+    [ -z "$membank_info" ] || ensure_prop set installed/pre_system_scan/membank "$membank_info";
     [ "$membank_info" = "DUAL/MULTI-CHANNELS" ] || pass="${nok/MSG/Check Memory}";
     echo -e "RAM|$membank_info|$pass";
     [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT RAM|$membank_info|$pass" 1>&2;
