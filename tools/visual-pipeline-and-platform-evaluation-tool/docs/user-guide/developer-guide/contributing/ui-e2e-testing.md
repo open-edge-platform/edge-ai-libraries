@@ -205,10 +205,10 @@ When you connect through Remote-SSH, install the extension **on the
 remote host**, not on the local VS Code:
 
 1. Open Extensions (`Ctrl+Shift+X`).
-2. Search for `Playwright Test for VSCode`.
-3. Click **Install in SSH: `<host>`** (not the plain **Install**
+1. Search for `Playwright Test for VSCode`.
+1. Click **Install in SSH: `<host>`** (not the plain **Install**
    button).
-4. Reload the window (`Ctrl+Shift+P` → `Developer: Reload Window`).
+1. Reload the window (`Ctrl+Shift+P` → `Developer: Reload Window`).
 
 ### Point it at the ViPPET config
 
@@ -258,13 +258,13 @@ running.` The workflow is:
     npm run test:e2e -- --project=chromium --trace=on
     ```
 
-2. Open the HTML report:
+1. Open the HTML report:
 
     ```bash
     npx playwright show-report
     ```
 
-3. Click the failing test → **Trace** tab. You get a time-travel timeline
+1. Click the failing test → **Trace** tab. You get a time-travel timeline
    of DOM snapshots, actions, network and console — the same information
    the Electron-based UI Mode shows.
 

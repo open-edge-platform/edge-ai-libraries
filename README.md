@@ -77,7 +77,7 @@ and high-performance inference on edge devices.
   Toolkit for optimizing and deploying AI inference, offering performance boost
   on Intel CPU, GPU, and NPU devices.
 
-- [OpenVINO Training Extensions](https://github.com/open-edge-platform/training_extensions) 
+- [OpenVINO Training Extensions](https://github.com/open-edge-platform/training_extensions)
   & [Model API](https://github.com/open-edge-platform/model_api)
 
   A set of advanced algorithms for model training and conversion.
@@ -118,12 +118,12 @@ indexing, and audio analysis.
   & [Deep Learning Streamer Pipeline Server](./microservices/dlstreamer-pipeline-server)
 
   Streaming AI pipeline builder with scalable server for media
-  inferencing. 
+  inferencing.
 
 - [Audio Analyzer](./microservices/audio-analyzer)
 
   Microservices providing real-time audio transcription and
-  intelligence extraction. 
+  intelligence extraction.
 
 - [Multimodal Embedding](./microservices/multimodal-embedding-serving)
 
@@ -153,26 +153,26 @@ indexing, and audio analysis.
 
 Efficient data management and retrieval are crucial for AI performance
 and scalability. This group offers components for dataset curation,
-vector search, and document ingestion across multimodal data. 
+vector search, and document ingestion across multimodal data.
 
 - [Vector Retriever (Milvus)](./microservices/visual-data-preparation-for-retrieval/milvus)
   & [Visual Data Preparation (Milvus and Multimodal-dataprep)](./microservices/visual-data-preparation-for-retrieval/multimodal-dataprep)
 
-  High-performance vector similarity search and visual data indexing. 
+  High-performance vector similarity search and visual data indexing.
 
 - [Model Download](./microservices/model-download)
   & [Document Ingestion](./microservices/document-ingestion/pgvector)
 
   Model Download downloads AI models from external sources, converts
   them to the OpenVINO™ Intermediate Representation (IR) format with optional optimization,
-  and caches them locally. Document Ingestion prepares documents for AI workflows. 
+  and caches them locally. Document Ingestion prepares documents for AI workflows.
 
 - [Video Chunking Utils](./libraries/video-chunking-utils)
 
   Splits/segments video streams into chunks, supporting batch and
   pipeline-based analytics.
 
-### Benchmarking Tools 
+### Benchmarking Tools
 
 These support tools provide visual pipeline evaluation and performance
 benchmarking to help analyze AI workloads and industrial
@@ -180,11 +180,11 @@ environments effectively.
 
 - [Visual Pipeline and Platform Evaluation Tool](./tools/visual-pipeline-and-platform-evaluation-tool)
 
-  Benchmark and analyze AI pipeline performance on various edge platforms. 
+  Benchmark and analyze AI pipeline performance on various edge platforms.
 
 - [PLCopen Benchmark](./sample-applications/plcopen-benchmark)
 
-  Compliance and performance testing toolkit for motion control. 
+  Compliance and performance testing toolkit for motion control.
 
 - [Edge AI Sizing Tool](https://github.com/open-edge-platform/edge-ai-sizing-tool)
 
@@ -203,30 +203,31 @@ environments effectively.
 
 Focused on real-time industrial automation, motion control, and fieldbus
 communication, these components provide reliable, standards-compliant
-building blocks for manufacturing and factory automation applications. 
+building blocks for manufacturing and factory automation applications.
 
 - [ECAT EnableKit](./libraries/edge-control-libraries/fieldbus/ecat-enablekit)
   & [EtherCAT Masterstack](./libraries/edge-control-libraries/fieldbus/ethercat-masterstack)
 
-  EtherCAT communication protocol stack and development tools. 
+  EtherCAT communication protocol stack and development tools.
 
 - [PLCopen Servo](./libraries/edge-control-libraries/plcopen-motion-control/plcopen-servo)
   and
   [RTmotion](./libraries/edge-control-libraries/plcopen-motion-control/plcopen-motion)
 
   Libraries implementing motion control standards for servo drives
-  and real-time trajectory management. 
+  and real-time trajectory management.
 
 - [PLCopen Databus](./sample-applications/plcopen-databus)
 
-  Tools for data communication in automation networks. 
+  Tools for data communication in automation networks.
 
 - [Real-time Data Agent](./libraries/edge-control-libraries/rt-data-agent)
 
   Microservice for collecting, processing, and distributing
   real-time sensor and industrial device data; supports both edge
   analytics and integration with operational systems.
-     
+
+
 ### Robotics Libraries
 
 Optimized libraries for robotic perception, localization, mapping,
@@ -262,24 +263,24 @@ advanced robotic workloads at the edge.
 ### Sample Applications and Reference Implementations
 
 Ready-to-use example applications demonstrating real-world AI use cases
-to help users get started quickly and understand integration patterns: 
+to help users get started quickly and understand integration patterns:
 
-- [Chat Question and Answer Core](./sample-applications/chat-question-and-answer-core) 
+- [Chat Question and Answer Core](./sample-applications/chat-question-and-answer-core)
 
   Conversational AI application integrating retrieval-augmented
   generation for question answering.Optimized for Intel(R) Core.
 
-- [Document Summarization](./sample-applications/document-summarization) 
+- [Document Summarization](./sample-applications/document-summarization)
 
-  AI pipeline for automated summarization of textual documents. 
+  AI pipeline for automated summarization of textual documents.
 
-- [Video Search and Summarization](./sample-applications/video-search-and-summarization) 
+- [Video Search and Summarization](./sample-applications/video-search-and-summarization)
 
   Application combining video content analysis with search and
   summarization capabilities. 🧪 Now with experimental support for
-  Intel Arc Pro B-series GPUs (B60, B65, B70). 
+  Intel Arc Pro B-series GPUs (B60, B65, B70).
 
-- [Edge Developer Kit Reference Scripts](https://github.com/open-edge-platform/edge-developer-kit-reference-scripts) 
+- [Edge Developer Kit Reference Scripts](https://github.com/open-edge-platform/edge-developer-kit-reference-scripts)
 
   Automate the setup of edge AI development environments using these
   proven reference scripts. Quickly install required drivers,
@@ -297,7 +298,8 @@ to help users get started quickly and understand integration patterns: 
 > - [Education AI Suite](https://github.com/open-edge-platform/education-ai-suite)
 > - [Health and Life Sciences AI Suite](https://github.com/open-edge-platform/health-and-life-sciences-ai-suite)
 > - [Federal and Aerospace AI Suite](https://github.com/open-edge-platform/federal-and-aerospace-ai-suite)
-     
+
+
 ### Edge Analytics Microservices
 
 Specialized microservices delivering machine learning-powered
@@ -328,7 +330,6 @@ architectures.
 
   Framework for Intel® platform enablement and streamlining
   edge AI application deployment across heterogeneous device platforms.
-
 
 ## AI Agent Skills
 

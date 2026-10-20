@@ -79,20 +79,20 @@ wget https://raw.githubusercontent.com/open-edge-platform/edge-ai-resources/main
 ### Step 2. Upload the UDF package
 
 1. Open **[http://localhost:5000/docs](http://localhost:5000/docs)** in a browser.
-2. Navigate to **POST /udfs/package**.
-3. Click **Try it out**.
-4. Under **Choose File**, select the downloaded `wind-turbine-anomaly-detection.tar` file.
+1. Navigate to **POST /udfs/package**.
+1. Click **Try it out**.
+1. Under **Choose File**, select the downloaded `wind-turbine-anomaly-detection.tar` file.
   ![UDF Upload Diagram](../../_assets/udf_upload.png)
-5. Click **Execute**.
+1. Click **Execute**.
 
 A successful response returns the message: `UDF deployment package 'wind-turbine-anomaly-detection.tar' uploaded successfully.`
 
 ### Step 3. Apply the configuration
 
 1. Open **[http://localhost:5000/docs](http://localhost:5000/docs)** in a browser.
-2. Navigate to **POST /config**.
-3. Click **Try it out**.
-4. In the **Request Body** field, paste the following configuration:
+1. Navigate to **POST /config**.
+1. Click **Try it out**.
+1. In the **Request Body** field, paste the following configuration:
 
 ```json
 {

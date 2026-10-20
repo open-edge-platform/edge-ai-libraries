@@ -19,7 +19,7 @@ MD025:
   # Ignore the front matter title.  Pages still need a top level header (#).
   front_matter_title: ""
 MD029:
-  style: ordered
+  style: one
 MD033:
   allowed_elements:
     - ref  # allow hugo relative reference links
