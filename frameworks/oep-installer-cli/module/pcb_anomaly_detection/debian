@@ -3,7 +3,7 @@ configure_pcb_anomaly_detection () {
   workspace="$(ensure_project_path)/pcb-anomaly-detection"
   version=release-2026.2.0
   repository="https://github.com/open-edge-platform/manufacturing-ai-suite.git"
-  used_ports=(80 443)
+  used_ports=(80 443 3478 8000)
 }
 
 verify_pcb_anomaly_detection () {
