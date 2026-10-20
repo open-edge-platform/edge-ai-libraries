@@ -34,7 +34,7 @@ configure_autonomous_mobile_robot_device () {
   configure_autonomous_mobile_robot_slam "$1"
   ensure_apt_is_installed "$amr_slam_pkg" && return 0
 
-  ensure_apt remove -y $(printf '%s\n' "${amr_slam_pkgs[@]}" | grep -v -x -F "$amr_slam_pkg")
+  ensure_apt purge --auto-remove -y $(printf '%s\n' "${amr_slam_pkgs[@]}" | grep -v -x -F "$amr_slam_pkg")
   ensure_apt install -y "$amr_slam_pkg"
   ensure_apt_is_installed "$amr_slam_pkg"
 }
@@ -92,7 +92,7 @@ debian_90_remove_autonomous_mobile_robot () {
 
   configure_autonomous_mobile_robot
   if ensure_apt_is_installed ros-$ros_distro-robotics-sdk || ensure_apt_is_installed ros-$ros_distro-robotics-sdk-complete; then
-    ensure_apt autoremove -m -y \
+    ensure_apt purge --auto-remove -y \
       ros-$ros_distro-robotics-sdk ros-$ros_distro-robotics-sdk-complete "${amr_slam_pkgs[@]}" || true
     verify_robotics_in_use_ros_openvino || remove_osrf_gazebo_ros2
     remove_oneapi_ros_openvino

@@ -1,31 +1,36 @@
 {
   "profile": {
     "label": "Retail AI Suite",
-    "value": "retail_ai_suite"
+    "value": "retail_ai_suite",
+    "supports": { "OP_SYSTEM": ["UBUNTU_24_04", "UBUNTU_26_04"] }
   },
   "modules": [
     {
       "label": "Loss Prevention",
       "value": "loss_prevention",
       "startStop": true, 
+      "remove": true,
       "options": ["--gpu", "--cpu", "--npu"]
     },
     {
       "label": "Order Accuracy - Dine In",
       "value": "dine_in",
       "startStop": true, 
+      "remove": true,
       "options": ["--gpu", "--cpu", "--npu"]
     },
     {
       "label": "Order Accuracy - Take Away",
       "value": "take_away",
       "startStop": true, 
+      "remove": true,
       "options": ["--gpu", "--cpu", "--npu"]
     },
     {
       "label": "Voice Enabled Interactions - Smart Kiosk Assistant",
       "value": "smart_kiosk_assistant",
       "startStop": true, 
+      "remove": true,
       "options": ["--gpu", "--cpu", "--npu"]
     }
   ],

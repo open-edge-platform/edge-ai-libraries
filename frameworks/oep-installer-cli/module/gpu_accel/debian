@@ -62,7 +62,7 @@ debian_40_remove_gpu_accel () {
   [ "$(ensure_prop get installed/gpu_accel/owned)" = "true" ] || return 0
 
   configure_gpu_accel "$@"
-  ensure_apt autoremove -m -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || true
+  ensure_apt purge --auto-remove -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || true
   # Remove legacy/conflicting apt sources and keyrings for the Intel GPU repo.
   # Older installer versions wrote /etc/apt/sources.list.d/intel-gpu.list using the
   # intel-gpu-archive-keyring.gpg keyring. Because that entry points at the same

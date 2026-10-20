@@ -62,7 +62,7 @@ debian_75_install_dlstreamer () {
 debian_75_remove_dlstreamer () {
   configure_dlstreamer
   [ "$(ensure_prop get installed/dlstreamer/owned)" = "true" ] || return 0
-  ensure_apt autoremove -m -y $(dpkg-query -l | awk '/^ii/&&/dlstreamer/{print$2}') || true
+  ensure_apt purge --auto-remove -y $(dpkg-query -l | awk '/^ii/&&/dlstreamer/{print$2}') || true
   ensure_rm "$workspace"
 }
 
