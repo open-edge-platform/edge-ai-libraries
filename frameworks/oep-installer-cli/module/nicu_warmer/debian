@@ -50,10 +50,10 @@ debian_90_install_nicu_warmer () {
   if verify_nicu_warmer && [[ " $* " != *" --reinstall "* ]]; then
     echo "NICU Warmer is installed." >&2
   else
-    ensure_ports_open "${used_ports[*]}" return 3
+    ensure_disk_size 15000
+    ensure_ports_open install nicu_warmer "${used_ports[@]}"
 
     # clone the repository
-    ensure_disk_size 15000
     ensure_git_clone "$workspace" $version $repository NICU-Warmer
 
     # configure and optimization
@@ -87,7 +87,7 @@ debian_90_install_nicu_warmer () {
 
 debian_90_start_nicu_warmer () {
   configure_nicu_warmer "$@"
-  ensure_ports_open "${used_ports[*]}" debian_90_stop_nicu_warmer
+  ensure_ports_open start nicu_warmer "${used_ports[@]}"
 
   local device=$(ensure_select_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_nicu_warmer_device "$device"

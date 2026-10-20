@@ -3,6 +3,7 @@ configure_vippet () {
   workspace="$(ensure_project_path)/vippet"
   version=release-2026.2.0
   repository=https://github.com/open-edge-platform/edge-ai-libraries.git
+  used_ports=(80 7860 8000 9090 8554 8889)
 }
 
 verify_vippet () {
@@ -18,6 +19,7 @@ debian_90_install_vippet () {
   if verify_vippet && [[ " $* " != *" --reinstall "* ]]; then
     echo "Vipet is installed." >&2
   else
+    ensure_ports_open install vippet "${used_ports[@]}"
     ensure_git_clone "$workspace" $version $repository tools/visual-pipeline-and-platform-evaluation-tool
     cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool"
     make build-onvif-discovery
@@ -26,8 +28,9 @@ debian_90_install_vippet () {
 }
 
 debian_90_start_vippet () {
-  ensure_ports_open "80 7860 8000 9090 8554 8889" debian_90_stop_vippet
   configure_vippet
+  ensure_ports_open start vippet "${used_ports[@]}"
+
   cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool"
   make run
   echo "@@HIGHLIGHT URL: http://$(ensure_ip)"
@@ -35,8 +38,7 @@ debian_90_start_vippet () {
 
 debian_90_stop_vippet () {
   configure_vippet
-  cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool"
-  make stop || true
+  cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool" && make stop || true
 }
 
 debian_90_remove_vippet () {

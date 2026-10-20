@@ -26,9 +26,10 @@ debian_90_install_pcb_anomaly_detection () {
   if verify_pcb_anomaly_detection && [[ " $* " != *" --reinstall "* ]]; then
     echo "PCB anomaly detection is installed." >&2
   else
-    ensure_ports_open "${used_ports[*]}" return 3
-    # clone the repository
     ensure_disk_size 10000
+    ensure_ports_open install pcb_anomaly_detection "${used_ports[@]}"
+
+    # clone the repository
     ensure_git_export "$workspace" $version $repository industrial-edge-insights-vision
 
     # setup
@@ -60,7 +61,7 @@ EOF
 
 debian_90_start_pcb_anomaly_detection () {
   configure_pcb_anomaly_detection
-  ensure_ports_open "${used_ports[*]}" debian_90_stop_pcb_anomaly_detection
+  ensure_ports_open start pcb_anomaly_detection "${used_ports[@]}"
 
   local device=$(ensure_select_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || echo "_$device" > "$workspace"/.device

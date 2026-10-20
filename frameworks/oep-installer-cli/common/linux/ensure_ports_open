@@ -1,25 +1,44 @@
 
 # ensure ports are open
 ensure_ports_open () {
-  local ports="$1" out; shift
-  for port in $ports; do
-    if command -v ss > /dev/null; then
-      out="$(ss -Hltn "sport = :$port")" || continue
+  local act_name="${1:?}"
+  local name="${2:?}"
+  shift 2
+
+  if [ "$act_name" = "start" ]; then
+    # record my port usage
+    ensure_prop set started/$name/ports " $* "
+  fi
+
+  if command -v ss > /dev/null; then
+    local port out
+    for port in $*; do
+      out="$(ss -Hltunp "sport = :$port")"
       [ -n "$out" ] || continue
-      printf "${red}port %s occupied${reset}\n%s\n" "$port" "$out" >&2
-      "$@" || true
-      [ -n "$(ss -Hltn "sport = :$port")" ] || continue
-    elif command -v lsof > /dev/null; then
-      ensure_sudo lsof -nP -i TCP:$port -s TCP:LISTEN || continue
-      printf "${red}port %s occupied${reset}\n" "$port" >&2
-      "$@" || true
-      ensure_sudo lsof -nP -i TCP:$port -s TCP:LISTEN || continue
-    else
-      echo "Missing ss or lsof" 1>&2
-      return 1
-    fi
-    echo "TCP port $port is occupied" 1>&2
-    return 3
-  done
+
+      printf "${red}port %s is occupied${reset}\n" "$port" >&2
+      local started_path="$(ensure_project_path)/${installer_name:?}/started" kpath mname
+      for kpath in $(ensure_prop find "started/*/ports"); do
+        local mname="$(echo "$kpath" | cut -f2 -d/)"
+        if [[ " $(ensure_prop get "$kpath") " = *" $port "* ]]; then
+          local stopper="${_act_cache_functions[stop_$mname]:-}"
+          if [ -n "$stopper" ]; then
+            printf "${red}Stopping $mname to release port %s${reset}\n" "$port" >&2
+            ( set -e; $stopper "$mname" -- ) >&2 || true
+            break
+          fi
+        fi
+      done
+
+      out="$(ss -Hltunp "sport = :$port")"
+      [ -n "$out" ] || continue
+
+      printf "${red}port %s is occupied${reset}\n%s\n" "$port" "$out" >&2
+      return 3
+    done
+  else
+    printf "${red}Missing ss on the system${reset}\n" >&2
+    return 1
+  fi
 }
 

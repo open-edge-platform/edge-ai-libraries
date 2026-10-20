@@ -15,9 +15,9 @@ install_geti () {
   if verify_geti && [[ " $* " != *" --reinstall "* ]]; then
     echo "Geti is installed." >&2
   else
-    ensure_ports_open "$port" docker rm -f geti-app || true
-    ensure_ports_open "$port" return 3
     ensure_disk_size 20000
+    ensure_ports_open install geti "$port"
+
     #ensure_ram_size 16777216 # 16 GiB
     docker pull $image_name
   fi
@@ -25,7 +25,7 @@ install_geti () {
 
 start_geti () {
   configure_geti "$@"
-  ensure_ports_open "$port" stop_geti
+  ensure_ports_open start geti "$port"
 
   mkdir -p "$workspace"/geti-data
   docker run --rm --name geti-app -d \

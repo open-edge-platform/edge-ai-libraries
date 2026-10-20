@@ -38,10 +38,10 @@ debian_90_install_live_video_search () {
   if verify_live_video_search && [[ " $* " != *" --reinstall "* ]]; then
     echo "Live Video Search is installed." >&2
   else
-    ensure_ports_open "${used_ports[*]}" return 3
+    ensure_disk_size 25000
+    ensure_ports_open install live_video_search "${used_ports[@]}"
 
     # clone the repository
-    ensure_disk_size 25000
     ensure_git_clone "$workspace" $version $repository live-video-analysis/live-video-search
     verify_live_video_search
   fi
@@ -55,7 +55,7 @@ debian_90_install_live_video_search () {
 
 debian_90_start_live_video_search () {
   configure_live_video_search
-  ensure_ports_open "${used_ports[*]}" debian_90_stop_live_video_search
+  ensure_ports_open start live_video_search "${used_ports[@]}"
 
   local device=$(ensure_select_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_search_device "$device"

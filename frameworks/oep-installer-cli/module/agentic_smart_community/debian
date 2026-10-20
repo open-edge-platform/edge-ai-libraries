@@ -32,9 +32,9 @@ debian_90_install_agentic_smart_community () {
   if verify_agentic_smart_community && [[ " $* " != *" --reinstall "* ]]; then
     echo "Agentic Smart Community is installed." 1>&2
   else
-    ensure_ports_open "${used_ports[*]}" return 3
     ensure_disk_size 2000
     ensure_ram_size 65011712 33554432 # 62 GiB and 32 GiB
+    ensure_ports_open install agentic_smart_community "${used_ports[@]}"
 
     ensure_git_export "$workspace" "$version" "$repository" agentic-smart-community
     mkdir -p "${mlvu_workspace%/*}"
@@ -49,7 +49,7 @@ debian_90_install_agentic_smart_community () {
 
 debian_90_start_agentic_smart_community () {
   configure_agentic_smart_community
-  ensure_ports_open "${used_ports[*]}" debian_90_stop_agentic_smart_community "$@"
+  ensure_ports_open start agentic_smart_community "${used_ports[@]}"
 
   cd "$workspace"/agentic-smart-community
   bash setup_docker.sh
