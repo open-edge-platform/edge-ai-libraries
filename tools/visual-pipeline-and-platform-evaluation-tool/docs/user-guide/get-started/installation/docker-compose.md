@@ -55,7 +55,7 @@ For alternative ways to set up the sample application, refer to
    cd tools/visual-pipeline-and-platform-evaluation-tool
    ```
 
-2. Pull the pre-built images and start the application:
+1. Pull the pre-built images and start the application:
 
    ```bash
    make run-prebuilt
@@ -75,18 +75,18 @@ For alternative ways to set up the sample application, refer to
    `make run-prebuilt` never builds images from source: if an image cannot be pulled, the command fails.
    `make run` is the build-from-source path, see [Build from Source](./build-from-source.md).
 
-3. Verify that the application is running:
+1. Verify that the application is running:
 
    ```bash
    docker compose ps
    ```
 
-4. Access the application:
+1. Access the application:
 
    Open a browser and navigate to `http://localhost` (or `http://<HOST-IP>`) to access
    the Visual Pipeline and Platform Evaluation Tool UI.
 
-5. Access the application API documentation:
+1. Access the application API documentation:
 
    Open a browser and navigate to `http://localhost/api/v1/docs` (or `http://<HOST-IP>/api/v1/docs`)
    to access the Swagger UI.
