@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { Info } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import {
   type ChartConfig,
@@ -8,6 +9,11 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 export interface MetricDataPoint {
@@ -27,6 +33,8 @@ export interface MetricChartProps {
   yAxisDomain?: [number, number];
   showLegend?: boolean;
   labels?: string[];
+  titleTooltip?: { label: string; description: string }[];
+  tooltipOnlyMetrics?: { dataKey: string; label: string }[];
   maxDataPoints?: number;
   isSummary?: boolean;
   hideSummaryBorder?: boolean;
@@ -45,6 +53,8 @@ export const MetricChart = ({
   yAxisDomain = [0, 100],
   showLegend = true,
   labels,
+  titleTooltip,
+  tooltipOnlyMetrics,
   maxDataPoints = 60,
   isSummary = false,
   hideSummaryBorder = false,
@@ -143,20 +153,50 @@ export const MetricChart = ({
       )}
     >
       {hasTitle && (
-        <h3
+        <div
           className={cn(
-            useDemoStyles
-              ? "text-[0.625rem] font-semibold uppercase tracking-widest"
-              : "text-sm font-medium text-foreground mb-5",
+            "flex items-start justify-between gap-2",
+            !useDemoStyles && "mb-5",
             useDemoStyles && (isCompact ? "mb-6" : "mb-10"),
-            useDemoStyles &&
-              (isSummary && !hideSummaryBorder
-                ? summaryTitleClassName
-                : "text-muted-foreground"),
           )}
         >
-          {title}
-        </h3>
+          <h3
+            className={cn(
+              useDemoStyles
+                ? "text-[0.625rem] font-semibold uppercase tracking-widest"
+                : "text-sm font-medium text-foreground",
+              useDemoStyles &&
+                (isSummary && !hideSummaryBorder
+                  ? summaryTitleClassName
+                  : "text-muted-foreground"),
+            )}
+          >
+            {title}
+          </h3>
+          {titleTooltip && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="About VLM latency metrics"
+                  className="shrink-0 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <Info className="size-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" align="end" className="max-w-sm">
+                <div className="space-y-1.5">
+                  {titleTooltip.map((metric) => (
+                    <p key={metric.label}>
+                      <span className="font-semibold">{metric.label}:</span>{" "}
+                      {metric.description}
+                    </p>
+                  ))}
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </div>
       )}
       <div className="relative">
         <ChartContainer
@@ -206,7 +246,54 @@ export const MetricChart = ({
                     const seconds = parseInt(value as string);
                     return `Time: ${formatTime(seconds)}`;
                   }}
-                  formatter={(value, name) => {
+                  formatter={(value, name, _item, _index, point) => {
+                    if (tooltipOnlyMetrics?.length) {
+                      const metrics = [
+                        {
+                          dataKey: String(name),
+                          label: chartConfig[String(name)]?.label || name,
+                          color: colors[dataKeys.indexOf(String(name))],
+                          value,
+                        },
+                        ...tooltipOnlyMetrics.map((metric) => ({
+                          ...metric,
+                          value: point[metric.dataKey],
+                        })),
+                      ];
+
+                      return (
+                        <div className="grid gap-1.5">
+                          {metrics.map((metric) => (
+                            <div
+                              key={metric.dataKey}
+                              className="flex items-center justify-between gap-3"
+                            >
+                              <span className="flex items-center gap-2">
+                                <span
+                                  aria-hidden="true"
+                                  className={cn(
+                                    "h-2 w-2 shrink-0",
+                                    metric.color
+                                      ? "rounded-[0.125rem]"
+                                      : "invisible",
+                                  )}
+                                  style={
+                                    metric.color
+                                      ? { backgroundColor: metric.color }
+                                      : undefined
+                                  }
+                                />
+                                <span>{metric.label}</span>
+                              </span>
+                              <span className="font-mono font-medium tabular-nums">
+                                {Number(metric.value).toFixed(2)} {unit}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    }
+
                     const label = chartConfig[name as string]?.label || name;
                     return `${label}: ${Number(value).toFixed(2)} ${unit}`;
                   }}
