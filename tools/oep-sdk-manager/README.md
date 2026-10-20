@@ -17,9 +17,8 @@ access. Install ShellCheck to include shell linting; CI requires it.
 The link suite checks the selector's external URLs and requires network access.
 Installers are not executed by either suite.
 
-Current download links continue to use their working upstream location until
-the new upstream files are published. Release-specific downloads stay pinned to
-their original release branches.
+Current download links use `edge-ai-libraries/tools/oep-sdk-manager/scripts/`.
+Release-specific downloads stay pinned to their original release branches.
 
 ## Overview
 

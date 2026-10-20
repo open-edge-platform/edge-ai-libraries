@@ -28,7 +28,7 @@ Verify that your development environment meets the following specifications:
 Execute the automated installation script to configure the complete development environment:
 
 ```bash
-curl -fsS https://raw.githubusercontent.com/open-edge-platform/metro-ai-suite/refs/heads/main/metro-sdk-manager/scripts/uav-mission-compute-sdk.sh | bash
+curl -fsS https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/oep-sdk-manager/scripts/uav-mission-compute-sdk.sh | bash
 ```
 
 ![UAV Mission Compute SDK Installation](images/uav-script-start.png)

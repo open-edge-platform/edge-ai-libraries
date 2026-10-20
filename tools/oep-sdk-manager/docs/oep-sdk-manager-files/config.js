@@ -403,7 +403,7 @@ const CONFIG = {
             OP_SYSTEM: "UBUNTU",
             VERSION: "latest"
           },
-          text: `curl -fsS https://raw.githubusercontent.com/open-edge-platform/metro-ai-suite/refs/heads/main/metro-sdk-manager/scripts/oep-vision-ai-sdk.sh | bash`
+          text: `curl -fsS https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/oep-sdk-manager/scripts/oep-vision-ai-sdk.sh | bash`
         },
 
         {
@@ -412,7 +412,7 @@ const CONFIG = {
             OP_SYSTEM: "UBUNTU",
             VERSION: "latest"
           },
-          text: `curl -fsS https://raw.githubusercontent.com/open-edge-platform/metro-ai-suite/refs/heads/main/metro-sdk-manager/scripts/oep-gen-ai-sdk.sh | bash`
+          text: `curl -fsS https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/oep-sdk-manager/scripts/oep-gen-ai-sdk.sh | bash`
         },
 
         {
@@ -421,7 +421,7 @@ const CONFIG = {
             OP_SYSTEM: "UBUNTU",
             VERSION: "latest"
           },
-          text: `curl -fsS https://raw.githubusercontent.com/open-edge-platform/metro-ai-suite/refs/heads/main/metro-sdk-manager/scripts/visual-ai-demo-kit.sh | bash`
+          text: `curl -fsS https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/oep-sdk-manager/scripts/visual-ai-demo-kit.sh | bash`
         },
         {
           when: {
@@ -437,7 +437,7 @@ const CONFIG = {
             OP_SYSTEM: "UBUNTU",
             VERSION: "latest"
           },
-          text: `curl -fsS https://raw.githubusercontent.com/open-edge-platform/metro-ai-suite/refs/heads/main/metro-sdk-manager/scripts/uav-mission-compute-sdk.sh | bash`
+          text: `curl -fsS https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/oep-sdk-manager/scripts/uav-mission-compute-sdk.sh | bash`
         }
 
       ]
