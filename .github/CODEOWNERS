@@ -132,6 +132,10 @@ README.md           @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 # Tools
 # ============================================================================
 
+/tools/oep-sdk-manager/                                      @vagheshp @rranjan3 @xwu2intel
+/tools/oep-sdk-manager/docs/                                 @vagheshp @rranjan3 @xwu2intel @open-edge-platform/open-edge-platform-docs-write
+/tools/oep-sdk-manager/README.md                             @vagheshp @rranjan3 @xwu2intel @open-edge-platform/open-edge-platform-docs-write
+
 # the main folder lacks codeowners, needs resolution
 # /tools/npu-monitor-tool/
 

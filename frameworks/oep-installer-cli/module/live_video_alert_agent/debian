@@ -42,10 +42,10 @@ debian_90_install_live_video_alert_agent () {
   if verify_live_video_alert_agent && [[ " $* " != *" --reinstall "* ]]; then
     echo "Live Video Alert Agent is installed." >&2
   else
-    ensure_ports_open "${used_ports[*]}" return 3
+    ensure_disk_size 15000
+    ensure_ports_open install live_video_alert_agent "${used_ports[@]}"
 
     # clone the repository
-    ensure_disk_size 15000
     ensure_git_clone "$workspace" $version $repository live-video-analysis/live-video-alert-agent
     verify_live_video_alert_agent
   fi
@@ -60,7 +60,7 @@ debian_90_install_live_video_alert_agent () {
 
 debian_90_start_live_video_alert_agent () {
   configure_live_video_alert_agent
-  ensure_ports_open "${used_ports[*]}" debian_90_stop_live_video_alert_agent
+  ensure_ports_open start live_video_alert_agent "${used_ports[@]}"
 
   local device=$(ensure_select_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_alert_agent_device "${device^^}"
