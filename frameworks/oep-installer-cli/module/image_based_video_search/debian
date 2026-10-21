@@ -31,10 +31,10 @@ debian_90_install_image_based_video_search () {
   if verify_image_based_video_search && [[ " $* " != *" --reinstall "* ]]; then
     echo "Video Search and Summarization is installed." >&2
   else
-    ensure_ports_open "${used_ports[*]}" return 3
+    ensure_disk_size 8000
+    ensure_ports_open install image_based_video_search "${used_ports[@]}"
 
     # clone the repository
-    ensure_disk_size 8000
     ensure_git_export "$workspace" $version $repository image-based-video-search
 
     # download models
@@ -76,7 +76,7 @@ EOF
 
 debian_90_start_image_based_video_search () {
   configure_image_based_video_search "$@"
-  ensure_ports_open "${used_ports[*]}" debian_90_stop_image_based_video_search "$@"
+  ensure_ports_open start image_based_video_search "${used_ports[@]}"
 
   cd "$workspace"/image-based-video-search
   docker compose up -d

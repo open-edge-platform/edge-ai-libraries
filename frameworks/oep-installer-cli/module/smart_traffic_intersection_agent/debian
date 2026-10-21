@@ -25,7 +25,7 @@ debian_90_install_smart_traffic_intersection_agent () {
   else
     ensure_disk_size 16000
     ensure_ram_size 52428800 # 50GiB
-    ensure_ports_open "${used_ports[*]}" return 3
+    ensure_ports_open install smart_traffic_intersection_agent "${used_ports[@]}"
 
     ensure_git_export "$workspace" "$version" "$repository" smart-traffic-intersection-agent
     
@@ -48,7 +48,7 @@ debian_90_install_smart_traffic_intersection_agent () {
 
 debian_90_start_smart_traffic_intersection_agent () {
   configure_smart_traffic_intersection_agent "$@"
-  ensure_ports_open "${used_ports[*]}" debian_90_stop_smart_traffic_intersection_agent "$@"
+  ensure_ports_open start smart_traffic_intersection_agent "${used_ports[@]}"
 
   [ ! -r "$workspace"/.device ] || set -- "$@" "$(< "$workspace"/.device)"
   local device=$(ensure_select_device "$@")

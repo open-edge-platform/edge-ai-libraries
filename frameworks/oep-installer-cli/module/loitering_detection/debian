@@ -27,10 +27,10 @@ debian_90_install_loitering_detection () {
   if verify_loitering_detection && [[ " $* " != *" --reinstall "* ]]; then
     echo "Loitering detection is installed." >&2
   else
-    ensure_ports_open "${used_ports[*]}" return 3
+    ensure_disk_size 10000
+    ensure_ports_open install loitering_detection "${used_ports[@]}"
 
     # clone the repository
-    ensure_disk_size 10000
     ensure_git_export "$workspace" $version $repository metro-vision-ai-app-recipe
 
     # setup
@@ -50,7 +50,7 @@ debian_90_install_loitering_detection () {
 
 debian_90_start_loitering_detection () {
   configure_loitering_detection
-  ensure_ports_open "${used_ports[*]}" debian_90_stop_loitering_detection
+  ensure_ports_open start loitering_detection "${used_ports[@]}"
 
   local device=$(ensure_select_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || echo "$device" > "$workspace"/.device

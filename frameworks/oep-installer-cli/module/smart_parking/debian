@@ -36,10 +36,10 @@ debian_90_install_smart_parking () {
   if verify_smart_parking && [[ " $* " != *" --reinstall "* ]]; then
     echo "Smart parking is installed." >&2
   else
-    ensure_ports_open "${used_ports[*]}" return 3
+    ensure_disk_size 300
+    ensure_ports_open install smart_parking "${used_ports[@]}"
 
     # clone the repository
-    ensure_disk_size 300
     ensure_git_export "$workspace" $version $repository metro-vision-ai-app-recipe
 
     # setup
@@ -60,7 +60,7 @@ debian_90_install_smart_parking () {
 
 debian_90_start_smart_parking () {
   configure_smart_parking
-  ensure_ports_open "${used_ports[*]}" debian_90_stop_smart_parking "$@"
+  ensure_ports_open start smart_parking "${used_ports[@]}"
 
   local device=$(ensure_select_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || echo "$device" > "$workspace"/.device

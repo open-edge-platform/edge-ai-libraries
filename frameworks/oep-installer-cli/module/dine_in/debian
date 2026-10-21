@@ -34,9 +34,10 @@ debian_90_install_dine_in () {
   if verify_dine_in && [[ " $* " != *" --reinstall "* ]]; then
     echo "Order accuracy is installed." >&2
   else 
-    ensure_ports_open "${ports[*]}" return 3
-    # clone the repository
     ensure_disk_size 45000
+    ensure_ports_open install dine_in "${ports[@]}"
+
+    # clone the repository
     ensure_git_clone "$workspace" $version $repository
 
     # initialize .env
@@ -65,7 +66,7 @@ debian_90_install_dine_in () {
 
 debian_90_start_dine_in () {
   configure_dine_in "$@"
-  ensure_ports_open "${ports[*]}" debian_90_stop_dine_in "$@"
+  ensure_ports_open start dine_in "${ports[@]}"
 
   local device=$(ensure_select_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_dine_in_device "${device^^}"

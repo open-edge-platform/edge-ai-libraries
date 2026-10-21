@@ -62,6 +62,8 @@ debian_90_install_physical_ai_studio () {
     echo "Physical AI Studio is installed." >&2
   else
     ensure_disk_size 20000
+    ensure_ports_open install physical_ai_studio "$pais_port"
+
     debian_90_stop_physical_ai_studio "$@" || true
     ensure_rm "$pais_device_file"
     echo "Installing ${pais_pkg}[${pais_extra}]==${pais_version} (PyTorch ${pais_extra} build; this may take a while)..."
@@ -87,7 +89,7 @@ debian_90_install_physical_ai_studio () {
 debian_90_start_physical_ai_studio () {
   configure_physical_ai_studio
   # stop any instance already holding the port before starting a new one
-  ensure_ports_open "$pais_port" debian_90_stop_physical_ai_studio "$@"
+  ensure_ports_open start physical_ai_studio "$pais_port"
 
   if [ ! -x "$pais_bin" ]; then
     echo "Physical AI Studio is not installed. Run 'install physical_ai_studio' first." 1>&2
