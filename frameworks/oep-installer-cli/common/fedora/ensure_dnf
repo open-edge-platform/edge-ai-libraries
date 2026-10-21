@@ -13,7 +13,7 @@ ensure_dnf_is_installed () {
     local pkg_name="${pkg%%=*}" pkg_ver="${pkg#*=}" matched=0 versions vr
 
     versions=$(rpm -q --qf '%{VERSION}-%{RELEASE}\n' "$pkg_name" 2>/dev/null) || return 1
-    [ -n "$pkg_ver" ] || continue
+    [[ "$pkg" = *=* ]] && [ -n "$pkg_ver" ] || continue
 
     while IFS= read -r vr; do
       # Unquoted $pattern on the right of == is a glob match
@@ -25,15 +25,6 @@ ensure_dnf_is_installed () {
 
     [ $matched -eq 1 ] || return 1
   done
-}
-
-# install simple package
-ensure_dnf_install_package () {
-  if ensure_dnf_is_installed "${@%%"*"}"; then
-    echo "${*%%=*} is/are already installed. Skipping..."
-  else
-    ensure_dnf install "$@"
-  fi
 }
 
 # enable epel

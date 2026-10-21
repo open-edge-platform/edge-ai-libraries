@@ -43,7 +43,7 @@ act_expand_modules () {
     [ -z "${seen[$n]:-}" ] || continue
     seen[$n]=1
     local p="${_act_cache_functions[profile_$n]:-}"
-    [ -n "$p" ] && q+=($($p $act_name "${@:3}"))
+    [ -n "$p" ] && q+=($($p $act_name $(act_extract_args $act_name $n "${q[*]}" "${@:3}")))
   done
   echo "${!seen[*]}"
 }
@@ -188,6 +188,8 @@ act_helper () {
     local rc=0 order=0
     local installer_state=""
     ensure_tmpdir create installer_state states /dev/shm
+    export _INSTALLER_PANEL_ACTIVE=
+    [ -t 1 ] && export _INSTALLER_PANEL_ACTIVE=1
     {
       for handler in $(echo "${handles[*]}" | tr ' ' '\n' | sort $sort_options); do
         local name1=${handler#*_*_*_}
@@ -234,7 +236,12 @@ act_helper () {
       mkdir -p "$(dirname "$LOG_FILE")"
       echo "========== $(date -Ins) ==========" >> "$LOG_FILE"
       echo "@@COMMAND $act_name $*" >> "$LOG_FILE"
-      act_panelled_logs ${act_text//,/ }
+
+      if [ -n "$_INSTALLER_PANEL_ACTIVE" ]; then
+        act_panelled_logs ${act_text//,/ }
+      else
+        tee -a "$LOG_FILE"
+      fi
     ) 2>&1
     # wait for background processes
     wait
