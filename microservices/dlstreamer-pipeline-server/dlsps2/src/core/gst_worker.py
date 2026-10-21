@@ -341,8 +341,14 @@ class GstWorker:
         def _on_message(_bus, message):
             mtype = message.type
             if mtype == Gst.MessageType.ERROR:
-                err, _debug = message.parse_error()
-                _emit({"instance_id": instance_id, "event": "error", "reason": err.message})
+                err, debug = message.parse_error()
+                _emit({
+                    "instance_id": instance_id,
+                    "event": "error",
+                    "reason": err.message,
+                    "source": message.src.get_name() if message.src else None,
+                    "debug": debug,
+                })
                 self._teardown_async(instance_id)
             elif mtype == Gst.MessageType.EOS:
                 _emit({"instance_id": instance_id, "event": "eos"})
@@ -473,7 +479,8 @@ class GstWorker:
 def main() -> int:
     handler = logging.StreamHandler(sys.stderr)
     handler.setFormatter(_JsonLogFormatter())
-    logging.basicConfig(level=logging.INFO, handlers=[handler])
+    level = getattr(logging, os.environ.get("APP_LOG_LEVEL", "INFO").upper(), logging.INFO)
+    logging.basicConfig(level=level, handlers=[handler])
     worker = GstWorker()
     return worker.run()
 

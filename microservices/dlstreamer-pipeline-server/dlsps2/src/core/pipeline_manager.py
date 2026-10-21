@@ -503,8 +503,12 @@ class PipelineManager:
             if instance.restart_config and instance.restart_config.get("enabled"):
                 self._attempt_restart(instance)
         elif evt == "error":
+            reason = event.get("reason")
+            source = event.get("source")
+            if reason and source:
+                reason = f"{reason} (element: {source})"
             with self._lock:
-                instance.error = event.get("reason") or instance.error
+                instance.error = reason or instance.error
                 # Some failures (e.g. Gst.parse_launch() raising before the
                 # pipeline is ever registered with gst_worker) are terminal
                 # and never followed by a "stopped" event, since there is no
@@ -518,7 +522,9 @@ class PipelineManager:
                 ):
                     instance.state = PipelineState.ERROR
                     instance.stop_time = time.time()
-            logger.error("Pipeline %s error: %s", instance_id, event.get("reason"))
+            logger.error("Pipeline %s error: %s", instance_id, reason)
+            if event.get("debug"):
+                logger.error("Pipeline %s error debug: %s", instance_id, event["debug"])
             self._worker_pool.untrack_pipeline(instance_id, instance.cpu_cores)
             if instance.restart_config and instance.restart_config.get("enabled"):
                 self._attempt_restart(instance)
