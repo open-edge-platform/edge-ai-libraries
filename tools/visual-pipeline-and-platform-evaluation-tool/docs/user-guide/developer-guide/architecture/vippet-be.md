@@ -75,12 +75,12 @@ state.
 A typical request flows through these stages:
 
 1. The UI calls `/api/v1/...` (nginx proxies API calls to the backend on port 7860).
-2. FastAPI validates the body and path / query parameters against Pydantic models.
-3. The route handler delegates to a manager. Managers hold state and own all business rules.
-4. For long-running or media-bound work (optimization, validation, density / performance tests), the manager
+1. FastAPI validates the body and path / query parameters against Pydantic models.
+1. The route handler delegates to a manager. Managers hold state and own all business rules.
+1. For long-running or media-bound work (optimization, validation, density / performance tests), the manager
 submits a job and returns a `job_id`. The actual execution happens in a worker thread that drives one or more
 subprocess-based runs of `gst_runner.py`.
-5. The UI polls the corresponding `/jobs/...` endpoint or subscribes to the SSE metrics stream for progress.
+1. The UI polls the corresponding `/jobs/...` endpoint or subscribes to the SSE metrics stream for progress.
 
 ### Pipelines and Variants
 
