@@ -6,7 +6,7 @@
 
 Base URL: `http://localhost:8000` (default; configurable via `EMBEDDING_SERVER_PORT`).
 
-All endpoints return JSON. The `POST /embeddings` endpoint accepts a JSON body describing the input modality and returns a vector embedding.
+All endpoints return JSON. The `POST /embeddings` endpoint accepts a JSON body describing the input modality and returns a vector embedding. `POST /v1/embeddings` is an OpenAI-compatible text endpoint for clients that speak the OpenAI embeddings API.
 
 ## `GET /health`
 
@@ -48,9 +48,10 @@ List all available models and their configurations.
           "MarketaJu": ["siglip2-person-description-reid"],
           "SigLIP": ["siglip2-vit-b-16", "siglip2-vit-l-16", "siglip2-so400m-patch16-384"],
           "Blip2": ["blip2_transformers"],
-          "QwenText": ["qwen3-embedding-0.6b", "qwen3-embedding-4b", "qwen3-embedding-8b"]
+          "QwenText": ["qwen3-embedding-0.6b", "qwen3-embedding-4b", "qwen3-embedding-8b"],
+          "GME": ["gme-qwen2-vl-2b-instruct"]
       },
-      "total_models": 20
+      "total_models": 21
   }
   ```
 
@@ -92,9 +93,12 @@ Returns the supported input modalities of the currently loaded model.
       "modalities": ["text", "image"],
       "supports_text": true,
       "supports_image": true,
-      "supports_video": false
+      "supports_video": false,
+      "supports_fused": false
   }
   ```
+
+  `supports_fused` is `true` only for models that embed an image together with its text (`GME/gme-qwen2-vl-2b-instruct`); only those accept the `fused` input type.
 
 - 503 Service Unavailable:
 
@@ -281,6 +285,35 @@ The `segment_config` dictionary controls how frames are extracted from video inp
 
 Priority order when multiple keys are set: `frame_indexes` > `extraction_fps` > `num_frames`.
 
+#### Fused Image + Text (`type: "fused"`)
+
+Embeds each (text, image) pair jointly into one vector, for example a figure together with its caption. Only available when `/model/capabilities` reports `supports_fused: true`; other models return 400.
+
+```json
+{
+    "type": "fused",
+    "items": [
+        {
+            "text": "Figure 3: throughput under different loads",
+            "image": {"type": "image_base64", "image_base64": "<base64 image>"}
+        },
+        {
+            "text": "System architecture",
+            "image": {"type": "image_url", "image_url": "https://example.com/figure.png"}
+        }
+    ]
+}
+```
+
+| Field                 | Required | Description                                                                                  |
+| --------------------- | -------- | -------------------------------------------------------------------------------------------- |
+| `type`                | Yes      | `"fused"`                                                                                     |
+| `items`               | Yes      | Non-empty list of pairs; one embedding per item, in order.                                    |
+| `items[].text`        | Yes      | The text, used as given (no template, no trimming).                                           |
+| `items[].image`       | Yes      | Exactly one of `{"type": "image_base64", "image_base64": ...}` (plain or data URL) or `{"type": "image_url", "image_url": ...}`. |
+
+URLs go through the same checks as `image_url` inputs: only public `http`/`https` hosts are fetched. Unknown fields, a missing text or image, or an image object that carries both forms are rejected with 422. The response is always two-dimensional (`[items, dim]`), also for a single item.
+
 #### Frames Batch (`type: "frames_batch"`)
 
 Embed pre-extracted frames described by a manifest JSON file. The manifest must conform to the `FramesManifest` schema — a list of `FrameInfo` objects each with `frame_number`, `timestamp`, `image_path`, and `type` fields.
@@ -307,7 +340,7 @@ Embed pre-extracted frames described by a manifest JSON file. The manifest must 
   }
   ```
 
-  Video inputs (`video_frames`, `video_url`, `video_base64`, `video_file`, `frames_batch`) return one embedding per extracted frame:
+  Video inputs (`video_frames`, `video_url`, `video_base64`, `video_file`, `frames_batch`) return one embedding per extracted frame, and `fused` inputs one embedding per item:
 
   ```json
   {
@@ -400,6 +433,74 @@ curl -X POST http://localhost:8000/embeddings \
     },
     "encoding_format": "float"
   }'
+```
+
+**Fused image + text embedding (GME):**
+
+```bash
+curl -X POST http://localhost:8000/embeddings \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "GME/gme-qwen2-vl-2b-instruct",
+    "input": {
+      "type": "fused",
+      "items": [{"text": "A photo of a cat", "image": {"type": "image_url", "image_url": "https://example.com/cat.jpg"}}]
+    }
+  }'
+```
+
+## `POST /v1/embeddings`
+
+OpenAI-compatible text embeddings. OpenAI-style clients can use the service as a remote embedding endpoint by pointing their base URL at `http://<host>:<port>/v1`. Examples include the `openai` Python package and LlamaIndex `OpenAIEmbedding`. The Data Intelligence Engine's `openai_compatible` embedding backend is one such client.
+
+**Request Body:**
+
+```json
+{
+    "model": "GME/gme-qwen2-vl-2b-instruct",
+    "input": ["first document", "second document"],
+    "encoding_format": "float"
+}
+```
+
+| Field             | Required | Description |
+| ----------------- | -------- | ----------- |
+| `model`           | Yes      | The loaded model, by registered ID, alias (for example `Alibaba-NLP/gme-Qwen2-VL-2B-Instruct`), or bare name. Any other model returns 400. |
+| `input`           | Yes      | A string or a non-empty list of strings. Token arrays are not accepted. |
+| `encoding_format` | No       | `float` (default) or `base64`, which is little-endian float32 as OpenAI clients expect. The `openai` package requests `base64` by default. |
+| `dimensions`      | No       | Accepted only if it equals the model's dimension; there is no truncation. |
+| `user`            | No       | Ignored. |
+
+Every input is embedded as a document (`embed_documents`), because the OpenAI protocol does not distinguish queries from documents. For GME the query and document sides use the same prompt, so this gives the same vectors as `POST /embeddings`. Use `POST /embeddings` for image, video and fused inputs.
+
+**Response:**
+
+- 200 OK:
+
+  ```json
+  {
+      "object": "list",
+      "data": [
+          {"object": "embedding", "index": 0, "embedding": [0.021, -0.134, "..."]},
+          {"object": "embedding", "index": 1, "embedding": [0.011, -0.201, "..."]}
+      ],
+      "model": "GME/gme-qwen2-vl-2b-instruct",
+      "usage": {"prompt_tokens": 0, "total_tokens": 0}
+  }
+  ```
+
+  `usage` is not tracked and is always 0.
+
+- 400 Bad Request: model mismatch, unsupported `dimensions`, or a model without text support.
+- 422 Unprocessable Entity: empty or non-string input, or an unknown `encoding_format`.
+- 503 Service Unavailable: model not yet initialized.
+
+**Example:**
+
+```bash
+curl -X POST http://localhost:8000/v1/embeddings \
+  -H "Content-Type: application/json" \
+  -d '{"model": "GME/gme-qwen2-vl-2b-instruct", "input": ["A photo of a cat"]}'
 ```
 
 ## Interactive API Documentation

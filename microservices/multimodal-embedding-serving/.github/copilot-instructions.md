@@ -40,7 +40,8 @@ consumable two ways: as a **REST service** (prebuilt
 
 | Method | Path | Purpose |
 |---|---|---|
-| POST | `/embeddings` | Embed text / image / video (typed `input` union) |
+| POST | `/embeddings` | Embed text / image / video / fused image+text (typed `input` union) |
+| POST | `/v1/embeddings` | OpenAI-compatible text embeddings (`data[].embedding`) |
 | GET | `/models` | All available model ids by family |
 | GET | `/model/current` | Loaded model + device + OpenVINO flag |
 | GET | `/model/capabilities` | Modalities the loaded model supports |
@@ -50,7 +51,8 @@ consumable two ways: as a **REST service** (prebuilt
 
 CLIP (×4), CN-CLIP (×3, Chinese+English), MobileCLIP (×5), SigLIP (×3),
 Blip2 (`Blip2/blip2_transformers`), QwenText (×3, `Qwen/Qwen3-Embedding-*`,
-**text-only**). Model ids are `Family/name`, e.g. `CLIP/clip-vit-b-16`. Always
+**text-only**), GME (`GME/gme-qwen2-vl-2b-instruct`, OpenVINO-only,
+text/image/video frames + fused image+text). Model ids are `Family/name`, e.g. `CLIP/clip-vit-b-16`. Always
 check `GET /model/capabilities` before sending non-text inputs.
 
 ## Repository Map
@@ -58,13 +60,13 @@ check `GET /model/capabilities` before sending non-text inputs.
 | Path | Contents |
 |---|---|
 | `setup.sh` | Env export + volume creation (source it; needs `EMBEDDING_MODEL_NAME`). |
-| `docker/` | `compose.yaml` + `Dockerfile`. |
+| `docker/` | `compose.yaml` + `Dockerfile`; `compose.gme.yaml` mounts the GME package. |
 | `src/app.py` | FastAPI routes + request models (input union). |
 | `src/wrapper.py` | `EmbeddingModel` — the high-level embed API (also the SDK surface). |
-| `src/models/` | `config.py` (registry of 19 models), `registry.py` (factory), `base.py` (ABC), `handlers/` (one per family). |
+| `src/models/` | `config.py` (registry of 21 models), `registry.py` (factory), `base.py` (ABC), `handlers/` (one per family). |
 | `src/utils/` | Settings, downloads/SSRF checks, video decoder, path security. |
 | `examples/` | `sdk_examples.py`, `server_examples.py`. |
-| `tests/` | `test_path_security.py` (unittest). |
+| `tests/` | unittest suites (path security, shm pool, async batch, GME integration). |
 | `docs/user-guide/` | get-started, api-reference, supported-models, sdk-usage, wheel-installation. |
 
 ## Tech Stack
@@ -86,6 +88,10 @@ OpenVINO optional per model.
 ## Gotchas
 
 - QwenText models reject image/video inputs (400) — capability-check first.
+- GME is never downloaded or converted: it loads a pre-exported package from
+  `<EMBEDDING_OV_MODELS_DIR>/gme-qwen2-vl-2b-instruct-openvino` (precision/dim
+  come from the package; no GME env vars) and needs `EMBEDDING_USE_OV=true`.
+  Only `supports_fused` models accept `type: "fused"`.
 - `mobileclip` and `salesforce-lavis` are installed **only in the Docker
   image** (not in `pyproject.toml`); MobileCLIP/BLIP2 families can't run in a
   bare Poetry env.

@@ -32,6 +32,7 @@ The service supports multiple model families:
 - **MobileCLIP**: Lightweight models for mobile and edge deployment
 - **SigLIP**: Models with sigmoid loss function
 - **BLIP-2**: Advanced multimodal models with Q-Former architecture
+- **GME**: Qwen2-VL based model that also embeds an image together with its text into one vector (OpenVINO only)
 
 For complete model specifications, see [Supported Models](./supported-models.md).
 

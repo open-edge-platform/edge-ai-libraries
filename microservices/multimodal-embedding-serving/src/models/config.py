@@ -233,12 +233,43 @@ MODEL_CONFIGS = {
             "trust_remote_code": True,
         },
     },
+    "GME": {
+        # Loaded from a package exported offline by the GME OpenVINO project and
+        # mounted at <EMBEDDING_OV_MODELS_DIR>/<package_dir>; OpenVINO only.
+        # Precision, embedding dim and processor limits come from the package's
+        # gme_openvino_config.json.
+        "gme-qwen2-vl-2b-instruct": {
+            "hf_model_id": "Alibaba-NLP/gme-Qwen2-VL-2B-Instruct",
+            "package_dir": "gme-qwen2-vl-2b-instruct-openvino",
+            "handler_class": "GMEHandler",
+        },
+    },
 }
 
 
 MODEL_ALIASES = {
     "SigLIP/siglip2-person-description-reid": "MarketaJu/siglip2-person-description-reid",
+    "Alibaba-NLP/gme-Qwen2-VL-2B-Instruct": "GME/gme-qwen2-vl-2b-instruct",
 }
+
+
+def resolve_model_id(model_id: str) -> str:
+    """
+    Return the registered "type/name" for a model ID, alias or bare name.
+
+    Raises:
+        ValueError: If the model is not registered
+    """
+    model_id = MODEL_ALIASES.get(model_id, model_id)
+    if "/" in model_id:
+        model_type, model_name = model_id.split("/", 1)
+        if model_name in MODEL_CONFIGS.get(model_type, {}):
+            return model_id
+    else:
+        for model_type, models in MODEL_CONFIGS.items():
+            if model_id in models:
+                return f"{model_type}/{model_id}"
+    raise ValueError(f"Model {model_id} not found")
 
 
 def get_model_config(model_id: str, device=None, ov_models_dir=None, use_openvino=None) -> dict:

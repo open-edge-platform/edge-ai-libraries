@@ -29,6 +29,11 @@ cn-clip = "^1.6.0"
 open-clip-torch = "^3.1.0"
 nncf = ">=3.4.0,<3.5.0"
 protobuf = ">=5.29.6,<8.0.0"
+# Imported directly by the GME runtime (src/models/gme_runtime.py): the Qwen2-VL
+# processor and image/array handling. Previously only transitive dependencies.
+transformers = ">=5.0.0,<6.0.0"
+numpy = ">=2.0.0,<3.0.0"
+pillow = ">=10.0.0,<13.0.0"
 torch = { version = "^2.8.0", source = "pytorch-cpu" }
 torchvision = { version = ">=0.23.0,<1.0.0", source = "pytorch-cpu" }
 

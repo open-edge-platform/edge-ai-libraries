@@ -9,13 +9,19 @@ SPDX-License-Identifier: Apache-2.0
 
 ```bash
 poetry run python -m unittest tests/test_path_security.py -v
-# or: poetry run pytest tests/  (pytest runs unittest cases fine; no pytest.ini here)
+poetry run python -m unittest tests/test_gme_integration.py -v
 ```
 
 `tests/test_path_security.py` covers the `/tmp/videoQnA` sandbox
 (`src/utils/path_security.py`): filename validation, extension allowlists,
-traversal rejection. That is the **entire** automated suite — model handlers,
-wrapper, and routes have no unit tests.
+traversal rejection. `tests/test_gme_integration.py` covers the GME handler,
+the wrapper's query/document/fused paths and the `/embeddings` + `/v1/embeddings`
+routes offline, with the OpenVINO runtime faked (no model download). Other
+handlers have no unit tests.
+
+Prefer `python -m unittest` from the microservice root: the root `__init__.py`
+(the wheel's package marker) makes `pytest` try to import the root as a test
+package and fail at collection.
 
 ## Smoke-testing changes (recommended for any behavior change)
 

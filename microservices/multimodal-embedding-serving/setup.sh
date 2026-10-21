@@ -113,6 +113,19 @@ case "$EMBEDDING_MODEL_NAME" in
             echo "     shape takes longer. See docs/user-guide/qwentext-on-npu.md for tuning."
         fi
         ;;
+    "GME/gme-qwen2-vl-2b-instruct")
+        echo "Using GME model: $EMBEDDING_MODEL_NAME (text, image, video frames, fused image+text)"
+        if [ "$EMBEDDING_USE_OV" != "true" ]; then
+            echo "ERROR: GME runs only on OpenVINO; unset EMBEDDING_USE_OV or set it to true."
+            return 1
+        fi
+        if [ "$EMBEDDING_DEVICE" = "NPU" ]; then
+            echo "WARNING: GME has not been validated on NPU."
+        fi
+        echo "GME loads a pre-exported OpenVINO package from"
+        echo "  $EMBEDDING_OV_MODELS_DIR/gme-qwen2-vl-2b-instruct-openvino"
+        echo "Mount it with: export GME_MODEL_DIR=/path/to/package and add -f docker/compose.gme.yaml"
+        ;;
     *)
         echo -e "WARNING: Model '$EMBEDDING_MODEL_NAME' may not be supported."
         echo -e "See docs/user-guide/supported-models.md for the complete list of supported models."

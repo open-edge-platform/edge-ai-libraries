@@ -1,0 +1,18 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# Override for EMBEDDING_MODEL_NAME=GME/gme-qwen2-vl-2b-instruct. GME is not
+# downloaded or converted at startup: it loads a package exported offline by the
+# GME OpenVINO project. This mounts that package read-only where the service
+# looks for it. Use together with the base file:
+#
+#   export GME_MODEL_DIR=/abs/path/to/gme-qwen2-vl-2b-instruct-openvino
+#   docker compose -f docker/compose.yaml -f docker/compose.gme.yaml up -d
+#
+# The precision is whichever one the package ships, so mount a package holding
+# a single precision's IRs (or one whose default_precision is the one you want).
+
+services:
+  multimodal-embedding-serving:
+    volumes:
+      - ${GME_MODEL_DIR:?set GME_MODEL_DIR to the exported GME OpenVINO package directory}:/app/ov_models/gme-qwen2-vl-2b-instruct-openvino:ro
