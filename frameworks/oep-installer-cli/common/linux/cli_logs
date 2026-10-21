@@ -4,6 +4,10 @@ act_panelled_logs () {(
 #
 # Protocol (markers your installer emits on stdout/stderr):
 #   @@COMP       <name>     start/switch to component (starts its timer)
+#   @@HINT       <text>     show <text> right-aligned in the title bar if it
+#   @@HINT       @@IF <re> @@THEN <text>  when a later log line matches regex <re>,
+#                           set the step text to <text> (\0..\9 = groups).
+#                           First matching rule wins; rules persist.
 #   @@OK         [name]     mark component installed OK   (stops its timer)
 #   @@FAIL       [name]     mark component failed         (stops its timer)
 #   @@HIGHLIGHT  <text>     append a custom line to this component's left-pane
@@ -75,6 +79,9 @@ TICK_SEC=${TICK_SEC:-0.5}
 NARROW_GLYPHS=${NARROW_GLYPHS:-0}
 FAIL_ROWS=${FAIL_ROWS:-20}
 RAISE_MS=${RAISE_MS:-15}
+STEP_MIN=${STEP_MIN:-12}     # after RAISE_MS=...
+STEP_TEXT=""                 # after TITLE_WORD=completed
+declare -a STEP_RX=() STEP_FMT=()
 
 readonly CSI_FINAL='[A-Za-z@\[\\\]^_`{|}~]'
 readonly SEP_W=3
@@ -605,6 +612,54 @@ _clear_highlight() {
   HL[$c]=""; HCNT[$c]=0; LDIRTY[$c]=1; LEFT_VALID=0
 }
 
+_set_step()   { STEP_TEXT=$1; }
+_clear_step() { STEP_TEXT=""; }
+
+_add_step_rule() {
+  local spec=$1 rx fmt
+  [[ $spec == *' @@THEN '* ]] || return 1
+  rx=${spec%%' @@THEN '*}; fmt=${spec#*' @@THEN '}
+  [[ -z $rx ]] && return 1
+  [[ x =~ $rx ]]; (( $? == 2 )) && return 1     # invalid regex
+  STEP_RX+=("$rx"); STEP_FMT+=("$fmt")
+}
+
+_clear_step_rules() { STEP_RX=(); STEP_FMT=(); }
+
+# Match $1 against the rules; on the first hit, set STEP_TEXT.
+_apply_step_rules() {
+  (( ${#STEP_RX[@]} == 0 )) && return 1
+  local s=$1 i j out
+  for (( i = 0; i < ${#STEP_RX[@]}; i++ )); do
+    if [[ $s =~ ${STEP_RX[i]} ]]; then
+      out=${STEP_FMT[i]}
+      for (( j = ${#BASH_REMATCH[@]} - 1; j >= 0; j-- )); do
+        out=${out//"\\$j"/"${BASH_REMATCH[j]}"}
+      done
+      _set_step "$out"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Title row: TITLE left, STEP_TEXT right-aligned (cyan) when it fits.
+TITLEROW=""
+_title_row() {
+  local w=$1 tw sw room left
+  _fit_v "$w" "$TITLE" 1
+  TITLEROW="${C_BOLD}${FITTED}${C_RESET}"
+  [[ -z $STEP_TEXT ]] && return
+  _dwidth "$TITLE"; tw=$REPLY
+  room=$(( w - tw - 3 ))                  # 2-cell gap + 1 trailing space
+  (( room < STEP_MIN )) && return         # not enough space: hide it
+  _dwidth "$STEP_TEXT"; sw=$REPLY
+  (( sw > room )) && sw=$room             # truncate with ellipsis
+  _fit_v $(( w - sw - 1 )) "$TITLE" 1; left=$FITTED
+  _fit_v "$sw" "$STEP_TEXT" 1
+  TITLEROW="${C_BOLD}${left}${C_RESET}${C_CYAN}${FITTED}${C_RESET} "
+}
+
 _ensure_wrap() {
   local c=$1 w=$2 src r
   [[ -z $c ]] && return
@@ -867,8 +922,8 @@ _draw() {
   if (( FULL_CLEAR )); then PREV=(); FULL_CLEAR=0; fi
 
   _title_text "$REVIEW" "$TITLE_WORD"
-  _fit_v "$usable" "$TITLE" 1
-  rowstr="${C_BOLD}${FITTED}${C_RESET}"
+  _title_row "$usable"
+  rowstr=$TITLEROW
   if [[ ${PREV[0]:-__} != "$rowstr" ]]; then
     out+=$'\033[1;1H'"$rowstr"$'\033[K'; PREV[0]=$rowstr
   fi
@@ -1010,8 +1065,23 @@ _handle_line() {
   rest=${rest#"${rest%%[![:space:]]*}"}
 
   case ${key^^} in
+    @@HINT)
+      if [[ -z $rest ]]; then
+        _clear_step
+      elif [[ $rest == '@@IF' ]]; then
+        _clear_step_rules
+      elif [[ $rest == '@@IF '*' @@THEN '* ]]; then
+        _add_step_rule "${rest#@@IF }" \
+          || _push_log "${CURRENT:-general}" "invalid @@HINT rule: $rest"
+        return
+      else
+        _set_step "$rest"
+      fi
+      _draw 1; return ;;
     @@COMP)
       [[ -z $rest ]] && return
+      _clear_step
+      _clear_step_rules
       if [[ -n $CURRENT && $CURRENT != "$rest" && -z ${REPORT[$CURRENT]:-} ]]; then
         _timer_stop "$CURRENT"
       fi
@@ -1026,6 +1096,7 @@ _handle_line() {
       _draw 1; return ;;
     @@REPORT)
       [[ -z $rest ]] && return
+      _clear_step
       if [[ -n $CURRENT && -z ${REPORT[$CURRENT]:-} ]]; then
         _timer_stop "$CURRENT"
       fi
@@ -1044,6 +1115,7 @@ _handle_line() {
     @@OK|@@FAIL)
       target=${rest:-$CURRENT}
       [[ -z $target ]] && return
+      _clear_step
       _touch_comp "$target"
       if [[ ${key^^} == @@OK ]]; then
         STATUS[$target]="ok"; _timer_stop "$target"
@@ -1065,6 +1137,7 @@ _handle_line() {
   if [[ -z $CURRENT ]]; then
     CURRENT="general"; _touch_comp "$CURRENT"; _timer_start "$CURRENT"
   fi
+  _apply_step_rules "$plainkey"          # STEP rules
   _push_log "$CURRENT" "$clean"
   _draw
 }
@@ -1104,6 +1177,7 @@ _handle_line() {
   for c in "${ORDER[@]}"; do [[ -n $c ]] && LDIRTY[$c]=1; done
 
   REVIEW=1
+  _clear_step
   _draw 1
 )}
 

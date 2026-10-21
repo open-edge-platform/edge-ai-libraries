@@ -162,7 +162,7 @@ The general use pattern is `install`, `start`, `stop`, `install`, `start`, `stop
 
 ---
 
-### @@HIGHLIGHT protocol
+### @@HIGHLIGHT Protocol
 
 `@@HIGHLIGHT` is a marker to display a short hint to the user in the left-pane summary after installation or component launch.  
 
@@ -189,6 +189,18 @@ echo "@@HIGHLIGHT URL: http://$(ensure_ip):$port"
 echo "@@HIGHLIGHT workspace: $workspace"
 echo "@@HIGHLIGHT setup env: setup-vars.sh"
 echo "@@HIGHLIGHT make help to see full list of build targets"
+```
+
+### @@HINT Protocol
+
+The `@@HINT` marker can be used to show a hint of current installation step. The hint is right aligned on the title bar. The hint message should be short and concise for better user experience.   
+
+```
+# Show static text
+echo "@@HINT Setup sample"                               
+
+# Show dynamitc text based on logging output
+echo "@@HINT @@IF Download ([a-z0-9_]*) @@THEN Downloading \\1"  
 ```
 
 ### Custom Options
