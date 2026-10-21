@@ -46,6 +46,7 @@ import VideoConvertNode, {
   VideoConvertNodeWidth,
 } from "./VideoConvertNode.tsx";
 import VideoConvertScaleNode from "./VideoConvertScaleNode.tsx";
+import VideoRateNode from "./VideoRateNode.tsx";
 import VideoScaleNode from "./VideoScaleNode.tsx";
 import VideoXRawNode from "./VideoXRawNode.tsx";
 import VideoXRawWithDimensionsNode from "./VideoXRawWithDimensionsNode.tsx";
@@ -95,6 +96,7 @@ export const nodeTypes = {
   tee: TeeNode,
   splitmuxsink: SplitMuxSinkNode,
   videoscale: VideoScaleNode,
+  videorate: VideoRateNode,
   datasrc: DataSrcNode,
   "tsam-ingestion": TsamIngestionNode,
   "tsam-udf": TsamUdfNode,
