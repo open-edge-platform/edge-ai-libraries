@@ -305,14 +305,14 @@ change, the most common cause is that one of these two steps was skipped.
 ## Adding a new route, quick checklist
 
 1. Add or extend a Pydantic model in `vippet/api/api_schemas.py`.
-2. Create the handler in `vippet/api/routes/<resource>.py` (or a new
+1. Create the handler in `vippet/api/routes/<resource>.py` (or a new
    module, registered in `vippet/api/main.py`).
-3. Use `async def`, type hints, and a markdown docstring with response
+1. Use `async def`, type hints, and a markdown docstring with response
    codes and examples.
-4. Delegate business logic to the appropriate manager, keep route
+1. Delegate business logic to the appropriate manager, keep route
    handlers thin.
-5. Add unit tests under `vippet/tests/unit/api_tests/`.
-6. Run `make lint test`, then `make generate_openapi`, then
+1. Add unit tests under `vippet/tests/unit/api_tests/`.
+1. Run `make lint test`, then `make generate_openapi`, then
    `cd ui && npm run generate:api`.
 
 ## Important constraints
