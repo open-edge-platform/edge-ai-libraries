@@ -42,7 +42,7 @@ debian_90_install_visual_search_question_and_answering () {
   else
     # clone the repository
     ensure_disk_size 8000
-    ensure_ports_open "${used_ports[*]}" return 3
+    ensure_ports_open install visual_search_question_and_answering "${used_ports[@]}"
     ensure_git_export "$workspace" $version $repository visual-search-question-and-answering
 
     # setup
@@ -72,7 +72,7 @@ debian_90_install_visual_search_question_and_answering () {
 
 debian_90_start_visual_search_question_and_answering () {
   configure_visual_search_question_and_answering "$@"
-  ensure_ports_open "${used_ports[*]}" debian_90_stop_visual_search_question_and_answering "$@"
+  ensure_ports_open start visual_search_question_and_answering "${used_ports[@]}"
 
   cd "$workspace"/visual-search-question-and-answering/deployment/docker-compose
   . ./env.sh

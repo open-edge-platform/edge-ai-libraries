@@ -52,11 +52,11 @@ debian_90_install_multimodal_weld_defect_detection () {
   if verify_multimodal_weld_defect_detection && [[ " $* " != *" --reinstall "* ]]; then
     echo "Multimodal weld defect detection is installed." >&2
   else
-    ensure_ports_open "${used_ports[*]}" return 3
     ensure_disk_size 15000
     ensure_ram_size 16777216 # 16 GiB
-    ensure_git_export "$workspace" "$version" "$repository" industrial-edge-insights-multimodal
+    ensure_ports_open install multimodal_weld_defect_detection "${used_ports[@]}"
 
+    ensure_git_export "$workspace" "$version" "$repository" industrial-edge-insights-multimodal
     cd "$workspace"/industrial-edge-insights-multimodal
     cat >> .env <<EOF
 INFLUXDB_USERNAME=$(cat /dev/urandom | tr -dc a-z | head -c 10)
@@ -79,7 +79,7 @@ EOF
 
 debian_90_start_multimodal_weld_defect_detection () {
   configure_multimodal_weld_defect_detection
-  ensure_ports_open "${used_ports[*]}" debian_90_stop_multimodal_weld_defect_detection "$@"
+  ensure_ports_open start multimodal_weld_defect_detection "${used_ports[@]}"
 
   local device="$(ensure_select_device "$@")"
   [[ " ${*,,} " != *" --${device} "* ]] || configure_multimodal_weld_defect_detection_device $device

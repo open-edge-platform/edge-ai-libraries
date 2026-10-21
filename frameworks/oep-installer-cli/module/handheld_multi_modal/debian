@@ -19,8 +19,8 @@ debian_90_install_handheld_multi_modal () {
   if verify_handheld_multi_modal $* && [[ " $* " != *" --reinstall "* ]]; then
     echo "handheld_multi_modal is installed." >&2
   else
-    ensure_ports_open "${used_ports[*]}" return 3
     ensure_disk_size 45000
+    ensure_ports_open install_handheld_multi_modal "${used_ports[@]}"
 
     ensure_git_clone "$workspace" $version $repository handheld-multi-modal
     cd "$workspace"/handheld-multi-modal
@@ -37,7 +37,7 @@ debian_90_install_handheld_multi_modal () {
 }
 
 debian_90_start_handheld_multi_modal () {
-  ensure_ports_open "${used_ports[*]}" debian_90_stop_handheld_multi_modal $*
+  ensure_ports_open start handheld_multi_modal "${used_ports[@]}"
   configure_handheld_multi_modal
   cd "$workspace"/handheld-multi-modal
   make deploy

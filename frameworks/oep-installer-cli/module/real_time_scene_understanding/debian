@@ -31,11 +31,11 @@ debian_90_install_real_time_scene_understanding () {
   if verify_real_time_scene_understanding && [[ " $* " != *" --reinstall "* ]]; then
     echo "Live Video Captioning is installed." >&2
   else
-    ensure_ports_open "${used_ports[*]}" return 3
-
-    # clone the repository
     ensure_disk_size 64000
     ensure_ram_size 16777216 # 16GiB
+    ensure_ports_open install real_time_scene_understanding "${used_ports[@]}"
+
+    # clone the repository
     ensure_git_clone "$workspace" $version $repository live-video-analysis/real-time-scene-understanding
 
     # setup
@@ -59,7 +59,7 @@ debian_90_install_real_time_scene_understanding () {
 
 debian_90_start_real_time_scene_understanding () {
   configure_real_time_scene_understanding
-  ensure_ports_open "${used_ports[*]}" debian_90_stop_real_time_scene_understanding "$@"
+  ensure_ports_open start real_time_scene_understanding "${used_ports[@]}"
 
   local device=$(ensure_select_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_real_time_scene_understanding_device "${device^^}"

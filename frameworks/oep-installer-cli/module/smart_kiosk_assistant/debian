@@ -57,8 +57,8 @@ debian_90_install_smart_kiosk_assistant () {
   if verify_smart_kiosk_assistant && [[ " $* " = *" --reinstall "* ]]; then
     echo "Smart Kiosk Assistant is installed." >&2
   else
-    ensure_ports_open "${used_ports[*]}" debian_90_remove_smart_kiosk_assistant "$@"
     ensure_disk_size 300
+    ensure_ports_open install smart_kiosk_assistant "${used_ports[@]}"
     ensure_git_clone "$workspace" "$version" "$repository"
 
     cd "$workspace"/smart-kiosk-assistant
@@ -94,7 +94,7 @@ debian_90_install_smart_kiosk_assistant () {
 
 debian_90_start_smart_kiosk_assistant () {
   configure_smart_kiosk_assistant
-  ensure_ports_open "${used_ports[*]}" debian_90_stop_smart_kiosk_assistant "$@"
+  ensure_ports_open start smart_kiosk_assistant "${used_ports[@]}"
 
   local device=$(ensure_select_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_smart_kiosk_assistant_device "${device^^}"
