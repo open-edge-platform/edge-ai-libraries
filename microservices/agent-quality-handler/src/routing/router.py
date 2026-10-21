@@ -102,7 +102,6 @@ def _llm_classify(
     raw = llm_client.call_llm(
         system_prompt=system_prompt,
         user_message=user_message,
-        max_tokens=256,
         temperature=0.1,
     )
     log.info("Router LLM response received (%d chars)", len(raw))

@@ -53,6 +53,7 @@ HUGGINGFACEHUB_API_TOKEN="$AQH_HUGGINGFACE_TOKEN" \
 | Variable | Purpose | Default |
 |---|---|---|
 | `LLM_MODEL_NAME` | Model name passed to the model-download service | `Qwen/Qwen2.5-3B-Instruct` |
+| `LLM_MAX_TOKENS` | Maximum tokens per LLM response for all agents and the router (custom agents can override via `max_tokens` in `agents.yaml`) | `512` |
 | `LLM_DEVICE` | Target inference device (`GPU`, `CPU`) | `GPU` |
 | `LLM_PRECISION` | Model quantization precision (`int8`, `int4`, `fp16`, …) | `int8` |
 | `USE_CASE_MODELS_DIR` | Optional host directory shared by model-download and OVMS | `aqh_model_cache` volume |

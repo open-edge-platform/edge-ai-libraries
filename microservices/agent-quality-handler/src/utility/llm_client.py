@@ -37,7 +37,7 @@ def call_llm(
     system_prompt: str,
     user_message: str,
     model: str | None = None,
-    max_tokens: int = 2048,
+    max_tokens: int | None = None,
     temperature: float = 0.2,
 ) -> str:
     """Send a prompt to the LLM and return the response text.
@@ -52,7 +52,7 @@ def call_llm(
             {"role": "system", "content": system_prompt},
             {"role": "user",   "content": user_message},
         ],
-        max_tokens=max_tokens,
+        max_tokens=max_tokens or settings.llm_max_tokens,
         temperature=temperature,
         extra_body={"chat_template_kwargs": {"enable_thinking": False}},
     )

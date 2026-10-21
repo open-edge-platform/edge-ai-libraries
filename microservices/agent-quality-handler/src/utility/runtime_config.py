@@ -134,6 +134,7 @@ class RuntimeSettings:
     llm_base_url: str
     llm_model_name: str
     llm_api_key: str
+    llm_max_tokens: int
     agents_config_path: str
     prompts_dir: str
     fallback_policy_path: str
@@ -218,6 +219,7 @@ def load_runtime_settings(*, validate_assets: bool = True) -> RuntimeSettings:
     if llm_mode == "llm" and not llm_model_name:
         raise ConfigurationError("LLM_MODEL_NAME is required in LLM mode")
     llm_api_key = os.environ.get("LLM_API_KEY", "UNUSED").strip() or "UNUSED"
+    llm_max_tokens = _as_int("LLM_MAX_TOKENS", 512, minimum=1, maximum=8192)
 
     configs_dir = Path(
         os.environ.get("USE_CASE_CONFIGS_DIR", str(_DEFAULTS_DIR / "config"))
@@ -265,6 +267,7 @@ def load_runtime_settings(*, validate_assets: bool = True) -> RuntimeSettings:
         llm_base_url=llm_base_url,
         llm_model_name=llm_model_name,
         llm_api_key=llm_api_key,
+        llm_max_tokens=llm_max_tokens,
         agents_config_path=agents_config_path,
         prompts_dir=prompts_dir,
         fallback_policy_path=fallback_policy_path,

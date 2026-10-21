@@ -20,8 +20,9 @@ services:
       STORAGE_RETRY_BACKOFF_SECONDS: ${STORAGE_RETRY_BACKOFF_SECONDS:-0.25}
       LLM_MODE: ${LLM_MODE:-llm}
       LLM_BASE_URL: ${LLM_BASE_URL:-http://aqh-ovms:8010/v3}
-      LLM_MODEL_NAME: ${LLM_MODEL_NAME:-Qwen/Qwen2.5-7B-Instruct}
+      LLM_MODEL_NAME: ${LLM_MODEL_NAME:-Qwen/Qwen2.5-3B-Instruct}
       LLM_API_KEY: ${LLM_API_KEY:-UNUSED}
+      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-512}
       MQTT_DISABLED: ${MQTT_DISABLED:-false}
       MQTT_HOST: ${MQTT_HOST:-mqtt-broker}
       MQTT_PORT: ${MQTT_PORT:-1883}
@@ -172,7 +173,7 @@ services:
       HUGGINGFACE_TOKEN: ${HUGGINGFACEHUB_API_TOKEN:-}
       LLM_DEVICE: ${LLM_DEVICE:-GPU}
       LLM_PRECISION: ${LLM_PRECISION:-int8}
-      LLM_MODEL_NAME: ${LLM_MODEL_NAME:-Qwen/Qwen2.5-7B-Instruct}
+      LLM_MODEL_NAME: ${LLM_MODEL_NAME:-Qwen/Qwen2.5-3B-Instruct}
       MODEL_DOWNLOAD_URL: ${MODEL_DOWNLOAD_URL:-http://model-download:8000}
       MODEL_DOWNLOAD_TIMEOUT_SECONDS: ${MODEL_DOWNLOAD_TIMEOUT_SECONDS:-3600}
     restart: unless-stopped
@@ -204,7 +205,7 @@ services:
       start_period: 30s
 
   model-download:
-    image: intel/model-download:mcp-rc
+    image: intel/model-download:latest
     command: --plugins ${MODEL_DOWNLOAD_PLUGINS:-huggingface,openvino}
     container_name: aqh-model-download
     hostname: model-download

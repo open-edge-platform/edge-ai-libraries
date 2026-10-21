@@ -39,7 +39,7 @@ def run(context: AgentContext) -> dict[str, Any]:
         f"{policy_instructions}\n\n"
         f"{selection_prompt}"
     )
-    raw = llm_client.call_llm(system_prompt=system_prompt, user_message=user_message, max_tokens=512)
+    raw = llm_client.call_llm(system_prompt=system_prompt, user_message=user_message)
     log.info("Policy agent LLM response received (%d chars)", len(raw))
     return {"policy": raw, "mode": "llm", "summary": summary}
 

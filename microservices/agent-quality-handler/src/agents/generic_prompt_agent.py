@@ -32,7 +32,6 @@ from .context import AgentContext
 
 log = logging.getLogger(__name__)
 
-_DEFAULT_MAX_TOKENS = 512
 _FALLBACK_SYSTEM_PROMPT = (
     "You are a quality-assurance assistant analyzing defect detection data."
 )
@@ -63,7 +62,8 @@ def run(context: AgentContext) -> dict[str, Any]:
     )
 
     user_message = _build_user_message(instructions, summary, context.upstream_results)
-    max_tokens = int(agent_cfg.get("max_tokens", _DEFAULT_MAX_TOKENS))
+    max_tokens = agent_cfg.get("max_tokens")
+    max_tokens = int(max_tokens) if max_tokens is not None else None
     raw = llm_client.call_llm(
         system_prompt=system_prompt, user_message=user_message, max_tokens=max_tokens
     )

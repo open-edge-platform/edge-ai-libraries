@@ -37,7 +37,7 @@ def run(context: AgentContext) -> dict[str, Any]:
         f"Analysis result:\n{json.dumps(analysis_result, indent=2)}"
     )
 
-    raw = llm_client.call_llm(system_prompt=system_prompt, user_message=user_message, max_tokens=300)
+    raw = llm_client.call_llm(system_prompt=system_prompt, user_message=user_message)
     log.info("Ticketing agent LLM response received (%d chars)", len(raw))
     return {"ticket": raw, "mode": "llm"}
 
