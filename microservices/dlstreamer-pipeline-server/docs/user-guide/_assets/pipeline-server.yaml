@@ -229,6 +229,8 @@ components:
         id: 0
         state: RUNNING
         avg_fps: 6.027456183070403
+        frame_fps: 6.0
+        frame_interval: 1.0
       properties:
         id:
           format: int32
@@ -241,6 +243,16 @@ components:
             - ABORTED
           type: string
         avg_fps:
+          type: number
+        frame_fps:
+          description: >-
+            Frames per second measured over the most recent window of
+            frame_interval seconds. 0 until the first window completes.
+          type: number
+        frame_interval:
+          description: >-
+            Length in seconds of the window frame_fps was measured over.
+            At least 1.0 once measured; 0 until the first window completes.
           type: number
         start_time:
           description: Time in seconds since the epoch.

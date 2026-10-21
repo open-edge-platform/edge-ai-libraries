@@ -158,7 +158,23 @@ class TestGStreamerPipeline:
         if not stopped and start_time is not None:
             gstreamer_pipeline._increment_frame_count()
         assert gstreamer_pipeline.get_avg_fps() == expected_fps
-    
+
+    @pytest.mark.parametrize(
+        "now, expected_interval, expected_frame_fps",
+        [(12.5, 2.5, 40.0),
+        (10.5, 0, 0)])
+    def test_increment_frame_count_updates_frame_interval(
+            self, gstreamer_pipeline, mocker, now, expected_interval, expected_frame_fps):
+        gstreamer_pipeline.start_time = 10
+        gstreamer_pipeline._last_frame_time = 10
+        gstreamer_pipeline._last_frame_count = 0
+        gstreamer_pipeline.frame_count = 99
+        mocker.patch.object(time, 'time', return_value=now)
+        gstreamer_pipeline._increment_frame_count()
+        assert gstreamer_pipeline._frame_interval == expected_interval
+        assert gstreamer_pipeline._frame_fps == expected_frame_fps
+        assert gstreamer_pipeline.status()["frame_interval"] == expected_interval
+
     def test_get_avg_fps(self,gstreamer_pipeline,mocker):
         mocker.patch.object(gstreamer_pipeline,'get_avg_fps', return_value = 0)
         avg_fps = gstreamer_pipeline.get_avg_fps()
@@ -489,11 +505,13 @@ class TestGStreamerPipeline:
         gstreamer_pipeline.state = mock_state
         gstreamer_pipeline._avg_fps = 10
         gstreamer_pipeline._frame_fps = 10
+        gstreamer_pipeline._frame_interval = 1.5
         expected_status = {
             "id": "test_id",
             "state": mock_state,
             "avg_fps": 10,
             "frame_fps": 10,
+            "frame_interval": 1.5,
             "start_time": starttime,
             "elapsed_time": elapsedtime,
             "message": "Debug"}
@@ -509,6 +527,7 @@ class TestGStreamerPipeline:
         gstreamer_pipeline.state = mock_state
         gstreamer_pipeline._avg_fps = 10
         gstreamer_pipeline._frame_fps = 10
+        gstreamer_pipeline._frame_interval = 1.5
         gstreamer_pipeline.count_pipeline_latency = 2
         gstreamer_pipeline.sum_pipeline_latency = 50
         gstreamer_pipeline._frame_latency = 20
@@ -517,6 +536,7 @@ class TestGStreamerPipeline:
             "state": mock_state,
             "avg_fps": 10,
             "frame_fps": 10,
+            "frame_interval": 1.5,
             "start_time": 15,
             "elapsed_time": 0,
             "message": "Debug",
