@@ -1,0 +1,27 @@
+
+configure_pipx () {
+  echo "$PATH" | grep -q -F ~/.local/bin || export PATH=$PATH:~/.local/bin
+}
+
+fedora_45_profile_pipx () {
+  echo "pip"
+}
+
+fedora_45_install_pipx () {
+  configure_pipx "$@"
+  if command -v pipx > /dev/null 2>&1; then
+    echo "pipx is installed. Skipping" >&2
+  else
+    ensure_prop set installed/pipx/owned true
+    ensure_rm ~/.local/share/pipx-venv
+    python3 -m venv ~/.local/share/pipx-venv
+    ~/.local/share/pipx-venv/bin/pip install pipx
+    ln -srf ~/.local/share/pipx-venv/bin/pipx ~/.local/bin/pipx
+  fi
+}
+
+fedora_45_remove_pipx () {
+  [ "$(ensure_prop get installed/pipx/owned)" = "true" ] || return 0
+  ensure_rm ~/.local/share/pipx-venv ~/.local/bin/pipx
+}
+

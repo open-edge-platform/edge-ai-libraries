@@ -1,0 +1,11 @@
+
+debian_30_install_chrony () {
+  ensure_apt_install_package chrony
+}
+
+# DONOTREMOVE: systemd-timesyncd not restored after removal
+
+debian_30_sbom_chrony () {
+  ensure_sbom_format pkg-list chrony
+}
+

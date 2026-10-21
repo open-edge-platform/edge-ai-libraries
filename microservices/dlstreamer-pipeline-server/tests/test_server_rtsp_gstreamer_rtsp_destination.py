@@ -4,9 +4,16 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+from collections import namedtuple
+
 import pytest
 from unittest.mock import MagicMock, patch
 from src.server.rtsp.gstreamer_rtsp_destination import GStreamerRtspDestination
+from src.server.rtsp.gstreamer_rtsp_server import Stream
+
+EncodingRequestCase = namedtuple(
+    "EncodingRequestCase", ["encoding_value", "expected_encoding", "expect_warning"]
+)
 
 @pytest.fixture
 def mock_pipeline():
@@ -45,6 +52,34 @@ class TestGStreamerRtspDestination:
         assert gstreamer_rtsp_destination._sync_with_destination is True
         assert gstreamer_rtsp_destination._encode_quality == 10
         assert gstreamer_rtsp_destination.overlay is True
+        assert gstreamer_rtsp_destination.encoding == "mjpeg"
+
+    @pytest.mark.parametrize(
+        "case",
+        [
+            EncodingRequestCase("h264", "h264", False),
+            EncodingRequestCase("H264", "h264", False),
+            EncodingRequestCase("mjpeg", "mjpeg", False),
+            EncodingRequestCase(None, "mjpeg", False),
+            EncodingRequestCase("unsupported-codec", "mjpeg", True),
+        ],
+        ids=["h264", "h264_uppercase", "mjpeg", "encoding_absent", "unsupported_falls_back"],
+    )
+    def test_get_request_parameters_encoding(self, request, mocker, case):
+        """_get_request_parameters must normalize/validate the 'encoding'
+        field, falling back to 'mjpeg' with a warning for unsupported values."""
+        destination = request.getfixturevalue("gstreamer_rtsp_destination")
+        base_request = request.getfixturevalue("mock_request")
+        mock_warning = mocker.patch.object(getattr(destination, '_logger'), 'warning')
+        req = dict(base_request)
+        if case.encoding_value is not None:
+            req["encoding"] = case.encoding_value
+        getattr(destination, '_get_request_parameters')(req)
+        assert destination.encoding == case.expected_encoding
+        if case.expect_warning:
+            mock_warning.assert_called_once()
+        else:
+            mock_warning.assert_not_called()
 
     def test_init_stream(self, gstreamer_rtsp_destination, mock_pipeline):
         mock_sample = MagicMock()
@@ -59,7 +94,15 @@ class TestGStreamerRtspDestination:
         gstreamer_rtsp_destination._init_stream(mock_sample)
         assert gstreamer_rtsp_destination._frame_size == 1000
         assert gstreamer_rtsp_destination._need_data is False
-        mock_pipeline.rtsp_server.add_stream.assert_called_once_with(mock_pipeline.identifier, mock_pipeline.rtsp_path, mock_caps, gstreamer_rtsp_destination,gstreamer_rtsp_destination.overlay, gstreamer_rtsp_destination.overlay_properties)
+        mock_pipeline.rtsp_server.add_stream.assert_called_once_with(
+            mock_pipeline.identifier, mock_pipeline.rtsp_path,
+            Stream(
+                gstreamer_rtsp_destination, mock_caps,
+                gstreamer_rtsp_destination.overlay,
+                gstreamer_rtsp_destination.overlay_properties,
+                gstreamer_rtsp_destination.encoding
+            )
+        )
         assert gstreamer_rtsp_destination._last_timestamp == 500
         mock_pipeline.appsink_element.set_property.assert_called_once_with("sync", True)
 
@@ -88,7 +131,43 @@ class TestGStreamerRtspDestination:
         mock_app_src.set_property.assert_any_call("min-percent", 100)
         mock_app_src.set_property.assert_any_call("max-bytes", 30000)
         mock_encoder.set_property.assert_called_once_with("quality", 10)
-        mock_rtsp_pipeline.get_by_name.assert_called_once_with("jpegencoder")
+        mock_rtsp_pipeline.get_by_name.assert_any_call("jpegencoder")
+        mock_rtsp_pipeline.get_by_name.assert_any_call("h264encoder")
+
+    def test_set_app_src_h264_openh264enc_sets_bitrate(self, request):
+        """set_app_src must apply the configured bitrate when the active
+        H.264 encoder element is the software openh264enc."""
+        destination = request.getfixturevalue("gstreamer_rtsp_destination")
+        mock_app_src = MagicMock()
+        mock_rtsp_pipeline = MagicMock()
+        h264_encoder = MagicMock()
+        h264_encoder.get_factory.return_value.get_name.return_value = "openh264enc"
+
+        def get_by_name(name):
+            return h264_encoder if name == "h264encoder" else None
+        mock_rtsp_pipeline.get_by_name.side_effect = get_by_name
+        setattr(destination, '_frame_size', 1000)
+        setattr(destination, '_encode_bitrate', 2000000)
+        destination.set_app_src(mock_app_src, False, mock_rtsp_pipeline)
+        h264_encoder.set_property.assert_called_once_with("bitrate", 2000000)
+
+    def test_set_app_src_h264_vah264enc_skips_bitrate(self, request):
+        """set_app_src must NOT force a bitrate on the VA-API h264 encoder,
+        since vah264enc manages bitrate/quality via its own rate-control."""
+        destination = request.getfixturevalue("gstreamer_rtsp_destination")
+        mock_app_src = MagicMock()
+        mock_rtsp_pipeline = MagicMock()
+        h264_encoder = MagicMock()
+        h264_encoder.get_factory.return_value.get_name.return_value = "vah264enc"
+
+        def get_by_name(name):
+            return h264_encoder if name == "h264encoder" else None
+        mock_rtsp_pipeline.get_by_name.side_effect = get_by_name
+        setattr(destination, '_frame_size', 1000)
+        setattr(destination, '_encode_bitrate', 2000000)
+        destination.set_app_src(mock_app_src, False, mock_rtsp_pipeline)
+        h264_encoder = mock_rtsp_pipeline.get_by_name("h264encoder")
+        h264_encoder.set_property.assert_not_called()
 
     def test_push_buffer(self, gstreamer_rtsp_destination, mock_pipeline,Gst,mocker):
         mock_buffer = MagicMock()
