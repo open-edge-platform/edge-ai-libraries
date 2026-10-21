@@ -26,13 +26,6 @@ type PerformanceJobStatusWithMetadata = {
   metadata_stream_urls?: Record<string, string[]> | null;
 };
 
-/** Label shown in the pipeline tab: "job-short … pipeline-short" */
-const buildStreamLabel = (jobId: string, pipelineId: string): string => {
-  const shortJob = jobId.slice(0, 8);
-  const shortPipeline = pipelineId.replace(/^__graph-/, "").slice(0, 8);
-  return `${shortJob} / ${shortPipeline}`;
-};
-
 /** Shorten a stream URL to its last two meaningful path segments. */
 const shortenStreamUrl = (url: string): string => {
   const segments = url.replace(/\/+$/, "").split("/").filter(Boolean);
@@ -49,9 +42,11 @@ const collectMetadataStreams = (
     if (!urls) continue;
     for (const [pipelineId, streamUrls] of Object.entries(urls)) {
       if (!Array.isArray(streamUrls) || streamUrls.length === 0) continue;
-      const raw = streamUrls[0];
-      const url = raw && !raw.startsWith("/api/") ? `/api/v1${raw}` : raw;
-      result[`${jobId}::${pipelineId}`] = url;
+      streamUrls.forEach((raw, streamIndex) => {
+        if (!raw) return;
+        const url = raw.startsWith("/api/") ? raw : `/api/v1${raw}`;
+        result[`${jobId}::${pipelineId}::${streamIndex}`] = url;
+      });
     }
   }
   return result;
@@ -180,7 +175,9 @@ const PerformanceTestPanel = ({
 
   useEffect(() => {
     if (metadataEntries.length === 0) {
-      setActiveMetadataTab(null);
+      if (!frozenMetadata) {
+        setActiveMetadataTab(null);
+      }
       return;
     }
 
@@ -274,7 +271,7 @@ const PerformanceTestPanel = ({
     if (!activeMetadataTab || !availableKeys.has(activeMetadataTab)) {
       setActiveMetadataTab(metadataEntries[0][0]);
     }
-  }, [activeMetadataTab, metadataEntries]);
+  }, [activeMetadataTab, frozenMetadata, metadataEntries]);
 
   useEffect(() => {
     const metadataSources = metadataSourcesRef;
@@ -359,7 +356,7 @@ const PerformanceTestPanel = ({
         className="flex flex-col min-w-0"
       >
         {availableMainTabs.length > 1 && (
-          <TabsList>
+          <TabsList className="grid w-full grid-flow-col auto-cols-fr">
             {hasMediaTab && (
               <TabsTrigger value="media">{mediaTabLabel}</TabsTrigger>
             )}
@@ -478,12 +475,15 @@ const PerformanceTestPanel = ({
                 value={metadataTabValue}
                 onValueChange={setActiveMetadataTab}
               >
-                <TabsList className="w-full h-auto flex-wrap justify-start">
-                  {displayEntries.map(([compositeKey]) => {
-                    const [jobId, pipelineId] = compositeKey.split("::");
+                <TabsList className="grid h-10 w-full grid-cols-[repeat(auto-fit,minmax(min(100%,7rem),1fr))] items-stretch gap-0 rounded-none border-b border-border bg-transparent p-0">
+                  {displayEntries.map(([compositeKey], index) => {
                     return (
-                      <TabsTrigger key={compositeKey} value={compositeKey}>
-                        {buildStreamLabel(jobId, pipelineId)}
+                      <TabsTrigger
+                        key={compositeKey}
+                        value={compositeKey}
+                        className="h-full w-full min-w-0 flex-1 self-stretch rounded-none border-0 border-b-2 border-transparent px-3 text-sm after:hidden data-[state=active]:border-primary data-[state=active]:bg-primary/5 data-[state=active]:text-primary data-[state=active]:shadow-none"
+                      >
+                        Stream {index + 1}
                       </TabsTrigger>
                     );
                   })}

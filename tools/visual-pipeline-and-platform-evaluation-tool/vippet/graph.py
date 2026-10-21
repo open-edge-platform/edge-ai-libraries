@@ -1242,15 +1242,18 @@ class Graph:
 
         return modified_graph
 
-    def inject_metadata_file_paths(self, metadata_dir: str) -> list[str]:
+    def inject_metadata_file_paths(
+        self, metadata_dir: str, stream_index: int = 0
+    ) -> list[str]:
         """
         Assign output file paths to all gvametapublish nodes and configure them for file output.
 
-        Sets method=file, file-format=json-lines, and file-path on every gvametapublish
-        node found in the graph, overwriting any existing values.
+        Sets method=file, file-format=json-lines, and a stream-unique file-path on
+        every gvametapublish node found in the graph, overwriting existing values.
 
         Args:
             metadata_dir: Directory where metadata files will be written.
+            stream_index: Zero-based index of the pipeline stream.
 
         Returns:
             list[str]: Paths of the metadata files that were injected (one per gvametapublish node).
@@ -1258,9 +1261,10 @@ class Graph:
         metadata_file_paths: list[str] = []
         for node in self.nodes:
             if node.type == "gvametapublish":
+                stream_suffix = f"_stream_{stream_index}" if stream_index > 0 else ""
                 meta_path = os.path.join(
                     metadata_dir,
-                    f"metadata_{node.id}.jsonl",
+                    f"metadata_{node.id}{stream_suffix}.jsonl",
                 )
                 node.data["method"] = "file"
                 node.data["file-format"] = "json-lines"
