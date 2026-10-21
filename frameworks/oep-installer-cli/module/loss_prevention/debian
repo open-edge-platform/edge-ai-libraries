@@ -62,7 +62,7 @@ debian_90_install_loss_prevention () {
   configure_loss_prevention
 
   if verify_loss_prevention && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Loss prevention is already installed. Skipping"
+    echo "Loss prevention is installed." >&2
   else 
     # clone the repository
     ensure_disk_size 15000

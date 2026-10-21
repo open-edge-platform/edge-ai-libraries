@@ -20,7 +20,7 @@ debian_90_profile_edge_base_robotics () {
     ;;
   *)
     echo "ros2 ros_openvino realsense"
-    if [[ " $* " = *" --realtime "* ]]; then
+    if [[ " $* " = *" --realtime "* ]] && [[ "$(uname -r)" = "7."* ]]; then
       echo "core_types pre_system_scan edge_pack_base_realtime edge_pack_npu"
     else
       echo "edge_base"

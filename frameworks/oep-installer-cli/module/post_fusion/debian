@@ -32,7 +32,7 @@ debian_90_profile_post_fusion () {
 debian_90_install_post_fusion () {
   configure_post_fusion "$@"
   if verify_post_fusion && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Sensor Fusion for Traffic Management - Post Fusion is installed. Skipping" 1>&2
+    echo "Sensor Fusion for Traffic Management - Post Fusion is installed." >&2
   else
     ensure_disk_size 300
     ensure_git_export "$workspace" "$version" "$repository" sensor-fusion-for-traffic-management/post-fusion
