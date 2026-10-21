@@ -156,7 +156,8 @@ const PipelineEditorContent = forwardRef<
       const widthByNodeId = new Map<string, number>();
       let hasOverride = false;
       for (const node of measured) {
-        const declaredW = nodeWidths[node.type ?? "default"] ?? defaultNodeWidth;
+        const declaredW =
+          nodeWidths[node.type ?? "default"] ?? defaultNodeWidth;
         const measuredW = node.measured?.width ?? node.width;
         if (measuredW && Math.abs(measuredW - declaredW) >= 1) {
           widthByNodeId.set(node.id, measuredW);
