@@ -23,6 +23,7 @@ import { VideoService } from 'src/video-upload/services/video.service';
 import { VideoEntity } from 'src/video-upload/models/video.entity';
 import { DatastoreService } from 'src/datastore/services/datastore.service';
 import { SearchConfigService } from './search-config.service';
+import { resolveObservedTime } from '../utils/observed-time';
 
 @Injectable()
 export class SearchStateService {
@@ -275,6 +276,19 @@ export class SearchStateService {
             video.url,
           );
         }
+      }
+      // Timeline fields are derived on every read rather than stored, so
+      // results persisted before this existed get them too.
+      const observed = resolveObservedTime(result, video);
+      if (observed) {
+        result.observedAt = observed.observedAt;
+        result.timeSource = observed.timeSource;
+      }
+      if (
+        result.metadata?.best_frame_info?.is_live &&
+        result.metadata.video_id
+      ) {
+        result.streamId = result.metadata.video_id;
       }
       return result;
     });

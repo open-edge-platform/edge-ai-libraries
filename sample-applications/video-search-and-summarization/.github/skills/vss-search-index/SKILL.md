@@ -108,7 +108,16 @@ A video is **not searchable until embeddings exist**. Trigger them after upload
 ```bash
 curl -s -X POST "$HOST/manager/videos/search-embeddings/<VIDEO_ID>" | jq .
 ```
-Wait for completion (re-check the video record) before querying.
+Wait for completion before querying: the video record's `searchEmbeddings`
+becomes `true` on success and `false` on failure (`null` = never requested;
+a `true` is never reset by a later failed run):
+```bash
+curl -s "$HOST/manager/videos/<VIDEO_ID>" | jq '.video.searchEmbeddings'
+```
+To index an already-uploaded video again as a separate video (for example to
+re-run it from scratch), copy it with `POST /manager/videos/<VIDEO_ID>/copy`,
+which returns a new `videoId`, then embed the copy. With
+`MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS=false` that embedding returns `409`.
 
 ## 2b. Index a live RTSP camera (alternative to 1 + 2)
 
@@ -191,6 +200,13 @@ curl -s -X POST "$HOST/manager/search/query" \
   `0` = off; omitted = the deployment default `SEARCH_MIN_PEAK_SCORE` (0).
   `GET /manager/search/config` returns `minPeakScoreDefault`. A high value can
   return no results.
+
+Pipeline Manager adds `observedAt` (ISO-8601 UTC), `timeSource` and, for live
+hits, `streamId` to each result, next to `metadata`. `timeSource` is `live`
+(camera capture time) or `upload` (the video's upload time plus the frame
+offset, not the recording time). Sort by `observedAt` for a timeline, or group
+by `streamId`/`metadata.video_id` per camera or video; this only reorders the
+returned top results.
 
 Each clip's `metadata` carries `relevance_score` (0..1; top hit can be exactly
 `1`), `video_id`, `video_url`, `segment_start`/`segment_end`, `seek_timestamp`,

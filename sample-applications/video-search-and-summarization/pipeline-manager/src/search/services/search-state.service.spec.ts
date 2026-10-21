@@ -7,7 +7,11 @@ import { SearchDbService } from './search-db.service';
 import { VideoService } from 'src/video-upload/services/video.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SearchShimService } from './search-shim.service';
-import { SearchQueryStatus, SearchResultBody } from '../model/search.model';
+import {
+  SearchQueryStatus,
+  SearchResult,
+  SearchResultBody,
+} from '../model/search.model';
 import { SearchEntity } from '../model/search.entity';
 import { VideoEntity } from 'src/video-upload/models/video.entity';
 import { of, throwError } from 'rxjs';
@@ -373,6 +377,65 @@ describe('SearchStateService', () => {
       const results = await service.enrichResultsWithVideos([]);
       expect(results).toEqual([]);
       expect(videoService.getVideos).not.toHaveBeenCalled();
+    });
+
+    it('stamps an uploaded hit with upload time plus the frame offset', async () => {
+      videoService.getVideos.mockResolvedValue([
+        {
+          videoId: 'video-1',
+          name: 'test-video',
+          url: '',
+          tags: [],
+          createdAt: '2026-03-01T10:00:00.000Z',
+          updatedAt: '2026-03-01T10:00:00.000Z',
+        } as VideoEntity,
+      ]);
+
+      const results = await service.enrichResultsWithVideos([
+        {
+          id: 'result-1',
+          page_content: 'test content',
+          type: 'test',
+          metadata: {
+            ...baseMetadata,
+            best_frame_info: {
+              timestamp: 12.5,
+              is_live: false,
+            } as SearchResult['metadata']['best_frame_info'],
+          },
+        },
+      ]);
+
+      expect(results[0].observedAt).toBe('2026-03-01T10:00:12.500Z');
+      expect(results[0].timeSource).toBe('upload');
+      expect(results[0].streamId).toBeUndefined();
+    });
+
+    it('stamps a live hit with segment start time and its stream id', async () => {
+      videoService.getVideos.mockResolvedValue([]);
+
+      const results = await service.enrichResultsWithVideos([
+        {
+          id: 'result-1',
+          page_content: 'test content',
+          type: 'test',
+          metadata: {
+            ...baseMetadata,
+            video_id: 'cam-1',
+            best_frame_info: {
+              timestamp: 3,
+              is_live: true,
+              media_path: 'segments/1790655530.mp4',
+            } as SearchResult['metadata']['best_frame_info'],
+          },
+        },
+      ]);
+
+      expect(results[0].observedAt).toBe(
+        new Date((1790655530 + 3) * 1000).toISOString(),
+      );
+      expect(results[0].timeSource).toBe('live');
+      expect(results[0].streamId).toBe('cam-1');
     });
   });
 

@@ -1153,6 +1153,74 @@ async def test_refetch_search_overrides_the_minimum_peak_score(
     assert result["min_peak_score"] == 0.3
 
 
+def _dated(hit: dict, observed_at: str, source: str = "upload") -> dict:
+    return {**hit, "observedAt": observed_at, "timeSource": source}
+
+
+async def test_search_hits_carry_the_observed_time_and_its_source(
+    fake: FakeVss, deps: Deps
+) -> None:
+    fake.hits = [_dated(make_hit("v1", 0.9, 10), "2026-05-01T10:00:12.000Z")]
+
+    (hit,) = (await search_video(deps, "forklift"))["results"]
+
+    assert hit["observed_at"] == "2026-05-01T10:00:12.000Z"
+    assert hit["time_source"] == "upload"
+
+
+async def test_search_sorts_the_top_hits_newest_first(
+    fake: FakeVss, deps: Deps
+) -> None:
+    fake.hits = [
+        _dated(make_hit("v1", 0.9, 10), "2026-05-01T10:00:00Z"),
+        make_hit("v2", 0.8, 20),
+        _dated(make_hit("v3", 0.7, 30), "2026-05-03T10:00:00Z", "live"),
+        _dated(make_hit("v4", 0.1, 40), "2026-05-09T10:00:00Z"),
+    ]
+
+    result = await search_video(deps, "forklift", limit=3, sort="newest")
+
+    # v4 ranks below the limit, so sorting does not pull it in; undated last.
+    assert [hit["video_id"] for hit in result["results"]] == ["v3", "v1", "v2"]
+    assert result["sort"] == "newest"
+
+
+async def test_search_sorts_oldest_first_and_keeps_relevance_by_default(
+    fake: FakeVss, deps: Deps
+) -> None:
+    fake.hits = [
+        _dated(make_hit("v1", 0.9, 10), "2026-05-02T10:00:00Z"),
+        _dated(make_hit("v2", 0.8, 20), "2026-05-01T10:00:00Z"),
+    ]
+
+    oldest = await search_video(deps, "forklift", sort="oldest")
+    default = await search_video(deps, "forklift")
+
+    assert [hit["video_id"] for hit in oldest["results"]] == ["v2", "v1"]
+    assert [hit["video_id"] for hit in default["results"]] == ["v1", "v2"]
+    assert "sort" not in default
+
+
+async def test_search_rejects_an_unknown_sort(fake: FakeVss, deps: Deps) -> None:
+    with pytest.raises(VssError, match="sort must be one of"):
+        await search_video(deps, "forklift", sort="latest")
+
+    assert "/search" not in request_paths(fake)
+
+
+async def test_get_search_sorts_a_saved_search(fake: FakeVss, deps: Deps) -> None:
+    fake.hits = [
+        _dated(make_hit("v1", 0.9, 10), "2026-05-01T10:00:00Z"),
+        _dated(make_hit("v2", 0.8, 20), "2026-05-02T10:00:00Z"),
+    ]
+    seed_searches(fake, 1)
+
+    result = await get_search(deps, "q1", sort="newest")
+
+    assert [hit["video_id"] for hit in result["results"]] == ["v2", "v1"]
+    assert result["sort"] == "newest"
+
+
 async def test_refetch_search_checks_the_id_first(fake: FakeVss, deps: Deps) -> None:
     """Pipeline Manager answers an unknown id with a bare 500."""
 

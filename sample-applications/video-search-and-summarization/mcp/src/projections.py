@@ -277,13 +277,24 @@ def slim_search_hit(
     is_live = isinstance(best_frame, dict) and bool(best_frame.get("is_live"))
     breakdown = metadata.get("score_breakdown") or {}
 
+    # Pipeline Manager stamps observedAt (capture time for live hits, upload
+    # time plus offset for videos); older backends only let live hits be dated.
+    observed_at = iso_utc(parse_iso_epoch(raw.get("observedAt")))
+    time_source = raw.get("timeSource") if observed_at else None
+    if not observed_at:
+        observed_at = iso_utc(observed_epoch(metadata))
+        time_source = "live" if observed_at else None
+    if time_source not in ("live", "upload"):
+        time_source = None
+
     hit = {
         "video_id": metadata.get("video_id"),
         "video_name": data_store.get("fileName")
         or (metadata.get("video_metadata") or {}).get("file_name"),
         "source": "live" if is_live else "video",
         "stream_id": metadata.get("video_id") if is_live else None,
-        "observed_at": iso_utc(observed_epoch(metadata)),
+        "observed_at": observed_at,
+        "time_source": time_source,
         "start_s": _round(start, 1),
         "end_s": _round(end, 1),
         "seek_s": _round(seek, 1),

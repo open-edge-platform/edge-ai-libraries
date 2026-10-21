@@ -143,6 +143,7 @@ Managed query lifecycle:
 - `POST /manager/search/{queryId}/refetch` also takes `minPeakScore` (0-1), saved on the query.
 - `PATCH /manager/search/{queryId}/watch` with `{ "watch": true }` enables watch updates; add `"minPeakScore": 0.3` to gate every watched refresh at that score (saved on the query; a changed value re-runs it). Out-of-range values return 400.
 - `GET /manager/search/watched` lists watched queries.
+- Each returned result carries `observedAt` (UTC), `timeSource` (`live` = camera capture time, `upload` = upload time + frame offset) and, for live hits, `streamId`; sort or group on these client-side for a timeline.
 
 Direct search microservice (bypasses Pipeline Manager) accepts a list at `POST http://localhost:7890/query`:
 

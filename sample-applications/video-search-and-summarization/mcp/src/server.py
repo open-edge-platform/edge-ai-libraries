@@ -58,6 +58,10 @@ Search:
   * To restrict by time, work out the range yourself and pass start and end
     as ISO-8601 UTC timestamps. vss_get_deployment_info reports
     server_time_utc for resolving phrases like "the last 2 hours".
+  * "Latest / most recent / in order" -> search_video with sort="newest" (or
+    "oldest"). It reorders the top hits by observed_at; for an uploaded
+    video (time_source "upload") that is upload time plus offset, not when
+    it was filmed.
   * "Show me / check that frame" -> vss_get_media_frame with the fields of
     the hit's `frame` object, unchanged. Hits without `frame` have no
     stored peak frame.

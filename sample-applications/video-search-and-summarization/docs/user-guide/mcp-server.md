@@ -79,8 +79,8 @@ the feature set behind the decision. **live** means search with a frame-embeddin
 | `vss_list_tags` | — | The tags videos and live cameras are labelled with |
 | `vss_resolve_video` | — | Turn "the warehouse clip" into a video id |
 | `vss_index_video` | search | Make a video searchable (call once per video) |
-| `vss_search_video` | search | Find moments across indexed videos and live cameras; the search is saved in VSS's search history |
-| `vss_get_search` | search | A saved search and its latest results; `refresh=true` re-runs it first |
+| `vss_search_video` | search | Find moments across indexed videos and live cameras; the search is saved in VSS's search history. Optional `sort` (`relevance`, `newest`, `oldest`) orders the hits as a timeline by `observed_at` |
+| `vss_get_search` | search | A saved search and its latest results; `refresh=true` re-runs it first. Takes the same `sort` |
 | `vss_list_searches` | search | Saved searches, newest first |
 | `vss_watch_search` | search | Track a person or object live: start a watched search, poll it for new sightings, stop it (or let it expire after `duration_minutes`). Optional `min_peak_score` (0-1) keeps weak matches out of every refresh |
 | `vss_get_media_frame` | search | The image of a search hit's best-matching frame (or its detected object), from the hit's `frame` locator |

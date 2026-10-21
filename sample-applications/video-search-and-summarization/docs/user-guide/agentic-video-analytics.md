@@ -338,8 +338,11 @@ that VSS returns.
 
 The agent puts the place in `tags`, the time in `start`/`end`, and the
 appearance in `query`, then calls `vss_search_video`. Results are ranked
-best-first. Each hit has a playable `url`, a `start_s`/`end_s` range, and, for
-live cameras, `observed_at` (when it happened, UTC). Ask the agent to *"show
+best-first. Each hit has a playable `url`, a `start_s`/`end_s` range, and
+`observed_at` (UTC): the capture time for live cameras (`time_source: "live"`),
+or the upload time plus the offset for uploaded videos (`"upload"`). Ask for
+*"newest first"* and the agent passes `sort="newest"` to list the hits as a
+timeline. Ask the agent to *"show
 me the frame for the top three hits"* to verify them with
 `vss_get_media_frame`.
 

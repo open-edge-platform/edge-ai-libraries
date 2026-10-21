@@ -63,9 +63,16 @@ it hands to an agent is one it has reached itself.
   `POST /streams/batch`, `PATCH /{id}`, `DELETE /{id}` without purge) and are
   registered only with `imageSearchEnabled`. Every URL, name and error is
   credential-redacted. Live hits carry `source`, `stream_id`, `observed_at`
-  (segment epoch from `media_path` plus the frame offset) and `raw_score`;
-  their gateway-relative segment URL is prefixed with the datastore URL.
-  `stream_ids` on search and watch is a post-filter on the ranked hits.
+  and `raw_score`; their gateway-relative segment URL is prefixed with the
+  datastore URL. `stream_ids` on search and watch is a post-filter on the
+  ranked hits.
+- **Timeline.** `observed_at`/`time_source` come from Pipeline Manager's
+  `observedAt`/`timeSource` on each result: `live` is the segment epoch from
+  `media_path` plus the frame offset, `upload` is the video's `createdAt`
+  plus the offset. Against an older Pipeline Manager only live hits are
+  dated, from `media_path`. `sort` (`newest`/`oldest`) on `vss_search_video`
+  and `vss_get_search` reorders the hits after the `limit` cap, undated hits
+  last, and is echoed as `sort`.
 - **Minimum peak score.** `min_peak_score` (0-1) on `vss_search_video`,
   `vss_get_search` and `vss_watch_search` is sent as `minPeakScore`; unlike
   `stream_ids` it filters at retrieval, so the ranked hits are the best ones

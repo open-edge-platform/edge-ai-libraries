@@ -11,7 +11,7 @@ import logging
 import re
 import time
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from urllib.parse import urlencode, urlsplit
 
 from fastmcp import Context, FastMCP
@@ -256,6 +256,41 @@ async def _project_hits(
     return hits[: max(1, min(limit, MAX_LIMIT))]
 
 
+#: Accepted values of the ``sort`` argument.
+SORT_ORDERS = ("relevance", "newest", "oldest")
+
+
+def check_sort(value: str | None) -> str:
+    """Validate a ``sort`` argument; ``None`` means relevance.
+
+    Raises:
+        VssError: If it is not one of :data:`SORT_ORDERS`.
+    """
+
+    order = (value or "relevance").strip().lower()
+    if order not in SORT_ORDERS:
+        raise VssError(f"sort must be one of {', '.join(SORT_ORDERS)}.")
+    return order
+
+
+def sort_hits(hits: list[Hit], order: str) -> list[Hit]:
+    """Reorder the already ranked ``hits`` by ``observed_at``.
+
+    ``relevance`` keeps them as they are. The sort is stable and hits with
+    no ``observed_at`` go last, so ties and undated hits stay best first.
+    """
+
+    if order == "relevance":
+        return hits
+    dated = [hit for hit in hits if parse_iso_epoch(hit.get("observed_at"))]
+    undated = [hit for hit in hits if not parse_iso_epoch(hit.get("observed_at"))]
+    dated.sort(
+        key=lambda hit: parse_iso_epoch(hit["observed_at"]) or 0.0,
+        reverse=order == "newest",
+    )
+    return dated + undated
+
+
 def _status(stored: dict[str, Any]) -> dict[str, Any]:
     """The query id, status and any error of a persisted search."""
 
@@ -297,11 +332,13 @@ def _summarize_search(stored: dict[str, Any]) -> SearchSummary:
 
 
 async def _stored_search_payload(
-    deps: Deps, stored: dict[str, Any], limit: int
+    deps: Deps, stored: dict[str, Any], limit: int, sort: str = "relevance"
 ) -> StoredSearch:
     """Project a persisted search query and its hits, capped in size."""
 
-    hits = await _project_hits(deps, stored.get("results") or [], limit)
+    hits = sort_hits(
+        await _project_hits(deps, stored.get("results") or [], limit), sort
+    )
     summary = _summarize_search(stored)
     payload: dict[str, Any] = {"count": len(hits), "results": hits}
     payload.update(_status(stored))
@@ -322,6 +359,8 @@ async def _stored_search_payload(
         payload["time_range"] = time_range
     if stored.get("minPeakScore"):
         payload["min_peak_score"] = stored["minPeakScore"]
+    if sort != "relevance":
+        payload["sort"] = sort
     return payload
 
 
@@ -399,6 +438,7 @@ async def search_video(
     wait_seconds: float | None = None,
     stream_ids: list[str] | None = None,
     min_peak_score: float | None = None,
+    sort: str | None = None,
 ) -> SearchResult:
     """Back :func:`vss_search_video` (see its docstring for the contract).
 
@@ -425,6 +465,7 @@ async def search_video(
     image_url = _require_image_reference(image) if image else None
     time_filter = build_time_filter(start, end)
     min_peak_score = check_min_peak_score(min_peak_score)
+    sort = check_sort(sort)
 
     existing = sorted(await deps.client.list_tags()) if tags else []
     matched, unmatched = match_tags(tags or [], existing)
@@ -454,8 +495,9 @@ async def search_video(
     stored = stored or created
     _raise_if_failed(stored)
 
-    hits = await _project_hits(
-        deps, stored.get("results") or [], limit, video_ids=wanted
+    hits = sort_hits(
+        await _project_hits(deps, stored.get("results") or [], limit, video_ids=wanted),
+        sort,
     )
 
     # `count` is set before capping so the budget accounts for it; it can only
@@ -473,20 +515,27 @@ async def search_video(
         payload["time_range"] = time_range
     if stored.get("minPeakScore"):
         payload["min_peak_score"] = stored["minPeakScore"]
+    if sort != "relevance":
+        payload["sort"] = sort
     return payload
 
 
 async def get_search(
-    deps: Deps, query_id: str, *, limit: int = DEFAULT_LIMIT
+    deps: Deps,
+    query_id: str,
+    *,
+    limit: int = DEFAULT_LIMIT,
+    sort: str | None = None,
 ) -> StoredSearch:
     """Return a persisted search query and its latest hits.
 
     Raises:
-        VssError: If no query has that id.
+        VssError: If no query has that id or ``sort`` is invalid.
     """
 
+    sort = check_sort(sort)
     return await _stored_search_payload(
-        deps, await _require_search(deps, query_id), limit
+        deps, await _require_search(deps, query_id), limit, sort
     )
 
 
@@ -525,17 +574,19 @@ async def refetch_search(
     limit: int = DEFAULT_LIMIT,
     wait_seconds: float | None = None,
     min_peak_score: float | None = None,
+    sort: str | None = None,
 ) -> StoredSearch:
     """Re-run a persisted search query, optionally over a new time range
     or with a new minimum peak score, and return its fresh hits.
 
     Raises:
-        VssError: If no query has that id, the time range or score is
-            invalid, or the search failed.
+        VssError: If no query has that id, the time range, score or sort
+            is invalid, or the search failed.
     """
 
     time_filter = build_time_filter(start, end)
     min_peak_score = check_min_peak_score(min_peak_score)
+    sort = check_sort(sort)
     stored = await _require_search(deps, query_id)
     await deps.client.refetch_search(
         stored["queryId"], time_filter, min_peak_score
@@ -547,7 +598,7 @@ async def refetch_search(
     )
     refreshed = refreshed or stored
     _raise_if_failed(refreshed)
-    return await _stored_search_payload(deps, refreshed, limit)
+    return await _stored_search_payload(deps, refreshed, limit, sort)
 
 
 #: Cursor format: ``w1.<newest sighting, epoch ms>.<expiry, epoch ms or 0>``.
@@ -1048,6 +1099,7 @@ def register(mcp: FastMCP, deps: Deps) -> None:
         wait_seconds: float | None = None,
         stream_ids: list[str] | None = None,
         min_peak_score: float | None = None,
+        sort: Literal["relevance", "newest", "oldest"] = "relevance",
     ) -> ToolResult:
         """Find moments across all indexed videos and live cameras matching
         a description or an image.
@@ -1082,12 +1134,20 @@ def register(mcp: FastMCP, deps: Deps) -> None:
                 the deployment default (off unless configured). The VSS UI
                 starts the filter at 0.2, the score below which it labels a
                 hit a weak match; lower it if a search returns nothing.
+            sort: "relevance" (default) keeps the best hits first;
+                "newest"/"oldest" reorders the returned hits by observed_at
+                into a timeline. Only the top `limit` hits are reordered,
+                so it does not find older or newer moments that ranked
+                lower; hits without observed_at go last.
 
-        Results are best first; each hit's url plays its video, with
+        Results are best first unless sorted; each hit's url plays its video, with
         start_s/end_s bounding the moment and seek_s where to start; a
         hit's frame, when present, locates its best-matching frame for
-        vss_get_media_frame. A live-camera hit has source "live", its
-        stream_id, and observed_at (when it happened, UTC). Each
+        vss_get_media_frame. A live-camera hit has source "live" and its
+        stream_id. observed_at (UTC) dates a hit: time_source "live" is when
+        the camera captured it, "upload" is the video's upload time plus the
+        frame's offset, not when the footage was recorded. Group hits by
+        stream_id/video_id to see them per camera or video. Each
         clip is also returned as a resource_link. status "running" means
         the results were not ready in time: call vss_get_search with
         query_id later. unknown_tags lists tag words matching no existing
@@ -1106,6 +1166,7 @@ def register(mcp: FastMCP, deps: Deps) -> None:
             wait_seconds=wait_seconds,
             stream_ids=stream_ids,
             min_peak_score=min_peak_score,
+            sort=sort,
         )
         return search_tool_result(payload)
 
@@ -1118,6 +1179,7 @@ def register(mcp: FastMCP, deps: Deps) -> None:
         limit: int = DEFAULT_LIMIT,
         wait_seconds: float | None = None,
         min_peak_score: float | None = None,
+        sort: Literal["relevance", "newest", "oldest"] = "relevance",
     ) -> ToolResult:
         """Return a saved search and its results, optionally re-running it
         first.
@@ -1139,6 +1201,8 @@ def register(mcp: FastMCP, deps: Deps) -> None:
             wait_seconds: How long to wait for re-run results.
             min_peak_score: New minimum peak score (0-1, 0 = off) for the
                 re-run; implies refresh and is saved with the search.
+            sort: "relevance" (default), or "newest"/"oldest" to reorder
+                the returned hits by observed_at, as in vss_search_video.
         """
 
         if refresh or start or end or min_peak_score is not None:
@@ -1150,9 +1214,10 @@ def register(mcp: FastMCP, deps: Deps) -> None:
                 limit=limit,
                 wait_seconds=wait_seconds,
                 min_peak_score=min_peak_score,
+                sort=sort,
             )
         else:
-            payload = await get_search(deps, query_id, limit=limit)
+            payload = await get_search(deps, query_id, limit=limit, sort=sort)
         return search_tool_result(payload)
 
     @mcp.tool(annotations=READ_ONLY)

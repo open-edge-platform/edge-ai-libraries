@@ -484,4 +484,25 @@ describe('SearchContent Component', () => {
       expect(screen.getByText('searchError')).toBeInTheDocument();
     });
   });
+
+  describe('Sort and group controls', () => {
+    const query = createMockQuery('query-1', 'Test Query 1', 4, [
+      createMockSearchResult('result-1', 'video-1', 0.95, 120),
+    ]);
+
+    it('sets the per-query sort and grouping from the dropdowns', () => {
+      // jsdom has no scrollIntoView, which Carbon's Dropdown calls when opening.
+      Element.prototype.scrollIntoView ??= vi.fn();
+      const { store } = renderSearchContent({ selectedQuery: 'query-1', searchQueries: [query] });
+
+      fireEvent.click(screen.getByText('sortRelevance'));
+      fireEvent.click(screen.getByText('sortNewest'));
+      expect(store.getState().search.searchQueries[0].sortBy).toBe('newest');
+
+      fireEvent.click(screen.getByText('groupNone'));
+      fireEvent.click(screen.getByText('groupCamera'));
+      expect(store.getState().search.searchQueries[0].groupBy).toBe('camera');
+      expect(screen.getByText('groupsByCamera')).toBeInTheDocument();
+    });
+  });
 });

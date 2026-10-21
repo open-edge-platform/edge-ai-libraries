@@ -139,9 +139,11 @@ class Hit(TypedDict):
     """A matching moment; times are seconds into the video at url. label is
     the detected object that matched, when the match was one.
 
-    source is "live" for a camera hit, whose stream_id names the camera and
-    observed_at is the wall-clock time (ISO-8601 UTC) of the matched frame;
-    url then plays the 10 s segment holding it. score is relative to the
+    source is "live" for a camera hit, whose stream_id names the camera;
+    url then plays the 10 s segment holding it. observed_at (ISO-8601 UTC)
+    places the matched frame on a timeline: time_source "live" means it is
+    the camera's capture time, "upload" means the video's upload time plus
+    the frame's offset (not when the footage was recorded). score is relative to the
     best hit of the same search (the best is always 1.0); raw_score is the
     absolute similarity, comparable across searches and polls."""
 
@@ -150,6 +152,7 @@ class Hit(TypedDict):
     source: NotRequired[Literal["live", "video"]]
     stream_id: NotRequired[str]
     observed_at: NotRequired[str]
+    time_source: NotRequired[Literal["live", "upload"]]
     start_s: NotRequired[float]
     end_s: NotRequired[float]
     seek_s: NotRequired[float]
@@ -183,7 +186,8 @@ class TimeRange(TypedDict):
 
 
 class SearchResult(TypedDict):
-    """Hits best first. With only unknown_tags, nothing was searched.
+    """Hits best first, or by observed_at when sort is "newest"/"oldest".
+    With only unknown_tags, nothing was searched.
 
     query_id names the query VSS persisted; status is "running" while its
     results are still being computed, "idle" once done and "error" if it
@@ -200,6 +204,7 @@ class SearchResult(TypedDict):
     stream_ids: NotRequired[list[str]]
     time_range: NotRequired[TimeRange]
     min_peak_score: NotRequired[float]
+    sort: NotRequired[Literal["newest", "oldest"]]
 
 
 class StoredSearch(SearchResult):

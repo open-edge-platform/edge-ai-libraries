@@ -239,9 +239,23 @@ export interface SearchResult {
    * deleted after being indexed).
    */
   videoPlaybackUrl?: string;
+  /**
+   * Wall-clock time (ISO-8601, UTC) of this hit's peak frame, for sorting
+   * results on a timeline. Live hits: the segment's recording start plus the
+   * frame offset (true capture time). Uploaded videos: the time the video was
+   * uploaded to VSS plus the frame offset, since uploads carry no reliable
+   * capture time. Absent when neither can be determined.
+   */
+  observedAt?: string;
+  /** What `observedAt` is based on: `live` capture time or `upload` time. */
+  timeSource?: ObservedTimeSource;
+  /** Live stream (camera) id for live hits; absent for uploaded videos. */
+  streamId?: string;
   page_content: string;
   type: string;
 }
+
+export type ObservedTimeSource = 'live' | 'upload';
 
 export interface SearchQuery {
   dbId?: number;

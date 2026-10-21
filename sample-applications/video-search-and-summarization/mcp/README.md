@@ -15,9 +15,13 @@ The **Needs** column is what a deployment must have for the tool to exist at
 all: at startup the server reads `GET /app/features` and registers only the
 tools that deployment can serve.
 
-Hits from a live camera carry `source: "live"`, `stream_id`, `observed_at`
-(wall-clock UTC of the matched frame) and `raw_score` (the absolute
-similarity; `score` is normalized so the top hit is 1). `vss_remove_stream`
+Hits carry `observed_at` (ISO-8601 UTC) and `time_source`: `live` is a
+camera's capture time, `upload` is the video's upload time plus the frame
+offset. Hits from a live camera also carry `source: "live"` and `stream_id`.
+`raw_score` is the absolute similarity; `score` is normalized so the top hit
+is 1. `vss_search_video` and `vss_get_search` take `sort` (`relevance`,
+`newest` or `oldest`), which reorders the returned top hits by `observed_at`.
+`vss_remove_stream`
 is the only tool that deletes anything, and is annotated destructive.
 
 | Tool | Needs | Purpose |

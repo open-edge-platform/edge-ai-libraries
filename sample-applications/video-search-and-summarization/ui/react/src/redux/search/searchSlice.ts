@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 import { createAsyncThunk, createSelector, createSlice, PayloadAction } from '@reduxjs/toolkit';
 import {
+  ResultGroupBy,
+  ResultSortBy,
   SearchConfig,
   SearchQuery,
   SearchQueryDTO,
@@ -12,6 +14,7 @@ import {
   SearchState,
   TimeFilterSelection,
 } from './search';
+import { sortResults } from './resultOrder';
 import { RootState } from '../store';
 import axios from 'axios';
 import { APP_URL } from '../../config';
@@ -61,13 +64,21 @@ export const SearchSlice = createSlice({
     updateSearchQuery: (state: SearchState, action) => {
       const index = state.searchQueries.findIndex((query) => query.queryId === action.payload.queryId);
       const currentTopK = index !== -1 ? state.searchQueries[index].topK : defaultTopk;
-      const currentShowVideoGroups = index !== -1 ? state.searchQueries[index].showVideoGroups : false;
+      const currentGroupBy = index !== -1 ? state.searchQueries[index].groupBy : undefined;
+      const currentSortBy = index !== -1 ? state.searchQueries[index].sortBy : undefined;
       // Snapshot before the list is rebuilt below, so change detection compares
       // against the previous results rather than the freshly written ones.
       const previousResults = index !== -1 ? JSON.stringify(state.searchQueries[index].results ?? []) : null;
-      const merged = index !== -1
-        ? { ...state.searchQueries[index], ...action.payload, topK: currentTopK, showVideoGroups: currentShowVideoGroups }
-        : { ...action.payload, topK: currentTopK, showVideoGroups: currentShowVideoGroups };
+      const merged =
+        index !== -1
+          ? {
+              ...state.searchQueries[index],
+              ...action.payload,
+              topK: currentTopK,
+              groupBy: currentGroupBy,
+              sortBy: currentSortBy,
+            }
+          : { ...action.payload, topK: currentTopK, groupBy: currentGroupBy, sortBy: currentSortBy };
 
       // Normalize per-query time filter to avoid leaking values across queries.
       merged.timeFilter = normalizeTimeFilter(merged.timeFilter);
@@ -125,10 +136,16 @@ export const SearchSlice = createSlice({
       state.searchQueries[state.searchQueries.findIndex((query) => query.queryId === action.payload.queryId)].topK =
         action.payload.topK;
     },
-    toggleGroupByTag: (state: SearchState, action: PayloadAction<{ queryId: string }>) => {
+    setGroupBy: (state: SearchState, action: PayloadAction<{ queryId: string; groupBy: ResultGroupBy }>) => {
       const index = state.searchQueries.findIndex((query) => query.queryId === action.payload.queryId);
       if (index !== -1) {
-        state.searchQueries[index].showVideoGroups = !state.searchQueries[index].showVideoGroups;
+        state.searchQueries[index].groupBy = action.payload.groupBy;
+      }
+    },
+    setSortBy: (state: SearchState, action: PayloadAction<{ queryId: string; sortBy: ResultSortBy }>) => {
+      const index = state.searchQueries.findIndex((query) => query.queryId === action.payload.queryId);
+      if (index !== -1) {
+        state.searchQueries[index].sortBy = action.payload.sortBy;
       }
     },
     updateTimeFilter: (
@@ -159,7 +176,8 @@ export const SearchSlice = createSlice({
           state.searchQueries = action.payload.map((query) => ({
             ...query,
             topK: defaultTopk,
-            showVideoGroups: false,
+            groupBy: 'none',
+            sortBy: 'relevance',
             timeFilter: normalizeTimeFilter(query.timeFilter),
           }));
         }
@@ -216,14 +234,14 @@ export const SearchSlice = createSlice({
       .addCase(SearchAdd.fulfilled, (state, action) => {
         const existingIndex = state.searchQueries.findIndex((query) => query.queryId === action.payload.queryId);
         const existingTopK = existingIndex !== -1 ? state.searchQueries[existingIndex].topK : defaultTopk;
-        const existingShowVideoGroups =
-          existingIndex !== -1 ? state.searchQueries[existingIndex].showVideoGroups : false;
+        const existing = existingIndex !== -1 ? state.searchQueries[existingIndex] : undefined;
 
         const merged = {
           ...(existingIndex !== -1 ? state.searchQueries[existingIndex] : {}),
           ...action.payload,
           topK: existingTopK,
-          showVideoGroups: existingShowVideoGroups,
+          groupBy: existing?.groupBy ?? 'none',
+          sortBy: existing?.sortBy ?? 'relevance',
           timeFilter: normalizeTimeFilter(action.payload.timeFilter),
         };
 
@@ -377,7 +395,9 @@ export const SearchSelector = createSelector([selectSearchState], (state) => {
         if (!curr || !curr.results || (curr.results && curr.results.length <= 0)) {
           return [];
         }
-        acc = curr.results.slice(0, curr.topK);
+        // Sort only the top K by relevance, so a time sort reorders what the
+        // output count shows rather than pulling in lower-ranked hits.
+        acc = sortResults(curr.results.slice(0, curr.topK), curr.sortBy);
       }
       return acc;
     }, [] as SearchResult[]),

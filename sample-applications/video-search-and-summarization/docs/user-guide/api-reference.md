@@ -152,6 +152,29 @@ curl -s -X PATCH "$BASE/search/<queryId>/watch" -H 'Content-Type: application/js
 >   differently from frame similarity, so choose the threshold separately.
 > - Live-stream hits go through the same path and are filtered the same way.
 
+## Search Result Timeline Fields
+
+Pipeline Manager adds three top-level fields (siblings of `metadata`) to every
+search result it returns, from `GET /search/{queryId}`, `GET /search`,
+`POST /search/query` and the `SEARCH_UPDATE` socket event:
+
+| Field | Description |
+| ----- | ----------- |
+| `observedAt` | ISO-8601 UTC time of the result's best frame. Omitted when it cannot be determined. |
+| `timeSource` | `live`: capture time of a live-camera frame (segment epoch from the file name plus the frame offset). `upload`: the video's upload time (`createdAt`) plus the frame offset, not the recording time. |
+| `streamId` | The camera's stream id, on live hits only. |
+
+Sort or group by these fields on the client, e.g. newest first or per camera.
+They reorder only the returned results (at most `AGGREGATION_MAX_RESULTS`,
+ranked by relevance); add a `timeFilter` to cover a specific period.
+
+```bash
+curl -s -X POST "$BASE/search/query" -H 'Content-Type: application/json' \
+  -d '{"query": "forklift"}' \
+  | jq '[.results[].results[] | {observedAt, timeSource, streamId, id: .metadata.video_id}]
+        | sort_by(.observedAt) | reverse'
+```
+
 ## Search by an Uploaded Image
 
 In `--search` and `--dual` modes, search-by-image can use an image stored in the

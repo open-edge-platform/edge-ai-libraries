@@ -159,6 +159,31 @@ segments, so each result's best frame scores at least the threshold.
 See [API Reference](../api-reference.md#filtering-search-results-by-minimum-peak-score)
 for the request fields and caveats.
 
+## Sorting and Grouping Results on a Timeline
+
+Pipeline Manager dates every search result so it can be placed on a timeline.
+It adds `observedAt` (ISO-8601 UTC) and `timeSource` to each hit:
+
+| `timeSource` | Hit | `observedAt` |
+| ------------ | --- | ------------ |
+| `live` | Live camera | Capture time: the epoch second in the segment file name (`<epoch>.mp4`) plus the best frame's offset into the segment |
+| `upload` | Uploaded video | Upload time (`createdAt` of the video) plus the best frame's offset into the video |
+
+Live hits also carry `streamId`. Uploaded videos are dated by when they were
+uploaded, not when the footage was recorded (container metadata is not read).
+A copy made with `POST /videos/{videoId}/copy` has its own upload time.
+
+In the search results, **Sort by** chooses **Relevance** (the default),
+**Newest first** or **Oldest first**, and **Group by** chooses **None**,
+**Tag**, or **Camera / video**, which puts each live camera's and each uploaded
+video's hits under their own heading. Each result shows its capture time
+(live) or its upload time and the match's offset into the video, e.g.
+`Uploaded 10/21/2026, 8:25:02 AM · at 0:13`, and its tags in every view. Because of the offset, hits from
+the same video are ordered by where they occur in it: **Oldest first** plays
+them in order and **Newest first** reverses it. Sorting reorders only the results already shown (the top results by
+relevance, at most `AGGREGATION_MAX_RESULTS`); it does not fetch older or newer
+moments that ranked lower. Combine it with a time range to cover a period.
+
 ## Live Stream Storage and Retention Sizing
 
 A registered RTSP camera ingests continuously, so — unlike a one-off upload — its

@@ -8,6 +8,7 @@ import {
   Tag,
   Tooltip,
   Button,
+  Dropdown,
   Accordion,
   AccordionItem,
   Modal,
@@ -17,7 +18,7 @@ import {
   SkeletonText,
 } from '@carbon/react';
 import { RerunSearch, SearchActions, SearchSelector } from '../../redux/search/searchSlice';
-import { SearchResult, TimeFilterSelection } from '../../redux/search/search';
+import { ResultGroupBy, ResultSortBy, SearchResult, TimeFilterSelection } from '../../redux/search/search';
 import TimeFilterControl from './TimeFilterControl';
 import MinPeakScoreControl, { formatMinPeakScore, minPeakScoreOnValue } from './MinPeakScoreControl';
 import SearchOutputCountControl from './SearchOutputCountControl';
@@ -76,6 +77,9 @@ const QueryContentWrapper = styled.div`
       }
       .relevance {
         padding: 1rem;
+      }
+      .result-tags {
+        margin-top: 0.5rem;
       }
     }
   }
@@ -145,7 +149,7 @@ const QueryBar = styled.div`
   background-color: #f4f4f4;
   border-bottom: 1px solid var(--color-border);
   width: 100%;
-  /* Sticky so the query text + Group-by-tag / Re-run controls stay reachable.
+  /* Sticky so the query text + sort / group / Re-run controls stay reachable.
      The Filters accordion above scrolls away first; once this bar reaches the
      top of the scrolling content panel it pins there. */
   position: sticky;
@@ -167,6 +171,39 @@ const QueryBar = styled.div`
     text-overflow: ellipsis;
     white-space: nowrap;
     max-width: 40rem;
+  }
+
+  /* The sort/group menus are fixed-positioned (autoAlign) so they never
+     overflow this scroll panel and shift it sideways. autoAlign sizes each
+     menu to its trigger; the trigger is wide enough for the longest option,
+     so the menu sits exactly under it instead of Carbon's 18rem inline
+     minimum running past the panel's right edge. */
+  .cds--dropdown--inline {
+    min-inline-size: 10rem;
+    /* Carbon's inline dropdown is transparent and reads as plain text; give
+       it a field look so it is recognisable as a control. */
+    background-color: #ffffff;
+    border: 1px solid #8d8d8d;
+    border-radius: 4px;
+    transition:
+      background-color 0.11s,
+      border-color 0.11s;
+    &:hover {
+      background-color: #edf5ff;
+      border-color: #0f62fe;
+    }
+    &.cds--dropdown--open {
+      border-color: #0f62fe;
+    }
+    .cds--list-box__field {
+      padding-inline-start: 0.75rem;
+    }
+    .cds--list-box__menu-icon svg {
+      fill: #0f62fe;
+    }
+  }
+  .cds--dropdown--inline .cds--list-box__menu {
+    min-inline-size: 0;
   }
 `;
 
@@ -413,16 +450,7 @@ export const QueryInfo: FC = () => {
           <InlineLoading status='active' description={t('searchUpdating')} />
         </span>
       )}
-      <Button
-        kind='ghost'
-        size='sm'
-        onClick={() => {
-          // Toggle the grouped video view for THIS query only.
-          dispatch(SearchActions.toggleGroupByTag({ queryId: selectedQuery.queryId }));
-        }}
-      >
-        {t('GroupByTag')}
-      </Button>
+      <ResultViewControls />
       <Button
         kind='ghost'
         size='sm'
@@ -433,6 +461,69 @@ export const QueryInfo: FC = () => {
         Re-run Search
       </Button>
     </QueryBar>
+  );
+};
+
+interface ViewOption<T extends string> {
+  id: T;
+  label: string;
+}
+
+/**
+ * Per-query sort and group pickers. Time sorts reorder only the results the
+ * search returned (ranked by relevance), not the whole library.
+ */
+export const ResultViewControls: FC = () => {
+  const { selectedQuery } = useAppSelector(SearchSelector);
+  const dispatch = useAppDispatch();
+  const { t } = useTranslation();
+  if (!selectedQuery) return null;
+
+  const sortItems: ViewOption<ResultSortBy>[] = [
+    { id: 'relevance', label: t('sortRelevance', 'Relevance') },
+    { id: 'newest', label: t('sortNewest', 'Newest first') },
+    { id: 'oldest', label: t('sortOldest', 'Oldest first') },
+  ];
+  const groupItems: ViewOption<ResultGroupBy>[] = [
+    { id: 'none', label: t('groupNone', 'None') },
+    { id: 'tag', label: t('groupTag', 'Tag') },
+    { id: 'camera', label: t('groupCamera', 'Camera / video') },
+  ];
+  const sortBy = selectedQuery.sortBy ?? 'relevance';
+  const groupBy = selectedQuery.groupBy ?? 'none';
+  const queryId = selectedQuery.queryId;
+
+  return (
+    <>
+      <Dropdown
+        id='result-sort-by'
+        type='inline'
+        size='sm'
+        autoAlign
+        titleText={t('sortBy', 'Sort')}
+        label={t('sortBy', 'Sort')}
+        items={sortItems}
+        itemToString={(item) => (item ? item.label : '')}
+        selectedItem={sortItems.find((item) => item.id === sortBy)}
+        onChange={({ selectedItem }) => {
+          if (selectedItem) dispatch(SearchActions.setSortBy({ queryId, sortBy: selectedItem.id }));
+        }}
+      />
+      <Dropdown
+        id='result-group-by'
+        type='inline'
+        size='sm'
+        autoAlign
+        titleText={t('groupBy', 'Group')}
+        label={t('groupBy', 'Group')}
+        items={groupItems}
+        itemToString={(item) => (item ? item.label : '')}
+        selectedItem={groupItems.find((item) => item.id === groupBy)}
+        onChange={({ selectedItem }) => {
+          if (selectedItem) dispatch(SearchActions.setGroupBy({ queryId, groupBy: selectedItem.id }));
+        }}
+      />
+    </>
   );
 };
 
@@ -559,11 +650,9 @@ const ErrorMessage: FC = () => {
 export const SearchContent: FC = () => {
   const hasSelectedQuery = useAppSelector((state) => Boolean(SearchSelector(state).selectedQuery));
   const isSelectedHasError = useAppSelector((state) => SearchSelector(state).isSelectedHasError);
-  // Per-query view toggle: read the selected query's own flag so grouping never
+  // Per-query grouping: read the selected query's own setting so grouping never
   // leaks across search result pages.
-  const showVideoGroups = useAppSelector(
-    (state) => Boolean(SearchSelector(state).selectedQuery?.showVideoGroups),
-  );
+  const groupBy = useAppSelector((state) => SearchSelector(state).selectedQuery?.groupBy ?? 'none');
 
   return (
     <>
@@ -575,7 +664,13 @@ export const SearchContent: FC = () => {
             <QuerySettings />
             <QueryInfo />
             <IntervalDisplay />
-            {showVideoGroups ? <VideoGroupsView /> : isSelectedHasError ? <ErrorMessage /> : <VideosContainer />}
+            {groupBy !== 'none' ? (
+              <VideoGroupsView groupBy={groupBy} />
+            ) : isSelectedHasError ? (
+              <ErrorMessage />
+            ) : (
+              <VideosContainer />
+            )}
           </>
         )}
         <TelemetryAccordion />
