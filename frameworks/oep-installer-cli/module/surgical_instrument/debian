@@ -1,0 +1,71 @@
+
+configure_surgical_instrument () {
+  workspace="$(ensure_project_path)/surgical-instrument"
+  version="5bf04485b67cda526a1dbd8435141733e05fd61a"
+  repository="https://github.com/open-edge-platform/health-and-life-sciences-ai-suite.git"
+  used_ports=(3000)
+}
+
+debian_90_profile_surgical_instrument () {
+  echo "edge_base docker_io git make python3_venv gnupg2 wget"
+}
+
+verify_surgical_instrument () {
+  [ -e "$workspace"/surgical-instrument/videos/polyp_test.mp4 ] || {
+    echo "Missing polyp_test.mp4" >&2
+    return 1
+  }
+  [ -e "$workspace"/surgical-instrument/models/yolo11n_polyp/best_openvino_model/best.xml ] || {
+    echo "Missing yolo11n_polyp" >&2
+    return 1
+  }
+}
+
+debian_90_install_surgical_instrument () {
+  configure_surgical_instrument
+
+  if verify_surgical_instrument && [[ " $* " = *" --reinstall "* ]]; then
+    echo "Surgical Instrument is installed" >&2
+  else
+    ensure_disk_size 70000
+    ensure_ports_open install surgical_instrument "${used_ports[@]}"
+    ensure_git_export "$workspace" "$version" "$repository" surgical-instrument
+    cd "$workspace"/surgical-instrument
+
+    # train models
+    make download-dataset
+    make prepare-dataset MAX_POS_PER_VIDEO=800
+    make backend-venv
+    make backend-bootstrap
+
+    # download video
+    .venv-backend/bin/python scripts/create_endoscopy_video.py \
+        --images-dir datasets/REAL-Colon/raw/001-001_frames \
+        --output videos/polyp_test.mp4 \
+        --seconds 60 --fps 60 --width 1920 --height 1080
+
+    verify_surgical_instrument
+  fi
+    
+  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT $installer_name start|remove"
+}
+    
+debian_90_start_surgical_instrument () {
+  configure_surgical_instrument
+  ensure_ports_open start surgical_instrument "${used_ports[@]}"
+
+  cd "$workspace"/surgical-instrument
+  make doctor
+  make up LOWLATENCY=1 CAMERA_TRIGGER=vsync VSYNC_DIVISOR=2 SERIAL=1234567890
+
+  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT $installer_name remove"
+}
+
+debian_90_remove_surgical_instrument () {
+  configure_surgical_instrument
+  ensure_rm "$workspace"
+}
+
+ 
