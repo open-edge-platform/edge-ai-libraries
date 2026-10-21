@@ -45,8 +45,11 @@ models:
 
 The file must be a regular UTF-8 `.yaml`, `.yml` file no larger than 1 MiB.
 Unknown fields, an empty model list, and malformed or unsupported values make the whole file
-invalid. If `STARTUP_MODELS_CONFIG` is unset, startup downloads are disabled. If it names a
-missing, unreadable, or invalid file, the service logs an actionable
+invalid. Set `STARTUP_MODELS_ENABLED=false` to disable startup downloads while leaving the
+configured file mounted; it defaults to `true` for backward compatibility. Values must be
+`true`, `false`, `1`, `0`, `yes`, `no`, `on`, or `off`. If `STARTUP_MODELS_CONFIG` is unset,
+startup downloads are also disabled. If it names a missing, unreadable, or invalid file, the
+service logs an actionable
 `startup_models_config_unusable` error, schedules no models from that file, and continues serving.
 For a valid file, a model that cannot be submitted logs `startup_model_submission_failed` without
 preventing later entries from being scheduled.
