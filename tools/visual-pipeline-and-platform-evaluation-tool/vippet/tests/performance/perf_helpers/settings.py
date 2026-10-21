@@ -435,6 +435,15 @@ SPECS: tuple[SettingSpec, ...] = (
         "Create/update the 'latest' symlink in the results directory.",
         negative_flag="--no-latest-link",
     ),
+    SettingSpec(
+        "results.save_log",
+        "--save-log",
+        "bool",
+        True,
+        "Write the run's full INFO log next to its reports "
+        "(<results-dir>/bench_<timestamp>/bench_<timestamp>.log).",
+        negative_flag="--no-save-log",
+    ),
 )
 
 SPECS_BY_KEY: dict[str, SettingSpec] = {spec.key: spec for spec in SPECS}

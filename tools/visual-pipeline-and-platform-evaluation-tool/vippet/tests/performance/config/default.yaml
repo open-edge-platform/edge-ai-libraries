@@ -94,5 +94,9 @@ results:
     - json
     - csv
 
-  # Create symlink to latest results
+  # Point results/latest at the most recent run directory (updated at the
+  # end of every run, including failed or aborted ones)
   create_latest_link: true
+
+  # Write the run's full INFO log to bench_<timestamp>/bench_<timestamp>.log next to the reports.
+  save_log: true

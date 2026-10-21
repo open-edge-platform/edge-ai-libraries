@@ -19,7 +19,8 @@ make test-performance PERF_CONFIG=full   # all variants, 1/3/5/10 streams
 make test-performance PERF_ARGS="--dry-run"
 make test-performance PERF_CONFIG=quick PERF_ARGS="--streams 1,5 --pipelines object-detection"
 
-# Verbose: stream INFO logs live (arguments after `--` go to pytest)
+# Verbose: stream INFO logs live (arguments after `--` go to pytest).
+# The full INFO log is always saved next to the reports; see "Reports" below.
 make test-performance PERF_ARGS="-- --log-cli-level=INFO"
 ```
 
@@ -127,17 +128,22 @@ Every run (CLI or direct pytest) prints these sections in order:
    with reasons, and runs skipped for missing models.
 4. **Per-test status**: one `PASSED`/`FAILED`/`SKIPPED` line per run (`-v` is set in
    `pytest.ini`; pass `-q` after `--` for dots).
-5. **Benchmark artefacts**: the result directory, the JSON/CSV/HTML files and the
-   `latest` link, or why nothing was written. Also a warning if no hardware metrics
-   were sampled.
+5. **Benchmark artefacts**: the run directory, the JSON/CSV/HTML reports, the log file
+   and the `latest` link, or why no reports were written. Also a warning if no
+   hardware metrics were sampled.
 6. pytest's short summary with every skip and failure reason.
 
-Logs are not streamed by default; the INFO log of a failed test is shown in its
-"Captured log" block. Passing `--log-cli-level=INFO` to pytest (after `--` for the CLI)
-streams logs live, which adds `live log ...` blocks between these sections and splits
-each per-test status line around the logs of its job. Per-request `httpx`/`httpcore`
-lines are always suppressed below WARNING because the readiness lines already report
-each request.
+The path of the log file is also printed in pytest's header (`benchmark log: ...`), so
+it is known even when the run stops at the readiness check.
+
+Logs are not streamed to the console by default. Every run writes its full INFO log to
+`bench_<timestamp>.log` in its run directory (see [Reports](#reports)), and the INFO
+log of a failed test is also shown in its "Captured log" block. Passing
+`--log-cli-level=INFO` to pytest (after `--` for the CLI) streams logs live, which adds
+`live log ...` blocks between these sections and splits each per-test status line
+around the logs of its job. Per-request `httpx`/`httpcore` lines (e.g. job status polls
+and metrics-manager samples) are kept out of the console below WARNING, but they are
+written to the log file.
 
 Every error says what happened, why, and how to fix it ("To fix: ..."), naming the
 flag, env var or file to change. Errors that stop the run:
@@ -187,6 +193,7 @@ Every YAML key has a CLI flag:
 | `--results-dir`              | `results.output_dir`                      | `PERF_RESULTS_DIR`                |
 | `--formats`                  | `results.formats`                         |                                   |
 | `--[no-]latest-link`         | `results.create_latest_link`              |                                   |
+| `--[no-]save-log`            | `results.save_log`                        |                                   |
 
 Notes:
 
@@ -251,9 +258,38 @@ config/
 
 ## Reports
 
-After a run, results are saved to `results/bench_YYYYMMDD_HHMMSS/`. The exact paths
-are listed in the run's **Benchmark artefacts** section:
+Each run gets its own directory, `results/bench_YYYYMMDD_HHMMSS/`. The timestamp is the
+run's start time and every file in the directory uses it, so the reports and the log of
+one benchmark always belong together (the JSON `timestamp` is the same start time). The
+exact paths are listed in the run's **Benchmark artefacts** section:
 
 - `.json` — structured results (all test cases + HW metrics)
 - `.csv` — flat table for spreadsheet analysis
 - `.html` — interactive Chart.js report with FPS, utilization, and power charts
+- `.log` — the full INFO log of the run, including the per-request HTTP lines hidden from
+  the console (`results.save_log`, on by default)
+
+```text
+results/
+├── bench_20261020_154904/
+│   ├── bench_20261020_154904.json
+│   ├── bench_20261020_154904.html
+│   └── bench_20261020_154904.log
+└── latest -> bench_20261020_154904
+```
+
+At the end of every run, `latest` is pointed at the run directory, including runs that
+failed or stopped at the readiness check, because it is still the latest run. With
+`--no-save-log` a run that writes no reports creates no directory and leaves `latest`
+unchanged.
+
+Log options (arguments after `--` go to pytest):
+
+```bash
+# More detail in the log file
+python -m perf_helpers.cli -- --log-file-level=DEBUG
+# Write the log somewhere else (no log in the run directory then)
+python -m perf_helpers.cli -- --log-file=/tmp/perf.log
+# No log file
+python -m perf_helpers.cli --no-save-log
+```

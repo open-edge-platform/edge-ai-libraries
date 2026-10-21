@@ -50,6 +50,7 @@ try:
         READINESS_TIMEOUT_SECONDS,
         REQUEST_TIMEOUT,
         RESULT_FORMATS,
+        SAVE_LOG,
         SKIP_MISSING_MODELS,
         SETTINGS,
         STREAM_COUNTS,
@@ -98,11 +99,29 @@ _CAPABILITIES: dict[str, Any] = {}
 _VIPPET_VERSION: str = "Unknown"
 
 # Filled by the results_collector finalizer and printed by
-# pytest_terminal_summary: written files, why nothing was written, and a
-# warning when no hardware metrics were sampled.
+# pytest_terminal_summary: written report files, why they could not be
+# written, and a warning when no hardware metrics were sampled.
 _ARTEFACTS: list[tuple[str, Path]] = []
 _ARTEFACT_ERROR: str | None = None
 _HW_WARNING: str | None = None
+
+# One id per run, fixed when pytest starts: it names the run directory and
+# every file in it (reports and log), and the JSON "timestamp" is the same
+# start time, so all artefacts of one benchmark are recognisably together.
+_RUN_STARTED: datetime = datetime.now()
+_BENCHMARK_ID: str = f"bench_{_RUN_STARTED:%Y%m%d_%H%M%S}"
+_RUN_DIR: Path = Path(PERF_RESULTS_DIR) / _BENCHMARK_ID
+_LOG_FILE: Path = _RUN_DIR / f"{_BENCHMARK_ID}.log"
+
+# False for --collect-only / --help: such runs create no directory and
+# leave ``latest`` alone.
+_RUN_ACTIVE: bool = False
+# Why the run directory (and so the log file) could not be created.
+_RUN_DIR_WARNING: str | None = None
+# Outcome of pointing <results-dir>/latest at _RUN_DIR (done once, at the end).
+_LATEST_LINK_ATTEMPTED: bool = False
+_LATEST_LINK: Path | None = None
+_LATEST_LINK_ERROR: str | None = None
 
 # Unknown filter ids found while parametrizing: (explanation, is_fatal).
 # Reported after the matrix; a fatal one then ends the session from
@@ -114,17 +133,149 @@ _FILTER_PROBLEM: tuple[str, bool] | None = None
 _QUICK_STREAM_COUNTS: set[int] = {1, 3}
 _QUICK_VARIANTS: set[str] = {"CPU", "GPU"}
 
-# Loggers whose per-request INFO lines ("HTTP Request: GET ...") only repeat
-# what the [pre-flight] lines and helpers.api_helpers already report. With
-# --log-cli-level=INFO they would be printed inline and split the console
-# sections, so only their warnings and errors are kept.
-_NOISY_LOGGERS: tuple[str, ...] = ("httpx", "httpcore")
+# Loggers whose per-request lines ("HTTP Request: GET ...") would split the
+# console sections. They are kept out of the console (live log and the
+# "Captured log" of failed tests) but still written to the log file, where
+# e.g. response codes and metrics-manager samples are useful for debugging.
+_NOISY_LOGGERS: frozenset[str] = frozenset({"httpx", "httpcore"})
+
+
+class _ConsoleNoiseFilter(logging.Filter):
+    """Drop HTTP client records below WARNING from console-facing handlers."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return (
+            record.levelno >= logging.WARNING
+            or record.name.split(".", 1)[0] not in _NOISY_LOGGERS
+        )
 
 
 def pytest_configure(config: pytest.Config) -> None:
-    """Keep per-request HTTP client logs out of the console and reports."""
-    for name in _NOISY_LOGGERS:
-        logging.getLogger(name).setLevel(logging.WARNING)
+    """Create the run directory and send pytest's file log into it.
+
+    Runs before pytest's logging plugin is set up (that hook is ``trylast``),
+    so setting ``config.option.log_file`` here is picked up by it. A
+    ``--log-file`` or ``log_file`` given by the user is left untouched.
+    """
+    global _RUN_ACTIVE, _RUN_DIR_WARNING
+    if config.getoption("collectonly", False) or config.getoption("help", False):
+        return
+    _RUN_ACTIVE = True
+    user_log_file = config.getoption("log_file", None) or config.getini("log_file")
+    if not SAVE_LOG or user_log_file:
+        return
+    try:
+        _RUN_DIR.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        _RUN_DIR_WARNING = (
+            f"Cannot create the run directory {_RUN_DIR} "
+            f"({type(exc).__name__}: {exc}), so this run's log is not saved "
+            "and its reports cannot be written there either. To fix: point "
+            "--results-dir / PERF_RESULTS_DIR at a writable directory, then rerun."
+        )
+        return
+    config.option.log_file = str(_LOG_FILE.absolute())
+
+
+def _keep_http_client_logs_out_of_console(config: pytest.Config) -> None:
+    """Filter HTTP client INFO lines out of the console only.
+
+    Relies on the logging plugin's handler attributes; if they are not there
+    (e.g. a future pytest renamed them), the loggers are silenced below
+    WARNING instead, which also keeps those lines out of the log file.
+    """
+    plugin = config.pluginmanager.get_plugin("logging-plugin")
+    handlers = [
+        getattr(plugin, name, None) for name in ("log_cli_handler", "report_handler")
+    ]
+    if plugin is None or not all(isinstance(h, logging.Handler) for h in handlers):
+        for name in _NOISY_LOGGERS:
+            logging.getLogger(name).setLevel(logging.WARNING)
+        return
+    for handler in handlers:
+        assert isinstance(handler, logging.Handler)
+        if not any(isinstance(f, _ConsoleNoiseFilter) for f in handler.filters):
+            handler.addFilter(_ConsoleNoiseFilter())
+
+
+def _log_file_path(config: pytest.Config) -> Path | None:
+    """Return the file pytest writes the log to, or ``None`` if there is none."""
+    plugin = config.pluginmanager.get_plugin("logging-plugin")
+    filename = getattr(getattr(plugin, "log_file_handler", None), "baseFilename", None)
+    if not filename or filename == os.path.abspath(os.devnull):
+        return None
+    path = Path(filename)
+    # Show our own log file the same way as the reports next to it.
+    return _LOG_FILE if path == _LOG_FILE.absolute() else path
+
+
+def _update_latest_link() -> None:
+    """Point ``<results-dir>/latest`` at this run's directory, once.
+
+    Done at the end of every run that created its directory, whether it
+    passed, failed or was aborted. The link is swapped in atomically, so
+    ``latest`` never disappears and a non-link ``latest`` is never removed.
+    """
+    global _LATEST_LINK_ATTEMPTED, _LATEST_LINK, _LATEST_LINK_ERROR
+    if (
+        _LATEST_LINK_ATTEMPTED
+        or not _RUN_ACTIVE
+        or not CREATE_LATEST_LINK
+        or not _RUN_DIR.is_dir()
+    ):
+        return
+    _LATEST_LINK_ATTEMPTED = True
+    latest_link = _RUN_DIR.parent / "latest"
+    staging_link = _RUN_DIR.parent / f".latest.{os.getpid()}"
+    try:
+        staging_link.unlink(missing_ok=True)
+        staging_link.symlink_to(_RUN_DIR.name)
+        os.replace(staging_link, latest_link)
+    except OSError as exc:
+        with contextlib.suppress(OSError):
+            staging_link.unlink(missing_ok=True)
+        _LATEST_LINK_ERROR = (
+            f"Pointing {latest_link} at {_RUN_DIR.name} failed "
+            f"({type(exc).__name__}: {exc}). This run's files are still in "
+            f"{_RUN_DIR}. To fix: remove or rename {latest_link} (it must be a "
+            "symlink or absent), or pass --no-latest-link if the file system "
+            "has no symlinks, then rerun."
+        )
+        return
+    _LATEST_LINK = latest_link
+    logger.info("Latest results symlink: %s -> %s", latest_link, _RUN_DIR.name)
+
+
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    """Update ``latest`` after the reports are written, before the summary."""
+    _update_latest_link()
+    if _LATEST_LINK_ERROR and session.exitstatus == pytest.ExitCode.OK:
+        session.exitstatus = pytest.ExitCode.TESTS_FAILED
+
+
+def pytest_unconfigure(config: pytest.Config) -> None:
+    """Update ``latest`` for runs aborted before pytest_sessionfinish.
+
+    pytest skips pytest_sessionfinish when the session ends inside
+    pytest_sessionstart (e.g. ViPPET is not ready), so the link is set here
+    instead and a failure is reported on stderr.
+    """
+    if _LATEST_LINK_ATTEMPTED:
+        return
+    _update_latest_link()
+    if _LATEST_LINK_ERROR:
+        print(f"warning: {_LATEST_LINK_ERROR}", file=sys.stderr, flush=True)
+
+
+def pytest_report_header(config: pytest.Config) -> list[str]:
+    """Show where the log goes up front, so it is known even if the run aborts."""
+    lines = []
+    log_path = _log_file_path(config)
+    if log_path is not None:
+        lines.append(f"benchmark log: {log_path}")
+    if _RUN_DIR_WARNING:
+        lines.append(f"warning: {_RUN_DIR_WARNING}")
+    return lines
 
 
 # --------------------------------------------------------------------------- #
@@ -256,6 +407,8 @@ def pytest_sessionstart(session: pytest.Session) -> Generator[None, None, None]:
     lifecycle, so the pre-flight phase opens and owns its own client.
     """
     global _DISCOVERED_DEVICES, _CAPABILITIES, _VIPPET_VERSION
+    # The logging plugin exists from here on; filter before anything logs.
+    _keep_http_client_logs_out_of_console(session.config)
     result = yield
     config = session.config
     write = _console(config)
@@ -417,29 +570,46 @@ def pytest_report_collectionfinish(
 def pytest_terminal_summary(
     terminalreporter: Any, exitstatus: int, config: pytest.Config
 ) -> None:
-    """List the written report files (or explain why there are none)."""
-    if _DISCOVERED_CASES is None or config.getoption("collectonly", False):
+    """List this run's directory, reports, log and ``latest`` link.
+
+    Also explains why no reports were written, and shows report/link errors.
+    """
+    if not _RUN_ACTIVE or _DISCOVERED_CASES is None:
         return
-    nothing_to_show = not (_ARTEFACTS or _ARTEFACT_ERROR or _HW_WARNING)
-    if nothing_to_show and exitstatus not in (
+    rows: list[tuple[str, Path]] = []
+    if _RUN_DIR.is_dir():
+        rows.append(("Directory", _RUN_DIR))
+    rows.extend(_ARTEFACTS)
+    log_path = _log_file_path(config)
+    if log_path is not None:
+        rows.append(("Log", log_path))
+    if _LATEST_LINK is not None:
+        rows.append(("Latest link", _LATEST_LINK))
+    errors = [error for error in (_ARTEFACT_ERROR, _LATEST_LINK_ERROR) if error]
+    # Only after a run that got to its tests; otherwise the reason (abort,
+    # nothing collected) is already shown above.
+    explain_no_reports = not (_ARTEFACTS or _ARTEFACT_ERROR) and exitstatus in (
         pytest.ExitCode.OK,
         pytest.ExitCode.TESTS_FAILED,
-    ):
-        return  # aborted or nothing collected; the reason is already shown
+    )
+    if not (rows or errors or _HW_WARNING or explain_no_reports):
+        return
     tr = terminalreporter
     tr.section("Benchmark artefacts", sep="-")
     if _HW_WARNING:
         tr.write_line(f"warning: {_HW_WARNING}", yellow=True)
-    if _ARTEFACTS:
-        width = max(len(label) for label, _ in _ARTEFACTS)
-        for label, path in _ARTEFACTS:
+    if rows:
+        width = max(len(label) for label, _ in rows)
+        for label, path in rows:
             tr.write_line(f"{label:<{width}}  {path}")
-    if _ARTEFACT_ERROR:
-        tr.write_line(f"error: {_ARTEFACT_ERROR}", red=True, bold=True)
-    if not (_ARTEFACTS or _ARTEFACT_ERROR):
+    for error in errors:
+        tr.write_line(f"error: {error}", red=True, bold=True)
+    if explain_no_reports:
         tr.write_line(
             "No reports were written because no benchmark result records "
-            "were produced (see the failures, skips or deselections above)."
+            "were produced (see the failures, skips or deselections above"
+            + (", and the log" if log_path is not None else "")
+            + ")."
         )
 
 
@@ -479,8 +649,8 @@ def results_collector(
             return
         _HW_WARNING = describe_missing_hw_samples(results, METRICS_URL)
         total_duration = time.time() - start_time
-        benchmark_id = f"bench_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        output_dir = Path(PERF_RESULTS_DIR) / benchmark_id
+        benchmark_id = _BENCHMARK_ID
+        output_dir = _RUN_DIR
 
         system_info = collect_system_info(
             _DISCOVERED_DEVICES, _CAPABILITIES, _VIPPET_VERSION
@@ -502,7 +672,7 @@ def results_collector(
         n_skipped = sum(1 for r in results if r["status"] == "skipped")
         result_dict: dict[str, Any] = {
             "benchmark_id": benchmark_id,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": _RUN_STARTED.isoformat(),
             "duration_seconds": total_duration,
             "test_cases": results,
             "summary": {
@@ -517,7 +687,6 @@ def results_collector(
         try:
             exporter = ResultExporter(output_dir, formats=RESULT_FORMATS)
             exporter.export(result_dict)
-            _ARTEFACTS.append(("Directory", output_dir))
             _ARTEFACTS.extend(
                 (fmt.upper(), output_dir / f"{benchmark_id}.{fmt}")
                 for fmt in RESULT_FORMATS
@@ -527,13 +696,6 @@ def results_collector(
             html_path.write_text(html_content)
             _ARTEFACTS.append(("HTML report", html_path))
             logger.info("Performance report: %s", html_path)
-
-            if CREATE_LATEST_LINK:
-                latest_link = Path(PERF_RESULTS_DIR) / "latest"
-                latest_link.unlink(missing_ok=True)
-                latest_link.symlink_to(output_dir.name)
-                _ARTEFACTS.append(("Latest link", latest_link))
-                logger.info("Latest results symlink: %s", latest_link)
         except OSError as exc:
             written = (
                 " The files listed above were written before the failure."
@@ -543,8 +705,7 @@ def results_collector(
             _ARTEFACT_ERROR = (
                 f"Writing the benchmark reports to {output_dir} failed "
                 f"({type(exc).__name__}: {exc}).{written} To fix: point "
-                "--results-dir / PERF_RESULTS_DIR at a writable directory (or "
-                "pass --no-latest-link if the file system has no symlinks), "
+                "--results-dir / PERF_RESULTS_DIR at a writable directory, "
                 "then rerun."
             )
             raise

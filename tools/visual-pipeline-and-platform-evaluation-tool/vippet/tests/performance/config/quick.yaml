@@ -36,3 +36,4 @@ results:
   formats:
     - json
   create_latest_link: true
+  save_log: true

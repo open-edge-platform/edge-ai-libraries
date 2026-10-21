@@ -9,11 +9,13 @@ sections of a real pytest run against an in-process fake ViPPET.
 
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
 import threading
 import unittest
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -314,6 +316,8 @@ class TestConsoleOutputEndToEnd(unittest.TestCase):
         skip_missing_models: bool = True,
         prepare: Any = None,
         pytest_args: tuple[str, ...] = (),
+        results_extra: str = "",
+        api_path: str = "/api/v1",
     ) -> subprocess.CompletedProcess[str]:
         handler = type(
             "Handler",
@@ -324,10 +328,11 @@ class TestConsoleOutputEndToEnd(unittest.TestCase):
         threading.Thread(target=server.serve_forever, daemon=True).start()
         self.addCleanup(server.server_close)
         self.addCleanup(server.shutdown)
-        base = f"http://127.0.0.1:{server.server_address[1]}/api/v1"
+        base = f"http://127.0.0.1:{server.server_address[1]}{api_path}"
 
         tmp = Path(tempfile.mkdtemp())
         self.addCleanup(lambda: __import__("shutil").rmtree(tmp, ignore_errors=True))
+        self.results_dir = tmp / "results"
         if prepare is not None:
             prepare(tmp / "results")
         config = tmp / "perf.yaml"
@@ -340,7 +345,7 @@ class TestConsoleOutputEndToEnd(unittest.TestCase):
             f"    skip_missing_models: {str(skip_missing_models).lower()}\n"
             "metrics:\n  sample_interval_seconds: 0.1\n"
             f"results:\n  output_dir: {json.dumps(str(tmp / 'results'))}\n"
-            "  formats: [json]\n",
+            "  formats: [json]\n" + results_extra,
             encoding="utf-8",
         )
         env = {
@@ -382,6 +387,14 @@ class TestConsoleOutputEndToEnd(unittest.TestCase):
             positions.append(text.index(needle))
         self.assertEqual(positions, sorted(positions), f"wrong order in:\n{text}")
 
+    def _run_dir(self) -> Path:
+        """Return the single bench_<timestamp> directory of the last run."""
+        run_dirs = [
+            p for p in self.results_dir.iterdir() if p.name.startswith("bench_")
+        ]
+        self.assertEqual(len(run_dirs), 1, run_dirs)
+        return run_dirs[0]
+
     def test_normal_run_shows_every_section_in_order(self) -> None:
         completed = self._run("COMPLETED")
         out = completed.stdout
@@ -389,6 +402,7 @@ class TestConsoleOutputEndToEnd(unittest.TestCase):
         self._assert_in_order(
             out,
             "test session starts",
+            "benchmark log: ",
             "ViPPET readiness",
             "/status: READY",
             "Discovered hardware",
@@ -400,9 +414,44 @@ class TestConsoleOutputEndToEnd(unittest.TestCase):
             "[lpr_cpu_x1] SKIPPED",
             "Benchmark artefacts",
             "No hardware metrics were sampled",
-            "HTML report",
+            "\nDirectory ",
+            "\nJSON ",
+            "\nHTML report ",
+            "\nLog ",
+            "\nLatest link ",
         )
         self.assertNotIn("Traceback", out + completed.stderr)
+
+    def test_reports_and_full_log_share_one_run_id(self) -> None:
+        completed = self._run("COMPLETED", pipelines="[od]")
+        out = completed.stdout
+        self.assertEqual(completed.returncode, 0, out + completed.stderr)
+        run_dir = self._run_dir()
+        run_id = run_dir.name
+        self.assertEqual(
+            sorted(p.name for p in run_dir.iterdir()),
+            [f"{run_id}.html", f"{run_id}.json", f"{run_id}.log"],
+        )
+        report = json.loads((run_dir / f"{run_id}.json").read_text(encoding="utf-8"))
+        self.assertEqual(report["benchmark_id"], run_id)
+        started = datetime.fromisoformat(report["timestamp"])
+        self.assertEqual(f"bench_{started:%Y%m%d_%H%M%S}", run_id)
+        self.assertEqual(os.readlink(self.results_dir / "latest"), run_id)
+        self.assertIn(f"benchmark log: {run_dir / run_id}.log", out)
+
+        log = (run_dir / f"{run_id}.log").read_text(encoding="utf-8")
+        # Full INFO log: test and helper messages plus the per-request HTTP
+        # client lines (e.g. metrics-manager samples) the console hides.
+        for line in (
+            "INFO test_pipeline_performance: Running performance benchmark",
+            "INFO helpers.api_helpers: Performance job started: job_id=j1",
+            "INFO httpx: HTTP Request: GET",
+            "/metrics/stream",
+            "INFO conftest: Latest results symlink:",
+        ):
+            self.assertIn(line, log)
+        self.assertNotIn("HTTP Request:", out)
+        self.assertNotIn("Performance job started", out)
 
     def test_live_logging_keeps_sections_without_http_client_noise(self) -> None:
         completed = self._run(
@@ -448,14 +497,87 @@ class TestConsoleOutputEndToEnd(unittest.TestCase):
         self._assert_in_order(
             out,
             "Benchmark artefacts",
+            "\nDirectory ",
+            "\nLog ",
+            "\nLatest link ",
             "No reports were written because no benchmark result records were produced",
+            "and the log).",
         )
         self.assertNotIn("no benchmark test ran", out)
+        # The failed run still keeps its log and is the latest run.
+        run_dir = self._run_dir()
+        self.assertEqual([p.name for p in run_dir.iterdir()], [f"{run_dir.name}.log"])
+        self.assertEqual(os.readlink(self.results_dir / "latest"), run_dir.name)
+        log = (run_dir / f"{run_dir.name}.log").read_text(encoding="utf-8")
+        self.assertIn("POST", log)
+        self.assertIn("422", log)
 
-    def test_written_reports_listed_alongside_write_error(self) -> None:
+    def test_readiness_abort_keeps_log_and_updates_latest(self) -> None:
+        completed = self._run("COMPLETED", api_path="/not-vippet")
+        out = completed.stdout
+        self.assertEqual(completed.returncode, 2, out + completed.stderr)
+        self._assert_in_order(out, "benchmark log: ", "ViPPET readiness")
+        run_dir = self._run_dir()
+        self.assertEqual(os.readlink(self.results_dir / "latest"), run_dir.name)
+        log = (run_dir / f"{run_dir.name}.log").read_text(encoding="utf-8")
+        self.assertIn("HTTP Request: GET", log)
+        self.assertIn("/not-vippet/health", log)
+        self.assertNotIn("HTTP Request:", out)
+
+    def test_save_log_disabled_writes_no_log(self) -> None:
+        completed = self._run(
+            "COMPLETED", pipelines="[od]", results_extra="  save_log: false\n"
+        )
+        out = completed.stdout
+        self.assertEqual(completed.returncode, 0, out + completed.stderr)
+        self.assertNotIn("benchmark log:", out)
+        self.assertNotIn("\nLog ", out)
+        run_dir = self._run_dir()
+        self.assertFalse(list(run_dir.glob("*.log")))
+        self.assertEqual(os.readlink(self.results_dir / "latest"), run_dir.name)
+
+    def test_save_log_disabled_and_failed_run_leaves_latest_alone(self) -> None:
+        completed = self._run(
+            "COMPLETED",
+            pipelines="[od]",
+            post_status=422,
+            results_extra="  save_log: false\n",
+        )
+        self.assertEqual(completed.returncode, 1, completed.stdout + completed.stderr)
+        # Nothing to point at: no reports and no log, so no run directory.
+        self.assertFalse(self.results_dir.exists())
+
+    def test_user_log_file_and_no_latest_link_are_respected(self) -> None:
+        own_log = Path(tempfile.mkdtemp()) / "mine.log"
+        self.addCleanup(
+            lambda: __import__("shutil").rmtree(own_log.parent, ignore_errors=True)
+        )
+        completed = self._run(
+            "COMPLETED",
+            pipelines="[od]",
+            results_extra="  create_latest_link: false\n",
+            pytest_args=("--log-file", str(own_log)),
+        )
+        out = completed.stdout
+        self.assertEqual(completed.returncode, 0, out + completed.stderr)
+        self.assertIn(f"benchmark log: {own_log}", out)
+        section = out.rsplit("Benchmark artefacts", 1)[1]
+        self.assertRegex(section, rf"\nLog +{re.escape(str(own_log))}\n")
+        self.assertIn("Performance job started", own_log.read_text(encoding="utf-8"))
+        self.assertFalse(list(self._run_dir().glob("*.log")))
+        self.assertFalse((self.results_dir / "latest").exists())
+        self.assertNotIn("Latest link", out)
+
+    def test_collect_only_creates_no_run_directory(self) -> None:
+        completed = self._run("COMPLETED", pytest_args=("--collect-only",))
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        self.assertNotIn("benchmark log:", completed.stdout)
+        self.assertFalse(self.results_dir.exists())
+
+    def test_latest_link_error_keeps_reports_and_log_listed(self) -> None:
         def block_latest_link(results: Path) -> None:
-            # A non-empty directory named "latest" makes the symlink update
-            # fail after the JSON and HTML reports have been written.
+            # A non-empty directory named "latest" cannot be replaced by the
+            # link, after the JSON and HTML reports have been written.
             (results / "latest").mkdir(parents=True)
             (results / "latest" / "keep").write_text("x", encoding="utf-8")
 
@@ -469,10 +591,17 @@ class TestConsoleOutputEndToEnd(unittest.TestCase):
             "\nDirectory ",
             "\nJSON ",
             "\nHTML report ",
-            "\nerror: Writing the benchmark reports to",
-            "The files listed above were written before the failure.",
+            "\nLog ",
+            "\nerror: Pointing",
+            "This run's files are still in",
+            "To fix: remove or rename",
+            "--no-latest-link",
         )
+        self.assertNotIn("Latest link", section)
         self.assertNotIn("No reports were written", out)
+        # The blocking directory is left untouched and no staging link remains.
+        self.assertTrue((self.results_dir / "latest" / "keep").exists())
+        self.assertFalse(list(self.results_dir.glob(".latest.*")))
 
     def test_failed_job_is_explained_without_traceback(self) -> None:
         completed = self._run("FAILED")

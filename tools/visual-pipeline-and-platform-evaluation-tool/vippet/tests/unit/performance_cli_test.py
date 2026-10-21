@@ -73,6 +73,7 @@ class TestParser(unittest.TestCase):
             "--pipelines",
             "a,b",
             "--no-skip-missing-models",
+            "--no-save-log",
         )
         self.assertEqual(
             cli.cli_overrides(ns),
@@ -81,6 +82,7 @@ class TestParser(unittest.TestCase):
                 "benchmark.stream_counts": [1, 5],
                 "benchmark.pipelines": ["a", "b"],
                 "benchmark.filters.skip_missing_models": False,
+                "results.save_log": False,
             },
         )
 

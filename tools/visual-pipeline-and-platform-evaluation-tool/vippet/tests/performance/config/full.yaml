@@ -43,3 +43,4 @@ results:
     - json
     - csv
   create_latest_link: true
+  save_log: true

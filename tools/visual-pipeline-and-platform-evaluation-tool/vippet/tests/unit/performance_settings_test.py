@@ -207,6 +207,8 @@ class TestValidation(_TmpConfigMixin):
         self.assertEqual(spec["benchmark.pipelines"].coerce("a,b"), ["a", "b"])
         self.assertEqual(spec["benchmark.filters.skip_pipelines"].coerce(""), [])
         self.assertIs(spec["results.create_latest_link"].coerce("false"), False)
+        self.assertIs(spec["results.save_log"].default, True)
+        self.assertIs(spec["results.save_log"].coerce("false"), False)
         bad = [
             ("benchmark.stream_counts", "0"),
             ("benchmark.stream_counts", []),
