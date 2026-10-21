@@ -1,7 +1,7 @@
 name: CV-Triggered VLM
 definition: >
   Object detection gates a VLM branch via a proximity trigger: when objects of
-  ``class-a`` and ``class-b`` stay within ``distance`` pixels for ``frames``
+  class-a and class-b stay within a distance pixels for some
   consecutive frames, one frame is captioned by the VLM (JPEG + JSON). A parallel
   tee branch records the annotated H.264 video.
 tags:
@@ -12,7 +12,7 @@ type: vision
 variants:
   - name: CPU
     pipeline_description: >-
-      filesrc location=/videos/input/auto/cross_walk.mp4 !
+      filesrc location=/videos/input/auto/crosswalk.mp4 !
       decodebin3 !
       videoconvert !
       gvadetect model=/models/output/ultralytics/public/yolo26n/INT8/yolo26n.xml device=CPU !
@@ -34,10 +34,10 @@ variants:
       filesink location=/videos/output/cv_triggered_vlm.mp4
       t. !
       queue leaky=downstream max-size-buffers=1 flush-on-eos=true !
-      gvaproximitytrigger_py class-a=car class-b=person distance=500 frames=2 !
+      gvaproximitytrigger_py class-a=car class-b=person distance=1350 frames=2 !
       vapostproc !
       video/x-raw,width=796,height=448 !
-      gvagenai model-path=/models/output/openvino_models/gpu/int4/OpenGVLab/InternVL2-2B device=GPU prompt="Does the car hit a person?" generation-config="max_new_tokens=64" chunk-size=1 metrics=true !
+      gvagenai model-path=/models/output/openvino_models/gpu/int4/OpenGVLab/InternVL2-2B device=GPU prompt="Does the car hit a person? Answer Yes or No" generation-config="max_new_tokens=64" chunk-size=1 metrics=true !
       gvametapublish file-format=json-lines file-path=/metadata/cv_triggered_vlm.jsonl !
       jpegenc !
       multifilesink location=/images/output/vlm_frame_%05d.jpeg async=false
