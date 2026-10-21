@@ -31,7 +31,7 @@ It complements the OpenAPI specification with necessary examples and finer detai
   - [Find records](#find-records)
   - [Get a record](#get-a-record)
   - [Delete a record](#delete-a-record)
-- [Replay APIs](#replay-apis)
+- [Retrieval APIs](#retrieval-apis)
   - [Extract a frame](#extract-a-frame)
   - [Get an HTTP link to a frame](#get-an-http-link-to-a-frame)
   - [Extract a clip](#extract-a-clip)
@@ -50,9 +50,9 @@ http://localhost:8080/v1
 
 ## Conventions
 
-- **Content type**: requests and responses use `application/json`, except `/replays/*`
+- **Content type**: requests and responses use `application/json`, except `/retrieve/*`
   and `/media/*`, which may return raw image/video bytes (see
-  [Replay APIs](#replay-apis)).
+  [Retrieval APIs](#retrieval-apis)).
 - **Timestamps**: RFC 3339, UTC, with a `Z` suffix and up to 9 fractional digits
   (nanosecond precision), for example `2026-09-16T09:12:03.400000000Z`.
 - **Identifiers**: New `stream_id` values start with `str-` and contain 22 URL-safe
@@ -171,7 +171,7 @@ One record is one recording of one sensor.
 
 ### MediaResult
 
-Returned by the [Replay APIs](#replay-apis) when the reply is JSON rather than raw
+Returned by the [Retrieval APIs](#retrieval-apis) when the reply is JSON rather than raw
 media.
 
 | Field | Type | Description |
@@ -793,11 +793,22 @@ Content-Type: application/json
 
 ---
 
-## Replay APIs
+## Retrieval APIs
 
-Extracts media from a `ready` record. Frame and clip endpoints return JSON by default
-or media bytes when the `Accept` header allows them. Their `/url` endpoints return a
-JSON `MediaResult` with a link to the produced file.
+Extracts media from a `ready` record. Use the `Accept` header to select the response.
+There are no separate `/url` endpoints.
+
+| `Accept` | Response |
+|---|---|
+| Missing, `*/*`, or `application/json` | JSON `MediaResult` with a temporary download link. |
+| `image/jpeg` or `image/png` on `/frame` | Image bytes in the selected format. |
+| `video/mp4` on `/clip` | MP4 bytes. |
+| No acceptable supported type | `406 not_acceptable`. |
+
+The service respects quality values (`q`) and excludes types with `q=0`.
+For equal quality values, the service prefers JSON, then JPEG, then PNG.
+Responses include `Vary: Accept`. Errors use JSON, including errors for binary requests.
+The `/media` endpoint serves the file referenced by a JSON response.
 
 > **NOTE:** To decode a frame, the service must find a keyframe before it. The
 > service searches a maximum of 5 minutes back from the requested time. If the
@@ -806,19 +817,19 @@ JSON `MediaResult` with a link to the produced file.
 
 ### Extract a frame
 
-`GET /replays/{recording-id}/frame`
+`GET /retrieve/{recording-id}/frame`
 
 | Parameter | In | Type | Required | Description |
 |---|---|---|---|---|
 | `recording-id` | path | string | yes | The recording, e.g. `rec-2`. |
 | `timestamp` | query | date-time | yes | Time wanted; must fall inside `[start_ts, end_ts)`. |
-| `format` | query | string | no | `jpeg` (default) or `png`. |
+| `format` | query | string | no | Optional image format: `jpeg` or `png`. JSON links default to JPEG. For binary responses, `Accept` selects the format when this parameter is absent. A conflict with an explicit format returns `406`. |
 | `match` | query | string | no | `nearest` (default, ties go to the earlier frame) or `exact` (404 if nothing sits exactly on that time). |
 
 **JSON reply (default `Accept: application/json`)**
 
 ```bash
-curl -i "http://localhost:8080/v1/replays/rec-2/frame?timestamp=2026-09-16T09:12:03.400000000Z"
+curl -i "http://localhost:8080/v1/retrieve/rec-2/frame?timestamp=2026-09-16T09:12:03.400000000Z"
 ```
 
 ```http
@@ -845,7 +856,7 @@ Cache-Control: no-store
 **Raw bytes reply with a `png` format and nearest match**
 
 ```bash
-curl -i "http://localhost:8080/v1/replays/rec-2/frame?timestamp=2026-09-16T09:12:03.700000000Z&format=png&match=nearest" \
+curl -i "http://localhost:8080/v1/retrieve/rec-2/frame?timestamp=2026-09-16T09:12:03.700000000Z&format=png&match=nearest" \
   -H 'Accept: image/png' \
   -o frame.png
 ```
@@ -868,43 +879,9 @@ X-Exact-Match: false
 | 429 | `capacity_exhausted` | Extraction capacity reached. |
 | 503 | `storage_unavailable` | Extraction or storage failure. |
 
-### Get an HTTP link to a frame
-
-`GET /replays/{recording-id}/frame/url`
-
-Same parameters as [Extract a frame](#extract-a-frame), but returns a `MediaResult`
-link as JSON. The `Accept` header must allow `application/json`.
-
-```bash
-curl -i "http://localhost:8080/v1/replays/rec-2/frame/url?timestamp=2026-09-16T09:12:03.400000000Z&format=jpeg&match=exact"
-```
-
-```http
-HTTP/1.1 200 OK
-Content-Type: application/json
-X-Frame-Timestamp: 2026-09-16T09:12:03.400000000Z
-X-Exact-Match: true
-Cache-Control: no-store
-
-{
-  "recording_id": "rec-2",
-  "sensor_id": "cam-07",
-  "media_type": "frame",
-  "content_type": "image/jpeg",
-  "requested_start_ts": "2026-09-16T09:12:03.400000000Z",
-  "requested_end_ts": null,
-  "start_ts": "2026-09-16T09:12:03.400000000Z",
-  "end_ts": null,
-  "url": "/v1/media/rec-2/frame-3000000000.jpg",
-  "expiry_ts": "2026-09-16T09:20:00.000000000Z"
-}
-```
-
-Status codes and `error_code`s are identical to [Extract a frame](#extract-a-frame).
-
 ### Extract a clip
 
-`GET /replays/{recording-id}/clip`
+`GET /retrieve/{recording-id}/clip`
 
 The whole requested span must be covered by the recording; a gap returns `404`.
 
@@ -916,7 +893,7 @@ The whole requested span must be covered by the recording; a gap returns `404`.
 | `format` | query | string | no | `mp4` (default) |
 
 ```bash
-curl -i "http://localhost:8080/v1/replays/rec-2/clip?start_ts=2026-09-16T09:12:00.400000000Z&duration=5"
+curl -i "http://localhost:8080/v1/retrieve/rec-2/clip?start_ts=2026-09-16T09:12:00.400000000Z&duration=5"
 ```
 
 ```http
@@ -943,7 +920,7 @@ Cache-Control: no-store
 **Raw clip bytes in `mp4` format**
 
 ```bash
-curl -i "http://localhost:8080/v1/replays/rec-2/clip?start_ts=2026-09-16T09:12:00.400000000Z&duration=8&format=mp4" \
+curl -i "http://localhost:8080/v1/retrieve/rec-2/clip?start_ts=2026-09-16T09:12:00.400000000Z&duration=8&format=mp4" \
   -H 'Accept: video/mp4' \
   -o clip.mp4
 ```
@@ -958,19 +935,6 @@ curl -i "http://localhost:8080/v1/replays/rec-2/clip?start_ts=2026-09-16T09:12:0
 | 409 | `record_not_ready` | Record not ready. |
 | 429 | `capacity_exhausted` | Extraction capacity reached. |
 | 503 | `storage_unavailable` | Extraction or storage failure. |
-
-### Get an HTTP link to a clip
-
-`GET /replays/{recording-id}/clip/url`
-
-Same parameters as [Extract a clip](#extract-a-clip), but returns a `MediaResult` link
-as JSON. The `Accept` header must allow `application/json`.
-
-```bash
-curl -i "http://localhost:8080/v1/replays/rec-2/clip/url?start_ts=2026-09-16T09:12:00.400000000Z&duration=5&format=mp4"
-```
-
-Status codes and `error_code`s are identical to [Extract a clip](#extract-a-clip).
 
 ### Get produced media
 

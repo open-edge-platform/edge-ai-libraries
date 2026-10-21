@@ -44,12 +44,10 @@ func NewRouter(buffers stream.Bufferer, recordings *record.Service, retrievals r
 
 	retriever := handler.RetrieveHandler{Retrievals: retrievals}
 	requireRecordingID := common.RequireID("recording-id", "recording_not_found", "recording not found")
-	retrieveRoutesWithID := v1.Group("/replays/:recording-id", requireRecordingID)
+	retrieveRoutesWithID := v1.Group("/retrieve/:recording-id", requireRecordingID)
 
 	retrieveRoutesWithID.GET("/frame", retriever.Frame)
-	retrieveRoutesWithID.GET("/frame/url", retriever.FrameURL)
 	retrieveRoutesWithID.GET("/clip", retriever.Clip)
-	retrieveRoutesWithID.GET("/clip/url", retriever.ClipURL)
 	v1.GET("/media/:recording-id/:file", requireRecordingID, retriever.Media)
 
 	// Serving Swagger UI

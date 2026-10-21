@@ -8,6 +8,7 @@ import (
 	"errors"
 	"log/slog"
 	"math"
+	"mime"
 	"net/http"
 	"os"
 	"strconv"
@@ -30,15 +31,7 @@ type RetrieveHandler struct {
 	Retrievals retrieve.Retriever
 }
 
-// handles /frame and /frame/url endpoints
-func (h RetrieveHandler) Frame(c *gin.Context)    { h.frame(c, false) }
-func (h RetrieveHandler) FrameURL(c *gin.Context) { h.frame(c, true) }
-
-// handles /clip and /clip/url endpoints
-func (h RetrieveHandler) Clip(c *gin.Context)    { h.clip(c, false) }
-func (h RetrieveHandler) ClipURL(c *gin.Context) { h.clip(c, true) }
-
-func (h RetrieveHandler) frame(c *gin.Context, linkOnly bool) {
+func (h RetrieveHandler) Frame(c *gin.Context) {
 	ts, err := common.ParseTimestamp("timestamp", c.Query("timestamp"))
 	if err != nil {
 		common.WriteError(c, http.StatusBadRequest, "invalid_timestamp", err.Error())
@@ -54,9 +47,17 @@ func (h RetrieveHandler) frame(c *gin.Context, linkOnly bool) {
 		common.WriteError(c, http.StatusBadRequest, "invalid_request", "match must be nearest or exact")
 		return
 	}
-	asJSON, ok := negotiate(c, linkOnly, "image/"+format)
+	offers := []string{gin.MIMEJSON, "image/jpeg", "image/png"}
+	if _, explicit := c.GetQuery("format"); explicit {
+		offers = []string{gin.MIMEJSON, "image/" + format}
+	}
+	selected, ok := negotiate(c, offers...)
 	if !ok {
 		return
+	}
+	asJSON := selected == gin.MIMEJSON
+	if !asJSON {
+		format = strings.TrimPrefix(selected, "image/")
 	}
 	extendWriteDeadline(c)
 	media, err := h.Retrievals.Frame(c.Request.Context(), c.Param("recording-id"), ts, format, match)
@@ -67,7 +68,7 @@ func (h RetrieveHandler) frame(c *gin.Context, linkOnly bool) {
 	h.respond(c, media, asJSON)
 }
 
-func (h RetrieveHandler) clip(c *gin.Context, linkOnly bool) {
+func (h RetrieveHandler) Clip(c *gin.Context) {
 	start, err := common.ParseTimestamp("start_ts", c.Query("start_ts"))
 	if err != nil {
 		common.WriteError(c, http.StatusBadRequest, "invalid_timestamp", err.Error())
@@ -82,7 +83,7 @@ func (h RetrieveHandler) clip(c *gin.Context, linkOnly bool) {
 		common.WriteError(c, http.StatusBadRequest, "invalid_request", "format must be mp4")
 		return
 	}
-	asJSON, ok := negotiate(c, linkOnly, "video/mp4")
+	selected, ok := negotiate(c, gin.MIMEJSON, "video/mp4")
 	if !ok {
 		return
 	}
@@ -92,7 +93,7 @@ func (h RetrieveHandler) clip(c *gin.Context, linkOnly bool) {
 		writeRetrieveError(c, err, true)
 		return
 	}
-	h.respond(c, media, asJSON)
+	h.respond(c, media, selected == gin.MIMEJSON)
 }
 
 // Media handles GET /media/{recording-id}/{file}, serving a frame or clip
@@ -128,22 +129,63 @@ func (h RetrieveHandler) respond(c *gin.Context, media retrieve.Media, asJSON bo
 	serveMedia(c, file, info)
 }
 
-// negotiate picks JSON or the binary type from the Accept header; an absent
-// header gets JSON. It answers 406 itself when neither is acceptable.
-func negotiate(c *gin.Context, linkOnly bool, binaryType string) (asJSON, ok bool) {
-	offers := []string{gin.MIMEJSON}
-	if !linkOnly {
-		offers = append(offers, binaryType)
+func negotiate(c *gin.Context, offers ...string) (string, bool) {
+	c.Writer.Header().Add("Vary", "Accept")
+	header := strings.Join(c.Request.Header.Values("Accept"), ",")
+	if strings.TrimSpace(header) == "" {
+		return offers[0], true
 	}
-	switch c.NegotiateFormat(offers...) {
-	case gin.MIMEJSON:
-		return true, true
-	case binaryType:
-		return false, !linkOnly
-	default:
-		common.WriteError(c, http.StatusNotAcceptable, "not_acceptable", "the Accept header allows none of the available media types")
-		return false, false
+	type mediaRange struct {
+		kind    string
+		quality float64
 	}
+	var ranges []mediaRange
+	parts := strings.Split(header, ",")
+	valid := len(header) <= 8192 && len(parts) <= 64
+	for _, part := range parts {
+		if !valid {
+			break
+		}
+		kind, params, err := mime.ParseMediaType(strings.TrimSpace(part))
+		quality := 1.0
+		if q, exists := params["q"]; exists {
+			quality, err = strconv.ParseFloat(q, 64)
+		}
+		if err != nil || math.IsNaN(quality) || math.IsInf(quality, 0) || quality < 0 || quality > 1 || len(params) > 1 ||
+			(len(params) == 1 && params["q"] == "") {
+			valid = false
+			break
+		}
+		ranges = append(ranges, mediaRange{kind, quality})
+	}
+	best, bestQuality := "", 0.0
+	if valid {
+		for _, offer := range offers {
+			specificity, quality := -1, 0.0
+			for _, r := range ranges {
+				level := -1
+				switch {
+				case r.kind == offer:
+					level = 2
+				case r.kind == strings.SplitN(offer, "/", 2)[0]+"/*":
+					level = 1
+				case r.kind == "*/*":
+					level = 0
+				}
+				if level >= 0 && (level > specificity || (level == specificity && r.quality > quality)) {
+					specificity, quality = level, r.quality
+				}
+			}
+			if quality > bestQuality {
+				best, bestQuality = offer, quality
+			}
+		}
+	}
+	if best != "" {
+		return best, true
+	}
+	common.WriteError(c, http.StatusNotAcceptable, "not_acceptable", "the Accept header allows none of the available media types")
+	return "", false
 }
 
 func parseDuration(s string) (time.Duration, error) {

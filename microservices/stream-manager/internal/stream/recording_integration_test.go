@@ -339,6 +339,39 @@ func TestRecordingEndToEnd(t *testing.T) {
 		if err != nil || frames != wantFrames {
 			t.Fatalf("stored window lost/duplicated frames: %d, want %d: %v", frames, wantFrames, err)
 		}
+		target := ready.Start.Add(100 * time.Millisecond).Format(time.RFC3339Nano)
+		retrievalPath := "/retrieve/" + accepted.ID
+		for _, endpoint := range []string{
+			"/frame?timestamp=" + url.QueryEscape(target) + "&format=png",
+			"/clip?start_ts=" + url.QueryEscape(target) + "&duration=0.2",
+		} {
+			data, _ := request("GET", retrievalPath+endpoint, nil, 200)
+			var media struct {
+				URL string `json:"url"`
+			}
+			decode(data, &media)
+			binary, _ := request("GET", media.URL[3:], nil, 200)
+			if len(binary) == 0 {
+				t.Fatal("retrieval download is empty")
+			}
+		}
+		req, err := http.NewRequest("GET", baseURL+retrievalPath+"/frame?timestamp="+url.QueryEscape(target), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Accept", "application/json;q=0.1, image/png;q=1")
+		response, err := client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		image, readErr := io.ReadAll(response.Body)
+		if err := errors.Join(readErr, response.Body.Close()); err != nil {
+			t.Fatal(err)
+		}
+		if response.StatusCode != 200 || response.Header.Get("Content-Type") != "image/png" ||
+			response.Header.Get("Vary") != "Accept" || !bytes.HasPrefix(image, []byte("\x89PNG\r\n\x1a\n")) {
+			t.Fatalf("binary PNG negotiation failed: status=%d headers=%v", response.StatusCode, response.Header)
+		}
 	}
 	data, _ = request("GET", "/records?metadata[case]=fixed&limit=1", nil, 200)
 	decode(data, &page)

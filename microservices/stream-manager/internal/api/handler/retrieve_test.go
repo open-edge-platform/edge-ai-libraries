@@ -86,11 +86,9 @@ func retrieveRouter(f *fakeRetriever) *gin.Engine {
 	router := gin.New()
 	h := RetrieveHandler{Retrievals: f}
 	requireID := common.RequireID("recording-id", "recording_not_found", "recording not found")
-	group := router.Group("/v1/replays/:recording-id", requireID)
+	group := router.Group("/v1/retrieve/:recording-id", requireID)
 	group.GET("/frame", h.Frame)
-	group.GET("/frame/url", h.FrameURL)
 	group.GET("/clip", h.Clip)
-	group.GET("/clip/url", h.ClipURL)
 	router.GET("/v1/media/:recording-id/:file", requireID, h.Media)
 	return router
 }
@@ -118,8 +116,8 @@ func errorCode(t *testing.T, rec *httptest.ResponseRecorder) string {
 }
 
 func TestRetrieveNegotiation(t *testing.T) {
-	frame := "/v1/replays/" + testRecordingID + "/frame?timestamp=2026-06-15T14:12:01.5Z"
-	clip := "/v1/replays/" + testRecordingID + "/clip?start_ts=2026-06-15T14:12:01.5Z&duration=1.5"
+	frame := "/v1/retrieve/" + testRecordingID + "/frame?timestamp=2026-06-15T14:12:01.5Z"
+	clip := "/v1/retrieve/" + testRecordingID + "/clip?start_ts=2026-06-15T14:12:01.5Z&duration=1.5"
 	cases := []struct {
 		name, target, accept string
 		status               int
@@ -129,16 +127,23 @@ func TestRetrieveNegotiation(t *testing.T) {
 		{"frame any", frame, "*/*", http.StatusOK, "application/json"},
 		{"frame JSON", frame, "application/json", http.StatusOK, "application/json"},
 		{"frame jpeg", frame, "image/jpeg", http.StatusOK, "image/jpeg"},
+		{"frame png from Accept", frame, "image/png", http.StatusOK, "image/png"},
+		{"frame JSON png link", frame + "&format=png", "application/json", http.StatusOK, "application/json"},
+		{"frame weighted png", frame, "application/json;q=0.2, image/png;q=0.9", http.StatusOK, "image/png"},
+		{"frame zero image", frame, "image/jpeg;q=0, application/json;q=0.5", http.StatusOK, "application/json"},
+		{"frame exclusion overrides wildcard", frame, "image/*;q=0, */*;q=1", http.StatusOK, "application/json"},
+		{"frame all excluded", frame, "*/*;q=0", http.StatusNotAcceptable, ""},
+		{"frame invalid quality", frame, "image/png;q=NaN", http.StatusNotAcceptable, ""},
 		{"frame image wildcard", frame + "&format=png", "image/*", http.StatusOK, "image/png"},
 		{"frame preferred image", frame, "image/jpeg, application/json;q=0.5", http.StatusOK, "image/jpeg"},
 		{"frame wrong image type", frame + "&format=png", "image/jpeg", http.StatusNotAcceptable, ""},
 		{"frame video", frame, "video/mp4", http.StatusNotAcceptable, ""},
-		{"frame url JSON", strings.Replace(frame, "/frame?", "/frame/url?", 1), "", http.StatusOK, "application/json"},
-		{"frame url image", strings.Replace(frame, "/frame?", "/frame/url?", 1), "image/jpeg", http.StatusNotAcceptable, ""},
 		{"clip default JSON", clip, "", http.StatusOK, "application/json"},
 		{"clip mp4", clip, "video/mp4", http.StatusOK, "video/mp4"},
+		{"clip weighted mp4", clip, "application/json;q=0.5, video/mp4;q=1", http.StatusOK, "video/mp4"},
+		{"clip exact exclusion", clip, "video/mp4;q=0, video/*;q=1", http.StatusNotAcceptable, ""},
+		{"clip zero JSON", clip, "application/json;q=0, */*;q=0.5", http.StatusOK, "video/mp4"},
 		{"clip image", clip, "image/jpeg", http.StatusNotAcceptable, ""},
-		{"clip url mp4", strings.Replace(clip, "/clip?", "/clip/url?", 1), "video/mp4", http.StatusNotAcceptable, ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -146,6 +151,9 @@ func TestRetrieveNegotiation(t *testing.T) {
 			rec := get(retrieveRouter(f), tc.target, tc.accept)
 			if rec.Code != tc.status {
 				t.Fatalf("status %d, want %d: %s", rec.Code, tc.status, rec.Body)
+			}
+			if rec.Header().Get("Vary") != "Accept" {
+				t.Fatalf("missing Vary: Accept: %v", rec.Header())
 			}
 			if tc.status == http.StatusNotAcceptable {
 				if code := errorCode(t, rec); code != "not_acceptable" || f.calls != 0 {
@@ -167,8 +175,12 @@ func TestRetrieveNegotiation(t *testing.T) {
 				if rec.Header().Get("Cache-Control") != "no-store" || !strings.HasPrefix(result.URL, "/v1/media/"+testRecordingID+"/") {
 					t.Fatalf("unexpected JSON reply %v %+v", rec.Header(), result)
 				}
+				if tc.name == "frame JSON png link" && result.ContentType != "image/png" {
+					t.Fatalf("JSON link did not select PNG: %+v", result)
+				}
 				return
 			}
+
 			if !strings.HasPrefix(rec.Header().Get("Cache-Control"), "private, max-age=") || rec.Body.Len() == 0 {
 				t.Fatalf("unexpected binary reply %v", rec.Header())
 			}
@@ -176,21 +188,32 @@ func TestRetrieveNegotiation(t *testing.T) {
 	}
 }
 
+func TestRetrieveRemovedURLRoutes(t *testing.T) {
+	f := &fakeRetriever{dir: t.TempDir()}
+	router := retrieveRouter(f)
+	for _, endpoint := range []string{"frame", "clip"} {
+		rec := get(router, "/v1/retrieve/"+testRecordingID+"/"+endpoint+"/url", "application/json")
+		if rec.Code != http.StatusNotFound || f.calls != 0 {
+			t.Fatalf("removed URL route returned %d after %d extractions", rec.Code, f.calls)
+		}
+	}
+}
+
 func TestRetrieveParameters(t *testing.T) {
-	base := "/v1/replays/" + testRecordingID
+	base := "/v1/retrieve/" + testRecordingID
 	cases := []struct {
 		name, target, code string
 	}{
 		{"missing timestamp", base + "/frame", "invalid_timestamp"},
 		{"offset timestamp", base + "/frame?timestamp=2026-06-15T14:12:01%2B01:00", "invalid_timestamp"},
 		{"bad format", base + "/frame?timestamp=2026-06-15T14:12:01Z&format=gif", "invalid_request"},
-		{"bad match", base + "/frame/url?timestamp=2026-06-15T14:12:01Z&match=closest", "invalid_request"},
+		{"bad match", base + "/frame?timestamp=2026-06-15T14:12:01Z&match=closest", "invalid_request"},
 		{"missing start", base + "/clip?duration=1", "invalid_timestamp"},
 		{"missing duration", base + "/clip?start_ts=2026-06-15T14:12:01Z", "invalid_request"},
 		{"zero duration", base + "/clip?start_ts=2026-06-15T14:12:01Z&duration=0", "invalid_request"},
 		{"negative duration", base + "/clip?start_ts=2026-06-15T14:12:01Z&duration=-1", "invalid_request"},
 		{"NaN duration", base + "/clip?start_ts=2026-06-15T14:12:01Z&duration=NaN", "invalid_request"},
-		{"infinite duration", base + "/clip/url?start_ts=2026-06-15T14:12:01Z&duration=Inf", "invalid_request"},
+		{"infinite duration", base + "/clip?start_ts=2026-06-15T14:12:01Z&duration=Inf", "invalid_request"},
 		{"huge duration", base + "/clip?start_ts=2026-06-15T14:12:01Z&duration=1e300", "invalid_request"},
 		{"sub-nanosecond duration", base + "/clip?start_ts=2026-06-15T14:12:01Z&duration=1e-12", "invalid_request"},
 		{"bad clip format", base + "/clip?start_ts=2026-06-15T14:12:01Z&duration=1&format=mkv", "invalid_request"},
@@ -230,9 +253,9 @@ func TestRetrieveErrors(t *testing.T) {
 		{fmt.Errorf("disk on fire"), http.StatusInternalServerError, "internal_error"},
 	}
 	targets := []string{
-		"/v1/replays/" + testRecordingID + "/frame?timestamp=2026-06-15T14:12:01Z",
-		"/v1/replays/" + testRecordingID + "/clip?start_ts=2026-06-15T14:12:01Z&duration=1",
-		"/v1/replays/" + testRecordingID + "/clip/url?start_ts=2026-06-15T14:12:01Z&duration=1",
+		"/v1/retrieve/" + testRecordingID + "/frame?timestamp=2026-06-15T14:12:01Z",
+		"/v1/retrieve/" + testRecordingID + "/clip?start_ts=2026-06-15T14:12:01Z&duration=1",
+		"/v1/retrieve/" + testRecordingID + "/clip?start_ts=2026-06-15T14:12:01Z&duration=1",
 		"/v1/media/" + testRecordingID + "/frame-1.jpeg",
 		"/v1/media/" + testRecordingID + "/clip-1-2.mp4",
 	}
@@ -273,7 +296,7 @@ func TestRetrieveErrors(t *testing.T) {
 
 func TestClipBinaryMediaError(t *testing.T) {
 	f := &fakeRetriever{dir: t.TempDir(), openErr: retrieve.ErrMediaNotFound}
-	target := "/v1/replays/" + testRecordingID + "/clip?start_ts=2026-06-15T14:12:01Z&duration=1"
+	target := "/v1/retrieve/" + testRecordingID + "/clip?start_ts=2026-06-15T14:12:01Z&duration=1"
 	rec := get(retrieveRouter(f), target, "video/mp4")
 	if rec.Code != http.StatusNotFound || errorCode(t, rec) != "clip_not_found" {
 		t.Fatalf("got %d %s, want 404 clip_not_found", rec.Code, rec.Body)
@@ -283,7 +306,7 @@ func TestClipBinaryMediaError(t *testing.T) {
 func TestMediaRoute(t *testing.T) {
 	f := &fakeRetriever{dir: t.TempDir(), exact: true}
 	router := retrieveRouter(f)
-	rec := get(router, "/v1/replays/"+testRecordingID+"/clip/url?start_ts=2026-06-15T14:12:01.5Z&duration=1.5", "")
+	rec := get(router, "/v1/retrieve/"+testRecordingID+"/clip?start_ts=2026-06-15T14:12:01.5Z&duration=1.5", "")
 	if rec.Header().Get("X-Exact-Match") != "true" {
 		t.Fatalf("X-Exact-Match %q, want true", rec.Header().Get("X-Exact-Match"))
 	}
