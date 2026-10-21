@@ -1,13 +1,13 @@
 
 ### Introduction
 
-Components are installable modules within the OEP installer. Their filenames are in the pattern of `<component-name>/linux` (distribution neutral) or `<component-name>/<OS_LIKE>` (distribution specific), where `<OS_LIKE>` is the OS family identifier (from `/etc/os-release`.) Windows modules use `OS_LIKE=windows`.  
+Components are installable modules within the OEP installer. Their filenames are in the pattern of `<component-name>/linux` (distribution neutral) or `<component-name>/<OS_FAMILY>` (distribution specific), where `<OS_FAMILY>` is derived from `/etc/os-release` (`debian` for Ubuntu). Windows modules use `OS_FAMILY=windows`.  
 The component name should contain no whitespace or special character except '_'.  
 
 ### Develop a component
 
-A component can be defined in optional shell functions: `<OS_LIKE>_<order>_<profile|install|remove|start|stop>_<component-name>` (Windows functions use the Camel case pattern: `Windows<order><Profile|Install|Remove|Start|Stop><ComponentName>`), where 
-- `<OS_LIKE>`: The OS family identifier such as `debian`. You can get it from `/etc/os-release`.
+A component can be defined in optional shell functions: `<OS_FAMILY>_<order>_<profile|install|remove|start|stop>_<component-name>` (Windows functions use the Camel case pattern: `Windows<order><Profile|Install|Remove|Start|Stop><ComponentName>`), where 
+- `<OS_FAMILY>`: The OS family identifier such as `debian`. You can get it from `/etc/os-release`.
 - `<order>`: A number (prefixed with `0` if less than 10) from 0 to 99 to specify the installation order. The OEP installer will install components in the following order:
 
 ```
@@ -51,7 +51,7 @@ A component can be defined in optional shell functions: `<OS_LIKE>_<order>_<prof
   - A component that is shared across other components (for example a driver, repository, or toolkit that may already exist on the system independently of this installer) must not be removed if the installer never actually installed it. Use the [`ensure_prop`](../common/linux/ensure_prop) helper to record ownership: in the `install` function, call `ensure_prop set installed/<component>/owned true` only inside the real-install branch (never in the "already installed, skipping" branch, so a pre-existing/inherited install is never marked as owned). In the `remove` function, guard the removal with `[ "$(ensure_prop get installed/<component>/owned)" = "true" ] || return 0` so the function is a no-op for anything the installer didn't itself install (whether the component pre-existed on the system before the installer ran, or is still relied upon by another component). See `gpu_accel`, `npu_accel`, `ros2`, `ros_openvino`, `realsense`, and the `edge_pack_*` modules for examples.
 
 - `start`: The optional `start` function launches the component.
-  - The `start` function should check the system to make sure the system meet the launch criteria. Use the [`ensure_ports_open`](../common/linux/ensure_ports_open) function to ensure required TCP or UDP ports are not occupied. The `ensure_ports_open` function invokes the component `stop` function to stop the component if a previous run occupies the ports.  
+  - The `start` function should check the system to make sure the system meet the launch criteria. Use the [`ensure_ports_open`](../common/linux/ensure_ports_open) function to ensure required TCP or UDP ports are not occupied.  
   - After the launch, the `start` function should highlight what is next to the users. For example, for web services, the function should show the URL. If there are any generated usernames/passwords, show those as well. See the [`@@HIGHLIGH`](#highlight-protocol) section for more details.  
 
 - `stop`: The optional `stop` function stops a launched component and restores the component state for next launch.  
@@ -127,7 +127,7 @@ debian_85_install_my_component () {
 # optional function if the component is start-able.
 #debian_85_start_my_component () {
 #  configure_my_component "$@"
-#  ensure_ports_open "80 443" debian_85_stop_my_component "$@"
+#  ensure_ports_open start my_component 80 443
 #  ...
 #
 #  # For an application or service, highlight what's next after starting the application or service.
@@ -242,5 +242,18 @@ debian_90_start_my_component () {
   echo "@@HIGHLIGHTS $installer_name start [--gpu|npu|cpu]"
   echo "@@HIGHLIGHTS $installer_name stop|remove"
 }
+```
+
+### Handling Credentials
+
+Use [`ensure_hf_token`](../common/linux/ensure_hf_token) to scan the specified list of models. If any model is a gated model, the function scans the following locations for the token value:
+- The `HF_TOKEN` environment variable
+- Read from `~/.cache/huggingface/token`, if available    
+- Read `HF_TOKEN` from `~/.vscode/launch.json`, if available
+- Prompt the user for `HF_TOKEN`   
+
+```
+ensure_hf_token meta-llama/Llama-3.2-3B-Instruct
+# return HF_TOKEN 
 ```
 

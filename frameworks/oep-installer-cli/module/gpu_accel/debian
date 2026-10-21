@@ -32,7 +32,7 @@ debian_40_install_gpu_accel () {
   configure_gpu_accel "$@"
 
   if verify_gpu_accel && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Gpu drivers are already installed. Skipping..."
+    echo "Gpu drivers are installed." >&2
   else
     # declare stack ownership
     ensure_prop set installed/gpu_accel/owned true
@@ -62,7 +62,7 @@ debian_40_remove_gpu_accel () {
   [ "$(ensure_prop get installed/gpu_accel/owned)" = "true" ] || return 0
 
   configure_gpu_accel "$@"
-  ensure_apt autoremove -m -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || true
+  ensure_apt purge --auto-remove -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || true
   # Remove legacy/conflicting apt sources and keyrings for the Intel GPU repo.
   # Older installer versions wrote /etc/apt/sources.list.d/intel-gpu.list using the
   # intel-gpu-archive-keyring.gpg keyring. Because that entry points at the same
@@ -71,7 +71,7 @@ debian_40_remove_gpu_accel () {
   # (anything referencing the gpu repo other than our own $apt_file) so the current
   # entry is authoritative.
   ensure_apt_source_remove https://repositories.intel.com/gpu
-  ensure_sudo rm -f /usr/share/keyrings/intel-gpu-archive-keyring.gpg $key_file $apt_file
+  ensure_rm /usr/share/keyrings/intel-gpu-archive-keyring.gpg "$key_file" "$apt_file"
 }
 
 debian_40_sbom_gpu_accel () {

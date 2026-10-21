@@ -1,14 +1,20 @@
 {
-  "profile": { "label": "Federal and Aerospace", "value": "federal_and_aerospace_ai_suite" },
+  "profile": {
+    "label": "Federal and Aerospace",
+    "value": "federal_and_aerospace_ai_suite",
+    "supports": { "OP_SYSTEM": ["UBUNTU_24_04", "UBUNTU_26_04"] }
+  },
   "modules": [
-    { "label": "Handheld Multi-Modal", "value": "handheld_multi_modal", "startStop": true },
-    { "label": "UAV Mission Compute SDK", "value": "uav_mission_compute_sdk", "startStop": true }
+    { "label": "Edge Node Infrastructure Blueprint", "value": "edge_node_infrastructure_blueprint", "remove": true, "options": ["--docker", "--k3s"] },
+    { "label": "Handheld Multi-Modal", "value": "handheld_multi_modal", "startStop": true, "remove": true, "options": ["--docker"] },
+    { "label": "UAV Mission Compute SDK", "value": "uav_mission_compute_sdk", "startStop": true, "remove": true, "options": ["--docker", "--k3s"] }
   ],
   "getStarted": {
     "text": "Get Started",
     "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-fed-aero.html"
   },
   "resources": [
+    { "text": "Edge Node Infrastructure Blueprint", "url": "https://github.com/open-edge-platform/edge-node-infrastructure-blueprint" },
     { "text": "Handheld Multi-Modal Application", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/handheld-multi-modal-application/index.html" },
     { "text": "UAV Mission Compute SDK", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/uav-vision-analytics/index.html" }
   ]
