@@ -60,13 +60,13 @@ check `GET /model/capabilities` before sending non-text inputs.
 | Path | Contents |
 |---|---|
 | `setup.sh` | Env export + volume creation (source it; needs `EMBEDDING_MODEL_NAME`). |
-| `docker/` | `compose.yaml` + `Dockerfile`; `compose.gme.yaml` mounts the GME package. |
+| `docker/` | `compose.yaml` + `Dockerfile`. |
 | `src/app.py` | FastAPI routes + request models (input union). |
 | `src/wrapper.py` | `EmbeddingModel` — the high-level embed API (also the SDK surface). |
 | `src/models/` | `config.py` (registry of 21 models), `registry.py` (factory), `base.py` (ABC), `handlers/` (one per family). |
 | `src/utils/` | Settings, downloads/SSRF checks, video decoder, path security. |
 | `examples/` | `sdk_examples.py`, `server_examples.py`. |
-| `tests/` | unittest suites (path security, shm pool, async batch, GME integration). |
+| `tests/` | unittest suites (path security, shm pool, async batch). |
 | `docs/user-guide/` | get-started, api-reference, supported-models, sdk-usage, wheel-installation. |
 
 ## Tech Stack
@@ -88,9 +88,12 @@ OpenVINO optional per model.
 ## Gotchas
 
 - QwenText models reject image/video inputs (400) — capability-check first.
-- GME is never downloaded or converted: it loads a pre-exported package from
-  `<EMBEDDING_OV_MODELS_DIR>/gme-qwen2-vl-2b-instruct-openvino` (precision/dim
-  come from the package; no GME env vars) and needs `EMBEDDING_USE_OV=true`.
+- GME needs `EMBEDDING_USE_OV=true`. It is exported on first use
+  (`src/models/gme_export.py`, minutes + ~9 GB download) into
+  `<EMBEDDING_OV_MODELS_DIR>/gme-qwen2-vl-2b-instruct-openvino`; an existing
+  directory there is loaded as-is and never overwritten. The export patches
+  transformers' Qwen2-VL internals while tracing and is checked against
+  PyTorch, so re-run it after a transformers upgrade.
   Only `supports_fused` models accept `type: "fused"`.
 - `mobileclip` and `salesforce-lavis` are installed **only in the Docker
   image** (not in `pyproject.toml`); MobileCLIP/BLIP2 families can't run in a

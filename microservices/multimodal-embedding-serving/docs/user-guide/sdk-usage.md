@@ -104,39 +104,9 @@ embedding = embedding_model.embed_query(query)
 print(len(embedding))
 ```
 
-#### GME: text, images and fused image+text
-
-GME runs on OpenVINO only and loads a package exported offline, so `use_openvino=True` is required. The SDK default is `False`. `ov_models_dir` is the parent directory of `gme-qwen2-vl-2b-instruct-openvino/`. Precision, dimension and token limits come from the package. See [Supported Models](./supported-models.md#gme-general-multimodal-embedding).
-
-```python
-from PIL import Image
-from multimodal_embedding_serving import get_model_handler, EmbeddingModel
-
-handler = get_model_handler(
-    "GME/gme-qwen2-vl-2b-instruct",
-    device="CPU",                     # or GPU / GPU.0
-    use_openvino=True,                # required: GME has no PyTorch fallback
-    ov_models_dir="/models",          # contains gme-qwen2-vl-2b-instruct-openvino/
-)
-handler.load_model()                  # logs the resolved precision
-embedding_model = EmbeddingModel(handler)
-
-query = embedding_model.embed_query("throughput under load")               # [1536]
-docs = embedding_model.embed_documents(["Figure 3 shows ...", "Table 2 ..."])  # [2][1536]
-
-figure = Image.open("figure3.png")
-if embedding_model.supports_fused():
-    # One joint vector per (text, image) pair, matched by position; images may
-    # be PIL images, numpy arrays or encoded image bytes.
-    fused = embedding_model.get_fused_embeddings(["Figure 3: throughput"], [figure])  # [1][1536]
-    one = embedding_model.get_fused_embedding("Figure 3: throughput", figure)        # [1536]
-```
-
-All of these vectors are L2-normalized and share one space, so a text query can be compared directly with documents, images and fused pairs. `get_fused_embeddings` raises `ValueError` for empty input or a text/image count mismatch, and `RuntimeError` on models without fused support. A loaded handler can be shared between threads, because calls into one GME instance are serialized.
-
 ### 3. Image Embeddings
 
-> Image helpers require a model with image modality support (e.g., CLIP, MobileCLIP, SigLIP, BLIP-2, GME). They are not available when a text-only model such as Qwen is active.
+> Image helpers require a model with image modality support (e.g., CLIP, MobileCLIP, SigLIP, BLIP-2). They are not available when a text-only model such as Qwen is active.
 
 #### From URL
 

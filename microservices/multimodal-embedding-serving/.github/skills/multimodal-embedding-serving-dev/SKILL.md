@@ -72,10 +72,11 @@ checklist: [`references/source-map.md`](./references/source-map.md).
 
 ```bash
 poetry run python -m unittest tests/test_path_security.py tests/test_shm_pool.py \
-    tests/test_async_batch_inference.py tests/test_gme_integration.py   # the existing suites
+    tests/test_async_batch_inference.py   # the existing suites
 ```
 
-Coverage is thin (path security only) — for behavior changes, smoke-test via
+Coverage is limited to path security, shared-memory pooling and async batch
+inference — for model, wrapper or REST behavior changes, smoke-test via
 `examples/server_examples.py` / `examples/sdk_examples.py` against a small
 CLIP model: [`references/testing.md`](./references/testing.md).
 
@@ -106,5 +107,5 @@ docker compose -f docker/compose.yaml up -d
 | Package is built as a wheel (`poetry build`; `packages` maps `src/` → `multimodal_embedding_serving`) | keep new modules importable under the package name; SDK users import from it |
 | `INFER_BATCH_SIZE` compiles OpenVINO models to a fixed batch shape | handler changes must keep the pad/split logic intact |
 | QwenText handlers are text-only by design | don't "fix" the 400 for images; capability flags live on the handler |
-| GME is OpenVINO-only and loads a pre-exported package | no PyTorch path or online conversion; precision comes from the package's IRs; query/document/fused sides are per-call arguments, so keep the handler lock and never store a mode on the instance |
+| GME is OpenVINO-only and exports its package on first use | no PyTorch inference path; `gme_export.py` traces with patched transformers internals and fails unless the result matches PyTorch, so re-validate after a transformers bump; precision comes from the package's IRs; query/document/fused sides are per-call arguments, so keep the handler lock and never store a mode on the instance |
 | Every new file needs the SPDX header | CI/license scans fail otherwise |

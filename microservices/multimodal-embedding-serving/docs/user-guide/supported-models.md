@@ -86,7 +86,7 @@ The GME handler is built on Qwen2-VL. It:
 
 - Encodes an image together with its text into one vector (fused input).
 - Runs on OpenVINO only (`EMBEDDING_USE_OV=true`).
-- Does not convert at startup. It loads a pre-exported OpenVINO package from `<EMBEDDING_OV_MODELS_DIR>/gme-qwen2-vl-2b-instruct-openvino`; precision and dimension come from the package. See [Run GME](./get-started.md#run-gme).
+- Converts to OpenVINO INT8 format on first use and stores the package under `<EMBEDDING_OV_MODELS_DIR>/gme-qwen2-vl-2b-instruct-openvino`.
 
 Use the `/model/capabilities` endpoint to inspect which modalities the currently loaded model supports.
 
@@ -122,7 +122,7 @@ export EMBEDDING_DEVICE=CPU  # or GPU
 
 ## OpenVINO Conversion Support
 
-The service supports automatic OpenVINO conversion for all models except GME, which loads a pre-exported package. The conversion process automatically detects whether a model has HuggingFace Hub support and uses the appropriate conversion method.
+The service supports automatic OpenVINO conversion for all models. The conversion process automatically detects whether a model has HuggingFace Hub support and uses the appropriate conversion method.
 
 ## Supported Input Formats
 

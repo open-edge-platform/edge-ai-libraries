@@ -234,13 +234,10 @@ MODEL_CONFIGS = {
         },
     },
     "GME": {
-        # Loaded from a package exported offline by the GME OpenVINO project and
-        # mounted at <EMBEDDING_OV_MODELS_DIR>/<package_dir>; OpenVINO only.
-        # Precision, embedding dim and processor limits come from the package's
-        # gme_openvino_config.json.
         "gme-qwen2-vl-2b-instruct": {
             "hf_model_id": "Alibaba-NLP/gme-Qwen2-VL-2B-Instruct",
             "package_dir": "gme-qwen2-vl-2b-instruct-openvino",
+            "weight_format": "int8",
             "handler_class": "GMEHandler",
         },
     },

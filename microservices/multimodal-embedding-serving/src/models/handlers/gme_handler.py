@@ -1,7 +1,7 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""GME (gme-Qwen2-VL-2B-Instruct) handler over a pre-exported OpenVINO package.
+"""GME (gme-Qwen2-VL-2B-Instruct) handler over an OpenVINO package.
 
 GME is not a CLIP-style pair of independent encoders: an image goes through the
 visual IR and its tokens are then decoded by the language IR together with a
@@ -10,11 +10,11 @@ as one 1536-d, L2-normalized vector in a shared space. All of that lives in
 ``models.gme_runtime``; this handler loads the package, picks the prompt side
 (query, document or fused) per call and adapts arrays to tensors.
 
-The package is produced offline by the GME OpenVINO export project and mounted
-under ``EMBEDDING_OV_MODELS_DIR``; nothing is downloaded or converted here.
-Everything model-specific -- precision, embedding dim, processor limits -- is
-read from the package's ``gme_openvino_config.json``; the service adds no
-GME-specific settings of its own.
+Like the other OpenVINO handlers, the package is exported on first use (see
+``models.gme_export``) into ``<EMBEDDING_OV_MODELS_DIR>/<package_dir>`` and
+reused afterwards. An existing package directory is loaded as-is, so a package
+exported elsewhere can be placed there instead. Precision, embedding dim and
+processor limits are read from the package's ``gme_openvino_config.json``.
 """
 
 from __future__ import annotations
@@ -31,6 +31,7 @@ import torch
 from PIL import Image
 
 from ..base import BaseEmbeddingModel
+from ..gme_export import SUPPORTED_WEIGHT_FORMATS, export_package
 from ..gme_runtime import DEFAULT_INSTRUCTION, GmeOpenVINO, package_ir_files
 from ...utils import logger
 
@@ -52,7 +53,12 @@ class GMEHandler(BaseEmbeddingModel):
 
     def __init__(self, model_config: Dict[str, Any]):
         super().__init__(model_config)
+        self.hf_model_id: str = model_config["hf_model_id"]
+        self.revision: Optional[str] = model_config.get("revision")
         self.package_dir: str = model_config["package_dir"]
+        self.weight_format: str = model_config.get("weight_format", "int8")
+        if self.weight_format not in SUPPORTED_WEIGHT_FORMATS:
+            raise ValueError(f"GME weight_format must be one of {SUPPORTED_WEIGHT_FORMATS}")
         # Both known only once the package is loaded.
         self.embedding_dim: Optional[int] = None
         self.precision: Optional[str] = None
@@ -80,6 +86,10 @@ class GMEHandler(BaseEmbeddingModel):
                 "EMBEDDING_USE_OV=true (or use_openvino=True in the SDK)"
             )
         model_dir = self.model_dir
+        if model_dir.exists():
+            logger.info("Reusing existing GME OpenVINO package at %s", model_dir)
+        else:
+            self.convert_to_openvino(self.ov_models_dir)
         self._check_package(model_dir)
         if self.device.upper().startswith("NPU"):
             logger.warning("GME has not been validated on NPU; compilation may fail.")
@@ -116,11 +126,7 @@ class GMEHandler(BaseEmbeddingModel):
     def _check_package(self, model_dir: Path) -> None:
         """Fail with the exact missing file instead of deep inside the runtime."""
         if not model_dir.is_dir():
-            raise FileNotFoundError(
-                f"GME OpenVINO package not found at {model_dir}. Mount the exported "
-                f"'{self.package_dir}' directory under EMBEDDING_OV_MODELS_DIR "
-                f"({self.ov_models_dir})."
-            )
+            raise FileNotFoundError(f"GME OpenVINO package not found at {model_dir}")
         config_path = model_dir / "gme_openvino_config.json"
         if not config_path.is_file():
             raise FileNotFoundError(f"Not an exported GME OpenVINO package (no {config_path.name}): {model_dir}")
@@ -273,7 +279,18 @@ class GMEHandler(BaseEmbeddingModel):
         return self._max_text_tokens
 
     def convert_to_openvino(self, ov_models_dir: str) -> tuple:
-        raise NotImplementedError(
-            "GME cannot be converted inside the service; export the complete GME "
-            "OpenVINO package offline and mount it under EMBEDDING_OV_MODELS_DIR"
+        """Export the package into ``ov_models_dir`` unless it is already there."""
+        package = Path(ov_models_dir) / self.package_dir
+        if not package.exists():
+            logger.info(
+                "Exporting GME model %s to OpenVINO (%s) at %s; this downloads the checkpoint "
+                "and takes several minutes on first use",
+                self.hf_model_id,
+                self.weight_format.upper(),
+                package,
+            )
+            export_package(self.hf_model_id, package, self.weight_format, self.revision)
+        _, language_xml, visual_xml = package_ir_files(
+            package, json.loads((package / "gme_openvino_config.json").read_text())
         )
+        return str(package / language_xml), str(package / visual_xml)

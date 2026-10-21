@@ -1,6 +1,6 @@
 # Multimodal Embedding Serving Microservice
 
-A multimodal embedding microservice that enables seamless integration of vision-language understanding into applications through OpenAI-compliant APIs. The microservice supports multiple state-of-the-art models including CLIP, CN-CLIP, MobileCLIP, SigLIP, BLIP-2, Qwen text embeddings and GME (which also embeds an image together with its text), accepting modality-appropriate inputs and returning high-dimensional embeddings that capture their semantic content in a shared space.
+A multimodal embedding microservice that enables seamless integration of vision-language understanding into applications through OpenAI-compliant APIs. The microservice supports multiple state-of-the-art models including CLIP, CN-CLIP, MobileCLIP, SigLIP, BLIP-2, and Qwen text embeddings, accepting modality-appropriate inputs and returning high-dimensional embeddings that capture their semantic content in a shared space.
 
 The microservice is optimized for performance and scalability, supporting batch processing and deployment on both cloud and edge environments. By abstracting the complexity of model management and inference, the microservice accelerates the adoption of advanced vision-language AI in diverse use cases.
 

@@ -19,7 +19,6 @@ This guide assumes basic familiarity with Docker commands and terminal usage.
 - **EMBEDDING_DEVICE** - Device for inference (CPU/GPU/NPU, default: CPU)
 - **EMBEDDING_USE_OV** - Enable OpenVINO optimization (true/false, default: false)
 - **EMBEDDING_OV_MODELS_DIR** - Directory for OpenVINO models (default: ./ov-models)
-- **GME_MODEL_DIR** - Host path of the exported GME OpenVINO package, mounted read-only by `docker/compose.gme.yaml` (GME only; see [Run GME](#run-gme))
 
 ### Model Handler Performance
 
@@ -260,47 +259,6 @@ curl --location --request GET 'http://localhost:9777/health'
 curl --location --request GET 'http://localhost:9777/model/capabilities'
 ```
 
-## Run GME
-
-`GME/gme-qwen2-vl-2b-instruct` embeds text, images, video frames and image+text pairs into one 1536-d space ([details](./supported-models.md#gme-general-multimodal-embedding)). The service does not download it. Instead, it loads a package exported offline by the GME OpenVINO export project, which `docker/compose.gme.yaml` mounts read-only at `/app/ov_models/gme-qwen2-vl-2b-instruct-openvino`. The prebuilt images on Docker Hub predate GME, so build the image from this source tree.
-
-The package's own files decide its precision: mount a package with a single precision's IRs, for example only `gme_language_int8.*` and `gme_visual_int8.*`. The service needs no GME-specific environment variables.
-
-```bash
-export EMBEDDING_MODEL_NAME="GME/gme-qwen2-vl-2b-instruct"
-export EMBEDDING_DEVICE=CPU            # GPU and GPU.0 are accepted as well
-export GME_MODEL_DIR=/abs/path/to/gme-qwen2-vl-2b-instruct-openvino
-source setup.sh                        # keeps EMBEDDING_USE_OV=true; GME has no PyTorch fallback
-
-docker compose -f docker/compose.yaml -f docker/compose.gme.yaml build
-docker compose -f docker/compose.yaml -f docker/compose.gme.yaml up -d
-docker logs -f multimodal-embedding-serving   # look for "GME loaded: precision=int8, dim=1536 ..."
-```
-
-The package must be readable by the container user. Check that the files are world-readable, or that the owning group is one of the groups the container joins.
-
-Then verify the service, check what it loaded, and embed something:
-
-```bash
-until curl -sf http://localhost:9777/health; do sleep 5; done
-curl -s http://localhost:9777/model/current
-curl -s http://localhost:9777/model/capabilities   # "supports_fused": true
-curl -s http://localhost:9777/v1/embeddings -H 'Content-Type: application/json' \
-  -d '{"model": "GME/gme-qwen2-vl-2b-instruct", "input": ["A photo of a cat"]}'
-```
-
-### Use GME as a Remote Embedding Endpoint
-
-`POST /v1/embeddings` speaks the OpenAI embeddings API ([reference](./api-reference.md#post-v1embeddings)), so OpenAI-style clients can use the service as a remote embedding URL. For the Data Intelligence Engine, select its `openai_compatible` embedding backend:
-
-```bash
-ENGINE_EMBEDDING_BACKEND=openai_compatible
-ENGINE_EMBEDDING_MODEL_ID=GME/gme-qwen2-vl-2b-instruct
-ENGINE_EMBEDDING_API_BASE=http://<host>:9777      # the engine appends /v1
-```
-
-The engine can also be configured per source with `embedding_backend`/`embedding_model`/`embedding_api_base`. The engine image must contain `llama-index-embeddings-openai` for that backend. With the same package and device, the text vectors are identical to the engine's local `native_openvino_gme` backend. The OpenAI protocol carries text only, so the engine embeds figure nodes by their text on this path. Fused image+text vectors are available from `POST /embeddings` with `type: "fused"`. Re-index existing collections when switching embedding models.
-
 ## Stop the Multimodal Embedding microservice
 
 ```bash
@@ -439,31 +397,26 @@ curl --location 'http://localhost:9777/embeddings' \
 }'
 ```
 
-### Fused Image + Text Embedding (GME)
+### Fused Image + Text Embedding
 
-Each item is embedded jointly into one vector; the response always has one row per item.
+Each item's image and text are embedded jointly into one vector. Only models whose `/model/capabilities` reports `supports_fused: true` (GME) accept this input.
 
 ```bash
 curl --location 'http://localhost:9777/embeddings' \
 --header 'Content-Type: application/json' \
 --data '{
   "model": "GME/gme-qwen2-vl-2b-instruct",
+  "encoding_format": "float",
   "input": {
     "type": "fused",
     "items": [
-      {"text": "Figure 3: throughput under different loads",
-       "image": {"type": "image_base64", "image_base64": "<image base64 value here>"}}
+      {
+        "text": "Figure 3: throughput under different loads",
+        "image": {"type": "image_base64", "image_base64": "<image base64 value here>"}
+      }
     ]
   }
 }'
-```
-
-### OpenAI-Compatible Text Embedding
-
-```bash
-curl --location 'http://localhost:9777/v1/embeddings' \
---header 'Content-Type: application/json' \
---data '{"model": "CLIP/clip-vit-b-32", "input": ["A photo of a cat", "A photo of a dog"]}'
 ```
 
 ### Models, Current Model, and Capabilities
@@ -516,12 +469,6 @@ curl --location --request GET 'http://localhost:9777/model/capabilities'
 
 - Ensure `EMBEDDING_DEVICE=NPU` is set and `EMBEDDING_USE_OV=true`.
 - Verify the selected model supports NPU inference via the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page.
-
-1. **GME fails to start**
-
-- `GME OpenVINO package not found` or `is incomplete; missing or empty: [...]`: `GME_MODEL_DIR` does not point at the package directory itself, or the listed files are missing. The directory must contain `gme_openvino_config.json` directly.
-- `ships [...] and its default_precision ... is not among them`: the package holds several precisions. Keep one precision's IRs in the mounted directory.
-- `GME runs only on OpenVINO`: `EMBEDDING_USE_OV` was set to `false`.
 
 ## Known Issues and NPU Notes
 
