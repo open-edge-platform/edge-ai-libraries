@@ -110,6 +110,7 @@ make format      # Auto-format with ruff
 |-----------------|---------------------------------------|
 | `make build`    | Build all Docker images               |
 | `make run`      | Start all services via Docker Compose |
+| `make run-prebuilt` | Pull and start the published images (`latest` on main); never builds |
 | `make stop`     | Stop all services                     |
 | `make clean`    | Stop and remove containers/volumes    |
 | `make shell`    | Open shell in vippet container        |

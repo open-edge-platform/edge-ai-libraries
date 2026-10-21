@@ -23,6 +23,19 @@ class GStreamerRtspFactory(GstRtspServer.RTSPMediaFactory):
 
     _RtspVideoPipeline = " ! videoconvert {gvawatermark} \
         ! jpegenc name=jpegencoder ! rtpjpegpay name=pay0"
+
+    # H.264 variant of the raw-input pipeline, selected only when the
+    # destination config opts in via "encoding": "h264". Uses openh264enc
+    # (BSD-licensed, shipped in the DL Streamer Pipeline Server image) as the
+    # software encoder -- NOT x264enc, which is GPL-licensed and not bundled
+    # with this project's images. h264parse with config-interval=-1 embeds
+    # SPS/PPS with every IDR frame so clients that join the RTSP stream
+    # mid-stream (e.g. WebRTC/WHEP viewers) can still decode immediately.
+    # Swapped to vah264enc for VAMemory GPU buffers, mirroring the existing
+    # jpegenc->vajpegenc VA-API substitution below.
+    _RtspVideoPipeline_h264 = " ! videoconvert {gvawatermark} \
+        ! openh264enc name=h264encoder complexity=low \
+        ! h264parse config-interval=-1 ! rtph264pay name=pay0"
     
     # GPU pipeline variants for hardware-accelerated buffers
     # _RtspVideoPipeline_GPU_VASurface = " ! vaapipostproc ! vaapijpegenc ! rtpjpegpay name=pay0"
@@ -43,6 +56,14 @@ class GStreamerRtspFactory(GstRtspServer.RTSPMediaFactory):
             pipeline = pipeline.replace("jpegenc", "vajpegenc")
         if "jpegdec" in pipeline:
             pipeline = pipeline.replace("jpegdec", "vajpegdec")
+        if "openh264enc" in pipeline:
+            # vah264enc has no "complexity" property (that's openh264enc-only)
+            # -- strip it along with the element-name swap, or GStreamer's
+            # pipeline parser rejects the string entirely ("no property
+            # 'complexity' in element 'vah264enc'").
+            pipeline = pipeline.replace("openh264enc name=h264encoder complexity=low",
+                                        "vah264enc name=h264encoder")
+            pipeline = pipeline.replace("openh264enc", "vah264enc")
         return pipeline        
 
     def __init__(self, rtsp_server):
@@ -129,6 +150,13 @@ class GStreamerRtspFactory(GstRtspServer.RTSPMediaFactory):
                 media_pipeline = GStreamerRtspFactory._RtspVideoPipeline_withjpeginput
         else:
             media_pipeline = GStreamerRtspFactory._RtspVideoPipeline
+
+        encoding = getattr(stream, "encoding", "mjpeg")
+        if encoding == "h264" and "image/jpeg" not in new_caps:
+            # H.264 output is only offered for raw video input. The pre-encoded
+            # JPEG-input branches above are left untouched (out of scope).
+            media_pipeline = GStreamerRtspFactory._RtspVideoPipeline_h264
+
         media_pipeline = media_pipeline.format(gvawatermark=watermark_stage)
 
         if is_gpu and buffer_type == "VAMemory":

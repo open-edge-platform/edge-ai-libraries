@@ -16,18 +16,14 @@ RUN git clone --depth 1 --branch v${KAPACITOR_VERSION} \
     go mod edit -replace=github.com/prometheus/common@v0.26.0=github.com/prometheus/common@v0.20.0 && \
     go mod tidy && \
     python3 build.py --no-get --platform linux --arch amd64 \
-        --version "${KAPACITOR_VERSION}" --outdir /tmp/kapacitor-bin
+        --version "${KAPACITOR_VERSION}" --outdir /tmp/kapacitor-bin && \
+    strip --strip-unneeded /tmp/kapacitor-bin/kapacitord /tmp/kapacitor-bin/kapacitor
 
 FROM python:${PYTHON_VERSION}-slim as runtime
-
-
-ARG INSTALL_DRIVER_VERSION="26.27.39122"
-ENV INSTALL_DRIVER_VERSION=${INSTALL_DRIVER_VERSION}
 
 # Security upgrades for known CVEs
 RUN apt-get update && \
     apt-get upgrade -y --no-install-recommends \
-        python3.13 python3.13-minimal libpython3.13-minimal libpython3.13-stdlib \
         libsystemd0 libudev1 libcap2 \
         libc6 libc-bin \
         curl libcurl4t64 \
@@ -50,10 +46,25 @@ COPY --from=kapacitor-build /tmp/kapacitor-bin/kapacitord /tmp/kapacitor-bin/kap
 # Copy the Python UDF agent from the Kapacitor source used for the binaries
 COPY --from=kapacitor-build /tmp/kapacitor/udf/agent/py /app/kapacitor_python
 
-COPY scripts/install_gpu_drivers.sh /tmp/install_gpu_drivers.sh
-RUN chmod +x /tmp/install_gpu_drivers.sh && \
-    /tmp/install_gpu_drivers.sh && \
-    apt-get clean && rm -rf /tmp/install_gpu_drivers.sh && rm -rf /var/lib/apt/lists/* && rm -rf /tmp/*
+# Install the Intel GPU driver stack from pinned .deb URLs (compute-runtime
+# 26.27.39122 + matching IGC/libigdgmm releases). Bump all four version
+# variables together when upgrading the driver.
+RUN IGC_RELEASE_TAG="v2.38.2" && \
+    IGC_DEB_VERSION="2.38.2+22051" && \
+    COMPUTE_RUNTIME_RELEASE_TAG="26.27.39122.11" && \
+    LIBIGDGMM_DEB_VERSION="22.10.0" && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends libnuma1 ocl-icd-libopencl1 && \
+    rm -rf /var/lib/apt/lists/* && \
+    mkdir /tmp/gpu_deps && cd /tmp/gpu_deps && \
+    curl --fail -L -O "https://github.com/intel/intel-graphics-compiler/releases/download/${IGC_RELEASE_TAG}/intel-igc-core-2_${IGC_DEB_VERSION}_amd64.deb" && \
+    curl --fail -L -O "https://github.com/intel/intel-graphics-compiler/releases/download/${IGC_RELEASE_TAG}/intel-igc-opencl-2_${IGC_DEB_VERSION}_amd64.deb" && \
+    curl --fail -L -O "https://github.com/intel/compute-runtime/releases/download/${COMPUTE_RUNTIME_RELEASE_TAG}/intel-ocloc_${COMPUTE_RUNTIME_RELEASE_TAG}-0_amd64.deb" && \
+    curl --fail -L -O "https://github.com/intel/compute-runtime/releases/download/${COMPUTE_RUNTIME_RELEASE_TAG}/intel-opencl-icd_${COMPUTE_RUNTIME_RELEASE_TAG}-0_amd64.deb" && \
+    curl --fail -L -O "https://github.com/intel/compute-runtime/releases/download/${COMPUTE_RUNTIME_RELEASE_TAG}/libigdgmm12_${LIBIGDGMM_DEB_VERSION}_amd64.deb" && \
+    curl --fail -L -O "https://github.com/intel/compute-runtime/releases/download/${COMPUTE_RUNTIME_RELEASE_TAG}/libze-intel-gpu1_${COMPUTE_RUNTIME_RELEASE_TAG}-0_amd64.deb" && \
+    dpkg -i ./*.deb && rm -rf /tmp/gpu_deps && \
+    apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/*
 
 ARG TIMESERIES_UID
 ARG TIMESERIES_USER_NAME
@@ -64,9 +75,33 @@ RUN groupadd --gid $TIMESERIES_UID $TIMESERIES_USER_NAME && \
 
 COPY ./requirements.txt .
 
-# Install Python dependencies efficiently and clean up cache to reduce image size
+# Cleanup must happen in this same layer to actually reduce image size.
+# Wheels ship soname aliases as full copies; hardlink stores them once.
+#
+# The oneAPI/DPC++ runtime wheels pulled in by scikit-learn-intelex-gpu also
+# bundle components that duplicate the GPU driver stack installed above via
+# the pinned .deb install above (intel-igc-core/opencl, intel-opencl-icd,
+# libze-intel-gpu1), or that oneDAL/oneMKL GPU execution never exercises:
+#   - intel_opencl_rt's CPU OpenCL runtime (libintelocl*) - GPU OpenCL ICD
+#     already comes from the system driver; CPU paths use daal directly.
+#   - the OpenMP GPU-offload runtime (libomptarget*, libpstloffload*) - GPU
+#     offload here goes through SYCL/Level-Zero, not OpenMP `target` offload.
+#   - the online JIT/AOT SYCL kernel compiler (libsycl-jit*, libcommon_clang*,
+#     icx-lto.so, clbltfn*.rtl, libocl_svml_*, clang resource headers) -
+#     oneDAL/oneMKL GPU kernels ship precompiled; the real device compiler
+#     (intel-igc-*) is already installed system-wide.
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt && \
+    find /usr/local/lib -maxdepth 1 \( \
+        -name 'libintelocl.so*' -o \
+        -name 'libomptarget.so*' -o -name 'libomptarget.sycl.wrap.so*' -o -name 'libpstloffload.so*' -o \
+        -name 'libsycl-jit.so*' -o -name 'libcommon_clang.so*' -o -name 'icx-lto.so*' -o \
+        -name 'clbltfn*.rtl' -o -name 'libocl_svml_*.so*' \
+    \) -delete && \
+    rm -rf /usr/local/lib/clang /usr/local/opt/compiler/lib/libomptarget-opencl*.bc && \
+    hardlink --ignore-time /usr/local/lib && \
+    find /usr/local/lib -maxdepth 1 -type f \( -name '*.dbg' -o -name '*.a' -o -name '*-gdb.py' \) -delete && \
+    rm -rf /usr/local/lib/__pycache__
 
 # Set environment variables in a single ENV instruction for better layer caching
 ENV PYTHONPATH="$PYTHONPATH:/tmp/py_package:/app/kapacitor_python/"
