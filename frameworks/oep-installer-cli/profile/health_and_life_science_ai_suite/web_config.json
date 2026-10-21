@@ -1,7 +1,11 @@
 {
-  "profile": { "label": "Health and Life Sciences AI Suite", "value": "health_and_life_sciences_ai_suite" },
+  "profile": {
+    "label": "Health and Life Sciences AI Suite",
+    "value": "health_and_life_sciences_ai_suite",
+    "supports": { "OP_SYSTEM": ["UBUNTU_24_04", "UBUNTU_26_04"] }
+  },
   "modules": [
-    { "label": "NICU Warmer", "value": "nicu_warmer", "startStop": true, "options": ["--gpu", "--cpu", "--npu"] }
+    { "label": "NICU Warmer", "value": "nicu_warmer", "startStop": true, "remove": true, "options": ["--gpu", "--cpu", "--npu"] }
   ],
   "getStarted": {
     "text": "Get Started",
