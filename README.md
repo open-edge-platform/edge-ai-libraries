@@ -172,13 +172,6 @@ vector search, and document ingestion across multimodal data. 
   Splits/segments video streams into chunks, supporting batch and
   pipeline-based analytics.
 
-### Developer Tools and SDKs
-
-- [OEP SDK Manager](./tools/oep-sdk-manager)
-
-  Discover and install SDKs for Intel edge AI development using an interactive
-  selector, installation scripts, and SDK-specific tutorials.
-
 ### Benchmarking Tools 
 
 These support tools provide visual pipeline evaluation and performance
