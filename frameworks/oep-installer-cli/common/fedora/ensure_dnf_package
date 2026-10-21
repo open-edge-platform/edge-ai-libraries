@@ -1,0 +1,19 @@
+
+# install simple package
+ensure_dnf_install_package () {
+  local module="${1%%=*}"
+  if ensure_dnf_is_installed "${@%%"*"}"; then
+    echo "${*%%=*} $([ ${#*} -eq 1 ] && echo is || echo are) installed." >&2
+  else
+    ensure_prop installed/${module//[^a-zA-Z0-9]/_}/owned true
+    ensure_dnf install -y "$@"
+  fi
+}
+
+# remove simple package
+ensure_dnf_remove_package () {
+  local module="${1%%=*}"
+  [ "$(ensure_prop get installed/${module//[^a-zA-Z0-9]/_}/owned)" = "true" ] || return 0
+  ensure_dnf autoremove -y "$@"
+}
+
