@@ -44,7 +44,11 @@ Typical response:
 Related reads:
 
 - `GET /videos` (`/manager/videos`) returns `{ "videos": [ ... ] }`.
-- `GET /videos/{videoId}` returns `{ "video": { "videoId", "name", "url", "tags", "createdAt", "updatedAt", ... } }` or 404.
+- `GET /videos/{videoId}` returns `{ "video": { "videoId", "name", "url", "tags", "createdAt", "updatedAt", "searchEmbeddings", "textEmbeddings", ... } }` or 404.
+  - `searchEmbeddings`: `true` once frame embeddings exist (never downgraded by a later failed run), `false` if DataPrep rejected the request or the batch item failed, `null` if never requested. A client-side timeout leaves it unchanged.
+  - `textEmbeddings`: `true` once a summary chunk caption was embedded (`--unified`, `--dual`), otherwise `null`.
+  - Uploaded videos only; live cameras report progress through `GET /streams`.
+- `POST /videos/{videoId}/copy` adds an uploaded video again as a new video (new `videoId`, same name, file copied inside the object store) and returns `{ "videoId": "<new id>" }`. The copy needs its own embeddings. With `MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS=false`, embedding the copy returns `409` and the copy is removed.
 
 ## Start summarization
 
@@ -381,6 +385,8 @@ Example:
 ```bash
 curl -X POST http://localhost:12345/manager/videos/search-embeddings/$VIDEO_ID
 ```
+
+The outcome is recorded on the video: `GET /manager/videos/$VIDEO_ID` returns `.video.searchEmbeddings` as `true` on success and `false` on failure.
 
 ---
 

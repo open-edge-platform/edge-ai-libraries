@@ -44,6 +44,9 @@ This map is grounded in `chart/Chart.yaml`, `chart/values.yaml`, the override fi
 | `SEARCH_DATAPREP_POLL_MAX_RETRIES` | `pipelinemanager.env.SEARCH_DATAPREP_POLL_MAX_RETRIES` | Maximum retries for transient batch-status polling failures |
 | `SEARCH_DATAPREP_POLL_TIMEOUT_MS` | `pipelinemanager.env.SEARCH_DATAPREP_POLL_TIMEOUT_MS` | Timeout for each batch-status polling request; independent of total batch processing time |
 | `SEARCH_DATAPREP_POLL_RETRY_DELAY_MS` | `pipelinemanager.env.SEARCH_DATAPREP_POLL_RETRY_DELAY_MS` | Initial batch-status retry delay; subsequent retries use exponential backoff |
+| `SEARCH_MIN_PEAK_SCORE` | `pipelinemanager.env.SEARCH_MIN_PEAK_SCORE`; `videosearch.env.SEARCH_MIN_PEAK_SCORE` | Default minimum peak score (0-1) for search; `0` disables the filter. Keep both equal |
+| `LIVE_STREAM_MAX_CONCURRENT` | `multimodaldataprep.liveStream.maxConcurrent` | Maximum live cameras ingesting at once; further registrations return `503` |
+| `MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S` | `multimodaldataprep.sdkPipeline.pipelineStallTimeoutS` | Fail a DataPrep ingestion after this many seconds without pipeline progress; `0` disables |
 | `OD_MODEL_NAME` | `videoingestion.odModelName` | Generic YOLO id accepted by the model-download Ultralytics plugin; YOLO-World names fall back to `yolov8l` |
 | Docker named volumes / Compose storage | `global.usePvc`, `global.keepPvc`, `*.claimSize`, `*.modelPvc.size`, `vllm.pvc.size` | Kubernetes service-specific PVC sizes and retention controls |
 | `ENABLE_METRICS_MANAGER=true` / `compose.metrics-manager.yaml` | `global.metricsManager.enabled=true` | Deploys Metrics Manager and configures DataPrep publishing in search-enabled modes. |

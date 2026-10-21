@@ -460,6 +460,19 @@ The updated cache size is applied to the existing model configuration on the nex
 > [!NOTE]
 > Always size the block from the **largest** resolution you will ingest — an oversized block only wastes memory, while an undersized one triggers the failure above. For the full explanation, see the DataPrep [Get Started guide](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/visual-data-preparation-for-retrieval/multimodal-dataprep/docs/user-guide/get-started.md#advanced-tuning).
 
+## Video Embedding Fails with "Pipeline made no progress"
+
+**Problem**: Embedding a video in `--search` or `--dual` mode fails after a few minutes, and the `multimodal-dataprep` logs show `Pipeline made no progress for 300s while ... (MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S=300)`. The video's `searchEmbeddings` is `false`, unless an earlier run already succeeded.
+
+**Cause**: A detection or embedding inference call in DataPrep never returned, usually because of a GPU hang. A stall watchdog fails the ingestion when no pipeline stage makes progress for `MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S` seconds (default `300`), instead of leaving it in progress forever.
+
+**Solution**:
+
+1. Check the host for GPU hang or reset messages with `sudo dmesg | grep -i -E "hang|reset"`, and restart `multimodal-dataprep` to recover the device.
+2. If it recurs, run the affected stage on CPU: set `DATAPREP_DETECTION_DEVICE=CPU` or `DATAPREP_EMBEDDING_DEVICE=CPU` and redeploy.
+3. Raise `MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S` only if slow hardware legitimately needs longer between stages; `0` disables the watchdog. On Helm, set `multimodaldataprep.sdkPipeline.pipelineStallTimeoutS`.
+4. Retry with `POST /manager/videos/search-embeddings/{videoId}`.
+
 ## Accuracy of search results
 
 The accuracy of search results vary based on the embedding model used, configuration on frame sampling, object detection enabled or disabled, and the diversity of the video contents. The user is encouraged to check on these aspects in case the accuracy of the search results is not found to be satisfactory. Note that higher accuracy is normally a tradeoff with performance. Some specific pointers are provided below:
