@@ -67,6 +67,8 @@ class _FakeStreamSet:
     callable producing either. The last item repeats. Stopped instances are
     reported as ``ABORTED``. Each item of ``validations`` answers one
     ``GET /validate/status/{id}`` the same way; the default is ``VALID``.
+    A status with frames and no ``frame_interval`` gets a new one on every
+    poll, so it reads as a new window; pass ``frame_interval`` to repeat one.
     """
 
     def __init__(
@@ -85,6 +87,7 @@ class _FakeStreamSet:
         self.requests: list[httpx.Request] = []
         self.posted = 0
         self.validated = 0
+        self.status_polls = 0
         self.stopped: set[str] = set()
 
     @staticmethod
@@ -122,8 +125,12 @@ class _FakeStreamSet:
             if isinstance(item, httpx.Response):
                 return item
             assert isinstance(item, list)
+            self.status_polls += 1
             body = [{"id": f"inst-{i + 1}", **s} for i, s in enumerate(item)]
             for status in body:
+                if status.get("frame_fps") and "frame_interval" not in status:
+                    # Dyadic, so fps-weighted sums of whole fps stay exact.
+                    status["frame_interval"] = 1.0 + self.status_polls / 1024
                 if status["id"] in self.stopped:
                     status["state"] = "ABORTED"
             return httpx.Response(200, json=body)
@@ -427,6 +434,37 @@ class TestDlsps2RunnerNormal(Dlsps2RunnerTestBase):
 
         self.assertEqual(self.clock.now, 10.0)
         self.assertEqual(result.stream_fps, {"a": 30.0, "b": 20.0})
+
+    def test_fps_is_weighted_by_frame_interval_and_each_window_counts_once(self):
+        fake = _FakeStreamSet(
+            [
+                [_running(10.0, frame_interval=1.0)],
+                [_running(10.0, frame_interval=1.0)],
+                [_running(10.0, frame_interval=1.0)],
+                [_running(30.0, frame_interval=0.5)],
+                [_running(30.0, frame_interval=0.5)],
+                [_running(10.0, frame_interval=1.5)],
+            ]
+        )
+
+        # Warm-up is max_runtime / 2 = 3 s: windows from t=3 count, t=4 repeats t=3.
+        result = self._run(self._runner(max_runtime=6), fake)
+
+        self.assertEqual(result.stream_fps, {"stream": 15.0})
+
+    def test_unchanged_window_counts_as_no_frames(self):
+        fake = _FakeStreamSet(
+            [
+                [_running(30.0), _running(20.0)],
+                [_running(30.0), _running(20.0, frame_interval=1.0)],
+            ]
+        )
+
+        with self.assertRaises(RuntimeError) as ctx:
+            self._run_streams(self._runner(inactivity_timeout=3), fake)
+
+        self.assertIn("No frames from stream(s) b", str(ctx.exception))
+        self.assertEqual(len(fake.calls("DELETE")), 2)
 
     def test_run_shorter_than_warm_up_falls_back_to_final_avg_fps(self):
         fake = _FakeStreamSet(

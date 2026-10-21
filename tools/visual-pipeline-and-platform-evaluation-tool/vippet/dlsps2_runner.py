@@ -21,7 +21,8 @@ supported today:
   all at once. Every stream then runs as its own instance (``POST /pipelines``
   per stream with ``validate_pipeline=false``, all in the unpinned worker),
   so the instances start together. ``GET /pipelines/status`` is polled for
-  each stream's ``frame_fps``; every instance is stopped with
+  each stream's ``frame_fps`` and ``frame_interval``; every instance is
+  stopped with
   ``DELETE /pipelines/{id}`` once ``max_runtime`` elapses, all instances end,
   or the caller cancels.
   The result carries the FPS of each stream, so callers can judge the
@@ -491,11 +492,15 @@ class Dlsps2PipelineRunner:
         ``first_frame_time`` (``0``: until every instance ends on its own),
         or until :meth:`cancel`. Every instance is stopped before returning.
 
-        A stream's FPS is the mean of its ``frame_fps`` samples taken while
-        all streams are running, after the warm-up. A stream without such
-        samples (a run too short, or one that ended early) falls back to its
-        final ``avg_fps``. This stands in for a DLSPS lifecycle timeline
-        (ITEP-97433).
+        DLSPS reports each stream's ``frame_fps`` over its last
+        ``frame_interval`` seconds, and keeps both unchanged while no frames
+        arrive. A status counts as a new window only when that pair changes,
+        so a stalled stream is seen as one without frames and a window polled
+        twice counts once. A stream's FPS is its frames over its seconds,
+        summed over the new windows reported while all streams are running,
+        after the warm-up. A stream without such windows (a run too short, or
+        one that ended early) falls back to its final ``avg_fps``. This stands
+        in for a DLSPS lifecycle timeline (ITEP-97433).
 
         Raises:
             RuntimeError: If validation fails, a submit fails, an instance
@@ -504,7 +509,9 @@ class Dlsps2PipelineRunner:
                 that long. Not raised once the run is cancelled.
         """
         instances: dict[str, str] = {}
-        samples: dict[str, list[float]] = {sid: [] for sid in stream_commands}
+        frames = dict.fromkeys(stream_commands, 0.0)
+        seconds = dict.fromkeys(stream_commands, 0.0)
+        windows: dict[str, tuple] = {}
         statuses: dict[str, dict] = {}
 
         with self._client() as client:
@@ -564,9 +571,13 @@ class Dlsps2PipelineRunner:
                         else 0.0
                         for sid in instances
                     }
+                    fresh: list[str] = []
                     for sid, value in fps.items():
-                        if value > 0:
+                        window = (value, statuses.get(sid, {}).get("frame_interval"))
+                        if value > 0 and window != windows.get(sid):
+                            windows[sid] = window
                             last_frame[sid] = now
+                            fresh.append(sid)
                     stalled = [
                         sid
                         for sid in instances
@@ -591,8 +602,13 @@ class Dlsps2PipelineRunner:
                         and playing_since is not None
                         and now - playing_since >= self._warmup()
                     ):
-                        for sid, value in fps.items():
-                            samples[sid].append(value)
+                        for sid in fresh:
+                            interval = float(
+                                statuses[sid].get("frame_interval")
+                                or self.poll_interval
+                            )
+                            frames[sid] += fps[sid] * interval
+                            seconds[sid] += interval
 
                     # Mean per stream, as PipelineRunner pushes for the live chart.
                     self._push_fps_metric(sum(fps.values()) / len(instances))
@@ -609,8 +625,8 @@ class Dlsps2PipelineRunner:
         stream_fps: dict[str, float] = {}
         fallback = 0
         for sid in instances:
-            if samples[sid]:
-                stream_fps[sid] = sum(samples[sid]) / len(samples[sid])
+            if seconds[sid] > 0:
+                stream_fps[sid] = frames[sid] / seconds[sid]
             else:
                 stream_fps[sid] = float(statuses.get(sid, {}).get("avg_fps") or 0.0)
                 fallback += 1
