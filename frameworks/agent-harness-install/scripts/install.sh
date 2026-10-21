@@ -11,7 +11,7 @@ set -euo pipefail
 
 # Repo root is one level up from this payload script.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)"
-for lib in colors verify state sudo shim gpu-intel docker-setup nodejs python-setup openvino inference-router agents harness-mcp; do
+for lib in colors verify state sudo shim gpu-intel docker-setup nodejs python-setup openvino inference-router agents harness-mcp openshell; do
   # shellcheck disable=SC1090
   . "${SCRIPT_DIR}/scripts/lib/${lib}.sh"
 done
@@ -32,6 +32,8 @@ usage() {
     ./install.sh skill <install|list|remove> [path|name]  Manage Hermes skills
     ./install.sh status                          Show agent-harness-install/OVMS/agent health
     ./install.sh onboard                         Re-run onboarding only
+    ./install.sh inference --model <model>        Provision shared inference without installing an agent
+    ./install.sh connect --runtime openshell --harness <agent>  Connect to a sandboxed agent
 
   ./install.sh automatically runs startup.sh first to install/verify Docker,
   Node.js/npm, and Python -- no separate setup step needed. Run
@@ -42,6 +44,7 @@ usage() {
     --non-interactive                Skip prompts (uses env vars / defaults)
     --skip-gpu-check                  Skip Intel GPU detection/driver checks
     --harness <openclaw|deepagents-code|hermes>  Agent harness to install (sets HARNESS_AGENT)
+    --runtime <host|openshell>         Execution runtime (default: host; OpenShell supports OpenClaw/Hermes)
     --model <model-name>              Model to serve (required; prompted for on a terminal, an error otherwise), named as its hub
                                        names it (default hub: Hugging Face id such as org/name, exported to OpenVINO IR).
                                        Sets HARNESS_HF_MODEL.
@@ -59,6 +62,8 @@ usage() {
 
   Environment:
     HARNESS_AGENT               openclaw | deepagents-code | hermes (default: openclaw)
+    HARNESS_RUNTIME             host (default) | openshell
+    HARNESS_OPENSHELL_GATEWAY   OpenShell gateway name (default: openshell); profile records it
     HERMES_INSTALL_URL            Custom Hermes installer URL (default: scripts/install.sh at a pinned hermes-agent commit, checksum built in)
     HERMES_INSTALL_SHA256         Expected SHA-256 of the Hermes installer (required with HERMES_INSTALL_URL unless HERMES_ALLOW_UNVERIFIED_INSTALL=1)
     HERMES_ALLOW_UNVERIFIED_INSTALL  Run a custom Hermes installer without a pinned checksum (not recommended)
@@ -401,6 +406,9 @@ main() {
       --harness)
         [[ -n "${2:-}" ]] || { usage; error "--harness requires a value (openclaw|deepagents-code|hermes)."; }
         HARNESS_AGENT="$2"; shift ;;
+      --runtime)
+        [[ -n "${2:-}" ]] || { usage; error "--runtime requires host or openshell."; }
+        HARNESS_RUNTIME="$2"; shift ;;
       --model)
         [[ -n "${2:-}" ]] || { usage; error "--model requires a value (the model name as its hub names it, e.g. a Hugging Face id)."; }
         HARNESS_HF_MODEL="$2"; shift ;;
@@ -431,9 +439,21 @@ main() {
     shift
   done
   export NON_INTERACTIVE
+  validate_runtime
   export HARNESS_AGENT HARNESS_HF_MODEL HARNESS_MODEL_HUB HARNESS_MODEL_HUB_WAS_SET HARNESS_MODEL_CONFIG_JSON HARNESS_MODEL_TYPE
   export HARNESS_MODEL_PRECISION HARNESS_MODEL_DEVICE HARNESS_MODEL_DOWNLOAD_REVISION HARNESS_HF_MODEL_REVISION
   apply_model_source_defaults
+
+  if [[ "${HARNESS_RUNTIME:-host}" == "openshell" ]]; then
+    case "${positional[0]:-}" in
+      status) status_openshell_agent; exit 0 ;;
+      onboard) onboard_openshell_agent; exit 0 ;;
+      connect) connect_openshell_agent; exit 0 ;;
+      mcp | skill) error "Sandbox MCP/skill management is not yet supported by this command; configure it inside the sandbox." ;;
+    esac
+  elif [[ "${positional[0]:-}" == connect ]]; then
+    error "connect requires --runtime openshell and --harness openclaw or hermes."
+  fi
 
   if [[ "${positional[0]:-}" == "models" ]]; then
     run_models_command "${positional[@]:1}"
@@ -455,14 +475,30 @@ main() {
     run_agent_onboard
     exit 0
   fi
-  if [[ -n "${positional[0]:-}" ]]; then
+  if [[ -n "${positional[0]:-}" && "${positional[0]}" != inference ]]; then
     usage
     error "Unknown command: ${positional[0]}"
   fi
 
   require_model_selection
+  if [[ "${positional[0]:-}" != inference ]]; then
+    select_runtime
+  fi
 
   printf "\n${C_GREEN}${C_BOLD}agent-harness-install${C_RESET}\n\n"
+
+  # OpenShell profiles share inference, but never modify its model or route implicitly.
+  if [[ "${HARNESS_RUNTIME:-host}" == openshell && "${positional[0]:-}" != inference ]]; then
+    set +u
+    ensure_nvm_loaded
+    set -u
+    command_exists node || error "Node.js is required for installer configuration; run ./startup.sh first."
+    command_exists docker || error "Docker is required for the sandbox image; run ./startup.sh first."
+    install_openshell_agent
+    onboard_openshell_agent
+    print_done
+    exit 0
+  fi
 
   prepare_installer_host
 
@@ -480,6 +516,10 @@ main() {
   HARNESS_LLM_ENDPOINT="${HARNESS_LLM_ENDPOINT:-$(harness_llm_endpoint)}"
   export HARNESS_LLM_ENDPOINT
   ok "LLM endpoint: ${HARNESS_LLM_ENDPOINT}"
+  if [[ "${positional[0]:-}" == inference ]]; then
+    ok "Shared inference provisioned; no agent was installed."
+    exit 0
+  fi
 
   step 2 "$TOTAL_STEPS" "Agent install"
   # Node.js/npm is only actually needed to install openclaw (its CLI ships

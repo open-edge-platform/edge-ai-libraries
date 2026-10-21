@@ -31,6 +31,73 @@ stops, or health-checks that endpoint (`status` reports it as "routed
 externally"). A model must always be named with `--model` (the installer
 prompts for it on a terminal and fails otherwise).
 
+## OpenShell runtime (experimental)
+
+OpenClaw and Hermes can run in separate OpenShell sandboxes instead of being
+installed on the host. Host mode remains the default. OpenShell mode currently
+targets Linux, Docker and OpenShell **0.1.5**; a different installed OpenShell
+version is rejected rather than upgraded or downgraded automatically.
+
+First provision shared inference without installing a host agent:
+
+```bash
+./install.sh inference --model <model-id> --non-interactive
+```
+
+If IR already serves the required model, skip that step. Installing a sandbox
+does not change the shared IR configuration or switch its models:
+
+```bash
+./install.sh --runtime openshell --harness openclaw --model <model-id> --non-interactive
+./install.sh --runtime openshell --harness hermes --model <model-id> --non-interactive
+./install.sh status --runtime openshell --harness openclaw
+./install.sh connect --runtime openshell --harness openclaw
+./install.sh connect --runtime openshell --harness hermes
+```
+
+Profiles are independent under `~/.agent-harness-install/openshell/<agent>/`.
+Existing host agent configuration is not imported or modified. The sandbox
+agent accesses `http://host.openshell.internal:8010/v1` through a dedicated
+provider profile. IR and OVMS remain published on host loopback, and IR reaches
+OVMS over its private backend network. External inference is configured on the
+shared IR with `HARNESS_LLM_ROUTER_ENDPOINT`, not directly in the sandbox.
+
+The OpenShell gateway owns sandbox lifecycle and policy delivery. The OpenClaw
+gateway runs **inside** its sandbox, binds to sandbox loopback and uses a
+generated authentication token. Hermes runs as an interactive CLI; messaging
+integrations are not enabled. `connect` uses OpenShell's authenticated execution
+path and does not publish an agent UI on the LAN.
+
+`HARNESS_OPENSHELL_GATEWAY` selects the gateway when creating a new profile
+(default: `openshell`); lifecycle commands use the recorded gateway. On a fresh
+machine the checksum-pinned upstream installer provisions the CLI and local
+gateway. Existing gateways must already be configured and authenticated.
+
+Sandbox images install the same pinned agent packages/installers as host mode,
+run as a non-root user and do not mount host agent homes, model directories or
+the Docker socket. Runtime egress is limited to the attached inference provider;
+MCP, package downloads, messaging, and other egress need explicit additional
+policy. Landlock uses OpenShell's `best_effort` compatibility setting; this is
+not a claim that every host supports the same filesystem isolation guarantees.
+
+To remove only the selected sandbox:
+
+```bash
+./uninstall.sh --runtime openshell --harness openclaw --yes
+```
+
+Back up sandbox data first. OpenShell's sandbox deletion semantics apply to its
+home/workspace. Shared inference, host agents and the OpenShell CLI/gateway are
+not removed. Completed ownership records are retained as `removed-profile.json` for audit.
+Host uninstall refuses to remove shared state while active OpenShell profiles exist.
+
+Onboarding checks inference connectivity, **not** agentic correctness. Tool-use
+acceptance requires independently verifying generated files/content. The
+0.5B quickstart model is not a validated multi-step tool-use baseline.
+
+Offline regression tests: `bash test/openshell-test.sh`. Agent-image build and
+real sandbox tests require Docker, the pinned gateway and a running shared IR.
+
 ## How it works
 
 ### Install flow
@@ -205,6 +272,3 @@ Uninstall is a plain bash script.
 - `scripts/lib/gpu-intel.sh` only detects GPU/compute-runtime readiness; it
   assumes drivers are already provisioned (e.g. via Edge Pack:
   github.com/open-edge-platform/edge-pack) rather than installing them.
-
-
-

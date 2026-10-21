@@ -8,7 +8,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
-for lib in colors state sudo shim gpu-intel docker-setup nodejs openvino inference-router agents; do
+for lib in colors verify state sudo shim gpu-intel docker-setup nodejs openvino inference-router agents openshell; do
   # shellcheck disable=SC1090
   . "${SCRIPT_DIR}/scripts/lib/${lib}.sh"
 done
@@ -39,6 +39,7 @@ usage() {
     --delete-models     Also delete exported OpenVINO models (HARNESS_MODELS_DIR)
     --keep-agent-data   Keep Hermes's ~/.hermes or dcode's ~/.deepagents data directory (sets KEEP_AGENT_DATA=1)
     --harness <name>     Agent to remove (default: HARNESS_AGENT, else the agent recorded at install time, else openclaw)
+    --runtime <host|openshell>  OpenShell removes only the selected agent sandbox; keeps shared inference
     --help, -h           Show this help message and exit
 
 EOF
@@ -114,12 +115,36 @@ main() {
       --harness)
         [[ -n "${2:-}" ]] || { usage; error "--harness requires a value (openclaw|deepagents-code|hermes)."; }
         agent="$2"; shift ;;
+      --runtime)
+        [[ -n "${2:-}" ]] || error "--runtime requires host or openshell."
+        HARNESS_RUNTIME="$2"; shift ;;
       --agent) usage; error "--agent was renamed to --harness." ;;
       --help | -h) usage; exit 0 ;;
       *) usage; error "Unknown option: $1" ;;
     esac
     shift
   done
+  if [[ "${HARNESS_RUNTIME:-host}" == openshell ]]; then
+    HARNESS_AGENT="$(canonical_agent_name "$agent")"
+    validate_runtime
+    [[ -z "$DELETE_MODELS" && -z "$KEEP_AGENT_DATA" ]] \
+      || error "--delete-models and --keep-agent-data are host-runtime options; sandbox uninstall removes its home/workspace."
+    set +u
+    ensure_nvm_loaded
+    set -u
+    command_exists node || error "Node.js is required to validate sandbox ownership."
+    if [[ -z "$ASSUME_YES" ]]; then
+      error "Sandbox removal deletes its native home/workspace. Back up needed data, then pass --yes."
+    fi
+    remove_openshell_agent
+    exit 0
+  fi
+  validate_runtime
+  # Host cleanup must not erase ownership records for separately managed sandboxes.
+  if [[ -d "$(harness_state_root)/openshell" ]] \
+    && [[ -n "$(find "$(harness_state_root)/openshell" -name profile.json -print -quit)" ]]; then
+    error "OpenShell profile records exist. Remove/archive those profiles before host uninstall; shared inference is still in use."
+  fi
   export KEEP_AGENT_DATA
   [[ -z "$DELETE_MODELS" ]] || assert_models_dir_safe "${HARNESS_MODELS_DIR:-}"
 

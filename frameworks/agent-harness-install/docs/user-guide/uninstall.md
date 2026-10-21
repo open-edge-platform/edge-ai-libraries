@@ -5,6 +5,26 @@
 
 # Uninstall
 
+## OpenShell profiles
+
+```bash
+./uninstall.sh --runtime openshell --harness openclaw --yes
+./uninstall.sh --runtime openshell --harness hermes --yes
+```
+
+These commands remove only the selected owned sandbox and its dedicated
+provider/profile. Back up its native home/workspace first: deleting the sandbox
+uses OpenShell's data-removal semantics. Shared IR/OVMS, host-installed agents
+and the OpenShell CLI/gateway are left running. Ownership is verified before
+removal; incomplete cleanup retains the active ownership record for retry.
+The completed record is kept as `removed-profile.json` in the agent's profile
+directory. `--delete-models` and `--keep-agent-data` are not sandbox options.
+
+Host uninstall refuses while active OpenShell profile records exist, because
+those sandboxes depend on the shared inference stack.
+
+## Host installation
+
 ```bash
 ./uninstall.sh                  # prompts, keeps exported models
 ./uninstall.sh --yes --delete-models --harness openclaw

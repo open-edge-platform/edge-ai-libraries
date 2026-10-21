@@ -5,6 +5,24 @@
 
 # Known Limitations
 
+- OpenShell runtime support is experimental and limited to Linux with Docker,
+  OpenShell 0.1.5 and OpenClaw/Hermes. Each agent has one independently owned
+  profile; both use shared, loopback-published inference. Provision inference
+  separately with `./install.sh inference --model <model-id>`. Sandbox install
+  will not silently switch models or external routes. The shared service still
+  needs host Node.js for installer configuration handling.
+- Sandbox network access initially permits only the shared IR endpoint.
+  Messaging, browser downloads, package updates and MCP integrations require
+  additional explicit policy; the host `mcp`/`skill` helpers reject OpenShell
+  mode rather than modifying the wrong agent. The Hermes messaging gateway is
+  not enabled. Agent replacement, migration and backup/restore are not provided
+  by this initial integration.
+- A sandbox's Ready state or successful chat smoke test does not validate
+  multi-step tool use. Check actual tool effects and exact output contents.
+- The pinned Hermes installer optionally downloads a computer-use driver. Its
+  availability depends on image libraries and upstream installer behavior;
+  this integration does not enable or validate desktop/computer-use workflows.
+
 - OpenClaw onboarding registers the inference endpoint as a custom model
   provider (`openclaw config set models.providers.ovms ...`, OpenClaw's own
   documented `models.providers` mechanism — see
