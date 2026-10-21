@@ -1,7 +1,6 @@
 # OEP SDK Manager
 
 OEP SDK Manager is maintained in `edge-ai-libraries/tools/oep-sdk-manager/`.
-It was previously located in `metro-ai-suite/metro-sdk-manager/`.
 
 ## Validation
 
@@ -17,8 +16,9 @@ access. Install ShellCheck to include shell linting; CI requires it.
 The link suite checks the selector's external URLs and requires network access.
 Installers are not executed by either suite.
 
-Current download links use `edge-ai-libraries/tools/oep-sdk-manager/scripts/`.
-Release-specific downloads stay pinned to their original release branches.
+Latest download links use `edge-ai-libraries/tools/oep-sdk-manager/scripts/`.
+Release-specific downloads remain pinned to the SDK Manager paths on their
+original release branches.
 
 ## Overview
 
