@@ -1,9 +1,13 @@
 {
-  "profile": { "label": "Federal and Aerospace", "value": "federal_and_aerospace_ai_suite" },
+  "profile": {
+    "label": "Federal and Aerospace",
+    "value": "federal_and_aerospace_ai_suite",
+    "supports": { "OP_SYSTEM": ["UBUNTU_24_04", "UBUNTU_26_04"] }
+  },
   "modules": [
-    { "label": "Edge Node Infrastructure Blueprint", "value": "edge_node_infrastructure_blueprint", "options": ["--docker", "--k3s"] },
-    { "label": "Handheld Multi-Modal", "value": "handheld_multi_modal", "startStop": true, "options": ["--docker"] },
-    { "label": "UAV Mission Compute SDK", "value": "uav_mission_compute_sdk", "startStop": true, "options": ["--docker", "--k3s"] }
+    { "label": "Edge Node Infrastructure Blueprint", "value": "edge_node_infrastructure_blueprint", "remove": true, "options": ["--docker", "--k3s"] },
+    { "label": "Handheld Multi-Modal", "value": "handheld_multi_modal", "startStop": true, "remove": true, "options": ["--docker"] },
+    { "label": "UAV Mission Compute SDK", "value": "uav_mission_compute_sdk", "startStop": true, "remove": true, "options": ["--docker", "--k3s"] }
   ],
   "getStarted": {
     "text": "Get Started",

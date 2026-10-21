@@ -17,6 +17,8 @@ import { MultiFileUploader } from "@/features/upload/MultiFileUploader.tsx";
 import type { PreUploadMessage } from "@/features/upload/uploaderMessages";
 import { ENDPOINTS } from "@/api/apiEndpoints";
 import { CATEGORY_INFO } from "@/features/models/categoryInfo.ts";
+import { UltralyticsBrowser } from "@/features/models/UltralyticsBrowser.tsx";
+import { HGFBrowser } from "@/features/models/HGFBrowser.tsx";
 
 const MAX_DESCRIPTION_LENGTH = 200;
 
@@ -48,7 +50,7 @@ export const AddModelDialog = ({
       </DialogTrigger>
       <DialogContent
         ref={dialogContentRef}
-        className="h-[85vh] max-h-[85vh] w-[60vw] max-w-[60vw] items-start content-start overflow-y-auto sm:max-w-[60vw]"
+        className="h-[64rem] max-h-[64rem] w-[60vw] max-w-[60vw] items-start content-start overflow-y-auto sm:max-w-[60vw]"
         onInteractOutside={(event) => {
           if (
             (event.target as HTMLElement).closest(
@@ -126,14 +128,10 @@ export const AddModelDialog = ({
             />
           </TabsContent>
           <TabsContent value="ultralytics" className="mt-4">
-            <p className="text-sm text-muted-foreground">
-              Ultralytics model installation is not available yet.
-            </p>
+            <UltralyticsBrowser onInstalled={() => setOpen(false)} />
           </TabsContent>
           <TabsContent value="huggingface" className="mt-4">
-            <p className="text-sm text-muted-foreground">
-              HuggingFace model installation is not available yet.
-            </p>
+            <HGFBrowser onInstalled={() => setOpen(false)} />
           </TabsContent>
         </Tabs>
       </DialogContent>

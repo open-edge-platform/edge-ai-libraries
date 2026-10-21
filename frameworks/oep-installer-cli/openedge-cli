@@ -190,15 +190,18 @@ subcommand_bootstrap () {
     --start=*)
       start_modules+=("${v#*=}")
       ;;
-    --output|-o)
-      ;;
     --output=*)
       rendered="${v#*=}"
+      ;;
+    --output|-o|--family)
       ;;
     *)
       case "$vlast" in
       --output|-o)
         rendered="$v"
+        ;;
+      --family)
+        installer_family="$v"
         ;;
       *)
         [[ "$v" = -* ]] || modules+=("$v")
@@ -280,7 +283,13 @@ subcommand_bootstrap () {
     for p in ${!known[*]}; do
       for d in ${depsof[$p]}; do [ "$d" = "$p" ] || echo "$d $p"; done
     done | tsort > /dev/null || bad=1
-    [ $bad -eq 0 ] || exit 3
+    if [ $bad -eq 0 ]; then
+      echo "OK"
+      exit 0
+    else
+      echo "Failed"
+      exit 3
+    fi
   fi
 
   # construct final installer
@@ -322,7 +331,7 @@ subcommand_bootstrap () {
         . "$f" || { echo "Failed to source $f" 1>&2; exit 3; }
       done
       unset -f main   # main comes from the verbatim header
-      misc_funcs=($(declare -F | cut -f3 -d' ' | grep -v -E "^(${installer_family}_[0-9]+|ensure_|act_|verify_|configure_|subcommand_|main$)"))
+      misc_funcs=($(declare -F | cut -f3 -d' ' | grep -v -E "^(${installer_family}_[0-9]+|ensure_|act_|verify_|configure_|install_|start_|stop_|remove_|profile_|license_|sbom_|subcommand_|main$)"))
       declare -f | sed "/^subcommand_setup () *\$/,/^}/ s|local installer_misc_functions=[^;]*|local installer_misc_functions=(${misc_funcs[*]})|"
     ) || exit 3
     echo
