@@ -20,6 +20,8 @@ debian_90_install_scenescape () {
     echo "Scenescape is installed." >&2
   else
     ensure_disk_size 300
+    ensure_ports_open install scenescape "${used_ports[@]}"
+
     ensure_git_export "$workspace" "$version" "$repository"
     verify_scenescape
   fi
@@ -31,7 +33,7 @@ debian_90_install_scenescape () {
 
 debian_90_start_scenescape () {
   configure_scenescape
-  ensure_ports_open "${used_ports[*]}" debian_90_stop_scenescape "$@"
+  ensure_ports_open start scenescape "${used_ports[@]}"
 
   cd "$workspace"
   export SUPASS=$(cat /dev/random | tr -dc a-z | head -c 5)

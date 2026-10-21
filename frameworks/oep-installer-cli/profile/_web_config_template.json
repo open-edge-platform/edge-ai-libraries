@@ -1,8 +1,19 @@
 {
-  "profile": { "label": "My AI Suite", "value": "my_ai_suite" },
+  "profile": {
+    "label": "My AI Suite",
+    "value": "my_ai_suite",
+    "supports": { "OP_SYSTEM": ["UBUNTU_24_04", "UBUNTU_26_04"] }
+  },
   "modules": [
-    { "label": "My Module", "value": "my_module" },
-    { "label": "My Long-running Module", "value": "my_service_module", "startStop": true }
+    { "label": "My Module", "value": "my_module", "remove": true },
+    {
+      "label": "My Long-running Module",
+      "value": "my_service_module",
+      "startStop": true,
+      "remove": true,
+      "options": ["--gpu", "--docker", "--gpu --docker"],
+      "supports": { "OP_SYSTEM": ["UBUNTU_24_04", "UBUNTU_26_04"] }
+    }
   ],
   "install": {
     "text": "wget -qO- https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install my_ai_suite"

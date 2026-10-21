@@ -33,8 +33,8 @@ debian_90_install_agentic_predictive_maintenance_pipeline () {
   if verify_agentic_predictive_maintenance_pipeline && [[ " $* " != *" --reinstall "* ]]; then
     echo "Agentic Predictive Maintenance Pipeline is installed." 1>&2
   else
-    ensure_ports_open "${used_ports[*]}" return 3
     ensure_disk_size 15000
+    ensure_ports_open install agentic_predictive_maintenance_pipeline "${used_ports[@]}"
     ensure_git_export "$workspace" "$version" "$repository" agentic-predictive-maintenance-pipeline
 
     cd "$workspace"/agentic-predictive-maintenance-pipeline/apps/pipeline-defect-detection
@@ -59,7 +59,7 @@ debian_90_install_agentic_predictive_maintenance_pipeline () {
 
 debian_90_start_agentic_predictive_maintenance_pipeline () {
   configure_agentic_predictive_maintenance_pipeline
-  ensure_ports_open "${used_ports[*]}" debian_90_stop_agentic_predictive_maintenance_pipeline "$@"
+  ensure_ports_open start agentic_predictive_maintenance_pipeline "${used_ports[@]}"
 
   local device=$(ensure_select_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_agentic_predictive_maintenance_pipeline_device "${device^^}"

@@ -58,7 +58,7 @@ debian_90_remove_stationary_robot_vision () {
 
   configure_stationary_robot_vision
   if ensure_apt_is_installed ros-$ros_distro-rvc-simulation || ensure_apt_is_installed ros-$ros_distro-rvc; then
-    ensure_apt autoremove -m -y ros-$ros_distro-rvc-simulation ros-$ros_distro-rvc \
+    ensure_apt purge --auto-remove -y ros-$ros_distro-rvc-simulation ros-$ros_distro-rvc \
       ros-$ros_distro-robot-config ros-$ros_distro-robot-config-plugins || true
     verify_robotics_in_use_ros_openvino || remove_osrf_gazebo_ros2
     remove_oneapi_ros_openvino

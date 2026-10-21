@@ -33,7 +33,8 @@ debian_90_install_wind_turbine_anomaly_detection () {
   else
     ensure_disk_size 64000
     ensure_ram_size 16777216 # 16 GiB
-    ensure_ports_open "${used_ports[*]}" return 3
+    ensure_ports_open install wind_turbine_anomaly_detection "${used_ports[@]}"
+
     ensure_git_export "$workspace" "$version" "$repository" industrial-edge-insights-time-series
     cd "$workspace"/industrial-edge-insights-time-series
 
@@ -58,7 +59,7 @@ EOF
 
 debian_90_start_wind_turbine_anomaly_detection () {
   configure_wind_turbine_anomaly_detection
-  ensure_ports_open "${used_ports[*]}" debian_90_stop_wind_turbine_anomaly_detection "$@"
+  ensure_ports_open start wind_turbine_anomaly_detection "${used_ports[@]}"
 
   local device=$(ensure_select_device "$@")
   [[ " ${*,,} " != *" --${device} "* ]] || configure_wind_turbine_anomaly_detection_device "$device"

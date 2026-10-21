@@ -1970,7 +1970,7 @@ configure_autonomous_mobile_robot_device ()
 { 
     configure_autonomous_mobile_robot_slam "$1";
     ensure_apt_is_installed "$amr_slam_pkg" && return 0;
-    ensure_apt remove -y $(printf '%s\n' "${amr_slam_pkgs[@]}" | grep -v -x -F "$amr_slam_pkg");
+    ensure_apt purge --auto-remove -y $(printf '%s\n' "${amr_slam_pkgs[@]}" | grep -v -x -F "$amr_slam_pkg");
     ensure_apt install -y "$amr_slam_pkg";
     ensure_apt_is_installed "$amr_slam_pkg"
 }
@@ -2091,13 +2091,18 @@ configure_edge_pack ()
 { 
     edge_pack_repo="apt.repos.intel.com";
     edge_pack_key_url="https://$edge_pack_repo/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB";
-    edge_pack_key_file=/etc/apt/keyrings/edgepack.gpg;
+    edge_pack_key_file=/etc/apt/keyrings/intel-edge-pack.gpg;
     edge_pack_source="deb [signed-by=$edge_pack_key_file] https://$edge_pack_repo/edgepack $VERSION_CODENAME stable";
-    edge_pack_list_file=/etc/apt/sources.list.d/edgepack.list;
+    edge_pack_list_file=/etc/apt/sources.list.d/intel-edge-pack.list;
     edge_pack_pref=("Package: *" "Pin: origin $edge_pack_repo" "Pin-Priority: 1001");
     edge_pack_pref_file=/etc/apt/preferences.d/edgepack.pref;
     edge_pack_install_options=("--no-install-recommends");
-    edge_pack_allow_downgrades=(libgbm1 libgstreamer-gl1.0-0 libva-wayland2 mesa-libgallium weston)
+    edge_pack_allow_downgrades=(libgbm1 libgstreamer-gl1.0-0 libva-wayland2 mesa-libgallium weston libegl-mesa0 libgbm-dev libgl1-mesa-dev libgl1-mesa-dri libglx-mesa0 mesa-common-dev mesa-vulkan-drivers);
+    edge_pack_ppa_repo=;
+    edge_pack_ppa_key_url=;
+    edge_pack_ppa_key_file=;
+    edge_pack_ppa_source=;
+    edge_pack_ppa_list_file=
 }
 configure_edge_pack_base_realtime () 
 { 
@@ -2141,7 +2146,99 @@ configure_edge_pack_npu ()
 }
 configure_esq () 
 { 
-    workspace="$(ensure_project_path)/esq"
+    workspace="$(ensure_project_path)/esq";
+    version=main;
+    repository=https://github.com/open-edge-platform/edge-system-qualification.git
+}
+configure_esq_debugfs () 
+{ 
+    if mountpoint -q /sys/kernel/debug; then
+        echo "  [OK] /sys/kernel/debug already mounted";
+    else
+        if ensure_sudo mount -t debugfs none /sys/kernel/debug 2> /dev/null; then
+            echo "  [OK] Mounted debugfs on /sys/kernel/debug";
+        else
+            echo "  [ERROR] Failed to mount debugfs";
+            return 1;
+        fi;
+    fi;
+    if [ -d /sys/kernel/debug/accel ]; then
+        if chmod o+x /sys/kernel/debug 2> /dev/null && chmod o+rx /sys/kernel/debug/accel 2> /dev/null; then
+            echo "  [OK] Granted unprivileged traversal of /sys/kernel/debug/accel";
+        else
+            echo "  [WARN] Could not chmod debugfs traversal (NPU monitor tool may need it)";
+        fi;
+    fi
+}
+configure_esq_gpu_perf_events () 
+{ 
+    local TARGET_PARANOID=0;
+    ensure_sudo sysctl -w kernel.perf_event_paranoid="$TARGET_PARANOID" > /dev/null 2>&1 || { 
+        printf "${red}sysctl write failed for kernel.perf_event_paranoid${reset}\n";
+        return 1
+    };
+    if [ -f /proc/sys/dev/i915/perf_stream_paranoid ]; then
+        ensure_sudo sysctl -w dev.i915.perf_stream_paranoid="$TARGET_PARANOID" > /dev/null 2>&1 || printf "${red}sysctl write failed for dev.i915.perf_stream_paranoid${reset}\n";
+    fi;
+    if [ -f /proc/sys/dev/xe/observation_paranoid ]; then
+        ensure_sudo sysctl -w dev.xe.observation_paranoid="$TARGET_PARANOID" > /dev/null 2>&1 || printf "${red}sysctl write failed for dev.xe.observation_paranoid${reset}\n";
+    fi
+}
+configure_esq_memlock () 
+{ 
+    ensure_sudo prlimit --memlock=unlimited:unlimited --pid $$ && echo "  [OK] prlimit unlimited applied to PID $pid" || echo "  [INFO] prlimit unavailable; run in your terminal: ulimit -l unlimited"
+}
+configure_esq_npu_telemetry () 
+{ 
+    local telem_file;
+    for telem_file in /sys/class/intel_pmt/telem*/telem;
+    do
+        [ -e "$telem_file" ] || continue;
+        ensure_sudo chmod o+r "$(readlink -f "$telem_file" 2> /dev/null || echo "$telem_file")" 2> /dev/null;
+    done
+}
+configure_esq_pci_info () 
+{ 
+    local ESQ_CACHE_DIR="$(ensure_project_path)/esq/pci";
+    local LSPCI_DUMP="$ESQ_CACHE_DIR/lspci_verbose.txt";
+    mkdir -p "$ESQ_CACHE_DIR";
+    chmod 0700 "$ESQ_CACHE_DIR";
+    echo "  [INFO] Capturing full PCI device information (lspci -vvvnn)...";
+    if ensure_sudo lspci -vvvnn > "$LSPCI_DUMP" 2> /dev/null; then
+        local device_count;
+        device_count=$(grep -c '^[0-9a-f]' "$LSPCI_DUMP" 2> /dev/null || echo 0);
+        echo "  [OK] Captured $device_count PCI device(s) to $LSPCI_DUMP";
+    else
+        echo "  [ERROR] lspci failed to capture PCI device information";
+        rm -f "$LSPCI_DUMP";
+    fi;
+    chmod 0600 "$LSPCI_DUMP";
+    echo "  [OK] Saved: $LSPCI_DUMP (mode: 0600)"
+}
+configure_esq_powercap () 
+{ 
+    local energy_file;
+    for energy_file in /sys/class/powercap/*/energy_uj;
+    do
+        [ -e "$energy_file" ] || continue;
+        ensure_sudo chmod o+r "$energy_file" || true;
+    done
+}
+configure_esq_telemetry_mods () 
+{ 
+    local m;
+    for m in coretemp intel_rapl_common intel_rapl_msr intel_pmt_telemetry intel_vpu;
+    do
+        if lsmod | awk '{print $1}' | grep -qx "$m"; then
+            echo "  [OK] $m already loaded";
+            continue;
+        fi;
+        if modprobe "$m" 2> /dev/null; then
+            echo "  [OK] modprobe $m";
+        else
+            echo "  [WARN] modprobe $m failed (module may not be available on this kernel)";
+        fi;
+    done
 }
 configure_geti () 
 { 
@@ -2555,7 +2652,7 @@ configure_pallet_defect_detection ()
     workspace="$(ensure_project_path)/pallet-defect-detection";
     version=release-2026.2.0;
     repository="https://github.com/open-edge-platform/manufacturing-ai-suite.git";
-    used_ports=(80 443);
+    used_ports=(80 443 8000 3478);
     wait_timeout=120
 }
 configure_pcb_anomaly_detection () 
@@ -2563,7 +2660,7 @@ configure_pcb_anomaly_detection ()
     workspace="$(ensure_project_path)/pcb-anomaly-detection";
     version=release-2026.2.0;
     repository="https://github.com/open-edge-platform/manufacturing-ai-suite.git";
-    used_ports=(80 443)
+    used_ports=(80 443 3478 8000)
 }
 configure_pcm () 
 { 
@@ -2704,10 +2801,15 @@ configure_ros2 ()
 configure_ros2_apt_source () 
 { 
     local codename="${UBUNTU_CODENAME:-$VERSION_CODENAME}";
-    ros_apt_ver="$(ensure_fetch https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest - | grep -oE '"tag_name": *"[^"]*"' | head -n 1 | awk -F'"' '{print $4}')";
-    if [ -z "$ros_apt_ver" ]; then
-        echo "configure_ros2_apt_source: could not determine the latest ros-apt-source release" "(the GitHub API lookup returned nothing - it may be unreachable or rate-limited)." "Check network/proxy access to api.github.com and github.com and retry." 1>&2;
-        return 1;
+    local repo=ros-infrastructure/ros-apt-source;
+    local pinned_ver=1.3.0;
+    ros_apt_ver="$(curl -fsSL -o /dev/null -w '%{url_effective}' --retry 3 --retry-delay 5 "https://github.com/$repo/releases/latest" 2> /dev/null | sed -n 's|.*/releases/tag/||p')";
+    if ! [[ "$ros_apt_ver" =~ ^[0-9A-Za-z._-]+$ ]]; then
+        ros_apt_ver="$(curl -fsSL --retry 2 --retry-delay 5 "https://api.github.com/repos/$repo/releases/latest" 2> /dev/null | grep -oE '"tag_name": *"[^"]*"' | head -n 1 | awk -F'"' '{print $4}')";
+    fi;
+    if ! [[ "$ros_apt_ver" =~ ^[0-9A-Za-z._-]+$ ]]; then
+        echo "configure_ros2_apt_source: could not determine the latest ros-apt-source release" "(github.com/api.github.com unreachable or rate-limited); using pinned release $pinned_ver." 1>&2;
+        ros_apt_ver=$pinned_ver;
     fi;
     ros_deb_src="https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ros_apt_ver}/ros2-apt-source_${ros_apt_ver}.${codename}_all.deb"
 }
@@ -2946,7 +3048,8 @@ configure_vippet ()
 { 
     workspace="$(ensure_project_path)/vippet";
     version=release-2026.2.0;
-    repository=https://github.com/open-edge-platform/edge-ai-libraries.git
+    repository=https://github.com/open-edge-platform/edge-ai-libraries.git;
+    used_ports=(80 7860 8000 9090 8554 8889)
 }
 configure_visual_search_question_and_answering () 
 { 
@@ -3048,25 +3151,6 @@ debian_15_install_debconf_utils ()
 { 
     ensure_apt_install_package debconf-utils
 }
-debian_15_install_edge_pack () 
-{ 
-    configure_edge_pack "$@";
-    local reinstall=$([[ " $* " = *" --reinstall "* ]] && echo 1 || echo 0);
-    local reconfigured=0;
-    if [ ! -e "$edge_pack_key_file" ] || [ $reinstall -eq 1 ]; then
-        ensure_apt_key "$edge_pack_key_file" "$edge_pack_key_url" --dearmor;
-        reconfigured=1;
-    fi;
-    if [ ! -e "$edge_pack_source_file" ] || [ $reinstall -eq 1 ]; then
-        ensure_apt_source "$edge_pack_list_file" "$edge_pack_source";
-        reconfigured=1;
-    fi;
-    if [ ! -e "$edge_pack_pref_file" ] || [ $reinstall -eq 1 ]; then
-        ensure_apt_preference "$edge_pack_pref_file" "${edge_pack_pref[@]}";
-        reconfigured=1;
-    fi;
-    [ $reconfigured -eq 0 ] || ensure_apt update -y
-}
 debian_15_install_gawk () 
 { 
     ensure_apt_install_package gawk
@@ -3107,10 +3191,6 @@ debian_15_install_yq ()
 { 
     ensure_apt_install_package yq
 }
-debian_15_profile_edge_pack () 
-{ 
-    echo "curl gnupg"
-}
 debian_15_profile_libze1 () 
 { 
     echo "curl"
@@ -3122,13 +3202,6 @@ debian_15_remove_cpuid ()
 debian_15_remove_debconf_utils () 
 { 
     ensure_apt_remove_package debconf-utils
-}
-debian_15_remove_edge_pack () 
-{ 
-    dpkg -l | grep -q -F intel-edge- || { 
-        configure_edge_pack "$@";
-        ensure_sudo rm -f "$edge_pack_key_file" "$edge_pack_source_file" "$edge_pack_pref_file"
-    }
 }
 debian_15_remove_jq () 
 { 
@@ -3179,6 +3252,64 @@ debian_15_sbom_yq ()
 { 
     ensure_sbom_format pkg-list yq
 }
+debian_19_install_edge_pack () 
+{ 
+    configure_edge_pack "$@";
+    local reinstall=$([[ " $* " = *" --reinstall "* ]] && echo 1 || echo 0);
+    local reconfigured=0;
+    if [ ! -e "$edge_pack_key_file" ] || [ $reinstall -eq 1 ]; then
+        ensure_apt_key "$edge_pack_key_file" "$edge_pack_key_url" --dearmor;
+        reconfigured=1;
+    fi;
+    if [ ! -e "$edge_pack_source_file" ] || [ $reinstall -eq 1 ]; then
+        ensure_apt_source "$edge_pack_list_file" "$edge_pack_source";
+        reconfigured=1;
+    fi;
+    if [ ! -e "$edge_pack_pref_file" ] || [ $reinstall -eq 1 ]; then
+        ensure_apt_preference "$edge_pack_pref_file" "${edge_pack_pref[@]}";
+        reconfigured=1;
+    fi;
+    if [ -n "$edge_pack_ppa_repo" ]; then
+        if [ ! -e "$edge_pack_ppa_key_file" ] || [ $reinstall -eq 1 ]; then
+            ensure_apt_key "$edge_pack_ppa_key_file" "$edge_pack_ppa_key_url" --dearmor;
+            reconfigured=1;
+        fi;
+        if [ ! -e "$edge_pack_ppa_source_file" ] || [ $reinstall -eq 1 ]; then
+            ensure_apt_source "$edge_pack_ppa_list_file" "$edge_pack_ppa_source";
+            reconfigured=1;
+        fi;
+    fi;
+    [ $reconfigured -eq 0 ] || ensure_apt update -y
+}
+debian_19_profile_edge_pack () 
+{ 
+    echo "curl gnupg"
+}
+debian_19_remove_edge_pack () 
+{ 
+    dpkg -l | grep -q -F intel-edge- || { 
+        configure_edge_pack "$@";
+        ensure_rm "$edge_pack_key_file" "$edge_pack_source_file" "$edge_pack_pref_file";
+        [ -z "$edge_pack_ppa_repo" ] || ensure_rm "$edge_pack_ppa_list_file" "$edge_pack_ppa_key_file"
+    }
+}
+debian_19_sbom_edge_pack_repo_entries () 
+{ 
+    if [ -n "$edge_pack_ppa_repo" ]; then
+        ensure_sbom_format gpg-key "$edge_pack_ppa_key_url";
+        ensure_sbom_format key-file "$edge_pack_ppa_key_file";
+        ensure_sbom_format apt-source "$edge_pack_ppa_source";
+        ensure_sbom_format apt-list-file "$edge_pack_ppa_list_file";
+        echo "---";
+    fi;
+    ensure_sbom_format name "$edge_pack_repo";
+    ensure_sbom_format gpg-key "$edge_pack_key_url";
+    ensure_sbom_format key-file "$edge_pack_key_file";
+    ensure_sbom_format apt-source "$edge_pack_source";
+    ensure_sbom_format apt-list-file "$edge_pack_list_file";
+    ensure_sbom_format apt-pref "${edge_pack_pref[@]}";
+    ensure_sbom_format apt-pref-file "$edge_pack_pref_file"
+}
 debian_20_group_edge_pack_base_realtime () 
 { 
     echo "render:992 video:"
@@ -3225,13 +3356,15 @@ debian_20_install_edge_pack_base_realtime ()
             echo "Falling back to the standard edge-pack base bundle (intel-edge-base-standard) instead." 1>&2;
             ensure_prop set installed/edge_pack_base_realtime/fallback true;
             debian_20_install_edge_pack_base_standard "$@";
+            [ -n "$(ensure_prop get installed/edge_pack_base_standard/owned)" ] || ensure_prop set installed/edge_pack_base_standard/owned false;
             [ -c /dev/dri/renderD128 ];
             ensure_group_add $(debian_20_group_edge_pack_base_realtime);
             echo "@@HIGHLIGHT intel-edge-base-realtime unavailable @installed intel-edge-base-standard instead";
             return 0;
         fi;
+        ensure_prop remove installed/edge_pack_base_realtime/fallback;
         ensure_prop set installed/edge_pack_base_realtime/owned true;
-        ensure_apt autoremove -y intel-edge-base-realtime || true;
+        ensure_apt purge --auto-remove -y intel-edge-base-realtime || true;
         ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*";
         ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*";
     fi;
@@ -3245,7 +3378,7 @@ debian_20_install_edge_pack_base_standard ()
         echo "intel-edge-base-standard is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_base_standard/owned true;
-        ensure_apt autoremove -y intel-edge-base-standard || true;
+        ensure_apt purge --auto-remove -y intel-edge-base-standard || true;
         ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*";
         ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*";
     fi;
@@ -3259,7 +3392,7 @@ debian_20_install_edge_pack_graphics_core ()
         echo "intel-edge-graphics-core is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_graphics_core/owned true;
-        debian_20_remove_edge_pack_graphics_core;
+        ensure_apt purge --auto-remove -y intel-edge-graphics-core || true;
         ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-graphics-core=$version*";
         ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-graphics-core=$version*";
     fi;
@@ -3273,7 +3406,7 @@ debian_20_install_edge_pack_graphics_display ()
         echo "intel-edge-graphics-display is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_graphics_display/owned true;
-        debian_20_remove_edge_pack_graphics_display;
+        ensure_apt purge --auto-remove -y intel-edge-graphics-display || true;
         ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-graphics-display=$version*";
         ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-graphics-display=$version*";
     fi;
@@ -3287,7 +3420,7 @@ debian_20_install_edge_pack_media_core ()
         echo "intel-edge-media-core is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_media_core/owned true;
-        ensure_apt autoremove -y intel-edge-media-core || true;
+        ensure_apt purge --auto-remove -y intel-edge-media-core || true;
         ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-core=$version*";
     fi
 }
@@ -3298,7 +3431,7 @@ debian_20_install_edge_pack_npu ()
         echo "intel-edge-npu is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_npu/owned true;
-        ensure_apt autoremove -y intel-edge-npu || true;
+        ensure_apt purge --auto-remove -y intel-edge-npu || true;
         ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-npu=$version*";
         ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-npu=$version*";
     fi;
@@ -3342,52 +3475,47 @@ debian_20_remove_edge_pack_base_realtime ()
 { 
     if [ "$(ensure_prop get installed/edge_pack_base_realtime/fallback)" != "true" ]; then
         [ "$(ensure_prop get installed/edge_pack_base_realtime/owned)" = "true" ] || return 0;
-        ensure_apt autoremove -y intel-edge-base-realtime || true;
-        debian_15_remove_edge_pack "$@" || true;
+        ensure_apt purge --auto-remove -y intel-edge-base-realtime || true;
+        debian_19_remove_edge_pack "$@" || true;
     else
         debian_20_remove_edge_pack_base_standard "$@";
-    fi
+    fi;
+    ensure_prop remove installed/edge_pack_base_realtime/fallback
 }
 debian_20_remove_edge_pack_base_standard () 
 { 
     [ "$(ensure_prop get installed/edge_pack_base_standard/owned)" = "true" ] || return 0;
-    ensure_apt autoremove -y intel-edge-base-standard || true;
-    debian_15_remove_edge_pack "$@" || true
+    ensure_apt purge --auto-remove -y intel-edge-base-standard || true;
+    debian_19_remove_edge_pack "$@" || true
 }
 debian_20_remove_edge_pack_graphics_core () 
 { 
     [ "$(ensure_prop get installed/edge_pack_graphics_core/owned)" = "true" ] || return 0;
-    ensure_apt autoremove -y intel-edge-graphics-core || true;
-    debian_15_remove_edge_pack "$@" || true
+    ensure_apt purge --auto-remove -y intel-edge-graphics-core || true;
+    debian_19_remove_edge_pack "$@" || true
 }
 debian_20_remove_edge_pack_graphics_display () 
 { 
     [ "$(ensure_prop get installed/edge_pack_graphics_display/owned)" = "true" ] || return 0;
-    ensure_apt autoremove -y intel-edge-graphics-display || true;
-    debian_15_remove_edge_pack "$@" || true
+    ensure_apt purge --auto-remove -y intel-edge-graphics-display || true;
+    debian_19_remove_edge_pack "$@" || true
 }
 debian_20_remove_edge_pack_media_core () 
 { 
     [ "$(ensure_prop get installed/edge_pack_media_core/owned)" = "true" ] || return 0;
-    ensure_apt autoremove -y intel-edge-media-core || true;
-    debian_15_remove_edge_pack "$@" || true
+    ensure_apt purge --auto-remove -y intel-edge-media-core || true;
+    debian_19_remove_edge_pack "$@" || true
 }
 debian_20_remove_edge_pack_npu () 
 { 
     [ "$(ensure_prop get installed/edge_pack_npu/owned)" = "true" ] || return 0;
-    ensure_apt autoremove -y intel-edge-npu || true;
-    debian_15_remove_edge_pack "$@" || true
+    ensure_apt purge --auto-remove -y intel-edge-npu || true;
+    debian_19_remove_edge_pack "$@" || true
 }
 debian_20_sbom_edge_pack_base_realtime () 
 { 
     configure_edge_pack_base_realtime "$@";
-    ensure_sbom_format name "$edge_pack_repo";
-    ensure_sbom_format gpg-key "$edge_pack_key_url";
-    ensure_sbom_format key-file "$edge_pack_key_file";
-    ensure_sbom_format apt-source "$edge_pack_source";
-    ensure_sbom_format apt-list-file "$edge_pack_list_file";
-    ensure_sbom_format apt-pref "${edge_pack_pref[@]}";
-    ensure_sbom_format apt-pref-file "$edge_pack_pref_file";
+    debian_19_sbom_edge_pack_repo_entries "$@";
     if [ "$(ensure_prop get installed/edge_pack_base_realtime/fallback)" = "true" ]; then
         ensure_sbom_format pkg-list "intel-edge-base-standard=$version*";
     else
@@ -3397,61 +3525,31 @@ debian_20_sbom_edge_pack_base_realtime ()
 debian_20_sbom_edge_pack_base_standard () 
 { 
     configure_edge_pack_base_standard "$@";
-    ensure_sbom_format name "$edge_pack_repo";
-    ensure_sbom_format gpg-key "$edge_pack_key_url";
-    ensure_sbom_format key-file "$edge_pack_key_file";
-    ensure_sbom_format apt-source "$edge_pack_source";
-    ensure_sbom_format apt-list-file "$edge_pack_list_file";
-    ensure_sbom_format apt-pref "${edge_pack_pref[@]}";
-    ensure_sbom_format apt-pref-file "$edge_pack_pref_file";
+    debian_19_sbom_edge_pack_repo_entries "$@";
     ensure_sbom_format pkg-list "intel-edge-base-standard=$version*"
 }
 debian_20_sbom_edge_pack_graphics_core () 
 { 
     configure_edge_pack_graphics_core "$@";
-    ensure_sbom_format name "$edge_pack_repo";
-    ensure_sbom_format gpg-key "$edge_pack_key_url";
-    ensure_sbom_format key-file "$edge_pack_key_file";
-    ensure_sbom_format apt-source "$edge_pack_source";
-    ensure_sbom_format apt-list-file "$edge_pack_list_file";
-    ensure_sbom_format apt-pref "${edge_pack_pref[@]}";
-    ensure_sbom_format apt-pref-file "$edge_pack_pref_file";
+    debian_19_sbom_edge_pack_repo_entries "$@";
     ensure_sbom_format pkg-list "intel-edge-graphics-core=$version*"
 }
 debian_20_sbom_edge_pack_graphics_display () 
 { 
     configure_edge_pack_graphics_display "$@";
-    ensure_sbom_format name "$edge_pack_repo";
-    ensure_sbom_format gpg-key "$edge_pack_key_url";
-    ensure_sbom_format key-file "$edge_pack_key_file";
-    ensure_sbom_format apt-source "$edge_pack_source";
-    ensure_sbom_format apt-list-file "$edge_pack_list_file";
-    ensure_sbom_format apt-pref "${edge_pack_pref[@]}";
-    ensure_sbom_format apt-pref-file "$edge_pack_pref_file";
+    debian_19_sbom_edge_pack_repo_entries "$@";
     ensure_sbom_format pkg-list "intel-edge-graphics-display=$version*"
 }
 debian_20_sbom_edge_pack_media_core () 
 { 
     configure_edge_pack_media_core "$@";
-    ensure_sbom_format name "$edge_pack_repo";
-    ensure_sbom_format gpg-key "$edge_pack_key_url";
-    ensure_sbom_format key-file "$edge_pack_key_file";
-    ensure_sbom_format apt-source "$edge_pack_source";
-    ensure_sbom_format apt-list-file "$edge_pack_list_file";
-    ensure_sbom_format apt-pref "${edge_pack_pref[@]}";
-    ensure_sbom_format apt-pref-file "$edge_pack_pref_file";
+    debian_19_sbom_edge_pack_repo_entries "$@";
     ensure_sbom_format pkg-list "intel-edge-media-core=$version*"
 }
 debian_20_sbom_edge_pack_npu () 
 { 
     configure_edge_pack_npu "$@";
-    ensure_sbom_format name "$edge_pack_repo";
-    ensure_sbom_format gpg-key "$edge_pack_key_url";
-    ensure_sbom_format key-file "$edge_pack_key_file";
-    ensure_sbom_format apt-source "$edge_pack_source";
-    ensure_sbom_format apt-list-file "$edge_pack_list_file";
-    ensure_sbom_format apt-pref "${edge_pack_pref[@]}";
-    ensure_sbom_format apt-pref-file "$edge_pack_pref_file";
+    debian_19_sbom_edge_pack_repo_entries "$@";
     ensure_sbom_format pkg-list "intel-edge-npu=$version*"
 }
 debian_29_install_reboot () 
@@ -3643,6 +3741,14 @@ debian_30_install_rsync ()
 { 
     ensure_apt_install_package rsync
 }
+debian_30_install_rustup () 
+{ 
+    if [ -x "$HOME"/.cargo/bin/rustup ]; then
+        echo "cargo already installed";
+    else
+        ensure_fetch https://sh.rustup.rs - | sh -s -- -y --default-toolchain stable --profile minimal;
+    fi
+}
 debian_30_install_stress_ng () 
 { 
     ensure_apt_install_package stress-ng
@@ -3654,6 +3760,10 @@ debian_30_install_sysbench ()
 debian_30_install_v4l_utils () 
 { 
     ensure_apt_install_package v4l-utils
+}
+debian_30_install_xpu_smi () 
+{ 
+    ensure_apt_install_package xpu-smi || printf "${red}xpu-smi not installed${reset}\n"
 }
 debian_30_remove_build_essential () 
 { 
@@ -3699,7 +3809,7 @@ debian_30_remove_kernel_module_essential ()
         [ "$(ensure_prop get installed/kernel_module_essential/owned_$p)" = "true" ] || continue;
         pkgs+=($p);
     done;
-    [ ${#pkgs[@]} -eq 0 ] || ensure_apt autoremove -y "${pkgs[@]}"
+    [ ${#pkgs[@]} -eq 0 ] || ensure_apt purge --auto-remove -y "${pkgs[@]}"
 }
 debian_30_remove_make () 
 { 
@@ -3713,6 +3823,10 @@ debian_30_remove_rsync ()
 { 
     ensure_apt_remove_package rsync
 }
+debian_30_remove_rustup () 
+{ 
+    "$HOME"/.cargo/bin/rustup self uninstall || true
+}
 debian_30_remove_stress_ng () 
 { 
     ensure_apt_remove_package stress-ng
@@ -3724,6 +3838,10 @@ debian_30_remove_sysbench ()
 debian_30_remove_v4l_utils () 
 { 
     ensure_apt_remove_package v4l-utils
+}
+debian_30_remove_xpu_smi () 
+{ 
+    ensure_apt_remove_package xpu-smi
 }
 debian_30_sbom_build_essential () 
 { 
@@ -3784,6 +3902,10 @@ debian_30_sbom_rsync ()
 { 
     ensure_sbom_format pkg-list rsync
 }
+debian_30_sbom_rustup () 
+{ 
+    ensure_sbom_format pkg-list https://sh.rustup.rs
+}
 debian_30_sbom_stress_ng () 
 { 
     ensure_sbom_format pkg-list stress-ng
@@ -3795,6 +3917,10 @@ debian_30_sbom_sysbench ()
 debian_30_sbom_v4l_utils () 
 { 
     ensure_sbom_format pkg-list v4l-utils
+}
+debian_30_sbom_xpu_smi () 
+{ 
+    ensure_sbom_format pkg-list xpu-smi
 }
 debian_40_group_gpu_accel () 
 { 
@@ -3911,7 +4037,7 @@ debian_40_remove_gpu_accel ()
 { 
     [ "$(ensure_prop get installed/gpu_accel/owned)" = "true" ] || return 0;
     configure_gpu_accel "$@";
-    ensure_apt autoremove -m -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || true;
+    ensure_apt purge --auto-remove -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || true;
     ensure_apt_source_remove https://repositories.intel.com/gpu;
     ensure_rm /usr/share/keyrings/intel-gpu-archive-keyring.gpg "$key_file" "$apt_file"
 }
@@ -3925,7 +4051,7 @@ debian_40_remove_npu_accel ()
 { 
     [ "$(ensure_prop get installed/npu_accel/owned)" = "true" ] || return 0;
     configure_npu_accel "$@";
-    ensure_apt autoremove -m -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true;
+    ensure_apt purge --auto-remove -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true;
     ensure_rm "$workspace"
 }
 debian_40_remove_pcm () 
@@ -4087,8 +4213,8 @@ debian_50_remove_ros2 ()
     [ "$(ensure_prop get installed/ros2/owned)" = "true" ] || return 0;
     configure_ros2;
     if verify_ros2; then
-        ensure_apt autoremove -m -y ros-$ros_distro-desktop ros-dev-tools || true;
-        ensure_apt purge -y ros2-apt-source || true;
+        ensure_apt purge --auto-remove -y ros-$ros_distro-desktop ros-dev-tools || true;
+        ensure_apt purge --auto-remove -y ros2-apt-source || true;
         [ ! -w ~/.bashrc ] || sed -i "\|^source /opt/ros/$ros_distro/setup.bash\$|d" ~/.bashrc;
     else
         echo "ROS 2 already removed. Skipping";
@@ -4135,14 +4261,13 @@ debian_55_install_ros_openvino ()
         ensure_apt_source $ov_list "$ov_deb_entry";
         ensure_apt_preference $ov_pref "${ov_deb_pref[@]}";
         ensure_apt update -y;
-        ensure_apt purge -y ros-$ros_distro-openvino-node || true;
-        ensure_apt autoremove -y || true;
+        ensure_apt purge --auto-remove -y ros-$ros_distro-openvino-node || true;
         echo PURGE | ensure_sudo debconf-communicate ros-$ros_distro-openvino-node > /dev/null 2>&1 || true;
         echo "ros-$ros_distro-openvino-node ros-$ros_distro-openvino-node/install_models boolean true" | ensure_sudo debconf-set-selections > /dev/null 2>&1 || true;
         local ov_installed;
         ov_installed="$(dpkg-query -W -f='${Version}' openvino 2> /dev/null | cut -d. -f1-3)";
         if [ -n "$ov_installed" ] && [ "$ov_installed" != "$ov_version" ]; then
-            ensure_apt remove -y openvino $(dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' "*openvino*-$ov_installed" 2> /dev/null | awk '$1 == "ii" {print $2}');
+            ensure_apt purge --auto-remove -y openvino $(dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' "*openvino*-$ov_installed" 2> /dev/null | awk '$1 == "ii" {print $2}');
         fi;
         ensure_apt install -y --allow-downgrades "openvino=$ov_version*";
         ensure_apt install -y ros-$ros_distro-openvino-node;
@@ -4152,7 +4277,7 @@ debian_55_install_ros_openvino ()
 }
 debian_55_profile_realsense () 
 { 
-    echo "curl gnupg"
+    echo "curl gnupg ros2"
 }
 debian_55_profile_ros_openvino () 
 { 
@@ -4164,7 +4289,7 @@ debian_55_remove_realsense ()
     [ "$(ensure_prop get installed/realsense/owned)" = "true" ] || return 0;
     configure_realsense;
     if verify_realsense; then
-        ensure_apt autoremove -m -y librealsense2 librealsense2-dkms ros-$ros_distro-librealsense2 || true;
+        ensure_apt purge --auto-remove -y librealsense2 librealsense2-dkms ros-$ros_distro-librealsense2 || true;
         ensure_rm "$rs_key_file" "$rs_list";
     else
         echo "RealSense SDK already removed. Skipping";
@@ -4175,7 +4300,7 @@ debian_55_remove_ros_openvino ()
     [ "$(ensure_prop get installed/ros_openvino/owned)" = "true" ] || return 0;
     configure_ros_openvino;
     if verify_ros_openvino; then
-        ensure_apt autoremove -m -y ros-$ros_distro-openvino-node openvino || true;
+        ensure_apt purge --auto-remove -y ros-$ros_distro-openvino-node openvino || true;
         ensure_rm "$ov_key_file" "$ov_list" "$ov_pref" "$amr_key_file" "$amr_list" "$amr_pref_file";
     else
         echo "ROS 2 OpenVINO toolkit already removed. Skipping";
@@ -4264,7 +4389,7 @@ debian_70_install_edge_pack_media_ffmpeg ()
         echo "intel-edge-media-ffmpeg is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_media_ffmpeg/owned true;
-        ensure_apt autoremove -y intel-edge-media-ffmpeg || true;
+        ensure_apt purge --auto-remove -y intel-edge-media-ffmpeg || true;
         ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-ffmpeg=$version*";
     fi
 }
@@ -4275,7 +4400,7 @@ debian_70_install_edge_pack_media_gst ()
         echo "intel-edge-media-gst is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_media_gst/owned true;
-        ensure_apt autoremove -y intel-edge-media-gst || true;
+        ensure_apt purge --auto-remove -y intel-edge-media-gst || true;
         ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-gst=$version*";
     fi
 }
@@ -4356,14 +4481,14 @@ debian_70_profile_time_confighub ()
 debian_70_remove_edge_pack_media_ffmpeg () 
 { 
     [ "$(ensure_prop get installed/edge_pack_media_ffmpeg/owned)" = "true" ] || return 0;
-    ensure_apt autoremove -y intel-edge-media-ffmpeg || true;
-    debian_15_remove_edge_pack "$@" || true
+    ensure_apt purge --auto-remove -y intel-edge-media-ffmpeg || true;
+    debian_19_remove_edge_pack "$@" || true
 }
 debian_70_remove_edge_pack_media_gst () 
 { 
     [ "$(ensure_prop get installed/edge_pack_media_gst/owned)" = "true" ] || return 0;
-    ensure_apt autoremove -y intel-edge-media-gst || true;
-    debian_15_remove_edge_pack "$@" || true
+    ensure_apt purge --auto-remove -y intel-edge-media-gst || true;
+    debian_19_remove_edge_pack "$@" || true
 }
 debian_70_remove_ffmpeg () 
 { 
@@ -4380,7 +4505,7 @@ debian_70_remove_nodejs ()
 debian_70_remove_openvino () 
 { 
     [ "$(ensure_prop get installed/openvino/owned)" = "true" ] || return 0;
-    ensure_apt autoremove -m -y $(dpkg -l | grep openvino | awk '{print$2}') || true
+    ensure_apt purge --auto-remove -y $(dpkg -l | grep openvino | awk '{print$2}') || true
 }
 debian_70_remove_time_confighub () 
 { 
@@ -4391,25 +4516,13 @@ debian_70_remove_time_confighub ()
 debian_70_sbom_edge_pack_media_ffmpeg () 
 { 
     configure_edge_pack_media_ffmpeg "$@";
-    ensure_sbom_format name "$edge_pack_repo";
-    ensure_sbom_format gpg-key "$edge_pack_key_url";
-    ensure_sbom_format key-file "$edge_pack_key_file";
-    ensure_sbom_format apt-source "$edge_pack_source";
-    ensure_sbom_format apt-list-file "$edge_pack_list_file";
-    ensure_sbom_format apt-pref "${edge_pack_pref[@]}";
-    ensure_sbom_format apt-pref-file "$edge_pack_pref_file";
+    debian_19_sbom_edge_pack_repo_entries "$@";
     ensure_sbom_format pkg-list "intel-edge-media-ffmpeg=$version*"
 }
 debian_70_sbom_edge_pack_media_gst () 
 { 
     configure_edge_pack_media_gst "$@";
-    ensure_sbom_format name "$edge_pack_repo";
-    ensure_sbom_format gpg-key "$edge_pack_key_url";
-    ensure_sbom_format key-file "$edge_pack_key_file";
-    ensure_sbom_format apt-source "$edge_pack_source";
-    ensure_sbom_format apt-list-file "$edge_pack_list_file";
-    ensure_sbom_format apt-pref "${edge_pack_pref[@]}";
-    ensure_sbom_format apt-pref-file "$edge_pack_pref_file";
+    debian_19_sbom_edge_pack_repo_entries "$@";
     ensure_sbom_format pkg-list "intel-edge-media-gst=$version*"
 }
 debian_70_sbom_ffmpeg () 
@@ -4460,7 +4573,7 @@ debian_75_remove_dlstreamer ()
 { 
     configure_dlstreamer;
     [ "$(ensure_prop get installed/dlstreamer/owned)" = "true" ] || return 0;
-    ensure_apt autoremove -m -y $(dpkg-query -l | awk '/^ii/&&/dlstreamer/{print$2}') || true;
+    ensure_apt purge --auto-remove -y $(dpkg-query -l | awk '/^ii/&&/dlstreamer/{print$2}') || true;
     ensure_rm "$workspace"
 }
 debian_75_sbom_dlstreamer () 
@@ -4502,16 +4615,16 @@ debian_80_remove_anomalib ()
 debian_85_install_esq () 
 { 
     configure_uv;
+    configure_esq;
     if uv tool list 2> /dev/null | grep -q -E "^esq " && [[ " $* " != *" --reinstall "* ]]; then
         echo "Esq is installed." 1>&2;
     else
         ensure_disk_size 25000;
-        curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-system-qualification/refs/heads/main/scripts/system-setup.sh | ensure_sudo bash -s -- -f || true;
-        curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-system-qualification/refs/heads/main/scripts/system-setup-advanced.sh | ensure_sudo bash -s -- -f || true;
-        uv tool install --force --refresh git+https://github.com/open-edge-platform/edge-system-qualification.git@main;
-        configure_esq;
-        mkdir -p "$workspace";
+        ensure_git_clone "$workspace" "$version" "$repository";
+        cd "$workspace";
+        uv tool install --force .;
     fi;
+    configure_esq_pci_info;
     echo "@@HIGHLIGHT esq @$(which esq)";
     echo "@@HIGHLIGHT workspace @$workspace"
 }
@@ -4521,9 +4634,8 @@ debian_85_install_video_search_and_summarization ()
     if verify_video_search_and_summarization && [[ " $* " != *" --reinstall "* ]]; then
         echo "Video Search and Summarization is installed." 1>&2;
     else
-        ensure_ports_open "${used_ports[*]}" docker rm -f vss-model-download || true;
-        ensure_ports_open "${used_ports[*]}" return 3;
         ensure_disk_size 8000;
+        ensure_ports_open install video_search_and_summarization "${used_ports[@]}";
         ensure_git_export "$workspace" $version $repository sample-applications/video-search-and-summarization;
         configure_video_search_and_summarization_gated;
         cd "$workspace"/sample-applications/video-search-and-summarization;
@@ -4540,7 +4652,7 @@ debian_85_install_video_search_and_summarization ()
 }
 debian_85_profile_esq () 
 { 
-    echo "curl git libgl1 make docker_io uv edge_base openvino dlstreamer libcap2_bin memtester qemu_system_x86 qemu_utils cloud_image_utils ovmf rt_tests"
+    echo "curl git libgl1 make docker_io uv edge_base openvino dlstreamer libcap2_bin memtester qemu_system_x86 qemu_utils cloud_image_utils ovmf rt_tests stress_ng msr_tools rustup"
 }
 debian_85_profile_video_search_and_summarization () 
 { 
@@ -4550,7 +4662,7 @@ debian_85_remove_esq ()
 { 
     configure_uv;
     configure_esq;
-    esq clean --all || true;
+    cd "$workspace" && esq clean --all || true;
     uv tool uninstall esq || true;
     ensure_rm "$workspace"
 }
@@ -4563,24 +4675,33 @@ debian_85_start_esq ()
 { 
     configure_uv;
     configure_esq;
-    mkdir -p "$workspace";
     cd "$workspace";
     esq clean --all;
     local cmdline_str=" $* ";
     local options=(${cmdline_str#* -- });
     [ ${#options[@]} -gt 0 ] || options=(-qo);
+    configure_esq_telemetry_mods;
+    configure_esq_debugfs;
+    configure_esq_npu_telemetry;
+    configure_esq_memlock;
+    configure_esq_powercap;
+    configure_esq_gpu_perf_events;
     esq run "${options[@]}" -v -f && esq summary && esq report;
     echo "@@HIGHLIGHT workspace @$workspace"
 }
 debian_85_start_video_search_and_summarization () 
 { 
     configure_video_search_and_summarization "$@";
-    ensure_ports_open "${used_ports[*]}" debian_85_stop_video_search_and_summarization $*;
+    ensure_ports_open start video_search_and_summarization "${used_ports[@]}";
     configure_video_search_and_summarization_gated;
     cd "$workspace"/sample-applications/video-search-and-summarization;
     . ./setup.sh --search-and-summary;
     echo "@@HIGHLIGHT URL: http://$(ensure_ip):${APP_HOST_PORT}";
     echo "@@HIGHLIGHT stop|remove"
+}
+debian_85_stop_esq () 
+{ 
+    :
 }
 debian_85_stop_video_search_and_summarization () 
 { 
@@ -4597,8 +4718,8 @@ debian_90_install_agentic_predictive_maintenance_pipeline ()
     if verify_agentic_predictive_maintenance_pipeline && [[ " $* " != *" --reinstall "* ]]; then
         echo "Agentic Predictive Maintenance Pipeline is installed." 1>&2;
     else
-        ensure_ports_open "${used_ports[*]}" return 3;
         ensure_disk_size 15000;
+        ensure_ports_open install agentic_predictive_maintenance_pipeline "${used_ports[@]}";
         ensure_git_export "$workspace" "$version" "$repository" agentic-predictive-maintenance-pipeline;
         cd "$workspace"/agentic-predictive-maintenance-pipeline/apps/pipeline-defect-detection;
         sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env_pipeline-defect-detection;
@@ -4620,9 +4741,9 @@ debian_90_install_agentic_smart_community ()
     if verify_agentic_smart_community && [[ " $* " != *" --reinstall "* ]]; then
         echo "Agentic Smart Community is installed." 1>&2;
     else
-        ensure_ports_open "${used_ports[*]}" return 3;
         ensure_disk_size 2000;
         ensure_ram_size 65011712 33554432;
+        ensure_ports_open install agentic_smart_community "${used_ports[@]}";
         ensure_git_export "$workspace" "$version" "$repository" agentic-smart-community;
         mkdir -p "${mlvu_workspace%/*}";
         ensure_git_clone "$mlvu_workspace" "${mlvu_version}" "$mlvu_repository" "$mlvu_subpath";
@@ -4663,8 +4784,8 @@ debian_90_install_dine_in ()
     if verify_dine_in && [[ " $* " != *" --reinstall "* ]]; then
         echo "Order accuracy is installed." 1>&2;
     else
-        ensure_ports_open "${ports[*]}" return 3;
         ensure_disk_size 45000;
+        ensure_ports_open install dine_in "${ports[@]}";
         ensure_git_clone "$workspace" $version $repository;
         cd "$workspace"/dine-in;
         make init-env;
@@ -4691,8 +4812,8 @@ debian_90_install_handheld_multi_modal ()
     if verify_handheld_multi_modal $* && [[ " $* " != *" --reinstall "* ]]; then
         echo "handheld_multi_modal is installed." 1>&2;
     else
-        ensure_ports_open "${used_ports[*]}" return 3;
         ensure_disk_size 45000;
+        ensure_ports_open install_handheld_multi_modal "${used_ports[@]}";
         ensure_git_clone "$workspace" $version $repository handheld-multi-modal;
         cd "$workspace"/handheld-multi-modal;
         make setup;
@@ -4744,8 +4865,8 @@ debian_90_install_image_based_video_search ()
     if verify_image_based_video_search && [[ " $* " != *" --reinstall "* ]]; then
         echo "Video Search and Summarization is installed." 1>&2;
     else
-        ensure_ports_open "${used_ports[*]}" return 3;
         ensure_disk_size 8000;
+        ensure_ports_open install image_based_video_search "${used_ports[@]}";
         ensure_git_export "$workspace" $version $repository image-based-video-search;
         cd "$workspace"/image-based-video-search/src/dlstreamer-pipeline-server;
         MODELS_PATH="$(pwd)/models";
@@ -4780,8 +4901,8 @@ debian_90_install_live_video_alert_agent ()
     if verify_live_video_alert_agent && [[ " $* " != *" --reinstall "* ]]; then
         echo "Live Video Alert Agent is installed." 1>&2;
     else
-        ensure_ports_open "${used_ports[*]}" return 3;
         ensure_disk_size 15000;
+        ensure_ports_open install live_video_alert_agent "${used_ports[@]}";
         ensure_git_clone "$workspace" $version $repository live-video-analysis/live-video-alert-agent;
         verify_live_video_alert_agent;
     fi;
@@ -4797,8 +4918,8 @@ debian_90_install_live_video_captioning ()
     if verify_live_video_captioning && [[ " $* " != *" --reinstall "* ]]; then
         echo "Live Video Captioning is installed." 1>&2;
     else
-        ensure_ports_open "${used_ports[*]}" return 3;
         ensure_disk_size 10000;
+        ensure_ports_open install live_video_captioning "${used_ports[@]}";
         ensure_git_clone "$workspace" $version $repository live-video-analysis/live-video-captioning;
         export -n socks_server ftp_proxy;
         cd "$workspace/live-video-analysis/live-video-captioning";
@@ -4820,8 +4941,8 @@ debian_90_install_live_video_captioning_rag ()
     if verify_live_video_captioning_rag && [[ " $* " != *" --reinstall "* ]]; then
         echo "Live Video Captioning RAG is installed." 1>&2;
     else
-        ensure_ports_open "${used_ports[*]}" return 3;
         ensure_disk_size 20000;
+        ensure_ports_open install live_video_captioning_rag "${used_ports[@]}";
         ensure_git_clone "$workspace" $version $repository live-video-analysis/live-video-captioning live-video-analysis/live-video-captioning-rag;
         export -n socks_server ftp_proxy;
         cd "$workspace/live-video-analysis/live-video-captioning-rag";
@@ -4844,8 +4965,8 @@ debian_90_install_live_video_search ()
     if verify_live_video_search && [[ " $* " != *" --reinstall "* ]]; then
         echo "Live Video Search is installed." 1>&2;
     else
-        ensure_ports_open "${used_ports[*]}" return 3;
         ensure_disk_size 25000;
+        ensure_ports_open install live_video_search "${used_ports[@]}";
         ensure_git_clone "$workspace" $version $repository live-video-analysis/live-video-search;
         verify_live_video_search;
     fi;
@@ -4860,8 +4981,8 @@ debian_90_install_loitering_detection ()
     if verify_loitering_detection && [[ " $* " != *" --reinstall "* ]]; then
         echo "Loitering detection is installed." 1>&2;
     else
-        ensure_ports_open "${used_ports[*]}" return 3;
         ensure_disk_size 10000;
+        ensure_ports_open install loitering_detection "${used_ports[@]}";
         ensure_git_export "$workspace" $version $repository metro-vision-ai-app-recipe;
         cd "$workspace/metro-vision-ai-app-recipe";
         sed -i 's|curl |curl -f |' loitering-detection/install.sh;
@@ -4927,9 +5048,9 @@ debian_90_install_multimodal_weld_defect_detection ()
     if verify_multimodal_weld_defect_detection && [[ " $* " != *" --reinstall "* ]]; then
         echo "Multimodal weld defect detection is installed." 1>&2;
     else
-        ensure_ports_open "${used_ports[*]}" return 3;
         ensure_disk_size 15000;
         ensure_ram_size 16777216;
+        ensure_ports_open install multimodal_weld_defect_detection "${used_ports[@]}";
         ensure_git_export "$workspace" "$version" "$repository" industrial-edge-insights-multimodal;
         cd "$workspace"/industrial-edge-insights-multimodal;
         cat >> .env <<EOF
@@ -4954,8 +5075,8 @@ debian_90_install_nicu_warmer ()
     if verify_nicu_warmer && [[ " $* " != *" --reinstall "* ]]; then
         echo "NICU Warmer is installed." 1>&2;
     else
-        ensure_ports_open "${used_ports[*]}" return 3;
         ensure_disk_size 15000;
+        ensure_ports_open install nicu_warmer "${used_ports[@]}";
         ensure_git_clone "$workspace" $version $repository NICU-Warmer;
         cd "$workspace"/NICU-Warmer;
         sed -i 's|decodebin3 ! .*|decodebin3|' configs/res/all-gpu.env;
@@ -4984,8 +5105,8 @@ debian_90_install_pallet_defect_detection ()
     if verify_pallet_defect_detection && [[ " $* " != *" --reinstall "* ]]; then
         echo "Pallet defect detection is installed." 1>&2;
     else
-        ensure_ports_open "${used_ports[*]}" return 3;
         ensure_disk_size 10000;
+        ensure_ports_open install pallet_defect_detection "${used_ports[@]}";
         ensure_git_export "$workspace" $version $repository industrial-edge-insights-vision;
         cd "$workspace"/industrial-edge-insights-vision;
         cat > .env <<EOF
@@ -5017,8 +5138,8 @@ debian_90_install_pcb_anomaly_detection ()
     if verify_pcb_anomaly_detection && [[ " $* " != *" --reinstall "* ]]; then
         echo "PCB anomaly detection is installed." 1>&2;
     else
-        ensure_ports_open "${used_ports[*]}" return 3;
         ensure_disk_size 10000;
+        ensure_ports_open install pcb_anomaly_detection "${used_ports[@]}";
         ensure_git_export "$workspace" $version $repository industrial-edge-insights-vision;
         cd "$workspace/industrial-edge-insights-vision";
         cat > .env <<EOF
@@ -5096,6 +5217,7 @@ debian_90_install_physical_ai_studio ()
         echo "Physical AI Studio is installed." 1>&2;
     else
         ensure_disk_size 20000;
+        ensure_ports_open install physical_ai_studio "$pais_port";
         debian_90_stop_physical_ai_studio "$@" || true;
         ensure_rm "$pais_device_file";
         echo "Installing ${pais_pkg}[${pais_extra}]==${pais_version} (PyTorch ${pais_extra} build; this may take a while)...";
@@ -5144,9 +5266,9 @@ debian_90_install_real_time_scene_understanding ()
     if verify_real_time_scene_understanding && [[ " $* " != *" --reinstall "* ]]; then
         echo "Live Video Captioning is installed." 1>&2;
     else
-        ensure_ports_open "${used_ports[*]}" return 3;
         ensure_disk_size 64000;
         ensure_ram_size 16777216;
+        ensure_ports_open install real_time_scene_understanding "${used_ports[@]}";
         ensure_git_clone "$workspace" $version $repository live-video-analysis/real-time-scene-understanding;
         cd "$workspace"/live-video-analysis/real-time-scene-understanding;
         ensure_hf_token $(. .env.example; echo "${ALERT_VLM_MODEL/*Qwen3/"Qwen/Qwen3"} ${DEEP_ANALYZER_MODEL/*Qwen3/"Qwen/Qwen3"}");
@@ -5169,6 +5291,7 @@ debian_90_install_scenescape ()
         echo "Scenescape is installed." 1>&2;
     else
         ensure_disk_size 300;
+        ensure_ports_open install scenescape "${used_ports[@]}";
         ensure_git_export "$workspace" "$version" "$repository";
         verify_scenescape;
     fi;
@@ -5182,8 +5305,8 @@ debian_90_install_smart_intersection ()
     if verify_smart_intersection && [[ " $* " != *" --reinstall "* ]]; then
         echo "Smart intersection is installed." 1>&2;
     else
-        ensure_ports_open "${used_ports[*]}" return 3;
         ensure_disk_size 1500;
+        ensure_ports_open install smart_intersection "${used_ports[@]}";
         ensure_git_export "$workspace" $version $repository metro-vision-ai-app-recipe;
         cd "$workspace/metro-vision-ai-app-recipe";
         sed -i 's|sudo chown|#sudo chown|' smart-intersection/install.sh;
@@ -5203,8 +5326,8 @@ debian_90_install_smart_kiosk_assistant ()
     if verify_smart_kiosk_assistant && [[ " $* " = *" --reinstall "* ]]; then
         echo "Smart Kiosk Assistant is installed." 1>&2;
     else
-        ensure_ports_open "${used_ports[*]}" debian_90_remove_smart_kiosk_assistant "$@";
         ensure_disk_size 300;
+        ensure_ports_open install smart_kiosk_assistant "${used_ports[@]}";
         ensure_git_clone "$workspace" "$version" "$repository";
         cd "$workspace"/smart-kiosk-assistant;
         . .env.example;
@@ -5231,8 +5354,8 @@ debian_90_install_smart_nvr ()
     if verify_smart_nvr && [[ " $* " != *" --reinstall "* ]]; then
         echo "Smart NVR is installed." 1>&2;
     else
-        ensure_ports_open "${used_ports[*]}" return 3;
         ensure_disk_size 3000;
+        ensure_ports_open install smart_nvr "${used_ports[@]}";
         ensure_git_export "$workspace" "$version" "$repository" smart-nvr metro-vision-ai-app-recipe;
     fi;
     echo "@@HIGHLIGHT workspace: $workspace";
@@ -5244,8 +5367,8 @@ debian_90_install_smart_parking ()
     if verify_smart_parking && [[ " $* " != *" --reinstall "* ]]; then
         echo "Smart parking is installed." 1>&2;
     else
-        ensure_ports_open "${used_ports[*]}" return 3;
         ensure_disk_size 300;
+        ensure_ports_open install smart_parking "${used_ports[@]}";
         ensure_git_export "$workspace" $version $repository metro-vision-ai-app-recipe;
         cd "$workspace/metro-vision-ai-app-recipe";
         sed -i 's|curl | curl -f |' smart-parking/install.sh;
@@ -5267,7 +5390,7 @@ debian_90_install_smart_traffic_intersection_agent ()
     else
         ensure_disk_size 16000;
         ensure_ram_size 52428800;
-        ensure_ports_open "${used_ports[*]}" return 3;
+        ensure_ports_open install smart_traffic_intersection_agent "${used_ports[@]}";
         ensure_git_export "$workspace" "$version" "$repository" smart-traffic-intersection-agent;
         cd "$workspace"/smart-traffic-intersection-agent;
         . ./setup.sh --setenv;
@@ -5309,8 +5432,8 @@ debian_90_install_take_away ()
     if verify_take_away && [[ " $* " != *" --reinstall "* ]]; then
         echo "Order accuracy Take Away is installed." 1>&2;
     else
-        ensure_ports_open "${used_ports[*]}" return 3;
         ensure_disk_size 10000;
+        ensure_ports_open install take_away "${used_ports[@]}";
         ensure_git_clone "$workspace" $version $repository;
         cd "$workspace"/take-away;
         sed -i 's|^\(# *SAMPLE_VIDEO_DEST=.*\)$|\1|' .env.example;
@@ -5335,7 +5458,7 @@ debian_90_install_uav_mission_compute_sdk ()
     if verify_uav_mission_compute_sdk && [[ " $* " != *" --reinstall "* ]]; then
         echo "UAV mission compute sdk is installed." 1>&2;
     else
-        ensure_ports_open "${used_ports[*]}" return 3;
+        ensure_ports_open install uav_mission_compute_sdk "${used_ports[@]}";
         ensure_git_export "$workspace" "$version" "$repository" uav-mission-compute-sdk;
         cd "$workspace"/uav-mission-compute-sdk;
         make init;
@@ -5406,6 +5529,7 @@ debian_90_install_vippet ()
     if verify_vippet && [[ " $* " != *" --reinstall "* ]]; then
         echo "Vipet is installed." 1>&2;
     else
+        ensure_ports_open install vippet "${used_ports[@]}";
         ensure_git_clone "$workspace" $version $repository tools/visual-pipeline-and-platform-evaluation-tool;
         cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool";
         make build-onvif-discovery;
@@ -5419,7 +5543,7 @@ debian_90_install_visual_search_question_and_answering ()
         echo "Visual search question and answering is installed." 1>&2;
     else
         ensure_disk_size 8000;
-        ensure_ports_open "${used_ports[*]}" return 3;
+        ensure_ports_open install visual_search_question_and_answering "${used_ports[@]}";
         ensure_git_export "$workspace" $version $repository visual-search-question-and-answering;
         cd "$workspace"/visual-search-question-and-answering/deployment/docker-compose;
         sed -i -e "s|^host_ip=.*|host_ip=$(ensure_ip)|" -e "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" env.sh;
@@ -5447,7 +5571,7 @@ debian_90_install_wind_turbine_anomaly_detection ()
     else
         ensure_disk_size 64000;
         ensure_ram_size 16777216;
-        ensure_ports_open "${used_ports[*]}" return 3;
+        ensure_ports_open install wind_turbine_anomaly_detection "${used_ports[@]}";
         ensure_git_export "$workspace" "$version" "$repository" industrial-edge-insights-time-series;
         cd "$workspace"/industrial-edge-insights-time-series;
         cat >> .env <<EOF
@@ -5490,7 +5614,7 @@ debian_90_profile_edge_base_robotics ()
         ;;
         *)
             echo "ros2 ros_openvino realsense";
-            if [[ " $* " = *" --realtime "* ]]; then
+            if [[ " $* " = *" --realtime "* ]] && [[ "$(uname -r)" = "7."* ]]; then
                 echo "core_types pre_system_scan edge_pack_base_realtime edge_pack_npu";
             else
                 echo "edge_base";
@@ -5637,7 +5761,7 @@ debian_90_remove_autonomous_mobile_robot ()
     [ "$(ensure_prop get installed/autonomous_mobile_robot/owned)" = "true" ] || return 0;
     configure_autonomous_mobile_robot;
     if ensure_apt_is_installed ros-$ros_distro-robotics-sdk || ensure_apt_is_installed ros-$ros_distro-robotics-sdk-complete; then
-        ensure_apt autoremove -m -y ros-$ros_distro-robotics-sdk ros-$ros_distro-robotics-sdk-complete "${amr_slam_pkgs[@]}" || true;
+        ensure_apt purge --auto-remove -y ros-$ros_distro-robotics-sdk ros-$ros_distro-robotics-sdk-complete "${amr_slam_pkgs[@]}" || true;
         verify_robotics_in_use_ros_openvino || remove_osrf_gazebo_ros2;
         remove_oneapi_ros_openvino;
     else
@@ -5792,7 +5916,7 @@ debian_90_remove_stationary_robot_vision ()
     [ "$(ensure_prop get installed/stationary_robot_vision/owned)" = "true" ] || return 0;
     configure_stationary_robot_vision;
     if ensure_apt_is_installed ros-$ros_distro-rvc-simulation || ensure_apt_is_installed ros-$ros_distro-rvc; then
-        ensure_apt autoremove -m -y ros-$ros_distro-rvc-simulation ros-$ros_distro-rvc ros-$ros_distro-robot-config ros-$ros_distro-robot-config-plugins || true;
+        ensure_apt purge --auto-remove -y ros-$ros_distro-rvc-simulation ros-$ros_distro-rvc ros-$ros_distro-robot-config ros-$ros_distro-robot-config-plugins || true;
         verify_robotics_in_use_ros_openvino || remove_osrf_gazebo_ros2;
         remove_oneapi_ros_openvino;
     else
@@ -5861,7 +5985,7 @@ debian_90_sbom_stationary_robot_vision ()
 debian_90_start_agentic_predictive_maintenance_pipeline () 
 { 
     configure_agentic_predictive_maintenance_pipeline;
-    ensure_ports_open "${used_ports[*]}" debian_90_stop_agentic_predictive_maintenance_pipeline "$@";
+    ensure_ports_open start agentic_predictive_maintenance_pipeline "${used_ports[@]}";
     local device=$(ensure_select_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_agentic_predictive_maintenance_pipeline_device "${device^^}";
     cd "$workspace"/agentic-predictive-maintenance-pipeline;
@@ -5873,7 +5997,7 @@ debian_90_start_agentic_predictive_maintenance_pipeline ()
 debian_90_start_agentic_smart_community () 
 { 
     configure_agentic_smart_community;
-    ensure_ports_open "${used_ports[*]}" debian_90_stop_agentic_smart_community "$@";
+    ensure_ports_open start agentic_smart_community "${used_ports[@]}";
     cd "$workspace"/agentic-smart-community;
     bash setup_docker.sh;
     echo "@@HIGHLIGHT UI: http://$(ensure_ip):${used_ports[0]}";
@@ -5884,7 +6008,7 @@ debian_90_start_agentic_smart_community ()
 debian_90_start_dine_in () 
 { 
     configure_dine_in "$@";
-    ensure_ports_open "${ports[*]}" debian_90_stop_dine_in "$@";
+    ensure_ports_open start dine_in "${ports[@]}";
     local device=$(ensure_select_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_dine_in_device "${device^^}";
     cd "$workspace"/dine-in;
@@ -5899,7 +6023,7 @@ debian_90_start_geti ()
 }
 debian_90_start_handheld_multi_modal () 
 { 
-    ensure_ports_open "${used_ports[*]}" debian_90_stop_handheld_multi_modal $*;
+    ensure_ports_open start handheld_multi_modal "${used_ports[@]}";
     configure_handheld_multi_modal;
     cd "$workspace"/handheld-multi-modal;
     make deploy;
@@ -5909,7 +6033,7 @@ debian_90_start_handheld_multi_modal ()
 debian_90_start_image_based_video_search () 
 { 
     configure_image_based_video_search "$@";
-    ensure_ports_open "${used_ports[*]}" debian_90_stop_image_based_video_search "$@";
+    ensure_ports_open start image_based_video_search "${used_ports[@]}";
     cd "$workspace"/image-based-video-search;
     docker compose up -d;
     echo "@@HIGHLIGHT URL: https://$(ensure_ip):${used_ports[0]}";
@@ -5918,7 +6042,7 @@ debian_90_start_image_based_video_search ()
 debian_90_start_live_video_alert_agent () 
 { 
     configure_live_video_alert_agent;
-    ensure_ports_open "${used_ports[*]}" debian_90_stop_live_video_alert_agent;
+    ensure_ports_open start live_video_alert_agent "${used_ports[@]}";
     local device=$(ensure_select_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_alert_agent_device "${device^^}";
     cd "$workspace"/live-video-analysis/live-video-alert-agent;
@@ -5934,7 +6058,7 @@ debian_90_start_live_video_alert_agent ()
 debian_90_start_live_video_captioning () 
 { 
     configure_live_video_captioning;
-    ensure_ports_open "${used_ports[*]}" debian_90_stop_live_video_captioning;
+    ensure_ports_open start live_video_captioning "${used_ports[@]}";
     local device=$(ensure_select_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_captioning_device "${device^^}";
     cd "$workspace"/live-video-analysis/live-video-captioning;
@@ -5945,7 +6069,7 @@ debian_90_start_live_video_captioning ()
 debian_90_start_live_video_captioning_rag () 
 { 
     configure_live_video_captioning_rag;
-    ensure_ports_open "${used_ports[*]}" debian_90_stop_live_video_captioning_rag;
+    ensure_ports_open start live_video_captioning_rag "${used_ports[@]}";
     local device=$(ensure_select_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_captioning_rag_device "${device^^}";
     cd "$workspace"/live-video-analysis/live-video-captioning-rag;
@@ -5956,7 +6080,7 @@ debian_90_start_live_video_captioning_rag ()
 debian_90_start_live_video_search () 
 { 
     configure_live_video_search;
-    ensure_ports_open "${used_ports[*]}" debian_90_stop_live_video_search;
+    ensure_ports_open start live_video_search "${used_ports[@]}";
     local device=$(ensure_select_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_search_device "$device";
     cd "$workspace"/live-video-analysis/live-video-search;
@@ -5970,7 +6094,7 @@ debian_90_start_live_video_search ()
 debian_90_start_loitering_detection () 
 { 
     configure_loitering_detection;
-    ensure_ports_open "${used_ports[*]}" debian_90_stop_loitering_detection;
+    ensure_ports_open start loitering_detection "${used_ports[@]}";
     local device=$(ensure_select_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || echo "$device" > "$workspace"/.device;
     cd "$workspace"/metro-vision-ai-app-recipe;
@@ -6011,7 +6135,7 @@ debian_90_start_loss_prevention ()
 debian_90_start_multimodal_weld_defect_detection () 
 { 
     configure_multimodal_weld_defect_detection;
-    ensure_ports_open "${used_ports[*]}" debian_90_stop_multimodal_weld_defect_detection "$@";
+    ensure_ports_open start multimodal_weld_defect_detection "${used_ports[@]}";
     local device="$(ensure_select_device "$@")";
     [[ " ${*,,} " != *" --${device} "* ]] || configure_multimodal_weld_defect_detection_device $device;
     cd "$workspace"/industrial-edge-insights-multimodal;
@@ -6080,7 +6204,7 @@ END {
 debian_90_start_nicu_warmer () 
 { 
     configure_nicu_warmer "$@";
-    ensure_ports_open "${used_ports[*]}" debian_90_stop_nicu_warmer;
+    ensure_ports_open start nicu_warmer "${used_ports[@]}";
     local device=$(ensure_select_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_nicu_warmer_device "$device";
     cd "$workspace"/NICU-Warmer;
@@ -6092,7 +6216,7 @@ debian_90_start_nicu_warmer ()
 debian_90_start_pallet_defect_detection () 
 { 
     configure_pallet_defect_detection;
-    ensure_ports_open "${used_ports[*]}" debian_90_stop_pallet_defect_detection;
+    ensure_ports_open start pallet_defect_detection "${used_ports[@]}";
     local device=$(ensure_select_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || echo "_$device" > "$workspace"/.device;
     cd "$workspace"/industrial-edge-insights-vision;
@@ -6128,7 +6252,7 @@ debian_90_start_pallet_defect_detection ()
 debian_90_start_pcb_anomaly_detection () 
 { 
     configure_pcb_anomaly_detection;
-    ensure_ports_open "${used_ports[*]}" debian_90_stop_pcb_anomaly_detection;
+    ensure_ports_open start pcb_anomaly_detection "${used_ports[@]}";
     local device=$(ensure_select_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || echo "_$device" > "$workspace"/.device;
     cd "$workspace"/industrial-edge-insights-vision;
@@ -6154,18 +6278,37 @@ debian_90_start_pcb_anomaly_detection ()
 debian_90_start_physical_ai_studio () 
 { 
     configure_physical_ai_studio;
-    ensure_ports_open "$pais_port" debian_90_stop_physical_ai_studio "$@";
+    ensure_ports_open start physical_ai_studio "$pais_port";
     if [ ! -x "$pais_bin" ]; then
         echo "Physical AI Studio is not installed. Run 'install physical_ai_studio' first." 1>&2;
         return 3;
     fi;
     mkdir -p "$pais_run_dir";
-    setsid nohup "$pais_bin" serve --port "$pais_port" > "$pais_log_file" 2>&1 < /dev/null & echo $! > "$pais_pid_file";
-    sleep 3;
-    if ! kill -0 "$(cat "$pais_pid_file")" > /dev/null 2>&1; then
-        echo "Physical AI Studio exited during startup. See $pais_log_file" 1>&2;
-        rm -f "$pais_pid_file";
-        return 3;
+    ( set +e;
+    for fd in /proc/$BASHPID/fd/*;
+    do
+        fd=${fd##*/};
+        (( fd > 2 )) && eval "exec $fd>&-";
+    done 2> /dev/null;
+    exec setsid nohup "$pais_bin" serve --port "$pais_port" > "$pais_log_file" 2>&1 < /dev/null ) & echo $! > "$pais_pid_file";
+    disown $! 2> /dev/null || true;
+    local pid i ready=0;
+    pid="$(cat "$pais_pid_file")";
+    for i in $(seq 1 60);
+    do
+        if ! kill -0 "$pid" > /dev/null 2>&1; then
+            echo "Physical AI Studio exited during startup. See $pais_log_file" 1>&2;
+            rm -f "$pais_pid_file";
+            return 3;
+        fi;
+        curl -s -o /dev/null --max-time 2 "http://127.0.0.1:$pais_port/" && { 
+            ready=1;
+            break
+        };
+        sleep 2;
+    done;
+    if [ $ready -eq 0 ]; then
+        echo "Physical AI Studio did not respond on port $pais_port yet. See $pais_log_file" 1>&2;
     fi;
     echo "@@HIGHLIGHT Physical AI Studio started (PID $(cat "$pais_pid_file"))";
     echo "@@HIGHLIGHT URL: http://localhost:$pais_port";
@@ -6197,7 +6340,7 @@ debian_90_start_post_fusion ()
 debian_90_start_real_time_scene_understanding () 
 { 
     configure_real_time_scene_understanding;
-    ensure_ports_open "${used_ports[*]}" debian_90_stop_real_time_scene_understanding "$@";
+    ensure_ports_open start real_time_scene_understanding "${used_ports[@]}";
     local device=$(ensure_select_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_real_time_scene_understanding_device "${device^^}";
     cd "$workspace"/live-video-analysis/real-time-scene-understanding;
@@ -6209,7 +6352,7 @@ debian_90_start_real_time_scene_understanding ()
 debian_90_start_scenescape () 
 { 
     configure_scenescape;
-    ensure_ports_open "${used_ports[*]}" debian_90_stop_scenescape "$@";
+    ensure_ports_open start scenescape "${used_ports[@]}";
     cd "$workspace";
     export SUPASS=$(cat /dev/random | tr -dc a-z | head -c 5);
     make init-secrets;
@@ -6221,7 +6364,7 @@ debian_90_start_scenescape ()
 debian_90_start_smart_intersection () 
 { 
     configure_smart_intersection;
-    ensure_ports_open "${used_ports[*]}" debian_90_stop_smart_intersection;
+    ensure_ports_open start smart_intersection "${used_ports[@]}";
     local device=$(ensure_select_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_smart_intersection_device "$device";
     cd "$workspace"/metro-vision-ai-app-recipe;
@@ -6235,7 +6378,7 @@ debian_90_start_smart_intersection ()
 debian_90_start_smart_kiosk_assistant () 
 { 
     configure_smart_kiosk_assistant;
-    ensure_ports_open "${used_ports[*]}" debian_90_stop_smart_kiosk_assistant "$@";
+    ensure_ports_open start smart_kiosk_assistant "${used_ports[@]}";
     local device=$(ensure_select_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_smart_kiosk_assistant_device "${device^^}";
     cd "$workspace"/smart-kiosk-assistant;
@@ -6248,6 +6391,7 @@ debian_90_start_smart_kiosk_assistant ()
 debian_90_start_smart_nvr () 
 { 
     configure_smart_nvr "$@";
+    ensure_ports_open start smart_nvr "${used_ports[@]}";
     cd "$workspace"/smart-nvr;
     . setup.sh start;
     echo "@@HIGHLIGHT UI: https://$(ensure_ip):${used_ports[0]}";
@@ -6256,7 +6400,7 @@ debian_90_start_smart_nvr ()
 debian_90_start_smart_parking () 
 { 
     configure_smart_parking;
-    ensure_ports_open "${used_ports[*]}" debian_90_stop_smart_parking "$@";
+    ensure_ports_open start smart_parking "${used_ports[@]}";
     local device=$(ensure_select_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || echo "$device" > "$workspace"/.device;
     cd "$workspace"/metro-vision-ai-app-recipe;
@@ -6280,7 +6424,7 @@ debian_90_start_smart_parking ()
 debian_90_start_smart_traffic_intersection_agent () 
 { 
     configure_smart_traffic_intersection_agent "$@";
-    ensure_ports_open "${used_ports[*]}" debian_90_stop_smart_traffic_intersection_agent "$@";
+    ensure_ports_open start smart_traffic_intersection_agent "${used_ports[@]}";
     [ ! -r "$workspace"/.device ] || set -- "$@" "$(< "$workspace"/.device)";
     local device=$(ensure_select_device "$@");
     export VLM_TARGET_DEVICE=${device^^};
@@ -6294,7 +6438,7 @@ debian_90_start_smart_traffic_intersection_agent ()
 debian_90_start_take_away () 
 { 
     configure_take_away "$@";
-    ensure_ports_open "${used_ports[*]}" debian_90_stop_take_away "$@";
+    ensure_ports_open start take_away "${used_ports[@]}";
     local device=$(ensure_select_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_take_away_device "${device^^}";
     cd "$workspace"/take-away;
@@ -6305,8 +6449,8 @@ debian_90_start_take_away ()
 }
 debian_90_start_uav_mission_compute_sdk () 
 { 
-    ensure_ports_open "${used_ports[*]}" debian_90_stop_uav_mission_compute_sdk "$@";
     configure_uav_mission_compute_sdk;
+    ensure_ports_open start uav_mission_compute_sdk "${used_ports[@]}";
     cd "$workspace"/uav-mission-compute-sdk;
     . .env;
     make up-$PROFILE;
@@ -6333,8 +6477,8 @@ debian_90_start_video_processing_for_nvr ()
 }
 debian_90_start_vippet () 
 { 
-    ensure_ports_open "80 7860 8000 9090 8554 8889" debian_90_stop_vippet;
     configure_vippet;
+    ensure_ports_open start vippet "${used_ports[@]}";
     cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool";
     make run;
     echo "@@HIGHLIGHT URL: http://$(ensure_ip)"
@@ -6342,7 +6486,7 @@ debian_90_start_vippet ()
 debian_90_start_visual_search_question_and_answering () 
 { 
     configure_visual_search_question_and_answering "$@";
-    ensure_ports_open "${used_ports[*]}" debian_90_stop_visual_search_question_and_answering "$@";
+    ensure_ports_open start visual_search_question_and_answering "${used_ports[@]}";
     cd "$workspace"/visual-search-question-and-answering/deployment/docker-compose;
     . ./env.sh;
     docker compose -f compose_milvus.yaml up -d;
@@ -6353,7 +6497,7 @@ debian_90_start_visual_search_question_and_answering ()
 debian_90_start_wind_turbine_anomaly_detection () 
 { 
     configure_wind_turbine_anomaly_detection;
-    ensure_ports_open "${used_ports[*]}" debian_90_stop_wind_turbine_anomaly_detection "$@";
+    ensure_ports_open start wind_turbine_anomaly_detection "${used_ports[@]}";
     local device=$(ensure_select_device "$@");
     [[ " ${*,,} " != *" --${device} "* ]] || configure_wind_turbine_anomaly_detection_device "$device";
     cd "$workspace"/industrial-edge-insights-time-series;
@@ -6615,8 +6759,7 @@ debian_90_stop_video_processing_for_nvr ()
 debian_90_stop_vippet () 
 { 
     configure_vippet;
-    cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool";
-    make stop || true
+    cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool" && make stop || true
 }
 debian_90_stop_visual_search_question_and_answering () 
 { 
@@ -6644,7 +6787,7 @@ debian_99_profile_edge_base ()
         ;;
         *)
             echo "core_types pre_system_scan";
-            if [[ " $* " = *" --edgepack "* ]]; then
+            if [[ " $* " = *" --edgepack "* ]] && [[ "$(uname -r)" = "7."* ]]; then
                 echo "edge_pack_base_standard edge_pack_npu";
             else
                 echo "gpu_accel npu_accel";
@@ -7075,27 +7218,37 @@ ensure_osrf_gazebo_ros2 ()
 }
 ensure_ports_open () 
 { 
-    local ports="$1";
-    shift;
-    for port in $ports;
-    do
-        if command -v lsof > /dev/null; then
-            ensure_sudo lsof -nP -i TCP:$port -s TCP:LISTEN || continue;
-            "$@" || true;
-            ensure_sudo lsof -nP -i TCP:$port -s TCP:LISTEN || continue;
-        else
-            if command -v ss > /dev/null; then
-                [ -n "$(ensure_sudo ss -Hltn "sport = :$port")" ] || continue;
-                "$@" || true;
-                [ -n "$(ensure_sudo ss -Hltn "sport = :$port")" ] || continue;
-            else
-                echo "Missing ss or lsof" 1>&2;
-                return 1;
-            fi;
-        fi;
-        echo "TCP port $port is occupied" 1>&2;
-        return 3;
-    done
+    local act_name="${1:?}";
+    local name="${2:?}";
+    shift 2;
+    if [ "$act_name" = "start" ]; then
+        ensure_prop set started/$name/ports "$*";
+    fi;
+    if command -v ss > /dev/null; then
+        local port out stopper;
+        for port in $*;
+        do
+            out="$(ss -Hltunp "sport = :$port")";
+            [ -n "$out" ] || continue;
+            printf "${red}port %s is occupied${reset}\n" "$port" 1>&2;
+            for mname in $(ensure_prop find "started/*/ports" | cut -f2 -d/);
+            do
+                [[ " $(ensure_prop get started/$mname/ports) " = *" $port "* ]] || continue;
+                stopper="${_act_cache_functions[stop_$mname]:-}";
+                [ -n "$stopper" ] || continue;
+                printf "${red}Stopping $mname to release port %s${reset}\n" "$port" 1>&2;
+                ( set -e;
+                $stopper "$mname" -- ) 1>&2 || true;
+            done;
+            out="$(ss -Hltunp "sport = :$port")";
+            [ -n "$out" ] || continue;
+            printf "${red}port %s is occupied${reset}\n%s\n" "$port" "$out" 1>&2;
+            return 3;
+        done;
+    else
+        printf "${red}Missing ss on the system${reset}\n" 1>&2;
+        return 1;
+    fi
 }
 ensure_project_path () 
 { 
@@ -7103,17 +7256,23 @@ ensure_project_path ()
 }
 ensure_prop () 
 { 
-    local op=$1 key_path=$2 value="${3:-}";
-    local f="$(ensure_project_path)/${installer_name:?}/${key_path:?}";
+    local op="$1" key_path="${2:?}" value="${3:-}";
+    local key_base="$(ensure_project_path)/${installer_name:?}";
     case "$op" in 
         set)
-            mkdir -p "$(dirname "$f")" && printf '%s' "$value" > "$f"
+            printf '%s' "$value" > "$key_base/$key_path"
         ;;
         get)
-            [ -r "$f" ] && cat "$f" || printf '%s' "$value"
+            [ -r "$key_base/$key_path" ] && cat "$key_base/$key_path" || printf '%s' "$value"
         ;;
-        remove)
-            [ ! -r "$f" ] || rm -f "$f"
+        find)
+            ( cd "$key_base" && find . -ipath "./$key_path" -print 2> /dev/null | cut -f2- -d/ )
+        ;;
+        create)
+            mkdir -p "$key_base/${key_path%/*}"
+        ;;
+        destroy)
+            [ ! -r "$key_base/$key_path" ] || rm -f "$key_base/$key_path"
         ;;
     esac
 }
@@ -7208,7 +7367,8 @@ ensure_sudo ()
                 sleep 60;
                 sudo -n -v 2> /dev/null || break;
             done;
-            ensure_prop remove pids/sudo/pid$ppid ) < /dev/null > /dev/null 2>&1 & pid=$!;
+            ensure_prop destroy pids/sudo/pid$ppid ) < /dev/null > /dev/null 2>&1 & pid=$!;
+            ensure_prop create pids/sudo/pid$ppid;
             ensure_prop set pids/sudo/pid$ppid "$pid";
             disown $pid;
         fi;
@@ -7293,9 +7453,8 @@ install_geti ()
     if verify_geti && [[ " $* " != *" --reinstall "* ]]; then
         echo "Geti is installed." 1>&2;
     else
-        ensure_ports_open "$port" docker rm -f geti-app || true;
-        ensure_ports_open "$port" return 3;
         ensure_disk_size 20000;
+        ensure_ports_open install geti "$port";
         docker pull $image_name;
     fi
 }
@@ -7342,7 +7501,7 @@ sbom_osrf_gazebo_ros2 ()
 start_geti () 
 { 
     configure_geti "$@";
-    ensure_ports_open "$port" stop_geti;
+    ensure_ports_open start geti "$port";
     mkdir -p "$workspace"/geti-data;
     docker run --rm --name geti-app -d -v "$workspace"/geti-data:/application/data:rw -e HOST=0.0.0.0 -e PORT=$port -p $port:$port -e http_proxy -e https_proxy -e no_proxy -e HTTP_PROXY -e HTTPS_PROXY -e NO_PROXY $([ ! -d /dev/dri ] || echo "--device /dev/dri:/dev/dri") --group-add $(getent group render | cut -d: -f3 || echo 992) --group-add $(id -g) --shm-size 8g $image_name;
     echo "@@HIGHLIGHT URL: http://$(ensure_ip):$port";
@@ -7512,12 +7671,12 @@ subcommand_remove ()
 subcommand_setup () 
 { 
     [[ " $* " != *" --help "* ]] || return;
-    local installer_misc_functions=(install_geti remove_geti remove_oneapi_ros_openvino remove_osrf_gazebo_ros2 sbom_oneapi_ros_openvino sbom_osrf_gazebo_ros2 start_geti stop_geti system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary system_scan_summary_report test_anomalib test_dlstreamer_pipeline test_openvino uninstall_k3s_edge_node_infrastructure_blueprint);
+    local installer_misc_functions=(system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary system_scan_summary_report test_anomalib test_dlstreamer_pipeline test_openvino uninstall_k3s_edge_node_infrastructure_blueprint);
     mkdir -p "$(dirname "$installer_bin")";
     cat > "$installer_bin" <<EOF
 #!/bin/bash
 $(declare -f ${installer_misc_functions[*]})
-$(declare -f $(declare -F | grep -v '^declare -fx' | grep -E " (${installer_family}_[0-9]+_|ensure_|act_|verify_|configure_|subcommand_|main$)" | cut -f3 -d' ' | tr '\n' ' '))
+$(declare -f $(declare -F | grep -v '^declare -fx' | grep -E " (${installer_family}_[0-9]+_|ensure_|act_|verify_|configure_|install_|start_|stop_|remove_|profile_|license_|sbom_|subcommand_|main$)" | cut -f3 -d' ' | tr '\n' ' '))
 main "\$@"
 EOF
 
@@ -7632,11 +7791,8 @@ system_scan_check_docker ()
 }
 system_scan_check_membank () 
 { 
-    local dmi_out="$(ensure_prop get installed/pre_system_scan/membank)";
-    [ -n "$dmi_out" ] || { 
-        dmi_out="$(ensure_sudo dmidecode -t memory 2> /dev/null)";
-        [ -z "$dmi_out" ] || ensure_prop set installed/pre_system_scan/membank "$dmi_out"
-    };
+    local dmi_out;
+    dmi_out="$(ensure_sudo dmidecode -t memory 2> /dev/null)" || return 0;
     local installed_modules=();
     mapfile -t installed_modules < <(echo "$dmi_out" | awk -v in_dev=0 '
     /^Memory Device$/ {
@@ -7663,7 +7819,7 @@ system_scan_check_membank ()
     local populated_count=${#installed_modules[@]};
     if [[ ${populated_count} -eq 0 ]]; then
         echo "Not detected";
-        return;
+        return 0;
     fi;
     local channels=() mod;
     for mod in "${installed_modules[@]}";
@@ -7745,7 +7901,9 @@ system_scan_summary_report ()
     system_summary="$(system_scan_get_system_summary)";
     echo "System|$system_summary";
     pass=$ok;
-    membank_info="$(system_scan_check_membank)";
+    membank_info="$(ensure_prop get installed/pre_system_scan/membank)";
+    [ -n "$membank_info" ] || membank_info="$(system_scan_check_membank)";
+    [ -z "$membank_info" ] || ensure_prop set installed/pre_system_scan/membank "$membank_info";
     [ "$membank_info" = "DUAL/MULTI-CHANNELS" ] || pass="${nok/MSG/Check Memory}";
     echo -e "RAM|$membank_info|$pass";
     [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT RAM|$membank_info|$pass" 1>&2;

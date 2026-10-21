@@ -58,7 +58,7 @@ debian_70_install_openvino () {
 
 debian_70_remove_openvino () {
   [ "$(ensure_prop get installed/openvino/owned)" = "true" ] || return 0
-  ensure_apt autoremove -m -y $(dpkg -l | grep openvino | awk '{print$2}') || true
+  ensure_apt purge --auto-remove -y $(dpkg -l | grep openvino | awk '{print$2}') || true
 }
 
 debian_70_sbom_openvino () {
