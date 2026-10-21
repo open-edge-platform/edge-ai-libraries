@@ -2146,7 +2146,99 @@ configure_edge_pack_npu ()
 }
 configure_esq () 
 { 
-    workspace="$(ensure_project_path)/esq"
+    workspace="$(ensure_project_path)/esq";
+    version=main;
+    repository=https://github.com/open-edge-platform/edge-system-qualification.git
+}
+configure_esq_debugfs () 
+{ 
+    if mountpoint -q /sys/kernel/debug; then
+        echo "  [OK] /sys/kernel/debug already mounted";
+    else
+        if ensure_sudo mount -t debugfs none /sys/kernel/debug 2> /dev/null; then
+            echo "  [OK] Mounted debugfs on /sys/kernel/debug";
+        else
+            echo "  [ERROR] Failed to mount debugfs";
+            return 1;
+        fi;
+    fi;
+    if [ -d /sys/kernel/debug/accel ]; then
+        if chmod o+x /sys/kernel/debug 2> /dev/null && chmod o+rx /sys/kernel/debug/accel 2> /dev/null; then
+            echo "  [OK] Granted unprivileged traversal of /sys/kernel/debug/accel";
+        else
+            echo "  [WARN] Could not chmod debugfs traversal (NPU monitor tool may need it)";
+        fi;
+    fi
+}
+configure_esq_gpu_perf_events () 
+{ 
+    local TARGET_PARANOID=0;
+    ensure_sudo sysctl -w kernel.perf_event_paranoid="$TARGET_PARANOID" > /dev/null 2>&1 || { 
+        printf "${red}sysctl write failed for kernel.perf_event_paranoid${reset}\n";
+        return 1
+    };
+    if [ -f /proc/sys/dev/i915/perf_stream_paranoid ]; then
+        ensure_sudo sysctl -w dev.i915.perf_stream_paranoid="$TARGET_PARANOID" > /dev/null 2>&1 || printf "${red}sysctl write failed for dev.i915.perf_stream_paranoid${reset}\n";
+    fi;
+    if [ -f /proc/sys/dev/xe/observation_paranoid ]; then
+        ensure_sudo sysctl -w dev.xe.observation_paranoid="$TARGET_PARANOID" > /dev/null 2>&1 || printf "${red}sysctl write failed for dev.xe.observation_paranoid${reset}\n";
+    fi
+}
+configure_esq_memlock () 
+{ 
+    ensure_sudo prlimit --memlock=unlimited:unlimited --pid $$ && echo "  [OK] prlimit unlimited applied to PID $pid" || echo "  [INFO] prlimit unavailable; run in your terminal: ulimit -l unlimited"
+}
+configure_esq_npu_telemetry () 
+{ 
+    local telem_file;
+    for telem_file in /sys/class/intel_pmt/telem*/telem;
+    do
+        [ -e "$telem_file" ] || continue;
+        ensure_sudo chmod o+r "$(readlink -f "$telem_file" 2> /dev/null || echo "$telem_file")" 2> /dev/null;
+    done
+}
+configure_esq_pci_info () 
+{ 
+    local ESQ_CACHE_DIR="$(ensure_project_path)/esq/pci";
+    local LSPCI_DUMP="$ESQ_CACHE_DIR/lspci_verbose.txt";
+    mkdir -p "$ESQ_CACHE_DIR";
+    chmod 0700 "$ESQ_CACHE_DIR";
+    echo "  [INFO] Capturing full PCI device information (lspci -vvvnn)...";
+    if ensure_sudo lspci -vvvnn > "$LSPCI_DUMP" 2> /dev/null; then
+        local device_count;
+        device_count=$(grep -c '^[0-9a-f]' "$LSPCI_DUMP" 2> /dev/null || echo 0);
+        echo "  [OK] Captured $device_count PCI device(s) to $LSPCI_DUMP";
+    else
+        echo "  [ERROR] lspci failed to capture PCI device information";
+        rm -f "$LSPCI_DUMP";
+    fi;
+    chmod 0600 "$LSPCI_DUMP";
+    echo "  [OK] Saved: $LSPCI_DUMP (mode: 0600)"
+}
+configure_esq_powercap () 
+{ 
+    local energy_file;
+    for energy_file in /sys/class/powercap/*/energy_uj;
+    do
+        [ -e "$energy_file" ] || continue;
+        ensure_sudo chmod o+r "$energy_file" || true;
+    done
+}
+configure_esq_telemetry_mods () 
+{ 
+    local m;
+    for m in coretemp intel_rapl_common intel_rapl_msr intel_pmt_telemetry intel_vpu;
+    do
+        if lsmod | awk '{print $1}' | grep -qx "$m"; then
+            echo "  [OK] $m already loaded";
+            continue;
+        fi;
+        if modprobe "$m" 2> /dev/null; then
+            echo "  [OK] modprobe $m";
+        else
+            echo "  [WARN] modprobe $m failed (module may not be available on this kernel)";
+        fi;
+    done
 }
 configure_geti () 
 { 
@@ -3649,6 +3741,14 @@ debian_30_install_rsync ()
 { 
     ensure_apt_install_package rsync
 }
+debian_30_install_rustup () 
+{ 
+    if [ -x "$HOME"/.cargo/bin/rustup ]; then
+        echo "cargo already installed";
+    else
+        ensure_fetch https://sh.rustup.rs - | sh -s -- -y --default-toolchain stable --profile minimal;
+    fi
+}
 debian_30_install_stress_ng () 
 { 
     ensure_apt_install_package stress-ng
@@ -3660,6 +3760,10 @@ debian_30_install_sysbench ()
 debian_30_install_v4l_utils () 
 { 
     ensure_apt_install_package v4l-utils
+}
+debian_30_install_xpu_smi () 
+{ 
+    ensure_apt_install_package xpu-smi || printf "${red}xpu-smi not installed${reset}\n"
 }
 debian_30_remove_build_essential () 
 { 
@@ -3719,6 +3823,10 @@ debian_30_remove_rsync ()
 { 
     ensure_apt_remove_package rsync
 }
+debian_30_remove_rustup () 
+{ 
+    "$HOME"/.cargo/bin/rustup self uninstall || true
+}
 debian_30_remove_stress_ng () 
 { 
     ensure_apt_remove_package stress-ng
@@ -3730,6 +3838,10 @@ debian_30_remove_sysbench ()
 debian_30_remove_v4l_utils () 
 { 
     ensure_apt_remove_package v4l-utils
+}
+debian_30_remove_xpu_smi () 
+{ 
+    ensure_apt_remove_package xpu-smi
 }
 debian_30_sbom_build_essential () 
 { 
@@ -3790,6 +3902,10 @@ debian_30_sbom_rsync ()
 { 
     ensure_sbom_format pkg-list rsync
 }
+debian_30_sbom_rustup () 
+{ 
+    ensure_sbom_format pkg-list https://sh.rustup.rs
+}
 debian_30_sbom_stress_ng () 
 { 
     ensure_sbom_format pkg-list stress-ng
@@ -3801,6 +3917,10 @@ debian_30_sbom_sysbench ()
 debian_30_sbom_v4l_utils () 
 { 
     ensure_sbom_format pkg-list v4l-utils
+}
+debian_30_sbom_xpu_smi () 
+{ 
+    ensure_sbom_format pkg-list xpu-smi
 }
 debian_40_group_gpu_accel () 
 { 
@@ -4495,16 +4615,16 @@ debian_80_remove_anomalib ()
 debian_85_install_esq () 
 { 
     configure_uv;
+    configure_esq;
     if uv tool list 2> /dev/null | grep -q -E "^esq " && [[ " $* " != *" --reinstall "* ]]; then
         echo "Esq is installed." 1>&2;
     else
         ensure_disk_size 25000;
-        curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-system-qualification/refs/heads/main/scripts/system-setup.sh | ensure_sudo bash -s -- -f || true;
-        curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-system-qualification/refs/heads/main/scripts/system-setup-advanced.sh | ensure_sudo bash -s -- -f || true;
-        uv tool install --force --refresh git+https://github.com/open-edge-platform/edge-system-qualification.git@main;
-        configure_esq;
-        mkdir -p "$workspace";
+        ensure_git_clone "$workspace" "$version" "$repository";
+        cd "$workspace";
+        uv tool install --force .;
     fi;
+    configure_esq_pci_info;
     echo "@@HIGHLIGHT esq @$(which esq)";
     echo "@@HIGHLIGHT workspace @$workspace"
 }
@@ -4532,7 +4652,7 @@ debian_85_install_video_search_and_summarization ()
 }
 debian_85_profile_esq () 
 { 
-    echo "curl git libgl1 make docker_io uv edge_base openvino dlstreamer libcap2_bin memtester qemu_system_x86 qemu_utils cloud_image_utils ovmf rt_tests"
+    echo "curl git libgl1 make docker_io uv edge_base openvino dlstreamer libcap2_bin memtester qemu_system_x86 qemu_utils cloud_image_utils ovmf rt_tests stress_ng msr_tools rustup"
 }
 debian_85_profile_video_search_and_summarization () 
 { 
@@ -4542,7 +4662,7 @@ debian_85_remove_esq ()
 { 
     configure_uv;
     configure_esq;
-    esq clean --all || true;
+    cd "$workspace" && esq clean --all || true;
     uv tool uninstall esq || true;
     ensure_rm "$workspace"
 }
@@ -4555,12 +4675,17 @@ debian_85_start_esq ()
 { 
     configure_uv;
     configure_esq;
-    mkdir -p "$workspace";
     cd "$workspace";
     esq clean --all;
     local cmdline_str=" $* ";
     local options=(${cmdline_str#* -- });
     [ ${#options[@]} -gt 0 ] || options=(-qo);
+    configure_esq_telemetry_mods;
+    configure_esq_debugfs;
+    configure_esq_npu_telemetry;
+    configure_esq_memlock;
+    configure_esq_powercap;
+    configure_esq_gpu_perf_events;
     esq run "${options[@]}" -v -f && esq summary && esq report;
     echo "@@HIGHLIGHT workspace @$workspace"
 }
@@ -4573,6 +4698,10 @@ debian_85_start_video_search_and_summarization ()
     . ./setup.sh --search-and-summary;
     echo "@@HIGHLIGHT URL: http://$(ensure_ip):${APP_HOST_PORT}";
     echo "@@HIGHLIGHT stop|remove"
+}
+debian_85_stop_esq () 
+{ 
+    :
 }
 debian_85_stop_video_search_and_summarization () 
 { 
@@ -7542,12 +7671,12 @@ subcommand_remove ()
 subcommand_setup () 
 { 
     [[ " $* " != *" --help "* ]] || return;
-    local installer_misc_functions=(install_geti remove_geti remove_oneapi_ros_openvino remove_osrf_gazebo_ros2 sbom_oneapi_ros_openvino sbom_osrf_gazebo_ros2 start_geti stop_geti system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary system_scan_summary_report test_anomalib test_dlstreamer_pipeline test_openvino uninstall_k3s_edge_node_infrastructure_blueprint);
+    local installer_misc_functions=(system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary system_scan_summary_report test_anomalib test_dlstreamer_pipeline test_openvino uninstall_k3s_edge_node_infrastructure_blueprint);
     mkdir -p "$(dirname "$installer_bin")";
     cat > "$installer_bin" <<EOF
 #!/bin/bash
 $(declare -f ${installer_misc_functions[*]})
-$(declare -f $(declare -F | grep -v '^declare -fx' | grep -E " (${installer_family}_[0-9]+_|ensure_|act_|verify_|configure_|subcommand_|main$)" | cut -f3 -d' ' | tr '\n' ' '))
+$(declare -f $(declare -F | grep -v '^declare -fx' | grep -E " (${installer_family}_[0-9]+_|ensure_|act_|verify_|configure_|install_|start_|stop_|remove_|profile_|license_|sbom_|subcommand_|main$)" | cut -f3 -d' ' | tr '\n' ' '))
 main "\$@"
 EOF
 
