@@ -22,7 +22,7 @@ Control commands are read from stdin, one JSON object per line::
 Status events are written to stdout, one JSON object per line::
 
     {"instance_id": "<id>", "event": "started"}
-    {"instance_id": "<id>", "event": "fps", "avg_fps": 30.0, "last_fps": 29.4}
+    {"instance_id": "<id>", "event": "fps", "avg_fps": 30.0, "last_fps": 29.4, "frame_interval": 1.023}
     {"instance_id": "<id>", "event": "eos"}
     {"instance_id": "<id>", "event": "error", "reason": "..."}
     {"instance_id": "<id>", "event": "stopped"}
@@ -275,6 +275,7 @@ class GstWorker:
         # Always emit last_fps when we have frames in the window (works during warmup)
         if window_elapsed > 0 and window_count > 0:
             payload["last_fps"] = window_count / window_elapsed
+            payload["frame_interval"] = window_elapsed
 
         # Emit avg_fps only after warmup is complete
         if total_elapsed > 0 and frames_after > 0:

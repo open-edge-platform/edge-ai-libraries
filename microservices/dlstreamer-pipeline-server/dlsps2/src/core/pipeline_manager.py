@@ -90,6 +90,7 @@ class PipelineInstance:
     # Metrics (updated live from the shared worker's status events)
     avg_fps: float = 0.0
     frame_fps: float = 0.0
+    frame_interval: float = 0.0  # Time window in seconds for last_fps calculation
     start_time: Optional[float] = None
     stop_time: Optional[float] = None
     first_frame_time: Optional[float] = None  # Unix epoch time when first frame was received
@@ -128,6 +129,7 @@ class PipelineInstance:
             "state": self.state.value,
             "avg_fps": self.avg_fps,
             "frame_fps": self.frame_fps,
+            "frame_interval": self.frame_interval,
             "start_time": self.start_time,
             "first_frame_time": self.first_frame_time,
             "elapsed_time": self.elapsed_time(),
@@ -481,6 +483,8 @@ class PipelineManager:
                     instance.avg_fps = float(event["avg_fps"])
                 if event.get("last_fps") is not None:
                     instance.frame_fps = float(event["last_fps"])
+                if event.get("frame_interval") is not None:
+                    instance.frame_interval = float(event["frame_interval"])
         elif evt == "firstframe":
             # Reset restart attempts on first frame (restart was successful)
             with self._lock:

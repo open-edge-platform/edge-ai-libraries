@@ -54,6 +54,7 @@ authoritative schema for the version you are running:
 - `POST` start endpoints return a JSON object `{"instance_id": "<uuid>"}`.
 - Status responses include new fields:
   - `frame_fps`: Current (instantaneous) frames per second.
+- `frame_interval`: Time window in seconds for the `frame_fps` measurement.
   - `first_frame_time`: Unix epoch time when the first frame was received.
   - They do not include `avg_pipeline_latency`, which 2.0 does not track yet.
 - Automatic pipeline restart on error or EOS is new. Pass `restart_config` in the
@@ -280,7 +281,9 @@ completed, errored, and aborted instances.
     "state": "RUNNING",
     "avg_fps": 29.87,
     "frame_fps": 30.02,
+    "frame_interval": 1.023,
     "start_time": 1791366000.123,
+    "first_frame_time": 1791366000.456,
     "elapsed_time": 42.51,
     "message": ""
   },
@@ -289,7 +292,9 @@ completed, errored, and aborted instances.
     "state": "ERROR",
     "avg_fps": 0.0,
     "frame_fps": 0.0,
+    "frame_interval": 0.0,
     "start_time": null,
+    "first_frame_time": null,
     "elapsed_time": null,
     "message": "validation failed: no element \"badelement\""
   }
@@ -327,7 +332,9 @@ Example for an instance started with `POST /pipelines/{name}/{version}`:
   "state": "RUNNING",
   "avg_fps": 29.87,
   "frame_fps": 30.02,
+  "frame_interval": 1.023,
   "start_time": 1791366000.123,
+  "first_frame_time": 1791366000.456,
   "elapsed_time": 42.51,
   "message": "",
   "type": "GStreamer",
@@ -391,7 +398,9 @@ configuration or request data.
   "state": "COMPLETED",
   "avg_fps": 29.91,
   "frame_fps": 0.0,
+  "frame_interval": 0.0,
   "start_time": 1791366000.123,
+  "first_frame_time": 1791366000.456,
   "elapsed_time": 60.04,
   "message": ""
 }
@@ -576,8 +585,9 @@ curl http://localhost:8080/elements/gvadetect
 |-------|------|-------------|
 | `id` | string | Instance UUID. |
 | `state` | string | One of `QUEUED`, `RUNNING`, `RESTARTING`, `COMPLETED`, `ERROR`, `ABORTED`. |
-| `avg_fps` | number | Average frames per second since the pipeline started. |
+| `avg_fps` | number | Average frames per second since warmup frames were skipped (or since the pipeline started if no warmup). |
 | `frame_fps` | number | Current (instantaneous) frames per second. |
+| `frame_interval` | number | Time window in seconds for the current `frame_fps` measurement. |
 | `start_time` | number or null | Unix epoch start time in seconds. `null` until the instance is running. |
 | `first_frame_time` | number or null | Unix epoch time when the first frame was received. `null` until the first frame arrives. |
 | `elapsed_time` | number or null | Seconds the instance has been running, or ran in total if it has stopped. `null` until it starts. |

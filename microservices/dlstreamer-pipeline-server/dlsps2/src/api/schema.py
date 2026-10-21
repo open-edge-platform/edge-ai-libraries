@@ -97,6 +97,7 @@ class PipelineStatusResponse(BaseModel):
     state: str
     avg_fps: float
     frame_fps: float
+    frame_interval: float  # Time window in seconds for last_fps (frame_fps) calculation
     start_time: Optional[float]  # Unix epoch when pipeline transitioned to RUNNING
     first_frame_time: Optional[float]  # Unix epoch when first frame was received
     elapsed_time: Optional[float]
