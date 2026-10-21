@@ -49,6 +49,18 @@ def _posted(fake: FakeVss, method: str, path: str) -> list:
 # Live hits
 
 
+def test_live_hit_carries_its_camera_tag() -> None:
+    """Live footage is indexed with the stream's tags; the hit must keep them,
+    or agents only see an opaque stream id."""
+
+    raw = make_live_hit("cc63056f", 1.0, EPOCH)
+    raw["metadata"]["tags"] = "camera_1"
+    raw["metadata"]["video_metadata"] = {"tags": ["camera_1"]}
+    hit = slim_search_hit(raw, DATASTORE_URL)
+    assert hit["tags"] == ["camera_1"]
+    assert hit["stream_id"] == "cc63056f"
+
+
 def test_a_live_hit_says_where_and_when_it_happened() -> None:
     hit = slim_search_hit(make_live_hit("cam1", 1.0, EPOCH), DATASTORE_URL)
 
@@ -130,6 +142,13 @@ async def test_pausing_a_camera_patches_only_its_state() -> None:
     assert stream["state"] == "paused"
 
 
+async def test_updating_an_unknown_camera_points_at_the_list() -> None:
+    fake = FakeVss()
+
+    with pytest.raises(VssError, match="No live stream with id 'nope'"):
+        await update_stream(_deps(fake), "nope", state="paused")
+
+
 async def test_an_update_must_change_something() -> None:
     fake = FakeVss(streams=[make_stream("s1")])
 
@@ -144,8 +163,47 @@ async def test_removing_a_camera_never_purges_its_footage() -> None:
 
     assert result["removed"] == 1
     (request,) = [r for r in fake.requests if r[0] == "DELETE"]
-    assert request[1] == "/streams/s1"
+    assert request[1:] == ("/streams", {"stream_ids": ["s1"]})
     assert not fake.streams
+    assert not fake.purged
+
+
+async def test_removing_several_cameras_reports_each_one() -> None:
+    fake = FakeVss(streams=[make_stream("s1"), make_stream("s2")])
+
+    result = await remove_streams(_deps(fake), ["s1", "nope", "s2"])
+
+    assert result["removed"] == 2
+    assert [item["removed"] for item in result["items"]] == [True, False, True]
+    assert "No live stream" in result["items"][1]["message"]
+    assert len([r for r in fake.requests if r[0] == "DELETE"]) == 1
+
+
+async def test_removing_one_unknown_camera_is_an_error() -> None:
+    fake = FakeVss(streams=[make_stream("s1")])
+
+    with pytest.raises(VssError, match="Use vss_list_streams"):
+        await remove_streams(_deps(fake), ["nope"])
+
+
+@pytest.mark.parametrize(
+    "bad_id",
+    [
+        "s2?purge_media=true&purge_embeddings=true",
+        "s2/../../search/q1",
+        "s2%2F..%2F..%2Fsearch%2Fq1",
+        "..",
+        "s2#x",
+    ],
+)
+async def test_a_stream_id_cannot_reach_another_route_or_query(bad_id: str) -> None:
+    fake = FakeVss(streams=[make_stream("s2")])
+
+    with pytest.raises(VssError, match="not a valid VSS id"):
+        await update_stream(_deps(fake), bad_id, state="paused")
+
+    assert not fake.requests
+    assert fake.streams[0]["state"] == "running"
 
 
 async def test_stream_tools_are_offered_with_frame_embeddings_only() -> None:
@@ -187,8 +245,7 @@ async def test_deployment_info_reports_live_and_watch_settings() -> None:
     ("config", "expected"),
     [
         ({"enabled": False, "intervalMs": 30000}, {"enabled": False, "interval_seconds": 30.0}),
-        ({"enabled": True}, {"enabled": True, "interval_seconds": 10.0}),
-        ({"enabled": True, "intervalMs": 0}, {"enabled": True, "interval_seconds": 10.0}),
+        ({"enabled": True, "intervalMs": 5000}, {"enabled": True, "interval_seconds": 5.0}),
     ],
 )
 async def test_deployment_info_and_watch_agree_on_the_refresh_config(
@@ -210,7 +267,7 @@ async def test_deployment_info_and_watch_agree_on_the_refresh_config(
 
 async def test_deployment_info_omits_an_unreadable_refresh_config() -> None:
     fake = FakeVss()
-    fake.refresh_config = {}
+    fake.refresh_config = None
 
     info = await get_deployment_info(_deps(fake))
 

@@ -14,7 +14,7 @@ import json
 import re
 import time
 from datetime import datetime, timezone
-from typing import Any, Iterable
+from typing import Any
 
 #: Upper bound on a listing tool's result, in bytes, so several results fit a
 #: small model's context alongside the conversation. Search hits and summaries
@@ -232,6 +232,13 @@ def slim_video(
     return video
 
 
+def _tag_list(value: Any) -> list[str]:
+    """Tags as a list: VSS stores them as a list or a comma-separated string."""
+
+    items = value if isinstance(value, list) else str(value or "").split(",")
+    return [str(tag).strip() for tag in items if str(tag).strip()]
+
+
 def slim_search_hit(
     raw: dict[str, Any], datastore_base_url: str | None = None
 ) -> dict[str, Any]:
@@ -242,7 +249,9 @@ def slim_search_hit(
     ``datastore_base_url`` when set. The metadata's ``video_url`` points at an
     internal hostname, so it is only a fallback for older backends.
     ``best_frame_info`` becomes ``frame``, the locator ``vss_get_media_frame``
-    takes, plus the detected object's ``label``.
+    takes, plus the detected object's ``label``. ``tags`` are the camera tags
+    VSS indexed the segment with, for recorded videos and live cameras alike
+    (a live stream's footage carries the stream's tags).
     """
 
     metadata = raw.get("metadata") or {}
@@ -287,8 +296,13 @@ def slim_search_hit(
     if time_source not in ("live", "upload"):
         time_source = None
 
+    tags = _tag_list(metadata.get("tags")) or _tag_list(
+        (metadata.get("video_metadata") or {}).get("tags")
+    )
+
     hit = {
         "video_id": metadata.get("video_id"),
+        "tags": tags or None,
         "video_name": data_store.get("fileName")
         or (metadata.get("video_metadata") or {}).get("file_name"),
         "source": "live" if is_live else "video",
@@ -491,28 +505,6 @@ def slim_summary(
 
     return result
 
-
-def unwrap_search_results(payload: Any) -> list[dict[str, Any]]:
-    """Flatten ``POST /search/query``'s ``results[].results[]`` envelope.
-
-    Unrecognised shapes yield an empty list rather than raising, because the
-    backend also emits a bare list on some fallback paths.
-    """
-
-    if isinstance(payload, dict):
-        blocks: Iterable[Any] = payload.get("results") or []
-    elif isinstance(payload, list):
-        blocks = payload
-    else:
-        return []
-
-    hits: list[dict[str, Any]] = []
-    for block in blocks:
-        if isinstance(block, dict) and isinstance(block.get("results"), list):
-            hits.extend(item for item in block["results"] if isinstance(item, dict))
-        elif isinstance(block, dict):
-            hits.append(block)
-    return hits
 
 
 #: Stream stats an agent can act on; the rest is ingestion telemetry.

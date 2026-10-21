@@ -36,22 +36,22 @@ text. Only use returned URLs; do not invent paths.
 #: made.
 _INSTRUCTIONS_SUMMARY = """\
 Summarization:
-  * "What is in this video?" -> resolve_video, then summarize_video.
-  * summarize_video returns chunk-level captions as a timeline. Ask for a
+  * "What is in this video?" -> vss_resolve_video, then vss_summarize_video.
+  * vss_summarize_video returns chunk-level captions as a timeline. Ask for a
     single overall narrative only when the user wants one; it is much slower.
 """
 
 _INSTRUCTIONS_SEARCH = """\
 Search:
-  * "Find X"                -> search_video, with a time window if one was implied.
-  * "Find X in this video"  -> search_video library-wide, then keep only hits
+  * "Find X"                -> vss_search_video, with a time window if one was implied.
+  * "Find X in this video"  -> vss_search_video library-wide, then keep only hits
     whose `video_id` matches the video in question. There is no dedicated
     single-video search endpoint.
   * "Add this file"         -> this server cannot upload video bytes. Call
     vss_get_deployment_info for its `upload` target, have the file
     POSTed there by the user's own tooling (outside this server), then call
     vss_index_video with the returned videoId.
-  * A video is only findable by search once it has been indexed. list_videos
+  * A video is only findable by search once it has been indexed. vss_list_videos
     reports `indexed` from each video's own status; null means unknown, not
     unindexed. Search normally; do not recommend re-indexing based on
     unknown status.

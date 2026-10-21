@@ -91,7 +91,6 @@ docker_pg_data \
 docker_vdms-db \
 docker_milvus-db \
 docker_milvus-etcd \
-docker_audio_analyzer_data \
 docker_data-prep"
 
     local removed=""

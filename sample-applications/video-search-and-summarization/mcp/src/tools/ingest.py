@@ -10,7 +10,8 @@ from fastmcp import Context, FastMCP
 from ..features import Features
 from ..projections import indexed_status
 from ..schemas import IndexResult
-from ._deps import IDEMPOTENT_WORK, Deps, require_video, run_summary
+from ._deps import IDEMPOTENT_WORK, Deps, require_video
+from .summary import run_summary
 
 
 def choose_index_strategy(features: Features, strategy: str = "auto") -> str:

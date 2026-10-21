@@ -72,6 +72,24 @@ class VssError(ToolError):
         self.status_code = status_code
 
 
+#: An id as VSS issues them (UUIDs, hex). Ids come from the agent and go into
+#: URL paths, where ``?``, ``#`` or ``/`` would reach another route or query
+#: -- e.g. ``DELETE /streams/{id}?purge_media=true``. Escaping is not enough:
+#: nginx decodes ``%2F`` and resolves ``..`` before proxying to /manager.
+_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+
+
+def _id(value: str) -> str:
+    """Return ``value`` if it is safe as a URL path segment, else raise."""
+
+    if not _ID_RE.match(value):
+        raise VssError(
+            f"{value!r} is not a valid VSS id: ids are letters, digits, "
+            "'-' and '_'."
+        )
+    return value
+
+
 def is_image_reference(image: str) -> bool:
     """Whether ``image`` is a claim-check reference to a query image already
     uploaded directly to VSS (e.g. ``POST /search/images``).
@@ -110,10 +128,13 @@ class VssClient:
         )
 
     async def _request(self, method: str, path: str, **kwargs: Any) -> Any:
-        """Issue a request and return the decoded JSON (or raw text) body.
+        """Issue a request and return the decoded JSON body, or ``None`` when
+        the body is empty (Pipeline Manager's answer for an unknown summary
+        state or search).
 
         Raises:
-            VssError: On timeout, connection failure, or a non-2xx status.
+            VssError: On timeout, connection failure, a non-2xx status, or a
+                body that is not JSON.
         """
 
         started = time.perf_counter()
@@ -148,8 +169,13 @@ class VssClient:
             return None
         try:
             return response.json()
-        except ValueError:
-            return response.text
+        except ValueError as exc:
+            # No Pipeline Manager route answers 2xx with anything but JSON;
+            # this is a proxy page or the wrong service behind the URL.
+            raise VssError(
+                f"VSS returned a non-JSON response for {method} {path}. Check "
+                "that VSS_IP and APP_HOST_PORT point at the VSS gateway."
+            ) from exc
 
     @staticmethod
     def _describe_failure(response: httpx.Response, method: str, path: str) -> str:
@@ -175,18 +201,17 @@ class VssClient:
     async def get_features(self) -> dict[str, Any]:
         """Return the raw ``GET /app/features`` payload."""
 
-        return await self._request("GET", "/app/features") or {}
+        return await self._request("GET", "/app/features")
 
     async def get_app_config(self) -> dict[str, Any]:
         """Return the system configuration, including sampling limits."""
 
-        return await self._request("GET", "/app/config") or {}
+        return await self._request("GET", "/app/config")
 
     async def list_videos(self) -> list[dict[str, Any]]:
         """Return every video row known to VSS."""
 
-        payload = await self._request("GET", "/videos") or {}
-        return payload.get("videos") or []
+        return (await self._request("GET", "/videos"))["videos"]
 
     async def list_tags(self) -> list[str]:
         """Return the tag vocabulary: uploaded-video and live-camera tags.
@@ -196,39 +221,31 @@ class VssClient:
         searchable.
         """
 
-        payload = await self._request("GET", "/tags") or []
-        tags = payload if isinstance(payload, list) else []
-        return list(
-            dict.fromkeys(tag for tag in tags if isinstance(tag, str) and tag.strip())
-        )
+        # The tag table has no unique constraint.
+        tags = await self._request("GET", "/tags")
+        return list(dict.fromkeys(tag for tag in tags if tag.strip()))
 
     async def get_video(self, video_id: str) -> dict[str, Any] | None:
         """Return one video row, or ``None`` when it does not exist."""
 
         try:
-            payload = await self._request("GET", f"/videos/{video_id}") or {}
+            payload = await self._request("GET", f"/videos/{_id(video_id)}")
         except VssError as exc:
             if exc.status_code == 404:
                 return None
             raise
-        return payload.get("video")
+        return payload["video"]
 
     async def create_search_embeddings(self, video_id: str) -> None:
         """Generate frame embeddings for a video.
 
         Blocking: the endpoint holds the connection until data-prep finishes.
-
-        Raises:
-            VssError: If the upstream reports anything but ``success``.
+        Pipeline Manager answers 422 unless data-prep reports ``success``.
         """
 
-        payload = await self._request(
-            "POST", f"/videos/search-embeddings/{video_id}", json={}
+        await self._request(
+            "POST", f"/videos/search-embeddings/{_id(video_id)}", json={}
         )
-        if (payload or {}).get("status") != "success":
-            raise VssError(
-                f"Embedding generation did not succeed for {video_id}: {payload!r}"
-            )
 
     # -- Summaries -------------------------------------------------------
 
@@ -236,16 +253,12 @@ class VssClient:
         """Start a summary pipeline and return its state id."""
 
         payload = await self._request("POST", "/summary", json=body)
-        state_id = (payload or {}).get("summaryPipelineId")
-        if not state_id:
-            raise VssError(f"Summary request returned no pipeline id: {payload!r}")
-        return state_id
+        return payload["summaryPipelineId"]
 
     async def get_ui_state(self, state_id: str) -> dict[str, Any] | None:
         """Return the pipeline state for ``state_id``, or ``None`` if unknown."""
 
-        payload = await self._request("GET", f"/summary/{state_id}")
-        return payload if isinstance(payload, dict) and payload else None
+        return await self._request("GET", f"/summary/{_id(state_id)}")
 
     async def get_state_created_at(self, state_id: str) -> str | None:
         """Return when run ``state_id`` was created (ISO-8601), or ``None``.
@@ -253,15 +266,13 @@ class VssClient:
         Only the raw state carries ``createdAt``; the UI projection does not.
         """
 
-        payload = await self._request("GET", f"/summary/{state_id}/raw")
-        created = payload.get("createdAt") if isinstance(payload, dict) else None
-        return created if isinstance(created, str) else None
+        payload = await self._request("GET", f"/summary/{_id(state_id)}/raw")
+        return payload["createdAt"] if payload else None
 
     async def list_ui_states(self) -> list[dict[str, Any]]:
-        """Return every pipeline state, with nulls filtered out."""
+        """Return every pipeline state."""
 
-        payload = await self._request("GET", "/summary/ui") or []
-        return [item for item in payload if isinstance(item, dict) and item]
+        return await self._request("GET", "/summary/ui")
 
     async def poll_state(
         self,
@@ -304,9 +315,6 @@ class VssClient:
         :meth:`poll_search`. Searches by text, ``image`` (a data URL) or
         ``image_url`` (an uploaded image); the backend rejects more than one,
         so only one is sent.
-
-        Raises:
-            VssError: If VSS returns no query id.
         """
 
         body: dict[str, Any]
@@ -320,24 +328,17 @@ class VssClient:
             body["tags"] = ",".join(tags)
         if time_filter:
             body["timeFilter"] = time_filter
-        if min_peak_score is not None:
-            body["minPeakScore"] = min_peak_score
-        payload = await self._request("POST", "/search", json=body)
-        if not isinstance(payload, dict) or not payload.get("queryId"):
-            raise VssError(f"Search request returned no query id: {payload!r}")
-        return payload
+        return await self._request("POST", "/search", json=body)
 
     async def get_search(self, query_id: str) -> dict[str, Any] | None:
         """Return a persisted search query, or ``None`` if unknown."""
 
-        payload = await self._request("GET", f"/search/{query_id}")
-        return payload if isinstance(payload, dict) and payload else None
+        return await self._request("GET", f"/search/{_id(query_id)}")
 
     async def list_searches(self) -> list[dict[str, Any]]:
         """Return every persisted search query."""
 
-        payload = await self._request("GET", "/search") or []
-        return [item for item in payload if isinstance(item, dict) and item]
+        return await self._request("GET", "/search")
 
     async def refetch_search(
         self,
@@ -348,28 +349,21 @@ class VssClient:
         """Re-run a persisted search query. Blocks until it has run.
         ``min_peak_score`` replaces the query's saved threshold."""
 
-        body: dict[str, Any] = {"timeFilter": time_filter} if time_filter else {}
-        if min_peak_score is not None:
-            body["minPeakScore"] = min_peak_score
-        await self._request("POST", f"/search/{query_id}/refetch", json=body)
+        body = {"timeFilter": time_filter} if time_filter else {}
+        await self._request("POST", f"/search/{_id(query_id)}/refetch", json=body)
 
-    async def set_search_watch(
-        self, query_id: str, watch: bool, min_peak_score: float | None = None
-    ) -> None:
-        """Watch or unwatch a persisted search query. ``min_peak_score``
-        replaces the query's saved threshold; when it changes, VSS re-runs
-        the query in the background."""
+    async def set_search_watch(self, query_id: str, watch: bool) -> None:
+        """Watch or unwatch a persisted search query. An unknown id is a
+        silent no-op in Pipeline Manager, so callers resolve the search first."""
 
-        body: dict[str, Any] = {"watch": watch}
-        if min_peak_score is not None:
-            body["minPeakScore"] = min_peak_score
-        await self._request("PATCH", f"/search/{query_id}/watch", json=body)
+        await self._request(
+            "PATCH", f"/search/{_id(query_id)}/watch", json={"watch": watch}
+        )
 
     async def get_refresh_config(self) -> dict[str, Any]:
         """Return how Pipeline Manager auto-refreshes watched queries."""
 
-        payload = await self._request("GET", "/search/refresh-config")
-        return payload if isinstance(payload, dict) else {}
+        return await self._request("GET", "/search/refresh-config")
 
     # -- Live streams ----------------------------------------------------
 
@@ -382,65 +376,55 @@ class VssClient:
         if state:
             params.append(("state", state))
         params.extend(("tags", tag) for tag in tags or [])
-        payload = await self._request("GET", "/streams", params=params) or {}
-        streams = payload.get("streams") if isinstance(payload, dict) else None
-        return [item for item in streams or [] if isinstance(item, dict)]
+        return (await self._request("GET", "/streams", params=params))["streams"]
 
     async def get_stream(self, stream_id: str) -> dict[str, Any] | None:
         """Return one live stream, or ``None`` when it does not exist."""
 
         try:
-            payload = await self._request("GET", f"/streams/{stream_id}") or {}
+            payload = await self._request("GET", f"/streams/{_id(stream_id)}")
         except VssError as exc:
             if exc.status_code == 404:
                 return None
             raise
-        return payload.get("stream") if isinstance(payload, dict) else None
+        return payload["stream"]
 
     async def create_stream(self, body: dict[str, Any]) -> dict[str, Any]:
         """Register and start one RTSP stream; returns its record."""
 
-        payload = await self._request("POST", "/streams", json=body) or {}
-        stream = payload.get("stream") if isinstance(payload, dict) else None
-        if not isinstance(stream, dict) or not stream.get("stream_id"):
-            raise VssError("Stream registration returned no stream id.")
-        return stream
+        return (await self._request("POST", "/streams", json=body))["stream"]
 
     async def create_streams(self, items: list[dict[str, Any]]) -> dict[str, Any]:
-        """Register several RTSP streams; returns the per-item outcomes."""
+        """Register several RTSP streams; returns ``{accepted, rejected,
+        items}``, one item per request item, in order."""
 
-        payload = await self._request("POST", "/streams/batch", json={"items": items})
-        return payload if isinstance(payload, dict) else {}
+        return await self._request("POST", "/streams/batch", json={"items": items})
 
     async def update_stream(
         self, stream_id: str, body: dict[str, Any]
     ) -> dict[str, Any]:
         """Pause, resume or reconfigure a stream; returns its new record."""
 
-        payload = await self._request("PATCH", f"/streams/{stream_id}", json=body) or {}
-        stream = payload.get("stream") if isinstance(payload, dict) else None
-        return stream if isinstance(stream, dict) else {}
+        path = f"/streams/{_id(stream_id)}"
+        return (await self._request("PATCH", path, json=body))["stream"]
 
-    async def delete_stream(self, stream_id: str) -> dict[str, Any]:
-        """Stop and deregister a stream, keeping its media and embeddings."""
+    async def delete_streams(self, stream_ids: list[str]) -> dict[str, Any]:
+        """Stop and deregister streams, keeping their media and embeddings.
+        Returns ``{accepted, rejected, items}``, one item per id, in order;
+        an unknown id fails its own item, not the call."""
 
-        payload = await self._request("DELETE", f"/streams/{stream_id}")
-        return payload if isinstance(payload, dict) else {}
+        return await self._request(
+            "DELETE", "/streams", json={"stream_ids": stream_ids}
+        )
 
     async def get_frame(self, params: dict[str, Any]) -> dict[str, Any]:
         """Fetch one stored frame as ``GET /frames?format=json`` returns it:
         ``{mime, image_base64, frame}``.
-
-        Raises:
-            VssError: On a backend error, or a response without image data.
         """
 
-        payload = await self._request(
+        return await self._request(
             "GET", "/frames", params={**params, "format": "json"}
         )
-        if not isinstance(payload, dict) or not payload.get("image_base64"):
-            raise VssError("Frame request returned no image data.")
-        return payload
 
     async def poll_search(
         self,

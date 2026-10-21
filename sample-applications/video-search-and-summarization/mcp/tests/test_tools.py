@@ -463,6 +463,38 @@ async def test_focus_extends_rather_than_replaces_the_frame_prompt(
     assert "forklifts" in prompt
 
 
+async def test_focus_extends_the_final_summary_prompts_too(
+    fake: FakeVss, deps: Deps
+) -> None:
+    fake.videos = [make_video("v1", "clip.mp4")]
+    fake.state_on_create = make_state("s1", "v1", final="complete")
+    fake.app_config = {
+        "summaryMapPrompt": "Summarize %data%",
+        "summaryReducePrompt": "Merge %data%",
+    }
+
+    await summarize_video(deps, "v1", focus="person in a blue jacket")
+
+    prompts = posted_body(fake, "/summary")["prompts"]
+    assert prompts["summaryMapPrompt"].startswith("Summarize %data%")
+    assert "person in a blue jacket" in prompts["summaryMapPrompt"]
+    assert "person in a blue jacket" in prompts["summaryReducePrompt"]
+    # Undefined in this deployment, so VSS keeps its own.
+    assert "summarySinglePrompt" not in prompts
+
+
+async def test_focus_on_a_timeline_only_run_touches_only_the_frame_prompt(
+    fake: FakeVss, deps: Deps
+) -> None:
+    fake.videos = [make_video("v1", "clip.mp4")]
+    fake.state_on_create = make_state("s1", "v1", final="na")
+    fake.app_config = {"summaryMapPrompt": "Summarize %data%"}
+
+    await summarize_video(deps, "v1", focus="forklifts", final_summary=False)
+
+    assert set(posted_body(fake, "/summary")["prompts"]) == {"framePrompt"}
+
+
 async def test_summarize_rejects_an_unknown_video(deps: Deps) -> None:
     with pytest.raises(VssError, match="No video with id"):
         await summarize_video(deps, "missing")
@@ -882,6 +914,21 @@ async def test_upstream_error_carries_a_hint() -> None:
     assert "502" in message
     assert "data-prep exploded" in message
     assert "dependency" in message
+
+
+async def test_a_non_json_success_names_the_misconfiguration() -> None:
+    """No Pipeline Manager route answers 2xx with HTML; a proxy page does."""
+
+    def html(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="<html>Welcome to nginx</html>")
+
+    client = VssClient(
+        BASE_URL,
+        client=httpx.AsyncClient(base_url=BASE_URL, transport=httpx.MockTransport(html)),
+    )
+
+    with pytest.raises(VssError, match="non-JSON response for GET /summary/ui"):
+        await client.list_ui_states()
 
 
 # VSS errors
@@ -1358,22 +1405,6 @@ async def test_summary_forwards_caller_options(fake: FakeVss, deps: Deps) -> Non
     assert posted["audio"] == {"audioModel": "small.en", "useFullTranscriptSummary": True}
 
 
-async def test_summary_rejects_an_explicit_zero_overlap_the_deployment_cannot_honor(
-    fake: FakeVss, deps: Deps
-) -> None:
-    """Pipeline Manager treats frameOverlap=0 as unset and substitutes its own
-    nonzero default, which would then mismatch the multiFrame requested here."""
-
-    fake.videos = [make_video("v1", "clip.mp4")]
-    fake.app_config = {
-        "frameOverlap": 2,
-        "meta": {"evamPipelines": [{"value": "video_ingestion"}]},
-    }
-
-    with pytest.raises(VssError, match="frame_overlap=0 cannot be honored"):
-        await summarize_video(deps, "v1", frame_overlap=0)
-
-
 async def test_summary_accepts_an_explicit_zero_overlap_matching_the_deployment(
     fake: FakeVss, deps: Deps
 ) -> None:
@@ -1573,26 +1604,15 @@ async def test_get_media_frame_crops_to_the_hit_box_and_forwards_the_live_segmen
     assert meta["media_path"] == "segments/1790655530.mp4"
 
 
-async def test_get_media_frame_takes_a_live_hits_bucket_from_its_camera(
+async def test_get_media_frame_needs_a_live_hits_bucket_with_its_segment(
     fake: FakeVss, deps: Deps
 ) -> None:
-    stream = make_stream("cam-1")
-    stream["bucket_name"] = "cam-bucket"
-    fake.streams = [stream]
+    fake.streams = [make_stream("cam-1")]
 
-    await get_media_frame(deps, "cam-1", 3.2, media_path="segments/1790655530.mp4")
+    with pytest.raises(VssError, match="media_path needs bucket_name"):
+        await get_media_frame(deps, "cam-1", 3.2, media_path="segments/1790655530.mp4")
 
-    assert fake.frame_params[-1]["bucket_name"] == "cam-bucket"
-
-
-async def test_get_media_frame_defaults_a_removed_cameras_bucket(
-    fake: FakeVss, deps: Deps
-) -> None:
-    fake.videos = [make_video("gone-cam", "cam.mp4")]
-
-    await get_media_frame(deps, "gone-cam", 3.2, media_path="segments/1790655530.mp4")
-
-    assert fake.frame_params[-1]["bucket_name"] == "live-streams"
+    assert not fake.requests
 
 
 async def test_get_media_frame_leaves_uploaded_video_hits_without_a_bucket(

@@ -62,8 +62,9 @@ it hands to an agent is one it has reached itself.
 - **Live cameras.** The stream tools wrap `/streams` (`GET`, `POST`,
   `POST /streams/batch`, `PATCH /{id}`, `DELETE /{id}` without purge) and are
   registered only with `imageSearchEnabled`. Every URL, name and error is
-  credential-redacted. Live hits carry `source`, `stream_id`, `observed_at`
-  and `raw_score`; their gateway-relative segment URL is prefixed with the
+  credential-redacted. Every hit carries the segment's camera `tags` (from
+  `metadata.tags`, else `video_metadata.tags`). Live hits carry `source`,
+  `stream_id`, `observed_at` and `raw_score`; their gateway-relative segment URL is prefixed with the
   datastore URL. `stream_ids` on search and watch is a post-filter on the
   ranked hits.
 - **Timeline.** `observed_at`/`time_source` come from Pipeline Manager's
@@ -88,9 +89,9 @@ it hands to an agent is one it has reached itself.
   `timestamp`, `bucket_name`, `media_path` for live streams, `crop_bbox` for
   detected objects); `label` names the detected object. `vss_get_media_frame`
   passes those to `GET /frames?format=json` and returns the JPEG as MCP image
-  content plus the frame metadata. If a live-stream hit arrives without
-  `bucket_name`, the tool takes it from the camera's record, or uses
-  `live-streams` when the camera was removed.
+  content plus the frame metadata. Live-stream hits always carry
+  `bucket_name` with `media_path`, and the tool rejects `media_path`
+  without it rather than guess the bucket.
 - **Indexing path is chosen for you.** When a frame-embedding index is
   deployed (dual or search-only mode; `imageSearchEnabled` in
   `/app/features`), the standalone frame-embedding endpoint
