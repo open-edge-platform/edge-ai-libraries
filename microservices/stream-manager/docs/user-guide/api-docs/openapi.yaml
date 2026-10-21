@@ -700,8 +700,6 @@ paths:
               example:
                 recording_id: rec-2
                 sensor_id: cam-07
-                media_type: clip
-                content_type: video/mp4
                 requested_start_ts: '2026-09-16T09:12:00.400000000Z'
                 requested_end_ts: '2026-09-16T09:12:05.400000000Z'
                 start_ts: '2026-09-16T09:12:00.400000000Z'
@@ -1104,12 +1102,6 @@ components:
         sensor_id:
           type: string
           description: The sensor the media belongs to.
-        media_type:
-          type: string
-          enum: [frame, clip]
-        content_type:
-          type: string
-          description: The type of file that was produced, for example image/jpeg or video/mp4.
         requested_start_ts:
           type: string
           format: date-time
@@ -1138,8 +1130,6 @@ components:
       example:
         recording_id: rec-2
         sensor_id: cam-07
-        media_type: frame
-        content_type: image/jpeg
         requested_start_ts: '2026-09-16T09:12:03.400000000Z'
         requested_end_ts: null
         start_ts: '2026-09-16T09:12:03.400000000Z'

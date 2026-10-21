@@ -178,8 +178,6 @@ media.
 |---|---|---|
 | `recording_id` | string | The record the media was taken from. |
 | `sensor_id` | string | The sensor the media belongs to. |
-| `media_type` | string | `frame` or `clip`. |
-| `content_type` | string | File type produced, e.g. `image/jpeg` or `video/mp4`. |
 | `requested_start_ts` | string (date-time) | Time the caller asked for. |
 | `requested_end_ts` | string (date-time), nullable | End the caller asked for (exclusive); `null` for a single frame. |
 | `start_ts` | string (date-time) | Real time of the returned frame, or first frame of the clip. |
@@ -842,8 +840,6 @@ Cache-Control: no-store
 {
   "recording_id": "rec-2",
   "sensor_id": "cam-07",
-  "media_type": "frame",
-  "content_type": "image/jpeg",
   "requested_start_ts": "2026-09-16T09:12:03.400000000Z",
   "requested_end_ts": null,
   "start_ts": "2026-09-16T09:12:03.400000000Z",
@@ -906,8 +902,6 @@ Cache-Control: no-store
 {
   "recording_id": "rec-2",
   "sensor_id": "cam-07",
-  "media_type": "clip",
-  "content_type": "video/mp4",
   "requested_start_ts": "2026-09-16T09:12:00.400000000Z",
   "requested_end_ts": "2026-09-16T09:12:05.400000000Z",
   "start_ts": "2026-09-16T09:12:00.400000000Z",

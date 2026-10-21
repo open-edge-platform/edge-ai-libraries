@@ -9,8 +9,8 @@ import "time"
 type MediaResult struct {
 	RecordingID      string     `json:"recording_id"`
 	SensorID         string     `json:"sensor_id"`
-	MediaType        string     `json:"media_type"`
-	ContentType      string     `json:"content_type"`
+	MediaType        string     `json:"-"`
+	ContentType      string     `json:"-"`
 	RequestedStartTS time.Time  `json:"requested_start_ts"`
 	RequestedEndTS   *time.Time `json:"requested_end_ts"`
 	StartTS          time.Time  `json:"start_ts"`

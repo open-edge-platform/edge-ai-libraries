@@ -168,6 +168,15 @@ func TestRetrieveNegotiation(t *testing.T) {
 				t.Fatalf("unexpected retrieve headers %v", rec.Header())
 			}
 			if tc.contentType == "application/json" {
+				var fields map[string]json.RawMessage
+				if err := json.Unmarshal(rec.Body.Bytes(), &fields); err != nil {
+					t.Fatal(err)
+				}
+				for _, name := range []string{"media_type", "content_type"} {
+					if _, exists := fields[name]; exists {
+						t.Fatalf("JSON reply contains removed field %q: %s", name, rec.Body)
+					}
+				}
 				var result model.MediaResult
 				if err := json.Unmarshal(rec.Body.Bytes(), &result); err != nil {
 					t.Fatal(err)
@@ -175,7 +184,7 @@ func TestRetrieveNegotiation(t *testing.T) {
 				if rec.Header().Get("Cache-Control") != "no-store" || !strings.HasPrefix(result.URL, "/v1/media/"+testRecordingID+"/") {
 					t.Fatalf("unexpected JSON reply %v %+v", rec.Header(), result)
 				}
-				if tc.name == "frame JSON png link" && result.ContentType != "image/png" {
+				if tc.name == "frame JSON png link" && !strings.HasSuffix(result.URL, ".png") {
 					t.Fatalf("JSON link did not select PNG: %+v", result)
 				}
 				return
