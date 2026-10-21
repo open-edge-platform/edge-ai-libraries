@@ -106,7 +106,9 @@ python -m perf_helpers.cli --report-only results/bench_A results/bench_B --repor
   are ignored. Charts and the summary table keep each run's measurements
   separate (an extra "Run" column/legend label appears) even when two runs
   share the same pipeline/variant/stream count, so comparisons across runs
-  are not lost.
+  are not lost. Each run also gets its own system-info card (processor,
+  GPU/NPU, memory, OS, discovered devices) labeled by run id, since runs
+  being compared may come from different machines.
 - Output location:
   - one run: overwrites `<run_dir>/<benchmark_id>.html`;
   - several runs: `<results-dir>/report_YYYYMMDD_HHMMSS.html`;

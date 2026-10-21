@@ -166,6 +166,61 @@ class TestMultiRunAggregation(unittest.TestCase):
         self.assertIn("bench_run_2", html_out)
 
 
+class TestPerRunSystemInfo(unittest.TestCase):
+    """Comparing runs from different machines must show each run's own
+    system/hardware details, not just the first run's."""
+
+    def test_single_run_card_is_titled_by_benchmark_id(self) -> None:
+        html_out = generate_html_report([_BASE_RESULT])
+
+        self.assertIn("<h3>bench_20260101_000000</h3>", html_out)
+        self.assertNotIn("<h3>System</h3>", html_out)
+        self.assertIn("Test CPU", html_out)
+        # Single-run title keeps the processor suffix.
+        self.assertIn("Performance Summary — Test CPU", html_out)
+
+    def test_both_runs_system_info_is_present(self) -> None:
+        run1 = copy.deepcopy(_BASE_RESULT)
+        run1["benchmark_id"] = "bench_run_1"
+        run1["system_info"]["system"]["Processor"] = "Machine A CPU"
+        run1["hardware"] = {"CPU": ["Machine A CPU"]}
+
+        run2 = copy.deepcopy(_BASE_RESULT)
+        run2["benchmark_id"] = "bench_run_2"
+        run2["system_info"]["system"]["Processor"] = "Machine B CPU"
+        run2["hardware"] = {"CPU": ["Machine B CPU"]}
+
+        html_out = generate_html_report([run1, run2])
+
+        self.assertIn("Machine A CPU", html_out)
+        self.assertIn("Machine B CPU", html_out)
+        # Each card is titled by its benchmark id.
+        self.assertIn("<h3>bench_run_1</h3>", html_out)
+        self.assertIn("<h3>bench_run_2</h3>", html_out)
+
+    def test_multi_run_title_has_no_single_processor_suffix(self) -> None:
+        run1 = copy.deepcopy(_BASE_RESULT)
+        run1["benchmark_id"] = "bench_run_1"
+        run2 = copy.deepcopy(_BASE_RESULT)
+        run2["benchmark_id"] = "bench_run_2"
+        run2["system_info"]["system"]["Processor"] = "Different CPU"
+
+        html_out = generate_html_report([run1, run2])
+
+        self.assertIn(">Performance Summary<", html_out)
+        self.assertNotIn("Performance Summary — ", html_out)
+
+    def test_devices_row_shown_when_hardware_present(self) -> None:
+        result = copy.deepcopy(_BASE_RESULT)
+        result["hardware"] = {"CPU": ["Test CPU"], "GPU": ["Test GPU A", "Test GPU B"]}
+
+        html_out = generate_html_report([result])
+
+        self.assertIn("<dt>Devices</dt>", html_out)
+        self.assertIn("Test GPU A", html_out)
+        self.assertIn("Test GPU B", html_out)
+
+
 class TestLoadResultErrorHandling(unittest.TestCase):
     """A missing/dangling result file must raise ReportInputError, not a
     bare OSError/traceback, matching run_report_only's exit-code-2 contract."""

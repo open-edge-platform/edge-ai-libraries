@@ -628,24 +628,39 @@ def _build_summary_rows(test_cases: list[dict[str, Any]]) -> list[dict[str, Any]
     return rows
 
 
-def _build_sysinfo_cards(system_info: dict[str, Any]) -> str:
-    if not system_info:
-        return ""
+def _build_run_cards(run_meta: list[dict[str, Any]]) -> str:
+    """Build one system/benchmark info card per run.
 
-    system = {k: v for k, v in system_info.get("system", {}).items() if v}
-
-    if not system:
-        return ""
-
-    rows = ""
-    for k, v in system.items():
-        rows += f'<div class="si-row"><dt>{_esc(k)}</dt><dd>{_esc(v)}</dd></div>\n'
-
-    return f"""
+    Each run may have been captured on a different machine, so its own
+    hardware/platform details (processor, GPU, NPU, memory, OS, ...) are
+    shown rather than assuming every compared run shares one system.
+    """
+    cards = []
+    for meta in run_meta:
+        title = _esc(meta["id"])
+        rows = [
+            f'<div class="si-row"><dt>Run ID</dt><dd>{_esc(meta["id"])}</dd></div>',
+            f'<div class="si-row"><dt>Timestamp</dt><dd>{_esc(meta["timestamp"])}</dd></div>',
+            f'<div class="si-row"><dt>Duration</dt><dd>{_esc(meta["duration"])}</dd></div>',
+        ]
+        if meta["hardware"]:
+            # Already HTML-escaped when it was built (see generate_html_report).
+            rows.append(
+                f'<div class="si-row"><dt>Devices</dt><dd>{meta["hardware"]}</dd></div>'
+            )
+        system = {k: v for k, v in meta["system_info"].get("system", {}).items() if v}
+        for k, v in system.items():
+            rows.append(
+                f'<div class="si-row"><dt>{_esc(k)}</dt><dd>{_esc(v)}</dd></div>'
+            )
+        cards.append(
+            f"""
         <div class="sysinfo-card">
-          <h3>System</h3>
-          <dl>{rows}</dl>
+          <h3>{title}</h3>
+          <dl>{"".join(rows)}</dl>
         </div>"""
+        )
+    return "".join(cards)
 
 
 def generate_html_report(runs: list[dict[str, Any]]) -> str:
@@ -674,7 +689,6 @@ def generate_html_report(runs: list[dict[str, Any]]) -> str:
     summary_rows = _build_summary_rows(all_cases)
 
     run_meta = []
-    system_info: dict[str, Any] = {}
     for run in runs:
         hw = run.get("hardware", {})
         hw_str = ", ".join(
@@ -687,10 +701,10 @@ def generate_html_report(runs: list[dict[str, Any]]) -> str:
                 "duration": f"{run.get('duration_seconds', 0):.1f}s",
                 "hardware": hw_str,
                 "summary": run.get("summary", {}),
+                # each run may come from a different machine
+                "system_info": run.get("system_info", {}),
             }
         )
-        if not system_info:
-            system_info = run.get("system_info", {})
 
     pipeline_sections_html = []
     chart_data_js: dict[str, Any] = {}
@@ -865,7 +879,11 @@ def generate_html_report(runs: list[dict[str, Any]]) -> str:
     timestamp = run_meta[0]["timestamp"] if run_meta else ""
     pass_rate = f"{round(100 * passed / total)}%" if total else "—"
 
-    processor_name = system_info.get("system", {}).get("Processor", "")
+    processor_name = (
+        run_meta[0]["system_info"].get("system", {}).get("Processor", "")
+        if not multi_run and run_meta
+        else ""
+    )
     summary_title = (
         f"Performance Summary — {_esc(processor_name)}"
         if processor_name
@@ -916,12 +934,12 @@ body {{ background: var(--bg); color: var(--text); font-family: 'Inter', system-
 .kpi-card.c-fail .kval {{ color: var(--fail); }}
 .kpi-card.c-acc .kval {{ color: var(--accent-hi); }}
 .sysinfo-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 32px; align-items: start; }}
-.sysinfo-card, .run-info {{ background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; box-shadow: 0 2px 4px rgba(0,0,0,.08); }}
-.sysinfo-card h3, .run-info h3 {{ font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--text-3); margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border2); }}
-.sysinfo-card dl, .run-info dl {{ display: flex; flex-direction: column; gap: 6px; }}
+.sysinfo-card {{ background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; box-shadow: 0 2px 4px rgba(0,0,0,.08); max-width: 800px; }}
+.sysinfo-card h3 {{ font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--text-3); margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border2); }}
+.sysinfo-card dl {{ display: flex; flex-direction: column; gap: 6px; }}
 .si-row {{ display: flex; justify-content: space-between; gap: 12px; }}
-.sysinfo-card dt, .run-info dt {{ font-size: 12px; color: var(--text-3); white-space: nowrap; }}
-.sysinfo-card dd, .run-info dd {{ font-size: 12px; font-weight: 500; color: var(--text); text-align: right; word-break: break-word; }}
+.sysinfo-card dt {{ font-size: 12px; color: var(--text-3); white-space: nowrap; }}
+.sysinfo-card dd {{ font-size: 12px; font-weight: 500; color: var(--text); text-align: right; word-break: break-word; }}
 .section {{ margin-bottom: 52px; scroll-margin-top: 72px; }}
 .section-header {{ display: flex; align-items: baseline; gap: 12px; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid var(--border2); }}
 .section-header h2 {{ font-size: 17px; font-weight: 600; }}
@@ -980,13 +998,7 @@ td.hi {{ color: var(--text); font-weight: 500; }}
         <div class="kpi-card"><span class="kval">{pass_rate}</span><span class="klbl">Pass Rate</span></div>
       </div>
       <div class="sysinfo-grid">
-        {_build_sysinfo_cards(system_info)}
-        <div class="run-info">
-          <h3>Benchmark</h3>
-          <dl>
-            {"".join(f'<div class="si-row"><dt>Run ID</dt><dd>{_esc(m["id"])}</dd></div><div class="si-row"><dt>Timestamp</dt><dd>{_esc(m["timestamp"])}</dd></div><div class="si-row"><dt>Duration</dt><dd>{_esc(m["duration"])}</dd></div>' for m in run_meta)}
-          </dl>
-        </div>
+        {_build_run_cards(run_meta)}
       </div>
     </div>
     {"".join(pipeline_sections_html)}
