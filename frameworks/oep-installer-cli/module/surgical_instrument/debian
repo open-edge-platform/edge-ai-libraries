@@ -7,7 +7,7 @@ configure_surgical_instrument () {
 }
 
 debian_90_profile_surgical_instrument () {
-  echo "edge_base docker_io git make python3_venv gnupg2 wget"
+  echo "edge_base docker_io git make python3_venv gnupg wget"
 }
 
 verify_surgical_instrument () {
