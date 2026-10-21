@@ -63,41 +63,70 @@ RUN chown -R appuser:appuser $POETRY_HOME $SETUP_PATH
 # Runtime image
 FROM python-base AS prod
 
-ARG INSTALL_DRIVER_VERSION="26.31.39395"
-# NPU user-space stack versions (declared once, interpolated into the download URLs below).
+# Intel GPU and NPU user-space stack versions (declared once, interpolated into the
+# download URLs below). To upgrade, check these release pages for the latest versions:
+#   GPU driver (Level Zero GPU + OpenCL ICD, ocloc, gmmlib): https://github.com/intel/compute-runtime/releases
+#   GPU graphics compiler (IGC):                             https://github.com/intel/intel-graphics-compiler/releases
+#   NPU driver/compiler/firmware:                            https://github.com/intel/linux-npu-driver/releases
+#   Level Zero loader (libze1):                              https://github.com/oneapi-src/level-zero/releases
+# Bump the GPU versions together: each compute-runtime release names the IGC and gmmlib
+# versions it was validated with, and its .deb file names give the IGC build number.
+# Keep LEVEL_ZERO_VERSION at the loader version the compute-runtime and linux-npu-driver
+# releases list as validated (the libze1 .deb comes from the kobuk-team/intel-graphics
+# PPA snapshot, so LEVEL_ZERO_PPA_SNAPSHOT must be a snapshot that still carries it).
+ARG GPU_COMPUTE_RUNTIME_VERSION="26.35.39758.10"
+ARG GPU_IGC_VERSION="2.41.5"
+ARG GPU_IGC_BUILD="22716"
+ARG GPU_GMMLIB_VERSION="22.10.0"
 ARG NPU_DRIVER_VERSION="1.38.0"
 ARG NPU_DRIVER_BUILD="v1.38.0.20260910-34487311128-ubuntu2404"
 ARG LEVEL_ZERO_VERSION="1.32.0-1~24.04~ppa1"
 ARG LEVEL_ZERO_PPA_SNAPSHOT="20260830T100000Z"
 
-ENV FASTAPI_ENV=production \
-    INSTALL_DRIVER_VERSION=${INSTALL_DRIVER_VERSION}
+ENV FASTAPI_ENV=production
 
 COPY --from=builder-base $SETUP_PATH $SETUP_PATH
 
 COPY visual-data-preparation-for-retrieval/multimodal-dataprep/scripts/ /
-# curl is needed only at build time (the driver script downloads .deb packages),
-# so it is installed here and purged at the end to keep it out of the final image.
-RUN apt-get update && apt-get install --no-install-recommends -y curl && \
-chmod +x /entrypoint.sh /install_ubuntu_gpu_drivers.sh && \
-/install_ubuntu_gpu_drivers.sh && \
-apt-get purge -y curl && apt-get autoremove -y && \
-apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Install the Intel GPU user-space stack: the compute-runtime Level Zero GPU driver and
+# OpenCL ICD, the graphics compiler (IGC) and gmmlib, from their GitHub releases. This
+# follows the NPU step below: curl -f turns HTTP errors into failures and --retry rides
+# out transient download errors, every step is chained with && so any failure aborts the
+# build instead of silently shipping an image without GPU support, and the final
+# assertions fail the build if the Level Zero GPU driver or the OpenCL ICD is missing.
+# curl is installed here for the downloads and purged at the end so it stays out of the
+# final image (reduces the runtime CVE/dependency surface).
+RUN mkdir -p /tmp/gpu_deps && cd /tmp/gpu_deps && \
+    apt-get update && apt-get install -y --no-install-recommends libnuma1 ocl-icd-libopencl1 curl && \
+    curl -fL --retry 5 --retry-delay 5 --retry-all-errors -O https://github.com/intel/intel-graphics-compiler/releases/download/v${GPU_IGC_VERSION}/intel-igc-core-2_${GPU_IGC_VERSION}+${GPU_IGC_BUILD}_amd64.deb && \
+    curl -fL --retry 5 --retry-delay 5 --retry-all-errors -O https://github.com/intel/intel-graphics-compiler/releases/download/v${GPU_IGC_VERSION}/intel-igc-opencl-2_${GPU_IGC_VERSION}+${GPU_IGC_BUILD}_amd64.deb && \
+    curl -fL --retry 5 --retry-delay 5 --retry-all-errors -O https://github.com/intel/compute-runtime/releases/download/${GPU_COMPUTE_RUNTIME_VERSION}/intel-ocloc_${GPU_COMPUTE_RUNTIME_VERSION}-0_amd64.deb && \
+    curl -fL --retry 5 --retry-delay 5 --retry-all-errors -O https://github.com/intel/compute-runtime/releases/download/${GPU_COMPUTE_RUNTIME_VERSION}/intel-opencl-icd_${GPU_COMPUTE_RUNTIME_VERSION}-0_amd64.deb && \
+    curl -fL --retry 5 --retry-delay 5 --retry-all-errors -O https://github.com/intel/compute-runtime/releases/download/${GPU_COMPUTE_RUNTIME_VERSION}/libigdgmm12_${GPU_GMMLIB_VERSION}_amd64.deb && \
+    curl -fL --retry 5 --retry-delay 5 --retry-all-errors -O https://github.com/intel/compute-runtime/releases/download/${GPU_COMPUTE_RUNTIME_VERSION}/libze-intel-gpu1_${GPU_COMPUTE_RUNTIME_VERSION}-0_amd64.deb && \
+    dpkg -i ./*.deb && cd / && rm -Rf /tmp/gpu_deps && \
+    ldconfig && \
+    test -e /usr/lib/x86_64-linux-gnu/libze_intel_gpu.so.1 && \
+    test -e /etc/OpenCL/vendors/intel.icd && \
+    apt-get purge -y curl && apt-get autoremove -y && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install the NPU user-space stack: the Intel NPU driver/compiler/firmware (from the
 # linux-npu-driver release) AND the oneAPI Level Zero loader (libze1). The loader is
 # mandatory: without libze_loader.so.1 the OpenVINO NPU plugin cannot enumerate the
 # device and falls back to a VCL compiler that is not shipped, so NPU compilation fails.
-# Downloads use curl --retry because the PPA snapshot host intermittently returns 5xx,
+# Downloads use curl -f (HTTP errors fail) and --retry (the PPA snapshot host intermittently returns 5xx),
 # every step is chained with && so a failed download aborts the build instead of silently
 # shipping a broken image, and the final assertion fails the build if the loader is missing.
 # curl is installed here for the downloads and purged at the end so it stays out of the
 # final image (reduces the runtime CVE/dependency surface).
 RUN mkdir -p /tmp/npu_deps && cd /tmp/npu_deps && \
     apt-get update && apt-get install -y --no-install-recommends libtbb12 curl && \
-    curl -L --retry 5 --retry-delay 5 --retry-all-errors -O https://github.com/intel/linux-npu-driver/releases/download/v${NPU_DRIVER_VERSION}/linux-npu-driver-${NPU_DRIVER_BUILD}.tar.gz && \
+    curl -fL --retry 5 --retry-delay 5 --retry-all-errors -O https://github.com/intel/linux-npu-driver/releases/download/v${NPU_DRIVER_VERSION}/linux-npu-driver-${NPU_DRIVER_BUILD}.tar.gz && \
     tar -xf linux-npu-driver-${NPU_DRIVER_BUILD}.tar.gz && \
-    curl -L --retry 5 --retry-delay 5 --retry-all-errors -O https://snapshot.ppa.launchpadcontent.net/kobuk-team/intel-graphics/ubuntu/${LEVEL_ZERO_PPA_SNAPSHOT}/pool/main/l/level-zero-loader/libze1_${LEVEL_ZERO_VERSION}_amd64.deb && \
+    curl -fL --retry 5 --retry-delay 5 --retry-all-errors -O https://snapshot.ppa.launchpadcontent.net/kobuk-team/intel-graphics/ubuntu/${LEVEL_ZERO_PPA_SNAPSHOT}/pool/main/l/level-zero-loader/libze1_${LEVEL_ZERO_VERSION}_amd64.deb && \
     dpkg -i ./*.deb && rm -Rf /tmp/npu_deps && \
     ldconfig && \
     test -e /usr/lib/x86_64-linux-gnu/libze_loader.so.1 && \
@@ -148,7 +177,8 @@ RUN mkdir -p /tmp/dataprep /app/models/yolox /app/ov_models /home/appuser/.cache
 
 
 # Set ownership of all necessary directories to appuser
-RUN chown -R appuser:appuser /app  /tmp/dataprep /entrypoint.sh /home/appuser/.cache/huggingface
+RUN chmod +x /entrypoint.sh && \
+    chown -R appuser:appuser /app  /tmp/dataprep /entrypoint.sh /home/appuser/.cache/huggingface
 
 # Switch to non-root user
 USER appuser
