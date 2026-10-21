@@ -17,27 +17,28 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/api/common"
-	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/replay"
+	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/retrieve"
+	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/storage"
 )
 
-// replayWriteTimeout replaces the server write timeout on replay requests
-const replayWriteTimeout = 15 * time.Minute
+// retrieveWriteTimeout replaces the server write timeout on retrieve requests
+const retrieveWriteTimeout = 15 * time.Minute
 
-// ReplayHandler is initialized with the instance of Replay's new
-// service which also implements Replayer interface
-type ReplayHandler struct {
-	Replays replay.Replayer
+// RetrieveHandler is initialized with the instance of Retrieve's new
+// service which also implements Retriever interface
+type RetrieveHandler struct {
+	Retrievals retrieve.Retriever
 }
 
 // handles /frame and /frame/url endpoints
-func (h ReplayHandler) Frame(c *gin.Context)    { h.frame(c, false) }
-func (h ReplayHandler) FrameURL(c *gin.Context) { h.frame(c, true) }
+func (h RetrieveHandler) Frame(c *gin.Context)    { h.frame(c, false) }
+func (h RetrieveHandler) FrameURL(c *gin.Context) { h.frame(c, true) }
 
 // handles /clip and /clip/url endpoints
-func (h ReplayHandler) Clip(c *gin.Context)    { h.clip(c, false) }
-func (h ReplayHandler) ClipURL(c *gin.Context) { h.clip(c, true) }
+func (h RetrieveHandler) Clip(c *gin.Context)    { h.clip(c, false) }
+func (h RetrieveHandler) ClipURL(c *gin.Context) { h.clip(c, true) }
 
-func (h ReplayHandler) frame(c *gin.Context, linkOnly bool) {
+func (h RetrieveHandler) frame(c *gin.Context, linkOnly bool) {
 	ts, err := common.ParseTimestamp("timestamp", c.Query("timestamp"))
 	if err != nil {
 		common.WriteError(c, http.StatusBadRequest, "invalid_timestamp", err.Error())
@@ -58,15 +59,15 @@ func (h ReplayHandler) frame(c *gin.Context, linkOnly bool) {
 		return
 	}
 	extendWriteDeadline(c)
-	media, err := h.Replays.Frame(c.Request.Context(), c.Param("recording-id"), ts, format, match)
+	media, err := h.Retrievals.Frame(c.Request.Context(), c.Param("recording-id"), ts, format, match)
 	if err != nil {
-		writeReplayError(c, err, false)
+		writeRetrieveError(c, err, false)
 		return
 	}
 	h.respond(c, media, asJSON)
 }
 
-func (h ReplayHandler) clip(c *gin.Context, linkOnly bool) {
+func (h RetrieveHandler) clip(c *gin.Context, linkOnly bool) {
 	start, err := common.ParseTimestamp("start_ts", c.Query("start_ts"))
 	if err != nil {
 		common.WriteError(c, http.StatusBadRequest, "invalid_timestamp", err.Error())
@@ -86,9 +87,9 @@ func (h ReplayHandler) clip(c *gin.Context, linkOnly bool) {
 		return
 	}
 	extendWriteDeadline(c)
-	media, err := h.Replays.Clip(c.Request.Context(), c.Param("recording-id"), start, duration, "mp4")
+	media, err := h.Retrievals.Clip(c.Request.Context(), c.Param("recording-id"), start, duration, "mp4")
 	if err != nil {
-		writeReplayError(c, err, true)
+		writeRetrieveError(c, err, true)
 		return
 	}
 	h.respond(c, media, asJSON)
@@ -96,12 +97,12 @@ func (h ReplayHandler) clip(c *gin.Context, linkOnly bool) {
 
 // Media handles GET /media/{recording-id}/{file}, serving a frame or clip
 // until its expiry_ts.
-func (h ReplayHandler) Media(c *gin.Context) {
+func (h RetrieveHandler) Media(c *gin.Context) {
 	extendWriteDeadline(c)
 	name := c.Param("file")
-	file, info, err := h.Replays.OpenMedia(c.Request.Context(), c.Param("recording-id"), name)
+	file, info, err := h.Retrievals.OpenMedia(c.Request.Context(), c.Param("recording-id"), name)
 	if err != nil {
-		writeReplayError(c, err, strings.HasPrefix(name, "clip-"))
+		writeRetrieveError(c, err, strings.HasPrefix(name, "clip-"))
 		return
 	}
 	defer closeMedia(file)
@@ -109,7 +110,7 @@ func (h ReplayHandler) Media(c *gin.Context) {
 }
 
 // respond writes media as a MediaResult or as its bytes.
-func (h ReplayHandler) respond(c *gin.Context, media replay.Media, asJSON bool) {
+func (h RetrieveHandler) respond(c *gin.Context, media retrieve.Media, asJSON bool) {
 	c.Header("X-Frame-Timestamp", media.Result.StartTS.UTC().Format(time.RFC3339Nano))
 	c.Header("X-Exact-Match", strconv.FormatBool(media.ExactMatch))
 	if asJSON {
@@ -118,9 +119,9 @@ func (h ReplayHandler) respond(c *gin.Context, media replay.Media, asJSON bool) 
 		c.JSON(http.StatusOK, media.Result)
 		return
 	}
-	file, info, err := h.Replays.OpenMedia(c.Request.Context(), media.Result.RecordingID, media.Name)
+	file, info, err := h.Retrievals.OpenMedia(c.Request.Context(), media.Result.RecordingID, media.Name)
 	if err != nil {
-		writeReplayError(c, err, media.Result.MediaType == "clip")
+		writeRetrieveError(c, err, media.Result.MediaType == "clip")
 		return
 	}
 	defer closeMedia(file)
@@ -157,7 +158,7 @@ func parseDuration(s string) (time.Duration, error) {
 	return duration, nil
 }
 
-func serveMedia(c *gin.Context, file *os.File, info replay.MediaFile) {
+func serveMedia(c *gin.Context, file *os.File, info retrieve.MediaFile) {
 	maxAge := max(int64(time.Until(info.ExpiryTS)/time.Second), 0)
 	c.Header("Content-Type", info.ContentType)
 	c.Header("Cache-Control", "private, max-age="+strconv.FormatInt(maxAge, 10))
@@ -168,61 +169,63 @@ func serveMedia(c *gin.Context, file *os.File, info replay.MediaFile) {
 
 func closeMedia(file *os.File) {
 	if err := file.Close(); err != nil {
-		slog.Warn("closing replay media failed", "error", err)
+		slog.Warn("closing retrieve media failed", "error", err)
 	}
 }
 
 // extendWriteDeadline lifts the server write timeout for this request.
 func extendWriteDeadline(c *gin.Context) {
-	err := http.NewResponseController(c.Writer).SetWriteDeadline(time.Now().Add(replayWriteTimeout))
+	err := http.NewResponseController(c.Writer).SetWriteDeadline(time.Now().Add(retrieveWriteTimeout))
 	if err != nil && !errors.Is(err, http.ErrNotSupported) {
-		slog.Warn("extending replay write deadline failed", "error", err)
+		slog.Warn("extending retrieve write deadline failed", "error", err)
 	}
 }
 
-func writeReplayError(c *gin.Context, err error, clip bool) {
+func writeRetrieveError(c *gin.Context, err error, clip bool) {
 	notFoundCode := "frame_not_found"
 	if clip {
 		notFoundCode = "clip_not_found"
 	}
 	switch {
-	case errors.Is(err, replay.ErrNotFound):
+	case errors.Is(err, retrieve.ErrNotFound):
 		common.WriteError(c, http.StatusNotFound, "recording_not_found", "recording not found")
-	case errors.Is(err, replay.ErrNotCovered):
+	case errors.Is(err, retrieve.ErrNotCovered):
 		detail := "the requested time is not covered by the record"
 		if clip {
 			detail = "the requested interval is not covered by the record"
 		}
 		common.WriteError(c, http.StatusNotFound, notFoundCode, detail)
-	case errors.Is(err, replay.ErrFrameNotFound):
+	case errors.Is(err, retrieve.ErrFrameNotFound):
 		detail := "no frame sits at exactly the requested time"
 		if clip {
 			detail = "no clip is available for the requested interval"
 		}
 		common.WriteError(c, http.StatusNotFound, notFoundCode, detail)
-	case errors.Is(err, replay.ErrBeyondSearchLimit):
-		limit := strconv.Itoa(int(replay.SearchLimit.Minutes())) + " minutes"
+	case errors.Is(err, retrieve.ErrBeyondSearchLimit):
+		limit := strconv.Itoa(int(retrieve.SearchLimit.Minutes())) + " minutes"
 		detail := "no decodable frame within " + limit + " of the requested time"
 		if clip {
 			detail = "no keyframe within " + limit + " before the requested start"
 		}
 		common.WriteError(c, http.StatusNotFound, notFoundCode, detail)
-	case errors.Is(err, replay.ErrMediaNotFound):
+	case errors.Is(err, retrieve.ErrMediaNotFound):
 		common.WriteError(c, http.StatusNotFound, notFoundCode, "media not found or expired")
-	case errors.Is(err, replay.ErrNotReady):
+	case errors.Is(err, retrieve.ErrNotReady):
 		common.WriteError(c, http.StatusConflict, "record_not_ready", "record is not ready")
-	case errors.Is(err, replay.ErrBusy):
+	case errors.Is(err, retrieve.ErrBusy):
 		common.WriteError(c, http.StatusTooManyRequests, "capacity_exhausted", "extraction capacity reached, retry later")
-	case errors.Is(err, replay.ErrInvalidRequest):
-		common.WriteError(c, http.StatusBadRequest, "invalid_request", "invalid replay request")
+	case errors.Is(err, storage.ErrStorageFull):
+		common.WriteError(c, http.StatusInsufficientStorage, "storage_full", "recording storage quota reached")
+	case errors.Is(err, retrieve.ErrInvalidRequest):
+		common.WriteError(c, http.StatusBadRequest, "invalid_request", "invalid retrieve request")
 	case errors.Is(err, context.Canceled):
 		c.Abort()
-	case errors.Is(err, replay.ErrExtraction):
-		slog.Error("replay extraction failed", "recording_id", c.Param("recording-id"))
-		slog.Debug("replay extraction failure detail", "recording_id", c.Param("recording-id"), "error", err)
+	case errors.Is(err, retrieve.ErrExtraction):
+		slog.Error("retrieve extraction failed", "recording_id", c.Param("recording-id"))
+		slog.Debug("retrieve extraction failure detail", "recording_id", c.Param("recording-id"), "error", err)
 		common.WriteError(c, http.StatusServiceUnavailable, "storage_unavailable", "media extraction failed")
 	default:
-		slog.Error("replay request failed", "recording_id", c.Param("recording-id"), "error", err)
+		slog.Error("retrieve request failed", "recording_id", c.Param("recording-id"), "error", err)
 		common.WriteInternalError(c)
 	}
 }

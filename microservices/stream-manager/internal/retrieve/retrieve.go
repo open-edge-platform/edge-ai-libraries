@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (C) 2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-// Package replay cuts frames and clips out of ready recordings.
-package replay
+// Package retrieve cuts frames and clips out of ready recordings.
+package retrieve
 
 import (
 	"context"
@@ -29,7 +29,7 @@ const (
 )
 
 var (
-	ErrInvalidRequest = errors.New("invalid replay request")
+	ErrInvalidRequest = errors.New("invalid retrieve request")
 	ErrNotFound       = errors.New("recording not found")
 	ErrNotReady       = errors.New("recording is not ready")
 	ErrNotCovered     = errors.New("requested time is not covered by the recording")
@@ -43,7 +43,7 @@ var (
 
 var contentTypes = map[string]string{"jpeg": "image/jpeg", "png": "image/png", "mp4": "video/mp4"}
 
-type Replayer interface {
+type Retriever interface {
 	Frame(ctx context.Context, recordingID string, timestamp time.Time, format, match string) (Media, error)
 	Clip(ctx context.Context, recordingID string, startTS time.Time, duration time.Duration, format string) (Media, error)
 	OpenMedia(ctx context.Context, recordingID, name string) (*os.File, MediaFile, error)
@@ -64,7 +64,7 @@ type MediaFile struct {
 	ExpiryTS    time.Time
 }
 
-// Service implements Replayer with FFmpeg and FFprobe.
+// Service implements Retriever with FFmpeg and FFprobe.
 type Service struct {
 	metadata storage.MetadataHandler
 	media    storage.MediaHandler
@@ -74,7 +74,7 @@ type Service struct {
 	now      func() time.Time
 }
 
-var _ Replayer = (*Service)(nil)
+var _ Retriever = (*Service)(nil)
 
 func NewService(metadata storage.MetadataHandler, media storage.MediaHandler) (*Service, error) {
 	ffmpeg, err := exec.LookPath("ffmpeg")

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (C) 2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-package replay
+package retrieve
 
 import (
 	"bytes"
@@ -66,7 +66,7 @@ func cachedFixture(t *testing.T, key any, fps, frames, gop, bFrames int) string 
 			t.Skipf("%s not available", tool)
 		}
 	}
-	dir, err := os.MkdirTemp("", "replay-fixture-")
+	dir, err := os.MkdirTemp("", "retrieve-fixture-")
 	if err != nil {
 		t.Fatal(err)
 	}

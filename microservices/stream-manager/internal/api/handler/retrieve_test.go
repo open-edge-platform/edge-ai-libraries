@@ -21,15 +21,16 @@ import (
 
 	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/api/common"
 	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/model"
-	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/replay"
+	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/retrieve"
+	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/storage"
 )
 
 const testRecordingID = "1f0d3c1e-2b9a-4e43-9f0e-6a3c5b1d2e7f"
 
-var replayStart = time.Date(2026, 6, 15, 14, 12, 0, 0, time.UTC)
+var retrieveStart = time.Date(2026, 6, 15, 14, 12, 0, 0, time.UTC)
 
-// fakeReplayer serves one file for every request, or fails with err.
-type fakeReplayer struct {
+// fakeRetriever serves one file for every request, or fails with err.
+type fakeRetriever struct {
 	dir      string
 	err      error
 	openErr  error
@@ -38,52 +39,52 @@ type fakeReplayer struct {
 	calls    int
 }
 
-func (f *fakeReplayer) media(kind, contentType, name string, start time.Time) (replay.Media, error) {
+func (f *fakeRetriever) media(kind, contentType, name string, start time.Time) (retrieve.Media, error) {
 	f.calls++
 	if f.err != nil {
-		return replay.Media{}, f.err
+		return retrieve.Media{}, f.err
 	}
 	path := filepath.Join(f.dir, name)
 	if err := os.WriteFile(path, []byte(kind+" bytes"), 0o600); err != nil {
-		return replay.Media{}, err
+		return retrieve.Media{}, err
 	}
-	return replay.Media{
+	return retrieve.Media{
 		Result: model.MediaResult{
 			RecordingID: testRecordingID, SensorID: "cam-1", MediaType: kind, ContentType: contentType,
-			RequestedStartTS: start, StartTS: replayStart.Add(1500 * time.Millisecond), ExpiryTS: time.Now().Add(10 * time.Minute),
+			RequestedStartTS: start, StartTS: retrieveStart.Add(1500 * time.Millisecond), ExpiryTS: time.Now().Add(10 * time.Minute),
 		},
 		Name: name, Path: path, ExactMatch: f.exact,
 	}, nil
 }
 
-func (f *fakeReplayer) Frame(_ context.Context, _ string, ts time.Time, format, _ string) (replay.Media, error) {
+func (f *fakeRetriever) Frame(_ context.Context, _ string, ts time.Time, format, _ string) (retrieve.Media, error) {
 	return f.media("frame", "image/"+format, "frame-1500000000."+format, ts)
 }
 
-func (f *fakeReplayer) Clip(_ context.Context, _ string, start time.Time, duration time.Duration, _ string) (replay.Media, error) {
+func (f *fakeRetriever) Clip(_ context.Context, _ string, start time.Time, duration time.Duration, _ string) (retrieve.Media, error) {
 	f.duration = duration
 	return f.media("clip", "video/mp4", "clip-1500000000-3000000000.mp4", start)
 }
 
-func (f *fakeReplayer) OpenMedia(_ context.Context, _, name string) (*os.File, replay.MediaFile, error) {
+func (f *fakeRetriever) OpenMedia(_ context.Context, _, name string) (*os.File, retrieve.MediaFile, error) {
 	if f.err != nil {
-		return nil, replay.MediaFile{}, f.err
+		return nil, retrieve.MediaFile{}, f.err
 	}
 	if f.openErr != nil {
-		return nil, replay.MediaFile{}, f.openErr
+		return nil, retrieve.MediaFile{}, f.openErr
 	}
 	file, err := os.Open(filepath.Join(f.dir, filepath.Base(name)))
 	if err != nil {
-		return nil, replay.MediaFile{}, replay.ErrMediaNotFound
+		return nil, retrieve.MediaFile{}, retrieve.ErrMediaNotFound
 	}
 	contentType := map[string]string{".jpeg": "image/jpeg", ".png": "image/png", ".mp4": "video/mp4"}[filepath.Ext(name)]
-	return file, replay.MediaFile{ContentType: contentType, ExpiryTS: time.Now().Add(10 * time.Minute)}, nil
+	return file, retrieve.MediaFile{ContentType: contentType, ExpiryTS: time.Now().Add(10 * time.Minute)}, nil
 }
 
-func replayRouter(f *fakeReplayer) *gin.Engine {
+func retrieveRouter(f *fakeRetriever) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	h := ReplayHandler{Replays: f}
+	h := RetrieveHandler{Retrievals: f}
 	requireID := common.RequireID("recording-id", "recording_not_found", "recording not found")
 	group := router.Group("/v1/replays/:recording-id", requireID)
 	group.GET("/frame", h.Frame)
@@ -116,7 +117,7 @@ func errorCode(t *testing.T, rec *httptest.ResponseRecorder) string {
 	return body.ErrorCode
 }
 
-func TestReplayNegotiation(t *testing.T) {
+func TestRetrieveNegotiation(t *testing.T) {
 	frame := "/v1/replays/" + testRecordingID + "/frame?timestamp=2026-06-15T14:12:01.5Z"
 	clip := "/v1/replays/" + testRecordingID + "/clip?start_ts=2026-06-15T14:12:01.5Z&duration=1.5"
 	cases := []struct {
@@ -141,8 +142,8 @@ func TestReplayNegotiation(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			f := &fakeReplayer{dir: t.TempDir()}
-			rec := get(replayRouter(f), tc.target, tc.accept)
+			f := &fakeRetriever{dir: t.TempDir()}
+			rec := get(retrieveRouter(f), tc.target, tc.accept)
 			if rec.Code != tc.status {
 				t.Fatalf("status %d, want %d: %s", rec.Code, tc.status, rec.Body)
 			}
@@ -156,7 +157,7 @@ func TestReplayNegotiation(t *testing.T) {
 				t.Fatalf("Content-Type %q, want %q", got, tc.contentType)
 			}
 			if rec.Header().Get("X-Frame-Timestamp") != "2026-06-15T14:12:01.5Z" || rec.Header().Get("X-Exact-Match") != "false" {
-				t.Fatalf("unexpected replay headers %v", rec.Header())
+				t.Fatalf("unexpected retrieve headers %v", rec.Header())
 			}
 			if tc.contentType == "application/json" {
 				var result model.MediaResult
@@ -175,7 +176,7 @@ func TestReplayNegotiation(t *testing.T) {
 	}
 }
 
-func TestReplayParameters(t *testing.T) {
+func TestRetrieveParameters(t *testing.T) {
 	base := "/v1/replays/" + testRecordingID
 	cases := []struct {
 		name, target, code string
@@ -196,35 +197,36 @@ func TestReplayParameters(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			f := &fakeReplayer{dir: t.TempDir()}
-			rec := get(replayRouter(f), tc.target, "")
+			f := &fakeRetriever{dir: t.TempDir()}
+			rec := get(retrieveRouter(f), tc.target, "")
 			if rec.Code != http.StatusBadRequest || errorCode(t, rec) != tc.code || f.calls != 0 {
 				t.Fatalf("got %d %s after %d extractions, want 400 %s", rec.Code, rec.Body, f.calls, tc.code)
 			}
 		})
 	}
 
-	f := &fakeReplayer{dir: t.TempDir()}
-	if rec := get(replayRouter(f), base+"/clip?start_ts=2026-06-15T14:12:01Z&duration=2.25", ""); rec.Code != http.StatusOK || f.duration != 2250*time.Millisecond {
+	f := &fakeRetriever{dir: t.TempDir()}
+	if rec := get(retrieveRouter(f), base+"/clip?start_ts=2026-06-15T14:12:01Z&duration=2.25", ""); rec.Code != http.StatusOK || f.duration != 2250*time.Millisecond {
 		t.Fatalf("duration parsed as %v (status %d)", f.duration, rec.Code)
 	}
 }
 
-func TestReplayErrors(t *testing.T) {
+func TestRetrieveErrors(t *testing.T) {
 	cases := []struct {
 		err    error
 		status int
 		code   string
 	}{
-		{replay.ErrNotFound, http.StatusNotFound, "recording_not_found"},
-		{replay.ErrNotCovered, http.StatusNotFound, "frame_not_found"},
-		{replay.ErrFrameNotFound, http.StatusNotFound, "frame_not_found"},
-		{fmt.Errorf("%w: no keyframe", replay.ErrBeyondSearchLimit), http.StatusNotFound, "frame_not_found"},
-		{replay.ErrMediaNotFound, http.StatusNotFound, "frame_not_found"},
-		{replay.ErrNotReady, http.StatusConflict, "record_not_ready"},
-		{replay.ErrBusy, http.StatusTooManyRequests, "capacity_exhausted"},
-		{replay.ErrInvalidRequest, http.StatusBadRequest, "invalid_request"},
-		{fmt.Errorf("%w: FFmpeg: exit status 1: /secret/path", replay.ErrExtraction), http.StatusServiceUnavailable, "storage_unavailable"},
+		{retrieve.ErrNotFound, http.StatusNotFound, "recording_not_found"},
+		{retrieve.ErrNotCovered, http.StatusNotFound, "frame_not_found"},
+		{retrieve.ErrFrameNotFound, http.StatusNotFound, "frame_not_found"},
+		{fmt.Errorf("%w: no keyframe", retrieve.ErrBeyondSearchLimit), http.StatusNotFound, "frame_not_found"},
+		{retrieve.ErrMediaNotFound, http.StatusNotFound, "frame_not_found"},
+		{retrieve.ErrNotReady, http.StatusConflict, "record_not_ready"},
+		{retrieve.ErrBusy, http.StatusTooManyRequests, "capacity_exhausted"},
+		{retrieve.ErrInvalidRequest, http.StatusBadRequest, "invalid_request"},
+		{storage.ErrStorageFull, http.StatusInsufficientStorage, "storage_full"},
+		{fmt.Errorf("%w: FFmpeg: exit status 1: /secret/path", retrieve.ErrExtraction), http.StatusServiceUnavailable, "storage_unavailable"},:microservices/stream-manager/internal/api/handler/retrieve_test.go
 		{fmt.Errorf("disk on fire"), http.StatusInternalServerError, "internal_error"},
 	}
 	targets := []string{
@@ -237,7 +239,7 @@ func TestReplayErrors(t *testing.T) {
 	for _, tc := range cases {
 		for _, target := range targets {
 			t.Run(tc.code+" "+strings.Split(target, "?")[0], func(t *testing.T) {
-				rec := get(replayRouter(&fakeReplayer{dir: t.TempDir(), err: tc.err}), target, "")
+				rec := get(retrieveRouter(&fakeRetriever{dir: t.TempDir(), err: tc.err}), target, "")
 				code := tc.code
 				if code == "frame_not_found" && strings.Contains(target, "/clip") {
 					code = "clip_not_found"
@@ -245,7 +247,7 @@ func TestReplayErrors(t *testing.T) {
 				if rec.Code != tc.status || errorCode(t, rec) != code {
 					t.Fatalf("got %d %s, want %d %s", rec.Code, rec.Body, tc.status, code)
 				}
-				if tc.err == replay.ErrNotCovered {
+				if tc.err == retrieve.ErrNotCovered {
 					detail := "the requested time is not covered by the record"
 					if code == "clip_not_found" {
 						detail = "the requested interval is not covered by the record"
@@ -254,11 +256,11 @@ func TestReplayErrors(t *testing.T) {
 						t.Fatalf("got %s, want detail %q", rec.Body, detail)
 					}
 				}
-				if tc.err == replay.ErrFrameNotFound && code == "clip_not_found" &&
+				if tc.err == retrieve.ErrFrameNotFound && code == "clip_not_found" &&
 					strings.Contains(rec.Body.String(), "frame") {
 					t.Fatalf("clip error mentions a frame: %s", rec.Body)
 				}
-				if errors.Is(tc.err, replay.ErrBeyondSearchLimit) && !strings.Contains(rec.Body.String(), "within 5 minutes") {
+				if errors.Is(tc.err, retrieve.ErrBeyondSearchLimit) && !strings.Contains(rec.Body.String(), "within 5 minutes") {
 					t.Fatalf("got %s, want the 5 minute search limit in the detail", rec.Body)
 				}
 				if strings.Contains(rec.Body.String(), "secret") || strings.Contains(rec.Body.String(), "FFmpeg") {
@@ -270,17 +272,17 @@ func TestReplayErrors(t *testing.T) {
 }
 
 func TestClipBinaryMediaError(t *testing.T) {
-	f := &fakeReplayer{dir: t.TempDir(), openErr: replay.ErrMediaNotFound}
+	f := &fakeRetriever{dir: t.TempDir(), openErr: retrieve.ErrMediaNotFound}
 	target := "/v1/replays/" + testRecordingID + "/clip?start_ts=2026-06-15T14:12:01Z&duration=1"
-	rec := get(replayRouter(f), target, "video/mp4")
+	rec := get(retrieveRouter(f), target, "video/mp4")
 	if rec.Code != http.StatusNotFound || errorCode(t, rec) != "clip_not_found" {
 		t.Fatalf("got %d %s, want 404 clip_not_found", rec.Code, rec.Body)
 	}
 }
 
 func TestMediaRoute(t *testing.T) {
-	f := &fakeReplayer{dir: t.TempDir(), exact: true}
-	router := replayRouter(f)
+	f := &fakeRetriever{dir: t.TempDir(), exact: true}
+	router := retrieveRouter(f)
 	rec := get(router, "/v1/replays/"+testRecordingID+"/clip/url?start_ts=2026-06-15T14:12:01.5Z&duration=1.5", "")
 	if rec.Header().Get("X-Exact-Match") != "true" {
 		t.Fatalf("X-Exact-Match %q, want true", rec.Header().Get("X-Exact-Match"))

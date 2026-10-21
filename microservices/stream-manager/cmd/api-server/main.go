@@ -17,7 +17,7 @@ import (
 	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/api"
 	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/config"
 	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/record"
-	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/replay"
+	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/retrieve"
 	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/storage"
 	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/stream"
 )
@@ -69,13 +69,13 @@ func run() (errResult error) {
 		return err
 	}
 	defer func() { errResult = errors.Join(errResult, recordings.Close()) }()
-	replays, err := replay.NewService(metadata, media)
+	retrievals, err := retrieve.NewService(metadata, media, cfg.DerivedMediaTTLPeriod())
 	if err != nil {
 		return err
 	}
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           api.NewRouter(buffers, recordings, replays, Version, BuildNumber, BuildDate),
+		Handler:           api.NewRouter(buffers, recordings, retrievals, Version, BuildNumber, BuildDate),
 		ReadHeaderTimeout: readHeaderTimeout,
 		ReadTimeout:       readTimeout,
 		WriteTimeout:      writeTimeout,
