@@ -12,7 +12,7 @@ export const CATEGORY_INFO: Record<
   image_segmentation: {
     label: "Image Segmentation",
     description:
-      "Image segmentation provides pixel-level boundaries (polygons) for individual objects to capture their exact shape.",
+      "Instance segmentation provides pixel-level boundaries (polygons) for individual objects to capture their exact shape.",
   },
   pose_estimation: {
     label: "Pose Estimation",
@@ -22,7 +22,7 @@ export const CATEGORY_INFO: Record<
   image_classification: {
     label: "Image Classification",
     description:
-      "Pose estimation locates keypoints (joints) on individual subjects to capture their skeletal structure and posture.",
+      "Image classification assigns an image to one or more categories based on its visual content, without locating specific objects.",
   },
   vision_language_models: {
     label: "Vision Language Models (VLMs)",

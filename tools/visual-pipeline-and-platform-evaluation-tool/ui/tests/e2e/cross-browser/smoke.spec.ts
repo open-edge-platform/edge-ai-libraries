@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { mockDemoApi } from "../fixtures/demo-api";
 
 /**
  * Cross-browser smoke suite.
@@ -20,6 +21,7 @@ test.describe("Cross-browser smoke", () => {
   });
 
   test("demo mode renders on every supported browser", async ({ page }) => {
+    await mockDemoApi(page);
     await page.goto("/demo");
 
     await expect(

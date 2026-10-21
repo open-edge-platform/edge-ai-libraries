@@ -17,7 +17,7 @@ debian_15_install_libze1 () {
   configure_libze1 "$@"
 
   if ensure_apt_is_installed libze1=$version && [[ " $* " != *" --reinstall "* ]]; then
-    echo "libze1 is already installed. Skipping..."
+    echo "libze1 is installed." >&2
   else
     local deb="/tmp/$(basename "$libze1_deb")"
     ensure_fetch "$libze1_deb" "$deb" && {

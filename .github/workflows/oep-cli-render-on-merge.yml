@@ -24,6 +24,7 @@ on:
       - 'frameworks/oep-installer-cli/common/**'
       - 'frameworks/oep-installer-cli/license/**'
       - 'frameworks/oep-installer-cli/module/**'
+      - 'frameworks/oep-installer-cli/package/**'
       - 'frameworks/oep-installer-cli/profile/**'
       - '.github/workflows/oep-cli-render-on-merge.yml'
       # NOTE: rendered/** is intentionally NOT listed. The bot pushes its own
@@ -73,11 +74,12 @@ jobs:
           persist-credentials: true
           token: ${{ secrets.SIV_USER_TOKEN_GH }}
 
-      - name: Regenerate installer
+      - name: Regenerate installers
         working-directory: frameworks/oep-installer-cli
         run: |
           set -euo pipefail
-          ./openedge-cli bootstrap
+          ./openedge-cli bootstrap --family=debian --output rendered/openedge-cli
+          ./openedge-cli bootstrap --family=fedora --output rendered/openedge-cli-fedora
 
       - name: Commit and push if the rendered installer changed
         working-directory: frameworks/oep-installer-cli
@@ -86,18 +88,19 @@ jobs:
         run: |
           set -euo pipefail
 
-          if git diff --quiet -- rendered/openedge-cli; then
-            echo "::notice::rendered/openedge-cli already up to date — nothing to commit."
-            exit 0
-          fi
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           # -f is required: rendered/.gitignore contains "*", which would otherwise
           # block staging the (already tracked) rendered artifact.
-          git add -f rendered/openedge-cli
-          git commit -m "chore(oep-cli): regenerate rendered/openedge-cli"
+          git add -f rendered/openedge-cli rendered/openedge-cli-fedora
+
+          if git diff --cached --quiet -- rendered/openedge-cli rendered/openedge-cli-fedora; then
+            echo "::notice::rendered already up to date — nothing to commit."
+            exit 0
+          fi
+
+          git commit -m "chore(oep-cli): regenerate rendered"
           git push origin "HEAD:${BRANCH}"
 
-          echo "::notice::Pushed regenerated rendered/openedge-cli to ${BRANCH}."
+          echo "::notice::Pushed regenerated rendered to ${BRANCH}."
