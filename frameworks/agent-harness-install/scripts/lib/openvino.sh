@@ -191,6 +191,16 @@ OVMS config.json registration -- add a model_config_list entry for base_path
   for hf_var in HF_TOKEN HUGGINGFACEHUB_API_TOKEN; do
     [[ -z "${!hf_var:-}" ]] || proxy_args+=(-e "$hf_var")
   done
+  # Models from the Hugging Face "OpenVINO" org are already converted and
+  # quantized; OVMS rejects --weight-format for them ("unsupported for
+  # OpenVINO models"), so it is only passed for models it must convert.
+  local -a weight_args=()
+  case "$hf_model_id" in
+    [Oo][Pp][Ee][Nn][Vv][Ii][Nn][Oo]/*)
+      [[ " $HARNESS_MODEL_OPTS_GIVEN " != *" precision "* ]] \
+        || warn "--model-precision is ignored for ${hf_model_id}: it is already quantized." ;;
+    *) weight_args=(--weight-format "$HARNESS_MODEL_PRECISION") ;;
+  esac
   # shellcheck disable=SC2086
   if ! spin "Pulling+converting ${hf_model_id} via ${pull_image} (--pull, target: ${target_device})" \
     docker run --rm -u "$(id -u):$(id -g)" \
@@ -200,7 +210,7 @@ OVMS config.json registration -- add a model_config_list entry for base_path
       "$pull_image" --pull \
       --source_model "$hf_model_id" --model_name "$model_name" \
       --model_repository_path /models --task text_generation \
-      --weight-format "$HARNESS_MODEL_PRECISION" --target_device "$target_device"; then
+      ${weight_args[@]+"${weight_args[@]}"} --target_device "$target_device"; then
     rm -rf -- "$out_dir" "${HARNESS_MODELS_DIR:?}/${hf_model_id:?}"
     error "Pulling/converting ${hf_model_id} via ${pull_image} failed. Check network
 access to huggingface.co, and that '${pull_image}' is a published tag
@@ -290,11 +300,14 @@ HARNESS_ALLOW_UNVERIFIED_OVMS_EXPORTER=1 to accept the risk)."
   # proxy work, not just parse — installed alongside regardless of whether a
   # proxy is configured, since it's a small, side-effect-free addition.
   spin "Installing export_model.py's dependencies" pip install --quiet -r "$requirements_file" "httpx[socks]"
+  # Pre-converted models from the "OpenVINO" org reject --weight-format.
+  local -a weight_args=(--weight-format "$HARNESS_MODEL_PRECISION")
+  case "$hf_model_id" in [Oo][Pp][Ee][Nn][Vv][Ii][Nn][Oo]/*) weight_args=() ;; esac
   if ! spin "Exporting ${hf_model_id} to OpenVINO IR + OVMS graph" \
     python3 "$exporter" text_generation \
       --source_model "$hf_model_id" \
       --model_name "$model_name" \
-      --weight-format int8 \
+      ${weight_args[@]+"${weight_args[@]}"} \
       --config_file_path "${HARNESS_MODELS_DIR}/config.json" \
       --model_repository_path "$HARNESS_MODELS_DIR"; then
     # Remove a partial out_dir so a retry doesn't see it and skip export
@@ -462,10 +475,10 @@ Unset HARNESS_OVMS_EXPORTER (or set it to model-download), or drop --model-hub."
   local applies_to
   for opt in $HARNESS_MODEL_OPTS_GIVEN; do
     case "${opt}:${HARNESS_OVMS_EXPORTER}" in
-      *:model-download | precision:docker-pull | revision:hf-snapshot) continue ;;
+      *:model-download | precision:docker-pull | precision:export-model-py | revision:hf-snapshot) continue ;;
     esac
     case "$opt" in
-      precision) applies_to="model-download and docker-pull" ;;
+      precision) applies_to="model-download, docker-pull and export-model-py" ;;
       revision) applies_to="model-download and hf-snapshot" ;;
       *) applies_to="model-download" ;;
     esac

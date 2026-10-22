@@ -38,10 +38,20 @@ corruption or an unexpected response (HTML error page, redirect, etc)."
 fetch_and_verify() {
   local url="$1" dest="$2" label="$3" expected_sha256="${4:-}"
   [[ "$url" == https://* ]] || error "$label URL must use https://: $url"
+  local curl_rc=0
   curl -fsSL --proto '=https' --proto-redir '=https' \
     --retry 3 --retry-delay 2 --retry-all-errors \
-    "$url" -o "$dest" \
-    || error "Failed to download $label from $url after retries"
+    "$url" -o "$dest" || curl_rc=$?
+  # curl exits: 35 SSL connect, 51/60 peer cert, 58/59/77 local cert/cipher/CA file, 82/83 CRL/issuer.
+  case "$curl_rc" in
+    0) ;;
+    35 | 51 | 58 | 59 | 60 | 77 | 82 | 83)
+      error "Failed to download $label from $url: TLS certificate not trusted by this host (curl exit ${curl_rc}).
+Behind a TLS-inspecting proxy, install its root CA (copy the .crt to
+/usr/local/share/ca-certificates/ and run 'sudo update-ca-certificates'), or
+point curl at a bundle with CURL_CA_BUNDLE=/path/to/ca.pem." ;;
+    *) error "Failed to download $label from $url after retries (curl exit ${curl_rc})" ;;
+  esac
   [[ -s "$dest" ]] || error "$label download is empty or missing: $url"
   local actual_sha256
   actual_sha256="$(sha256_of "$dest")"
