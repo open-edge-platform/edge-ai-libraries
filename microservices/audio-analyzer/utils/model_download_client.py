@@ -48,14 +48,14 @@ def get_model_from_service(
     model: str,
     revision: str | None = None,
     *,
-    hub: str = "modelscope",
+    hub: str = "huggingface",
     download_path: str = "funasr",
     files: list[str] | None = None,
     required_files: list[str] | None = None,
     hf_token: str | None = None,
     models_base_path: str | None = None,
 ) -> str:
-    if hub not in {"modelscope", "huggingface"}:
+    if hub != "huggingface":
         raise ValueError(f"Unsupported model source: {hub}")
     if not _MODEL_ID.fullmatch(model):
         raise ValueError(f"Invalid {hub} model identifier: {model!r}")

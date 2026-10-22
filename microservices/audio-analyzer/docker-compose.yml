@@ -75,9 +75,9 @@ services:
       context: ../model-download
       dockerfile: docker/Dockerfile
     image: model-download:local
-    command: --plugins huggingface,modelscope
+    command: --plugins huggingface
     environment:
-      ENABLED_PLUGINS: huggingface,modelscope
+      ENABLED_PLUGINS: huggingface
       MODEL_PATH: /opt/models
       HF_TOKEN: ${HF_TOKEN:-}
     volumes:

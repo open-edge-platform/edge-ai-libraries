@@ -19,24 +19,24 @@ JOB_ID = "e8f1892a-8c08-401f-a37a-d48957f206c1"
 
 
 class ModelDownloadClientTests(unittest.TestCase):
-    def test_requests_modelscope_and_loads_shared_snapshot(self):
+    def test_requests_huggingface_and_loads_shared_snapshot(self):
         from utils.model_download_client import get_model_from_service
 
         with tempfile.TemporaryDirectory() as base:
-            model_dir = Path(base) / "funasr" / "modelscope" / "iic_example"
+            model_dir = Path(base) / "funasr" / "huggingface" / "funasr_paraformer-zh"
             model_dir.mkdir(parents=True)
             (model_dir / "configuration.json").write_text("{}", encoding="utf-8")
             with patch.dict(os.environ, {"AUDIO_ANALYZER_MODEL_DOWNLOAD_URL": "http://model-downloader:8000"}), \
                  patch("utils.model_download_client.config.models.asr.models_base_path", base), \
                  patch("utils.model_download_client._request_json", side_effect=[
                      {"job_ids": [JOB_ID]},
-                     {"status": "completed", "result": {"source": "modelscope", "model_name": "iic/example"}},
+                     {"status": "completed", "result": {"source": "huggingface", "model_name": "funasr/paraformer-zh"}},
                  ]) as request:
-                self.assertEqual(get_model_from_service("iic/example", "v2.0.4"), str(model_dir))
+                self.assertEqual(get_model_from_service("funasr/paraformer-zh", "commit"), str(model_dir))
             self.assertIn("download_path=funasr", request.call_args_list[0].args[0])
             self.assertEqual(
                 request.call_args_list[0].args[1],
-                {"models": [{"name": "iic/example", "hub": "modelscope", "revision": "v2.0.4"}]},
+                {"models": [{"name": "funasr/paraformer-zh", "hub": "huggingface", "revision": "commit"}]},
             )
 
     def test_fails_without_service_or_shared_snapshot(self):
@@ -50,10 +50,16 @@ class ModelDownloadClientTests(unittest.TestCase):
              patch("utils.model_download_client.config.models.asr.models_base_path", base), \
              patch("utils.model_download_client._request_json", side_effect=[
                  {"job_ids": [JOB_ID]},
-                 {"status": "completed", "result": {"source": "modelscope", "model_name": "iic/example"}},
+                 {"status": "completed", "result": {"source": "huggingface", "model_name": "funasr/paraformer-zh"}},
              ]):
             with self.assertRaisesRegex(RuntimeError, "shared models volume"):
-                get_model_from_service("iic/example", "v2.0.4")
+                get_model_from_service("funasr/paraformer-zh", "commit")
+
+    def test_rejects_removed_modelscope_hub(self):
+        from utils.model_download_client import get_model_from_service
+
+        with self.assertRaisesRegex(ValueError, "Unsupported model source"):
+            get_model_from_service("funasr/paraformer-zh", hub="modelscope")
 
     def test_rejects_bad_model_id_and_failed_job(self):
         from utils.model_download_client import get_model_from_service
@@ -69,6 +75,33 @@ class ModelDownloadClientTests(unittest.TestCase):
 
 
 class ParaformerProviderTests(unittest.TestCase):
+    def test_transcription_requests_token_and_sentence_timestamps(self):
+        import components.asr.funasr.paraformer as pf
+
+        provider = object.__new__(pf.Paraformer)
+        provider.language = "zh"
+        provider.model = MagicMock()
+        provider.model.generate.return_value = [{
+            "text": "test",
+            "sentence_info": [{"start": 100, "end": 900, "text": "test"}],
+        }]
+        result = provider.transcribe("recording.wav")
+        provider.model.generate.assert_called_once_with(
+            input="recording.wav", pred_timestamp=True,
+            sentence_timestamp=True, batch_size_s=300,
+        )
+        self.assertEqual(result["segments"], [{"start": 0.1, "end": 0.9, "text": "test"}])
+
+    def test_transcription_errors_are_not_returned_as_empty_success(self):
+        import components.asr.funasr.paraformer as pf
+
+        provider = object.__new__(pf.Paraformer)
+        provider.language = "zh"
+        provider.model = MagicMock()
+        provider.model.generate.side_effect = KeyError("timestamp")
+        with self.assertRaises(KeyError):
+            provider.transcribe("recording.wav")
+
     def test_module_imports_without_funasr(self):
         # The whole point of the lazy import: this must not require funasr.
         import components.asr.funasr.paraformer as pf
@@ -89,10 +122,42 @@ class ParaformerProviderTests(unittest.TestCase):
              patch.object(pf, "get_model_from_service", side_effect=["asr", "vad", "punc"]) as download:
             pf.Paraformer("paraformer-zh")
         self.assertEqual(download.call_count, 3)
-        self.assertEqual(download.call_args_list[0].args, (pf.FUNASR_MODEL_MAP["paraformer-zh"], "v2.0.4"))
-        self.assertEqual(download.call_args_list[1].args, (pf.VAD_MODEL, "v2.0.4"))
-        self.assertEqual(download.call_args_list[2].args, (pf.PUNC_MODEL, "v2.0.4"))
-        fake_funasr.AutoModel.assert_called_once()
+        self.assertEqual(download.call_args_list[0].args, ("funasr/paraformer-zh", pf._MODEL_REVISIONS["funasr/paraformer-zh"]))
+        self.assertEqual(download.call_args_list[1].args, ("funasr/fsmn-vad", pf._MODEL_REVISIONS["funasr/fsmn-vad"]))
+        self.assertEqual(download.call_args_list[2].args, ("funasr/ct-punc", pf._MODEL_REVISIONS["funasr/ct-punc"]))
+        for call in download.call_args_list:
+            self.assertEqual(call.kwargs, {
+                "hub": "huggingface", "required_files": ["config.yaml", "model.pt"],
+            })
+        fake_funasr.AutoModel.assert_called_once_with(
+            model="asr", vad_model="vad", punc_model="punc",
+            device="cpu", disable_update=True,
+        )
+
+    def test_revision_override_only_changes_asr_snapshot(self):
+        import components.asr.funasr.paraformer as pf
+
+        fake_funasr = types.ModuleType("funasr")
+        fake_funasr.AutoModel = MagicMock()
+        with patch.dict(sys.modules, {"funasr": fake_funasr}), \
+             patch.object(pf, "get_model_from_service", return_value="local") as download:
+            pf.Paraformer("paraformer-zh", revision="custom-commit")
+        self.assertEqual(download.call_args_list[0].args[1], "custom-commit")
+        self.assertEqual(download.call_args_list[1].args[1], pf._MODEL_REVISIONS[pf.VAD_MODEL])
+        self.assertEqual(download.call_args_list[2].args[1], pf._MODEL_REVISIONS[pf.PUNC_MODEL])
+
+    def test_custom_companions_do_not_inherit_default_repository_revisions(self):
+        import components.asr.funasr.paraformer as pf
+
+        fake_funasr = types.ModuleType("funasr")
+        fake_funasr.AutoModel = MagicMock()
+        with patch.dict(sys.modules, {"funasr": fake_funasr}), \
+             patch.object(pf, "VAD_MODEL", "custom/vad"), \
+             patch.object(pf, "PUNC_MODEL", "custom/punc"), \
+             patch.object(pf, "get_model_from_service", return_value="local") as download:
+            pf.Paraformer("paraformer-zh")
+        self.assertEqual(download.call_args_list[1].args, ("custom/vad", None))
+        self.assertEqual(download.call_args_list[2].args, ("custom/punc", None))
 
     def test_invalid_model_name_raises_value_error(self):
         import components.asr.funasr.paraformer as pf

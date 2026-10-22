@@ -1,13 +1,13 @@
 # Get Started
 
-The Model Download is a microservice that downloads models from multiple hubs as follows: Hugging Face, ModelScope, official OpenAI Whisper checkpoints, Ollama, Geti™ software, Ultralytics, Pipeline Zoo Models, Open Model Zoo (OMZ), remote URL, and HLS. It supports conversion to OpenVINO™ model server format for Hugging Face models, supports uploading custom model ZIP artifacts, and exposes a RESTful API for managing model downloads, uploads, and conversions.
+The Model Download is a microservice that downloads models from multiple hubs as follows: Hugging Face, Ollama, Geti™ software, Ultralytics, Pipeline Zoo Models, Open Model Zoo (OMZ), remote URL, and HLS. It supports conversion to OpenVINO™ model server format for Hugging Face models, supports uploading custom model ZIP artifacts, and exposes a RESTful API for managing model downloads, uploads, and conversions.
 
 > [!NOTE]
 > Model Download replaces Model Registry, which will be deprecated soon. See [Migrate from Model Registry to Model Download](./get-started/migration.md) for the migration guidelines.
 
 ## Features
 
-- Downloads models from Hugging Face, ModelScope, official OpenAI Whisper checkpoints, Ollama, Geti software, Ultralytics, Pipeline Zoo Models, Open Model Zoo (OMZ), remote URL, and HLS hubs
+- Downloads models from Hugging Face, Ollama, Geti software, Ultralytics, Pipeline Zoo Models, Open Model Zoo (OMZ), remote URL, and HLS hubs
 - Lists available models from supported hubs before download
 - Converts Hugging Face models to OpenVINO model server format
 - Supports multiple model precisions (INT4, INT8, FP16, and FP32)
@@ -756,7 +756,6 @@ Hubs that support multiple precisions append a `<precision>/` subdirectory. Hubs
 | Hub | Path layout | Example |
 |-----|------------|---------|
 | `huggingface` | `<download_path>/<hub>/<model_name>` | `models/huggingface/microsoft_Phi-3.5-mini-instruct` |
-| `modelscope` | `<download_path>/<hub>/<model_name>` | `models/funasr/modelscope/iic_speech_fsmn_vad_zh-cn-16k-common-pytorch` |
 | `ollama` | `<download_path>/<hub>/<model_name>` | `models/ollama/tinyllama` |
 | `ultralytics` | `<download_path>/<hub>/<model_name>/<precision>/` | `models/ultralytics/yolov8s/FP16/` |
 | `openvino` | `<download_path>/<hub>/<model_name>/<precision>/` | `models/openvino/BAAI-bge-reranker-base/fp32/` |
