@@ -24,14 +24,14 @@ export const proximityTriggerConfig: NodeConfig = {
       key: "class-b",
       label: "Class B",
       type: "text",
-      defaultValue: "",
+      defaultValue: "bicycle",
       description: "Second object class label to monitor (e.g. 'bicycle')",
     },
     {
       key: "distance",
       label: "Distance",
       type: "text",
-      defaultValue: "1500",
+      defaultValue: "1350",
       description:
         "Maximum center-to-center distance in pixels to consider the two objects as being in proximity",
     },

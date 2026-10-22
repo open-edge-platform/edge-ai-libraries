@@ -226,6 +226,7 @@ const PipelineEditorContent = forwardRef<
     useEffect(() => {
       if (!hasInitialized) {
         if (initialNodes && initialEdges) {
+          hasRecenteredRef.current = true;
           setNodes(initialNodes);
           setEdges(initialEdges);
 

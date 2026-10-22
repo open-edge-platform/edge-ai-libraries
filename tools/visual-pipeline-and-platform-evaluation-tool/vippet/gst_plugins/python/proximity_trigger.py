@@ -95,7 +95,7 @@ class ProximityTrigger(GstBase.BaseTransform):
         blurb="Maximum center-to-center distance in pixels to trigger",
         minimum=1,
         maximum=10000,
-        default=30,
+        default=1350,
     )
     def distance(self):
         return self._distance
@@ -110,7 +110,7 @@ class ProximityTrigger(GstBase.BaseTransform):
         blurb="Number of consecutive frames proximity must hold before trigger",
         minimum=1,
         maximum=10000,
-        default=10,
+        default=2,
     )
     def frames(self):
         return self._frames

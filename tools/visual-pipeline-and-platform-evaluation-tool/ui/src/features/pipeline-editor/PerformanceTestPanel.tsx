@@ -60,6 +60,7 @@ type PerformanceTestPanelProps = {
   videoOutputEnabled?: boolean;
   enableLatencyMetrics?: boolean;
   enableMetadata?: boolean;
+  isVlmPipeline?: boolean;
   liveStreamUrl?: string | null;
   resultOverrides?: FrozenSnapshotOverrides | null;
   events?: PipelineEvent[];
@@ -73,6 +74,7 @@ const PerformanceTestPanel = ({
   videoOutputEnabled = false,
   enableLatencyMetrics = false,
   enableMetadata = true,
+  isVlmPipeline = false,
   liveStreamUrl,
   resultOverrides,
   events,
@@ -155,7 +157,7 @@ const PerformanceTestPanel = ({
     if (!wasRunning && isRunning) {
       startRecording();
       setFrozenMetadata(null);
-      setDisplayedEvents([]);
+      setDisplayedEvents(events?.length ? events : []);
     } else if (wasRunning && !isRunning) {
       freezeSnapshot(resultOverrides);
       setFrozenMetadata((prev) => {
@@ -169,6 +171,7 @@ const PerformanceTestPanel = ({
     startRecording,
     freezeSnapshot,
     resultOverrides,
+    events,
     metadataLines,
     metadataEntries,
   ]);
@@ -410,6 +413,8 @@ const PerformanceTestPanel = ({
               <LivePipelineEvents
                 events={displayedEvents}
                 isRunning={isRunning}
+                title={isVlmPipeline ? "Video captions" : "Live events"}
+                showTriggeredCount={!isVlmPipeline}
               />
             )}
           </TabsContent>

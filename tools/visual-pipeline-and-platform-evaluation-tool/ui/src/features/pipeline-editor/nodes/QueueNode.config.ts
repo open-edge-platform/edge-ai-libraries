@@ -40,8 +40,9 @@ export const queueConfig: NodeConfig = {
     {
       key: "flush-on-eos",
       label: "Flush on EOS",
-      type: "boolean",
-      defaultValue: false,
+      type: "select",
+      options: ["true", "false"],
+      defaultValue: "false",
       description:
         "Discard any remaining data in the queue when end-of-stream is received",
     },

@@ -3,30 +3,25 @@
 
 import { Badge } from "@/components/ui/badge";
 import type { PipelineEvent } from "@/api/api.generated";
+import { formatPosition } from "@/lib/timeUtils";
 
 const SOURCE_LABELS: Record<string, string> = {
   "proximity-trigger": "Trigger",
   vlm: "VLM",
 };
 
-const formatPosition = (event: PipelineEvent): string => {
-  if (event.pts_seconds != null) {
-    const total = Math.max(0, event.pts_seconds);
-    const minutes = Math.floor(total / 60);
-    const seconds = (total % 60).toFixed(1).padStart(4, "0");
-    return `${minutes}:${seconds}`;
-  }
-  return new Date(event.timestamp_ms).toLocaleTimeString();
-};
-
 type LivePipelineEventsProps = {
   events: PipelineEvent[];
   isRunning: boolean;
+  title: string;
+  showTriggeredCount: boolean;
 };
 
 export const LivePipelineEvents = ({
   events,
   isRunning,
+  title,
+  showTriggeredCount,
 }: LivePipelineEventsProps) => {
   const newestFirst = [...events].reverse();
   const triggeredCount = events.filter(
@@ -36,10 +31,12 @@ export const LivePipelineEvents = ({
   return (
     <div className="border bg-muted/30">
       <div className="flex items-center justify-between px-3 py-2 border-b">
-        <span className="text-sm font-medium">Live events</span>
-        <span className="text-xs text-muted-foreground">
-          Triggered events: {triggeredCount}
-        </span>
+        <span className="text-sm font-medium">{title}</span>
+        {showTriggeredCount && (
+          <span className="text-xs text-muted-foreground">
+            Triggered events: {triggeredCount}
+          </span>
+        )}
       </div>
       {newestFirst.length === 0 ? (
         <p className="px-3 py-2 text-sm text-muted-foreground">
