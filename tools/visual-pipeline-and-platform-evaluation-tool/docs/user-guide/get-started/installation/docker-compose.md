@@ -17,7 +17,8 @@ Before starting, ensure the following:
   [post-installation steps](https://docs.docker.com/engine/install/linux-postinstall/) to run Docker as a non-root user.
 
   > [!NOTE]
-  > Do not use Docker Desktop on Linux. It runs the Docker daemon inside a virtual machine that is not forwarding GPU device on Linux (yet).
+   > Do not use Docker Desktop on Linux. It runs the Docker daemon inside a virtual machine that is not forwarding GPU
+   > device on Linux (yet).
 
 - **Dependencies installed**:
   - **Make**: Standard build tool, typically provided by the `build-essential` (or equivalent) package on Linux.
@@ -50,23 +51,29 @@ For alternative ways to set up the sample application, refer to
    ```bash
    git clone -b main --sparse --filter=blob:none https://github.com/open-edge-platform/edge-ai-libraries.git
    cd edge-ai-libraries
-   git sparse-checkout set tools/visual-pipeline-and-platform-evaluation-tool microservices/sensor-manager
+   git sparse-checkout set tools/visual-pipeline-and-platform-evaluation-tool
    cd tools/visual-pipeline-and-platform-evaluation-tool
    ```
 
-1. Build the `sensor-manager` image and start the application:
+1. Pull the pre-built images and start the application:
 
    ```bash
-   make build-sensor-manager run
+   make run-prebuilt
    ```
 
-   These targets automatically:
+   This target automatically:
 
-   - run `setup_env.sh` to detect available hardware (CPU/GPU/NPU) and write `.env`,
-   - create the required directories under `shared/`,
-   - build the `sensor-manager` image locally from `microservices/sensor-manager` (it is not published),
-   - pull the pre-built images (`vippet-app`, `vippet-ui`, `model-download`,
-     `metrics-manager`, `mediamtx`) and start all services.
+   - runs `setup_env.sh` to detect available hardware (CPU/GPU/NPU) and write `.env`,
+   - creates the required directories under `shared/`,
+   - pulls the pre-built images (`vippet-app`, `vippet-ui`, `sensor-manager`, `model-download`,
+     `metrics-manager`, `mediamtx`) and starts all services.
+
+   On the `main` branch the images tagged `latest` are used; on a release branch, the images of that
+   release. To run a different published tag, for example a weekly build listed on
+   [Docker Hub](https://hub.docker.com/r/intel/vippet-app/tags), use `make run-prebuilt PREBUILT_TAG=<tag>`.
+
+   `make run-prebuilt` never builds images from source: if an image cannot be pulled, the command fails.
+   `make run` is the build-from-source path, see [Build from Source](./build-from-source.md).
 
 1. Verify that the application is running:
 

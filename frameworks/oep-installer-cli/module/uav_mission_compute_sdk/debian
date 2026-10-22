@@ -2,7 +2,7 @@
 configure_uav_mission_compute_sdk () {
   workspace="$(ensure_project_path)/uav-mission-compute-sdk"
   version="release-2026.2.0"
-  repository="https://github.com/open-edge-platform/edge-ai-suites.git"
+  repository="https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git"
   used_ports=(8086 3000 9090 9273)
 }
 
@@ -10,18 +10,18 @@ verify_uav_mission_compute_sdk () {
   [ -e "$workspace" ]
 }
 
-debian_85_profile_uav_mission_compute_sdk () {
-  echo "docker git curl make v4l_utils"
+debian_90_profile_uav_mission_compute_sdk () {
+  echo "docker_io git curl make v4l_utils edge_node_infrastructure_blueprint"
 }
 
-debian_85_install_uav_mission_compute_sdk () {
+debian_90_install_uav_mission_compute_sdk () {
   configure_uav_mission_compute_sdk
   if verify_uav_mission_compute_sdk && [[ " $* " != *" --reinstall "* ]]; then
-    echo "UAV mission compute sdk is already installed. Skipping..." 1>&2
+    echo "UAV mission compute sdk is installed." >&2
   else
-    ensure_ports_open "${used_ports[*]}" return 3
-    ensure_git_export "$workspace" "$version" "$repository" federal-and-aerospace-ai-suite/uav-mission-compute-sdk
-    cd "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk
+    ensure_ports_open install uav_mission_compute_sdk "${used_ports[@]}"
+    ensure_git_export "$workspace" "$version" "$repository" uav-mission-compute-sdk
+    cd "$workspace"/uav-mission-compute-sdk
     make init
     sed -i "s|^HOST_IP=.*$|HOST_IP=$(ensure_ip)|" .env
     make build
@@ -32,28 +32,42 @@ debian_85_install_uav_mission_compute_sdk () {
   [[ " $* " != *" --sim "* ]] || profile="sim-camera"
   [[ " $* " != *" --usb "* ]] || profile="usb-camera"
   [[ " $* " != *" --realsense "* ]] || profile="realsense-camera"
-  cd "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk
-  sed -i '/^PROFILE=/{d}' "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk/.env
-  echo "PROFILE=$profile" >> "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk/.env
+  cd "$workspace"/uav-mission-compute-sdk
+  sed -i '/^PROFILE=/{d}' "$workspace"/uav-mission-compute-sdk/.env
+  echo "PROFILE=$profile" >> "$workspace"/uav-mission-compute-sdk/.env
 
   echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT $installer_name start|remove"
 }
 
-debian_85_start_uav_mission_compute_sdk () {
-  ensure_ports_open "${used_ports[*]}" debian_85_stop_uav_mission_compute_sdk "$@"
+debian_90_start_uav_mission_compute_sdk () {
   configure_uav_mission_compute_sdk
-  cd "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk
+  ensure_ports_open start uav_mission_compute_sdk "${used_ports[@]}"
+  cd "$workspace"/uav-mission-compute-sdk
   . .env
   make up-$PROFILE
+
+  echo "@@HIGHLIGHT $installer_name remove"
 }
 
-debian_85_stop_uav_mission_compute_sdk () {
+debian_90_stop_uav_mission_compute_sdk () {
   configure_uav_mission_compute_sdk
-  cd "$workspace"/federal-and-aerospace-ai-suite/uav-mission-compute-sdk && make down || true
+  cd "$workspace"/uav-mission-compute-sdk && {
+    make down || true
+    docker volume rm -f uav-mission-compute-sdk_grafana-data uav-mission-compute-sdk_influxdb-data || true
+    docker volume prune -f
+  } || true
 }
 
-debian_85_remove_uav_mission_compute_sdk () {
-  debian_85_stop_uav_mission_compute_sdk "$@"
-  ensure_sudo rm -rf "$workspace"
+debian_90_remove_uav_mission_compute_sdk () {
+  configure_uav_mission_compute_sdk
+  local app_dir="$workspace"/uav-mission-compute-sdk
+  if [ -r "$app_dir/docker-compose.yml" ]; then
+    debian_90_stop_uav_mission_compute_sdk "$@"
+    # drop the stack's containers, volumes and images (not a system-wide prune)
+    (cd "$app_dir" && docker compose -f docker-compose.yml --profile sim-camera --profile usb-camera --profile observability \
+      down --remove-orphans --volumes --rmi all) || true
+  fi
+  ensure_rm "$workspace"
 }
 

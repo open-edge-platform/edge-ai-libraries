@@ -1,0 +1,760 @@
+{
+  "metadata": {
+    "skill_name": "audio-analyzer-user",
+    "skill_path": ".github/skills/audio-analyzer-user",
+    "executor_model": "claude-sonnet-5.5",
+    "analyzer_model": "<model-name>",
+    "timestamp": "2026-10-21T10:19:58Z",
+    "evals_run": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8
+    ],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 27.5,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Uses POST /v1/audio/transcriptions with file as the multipart field.",
+          "passed": true,
+          "evidence": "response.md: POST /v1/audio/transcriptions with -F file=@call_042.wav"
+        },
+        {
+          "text": "Uses port 8010 (not 8000 or 8080).",
+          "passed": true,
+          "evidence": "All URLs use http://127.0.0.1:8010"
+        },
+        {
+          "text": "Does not set stream=true since the user wants a single response.",
+          "passed": true,
+          "evidence": "'omit stream'; stream=true only mentioned as something to avoid"
+        },
+        {
+          "text": "Mentions the X-Session-ID response header.",
+          "passed": true,
+          "evidence": "response.md shows 'X-Session-ID: <generated-session-id>' and explains its use"
+        },
+        {
+          "text": "Shows a curl or client example with file=@call_042.wav.",
+          "passed": true,
+          "evidence": "curl --noproxy '*' -F file=@call_042.wav http://127.0.0.1:8010/v1/audio/transcriptions"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 31.1,
+        "tokens": 1083,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Sets base_url to http://127.0.0.1:8010/v1 (or equivalent host) with a placeholder api_key.",
+          "passed": true,
+          "evidence": "response.md: client = OpenAI(base_url=\"http://127.0.0.1:8010/v1\", api_key=\"not-used\")"
+        },
+        {
+          "text": "Uses model=\"whisper-1\" and stream=True in the SDK call.",
+          "passed": true,
+          "evidence": "Code snippet has model=\"whisper-1\" and stream=True in client.audio.transcriptions.create(...)"
+        },
+        {
+          "text": "Specifies response_format as json or verbose_json, not srt/vtt/text.",
+          "passed": true,
+          "evidence": "Snippet uses response_format=\"json\" with comment 'or verbose_json; NOT text/srt/vtt'; notes HTTP 400 for text/srt/vtt with streaming."
+        },
+        {
+          "text": "Describes handling transcript.text.delta and transcript.text.done events.",
+          "passed": true,
+          "evidence": "Event table and loop handle event.type == \"transcript.text.delta\" (print event.delta) and \"transcript.text.done\" (full_text = event.text)."
+        },
+        {
+          "text": "Mentions the [DONE] sentinel as the stream terminator.",
+          "passed": true,
+          "evidence": "Table row '[DONE] | Terminator; the SDK ends iteration for you' and note 'stop at that sentinel'."
+        }
+      ],
+      "notes": [
+        "Not run against a live service"
+      ]
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 23.8,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "States that stream=true requires response_format to be json or verbose_json.",
+          "passed": true,
+          "evidence": "\"stream=true only works with response_format=json or verbose_json.\""
+        },
+        {
+          "text": "States that srt, vtt, and text return HTTP 400 when combined with stream=true.",
+          "passed": true,
+          "evidence": "response.md: srt, vtt and text are only valid when stream is omitted or false, so the service rejects the combination with 400."
+        },
+        {
+          "text": "Offers switching response_format to json/verbose_json as the fix if streaming is required.",
+          "passed": true,
+          "evidence": "Keep stream=true with json or verbose_json and build the SRT on the client."
+        },
+        {
+          "text": "Alternatively offers dropping stream=true if srt output is required.",
+          "passed": true,
+          "evidence": "Subtitle file only: drop stream=true."
+        },
+        {
+          "text": "Does not suggest this is a bug to work around with retries.",
+          "passed": true,
+          "evidence": "Explained as a documented constraint; no retry or bug suggestion."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 28.2,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Corrects the assumption: the service does not capture the microphone itself; the client must capture and stream audio.",
+          "passed": true,
+          "evidence": "Transcript: 'No. The service never captures the microphone... Your app has to capture audio itself and stream it.'"
+        },
+        {
+          "text": "Specifies connecting to WS /v1/realtime with intent=transcription.",
+          "passed": true,
+          "evidence": "response.md: 'WS /v1/realtime?intent=transcription'"
+        },
+        {
+          "text": "States the audio must be base64-encoded PCM16, mono.",
+          "passed": true,
+          "evidence": "response.md: 'it must be base64 PCM16 mono in the JSON events.'"
+        },
+        {
+          "text": "Describes sending input_audio_buffer.append messages with the audio payload.",
+          "passed": true,
+          "evidence": "Table row: input_audio_buffer.append with {\"audio\": \"<base64 pcm16>\"}"
+        },
+        {
+          "text": "Mentions reacting to input_audio_buffer.speech_started/speech_stopped and the transcription delta/completed events.",
+          "passed": true,
+          "evidence": "Event table lists speech_started/speech_stopped, transcription.delta and .completed; the example client handles them."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "with-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 23.1,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Suggests lowering the VAD threshold via a session.update message for quiet audio.",
+          "passed": true,
+          "evidence": "Section 1 sends session.update with turn_detection threshold 0.005."
+        },
+        {
+          "text": "States the default threshold is normalized RMS (around 0.02), not a neural VAD probability.",
+          "passed": true,
+          "evidence": "'default threshold is 0.02, a normalized RMS in 0..1. It is not a neural VAD probability.'"
+        },
+        {
+          "text": "Checks that audio is actually PCM16 mono and matches the declared sample rate.",
+          "passed": true,
+          "evidence": "Section 2: base64 PCM16 little-endian mono; sample rate must match session (default 16000)."
+        },
+        {
+          "text": "Notes the service does not resample or transcode in the socket layer.",
+          "passed": true,
+          "evidence": "'The socket layer doesn't transcode' and 'the service doesn't fix it for you' (resampling)."
+        },
+        {
+          "text": "Mentions input_audio_buffer.commit as a way to force a transcript if VAD is the blocker, or disabling VAD entirely with turn_detection: null.",
+          "passed": true,
+          "evidence": "Section 3: session.update turn_detection null, then input_audio_buffer.commit."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "with-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 25.9,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "States that sentiment_summary appears in the transcript.text.done / .completed events or final JSON body only when the deployed service has sentiment enabled.",
+          "passed": true,
+          "evidence": "response.md: \"When enabled, `sentiment_summary` appears only in final events: `transcript.text.done` (SSE), the final JSON body, or `...completed` (realtime).\""
+        },
+        {
+          "text": "Clarifies that enabling sentiment is a deployment-time config setting (sentiment.enabled), not a per-request flag the client can set.",
+          "passed": true,
+          "evidence": "\"It is a deployment-time setting (`sentiment.enabled: true` in the service's `config.yaml`). There is no per-request flag.\""
+        },
+        {
+          "text": "Does not claim a request-level parameter can turn sentiment on if it is disabled server-side.",
+          "passed": true,
+          "evidence": "Explicitly says there is no per-request flag; request examples only pass response_format/session_id/stream."
+        },
+        {
+          "text": "Recommends checking with the deployment owner if sentiment fields are missing.",
+          "passed": true,
+          "evidence": "\"Confirm `sentiment.enabled: true` with the deployment owner. If it is off, `sentiment_summary` never appears.\""
+        },
+        {
+          "text": "Avoids conflating sentiment with the (unrelated) diarization feature.",
+          "passed": true,
+          "evidence": "No mention of diarization anywhere in response.md."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "with-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 18.4,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "States that the per-request device override only applies to POST /v1/audio/transcriptions (single-response and stream=true forms).",
+          "passed": true,
+          "evidence": "response.md: 'exists only on POST /v1/audio/transcriptions, in both its single-response form and its stream=true (SSE) form.'"
+        },
+        {
+          "text": "States that /v1/audio/transcriptions/stream always uses the service-configured device and ignores a per-request device field.",
+          "passed": true,
+          "evidence": "'always uses the service-configured ASR device. It accepts only file, session_id, language and temperature.' and 'Your value is not applied'."
+        },
+        {
+          "text": "Mentions the realtime WebSocket also always uses the service-configured device.",
+          "passed": true,
+          "evidence": "'The realtime WebSocket (/v1/realtime) behaves the same way.'"
+        },
+        {
+          "text": "Suggests switching to POST /v1/audio/transcriptions if per-request device selection is required.",
+          "passed": true,
+          "evidence": "'You need per-request device selection: use POST /v1/audio/transcriptions with -F device=GPU.'"
+        },
+        {
+          "text": "Does not claim this is a bug in the NDJSON endpoint.",
+          "passed": true,
+          "evidence": "Response presents it as unsupported/by-design behavior; never calls it a bug."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "with-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 25.3,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "States that session_id is validated to letters, digits, '-', and '_' only, with a maximum length (128 characters).",
+          "passed": true,
+          "evidence": "response.md: 'Allowed characters: letters, digits, -, _ ; Maximum length: 128 characters'"
+        },
+        {
+          "text": "Explains this validation exists specifically to prevent a client-supplied session_id from escaping the service's storage directory (path traversal / absolute-path injection).",
+          "passed": true,
+          "evidence": "'A session maps to storage/<session_id>/ ... so a client-supplied value can never resolve outside storage/ (path traversal).'"
+        },
+        {
+          "text": "States the connection is closed with code 1008 after an error event for an invalid session_id.",
+          "passed": true,
+          "evidence": "'The server sends a single error event ... and closes the socket with code 1008 (policy violation).'"
+        },
+        {
+          "text": "Recommends only reusing the exact session_id the server previously returned, or generating a new id that matches the allowed character set.",
+          "passed": true,
+          "evidence": "'reuse the exact session_id the server gave you ... Or generate your own id matching ^[A-Za-z0-9_-]{1,128}$ (for example a UUID).'"
+        },
+        {
+          "text": "Does not suggest URL-encoding the path traversal sequence as a workaround.",
+          "passed": true,
+          "evidence": "Says 'URL-encoding (%2F) will not help. The decoded value is validated.' - warns against it rather than suggesting it."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 34.6,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Uses POST /v1/audio/transcriptions with file as the multipart field.",
+          "passed": true,
+          "evidence": "curl -X POST http://localhost:8010/v1/audio/transcriptions -F \"file=@call_042.wav\""
+        },
+        {
+          "text": "Uses port 8010 (not 8000 or 8080).",
+          "passed": true,
+          "evidence": "All examples use localhost:8010"
+        },
+        {
+          "text": "Does not set stream=true since the user wants a single response.",
+          "passed": true,
+          "evidence": "No example sets stream; stream listed only as a form field with default false"
+        },
+        {
+          "text": "Mentions the X-Session-ID response header.",
+          "passed": true,
+          "evidence": "\"The header `X-Session-ID: <id>` is returned too\""
+        },
+        {
+          "text": "Shows a curl or client example with file=@call_042.wav.",
+          "passed": true,
+          "evidence": "-F \"file=@call_042.wav\" in curl examples"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 22.7,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Sets base_url to http://127.0.0.1:8010/v1 (or equivalent host) with a placeholder api_key.",
+          "passed": true,
+          "evidence": "base_url=\"http://<audio-analyzer-host>:<port>/v1\", api_key=\"not-needed\". Placeholder host/port, equivalent pattern but no concrete 8010 port."
+        },
+        {
+          "text": "Uses model=\"whisper-1\" and stream=True in the SDK call.",
+          "passed": true,
+          "evidence": "create(model=\"whisper-1\", file=f, response_format=\"json\", stream=True)"
+        },
+        {
+          "text": "Specifies response_format as json or verbose_json, not srt/vtt/text.",
+          "passed": true,
+          "evidence": "Code uses response_format=\"json\". The checklist also says json or text is OK and calls verbose_json unsupported, which is inaccurate, but the call itself is valid."
+        },
+        {
+          "text": "Describes handling transcript.text.delta and transcript.text.done events.",
+          "passed": true,
+          "evidence": "Loop handles event.type == \"transcript.text.delta\" (event.delta) and \"transcript.text.done\" (event.text)."
+        },
+        {
+          "text": "Mentions the [DONE] sentinel as the stream terminator.",
+          "passed": false,
+          "evidence": "No mention of [DONE] in response.md."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 24.9,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "States that stream=true requires response_format to be json or verbose_json.",
+          "passed": true,
+          "evidence": "\"the stream=true path only accepts json or verbose_json\""
+        },
+        {
+          "text": "States that srt, vtt, and text return HTTP 400 when combined with stream=true.",
+          "passed": false,
+          "evidence": "Only srt is stated to return 400. VTT is mentioned only as a plain-text document, and 'text' is never mentioned as rejected."
+        },
+        {
+          "text": "Offers switching response_format to json/verbose_json as the fix if streaming is required.",
+          "passed": true,
+          "evidence": "\"Use stream=true with response_format=json (or verbose_json) and read the SSE events.\""
+        },
+        {
+          "text": "Alternatively offers dropping stream=true if srt output is required.",
+          "passed": true,
+          "evidence": "\"For a real SRT file, send stream=false and response_format=srt\""
+        },
+        {
+          "text": "Does not suggest this is a bug to work around with retries.",
+          "passed": true,
+          "evidence": "Says the 400 is deliberate. The only 'retry' is after changing the request parameters."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 37.1,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Corrects the assumption: the service does not capture the microphone itself; the client must capture and stream audio.",
+          "passed": true,
+          "evidence": "response.md: \"No. The service never touches your machine's microphone. Your desktop app has to capture the audio itself and push it to the service over the WebSocket.\""
+        },
+        {
+          "text": "Specifies connecting to WS /v1/realtime with intent=transcription.",
+          "passed": true,
+          "evidence": "Endpoint: ws://<host>:8010/v1/realtime?intent=transcription[&language=en][&session_id=...]"
+        },
+        {
+          "text": "States the audio must be base64-encoded PCM16, mono.",
+          "passed": true,
+          "evidence": "\"Convert to mono, 16-bit little-endian PCM, 16 kHz by default... Only pcm16 is supported\"; chunks base64-encoded."
+        },
+        {
+          "text": "Describes sending input_audio_buffer.append messages with the audio payload.",
+          "passed": true,
+          "evidence": "{\"type\":\"input_audio_buffer.append\",\"audio\":\"<base64 pcm16>\"} plus Python example."
+        },
+        {
+          "text": "Mentions reacting to input_audio_buffer.speech_started/speech_stopped and the transcription delta/completed events.",
+          "passed": true,
+          "evidence": "Lists input_audio_buffer.speech_started / speech_stopped, conversation.item.input_audio_transcription.delta and .completed. The example code only handles completed, but the events are described."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 5,
+      "configuration": "without-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6,
+        "passed": 3,
+        "failed": 2,
+        "total": 5,
+        "time_seconds": 45.2,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Suggests lowering the VAD threshold via a session.update message for quiet audio.",
+          "passed": true,
+          "evidence": "\"Lower the VAD sensitivity... In `session.update`, look for `turn_detection` with `threshold`... Try a threshold of about 0.3 instead of 0.5.\""
+        },
+        {
+          "text": "States the default threshold is normalized RMS (around 0.02), not a neural VAD probability.",
+          "passed": false,
+          "evidence": "Response says VADs 'such as Silero or WebRTC style' have a probability or energy threshold and suggests 0.3 vs 0.5; no mention of normalized RMS ~0.02."
+        },
+        {
+          "text": "Checks that audio is actually PCM16 mono and matches the declared sample rate.",
+          "passed": true,
+          "evidence": "\"The server probably expects PCM16, mono, little-endian, at a fixed rate... If you send 44.1/48 kHz, float32, or stereo without declaring it...\""
+        },
+        {
+          "text": "Notes the service does not resample or transcode in the socket layer.",
+          "passed": false,
+          "evidence": "No statement that the service doesn't resample/transcode; it only says wrong format looks like silence to the VAD."
+        },
+        {
+          "text": "Mentions input_audio_buffer.commit as a way to force a transcript if VAD is the blocker, or disabling VAD entirely with turn_detection: null.",
+          "passed": true,
+          "evidence": "\"If `turn_detection` is null or 'none'... send `input_audio_buffer.commit` yourself\"; \"bypass VAD with manual commit.\""
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 6,
+      "configuration": "without-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 55.2,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "States that sentiment_summary appears in the transcript.text.done / .completed events or final JSON body only when the deployed service has sentiment enabled.",
+          "passed": true,
+          "evidence": "Says SSE transcript.text.done carries the summary, completed event has sentiment_summary, and 'If sentiment.enabled is false, neither sentiment nor sentiment_summary appears in the output.'"
+        },
+        {
+          "text": "Clarifies that enabling sentiment is a deployment-time config setting (sentiment.enabled), not a per-request flag.",
+          "passed": true,
+          "evidence": "'Enable sentiment (off by default)' in config.yaml, 'Restart the service'; notes no per-request chunk-size parameter exists."
+        },
+        {
+          "text": "Does not claim a request-level parameter can turn sentiment on if disabled server-side.",
+          "passed": true,
+          "evidence": "Only config-based enablement is described; request params are only file, language, session_id."
+        },
+        {
+          "text": "Recommends checking with the deployment owner if sentiment fields are missing.",
+          "passed": false,
+          "evidence": "Only says to check logs and that sentiment.enabled false hides fields; no suggestion to contact the deployment owner."
+        },
+        {
+          "text": "Avoids conflating sentiment with diarization.",
+          "passed": true,
+          "evidence": "No mention of diarization; sentiment treated separately."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 7,
+      "configuration": "without-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 21.5,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "States that the per-request device override only applies to POST /v1/audio/transcriptions (single-response and stream=true forms).",
+          "passed": true,
+          "evidence": "Says device works on POST /v1/audio/transcriptions, 'It also works with stream=true, which returns SSE'. Also mentions VSS /transcriptions accepts device but informational only."
+        },
+        {
+          "text": "States that /v1/audio/transcriptions/stream always uses the service-configured device and ignores a per-request device field.",
+          "passed": true,
+          "evidence": "'device=GPU is dropped without an error'; Pipeline 'falls back to config.models.asr.device, the service's configured ASR device.'"
+        },
+        {
+          "text": "Mentions the realtime WebSocket also always uses the service-configured device.",
+          "passed": false,
+          "evidence": "No mention of realtime/WebSocket in response.md or the final answer."
+        },
+        {
+          "text": "Suggests switching to POST /v1/audio/transcriptions if per-request device selection is required.",
+          "passed": true,
+          "evidence": "'Use /v1/audio/transcriptions with stream=true and device=GPU.'"
+        },
+        {
+          "text": "Does not claim this is a bug in the NDJSON endpoint.",
+          "passed": true,
+          "evidence": "Describes it as unsupported; option 3 offers adding the field as an enhancement, not calling it a bug."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 8,
+      "configuration": "without-skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 28.5,
+        "tokens": 0,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "States that session_id is validated to letters, digits, '-', and '_' only, with a maximum length (128 characters).",
+          "passed": true,
+          "evidence": "Response: 'The maximum length is 128 characters... Only A-Z a-z 0-9 - _ are allowed.'"
+        },
+        {
+          "text": "Explains this validation exists specifically to prevent a client-supplied session_id from escaping the service's storage directory (path traversal / absolute-path injection).",
+          "passed": true,
+          "evidence": "'session_id is used to build a path under STORAGE_ROOT... guards against path traversal and absolute paths.'"
+        },
+        {
+          "text": "States the connection is closed with code 1008 after an error event for an invalid session_id.",
+          "passed": true,
+          "evidence": "'sends an error event with type invalid_request_error, and closes the socket with code 1008'"
+        },
+        {
+          "text": "Recommends only reusing the exact session_id the server previously returned, or generating a new id that matches the allowed character set.",
+          "passed": true,
+          "evidence": "'Resume with the exact ID the server gave you earlier... If you supply your own ID, keep it within 128 characters of letters, digits, - and _.'"
+        },
+        {
+          "text": "Does not suggest URL-encoding the path traversal sequence as a workaround.",
+          "passed": true,
+          "evidence": "'URL-encoding does not help. The server decodes the value first and then validates it.'"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with-skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 25.4125,
+        "stddev": 3.8144,
+        "min": 18.4,
+        "max": 31.1
+      },
+      "tokens": {
+        "mean": 135.375,
+        "stddev": 382.8983,
+        "min": 0,
+        "max": 1083
+      }
+    },
+    "without-skill": {
+      "pass_rate": {
+        "mean": 0.85,
+        "stddev": 0.1414,
+        "min": 0.6,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 33.7125,
+        "stddev": 11.8393,
+        "min": 21.5,
+        "max": 55.2
+      },
+      "tokens": {
+        "mean": 0.0,
+        "stddev": 0.0,
+        "min": 0,
+        "max": 0
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.15",
+      "time_seconds": "-8.3",
+      "tokens": "+135"
+    }
+  },
+  "notes": []
+}

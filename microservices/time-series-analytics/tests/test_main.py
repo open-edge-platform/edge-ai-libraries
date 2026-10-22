@@ -82,6 +82,158 @@ def test_get_config(monkeypatch):
     assert "udfs" in resp.json()
     assert "alerts" in resp.json()
 
+@pytest.mark.parametrize("expected_task_id", [None, "udf_name"])
+def test_stop_pipeline_disables_only_configured_task(monkeypatch, expected_task_id):
+    monkeypatch.setattr(main, "KAPACITOR_URL", "http://kapacitor:9092")
+    disable_task = mock.Mock(return_value=mock.Mock(status_code=200))
+    monkeypatch.setattr(main.requests, "patch", disable_task)
+    monkeypatch.setattr(main, "stop_kapacitor_service", lambda: pytest.fail("Daemon must stay running"))
+
+    params = {"expected_task_id": expected_task_id} if expected_task_id else None
+    resp = client.post("/stop_pipeline", params=params)
+
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "success", "task_id": "udf_name"}
+    disable_task.assert_called_once_with(
+        "http://kapacitor:9092/kapacitor/v1/tasks/udf_name",
+        json={"status": "disabled"},
+        timeout=30,
+    )
+
+def test_stop_pipeline_quotes_task_id(monkeypatch):
+    task_id = "sensor/zone #1"
+    main.config["udfs"]["name"] = task_id
+    monkeypatch.setattr(main, "KAPACITOR_URL", "http://kapacitor:9092")
+    disable_task = mock.Mock(return_value=mock.Mock(status_code=200))
+    monkeypatch.setattr(main.requests, "patch", disable_task)
+
+    resp = client.post("/stop_pipeline", params={"expected_task_id": task_id})
+
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "success", "task_id": task_id}
+    disable_task.assert_called_once_with(
+        "http://kapacitor:9092/kapacitor/v1/tasks/sensor%2Fzone%20%231",
+        json={"status": "disabled"},
+        timeout=30,
+    )
+
+def test_stop_pipeline_without_configured_task(monkeypatch):
+    main.config["udfs"] = {}
+    disable_task = mock.Mock()
+    monkeypatch.setattr(main.requests, "patch", disable_task)
+
+    resp = client.post("/stop_pipeline")
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "No UDF task is configured"
+    disable_task.assert_not_called()
+
+def test_stop_pipeline_rejects_different_configured_task(monkeypatch):
+    disable_task = mock.Mock()
+    monkeypatch.setattr(main.requests, "patch", disable_task)
+
+    resp = client.post("/stop_pipeline", params={"expected_task_id": "other_task"})
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "Configured UDF task does not match the requested task"
+    disable_task.assert_not_called()
+
+def test_stop_pipeline_reports_kapacitor_failures(monkeypatch):
+    disable_task = mock.Mock(side_effect=main.requests.exceptions.ConnectionError("Connection refused"))
+    monkeypatch.setattr(main.requests, "patch", disable_task)
+
+    unavailable = client.post("/stop_pipeline")
+
+    assert unavailable.status_code == 503
+    assert unavailable.json()["detail"] == "Kapacitor is unavailable"
+
+    rejected_response = mock.Mock(status_code=404)
+    rejected_response.raise_for_status.side_effect = main.requests.exceptions.HTTPError(
+        response=rejected_response
+    )
+    disable_task.side_effect = None
+    disable_task.return_value = rejected_response
+
+    rejected = client.post("/stop_pipeline")
+
+    assert rejected.status_code == 502
+    assert rejected.json()["detail"] == "Kapacitor failed to disable the task: HTTP 404"
+
+@pytest.mark.parametrize("task_status", ["enabled", "disabled"])
+@pytest.mark.parametrize("expected_task_id", [None, "udf_name"])
+def test_pipeline_status_reports_configured_task(monkeypatch, task_status, expected_task_id):
+    monkeypatch.setattr(main, "KAPACITOR_URL", "http://kapacitor:9092")
+    get_task = mock.Mock(return_value=mock.Mock(json=lambda: {"status": task_status}))
+    monkeypatch.setattr(main.requests, "get", get_task)
+
+    params = {"expected_task_id": expected_task_id} if expected_task_id else None
+    resp = client.get("/pipeline_status", params=params)
+
+    assert resp.status_code == 200
+    assert resp.json() == {"task_id": "udf_name", "status": task_status}
+    get_task.assert_called_once_with("http://kapacitor:9092/kapacitor/v1/tasks/udf_name", timeout=30)
+
+def test_pipeline_status_quotes_task_id(monkeypatch):
+    task_id = "sensor/zone #1"
+    main.config["udfs"]["name"] = task_id
+    monkeypatch.setattr(main, "KAPACITOR_URL", "http://kapacitor:9092")
+    get_task = mock.Mock(return_value=mock.Mock(json=lambda: {"status": "enabled"}))
+    monkeypatch.setattr(main.requests, "get", get_task)
+
+    resp = client.get("/pipeline_status", params={"expected_task_id": task_id})
+
+    assert resp.status_code == 200
+    assert resp.json() == {"task_id": task_id, "status": "enabled"}
+    get_task.assert_called_once_with(
+        "http://kapacitor:9092/kapacitor/v1/tasks/sensor%2Fzone%20%231", timeout=30,
+    )
+
+def test_pipeline_status_without_configured_task(monkeypatch):
+    main.config["udfs"] = {}
+    get_task = mock.Mock()
+    monkeypatch.setattr(main.requests, "get", get_task)
+
+    resp = client.get("/pipeline_status")
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "No UDF task is configured"
+    get_task.assert_not_called()
+
+def test_pipeline_status_rejects_different_configured_task(monkeypatch):
+    get_task = mock.Mock()
+    monkeypatch.setattr(main.requests, "get", get_task)
+
+    resp = client.get("/pipeline_status", params={"expected_task_id": "other_task"})
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "Configured UDF task does not match the requested task"
+    get_task.assert_not_called()
+
+def test_pipeline_status_reports_kapacitor_failures(monkeypatch):
+    get_task = mock.Mock(side_effect=main.requests.exceptions.ConnectionError("Connection refused"))
+    monkeypatch.setattr(main.requests, "get", get_task)
+
+    unavailable = client.get("/pipeline_status")
+
+    assert unavailable.status_code == 503
+    assert unavailable.json()["detail"] == "Kapacitor is unavailable"
+
+    rejected_response = mock.Mock(status_code=404)
+    rejected_response.raise_for_status.side_effect = main.requests.exceptions.HTTPError(
+        response=rejected_response
+    )
+    get_task.side_effect = None
+    get_task.return_value = rejected_response
+
+    rejected = client.get("/pipeline_status")
+
+    assert rejected.status_code == 502
+    assert rejected.json()["detail"] == "Kapacitor failed to retrieve the task: HTTP 404"
+def test_swagger_ui_hides_empty_select_option():
+    resp = client.get("/docs")
+    assert resp.status_code == 200
+    assert ".swagger-ui select option[value=''] { display: none; }" in resp.text
+
 def test_get_config_with_restart(monkeypatch):
     called = {}
     def fake_restart():

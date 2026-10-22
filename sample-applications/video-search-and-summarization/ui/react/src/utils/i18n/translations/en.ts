@@ -35,6 +35,12 @@ export const enTranslations = {
   searchImageDecodeError: 'Could not read the image. Please try a different file.',
   Queries: 'Previous Search Queries',
   queryDeleteLabel: 'Delete Query',
+  autoRefreshLabel: 'Auto-refresh this query',
+  autoRefreshEnabledHint: 'Auto-refresh on (checks every {{seconds}}s for newly indexed video)',
+  autoRefreshDisabledHint: 'Auto-refresh off',
+  autoRefreshUnavailable: 'Automatic refresh is disabled on this deployment',
+  autoRefreshLastUpdated: 'Updated {{time}}',
+  autoRefreshNeverUpdated: 'Not refreshed yet',
   queryDeleteSuccess: 'Query successfully deleted',
   searchNothingSelected: 'Create a search query',
   CreatingEmbeddings: 'Creating Embeddings',
@@ -257,4 +263,92 @@ export const enTranslations = {
   selectFromRecent: 'select from recent uploads',
   selectedVideo: 'Selected Video',
   uploadedOn: 'Uploaded on',
+
+  // Live (RTSP) stream ingestion. Namespaced under `liveStream*` / `stream*`
+  // to stay clear of the NVR camera-configuration keys above, which belong to
+  // a separate feature used by the Metro AI Suite deployment.
+  liveStreams: 'Live Streams',
+  liveStreamsDescription:
+    'Register RTSP cameras to continuously ingest and index live video for search.',
+  addStream: 'Add Stream',
+  editStream: 'Edit Stream',
+  deleteStream: 'Remove',
+  pauseStream: 'Pause',
+  resumeStream: 'Resume',
+  refreshStreams: 'Refresh streams',
+  loadingStreams: 'Loading live streams...',
+  noStreamsAvailable: 'No live streams registered',
+  noStreamsDescription: 'Add an RTSP camera to begin ingesting live video.',
+  noStreamsMatchFilter: 'No live streams match the current filter.',
+
+  optionalField: '(optional)',
+  requiredField: 'Required',
+
+  streamUrl: 'RTSP URL',
+  streamUrlPlaceholder: 'rtsp://camera-host:554/stream',
+  streamUrlHelp:
+    'Credentials in the URL are used to connect, then discarded from responses and logs.',
+  streamUrlInfo:
+    'The address of the camera feed, for example rtsp://camera-host:554/stream. This is the only required field. If the camera needs a login, include it as rtsp://user:password@host:554/stream - the credentials are used to connect and are never shown again, logged, or saved with your search data.',
+  streamUrlImmutable: 'The RTSP URL cannot be changed. Remove the camera and add it again.',
+  streamUrlInvalid: 'Enter a URL starting with rtsp:// or rtsps://',
+  streamName: 'Name',
+  streamNamePlaceholder: 'lobby-cam',
+  streamNameInfo:
+    'A friendly label such as "lobby-cam", used to identify this camera in the list and alongside search results. Leave it blank and the camera URL is used instead.',
+  streamDescription: 'Description',
+  streamDescriptionInfo:
+    'Free-text notes about this camera, such as what it points at. Shown in the camera list to help you tell similar feeds apart. It does not affect search results.',
+  streamTags: 'Tags (separated by commas)',
+  streamTagsInfo:
+    'Labels such as "entrance, outdoor" that are attached to everything this camera records. You can then narrow a search to one area or group of cameras instead of searching the whole library.',
+  streamSensorId: 'Sensor ID',
+  streamSensorIdHelp: 'Correlates this camera with externally stored media.',
+  streamSensorIdInfo:
+    'An identifier you already use for this physical camera in another system. Providing it lets search results be matched back to recordings stored outside this application. Leave blank unless you need that link.',
+  frameInterval: 'Frame interval',
+  frameIntervalHelp: 'Embed every Nth frame. Higher values use fewer resources.',
+  frameIntervalInvalid: 'Enter an integer between 1 and 60.',
+  frameIntervalInfo:
+    'How often a frame is captured and indexed - one frame out of every N. A lower value indexes more moments, so brief events are less likely to be missed, but it uses more CPU and storage. A higher value is cheaper but can skip short events.',
+  enableDetection: 'Enable object detection',
+  enableDetectionInfo:
+    'Finds objects such as people and vehicles in each frame and indexes them separately. This makes searches for a specific object more accurate, especially when it is small or in a busy scene. It costs extra processing, so turn it off for high camera counts.',
+  detectionConfidence: 'Detection confidence',
+  detectionConfidenceInvalid: 'Enter a value between 0.1 and 1.0.',
+  detectionConfidenceInfo:
+    'How certain the detector must be before an object is indexed. Lower values catch more objects but add false matches to your search results; higher values index only confident detections and may miss some.',
+  startImmediately: 'Start ingesting immediately',
+  startImmediatelyInfo:
+    'Begin recording and indexing as soon as the camera is added. Clear this to register the camera in a paused state and start it later from the camera list.',
+
+  streamStatePending: 'Pending',
+  streamStateStarting: 'Starting',
+  streamStateRunning: 'Running',
+  streamStatePaused: 'Paused',
+  streamStateReconnecting: 'Reconnecting',
+  streamStateError: 'Failed',
+  streamStateStopped: 'Stopped',
+
+  framesProcessed: 'frames',
+  embeddingsCreated: 'embeddings',
+  uptime: 'Uptime',
+  reconnects: 'reconnects',
+  filterByState: 'Filter by state',
+  filterByTag: 'Filter by tag',
+  allStates: 'All states',
+
+  streamCreateSuccess: 'Live stream registered',
+  streamCreateFailed: 'Failed to register the live stream',
+  streamUpdateSuccess: 'Live stream updated',
+  streamUpdateFailed: 'Failed to update the live stream',
+  streamDeleteSuccess: 'Live stream removed',
+  streamDeleteFailed: 'Failed to remove the live stream',
+  streamLimitReached:
+    'The maximum number of concurrent live streams is already running. Pause or remove one first.',
+  confirmDeleteStream: 'Remove this camera?',
+  confirmDeleteStreamBody:
+    'Ingestion stops and the camera is deregistered. Footage already captured stays searchable.',
+  purgeStreamData: 'Also delete captured footage and embeddings',
+  purgeStreamDataWarning: 'This cannot be undone.',
 };

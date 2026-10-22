@@ -6,14 +6,15 @@ app:
 
 models:
   asr:
-    provider: openvino # openai | openvino | whispercpp
-    name: whisper-small  # whisper-tiny | whisper-base | whisper-small | whisper-medium | whisper-large
+    provider: openvino  # openai | openvino | whispercpp | funasr
+    name: whisper-small # whisper-tiny|base|small|medium|large (whisper providers); paraformer-zh|paraformer-en|paraformer-online (funasr)
                         # whisper-small OpenVINO IR (INT8) converted to models/openvino/whisper-small-int8/
                         # Use whisper-base on CPU/NPU; whisper-small on GPU for better accuracy.
                         # OpenVINO GPU target: <300ms for typical 1-2s kiosk commands.
-    device: CPU # openai: CPU only; openvino: CPU | GPU | NPU; whispercpp: CPU only
+    device: CPU # CPU | GPU | NPU for openvino; CPU only for openai/whispercpp/funasr
                 # Change to GPU or NPU for hardware-accelerated inference.
-    weight_format: int8 # OpenVINO: int8 | fp16 | null; int8 for whisper-small-int8 OV model
+    weight_format: int8 # OpenVINO: int8 | fp16 | null; int8 for whisper-small-int8 OV model.
+                        # whispercpp: null | q5 | q5_0 | q5_1 | q8 | q8_0 | int5 | int8
     temperature: 0.0
     diarization: True        # set True to enable pyannote speaker diarization
                               # REQUIRES: accept ALL THREE gated model licences
@@ -26,6 +27,18 @@ models:
                               # The audio-analyzer service reads HF_TOKEN env var automatically
                               # when hf_token is null. See docker-compose.yml audio-analyzer.environment.
     models_base_path: "models"
+    # Language: Whisper providers are multilingual — pass `language` per request
+    # (e.g. "en" or "zh"). For dedicated high-accuracy Chinese/English use the
+    # funasr provider with name: paraformer-zh | paraformer-en. FunASR needs the
+    # optional deps: pip install -r requirements-cjk.txt (or build --build-arg
+    # INSTALL_CJK=true). model_hub selects the download source for funasr models.
+    model_hub: modelscope  # modelscope | huggingface — used only by the funasr provider
+
+    # FunASR companion models for VAD (voice activity detection) and punctuation
+    # restoration, shared across Paraformer variants. Defaults are the canonical
+    # iic/ models; override to pin a different model. Used only by the funasr provider.
+    vad_model: iic/speech_fsmn_vad_zh-cn-16k-common-pytorch
+    punc_model: iic/punc_ct-transformer_zh-cn-common-vocab272727-pytorch
 
     # Preview pool override (see ASRComponent's "two independent model-instance
     # pools" docstring in components/asr_component.py): non-destructive

@@ -4,7 +4,7 @@
 
 """Generate (or verify) the committed OpenAPI specification.
 
-The specification under ``docs/user-guide/api-docs/openapi.yaml`` is generated from
+The specification under ``docs/user-guide/_assets/openapi.yaml`` is generated from
 the FastAPI application and must never be hand-edited.
 
 Usage::
@@ -23,7 +23,7 @@ from pathlib import Path
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SPEC_PATH = REPO_ROOT / "docs" / "user-guide" / "api-docs" / "openapi.yaml"
+SPEC_PATH = REPO_ROOT / "docs" / "user-guide" / "_assets" / "openapi.yaml"
 
 
 def render_spec() -> str:
