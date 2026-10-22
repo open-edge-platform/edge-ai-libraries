@@ -1,9 +1,55 @@
 # Audio Analyzer Image Optimization Log
 
-**Status:** Candidate under evaluation — not yet wired into `docker-compose.yml`.
+**Status:** Promoted to production. After cross-machine CPU/GPU/NPU validation
+(see §0), the mentor approved switching the default build away from the
+DLStreamer-based image to the Ubuntu 24.04 image described in this log.
+`docker/Dockerfile` is now the Ubuntu-based build; the former DLStreamer-based
+`docker/Dockerfile` content and the separate `docker/Dockerfile.ubuntu` file it
+was developed/tested in have been consolidated into a single file.
 **Scope:** Review points #1–#12 raised by reviewer Yogesh on the Audio Analyzer
 microservice. This log records what was measured, what changed, what passed,
 and what remains open, for a future presentation and for mentor review.
+
+## 0. Production promotion (this session)
+
+`docker-compose.yml` now builds `docker/Dockerfile` (the former
+`docker/Dockerfile.ubuntu`) with:
+
+- `IMAGE_VARIANT=full` (default) — preserves every ASR provider/feature the
+  prior single-`requirements.txt` DLStreamer image always shipped (openai,
+  whispercpp, diarization, sentiment), so no functionality is silently
+  removed from existing deployments. `IMAGE_VARIANT=slim` remains available
+  as an explicit opt-in for a smaller, default-ASR-only image.
+- `INSTALL_GPU_NPU_RUNTIME=true` (default) — preserves GPU/NPU support,
+  matching `docker-compose.yml`'s existing (and unchanged) `/dev/dri`,
+  `/dev/accel/accel0`, and `group_add` wiring, which previously relied on
+  the DLStreamer base image's bundled GPU/NPU userspace libraries.
+- `INSTALL_CJK=false` (default, unchanged) — optional FunASR Paraformer
+  provider, same flag/behavior as the prior Dockerfile.
+
+This exact `IMAGE_VARIANT=full` + `INSTALL_GPU_NPU_RUNTIME=true` combination
+had **not** been built or tested together before this session (prior sessions
+tested `full` CPU-only and `slim`+GPU/NPU separately). It was built and
+validated end-to-end before promotion:
+
+| Check | Result |
+|---|---|
+| Clean `docker compose build --no-cache` | ✅ Success, image `intel/audio-analyzer:2026.2.0`, **3.58 GB** (vs. 8.18 GB original DLStreamer baseline, −56.2%) |
+| CPU default transcription (via `docker compose up`) | ✅ `device=CPU`, correct transcript, non-root (`uid=1000`, groups include `video`/render GID) |
+| GPU transcription (`models.asr.device: GPU`) | ✅ `device=GPU`, correct transcript, no fallback/errors |
+| NPU transcription (`models.asr.device: NPU`, `ACCEL_MOUNT_PATH` set) | ✅ `device=NPU`, correct transcript, no fallback/errors |
+| `INSTALL_CJK=true` build | ✅ Builds successfully; `import funasr` succeeds inside the image (3.71 GB with CJK added) |
+| Non-root execution | ✅ `uid=1000(ubuntu)`, unchanged from the candidate Dockerfile |
+
+The separate `docker-compose.ubuntu.yml` used earlier in this effort for
+slim/full/GPU-NPU side-by-side variant testing has been **removed**: once
+`docker-compose.yml` itself builds the same Ubuntu-based `docker/Dockerfile`
+(default `IMAGE_VARIANT=full`, `INSTALL_GPU_NPU_RUNTIME=true`), it no longer
+added capability production doesn't already have — keeping a second compose
+file around would only risk drifting out of sync with `docker-compose.yml`.
+Variant testing (e.g. `IMAGE_VARIANT=slim`) can still be done against the
+single `docker-compose.yml` by overriding the build-arg env vars, or via a
+direct `docker build -f docker/Dockerfile --build-arg ...` (see §7.5).
 
 All sizes below are from `docker images` (decimal GB, uncompressed layer
 sizes as reported by the local Docker daemon) measured on the same host on
@@ -23,17 +69,21 @@ this host.
 | `HF_TOKEN` no longer baked into image as `ENV`/build-arg | `docker/Dockerfile`, `Dockerfile` | Done (prior session) |
 | Removed unused `psutil` dependency | `requirements.txt` | Done (this session) |
 | Lazy-import ASR backend classes (enabler for slim image) | `components/asr_component.py` | Done (this session) |
-| New Ubuntu 24.04 multi-stage candidate Dockerfile, `slim`/`full` variants via `ARG IMAGE_VARIANT` | `docker/Dockerfile.ubuntu` (new) | Done, built & tested this session |
+| New Ubuntu 24.04 multi-stage Dockerfile, `slim`/`full` variants via `ARG IMAGE_VARIANT` | `docker/Dockerfile.ubuntu` (developed/tested as a candidate), later merged into `docker/Dockerfile` as the production image | Done, built & tested; **promoted to production** (see §0) |
 | Split dependency files: slim core vs. full-only additions | `requirements-slim.txt`, `requirements-optional.txt` (new) | Done, verified `slim ∪ optional == requirements.txt` package set |
 | Fixed missing `ca-certificates` in Ubuntu runtime stage (HTTPS model download/export failed without it) | `docker/Dockerfile.ubuntu` | Found + fixed this session |
 | Fixed `--extra-index-url` (PyTorch CPU wheels) not carrying over to the second `pip install` call for `requirements-optional.txt` | `requirements-optional.txt` | Found + fixed this session |
 | Non-reproducible deps / HTTP 200-on-failure / ignored `device`/`model_name` / `clear_storage_on_startup` default | see points #9–#12 below | Done (prior session), re-verified this session |
 
-The production `Dockerfile` / `docker/Dockerfile` (DLStreamer-based) and
-`docker-compose.yml` are **unchanged this session** and still build/deploy
-exactly as before. `docker/Dockerfile.ubuntu` is a new, separate file; it is
-not referenced by `docker-compose.yml` and must be opted into explicitly via
-`-f docker/Dockerfile.ubuntu`.
+**Update (production promotion):** after mentor approval following
+cross-machine CPU/GPU/NPU validation (§0), `docker/Dockerfile` now **is**
+the former `docker/Dockerfile.ubuntu` content (the DLStreamer-based
+Dockerfile it replaced is deleted, not kept alongside it — per point #7,
+"keep one Dockerfile"). `docker-compose.yml`'s build `args:` were updated to
+default `IMAGE_VARIANT=full` and `INSTALL_GPU_NPU_RUNTIME=true`, preserving
+the full feature/device set the prior DLStreamer image always shipped.
+The separate `docker-compose.ubuntu.yml` used earlier for side-by-side
+variant testing has been removed as redundant (see §0 note above).
 
 ---
 
@@ -43,11 +93,11 @@ not referenced by `docker-compose.yml` and must be opted into explicitly via
 |---|---|---|---|
 | 1 | Remove unimported packages (ultralytics/polars/opencv/torchvision/onnx/pydub/nncf) | Confirmed `psutil` unused; `ultralytics`/`polars`/`opencv-python`/`torchvision`/`pydub` were **not** present in `requirements.txt` to begin with (already removed in a prior session per "[Done]" marker on point #7 context) — `onnx`/`nncf` **are** genuinely needed (optimum-intel OpenVINO export path), not removed | Done / re-confirmed |
 | 2 | Drop `triton` (893 MB) | `triton` uninstalled post-install in both DLStreamer (prior session) and the new Ubuntu Dockerfile (`pip uninstall -y triton \|\| true`, confirmed absent from final image this session) | Done |
-| 3 | Don't use DLStreamer base image | New `docker/Dockerfile.ubuntu` candidate built on `ubuntu:24.04`, no GStreamer/librealsense/rdkafka, single pip-installed OpenVINO version only | Done (candidate, not yet production) |
-| 4 | Ship slim + full image | `ARG IMAGE_VARIANT=slim\|full` implemented and both built/measured this session | Done (candidate) |
-| 5 | Multi-stage build + pruning | Builder stage produces a venv; runtime stage copies only `/opt/venv` + app code; test dirs pruned (bounded `-maxdepth 2`); `pip`/`setuptools`/`wheel` removed from final venv | Done (candidate), empirically verified no regressions |
+| 3 | Don't use DLStreamer base image | `docker/Dockerfile` (formerly `docker/Dockerfile.ubuntu`) built on `ubuntu:24.04`, no GStreamer/librealsense/rdkafka, single pip-installed OpenVINO version only | **Done — production** (promoted after mentor-approved cross-machine validation, §0) |
+| 4 | Ship slim + full image | `ARG IMAGE_VARIANT=slim\|full` implemented and both built/measured; production defaults to `full` to preserve prior always-on feature set | **Done — production** (`slim` available as explicit opt-in) |
+| 5 | Multi-stage build + pruning | Builder stage produces a venv; runtime stage copies only `/opt/venv` + app code; test dirs pruned (bounded `-maxdepth 2`); `pip`/`setuptools`/`wheel` removed from final venv | **Done — production**, empirically verified no regressions |
 | 6 | Extend `.dockerignore` | Already extended in a prior session (tests/docs/compose files excluded) | Done (prior session) |
-| 7 | Fix masked pip failure, keep one Dockerfile | Fixed in `docker/Dockerfile` (parentheses around install+uninstall); root `Dockerfile` and `docker/Dockerfile` kept in sync (confirmed identical via diff) | Done |
+| 7 | Fix masked pip failure, keep one Dockerfile | Fixed in `docker/Dockerfile` (parentheses around install+uninstall); historically a root-level `Dockerfile` was kept in sync with `docker/Dockerfile` (confirmed identical via diff) — the root `Dockerfile` has since been removed entirely and `docker/Dockerfile` is now the single production Dockerfile (§0) | Done |
 | 8 | `HF_TOKEN` not baked into image | Removed from build args/ENV; runtime-only env var now | Done, verified via `docker history` (no token string present) |
 | 9 | Non-reproducible deps / Python version mismatch | Confirmed; direct deps pinned in `requirements.txt`/`requirements-lock.txt`, indirect deps pinned via freeze-based `requirements-lock.txt` but **no hash verification** (`pip-compile --generate-hashes` previously timed out) | Partially addressed — documented limitation, not full hash-based reproducibility |
 | 10 | Failed transcription returns HTTP 200 | Fixed: induced GPU-unavailable failure now returns **HTTP 500** with `status: "failed"` body (verified via live curl test, see §7) | Done, verified end-to-end |
@@ -159,6 +209,14 @@ docker run --rm --entrypoint bash <image> -c \
 | **Ubuntu 24.04 slim-CPU, reverified fresh build (follow-up session)** | `audio-analyzer:ubuntu-slim-cpu-v3` | `ubuntu:24.04` | `IMAGE_VARIANT=slim` | **2.65 GB** | **−67.6%** |
 | **Ubuntu 24.04 slim + GPU/NPU, reverified fresh build (follow-up session)** | `audio-analyzer:ubuntu-slim-gpu-npu-v3` | `ubuntu:24.04` | `IMAGE_VARIANT=slim`, `INSTALL_GPU_NPU_RUNTIME=true` | **3.31 GB** | **−59.5%** |
 | ~~Ubuntu 24.04 minimal-CPU (follow-up session, pre-exported model, no export toolchain)~~ | `audio-analyzer:ubuntu-minimal-cpu` | `ubuntu:24.04` | `--target runtime-minimal` | 2.09 GB | −74.4% *(measured, then removed — see §18)* |
+| **Ubuntu 24.04 full + GPU/NPU runtime (production promotion session) — this is the new production default** | `intel/audio-analyzer:2026.2.0` (built via `docker compose build`) | `ubuntu:24.04` | `IMAGE_VARIANT=full`, `INSTALL_GPU_NPU_RUNTIME=true` (both now `docker-compose.yml` defaults) | **3.58 GB** | **−56.2%** |
+| **Ubuntu 24.04 full + GPU/NPU runtime + CJK/FunASR (production promotion session, opt-in)** | `audio-analyzer:ubuntu-cjk-test` | `ubuntu:24.04` | `IMAGE_VARIANT=full`, `INSTALL_GPU_NPU_RUNTIME=true`, `INSTALL_CJK=true` | **3.71 GB** | **−54.6%** |
+
+**Note:** the full+GPU/NPU-runtime combination (3.58 GB) had not been built
+or measured together in any prior session — earlier rows tested `full`
+CPU-only (2.92 GB) and `slim`+GPU/NPU (3.31 GB) separately. It was built and
+validated end-to-end (CPU/GPU/NPU transcription, non-root, health) before
+being made the `docker-compose.yml` default; see §0.
 
 **Target assessment:** the slim-CPU candidate (2.65 GB) is slightly above
 the 2.5 GB upper bound of the requested 2–2.5 GB target, but within ~6% of
@@ -288,12 +346,12 @@ All commands below are run from `microservices/audio-analyzer/`.
 
 ```bash
 # ---- Build each variant ----
-docker build -f docker/Dockerfile.ubuntu -t audio-analyzer:ubuntu-slim-cpu .
-docker build -f docker/Dockerfile.ubuntu -t audio-analyzer:ubuntu-full-cpu \
+docker build -f docker/Dockerfile -t audio-analyzer:ubuntu-slim-cpu .
+docker build -f docker/Dockerfile -t audio-analyzer:ubuntu-full-cpu \
     --build-arg IMAGE_VARIANT=full .
-docker build -f docker/Dockerfile.ubuntu -t audio-analyzer:ubuntu-slim-gpu-npu \
+docker build -f docker/Dockerfile -t audio-analyzer:ubuntu-slim-gpu-npu \
     --build-arg INSTALL_GPU_NPU_RUNTIME=true .
-docker build -f docker/Dockerfile.ubuntu -t audio-analyzer:ubuntu-minimal-cpu \
+docker build -f docker/Dockerfile -t audio-analyzer:ubuntu-minimal-cpu \
     --target runtime-minimal .
 
 # ---- Check sizes ----
@@ -543,7 +601,7 @@ failure was recorded, so a defense-in-depth option was added.
 **Usage (only needed in networks where interception is consistent, not
 intermittent):**
 ```bash
-docker build -f docker/Dockerfile.ubuntu \
+docker build -f docker/Dockerfile \
   --secret id=corporate_ca,src=/path/to/corporate-ca.pem \
   --build-arg INSTALL_GPU_NPU_RUNTIME=true \
   -t audio-analyzer:ubuntu-slim-gpu-npu .

@@ -82,8 +82,10 @@ are not automatically injected into the container unless referenced there.
 To supply MinIO settings to the running container, either:
 
 - Edit the bind-mounted `config.yaml` directly (`minio.endpoint`,
-  `minio.access_key`, `minio.secret_key`, `minio.secure`) and
-  `docker compose restart audio-analyzer`; or
+  `minio.access_key`, `minio.secret_key`, `minio.secure`) and run
+  `docker compose up -d --force-recreate` (see the
+  [config.yaml reload note](./configuration.md#load-order) — `restart`
+  alone is not guaranteed to pick up the edit); or
 - Add the `AUDIO_ANALYZER__MINIO__*` variables under
   `services.audio-analyzer.environment` in `docker-compose.yml` so Compose
   passes them into the container.
@@ -178,8 +180,14 @@ docker compose logs -f audio-analyzer
 If you changed only `config.yaml`:
 
 ```bash
-docker compose restart audio-analyzer
+docker compose up -d --force-recreate
 ```
+
+`docker compose restart` is **not guaranteed** to pick up a `config.yaml`
+edit: Docker's single-file bind mount follows the file's inode, and most
+editors (and tools like `sed -i`) replace the file rather than writing it
+in place, leaving a plain `restart` serving the stale config. Use
+`--force-recreate` to be safe.
 
 To pull a newer release tag, edit `RELEASE_TAG` in `.env`, then:
 

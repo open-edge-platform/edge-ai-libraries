@@ -29,7 +29,7 @@
 #
 # NOTE: --extra-index-url is a per-invocation pip option, not inherited
 # across separate `pip install` calls. This file is installed via its own
-# `pip install -r requirements-optional.txt ...` step in Dockerfile.ubuntu
+# `pip install -r requirements-optional.txt ...` step in docker/Dockerfile
 # (after requirements-slim.txt), so the PyTorch CPU wheel index must be
 # repeated here too -- otherwise `torchaudio==2.8.0+cpu` resolves against
 # PyPI only, which does not host the `+cpu` local version, and pip fails
