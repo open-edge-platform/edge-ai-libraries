@@ -1800,7 +1800,7 @@ act_panelled_logs ()
         rest=${plainkey#"$key"};
         rest=${rest#"${rest%%[![:space:]]*}"};
         case ${key^^} in 
-            @@HINT)
+            @@STEP)
                 if [[ -z $rest ]]; then
                     _clear_step;
                 else
@@ -1808,7 +1808,7 @@ act_panelled_logs ()
                         _clear_step_rules;
                     else
                         if [[ $rest == '@@IF '*' @@THEN '* ]]; then
-                            _add_step_rule "${rest#@@IF }" || _push_log "${CURRENT:-general}" "invalid @@HINT rule: $rest";
+                            _add_step_rule "${rest#@@IF }" || _push_log "${CURRENT:-general}" "invalid @@STEP rule: $rest";
                             return;
                         else
                             _set_step "$rest";
@@ -1994,8 +1994,9 @@ act_resolve_args ()
 configure_anomalib () 
 { 
     workspace="$(ensure_project_path)/anomalib";
-    version=2.6.2;
-    repository=https://github.com/open-edge-platform/anomalib.git
+    version=2.7.0;
+    repository=https://github.com/open-edge-platform/anomalib.git;
+    skills=(anomalib-adding-a-datamodule anomalib-adding-a-model anomalib-tiled-ensemble anomalib-training anomalib-benchmarking)
 }
 configure_dlstreamer () 
 { 
@@ -2639,7 +2640,7 @@ ensure_skills ()
                 [ ! -e "$HOME"/.agents/skills/"${p##*/}" ] || ensure_rm "$HOME"/.agents/skills/"${p##*/}";
                 cp -r "$tmpdir/${p}" "$HOME"/.agents/skills;
             done;
-            ensure_tmpdir destory "$tmpdir";
+            ensure_tmpdir destroy "$tmpdir";
             for agent in .claude .cursor .copilot .codex;
             do
                 [ -d "$HOME/$agent/skills" ] || continue;
@@ -2653,7 +2654,6 @@ ensure_skills ()
             done
         ;;
         remove)
-            set -x;
             local name agent;
             for agent in .agents .claude .cursor .copilot .codex;
             do
@@ -3179,9 +3179,9 @@ fedora_70_install_openvino ()
     else
         ensure_disk_size 1500;
         ensure_prop set installed/openvino/owned true;
-        echo "@@HINT Removing openvino";
+        echo "@@STEP Removing openvino";
         fedora_70_remove_openvino "$@";
-        echo "@@HINT Installing openvino-$version";
+        echo "@@STEP Installing openvino-$version";
         printf "%s\n" "${yum_repo_conf[@]}" | ensure_sudo tee "$yum_repo_file";
         ensure_dnf install -y openvino-$version;
         verify_openvino;
@@ -3229,12 +3229,12 @@ fedora_75_install_dlstreamer ()
     else
         ensure_disk_size 15000;
         ensure_prop set installed/dlstreamer/owned true;
-        echo "@@HINT Removing intel-dlstreamer";
+        echo "@@STEP Removing intel-dlstreamer";
         fedora_75_remove_dlstreamer "$@";
         printf "%s\n" "${yum_repo_conf[@]}" | ensure_sudo tee "$yum_repo_file";
-        echo "@@HINT Installing intel-dlstreamer=$version";
+        echo "@@STEP Installing intel-dlstreamer=$version";
         ensure_dnf install -y intel-dlstreamer=$version;
-        echo "@@HINT Installing skills";
+        echo "@@STEP Installing skills";
         ensure_skills add "$version_skills" "$repository_skills" .github/skills/dlstreamer-coding-agent;
         verify_dlstreamer;
         echo "intel-dlstreamer=$version installed successfully.";
@@ -3271,11 +3271,14 @@ fedora_80_install_anomalib ()
         echo "Anomalib is installed." 1>&2;
     else
         ensure_disk_size 15000;
+        echo "@@STEP Installing anomalib=${version}";
         mkdir -p "$workspace";
         cd "$workspace";
         python3 -m venv .venv;
         . .venv/bin/activate;
         pip install "anomalib[openvino,cpu]==${version}";
+        echo "@@STEP Installing skills";
+        ensure_skills add tags/lib/v$version $repository "${skills[@]/#/.agents/skills/}";
         verify_anomalib;
     fi;
     test_anomalib "$@";
@@ -3288,7 +3291,8 @@ fedora_80_profile_anomalib ()
 fedora_80_remove_anomalib () 
 { 
     configure_anomalib $*;
-    ensure_rm "$workspace"
+    ensure_rm "$workspace";
+    ensure_skills remove "${skills[@]}"
 }
 fedora_90_install_geti () 
 { 
@@ -3825,6 +3829,7 @@ test_anomalib ()
         for device in ${!device_map[*]};
         do
             [ -e ${device_map[$device]} ] || continue;
+            echo "@@STEP Validating on $device";
             echo "Validating anomalib on device $device...";
             PYTHONWARNINGS=ignore python3 -c '
 import sys
@@ -3913,7 +3918,7 @@ test_dlstreamer_pipeline ()
     if [[ " $* " = *" --validate "* ]]; then
         mkdir -p "$workspace";
         cd "$workspace";
-        echo "@@HINT Downloading models";
+        echo "@@STEP Downloading models";
         { 
             mkdir -p models/${od_model%/*};
             [ -e models/$od_model.bin ] || ensure_fetch $model_repo/storage/$od_model.bin models/$od_model.bin || { 
@@ -3946,7 +3951,7 @@ test_dlstreamer_pipeline ()
         for device in ${!device_map[*]};
         do
             [ -e ${device_map[$device]} ] || continue;
-            echo "@@HINT Validating on $device";
+            echo "@@STEP Validating on $device";
             echo "Validating $od_model and $oc_model on device $device...";
             ( set -o pipefail;
             gst-launch-1.0 videotestsrc num-buffers=150 ! 'video/x-raw,format=BGRx,width=640,height=640' ! gvadetect model=models/$od_model.xml model_proc=models/$od_model.json device=$device ! gvainference model=models/$oc_model.xml device=$device ! gvafpscounter ! fakesink sync=false | ( info=0;
@@ -3969,7 +3974,7 @@ test_openvino ()
     if [[ " $* " = *" --validate "* ]]; then
         [ -r "$workspace"/${model##*/} ] || { 
             mkdir -p "$workspace";
-            echo "@@HINT Downloading ${model##*/}";
+            echo "@@STEP Downloading ${model##*/}";
             ensure_fetch "$model" "$workspace"/${model##*/} || { 
                 echo "Failed to fetch ${model##*/}" 1>&2;
                 return 3
@@ -3977,7 +3982,7 @@ test_openvino ()
         };
         local benchmark_app="$(find "$workspace" -type f -name benchmark_app -perm -u+x || true)";
         [ -x "$benchmark_app" ] || { 
-            echo "@@HINT Building benchmark_app";
+            echo "@@STEP Building benchmark_app";
             mkdir -p "$workspace"/benchmark_app;
             cd "$workspace"/benchmark_app;
             cmake -S /usr/share/openvino/samples/cpp -B . -DCMAKE_BUILD_TYPE=Release;
@@ -3993,7 +3998,7 @@ test_openvino ()
         for device in ${!device_map[*]};
         do
             [ -e ${device_map[$device]} ] || continue;
-            echo "@@HINT Validating on $device";
+            echo "@@STEP Validating on $device";
             echo "Validating ${model##*/} inferencing on $device...";
             "$benchmark_app" -t 5 -m "$workspace"/${model##*/} -d $device --cache_dir "$workspace"/cache && validated+=("$device ok") || validated+=("$device failed");
         done;
