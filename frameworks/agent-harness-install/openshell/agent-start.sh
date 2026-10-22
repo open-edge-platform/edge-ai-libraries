@@ -9,6 +9,7 @@ umask 077
 case "${HARNESS_AGENT:?Missing agent}" in
   openclaw)
     mkdir -p "$HOME/.openclaw"
+    # Preserve the gateway token and user configuration when the sandbox process restarts.
     if [[ ! -f "$HOME/.openclaw/openclaw.json" ]]; then
       node <<'JS'
 const fs = require("node:fs");
@@ -28,6 +29,7 @@ JS
     exec openclaw gateway run
     ;;
   hermes)
+    # OpenShell sets HOME independently; Hermes must still find its image-installed environment.
     export HERMES_HOME=/home/node/.hermes
     /home/node/.local/bin/hermes config set model.provider custom
     /home/node/.local/bin/hermes config set model.base_url "$HARNESS_SANDBOX_ENDPOINT"

@@ -70,6 +70,7 @@ openshell_load_profile() {
   assert_owned_by_current_user "$dir/profile.json"
   [[ -f "$dir/profile.json" ]] || error "No OpenShell profile for this agent. Install it first."
   local fields
+  # Parse JSON as data rather than sourcing persisted state as shell code.
   fields="$(node - "$dir/profile.json" "$(canonical_agent_name "${HARNESS_AGENT:-openclaw}")" <<'JS'
 const fs = require("node:fs");
 const p = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
@@ -93,6 +94,7 @@ openshell_resource_exists() {
   local kind="$1" records result
   records="$(openshell "$kind" list -g "$OPENSHELL_GATEWAY" -o json)" \
     || error "Cannot list OpenShell ${kind} resources; refusing to guess their state."
+  # An incomplete list must not be mistaken for an absent resource during retries or cleanup.
   result="$(node -e '
     const fs = require("node:fs");
     const d = JSON.parse(fs.readFileSync(0, "utf8"));
@@ -106,6 +108,7 @@ openshell_resource_exists() {
 
 openshell_assert_owned() {
   local record
+  # A matching name alone is insufficient authority to execute in or delete a sandbox.
   record="$(openshell sandbox get "$OPENSHELL_NAME" -g "$OPENSHELL_GATEWAY" -o json)" \
     || error "Cannot inspect sandbox '${OPENSHELL_NAME}'; no lifecycle action was attempted."
   node -e '
@@ -122,6 +125,7 @@ openshell_validate_shared_inference() {
     || error "OpenShell mode requires HARNESS_BIND_HOST=127.0.0.1; inference must not be LAN-published."
   [[ "$HARNESS_IR_PORT" =~ ^[0-9]+$ ]] && (( HARNESS_IR_PORT > 0 && HARNESS_IR_PORT < 65536 )) \
     || error "HARNESS_IR_PORT must be between 1 and 65535."
+  # Validate the existing container's publication, not just the requested bind setting.
   local bindings
   bindings="$(docker inspect "$HARNESS_IR_CONTAINER" --format '{{json .HostConfig.PortBindings}}')" \
     || error "Shared IR container is not available. Run ./install.sh inference --model <model> first."
@@ -149,6 +153,7 @@ JS
 }
 
 install_openshell_agent() {
+  # Serialize one agent's provisioning without blocking installation of the other agent.
   with_state_lock "openshell-$(canonical_agent_name "${HARNESS_AGENT:-openclaw}")" _install_openshell_agent
 }
 
@@ -163,6 +168,7 @@ _install_openshell_agent() {
   ensure_state_dir >/dev/null
   (umask 077 && mkdir -p "$dir")
   assert_owned_by_current_user "$dir"
+  # Reuse the recorded identity after partial failure; never replace an existing owned sandbox.
   if [[ -f "$dir/profile.json" ]]; then
     openshell_load_profile
     [[ "$OPENSHELL_MODEL" == "${HARNESS_LLM_MODEL:-$(resolve_onboarding_model_hint)}" ]] \
@@ -178,10 +184,12 @@ _install_openshell_agent() {
     gateway="${HARNESS_OPENSHELL_GATEWAY:-openshell}"
     [[ "$gateway" =~ ^[a-zA-Z0-9_.-]+$ ]] || error "Invalid HARNESS_OPENSHELL_GATEWAY."
     owner="$(node -e 'console.log(require("node:crypto").randomBytes(16).toString("hex"))')"
+    # Keep the resource name within OpenShell's 19-character limit; retain the full owner in labels.
     name="ahi-${owner:0:12}"
     model="${HARNESS_LLM_MODEL:-$(resolve_onboarding_model_hint)}"
     profile="$(node -e 'console.log(JSON.stringify({owner:process.argv[1],name:process.argv[2],gateway:process.argv[3],agent:process.argv[4],model:process.argv[5]}))' \
       "$owner" "$name" "$gateway" "$agent" "$model")"
+    # Persist identity before remote resource creation so failures leave a recoverable record.
     atomic_write_file "$dir/profile.json" "$profile"
     openshell_load_profile
   fi
@@ -192,6 +200,8 @@ _install_openshell_agent() {
     -f "${SCRIPT_DIR}/openshell/Dockerfile" -t "$image" "$SCRIPT_DIR" \
     || error "Could not build the ${agent} sandbox image. Ownership record retained at ${dir}."
   local provider
+  # OpenShell's host-service alias reaches loopback IR without exposing it on a LAN interface.
+  # Allow the actual HTTP clients, including Hermes's installer-managed Python interpreter.
   provider="$(node - "$name" "$HARNESS_IR_PORT" <<'JS'
 const [id, port] = process.argv.slice(2);
 console.log(JSON.stringify({
@@ -226,6 +236,7 @@ JS
 openshell_agent_exec() {
   openshell_load_profile
   openshell_assert_owned
+  # Login-shell initialization can replace the image PATH; callers use explicit CLI paths.
   openshell sandbox exec --name "$OPENSHELL_NAME" --no-login-shell -g "$OPENSHELL_GATEWAY" -- "$@"
 }
 
@@ -280,6 +291,7 @@ remove_openshell_agent() {
     openshell_assert_owned
     openshell sandbox delete "$OPENSHELL_NAME" -g "$OPENSHELL_GATEWAY" \
       || error "Could not request sandbox removal; ownership record retained."
+    # Deletion is asynchronous; keep its provider and ownership record until cleanup completes.
     local attempt
     for attempt in {1..30}; do
       openshell_resource_exists sandbox || break
@@ -295,6 +307,7 @@ remove_openshell_agent() {
   fi
   local dir
   dir="$(openshell_profile_dir)"
+  # Only active profile.json records block host uninstall; preserve the removed identity for audit.
   mv -- "$dir/profile.json" "$dir/removed-profile.json"
   info "Owned sandbox/provider removed. Shared inference, host agents and OpenShell gateway were not removed."
   info "Ownership record retained at ${dir}/removed-profile.json."
