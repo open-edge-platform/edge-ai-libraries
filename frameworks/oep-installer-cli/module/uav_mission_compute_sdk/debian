@@ -25,7 +25,7 @@ debian_90_install_uav_mission_compute_sdk () {
   else
     ensure_ports_open install uav_mission_compute_sdk "${used_ports[@]}"
 
-    echo "@@STEP Cloning reposutory"
+    echo "@@STEP Cloning repository"
     ensure_git_export "$workspace" "$version" "$repository" uav-mission-compute-sdk
 
     echo "@@STEP Building SDK"
