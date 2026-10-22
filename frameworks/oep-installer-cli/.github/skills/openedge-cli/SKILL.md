@@ -1,49 +1,83 @@
+
 ---
 name: openedge-cli
-description: Install, start, stop, or remove Open Edge Platform components and profiles on an edge system with the openedge-cli installer. Use for requests like "install OpenVINO", "set up DL Streamer", "run the smart parking sample", "deploy the Metro/Manufacturing/Retail/Robotics AI Suite", or uninstalling any OEP component.
+description: Use the openedge-cli installer to install, start, stop, or remove Open Edge Platform (OEP) modules and profiles on an edge system. Trigger on requests like "install OpenVINO", "set up DL Streamer", "run the smart parking sample", "deploy the Metro / Manufacturing / Retail / Robotics AI Suite", "what OEP components can I install", or "uninstall <OEP component>".
 license: Apache-2.0
 ---
 
 # Open Edge Platform CLI Installer
 
 `openedge-cli` is a self-contained shell script that installs Open Edge Platform
-components (**modules**) and named groups of them (**profiles**).
+components (**modules**) and named groups of components (**profiles**). Always use
+it for OEP installation tasks. Don't hand-install packages, pip wheels, or
+containers that the installer already manages.
 
-## Read this first
-
-The installer is available from any of the following methods:
-1. Clone the repository `https://github.com/openedge-platform/edge-ai-libraries`. The installers are under `frameworks/oep-installer-cli/rendered/openedge-cli`. Other OS installers are available, for example, `openedge-cli-fedora`.  
-2. Directly download the installer script from the above github link.  
-3. Clone the repository `https://github.com/openedge-platform/edge-ai-libraries`. Use the `bootstrap` command to generate a customized installer.  
-
-Prefer (2) for simplicity.
-
-The installable components can be obtained by:
-1. Use `openedge-cli list` to show the profiles and modules available for `install` or other commands.  
-
-## Shape of the tool
+## Command shape
 
 ```
-openedge-cli <subcommand> [options] [modules/profiles] [module options] ...
+openedge-cli <subcommand> [options] [modules/profiles] [--<module> module-options] ...
 ```
 
-Subcommands chain and execute in order. Options after a `--<module>` tag apply
-only to that module; otherwise they apply to all named components.
+- Subcommands can be chained and run in the order given.
+- Options after a `--<module>` tag apply only to that module. All other options
+  apply to every named component.
 
-## Rules
+## Installation workflow
 
-- **`remove` is not recursive.** It deletes only the named component and leaves
-  dependencies installed, unlike `install`, which pulls dependencies in.
-- **The installer may ask for priviledged access.** Show the user the
-  command and get agreement before running it.
+1. **Pick the installer for the OS.** Read `/etc/os-release`.
+   - Ubuntu/Debian: `openedge-cli`
+   - Fedora: `openedge-cli-fedora`
+   - Other: check `frameworks/oep-installer-cli/rendered/` for a matching variant. If there isn't one, stop and tell the user.
 
-## Where things land
+2. **Get the script** (preferred: direct download):
+   ```bash
+   curl -fsSLO https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/frameworks/oep-installer-cli/rendered/openedge-cli
+   chmod +x openedge-cli
+   ```
+   Fallback: clone `https://github.com/open-edge-platform/edge-ai-libraries`
+   and run the script from `frameworks/oep-installer-cli/rendered/`.
 
-- System-level installs — enumerate with `openedge-cli list --sbom <target>`.
-- User-level installs — `~/.local/open-edge-platform/<component>/`.
+3. **Find the right component.** Run `./openedge-cli list`. Map the user's
+   request to an exact module or profile name from this output. Never guess
+   names. If more than one fits, ask the user.
+
+4. **Confirm with the user.** Show the full command you plan to run. Run it
+   as a user. The installer may use `sudo` within, so get explicit approval 
+   before running it.
+
+5. **Install.**
+   ```bash
+   ./openedge-cli install <profile-or-module> [--<module> options]
+   ```
+   `install` pulls in dependencies automatically.
+
+6. **Verify.**
+   - System-level: `./openedge-cli list --sbom <target>`
+   - User-level: check `~/.local/open-edge-platform/<component>/`
+
+   Report what was installed and where.
+
+## Other lifecycle operations
+
+- **Start/stop:** `./openedge-cli start <component>` / `./openedge-cli stop <component>`
+  `./openedge-cli stop` stops all previously started components.  
+- **Remove:** `./openedge-cli remove <component>`. This is **not recursive**:
+  it removes only the named component and leaves its dependencies installed. 
+  List dependencies explicitly if needed. Use `./openedge-cli remove --remove-all` without 
+  a component name to remove all previously installed.  
+
+## Troubleshooting
+
+- If a command fails, show the user the relevant error output. Don't retry with
+  extra flags unless the user approves.
+- Check the README for supported options before inventing any.
+
+## Advanced (only if the user asks)
+
+To build a customized installer, clone the repository and use its `bootstrap`
+command. See the README.
 
 ## Reference
 
-- [README](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/frameworks/oep-installer-cli/README.md) — source of truth
-- [Web UI](https://docs.openedgeplatform.intel.com/dev/OEP-articles/oep-cli-installer/index.html) — pick a profile/module and copy the exact command
-
+- [README](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/frameworks/oep-installer-cli/README.md): the source of truth for subcommands and options.
+- [Web UI](https://docs.openedgeplatform.intel.com/dev/OEP-articles/oep-cli-installer/index.html): choose a profile or module and copy the exact command.
