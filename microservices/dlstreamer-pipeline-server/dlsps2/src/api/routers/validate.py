@@ -32,7 +32,7 @@ async def validate_pipeline(request: ValidateRequest):
     """Validate a GStreamer pipeline without starting it.
 
     Runs the pipeline through the validator in the background and returns
-    a validation_id immediately. Poll GET /status/{validation_id}
+    a validation_id immediately. Poll GET /validate/status/{validation_id}
     to get the result.
     """
     if not request.pipeline.strip():

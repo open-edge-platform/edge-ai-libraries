@@ -54,7 +54,7 @@ authoritative schema for the version you are running:
 - `POST` start endpoints return a JSON object `{"instance_id": "<uuid>"}`.
 - Status responses include new fields:
   - `frame_fps`: Current (instantaneous) frames per second.
-- `frame_interval`: Time window in seconds for the `frame_fps` measurement.
+  - `frame_interval`: Time window in seconds for the `frame_fps` measurement.
   - `first_frame_time`: Unix epoch time when the first frame was received.
   - They do not include `avg_pipeline_latency`, which 2.0 does not track yet.
 - Automatic pipeline restart on error or EOS is new. Pass `restart_config` in the
@@ -179,7 +179,7 @@ string exactly as submitted.
 | `pipeline` | string | Yes | - | GStreamer launch string. Must not be empty or whitespace-only. |
 | `validate_pipeline` | boolean | No | `true` | Whether to validate the pipeline before starting. Set to `false` to skip validation. |
 | `cpu_cores` | array[int] | No | - | CPU core indices to pin this pipeline to (e.g., `[0, 1, 2]`). |
-| `warmup_frames` | integer | No | `0` | Number of frames to warm up before reporting FPS. |
+| `warmup_frames` | integer | No | `0` | Number of initial frames excluded from `avg_fps`. `frame_fps` is still reported during warmup. |
 | `restart_config` | [RestartConfig](#restartconfig) | No | - | Configuration for automatic pipeline restart on error or EOS. |
 
 ```json
@@ -556,7 +556,7 @@ curl http://localhost:8080/elements/gvadetect
 | `pipeline` | string | Yes | - | GStreamer launch string. |
 | `validate_pipeline` | boolean | No | `true` | Whether to validate the pipeline before starting. |
 | `cpu_cores` | array[int] | No | - | CPU core indices to pin this pipeline to. |
-| `warmup_frames` | integer | No | `0` | Number of frames to warm up before reporting FPS. |
+| `warmup_frames` | integer | No | `0` | Number of initial frames excluded from `avg_fps`. `frame_fps` is still reported during warmup. |
 | `restart_config` | [RestartConfig](#restartconfig) | No | - | Configuration for automatic pipeline restart on error or EOS. |
 
 ### RestartConfig
@@ -585,7 +585,7 @@ curl http://localhost:8080/elements/gvadetect
 |-------|------|-------------|
 | `id` | string | Instance UUID. |
 | `state` | string | One of `QUEUED`, `RUNNING`, `RESTARTING`, `COMPLETED`, `ERROR`, `ABORTED`. |
-| `avg_fps` | number | Average frames per second since warmup frames were skipped (or since the pipeline started if no warmup). |
+| `avg_fps` | number | Average frames per second over the frames received after the first `warmup_frames` frames, measured from the first counted frame. `0.0` until warmup completes. |
 | `frame_fps` | number | Current (instantaneous) frames per second. |
 | `frame_interval` | number | Time window in seconds for the current `frame_fps` measurement. |
 | `start_time` | number or null | Unix epoch start time in seconds. `null` until the instance is running. |
