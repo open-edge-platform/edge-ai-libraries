@@ -11,16 +11,15 @@ components (**modules**) and named groups of them (**profiles**).
 
 ## Read this first
 
-This skill intentionally does not list profiles, modules, or flags — they change.
-Get the authoritative set at request time:
+The installer is available from any of the following methods:
+1. Clone the repository `https://github.com/openedge-platform/edge-ai-libraries`. The installers are under `frameworks/oep-installer-cli/rendered/openedge-cli`. Other OS installers are available, for example, `openedge-cli-fedora`.  
+2. Directly download the installer script from the above github link.  
+3. Clone the repository `https://github.com/openedge-platform/edge-ai-libraries`. Use the `bootstrap` command to generate a customized installer.  
 
-1. **`frameworks/oep-installer-cli/README.md`** in `open-edge-platform/edge-ai-libraries`
-   — profiles, module descriptions, install commands, bootstrap instructions.
-2. **`openedge-cli list`** — profiles and modules actually available to the installed version.
-3. **`openedge-cli`** with no arguments — current subcommands and global options.
+Prefer (2) for simplicity.
 
-Prefer (2) and (3) over (1) when the CLI is already installed; prefer the README
-in the working repo over the GitHub copy.
+The installable components can be obtained by:
+1. Use `openedge-cli list` to show the profiles and modules available for `install` or other commands.  
 
 ## Shape of the tool
 
@@ -31,32 +30,20 @@ openedge-cli <subcommand> [options] [modules/profiles] [module options] ...
 Subcommands chain and execute in order. Options after a `--<module>` tag apply
 only to that module; otherwise they apply to all named components.
 
-## Bootstrapping
-
-The CLI is fetched from the repo and self-installs to `~/.local/bin/openedge-cli`
-on first run. Take the exact `curl ... | bash -s -- install <target>` one-liner
-from the README rather than reconstructing the URL. After the first invocation,
-call `openedge-cli` directly.
-
 ## Rules
 
-- **Never `start` or `stop` a profile** — only individual modules. Profile members
-  can conflict when started simultaneously.
 - **`remove` is not recursive.** It deletes only the named component and leaves
   dependencies installed, unlike `install`, which pulls dependencies in.
-- **Dry-run first.** Use `--dry-run` before any install or removal you have not
-  run before, and show the user the plan.
-- **Confirm the target exists** via `openedge-cli list` before installing. Do not
-  guess or invent module or profile names — they are not free-form.
-- **Piping a remote script to `bash` is a privileged action.** Show the user the
+- **The installer may ask for priviledged access.** Show the user the
   command and get agreement before running it.
 
 ## Where things land
 
-- System-level installs — enumerate with `openedge-cli sbom <target>`.
+- System-level installs — enumerate with `openedge-cli list --sbom <target>`.
 - User-level installs — `~/.local/open-edge-platform/<component>/`.
 
 ## Reference
 
 - [README](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/frameworks/oep-installer-cli/README.md) — source of truth
 - [Web UI](https://docs.openedgeplatform.intel.com/dev/OEP-articles/oep-cli-installer/index.html) — pick a profile/module and copy the exact command
+
