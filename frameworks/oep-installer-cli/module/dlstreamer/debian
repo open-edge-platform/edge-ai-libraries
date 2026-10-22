@@ -53,7 +53,7 @@ debian_75_install_dlstreamer () {
 
     # install skills
     echo "@@STEP Installing skills"
-    ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills}"
+    ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}"
 
     verify_dlstreamer
     echo "intel-dlstreamer=$version installed successfully."
