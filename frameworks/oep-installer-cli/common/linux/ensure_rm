@@ -10,17 +10,11 @@ $HOME $HOME/.local $HOME/.local/bin $(ensure_project_path) "
 
   for p in "$@"; do
     [ -n "$p" ] || continue
-    if [[ "$p" != /* ]]; then
-      echo "ensure_rm: refusing to remove relative path '$p'" 1>&2
-      rc=3
-      continue
-    fi
     # normalize (collapse //, ./, ../ and trailing /) without following symlinks
     norm="$(realpath -m -s -- "$p")"
     if [[ "$protected" = *" $norm "* ]]; then
       echo "ensure_rm: refusing to remove protected path '$p'" 1>&2
-      rc=3
-      continue
+      return 3
     fi
     [ -e "$norm" ] || [ -L "$norm" ] || continue
     rm -rf -- "$norm" 2> /dev/null || ensure_sudo rm -rf -- "$norm" || rc=$?
