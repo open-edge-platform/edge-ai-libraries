@@ -122,6 +122,10 @@ class GMEHandler(BaseEmbeddingModel):
             self.runtime.max_length,
             self._max_text_tokens,
         )
+        if self.device.upper().startswith("GPU"):
+            # Shows whether the stock or a rebuilt (patched) GPU plugin is in use.
+            for name, version in self.runtime.core.get_versions(self.device).items():
+                logger.info("OpenVINO %s plugin: %s %s", name, version.description, version.build_number)
 
     def _check_package(self, model_dir: Path) -> None:
         """Fail with the exact missing file instead of deep inside the runtime."""

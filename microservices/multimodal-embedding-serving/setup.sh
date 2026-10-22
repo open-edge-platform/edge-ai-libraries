@@ -113,7 +113,7 @@ case "$EMBEDDING_MODEL_NAME" in
             echo "     shape takes longer. See docs/user-guide/qwentext-on-npu.md for tuning."
         fi
         ;;
-    "GME/gme-qwen2-vl-2b-instruct")
+    "GME/gme-qwen2-vl-2b-instruct"|"GME/gme-qwen2-vl-2b-instruct-int4")
         echo "Using GME model: $EMBEDDING_MODEL_NAME (text, image, video frames, fused image+text)"
         if [ "$EMBEDDING_USE_OV" != "true" ]; then
             echo "ERROR: GME runs only on OpenVINO; unset EMBEDDING_USE_OV or set it to true."
@@ -122,8 +122,13 @@ case "$EMBEDDING_MODEL_NAME" in
         if [ "$EMBEDDING_DEVICE" = "NPU" ]; then
             echo "WARNING: GME has not been validated on NPU."
         fi
-        echo "GME is exported to OpenVINO INT8 on first startup (downloads the checkpoint and"
-        echo "takes several minutes) into $EMBEDDING_OV_MODELS_DIR/gme-qwen2-vl-2b-instruct-openvino"
+        if [ "$EMBEDDING_MODEL_NAME" = "GME/gme-qwen2-vl-2b-instruct-int4" ]; then
+            echo "GME is exported to OpenVINO INT4 on first startup (downloads the checkpoint and"
+            echo "takes tens of minutes) into $EMBEDDING_OV_MODELS_DIR/gme-qwen2-vl-2b-instruct-openvino-int4"
+        else
+            echo "GME is exported to OpenVINO INT8 on first startup (downloads the checkpoint and"
+            echo "takes several minutes) into $EMBEDDING_OV_MODELS_DIR/gme-qwen2-vl-2b-instruct-openvino"
+        fi
         ;;
     *)
         echo -e "WARNING: Model '$EMBEDDING_MODEL_NAME' may not be supported."

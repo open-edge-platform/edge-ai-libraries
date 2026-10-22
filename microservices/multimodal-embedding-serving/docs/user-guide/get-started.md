@@ -18,7 +18,7 @@ This guide assumes basic familiarity with Docker commands and terminal usage.
 - **EMBEDDING_MODEL_NAME** - The model to use (e.g., "CLIP/clip-vit-b-16"). Refer to the [Supported Models](./supported-models.md) list for additional choices.
 - **EMBEDDING_DEVICE** - Device for inference (CPU/GPU/NPU, default: CPU)
 - **EMBEDDING_USE_OV** - Enable OpenVINO optimization (true/false, default: false)
-- **EMBEDDING_OV_MODELS_DIR** - Directory for OpenVINO models (default: ./ov-models)
+- **EMBEDDING_OV_MODELS_DIR** - OpenVINO model root. With `setup.sh` and Docker Compose, this is a **container path**, defaulting to `/app/ov_models`, not a host directory. See [Reuse local OpenVINO models](#reuse-local-openvino-models).
 
 ### Model Handler Performance
 
@@ -171,6 +171,104 @@ source setup.sh
 
 You can [build the Docker image](./get-started/build-from-source.md#steps-to-build) or pull a prebuilt image from the configured registry and tag. For prebuilt image, the `setup` script will configure the necessary variables to pull the right version of the image.
 
+### Reuse local OpenVINO models
+
+The default Compose file mounts the Docker **named volume** `ov-models` at
+`/app/ov_models`. This is not a directory named `ov-models` in your checkout.
+Putting files in `./ov-models`, or setting `EMBEDDING_OV_MODELS_DIR` to a host
+path, does not make those files available inside the container.
+
+You can copy an existing model package into the named volume once and use the
+unchanged Compose file. The example below uses a complete, exported GME
+OpenVINO package, not an original PyTorch checkpoint.
+
+1. From the microservice root, configure the service and build an image containing
+   the current GME handler. Run all commands in the same Bash terminal:
+
+   ```bash
+   export GME_OV_MODEL_DIR="/absolute/path/to/exported-gme-package"
+   export EMBEDDING_MODEL_NAME="GME/gme-qwen2-vl-2b-instruct"
+   export EMBEDDING_DEVICE=CPU
+   export EMBEDDING_USE_OV=true
+   export EMBEDDING_OV_MODELS_DIR=/app/ov_models
+   unset REGISTRY_URL PROJECT_NAME
+   export TAG=gme-local
+   source setup.sh
+   docker compose -f docker/compose.yaml build
+   ```
+
+   `GME_OV_MODEL_DIR` is a host-side variable used only by the copy command below.
+   It must point directly to the directory containing `gme_openvino_config.json`.
+   Copy the entire package, including its XML/BIN pairs, model configuration,
+   processor and tokenizer files.
+
+2. Stop any existing service instance before modifying its model volume:
+
+   ```bash
+   docker compose -f docker/compose.yaml stop multimodal-embedding-serving
+   ```
+
+3. Copy the package through a temporary container using the service's existing
+   volume mount. This does not start the model server or add a host bind mount:
+
+   ```bash
+   set -o pipefail
+   tar -C "$GME_OV_MODEL_DIR" -cf - . |
+     docker compose -f docker/compose.yaml run --rm --no-deps -T \
+       --user root --entrypoint sh multimodal-embedding-serving -c '
+         set -eu
+         model_dir=/app/ov_models/gme-qwen2-vl-2b-instruct-openvino
+         if [ -e "$model_dir" ]; then
+           echo "Refusing to overwrite existing package: $model_dir" >&2
+           exit 1
+         fi
+         mkdir -p "$model_dir"
+         tar -xf - -C "$model_dir"
+         chown -R appuser:appuser "$model_dir"
+         chmod -R u+rwX "$model_dir"
+       '
+   ```
+
+   The copy refuses to overwrite an existing package. Continue only after it
+   succeeds. The resulting layout inside the container is:
+
+   ```text
+   /app/ov_models/
+   └── gme-qwen2-vl-2b-instruct-openvino/
+       ├── gme_openvino_config.json
+       ├── gme_language_int8.xml
+       ├── gme_language_int8.bin
+       ├── gme_visual_int8.xml
+       ├── gme_visual_int8.bin
+       └── ... processor, tokenizer and model configuration files
+   ```
+
+   The package directory name must match the layout above; the host directory
+   can have a different name. To inspect the named volume's location, run
+   `docker volume inspect ov-models --format '{{.Mountpoint}}'`. Docker manages
+   this location; use the container-based copy instead of editing Docker's
+   storage directory directly.
+
+4. Create a fresh service container and check startup:
+
+   ```bash
+   docker compose -f docker/compose.yaml up -d --force-recreate
+   docker logs -f --tail=100 multimodal-embedding-serving
+   ```
+
+   A complete package is reused without downloading or converting the original
+   weights. An existing but incomplete package causes startup to fail rather
+   than being overwritten. Once loading finishes, exit the log viewer with
+   `Ctrl+C` and check:
+
+   ```bash
+   curl -fsS http://localhost:9777/health
+   curl -fsS http://localhost:9777/model/current
+   ```
+
+Recreating or removing the container does not remove the external `ov-models`
+volume. Do not delete that volume to obtain a fresh container.
+
 ## Running the Server with CPU
 
 ```bash
@@ -219,6 +317,13 @@ curl --location --request GET 'http://localhost:9777/health'
 # Inspect active model capabilities
 curl --location --request GET 'http://localhost:9777/model/capabilities'
 ```
+
+### 5. (Optional) Optimize GME on GPU
+
+For lower GME latency on an Intel GPU, use the INT4 GME model
+(`GME/gme-qwen2-vl-2b-instruct-int4`) together with an image whose OpenVINO
+GPU plugin is rebuilt with GME-specific optimization patches. See
+[Optimize GME on Intel GPU](./gme-gpu-optimization.md).
 
 ## Running the Server with NPU
 

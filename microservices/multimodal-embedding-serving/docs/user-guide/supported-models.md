@@ -80,13 +80,16 @@ QwenText models also run on `EMBEDDING_DEVICE=NPU`, which requires static-shape 
 
 | Model ID | Hugging Face Repo | Embedding Dimension | Notes |
 |----------|-------------------|---------------------|-------|
-| `GME/gme-qwen2-vl-2b-instruct` | `Alibaba-NLP/gme-Qwen2-VL-2B-Instruct` | 1536 | Text, image, video frames, image+text (fused) |
+| `GME/gme-qwen2-vl-2b-instruct` | `Alibaba-NLP/gme-Qwen2-VL-2B-Instruct` | 1536 | Text, image, video frames, image+text (fused); INT8 |
+| `GME/gme-qwen2-vl-2b-instruct-int4` | `Alibaba-NLP/gme-Qwen2-VL-2B-Instruct` | 1536 | Same inputs; INT4, lower latency and accuracy |
 
 The GME handler is built on Qwen2-VL. It:
 
 - Encodes an image together with its text into one vector (fused input).
 - Runs on OpenVINO only (`EMBEDDING_USE_OV=true`).
-- Converts to OpenVINO INT8 format on first use and stores the package under `<EMBEDDING_OV_MODELS_DIR>/gme-qwen2-vl-2b-instruct-openvino`.
+- Converts to OpenVINO on first use and stores the package under `<EMBEDDING_OV_MODELS_DIR>/gme-qwen2-vl-2b-instruct-openvino` (INT8) or `<EMBEDDING_OV_MODELS_DIR>/gme-qwen2-vl-2b-instruct-openvino-int4` (INT4). The INT4 export includes a short calibration pass and takes longer.
+- On Intel GPU, can run faster with the INT4 model and a patched OpenVINO GPU plugin; see [Optimize GME on Intel GPU](./gme-gpu-optimization.md).
+- Reuses a complete OpenVINO package already present at that path without downloading or converting the original weights. For Docker deployments, see [Reuse local OpenVINO models](./get-started.md#reuse-local-openvino-models) to copy a local package into the default `ov-models` named volume without changing Compose mounts.
 
 Use the `/model/capabilities` endpoint to inspect which modalities the currently loaded model supports.
 

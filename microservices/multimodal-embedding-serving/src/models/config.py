@@ -240,6 +240,12 @@ MODEL_CONFIGS = {
             "weight_format": "int8",
             "handler_class": "GMEHandler",
         },
+        "gme-qwen2-vl-2b-instruct-int4": {
+            "hf_model_id": "Alibaba-NLP/gme-Qwen2-VL-2B-Instruct",
+            "package_dir": "gme-qwen2-vl-2b-instruct-openvino-int4",
+            "weight_format": "int4",
+            "handler_class": "GMEHandler",
+        },
     },
 }
 

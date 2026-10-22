@@ -1,0 +1,352 @@
+diff --git a/src/plugins/intel_gpu/src/graph/impls/ocl_v2/sdpa/sdpa_gen_micro.cpp b/src/plugins/intel_gpu/src/graph/impls/ocl_v2/sdpa/sdpa_gen_micro.cpp
+index b866d0de69..158596bed8 100644
+--- a/src/plugins/intel_gpu/src/graph/impls/ocl_v2/sdpa/sdpa_gen_micro.cpp
++++ b/src/plugins/intel_gpu/src/graph/impls/ocl_v2/sdpa/sdpa_gen_micro.cpp
+@@ -149,6 +149,17 @@ inline size_t micro_get_num_heads(const kernel_impl_params& params, size_t qkv_i
+     OPENVINO_THROW("[GPU] Invalid qkv index in micro_get_num_heads");
+ }
+ 
++inline std::pair<int64_t, int64_t> micro_get_output_batch_and_num_heads(const kernel_impl_params& params) {
++    const auto& out = params.output_layouts[0];
++    if (params.is_type<scaled_dot_product_attention>()) {
++        const auto desc = params.typed_desc<scaled_dot_product_attention>();
++        const auto order = extend_order_in_num_heads_dim(desc->output_transpose_order);
++        return {get_batch_size(out, order), get_num_heads(out, order)};
++    }
++    const auto& out_ps = out.get_partial_shape();
++    return {out_ps[0].get_length(), out_ps[1].get_length()};
++}
++
+ inline size_t micro_get_head_size(const kernel_impl_params& params, size_t qkv_idx) {
+     if (params.is_type<paged_attention>()) {
+         const auto desc = params.typed_desc<paged_attention>();
+@@ -1057,15 +1068,14 @@ JitConstants SDPAMicroGenerator::get_jit_constants(const kernel_impl_params& par
+     const auto& K = (config.is_paged_attention && !m_is_prefill) ? params.input_layouts[3] : params.input_layouts[1];
+     const auto& V = (config.is_paged_attention && !m_is_prefill) ? params.input_layouts[4] : params.input_layouts[2];
+     const auto& out = params.output_layouts[0];
+-    const auto& out_ps = out.get_partial_shape();
+ 
+     const auto head_size = micro_get_head_size(params, 0);
+     const auto k_head_size = micro_get_head_size(params, 1);
+     const auto v_head_size = micro_get_head_size(params, 2);
+ 
+     const auto d_max = get_d_max(k_head_size);
+-    const auto head_num = micro_get_num_heads(params, 0);
+-    const auto batch = out_ps[0] * static_cast<ov::Dimension>(head_num);
++    const auto out_batch_heads = micro_get_output_batch_and_num_heads(params);
++    const auto batch = ov::Dimension(out_batch_heads.first) * ov::Dimension(out_batch_heads.second);
+ 
+     auto ldq = k_head_size * ov::element::Type(Q.data_type).size();
+     auto ldk = k_head_size * ov::element::Type(K.data_type).size();
+@@ -1437,15 +1447,16 @@ DispatchDataFunc SDPAMicroGenerator::get_dispatch_data_func() const {
+         scalars.clear();
+         scalars.reserve(3);
+ 
+-        auto params = impl_param;
++        // The stage was built from canonicalized (rank-4) shapes in SDPAOptImpl, but execute_stage
++        // hands the dispatch function the instance's raw params, which stay rank 3 for a headless
++        // SDPA. Everything below indexes layouts through a rank-4 transpose order, so canonicalize
++        // here the same way SDPAOptGenerator*::get_dispatch_data_func() does.
++        auto params = SDPABase::requires_shape_canonicalization(impl_param) ? SDPABase::static_canonicalize_shapes(impl_param) : impl_param;
+         if (!params.is_dynamic()) {
+             const auto& device_info = params.get_device_info();
+             const auto& gemms = kd.micro_kernels;
+             const auto& gemm_kq = gemms[kq_id]->p;
+ 
+-            const auto& out = params.output_layouts[0];
+-            const auto& out_ps = out.get_partial_shape();
+-
+             const auto v_head_size = micro_get_head_size(params, 2);
+             auto head_num = micro_get_num_heads(params, 0);
+ 
+@@ -1469,8 +1480,9 @@ DispatchDataFunc SDPAMicroGenerator::get_dispatch_data_func() const {
+                 wgs.global[1] *= head_num;
+                 wgs.global[2] *= 1;
+             } else {
+-                wgs.global[1] *= head_num;
+-                wgs.global[2] *= out_ps[0].get_length();
++                const auto out_batch_heads = micro_get_output_batch_and_num_heads(params);
++                wgs.global[1] *= out_batch_heads.second;
++                wgs.global[2] *= out_batch_heads.first;
+             }
+ 
+             auto to_int32 = [](size_t value) {
+@@ -1518,8 +1530,6 @@ void SDPAMicroGenerator::init_microkernels(const kernel_impl_params& params,
+     const auto& Q = params.input_layouts[0];
+     const auto& K = (is_paged_attention && !is_prefill) ? params.input_layouts[3] : params.input_layouts[1];
+     const auto& V = (is_paged_attention && !is_prefill) ? params.input_layouts[4] : params.input_layouts[2];
+-    const auto& out = params.output_layouts[0];
+-    const auto& out_ps = out.get_partial_shape();
+     const auto& device_info = params.get_device_info();
+ 
+     const auto k_head_size = micro_get_head_size(params, 1);
+@@ -1529,8 +1539,8 @@ void SDPAMicroGenerator::init_microkernels(const kernel_impl_params& params,
+     const ov::Dimension n_keys = micro_get_seq_length(params, 1);
+     const ov::Dimension n_queries = micro_get_seq_length(params, 0);
+     const ov::Dimension n_values = ov::Dimension(v_head_size);
+-    const auto head_num = micro_get_num_heads(params, 0);
+-    const auto batch = out_ps[0] * static_cast<ov::Dimension>(head_num);
++    const auto out_batch_heads = micro_get_output_batch_and_num_heads(params);
++    const auto batch = ov::Dimension(out_batch_heads.first) * ov::Dimension(out_batch_heads.second);
+ 
+     GPU_DEBUG_TRACE_DETAIL << "\nconfiguration.is_kv_compressed = " << configuration.is_kv_compressed << std::endl;
+     GPU_DEBUG_TRACE_DETAIL << "k_head_size = " << k_head_size << ", v_head_size = " << v_head_size << ", d_max = " << d_max << ", batch = " << batch << "\n";
+diff --git a/src/plugins/intel_gpu/src/plugin/transformations/transpose_fusion.cpp b/src/plugins/intel_gpu/src/plugin/transformations/transpose_fusion.cpp
+index 7dd6774b0e..391f2dbe52 100644
+--- a/src/plugins/intel_gpu/src/plugin/transformations/transpose_fusion.cpp
++++ b/src/plugins/intel_gpu/src/plugin/transformations/transpose_fusion.cpp
+@@ -3,6 +3,7 @@
+ //
+ 
+ #include "intel_gpu/op/gemm.hpp"
++#include "intel_gpu/op/indirect_sdpa.hpp"
+ #include "intel_gpu/op/sdpa.hpp"
+ #include "intel_gpu/runtime/utils.hpp"
+ #include "openvino/core/node_vector.hpp"
+@@ -78,6 +79,7 @@ bool has_optimized_version(const ov::Output<ov::Node>& output, bool supports_imm
+ TransposeFusion::TransposeFusion(bool supports_immad) {
+     add_matcher<TransposeMatMulTransposeMatcher>(supports_immad);
+     add_matcher<TransposeMatMulMatcher>(supports_immad);
++    add_matcher<TransposeSDPATransposeMatcher>(supports_immad);
+     add_matcher<TransposeSDPAMatcher>();
+     add_matcher<TransposeVLSDPAMatcher>();
+     add_matcher<TransposeSplitMatcher>();
+@@ -312,6 +314,221 @@ TransposeSDPAMatcher::TransposeSDPAMatcher() {
+     this->register_matcher(m, callback);
+ }
+ 
++// Same as TransposeSDPAMatcher, but additionally absorbs the Transpose that consumes the SDPA
++// output into the SDPA's output_transpose_order. The micro SDPA kernel remaps the destination
++// strides from that order (convert_strides("DST", ...) in sdpa_gen_micro.cpp), so writing the
++// attention result out in the transposed layout is free there, whereas the standalone Transpose is
++// a full extra read+write of the [batch, heads, seq_len, head_size] tensor through a `permute_ref`
++// kernel. The canonical LLM/embedding attention block ends with exactly this
++// `SDPA -> Transpose(0, 2, 1, 3) -> Reshape -> o_proj` sequence.
++//
++// IMPORTANT: only the micro kernel honours output_transpose_order. sdpa_opt.cl and sdpa_ref.cl
++// write through OUTPUT_GET_INDEX(b, h, seq, head_size) with no OUTPUT_DIMS_ORDER remapping (unlike
++// the input side, which has INPUT{0,1,2}_DIMS_ORDER), so for them a non-default output order is
++// silently ignored and the result lands in the wrong place. The fusion is therefore restricted to
++// SDPAs that will run on the micro kernel -- see the guards in the callback below.
++TransposeSDPATransposeMatcher::TransposeSDPATransposeMatcher(bool supports_immad) {
++    auto is_fp_type = [](const ov::Output<ov::Node>& output) -> bool {
++        switch (output.get_element_type()) {
++            case ov::element::f16:
++            case ov::element::f32: return true;
++            default: return false;
++        }
++    };
++    auto not_transpose = [is_fp_type](const ov::Output<ov::Node>& output) -> bool {
++        return ov::as_type_ptr<ov::op::v1::Transpose>(output.get_node_shared_ptr()) == nullptr
++               && is_fp_type(output);
++    };
++
++    auto input_q_m = any_input(not_transpose);
++    auto input_k_m = any_input(not_transpose);
++    auto input_v_m = any_input(not_transpose);
++    auto input_attn_mask = any_input(not_transpose);
++    auto input_scale = any_input(not_transpose);
++    auto transpose_q_order_m = wrap_type<ov::op::v0::Constant>(consumers_count(1));
++    auto transpose_k_order_m = wrap_type<ov::op::v0::Constant>(consumers_count(1));
++    auto transpose_v_order_m = wrap_type<ov::op::v0::Constant>(consumers_count(1));
++    auto transpose_q_m = wrap_type<ov::op::v1::Transpose>({input_q_m, transpose_q_order_m}, is_fp_type);
++    auto transpose_k_m = wrap_type<ov::op::v1::Transpose>({input_k_m, transpose_k_order_m}, is_fp_type);
++    auto transpose_v_m = wrap_type<ov::op::v1::Transpose>({input_v_m, transpose_v_order_m}, is_fp_type);
++
++    auto sdpa_in_q = std::make_shared<Or>(OutputVector{input_q_m, transpose_q_m});
++    auto sdpa_in_k = std::make_shared<Or>(OutputVector{input_k_m, transpose_k_m});
++    auto sdpa_in_v = std::make_shared<Or>(OutputVector{input_v_m, transpose_v_m});
++
++    auto sdpa_without_attn_mask_m =
++        wrap_type<ov::op::v13::ScaledDotProductAttention>({ sdpa_in_q, sdpa_in_k, sdpa_in_v }, consumers_count(1));
++    auto sdpa_with_attn_mask_m =
++        wrap_type<ov::op::v13::ScaledDotProductAttention>({ sdpa_in_q, sdpa_in_k, sdpa_in_v, input_attn_mask }, consumers_count(1));
++    auto sdpa_with_attn_mask_and_scale_m =
++        wrap_type<ov::op::v13::ScaledDotProductAttention>({ sdpa_in_q, sdpa_in_k, sdpa_in_v, input_attn_mask, input_scale },
++                                                          consumers_count(1));
++
++    auto sdpa_m = std::make_shared<Or>(OutputVector{sdpa_without_attn_mask_m, sdpa_with_attn_mask_m, sdpa_with_attn_mask_and_scale_m});
++    auto transpose_out_order_m = wrap_type<ov::op::v0::Constant>(consumers_count(1));
++    auto transpose_out_m = wrap_type<ov::op::v1::Transpose>({sdpa_m, transpose_out_order_m}, is_fp_type);
++
++    ov::matcher_pass_callback callback = [OV_CAPTURE_CPY_AND_THIS](Matcher& m) {
++        const auto& pattern_map = m.get_pattern_value_map();
++
++        std::shared_ptr<ov::op::v13::ScaledDotProductAttention> sdpa;
++        for (const auto& sdpa_pattern : {sdpa_without_attn_mask_m, sdpa_with_attn_mask_m, sdpa_with_attn_mask_and_scale_m}) {
++            auto it = pattern_map.find(sdpa_pattern);
++            if (it != pattern_map.end()) {
++                sdpa = ov::as_type_ptr<ov::op::v13::ScaledDotProductAttention>(it->second.get_node_shared_ptr());
++                break;
++            }
++        }
++
++        if (!sdpa || transformation_callback(sdpa)) {
++            return false;
++        }
++
++        // Only the micro SDPA kernel reads output_transpose_order, and it is available on XMX
++        // devices only -- everywhere else SDPAOpt::supports_micro_sdpa() is false and every stage
++        // runs sdpa_opt, which would ignore the folded order.
++        if (!supports_immad) {
++            return false;
++        }
++
++        // SDPAOpt::supports_micro_sdpa() rejects a 3D SDPA outright ("Known limitation: In vision
++        // encoding model of qwen-vl ... restricted to execute with sdpa_opt kernel"), so a headless
++        // attention block -- the Qwen-VL / Qwen3-VL vision tower, whose SDPA is
++        // [num_heads, seq_len, head_size] -- can never honour a folded output order.
++        if (sdpa->get_output_partial_shape(0).size() != 4) {
++            return false;
++        }
++
++        // ov::intel_gpu::op::SDPA derives from ov::op::v13::ScaledDotProductAttention, and
++        // WrapType matches derived types, so the pattern above also matches an SDPA that a
++        // previous matcher already rewrote. This is the normal case: the SDPA node precedes its
++        // output Transpose in topological order, so TransposeSDPAMatcher has already run and has
++        // already absorbed the Q/K/V transposes into order_q/k/v. Those orders must be carried
++        // over -- rebuilding from default_order() while keeping the (already un-transposed)
++        // inputs silently reinterprets Q/K/V with the batch and seq_len axes swapped.
++        auto fused_sdpa = ov::as_type_ptr<op::SDPA>(sdpa);
++
++        // The 6-argument op::SDPA constructor below carries neither the beam table + indirect
++        // axis of IndirectSDPA nor the KV-cache quantization attributes and their scale/zp
++        // inputs, so those two shapes cannot be rebuilt faithfully. They are the stateful
++        // KV-cache paths, where the output Transpose is not on the critical path anyway.
++        if (ov::as_type_ptr<op::IndirectSDPA>(sdpa) || (fused_sdpa && fused_sdpa->get_kv_compressed())) {
++            return false;
++        }
++
++        auto order_q = fused_sdpa ? fused_sdpa->get_input0_transpose_order()
++                                  : op::SDPA::default_order(sdpa->get_input_partial_shape(0).size());
++        auto order_k = fused_sdpa ? fused_sdpa->get_input1_transpose_order()
++                                  : op::SDPA::default_order(sdpa->get_input_partial_shape(1).size());
++        auto order_v = fused_sdpa ? fused_sdpa->get_input2_transpose_order()
++                                  : op::SDPA::default_order(sdpa->get_input_partial_shape(2).size());
++        size_t input_q_output_idx = sdpa->get_input_source_output(0).get_index();
++        size_t input_k_output_idx = sdpa->get_input_source_output(1).get_index();
++        size_t input_v_output_idx = sdpa->get_input_source_output(2).get_index();
++
++        auto process_transpose = [](const std::shared_ptr<Node>& transpose_node,
++                                    const std::shared_ptr<Node>& transpose_order_const_node,
++                                    std::vector<int64_t>& order,
++                                    size_t& output_idx) {
++            auto transpose_order_const = ov::as_type_ptr<ov::op::v0::Constant>(transpose_order_const_node);
++
++            order = transpose_order_const->cast_vector<int64_t>();
++            // Allow any transposes without head_size dim position change
++            if (order.back() != static_cast<int64_t>(order.size() - 1))
++                return false;
++
++            auto transpose = ov::as_type_ptr<ov::op::v1::Transpose>(transpose_node);
++            output_idx = transpose->get_input_source_output(0).get_index();
++
++            return true;
++        };
++
++        bool can_fuse_transposes = true;
++        if (pattern_map.count(transpose_q_m) > 0)
++            can_fuse_transposes &= process_transpose(pattern_map.at(transpose_q_m).get_node_shared_ptr(),
++                                                     pattern_map.at(transpose_q_order_m).get_node_shared_ptr(),
++                                                     order_q, input_q_output_idx);
++
++        if (pattern_map.count(transpose_k_m) > 0)
++            can_fuse_transposes &= process_transpose(pattern_map.at(transpose_k_m).get_node_shared_ptr(),
++                                                     pattern_map.at(transpose_k_order_m).get_node_shared_ptr(),
++                                                     order_k, input_k_output_idx);
++
++        if (pattern_map.count(transpose_v_m) > 0)
++            can_fuse_transposes &= process_transpose(pattern_map.at(transpose_v_m).get_node_shared_ptr(),
++                                                     pattern_map.at(transpose_v_order_m).get_node_shared_ptr(),
++                                                     order_v, input_v_output_idx);
++
++        auto transpose_order =
++            ov::as_type_ptr<ov::op::v0::Constant>(pattern_map.at(transpose_out_order_m).get_node_shared_ptr())->cast_vector<int64_t>();
++        // Compose with the order the SDPA already emits instead of overwriting it. The node
++        // currently writes P[i] = L[prev[i]] for the logical BHLS result L, and the Transpose then
++        // produces R[i] = P[transpose_order[i]], so the fused order is prev[transpose_order[i]].
++        // prev is the identity unless this SDPA already had an output transpose folded in.
++        auto prev_order_output = fused_sdpa ? fused_sdpa->get_output_transpose_order()
++                                            : op::SDPA::default_order(sdpa->get_output_partial_shape(0).size());
++        std::vector<int64_t> order_output(transpose_order.size());
++        if (transpose_order.size() != prev_order_output.size() ||
++            transpose_order.size() != sdpa->get_output_partial_shape(0).size()) {
++            can_fuse_transposes = false;
++        } else {
++            for (size_t i = 0; i < transpose_order.size(); i++)
++                order_output[i] = prev_order_output[transpose_order[i]];
++        }
++
++        // The kernels index the destination by head_size-contiguous rows, so only orders that keep
++        // head_size as the innermost dimension can be folded into the output strides.
++        if (can_fuse_transposes && order_output.back() != static_cast<int64_t>(order_output.size() - 1))
++            can_fuse_transposes = false;
++
++        // convert_strides("DST", "OUTPUT", order) in the SDPA generators reads the destination
++        // strides as DST_S[i] = OUTPUT_pitch[order[i]], i.e. it treats the order as mapping the
++        // logical axis to the physical one, whereas shape_infer() applies it the other way round.
++        // The two agree only for self-inverse permutations -- which every real attention block
++        // uses, since it just swaps num_heads and seq_len -- so reject anything else rather than
++        // fold an order the kernels would then read backwards.
++        if (can_fuse_transposes) {
++            for (size_t i = 0; i < order_output.size(); i++) {
++                if (order_output[static_cast<size_t>(order_output[i])] != static_cast<int64_t>(i)) {
++                    can_fuse_transposes = false;
++                    break;
++                }
++            }
++        }
++
++        if (!can_fuse_transposes)
++            return false;
++
++        OutputVector inputs;
++        inputs.push_back(ov::Output<Node>(pattern_map.at(input_q_m).get_node_shared_ptr(), input_q_output_idx));
++        inputs.push_back(ov::Output<Node>(pattern_map.at(input_k_m).get_node_shared_ptr(), input_k_output_idx));
++        inputs.push_back(ov::Output<Node>(pattern_map.at(input_v_m).get_node_shared_ptr(), input_v_output_idx));
++
++        if (pattern_map.find(sdpa_with_attn_mask_m) != pattern_map.end()) {
++            inputs.push_back(sdpa->get_input_source_output(3));
++        } else if (pattern_map.find(sdpa_with_attn_mask_and_scale_m) != pattern_map.end()) {
++            inputs.push_back(sdpa->get_input_source_output(3));
++            inputs.push_back(sdpa->get_input_source_output(4));
++        }
++
++        auto sdpa_new = std::make_shared<op::SDPA>(inputs,
++                                                   sdpa->get_causal(),
++                                                   order_q,
++                                                   order_k,
++                                                   order_v,
++                                                   order_output,
++                                                   fused_sdpa ? fused_sdpa->get_output_type() : ov::element::dynamic);
++
++        sdpa_new->set_friendly_name(m.get_match_root()->get_friendly_name());
++        ov::copy_runtime_info(m.get_matched_nodes(), sdpa_new);
++        ov::replace_node(m.get_match_root(), sdpa_new);
++        return true;
++    };
++
++    auto m = std::make_shared<ov::pass::pattern::Matcher>(transpose_out_m, "TransposeSDPATransposeMatcher");
++    this->register_matcher(m, callback);
++}
++
+ TransposeMatMulMatcher::TransposeMatMulMatcher(bool supports_immad) {
+     auto not_transpose = [](const ov::Output<ov::Node>& output) -> bool {
+         return ov::as_type_ptr<ov::op::v1::Transpose>(output.get_node_shared_ptr()) == nullptr
+diff --git a/src/plugins/intel_gpu/src/plugin/transformations/transpose_fusion.hpp b/src/plugins/intel_gpu/src/plugin/transformations/transpose_fusion.hpp
+index 6611206140..8ed304c833 100644
+--- a/src/plugins/intel_gpu/src/plugin/transformations/transpose_fusion.hpp
++++ b/src/plugins/intel_gpu/src/plugin/transformations/transpose_fusion.hpp
+@@ -32,6 +32,12 @@ public:
+     TransposeSDPAMatcher();
+ };
+ 
++class TransposeSDPATransposeMatcher : public ov::pass::MatcherPass {
++public:
++    OPENVINO_MATCHER_PASS_RTTI("TransposeSDPATransposeMatcher");
++    TransposeSDPATransposeMatcher(bool supports_immad);
++};
++
+ class TransposeVLSDPAMatcher : public ov::pass::MatcherPass {
+ public:
+     OPENVINO_MATCHER_PASS_RTTI("TransposeVLSDPAMatcher");

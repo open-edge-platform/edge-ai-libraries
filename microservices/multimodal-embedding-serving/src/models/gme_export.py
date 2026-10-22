@@ -13,9 +13,10 @@ GME is split into two IRs rather than converted as one graph:
 Splitting keeps the conversion-memory peak down and lets the runtime run the
 visual IR once per image. Both are traced with the graph-level rewrites the
 GME OpenVINO export project validated as bit-identical to the plain export
-(causal SDPA for the decoder, mask-free head-first SDPA for the vision tower).
-Weights are then compressed to ``weight_format`` and the result is checked
-against the PyTorch model before the package is published.
+(causal SDPA for the decoder, mask-free head-first SDPA for the vision tower,
+rank-3 ``[1, L, C]`` vision projections). Weights are then compressed to
+``weight_format`` and the result is checked against the PyTorch model before
+the package is published.
 """
 
 from __future__ import annotations
@@ -37,7 +38,7 @@ from PIL import Image
 from .gme_runtime import DEFAULT_INSTRUCTION, IMAGE_FACTOR, GmeOpenVINO
 from ..utils import logger
 
-SUPPORTED_WEIGHT_FORMATS = ("fp32", "int8")
+SUPPORTED_WEIGHT_FORMATS = ("fp32", "int8", "int4")
 MIN_IMAGE_TOKENS = 256
 MAX_IMAGE_TOKENS = 1280
 MAX_LENGTH = 1800
@@ -56,8 +57,66 @@ PROCESSOR_ASSETS = (
 # not needed, transformers loads it as a native qwen2_vl model.
 CHECKPOINT_PATTERNS = ["*.json", "*.safetensors", "merges.txt"]
 # Minimum cosine against PyTorch for the exported pipeline. INT8 measured >= 0.993
-# on images and 0.998 on fused inputs; a broken trace lands far below either.
-MIN_REFERENCE_COSINE = {"fp32": 0.9999, "int8": 0.99}
+# on images and 0.998 on fused inputs, INT4 0.94-0.96 on every input type; a
+# broken trace lands far below either.
+MIN_REFERENCE_COSINE = {"fp32": 0.9999, "int8": 0.99, "int4": 0.90}
+# Calibration prompts for the language IR's INT4 compression. Plain data-free
+# INT4 hurts text embeddings much more than image/fused ones (last-token pooling
+# over a decoder is sensitive to per-channel weight error), so AWQ + scale
+# estimation search scales over representative activations. Diversity of
+# length, language and register matters more than domain here. Pairs are
+# (text, instruction); None is the document-side default instruction.
+INT4_CALIBRATION_TEXTS: list[tuple[str, Optional[str]]] = [
+    ("How do I reset my password on this website?", None),
+    ("What time does the museum open on Sundays?", None),
+    ("The quarterly earnings report showed a 12% increase in revenue year over year.", None),
+    ("Mix 2 cups of flour with a teaspoon of baking soda, then fold in the melted butter.", None),
+    ("def fibonacci(n):\n    if n <= 1:\n        return n\n    return fibonacci(n-1) + fibonacci(n-2)", None),
+    ("SELECT customer_id, SUM(total) FROM orders GROUP BY customer_id ORDER BY 2 DESC LIMIT 10;", None),
+    ("A large orange cat sleeping on a windowsill in the afternoon sun.", None),
+    ("The Amazon rainforest produces roughly 20% of the world's oxygen supply.", None),
+    ("请解释一下什么是卷积神经网络，以及它在图像识别中的应用。", None),
+    ("北京的秋天天气凉爽，是登长城的最佳季节之一。", None),
+    ("Photosynthesis converts carbon dioxide and water into glucose and oxygen using light energy.", None),
+    ("On 2024-03-14 at 09:30 UTC, flight AC142 departed gate B17 for a 6h45m transatlantic crossing.", None),
+    (
+        "Neural network quantization reduces model size and inference latency by representing "
+        "weights and activations with fewer bits, typically 8-bit integers instead of 32-bit "
+        "floating point, at the cost of some accuracy that can often be recovered with "
+        "calibration-aware or quantization-aware training techniques.",
+        None,
+    ),
+    (
+        "The French Revolution, beginning in 1789, fundamentally transformed French society by "
+        "abolishing the monarchy and feudal privileges, establishing in their place a series of "
+        "republics and empires whose legal and political innovations reverberated across Europe "
+        "for the following century.",
+        None,
+    ),
+    ("Battery electric vehicles convert over 77% of electrical energy from the grid to power at the wheels.", None),
+    ("The train to Boston leaves platform 4 at quarter past six every weekday morning.", None),
+    ("import numpy as np\narr = np.zeros((3, 3), dtype=np.float32)\narr[1, 1] = 1.0", None),
+    ("A weathered wooden pier extending into a calm lake at sunrise, mist rising off the water.", None),
+    ("Interest rates rose by 25 basis points, the third consecutive increase this fiscal year.", None),
+    ("为什么天空是蓝色的？这与太阳光在大气层中的瑞利散射有关。", None),
+    ("Please summarize the key differences between TCP and UDP for a networking course.", None),
+    ("A red mountain bike leaning against a brick wall in an alleyway.", None),
+    ("The recipe calls for simmering the sauce on low heat for at least forty-five minutes.", None),
+    ("Global smartphone shipments declined 3.2% in the first quarter compared to the prior year.", None),
+    ("192.168.1.1 is a commonly used private IPv4 address for home network routers.", None),
+    ("Can you recommend a good beginner book on machine learning?", None),
+    (
+        "In distributed systems, the CAP theorem states that a system can provide at most two of "
+        "the following three guarantees simultaneously: consistency, availability, and partition "
+        "tolerance, which forces architects to make explicit tradeoffs depending on workload.",
+        None,
+    ),
+    ("A stack of pancakes topped with maple syrup and a pat of melting butter.", None),
+    ("水的沸点在标准大气压下是攝氏一百度。", None),
+    ("What kind of car is this?", "Find an image that matches the given text."),
+    ("best hiking trails near Denver with waterfalls", "Represent this sentence for searching relevant passages."),
+    ("How does gradient descent converge for a convex loss function?", "Find a passage that answers this question."),
+]
 
 
 class GmeLanguageEmbed(torch.nn.Module):
@@ -176,6 +235,12 @@ def _mask_free_vision_attention():
     an identity; it also keeps the sequence dimension dynamic, which the
     upstream split path (``lengths.tolist()``) would bake in. Q/K/V go to
     ``[H, L, D]`` in one permute instead of a permute plus three transposes.
+
+    The block stack runs on ``[1, L, C]`` instead of ``[L, C]`` (a singleton
+    axis, not a batch). The values are identical, but the GPU plugin selects
+    kernels by rank: the INT4 weight reorder in the GME GPU-plugin patch set
+    (opt-3) only takes rank-3 inputs, and on a stock plugin the two ranks run
+    at the same speed with bit-identical outputs.
     """
     from transformers.models.qwen2_vl import modeling_qwen2_vl as qwen2_vl
 
@@ -204,15 +269,38 @@ def _mask_free_vision_attention():
             dropout_p=0.0,
             is_causal=False,
         )
-        attn_output = attn_output.transpose(1, 2).reshape(seq_length, -1).contiguous()
+        # Straight to [1, L, C]: keeps `proj` rank 3 without a separate Unsqueeze.
+        attn_output = attn_output.transpose(1, 2).reshape(1, seq_length, -1).contiguous()
         return self.proj(attn_output)
 
+    def tower_forward(self, hidden_states, grid_thw, **kwargs):
+        # Upstream's forward, with the block stack on [1, L, C]. VisionMlp and the
+        # residual adds are shape-agnostic and the attention above reads shape[-2];
+        # the merger gets [L, C] back, as upstream.
+        position_ids = qwen2_vl.get_vision_position_ids(grid_thw, self.spatial_merge_size, kwargs=kwargs)
+        cu_seqlens = qwen2_vl.get_vision_cu_seqlens(grid_thw, kwargs=kwargs)
+        hidden_states = self.patch_embed(hidden_states)
+        rotary_pos_emb = self.rotary_pos_emb(position_ids)
+        emb = torch.cat((rotary_pos_emb, rotary_pos_emb), dim=-1)
+        position_embeddings = (emb.cos(), emb.sin())
+        hidden_states = hidden_states.unsqueeze(0)
+        for blk in self.blocks:
+            hidden_states = blk(hidden_states, cu_seqlens=cu_seqlens, position_embeddings=position_embeddings)
+        hidden_states = hidden_states.squeeze(0)
+        return qwen2_vl.BaseModelOutputWithPooling(
+            last_hidden_state=hidden_states,
+            pooler_output=self.merger(hidden_states),
+        )
+
     saved = qwen2_vl.VisionAttention.forward
+    saved_tower = qwen2_vl.Qwen2VisionTransformerPretrainedModel.forward
     qwen2_vl.VisionAttention.forward = forward
+    qwen2_vl.Qwen2VisionTransformerPretrainedModel.forward = tower_forward
     try:
         yield
     finally:
         qwen2_vl.VisionAttention.forward = saved
+        qwen2_vl.Qwen2VisionTransformerPretrainedModel.forward = saved_tower
 
 
 def _processor(source: Path, min_image_tokens: int, max_image_tokens: int):
@@ -277,17 +365,68 @@ def _convert(module, example_inputs, path: Path, input_names, shapes, patch) -> 
     gc.collect()
 
 
-def _compress_int8(source: Path, target: Path, ignored_patterns=()) -> None:
+def _compress(source: Path, target: Path, weight_format: str, **kwargs) -> None:
     import nncf
 
-    logger.info("Compressing %s to INT8", source.name)
-    kwargs = {"mode": nncf.CompressWeightsMode.INT8_ASYM}
-    if ignored_patterns:
-        kwargs["ignored_scope"] = nncf.IgnoredScope(patterns=list(ignored_patterns), validate=False)
+    logger.info("Compressing %s to %s", source.name, weight_format.upper())
     model = nncf.compress_weights(ov.Core().read_model(str(source)), **kwargs)
     ov.save_model(model, str(target))
     del model
     gc.collect()
+
+
+def _calibration_dataset(tokenizer, hidden_size: int):
+    """INT4 calibration inputs for the language IR, one ``[1, S]`` text-only sample each.
+
+    Each prompt is tokenized on its own, as the runtime invokes the language IR
+    per sample, so calibration sees real sequence lengths rather than one padded
+    shape. ``image_embeds`` is the empty tensor text-only inference feeds.
+    """
+    import nncf
+
+    prompts = [
+        GmeOpenVINO._prompt(text, has_image=False, instruction=instruction or DEFAULT_INSTRUCTION)
+        for text, instruction in INT4_CALIBRATION_TEXTS
+    ]
+
+    def transform(prompt: str) -> dict:
+        encoded = tokenizer([prompt], truncation=True, max_length=MAX_LENGTH, return_tensors="np")
+        return {
+            "input_ids": encoded["input_ids"],
+            "attention_mask": encoded["attention_mask"],
+            "image_embeds": np.empty((0, hidden_size), dtype=np.float32),
+        }
+
+    return nncf.Dataset(prompts, transform)
+
+
+def _compression_kwargs(weight_format: str, tokenizer, hidden_size: int) -> tuple[dict, dict]:
+    """NNCF ``compress_weights`` arguments for the language and visual IRs."""
+    import nncf
+    from nncf.quantization.advanced_parameters import AdvancedCompressionParameters, GroupSizeFallbackMode
+
+    # Quantizing the ViT rotary frequencies collapses the image embedding.
+    rotary = nncf.IgnoredScope(patterns=[".*rotary.*"], validate=False)
+    if weight_format == "int8":
+        mode = nncf.CompressWeightsMode.INT8_ASYM
+        return {"mode": mode}, {"mode": mode, "ignored_scope": rotary}
+    int4 = {"mode": nncf.CompressWeightsMode.INT4_ASYM, "group_size": 128, "ratio": 1.0}
+    language = {
+        **int4,
+        "dataset": _calibration_dataset(tokenizer, hidden_size),
+        "awq": True,
+        "scale_estimation": True,
+        "subset_size": len(INT4_CALIBRATION_TEXTS),
+    }
+    # The vision tower does not show the decoder's INT4 sensitivity, so it stays
+    # data-free; ADJUST shrinks the group for the few matmuls whose channel count
+    # is not a multiple of 128 instead of failing.
+    visual = {
+        **int4,
+        "ignored_scope": rotary,
+        "advanced_parameters": AdvancedCompressionParameters(group_size_fallback_mode=GroupSizeFallbackMode.ADJUST),
+    }
+    return language, visual
 
 
 def _cosine(left: np.ndarray, right: np.ndarray) -> float:
@@ -391,10 +530,11 @@ def _build_package(source: Path, package: Path, weight_format: str, model_name: 
     gc.collect()
 
     language_xml, visual_xml = f"gme_language_{weight_format}.xml", f"gme_visual_{weight_format}.xml"
-    if weight_format == "int8":
-        _compress_int8(package / "gme_language_fp32.xml", package / language_xml)
-        # Quantizing the ViT rotary frequencies collapses the image embedding.
-        _compress_int8(package / "gme_visual_fp32.xml", package / visual_xml, ignored_patterns=[".*rotary.*"])
+    if weight_format != "fp32":
+        tokenizer = _processor(source, MIN_IMAGE_TOKENS, MAX_IMAGE_TOKENS).tokenizer
+        language_kwargs, visual_kwargs = _compression_kwargs(weight_format, tokenizer, hidden_size)
+        _compress(package / "gme_language_fp32.xml", package / language_xml, weight_format, **language_kwargs)
+        _compress(package / "gme_visual_fp32.xml", package / visual_xml, weight_format, **visual_kwargs)
         for name in ("gme_language_fp32", "gme_visual_fp32"):
             for suffix in (".xml", ".bin"):
                 (package / f"{name}{suffix}").unlink()
