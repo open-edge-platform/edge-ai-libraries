@@ -123,15 +123,15 @@ Every run (CLI or direct pytest) prints these sections in order:
 
 1. **ViPPET readiness**: the `/health` and `/status` checks, then the `/devices`,
    capabilities and version snapshots used for the report.
-2. **Discovered hardware**: the ViPPET version and the device names per CPU/GPU/NPU family.
-3. **Benchmark matrix**: the same tables as `--dry-run`, covering runs, exclusions
+1. **Discovered hardware**: the ViPPET version and the device names per CPU/GPU/NPU family.
+1. **Benchmark matrix**: the same tables as `--dry-run`, covering runs, exclusions
    with reasons, and runs skipped for missing models.
-4. **Per-test status**: one `PASSED`/`FAILED`/`SKIPPED` line per run (`-v` is set in
+1. **Per-test status**: one `PASSED`/`FAILED`/`SKIPPED` line per run (`-v` is set in
    `pytest.ini`; pass `-q` after `--` for dots).
-5. **Benchmark artefacts**: the run directory, the JSON/CSV/HTML reports, the log file
+1. **Benchmark artefacts**: the run directory, the JSON/CSV/HTML reports, the log file
    and the `latest` link, or why no reports were written. Also a warning if no
    hardware metrics were sampled.
-6. pytest's short summary with every skip and failure reason.
+1. pytest's short summary with every skip and failure reason.
 
 The path of the log file is also printed in pytest's header (`benchmark log: ...`), so
 it is known even when the run stops at the readiness check.
