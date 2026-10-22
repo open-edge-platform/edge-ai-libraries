@@ -1,8 +1,8 @@
 
 ---
-name: openedge-cli
-description: Use the openedge-cli installer to install, start, stop, or remove Open Edge Platform (OEP) modules and profiles on an edge system. Trigger on requests like "install OpenVINO", "set up DL Streamer", "run the smart parking sample", "deploy the Metro / Manufacturing / Retail / Robotics AI Suite", "what OEP components can I install", or "uninstall <OEP component>".
-license: Apache-2.0
+name: openedge-cli   
+description: Use the openedge-cli installer to install, start, stop, or remove Open Edge Platform (OEP) modules and profiles on an edge system. Trigger on requests like "install OpenVINO", "set up DL Streamer", "run the smart parking sample", "deploy the Metro / Manufacturing / Retail / Robotics AI Suite", "what OEP components can I install", or "uninstall <OEP component>".   
+license: Apache-2.0   
 ---
 
 # Open Edge Platform CLI Installer
@@ -59,12 +59,12 @@ openedge-cli <subcommand> [options] [modules/profiles] [--<module> module-option
 
 ## Other lifecycle operations
 
-- **Start/stop:** `./openedge-cli start <component>` / `./openedge-cli stop <component>`
+- **Start/stop:** `./openedge-cli start <component>` / `./openedge-cli stop <component>`.  
   `./openedge-cli stop` stops all previously started components.  
-- **Remove:** `./openedge-cli remove <component>`. This is **not recursive**:
+- **Remove:** `./openedge-cli remove <component>`. This is **not recursive**:  
   it removes only the named component and leaves its dependencies installed. 
-  List dependencies explicitly if needed. Use `./openedge-cli remove --remove-all` without 
-  a component name to remove all previously installed.  
+  List dependencies explicitly if needed.   
+  `./openedge-cli remove --remove-all` to remove all previously installed.  
 
 ## Troubleshooting
 
