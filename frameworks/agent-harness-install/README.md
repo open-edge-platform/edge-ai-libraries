@@ -97,6 +97,8 @@ acceptance requires independently verifying generated files/content. The
 
 Offline regression tests: `bash test/openshell-test.sh`. Agent-image build and
 real sandbox tests require Docker, the pinned gateway and a running shared IR.
+See [OpenShell quality gates](test/README.md) for automated test cases, TAP
+reports, opt-in lifecycle tests and CI runner setup.
 
 ## How it works
 
