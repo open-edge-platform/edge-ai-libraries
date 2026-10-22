@@ -70,7 +70,7 @@ export const VlmMetricsCharts = ({
               "Average time between generated tokens; indicates streaming generation speed.",
           },
         ]}
-        tooltipOnlyMetrics={[
+        additionalTooltipMetrics={[
           {
             dataKey: "ttft",
             label: "VLM TTFT",

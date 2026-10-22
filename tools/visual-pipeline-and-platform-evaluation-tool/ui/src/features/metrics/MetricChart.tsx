@@ -34,7 +34,7 @@ export interface MetricChartProps {
   showLegend?: boolean;
   labels?: string[];
   titleTooltip?: { label: string; description: string }[];
-  tooltipOnlyMetrics?: { dataKey: string; label: string }[];
+  additionalTooltipMetrics?: { dataKey: string; label: string }[];
   maxDataPoints?: number;
   isSummary?: boolean;
   hideSummaryBorder?: boolean;
@@ -54,7 +54,7 @@ export const MetricChart = ({
   showLegend = true,
   labels,
   titleTooltip,
-  tooltipOnlyMetrics,
+  additionalTooltipMetrics,
   maxDataPoints = 60,
   isSummary = false,
   hideSummaryBorder = false,
@@ -141,7 +141,7 @@ export const MetricChart = ({
         useDemoStyles ? "rounded-xl shadow-2xl" : "shadow-md",
         isCompact ? "p-4 pb-6" : "p-4",
         "max-w-full",
-        isCompact ? "overflow-visible" : "overflow-hidden",
+        "overflow-visible",
         isSummary && !hideSummaryBorder
           ? summaryBorderClassName
           : useDemoStyles
@@ -240,14 +240,14 @@ export const MetricChart = ({
             <ChartTooltip
               content={
                 <ChartTooltipContent
-                  className="bg-popover border-border text-popover-foreground"
+                  className="bg-popover border-border text-popover-foreground w-max max-w-[calc(100vw-2rem)]"
                   labelFormatter={(value) => {
                     if (!value) return "";
                     const seconds = parseInt(value as string);
                     return `Time: ${formatTime(seconds)}`;
                   }}
                   formatter={(value, name, _item, _index, point) => {
-                    if (tooltipOnlyMetrics?.length) {
+                    if (additionalTooltipMetrics?.length) {
                       const metrics = [
                         {
                           dataKey: String(name),
@@ -255,7 +255,7 @@ export const MetricChart = ({
                           color: colors[dataKeys.indexOf(String(name))],
                           value,
                         },
-                        ...tooltipOnlyMetrics.map((metric) => ({
+                        ...additionalTooltipMetrics.map((metric) => ({
                           ...metric,
                           value: point[metric.dataKey],
                         })),
@@ -266,9 +266,9 @@ export const MetricChart = ({
                           {metrics.map((metric) => (
                             <div
                               key={metric.dataKey}
-                              className="flex items-center justify-between gap-3"
+                              className="flex min-w-0 items-center justify-between gap-3"
                             >
-                              <span className="flex items-center gap-2">
+                              <span className="flex min-w-0 items-center gap-2">
                                 <span
                                   aria-hidden="true"
                                   className={cn(
@@ -283,9 +283,11 @@ export const MetricChart = ({
                                       : undefined
                                   }
                                 />
-                                <span>{metric.label}</span>
+                                <span className="break-words">
+                                  {metric.label}
+                                </span>
                               </span>
-                              <span className="font-mono font-medium tabular-nums">
+                              <span className="shrink-0 font-mono font-medium tabular-nums">
                                 {Number(metric.value).toFixed(2)} {unit}
                               </span>
                             </div>
