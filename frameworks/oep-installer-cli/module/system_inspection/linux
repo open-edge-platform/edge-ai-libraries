@@ -1,5 +1,5 @@
 
-system_scan_summary_report () {
+install_system_inspection () {
   set -o pipefail
   (
     echo "----------------------------------------------------------------"
@@ -11,9 +11,9 @@ system_scan_summary_report () {
     echo "System|$system_summary"
 
     pass=$ok
-    membank_info="$(ensure_prop get installed/pre_system_scan/membank)"
+    membank_info="$(ensure_prop get installed/system_inspection/membank)"
     [ -n "$membank_info" ] || membank_info="$(system_scan_check_membank)"
-    [ -z "$membank_info" ] || ensure_prop set installed/pre_system_scan/membank "$membank_info"
+    [ -z "$membank_info" ] || ensure_prop set installed/system_inspection/membank "$membank_info"
     [ "$membank_info" = "DUAL/MULTI-CHANNELS" ] || pass="${nok/MSG/Check Memory}"
     echo -e "RAM|$membank_info|$pass"
     [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT RAM|$membank_info|$pass" 1>&2
