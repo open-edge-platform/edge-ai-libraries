@@ -40,18 +40,18 @@ fedora_75_install_dlstreamer () {
     ensure_prop set installed/dlstreamer/owned true
 
     # remove old versions
-    echo "@@HINT Removing intel-dlstreamer"
+    echo "@@STEP Removing intel-dlstreamer"
     fedora_75_remove_dlstreamer "$@"
 
     # product entrypoint
     printf "%s\n" "${yum_repo_conf[@]}" | ensure_sudo tee "$yum_repo_file"
 
     # install dlstreamer
-    echo "@@HINT Installing intel-dlstreamer=$version"
+    echo "@@STEP Installing intel-dlstreamer=$version"
     ensure_dnf install -y intel-dlstreamer=$version
 
     # install skills
-    echo "@@HINT Installing skills"
+    echo "@@STEP Installing skills"
     ensure_skills add "$version_skills" "$repository_skills" .github/skills/dlstreamer-coding-agent
 
     verify_dlstreamer

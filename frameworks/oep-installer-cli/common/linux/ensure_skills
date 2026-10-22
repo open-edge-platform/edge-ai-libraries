@@ -18,7 +18,7 @@ ensure_skills () {
       [ ! -e "$HOME"/.agents/skills/"${p##*/}" ] || ensure_rm "$HOME"/.agents/skills/"${p##*/}"
       cp -r "$tmpdir/${p}" "$HOME"/.agents/skills
     done
-    ensure_tmpdir destory "$tmpdir"
+    ensure_tmpdir destroy "$tmpdir"
   
     for agent in .claude .cursor .copilot .codex; do
       [ -d "$HOME/$agent/skills" ] || continue
@@ -31,7 +31,6 @@ ensure_skills () {
     done
     ;;
   remove)
-    set -x
     local name agent
     for agent in .agents .claude .cursor .copilot .codex; do
       for name in "${@##*/}"; do

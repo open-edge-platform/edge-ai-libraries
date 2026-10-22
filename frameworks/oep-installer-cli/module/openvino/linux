@@ -3,7 +3,7 @@ test_openvino () {
   if [[ " $* " = *" --validate "* ]]; then
     [ -r "$workspace"/${model##*/} ] || {
       mkdir -p "$workspace"
-      echo "@@HINT Downloading ${model##*/}"
+      echo "@@STEP Downloading ${model##*/}"
       ensure_fetch "$model" "$workspace"/${model##*/} || {
         echo "Failed to fetch ${model##*/}" >&2
         return 3
@@ -11,7 +11,7 @@ test_openvino () {
     }
     local benchmark_app="$(find "$workspace" -type f -name benchmark_app -perm -u+x || true)"
     [ -x "$benchmark_app" ] || {
-      echo "@@HINT Building benchmark_app"
+      echo "@@STEP Building benchmark_app"
       mkdir -p "$workspace"/benchmark_app
       cd "$workspace"/benchmark_app
       cmake -S /usr/share/openvino/samples/cpp -B . -DCMAKE_BUILD_TYPE=Release
@@ -31,7 +31,7 @@ test_openvino () {
     )
     for device in ${!device_map[*]}; do
       [ -e ${device_map[$device]} ] || continue
-      echo "@@HINT Validating on $device"
+      echo "@@STEP Validating on $device"
       echo "Validating ${model##*/} inferencing on $device..."
       "$benchmark_app" -t 5 -m "$workspace"/${model##*/} -d $device --cache_dir "$workspace"/cache && validated+=("$device ok") || validated+=("$device failed")
     done

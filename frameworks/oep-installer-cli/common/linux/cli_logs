@@ -4,8 +4,8 @@ act_panelled_logs () {(
 #
 # Protocol (markers your installer emits on stdout/stderr):
 #   @@COMP       <name>     start/switch to component (starts its timer)
-#   @@HINT       <text>     show <text> right-aligned in the title bar if it
-#   @@HINT       @@IF <re> @@THEN <text>  when a later log line matches regex <re>,
+#   @@STEP       <text>     show <text> right-aligned in the title bar if it
+#   @@STEP       @@IF <re> @@THEN <text>  when a later log line matches regex <re>,
 #                           set the step text to <text> (\0..\9 = groups).
 #                           First matching rule wins; rules persist.
 #   @@OK         [name]     mark component installed OK   (stops its timer)
@@ -1065,14 +1065,14 @@ _handle_line() {
   rest=${rest#"${rest%%[![:space:]]*}"}
 
   case ${key^^} in
-    @@HINT)
+    @@STEP)
       if [[ -z $rest ]]; then
         _clear_step
       elif [[ $rest == '@@IF' ]]; then
         _clear_step_rules
       elif [[ $rest == '@@IF '*' @@THEN '* ]]; then
         _add_step_rule "${rest#@@IF }" \
-          || _push_log "${CURRENT:-general}" "invalid @@HINT rule: $rest"
+          || _push_log "${CURRENT:-general}" "invalid @@STEP rule: $rest"
         return
       else
         _set_step "$rest"

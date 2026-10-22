@@ -40,16 +40,16 @@ debian_90_install_smart_parking () {
     ensure_ports_open install smart_parking "${used_ports[@]}"
 
     # clone the repository
-    echo "@@HINT Clone git repository"
+    echo "@@STEP Clone git repository"
     ensure_git_export "$workspace" $version $repository metro-vision-ai-app-recipe
 
     # setup
-    echo "@@HINT Setup sample" 
-    echo "@@HINT @@IF ^docker compose down @@THEN Stopping all apps"
-    echo "@@HINT @@IF ^Attempt : Running model download and quantization @@THEN Preparing model download"
-    echo "@@HINT @@IF ^Downloading and converting:.*[/]([a-z0-9]+)$ @@THEN Downloading \\1"
-    echo "@@HINT @@IF ^Starting ([A-Z0-9]+) quantization for ([a-z0-9]+) @@THEN Quantizing \\2 to \\1"
-    echo "@@HINT @@IF ^Download ([a-z0-9_]+.mp4)[.][.][.] @@THEN Downloading \\1"
+    echo "@@STEP Setup sample" 
+    echo "@@STEP @@IF ^docker compose down @@THEN Stopping all apps"
+    echo "@@STEP @@IF ^Attempt : Running model download and quantization @@THEN Preparing model download"
+    echo "@@STEP @@IF ^Downloading and converting:.*[/]([a-z0-9]+)$ @@THEN Downloading \\1"
+    echo "@@STEP @@IF ^Starting ([A-Z0-9]+) quantization for ([a-z0-9]+) @@THEN Quantizing \\2 to \\1"
+    echo "@@STEP @@IF ^Download ([a-z0-9_]+.mp4)[.][.][.] @@THEN Downloading \\1"
     cd "$workspace/metro-vision-ai-app-recipe"
     sed -i 's|curl | curl -f |' smart-parking/install.sh
     ./install.sh smart-parking $(ensure_ip)

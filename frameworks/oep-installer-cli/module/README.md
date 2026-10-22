@@ -191,16 +191,16 @@ echo "@@HIGHLIGHT setup env: setup-vars.sh"
 echo "@@HIGHLIGHT make help to see full list of build targets"
 ```
 
-### @@HINT Protocol
+### @@STEP Protocol
 
-The `@@HINT` marker can be used to show a hint of current installation step. The hint is right aligned on the title bar. The hint message should be short and concise for better user experience.   
+The `@@STEP` marker can be used to show a hint of current installation step. The hint is right aligned on the title bar. The hint message should be short and concise for better user experience.   
 
 ```
 # Show static text
-echo "@@HINT Setup sample"                               
+echo "@@STEP Setup sample"                               
 
 # Show dynamitc text based on logging output
-echo "@@HINT @@IF Download ([a-z0-9_]*) @@THEN Downloading \\1"  
+echo "@@STEP @@IF Download ([a-z0-9_]*) @@THEN Downloading \\1"  
 ```
 
 ### Custom Options

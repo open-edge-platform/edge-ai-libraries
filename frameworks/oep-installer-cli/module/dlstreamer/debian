@@ -35,7 +35,7 @@ debian_75_install_dlstreamer () {
     ensure_prop set installed/dlstreamer/owned true
 
     # remove old versions
-    echo "@@HINT Removing intel-dlstreamer"
+    echo "@@STEP Removing intel-dlstreamer"
     debian_75_remove_dlstreamer "$@"
 
     # product key & list file
@@ -46,12 +46,12 @@ debian_75_install_dlstreamer () {
     ensure_apt update -y
 
     # install dlstreamer
-    echo "@@HINT Installing intel-dlstreamer=$version"
+    echo "@@STEP Installing intel-dlstreamer=$version"
     ensure_apt_allow_downgrades "${allow_downgrades[*]}" --no-install-recommends -y intel-dlstreamer=$version
     ensure_apt install --allow-downgrades --no-install-recommends -y intel-dlstreamer=$version
 
     # install skills
-    echo "@@HINT Installing skills"
+    echo "@@STEP Installing skills"
     ensure_skills add "$version_skills" "$repository_skills" .github/skills/dlstreamer-coding-agent
 
     verify_dlstreamer

@@ -4,7 +4,7 @@ test_dlstreamer_pipeline () {
     mkdir -p "$workspace"
     cd "$workspace"
 
-    echo "@@HINT Downloading models"
+    echo "@@STEP Downloading models"
     { 
       mkdir -p models/${od_model%/*}
       [ -e models/$od_model.bin ] || ensure_fetch $model_repo/storage/$od_model.bin models/$od_model.bin || {
@@ -43,7 +43,7 @@ test_dlstreamer_pipeline () {
     )
     for device in ${!device_map[*]}; do
       [ -e ${device_map[$device]} ] || continue
-      echo "@@HINT Validating on $device"
+      echo "@@STEP Validating on $device"
       echo "Validating $od_model and $oc_model on device $device..."
       (
         set -o pipefail
