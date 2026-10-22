@@ -45,7 +45,7 @@ start_geti () {
      $image_name
 
   echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}"
-  echo "@@HIGHLIGHT workspace: ~${workspace#"$HOME"}/geti-data"
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}/geti-data"
   echo "@@HIGHLIGHT $installer_name stop|remove"
 }
 
