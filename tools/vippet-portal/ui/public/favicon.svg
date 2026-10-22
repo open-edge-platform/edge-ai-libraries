@@ -1,0 +1,7 @@
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+    <rect width="128" height="128" fill="#0054AE"/>
+    <!-- Cap line and baseline match the ViPPET "V" mark exactly (y 30.8 -> 98.192). -->
+    <text x="64" y="98.192" fill="white"
+          font-family="Montserrat, Helvetica, Arial, sans-serif"
+          font-size="93.6" font-weight="700" text-anchor="middle">VP</text>
+</svg>
