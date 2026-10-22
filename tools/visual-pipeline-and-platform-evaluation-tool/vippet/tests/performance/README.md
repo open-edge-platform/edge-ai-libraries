@@ -252,4 +252,3 @@ After a run, results are saved to `results/bench_YYYYMMDD_HHMMSS/`:
 - `.html` — interactive Chart.js report with FPS, utilization, and power charts
 
 Rebuild the HTML later with `--report-only` (see [Report only](#report-only)).
-
