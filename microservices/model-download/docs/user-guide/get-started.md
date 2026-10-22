@@ -5,6 +5,15 @@ The Model Download is a microservice that downloads models from multiple hubs as
 > [!NOTE]
 > Model Download replaces Model Registry, which will be deprecated soon. See [Migrate from Model Registry to Model Download](./get-started/migration.md) for the migration guidelines.
 
+The runtime image does not bundle the repository's `uv.lock`. At startup,
+the entrypoint runs `uv lock` and then uses `uv sync --locked` for the base
+and plugin environments. Dependency resolution failure stops startup.
+Fresh containers require package-index access and may resolve different versions
+within the constraints in `pyproject.toml`. Restarting an existing container
+can reuse its generated lockfile; this is not a forced dependency upgrade.
+Additional OMZ and custom OVMS requirements are installed separately and are
+not governed by this lockfile.
+
 ## Features
 
 - Downloads models from Hugging Face, Ollama, Geti software, Ultralytics, Pipeline Zoo Models, Open Model Zoo (OMZ), remote URL, and HLS hubs

@@ -367,11 +367,10 @@ cd /opt
 # ollama to PATH if it's not already there
 export PATH="/opt/bin/:$PATH"
 
-# Use the checked-in lockfile rather than re-resolving every optional plugin
-# from the network on each container start.
-print_info "Checking lockfile..."
-if ! uv lock --check --offline; then
-    print_error "The bundled lockfile is missing or out of date"
+# Resolve dependencies at startup, then use that lockfile for every venv sync.
+print_info "Generating lockfile..."
+if ! uv lock; then
+    print_error "Failed to resolve dependencies and generate the startup lockfile"
     exit 1
 fi
 
