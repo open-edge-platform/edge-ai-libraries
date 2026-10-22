@@ -18,8 +18,8 @@ This script merges those sources into the published ``config.json``. It
 auto-injects the boilerplate that developers should not have to repeat:
 
 * every module gets ``supports.PROFILE`` set to its owning profile, and
-* every profile-scoped output rule gets its ``when`` condition
-  (``{PROFILE: <value>, OP_SYSTEM: <default>}``).
+* every profile-scoped output rule gets a ``when`` condition for each
+  supported operating system.
 
 Usage::
 
@@ -31,8 +31,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
+
+# A module option is a lowercase CLI flag, e.g. "--gpu" or "--k3s".
+OPTION_FLAG_RE = re.compile(r"--[a-z0-9][a-z0-9_-]*")
 
 # Repository layout (paths are relative to this script's location).
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -70,11 +74,49 @@ def _load_fragments() -> dict[str, dict]:
     return fragments
 
 
+def _os_support(item: dict, os_values: list[str], where: str) -> dict:
+    supports = item.get("supports", {})
+    if not isinstance(supports, dict) or set(supports) - {"OP_SYSTEM"}:
+        sys.exit(f"error: {where}: 'supports' may only declare OP_SYSTEM")
+    if "OP_SYSTEM" in supports:
+        values = supports["OP_SYSTEM"]
+        if (
+            not isinstance(values, list)
+            or not values
+            or not all(isinstance(v, str) and v in os_values for v in values)
+            or len(set(values)) != len(values)
+        ):
+            sys.exit(f"error: {where}: supports.OP_SYSTEM must list unique configured OS values")
+    return supports
+
+
+def _combinations(values: object, where: str) -> list[str]:
+    if not isinstance(values, list) or not values:
+        sys.exit(f"error: {where}: 'options' must be a non-empty list of flag combinations")
+    combinations = []
+    seen = set()
+    for value in values:
+        if not isinstance(value, str):
+            sys.exit(f"error: {where}: each option must be a string of flags like '--gpu --docker'")
+        flags = value.split()
+        if not all(OPTION_FLAG_RE.fullmatch(flag) for flag in flags) or len(set(flags)) != len(flags):
+            sys.exit(f"error: {where}: invalid or repeated flags in option {value!r}")
+        key = frozenset(flags)
+        if key in seen:
+            sys.exit(f"error: {where}: duplicate option combination {value!r}")
+        seen.add(key)
+        combinations.append(" ".join(flags))
+    return combinations
+
+
 def build_config() -> dict:
     base = _load_json(BASE_PATH)
     fragments = _load_fragments()
 
-    default_os = base.get("defaultOpSystem", "UBUNTU")
+    default_os = base.get("defaultOpSystem", "UBUNTU_24_04")
+    os_values = [option["value"] for option in base["opSystem"]["options"]]
+    if default_os not in os_values:
+        sys.exit("error: defaultOpSystem must reference a configured OS value")
     order = base.get("profileOrder", [])
 
     # Every profile listed in profileOrder must have a fragment, and vice versa,
@@ -87,6 +129,19 @@ def build_config() -> dict:
         sys.exit(f"error: profile fragments not listed in profileOrder: {extra}")
 
     ordered = [fragments[v] for v in order]
+    for frag in ordered:
+        profile = frag["profile"]
+        where = f"{frag['_path']}: profile '{profile['value']}'"
+        _os_support(profile, os_values, where)
+        if "remove" in profile and not isinstance(profile["remove"], bool):
+            sys.exit(f"error: {where}: 'remove' must be true/false")
+
+    def profile_rules(frag: dict, content: dict) -> list[dict]:
+        supported = frag["profile"].get("supports", {}).get("OP_SYSTEM", os_values)
+        return [
+            {"when": {"PROFILE": frag["profile"]["value"], "OP_SYSTEM": os_value}, **content}
+            for os_value in supported
+        ]
 
     # --- PROFILE category ---
     profile_cat = dict(base["profileCategory"])
@@ -100,10 +155,20 @@ def build_config() -> dict:
         for module in frag.get("modules", []):
             option = {"label": module["label"], "value": module["value"]}
             option["supports"] = {"PROFILE": [profile_value]}
-            if module.get("startStop"):
-                option["startStop"] = True
-            if module.get("device"):
-                option["device"] = True
+            where = f"{frag['_path']}: module '{module['value']}'"
+            option["supports"].update(_os_support(module, os_values, where))
+            for capability in ("startStop", "remove"):
+                if capability in module:
+                    if not isinstance(module[capability], bool):
+                        sys.exit(f"error: {where}: '{capability}' must be true/false")
+                    option[capability] = module[capability]
+            for legacy in ("device", "deployment"):
+                if legacy in module:
+                    sys.exit(f"error: {where}: '{legacy}' is no longer supported; list the flags in 'options'")
+            if "options" in module:
+                option["options"] = _combinations(module["options"], where)
+            if "multiSelect" in module:
+                sys.exit(f"error: {where}: replace 'multiSelect' with explicit combinations in 'options'")
             module_options.append(option)
     module_cat["options"] = module_options
 
@@ -117,13 +182,10 @@ def build_config() -> dict:
         install = frag.get("install")
         if not install:
             continue
-        install_rules.append(
-            {
-                "when": {"PROFILE": frag["profile"]["value"], "OP_SYSTEM": default_os},
-                "text": install["text"],
-            }
-        )
-    install_rules.append(out["install"]["genericRule"])
+        install_rules.extend(profile_rules(frag, {"text": install["text"]}))
+    for os_value in os_values:
+        generic = out["install"]["genericRule"]
+        install_rules.append({**generic, "when": {**generic.get("when", {}), "OP_SYSTEM": os_value}})
     install_output = {
         "id": "install",
         "label": out["install"]["label"],
@@ -136,6 +198,7 @@ def build_config() -> dict:
         "label": out["nextsteps"]["label"],
         "fallback": out["nextsteps"]["fallback"],
         "startStop": out["nextsteps"]["startStop"],
+        "remove": out["nextsteps"]["remove"],
     }
 
     getstarted_rules = []
@@ -143,13 +206,7 @@ def build_config() -> dict:
         gs = frag.get("getStarted")
         if not gs:
             continue
-        getstarted_rules.append(
-            {
-                "when": {"PROFILE": frag["profile"]["value"], "OP_SYSTEM": default_os},
-                "text": gs["text"],
-                "link": gs["link"],
-            }
-        )
+        getstarted_rules.extend(profile_rules(frag, {"text": gs["text"], "link": gs["link"]}))
     getstarted_output = {
         "id": "getstarted",
         "label": out["getstarted"]["label"],
@@ -162,12 +219,7 @@ def build_config() -> dict:
         links = frag.get("resources")
         if not links:
             continue
-        resources_rules.append(
-            {
-                "when": {"PROFILE": frag["profile"]["value"], "OP_SYSTEM": default_os},
-                "links": links,
-            }
-        )
+        resources_rules.extend(profile_rules(frag, {"links": links}))
     resources_output = {
         "id": "resources",
         "label": out["resources"]["label"],
@@ -178,7 +230,7 @@ def build_config() -> dict:
     return {
         "title": base["title"],
         "shareKeys": base["shareKeys"],
-        "device": base["device"],
+        "options": base["options"],
         "categories": categories,
         "outputs": [install_output, nextsteps_output, getstarted_output, resources_output],
     }

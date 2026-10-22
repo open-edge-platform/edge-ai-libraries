@@ -1,0 +1,15 @@
+
+debian_30_install_xpu_smi () {
+  ensure_apt_install_package xpu-smi || 
+    printf "${red}xpu-smi not installed${reset}\n"
+}
+
+debian_30_remove_xpu_smi () {
+  ensure_apt_remove_package xpu-smi
+}
+
+debian_30_sbom_xpu_smi () {
+  ensure_sbom_format pkg-list xpu-smi
+}
+
+
