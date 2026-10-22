@@ -121,6 +121,17 @@ class ASRComponent(PipelineComponent):
     # the same pool for different models/devices. A single slot per pool would
     # make them evict each other and rebuild a WhisperPipeline (seconds) on
     # every alternation.
+    #
+    # The cache is intentionally unbounded and never evicts. Its size is capped
+    # by configuration, not by traffic: entries are keyed by
+    # (pool, provider, model, device, ...), and only `device` is caller-
+    # supplied -- restricted by validation to CPU/GPU/NPU. The practical
+    # ceiling is therefore 2 pools x 3 devices, with at most 2 distinct models
+    # (final + preview). Loaded models are kept for the process lifetime
+    # because rebuilding one costs seconds on the request path, which is what
+    # this cache exists to avoid. If a future change lets callers select the
+    # model name as well, this must become a bounded LRU -- at that point the
+    # key space stops being enumerable from config.
     _models: dict[tuple, object] = {}
     _models_lock = threading.Lock()
     # Shared across all ASRComponent instances/sessions — keyed by session_id
@@ -214,7 +225,15 @@ class ASRComponent(PipelineComponent):
 
         with ASRComponent._models_lock:
             if cache_key not in ASRComponent._models:
-                ASRComponent._models[cache_key] = backend_cls(model_name.lower(), resolved_device, None)
+                # Pass the CONFIGURED name, not model_config_key's lower-cased
+                # form. Backends derive their on-disk model directory from this
+                # string (OVGenAIWhisper -> get_asr_model_path(model_name)), and
+                # ensure_model exported that directory under the configured
+                # spelling. Lower-casing here would look for e.g.
+                # "nvidia_canary-180m-flash" when the export created
+                # "nvidia_Canary-180M-Flash". Case is normalized for the cache
+                # KEY only, where it just de-duplicates equivalent configs.
+                ASRComponent._models[cache_key] = backend_cls(model_name, resolved_device, None)
 
         self.asr = ASRComponent._models[cache_key]
 

@@ -23,6 +23,10 @@ models:
     # with no `preview:` block, previews reuse the main model and no second
     # model is loaded or exported.
     #
+    # The preview pool must use the SAME provider as `asr` above -- it shares
+    # the provider's model directory and startup export step. A mismatched
+    # provider is rejected at startup.
+    #
     # preview:
     #   name: whisper-tiny.en   # a smaller model trades accuracy for latency
     #   device: GPU             # falls back to asr.device when omitted

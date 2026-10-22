@@ -361,6 +361,78 @@ class RealtimePreviewTests(unittest.TestCase):
 
         transcribe.assert_not_called()
 
+    def test_commit_does_not_wait_for_an_in_flight_preview(self):
+        """The session lock must be free while a preview decodes.
+
+        An in-flight threadpool decode cannot be cancelled, so the only way a
+        commit is not queued behind one is for the preview to release the lock
+        before decoding.
+        """
+        session = realtime_endpoints.RealtimeSession("sess", None)
+        session.buffer.append(_pcm16_tone(3.0))
+        lock_free_during_decode = {}
+
+        def _fake(*args, **kwargs):
+            lock_free_during_decode["value"] = not session.lock.locked()
+            return {"text": "mid", "language": "en", "segments": []}
+
+        sent = []
+
+        async def _send(ws, payload):
+            sent.append(payload)
+
+        with patch("api.realtime_endpoints._transcribe_pcm", side_effect=_fake), \
+             patch("api.realtime_endpoints._send", side_effect=_send):
+            asyncio.run(realtime_endpoints._preview_utterance(object(), session))
+
+        self.assertTrue(lock_free_during_decode["value"])
+        self.assertFalse(session.lock.locked())
+        self.assertFalse(session.preview_active)
+        self.assertEqual([m["type"] for m in sent],
+                         ["conversation.item.input_audio_transcription.preview"])
+
+    def test_preview_is_skipped_while_another_preview_decodes(self):
+        """preview_active guards overlap now that the lock is released early."""
+        session = realtime_endpoints.RealtimeSession("sess", None)
+        session.buffer.append(_pcm16_tone(3.0))
+        session.preview_active = True
+
+        with patch("api.realtime_endpoints._transcribe_pcm") as transcribe:
+            asyncio.run(realtime_endpoints._preview_utterance(object(), session))
+
+        transcribe.assert_not_called()
+
+    def test_stale_preview_is_dropped_when_a_commit_lands_mid_decode(self):
+        session = realtime_endpoints.RealtimeSession("sess", None)
+        session.buffer.append(_pcm16_tone(3.0))
+
+        def _fake(*args, **kwargs):
+            # Simulate a real commit completing while this decode runs.
+            session.utterance_index += 1
+            return {"text": "stale", "language": "en", "segments": []}
+
+        sent = []
+
+        async def _send(ws, payload):
+            sent.append(payload)
+
+        with patch("api.realtime_endpoints._transcribe_pcm", side_effect=_fake), \
+             patch("api.realtime_endpoints._send", side_effect=_send):
+            asyncio.run(realtime_endpoints._preview_utterance(object(), session))
+
+        self.assertEqual(sent, [])
+        self.assertFalse(session.preview_active)
+
+    def test_preview_active_is_cleared_when_the_decode_raises(self):
+        session = realtime_endpoints.RealtimeSession("sess", None)
+        session.buffer.append(_pcm16_tone(3.0))
+
+        with patch("api.realtime_endpoints._transcribe_pcm", side_effect=RuntimeError("boom")):
+            asyncio.run(realtime_endpoints._preview_utterance(object(), session))
+
+        self.assertFalse(session.preview_active)
+        self.assertFalse(session.lock.locked())
+
     def test_preview_window_is_bounded(self):
         """Only the trailing window is decoded, not the whole utterance."""
         captured = {}

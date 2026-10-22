@@ -85,6 +85,11 @@ models:
 A preview pool that resolves to the same model as `models.asr` is not exported
 or cached twice.
 
+`preview.provider` must match `models.asr.provider`; the two pools share the
+provider's model directory and export step, so a mismatch is rejected at
+startup rather than failing on the first preview request. The preview device is
+also validated at startup, so an unavailable accelerator is reported there.
+
 ### Audio filters and the short-input fast path
 
 Short uploads that are already 16 kHz mono PCM WAV and fit in a single chunk

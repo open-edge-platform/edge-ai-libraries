@@ -200,8 +200,14 @@ speaker is still talking. It is deliberately cheap and deliberately lossy:
   mid-word.
 * Nothing is persisted: previews never write `session_state.json` and never
   affect the transcript produced by a real commit.
-* A preview is skipped if a real commit is already decoding, so previews never
-  delay the authoritative result.
+* A preview never delays a real commit. The session lock is held only long
+  enough to copy the trailing audio out of the buffer; the decode itself runs
+  with the lock released, so a commit arriving mid-preview acquires it
+  immediately. A preview is additionally skipped outright if a commit is
+  already decoding, or if an earlier preview has not finished.
+* A preview whose decode finishes after a commit landed is discarded rather
+  than sent, so a stale snapshot never arrives after the final transcript for
+  the same audio. Preview `sequence` numbers may therefore have gaps.
 * Previews can be routed to a different ASR model/device via
   `models.asr.preview` in `config.yaml` (by default they reuse the main ASR
   configuration).

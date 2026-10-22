@@ -326,3 +326,124 @@ class AsrPoolConfigResolutionTests(unittest.TestCase):
         self.assertEqual(
             apc.resolve_pool_config(apc.POOL_PREVIEW, device_override="GPU").device, "NPU"
         )
+
+
+class PreviewProviderValidationTests(AsrPoolConfigResolutionTests):
+    """`models.asr.preview.provider` must match the main provider."""
+
+    def test_mismatched_provider_is_rejected_at_startup(self):
+        from types import SimpleNamespace
+        from utils.config_loader import config as _config
+        from utils import openvino_runtime_validation as orv
+
+        self._set_main(name="whisper-small", provider="openvino", device="CPU")
+        self.asr.preview = SimpleNamespace(provider="whispercpp", name="whisper-tiny")
+
+        with self.assertRaises(ValueError) as ctx:
+            orv.validate_asr_preview_configuration(_config)
+        self.assertIn("preview.provider", str(ctx.exception))
+
+    def test_matching_provider_passes_validation(self):
+        from types import SimpleNamespace
+        from utils.config_loader import config as _config
+        from utils import openvino_runtime_validation as orv
+
+        self._set_main(name="whisper-small", provider="openvino", device="CPU")
+        self.asr.preview = SimpleNamespace(name="whisper-tiny.en")
+
+        with patch.object(orv, "resolve_asr_device", return_value="CPU") as resolve:
+            orv.validate_asr_preview_configuration(_config)
+        resolve.assert_called_once()
+
+    def test_no_preview_block_skips_validation_entirely(self):
+        from utils.config_loader import config as _config
+        from utils import openvino_runtime_validation as orv
+
+        if hasattr(self.asr, "preview"):
+            delattr(self.asr, "preview")
+        with patch.object(orv, "resolve_asr_device") as resolve:
+            orv.validate_asr_preview_configuration(_config)
+        resolve.assert_not_called()
+
+    def test_preview_device_is_validated_at_startup(self):
+        """An unavailable preview device must fail at startup, not first use."""
+        from types import SimpleNamespace
+        from utils.config_loader import config as _config
+        from utils import openvino_runtime_validation as orv
+
+        self._set_main(name="whisper-small", provider="openvino", device="CPU")
+        self.asr.preview = SimpleNamespace(device="NPU")
+
+        with patch.object(orv, "resolve_asr_device", side_effect=ValueError("NPU not available")):
+            with self.assertRaises(ValueError):
+                orv.validate_asr_preview_configuration(_config)
+
+
+class BackendModelNameCaseTests(unittest.TestCase):
+    """The backend must receive the configured model name, not a lower-cased one.
+
+    Backends derive their on-disk directory from this string, and ensure_model
+    exported it under the configured spelling.
+    """
+
+    def tearDown(self):
+        from components.asr_component import ASRComponent
+
+        ASRComponent._models = {}
+
+    def test_configured_case_is_preserved_when_constructing_backend(self):
+        from components.asr_component import ASRComponent
+
+        built = []
+
+        class FakeBackend:
+            def __init__(self, model_name, device, revision):
+                built.append(model_name)
+
+        with patch.object(
+            ASRComponent, "_resolve_backend",
+            return_value=(FakeBackend, ("openvino", "distil-whisper/distil-small.en", "CPU", False), "CPU"),
+        ):
+            ASRComponent(
+                "sess", provider="openvino",
+                model_name="distil-whisper/Distil-Small.EN", device="CPU",
+            )
+
+        self.assertEqual(built, ["distil-whisper/Distil-Small.EN"])
+
+    def test_cache_key_still_normalizes_case(self):
+        """Equivalent configs differing only in case must share one instance."""
+        from components.asr_component import ASRComponent
+
+        built = []
+
+        class FakeBackend:
+            def __init__(self, model_name, device, revision):
+                built.append(model_name)
+
+        key = ("openvino", "whisper-small", "CPU", False)
+        with patch.object(ASRComponent, "_resolve_backend", return_value=(FakeBackend, key, "CPU")):
+            a = ASRComponent("s1", provider="openvino", model_name="Whisper-Small", device="CPU")
+            b = ASRComponent("s2", provider="openvino", model_name="whisper-small", device="CPU")
+
+        self.assertEqual(len(built), 1)
+        self.assertIs(a.asr, b.asr)
+
+    def test_pools_do_not_share_a_cache_entry(self):
+        from components.asr_component import ASRComponent
+
+        built = []
+
+        class FakeBackend:
+            def __init__(self, model_name, device, revision):
+                built.append(model_name)
+
+        key = ("openvino", "whisper-small", "CPU", False)
+        with patch.object(ASRComponent, "_resolve_backend", return_value=(FakeBackend, key, "CPU")):
+            final = ASRComponent("s1", provider="openvino", model_name="whisper-small",
+                                 device="CPU", pool="final")
+            preview = ASRComponent("s2", provider="openvino", model_name="whisper-small",
+                                   device="CPU", pool="preview")
+
+        self.assertEqual(len(built), 2)
+        self.assertIsNot(final.asr, preview.asr)

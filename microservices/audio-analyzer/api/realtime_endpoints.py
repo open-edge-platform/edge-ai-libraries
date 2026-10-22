@@ -136,6 +136,11 @@ class RealtimeSession:
         # input_audio_buffer.preview) -- kept independent of utterance_index
         # so real commit sequencing is unaffected by preview activity.
         self.preview_index = 0
+        # Guards against overlapping preview decodes. Previews deliberately
+        # run OUTSIDE session.lock (see _preview_utterance), so the lock
+        # cannot serialize them; without this flag a fast client could stack
+        # several concurrent decodes on the preview model.
+        self.preview_active = False
 
     def rebuild_audio_state(self) -> None:
         self.buffer = PcmStreamBuffer(sample_rate=self.sample_rate)
@@ -360,16 +365,30 @@ async def _preview_utterance(ws: WebSocket, session: RealtimeSession) -> None:
     a preview may begin mid-word, so clients must treat the transcript as a
     best-effort progress signal and never as a final transcript.
 
-    The preview is skipped when the session lock is already held, so a real
-    commit is never queued behind a throwaway decode.
+    A commit is never delayed by a preview. ``session.lock`` is held only long
+    enough to copy the trailing PCM out of the buffer; the decode itself --
+    the part that takes hundreds of milliseconds -- runs with the lock
+    RELEASED, operating on that private copy. An in-flight decode cannot be
+    cancelled once handed to the threadpool, so not holding the lock across it
+    is what actually keeps a concurrent commit from queueing behind it.
+
+    The preview is additionally skipped outright when a commit already holds
+    the lock, and when another preview is still decoding.
+
+    A preview whose decode finishes after a commit landed is discarded rather
+    than emitted, so a stale snapshot never arrives after the authoritative
+    transcript for the same audio.
     """
-    if session.lock.locked():
-        # A real commit (or another preview) is already decoding. Previews are
-        # best-effort progress ticks, so dropping this one is strictly better
-        # than making the authoritative commit wait for it.
-        logger.debug("Skipping preview for session %s: lock busy", session.session_id)
+    if session.lock.locked() or session.preview_active:
+        # A real commit is decoding, or an earlier preview has not finished.
+        # Previews are best-effort progress ticks, so dropping this one is
+        # strictly better than piling work onto the ASR backend.
+        logger.debug("Skipping preview for session %s: decode already in flight", session.session_id)
         return
 
+    # Snapshot under the lock, decode outside it. peek_tail() returns an
+    # independent bytes copy, so the decode has no further need for the lock
+    # and a commit arriving mid-decode acquires it immediately.
     async with session.lock:
         pcm = session.buffer.peek_tail(PREVIEW_MAX_WINDOW_SECONDS)
         duration = pcm_duration_sec(pcm, session.sample_rate)
@@ -378,40 +397,54 @@ async def _preview_utterance(ws: WebSocket, session: RealtimeSession) -> None:
 
         session.preview_index += 1
         preview_index = session.preview_index
+        # Generation marker: if a commit consumes the buffer while this
+        # preview decodes, the snapshot describes audio the client has
+        # already received a final transcript for.
+        commit_generation = session.utterance_index
+        session.preview_active = True
 
-        try:
-            result = await run_in_threadpool(
-                _transcribe_pcm,
-                session.session_id,
-                pcm,
-                session.sample_rate,
-                # Resolved against the PREVIEW pool's model, which may differ
-                # from the final pool's -- a multilingual preview model keeps
-                # the caller's language instead of falling back to
-                # auto-detection.
-                _language_for_pool(Pipeline.POOL_PREVIEW, session.language),
-                f"preview_{preview_index:05d}",
-                session.speaker_scope_id,
-                # Force False, NOT session.diarization: a preview is a scratch
-                # transcript (never persisted, no speaker-filter step consumes
-                # it). Running pyannote on every preview tick pays its full
-                # inference cost for output nobody reads -- the real commit
-                # still gets session.diarization unchanged.
-                False,
-                False,  # append_to_session -- scratch, never persisted
-                Pipeline.POOL_PREVIEW,
-            )
-        except Exception:
-            logger.exception("Realtime preview transcription failed for session %s", session.session_id)
-            return
+    try:
+        result = await run_in_threadpool(
+            _transcribe_pcm,
+            session.session_id,
+            pcm,
+            session.sample_rate,
+            # Resolved against the PREVIEW pool's model, which may differ
+            # from the final pool's -- a multilingual preview model keeps
+            # the caller's language instead of falling back to
+            # auto-detection.
+            _language_for_pool(Pipeline.POOL_PREVIEW, session.language),
+            f"preview_{preview_index:05d}",
+            session.speaker_scope_id,
+            # Force False, NOT session.diarization: a preview is a scratch
+            # transcript (never persisted, no speaker-filter step consumes
+            # it). Running pyannote on every preview tick pays its full
+            # inference cost for output nobody reads -- the real commit
+            # still gets session.diarization unchanged.
+            False,
+            False,  # append_to_session -- scratch, never persisted
+            Pipeline.POOL_PREVIEW,
+        )
+    except Exception:
+        logger.exception("Realtime preview transcription failed for session %s", session.session_id)
+        return
+    finally:
+        session.preview_active = False
 
-        text = (result.get("text") or "").strip()
-        await _send(ws, {
-            "type": "conversation.item.input_audio_transcription.preview",
-            "sequence": preview_index,
-            "transcript": text,
-            "segments": result.get("segments") or [],
-        })
+    if session.utterance_index != commit_generation:
+        logger.debug(
+            "Dropping stale preview %d for session %s: commit landed mid-decode",
+            preview_index, session.session_id,
+        )
+        return
+
+    text = (result.get("text") or "").strip()
+    await _send(ws, {
+        "type": "conversation.item.input_audio_transcription.preview",
+        "sequence": preview_index,
+        "transcript": text,
+        "segments": result.get("segments") or [],
+    })
 
 
 async def _handle_append(ws: WebSocket, session: RealtimeSession, message: dict) -> None:

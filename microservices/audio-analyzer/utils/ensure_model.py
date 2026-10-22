@@ -538,6 +538,9 @@ def ensure_sentiment_model():
 
 
 def get_asr_model_path(model_name: str | None = None, weight_format: str | None = None) -> str:
+    # Always the main provider: the preview pool is required to share it
+    # (enforced by validate_asr_preview_configuration at startup), so there is
+    # a single provider directory for both pools to resolve against.
     provider = config.models.asr.provider
     name = model_name or config.models.asr.name
     if weight_format is None:
