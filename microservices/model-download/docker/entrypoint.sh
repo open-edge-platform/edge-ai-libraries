@@ -127,7 +127,7 @@ install_dependencies() {
             fi
             echo "0" > "${status_file}"
             ;;
-        huggingface|modelscope|openai-whisper)
+        huggingface|modelscope)
             echo -e "${BLUE}INFO:${NC} ${plugin} dependencies will be installed via uv sync"
             echo "0" > "${status_file}"
             ;;
@@ -316,7 +316,7 @@ done
 # external-sources plugin are listed individually; 'external-sources'
 # itself is an internal plugin name and is rejected if passed by the user.
 EXTERNAL_SOURCES_HUBS=(pipeline-zoo-models omz remote-url)
-AVAILABLE_PLUGINS=("openvino" "huggingface" "modelscope" "openai-whisper" "ollama" "ultralytics" "${EXTERNAL_SOURCES_HUBS[@]}" "geti" "hls")
+AVAILABLE_PLUGINS=("openvino" "huggingface" "modelscope" "ollama" "ultralytics" "${EXTERNAL_SOURCES_HUBS[@]}" "geti" "hls")
 
 # Install plugin-specific dependencies (in parallel)
 if [ "$PLUGINS" = "all" ]; then

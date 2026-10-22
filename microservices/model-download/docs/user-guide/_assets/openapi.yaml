@@ -37,7 +37,6 @@ components:
       enum:
         - huggingface
         - modelscope
-        - openai-whisper
         - ollama
         - ultralytics
         - pipeline-zoo-models

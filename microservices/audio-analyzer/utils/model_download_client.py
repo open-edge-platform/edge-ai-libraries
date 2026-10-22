@@ -55,9 +55,9 @@ def get_model_from_service(
     hf_token: str | None = None,
     models_base_path: str | None = None,
 ) -> str:
-    if hub not in {"modelscope", "huggingface", "openai-whisper"}:
+    if hub not in {"modelscope", "huggingface"}:
         raise ValueError(f"Unsupported model source: {hub}")
-    if not _MODEL_ID.fullmatch(model) and not (hub == "openai-whisper" and model in {"tiny", "base", "small", "medium", "large-v3"}):
+    if not _MODEL_ID.fullmatch(model):
         raise ValueError(f"Invalid {hub} model identifier: {model!r}")
     if download_path not in {"funasr", "whisper-source", "diarization"}:
         raise ValueError(f"Invalid model download destination: {download_path}")

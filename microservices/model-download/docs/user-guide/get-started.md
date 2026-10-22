@@ -757,7 +757,6 @@ Hubs that support multiple precisions append a `<precision>/` subdirectory. Hubs
 |-----|------------|---------|
 | `huggingface` | `<download_path>/<hub>/<model_name>` | `models/huggingface/microsoft_Phi-3.5-mini-instruct` |
 | `modelscope` | `<download_path>/<hub>/<model_name>` | `models/funasr/modelscope/iic_speech_fsmn_vad_zh-cn-16k-common-pytorch` |
-| `openai-whisper` | `<download_path>/<hub>/<model_name>` | `models/whisper-source/openai-whisper/base/base.pt` |
 | `ollama` | `<download_path>/<hub>/<model_name>` | `models/ollama/tinyllama` |
 | `ultralytics` | `<download_path>/<hub>/<model_name>/<precision>/` | `models/ultralytics/yolov8s/FP16/` |
 | `openvino` | `<download_path>/<hub>/<model_name>/<precision>/` | `models/openvino/BAAI-bge-reranker-base/fp32/` |

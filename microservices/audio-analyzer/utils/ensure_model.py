@@ -374,21 +374,30 @@ def ensure_model():
             config.models.asr.name.replace("whisper-", ""),
         )
         model_file = os.path.join(output_dir, f"{model_id}.pt")
-        if os.path.isfile(model_file):
-            logger.info("⚡ Using cached openai-whisper model at %s", model_file)
-        else:
-            logger.info(
-                "🚀 Downloading openai-whisper model '%s' → %s\n"
-                "⏳ This may take time depending on model size…\n"
-                "⚠️  Please do not terminate.",
-                model_id, output_dir,
+        try:
+            import whisper
+        except ImportError as exc:
+            raise RuntimeError(
+                "The openai provider requires openai-whisper in the Audio Analyzer environment."
+            ) from exc
+        model_url = whisper._MODELS.get(model_id)
+        if model_url is None:
+            raise ValueError(
+                f"Unsupported openai Whisper model {config.models.asr.name!r}. "
+                f"Supported models: {', '.join(_OPENAI_WHISPER_ID_MAP)}"
             )
-            source = get_model_from_service(
-                model_id, hub="openai-whisper", download_path="whisper-source",
-                required_files=[f"{model_id}.pt"],
+
+        logger.info(
+            "Ensuring official openai-whisper checkpoint '%s' in %s",
+            model_id,
+            output_dir,
+        )
+        checkpoint = whisper._download(model_url, output_dir, False)
+        if not os.path.isfile(checkpoint) or os.path.abspath(checkpoint) != os.path.abspath(model_file):
+            raise RuntimeError(
+                f"openai-whisper did not create the expected checkpoint at {model_file}"
             )
-            shutil.copyfile(os.path.join(source, f"{model_id}.pt"), model_file)
-            logger.info("✅ openai-whisper model ready")
+        logger.info("openai-whisper model ready at %s", model_file)
 
     # Download diarization model when diarization is enabled
     if getattr(config.models.asr, "diarization", False):

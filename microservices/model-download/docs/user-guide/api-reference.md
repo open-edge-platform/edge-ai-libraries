@@ -207,7 +207,6 @@ curl -X POST "http://localhost:8200/api/v1/models/download?download_path=my-mode
 | -------------------- | ------------------------------------ |
 | `huggingface`        | HuggingFace model hub               |
 | `modelscope`         | ModelScope model hub                |
-| `openai-whisper`     | Official OpenAI Whisper checkpoints (`tiny`, `base`, `small`, `medium`, `large-v3`) |
 | `ollama`             | Ollama model registry                |
 | `ultralytics`        | Ultralytics YOLO models             |
 | `pipeline-zoo-models`| Pipeline Zoo Models                  |
@@ -234,9 +233,9 @@ perform OpenVINO conversion.
 For whisper.cpp, request `hub: "huggingface"` with
 `name: "ggerganov/whisper.cpp"` and `config: {"files": ["ggml-base.bin"]}`
 to fetch only that filename. The `files` option is limited to plain filenames.
-For native OpenAI Whisper `.pt` checkpoints, use `hub: "openai-whisper"`
-and one of the supported checkpoint names. Both can share the same storage
-volume with client services; these hubs do not convert the checkpoints.
+The `openai-whisper` provider in Audio Analyzer downloads its official `.pt`
+checkpoint directly through the OpenAI Whisper package; it is not a Model
+Download service hub.
 
 **Model Types:**
 

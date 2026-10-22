@@ -35,9 +35,9 @@ For this repository's Compose deployment, start both services with
 downloader's health check before starting Audio Analyzer.
 They share the `audio_analyzer_models` volume. The ModelScope plugin is
 enabled in the downloader automatically. With a separate deployment (including Smart
-Classroom), enable `modelscope`, `huggingface`, and `openai-whisper` alongside
+Classroom), enable `modelscope` and `huggingface` alongside
 any existing downloader plugins (for example
-`--plugins huggingface,openvino,modelscope,openai-whisper`), set
+`--plugins huggingface,openvino,modelscope`), set
 `AUDIO_ANALYZER_MODEL_DOWNLOAD_URL=http://model-downloader:8000` on Audio
 Analyzer, and mount the **same** volume at `/opt/models` in model-download
 and `/app/audio_analyzer/models` in Audio Analyzer. Start the downloader

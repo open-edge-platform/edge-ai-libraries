@@ -13,6 +13,10 @@ from utils.model_download_client import get_model_from_service
 
 
 class SharedModelTests(unittest.TestCase):
+    def test_openai_whisper_is_not_a_model_download_hub(self):
+        with self.assertRaisesRegex(ValueError, "Unsupported model source"):
+            get_model_from_service("base", hub="openai-whisper")
+
     def test_openvino_exports_locally_downloaded_hf_snapshot(self):
         with tempfile.TemporaryDirectory() as base, \
              patch.object(ensure_model, "_whisper_ir_exists", side_effect=[False, True]), \
@@ -54,19 +58,21 @@ class SharedModelTests(unittest.TestCase):
             )
             self.assertEqual((Path(base) / "ggml-base.bin").read_bytes(), b"weights")
 
-    def test_openai_whisper_requests_official_checkpoint(self):
-        with tempfile.TemporaryDirectory() as base, tempfile.TemporaryDirectory() as source:
-            (Path(source) / "base.pt").write_bytes(b"weights")
-            with patch.object(ensure_model.config.models.asr, "provider", "openai"), \
-                 patch.object(ensure_model.config.models.asr, "name", "whisper-base"), \
-                 patch.object(ensure_model, "get_asr_model_path", return_value=base), \
-                 patch.object(ensure_model, "get_model_from_service", return_value=source) as fetch:
-                ensure_model.ensure_model()
-            fetch.assert_called_once_with(
-                "base", hub="openai-whisper", download_path="whisper-source",
-                required_files=["base.pt"],
-            )
-            self.assertEqual((Path(base) / "base.pt").read_bytes(), b"weights")
+    def test_openai_whisper_downloads_checkpoint_directly(self):
+        with tempfile.TemporaryDirectory() as base, \
+             patch.object(ensure_model.config.models.asr, "provider", "openai"), \
+             patch.object(ensure_model.config.models.asr, "name", "whisper-base"), \
+             patch.object(ensure_model, "get_asr_model_path", return_value=base), \
+             patch("whisper._download") as download:
+            checkpoint = Path(base) / "base.pt"
+            checkpoint.write_bytes(b"weights")
+            download.return_value = str(checkpoint)
+            ensure_model.ensure_model()
+            import whisper
+            download.assert_called_once()
+            self.assertEqual(download.call_args.args[0], whisper._MODELS["base"])
+            self.assertEqual(download.call_args.args[1:], (base, False))
+            self.assertEqual(Path(base, "base.pt").read_bytes(), b"weights")
 
     def test_pyannote_download_is_delegated(self):
         with patch.object(ensure_model, "get_model_from_service", return_value="/shared/diar") as fetch:

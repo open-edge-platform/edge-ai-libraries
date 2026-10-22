@@ -12,7 +12,6 @@ PLUGINS = {
     'ollama': ('src.plugins.ollama_plugin', 'OllamaPlugin'),
     'huggingface': ('src.plugins.huggingface_plugin', 'HuggingFacePlugin'),
     'modelscope': ('src.plugins.modelscope_plugin', 'ModelScopePlugin'),
-    'openai-whisper': ('src.plugins.openai_whisper_plugin', 'OpenAIWhisperPlugin'),
     'openvino': ('src.plugins.openvino_plugin', 'OpenVINOConverter'),
     'geti': ('src.plugins.geti_plugin', 'GetiPlugin'),
     'hls': ('src.plugins.hls_plugin', 'HlsPlugin'),

@@ -48,7 +48,8 @@ AUDIO_ANALYZER__MODELS__ASR__DEVICE=GPU python main.py
 
 ## ASR Provider Notes
 
-- `openai`: uses `openai-whisper` and downloads PyTorch Whisper weights on first use.
+- `openai`: uses `openai-whisper` to download official PyTorch Whisper weights directly
+  into Audio Analyzer's model directory on first use; it does not use Model Download.
 - `openvino`: exports the configured Whisper model to OpenVINO IR under `models/openvino/...` and supports `CPU`, `GPU`, and `NPU` (when available and correctly configured).
 - `whispercpp`: downloads the matching whisper.cpp `ggml` model under `models/whispercpp/...` and runs on `CPU` only.
 
