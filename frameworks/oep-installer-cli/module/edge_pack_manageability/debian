@@ -8,10 +8,6 @@ debian_20_profile_edge_pack_manageability () {
   echo "edge_pack"
 }
 
-debian_20_group_edge_pack_manageability () {
-  echo "render:992 video:"
-}
-
 debian_20_install_edge_pack_manageability () {
   configure_edge_pack_manageability "$@"
   if ensure_apt_is_installed intel-edge-manageability && [[ " $* " != *" --reinstall "* ]]; then
@@ -22,8 +18,6 @@ debian_20_install_edge_pack_manageability () {
     ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-manageability=$version*"
     ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-manageability=$version*"
   fi
-  [ -c /dev/dri/renderD128 ]
-  ensure_group_add $(debian_20_group_edge_pack_manageability)
 }
 
 debian_20_remove_edge_pack_manageability () {
