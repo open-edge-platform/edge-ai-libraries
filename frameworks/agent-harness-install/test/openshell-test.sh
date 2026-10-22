@@ -24,6 +24,97 @@ HARNESS_IR_PORT=8010
 HARNESS_IR_CONTAINER=ir
 HARNESS_LLM_MODEL=test-model
 
+startup_fixture() {
+  local fixture
+  fixture="$(mktemp -d "$TEST_ROOT/startup.XXXXXX")"
+  export HOME="$fixture/home"
+  export REAL_NODE
+  REAL_NODE="$(command -v node)"
+  mkdir -p "$HOME" "$fixture/bin"
+  export HARNESS_AGENT=openclaw
+  export HARNESS_SANDBOX_ENDPOINT=http://host.openshell.internal:8010/v1
+  export HARNESS_SANDBOX_MODEL=test-model
+  cat >"$fixture/bin/node" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ "$SQLITE_TMPDIR" == "$HOME/.openclaw/tmp/sqlite" ]]
+[[ -d "$SQLITE_TMPDIR" && -w "$SQLITE_TMPDIR" ]]
+[[ "$(stat -c %a "$SQLITE_TMPDIR")" == 700 ]]
+exec "$REAL_NODE" "$@"
+SH
+  cat >"$fixture/bin/openclaw" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ "$*" == "gateway run" ]]
+node <<'JS'
+const assert = require("node:assert/strict");
+const {DatabaseSync} = require("node:sqlite");
+const db = new DatabaseSync(`${process.env.HOME}/.openclaw/startup-test.sqlite`);
+try {
+  db.exec("BEGIN IMMEDIATE");
+  db.exec("CREATE VIRTUAL TABLE IF NOT EXISTS startup_fts USING fts5(content)");
+  if (!db.prepare("SELECT rowid FROM startup_fts WHERE rowid = 1").get())
+    db.prepare("INSERT INTO startup_fts(rowid, content) VALUES (1, ?)").run("persistent conversation");
+  assert.equal(db.prepare("SELECT content FROM startup_fts WHERE startup_fts MATCH ?").get("persistent").content,
+    "persistent conversation");
+  db.exec("COMMIT");
+} finally {
+  db.close();
+}
+JS
+SH
+  chmod 755 "$fixture/bin/node" "$fixture/bin/openclaw"
+  export PATH="$fixture/bin:$PATH"
+}
+startup_fresh() {
+  startup_fixture
+  bash "$SCRIPT_DIR/openshell/agent-start.sh"
+  [[ -f "$HOME/.openclaw/openclaw.json" ]]
+  [[ -f "$HOME/.openclaw/startup-test.sqlite" ]]
+}
+startup_inherited_temp() {
+  startup_fixture
+  export SQLITE_TMPDIR="$HOME/nonexistent-inherited-temp"
+  bash "$SCRIPT_DIR/openshell/agent-start.sh"
+  [[ ! -e "$SQLITE_TMPDIR" ]]
+}
+startup_private_temp() {
+  startup_fixture
+  mkdir -p "$HOME/.openclaw/tmp/sqlite"
+  chmod 755 "$HOME/.openclaw/tmp/sqlite"
+  bash "$SCRIPT_DIR/openshell/agent-start.sh"
+  [[ "$(stat -c %a "$HOME/.openclaw/tmp/sqlite")" == 700 ]]
+}
+startup_restart() {
+  startup_fixture
+  bash "$SCRIPT_DIR/openshell/agent-start.sh"
+  cp "$HOME/.openclaw/openclaw.json" "$HOME/config-before.json"
+  printf 'preserved history\n' >"$HOME/.openclaw/history-marker"
+  bash "$SCRIPT_DIR/openshell/agent-start.sh"
+  cmp "$HOME/config-before.json" "$HOME/.openclaw/openclaw.json"
+  [[ "$(cat "$HOME/.openclaw/history-marker")" == 'preserved history' ]]
+}
+startup_blocked_temp() {
+  startup_fixture
+  mkdir -p "$HOME/.openclaw/tmp"
+  printf 'not a directory\n' >"$HOME/.openclaw/tmp/sqlite"
+  expect_failure 'mkdir.*sqlite' bash "$SCRIPT_DIR/openshell/agent-start.sh"
+  [[ ! -e "$HOME/.openclaw/openclaw.json" ]]
+  [[ ! -e "$HOME/.openclaw/startup-test.sqlite" ]]
+}
+startup_permissions_failure() {
+  startup_fixture
+  cat >"$(dirname "$(command -v node)")/chmod" <<'SH'
+#!/usr/bin/env bash
+printf 'SQLite temp permissions denied\n' >&2
+exit 1
+SH
+  chmod 755 "$(dirname "$(command -v node)")/chmod"
+  expect_failure 'SQLite temp permissions denied' bash "$SCRIPT_DIR/openshell/agent-start.sh"
+  [[ ! -e "$HOME/.openclaw/openclaw.json" ]]
+  [[ ! -e "$HOME/.openclaw/startup-test.sqlite" ]]
+}
+
 runtime_default() {
   HARNESS_RUNTIME=""
   select_runtime
@@ -221,6 +312,12 @@ runner_failure_propagation() {
 }
 
 printf 'TAP version 13\n'
+run_case 'OpenClaw startup exports private SQLite temp before Node and initializes FTS5' startup_fresh
+run_case 'OpenClaw startup replaces an inherited SQLite temp path' startup_inherited_temp
+run_case 'OpenClaw startup restricts an existing SQLite temp directory to mode 700' startup_private_temp
+run_case 'OpenClaw restart preserves config token and database content' startup_restart
+run_case 'OpenClaw startup fails before Node when SQLite temp creation fails' startup_blocked_temp
+run_case 'OpenClaw startup fails before Node when SQLite temp permissions cannot be secured' startup_permissions_failure
 run_case 'runtime defaults to host noninteractively' runtime_default
 run_case 'host runtime remains supported' runtime_supported host openclaw
 run_case 'OpenClaw supports OpenShell' runtime_supported openshell openclaw

@@ -24,6 +24,7 @@ bash test/openshell-test.sh | tee openshell-offline.tap
 
 | Area | Automated assertions |
 |---|---|
+| OpenClaw startup | Private SQLite temp directory exported before Node starts, real on-disk FTS5 initialization, inherited temp override, mode 700, config/token/database preservation across restart, fail-fast directory creation and permissions |
 | Runtime selection | Host default, supported agents, invalid runtime and unsupported agent rejection |
 | Persisted state | Separate agent paths, valid profile loading, missing/malformed/wrong-agent/invalid-owner/newline/symlink rejection |
 | Ownership | Matching label accepted; mismatch or inaccessible gateway rejected |
@@ -38,6 +39,13 @@ bash test/openshell-test.sh | tee openshell-offline.tap
 Each test runs in a separate subshell. Temporary HOME fixtures prevent access
 to real agent profiles. Expected failures must match their intended diagnostic,
 so an unrelated missing dependency cannot make a negative case pass.
+
+OpenClaw startup sets `SQLITE_TMPDIR=$HOME/.openclaw/tmp/sqlite` before
+configuration generation or gateway launch. SQLite's default temporary-file
+locations may be denied by the sandbox filesystem policy. This directory is
+created with mode 700 without expanding that policy or modifying existing
+databases. The offline startup cases run the real entrypoint with a mock gateway
+and Node's real SQLite/FTS5 support; they do not certify a full gateway chat turn.
 
 ## Opt-in prepared-runner gate
 

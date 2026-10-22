@@ -8,7 +8,10 @@ umask 077
 
 case "${HARNESS_AGENT:?Missing agent}" in
   openclaw)
-    mkdir -p "$HOME/.openclaw"
+    # SQLite chooses its temp directory early; configure it before any OpenClaw/Node process.
+    export SQLITE_TMPDIR="$HOME/.openclaw/tmp/sqlite"
+    mkdir -p "$SQLITE_TMPDIR"
+    chmod 700 "$SQLITE_TMPDIR"
     # Preserve the gateway token and user configuration when the sandbox process restarts.
     if [[ ! -f "$HOME/.openclaw/openclaw.json" ]]; then
       node <<'JS'
