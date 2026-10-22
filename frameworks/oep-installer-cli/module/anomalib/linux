@@ -1,8 +1,9 @@
 
 configure_anomalib () {
   workspace="$(ensure_project_path)/anomalib"
-  version=2.6.2
+  version=2.7.0
   repository=https://github.com/open-edge-platform/anomalib.git
+  skills=(anomalib-adding-a-datamodule anomalib-adding-a-model anomalib-tiled-ensemble anomalib-training anomalib-benchmarking)
 }
 
 verify_anomalib () {
@@ -24,6 +25,7 @@ test_anomalib () {
     )
     for device in ${!device_map[*]}; do
       [ -e ${device_map[$device]} ] || continue
+      echo "@@STEP Validating on $device"
       echo "Validating anomalib on device $device..."
       PYTHONWARNINGS=ignore python3 -c '
 import sys
