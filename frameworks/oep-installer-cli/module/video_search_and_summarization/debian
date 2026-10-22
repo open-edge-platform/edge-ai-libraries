@@ -4,6 +4,10 @@ configure_video_search_and_summarization () {
   version=1c5fdc1f440e685c8f82322ec09b60b7320ea404
   repository="https://github.com/open-edge-platform/edge-ai-libraries.git"
 
+  version_skills=release-2026.2.0
+  repository_skills="https://github.com/open-edge-platform/skills.git"
+  skills=(vss-search-index vss-summarize-video)
+
   export APP_HOST_PORT=${APP_HOST_PORT:-12345}
   used_ports=($APP_HOST_PORT 3001 7890 6016 6008 8999 9777 8300 9300 8090 4001 4002 55555 9090 9273 5432 1883 5672 8640)
 
@@ -85,18 +89,23 @@ debian_85_install_video_search_and_summarization () {
     ensure_disk_size 8000
     ensure_ports_open install video_search_and_summarization "${used_ports[@]}"
 
-    # clone the repository
+    echo "@@STEP Cloning repository"
     ensure_git_export "$workspace" $version $repository sample-applications/video-search-and-summarization
 
-    # gated model setup
+    echo "@@STEP Configuring models"
     configure_video_search_and_summarization_gated
 
-    # setup
+    echo "@@STEP Setting up VSS"
+    echo "@@STEP @@IF [[]model-download] [^(]+ [(]([^)]+)[)]: queued @@THEN Downloading \\1"
+    echo "@@STEP @@IF docker compose .* pull .* @@THEN Pulling images"
     cd "$workspace"/sample-applications/video-search-and-summarization
     sed -i "s|export HOST_IP=.*|export HOST_IP=$(ensure_ip)|" setup.sh
     sed 's|FINAL_ARG=.*|FINAL_ARG="pull --ignore-pull-failures"|' setup.sh > .setup.sh
     sed -i 's|"Unified Summarization/Search UI is now available.*"|""|' .setup.sh
     . ./.setup.sh --search-and-summary
+
+    echo "@@STEP Installing skills"
+    ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}"
 
     verify_video_search_and_summarization
   fi
@@ -132,5 +141,6 @@ debian_85_stop_video_search_and_summarization () {
 
 debian_85_remove_video_search_and_summarization () {
   debian_85_stop_video_search_and_summarization "$@"
-  ensure_rm "$workspace"
+  ensure_rm "$workspace" || true
+  ensure_skills remove "${skills[@]}"
 }

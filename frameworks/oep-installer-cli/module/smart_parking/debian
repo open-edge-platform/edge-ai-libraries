@@ -41,11 +41,11 @@ debian_90_install_smart_parking () {
     ensure_ports_open install smart_parking "${used_ports[@]}"
 
     # clone the repository
-    echo "@@STEP Clone git repository"
+    echo "@@STEP Cloning repository"
     ensure_git_export "$workspace" $version $repository metro-vision-ai-app-recipe
 
     # setup
-    echo "@@STEP Setup sample" 
+    echo "@@STEP Setting up sample" 
     echo "@@STEP @@IF ^Attempt : Running model download and quantization @@THEN Preparing model download"
     echo "@@STEP @@IF ^Downloading and converting:.*[/]([a-z0-9]+)$ @@THEN Downloading \\1"
     echo "@@STEP @@IF Starting ([A-Z0-9]+) quantization for ([a-z0-9]+) @@THEN Quantizing \\2 to \\1"
