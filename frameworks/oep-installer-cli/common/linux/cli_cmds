@@ -46,7 +46,7 @@ subcommand_remove () {
     echo "  --dry-run       dry-run operations"
     echo "  --continue      ignore errors and proceed to the end"
     echo "  --remove-all    remove all previously installed components"
-    echo "  --remove-me     remove $install_name"
+    echo "  --remove-me     remove $installer_name"
     echo
     return 0
   fi
