@@ -38,18 +38,43 @@ installed on the host. Host mode remains the default. OpenShell mode currently
 targets Linux, Docker and OpenShell **0.1.5**; a different installed OpenShell
 version is rejected rather than upgraded or downgraded automatically.
 
-First provision shared inference without installing a host agent:
+On a fresh host, one command provisions installer-owned OVMS and IR, downloads
+**OpenVINO/Qwen3.5-9B-int8-ov**, and installs OpenClaw in its sandbox:
 
 ```bash
-./install.sh inference --model <model-id> --non-interactive
+./install.sh --runtime openshell --harness openclaw --non-interactive
 ```
 
-If IR already serves the required model, skip that step. Installing a sandbox
-does not change the shared IR configuration or switch its models:
+This is the **9B** model in the Qwen3.5 family, not a 3.5B model. Its preconverted
+OpenVINO weights are downloaded using the existing `hf-snapshot` exporter.
+The repository has no OVMS graph, so the pinned serving image generates
+`graph.pbtxt` using `--configure --task text_generation` before registration.
+This metadata-only step needs no network/GPU access and does not reconvert the
+weights. No external OVMS container or local model-directory import is used.
+Explicit `--model`, exporter and hub choices remain supported; host-mode model
+selection is unchanged.
+
+Repeated installs preserve the sandbox data and model choice. Selection resolves
+from explicit model settings, the existing agent profile, the saved shared model,
+then the existing OVMS registry before applying the fresh-install Qwen default.
+The shared served model is saved as `~/.agent-harness-install/openshell-model`.
+Existing shared IR/OVMS containers are validated (exact model, readiness, private
+network and loopback publication), never implicitly retargeted or replaced.
+Incomplete inference deployments fail with a repair command rather than being
+treated as fresh installations.
+
+To prepare or explicitly reconfigure shared inference separately:
 
 ```bash
-./install.sh --runtime openshell --harness openclaw --model <model-id> --non-interactive
-./install.sh --runtime openshell --harness hermes --model <model-id> --non-interactive
+./install.sh inference --runtime openshell --non-interactive
+# Or choose another model explicitly:
+./install.sh inference --runtime openshell --model <model-id> --non-interactive
+```
+
+Install the other agent against that shared model, or inspect/connect:
+
+```bash
+./install.sh --runtime openshell --harness hermes --non-interactive
 ./install.sh status --runtime openshell --harness openclaw
 ./install.sh connect --runtime openshell --harness openclaw
 ./install.sh connect --runtime openshell --harness hermes
@@ -90,6 +115,11 @@ Back up sandbox data first. OpenShell's sandbox deletion semantics apply to its
 home/workspace. Shared inference, host agents and the OpenShell CLI/gateway are
 not removed. Completed ownership records are retained as `removed-profile.json` for audit.
 Host uninstall refuses to remove shared state while active OpenShell profiles exist.
+For complete installer-owned data removal, remove each installed sandbox first,
+then run `./uninstall.sh --runtime host --delete-models --yes`. This removes
+shared IR/OVMS, exported model data and the saved model selection. Omitting
+`--delete-models` retains model downloads by design. Repeated **install** does
+not perform this cleanup. Unrelated containers and deployments are not adopted.
 
 Onboarding checks inference connectivity, **not** agentic correctness. Tool-use
 acceptance requires independently verifying generated files/content. The

@@ -808,7 +808,8 @@ _remove_unregistered_download_entry_locked() {
 # plain huggingface_hub.snapshot_download, unlike the other three exporters
 # which all run an optimum-cli-based conversion step. Set
 # HARNESS_HF_MODEL_REVISION to pin an exact commit/tag for reproducible
-# deployments.
+# deployments. Qwen3.5's preconverted repository omits graph.pbtxt; the pinned
+# serving image generates that graph after download, without reconversion.
 export_model_via_hf_snapshot() {
   local hf_model_id="$1" model_name="${2:-${1##*/}}" out_dir venv revision_desc
   out_dir="${HARNESS_MODELS_DIR}/${model_name}"
@@ -853,6 +854,9 @@ access to huggingface.co, and that '${hf_model_id}' (revision: ${revision_desc})
 exists."
   fi
   deactivate
+  if [[ "$hf_model_id" == OpenVINO/Qwen3.5-9B-int8-ov && ! -f "${out_dir}/graph.pbtxt" ]]; then
+    configure_ovms_text_generation_graph "$out_dir"
+  fi
   if [[ ! -f "${out_dir}/graph.pbtxt" ]]; then
     rm -rf -- "$out_dir"
     error "Downloaded ${hf_model_id} to ${out_dir} but it has no graph.pbtxt -- this
@@ -868,6 +872,20 @@ HARNESS_OVMS_EXPORTER=docker-pull or export-model-py to convert a plain
     error "Downloaded ${hf_model_id} but could not update OVMS's config.json --
 add a model_config_list entry for base_path '${model_name}' manually."
   fi
+}
+
+configure_ovms_text_generation_graph() {
+  local out_dir="$1" target_device=CPU
+  command_exists docker || error "Docker is required to configure the OVMS model graph."
+  [[ -z "$(intel_gpu_docker_device_args)" ]] || target_device=GPU
+  # --configure writes metadata only: no model loading, GPU access or network is needed.
+  spin "Configuring the downloaded OVMS text-generation graph (${target_device})" \
+    docker run --rm --network none -u "$(id -u):$(id -g)" \
+      -v "${out_dir}:/model:rw" "$HARNESS_OVMS_IMAGE" \
+      --configure --model_path /model --task text_generation --target_device "$target_device" \
+    || error "Could not configure the OVMS graph for ${out_dir}; downloaded weights were preserved."
+  [[ -s "${out_dir}/graph.pbtxt" ]] \
+    || error "OVMS graph configuration produced no graph.pbtxt in ${out_dir}."
 }
 
 # Lock-protected append/replace of a model_config_list entry -- mirrors

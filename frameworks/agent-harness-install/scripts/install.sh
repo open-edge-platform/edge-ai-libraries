@@ -26,7 +26,7 @@ usage() {
   ${C_BOLD}agent-harness-install${C_RESET}
 
   Usage:
-    ./install.sh [options]                      Run the full install + onboarding (requires --model)
+    ./install.sh [options]                      Run the full install + onboarding (host mode requires --model)
     ./install.sh models <list|remove> [name]     List or delete exported OpenVINO models
     ./install.sh mcp register <name> <url> [agent]  Register an arbitrary MCP endpoint URL
     ./install.sh skill <install|list|remove> [path|name]  Manage Hermes skills
@@ -45,7 +45,7 @@ usage() {
     --skip-gpu-check                  Skip Intel GPU detection/driver checks
     --harness <openclaw|deepagents-code|hermes>  Agent harness to install (sets HARNESS_AGENT)
     --runtime <host|openshell>         Execution runtime (default: host; OpenShell supports OpenClaw/Hermes)
-    --model <model-name>              Model to serve (required; prompted for on a terminal, an error otherwise), named as its hub
+    --model <model-name>              Model to serve (OpenShell default: OpenVINO/Qwen3.5-9B-int8-ov; host mode requires selection), named as its hub
                                        names it (default hub: Hugging Face id such as org/name, exported to OpenVINO IR).
                                        Sets HARNESS_HF_MODEL.
     --model-hub <hub>                  Source hub (default: openvino = Hugging Face + conversion). Any other hub selects the
@@ -126,6 +126,7 @@ EOF
 # non-interactively or without a TTY; the chosen value is persisted so later
 # invocations (status) keep showing it.
 maybe_prompt_advertised_host() {
+  [[ "${HARNESS_RUNTIME:-host}" != openshell ]] || return 0
   # An explicit env value is saved too, so later `status` runs (without the
   # variable) print the address the ports were actually published on.
   if [[ -n "$HARNESS_ADVERTISED_HOST_WAS_SET" && "$HARNESS_ADVERTISED_HOST" =~ ^[A-Za-z0-9.:-]+$ ]]; then
@@ -480,20 +481,25 @@ main() {
     error "Unknown command: ${positional[0]}"
   fi
 
-  require_model_selection
   if [[ "${positional[0]:-}" != inference ]]; then
     select_runtime
+  fi
+  if [[ "${HARNESS_RUNTIME:-host}" == openshell ]]; then
+    openshell_apply_model_defaults
+    apply_model_source_defaults
+  fi
+  require_model_selection
+  if [[ "${HARNESS_RUNTIME:-host}" == openshell ]]; then
+    [[ "$(resolve_bind_host)" == 127.0.0.1 ]] \
+      || error "OpenShell mode requires HARNESS_BIND_HOST=127.0.0.1; inference must not be LAN-published."
   fi
 
   printf "\n${C_GREEN}${C_BOLD}agent-harness-install${C_RESET}\n\n"
 
-  # OpenShell profiles share inference, but never modify its model or route implicitly.
+  # Provision inference only on a fresh host; existing shared routes are validated, not replaced.
   if [[ "${HARNESS_RUNTIME:-host}" == openshell && "${positional[0]:-}" != inference ]]; then
-    set +u
-    ensure_nvm_loaded
-    set -u
-    command_exists node || error "Node.js is required for installer configuration; run ./startup.sh first."
-    command_exists docker || error "Docker is required for the sandbox image; run ./startup.sh first."
+    prepare_installer_host
+    openshell_ensure_shared_inference
     install_openshell_agent
     onboard_openshell_agent
     print_done
@@ -517,6 +523,14 @@ main() {
   export HARNESS_LLM_ENDPOINT
   ok "LLM endpoint: ${HARNESS_LLM_ENDPOINT}"
   if [[ "${positional[0]:-}" == inference ]]; then
+    if [[ "${HARNESS_RUNTIME:-host}" == openshell ]]; then
+      openshell_validate_shared_inference
+      if [[ -z "${HARNESS_LLM_ROUTER_ENDPOINT:-}" ]]; then
+        openshell_validate_managed_backend
+        atomic_write_file "$(ensure_state_dir)/openshell-model" \
+          "${HARNESS_LLM_MODEL:-$(resolve_onboarding_model_hint)}"
+      fi
+    fi
     ok "Shared inference provisioned; no agent was installed."
     exit 0
   fi
@@ -544,4 +558,6 @@ re-run ./install.sh."
   print_done
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

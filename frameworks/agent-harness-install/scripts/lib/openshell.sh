@@ -38,6 +38,93 @@ select_runtime() {
   validate_runtime
 }
 
+openshell_apply_model_defaults() {
+  [[ "${HARNESS_RUNTIME:-host}" == openshell ]] || return 0
+  local selected_file profile
+  selected_file="$(harness_state_root)/openshell-model"
+  profile="$(openshell_profile_dir)/profile.json"
+  if [[ -z "${HARNESS_HF_MODEL:-}" && -z "${HARNESS_LLM_MODEL:-}" ]]; then
+    if [[ -e "$profile" || -L "$profile" ]]; then
+      load_openshell_node
+      openshell_load_profile
+      HARNESS_LLM_MODEL="$OPENSHELL_MODEL"
+    elif [[ -e "$selected_file" || -L "$selected_file" ]]; then
+      assert_state_path_safe "$selected_file"
+      assert_owned_by_current_user "$selected_file"
+      HARNESS_LLM_MODEL="$(cat "$selected_file")"
+      [[ -n "$HARNESS_LLM_MODEL" && ! "$HARNESS_LLM_MODEL" =~ [[:cntrl:]] ]] \
+        || error "Invalid saved OpenShell model selection: ${selected_file}"
+    elif [[ -z "${HARNESS_LLM_ROUTER_ENDPOINT:-}" && "$HARNESS_MODEL_HUB" == openvino ]] &&
+         ! model_selection_satisfied; then
+      HARNESS_HF_MODEL="OpenVINO/Qwen3.5-9B-int8-ov"
+    fi
+  fi
+  # This repository is already OpenVINO IR with an OVMS graph, not input
+  # for optimum-cli conversion. Explicit exporter/hub choices still win.
+  if [[ "${HARNESS_HF_MODEL:-}" == OpenVINO/Qwen3.5-9B-int8-ov &&
+        -z "${HARNESS_OVMS_EXPORTER_WAS_SET:-}" && "$HARNESS_MODEL_HUB" == openvino ]]; then
+    HARNESS_OVMS_EXPORTER=hf-snapshot
+  fi
+  if [[ -n "${HARNESS_HF_MODEL:-}" && -z "${HARNESS_LLM_MODEL:-}" ]]; then
+    HARNESS_LLM_MODEL="$(model_dir_name "$HARNESS_HF_MODEL")"
+  fi
+  export HARNESS_HF_MODEL HARNESS_LLM_MODEL HARNESS_OVMS_EXPORTER
+}
+
+openshell_ensure_shared_inference() {
+  with_state_lock openshell-inference _openshell_ensure_shared_inference
+}
+
+_openshell_ensure_shared_inference() {
+  [[ "$(resolve_bind_host)" == 127.0.0.1 ]] \
+    || error "OpenShell mode requires HARNESS_BIND_HOST=127.0.0.1; inference must not be LAN-published."
+  local containers
+  containers="$(docker container ls -a --format '{{.Names}}')" \
+    || error "Cannot inspect shared inference containers; check the Docker daemon and permissions."
+  if ! grep -Fxq "$HARNESS_IR_CONTAINER" <<<"$containers"; then
+    # Never reinterpret a partial/older installation as a fresh deployment.
+    if grep -Fxq "$HARNESS_OVMS_CONTAINER" <<<"$containers" ||
+       [[ -f "${HARNESS_MODELS_DIR}/config.json" ||
+          -f "$(harness_state_root)/openshell-model" ||
+          -d "$(harness_state_root)/openshell" ]]; then
+      error "Shared inference is incomplete. Repair it explicitly with ./install.sh inference --runtime openshell --model <model>."
+    fi
+    ensure_inference_backend
+  fi
+  openshell_validate_shared_inference
+  if [[ -z "${HARNESS_LLM_ROUTER_ENDPOINT:-}" ]]; then
+    openshell_validate_managed_backend
+    local model
+    model="${HARNESS_LLM_MODEL:-$(resolve_onboarding_model_hint)}"
+    [[ -n "$model" && ! "$model" =~ [[:cntrl:]] ]] || error "Invalid OpenShell model selection."
+    atomic_write_file "$(harness_state_root)/openshell-model" "$model"
+  fi
+}
+
+openshell_validate_managed_backend() {
+  local records model
+  records="$(docker inspect "$HARNESS_OVMS_CONTAINER" "$HARNESS_IR_CONTAINER")" \
+    || error "Installer-managed OVMS/IR containers are unavailable."
+  model="${HARNESS_LLM_MODEL:-$(resolve_onboarding_model_hint)}"
+  node - "$HARNESS_OVMS_REST_PORT" "$HARNESS_BACKEND_NETWORK" "$model" "$records" <<'JS' \
+    || error "Managed OVMS validation failed; repair shared inference explicitly."
+const [port, network, model, input] = process.argv.slice(2);
+async function validate() {
+  const [ovms, ir] = JSON.parse(input);
+  const bindings = ovms?.HostConfig?.PortBindings?.["8000/tcp"];
+  if (!Array.isArray(bindings) || !bindings.length ||
+      bindings.some(b => b.HostIp !== "127.0.0.1" || b.HostPort !== port))
+    throw Error("OVMS must be published only on the expected host loopback port");
+  if (!ovms.NetworkSettings?.Networks?.[network] || !ir?.NetworkSettings?.Networks?.[network])
+    throw Error("OVMS and IR must share the configured private backend network");
+  const r = await fetch(`http://127.0.0.1:${port}/v2/models/${encodeURIComponent(model)}/ready`,
+    {signal: AbortSignal.timeout(10000)});
+  if (!r.ok) throw Error(`OVMS model '${model}' is not ready (HTTP ${r.status})`);
+}
+validate().catch(e => { console.error(e.message); process.exitCode = 1; });
+JS
+}
+
 openshell_profile_dir() {
   local agent
   agent="$(canonical_agent_name "${HARNESS_AGENT:-openclaw}")"

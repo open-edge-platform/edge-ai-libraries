@@ -32,6 +32,7 @@ bash test/openshell-test.sh | tee openshell-offline.tap
 | Version pin | Exact OpenShell version accepted; incompatible version rejected |
 | Inference boundary | Invalid ports, LAN/IPv6/mismatched/missing Docker publication and missing IR rejection |
 | Model discovery | Exact served model accepted; unserved model, HTTP error and malformed JSON rejected |
+| Managed inference | OpenShell Qwen3.5 default and snapshot exporter, native OVMS graph generation, host compatibility, explicit overrides, persisted selection, fresh-only provisioning, partial deployment refusal, managed OVMS readiness/network/publication, both proxy bypass variables |
 | CLI safety | Help, invalid runtime, host connect, explicit sandbox deletion consent and host-only deletion flags |
 | Cleanup safeguards | Deletion order, archived records, unowned-resource refusal, pending deletion retaining provider/identity |
 | Test infrastructure | Intermediate assertion failures produce a nonzero suite result; live suite requires explicit opt-in |

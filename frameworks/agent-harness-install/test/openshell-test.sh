@@ -372,4 +372,5 @@ run_case 'sandbox removal requires consent' expect_failure 'pass --yes' bash "$S
 run_case 'sandbox removal rejects model deletion' expect_failure 'host-runtime options' bash "$SCRIPT_DIR/uninstall.sh" --runtime openshell --harness openclaw --delete-models --yes
 run_case 'live suite requires explicit opt-in' expect_failure 'Set HARNESS_RUN_OPENSHELL_INTEGRATION=1' \
   env -u HARNESS_RUN_OPENSHELL_INTEGRATION bash "$SCRIPT_DIR/test/openshell-integration-test.sh"
+run_case 'managed Qwen inference regression suite' bash "$SCRIPT_DIR/test/managed-inference-test.sh"
 finish_tests
