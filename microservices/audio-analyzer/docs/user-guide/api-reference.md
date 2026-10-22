@@ -200,11 +200,18 @@ speaker is still talking. It is deliberately cheap and deliberately lossy:
   mid-word.
 * Nothing is persisted: previews never write `session_state.json` and never
   affect the transcript produced by a real commit.
-* A preview never delays a real commit. The session lock is held only long
-  enough to copy the trailing audio out of the buffer; the decode itself runs
-  with the lock released, so a commit arriving mid-preview acquires it
-  immediately. A preview is additionally skipped outright if a commit is
-  already decoding, or if an earlier preview has not finished.
+* A preview never delays a real commit. The preview decode runs as a
+  background task, so the server keeps reading from the socket while it is in
+  progress, and it holds the session lock only long enough to copy the
+  trailing audio out of the buffer. A `input_audio_buffer.commit` sent during
+  a preview is therefore processed immediately rather than queued behind it.
+  A preview is additionally skipped outright if a commit is already decoding,
+  or if an earlier preview has not finished.
+* Because previews are concurrent, a preview event may arrive interleaved with
+  commit events. Match events by `type`, and use `sequence` for preview
+  ordering, rather than assuming a fixed arrival order.
+* A pending preview is cancelled when the socket closes, so no preview event
+  arrives after `session.close`.
 * A preview whose decode finishes after a commit landed is discarded rather
   than sent, so a stale snapshot never arrives after the final transcript for
   the same audio. Preview `sequence` numbers may therefore have gaps.

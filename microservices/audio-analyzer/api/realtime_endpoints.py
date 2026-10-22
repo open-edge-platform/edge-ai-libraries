@@ -141,6 +141,36 @@ class RealtimeSession:
         # cannot serialize them; without this flag a fast client could stack
         # several concurrent decodes on the preview model.
         self.preview_active = False
+        # Serializes socket writes. Previews are dispatched as background
+        # tasks so the receive loop keeps reading, which means a preview event
+        # and a commit event can be produced by different tasks; without this
+        # their frames could interleave on the wire.
+        self.send_lock = asyncio.Lock()
+        # Strong references to in-flight background tasks. asyncio only holds
+        # weak references to tasks, so a task that nothing references can be
+        # garbage collected mid-flight. Drained on disconnect/close.
+        self.background_tasks: set[asyncio.Task] = set()
+
+    def spawn(self, coro) -> asyncio.Task:
+        """Run ``coro`` concurrently with the receive loop, keeping a strong ref."""
+        task = asyncio.create_task(coro)
+        self.background_tasks.add(task)
+        task.add_done_callback(self.background_tasks.discard)
+        return task
+
+    async def drain_background_tasks(self) -> None:
+        """Cancel in-flight background work and wait for it to unwind.
+
+        Called on every exit path. Previews are throwaway, so they are
+        cancelled rather than awaited; leaving them running would let a task
+        write to a closed socket.
+        """
+        tasks = list(self.background_tasks)
+        if not tasks:
+            return
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
 
     def rebuild_audio_state(self) -> None:
         self.buffer = PcmStreamBuffer(sample_rate=self.sample_rate)
@@ -170,12 +200,29 @@ class RealtimeSession:
         }
 
 
-async def _send(ws: WebSocket, payload: dict) -> None:
-    await ws.send_text(json.dumps(payload))
+async def _send(ws: WebSocket, payload: dict, send_lock: asyncio.Lock | None = None) -> None:
+    """Write one JSON event to the socket.
+
+    Args:
+        ws: The connected WebSocket.
+        payload: JSON-serializable event body.
+        send_lock: Serializes writes when more than one task can send on this
+            socket. Previews run as background tasks (see
+            ``_preview_utterance``), so a preview event and a commit event can
+            otherwise be written concurrently and interleave on the wire.
+            Omitted only before the session exists, when the handler is the
+            sole writer.
+    """
+    if send_lock is None:
+        await ws.send_text(json.dumps(payload))
+        return
+    async with send_lock:
+        await ws.send_text(json.dumps(payload))
 
 
-async def _send_error(ws: WebSocket, message: str, code: str = "invalid_request_error") -> None:
-    await _send(ws, {"type": "error", "error": {"type": code, "message": message}})
+async def _send_error(ws: WebSocket, message: str, code: str = "invalid_request_error",
+                      send_lock: asyncio.Lock | None = None) -> None:
+    await _send(ws, {"type": "error", "error": {"type": code, "message": message}}, send_lock)
 
 
 def _apply_session_update(session: RealtimeSession, patch: dict) -> None:
@@ -303,7 +350,7 @@ async def _commit_utterance(ws: WebSocket, session: RealtimeSession, reason: str
             "type": "input_audio_buffer.committed",
             "item_id": item_id,
             "reason": reason,
-        })
+        }, send_lock=session.send_lock)
 
         try:
             result = await run_in_threadpool(
@@ -322,7 +369,7 @@ async def _commit_utterance(ws: WebSocket, session: RealtimeSession, reason: str
             )
         except Exception:
             logger.exception("Realtime transcription failed for session %s", session.session_id)
-            await _send_error(ws, "Transcription failed for the committed audio buffer", "server_error")
+            await _send_error(ws, "Transcription failed for the committed audio buffer", "server_error", send_lock=session.send_lock)
             return
 
         text = (result.get("text") or "").strip()
@@ -334,7 +381,7 @@ async def _commit_utterance(ws: WebSocket, session: RealtimeSession, reason: str
             "item_id": item_id,
             "content_index": 0,
             "delta": text,
-        })
+        }, send_lock=session.send_lock)
         completed = {
             "type": "conversation.item.input_audio_transcription.completed",
             "item_id": item_id,
@@ -349,7 +396,7 @@ async def _commit_utterance(ws: WebSocket, session: RealtimeSession, reason: str
             completed["language"] = result["language"]
         if "sentiment_summary" in result:
             completed["sentiment_summary"] = result["sentiment_summary"]
-        await _send(ws, completed)
+        await _send(ws, completed, send_lock=session.send_lock)
 
 
 async def _preview_utterance(ws: WebSocket, session: RealtimeSession) -> None:
@@ -444,23 +491,23 @@ async def _preview_utterance(ws: WebSocket, session: RealtimeSession) -> None:
         "sequence": preview_index,
         "transcript": text,
         "segments": result.get("segments") or [],
-    })
+    }, send_lock=session.send_lock)
 
 
 async def _handle_append(ws: WebSocket, session: RealtimeSession, message: dict) -> None:
     audio_b64 = message.get("audio")
     if not isinstance(audio_b64, str) or not audio_b64:
-        await _send_error(ws, "input_audio_buffer.append requires a base64 'audio' field")
+        await _send_error(ws, "input_audio_buffer.append requires a base64 'audio' field", send_lock=session.send_lock)
         return
 
     try:
         pcm = base64.b64decode(audio_b64, validate=True)
     except (binascii.Error, ValueError):
-        await _send_error(ws, "'audio' must be valid base64-encoded pcm16 data")
+        await _send_error(ws, "'audio' must be valid base64-encoded pcm16 data", send_lock=session.send_lock)
         return
 
     if len(pcm) > MAX_APPEND_BYTES:
-        await _send_error(ws, f"Audio chunk exceeds {MAX_APPEND_BYTES} bytes", "invalid_request_error")
+        await _send_error(ws, f"Audio chunk exceeds {MAX_APPEND_BYTES} bytes", "invalid_request_error", send_lock=session.send_lock)
         return
 
     session.buffer.append(pcm)
@@ -468,9 +515,9 @@ async def _handle_append(ws: WebSocket, session: RealtimeSession, message: dict)
     if session.vad_enabled:
         for event in session.vad.process(pcm):
             if event == "speech_started":
-                await _send(ws, {"type": "input_audio_buffer.speech_started"})
+                await _send(ws, {"type": "input_audio_buffer.speech_started"}, send_lock=session.send_lock)
             elif event == "speech_stopped":
-                await _send(ws, {"type": "input_audio_buffer.speech_stopped"})
+                await _send(ws, {"type": "input_audio_buffer.speech_stopped"}, send_lock=session.send_lock)
                 await _commit_utterance(ws, session, reason="server_vad")
 
     # Safety valve: never let a single utterance grow without bound.
@@ -510,7 +557,7 @@ async def realtime_transcription(
     await _send(websocket, {
         "type": "transcription_session.created",
         "session": session.config_payload(),
-    })
+    }, send_lock=session.send_lock)
 
     try:
         while True:
@@ -518,10 +565,10 @@ async def realtime_transcription(
             try:
                 message = json.loads(raw)
             except json.JSONDecodeError:
-                await _send_error(websocket, "Message must be valid JSON")
+                await _send_error(websocket, "Message must be valid JSON", send_lock=session.send_lock)
                 continue
             if not isinstance(message, dict):
-                await _send_error(websocket, "Message must be a JSON object")
+                await _send_error(websocket, "Message must be a JSON object", send_lock=session.send_lock)
                 continue
 
             event_type = message.get("type")
@@ -533,35 +580,44 @@ async def realtime_transcription(
                 await _commit_utterance(websocket, session, reason="client_commit")
 
             elif event_type == "input_audio_buffer.preview":
-                await _preview_utterance(websocket, session)
+                # Dispatched, NOT awaited. Awaiting here would stop the
+                # receive loop for the duration of the decode, so a commit --
+                # or an append that triggers a VAD commit -- would sit unread
+                # until the preview finished. Releasing session.lock during
+                # the decode is not sufficient on its own: the delay simply
+                # moves from the lock to this loop.
+                session.spawn(_preview_utterance(websocket, session))
 
             elif event_type == "input_audio_buffer.clear":
                 session.buffer.clear()
                 session.vad.reset()
-                await _send(websocket, {"type": "input_audio_buffer.cleared"})
+                await _send(websocket, {"type": "input_audio_buffer.cleared"}, send_lock=session.send_lock)
 
             elif event_type in ("session.update", "transcription_session.update"):
                 patch = message.get("session")
                 if not isinstance(patch, dict):
-                    await _send_error(websocket, "session.update requires a 'session' object")
+                    await _send_error(websocket, "session.update requires a 'session' object", send_lock=session.send_lock)
                     continue
                 try:
                     _apply_session_update(session, patch)
                 except (ValueError, TypeError) as exc:
-                    await _send_error(websocket, str(exc))
+                    await _send_error(websocket, str(exc), send_lock=session.send_lock)
                     continue
                 await _send(websocket, {
                     "type": "transcription_session.updated",
                     "session": session.config_payload(),
-                })
+                }, send_lock=session.send_lock)
 
             elif event_type == "session.close":
+                # Drain first: a preview still decoding would otherwise try to
+                # write to an already-closed socket.
+                await session.drain_background_tasks()
                 await _commit_utterance(websocket, session, reason="session_close")
                 await websocket.close(code=1000)
                 return
 
             else:
-                await _send_error(websocket, f"Unsupported event type: {event_type!r}")
+                await _send_error(websocket, f"Unsupported event type: {event_type!r}", send_lock=session.send_lock)
 
     except WebSocketDisconnect:
         # Flush whatever speech was captured before the client vanished.
@@ -572,3 +628,7 @@ async def realtime_transcription(
             await websocket.close(code=1011)
         except RuntimeError:
             pass
+    finally:
+        # Covers every exit path, including the `return` above and an
+        # exception mid-loop: no preview task may outlive the connection.
+        await session.drain_background_tasks()

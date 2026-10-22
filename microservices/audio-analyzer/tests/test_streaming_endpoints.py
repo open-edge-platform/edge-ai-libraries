@@ -8,6 +8,7 @@ import math
 import os
 import struct
 import tempfile
+import threading
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -378,7 +379,7 @@ class RealtimePreviewTests(unittest.TestCase):
 
         sent = []
 
-        async def _send(ws, payload):
+        async def _send(ws, payload, send_lock=None):
             sent.append(payload)
 
         with patch("api.realtime_endpoints._transcribe_pcm", side_effect=_fake), \
@@ -413,7 +414,7 @@ class RealtimePreviewTests(unittest.TestCase):
 
         sent = []
 
-        async def _send(ws, payload):
+        async def _send(ws, payload, send_lock=None):
             sent.append(payload)
 
         with patch("api.realtime_endpoints._transcribe_pcm", side_effect=_fake), \
@@ -432,6 +433,105 @@ class RealtimePreviewTests(unittest.TestCase):
 
         self.assertFalse(session.preview_active)
         self.assertFalse(session.lock.locked())
+
+    def test_commit_is_not_delayed_by_an_in_flight_preview_over_the_socket(self):
+        """The receive loop must keep reading while a preview decodes.
+
+        Releasing session.lock during the decode is not enough on its own: if
+        the loop awaits _preview_utterance inline, a commit sent afterwards
+        sits unread until the preview finishes. This drives the real socket so
+        the loop itself is under test, not just the helper.
+        """
+        preview_started = threading.Event()
+        release_preview = threading.Event()
+
+        def _fake(session_id, pcm, sample_rate, language, label, scope,
+                  diarization, append_to_session, pool):
+            if pool == Pipeline.POOL_PREVIEW:
+                preview_started.set()
+                # Block until the commit has been fully served.
+                release_preview.wait(timeout=10)
+                return {"text": "partial", "language": "en", "segments": []}
+            return {"text": "final text", "language": "en", "segments": []}
+
+        with patch("main.ensure_model"), patch("main.preload_models"), \
+             patch("api.realtime_endpoints._transcribe_pcm", side_effect=_fake):
+            with TestClient(main.app) as client:
+                with client.websocket_connect("/v1/realtime?intent=transcription") as ws:
+                    ws.receive_json()
+                    ws.send_json({"type": "session.update", "session": {"turn_detection": None}})
+                    ws.receive_json()
+                    ws.send_json({"type": "input_audio_buffer.append", "audio": _b64(_pcm16_tone(1.0))})
+
+                    ws.send_json({"type": "input_audio_buffer.preview"})
+                    self.assertTrue(preview_started.wait(timeout=10),
+                                    "preview decode never started")
+
+                    # Preview is still blocked inside its decode. If the loop
+                    # awaited it inline, this commit would not be read and the
+                    # receive below would block until the timeout.
+                    ws.send_json({"type": "input_audio_buffer.commit"})
+                    events = [ws.receive_json() for _ in range(3)]
+                    types = [e["type"] for e in events]
+
+                    self.assertIn("input_audio_buffer.committed", types)
+                    self.assertIn(
+                        "conversation.item.input_audio_transcription.completed", types)
+                    # No preview event may have arrived: it is still decoding.
+                    self.assertNotIn(
+                        "conversation.item.input_audio_transcription.preview", types)
+
+                    release_preview.set()
+
+    def test_pending_preview_is_cancelled_on_disconnect(self):
+        async def _run():
+            session = realtime_endpoints.RealtimeSession("sess", None)
+            started = asyncio.Event()
+
+            async def _slow():
+                started.set()
+                await asyncio.sleep(30)
+
+            task = session.spawn(_slow())
+            await started.wait()
+            self.assertIn(task, session.background_tasks)
+
+            await session.drain_background_tasks()
+            self.assertTrue(task.cancelled())
+            self.assertEqual(session.background_tasks, set())
+
+        asyncio.run(_run())
+
+    def test_drain_is_a_noop_without_background_tasks(self):
+        session = realtime_endpoints.RealtimeSession("sess", None)
+        asyncio.run(session.drain_background_tasks())
+        self.assertEqual(session.background_tasks, set())
+
+    def test_socket_writes_are_serialized_by_send_lock(self):
+        """Concurrent senders must not interleave frames on the wire."""
+        async def _run():
+            session = realtime_endpoints.RealtimeSession("sess", None)
+            order = []
+
+            class FakeWs:
+                async def send_text(self, text):
+                    order.append(("start", text))
+                    await asyncio.sleep(0)   # yield; a second sender may cut in
+                    order.append(("end", text))
+
+            ws = FakeWs()
+            await asyncio.gather(
+                realtime_endpoints._send(ws, {"n": 1}, send_lock=session.send_lock),
+                realtime_endpoints._send(ws, {"n": 2}, send_lock=session.send_lock),
+            )
+            return order
+
+        order = asyncio.run(_run())
+        # Each write must complete before the next begins.
+        self.assertEqual([phase for phase, _ in order],
+                         ["start", "end", "start", "end"])
+        self.assertEqual(order[0][1], order[1][1])
+        self.assertEqual(order[2][1], order[3][1])
 
     def test_preview_window_is_bounded(self):
         """Only the trailing window is decoded, not the whole utterance."""
