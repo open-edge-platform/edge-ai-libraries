@@ -1,6 +1,7 @@
 import logging, os, sys
 import yaml
 from typing import Tuple
+from utils.asr_pool_config import POOL_PREVIEW, preview_differs_from_final, resolve_pool_config
 from utils.config_loader import config
 from utils.cli_utils import run_cli
 logger = logging.getLogger(__name__)
@@ -432,13 +433,28 @@ def ensure_model():
         # request path. get_asr_model_path()'s directory naming is keyed off
         # the model name + weight_format, so this never collides with the
         # main model's cache directory.
-        _preview_cfg = getattr(config.models.asr, "preview", None)
-        if _preview_cfg is not None and getattr(_preview_cfg, "provider", "openvino") == "openvino":
-            preview_name = _preview_cfg.name
-            preview_weight_format = getattr(_preview_cfg, "weight_format", None) or weight_format
-            preview_output_dir = get_asr_model_path(model_name=preview_name, weight_format=preview_weight_format)
-            preview_hf_model_id = preview_name if "/" in preview_name else f"openai/{preview_name}"
-            _download_openvino_model(preview_hf_model_id, preview_output_dir, preview_weight_format)
+        # Every key under models.asr.preview is optional (a deployment may set
+        # only `device:`), so resolve the whole block through the shared
+        # resolver rather than reading attributes that may not exist. When the
+        # preview pool resolves to the same model as the main config there is
+        # nothing extra to export.
+        if preview_differs_from_final():
+            preview_cfg = resolve_pool_config(POOL_PREVIEW)
+            if preview_cfg.provider == "openvino":
+                preview_output_dir = get_asr_model_path(
+                    model_name=preview_cfg.name, weight_format=preview_cfg.weight_format
+                )
+                preview_hf_model_id = (
+                    preview_cfg.name if "/" in preview_cfg.name else f"openai/{preview_cfg.name}"
+                )
+                _download_openvino_model(
+                    preview_hf_model_id, preview_output_dir, preview_cfg.weight_format
+                )
+            else:
+                logger.info(
+                    "Preview ASR pool uses the %s provider; skipping OpenVINO pre-export",
+                    preview_cfg.provider,
+                )
     elif provider == "whispercpp":
         if str(getattr(config.models.asr, "device", "CPU")).upper() != "CPU":
             logger.warning("whispercpp backend is CPU-only; ignoring configured device %s", config.models.asr.device)
@@ -531,9 +547,8 @@ def get_asr_model_path(model_name: str | None = None, weight_format: str | None 
         # different quantizations, and get_asr_model_path()'s caller (the
         # runtime OVGenAIWhisper loader) has no other way to know which pool
         # it's resolving for, only the model_name it was constructed with.
-        _preview_cfg = getattr(config.models.asr, "preview", None)
-        if _preview_cfg is not None and getattr(_preview_cfg, "name", None) == name:
-            weight_format = getattr(_preview_cfg, "weight_format", None)
+        if preview_differs_from_final() and resolve_pool_config(POOL_PREVIEW).name == name:
+            weight_format = resolve_pool_config(POOL_PREVIEW).weight_format
         if weight_format is None and provider == "openvino":
             weight_format = getattr(config.models.asr, "weight_format", None)
         elif weight_format is None and provider == "whispercpp":

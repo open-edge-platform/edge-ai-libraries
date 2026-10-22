@@ -9,10 +9,13 @@ Covers:
 - The ffmpeg pass-through in ``process_audio_segment``, which must be disabled
   whenever an audio filter (denoise OR loudness normalization) is configured.
 - ``utils.asr_model_capabilities.is_english_only_model``.
+- ``utils.asr_pool_config`` per-pool resolution, where every ``models.asr.preview``
+  key is optional and must fall back to the main ASR config.
 """
 
 import struct
 import sys
+import unittest
 import wave
 from unittest.mock import MagicMock, patch
 
@@ -216,3 +219,110 @@ class TestProcessAudioSegmentPassthrough:
 ])
 def test_is_english_only_model(model_name, expected):
     assert is_english_only_model(model_name) is expected
+
+
+_MISSING = object()
+
+
+class AsrPoolConfigResolutionTests(unittest.TestCase):
+    """`models.asr.preview` keys are all optional and must fall back safely."""
+
+    def setUp(self):
+        from utils.config_loader import config as _config
+
+        self.asr = _config.models.asr
+        self._saved = {
+            k: getattr(self.asr, k, _MISSING)
+            for k in ("preview", "name", "device", "provider", "weight_format")
+        }
+
+    def tearDown(self):
+        for key, value in self._saved.items():
+            if value is _MISSING:
+                if hasattr(self.asr, key):
+                    delattr(self.asr, key)
+            else:
+                setattr(self.asr, key, value)
+
+    def _set_main(self, **kwargs):
+        for key, value in kwargs.items():
+            setattr(self.asr, key, value)
+
+    def test_preview_with_only_device_inherits_name_and_provider(self):
+        """A preview block that sets just `device:` must not raise."""
+        from types import SimpleNamespace
+        from utils import asr_pool_config as apc
+
+        self._set_main(name="whisper-small", provider="openvino",
+                       device="CPU", weight_format="int8")
+        self.asr.preview = SimpleNamespace(device="GPU")
+
+        cfg = apc.resolve_pool_config(apc.POOL_PREVIEW)
+        self.assertEqual(cfg.name, "whisper-small")
+        self.assertEqual(cfg.provider, "openvino")
+        self.assertEqual(cfg.weight_format, "int8")
+        self.assertEqual(cfg.device, "GPU")
+
+    def test_preview_with_empty_block_falls_back_entirely(self):
+        from types import SimpleNamespace
+        from utils import asr_pool_config as apc
+
+        self._set_main(name="whisper-small", provider="openvino",
+                       device="CPU", weight_format="int8")
+        self.asr.preview = SimpleNamespace()
+
+        cfg = apc.resolve_pool_config(apc.POOL_PREVIEW)
+        final = apc.resolve_pool_config(apc.POOL_FINAL)
+        self.assertEqual(cfg.name, final.name)
+        self.assertEqual(cfg.device, final.device)
+        self.assertFalse(apc.preview_differs_from_final())
+
+    def test_device_only_preview_needs_no_extra_model_export(self):
+        """Same model on another device must not trigger a second export."""
+        from types import SimpleNamespace
+        from utils import asr_pool_config as apc
+
+        self._set_main(name="whisper-small", provider="openvino",
+                       device="CPU", weight_format="int8")
+        self.asr.preview = SimpleNamespace(device="GPU")
+        self.assertFalse(apc.preview_differs_from_final())
+
+    def test_different_preview_model_requires_export(self):
+        from types import SimpleNamespace
+        from utils import asr_pool_config as apc
+
+        self._set_main(name="whisper-small", provider="openvino",
+                       device="CPU", weight_format="int8")
+        self.asr.preview = SimpleNamespace(name="whisper-tiny.en")
+        self.assertTrue(apc.preview_differs_from_final())
+        self.assertEqual(apc.resolve_pool_config(apc.POOL_PREVIEW).name, "whisper-tiny.en")
+
+    def test_no_preview_block_is_not_a_difference(self):
+        from utils import asr_pool_config as apc
+
+        if hasattr(self.asr, "preview"):
+            delattr(self.asr, "preview")
+        self.assertFalse(apc.preview_differs_from_final())
+        self.assertEqual(
+            apc.resolve_pool_config(apc.POOL_PREVIEW).name,
+            apc.resolve_pool_config(apc.POOL_FINAL).name,
+        )
+
+    def test_unknown_pool_name_is_rejected(self):
+        from utils import asr_pool_config as apc
+
+        with self.assertRaises(ValueError):
+            apc.resolve_pool_config("bogus")
+
+    def test_device_override_applies_to_final_pool_only(self):
+        from types import SimpleNamespace
+        from utils import asr_pool_config as apc
+
+        self._set_main(name="whisper-small", provider="openvino", device="CPU")
+        self.asr.preview = SimpleNamespace(device="NPU")
+        self.assertEqual(
+            apc.resolve_pool_config(apc.POOL_FINAL, device_override="GPU").device, "GPU"
+        )
+        self.assertEqual(
+            apc.resolve_pool_config(apc.POOL_PREVIEW, device_override="GPU").device, "NPU"
+        )

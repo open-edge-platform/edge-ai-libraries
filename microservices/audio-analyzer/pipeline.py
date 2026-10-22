@@ -6,6 +6,7 @@ from typing import Iterator
 
 from components.asr_component import ASRComponent
 from components.ffmpeg.audio_preprocessing import chunk_by_silence
+from utils.asr_pool_config import POOL_FINAL, POOL_PREVIEW, resolve_pool_config
 from utils.config_loader import config
 from utils.openvino_runtime_validation import resolve_asr_device
 from utils.app_paths import get_session_dir
@@ -22,8 +23,8 @@ class Pipeline:
     #: Valid values for the ``pool`` argument. ``"final"`` is the persisted,
     #: caller-facing path; ``"preview"`` is the non-destructive realtime
     #: snapshot path. The two keep separate ASR model instances.
-    POOL_FINAL = "final"
-    POOL_PREVIEW = "preview"
+    POOL_FINAL = POOL_FINAL
+    POOL_PREVIEW = POOL_PREVIEW
 
     def __init__(self, session_id=None, temperature=None, append_to_session: bool = False, speaker_scope_id=None,
                  diarization: bool | None = None, device: str | None = None, pool: str = POOL_FINAL):
@@ -44,43 +45,22 @@ class Pipeline:
                 still run on the final model.
         """
         logger.info("pipeline initialized")
-        if pool not in (self.POOL_FINAL, self.POOL_PREVIEW):
-            raise ValueError(f"Unsupported ASR pool: {pool!r}; expected 'final' or 'preview'")
         self.session_id = session_id or generate_session_id()
         self.append_to_session = append_to_session
         self.pool = pool
         self.temperature = config.models.asr.temperature if temperature is None else temperature
-        # The preview pool may use a DIFFERENT model/device than the final pool
-        # -- see config.models.asr.preview. Falls back to the main asr config
-        # when no override is configured, so existing single-model deployments
-        # are unaffected. The per-request `device` override applies only to the
-        # final pool; the preview pool keeps its configured device since it is
-        # an internal latency optimisation, not a caller-selectable path.
-        _preview_cfg = getattr(config.models.asr, "preview", None) if pool == self.POOL_PREVIEW else None
-        if _preview_cfg is not None:
-            asr_provider = getattr(_preview_cfg, "provider", None) or config.models.asr.provider
-            asr_model_name = getattr(_preview_cfg, "name", None) or config.models.asr.name
-            asr_device = resolve_asr_device(
-                asr_provider,
-                asr_model_name,
-                # Fall back to the main device when the preview block omits one,
-                # so a GPU-less host never fails to load the preview model.
-                getattr(_preview_cfg, "device", None) or config.models.asr.device,
-            )
-        else:
-            asr_provider = config.models.asr.provider
-            asr_model_name = config.models.asr.name
-            asr_device = resolve_asr_device(
-                config.models.asr.provider,
-                config.models.asr.name,
-                device or config.models.asr.device,
-            )
-        self.asr_model_name = asr_model_name
+        # The preview pool may use a different model/device than the final
+        # pool; every key falls back to the main asr config when unset, so
+        # existing single-model deployments are unaffected. The per-request
+        # `device` override applies to the final pool only -- the preview pool
+        # is an internal latency optimisation, not a caller-selectable path.
+        pool_cfg = resolve_pool_config(pool, device_override=device)
+        self.asr_model_name = pool_cfg.name
         self.asr_component = ASRComponent(
             self.session_id,
-            provider=asr_provider,
-            model_name=asr_model_name,
-            device=asr_device,
+            provider=pool_cfg.provider,
+            model_name=pool_cfg.name,
+            device=resolve_asr_device(pool_cfg.provider, pool_cfg.name, pool_cfg.device),
             temperature=self.temperature,
             speaker_scope_id=speaker_scope_id,
             diarization=diarization,

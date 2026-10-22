@@ -50,6 +50,7 @@ from dto.audiosource import AudioSource
 from pipeline import Pipeline
 from utils.app_paths import get_session_dir
 from utils.asr_model_capabilities import is_english_only_model
+from utils.asr_pool_config import resolve_pool_config
 from utils.config_loader import config
 from utils.pcm_audio import (
     DEFAULT_PREFIX_PADDING_MS,
@@ -86,27 +87,6 @@ PREVIEW_MAX_WINDOW_SECONDS = 2.0
 SUPPORTED_AUDIO_FORMAT = "pcm16"
 
 
-def _pool_model_name(pool: str) -> str | None:
-    """Return the ASR model identifier a given pool actually resolves to.
-
-    The preview pool may be configured with its own model
-    (``models.asr.preview.name``); when it is not, it falls back to the main
-    ASR model like every other pool. Resolved per call rather than once at
-    import time so a config reload is picked up.
-
-    Args:
-        pool: ``Pipeline.POOL_FINAL`` or ``Pipeline.POOL_PREVIEW``.
-
-    Returns:
-        The configured model name, or ``None`` when unset.
-    """
-    main_name = getattr(config.models.asr, "name", None)
-    if pool != Pipeline.POOL_PREVIEW:
-        return main_name
-    preview_cfg = getattr(config.models.asr, "preview", None)
-    return (getattr(preview_cfg, "name", None) if preview_cfg is not None else None) or main_name
-
-
 def _language_for_pool(pool: str, language: str | None) -> str | None:
     """Drop the language hint only when the pool's model is English-only.
 
@@ -117,7 +97,7 @@ def _language_for_pool(pool: str, language: str | None) -> str | None:
     """
     if not language:
         return None
-    model_name = _pool_model_name(pool)
+    model_name = resolve_pool_config(pool).name
     if is_english_only_model(model_name):
         logger.debug("Dropping language=%s for %s pool: model %s is English-only",
                      language, pool, model_name)
