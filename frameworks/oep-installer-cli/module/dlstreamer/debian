@@ -35,6 +35,7 @@ debian_75_install_dlstreamer () {
     ensure_prop set installed/dlstreamer/owned true
 
     # remove old versions
+    echo "@@HINT Removing intel-dlstreamer"
     debian_75_remove_dlstreamer "$@"
 
     # product key & list file

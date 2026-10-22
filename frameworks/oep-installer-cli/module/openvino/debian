@@ -31,9 +31,11 @@ debian_70_install_openvino () {
     ensure_prop set installed/openvino/owned true
 
     # remove old versions
+    echo "@@HINT Removing openvino"
     debian_70_remove_openvino "$@"
 
     # product key
+    echo "@@HINT Installing openvino-$version"
     ensure_apt_key $key_file $key_url --dearmor
 
     # deb entry

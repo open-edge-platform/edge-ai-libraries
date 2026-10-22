@@ -18,6 +18,8 @@ configure_dlstreamer () {
   od_model_proc=yolov5m-640_INT8/yolo-v5
   oc_model=efficientnet-b0_INT8/FP16-INT8/efficientnet-b0
   model_repo=https://raw.githubusercontent.com/dlstreamer/pipeline-zoo-models/ee73878abc6fb6d864e59a5cd80016de4fc1d194
+  version_skills=tags/v2026.2.0
+  repository_skills=https://github.com/open-edge-platform/dlstreamer.git
 }
 
 fedora_75_profile_dlstreamer () {
@@ -38,13 +40,19 @@ fedora_75_install_dlstreamer () {
     ensure_prop set installed/dlstreamer/owned true
 
     # remove old versions
+    echo "@@HINT Removing intel-dlstreamer"
     fedora_75_remove_dlstreamer "$@"
 
     # product entrypoint
     printf "%s\n" "${yum_repo_conf[@]}" | ensure_sudo tee "$yum_repo_file"
 
     # install dlstreamer
+    echo "@@HINT Installing intel-dlstreamer=$version"
     ensure_dnf install -y intel-dlstreamer=$version
+
+    # install skills
+    echo "@@HINT Installing skills"
+    ensure_skills add "$version_skills" "$repository_skills" .github/skills/dlstreamer-coding-agent
 
     verify_dlstreamer
     echo "intel-dlstreamer=$version installed successfully."
