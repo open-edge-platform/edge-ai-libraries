@@ -36,7 +36,7 @@ debian_90_install_uav_mission_compute_sdk () {
   sed -i '/^PROFILE=/{d}' "$workspace"/uav-mission-compute-sdk/.env
   echo "PROFILE=$profile" >> "$workspace"/uav-mission-compute-sdk/.env
 
-  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
   echo "@@HIGHLIGHT $installer_name start|remove"
 }
 

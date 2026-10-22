@@ -1,4 +1,9 @@
-# Visual AI Demo Kit - Tutorial 1
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
+# Metro Visual AI Demo Kit - Tutorial 1
 
 <!--
 **Sample Description**: This tutorial demonstrates how to build an intelligent tolling system using edge AI technologies for real-time vehicle detection, license plate recognition, and vehicle attribute analysis.
@@ -43,7 +48,7 @@ The AI Tolling system consists of several key components:
 
 ### 1. **Create the AI Tolling Application Directory**
 
-Navigate to the OEP Vision AI recipe directory and create the AI tolling application by copying the Smart Parking template:
+Navigate to the Metro Vision AI recipe directory and create the AI tolling application by copying the Smart Parking template:
 
 ```bash
 cd ~/oep/metro-ai-suite/metro-vision-ai-app-recipe
@@ -81,35 +86,44 @@ The sample video contains:
 
 Create and run the model download script to install all required AI models:
 
-```bash
-docker run --rm --user=root \
-  -e http_proxy -e https_proxy -e no_proxy \
-  -v "$PWD:/home/dlstreamer/oep-suite" \
-  intel/dlstreamer:2026.2.0-ubuntu24 bash -c "$(cat <<EOF
+Run this command as your regular non-root host user, without `sudo`.
+Matching UID:GID keeps model directories and files owned by your host user.
+The mounted workspace supplies a writable home for model preparation environments and caches; Open Model Zoo tools are installed in a separate user-owned virtual environment.
+These commands do not repair existing root-owned files; use a new user-owned workspace if necessary.
 
-cd /home/dlstreamer/oep-suite/
+```bash
+docker run --rm -i --user "$(id -u):$(id -g)" \
+  -e HOME=/home/dlstreamer \
+  -w /home/dlstreamer \
+  -e http_proxy -e https_proxy -e no_proxy \
+  -v "$PWD:/home/dlstreamer" \
+  intel/dlstreamer:2026.2.0-ubuntu24 bash -s <<'EOF'
+set -euo pipefail
+
+cd /home/dlstreamer/
 
 mkdir -p ai-tolling/src/dlstreamer-pipeline-server/models/public
-export MODELS_PATH=/home/dlstreamer/oep-suite/ai-tolling/src/dlstreamer-pipeline-server/models
+export MODELS_PATH=/home/dlstreamer/ai-tolling/src/dlstreamer-pipeline-server/models
 /opt/intel/dlstreamer/samples/download_public_models.sh yolov10s
 
 mkdir -p ai-tolling/src/dlstreamer-pipeline-server/models/intel
 
-python3 -m pip install --break-system-packages openvino-dev[onnx,tensorflow2]
+python3 -m venv /tmp/omz-venv
+source /tmp/omz-venv/bin/activate
+python3 -m pip install --no-cache-dir "openvino-dev[onnx,tensorflow2]==2024.6.0"
 
-omz_downloader --name license-plate-recognition-barrier-0007 -o /home/dlstreamer/oep-suite/ai-tolling/src/dlstreamer-pipeline-server/models/
-omz_converter --name license-plate-recognition-barrier-0007  -o /home/dlstreamer/oep-suite/ai-tolling/src/dlstreamer-pipeline-server/models/ -d /home/dlstreamer/oep-suite/ai-tolling/src/dlstreamer-pipeline-server/models/
-curl -Lo "/home/dlstreamer/oep-suite/ai-tolling/src/dlstreamer-pipeline-server/models/public/license-plate-recognition-barrier-0007/license-plate-recognition-barrier-0007.json" "https://raw.githubusercontent.com/open-edge-platform/dlstreamer/refs/heads/main/samples/gstreamer/model_proc/intel/license-plate-recognition-barrier-0007.json"
+omz_downloader --name license-plate-recognition-barrier-0007 -o /home/dlstreamer/ai-tolling/src/dlstreamer-pipeline-server/models/
+omz_converter --name license-plate-recognition-barrier-0007  -o /home/dlstreamer/ai-tolling/src/dlstreamer-pipeline-server/models/ -d /home/dlstreamer/ai-tolling/src/dlstreamer-pipeline-server/models/
+cp /opt/intel/dlstreamer/samples/gstreamer/model_proc/intel/license-plate-recognition-barrier-0007.json \
+  /home/dlstreamer/ai-tolling/src/dlstreamer-pipeline-server/models/public/license-plate-recognition-barrier-0007/
 
 
-omz_downloader --name vehicle-attributes-recognition-barrier-0039 -o /home/dlstreamer/oep-suite/ai-tolling/src/dlstreamer-pipeline-server/models/
-omz_converter --name  vehicle-attributes-recognition-barrier-0039 -o /home/dlstreamer/oep-suite/ai-tolling/src/dlstreamer-pipeline-server/models/ -d /home/dlstreamer/oep-suite/ai-tolling/src/dlstreamer-pipeline-server/models/
-curl -Lo "/home/dlstreamer/oep-suite/ai-tolling/src/dlstreamer-pipeline-server/models/intel/vehicle-attributes-recognition-barrier-0039/vehicle-attributes-recognition-barrier-0039.json" "https://raw.githubusercontent.com/open-edge-platform/dlstreamer/refs/heads/main/samples/gstreamer/model_proc/intel/vehicle-attributes-recognition-barrier-0039.json"
+omz_downloader --name vehicle-attributes-recognition-barrier-0039 -o /home/dlstreamer/ai-tolling/src/dlstreamer-pipeline-server/models/
+omz_converter --name  vehicle-attributes-recognition-barrier-0039 -o /home/dlstreamer/ai-tolling/src/dlstreamer-pipeline-server/models/ -d /home/dlstreamer/ai-tolling/src/dlstreamer-pipeline-server/models/
+cp /opt/intel/dlstreamer/samples/gstreamer/model_proc/intel/vehicle-attributes-recognition-barrier-0039.json \
+  /home/dlstreamer/ai-tolling/src/dlstreamer-pipeline-server/models/intel/vehicle-attributes-recognition-barrier-0039/
 
-echo "Fix ownership..."
-chown -R "$(id -u):$(id -g)" ai-tolling/src/dlstreamer-pipeline-server/models ai-tolling/src/dlstreamer-pipeline-server/videos 2>/dev/null || true
 EOF
-)"
 
 ```
 
@@ -132,8 +146,8 @@ The installation script performs the following operations:
 2. Runs a DL Streamer container to access model download tools
 3. Downloads public YOLO models using the built-in download scripts
 4. Uses OpenVINO Model Zoo downloader for Intel-optimized models
-5. Downloads corresponding model configuration files for proper inference
-6. Sets up proper file permissions for container access
+5. Copies the corresponding model configuration files from the pinned image for proper inference
+6. Creates model files with your host UID:GID for non-root access
 
 Expected download time: 5-10 minutes depending on internet connection.
 

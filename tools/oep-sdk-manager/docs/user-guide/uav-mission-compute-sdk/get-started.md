@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Getting Started Guide - UAV Mission Compute SDK
 
 ## Overview
@@ -17,7 +22,7 @@ Upon completion of this guide, you will be able to:
 
 Verify that your development environment meets the following specifications:
 
-- Operating System: Ubuntu 24.04 LTS (provisioned using [Edge-Node Infrastructure Blueprint](https://github.com/open-edge-platform/edge-node-infrastructure-blueprint/blob/main/README.md))
+- Operating System: Ubuntu 24.04 LTS or Ubuntu 26.04 LTS (see [Edge-Node Infrastructure Blueprint](https://github.com/open-edge-platform/edge-node-infrastructure-blueprint/blob/main/README.md) for provisioning guidance)
 - Memory: Minimum 16GB RAM (32GB recommended)
 - Storage: 100GB available disk space
 - Network: Active internet connection for package downloads
@@ -34,6 +39,8 @@ curl -fsS https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries
 ![UAV Mission Compute SDK Installation](images/uav-script-start.png)
 
 The installation process configures the following components:
+
+Source code is cloned from the `main` branch of [Federal and Aerospace AI Suite](https://github.com/open-edge-platform/federal-and-aerospace-ai-suite) into `~/oep/federal-and-aerospace-ai-suite`.
 
 - Docker containerization platform
 - PX4 autopilot simulation with Gazebo Harmonic
@@ -57,7 +64,7 @@ This section describes how to verify and interact with the running application.
 The installation script starts the simulation stack automatically. Wait for PX4 to become healthy (~60–90 seconds on first boot):
 
 ```bash
-cd ~/oep/edge-ai-suites/federal-and-aerospace-ai-suite/uav-mission-compute-sdk
+cd ~/oep/federal-and-aerospace-ai-suite/uav-mission-compute-sdk
 docker compose ps px4
 ```
 
@@ -110,7 +117,7 @@ The UAV Mission Compute SDK integrates multiple technologies:
 
 After installation completes:
 
-1. Navigate to `$HOME/oep/edge-ai-suites/federal-and-aerospace-ai-suite/uav-mission-compute-sdk/` to explore the SDK
+1. Navigate to `$HOME/oep/federal-and-aerospace-ai-suite/uav-mission-compute-sdk/` to explore the SDK
 2. Review the [Get Started](https://github.com/open-edge-platform/federal-and-aerospace-ai-suite/blob/main/uav-mission-compute-sdk/docs/user-guide/get-started.md) section for USB camera setup and advanced configuration
 3. Access Grafana dashboards at **http://localhost:3000** (admin/admin)
 4. Explore the REST API at **http://localhost:8080** for flight control commands
@@ -123,8 +130,8 @@ After installation completes:
   \- Intel's cross-platform inference optimization toolkit
 - [Edge AI Libraries](https://docs.openedgeplatform.intel.com/dev/ai-libraries.html)
   \- Comprehensive development toolkit documentation and API references
-- [Metro AI Suite](https://docs.openedgeplatform.intel.com/dev/ai-suite-metro.html)
-  \- Complete application suite documentation with implementation examples
+- [Federal and Aerospace AI Suite](https://github.com/open-edge-platform/federal-and-aerospace-ai-suite)
+  \- Application suite source and documentation
 
 ### Support Channels
 

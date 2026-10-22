@@ -81,7 +81,7 @@ debian_90_install_nicu_warmer () {
   local device=$(ensure_select_device "$@")
   configure_nicu_warmer_device "$device"
 
-  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
   echo "@@HIGHLIGHT $installer_name start|remove" 
 }
 

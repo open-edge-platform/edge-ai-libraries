@@ -417,7 +417,7 @@ fi) 2>&1;
     else
         echo "Component not found" 1>&2;
         [[ " $* " = *" --dry-run "* ]] || rm -f "$mods_file";
-        exit 3;
+        return 3;
     fi
 }
 act_panelled_logs () 
@@ -2030,6 +2030,8 @@ configure_anomalib ()
     workspace="$(ensure_project_path)/anomalib";
     version=2.7.0;
     repository=https://github.com/open-edge-platform/anomalib.git;
+    version_skills=release-2026.2.0;
+    repository_skills=https://github.com/open-edge-platform/anomalib.git;
     skills=(anomalib-adding-a-datamodule anomalib-adding-a-model anomalib-tiled-ensemble anomalib-training anomalib-benchmarking)
 }
 configure_autonomous_mobile_robot () 
@@ -2105,8 +2107,9 @@ configure_dlstreamer ()
     oc_model=efficientnet-b0_INT8/FP16-INT8/efficientnet-b0;
     model_repo=https://raw.githubusercontent.com/dlstreamer/pipeline-zoo-models/ee73878abc6fb6d864e59a5cd80016de4fc1d194;
     allow_downgrades=(libgbm1 libva-wayland2 libwayland-bin mesa-libgallium);
-    version_skills=tags/v2026.2.0;
-    repository_skills=https://github.com/open-edge-platform/dlstreamer.git
+    version_skills=release-2026.2.0;
+    repository_skills=https://github.com/open-edge-platform/skills.git;
+    skills=(dlstreamer-coding-agent)
 }
 configure_docker () 
 { 
@@ -2330,8 +2333,11 @@ configure_esq_telemetry_mods ()
 configure_geti () 
 { 
     workspace="$(ensure_project_path)/geti";
+    version_skills=release-2026.2.0;
+    repository_skills=https://github.com/open-edge-platform/skills.git;
+    skills=(geti-using-the-pipeline getitune-discovering-models getitune-exporting-a-model getitune-optimizing-a-model getitune-preparing-datasets getitune-running-inference getitune-training-a-model);
     image_name=ghcr.io/open-edge-platform/geti-xpu;
-    port=8080
+    used_ports=(8080)
 }
 configure_gpu_accel () 
 { 
@@ -4474,7 +4480,7 @@ debian_60_install_edge_node_infrastructure_blueprint ()
         verify_edge_node_infrastructure_blueprint;
     fi;
     echo "@@HIGHLIGHT deployment model: $deployment";
-    echo "@@HIGHLIGHT workspace: $workspace"
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
 }
 debian_60_profile_edge_node_infrastructure_blueprint () 
 { 
@@ -4667,7 +4673,7 @@ debian_75_install_dlstreamer ()
         ensure_apt_allow_downgrades "${allow_downgrades[*]}" --no-install-recommends -y intel-dlstreamer=$version;
         ensure_apt install --allow-downgrades --no-install-recommends -y intel-dlstreamer=$version;
         echo "@@STEP Installing skills";
-        ensure_skills add "$version_skills" "$repository_skills" .github/skills/dlstreamer-coding-agent;
+        ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills}";
         verify_dlstreamer;
         echo "intel-dlstreamer=$version installed successfully.";
     fi;
@@ -4685,8 +4691,8 @@ debian_75_remove_dlstreamer ()
     configure_dlstreamer;
     [ "$(ensure_prop get installed/dlstreamer/owned)" = "true" ] || return 0;
     ensure_apt purge --auto-remove -y $(dpkg-query -l | awk '/^ii/&&/dlstreamer/{print$2}') || true;
-    ensure_rm "$workspace";
-    ensure_skills remove dlstreamer-coding-agent
+    ensure_rm "$workspace" || true;
+    ensure_skills remove "${skills[@]}"
 }
 debian_75_sbom_dlstreamer () 
 { 
@@ -4712,7 +4718,7 @@ debian_80_install_anomalib ()
         . .venv/bin/activate;
         pip install "anomalib[openvino,cpu]==${version}";
         echo "@@STEP Installing skills";
-        ensure_skills add tags/lib/v$version $repository "${skills[@]/#/.agents/skills/}";
+        ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}";
         verify_anomalib;
     fi;
     test_anomalib "$@";
@@ -4763,7 +4769,7 @@ debian_85_install_video_search_and_summarization ()
     fi;
     local device=$(ensure_select_device "$@");
     echo "$device" > "$workspace"/.device_from_install;
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT start|stop|remove"
 }
 debian_85_profile_esq () 
@@ -4847,7 +4853,7 @@ debian_90_install_agentic_predictive_maintenance_pipeline ()
     fi;
     local device=$(ensure_select_device "$@");
     configure_agentic_predictive_maintenance_pipeline_device "${device^^}";
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name start|remove"
 }
@@ -4913,7 +4919,7 @@ debian_90_install_dine_in ()
     fi;
     local device=$(ensure_select_device "$@");
     configure_dine_in_device "${device^^}";
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name remove"
@@ -4939,7 +4945,7 @@ debian_90_install_handheld_multi_modal ()
         docker compose -f docker-compose.yml pull --ignore-buildable;
         verify_handheld_multi_modal $*;
     fi;
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start|remove"
 }
 debian_90_install_humanoid_imitation_learning () 
@@ -5008,7 +5014,7 @@ EOF
 )";
         verify_image_based_video_search;
     fi;
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT start|stop|remove"
 }
 debian_90_install_live_video_alert_agent () 
@@ -5024,7 +5030,7 @@ debian_90_install_live_video_alert_agent ()
     fi;
     local device=$(ensure_select_device "$@");
     configure_live_video_alert_agent_device "${device^^}";
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name start|remove"
 }
@@ -5048,7 +5054,7 @@ debian_90_install_live_video_captioning ()
     fi;
     local device=$(ensure_select_device "$@");
     configure_live_video_captioning_device "${device^^}";
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start|remove"
 }
 debian_90_install_live_video_captioning_rag () 
@@ -5071,7 +5077,7 @@ debian_90_install_live_video_captioning_rag ()
     fi;
     local device=$(ensure_select_device "$@");
     configure_live_video_captioning_rag_device "${device^^}";
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name start|remove"
 }
@@ -5088,7 +5094,7 @@ debian_90_install_live_video_search ()
     fi;
     local device=$(ensure_select_device "$@");
     configure_live_video_search_device "$device";
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start|remove"
 }
 debian_90_install_loitering_detection () 
@@ -5107,7 +5113,7 @@ debian_90_install_loitering_detection ()
     fi;
     local device=$(ensure_select_device "$@");
     echo "$device" > "$workspace"/.device;
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name remove"
 }
@@ -5151,7 +5157,7 @@ EOF
     fi;
     local device=$(ensure_select_device "$@");
     configure_loss_prevention_options "$device" "$@" --lp;
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start --od";
     echo "@@HIGHLIGHT $installer_name start --oc";
     echo "@@HIGHLIGHT $installer_name start --age";
@@ -5183,7 +5189,7 @@ debian_90_install_multi_modal_patient_monitoring ()
     fi;
     local device="$(ensure_select_device "$@")";
     echo "${device^^}" > "$workspace"/multi_modal_patient_monitoring/.device;
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]";
     echo "$$HIGHLIGHT $installer_name remove"
@@ -5211,7 +5217,7 @@ EOF
     fi;
     local device=$(ensure_select_device "$@");
     configure_multimodal_weld_defect_detection_device "$device";
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start [--gpu|cpu]";
     echo "@@HIGHLIGHT $installer_name remove"
 }
@@ -5242,7 +5248,7 @@ debian_90_install_nicu_warmer ()
     fi;
     local device=$(ensure_select_device "$@");
     configure_nicu_warmer_device "$device";
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start|remove"
 }
 debian_90_install_pallet_defect_detection () 
@@ -5273,7 +5279,7 @@ EOF
     fi;
     local device=$(ensure_select_device "$@");
     echo "_$device" > "$workspace"/.device;
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name remove"
@@ -5306,7 +5312,7 @@ EOF
     fi;
     local device=$(ensure_select_device "$@");
     echo "_$device" > "$workspace"/.device;
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install [--gpu|--npu|--cpu]";
     echo "@@HIGHLIGHT $installer_name start [--gpu|--npu|--cpu]";
     echo "@@HIGHLIGHT $installer_name remove"
@@ -5402,7 +5408,7 @@ EOF
     fi;
     local device=$(ensure_select_device "$@");
     configure_post_fusion_device "$device";
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install|start [--gpu/npu]";
     echo "@@HIGHLIGHT $installer_name remove"
 }
@@ -5425,7 +5431,7 @@ debian_90_install_real_time_scene_understanding ()
     fi;
     local device=$(ensure_select_device "$@");
     configure_real_time_scene_understanding_device "${device^^}";
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name remove"
@@ -5441,7 +5447,7 @@ debian_90_install_scenescape ()
         ensure_git_export "$workspace" "$version" "$repository";
         verify_scenescape;
     fi;
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start";
     echo "@@HIGHLIGHT $installer_name remove"
 }
@@ -5462,7 +5468,7 @@ debian_90_install_smart_intersection ()
     fi;
     local device=$(ensure_select_device "$@");
     configure_smart_intersection_device "$device";
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name remove"
 }
@@ -5489,7 +5495,7 @@ debian_90_install_smart_kiosk_assistant ()
     fi;
     local device="$(ensure_select_device "$@")";
     configure_smart_kiosk_assistant_device "${device^^}";
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install [--gpu|cpu]";
     echo "@@HIGHLIGHT $installer_name start [--gpu|cpu]";
     echo "@@HIGHLIGHT $installer_name remove"
@@ -5504,7 +5510,7 @@ debian_90_install_smart_nvr ()
         ensure_ports_open install smart_nvr "${used_ports[@]}";
         ensure_git_export "$workspace" "$version" "$repository" smart-nvr metro-vision-ai-app-recipe;
     fi;
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start|remove"
 }
 debian_90_install_smart_parking () 
@@ -5513,12 +5519,12 @@ debian_90_install_smart_parking ()
     if verify_smart_parking && [[ " $* " != *" --reinstall "* ]]; then
         echo "Smart parking is installed." 1>&2;
     else
+        echo "@@STEP @@IF ^docker compose down @@THEN Stopping all apps";
         ensure_disk_size 300;
         ensure_ports_open install smart_parking "${used_ports[@]}";
         echo "@@STEP Clone git repository";
         ensure_git_export "$workspace" $version $repository metro-vision-ai-app-recipe;
         echo "@@STEP Setup sample";
-        echo "@@STEP @@IF ^docker compose down @@THEN Stopping all apps";
         echo "@@STEP @@IF ^Attempt : Running model download and quantization @@THEN Preparing model download";
         echo "@@STEP @@IF ^Downloading and converting:.*[/]([a-z0-9]+)$ @@THEN Downloading \\1";
         echo "@@STEP @@IF ^Starting ([A-Z0-9]+) quantization for ([a-z0-9]+) @@THEN Quantizing \\2 to \\1";
@@ -5530,7 +5536,7 @@ debian_90_install_smart_parking ()
     fi;
     local device=$(ensure_select_device "$@");
     echo "$device" > "$workspace"/.device;
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name remove"
@@ -5553,7 +5559,7 @@ debian_90_install_smart_traffic_intersection_agent ()
     fi;
     local device=$(ensure_select_device "$@");
     echo "$device" > "$workspace"/.device;
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install/start [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name remove"
 }
@@ -5601,10 +5607,10 @@ debian_90_install_surgical_instrument ()
     if [ ! -e "$polyp_model" ]; then
         printf "${red}polyp model is not available.${reset}\n" 1>&2;
         printf "$installer_name install --train to train a polyp model." 1>&2;
-        echo "@@HIGHLIGHT workspace: $workspace";
+        echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
         echo "@@HIGHLIGHT $installer_name install --train";
     else
-        echo "@@HIGHLIGHT workspace: $workspace";
+        echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
         echo "@@HIGHLIGHT $installer_name start|remove";
     fi
 }
@@ -5629,7 +5635,7 @@ debian_90_install_take_away ()
     fi;
     local device=$(ensure_select_device "$@");
     configure_take_away_device "${device^^}";
-    echo "@@HIGHLIGHT workspace $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name remove"
@@ -5655,7 +5661,7 @@ debian_90_install_uav_mission_compute_sdk ()
     cd "$workspace"/uav-mission-compute-sdk;
     sed -i '/^PROFILE=/{d}' "$workspace"/uav-mission-compute-sdk/.env;
     echo "PROFILE=$profile" >> "$workspace"/uav-mission-compute-sdk/.env;
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start|remove"
 }
 debian_90_install_video_processing_for_nvr () 
@@ -5701,7 +5707,7 @@ ov.save_model(ppp.build(), "modified_yolov8n/yolov8n.xml")
     fi;
     local device=$(ensure_select_device "$@");
     echo "$device" > "$workspace"/.device;
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install|start [--gpu|npu]";
     echo "@@HIGHLIGHT $installer_name remove"
 }
@@ -5744,7 +5750,7 @@ debian_90_install_visual_search_question_and_answering ()
     fi;
     local device=$(ensure_select_device "$@");
     echo "$device" > "$workspace"/.device_from_input;
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start|remove"
 }
 debian_90_install_wind_turbine_anomaly_detection () 
@@ -5770,7 +5776,7 @@ EOF
     fi;
     local device=$(ensure_select_device "$@");
     configure_wind_turbine_anomaly_detection_device "$device";
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start [--gpu|cpu]";
     echo "@@HIGHLIGHT $installer_name remove"
 }
@@ -6661,13 +6667,13 @@ debian_90_start_surgical_instrument ()
     if [ ! -e models/yolo11n_polyp/best_openvino_model/best.xml ]; then
         printf "${red}Missing yolo11n_polyp${reset}\n" 1>&2;
         printf "$installer_name install --train to train a polyp model\n" 1>&2;
-        echo "@@HIGHLIGHT workspace: $workspace";
+        echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
         echo "@@HIGHLIGHT $installer_name install --train";
         return 3;
     fi;
     make doctor;
     make up LOWLATENCY=1 CAMERA_TRIGGER=vsync VSYNC_DIVISOR=2 SERIAL=1234567890;
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name remove"
 }
 debian_90_start_take_away () 
@@ -7547,7 +7553,7 @@ ensure_ram_size ()
 ensure_rm () 
 { 
     local p norm rc=0;
-    local protected=" / /bin /boot /dev /etc /home /lib /lib64 /media /mnt /opt /proc /root /run /sbin /srv /sys /tmp /usr /var /etc/apt /etc/apt/keyrings /etc/apt/preferences.d /etc/apt/sources.list.d /etc/systemd /etc/systemd/system /usr/bin /usr/lib /usr/local /usr/share /usr/share/keyrings /var/lib $HOME $HOME/.local $HOME/.local/bin $(ensure_project_path) ";
+    local protected=" / /bin /boot /dev /etc /home /lib /lib64 /media /mnt /opt /proc /root /run /sbin /srv /sys /tmp /usr /var /etc/apt /etc/apt/keyrings /etc/apt/preferences.d /etc/apt/sources.list.d /etc/systemd /etc/systemd/system /usr/bin /usr/lib /usr/local /usr/share /usr/share/keyrings /var/lib $HOME $HOME/.local $HOME/.local/bin ";
     for p in "$@";
     do
         [ -n "$p" ] || continue;
@@ -7605,22 +7611,15 @@ ensure_skills ()
             mkdir -p "$HOME"/.agents/skills;
             for p in "$@";
             do
-                name="${p##*/}";
-                if [[ -e "$HOME/.agents/skills/$name" || -L "$HOME/.agents/skills/$name" ]]; then
-                    ensure_rm "$HOME/.agents/skills/$name";
-                fi;
+                ensure_rm "$HOME/.agents/skills/${p##*/}";
                 cp -r "$tmpdir/$p" "$HOME"/.agents/skills;
             done;
             ensure_tmpdir destroy "$tmpdir"
         ;;
         remove)
-            local name agent;
-            for name in "${@##*/}";
-            do
-                if [[ -e "$HOME/.agents/skills/$name" || -L "$HOME/.agents/skills/$name" ]]; then
-                    ensure_rm "$HOME/.agents/skills/$name";
-                fi;
-            done
+            local names=("${@##*/}");
+            local spath="$HOME/.agents/skills/";
+            ensure_rm "${names[@]/#/"$spath"}"
         ;;
     esac
 }
@@ -7732,8 +7731,12 @@ install_geti ()
         echo "Geti is installed." 1>&2;
     else
         ensure_disk_size 20000;
-        ensure_ports_open install geti "$port";
+        ensure_ram_size 16777216;
+        ensure_ports_open install geti "${used_ports[@]}";
+        echo "@@STEP Pulling image";
         docker pull $image_name;
+        echo "@@STEP Installing skills";
+        ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}";
     fi
 }
 install_system_inspection () 
@@ -7806,7 +7809,8 @@ remove_geti ()
 { 
     stop_geti "$@";
     docker image rm -f $image_name || true;
-    ensure_rm "$workspace"
+    ensure_rm "$workspace";
+    ensure_skills remove "${skills[@]}"
 }
 remove_oneapi_ros_openvino () 
 { 
@@ -7846,11 +7850,12 @@ sbom_osrf_gazebo_ros2 ()
 start_geti () 
 { 
     configure_geti "$@";
-    ensure_ports_open start geti "$port";
+    ensure_ports_open start geti "${used_ports[@]}";
     mkdir -p "$workspace"/geti-data;
-    docker run --rm --name geti-app -d -v "$workspace"/geti-data:/application/data:rw -e HOST=0.0.0.0 -e PORT=$port -p $port:$port -e http_proxy -e https_proxy -e no_proxy -e HTTP_PROXY -e HTTPS_PROXY -e NO_PROXY $([ ! -d /dev/dri ] || echo "--device /dev/dri:/dev/dri") --group-add $(getent group render | cut -d: -f3 || echo 992) --group-add $(id -g) --shm-size 8g $image_name;
-    echo "@@HIGHLIGHT URL: http://$(ensure_ip):$port";
-    echo "@@HIGHLIGHT workspace: $workspace/geti-data"
+    docker run --rm --name geti-app -d -v "$workspace"/geti-data:/application/data:rw -e HOST=0.0.0.0 -e PORT=${used_ports[0]} -p ${used_ports[0]}:${used_ports[0]} -e http_proxy -e https_proxy -e no_proxy -e HTTP_PROXY -e HTTPS_PROXY -e NO_PROXY $([ ! -d /dev/dri ] || echo "--device /dev/dri:/dev/dri") --group-add $(getent group render | cut -d: -f3 || echo 992) --group-add $(id -g) --shm-size 8g $image_name;
+    echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}/geti-data";
+    echo "@@HIGHLIGHT $installer_name stop|remove"
 }
 stop_geti () 
 { 
@@ -8008,16 +8013,28 @@ subcommand_remove ()
         echo "  --dry-run       dry-run operations";
         echo "  --continue      ignore errors and proceed to the end";
         echo "  --remove-all    remove all previously installed components";
+        echo "  --remove-me     remove $install_name";
         echo;
         return 0;
     fi;
-    act_helper "remove,Removal,Removing,Removed" "-r" "$@"
+    local rc=0;
+    act_helper "remove,Removal,Removing,Removed" "-r" "$@" || rc=$?;
+    if [[ " $* " = *" --remove-me "* ]]; then
+        ensure_rm "$HOME/.local/bin/$installer_name" "$HOME/.local/share/bash-completion/completions/$installer_name" "$HOME/.agents/skills/$installer_name" && echo "$installer_name removed";
+        if [[ " $* " = *" --remove-all "* ]]; then
+            ensure_rm "$(ensure_project_path)";
+            echo "$installer_name logs removed";
+        else
+            echo "$(ensure_project_path) left unchanged";
+        fi;
+    fi;
+    return $rc
 }
 subcommand_setup () 
 { 
     [[ " $* " != *" --help "* ]] || return;
     local installer_misc_functions=(system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary test_anomalib test_dlstreamer_pipeline test_openvino uninstall_k3s_edge_node_infrastructure_blueprint);
-    local installer_skill_text="Ci0tLQpuYW1lOiBvcGVuZWRnZS1jbGkgICAgCmRlc2NyaXB0aW9uOiBVc2UgdGhlIG9wZW5lZGdlLWNsaSBpbnN0YWxsZXIgdG8gaW5zdGFsbCwgc3RhcnQsIHN0b3AsIG9yIHJlbW92ZSBPcGVuIEVkZ2UgUGxhdGZvcm0gKE9FUCkgbW9kdWxlcyBhbmQgcHJvZmlsZXMgb24gYW4gZWRnZSBzeXN0ZW0uIFRyaWdnZXIgb24gcmVxdWVzdHMgbGlrZSAiaW5zdGFsbCBPcGVuVklOTyIsICJzZXQgdXAgREwgU3RyZWFtZXIiLCAicnVuIHRoZSBzbWFydCBwYXJraW5nIHNhbXBsZSIsICJkZXBsb3kgdGhlIE1ldHJvIC8gTWFudWZhY3R1cmluZyAvIFJldGFpbCAvIFJvYm90aWNzIEFJIFN1aXRlIiwgIndoYXQgT0VQIGNvbXBvbmVudHMgY2FuIEkgaW5zdGFsbCIsIG9yICJ1bmluc3RhbGwgPE9FUCBjb21wb25lbnQ+Ii4gICAKbGljZW5zZTogQXBhY2hlLTIuMCAgIAotLS0KCiMgT3BlbiBFZGdlIFBsYXRmb3JtIENMSSBJbnN0YWxsZXIKCmBvcGVuZWRnZS1jbGlgIGlzIGEgc2VsZi1jb250YWluZWQgc2hlbGwgc2NyaXB0IHRoYXQgaW5zdGFsbHMgT3BlbiBFZGdlIFBsYXRmb3JtCmNvbXBvbmVudHMgKCoqbW9kdWxlcyoqKSBhbmQgbmFtZWQgZ3JvdXBzIG9mIGNvbXBvbmVudHMgKCoqcHJvZmlsZXMqKikuIEFsd2F5cyB1c2UKaXQgZm9yIE9FUCBpbnN0YWxsYXRpb24gdGFza3MuIERvbid0IGhhbmQtaW5zdGFsbCBwYWNrYWdlcywgcGlwIHdoZWVscywgb3IKY29udGFpbmVycyB0aGF0IHRoZSBpbnN0YWxsZXIgYWxyZWFkeSBtYW5hZ2VzLgoKIyMgQ29tbWFuZCBzaGFwZQoKYGBgCm9wZW5lZGdlLWNsaSA8c3ViY29tbWFuZD4gW29wdGlvbnNdIFttb2R1bGVzL3Byb2ZpbGVzXSBbLS08bW9kdWxlPiBtb2R1bGUtb3B0aW9uc10gLi4uCmBgYAoKLSBTdWJjb21tYW5kcyBjYW4gYmUgY2hhaW5lZCBhbmQgcnVuIGluIHRoZSBvcmRlciBnaXZlbi4KLSBPcHRpb25zIGFmdGVyIGEgYC0tPG1vZHVsZT5gIHRhZyBhcHBseSBvbmx5IHRvIHRoYXQgbW9kdWxlLiBBbGwgb3RoZXIgb3B0aW9ucwogIGFwcGx5IHRvIGV2ZXJ5IG5hbWVkIGNvbXBvbmVudC4KCiMjIEluc3RhbGxhdGlvbiB3b3JrZmxvdwoKMS4gKipQaWNrIHRoZSBpbnN0YWxsZXIgZm9yIHRoZSBPUy4qKiBSZWFkIGAvZXRjL29zLXJlbGVhc2VgLgogICAtIFVidW50dS9EZWJpYW46IGBvcGVuZWRnZS1jbGlgCiAgIC0gRmVkb3JhOiBgb3BlbmVkZ2UtY2xpLWZlZG9yYWAKICAgLSBPdGhlcjogY2hlY2sgYGZyYW1ld29ya3Mvb2VwLWluc3RhbGxlci1jbGkvcmVuZGVyZWQvYCBmb3IgYSBtYXRjaGluZyB2YXJpYW50LiBJZiB0aGVyZSBpc24ndCBvbmUsIHN0b3AgYW5kIHRlbGwgdGhlIHVzZXIuCgoyLiAqKkdldCB0aGUgc2NyaXB0KiogKHByZWZlcnJlZDogZGlyZWN0IGRvd25sb2FkKToKICAgYGBgYmFzaAogICBjdXJsIC1mc1NMTyBodHRwczovL3Jhdy5naXRodWJ1c2VyY29udGVudC5jb20vb3Blbi1lZGdlLXBsYXRmb3JtL2VkZ2UtYWktbGlicmFyaWVzL21haW4vZnJhbWV3b3Jrcy9vZXAtaW5zdGFsbGVyLWNsaS9yZW5kZXJlZC9vcGVuZWRnZS1jbGkKICAgY2htb2QgK3ggb3BlbmVkZ2UtY2xpCiAgIGBgYAogICBGYWxsYmFjazogY2xvbmUgYGh0dHBzOi8vZ2l0aHViLmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1saWJyYXJpZXNgCiAgIGFuZCBydW4gdGhlIHNjcmlwdCBmcm9tIGBmcmFtZXdvcmtzL29lcC1pbnN0YWxsZXItY2xpL3JlbmRlcmVkL2AuCgozLiAqKkZpbmQgdGhlIHJpZ2h0IGNvbXBvbmVudC4qKiBSdW4gYC4vb3BlbmVkZ2UtY2xpIGxpc3RgLiBNYXAgdGhlIHVzZXIncwogICByZXF1ZXN0IHRvIGFuIGV4YWN0IG1vZHVsZSBvciBwcm9maWxlIG5hbWUgZnJvbSB0aGlzIG91dHB1dC4gTmV2ZXIgZ3Vlc3MKICAgbmFtZXMuIElmIG1vcmUgdGhhbiBvbmUgZml0cywgYXNrIHRoZSB1c2VyLgoKNC4gKipDb25maXJtIHdpdGggdGhlIHVzZXIuKiogU2hvdyB0aGUgZnVsbCBjb21tYW5kIHlvdSBwbGFuIHRvIHJ1bi4gUnVuIGl0CiAgIGFzIGEgdXNlci4gVGhlIGluc3RhbGxlciBtYXkgdXNlIGBzdWRvYCB3aXRoaW4sIHNvIGdldCBleHBsaWNpdCBhcHByb3ZhbCAKICAgYmVmb3JlIHJ1bm5pbmcgaXQuCgo1LiAqKkluc3RhbGwuKioKICAgYGBgYmFzaAogICAuL29wZW5lZGdlLWNsaSBpbnN0YWxsIDxwcm9maWxlLW9yLW1vZHVsZT4gWy0tPG1vZHVsZT4gb3B0aW9uc10KICAgYGBgCiAgIGBpbnN0YWxsYCBwdWxscyBpbiBkZXBlbmRlbmNpZXMgYXV0b21hdGljYWxseS4KCjYuICoqVmVyaWZ5LioqCiAgIC0gU3lzdGVtLWxldmVsOiBgLi9vcGVuZWRnZS1jbGkgbGlzdCAtLXNib20gPHRhcmdldD5gCiAgIC0gVXNlci1sZXZlbDogY2hlY2sgYH4vLmxvY2FsL29wZW4tZWRnZS1wbGF0Zm9ybS88Y29tcG9uZW50Pi9gCgogICBSZXBvcnQgd2hhdCB3YXMgaW5zdGFsbGVkIGFuZCB3aGVyZS4KCiMjIE90aGVyIGxpZmVjeWNsZSBvcGVyYXRpb25zCgotICoqU3RhcnQvc3RvcDoqKiBgLi9vcGVuZWRnZS1jbGkgc3RhcnQgPGNvbXBvbmVudD5gIC8gYC4vb3BlbmVkZ2UtY2xpIHN0b3AgPGNvbXBvbmVudD5gLiAgCiAgYC4vb3BlbmVkZ2UtY2xpIHN0b3BgIHN0b3BzIGFsbCBwcmV2aW91c2x5IHN0YXJ0ZWQgY29tcG9uZW50cy4gIAotICoqUmVtb3ZlOioqIGAuL29wZW5lZGdlLWNsaSByZW1vdmUgPGNvbXBvbmVudD5gLiBUaGlzIGlzICoqbm90IHJlY3Vyc2l2ZSoqOiAgCiAgaXQgcmVtb3ZlcyBvbmx5IHRoZSBuYW1lZCBjb21wb25lbnQgYW5kIGxlYXZlcyBpdHMgZGVwZW5kZW5jaWVzIGluc3RhbGxlZC4gCiAgTGlzdCBkZXBlbmRlbmNpZXMgZXhwbGljaXRseSBpZiBuZWVkZWQuICAgCiAgYC4vb3BlbmVkZ2UtY2xpIHJlbW92ZSAtLXJlbW92ZS1hbGxgIHRvIHJlbW92ZSBhbGwgcHJldmlvdXNseSBpbnN0YWxsZWQuICAKCiMjIFRyb3VibGVzaG9vdGluZwoKLSBJZiBhIGNvbW1hbmQgZmFpbHMsIHNob3cgdGhlIHVzZXIgdGhlIHJlbGV2YW50IGVycm9yIG91dHB1dC4gRG9uJ3QgcmV0cnkgd2l0aAogIGV4dHJhIGZsYWdzIHVubGVzcyB0aGUgdXNlciBhcHByb3Zlcy4KLSBDaGVjayB0aGUgUkVBRE1FIGZvciBzdXBwb3J0ZWQgb3B0aW9ucyBiZWZvcmUgaW52ZW50aW5nIGFueS4KCiMjIEFkdmFuY2VkIChvbmx5IGlmIHRoZSB1c2VyIGFza3MpCgpUbyBidWlsZCBhIGN1c3RvbWl6ZWQgaW5zdGFsbGVyLCBjbG9uZSB0aGUgcmVwb3NpdG9yeSBhbmQgdXNlIGl0cyBgYm9vdHN0cmFwYApjb21tYW5kLiBTZWUgdGhlIFJFQURNRS4KCiMjIFJlZmVyZW5jZQoKLSBbUkVBRE1FXShodHRwczovL2dpdGh1Yi5jb20vb3Blbi1lZGdlLXBsYXRmb3JtL2VkZ2UtYWktbGlicmFyaWVzL2Jsb2IvbWFpbi9mcmFtZXdvcmtzL29lcC1pbnN0YWxsZXItY2xpL1JFQURNRS5tZCk6IHRoZSBzb3VyY2Ugb2YgdHJ1dGggZm9yIHN1YmNvbW1hbmRzIGFuZCBvcHRpb25zLgotIFtXZWIgVUldKGh0dHBzOi8vZG9jcy5vcGVuZWRnZXBsYXRmb3JtLmludGVsLmNvbS9kZXYvT0VQLWFydGljbGVzL29lcC1jbGktaW5zdGFsbGVyL2luZGV4Lmh0bWwpOiBjaG9vc2UgYSBwcm9maWxlIG9yIG1vZHVsZSBhbmQgY29weSB0aGUgZXhhY3QgY29tbWFuZC4K";
+    local installer_skill_text="LS0tCm5hbWU6IG9wZW5lZGdlLWNsaSAgICAKZGVzY3JpcHRpb246IFVzZSB0aGUgb3BlbmVkZ2UtY2xpIGluc3RhbGxlciB0byBpbnN0YWxsLCBzdGFydCwgc3RvcCwgb3IgcmVtb3ZlIE9wZW4gRWRnZSBQbGF0Zm9ybSAoT0VQKSBtb2R1bGVzIGFuZCBwcm9maWxlcyBvbiBhbiBlZGdlIHN5c3RlbS4gVHJpZ2dlciBvbiByZXF1ZXN0cyBsaWtlICJpbnN0YWxsIE9wZW5WSU5PIiwgInNldCB1cCBETCBTdHJlYW1lciIsICJydW4gdGhlIHNtYXJ0IHBhcmtpbmcgc2FtcGxlIiwgImRlcGxveSB0aGUgTWV0cm8gLyBNYW51ZmFjdHVyaW5nIC8gUmV0YWlsIC8gUm9ib3RpY3MgQUkgU3VpdGUiLCAid2hhdCBPRVAgY29tcG9uZW50cyBjYW4gSSBpbnN0YWxsIiwgb3IgInVuaW5zdGFsbCA8T0VQIGNvbXBvbmVudD4iLiAgIApsaWNlbnNlOiBBcGFjaGUtMi4wICAgCi0tLQoKIyBPcGVuIEVkZ2UgUGxhdGZvcm0gQ0xJIEluc3RhbGxlcgoKYG9wZW5lZGdlLWNsaWAgaXMgYSBzZWxmLWNvbnRhaW5lZCBzaGVsbCBzY3JpcHQgdGhhdCBpbnN0YWxscyBPcGVuIEVkZ2UgUGxhdGZvcm0KY29tcG9uZW50cyAoKiptb2R1bGVzKiopIGFuZCBuYW1lZCBncm91cHMgb2YgY29tcG9uZW50cyAoKipwcm9maWxlcyoqKS4gQWx3YXlzIHVzZQppdCBmb3IgT0VQIGluc3RhbGxhdGlvbiB0YXNrcy4gRG9uJ3QgaGFuZC1pbnN0YWxsIHBhY2thZ2VzLCBwaXAgd2hlZWxzLCBvcgpjb250YWluZXJzIHRoYXQgdGhlIGluc3RhbGxlciBhbHJlYWR5IG1hbmFnZXMuCgojIyBDb21tYW5kIHNoYXBlCgpgYGAKb3BlbmVkZ2UtY2xpIDxzdWJjb21tYW5kPiBbb3B0aW9uc10gW21vZHVsZXMvcHJvZmlsZXNdIFstLTxtb2R1bGU+IG1vZHVsZS1vcHRpb25zXSAuLi4KYGBgCgotIFN1YmNvbW1hbmRzIGNhbiBiZSBjaGFpbmVkIGFuZCBydW4gaW4gdGhlIG9yZGVyIGdpdmVuLgotIE9wdGlvbnMgYWZ0ZXIgYSBgLS08bW9kdWxlPmAgdGFnIGFwcGx5IG9ubHkgdG8gdGhhdCBtb2R1bGUuIEFsbCBvdGhlciBvcHRpb25zCiAgYXBwbHkgdG8gZXZlcnkgbmFtZWQgY29tcG9uZW50LgoKIyMgSW5zdGFsbGF0aW9uIHdvcmtmbG93CgoxLiAqKlBpY2sgdGhlIGluc3RhbGxlciBmb3IgdGhlIE9TLioqIFJlYWQgYC9ldGMvb3MtcmVsZWFzZWAuCiAgIC0gVWJ1bnR1L0RlYmlhbjogYG9wZW5lZGdlLWNsaWAKICAgLSBGZWRvcmE6IGBvcGVuZWRnZS1jbGktZmVkb3JhYAogICAtIE90aGVyOiBjaGVjayBgZnJhbWV3b3Jrcy9vZXAtaW5zdGFsbGVyLWNsaS9yZW5kZXJlZC9gIGZvciBhIG1hdGNoaW5nIHZhcmlhbnQuIElmIHRoZXJlIGlzbid0IG9uZSwgc3RvcCBhbmQgdGVsbCB0aGUgdXNlci4KCjIuICoqR2V0IHRoZSBzY3JpcHQqKiAocHJlZmVycmVkOiBkaXJlY3QgZG93bmxvYWQpOgogICBgYGBiYXNoCiAgIGN1cmwgLWZzU0xPIGh0dHBzOi8vcmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1saWJyYXJpZXMvbWFpbi9mcmFtZXdvcmtzL29lcC1pbnN0YWxsZXItY2xpL3JlbmRlcmVkL29wZW5lZGdlLWNsaQogICBjaG1vZCAreCBvcGVuZWRnZS1jbGkKICAgYGBgCiAgIEZhbGxiYWNrOiBjbG9uZSBgaHR0cHM6Ly9naXRodWIuY29tL29wZW4tZWRnZS1wbGF0Zm9ybS9lZGdlLWFpLWxpYnJhcmllc2AKICAgYW5kIHJ1biB0aGUgc2NyaXB0IGZyb20gYGZyYW1ld29ya3Mvb2VwLWluc3RhbGxlci1jbGkvcmVuZGVyZWQvYC4KCjMuICoqRmluZCB0aGUgcmlnaHQgY29tcG9uZW50LioqIFJ1biBgLi9vcGVuZWRnZS1jbGkgbGlzdGAuIE1hcCB0aGUgdXNlcidzCiAgIHJlcXVlc3QgdG8gYW4gZXhhY3QgbW9kdWxlIG9yIHByb2ZpbGUgbmFtZSBmcm9tIHRoaXMgb3V0cHV0LiBOZXZlciBndWVzcwogICBuYW1lcy4gSWYgbW9yZSB0aGFuIG9uZSBmaXRzLCBhc2sgdGhlIHVzZXIuCgo0LiAqKkNvbmZpcm0gd2l0aCB0aGUgdXNlci4qKiBTaG93IHRoZSBmdWxsIGNvbW1hbmQgeW91IHBsYW4gdG8gcnVuLiBSdW4gaXQKICAgYXMgYSB1c2VyLiBUaGUgaW5zdGFsbGVyIG1heSB1c2UgYHN1ZG9gIHdpdGhpbiwgc28gZ2V0IGV4cGxpY2l0IGFwcHJvdmFsIAogICBiZWZvcmUgcnVubmluZyBpdC4KCjUuICoqSW5zdGFsbC4qKgogICBgYGBiYXNoCiAgIC4vb3BlbmVkZ2UtY2xpIGluc3RhbGwgPHByb2ZpbGUtb3ItbW9kdWxlPiBbLS08bW9kdWxlPiBvcHRpb25zXQogICBgYGAKICAgYGluc3RhbGxgIHB1bGxzIGluIGRlcGVuZGVuY2llcyBhdXRvbWF0aWNhbGx5LgoKNi4gKipWZXJpZnkuKioKICAgLSBTeXN0ZW0tbGV2ZWw6IGAuL29wZW5lZGdlLWNsaSBsaXN0IC0tc2JvbSA8dGFyZ2V0PmAKICAgLSBVc2VyLWxldmVsOiBjaGVjayBgfi8ubG9jYWwvb3Blbi1lZGdlLXBsYXRmb3JtLzxjb21wb25lbnQ+L2AKCiAgIFJlcG9ydCB3aGF0IHdhcyBpbnN0YWxsZWQgYW5kIHdoZXJlLgoKIyMgT3RoZXIgbGlmZWN5Y2xlIG9wZXJhdGlvbnMKCi0gKipTdGFydC9zdG9wOioqIGAuL29wZW5lZGdlLWNsaSBzdGFydCA8Y29tcG9uZW50PmAgLyBgLi9vcGVuZWRnZS1jbGkgc3RvcCA8Y29tcG9uZW50PmAuICAKICBgLi9vcGVuZWRnZS1jbGkgc3RvcGAgc3RvcHMgYWxsIHByZXZpb3VzbHkgc3RhcnRlZCBjb21wb25lbnRzLiAgCi0gKipSZW1vdmU6KiogYC4vb3BlbmVkZ2UtY2xpIHJlbW92ZSA8Y29tcG9uZW50PmAuIFRoaXMgaXMgKipub3QgcmVjdXJzaXZlKio6ICAKICBpdCByZW1vdmVzIG9ubHkgdGhlIG5hbWVkIGNvbXBvbmVudCBhbmQgbGVhdmVzIGl0cyBkZXBlbmRlbmNpZXMgaW5zdGFsbGVkLiAKICBMaXN0IGRlcGVuZGVuY2llcyBleHBsaWNpdGx5IGlmIG5lZWRlZC4gICAKICBgLi9vcGVuZWRnZS1jbGkgcmVtb3ZlIC0tcmVtb3ZlLWFsbGAgdG8gcmVtb3ZlIGFsbCBwcmV2aW91c2x5IGluc3RhbGxlZC4gIAoKIyMgVHJvdWJsZXNob290aW5nCgotIElmIGEgY29tbWFuZCBmYWlscywgc2hvdyB0aGUgdXNlciB0aGUgcmVsZXZhbnQgZXJyb3Igb3V0cHV0LiBEb24ndCByZXRyeSB3aXRoCiAgZXh0cmEgZmxhZ3MgdW5sZXNzIHRoZSB1c2VyIGFwcHJvdmVzLgotIENoZWNrIHRoZSBSRUFETUUgZm9yIHN1cHBvcnRlZCBvcHRpb25zIGJlZm9yZSBpbnZlbnRpbmcgYW55LgoKIyMgQWR2YW5jZWQgKG9ubHkgaWYgdGhlIHVzZXIgYXNrcykKClRvIGJ1aWxkIGEgY3VzdG9taXplZCBpbnN0YWxsZXIsIGNsb25lIHRoZSByZXBvc2l0b3J5IGFuZCB1c2UgaXRzIGBib290c3RyYXBgCmNvbW1hbmQuIFNlZSB0aGUgUkVBRE1FLgoKIyMgUmVmZXJlbmNlCgotIFtSRUFETUVdKGh0dHBzOi8vZ2l0aHViLmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1saWJyYXJpZXMvYmxvYi9tYWluL2ZyYW1ld29ya3Mvb2VwLWluc3RhbGxlci1jbGkvUkVBRE1FLm1kKTogdGhlIHNvdXJjZSBvZiB0cnV0aCBmb3Igc3ViY29tbWFuZHMgYW5kIG9wdGlvbnMuCi0gW1dlYiBVSV0oaHR0cHM6Ly9kb2NzLm9wZW5lZGdlcGxhdGZvcm0uaW50ZWwuY29tL2Rldi9PRVAtYXJ0aWNsZXMvb2VwLWNsaS1pbnN0YWxsZXIvaW5kZXguaHRtbCk6IGNob29zZSBhIHByb2ZpbGUgb3IgbW9kdWxlIGFuZCBjb3B5IHRoZSBleGFjdCBjb21tYW5kLgo=";
     mkdir -p "$(dirname "$installer_bin")";
     cat > "$installer_bin" <<EOF
 #!/bin/bash

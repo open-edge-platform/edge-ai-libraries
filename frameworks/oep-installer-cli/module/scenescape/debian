@@ -26,7 +26,7 @@ debian_90_install_scenescape () {
     verify_scenescape
   fi
 
-  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
   echo "@@HIGHLIGHT $installer_name start"
   echo "@@HIGHLIGHT $installer_name remove"
 }
