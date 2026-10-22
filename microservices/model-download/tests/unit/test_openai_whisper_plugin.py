@@ -51,16 +51,7 @@ def test_huggingface_rejects_filename_traversal(tmp_path):
         )
 
 
-async def test_disabled_startup_models_skip_config_loading(monkeypatch):
-    monkeypatch.setenv("STARTUP_MODELS_ENABLED", "false")
-    with patch.object(main, "load_startup_models_config") as load:
-        async with main.lifespan(main.app):
-            pass
-    load.assert_not_called()
-
-
-async def test_startup_models_enabled_load_config_and_submit(monkeypatch):
-    monkeypatch.setenv("STARTUP_MODELS_ENABLED", "true")
+async def test_startup_models_load_config_and_submit():
     config = object()
     with patch.object(main, "load_startup_models_config", return_value=config), \
          patch.object(main, "_submit_startup_models", new_callable=AsyncMock) as submit:
@@ -69,18 +60,10 @@ async def test_startup_models_enabled_load_config_and_submit(monkeypatch):
     submit.assert_awaited_once_with(config)
 
 
-async def test_startup_models_default_to_enabled(monkeypatch):
-    monkeypatch.delenv("STARTUP_MODELS_ENABLED", raising=False)
-    config = object()
-    with patch.object(main, "load_startup_models_config", return_value=config), \
+async def test_startup_models_do_not_submit_when_config_is_unset():
+    with patch.object(main, "load_startup_models_config", return_value=None) as load, \
          patch.object(main, "_submit_startup_models", new_callable=AsyncMock) as submit:
         async with main.lifespan(main.app):
             pass
-    submit.assert_awaited_once_with(config)
-
-
-async def test_invalid_startup_models_flag_fails_explicitly(monkeypatch):
-    monkeypatch.setenv("STARTUP_MODELS_ENABLED", "sometimes")
-    with pytest.raises(RuntimeError, match="STARTUP_MODELS_ENABLED"):
-        async with main.lifespan(main.app):
-            pass
+    load.assert_called_once_with()
+    submit.assert_not_awaited()

@@ -37,17 +37,6 @@ from ..utils.helper import validate_zip_contents_within_target, validate_zip_fil
 _background_tasks: set[asyncio.Task[Any]] = set()
 
 
-def _startup_models_enabled() -> bool:
-    value = os.getenv("STARTUP_MODELS_ENABLED", "true").strip().lower()
-    if value in {"1", "true", "yes", "on"}:
-        return True
-    if value in {"0", "false", "no", "off"}:
-        return False
-    raise RuntimeError(
-        "STARTUP_MODELS_ENABLED must be true, false, 1, 0, yes, no, on, or off"
-    )
-
-
 async def _submit_startup_models(config: StartupModelsConfig) -> None:
     for startup_model in config.models:
         try:
@@ -92,11 +81,7 @@ async def _submit_startup_models(config: StartupModelsConfig) -> None:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    if _startup_models_enabled():
-        startup_config = load_startup_models_config()
-    else:
-        logger.info("startup_models_disabled")
-        startup_config = None
+    startup_config = load_startup_models_config()
     if startup_config is not None:
         await _submit_startup_models(startup_config)
 
