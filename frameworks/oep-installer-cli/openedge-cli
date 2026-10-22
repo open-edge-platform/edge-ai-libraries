@@ -332,7 +332,8 @@ subcommand_bootstrap () {
       done
       unset -f main   # main comes from the verbatim header
       misc_funcs=($(declare -F | cut -f3 -d' ' | grep -v -E "^(${installer_family}_[0-9]+|ensure_|act_|verify_|configure_|install_|start_|stop_|remove_|profile_|license_|sbom_|subcommand_|main$)"))
-      declare -f | sed "/^subcommand_setup () *\$/,/^}/ s|local installer_misc_functions=[^;]*|local installer_misc_functions=(${misc_funcs[*]})|"
+      skill_text="$(base64 "$mydir"/.github/skills/openedge-cli/SKILL.md | tr -d '\n')"
+      declare -f | sed "/^subcommand_setup () *\$/,/^}/{s|local installer_misc_functions=[^;]*|local installer_misc_functions=(${misc_funcs[*]})|;s|local installer_skill_text=[^;]*|local installer_skill_text=\"$skill_text\"|}"
     ) || exit 3
     echo
     [ ${#start_modules[*]} -eq 0 ] || echo "[ \"\$0\" != bash ] || set -- start ${start_modules[*]} \"\$@\""
