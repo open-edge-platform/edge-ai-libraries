@@ -58,7 +58,6 @@ Kernel / hardware sources                 metrics-manager container
                                            │ prometheus_client :9273
                                            ▼
                              Prometheus (scrape :9273) ──▶ Grafana
-                                                          (tcmi-mm-unified-v1)
 ```
 
 ---
@@ -183,7 +182,7 @@ cp .env.example .env
 The build compiles Telegraf from source, so the first build takes a while.
 
 ```bash
-make build          # → metrics-manager:2026.1.0  (reads VERSION)
+make build          # → metrics-manager:<VERSION file contents>
 # or, directly:
 docker compose build metrics-manager
 
@@ -198,6 +197,10 @@ make up             # docker compose up -d metrics-manager
 # or:
 docker compose up -d
 ```
+
+This starts the default deployment: bridge network, configurable host-port
+mappings. If you need `net`/`ethtool` to report the host's physical NICs
+instead of the container's own interface, see "Two deployment variants" in §5.
 
 That's the whole install. The container runs privileged, mounts `/sys` read-only,
 uses the host PID namespace, and `entrypoint.sh` enables/disables each collector
@@ -227,6 +230,7 @@ make logs        # or: docker compose logs -f metrics-manager
 [INFO]   30-disk: ENABLED
 [INFO]   40-net: ENABLED
 [INFO]   50-interrupts: disabled
+[INFO]   70-temp-stats: disabled
 [INFO]   90-tcmi-execd: disabled
 [INFO]   91-gpu-throttle: disabled
 [INFO]   60-turbostat: disabled
@@ -241,7 +245,7 @@ Enable hardware-specific collectors by setting the relevant `ENABLE_*` variables
 curl http://localhost:9090/health
 ```
 
-**Expected:** a JSON body with `"status": "ok"` (or similar) and a version field.
+**Expected:** a JSON body with `"status": "healthy"` and a version field.
 
 ### Step 3 — Confirm Telegraf is exposing metrics at all
 
@@ -746,8 +750,9 @@ make up
 # --- 5. Watch the gating log ----------------------------------------------
 docker compose logs metrics-manager | grep -E "ENABLED|disabled"
 #   10-power: disabled  20-dram-bw: ENABLED  30-disk: ENABLED  40-net: ENABLED
-#   50-interrupts: disabled  90-tcmi-execd: disabled  91-gpu-throttle: disabled
-#   60-turbostat: disabled  (enable collectors in .env, then: docker compose up -d)
+#   50-interrupts: disabled  70-temp-stats: disabled  90-tcmi-execd: disabled
+#   91-gpu-throttle: disabled  60-turbostat: disabled  (enable collectors in
+#   .env, then: docker compose up -d)
 
 # --- 6. Verify the service and the new metrics -----------------------------
 curl http://localhost:9090/health
@@ -763,7 +768,7 @@ docker exec metrics-manager sh -c 'tail /app/dram_bw_reader_trace.log'
 # --- 8. visualize — add the scrape job to your own Prometheus/Grafana -----
 # Copy dashboards/prometheus-scrape-job.yml into your prometheus.yml, then:
 curl -s -X POST http://<prometheus>:9090/-/reload
-# Create panels in Grafana using the PromQL queries listed in §4 Step 5d.
+# Create panels in Grafana using the PromQL queries listed in §4 Step 5, Option A Step 5a-6.
 
 # --- 9. enable the R-dimension microscope -----------------------
 sudo apt install linux-tools-$(uname -r)
@@ -776,7 +781,7 @@ make test
 ```
 
 At the end you have a single privileged container collecting the full T/C/M/I(+R)
-envelope, exposed on `:9273`, optionally scraped by Prometheus and rendered in the
-`tcmi-mm-unified-v1` Grafana dashboard.
+envelope, exposed on `:9273`, optionally scraped by Prometheus and rendered in a
+Grafana dashboard built from the PromQL queries in §4 Step 5.
 
 ---
