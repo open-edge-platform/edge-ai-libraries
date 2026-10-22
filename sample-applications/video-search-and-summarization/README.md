@@ -36,6 +36,9 @@ The detailed documentation to help you get started, configure, and deploy the sa
   - [How to Build from Source](./docs/user-guide/build-from-source.md): How to build from source code.
   - [How to Deploy with Helm](./docs/user-guide/deploy-with-helm.md): How to deploy using the Helm chart.
 
+- **Features**
+  - [Intersection Map View](./docs/user-guide/intersection-map-view.md): Pin search results on the traffic intersection they came from.
+
 - **AI Agent Integration**
   - [MCP Server](./docs/user-guide/mcp-server.md): Connect AI agents to VSS Search using the Model Context Protocol (MCP).
   - [Agent Skills](./AGENTS.md): Discover reusable VSS workflow skills for Codex, Copilot CLI, Claude Code, and other coding agents.

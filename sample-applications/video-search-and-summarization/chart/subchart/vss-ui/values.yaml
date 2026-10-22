@@ -27,3 +27,7 @@ feature:
   # Live (RTSP) stream management UI. FEATURE_ON for search/dual modes where
   # live video frames are embedded; FEATURE_OFF otherwise.
   liveStreams: "FEATURE_OFF"
+  map: "FEATURE_OFF"
+
+# Map View tile server; intersection locations come from pipeline-manager (pipelinemanager.geo).
+mapTileUrl: "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
