@@ -224,13 +224,6 @@ act_helper () {
           fi
         fi
       done
-
-      # final summary: rerun pre_system_scan only if it is part of the dependency chain
-      local scan_handler="${_act_cache_functions[${act_name}_pre_system_scan]:-}"
-      if [[ " $* " != *" --dry-run "* && $rc -eq 0 && -n "$scan_handler" && " ${handles[*]} " = *" $scan_handler "* ]]; then
-        echo "@@REPORT SYSTEM SUMMARY"
-        $scan_handler $(act_extract_args $act_name pre_system_scan "${handles[*]#${installer_family}_*_${act_name}_}" "$@")
-      fi
     } > >(
       LOG_FILE="$(ensure_project_path)/$installer_name/$(date +%m-%d-%Y).logs"
       mkdir -p "$(dirname "$LOG_FILE")"

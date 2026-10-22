@@ -274,7 +274,7 @@ subcommand_bootstrap () {
           [[ " $* " != *" --strict "* ]] || { echo "$p: unknown dependency '$d'" 1>&2; bad=1; }
         elif [ -z "${orders[$d]:-}" ]; then
           q+=(${depsof[$d]}) # virtual: look through it
-        elif [ "$d" != reboot ] && [ $((10#${orders[$d]})) -gt $((10#${orders[$p]})) ]; then
+        elif [ "$d" != reboot ] && [ $((10#${orders[$d]})) -ne 99 ] && [ $((10#${orders[$d]})) -gt $((10#${orders[$p]})) ]; then
           echo "$p (${orders[$p]}) depends on $d (${orders[$d]}) which installs later" 1>&2; bad=1
         fi
       done

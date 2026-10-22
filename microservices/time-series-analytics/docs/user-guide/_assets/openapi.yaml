@@ -16,6 +16,70 @@ paths:
           content:
             application/json:
               schema: {}
+  "/stop_pipeline":
+    post:
+      summary: Stop Pipeline
+      description: Disable the configured UDF task without stopping the Kapacitor daemon.
+      operationId: stop_pipeline_stop_pipeline_post
+      parameters:
+      - name: expected_task_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Expected Task Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '409':
+          description: No UDF task is configured or the expected task does not match
+        '502':
+          description: Kapacitor failed to disable the task
+        '503':
+          description: Kapacitor is unavailable
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/HTTPValidationError"
+  "/pipeline_status":
+    get:
+      summary: Pipeline Status
+      description: Return the status of the configured UDF task.
+      operationId: pipeline_status_pipeline_status_get
+      parameters:
+      - name: expected_task_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Expected Task Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '409':
+          description: No UDF task is configured or the expected task does not match
+        '502':
+          description: Kapacitor failed to retrieve the task
+        '503':
+          description: Kapacitor is unavailable
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/HTTPValidationError"
   "/opcua_alerts":
     post:
       summary: Receive Alert

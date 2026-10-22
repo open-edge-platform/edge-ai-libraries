@@ -10,12 +10,15 @@ fedora_80_install_anomalib () {
   else
     ensure_disk_size 15000
 
+    echo "@@STEP Installing anomalib=${version}"
     mkdir -p "$workspace"
     cd "$workspace"
     python3 -m venv .venv
     . .venv/bin/activate
     pip install "anomalib[openvino,cpu]==${version}"
 
+    echo "@@STEP Installing skills"
+    ensure_skills add tags/lib/v$version $repository "${skills[@]/#/.agents/skills/}"
     verify_anomalib
   fi
 
@@ -28,5 +31,6 @@ fedora_80_install_anomalib () {
 fedora_80_remove_anomalib () {
   configure_anomalib $*
   ensure_rm "$workspace"
+  ensure_skills remove "${skills[@]}"
 }
 

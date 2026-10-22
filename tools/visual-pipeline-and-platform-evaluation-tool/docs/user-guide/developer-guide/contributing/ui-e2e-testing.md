@@ -158,11 +158,11 @@ npx playwright show-trace ui/test-results/<test-dir>/trace.zip
 [`.github/workflows/vippet-ui-pr-workflow.yaml`](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/.github/workflows/vippet-ui-pr-workflow.yaml)
 runs on every pull request that touches `tools/visual-pipeline-and-platform-evaluation-tool/ui/**`.
 
-| Job | What it does | Local equivalent |
-| --- | --- | --- |
-| `lint` | `npm run lint` (ESLint + Prettier) and `npm run typecheck:e2e` (strict TS for the Playwright suite) | `make ui-lint` |
-| `e2e` | `npm run build`, then the Playwright suite against the built bundle served by Playwright itself | `make ui-e2e` |
-| `final-check` | Fails the PR if either job above failed | — |
+| Job           | What it does                                                                                        | Local equivalent |
+| ------------- | --------------------------------------------------------------------------------------------------- | ---------------- |
+| `lint`        | `npm run lint` (ESLint + Prettier) and `npm run typecheck:e2e` (strict TS for the Playwright suite) | `make ui-lint`   |
+| `e2e`         | `npm run build`, then the Playwright suite against the built bundle served by Playwright itself     | `make ui-e2e`    |
+| `final-check` | Fails the PR if either job above failed                                                             | —                |
 
 Only the Playwright suite is type-checked in CI; the application sources
 are covered by the production build step in the `e2e` job.
@@ -205,10 +205,10 @@ When you connect through Remote-SSH, install the extension **on the
 remote host**, not on the local VS Code:
 
 1. Open Extensions (`Ctrl+Shift+X`).
-2. Search for `Playwright Test for VSCode`.
-3. Click **Install in SSH: `<host>`** (not the plain **Install**
+1. Search for `Playwright Test for VSCode`.
+1. Click **Install in SSH: `<host>`** (not the plain **Install**
    button).
-4. Reload the window (`Ctrl+Shift+P` → `Developer: Reload Window`).
+1. Reload the window (`Ctrl+Shift+P` → `Developer: Reload Window`).
 
 ### Point it at the ViPPET config
 
@@ -258,13 +258,13 @@ running.` The workflow is:
     npm run test:e2e -- --project=chromium --trace=on
     ```
 
-2. Open the HTML report:
+1. Open the HTML report:
 
     ```bash
     npx playwright show-report
     ```
 
-3. Click the failing test → **Trace** tab. You get a time-travel timeline
+1. Click the failing test → **Trace** tab. You get a time-travel timeline
    of DOM snapshots, actions, network and console — the same information
    the Electron-based UI Mode shows.
 
