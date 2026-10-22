@@ -1,4 +1,9 @@
-# OEP Vision AI SDK - Tutorial 3
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
+# Metro Vision AI SDK - Tutorial 3
 
 This tutorial demonstrates how to implement real-time object detection using YOLOv10s model with OpenVINO Runtime. You will learn to create a complete computer vision application that processes video streams, performs AI inference, and displays results with bounding boxes and confidence scores in real-time.
 
@@ -28,7 +33,7 @@ Upon completion of this tutorial, you will be able to:
 
 Before starting this tutorial, ensure you have:
 
-- OEP Vision AI SDK installed and configured
+- Metro Vision AI SDK installed and configured
 - Docker installed and running on your system
 - Python programming experience (intermediate level)
 - Basic understanding of computer vision concepts
@@ -37,7 +42,7 @@ Before starting this tutorial, ensure you have:
 
 ## System Requirements
 
-- **Operating System:** Ubuntu 22.04 LTS or Ubuntu 24.04 LTS (Desktop edition required)
+- **Operating System:** Ubuntu 24.04 LTS or Ubuntu 26.04 LTS (Desktop edition required)
 - **Processor:** Intel® Core™, Intel® Core™ Ultra, or Intel® Xeon® processors
 - **Memory:** Minimum 8GB RAM (16GB recommended for optimal performance)
 - **Storage:** 3GB free disk space for models and video files
@@ -61,8 +66,8 @@ Set up your workspace and download a sample city intersection video
 
 ```bash
 # Create working directory structure
-mkdir -p ~/oep/oep-vision-tutorial-3
-cd ~/oep/oep-vision-tutorial-3
+mkdir -p ~/oep/metro-vision-tutorial-3
+cd ~/oep/metro-vision-tutorial-3
 
 # Download sample city intersection video for object detection
 wget -O intersection.mp4 https://www.pexels.com/download/video/34505889?fps=29.97&h=360&w=640
@@ -75,9 +80,15 @@ This sample video shows a busy city intersection with vehicles, pedestrians, and
 
 Download the YOLOv10s object detection model and convert it to OpenVINO format:
 
+Run Docker from your regular non-root host shell, without `sudo`.
+All containers below use your host UID:GID so generated files remain editable on the host.
+The mounted workspace is also the writable home for model preparation environments and caches.
+Use a new user-owned workspace if an earlier root-run command left inaccessible files; these commands do not change existing ownership.
+
 ```bash
 # Download YOLOv10s model using DL Streamer container
-docker run --rm --user=root \
+docker run --rm --user "$(id -u):$(id -g)" \
+  -e HOME=/home/dlstreamer \
   -e http_proxy -e https_proxy -e no_proxy \
   -v "${PWD}:/home/dlstreamer/" \
   intel/dlstreamer:2026.2.0-ubuntu24 \
@@ -236,9 +247,26 @@ EOF
 
 Prepare the execution environment for GUI applications and run the object detection:
 
+Build the inference image once before starting the application.
+System libraries and Python dependencies are installed at image-build time, without mounting your workspace.
+The final image user is non-root; the runtime commands additionally match your host UID:GID.
+The existing OpenCV display code is unchanged.
+
 ```bash
-# Enable X11 forwarding for Docker containers
-xhost +
+docker build --build-arg http_proxy --build-arg https_proxy --build-arg no_proxy \
+  -t metro-vision-inference:2026.4.0 - <<'EOF'
+FROM openvino/ubuntu24_dev:2026.4.0
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 libglib2.0-0 libsm6 libice6 libxext6 libxrender1 \
+    libxcb-xinerama0 libxkbcommon-x11-0 \
+  && python3 -m pip install --no-cache-dir opencv-python==4.11.0.86 numpy==1.26.4 \
+  && rm -rf /var/lib/apt/lists/*
+USER ubuntu
+EOF
+
+# Allow only the invoking local user to access the X11 display
+xhost +si:localuser:"$(id -un)"
 ```
 
 ### Step 5: Run Object Detection on CPU
@@ -248,21 +276,16 @@ Execute the real-time object detection application using OpenVINO on CPU:
 ```bash
 # Run object detection with CPU inference
 docker run -it --rm \
-  --volume ${PWD}:/home/openvino \
-  --volume $HOME/.Xauthority:/root/.Xauthority:rw \
+  --user "$(id -u):$(id -g)" \
+  --env HOME=/home/openvino \
+  --workdir /home/openvino \
+  --volume "${PWD}:/home/openvino" \
   --volume /tmp/.X11-unix:/tmp/.X11-unix:rw \
   --env DISPLAY=$DISPLAY \
   --env http_proxy=$http_proxy \
   --env https_proxy=$https_proxy \
   --env no_proxy=$no_proxy \
-  --user root \
-  openvino/ubuntu24_dev:2026.2.0
-```
-
-```bash
-apt update
-apt install -y libgtk2.0-dev pkg-config libcanberra-gtk-module libcanberra-gtk3-module build-essential cmake git pkg-config libgtk2.0-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev libxvidcore-dev libx264-dev libjpeg-dev libpng-dev libtiff-dev libdc1394-dev ffmpeg
-pip install opencv-python "numpy<2"
+  metro-vision-inference:2026.4.0
 ```
 
 ```bash
@@ -277,25 +300,24 @@ python3 /home/openvino/inference.py
 
 For systems with Intel integrated graphics, run detection with GPU acceleration:
 
+Exit the CPU container before running the following command from the host shell.
+The supplemental group is taken from the GPU render device; replace `renderD128` if your device node differs.
+
 ```bash
 # Run object detection with GPU inference
 docker run -it --rm \
-  --volume ${PWD}:/home/openvino \
-  --volume $HOME/.Xauthority:/root/.Xauthority:rw \
+  --user "$(id -u):$(id -g)" \
+  --env HOME=/home/openvino \
+  --workdir /home/openvino \
+  --volume "${PWD}:/home/openvino" \
   --volume /tmp/.X11-unix:/tmp/.X11-unix:rw \
   --device /dev/dri \
+  --group-add "$(stat -c '%g' /dev/dri/renderD128)" \
   --env DISPLAY=$DISPLAY \
   --env http_proxy=$http_proxy \
   --env https_proxy=$https_proxy \
   --env no_proxy=$no_proxy \
-  --user root \
-  openvino/ubuntu24_dev:2026.2.0
-```
-
-```bash
-apt update
-apt install -y libgtk2.0-dev pkg-config libcanberra-gtk-module libcanberra-gtk3-module build-essential cmake git pkg-config libgtk2.0-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev libxvidcore-dev libx264-dev libjpeg-dev libpng-dev libtiff-dev libdc1394-dev ffmpeg
-pip install opencv-python "numpy<2"
+  metro-vision-inference:2026.4.0
 ```
 
 ```bash
@@ -310,6 +332,12 @@ python3 /home/openvino/inference.py --conf 0.6 --iou 0.3
 
 # High recall detection (catch more objects)
 python3 /home/openvino/inference.py --conf 0.3 --iou 0.5
+```
+
+When finished, exit the container and revoke the display permission from the host shell:
+
+```bash
+xhost -si:localuser:"$(id -un)"
 ```
 
 ## Understanding the Application
