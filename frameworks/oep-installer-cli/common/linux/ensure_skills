@@ -1,4 +1,6 @@
 
+# add version repository skillpath ...
+# remove skillname ...
 ensure_skills () {
   local op="$1"
 
