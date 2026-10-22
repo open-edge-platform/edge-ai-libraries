@@ -10,34 +10,25 @@ ensure_skills () {
     local repository="${3:?}"
     shift 3
 
-    local tmpdir agent p
+    local tmpdir p name
     ensure_tmpdir create tmpdir skills
     ensure_git_export "$tmpdir" "$version" "$repository" "$@"
     mkdir -p "$HOME"/.agents/skills
     for p in "$@"; do
-      [ ! -e "$HOME"/.agents/skills/"${p##*/}" ] || ensure_rm "$HOME"/.agents/skills/"${p##*/}"
-      cp -r "$tmpdir/${p}" "$HOME"/.agents/skills
+      name="${p##*/}"
+      if [[ -e "$HOME/.agents/skills/$name" || -L "$HOME/.agents/skills/$name" ]]; then
+        ensure_rm "$HOME/.agents/skills/$name"
+      fi
+      cp -r "$tmpdir/$p" "$HOME"/.agents/skills
     done
     ensure_tmpdir destroy "$tmpdir"
-  
-    for agent in .claude .cursor .copilot .codex; do
-      [ -d "$HOME/$agent/skills" ] || continue
-      for p in "${@##*/}"; do
-        if [[ -e "$HOME/$agent/skills/$name" || -L "$HOME/$agent/skills/$name" ]]; then
-          ensure_rm "$HOME/$agent/skills/$p"
-        fi
-        ln -sf "$HOME/.agents/skills/$p" "$HOME/$agent/skills/$p"
-      done
-    done
     ;;
   remove)
     local name agent
-    for agent in .agents .claude .cursor .copilot .codex; do
-      for name in "${@##*/}"; do
-        if [[ -e "$HOME/$agent/skills/$name" || -L "$HOME/$agent/skills/$name" ]]; then
-          ensure_rm "$HOME/$agent/skills/$name"
-        fi
-      done
+    for name in "${@##*/}"; do
+      if [[ -e "$HOME/.agents/skills/$name" || -L "$HOME/.agents/skills/$name" ]]; then
+        ensure_rm "$HOME/.agents/skills/$name"
+      fi
     done
     ;;
   esac
