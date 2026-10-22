@@ -27,6 +27,8 @@ os.makedirs(CHUNKS_DIR, exist_ok=True)
 
 DENOISE = getattr(config.audio_preprocessing, "denoise", False)
 DENOISE_MODEL = getattr(config.audio_preprocessing, "denoise_model", "")
+NORMALIZE = getattr(config.audio_preprocessing, "normalize", False)
+NORMALIZE_FILTER = getattr(config.audio_preprocessing, "normalize_filter", "dynaudnorm")
 
 FFMPEG_PROCESSES = {}
 
@@ -95,15 +97,26 @@ def get_closest_silence(silences, target_time, window=SEARCH_WINDOW):
     return closest  # None if nothing close enough
 
 def _build_af_filter() -> list[str]:
-    """Return ffmpeg -af args for RNNoise denoising, or empty list if disabled."""
-    if not DENOISE:
+    """Return the ffmpeg ``-af`` args for the configured audio filters.
+
+    Chains denoising and loudness normalization in that order. Returns an empty
+    list when neither is enabled, which is also the condition that allows a
+    chunk to skip ffmpeg entirely (see ``process_audio_segment``) — so adding a
+    filter here automatically disables the pass-through rather than silently
+    producing differently-processed short and long inputs.
+    """
+    filters: list[str] = []
+    if DENOISE:
+        if DENOISE_MODEL:
+            filters.append(f"arnndn=m={DENOISE_MODEL}")
+        else:
+            # arnndn requires a model file — fall back to FFT denoiser when none is provided
+            filters.append("afftdn")
+    if NORMALIZE and NORMALIZE_FILTER:
+        filters.append(str(NORMALIZE_FILTER))
+    if not filters:
         return []
-    if DENOISE_MODEL:
-        af = f"arnndn=m={DENOISE_MODEL}"
-    else:
-        # arnndn requires a model file — fall back to FFT denoiser when none is provided
-        af = "afftdn"
-    return ["-af", af]
+    return ["-af", ",".join(filters)]
 
 
 def _resolve_chunks_dir(session_id: str | None = None) -> str:
@@ -118,10 +131,13 @@ def process_audio_segment(audio_path, start_time, end_time, chunk_index, session
 
     When ``full_file`` is set the segment covers the whole input, so the
     ``-ss/-to`` trim is dropped; if the input is additionally already in the
-    target format and no denoising is configured, the file is used as-is and no
-    ffmpeg process is spawned at all (``passthrough``).
+    target format and no audio filters are configured (see
+    ``_build_af_filter``), the file is used as-is and no ffmpeg process is
+    spawned at all (``passthrough``). Gating on the full filter chain — not
+    just denoise — keeps short pass-through inputs processed identically to
+    long chunked ones.
     """
-    if full_file and not DENOISE:
+    if full_file and not _build_af_filter():
         info = read_pcm_wav_info(audio_path)
         if info is not None and info.matches_target_format():
             logger.debug("Chunk %s passthrough (already 16kHz mono PCM): %s", chunk_index, audio_path)

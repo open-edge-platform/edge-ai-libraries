@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 """Tests for OpenAI-compatible SSE streaming and the realtime WebSocket API."""
+import asyncio
 import base64
 import json
 import math
@@ -8,11 +9,14 @@ import os
 import struct
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
 import main
+from api import realtime_endpoints
+from pipeline import Pipeline
 
 
 def _pcm16_tone(duration_sec: float, sample_rate: int = 16000, amplitude: float = 0.4) -> bytes:
@@ -305,6 +309,158 @@ class VadUnitTests(unittest.TestCase):
                 self.assertEqual(handle.getnchannels(), 1)
                 self.assertEqual(handle.getsampwidth(), 2)
                 self.assertEqual(handle.getnframes(), 8000)
+
+
+class RealtimePreviewTests(unittest.TestCase):
+    """input_audio_buffer.preview must be a non-destructive, preview-pool read."""
+
+    def test_preview_emits_event_without_clearing_buffer(self):
+        fake_result = {"text": "half a sent", "language": "en", "segments": []}
+
+        with patch("main.ensure_model"), patch("main.preload_models"), \
+             patch("api.realtime_endpoints._transcribe_pcm", return_value=fake_result) as transcribe:
+            with TestClient(main.app) as client:
+                with client.websocket_connect("/v1/realtime?intent=transcription") as ws:
+                    ws.receive_json()
+                    ws.send_json({"type": "session.update", "session": {"turn_detection": None}})
+                    ws.receive_json()
+                    ws.send_json({"type": "input_audio_buffer.append", "audio": _b64(_pcm16_tone(1.0))})
+                    ws.send_json({"type": "input_audio_buffer.preview"})
+                    preview = ws.receive_json()
+
+                    # The buffer must survive the preview: a real commit still
+                    # has audio to transcribe afterwards.
+                    ws.send_json({"type": "input_audio_buffer.commit"})
+                    committed = [ws.receive_json() for _ in range(3)]
+
+        self.assertEqual(preview["type"], "conversation.item.input_audio_transcription.preview")
+        self.assertEqual(preview["transcript"], "half a sent")
+        self.assertEqual(preview["sequence"], 1)
+        self.assertIn(
+            "conversation.item.input_audio_transcription.completed",
+            [m["type"] for m in committed],
+        )
+
+        preview_call, commit_call = transcribe.call_args_list[0], transcribe.call_args_list[-1]
+        # positional: session_id, pcm, rate, language, label, scope, diarization,
+        #             append_to_session, pool
+        self.assertFalse(preview_call.args[7])
+        self.assertEqual(preview_call.args[8], Pipeline.POOL_PREVIEW)
+        self.assertTrue(commit_call.args[7])
+        self.assertEqual(commit_call.args[8], Pipeline.POOL_FINAL)
+
+    def test_preview_is_skipped_when_session_lock_is_busy(self):
+        session = realtime_endpoints.RealtimeSession("sess", None)
+
+        async def _run():
+            async with session.lock:
+                await realtime_endpoints._preview_utterance(object(), session)
+
+        with patch("api.realtime_endpoints._transcribe_pcm") as transcribe:
+            asyncio.run(_run())
+
+        transcribe.assert_not_called()
+
+    def test_preview_window_is_bounded(self):
+        """Only the trailing window is decoded, not the whole utterance."""
+        captured = {}
+
+        def _fake(session_id, pcm, *args, **kwargs):
+            captured["len"] = len(pcm)
+            return {"text": "", "language": "en", "segments": []}
+
+        with patch("main.ensure_model"), patch("main.preload_models"), \
+             patch("api.realtime_endpoints._transcribe_pcm", side_effect=_fake):
+            with TestClient(main.app) as client:
+                with client.websocket_connect("/v1/realtime?intent=transcription") as ws:
+                    ws.receive_json()
+                    ws.send_json({"type": "session.update", "session": {"turn_detection": None}})
+                    ws.receive_json()
+                    for _ in range(6):
+                        ws.send_json({
+                            "type": "input_audio_buffer.append",
+                            "audio": _b64(_pcm16_tone(1.0)),
+                        })
+                    ws.send_json({"type": "input_audio_buffer.preview"})
+                    ws.receive_json()
+
+        window_bytes = int(realtime_endpoints.PREVIEW_MAX_WINDOW_SECONDS * 16000) * 2
+        self.assertEqual(captured["len"], window_bytes)
+
+
+class RealtimeLanguageGatingTests(unittest.TestCase):
+    """The language hint is dropped only for English-only checkpoints."""
+
+    def test_multilingual_model_keeps_language(self):
+        with patch("api.realtime_endpoints.config.models.asr.name", "whisper-small"):
+            self.assertEqual(
+                realtime_endpoints._language_for_pool(Pipeline.POOL_FINAL, "fr"), "fr"
+            )
+
+    def test_english_only_model_drops_language(self):
+        with patch("api.realtime_endpoints.config.models.asr.name", "distil-small.en"):
+            self.assertIsNone(
+                realtime_endpoints._language_for_pool(Pipeline.POOL_FINAL, "fr")
+            )
+
+    def test_preview_pool_uses_its_own_model_name(self):
+        preview_cfg = SimpleNamespace(name="whisper-small")
+        with patch("api.realtime_endpoints.config.models.asr.name", "distil-small.en"), \
+             patch("api.realtime_endpoints.config.models.asr.preview", preview_cfg, create=True):
+            self.assertEqual(
+                realtime_endpoints._language_for_pool(Pipeline.POOL_PREVIEW, "fr"), "fr"
+            )
+            self.assertIsNone(
+                realtime_endpoints._language_for_pool(Pipeline.POOL_FINAL, "fr")
+            )
+
+
+class TranscriptionsEndpointPoolTests(unittest.TestCase):
+    """POST /v1/audio/transcriptions is always a final-pool, persisting call."""
+
+    def _post(self, form=None, model_name="whisper-small"):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            saved = os.path.join(tmpdir, "clip.wav")
+            with open(saved, "wb") as handle:
+                handle.write(b"fake-audio")
+
+            with patch("main.ensure_model"), patch("main.preload_models"), \
+                 patch("api.openai_endpoints.save_audio_file", return_value=("clip.wav", saved)), \
+                 patch("api.openai_endpoints.resolve_asr_device", return_value="CPU"), \
+                 patch("api.openai_endpoints.Pipeline") as mock_pipeline_cls:
+                mock_pipeline_cls.POOL_FINAL = Pipeline.POOL_FINAL
+                mock_pipeline_cls.POOL_PREVIEW = Pipeline.POOL_PREVIEW
+                instance = mock_pipeline_cls.return_value
+                instance.session_id = "sess-1"
+                instance.asr_model_name = model_name
+                instance.transcribe.return_value = {
+                    "text": "hi", "language": "en", "duration": 1.0, "segments": [],
+                }
+                with TestClient(main.app) as client:
+                    response = client.post(
+                        "/v1/audio/transcriptions",
+                        data=form or {},
+                        files={"file": ("clip.wav", b"fake-audio", "audio/wav")},
+                    )
+                return response, mock_pipeline_cls, instance
+
+    def test_new_session_uses_final_pool(self):
+        """Regression: the first call of a session must not land on the preview pool."""
+        response, pipeline_cls, _ = self._post()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(pipeline_cls.call_args.kwargs["pool"], Pipeline.POOL_FINAL)
+        self.assertFalse(pipeline_cls.call_args.kwargs["append_to_session"])
+
+    def test_multilingual_model_keeps_caller_language(self):
+        _, _, instance = self._post(form={"language": "fr"}, model_name="whisper-small")
+
+        self.assertEqual(instance.transcribe.call_args.kwargs["language"], "fr")
+
+    def test_english_only_model_drops_caller_language(self):
+        _, _, instance = self._post(form={"language": "fr"}, model_name="distil-small.en")
+
+        self.assertIsNone(instance.transcribe.call_args.kwargs["language"])
 
 
 if __name__ == "__main__":

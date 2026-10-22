@@ -15,12 +15,13 @@ Client -> server events
     session.update              Update language / VAD / audio format.
     input_audio_buffer.append   {"audio": "<base64 pcm16>"}
     input_audio_buffer.commit   Force-close the current utterance.
-    input_audio_buffer.preview  Non-destructive: transcribe everything
-                                 buffered since the last real commit WITHOUT
-                                 clearing it, so a caller can get a fresh,
-                                 full-context transcript snapshot mid-speech
-                                 without waiting for (or costing) a real
-                                 commit. See ``_preview_utterance``.
+    input_audio_buffer.preview  Non-destructive: transcribe the trailing
+                                 window of audio buffered since the last real
+                                 commit WITHOUT clearing it, so a caller can
+                                 get a best-effort progress snapshot
+                                 mid-speech without waiting for (or costing)
+                                 a real commit. May start mid-word — never a
+                                 final transcript. See ``_preview_utterance``.
     input_audio_buffer.clear    Discard buffered audio.
 
 Server -> client events
@@ -48,6 +49,7 @@ from fastapi.concurrency import run_in_threadpool
 from dto.audiosource import AudioSource
 from pipeline import Pipeline
 from utils.app_paths import get_session_dir
+from utils.asr_model_capabilities import is_english_only_model
 from utils.config_loader import config
 from utils.pcm_audio import (
     DEFAULT_PREFIX_PADDING_MS,
@@ -83,16 +85,44 @@ MIN_PREVIEW_SECONDS = 0.20                  # same floor for non-destructive pre
 PREVIEW_MAX_WINDOW_SECONDS = 2.0
 SUPPORTED_AUDIO_FORMAT = "pcm16"
 
-# Standard Whisper/distil-whisper naming convention: a ".en" suffix marks an
-# English-only checkpoint (e.g. "distil-whisper/distil-small.en") that has no
-# language token at all. openvino_genai.WhisperPipeline raises
-# "Cannot specify 'language' for not multilingual model." if ANY language
-# hint is forwarded to one of these -- not just a non-English one. Multi-
-# lingual checkpoints (e.g. "whisper-small") have no such suffix and require
-# (or at least accept) an explicit language hint. This must be checked
-# against whichever model config.models.asr.name actually resolves to,
-# because that is deployment-configurable (see config.yaml).
-FINAL_MODEL_IS_ENGLISH_ONLY = str(getattr(config.models.asr, "name", "")).endswith(".en")
+
+def _pool_model_name(pool: str) -> str | None:
+    """Return the ASR model identifier a given pool actually resolves to.
+
+    The preview pool may be configured with its own model
+    (``models.asr.preview.name``); when it is not, it falls back to the main
+    ASR model like every other pool. Resolved per call rather than once at
+    import time so a config reload is picked up.
+
+    Args:
+        pool: ``Pipeline.POOL_FINAL`` or ``Pipeline.POOL_PREVIEW``.
+
+    Returns:
+        The configured model name, or ``None`` when unset.
+    """
+    main_name = getattr(config.models.asr, "name", None)
+    if pool != Pipeline.POOL_PREVIEW:
+        return main_name
+    preview_cfg = getattr(config.models.asr, "preview", None)
+    return (getattr(preview_cfg, "name", None) if preview_cfg is not None else None) or main_name
+
+
+def _language_for_pool(pool: str, language: str | None) -> str | None:
+    """Drop the language hint only when the pool's model is English-only.
+
+    English-only Whisper checkpoints (``.en`` suffix) have no language token;
+    ``openvino_genai.WhisperPipeline`` raises for ANY language hint on one.
+    Multilingual pools keep the caller's language, so a multilingual preview
+    model is no longer forced into auto-detection.
+    """
+    if not language:
+        return None
+    model_name = _pool_model_name(pool)
+    if is_english_only_model(model_name):
+        logger.debug("Dropping language=%s for %s pool: model %s is English-only",
+                     language, pool, model_name)
+        return None
+    return language
 
 
 class RealtimeSession:
@@ -219,14 +249,30 @@ def _apply_session_update(session: RealtimeSession, patch: dict) -> None:
 
 def _transcribe_pcm(session_id: str, pcm: bytes, sample_rate: int, language: str | None,
                     label: str, speaker_scope_id: str | None,
-                    diarization: bool | None, append_to_session: bool = True) -> dict:
+                    diarization: bool | None, append_to_session: bool = True,
+                    pool: str = Pipeline.POOL_FINAL) -> dict:
     """Blocking: persist the utterance as WAV and run it through the Pipeline.
 
-    ``append_to_session=False`` (used for non-destructive previews) runs a
-    throwaway Pipeline that neither reads nor writes session_state.json --
-    it only ever transcribes exactly the bytes passed in, so repeated
-    previews of a growing peeked buffer never corrupt or duplicate the real,
-    persisted session transcript built by actual commits.
+    The preview pool (``pool=Pipeline.POOL_PREVIEW``) runs a throwaway
+    Pipeline that neither reads nor writes session_state.json -- it only ever
+    transcribes exactly the bytes passed in, so repeated previews of a growing
+    peeked buffer never corrupt or duplicate the real, persisted session
+    transcript built by actual commits. The scratch WAV is removed in either
+    case, so previews leave nothing behind on disk.
+
+    Args:
+        session_id: Session the audio belongs to.
+        pcm: Raw little-endian 16-bit PCM payload.
+        sample_rate: Sample rate of ``pcm``.
+        language: Language hint, already filtered for the target pool.
+        label: Filename suffix for the scratch WAV.
+        speaker_scope_id: Stable speaker-enrollment scope key.
+        diarization: Per-request narrowing override for diarization.
+        append_to_session: Accumulate into the session transcript.
+        pool: Which ASR model pool to run on.
+
+    Returns:
+        The pipeline's transcription result dict.
     """
     session_dir = get_session_dir(session_id)
     os.makedirs(session_dir, exist_ok=True)
@@ -242,6 +288,7 @@ def _transcribe_pcm(session_id: str, pcm: bytes, sample_rate: int, language: str
             append_to_session=append_to_session,
             speaker_scope_id=speaker_scope_id,
             diarization=diarization,
+            pool=pool,
         )
         return pipeline.transcribe(
             SimpleNamespace(audio_filename=wav_path, source_type=AudioSource.AUDIO_FILE),
@@ -279,17 +326,14 @@ async def _commit_utterance(ws: WebSocket, session: RealtimeSession, reason: str
                 session.session_id,
                 pcm,
                 session.sample_rate,
-                # See FINAL_MODEL_IS_ENGLISH_ONLY above: forwarding
-                # session.language to an English-only final-pool checkpoint
-                # (e.g. distil-small.en) crashes openvino_genai outright, so
-                # this must be forced to None in that configuration -- the
-                # persisted transcript is unaffected since the model has no
-                # language ambiguity to resolve.
-                None if FINAL_MODEL_IS_ENGLISH_ONLY else session.language,
+                # Kept unless the final pool's model is English-only -- see
+                # _language_for_pool().
+                _language_for_pool(Pipeline.POOL_FINAL, session.language),
                 f"{session.utterance_index:05d}",
                 session.speaker_scope_id,
                 session.diarization,
                 True,  # append_to_session -- real commit, persists session state
+                Pipeline.POOL_FINAL,
             )
         except Exception:
             logger.exception("Realtime transcription failed for session %s", session.session_id)
@@ -324,17 +368,28 @@ async def _commit_utterance(ws: WebSocket, session: RealtimeSession, reason: str
 
 
 async def _preview_utterance(ws: WebSocket, session: RealtimeSession) -> None:
-    """Non-destructively transcribe everything buffered since the last real
-    commit, WITHOUT clearing the buffer or touching persisted session state.
+    """Non-destructively transcribe recent buffered audio.
 
-    This is what gives the client a fresh, full-context transcript snapshot
-    while speech is still ongoing: unlike splitting audio into independent
-    committed slices, the window always starts at the same fixed point (the
-    last real commit), so Whisper always sees the whole in-progress
-    utterance -- never a mid-word fragment -- and there is nothing to
-    deduplicate against the persisted transcript, because nothing here is
-    ever persisted.
+    Emits a ``conversation.item.input_audio_transcription.preview`` event for
+    the trailing ``PREVIEW_MAX_WINDOW_SECONDS`` of audio buffered since the
+    last real commit, without clearing the buffer or touching persisted
+    session state. Nothing produced here is ever persisted, so there is
+    nothing to deduplicate against the real transcript.
+
+    Note that the trailing window is a plain time cut, not a VAD boundary:
+    a preview may begin mid-word, so clients must treat the transcript as a
+    best-effort progress signal and never as a final transcript.
+
+    The preview is skipped when the session lock is already held, so a real
+    commit is never queued behind a throwaway decode.
     """
+    if session.lock.locked():
+        # A real commit (or another preview) is already decoding. Previews are
+        # best-effort progress ticks, so dropping this one is strictly better
+        # than making the authoritative commit wait for it.
+        logger.debug("Skipping preview for session %s: lock busy", session.session_id)
+        return
+
     async with session.lock:
         pcm = session.buffer.peek_tail(PREVIEW_MAX_WINDOW_SECONDS)
         duration = pcm_duration_sec(pcm, session.sample_rate)
@@ -350,28 +405,21 @@ async def _preview_utterance(ws: WebSocket, session: RealtimeSession) -> None:
                 session.session_id,
                 pcm,
                 session.sample_rate,
-                # Force None here, NOT session.language: the preview pool may
-                # run a different, English-only model than the final commit
-                # (see config.models.asr.preview / pipeline.py's per-pool
-                # model selection). openvino_genai.WhisperPipeline raises for
-                # ANY language token on an English-only checkpoint, so this
-                # scratch/throwaway call must never forward the session's
-                # (possibly multilingual-oriented) language hint -- the real,
-                # persisted commit below still gets session.language
-                # unchanged.
-                None,
+                # Resolved against the PREVIEW pool's model, which may differ
+                # from the final pool's -- a multilingual preview model keeps
+                # the caller's language instead of falling back to
+                # auto-detection.
+                _language_for_pool(Pipeline.POOL_PREVIEW, session.language),
                 f"preview_{preview_index:05d}",
                 session.speaker_scope_id,
-                # Force False here, NOT session.diarization: preview is a
-                # scratch/throwaway transcript (never persisted, no
-                # speaker-filter step consumes it) used only for endpoint-
-                # completeness/stability detection. Running pyannote
-                # diarization on every preview call (2-7x per turn) pays its
-                # full inference cost for output nobody reads -- the real,
-                # persisted commit below still gets session.diarization
-                # unchanged so speaker filtering keeps working there.
+                # Force False, NOT session.diarization: a preview is a scratch
+                # transcript (never persisted, no speaker-filter step consumes
+                # it). Running pyannote on every preview tick pays its full
+                # inference cost for output nobody reads -- the real commit
+                # still gets session.diarization unchanged.
                 False,
                 False,  # append_to_session -- scratch, never persisted
+                Pipeline.POOL_PREVIEW,
             )
         except Exception:
             logger.exception("Realtime preview transcription failed for session %s", session.session_id)

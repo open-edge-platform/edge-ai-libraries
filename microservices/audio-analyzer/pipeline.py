@@ -19,25 +19,54 @@ DELETE_CHUNK_AFTER_USE = getattr(config.pipeline, "delete_chunks_after_use", Tru
 SESSION_STATE_FILENAME = "session_state.json"
 
 class Pipeline:
+    #: Valid values for the ``pool`` argument. ``"final"`` is the persisted,
+    #: caller-facing path; ``"preview"`` is the non-destructive realtime
+    #: snapshot path. The two keep separate ASR model instances.
+    POOL_FINAL = "final"
+    POOL_PREVIEW = "preview"
+
     def __init__(self, session_id=None, temperature=None, append_to_session: bool = False, speaker_scope_id=None,
-                 diarization: bool | None = None, device: str | None = None):
+                 diarization: bool | None = None, device: str | None = None, pool: str = POOL_FINAL):
+        """Build a transcription pipeline.
+
+        Args:
+            session_id: Existing session to attach to; generated when omitted.
+            temperature: ASR sampling temperature; falls back to config.
+            append_to_session: Accumulate this call's output into the session's
+                persisted ``session_state.json``. Controls persistence ONLY.
+            speaker_scope_id: Stable scope key for speaker enrollment.
+            diarization: Per-request narrowing override for diarization.
+            device: Per-request ASR device override (final pool only).
+            pool: Which ASR model pool to run on, ``"final"`` or ``"preview"``.
+                Chosen explicitly by the caller — never inferred from
+                ``append_to_session``, since a brand-new session's first
+                persisted call also has ``append_to_session=False`` and must
+                still run on the final model.
+        """
         logger.info("pipeline initialized")
+        if pool not in (self.POOL_FINAL, self.POOL_PREVIEW):
+            raise ValueError(f"Unsupported ASR pool: {pool!r}; expected 'final' or 'preview'")
         self.session_id = session_id or generate_session_id()
         self.append_to_session = append_to_session
+        self.pool = pool
         self.temperature = config.models.asr.temperature if temperature is None else temperature
-        # Preview pool (append_to_session=False, non-destructive scratch calls)
-        # may use a DIFFERENT model/device than the final pool -- see
-        # config.models.asr.preview. Falls back to the main asr config when no
-        # override is configured, so existing single-model deployments are
-        # unaffected. The per-request `device` override (upstream) applies only
-        # to the final/persisted pool; the preview pool keeps its configured
-        # device since it is an internal latency optimisation, not a
-        # caller-selectable path.
-        _preview_cfg = getattr(config.models.asr, "preview", None)
-        if not append_to_session and _preview_cfg is not None:
+        # The preview pool may use a DIFFERENT model/device than the final pool
+        # -- see config.models.asr.preview. Falls back to the main asr config
+        # when no override is configured, so existing single-model deployments
+        # are unaffected. The per-request `device` override applies only to the
+        # final pool; the preview pool keeps its configured device since it is
+        # an internal latency optimisation, not a caller-selectable path.
+        _preview_cfg = getattr(config.models.asr, "preview", None) if pool == self.POOL_PREVIEW else None
+        if _preview_cfg is not None:
             asr_provider = getattr(_preview_cfg, "provider", None) or config.models.asr.provider
             asr_model_name = getattr(_preview_cfg, "name", None) or config.models.asr.name
-            asr_device = getattr(_preview_cfg, "device", None) or config.models.asr.device
+            asr_device = resolve_asr_device(
+                asr_provider,
+                asr_model_name,
+                # Fall back to the main device when the preview block omits one,
+                # so a GPU-less host never fails to load the preview model.
+                getattr(_preview_cfg, "device", None) or config.models.asr.device,
+            )
         else:
             asr_provider = config.models.asr.provider
             asr_model_name = config.models.asr.name
@@ -46,6 +75,7 @@ class Pipeline:
                 config.models.asr.name,
                 device or config.models.asr.device,
             )
+        self.asr_model_name = asr_model_name
         self.asr_component = ASRComponent(
             self.session_id,
             provider=asr_provider,
@@ -54,7 +84,7 @@ class Pipeline:
             temperature=self.temperature,
             speaker_scope_id=speaker_scope_id,
             diarization=diarization,
-            append_to_session=append_to_session,
+            pool=pool,
         )
         self.sentiment_component = None
         if SENTIMENT_ENABLED:
@@ -280,11 +310,13 @@ class Pipeline:
                 recency_weight=getattr(config.sentiment, "recency_weight", 0.7),
                 peak_label=getattr(config.sentiment, "peak_label", "angry"),
             )
-        # append_to_session=False (non-destructive preview) must never mutate
-        # the persisted session_state.json — otherwise the next REAL commit's
-        # _load_session_state() picks up this scratch call's non-cumulative
-        # duration/segments, corrupting its offset math.
-        if self.append_to_session:
+        # Preview-pool calls are non-destructive scratch decodes and must never
+        # mutate the persisted session_state.json — otherwise the next REAL
+        # commit's _load_session_state() picks up the scratch call's
+        # non-cumulative duration/segments, corrupting its offset math. Final-pool
+        # calls always persist, including the first call of a brand-new session
+        # (append_to_session=False), which still owns the session's state file.
+        if self.pool != self.POOL_PREVIEW:
             self._persist_session_outputs(detected_language, duration, final_text, all_segments, chunk_sentiments)
         yield final_event
 
@@ -333,10 +365,10 @@ class Pipeline:
                 peak_label=getattr(config.sentiment, "peak_label", "angry"),
             )
 
-        # Same guard as stream_transcribe() -- see comment there. A scratch
-        # (append_to_session=False) call must be a pure read: it must not
-        # persist its own duration/segments over the real session's state.
-        if self.append_to_session:
+        # Same guard as stream_transcribe() -- see comment there. A preview-pool
+        # call must be a pure read: it must not persist its own
+        # duration/segments over the real session's state.
+        if self.pool != self.POOL_PREVIEW:
             self._persist_session_outputs(detected_language, duration, full_text, segments, chunk_sentiments)
 
         return result

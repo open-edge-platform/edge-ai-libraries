@@ -9,10 +9,10 @@ from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 from dto.audiosource import AudioSource
 from dto.transcription_dto import validate_transcription_options
 from pipeline import Pipeline
+from utils.asr_model_capabilities import is_english_only_model
 from utils.config_loader import config
 from utils.openvino_runtime_validation import resolve_asr_device
 from utils.audio_util import save_audio_file
-from utils.config_loader import config
 from utils.session_manager import resolve_requested_session_id
 from utils.subtitle_format import format_srt as _format_srt, format_vtt as _format_vtt
 
@@ -97,6 +97,9 @@ def transcribe_audio(
     if not os.path.isfile(filepath):
         raise HTTPException(status_code=400, detail=f"Audio file not found: {filepath}")
 
+    # The file-based endpoint is always a real, persisted transcription, so it
+    # always runs on the final pool -- including the first call of a brand-new
+    # session, which also has continue_session=False.
     pipeline = Pipeline(
         session_id=session_id,
         temperature=temperature,
@@ -104,15 +107,16 @@ def transcribe_audio(
         speaker_scope_id=speaker_scope_id,
         diarization=diarization,
         device=resolved_device,
+        pool=Pipeline.POOL_FINAL,
     )
-    if not continue_session and getattr(config.models.asr, "preview", None) is not None:
-        # The FIRST call for a brand-new session (continue_session=False)
-        # lands on the preview pool (see pipeline.py's per-pool model
-        # selection / config.models.asr.preview), which may be a different,
-        # English-only model than the main/final config. That model raises
-        # for ANY language token, so this scratch call must not forward the
-        # caller's language hint -- only calls that continue an existing
-        # session (append_to_session=True, final pool) keep it.
+    if language and is_english_only_model(pipeline.asr_model_name):
+        # English-only Whisper checkpoints (".en" suffix) carry no language
+        # token at all; openvino_genai.WhisperPipeline raises for ANY language
+        # hint on one, not just a non-English one. Drop the hint for those
+        # models only -- multilingual deployments keep the caller's language.
+        logger.debug(
+            "Dropping language=%s: model %s is English-only", language, pipeline.asr_model_name
+        )
         language = None
 
     if stream:

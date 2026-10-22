@@ -36,9 +36,17 @@ Form fields:
 | `response_format` | No       | One of `json`, `text`, `verbose_json`, `srt`, `vtt`.                        |
 | `temperature`     | No       | Decoding temperature.                                                       |
 | `stream`          | No       | `true` streams the result as OpenAI-compatible SSE (see below).             |
+| `speaker_scope_id`| No       | Stable key that keeps speaker enrollment across utterances of one conversation. |
+| `diarization`     | No       | Narrowing override: `false` disables diarization for this request. Cannot enable it when `models.asr.diarization` is `false`. |
 
 The optional `device` field accepts `CPU`, `GPU`, or `NPU`. When omitted, it
 uses the service configuration.
+
+The `language` hint is forwarded to the ASR backend unchanged, except when the
+configured model is an English-only Whisper checkpoint (a `.en` suffix, such as
+`distil-small.en`). Those checkpoints have no language token at all and reject
+any hint, so the service drops it for them only — multilingual deployments
+always receive the caller's `language`.
 
 Example:
 
@@ -141,9 +149,10 @@ resampling is done in the socket layer — downstream ffmpeg/Whisper handle it.
 
 | Event | Payload |
 | ----- | ------- |
-| `session.update` | `{"session": {...}}` — set `sample_rate`, `input_audio_transcription.language`, or `turn_detection`. |
+| `session.update` | `{"session": {...}}` — set `sample_rate`, `input_audio_transcription.language`, `turn_detection`, `speaker_scope_id`, or `diarization`. |
 | `input_audio_buffer.append` | `{"audio": "<base64 pcm16>"}` |
 | `input_audio_buffer.commit` | Force-close the current utterance and transcribe it. |
+| `input_audio_buffer.preview` | Transcribe the trailing ~2 s of buffered audio **without** clearing the buffer or persisting anything. Best-effort progress signal only. |
 | `input_audio_buffer.clear`  | Discard buffered audio. |
 | `session.close`             | Flush the buffer and close the socket. |
 
@@ -156,7 +165,8 @@ resampling is done in the socket layer — downstream ffmpeg/Whisper handle it.
 | `input_audio_buffer.committed` | An utterance was closed and is being transcribed. |
 | `input_audio_buffer.cleared` | Buffer discarded. |
 | `conversation.item.input_audio_transcription.delta` | Incremental transcript text for an utterance. |
-| `conversation.item.input_audio_transcription.completed` | Final `transcript` for the utterance (plus `language`, `sentiment_summary` when available). |
+| `conversation.item.input_audio_transcription.completed` | Final `transcript` for the utterance (plus `language`, `sentiment_summary` when available) and a monotonic `sequence`. |
+| `conversation.item.input_audio_transcription.preview` | Response to `input_audio_buffer.preview`: a throwaway `transcript` plus a monotonic `sequence`. May begin mid-word — never treat it as final. |
 | `error` | `{"error": {"type": ..., "message": ...}}` |
 
 ### Turn detection (VAD)
@@ -178,6 +188,23 @@ to disable VAD and control boundaries yourself with
 
 Limits: 5 MB per `append` message, and any single utterance is force-committed
 at 120 seconds.
+
+### Previews
+
+`input_audio_buffer.preview` gives a low-latency progress snapshot while the
+speaker is still talking. It is deliberately cheap and deliberately lossy:
+
+* Only the trailing ~2 s of the buffer is decoded, so the cost of a preview
+  does not grow with utterance length.
+* The cut is a plain time boundary, not a VAD boundary — a preview can begin
+  mid-word.
+* Nothing is persisted: previews never write `session_state.json` and never
+  affect the transcript produced by a real commit.
+* A preview is skipped if a real commit is already decoding, so previews never
+  delay the authoritative result.
+* Previews can be routed to a different ASR model/device via
+  `models.asr.preview` in `config.yaml` (by default they reuse the main ASR
+  configuration).
 
 A complete, runnable client example is in the
 [Get Started guide](./get-started.md#verify-continuous-audio-streaming-websocket).

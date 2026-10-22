@@ -105,20 +105,23 @@ def _is_diarization_auth_error(exc: Exception) -> bool:
 
 class ASRComponent(PipelineComponent):
 
-    # Two independent model-instance pools, not one shared singleton.
+    # Model instances cached per (pool, model_config_key), not one shared
+    # singleton and not one slot per pool.
     #
-    # kiosk-voice-lab keeps a dedicated preview ASR (rolling preview ticks,
-    # called every ~0.4s with a GROWING buffer) and a separate final ASR
-    # (called once, at end of turn). Some OpenVINO GenAI WhisperPipeline
-    # backends (confirmed with distil-whisper/distil-small.en on NPU) corrupt
-    # internal generation state when ONE shared instance processes calls of
-    # very different audio lengths back-to-back. Splitting the pool by call
-    # kind -- "preview" (append_to_session=False) vs "final"
-    # (append_to_session=True, including the file-based endpoint) reproduces
-    # that isolation without reloading a model per call. The lock keeps the
-    # lazy per-pool init thread-safe (merged from upstream).
-    _models: dict[str, object] = {"preview": None, "final": None}
-    _model_configs: dict[str, tuple] = {"preview": None, "final": None}
+    # Two pools: a dedicated "preview" ASR (rolling realtime preview ticks,
+    # called repeatedly on a growing buffer) and a separate "final" ASR
+    # (persisted commits and the file-based endpoint). Some OpenVINO GenAI
+    # WhisperPipeline backends (confirmed with distil-whisper/distil-small.en
+    # on NPU) corrupt internal generation state when ONE shared instance
+    # processes calls of very different audio lengths back-to-back, so the two
+    # kinds of call never share a pipeline instance.
+    #
+    # Within a pool the cache is keyed by the resolved model config, because
+    # the per-request `device` override means two concurrent callers can ask
+    # the same pool for different models/devices. A single slot per pool would
+    # make them evict each other and rebuild a WhisperPipeline (seconds) on
+    # every alternation.
+    _models: dict[tuple, object] = {}
     _models_lock = threading.Lock()
     # Shared across all ASRComponent instances/sessions — keyed by session_id
     # internally — so primary-speaker identity persists across chunk calls
@@ -164,14 +167,14 @@ class ASRComponent(PipelineComponent):
 
         raise ValueError(f"Unsupported ASR provider/model: {normalized_provider}/{normalized_model_name}")
 
-    def __init__(self, session_id, provider="openai", model_name="whisper-small", device="CPU", temperature=0.0, speaker_scope_id=None, diarization: bool | None = None, append_to_session: bool = True):
+    def __init__(self, session_id, provider="openai", model_name="whisper-small", device="CPU", temperature=0.0,
+                 speaker_scope_id=None, diarization: bool | None = None, pool: str = "final"):
 
         self.session_id = session_id
-        # Selects which of the two model-instance pools (see class docstring
-        # above _models) this component's calls use. Non-destructive preview
-        # calls (append_to_session=False) and persisted commits
-        # (append_to_session=True) never share a pipeline instance.
-        self.pool_key = "final" if append_to_session else "preview"
+        # Which model-instance pool this component's calls use (see the
+        # _models docstring above). Passed down explicitly from Pipeline;
+        # never inferred from append_to_session.
+        self.pool_key = pool
         # Scope key for speaker enrollment. Stays stable for a whole
         # conversation, whereas session_id is regenerated for every utterance —
         # enrolling per utterance would re-derive the reference voice from the
@@ -207,16 +210,13 @@ class ASRComponent(PipelineComponent):
         self.repetition_penalty = float(getattr(_asr_cfg, "repetition_penalty", 1.0) or 1.0)
 
         backend_cls, model_config_key, resolved_device = self._resolve_backend(provider, model_name, device)
+        cache_key = (self.pool_key, model_config_key)
 
         with ASRComponent._models_lock:
-            if (
-                ASRComponent._models[self.pool_key] is None
-                or ASRComponent._model_configs[self.pool_key] != model_config_key
-            ):
-                ASRComponent._models[self.pool_key] = backend_cls(model_name.lower(), resolved_device, None)
-                ASRComponent._model_configs[self.pool_key] = model_config_key
+            if cache_key not in ASRComponent._models:
+                ASRComponent._models[cache_key] = backend_cls(model_name.lower(), resolved_device, None)
 
-        self.asr = ASRComponent._models[self.pool_key]
+        self.asr = ASRComponent._models[cache_key]
 
         self.pyannote_diarizer = None
         if self.enable_diarization:

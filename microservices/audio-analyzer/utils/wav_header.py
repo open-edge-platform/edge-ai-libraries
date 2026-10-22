@@ -44,6 +44,40 @@ class WavInfo:
         )
 
 
+def _find_data_chunk_offset(audio_path: str) -> int | None:
+    """Return the absolute byte offset of the ``data`` chunk's payload.
+
+    A minimal RIFF walk, used instead of ``wave.Wave_read._data_chunk`` so this
+    module does not depend on a private CPython attribute whose meaning (an
+    offset relative to the enclosing RIFF chunk, not the file) is both
+    undocumented and easy to misread.
+
+    Args:
+        audio_path: Path to the candidate WAV file.
+
+    Returns:
+        The offset just past the ``data`` chunk header, or ``None`` when the
+        file is not RIFF/WAVE or has no ``data`` chunk.
+    """
+    with open(audio_path, "rb") as handle:
+        header = handle.read(12)
+        if len(header) < 12 or header[0:4] != b"RIFF" or header[8:12] != b"WAVE":
+            return None
+        offset = 12
+        while True:
+            handle.seek(offset)
+            chunk_header = handle.read(8)
+            if len(chunk_header) < 8:
+                return None
+            chunk_id = chunk_header[0:4]
+            chunk_size = int.from_bytes(chunk_header[4:8], "little")
+            payload_start = offset + 8
+            if chunk_id == b"data":
+                return payload_start
+            # RIFF chunks are word-aligned: an odd size is followed by a pad byte.
+            offset = payload_start + chunk_size + (chunk_size % 2)
+
+
 def read_pcm_wav_info(audio_path: str) -> WavInfo | None:
     """Return header facts for an uncompressed WAV, or ``None`` if unreadable.
 
@@ -81,15 +115,12 @@ def read_pcm_wav_info(audio_path: str) -> WavInfo | None:
             sample_width = wav_file.getsampwidth()
             if not sample_rate or not frame_count or not channels or not sample_width:
                 return None
-            # Clamp to what is actually readable. _data_chunk_offset is the
-            # byte position where sample data starts, so everything after it
-            # is audio; falling back to the file size alone would only ever
-            # over-count by the header, which is bounded and harmless here.
+            # Clamp to what is actually readable on disk, since the declared
+            # data-chunk size is not trustworthy (see the docstring above).
             frame_bytes = channels * sample_width
-            try:
-                data_start = wav_file._data_chunk.offset + 8  # type: ignore[attr-defined]
-            except AttributeError:
-                data_start = 44  # canonical PCM header length
+            data_start = _find_data_chunk_offset(audio_path)
+            if data_start is None:
+                return None
             available_frames = max(os.path.getsize(audio_path) - data_start, 0) // frame_bytes
             frame_count = min(frame_count, available_frames)
             if not frame_count:

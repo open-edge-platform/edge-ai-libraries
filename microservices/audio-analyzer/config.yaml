@@ -16,7 +16,10 @@ models:
     weight_format: int8 # OpenVINO: int8 | fp16 | null; int8 for whisper-small-int8 OV model.
                         # whispercpp: null | q5 | q5_0 | q5_1 | q8 | q8_0 | int5 | int8
     temperature: 0.0
-    diarization: True        # set True to enable pyannote speaker diarization
+    diarization: False        # set True to enable pyannote speaker diarization.
+                              # Default False: enabling it without a valid
+                              # HF_TOKEN (see hf_token below) fails a fresh
+                              # deployment with 401/403 at model download.
                               # REQUIRES: accept ALL THREE gated model licences
                               # at HF before enabling:
                               #   https://huggingface.co/pyannote/speaker-diarization-community-1
@@ -40,18 +43,23 @@ models:
     vad_model: iic/speech_fsmn_vad_zh-cn-16k-common-pytorch
     punc_model: iic/punc_ct-transformer_zh-cn-common-vocab272727-pytorch
 
-    # Preview pool override (see ASRComponent's "two independent model-instance
-    # pools" docstring in components/asr_component.py): non-destructive
-    # `input_audio_buffer.preview` calls in the realtime WS endpoint (used for
-    # continuous-streaming ASR / the endpoint-completeness shortcut) are on the
-    # customer-facing latency critical path, unlike the persisted final
-    # commit. Route them to GPU -- this config's own note above already
-    # targets "<300ms for typical 1-2s kiosk commands" on GPU, vs CPU (the
-    # `device:` setting above) which was measured taking 700ms+ decoding a
-    # multi-second growing buffer. Falls back to the main asr config above
-    # when omitted, so existing single-device deployments are unaffected.
-    preview:
-      device: GPU
+    # Preview pool override (see the model-pool docstring in
+    # components/asr_component.py). Non-destructive
+    # `input_audio_buffer.preview` calls on the realtime WS endpoint are on
+    # the latency-critical path, unlike the persisted final commit, so they
+    # may be routed to a different model/device.
+    #
+    # Commented out by default: every key here falls back to the main asr
+    # config above, and pinning `device: GPU` by default would break every
+    # host without an Intel GPU. Uncomment and set a device only on hardware
+    # you know has it — on a GPU-equipped kiosk this is worth ~400ms per
+    # preview tick (measured <300ms on GPU vs 700ms+ on CPU for a
+    # multi-second growing buffer).
+    #
+    # preview:
+    #   device: GPU        # CPU | GPU | NPU; defaults to models.asr.device
+    #   name: whisper-base # defaults to models.asr.name
+    #   provider: openvino # defaults to models.asr.provider
 
     # Hallucination filtering — openai provider uses native no_speech_prob/avg_logprob.
     # whispercpp derives the same values from per-token plog and ptsum.
@@ -85,6 +93,25 @@ models:
     # Note: openai-whisper's DecodingOptions has no repetition_penalty field;
     # this is applied after transcription, not inside the decoder.
     repetition_penalty: 1.8
+
+    # Backend-agnostic hallucination filter. Whisper (including the OpenVINO
+    # GenAI backend) hallucinates common subtitle phrases such as "Thank you"
+    # on silence / non-speech audio — usually the trailing silence captured
+    # after the speaker stops talking. Any transcript segment whose entire text
+    # matches one of these phrases (case- and punctuation-insensitive) is
+    # dropped. Unlike no_speech_threshold/logprob_threshold above, this also
+    # covers OpenVINO GenAI, which exposes no per-segment confidence signals.
+    # Set hallucination_phrase_filter: false to disable.
+    hallucination_phrase_filter: true
+    hallucination_phrases:
+      - "thank you"
+      - "thank you very much"
+      - "thanks for watching"
+      - "thank you for watching"
+      - "please subscribe"
+      - "subscribe"
+      - "you"
+      - "bye"
 
     # Decoder controls — beam_size/best_of apply to openai and whispercpp.
     # threads is whisper.cpp specific.
@@ -127,6 +154,16 @@ models:
     # docs/user-guide/get-started/configuration.md#audio-analyzer-diarization-device-configyaml.
     device: CPU
     models_base_path: "models"
+
+    # Cross-chunk primary-speaker identity resolution. Reuses the speaker
+    # embeddings already computed by the diarization pipeline during
+    # clustering (pyannote DiarizeOutput.speaker_embeddings) — no extra
+    # model is loaded. See components/asr/diarization/speaker_identity.py
+    identity:
+      enabled: true
+      similarity_threshold: 0.75   # cosine similarity to match stored primary
+      lock_min_duration_sec: 0.75  # min turn duration before it can be locked as primary
+      session_ttl_seconds: 1800    # evict idle session identity state after 30 min
 
     # ── Clustering aggressiveness (single-mic kiosk tuning) ────────────────
     # Force the pipeline to always split into at least 2 speaker clusters so
@@ -255,13 +292,7 @@ audio_preprocessing:
   # than afftdn on speech because it was trained specifically to separate
   # voice from noise rather than just flattening the spectrum.
   #
-  # Using "leavened-quisling" from https://github.com/GregorR/rnnoise-models
-  # (public domain / no-copyright tools+models repo, MIT-licensed rnnoise-nu
-  # project) — trained for "voice in a noisy recording environment", which
-  # matches a kiosk mic picking up ambient demo-floor/crowd noise better than
-  # the other models in that repo tuned for quieter room tone (fans/AC).
-  # Mounted at models/rnnoise/leavened-quisling.rnnn in the models volume.
-  denoise_model: ""  # cleared: arnndn model incompatible with this FFmpeg build; using afftdn fallback
+  denoise_model: ""  # empty → afftdn fallback (no .rnnn model ships with the image)
 
   # Per-chunk loudness normalization, applied after denoise and before ASR.
   # dynaudnorm (not loudnorm/EBU R128) because each 15s chunk is processed
@@ -278,6 +309,10 @@ audio_util:
     - .wav
     - .mp3
     - .m4a
+    - .mp4    # video containers accepted for VSS transcription requests;
+    - .mkv    # ffmpeg-based chunking extracts the audio track automatically,
+    - .mov    # no separate audio-extraction step is required.
+    - .avi
   chunk_size: 52428800   # 1024 * 1024 * 50 = 50MB
 
 pipeline:
@@ -294,3 +329,14 @@ sentiment:
   # recency_weight: higher weight on recent chunks (good for kiosk drift detection)
   recency_weight: 0.7             # 0.0 = equal weight, 1.0 = last chunk only
   peak_label: angry               # label to watch for peak/escalation detection
+
+# MinIO object storage — used only by the VSS-compatibility endpoint
+# (POST /transcriptions) to retrieve source videos and store transcripts
+# back into the same bucket the caller (VSS pipeline-manager) reads from.
+# Not used by any other endpoint. All values overridable via
+# AUDIO_ANALYZER__MINIO__<KEY> env vars.
+minio:
+  endpoint: ""       # e.g. "minio-server:9000"; empty disables MinIO support
+  access_key: ""
+  secret_key: ""
+  secure: false
