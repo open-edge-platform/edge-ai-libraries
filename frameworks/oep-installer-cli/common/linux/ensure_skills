@@ -15,8 +15,7 @@ ensure_skills () {
     ensure_git_export "$tmpdir" "$version" "$repository" "$@"
     mkdir -p "$HOME"/.agents/skills
     for p in "$@"; do
-      name="${p##*/}"
-      ensure_rm "$HOME/.agents/skills/$name"
+      ensure_rm "$HOME/.agents/skills/${p##*/}"
       cp -r "$tmpdir/$p" "$HOME"/.agents/skills
     done
     ensure_tmpdir destroy "$tmpdir"
