@@ -20,6 +20,7 @@ This directory contains common functions for coding OEP installer components.
 |[`ensure_rm`](linux/ensure_rm)|Robustly remove files or directories.|
 |[`ensure_sbom_format`](linux/ensure_sbom)|Format SBOM elements.|
 |[`ensure_select_device`](linux/ensure_select_device)|Parse command line for device selection: `--gpu`, `--npu`, or `--cpu`. |
+|[`ensure_skills`](linux/ensure_skills)|Add/remove skill files.|
 |[`ensure_sudo`](linux/ensure_sudo)|Robustly invoke `sudo`. The proxy settings of the current user are passed along with the sudo command.|
 |[`ensure_tmpdir`](linux/ensure_tmpdir)|Robustly create and destroy a temporary directory.|
 |[`ensure_trap`](linux/ensure_trap)|Set/reset trap commands. Support nested trap.|

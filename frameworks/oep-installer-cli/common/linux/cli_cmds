@@ -171,8 +171,10 @@ subcommand_list () {
 subcommand_setup () {
   [[ " $* " != *" --help "* ]] || return
 
-  # reconstruct installer
   local installer_misc_functions=()
+  local installer_skill_text=""
+
+  # reconstruct installer
   mkdir -p "$(dirname "$installer_bin")"
   cat > "$installer_bin" <<EOF
 #!/bin/bash
@@ -243,6 +245,13 @@ $(
 }
 complete -F _${installer_name//-/_}_completion $installer_name
 EOF
+
   echo "bash completion created at $completion_script"
+
+  # reconstruct skills
+  local skill_file="$HOME"/.agents/skills/$installer_name/SKILL.md
+  mkdir -p "${skill_file%/*}"
+  base64 -d > "$skill_file" <<< "$installer_skill_text"
+  echo "skill written to $skill_file"
 }
 
