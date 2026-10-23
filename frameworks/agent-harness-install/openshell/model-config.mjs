@@ -53,6 +53,7 @@ function removePreviousDefaults(config) {
   const saved = JSON.parse(fs.readFileSync(defaultsFile, "utf8"));
   if (saved.agent !== agent || !Array.isArray(saved.entries) || !Array.isArray(saved.containers))
     throw Error("Invalid installer local-model defaults record");
+  // Remove only values still equal to our last defaults; changed values are user-owned.
   for (const {keys, value} of saved.entries) {
     if (!Array.isArray(keys) || !keys.length ||
         keys.some(k => typeof k !== "string" || ["__proto__", "prototype", "constructor"].includes(k)))
@@ -78,6 +79,7 @@ function defaultAt(config, keys, value) {
   const parent = parentAt(config, keys.slice(0, -1), true);
   if (parent && !Object.hasOwn(parent, keys.at(-1))) {
     parent[keys.at(-1)] = value;
+    // Track inserted defaults so a later model switch can remove only our unchanged settings.
     installedDefaults.push({keys, value});
   }
 }
@@ -173,6 +175,7 @@ if (agent === "hermes" && mode === "apply") {
   writeFile(file, yaml);
   writeJson(defaultsFile, {agent, entries: installedDefaults, containers: createdContainers});
 }
-// The creation environment is immutable. This workspace record takes precedence
-// on every later startup, including Hermes's startup configuration commands.
+// The creation environment is immutable. Select mode persists the new choice
+// without editing agent config; startup applies it and this record takes
+// precedence over the original creation environment, including for Hermes.
 writeJson(path.join(home, ".harness-model.json"), {model, endpoint, applied: mode === "apply"});

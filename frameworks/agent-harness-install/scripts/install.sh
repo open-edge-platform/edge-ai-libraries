@@ -553,6 +553,7 @@ re-run ./install.sh."
   print_done
 }
 
+# Avoid locking help/status reads; every other CLI path serializes with install and uninstall.
 installer_command_is_read_only() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
