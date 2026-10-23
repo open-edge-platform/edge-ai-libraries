@@ -3,6 +3,7 @@
 
 """Unit tests for the ``gvaproximitytrigger_py`` custom GStreamer element."""
 
+import importlib
 import os
 import sys
 import unittest
@@ -42,7 +43,7 @@ try:
     # standalone from tests.
     Gst.init(None)
 
-    import proximity_trigger  # noqa: E402
+    proximity_trigger = importlib.import_module("proximity_trigger")
 
     _GST_AVAILABLE = True
 except (ImportError, ValueError):
