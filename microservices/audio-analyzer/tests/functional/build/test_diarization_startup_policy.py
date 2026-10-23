@@ -31,20 +31,20 @@ def _cfg(*, diarization_enabled: bool, hf_token: str | None):
 
 
 class EnsureModelDiarizationStartupPolicyTests(unittest.TestCase):
-    def test_ensure_model_fails_when_diarization_enabled_without_hf_token(self):
+    def test_provisioned_diarization_does_not_require_runtime_hf_token(self):
         cfg = _cfg(diarization_enabled=True, hf_token=None)
         with patch.object(ensure_model, "config", cfg), patch.object(
             ensure_model, "_download_openvino_model", return_value=(True, "/tmp/asr")
-        ):
-            with self.assertRaisesRegex(RuntimeError, "HF_TOKEN is not configured"):
-                ensure_model.ensure_model()
+        ), patch.object(ensure_model, "_get_diarization_snapshot", return_value="/tmp/diar"), \
+             patch.object(ensure_model, "_cache_diarization_dependencies_locally"):
+            ensure_model.ensure_model()
 
-    def test_ensure_model_propagates_downloader_access_error(self):
+    def test_ensure_model_propagates_missing_local_snapshot_error(self):
         cfg = _cfg(diarization_enabled=True, hf_token="hf_bad")
         with patch.object(ensure_model, "config", cfg), patch.object(
             ensure_model, "_download_openvino_model", return_value=(True, "/tmp/asr")
-        ), patch.object(ensure_model, "_download_hf_model", side_effect=RuntimeError("403 Forbidden")):
-            with self.assertRaisesRegex(RuntimeError, "403 Forbidden"):
+        ), patch.object(ensure_model, "_get_diarization_snapshot", side_effect=RuntimeError("Run provisioning job")):
+            with self.assertRaisesRegex(RuntimeError, "provisioning job"):
                 ensure_model.ensure_model()
 
     def test_ensure_model_allows_missing_hf_token_when_diarization_disabled(self):

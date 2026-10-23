@@ -1,31 +1,27 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-import os
+import json
 import tempfile
 import unittest
-import base64
 from pathlib import Path
 from unittest.mock import patch
 
 from utils import ensure_model
-from utils.model_download_client import get_model_from_service
+from utils.local_models import COMPLETION_FILE, get_local_model, model_directory
+from utils.provision_models import record_snapshot
 
 
 class SharedModelTests(unittest.TestCase):
-    def test_openai_whisper_is_not_a_model_download_hub(self):
-        with self.assertRaisesRegex(ValueError, "Unsupported model source"):
-            get_model_from_service("base", hub="openai-whisper")
-
     def test_openvino_exports_locally_downloaded_hf_snapshot(self):
         with tempfile.TemporaryDirectory() as base, \
              patch.object(ensure_model, "_whisper_ir_exists", side_effect=[False, True]), \
-             patch.object(ensure_model, "get_model_from_service", return_value="/shared/whisper") as fetch, \
+             patch.object(ensure_model, "get_local_model", return_value="/shared/whisper") as fetch, \
              patch.object(ensure_model, "run_cli", return_value=0) as run:
             success, _ = ensure_model._download_openvino_model("openai/whisper-base", base, None)
         self.assertTrue(success)
         fetch.assert_called_once_with(
-            "openai/whisper-base", hub="huggingface", download_path="whisper-source",
+            "openai/whisper-base", download_path="whisper-source",
             required_files=["config.json"],
         )
         self.assertEqual(run.call_args.kwargs["cmd"][run.call_args.kwargs["cmd"].index("--model") + 1], "/shared/whisper")
@@ -50,11 +46,11 @@ class SharedModelTests(unittest.TestCase):
     def test_whispercpp_uses_single_requested_file(self):
         with tempfile.TemporaryDirectory() as base, tempfile.TemporaryDirectory() as source:
             (Path(source) / "ggml-base.bin").write_bytes(b"weights")
-            with patch.object(ensure_model, "get_model_from_service", return_value=source) as fetch:
+            with patch.object(ensure_model, "get_local_model", return_value=source) as fetch:
                 self.assertTrue(ensure_model._download_whispercpp_model("whisper-base", base))
             fetch.assert_called_once_with(
-                "ggerganov/whisper.cpp", hub="huggingface", download_path="whisper-source",
-                files=["ggml-base.bin"], required_files=["ggml-base.bin"],
+                "ggerganov/whisper.cpp", download_path="whisper-source",
+                required_files=["ggml-base.bin"],
             )
             self.assertEqual((Path(base) / "ggml-base.bin").read_bytes(), b"weights")
 
@@ -74,51 +70,89 @@ class SharedModelTests(unittest.TestCase):
             self.assertEqual(download.call_args.args[1:], (base, False))
             self.assertEqual(Path(base, "base.pt").read_bytes(), b"weights")
 
-    def test_pyannote_download_is_delegated(self):
-        with patch.object(ensure_model, "get_model_from_service", return_value="/shared/diar") as fetch:
+    def test_pyannote_snapshot_is_local(self):
+        with patch.object(ensure_model, "get_local_model", return_value="/shared/diar") as fetch:
             self.assertEqual(
-                ensure_model._download_hf_model("pyannote/example", "/unused", required_files=["config.yaml"]),
-                (True, "/shared/diar"),
+                ensure_model._get_diarization_snapshot("pyannote/example", required_files=["config.yaml"]),
+                "/shared/diar",
             )
         fetch.assert_called_once_with(
-            "pyannote/example", hub="huggingface", download_path="diarization",
-            required_files=["config.yaml"], hf_token=None,
+            "pyannote/example", download_path="diarization",
+            required_files=["config.yaml"],
             models_base_path=ensure_model.config.models.diarization.models_base_path,
         )
 
-    def test_hf_request_requires_shared_files(self):
-        job_id = "e8f1892a-8c08-401f-a37a-d48957f206c1"
-        with tempfile.TemporaryDirectory() as base, \
-             patch.dict(os.environ, {"AUDIO_ANALYZER_MODEL_DOWNLOAD_URL": "http://model-downloader:8000"}), \
-             patch("utils.model_download_client.config.models.asr.models_base_path", base), \
-             patch("utils.model_download_client._request_json", side_effect=[
-                 {"job_ids": [job_id]},
-                 {"status": "completed", "result": {"source": "huggingface", "model_name": "pyannote/example"}},
-             ]):
-            with self.assertRaisesRegex(RuntimeError, "shared models volume"):
-                get_model_from_service(
-                    "pyannote/example", hub="huggingface", download_path="diarization",
-                    required_files=["config.yaml"],
+    def test_cached_export_does_not_need_a_downloader(self):
+        with patch.object(ensure_model, "_whisper_ir_exists", return_value=True), \
+             patch.object(ensure_model, "get_local_model") as fetch, \
+             tempfile.TemporaryDirectory() as base:
+            self.assertEqual(
+                ensure_model._download_openvino_model("openai/whisper-base", base, None),
+                (True, base),
+            )
+            fetch.assert_not_called()
+
+
+class LocalSnapshotTests(unittest.TestCase):
+    def test_valid_snapshot_loads_without_network(self):
+        with tempfile.TemporaryDirectory() as base:
+            directory = model_directory("funasr/example", "funasr", base)
+            directory.mkdir(parents=True)
+            (directory / "model.pt").write_bytes(b"weights")
+            record_snapshot("funasr/example", "commit", directory)
+            with patch("urllib.request.OpenerDirector.open", side_effect=AssertionError("network call")):
+                self.assertEqual(
+                    get_local_model("funasr/example", "commit", models_base_path=base, required_files=["model.pt"]),
+                    str(directory),
                 )
 
-    def test_gated_diarization_token_is_sent_as_request_override(self):
-        job_id = "e8f1892a-8c08-401f-a37a-d48957f206c1"
-        with tempfile.TemporaryDirectory() as base, \
-             patch.dict(os.environ, {"AUDIO_ANALYZER_MODEL_DOWNLOAD_URL": "http://model-downloader:8000"}), \
-             patch("utils.model_download_client.config.models.asr.models_base_path", base), \
-             patch("utils.model_download_client._request_json", side_effect=[
-                 {"job_ids": [job_id]},
-                 {"status": "failed", "error": "access denied"},
-             ]) as request:
-            with self.assertRaisesRegex(RuntimeError, "access denied"):
-                get_model_from_service(
-                    "pyannote/example", hub="huggingface", download_path="diarization",
-                    hf_token="hf_example",
-                )
-        self.assertEqual(
-            request.call_args_list[0].args[1]["models"][0]["override_credentials"],
-            {"HF_TOKEN": base64.b64encode(b"hf_example").decode("ascii")},
-        )
+    def test_missing_incomplete_or_wrong_revision_fails(self):
+        with tempfile.TemporaryDirectory() as base:
+            directory = model_directory("funasr/example", "funasr", base)
+            directory.mkdir(parents=True)
+            (directory / "model.pt").write_bytes(b"weights")
+            for metadata in (
+                None,
+                "{",
+                json.dumps({"model": "funasr/example", "revision": "old", "files": {"model.pt": 7}}),
+                json.dumps({"model": "funasr/example", "revision": "commit", "files": {}}),
+                json.dumps({"model": "other/model", "revision": "commit", "files": {"model.pt": 7}}),
+                json.dumps({"model": "funasr/example", "revision": "commit", "files": {"model.pt": 99}}),
+            ):
+                with self.subTest(metadata=metadata):
+                    if metadata is not None:
+                        (directory / COMPLETION_FILE).write_text(metadata)
+                    with self.assertRaisesRegex(RuntimeError, "provisioning job"):
+                        get_local_model("funasr/example", "commit", models_base_path=base, required_files=["model.pt"])
+
+    def test_deleted_or_empty_required_file_fails(self):
+        with tempfile.TemporaryDirectory() as base:
+            directory = model_directory("funasr/example", "funasr", base)
+            directory.mkdir(parents=True)
+            (directory / "model.pt").write_bytes(b"weights")
+            record_snapshot("funasr/example", None, directory)
+            (directory / "model.pt").unlink()
+            with self.assertRaisesRegex(RuntimeError, "provisioning job"):
+                get_local_model("funasr/example", models_base_path=base)
+            (directory / "model.pt").touch()
+            record_snapshot("funasr/example", None, directory)
+            with self.assertRaisesRegex(RuntimeError, "provisioning job"):
+                get_local_model("funasr/example", models_base_path=base, required_files=["model.pt"])
+
+    def test_inventory_cannot_reference_files_outside_snapshot(self):
+        with tempfile.TemporaryDirectory() as base:
+            directory = model_directory("funasr/example", "funasr", base)
+            directory.mkdir(parents=True)
+            (directory / COMPLETION_FILE).write_text(json.dumps({
+                "model": "funasr/example", "revision": None, "files": {"../../outside": 1},
+            }))
+            with self.assertRaisesRegex(RuntimeError, "provisioning job"):
+                get_local_model("funasr/example", models_base_path=base)
+
+    def test_invalid_identifiers_and_destinations_are_rejected(self):
+        for model, destination in (("../escape", "funasr"), ("funasr/model", "../escape")):
+            with self.subTest(model=model, destination=destination), self.assertRaises(ValueError):
+                model_directory(model, destination, "models")
 
 
 if __name__ == "__main__":

@@ -59,7 +59,8 @@ WORKDIR /opt
 
 COPY docker/entrypoint.sh /opt/entrypoint.sh
 
-RUN chown -R appuser:appuser /opt && \
+RUN mkdir -p /opt/models && \
+    chown -R appuser:appuser /opt && \
     chmod +x /opt/entrypoint.sh && \
     chown -R appuser:appuser /usr/local
 

@@ -13,15 +13,13 @@ import re
 
 from components.asr.base_asr import BaseASR
 from utils.config_loader import config
-from utils.model_download_client import get_model_from_service
+from utils.local_models import (
+    FUNASR_MODEL_MAP,
+    FUNASR_MODEL_REVISIONS,
+    get_local_model,
+)
 
 logger = logging.getLogger(__name__)
-
-FUNASR_MODEL_MAP = {
-    "paraformer-zh": "funasr/paraformer-zh",
-    "paraformer-en": "funasr/paraformer-en",
-    "paraformer-online": "funasr/paraformer-zh-streaming",
-}
 
 # Language advertised in the transcription response, inferred from the model.
 _MODEL_LANGUAGE = {
@@ -38,13 +36,7 @@ VAD_MODEL = str(getattr(config.models.asr, "vad_model", None)
 PUNC_MODEL = str(getattr(config.models.asr, "punc_model", None)
                  or "funasr/ct-punc")
 
-_MODEL_REVISIONS = {
-    "funasr/paraformer-zh": "d7811ee3ac581fbcfdeb37c98c6ba674028433dc",
-    "funasr/paraformer-en": "2bad1d78c117f38172165dccbc4575df6277ee0a",
-    "funasr/paraformer-zh-streaming": "fd2af606b37d7fb8b3b8a218c5be5b07b53ef6ba",
-    "funasr/fsmn-vad": "df20e6b30c653645fa4ff125cacfcabd1020a669",
-    "funasr/ct-punc": "d0e55e2b8722a78b63705ff443d09c4f86e5d750",
-}
+_MODEL_REVISIONS = FUNASR_MODEL_REVISIONS
 
 
 def _is_empty_input_error(msg: str) -> bool:
@@ -76,16 +68,16 @@ class Paraformer(BaseASR):
         repo_id = FUNASR_MODEL_MAP[model_name]
         revision = revision or _MODEL_REVISIONS[repo_id]
         required_files = ["config.yaml", "model.pt"]
-        model_dir = get_model_from_service(
-            repo_id, revision, hub="huggingface", required_files=required_files,
+        model_dir = get_local_model(
+            repo_id, revision, required_files=required_files,
         )
-        vad_model_dir = get_model_from_service(
+        vad_model_dir = get_local_model(
             VAD_MODEL, _MODEL_REVISIONS.get(VAD_MODEL),
-            hub="huggingface", required_files=required_files,
+            required_files=required_files,
         )
-        punc_model_dir = get_model_from_service(
+        punc_model_dir = get_local_model(
             PUNC_MODEL, _MODEL_REVISIONS.get(PUNC_MODEL),
-            hub="huggingface", required_files=required_files,
+            required_files=required_files,
         )
 
         logger.info("Loading FunASR Paraformer model=%s on device=%s (hub=huggingface)", repo_id, device)

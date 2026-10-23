@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 set -e
 
 # Make downloaded artifacts group-writable (dirs 0775, files 0664) so the
@@ -458,6 +461,13 @@ fi
 if [ "$EPHEMERAL_MODE" = true ]; then
     print_header "Running in Ephemeral Mode"
     print_info "Executing one-shot download/conversion..."
+    if [ "${EPHEMERAL_ARGS[0]:-}" = "--command" ]; then
+        if [ "${#EPHEMERAL_ARGS[@]}" -lt 2 ]; then
+            print_error "--ephemeral --command requires a command"
+            exit 1
+        fi
+        exec "${EPHEMERAL_ARGS[@]:1}"
+    fi
     exec /opt/scripts/get_model.sh --internal "${EPHEMERAL_ARGS[@]}"
 elif [ "$START_SERVICE" = true ]; then
     if [ "$MCP_MODE" = true ]; then

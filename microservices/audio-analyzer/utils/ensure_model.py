@@ -1,9 +1,12 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import logging, os, sys, shutil
 import yaml
 from typing import Tuple
 from utils.config_loader import config
 from utils.cli_utils import run_cli
-from utils.model_download_client import get_model_from_service
+from utils.local_models import get_local_model
 logger = logging.getLogger(__name__)
 
 HF_PYTORCH_WEIGHTS_NAME = "pytorch_model.bin"
@@ -31,33 +34,28 @@ def _resolve_hf_token() -> str | None:
     return env_token if env_token else None
 
 
-def _download_hf_model(
+def _get_diarization_snapshot(
     model_name: str,
-    output_dir: str,
-    hf_token: str = None,
-    force: bool = False,
     required_files: list[str] | None = None,
-) -> Tuple[bool, str]:
-    """Request a Hugging Face snapshot through model-download, not this process."""
-    path = get_model_from_service(
-        model_name, hub="huggingface", download_path="diarization",
-        required_files=required_files, hf_token=hf_token,
+) -> str:
+    """Resolve a snapshot prepared by the one-shot downloader."""
+    return get_local_model(
+        model_name, download_path="diarization",
+        required_files=required_files,
         models_base_path=config.models.diarization.models_base_path,
     )
-    return True, path
 
 
-def _cache_diarization_dependencies_locally(pipeline_dir: str, hf_token: str = None) -> None:
-    """Rewrite pyannote pipeline config.yaml so all sub-model refs point to local paths."""
+def _cache_diarization_dependencies_locally(pipeline_dir: str) -> None:
+    """Write a local pipeline config without modifying the provisioned snapshot."""
     config_path = os.path.join(pipeline_dir, "config.yaml")
     if not os.path.exists(config_path):
-        return
+        raise FileNotFoundError(f"Provisioned diarization configuration is missing: {config_path}")
 
     with open(config_path, "r", encoding="utf-8") as fh:
         pipeline_cfg = yaml.safe_load(fh) or {}
 
     pipeline_params = pipeline_cfg.get("pipeline", {}).get("params", {})
-    changed = False
 
     for key in ("segmentation", "embedding", "plda"):
         model_ref = pipeline_params.get(key)
@@ -75,31 +73,25 @@ def _cache_diarization_dependencies_locally(pipeline_dir: str, hf_token: str = N
             local_checkpoint = os.path.join(sub_dir, HF_PYTORCH_WEIGHTS_NAME)
             if os.path.exists(local_checkpoint):
                 pipeline_params[key] = local_checkpoint
-                changed = True
             elif os.path.isdir(sub_dir):
                 pipeline_params[key] = sub_dir
-                changed = True
             else:
                 raise RuntimeError(f"Bundled diarization model is missing: {sub_dir}")
             continue
 
         # Standalone HF sub-model (pyannote 3.x style)
-        success, dep_dir = _download_hf_model(
-            model_ref, "", hf_token=hf_token,
+        dep_dir = _get_diarization_snapshot(
+            model_ref,
             required_files=[HF_PYTORCH_WEIGHTS_NAME, "config.yaml"],
         )
-        if not success:
-            raise RuntimeError(f"Diarization dependency download failed: {model_ref}")
         checkpoint = os.path.join(dep_dir, HF_PYTORCH_WEIGHTS_NAME)
         if os.path.exists(checkpoint):
             pipeline_params[key] = checkpoint
-            changed = True
         else:
             raise RuntimeError(f"Diarization dependency weights missing: {checkpoint}")
 
-    if changed:
-        with open(config_path, "w", encoding="utf-8") as fh:
-            yaml.safe_dump(pipeline_cfg, fh, sort_keys=False)
+    with open(os.path.join(pipeline_dir, "config.local.yaml"), "w", encoding="utf-8") as fh:
+        yaml.safe_dump(pipeline_cfg, fh, sort_keys=False)
 
 
 def get_diarization_model_path() -> str:
@@ -241,8 +233,8 @@ def _download_openvino_model(
     # whose Scripts dir happens to be on PATH) and export with the wrong package
     # set, producing no IR. sys.executable guarantees this venv's optimum.
     source_dir = (
-        get_model_from_service(
-            model_name, hub="huggingface", download_path="whisper-source",
+        get_local_model(
+            model_name, download_path="whisper-source",
             required_files=["config.json"],
         )
         if is_whisper else model_name
@@ -276,9 +268,9 @@ def _download_whispercpp_model(model_name: str, output_dir: str, weight_format: 
         logger.info(f"⚡ Using cached whisper.cpp model at {dest}")
         return True
 
-    source = get_model_from_service(
-        "ggerganov/whisper.cpp", hub="huggingface", download_path="whisper-source",
-        files=[filename], required_files=[filename],
+    source = get_local_model(
+        "ggerganov/whisper.cpp", download_path="whisper-source",
+        required_files=[filename],
     )
     os.makedirs(output_dir, exist_ok=True)
     shutil.copyfile(os.path.join(source, filename), dest)
@@ -403,23 +395,12 @@ def ensure_model():
     if getattr(config.models.asr, "diarization", False):
         diar_cfg = getattr(config.models, "diarization", None)
         if diar_cfg and getattr(diar_cfg, "provider", None) == "huggingface":
-            hf_token = _resolve_hf_token()
-            if not hf_token:
-                raise RuntimeError("HF_TOKEN is not configured for gated pyannote diarization")
             output_dir = get_diarization_model_path()
-            success, _ = _download_hf_model(
+            _get_diarization_snapshot(
                 diar_cfg.name,
-                output_dir,
-                hf_token=hf_token,
                 required_files=["config.yaml"],
             )
-            if not success:
-                raise RuntimeError(
-                    "Speaker diarization is enabled but pyannote model download/initialization failed. "
-                    "Verify HF_TOKEN permissions and network connectivity, then retry."
-                )
-            if success:
-                _cache_diarization_dependencies_locally(output_dir, hf_token=hf_token)
+            _cache_diarization_dependencies_locally(output_dir)
 
     # Sentiment model download (if enabled)
     sent_cfg = getattr(config, "sentiment", None)

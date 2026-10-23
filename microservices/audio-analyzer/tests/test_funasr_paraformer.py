@@ -6,72 +6,10 @@ These assert the provider is genuinely opt-in: the module imports cleanly
 without ``funasr`` installed, and the instantiation guards raise actionable
 errors. This protects existing Whisper/OpenVINO consumers.
 """
-import os
 import sys
-import tempfile
 import types
 import unittest
-from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-
-JOB_ID = "e8f1892a-8c08-401f-a37a-d48957f206c1"
-
-
-class ModelDownloadClientTests(unittest.TestCase):
-    def test_requests_huggingface_and_loads_shared_snapshot(self):
-        from utils.model_download_client import get_model_from_service
-
-        with tempfile.TemporaryDirectory() as base:
-            model_dir = Path(base) / "funasr" / "huggingface" / "funasr_paraformer-zh"
-            model_dir.mkdir(parents=True)
-            (model_dir / "configuration.json").write_text("{}", encoding="utf-8")
-            with patch.dict(os.environ, {"AUDIO_ANALYZER_MODEL_DOWNLOAD_URL": "http://model-downloader:8000"}), \
-                 patch("utils.model_download_client.config.models.asr.models_base_path", base), \
-                 patch("utils.model_download_client._request_json", side_effect=[
-                     {"job_ids": [JOB_ID]},
-                     {"status": "completed", "result": {"source": "huggingface", "model_name": "funasr/paraformer-zh"}},
-                 ]) as request:
-                self.assertEqual(get_model_from_service("funasr/paraformer-zh", "commit"), str(model_dir))
-            self.assertIn("download_path=funasr", request.call_args_list[0].args[0])
-            self.assertEqual(
-                request.call_args_list[0].args[1],
-                {"models": [{"name": "funasr/paraformer-zh", "hub": "huggingface", "revision": "commit"}]},
-            )
-
-    def test_fails_without_service_or_shared_snapshot(self):
-        from utils.model_download_client import get_model_from_service
-
-        with patch.dict(os.environ, {"AUDIO_ANALYZER_MODEL_DOWNLOAD_URL": ""}):
-            with self.assertRaisesRegex(RuntimeError, "AUDIO_ANALYZER_MODEL_DOWNLOAD_URL"):
-                get_model_from_service("iic/example", "v2.0.4")
-        with tempfile.TemporaryDirectory() as base, \
-             patch.dict(os.environ, {"AUDIO_ANALYZER_MODEL_DOWNLOAD_URL": "http://model-downloader:8000"}), \
-             patch("utils.model_download_client.config.models.asr.models_base_path", base), \
-             patch("utils.model_download_client._request_json", side_effect=[
-                 {"job_ids": [JOB_ID]},
-                 {"status": "completed", "result": {"source": "huggingface", "model_name": "funasr/paraformer-zh"}},
-             ]):
-            with self.assertRaisesRegex(RuntimeError, "shared models volume"):
-                get_model_from_service("funasr/paraformer-zh", "commit")
-
-    def test_rejects_removed_modelscope_hub(self):
-        from utils.model_download_client import get_model_from_service
-
-        with self.assertRaisesRegex(ValueError, "Unsupported model source"):
-            get_model_from_service("funasr/paraformer-zh", hub="modelscope")
-
-    def test_rejects_bad_model_id_and_failed_job(self):
-        from utils.model_download_client import get_model_from_service
-
-        with self.assertRaises(ValueError):
-            get_model_from_service("../escape", "v2.0.4")
-        with patch.dict(os.environ, {"AUDIO_ANALYZER_MODEL_DOWNLOAD_URL": "http://model-downloader:8000"}), \
-             patch("utils.model_download_client._request_json", side_effect=[
-                 {"job_ids": [JOB_ID]}, {"status": "failed", "error": "not found"}
-             ]):
-            with self.assertRaisesRegex(RuntimeError, "not found"):
-                get_model_from_service("iic/example", "v2.0.4")
 
 
 class ParaformerProviderTests(unittest.TestCase):
@@ -113,13 +51,13 @@ class ParaformerProviderTests(unittest.TestCase):
         self.assertEqual(pf._MODEL_LANGUAGE["paraformer-zh"], "zh")
         self.assertEqual(pf._MODEL_LANGUAGE["paraformer-en"], "en")
 
-    def test_uses_model_download_service_for_all_three_snapshots(self):
+    def test_loads_all_three_provisioned_snapshots_locally(self):
         import components.asr.funasr.paraformer as pf
 
         fake_funasr = types.ModuleType("funasr")
         fake_funasr.AutoModel = MagicMock()
         with patch.dict(sys.modules, {"funasr": fake_funasr}), \
-             patch.object(pf, "get_model_from_service", side_effect=["asr", "vad", "punc"]) as download:
+             patch.object(pf, "get_local_model", side_effect=["asr", "vad", "punc"]) as download:
             pf.Paraformer("paraformer-zh")
         self.assertEqual(download.call_count, 3)
         self.assertEqual(download.call_args_list[0].args, ("funasr/paraformer-zh", pf._MODEL_REVISIONS["funasr/paraformer-zh"]))
@@ -127,7 +65,7 @@ class ParaformerProviderTests(unittest.TestCase):
         self.assertEqual(download.call_args_list[2].args, ("funasr/ct-punc", pf._MODEL_REVISIONS["funasr/ct-punc"]))
         for call in download.call_args_list:
             self.assertEqual(call.kwargs, {
-                "hub": "huggingface", "required_files": ["config.yaml", "model.pt"],
+                "required_files": ["config.yaml", "model.pt"],
             })
         fake_funasr.AutoModel.assert_called_once_with(
             model="asr", vad_model="vad", punc_model="punc",
@@ -140,7 +78,7 @@ class ParaformerProviderTests(unittest.TestCase):
         fake_funasr = types.ModuleType("funasr")
         fake_funasr.AutoModel = MagicMock()
         with patch.dict(sys.modules, {"funasr": fake_funasr}), \
-             patch.object(pf, "get_model_from_service", return_value="local") as download:
+             patch.object(pf, "get_local_model", return_value="local") as download:
             pf.Paraformer("paraformer-zh", revision="custom-commit")
         self.assertEqual(download.call_args_list[0].args[1], "custom-commit")
         self.assertEqual(download.call_args_list[1].args[1], pf._MODEL_REVISIONS[pf.VAD_MODEL])
@@ -154,7 +92,7 @@ class ParaformerProviderTests(unittest.TestCase):
         with patch.dict(sys.modules, {"funasr": fake_funasr}), \
              patch.object(pf, "VAD_MODEL", "custom/vad"), \
              patch.object(pf, "PUNC_MODEL", "custom/punc"), \
-             patch.object(pf, "get_model_from_service", return_value="local") as download:
+             patch.object(pf, "get_local_model", return_value="local") as download:
             pf.Paraformer("paraformer-zh")
         self.assertEqual(download.call_args_list[1].args, ("custom/vad", None))
         self.assertEqual(download.call_args_list[2].args, ("custom/punc", None))
