@@ -117,7 +117,9 @@
     edge-ai-libraries for the full parameter reference per hub. Other
     exporters ignore the options that don't apply to them and say so
     (`--model-precision` also applies to the default `docker-pull`
-    exporter; `--model-revision` also to `hf-snapshot`).
+    and the `export-model-py` exporters, except for pre-converted
+    `OpenVINO/*` models, which are already quantized;
+    `--model-revision` also to `hf-snapshot`).
   - `hf-snapshot` — a plain `huggingface_hub.snapshot_download` in a host
     Python venv, no `optimum-cli` conversion step at all. For HF repos
     already published as ready-to-serve OpenVINO IR + an OVMS MediaPipe

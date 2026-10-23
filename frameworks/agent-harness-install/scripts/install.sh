@@ -53,7 +53,7 @@ usage() {
                                        (sets HARNESS_MODEL_CONFIG_JSON)
     --model-revision <rev>             Branch, tag or commit (model-download and hf-snapshot exporters)
     --model-type <type>                Model type, e.g. llm (model-download exporter; hls needs 3d-pose|rppg|ai-ecg)
-    --model-precision <int4|int8|fp16|fp32>  Weight precision (default: int8; model-download and docker-pull exporters)
+    --model-precision <int4|int8|fp16|fp32>  Weight precision (default: int8; model-download, docker-pull and export-model-py exporters)
     --model-device <CPU|GPU|NPU|HETERO:…>    Conversion target device (model-download exporter; default: CPU)
     --help, -h                        Show this help message and exit
 
