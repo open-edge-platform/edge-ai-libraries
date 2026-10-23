@@ -161,6 +161,58 @@ flowchart TD
     class HOST host
 ```
 
+### OpenShell sandbox runtime
+
+For OpenShell, the agent runs in its own non-root sandbox. The attached
+inference provider grants access to IR; managed IR-to-OVMS traffic stays on a
+private Docker network. Agent UI access is forwarded privately on demand.
+See the [Agent Sandboxing guide](docs/agentic-ai-security/agent-sandboxing.md)
+for setup and security details.
+
+```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 420, "nodeSpacing": 40, "rankSpacing": 60, "curve": "basis"}}}%%
+flowchart TD
+    classDef host fill:#EAF3FB,stroke:#0068B5,color:#0A2A43
+    classDef box fill:#FFFFFF,stroke:#0068B5,color:#0A2A43
+    classDef agent fill:#EAF7EE,stroke:#2E7D32,color:#123D17
+    classDef store fill:#FFF6DD,stroke:#B38600,color:#4A3900
+    classDef ext fill:#F3F3F3,stroke:#777777,color:#222222,stroke-dasharray:4 3
+
+    USER["User workstation<br/>OpenShell CLI or privately forwarded UI"]:::ext
+
+    subgraph HOST["Linux host"]
+        direction TB
+        subgraph SANDBOX["OpenShell sandbox: non-root agent"]
+            direction TB
+            AGENT["OpenClaw or Hermes"]:::agent
+            TOOLS["Agent tools and workspace<br/>sandbox filesystem policy"]:::box
+            AGENT --> TOOLS
+        end
+        GATEWAY["OpenShell gateway<br/>lifecycle and policy control"]:::box
+
+        subgraph INFERENCE["Shared inference: host loopback"]
+            direction LR
+            IR["Inference Router<br/>127.0.0.1:8010"]:::box
+            subgraph BACKEND["Private Docker network"]
+                direction LR
+                OVMS["OpenVINO Model Server"]:::box
+                MODEL[("Selected model<br/>GPU when available")]:::store
+                OVMS --> MODEL
+            end
+            IR --> OVMS
+        end
+    end
+
+    EXTERNAL["External inference endpoint<br/>optional route configured on IR"]:::ext
+    EGRESS["Web search, browsing, MCP<br/>additional policy required"]:::ext
+
+    USER -->|"OpenShell connect or UI tunnel"| AGENT
+    GATEWAY -. "creates and controls" .-> SANDBOX
+    AGENT -->|"Attached provider<br/>host.openshell.internal:8010/v1"| IR
+    IR -. "when externally configured" .-> EXTERNAL
+    AGENT -. "not allowed by default" .-> EGRESS
+```
+
 ## Documentation
 
 - [Get Started](docs/user-guide/get-started.md): install flow, usage and

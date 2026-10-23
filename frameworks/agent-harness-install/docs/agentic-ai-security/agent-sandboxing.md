@@ -20,20 +20,52 @@ grant only the access needed for a task.
 
 ## Architecture and security boundaries
 
-```text
-Interactive client
-       |
-       v
-OpenShell sandbox: OpenClaw or Hermes (non-root)
-       |
-       | Attached inference provider
-       | http://host.openshell.internal:8010/v1
-       v
-Shared Inference Router (host loopback publication)
-       |
-       | Private Docker backend network
-       v
-Managed OVMS -> selected model (GPU when available)
+```mermaid
+flowchart LR
+    classDef client fill:#F3F3F3,stroke:#777,color:#222
+    classDef sandbox fill:#EAF7EE,stroke:#2E7D32,color:#123D17
+    classDef service fill:#EAF3FB,stroke:#0068B5,color:#0A2A43
+    classDef store fill:#FFF6DD,stroke:#B38600,color:#4A3900
+    classDef boundary fill:#FFF6DD,stroke:#B38600,color:#4A3900,stroke-dasharray:5 5
+
+    USER["User workstation<br/>CLI or browser"]:::client
+    FORWARD["OpenShell forwarding<br/>and SSH tunnel<br/>loopback only"]:::client
+
+    subgraph HOST["Linux host"]
+        direction LR
+        GATEWAY["OpenShell local gateway<br/>sandbox lifecycle and policy"]:::service
+
+        subgraph BOX["OpenShell sandbox · non-root"]
+            direction TB
+            AGENT["OpenClaw or Hermes"]:::sandbox
+            TOOLS["Agent tools and workspace<br/>sandbox filesystem policy"]:::sandbox
+            AGENT --> TOOLS
+        end
+
+        subgraph INFERENCE["Shared inference · host loopback publication"]
+            direction LR
+            IR["Inference Router<br/>127.0.0.1:8010"]:::service
+            subgraph BACKEND["Private Docker backend network"]
+                direction LR
+                OVMS["OpenVINO Model Server"]:::service
+                MODEL[("Selected model<br/>GPU when available")]:::store
+                OVMS --> MODEL
+            end
+            IR --> OVMS
+        end
+
+        EXT["Optional external inference endpoint<br/>configured on IR"]:::client
+        IR -. "when externally configured" .-> EXT
+    end
+
+    USER -->|"OpenShell CLI"| AGENT
+    USER -->|"OpenClaw UI or Hermes dashboard<br/>on-demand, forwarded privately"| FORWARD
+    FORWARD --> AGENT
+    GATEWAY -. "creates and controls sandbox" .-> BOX
+    AGENT -->|"Attached provider<br/>host.openshell.internal:8010/v1"| IR
+
+    WEB["Web search, external browsing,<br/>MCP and messaging services"]:::boundary
+    AGENT -. "not permitted by default;<br/>requires additional policy" .-> WEB
 ```
 
 Each agent has an independently owned profile under
