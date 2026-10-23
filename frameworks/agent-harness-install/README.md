@@ -54,14 +54,35 @@ weights. No external OVMS container or local model-directory import is used.
 Explicit `--model`, exporter and hub choices remain supported; host-mode model
 selection is unchanged.
 
-Repeated installs preserve the sandbox data and model choice. Selection resolves
-from explicit model settings, the existing agent profile, the saved shared model,
-then the existing OVMS registry before applying the fresh-install Qwen default.
-The shared served model is saved as `~/.agent-harness-install/openshell-model`.
-Existing shared IR/OVMS containers are validated (exact model, readiness, private
-network and loopback publication), never implicitly retargeted or replaced.
-Incomplete inference deployments fail with a repair command rather than being
-treated as fresh installations.
+Repeated installs without `--model` reuse the saved shared model and preserve
+sandbox data. The full source ID, hub, exporter, revision and conversion options
+are saved in `~/.agent-harness-install/openshell-model-source.json`; the served ID
+is also recorded in `openshell-model`. Older installations fall back to their
+shared selection, agent profile or OVMS registry before the fresh-install default.
+
+An explicit new `--model` checks the normal exporter cache, downloads/converts
+when needed, reconfigures OVMS/IR, and synchronizes **both installed agents**.
+Changing shared inference can interrupt active turns: finish those turns first.
+The installer preserves sandbox identities, gateway tokens, history and workspace.
+It writes a durable selection inside each sandbox, restarts it without deletion,
+and updates its host profile only after the restart/model check succeeds.
+The durable selection takes precedence over the original sandbox creation
+environment, so OpenClaw and Hermes keep the new model on later stop/start.
+
+An interrupted switch leaves `openshell-model-pending.json`; rerun the install
+without `--model` to resume that exact target before requesting another model.
+This is recoverable sequencing, not an atomic all-service transaction: a failed
+switch may temporarily leave inference or an agent unavailable. Old downloaded
+models remain cached until full uninstall.
+Only the selected model remains registered for serving in managed OpenShell
+mode, avoiding simultaneous loading of previous large models into GPU memory.
+Existing images predating restart-safe startup fail preflight before inference
+is modified. They require a backed-up image migration; the installer never
+deletes/recreates a legacy sandbox to change its model.
+
+IR/OVMS are validated for the exact model, readiness, private network and
+loopback publication. A no-model rerun does not silently replace an existing
+route; incomplete deployments require an explicit model selection to repair.
 
 To prepare or explicitly reconfigure shared inference separately:
 
@@ -105,21 +126,29 @@ MCP, package downloads, messaging, and other egress need explicit additional
 policy. Landlock uses OpenShell's `best_effort` compatibility setting; this is
 not a claim that every host supports the same filesystem isolation guarantees.
 
-To remove only the selected sandbox:
+To uninstall the complete installer-owned OpenShell deployment and data:
 
 ```bash
-./uninstall.sh --runtime openshell --harness openclaw --yes
+./uninstall.sh --runtime openshell --yes
 ```
 
-Back up sandbox data first. OpenShell's sandbox deletion semantics apply to its
-home/workspace. Shared inference, host agents and the OpenShell CLI/gateway are
-not removed. Completed ownership records are retained as `removed-profile.json` for audit.
-Host uninstall refuses to remove shared state while active OpenShell profiles exist.
-For complete installer-owned data removal, remove each installed sandbox first,
-then run `./uninstall.sh --runtime host --delete-models --yes`. This removes
-shared IR/OVMS, exported model data and the saved model selection. Omitting
-`--delete-models` retains model downloads by design. Repeated **install** does
-not perform this cleanup. Unrelated containers and deployments are not adopted.
+Back up needed data first. This deletes both owned sandboxes and their native
+home/workspace, shared IR/OVMS, downloaded models and installer state. It also
+stops/removes the local OpenShell gateway, purges its CLI package and deletes its
+user state **when this deployment installed OpenShell**, as recorded by
+`openshell-owned`. Pre-existing OpenShell installations are not adopted; unrelated
+gateways/resources block removal of an owned shared runtime. Docker/Node/system
+prerequisites and shared image caches are not uninstalled.
+
+To remove only one sandbox while retaining shared services (also used by CI):
+
+```bash
+./uninstall.sh --runtime openshell --sandbox-only --harness openclaw --yes
+```
+
+Only this scoped mode retains the removed profile for audit. `--keep-models`
+explicitly retains downloads during full uninstall; deletion is otherwise the
+default (`--delete-models` remains accepted for compatibility).
 
 Onboarding checks inference connectivity, **not** agentic correctness. Tool-use
 acceptance requires independently verifying generated files/content. The

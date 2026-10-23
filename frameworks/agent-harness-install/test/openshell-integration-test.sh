@@ -33,7 +33,7 @@ cleanup_resources() {
   local agent result=0
   for agent in openclaw hermes; do
     if [[ -f "$HOME/$HARNESS_STATE_DIRNAME/openshell/$agent/profile.json" ]]; then
-      timeout 180 bash "$SCRIPT_DIR/uninstall.sh" --runtime openshell --harness "$agent" --yes < /dev/null \
+      timeout 180 bash "$SCRIPT_DIR/uninstall.sh" --runtime openshell --sandbox-only --harness "$agent" --yes < /dev/null \
         || result=1
     fi
   done
@@ -113,7 +113,7 @@ preflight() {
 install_agent() {
   local agent="$1"
   timeout 1800 bash "$SCRIPT_DIR/install.sh" --runtime openshell --harness "$agent" \
-    --model "$HARNESS_LLM_MODEL" --non-interactive < /dev/null
+    --non-interactive < /dev/null
   wait_phase "$(profile_name "$agent")" Ready
 }
 status_agent() {
@@ -129,7 +129,7 @@ model_change_rejected() {
   expect_failure 'refusing to change it implicitly|does not serve model|Shared inference is unavailable' \
     env HARNESS_LLM_MODEL=agent-harness-ci-unserved-model \
     timeout 60 bash "$SCRIPT_DIR/install.sh" --runtime openshell --harness "$1" \
-      --model agent-harness-ci-unserved-model --non-interactive
+      --non-interactive
 }
 sandbox_boundaries() {
   local agent="$1" result rc
@@ -181,7 +181,7 @@ restart_persistence() {
 remove_agent() {
   local agent="$1" name
   name="$(profile_name "$agent")"
-  timeout 180 bash "$SCRIPT_DIR/uninstall.sh" --runtime openshell --harness "$agent" --yes < /dev/null
+  timeout 180 bash "$SCRIPT_DIR/uninstall.sh" --runtime openshell --sandbox-only --harness "$agent" --yes < /dev/null
   [[ ! -f "$HOME/$HARNESS_STATE_DIRNAME/openshell/$agent/profile.json" ]]
   [[ -f "$HOME/$HARNESS_STATE_DIRNAME/openshell/$agent/removed-profile.json" ]]
   for kind in sandbox provider; do
@@ -211,8 +211,8 @@ for agent in openclaw hermes; do
   gate "$agent non-root workspace and network boundaries" sandbox_boundaries "$agent"
   gate "$agent stop/start retains config, workspace and inference" restart_persistence "$agent"
 done
-gate 'host uninstall blocked while sandbox profiles are active' expect_failure 'OpenShell profile records exist' \
-  timeout 30 bash "$SCRIPT_DIR/uninstall.sh" --runtime host --yes
+gate 'complete uninstall requires explicit consent' expect_failure 'confirmation requires a TTY|Uninstall cancelled' \
+  timeout 30 bash "$SCRIPT_DIR/uninstall.sh" --runtime host < /dev/null
 for agent in openclaw hermes; do
   gate "$agent owned uninstall removes sandbox and provider" remove_agent "$agent"
 done

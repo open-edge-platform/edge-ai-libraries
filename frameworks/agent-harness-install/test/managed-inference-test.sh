@@ -24,6 +24,8 @@ fixture() {
   HARNESS_MODEL_HUB=openvino
   HARNESS_MODEL_HUB_WAS_SET=""
   HARNESS_MODEL_OPTS_GIVEN=""
+  HARNESS_MODEL_CONFIG_JSON=""
+  OPENSHELL_MODEL_REQUESTED=""
   HARNESS_BIND_HOST=127.0.0.1
   CONTAINERS=""
   ACTIONS="$HOME/actions"
@@ -123,7 +125,7 @@ profile_model() {
     '{"owner":"0123456789abcdef0123456789abcdef","name":"ahi-0123456789ab","gateway":"openshell","agent":"openclaw","model":"profile-model"}'
   atomic_write_file "$(harness_state_root)/openshell-model" other-model
   openshell_apply_model_defaults
-  [[ "$HARNESS_LLM_MODEL" == profile-model ]]
+  [[ "$HARNESS_LLM_MODEL" == other-model ]]
 }
 mock_provisioning() {
   docker() { printf '%s\n' "$CONTAINERS"; }
@@ -170,7 +172,9 @@ cli_mismatch() {
     [[ "$HARNESS_LLM_MODEL" == old-model ]] || error "model mismatch"
   }
   expect_failure 'model mismatch' main --runtime openshell --non-interactive
-  cmp "$ACTIONS" <(printf 'prepare\n')
+  grep -q '^provision org/new-model' "$ACTIONS"
+  [[ -f "$(harness_state_root)/openshell-model-pending.json" ]]
+  [[ ! -f "$(harness_state_root)/openshell-model-source.json" ]]
 }
 cli_host() {
   fixture
@@ -211,6 +215,7 @@ partial_provisioning() {
   mock_provisioning
   CONTAINERS="$HARNESS_OVMS_CONTAINER"
   openshell_apply_model_defaults
+  OPENSHELL_MODEL_REQUESTED=""
   expect_failure 'Shared inference is incomplete' openshell_ensure_shared_inference
   [[ ! -s "$ACTIONS" ]]
 }
@@ -379,7 +384,7 @@ run_case 'shared model selection survives repeated installs' saved_model
 run_case 'explicit model overrides saved shared selection' saved_override
 run_case 'invalid saved model fails explicitly' invalid_saved
 run_case 'symlinked saved model is rejected' symlink_saved
-run_case 'existing agent profile takes precedence over shared selection' profile_model
+run_case 'shared model selection takes precedence over an older agent profile' profile_model
 run_case 'fresh provisioning persists model and rerun does not reprovision' fresh_provisioning
 run_case 'existing shared inference is validated without replacement' existing_provisioning
 run_case 'partial inference deployment requires explicit repair' partial_provisioning
@@ -399,6 +404,6 @@ run_case 'graph-generation failure preserves downloaded Qwen weights and fails e
 run_case 'graph-generation success without a graph is rejected' snapshot_download no-graph
 run_case 'full CLI provisions inference before sandbox and preserves it on rerun' cli_install
 run_case 'inference CLI uses Qwen default without installing an agent' cli_inference
-run_case 'full CLI refuses an explicit model mismatch without retargeting IR' cli_mismatch
+run_case 'full CLI retains pending transition when selected model fails readiness validation' cli_mismatch
 run_case 'host CLI retains existing installation flow and exporter' cli_host
 finish_tests

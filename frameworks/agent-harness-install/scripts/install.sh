@@ -412,7 +412,7 @@ main() {
         HARNESS_RUNTIME="$2"; shift ;;
       --model)
         [[ -n "${2:-}" ]] || { usage; error "--model requires a value (the model name as its hub names it, e.g. a Hugging Face id)."; }
-        HARNESS_HF_MODEL="$2"; shift ;;
+        HARNESS_HF_MODEL="$2"; HARNESS_LLM_MODEL=""; shift ;;
       --model-hub)
         [[ -n "${2:-}" ]] || { usage; error "--model-hub requires a value (e.g. openvino, huggingface, ollama)."; }
         HARNESS_MODEL_HUB="$2"; HARNESS_MODEL_HUB_WAS_SET=1; shift ;;
@@ -496,10 +496,13 @@ main() {
 
   printf "\n${C_GREEN}${C_BOLD}agent-harness-install${C_RESET}\n\n"
 
-  # Provision inference only on a fresh host; existing shared routes are validated, not replaced.
-  if [[ "${HARNESS_RUNTIME:-host}" == openshell && "${positional[0]:-}" != inference ]]; then
+  if [[ "${HARNESS_RUNTIME:-host}" == openshell ]]; then
     prepare_installer_host
     openshell_ensure_shared_inference
+    if [[ "${positional[0]:-}" == inference ]]; then
+      ok "Shared inference provisioned; installed sandboxes synchronized; no new agent was installed."
+      exit 0
+    fi
     install_openshell_agent
     onboard_openshell_agent
     print_done
@@ -523,14 +526,6 @@ main() {
   export HARNESS_LLM_ENDPOINT
   ok "LLM endpoint: ${HARNESS_LLM_ENDPOINT}"
   if [[ "${positional[0]:-}" == inference ]]; then
-    if [[ "${HARNESS_RUNTIME:-host}" == openshell ]]; then
-      openshell_validate_shared_inference
-      if [[ -z "${HARNESS_LLM_ROUTER_ENDPOINT:-}" ]]; then
-        openshell_validate_managed_backend
-        atomic_write_file "$(ensure_state_dir)/openshell-model" \
-          "${HARNESS_LLM_MODEL:-$(resolve_onboarding_model_hint)}"
-      fi
-    fi
     ok "Shared inference provisioned; no agent was installed."
     exit 0
   fi

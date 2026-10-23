@@ -18,6 +18,7 @@ RUN bash -euc 'for lib in colors verify state sudo shim nodejs agents; do source
 USER root
 # Keep startup-only changes from invalidating the expensive agent installation layer.
 COPY openshell/agent-start.sh /usr/local/bin/harness-agent-start
+COPY openshell/model-config.mjs /opt/harness/model-config.mjs
 RUN chmod 755 /usr/local/bin/harness-agent-start
 USER node
 WORKDIR /sandbox

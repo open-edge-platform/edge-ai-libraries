@@ -238,6 +238,10 @@ export_model_to_openvino() {
   out_dir="${HARNESS_MODELS_DIR}/${model_name}"
   if [[ -f "${out_dir}/graph.pbtxt" ]]; then
     info "Model '${model_name}' is already exported."
+    ensure_ovms_config
+    with_state_lock ovms-config _add_model_config_entry_locked \
+      "${HARNESS_MODELS_DIR}/config.json" "$model_name" "$model_name" \
+      || error "Could not register the cached model '${model_name}' with OVMS."
     return 0
   fi
   command_exists python3 || error "python3 is required to export models to OpenVINO IR --
@@ -1048,6 +1052,9 @@ ensure_inference_backend() {
 docker-pull, export-model-py, model-download, or hf-snapshot)." ;;
         esac
         [[ "$HARNESS_LAST_MODEL_REGISTERED" -eq 1 ]] || model_download_unregistered=1
+        if [[ "${HARNESS_RUNTIME:-host}" == openshell && "$model_download_unregistered" == 0 ]]; then
+          with_state_lock ovms-config _select_ovms_model_locked "$(model_dir_name "$HARNESS_HF_MODEL")"
+        fi
         ensure_openvino_model_server
         # wait_for_ovms_model_ready returning 1 means "still loading, not
         # confirmed ready yet" -- its own warn() message is the complete,
@@ -1093,6 +1100,33 @@ Set HARNESS_LLM_ROUTER_ENDPOINT instead to route to an existing external
 OpenAI-compatible endpoint without this installer managing a backend."
       ;;
   esac
+}
+
+_select_ovms_model_locked() {
+  local tmp config_file="${HARNESS_MODELS_DIR}/config.json"
+  tmp="$(mktemp "${config_file}.XXXXXX")"
+  chmod 644 "$tmp"
+  if ! node - "$config_file" "$1" >"$tmp" <<'JS'
+const fs = require("node:fs");
+const [file, model] = process.argv.slice(2);
+const config = JSON.parse(fs.readFileSync(file, "utf8"));
+let found = false;
+for (const key of ["model_config_list", "mediapipe_config_list"]) {
+  if (!Array.isArray(config[key])) continue;
+  config[key] = config[key].filter(e => {
+    const selected = (e?.config?.name ?? e?.name) === model;
+    found ||= selected;
+    return selected;
+  });
+}
+if (!found) throw Error(`Selected OVMS model '${model}' is not registered`);
+console.log(JSON.stringify(config, null, 2));
+JS
+  then
+    rm -f -- "$tmp"
+    error "Could not select the requested OVMS model; existing configuration was preserved."
+  fi
+  mv -f -- "$tmp" "$config_file"
 }
 
 # ovms_has_exported_models — true if config.json already lists at least one

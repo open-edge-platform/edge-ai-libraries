@@ -34,6 +34,7 @@ startup_fixture() {
   export HARNESS_AGENT=openclaw
   export HARNESS_SANDBOX_ENDPOINT=http://host.openshell.internal:8010/v1
   export HARNESS_SANDBOX_MODEL=test-model
+  export HARNESS_MODEL_CONFIG_SCRIPT="$SCRIPT_DIR/openshell/model-config.mjs"
   cat >"$fixture/bin/node" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -92,6 +93,24 @@ startup_restart() {
   printf 'preserved history\n' >"$HOME/.openclaw/history-marker"
   bash "$SCRIPT_DIR/openshell/agent-start.sh"
   cmp "$HOME/config-before.json" "$HOME/.openclaw/openclaw.json"
+  [[ "$(cat "$HOME/.openclaw/history-marker")" == 'preserved history' ]]
+}
+startup_model_switch() {
+  startup_fixture
+  bash "$SCRIPT_DIR/openshell/agent-start.sh"
+  token_before="$("$REAL_NODE" -e 'console.log(require(process.argv[1]).gateway.auth.token)' "$HOME/.openclaw/openclaw.json")"
+  printf 'preserved history\n' >"$HOME/.openclaw/history-marker"
+  "$REAL_NODE" "$HARNESS_MODEL_CONFIG_SCRIPT" openclaw changed-model "$HARNESS_SANDBOX_ENDPOINT"
+  # The immutable creation environment still names test-model.
+  [[ "$HARNESS_SANDBOX_MODEL" == test-model ]]
+  bash "$SCRIPT_DIR/openshell/agent-start.sh"
+  "$REAL_NODE" - "$HOME/.openclaw/openclaw.json" "$token_before" <<'JS'
+const assert = require("node:assert/strict"), fs = require("node:fs");
+const c = JSON.parse(fs.readFileSync(process.argv[2]));
+assert.equal(c.models.providers.ovms.models[0].id, "changed-model");
+assert.equal(c.agents.defaults.model.primary, "ovms/changed-model");
+assert.equal(c.gateway.auth.token, process.argv[3]);
+JS
   [[ "$(cat "$HOME/.openclaw/history-marker")" == 'preserved history' ]]
 }
 startup_blocked_temp() {
@@ -316,6 +335,7 @@ run_case 'OpenClaw startup exports private SQLite temp before Node and initializ
 run_case 'OpenClaw startup replaces an inherited SQLite temp path' startup_inherited_temp
 run_case 'OpenClaw startup restricts an existing SQLite temp directory to mode 700' startup_private_temp
 run_case 'OpenClaw restart preserves config token and database content' startup_restart
+run_case 'OpenClaw model change survives startup with the original sandbox environment' startup_model_switch
 run_case 'OpenClaw startup fails before Node when SQLite temp creation fails' startup_blocked_temp
 run_case 'OpenClaw startup fails before Node when SQLite temp permissions cannot be secured' startup_permissions_failure
 run_case 'runtime defaults to host noninteractively' runtime_default
@@ -369,8 +389,9 @@ run_case 'uninstaller documents runtime' bash -c 'bash "$1/uninstall.sh" --help 
 run_case 'invalid runtime CLI fails before setup' expect_failure 'Unknown runtime' bash "$SCRIPT_DIR/install.sh" --runtime invalid --non-interactive
 run_case 'host connect is rejected' expect_failure 'connect.*openshell|OpenShell' bash "$SCRIPT_DIR/install.sh" connect --runtime host
 run_case 'sandbox removal requires consent' expect_failure 'pass --yes' bash "$SCRIPT_DIR/uninstall.sh" --runtime openshell --harness openclaw
-run_case 'sandbox removal rejects model deletion' expect_failure 'host-runtime options' bash "$SCRIPT_DIR/uninstall.sh" --runtime openshell --harness openclaw --delete-models --yes
+run_case 'scoped sandbox removal requires OpenShell runtime' expect_failure 'requires --runtime openshell' bash "$SCRIPT_DIR/uninstall.sh" --runtime host --sandbox-only --yes
 run_case 'live suite requires explicit opt-in' expect_failure 'Set HARNESS_RUN_OPENSHELL_INTEGRATION=1' \
   env -u HARNESS_RUN_OPENSHELL_INTEGRATION bash "$SCRIPT_DIR/test/openshell-integration-test.sh"
 run_case 'managed Qwen inference regression suite' bash "$SCRIPT_DIR/test/managed-inference-test.sh"
+run_case 'model switch and complete uninstall regression suite' bash "$SCRIPT_DIR/test/model-lifecycle-test.sh"
 finish_tests

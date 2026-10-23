@@ -33,6 +33,7 @@ bash test/openshell-test.sh | tee openshell-offline.tap
 | Inference boundary | Invalid ports, LAN/IPv6/mismatched/missing Docker publication and missing IR rejection |
 | Model discovery | Exact served model accepted; unserved model, HTTP error and malformed JSON rejected |
 | Managed inference | OpenShell Qwen3.5 default and snapshot exporter, native OVMS graph generation, host compatibility, explicit overrides, persisted selection, fresh-only provisioning, partial deployment refusal, managed OVMS readiness/network/publication, both proxy bypass variables |
+| Model lifecycle | Source/export option roundtrip, coordinated two-agent switch, original environment overridden after restart, token/history preservation, pending-switch retry and conflict rejection, legacy-image preflight, full/scoped uninstall and OpenShell package ownership safeguards |
 | CLI safety | Help, invalid runtime, host connect, explicit sandbox deletion consent and host-only deletion flags |
 | Cleanup safeguards | Deletion order, archived records, unowned-resource refusal, pending deletion retaining provider/identity |
 | Test infrastructure | Intermediate assertion failures produce a nonzero suite result; live suite requires explicit opt-in |
@@ -79,14 +80,14 @@ The IR and denied direct-OVMS ports must differ.
 | Drift prevention | Implicit model changes fail |
 | Boundaries | Non-root runtime, host agent homes/host-only marker/Docker socket absence, exact workspace read/write, IR allowed and direct OVMS connection denied |
 | Stop/start | Workspace and agent config hashes persist; native inference works after restart |
-| Shared ownership | Host uninstall is blocked while test profiles are active |
+| Shared ownership | Complete uninstall requires explicit consent; CI uses `--sandbox-only` for cleanup |
 | Removal/recovery | Owned sandboxes/providers disappear, records are archived, Hermes can be freshly provisioned and removed |
 | Shared services | IR/OVMS container identities, start times and port bindings remain unchanged; IR still serves the model |
 | Final cleanup | All remaining test-owned sandboxes are removed, including after ordinary failure or interruption |
 
 Every invocation generates its own `.agent-harness-ci-<random>` state directory
 under the runner account's home. Only profiles in that directory are passed to
-uninstall. Archived ownership records are retained for audit. Images and shared
+uninstall with `--sandbox-only`. Archived ownership records are retained for audit. Images and shared
 OpenShell/inference services are intentionally retained. A failed cleanup is
 reported as a failed test, not silently ignored.
 
