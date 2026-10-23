@@ -70,11 +70,11 @@ RUN cargo install --locked --git https://github.com/ulissesf/qmassa --tag qmassa
 # -----------------------------------------------------------------------------
 # Built from source (instead of the upstream .deb) to patch known CVEs in
 # bundled Go dependencies:
-# Using golang:1.26 (1.26.6+) also resolves stdlib CVEs fixed in Go 1.26.6.
+# Using golang:1.27 also resolves stdlib CVEs fixed in that release.
 # Digest pinned for reproducible builds — decoupled from Docker Hub tag updates.
-FROM golang:1.26.6@sha256:0d1d3a794be25f809dd2cb3160d8c73276c4056a9f8242a138e908ddeee7b6b6 AS telegraf-builder
+FROM golang:1.27@sha256:957861185dbf29d93668ace41e011d091c6e779953d47f0316ef2cc58e28fe2b AS telegraf-builder
 
-ARG TELEGRAF_VERSION=1.39.3
+ARG TELEGRAF_VERSION=1.40.2
 
 ARG http_proxy
 ARG HTTP_PROXY
@@ -103,7 +103,9 @@ WORKDIR /telegraf
 # Cache Go module downloads across builds to avoid re-fetching on every run.
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    go get github.com/moby/go-archive@v0.3.0 && \
+    go get github.com/moby/go-archive@v0.3.0 \
+        github.com/rclone/rclone@v1.75.1 \
+        google.golang.org/grpc@v1.84.0-dev.0.20260825144003-d5a41119e0e3 && \
     go mod tidy
 
 RUN --mount=type=cache,target=/go/pkg/mod \
