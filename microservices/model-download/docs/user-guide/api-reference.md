@@ -215,6 +215,31 @@ curl -X POST "http://localhost:8200/api/v1/models/download?download_path=my-mode
 | `hls`                | HLS model source                     |
 | `remote-url`         | Download from a remote URL           |
 
+FunASR snapshots use the existing `huggingface` plugin. For example,
+download Mandarin Paraformer, VAD, and punctuation models together:
+
+```bash
+curl -X POST "http://localhost:8200/models/download?download_path=funasr" \
+  -H 'Content-Type: application/json' \
+  -d '{"models":[{"name":"funasr/paraformer-zh","hub":"huggingface","revision":"d7811ee3ac581fbcfdeb37c98c6ba674028433dc"},{"name":"funasr/fsmn-vad","hub":"huggingface","revision":"df20e6b30c653645fa4ff125cacfcabd1020a669"},{"name":"funasr/ct-punc","hub":"huggingface","revision":"d0e55e2b8722a78b63705ff443d09c4f86e5d750"}]}'
+```
+
+The response contains a `job_ids` array. Poll `GET /jobs/<job_id>` until
+`status` is `completed`; the model files are then available to containers
+sharing the downloader's model storage volume. These FunASR requests download
+native PyTorch snapshots, not OpenVINO IR. Use `hub: "openvino"` for supported
+OpenVINO exports instead.
+
+ModelScope is no longer supported: remove `modelscope` from `ENABLED_PLUGINS`
+or `--plugins`, and migrate requests to Hugging Face repository IDs and revisions.
+
+For whisper.cpp, request `hub: "huggingface"` with
+`name: "ggerganov/whisper.cpp"` and `config: {"files": ["ggml-base.bin"]}`
+to fetch only that filename. The `files` option is limited to plain filenames.
+The `openai-whisper` provider in Audio Analyzer downloads its official `.pt`
+checkpoint directly through the OpenAI Whisper package; it is not a Model
+Download service hub.
+
 **Model Types:**
 
 | Type               | Description                      |

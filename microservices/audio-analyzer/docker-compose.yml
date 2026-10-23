@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 services:
   audio-analyzer:
     build:
@@ -49,6 +52,9 @@ services:
       - audio_analyzer_chunks:/app/audio_analyzer/chunks
       - audio_analyzer_storage:/app/audio_analyzer/storage
       - audio_analyzer_cache:/app/audio_analyzer/.cache
+    depends_on:
+      model-downloader:
+        condition: service_completed_successfully
     devices:
       - /dev/dri:/dev/dri
       - ${ACCEL_MOUNT_PATH:-/dev/null}:/dev/accel/accel0
@@ -65,6 +71,32 @@ services:
     # Uncomment the next lines if you also need microphone capture from the host.
     # devices:
     #   - /dev/snd:/dev/snd
+
+  model-downloader:
+    build:
+      context: ../model-download
+      dockerfile: docker/Dockerfile
+    image: model-download:local
+    command: ["--plugins", "huggingface", "--ephemeral", "--command", "python", "-m", "utils.provision_models"]
+    environment:
+      ENABLED_PLUGINS: huggingface
+      MODEL_PATH: /opt/models
+      PYTHONPATH: /opt/audio_analyzer:/opt
+      AUDIO_ANALYZER_CONFIG_PATH: /opt/audio_analyzer/config.yaml
+      HF_TOKEN: ${HF_TOKEN:-}
+      http_proxy: ${http_proxy:-${HTTP_PROXY:-}}
+      https_proxy: ${https_proxy:-${HTTPS_PROXY:-}}
+      HTTP_PROXY: ${http_proxy:-${HTTP_PROXY:-}}
+      HTTPS_PROXY: ${https_proxy:-${HTTPS_PROXY:-}}
+      no_proxy: ${no_proxy:-${NO_PROXY:-}}
+      NO_PROXY: ${no_proxy:-${NO_PROXY:-}}
+    volumes:
+      - audio_analyzer_models:/opt/models
+      - ./config.yaml:/opt/audio_analyzer/config.yaml:ro
+      - ./utils:/opt/audio_analyzer/utils:ro
+    healthcheck:
+      disable: true
+    restart: "no"
 
 volumes:
   audio_analyzer_models:

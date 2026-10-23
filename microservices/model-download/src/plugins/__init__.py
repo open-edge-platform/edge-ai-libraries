@@ -82,4 +82,3 @@ for plugin_name, (module_path, class_name) in PLUGINS.items():
         # already-imported modules remain available via sys.modules.
         if _injected and site_pkgs in sys.path:
             sys.path.remove(site_pkgs)
-

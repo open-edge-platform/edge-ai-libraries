@@ -1,3 +1,6 @@
+<!-- SPDX-FileCopyrightText: (C) 2026 Intel Corporation -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Configuration
 
 ## Load Order
@@ -39,7 +42,7 @@ AUDIO_ANALYZER__MODELS__ASR__DEVICE=GPU python main.py
 
 ## Common Values
 
-- `models.asr.provider`: `openai` | `openvino` | `whispercpp`
+- `models.asr.provider`: `openai` | `openvino` | `whispercpp` | `funasr`
 - `models.asr.device`: `CPU` | `GPU` | `NPU`
 - `models.asr.weight_format`: OpenVINO export precision such as `int8`, `fp16`, or `null`; for `whispercpp`, quantization such as `q5`, `q5_0`, `q5_1`, `q8`, `q8_0`, `int5`, `int8`, or `null`
 - `sentiment.enabled`: `true` or `false`
@@ -48,9 +51,19 @@ AUDIO_ANALYZER__MODELS__ASR__DEVICE=GPU python main.py
 
 ## ASR Provider Notes
 
-- `openai`: uses `openai-whisper` and downloads PyTorch Whisper weights on first use.
+- `openai`: uses `openai-whisper` to download official PyTorch Whisper weights directly
+  into Audio Analyzer's model directory on first use; it does not use Model Download.
 - `openvino`: exports the configured Whisper model to OpenVINO IR under `models/openvino/...` and supports `CPU`, `GPU`, and `NPU` (when available and correctly configured).
 - `whispercpp`: downloads the matching whisper.cpp `ggml` model under `models/whispercpp/...` and runs on `CPU` only.
+- `funasr`: loads provisioned Paraformer, VAD, and punctuation snapshots locally;
+  requires the optional `INSTALL_CJK=true` image build.
+
+Compose runs Model Download as a one-shot provisioning job, deriving its model
+selection from this same configuration. Audio Analyzer starts only after the job
+completes successfully. `AUDIO_ANALYZER_MODEL_DOWNLOAD_URL` is no longer used.
+OpenVINO conversion still runs in Audio Analyzer, using the local source snapshot;
+native OpenAI Whisper and optional sentiment keep their direct-download behavior.
+See [model provisioning and restart instructions](../get-started.md#funasr-paraformer-with-hugging-face).
 
 ### ASR Provider/Device Matrix
 

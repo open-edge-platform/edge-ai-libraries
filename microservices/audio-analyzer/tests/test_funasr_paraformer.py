@@ -3,34 +3,43 @@
 """Tests for the optional FunASR Paraformer provider (Chinese/English ASR).
 
 These assert the provider is genuinely opt-in: the module imports cleanly
-without ``funasr``/``modelscope`` installed, and the download/instantiation
-guards raise actionable errors. This protects existing Whisper/OpenVINO
-consumers from being affected by the new provider.
+without ``funasr`` installed, and the instantiation guards raise actionable
+errors. This protects existing Whisper/OpenVINO consumers.
 """
 import sys
 import types
 import unittest
-
-
-class ModelDownloadHelperTests(unittest.TestCase):
-    def test_missing_modelscope_raises_actionable_error(self):
-        from utils.model_download_helper import get_or_download_model_dir
-
-        # modelscope is an optional (requirements-cjk.txt) dependency.
-        if "modelscope" in sys.modules:
-            self.skipTest("modelscope is installed; opt-in guard not exercised")
-        with self.assertRaises(RuntimeError) as ctx:
-            get_or_download_model_dir("iic/whatever", hub="ms")
-        self.assertIn("modelscope", str(ctx.exception).lower())
-
-    def test_rejects_unknown_hub(self):
-        from utils.model_download_helper import get_or_download_model_dir
-
-        with self.assertRaises(ValueError):
-            get_or_download_model_dir("iic/whatever", hub="bogus")  # type: ignore[arg-type]
+from unittest.mock import MagicMock, patch
 
 
 class ParaformerProviderTests(unittest.TestCase):
+    def test_transcription_requests_token_and_sentence_timestamps(self):
+        import components.asr.funasr.paraformer as pf
+
+        provider = object.__new__(pf.Paraformer)
+        provider.language = "zh"
+        provider.model = MagicMock()
+        provider.model.generate.return_value = [{
+            "text": "test",
+            "sentence_info": [{"start": 100, "end": 900, "text": "test"}],
+        }]
+        result = provider.transcribe("recording.wav")
+        provider.model.generate.assert_called_once_with(
+            input="recording.wav", pred_timestamp=True,
+            sentence_timestamp=True, batch_size_s=300,
+        )
+        self.assertEqual(result["segments"], [{"start": 0.1, "end": 0.9, "text": "test"}])
+
+    def test_transcription_errors_are_not_returned_as_empty_success(self):
+        import components.asr.funasr.paraformer as pf
+
+        provider = object.__new__(pf.Paraformer)
+        provider.language = "zh"
+        provider.model = MagicMock()
+        provider.model.generate.side_effect = KeyError("timestamp")
+        with self.assertRaises(KeyError):
+            provider.transcribe("recording.wav")
+
     def test_module_imports_without_funasr(self):
         # The whole point of the lazy import: this must not require funasr.
         import components.asr.funasr.paraformer as pf
@@ -42,10 +51,51 @@ class ParaformerProviderTests(unittest.TestCase):
         self.assertEqual(pf._MODEL_LANGUAGE["paraformer-zh"], "zh")
         self.assertEqual(pf._MODEL_LANGUAGE["paraformer-en"], "en")
 
-    def test_default_hub_is_modelscope(self):
+    def test_loads_all_three_provisioned_snapshots_locally(self):
         import components.asr.funasr.paraformer as pf
 
-        self.assertEqual(pf._resolve_hub(), "ms")
+        fake_funasr = types.ModuleType("funasr")
+        fake_funasr.AutoModel = MagicMock()
+        with patch.dict(sys.modules, {"funasr": fake_funasr}), \
+             patch.object(pf, "get_local_model", side_effect=["asr", "vad", "punc"]) as download:
+            pf.Paraformer("paraformer-zh")
+        self.assertEqual(download.call_count, 3)
+        self.assertEqual(download.call_args_list[0].args, ("funasr/paraformer-zh", pf._MODEL_REVISIONS["funasr/paraformer-zh"]))
+        self.assertEqual(download.call_args_list[1].args, ("funasr/fsmn-vad", pf._MODEL_REVISIONS["funasr/fsmn-vad"]))
+        self.assertEqual(download.call_args_list[2].args, ("funasr/ct-punc", pf._MODEL_REVISIONS["funasr/ct-punc"]))
+        for call in download.call_args_list:
+            self.assertEqual(call.kwargs, {
+                "required_files": ["config.yaml", "model.pt"],
+            })
+        fake_funasr.AutoModel.assert_called_once_with(
+            model="asr", vad_model="vad", punc_model="punc",
+            device="cpu", disable_update=True,
+        )
+
+    def test_revision_override_only_changes_asr_snapshot(self):
+        import components.asr.funasr.paraformer as pf
+
+        fake_funasr = types.ModuleType("funasr")
+        fake_funasr.AutoModel = MagicMock()
+        with patch.dict(sys.modules, {"funasr": fake_funasr}), \
+             patch.object(pf, "get_local_model", return_value="local") as download:
+            pf.Paraformer("paraformer-zh", revision="custom-commit")
+        self.assertEqual(download.call_args_list[0].args[1], "custom-commit")
+        self.assertEqual(download.call_args_list[1].args[1], pf._MODEL_REVISIONS[pf.VAD_MODEL])
+        self.assertEqual(download.call_args_list[2].args[1], pf._MODEL_REVISIONS[pf.PUNC_MODEL])
+
+    def test_custom_companions_do_not_inherit_default_repository_revisions(self):
+        import components.asr.funasr.paraformer as pf
+
+        fake_funasr = types.ModuleType("funasr")
+        fake_funasr.AutoModel = MagicMock()
+        with patch.dict(sys.modules, {"funasr": fake_funasr}), \
+             patch.object(pf, "VAD_MODEL", "custom/vad"), \
+             patch.object(pf, "PUNC_MODEL", "custom/punc"), \
+             patch.object(pf, "get_local_model", return_value="local") as download:
+            pf.Paraformer("paraformer-zh")
+        self.assertEqual(download.call_args_list[1].args, ("custom/vad", None))
+        self.assertEqual(download.call_args_list[2].args, ("custom/punc", None))
 
     def test_invalid_model_name_raises_value_error(self):
         import components.asr.funasr.paraformer as pf
