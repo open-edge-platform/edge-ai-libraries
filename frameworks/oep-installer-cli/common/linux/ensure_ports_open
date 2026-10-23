@@ -15,7 +15,7 @@ ensure_ports_open () {
       out="$(ss -Hltunp "sport = :$port")"
       [ -n "$out" ] || continue
 
-      printf "${red}port %s is occupied${reset}\n" "$port" >&2
+      printf "${red}Port %s is occupied${reset}\n" "$port" >&2
       for mname in $(ensure_prop find "started/*/ports" | cut -f2 -d/); do
         [[ " $(ensure_prop get started/$mname/ports) " = *" $port "* ]] || continue
         stopper="${_act_cache_functions[stop_$mname]:-}"
@@ -27,7 +27,7 @@ ensure_ports_open () {
       out="$(ss -Hltunp "sport = :$port")"
       [ -n "$out" ] || continue
 
-      printf "${red}port %s is occupied${reset}\n%s\n" "$port" "$out" >&2
+      printf "${red}Port %s is occupied${reset}\n%s\n" "$port" "$out" >&2
       return 3
     done
   else

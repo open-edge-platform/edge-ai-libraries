@@ -219,6 +219,17 @@ EOF
 
 subcommand_resume () {
   local args=($(ensure_prop get command))
-  [[ ${#args[*]} -gt 0 && -x "$installer_bin" ]] && exec "$installer_bin" "${args[@]}" || true
+  [[ ${#args[*]} -gt 0 ]] || {
+    echo "Nothing to resume" >&2
+    return 0
+  }
+  [ -x "$installer_bin" ] || {
+    subcommand_setup
+    [ -x "$installer_bin" ] || {
+      echo "Failed to find $installer_name" >&2
+      return 3
+    }
+  }
+  exec "$installer_bin" "${args[@]}"
 }
 
