@@ -33,191 +33,11 @@ externally"). Host mode has no fresh-install default model: name it with
 previously exported model; otherwise it prompts on a terminal and fails
 non-interactively without a selection.
 
-## OpenShell runtime (experimental)
+## Agentic AI Security
 
-OpenClaw and Hermes can run in separate OpenShell sandboxes instead of being
-installed on the host. Host mode remains the default. OpenShell mode currently
-targets Linux, Docker and OpenShell **0.1.5**; a different installed OpenShell
-version is rejected rather than upgraded or downgraded automatically.
-Automatic OpenShell CLI/gateway provisioning requires Debian/Ubuntu and a
-working systemd user service. On other Linux distributions, install and
-configure OpenShell 0.1.5 manually before running the installer.
-
-On a fresh host, one command provisions installer-owned OVMS and IR, downloads
-**OpenVINO/Qwen3.5-9B-int8-ov**, and installs OpenClaw in its sandbox:
-
-```bash
-./install.sh --runtime openshell --harness openclaw --non-interactive
-```
-
-This is the **9B** model in the Qwen3.5 family, not a 3.5B model. Its preconverted
-OpenVINO weights are downloaded using the existing `hf-snapshot` exporter.
-The repository has no OVMS graph, so the pinned serving image generates
-`graph.pbtxt` using `--configure --task text_generation` before registration.
-Once the serving image is available, this metadata-only container step needs
-no network/GPU access and does not reconvert the weights. No external OVMS
-container or local model-directory import is used.
-Explicit `--model`, exporter and hub choices remain supported; host-mode model
-selection is unchanged.
-
-Repeated installs without `--model` reuse the saved shared model and preserve
-sandbox data. The full source ID, hub, exporter, revision and conversion options
-are saved in `~/.agent-harness-install/openshell-model-source.json`; the served ID
-is also recorded in `openshell-model`. Older installations fall back to their
-shared selection, agent profile or OVMS registry before the fresh-install default.
-
-An explicit new `--model` checks the normal exporter cache, downloads/converts
-when needed, reconfigures OVMS/IR, and synchronizes **both installed agents**.
-Changing shared inference can interrupt active turns: finish those turns first.
-The installer preserves sandbox identities, gateway tokens, history and workspace.
-It writes a durable selection inside each sandbox, restarts it without deletion,
-and updates its host profile only after the restart/model check succeeds.
-The durable selection takes precedence over the original sandbox creation
-environment, so OpenClaw and Hermes keep the new model on later stop/start.
-
-An interrupted switch leaves `openshell-model-pending.json`; rerun the install
-without `--model` to resume that exact target before requesting another model.
-This is recoverable sequencing, not an atomic all-service transaction: a failed
-switch may temporarily leave inference or an agent unavailable. Old downloaded
-models remain cached until full uninstall.
-Only the selected model remains registered for serving in managed OpenShell
-mode, avoiding simultaneous loading of previous large models into GPU memory.
-Existing images predating restart-safe startup fail preflight before inference
-is modified. They require a separately planned image migration after backing
-up needed data; the installer does not automate image upgrades or backup/restore
-and never deletes/recreates a legacy sandbox to change its model.
-
-With managed local inference, IR/OVMS are validated for the exact model,
-readiness, private network and loopback publication. With an external backend,
-the local IR's loopback publication and advertised model are checked instead;
-the installer does not manage that external backend. A no-model rerun does not
-silently replace an existing route; incomplete deployments require an explicit
-model selection to repair.
-
-### Qwen local-model defaults
-
-New OpenShell images generate a responsiveness-oriented baseline for the exact
-served model `Qwen3.5-9B-int8-ov`:
-
-| Setting | OpenClaw | Hermes |
-|---|---|---|
-| Context budget | `contextWindow: 65536` | `model.context_length: 65536` |
-| Reply cap | Catalog and model params `maxTokens: 512` | Custom-provider `extra_body.max_tokens: 512` |
-| Sampling | Model params `temperature: 0.2` | Custom-provider `extra_body.temperature: 0.2` |
-| Thinking | `thinkingDefault: off` and `chat_template_kwargs.enable_thinking: false` | Model reasoning override `none` and custom-provider `chat_template_kwargs.enable_thinking: false` |
-| Prompt/tool size | `localModelLean: true`, bootstrap limits 4000/12000 characters, `tools.profile: coding` | No unsupported OpenClaw prompt/tool settings are copied |
-
-These are operational budgets, not model maximum capabilities or latency
-guarantees. The 512-token cap can truncate long answers or tool calls; increase
-the model-specific request cap (and OpenClaw catalog cap) when needed. Existing
-explicit settings, including catalog values in older configurations, take
-precedence; absent keys receive defaults. Startup preserves gateway tokens,
-history and workspace data. Hermes uses its bundled Python/YAML runtime and a
-dedicated `custom:harness-ovms-qwen` provider through the same IR endpoint.
-
-The sandbox's `.harness-local-defaults.json` tracks only installer-added values.
-Restarts preserve user edits. Switching models removes unchanged installer-added
-Qwen values before configuring the next model; user overrides remain. Other
-models keep existing settings, or the previous generic OpenClaw catalog defaults
-(32768 context / 4096 output) when none exist. Host mode is unchanged. Existing
-images need rebuilding/migration to include this startup behavior; this is not
-a live deployment migration or a chat acceptance gate.
-
-To prepare or explicitly reconfigure shared inference separately:
-
-```bash
-./install.sh inference --runtime openshell --non-interactive
-# Or choose another model explicitly:
-./install.sh inference --runtime openshell --model <model-id> --non-interactive
-```
-
-Install the other agent against that shared model, or inspect/connect:
-
-```bash
-./install.sh --runtime openshell --harness hermes --non-interactive
-./install.sh status --runtime openshell --harness openclaw
-./install.sh connect --runtime openshell --harness openclaw
-./install.sh connect --runtime openshell --harness hermes
-```
-
-Profiles are independent under `~/.agent-harness-install/openshell/<agent>/`.
-Existing host agent configuration is not imported or modified. The sandbox
-agent accesses `http://host.openshell.internal:8010/v1` through a dedicated
-provider profile. IR and OVMS remain published on host loopback, and IR reaches
-OVMS over its private backend network. External inference is configured on the
-shared IR with `HARNESS_LLM_ROUTER_ENDPOINT`, not directly in the sandbox.
-
-The OpenShell gateway owns sandbox lifecycle and policy delivery. The OpenClaw
-gateway runs **inside** its sandbox, binds to sandbox loopback and uses a
-generated authentication token. Hermes runs as an interactive CLI; messaging
-integrations are not enabled. `connect` uses OpenShell's authenticated execution
-path and does not publish an agent UI on the LAN.
-
-Hermes browser chat is available on demand through its built-in dashboard:
-run `hermes dashboard --host 127.0.0.1 --port 9119 --skip-build --no-open`
-inside the owned sandbox using `openshell sandbox exec`. Forward sandbox port
-9119 with `openshell forward service`, then SSH-tunnel the host loopback port
-to your laptop. The dashboard is not started by the installer and stops with
-its process/sandbox; keep its launcher running during testing. No messaging
-gateway is required for browser chat. Do not expose the loopback-only dashboard
-on a LAN without configuring Hermes authentication.
-This browser UI is separate from external web-search/browser tools: those tools
-still need explicit egress policy and any required service configuration.
-
-Hermes uses [a dedicated policy](openshell/hermes-policy.yaml) matching the
-base agent policy except for writable `/dev/ptmx` and `/dev/pts`. These
-sandbox-local pseudo-terminal devices are needed by its browser chat terminal;
-OpenClaw's policy is unchanged. This does not grant host filesystem, Docker
-socket or additional network access. Existing Hermes sandboxes must be
-recreated with the new policy after backing up any needed data.
-
-`HARNESS_OPENSHELL_GATEWAY` selects the gateway when creating a new profile
-(default: `openshell`); lifecycle commands use the recorded gateway. On a fresh
-machine the checksum-pinned upstream installer provisions the CLI and local
-gateway. Existing gateways must already be configured and authenticated.
-
-Sandbox images install the same pinned agent packages/installers as host mode,
-run as a non-root user and do not mount host agent homes, model directories or
-the Docker socket. Runtime egress is limited to the attached inference provider;
-MCP, package downloads, messaging, and other egress need explicit additional
-policy. Landlock uses OpenShell's `best_effort` compatibility setting; this is
-not a claim that every host supports the same filesystem isolation guarantees.
-
-To uninstall the complete installer-owned OpenShell deployment and data:
-
-```bash
-./uninstall.sh --runtime openshell --yes
-```
-
-Back up needed data first. This deletes both owned sandboxes and their native
-home/workspace, shared IR/OVMS, downloaded models and installer state. It also
-stops/removes the local OpenShell gateway, purges its CLI package and deletes its
-user state **when this deployment installed OpenShell**, as recorded by
-`openshell-owned`. Pre-existing OpenShell installations are not adopted; unrelated
-gateways/resources block removal of an owned shared runtime. Docker/Node/system
-prerequisites and shared image caches are not uninstalled.
-An external inference backend is never removed. If this state directory also
-records a host-installed agent, full uninstall removes that recorded host agent
-too; this is not a sandbox-only operation.
-
-To remove only one sandbox while retaining shared services (also used by CI):
-
-```bash
-./uninstall.sh --runtime openshell --sandbox-only --harness openclaw --yes
-```
-
-Only this scoped mode retains the removed profile for audit. `--keep-models`
-explicitly retains downloads during full uninstall; deletion is otherwise the
-default (`--delete-models` remains accepted for compatibility).
-
-Onboarding checks inference connectivity, **not** agentic correctness. Tool-use
-acceptance requires independently verifying generated files/content. The
-0.5B quickstart model is not a validated multi-step tool-use baseline.
-
-Offline regression tests: `bash test/openshell-test.sh`. Agent-image build and
-real sandbox tests require Docker, the pinned gateway and a running shared IR.
-See [OpenShell quality gates](test/README.md) for automated test cases, TAP
-reports, opt-in lifecycle tests and CI runner setup.
+Explore [Agentic AI Security](docs/agentic-ai-security/README.md) for security
+controls for agent deployments, starting with experimental
+[Agent Sandboxing using OpenShell](docs/agentic-ai-security/agent-sandboxing.md).
 
 ## How it works
 
@@ -226,7 +46,8 @@ reports, opt-in lifecycle tests and CI runner setup.
 `./install.sh` is the only command you run. It prepares the host, brings up
 the inference backend, installs the chosen agent, and wires the two together.
 The diagram below describes host mode; OpenShell's automatic model selection,
-sandbox lifecycle and onboarding are described above.
+sandbox lifecycle and onboarding are covered in the
+[Agent Sandboxing guide](docs/agentic-ai-security/agent-sandboxing.md).
 
 ```mermaid
 %%{init: {"flowchart": {"wrappingWidth": 420, "nodeSpacing": 40, "rankSpacing": 45, "curve": "basis"}}}%%

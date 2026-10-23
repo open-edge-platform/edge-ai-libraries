@@ -5,6 +5,9 @@ SPDX-License-Identifier: Apache-2.0
 
 # OpenShell quality gates
 
+For user-facing setup and security boundaries, see the
+[Agent Sandboxing guide](../docs/agentic-ai-security/agent-sandboxing.md).
+
 Both suites emit TAP 13 reports and return a nonzero exit status on failure.
 No test requires a GitHub token. Live inference uses the prepared runner's
 shared IR, which must already have any required upstream authentication

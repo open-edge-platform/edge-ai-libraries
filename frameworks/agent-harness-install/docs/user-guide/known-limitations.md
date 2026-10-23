@@ -5,6 +5,10 @@
 
 # Known Limitations
 
+For sandbox setup, architecture and lifecycle guidance, see
+[Agent Sandboxing](../agentic-ai-security/agent-sandboxing.md), part of
+[Agentic AI Security](../agentic-ai-security/README.md).
+
 - OpenShell runtime support is experimental and limited to Linux with Docker,
   OpenShell 0.1.5 and OpenClaw/Hermes. Each agent has one independently owned
   profile; both use shared, loopback-published inference. A fresh OpenShell

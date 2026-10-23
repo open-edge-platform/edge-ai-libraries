@@ -7,6 +7,9 @@
 
 ## OpenShell profiles
 
+For installation and runtime usage, see the
+[Agent Sandboxing guide](../agentic-ai-security/agent-sandboxing.md).
+
 ```bash
 ./uninstall.sh --runtime openshell --yes
 ```
