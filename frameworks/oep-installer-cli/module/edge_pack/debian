@@ -10,9 +10,10 @@ configure_edge_pack () {
     "Pin: origin $edge_pack_repo"
     "Pin-Priority: 1001"
   )
-  edge_pack_pref_file=/etc/apt/preferences.d/edgepack.pref
+  edge_pack_pref_file=/etc/apt/preferences.d/intel-edge-pack.pref
+  edge_pack_incompatible_pref_files=(/etc/apt/preferences.d/priorities /etc/apt/preferences.d/edgepack.pref)
   edge_pack_install_options=("--no-install-recommends")
-  edge_pack_allow_downgrades=(libgbm1 libgstreamer-gl1.0-0 libva-wayland2 mesa-libgallium weston libegl-mesa0 libgbm-dev libgl1-mesa-dev libgl1-mesa-dri libglx-mesa0 mesa-common-dev mesa-vulkan-drivers)
+  edge_pack_allow_downgrades=(libgbm1 libgstreamer-gl1.0-0 libva-wayland2 mesa-libgallium weston libegl-mesa0 libgbm-dev libgl1-mesa-dev libgl1-mesa-dri libglx-mesa0 mesa-common-dev mesa-vulkan-drivers mesa-opencl-icd)
 
   edge_pack_ppa_repo=
   edge_pack_ppa_key_url=
@@ -39,6 +40,7 @@ install_edge_pack_repo_entries () {
   fi
   if [ ! -e "$edge_pack_pref_file" ] || [ $reinstall -eq 1 ]; then
     ensure_apt_preference "$edge_pack_pref_file" "${edge_pack_pref[@]}"
+    ensure_rm "${edge_pack_incompatible_pref_files[@]}"
     reconfigured=1
   fi
   if [ -n "$edge_pack_ppa_repo" ]; then

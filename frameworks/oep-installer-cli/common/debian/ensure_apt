@@ -58,7 +58,7 @@ flag&&$1{for(i=1;i<=NF;i++)print$i}
     [[ " ${allow_downgrades[*]} " = *" $dg "* ]] || downgrades+=("$dg")
   done
   if [ ${#downgrades[*]} -gt 0 ]; then
-    echo "Detected unexpected downgrades: ${downgrades[*]}" 1>&2
+    printf "${red}Detected unexpected downgrades: %s${reset}\n" "${downgrades[*]}" 1>&2
     return 3
   fi
 }

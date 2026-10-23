@@ -20,7 +20,7 @@ ensure_sudo () {
           sleep 60
           sudo -n -v 2> /dev/null || break
         done
-        ensure_prop destroy pids/sudo/pid$ppid
+        ensure_prop remove pids/sudo/pid$ppid
       ) < /dev/null > /dev/null 2>&1 &
       pid=$!
       ensure_prop create pids/sudo/pid$ppid

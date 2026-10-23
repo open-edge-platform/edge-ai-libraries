@@ -20,7 +20,7 @@ debian_40_install_edge_pack_base_standard () {
     ensure_prop set installed/edge_pack_base_standard/owned true
     install_edge_pack_repo_entries "$@"
     ensure_apt purge --auto-remove -y intel-edge-base-standard || true
-    ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*"
+    ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*" || true
     ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*"
   fi
   [ -c /dev/dri/renderD128 ]

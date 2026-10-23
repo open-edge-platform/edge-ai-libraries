@@ -16,7 +16,7 @@ debian_40_install_edge_pack_manageability () {
     ensure_prop set installed/edge_pack_manageability/owned true
     install_edge_pack_repo_entries "$@"
     ensure_apt purge --auto-remove -y intel-edge-manageability || true
-    ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-manageability=$version*"
+    ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-manageability=$version*" || true
     ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-manageability=$version*"
   fi
 }

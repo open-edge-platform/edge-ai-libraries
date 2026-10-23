@@ -43,7 +43,7 @@ debian_40_install_edge_pack_base_realtime () {
     ensure_prop remove installed/edge_pack_base_realtime/fallback
     ensure_prop set installed/edge_pack_base_realtime/owned true
     ensure_apt purge --auto-remove -y intel-edge-base-realtime || true
-    ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*"
+    ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*" || true
     ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*"
   fi
   [ -c /dev/dri/renderD128 ]
