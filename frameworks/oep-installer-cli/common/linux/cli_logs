@@ -26,7 +26,6 @@ act_panelled_logs () {(
 #                           +<seconds> counted from now. Shows "<label> m:ss"
 #                           (label defaults to "Closing in"). Without @@UNTIL
 #                           the box stays until it is closed.
-#   @@ATTENTION @@CLOSE     close the box now
 #   anything else           log line attributed to the current component
 #
 # Environment:
@@ -1181,9 +1180,7 @@ _handle_line() {
       else _touch_comp "$rest"; FOCUS=$rest; fi
       _draw 1; return ;;
     @@ATTENTION)
-      if [[ $rest == '@@CLOSE' ]]; then
-        _attention_close
-      elif [[ $rest == '@@UNTIL '* ]]; then
+      if [[ $rest == '@@UNTIL '* ]]; then
         local t=${rest#@@UNTIL }; t=${t%% *}
         AT_LABEL=${rest#@@UNTIL "$t"}; AT_LABEL=${AT_LABEL# }
         [[ $t == +* ]] && t=$(( ${EPOCHREALTIME%.*} + ${t#+} ))
