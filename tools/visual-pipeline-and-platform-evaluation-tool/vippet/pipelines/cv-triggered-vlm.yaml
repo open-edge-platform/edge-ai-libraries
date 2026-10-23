@@ -10,7 +10,7 @@ tags:
 thumbnail: images/cv-triggered-vlm-pipeline.png
 type: vision
 variants:
-  - name: CPU
+  - name: CPU-GPU
     pipeline_description: >-
       filesrc location=/videos/input/auto/crosswalk.mp4 !
       decodebin3 !

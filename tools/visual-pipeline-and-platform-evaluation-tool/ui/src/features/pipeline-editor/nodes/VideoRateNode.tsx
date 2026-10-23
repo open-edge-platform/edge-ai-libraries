@@ -1,5 +1,3 @@
-// SPDX-FileCopyrightText: (C) 2026 Intel Corporation
-// SPDX-License-Identifier: Apache-2.0
 import { PipelineNodeCard, PIPELINE_NODE_ROLE_CLASSES } from "./shared";
 
 const VideoRateNode = () => (

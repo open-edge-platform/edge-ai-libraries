@@ -3,7 +3,12 @@
 
 import { Badge } from "@/components/ui/badge";
 import type { PipelineEvent } from "@/api/api.generated";
-import { formatPosition } from "@/lib/timeUtils";
+import { formatElapsedTimeWithTenths } from "@/lib/timeUtils";
+
+const formatPosition = (event: PipelineEvent): string =>
+  event.pts_seconds != null
+    ? formatElapsedTimeWithTenths(event.pts_seconds)
+    : new Date(event.timestamp_ms).toLocaleTimeString();
 
 const SOURCE_LABELS: Record<string, string> = {
   "proximity-trigger": "Trigger",
