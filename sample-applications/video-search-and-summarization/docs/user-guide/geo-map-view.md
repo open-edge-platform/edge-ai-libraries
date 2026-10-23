@@ -22,30 +22,14 @@ With Helm, set `feature.map: "FEATURE_ON"` in the `vss-ui` chart values.
 
 ## Define Locations
 
-Locations are read from `config/geo-intersections.json`:
-
-```json
-{
-  "intersections": {
-    "intersection_1": {
-      "label": "Intersection 1",
-      "lat": 37.51358,
-      "lon": -122.25591
-    },
-    "intersection_2": {
-      "label": "Intersection 2",
-      "lat": 37.48522,
-      "lon": -122.23635
-    }
-  }
-}
-```
+Edit the locations (id, label, latitude, longitude, cameras) in
+[`config/geo-intersections.json`](../../config/geo-intersections.json).
 
 A search result is pinned to a location when its video tag is
 `<location id>-camera<N>` (for example `intersection_1-camera2`) or the location
-id itself. To map other tags, list them under the location, for example
-`"cameras": { "lobby-cam": {} }`. Results whose tags match no location are
-listed below the map.
+id itself. To map other tags, list them under the location's `cameras`. Results
+whose tags match no location are not pinned; a notice at the top of the map
+shows how many.
 
 VSS reloads the file automatically; changes appear on the map within two
 minutes. To use a file from another path, set `GEO_INTERSECTIONS_FILE` before
@@ -59,8 +43,8 @@ starting. With Helm, add the locations under `pipelinemanager.geo.intersections`
 
 ## Troubleshooting
 
-| Symptom                      | Check                                                                                                                      |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| No **Map View** button       | `APP_MAP_FEATURE` is `FEATURE_ON`, and `curl http://<host>:12345/manager/geo/intersections` returns at least one location. |
-| Results listed below the map | Their video tags do not match any location id.                                                                             |
-| Grey map background          | The map loads OpenStreetMap tiles and needs internet access; set `MAP_TILE_URL` to use another tile server.                |
+| Symptom                 | Check                                                                                                                      |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| No **Map View** button  | `APP_MAP_FEATURE` is `FEATURE_ON`, and `curl http://<host>:12345/manager/geo/intersections` returns at least one location. |
+| "Not on the map" notice | Those results' video tags do not match any location id.                                                                    |
+| Grey map background     | The map loads OpenStreetMap tiles and needs internet access; set `MAP_TILE_URL` to use another tile server.                |
