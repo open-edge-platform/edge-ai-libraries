@@ -5,6 +5,7 @@ import logging
 import threading
 from typing import List, Optional
 
+from src.core.gige import GigECameraDiscovery
 from src.core.internal_types import InternalCamera
 from src.core.onvif import NETWORK_CAMERA_ID_PREFIX, ONVIFCameraDiscovery
 from src.core.usb import USBCameraDiscovery
@@ -17,17 +18,20 @@ class CameraNotFoundError(LookupError):
 
 
 class CameraManager:
-    """Keeps the list of discovered USB and ONVIF cameras, including loaded ONVIF profiles."""
+    """Keeps the list of discovered USB, ONVIF and GigE cameras, including loaded ONVIF profiles."""
 
     def __init__(
         self,
         usb_discovery: USBCameraDiscovery,
         onvif_discovery: ONVIFCameraDiscovery,
+        gige_discovery: GigECameraDiscovery,
     ) -> None:
         self.usb_discovery = usb_discovery
         self.onvif_discovery = onvif_discovery
+        self.gige_discovery = gige_discovery
         self._usb_cameras: List[InternalCamera] = []
         self._network_cameras: List[InternalCamera] = []
+        self._gige_cameras: List[InternalCamera] = []
         self._lock = threading.Lock()
 
     @staticmethod
@@ -74,17 +78,30 @@ class CameraManager:
         with self._lock:
             return self._network_cameras.copy()
 
+    def discover_gige_cameras(self) -> List[InternalCamera]:
+        try:
+            discovered = self.gige_discovery.discover_cameras()
+            with self._lock:
+                self._gige_cameras = self._update_camera_cache(self._gige_cameras, discovered)
+        except Exception as e:
+            logger.error(f"Failed GigE camera discovery: {e}", exc_info=True)
+
+        with self._lock:
+            return self._gige_cameras.copy()
+
     def discover_all_cameras(self) -> List[InternalCamera]:
         usb_cameras = self.discover_usb_cameras()
         network_cameras = self.discover_network_cameras()
+        gige_cameras = self.discover_gige_cameras()
         logger.debug(
-            f"Discovered {len(usb_cameras)} USB and {len(network_cameras)} network camera(s)"
+            f"Discovered {len(usb_cameras)} USB, {len(network_cameras)} network "
+            f"and {len(gige_cameras)} GigE camera(s)"
         )
-        return usb_cameras + network_cameras
+        return usb_cameras + network_cameras + gige_cameras
 
     def _find_cached(self, camera_id: str) -> Optional[InternalCamera]:
         with self._lock:
-            for camera in self._usb_cameras + self._network_cameras:
+            for camera in self._usb_cameras + self._network_cameras + self._gige_cameras:
                 if camera.device_id == camera_id:
                     return camera
         return None

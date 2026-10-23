@@ -13,10 +13,11 @@ CREDENTIAL_MAX_LENGTH = 256
 
 
 class CameraType(str, Enum):
-    """Type of camera device: `USB` (local V4L2 device) or `NETWORK` (ONVIF camera)."""
+    """Camera type: `USB` (V4L2 device), `NETWORK` (ONVIF camera) or `GIGE` (GigE Vision camera)."""
 
     USB = "USB"
     NETWORK = "NETWORK"
+    GIGE = "GIGE"
 
 
 class MessageResponse(BaseModel):
@@ -67,9 +68,28 @@ class NetworkCameraDetails(BaseModel):
     best_profile: Optional[CameraProfileInfo] = None
 
 
+class GigECapture(BaseModel):
+    """Current acquisition settings read from a GigE Vision camera (GenICam features)."""
+
+    pixel_format: Optional[str] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    fps: Optional[float] = None
+
+
+class GigECameraDetails(BaseModel):
+    """GigE Vision camera details; identity fields are null if the camera could not be opened."""
+
+    ip: str
+    vendor: Optional[str] = None
+    model: Optional[str] = None
+    serial: Optional[str] = None
+    current_capture: Optional[GigECapture] = None
+
+
 class Camera(BaseModel):
     """
-    Camera device information supporting both USB and network cameras.
+    Camera device information supporting USB, ONVIF network and GigE Vision cameras.
 
     ### Example
     ```json
@@ -85,7 +105,7 @@ class Camera(BaseModel):
     device_id: str
     device_name: str
     device_type: CameraType
-    details: Union[USBCameraDetails, NetworkCameraDetails]
+    details: Union[USBCameraDetails, NetworkCameraDetails, GigECameraDetails]
 
 
 class CameraProfilesRequest(BaseModel):

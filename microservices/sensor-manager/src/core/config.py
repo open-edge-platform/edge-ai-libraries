@@ -19,6 +19,8 @@ class Settings:
     log_level: str
     onvif_discovery_enabled: bool
     onvif_discovery_interval_s: float
+    gige_discovery_enabled: bool
+    gige_discovery_interval_s: float
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -28,6 +30,9 @@ class Settings:
         interval = float(os.environ.get("ONVIF_DISCOVERY_INTERVAL_S", "20"))
         if interval < 1:
             raise ValueError(f"ONVIF_DISCOVERY_INTERVAL_S must be >= 1, got {interval}")
+        gige_interval = float(os.environ.get("GIGE_DISCOVERY_INTERVAL_S", "20"))
+        if gige_interval < 1:
+            raise ValueError(f"GIGE_DISCOVERY_INTERVAL_S must be >= 1, got {gige_interval}")
         return cls(
             # Host networking is required for WS-Discovery, so the bind address stays configurable.
             host=os.environ.get("SENSOR_MANAGER_HOST", "0.0.0.0"),  # noqa: S104
@@ -35,4 +40,6 @@ class Settings:
             log_level=os.environ.get("LOG_LEVEL", "INFO").upper(),
             onvif_discovery_enabled=_env_bool("ONVIF_DISCOVERY_ENABLED", True),
             onvif_discovery_interval_s=interval,
+            gige_discovery_enabled=_env_bool("GIGE_DISCOVERY_ENABLED", True),
+            gige_discovery_interval_s=gige_interval,
         )

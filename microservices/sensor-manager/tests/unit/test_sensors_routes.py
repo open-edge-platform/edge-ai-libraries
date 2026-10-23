@@ -13,6 +13,8 @@ from src.core.internal_types import (
     InternalCamera,
     InternalCameraProfileInfo,
     InternalCameraType,
+    InternalGigECameraDetails,
+    InternalGigECapture,
     InternalNetworkCameraDetails,
     InternalUSBCameraDetails,
     InternalV4L2BestCapture,
@@ -55,6 +57,23 @@ def manager():
     return MagicMock()
 
 
+def _gige_camera():
+    return InternalCamera(
+        device_id="gige-camera-basler-21234567",
+        device_name="Basler acA1300-30gm",
+        device_type=InternalCameraType.GIGE,
+        details=InternalGigECameraDetails(
+            ip="192.168.10.20",
+            vendor="Basler",
+            model="acA1300-30gm",
+            serial="21234567",
+            current_capture=InternalGigECapture(
+                pixel_format="Mono8", width=1280, height=1024, fps=30.0
+            ),
+        ),
+    )
+
+
 @pytest.fixture
 def client(manager):
     app = FastAPI()
@@ -87,6 +106,21 @@ def test_get_sensors(client, manager):
         "port": 80,
         "profiles": [],
         "best_profile": None,
+    }
+
+
+def test_get_sensors_gige(client, manager):
+    manager.discover_all_cameras.return_value = [_gige_camera()]
+
+    data = client.get("/api/v1/sensors").json()
+
+    assert data[0]["device_type"] == "GIGE"
+    assert data[0]["details"] == {
+        "ip": "192.168.10.20",
+        "vendor": "Basler",
+        "model": "acA1300-30gm",
+        "serial": "21234567",
+        "current_capture": {"pixel_format": "Mono8", "width": 1280, "height": 1024, "fps": 30.0},
     }
 
 
