@@ -4,31 +4,32 @@ configure_edge_pack_manageability () {
   version="1.0"
 }
 
-debian_20_profile_edge_pack_manageability () {
+debian_40_profile_edge_pack_manageability () {
   echo "edge_pack"
 }
 
-debian_20_install_edge_pack_manageability () {
+debian_40_install_edge_pack_manageability () {
   configure_edge_pack_manageability "$@"
   if ensure_apt_is_installed intel-edge-manageability && [[ " $* " != *" --reinstall "* ]]; then
     echo "intel-edge-manageability is installed." >&2
   else
     ensure_prop set installed/edge_pack_manageability/owned true
+    install_edge_pack_repo_entries "$@"
     ensure_apt purge --auto-remove -y intel-edge-manageability || true
     ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-manageability=$version*"
     ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-manageability=$version*"
   fi
 }
 
-debian_20_remove_edge_pack_manageability () {
+debian_40_remove_edge_pack_manageability () {
   [ "$(ensure_prop get installed/edge_pack_manageability/owned)" = "true" ] || return 0
   ensure_apt purge --auto-remove -y intel-edge-manageability || true
-  debian_19_remove_edge_pack "$@" || true
+  remove_edge_pack_repo_entries "$@" || true
 }
 
-debian_20_sbom_edge_pack_manageability () {
+debian_40_sbom_edge_pack_manageability () {
   configure_edge_pack_manageability "$@"
-  debian_19_sbom_edge_pack_repo_entries "$@"
+  sbom_edge_pack_repo_entries "$@"
   ensure_sbom_format pkg-list "intel-edge-manageability=$version*"
 }
 

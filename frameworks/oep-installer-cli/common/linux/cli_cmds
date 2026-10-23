@@ -273,3 +273,8 @@ EOF
   echo "skill written to $skill_file"
 }
 
+subcommand_resume () {
+  local args=($(ensure_prop get command))
+  [ ${#args[*]} -gt 0 && -x "$installer_bin" ] && exec "$installer_bin" "${args[@]}" || true
+}
+
