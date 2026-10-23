@@ -70,9 +70,11 @@ main () {
         _rc=$?
       else
         # save args for resume
-        local resume_file="$(ensure_project_path)/$installer_name/commands"
-        mkdir -p "${resume_file%/*}"
-        printf -- "%s" "$*" > "$resume_file"
+        if [ -x "$installer_bin" ]; then
+          local resume_file="$(ensure_project_path)/$installer_name/commands"
+          mkdir -p "${resume_file%/*}"
+          printf -- "%s" "$*" > "$resume_file"
+        fi
 
         # critical group permissions
         local -A _groups=()
