@@ -12,8 +12,10 @@
 ```
 
 This removes both installer-owned sandboxes/providers and their chat/workspace
-data, shared IR/OVMS and private backend network, model downloads, and installer
-state. Back up needed data before consenting. The OpenShell local gateway
+data, shared IR, managed OVMS and private backend network, model downloads, and
+installer state. An external inference backend is not removed. If the same state
+directory records a host-installed agent, that recorded agent is removed too.
+Back up needed data before consenting. The OpenShell local gateway
 service, Debian CLI package and user state are also removed when this deployment
 installed them (`openshell-owned` receipt). Pre-existing OpenShell installations
 are preserved. Remaining unrelated sandboxes/providers/gateway registrations or
@@ -21,8 +23,14 @@ another account's running gateway block system-wide OpenShell removal.
 
 Failures retain remaining ownership/transition state for retry instead of
 reporting complete cleanup. Legacy installations without an OpenShell ownership
-receipt are not automatically claimed. `--keep-agent-data` cannot retain a
-deleted sandbox's home; back it up instead.
+receipt are not automatically claimed. In OpenShell mode, `--keep-agent-data`
+is rejected because it cannot retain a deleted sandbox's home; back it up
+instead.
+
+Model deletion is the default in both runtime modes. To retain model downloads
+during full uninstall, add `--keep-models`. Other installer state is removed;
+the models and their parent state directory remain. `--delete-models` is still
+accepted for compatibility and explicitly selects the default deletion behavior.
 
 For deliberately scoped removal without removing shared inference/OpenShell:
 
@@ -31,8 +39,13 @@ For deliberately scoped removal without removing shared inference/OpenShell:
 ./uninstall.sh --runtime openshell --sandbox-only --harness hermes --yes
 ```
 
-This mode retains `removed-profile.json` for audit. CI always uses this scoped
-mode when testing against a shared prepared runner.
+This mode retains `removed-profile.json` for audit and does not uninstall host
+agents. `--harness` selects one sandbox only in this scoped mode; full uninstall
+removes both owned sandbox profiles. The OpenShell prepared-runner test suite
+uses this scoped mode for cleanup.
+
+The uninstaller does not stop separately launched laptop SSH tunnels or local
+port-forwarding commands. Stop those processes separately after uninstall.
 
 ## Host installation
 
@@ -59,7 +72,7 @@ a warning.
 
 Left in place: Docker, Node.js/nvm, the Intel compute runtime, the Docker
 daemon proxy drop-in (if one was written), the downloaded OVMS and Inference
-Router images, the PATH
-block added to your shell profile, and OpenClaw's own `~/.openclaw` config
+Router images, the PATH block added to your shell profile, and a host-installed
+OpenClaw's own `~/.openclaw` config
 (including the `ovms` provider it was pointed at) — remove those yourself if
 you no longer need them.

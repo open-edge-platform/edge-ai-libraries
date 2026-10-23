@@ -6,8 +6,10 @@ SPDX-License-Identifier: Apache-2.0
 # OpenShell quality gates
 
 Both suites emit TAP 13 reports and return a nonzero exit status on failure.
-No test requires a GitHub token or inference API secret. Model-generated text
-is not used as proof that a file operation succeeded.
+No test requires a GitHub token. Live inference uses the prepared runner's
+shared IR, which must already have any required upstream authentication
+configured. Model-generated text is not used as proof that a file operation
+succeeded.
 
 ## Offline PR gate
 
@@ -24,7 +26,7 @@ bash test/openshell-test.sh | tee openshell-offline.tap
 
 | Area | Automated assertions |
 |---|---|
-| OpenClaw startup | Private SQLite temp directory exported before Node starts, real on-disk FTS5 initialization, inherited temp override, mode 700, config/token/database preservation across restart, fail-fast directory creation and permissions |
+| OpenClaw startup | Private SQLite temp directory exported before Node starts, real on-disk FTS5 initialization, inherited SQLite temp path replaced, mode 700, config/token/database preservation across restart, fail-fast directory creation and permissions |
 | Runtime selection | Host default, supported agents, invalid runtime and unsupported agent rejection |
 | Persisted state | Separate agent paths, valid profile loading, missing/malformed/wrong-agent/invalid-owner/newline/symlink rejection |
 | Ownership | Matching label accepted; mismatch or inaccessible gateway rejected |
@@ -66,14 +68,19 @@ Requirements:
 - Docker accessible to the runner account, with enough disk/RAM for both images.
 - OpenShell **0.1.5**, with an already authenticated, healthy local gateway.
 - A running installer-managed IR container, published only on loopback, serving
-  the exact requested model. Local OVMS is optional when IR routes externally.
+  the exact requested model. For local inference, managed OVMS must be ready
+  with that model and share the configured private backend network with IR.
+  For externally routed inference, also set `HARNESS_LLM_ROUTER_ENDPOINT` to
+  the existing external route so sandbox installs do not require local OVMS.
 - Access to pinned build dependencies (or cached image layers). The suite does
-  not install OpenShell, download models or reconfigure inference.
+  not provision missing OpenShell/inference services or models; preflight
+  requires them to be ready. Run with `HARNESS_HF_MODEL` unset to avoid
+  explicitly requesting model reconfiguration through the environment.
 
 ```bash
 set -o pipefail
 HARNESS_RUN_OPENSHELL_INTEGRATION=1 \
-HARNESS_LLM_MODEL=Qwen2.5-0.5B-Instruct \
+HARNESS_LLM_MODEL='<exact-served-model-id>' \
 bash test/openshell-integration-test.sh | tee openshell-integration.tap
 ```
 
@@ -86,12 +93,12 @@ The IR and denied direct-OVMS ports must differ.
 | Prerequisites | Gateway health, exact model discovery and loopback-only IR publication |
 | Installation | Both images build, sandboxes become Ready, native inference checks pass |
 | Local-model defaults | Disposable network-isolated built Hermes image must run all defaults cases, including native YAML and provider request mapping (no runtime-dependent skips) |
-| Hermes browser terminal | Real sandbox Python can allocate and close a PTY without host filesystem/network allowances |
+| Hermes browser terminal | Real sandbox Python can allocate and close a PTY; this is a prerequisite check, not an automated dashboard/browser chat turn |
 | Dispatch/idempotence | Status works; repeat installation preserves sandbox identity |
-| Drift prevention | Implicit model changes fail |
+| Drift prevention | An unserved `HARNESS_LLM_MODEL` environment override fails rather than silently selecting another model; explicit CLI model switches are covered by offline lifecycle fixtures |
 | Boundaries | Non-root runtime, host agent homes/host-only marker/Docker socket absence, exact workspace read/write, IR allowed and direct OVMS connection denied |
 | Stop/start | Workspace and agent config hashes persist; native inference works after restart |
-| Shared ownership | Complete uninstall requires explicit consent; CI uses `--sandbox-only` for cleanup |
+| Shared ownership | Full uninstall without confirmation fails; the suite uses `--sandbox-only` for cleanup, not full shared-service uninstall |
 | Removal/recovery | Owned sandboxes/providers disappear, records are archived, Hermes can be freshly provisioned and removed |
 | Shared services | IR/OVMS container identities, start times and port bindings remain unchanged; IR still serves the model |
 | Final cleanup | All remaining test-owned sandboxes are removed, including after ordinary failure or interruption |
@@ -110,13 +117,17 @@ run a broad sandbox deletion command on a shared gateway.
 Stop/start tests do not reboot the host. Native inference and direct workspace
 checks do not certify multi-step model-driven tool use, MCP, messaging,
 computer use or complete filesystem isolation on all Landlock configurations.
+The suite does not automate browser chat or a real cross-agent model switch.
+Those require separate acceptance checks; offline lifecycle tests use fixtures
+and mocks rather than live OVMS model changes.
 
 ## GitHub Actions setup
 
 The repository-level workflow `.github/workflows/agent-harness-openshell.yml`
 runs **OpenShell offline gate** for relevant pull requests and main pushes.
-It uploads the TAP report even when tests fail. It does not run the existing
-destructive host smoke/full-flow suites.
+It attempts to upload the TAP report even when tests fail; a failure before TAP
+generation (for example, a shell syntax failure) may leave no report to upload.
+It does not run the existing destructive host smoke/full-flow suites.
 
 For live validation, administrators must:
 

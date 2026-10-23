@@ -28,8 +28,10 @@ existing OpenAI-compatible endpoint you already operate (e.g. Ollama, vLLM,
 an internal gateway), with `HARNESS_LLM_ROUTER_API_KEY` as an optional bearer
 token. OVMS is not started in that case, and this installer never starts,
 stops, or health-checks that endpoint (`status` reports it as "routed
-externally"). A model must always be named with `--model` (the installer
-prompts for it on a terminal and fails otherwise).
+externally"). Host mode has no fresh-install default model: name it with
+`--model` or the model environment variables. The installer can reuse a
+previously exported model; otherwise it prompts on a terminal and fails
+non-interactively without a selection.
 
 ## OpenShell runtime (experimental)
 
@@ -37,6 +39,9 @@ OpenClaw and Hermes can run in separate OpenShell sandboxes instead of being
 installed on the host. Host mode remains the default. OpenShell mode currently
 targets Linux, Docker and OpenShell **0.1.5**; a different installed OpenShell
 version is rejected rather than upgraded or downgraded automatically.
+Automatic OpenShell CLI/gateway provisioning requires Debian/Ubuntu and a
+working systemd user service. On other Linux distributions, install and
+configure OpenShell 0.1.5 manually before running the installer.
 
 On a fresh host, one command provisions installer-owned OVMS and IR, downloads
 **OpenVINO/Qwen3.5-9B-int8-ov**, and installs OpenClaw in its sandbox:
@@ -49,8 +54,9 @@ This is the **9B** model in the Qwen3.5 family, not a 3.5B model. Its preconvert
 OpenVINO weights are downloaded using the existing `hf-snapshot` exporter.
 The repository has no OVMS graph, so the pinned serving image generates
 `graph.pbtxt` using `--configure --task text_generation` before registration.
-This metadata-only step needs no network/GPU access and does not reconvert the
-weights. No external OVMS container or local model-directory import is used.
+Once the serving image is available, this metadata-only container step needs
+no network/GPU access and does not reconvert the weights. No external OVMS
+container or local model-directory import is used.
 Explicit `--model`, exporter and hub choices remain supported; host-mode model
 selection is unchanged.
 
@@ -77,12 +83,16 @@ models remain cached until full uninstall.
 Only the selected model remains registered for serving in managed OpenShell
 mode, avoiding simultaneous loading of previous large models into GPU memory.
 Existing images predating restart-safe startup fail preflight before inference
-is modified. They require a backed-up image migration; the installer never
-deletes/recreates a legacy sandbox to change its model.
+is modified. They require a separately planned image migration after backing
+up needed data; the installer does not automate image upgrades or backup/restore
+and never deletes/recreates a legacy sandbox to change its model.
 
-IR/OVMS are validated for the exact model, readiness, private network and
-loopback publication. A no-model rerun does not silently replace an existing
-route; incomplete deployments require an explicit model selection to repair.
+With managed local inference, IR/OVMS are validated for the exact model,
+readiness, private network and loopback publication. With an external backend,
+the local IR's loopback publication and advertised model are checked instead;
+the installer does not manage that external backend. A no-model rerun does not
+silently replace an existing route; incomplete deployments require an explicit
+model selection to repair.
 
 ### Qwen local-model defaults
 
@@ -151,6 +161,8 @@ to your laptop. The dashboard is not started by the installer and stops with
 its process/sandbox; keep its launcher running during testing. No messaging
 gateway is required for browser chat. Do not expose the loopback-only dashboard
 on a LAN without configuring Hermes authentication.
+This browser UI is separate from external web-search/browser tools: those tools
+still need explicit egress policy and any required service configuration.
 
 Hermes uses [a dedicated policy](openshell/hermes-policy.yaml) matching the
 base agent policy except for writable `/dev/ptmx` and `/dev/pts`. These
@@ -184,6 +196,9 @@ user state **when this deployment installed OpenShell**, as recorded by
 `openshell-owned`. Pre-existing OpenShell installations are not adopted; unrelated
 gateways/resources block removal of an owned shared runtime. Docker/Node/system
 prerequisites and shared image caches are not uninstalled.
+An external inference backend is never removed. If this state directory also
+records a host-installed agent, full uninstall removes that recorded host agent
+too; this is not a sandbox-only operation.
 
 To remove only one sandbox while retaining shared services (also used by CI):
 
@@ -206,10 +221,12 @@ reports, opt-in lifecycle tests and CI runner setup.
 
 ## How it works
 
-### Install flow
+### Host-mode install flow
 
 `./install.sh` is the only command you run. It prepares the host, brings up
 the inference backend, installs the chosen agent, and wires the two together.
+The diagram below describes host mode; OpenShell's automatic model selection,
+sandbox lifecycle and onboarding are described above.
 
 ```mermaid
 %%{init: {"flowchart": {"wrappingWidth": 420, "nodeSpacing": 40, "rankSpacing": 45, "curve": "basis"}}}%%
@@ -284,6 +301,9 @@ Inference Router sits in front of OVMS (or of an external endpoint), and the
 local containers run on a dedicated Docker network. Published ports bind to
 127.0.0.1 by default; set `HARNESS_ADVERTISED_HOST` (a specific address) or
 `HARNESS_BIND_HOST=0.0.0.0` (all interfaces) to reach them from other machines.
+These LAN-publication overrides apply only to host mode; OpenShell mode
+requires inference ports to remain bound to `127.0.0.1`. The diagram below
+shows the host-mode agent, not an OpenShell sandbox.
 Neither service authenticates inbound requests, and Docker-published ports
 bypass `ufw`, so restrict access with the `DOCKER-USER` iptables chain or bind
 to a specific interface address.
