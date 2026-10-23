@@ -169,10 +169,13 @@ _openshell_ensure_shared_inference() {
 }
 
 openshell_validate_recorded_ir_port() {
-  local agent dir provider saved_port HARNESS_AGENT
+  local agent dir profile provider saved_port HARNESS_AGENT
   for agent in openclaw deepagents-code hermes; do
     HARNESS_AGENT="$agent"
     dir="$(openshell_profile_dir)"
+    profile="$dir/profile.json"
+    [[ -e "$profile" || -L "$profile" ]] || continue
+    openshell_load_profile
     provider="$dir/provider.json"
     [[ -f "$provider" ]] || continue
     load_openshell_node

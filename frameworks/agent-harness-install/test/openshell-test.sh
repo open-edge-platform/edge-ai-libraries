@@ -406,6 +406,17 @@ removal_success() {
   cmp <(printf '%s\n' "$valid_profile") "$(openshell_profile_dir)/removed-profile.json"
   cmp <(printf 'sandbox delete\nprovider delete\nprofile delete\n') "$TEST_ROOT/actions"
 }
+removed_sandbox_allows_ir_port_change() {
+  mock_lifecycle
+  atomic_write_file "$(openshell_profile_dir)/provider.json" \
+    '{"endpoints":[{"host":"host.openshell.internal","port":8010}]}'
+  remove_openshell_agent
+  local provider
+  provider="$(openshell_profile_dir)/provider.json"
+  [[ -f "$provider" ]]
+  HARNESS_IR_PORT=8011
+  openshell_validate_recorded_ir_port
+}
 removal_unowned() {
   mock_lifecycle
   MOCK_OWNER=someone-else
@@ -521,6 +532,7 @@ run_case 'unserved model rejected through HTTP API' model_response 200 '{"data":
 run_case 'HTTP failure rejected' model_response 503 '{"error":"unavailable"}' fail
 run_case 'malformed model JSON rejected' model_response 200 '{' fail
 run_case 'owned removal deletes in order and archives state' removal_success
+run_case 'removed sandbox does not block inference-router port changes' removed_sandbox_allows_ir_port_change
 run_case 'unowned removal performs no deletion' removal_unowned
 run_case 'pending removal retains ownership and provider' removal_pending
 run_case 'orphaned provider profile is removed when the provider is absent' removal_deletes_orphaned_profile
