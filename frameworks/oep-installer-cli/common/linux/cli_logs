@@ -952,13 +952,14 @@ _draw() {
 
   AT_SEG=()
   _attention_active && _attention_build
-  local now_s=${EPOCHREALTIME%.*}
+  local now_s=${EPOCHREALTIME%.*} at_wipe=0
   if (( ${#AT_LINES[@]} || now_s < AT_GUARD )) && (( now_s != AT_SEC )); then
-    AT_SEC=$now_s; FULL_CLEAR=1    # full repaint once a second wipes wall text
+    AT_SEC=$now_s; FULL_CLEAR=1; at_wipe=1    # full repaint once a second wipes wall text
   fi
 
   local out="" l r rowstr
   if (( FULL_CLEAR )); then PREV=(); FULL_CLEAR=0; fi
+  (( at_wipe )) && printf -v out '\033[%d;1H\033[K' "$rows"   # last row isn't part of the panels
 
   _title_text "$REVIEW" "$TITLE_WORD"
   _title_row "$usable"
@@ -1002,10 +1003,7 @@ _draw() {
     done
   fi
 
-  # limit scrolling to the bottom 2 rows and park the cursor there,
-  # so wall/console text can't push the panels up
-  printf -v out '%s\033[%d;%dr\033[%d;1H' "$out" $(( rows - 1 )) "$rows" "$rows"
-  printf '\033[?2026h%s\033[?2026l' "$out"
+  [[ -n $out ]] && printf '\033[?2026h%s\033[?2026l' "$out"
 
   FRAMES=$(( FRAMES + 1 ))
   DRAW_MS=$(( DRAW_MS + $(_now_ms) - t0 ))
