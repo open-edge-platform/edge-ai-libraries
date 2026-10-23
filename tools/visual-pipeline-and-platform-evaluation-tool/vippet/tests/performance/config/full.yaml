@@ -17,7 +17,6 @@ benchmark:
     - cpu
     - gpu
     - npu
-    - gpu_npu
 
   # Test multiple stream counts for scalability analysis
   stream_counts:
