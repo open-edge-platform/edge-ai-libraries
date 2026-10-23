@@ -1,0 +1,79 @@
+
+configure_openvino () {
+  repo_name="yum.repos.intel.com"
+  key_url="https://$repo_name/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
+  yum_repo_conf=(
+"[OpenVINO]"
+"name=Intel(R) Distribution of OpenVINO"
+"baseurl=https://$repo_name/openvino"
+"enabled=1"
+"gpgcheck=1"
+"repo_gpgcheck=1"
+"gpgkey=$key_url"
+)
+  yum_repo_file="/etc/yum.repos.d/intel-openvino.repo"
+  version=$([[ " $* " = *" dlstreamer "* ]] && echo 2026.2.0 || echo 2026.4.1)
+  workspace="$(ensure_project_path)/openvino"
+  model="https://github.com/onnx/models/raw/4c46cd00fbdb7cd30b6c1c17ab54f2e1f4f7b177/validated/vision/classification/squeezenet/model/squeezenet1.0-12.onnx"
+}
+
+fedora_70_profile_openvino () {
+  echo "curl gnupg2 pip"
+  if [[ " $* " = *" --validate "* ]]; then
+    echo "make cmake gcc"
+  fi
+}
+
+verify_openvino () {
+  ensure_dnf_is_installed openvino-${version} || {
+    echo "Missing openvino-${version}" >&2
+    return 1
+  }
+}
+
+fedora_70_install_openvino () {
+  configure_openvino "$@"
+  
+  if verify_openvino && [[ " $* " != *" --reinstall "* ]]; then
+    echo "openvino-${version} is installed." >&2
+  else
+    ensure_disk_size 1500
+    ensure_prop set installed/openvino/owned true
+
+    # remove old versions
+    echo "@@STEP Removing openvino"
+    fedora_70_remove_openvino "$@"
+
+    # product entrypoint
+    echo "@@STEP Installing openvino-$version"
+    printf "%s\n" "${yum_repo_conf[@]}" | ensure_sudo tee "$yum_repo_file"
+
+    # install openvino
+    ensure_dnf install -y openvino-$version
+
+    verify_openvino
+    echo "openvino-${version} installed successfully."
+  fi
+
+  # validate openvino
+  test_openvino "$@"
+
+  # info
+  echo "@@HIGHLIGHT openvino samples @/usr/share/openvino"
+}
+
+fedora_70_remove_openvino () {
+  configure_openvino "$@"
+  [ "$(ensure_prop get installed/openvino/owned)" = "true" ] || return 0
+  ensure_dnf autoremove -y $(dnf list --installed | grep openvino | awk '{print$1}') || true
+  ensure_rm "$workspace"
+}
+
+fedora_70_sbom_openvino () {
+  configure_openvino "$@"
+  ensure_sbom_format name "$repo_name"
+  ensure_sbom_format gpg-key "$key_url"
+  ensure_sbom_format yum-repo-conf "${yum_repo_conf[@]}"
+  ensure_sbom_format yum-repo-file "$yum_repo_file"
+  ensure_sbom_format pkg-list "openvino-$version"
+}

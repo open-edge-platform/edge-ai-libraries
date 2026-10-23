@@ -21,11 +21,12 @@ from internal_types import (
     InternalPerformanceTestSpec,
     InternalPipelinePerformanceSpec,
     InternalPipelineDensitySpec,
+    InternalPipelineEvent,
     InternalPipelineStreamSpec,
     InternalTestJobState,
 )
 from dlsps2_runner import Dlsps2PipelineRunner
-from pipeline_runner import LatencyTracerSample, PipelineRunner
+from pipeline_runner import LatencyTracerSample, PipelineEvent, PipelineRunner
 from benchmark import Benchmark
 from managers.execution_coordinator import (
     ExecutionCoordinator,
@@ -54,6 +55,23 @@ METRICS_STREAM_PATH = "/metrics/stream"
 METRICS_STREAM_MAX_EVENTS: int = int(
     os.environ.get("TESTS_METRICS_STREAM_MAX_EVENTS", "10000")
 )
+# Upper bound on live pipeline events kept per performance job.
+MAX_PIPELINE_EVENTS_PER_JOB = 200
+# Per-field caps on event payloads. `text` and `prompt` originate from
+# pipeline/VLM output and are otherwise unbounded, so without these the
+# retained window could hold (and every status poll return) arbitrarily
+# large strings.
+MAX_PIPELINE_EVENT_TEXT_CHARS = 4096
+MAX_PIPELINE_EVENT_PROMPT_CHARS = 1024
+PIPELINE_EVENT_TRUNCATION_SUFFIX = "... [truncated]"
+
+
+def _truncate_event_field(value: str | None, max_chars: int) -> str | None:
+    """Clamp an event string to ``max_chars`` including the truncation marker."""
+    if value is None or len(value) <= max_chars:
+        return value
+    keep = max(max_chars - len(PIPELINE_EVENT_TRUNCATION_SUFFIX), 0)
+    return value[:keep] + PIPELINE_EVENT_TRUNCATION_SUFFIX[:max_chars]
 
 
 class _MetricsSSECollector:
@@ -759,6 +777,7 @@ class TestsManager:
                     max_runtime=internal_spec.execution_config.max_runtime,
                     enable_latency_metrics=internal_spec.execution_config.enable_latency_metrics,
                     job_id=job_id,
+                    on_event=lambda event: self._record_pipeline_event(job_id, event),
                 )
 
             # Store runner for this job so it can be cancelled via stop_job()
@@ -871,6 +890,35 @@ class TestsManager:
                 self._stop_metrics_stream_collection(job_id)
             if execution_lease is not None:
                 ExecutionCoordinator().release(execution_lease)
+
+    def _record_pipeline_event(self, job_id: str, event: PipelineEvent) -> None:
+        """Append a live pipeline event to the job status (bounded).
+
+        The event count is capped at ``MAX_PIPELINE_EVENTS_PER_JOB`` and the
+        free-form ``text``/``prompt`` fields are truncated to
+        ``MAX_PIPELINE_EVENT_TEXT_CHARS`` / ``MAX_PIPELINE_EVENT_PROMPT_CHARS``
+        (marker included), which bounds the memory held per job and the size of
+        every status response.
+        """
+        with self._jobs_lock:
+            job = self.jobs.get(job_id)
+            if not isinstance(job, InternalPerformanceJobStatus):
+                return
+            text = _truncate_event_field(event.text, MAX_PIPELINE_EVENT_TEXT_CHARS)
+            job.events.append(
+                InternalPipelineEvent(
+                    timestamp_ms=event.timestamp_ms,
+                    source=event.source,
+                    text=text if text is not None else "",
+                    element=event.element,
+                    pts_seconds=event.pts_seconds,
+                    prompt=_truncate_event_field(
+                        event.prompt, MAX_PIPELINE_EVENT_PROMPT_CHARS
+                    ),
+                )
+            )
+            if len(job.events) > MAX_PIPELINE_EVENTS_PER_JOB:
+                del job.events[:-MAX_PIPELINE_EVENTS_PER_JOB]
 
     def _build_performance_execution_result(self, job_id: str) -> dict[str, Any]:
         """Build final performance execution payload for orchestration callers."""

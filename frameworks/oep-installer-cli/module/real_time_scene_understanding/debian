@@ -1,0 +1,85 @@
+
+configure_real_time_scene_understanding () {
+  workspace="$(ensure_project_path)/real-time-scene-understanding"
+  version=d3fe53d32784013b97ee082ab06b57f60eb71593
+  repository="https://github.com/open-edge-platform/metro-ai-suite.git"
+  used_ports=(9100 32776)
+}
+
+configure_real_time_scene_understanding_device () {
+  local device="$1"
+
+  cd "$workspace"/live-video-analysis/real-time-scene-understanding
+  sed -i "s|^ALERT_VLM_DEVICE=.*|ALERT_VLM_DEVICE=$device|" .env
+  sed -i "s|^DEEP_ANALYZER_DEVICE=.*|DEEP_ANALYZER_DEVICE=$device|" .env
+  
+  local precision="int4"
+  ./model_download_scripts/download_models.sh --model $(. .env;echo "${ALERT_VLM_MODEL/*Qwen3/"Qwen/Qwen3"}") --type vlm --weight-format $precision --device $device
+  ./model_download_scripts/download_models.sh --model $(. .env;echo "${DEEP_ANALYZER_MODEL/*Qwen3/"Qwen/Qwen3"}") --type vlm --weight-format $precision --device $device
+}
+
+verify_real_time_scene_understanding () {
+  [ -e "$workspace"/live-video-analysis/real-time-scene-understanding/.env ]
+}
+
+debian_90_profile_real_time_scene_understanding () {
+  echo "git curl gawk jq edge_base docker_io"
+}
+
+debian_90_install_real_time_scene_understanding () {
+  configure_real_time_scene_understanding
+  if verify_real_time_scene_understanding && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Live Video Captioning is installed." >&2
+  else
+    ensure_disk_size 64000
+    ensure_ram_size 16777216 # 16GiB
+    ensure_ports_open install real_time_scene_understanding "${used_ports[@]}"
+
+    # clone the repository
+    ensure_git_clone "$workspace" $version $repository live-video-analysis/real-time-scene-understanding
+
+    # setup
+    cd "$workspace"/live-video-analysis/real-time-scene-understanding
+    ensure_hf_token $(. .env.example; echo "${ALERT_VLM_MODEL/*Qwen3/"Qwen/Qwen3"} ${DEEP_ANALYZER_MODEL/*Qwen3/"Qwen/Qwen3"}")
+    sed -i "s|^HUGGINGFACEHUB_API_TOKEN=.*|HUGGINGFACEHUB_API_TOKEN=$HF_TOKEN|" .env.example
+    bash scripts/setup_env.sh
+
+    docker compose -f compose.yaml pull || docker compose -f compose.yaml build
+    verify_real_time_scene_understanding
+  fi
+
+  local device=$(ensure_select_device "$@")
+  configure_real_time_scene_understanding_device "${device^^}"
+
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
+  echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHT $installer_name remove"
+}
+
+debian_90_start_real_time_scene_understanding () {
+  configure_real_time_scene_understanding
+  ensure_ports_open start real_time_scene_understanding "${used_ports[@]}"
+
+  local device=$(ensure_select_device "$@")
+  [[ " ${*,,} " != *" --$device "* ]] || configure_real_time_scene_understanding_device "${device^^}"
+
+  cd "$workspace"/live-video-analysis/real-time-scene-understanding
+  docker compose -f compose.yaml up -d
+
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}"
+  echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
+}
+
+debian_90_stop_real_time_scene_understanding () {
+  configure_real_time_scene_understanding
+  cd "$workspace"/live-video-analysis/real-time-scene-understanding && {
+    docker compose -f compose.yaml down -v --remove-orphans
+  } || true
+}
+
+debian_90_remove_real_time_scene_understanding () {
+  debian_90_stop_real_time_scene_understanding "$@"
+  ensure_rm "$workspace"
+}

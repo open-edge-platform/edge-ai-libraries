@@ -312,6 +312,17 @@ const injectedRtkApi = api
         query: () => ({ url: `/models` }),
         providesTags: ["models"],
       }),
+      listHubModels: build.mutation<
+        ListHubModelsApiResponse,
+        ListHubModelsApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/models/list`,
+          method: "POST",
+          body: queryArg.modelHubListRequest,
+        }),
+        invalidatesTags: ["models"],
+      }),
       uploadModel: build.mutation<UploadModelApiResponse, UploadModelApiArg>({
         query: (queryArg) => ({
           url: `/models/upload`,
@@ -766,16 +777,22 @@ export type GetModelDownloadJobStatusApiArg = {
 export type GetModelsApiResponse =
   /** status 200 List of all installed and available models */ Model[];
 export type GetModelsApiArg = void;
-export type UploadModelApiResponse =
-  | /** status 200 Successful Response */ any
+export type ListHubModelsApiResponse =
+  /** status 200 Successful Response */ ModelHubListResponse;
+export type ListHubModelsApiArg = {
+  modelHubListRequest: ModelHubListRequest;
+};
+export type UploadModelApiResponse = /** status 200 Successful Response */
+  | any
   | /** status 201 Model uploaded successfully */ ModelUploadResponse;
 export type UploadModelApiArg = {
   bodyUploadModel: BodyUploadModel;
 };
 export type StartModelDownloadApiResponse =
-  | /** status 200 Successful Response */ any
-  | /** status 202 All requested downloads accepted */ ModelDownloadJobResponse
-  | /** status 207 Multi-Status: some downloads accepted, some rejected. Inspect `jobs[<name>].status_code` for per-model outcome. */ ModelDownloadJobResponse;
+  /** status 200 Successful Response */
+    | any
+    | /** status 202 All requested downloads accepted */ ModelDownloadJobResponse
+    | /** status 207 Multi-Status: some downloads accepted, some rejected. Inspect `jobs[<name>].status_code` for per-model outcome. */ ModelDownloadJobResponse;
 export type StartModelDownloadApiArg = {
   modelDownloadRequest: ModelDownloadRequest;
 };
@@ -963,7 +980,12 @@ export type MessageResponse = {
   message: string;
 };
 export type BenchmarkTestCaseRunStatus =
-  "created" | "running" | "completed" | "failed" | "cancelled" | "skipped";
+  | "created"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "skipped";
 export type BenchmarkSuiteRun = {
   id: number;
   suite_id: number;
@@ -1155,6 +1177,14 @@ export type LatencyMetrics = {
   /** Current end-to-end latency reported by the tracer, in ms. */
   latency_ms: number;
 };
+export type PipelineEvent = {
+  timestamp_ms: number;
+  source: string;
+  text: string;
+  element?: string | null;
+  pts_seconds?: number | null;
+  prompt?: string | null;
+};
 export type PerformanceJobStatus = {
   id: string;
   start_time: number;
@@ -1178,6 +1208,8 @@ export type PerformanceJobStatus = {
   metadata_stream_urls: {
     [key: string]: string[];
   } | null;
+  /** Most recent live pipeline events (oldest first, bounded), e.g. a `gvaproximitytrigger_py` trigger firing or a `gvagenai` answer. */
+  events?: PipelineEvent[];
 };
 export type PerformanceJobSummary = {
   id: string;
@@ -1274,7 +1306,11 @@ export type ValidationJobSummary = {
   request: PipelineValidation;
 };
 export type ModelSource =
-  "huggingface" | "ultralytics" | "pipeline-zoo-models" | "omz" | "custom";
+  | "huggingface"
+  | "ultralytics"
+  | "pipeline-zoo-models"
+  | "omz"
+  | "custom";
 export type ModelDownloadJobState = "RUNNING" | "COMPLETED" | "FAILED";
 export type ModelDownloadJobStatus = {
   id: string;
@@ -1302,7 +1338,10 @@ export type ModelCategory =
   | "automatic_speech_recognition"
   | "text_to_speech";
 export type ModelInstallStatus =
-  "installed" | "not_installed" | "installing" | "failed";
+  | "installed"
+  | "not_installed"
+  | "installing"
+  | "failed";
 export type ModelVariant = {
   /** Stable variant identifier. */
   name: string;
@@ -1335,6 +1374,36 @@ export type Model = {
   /** Comma-separated list of devices on which the model cannot run (e.g. 'NPU'), or null when no restrictions exist. */
   unsupported_devices?: string | null;
 };
+export type ModelHubListResponse = {
+  hub: string;
+  items: {
+    [key: string]: any;
+  }[];
+  /** Number of items returned in this response. */
+  count?: number | null;
+  /** Total number of items available, when the hub reports it. */
+  total?: number | null;
+  limit: number;
+  offset: number;
+  /** Whether another page is available. */
+  has_more?: boolean | null;
+  /** Offset to request the next page, when available. */
+  next_offset?: number | null;
+};
+export type ModelHubListRequest = {
+  /** Model hub to search, such as huggingface. */
+  hub: string;
+  /** Hub-specific listing filters, such as author, search, or tags. */
+  filters?: {
+    [key: string]: any;
+  };
+  limit?: number;
+  offset?: number;
+  /** Optional Base64-encoded connection overrides for this request. */
+  override_credentials?: {
+    [key: string]: string;
+  } | null;
+};
 export type ModelUploadResponse = {
   /** Newly registered model entry. */
   model: Model;
@@ -1364,6 +1433,10 @@ export type ModelDownloadJobResponse = {
 export type ModelDownloadRequest = {
   /** List of supported-model names to install. Must be non-empty and unique. */
   names: string[];
+  /** Upstream hub used for names not found in the model catalog. */
+  hub?: ModelSource | null;
+  /** Model category, required when `hub` is `huggingface` (ignored for other hubs). */
+  category?: ModelCategory | null;
 };
 export type ModelStatusItem = {
   /** Internal model identifier. */
@@ -1755,6 +1828,7 @@ export const {
   useLazyGetModelDownloadJobStatusQuery,
   useGetModelsQuery,
   useLazyGetModelsQuery,
+  useListHubModelsMutation,
   useUploadModelMutation,
   useStartModelDownloadMutation,
   useCheckModelsStatusMutation,

@@ -6,6 +6,7 @@ import {
   type VlmMetricsPoint,
 } from "@/features/metrics/VlmMetricsCharts.tsx";
 import WebRTCVideoPlayer from "@/features/webrtc/WebRTCVideoPlayer.tsx";
+import { LivePipelineEvents } from "@/features/pipeline-editor/LivePipelineEvents.tsx";
 import {
   useFrozenMetrics,
   type FrozenSnapshotOverrides,
@@ -13,6 +14,7 @@ import {
 import { useMetricHistory } from "@/hooks/useMetricHistory";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useGetPerformanceStatusesQuery } from "@/api/api.generated";
+import type { PipelineEvent } from "@/api/api.generated";
 import { ExternalLink } from "lucide-react";
 import "@/lib/hljs-theme.css";
 
@@ -22,13 +24,6 @@ type ConnectionState = "connecting" | "open" | "error" | "closed";
 
 type PerformanceJobStatusWithMetadata = {
   metadata_stream_urls?: Record<string, string[]> | null;
-};
-
-/** Label shown in the pipeline tab: "job-short … pipeline-short" */
-const buildStreamLabel = (jobId: string, pipelineId: string): string => {
-  const shortJob = jobId.slice(0, 8);
-  const shortPipeline = pipelineId.replace(/^__graph-/, "").slice(0, 8);
-  return `${shortJob} / ${shortPipeline}`;
 };
 
 /** Shorten a stream URL to its last two meaningful path segments. */
@@ -47,9 +42,11 @@ const collectMetadataStreams = (
     if (!urls) continue;
     for (const [pipelineId, streamUrls] of Object.entries(urls)) {
       if (!Array.isArray(streamUrls) || streamUrls.length === 0) continue;
-      const raw = streamUrls[0];
-      const url = raw && !raw.startsWith("/api/") ? `/api/v1${raw}` : raw;
-      result[`${jobId}::${pipelineId}`] = url;
+      streamUrls.forEach((raw, streamIndex) => {
+        if (!raw) return;
+        const url = raw.startsWith("/api/") ? raw : `/api/v1${raw}`;
+        result[`${jobId}::${pipelineId}::${streamIndex}`] = url;
+      });
     }
   }
   return result;
@@ -63,8 +60,10 @@ type PerformanceTestPanelProps = {
   videoOutputEnabled?: boolean;
   enableLatencyMetrics?: boolean;
   enableMetadata?: boolean;
+  isVlmPipeline?: boolean;
   liveStreamUrl?: string | null;
   resultOverrides?: FrozenSnapshotOverrides | null;
+  events?: PipelineEvent[];
 };
 
 const PerformanceTestPanel = ({
@@ -75,8 +74,10 @@ const PerformanceTestPanel = ({
   videoOutputEnabled = false,
   enableLatencyMetrics = false,
   enableMetadata = true,
+  isVlmPipeline = false,
   liveStreamUrl,
   resultOverrides,
+  events,
 }: PerformanceTestPanelProps) => {
   const { frozenHistory, frozenSummary, startRecording, freezeSnapshot } =
     useFrozenMetrics();
@@ -97,6 +98,14 @@ const PerformanceTestPanel = ({
   const [connectionErrors, setConnectionErrors] = useState<
     Record<string, string | null>
   >({});
+  // Last non-empty events list, kept visible after the job status stops polling.
+  const [displayedEvents, setDisplayedEvents] = useState<PipelineEvent[]>([]);
+
+  useEffect(() => {
+    if (events && events.length > 0) {
+      setDisplayedEvents(events);
+    }
+  }, [events]);
 
   // Frozen snapshot of metadata kept after the run finishes
   const [frozenMetadata, setFrozenMetadata] = useState<{
@@ -148,6 +157,7 @@ const PerformanceTestPanel = ({
     if (!wasRunning && isRunning) {
       startRecording();
       setFrozenMetadata(null);
+      setDisplayedEvents(events?.length ? events : []);
     } else if (wasRunning && !isRunning) {
       freezeSnapshot(resultOverrides);
       setFrozenMetadata((prev) => {
@@ -161,13 +171,16 @@ const PerformanceTestPanel = ({
     startRecording,
     freezeSnapshot,
     resultOverrides,
+    events,
     metadataLines,
     metadataEntries,
   ]);
 
   useEffect(() => {
     if (metadataEntries.length === 0) {
-      setActiveMetadataTab(null);
+      if (!frozenMetadata) {
+        setActiveMetadataTab(null);
+      }
       return;
     }
 
@@ -261,7 +274,7 @@ const PerformanceTestPanel = ({
     if (!activeMetadataTab || !availableKeys.has(activeMetadataTab)) {
       setActiveMetadataTab(metadataEntries[0][0]);
     }
-  }, [activeMetadataTab, metadataEntries]);
+  }, [activeMetadataTab, frozenMetadata, metadataEntries]);
 
   useEffect(() => {
     const metadataSources = metadataSourcesRef;
@@ -346,7 +359,7 @@ const PerformanceTestPanel = ({
         className="flex flex-col min-w-0"
       >
         {availableMainTabs.length > 1 && (
-          <TabsList>
+          <TabsList className="grid w-full grid-flow-col auto-cols-fr">
             {hasMediaTab && (
               <TabsTrigger value="media">{mediaTabLabel}</TabsTrigger>
             )}
@@ -394,6 +407,15 @@ const PerformanceTestPanel = ({
                   </p>
                 ) : null}
               </div>
+            )}
+
+            {displayedEvents.length > 0 && (
+              <LivePipelineEvents
+                events={displayedEvents}
+                isRunning={isRunning}
+                title={isVlmPipeline ? "Video captions" : "Live events"}
+                showTriggeredCount={!isVlmPipeline}
+              />
             )}
           </TabsContent>
         )}
@@ -458,12 +480,15 @@ const PerformanceTestPanel = ({
                 value={metadataTabValue}
                 onValueChange={setActiveMetadataTab}
               >
-                <TabsList className="w-full h-auto flex-wrap justify-start">
-                  {displayEntries.map(([compositeKey]) => {
-                    const [jobId, pipelineId] = compositeKey.split("::");
+                <TabsList className="grid h-10 w-full grid-cols-[repeat(auto-fit,minmax(min(100%,7rem),1fr))] items-stretch gap-0 rounded-none border-b border-border bg-transparent p-0">
+                  {displayEntries.map(([compositeKey], index) => {
                     return (
-                      <TabsTrigger key={compositeKey} value={compositeKey}>
-                        {buildStreamLabel(jobId, pipelineId)}
+                      <TabsTrigger
+                        key={compositeKey}
+                        value={compositeKey}
+                        className="h-full w-full min-w-0 flex-1 self-stretch rounded-none border-0 border-b-2 border-transparent px-3 text-sm after:hidden data-[state=active]:border-primary data-[state=active]:bg-primary/5 data-[state=active]:text-primary data-[state=active]:shadow-none"
+                      >
+                        Stream {index + 1}
                       </TabsTrigger>
                     );
                   })}

@@ -17,7 +17,8 @@ Before starting, ensure the following:
   [post-installation steps](https://docs.docker.com/engine/install/linux-postinstall/) to run Docker as a non-root user.
 
   > [!NOTE]
-  > Do not use Docker Desktop on Linux. It runs the Docker daemon inside a virtual machine that is not forwarding GPU device on Linux (yet).
+   > Do not use Docker Desktop on Linux. It runs the Docker daemon inside a virtual machine that is not forwarding GPU
+   > device on Linux (yet).
 
 - **Dependencies installed**:
   - **Make**: Standard build tool, typically provided by the `build-essential` (or equivalent) package on Linux.

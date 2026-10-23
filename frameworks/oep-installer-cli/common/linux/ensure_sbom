@@ -2,17 +2,17 @@
 ensure_sbom_format () {
   local key=$1; shift
   case "$key" in
-  pkg-list|apt-pref)
-    IFS=$'|'
+  pkg-list|apt-pref|yum-repo-conf)
+    local IFS=$'|'
     local pkg_str="$*"
     echo "\"$key\": [\"${pkg_str//'|'/\",\"}\"]"
     ;;
-  name|gpg-key|key-file|apt-source|apt-src-source|apt-list-file|apt-pref-file|apt-repository)
+  name|gpg-key|key-file|apt-source|apt-src-source|apt-list-file|apt-pref-file|apt-repository|yum-repo-file)
     echo "\"$key\": \"$*\""
     ;;
   *)
     echo "Unsupported SBOM key: $key" 1>&2
-    exit 3
+    return 3
     ;;
   esac
 }

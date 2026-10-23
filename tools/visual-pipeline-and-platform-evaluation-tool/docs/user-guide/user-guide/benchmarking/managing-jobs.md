@@ -45,8 +45,8 @@ Click on a completed job to view its detailed results:
 To stop a job that is currently running:
 
 1. Locate the job in the list (state = RUNNING).
-2. Click the **Stop** button.
-3. The job will be terminated.
+1. Click the **Stop** button.
+1. The job will be terminated.
 
 **Behavior after stopping:**
 
