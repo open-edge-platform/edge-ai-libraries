@@ -4,18 +4,23 @@
 """Unit tests for the performance-benchmark CLI."""
 
 import io
+import json
 import os
+import shutil
 import stat
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from typing import Any
 from unittest.mock import Mock, patch
 
 from tests.performance.perf_helpers import cli
+from tests.performance.perf_helpers import reporters
 from tests.performance.perf_helpers.matrix import MatrixFilters, build_matrix
 from tests.performance.perf_helpers.preflight import PreflightError
+from tests.performance.perf_helpers.reporters import generate_html_report
 from tests.performance.perf_helpers.settings import (
     ENV_CONFIG_FILE,
     SPECS,
@@ -61,6 +66,7 @@ class TestParser(unittest.TestCase):
             "--results-dir",
             "--dry-run",
             "--report-only",
+            "--report-output",
         ):
             self.assertIn(flag, options)
 
@@ -93,6 +99,7 @@ class TestParser(unittest.TestCase):
             ["--base-url", "file:///etc/passwd"],
             ["--output-mode", "stdout"],
             ["--dry-run", "--report-only"],
+            ["--dry-run", "--report-only", "x"],
         ):
             with self.subTest(argv=argv):
                 with self.assertRaises(SystemExit):
@@ -105,6 +112,17 @@ class TestParser(unittest.TestCase):
             (["--dry-run"], ["-k", "x", "--"]),
         )
         self.assertEqual(cli.split_passthrough(["--dry-run"]), (["--dry-run"], []))
+
+    def test_report_only_paths(self) -> None:
+        self.assertIsNone(_parse().report_only)
+        self.assertEqual(_parse("--report-only").report_only, [])
+        self.assertEqual(_parse("--report-only", "a", "b").report_only, ["a", "b"])
+
+    def test_report_output_requires_report_only(self) -> None:
+        with patch("sys.stderr", io.StringIO()):
+            with self.assertRaises(SystemExit) as ctx:
+                cli.main(["--report-output", "x.html"])
+        self.assertEqual(ctx.exception.code, 2)
 
 
 class TestDryRun(unittest.TestCase):
@@ -178,12 +196,306 @@ class TestDryRun(unittest.TestCase):
         self.assertEqual(rc, 2)
 
 
+_RESULT: dict[str, Any] = {
+    "benchmark_id": "bench_20260101_000000",
+    "timestamp": "2026-01-01T00:00:00",
+    "duration_seconds": 12.5,
+    "test_cases": [
+        {
+            "pipeline_name": "Object Detection",
+            "pipeline_id": "od",
+            "variant_id": "cpu",
+            "variant_name": "CPU",
+            "streams": 1,
+            "status": "success",
+            "total_fps": 30.0,
+            "per_stream_fps": 30.0,
+            "hw_metrics": {"cpu_util_pct_avg": 50.0},
+        },
+        {
+            "pipeline_name": "LPR",
+            "pipeline_id": "lpr",
+            "variant_id": "cpu",
+            "variant_name": "CPU",
+            "streams": 1,
+            "status": "skipped",
+        },
+    ],
+    "summary": {"total": 2, "success": 1, "failed": 0, "skipped": 1},
+    "hardware": {"CPU": ["Test CPU"]},
+    "system_info": {"system": {"Processor": "Test CPU"}},
+}
+
+
+def _write_run(root: Path, result: dict[str, Any]) -> Path:
+    """Create root/<id>/<id>.json, mirroring JSONReporter's output, return the run dir."""
+    benchmark_id = result["benchmark_id"]
+    run_dir = root / benchmark_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    with open(run_dir / f"{benchmark_id}.json", "w", encoding="utf-8") as f:
+        json.dump(result, f, indent=2, default=str)
+    return run_dir
+
+
 class TestReportOnly(unittest.TestCase):
-    def test_placeholder_exits_non_zero(self) -> None:
-        settings = resolve_settings("default", env={})
-        err = io.StringIO()
-        self.assertNotEqual(cli.run_report_only(settings, stderr=err), 0)
-        self.assertIn("not yet implemented", err.getvalue())
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.settings = resolve_settings(
+            "default", env={}, cli_overrides={"results.output_dir": str(self.tmp)}
+        )
+        self.out, self.err = io.StringIO(), io.StringIO()
+
+    def _run(self, *inputs: str, output: str | None = None) -> int:
+        return cli.run_report_only(
+            self.settings, list(inputs), output, stdout=self.out, stderr=self.err
+        )
+
+    def _link_latest(self, run_dir: Path) -> None:
+        try:
+            (self.tmp / "latest").symlink_to(run_dir.name)
+        except (OSError, NotImplementedError):
+            self.skipTest("symlinks not supported")
+
+    def test_latest_matches_live_html(self) -> None:
+        run_dir = _write_run(self.tmp, _RESULT)
+        self._link_latest(run_dir)
+
+        rc = self._run(str(self.tmp / "latest"))
+
+        self.assertEqual(rc, 0)
+        html_path = run_dir / f"{_RESULT['benchmark_id']}.html"
+        self.assertEqual(
+            html_path.read_text(encoding="utf-8"), generate_html_report([_RESULT])
+        )
+        self.assertIn("HTML report:", self.out.getvalue())
+
+    def test_defaults_to_latest(self) -> None:
+        run_dir = _write_run(self.tmp, _RESULT)
+        self._link_latest(run_dir)
+
+        rc = self._run()
+
+        self.assertEqual(rc, 0)
+        html_path = run_dir / f"{_RESULT['benchmark_id']}.html"
+        self.assertTrue(html_path.exists())
+
+    def test_accepts_file_and_directory(self) -> None:
+        run_dir = _write_run(self.tmp, _RESULT)
+        json_path = run_dir / f"{_RESULT['benchmark_id']}.json"
+
+        self.assertEqual(self._run(str(json_path)), 0)
+        self.assertEqual(self._run(str(run_dir)), 0)
+
+    def test_multiple_runs_render_together(self) -> None:
+        run1_result = dict(_RESULT, benchmark_id="bench_20260101_000001")
+        run2_result = dict(_RESULT, benchmark_id="bench_20260101_000002")
+        run1_dir = _write_run(self.tmp, run1_result)
+        run2_dir = _write_run(self.tmp, run2_result)
+
+        rc = self._run(str(run1_dir), str(run2_dir), str(run1_dir))
+
+        self.assertEqual(rc, 0)
+        reports = list(self.tmp.glob("report_*.html"))
+        self.assertEqual(len(reports), 1)
+        text = reports[0].read_text(encoding="utf-8")
+        self.assertIn(run1_result["benchmark_id"], text)
+        self.assertIn(run2_result["benchmark_id"], text)
+        self.assertEqual(text, generate_html_report([run1_result, run2_result]))
+
+    def test_report_output_override(self) -> None:
+        run_dir = _write_run(self.tmp, _RESULT)
+        output = self.tmp / "sub" / "cmp.html"
+
+        rc = self._run(str(run_dir), output=str(output))
+
+        self.assertEqual(rc, 0)
+        self.assertTrue(output.exists())
+
+    def test_invalid_inputs_exit_2(self) -> None:
+        with self.subTest("missing path"):
+            self.assertEqual(self._run(str(self.tmp / "nope")), 2)
+            self.assertIn("error:", self.err.getvalue())
+            # An explicit (user-supplied) path that is missing gets the
+            # plain not-found error, no implicit-default hint.
+            self.assertNotIn("Run a benchmark first", self.err.getvalue())
+
+    def test_missing_default_target_gives_helpful_hint(self) -> None:
+        # No inputs and no "latest" symlink: the implicit default target
+        # is missing, which should nudge the user toward running a
+        # benchmark first instead of a bare "not found" error.
+        rc = self._run()
+
+        self.assertEqual(rc, 2)
+        message = self.err.getvalue()
+        self.assertIn("error:", message)
+        self.assertIn("Run a benchmark first", message)
+        self.assertIn("--report-only PATH", message)
+
+        with self.subTest("directory with no JSON"):
+            empty_dir = self.tmp / "bench_empty"
+            empty_dir.mkdir()
+            err = io.StringIO()
+            rc = cli.run_report_only(
+                self.settings, [str(empty_dir)], None, stdout=io.StringIO(), stderr=err
+            )
+            self.assertEqual(rc, 2)
+            self.assertIn("error:", err.getvalue())
+            self.assertIn("--formats json", err.getvalue())
+
+        with self.subTest("directory with two JSON files"):
+            two_dir = self.tmp / "bench_two"
+            two_dir.mkdir()
+            (two_dir / "a.json").write_text("{}", encoding="utf-8")
+            (two_dir / "b.json").write_text("{}", encoding="utf-8")
+            err = io.StringIO()
+            rc = cli.run_report_only(
+                self.settings, [str(two_dir)], None, stdout=io.StringIO(), stderr=err
+            )
+            self.assertEqual(rc, 2)
+            self.assertIn("error:", err.getvalue())
+
+    def test_missing_default_target_hints_at_running_a_benchmark(self) -> None:
+        # No inputs given and no "latest" link exists: nothing has been
+        # benchmarked yet in self.tmp. The error should explain that,
+        # instead of just reporting a bare "not found".
+        rc = self._run()
+
+        self.assertEqual(rc, 2)
+        message = self.err.getvalue()
+        self.assertIn("error:", message)
+        self.assertIn("result path not found", message)
+        self.assertIn(str(self.tmp), message)
+        self.assertIn("make test-performance", message)
+
+    def test_explicit_missing_path_has_no_benchmark_hint(self) -> None:
+        # The hint only makes sense for the implicit <results-dir>/latest
+        # default; an explicit, user-supplied path that is missing should
+        # not claim "no benchmark results yet".
+        rc = self._run(str(self.tmp / "nope"))
+
+        self.assertEqual(rc, 2)
+        self.assertNotIn("make test-performance", self.err.getvalue())
+
+        with self.subTest(".txt file"):
+            txt_path = self.tmp / "result.txt"
+            txt_path.write_text("{}", encoding="utf-8")
+            err = io.StringIO()
+            rc = cli.run_report_only(
+                self.settings, [str(txt_path)], None, stdout=io.StringIO(), stderr=err
+            )
+            self.assertEqual(rc, 2)
+            self.assertIn("error:", err.getvalue())
+
+        with self.subTest("malformed JSON"):
+            bad_path = self.tmp / "bad.json"
+            bad_path.write_text("{not json", encoding="utf-8")
+            err = io.StringIO()
+            rc = cli.run_report_only(
+                self.settings, [str(bad_path)], None, stdout=io.StringIO(), stderr=err
+            )
+            self.assertEqual(rc, 2)
+            self.assertIn("error:", err.getvalue())
+
+        with self.subTest("top-level list"):
+            list_path = self.tmp / "list.json"
+            list_path.write_text("[]", encoding="utf-8")
+            err = io.StringIO()
+            rc = cli.run_report_only(
+                self.settings, [str(list_path)], None, stdout=io.StringIO(), stderr=err
+            )
+            self.assertEqual(rc, 2)
+            self.assertIn("error:", err.getvalue())
+
+        with self.subTest("test_cases item missing status"):
+            result = {
+                "benchmark_id": "bench_bad1",
+                "test_cases": [
+                    {
+                        "pipeline_name": "x",
+                        "variant_id": "cpu",
+                        "variant_name": "CPU",
+                        "streams": 1,
+                    }
+                ],
+            }
+            path = self.tmp / "bad1.json"
+            path.write_text(json.dumps(result), encoding="utf-8")
+            err = io.StringIO()
+            rc = cli.run_report_only(
+                self.settings, [str(path)], None, stdout=io.StringIO(), stderr=err
+            )
+            self.assertEqual(rc, 2)
+            self.assertIn("error:", err.getvalue())
+
+        with self.subTest("streams as a string"):
+            result = {
+                "benchmark_id": "bench_bad2",
+                "test_cases": [
+                    {
+                        "pipeline_name": "x",
+                        "variant_id": "cpu",
+                        "variant_name": "CPU",
+                        "status": "success",
+                        "streams": "1",
+                    }
+                ],
+            }
+            path = self.tmp / "bad2.json"
+            path.write_text(json.dumps(result), encoding="utf-8")
+            err = io.StringIO()
+            rc = cli.run_report_only(
+                self.settings, [str(path)], None, stdout=io.StringIO(), stderr=err
+            )
+            self.assertEqual(rc, 2)
+            self.assertIn("error:", err.getvalue())
+
+        with self.subTest("benchmark_id path traversal"):
+            result = {"benchmark_id": "../evil", "test_cases": []}
+            path = self.tmp / "evil.json"
+            path.write_text(json.dumps(result), encoding="utf-8")
+            err = io.StringIO()
+            rc = cli.run_report_only(
+                self.settings, [str(path)], None, stdout=io.StringIO(), stderr=err
+            )
+            self.assertEqual(rc, 2)
+            self.assertIn("error:", err.getvalue())
+            outside_html = list(self.tmp.parent.glob("*.html"))
+            self.assertEqual(outside_html, [])
+
+        with self.subTest("file above size limit"):
+            big_path = self.tmp / "big.json"
+            big_path.write_text(json.dumps(_RESULT), encoding="utf-8")
+            with patch.object(reporters, "MAX_RESULT_JSON_BYTES", 10):
+                err = io.StringIO()
+                rc = cli.run_report_only(
+                    self.settings,
+                    [str(big_path)],
+                    None,
+                    stdout=io.StringIO(),
+                    stderr=err,
+                )
+                self.assertEqual(rc, 2)
+                self.assertIn("error:", err.getvalue())
+
+    def test_main_report_only_never_contacts_vippet(self) -> None:
+        run_dir = _write_run(self.tmp, _RESULT)
+        pytest_mock = Mock()
+        dry_run_mock = Mock()
+        preflight_mock = Mock()
+        with (
+            patch.object(cli, "run_pytest", pytest_mock),
+            patch.object(cli, "run_dry_run", dry_run_mock),
+            patch.object(cli, "wait_for_vippet_ready", preflight_mock),
+            patch("sys.stdout", io.StringIO()),
+        ):
+            rc = cli.main(
+                ["--report-only", str(run_dir), "--results-dir", str(self.tmp)]
+            )
+        self.assertEqual(rc, 0)
+        pytest_mock.assert_not_called()
+        dry_run_mock.assert_not_called()
+        preflight_mock.assert_not_called()
 
 
 class TestRunPytest(unittest.TestCase):

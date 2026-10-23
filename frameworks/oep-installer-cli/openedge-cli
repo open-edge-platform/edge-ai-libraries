@@ -60,7 +60,7 @@ main () {
   local _i _rc=0
   for ((_i=0;_i<${#_cmds[*]};_i++)); do
     case "${_cmds[$_i]}" in
-    setup|list|bootstrap|sbom)
+    setup|list|bootstrap|sbom|resume)
       subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
       _rc=$?
       ;;
@@ -69,6 +69,9 @@ main () {
         subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
         _rc=$?
       else
+        # save args for resume
+        [ -x "$installer_bin" ] && ensure_prop set command "$*"
+
         # critical group permissions
         local -A _groups=()
 	local _j _dep _g _gf _deps _resolved _rest_args=() _restart=0 _m _carry=""
@@ -274,7 +277,7 @@ subcommand_bootstrap () {
           [[ " $* " != *" --strict "* ]] || { echo "$p: unknown dependency '$d'" 1>&2; bad=1; }
         elif [ -z "${orders[$d]:-}" ]; then
           q+=(${depsof[$d]}) # virtual: look through it
-        elif [ "$d" != reboot ] && [ $((10#${orders[$d]})) -gt $((10#${orders[$p]})) ]; then
+        elif [ "$d" != reboot ] && [ $((10#${orders[$d]})) -ne 99 ] && [ $((10#${orders[$d]})) -gt $((10#${orders[$p]})) ]; then
           echo "$p (${orders[$p]}) depends on $d (${orders[$d]}) which installs later" 1>&2; bad=1
         fi
       done
@@ -331,8 +334,9 @@ subcommand_bootstrap () {
         . "$f" || { echo "Failed to source $f" 1>&2; exit 3; }
       done
       unset -f main   # main comes from the verbatim header
-      misc_funcs=($(declare -F | cut -f3 -d' ' | grep -v -E "^(${installer_family}_[0-9]+|ensure_|act_|verify_|configure_|subcommand_|main$)"))
-      declare -f | sed "/^subcommand_setup () *\$/,/^}/ s|local installer_misc_functions=[^;]*|local installer_misc_functions=(${misc_funcs[*]})|"
+      misc_funcs=($(declare -F | cut -f3 -d' ' | grep -v -E "^(${installer_family}_[0-9]+|ensure_|act_|verify_|configure_|install_|start_|stop_|remove_|profile_|license_|sbom_|subcommand_|main$)"))
+      skill_text="$(base64 "$mydir"/.github/skills/openedge-cli/SKILL.md | tr -d '\n')"
+      declare -f | sed "/^subcommand_setup () *\$/,/^}/{s|local installer_misc_functions=[^;]*|local installer_misc_functions=(${misc_funcs[*]})|;s|local installer_skill_text=[^;]*|local installer_skill_text=\"$skill_text\"|}"
     ) || exit 3
     echo
     [ ${#start_modules[*]} -eq 0 ] || echo "[ \"\$0\" != bash ] || set -- start ${start_modules[*]} \"\$@\""

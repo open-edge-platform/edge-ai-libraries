@@ -15,7 +15,8 @@ configure_realsense () {
 }
 
 debian_55_profile_realsense () {
-  echo "curl gnupg"
+  # ros-<distro>-librealsense2 is served from the ROS 2 apt repository
+  echo "curl gnupg ros2"
 }
 
 verify_realsense () {

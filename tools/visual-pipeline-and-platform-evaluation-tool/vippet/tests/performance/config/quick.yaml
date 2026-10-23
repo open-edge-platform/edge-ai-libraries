@@ -32,7 +32,6 @@ benchmark:
     on_unknown_id: "fail"
 
 results:
-  output_dir: "./results"
   formats:
     - json
   create_latest_link: true

@@ -15,14 +15,14 @@ Protocol
 --------
 Control commands are read from stdin, one JSON object per line::
 
-    {"cmd": "start", "instance_id": "<id>", "pipeline": "<gst-launch string>"}
+    {"cmd": "start", "instance_id": "<id>", "pipeline": "<gst-launch string>", "warmup_frames": 0}
     {"cmd": "stop", "instance_id": "<id>"}
     {"cmd": "shutdown"}
 
 Status events are written to stdout, one JSON object per line::
 
     {"instance_id": "<id>", "event": "started"}
-    {"instance_id": "<id>", "event": "fps", "avg_fps": 30.0, "last_fps": 29.4}
+    {"instance_id": "<id>", "event": "fps", "avg_fps": 30.0, "last_fps": 29.4, "frame_interval": 1.023}
     {"instance_id": "<id>", "event": "eos"}
     {"instance_id": "<id>", "event": "error", "reason": "..."}
     {"instance_id": "<id>", "event": "stopped"}
@@ -87,6 +87,7 @@ class _Instance:
 
     instance_id: str
     pipeline: Gst.Pipeline
+    warmup_frames: int = 0
     bus: Optional[Gst.Bus] = field(default=None, repr=False)
     bus_handler_id: int = 0
     fps_source: Optional[GLib.Source] = field(default=None, repr=False)
@@ -95,10 +96,15 @@ class _Instance:
     # from the shared main loop thread (inside the poll timer), hence the
     # lock. frame_count resets every poll (drives the windowed "last_fps");
     # total_frame_count never resets (drives the cumulative "avg_fps").
+    # frames_after_warmup counts frames that have arrived after warmup_frames
+    # threshold, used for avg_fps calculation.
     frame_count: int = 0
     total_frame_count: int = 0
+    frames_after_warmup: int = 0
+    first_frame_sent: bool = False  # Flag to emit firstframe event only once
     frame_count_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
     start_time: float = field(default_factory=time.monotonic)
+    warmup_frame_time: float = field(default_factory=time.monotonic)
     last_poll_time: float = field(default_factory=time.monotonic)
 
 
@@ -215,46 +221,76 @@ class GstWorker:
     def _on_buffer_probe(pad, info, inst: "_Instance"):
         """Pad probe callback: count one frame. Runs on a streaming thread."""
         with inst.frame_count_lock:
+            if not inst.first_frame_sent:
+                # Emit firstframe event exactly once when first frame arrives (Unix epoch time)
+                _emit({
+                    "instance_id": inst.instance_id,
+                    "event": "firstframe",
+                    "first_frame_time": time.time(),
+                })
+                inst.first_frame_sent = True
+                # Start fps polling window from first frame (so fps is accurate from frame 1)
+                inst.last_poll_time = time.monotonic()
             inst.frame_count += 1
             inst.total_frame_count += 1
+            # Count frames after warmup threshold for avg_fps calculation
+            if inst.total_frame_count >= inst.warmup_frames:
+                if inst.frames_after_warmup == 0:
+                    inst.warmup_frame_time = time.monotonic()
+                inst.frames_after_warmup += 1
         return Gst.PadProbeReturn.OK
 
     def _poll_fps(self, inst: "_Instance") -> bool:
-        """GLib timeout callback: emit this instance's own avg/last FPS.
+        """GLib timeout callback: emit this instance's own last/avg FPS.
 
         ``last_fps`` covers just the window since the previous poll (about
-        _FPS_POLL_INTERVAL_SECONDS); ``avg_fps`` covers the pipeline's whole
-        lifetime so far. Returns GLib.SOURCE_CONTINUE to keep firing every
+        _FPS_POLL_INTERVAL_SECONDS) and is emitted during both warmup and
+        steady state. ``avg_fps`` covers the pipeline after warmup frames are
+        excluded (measured from first frame after warmup) and is only emitted
+        once warmup is complete.
+
+        Returns GLib.SOURCE_CONTINUE to keep firing every
         _FPS_POLL_INTERVAL_SECONDS until the pipeline's main loop exits.
 
         Also called one last time from ``_teardown`` (on a different thread)
         to flush a final fps event for pipelines stopped/aborted before this
-        timer ever got to fire on its own; ``start_time``/``last_poll_time``
-        are therefore read and updated under ``frame_count_lock`` too, not
-        just ``frame_count``/``total_frame_count``.
+        timer ever got to fire on its own; ``last_poll_time`` is therefore
+        read and updated under ``frame_count_lock``.
         """
         now = time.monotonic()
         with inst.frame_count_lock:
             window_count = inst.frame_count
             inst.frame_count = 0
-            total_count = inst.total_frame_count
+            frames_after = inst.frames_after_warmup
             window_elapsed = now - inst.last_poll_time
             inst.last_poll_time = now
-            total_elapsed = now - inst.start_time
-        if window_elapsed > 0 and total_elapsed > 0:
-            _emit({
-                "instance_id": inst.instance_id,
-                "event": "fps",
-                "avg_fps": total_count / total_elapsed,
-                "last_fps": window_count / window_elapsed,
-            })
+            # avg_fps is calculated only from frames after warmup period
+            total_elapsed = now - inst.warmup_frame_time if frames_after > 0 else 0
+
+        payload = {
+            "instance_id": inst.instance_id,
+            "event": "fps",
+        }
+
+        # Always emit last_fps when we have frames in the window (works during warmup)
+        if window_elapsed > 0 and window_count > 0:
+            payload["last_fps"] = window_count / window_elapsed
+            payload["frame_interval"] = window_elapsed
+
+        # Emit avg_fps only after warmup is complete
+        if total_elapsed > 0 and frames_after > 0:
+            payload["avg_fps"] = frames_after / total_elapsed
+
+        if len(payload) > 2:  # More than just instance_id and event keys
+            _emit(payload)
+
         return GLib.SOURCE_CONTINUE
 
     # ------------------------------------------------------------------
     # Pipeline lifecycle
     # ------------------------------------------------------------------
 
-    def start(self, instance_id: str, pipeline_description: str) -> None:
+    def start(self, instance_id: str, pipeline_description: str, warmup_frames: int = 0) -> None:
         """Parse and start a new pipeline hosted by this worker.
 
         Bus watches and the FPS-poll timer are attached to the shared
@@ -262,6 +298,11 @@ class GstWorker:
         loop thread started in :meth:`initialize`) rather than a private
         context/loop pair, so starting a pipeline never spawns a new
         long-lived thread.
+
+        Args:
+            instance_id: Unique identifier for this pipeline instance.
+            pipeline_description: GStreamer launch string describing the pipeline.
+            warmup_frames: Number of frames to skip before starting avg_fps calculation.
         """
         with self._lock:
             if instance_id in self._instances:
@@ -288,7 +329,7 @@ class GstWorker:
             _emit({"instance_id": instance_id, "event": "error", "reason": f"invalid instance_id as Gst name: {exc!r}"})
             return
 
-        inst = _Instance(instance_id=instance_id, pipeline=pipeline)
+        inst = _Instance(instance_id=instance_id, pipeline=pipeline, warmup_frames=warmup_frames)
 
         with self._lock:
             self._instances[instance_id] = inst
@@ -300,8 +341,14 @@ class GstWorker:
         def _on_message(_bus, message):
             mtype = message.type
             if mtype == Gst.MessageType.ERROR:
-                err, _debug = message.parse_error()
-                _emit({"instance_id": instance_id, "event": "error", "reason": err.message})
+                err, debug = message.parse_error()
+                _emit({
+                    "instance_id": instance_id,
+                    "event": "error",
+                    "reason": err.message,
+                    "source": message.src.get_name() if message.src else None,
+                    "debug": debug,
+                })
                 self._teardown_async(instance_id)
             elif mtype == Gst.MessageType.EOS:
                 _emit({"instance_id": instance_id, "event": "eos"})
@@ -316,7 +363,6 @@ class GstWorker:
         # still fully isolated per instance — no shared/native aggregation.
         self._attach_fps_probes(pipeline, inst)
         inst.start_time = time.monotonic()
-        inst.last_poll_time = inst.start_time
         fps_source = GLib.timeout_source_new_seconds(_FPS_POLL_INTERVAL_SECONDS)
         fps_source.set_callback(self._poll_fps, inst)
         fps_source.attach(None)
@@ -414,7 +460,11 @@ class GstWorker:
 
             cmd = command.get("cmd")
             if cmd == "start":
-                self.start(command["instance_id"], command["pipeline"])
+                self.start(
+                    command["instance_id"],
+                    command["pipeline"],
+                    warmup_frames=command.get("warmup_frames", 0),
+                )
             elif cmd == "stop":
                 self.stop(command["instance_id"])
             elif cmd == "shutdown":
@@ -429,7 +479,8 @@ class GstWorker:
 def main() -> int:
     handler = logging.StreamHandler(sys.stderr)
     handler.setFormatter(_JsonLogFormatter())
-    logging.basicConfig(level=logging.INFO, handlers=[handler])
+    level = getattr(logging, os.environ.get("APP_LOG_LEVEL", "INFO").upper(), logging.INFO)
+    logging.basicConfig(level=level, handlers=[handler])
     worker = GstWorker()
     return worker.run()
 

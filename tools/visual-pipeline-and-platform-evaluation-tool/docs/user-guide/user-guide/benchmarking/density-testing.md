@@ -93,11 +93,11 @@ Before running the test, configure the workload in the **Density** tab.
 #### Classic mode configuration
 
 1. Open the **Density** tab.
-2. Set **FPS Floor** — minimum acceptable per-stream FPS (for example, `30`).
-3. Add one or more pipelines.
-4. For each pipeline, set **Stream Rate** so all pipelines sum to `100%`.
-5. Leave **Streams** unset on every pipeline (this keeps the request in classic mode).
-6. Set **Max runtime** — duration of each iteration in seconds (for example, `10`).
+1. Set **FPS Floor** — minimum acceptable per-stream FPS (for example, `30`).
+1. Add one or more pipelines.
+1. For each pipeline, set **Stream Rate** so all pipelines sum to `100%`.
+1. Leave **Streams** unset on every pipeline (this keeps the request in classic mode).
+1. Set **Max runtime** — duration of each iteration in seconds (for example, `10`).
 
 | Parameter                  | Description                                                                                                      | Example                              |
 |----------------------------|------------------------------------------------------------------------------------------------------------------|--------------------------------------|
@@ -119,13 +119,13 @@ Use mixed mode when one pipeline must run at a known, fixed input stream count a
 to find out how many streams of a second pipeline the platform can run on top of it.
 
 1. Open the **Density** tab.
-2. Set **FPS Floor** — minimum acceptable per-stream FPS (for example, `30`).
-3. Add **exactly two** pipelines.
-4. On the pipeline you want to pin, set **Streams** to a positive integer (the fixed input
+1. Set **FPS Floor** — minimum acceptable per-stream FPS (for example, `30`).
+1. Add **exactly two** pipelines.
+1. On the pipeline you want to pin, set **Streams** to a positive integer (the fixed input
    stream count). Leave **Streams** unset on the other pipeline — that one will be
    incremented by the search.
-5. **Stream Rate** is ignored in mixed mode and can be left at any value.
-6. Set **Max runtime** as in classic mode.
+1. **Stream Rate** is ignored in mixed mode and can be left at any value.
+1. Set **Max runtime** as in classic mode.
 
 | Parameter                          | Description                                                                                    | Example    |
 |------------------------------------|------------------------------------------------------------------------------------------------|------------|
