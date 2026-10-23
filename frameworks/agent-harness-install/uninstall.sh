@@ -137,7 +137,13 @@ main() {
     shift
   done
   if [[ "${HARNESS_RUNTIME:-host}" == openshell ]]; then
-    HARNESS_AGENT="$(canonical_agent_name "$agent")"
+    if [[ -n "$SANDBOX_ONLY" ]]; then
+      HARNESS_AGENT="$(canonical_agent_name "$agent")"
+    else
+      # Full cleanup removes all owned OpenShell sandboxes; the recorded host
+      # agent is not an OpenShell sandbox selector.
+      HARNESS_AGENT=openclaw
+    fi
     validate_runtime
     [[ -z "$KEEP_AGENT_DATA" ]] || error "--keep-agent-data cannot preserve sandbox home/workspace; back up before uninstall."
     set +u
@@ -186,10 +192,6 @@ endpoint; this installer never started one)."
 
   # Only OpenClaw gets an installer-made shim; dcode and Hermes ship their own links.
   if [[ "${HARNESS_RUNTIME:-host}" == host || -f "$(harness_state_root)/installed-agent" ]]; then
-    if [[ -f "$(harness_state_root)/installed-agent" ]]; then
-      assert_state_path_safe "$(harness_state_root)/installed-agent"
-      agent="$(cat "$(harness_state_root)/installed-agent")"
-    fi
     if [[ "$(canonical_agent_name "$agent")" == "openclaw" ]]; then
       remove_cli_shim "$(agent_cli_bin openclaw)"
     fi

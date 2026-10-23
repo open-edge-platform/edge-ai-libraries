@@ -266,10 +266,13 @@ JS
 }
 mock_lifecycle() {
   write_profile "$valid_profile"
+  rm -f -- "$(openshell_profile_dir)/removed-profile.json"
   MOCK_SANDBOX_PRESENT=1
   MOCK_PROVIDER_PRESENT=1
   MOCK_OWNER="$OPENSHELL_OWNER"
   MOCK_DELETE_STALL=0
+  MOCK_PROFILE_PRESENT=1
+  MOCK_PROFILE_DELETE_FAIL=0
   : >"$TEST_ROOT/actions"
   openshell() {
     case "$1 $2" in
@@ -286,13 +289,22 @@ mock_lifecycle() {
         else
           printf '{"providers":[]}'
         fi ;;
+      'profile list')
+        if [[ "$MOCK_PROFILE_PRESENT" == 1 ]]; then
+          printf '[{"name":"%s","type":"provider"}]' "$OPENSHELL_NAME"
+        else
+          printf '[]'
+        fi ;;
       'sandbox delete')
         printf 'sandbox delete\n' >>"$TEST_ROOT/actions"
         [[ "$MOCK_DELETE_STALL" == 1 ]] || MOCK_SANDBOX_PRESENT=0 ;;
       'provider delete')
         printf 'provider delete\n' >>"$TEST_ROOT/actions"
         MOCK_PROVIDER_PRESENT=0 ;;
-      'profile delete') printf 'profile delete\n' >>"$TEST_ROOT/actions" ;;
+      'profile delete')
+        printf 'profile delete\n' >>"$TEST_ROOT/actions"
+        [[ "$MOCK_PROFILE_DELETE_FAIL" == 1 ]] && return 1
+        MOCK_PROFILE_PRESENT=0 ;;
       *) printf 'Unexpected mocked CLI call: %s\n' "$*" >&2; return 1 ;;
     esac
   }
@@ -318,6 +330,38 @@ removal_pending() {
   expect_failure 'cleanup is pending' remove_openshell_agent
   [[ -f "$(openshell_profile_dir)/profile.json" ]]
   cmp <(printf 'sandbox delete\n') "$TEST_ROOT/actions"
+}
+removal_deletes_orphaned_profile() {
+  mock_lifecycle
+  MOCK_PROVIDER_PRESENT=0
+  remove_openshell_agent
+  cmp <(printf 'sandbox delete\nprofile delete\n') "$TEST_ROOT/actions"
+  [[ ! -f "$(openshell_profile_dir)/profile.json" ]]
+  [[ -f "$(openshell_profile_dir)/removed-profile.json" ]]
+}
+removal_profile_failure_retains_identity_for_retry() {
+  mock_lifecycle
+  MOCK_PROVIDER_PRESENT=0
+  MOCK_PROFILE_DELETE_FAIL=1
+  expect_failure 'Could not delete OpenShell provider profile' remove_openshell_agent
+  [[ -f "$(openshell_profile_dir)/profile.json" ]]
+  [[ ! -e "$(openshell_profile_dir)/removed-profile.json" ]]
+  MOCK_PROFILE_DELETE_FAIL=0
+  remove_openshell_agent
+  [[ ! -f "$(openshell_profile_dir)/profile.json" ]]
+  [[ -f "$(openshell_profile_dir)/removed-profile.json" ]]
+  [[ "$(grep -c '^profile delete$' "$TEST_ROOT/actions")" == 2 ]]
+}
+removal_uses_installation_lock() {
+  mock_lifecycle
+  with_state_lock() {
+    [[ "$1" == "openshell-openclaw" ]]
+    shift
+    "$@"
+  }
+  remove_openshell_agent
+  grep -Fxq 'sandbox delete' "$TEST_ROOT/actions"
+  grep -Fxq 'profile delete' "$TEST_ROOT/actions"
 }
 runner_failure_propagation() {
   expect_failure 'not ok 1 - intentional failure' bash -c '
@@ -383,6 +427,9 @@ run_case 'malformed model JSON rejected' model_response 200 '{' fail
 run_case 'owned removal deletes in order and archives state' removal_success
 run_case 'unowned removal performs no deletion' removal_unowned
 run_case 'pending removal retains ownership and provider' removal_pending
+run_case 'orphaned provider profile is removed when the provider is absent' removal_deletes_orphaned_profile
+run_case 'profile deletion failure retains ownership record for retry' removal_profile_failure_retains_identity_for_retry
+run_case 'sandbox removal uses the per-agent installation lock' removal_uses_installation_lock
 run_case 'test runner propagates an intermediate assertion failure' runner_failure_propagation
 run_case 'installer documents runtime' bash -c 'bash "$1/install.sh" --help | grep -q -- --runtime' _ "$SCRIPT_DIR"
 run_case 'uninstaller documents runtime' bash -c 'bash "$1/uninstall.sh" --help | grep -q -- --runtime' _ "$SCRIPT_DIR"

@@ -220,6 +220,28 @@ uninstall_fixture() {
   ensure_nvm_loaded() { :; }
   remove_agent_package() { error "Unexpected host package removal"; }
 }
+explicit_host_agent_selection() {
+  uninstall_fixture
+  HARNESS_RUNTIME=host
+  atomic_write_file "$(harness_state_root)/installed-agent" hermes
+  remove_cli_shim() { printf 'shim %s\n' "$1" >>"$ACTIONS"; }
+  remove_agent_package() { printf 'package %s\n' "$1" >>"$ACTIONS"; }
+  ovms_is_managed() { return 1; }
+  (main --runtime host --harness openclaw --yes)
+  grep -Fxq 'package openclaw' "$ACTIONS"
+  ! grep -Fxq 'package hermes' "$ACTIONS"
+}
+full_openshell_with_host_agent() {
+  uninstall_fixture
+  atomic_write_file "$(harness_state_root)/installed-agent" deepagents-code
+  remove_agent_package() { printf 'package %s\n' "$1" >>"$ACTIONS"; }
+  ovms_is_managed() { return 1; }
+  unset HARNESS_AGENT
+  (main --runtime openshell --yes)
+  grep -Fxq 'sandboxes' "$ACTIONS"
+  grep -Fxq 'runtime' "$ACTIONS"
+  grep -Fxq 'package deepagents-code' "$ACTIONS"
+}
 complete_uninstall() {
   uninstall_fixture
   (main --runtime openshell --yes)
@@ -255,8 +277,13 @@ owned_runtime_fixture() {
   }
   ps() { printf '%s bash\n' "$(id -u)"; }
   docker() { printf 'unrelated-inference\n'; }
-  require_sudo_or_fail() { :; }
-  systemctl() { printf 'service %s\n' "$*" >>"$ACTIONS"; }
+  require_sudo_or_fail() { printf 'sudo-authorized\n' >>"$ACTIONS"; }
+  systemctl() {
+    printf 'service %s\n' "$*" >>"$ACTIONS"
+    if [[ "$*" == *"enable --now openshell-gateway.service"* && "${RESTORE_FAIL:-0}" == 1 ]]; then
+      return 1
+    fi
+  }
   sudo() { printf 'purge %s\n' "$*" >>"$ACTIONS"; AVAILABLE=0; }
 }
 owned_runtime_remove() {
@@ -264,6 +291,7 @@ owned_runtime_remove() {
   mkdir -p "$HOME/.config/openshell" "$HOME/.local/state/openshell"
   openshell_remove_owned_runtime
   grep -Fxq 'purge dpkg --purge openshell' "$ACTIONS"
+  cmp "$ACTIONS" <(printf 'sudo-authorized\nservice --user disable --now openshell-gateway.service\npurge dpkg --purge openshell\nservice --user daemon-reload\n')
   [[ ! -e "$(harness_state_root)/openshell-owned" ]]
   [[ ! -e "$HOME/.config/openshell" && ! -e "$HOME/.local/state/openshell" ]]
 }
@@ -295,7 +323,22 @@ runtime_other_workspace() {
 runtime_purge_failure() {
   owned_runtime_fixture
   sudo() { return 1; }
-  expect_failure 'Could not purge OpenShell' openshell_remove_owned_runtime
+  expect_failure 'gateway was restarted' openshell_remove_owned_runtime
+  cmp "$ACTIONS" <(printf 'sudo-authorized\nservice --user disable --now openshell-gateway.service\nservice --user enable --now openshell-gateway.service\n')
+  [[ -f "$(harness_state_root)/openshell-owned" ]]
+}
+runtime_sudo_authorization_failure() {
+  owned_runtime_fixture
+  require_sudo_or_fail() { error "sudo authorization denied"; }
+  expect_failure 'sudo authorization denied' openshell_remove_owned_runtime
+  [[ ! -s "$ACTIONS" && -f "$(harness_state_root)/openshell-owned" ]]
+}
+runtime_purge_and_restore_failure() {
+  owned_runtime_fixture
+  RESTORE_FAIL=1
+  sudo() { return 1; }
+  expect_failure "Manually run 'systemctl --user enable --now openshell-gateway.service'" openshell_remove_owned_runtime
+  cmp "$ACTIONS" <(printf 'sudo-authorized\nservice --user disable --now openshell-gateway.service\nservice --user enable --now openshell-gateway.service\n')
   [[ -f "$(harness_state_root)/openshell-owned" ]]
 }
 owned_service_retry() {
@@ -356,6 +399,8 @@ run_case 'failed switch retains old selection and resumes pending model on rerun
 run_case 'another model cannot overwrite an interrupted transition' pending_conflict
 run_case 'legacy sandbox images fail before shared inference is modified' legacy_image
 run_case 'complete uninstall removes all owned deployment data by default' complete_uninstall
+run_case 'explicit host harness selection wins over recorded installed agent' explicit_host_agent_selection
+run_case 'full OpenShell uninstall accepts a separately recorded host agent' full_openshell_with_host_agent
 run_case 'uninstall failure retains models and recovery state' failed_uninstall
 run_case 'explicit sandbox-only removal preserves shared services and model data' scoped_uninstall
 run_case 'owned OpenShell gateway service, package and state are removed' owned_runtime_remove
@@ -363,6 +408,9 @@ run_case 'unrelated sandbox blocks gateway and CLI purge' shared_runtime_refused
 run_case 'pre-existing OpenShell runtime is not adopted or removed' preexisting_runtime
 run_case 'runtime containers in another workspace block OpenShell package removal' runtime_other_workspace
 run_case 'failed OpenShell package purge retains its installation receipt' runtime_purge_failure
+run_case 'sudo authorization fails before stopping the owned gateway' runtime_sudo_authorization_failure
+run_case 'gateway is restored when owned OpenShell package purge fails' runtime_purge_failure
+run_case 'manual gateway recovery is reported if restoration also fails' runtime_purge_and_restore_failure
 run_case 'owned OpenShell gateway startup is retried on installer reruns' owned_service_retry
 run_case 'fresh owned gateway registers local package TLS with the CLI' register_owned_gateway
 run_case 'complete cleanup includes both recorded agent profiles' validate_all_profiles

@@ -370,10 +370,15 @@ openshell_remove_owned_runtime() {
     if awk -v uid="$(id -u)" '$2 ~ /^openshell-gate/ && $1 != uid {found=1} END {exit !found}' <<<"$processes"; then
       error "Another account is running an OpenShell gateway; refusing system-wide package removal."
     fi
+    require_sudo_or_fail "dpkg --purge openshell"
     systemctl --user disable --now openshell-gateway.service \
       || error "Could not stop the owned OpenShell gateway."
-    require_sudo_or_fail "dpkg --purge openshell"
-    sudo dpkg --purge openshell || error "Could not purge OpenShell; ownership record retained."
+    if ! sudo dpkg --purge openshell; then
+      if systemctl --user enable --now openshell-gateway.service; then
+        error "Could not purge OpenShell; gateway was restarted and ownership record retained."
+      fi
+      error "Could not purge OpenShell and could not restart its gateway; ownership record retained. Manually run 'systemctl --user enable --now openshell-gateway.service' before retrying uninstall."
+    fi
     systemctl --user daemon-reload || error "Could not reload user services after OpenShell removal."
     command_exists openshell && error "OpenShell CLI remains after package purge."
   fi
@@ -611,6 +616,12 @@ connect_openshell_agent() {
 }
 
 remove_openshell_agent() {
+  local agent
+  agent="$(canonical_agent_name "${HARNESS_AGENT:-openclaw}")"
+  with_state_lock "openshell-${agent}" _remove_openshell_agent_locked
+}
+
+_remove_openshell_agent_locked() {
   openshell_load_profile
   if openshell_resource_exists sandbox; then
     openshell_assert_owned
@@ -628,7 +639,19 @@ remove_openshell_agent() {
   fi
   if openshell_resource_exists provider; then
     openshell provider delete "$OPENSHELL_NAME" -g "$OPENSHELL_GATEWAY"
-    openshell profile delete "$OPENSHELL_NAME" -g "$OPENSHELL_GATEWAY"
+  fi
+  local profiles profile_present
+  profiles="$(openshell profile list --type provider -o json -g "$OPENSHELL_GATEWAY")" \
+    || error "Could not inspect OpenShell provider profiles; ownership record retained."
+  profile_present="$(node -e '
+    const profiles = JSON.parse(process.argv[1]);
+    if (!Array.isArray(profiles)) throw Error("Invalid provider profile list");
+    console.log(profiles.some(profile => profile.name === process.argv[2]) ? "present" : "absent");
+  ' "$profiles" "$OPENSHELL_NAME")" \
+    || error "Could not validate OpenShell provider profiles; ownership record retained."
+  if [[ "$profile_present" == present ]]; then
+    openshell profile delete "$OPENSHELL_NAME" -g "$OPENSHELL_GATEWAY" \
+      || error "Could not delete OpenShell provider profile; ownership record retained."
   fi
   local dir
   dir="$(openshell_profile_dir)"
