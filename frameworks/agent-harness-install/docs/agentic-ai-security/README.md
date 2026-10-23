@@ -28,10 +28,8 @@ Potential future areas include prompt protection and PII masking. They are not
 implemented security features of this integration today, and no delivery
 schedule is implied.
 
-These controls address different risks. Sandboxing limits an agent's execution
-environment; it does not establish that prompts are trustworthy, prevent every
-prompt-injection attack, or automatically identify and mask sensitive data.
-No single control makes an agent deployment secure.
+Sandboxing, prompt protection and PII masking address different security
+concerns and are intended to complement one another.
 
 ## Related documentation
 

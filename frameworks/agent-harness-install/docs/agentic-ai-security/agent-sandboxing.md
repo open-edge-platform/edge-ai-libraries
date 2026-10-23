@@ -11,8 +11,7 @@ Sandboxing separates an agent's tool execution from the host environment and
 limits the files and network endpoints available to it. Agent Harness Install
 provides this capability through OpenShell for OpenClaw and Hermes. This
 integration targets OpenShell 0.1.5 on Linux with Docker; host mode remains
-the default. NVIDIA describes the OpenShell platform as experimental upstream;
-that upstream designation is distinct from the status of this integration.
+the default.
 
 This is one layer of [Agentic AI Security](README.md), not prompt protection or
 PII masking. A sandbox can still perform unwanted actions within its permitted
@@ -53,10 +52,8 @@ Working LLM inference does not establish external web-tool connectivity.
 The host `mcp`/`skill` helpers reject OpenShell mode rather than modifying the
 wrong agent.
 
-Landlock uses OpenShell's `best_effort` compatibility setting; this is not a
-claim that every host supports the same filesystem isolation guarantees.
-This integration does not enable or validate desktop/computer-use workflows,
-even if the pinned Hermes installer downloads an optional computer-use driver.
+OpenShell applies Landlock with `best_effort` compatibility; enforcement may
+vary with the host kernel. Desktop/computer-use workflows are not enabled.
 
 ## Prerequisites
 
