@@ -17,14 +17,14 @@ services:
       retries: 3
       start_period: 10s
     depends_on:
-      video-accuracy-eval:
+      video-summary-accuracy-analyzer:
         condition: service_healthy
-      video-accuracy-eval-ui:
+      video-summary-accuracy-analyzer-ui:
         condition: service_healthy
 
-  video-accuracy-eval:
+  video-summary-accuracy-analyzer:
     image: ${REGISTRY:-intel/}video-accuracy-eval:${TAG:-latest}
-    container_name: video-accuracy-eval
+    container_name: video-summary-accuracy-analyzer
     build:
       context: ../
       dockerfile: docker/Dockerfile
@@ -50,16 +50,16 @@ services:
       retries: 3
       start_period: 600s
 
-  video-accuracy-eval-ui:
+  video-summary-accuracy-analyzer-ui:
     image: ${REGISTRY:-intel/}video-accuracy-eval-ui:${TAG:-latest}
-    container_name: video-accuracy-eval-ui
+    container_name: video-summary-accuracy-analyzer-ui
     build:
       context: ../ui/
       dockerfile: docker/Dockerfile
     environment:
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
-      no_proxy: localhost,127.0.0.1,${no_proxy}, video-accuracy-eval, video-accuracy-eval-ui
+      no_proxy: localhost,127.0.0.1,${no_proxy}, video-summary-accuracy-analyzer, video-summary-accuracy-analyzer-ui
       APP_BACKEND_URL: ${APP_BACKEND_URL}
     ports:
       - "127.0.0.1:5174:7860"
@@ -70,7 +70,7 @@ services:
       retries: 3
       start_period: 40s
     depends_on:
-      video-accuracy-eval:
+      video-summary-accuracy-analyzer:
         condition: service_healthy
 
 networks:
