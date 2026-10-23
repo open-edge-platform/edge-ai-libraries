@@ -40,7 +40,10 @@ install_edge_pack_repo_entries () {
   fi
   if [ ! -e "$edge_pack_pref_file" ] || [ $reinstall -eq 1 ]; then
     ensure_apt_preference "$edge_pack_pref_file" "${edge_pack_pref[@]}"
-    ensure_rm "${edge_pack_incompatible_pref_files[@]}"
+    local p
+    for p in "${edge_pack_incompatible_pref_files[@]}"; do
+      [ ! -f "$p" ] || ensure_sudo mv -f "$p" "$p".save
+    done
     reconfigured=1
   fi
   if [ -n "$edge_pack_ppa_repo" ]; then
