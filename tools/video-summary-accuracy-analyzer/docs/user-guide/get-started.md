@@ -2,6 +2,9 @@
 
 This guide provides step-by-step instructions to deploy and test the **Video Summary Accuracy Analyzer**. The application compares machine-generated video summaries with ground-truth references using BERTScore, ROUGE, semantic similarity, factual consistency, and temporal coherence metrics.
 
+
+
+
 ## Prerequisites
 
 Before you begin, confirm the following:
@@ -17,6 +20,16 @@ Verify the Docker installation before continuing:
 docker --version
 docker compose version
 ```
+
+## Clone the Repository
+
+Clone the Edge AI Libraries repository and change to the analyzer directory:
+
+```bash
+git clone --branch main https://github.com/open-edge-platform/edge-ai-libraries.git
+cd edge-ai-libraries/tools/video-summary-accuracy-analyzer
+```
+
 
 ## Configure the Environment
 
@@ -159,4 +172,3 @@ To inspect one service only, specify `nginx`, `video-accuracy-eval`, or `video-a
 
 - [How to Build from Source](./build-from-source.md)
 - [Project README](../../README.md)
-
