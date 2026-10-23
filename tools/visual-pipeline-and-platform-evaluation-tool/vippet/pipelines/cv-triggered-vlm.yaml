@@ -38,6 +38,7 @@ variants:
       vapostproc !
       video/x-raw,width=796,height=448 !
       gvagenai model-path=/models/output/openvino_models/gpu/int4/OpenGVLab/InternVL2-2B device=GPU prompt="Does the car hit a person? Answer Yes or No" generation-config="max_new_tokens=64" chunk-size=1 metrics=true !
+      gvametaconvert add-empty-results=true !
       gvametapublish file-format=json-lines file-path=/metadata/cv_triggered_vlm.jsonl !
       jpegenc !
       multifilesink location=/images/output/vlm_frame_%05d.jpeg async=false
