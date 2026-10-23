@@ -14,7 +14,6 @@ debian_70_install_edge_pack_media_ffmpeg () {
     echo "intel-edge-media-ffmpeg is installed." >&2
   else
     ensure_prop set installed/edge_pack_media_ffmpeg/owned true
-    install_edge_pack_repo_entries "$@"
     ensure_apt purge --auto-remove -y intel-edge-media-ffmpeg || true
     ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-ffmpeg=$version*"
   fi
@@ -23,7 +22,6 @@ debian_70_install_edge_pack_media_ffmpeg () {
 debian_70_remove_edge_pack_media_ffmpeg () {
   [ "$(ensure_prop get installed/edge_pack_media_ffmpeg/owned)" = "true" ] || return 0
   ensure_apt purge --auto-remove -y intel-edge-media-ffmpeg || true
-  remove_edge_pack_repo_entries "$@" || true
 }
 
 debian_70_sbom_edge_pack_media_ffmpeg () {

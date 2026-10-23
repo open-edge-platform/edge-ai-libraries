@@ -22,11 +22,11 @@ configure_edge_pack () {
   edge_pack_ppa_list_file=
 }
 
-debian_99_profile_edge_pack () {
+debian_39_profile_edge_pack () {
   echo "curl gnupg linux_image_generic_7.0"
 }
 
-install_edge_pack_repo_entries () {
+debian_39_install_edge_pack () {
   configure_edge_pack "$@"
   local reinstall=$([[ " $* " = *" --reinstall "* ]] && echo 1 || echo 0)
   local reconfigured=0
@@ -59,7 +59,7 @@ install_edge_pack_repo_entries () {
   [ $reconfigured -eq 0 ] || ensure_apt update -y
 }
 
-remove_edge_pack_repo_entries () {
+debian_39_remove_edge_pack () {
   dpkg -l | grep -q -F intel-edge- || { 
     configure_edge_pack "$@"
     ensure_rm "$edge_pack_key_file" "$edge_pack_source_file" "$edge_pack_pref_file"

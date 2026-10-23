@@ -17,7 +17,6 @@ debian_40_install_edge_pack_base_realtime () {
   if ensure_apt_is_installed intel-edge-base-realtime && [[ " $* " != *" --reinstall "* ]]; then
     echo "intel-edge-base-realtime is installed." >&2
   else
-    install_edge_pack_repo_entries "$@"
     local candidate
     candidate="$(apt-cache policy intel-edge-base-realtime 2> /dev/null | awk '/Candidate:/{print $2}')"
     if [ -z "$candidate" ] || [ "$candidate" = "(none)" ]; then
@@ -56,7 +55,6 @@ debian_40_remove_edge_pack_base_realtime () {
   if [ "$(ensure_prop get installed/edge_pack_base_realtime/fallback)" != "true" ]; then
     [ "$(ensure_prop get installed/edge_pack_base_realtime/owned)" = "true" ] || return 0
     ensure_apt purge --auto-remove -y intel-edge-base-realtime || true
-    remove_edge_pack_repo_entries "$@" || true
   else
     debian_40_remove_edge_pack_base_standard "$@"
   fi
