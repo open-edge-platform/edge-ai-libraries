@@ -9,8 +9,8 @@ ensure_apt () {
   case "$1" in
   update)
     # apt-get update got executed only once unless -y is specified
-    [[ -e "${installer_state:?}"/apt_update && " $* " != *" -y "* ]] || ensure_sudo env DEBIAN_FRONTEND=noninteractive apt-get "$@"
-    touch "$installer_state"/apt_update
+    [[ "$(ensure_prop get apt_update)" = "true" && " $* " != *" -y "* ]] || ensure_sudo env DEBIAN_FRONTEND=noninteractive apt-get "$@"
+    ensure_prop set apt_update true
     ;;
   autoremove|remove|purge)
     # make sure the package list exists
@@ -32,7 +32,7 @@ ensure_apt () {
     ;;
   *)
     # apt-get update runs at least once on the system before apt-get install
-    [ "$1" != "install" ] || [ -e "${installer_state:?}"/apt_update ] || ensure_apt update -y
+    [ "$1" != "install" ] || [ "$(ensure_prop get apt_update)" = "true" ] || ensure_apt update -y
     ensure_sudo env DEBIAN_FRONTEND=noninteractive apt-get -y "$@"
     ;;
   esac

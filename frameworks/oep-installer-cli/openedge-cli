@@ -70,7 +70,7 @@ main () {
         _rc=$?
       else
         # save args for resume
-        [ -x "$installer_bin" ] && ensure_prop set command "$*"
+        ensure_prop set command "$*"
 
         # critical group permissions
         local -A _groups=()

@@ -1,0 +1,31 @@
+
+configure_reboot () {
+  ensure_prop set reboot_requested true
+}
+
+install_reboot () {
+  [ "$(ensure_prop get reboot_requested)" = "true" ] || return
+
+  ensure_prop remove reboot_requested
+  subcommand_setup
+  [ -x "$installer_bin" ] || {
+    echo "Failed to find $installer_cli" >&2
+    return 3
+  }
+  [ -n "$(ensure_prop get command)" ] || {
+    echo "Nothing to resume? Reboot deferred!" >&2
+    return 3
+  }
+
+  echo "@@STEP Rebooting"
+  local reboot_message="RERUN '$installer_name resume' AFTER SYSTEM IS BACK."
+  echo "@@HIGHLIGHT $reboot_message"
+
+  printf -- "---\n---\n${red}%s${reset}\n---\n---\n" "$reboot_message"
+
+  local delay=2
+  ensure_sudo shutdown -r +$delay "$reboot_message" &&
+
+  sleep infinity
+}
+

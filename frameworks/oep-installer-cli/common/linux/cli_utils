@@ -185,8 +185,6 @@ act_helper () {
     [ -z "$np" ] || export no_proxy="${np%%,}" NO_PROXY="${np%%,}"
 
     local rc=0 order=0
-    local installer_state=""
-    ensure_tmpdir create installer_state states /dev/shm
     export _INSTALLER_PANEL_ACTIVE=
     [ -t 1 ] && export _INSTALLER_PANEL_ACTIVE=1
     {
@@ -235,7 +233,6 @@ act_helper () {
     ) 2>&1
     # wait for background processes
     wait
-    ensure_tmpdir destroy $installer_state
 
     # pass on modules to subsequent command
     [[ " $* " != *" --dry-run "* && -n "${explicit_mods// }" ]] && ensure_prop set modules "$explicit_mods"
