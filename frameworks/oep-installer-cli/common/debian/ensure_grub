@@ -1,4 +1,5 @@
 
+# 7.0.0-38
 ensure_grub_set_default_entry () {
   local kver="$1"
   ensure_sudo sed -i -e '/^GRUB_TOP_LEVEL=/d' -e 's/^GRUB_DEFAULT=.*/GRUB_DEFAULT=0/' /etc/default/grub
