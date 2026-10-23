@@ -189,8 +189,9 @@ subcommand_list () {
 subcommand_setup () {
   [[ " $* " != *" --help "* ]] || return
 
-  local installer_misc_functions=()
-  local installer_skill_text=""
+  local installer_misc_functions=(@@INSTALLER_MISC_FUNCTIONS@@)
+  local installer_completion_text="@@INSTALLER_COMPLETION_TEXT@@"
+  local installer_skill_text="@@INSTALLER_SKILL_TEXT@@"
 
   # reconstruct installer
   mkdir -p "$(dirname "$installer_bin")"
@@ -206,64 +207,7 @@ EOF
   # reconstruct bash completion
   local completion_script="$HOME/.local/share/bash-completion/completions/$installer_name"
   mkdir -p "$(dirname "$completion_script")"
-
-  local all_cmds=(${_act_cache_cmds[*]})
-  cat > "$completion_script" <<EOF
-#!/bin/bash
-_${installer_name//-/_}_completion () {
-  if (( COMP_CWORD == 1 )); then
-    COMPREPLY=(\$(compgen -W "${all_cmds[*]} list setup --help" -- "\$2"))
-    return
-  fi
-
-  case "\${COMP_WORDS[1]}" in
-$(  
-    # snapshot profiles ONCE; do not rely on _act_reply surviving a second act_get
-    act_get prefix profile_
-    local all_profilers=(${_act_reply[*]})
-    local cmd dcmd profiler pname mname found
-    local -A all_comps
-    for cmd in ${all_cmds[*]}; do
-      all_comps=()
-      all_comps["--continue"]=""
-      all_comps["--dry-run"]=""
-      all_comps["--reinstall"]=""
-      all_comps["--validate"]=""
-      # sbom handlers are sparse; resolve its dependency graph as if it were install
-      dcmd=$cmd; [ "$cmd" != sbom ] || dcmd=install
-      act_get prefix ${dcmd}_
-      local all_modules=(${_act_reply[*]#*_*_*_})
-      for profiler in ${all_profilers[*]}; do
-        pname=${profiler#*_*_*_}
-        [[ " ${all_modules[*]} " != *" $pname "* ]] || continue
-        found=0
-        for mname in $(act_expand_modules $dcmd $pname); do
-          if [[ -v _act_cache_functions[${dcmd}_${mname}] ]]; then
-            found=1
-            break
-          fi
-        done
-        [ $found -eq 0 ] || all_comps[$pname]=""
-      done
-      for mname in ${all_modules[*]}; do
-        all_comps[$mname]=""
-      done
-      echo "  $cmd)"
-      echo "    $(declare -p all_comps | sed 's|declare -A |local -A |')"
-      echo "    for ((i=2;i<COMP_CWORD;i++)); do unset \"all_comps[\${COMP_WORDS[\$i]}]\"; done"
-      echo "    COMPREPLY=(\$(compgen -W \"\${!all_comps[*]}\" -- \"\$2\"))"
-      echo "    ;;"
-    done
-    :
-)
-  *)
-    COMPREPLY=()
-    ;;
-  esac
-}
-complete -F _${installer_name//-/_}_completion $installer_name
-EOF
-
+  base64 -d > "$completion_script" <<< "$installer_completion_text"
   echo "bash completion created at $completion_script"
 
   # reconstruct skills
@@ -275,6 +219,6 @@ EOF
 
 subcommand_resume () {
   local args=($(ensure_prop get command))
-  [ ${#args[*]} -gt 0 && -x "$installer_bin" ] && exec "$installer_bin" "${args[@]}" || true
+  [[ ${#args[*]} -gt 0 && -x "$installer_bin" ]] && exec "$installer_bin" "${args[@]}" || true
 }
 
