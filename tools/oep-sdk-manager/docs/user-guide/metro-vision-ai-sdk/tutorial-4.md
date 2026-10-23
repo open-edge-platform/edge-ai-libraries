@@ -1,4 +1,9 @@
-# OEP Vision AI SDK - Tutorial 4
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
+# Metro Vision AI SDK - Tutorial 4
 
 This tutorial demonstrates how to build sophisticated video analytics pipelines using Intel® DL Streamer framework. You will learn to create real-time human pose estimation applications, understand GStreamer pipeline architecture, and develop custom video analytics solutions for computer vision applications.
 
@@ -29,7 +34,7 @@ Upon completion of this tutorial, you will be able to:
 
 Before starting this tutorial, ensure you have:
 
-- OEP Vision AI SDK installed and configured
+- Metro Vision AI SDK installed and configured
 - Docker installed and running on your system
 - Understanding of computer vision and AI inference concepts
 - Basic familiarity with GStreamer framework
@@ -38,7 +43,7 @@ Before starting this tutorial, ensure you have:
 
 ## System Requirements
 
-- **Operating System:** Ubuntu 22.04 LTS or Ubuntu 24.04 LTS (Desktop edition required)
+- **Operating System:** Ubuntu 24.04 LTS or Ubuntu 26.04 LTS (Desktop edition required)
 - **Processor:** Intel® Core™, Intel® Core™ Ultra
 - **Memory:** Minimum 8GB RAM (16GB recommended for complex pipelines)
 - **Storage:** 4GB free disk space for models, videos, and intermediate files
@@ -62,8 +67,8 @@ Set up your workspace and download the required video content and AI models:
 
 ```bash
 # Create working directory structure
-mkdir -p ~/oep/oep-vision-tutorial-4/{models,output}
-cd ~/oep/oep-vision-tutorial-4
+mkdir -p ~/oep/metro-vision-tutorial-4/{models,output}
+cd ~/oep/metro-vision-tutorial-4
 
 # Download sample video for human pose estimation
 wget -O face-demographics-walking.mp4 \
@@ -72,16 +77,21 @@ wget -O face-demographics-walking.mp4 \
 # Download and convert the YOLO26s-pose model to OpenVINO IR (FP16)
 # using the model download script shipped in the DL Streamer container
 docker run --rm --net=host \
+  --user "$(id -u):$(id -g)" \
+  -e HOME=/home/dlstreamer \
+  -w /home/dlstreamer \
   -e no_proxy=$no_proxy \
   -e https_proxy=$https_proxy \
   -e http_proxy=$http_proxy \
-  -v ${PWD}:/home/dlstreamer/data \
+  -v "${PWD}:/home/dlstreamer" \
   intel/dlstreamer:2026.2.0-ubuntu24 \
-  bash -c "export MODELS_PATH=/home/dlstreamer/data/models && \
+  bash -c "export MODELS_PATH=/home/dlstreamer/models && \
            /opt/intel/dlstreamer/samples/download_public_models.sh yolo26s-pose"
 ```
 
 The model is saved to `models/public/yolo26s-pose/FP16/yolo26s-pose.xml`, which is the path expected by the DL Streamer human pose estimation sample.
+Run Docker as your regular non-root host user, without `sudo`; matching UID:GID keeps generated files editable on the host.
+The workspace provides a writable home for preparation environments and caches, but existing root-owned files are not repaired.
 
 ### Step 2: Understand Human Pose Estimation Model
 
@@ -99,7 +109,7 @@ Prepare the environment for containerized video analytics:
 
 ```bash
 # Enable X11 forwarding for GUI applications
-xhost +local:docker
+xhost +si:localuser:"$(id -un)"
 
 # Verify Docker access to display
 echo "Display: $DISPLAY"
@@ -111,22 +121,31 @@ echo "X11 Auth: $HOME/.Xauthority"
 Execute the pre-built human pose estimation pipeline using DL Streamer:
 
 ```bash
-export RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
+export RENDER_GROUP_ID=$(stat -c '%g' /dev/dri/renderD128)
 # Run human pose estimation with DL Streamer container
 docker run -it --rm --net=host \
+  --user "$(id -u):$(id -g)" \
+  -e HOME=/home/dlstreamer \
+  -w /home/dlstreamer \
   -e DISPLAY=$DISPLAY \
   -e no_proxy=$no_proxy \
   -e https_proxy=$https_proxy \
   -e http_proxy=$http_proxy \
   -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
-  -v ${PWD}:/home/dlstreamer/data \
-  -v $HOME/.Xauthority:/home/dlstreamer/.Xauthority:ro \
-  --group-add $RENDER_GROUP_ID \
+  -v "${PWD}:/home/dlstreamer" \
+  --group-add "$RENDER_GROUP_ID" \
   --device=/dev/dri \
   intel/dlstreamer:2026.2.0-ubuntu24 \
-  bash -c "export MODELS_PATH=/home/dlstreamer/data/models && \
+  bash -c "export MODELS_PATH=/home/dlstreamer/models && \
            /opt/intel/dlstreamer/samples/gstreamer/gst_launch/human_pose_estimation/human_pose_estimation.sh \
-           /home/dlstreamer/data/face-demographics-walking.mp4"
+           /home/dlstreamer/face-demographics-walking.mp4"
+```
+
+Replace `/dev/dri/renderD128` if your GPU render device differs.
+After the pipeline exits, revoke the display permission from the host shell:
+
+```bash
+xhost -si:localuser:"$(id -un)"
 ```
 
 **Pipeline Execution Features:**

@@ -4,19 +4,20 @@ configure_edge_pack_base_realtime () {
   version="1.0"
 }
 
-debian_20_profile_edge_pack_base_realtime () {
+debian_40_profile_edge_pack_base_realtime () {
   echo "edge_pack"
 }
 
-debian_20_group_edge_pack_base_realtime () {
+debian_40_group_edge_pack_base_realtime () {
   echo "render:992 video:"
 }
 
-debian_20_install_edge_pack_base_realtime () {
+debian_40_install_edge_pack_base_realtime () {
   configure_edge_pack_base_realtime "$@"
   if ensure_apt_is_installed intel-edge-base-realtime && [[ " $* " != *" --reinstall "* ]]; then
     echo "intel-edge-base-realtime is installed." >&2
   else
+    install_edge_pack_repo_entries "$@"
     local candidate
     candidate="$(apt-cache policy intel-edge-base-realtime 2> /dev/null | awk '/Candidate:/{print $2}')"
     if [ -z "$candidate" ] || [ "$candidate" = "(none)" ]; then
@@ -27,14 +28,14 @@ debian_20_install_edge_pack_base_realtime () {
       # record the fallback so remove/verify know real-time wasn't actually
       # installed and the standard bundle should be treated as its stand-in
       ensure_prop set installed/edge_pack_base_realtime/fallback true
-      debian_20_install_edge_pack_base_standard "$@"
+      debian_40_install_edge_pack_base_standard "$@"
       # the standard installer only records ownership when it really installs;
       # when the bundle pre-existed, record an explicit non-owned marker so the
       # ownership state is always present and remove still leaves it untouched
       [ -n "$(ensure_prop get installed/edge_pack_base_standard/owned)" ] || \
         ensure_prop set installed/edge_pack_base_standard/owned false
       [ -c /dev/dri/renderD128 ]
-      ensure_group_add $(debian_20_group_edge_pack_base_realtime)
+      ensure_group_add $(debian_40_group_edge_pack_base_realtime)
       echo "@@HIGHLIGHT intel-edge-base-realtime unavailable @installed intel-edge-base-standard instead"
       return 0
     fi
@@ -46,25 +47,25 @@ debian_20_install_edge_pack_base_realtime () {
     ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*"
   fi
   [ -c /dev/dri/renderD128 ]
-  ensure_group_add $(debian_20_group_edge_pack_base_realtime)
+  ensure_group_add $(debian_40_group_edge_pack_base_realtime)
 }
 
-debian_20_remove_edge_pack_base_realtime () {
+debian_40_remove_edge_pack_base_realtime () {
   # real-time wasn't available at install time; the standard bundle was
   # installed in its place, so defer removal to it instead
   if [ "$(ensure_prop get installed/edge_pack_base_realtime/fallback)" != "true" ]; then
     [ "$(ensure_prop get installed/edge_pack_base_realtime/owned)" = "true" ] || return 0
     ensure_apt purge --auto-remove -y intel-edge-base-realtime || true
-    debian_19_remove_edge_pack "$@" || true
+    remove_edge_pack_repo_entries "$@" || true
   else
-    debian_20_remove_edge_pack_base_standard "$@"
+    debian_40_remove_edge_pack_base_standard "$@"
   fi
   ensure_prop remove installed/edge_pack_base_realtime/fallback
 }
 
-debian_20_sbom_edge_pack_base_realtime () {
+debian_40_sbom_edge_pack_base_realtime () {
   configure_edge_pack_base_realtime "$@"
-  debian_19_sbom_edge_pack_repo_entries "$@"
+  sbom_edge_pack_repo_entries "$@"
   if [ "$(ensure_prop get installed/edge_pack_base_realtime/fallback)" = "true" ]; then
     ensure_sbom_format pkg-list "intel-edge-base-standard=$version*"
   else

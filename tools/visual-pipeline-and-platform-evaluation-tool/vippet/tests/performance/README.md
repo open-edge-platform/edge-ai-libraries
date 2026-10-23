@@ -18,6 +18,7 @@ make test-performance PERF_CONFIG=full   # all variants, 1/3/5/10 streams
 # Extra CLI flags via PERF_ARGS
 make test-performance PERF_ARGS="--dry-run"
 make test-performance PERF_CONFIG=quick PERF_ARGS="--streams 1,5 --pipelines object-detection"
+make test-performance PERF_ARGS="--report-only"   # rebuild HTML from results/latest
 ```
 
 `make test-performance` delegates to the CLI below.
@@ -89,8 +90,35 @@ other case.
 
 #### Report only
 
-`--report-only` is reserved for rebuilding reports from existing results without
-running any jobs. It is not implemented yet and exits with `3`.
+`--report-only` rebuilds the HTML report from saved result JSON. It never
+contacts ViPPET and never runs jobs.
+
+```bash
+python -m perf_helpers.cli --report-only                     # defaults to <results-dir>/latest
+python -m perf_helpers.cli --report-only results/latest
+python -m perf_helpers.cli --report-only results/bench_A/bench_A.json
+python -m perf_helpers.cli --report-only results/bench_A results/bench_B --report-output /tmp/compare.html
+```
+
+- Accepted inputs: a result JSON file, a single run directory, or the
+  `latest` symlink. The whole results folder is not accepted.
+- Several inputs render as one report with several runs; duplicate inputs
+  are ignored. Charts and the summary table keep each run's measurements
+  separate (an extra "Run" column/legend label appears) even when two runs
+  share the same pipeline/variant/stream count, so comparisons across runs
+  are not lost. Each run also gets its own system-info card (processor,
+  GPU/NPU, memory, OS, discovered devices) labeled by run id, since runs
+  being compared may come from different machines.
+- Output location:
+  - one run: overwrites `<run_dir>/<benchmark_id>.html`;
+  - several runs: `<results-dir>/report_YYYYMMDD_HHMMSS.html`;
+  - `--report-output PATH` overrides both.
+- The JSON must have been saved by the run (`json` listed in
+  `results.formats` / `--formats`).
+- Exit codes: `0` on success; `2` for a missing, unreadable or invalid
+  input; `2` for `--report-output` without `--report-only`. If the
+  implicit default (`<results-dir>/latest`) is missing, the error
+  suggests running a benchmark first or passing an explicit path.
 
 ### Direct pytest
 
@@ -162,6 +190,13 @@ Notes:
   host/port for metrics, same host on port 9090 for capabilities), so setting
   only `--base-url` (or `VIPPET_BASE_URL`) is enough to target a remote
   device; set either flag explicitly to override its default.
+- A relative `--results-dir` / `results.output_dir` / `PERF_RESULTS_DIR`
+  value is resolved against the current working directory, like any other
+  path argument. If you don't set it, it defaults to `results` inside
+  `vippet/tests/performance` (an absolute path), so a benchmark run and a
+  later `--report-only` agree on where results live regardless of which
+  directory the CLI is invoked from — as long as you don't override it
+  with a relative path from a different directory.
 - The CLI always passes `vippet/tests/performance` to pytest, so arguments after
   `--` can't move collection elsewhere. Paths or node ids after `--` don't narrow
   the run; use `--pipelines`, `--variants`, `--streams` or `-k` instead.
@@ -177,7 +212,7 @@ Environment variable defaults:
 | `VIPPET_JOB_TIMEOUT_SECONDS` | `600`                                            | Max wait for a job, whole seconds                                                                                                                                         |
 | `PERF_CONFIG`                | `default`                                        | Config preset (`default`, `quick`, `full`)                                                                                                                                |
 | `PERF_CONFIG_FILE`           | (unset)                                          | Explicit YAML path; wins over `PERF_CONFIG`                                                                                                                               |
-| `PERF_RESULTS_DIR`           | `./results`                                      | Output directory for reports                                                                                                                                              |
+| `PERF_RESULTS_DIR`           | `vippet/tests/performance/results`               | Output directory for reports                                                                                                                                              |
 | `PERF_METRICS_INTERVAL`      | `2.0`                                            | HW sampling interval (seconds)                                                                                                                                            |
 | `PERF_ON_UNKNOWN_ID`         | `fail`                                           | Unknown id in `pipelines` / `skip_pipelines` / `skip_variants` / `variants`: `fail` aborts the run, `warn` only logs a warning                                            |
 
@@ -215,3 +250,5 @@ After a run, results are saved to `results/bench_YYYYMMDD_HHMMSS/`:
 - `.json` — structured results (all test cases + HW metrics)
 - `.csv` — flat table for spreadsheet analysis
 - `.html` — interactive Chart.js report with FPS, utilization, and power charts
+
+Rebuild the HTML later with `--report-only` (see [Report only](#report-only)).
