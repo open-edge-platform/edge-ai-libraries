@@ -61,7 +61,7 @@ The same container image supports both CPU and GPU deployments through runtime c
 - [SDK Usage Guide](./sdk-usage.md) - Python SDK integration examples
 - [Supported Models](./supported-models.md) - Complete model list and specifications
 - [QwenText Models on NPU](./qwentext-on-npu.md) - Static shapes and long-text handling for QwenText on Intel NPU
-- [Optimize GME on Intel GPU](./gme-gpu-optimization.md) - INT4 GME and a patched OpenVINO GPU plugin for lower latency
+- [Optimize GME on Intel GPU](./gme-embedding-optimization.md) - INT4 GME and a patched OpenVINO GPU plugin for lower latency
 - [API Reference](./api-reference.md) - Complete REST API documentation
 
 <!--hide_directive
@@ -73,7 +73,7 @@ The same container image supports both CPU and GPU deployments through runtime c
 ./wheel-installation.md
 ./supported-models.md
 ./qwentext-on-npu.md
-./gme-gpu-optimization.md
+./gme-embedding-optimization.md
 ./api-reference.md
 Release Notes <./release-notes.md>
 

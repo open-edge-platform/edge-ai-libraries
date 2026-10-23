@@ -323,7 +323,7 @@ curl --location --request GET 'http://localhost:9777/model/capabilities'
 For lower GME latency on an Intel GPU, use the INT4 GME model
 (`GME/gme-qwen2-vl-2b-instruct-int4`) together with an image whose OpenVINO
 GPU plugin is rebuilt with GME-specific optimization patches. See
-[Optimize GME on Intel GPU](./gme-gpu-optimization.md).
+[Optimize GME on Intel GPU](./gme-embedding-optimization.md).
 
 ## Running the Server with NPU
 
