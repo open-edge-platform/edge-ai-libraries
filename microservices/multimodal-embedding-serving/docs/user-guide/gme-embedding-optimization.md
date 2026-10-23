@@ -100,26 +100,28 @@ image (Step 1) only repeats the short final stage.
 
 ## Step 3: Start the service with the patched image
 
-Select the patched image through `TAG`, keep OpenVINO in `LATENCY` mode, and
-start the service:
+Select the patched image through `TAG` and start the service:
 
 ```bash
 export TAG=gme-gpu-patch
 source setup.sh
+# Only on the integrated GPU of an Intel Core Ultra Series 3 (Panther Lake) processor:
 export OV_PERFORMANCE_MODE=LATENCY
 docker compose -f docker/compose.yaml up -d --force-recreate
 docker logs -f --tail=100 multimodal-embedding-serving
 ```
 
 > [!IMPORTANT]
-> GME on GPU must run with `OV_PERFORMANCE_MODE=LATENCY`. With `GPU` selected,
-> `setup.sh` switches the mode to `THROUGHPUT`, so export `LATENCY` again
-> **after** every `source setup.sh`. In `THROUGHPUT` mode the GME handler lets
-> OpenVINO create several GPU streams, and visual inference (image and
-> image+text requests) can hang in `InferRequest.wait()`; at the same time the
-> host kernel log reports a reset of the `xe` driver's BCS (copy) engine. The
-> request never returns, and the service has to be restarted. This applies to
-> the standard image as well as the patched one.
+> On the integrated GPU of an Intel Core Ultra Series 3 (Panther Lake)
+> processor, GME must run with `OV_PERFORMANCE_MODE=LATENCY`. With `GPU`
+> selected, `setup.sh` switches the mode to `THROUGHPUT`, so export `LATENCY`
+> again **after** every `source setup.sh`. In `THROUGHPUT` mode the GME handler
+> lets OpenVINO create several GPU streams, and on this GPU visual inference
+> (image and image+text requests) can hang in `InferRequest.wait()`; at the same
+> time the host kernel log reports a reset of the `xe` driver's BCS (copy)
+> engine. The request never returns, and the service has to be restarted. This
+> applies to the standard image as well as the patched one. Other GPUs are not
+> affected and can keep the `setup.sh` default.
 >
 > To check the mode of a running service, run
 > `docker exec multimodal-embedding-serving printenv OV_PERFORMANCE_MODE`; the
@@ -216,19 +218,21 @@ exported again.
 ```bash
 export TAG=latest
 source setup.sh
+# Only on the integrated GPU of an Intel Core Ultra Series 3 (Panther Lake) processor:
 export OV_PERFORMANCE_MODE=LATENCY
 docker compose -f docker/compose.yaml up -d --force-recreate
 ```
 
-GME on GPU needs `LATENCY` with the standard image too. To return to INT8 as well, also set
+To return to INT8 as well, also set
 `EMBEDDING_MODEL_NAME=GME/gme-qwen2-vl-2b-instruct` before `source setup.sh`.
 Both GME packages stay in the `ov-models` volume, so switching does not export
 again.
 
 ## Troubleshooting
 
-- **Image or image+text requests never return on GPU.** The service is running
-  in `THROUGHPUT` mode: the GME startup log shows `streams=auto`, and the host
+- **Image or image+text requests never return on a Panther Lake integrated
+  GPU.** The service is running in `THROUGHPUT` mode: the GME startup log
+  shows `streams=auto`, and the host
   kernel log (`sudo dmesg | grep -i xe`) shows a BCS engine reset. Export
   `OV_PERFORMANCE_MODE=LATENCY` after `source setup.sh` and recreate the
   container with `docker compose -f docker/compose.yaml up -d --force-recreate`.

@@ -302,6 +302,19 @@ source setup.sh
 > [!NOTE]
 > When `EMBEDDING_DEVICE=GPU` is set, `setup.sh` applies GPU-friendly defaults, including setting `EMBEDDING_USE_OV=true`.
 
+> [!IMPORTANT]
+> To run a GME model on the integrated GPU of an Intel Core Ultra Series 3
+> (Panther Lake) processor, set `OV_PERFORMANCE_MODE=LATENCY`. `setup.sh` sets
+> `THROUGHPUT` for GPU, so export `LATENCY` again after `source setup.sh`:
+>
+> ```bash
+> export OV_PERFORMANCE_MODE=LATENCY
+> ```
+>
+> In `THROUGHPUT` mode on this GPU, GME image and image+text requests can hang,
+> while the host kernel log reports a reset of the `xe` driver's BCS engine.
+> Other GPUs are not affected.
+
 ### 3. Start the Service
 
 ```bash

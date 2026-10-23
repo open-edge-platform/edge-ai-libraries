@@ -88,6 +88,7 @@ The GME handler is built on Qwen2-VL. It:
 - Encodes an image together with its text into one vector (fused input).
 - Runs on OpenVINO only (`EMBEDDING_USE_OV=true`).
 - Converts to OpenVINO on first use and stores the package under `<EMBEDDING_OV_MODELS_DIR>/gme-qwen2-vl-2b-instruct-openvino` (INT8) or `<EMBEDDING_OV_MODELS_DIR>/gme-qwen2-vl-2b-instruct-openvino-int4` (INT4). The INT4 export includes a short calibration pass and takes longer.
+- On the integrated GPU of Intel Core Ultra Series 3 (Panther Lake) processors, requires `OV_PERFORMANCE_MODE=LATENCY`; export it after `source setup.sh`, which selects `THROUGHPUT` for GPU (see [Running the Server with GPU](./get-started.md#running-the-server-with-gpu)). Other GPUs are not affected.
 - On Intel GPU, can run faster with the INT4 model and a patched OpenVINO GPU plugin; see [Optimize GME on Intel GPU](./gme-embedding-optimization.md).
 - Reuses a complete OpenVINO package already present at that path without downloading or converting the original weights. For Docker deployments, see [Reuse local OpenVINO models](./get-started.md#reuse-local-openvino-models) to copy a local package into the default `ov-models` named volume without changing Compose mounts.
 
