@@ -1,14 +1,19 @@
-# Getting Started Guide - OEP Vision AI SDK
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
+# Getting Started Guide - Metro Vision AI SDK
 
 ## Overview
 
-The OEP Vision AI SDK provides a comprehensive development environment for computer vision applications using Intel's optimized tools and frameworks. This guide demonstrates the installation process and provides a practical object detection implementation using DL Streamer and OpenVINO.
+The Metro Vision AI SDK provides a comprehensive development environment for computer vision applications using Intel's optimized tools and frameworks. This guide demonstrates the installation process and provides a practical object detection implementation using DL Streamer and OpenVINO.
 
 ## Learning Objectives
 
 Upon completion of this guide, you will be able to:
 
-- Install and configure the OEP Vision AI SDK
+- Install and configure the Metro Vision AI SDK
 - Execute object detection inference on video content
 - Understand the basic pipeline architecture for computer vision workflows
 
@@ -16,7 +21,7 @@ Upon completion of this guide, you will be able to:
 
 Verify that your development environment meets the following specifications:
 
-- Operating System: Ubuntu 24.04 LTS or Ubuntu 22.04 LTS
+- Operating System: Ubuntu 24.04 LTS or Ubuntu 26.04 LTS
 - Memory: Minimum 8GB RAM
 - Storage: 20GB available disk space
 - Network: Active internet connection for package downloads
@@ -25,12 +30,14 @@ Verify that your development environment meets the following specifications:
 
 Execute the automated installation script to configure the complete development environment:
 
+The installer clones [Metro AI Suite](https://github.com/open-edge-platform/metro-ai-suite) into `~/oep/metro-ai-suite`, plus Edge AI Libraries and Scenescape, all from `main`.
+
 ```bash
-curl -fsS https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/oep-sdk-manager/scripts/oep-vision-ai-sdk.sh | bash
+curl -fsS https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/oep-sdk-manager/scripts/metro-vision-ai-sdk.sh | bash
 ```
 
 
-![OEP Vision AI SDK Installation](images/oep-vision-ai-sdk-install.png)
+![Metro Vision AI SDK Installation](images/metro-vision-ai-sdk-install.png)
 
 The installation process configures the following components:
 
@@ -48,11 +55,16 @@ This section demonstrates a complete object detection workflow using the install
 Create a dedicated working directory for the tutorial:
 
 ```bash
-mkdir -p ~/oep/oep-vision-get-started-tutorial
-cd ~/oep/oep-vision-get-started-tutorial
+mkdir -p ~/oep/metro-vision-get-started-tutorial
+cd ~/oep/metro-vision-get-started-tutorial
 ```
 
 ### Step 2: Download Sample Video and Model
+
+Run the Docker commands from your regular non-root host shell, without `sudo`.
+The `--user "$(id -u):$(id -g)"` option gives generated files your host UID and primary GID, so you can copy, move, and delete them without root privileges.
+Create the working directory before mounting it; these commands do not repair files created by earlier root-run containers.
+The download container uses the mounted workspace as its writable home for model preparation environments and caches.
 
 Download the Intel-hosted sample video, which shows pedestrians and a vehicle from a street-side perspective:
 
@@ -64,7 +76,8 @@ Download and convert the COCO-trained YOLO11s detector using the DL Streamer con
 
 ```bash
 # Download YOLO11s model using DL Streamer
-docker run --rm --user=root \
+docker run --rm --user "$(id -u):$(id -g)" \
+  -e HOME=/home/dlstreamer \
   -e http_proxy -e https_proxy -e no_proxy \
   -v "${PWD}:/home/dlstreamer/" \
   intel/dlstreamer:2026.2.0-ubuntu24 \
@@ -78,12 +91,15 @@ The downloader creates `public/yolo11s/FP16/yolo11s.xml` and `yolo11s.bin` in th
 Execute the object detection pipeline using the configured assets.
 
 ```bash
-# Allow X11 connections from local clients
-xhost +local:root
+# Allow the invoking user to access the local X11 display
+xhost +si:localuser:"$(id -un)"
 
 # Start the container
 docker run --rm -it --name dlstreamer \
-  -v $PWD:/data \
+  --user "$(id -u):$(id -g)" \
+  -e HOME=/data \
+  -w /data \
+  -v "${PWD}:/data" \
   --ipc=host \
   --net=host \
   -e DISPLAY=$DISPLAY \
@@ -106,6 +122,12 @@ The video begins with pedestrians; a vehicle enters the scene later (around the 
 ```bash
 # To exit the container
 exit
+```
+
+Revoke the display permission from the host shell when finished:
+
+```bash
+xhost -si:localuser:"$(id -un)"
 ```
 
 ### Pipeline Architecture Analysis
@@ -162,7 +184,7 @@ Create sophisticated video analytics using Intel® DL Streamer framework, includ
 
 ### [Tutorial 5: Profiling](./tutorial-5.md)
 
-Profiling and monitoring performance of OEP Vision AI workloads using command-line tools.
+Profiling and monitoring performance of Metro Vision AI workloads using command-line tools.
 
 ## Additional Resources
 

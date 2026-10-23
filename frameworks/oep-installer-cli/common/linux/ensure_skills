@@ -15,21 +15,15 @@ ensure_skills () {
     ensure_git_export "$tmpdir" "$version" "$repository" "$@"
     mkdir -p "$HOME"/.agents/skills
     for p in "$@"; do
-      name="${p##*/}"
-      if [[ -e "$HOME/.agents/skills/$name" || -L "$HOME/.agents/skills/$name" ]]; then
-        ensure_rm "$HOME/.agents/skills/$name"
-      fi
+      ensure_rm "$HOME/.agents/skills/${p##*/}"
       cp -r "$tmpdir/$p" "$HOME"/.agents/skills
     done
     ensure_tmpdir destroy "$tmpdir"
     ;;
   remove)
-    local name agent
-    for name in "${@##*/}"; do
-      if [[ -e "$HOME/.agents/skills/$name" || -L "$HOME/.agents/skills/$name" ]]; then
-        ensure_rm "$HOME/.agents/skills/$name"
-      fi
-    done
+    local names=("${@##*/}")
+    local spath="$HOME/.agents/skills/"
+    ensure_rm "${names[@]/#/"$spath"}"
     ;;
   esac
 }

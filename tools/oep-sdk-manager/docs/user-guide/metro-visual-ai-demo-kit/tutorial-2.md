@@ -1,27 +1,32 @@
-# Visual AI Demo Kit - Tutorial 2
-
 <!--
-**Sample Description**: This tutorial demonstrates how to customize Node-RED flows to process and enhance AI inference data from OEP vision applications, enabling real-time data manipulation and custom business logic implementation.
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
 -->
 
-This tutorial guides you through customizing Node-RED flows to process AI inference data from OEP vision applications. You'll learn how to connect to MQTT data streams, manipulate inference results, add custom business logic, and create enhanced data outputs for downstream systems.
+# Metro Visual AI Demo Kit - Tutorial 2
 
 <!--
-**What You Can Do**: This guide covers the complete workflow for customizing Node-RED flows in OEP Vision AI applications.
+**Sample Description**: This tutorial demonstrates how to customize Node-RED flows to process and enhance AI inference data from Metro vision applications, enabling real-time data manipulation and custom business logic implementation.
+-->
+
+This tutorial guides you through customizing Node-RED flows to process AI inference data from Metro vision applications. You'll learn how to connect to MQTT data streams, manipulate inference results, add custom business logic, and create enhanced data outputs for downstream systems.
+
+<!--
+**What You Can Do**: This guide covers the complete workflow for customizing Node-RED flows in Metro Vision AI applications.
 -->
 
 By following this guide, you will learn how to:
 
 - **Access and Launch Node-RED**: Connect to the Node-RED interface and understand the flow-based programming environment
 - **Clear and Reset Flows**: Remove existing flows and start with a clean workspace for custom development
-- **Connect to MQTT Data Streams**: Establish connections to receive real-time AI inference data from OEP vision applications
+- **Connect to MQTT Data Streams**: Establish connections to receive real-time AI inference data from Metro vision applications
 - **Implement Custom Data Processing**: Add custom names, metadata, and business logic to AI inference results using function nodes
 - **Publish Enhanced Data**: Send processed data back to MQTT topics for consumption by other applications
 
 ## Prerequisites
 
-- Complete [Tutorial 1 - AI Tolling System](./tutorial-1.md) to have a running OEP Vision AI application
-- Verify that your OEP Vision AI application is running and producing MQTT data
+- Complete [Tutorial 1 - AI Tolling System](./tutorial-1.md) to have a running Metro Vision AI application
+- Verify that your Metro Vision AI application is running and producing MQTT data
 - Basic understanding of Node-RED flow-based programming concepts
 - Familiarity with MQTT messaging protocol and JSON data structures
 - Web browser access to the Node-RED interface
@@ -60,7 +65,7 @@ Troubleshooting Node-RED Access
 
 If you cannot access Node-RED:
 
-1. Verify the OEP Vision AI application is running:
+1. Verify the Metro Vision AI application is running:
 
    ```bash
    docker ps | grep node-red
@@ -263,7 +268,7 @@ After successfully setting up the AI Tolling system with Node Red, consider thes
   ```bash
   # Check if Node-RED container is running
   docker ps | grep node-red
-  # Restart the OEP Vision AI application if needed
+  # Restart the Metro Vision AI application if needed
   ./sample_stop.sh && ./sample_start.sh
   ```
 

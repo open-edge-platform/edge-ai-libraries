@@ -4,37 +4,38 @@ configure_edge_pack_graphics_display () {
   version="1.0"
 }
 
-debian_20_profile_edge_pack_graphics_display () {
+debian_40_profile_edge_pack_graphics_display () {
   echo "edge_pack"
 }
 
-debian_20_group_edge_pack_graphics_display () {
+debian_40_group_edge_pack_graphics_display () {
   echo "render:992 video:"
 }
 
-debian_20_install_edge_pack_graphics_display () {
+debian_40_install_edge_pack_graphics_display () {
   configure_edge_pack_graphics_display "$@"
   if ensure_apt_is_installed intel-edge-graphics-display && [[ " $* " != *" --reinstall "* ]]; then
     echo "intel-edge-graphics-display is installed." >&2
   else
     ensure_prop set installed/edge_pack_graphics_display/owned true
+    install_edge_pack_repo_entries "$@"
     ensure_apt purge --auto-remove -y intel-edge-graphics-display || true
     ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-graphics-display=$version*"
     ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-graphics-display=$version*"
   fi
   [ -c /dev/dri/renderD128 ]
-  ensure_group_add $(debian_20_group_edge_pack_graphics_display)
+  ensure_group_add $(debian_40_group_edge_pack_graphics_display)
 }
 
-debian_20_remove_edge_pack_graphics_display () {
+debian_40_remove_edge_pack_graphics_display () {
   [ "$(ensure_prop get installed/edge_pack_graphics_display/owned)" = "true" ] || return 0
   ensure_apt purge --auto-remove -y intel-edge-graphics-display || true
-  debian_19_remove_edge_pack "$@" || true
+  remove_edge_pack_repo_entries "$@" || true
 }
 
-debian_20_sbom_edge_pack_graphics_display () {
+debian_40_sbom_edge_pack_graphics_display () {
   configure_edge_pack_graphics_display "$@"
-  debian_19_sbom_edge_pack_repo_entries "$@"
+  sbom_edge_pack_repo_entries "$@"
   ensure_sbom_format pkg-list "intel-edge-graphics-display=$version*"
 }
 

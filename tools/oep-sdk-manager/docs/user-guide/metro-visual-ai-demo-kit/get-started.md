@@ -1,14 +1,19 @@
-# Getting Started Guide - Visual AI Demo Kits
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
+# Getting Started Guide - Metro Visual AI Demo Kit
 
 ## Overview
 
-The Visual AI Demo Kit provides a comprehensive demonstration environment for computer vision applications using Intel's optimized tools and frameworks. This guide demonstrates the installation process and provides practical AI application implementations including smart parking, smart intersection, and other visual AI use cases using DL Streamer and OpenVINO.
+The Metro Visual AI Demo Kit provides a comprehensive demonstration environment for computer vision applications using Intel's optimized tools and frameworks. This guide demonstrates the installation process and provides practical AI application implementations including smart parking, smart intersection, and other visual AI use cases using DL Streamer and OpenVINO.
 
 ## Learning Objectives
 
 Upon completion of this guide, you will be able to:
 
-- Install and configure the Visual AI Demo Kit
+- Install and configure the Metro Visual AI Demo Kit
 - Run pre-configured AI applications with real-time dashboards
 - Execute visual AI inference pipelines on video content
 - Access Grafana dashboards for monitoring AI application metrics
@@ -18,7 +23,7 @@ Upon completion of this guide, you will be able to:
 
 Verify that your development environment meets the following specifications:
 
-- Operating System: Ubuntu 24.04 LTS or Ubuntu 22.04 LTS
+- Operating System: Ubuntu 24.04 LTS or Ubuntu 26.04 LTS
 - Memory: Minimum 8GB RAM
 - Storage: 20GB available disk space
 - Network: Active internet connection for package downloads
@@ -27,11 +32,13 @@ Verify that your development environment meets the following specifications:
 
 Execute the automated installation script to configure the complete development environment:
 
+The installer clones [Metro AI Suite](https://github.com/open-edge-platform/metro-ai-suite) from `main` into `~/oep/metro-ai-suite`.
+
 ```bash
-curl -fsS https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/oep-sdk-manager/scripts/visual-ai-demo-kit.sh | bash
+curl -fsS https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/oep-sdk-manager/scripts/metro-visual-ai-demo-kit.sh | bash
 ```
 
-![Visual AI Demo Kit Installation](images/visual-ai-demo-kit-install.png)
+![Metro Visual AI Demo Kit Installation](images/metro-visual-ai-demo-kit-install.png)
 
 The installation process configures the following components:
 
@@ -44,7 +51,7 @@ The installation process configures the following components:
 - MediaMTX for media streaming
 - Pre-trained model repositories and sample implementations
 
-## Visual AI Demo Kit Application Setup
+## Metro Visual AI Demo Kit Application Setup
 
 This section demonstrates how to run pre-configured visual AI applications using the installed components.
 
@@ -119,7 +126,7 @@ docker compose down
 
 ### Application Architecture Analysis
 
-The Visual AI Demo Kit implements a microservice architecture with the following components:
+The Metro Visual AI Demo Kit implements a microservice architecture with the following components:
 
 1. **DL Streamer Pipeline Server**: Handles video analytics and AI inference processing
 2. **Grafana Dashboard**: Provides real-time visualization and monitoring
@@ -131,9 +138,9 @@ The resulting application provides a complete visual AI solution with real-time 
 
 ## Technology Framework Overview
 
-### Visual AI Demo Kit Components
+### Metro Visual AI Demo Kit Components
 
-The Visual AI Demo Kit integrates multiple technologies to provide a comprehensive demonstration environment:
+The Metro Visual AI Demo Kit integrates multiple technologies to provide a comprehensive demonstration environment:
 
 - DL Streamer Pipeline Server
 - Grafana Dashboard
@@ -155,7 +162,7 @@ Transform the Smart Parking application into a comprehensive AI-based tolling sy
 - Implementing license plate recognition and vehicle classification
 - Setting up automated toll calculation and payment processing workflows
 
-#### [Tutorial 2: Customizing Node-RED Flows for OEP Vision AI Applications](./tutorial-2.md)
+#### [Tutorial 2: Customizing Node-RED Flows for Metro Vision AI Applications](./tutorial-2.md)
 
 Master the art of workflow automation and data processing customization. Learn to:
 

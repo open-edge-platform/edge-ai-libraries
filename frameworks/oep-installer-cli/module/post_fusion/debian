@@ -53,7 +53,7 @@ EOF
   local device=$(ensure_select_device "$@")
   configure_post_fusion_device "$device"
 
-  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
   echo "@@HIGHLIGHT $installer_name install|start [--gpu/npu]"
   echo "@@HIGHLIGHT $installer_name remove"
 }

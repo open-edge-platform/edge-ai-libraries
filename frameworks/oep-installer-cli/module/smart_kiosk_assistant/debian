@@ -86,7 +86,7 @@ debian_90_install_smart_kiosk_assistant () {
   local device="$(ensure_select_device "$@")"
   configure_smart_kiosk_assistant_device "${device^^}"
 
-  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
   echo "@@HIGHLIGHT $installer_name install [--gpu|cpu]"
   echo "@@HIGHLIGHT $installer_name start [--gpu|cpu]"
   echo "@@HIGHLIGHT $installer_name remove"

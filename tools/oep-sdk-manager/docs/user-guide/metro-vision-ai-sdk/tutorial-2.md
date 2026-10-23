@@ -1,4 +1,9 @@
-# OEP Vision AI SDK - Tutorial 2
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
+# Metro Vision AI SDK - Tutorial 2
 
 This tutorial demonstrates advanced video processing capabilities using Intel's hardware-accelerated video decoding and composition. You will learn to decode multiple video streams simultaneously and display them in a tiled layout on a 4K monitor using VAAPI (Video Acceleration API) and GStreamer.
 
@@ -32,7 +37,7 @@ Upon completion of this tutorial, you will be able to:
 
 Before starting this tutorial, ensure you have:
 
-- OEP Vision AI SDK installed and configured
+- Metro Vision AI SDK installed and configured
 - Intel® Core™ or Intel® Core™ Ultra processor with integrated graphics
 - 4K monitor or display capable of 3840x2160 resolution
 - Docker installed and running on your system
@@ -41,7 +46,7 @@ Before starting this tutorial, ensure you have:
 
 ## System Requirements
 
-- **Operating System:** Ubuntu 22.04 LTS or Ubuntu 24.04 LTS (Desktop edition required)
+- **Operating System:** Ubuntu 24.04 LTS or Ubuntu 26.04 LTS (Desktop edition required)
 - **Processor:** Intel® Core™ or Intel® Core™ Ultra with integrated graphics
 - **Memory:** Minimum 8GB RAM (16GB recommended for smooth performance)
 - **Display:** 4K monitor (3840x2160) or compatible display
@@ -108,8 +113,8 @@ Create a dedicated workspace and download the sample video for multi-stream proc
 
 ```bash
 # Create working directory structure
-mkdir -p ~/oep/oep-vision-tutorial-2/videos/
-cd ~/oep/oep-vision-tutorial-2
+mkdir -p ~/oep/metro-vision-tutorial-2/videos/
+cd ~/oep/metro-vision-tutorial-2
 
 # Download Big Buck Bunny sample video (Creative Commons licensed)
 wget -O videos/Big_Buck_Bunny.mp4 "https://archive.org/download/BigBuckBunny_124/Content/big_buck_bunny_720p_surround.mp4"
