@@ -4,7 +4,6 @@ This guide provides step-by-step instructions to deploy and test the **Video Sum
 
 
 
-
 ## Prerequisites
 
 Before you begin, confirm the following:
