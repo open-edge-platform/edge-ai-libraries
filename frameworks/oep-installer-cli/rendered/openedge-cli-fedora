@@ -60,7 +60,7 @@ main () {
   local _i _rc=0
   for ((_i=0;_i<${#_cmds[*]};_i++)); do
     case "${_cmds[$_i]}" in
-    setup|list|bootstrap|sbom)
+    setup|list|bootstrap|sbom|resume)
       subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
       _rc=$?
       ;;
@@ -69,6 +69,9 @@ main () {
         subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
         _rc=$?
       else
+        # save args for resume
+        [ -x "$installer_bin" ] && ensure_prop set command "$*"
+
         # critical group permissions
         local -A _groups=()
 	local _j _dep _g _gf _deps _resolved _rest_args=() _restart=0 _m _carry=""
@@ -396,12 +399,7 @@ act_helper ()
                         [[ " $* " = *" --continue "* ]] || break;
                     fi;
                 fi;
-            done;
-            local scan_handler="${_act_cache_functions[${act_name}_pre_system_scan]:-}";
-            if [[ " $* " != *" --dry-run "* && $rc -eq 0 && -n "$scan_handler" && " ${handles[*]} " = *" $scan_handler "* ]]; then
-                echo "@@REPORT SYSTEM SUMMARY";
-                $scan_handler $(act_extract_args $act_name pre_system_scan "${handles[*]#${installer_family}_*_${act_name}_}" "$@");
-            fi
+            done
         } > >(LOG_FILE="$(ensure_project_path)/$installer_name/$(date +%m-%d-%Y).logs"
 mkdir -p "$(dirname "$LOG_FILE")"
 echo "========== $(date -Ins) ==========" >> "$LOG_FILE"
@@ -422,7 +420,7 @@ fi) 2>&1;
     else
         echo "Component not found" 1>&2;
         [[ " $* " = *" --dry-run "* ]] || rm -f "$mods_file";
-        exit 3;
+        return 3;
     fi
 }
 act_panelled_logs () 
@@ -476,6 +474,9 @@ act_panelled_logs ()
     NARROW_GLYPHS=${NARROW_GLYPHS:-0};
     FAIL_ROWS=${FAIL_ROWS:-20};
     RAISE_MS=${RAISE_MS:-15};
+    STEP_MIN=${STEP_MIN:-12};
+    STEP_TEXT="";
+    declare -a STEP_RX=() STEP_FMT=();
     readonly CSI_FINAL='[A-Za-z@\[\\\]^_`{|}~]';
     readonly SEP_W=3;
     declare -a ORDER=();
@@ -1253,6 +1254,68 @@ act_panelled_logs ()
         LDIRTY[$c]=1;
         LEFT_VALID=0
     };
+    function _set_step () 
+    { 
+        STEP_TEXT=$1
+    };
+    function _clear_step () 
+    { 
+        STEP_TEXT=""
+    };
+    function _add_step_rule () 
+    { 
+        local spec=$1 rx fmt;
+        [[ $spec == *' @@THEN '* ]] || return 1;
+        rx=${spec%%' @@THEN '*};
+        fmt=${spec#*' @@THEN '};
+        [[ -z $rx ]] && return 1;
+        [[ x =~ $rx ]];
+        (( $? == 2 )) && return 1;
+        STEP_RX+=("$rx");
+        STEP_FMT+=("$fmt")
+    };
+    function _clear_step_rules () 
+    { 
+        STEP_RX=();
+        STEP_FMT=()
+    };
+    function _apply_step_rules () 
+    { 
+        (( ${#STEP_RX[@]} == 0 )) && return 1;
+        local s=$1 i j out;
+        for ((i = 0; i < ${#STEP_RX[@]}; i++ ))
+        do
+            if [[ $s =~ ${STEP_RX[i]} ]]; then
+                out=${STEP_FMT[i]};
+                for ((j = ${#BASH_REMATCH[@]} - 1; j >= 0; j-- ))
+                do
+                    out=${out//"\\$j"/"${BASH_REMATCH[j]}"};
+                done;
+                _set_step "$out";
+                return 0;
+            fi;
+        done;
+        return 1
+    };
+    TITLEROW="";
+    function _title_row () 
+    { 
+        local w=$1 tw sw room left;
+        _fit_v "$w" "$TITLE" 1;
+        TITLEROW="${C_BOLD}${FITTED}${C_RESET}";
+        [[ -z $STEP_TEXT ]] && return;
+        _dwidth "$TITLE";
+        tw=$REPLY;
+        room=$(( w - tw - 3 ));
+        (( room < STEP_MIN )) && return;
+        _dwidth "$STEP_TEXT";
+        sw=$REPLY;
+        (( sw > room )) && sw=$room;
+        _fit_v $(( w - sw - 1 )) "$TITLE" 1;
+        left=$FITTED;
+        _fit_v "$sw" "$STEP_TEXT" 1;
+        TITLEROW="${C_BOLD}${left}${C_RESET}${C_CYAN}${FITTED}${C_RESET} "
+    };
     function _ensure_wrap () 
     { 
         local c=$1 w=$2 src r;
@@ -1581,8 +1644,8 @@ act_panelled_logs ()
             FULL_CLEAR=0;
         fi;
         _title_text "$REVIEW" "$TITLE_WORD";
-        _fit_v "$usable" "$TITLE" 1;
-        rowstr="${C_BOLD}${FITTED}${C_RESET}";
+        _title_row "$usable";
+        rowstr=$TITLEROW;
         if [[ ${PREV[0]:-__} != "$rowstr" ]]; then
             out+='[1;1H'"$rowstr"'[K';
             PREV[0]=$rowstr;
@@ -1740,8 +1803,28 @@ act_panelled_logs ()
         rest=${plainkey#"$key"};
         rest=${rest#"${rest%%[![:space:]]*}"};
         case ${key^^} in 
+            @@STEP)
+                if [[ -z $rest ]]; then
+                    _clear_step;
+                else
+                    if [[ $rest == '@@IF' ]]; then
+                        _clear_step_rules;
+                    else
+                        if [[ $rest == '@@IF '*' @@THEN '* ]]; then
+                            _add_step_rule "${rest#@@IF }" || _push_log "${CURRENT:-general}" "invalid @@STEP rule: $rest";
+                            return;
+                        else
+                            _set_step "$rest";
+                        fi;
+                    fi;
+                fi;
+                _draw 1;
+                return
+            ;;
             @@COMP)
                 [[ -z $rest ]] && return;
+                _clear_step;
+                _clear_step_rules;
                 if [[ -n $CURRENT && $CURRENT != "$rest" && -z ${REPORT[$CURRENT]:-} ]]; then
                     _timer_stop "$CURRENT";
                 fi;
@@ -1759,6 +1842,7 @@ act_panelled_logs ()
             ;;
             @@REPORT)
                 [[ -z $rest ]] && return;
+                _clear_step;
                 if [[ -n $CURRENT && -z ${REPORT[$CURRENT]:-} ]]; then
                     _timer_stop "$CURRENT";
                 fi;
@@ -1785,6 +1869,7 @@ act_panelled_logs ()
             @@OK | @@FAIL)
                 target=${rest:-$CURRENT};
                 [[ -z $target ]] && return;
+                _clear_step;
                 _touch_comp "$target";
                 if [[ ${key^^} == @@OK ]]; then
                     STATUS[$target]="ok";
@@ -1820,6 +1905,7 @@ act_panelled_logs ()
             _touch_comp "$CURRENT";
             _timer_start "$CURRENT";
         fi;
+        _apply_step_rules "$plainkey";
         _push_log "$CURRENT" "$clean";
         _draw
     };
@@ -1857,6 +1943,7 @@ act_panelled_logs ()
         [[ -n $c ]] && LDIRTY[$c]=1;
     done;
     REVIEW=1;
+    _clear_step;
     _draw 1 )
 }
 act_panelled_logs_askpass () 
@@ -1910,8 +1997,11 @@ act_resolve_args ()
 configure_anomalib () 
 { 
     workspace="$(ensure_project_path)/anomalib";
-    version=2.6.2;
-    repository=https://github.com/open-edge-platform/anomalib.git
+    version=2.7.0;
+    repository=https://github.com/open-edge-platform/anomalib.git;
+    version_skills=release-2026.2.0;
+    repository_skills=https://github.com/open-edge-platform/anomalib.git;
+    skills=(anomalib-adding-a-datamodule anomalib-adding-a-model anomalib-tiled-ensemble anomalib-training anomalib-benchmarking)
 }
 configure_dlstreamer () 
 { 
@@ -1924,7 +2014,10 @@ configure_dlstreamer ()
     od_model=yolov5m-640_INT8/FP16-INT8/yolov5m-640_INT8;
     od_model_proc=yolov5m-640_INT8/yolo-v5;
     oc_model=efficientnet-b0_INT8/FP16-INT8/efficientnet-b0;
-    model_repo=https://raw.githubusercontent.com/dlstreamer/pipeline-zoo-models/ee73878abc6fb6d864e59a5cd80016de4fc1d194
+    model_repo=https://raw.githubusercontent.com/dlstreamer/pipeline-zoo-models/ee73878abc6fb6d864e59a5cd80016de4fc1d194;
+    version_skills=release-2026.2.0;
+    repository_skills=https://github.com/open-edge-platform/skills.git;
+    skills=(dlstreamer-coding-agent)
 }
 configure_docker_ce () 
 { 
@@ -1983,8 +2076,11 @@ EOF
 configure_geti () 
 { 
     workspace="$(ensure_project_path)/geti";
+    version_skills=release-2026.2.0;
+    repository_skills=https://github.com/open-edge-platform/skills.git;
+    skills=(geti-using-the-pipeline getitune-discovering-models getitune-exporting-a-model getitune-optimizing-a-model getitune-preparing-datasets getitune-running-inference getitune-training-a-model);
     image_name=ghcr.io/open-edge-platform/geti-xpu;
-    port=8080
+    used_ports=(8080)
 }
 configure_kernel_module_essential () 
 { 
@@ -2492,20 +2588,14 @@ ensure_ram_size ()
 ensure_rm () 
 { 
     local p norm rc=0;
-    local protected=" / /bin /boot /dev /etc /home /lib /lib64 /media /mnt /opt /proc /root /run /sbin /srv /sys /tmp /usr /var /etc/apt /etc/apt/keyrings /etc/apt/preferences.d /etc/apt/sources.list.d /etc/systemd /etc/systemd/system /usr/bin /usr/lib /usr/local /usr/share /usr/share/keyrings /var/lib $HOME $HOME/.local $HOME/.local/bin $(ensure_project_path) ";
+    local protected=" / /bin /boot /dev /etc /home /lib /lib64 /media /mnt /opt /proc /root /run /sbin /srv /sys /tmp /usr /var /etc/apt /etc/apt/keyrings /etc/apt/preferences.d /etc/apt/sources.list.d /etc/systemd /etc/systemd/system /usr/bin /usr/lib /usr/local /usr/share /usr/share/keyrings /var/lib $HOME $HOME/.local $HOME/.local/bin ";
     for p in "$@";
     do
         [ -n "$p" ] || continue;
-        if [[ "$p" != /* ]]; then
-            echo "ensure_rm: refusing to remove relative path '$p'" 1>&2;
-            rc=3;
-            continue;
-        fi;
         norm="$(realpath -m -s -- "$p")";
         if [[ "$protected" = *" $norm "* ]]; then
             echo "ensure_rm: refusing to remove protected path '$p'" 1>&2;
-            rc=3;
-            continue;
+            return 3;
         fi;
         [ -e "$norm" ] || [ -L "$norm" ] || continue;
         rm -rf -- "$norm" 2> /dev/null || ensure_sudo rm -rf -- "$norm" || rc=$?;
@@ -2527,7 +2617,7 @@ ensure_sbom_format ()
         ;;
         *)
             echo "Unsupported SBOM key: $key" 1>&2;
-            exit 3
+            return 3
         ;;
     esac
 }
@@ -2541,6 +2631,32 @@ ensure_select_device ()
     [[ "$args_uc" != *" --NPU "* ]] || [ ! -e /dev/accel/accel0 ] || device="npu";
     [[ "$args_uc" != *" --GPU "* ]] || [ ! -e /dev/dri/renderD128 ] || device="gpu";
     echo $device
+}
+ensure_skills () 
+{ 
+    local op="$1";
+    case "$op" in 
+        add)
+            local version="${2:?}";
+            local repository="${3:?}";
+            shift 3;
+            local tmpdir p name;
+            ensure_tmpdir create tmpdir skills;
+            ensure_git_export "$tmpdir" "$version" "$repository" "$@";
+            mkdir -p "$HOME"/.agents/skills;
+            for p in "$@";
+            do
+                ensure_rm "$HOME/.agents/skills/${p##*/}";
+                cp -r "$tmpdir/$p" "$HOME"/.agents/skills;
+            done;
+            ensure_tmpdir destroy "$tmpdir"
+        ;;
+        remove)
+            local names=("${@##*/}");
+            local spath="$HOME/.agents/skills/";
+            ensure_rm "${names[@]/#/"$spath"}"
+        ;;
+    esac
 }
 ensure_sudo () 
 { 
@@ -2671,11 +2787,11 @@ fedora_05_sbom_pciutils ()
 { 
     ensure_sbom_format pkg-list pciutils
 }
-fedora_08_install_pre_system_scan () 
+fedora_08_install_system_inspection () 
 { 
-    system_scan_summary_report
+    install_system_inspection
 }
-fedora_08_profile_pre_system_scan () 
+fedora_08_profile_system_inspection () 
 { 
     [ "$1" != "install" ] || echo "curl dmidecode pciutils"
 }
@@ -2730,9 +2846,12 @@ fedora_15_sbom_unzip ()
 fedora_29_install_reboot () 
 { 
     [ -e "${installer_state?}"/reboot_required ] || return;
+    echo "@@STEP Rebooting";
+    local reboot_message="RERUN '$installer_name resume' AFTER SYSTEM IS BACK.";
+    echo "@@HIGHLIGHT $reboot_message";
+    printf -- "---\n---\n${red}%s${reset}\n---\n---\n" "$reboot_message";
     local delay=2;
-    ensure_sudo shutdown -r +$delay "$installer_name scheduled a reboot in $delay minutes. Rerun $* after system is back.";
-    rm -f "${installer_state?}"/reboot_required;
+    ensure_sudo shutdown -r +$delay "$reboot_message" && rm -f "${installer_state?}"/reboot_required;
     sleep infinity
 }
 fedora_30_group_docker_ce () 
@@ -3054,7 +3173,9 @@ fedora_70_install_openvino ()
     else
         ensure_disk_size 1500;
         ensure_prop set installed/openvino/owned true;
+        echo "@@STEP Removing openvino";
         fedora_70_remove_openvino "$@";
+        echo "@@STEP Installing openvino-$version";
         printf "%s\n" "${yum_repo_conf[@]}" | ensure_sudo tee "$yum_repo_file";
         ensure_dnf install -y openvino-$version;
         verify_openvino;
@@ -3102,9 +3223,13 @@ fedora_75_install_dlstreamer ()
     else
         ensure_disk_size 15000;
         ensure_prop set installed/dlstreamer/owned true;
+        echo "@@STEP Removing intel-dlstreamer";
         fedora_75_remove_dlstreamer "$@";
+        echo "@@STEP Installing intel-dlstreamer=$version";
         printf "%s\n" "${yum_repo_conf[@]}" | ensure_sudo tee "$yum_repo_file";
         ensure_dnf install -y intel-dlstreamer=$version;
+        echo "@@STEP Installing skills";
+        ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}";
         verify_dlstreamer;
         echo "intel-dlstreamer=$version installed successfully.";
     fi;
@@ -3122,7 +3247,8 @@ fedora_75_remove_dlstreamer ()
     configure_dlstreamer;
     [ "$(ensure_prop get installed/dlstreamer/owned)" = "true" ] || return 0;
     ensure_dnf autoremove -y $(dnf list --installed | grep openvino | awk '{print$1}') || true;
-    ensure_rm "$workspace"
+    ensure_rm "$workspace" || true;
+    ensure_skills remove "${skills[@]}"
 }
 fedora_75_sbom_dlstreamer () 
 { 
@@ -3140,11 +3266,14 @@ fedora_80_install_anomalib ()
         echo "Anomalib is installed." 1>&2;
     else
         ensure_disk_size 15000;
+        echo "@@STEP Installing anomalib=${version}";
         mkdir -p "$workspace";
         cd "$workspace";
         python3 -m venv .venv;
         . .venv/bin/activate;
         pip install "anomalib[openvino,cpu]==${version}";
+        echo "@@STEP Installing skills";
+        ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}";
         verify_anomalib;
     fi;
     test_anomalib "$@";
@@ -3157,7 +3286,8 @@ fedora_80_profile_anomalib ()
 fedora_80_remove_anomalib () 
 { 
     configure_anomalib $*;
-    ensure_rm "$workspace"
+    ensure_rm "$workspace" || true;
+    ensure_skills remove "${skills[@]}"
 }
 fedora_90_install_geti () 
 { 
@@ -3179,14 +3309,19 @@ fedora_90_stop_geti ()
 { 
     stop_geti "$@"
 }
+fedora_99_install_system_summary () 
+{ 
+    echo "@@REPORT SYSTEM SUMMARY";
+    install_system_inspection "$@" || true
+}
 fedora_99_profile_edge_base () 
 { 
     case "$1" in 
         bootstrap)
-            echo "core_types pre_system_scan edge_pack_base_standard edge_pack_npu gpu_accel npu_accel"
+            echo "core_types system_inspection system_summary edge_pack_base_standard edge_pack_npu gpu_accel npu_accel"
         ;;
         *)
-            echo "core_types pre_system_scan";
+            echo "core_types system_inspection system_summary";
             if [[ " $* " = *" --edgepack "* ]] && [[ "$(uname -r)" = "7."* ]]; then
                 echo "edge_pack_base_standard edge_pack_npu";
             else
@@ -3195,6 +3330,11 @@ fedora_99_profile_edge_base ()
         ;;
     esac
 }
+fedora_99_profile_system_summary () 
+{ 
+    [ "$1" != "bootstrap" ] || echo "system_inspection curl dmidecode pciutils";
+    [ "$1" != "install" ] || echo "curl dmidecode pciutils"
+}
 install_geti () 
 { 
     configure_geti "$@";
@@ -3202,23 +3342,96 @@ install_geti ()
         echo "Geti is installed." 1>&2;
     else
         ensure_disk_size 20000;
-        ensure_ports_open install geti "$port";
+        ensure_ram_size 16777216;
+        ensure_ports_open install geti "${used_ports[@]}";
+        echo "@@STEP Pulling image";
         docker pull $image_name;
+        echo "@@STEP Installing skills";
+        ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}";
     fi
+}
+install_system_inspection () 
+{ 
+    set -o pipefail;
+    ( echo "----------------------------------------------------------------";
+    ok="${green}✓  PASS${reset}";
+    nok="${red}⚠  MSG${reset}";
+    system_summary="$(system_scan_get_system_summary)";
+    echo "System|$system_summary";
+    pass=$ok;
+    membank_info="$(ensure_prop get installed/system_inspection/membank)";
+    [ -n "$membank_info" ] || membank_info="$(system_scan_check_membank)";
+    [ -z "$membank_info" ] || ensure_prop set installed/system_inspection/membank "$membank_info";
+    [ "$membank_info" = "DUAL/MULTI-CHANNELS" ] || pass="${nok/MSG/Check Memory}";
+    echo -e "RAM|$membank_info|$pass";
+    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT RAM|$membank_info|$pass" 1>&2;
+    case "$PRETTY_NAME" in 
+        *"24.04"* | *"26.04"* | *"Red Hat Enterprise"*)
+            pass=$ok
+        ;;
+        *)
+            pass="${nok/MSG/Not supported}"
+        ;;
+    esac;
+    echo -e "OS|$PRETTY_NAME|$pass";
+    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT OS|$PRETTY_NAME|$pass" 1>&2;
+    pass=$ok;
+    docker_ver="$(system_scan_check_docker)";
+    [[ "$docker_ver" = *Compose* ]] || pass="${nok/MSG/Missing Docker Compose}";
+    [ -n "$docker_ver" ] || pass="${nok} Missing Docker";
+    echo -e "Docker|$docker_ver|$pass";
+    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT Docker|$docker_ver|$pass" 1>&2;
+    net_pass=$ok;
+    net_access="$(system_scan_check_network_access)";
+    [[ "$net_access" = *reachable* ]] || net_pass="${nok/MSG/Check Proxies}";
+    echo -e "Network|$net_access|$net_pass";
+    [ "$net_pass" = "$ok" ] || echo -e "@@HIGHLIGHT Network|$net_access|$net_pass" 1>&2;
+    echo;
+    echo "Accelerators:";
+    pass=$ok;
+    cpuinst_info="$(system_scan_check_cpu_instructions)";
+    [[ "$cpuinst_info" != *Missing* ]] || pass="${nok/MSG/Check CPU}";
+    echo -e "CPU|$cpuinst_info|$pass";
+    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT CPU|$cpuinst_info|$pass";
+    for accel in $(lspci -d 8086::0300 -n | cut -f3 -d' ');
+    do
+        pass=$ok;
+        accel_info="$(system_scan_check_pci_device $accel "Intel Integrated Graphics")";
+        if [ -n "$accel_info" ]; then
+            [[ "$accel_info" = *driver* ]] || pass="${nok/MSG/Missing Driver}";
+            echo -e "GPU|$accel_info|$pass";
+            [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT GPU|$accel_info|$pass" 1>&2;
+        fi;
+    done;
+    for accel in $(lspci -d 8086::1200 -n | cut -f3 -d' ');
+    do
+        pass=$ok;
+        accel_info="$(system_scan_check_pci_device $accel "Intel AI Boost")";
+        if [ -n "$accel_info" ]; then
+            [[ "$accel_info" = *driver* ]] || pass="${nok/MSG/Missing Driver}";
+            echo -e "NPU|$accel_info|$pass";
+            [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT NPU|$accel_info|$pass" 1>&2;
+        fi;
+    done;
+    echo "----------------------------------------------------------------";
+    [ "$net_pass" = "$ok" ] ) | ensure_columns
 }
 remove_geti () 
 { 
     stop_geti "$@";
-    docker image rm -f $image_name || true
+    docker image rm -f $image_name || true;
+    ensure_rm "$workspace";
+    ensure_skills remove "${skills[@]}"
 }
 start_geti () 
 { 
     configure_geti "$@";
-    ensure_ports_open start geti "$port";
+    ensure_ports_open start geti "${used_ports[@]}";
     mkdir -p "$workspace"/geti-data;
-    docker run --rm --name geti-app -d -v "$workspace"/geti-data:/application/data:rw -e HOST=0.0.0.0 -e PORT=$port -p $port:$port -e http_proxy -e https_proxy -e no_proxy -e HTTP_PROXY -e HTTPS_PROXY -e NO_PROXY $([ ! -d /dev/dri ] || echo "--device /dev/dri:/dev/dri") --group-add $(getent group render | cut -d: -f3 || echo 992) --group-add $(id -g) --shm-size 8g $image_name;
-    echo "@@HIGHLIGHT URL: http://$(ensure_ip):$port";
-    echo "@@HIGHLIGHT workspace: $workspace/geti-data"
+    docker run --rm --name geti-app -d -v "$workspace"/geti-data:/application/data:rw -e HOST=0.0.0.0 -e PORT=${used_ports[0]} -p ${used_ports[0]}:${used_ports[0]} -e http_proxy -e https_proxy -e no_proxy -e HTTP_PROXY -e HTTPS_PROXY -e NO_PROXY $([ ! -d /dev/dri ] || echo "--device /dev/dri:/dev/dri") --group-add $(getent group render | cut -d: -f3 || echo 992) --group-add $(id -g) --shm-size 8g $image_name;
+    echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}/geti-data";
+    echo "@@HIGHLIGHT $installer_name stop|remove"
 }
 stop_geti () 
 { 
@@ -3376,15 +3589,33 @@ subcommand_remove ()
         echo "  --dry-run       dry-run operations";
         echo "  --continue      ignore errors and proceed to the end";
         echo "  --remove-all    remove all previously installed components";
+        echo "  --remove-me     remove $installer_name";
         echo;
         return 0;
     fi;
-    act_helper "remove,Removal,Removing,Removed" "-r" "$@"
+    local rc=0;
+    act_helper "remove,Removal,Removing,Removed" "-r" "$@" || rc=$?;
+    if [[ " $* " = *" --remove-me "* ]]; then
+        ensure_rm "$HOME/.local/bin/$installer_name" "$HOME/.local/share/bash-completion/completions/$installer_name" "$HOME/.agents/skills/$installer_name" && echo "$installer_name removed";
+        if [[ " $* " = *" --remove-all "* ]]; then
+            ensure_rm "$(ensure_project_path)";
+            echo "$installer_name logs removed";
+        else
+            echo "$(ensure_project_path) left unchanged";
+        fi;
+    fi;
+    return $rc
+}
+subcommand_resume () 
+{ 
+    local args=($(ensure_prop get command));
+    [ ${#args[*]} -gt 0 && -x "$installer_bin" ] && exec "$installer_bin" "${args[@]}" || true
 }
 subcommand_setup () 
 { 
     [[ " $* " != *" --help "* ]] || return;
-    local installer_misc_functions=(system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary system_scan_summary_report test_anomalib test_dlstreamer_pipeline test_openvino);
+    local installer_misc_functions=(system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary test_anomalib test_dlstreamer_pipeline test_openvino);
+    local installer_skill_text="LS0tCm5hbWU6IG9wZW5lZGdlLWNsaSAgICAKZGVzY3JpcHRpb246IFVzZSB0aGUgb3BlbmVkZ2UtY2xpIGluc3RhbGxlciB0byBpbnN0YWxsLCBzdGFydCwgc3RvcCwgb3IgcmVtb3ZlIE9wZW4gRWRnZSBQbGF0Zm9ybSAoT0VQKSBtb2R1bGVzIGFuZCBwcm9maWxlcyBvbiBhbiBlZGdlIHN5c3RlbS4gVHJpZ2dlciBvbiByZXF1ZXN0cyBsaWtlICJpbnN0YWxsIE9wZW5WSU5PIiwgInNldCB1cCBETCBTdHJlYW1lciIsICJydW4gdGhlIHNtYXJ0IHBhcmtpbmcgc2FtcGxlIiwgImRlcGxveSB0aGUgTWV0cm8gLyBNYW51ZmFjdHVyaW5nIC8gUmV0YWlsIC8gUm9ib3RpY3MgQUkgU3VpdGUiLCAid2hhdCBPRVAgY29tcG9uZW50cyBjYW4gSSBpbnN0YWxsIiwgb3IgInVuaW5zdGFsbCA8T0VQIGNvbXBvbmVudD4iLiAgIApsaWNlbnNlOiBBcGFjaGUtMi4wICAgCi0tLQoKIyBPcGVuIEVkZ2UgUGxhdGZvcm0gQ0xJIEluc3RhbGxlcgoKYG9wZW5lZGdlLWNsaWAgaXMgYSBzZWxmLWNvbnRhaW5lZCBzaGVsbCBzY3JpcHQgdGhhdCBpbnN0YWxscyBPcGVuIEVkZ2UgUGxhdGZvcm0KY29tcG9uZW50cyAoKiptb2R1bGVzKiopIGFuZCBuYW1lZCBncm91cHMgb2YgY29tcG9uZW50cyAoKipwcm9maWxlcyoqKS4gQWx3YXlzIHVzZQppdCBmb3IgT0VQIGluc3RhbGxhdGlvbiB0YXNrcy4gRG9uJ3QgaGFuZC1pbnN0YWxsIHBhY2thZ2VzLCBwaXAgd2hlZWxzLCBvcgpjb250YWluZXJzIHRoYXQgdGhlIGluc3RhbGxlciBhbHJlYWR5IG1hbmFnZXMuCgojIyBDb21tYW5kIHNoYXBlCgpgYGAKb3BlbmVkZ2UtY2xpIDxzdWJjb21tYW5kPiBbb3B0aW9uc10gW21vZHVsZXMvcHJvZmlsZXNdIFstLTxtb2R1bGU+IG1vZHVsZS1vcHRpb25zXSAuLi4KYGBgCgotIFN1YmNvbW1hbmRzIGNhbiBiZSBjaGFpbmVkIGFuZCBydW4gaW4gdGhlIG9yZGVyIGdpdmVuLgotIE9wdGlvbnMgYWZ0ZXIgYSBgLS08bW9kdWxlPmAgdGFnIGFwcGx5IG9ubHkgdG8gdGhhdCBtb2R1bGUuIEFsbCBvdGhlciBvcHRpb25zCiAgYXBwbHkgdG8gZXZlcnkgbmFtZWQgY29tcG9uZW50LgoKIyMgSW5zdGFsbGF0aW9uIHdvcmtmbG93CgoxLiAqKlBpY2sgdGhlIGluc3RhbGxlciBmb3IgdGhlIE9TLioqIFJlYWQgYC9ldGMvb3MtcmVsZWFzZWAuCiAgIC0gVWJ1bnR1L0RlYmlhbjogYG9wZW5lZGdlLWNsaWAKICAgLSBGZWRvcmE6IGBvcGVuZWRnZS1jbGktZmVkb3JhYAogICAtIE90aGVyOiBjaGVjayBgZnJhbWV3b3Jrcy9vZXAtaW5zdGFsbGVyLWNsaS9yZW5kZXJlZC9gIGZvciBhIG1hdGNoaW5nIHZhcmlhbnQuIElmIHRoZXJlIGlzbid0IG9uZSwgc3RvcCBhbmQgdGVsbCB0aGUgdXNlci4KCjIuICoqR2V0IHRoZSBzY3JpcHQqKiAocHJlZmVycmVkOiBkaXJlY3QgZG93bmxvYWQpOgogICBgYGBiYXNoCiAgIGN1cmwgLWZzU0xPIGh0dHBzOi8vcmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1saWJyYXJpZXMvbWFpbi9mcmFtZXdvcmtzL29lcC1pbnN0YWxsZXItY2xpL3JlbmRlcmVkL29wZW5lZGdlLWNsaQogICBjaG1vZCAreCBvcGVuZWRnZS1jbGkKICAgYGBgCiAgIEZhbGxiYWNrOiBjbG9uZSBgaHR0cHM6Ly9naXRodWIuY29tL29wZW4tZWRnZS1wbGF0Zm9ybS9lZGdlLWFpLWxpYnJhcmllc2AKICAgYW5kIHJ1biB0aGUgc2NyaXB0IGZyb20gYGZyYW1ld29ya3Mvb2VwLWluc3RhbGxlci1jbGkvcmVuZGVyZWQvYC4KCjMuICoqRmluZCB0aGUgcmlnaHQgY29tcG9uZW50LioqIFJ1biBgLi9vcGVuZWRnZS1jbGkgbGlzdGAuIE1hcCB0aGUgdXNlcidzCiAgIHJlcXVlc3QgdG8gYW4gZXhhY3QgbW9kdWxlIG9yIHByb2ZpbGUgbmFtZSBmcm9tIHRoaXMgb3V0cHV0LiBOZXZlciBndWVzcwogICBuYW1lcy4gSWYgbW9yZSB0aGFuIG9uZSBmaXRzLCBhc2sgdGhlIHVzZXIuCgo0LiAqKkNvbmZpcm0gd2l0aCB0aGUgdXNlci4qKiBTaG93IHRoZSBmdWxsIGNvbW1hbmQgeW91IHBsYW4gdG8gcnVuLiBSdW4gaXQKICAgYXMgYSB1c2VyLiBUaGUgaW5zdGFsbGVyIG1heSB1c2UgYHN1ZG9gIHdpdGhpbiwgc28gZ2V0IGV4cGxpY2l0IGFwcHJvdmFsIAogICBiZWZvcmUgcnVubmluZyBpdC4KCjUuICoqSW5zdGFsbC4qKgogICBgYGBiYXNoCiAgIC4vb3BlbmVkZ2UtY2xpIGluc3RhbGwgPHByb2ZpbGUtb3ItbW9kdWxlPiBbLS08bW9kdWxlPiBvcHRpb25zXQogICBgYGAKICAgYGluc3RhbGxgIHB1bGxzIGluIGRlcGVuZGVuY2llcyBhdXRvbWF0aWNhbGx5LgoKNi4gKipWZXJpZnkuKioKICAgLSBTeXN0ZW0tbGV2ZWw6IGAuL29wZW5lZGdlLWNsaSBsaXN0IC0tc2JvbSA8dGFyZ2V0PmAKICAgLSBVc2VyLWxldmVsOiBjaGVjayBgfi8ubG9jYWwvb3Blbi1lZGdlLXBsYXRmb3JtLzxjb21wb25lbnQ+L2AKCiAgIFJlcG9ydCB3aGF0IHdhcyBpbnN0YWxsZWQgYW5kIHdoZXJlLgoKIyMgT3RoZXIgbGlmZWN5Y2xlIG9wZXJhdGlvbnMKCi0gKipTdGFydC9zdG9wOioqIGAuL29wZW5lZGdlLWNsaSBzdGFydCA8Y29tcG9uZW50PmAgLyBgLi9vcGVuZWRnZS1jbGkgc3RvcCA8Y29tcG9uZW50PmAuICAKICBgLi9vcGVuZWRnZS1jbGkgc3RvcGAgc3RvcHMgYWxsIHByZXZpb3VzbHkgc3RhcnRlZCBjb21wb25lbnRzLiAgCi0gKipSZW1vdmU6KiogYC4vb3BlbmVkZ2UtY2xpIHJlbW92ZSA8Y29tcG9uZW50PmAuIFRoaXMgaXMgKipub3QgcmVjdXJzaXZlKio6ICAKICBpdCByZW1vdmVzIG9ubHkgdGhlIG5hbWVkIGNvbXBvbmVudCBhbmQgbGVhdmVzIGl0cyBkZXBlbmRlbmNpZXMgaW5zdGFsbGVkLiAKICBMaXN0IGRlcGVuZGVuY2llcyBleHBsaWNpdGx5IGlmIG5lZWRlZC4gICAKICBgLi9vcGVuZWRnZS1jbGkgcmVtb3ZlIC0tcmVtb3ZlLWFsbGAgdG8gcmVtb3ZlIGFsbCBwcmV2aW91c2x5IGluc3RhbGxlZC4gIAoKIyMgVHJvdWJsZXNob290aW5nCgotIElmIGEgY29tbWFuZCBmYWlscywgc2hvdyB0aGUgdXNlciB0aGUgcmVsZXZhbnQgZXJyb3Igb3V0cHV0LiBEb24ndCByZXRyeSB3aXRoCiAgZXh0cmEgZmxhZ3MgdW5sZXNzIHRoZSB1c2VyIGFwcHJvdmVzLgotIENoZWNrIHRoZSBSRUFETUUgZm9yIHN1cHBvcnRlZCBvcHRpb25zIGJlZm9yZSBpbnZlbnRpbmcgYW55LgoKIyMgQWR2YW5jZWQgKG9ubHkgaWYgdGhlIHVzZXIgYXNrcykKClRvIGJ1aWxkIGEgY3VzdG9taXplZCBpbnN0YWxsZXIsIGNsb25lIHRoZSByZXBvc2l0b3J5IGFuZCB1c2UgaXRzIGBib290c3RyYXBgCmNvbW1hbmQuIFNlZSB0aGUgUkVBRE1FLgoKIyMgUmVmZXJlbmNlCgotIFtSRUFETUVdKGh0dHBzOi8vZ2l0aHViLmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1saWJyYXJpZXMvYmxvYi9tYWluL2ZyYW1ld29ya3Mvb2VwLWluc3RhbGxlci1jbGkvUkVBRE1FLm1kKTogdGhlIHNvdXJjZSBvZiB0cnV0aCBmb3Igc3ViY29tbWFuZHMgYW5kIG9wdGlvbnMuCi0gW1dlYiBVSV0oaHR0cHM6Ly9kb2NzLm9wZW5lZGdlcGxhdGZvcm0uaW50ZWwuY29tL2Rldi9PRVAtYXJ0aWNsZXMvb2VwLWNsaS1pbnN0YWxsZXIvaW5kZXguaHRtbCk6IGNob29zZSBhIHByb2ZpbGUgb3IgbW9kdWxlIGFuZCBjb3B5IHRoZSBleGFjdCBjb21tYW5kLgo=";
     mkdir -p "$(dirname "$installer_bin")";
     cat > "$installer_bin" <<EOF
 #!/bin/bash
@@ -3454,7 +3685,11 @@ $(
 complete -F _${installer_name//-/_}_completion $installer_name
 EOF
 
-    echo "bash completion created at $completion_script"
+    echo "bash completion created at $completion_script";
+    local skill_file="$HOME"/.agents/skills/$installer_name/SKILL.md;
+    mkdir -p "${skill_file%/*}";
+    base64 -d > "$skill_file" <<< "$installer_skill_text";
+    echo "skill written to $skill_file"
 }
 subcommand_start () 
 { 
@@ -3605,72 +3840,6 @@ system_scan_get_system_summary ()
     [[ "$meminfo" != *mB ]] || meminfo="$(( ${meminfo%mB} / 1024 ))GB";
     echo "$cpuinfo · $coreinfo · $meminfo RAM"
 }
-system_scan_summary_report () 
-{ 
-    set -o pipefail;
-    ( echo "----------------------------------------------------------------";
-    ok="${green}✓  PASS${reset}";
-    nok="${red}⚠  MSG${reset}";
-    system_summary="$(system_scan_get_system_summary)";
-    echo "System|$system_summary";
-    pass=$ok;
-    membank_info="$(ensure_prop get installed/pre_system_scan/membank)";
-    [ -n "$membank_info" ] || membank_info="$(system_scan_check_membank)";
-    [ -z "$membank_info" ] || ensure_prop set installed/pre_system_scan/membank "$membank_info";
-    [ "$membank_info" = "DUAL/MULTI-CHANNELS" ] || pass="${nok/MSG/Check Memory}";
-    echo -e "RAM|$membank_info|$pass";
-    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT RAM|$membank_info|$pass" 1>&2;
-    case "$PRETTY_NAME" in 
-        *"24.04"* | *"26.04"* | *"Red Hat Enterprise"*)
-            pass=$ok
-        ;;
-        *)
-            pass="${nok/MSG/Not supported}"
-        ;;
-    esac;
-    echo -e "OS|$PRETTY_NAME|$pass";
-    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT OS|$PRETTY_NAME|$pass" 1>&2;
-    pass=$ok;
-    docker_ver="$(system_scan_check_docker)";
-    [[ "$docker_ver" = *Compose* ]] || pass="${nok/MSG/Missing Docker Compose}";
-    [ -n "$docker_ver" ] || pass="${nok} Missing Docker";
-    echo -e "Docker|$docker_ver|$pass";
-    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT Docker|$docker_ver|$pass" 1>&2;
-    net_pass=$ok;
-    net_access="$(system_scan_check_network_access)";
-    [[ "$net_access" = *reachable* ]] || net_pass="${nok/MSG/Check Proxies}";
-    echo -e "Network|$net_access|$net_pass";
-    [ "$net_pass" = "$ok" ] || echo -e "@@HIGHLIGHT Network|$net_access|$net_pass" 1>&2;
-    echo;
-    echo "Accelerators:";
-    pass=$ok;
-    cpuinst_info="$(system_scan_check_cpu_instructions)";
-    [[ "$cpuinst_info" != *Missing* ]] || pass="${nok/MSG/Check CPU}";
-    echo -e "CPU|$cpuinst_info|$pass";
-    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT CPU|$cpuinst_info|$pass";
-    for accel in $(lspci -d 8086::0300 -n | cut -f3 -d' ');
-    do
-        pass=$ok;
-        accel_info="$(system_scan_check_pci_device $accel "Intel Integrated Graphics")";
-        if [ -n "$accel_info" ]; then
-            [[ "$accel_info" = *driver* ]] || pass="${nok/MSG/Missing Driver}";
-            echo -e "GPU|$accel_info|$pass";
-            [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT GPU|$accel_info|$pass" 1>&2;
-        fi;
-    done;
-    for accel in $(lspci -d 8086::1200 -n | cut -f3 -d' ');
-    do
-        pass=$ok;
-        accel_info="$(system_scan_check_pci_device $accel "Intel AI Boost")";
-        if [ -n "$accel_info" ]; then
-            [[ "$accel_info" = *driver* ]] || pass="${nok/MSG/Missing Driver}";
-            echo -e "NPU|$accel_info|$pass";
-            [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT NPU|$accel_info|$pass" 1>&2;
-        fi;
-    done;
-    echo "----------------------------------------------------------------";
-    [ "$net_pass" = "$ok" ] ) | ensure_columns
-}
 test_anomalib () 
 { 
     if [[ " $* " = *" --validate "* ]]; then
@@ -3683,6 +3852,7 @@ test_anomalib ()
         for device in ${!device_map[*]};
         do
             [ -e ${device_map[$device]} ] || continue;
+            echo "@@STEP Validating on $device";
             echo "Validating anomalib on device $device...";
             PYTHONWARNINGS=ignore python3 -c '
 import sys
@@ -3771,6 +3941,7 @@ test_dlstreamer_pipeline ()
     if [[ " $* " = *" --validate "* ]]; then
         mkdir -p "$workspace";
         cd "$workspace";
+        echo "@@STEP Downloading models";
         { 
             mkdir -p models/${od_model%/*};
             [ -e models/$od_model.bin ] || ensure_fetch $model_repo/storage/$od_model.bin models/$od_model.bin || { 
@@ -3803,6 +3974,7 @@ test_dlstreamer_pipeline ()
         for device in ${!device_map[*]};
         do
             [ -e ${device_map[$device]} ] || continue;
+            echo "@@STEP Validating on $device";
             echo "Validating $od_model and $oc_model on device $device...";
             ( set -o pipefail;
             gst-launch-1.0 videotestsrc num-buffers=150 ! 'video/x-raw,format=BGRx,width=640,height=640' ! gvadetect model=models/$od_model.xml model_proc=models/$od_model.json device=$device ! gvainference model=models/$oc_model.xml device=$device ! gvafpscounter ! fakesink sync=false | ( info=0;
@@ -3825,6 +3997,7 @@ test_openvino ()
     if [[ " $* " = *" --validate "* ]]; then
         [ -r "$workspace"/${model##*/} ] || { 
             mkdir -p "$workspace";
+            echo "@@STEP Downloading ${model##*/}";
             ensure_fetch "$model" "$workspace"/${model##*/} || { 
                 echo "Failed to fetch ${model##*/}" 1>&2;
                 return 3
@@ -3832,6 +4005,7 @@ test_openvino ()
         };
         local benchmark_app="$(find "$workspace" -type f -name benchmark_app -perm -u+x || true)";
         [ -x "$benchmark_app" ] || { 
+            echo "@@STEP Building benchmark_app";
             mkdir -p "$workspace"/benchmark_app;
             cd "$workspace"/benchmark_app;
             cmake -S /usr/share/openvino/samples/cpp -B . -DCMAKE_BUILD_TYPE=Release;
@@ -3847,6 +4021,7 @@ test_openvino ()
         for device in ${!device_map[*]};
         do
             [ -e ${device_map[$device]} ] || continue;
+            echo "@@STEP Validating on $device";
             echo "Validating ${model##*/} inferencing on $device...";
             "$benchmark_app" -t 5 -m "$workspace"/${model##*/} -d $device --cache_dir "$workspace"/cache && validated+=("$device ok") || validated+=("$device failed");
         done;

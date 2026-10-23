@@ -1,0 +1,84 @@
+
+configure_surgical_instrument () {
+  workspace="$(ensure_project_path)/surgical-instrument"
+  version="5bf04485b67cda526a1dbd8435141733e05fd61a"
+  repository="https://github.com/open-edge-platform/health-and-life-sciences-ai-suite.git"
+  polyp_model="models/yolo11n_polyp/best_openvino_model/best.xml"
+}
+
+debian_90_profile_surgical_instrument () {
+  echo "edge_base docker_io git make python3_venv gnupg wget"
+}
+
+verify_surgical_instrument () {
+  [ -e "$workspace"/surgical-instrument/videos/polyp_test.mp4 ] || {
+    echo "Missing polyp_test.mp4" >&2
+    return 1
+  }
+}
+
+debian_90_install_surgical_instrument () {
+  configure_surgical_instrument
+
+  if verify_surgical_instrument && [[ " $* " = *" --reinstall "* ]]; then
+    echo "Surgical Instrument is installed" >&2
+  else
+    ensure_disk_size 70000
+    ensure_git_export "$workspace" "$version" "$repository" surgical-instrument
+    cd "$workspace"/surgical-instrument
+
+    # download video
+    make backend-venv
+    .venv-backend/bin/python scripts/create_endoscopy_video.py \
+        --images-dir datasets/REAL-Colon/raw/001-001_frames \
+        --output videos/polyp_test.mp4 \
+        --seconds 60 --fps 60 --width 1920 --height 1080
+
+    verify_surgical_instrument
+  fi
+    
+  # train models
+  cd "$workspace"/surgical-instrument
+  if [ ! -e "$polyp_model" ] && [[ " $* " = *" --train "* ]]; then
+    make download-dataset
+    make prepare-dataset MAX_POS_PER_VIDEO=800
+    make backend-bootstrap
+  fi
+
+  if [ ! -e "$polyp_model" ]; then
+    printf "${red}polyp model is not available.${reset}\n" >&2
+    printf "$installer_name install --train to train a polyp model." >&2
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
+    echo "@@HIGHLIGHT $installer_name install --train"
+  else
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
+    echo "@@HIGHLIGHT $installer_name start|remove"
+  fi
+}
+ 
+debian_90_start_surgical_instrument () {
+  configure_surgical_instrument
+
+  cd "$workspace"/surgical-instrument
+
+  if [ ! -e models/yolo11n_polyp/best_openvino_model/best.xml ]; then
+    printf "${red}Missing yolo11n_polyp${reset}\n" >&2
+    printf "$installer_name install --train to train a polyp model\n" >&2
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
+    echo "@@HIGHLIGHT $installer_name install --train"
+    return 3
+  fi
+
+  make doctor
+  make up LOWLATENCY=1 CAMERA_TRIGGER=vsync VSYNC_DIVISOR=2 SERIAL=1234567890
+
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
+  echo "@@HIGHLIGHT $installer_name remove"
+}
+
+debian_90_remove_surgical_instrument () {
+  configure_surgical_instrument
+  ensure_rm "$workspace"
+}
+
+ 

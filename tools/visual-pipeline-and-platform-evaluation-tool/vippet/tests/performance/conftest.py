@@ -693,7 +693,7 @@ def results_collector(
             )
             html_content = generate_html_report([result_dict])
             html_path = output_dir / f"{benchmark_id}.html"
-            html_path.write_text(html_content)
+            html_path.write_text(html_content, encoding="utf-8")
             _ARTEFACTS.append(("HTML report", html_path))
             logger.info("Performance report: %s", html_path)
         except OSError as exc:

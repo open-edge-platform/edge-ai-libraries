@@ -31,7 +31,7 @@ debian_90_install_smart_nvr () {
     ensure_git_export "$workspace" "$version" "$repository" smart-nvr metro-vision-ai-app-recipe
   fi
 
-  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
   echo "@@HIGHLIGHT $installer_name start|remove"
 }
 

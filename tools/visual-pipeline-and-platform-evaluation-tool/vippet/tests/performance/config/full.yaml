@@ -38,7 +38,6 @@ benchmark:
     on_unknown_id: "fail"
 
 results:
-  output_dir: "./results"
   formats:
     - json
     - csv

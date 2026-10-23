@@ -4,37 +4,38 @@ configure_edge_pack_npu () {
   version="1.0"
 }
 
-debian_20_profile_edge_pack_npu () {
+debian_40_profile_edge_pack_npu () {
   echo "edge_pack libze1"
 }
 
-debian_20_group_edge_pack_npu () {
+debian_40_group_edge_pack_npu () {
   echo "render:992"
 }
 
-debian_20_install_edge_pack_npu () {
+debian_40_install_edge_pack_npu () {
   configure_edge_pack_npu "$@"
   if ensure_apt_is_installed intel-edge-npu && [[ " $* " != *" --reinstall "* ]]; then
     echo "intel-edge-npu is installed." >&2
   else
     ensure_prop set installed/edge_pack_npu/owned true
+    install_edge_pack_repo_entries "$@"
     ensure_apt purge --auto-remove -y intel-edge-npu || true
     ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-npu=$version*"
     ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-npu=$version*"
   fi
   [ -c /dev/accel/accel0 ]
-  ensure_group_add $(debian_20_group_edge_pack_npu)
+  ensure_group_add $(debian_40_group_edge_pack_npu)
 }
 
-debian_20_remove_edge_pack_npu () {
+debian_40_remove_edge_pack_npu () {
   [ "$(ensure_prop get installed/edge_pack_npu/owned)" = "true" ] || return 0
   ensure_apt purge --auto-remove -y intel-edge-npu || true
-  debian_19_remove_edge_pack "$@" || true
+  remove_edge_pack_repo_entries "$@" || true
 }
 
-debian_20_sbom_edge_pack_npu () {
+debian_40_sbom_edge_pack_npu () {
   configure_edge_pack_npu "$@"
-  debian_19_sbom_edge_pack_repo_entries "$@"
+  sbom_edge_pack_repo_entries "$@"
   ensure_sbom_format pkg-list "intel-edge-npu=$version*"
 }
 
