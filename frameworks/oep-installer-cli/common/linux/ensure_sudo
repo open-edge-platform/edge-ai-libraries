@@ -17,8 +17,8 @@ ensure_sudo () {
           fd=${fd##*/}; (( fd > 2 )) && eval "exec $fd>&-"
         done 2>/dev/null
         while kill -0 $ppid 2> /dev/null; do
-          sleep 60
           sudo -n -v 2> /dev/null || break
+          sleep 60
         done
         ensure_prop remove pids/sudo/pid$ppid
       ) < /dev/null > /dev/null 2>&1 &

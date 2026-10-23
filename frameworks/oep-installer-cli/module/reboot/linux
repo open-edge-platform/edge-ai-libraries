@@ -4,7 +4,7 @@ configure_reboot () {
 }
 
 install_reboot () {
-  #[ "$(ensure_prop get reboot_requested)" = "true" ] || return 0
+  [ "$(ensure_prop get reboot_requested)" = "true" ] || return 0
 
   ensure_prop remove reboot_requested
   subcommand_setup
@@ -21,12 +21,12 @@ install_reboot () {
   echo "@@ATTENTION @@BR"
   echo "@@ATTENTION SYSTEM REBOOT REQUIRED"
   echo "@@ATTENTION @@BR"
-  echo "@@ATTENTION RERUN WITH '$installer_name resume' AFTER SYSTEM IS BACK."
+  echo "@@ATTENTION RERUN '$installer_name resume' AFTER SYSTEM IS BACK."
   echo "@@ATTENTION @@BR"
   echo "@@ATTENTION @@UNTIL +$(( delay * 60 )) Rebooting in %s (cancel: sudo shutdown -c)"
   echo "@@ATTENTION @@BR"
 
-  echo "@@HIGHLIGHT $installer_name resume"
+  echo "@@HIGHLIGHT RERUN $installer_name resume"
   ensure_sudo shutdown -r +$delay &&
   sleep infinity
 }
