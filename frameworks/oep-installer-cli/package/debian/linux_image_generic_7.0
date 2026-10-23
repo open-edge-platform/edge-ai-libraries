@@ -1,0 +1,18 @@
+
+debian_25_profile_linux_image_generic_7.0 () {
+  [[ "$(uname -r)" = 7.0*generic ]] || echo "reboot"
+}
+
+debian_25_install_linux_image_generic_7.0 () {
+  if [[ "$(uname -r)" = 7.0*generic ]]; then
+    echo "kernel 7.0 generic is installed" >&2
+  else
+    local pkgver="$(apt policy linux-image-generic-7.0 2> /dev/null | grep -m1 Candidate: | cut -f2 -d: | tr -d ' ')"
+    echo "@@STEP Installing linux-image-$pkgver" 
+    ensure_apt install linux-image-$pkgver
+    ensure_sudo sed -i '/^GRUB_TOP_LEVEL=/{s|.*|GRUB_TOP_LEVEL=/boot/vmlinuz-${pkgver%.*.*.*}|;b};$aGRUB_TOP_LEVEL=/boot/vmlinuz-${pkgver%.*.*.*}' /etc/default/grub
+    ensure_sudo update-grub
+    configure_reboot
+  fi
+}
+
