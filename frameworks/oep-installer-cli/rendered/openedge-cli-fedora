@@ -60,7 +60,7 @@ main () {
   local _i _rc=0
   for ((_i=0;_i<${#_cmds[*]};_i++)); do
     case "${_cmds[$_i]}" in
-    setup|list|bootstrap|sbom)
+    setup|list|bootstrap|sbom|resume)
       subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
       _rc=$?
       ;;
@@ -69,6 +69,9 @@ main () {
         subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
         _rc=$?
       else
+        # save args for resume
+        [ -x "$installer_bin" ] && ensure_prop set command "$*"
+
         # critical group permissions
         local -A _groups=()
 	local _j _dep _g _gf _deps _resolved _rest_args=() _restart=0 _m _carry=""
@@ -2843,9 +2846,12 @@ fedora_15_sbom_unzip ()
 fedora_29_install_reboot () 
 { 
     [ -e "${installer_state?}"/reboot_required ] || return;
+    echo "@@STEP Rebooting";
+    local reboot_message="RERUN '$installer_name resume' AFTER SYSTEM IS BACK.";
+    echo "@@HIGHLIGHT $reboot_message";
+    printf -- "---\n---\n${red}%s${reset}\n---\n---\n" "$reboot_message";
     local delay=2;
-    ensure_sudo shutdown -r +$delay "$installer_name scheduled a reboot in $delay minutes. Rerun $* after system is back.";
-    rm -f "${installer_state?}"/reboot_required;
+    ensure_sudo shutdown -r +$delay "$reboot_message" && rm -f "${installer_state?}"/reboot_required;
     sleep infinity
 }
 fedora_30_group_docker_ce () 
@@ -3599,6 +3605,11 @@ subcommand_remove ()
         fi;
     fi;
     return $rc
+}
+subcommand_resume () 
+{ 
+    local args=($(ensure_prop get command));
+    [ ${#args[*]} -gt 0 && -x "$installer_bin" ] && exec "$installer_bin" "${args[@]}" || true
 }
 subcommand_setup () 
 { 

@@ -60,7 +60,7 @@ main () {
   local _i _rc=0
   for ((_i=0;_i<${#_cmds[*]};_i++)); do
     case "${_cmds[$_i]}" in
-    setup|list|bootstrap|sbom)
+    setup|list|bootstrap|sbom|resume)
       subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
       _rc=$?
       ;;
@@ -69,6 +69,9 @@ main () {
         subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
         _rc=$?
       else
+        # save args for resume
+        [ -x "$installer_bin" ] && ensure_prop set command "$*"
+
         # critical group permissions
         local -A _groups=()
 	local _j _dep _g _gf _deps _resolved _rest_args=() _restart=0 _m _carry=""
