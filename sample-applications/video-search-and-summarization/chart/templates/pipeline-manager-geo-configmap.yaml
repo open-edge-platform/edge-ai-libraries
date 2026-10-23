@@ -8,7 +8,7 @@ metadata:
   labels:
     app: {{ .Values.pipelinemanager.name }}
 data:
-  # Locations for Geo Map View, used when the locations API is not set or unreachable.
+  # Locations for Geo Spatial Map View, used when the locations API is not set or unreachable.
   geo-intersections.json: |
     {{- $geo := dict "version" 1 "intersections" (.Values.pipelinemanager.geo.intersections | default dict) }}
     {{- toPrettyJson $geo | nindent 4 }}

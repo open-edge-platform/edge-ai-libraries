@@ -29,5 +29,5 @@ feature:
   liveStreams: "FEATURE_OFF"
   map: "FEATURE_OFF"
 
-# Geo Map View tile server; locations come from pipeline-manager (pipelinemanager.geo).
+# Geo Spatial Map View tile server; locations come from pipeline-manager (pipelinemanager.geo).
 mapTileUrl: "https://tile.openstreetmap.org/{z}/{x}/{y}.png"

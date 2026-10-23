@@ -3,15 +3,15 @@ SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# Geo Map View
+# Geo Spatial Map View
 
-Geo Map View shows video search results as pins on a map. Each pin is one
+Geo Spatial Map View shows video search results as pins on a map. Each pin is one
 location and shows how many matching clips were recorded there. Select
 **Map View** in the search results header to open the map beside the results.
 
 ## Enable
 
-Geo Map View is disabled by default. Enable it before starting VSS:
+Geo Spatial Map View is disabled by default. Enable it before starting VSS:
 
 ```bash
 export APP_MAP_FEATURE=FEATURE_ON

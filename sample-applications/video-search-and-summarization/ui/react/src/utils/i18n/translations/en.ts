@@ -19,7 +19,7 @@ export const enTranslations = {
   GroupByTag: 'Group by Tag',
   VideoGroups: 'Video Groups by Tags',
   MapView: 'Map View',
-  MapDrawerTitle: 'Geo Map',
+  MapDrawerTitle: 'Map View',
   CloseMap: 'Close map',
   NoIntersectionLocations: 'No locations to show for this search.',
   IntersectionClipCount_one: '{{count}} clip',
