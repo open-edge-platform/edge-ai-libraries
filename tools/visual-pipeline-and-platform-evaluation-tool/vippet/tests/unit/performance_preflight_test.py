@@ -91,9 +91,7 @@ class TestPerformancePreflight(unittest.TestCase):
 
         reports: list[str] = []
         with _client(handler) as client:
-            with self.assertRaisesRegex(
-                preflight.PreflightError, r"/health.*connection refused.*Remedy"
-            ):
+            with self.assertRaises(preflight.PreflightError) as context:
                 preflight.wait_for_vippet_ready(
                     "http://localhost/api/v1",
                     60,
@@ -104,6 +102,43 @@ class TestPerformancePreflight(unittest.TestCase):
                 )
 
         self.assertIn("/health: FAILED", reports[-1])
+        message = str(context.exception)
+        self.assertIn("Cannot reach ViPPET at http://localhost/api/v1/health", message)
+        self.assertIn("connection refused", message)
+        self.assertIn("not running, or the base URL points at the wrong", message)
+        self.assertIn("To fix:", message)
+        self.assertIn("--base-url / VIPPET_BASE_URL", message)
+        self.assertIn("(currently http://localhost/api/v1)", message)
+
+    def _health_failure(self, response: httpx.Response) -> str:
+        with _client(lambda _request: response) as client:
+            with self.assertRaises(preflight.PreflightError) as context:
+                preflight.wait_for_vippet_ready(
+                    "http://localhost/api/v1",
+                    60,
+                    2,
+                    10,
+                    client=client,
+                    report=lambda _message: None,
+                )
+        return str(context.exception)
+
+    def test_health_404_points_at_base_url_path(self) -> None:
+        message = self._health_failure(httpx.Response(404, json={"detail": "x"}))
+        self.assertIn("answered, but not like the ViPPET API (HTTP 404)", message)
+        self.assertIn("To fix:", message)
+        self.assertIn("ends in /api/v1", message)
+
+    def test_health_non_json_points_at_wrong_service(self) -> None:
+        message = self._health_failure(httpx.Response(200, text="<html>hi</html>"))
+        self.assertIn("not like the ViPPET API (JSONDecodeError", message)
+        self.assertIn("different service or path", message)
+
+    def test_health_server_error_points_at_backend_logs(self) -> None:
+        message = self._health_failure(httpx.Response(502, text="Bad Gateway"))
+        self.assertIn("answered with HTTP 502", message)
+        self.assertIn("backend is down, restarting or crashed", message)
+        self.assertIn("To fix: check 'docker compose ps'", message)
 
     def test_malformed_health_payload_is_fatal(self) -> None:
         def handler(_request: httpx.Request) -> httpx.Response:
@@ -145,11 +180,37 @@ class TestPerformancePreflight(unittest.TestCase):
                 )
 
         message = str(context.exception)
-        self.assertIn("timed out after 5s", message)
+        self.assertIn("is reachable but did not report ready within 5s", message)
         self.assertIn("/status", message)
         self.assertIn("status='initializing'", message)
         self.assertIn("message='Loading models'", message)
-        self.assertIn("Remedy:", message)
+        self.assertIn("still starting up", message)
+        self.assertIn("To fix:", message)
+        self.assertIn("--readiness-timeout (currently 5s)", message)
+
+    def test_status_errors_until_deadline_are_reported_as_not_ready(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path.endswith("/health"):
+                return httpx.Response(200, json={"healthy": True})
+            return httpx.Response(503, json={"detail": "starting"})
+
+        clock = _FakeClock()
+        with _client(handler) as client:
+            with self.assertRaises(preflight.PreflightError) as context:
+                preflight.wait_for_vippet_ready(
+                    "http://localhost/api/v1",
+                    3,
+                    2,
+                    10,
+                    client=client,
+                    monotonic=clock.monotonic,
+                    sleep=clock.sleep,
+                    report=lambda _message: None,
+                )
+
+        message = str(context.exception)
+        self.assertIn("did not report ready within 3s", message)
+        self.assertIn("HTTPStatusError", message)
 
     @patch.object(preflight.pytest, "exit")
     @patch.object(
@@ -160,14 +221,45 @@ class TestPerformancePreflight(unittest.TestCase):
     def test_fatal_preflight_uses_dedicated_exit_code(
         self, _mock_wait: Mock, mock_exit: Mock
     ) -> None:
+        errors: list[str] = []
         preflight.run_preflight_or_exit(
-            "http://localhost/api/v1", 60, 2, 10, client=Mock(spec=httpx.Client)
+            "http://localhost/api/v1",
+            60,
+            2,
+            10,
+            client=Mock(spec=httpx.Client),
+            report_error=errors.append,
         )
 
+        # The full explanation is reported; pytest's banner gets a pointer.
+        self.assertEqual(errors, ["service unavailable"])
         mock_exit.assert_called_once_with(
-            "service unavailable", returncode=preflight.FATAL_PREFLIGHT_EXIT_CODE
+            preflight.FATAL_PREFLIGHT_EXIT_REASON,
+            returncode=preflight.FATAL_PREFLIGHT_EXIT_CODE,
         )
+        self.assertIn("see the error above", preflight.FATAL_PREFLIGHT_EXIT_REASON)
         self.assertEqual(preflight.FATAL_PREFLIGHT_EXIT_CODE, 2)
+
+    @patch.object(preflight, "wait_for_vippet_ready")
+    def test_preflight_report_is_forwarded(self, mock_wait: Mock) -> None:
+        reports: list[str] = []
+        preflight.run_preflight_or_exit(
+            "http://localhost/api/v1",
+            60,
+            2,
+            10,
+            client=Mock(spec=httpx.Client),
+            report=reports.append,
+        )
+        self.assertEqual(mock_wait.call_args.kwargs["report"], reports.append)
+
+    def test_discovery_error_is_actionable(self) -> None:
+        message = preflight.describe_discovery_error(
+            RuntimeError("boom"), "http://h/api/v1"
+        )
+        self.assertIn("ViPPET reported ready, but reading its inventory", message)
+        self.assertIn("from http://h/api/v1 failed: RuntimeError: boom", message)
+        self.assertIn("To fix:", message)
 
 
 class TestFetchDiscoveredDevices(unittest.TestCase):
@@ -212,6 +304,8 @@ class TestFetchDiscoveredDevices(unittest.TestCase):
         self.assertEqual(result, [])
         self.assertIn("/devices: FAILED", reports[-1])
         self.assertIn("ConnectError", reports[-1])
+        self.assertIn("The report will have no hardware section", reports[-1])
+        self.assertIn("To fix:", reports[-1])
 
     def test_returns_empty_list_on_non_list_payload(self) -> None:
         def handler(_request: httpx.Request) -> httpx.Response:
@@ -292,6 +386,8 @@ class TestFetchCapabilities(unittest.TestCase):
         self.assertEqual(result, {})
         self.assertIn(": FAILED", reports[-1])
         self.assertIn("ConnectError", reports[-1])
+        self.assertIn("'Unknown'", reports[-1])
+        self.assertIn("--capabilities-url / VIPPET_CAPABILITIES_URL", reports[-1])
 
     def test_returns_empty_dict_on_non_object_payload(self) -> None:
         def handler(_request: httpx.Request) -> httpx.Response:
@@ -418,6 +514,8 @@ class TestFetchVippetVersion(unittest.TestCase):
 
         self.assertEqual(result, "Unknown")
         self.assertIn(": FAILED", reports[-1])
+        self.assertIn("ViPPET version as 'Unknown'", reports[-1])
+        self.assertIn("To fix:", reports[-1])
 
     def test_returns_unknown_when_version_field_missing(self) -> None:
         def handler(_request: httpx.Request) -> httpx.Response:
