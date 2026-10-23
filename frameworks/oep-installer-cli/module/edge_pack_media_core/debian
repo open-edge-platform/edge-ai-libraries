@@ -4,30 +4,31 @@ configure_edge_pack_media_core () {
   version="1.0"
 }
 
-debian_20_profile_edge_pack_media_core () {
+debian_40_profile_edge_pack_media_core () {
   echo "edge_pack"
 }
 
-debian_20_install_edge_pack_media_core () {
+debian_40_install_edge_pack_media_core () {
   configure_edge_pack_media_core "$@"
   if ensure_apt_is_installed intel-edge-media-core && [[ " $* " != *" --reinstall "* ]]; then
     echo "intel-edge-media-core is installed." >&2
   else
     ensure_prop set installed/edge_pack_media_core/owned true
+    install_edge_pack_repo_entries "$@"
     ensure_apt purge --auto-remove -y intel-edge-media-core || true
     ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-core=$version*"
   fi
 }
 
-debian_20_remove_edge_pack_media_core () {
+debian_40_remove_edge_pack_media_core () {
   [ "$(ensure_prop get installed/edge_pack_media_core/owned)" = "true" ] || return 0
   ensure_apt purge --auto-remove -y intel-edge-media-core || true
-  debian_19_remove_edge_pack "$@" || true
+  remove_edge_pack_repo_entries "$@" || true
 }
 
-debian_20_sbom_edge_pack_media_core () {
+debian_40_sbom_edge_pack_media_core () {
   configure_edge_pack_media_core "$@"
-  debian_19_sbom_edge_pack_repo_entries "$@"
+  sbom_edge_pack_repo_entries "$@"
   ensure_sbom_format pkg-list "intel-edge-media-core=$version*"
 }
 

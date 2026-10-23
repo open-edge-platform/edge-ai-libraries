@@ -1,6 +1,6 @@
 
 configure_libze1 () {
-  if [[ " $* " = *" edge_pack_npu "* ]]; then
+  if [[ " $* " = *" edge_pack_npu "* && " $* " != *" linux_image_generic_7.0 "* ]]; then
     version=1.28.2
     libze1_deb="https://snapshot.ppa.launchpadcontent.net/kobuk-team/intel-graphics/ubuntu/20260606T100000Z/pool/main/l/level-zero-loader/libze1_1.28.2-1~${VERSION_ID}~ppa1_amd64.deb"
   else

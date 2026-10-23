@@ -18,7 +18,7 @@ fedora_80_install_anomalib () {
     pip install "anomalib[openvino,cpu]==${version}"
 
     echo "@@STEP Installing skills"
-    ensure_skills add tags/lib/v$version $repository "${skills[@]/#/.agents/skills/}"
+    ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}"
     verify_anomalib
   fi
 
@@ -30,7 +30,7 @@ fedora_80_install_anomalib () {
 
 fedora_80_remove_anomalib () {
   configure_anomalib $*
-  ensure_rm "$workspace"
+  ensure_rm "$workspace" || true
   ensure_skills remove "${skills[@]}"
 }
 

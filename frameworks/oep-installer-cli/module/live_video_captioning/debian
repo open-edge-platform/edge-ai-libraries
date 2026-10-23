@@ -52,7 +52,7 @@ debian_90_install_live_video_captioning () {
   local device=$(ensure_select_device "$@")
   configure_live_video_captioning_device "${device^^}"
 
-  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
   echo "@@HIGHLIGHT $installer_name start|remove"
 }
 

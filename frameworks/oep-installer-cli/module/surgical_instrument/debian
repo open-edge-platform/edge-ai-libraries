@@ -48,10 +48,10 @@ debian_90_install_surgical_instrument () {
   if [ ! -e "$polyp_model" ]; then
     printf "${red}polyp model is not available.${reset}\n" >&2
     printf "$installer_name install --train to train a polyp model." >&2
-    echo "@@HIGHLIGHT workspace: $workspace"
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
     echo "@@HIGHLIGHT $installer_name install --train"
   else
-    echo "@@HIGHLIGHT workspace: $workspace"
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
     echo "@@HIGHLIGHT $installer_name start|remove"
   fi
 }
@@ -64,7 +64,7 @@ debian_90_start_surgical_instrument () {
   if [ ! -e models/yolo11n_polyp/best_openvino_model/best.xml ]; then
     printf "${red}Missing yolo11n_polyp${reset}\n" >&2
     printf "$installer_name install --train to train a polyp model\n" >&2
-    echo "@@HIGHLIGHT workspace: $workspace"
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
     echo "@@HIGHLIGHT $installer_name install --train"
     return 3
   fi
@@ -72,7 +72,7 @@ debian_90_start_surgical_instrument () {
   make doctor
   make up LOWLATENCY=1 CAMERA_TRIGGER=vsync VSYNC_DIVISOR=2 SERIAL=1234567890
 
-  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
   echo "@@HIGHLIGHT $installer_name remove"
 }
 
