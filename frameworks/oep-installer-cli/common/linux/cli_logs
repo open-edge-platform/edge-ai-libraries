@@ -26,7 +26,7 @@ act_panelled_logs () {(
 #                           +<seconds> counted from now. Shows "<label> m:ss"
 #                           (label defaults to "Closing in"). Without @@UNTIL
 #                           the box stays until it is closed.
-#   @@ATTENTION             (no argument) close the box now
+#   @@ATTENTION @@CLOSE     close the box now
 #   anything else           log line attributed to the current component
 #
 # Environment:
@@ -951,12 +951,12 @@ _draw() {
 
   _title_text "$REVIEW" "$TITLE_WORD"
   _title_row "$usable"
-  rowstr=$TITLEROW
+  rowstr=$TITLEROW${AT_SEG[1]:-}
   if [[ ${PREV[0]:-__} != "$rowstr" ]]; then
     out+=$'\033[1;1H'"$rowstr"$'\033[K'; PREV[0]=$rowstr
   fi
   _hrule_v "$usable"
-  rowstr="${C_DIM}${HRULE}${C_RESET}"
+  rowstr="${C_DIM}${HRULE}${C_RESET}${AT_SEG[2]:-}"
   if [[ ${PREV[1]:-__} != "$rowstr" ]]; then
     out+=$'\033[2;1H'"$rowstr"$'\033[K'; PREV[1]=$rowstr
   fi
@@ -965,7 +965,7 @@ _draw() {
     l=${LEFT_ROWS[i]:-}
     if [[ $l != *$'\033'* ]]; then _fit_v "$lw" "$l" 1; l=$FITTED; fi
     r=${right[i]:-}
-    rowstr="${l} ${C_DIM}${BC_V}${C_RESET} ${r}"
+    rowstr="${l} ${C_DIM}${BC_V}${C_RESET} ${r}${AT_SEG[$(( i + 3 ))]:-}"
     j=$(( i + 2 ))
     if [[ ${PREV[j]:-__} != "$rowstr" ]]; then
       printf -v out '%s\033[%d;1H%s\033[K' "$out" $(( i + 3 )) "$rowstr"
@@ -982,6 +982,7 @@ _draw() {
     for (( i = 0; i < fh; i++ )); do
       if (( i == 0 )); then rowstr=$frule
       else rowstr=${FAILROWS[i-1]:-}; fi
+      rowstr+=${AT_SEG[$(( body + i + 3 ))]:-}
       j=$(( body + i + 2 ))
       if [[ ${PREV[j]:-__} != "$rowstr" ]]; then
         printf -v out '%s\033[%d;1H%s\033[K' "$out" $(( body + i + 3 )) "$rowstr"
@@ -991,12 +992,12 @@ _draw() {
   fi
 
   if _attention_active; then
-    _overlay_box
-    out+=$FS_OUT
-    PREV=()
+    _attention_build
+    # full repaint once per second (not every frame) to wipe wall/console junk
+    if (( ${EPOCHREALTIME%.*} != AT_SEC )); then AT_SEC=${EPOCHREALTIME%.*}; PREV=(); fi
   fi
 
-  [[ -n $out ]] && printf '%s' "$out"
+  [[ -n $out ]] && printf '\033[?2026h%s\033[?2026l' "$out"
 
   FRAMES=$(( FRAMES + 1 ))
   DRAW_MS=$(( DRAW_MS + $(_now_ms) - t0 ))
@@ -1082,9 +1083,12 @@ _finish() {
   (( TTY_FD >= 0 )) && { stty echo <&"$TTY_FD" 2>/dev/null; exec {TTY_FD}>&-; }
 }
 
-FS_OUT=""
-_overlay_box() {
-  local cols=$TTY_COLS rows=$TTY_ROWS line w maxw=0 i
+declare -A AT_SEG=()     # screen row -> box segment (positioned escape string)
+AT_SEC=-1
+
+_attention_build() {
+  AT_SEG=()
+  local cols=$TTY_COLS rows=$TTY_ROWS line w maxw=0 i pl pr
   local -a body=("${AT_LINES[@]}")
   if (( AT_UNTIL > 0 )); then
     local left=$(( AT_UNTIL - ${EPOCHREALTIME%.*} ))
@@ -1096,19 +1100,20 @@ _overlay_box() {
   local bw=$(( maxw + 6 )); (( bw > cols - 2 )) && bw=$(( cols - 2 ))
   local bh=$(( ${#body[@]} + 4 ))
   local top=$(( (rows - bh) / 2 + 1 )) lc=$(( (cols - bw) / 2 + 1 ))
-  local out=""                      # no clear: draw on top of the panels
   _hrule_v $(( bw - 2 ))
-  out+=$(printf '\033[%d;%dH%s%s%s%s' $top $lc "$C_RED" "$BC_TL" "$HRULE" "$BC_TR")
+  printf -v "AT_SEG[$top]" '\033[%d;%dH%s%s%s%s%s' \
+    $top $lc "$C_RED" "$BC_TL" "$HRULE" "$BC_TR" "$C_RESET"
   for (( i = 1; i < bh - 1; i++ )); do
     line=""; (( i >= 2 && i - 2 < ${#body[@]} )) && line=${body[i-2]}
     _dwidth "$line"; w=$REPLY
-    (( w > bw - 4 )) && { _fit_v $(( bw - 4 )) "$line" 1; line=$FITTED; w=$(( bw - 4 )); }
-    local pl=$(( (bw - 2 - w) / 2 )) pr=$(( bw - 2 - w - (bw - 2 - w) / 2 ))
-    out+=$(printf '\033[%d;%dH%s%s%s%*s%s%s%*s%s%s' $(( top + i )) $lc \
-      "$C_RED" "$BC_V" "$C_RESET" $pl '' "$C_BOLD$C_YELLOW" "$line" $pr '' "$C_RED" "$BC_V")
+    if (( w > bw - 4 )); then _fit_v $(( bw - 4 )) "$line" 1; line=$FITTED; w=$(( bw - 4 )); fi
+    pl=$(( (bw - 2 - w) / 2 )); pr=$(( bw - 2 - w - pl ))
+    printf -v "AT_SEG[$(( top + i ))]" '\033[%d;%dH%s%s%s%*s%s%s%s%*s%s%s%s' \
+      $(( top + i )) $lc "$C_RED" "$BC_V" "$C_RESET" $pl '' \
+      "$C_BOLD$C_YELLOW" "$line" "$C_RESET" $pr '' "$C_RED" "$BC_V" "$C_RESET"
   done
-  out+=$(printf '\033[%d;%dH%s%s%s%s%s' $(( top + bh - 1 )) $lc "$C_RED" "$BC_BL" "$HRULE" "$BC_BR" "$C_RESET")
-  FS_OUT=$out
+  printf -v "AT_SEG[$(( top + bh - 1 ))]" '\033[%d;%dH%s%s%s%s%s' \
+    $(( top + bh - 1 )) $lc "$C_RED" "$BC_BL" "$HRULE" "$BC_BR" "$C_RESET"
 }
 
 # ------------------------------------------------------------------ input
@@ -1176,7 +1181,7 @@ _handle_line() {
       else _touch_comp "$rest"; FOCUS=$rest; fi
       _draw 1; return ;;
     @@ATTENTION)
-      if [[ -z $rest ]]; then
+      if [[ $rest == '@@CLOSE' ]]; then
         _attention_close
       elif [[ $rest == '@@UNTIL '* ]]; then
         local t=${rest#@@UNTIL }; t=${t%% *}
