@@ -37,6 +37,9 @@ along with the required microservices are as follows.
 - **AI Agents Integration**
   - [MCP Server](./mcp-server.md): Connect AI agents and IDE extensions to VSS using the Model Context Protocol (MCP).
 
+- **Features**
+  - [Geo Map View](./geo-map-view.md): Show search results as pins on a map.
+
 - **API Reference**
   - [API Reference](./api-reference.md): Comprehensive reference for the available REST API endpoints.
 
@@ -55,6 +58,7 @@ Deploy VSS with vLLM <helm-installation-vLLM-guide>
 directory-watcher-guide
 api-reference
 mcp-server
+geo-map-view
 troubleshooting
 Release Notes <./release-notes.md>
 

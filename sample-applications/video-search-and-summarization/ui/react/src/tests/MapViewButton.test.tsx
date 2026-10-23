@@ -31,7 +31,7 @@ const renderQueryInfo = (withIntersections: boolean) => {
 };
 
 describe('Map View button', () => {
-  it('is hidden when no intersection locations are known', () => {
+  it('is hidden when no locations are known', () => {
     renderQueryInfo(false);
     expect(screen.queryByRole('button', { name: 'MapView' })).toBeNull();
     expect(screen.getByRole('button', { name: 'GroupByTag' })).toBeInTheDocument();

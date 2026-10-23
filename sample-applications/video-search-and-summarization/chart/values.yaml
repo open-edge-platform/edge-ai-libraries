@@ -197,9 +197,9 @@ pipelinemanager:
     SEARCH_DATAPREP_POLL_MAX_RETRIES: "3"
     SEARCH_DATAPREP_POLL_TIMEOUT_MS: "10000"
     SEARCH_DATAPREP_POLL_RETRY_DELAY_MS: "500"
-  # Intersection locations for the search Map View (docs/user-guide/intersection-map-view.md).
-  # apiUrl: URL of an intersections API, e.g. http://<host>:<port>/api/v1/intersections.
-  # intersections: fallback used when apiUrl is unset or has never answered.
+  # Locations for the search Geo Map View (docs/user-guide/geo-map-view.md).
+  # apiUrl: optional locations API, e.g. http://<host>:<port>/api/v1/intersections.
+  # intersections: locations used when apiUrl is unset or unreachable.
   geo:
     apiUrl: ""
     refreshMs: "60000"

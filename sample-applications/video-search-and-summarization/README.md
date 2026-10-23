@@ -37,7 +37,7 @@ The detailed documentation to help you get started, configure, and deploy the sa
   - [How to Deploy with Helm](./docs/user-guide/deploy-with-helm.md): How to deploy using the Helm chart.
 
 - **Features**
-  - [Intersection Map View](./docs/user-guide/intersection-map-view.md): Pin search results on the traffic intersection they came from.
+  - [Geo Map View](./docs/user-guide/geo-map-view.md): Show search results as pins on a map.
 
 - **AI Agent Integration**
   - [MCP Server](./docs/user-guide/mcp-server.md): Connect AI agents to VSS Search using the Model Context Protocol (MCP).

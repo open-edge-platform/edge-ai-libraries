@@ -19,7 +19,7 @@ import { GeoReducer } from './geo/geoSlice.ts';
  * `ui` is ephemeral view state. `streams` is live telemetry polled every few
  * seconds - persisting it would both write to disk continuously and show the
  * user yesterday's frame counts on the next page load.
- * `geo` (intersection locations) is owned by the backend; a persisted copy would mask updates.
+ * `geo` (map locations) is owned by the backend; a persisted copy would mask updates.
  */
 const NON_PERSISTED_SLICES = ['ui', 'streams', 'geo'] as const;
 
