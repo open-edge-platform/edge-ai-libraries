@@ -35,6 +35,7 @@ bash test/openshell-test.sh | tee openshell-offline.tap
 | Managed inference | OpenShell Qwen3.5 default and snapshot exporter, native OVMS graph generation, host compatibility, explicit overrides, persisted selection, fresh-only provisioning, partial deployment refusal, managed OVMS readiness/network/publication, both proxy bypass variables |
 | Model lifecycle | Source/export option roundtrip, coordinated two-agent switch, original environment overridden after restart, token/history preservation, pending-switch retry and conflict rejection, legacy-image preflight, full/scoped uninstall and OpenShell package ownership safeguards |
 | Local-model defaults | Exact Qwen context/output/thinking/sampling/prompt settings, idempotence, explicit overrides and later edits, selection-only isolation, removal on model switch, non-Qwen preservation |
+| Hermes browser policy | Hermes policy differs from the base only by sandbox-local `/dev/ptmx` and `/dev/pts` write access; installer selects it only for Hermes |
 | CLI safety | Help, invalid runtime, host connect, explicit sandbox deletion consent and host-only deletion flags |
 | Cleanup safeguards | Deletion order, archived records, unowned-resource refusal, pending deletion retaining provider/identity |
 | Test infrastructure | Intermediate assertion failures produce a nonzero suite result; live suite requires explicit opt-in |
@@ -85,6 +86,7 @@ The IR and denied direct-OVMS ports must differ.
 | Prerequisites | Gateway health, exact model discovery and loopback-only IR publication |
 | Installation | Both images build, sandboxes become Ready, native inference checks pass |
 | Local-model defaults | Disposable network-isolated built Hermes image must run all defaults cases, including native YAML and provider request mapping (no runtime-dependent skips) |
+| Hermes browser terminal | Real sandbox Python can allocate and close a PTY without host filesystem/network allowances |
 | Dispatch/idempotence | Status works; repeat installation preserves sandbox identity |
 | Drift prevention | Implicit model changes fail |
 | Boundaries | Non-root runtime, host agent homes/host-only marker/Docker socket absence, exact workspace read/write, IR allowed and direct OVMS connection denied |

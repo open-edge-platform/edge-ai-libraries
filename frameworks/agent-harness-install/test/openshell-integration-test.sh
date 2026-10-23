@@ -207,6 +207,16 @@ local_model_defaults() {
     -v "$SCRIPT_DIR/test/model-defaults-test.mjs:/opt/test/model-defaults-test.mjs:ro" \
     agent-harness-hermes-openshell:local --test /opt/test/model-defaults-test.mjs
 }
+hermes_pty() {
+  exec_in hermes /usr/local/bin/node -e '
+    const {execFileSync}=require("node:child_process");
+    const runtime=JSON.parse(execFileSync("/home/node/.local/bin/hermes",
+      ["--print-runtime-command"],{encoding:"utf8"}));
+    execFileSync(runtime[0],["-I","-c",
+      "import os, pty; master, slave = pty.openpty(); os.close(master); os.close(slave); print(\"Hermes PTY allocation passed\")"],
+      {stdio:"inherit"});
+  '
+}
 
 gate 'prepared gateway and loopback inference are healthy' preflight
 for agent in openclaw hermes; do
@@ -218,6 +228,7 @@ for agent in openclaw hermes; do
   gate "$agent stop/start retains config, workspace and inference" restart_persistence "$agent"
 done
 gate 'built image applies Qwen defaults and Hermes request overrides offline' local_model_defaults
+gate 'Hermes browser terminal can allocate sandbox-local PTYs' hermes_pty
 gate 'complete uninstall requires explicit consent' expect_failure 'confirmation requires a TTY|Uninstall cancelled' \
   timeout 30 bash "$SCRIPT_DIR/uninstall.sh" --runtime host < /dev/null
 for agent in openclaw hermes; do

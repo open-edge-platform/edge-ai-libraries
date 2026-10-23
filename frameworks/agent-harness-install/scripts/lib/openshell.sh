@@ -543,8 +543,10 @@ JS
     openshell profile import -f "$dir/provider.json" -g "$gateway"
     openshell provider create --name "$name" --type "$name" -g "$gateway"
   fi
+  local policy="${SCRIPT_DIR}/openshell/policy.yaml"
+  [[ "$agent" != hermes ]] || policy="${SCRIPT_DIR}/openshell/hermes-policy.yaml"
   openshell sandbox create --name "$name" --from "$image" --provider "$name" \
-    --policy "${SCRIPT_DIR}/openshell/policy.yaml" \
+    --policy "$policy" \
     --label "agent-harness.owner=$owner" --label "agent-harness.agent=$agent" \
     --env "HARNESS_AGENT=$agent" --env "HARNESS_SANDBOX_MODEL=$model" \
     --env "HERMES_HOME=/home/node/.hermes" \

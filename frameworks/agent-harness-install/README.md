@@ -143,6 +143,22 @@ generated authentication token. Hermes runs as an interactive CLI; messaging
 integrations are not enabled. `connect` uses OpenShell's authenticated execution
 path and does not publish an agent UI on the LAN.
 
+Hermes browser chat is available on demand through its built-in dashboard:
+run `hermes dashboard --host 127.0.0.1 --port 9119 --skip-build --no-open`
+inside the owned sandbox using `openshell sandbox exec`. Forward sandbox port
+9119 with `openshell forward service`, then SSH-tunnel the host loopback port
+to your laptop. The dashboard is not started by the installer and stops with
+its process/sandbox; keep its launcher running during testing. No messaging
+gateway is required for browser chat. Do not expose the loopback-only dashboard
+on a LAN without configuring Hermes authentication.
+
+Hermes uses [a dedicated policy](openshell/hermes-policy.yaml) matching the
+base agent policy except for writable `/dev/ptmx` and `/dev/pts`. These
+sandbox-local pseudo-terminal devices are needed by its browser chat terminal;
+OpenClaw's policy is unchanged. This does not grant host filesystem, Docker
+socket or additional network access. Existing Hermes sandboxes must be
+recreated with the new policy after backing up any needed data.
+
 `HARNESS_OPENSHELL_GATEWAY` selects the gateway when creating a new profile
 (default: `openshell`); lifecycle commands use the recorded gateway. On a fresh
 machine the checksum-pinned upstream installer provisions the CLI and local

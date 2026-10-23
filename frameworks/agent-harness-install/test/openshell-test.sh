@@ -395,4 +395,14 @@ run_case 'live suite requires explicit opt-in' expect_failure 'Set HARNESS_RUN_O
 run_case 'managed Qwen inference regression suite' bash "$SCRIPT_DIR/test/managed-inference-test.sh"
 run_case 'model switch and complete uninstall regression suite' bash "$SCRIPT_DIR/test/model-lifecycle-test.sh"
 run_case 'Qwen local-model defaults regression suite' node --test "$SCRIPT_DIR/test/model-defaults-test.mjs"
+run_case 'Hermes policy adds only sandbox-local PTY paths to the base policy' node -e '
+  const fs=require("node:fs"),assert=require("node:assert/strict"),root=process.argv[1];
+  const normalize=s=>s.split("\n").filter(x=>x.trim()&&!x.trim().startsWith("#")).join("\n");
+  const base=fs.readFileSync(`${root}/openshell/policy.yaml`,"utf8");
+  const hermes=fs.readFileSync(`${root}/openshell/hermes-policy.yaml`,"utf8");
+  for(const p of ["/dev/ptmx","/dev/pts"]) assert.equal(hermes.split(`    - ${p}\n`).length,2);
+  assert.equal(normalize(hermes.replace("    - /dev/ptmx\n","").replace("    - /dev/pts\n","")),normalize(base));
+  assert.ok(fs.readFileSync(`${root}/scripts/lib/openshell.sh`,"utf8").includes(
+    "[[ \"$agent\" != hermes ]] || policy=\"${SCRIPT_DIR}/openshell/hermes-policy.yaml\""));
+' "$SCRIPT_DIR"
 finish_tests
