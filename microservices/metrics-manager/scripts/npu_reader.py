@@ -24,7 +24,6 @@ import os
 import sys
 import time
 import logging
-from typing import Optional
 
 # Re-use the PmtTelemetry class from the npu-monitor-tool script.
 # The script is installed alongside this reader in /app.
@@ -96,9 +95,9 @@ def compute_npu_sample(
     freq_mhz: float,
     temp_c: int,
     tile_config: int,
-    curr_busy_us: Optional[int],
-    prev_busy_us: Optional[int],
-    mem_util_bytes: Optional[int],
+    curr_busy_us: int | None,
+    prev_busy_us: int | None,
+    mem_util_bytes: int | None,
 ) -> dict:
     """Compute one NPU telemetry sample from consecutive raw PMT reads.
 
@@ -222,7 +221,7 @@ def main():
             pu.cpu_gen,
         )
 
-    def read_busy_us() -> Optional[int]:
+    def read_busy_us() -> int | None:
         if not npu_busy_supported:
             return None
         try:
@@ -232,7 +231,7 @@ def main():
             logger.warning("Failed to read npu_busy_time_us: %s", e)
             return None
 
-    def read_mem_util_bytes() -> Optional[int]:
+    def read_mem_util_bytes() -> int | None:
         if not mem_util_supported or not os.path.exists(mem_util_path):
             return None
         try:

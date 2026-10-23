@@ -407,6 +407,17 @@ SPECS: tuple[SettingSpec, ...] = (
         exclusive_min=True,
         metavar="SECONDS",
     ),
+    SettingSpec(
+        "metrics.trim_fraction",
+        "--metrics-trim-fraction",
+        "float",
+        0.1,
+        "Fraction of time-ordered HW samples trimmed from each end before "
+        "averaging, to discard warm-up/wind-down outliers (0 <= value < 0.5).",
+        env="PERF_METRICS_TRIM_FRACTION",
+        minimum=0,
+        metavar="FRACTION",
+    ),
     # --- results ---
     SettingSpec(
         "results.output_dir",

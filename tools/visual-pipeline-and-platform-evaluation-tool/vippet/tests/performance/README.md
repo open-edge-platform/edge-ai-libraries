@@ -144,6 +144,7 @@ Every YAML key has a CLI flag:
 | `--metrics-url`              | `metrics.metrics_url`                     | `VIPPET_METRICS_URL`              |
 | `--capabilities-url`         | `metrics.capabilities_url`                | `VIPPET_CAPABILITIES_URL`         |
 | `--metrics-interval`         | `metrics.sample_interval_seconds`         | `PERF_METRICS_INTERVAL`           |
+| `--metrics-trim-fraction`    | `metrics.trim_fraction`                   | `PERF_METRICS_TRIM_FRACTION`      |
 | `--results-dir`              | `results.output_dir`                      | `PERF_RESULTS_DIR`                |
 | `--formats`                  | `results.formats`                         |                                   |
 | `--[no-]latest-link`         | `results.create_latest_link`              |                                   |
