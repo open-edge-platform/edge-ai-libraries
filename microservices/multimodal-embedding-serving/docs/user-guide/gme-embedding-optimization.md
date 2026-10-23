@@ -2,12 +2,12 @@
 
 This guide sets up the fastest GME configuration on an Intel GPU:
 
-- the **INT4** GME model, `GME/gme-qwen2-vl-2b-instruct-int4`, and
+- GME in **INT4** precision (`GME_PRECISION=int4`), and
 - an image whose OpenVINO GPU plugin is rebuilt with six GME-specific
   optimization patches.
 
-Both steps are optional and independent. The INT4 model runs on the standard
-image, and the patched plugin also speeds up the default INT8 model. Use them
+Both steps are optional and independent. INT4 runs on the standard image, and
+the patched plugin also speeds up the default INT8 precision. Use them
 together for the largest gain. The standard image and the INT8 default remain
 the recommended starting point; follow this guide when you need lower GME
 latency on GPU.
@@ -16,7 +16,7 @@ latency on GPU.
 
 | Component | Standard | Optimized |
 | --- | --- | --- |
-| Model | `GME/gme-qwen2-vl-2b-instruct` (INT8) | `GME/gme-qwen2-vl-2b-instruct-int4` (INT4) |
+| Precision | `GME_PRECISION=int8` (default) | `GME_PRECISION=int4` |
 | Image | `multimodal-embedding-serving:<tag>` | the same image plus a patched GPU plugin, tagged `gme-gpu-patch` |
 | OpenVINO | wheel from `pyproject.toml` | official `openvino==2026.4.1` wheel; its GPU plugin is replaced by one built from the same release with the patches applied |
 
@@ -57,7 +57,8 @@ The patched image is built on top of the standard image, so build that first
 from the current source:
 
 ```bash
-export EMBEDDING_MODEL_NAME=GME/gme-qwen2-vl-2b-instruct-int4
+export EMBEDDING_MODEL_NAME=GME/gme-qwen2-vl-2b-instruct
+export GME_PRECISION=int4
 export EMBEDDING_DEVICE=GPU
 unset REGISTRY_URL PROJECT_NAME
 export TAG=latest
@@ -133,8 +134,8 @@ docker logs -f --tail=100 multimodal-embedding-serving
 > the `gme-gpu-patch` tag and overwrite the patched image. Switch back to
 > `TAG=latest` before rebuilding the standard image, then repeat Step 2.
 
-On the first start, the INT4 model is downloaded and exported to OpenVINO in
-the `ov-models` volume at
+On the first start, GME is downloaded and exported to OpenVINO INT4 in the
+`ov-models` volume at
 `/app/ov_models/gme-qwen2-vl-2b-instruct-openvino-int4`. Export includes an
 INT4 calibration pass and takes from several minutes to tens of minutes,
 depending on the CPU; later starts reuse the package. The service becomes
@@ -206,10 +207,10 @@ measured the same way.
   are not interchangeable: re-embed the whole collection when you change the
   model.
 
-## Use the patched image with the INT8 model
+## Use the patched image with INT8
 
-To keep INT8 and still use the patched plugin, set
-`EMBEDDING_MODEL_NAME=GME/gme-qwen2-vl-2b-instruct` in Step 3. An existing INT8
+To keep INT8 and still use the patched plugin, set `GME_PRECISION=int8` (or
+unset it) before Step 3. An existing INT8
 package in the `ov-models` volume is reused as is; it does not need to be
 exported again.
 
@@ -223,9 +224,8 @@ export OV_PERFORMANCE_MODE=LATENCY
 docker compose -f docker/compose.yaml up -d --force-recreate
 ```
 
-To return to INT8 as well, also set
-`EMBEDDING_MODEL_NAME=GME/gme-qwen2-vl-2b-instruct` before `source setup.sh`.
-Both GME packages stay in the `ov-models` volume, so switching does not export
+To return to INT8 as well, also set `GME_PRECISION=int8` (or unset it).
+Each precision's package stays in the `ov-models` volume, so switching does not export
 again.
 
 ## Troubleshooting

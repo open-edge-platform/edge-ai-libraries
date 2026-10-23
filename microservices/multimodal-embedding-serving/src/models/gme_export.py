@@ -24,6 +24,7 @@ from __future__ import annotations
 import contextlib
 import gc
 import json
+import os
 import shutil
 import tempfile
 from pathlib import Path
@@ -39,6 +40,23 @@ from .gme_runtime import DEFAULT_INSTRUCTION, IMAGE_FACTOR, GmeOpenVINO
 from ..utils import logger
 
 SUPPORTED_WEIGHT_FORMATS = ("fp32", "int8", "int4")
+# The precision is chosen with GME_PRECISION, by the service and by
+# scripts/export_gme_ov.py alike.
+PRECISION_ENV = "GME_PRECISION"
+DEFAULT_PRECISION = "int8"
+
+
+def resolve_precision(value: Optional[str] = None) -> str:
+    """The GME precision to use: ``value``, else ``$GME_PRECISION``, else INT8."""
+    precision = (value or os.getenv(PRECISION_ENV) or DEFAULT_PRECISION).strip().lower()
+    if precision not in SUPPORTED_WEIGHT_FORMATS:
+        raise ValueError(f"{PRECISION_ENV} must be one of {SUPPORTED_WEIGHT_FORMATS}, got {precision!r}")
+    return precision
+
+
+def package_dir_name(base: str, precision: str) -> str:
+    """Directory of a precision's package; INT8 keeps the unsuffixed name it always had."""
+    return base if precision == DEFAULT_PRECISION else f"{base}-{precision}"
 MIN_IMAGE_TOKENS = 256
 MAX_IMAGE_TOKENS = 1280
 MAX_LENGTH = 1800

@@ -13,8 +13,10 @@ as one 1536-d, L2-normalized vector in a shared space. All of that lives in
 Like the other OpenVINO handlers, the package is exported on first use (see
 ``models.gme_export``) into ``<EMBEDDING_OV_MODELS_DIR>/<package_dir>`` and
 reused afterwards. An existing package directory is loaded as-is, so a package
-exported elsewhere can be placed there instead. Precision, embedding dim and
-processor limits are read from the package's ``gme_openvino_config.json``.
+exported elsewhere can be placed there instead. ``GME_PRECISION`` (``int8``
+default, ``int4``, ``fp32``) selects the precision and, through it, the package
+directory; embedding dim and processor limits are read from the package's
+``gme_openvino_config.json``.
 """
 
 from __future__ import annotations
@@ -31,7 +33,7 @@ import torch
 from PIL import Image
 
 from ..base import BaseEmbeddingModel
-from ..gme_export import SUPPORTED_WEIGHT_FORMATS, export_package
+from ..gme_export import export_package, package_dir_name, resolve_precision
 from ..gme_runtime import DEFAULT_INSTRUCTION, GmeOpenVINO, package_ir_files
 from ...utils import logger
 
@@ -55,10 +57,9 @@ class GMEHandler(BaseEmbeddingModel):
         super().__init__(model_config)
         self.hf_model_id: str = model_config["hf_model_id"]
         self.revision: Optional[str] = model_config.get("revision")
-        self.package_dir: str = model_config["package_dir"]
-        self.weight_format: str = model_config.get("weight_format", "int8")
-        if self.weight_format not in SUPPORTED_WEIGHT_FORMATS:
-            raise ValueError(f"GME weight_format must be one of {SUPPORTED_WEIGHT_FORMATS}")
+        # GME_PRECISION picks the precision, and with it the package directory.
+        self.weight_format: str = resolve_precision()
+        self.package_dir: str = package_dir_name(model_config["package_dir"], self.weight_format)
         # Both known only once the package is loaded.
         self.embedding_dim: Optional[int] = None
         self.precision: Optional[str] = None
@@ -103,9 +104,9 @@ class GMEHandler(BaseEmbeddingModel):
             streams,
             cache_dir,
         )
-        # No precision argument: the runtime takes the one the package declares.
         self.runtime = GmeOpenVINO(
             model_dir,
+            precision=self.weight_format,
             device=self.device,
             streams=streams,
             cache_dir=cache_dir,
@@ -135,9 +136,11 @@ class GMEHandler(BaseEmbeddingModel):
         if not config_path.is_file():
             raise FileNotFoundError(f"Not an exported GME OpenVINO package (no {config_path.name}): {model_dir}")
         try:
-            _, language_xml, visual_xml = package_ir_files(model_dir, json.loads(config_path.read_text()))
+            _, language_xml, visual_xml = package_ir_files(
+                model_dir, json.loads(config_path.read_text()), self.weight_format
+            )
         except (ValueError, KeyError) as exc:
-            raise ValueError(f"Invalid {config_path}: {exc}") from exc
+            raise ValueError(f"{config_path} has no {self.weight_format} model (GME_PRECISION): {exc}") from exc
         required = []
         for xml_name in (language_xml, visual_xml):
             xml_path = model_dir / xml_name
@@ -295,6 +298,6 @@ class GMEHandler(BaseEmbeddingModel):
             )
             export_package(self.hf_model_id, package, self.weight_format, self.revision)
         _, language_xml, visual_xml = package_ir_files(
-            package, json.loads((package / "gme_openvino_config.json").read_text())
+            package, json.loads((package / "gme_openvino_config.json").read_text()), self.weight_format
         )
         return str(package / language_xml), str(package / visual_xml)

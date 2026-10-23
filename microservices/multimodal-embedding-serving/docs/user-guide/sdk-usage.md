@@ -81,7 +81,7 @@ embeddings = embedding_model.embed_documents(texts)
 print(f"Batch embeddings shape: {len(embeddings)}x{len(embeddings[0])}")
 ```
 
-> **GME models**: `GME/*` models run only on OpenVINO. Pass `use_openvino=True` to `get_model_handler` (or set `EMBEDDING_USE_OV=true`); otherwise `load_model()` raises a `RuntimeError`.
+> **GME models**: `GME/*` models run only on OpenVINO. Pass `use_openvino=True` to `get_model_handler` (or set `EMBEDDING_USE_OV=true`); otherwise `load_model()` raises a `RuntimeError`. The precision comes from the `GME_PRECISION` environment variable: `int8` (default), `int4` or `fp32`.
 
 > **Text-only models**: Qwen text embeddings expose only the text encoder. Use the `/model/capabilities` endpoint or `embedding_model.get_supported_modalities()` to confirm modality support before invoking image/video helpers.
 

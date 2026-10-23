@@ -80,16 +80,16 @@ QwenText models also run on `EMBEDDING_DEVICE=NPU`, which requires static-shape 
 
 | Model ID | Hugging Face Repo | Embedding Dimension | Notes |
 |----------|-------------------|---------------------|-------|
-| `GME/gme-qwen2-vl-2b-instruct` | `Alibaba-NLP/gme-Qwen2-VL-2B-Instruct` | 1536 | Text, image, video frames, image+text (fused); INT8 |
-| `GME/gme-qwen2-vl-2b-instruct-int4` | `Alibaba-NLP/gme-Qwen2-VL-2B-Instruct` | 1536 | Same inputs; INT4, lower latency and accuracy |
+| `GME/gme-qwen2-vl-2b-instruct` | `Alibaba-NLP/gme-Qwen2-VL-2B-Instruct` | 1536 | Text, image, video frames, image+text (fused); INT8, INT4 or FP32 |
 
 The GME handler is built on Qwen2-VL. It:
 
 - Encodes an image together with its text into one vector (fused input).
 - Runs on OpenVINO only (`EMBEDDING_USE_OV=true`).
-- Converts to OpenVINO on first use and stores the package under `<EMBEDDING_OV_MODELS_DIR>/gme-qwen2-vl-2b-instruct-openvino` (INT8) or `<EMBEDDING_OV_MODELS_DIR>/gme-qwen2-vl-2b-instruct-openvino-int4` (INT4). The INT4 export includes a short calibration pass and takes longer.
+- Runs in the precision set by `GME_PRECISION`: `int8` (default), `int4` (faster, lower accuracy) or `fp32` (original accuracy, slowest).
+- Converts to OpenVINO on first use and stores the package under `<EMBEDDING_OV_MODELS_DIR>/gme-qwen2-vl-2b-instruct-openvino` for INT8, with a `-int4` or `-fp32` suffix for the other precisions. The INT4 conversion includes a short calibration pass and takes longer.
 - On the integrated GPU of Intel Core Ultra Series 3 (Panther Lake) processors, requires `OV_PERFORMANCE_MODE=LATENCY`; export it after `source setup.sh`, which selects `THROUGHPUT` for GPU (see [Running the Server with GPU](./get-started.md#running-the-server-with-gpu)). Other GPUs are not affected.
-- On Intel GPU, can run faster with the INT4 model and a patched OpenVINO GPU plugin; see [Optimize GME on Intel GPU](./gme-embedding-optimization.md).
+- On Intel GPU, can run faster with INT4 and a patched OpenVINO GPU plugin; see [Optimize GME on Intel GPU](./gme-embedding-optimization.md).
 - Reuses a complete OpenVINO package already present at that path without downloading or converting the original weights. For Docker deployments, see [Use a prepared GME OpenVINO model](./get-started.md#use-a-prepared-gme-openvino-model) to prepare the package with `scripts/export_gme_ov.py` and copy it into the default `ov-models` named volume.
 
 Use the `/model/capabilities` endpoint to inspect which modalities the currently loaded model supports.
