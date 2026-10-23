@@ -4,7 +4,8 @@ configure_reboot () {
 }
 
 install_reboot () {
-  [ "$(ensure_prop get reboot_requested)" = "true" ] || return
+  set -x
+  [ "$(ensure_prop get reboot_requested)" = "true" ] || return 0
 
   ensure_prop remove reboot_requested
   subcommand_setup
