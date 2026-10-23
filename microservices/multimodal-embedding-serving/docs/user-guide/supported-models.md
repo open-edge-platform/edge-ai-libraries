@@ -76,6 +76,22 @@ The Qwen text embedding handler provides high-quality multilingual embeddings op
 
 QwenText models also run on `EMBEDDING_DEVICE=NPU`, which requires static-shape compilation and caps the tokens read per pass (2048 by default; longer text is split into chunks automatically). See [QwenText Models on NPU](./qwentext-on-npu.md) for the configuration and measured performance.
 
+### GME (General Multimodal Embedding)
+
+| Model ID | Hugging Face Repo | Embedding Dimension | Notes |
+|----------|-------------------|---------------------|-------|
+| `GME/gme-qwen2-vl-2b-instruct` | `Alibaba-NLP/gme-Qwen2-VL-2B-Instruct` | 1536 | Text, image, video frames, image+text (fused); INT8, INT4 or FP32 |
+
+The GME handler is built on Qwen2-VL. It:
+
+- Encodes an image together with its text into one vector (fused input).
+- Runs on OpenVINO only (`EMBEDDING_USE_OV=true`).
+- Runs in the precision set by `GME_PRECISION`: `int8` (default), `int4` (faster, lower accuracy) or `fp32` (original accuracy, slowest).
+- Converts to OpenVINO on first use and stores the package under `<EMBEDDING_OV_MODELS_DIR>/gme-qwen2-vl-2b-instruct-openvino` for INT8, with a `-int4` or `-fp32` suffix for the other precisions. The INT4 conversion includes a short calibration pass and takes longer.
+- On the integrated GPU of Intel Core Ultra Series 3 (Panther Lake) processors, requires `OV_PERFORMANCE_MODE=LATENCY`; export it after `source setup.sh`, which selects `THROUGHPUT` for GPU (see [Running the Server with GPU](./get-started.md#running-the-server-with-gpu)). Other GPUs are not affected.
+- On Intel GPU, can run faster with INT4 and a patched OpenVINO GPU plugin; see [Optimize GME on Intel GPU](./gme-embedding-optimization.md).
+- Reuses a complete OpenVINO package already present at that path without downloading or converting the original weights. For Docker deployments, see [Use a prepared GME OpenVINO model](./get-started.md#use-a-prepared-gme-openvino-model) to prepare the package with `scripts/export_gme_ov.py` and copy it into the default `ov-models` named volume.
+
 Use the `/model/capabilities` endpoint to inspect which modalities the currently loaded model supports.
 
 ## Model Configuration
@@ -117,6 +133,7 @@ The service supports automatic OpenVINO conversion for all models. The conversio
 - **Text**: UTF-8 strings (available for all models)
 - **Images**: JPEG, PNG, WebP, base64-encoded (and other formats supported by PIL). _Not available for Qwen text-only models._
 - **Videos**: Any format supported by FFmpeg (MP4, AVI, MOV, etc.), base64-encoded. _Not available for Qwen text-only models._
+- **Image+text pairs (fused)**: one image (URL or base64) with its text per item. _GME only._
 
 All models are compatible with the OpenAI embeddings API format.
 

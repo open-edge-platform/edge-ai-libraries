@@ -21,6 +21,8 @@ services:
       EMBEDDING_DEVICE: ${EMBEDDING_DEVICE}
       EMBEDDING_USE_OV: ${EMBEDDING_USE_OV}
       EMBEDDING_OV_MODELS_DIR: ${EMBEDDING_OV_MODELS_DIR:-/app/ov_models}
+      # GME precision: int8 (default when empty), int4 or fp32.
+      GME_PRECISION: ${GME_PRECISION:-}
 
       # QwenText static-shape compilation (NPU). Passed through empty when
       # unset so the handler applies its own defaults; see
@@ -64,7 +66,7 @@ services:
       retries: 40
       start_period: 5s
     devices:
-      - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri
+      - ${DRI_MOUNT_PATH:-/dev/ull}:/dev/dri
       - ${ACCEL_MOUNT_PATH:-/dev/null}:/dev/accel/accel0
     networks:
       - mme_network

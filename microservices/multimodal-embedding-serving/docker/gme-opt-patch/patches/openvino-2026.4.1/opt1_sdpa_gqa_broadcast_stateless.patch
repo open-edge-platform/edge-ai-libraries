@@ -1,0 +1,36 @@
+diff --git a/src/plugins/intel_gpu/src/plugin/transformations/expand_broadcast_reshape_sdpa_fusion.cpp b/src/plugins/intel_gpu/src/plugin/transformations/expand_broadcast_reshape_sdpa_fusion.cpp
+index 72b44c72cd..737a1616d1 100644
+--- a/src/plugins/intel_gpu/src/plugin/transformations/expand_broadcast_reshape_sdpa_fusion.cpp
++++ b/src/plugins/intel_gpu/src/plugin/transformations/expand_broadcast_reshape_sdpa_fusion.cpp
+@@ -5,7 +5,6 @@
+ #include "expand_broadcast_reshape_sdpa_fusion.hpp"
+ 
+ #include "intel_gpu/op/sdpa.hpp"
+-#include "intel_gpu/op/kv_cache.hpp"
+ 
+ #include "openvino/core/rt_info.hpp"
+ #include "openvino/op/broadcast.hpp"
+@@ -43,9 +42,9 @@ ExpandBroadcastReshapeSDPAFusion::ExpandBroadcastReshapeSDPAFusion() {
+     auto input_a_m = any_input();
+     auto input_attn_mask_m = any_input();
+     auto input_scale_m = any_input();
+-    // ── Pattern A: KVCache → [Unsqueeze|Reshape](5D) → Broadcast(BIDIRECTIONAL) → Reshape(4D) → [Convert] ──
+-    auto input_b_kvcache_m = wrap_type<ov::intel_gpu::op::KVCache>({any_input(), any_input()});
+-    auto input_c_kvcache_m = wrap_type<ov::intel_gpu::op::KVCache>({any_input(), any_input()});
++    // ── Pattern A: stateless or stateful KV producer → [Unsqueeze|Reshape](5D) → Broadcast(BIDIRECTIONAL) → Reshape(4D) ──
++    auto input_b_kv_producer_m = any_input();
++    auto input_c_kv_producer_m = any_input();
+ 
+     auto input_b_rope_m = wrap_type<ov::op::internal::RoPE>({any_input(), any_input(), any_input()});
+     auto concat_b_m = optional<ov::op::v0::Concat>({any_input(), any_input()});
+@@ -59,8 +58,8 @@ ExpandBroadcastReshapeSDPAFusion::ExpandBroadcastReshapeSDPAFusion() {
+     auto axes_const_b_m = wrap_type<ov::op::v0::Constant>();
+     auto axes_const_c_m = wrap_type<ov::op::v0::Constant>();
+ 
+-    auto unsqueeze_b_m = wrap_type<ov::op::v0::Unsqueeze>({input_b_kvcache_m, axes_const_b_m}, unsqueeze_predicate);
+-    auto unsqueeze_c_m = wrap_type<ov::op::v0::Unsqueeze>({input_c_kvcache_m, axes_const_c_m}, unsqueeze_predicate);
++    auto unsqueeze_b_m = wrap_type<ov::op::v0::Unsqueeze>({input_b_kv_producer_m, axes_const_b_m}, unsqueeze_predicate);
++    auto unsqueeze_c_m = wrap_type<ov::op::v0::Unsqueeze>({input_c_kv_producer_m, axes_const_c_m}, unsqueeze_predicate);
+ 
+     auto pre_reshape_b_m = wrap_type<ov::op::v1::Reshape>({pre_reshape_input_b_m, any_input()}, unsqueeze_predicate);
+     auto pre_reshape_c_m = wrap_type<ov::op::v1::Reshape>({pre_reshape_input_c_m, any_input()}, unsqueeze_predicate);
