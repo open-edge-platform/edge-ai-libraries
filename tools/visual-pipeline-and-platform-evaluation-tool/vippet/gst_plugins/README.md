@@ -27,11 +27,11 @@ registration required.
 ## Adding a new Python element
 
 1. Drop a new `.py` file into `python/`.
-2. Subclass `GstBase.BaseTransform` (or another `Gst.Element` subclass).
-3. Register the factory at module scope:
+1. Subclass `GstBase.BaseTransform` (or another `Gst.Element` subclass).
+1. Register the factory at module scope:
 
    ```python
    __gstelementfactory__ = ("<element_name>", Gst.Rank.NONE, <ClassName>)
    ```
 
-4. Reference the element by its factory name in any pipeline description.
+1. Reference the element by its factory name in any pipeline description.

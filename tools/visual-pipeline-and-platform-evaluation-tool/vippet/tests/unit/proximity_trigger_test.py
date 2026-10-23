@@ -6,6 +6,7 @@
 import os
 import sys
 import unittest
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 # The plugin lives under ``vippet/gst_plugins/python/`` and is loaded at
@@ -22,6 +23,10 @@ _PLUGIN_DIR = os.path.abspath(
 )
 if _PLUGIN_DIR not in sys.path:
     sys.path.insert(0, _PLUGIN_DIR)
+
+Gst: Any = None
+GstAnalytics: Any = None
+proximity_trigger: Any = None
 
 try:
     import gi  # type: ignore[import]

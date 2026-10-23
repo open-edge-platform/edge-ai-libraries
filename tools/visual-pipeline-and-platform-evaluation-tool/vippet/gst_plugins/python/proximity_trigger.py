@@ -69,10 +69,10 @@ class ProximityTrigger(GstBase.BaseTransform):
         blurb="First object class to monitor",
         default="person",
     )
-    def class_a(self):
+    def class_a(self):  # pyright: ignore[reportRedeclaration]
         return self._class_a
 
-    @class_a.setter
+    @class_a.setter  # pyright: ignore[reportFunctionMemberAccess]
     def class_a(self, value):
         self._class_a = value
 
@@ -82,10 +82,10 @@ class ProximityTrigger(GstBase.BaseTransform):
         blurb="Second object class to monitor",
         default="bicycle",
     )
-    def class_b(self):
+    def class_b(self):  # pyright: ignore[reportRedeclaration]
         return self._class_b
 
-    @class_b.setter
+    @class_b.setter  # pyright: ignore[reportFunctionMemberAccess]
     def class_b(self, value):
         self._class_b = value
 
@@ -97,10 +97,10 @@ class ProximityTrigger(GstBase.BaseTransform):
         maximum=10000,
         default=1350,
     )
-    def distance(self):
+    def distance(self):  # pyright: ignore[reportRedeclaration]
         return self._distance
 
-    @distance.setter
+    @distance.setter  # pyright: ignore[reportFunctionMemberAccess]
     def distance(self, value):
         self._distance = value
 
@@ -112,10 +112,10 @@ class ProximityTrigger(GstBase.BaseTransform):
         maximum=10000,
         default=2,
     )
-    def frames(self):
+    def frames(self):  # pyright: ignore[reportRedeclaration]
         return self._frames
 
-    @frames.setter
+    @frames.setter  # pyright: ignore[reportFunctionMemberAccess]
     def frames(self, value):
         self._frames = value
 
