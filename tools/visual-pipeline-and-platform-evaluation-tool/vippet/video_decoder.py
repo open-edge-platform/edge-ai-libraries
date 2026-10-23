@@ -49,6 +49,29 @@ RAW_FOURCC_CODES = {
     "RGGB",
     "RG10",
     "RG12",
+    # GenICam pixel formats (GigE Vision cameras, aravissrc)
+    "MONO8",
+    "MONO10",
+    "MONO12",
+    "MONO16",
+    "RGB8",
+    "RGB8PACKED",
+    "BGR8",
+    "BGR8PACKED",
+    "RGBA8",
+    "BGRA8",
+    "YUV422_8",
+    "YUV422_8_UYVY",
+    "YUV422PACKED",
+    "YCBCR422_8",
+}
+
+# 8-bit GenICam Bayer pixel formats; aravissrc outputs video/x-bayer, debayered with bayer2rgb
+BAYER_PIXEL_FORMATS = {
+    "BAYERRG8",
+    "BAYERBG8",
+    "BAYERGR8",
+    "BAYERGB8",
 }
 
 # GStreamer caps prefix for capsfilter after v4l2src
@@ -338,3 +361,7 @@ class VideoDecoder:
             True if the fourcc is a raw format, False otherwise.
         """
         return fourcc.upper() in RAW_FOURCC_CODES if fourcc else False
+
+    def is_bayer_format(self, pixel_format: str) -> bool:
+        """Check if a GenICam pixel format is an 8-bit Bayer format (needs bayer2rgb)."""
+        return pixel_format.upper() in BAYER_PIXEL_FORMATS if pixel_format else False

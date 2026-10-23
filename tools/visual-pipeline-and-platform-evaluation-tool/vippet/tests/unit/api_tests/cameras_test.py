@@ -11,6 +11,8 @@ from internal_types import (
     InternalUSBCameraDetails,
     InternalNetworkCameraDetails,
     InternalCameraProfileInfo,
+    InternalGigECameraDetails,
+    InternalGigECapture,
 )
 
 
@@ -101,6 +103,60 @@ class TestCamerasAPI(unittest.TestCase):
         self.assertIsInstance(data, list)
         self.assertEqual(len(data), 0)
         mock_manager.discover_all_cameras.assert_called_once()
+
+    @patch("api.routes.cameras.CameraManager")
+    def test_get_cameras_returns_gige_cameras(self, mock_camera_manager_cls):
+        """
+        Test GET /cameras returns GigE cameras with and without known identity.
+        """
+        mock_manager = MagicMock()
+        mock_manager.discover_all_cameras.return_value = [
+            InternalCamera(
+                device_id="gige-camera-basler-12345678",
+                device_name="Basler acA1920-25gc",
+                device_type=InternalCameraType.GIGE,
+                details=InternalGigECameraDetails(
+                    ip="192.168.1.50",
+                    vendor="Basler",
+                    model="acA1920-25gc",
+                    serial="12345678",
+                    current_capture=InternalGigECapture(
+                        pixel_format="Mono8", width=1920, height=1080, fps=25.0
+                    ),
+                ),
+            ),
+            InternalCamera(
+                device_id="gige-camera-unknown",
+                device_name="GigE Camera 192.168.1.51",
+                device_type=InternalCameraType.GIGE,
+                details=InternalGigECameraDetails(ip="192.168.1.51"),
+            ),
+        ]
+        mock_camera_manager_cls.return_value = mock_manager
+
+        response = self.client.get("/cameras")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual([c["device_type"] for c in data], ["GIGE", "GIGE"])
+        self.assertEqual(
+            data[0]["details"],
+            {
+                "ip": "192.168.1.50",
+                "vendor": "Basler",
+                "model": "acA1920-25gc",
+                "serial": "12345678",
+                "current_capture": {
+                    "pixel_format": "Mono8",
+                    "width": 1920,
+                    "height": 1080,
+                    "fps": 25.0,
+                },
+            },
+        )
+        self.assertEqual(data[1]["details"]["ip"], "192.168.1.51")
+        self.assertIsNone(data[1]["details"]["serial"])
+        self.assertIsNone(data[1]["details"]["current_capture"])
 
     @patch("api.routes.cameras.CameraManager")
     def test_get_cameras_returns_usb_cameras(self, mock_camera_manager_cls):
