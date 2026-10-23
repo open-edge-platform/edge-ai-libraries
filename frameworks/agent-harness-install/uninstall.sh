@@ -112,11 +112,9 @@ remove_state_dir() {
 
 main() {
   [[ -n "${HOME:-}" ]] || error "HOME is not set; refusing to guess the state directory to remove."
-  # Shared with run_agent_onboard/print_status (see resolve_installed_agent
-  # in agents.sh) so all read paths agree on which agent was actually
-  # installed instead of each re-deriving it slightly differently.
-  local agent
-  agent="$(resolve_installed_agent)"
+  # Resolve the host agent after parsing runtime and harness selectors:
+  # full OpenShell cleanup always targets the recorded host installation.
+  local agent=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --yes) ASSUME_YES=1 ;;
@@ -136,6 +134,11 @@ main() {
     esac
     shift
   done
+  if [[ "${HARNESS_RUNTIME:-host}" == openshell && -z "$SANDBOX_ONLY" ]]; then
+    agent="$(resolve_recorded_agent)"
+  elif [[ -z "$agent" ]]; then
+    agent="$(resolve_installed_agent)"
+  fi
   if [[ "${HARNESS_RUNTIME:-host}" == openshell ]]; then
     if [[ -n "$SANDBOX_ONLY" ]]; then
       HARNESS_AGENT="$(canonical_agent_name "$agent")"
@@ -248,5 +251,9 @@ remove_deployment_network() {
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-  main "$@"
+  if [[ " $* " == *" --help "* || " $* " == *" -h "* ]]; then
+    main "$@"
+  else
+    with_deployment_lock main "$@"
+  fi
 fi

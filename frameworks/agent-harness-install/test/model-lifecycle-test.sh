@@ -41,6 +41,8 @@ profiles() {
     mkdir -p "$dir"
     atomic_write_file "$dir/profile.json" \
       "{\"owner\":\"0123456789abcdef0123456789abcdef\",\"name\":\"ahi-0123456789ab\",\"gateway\":\"openshell\",\"agent\":\"$agent\",\"model\":\"old-model\"}"
+    atomic_write_file "$dir/provider.json" \
+      "{\"endpoints\":[{\"host\":\"host.openshell.internal\",\"port\":$HARNESS_IR_PORT}]}"
     mkdir -p "$HOME/sandboxes/$agent/.openclaw"
     printf '%s\n' '{"models":{"providers":{"ovms":{"baseUrl":"http://host.openshell.internal:8010/v1","models":[{"id":"old-model","name":"old-model","contextWindow":32768}]}}},"agents":{"defaults":{"model":{"primary":"ovms/old-model"},"workspace":"/sandbox"}},"gateway":{"auth":{"token":"preserved-token"}},"userSetting":true}' \
       >"$HOME/sandboxes/$agent/.openclaw/openclaw.json"
@@ -170,6 +172,26 @@ qwen_alias() {
   [[ "$HARNESS_HF_MODEL" == OpenVINO/Qwen3.5-9B-int8-ov ]]
   [[ "$HARNESS_OVMS_EXPORTER" == hf-snapshot && "$HARNESS_LLM_MODEL" == Qwen3.5-9B-int8-ov ]]
 }
+external_model_id_is_preserved() {
+  fixture
+  HARNESS_LLM_ROUTER_ENDPOINT=https://router.example/v1
+  HARNESS_HF_MODEL=org/llama3.1:8b
+  HARNESS_LLM_MODEL=""
+  openshell_apply_model_defaults
+  [[ "$HARNESS_LLM_MODEL" == org/llama3.1:8b ]]
+  node - "$(openshell_model_source)" <<'JS'
+const assert = require("node:assert/strict");
+assert.equal(JSON.parse(process.argv[2]).model, "org/llama3.1:8b");
+JS
+}
+ir_port_change_is_rejected_before_backend_update() {
+  fixture
+  profiles
+  mock_inference
+  HARNESS_IR_PORT=8011
+  expect_failure 'HARNESS_IR_PORT changed from 8010' openshell_ensure_shared_inference
+  [[ ! -s "$ACTIONS" ]]
+}
 model_sync_locks_agents_without_sandboxes() {
   fixture
   profiles
@@ -253,11 +275,12 @@ full_openshell_with_host_agent() {
   atomic_write_file "$(harness_state_root)/installed-agent" deepagents-code
   remove_agent_package() { printf 'package %s\n' "$1" >>"$ACTIONS"; }
   ovms_is_managed() { return 1; }
-  unset HARNESS_AGENT
-  (main --runtime openshell --yes)
+  HARNESS_AGENT=hermes
+  (main --runtime openshell --harness openclaw --yes)
   grep -Fxq 'sandboxes' "$ACTIONS"
   grep -Fxq 'runtime' "$ACTIONS"
   grep -Fxq 'package deepagents-code' "$ACTIONS"
+  ! grep -Eq '^package (openclaw|hermes)$' "$ACTIONS"
 }
 complete_uninstall() {
   uninstall_fixture
@@ -305,12 +328,20 @@ owned_runtime_fixture() {
 }
 owned_runtime_remove() {
   owned_runtime_fixture
+  load_openshell_node() { :; }
   mkdir -p "$HOME/.config/openshell" "$HOME/.local/state/openshell"
   openshell_remove_owned_runtime
   grep -Fxq 'purge dpkg --purge openshell' "$ACTIONS"
   cmp "$ACTIONS" <(printf 'sudo-authorized\nservice --user disable --now openshell-gateway.service\npurge dpkg --purge openshell\nservice --user daemon-reload\n')
   [[ ! -e "$(harness_state_root)/openshell-owned" ]]
   [[ ! -e "$HOME/.config/openshell" && ! -e "$HOME/.local/state/openshell" ]]
+}
+owned_runtime_loads_node() {
+  owned_runtime_fixture
+  NODE_LOAD_CALLED=""
+  load_openshell_node() { NODE_LOAD_CALLED=1; }
+  openshell_remove_owned_runtime
+  [[ "$NODE_LOAD_CALLED" == 1 ]]
 }
 shared_runtime_refused() {
   owned_runtime_fixture
@@ -405,6 +436,35 @@ no_profiles_without_node() {
   load_openshell_node() { error "No OpenShell profiles: Node must not be required"; }
   remove_all_openshell_agents
 }
+deployment_lock_worker() {
+  printf '%s start\n' "$1" >>"$ACTIONS"
+  sleep 0.1
+  printf '%s end\n' "$1" >>"$ACTIONS"
+}
+deployment_lock_serializes_mutations() {
+  fixture
+  (with_deployment_lock deployment_lock_worker first) &
+  local first_pid=$!
+  (with_deployment_lock deployment_lock_worker second) &
+  local second_pid=$!
+  wait "$first_pid"
+  wait "$second_pid"
+  mapfile -t events <"$ACTIONS"
+  [[ "${#events[@]}" == 4 ]]
+  [[ "${events[0]#* }" == start && "${events[1]#* }" == end ]]
+  [[ "${events[0]%% *}" == "${events[1]%% *}" ]]
+  [[ "${events[2]#* }" == start && "${events[3]#* }" == end ]]
+  [[ "${events[2]%% *}" == "${events[3]%% *}" ]]
+  [[ -f "$HOME/${HARNESS_STATE_DIRNAME}.deployment.lock" ]]
+  [[ ! -e "$(harness_state_root)/${HARNESS_STATE_DIRNAME}.deployment.lock" ]]
+}
+read_only_status_skips_deployment_lock() {
+  installer_command_is_read_only --runtime openshell status
+  installer_command_is_read_only status --runtime openshell
+  installer_command_is_read_only --help
+  ! installer_command_is_read_only --model status
+  ! installer_command_is_read_only --runtime openshell inference
+}
 
 printf 'TAP version 13\n'
 run_case 'model change updates all agents, restarts them and preserves token/history' switch_both
@@ -412,16 +472,19 @@ run_case 'model source hub/exporter/revisions/config survive install reruns' sou
 run_case 'model readback waits for agent startup after sandbox phase becomes Ready' delayed_startup
 run_case 'OVMS serves only the new model while previous downloaded weights remain cached' select_served_model
 run_case 'bare Qwen3.5 model name resolves to the preconfigured OpenVINO source' qwen_alias
+run_case 'external model identifiers are preserved verbatim' external_model_id_is_preserved
+run_case 'IR port changes are rejected before changing shared inference' ir_port_change_is_rejected_before_backend_update
 run_case 'model synchronization locks profiles even when sandboxes are absent' model_sync_locks_agents_without_sandboxes
 run_case 'failed switch retains old selection and resumes pending model on rerun' retry_transition
 run_case 'another model cannot overwrite an interrupted transition' pending_conflict
 run_case 'legacy sandbox images fail before shared inference is modified' legacy_image
 run_case 'complete uninstall removes all owned deployment data by default' complete_uninstall
 run_case 'explicit host harness selection wins over recorded installed agent' explicit_host_agent_selection
-run_case 'full OpenShell uninstall accepts a separately recorded host agent' full_openshell_with_host_agent
+run_case 'full OpenShell uninstall ignores sandbox selectors when choosing the recorded host agent' full_openshell_with_host_agent
 run_case 'uninstall failure retains models and recovery state' failed_uninstall
 run_case 'explicit sandbox-only removal preserves shared services and model data' scoped_uninstall
 run_case 'owned OpenShell gateway service, package and state are removed' owned_runtime_remove
+run_case 'owned OpenShell runtime cleanup loads Node before ownership inspection' owned_runtime_loads_node
 run_case 'unrelated sandbox blocks gateway and CLI purge' shared_runtime_refused
 run_case 'pre-existing OpenShell runtime is not adopted or removed' preexisting_runtime
 run_case 'runtime containers in another workspace block OpenShell package removal' runtime_other_workspace
@@ -434,4 +497,6 @@ run_case 'fresh owned gateway registers local package TLS with the CLI' register
 run_case 'complete cleanup includes all recorded agent profiles' validate_all_profiles
 run_case 'all profile ownership is checked before deleting the first sandbox' reject_unowned_profile
 run_case 'host-only cleanup does not require Node to inspect absent sandbox profiles' no_profiles_without_node
+run_case 'deployment mutations serialize on a lock outside the removable state root' deployment_lock_serializes_mutations
+run_case 'read-only installer status and help do not take the deployment lock' read_only_status_skips_deployment_lock
 finish_tests

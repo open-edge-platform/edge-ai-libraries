@@ -216,7 +216,43 @@ valid_profile='{"owner":"0123456789abcdef0123456789abcdef","name":"ahi-012345678
 profile_valid() {
   write_profile "$valid_profile"
   openshell_load_profile
-  [[ "$OPENSHELL_MODEL" == test-model && "$OPENSHELL_NAME" == ahi-0123456789ab ]]
+  [[ "$OPENSHELL_MODEL" == test-model && "$OPENSHELL_NAME" == ahi-0123456789ab &&
+     "$OPENSHELL_WORKSPACE" == default ]]
+}
+profile_workspace() {
+  OPENSHELL_WORKSPACE=default
+  write_profile '{"owner":"0123456789abcdef0123456789abcdef","name":"ahi-0123456789ab","gateway":"openshell","agent":"openclaw","model":"test-model","workspace":"team-a"}'
+  openshell_load_profile
+  [[ "$OPENSHELL_WORKSPACE" == team-a ]]
+  openshell() {
+    [[ "$OPENSHELL_WORKSPACE" == team-a ]]
+    printf '{"sandboxes":[]}'
+  }
+  if openshell_resource_exists sandbox; then return 1; fi
+}
+profile_creation_persists_workspace() {
+  HARNESS_AGENT=openclaw
+  HARNESS_LLM_MODEL=test-model
+  OPENSHELL_WORKSPACE=team-a
+  ensure_openshell_cli() { :; }
+  openshell_validate_shared_inference() { :; }
+  uname() { printf 'Linux\n'; }
+  docker() { :; }
+  openshell_resource_exists() { return 1; }
+  openshell_assert_owned() { :; }
+  openshell() {
+    case "$1" in
+      status | profile | provider | sandbox) return 0 ;;
+      *) return 1 ;;
+    esac
+  }
+  install_openshell_agent
+  node - "$(openshell_profile_dir)/profile.json" <<'JS'
+const assert = require("node:assert/strict");
+const profile = JSON.parse(require("node:fs").readFileSync(process.argv[2], "utf8"));
+assert.equal(profile.workspace, "team-a");
+JS
+  [[ "$OPENSHELL_WORKSPACE" == team-a ]]
 }
 profile_invalid() {
   write_profile "$1"
@@ -447,6 +483,9 @@ run_case 'unsupported agent rejected' expect_failure 'supports openclaw, deepage
 run_case 'invalid runtime rejected' expect_failure 'Unknown runtime' runtime_supported invalid openclaw
 run_case 'agent profile paths are separate' profile_paths
 run_case 'valid persisted profile loads' profile_valid
+run_case 'saved workspace overrides caller defaults for OpenShell commands' profile_workspace
+rm -rf -- "$HOME/$HARNESS_STATE_DIRNAME"
+run_case 'new ownership profiles persist the selected workspace' profile_creation_persists_workspace
 # Each test gets a subshell, but fixtures on disk must also be reset between cases.
 rm -rf -- "$HOME/$HARNESS_STATE_DIRNAME"
 run_case 'missing profile rejected' profile_missing

@@ -148,6 +148,13 @@ With managed local inference, IR/OVMS are validated for the exact model,
 readiness, private network and loopback publication. With an external backend,
 the local IR's loopback publication and advertised model are checked instead;
 the installer does not manage that external backend.
+An installed sandbox's OpenShell workspace is recorded with its ownership
+profile and reused for later lifecycle and cleanup commands. Set
+`OPENSHELL_WORKSPACE` before the first install to select a non-default
+workspace. The Inference Router port is also recorded by the sandbox provider;
+changing `HARNESS_IR_PORT` for an existing sandbox is rejected rather than
+leaving its network policy pointed at a stale endpoint; a port change requires
+a complete OpenShell teardown and reinstall.
 
 To prepare or explicitly reconfigure shared inference separately:
 

@@ -79,7 +79,11 @@ openshell_apply_model_defaults() {
     HARNESS_OVMS_EXPORTER=hf-snapshot
   fi
   if [[ -n "${HARNESS_HF_MODEL:-}" && -z "${HARNESS_LLM_MODEL:-}" ]]; then
-    HARNESS_LLM_MODEL="$(model_dir_name "$HARNESS_HF_MODEL")"
+    if [[ -n "${HARNESS_LLM_ROUTER_ENDPOINT:-}" ]]; then
+      HARNESS_LLM_MODEL="$HARNESS_HF_MODEL"
+    else
+      HARNESS_LLM_MODEL="$(model_dir_name "$HARNESS_HF_MODEL")"
+    fi
   fi
   export HARNESS_HF_MODEL HARNESS_LLM_MODEL HARNESS_OVMS_EXPORTER
 }
@@ -128,6 +132,9 @@ openshell_ensure_shared_inference() {
 _openshell_ensure_shared_inference() {
   [[ "$(resolve_bind_host)" == 127.0.0.1 ]] \
     || error "OpenShell mode requires HARNESS_BIND_HOST=127.0.0.1; inference must not be LAN-published."
+  [[ "$HARNESS_IR_PORT" =~ ^[0-9]+$ ]] && (( HARNESS_IR_PORT > 0 && HARNESS_IR_PORT < 65536 )) \
+    || error "HARNESS_IR_PORT must be between 1 and 65535."
+  openshell_validate_recorded_ir_port
   local containers pending source model
   pending="$(harness_state_root)/openshell-model-pending.json"
   containers="$(docker container ls -a --format '{{.Names}}')" \
@@ -159,6 +166,29 @@ _openshell_ensure_shared_inference() {
   atomic_write_file "$(harness_state_root)/openshell-model" \
     "${HARNESS_LLM_MODEL:-$(resolve_onboarding_model_hint)}"
   rm -f -- "$pending"
+}
+
+openshell_validate_recorded_ir_port() {
+  local agent dir provider saved_port HARNESS_AGENT
+  for agent in openclaw deepagents-code hermes; do
+    HARNESS_AGENT="$agent"
+    dir="$(openshell_profile_dir)"
+    provider="$dir/provider.json"
+    [[ -f "$provider" ]] || continue
+    load_openshell_node
+    assert_state_path_safe "$provider"
+    assert_owned_by_current_user "$provider"
+    saved_port="$(node - "$provider" <<'JS'
+const p = JSON.parse(require("node:fs").readFileSync(process.argv[2], "utf8"));
+const matches = (p.endpoints || []).filter(e => e.host === "host.openshell.internal");
+if (matches.length !== 1 || !Number.isInteger(matches[0].port))
+  throw Error("Invalid saved inference provider endpoint");
+console.log(matches[0].port);
+JS
+    )" || error "Could not read the saved OpenShell inference endpoint for ${agent}."
+    [[ "$saved_port" == "$HARNESS_IR_PORT" ]] \
+      || error "HARNESS_IR_PORT changed from ${saved_port} for an existing OpenShell sandbox; changing the port requires a complete OpenShell teardown and reinstall."
+  done
 }
 
 openshell_preflight_model_update() {
@@ -201,8 +231,8 @@ openshell_sync_models() {
   model="${HARNESS_LLM_MODEL:-$(resolve_onboarding_model_hint)}"
   endpoint="http://host.openshell.internal:${HARNESS_IR_PORT}/v1"
   for agent in openclaw deepagents-code hermes; do
-    # Lock order is shared inference first, then each agent in this fixed order.
-    # Installation/removal acquire only the per-agent lock, avoiding inversion.
+    # CLI mutations hold the deployment lock before reaching this shared-
+    # inference lock, then acquire agent locks in this fixed order.
     with_state_lock "openshell-${agent}" _openshell_sync_agent_model_locked \
       "$agent" "$model" "$endpoint"
   done
@@ -362,6 +392,7 @@ openshell_remove_owned_runtime() {
   if command_exists openshell; then
     [[ "$(openshell --version)" == "openshell ${HARNESS_OPENSHELL_VERSION}" ]] \
       || error "OpenShell was replaced since installation; refusing to purge a different version."
+    load_openshell_node
     gateways="$(openshell gateway list -o json)" || error "Cannot inspect OpenShell gateways before removal."
     node -e '
       const g = JSON.parse(process.argv[1]);
@@ -418,13 +449,15 @@ openshell_load_profile() {
   fields="$(node - "$dir/profile.json" "$(canonical_agent_name "${HARNESS_AGENT:-openclaw}")" <<'JS'
 const fs = require("node:fs");
 const p = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+const workspace = p.workspace === undefined ? "default" : p.workspace;
 if (!/^[a-f0-9]{32}$/.test(p.owner) ||
     !/^ahi-[a-f0-9]{12}$/.test(p.name) ||
     !/^[a-zA-Z0-9_.-]+$/.test(p.gateway) ||
     p.agent !== process.argv[3] ||
-    typeof p.model !== "string" || !p.model || /[\r\n]/.test(p.model))
+    typeof p.model !== "string" || !p.model || /[\r\n]/.test(p.model) ||
+    typeof workspace !== "string" || !workspace || /[\x00-\x1f]/.test(workspace))
   throw Error("Invalid OpenShell profile");
-console.log([p.owner, p.name, p.gateway, p.model].join("\n"));
+console.log([p.owner, p.name, p.gateway, p.model, workspace].join("\n"));
 JS
   )" || error "Could not read the OpenShell ownership profile."
   mapfile -t _openshell_fields <<<"$fields"
@@ -432,6 +465,8 @@ JS
   OPENSHELL_NAME="${_openshell_fields[1]}"
   OPENSHELL_GATEWAY="${_openshell_fields[2]}"
   OPENSHELL_MODEL="${_openshell_fields[3]}"
+  OPENSHELL_WORKSPACE="${_openshell_fields[4]}"
+  export OPENSHELL_WORKSPACE
 }
 
 openshell_resource_exists() {
@@ -502,7 +537,7 @@ install_openshell_agent() {
 }
 
 _install_openshell_agent() {
-  local agent dir gateway owner name model profile image
+  local agent dir gateway owner name model profile image workspace
   agent="$(canonical_agent_name "${HARNESS_AGENT:-openclaw}")"
   [[ "$(uname -s)" == Linux ]] || error "OpenShell mode currently supports Linux with Docker only."
   ensure_openshell_cli
@@ -527,12 +562,15 @@ _install_openshell_agent() {
   else
     gateway="${HARNESS_OPENSHELL_GATEWAY:-openshell}"
     [[ "$gateway" =~ ^[a-zA-Z0-9_.-]+$ ]] || error "Invalid HARNESS_OPENSHELL_GATEWAY."
+    workspace="${OPENSHELL_WORKSPACE:-default}"
+    [[ -n "$workspace" && ! "$workspace" =~ [[:cntrl:]] ]] \
+      || error "Invalid OPENSHELL_WORKSPACE."
     owner="$(node -e 'console.log(require("node:crypto").randomBytes(16).toString("hex"))')"
     # Keep the resource name within OpenShell's 19-character limit; retain the full owner in labels.
     name="ahi-${owner:0:12}"
     model="${HARNESS_LLM_MODEL:-$(resolve_onboarding_model_hint)}"
-    profile="$(node -e 'console.log(JSON.stringify({owner:process.argv[1],name:process.argv[2],gateway:process.argv[3],agent:process.argv[4],model:process.argv[5]}))' \
-      "$owner" "$name" "$gateway" "$agent" "$model")"
+    profile="$(node -e 'console.log(JSON.stringify({owner:process.argv[1],name:process.argv[2],gateway:process.argv[3],agent:process.argv[4],model:process.argv[5],workspace:process.argv[6]}))' \
+      "$owner" "$name" "$gateway" "$agent" "$model" "$workspace")"
     # Persist identity before remote resource creation so failures leave a recoverable record.
     atomic_write_file "$dir/profile.json" "$profile"
     openshell_load_profile

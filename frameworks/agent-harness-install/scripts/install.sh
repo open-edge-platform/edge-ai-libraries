@@ -553,6 +553,25 @@ re-run ./install.sh."
   print_done
 }
 
+installer_command_is_read_only() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --help | -h) return 0 ;;
+      --harness | --runtime | --model | --model-hub | --model-config | --model-revision | \
+      --model-type | --model-precision | --model-device)
+        shift 2 ;;
+      --non-interactive | --skip-gpu-check | --agent | --hf-model) shift ;;
+      --) shift; break ;;
+      *) [[ "$1" == status ]]; return ;;
+    esac
+  done
+  [[ "${1:-}" == status ]]
+}
+
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-  main "$@"
+  if installer_command_is_read_only "$@"; then
+    main "$@"
+  else
+    with_deployment_lock main "$@"
+  fi
 fi
