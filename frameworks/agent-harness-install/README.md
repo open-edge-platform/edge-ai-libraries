@@ -36,7 +36,7 @@ non-interactively without a selection.
 ## Agentic AI Security
 
 Explore [Agentic AI Security](docs/agentic-ai-security/README.md) for security
-controls for agent deployments, starting with experimental
+controls for agent deployments, starting with
 [Agent Sandboxing using OpenShell](docs/agentic-ai-security/agent-sandboxing.md).
 
 ## How it works

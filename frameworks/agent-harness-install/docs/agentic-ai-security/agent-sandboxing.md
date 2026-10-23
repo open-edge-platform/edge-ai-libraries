@@ -9,8 +9,10 @@
 
 Sandboxing separates an agent's tool execution from the host environment and
 limits the files and network endpoints available to it. Agent Harness Install
-currently provides this capability through the experimental OpenShell runtime
-for OpenClaw and Hermes. Host mode remains the default.
+provides this capability through OpenShell for OpenClaw and Hermes. This
+integration targets OpenShell 0.1.5 on Linux with Docker; host mode remains
+the default. NVIDIA describes the OpenShell platform as experimental upstream;
+that upstream designation is distinct from the status of this integration.
 
 This is one layer of [Agentic AI Security](README.md), not prompt protection or
 PII masking. A sandbox can still perform unwanted actions within its permitted
