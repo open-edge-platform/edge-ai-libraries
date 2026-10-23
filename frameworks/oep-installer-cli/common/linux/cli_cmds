@@ -273,3 +273,13 @@ EOF
   echo "skill written to $skill_file"
 }
 
+subcommand_resume () {
+  local resume_file="$(ensure_project_path)/$installer_name/commands"
+  if [ -r "$resume_file" ]; then
+    local command_line="$(< "$resume_file")"
+    if [ -n "$command_line" ]; then
+      exec "$installer_bin" $command_line
+    fi
+  fi
+}
+

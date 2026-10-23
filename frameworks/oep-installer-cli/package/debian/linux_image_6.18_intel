@@ -9,8 +9,8 @@ debian_25_install_linux_image_6.18_intel () {
   else
     echo "@@STEP Installing linux-image-6.18-intel"
     ensure_apt install linux-image-6.18-intel
-    ensure_sudo sed -i '/^GRUB_TOP_LEVEL=/{s|.*|GRUB_TOP_LEVEL=/boot/vmlinuz-6.18-intel|;b};$aGRUB_TOP_LEVEL=/boot/vmlinuz-6.18-intel' /etc/default/grub
-    ensure_sudo update-grub
+    ensure_grub_set_kernel_args GRUB_CMDLINE_LINUX xe.max_vfs=7 "xe.force_probe=*" modprobe.blacklist=i915 udmabuf.list_limit=8192
+    ensure_grub_set_default_entry 6.18-intel
     configure_reboot
   fi
 }
