@@ -1,10 +1,11 @@
 // SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { describe, expect, it, vi } from 'vitest';
 import MapDrawer from '../components/MapView/MapDrawer';
 import { GeoState } from '../redux/geo/geo';
+import { SearchActions } from '../redux/search/searchSlice';
 import { createSearchQuery, createSearchResult, createSearchState, createTestStore } from './testUtils';
 
 vi.mock('react-i18next', () => ({
@@ -71,5 +72,38 @@ describe('MapDrawer', () => {
   it('moves focus to the close button when opened', () => {
     renderDrawer(true);
     expect(screen.getByRole('button', { name: 'CloseMap' })).toHaveFocus();
+  });
+
+  it('adds a pin when a watched query refresh brings a clip from a new intersection', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 800,
+      height: 600,
+      top: 0,
+      left: 0,
+      right: 800,
+      bottom: 600,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    } as DOMRect);
+    const store = renderDrawer(true);
+    expect(screen.queryByTestId('intersection-card-intersection_2')).toBeNull();
+
+    // Same topK, so the new clip displaces the lowest-ranked result as a real refresh would.
+    const refreshed = [
+      results[0],
+      createSearchResult({
+        id: 'r4',
+        metadata: { video_id: 'v4', tags: 'intersection_2-camera1', relevance_score: 0.7 },
+      }),
+      results[1],
+    ];
+    act(() => {
+      store.dispatch(SearchActions.updateSearchQuery(createSearchQuery({ queryId: 'q1', results: refreshed })));
+    });
+
+    expect(screen.getByTestId('intersection-card-intersection_1')).toBeInTheDocument();
+    expect(screen.getByTestId('intersection-card-intersection_2')).toBeInTheDocument();
+    vi.restoreAllMocks();
   });
 });
