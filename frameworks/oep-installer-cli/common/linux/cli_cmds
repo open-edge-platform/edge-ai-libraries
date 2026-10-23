@@ -46,10 +46,28 @@ subcommand_remove () {
     echo "  --dry-run       dry-run operations"
     echo "  --continue      ignore errors and proceed to the end"
     echo "  --remove-all    remove all previously installed components"
+    echo "  --remove-me     remove $installer_name"
     echo
     return 0
   fi
-  act_helper "remove,Removal,Removing,Removed" "-r" "$@"
+  local rc=0
+  act_helper "remove,Removal,Removing,Removed" "-r" "$@" || rc=$?
+
+  if [[ " $* " = *" --remove-me "* ]]; then
+    ensure_rm "$HOME/.local/bin/$installer_name" \
+              "$HOME/.local/share/bash-completion/completions/$installer_name" \
+              "$HOME/.agents/skills/$installer_name" && 
+    echo "$installer_name removed"
+
+    if [[ " $* " = *" --remove-all "* ]]; then
+      ensure_rm "$(ensure_project_path)"
+      echo "$installer_name logs removed"
+    else
+      echo "$(ensure_project_path) left unchanged"
+    fi
+  fi
+
+  return $rc
 }
 
 subcommand_start () {
@@ -253,5 +271,10 @@ EOF
   mkdir -p "${skill_file%/*}"
   base64 -d > "$skill_file" <<< "$installer_skill_text"
   echo "skill written to $skill_file"
+}
+
+subcommand_resume () {
+  local args=($(ensure_prop get command))
+  [ ${#args[*]} -gt 0 && -x "$installer_bin" ] && exec "$installer_bin" "${args[@]}" || true
 }
 
