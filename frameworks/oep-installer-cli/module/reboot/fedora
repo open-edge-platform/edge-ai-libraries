@@ -4,7 +4,7 @@ configure_reboot () {
 }
 
 fedora_29_install_reboot () {
-  [ -e "${installer_state?}"/reboot_required ] || return 
+  [[ -e "${installer_state?}"/reboot_required && -x "$installer_bin" && -n "$(ensure_prop get command)" ]] || return 
 
   echo "@@STEP Rebooting"
   local reboot_message="RERUN '$installer_name resume' AFTER SYSTEM IS BACK."
