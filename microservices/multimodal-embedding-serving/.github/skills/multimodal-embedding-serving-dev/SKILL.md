@@ -21,7 +21,7 @@ Run all commands from the microservice root.
 
 ## When to Use
 
-- Add or modify a model-family handler (CLIP/SigLIP/MobileCLIP/CN-CLIP/Blip2/QwenText/GME)
+- Add or modify a model-family handler (CLIP/SigLIP/MobileCLIP/CN-CLIP/Blip2/QwenText)
 - Run or extend the existing test suite
 - Navigate the wrapper → registry → handler architecture before editing
 - Build the image from source
@@ -65,18 +65,16 @@ source setup.sh && docker compose -f docker/compose.yaml up -d --build
 high-level API — also the **SDK surface**) → `src/models/registry.py`
 (factory) → `src/models/handlers/<family>_handler.py` (per-family
 `load_model`/`encode_text`/`encode_image`, PyTorch and optional OpenVINO
-paths). `src/models/config.py` holds the 21-model registry. Map + add-a-model
+paths). `src/models/config.py` holds the 19-model registry. Map + add-a-model
 checklist: [`references/source-map.md`](./references/source-map.md).
 
 ## Test / verify loop
 
 ```bash
-poetry run python -m unittest tests/test_path_security.py tests/test_shm_pool.py \
-    tests/test_async_batch_inference.py   # the existing suites
+poetry run python -m unittest tests/test_path_security.py -v   # the existing suite
 ```
 
-Coverage is limited to path security, shared-memory pooling and async batch
-inference — for model, wrapper or REST behavior changes, smoke-test via
+Coverage is thin (path security only) — for behavior changes, smoke-test via
 `examples/server_examples.py` / `examples/sdk_examples.py` against a small
 CLIP model: [`references/testing.md`](./references/testing.md).
 
@@ -107,5 +105,4 @@ docker compose -f docker/compose.yaml up -d
 | Package is built as a wheel (`poetry build`; `packages` maps `src/` → `multimodal_embedding_serving`) | keep new modules importable under the package name; SDK users import from it |
 | `INFER_BATCH_SIZE` compiles OpenVINO models to a fixed batch shape | handler changes must keep the pad/split logic intact |
 | QwenText handlers are text-only by design | don't "fix" the 400 for images; capability flags live on the handler |
-| GME is OpenVINO-only and exports its package on first use | no PyTorch inference path; `gme_export.py` traces with patched transformers internals and fails unless the result matches PyTorch, so re-validate after a transformers bump; precision comes from the package's IRs; query/document/fused sides are per-call arguments, so keep the handler lock and never store a mode on the instance |
 | Every new file needs the SPDX header | CI/license scans fail otherwise |

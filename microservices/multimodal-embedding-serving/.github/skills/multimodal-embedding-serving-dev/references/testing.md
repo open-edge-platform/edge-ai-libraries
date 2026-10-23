@@ -8,23 +8,14 @@ SPDX-License-Identifier: Apache-2.0
 ## What exists today
 
 ```bash
-poetry run python -m unittest tests/test_path_security.py tests/test_shm_pool.py \
-    tests/test_async_batch_inference.py -v
+poetry run python -m unittest tests/test_path_security.py -v
+# or: poetry run pytest tests/  (pytest runs unittest cases fine; no pytest.ini here)
 ```
 
 `tests/test_path_security.py` covers the `/tmp/videoQnA` sandbox
 (`src/utils/path_security.py`): filename validation, extension allowlists,
-traversal rejection. `tests/test_shm_pool.py` checks shared-memory descriptor
-usage, data round trips and cleanup. `tests/test_async_batch_inference.py`
-covers async batch inference and concurrent-call regressions.
-
-There is no dedicated GME integration suite. Smoke-test model-handler,
-wrapper and REST behavior changes; the remaining suites do not cover the
-GME query/document/fused paths or its REST integration.
-
-Prefer `python -m unittest` from the microservice root: the root `__init__.py`
-(the wheel's package marker) makes `pytest` try to import the root as a test
-package and fail at collection.
+traversal rejection. That is the **entire** automated suite — model handlers,
+wrapper, and routes have no unit tests.
 
 ## Smoke-testing changes (recommended for any behavior change)
 
