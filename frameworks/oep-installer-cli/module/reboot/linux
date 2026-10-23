@@ -18,16 +18,16 @@ install_reboot () {
   }
 
   local delay=2
-  echo "@@ATTENTION @@UNTIL +$(( delay * 60 )) Rebooting in"
   echo "@@ATTENTION @@BR"
   echo "@@ATTENTION SYSTEM REBOOT REQUIRED"
   echo "@@ATTENTION @@BR"
-  echo "@@ATTENTION RERUN '$installer_name resume' AFTER SYSTEM IS BACK."
+  echo "@@ATTENTION RERUN WITH '$installer_name resume' AFTER SYSTEM IS BACK."
   echo "@@ATTENTION @@BR"
-  echo "@@ATTENTION To cancel: sudo shutdown -c"
+  echo "@@ATTENTION @@UNTIL +$(( delay * 60 )) Rebooting in %s (cancel: sudo shutdown -c)"
   echo "@@ATTENTION @@BR"
 
-  ensure_sudo shutdown -r +$(( delay * 2 )) &&
+  echo "@@HIGHLIGHT $installer_name resume"
+  ensure_sudo shutdown -r +$delay &&
   sleep infinity
 }
 

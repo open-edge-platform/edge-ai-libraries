@@ -21,11 +21,11 @@ act_panelled_logs () {(
 #   @@FOCUS                 (no argument) release the pin
 #   @@ATTENTION <text>      add a line to a centred overlay box on top of the panels
 #   @@ATTENTION @@BR        add a blank line to the box
-#   @@ATTENTION @@UNTIL <t> [label]
-#                           close the box automatically at <t>: an epoch time, or
-#                           +<seconds> counted from now. Shows "<label> m:ss"
-#                           (label defaults to "Closing in"). Without @@UNTIL
-#                           the box stays until it is closed.
+#   @@ATTENTION @@UNTIL <t> [fmt]
+#                           add a countdown line at this position and close the
+#                           box automatically at <t> (+<seconds> or epoch time).
+#                           <fmt> is a printf format; %s = remaining m:ss
+#                           (default "Closing in %s").
 #   anything else           log line attributed to the current component
 #
 # Environment:
@@ -152,8 +152,12 @@ FAIL_TITLE=""
 declare -a FAILROWS=()
 
 declare -a AT_LINES=()   # non-empty => attention overlay is showing
+declare -A AT_SEG=()     # screen row -> box segment for this frame
 AT_UNTIL=0               # epoch seconds when it closes (0 = stays up)
-AT_LABEL=""              # countdown label
+AT_CD=-1                 # index of the countdown line in AT_LINES
+AT_FMT=""                # printf format for the countdown line
+AT_SEC=-1                # last second a full repaint was done
+AT_GUARD=0               # keep repainting until this epoch (after close)
 
 # ------------------------------------------------------------------ geometry
 _open_tty() {
@@ -626,8 +630,9 @@ _clear_highlight() {
 }
 
 _attention_close() {
-  AT_LINES=(); AT_UNTIL=0; AT_LABEL=""
-  PREV=(); LEFT_VALID=0            # next frame repaints the panels where the box was
+  AT_LINES=(); AT_UNTIL=0; AT_CD=-1; AT_FMT=""; AT_SEG=()
+  AT_GUARD=$(( ${EPOCHREALTIME%.*} + 10 ))   # keep wiping late wall/console text
+  FULL_CLEAR=1; LEFT_VALID=0
 }
 
 # Returns 0 if the box should be drawn; closes it once its time is up
@@ -945,6 +950,13 @@ _draw() {
     fi
   fi
 
+  AT_SEG=()
+  _attention_active && _attention_build
+  local now_s=${EPOCHREALTIME%.*}
+  if (( ${#AT_LINES[@]} || now_s < AT_GUARD )) && (( now_s != AT_SEC )); then
+    AT_SEC=$now_s; FULL_CLEAR=1    # full repaint once a second wipes wall text
+  fi
+
   local out="" l r rowstr
   if (( FULL_CLEAR )); then PREV=(); FULL_CLEAR=0; fi
 
@@ -990,13 +1002,10 @@ _draw() {
     done
   fi
 
-  if _attention_active; then
-    _attention_build
-    # full repaint once per second (not every frame) to wipe wall/console junk
-    if (( ${EPOCHREALTIME%.*} != AT_SEC )); then AT_SEC=${EPOCHREALTIME%.*}; PREV=(); fi
-  fi
-
-  [[ -n $out ]] && printf '\033[?2026h%s\033[?2026l' "$out"
+  # limit scrolling to the bottom 2 rows and park the cursor there,
+  # so wall/console text can't push the panels up
+  printf -v out '%s\033[%d;%dr\033[%d;1H' "$out" $(( rows - 1 )) "$rows" "$rows"
+  printf '\033[?2026h%s\033[?2026l' "$out"
 
   FRAMES=$(( FRAMES + 1 ))
   DRAW_MS=$(( DRAW_MS + $(_now_ms) - t0 ))
@@ -1077,38 +1086,37 @@ _finish() {
   # success: frame stays as is; failure/interrupt: raise the error panel
   _raise_fail_panel $(( rc != 0 ))
   printf '\033[?7h'
+  printf '\033[r'          # restore full-screen scrolling
   printf '\033[%d;1H\033[K' "$TTY_ROWS"   # last row, cleared, NO newline
   printf '\033[?25h'
   (( TTY_FD >= 0 )) && { stty echo <&"$TTY_FD" 2>/dev/null; exec {TTY_FD}>&-; }
 }
 
-declare -A AT_SEG=()     # screen row -> box segment (positioned escape string)
-AT_SEC=-1
-
 _attention_build() {
-  AT_SEG=()
   local cols=$TTY_COLS rows=$TTY_ROWS line w maxw=0 i pl pr
   local -a body=("${AT_LINES[@]}")
-  if (( AT_UNTIL > 0 )); then
-    local left=$(( AT_UNTIL - ${EPOCHREALTIME%.*} ))
+  if (( AT_CD >= 0 )); then
+    local left=$(( AT_UNTIL - ${EPOCHREALTIME%.*} )) mmss
     (( left < 0 )) && left=0
-    body+=("" "$(printf '%s %d:%02d' "${AT_LABEL:-Closing in}" $(( left / 60 )) $(( left % 60 )))")
+    printf -v mmss '%d:%02d' $(( left / 60 )) $(( left % 60 ))
+    printf -v line -- "$AT_FMT" "$mmss" 2>/dev/null || line=$AT_FMT
+    body[AT_CD]=$line
   fi
   for line in "${body[@]}"; do _dwidth "$line"; (( REPLY > maxw )) && maxw=$REPLY; done
 
   local bw=$(( maxw + 6 )); (( bw > cols - 2 )) && bw=$(( cols - 2 ))
-  local bh=$(( ${#body[@]} + 4 ))
+  local bh=$(( ${#body[@]} + 2 ))
   local top=$(( (rows - bh) / 2 + 1 )) lc=$(( (cols - bw) / 2 + 1 ))
   _hrule_v $(( bw - 2 ))
   printf -v "AT_SEG[$top]" '\033[%d;%dH%s%s%s%s%s' \
     $top $lc "$C_RED" "$BC_TL" "$HRULE" "$BC_TR" "$C_RESET"
-  for (( i = 1; i < bh - 1; i++ )); do
-    line=""; (( i >= 2 && i - 2 < ${#body[@]} )) && line=${body[i-2]}
+  for (( i = 0; i < ${#body[@]}; i++ )); do
+    line=${body[i]}
     _dwidth "$line"; w=$REPLY
     if (( w > bw - 4 )); then _fit_v $(( bw - 4 )) "$line" 1; line=$FITTED; w=$(( bw - 4 )); fi
     pl=$(( (bw - 2 - w) / 2 )); pr=$(( bw - 2 - w - pl ))
-    printf -v "AT_SEG[$(( top + i ))]" '\033[%d;%dH%s%s%s%*s%s%s%s%*s%s%s%s' \
-      $(( top + i )) $lc "$C_RED" "$BC_V" "$C_RESET" $pl '' \
+    printf -v "AT_SEG[$(( top + i + 1 ))]" '\033[%d;%dH%s%s%s%*s%s%s%s%*s%s%s%s' \
+      $(( top + i + 1 )) $lc "$C_RED" "$BC_V" "$C_RESET" $pl '' \
       "$C_BOLD$C_YELLOW" "$line" "$C_RESET" $pr '' "$C_RED" "$BC_V" "$C_RESET"
   done
   printf -v "AT_SEG[$(( top + bh - 1 ))]" '\033[%d;%dH%s%s%s%s%s' \
@@ -1180,17 +1188,19 @@ _handle_line() {
       else _touch_comp "$rest"; FOCUS=$rest; fi
       _draw 1; return ;;
     @@ATTENTION)
-      if [[ $rest == '@@UNTIL '* ]]; then
-        local t=${rest#@@UNTIL }; t=${t%% *}
-        AT_LABEL=${rest#@@UNTIL "$t"}; AT_LABEL=${AT_LABEL# }
-        [[ $t == +* ]] && t=$(( ${EPOCHREALTIME%.*} + ${t#+} ))
-        [[ $t == +([0-9]) ]] && AT_UNTIL=$t || AT_UNTIL=0
-      elif [[ $rest == '@@BR' ]]; then
-        AT_LINES+=("")
-      else
-        AT_LINES+=("$rest")
-      fi
-      PREV=(); LEFT_VALID=0
+      case $rest in
+        '')    return ;;
+        @@BR)  AT_LINES+=("") ;;
+        '@@UNTIL '*)
+          local t=${rest#@@UNTIL } fmt
+          fmt=${t#* }; t=${t%% *}
+          [[ $fmt == "$t" ]] && fmt='Closing in %s'
+          if   [[ $t == ++([0-9]) ]]; then AT_UNTIL=$(( ${EPOCHREALTIME%.*} + ${t#+} ))
+          elif [[ $t == +([0-9])  ]]; then AT_UNTIL=$t
+          else return; fi
+          AT_FMT=$fmt; AT_CD=${#AT_LINES[@]}; AT_LINES+=("") ;;
+        *)     AT_LINES+=("$rest") ;;
+      esac
       _draw 1; return ;;
     @@OK|@@FAIL)
       target=${rest:-$CURRENT}
@@ -1241,7 +1251,7 @@ _handle_line() {
     else
       rc=$?
       if (( rc > 128 )); then
-        if (( ${#AT_LINES[@]} )); then _draw 1
+        if (( ${#AT_LINES[@]} || ${EPOCHREALTIME%.*} < AT_GUARD )); then _draw 1
         else _timer_tick && _draw 1; fi
         continue
       fi
