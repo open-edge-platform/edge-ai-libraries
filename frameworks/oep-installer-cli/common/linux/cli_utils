@@ -269,7 +269,7 @@ act_resolve_args () {
 act_find_parents () {
   local targets=" $1 "; shift
   local p d
-  for p in $(ensure_prop find "installed/*" | cut -f1 -d/ | uniq); do
+  for p in $(ensure_prop find "installed/*" | cut -f2 -d/ | uniq); do
     [[ "$targets" != *" $p "* ]] || continue
     for d in $(act_expand_modules install $p "$@"); do
       [ "$d" != "$p" ] || continue
