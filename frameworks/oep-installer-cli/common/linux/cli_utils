@@ -252,7 +252,7 @@ act_helper () {
   else
     echo "Component not found" 1>&2
     [[ " $* " = *" --dry-run "* ]] || rm -f "$mods_file"
-    exit 3
+    return 3
   fi
 }
 

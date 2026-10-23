@@ -1,14 +1,19 @@
-# Getting Started Guide - OEP Gen AI SDK
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
+# Getting Started Guide - Metro Gen AI SDK
 
 ## Overview
 
-The OEP Gen AI SDK provides a comprehensive development environment for generative AI applications using Intel's optimized tools and microservices. This guide demonstrates the installation process and provides a practical question-answering implementation using retrieval-augmented generation (RAG) capabilities.
+The Metro Gen AI SDK provides a comprehensive development environment for generative AI applications using Intel's optimized tools and microservices. This guide demonstrates the installation process and provides a practical question-answering implementation using retrieval-augmented generation (RAG) capabilities.
 
 ## Learning Objectives
 
 Upon completion of this guide, you will be able to:
 
-- Install and configure the OEP Gen AI SDK
+- Install and configure the Metro Gen AI SDK
 - Deploy generative AI microservices for document processing and question-answering
 - Understand the architecture of RAG-based applications using Intel's AI frameworks
 
@@ -16,7 +21,7 @@ Upon completion of this guide, you will be able to:
 
 Verify that your development environment meets the following specifications:
 
-- Operating System: Ubuntu 24.04 LTS or Ubuntu 22.04 LTS
+- Operating System: Ubuntu 24.04 LTS or Ubuntu 26.04 LTS
 - Memory: Minimum 64GB RAM (recommended for LLM operations)
 - Storage: 100GB available disk space for models and data
 - Network: Active internet connection for package downloads
@@ -25,11 +30,13 @@ Verify that your development environment meets the following specifications:
 
 Execute the automated installation script to configure the complete development environment:
 
+The installer clones [Metro AI Suite](https://github.com/open-edge-platform/metro-ai-suite) into `~/oep/metro-ai-suite` and [Edge AI Libraries](https://github.com/open-edge-platform/edge-ai-libraries) into `~/oep/edge-ai-libraries`, both from `main`.
+
 ```bash
-curl -fsS https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/oep-sdk-manager/scripts/oep-gen-ai-sdk.sh | bash
+curl -fsS https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/oep-sdk-manager/scripts/metro-gen-ai-sdk.sh | bash
 ```
 
-![OEP Gen AI SDK Installation](images/oep-gen-ai-sdk-install.png)
+![Metro Gen AI SDK Installation](images/metro-gen-ai-sdk-install.png)
 
 ## Question-Answering Application Implementation
 

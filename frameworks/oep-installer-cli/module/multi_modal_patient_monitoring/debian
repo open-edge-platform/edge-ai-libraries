@@ -67,7 +67,7 @@ debian_90_install_multi_modal_patient_monitoring () {
   local device="$(ensure_select_device "$@")"
   echo "${device^^}" > "$workspace"/multi_modal_patient_monitoring/.device
 
-  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
   echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]"
   echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]"
   echo "$$HIGHLIGHT $installer_name remove"

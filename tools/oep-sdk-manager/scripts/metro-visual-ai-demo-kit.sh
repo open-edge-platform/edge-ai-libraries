@@ -1,7 +1,9 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 
 #######################################
-# Visual AI Demo Kit System Resource Checker and Installation Script
+# Metro Visual AI Demo Kit System Resource Checker and Installation Script
 # Checks CPU, Memory, Storage, and Intel GPU resources
 # Installs Docker, Docker Compose, and required container images
 # Globals:
@@ -18,7 +20,7 @@
 
 # Array of repositories to clone: "url|branch|directory"
 repositories=(
-  "https://github.com/open-edge-platform/edge-ai-suites|release-2026.2.0|edge-ai-suites"
+  "https://github.com/open-edge-platform/metro-ai-suite|main|metro-ai-suite"
 )
 
 images=(
@@ -30,7 +32,7 @@ images=(
   nodered/node-red:5.0.4
 )
 
-NAME="Visual AI Demo Kit"
+NAME="Metro Visual AI Demo Kit"
 
 set -euo pipefail
 
@@ -95,6 +97,20 @@ warn() {
 #######################################
 command_exists() {
   command -v "${1}" >/dev/null 2>&1
+}
+
+check_supported_os() {
+  local os_id="$1"
+  local version="$2"
+
+  case "${os_id}:${version}" in
+    ubuntu:24.04|ubuntu:26.04)
+      info "Supported operating system: Ubuntu ${version} LTS"
+      ;;
+    *)
+      err "Unsupported operating system: ${os_id} ${version}. Use Ubuntu 24.04 LTS or Ubuntu 26.04 LTS."
+      ;;
+  esac
 }
 
 #######################################
@@ -492,9 +508,10 @@ verify_repos() {
 # Show help message
 #######################################
 show_help() {
-  echo -e "${BOLD}${CYAN}OEP Gen AI SDK Installation Script${NC}"
+  echo -e "${BOLD}${CYAN}${NAME} Installation Script${NC}"
   echo ""
   echo -e "${BOLD}Usage:${NC} $0 [OPTIONS]"
+  echo "Supported hosts: Ubuntu 24.04 LTS and Ubuntu 26.04 LTS"
   echo ""
   echo -e "${BOLD}Options:${NC}"
   echo -e "  ${GREEN}--skip-system-check${NC}    Skip system resource verification"
@@ -547,7 +564,14 @@ main() {
         ;;
     esac
   done
-  info "OEP Gen AI SDK Installation Script"
+  info "${NAME} Installation Script"
+  local os_id os_version
+  [[ -r /etc/os-release ]] || err "Cannot determine the host operating system: /etc/os-release is missing."
+  IFS=: read -r os_id os_version < <(
+    source /etc/os-release
+    printf '%s:%s\n' "${ID:-unknown}" "${VERSION_ID:-unknown}"
+  )
+  check_supported_os "${os_id}" "${os_version}"
   echo -e "${BOLD}${BLUE}==================================================${NC}"
 
   # System Requirements Check

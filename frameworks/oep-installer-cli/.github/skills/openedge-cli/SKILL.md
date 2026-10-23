@@ -1,6 +1,5 @@
-
 ---
-name: openedge-cli   
+name: openedge-cli    
 description: Use the openedge-cli installer to install, start, stop, or remove Open Edge Platform (OEP) modules and profiles on an edge system. Trigger on requests like "install OpenVINO", "set up DL Streamer", "run the smart parking sample", "deploy the Metro / Manufacturing / Retail / Robotics AI Suite", "what OEP components can I install", or "uninstall <OEP component>".   
 license: Apache-2.0   
 ---

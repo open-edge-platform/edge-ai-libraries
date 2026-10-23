@@ -1,22 +1,27 @@
-# Visual AI Demo Kit - Tutorial 3
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
+# Metro Visual AI Demo Kit - Tutorial 3
 
 <!--
-**Sample Description**: Learn how to create custom Grafana dashboards that integrate real-time video streams and MQTT data visualization for OEP Vision AI applications.
+**Sample Description**: Learn how to create custom Grafana dashboards that integrate real-time video streams and MQTT data visualization for Metro Vision AI applications.
 -->
-This tutorial guides you through creating a custom Grafana dashboard that displays real-time object detection video streams and data analytics. You'll build an integrated monitoring solution that combines visual feeds with data tables for comprehensive OEP vision monitoring.
+This tutorial guides you through creating a custom Grafana dashboard that displays real-time object detection video streams and data analytics. You'll build an integrated monitoring solution that combines visual feeds with data tables for comprehensive Metro vision monitoring.
 
 <!--
 **What You Can Do**: Highlight the developer workflows supported by the guide.
 -->
 By following this guide, you will learn how to:
 
-- **Create Custom Dashboards**: Build new Grafana dashboards tailored for OEP vision applications
+- **Create Custom Dashboards**: Build new Grafana dashboards tailored for Metro vision applications
 - **Integrate Video Streams**: Embed real-time WebRTC video feeds using HTML panels
 - **Visualize MQTT Data**: Create dynamic tables that display live object detection data from MQTT streams
 
 ## Prerequisites
 
-- Verify that your OEP Vision AI application is running: [Setup Guide](./tutorial-1.md)
+- Verify that your Metro Vision AI application is running: [Setup Guide](./tutorial-1.md)
 - Verify that your Node Red flow setup is completed: [Node Red Flow](./tutorial-2.md)
 - Access to Grafana dashboard (typically at `https://localhost/grafana`)
 - WebRTC streaming service configured and operational
@@ -84,7 +89,7 @@ By following this guide, you will learn how to:
 
 2. **Save Dashboard**:
    - Click the save icon (disk symbol)
-   - Name your dashboard "OEP Vision Object Detection"
+   - Name your dashboard "Metro Vision Object Detection"
    - Add appropriate tags for organization
 
 ## Expected Results
@@ -98,7 +103,7 @@ After completing this tutorial, you should have:
 - **Interactive Dashboard**: A custom Grafana dashboard displaying real-time video and data
 - **Live Video Feed**: WebRTC stream showing object detection overlay
 - **Dynamic Data Table**: Real-time MQTT data updates with detection information
-- **Integrated Monitoring**: Combined visual and analytical view of OEP vision system
+- **Integrated Monitoring**: Combined visual and analytical view of Metro vision system
 
 ## Troubleshooting
 

@@ -66,7 +66,7 @@ debian_90_install_visual_search_question_and_answering () {
   local device=$(ensure_select_device "$@")
   echo "$device" > "$workspace"/.device_from_input
 
-  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
   echo "@@HIGHLIGHT $installer_name start|remove"
 }
 
