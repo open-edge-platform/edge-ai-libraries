@@ -174,6 +174,8 @@ openshell_validate_recorded_ir_port() {
     HARNESS_AGENT="$agent"
     dir="$(openshell_profile_dir)"
     profile="$dir/profile.json"
+    # Scoped removal archives the profile but keeps provider.json for audit;
+    # only an active, validated profile should pin the shared inference port.
     [[ -e "$profile" || -L "$profile" ]] || continue
     openshell_load_profile
     provider="$dir/provider.json"
