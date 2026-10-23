@@ -19,6 +19,14 @@ act_panelled_logs () {(
 #                           report anchored to the BOTTOM.
 #   @@FOCUS      <name>     pin the right pane to <name>
 #   @@FOCUS                 (no argument) release the pin
+#   @@ATTENTION <text>      add a line to a centred overlay box on top of the panels
+#   @@ATTENTION @@BR        add a blank line to the box
+#   @@ATTENTION @@UNTIL <t> [label]
+#                           close the box automatically at <t>: an epoch time, or
+#                           +<seconds> counted from now. Shows "<label> m:ss"
+#                           (label defaults to "Closing in"). Without @@UNTIL
+#                           the box stays until it is closed.
+#   @@ATTENTION             (no argument) close the box now
 #   anything else           log line attributed to the current component
 #
 # Environment:
@@ -54,13 +62,15 @@ readonly C_BOLD=$'\033[1m'
 # ------------------------------------------------------------------ charset
 if [[ ${LC_ALL:-${LC_CTYPE:-${LANG:-}}} == *[Uu][Tt][Ff]* ]]; then
   BC_H='─'; BC_V='│'; BC_B='│'
+  BC_TL='┌'; BC_TR='┐'; BC_BL='└'; BC_BR='┘'
   G_OK='✔'; G_FAIL='✘'; G_RUN='◐'; G_HL='▸'; G_ELL='…'; G_DN='>>'
 else
   BC_H='-'; BC_V='|'; BC_B='|'
+  BC_TL='+'; BC_TR='+'; BC_BL='+'; BC_BR='+'
   G_OK='+'; G_FAIL='x'; G_RUN='*'; G_HL='>'; G_ELL='~'; G_DN='>>'
 fi
 G_SEL='<<'
-readonly BC_H BC_V BC_B G_OK G_FAIL G_RUN G_HL G_ELL G_DN G_SEL
+readonly BC_H BC_V BC_B BC_TL BC_TR BC_BL BC_BR G_OK G_FAIL G_RUN G_HL G_ELL G_DN G_SEL
 
 # ------------------------------------------------------------------ tunables
 readonly TAIL_LINES=2
@@ -141,6 +151,10 @@ FAIL_H=0
 PREV_FH=-1
 FAIL_TITLE=""
 declare -a FAILROWS=()
+
+declare -a AT_LINES=()   # non-empty => attention overlay is showing
+AT_UNTIL=0               # epoch seconds when it closes (0 = stays up)
+AT_LABEL=""              # countdown label
 
 # ------------------------------------------------------------------ geometry
 _open_tty() {
@@ -612,6 +626,20 @@ _clear_highlight() {
   HL[$c]=""; HCNT[$c]=0; LDIRTY[$c]=1; LEFT_VALID=0
 }
 
+_attention_close() {
+  AT_LINES=(); AT_UNTIL=0; AT_LABEL=""
+  PREV=(); LEFT_VALID=0            # next frame repaints the panels where the box was
+}
+
+# Returns 0 if the box should be drawn; closes it once its time is up
+_attention_active() {
+  (( ${#AT_LINES[@]} )) || return 1
+  if (( AT_UNTIL > 0 && ${EPOCHREALTIME%.*} >= AT_UNTIL )); then
+    _attention_close; return 1
+  fi
+  return 0
+}
+
 _set_step()   { STEP_TEXT=$1; }
 _clear_step() { STEP_TEXT=""; }
 
@@ -962,6 +990,12 @@ _draw() {
     done
   fi
 
+  if _attention_active; then
+    _overlay_box
+    out+=$FS_OUT
+    PREV=()
+  fi
+
   [[ -n $out ]] && printf '%s' "$out"
 
   FRAMES=$(( FRAMES + 1 ))
@@ -1048,6 +1082,35 @@ _finish() {
   (( TTY_FD >= 0 )) && { stty echo <&"$TTY_FD" 2>/dev/null; exec {TTY_FD}>&-; }
 }
 
+FS_OUT=""
+_overlay_box() {
+  local cols=$TTY_COLS rows=$TTY_ROWS line w maxw=0 i
+  local -a body=("${AT_LINES[@]}")
+  if (( AT_UNTIL > 0 )); then
+    local left=$(( AT_UNTIL - ${EPOCHREALTIME%.*} ))
+    (( left < 0 )) && left=0
+    body+=("" "$(printf '%s %d:%02d' "${AT_LABEL:-Closing in}" $(( left / 60 )) $(( left % 60 )))")
+  fi
+  for line in "${body[@]}"; do _dwidth "$line"; (( REPLY > maxw )) && maxw=$REPLY; done
+
+  local bw=$(( maxw + 6 )); (( bw > cols - 2 )) && bw=$(( cols - 2 ))
+  local bh=$(( ${#body[@]} + 4 ))
+  local top=$(( (rows - bh) / 2 + 1 )) lc=$(( (cols - bw) / 2 + 1 ))
+  local out=""                      # no clear: draw on top of the panels
+  _hrule_v $(( bw - 2 ))
+  out+=$(printf '\033[%d;%dH%s%s%s%s' $top $lc "$C_RED" "$BC_TL" "$HRULE" "$BC_TR")
+  for (( i = 1; i < bh - 1; i++ )); do
+    line=""; (( i >= 2 && i - 2 < ${#body[@]} )) && line=${body[i-2]}
+    _dwidth "$line"; w=$REPLY
+    (( w > bw - 4 )) && { _fit_v $(( bw - 4 )) "$line" 1; line=$FITTED; w=$(( bw - 4 )); }
+    local pl=$(( (bw - 2 - w) / 2 )) pr=$(( bw - 2 - w - (bw - 2 - w) / 2 ))
+    out+=$(printf '\033[%d;%dH%s%s%s%*s%s%s%*s%s%s' $(( top + i )) $lc \
+      "$C_RED" "$BC_V" "$C_RESET" $pl '' "$C_BOLD$C_YELLOW" "$line" $pr '' "$C_RED" "$BC_V")
+  done
+  out+=$(printf '\033[%d;%dH%s%s%s%s%s' $(( top + bh - 1 )) $lc "$C_RED" "$BC_BL" "$HRULE" "$BC_BR" "$C_RESET")
+  FS_OUT=$out
+}
+
 # ------------------------------------------------------------------ input
 _handle_line() {
   local line="$1" key rest target clean plainkey hpay
@@ -1112,6 +1175,21 @@ _handle_line() {
       if [[ -z $rest ]]; then FOCUS=""
       else _touch_comp "$rest"; FOCUS=$rest; fi
       _draw 1; return ;;
+    @@ATTENTION)
+      if [[ -z $rest ]]; then
+        _attention_close
+      elif [[ $rest == '@@UNTIL '* ]]; then
+        local t=${rest#@@UNTIL }; t=${t%% *}
+        AT_LABEL=${rest#@@UNTIL "$t"}; AT_LABEL=${AT_LABEL# }
+        [[ $t == +* ]] && t=$(( ${EPOCHREALTIME%.*} + ${t#+} ))
+        [[ $t == +([0-9]) ]] && AT_UNTIL=$t || AT_UNTIL=0
+      elif [[ $rest == '@@BR' ]]; then
+        AT_LINES+=("")
+      else
+        AT_LINES+=("$rest")
+      fi
+      PREV=(); LEFT_VALID=0
+      _draw 1; return ;;
     @@OK|@@FAIL)
       target=${rest:-$CURRENT}
       [[ -z $target ]] && return
@@ -1161,7 +1239,8 @@ _handle_line() {
     else
       rc=$?
       if (( rc > 128 )); then
-        _timer_tick && _draw 1
+        if (( ${#AT_LINES[@]} )); then _draw 1
+        else _timer_tick && _draw 1; fi
         continue
       fi
       [[ -n $line ]] && _handle_line "$line"
