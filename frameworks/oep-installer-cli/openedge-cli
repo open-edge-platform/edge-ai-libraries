@@ -72,7 +72,7 @@ main () {
         # save args for resume
         local resume_file="$(ensure_project_path)/$installer_name/commands"
         mkdir -p "${resume_file%/*}"
-        echo "$*" > "$resume_file"
+        printf -- "%s" "$*" > "$resume_file"
 
         # critical group permissions
         local -A _groups=()
