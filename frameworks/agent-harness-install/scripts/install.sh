@@ -44,7 +44,7 @@ usage() {
     --non-interactive                Skip prompts (uses env vars / defaults)
     --skip-gpu-check                  Skip Intel GPU detection/driver checks
     --harness <openclaw|deepagents-code|hermes>  Agent harness to install (sets HARNESS_AGENT)
-    --runtime <host|openshell>         Execution runtime (default: host; OpenShell supports OpenClaw/Hermes)
+    --runtime <host|openshell>         Execution runtime (default: host; OpenShell supports OpenClaw/Deep Agents Code/Hermes)
     --model <model-name>              Model to serve (OpenShell default: OpenVINO/Qwen3.5-9B-int8-ov; host mode requires selection), named as its hub
                                        names it (default hub: Hugging Face id such as org/name, exported to OpenVINO IR).
                                        Sets HARNESS_HF_MODEL.
@@ -453,7 +453,7 @@ main() {
       mcp | skill) error "Sandbox MCP/skill management is not yet supported by this command; configure it inside the sandbox." ;;
     esac
   elif [[ "${positional[0]:-}" == connect ]]; then
-    error "connect requires --runtime openshell and --harness openclaw or hermes."
+    error "connect requires --runtime openshell and --harness openclaw, deepagents-code or hermes."
   fi
 
   if [[ "${positional[0]:-}" == "models" ]]; then

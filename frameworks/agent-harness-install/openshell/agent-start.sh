@@ -59,5 +59,17 @@ JS
     # Hermes is launched interactively by the connect command; no messaging service is enabled.
     exec sleep infinity
     ;;
+  deepagents-code)
+    agent_lib_dir="${HARNESS_AGENT_LIB_DIR:-/opt/harness/lib}"
+    # Reuse the host installer’s provider writer so TOML escaping and user settings stay consistent.
+    # shellcheck disable=SC1090
+    source "$agent_lib_dir/colors.sh"
+    # shellcheck disable=SC1090
+    source "$agent_lib_dir/agents.sh"
+    configure_dcode_provider "$HARNESS_SANDBOX_ENDPOINT" "$HARNESS_SANDBOX_MODEL"
+    node "${HARNESS_MODEL_CONFIG_SCRIPT:-/opt/harness/model-config.mjs}" \
+      deepagents-code "$HARNESS_SANDBOX_MODEL" "$HARNESS_SANDBOX_ENDPOINT"
+    exec sleep infinity
+    ;;
   *) printf 'Unsupported sandbox agent: %s\n' "$HARNESS_AGENT" >&2; exit 1 ;;
 esac

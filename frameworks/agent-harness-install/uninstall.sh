@@ -216,13 +216,13 @@ endpoint; this installer never started one)."
 remove_all_openshell_agents() {
   local agent HARNESS_AGENT
   # Validate every identity before deleting the first resource.
-  for agent in openclaw hermes; do
+  for agent in openclaw deepagents-code hermes; do
     HARNESS_AGENT="$agent"
     [[ -e "$(openshell_profile_dir)/profile.json" || -L "$(openshell_profile_dir)/profile.json" ]] || continue
     openshell_load_profile
     if openshell_resource_exists sandbox; then openshell_assert_owned; fi
   done
-  for agent in openclaw hermes; do
+  for agent in openclaw deepagents-code hermes; do
     HARNESS_AGENT="$agent"
     [[ -f "$(openshell_profile_dir)/profile.json" ]] || continue
     remove_openshell_agent

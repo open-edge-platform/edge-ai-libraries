@@ -126,7 +126,13 @@ For Hermes, use:
 ./install.sh --runtime openshell --harness hermes --non-interactive
 ```
 
-Run either command to install one agent, or both to create separate sandboxes
+For Deep Agents Code, use:
+
+```bash
+./install.sh --runtime openshell --harness deepagents-code --non-interactive
+```
+
+Run one command to install one agent, or multiple commands to create separate sandboxes
 against the same shared model. The default is the **9B** model in the Qwen3.5
 family, not a 3.5B model. Explicit `--model`, exporter and hub choices remain
 supported; host-mode model selection is unchanged.
@@ -168,11 +174,31 @@ For Hermes:
 ./install.sh connect --runtime openshell --harness hermes
 ```
 
+For Deep Agents Code:
+
+```bash
+./install.sh status --runtime openshell --harness deepagents-code
+./install.sh connect --runtime openshell --harness deepagents-code
+```
+
 The OpenShell gateway owns sandbox lifecycle and policy delivery. The OpenClaw
 gateway runs **inside** its sandbox, binds to sandbox loopback and uses a
-generated authentication token. Hermes runs as an interactive CLI; messaging
-integrations are not enabled. `connect` uses OpenShell's authenticated execution
-path and does not publish an agent UI on the LAN.
+generated authentication token. Hermes and Deep Agents Code run as interactive
+terminal chat interfaces; messaging integrations are not enabled. Dcode's
+interactive interface is a terminal UI, not a hosted browser UI. From a local
+machine, open an SSH session with a PTY (for example, `ssh -t user@<host>`),
+then run the Dcode `connect` command above. It forces a PTY for the sandbox
+session so the chat interface can receive input and render interactively. Deep
+Agents Code is configured with the shared OpenAI-compatible inference endpoint
+and the selected local model as its default, so no model selection is needed.
+The connector skips Dcode's first-run setup; Tavily web search remains
+unconfigured unless the user supplies an API key later. `connect` supplies the non-secret
+`HARNESS_DCODE_API_KEY=not-needed` placeholder only to the Dcode process; it is
+not stored in the sandbox environment. `connect` uses OpenShell's authenticated
+execution path and does not publish an agent UI on the LAN.
+The connector disables Dcode's optional Wasmtime-backed JavaScript
+interpreter, avoiding a nested execution runtime; the OpenShell sandbox remains
+the execution boundary for agent work.
 
 ### Browser access
 
@@ -219,11 +245,11 @@ uses loopback/tunnel access and does not require an OpenClaw token. A Hermes
 "Gateway Status: Off" indication refers to its messaging gateway, not a failed
 browser dashboard. Stop all three commands when finished.
 
-Hermes uses [a dedicated policy](../../openshell/hermes-policy.yaml) matching the
-[base agent policy](../../openshell/policy.yaml) except for writable `/dev/ptmx`
-and `/dev/pts`. These sandbox-local pseudo-terminal devices are needed by its
-browser chat terminal; OpenClaw's policy is unchanged. This does not grant host
-filesystem, Docker socket or additional network access. Existing Hermes
+Hermes and Deep Agents Code use [an interactive policy](../../openshell/interactive-policy.yaml)
+matching the [base agent policy](../../openshell/policy.yaml) except for writable
+`/dev/ptmx` and `/dev/pts`. These sandbox-local pseudo-terminal devices are
+needed by their terminal interfaces; OpenClaw's policy is unchanged. This does
+not grant host filesystem, Docker socket or additional network access. Existing
 sandboxes must be recreated with the new policy after backing up needed data.
 
 ## Model lifecycle and repeated installs
@@ -235,7 +261,7 @@ is also recorded in `openshell-model`. Older installations fall back to their
 shared selection, agent profile or OVMS registry before the fresh-install default.
 
 An explicit new `--model` checks the normal exporter cache, downloads/converts
-when needed, reconfigures OVMS/IR, and synchronizes **both installed agents**.
+when needed, reconfigures OVMS/IR, and synchronizes all installed sandbox agents.
 Changing shared inference can interrupt active turns: finish those turns first.
 The installer preserves sandbox identities, gateway tokens, history and workspace.
 It writes a durable selection inside each sandbox, restarts it without deletion,

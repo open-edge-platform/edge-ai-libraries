@@ -133,6 +133,49 @@ SH
   [[ ! -e "$HOME/.openclaw/openclaw.json" ]]
   [[ ! -e "$HOME/.openclaw/startup-test.sqlite" ]]
 }
+dcode_startup() {
+  local fixture
+  fixture="$(mktemp -d "$TEST_ROOT/dcode-startup.XXXXXX")"
+  export HOME="$fixture/home"
+  export REAL_NODE
+  REAL_NODE="$(command -v node)"
+  mkdir -p "$HOME" "$fixture/bin" "$HOME/.deepagents"
+  export HARNESS_AGENT=deepagents-code
+  export HARNESS_SANDBOX_ENDPOINT=http://host.openshell.internal:8010/v1
+  export HARNESS_SANDBOX_MODEL=test-model
+  export HARNESS_MODEL_CONFIG_SCRIPT="$SCRIPT_DIR/openshell/model-config.mjs"
+  export HARNESS_AGENT_LIB_DIR="$SCRIPT_DIR/scripts/lib"
+  printf 'user_setting = "preserve me"\n' >"$HOME/.deepagents/config.toml"
+  cat >"$fixture/bin/sleep" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ "$*" == infinity ]]
+SH
+  chmod 755 "$fixture/bin/sleep"
+  export PATH="$fixture/bin:$PATH"
+  bash "$SCRIPT_DIR/openshell/agent-start.sh"
+  grep -Fq 'user_setting = "preserve me"' "$HOME/.deepagents/config.toml"
+  grep -Fq 'default = "openai:test-model"' "$HOME/.deepagents/config.toml"
+  grep -Fq 'base_url = "http://host.openshell.internal:8010/v1"' "$HOME/.deepagents/config.toml"
+  grep -Fq 'api_key_env = "HARNESS_DCODE_API_KEY"' "$HOME/.deepagents/config.toml"
+  "$REAL_NODE" - "$HOME/.harness-model.json" <<'JS'
+const assert = require("node:assert/strict"), fs = require("node:fs");
+const state = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+assert.equal(state.model, "test-model");
+assert.equal(state.applied, true);
+JS
+  "$REAL_NODE" "$HARNESS_MODEL_CONFIG_SCRIPT" deepagents-code changed-model \
+    "$HARNESS_SANDBOX_ENDPOINT" select
+  bash "$SCRIPT_DIR/openshell/agent-start.sh"
+  grep -Fq 'default = "openai:changed-model"' "$HOME/.deepagents/config.toml"
+  grep -Fq 'user_setting = "preserve me"' "$HOME/.deepagents/config.toml"
+  "$REAL_NODE" - "$HOME/.harness-model.json" <<'JS'
+const assert = require("node:assert/strict"), fs = require("node:fs");
+const state = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+assert.equal(state.model, "changed-model");
+assert.equal(state.applied, true);
+JS
+}
 
 runtime_default() {
   HARNESS_RUNTIME=""
@@ -148,9 +191,20 @@ profile_paths() {
   HARNESS_AGENT=openclaw
   local first
   first="$(openshell_profile_dir)"
+  HARNESS_AGENT=deepagents-code
+  [[ "$first" != "$(openshell_profile_dir)" ]]
   HARNESS_AGENT=hermes
   [[ "$first" != "$(openshell_profile_dir)" ]]
   [[ "$first" == "$HOME/$HARNESS_STATE_DIRNAME/openshell/openclaw" ]]
+}
+dcode_connect_args() {
+  HARNESS_AGENT=deepagents-code
+  openshell_agent_exec() { printf '%s\n' "$@" >"$TEST_ROOT/dcode-connect-args"; }
+  connect_openshell_agent
+  cmp "$TEST_ROOT/dcode-connect-args" <(printf '%s\n' \
+    --tty /usr/bin/env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy -u ALL_PROXY -u all_proxy \
+    HARNESS_DCODE_API_KEY=not-needed DEEPAGENTS_CODE_NO_UPDATE_CHECK=1 DEEPAGENTS_CODE_ONBOARDING=0 \
+    /home/node/.local/bin/dcode --no-interpreter)
 }
 write_profile() {
   local dir
@@ -382,11 +436,14 @@ run_case 'OpenClaw restart preserves config token and database content' startup_
 run_case 'OpenClaw model change survives startup with the original sandbox environment' startup_model_switch
 run_case 'OpenClaw startup fails before Node when SQLite temp creation fails' startup_blocked_temp
 run_case 'OpenClaw startup fails before Node when SQLite temp permissions cannot be secured' startup_permissions_failure
+run_case 'Deep Agents Code startup configures and persists its provider model' dcode_startup
 run_case 'runtime defaults to host noninteractively' runtime_default
 run_case 'host runtime remains supported' runtime_supported host openclaw
 run_case 'OpenClaw supports OpenShell' runtime_supported openshell openclaw
+run_case 'Deep Agents Code supports OpenShell' runtime_supported openshell deepagents-code
+run_case 'Deep Agents Code connect supplies placeholder key without storing it' dcode_connect_args
 run_case 'Hermes supports OpenShell' runtime_supported openshell hermes
-run_case 'unsupported agent rejected' expect_failure 'supports openclaw and hermes only' runtime_supported openshell deepagents-code
+run_case 'unsupported agent rejected' expect_failure 'supports openclaw, deepagents-code and hermes only' runtime_supported openshell invalid-agent
 run_case 'invalid runtime rejected' expect_failure 'Unknown runtime' runtime_supported invalid openclaw
 run_case 'agent profile paths are separate' profile_paths
 run_case 'valid persisted profile loads' profile_valid
@@ -434,6 +491,13 @@ run_case 'test runner propagates an intermediate assertion failure' runner_failu
 run_case 'Docker build context includes model configuration helper' bash -c '
   grep -Fxq "!openshell/model-config.mjs" "$1/.dockerignore"
   grep -Fxq "COPY openshell/model-config.mjs /opt/harness/model-config.mjs" "$1/openshell/Dockerfile"
+  grep -Fq "deepagents-code) install_dcode" "$1/openshell/Dockerfile"
+' _ "$SCRIPT_DIR"
+run_case 'Dcode provider policy allows its pinned Python and avoids nested interpreter' bash -c '
+  grep -Fq "/home/node/.local/share/uv/python/cpython-*/bin/python*" "$1/scripts/lib/openshell.sh"
+  grep -Fq "HARNESS_DCODE_API_KEY=not-needed DEEPAGENTS_CODE_NO_UPDATE_CHECK=1" "$1/scripts/lib/openshell.sh"
+  grep -Fq "/home/node/.local/bin/dcode --no-interpreter" "$1/scripts/lib/openshell.sh"
+  ! grep -Fq "agent_env+=(--env \"HARNESS_DCODE_API_KEY=not-needed\")" "$1/scripts/lib/openshell.sh"
 ' _ "$SCRIPT_DIR"
 run_case 'installer documents runtime' bash -c 'bash "$1/install.sh" --help | grep -q -- --runtime' _ "$SCRIPT_DIR"
 run_case 'uninstaller documents runtime' bash -c 'bash "$1/uninstall.sh" --help | grep -q -- --runtime' _ "$SCRIPT_DIR"
@@ -446,14 +510,18 @@ run_case 'live suite requires explicit opt-in' expect_failure 'Set HARNESS_RUN_O
 run_case 'managed Qwen inference regression suite' bash "$SCRIPT_DIR/test/managed-inference-test.sh"
 run_case 'model switch and complete uninstall regression suite' bash "$SCRIPT_DIR/test/model-lifecycle-test.sh"
 run_case 'Qwen local-model defaults regression suite' node --test "$SCRIPT_DIR/test/model-defaults-test.mjs"
-run_case 'Hermes policy adds only sandbox-local PTY paths to the base policy' node -e '
+run_case 'interactive policy adds only sandbox-local PTY paths to the base policy' node -e '
   const fs=require("node:fs"),assert=require("node:assert/strict"),root=process.argv[1];
   const normalize=s=>s.split("\n").filter(x=>x.trim()&&!x.trim().startsWith("#")).join("\n");
   const base=fs.readFileSync(`${root}/openshell/policy.yaml`,"utf8");
-  const hermes=fs.readFileSync(`${root}/openshell/hermes-policy.yaml`,"utf8");
-  for(const p of ["/dev/ptmx","/dev/pts"]) assert.equal(hermes.split(`    - ${p}\n`).length,2);
-  assert.equal(normalize(hermes.replace("    - /dev/ptmx\n","").replace("    - /dev/pts\n","")),normalize(base));
-  assert.ok(fs.readFileSync(`${root}/scripts/lib/openshell.sh`,"utf8").includes(
-    "[[ \"$agent\" != hermes ]] || policy=\"${SCRIPT_DIR}/openshell/hermes-policy.yaml\""));
+  const interactive=fs.readFileSync(`${root}/openshell/interactive-policy.yaml`,"utf8");
+  for(const p of ["/dev/ptmx","/dev/pts"]) assert.equal(interactive.split(`    - ${p}\n`).length,2);
+  assert.equal(normalize(interactive.replace("    - /dev/ptmx\n","").replace("    - /dev/pts\n","")),normalize(base));
 ' "$SCRIPT_DIR"
+policy_paths() {
+  [[ "$(openshell_policy_path openclaw)" == "$1/openshell/policy.yaml" ]]
+  [[ "$(openshell_policy_path deepagents-code)" == "$1/openshell/interactive-policy.yaml" ]]
+  [[ "$(openshell_policy_path hermes)" == "$1/openshell/interactive-policy.yaml" ]]
+}
+run_case 'OpenClaw uses base policy and interactive agents use PTY policy' policy_paths "$SCRIPT_DIR"
 finish_tests

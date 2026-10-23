@@ -36,7 +36,7 @@ fixture() {
 }
 profiles() {
   local agent dir
-  for agent in openclaw hermes; do
+  for agent in openclaw deepagents-code hermes; do
     dir="$(HARNESS_AGENT="$agent" openshell_profile_dir)"
     mkdir -p "$dir"
     atomic_write_file "$dir/profile.json" \
@@ -98,7 +98,7 @@ switch_both() {
   mock_inference
   openshell_ensure_shared_inference
   local agent
-  for agent in openclaw hermes; do
+  for agent in openclaw deepagents-code hermes; do
     [[ "$(HARNESS_AGENT="$agent" openshell_load_profile; printf '%s' "$OPENSHELL_MODEL")" == new-model ]]
     node - "$HOME/sandboxes/$agent/.harness-model.json" <<'JS'
 const assert = require("node:assert/strict"), fs = require("node:fs");
@@ -183,7 +183,7 @@ model_sync_locks_agents_without_sandboxes() {
     printf 'unlock %s\n' "$lock_name" >>"$ACTIONS"
   }
   openshell_ensure_shared_inference
-  cmp "$ACTIONS" <(printf 'lock openshell-inference\nbackend org/new-model\nlock openshell-openclaw\nunlock openshell-openclaw\nlock openshell-hermes\nunlock openshell-hermes\nunlock openshell-inference\n')
+  cmp "$ACTIONS" <(printf 'lock openshell-inference\nbackend org/new-model\nlock openshell-openclaw\nunlock openshell-openclaw\nlock openshell-deepagents-code\nunlock openshell-deepagents-code\nlock openshell-hermes\nunlock openshell-hermes\nunlock openshell-inference\n')
   [[ "$(HARNESS_AGENT=openclaw openshell_load_profile; printf '%s' "$OPENSHELL_MODEL")" == new-model ]]
   [[ "$(HARNESS_AGENT=hermes openshell_load_profile; printf '%s' "$OPENSHELL_MODEL")" == new-model ]]
 }
@@ -385,7 +385,7 @@ validate_all_profiles() {
   openshell_assert_owned() { :; }
   remove_openshell_agent() { printf 'remove %s\n' "$HARNESS_AGENT" >>"$ACTIONS"; }
   remove_all_openshell_agents
-  cmp "$ACTIONS" <(printf 'remove openclaw\nremove hermes\n')
+  cmp "$ACTIONS" <(printf 'remove openclaw\nremove deepagents-code\nremove hermes\n')
 }
 reject_unowned_profile() {
   fixture
@@ -407,7 +407,7 @@ no_profiles_without_node() {
 }
 
 printf 'TAP version 13\n'
-run_case 'model change updates both agents, restarts them and preserves token/history' switch_both
+run_case 'model change updates all agents, restarts them and preserves token/history' switch_both
 run_case 'model source hub/exporter/revisions/config survive install reruns' source_roundtrip
 run_case 'model readback waits for agent startup after sandbox phase becomes Ready' delayed_startup
 run_case 'OVMS serves only the new model while previous downloaded weights remain cached' select_served_model
@@ -431,7 +431,7 @@ run_case 'gateway is restored when owned OpenShell package purge fails' runtime_
 run_case 'manual gateway recovery is reported if restoration also fails' runtime_purge_and_restore_failure
 run_case 'owned OpenShell gateway startup is retried on installer reruns' owned_service_retry
 run_case 'fresh owned gateway registers local package TLS with the CLI' register_owned_gateway
-run_case 'complete cleanup includes both recorded agent profiles' validate_all_profiles
+run_case 'complete cleanup includes all recorded agent profiles' validate_all_profiles
 run_case 'all profile ownership is checked before deleting the first sandbox' reject_unowned_profile
 run_case 'host-only cleanup does not require Node to inspect absent sandbox profiles' no_profiles_without_node
 finish_tests

@@ -20,8 +20,8 @@ validate_runtime() {
     host) ;;
     openshell)
       case "$(canonical_agent_name "${HARNESS_AGENT:-openclaw}")" in
-        openclaw | hermes) ;;
-        *) error "OpenShell supports openclaw and hermes only; use --runtime host for this agent." ;;
+        openclaw | deepagents-code | hermes) ;;
+        *) error "OpenShell supports openclaw, deepagents-code and hermes only; use --runtime host for this agent." ;;
       esac ;;
     *) error "Unknown runtime '${HARNESS_RUNTIME}'; expected host or openshell." ;;
   esac
@@ -163,7 +163,7 @@ _openshell_ensure_shared_inference() {
 
 openshell_preflight_model_update() {
   local agent HARNESS_AGENT
-  for agent in openclaw hermes; do
+  for agent in openclaw deepagents-code hermes; do
     HARNESS_AGENT="$agent"
     [[ -f "$(openshell_profile_dir)/profile.json" ]] || continue
     openshell_load_profile
@@ -200,7 +200,7 @@ openshell_sync_models() {
   local agent model endpoint
   model="${HARNESS_LLM_MODEL:-$(resolve_onboarding_model_hint)}"
   endpoint="http://host.openshell.internal:${HARNESS_IR_PORT}/v1"
-  for agent in openclaw hermes; do
+  for agent in openclaw deepagents-code hermes; do
     # Lock order is shared inference first, then each agent in this fixed order.
     # Installation/removal acquire only the per-agent lock, avoiding inversion.
     with_state_lock "openshell-${agent}" _openshell_sync_agent_model_locked \
@@ -287,8 +287,16 @@ JS
 openshell_profile_dir() {
   local agent
   agent="$(canonical_agent_name "${HARNESS_AGENT:-openclaw}")"
-  case "$agent" in openclaw | hermes) ;; *) error "Unsupported OpenShell agent: $agent" ;; esac
+  case "$agent" in openclaw | deepagents-code | hermes) ;; *) error "Unsupported OpenShell agent: $agent" ;; esac
   printf '%s/openshell/%s' "$(harness_state_root)" "$agent"
+}
+
+openshell_policy_path() {
+  case "$1" in
+    openclaw) printf '%s/openshell/policy.yaml' "$SCRIPT_DIR" ;;
+    deepagents-code | hermes) printf '%s/openshell/interactive-policy.yaml' "$SCRIPT_DIR" ;;
+    *) error "Unsupported OpenShell agent: $1" ;;
+  esac
 }
 
 ensure_openshell_cli() {
@@ -535,9 +543,18 @@ _install_openshell_agent() {
     --build-arg HTTP_PROXY --build-arg HTTPS_PROXY --build-arg http_proxy --build-arg https_proxy \
     -f "${SCRIPT_DIR}/openshell/Dockerfile" -t "$image" "$SCRIPT_DIR" \
     || error "Could not build the ${agent} sandbox image. Ownership record retained at ${dir}."
-  local provider
+  local provider policy
+  local -a agent_env
+  agent_env=(--env "HARNESS_AGENT=$agent" --env "HARNESS_SANDBOX_MODEL=$model"
+    --env "HERMES_HOME=/home/node/.hermes"
+    --env "HARNESS_SANDBOX_ENDPOINT=http://host.openshell.internal:${HARNESS_IR_PORT}/v1")
+  if [[ "$agent" == deepagents-code ]]; then
+    agent_env+=(--env "DEEPAGENTS_CODE_NO_UPDATE_CHECK=1")
+  else
+    agent_env+=(--env "OPENAI_API_KEY=not-needed")
+  fi
   # OpenShell's host-service alias reaches loopback IR without exposing it on a LAN interface.
-  # Allow the actual HTTP clients, including Hermes's installer-managed Python interpreter.
+  # Allow only the agent clients that need to reach the shared inference endpoint.
   provider="$(node - "$name" "$HARNESS_IR_PORT" <<'JS'
 const [id, port] = process.argv.slice(2);
 console.log(JSON.stringify({
@@ -546,7 +563,10 @@ console.log(JSON.stringify({
   endpoints: [{host: "host.openshell.internal", port: Number(port), protocol: "rest",
     access: "read-write", enforcement: "enforce"}],
   binaries: ["/usr/bin/curl", "/usr/local/bin/node",
-    "/home/node/.hermes/tools/python-*/bin/python*"]
+    "/home/node/.hermes/tools/python-*/bin/python*",
+    "/home/node/.local/bin/dcode",
+    "/home/node/.local/share/uv/tools/deepagents-code/bin/python*",
+    "/home/node/.local/share/uv/python/cpython-*/bin/python*"]
 }));
 JS
   )"
@@ -556,15 +576,11 @@ JS
     openshell profile import -f "$dir/provider.json" -g "$gateway"
     openshell provider create --name "$name" --type "$name" -g "$gateway"
   fi
-  local policy="${SCRIPT_DIR}/openshell/policy.yaml"
-  [[ "$agent" != hermes ]] || policy="${SCRIPT_DIR}/openshell/hermes-policy.yaml"
+  policy="$(openshell_policy_path "$agent")"
   openshell sandbox create --name "$name" --from "$image" --provider "$name" \
     --policy "$policy" \
     --label "agent-harness.owner=$owner" --label "agent-harness.agent=$agent" \
-    --env "HARNESS_AGENT=$agent" --env "HARNESS_SANDBOX_MODEL=$model" \
-    --env "HERMES_HOME=/home/node/.hermes" \
-    --env "OPENAI_API_KEY=not-needed" \
-    --env "HARNESS_SANDBOX_ENDPOINT=http://host.openshell.internal:${HARNESS_IR_PORT}/v1" \
+    "${agent_env[@]}" \
     --detach -g "$gateway" -- /usr/local/bin/harness-agent-start \
     || error "Sandbox creation failed. Profile retained at ${dir}; inspect it before retrying."
   openshell_assert_owned
@@ -572,10 +588,16 @@ JS
 }
 
 openshell_agent_exec() {
+  local -a tty_args=()
+  if [[ "${1:-}" == --tty ]]; then
+    tty_args+=(--tty)
+    shift
+  fi
   openshell_load_profile
   openshell_assert_owned
   # Login-shell initialization can replace the image PATH; callers use explicit CLI paths.
-  openshell sandbox exec --name "$OPENSHELL_NAME" --no-login-shell -g "$OPENSHELL_GATEWAY" -- "$@"
+  openshell sandbox exec --name "$OPENSHELL_NAME" --no-login-shell "${tty_args[@]}" \
+    -g "$OPENSHELL_GATEWAY" -- "$@"
 }
 
 onboard_openshell_agent() {
@@ -595,16 +617,31 @@ onboard_openshell_agent() {
     ' <<<"$response" || error "OpenClaw inference response did not validate."
     ok "Sandboxed OpenClaw inference passed."
   else
-    openshell_agent_exec /home/node/.local/bin/hermes --version \
-      || error "Sandboxed Hermes CLI did not start."
-    local hermes_response
-    hermes_response="$(openshell_agent_exec /home/node/.local/bin/hermes \
-      -z "Say hello briefly. Do not use any tools.")" \
-      || error "Sandboxed Hermes inference failed."
-    [[ -n "${hermes_response//[[:space:]]/}" ]] \
-      || error "Sandboxed Hermes returned no inference output."
-    printf '%s\n' "$hermes_response"
-    ok "Sandboxed Hermes inference returned output; verify task effects separately."
+    if [[ "$(canonical_agent_name "${HARNESS_AGENT:-openclaw}")" == hermes ]]; then
+      openshell_agent_exec /home/node/.local/bin/hermes --version \
+        || error "Sandboxed Hermes CLI did not start."
+      local hermes_response
+      hermes_response="$(openshell_agent_exec /home/node/.local/bin/hermes \
+        -z "Say hello briefly. Do not use any tools.")" \
+        || error "Sandboxed Hermes inference failed."
+      [[ -n "${hermes_response//[[:space:]]/}" ]] \
+        || error "Sandboxed Hermes returned no inference output."
+      printf '%s\n' "$hermes_response"
+      ok "Sandboxed Hermes inference returned output; verify task effects separately."
+    else
+      local dcode_response
+      dcode_response="$(openshell_agent_exec /usr/bin/env \
+        -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy -u ALL_PROXY -u all_proxy \
+        HARNESS_DCODE_API_KEY=not-needed DEEPAGENTS_CODE_NO_UPDATE_CHECK=1 \
+        /home/node/.local/bin/dcode -n "Say hello briefly. Do not use any tools." \
+        --model "openai:${OPENSHELL_MODEL}" --no-interpreter)" \
+        || error "Sandboxed Deep Agents Code inference failed."
+      [[ -n "${dcode_response//[[:space:]]/}" ]] \
+        && ! grep -q '^\[ERROR\]' <<<"$dcode_response" \
+        || error "Sandboxed Deep Agents Code returned no successful inference output."
+      printf '%s\n' "$dcode_response"
+      ok "Sandboxed Deep Agents Code inference returned output; verify task effects separately."
+    fi
   fi
 }
 
@@ -619,6 +656,12 @@ connect_openshell_agent() {
   agent="$(canonical_agent_name "${HARNESS_AGENT:-openclaw}")"
   case "$agent" in
     openclaw) openshell_agent_exec /home/node/.local/bin/openclaw tui ;;
+    deepagents-code)
+      openshell_agent_exec --tty /usr/bin/env \
+        -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy -u ALL_PROXY -u all_proxy \
+        HARNESS_DCODE_API_KEY=not-needed DEEPAGENTS_CODE_NO_UPDATE_CHECK=1 DEEPAGENTS_CODE_ONBOARDING=0 \
+        /home/node/.local/bin/dcode --no-interpreter
+      ;;
     hermes) openshell_agent_exec /home/node/.local/bin/hermes ;;
   esac
 }

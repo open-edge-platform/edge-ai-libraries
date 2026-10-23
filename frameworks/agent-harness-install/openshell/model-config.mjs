@@ -7,7 +7,7 @@ import {execFileSync} from "node:child_process";
 
 const [agent, model, endpoint, mode = "apply"] = process.argv.slice(2);
 const home = process.env.HOME;
-if (!["openclaw", "hermes"].includes(agent) || !model || /[\x00-\x1f]/.test(model))
+if (!["openclaw", "deepagents-code", "hermes"].includes(agent) || !model || /[\x00-\x1f]/.test(model))
   throw Error("Invalid agent or model selection");
 if (!["apply", "select"].includes(mode)) throw Error("Invalid model configuration mode");
 const url = new URL(endpoint);

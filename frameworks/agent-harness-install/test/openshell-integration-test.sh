@@ -31,7 +31,7 @@ printf '# Isolated ownership records: %s/%s\n' "$HOME" "$HARNESS_STATE_DIRNAME"
 
 cleanup_resources() {
   local agent result=0
-  for agent in openclaw hermes; do
+  for agent in openclaw deepagents-code hermes; do
     if [[ -f "$HOME/$HARNESS_STATE_DIRNAME/openshell/$agent/profile.json" ]]; then
       timeout 180 bash "$SCRIPT_DIR/uninstall.sh" --runtime openshell --sandbox-only --harness "$agent" --yes < /dev/null \
         || result=1
@@ -115,6 +115,10 @@ install_agent() {
   timeout 1800 bash "$SCRIPT_DIR/install.sh" --runtime openshell --harness "$agent" \
     --non-interactive < /dev/null
   wait_phase "$(profile_name "$agent")" Ready
+  if [[ "$agent" == deepagents-code ]]; then
+    grep -Fq '/home/node/.local/share/uv/python/cpython-*/bin/python*' \
+      "$HOME/$HARNESS_STATE_DIRNAME/openshell/$agent/provider.json"
+  fi
 }
 status_agent() {
   timeout 30 bash "$SCRIPT_DIR/install.sh" status --runtime openshell --harness "$1" < /dev/null
@@ -132,7 +136,12 @@ model_change_rejected() {
       --non-interactive
 }
 sandbox_boundaries() {
-  local agent="$1" result rc
+  local agent="$1" result rc home_config
+  case "$agent" in
+    openclaw) home_config="$HOME/.openclaw" ;;
+    deepagents-code) home_config="$HOME/.deepagents" ;;
+    hermes) home_config="$HOME/.hermes" ;;
+  esac
   exec_in "$agent" /usr/local/bin/node -e '
     const fs = require("node:fs");
     if (process.getuid() === 0) throw Error("Sandbox runs as root");
@@ -142,7 +151,7 @@ sandbox_boundaries() {
     const token = require("node:crypto").randomBytes(32).toString("hex");
     fs.writeFileSync(file, token);
     if (fs.readFileSync(file, "utf8") !== token) throw Error("Workspace content mismatch");
-  ' "$HOME/.openclaw" "$HOME/.hermes" "$HOME/$HARNESS_STATE_DIRNAME/host-only-marker"
+  ' "$home_config" "$HOME/$HARNESS_STATE_DIRNAME/host-only-marker"
   # Confirm allowed connectivity first, so a broken exec/network cannot pass the denial case.
   exec_in "$agent" /usr/bin/curl --fail --silent --show-error --max-time 15 \
     "http://host.openshell.internal:${HARNESS_IR_PORT}/v1/models"
@@ -158,8 +167,9 @@ restart_persistence() {
   name="$(profile_name "$agent")"
   before="$(exec_in "$agent" /usr/local/bin/node -e '
     const fs=require("node:fs"),crypto=require("node:crypto");
-    const config=process.env.HARNESS_AGENT === "hermes"
-      ? "/home/node/.hermes/config.yaml" : `${process.env.HOME}/.openclaw/openclaw.json`;
+    const config=process.env.HARNESS_AGENT === "hermes" ? "/home/node/.hermes/config.yaml"
+      : process.env.HARNESS_AGENT === "deepagents-code" ? `${process.env.HOME}/.deepagents/config.toml`
+      : `${process.env.HOME}/.openclaw/openclaw.json`;
     console.log(crypto.createHash("sha256").update(fs.readFileSync(config))
       .update(fs.readFileSync("/sandbox/harness-ci-exact-copy")).digest("hex"));
   ')"
@@ -169,8 +179,9 @@ restart_persistence() {
   wait_phase "$name" Ready
   after="$(exec_in "$agent" /usr/local/bin/node -e '
     const fs=require("node:fs"),crypto=require("node:crypto");
-    const config=process.env.HARNESS_AGENT === "hermes"
-      ? "/home/node/.hermes/config.yaml" : `${process.env.HOME}/.openclaw/openclaw.json`;
+    const config=process.env.HARNESS_AGENT === "hermes" ? "/home/node/.hermes/config.yaml"
+      : process.env.HARNESS_AGENT === "deepagents-code" ? `${process.env.HOME}/.deepagents/config.toml`
+      : `${process.env.HOME}/.openclaw/openclaw.json`;
     console.log(crypto.createHash("sha256").update(fs.readFileSync(config))
       .update(fs.readFileSync("/sandbox/harness-ci-exact-copy")).digest("hex"));
   ')"
@@ -207,6 +218,10 @@ local_model_defaults() {
     -v "$SCRIPT_DIR/test/model-defaults-test.mjs:/opt/test/model-defaults-test.mjs:ro" \
     agent-harness-hermes-openshell:local --test /opt/test/model-defaults-test.mjs
 }
+dcode_pty() {
+  exec_in deepagents-code /usr/bin/python3 -c \
+    'import os, pty; master, slave = pty.openpty(); os.close(master); os.close(slave); print("Deep Agents Code PTY allocation passed")'
+}
 hermes_pty() {
   exec_in hermes /usr/local/bin/node -e '
     const {execFileSync}=require("node:child_process");
@@ -219,7 +234,7 @@ hermes_pty() {
 }
 
 gate 'prepared gateway and loopback inference are healthy' preflight
-for agent in openclaw hermes; do
+for agent in openclaw deepagents-code hermes; do
   gate "$agent installation and native inference" install_agent "$agent"
   gate "$agent status dispatch" status_agent "$agent"
   gate "$agent repeated install preserves identity" idempotent_install "$agent"
@@ -228,10 +243,11 @@ for agent in openclaw hermes; do
   gate "$agent stop/start retains config, workspace and inference" restart_persistence "$agent"
 done
 gate 'built image applies Qwen defaults and Hermes request overrides offline' local_model_defaults
+gate 'Deep Agents Code can allocate sandbox-local PTYs' dcode_pty
 gate 'Hermes browser terminal can allocate sandbox-local PTYs' hermes_pty
 gate 'complete uninstall requires explicit consent' expect_failure 'confirmation requires a TTY|Uninstall cancelled' \
   timeout 30 bash "$SCRIPT_DIR/uninstall.sh" --runtime host < /dev/null
-for agent in openclaw hermes; do
+for agent in openclaw deepagents-code hermes; do
   gate "$agent owned uninstall removes sandbox and provider" remove_agent "$agent"
 done
 gate 'Hermes can be freshly provisioned after removal' install_agent hermes

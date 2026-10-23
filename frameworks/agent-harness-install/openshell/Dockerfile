@@ -13,7 +13,7 @@ ENV NPM_CONFIG_PREFIX=/home/node/.local
 ENV PATH=/home/node/.local/bin:/usr/local/bin:/usr/bin:/bin
 # Reuse host-mode version pins and installer verification instead of maintaining separate pins.
 RUN bash -euc 'for lib in colors verify state sudo shim nodejs agents; do source /opt/harness/lib/$lib.sh; done; \
-    case "$1" in openclaw) install_openclaw ;; hermes) install_hermes ;; *) error "Unsupported sandbox agent" ;; esac' \
+    case "$1" in openclaw) install_openclaw ;; deepagents-code) install_dcode ;; hermes) install_hermes ;; *) error "Unsupported sandbox agent" ;; esac' \
     _ "$HARNESS_AGENT"
 USER root
 # Keep startup-only changes from invalidating the expensive agent installation layer.
