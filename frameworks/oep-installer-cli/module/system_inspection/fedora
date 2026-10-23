@@ -1,0 +1,9 @@
+
+fedora_08_profile_system_inspection () {
+  [ "$1" != "install" ] || echo "curl dmidecode pciutils"
+}
+
+fedora_08_install_system_inspection () {
+  install_system_inspection
+}
+
