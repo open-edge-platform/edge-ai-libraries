@@ -276,9 +276,9 @@ EOF
 subcommand_resume () {
   local resume_file="$(ensure_project_path)/$installer_name/commands"
   if [ -r "$resume_file" ]; then
-    local command_line="$(< "$resume_file")"
-    if [ -n "$command_line" ]; then
-      exec "$installer_bin" $command_line
+    local command_args=($(< "$resume_file"))
+    if [ ${#command_args[*]} -gt 0 && -x "$installer_bin" ]; then
+      exec "$installer_bin" "${command_args[@]}"
     fi
   fi
 }
