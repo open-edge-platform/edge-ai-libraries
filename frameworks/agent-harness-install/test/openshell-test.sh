@@ -394,4 +394,5 @@ run_case 'live suite requires explicit opt-in' expect_failure 'Set HARNESS_RUN_O
   env -u HARNESS_RUN_OPENSHELL_INTEGRATION bash "$SCRIPT_DIR/test/openshell-integration-test.sh"
 run_case 'managed Qwen inference regression suite' bash "$SCRIPT_DIR/test/managed-inference-test.sh"
 run_case 'model switch and complete uninstall regression suite' bash "$SCRIPT_DIR/test/model-lifecycle-test.sh"
+run_case 'Qwen local-model defaults regression suite' node --test "$SCRIPT_DIR/test/model-defaults-test.mjs"
 finish_tests

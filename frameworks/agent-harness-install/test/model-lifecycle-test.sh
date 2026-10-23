@@ -61,8 +61,17 @@ mock_sandboxes() {
       'sandbox stop') PHASE=Stopped; printf 'stop %s\n' "$HARNESS_AGENT" >>"$ACTIONS" ;;
       'sandbox start')
         apply_startup_model() {
-          HOME="$HOME/sandboxes/$HARNESS_AGENT" node "$SCRIPT_DIR/openshell/model-config.mjs" \
-            "$HARNESS_AGENT" "$HARNESS_LLM_MODEL" "http://host.openshell.internal:${HARNESS_IR_PORT}/v1"
+          if [[ "$HARNESS_AGENT" == openclaw ]]; then
+            HOME="$HOME/sandboxes/$HARNESS_AGENT" node "$SCRIPT_DIR/openshell/model-config.mjs" \
+              "$HARNESS_AGENT" "$HARNESS_LLM_MODEL" "http://host.openshell.internal:${HARNESS_IR_PORT}/v1"
+          else
+            HOME="$HOME/sandboxes/$HARNESS_AGENT" node -e '
+              const fs = require("node:fs"), file = `${process.env.HOME}/.harness-model.json`;
+              const selection = JSON.parse(fs.readFileSync(file, "utf8"));
+              selection.applied = true;
+              fs.writeFileSync(file, JSON.stringify(selection));
+            '
+          fi
         }
         if [[ -n "$DELAY_STARTUP" ]]; then
           (sleep 0.1; apply_startup_model) &

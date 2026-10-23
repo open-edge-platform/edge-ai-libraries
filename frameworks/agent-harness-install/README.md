@@ -84,6 +84,35 @@ IR/OVMS are validated for the exact model, readiness, private network and
 loopback publication. A no-model rerun does not silently replace an existing
 route; incomplete deployments require an explicit model selection to repair.
 
+### Qwen local-model defaults
+
+New OpenShell images generate a responsiveness-oriented baseline for the exact
+served model `Qwen3.5-9B-int8-ov`:
+
+| Setting | OpenClaw | Hermes |
+|---|---|---|
+| Context budget | `contextWindow: 65536` | `model.context_length: 65536` |
+| Reply cap | Catalog and model params `maxTokens: 512` | Custom-provider `extra_body.max_tokens: 512` |
+| Sampling | Model params `temperature: 0.2` | Custom-provider `extra_body.temperature: 0.2` |
+| Thinking | `thinkingDefault: off` and `chat_template_kwargs.enable_thinking: false` | Model reasoning override `none` and custom-provider `chat_template_kwargs.enable_thinking: false` |
+| Prompt/tool size | `localModelLean: true`, bootstrap limits 4000/12000 characters, `tools.profile: coding` | No unsupported OpenClaw prompt/tool settings are copied |
+
+These are operational budgets, not model maximum capabilities or latency
+guarantees. The 512-token cap can truncate long answers or tool calls; increase
+the model-specific request cap (and OpenClaw catalog cap) when needed. Existing
+explicit settings, including catalog values in older configurations, take
+precedence; absent keys receive defaults. Startup preserves gateway tokens,
+history and workspace data. Hermes uses its bundled Python/YAML runtime and a
+dedicated `custom:harness-ovms-qwen` provider through the same IR endpoint.
+
+The sandbox's `.harness-local-defaults.json` tracks only installer-added values.
+Restarts preserve user edits. Switching models removes unchanged installer-added
+Qwen values before configuring the next model; user overrides remain. Other
+models keep existing settings, or the previous generic OpenClaw catalog defaults
+(32768 context / 4096 output) when none exist. Host mode is unchanged. Existing
+images need rebuilding/migration to include this startup behavior; this is not
+a live deployment migration or a chat acceptance gate.
+
 To prepare or explicitly reconfigure shared inference separately:
 
 ```bash

@@ -34,6 +34,7 @@ bash test/openshell-test.sh | tee openshell-offline.tap
 | Model discovery | Exact served model accepted; unserved model, HTTP error and malformed JSON rejected |
 | Managed inference | OpenShell Qwen3.5 default and snapshot exporter, native OVMS graph generation, host compatibility, explicit overrides, persisted selection, fresh-only provisioning, partial deployment refusal, managed OVMS readiness/network/publication, both proxy bypass variables |
 | Model lifecycle | Source/export option roundtrip, coordinated two-agent switch, original environment overridden after restart, token/history preservation, pending-switch retry and conflict rejection, legacy-image preflight, full/scoped uninstall and OpenShell package ownership safeguards |
+| Local-model defaults | Exact Qwen context/output/thinking/sampling/prompt settings, idempotence, explicit overrides and later edits, selection-only isolation, removal on model switch, non-Qwen preservation |
 | CLI safety | Help, invalid runtime, host connect, explicit sandbox deletion consent and host-only deletion flags |
 | Cleanup safeguards | Deletion order, archived records, unowned-resource refusal, pending deletion retaining provider/identity |
 | Test infrastructure | Intermediate assertion failures produce a nonzero suite result; live suite requires explicit opt-in |
@@ -48,6 +49,13 @@ locations may be denied by the sandbox filesystem policy. This directory is
 created with mode 700 without expanding that policy or modifying existing
 databases. The offline startup cases run the real entrypoint with a mock gateway
 and Node's real SQLite/FTS5 support; they do not certify a full gateway chat turn.
+
+`node --test test/model-defaults-test.mjs` also runs independently. Hermes cases
+skip outside its image because they require the pinned bundled Python/YAML
+runtime. In a disposable Hermes image with the current helper and test mounted,
+the same cases validate real YAML roundtrips and Hermes provider normalization
+into request overrides without inference/network access. Config checks are not
+proof of chat quality, latency or model-driven tool use.
 
 ## Opt-in prepared-runner gate
 
@@ -76,6 +84,7 @@ The IR and denied direct-OVMS ports must differ.
 |---|---|
 | Prerequisites | Gateway health, exact model discovery and loopback-only IR publication |
 | Installation | Both images build, sandboxes become Ready, native inference checks pass |
+| Local-model defaults | Disposable network-isolated built Hermes image must run all defaults cases, including native YAML and provider request mapping (no runtime-dependent skips) |
 | Dispatch/idempotence | Status works; repeat installation preserves sandbox identity |
 | Drift prevention | Implicit model changes fail |
 | Boundaries | Non-root runtime, host agent homes/host-only marker/Docker socket absence, exact workspace read/write, IR allowed and direct OVMS connection denied |

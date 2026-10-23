@@ -36,7 +36,7 @@ const id = process.env.HARNESS_SANDBOX_MODEL;
 const config = {
   models: {providers: {ovms: {
     baseUrl: process.env.HARNESS_SANDBOX_ENDPOINT, api: "openai-completions", apiKey: "not-needed",
-    models: [{id, name: id, reasoning: false, input: ["text"], contextWindow: 32768, maxTokens: 4096}]
+    models: [{id, name: id, reasoning: false, input: ["text"]}]
   }}},
   agents: {defaults: {model: {primary: `ovms/${id}`}, workspace: "/sandbox"}},
   gateway: {mode: "local", bind: "loopback", auth: {mode: "token", token: crypto.randomBytes(32).toString("hex")}}

@@ -201,6 +201,12 @@ inference_unchanged() {
   HARNESS_AGENT=openclaw
   openshell_validate_shared_inference
 }
+local_model_defaults() {
+  timeout 120 docker run --rm --pull never --network none --entrypoint /usr/local/bin/node \
+    -e HARNESS_TEST_REQUIRE_HERMES=1 -e HARNESS_TEST_MODEL_CONFIG=/opt/harness/model-config.mjs \
+    -v "$SCRIPT_DIR/test/model-defaults-test.mjs:/opt/test/model-defaults-test.mjs:ro" \
+    agent-harness-hermes-openshell:local --test /opt/test/model-defaults-test.mjs
+}
 
 gate 'prepared gateway and loopback inference are healthy' preflight
 for agent in openclaw hermes; do
@@ -211,6 +217,7 @@ for agent in openclaw hermes; do
   gate "$agent non-root workspace and network boundaries" sandbox_boundaries "$agent"
   gate "$agent stop/start retains config, workspace and inference" restart_persistence "$agent"
 done
+gate 'built image applies Qwen defaults and Hermes request overrides offline' local_model_defaults
 gate 'complete uninstall requires explicit consent' expect_failure 'confirmation requires a TTY|Uninstall cancelled' \
   timeout 30 bash "$SCRIPT_DIR/uninstall.sh" --runtime host < /dev/null
 for agent in openclaw hermes; do
