@@ -26,6 +26,7 @@ install_reboot () {
   echo "@@ATTENTION @@BR"
   echo "@@ATTENTION To cancel: sudo shutdown -c"
   echo "@@ATTENTION @@BR"
+  echo "@@ATTENTION @@CLOSE"
 
   ensure_sudo shutdown -r +$(( delay * 2 )) &&
   sleep infinity
