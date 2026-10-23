@@ -7,3 +7,4 @@
 !openshell/
 !openshell/Dockerfile
 !openshell/agent-start.sh
+!openshell/model-config.mjs

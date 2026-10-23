@@ -431,6 +431,10 @@ run_case 'orphaned provider profile is removed when the provider is absent' remo
 run_case 'profile deletion failure retains ownership record for retry' removal_profile_failure_retains_identity_for_retry
 run_case 'sandbox removal uses the per-agent installation lock' removal_uses_installation_lock
 run_case 'test runner propagates an intermediate assertion failure' runner_failure_propagation
+run_case 'Docker build context includes model configuration helper' bash -c '
+  grep -Fxq "!openshell/model-config.mjs" "$1/.dockerignore"
+  grep -Fxq "COPY openshell/model-config.mjs /opt/harness/model-config.mjs" "$1/openshell/Dockerfile"
+' _ "$SCRIPT_DIR"
 run_case 'installer documents runtime' bash -c 'bash "$1/install.sh" --help | grep -q -- --runtime' _ "$SCRIPT_DIR"
 run_case 'uninstaller documents runtime' bash -c 'bash "$1/uninstall.sh" --help | grep -q -- --runtime' _ "$SCRIPT_DIR"
 run_case 'invalid runtime CLI fails before setup' expect_failure 'Unknown runtime' bash "$SCRIPT_DIR/install.sh" --runtime invalid --non-interactive

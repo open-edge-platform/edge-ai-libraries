@@ -197,59 +197,67 @@ openshell_wait_phase() {
 }
 
 openshell_sync_models() {
-  local agent dir profile model endpoint HARNESS_AGENT
+  local agent model endpoint
   model="${HARNESS_LLM_MODEL:-$(resolve_onboarding_model_hint)}"
   endpoint="http://host.openshell.internal:${HARNESS_IR_PORT}/v1"
   for agent in openclaw hermes; do
-    HARNESS_AGENT="$agent"
-    dir="$(openshell_profile_dir)"
-    [[ -f "$dir/profile.json" ]] || continue
-    openshell_load_profile
-    [[ "$OPENSHELL_MODEL" != "$model" ]] || continue
-    if openshell_resource_exists sandbox; then
-      openshell_assert_owned
-      openshell_agent_exec /usr/bin/test -f /opt/harness/model-config.mjs \
-        || error "Sandbox ${OPENSHELL_NAME} needs a restart-safe image before its model can be changed."
-      openshell_agent_exec /usr/local/bin/node --input-type=module - "$agent" "$model" "$endpoint" select \
-        <"${SCRIPT_DIR}/openshell/model-config.mjs" \
-        || error "Could not persist ${agent}'s model configuration; re-run install without --model."
-      openshell sandbox stop "$OPENSHELL_NAME" -g "$OPENSHELL_GATEWAY" \
-        || error "Could not stop ${agent} for its model update."
-      openshell_wait_phase Stopped
-      openshell sandbox start "$OPENSHELL_NAME" -g "$OPENSHELL_GATEWAY" \
-        || error "Could not restart ${agent}; model transition retained for retry."
-      openshell_wait_phase Ready
-      openshell_agent_exec /usr/local/bin/node -e '
-        const fs = require("node:fs");
-        const [agent, model] = process.argv.slice(1);
-        (async () => {
-          for (let attempt = 0; attempt < 90; attempt++) {
-            const s = JSON.parse(fs.readFileSync(`${process.env.HOME}/.harness-model.json`, "utf8"));
-            if (s.model !== model) throw Error("Sandbox selection did not persist");
-            if (s.applied === true) {
-              if (agent === "openclaw") {
-                const c = JSON.parse(fs.readFileSync(`${process.env.HOME}/.openclaw/openclaw.json`, "utf8"));
-                if (c.agents?.defaults?.model?.primary !== `ovms/${model}` ||
-                    c.models?.providers?.ovms?.models?.[0]?.id !== model)
-                  throw Error("OpenClaw did not apply its selected model after restart");
-              }
-              return;
+    # Lock order is shared inference first, then each agent in this fixed order.
+    # Installation/removal acquire only the per-agent lock, avoiding inversion.
+    with_state_lock "openshell-${agent}" _openshell_sync_agent_model_locked \
+      "$agent" "$model" "$endpoint"
+  done
+}
+
+_openshell_sync_agent_model_locked() {
+  local agent="$1" model="$2" endpoint="$3" dir profile HARNESS_AGENT
+  HARNESS_AGENT="$agent"
+  dir="$(openshell_profile_dir)"
+  [[ -f "$dir/profile.json" ]] || return 0
+  openshell_load_profile
+  [[ "$OPENSHELL_MODEL" != "$model" ]] || return 0
+  if openshell_resource_exists sandbox; then
+    openshell_assert_owned
+    openshell_agent_exec /usr/bin/test -f /opt/harness/model-config.mjs \
+      || error "Sandbox ${OPENSHELL_NAME} needs a restart-safe image before its model can be changed."
+    openshell_agent_exec /usr/local/bin/node --input-type=module - "$agent" "$model" "$endpoint" select \
+      <"${SCRIPT_DIR}/openshell/model-config.mjs" \
+      || error "Could not persist ${agent}'s model configuration; re-run install without --model."
+    openshell sandbox stop "$OPENSHELL_NAME" -g "$OPENSHELL_GATEWAY" \
+      || error "Could not stop ${agent} for its model update."
+    openshell_wait_phase Stopped
+    openshell sandbox start "$OPENSHELL_NAME" -g "$OPENSHELL_GATEWAY" \
+      || error "Could not restart ${agent}; model transition retained for retry."
+    openshell_wait_phase Ready
+    openshell_agent_exec /usr/local/bin/node -e '
+      const fs = require("node:fs");
+      const [agent, model] = process.argv.slice(1);
+      (async () => {
+        for (let attempt = 0; attempt < 90; attempt++) {
+          const s = JSON.parse(fs.readFileSync(`${process.env.HOME}/.harness-model.json`, "utf8"));
+          if (s.model !== model) throw Error("Sandbox selection did not persist");
+          if (s.applied === true) {
+            if (agent === "openclaw") {
+              const c = JSON.parse(fs.readFileSync(`${process.env.HOME}/.openclaw/openclaw.json`, "utf8"));
+              if (c.agents?.defaults?.model?.primary !== `ovms/${model}` ||
+                  c.models?.providers?.ovms?.models?.[0]?.id !== model)
+                throw Error("OpenClaw did not apply its selected model after restart");
             }
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            return;
           }
-          throw Error("Agent startup did not apply the selected model within 180 seconds");
-        })().catch(error => { console.error(error.message); process.exitCode = 1; });
-      ' "$agent" "$model" || error "Agent model did not survive restart; pending transition retained."
-    fi
-    profile="$(node - "$dir/profile.json" "$model" <<'JS'
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+        throw Error("Agent startup did not apply the selected model within 180 seconds");
+      })().catch(error => { console.error(error.message); process.exitCode = 1; });
+    ' "$agent" "$model" || error "Agent model did not survive restart; pending transition retained."
+  fi
+  profile="$(node - "$dir/profile.json" "$model" <<'JS'
 const fs = require("node:fs");
 const p = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 p.model = process.argv[3];
 console.log(JSON.stringify(p));
 JS
-    )" || error "Could not update ${agent}'s profile."
-    atomic_write_file "$dir/profile.json" "$profile"
-  done
+  )" || error "Could not update ${agent}'s profile."
+  atomic_write_file "$dir/profile.json" "$profile"
 }
 
 openshell_validate_managed_backend() {

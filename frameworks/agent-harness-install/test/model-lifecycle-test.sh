@@ -170,6 +170,23 @@ qwen_alias() {
   [[ "$HARNESS_HF_MODEL" == OpenVINO/Qwen3.5-9B-int8-ov ]]
   [[ "$HARNESS_OVMS_EXPORTER" == hf-snapshot && "$HARNESS_LLM_MODEL" == Qwen3.5-9B-int8-ov ]]
 }
+model_sync_locks_agents_without_sandboxes() {
+  fixture
+  profiles
+  mock_inference
+  openshell_resource_exists() { return 1; }
+  with_state_lock() {
+    local lock_name="$1"
+    shift
+    printf 'lock %s\n' "$lock_name" >>"$ACTIONS"
+    "$@"
+    printf 'unlock %s\n' "$lock_name" >>"$ACTIONS"
+  }
+  openshell_ensure_shared_inference
+  cmp "$ACTIONS" <(printf 'lock openshell-inference\nbackend org/new-model\nlock openshell-openclaw\nunlock openshell-openclaw\nlock openshell-hermes\nunlock openshell-hermes\nunlock openshell-inference\n')
+  [[ "$(HARNESS_AGENT=openclaw openshell_load_profile; printf '%s' "$OPENSHELL_MODEL")" == new-model ]]
+  [[ "$(HARNESS_AGENT=hermes openshell_load_profile; printf '%s' "$OPENSHELL_MODEL")" == new-model ]]
+}
 retry_transition() {
   fixture
   profiles
@@ -395,6 +412,7 @@ run_case 'model source hub/exporter/revisions/config survive install reruns' sou
 run_case 'model readback waits for agent startup after sandbox phase becomes Ready' delayed_startup
 run_case 'OVMS serves only the new model while previous downloaded weights remain cached' select_served_model
 run_case 'bare Qwen3.5 model name resolves to the preconfigured OpenVINO source' qwen_alias
+run_case 'model synchronization locks profiles even when sandboxes are absent' model_sync_locks_agents_without_sandboxes
 run_case 'failed switch retains old selection and resumes pending model on rerun' retry_transition
 run_case 'another model cannot overwrite an interrupted transition' pending_conflict
 run_case 'legacy sandbox images fail before shared inference is modified' legacy_image
