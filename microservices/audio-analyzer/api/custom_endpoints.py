@@ -7,7 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, StreamingResponse
 
@@ -26,6 +26,7 @@ from utils.audio_util import save_audio_file
 from utils.config_loader import config
 from utils.latency_store import asr_latency
 from utils.minio_handler import MinioHandler
+from utils.openvino_runtime_validation import _SUPPORTED_ASR_DEVICES
 from utils.session_manager import generate_session_id, resolve_requested_session_id
 from utils.storage_manager import StorageManager
 from utils.subtitle_format import format_srt
@@ -121,10 +122,15 @@ def stream_transcribe_audio(
 # SubRip/SRT, matching the previous release which uploaded a .srt file. Plain
 # text yields zero parsed segments on the VSS side.
 #
-# NOTE: `device`/`model_name` are accepted for request-shape parity but are
-# currently informational only — this service transcribes with its single
-# configured ASR model/device (config.models.asr). Flagged for VSS/infra
-# team coordination if a multi-model picker is required end-to-end.
+# NOTE: `device` and `model_name` are honored, not silently ignored:
+#   - `device` (CPU/GPU/NPU) overrides config.models.asr.device for this
+#     request only, validated and resolved via resolve_asr_device() (same
+#     validation Pipeline already applies to the configured default) before
+#     any work begins. An unsupported value is rejected with 400.
+#   - `model_name`, if supplied, must match the single configured ASR model
+#     (config.models.asr.name) — this service does not support a multi-model
+#     picker, so a mismatched value is rejected with 400 rather than
+#     silently substituted. Omit the field to use the configured model.
 
 @vss_router.get("/models", response_model=AvailableModelsResponse, tags=["VSS API"])
 def vss_available_models():
@@ -144,6 +150,7 @@ def vss_available_models():
 
 @vss_router.post("/transcriptions", response_model=VssTranscriptionResponse, tags=["VSS API"])
 async def vss_transcribe(
+    response: Response,
     request: Annotated[VssTranscriptionForm, Depends()],
     language: Annotated[str | None, Query(description="_(Optional)_ Language hint for transcription.")] = None,
 ):
@@ -164,6 +171,27 @@ async def vss_transcribe(
         raise HTTPException(
             status_code=400,
             detail="Provide 'file' or all of 'minio_bucket', 'video_id' and 'video_name'",
+        )
+
+    # device: reject unsupported literal values outright. A value that is a
+    # supported literal but unavailable/unsupported for the configured
+    # provider (e.g. GPU on a hardware host with no GPU) is still caught
+    # below via resolve_asr_device(), which Pipeline() already calls.
+    requested_device = request.device.strip().upper() if request.device else None
+    if requested_device and requested_device not in _SUPPORTED_ASR_DEVICES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported device '{request.device}'. Supported values: {sorted(_SUPPORTED_ASR_DEVICES)}",
+        )
+
+    # model_name: this service exposes exactly one configured ASR model (see
+    # GET /models) — there is no multi-model picker to route to, so a
+    # mismatched value is rejected rather than silently substituted.
+    if request.model_name and request.model_name != config.models.asr.name:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported model_name '{request.model_name}'. This service only supports "
+            f"the configured model '{config.models.asr.name}' (see GET /models).",
         )
 
     job_id = generate_session_id()
@@ -198,15 +226,8 @@ async def vss_transcribe(
             logger.error("Uploaded file was not persisted at expected path: %s", filepath)
             raise HTTPException(status_code=400, detail="Uploaded file could not be saved")
 
-    if request.model_name and request.model_name != config.models.asr.name:
-        logger.warning(
-            "VSS requested model_name=%s but this service only supports the configured "
-            "model %s; proceeding with the configured model.",
-            request.model_name, config.models.asr.name,
-        )
-
     try:
-        pipeline = Pipeline(session_id=job_id, append_to_session=False)
+        pipeline = Pipeline(session_id=job_id, append_to_session=False, device=requested_device)
         result = await run_in_threadpool(
             pipeline.transcribe,
             SimpleNamespace(audio_filename=filepath, source_type=AudioSource.AUDIO_FILE),
@@ -214,6 +235,7 @@ async def vss_transcribe(
         )
     except Exception:
         logger.exception("VSS transcription failed for job %s", job_id)
+        response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
         return VssTranscriptionResponse(
             status=TranscriptionStatus.FAILED,
             message="Transcription failed",
