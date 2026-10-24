@@ -28,15 +28,26 @@ existing OpenAI-compatible endpoint you already operate (e.g. Ollama, vLLM,
 an internal gateway), with `HARNESS_LLM_ROUTER_API_KEY` as an optional bearer
 token. OVMS is not started in that case, and this installer never starts,
 stops, or health-checks that endpoint (`status` reports it as "routed
-externally"). A model must always be named with `--model` (the installer
-prompts for it on a terminal and fails otherwise).
+externally"). Host mode has no fresh-install default model: name it with
+`--model` or the model environment variables. The installer can reuse a
+previously exported model; otherwise it prompts on a terminal and fails
+non-interactively without a selection.
+
+## Agentic AI Security
+
+Explore [Agentic AI Security](docs/agentic-ai-security/README.md) for security
+controls for agent deployments, starting with
+[Agent Sandboxing using OpenShell](docs/agentic-ai-security/agent-sandboxing.md).
 
 ## How it works
 
-### Install flow
+### Host-mode install flow
 
 `./install.sh` is the only command you run. It prepares the host, brings up
 the inference backend, installs the chosen agent, and wires the two together.
+The diagram below describes host mode; OpenShell's automatic model selection,
+sandbox lifecycle and onboarding are covered in the
+[Agent Sandboxing guide](docs/agentic-ai-security/agent-sandboxing.md).
 
 ```mermaid
 %%{init: {"flowchart": {"wrappingWidth": 420, "nodeSpacing": 40, "rankSpacing": 45, "curve": "basis"}}}%%
@@ -111,6 +122,9 @@ Inference Router sits in front of OVMS (or of an external endpoint), and the
 local containers run on a dedicated Docker network. Published ports bind to
 127.0.0.1 by default; set `HARNESS_ADVERTISED_HOST` (a specific address) or
 `HARNESS_BIND_HOST=0.0.0.0` (all interfaces) to reach them from other machines.
+These LAN-publication overrides apply only to host mode; OpenShell mode
+requires inference ports to remain bound to `127.0.0.1`. The diagram below
+shows the host-mode agent, not an OpenShell sandbox.
 Neither service authenticates inbound requests, and Docker-published ports
 bypass `ufw`, so restrict access with the `DOCKER-USER` iptables chain or bind
 to a specific interface address.
@@ -145,6 +159,58 @@ flowchart TD
     IRC -. "or, when HARNESS_LLM_ROUTER_ENDPOINT is set" .-> EXTR
     REMOTE -. "only when HARNESS_ADVERTISED_HOST or HARNESS_BIND_HOST is set" .-> IRC
     class HOST host
+```
+
+### OpenShell sandbox runtime
+
+For OpenShell, the agent runs in its own non-root sandbox. The attached
+inference provider grants access to IR; managed IR-to-OVMS traffic stays on a
+private Docker network. Agent UI access is forwarded privately on demand.
+See the [Agent Sandboxing guide](docs/agentic-ai-security/agent-sandboxing.md)
+for setup and security details.
+
+```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 420, "nodeSpacing": 40, "rankSpacing": 60, "curve": "basis"}}}%%
+flowchart TD
+    classDef host fill:#EAF3FB,stroke:#0068B5,color:#0A2A43
+    classDef box fill:#FFFFFF,stroke:#0068B5,color:#0A2A43
+    classDef agent fill:#EAF7EE,stroke:#2E7D32,color:#123D17
+    classDef store fill:#FFF6DD,stroke:#B38600,color:#4A3900
+    classDef ext fill:#F3F3F3,stroke:#777777,color:#222222,stroke-dasharray:4 3
+
+    USER["User workstation<br/>OpenShell CLI or privately forwarded UI"]:::ext
+
+    subgraph HOST["Linux host"]
+        direction TB
+        subgraph SANDBOX["OpenShell sandbox: non-root agent"]
+            direction TB
+            AGENT["OpenClaw or Hermes"]:::agent
+            TOOLS["Agent tools and workspace<br/>sandbox filesystem policy"]:::box
+            AGENT --> TOOLS
+        end
+        GATEWAY["OpenShell gateway<br/>lifecycle and policy control"]:::box
+
+        subgraph INFERENCE["Shared inference: host loopback"]
+            direction LR
+            IR["Inference Router<br/>127.0.0.1:8010"]:::box
+            subgraph BACKEND["Private Docker network"]
+                direction LR
+                OVMS["OpenVINO Model Server"]:::box
+                MODEL[("Selected model<br/>GPU when available")]:::store
+                OVMS --> MODEL
+            end
+            IR --> OVMS
+        end
+    end
+
+    EXTERNAL["External inference endpoint<br/>optional route configured on IR"]:::ext
+    EGRESS["Web search, browsing, MCP<br/>additional policy required"]:::ext
+
+    USER -->|"OpenShell connect or UI tunnel"| AGENT
+    GATEWAY -. "creates and controls" .-> SANDBOX
+    AGENT -->|"Attached provider<br/>host.openshell.internal:8010/v1"| IR
+    IR -. "when externally configured" .-> EXTERNAL
+    AGENT -. "not allowed by default" .-> EGRESS
 ```
 
 ## Documentation
@@ -205,6 +271,3 @@ Uninstall is a plain bash script.
 - `scripts/lib/gpu-intel.sh` only detects GPU/compute-runtime readiness; it
   assumes drivers are already provisioned (e.g. via Edge Pack:
   github.com/open-edge-platform/edge-pack) rather than installing them.
-
-
-

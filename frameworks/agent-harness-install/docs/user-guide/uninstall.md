@@ -5,19 +5,70 @@
 
 # Uninstall
 
+## OpenShell profiles
+
+For installation and runtime usage, see the
+[Agent Sandboxing guide](../agentic-ai-security/agent-sandboxing.md).
+
 ```bash
-./uninstall.sh                  # prompts, keeps exported models
+./uninstall.sh --runtime openshell --yes
+```
+
+This removes both installer-owned sandboxes/providers and their chat/workspace
+data, shared IR, managed OVMS and private backend network, model downloads, and
+installer state. An external inference backend is not removed. If the same state
+directory records a host-installed agent, that recorded agent is removed too.
+Back up needed data before consenting. The OpenShell local gateway
+service, Debian CLI package and user state are also removed when this deployment
+installed them (`openshell-owned` receipt). Pre-existing OpenShell installations
+are preserved. Remaining unrelated sandboxes/providers across all workspaces,
+gateway registrations, or another account's running gateway block system-wide
+OpenShell removal. Incomplete or failed resource discovery also blocks removal
+rather than treating unlisted resources as absent.
+
+Failures retain remaining ownership/transition state for retry instead of
+reporting complete cleanup. Legacy installations without an OpenShell ownership
+receipt are not automatically claimed. In OpenShell mode, `--keep-agent-data`
+is rejected because it cannot retain a deleted sandbox's home; back it up
+instead.
+
+Model deletion is the default in both runtime modes. To retain model downloads
+during full uninstall, add `--keep-models`. Other installer state is removed;
+the models and their parent state directory remain. `--delete-models` is still
+accepted for compatibility and explicitly selects the default deletion behavior.
+
+For deliberately scoped removal without removing shared inference/OpenShell:
+
+```bash
+./uninstall.sh --runtime openshell --sandbox-only --harness openclaw --yes
+./uninstall.sh --runtime openshell --sandbox-only --harness hermes --yes
+```
+
+This mode retains `removed-profile.json` for audit and does not uninstall host
+agents. `--harness` selects one sandbox only in this scoped mode; full uninstall
+removes both owned sandbox profiles. The OpenShell prepared-runner test suite
+uses this scoped mode for cleanup.
+
+The uninstaller does not stop separately launched laptop SSH tunnels or local
+port-forwarding commands. Stop those processes separately after uninstall.
+
+## Host installation
+
+```bash
+./uninstall.sh                  # prompts, deletes downloaded models by default
 ./uninstall.sh --yes --delete-models --harness openclaw
+./uninstall.sh --yes --keep-models   # explicitly retain downloaded models
 ./uninstall.sh --yes --keep-agent-data --harness hermes   # keep ~/.hermes (sessions, memories, skills)
 ```
 
 Removes the Inference Router container and, if this install started one, the
-OpenVINO Model Server container (and, for a source build
-via `HARNESS_IR_BUILD_FROM_SOURCE=1`, the locally built Inference Router image), the
+OpenVINO Model Server container, the private backend network, the
 installed agent (its actual package — e.g. `npm
 uninstall -g openclaw`, `uv tool uninstall deepagents-code`, or Hermes's own
 data directory `~/.hermes` — not just its CLI shim), and the
-`~/.agent-harness-install` state directory. Pass `--keep-agent-data` to
+`~/.agent-harness-install` state directory. Owned OpenShell sandboxes and an
+installer-owned OpenShell runtime are removed too. Model deletion is the default;
+`--delete-models` remains a compatibility alias. Pass `--keep-agent-data` to
 preserve Hermes's or dcode's config/sessions/memories/skills instead of
 deleting them. An agent data directory is only deleted if it is an absolute,
 non-symlink path that is not `$HOME` or one of its parents (guarding a
@@ -26,7 +77,7 @@ a warning.
 
 Left in place: Docker, Node.js/nvm, the Intel compute runtime, the Docker
 daemon proxy drop-in (if one was written), the downloaded OVMS and Inference
-Router images, the PATH
-block added to your shell profile, and OpenClaw's own `~/.openclaw` config
+Router images, the PATH block added to your shell profile, and a host-installed
+OpenClaw's own `~/.openclaw` config
 (including the `ovms` provider it was pointed at) — remove those yourself if
 you no longer need them.

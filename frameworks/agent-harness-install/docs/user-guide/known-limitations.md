@@ -5,7 +5,48 @@
 
 # Known Limitations
 
-- OpenClaw onboarding registers the inference endpoint as a custom model
+For sandbox setup, architecture and lifecycle guidance, see
+[Agent Sandboxing](../agentic-ai-security/agent-sandboxing.md), part of
+[Agentic AI Security](../agentic-ai-security/README.md).
+
+- The OpenShell integration currently targets Linux with Docker, OpenShell
+  0.1.5 and OpenClaw/Hermes. Each agent has one independently owned
+  profile; both use shared, loopback-published inference. A fresh OpenShell
+  install automatically provisions managed OVMS/IR and defaults to
+  `Qwen3.5-9B-int8-ov`. Separate inference provisioning is optional:
+  `./install.sh inference --runtime openshell --model <model-id> --non-interactive`.
+  Host Node.js is still required for installer configuration handling.
+  Automatic OpenShell CLI/gateway provisioning requires Debian/Ubuntu with
+  a working systemd user service; other Linux distributions require a manually
+  installed and configured OpenShell 0.1.5.
+- Repeated installs without `--model` preserve the saved model selection and
+  sandbox data rather than silently replacing existing routes. An explicit new
+  `--model` reuses cached files or downloads/converts as needed, reconfigures
+  shared inference and synchronizes both installed agents. This can interrupt
+  active turns. Interrupted changes are recoverable by rerunning without
+  `--model`, but are not atomic across services. Older sandbox images without
+  restart-safe model support are rejected before inference is changed.
+- Sandbox runtime network access initially permits only the attached shared IR
+  endpoint. Web search, external browsing/downloads, package updates, messaging
+  and MCP integrations require explicit additional network policy and any
+  necessary tool dependencies or credentials. Working LLM inference does not
+  establish external web-tool connectivity. The host `mcp`/`skill` helpers
+  reject OpenShell mode rather than modifying the wrong agent.
+- The Hermes messaging gateway is not enabled. Its built-in browser dashboard
+  can run without that gateway, using the Hermes-specific PTY policy and
+  loopback forwarding. The installer does not start the dashboard automatically.
+  Existing Hermes sandboxes need recreation with the new policy to gain this
+  PTY access; back up needed data first.
+- Automatic agent replacement, legacy-image migration and backup/restore
+  workflows are not provided. Normal model changes and sandbox stop/start are
+  supported; they are not image upgrades or migration of host agent data.
+- A sandbox's Ready state or successful chat smoke test does not validate
+  multi-step tool use. Check actual tool effects and exact output contents.
+- The pinned Hermes installer optionally downloads a computer-use driver. Its
+  availability depends on image libraries and upstream installer behavior;
+  this integration does not enable or validate desktop/computer-use workflows.
+
+- Host-mode OpenClaw onboarding registers the inference endpoint as a custom model
   provider (`openclaw config set models.providers.ovms ...`, OpenClaw's own
   documented `models.providers` mechanism — see
   docs/gateway/config-tools/custom-providers.md in
@@ -64,7 +105,8 @@
 - `mcp register` has Hermes's config shape and OpenClaw's `mcp set` command
   built in; other agents need `HARNESS_MCP_REGISTER_CMD` set to a real
   registration script.
-- `HARNESS_OVMS_EXPORTER` defaults to `docker-pull`, which runs OVMS's own
+- `HARNESS_OVMS_EXPORTER` normally defaults to `docker-pull` (the OpenShell
+  Qwen3.5 default uses `hf-snapshot` instead), which runs OVMS's own
   "-py" Docker image (bundles `optimum-cli`) in `--pull` mode to download,
   convert, and quantize a `--model` entirely via Docker — no host Python
   venv, no separate GitHub-fetched script. Three alternatives remain for
@@ -122,14 +164,12 @@
     Python venv, no `optimum-cli` conversion step at all. For HF repos
     already published as ready-to-serve OpenVINO IR + an OVMS MediaPipe
     `graph.pbtxt`. Set `HARNESS_HF_MODEL_REVISION` to pin an exact
-    commit/tag; fails fast if the downloaded repo has no `graph.pbtxt` (it
-    only supports already-converted repos, not raw/un-exported ones). As of
-    this writing, no verified Intel/OpenVINO-owned public HF repo of this
-    exact shape is known to exist (checked the OpenVINO org's own
-    published repos — they ship plain OpenVINO IR, no `graph.pbtxt`); only
-    unverified third-party community uploads do. Bring your own
-    already-verified repo via `HARNESS_HF_MODEL` rather than relying on a
-    public example for this exporter specifically.
+    commit/tag. The exact repository `OpenVINO/Qwen3.5-9B-int8-ov` is
+    supported even though it omits `graph.pbtxt`: the serving image generates
+    its text-generation graph with `--configure` after download, without
+    reconverting weights. Other snapshot repositories must already include
+    `graph.pbtxt`; a missing graph fails installation. This exporter does not
+    convert raw/un-exported model weights.
 
   All four register the resulting model into `config.json` the same way (a
   `model_config_list` entry — confirmed by comparing exporters' output side
@@ -178,10 +218,12 @@
   its own container and cannot reach OVMS via the install host's
   loopback/advertised address or a host-published port that's bound
   loopback-only by default (`resolve_bind_host`). Both containers are
-  recreated (not just restarted) on every `./install.sh` run when they
+  recreated (not just restarted) on host-mode installs when they
   already exist, so a container from an older version of this installer
   (before this network existed) picks it up automatically, along with any
-  other changed GPU/proxy/port configuration, on the next run.
+  other changed GPU/proxy/port configuration, on the next host-mode run.
+  OpenShell installs reuse healthy existing inference on a no-model rerun;
+  an explicit `--model` or pending model transition triggers reconfiguration.
 - Published ports of OVMS (`8000`) and the Inference Router (`8010`) bind to
   `127.0.0.1` by default. `HARNESS_ADVERTISED_HOST=<ip>` binds them to that
   address and prints it in endpoint URLs; `HARNESS_BIND_HOST=0.0.0.0` binds
@@ -189,7 +231,9 @@
   `HARNESS_ADVERTISED_HOST` as well (or use the machine's real address).
   Neither service authenticates inbound requests, and Docker-published ports
   bypass `ufw`; restrict access with the `DOCKER-USER` iptables chain or bind
-  to a specific interface. Only the advertised host is persisted
+  to a specific interface. These LAN-publication overrides apply to host mode;
+  OpenShell mode requires inference publication on `127.0.0.1`.
+  Only the advertised host is persisted
   (`~/.agent-harness-install/advertised-host`); `HARNESS_BIND_HOST` must be
   set again on every run. Binding a specific address requires it to exist on
   the host: an address that is not assigned yet (for example a DHCP lease
@@ -211,9 +255,11 @@
   because OVMS has not published a newer "-py" tag. The export is therefore
   produced by an older OVMS than the one that serves it; this pairing is
   only exercised by `test/full-flow-test.sh` on real hardware.
-- There is no default model: a full install needs `--model` (or
+- Host mode has no fresh-install default model: a full install needs `--model` (or
   `HARNESS_HF_MODEL`), prompted for on a terminal and an error otherwise,
-  unless a model is already exported from an earlier run. With
+  unless a model is already exported from an earlier run. OpenShell mode
+  instead reuses its saved selection or defaults to `Qwen3.5-9B-int8-ov`
+  for a fresh managed deployment. With
   `HARNESS_LLM_ROUTER_ENDPOINT`, `--model`/`HARNESS_LLM_MODEL` names the model
   the external endpoint serves.
 - Docker, Node.js/npm, and Python (venv + PyYAML) are installed/verified by
