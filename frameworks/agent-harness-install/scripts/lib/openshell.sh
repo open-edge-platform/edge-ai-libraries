@@ -404,8 +404,9 @@ openshell_remove_owned_runtime() {
       if (!Array.isArray(g) || g.some(x => x.name !== "openshell" || x.is_remote || x.type !== "local"))
         throw Error("Additional or remote gateways exist; refusing shared OpenShell removal");
     ' "$gateways" || error "OpenShell has non-installer gateway registrations."
+    # Package/state removal is global, even when agent cleanup selected a workspace.
     for kind in sandbox provider; do
-      records="$(openshell "$kind" list -g openshell -o json)" \
+      records="$(openshell "$kind" list --all-workspaces -g openshell -o json)" \
         || error "Cannot check remaining OpenShell ${kind} resources."
       node -e '
         const d = JSON.parse(process.argv[1]), key = process.argv[2] === "sandbox" ? "sandboxes" : "providers";

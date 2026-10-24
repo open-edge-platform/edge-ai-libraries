@@ -41,8 +41,8 @@ bash test/openshell-test.sh | tee openshell-offline.tap
 | Model lifecycle | Source/export option roundtrip, coordinated two-agent switch, original environment overridden after restart, token/history preservation, pending-switch retry and conflict rejection, legacy-image preflight, full/scoped uninstall and OpenShell package ownership safeguards |
 | Local-model defaults | Exact Qwen context/output/thinking/sampling/prompt settings, idempotence, explicit overrides and later edits, selection-only isolation, removal on model switch, non-Qwen preservation |
 | Hermes browser policy | Hermes policy differs from the base only by sandbox-local `/dev/ptmx` and `/dev/pts` write access; installer selects it only for Hermes |
-| CLI safety | Help, invalid runtime, host connect, explicit sandbox deletion consent and host-only deletion flags |
-| Cleanup safeguards | Deletion order, archived records, unowned-resource refusal, pending deletion retaining provider/identity |
+| CLI safety | Help, invalid runtime, missing option values rejected without hanging, host connect rejection, interactive connections without deployment locking, Docker-group reexecution before locking, explicit sandbox deletion consent and host-only deletion flags |
+| Cleanup safeguards | Deletion order, archived records, unowned-resource refusal, pending deletion retaining provider/identity, global runtime removal blocked by sandbox/provider resources across all workspaces and incomplete resource lists |
 | Test infrastructure | Intermediate assertion failures produce a nonzero suite result; live suite requires explicit opt-in |
 
 Each test runs in a separate subshell. Temporary HOME fixtures prevent access

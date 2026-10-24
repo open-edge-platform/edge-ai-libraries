@@ -310,8 +310,12 @@ owned_runtime_fixture() {
     case "$1 ${2:-}" in
       '--version ') printf 'openshell %s\n' "$HARNESS_OPENSHELL_VERSION" ;;
       'gateway list') printf '[{"name":"openshell","type":"local","is_remote":false}]' ;;
-      'sandbox list') printf '{"sandboxes":[]}' ;;
-      'provider list') printf '{"providers":[]}' ;;
+      'sandbox list')
+        [[ "$*" == 'sandbox list --all-workspaces -g openshell -o json' ]] || return 1
+        printf '{"sandboxes":[]}' ;;
+      'provider list')
+        [[ "$*" == 'provider list --all-workspaces -g openshell -o json' ]] || return 1
+        printf '{"providers":[]}' ;;
       *) return 1 ;;
     esac
   }
@@ -366,6 +370,28 @@ runtime_other_workspace() {
   owned_runtime_fixture
   docker() { printf 'openshell-another-workspace--foreign-sandbox\n'; }
   expect_failure 'runtime containers remain' openshell_remove_owned_runtime
+  [[ ! -s "$ACTIONS" && -f "$(harness_state_root)/openshell-owned" ]]
+}
+runtime_global_resource_check() {
+  owned_runtime_fixture
+  local kind="$1" response="$2"
+  OPENSHELL_WORKSPACE=installed-agent-workspace
+  openshell() {
+    case "$1 ${2:-}" in
+      '--version ') printf 'openshell %s\n' "$HARNESS_OPENSHELL_VERSION" ;;
+      'gateway list') printf '[{"name":"openshell","type":"local","is_remote":false}]' ;;
+      'sandbox list' | 'provider list')
+        if [[ "$1" == "$kind" && " $* " == *" --all-workspaces "* ]]; then
+          printf '%s' "$response"
+        elif [[ "$1" == sandbox ]]; then
+          printf '{"sandboxes":[]}'
+        else
+          printf '{"providers":[]}'
+        fi ;;
+      *) return 1 ;;
+    esac
+  }
+  expect_failure 'resources remain' openshell_remove_owned_runtime
   [[ ! -s "$ACTIONS" && -f "$(harness_state_root)/openshell-owned" ]]
 }
 runtime_purge_failure() {
@@ -458,12 +484,82 @@ deployment_lock_serializes_mutations() {
   [[ -f "$HOME/${HARNESS_STATE_DIRNAME}.deployment.lock" ]]
   [[ ! -e "$(harness_state_root)/${HARNESS_STATE_DIRNAME}.deployment.lock" ]]
 }
-read_only_status_skips_deployment_lock() {
-  installer_command_is_read_only --runtime openshell status
-  installer_command_is_read_only status --runtime openshell
-  installer_command_is_read_only --help
-  ! installer_command_is_read_only --model status
-  ! installer_command_is_read_only --runtime openshell inference
+status_and_connect_skip_deployment_lock() {
+  fixture
+  with_deployment_lock() { error "Unexpected deployment lock"; }
+  prepare_installer_prerequisites() { error "Unexpected prerequisite setup"; }
+  status_openshell_agent() { printf 'status\n' >>"$ACTIONS"; }
+  connect_openshell_agent() { printf 'connect %s\n' "$HARNESS_AGENT" >>"$ACTIONS"; }
+  (main --runtime openshell status)
+  (main status --runtime openshell)
+  (main connect --runtime openshell --harness hermes)
+  (main --runtime openshell --harness deepagents-code connect)
+  cmp "$ACTIONS" <(printf 'status\nstatus\nconnect hermes\nconnect deepagents-code\n')
+}
+missing_option_values_fail_promptly() {
+  fixture
+  local option
+  for option in --harness --runtime --model --model-hub --model-config \
+    --model-revision --model-type --model-precision --model-device; do
+    expect_failure "$option requires a value|$option requires host or openshell" \
+      timeout 5 bash "$SCRIPT_DIR/install.sh" "$option"
+  done
+}
+installer_cli_fixture() {
+  export ACTIONS HARNESS_STATE_DIRNAME
+  CLI_ROOT="$HOME/cli-fixture"
+  mkdir -p "$CLI_ROOT/scripts"
+  cp "$SCRIPT_DIR/scripts/install.sh" "$CLI_ROOT/scripts/install.sh"
+  cp -R "$SCRIPT_DIR/scripts/lib" "$CLI_ROOT/scripts/lib"
+}
+connect_works_while_deployment_is_locked() {
+  fixture
+  installer_cli_fixture
+  cat >>"$CLI_ROOT/scripts/lib/openshell.sh" <<'SH'
+connect_openshell_agent() { printf 'connect %s\n' "$HARNESS_AGENT" >>"$ACTIONS"; }
+SH
+  (
+    flock -n 201
+    timeout 5 bash "$CLI_ROOT/scripts/install.sh" --runtime openshell --harness openclaw connect
+    timeout 5 bash "$CLI_ROOT/scripts/install.sh" connect --runtime openshell --harness hermes
+  ) 201>"$HOME/${HARNESS_STATE_DIRNAME}.deployment.lock"
+  cmp "$ACTIONS" <(printf 'connect openclaw\nconnect hermes\n')
+}
+group_refresh_precedes_deployment_lock() {
+  fixture
+  installer_cli_fixture
+  local bin="$HOME/bin"
+  mkdir -p "$bin"
+  printf '#!/usr/bin/env bash\nprintf "startup\\n" >>"$ACTIONS"\n' >"$CLI_ROOT/startup.sh"
+  cat >"$bin/sg" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ "$1" == docker && "$2" == -c ]]
+exec bash -c "$3"
+SH
+  chmod 755 "$bin/sg"
+  cat >>"$CLI_ROOT/scripts/lib/openshell.sh" <<'SH'
+docker() {
+  [[ "${HARNESS_DOCKER_GROUP_REEXEC_DONE:-}" == 1 ]] && return 0
+  printf 'permission denied\n' >&2
+  return 1
+}
+id() {
+  if [[ "${1:-}" == -nG ]]; then printf 'user docker\n'; else command id "$@"; fi
+}
+openshell_ensure_shared_inference() {
+  [[ "$HARNESS_AGENT" == deepagents-code && "$HARNESS_HF_MODEL" == org/reexec ]]
+  # The replacement process must hold a fresh lock during deployment mutation.
+  if flock -n 202; then
+    error "Deployment mutation ran without the deployment lock"
+  fi 202>>"$HOME/${HARNESS_STATE_DIRNAME}.deployment.lock"
+  printf 'mutation\n' >>"$ACTIONS"
+}
+SH
+  PATH="$bin:$PATH" SKIP_DOCKER="" HARNESS_DOCKER_GROUP_REEXEC_DONE="" \
+    timeout 10 bash "$CLI_ROOT/scripts/install.sh" inference --runtime openshell \
+      --harness deepagents-code --model org/reexec --non-interactive --skip-gpu-check
+  cmp "$ACTIONS" <(printf 'startup\nstartup\nmutation\n')
 }
 
 printf 'TAP version 13\n'
@@ -488,6 +584,11 @@ run_case 'owned OpenShell runtime cleanup loads Node before ownership inspection
 run_case 'unrelated sandbox blocks gateway and CLI purge' shared_runtime_refused
 run_case 'pre-existing OpenShell runtime is not adopted or removed' preexisting_runtime
 run_case 'runtime containers in another workspace block OpenShell package removal' runtime_other_workspace
+run_case 'sandbox in another workspace blocks global runtime removal' runtime_global_resource_check sandbox '{"sandboxes":[{"name":"unrelated","workspace":"another"}]}'
+run_case 'provider without a sandbox in another workspace blocks global runtime removal' runtime_global_resource_check provider '{"providers":[{"name":"unrelated","workspace":"another"}]}'
+run_case 'paginated global provider list blocks runtime removal' runtime_global_resource_check provider '{"providers":[],"next_page_token":"more"}'
+run_case 'malformed global resource JSON blocks runtime removal' runtime_global_resource_check sandbox 'not-json'
+run_case 'invalid global resource list schema blocks runtime removal' runtime_global_resource_check provider '{"providers":{}}'
 run_case 'failed OpenShell package purge retains its installation receipt' runtime_purge_failure
 run_case 'sudo authorization fails before stopping the owned gateway' runtime_sudo_authorization_failure
 run_case 'gateway is restored when owned OpenShell package purge fails' runtime_purge_failure
@@ -498,5 +599,8 @@ run_case 'complete cleanup includes all recorded agent profiles' validate_all_pr
 run_case 'all profile ownership is checked before deleting the first sandbox' reject_unowned_profile
 run_case 'host-only cleanup does not require Node to inspect absent sandbox profiles' no_profiles_without_node
 run_case 'deployment mutations serialize on a lock outside the removable state root' deployment_lock_serializes_mutations
-run_case 'read-only installer status and help do not take the deployment lock' read_only_status_skips_deployment_lock
+run_case 'status and interactive connect bypass deployment locks and setup' status_and_connect_skip_deployment_lock
+run_case 'missing installer option values fail promptly with their intended diagnostics' missing_option_values_fail_promptly
+run_case 'connections to different agents work while a deployment mutation holds the lock' connect_works_while_deployment_is_locked
+run_case 'Docker group reexecution precedes deployment locking and retains CLI arguments' group_refresh_precedes_deployment_lock
 finish_tests

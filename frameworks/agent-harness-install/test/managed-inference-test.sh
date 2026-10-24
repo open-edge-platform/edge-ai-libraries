@@ -140,6 +140,7 @@ mock_provisioning() {
 }
 mock_cli() {
   mock_provisioning
+  prepare_installer_prerequisites() { :; }
   prepare_installer_host() { printf 'prepare\n' >>"$ACTIONS"; }
   install_openshell_agent() { printf 'sandbox %s\n' "$HARNESS_AGENT" >>"$ACTIONS"; }
   onboard_openshell_agent() { printf 'onboard\n' >>"$ACTIONS"; }

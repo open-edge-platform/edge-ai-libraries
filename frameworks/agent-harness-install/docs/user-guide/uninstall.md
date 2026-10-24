@@ -21,8 +21,10 @@ directory records a host-installed agent, that recorded agent is removed too.
 Back up needed data before consenting. The OpenShell local gateway
 service, Debian CLI package and user state are also removed when this deployment
 installed them (`openshell-owned` receipt). Pre-existing OpenShell installations
-are preserved. Remaining unrelated sandboxes/providers/gateway registrations or
-another account's running gateway block system-wide OpenShell removal.
+are preserved. Remaining unrelated sandboxes/providers across all workspaces,
+gateway registrations, or another account's running gateway block system-wide
+OpenShell removal. Incomplete or failed resource discovery also blocks removal
+rather than treating unlisted resources as absent.
 
 Failures retain remaining ownership/transition state for retry instead of
 reporting complete cleanup. Legacy installations without an OpenShell ownership

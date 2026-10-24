@@ -159,7 +159,7 @@ maybe_prompt_advertised_host() {
   persist_advertised_host "$reply"
 }
 
-prepare_installer_host() {
+prepare_installer_prerequisites() {
   # Docker/Node.js/Python prerequisites live in startup.sh (so the
   # install/prereq logic stays separated in its own file), but invoked
   # automatically here so the user only ever has to run ./install.sh --
@@ -194,7 +194,9 @@ grained control (--skip-docker/--skip-nodejs/--skip-python)."
   # docker run for OVMS/IR, etc.) don't fail with permission-denied
   # against a group that isn't active in this process yet.
   ensure_docker_group_active "$0" "${original_args[@]}"
+}
 
+prepare_installer_host() {
   prompt_for_model_if_missing
   maybe_prompt_advertised_host
 
@@ -445,6 +447,20 @@ main() {
   export HARNESS_MODEL_PRECISION HARNESS_MODEL_DEVICE HARNESS_MODEL_DOWNLOAD_REVISION HARNESS_HF_MODEL_REVISION
   apply_model_source_defaults
 
+  # Group refresh may exec this script again. Do it before opening the
+  # deployment lock, so the new process cannot inherit and reacquire that lock.
+  case "${positional[0]:-}" in
+    "" | inference) prepare_installer_prerequisites ;;
+  esac
+  case "${positional[0]:-}" in
+    # Interactive connections must not hold a deployment-wide lock for a chat.
+    status | connect) run_installer_command "${positional[@]}" ;;
+    *) with_deployment_lock run_installer_command "${positional[@]}" ;;
+  esac
+}
+
+run_installer_command() {
+  local -a positional=("$@")
   if [[ "${HARNESS_RUNTIME:-host}" == "openshell" ]]; then
     case "${positional[0]:-}" in
       status) status_openshell_agent; exit 0 ;;
@@ -553,26 +569,6 @@ re-run ./install.sh."
   print_done
 }
 
-# Avoid locking help/status reads; every other CLI path serializes with install and uninstall.
-installer_command_is_read_only() {
-  while [[ $# -gt 0 ]]; do
-    case "$1" in
-      --help | -h) return 0 ;;
-      --harness | --runtime | --model | --model-hub | --model-config | --model-revision | \
-      --model-type | --model-precision | --model-device)
-        shift 2 ;;
-      --non-interactive | --skip-gpu-check | --agent | --hf-model) shift ;;
-      --) shift; break ;;
-      *) [[ "$1" == status ]]; return ;;
-    esac
-  done
-  [[ "${1:-}" == status ]]
-}
-
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-  if installer_command_is_read_only "$@"; then
-    main "$@"
-  else
-    with_deployment_lock main "$@"
-  fi
+  main "$@"
 fi
