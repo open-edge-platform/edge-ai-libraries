@@ -3,6 +3,14 @@
 These release notes describe the Vector Retriever microservice. For sample-application
 integration context, see the [Video Search and Summarization release notes](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/video-search-and-summarization/release-notes.html).
 
+## Version 2026.3.0
+
+**Release Date:** TBD
+
+**New:**
+
+- Optional `min_score` on `POST /query`: candidates scoring below it are dropped before the sort and `top_k` cut, so every returned item scores at least `min_score`. Omitting it keeps the previous behaviour. Scores are compared as returned by the backend, so the filter assumes higher is better (inner product or cosine), the same assumption as the existing descending sort.
+
 ## Version 2026.2.0
 
 **Release Date:** August 4, 2026

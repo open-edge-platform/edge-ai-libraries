@@ -90,5 +90,9 @@ values are **forced**, not defaulted, because live ingestion cannot work there.
 embeddings are kept. Set it to `0` to keep everything - a 24/7 camera then
 grows the index and object store without bound.
 
+`LIVE_STREAM_MAX_CONCURRENT` (default `8`, Helm
+`multimodaldataprep.liveStream.maxConcurrent`) caps how many cameras ingest at
+once; registering another returns `503` until one is paused or deleted.
+
 In Summary mode the Pipeline Manager `/streams` routes still exist but return
 `503` because `SEARCH_DATAPREP_ENDPOINT` is `""`. That is expected, not a fault.

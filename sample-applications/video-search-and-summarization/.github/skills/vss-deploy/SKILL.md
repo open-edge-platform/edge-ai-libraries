@@ -110,7 +110,8 @@ If the user wants to index **live RTSP cameras**, route to `--search` or
 `--dual`. Live ingestion is deliberately off in `--summary` (no dataprep) and
 in `--unified` (text-only embedding model, which cannot embed video frames).
 See [references/modes-and-overlays.md](references/modes-and-overlays.md) for the
-`UI_LIVE_STREAMS_FEATURE` / `LIVE_STREAM_ENABLED` / `LIVE_RETENTION_HOURS` knobs.
+`UI_LIVE_STREAMS_FEATURE` / `LIVE_STREAM_ENABLED` / `LIVE_RETENTION_HOURS` /
+`LIVE_STREAM_MAX_CONCURRENT` knobs.
 
 ## Quick deployment flow
 
@@ -302,6 +303,7 @@ and the host-backed `ov_models/` directory are deliberately **preserved**, so a
 | Pipeline Manager API + docs | `…/manager/docs`, health `…/manager/health` |
 | Data Prep docs (search modes) | `http://<HOST_IP>:7890/docs` |
 | Embedding server docs (search modes) | `http://<HOST_IP>:9777/docs` |
+| MCP server (all modes) | `http://<HOST_IP>:12345/mcp` (via the nginx gateway) |
 
 ## Troubleshooting ("why won't vss come up")
 

@@ -19,6 +19,7 @@ import {
   ApiOkResponse,
   ApiCreatedResponse,
   ApiBadRequestResponse,
+  ApiNotFoundResponse,
 } from '@nestjs/swagger';
 import {
   SearchQueryDTO,
@@ -30,6 +31,8 @@ import { SearchStateService } from '../services/search-state.service';
 import { SearchDbService } from '../services/search-db.service';
 import { SearchShimService } from '../services/search-shim.service';
 import { SearchRefreshConfigService } from '../services/search-refresh-config.service';
+import { SearchImageService } from '../services/search-image.service';
+import { SearchConfigService } from '../services/search-config.service';
 import { FeaturesService } from 'src/features/features.service';
 import { lastValueFrom } from 'rxjs';
 
@@ -44,27 +47,48 @@ export class SearchController {
     private $searchShim: SearchShimService,
     private $feature: FeaturesService,
     private $refreshConfig: SearchRefreshConfigService,
+    private $searchImage: SearchImageService,
+    private $searchConfig: SearchConfigService,
   ) {}
 
-  private assertValidSearchInput(reqBody: SearchQueryDTO): boolean {
-    const hasImage =
-      typeof reqBody.image === 'string' && reqBody.image.trim().length > 0;
-    const hasText =
-      typeof reqBody.query === 'string' && reqBody.query.trim().length > 0;
-    if (hasImage && hasText) {
+  private static isNonBlank(value: unknown): value is string {
+    return typeof value === 'string' && value.trim().length > 0;
+  }
+
+  /**
+   * Validate that exactly one search input is given and return the query
+   * image as base64/data URL, or `null` for a text search. An `imageUrl`
+   * is resolved from the object store here, so everything downstream keeps
+   * handling a single inline-image form.
+   */
+  private async resolveSearchImage(
+    reqBody: SearchQueryDTO,
+  ): Promise<string | null> {
+    const hasImage = SearchController.isNonBlank(reqBody.image);
+    const hasImageUrl = SearchController.isNonBlank(reqBody.imageUrl);
+    const hasText = SearchController.isNonBlank(reqBody.query);
+    if (hasImage && hasImageUrl) {
+      throw new BadRequestException(
+        'Provide either an image or an imageUrl, not both.',
+      );
+    }
+    if ((hasImage || hasImageUrl) && hasText) {
       throw new BadRequestException(
         'Provide either a text query or an image, not both.',
       );
     }
-    if (!hasImage && !hasText) {
+    if (!hasImage && !hasImageUrl && !hasText) {
       throw new BadRequestException('Search query cannot be empty.');
     }
-    if (hasImage && !this.$feature.isImageSearchEnabled()) {
+    if ((hasImage || hasImageUrl) && !this.$feature.isImageSearchEnabled()) {
       throw new BadRequestException(
         'Image search is not supported in this deployment mode.',
       );
     }
-    return hasImage;
+    if (hasImageUrl) {
+      return await this.$searchImage.resolveToDataUrl(reqBody.imageUrl!);
+    }
+    return hasImage ? reqBody.image! : null;
   }
 
   @Get('')
@@ -93,6 +117,18 @@ export class SearchController {
     return this.$refreshConfig.getConfig();
   }
 
+  @Get('config')
+  @ApiOperation({
+    summary: 'Get search settings such as the default minimum peak score',
+  })
+  @ApiOkResponse({
+    description:
+      '`minPeakScoreDefault`: minimum peak score used when a query sets none (0 = off)',
+  })
+  getSearchConfig() {
+    return this.$searchConfig.getConfig();
+  }
+
   @Get(':queryId')
   @ApiOperation({ summary: 'Get a search query by ID' })
   @ApiParam({
@@ -102,7 +138,7 @@ export class SearchController {
   })
   @ApiOkResponse({ description: 'Search query details' })
   async getQuery(@Param() params: { queryId: string }) {
-    return await this.$searchDB.read(params.queryId);
+    return await this.$search.getQuery(params.queryId);
   }
 
   @Post('')
@@ -110,8 +146,12 @@ export class SearchController {
   @ApiBody({ type: SearchQueryDTO })
   @ApiCreatedResponse({ description: 'Search query created' })
   @ApiBadRequestResponse({ description: 'Search query is empty or invalid' })
+  @ApiNotFoundResponse({ description: 'imageUrl does not refer to a stored image' })
   async addQuery(@Body() reqBody: SearchQueryDTO) {
-    const hasImage = this.assertValidSearchInput(reqBody);
+    const image = await this.resolveSearchImage(reqBody);
+    const minPeakScore = this.$searchConfig.parseMinPeakScore(
+      reqBody.minPeakScore,
+    );
 
     try {
       let tags: string[] = [];
@@ -126,7 +166,8 @@ export class SearchController {
         searchQuery,
         tags,
         reqBody.timeFilter,
-        hasImage ? reqBody.image : null,
+        image,
+        minPeakScore,
       );
       return query;
     } catch (error) {
@@ -152,7 +193,14 @@ export class SearchController {
     @Param() params: { queryId: string },
     @Body() body?: RefetchBodyDTO,
   ) {
-    const res = await this.$search.reRunQuery(params.queryId, body?.timeFilter);
+    const minPeakScore = this.$searchConfig.parseMinPeakScore(
+      body?.minPeakScore,
+    );
+    const res = await this.$search.reRunQuery(
+      params.queryId,
+      body?.timeFilter,
+      minPeakScore,
+    );
     return res;
   }
 
@@ -161,8 +209,12 @@ export class SearchController {
   @ApiBody({ type: SearchQueryDTO })
   @ApiCreatedResponse({ description: 'Search results' })
   @ApiBadRequestResponse({ description: 'Search query is empty or invalid' })
+  @ApiNotFoundResponse({ description: 'imageUrl does not refer to a stored image' })
   async searchQuery(@Body() reqBody: SearchQueryDTO) {
-    const hasImage = this.assertValidSearchInput(reqBody);
+    const image = await this.resolveSearchImage(reqBody);
+    const minPeakScore = this.$searchConfig.resolveMinPeakScore(
+      this.$searchConfig.parseMinPeakScore(reqBody.minPeakScore),
+    );
 
     const normalized = this.$search.buildTimeFilterRange(reqBody.timeFilter);
     const tags = reqBody.tags
@@ -173,12 +225,13 @@ export class SearchController {
       : [];
     const queryShim: SearchShimQuery = {
       query_id: uuidV4(),
+      min_peak_score: minPeakScore,
     };
     if (tags.length > 0) {
       queryShim.tags = tags;
     }
-    if (hasImage) {
-      queryShim.image_base64 = reqBody.image;
+    if (image) {
+      queryShim.image_base64 = image;
     } else {
       queryShim.query = reqBody.query;
     }
@@ -186,7 +239,13 @@ export class SearchController {
       queryShim.time_filter = normalized.range;
     }
     const res = await lastValueFrom(this.$searchShim.search([queryShim]));
-    return res.data;
+    const data = res.data;
+    // Same join the persisted-query path applies, so a one-off search hit
+    // is playable without a separate GET /videos round trip.
+    for (const body of data?.results ?? []) {
+      body.results = await this.$search.enrichResultsWithVideos(body.results);
+    }
+    return data;
   }
 
   @Patch(':queryId/watch')
@@ -203,9 +262,13 @@ export class SearchController {
       throw new BadRequestException('Watch property is required');
     }
 
+    const minPeakScore = this.$searchConfig.parseMinPeakScore(
+      body.minPeakScore,
+    );
+
     return body.watch
-      ? this.$search.addToWatch(params.queryId)
-      : this.$search.removeFromWatch(params.queryId);
+      ? this.$search.addToWatch(params.queryId, minPeakScore)
+      : this.$search.removeFromWatch(params.queryId, minPeakScore);
   }
 
   @Delete(':queryId')

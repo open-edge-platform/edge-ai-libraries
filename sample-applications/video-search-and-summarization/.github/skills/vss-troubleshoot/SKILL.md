@@ -225,7 +225,8 @@ Common causes:
   updatable.
 - **Concurrency cap.** A `503` on create saying the maximum number of concurrent
   streams is running means dataprep is at `MM_DATAPREP_LIVE_STREAM_MAX_CONCURRENT`
-  (default 8). Pause or delete a camera.
+  (default 8). Pause or delete a camera, or raise `LIVE_STREAM_MAX_CONCURRENT`
+  (Helm `multimodaldataprep.liveStream.maxConcurrent`) and redeploy.
 - **Camera unreachable from the container**, not just from the host. Test from
   inside: `docker exec multimodal-dataprep curl -sv telnet://<camera-host>:554`.
 - **Results vanish after a while.** Expected: `LIVE_RETENTION_HOURS` defaults to

@@ -120,6 +120,9 @@ Update or edit the values in YAML file as follows:
 | `pipelinemanager.env.AUDIO_USE_FULL_TRANSCRIPT_SUMMARY` | Default for audio transcript summarization. When enabled, the full audio transcript is summarized by the LLM and included in the final video summary. Users can override this per-video via the UI toggle. | `true` (default) or `false` |
 | `pipelinemanager.env.PRODUCE_FINAL_SUMMARY` | Default for producing a final video summary. When enabled, chunk summaries are consolidated into a single video summary via map-reduce. When disabled, only per-chunk summaries are generated. Users can override this per-video via the UI toggle. | `true` (default) or `false` |
 | `pipelinemanager.env.SEARCH_DATAPREP_TIMEOUT_MS` | Timeout in milliseconds for search dataprep operations (video embedding pipeline). Increase for large videos or slow hardware. | `600000` (default, 10 minutes) |
+| `pipelinemanager.env.SEARCH_MIN_PEAK_SCORE` and `videosearch.env.SEARCH_MIN_PEAK_SCORE` | Default minimum peak score (0-1) for search; frames below it are dropped at retrieval. A query's `minPeakScore` overrides it. Keep both values equal. | `0` (default, filter off) |
+| `multimodaldataprep.liveStream.maxConcurrent` | Maximum live RTSP cameras ingesting at once. Registering more returns `503`. | `8` (default) |
+| `multimodaldataprep.sdkPipeline.pipelineStallTimeoutS` | Fail a DataPrep video ingestion when no pipeline stage makes progress for this many seconds (for example a GPU hang). `0` disables the watchdog. | `300` (default) |
 | `videoingestion.odModelName` | Name of object detection model (generic YOLO id from the model-download ultralytics hub) used during video ingestion | `yolov8l` |
 | `metricsmanager.image.repository` | Metrics Manager image repository | `docker.io/intel/metrics-manager` |
 | `metricsmanager.image.tag` | Metrics Manager image tag | `2026.2.0-20260715-weekly` |

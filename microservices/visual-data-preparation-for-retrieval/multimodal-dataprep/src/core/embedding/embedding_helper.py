@@ -1217,6 +1217,74 @@ def generate_video_embedding_pipeline(
         raise
 
 
+class PipelineStalledError(RuntimeError):
+    """Raised when pipeline workers stop making progress (e.g. a hung GPU inference)."""
+
+
+class _PipelineHeartbeat:
+    """Monotonic timestamp of the last item handed between pipeline stages."""
+
+    def __init__(self) -> None:
+        self._last = time.monotonic()
+
+    def beat(self) -> None:
+        self._last = time.monotonic()
+
+    @property
+    def last(self) -> float:
+        return self._last
+
+
+class _HeartbeatQueue(queue.Queue):
+    """Inter-stage queue that records a heartbeat on every successful get/put."""
+
+    def __init__(self, maxsize: int, heartbeat: _PipelineHeartbeat) -> None:
+        super().__init__(maxsize=maxsize)
+        self._heartbeat = heartbeat
+
+    def put(self, item, block=True, timeout=None):
+        super().put(item, block, timeout)
+        self._heartbeat.beat()
+
+    def get(self, block=True, timeout=None):
+        item = super().get(block, timeout)
+        self._heartbeat.beat()
+        return item
+
+
+def _raise_if_pipeline_stalled(
+    heartbeat: _PipelineHeartbeat, wait_started: float, stage: str
+) -> None:
+    """Fail the pipeline when no stage has made progress for PIPELINE_STALL_TIMEOUT_S.
+
+    Idle time only counts from when the caller started waiting, so a live source
+    that legitimately produced no frames for a while is never reported as stalled.
+    """
+    limit = settings.PIPELINE_STALL_TIMEOUT_S
+    if limit <= 0:
+        return
+    idle = time.monotonic() - max(heartbeat.last, wait_started)
+    if idle >= limit:
+        raise PipelineStalledError(
+            f"Pipeline made no progress for {idle:.0f}s while {stage} "
+            f"(MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S={limit:g}). A detection or "
+            "embedding inference call is likely hung (for example a GPU hang); check "
+            "device health or run detection/embedding on CPU."
+        )
+
+
+def _put_with_stall_watchdog(
+    q: queue.Queue, item: Any, heartbeat: _PipelineHeartbeat, stage: str
+) -> None:
+    wait_started = time.monotonic()
+    while True:
+        try:
+            q.put(item, timeout=settings.PIPELINE_QUEUE_GET_TIMEOUT_S)
+            return
+        except queue.Full:
+            _raise_if_pipeline_stalled(heartbeat, wait_started, stage)
+
+
 def _process_video_from_memory_simple_pipeline(
     video_source: bytes | str | list[str],
     embedding_client: EmbeddingClient,
@@ -1325,10 +1393,13 @@ def _process_video_from_memory_simple_pipeline(
         all_stream_metadata = extractor.get_metadata()
         logger.info(f"Extracted metadata for all streams: {all_stream_metadata}")
 
-        detection_meta_queue: queue.Queue = queue.Queue(maxsize=settings.PIPELINE_QUEUE_MAXSIZE)
-        embed_sink_queue: queue.Queue = queue.Queue(maxsize=settings.PIPELINE_QUEUE_MAXSIZE)
-        store_queue: queue.Queue = queue.Queue(maxsize=settings.PIPELINE_QUEUE_MAXSIZE)
-        result_queue: queue.Queue = queue.Queue(maxsize=settings.PIPELINE_QUEUE_MAXSIZE)
+        heartbeat = _PipelineHeartbeat()
+        detection_meta_queue: queue.Queue = _HeartbeatQueue(
+            settings.PIPELINE_QUEUE_MAXSIZE, heartbeat
+        )
+        embed_sink_queue: queue.Queue = _HeartbeatQueue(settings.PIPELINE_QUEUE_MAXSIZE, heartbeat)
+        store_queue: queue.Queue = _HeartbeatQueue(settings.PIPELINE_QUEUE_MAXSIZE, heartbeat)
+        result_queue: queue.Queue = _HeartbeatQueue(settings.PIPELINE_QUEUE_MAXSIZE, heartbeat)
         completion_queue: queue.Queue = queue.Queue(
             maxsize=settings.PIPELINE_COMPLETION_QUEUE_MAXSIZE
         )
@@ -1648,7 +1719,12 @@ def _process_video_from_memory_simple_pipeline(
                     logger.info("Shutdown detected while enqueuing batch, exiting loop")
                     break
 
-                detection_meta_queue.put(batch_frame_metadata)
+                _put_with_stall_watchdog(
+                    detection_meta_queue,
+                    batch_frame_metadata,
+                    heartbeat,
+                    f"queueing batch {i} for detection",
+                )
 
                 logger.info(f"detection_meta_queue - queued - {i}")
                 logger.info(
@@ -1671,16 +1747,15 @@ def _process_video_from_memory_simple_pipeline(
             total_wall_time_elapsed,
         )
 
-        try:
-            detection_meta_queue.put(DONE)
-        except queue.Full:
-            logger.error(
-                "Failed to enqueue shutdown signal to detection_meta_queue, it is full. Workers may take up to 3 seconds to shut down."
-            )
+        _put_with_stall_watchdog(
+            detection_meta_queue, DONE, heartbeat, "signalling end of frames to detection"
+        )
 
-        # Wait for the result. Bounded so that a worker that died early surfaces as a
-        # pipeline error instead of leaving the job hanging in "running" forever.
+        # Wait for the result. Bounded so that a worker that died early, or one that
+        # is alive but wedged (e.g. a hung GPU inference), surfaces as a pipeline
+        # error instead of leaving the job hanging in "running" forever.
         pipeline_threads = (detection_thread, embed_thread, store_thread, result_thread)
+        wait_started = time.monotonic()
         while True:
             try:
                 processed_result = completion_queue.get(
@@ -1695,6 +1770,9 @@ def _process_video_from_memory_simple_pipeline(
                         "Pipeline workers exited before reporting completion; "
                         "see worker logs for the originating failure"
                     )
+                _raise_if_pipeline_stalled(
+                    heartbeat, wait_started, "waiting for detection/embedding/storage to finish"
+                )
 
         # Join threads BEFORE closing shm_pool; workers may still hold SHM references.
         detection_thread.join()

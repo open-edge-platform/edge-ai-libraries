@@ -10,6 +10,34 @@
 - **NPU acceleration inactive:** Confirm `/dev/accel/accel0` is available on the host and mapped into the container, set the relevant device variable (`MM_DATAPREP_EMBEDDING_DEVICE` or `MM_DATAPREP_DETECTION_DEVICE`) to `NPU`, and keep `MM_DATAPREP_USE_OPENVINO=true`. Verify the selected model supports NPU inference via the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page.
 - **First NPU run is slow (one-time model compilation):** The first time a model runs on NPU, OpenVINO compiles it to an NPU-specific blob, which takes noticeably longer than CPU/GPU startup. This is expected and happens once per model/configuration. The compiled blob is cached on the `OV_MODELS_DIR` mount (default `/app/ov_models`), so subsequent runs reuse it and start quickly — persist this volume to retain the cache across container restarts.
 
+## Ingestion fails with "Pipeline made no progress"
+
+**Symptom.** A video ingestion request, or a batch job item, fails with an error such as:
+
+```text
+Pipeline made no progress for 300s while waiting for detection/embedding/storage
+to finish (MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S=300). A detection or embedding inference
+call is likely hung (for example a GPU hang); check device health or run
+detection/embedding on CPU.
+```
+
+**Why it happens.** A stall watchdog fails the job when no pipeline stage hands
+an item to the next one for `MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S` seconds
+(default `300`). This usually means a detection or embedding inference call
+never returned, for example after a GPU hang. Without the watchdog the job would
+stay `running` forever.
+
+**Fix.**
+
+- Check the accelerator: look for GPU hang or reset messages in `dmesg`, and
+  restart the container to recover the device.
+- If it keeps happening on one device, run the affected stage on CPU with
+  `MM_DATAPREP_DETECTION_DEVICE=CPU` or `MM_DATAPREP_EMBEDDING_DEVICE=CPU`.
+- If very slow hardware legitimately needs longer between stages, raise
+  `MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S`. `0` disables the watchdog.
+
+Retry the ingestion after the fix.
+
 ## 4K/8K frames overflow the shared-memory block (worker timeout)
 
 **Symptom.** Ingesting a high-resolution (4K/8K) video stalls and the DataPrep

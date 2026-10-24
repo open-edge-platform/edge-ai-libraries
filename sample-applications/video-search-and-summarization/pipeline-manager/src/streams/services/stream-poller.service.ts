@@ -3,7 +3,7 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { SearchEvents } from 'src/events/Pipeline.events';
+import { SearchEvents, StreamEvents } from 'src/events/Pipeline.events';
 import { SocketEvent } from 'src/events/socket.events';
 import { LiveStreamState } from '../models/stream.model';
 import { StreamShimService } from './stream-shim.service';
@@ -196,6 +196,13 @@ export class StreamPollerService implements OnModuleInit, OnModuleDestroy {
         this.$emitter.emit(SearchEvents.EMBEDDINGS_UPDATE);
       }
       this.lastEmbeddingsTotal = embeddingsTotal;
+
+      // Stream tags live only in dataprep; report them so they reach the tags
+      // table behind `GET /tags`, the vocabulary the UIs and MCP offer.
+      const tags = (streams ?? []).flatMap((stream) => stream?.tags ?? []);
+      if (tags.length) {
+        this.$emitter.emit(StreamEvents.TAGS_SEEN, tags);
+      }
     } catch (error) {
       // A camera dropping out is routine and dataprep may restart under us;
       // log the first occurrence of each distinct failure, then stay quiet so

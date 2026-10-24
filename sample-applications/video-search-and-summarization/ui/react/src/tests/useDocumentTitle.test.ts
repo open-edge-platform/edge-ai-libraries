@@ -29,27 +29,27 @@ describe('useDocumentTitle', () => {
     featureSearchSpy = vi.spyOn(config, 'FEATURE_SEARCH', 'get').mockReturnValue(constant.FEATURE_STATE.ON);
     featureSummarySpy = vi.spyOn(config, 'FEATURE_SUMMARY', 'get').mockReturnValue(constant.FEATURE_STATE.ON);
     renderHook(() => useDocumentTitle());
-    expect(document.title).toBe('Intel EGAI Video Search-Summarization');
+    expect(document.title).toBe('Video Search-Summarization');
   });
 
   it('sets title for only search ON', () => {
     featureSearchSpy = vi.spyOn(config, 'FEATURE_SEARCH', 'get').mockReturnValue(constant.FEATURE_STATE.ON);
     featureSummarySpy = vi.spyOn(config, 'FEATURE_SUMMARY', 'get').mockReturnValue(constant.FEATURE_STATE.OFF);
     renderHook(() => useDocumentTitle());
-    expect(document.title).toBe('Intel EGAI Video Search');
+    expect(document.title).toBe('Video Search');
   });
 
   it('sets title for only summary ON', () => {
     featureSearchSpy = vi.spyOn(config, 'FEATURE_SEARCH', 'get').mockReturnValue(constant.FEATURE_STATE.OFF);
     featureSummarySpy = vi.spyOn(config, 'FEATURE_SUMMARY', 'get').mockReturnValue(constant.FEATURE_STATE.ON);
     renderHook(() => useDocumentTitle());
-    expect(document.title).toBe('Intel EGAI Video Summarization');
+    expect(document.title).toBe('Video Summarization');
   });
 
   it('sets default title if both OFF', () => {
     featureSearchSpy = vi.spyOn(config, 'FEATURE_SEARCH', 'get').mockReturnValue(constant.FEATURE_STATE.OFF);
     featureSummarySpy = vi.spyOn(config, 'FEATURE_SUMMARY', 'get').mockReturnValue(constant.FEATURE_STATE.OFF);
     renderHook(() => useDocumentTitle());
-    expect(document.title).toBe('Intel EGAI Video');
+    expect(document.title).toBe('VSS');
   });
 });

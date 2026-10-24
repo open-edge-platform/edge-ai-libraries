@@ -94,6 +94,7 @@ written to `ov_models/model-download-*.log`.
 | `PM_MULTI_FRAME_COUNT` | `12`, may reduce to `6` for non-CPU OVMS VLM | Multi-frame captioning count. |
 | `PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY` | `true` in compose | Enables full-transcript summary injection by default. |
 | `PM_PRODUCE_FINAL_SUMMARY` | `true` | Whether Pipeline Manager produces final summary. |
+| `PM_PUBLIC_BASE_URL` | `http://$HOST_IP:$APP_HOST_PORT` (set by `setup.sh`) | Externally reachable gateway URL used in links Pipeline Manager returns, such as `POST /search/images` `imageUrl`. If empty, it is derived from request `Host`/`X-Forwarded-*` headers. |
 | `HUGGINGFACE_TOKEN`, `HUGGINGFACEHUB_API_TOKEN` | unset | Optional token for gated model download. The model-download service accepts either; vLLM uses `HUGGINGFACE_TOKEN`. |
 
 ## vLLM-specific controls
@@ -149,6 +150,9 @@ written to `ov_models/model-download-*.log`.
 | `AGGREGATION_MAX_RESULTS` | `20` | Aggregated result limit. |
 | `AGGREGATION_INITIAL_K` | `1000` | Initial vector search K. |
 | `AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS` | `0` | Context seek offset. |
+| `LIVE_STREAM_MAX_CONCURRENT` | `8` | Maximum live RTSP streams ingesting at once (`MM_DATAPREP_LIVE_STREAM_MAX_CONCURRENT` in `multimodal-dataprep`). Further registrations return `503`. |
+| `MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S` | `300` | Fails a DataPrep video ingestion when no pipeline stage makes progress for this many seconds (for example a GPU hang), instead of leaving it in progress forever. `0` disables the watchdog. |
+| `SEARCH_MIN_PEAK_SCORE` | `0` | Default minimum peak score (0-1) for search; frames below it are dropped at retrieval. `0` disables the filter. Passed to `pipeline-manager` and `video-search`; a request's `minPeakScore` overrides it. |
 
 ## UI and telemetry controls
 

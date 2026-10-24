@@ -9,11 +9,6 @@ ENV PYTHONUNBUFFERED=1 \
     POETRY_HOME="/opt/poetry" \
     POETRY_VIRTUALENVS_IN_PROJECT=true \
     POETRY_NO_INTERACTION=1 \
-    # Keep pip/setuptools out of the runtime venv: they are only needed at
-    # build time, and pip vendors an SBOM that reports vulnerable versions of
-    # packages it does not actually ship as importable code.
-    POETRY_VIRTUALENVS_OPTIONS_NO_PIP=true \
-    POETRY_VIRTUALENVS_OPTIONS_NO_SETUPTOOLS=true \
     SETUP_PATH="/opt/projsetup" \
     VENV_PATH="/opt/projsetup/.venv"
 

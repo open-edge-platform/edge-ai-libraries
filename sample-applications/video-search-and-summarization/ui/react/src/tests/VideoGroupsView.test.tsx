@@ -721,4 +721,85 @@ describe('VideoGroupsView Component', () => {
       expect(relevanceScores[2]).toHaveTextContent('Relevance Score: 0.500');
     });
   });
+
+  describe('Group by camera / video', () => {
+    const storeWith = (results: SearchResult[], sortBy: 'relevance' | 'newest' | 'oldest') =>
+      configureStore({
+        reducer: {
+          search: (
+            state = {
+              searchQueries: [
+                {
+                  queryId: 'q',
+                  query: 'q',
+                  watch: false,
+                  results,
+                  queryStatus: 'idle' as any,
+                  tags: [],
+                  createdAt: '',
+                  updatedAt: '',
+                  topK: 10,
+                  sortBy,
+                },
+              ],
+              unreads: [],
+              selectedQuery: 'q',
+              triggerLoad: false,
+              suggestedTags: [],
+            },
+            _action,
+          ) => state,
+          videos: (state = { videos: [], status: 'ready' as any }, _action) => state,
+          streams: (state = { streams: [{ stream_id: 'cam-1', stream_name: 'Front Door' }] }, _action) => state,
+        },
+      });
+
+    const live = (id: string, observedAt: string, score: number) =>
+      createMockSearchResult({
+        id,
+        streamId: 'cam-1',
+        timeSource: 'live',
+        observedAt,
+        video: undefined as any,
+        metadata: { ...createMockSearchResult().metadata, video_id: 'cam-1', relevance_score: score },
+      });
+    const upload = (id: string, videoId: string, name: string, observedAt: string, score: number) =>
+      createMockSearchResult({
+        id,
+        timeSource: 'upload',
+        observedAt,
+        video: { ...createMockSearchResult().video, videoId, name },
+        metadata: { ...createMockSearchResult().metadata, video_id: videoId, relevance_score: score },
+      });
+
+    it('groups live hits by camera name and uploads by video, most recent group first', () => {
+      const results = [
+        upload('u1', 'video-1', 'Clip A', '2026-01-01T10:00:00Z', 0.9),
+        live('l1', '2026-01-03T10:00:00Z', 0.5),
+        upload('u2', 'video-2', 'Clip B', '2026-01-02T10:00:00Z', 0.8),
+        live('l2', '2026-01-04T10:00:00Z', 0.4),
+      ];
+      renderWithProviders(<VideoGroupsView groupBy='camera' />, storeWith(results, 'newest'));
+
+      expect(screen.getByText('Results by Camera / Video')).toBeInTheDocument();
+      const groups = screen.getAllByTestId('result-group');
+      const headings = groups.map((group) => group.querySelector('h3')?.textContent);
+      expect(headings[0]).toMatch(/^Front Door.*Live.*2 results/);
+      expect(headings[1]).toMatch(/^Clip B.*Video.*1 results/);
+      expect(headings[2]).toMatch(/^Clip A.*Video.*1 results/);
+
+      // Newest first inside the group: 0.4 (Jan 4) before 0.5 (Jan 3).
+      const frontDoor = groups[0].textContent ?? '';
+      expect(frontDoor.indexOf('0.400')).toBeLessThan(frontDoor.indexOf('0.500'));
+    });
+
+    it('labels live hits with capture time and uploads with upload time and offset', () => {
+      const u1 = upload('u1', 'video-1', 'A', '2026-01-01T10:00:05Z', 0.9);
+      u1.video = { ...u1.video, createdAt: '2026-01-01T10:00:00Z' };
+      const results = [live('l1', '2026-01-03T10:00:00Z', 0.5), u1];
+      renderWithProviders(<VideoGroupsView groupBy='camera' />, storeWith(results, 'relevance'));
+      const labels = screen.getAllByTestId('observed-time').map((el) => el.textContent);
+      expect(labels).toEqual(['Captured {{time}}', 'Uploaded {{time}} · at {{offset}}']);
+    });
+  });
 });

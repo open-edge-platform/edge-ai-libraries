@@ -16,6 +16,8 @@ services:
             SEARCH_DATAPREP_ENDPOINT: http://${MM_DATAPREP_HOST:-multimodal-dataprep}:8000
             SEARCH_FEATURE: "FEATURE_ON"
             VS_INDEX_NAME: ${VS_INDEX_NAME}
+            # Default minimum peak score for searches (0-1, 0 = off)
+            SEARCH_MIN_PEAK_SCORE: ${SEARCH_MIN_PEAK_SCORE:-0}
 
     video-search:
         image: ${REGISTRY:-}video-search:${TAG:-latest}
@@ -62,6 +64,8 @@ services:
             AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS: ${AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS:-0}
             AGGREGATION_PREFER_FULL_FRAME_SEEK: ${AGGREGATION_PREFER_FULL_FRAME_SEEK:-true}
             AGGREGATION_FULL_FRAME_SEEK_BAND: ${AGGREGATION_FULL_FRAME_SEEK_BAND:-0.06}
+            # Default minimum peak score for direct callers (Pipeline Manager always sends one)
+            SEARCH_MIN_PEAK_SCORE: ${SEARCH_MIN_PEAK_SCORE:-0}
         restart: unless-stopped
         volumes:
             - '${VS_WATCHER_DIR:-/dev/null}:/tmp/watcher-dir'
@@ -120,6 +124,7 @@ services:
             MM_DATAPREP_DETECTION_WORKER_THREADS: ${SDK_DETECTION_WORKER_THREADS:-2}
             MM_DATAPREP_EMBED_WORKER_THREADS: ${SDK_EMBED_WORKER_THREADS:-2}
             MM_DATAPREP_PIPELINE_QUEUE_GET_TIMEOUT_S: ${SDK_PIPELINE_QUEUE_GET_TIMEOUT_S:-1.0}
+            MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S: ${MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S:-300}
             MM_DATAPREP_SAVE_RUNTIME_PIPELINE_STATS: ${SAVE_RUNTIME_PIPELINE_STATS:-false}
             MM_DATAPREP_ENABLE_TRACING: ${SDK_ENABLE_TRACING:-false}
             MM_DATAPREP_VIDEO_FRAME_DECODER_WORKERS: ${VIDEO_FRAME_DECODER_WORKERS:-2}
@@ -136,8 +141,11 @@ services:
             # 0 (keep forever): a live stream writes continuously, so an
             # unbounded index is a guaranteed disk-exhaustion path in a demo
             # deployment. Set LIVE_RETENTION_HOURS=0 to keep everything.
+            # LIVE_STREAM_MAX_CONCURRENT caps simultaneously ingesting cameras;
+            # further registrations return 503.
             MM_DATAPREP_LIVE_STREAM_ENABLED: ${LIVE_STREAM_ENABLED:-true}
             MM_DATAPREP_LIVE_RETENTION_HOURS: ${LIVE_RETENTION_HOURS:-24}
+            MM_DATAPREP_LIVE_STREAM_MAX_CONCURRENT: ${LIVE_STREAM_MAX_CONCURRENT:-8}
 
             # Live-stream registry persistence (reuses the shared PostgreSQL
             # instance; the registry is a separate `live_streams` table).

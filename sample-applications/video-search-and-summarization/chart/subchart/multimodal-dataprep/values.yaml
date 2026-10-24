@@ -187,6 +187,8 @@ sdkPipeline:
   detectionWorkerThreads: 2
   embedWorkerThreads: 2
   pipelineQueueGetTimeoutS: 1.0
+  # Fail an ingestion when no pipeline stage makes progress for this many seconds (e.g. GPU hang). 0 disables.
+  pipelineStallTimeoutS: 300
   saveRuntimePipelineStats: false
   enableTracing: false
   videoFrameDecoderWorkers: 2
@@ -204,6 +206,9 @@ liveStream:
   # Delete embeddings and media older than this many hours. 0 keeps everything
   # (unbounded index growth); 24h is a safe default for continuous live streams.
   retentionHours: 24
+  # Maximum simultaneously ingesting streams (>= 1). Each running stream holds
+  # decode/detect/embed threads; further registrations return 503.
+  maxConcurrent: 8
 
 minioServer:
   name: minio-server

@@ -73,6 +73,7 @@ The table below lists the core configuration knobs. `setup.sh` seeds defaults, b
 | `MM_DATAPREP_DETECTION_WORKER_THREADS` | Optional | `2` | Local thread count used by object-detection worker stage. |
 | `MM_DATAPREP_EMBED_WORKER_THREADS` | Optional | `2` | Local thread count used by embedding worker stage. |
 | `MM_DATAPREP_PIPELINE_QUEUE_GET_TIMEOUT_S` | Optional | `1.0` | Timeout in seconds for pipeline queue reads before retry loops. |
+| `MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S` | Optional | `300` | Fails a video ingestion when no pipeline stage makes progress for this many seconds (for example a detection or embedding inference hung by a GPU hang), instead of leaving the job `running` forever. `0` disables the watchdog. |
 | `MM_DATAPREP_SAVE_RUNTIME_PIPELINE_STATS` | Optional | `false` | Persist batch/stream runtime stats JSON artifacts for debugging and profiling. |
 | `MM_DATAPREP_ENABLE_TRACING` | Optional | `false` | Enables trace emission for decode/detect/embed/store stages. |
 | `MM_DATAPREP_VIDEO_FRAME_DECODER_WORKERS` | Optional | `2` | Number of decoder workers used in frame extraction utilities. |

@@ -122,13 +122,28 @@ curl -sS -X POST http://localhost:12345/manager/search/query \
   | python3 -m json.tool
 ```
 
+Search by image (`--search`/`--dual` only). Upload the image once, then pass its
+URL instead of `query`:
+
+```bash
+IMG=$(curl -sS -F image=@query.jpg http://localhost:12345/manager/search/images)
+curl -sS -X POST http://localhost:12345/manager/search/query \
+  -H 'Content-Type: application/json' \
+  -d "{\"imageUrl\":\"$(echo "$IMG" | jq -r .imageUrl)\"}" | python3 -m json.tool
+curl -sS -X DELETE "http://localhost:12345/manager/search/images/$(echo "$IMG" | jq -r .imageId)"
+```
+
+Only images stored by that upload endpoint are accepted; other URLs return 400.
+
 Managed query lifecycle:
 
 - `POST /manager/search` creates and runs a saved query.
 - `GET /manager/search/{queryId}` fetches it.
 - `POST /manager/search/{queryId}/refetch` reruns it, optionally with `{ "timeFilter": ... }`.
-- `PATCH /manager/search/{queryId}/watch` with `{ "watch": true }` enables watch updates.
+- `POST /manager/search/{queryId}/refetch` also takes `minPeakScore` (0-1), saved on the query.
+- `PATCH /manager/search/{queryId}/watch` with `{ "watch": true }` enables watch updates; add `"minPeakScore": 0.3` to gate every watched refresh at that score (saved on the query; a changed value re-runs it). Out-of-range values return 400.
 - `GET /manager/search/watched` lists watched queries.
+- Each returned result carries `observedAt` (UTC), `timeSource` (`live` = camera capture time, `upload` = upload time + frame offset) and, for live hits, `streamId`; sort or group on these client-side for a timeline.
 
 Direct search microservice (bypasses Pipeline Manager) accepts a list at `POST http://localhost:7890/query`:
 

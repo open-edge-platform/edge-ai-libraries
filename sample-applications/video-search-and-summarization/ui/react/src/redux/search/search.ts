@@ -17,6 +17,8 @@ export interface SearchQueryDTO {
   image?: string;
   tags?: string;
   timeFilter?: TimeFilterSelection | null;
+  /** Minimum peak score (0-1); 0 disables the filter. */
+  minPeakScore?: number;
 }
 
 export interface SearchShimQuery {
@@ -83,7 +85,22 @@ export interface SearchResult {
   page_content: string;
   type: string;
   video: Video;
+  /**
+   * Wall-clock time (ISO-8601) of the hit's peak frame, set by Pipeline Manager:
+   * capture time for live hits, upload time plus offset for uploaded videos.
+   */
+  observedAt?: string;
+  /** Basis of `observedAt`: live capture time or upload time. */
+  timeSource?: 'live' | 'upload';
+  /** Live stream (camera) id; absent for uploaded videos. */
+  streamId?: string;
 }
+
+/** Result ordering: by relevance (server order) or by `observedAt`. */
+export type ResultSortBy = 'relevance' | 'newest' | 'oldest';
+
+/** Result grouping: flat list, by tag, or by camera/video source. */
+export type ResultGroupBy = 'none' | 'tag' | 'camera';
 
 export enum SearchQueryStatus {
   IDLE = 'idle',
@@ -102,6 +119,8 @@ export interface SearchQuery {
   queryStatus: SearchQueryStatus;
   tags: string[];
   timeFilter?: TimeFilterSelection | null;
+  /** Minimum peak score the query searches with; 0 = no filtering. */
+  minPeakScore?: number | null;
   createdAt: string;
   updatedAt: string;
   errorMessage?: string;
@@ -111,11 +130,12 @@ export interface SearchQuery {
 export interface SearchQueryUI extends SearchQuery {
   topK: number;
   /**
-   * Per-query "group results by tag" view toggle. Must not leak across queries.
-   * Optional on construction; the slice defaults it to `false` in every
-   * query-creation path, and all reads coerce with `Boolean(...)`.
+   * Per-query result grouping. Must not leak across queries. Optional on
+   * construction; reads treat a missing value as `'none'`.
    */
-  showVideoGroups?: boolean;
+  groupBy?: ResultGroupBy;
+  /** Per-query result ordering; reads treat a missing value as `'relevance'`. */
+  sortBy?: ResultSortBy;
 }
 
 /**
@@ -132,6 +152,12 @@ export interface SearchRefreshConfig {
   maxQueriesPerTick: number;
 }
 
+/** Search settings resolved by the pipeline manager (`GET /search/config`). */
+export interface SearchConfig {
+  /** Default minimum peak score (SEARCH_MIN_PEAK_SCORE); 0 = filter off. */
+  minPeakScoreDefault: number;
+}
+
 export interface SearchState {
   searchQueries: SearchQueryUI[];
   suggestedTags: string[];
@@ -139,4 +165,5 @@ export interface SearchState {
   selectedQuery: string | null;
   triggerLoad: boolean;
   refreshConfig?: SearchRefreshConfig | null;
+  searchConfig?: SearchConfig | null;
 }
