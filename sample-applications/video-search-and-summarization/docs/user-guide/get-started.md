@@ -111,8 +111,8 @@ Before running the application, you need to set several environment variables:
       | Variable | Mode | Purpose |
       | -------- | ---- | ------- |
       | `VLM_MODEL_NAME` | Summary, Dual UI, Unified UI | VLM model for video captioning and summarization. |
-      | `ENABLED_WHISPER_MODELS` | Summary, Dual UI, Unified UI | Whisper model(s) for audio analysis. |
       | `OD_MODEL_NAME` | Summary, Dual UI, Unified UI | YOLO model for object detection during video ingestion. |
+      | `ASR_MODEL` | Summary, Dual UI, Unified UI | Audio Analyzer transcription model. Only Whisper variants are supported: `whisper-{tiny,base,small,medium,large}`. |
       | `MULTIMODAL_EMBEDDING_MODEL` | Search, Dual UI | Multimodal model for generating video frame embeddings. |
       | `TEXT_EMBEDDING_MODEL` | Unified UI | Text embedding model for generating summary text embeddings. |
       | `OVMS_LLM_MODEL_NAME` | _(Optional)_ Summary, Dual UI, or Unified UI | LLM for OVMS-based final summary generation. When set and different from `VLM_MODEL_NAME`, enables split-model mode (separate VLM for captioning, LLM for summarization). |
@@ -136,15 +136,13 @@ Before running the application, you need to set several environment variables:
 
       # When ENABLE_VLLM=true, vLLM is the only inference backend and setup.sh ignores OVMS_LLM_MODEL_NAME.
 
-      # Model used by Audio Analyzer service. Only Whisper models variants are supported.
-      # Common Supported models: tiny.en, small.en, medium.en, base.en, large-v1, large-v2, large-v3.
-      # You can provide just one or comma-separated list of models.
-      export ENABLED_WHISPER_MODELS="tiny.en,small.en,medium.en"
-
       # Object detection model used for Video Ingestion Service. Only generic
       # YOLO models supported by the model-download ultralytics hub are
       # supported (e.g. yolov8l, yolov8s).
       export OD_MODEL_NAME="yolov8l"
+
+      # Audio Analyzer transcription model. Only Whisper variants are supported.
+      export ASR_MODEL="whisper-base"  # whisper-{tiny,base,small,medium,large}
       ```
 
      **Required in `--search` and `--summary --search` mode:**
