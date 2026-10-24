@@ -1,5 +1,59 @@
 // SPDX-FileCopyrightText: Copyright (C) 2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-// Package api exposes the HTTP surface and wires routes to handlers.
 package api
+
+import (
+	"github.com/gin-gonic/gin"
+
+	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/api/common"
+	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/api/handler"
+	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/record"
+	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/replay"
+	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/stream"
+)
+
+// NewRouter builds the HTTP engine with the API mounted under /v1. version,
+// buildNumber, and buildDate are reported by the Service status API.
+func NewRouter(buffers stream.Bufferer, recordings *record.Service, replays replay.Replayer, version, buildNumber, buildDate string) *gin.Engine {
+	router := gin.New()
+	// adding global middlewares
+	router.Use(gin.Logger(), common.Recovery(), common.BodyLimit())
+	v1 := router.Group("/v1")
+
+	status := handler.StatusHandler{Version: version, BuildNumber: buildNumber, BuildDate: buildDate}
+	v1.GET("/status", status.Status)
+
+	streams := handler.StreamHandler{Buffers: buffers}
+	streamRoutesWithID := v1.Group("/streams/:stream-id", common.RequireID("stream-id", "stream_not_found", "stream not found"))
+
+	v1.POST("/streams", streams.Create)
+	v1.GET("/streams", streams.List)
+	streamRoutesWithID.GET("", streams.Get)
+	streamRoutesWithID.DELETE("", streams.Delete)
+	streamRoutesWithID.PUT("/buffer", streams.UpdateBuffer)
+
+	records := handler.RecordHandler{Records: recordings}
+	recordRoutesWithID := v1.Group("/records/:recording-id", common.RequireID("recording-id", "recording_not_found", "recording not found"))
+
+	v1.POST("/records/start", records.Start)
+	v1.POST("/records/stop", records.Stop)
+	v1.GET("/records", records.List)
+	recordRoutesWithID.GET("", records.Get)
+	recordRoutesWithID.DELETE("", records.Delete)
+
+	replayer := handler.ReplayHandler{Replays: replays}
+	requireRecordingID := common.RequireID("recording-id", "recording_not_found", "recording not found")
+	replayRoutesWithID := v1.Group("/replays/:recording-id", requireRecordingID)
+
+	replayRoutesWithID.GET("/frame", replayer.Frame)
+	replayRoutesWithID.GET("/frame/url", replayer.FrameURL)
+	replayRoutesWithID.GET("/clip", replayer.Clip)
+	replayRoutesWithID.GET("/clip/url", replayer.ClipURL)
+	v1.GET("/media/:recording-id/:file", requireRecordingID, replayer.Media)
+
+	// Serving Swagger UI
+	router.GET("/docs/v1/*any", handler.ServeSwaggerUI)
+
+	return router
+}
