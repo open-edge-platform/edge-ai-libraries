@@ -207,7 +207,7 @@ EOF
     return 1
   }
   chmod a+rx "$installer_bin"
-  echo "Installer reconstructed at $installer_bin"
+  echo "Installer reconstructed at ${installer_bin/#"$HOME"/"~"}"
 
   # reconstruct bash completion
   local completion_script="$HOME/.local/share/bash-completion/completions/$installer_name"
@@ -216,7 +216,7 @@ EOF
     echo "Failed to write to $completion_script" >&2
     return 1
   }
-  echo "bash completion created at $completion_script"
+  echo "bash completion created at ${completion_script/#"$HOME"/"~"}"
 
   # reconstruct skills
   local skill_file="$HOME"/.agents/skills/$installer_name/SKILL.md
@@ -225,7 +225,7 @@ EOF
     echo "Failed to write to $skill_file" >&2
     return 1
   }
-  echo "skill written to $skill_file"
+  echo "skill written to ${skill_file/#"$HOME"/"~"}"
 }
 
 subcommand_resume () {
