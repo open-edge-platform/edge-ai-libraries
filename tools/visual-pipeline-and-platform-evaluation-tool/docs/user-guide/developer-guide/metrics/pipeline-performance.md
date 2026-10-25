@@ -79,11 +79,11 @@ Browser (EventSource) → Redux store → Latency chart components
 
 1. **gst_runner.py** — the subprocess entry point that wraps GStreamer execution. Its `gst_log_bridge()`
    intercepts lines starting with `latency_tracer_pipeline_interval,` and re-emits them at INFO level.
-2. **PipelineRunner** — the parent-process orchestrator reads each stdout line in a tight loop. When a
+1. **PipelineRunner** — the parent-process orchestrator reads each stdout line in a tight loop. When a
    latency line is detected, `_parse_and_record_latency_sample()` extracts the numeric fields into a
    `LatencyTracerSample` dataclass and calls `_push_latency_sample()`.
-3. **metrics-manager** — receives an HTTP POST with a `pipeline_latency` measurement (fields: `avg_ms`,
+1. **metrics-manager** — receives an HTTP POST with a `pipeline_latency` measurement (fields: `avg_ms`,
    `min_ms`, `max_ms`, `latency_ms`; tags: `stream_id`, `job_id`). It stores the sample and pushes it
    to connected SSE clients.
-4. **UI (browser)** — an `EventSource` connection to `/metrics/stream` dispatches incoming messages to
+1. **UI (browser)** — an `EventSource` connection to `/metrics/stream` dispatches incoming messages to
    the Redux store. The latency chart components render avg / min / max over time.

@@ -111,7 +111,7 @@ EOF
   local device=$(ensure_select_device "$@")
   configure_loss_prevention_options "$device" "$@" --lp   # --lp as default
 
-  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
   echo "@@HIGHLIGHT $installer_name start --od"
   echo "@@HIGHLIGHT $installer_name start --oc"
   echo "@@HIGHLIGHT $installer_name start --age"

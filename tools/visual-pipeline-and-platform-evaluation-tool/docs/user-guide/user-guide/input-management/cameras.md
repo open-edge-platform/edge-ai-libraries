@@ -22,9 +22,9 @@ you must configure it correctly:
 
 1. **Enable the ONVIF service** on the camera. Refer to the camera manufacturer's documentation for
    instructions on how to do this.
-2. **Create an ONVIF media profile** on the camera, defining the desired stream settings (resolution,
+1. **Create an ONVIF media profile** on the camera, defining the desired stream settings (resolution,
    encoding, frame rate, and so on).
-3. **Connect the camera to the same subnet** as the host machine running ViPPET. The Sensor Manager
+1. **Connect the camera to the same subnet** as the host machine running ViPPET. The Sensor Manager
    service uses multicast to find cameras, so the camera must be reachable within the local network
    segment.
 
@@ -43,8 +43,8 @@ button appears next to the camera entry in the *Cameras* tab.
 To authorize a camera:
 
 1. Click the *Authorize* button next to the camera.
-2. Enter the camera's *Username* and *Password*.
-3. Confirm. If the credentials are accepted, the camera status changes to *Authorized*.
+1. Enter the camera's *Username* and *Password*.
+1. Confirm. If the credentials are accepted, the camera status changes to *Authorized*.
 
 ![Camera Authentication](../../_assets/ViPPET-UI-Cameras-Auth-light.png)
 

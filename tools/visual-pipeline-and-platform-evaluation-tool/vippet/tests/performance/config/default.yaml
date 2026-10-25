@@ -86,9 +86,6 @@ metrics:
 
 # Results configuration
 results:
-  # Output directory for benchmark results
-  output_dir: "./results"
-
   # Export formats
   formats:
     - json

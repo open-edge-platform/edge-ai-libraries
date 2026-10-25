@@ -54,10 +54,10 @@ When the test completes, the application reports:
 You can test multiple pipelines running concurrently to simulate a realistic multi-workload scenario.
 
 1. Select a pipeline from the list.
-2. Click *+ Add Pipeline* to add additional pipelines.
-3. Configure the number of streams for each pipeline independently.
-4. Set shared execution options (output mode, max runtime).
-5. Click *Run performance test*.
+1. Click *+ Add Pipeline* to add additional pipelines.
+1. Configure the number of streams for each pipeline independently.
+1. Set shared execution options (output mode, max runtime).
+1. Click *Run performance test*.
 
 While testing, real-time system metrics are displayed in the dashboard. The application reports *Total FPS*
 and *Per Stream FPS* metrics across all pipelines combined, and provides the output videos from the test

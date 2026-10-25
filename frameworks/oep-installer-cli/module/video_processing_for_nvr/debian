@@ -73,7 +73,7 @@ ov.save_model(ppp.build(), "modified_yolov8n/yolov8n.xml")
   local device=$(ensure_select_device "$@")
   echo "$device" > "$workspace"/.device
 
-  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
   echo "@@HIGHLIGHT $installer_name install|start [--gpu|npu]"
   echo "@@HIGHLIGHT $installer_name remove"
 }
