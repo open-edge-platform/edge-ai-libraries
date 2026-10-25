@@ -17,10 +17,13 @@ will grow as additional security capabilities are implemented.
 
 | Feature | Scope | Status |
 |---|---|---|
-| [Agent Sandboxing](agent-sandboxing.md) | Run OpenClaw or Hermes in an OpenShell sandbox with restricted filesystem and network access | Available; OpenShell 0.1.5 on Linux with Docker |
+| [Agent Sandboxing](agent-sandboxing.md) | Run OpenClaw, Hermes or Deep Agents Code in an OpenShell sandbox with restricted filesystem and network access | Available; OpenShell 0.1.5 on Linux with Docker |
 
 Start with the [Agent Sandboxing getting started guide](agent-sandboxing.md#getting-started)
 to install an agent, connect it to inference and verify its sandbox.
+Sandboxing is opt-in through runtime selection; host deployment remains the
+default. The installer supplies initial sandbox policies and inference
+configuration so users do not need to author a policy to get started.
 
 ## Future areas
 

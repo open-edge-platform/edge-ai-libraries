@@ -39,6 +39,20 @@ Explore [Agentic AI Security](docs/agentic-ai-security/README.md) for security
 controls for agent deployments, starting with
 [Agent Sandboxing using OpenShell](docs/agentic-ai-security/agent-sandboxing.md).
 
+The `--runtime` option is **optional**. Interactive installation offers a choice
+of `host` or `openshell`; pressing Enter selects `host`. Non-interactive
+installation also defaults to host mode unless a runtime is explicitly selected
+with `--runtime` or `HARNESS_RUNTIME`.
+
+Select `--runtime openshell` to deploy OpenClaw, Hermes or Deep Agents Code in
+a sandbox. The installer supplies default sandbox policies and agent/provider
+configuration as a functional starting point. Fresh managed OpenShell deployments
+default to `OpenVINO/Qwen3.5-9B-int8-ov` when no explicit or reusable model
+selection exists, with model-tuning defaults for OpenClaw and Hermes. These
+sandbox defaults do not change host-mode model selection. See the
+[sandbox setup and policy boundaries](docs/agentic-ai-security/agent-sandboxing.md#getting-started)
+for prerequisites and limitations.
+
 ## How it works
 
 ### Host-mode install flow
@@ -123,8 +137,10 @@ local containers run on a dedicated Docker network. Published ports bind to
 127.0.0.1 by default; set `HARNESS_ADVERTISED_HOST` (a specific address) or
 `HARNESS_BIND_HOST=0.0.0.0` (all interfaces) to reach them from other machines.
 These LAN-publication overrides apply only to host mode; OpenShell mode
-requires inference ports to remain bound to `127.0.0.1`. The diagram below
-shows the host-mode agent, not an OpenShell sandbox.
+reuses the existing loopback publication and private backend network, but
+requires inference ports to remain bound to `127.0.0.1` and validates the
+running deployment's bindings and, for managed OVMS, backend network.
+The diagram below shows the host-mode agent, not an OpenShell sandbox.
 Neither service authenticates inbound requests, and Docker-published ports
 bypass `ufw`, so restrict access with the `DOCKER-USER` iptables chain or bind
 to a specific interface address.

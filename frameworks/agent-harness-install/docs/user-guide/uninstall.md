@@ -14,7 +14,7 @@ For installation and runtime usage, see the
 ./uninstall.sh --runtime openshell --yes
 ```
 
-This removes both installer-owned sandboxes/providers and their chat/workspace
+This removes all installer-owned sandboxes/providers and their chat/workspace
 data, shared IR, managed OVMS and private backend network, model downloads, and
 installer state. An external inference backend is not removed. If the same state
 directory records a host-installed agent, that recorded agent is removed too.
@@ -42,11 +42,12 @@ For deliberately scoped removal without removing shared inference/OpenShell:
 ```bash
 ./uninstall.sh --runtime openshell --sandbox-only --harness openclaw --yes
 ./uninstall.sh --runtime openshell --sandbox-only --harness hermes --yes
+./uninstall.sh --runtime openshell --sandbox-only --harness deepagents-code --yes
 ```
 
 This mode retains `removed-profile.json` for audit and does not uninstall host
 agents. `--harness` selects one sandbox only in this scoped mode; full uninstall
-removes both owned sandbox profiles. The OpenShell prepared-runner test suite
+removes all owned sandbox profiles. The OpenShell prepared-runner test suite
 uses this scoped mode for cleanup.
 
 The uninstaller does not stop separately launched laptop SSH tunnels or local

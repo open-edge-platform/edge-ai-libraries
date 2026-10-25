@@ -9,9 +9,14 @@
 
 Sandboxing separates an agent's tool execution from the host environment and
 limits the files and network endpoints available to it. Agent Harness Install
-provides this capability through OpenShell for OpenClaw and Hermes. This
-integration targets OpenShell 0.1.5 on Linux with Docker; host mode remains
+provides this capability through OpenShell for OpenClaw, Hermes and Deep Agents
+Code. This integration targets OpenShell 0.1.5 on Linux with Docker; host mode remains
 the default.
+
+The `--runtime` option is not mandatory. Interactive installation offers
+`host` or `openshell`, with Enter selecting `host`. Non-interactive installation
+uses host mode unless `--runtime openshell` or `HARNESS_RUNTIME=openshell` is
+set. The commands below select OpenShell explicitly for reproducible setup.
 
 This is one layer of [Agentic AI Security](README.md), not prompt protection or
 PII masking. A sandbox can still perform unwanted actions within its permitted
@@ -37,7 +42,7 @@ flowchart LR
 
         subgraph BOX["OpenShell sandbox · non-root"]
             direction TB
-            AGENT["OpenClaw or Hermes"]:::sandbox
+            AGENT["OpenClaw, Hermes<br/>or Deep Agents Code"]:::sandbox
             TOOLS["Agent tools and workspace<br/>sandbox filesystem policy"]:::sandbox
             AGENT --> TOOLS
         end
@@ -69,11 +74,19 @@ flowchart LR
 ```
 
 Each agent has an independently owned profile under
-`~/.agent-harness-install/openshell/<agent>/`. Both use shared inference.
+`~/.agent-harness-install/openshell/<agent>/`. All installed sandboxes use shared
+inference.
 Existing host agent configuration is not imported or modified during sandbox
 installation. External inference is configured on shared IR using
 `HARNESS_LLM_ROUTER_ENDPOINT`, not directly in the sandbox; in that case IR
 routes to the external backend instead of managed OVMS.
+
+Host mode already publishes IR/OVMS on loopback by default and connects them
+through a private Docker backend network. OpenShell reuses that architecture
+and additionally enforces loopback-only publication, validating actual service
+bindings and the managed backend network before attaching a sandbox. Host-mode
+LAN-publication options remain available; they are not supported in OpenShell
+mode.
 
 Sandbox images install the same pinned agent packages/installers as host mode,
 run as a non-root user and do not mount host agent homes, model directories or
@@ -110,6 +123,34 @@ prerequisites. Run the commands below from the Agent Harness Install component
 directory.
 
 ## Getting started
+
+### Default sandbox setup
+
+The installer supplies sandbox policies, inference-provider configuration and
+agent-specific model configuration as a functional starting point. No initial
+policy authoring is required, but the prerequisites above still apply.
+
+- **Filesystem policy:** OpenClaw uses the [base agent policy](../../openshell/policy.yaml).
+  Hermes and Deep Agents Code use the [interactive policy](../../openshell/interactive-policy.yaml),
+  which also permits sandbox-local pseudo-terminal devices for their terminal
+  interfaces. The policies allow writes to the sandbox home, `/sandbox`, `/tmp`
+  and `/dev/null`; they do not mount the host home or Docker socket.
+- **Inference access:** A separate attached provider policy permits access to
+  the shared Inference Router. This is not general internet access: web search,
+  external browsing, MCP and messaging require additional policy, dependencies
+  and credentials as appropriate.
+- **Model and configuration:** Fresh managed OpenShell deployments default to
+  `OpenVINO/Qwen3.5-9B-int8-ov` with the default `openvino` model hub only when
+  no explicit or reusable selection exists. Saved selections and explicit model,
+  hub and exporter choices take precedence. OpenClaw and Hermes receive the supported
+  [Qwen tuning defaults](#qwen-local-model-defaults); Deep Agents Code receives
+  provider/model configuration, not those same tuning settings.
+
+These defaults apply to sandbox deployments. Host-mode model selection is
+unchanged, and an external inference backend does not receive the fresh managed
+model fallback. Default policies remain subject to the security limitations
+described above; a working inference connection is not a guarantee of tool-use
+correctness.
 
 ### Install a sandboxed agent
 
@@ -343,8 +384,8 @@ are not automated browser chat acceptance tests.
 ## Uninstall
 
 Back up needed chat/workspace data before uninstalling. Full uninstall deletes
-both owned sandboxes, shared IR, managed OVMS, downloaded models and installer
-state by default. An installer-owned OpenShell CLI/gateway is removed; a
+all installer-owned sandboxes, shared IR, managed OVMS, downloaded models and
+installer state by default. An installer-owned OpenShell CLI/gateway is removed; a
 pre-existing installation is preserved. An external inference backend is never
 removed. If the same state directory records a host-installed agent, full
 uninstall removes that agent too.
