@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (C) 2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-package replay
+package retrieve
 
 import (
 	"bytes"
@@ -23,13 +23,17 @@ const (
 	preseekMargin = 100 * time.Millisecond
 	// nearestWindow is the first half-width searched around a frame request.
 	nearestWindow = time.Second
-	probeTimeout  = 30 * time.Second
-	outputLimit   = 8192
+	// SearchLimit is how far from the requested time a frame or keyframe is looked for.
+	SearchLimit  = 5 * time.Minute
+	probeTimeout = 30 * time.Second
+	outputLimit  = 8192
 )
 
-// keyframeWindows are how far back a keyframe is looked for before falling
-// back to reading from the start of the recording.
-var keyframeWindows = []time.Duration{2 * time.Second, 10 * time.Second, time.Minute}
+// keyframeWindows are how far back a keyframe is looked for, widest last.
+var keyframeWindows = []time.Duration{2 * time.Second, 10 * time.Second, time.Minute, SearchLimit}
+
+// nearestWindows are the half-widths searched around a frame request, widest last.
+var nearestWindows = []time.Duration{nearestWindow, 10 * nearestWindow, SearchLimit}
 
 type packet struct {
 	PTS int64
@@ -94,12 +98,8 @@ func (tl *timeline) window(ctx context.Context, from, to time.Time) ([]packet, e
 // nearestFrame finds the frame closest to ts, the earlier one on a tie, and
 // the keyframe it decodes from.
 func (tl *timeline) nearestFrame(ctx context.Context, ts time.Time) (packet, packet, error) {
-	for _, half := range []time.Duration{nearestWindow, 10 * nearestWindow, 0} {
-		from, to := ts.Add(-half), ts.Add(half)
-		if half == 0 {
-			from, to = tl.start, ts.Add(time.Hour)
-		}
-		packets, err := tl.window(ctx, from, to)
+	for i, half := range nearestWindows {
+		packets, err := tl.window(ctx, ts.Add(-half), ts.Add(half))
 		if err != nil {
 			return packet{}, packet{}, err
 		}
@@ -110,28 +110,26 @@ func (tl *timeline) nearestFrame(ctx context.Context, ts time.Time) (packet, pac
 				best, found = p, true
 			}
 		}
-		// The window may begin a little late, so only trust a frame well inside it.
-		if !found || (half != 0 && absDuration(tl.wall(best.PTS).Sub(ts)) > half/2) {
+		// The window may begin a little late, so only trust a frame well inside
+		// it; the widest window takes any frame.
+		widest := i == len(nearestWindows)-1
+		if !found || (!widest && absDuration(tl.wall(best.PTS).Sub(ts)) > half/2) {
 			continue
 		}
 		keyframe, err := tl.keyframeAtOrBefore(ctx, tl.wall(best.PTS), packets)
 		return best, keyframe, err
 	}
-	return packet{}, packet{}, ErrFrameNotFound
+	return packet{}, packet{}, fmt.Errorf("%w: no frame", ErrBeyondSearchLimit)
 }
 
 // keyframeAtOrBefore finds the last keyframe at or before ts, first among
-// known packets, then in widening windows, then from the recording start.
+// known packets, then in widening windows up to SearchLimit.
 func (tl *timeline) keyframeAtOrBefore(ctx context.Context, ts time.Time, known []packet) (packet, error) {
 	if keyframe, ok := tl.lastKeyframe(known, ts); ok {
 		return keyframe, nil
 	}
-	for _, back := range append(keyframeWindows, 0) {
-		from := ts.Add(-back)
-		if back == 0 {
-			from = tl.start
-		}
-		packets, err := tl.window(ctx, from, ts.Add(time.Millisecond))
+	for _, back := range keyframeWindows {
+		packets, err := tl.window(ctx, ts.Add(-back), ts.Add(time.Millisecond))
 		if err != nil {
 			return packet{}, err
 		}
@@ -139,7 +137,7 @@ func (tl *timeline) keyframeAtOrBefore(ctx context.Context, ts time.Time, known 
 			return keyframe, nil
 		}
 	}
-	return packet{}, fmt.Errorf("%w: no keyframe before the requested time", ErrExtraction)
+	return packet{}, fmt.Errorf("%w: no keyframe", ErrBeyondSearchLimit)
 }
 
 func (tl *timeline) lastKeyframe(packets []packet, ts time.Time) (packet, bool) {

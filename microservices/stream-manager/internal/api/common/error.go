@@ -4,12 +4,7 @@
 package common
 
 import (
-	"encoding/json"
-	"errors"
-	"fmt"
-	"io"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -30,21 +25,4 @@ func WriteError(c *gin.Context, status int, code, detail string) {
 
 func WriteInternalError(c *gin.Context) {
 	WriteError(c, http.StatusInternalServerError, "internal_error", "internal error")
-}
-
-func jsonError(err error) error {
-	var typeErr *json.UnmarshalTypeError
-	var maxErr *http.MaxBytesError
-	switch {
-	case errors.As(err, &typeErr) && typeErr.Field != "":
-		return fmt.Errorf("%s has the wrong type", typeErr.Field)
-	case errors.As(err, &maxErr):
-		return fmt.Errorf("request body must be at most %d bytes", maxErr.Limit)
-	case strings.HasPrefix(err.Error(), "json: unknown field "):
-		return fmt.Errorf("unknown field %s", strings.TrimPrefix(err.Error(), "json: unknown field "))
-	case errors.Is(err, io.EOF):
-		return errors.New("request body is required")
-	default:
-		return errors.New("request body is not valid JSON")
-	}
 }

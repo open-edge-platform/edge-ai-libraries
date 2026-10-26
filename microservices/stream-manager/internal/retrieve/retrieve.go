@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (C) 2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-// Package replay cuts frames and clips out of ready recordings.
-package replay
+// Package retrieve cuts frames and clips out of ready recordings.
+package retrieve
 
 import (
 	"context"
@@ -20,28 +20,27 @@ import (
 
 const (
 	maxConcurrentExtractions = 6
-	// derivedTTL is how long a cut frame or clip is kept stored (response caching);
-	// the recording's own expiry_ts wins when it comes sooner.
-	derivedTTL = 15 * time.Minute
 	// exactTolerance is how far a frame may sit from the requested time and
 	// still count as an exact match.
 	exactTolerance = time.Millisecond
 )
 
 var (
-	ErrInvalidRequest = errors.New("invalid replay request")
+	ErrInvalidRequest = errors.New("invalid retrieve request")
 	ErrNotFound       = errors.New("recording not found")
 	ErrNotReady       = errors.New("recording is not ready")
 	ErrNotCovered     = errors.New("requested time is not covered by the recording")
 	ErrFrameNotFound  = errors.New("no frame sits at the requested time")
-	ErrMediaNotFound  = errors.New("media not found or expired")
-	ErrBusy           = errors.New("extraction capacity reached")
-	ErrExtraction     = errors.New("media extraction failed")
+	// ErrBeyondSearchLimit means the frame or its keyframe is farther than SearchLimit from the requested time.
+	ErrBeyondSearchLimit = errors.New("no decodable frame within the search limit")
+	ErrMediaNotFound     = errors.New("media not found or expired")
+	ErrBusy              = errors.New("extraction capacity reached")
+	ErrExtraction        = errors.New("media extraction failed")
 )
 
 var contentTypes = map[string]string{"jpeg": "image/jpeg", "png": "image/png", "mp4": "video/mp4"}
 
-type Replayer interface {
+type Retriever interface {
 	Frame(ctx context.Context, recordingID string, timestamp time.Time, format, match string) (Media, error)
 	Clip(ctx context.Context, recordingID string, startTS time.Time, duration time.Duration, format string) (Media, error)
 	OpenMedia(ctx context.Context, recordingID, name string) (*os.File, MediaFile, error)
@@ -59,10 +58,10 @@ type Media struct {
 // MediaFile describes an opened derived media (frame or clip).
 type MediaFile struct {
 	ContentType string
-	ExpiryTS    time.Time
+	ExpiryTS    *time.Time
 }
 
-// Service implements Replayer with FFmpeg and FFprobe.
+// Service implements Retriever with FFmpeg and FFprobe.
 type Service struct {
 	metadata storage.MetadataHandler
 	media    storage.MediaHandler
@@ -70,11 +69,16 @@ type Service struct {
 	ffprobe  string
 	slots    chan struct{}
 	now      func() time.Time
+	// derivedTTL is how long a cut frame or clip stays available.
+	derivedTTL time.Duration
 }
 
-var _ Replayer = (*Service)(nil)
+var _ Retriever = (*Service)(nil)
 
-func NewService(metadata storage.MetadataHandler, media storage.MediaHandler) (*Service, error) {
+func NewService(metadata storage.MetadataHandler, media storage.MediaHandler, derivedTTL time.Duration) (*Service, error) {
+	if derivedTTL < 0 {
+		return nil, fmt.Errorf("%w: derived media TTL cannot be negative", ErrInvalidRequest)
+	}
 	ffmpeg, err := exec.LookPath("ffmpeg")
 	if err != nil {
 		return nil, fmt.Errorf("find FFmpeg: %w", err)
@@ -85,14 +89,14 @@ func NewService(metadata storage.MetadataHandler, media storage.MediaHandler) (*
 	}
 	return &Service{
 		metadata: metadata, media: media, ffmpeg: ffmpeg, ffprobe: ffprobe,
-		slots: make(chan struct{}, maxConcurrentExtractions), now: time.Now,
+		slots: make(chan struct{}, maxConcurrentExtractions), now: time.Now, derivedTTL: derivedTTL,
 	}, nil
 }
 
 // Frame returns the frame nearest to timestamp, or the frame at exactly that
 // time when match is "exact".
 func (s *Service) Frame(ctx context.Context, id string, ts time.Time, format, match string) (Media, error) {
-	contentType, ok := contentTypes[format]
+	_, ok := contentTypes[format]
 	if !ok || format == "mp4" || (match != "nearest" && match != "exact") {
 		return Media{}, ErrInvalidRequest
 	}
@@ -108,10 +112,11 @@ func (s *Service) Frame(ctx context.Context, id string, ts time.Time, format, ma
 		return Media{}, err
 	}
 	defer release()
-	tl, err := s.openTimeline(ctx, rec)
+	tl, releaseMedia, err := s.openTimeline(ctx, rec)
 	if err != nil {
 		return Media{}, err
 	}
+	defer releaseMedia()
 	frame, keyframe, err := tl.nearestFrame(ctx, ts)
 	if err != nil {
 		return Media{}, err
@@ -137,8 +142,8 @@ func (s *Service) Frame(ctx context.Context, id string, ts time.Time, format, ma
 	}
 	return Media{
 		Result: model.MediaResult{
-			RecordingID: rec.RecordingID, SensorID: rec.SensorID, MediaType: "frame", ContentType: contentType,
-			RequestedStartTS: ts.UTC(), StartTS: frameTS.UTC(), ExpiryTS: expiry(rec, mtime),
+			RecordingID: rec.RecordingID, SensorID: rec.SensorID,
+			RequestedStartTS: ts.UTC(), StartTS: frameTS.UTC(), ExpiryTS: s.expiry(mtime),
 		},
 		Name: name, Path: path, ExactMatch: exact,
 	}, nil
@@ -162,10 +167,11 @@ func (s *Service) Clip(ctx context.Context, id string, start time.Time, duration
 		return Media{}, err
 	}
 	defer release()
-	tl, err := s.openTimeline(ctx, rec)
+	tl, releaseMedia, err := s.openTimeline(ctx, rec)
 	if err != nil {
 		return Media{}, err
 	}
+	defer releaseMedia()
 	keyframe, err := tl.keyframeAtOrBefore(ctx, start, nil)
 	if err != nil {
 		return Media{}, err
@@ -183,21 +189,17 @@ func (s *Service) Clip(ctx context.Context, id string, start time.Time, duration
 	requestedEnd, clipEnd := end.UTC(), end.UTC()
 	return Media{
 		Result: model.MediaResult{
-			RecordingID: rec.RecordingID, SensorID: rec.SensorID, MediaType: "clip", ContentType: contentTypes[format],
+			RecordingID: rec.RecordingID, SensorID: rec.SensorID,
 			RequestedStartTS: start.UTC(), RequestedEndTS: &requestedEnd,
-			StartTS: clipStart.UTC(), EndTS: &clipEnd, ExpiryTS: expiry(rec, mtime),
+			StartTS: clipStart.UTC(), EndTS: &clipEnd, ExpiryTS: s.expiry(mtime),
 		},
 		Name: name, Path: path, ExactMatch: clipStart.Equal(start),
 	}, nil
 }
 
-// OpenMedia opens a frame or clip cut earlier, unless its recording or itself has expired.
+// OpenMedia opens a frame or clip cut earlier, unless its own TTL has expired.
 func (s *Service) OpenMedia(ctx context.Context, id, name string) (*os.File, MediaFile, error) {
-	rec, err := s.recording(ctx, id)
-	if err != nil {
-		return nil, MediaFile{}, err
-	}
-	file, err := s.media.OpenDerived(ctx, rec.RecordingPath, name)
+	file, err := s.media.OpenDerivedByID(ctx, id, name)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, MediaFile{}, ErrMediaNotFound
 	}
@@ -208,8 +210,8 @@ func (s *Service) OpenMedia(ctx context.Context, id, name string) (*os.File, Med
 	if err != nil {
 		return nil, MediaFile{}, errors.Join(err, file.Close())
 	}
-	expiryTS := expiry(rec, info.ModTime())
-	if !s.now().Before(expiryTS) {
+	expiryTS := s.expiry(info.ModTime())
+	if expiryTS != nil && !s.now().Before(*expiryTS) {
 		return nil, MediaFile{}, errors.Join(ErrMediaNotFound, file.Close())
 	}
 	contentType := contentTypes[filepath.Ext(name)[1:]]
@@ -251,12 +253,28 @@ func (s *Service) acquire() (func(), error) {
 	}
 }
 
-func (s *Service) openTimeline(ctx context.Context, rec model.Recording) (*timeline, error) {
-	path, err := s.media.OpenMedia(ctx, rec.RecordingPath)
-	if err != nil {
-		return nil, err
+func (s *Service) openTimeline(ctx context.Context, rec model.Recording) (*timeline, func(), error) {
+	release, err := s.media.AcquireMedia(ctx, rec.RecordingPath)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil, ErrNotFound
 	}
-	return newTimeline(ctx, s.ffprobe, path, rec.StartTS)
+	if err != nil {
+		return nil, nil, err
+	}
+	path, err := s.media.OpenMedia(ctx, rec.RecordingPath)
+	if errors.Is(err, fs.ErrNotExist) {
+		err = ErrNotFound
+	}
+	if err != nil {
+		release()
+		return nil, nil, err
+	}
+	tl, err := newTimeline(ctx, s.ffprobe, path, rec.StartTS)
+	if err != nil {
+		release()
+		return nil, nil, err
+	}
+	return tl, release, nil
 }
 
 // derive returns the cached file called name while its TTL holds, otherwise
@@ -289,7 +307,7 @@ func (s *Service) cachedDerived(ctx context.Context, rec model.Recording, name s
 	if err := errors.Join(err, file.Close()); err != nil {
 		return "", time.Time{}, err
 	}
-	if !s.now().Before(info.ModTime().Add(derivedTTL)) {
+	if s.derivedTTL > 0 && !s.now().Before(info.ModTime().Add(s.derivedTTL)) {
 		return "", time.Time{}, nil
 	}
 	return file.Name(), info.ModTime(), nil
@@ -300,13 +318,14 @@ func ffmpegArgs(args []string) []string {
 	return append([]string{"-hide_banner", "-loglevel", "error", "-nostdin", "-y"}, args...)
 }
 
-// expiry is the TTL of a derived file, capped by its recording's expiry_ts.
-func expiry(rec model.Recording, mtime time.Time) time.Time {
-	expiryTS := mtime.Add(derivedTTL)
-	if rec.ExpiryTS != nil && rec.ExpiryTS.Before(expiryTS) {
-		expiryTS = *rec.ExpiryTS
+// expiry is the optional TTL of a derived file.
+func (s *Service) expiry(mtime time.Time) *time.Time {
+	if s.derivedTTL == 0 {
+		return nil
 	}
-	return expiryTS.UTC()
+	expiryTS := mtime.Add(s.derivedTTL)
+	expiryTS = expiryTS.UTC()
+	return &expiryTS
 }
 
 func absDuration(d time.Duration) time.Duration {

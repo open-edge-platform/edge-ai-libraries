@@ -28,7 +28,7 @@ func testStores(t *testing.T) (*MetadataStore, *MediaStore, string) {
 			t.Error(err)
 		}
 	})
-	media, err := OpenMediaStore(dir)
+	media, err := OpenMediaStore(dir, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,12 +83,15 @@ func TestSchemaSerializationAndReopen(t *testing.T) {
 	if err := metadata.db.Raw("PRAGMA index_list('recordings')").Scan(&indexes).Error; err != nil {
 		t.Fatal(err)
 	}
-	found := false
+	found := map[string]bool{}
 	for _, index := range indexes {
-		found = found || index.Name == "idx_recordings_sensor_stream"
+		found[index.Name] = true
 	}
-	if !found {
-		t.Fatal("agreed sensor/stream index is missing")
+	if !found["idx_recordings_sensor_stream"] {
+		t.Fatal("sensor/stream index is missing")
+	}
+	if found["idx_recordings_expiry"] {
+		t.Fatal("expiry index still exists")
 	}
 	if _, err := OpenMetadataStore(dir); err == nil {
 		t.Fatal("second instance acquired the same metadata storage")
@@ -108,6 +111,91 @@ func TestSchemaSerializationAndReopen(t *testing.T) {
 	got, err = reopened.GetMetadataByRecordingID(ctx, rec.RecordingID)
 	if err != nil || !got.StartTS.Equal(rec.StartTS) {
 		t.Fatalf("migration was not idempotent: %+v %v", got, err)
+	}
+}
+
+func TestListMedia(t *testing.T) {
+	_, media, dir := testStores(t)
+	rec := testRecording(t, media)
+	if err := os.WriteFile(filepath.Join(dir, rec.RecordingID, "media.ts"), []byte("source"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(dir, "unrelated"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	orphanID := uuid.NewString()
+	if err := os.Mkdir(filepath.Join(dir, orphanID), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(t.TempDir(), filepath.Join(dir, uuid.NewString())); err != nil {
+		t.Fatal(err)
+	}
+	listed, err := media.ListMedia(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(listed) != 2 || listed[rec.RecordingID] != rec.RecordingPath {
+		t.Fatalf("listed media = %v, want source and empty orphan directory", listed)
+	}
+	if _, ok := listed[orphanID]; !ok {
+		t.Fatalf("empty orphan directory %s was not listed", orphanID)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := media.ListMedia(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled listing: %v", err)
+	}
+}
+
+func TestDeleteSourceMediaRetainsDerived(t *testing.T) {
+	ctx := context.Background()
+	_, media, dir := testStores(t)
+	rec := testRecording(t, media)
+	source := filepath.Join(dir, rec.RecordingID, "media.ts")
+	if err := os.WriteFile(source, []byte("source"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := media.PutDerived(ctx, rec.RecordingPath, "frame-0.jpeg", func(path string) error {
+		return os.WriteFile(path, []byte("derived"), 0o600)
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := media.DeleteSourceMedia(ctx, rec.RecordingPath); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(source); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("source media remains: %v", err)
+	}
+	file, err := media.OpenDerivedByID(ctx, rec.RecordingID, "frame-0.jpeg")
+	if err != nil {
+		t.Fatalf("derived media was not retained: %v", err)
+	}
+	_ = file.Close()
+	if media.UsedBytes() != int64(len("derived")) {
+		t.Fatalf("used bytes = %d, want retained derived bytes", media.UsedBytes())
+	}
+	listed, err := media.ListMedia(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := listed[rec.RecordingID]; ok {
+		t.Fatal("source-less recording is listed for orphan cleanup")
+	}
+
+	empty := testRecording(t, media)
+	emptySource := filepath.Join(dir, empty.RecordingID, "media.ts")
+	if err := os.WriteFile(emptySource, []byte("source"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(dir, empty.RecordingID, derivedDir), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := media.DeleteSourceMedia(ctx, empty.RecordingPath); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, empty.RecordingID)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("empty derived directory was retained: %v", err)
 	}
 }
 

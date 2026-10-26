@@ -15,6 +15,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/storage"
 )
 
 func (s *Service) writeMedia(j *job) (start, end time.Time, size int64, codec string, result error) {
@@ -83,6 +85,17 @@ func (s *Service) writeMedia(j *job) (start, end time.Time, size int64, codec st
 		}
 		if err != nil {
 			return start, end, 0, "", err
+		}
+		err = s.media.ReserveMedia(ctx, j.uri, slice.Slice.SizeBytes)
+		if errors.Is(err, storage.ErrStorageFull) && !start.IsZero() {
+			if err := slice.Close(); err != nil {
+				return start, end, 0, "", err
+			}
+			j.truncated = true
+			break
+		}
+		if err != nil {
+			return start, end, 0, "", errors.Join(err, slice.Close())
 		}
 		if start.IsZero() {
 			start = slice.Slice.StartTS

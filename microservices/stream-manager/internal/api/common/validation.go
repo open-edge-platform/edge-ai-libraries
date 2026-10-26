@@ -105,8 +105,9 @@ func CheckBufferLength(seconds int) error {
 	return nil
 }
 
-// ParseRecordingFilter reads the GET /records query, returning the
-// error_code and reason when it is invalid.
+// ParseRecordingFilter reads the GET /records query and reports every invalid
+// parameter together. The error_code is invalid_timestamp when only
+// timestamps are invalid, otherwise invalid_request.
 func ParseRecordingFilter(c *gin.Context) (model.RecordingFilter, string, error) {
 	f := model.RecordingFilter{
 		SensorID: c.Query("sensor_id"),
@@ -114,30 +115,35 @@ func ParseRecordingFilter(c *gin.Context) (model.RecordingFilter, string, error)
 		State:    c.Query("state"),
 		Cursor:   c.Query("cursor"),
 	}
-	for name, id := range map[string]string{"sensor_id": f.SensorID, "stream_id": f.StreamID} {
-		if id == "" {
+	var requestErrs, timestampErrs []error
+	for _, id := range []struct{ name, value string }{{"sensor_id", f.SensorID}, {"stream_id", f.StreamID}} {
+		if id.value == "" {
 			continue
 		}
-		if err := CheckID(name, id); err != nil {
-			return f, "invalid_request", err
+		if err := CheckID(id.name, id.value); err != nil {
+			requestErrs = append(requestErrs, err)
 		}
 	}
-	for name, dst := range map[string]*time.Time{"start_ts": &f.StartTS, "end_ts": &f.EndTS, "expiry_ts": &f.ExpiryTS} {
-		s := c.Query(name)
+	for _, ts := range []struct {
+		name string
+		dst  *time.Time
+	}{{"start_ts", &f.StartTS}, {"end_ts", &f.EndTS}, {"expiry_ts", &f.ExpiryTS}} {
+		s := c.Query(ts.name)
 		if s == "" {
 			continue
 		}
-		t, err := ParseTimestamp(name, s)
+		t, err := ParseTimestamp(ts.name, s)
 		if err != nil {
-			return f, "invalid_timestamp", err
+			timestampErrs = append(timestampErrs, err)
+			continue
 		}
-		*dst = t
+		*ts.dst = t
 	}
 	if !f.StartTS.IsZero() && !f.EndTS.IsZero() && !f.EndTS.After(f.StartTS) {
-		return f, "invalid_timestamp", errors.New("end_ts must be later than start_ts")
+		timestampErrs = append(timestampErrs, errors.New("end_ts must be later than start_ts"))
 	}
 	if f.State != "" && !recordingStates[f.State] {
-		return f, "invalid_request", errors.New("state must be one of recording, finalizing, ready, failed")
+		requestErrs = append(requestErrs, errors.New("state must be one of recording, finalizing, ready, failed"))
 	}
 	if md := c.QueryMap("metadata"); len(md) > 0 {
 		f.Metadata = make(map[string]any, len(md))
@@ -147,8 +153,14 @@ func ParseRecordingFilter(c *gin.Context) (model.RecordingFilter, string, error)
 	}
 	limit, err := ParseLimit(c.Query("limit"))
 	if err != nil {
-		return f, "invalid_request", err
+		requestErrs = append(requestErrs, err)
 	}
 	f.Limit = limit
+	if len(requestErrs) > 0 {
+		return f, "invalid_request", errors.Join(append(requestErrs, timestampErrs...)...)
+	}
+	if len(timestampErrs) > 0 {
+		return f, "invalid_timestamp", errors.Join(timestampErrs...)
+	}
 	return f, "", nil
 }

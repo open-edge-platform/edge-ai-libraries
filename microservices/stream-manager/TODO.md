@@ -40,7 +40,7 @@ Items are listed roughly in order of priority.
 - [ ] Evaluate whether `DecodeJSON` would be useful as middleware
 - [ ] Optimize request sequences - Should POST /streams be always called before POST /records/start by consumer?
 - [ ] Make the derived media TTL (fixed 15 min for replay frames and clips) configurable via `config.json`
-- [ ] Add a cleanup job that deletes expired derived media in `<recording-dir>/derived/` and expired recordings with all their derived media. A recording's `expiry_ts` always wins: when the recording expires, its derived items are deleted with it even if their own TTL has not run out
+- [ ] Add a cleanup job that deletes expired derived media in `<recording-dir>/derived/` and expired recordings with all their derived media. A recording's `expiry_ts` takes precedence: when the recording expires, delete its derived items even if their own TTL has not expired.
 - [ ] Decide whether `PUT /streams/{stream-id}/buffer` should reject resizing a stream that is in `failed` state, or whether resizing an already-failed stream's buffer should keep succeeding as it does today
 - [ ] Should recording IDs be prefixed with `rec-` as stream IDs are prefixed with `str-`?
 

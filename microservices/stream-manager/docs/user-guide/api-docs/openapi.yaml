@@ -21,7 +21,7 @@ tags:
     description: Attach sources, inspect buffers, resize buffers, and detach.
   - name: Recording Storage APIs
     description: Start, stop, find, read, and delete recordings.
-  - name: Replay APIs
+  - name: Retrieval APIs
     description: Extract frames and clips. Return media directly or provide a retrieval link.
 
 paths:
@@ -234,7 +234,7 @@ paths:
         | Field | Type | Required | Unit / range |
         |---|---|---|---|
         | stream_id | string | yes | — |
-        | start_ts | string (date-time) | yes | RFC 3339 UTC timestamp, cannot be in the future |
+        | start_ts | string (date-time) | yes | RFC 3339 UTC timestamp, cannot be later than the newest video frame |
         | duration | number | no | positive seconds, fixed-length recording when given |
         | pre_event_duration | number | no | seconds, 0-300, default 0 |
         | metadata | object | no | arbitrary key-value pairs |
@@ -252,7 +252,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/RecordStartResult'
         '400':
-          description: Missing or malformed stream_id (invalid_selector), missing start_ts or invalid duration/pre_event_duration (invalid_request), or malformed or future start_ts (invalid_timestamp).
+          description: Missing or malformed stream_id (invalid_selector), missing start_ts or invalid duration/pre_event_duration (invalid_request), or malformed start_ts or start_ts later than the newest video frame (invalid_timestamp).
           content:
             application/json:
               schema:
@@ -260,7 +260,7 @@ paths:
               example:
                 status: 400
                 error_code: invalid_timestamp
-                error_detail: start_ts must not be in the future
+                error_detail: start_ts must not be after the newest received video frame
         '404':
           description: Unknown stream.
           content:
@@ -291,6 +291,16 @@ paths:
                 status: 429
                 error_code: capacity_exhausted
                 error_detail: recording capacity reached
+        '507':
+          description: The recording storage quota is reached.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                status: 507
+                error_code: storage_full
+                error_detail: recording storage quota reached
 
   /records/stop:
     post:
@@ -342,7 +352,7 @@ paths:
                 error_code: recording_not_found
                 error_detail: recording not found
         '409':
-          description: The record is not an active open recording. Repeated stops while finalizing retain the original stop target and return 202.
+          description: The record is not an active open recording (record_not_ready), or the source sent no video frame after the recording start (history_unavailable). Repeated stops while finalizing retain the original stop target and return 202.
           content:
             application/json:
               schema:
@@ -414,7 +424,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/RecordingPage'
         '400':
-          description: Invalid ID, state, metadata filter, cursor, or limit (invalid_request), or invalid timestamp filter (invalid_timestamp).
+          description: Invalid ID, state, metadata filter, cursor, or limit (invalid_request), or invalid timestamp filter (invalid_timestamp). Invalid ID, state, limit, and timestamp parameters are reported together in error_detail, one per line; error_code is invalid_timestamp only when all of them are timestamp errors.
           content:
             application/json:
               schema:
@@ -451,7 +461,7 @@ paths:
     delete:
       tags: [Recording Storage APIs]
       summary: Delete a record
-      description: Deletes the record's metadata and its media. The reply returns once the metadata row is gone; if media deletion then fails, the failure is logged but not returned. If metadata deletion fails, the record remains and the request returns 503. Deleting again, or reading a deleted record, returns 404.
+      description: Deletes metadata first, then attempts media deletion. Metadata deletion failure returns 503 and keeps the media. Media deletion failure or an active extraction still returns 200. Deleting again, or reading a deleted record, returns 404.
       parameters:
         - $ref: '#/components/parameters/RecordingId'
       responses:
@@ -477,12 +487,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-              example:
-                status: 409
-                error_code: record_not_ready
-                error_detail: recording cannot be changed in its current state
+              examples:
+                record_not_ready:
+                  value:
+                    status: 409
+                    error_code: record_not_ready
+                    error_detail: recording cannot be changed in its current state
         '503':
-          description: Metadata deletion failed. The record remains; retry later.
+          description: Metadata deletion failed. The record and media remain; retry later.
           content:
             application/json:
               schema:
@@ -492,11 +504,11 @@ paths:
                 error_code: storage_unavailable
                 error_detail: recording cleanup failed; retry later
 
-  /replays/{recording-id}/frame:
+  /retrieve/{recording-id}/frame:
     get:
-      tags: [Replay APIs]
+      tags: [Retrieval APIs]
       summary: Extracts a frame
-      description: Returns a JSON MediaResult by default, or image bytes when the Accept header allows. Use /url to always request the JSON result.
+      description: Returns a JSON MediaResult by default. Accept image/jpeg or image/png selects image bytes. The format parameter selects the image format in a JSON result and must match the accepted image type for a binary reply. When several supported types match, JSON is preferred, then JPEG, then PNG. Errors use JSON.
       parameters:
         - $ref: '#/components/parameters/RecordingId'
         - name: timestamp
@@ -508,12 +520,11 @@ paths:
             format: date-time
         - name: format
           in: query
-          description: Image format.
+          description: Optional image format. JSON results default to JPEG. When absent, a binary response uses the accepted image type. A conflicting accepted image type returns 406.
           required: false
           schema:
             type: string
             enum: [jpeg, png]
-            default: jpeg
         - name: match
           in: query
           description: nearest returns the closest frame, choosing the earlier one on a tie. exact returns 404 when no frame sits at exactly that time.
@@ -526,6 +537,11 @@ paths:
         '200':
           description: MediaResult, or the image bytes when an image Accept header is used.
           headers:
+            Vary:
+              description: Response representation depends on Accept.
+              schema:
+                type: string
+                enum: [Accept]
             X-Frame-Timestamp:
               description: The real time of the returned frame.
               schema:
@@ -562,7 +578,7 @@ paths:
                 error_code: invalid_timestamp
                 error_detail: timestamp must be an RFC 3339 UTC timestamp ending in Z with at most 9 fractional digits
         '404':
-          description: Record not found, timestamp outside coverage or exact frame missing.
+          description: Record not found, timestamp outside coverage, exact frame missing, or no decodable frame available for the requested time.
           content:
             application/json:
               schema:
@@ -601,6 +617,16 @@ paths:
                 status: 429
                 error_code: capacity_exhausted
                 error_detail: extraction capacity reached, retry later
+        '507':
+          description: The recording storage quota is reached.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                status: 507
+                error_code: storage_full
+                error_detail: recording storage quota reached
         '503':
           description: Extraction or storage failure.
           content:
@@ -612,134 +638,11 @@ paths:
                 error_code: storage_unavailable
                 error_detail: media extraction failed
 
-  /replays/{recording-id}/frame/url:
+  /retrieve/{recording-id}/clip:
     get:
-      tags: [Replay APIs]
-      summary: Gets an HTTP link to a frame
-      description: Extracts the same frame as /replays/{recording-id}/frame, but returns a MediaResult link as JSON. The Accept header must allow application/json.
-      parameters:
-        - $ref: '#/components/parameters/RecordingId'
-        - name: timestamp
-          in: query
-          description: The wanted time. Must be RFC 3339 UTC, end in Z, and fall inside the record's covered window [start_ts, end_ts).
-          required: true
-          schema:
-            type: string
-            format: date-time
-        - name: format
-          in: query
-          description: Image format.
-          required: false
-          schema:
-            type: string
-            enum: [jpeg, png]
-            default: jpeg
-        - name: match
-          in: query
-          description: nearest returns the closest frame, choosing the earlier one on a tie. exact returns 404 when no frame sits at exactly that time.
-          required: false
-          schema:
-            type: string
-            enum: [nearest, exact]
-            default: nearest
-      responses:
-        '200':
-          description: MediaResult as JSON.
-          headers:
-            X-Frame-Timestamp:
-              description: The real time of the returned frame.
-              schema:
-                type: string
-            X-Exact-Match:
-              description: Whether the frame landed on the exact time requested.
-              schema:
-                type: string
-                enum: ['true', 'false']
-            Cache-Control:
-              description: Always no-store.
-              schema:
-                type: string
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MediaResult'
-              example:
-                recording_id: rec-2
-                sensor_id: cam-07
-                media_type: frame
-                content_type: image/jpeg
-                requested_start_ts: '2026-09-16T09:12:03.400000000Z'
-                requested_end_ts: null
-                start_ts: '2026-09-16T09:12:03.400000000Z'
-                end_ts: null
-                url: /v1/media/rec-2/frame-3000000000.jpg
-                expiry_ts: '2026-09-16T09:20:00.000000000Z'
-        '400':
-          description: Missing or invalid timestamp (invalid_timestamp), or unsupported format or match (invalid_request).
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                status: 400
-                error_code: invalid_timestamp
-                error_detail: timestamp must be an RFC 3339 UTC timestamp ending in Z with at most 9 fractional digits
-        '404':
-          description: Record not found, timestamp outside coverage or exact frame missing.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                status: 404
-                error_code: frame_not_found
-                error_detail: the requested time is not covered by the record
-        '406':
-          description: Incompatible Accept header.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                status: 406
-                error_code: not_acceptable
-                error_detail: the Accept header allows none of the available media types
-        '409':
-          description: Record not ready.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                status: 409
-                error_code: record_not_ready
-                error_detail: record is not ready
-        '429':
-          description: Extraction capacity reached.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                status: 429
-                error_code: capacity_exhausted
-                error_detail: extraction capacity reached, retry later
-        '503':
-          description: Extraction or storage failure.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                status: 503
-                error_code: storage_unavailable
-                error_detail: media extraction failed
-
-  /replays/{recording-id}/clip:
-    get:
-      tags: [Replay APIs]
+      tags: [Retrieval APIs]
       summary: Extracts a clip
-      description: Returns a JSON MediaResult by default, or video bytes when the Accept header allows. Use /url to always request the JSON result. The whole span must be covered; a gap gives 404.
+      description: Returns a JSON MediaResult by default. Accept video/mp4 selects MP4 bytes. Errors use JSON. The whole span must be covered; a gap gives 404.
       parameters:
         - $ref: '#/components/parameters/RecordingId'
         - name: start_ts
@@ -767,6 +670,11 @@ paths:
         '200':
           description: MediaResult, or the video bytes when a video Accept header is used.
           headers:
+            Vary:
+              description: Response representation depends on Accept.
+              schema:
+                type: string
+                enum: [Accept]
             X-Frame-Timestamp:
               description: The real time of the first returned frame.
               schema:
@@ -787,8 +695,6 @@ paths:
               example:
                 recording_id: rec-2
                 sensor_id: cam-07
-                media_type: clip
-                content_type: video/mp4
                 requested_start_ts: '2026-09-16T09:12:00.400000000Z'
                 requested_end_ts: '2026-09-16T09:12:05.400000000Z'
                 start_ts: '2026-09-16T09:12:00.400000000Z'
@@ -818,7 +724,7 @@ paths:
                 error_code: invalid_request
                 error_detail: duration must be a positive number of seconds
         '404':
-          description: Record not found, or the requested interval is not fully covered.
+          description: Record not found, the requested interval is not fully covered, or no clip available for the requested interval.
           content:
             application/json:
               schema:
@@ -857,127 +763,16 @@ paths:
                 status: 429
                 error_code: capacity_exhausted
                 error_detail: extraction capacity reached, retry later
-        '503':
-          description: Extraction or storage failure.
+        '507':
+          description: The recording storage quota is reached.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
               example:
-                status: 503
-                error_code: storage_unavailable
-                error_detail: media extraction failed
-
-  /replays/{recording-id}/clip/url:
-    get:
-      tags: [Replay APIs]
-      summary: Gets an HTTP link to a clip
-      description: Extracts the same clip as /replays/{recording-id}/clip, but returns a MediaResult link as JSON. The Accept header must allow application/json.
-      parameters:
-        - $ref: '#/components/parameters/RecordingId'
-        - name: start_ts
-          in: query
-          description: Where the clip starts, inclusive. Must be an RFC 3339 UTC timestamp ending in Z.
-          required: true
-          schema:
-            type: string
-            format: date-time
-        - name: duration
-          in: query
-          description: Positive clip duration in seconds. The full interval must be covered by the recording.
-          required: true
-          schema:
-            type: number
-        - name: format
-          in: query
-          description: Clip format, mp4 (default). More formats to be supported in the future.
-          required: false
-          schema:
-            type: string
-            enum: [mp4]
-            default: mp4
-      responses:
-        '200':
-          description: MediaResult as JSON.
-          headers:
-            X-Frame-Timestamp:
-              description: The real time of the first returned frame.
-              schema:
-                type: string
-            X-Exact-Match:
-              description: Whether the first frame landed on the exact time requested.
-              schema:
-                type: string
-                enum: ['true', 'false']
-            Cache-Control:
-              description: Always no-store.
-              schema:
-                type: string
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MediaResult'
-              example:
-                recording_id: rec-2
-                sensor_id: cam-07
-                media_type: clip
-                content_type: video/mp4
-                requested_start_ts: '2026-09-16T09:12:00.400000000Z'
-                requested_end_ts: '2026-09-16T09:12:05.400000000Z'
-                start_ts: '2026-09-16T09:12:00.400000000Z'
-                end_ts: '2026-09-16T09:12:05.400000000Z'
-                url: /v1/media/rec-2/clip-0-5000000000.mp4
-                expiry_ts: '2026-09-16T09:20:00.000000000Z'
-        '400':
-          description: Missing or invalid start_ts (invalid_timestamp), or missing or invalid duration or unsupported format (invalid_request).
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                status: 400
-                error_code: invalid_request
-                error_detail: duration must be a positive number of seconds
-        '404':
-          description: Record not found, or the requested interval is not fully covered.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                status: 404
-                error_code: clip_not_found
-                error_detail: the requested interval is not covered by the record
-        '406':
-          description: Incompatible Accept header.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                status: 406
-                error_code: not_acceptable
-                error_detail: the Accept header allows none of the available media types
-        '409':
-          description: Record not ready.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                status: 409
-                error_code: record_not_ready
-                error_detail: record is not ready
-        '429':
-          description: Extraction capacity reached.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                status: 429
-                error_code: capacity_exhausted
-                error_detail: extraction capacity reached, retry later
+                status: 507
+                error_code: storage_full
+                error_detail: recording storage quota reached
         '503':
           description: Extraction or storage failure.
           content:
@@ -991,9 +786,9 @@ paths:
 
   /media/{recording-id}/{file}:
     get:
-      tags: [Replay APIs]
+      tags: [Retrieval APIs]
       summary: Gets a produced frame or clip
-      description: Serves the bytes of a frame or clip named by a MediaResult's url. The file is kept only until its expiry_ts, which is capped by the recording's own expiry_ts.
+      description: Serves a derived frame or clip. DerivedMediaTTL sets how many minutes it remains available; 0 disables expiry. Recording expiry does not affect derived media, but deleting the recording removes it. expiry_ts is null when expiry is disabled.
       parameters:
         - $ref: '#/components/parameters/RecordingId'
         - name: file
@@ -1007,11 +802,11 @@ paths:
           description: The frame or clip bytes.
           headers:
             Cache-Control:
-              description: private, max-age=<seconds until expiry_ts>.
+              description: private, max-age=<seconds until expiry_ts>; private, no-cache when there is no expiry.
               schema:
                 type: string
             Expires:
-              description: The file's expiry_ts, as an HTTP-date.
+              description: The file's expiry_ts, as an HTTP-date. Omitted when there is no expiry.
               schema:
                 type: string
             X-Content-Type-Options:
@@ -1032,7 +827,7 @@ paths:
                 type: string
                 format: binary
         '404':
-          description: Unknown recording, or the frame or clip file is missing or past its expiry_ts. Missing frame files return frame_not_found; missing clip files return clip_not_found.
+          description: The frame or clip file is missing or past its expiry_ts. Missing frame files return frame_not_found; missing clip files return clip_not_found.
           content:
             application/json:
               schema:
@@ -1110,6 +905,7 @@ components:
             - unsupported_media
             - capacity_exhausted
             - internal_error
+            - storage_full
             - storage_unavailable
         error_detail:
           type: string
@@ -1273,11 +1069,11 @@ components:
           type: string
           format: date-time
           nullable: true
-          description: When the recording is due to be deleted; empty when the deployment default applies.
+          description: When retrieval becomes unavailable. It is set when the recording becomes ready or failed and the deployment sets a retention period.
         error_detail:
           type: string
           nullable: true
-          description: A short reason, given only when the state is failed.
+          description: A short reason. Given when the state is failed, and when the state is ready and the storage quota stopped the recording early.
       example:
         recording_id: rec-2
         sensor_id: cam-07
@@ -1301,12 +1097,6 @@ components:
         sensor_id:
           type: string
           description: The sensor the media belongs to.
-        media_type:
-          type: string
-          enum: [frame, clip]
-        content_type:
-          type: string
-          description: The type of file that was produced, for example image/jpeg or video/mp4.
         requested_start_ts:
           type: string
           format: date-time
@@ -1331,12 +1121,11 @@ components:
         expiry_ts:
           type: string
           format: date-time
-          description: When url stops working; capped by the recording's own expiry_ts.
+          nullable: true
+          description: When url stops working based on DerivedMediaTTL. Recording expiry does not change this time. Null when the TTL is disabled.
       example:
         recording_id: rec-2
         sensor_id: cam-07
-        media_type: frame
-        content_type: image/jpeg
         requested_start_ts: '2026-09-16T09:12:03.400000000Z'
         requested_end_ts: null
         start_ts: '2026-09-16T09:12:03.400000000Z'
@@ -1358,7 +1147,7 @@ components:
         start_ts:
           type: string
           format: date-time
-          description: The event time (T), as RFC 3339 UTC ending in Z with at most 9 fractional digits. Missing or future times are not accepted.
+          description: The event time (T), as RFC 3339 UTC ending in Z with at most 9 fractional digits. Use the source clock. Missing times, and times later than the newest video frame from the source, are not accepted.
         duration:
           type: number
           description: Positive seconds to record after T. Give it for a fixed-length recording; leave it out for an open one that will be ended with stop.
@@ -1445,7 +1234,7 @@ components:
           description: Which resource was deleted.
         deleted:
           type: boolean
-          description: Always true, and sent only once the deletion has finished.
+          description: Always true, sent only once the deletion has finished.
       example:
         resource: recording
         id: rec-2

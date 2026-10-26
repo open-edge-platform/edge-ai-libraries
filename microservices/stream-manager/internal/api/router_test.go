@@ -17,7 +17,7 @@ import (
 	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/api"
 	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/config"
 	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/record"
-	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/replay"
+	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/retrieve"
 	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/storage"
 	"github.com/open-edge-platform/edge-ai-libraries/microservices/stream-manager/internal/stream"
 )
@@ -52,7 +52,7 @@ func TestStreamRoutes(t *testing.T) {
 			t.Error(err)
 		}
 	})
-	media, err := storage.OpenMediaStore(storageDir)
+	media, err := storage.OpenMediaStore(storageDir, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +61,7 @@ func TestStreamRoutes(t *testing.T) {
 			t.Error(err)
 		}
 	})
-	recordings, err := record.NewService(service, metadata, media, 64)
+	recordings, err := record.NewService(service, metadata, media, 64, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,11 +70,11 @@ func TestStreamRoutes(t *testing.T) {
 			t.Error(err)
 		}
 	})
-	replays, err := replay.NewService(metadata, media)
+	retrievals, err := retrieve.NewService(metadata, media, 15*time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}
-	router := api.NewRouter(service, recordings, replays, "v0.0.1-test", "NA", "NA")
+	router := api.NewRouter(service, recordings, retrievals, "v0.0.1-test", "NA", "NA")
 	request := func(method, path, body string, status int) *httptest.ResponseRecorder {
 		t.Helper()
 		recorder := httptest.NewRecorder()

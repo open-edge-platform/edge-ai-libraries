@@ -22,14 +22,14 @@ func TestStoreLocks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	media, err := OpenMediaStore(dir)
+	media, err := OpenMediaStore(dir, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := OpenMetadataStore(dir); err == nil {
 		t.Fatal("second metadata store opened")
 	}
-	if _, err := OpenMediaStore(dir); err == nil {
+	if _, err := OpenMediaStore(dir, 0); err == nil {
 		t.Fatal("second media store opened")
 	}
 	if err := metadata.Close(); err != nil {
@@ -58,7 +58,7 @@ func TestStoreLocks(t *testing.T) {
 	if err := os.Chmod(shared, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := OpenMediaStore(shared); err == nil {
+	if _, err := OpenMediaStore(shared, 0); err == nil {
 		t.Fatal("non-private directory accepted")
 	}
 }
@@ -89,7 +89,7 @@ func TestValidRecordingID(t *testing.T) {
 
 func TestPutMediaAndDerived(t *testing.T) {
 	ctx := context.Background()
-	media, err := OpenMediaStore(filepath.Join(t.TempDir(), "storage"))
+	media, err := OpenMediaStore(filepath.Join(t.TempDir(), "storage"), 0)
 	if err != nil {
 		t.Fatal(err)
 	}

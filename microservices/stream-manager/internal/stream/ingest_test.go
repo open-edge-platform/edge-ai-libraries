@@ -36,6 +36,9 @@ func TestRelayDescription(t *testing.T) {
 	}
 
 	defer relay.close()
+	if relay.server.WriteQueueSize != relayWriteQueueSize {
+		t.Fatalf("unexpected relay write queue size: got %d, want %d", relay.server.WriteQueueSize, relayWriteQueueSize)
+	}
 	u, err := base.ParseURL(relay.url())
 	if err != nil {
 		t.Fatal(err)

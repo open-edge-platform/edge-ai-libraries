@@ -36,7 +36,9 @@ var (
 	ErrCleanup        = errors.New("recording storage cleanup failed")
 )
 
-const recoveryBatchSize = 100
+const (
+	recoveryBatchSize = 100
+)
 
 // StartOptions describes one recording of a single attached stream.
 // TODO: accept several stream IDs and admit their recordings atomically.
@@ -57,6 +59,7 @@ type Service struct {
 	ffmpeg    string
 	ffprobe   string
 	max       int
+	retention time.Duration
 	jobs      map[string]*job
 	wg        sync.WaitGroup
 	closed    bool
@@ -73,17 +76,22 @@ type job struct {
 	filename string
 	fixed    bool
 	stopped  bool
-	ctx      context.Context
-	cancel   context.CancelFunc
-	err      error
+	// truncated is set when the storage quota ends the recording early.
+	truncated bool
+	ctx       context.Context
+	cancel    context.CancelFunc
+	err       error
 }
 
 var _ Recorder = (*Service)(nil)
 
+// NewService recovers interrupted recordings.
+// A positive retention expires finished recordings that long after they end;
+// zero gives new recordings no expiry. Scheduled deletion is handled separately.
 func NewService(buffers stream.Bufferer, metadata storage.MetadataHandler, media storage.MediaHandler,
-	concurrentRecordings int,
+	concurrentRecordings int, retention time.Duration,
 ) (*Service, error) {
-	if concurrentRecordings < 1 || concurrentRecordings > 1024 {
+	if concurrentRecordings < 1 || concurrentRecordings > 1024 || retention < 0 {
 		return nil, ErrInvalidRequest
 	}
 	ffmpeg, err := exec.LookPath("ffmpeg")
@@ -96,12 +104,21 @@ func NewService(buffers stream.Bufferer, metadata storage.MetadataHandler, media
 	}
 	s := &Service{
 		buffers: buffers, metadata: metadata, media: media, ffmpeg: ffmpeg, ffprobe: ffprobe, max: concurrentRecordings,
-		jobs: make(map[string]*job), now: time.Now,
+		retention: retention, jobs: make(map[string]*job), now: time.Now,
 	}
 	if err := s.recoverInterrupted(context.Background()); err != nil {
 		return nil, err
 	}
 	return s, nil
+}
+
+// expiryTS returns when a recording that finishes now expires, or nil to keep it.
+func (s *Service) expiryTS() *time.Time {
+	if s.retention == 0 {
+		return nil
+	}
+	expiry := s.now().Add(s.retention).UTC()
+	return &expiry
 }
 
 // recoverInterrupted fails the recordings that a previous run left unfinished and deletes their media.
@@ -117,7 +134,7 @@ func (s *Service) recoverInterrupted(ctx context.Context) error {
 				break
 			}
 			for _, rec := range records {
-				rec.State, rec.ErrorDetail = "failed", &detail
+				rec.State, rec.ErrorDetail, rec.ExpiryTS = "failed", &detail, s.expiryTS()
 				if _, err := s.metadata.UpdateMetadata(ctx, rec.RecordingID, rec); err != nil {
 					return err
 				}
@@ -209,6 +226,9 @@ func (s *Service) Start(ctx context.Context, options StartOptions) (model.Record
 		return model.Recording{}, rollback(err)
 	}
 	j.id, j.uri, j.filename = shortID, uri, filename
+	if err := s.media.ReserveMedia(ctx, uri, 0); err != nil {
+		return model.Recording{}, rollback(err)
+	}
 	streamID := info.StreamID
 	j.record = model.Recording{
 		RecordingID: j.id, SensorID: info.SensorID, StreamID: &streamID,
@@ -317,14 +337,21 @@ func (s *Service) run(j *job) {
 	defer delete(s.jobs, j.record.RecordingID)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	j.record.ExpiryTS = s.expiryTS()
 	if err == nil {
 		j.record.StartTS, j.record.EndTS = start, &end
 		j.record.State, j.record.SizeBytes, j.record.Codec = "ready", &size, &codec
+		if j.truncated {
+			detail := "truncated: recording storage quota reached"
+			j.record.ErrorDetail = &detail
+		}
 		_, err = s.metadata.UpdateMetadata(ctx, j.record.RecordingID, j.record)
 	}
 	if err != nil {
 		detail := "recording could not be completed"
-		if errors.Is(err, stream.ErrSliceExpired) {
+		if errors.Is(err, storage.ErrStorageFull) {
+			detail = "recording storage quota reached"
+		} else if errors.Is(err, stream.ErrSliceExpired) {
 			detail = "a required buffer slice exceeded its retention grace period"
 		} else if errors.Is(err, stream.ErrSourceFailed) {
 			detail = "recording source became unavailable"
