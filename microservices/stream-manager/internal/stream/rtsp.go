@@ -29,6 +29,7 @@ import (
 const (
 	videoClockRate      = 90000
 	maxPendingKeyframes = 256
+	relayWriteQueueSize = 4096
 	sourceClockJump     = time.Second
 )
 
@@ -375,6 +376,7 @@ func newVideoRelay(codec format.Format, onClosed func()) (*videoRelay, error) {
 	}
 	r.server = &gortsplib.Server{
 		RTSPAddress: "127.0.0.1:0", Handler: r, DisableRTCPSenderReports: true,
+		WriteQueueSize: relayWriteQueueSize,
 	}
 	if err := r.server.Start(); err != nil {
 		return nil, fmt.Errorf("start local RTSP relay: %w", err)
