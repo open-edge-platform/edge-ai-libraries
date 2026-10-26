@@ -43,15 +43,15 @@ models:
     # funasr provider with name: paraformer-zh | paraformer-en. FunASR needs the
     # optional deps: pip install -r requirements-cjk.txt (or build --build-arg
     # INSTALL_CJK=true). Model snapshots must come from the model-download service
-    # via Hugging Face; Compose provisions them once on the shared models volume
+    # via ModelScope; Compose provisions them once on the shared models volume
     # before Audio Analyzer starts. No downloader API is needed during inference.
 
     # FunASR companion models for VAD (voice activity detection) and punctuation
     # restoration, shared across Paraformer variants. Defaults are the canonical
-    # funasr/ Hugging Face models; override to select a different repository.
+    # iic/ ModelScope models; override to select a different repository.
     # Used only by the funasr provider.
-    vad_model: funasr/fsmn-vad
-    punc_model: funasr/ct-punc
+    vad_model: iic/speech_fsmn_vad_zh-cn-16k-common-pytorch
+    punc_model: iic/punc_ct-transformer_zh-cn-common-vocab272727-pytorch
 
     # Hallucination filtering — openai provider uses native no_speech_prob/avg_logprob.
     # whispercpp derives the same values from per-token plog and ptsum.

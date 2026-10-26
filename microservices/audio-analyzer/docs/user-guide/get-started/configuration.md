@@ -63,7 +63,7 @@ selection from this same configuration. Audio Analyzer starts only after the job
 completes successfully. `AUDIO_ANALYZER_MODEL_DOWNLOAD_URL` is no longer used.
 OpenVINO conversion still runs in Audio Analyzer, using the local source snapshot;
 native OpenAI Whisper and optional sentiment keep their direct-download behavior.
-See [model provisioning and restart instructions](../get-started.md#funasr-paraformer-with-hugging-face).
+See [model provisioning and restart instructions](../get-started.md#funasr-paraformer-with-modelscope).
 
 ### ASR Provider/Device Matrix
 

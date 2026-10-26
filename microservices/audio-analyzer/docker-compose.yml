@@ -77,9 +77,9 @@ services:
       context: ../model-download
       dockerfile: docker/Dockerfile
     image: model-download:local
-    command: ["--plugins", "huggingface", "--ephemeral", "--command", "python", "-m", "utils.provision_models"]
+    command: ["--plugins", "huggingface,modelscope", "--ephemeral", "--command", "python", "-m", "utils.provision_models"]
     environment:
-      ENABLED_PLUGINS: huggingface
+      ENABLED_PLUGINS: huggingface,modelscope
       MODEL_PATH: /opt/models
       PYTHONPATH: /opt/audio_analyzer:/opt
       AUDIO_ANALYZER_CONFIG_PATH: /opt/audio_analyzer/config.yaml

@@ -13,26 +13,29 @@ MODEL_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*\Z"
 COMPLETION_FILE = ".audio-analyzer-model.json"
 MAX_METADATA_BYTES = 1024 * 1024
 FUNASR_MODEL_MAP = {
-    "paraformer-zh": "funasr/paraformer-zh",
-    "paraformer-en": "funasr/paraformer-en",
-    "paraformer-online": "funasr/paraformer-zh-streaming",
+    "paraformer-zh": "iic/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-pytorch",
+    "paraformer-en": "iic/speech_paraformer-large-vad-punc_asr_nat-en-16k-common-vocab10020",
+    "paraformer-online": "iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online",
 }
+FUNASR_VAD_MODEL = "iic/speech_fsmn_vad_zh-cn-16k-common-pytorch"
+FUNASR_PUNC_MODEL = "iic/punc_ct-transformer_zh-cn-common-vocab272727-pytorch"
 FUNASR_MODEL_REVISIONS = {
-    "funasr/paraformer-zh": "d7811ee3ac581fbcfdeb37c98c6ba674028433dc",
-    "funasr/paraformer-en": "2bad1d78c117f38172165dccbc4575df6277ee0a",
-    "funasr/paraformer-zh-streaming": "fd2af606b37d7fb8b3b8a218c5be5b07b53ef6ba",
-    "funasr/fsmn-vad": "df20e6b30c653645fa4ff125cacfcabd1020a669",
-    "funasr/ct-punc": "d0e55e2b8722a78b63705ff443d09c4f86e5d750",
+    model: "v2.0.4"
+    for model in (*FUNASR_MODEL_MAP.values(), FUNASR_VAD_MODEL, FUNASR_PUNC_MODEL)
 }
 
 
-def model_directory(model: str, download_path: str, models_base_path: str) -> Path:
+def model_directory(
+    model: str, download_path: str, models_base_path: str, *, hub: str = "huggingface",
+) -> Path:
     if not MODEL_ID.fullmatch(model):
-        raise ValueError(f"Invalid Hugging Face model identifier: {model!r}")
+        raise ValueError(f"Invalid model identifier: {model!r}")
+    if hub not in {"huggingface", "modelscope"}:
+        raise ValueError(f"Invalid model hub: {hub}")
     if download_path not in {"funasr", "whisper-source", "diarization"}:
         raise ValueError(f"Invalid model download destination: {download_path}")
     base = Path(models_base_path)
-    directory = base / download_path / "huggingface" / model.replace("/", "_")
+    directory = base / download_path / hub / model.replace("/", "_")
     if directory.is_symlink() or not directory.resolve().is_relative_to(base.resolve()):
         raise ValueError("Snapshot directory must remain inside the configured models volume")
     return directory
@@ -42,12 +45,14 @@ def get_local_model(
     model: str,
     revision: str | None = None,
     *,
+    hub: str = "huggingface",
     download_path: str = "funasr",
     required_files: list[str] | None = None,
     models_base_path: str | None = None,
 ) -> str:
     model_dir = model_directory(
         model, download_path, models_base_path or config.models.asr.models_base_path,
+        hub=hub,
     )
     try:
         with (model_dir / COMPLETION_FILE).open("rb") as stream:

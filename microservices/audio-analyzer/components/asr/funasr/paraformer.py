@@ -16,6 +16,8 @@ from utils.config_loader import config
 from utils.local_models import (
     FUNASR_MODEL_MAP,
     FUNASR_MODEL_REVISIONS,
+    FUNASR_PUNC_MODEL,
+    FUNASR_VAD_MODEL,
     get_local_model,
 )
 
@@ -32,9 +34,9 @@ _MODEL_LANGUAGE = {
 # Overridable via models.asr.vad_model / models.asr.punc_model; the defaults are
 # the canonical FunASR companion models.
 VAD_MODEL = str(getattr(config.models.asr, "vad_model", None)
-                or "funasr/fsmn-vad")
+                or FUNASR_VAD_MODEL)
 PUNC_MODEL = str(getattr(config.models.asr, "punc_model", None)
-                 or "funasr/ct-punc")
+                 or FUNASR_PUNC_MODEL)
 
 _MODEL_REVISIONS = FUNASR_MODEL_REVISIONS
 
@@ -69,18 +71,18 @@ class Paraformer(BaseASR):
         revision = revision or _MODEL_REVISIONS[repo_id]
         required_files = ["config.yaml", "model.pt"]
         model_dir = get_local_model(
-            repo_id, revision, required_files=required_files,
+            repo_id, revision, hub="modelscope", required_files=required_files,
         )
         vad_model_dir = get_local_model(
             VAD_MODEL, _MODEL_REVISIONS.get(VAD_MODEL),
-            required_files=required_files,
+            hub="modelscope", required_files=required_files,
         )
         punc_model_dir = get_local_model(
             PUNC_MODEL, _MODEL_REVISIONS.get(PUNC_MODEL),
-            required_files=required_files,
+            hub="modelscope", required_files=required_files,
         )
 
-        logger.info("Loading FunASR Paraformer model=%s on device=%s (hub=huggingface)", repo_id, device)
+        logger.info("Loading FunASR Paraformer model=%s on device=%s (hub=modelscope)", repo_id, device)
         self.model_name = repo_id
         self.model = AutoModel(
             model=model_dir,

@@ -94,6 +94,24 @@ class SharedModelTests(unittest.TestCase):
 
 
 class LocalSnapshotTests(unittest.TestCase):
+    def test_modelscope_snapshot_is_separate_from_huggingface(self):
+        with tempfile.TemporaryDirectory() as base:
+            directory = model_directory("iic/example", "funasr", base, hub="modelscope")
+            self.assertEqual(directory, Path(base) / "funasr" / "modelscope" / "iic_example")
+            directory.mkdir(parents=True)
+            (directory / "model.pt").write_bytes(b"weights")
+            record_snapshot("iic/example", "v2.0.4", directory)
+            self.assertEqual(get_local_model(
+                "iic/example", "v2.0.4", hub="modelscope",
+                models_base_path=base, required_files=["model.pt"],
+            ), str(directory))
+            with self.assertRaisesRegex(RuntimeError, "provisioning job"):
+                get_local_model("iic/example", "v2.0.4", models_base_path=base)
+
+    def test_invalid_hub_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "Invalid model hub"):
+            model_directory("iic/example", "funasr", "/tmp/models", hub="../escape")
+
     def test_valid_snapshot_loads_without_network(self):
         with tempfile.TemporaryDirectory() as base:
             directory = model_directory("funasr/example", "funasr", base)

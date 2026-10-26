@@ -24,6 +24,8 @@ from utils.local_models import (
     COMPLETION_FILE,
     FUNASR_MODEL_MAP,
     FUNASR_MODEL_REVISIONS,
+    FUNASR_PUNC_MODEL,
+    FUNASR_VAD_MODEL,
     MAX_METADATA_BYTES,
     get_local_model,
     model_directory,
@@ -51,12 +53,13 @@ async def provision_models(fetch: Callable[..., Awaitable[str]]) -> None:
             raise ValueError(f"Unsupported FunASR model: {asr.name}")
         for model in (
             FUNASR_MODEL_MAP[asr.name],
-            getattr(asr, "vad_model", None) or "funasr/fsmn-vad",
-            getattr(asr, "punc_model", None) or "funasr/ct-punc",
+            getattr(asr, "vad_model", None) or FUNASR_VAD_MODEL,
+            getattr(asr, "punc_model", None) or FUNASR_PUNC_MODEL,
         ):
             await fetch(
                 model, FUNASR_MODEL_REVISIONS.get(model),
-                download_path="funasr", required_files=["config.yaml", "model.pt"],
+                hub="modelscope", download_path="funasr",
+                required_files=["config.yaml", "model.pt"],
             )
     elif asr.provider != "openai":
         raise ValueError(f"Unsupported ASR provider: {asr.provider}")
@@ -136,27 +139,28 @@ async def main() -> None:
         model: str,
         revision: str | None = None,
         *,
+        hub: str = "huggingface",
         download_path: str,
         required_files: list[str],
         files: list[str] | None = None,
         hf_token: str | None = None,
     ) -> str:
-        directory = model_directory(model, download_path, models_dir)
+        directory = model_directory(model, download_path, models_dir, hub=hub)
         try:
             return get_local_model(
                 model, revision, download_path=download_path,
-                required_files=required_files, models_base_path=models_dir,
+                required_files=required_files, models_base_path=models_dir, hub=hub,
             )
         except RuntimeError:
             logger.info("Preparing missing or changed snapshot: %s", model)
         if directory.is_symlink() or not directory.resolve().is_relative_to(Path(models_dir).resolve()):
             raise RuntimeError(f"Unsafe snapshot location for {model}")
         if directory.exists():
-            # Rebuild only this invalid snapshot: stale HF metadata and files from
+            # Rebuild only this invalid snapshot: stale hub metadata and files from
             # another revision must not be certified as the requested revision.
             shutil.rmtree(directory)
         directory.mkdir(parents=True, exist_ok=True)
-        entry: dict[str, object] = {"name": model, "hub": "huggingface", "revision": revision}
+        entry: dict[str, object] = {"name": model, "hub": hub, "revision": revision}
         if files:
             entry["config"] = {"files": files}
         if hf_token:
@@ -178,7 +182,7 @@ async def main() -> None:
         try:
             return get_local_model(
                 model, revision, download_path=download_path,
-                required_files=required_files, models_base_path=models_dir,
+                required_files=required_files, models_base_path=models_dir, hub=hub,
             )
         except RuntimeError:
             (directory / COMPLETION_FILE).unlink(missing_ok=True)

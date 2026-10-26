@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, patch
 import yaml
 
 from utils import ensure_model, provision_models
-from utils.local_models import FUNASR_MODEL_REVISIONS
+from utils.local_models import FUNASR_MODEL_MAP, FUNASR_MODEL_REVISIONS, FUNASR_VAD_MODEL
 
 
 def configuration(provider="openvino", name="whisper-base", diarization=False):
@@ -56,12 +56,17 @@ class ProvisioningPlanTests(unittest.IsolatedAsyncioTestCase):
             await provision_models.provision_models(fetch)
         self.assertEqual(fetch.await_count, 3)
         self.assertEqual(fetch.await_args_list[0].args, (
-            "funasr/paraformer-en", FUNASR_MODEL_REVISIONS["funasr/paraformer-en"],
+            FUNASR_MODEL_MAP["paraformer-en"], "v2.0.4",
         ))
         self.assertEqual(fetch.await_args_list[1].args, (
-            "funasr/fsmn-vad", FUNASR_MODEL_REVISIONS["funasr/fsmn-vad"],
+            FUNASR_VAD_MODEL, FUNASR_MODEL_REVISIONS[FUNASR_VAD_MODEL],
         ))
         self.assertEqual(fetch.await_args_list[2].args, ("custom/punctuation", None))
+        for call in fetch.await_args_list:
+            self.assertEqual(call.kwargs, {
+                "hub": "modelscope", "download_path": "funasr",
+                "required_files": ["config.yaml", "model.pt"],
+            })
 
     async def test_diarization_discovers_standalone_dependencies(self):
         with tempfile.TemporaryDirectory() as base:
@@ -130,6 +135,8 @@ class EphemeralDeploymentTests(unittest.TestCase):
         self.assertEqual(job["restart"], "no")
         self.assertTrue(job["healthcheck"]["disable"])
         self.assertIn("--ephemeral", job["command"])
+        self.assertEqual(job["command"][1], "huggingface,modelscope")
+        self.assertEqual(job["environment"]["ENABLED_PLUGINS"], "huggingface,modelscope")
         self.assertNotIn("AUDIO_ANALYZER_MODEL_DOWNLOAD_URL", app["environment"])
         self.assertIn("audio_analyzer_models:/opt/models", job["volumes"])
         self.assertIn("audio_analyzer_models:/app/audio_analyzer/models", app["volumes"])

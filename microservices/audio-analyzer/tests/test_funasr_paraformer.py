@@ -60,12 +60,12 @@ class ParaformerProviderTests(unittest.TestCase):
              patch.object(pf, "get_local_model", side_effect=["asr", "vad", "punc"]) as download:
             pf.Paraformer("paraformer-zh")
         self.assertEqual(download.call_count, 3)
-        self.assertEqual(download.call_args_list[0].args, ("funasr/paraformer-zh", pf._MODEL_REVISIONS["funasr/paraformer-zh"]))
-        self.assertEqual(download.call_args_list[1].args, ("funasr/fsmn-vad", pf._MODEL_REVISIONS["funasr/fsmn-vad"]))
-        self.assertEqual(download.call_args_list[2].args, ("funasr/ct-punc", pf._MODEL_REVISIONS["funasr/ct-punc"]))
+        self.assertEqual(download.call_args_list[0].args, (pf.FUNASR_MODEL_MAP["paraformer-zh"], "v2.0.4"))
+        self.assertEqual(download.call_args_list[1].args, (pf.FUNASR_VAD_MODEL, "v2.0.4"))
+        self.assertEqual(download.call_args_list[2].args, (pf.FUNASR_PUNC_MODEL, "v2.0.4"))
         for call in download.call_args_list:
             self.assertEqual(call.kwargs, {
-                "required_files": ["config.yaml", "model.pt"],
+                "hub": "modelscope", "required_files": ["config.yaml", "model.pt"],
             })
         fake_funasr.AutoModel.assert_called_once_with(
             model="asr", vad_model="vad", punc_model="punc",

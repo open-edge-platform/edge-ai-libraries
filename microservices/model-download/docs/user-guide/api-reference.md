@@ -206,6 +206,7 @@ curl -X POST "http://localhost:8200/api/v1/models/download?download_path=my-mode
 | Hub                  | Description                          |
 | -------------------- | ------------------------------------ |
 | `huggingface`        | HuggingFace model hub               |
+| `modelscope`         | ModelScope snapshots (including FunASR) |
 | `ollama`             | Ollama model registry                |
 | `ultralytics`        | Ultralytics YOLO models             |
 | `pipeline-zoo-models`| Pipeline Zoo Models                  |
@@ -215,13 +216,14 @@ curl -X POST "http://localhost:8200/api/v1/models/download?download_path=my-mode
 | `hls`                | HLS model source                     |
 | `remote-url`         | Download from a remote URL           |
 
-FunASR snapshots use the existing `huggingface` plugin. For example,
+FunASR snapshots use the `modelscope` plugin. Enable it with
+`--plugins modelscope` (or add `modelscope` to `ENABLED_PLUGINS`). For example,
 download Mandarin Paraformer, VAD, and punctuation models together:
 
 ```bash
 curl -X POST "http://localhost:8200/models/download?download_path=funasr" \
   -H 'Content-Type: application/json' \
-  -d '{"models":[{"name":"funasr/paraformer-zh","hub":"huggingface","revision":"d7811ee3ac581fbcfdeb37c98c6ba674028433dc"},{"name":"funasr/fsmn-vad","hub":"huggingface","revision":"df20e6b30c653645fa4ff125cacfcabd1020a669"},{"name":"funasr/ct-punc","hub":"huggingface","revision":"d0e55e2b8722a78b63705ff443d09c4f86e5d750"}]}'
+  -d '{"models":[{"name":"iic/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-pytorch","hub":"modelscope","revision":"v2.0.4"},{"name":"iic/speech_fsmn_vad_zh-cn-16k-common-pytorch","hub":"modelscope","revision":"v2.0.4"},{"name":"iic/punc_ct-transformer_zh-cn-common-vocab272727-pytorch","hub":"modelscope","revision":"v2.0.4"}]}'
 ```
 
 The response contains a `job_ids` array. Poll `GET /jobs/<job_id>` until
@@ -230,8 +232,9 @@ sharing the downloader's model storage volume. These FunASR requests download
 native PyTorch snapshots, not OpenVINO IR. Use `hub: "openvino"` for supported
 OpenVINO exports instead.
 
-ModelScope is no longer supported: remove `modelscope` from `ENABLED_PLUGINS`
-or `--plugins`, and migrate requests to Hugging Face repository IDs and revisions.
+Snapshots are stored under `<MODELS_DIR>/funasr/modelscope/<owner>_<model>/`.
+Use ModelScope repository IDs and revisions, not Hugging Face commit hashes.
+Hugging Face remains supported for other downloads.
 
 For whisper.cpp, request `hub: "huggingface"` with
 `name: "ggerganov/whisper.cpp"` and `config: {"files": ["ggml-base.bin"]}`
@@ -269,7 +272,7 @@ Download service hub.
 
 **`name` Format by Hub:**
 
-- `huggingface`, `ollama`, `openvino`, `geti`, `hls`, `remote-url`: single model name
+- `huggingface`, `modelscope`, `ollama`, `openvino`, `geti`, `hls`, `remote-url`: single model name
 - `ultralytics`: single name, comma-separated names, or `all`
 - `pipeline-zoo-models`: single name, comma-separated names, or `all`
 - `omz`: single name or comma-separated names (`all` is not supported)

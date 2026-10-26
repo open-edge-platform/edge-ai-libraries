@@ -80,7 +80,7 @@ the one-shot command.
 Audio Analyzer uses this mode with `python -m utils.provision_models` to derive
 the required snapshots from its mounted configuration, provision them using the
 existing model submission/job machinery, and exit before inference starts.
-See its [provisioning setup](../../../../audio-analyzer/docs/user-guide/get-started.md#funasr-paraformer-with-hugging-face).
+See its [provisioning setup](../../../../audio-analyzer/docs/user-guide/get-started.md#funasr-paraformer-with-modelscope).
 Existing `--ephemeral --model-name ... --hub ...` behavior is unchanged.
 
 ### Model Parameters

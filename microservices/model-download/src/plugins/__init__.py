@@ -11,6 +11,7 @@ PLUGINS = {
     'external-sources': ('src.plugins.external_sources_plugin', 'ExternalSourcesPlugin'),
     'ollama': ('src.plugins.ollama_plugin', 'OllamaPlugin'),
     'huggingface': ('src.plugins.huggingface_plugin', 'HuggingFacePlugin'),
+    'modelscope': ('src.plugins.modelscope_plugin', 'ModelScopePlugin'),
     'openvino': ('src.plugins.openvino_plugin', 'OpenVINOConverter'),
     'geti': ('src.plugins.geti_plugin', 'GetiPlugin'),
     'hls': ('src.plugins.hls_plugin', 'HlsPlugin'),
