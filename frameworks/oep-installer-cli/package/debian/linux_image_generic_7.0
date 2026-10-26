@@ -1,6 +1,6 @@
 
 debian_25_profile_linux_image_generic_7.0 () {
-  [[ "$(uname -r)" = 7.0*generic ]] || echo "reboot"
+  echo "reboot"
 }
 
 debian_25_install_linux_image_generic_7.0 () {
@@ -18,5 +18,9 @@ debian_25_install_linux_image_generic_7.0 () {
     # schedule reboot"
     configure_reboot
   fi
+}
+
+debian_25_sbom_linux_image_generic_7.0 () {
+  ensure_sbom_format pkg-list linux-image-generic-7.0
 }
 

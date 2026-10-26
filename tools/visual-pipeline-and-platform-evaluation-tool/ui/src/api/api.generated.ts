@@ -1177,6 +1177,14 @@ export type LatencyMetrics = {
   /** Current end-to-end latency reported by the tracer, in ms. */
   latency_ms: number;
 };
+export type PipelineEvent = {
+  timestamp_ms: number;
+  source: string;
+  text: string;
+  element?: string | null;
+  pts_seconds?: number | null;
+  prompt?: string | null;
+};
 export type PerformanceJobStatus = {
   id: string;
   start_time: number;
@@ -1200,6 +1208,8 @@ export type PerformanceJobStatus = {
   metadata_stream_urls: {
     [key: string]: string[];
   } | null;
+  /** Most recent live pipeline events (oldest first, bounded), e.g. a `gvaproximitytrigger_py` trigger firing or a `gvagenai` answer. */
+  events?: PipelineEvent[];
 };
 export type PerformanceJobSummary = {
   id: string;
