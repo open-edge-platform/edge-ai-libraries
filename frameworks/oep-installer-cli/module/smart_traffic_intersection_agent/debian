@@ -41,7 +41,7 @@ debian_90_install_smart_traffic_intersection_agent () {
   local device=$(ensure_select_device "$@")
   echo "$device" > "$workspace"/.device
 
-  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
   echo "@@HIGHLIGHT $installer_name install/start [--gpu|npu|cpu]"
   echo "@@HIGHLIGHT $installer_name remove"
 }
