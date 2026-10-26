@@ -37,12 +37,15 @@ IMAGE_TAG = "audio-analyzer:test-dependency-trimming"
 BUILD_TIMEOUT_SEC = 900  # 15 min — covers base image pull + pip install
 
 # Packages intentionally uninstalled post-install for image-size reduction.
-# `pip check` will always report these two as "required but not installed"
+# `pip check` will always report these as "required but not installed"
 # — that is expected and intentional, not a regression. See docker/Dockerfile
-# comments next to the `pip uninstall -y triton` / `torchcodec` lines, and
-# tests/test_openai_whisper_triton.py for the runtime-behavior proof that
-# removing them is safe.
-EXPECTED_PIP_CHECK_MISSING = {"triton", "torchcodec"}
+# comments next to the `pip uninstall -y triton` / `torchcodec` lines and the
+# `rm -rf .../pip* setuptools* wheel*` step, and tests/test_openai_whisper_triton.py
+# for the runtime-behavior proof that removing triton/torchcodec is safe.
+# `setuptools` is declared as a runtime requirement by `torch`'s metadata
+# (distutils-replacement shim), but is never imported by this service and is
+# deliberately stripped from the final image alongside `pip`/`wheel`.
+EXPECTED_PIP_CHECK_MISSING = {"triton", "torchcodec", "setuptools"}
 
 
 def _docker_available() -> tuple[bool, str]:
@@ -190,4 +193,58 @@ for pkg in sorted(missing):
             f"Dependency check reported unexpected broken dependencies: {unexpected}. "
             f"Only {EXPECTED_PIP_CHECK_MISSING} are expected (intentionally "
             f"removed). Full output:\n{result.stdout}\n{result.stderr}"
+        )
+
+    @pytest.mark.tier3
+    def test_installed_versions_satisfy_requirement_specifiers(self, built_image):
+        """
+        `test_pip_check_reports_only_expected_warnings` only checks that each
+        required package is *present*; it does not check that the installed
+        *version* actually satisfies the requiring package's version
+        specifier (e.g. `foo>=2.0,<3.0`). A present-but-wrong-version package
+        would silently pass that test. This test closes that gap by
+        re-walking the same dependency graph and asserting every declared
+        specifier is satisfied by what is actually installed.
+        """
+        script = r"""
+import importlib.metadata as m
+from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
+
+installed = {canonicalize_name(d.metadata["Name"]): d for d in m.distributions() if d.metadata.get("Name")}
+mismatched = {}
+for name, dist in installed.items():
+    for raw_req in dist.requires or []:
+        try:
+            req = Requirement(raw_req)
+        except Exception:
+            continue
+        if req.marker is not None:
+            try:
+                if not req.marker.evaluate({"extra": ""}):
+                    continue
+            except Exception:
+                pass
+        base = canonicalize_name(req.name)
+        target = installed.get(base)
+        if target is None:
+            continue  # absence is covered by test_pip_check_reports_only_expected_warnings
+        installed_version = target.metadata["Version"]
+        if req.specifier and not req.specifier.contains(installed_version, prereleases=True):
+            mismatched.setdefault(base, set()).add(
+                f"{name} requires {base}{req.specifier}, found {installed_version}"
+            )
+for pkg in sorted(mismatched):
+    for detail in sorted(mismatched[pkg]):
+        print(f"{pkg}::{detail}")
+"""
+        result = _run_in_image(built_image, f"python3.12 - <<'PYEOF'\n{script}\nPYEOF")
+        assert result.returncode == 0, (
+            f"Dependency version-specifier check failed to execute inside the image "
+            f"(exit {result.returncode}).\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        )
+
+        assert not result.stdout.strip(), (
+            f"Installed package versions do not satisfy their requirers' version "
+            f"specifiers:\n{result.stdout}\n{result.stderr}"
         )
