@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 """
 Tier 3 — Dependency-Trimming Regression Tests (triton / torchcodec removal)
 =============================================================================
@@ -152,8 +154,9 @@ class TestDependencyTrimming:
         script = r"""
 import importlib.metadata as m
 from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
 
-installed = {d.metadata["Name"].lower(): d for d in m.distributions() if d.metadata.get("Name")}
+installed = {canonicalize_name(d.metadata["Name"]): d for d in m.distributions() if d.metadata.get("Name")}
 missing = {}
 for name, dist in installed.items():
     for raw_req in dist.requires or []:
@@ -167,7 +170,7 @@ for name, dist in installed.items():
                     continue
             except Exception:
                 pass
-        base = req.name.lower()
+        base = canonicalize_name(req.name)
         if base not in installed:
             missing.setdefault(base, set()).add(name)
 for pkg in sorted(missing):

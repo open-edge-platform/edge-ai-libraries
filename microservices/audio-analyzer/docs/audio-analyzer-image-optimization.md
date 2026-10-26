@@ -1,3 +1,7 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
 # Audio Analyzer Image Optimization Log
 
 **Status:** Promoted to production. After cross-machine CPU/GPU/NPU validation

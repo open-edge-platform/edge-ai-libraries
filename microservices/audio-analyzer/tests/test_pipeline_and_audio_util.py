@@ -645,7 +645,7 @@ class ASRPoolCacheTests(unittest.TestCase):
         ASRComponent._models = {}
 
     def test_pools_do_not_evict_each_other(self):
-        with patch("components.asr_component.OV_Whisper") as ov_cls, patch(
+        with patch("components.asr.openvino.whisper.Whisper") as ov_cls, patch(
             "components.asr_component.config.app.use_ov_genai", False
         ):
             ov_cls.side_effect = [object(), object(), object()]
@@ -662,7 +662,7 @@ class ASRPoolCacheTests(unittest.TestCase):
         self.assertIsNot(final.asr, preview.asr)
 
     def test_same_pool_different_device_are_both_cached(self):
-        with patch("components.asr_component.OV_Whisper") as ov_cls, patch(
+        with patch("components.asr.openvino.whisper.Whisper") as ov_cls, patch(
             "components.asr_component.config.app.use_ov_genai", False
         ):
             ov_cls.side_effect = [object(), object()]
