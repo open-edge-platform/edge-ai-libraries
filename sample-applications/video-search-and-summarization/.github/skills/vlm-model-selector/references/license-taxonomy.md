@@ -39,10 +39,11 @@ as equivalent to Bucket 1:
   monthly-active-users threshold clause and a naming/attribution requirement
   for derivatives; relevant for any LLaVA-NeXT or other model with a Llama
   backbone.
-- **Qwen-specific size licenses** — most small/mid Qwen2/2.5/3-VL sizes are
-  Apache-2.0, but verify each size individually; some larger or older
-  checkpoints in the Qwen lineage have used a custom Tongyi Qianwen license
-  with its own use restrictions.
+- **Qwen-specific size licenses** — most small/mid Qwen-VL sizes across its
+  generations are Apache-2.0, but verify each size and generation
+  individually, including whatever the current generation turns out to be —
+  some larger or older checkpoints in the Qwen lineage have used a custom
+  Tongyi Qianwen license with its own use restrictions.
 - **MiniCPM Model License** (OpenBMB) — generally commercial-friendly but has
   historically required registration/notification for certain commercial
   usage scales; confirm current terms on the specific checkpoint.

@@ -60,13 +60,18 @@ Notes:
 These are starting buckets for the Step 2 compute-fit gate, validated against
 OpenVINO GenAI's supported-models list and typical INT4 weight-compression
 ratios (~4x vs. fp16). Always confirm with an actual export + timed inference
-on target hardware before committing.
+on target hardware before committing. The example checkpoints below are drawn
+from `candidate-vlm-families.md`'s "Generations observed at snapshot time"
+column — that column is a historical record, not a currency claim, so verify
+live which generation of each family is actually current before recommending
+it; treat any generation shown here that isn't the one you verified as live
+as a same-size-class benchmark/compute-fit proxy only, not the recommendation.
 
 | Target | Dense parameter count | Precision | Notes |
 |---|---|---|---|
-| NPU-only, lowest power, single image, short responses | ≤2–4B | INT4 (NNCF weight compression) | Best fit for always-on/background inference (e.g., `Qwen2-VL-2B-Instruct`, `InternVL2_5-2B`/`InternVL3-2B`, `MiniCPM-V-4.7-1B`). Confirm the architecture is in OpenVINO GenAI's VLM supported list before committing to NPU. |
-| Core Ultra iGPU, interactive chat/QA over images or short video | ≤7–8B | INT4, INT8 fallback if accuracy-sensitive | Comfortable range for `Qwen2.5-VL-7B-Instruct`, `MiniCPM-V-2_6` (~8B), `LLaVA-NeXT` 7B variants, `InternVL2_5-8B`, `Phi-4-multimodal` (~5.6B). |
-| Core Ultra iGPU, higher accuracy, batch/offline acceptable | 8–14B | INT4 | e.g., `InternVL3-14B`, `Qwen3-VL-8B`-class. Expect noticeably higher latency; validate it meets the user's throughput target before recommending for interactive use. |
+| NPU-only, lowest power, single image, short responses | ≤2–4B | INT4 (NNCF weight compression) | Best fit for always-on/background inference (e.g., a ~2B-class checkpoint from the Qwen-VL, InternVL, or MiniCPM-V families — confirm which generation of each is current before naming one). If the live-verified current generation's checkpoint has no published NPU/INT4 benchmark yet, the equivalent size from the newest generation that *does* have one can be cited as a same-size-class proxy — name both checkpoints and label it as such. Confirm the architecture is in OpenVINO GenAI's VLM supported list before committing to NPU. |
+| Core Ultra iGPU, interactive chat/QA over images or short video | ≤7–8B | INT4, INT8 fallback if accuracy-sensitive | Comfortable range for a ~7–8B-class checkpoint from the Qwen-VL, MiniCPM-V, LLaVA-NeXT, InternVL, or Phi-vision/multimodal families (confirm current generation live for each before naming one). Where the live-verified current generation lacks published numbers, the newest generation that does have numbers can serve as a labeled same-size proxy. |
+| Core Ultra iGPU, higher accuracy, batch/offline acceptable | 8–14B | INT4 | e.g., a ~14B-class InternVL checkpoint or an ~8B-class Qwen-VL checkpoint from whichever generation is live-verified as current. Expect noticeably higher latency; validate it meets the user's throughput target before recommending for interactive use. |
 | Discrete Arc (A-/B-Series) or Arc Pro, interactive or batch | up to ~14–24B | INT4, INT8 if accuracy-sensitive | Dedicated 6–32 GB VRAM removes the shared-RAM pressure of iGPU placement; a good fit when a user has an Arc/Arc Pro card but the model is a size tier above comfortable Core Ultra iGPU placement. The ~20–24B end of the range needs the 24–32 GB Arc Pro B60/B65/B70 cards specifically, not the 6–16 GB consumer Arc A-/B-Series. |
 | Avoid for real-time Core Ultra (NPU/iGPU) or discrete Arc deployment | >24B dense (or large MoE) | any | Memory and latency typically unacceptable for Core Ultra NPU/iGPU or a single discrete Arc card outside of batch/offline analysis; recommend a cloud/data-center fallback instead if accuracy at this scale is required. |
 

@@ -102,7 +102,16 @@ matching branch:
 1. Get the user's exact candidate list. If they give informal names ("the
    Qwen vision model"), resolve each to its precise Hub repo ID
    (`org/model-name`) before proceeding, and tell the user which exact
-   checkpoint you resolved it to. If a named model can't be found on the Hub,
+   checkpoint you resolved it to. When resolving an informal family name,
+   check the family's Hub org page (sorted by most-recently-created/updated)
+   for its newest shipped generation/release rather than defaulting to
+   whichever checkpoint is most familiar from training data — families ship
+   new generations every few months, so the generation number or name you
+   recall is never a safe assumption of currency, and neither is any specific
+   generation named anywhere in this skill's own instructions or reference
+   files (those are dated snapshots, not a currency claim). If the user named
+   an older generation explicitly, honor their choice but mention that a newer
+   generation exists as an option. If a named model can't be found on the Hub,
    say so rather than silently dropping it.
 2. **Skip discovery** — do not browse the Hub or the leaderboard for *new*
    candidates; the scope is exactly the models the user named (plus, if
@@ -138,7 +147,16 @@ matching branch:
    search matches mostly on model id/tags, not a deep semantic scan of every
    README — so "open" means a broadened but still bounded top-of-funnel
    (e.g., top 50–100 by trending/downloads/recency under the right tag, plus
-   leaderboard entries), not an exhaustive scan of the entire hub.
+   leaderboard entries), not an exhaustive scan of the entire hub. Do not let
+   a family's most-famous/most-memorized checkpoint stand in for its current
+   lineup — for every family that surfaces, check that family's own Hub org
+   page or release notes for whatever generation is newest *right now*, and
+   shortlist that one by default. Never substitute a specific generation name
+   recalled from training data, or named as an example anywhere in this
+   skill's instructions or reference files, for that live check — those names
+   are illustrations of a naming pattern (e.g., a family may version its
+   releases as `<Family><N>` or `<Family> <major>.<minor>`), not a claim about
+   which one currently ships.
 2. **Cheap metadata triage (do this before any deep review):** for every
    discovered candidate, apply two cheap, metadata-only checks:
    - **License bucket** (`references/license-taxonomy.md`) — default an
@@ -163,13 +181,32 @@ matching branch:
    to self-reported model-card numbers (label as self-reported, lower
    confidence) or, failing that, community adoption (downloads/likes/recency)
    as a weak usability proxy — never silently present these as equivalent to
-   a verified benchmark score.
+   a verified benchmark score. **Cross-generation proxy rule:** always
+   recommend whichever generation you verified is newest at the needed size
+   for actual deployment; if that exact checkpoint has no published
+   leaderboard/model-card benchmark numbers yet, you may cite the equivalent
+   size from the immediately preceding generation of the same family (i.e.,
+   the newest generation that *does* have published numbers) as a stand-in
+   accuracy signal — e.g., "no Video-MME number published yet for the
+   newest-generation 2B checkpoint; using the prior generation's 2B number as
+   a same-size-class proxy" — but always name the exact two checkpoints you
+   compared, label the substitution explicitly as a cross-generation proxy,
+   and never present an older generation's measured number as if it were
+   measured on the newer checkpoint.
 5. **Verification rigor for unfamiliar models:** every factual claim about a
    candidate that isn't a well-known, widely-documented model (size, license,
    capability, OpenVINO compatibility) must come from a freshly fetched source
    in this conversation, not recalled from training data — treat this as
    mandatory per field, not a spot-check, since there's no familiarity safety
-   net for long-tail models.
+   net for long-tail models. This exemption never covers *which generation is
+   current* — familiarity from training data (and from this skill's own
+   examples and reference files) skews toward whichever version was
+   best-documented or most recently written about at the time, which is
+   reliably an older generation by the time of use. Always confirm the newest
+   shipped generation of a well-known family from a freshly fetched Hub/org
+   page before finalizing a recommendation, even if an older generation's
+   details are well remembered and even if a specific generation is named as
+   an example in this skill's own instructions.
 6. Continue to **Step 5** (model-card review) on the triaged ~8–10, then
    **Step 6** (score/rank).
 
@@ -282,13 +319,17 @@ and describes any visible defects in a short sentence, running on an NPU-only
 Core Ultra box with no internet access at runtime."
 
 **Expected output:** After confirming Step 2's choice is open search, a table
-comparing 3–5 candidates (e.g., a ~2B InternVL or Qwen2-VL-2B class model)
-scored on defect-description relevance (general captioning/VQA, not a
-specialized defect benchmark — flag this gap honestly), accuracy proxies from
-MMBench/MMMU, NPU-fit at INT4, and license. One primary recommendation with
-the `optimum-cli` export command, and a note that offline operation requires
-the model and tokenizer to be pre-downloaded since the NPU box has no runtime
-internet access.
+comparing 3–5 candidates drawn from each matched family's *current*
+generation (verified live, not assumed) at the ~2B size scored on
+defect-description relevance (general captioning/VQA, not a specialized
+defect benchmark — flag this gap honestly), accuracy proxies from
+MMBench/MMMU, NPU-fit at INT4, and license. If a current-generation checkpoint
+has no published benchmark numbers yet, cite the same-size checkpoint from the
+newest generation that *does* have published numbers (naming both checkpoints
+explicitly) as a labeled cross-generation proxy rather than skipping the
+metric. One primary recommendation with the `optimum-cli` export command, and
+a note that offline operation requires the model and tokenizer to be
+pre-downloaded since the NPU box has no runtime internet access.
 
 ### Example: single-model check (user-provided shortlist of one)
 
@@ -300,7 +341,12 @@ iGPU for a document-QA chatbot?"
 it's on the OpenVINO supported-models list, check its license (verify it's the
 Apache-2.0-licensed size, since some Qwen variants differ by size), confirm 7B
 at INT4 fits a typical Core Ultra iGPU memory budget, and report fit/no-fit
-with reasoning and the export command.
+with reasoning and the export command. Also check the Qwen Hub org page for
+whether a newer generation's 7B-class checkpoint has since shipped and would
+be a straightforward upgrade — the user named a specific generation but
+didn't rule out a newer one, so surface it as an option (naming the exact
+newer checkpoint found) rather than silently assuming the named generation is
+still current.
 
 ## Edge Cases
 
@@ -329,12 +375,33 @@ with reasoning and the export command.
 - **Task requires a capability no public VLM reliably has** (e.g., precise
   pixel-level segmentation): say so rather than overstating a VLM's fit, and
   suggest a hybrid pipeline (specialist CV model + VLM for the language part).
+- **Newest generation in a matched family lacks published benchmark/compute-fit
+  data:** don't discard it or silently fall back to recommending the older
+  generation instead — recommend the verified-newest checkpoint for actual
+  deployment, cite the nearest-older same-size sibling's numbers (naming both
+  checkpoints explicitly) as an explicitly labeled cross-generation proxy, and
+  recommend an actual eval pass on the user's data (or an `optimum-cli` export
+  feasibility probe, if compute-fit itself is unconfirmed) before fully
+  committing to the proxy numbers.
 
 ## Notes
 
 - Benchmarks and leaderboard rankings shift frequently; always state the date
   of any benchmark numbers cited and note that production accuracy should be
   validated on the user's own data before deployment.
+- Model families release new generations every few months, often faster than
+  any document (including this skill and its reference files) can be kept
+  current. Never let training-data familiarity with an older, well-documented
+  checkpoint — or a specific generation named as an example anywhere in this
+  skill's own instructions or reference files — stand in for checking whether
+  a newer generation of that family exists. Always confirm the current lineup
+  live (the family's Hub org page or release notes, sorted by recency) before
+  finalizing a shortlist, and default to the newest generation unless the user
+  specifically asked for an older one. Use an older generation's published
+  numbers only as an explicitly labeled proxy when the current generation's
+  equivalent size has no benchmark data yet — never as the primary
+  recommendation when a newer same-size checkpoint exists and passes the same
+  gates.
 - `references/intel-core-ultra-compute-envelope.md` (Core Ultra NPU/iGPU *and*
   discrete Arc GPU tiers), `references/candidate-vlm-families.md`,
   and `references/license-taxonomy.md` are dated snapshots meant to seed the
