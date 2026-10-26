@@ -142,7 +142,7 @@ DOCKER_BUILD_ARGS := \
 # All images produced by this Makefile (app + dependency services)
 DEP_IMAGES  := $(REGISTRY)multimodal-dataprep:$(TAG) $(REGISTRY)multimodal-embedding-serving:$(TAG) \
                $(foreach b,$(VECTOR_RETRIEVER_BACKENDS),$(REGISTRY)vector-retriever-$(b):$(TAG))
-APP_IMAGES  := $(foreach c,$(COMPONENTS),$(REGISTRY)$(c):$(TAG))
+APP_IMAGES  := $(foreach c,$(COMPONENTS),$(call component_image,$(c)))
 ALL_IMAGES  := $(DEP_IMAGES) $(APP_IMAGES)
 
 # ==============================================================================
