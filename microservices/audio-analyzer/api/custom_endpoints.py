@@ -193,8 +193,13 @@ async def vss_transcribe(
             detail=f"Unsupported device '{request.device}'. Supported values: {sorted(_SUPPORTED_ASR_DEVICES)}",
         )
     if requested_device:
+        # Normalize the same way resolve_asr_device()/ASRComponent do, so this
+        # early check agrees with them -- a raw, differently-cased config value
+        # (e.g. provider: OPENAI) must not be rejected as "unsupported" here
+        # while remaining valid everywhere else.
+        configured_provider = str(config.models.asr.provider).strip().lower()
         try:
-            _validate_asr_compatibility(config.models.asr.provider, requested_device)
+            _validate_asr_compatibility(configured_provider, requested_device)
         except RuntimeError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 

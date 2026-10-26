@@ -316,6 +316,33 @@ class VssDeviceModelValidationTests(unittest.TestCase):
         mock_pipeline_cls.assert_called_once()
         self.assertEqual(mock_pipeline_cls.call_args.kwargs.get("device"), "CPU")
 
+    def test_device_override_accepted_when_configured_provider_is_uppercase(self):
+        """A differently-cased configured provider (e.g. `OPENVINO`, as the
+        rest of the pipeline already tolerates via resolve_asr_device()'s own
+        normalization) must not make a valid device override look
+        "incompatible" and get rejected with a spurious HTTP 400."""
+        fake_result = {"task": "transcribe", "language": "en", "duration": 1.0, "text": "hi", "segments": []}
+
+        with patch("main.ensure_model"), patch("main.preload_models"), \
+             patch("api.custom_endpoints.Pipeline") as mock_pipeline_cls, \
+             patch.object(config.models.asr, "provider", config.models.asr.provider.upper()):
+            mock_pipeline_cls.return_value.transcribe.return_value = fake_result
+
+            with tempfile.TemporaryDirectory() as tmpdir:
+                saved_path = os.path.join(tmpdir, "clip.wav")
+                with open(saved_path, "wb") as handle:
+                    handle.write(b"fake-audio")
+
+                with patch("api.custom_endpoints.save_audio_file", return_value=("clip.wav", saved_path)):
+                    with TestClient(main.app) as client:
+                        response = client.post(
+                            "/transcriptions",
+                            data={"device": "cpu"},
+                            files={"file": ("clip.wav", b"fake-audio", "audio/wav")},
+                        )
+
+        self.assertEqual(response.status_code, 200)
+
 
 if __name__ == "__main__":
     unittest.main()
