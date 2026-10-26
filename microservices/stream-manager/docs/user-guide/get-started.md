@@ -22,11 +22,6 @@ This downloads the Makefile and runs it directly with `make`. It starts the
 container, publishes its port to a free host port, and prints the application
 access URLs.
 
-> [!NOTE]
-> Total memory used for buffering (for multiple streams) is limited by the container's shared memory.
-> The `make` command sets a custom shared memory size of the container.
-> This avoids issues of buffer failures when multiple streams are buffered simultaneously.
-
 Check that the application is live:
 
 ```bash
@@ -41,11 +36,17 @@ A healthy response looks like this:
 
 > [!TIP]
 > Read the full API documentation at `http://localhost:<port>/docs/v1/index.html`.
+
 Stop and remove the running container:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/krish918/edge-ai-libraries/feat/stream-record-routers/microservices/stream-manager/Makefile | make -f - docker-stop
 ```
+
+> [!NOTE]
+> Total memory used for buffering is limited by the container's shared memory.
+> The `make` command sets a custom shared memory size of the container.
+> This avoids issues of buffer failures when multiple streams are buffered simultabeously.
 
 ## Keep your data on the host
 
