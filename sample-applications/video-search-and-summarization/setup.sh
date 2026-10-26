@@ -17,6 +17,30 @@ nginx_config_dir="${PWD}/config/nginx"
 export OV_MODELS_ROOT="${PWD}/ov_models"
 export MODEL_DOWNLOAD_CTR_NAME=${MODEL_DOWNLOAD_CTR_NAME:-vss-model-download}
 
+# ================================= PULL POLICY ======================================
+# --pull-always (alias --force-pull) or PULL_ALWAYS=true makes a deployment check the
+# registry for every image, so moving tags such as `latest` are refreshed instead of
+# reusing a cached copy. The flag may appear anywhere and is removed before mode parsing.
+# vss_pull_always is reset on every run, so the flag does not persist in the sourcing shell.
+vss_pull_always=false
+case "${PULL_ALWAYS:-false}" in
+    true|TRUE|True|1) vss_pull_always=true ;;
+    false|FALSE|False|0) ;;
+    *)
+        echo -e "${RED}ERROR: PULL_ALWAYS must be true or false (got '${PULL_ALWAYS}').${NC}" >&2
+        return 1
+        ;;
+esac
+vss_args=()
+for vss_arg in "$@"; do
+    case "$vss_arg" in
+        --pull-always|--force-pull) vss_pull_always=true ;;
+        *) vss_args+=("$vss_arg") ;;
+    esac
+done
+set -- "${vss_args[@]}"
+unset vss_arg vss_args
+
 # ================================= SETUP ALIASES ======================================
 if [ "$#" -eq 1 ] && [ "$1" = "config" ]; then    # config with no args defaults to both summary and search
     set -- "--dual" "config"
@@ -45,6 +69,11 @@ elif [ "$#" -ge 1 ] && { [ "$1" = "--summary-and-search" ] || [ "$1" = "--all" ]
     elif [ "$#" -eq 1 ]; then
         set -- "--unified"
     fi
+fi
+
+if [ "$vss_pull_always" = true ] && { [ "$2" = "config" ] || [ "$1" = "--stop" ] \
+    || [ "$1" = "--clean-data" ] || [ "$1" = "--setenv" ]; }; then
+    echo -e "${YELLOW}Note: --pull-always / PULL_ALWAYS only applies when deploying; ignored for this command.${NC}"
 fi
 
 # =================== Function Definitions =========================
@@ -126,11 +155,12 @@ docker_data-prep"
 show_concise_help() {
     echo -e "Video Search and Summarization Application setup script v1.0"
     echo -e "Copyright (C) 2026 Intel Corporation"
-    echo -e "${YELLOW}USAGE: ${GREEN}source setup.sh ${BLUE}--summary [--search] | --search [--summary] | --search-and-summary | --stop | --clean-data | config ${NC}"
+    echo -e "${YELLOW}USAGE: ${GREEN}source setup.sh ${BLUE}--summary [--search] | --search [--summary] | --search-and-summary | --stop | --clean-data | config${NC} [--pull-always]"
     echo -e "${YELLOW}EXAMPLES:"
     echo -e "${GRAY}source setup.sh --summary"
     echo -e "source setup.sh --search"
-    echo -e "source setup.sh --summary --search${NC}"
+    echo -e "source setup.sh --summary --search"
+    echo -e "source setup.sh --summary --pull-always${NC}"
     echo -e  "${MAGENTA}Use ${YELLOW}--help${NC}${MAGENTA} for detailed usage information and options.${NC}"
 }
 
@@ -176,7 +206,7 @@ use_openvino_model_weight_format() {
 show_full_help() {
     echo -e  "-----------------------------------------------------------------"
     echo -e  "${YELLOW}USAGE: ${GREEN}source setup.sh ${BLUE}[ --summary [--search] [config] | --search [--summary] [config] | --search-and-summary [config] |"
-    echo -e  "                         --stop | --clean-data | --set-env | --help ]"
+    echo -e  "                         --stop | --clean-data | --set-env | --help ] [--pull-always]"
     echo -e  "${YELLOW}"
     echo -e  "                -h, --help:  Shows this help message."
     echo -e  "                 --summary:  Deploy Video Summary Application."
@@ -189,6 +219,10 @@ show_full_help() {
     echo -e  "            --down, --stop:  Bring down all the docker containers for the application."
     echo -e  "              --clean-data:  Bring down all the docker containers and remove all docker volumes for the user data."
     echo -e  "                             ${GRAY}Asks for confirmation; set ${GREEN}CONFIRM=yes${GRAY} to skip the prompt.${NC}"
+    echo -e  "             --pull-always:  With a deploy mode (alias ${GREEN}--force-pull${NC}), check the registry for every image and pull newer ones"
+    echo -e  "                             (Compose ${GREEN}up --pull always${NC} and the model-download container), so tags such as ${GREEN}latest${NC} are refreshed."
+    echo -e  "                             ${GRAY}Same as ${GREEN}PULL_ALWAYS=true${GRAY}. Images that exist only locally are kept when the pull fails;"
+    echo -e  "                             a registry image with the same name and tag replaces a locally built one.${NC}"
     echo -e  "             [Mode] config:  Print the final compose configuration with all environment variables resolved without"
     echo -e  "                             starting containers."
     echo -e  "                             ${GRAY}Mode defaults to ${GREEN}--summary --search${GRAY} when omitted."
@@ -635,7 +669,8 @@ else
 fi
 
 # =================== Model Download Microservice (service mode) ===================
-# Image auto-pulled by `docker run` if absent. Override MODEL_DOWNLOAD_IMAGE to pin a tag.
+# Image auto-pulled by `docker run` if absent; --pull-always also refreshes a cached copy.
+# Override MODEL_DOWNLOAD_IMAGE to pin a tag.
 export MODEL_DOWNLOAD_IMAGE=${MODEL_DOWNLOAD_IMAGE:-intel/model-download:${MODEL_DOWNLOAD_TAG:-latest}}
 # OVMS release tag used by the openvino plugin's export_model.py.
 export MODEL_DOWNLOAD_OVMS_TAG=${MODEL_DOWNLOAD_OVMS_TAG:-v2026.4.1}
@@ -694,10 +729,13 @@ md_start_service() {
     # Remove any leftover container from an interrupted earlier run.
     docker rm -f "${MODEL_DOWNLOAD_CTR_NAME}" >/dev/null 2>&1
 
+    local pull_args=()
+    [ "$vss_pull_always" = true ] && pull_args=(--pull always)
+
     mkdir -p "${OV_MODELS_ROOT}"
     echo -e "[model-download] ${BLUE}Starting model-download container (plugins: ${YELLOW}${plugins}${BLUE})${NC}"
     echo -e "[model-download] ${GRAY}API: ${MD_API_URL} ; follow detailed logs with: docker logs -f ${MODEL_DOWNLOAD_CTR_NAME}${NC}"
-    if ! docker run -d \
+    if ! docker run -d "${pull_args[@]}" \
         --name "${MODEL_DOWNLOAD_CTR_NAME}" \
         -p "127.0.0.1:${MODEL_DOWNLOAD_HOST_PORT}:8000" \
         "${env_args[@]}" \
@@ -1631,6 +1669,7 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
 
     # if config is passed, set the command to only generate the config
     FINAL_ARGS=(up -d)
+    [ "$vss_pull_always" = true ] && FINAL_ARGS+=(--pull always)
     [ "$2" = "config" ] && FINAL_ARGS=(config)
     # Overlay paths above are fixed tokens, never shell commands.
     read -r -a COMPOSE_ARGS <<< "$APP_COMPOSE_FILE"

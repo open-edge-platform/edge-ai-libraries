@@ -617,6 +617,16 @@ Follow these steps to run the application:
 
       > **Clean-up Tip**: If you encounter issues or want to completely reset the application data, use `source setup.sh --clean-data` to stop all containers and remove all Docker volumes including user data. This provides a fresh start for troubleshooting.
 
+      > **Refresh cached images:** Docker reuses a local copy of an image tag such as `latest` even when a newer image is published. Add `--pull-always` (alias `--force-pull`) to any deployment mode, or set `PULL_ALWAYS=true`, to check the registry for every image before starting. This applies Compose `up --pull always` and also refreshes the model-download image:
+      >
+      > ```bash
+      > source setup.sh --summary --pull-always
+      > # or, with Make
+      > make deploy MODE=summary PULL_ALWAYS=true
+      > ```
+      >
+      > Images that exist only locally, such as those from `make build`, are kept when the registry has no matching image. A registry image with the same name and tag replaces a locally built one, so use a distinct `TAG` for local builds. The option is ignored for `config`, `--stop`, `--clean-data` and `--setenv`.
+
    - **Summary mode: Setup only video summarization:**
 
      ```bash

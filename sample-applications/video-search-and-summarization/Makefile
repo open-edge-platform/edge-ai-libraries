@@ -271,12 +271,19 @@ push: check-docker
 # Stop explicitly before switching modes; deploying never implicitly tears down
 # a running stack. Model downloads and hardware-specific setup remain automatic.
 #
+# PULL_ALWAYS=true makes deploy check the registry for every image (Compose
+# `up --pull always`), refreshing cached moving tags such as `latest`.
+#
 # Secrets (POSTGRES_PASSWORD, MINIO_ROOT_PASSWORD, RABBITMQ_PASSWORD,
 # HUGGINGFACE_TOKEN) are intentionally blank in .env.example.
 # Supply secrets through the environment, not Make command-line arguments.
 # ==============================================================================
 
 export MODE ENV_FILE HEALTH_TIMEOUT CONFIRM
+# Exported only when defined, so an empty value does not mask PULL_ALWAYS in .env.
+ifdef PULL_ALWAYS
+export PULL_ALWAYS
+endif
 
 deploy:
 	@bash scripts/vss.sh deploy "$$MODE"
@@ -828,6 +835,7 @@ help:
 	@echo "  deploy-search    Deploy embedding/index/search + search UI"
 	@echo "  deploy-dual      Deploy both pipelines with two separate UIs"
 	@echo "  deploy-unified   Deploy search over summary text in one UI"
+	@echo "                   PULL_ALWAYS=true pulls newer images (e.g. latest) before starting"
 	@echo "  config [MODE=...]  Print diagnostics + resolved Compose (default: dual)"
 	@echo "  config-summary/search/dual/unified  Mode-specific config targets"
 	@echo "  deploy-config    Alias for config (accepts MODE)"
@@ -898,6 +906,9 @@ help:
 	@echo "  make config MODE=summary"
 	@echo "  make deploy MODE=summary"
 	@echo "  make health-check HEALTH_TIMEOUT=300"
+	@echo ""
+	@echo "  # Refresh cached images with moving tags (e.g. latest) from the registry"
+	@echo "  make deploy MODE=summary PULL_ALWAYS=true"
 	@echo ""
 	@echo "  # Local source builds: separate invocations avoid build/deploy races with -j"
 	@echo "  make build build-deps"

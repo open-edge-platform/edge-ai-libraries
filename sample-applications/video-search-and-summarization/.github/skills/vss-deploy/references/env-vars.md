@@ -30,6 +30,7 @@ Sources: `setup.sh`, `.env.example`, `docker/compose.*.yaml`, `README.md`, `docs
 | `PROJECT_NAME` | empty | Also normalized with trailing slash before composing `${REGISTRY_URL}${PROJECT_NAME}`. |
 | `REGISTRY` | derived | Prefix for images such as `${REGISTRY:-}pipeline-manager:${TAG:-latest}`. |
 | `TAG` | `latest` in `setup.sh`; docs example `2026.3.0-rc1` | Image tag for app images. |
+| `PULL_ALWAYS` | `false` | `true` (or `setup.sh --pull-always` / `--force-pull`) adds `--pull always` to Compose `up` and to the model-download `docker run`, refreshing cached moving tags such as `latest`. Only `true`/`false`/`1`/`0` are accepted; ignored for `config`, `--stop`, `--clean-data`, and `--setenv`. |
 
 ## Model download service
 

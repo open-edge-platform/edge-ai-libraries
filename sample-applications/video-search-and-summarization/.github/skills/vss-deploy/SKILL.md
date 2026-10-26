@@ -273,6 +273,24 @@ interactive shell, first run
 `unset VLM_STORAGE_MODEL_NAME LLM_STORAGE_MODEL_NAME`; otherwise Compose can
 reuse an OVMS storage alias that vLLM does not serve.
 
+## Refresh cached images
+
+Docker reuses a cached image for moving tags such as `latest`. Add
+`--pull-always` (alias `--force-pull`) to a deployment mode, or set
+`PULL_ALWAYS=true` (`make deploy MODE=<mode> PULL_ALWAYS=true`), to run Compose
+`up -d --pull always` and start the model-download container with
+`--pull always`:
+
+```bash
+source setup.sh --summary --pull-always
+```
+
+The flag may appear anywhere in the arguments. Images that exist only locally
+are kept when the registry has no match, but a registry image with the same
+name and tag replaces a locally built one. It is ignored for `config`,
+`--stop`, `--clean-data` and `--setenv`, and `PULL_ALWAYS` must be `true` or
+`false`.
+
 ## Lifecycle: bring down or reset
 
 Run these yourself via `bash -c 'source setup.sh …'`. `--stop`, `--down`,
