@@ -70,7 +70,7 @@ main () {
         _rc=$?
       else
         # save args for resume
-        [ -x "$installer_bin" ] && ensure_prop set command "$*"
+        ensure_prop set command "$*"
 
         # critical group permissions
         local -A _groups=()
@@ -336,7 +336,76 @@ subcommand_bootstrap () {
       unset -f main   # main comes from the verbatim header
       misc_funcs=($(declare -F | cut -f3 -d' ' | grep -v -E "^(${installer_family}_[0-9]+|ensure_|act_|verify_|configure_|install_|start_|stop_|remove_|profile_|license_|sbom_|subcommand_|main$)"))
       skill_text="$(base64 "$mydir"/.github/skills/openedge-cli/SKILL.md | tr -d '\n')"
-      declare -f | sed "/^subcommand_setup () *\$/,/^}/{s|local installer_misc_functions=[^;]*|local installer_misc_functions=(${misc_funcs[*]})|;s|local installer_skill_text=[^;]*|local installer_skill_text=\"$skill_text\"|}"
+
+      # render bash completion once
+      act_get init > /dev/null
+      completion_plain="$(
+        all_cmds=(${_act_cache_cmds[*]})
+        cat <<EOF
+#!/bin/bash
+_${installer_name//-/_}_completion () {
+  if (( COMP_CWORD == 1 )); then
+    COMPREPLY=(\$(compgen -W "${all_cmds[*]} list setup --help" -- "\$2"))
+    return
+  fi
+
+  case "\${COMP_WORDS[1]}" in
+$(
+    # snapshot profiles ONCE; do not rely on _act_reply surviving a second act_get
+    act_get prefix profile_
+    local all_profilers=(${_act_reply[*]})
+    local cmd dcmd profiler pname mname found
+    local -A all_comps
+    for cmd in ${all_cmds[*]}; do
+      all_comps=()
+      all_comps["--continue"]=""
+      all_comps["--dry-run"]=""
+      all_comps["--reinstall"]=""
+      all_comps["--validate"]=""
+      # sbom handlers are sparse; resolve its dependency graph as if it were install
+      dcmd=$cmd; [ "$cmd" != sbom ] || dcmd=install
+      act_get prefix ${dcmd}_
+      local all_modules=(${_act_reply[*]#*_*_*_})
+      for profiler in ${all_profilers[*]}; do
+        pname=${profiler#*_*_*_}
+        [[ " ${all_modules[*]} " != *" $pname "* ]] || continue
+        found=0
+        for mname in $(act_expand_modules $dcmd $pname); do
+          if [[ -v _act_cache_functions[${dcmd}_${mname}] ]]; then
+            found=1
+            break
+          fi
+        done
+        [ $found -eq 0 ] || all_comps[$pname]=""
+      done
+      for mname in ${all_modules[*]}; do
+        all_comps[$mname]=""
+      done
+      echo "  $cmd)"
+      echo "    $(declare -p all_comps | sed 's|declare -A |local -A |')"
+      echo "    for ((i=2;i<COMP_CWORD;i++)); do unset \"all_comps[\${COMP_WORDS[\$i]}]\"; done"
+      echo "    COMPREPLY=(\$(compgen -W \"\${!all_comps[*]}\" -- \"\$2\"))"
+      echo "    ;;"
+    done
+    :
+)
+  *)
+    COMPREPLY=()
+    ;;
+  esac
+}
+complete -F _${installer_name//-/_}_completion $installer_name
+EOF
+      )" || { echo "Failed to render bash completion" 1>&2; exit 3; }
+      bash -n <<< "$completion_plain" > /dev/null || { echo "Rendered bash completion has syntax errors" 1>&2; exit 3; }
+      completion_text="$(base64 <<< "$completion_plain" | tr -d '\n')"
+      unset completion_plain
+
+      funcs="$(declare -f)"
+      funcs="${funcs/"@@INSTALLER_MISC_FUNCTIONS@@"/"${misc_funcs[*]}"}"
+      funcs="${funcs/"@@INSTALLER_SKILL_TEXT@@"/"$skill_text"}"
+      funcs="${funcs/"@@INSTALLER_COMPLETION_TEXT@@"/"$completion_text"}"
+      printf '%s\n' "$funcs"
     ) || exit 3
     echo
     [ ${#start_modules[*]} -eq 0 ] || echo "[ \"\$0\" != bash ] || set -- start ${start_modules[*]} \"\$@\""

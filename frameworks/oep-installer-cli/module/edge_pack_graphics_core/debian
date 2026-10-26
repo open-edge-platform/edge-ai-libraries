@@ -18,9 +18,8 @@ debian_40_install_edge_pack_graphics_core () {
     echo "intel-edge-graphics-core is installed." >&2
   else
     ensure_prop set installed/edge_pack_graphics_core/owned true
-    install_edge_pack_repo_entries "$@"
     ensure_apt purge --auto-remove -y intel-edge-graphics-core || true
-    ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-graphics-core=$version*"
+    ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-graphics-core=$version*" || true
     ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-graphics-core=$version*"
   fi
   [ -c /dev/dri/renderD128 ]
@@ -30,7 +29,6 @@ debian_40_install_edge_pack_graphics_core () {
 debian_40_remove_edge_pack_graphics_core () {
   [ "$(ensure_prop get installed/edge_pack_graphics_core/owned)" = "true" ] || return 0
   ensure_apt purge --auto-remove -y intel-edge-graphics-core || true
-  remove_edge_pack_repo_entries "$@" || true
 }
 
 debian_40_sbom_edge_pack_graphics_core () {
