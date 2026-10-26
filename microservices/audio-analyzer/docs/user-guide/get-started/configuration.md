@@ -31,7 +31,7 @@ AUDIO_ANALYZER__MODELS__ASR__DEVICE=GPU python main.py
 ## Key Sections
 
 - `models.asr`: backend provider, model name, device, export precision, decoding settings
-- `audio_preprocessing`: chunk size, silence detection, denoise settings, chunk directory
+- `audio_preprocessing`: chunk size, silence detection, denoise and loudness-normalization filters, chunk directory
 - `audio_util`: max file size, allowed extensions, upload read chunk size
 - `minio`: external MinIO endpoint/credentials, used only by `POST /transcriptions` when a MinIO source is supplied instead of a direct file upload
 - `pipeline.delete_chunks_after_use`: whether temporary chunks are removed after processing
@@ -59,6 +59,53 @@ AUDIO_ANALYZER__MODELS__ASR__DEVICE=GPU python main.py
 - `openvino`: `CPU` | `GPU` | `NPU`
 
 If an invalid provider/device combination is configured, startup fails with a clear validation error.
+
+### Preview ASR pool (optional)
+
+`models.asr.preview` configures a second ASR model pool used **only** by the
+realtime `input_audio_buffer.preview` event, which returns a throwaway snapshot
+of the trailing audio while the speaker is still talking. Committed transcripts
+and `POST /v1/audio/transcriptions` always run on the main `models.asr` model,
+so enabling a preview pool never changes final output.
+
+The block is absent by default; previews then reuse the main model and no
+second model is loaded or exported. Every key is optional and falls back to the
+corresponding `models.asr` value, so you can override only `device:` to run
+previews on an idle accelerator:
+
+```yaml
+models:
+  asr:
+    name: whisper-base
+    device: CPU
+    preview:
+      device: GPU        # name/provider/weight_format inherited from models.asr
+```
+
+A preview pool that resolves to the same model as `models.asr` is not exported
+or cached twice.
+
+`preview.provider` must match `models.asr.provider`; the two pools share the
+provider's model directory and export step, so a mismatch is rejected at
+startup rather than failing on the first preview request. The preview device is
+also validated at startup, so an unavailable accelerator is reported there.
+
+### Audio filters and the short-input fast path
+
+Short uploads that are already 16 kHz mono PCM WAV and fit in a single chunk
+skip ffmpeg entirely, which removes a subprocess launch from the request path.
+
+That fast path is only taken when **no** audio filter is configured. Both
+`audio_preprocessing.denoise` and `audio_preprocessing.normalize` default to
+`false` for this reason; enabling either one sends every segment through ffmpeg
+again. Enable them when the input audio is noisy or uneven enough that the
+accuracy gain outweighs the added per-request latency.
+
+- `audio_preprocessing.normalize`: `true` or `false` (per-chunk loudness normalization)
+- `audio_preprocessing.normalize_filter`: ffmpeg filter name, default `dynaudnorm`
+
+`dynaudnorm` is used rather than `loudnorm`/EBU R128 because chunks are
+normalized independently with no shared analysis pass.
 
 ### Per-request ASR device
 

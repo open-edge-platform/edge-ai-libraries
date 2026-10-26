@@ -29,6 +29,7 @@ class PipelineLanguageTests(unittest.TestCase):
         pipeline = Pipeline.__new__(Pipeline)
         pipeline.temperature = 0.0
         pipeline.append_to_session = False
+        pipeline.pool = Pipeline.POOL_FINAL
         pipeline._session_state = {
             "language": None,
             "duration": 0.0,
@@ -273,7 +274,7 @@ class AudioUploadTests(unittest.TestCase):
 
 class ASRBackendSelectionTests(unittest.TestCase):
     def tearDown(self):
-        ASRComponent._models.clear()
+        ASRComponent._models = {}
 
     def test_whispercpp_backend_forces_cpu(self):
         with patch("components.asr_component.WhisperCpp") as whispercpp_cls:
@@ -554,6 +555,102 @@ class SentimentExportTests(unittest.TestCase):
                 get_sentiment_model_path(),
                 os.path.join("models", "sentiment", "speechbrain_emotion-recognition-wav2vec2-IEMOCAP"),
             )
+
+
+class PipelinePoolTests(unittest.TestCase):
+    """Pool selection is explicit and controls persistence, not append_to_session."""
+
+    def _pipeline(self, pool, append_to_session):
+        pipeline = Pipeline.__new__(Pipeline)
+        pipeline.temperature = 0.0
+        pipeline.append_to_session = append_to_session
+        pipeline.pool = pool
+        pipeline._session_state = {
+            "language": None, "duration": 0.0, "text": "", "segments": [], "chunk_sentiments": [],
+        }
+        self.persisted = []
+        pipeline._persist_session_outputs = lambda *a, **kw: self.persisted.append(a)
+
+        def fake_iter(self_, input_value, language=None):
+            del input_value, language
+            yield ({
+                "text": "hello",
+                "segments": [{"start": 0.0, "end": 1.0, "text": "hello"}],
+                "start_time": 0.0,
+                "end_time": 1.0,
+                "language": "en",
+            }, {})
+
+        pipeline._iter_chunk_transcriptions = MethodType(fake_iter, pipeline)
+        return pipeline
+
+    def test_new_session_on_final_pool_still_persists(self):
+        """Regression: a brand-new session has append_to_session=False but must persist."""
+        pipeline = self._pipeline(Pipeline.POOL_FINAL, append_to_session=False)
+
+        pipeline.transcribe(object(), language=None)
+
+        self.assertEqual(len(self.persisted), 1)
+
+    def test_preview_pool_never_persists(self):
+        pipeline = self._pipeline(Pipeline.POOL_PREVIEW, append_to_session=False)
+
+        pipeline.transcribe(object(), language=None)
+
+        self.assertEqual(self.persisted, [])
+
+    def test_stream_transcribe_follows_the_same_rule(self):
+        final = self._pipeline(Pipeline.POOL_FINAL, append_to_session=False)
+        list(final.stream_transcribe(object(), language=None))
+        self.assertEqual(len(self.persisted), 1)
+
+        preview = self._pipeline(Pipeline.POOL_PREVIEW, append_to_session=False)
+        list(preview.stream_transcribe(object(), language=None))
+        self.assertEqual(self.persisted, [])
+
+    def test_unknown_pool_is_rejected(self):
+        with self.assertRaises(ValueError):
+            Pipeline(session_id="s", pool="bogus")
+
+
+class ASRPoolCacheTests(unittest.TestCase):
+    """Model instances are cached per (pool, model config), not one slot per pool."""
+
+    def tearDown(self):
+        ASRComponent._models = {}
+
+    def test_pools_do_not_evict_each_other(self):
+        with patch("components.asr_component.OV_Whisper") as ov_cls, patch(
+            "components.asr_component.config.app.use_ov_genai", False
+        ):
+            ov_cls.side_effect = [object(), object(), object()]
+            final = ASRComponent(session_id="a", provider="openvino",
+                                 model_name="whisper-small", device="CPU", pool="final")
+            preview = ASRComponent(session_id="b", provider="openvino",
+                                   model_name="whisper-small", device="GPU", pool="preview")
+            final_again = ASRComponent(session_id="c", provider="openvino",
+                                       model_name="whisper-small", device="CPU", pool="final")
+
+        # Only two loads: alternating pools/devices must not rebuild a pipeline.
+        self.assertEqual(ov_cls.call_count, 2)
+        self.assertIs(final.asr, final_again.asr)
+        self.assertIsNot(final.asr, preview.asr)
+
+    def test_same_pool_different_device_are_both_cached(self):
+        with patch("components.asr_component.OV_Whisper") as ov_cls, patch(
+            "components.asr_component.config.app.use_ov_genai", False
+        ):
+            ov_cls.side_effect = [object(), object()]
+            cpu = ASRComponent(session_id="a", provider="openvino",
+                               model_name="whisper-small", device="CPU", pool="final")
+            gpu = ASRComponent(session_id="b", provider="openvino",
+                               model_name="whisper-small", device="GPU", pool="final")
+            cpu_again = ASRComponent(session_id="c", provider="openvino",
+                                     model_name="whisper-small", device="CPU", pool="final")
+
+        self.assertEqual(ov_cls.call_count, 2)
+        self.assertIs(cpu.asr, cpu_again.asr)
+        self.assertIsNot(cpu.asr, gpu.asr)
 
 
 if __name__ == "__main__":

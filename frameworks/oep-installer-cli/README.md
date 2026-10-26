@@ -156,6 +156,7 @@ The OEP installer installs the specified components under the following location
 - Installation logs under `~/.local/open-edge-platform/openedge-cli/*.logs`.  
 - A replica of the OEP installer under `~/.local/bin`.  
 - A bash auto-completion script under `~/.local/share/bash-completion`.  
+- A `SKILL.md` under `~/.agents/skills/openedge-cli/SKILL.md`.    
 
 ### Bootstrapping
 

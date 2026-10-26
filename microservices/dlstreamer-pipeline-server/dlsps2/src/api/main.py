@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from api.routers import pipelines
+from api.routers import pipelines, validate, elements
 from config.loader import load_legacy_config
 from core.pipeline_manager import PipelineManager
 
@@ -47,6 +47,7 @@ async def lifespan(app: FastAPI):
     logger.info("DL Streamer Pipeline Server (dlsps2) starting…")
     pipeline_manager = PipelineManager()
     pipelines.set_pipeline_manager(pipeline_manager)
+    validate.set_pipeline_manager(pipeline_manager)
 
     try:
         legacy_config = load_legacy_config()
@@ -76,3 +77,5 @@ app = FastAPI(
 )
 
 app.include_router(pipelines.router)
+app.include_router(validate.router)
+app.include_router(elements.router)
