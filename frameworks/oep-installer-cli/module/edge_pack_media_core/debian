@@ -14,7 +14,6 @@ debian_40_install_edge_pack_media_core () {
     echo "intel-edge-media-core is installed." >&2
   else
     ensure_prop set installed/edge_pack_media_core/owned true
-    install_edge_pack_repo_entries "$@"
     ensure_apt purge --auto-remove -y intel-edge-media-core || true
     ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-core=$version*"
   fi
@@ -23,7 +22,6 @@ debian_40_install_edge_pack_media_core () {
 debian_40_remove_edge_pack_media_core () {
   [ "$(ensure_prop get installed/edge_pack_media_core/owned)" = "true" ] || return 0
   ensure_apt purge --auto-remove -y intel-edge-media-core || true
-  remove_edge_pack_repo_entries "$@" || true
 }
 
 debian_40_sbom_edge_pack_media_core () {

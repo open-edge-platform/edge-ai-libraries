@@ -327,19 +327,17 @@ const PerformanceTestPanel = ({
   const hasOutputVideo =
     !livePreviewEnabled && !isRunning && !!completedVideoPath;
   const showMetadataSection = enableMetadata && showMetadataTab;
-  const showGenAIMetricsTab = genAIMetricsData.length > 0;
   const showSummaryStyles = !isRunning && frozenSummary !== null;
 
   const availableMainTabs = useMemo(() => {
     const tabs: string[] = [];
     if (hasMediaTab) tabs.push("media");
     if (showMetadataSection) tabs.push("metadata");
-    if (showGenAIMetricsTab) tabs.push("genai-metrics");
     return tabs;
-  }, [hasMediaTab, showMetadataSection, showGenAIMetricsTab]);
+  }, [hasMediaTab, showMetadataSection]);
 
   // Snap `activeMainTab` back to the first available tab whenever the current
-  // one disappears (e.g. metadata stream ends, VLM samples arrive/leave).
+  // one disappears (e.g. a metadata stream ends).
   useEffect(() => {
     if (
       availableMainTabs.length > 0 &&
@@ -365,11 +363,6 @@ const PerformanceTestPanel = ({
             )}
             {showMetadataSection && (
               <TabsTrigger value="metadata">Metadata JSON</TabsTrigger>
-            )}
-            {showGenAIMetricsTab && (
-              <TabsTrigger value="genai-metrics">
-                Experimental VLM Metrics
-              </TabsTrigger>
             )}
           </TabsList>
         )}
@@ -551,26 +544,28 @@ const PerformanceTestPanel = ({
             )}
           </TabsContent>
         )}
-
-        {showGenAIMetricsTab && (
-          <TabsContent value="genai-metrics" className="space-y-4 mt-2">
-            <VlmMetricsCharts
-              data={genAIMetricsData}
-              isSummary={showSummaryStyles}
-            />
-          </TabsContent>
-        )}
       </Tabs>
 
       {isRunning && (
-        <MetricsDashboard enableLatencyMetrics={enableLatencyMetrics} />
+        <MetricsDashboard enableLatencyMetrics={enableLatencyMetrics}>
+          {genAIMetricsData.length > 0 && (
+            <VlmMetricsCharts data={genAIMetricsData} />
+          )}
+        </MetricsDashboard>
       )}
       {!isRunning && frozenSummary && (
         <MetricsDashboard
           enableLatencyMetrics={enableLatencyMetrics}
           historyOverride={frozenHistory}
           metricsOverride={frozenSummary}
-        />
+        >
+          {genAIMetricsData.length > 0 && (
+            <VlmMetricsCharts
+              data={genAIMetricsData}
+              isSummary={showSummaryStyles}
+            />
+          )}
+        </MetricsDashboard>
       )}
     </div>
   );
