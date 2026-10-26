@@ -46,10 +46,28 @@ subcommand_remove () {
     echo "  --dry-run       dry-run operations"
     echo "  --continue      ignore errors and proceed to the end"
     echo "  --remove-all    remove all previously installed components"
+    echo "  --remove-me     remove $installer_name"
     echo
     return 0
   fi
-  act_helper "remove,Removal,Removing,Removed" "-r" "$@"
+  local rc=0
+  act_helper "remove,Removal,Removing,Removed" "-r" "$@" || rc=$?
+
+  if [[ " $* " = *" --remove-me "* ]]; then
+    ensure_rm "$HOME/.local/bin/$installer_name" \
+              "$HOME/.local/share/bash-completion/completions/$installer_name" \
+              "$HOME/.agents/skills/$installer_name" && 
+    echo "$installer_name removed"
+
+    if [[ " $* " = *" --remove-all "* ]]; then
+      ensure_rm "$(ensure_project_path)"
+      echo "$installer_name logs removed"
+    else
+      echo "$(ensure_project_path) left unchanged"
+    fi
+  fi
+
+  return $rc
 }
 
 subcommand_start () {
@@ -171,78 +189,55 @@ subcommand_list () {
 subcommand_setup () {
   [[ " $* " != *" --help "* ]] || return
 
+  local installer_misc_functions=(@@INSTALLER_MISC_FUNCTIONS@@)
+  local installer_completion_text="@@INSTALLER_COMPLETION_TEXT@@"
+  local installer_skill_text="@@INSTALLER_SKILL_TEXT@@"
+
   # reconstruct installer
-  local installer_misc_functions=()
   mkdir -p "$(dirname "$installer_bin")"
-  cat > "$installer_bin" <<EOF
+  {
+    cat > "$installer_bin" <<EOF
 #!/bin/bash
 $(declare -f ${installer_misc_functions[*]})
-$(declare -f $(declare -F | grep -v '^declare -fx' | grep -E " (${installer_family}_[0-9]+_|ensure_|act_|verify_|configure_|subcommand_|main$)" | cut -f3 -d' ' | tr '\n' ' '))
+$(declare -f $(declare -F | grep -v '^declare -fx' | grep -E " (${installer_family}_[0-9]+_|ensure_|act_|verify_|configure_|install_|start_|stop_|remove_|profile_|license_|sbom_|subcommand_|main$)" | cut -f3 -d' ' | tr '\n' ' '))
 main "\$@"
 EOF
+  } || {
+    echo "Failed to write to $installer_bin" >&2
+    return 1
+  }
   chmod a+rx "$installer_bin"
-  echo "Installer reconstructed at $installer_bin"
+  echo "Installer reconstructed at ${installer_bin/#"$HOME"/"~"}"
 
   # reconstruct bash completion
   local completion_script="$HOME/.local/share/bash-completion/completions/$installer_name"
   mkdir -p "$(dirname "$completion_script")"
+  base64 -d > "$completion_script" <<< "$installer_completion_text" || {
+    echo "Failed to write to $completion_script" >&2
+    return 1
+  }
+  echo "bash completion created at ${completion_script/#"$HOME"/"~"}"
 
-  local all_cmds=(${_act_cache_cmds[*]})
-  cat > "$completion_script" <<EOF
-#!/bin/bash
-_${installer_name//-/_}_completion () {
-  if (( COMP_CWORD == 1 )); then
-    COMPREPLY=(\$(compgen -W "${all_cmds[*]} list setup --help" -- "\$2"))
-    return
-  fi
-
-  case "\${COMP_WORDS[1]}" in
-$(  
-    # snapshot profiles ONCE; do not rely on _act_reply surviving a second act_get
-    act_get prefix profile_
-    local all_profilers=(${_act_reply[*]})
-    local cmd dcmd profiler pname mname found
-    local -A all_comps
-    for cmd in ${all_cmds[*]}; do
-      all_comps=()
-      all_comps["--continue"]=""
-      all_comps["--dry-run"]=""
-      all_comps["--reinstall"]=""
-      all_comps["--validate"]=""
-      # sbom handlers are sparse; resolve its dependency graph as if it were install
-      dcmd=$cmd; [ "$cmd" != sbom ] || dcmd=install
-      act_get prefix ${dcmd}_
-      local all_modules=(${_act_reply[*]#*_*_*_})
-      for profiler in ${all_profilers[*]}; do
-        pname=${profiler#*_*_*_}
-        [[ " ${all_modules[*]} " != *" $pname "* ]] || continue
-        found=0
-        for mname in $(act_expand_modules $dcmd $pname); do
-          if [[ -v _act_cache_functions[${dcmd}_${mname}] ]]; then
-            found=1
-            break
-          fi
-        done
-        [ $found -eq 0 ] || all_comps[$pname]=""
-      done
-      for mname in ${all_modules[*]}; do
-        all_comps[$mname]=""
-      done
-      echo "  $cmd)"
-      echo "    $(declare -p all_comps | sed 's|declare -A |local -A |')"
-      echo "    for ((i=2;i<COMP_CWORD;i++)); do unset \"all_comps[\${COMP_WORDS[\$i]}]\"; done"
-      echo "    COMPREPLY=(\$(compgen -W \"\${!all_comps[*]}\" -- \"\$2\"))"
-      echo "    ;;"
-    done
-    :
-)
-  *)
-    COMPREPLY=()
-    ;;
-  esac
+  # reconstruct skills
+  local skill_file="$HOME"/.agents/skills/$installer_name/SKILL.md
+  mkdir -p "${skill_file%/*}"
+  base64 -d > "$skill_file" <<< "$installer_skill_text" || {
+    echo "Failed to write to $skill_file" >&2
+    return 1
+  }
+  echo "skill written to ${skill_file/#"$HOME"/"~"}"
 }
-complete -F _${installer_name//-/_}_completion $installer_name
-EOF
-  echo "bash completion created at $completion_script"
+
+subcommand_resume () {
+  local args=($(ensure_prop get command))
+  [[ ${#args[*]} -gt 0 ]] || {
+    echo "Nothing to resume" >&2
+    return 0
+  }
+  [ -x "$installer_bin" ] || subcommand_setup || {
+    echo "Failed to find $installer_name" >&2
+    return 3
+  }
+  exec "$installer_bin" "${args[@]}"
 }
 

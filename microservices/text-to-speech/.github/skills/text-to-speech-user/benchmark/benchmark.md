@@ -5,95 +5,56 @@ SPDX-License-Identifier: Apache-2.0
 
 # Skill Benchmark: text-to-speech-user
 
-**Agents**: GitHub Copilot (Claude Sonnet 5) — single-model self-evaluation
-**Grader**: GitHub Copilot (Claude Sonnet 5) — same session, self-graded
-**Date**: 2026-10-09
-**Evals**: 1–13 (1 reasoned pass per configuration)
-
-## Methodology Note (Read Before Trusting These Numbers)
-
-This benchmark was **not** produced by the automated multi-agent harness used
-for sibling skills in this repository (which dispatches independent agent
-runs — e.g. `claude-haiku-4.5`/`claude-sonnet-5` — and grades them with a
-separate `gpt-5.3-codex` grader, recording wall-clock time and token counts
-per run). That harness executes outside this session and was not available
-here.
-
-Instead, each eval below was evaluated by directly reasoning through the
-likely answer a capable coding agent would give **with** the
-`text-to-speech-user` skill loaded versus **without** it (general knowledge
-of OpenAI-style speech APIs plus a quick skim of repository docs, but
-without the skill's curated per-model validation rules and troubleshooting
-references), then scoring both against the `expectations` list in
-[`../evals/evals.json`](../evals/evals.json).
-
-Because no independent agent processes were actually run, **time and token
-metrics are not reported** — fabricating those numbers would misrepresent
-real measurements. Re-run this skill through the repository's standard
-skill-benchmark harness (see sibling skills such as
-`model-download/.github/skills/model-download-user/benchmark/benchmark.md`
-for the expected format) to produce an independently measured, reproducible
-score.
+**Agents**: Copilot (`claude-sonnet-5.5`)  
+**Grader**: Copilot (`claude-sonnet-5.5`)  
+**Date**: 2026-10-21T10:06:38Z  
+**Evals**: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13 (1 run per configuration)
 
 ## Summary
 
+> Skill lift = with skill − without skill. ↑ = better, ↓ = higher cost (expected).
+
 ### Evals passed
 
-| Configuration | Evals passed |
-|---|---|
-| w/o skill | 1 / 13 |
-| w/ skill | 13 / 13 |
-| **Lift** | **+12 ↑** |
+| Agent | w/o skill | w/ skill | Lift |
+|---|---|---|---|
+| Copilot (`claude-sonnet-5.5`) | 6 / 13 | 10 / 13 | **+4 ↑** |
 
-### Pass rate (avg ± σ across evals, by expectations met per eval)
+### Pass rate (avg ± σ across evals)
 
-| Configuration | Pass rate |
-|---|---|
-| w/o skill | 31% ±22% |
-| w/ skill | 100% ±0% |
-| **Lift** | **+69pp ↑** |
+| Agent | w/o skill | w/ skill | Lift |
+|---|---|---|---|
+| Copilot (`claude-sonnet-5.5`) | 85% ±19% | 95% ±9% | **+11pp ↑** |
+
+### Time (total across all evals)
+
+| Agent | w/o skill | w/ skill | Lift |
+|---|---|---|---|
+| Copilot (`claude-sonnet-5.5`) | 402 s | 390 s | -12 s ↓ |
+
+### Tokens (total across all evals)
+
+| Agent | w/o skill | w/ skill | Lift |
+|---|---|---|---|
+| Copilot (`claude-sonnet-5.5`) | 0 | 0 | +0 ↓ |
 
 ## Per-Eval Detail
 
-> Each cell is PASS/FAIL for that reasoned run, with the count of expectations judged met in parentheses (e.g. `PASS (5/5)`).
+> Each cell is PASS/FAIL for that run, with the count of expectations met in parentheses (e.g. `PASS (5/5)`); `n/a` means no grading.json was found for that (eval, config, agent) combination.
 
-| Eval | Prompt (abridged) | w/ skill | w/o skill |
+| Eval | Prompt | Copilot (w/) | Copilot (w/o) |
 |---|---|---|---|
-| 1 | Generate a WAV greeting from text and save it to a file. | PASS (5/5) | PASS (5/5) |
-| 2 | Migrate an OpenAI-mp3 client to this service with minimal changes. | PASS (5/5) | FAIL (2/5) |
-| 3 | `model` field doesn't change which model actually runs — is this a bug? | PASS (5/5) | FAIL (1/5) |
-| 4 | Qwen3-TTS/voice_design deployment never responds to /health at all — client bug or deployment issue? | PASS (5/5) | FAIL (1/5) |
-| 5 | Stream longer narration; only one SSE event comes back — is that wrong? | PASS (5/5) | FAIL (2/5) |
-| 6 | Punctuation-only input closes the stream with an error event immediately. | PASS (5/5) | FAIL (1/5) |
-| 7 | Don't know if SpeechT5 or Qwen is deployed; want to use `instructions`. | PASS (5/5) | FAIL (1/5) |
-| 8 | Unknown `voice` name returns 400 instead of falling back to default. | PASS (5/5) | FAIL (2/5) |
-| 9 | `device: NPU` rejected instead of gracefully degrading to CPU. | PASS (5/5) | FAIL (1/5) |
-| 10 | `GET /v1/audio/voices` field names don't match expected `speakers`/`languages`. | PASS (5/5) | FAIL (1/5) |
-| 11 | Kokoro returns audio in a substitute voice instead of the expected 400 for an unsupported name. | PASS (5/5) | FAIL (1/5) |
-| 12 | 6000-char input returns 422, not the documented 400 — client bug or doc error? | PASS (5/5) | FAIL (1/5) |
-| 13 | persist_outputs=true but storage/<session_id>/ stays empty for streaming requests. | PASS (5/5) | FAIL (1/5) |
-| | **Mean ±σ** | **100% ±0%** | **31% ±22%** |
-
-## Why the Lift Is Concentrated in Evals 2–13
-
-Eval 1 is answerable from the service's top-level README/get-started guide
-alone, so a baseline agent that skims repository docs performs just as well
-with or without the skill. Evals 2–13 each hinge on a specific,
-model-dependent validation rule or response-shape detail that is easy to
-get wrong without the skill's grounded references — the `response_format`
-being limited to `wav`/`json`, the `model` field being accepted but inert,
-Qwen3-TTS currently failing at **service startup** rather than per-request
-(a recent documentation correction this skill was updated to reflect), the
-single-event streaming case being expected rather than broken, an unknown
-`voice` name's **model-dependent** outcome (SpeechT5 fails closed with HTTP
-400, Kokoro silently falls back to its default voice instead — a second
-recent correction), the per-request `device` override being rejected
-rather than gracefully downgraded, the current `GET /v1/audio/voices`
-response field names, the **422 vs. 400** split between Pydantic schema
-validation and service-level validation (a third recent correction), and
-`pipeline.persist_outputs` applying only to the non-streaming endpoint (a
-fourth recent correction — `Pipeline.synthesize_stream()` never writes to
-storage) — exactly the kind of misconception-correcting detail
-[model-and-voice-guide.md](../references/model-and-voice-guide.md) and
-[integration-troubleshooting.md](../references/integration-troubleshooting.md)
-are designed to surface before the agent guesses.
+| 1 | I want to generate a WAV greeting for my kiosk app from the text 'Welcome, pleas... | PASS (5/5) | FAIL (4/5) |
+| 2 | My app currently calls OpenAI's real text-to-speech API and requests response_fo... | FAIL (4/5) | FAIL (4/5) |
+| 3 | I'm sending {"model": "tts-1-hd", "input": "Hello"} expecting this service to lo... | PASS (5/5) | FAIL (4/5) |
+| 4 | My team told me our text-to-speech deployment uses Qwen3-TTS with voice_design, ... | PASS (5/5) | FAIL (2/5) |
+| 5 | I want to stream longer narration text so playback can start before the whole th... | PASS (5/5) | PASS (5/5) |
+| 6 | A streaming request for a string that's just a bunch of punctuation marks (somet... | PASS (5/5) | PASS (5/5) |
+| 7 | I don't know whether the currently running deployment is SpeechT5 or Qwen, and I... | PASS (5/5) | PASS (5/5) |
+| 8 | I requested voice: 'Morgan' against a SpeechT5 deployment and got a 400 error in... | PASS (5/5) | PASS (5/5) |
+| 9 | I set "device": "NPU" in my request to POST /v1/audio/speech, expecting it to ju... | FAIL (4/5) | PASS (5/5) |
+| 10 | I called GET /v1/audio/voices expecting fields named speakers and languages like... | PASS (5/5) | FAIL (3/5) |
+| 11 | I requested voice: 'Morgan' against the default Kokoro deployment, expected an H... | PASS (5/5) | FAIL (4/5) |
+| 12 | My client sends a 6000-character input string to POST /v1/audio/speech expecting... | FAIL (4/5) | PASS (5/5) |
+| 13 | The deployment has pipeline.persist_outputs set to true. I'm using POST /v1/audi... | PASS (5/5) | FAIL (4/5) |
+| | **Mean ±σ** | **95% ±9%** | **85% ±19%** |

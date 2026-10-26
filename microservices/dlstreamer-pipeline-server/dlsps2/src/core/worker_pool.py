@@ -299,6 +299,7 @@ class WorkerPool:
         instance_id: str,
         command_base: dict,
         cpu_cores: Optional[List[int]] = None,
+        warmup_frames: Optional[int] = 0,
     ) -> bool:
         """Send a command to the appropriate worker for this CPU affinity.
         
@@ -306,6 +307,7 @@ class WorkerPool:
             instance_id: Pipeline instance ID.
             command_base: Base command dict (will add instance_id if not present).
             cpu_cores: CPU cores for this pipeline (or None for unpinned).
+            warmup_frames: Number of frames to warm up the FPS counter before reporting.
             
         Returns:
             True if the command was sent successfully.

@@ -10,6 +10,27 @@ models:
     name: whisper-base  # whisper-tiny|base|small|medium|large (whisper providers); paraformer-zh|paraformer-en|paraformer-online (funasr)
     device: CPU # CPU | GPU | NPU for openvino; CPU only for openai/whispercpp/funasr
     weight_format: null # OpenVINO: int8 | fp16 | null. whispercpp: null | q5 | q5_0 | q5_1 | q8 | q8_0 | int5 | int8
+
+    # Optional second ASR model pool used ONLY by the realtime
+    # `input_audio_buffer.preview` event, which returns a throwaway snapshot of
+    # the last couple of seconds of buffered audio while the speaker is still
+    # talking. Committed/persisted transcripts always use the main `asr` config
+    # above, so enabling this never changes final output.
+    #
+    # Every key below is optional and falls back to the corresponding `asr`
+    # value, so you may override just `device:` to run previews on an idle
+    # accelerator while the final model keeps the CPU. Disabled by default:
+    # with no `preview:` block, previews reuse the main model and no second
+    # model is loaded or exported.
+    #
+    # The preview pool must use the SAME provider as `asr` above -- it shares
+    # the provider's model directory and startup export step. A mismatched
+    # provider is rejected at startup.
+    #
+    # preview:
+    #   name: whisper-tiny.en   # a smaller model trades accuracy for latency
+    #   device: GPU             # falls back to asr.device when omitted
+    #   weight_format: int8
     temperature: 0.0
     diarization: False  # True or False, applicable for provider: openvino
     hf_token: None  # needed only if diarization=true
@@ -105,6 +126,21 @@ audio_preprocessing:
   chunk_output_path: chunks/
   denoise: false          # set true for noisy mic/field audio (applies ffmpeg arnndn RNNoise filter)
   denoise_model: ""       # path to .rnnn model file; leave empty to use ffmpeg built-in arnndn
+
+  # Per-chunk loudness normalization, applied after denoise and before ASR.
+  # dynaudnorm (not loudnorm/EBU R128) because each chunk is processed
+  # independently with no shared analysis pass: dynaudnorm is single-pass and
+  # frame-local, designed for exactly this streaming case, whereas loudnorm's
+  # accurate mode needs a two-pass measurement over the whole file and would
+  # cause loudness jumps between independently-normalized chunks.
+  #
+  # Default false. Enabling ANY audio filter here (denoise or normalize) forces
+  # every segment through ffmpeg, which disables the no-subprocess fast path
+  # for short 16 kHz mono PCM WAV uploads -- the largest latency win for
+  # streaming clients posting 1-2 s chunks. Turn these on only when the input
+  # audio is noisy or uneven enough that the accuracy gain outweighs that cost.
+  normalize: false
+  normalize_filter: dynaudnorm
 
 audio_util:
   max_size_mb: 200

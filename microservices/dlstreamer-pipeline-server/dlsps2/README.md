@@ -33,6 +33,10 @@ REST route from 1.0 continue to work.
     pipeline `start()`, which can transiently double resource usage during
     ramp-up of many concurrent streams — a known performance-parity gap vs 1.0.
 
+## REST API
+
+See the [DLSPS 2.0 REST API Reference](docs/api-reference.md).
+
 ## Status
 
 Under active development and testing against real sample applications (see
