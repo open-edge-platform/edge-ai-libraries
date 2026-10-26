@@ -1,0 +1,423 @@
+#!/bin/bash
+
+main () {
+  if [ -z "$HOME" ]; then
+    echo "\$HOME must be set" >&2
+    return 3
+  fi
+
+  red="\033[31m" green="\033[32m" yellow="\033[33m" reset="\033[0m"
+  installer_name=openedge-cli
+  installer_bin="$HOME/.local/bin/$installer_name"
+
+  . /etc/os-release
+  installer_family="$(x="${ID_LIKE:-$ID}";x="${x##* }";echo "${x//[^a-zA-Z0-9]/}")"
+
+  local _globals=() _cmds=() _args=() cur=-1 v
+  for v in "$@"; do
+    case $v in
+    --help)
+      if [ $cur -ge 0 ]; then
+        subcommand_${_cmds[$cur]} --help
+      else
+        _cmds=($(declare -F | grep " subcommand_" | cut -f2- -d_))
+        echo "Usage: <$(IFS='|';echo "${_cmds[*]}")> component [component...]"
+        echo "common options:"
+        echo "  --help          this help message." 
+        echo
+        local cmd
+        for cmd in $(declare -F | grep -E " subcommand_" | cut -f3 -d' '); do
+          $cmd --help
+        done
+      fi
+      return 0
+      ;;
+    --dry-run|--continue)
+      _globals+=($v)
+      ;;
+    *)
+      if declare -F subcommand_$v > /dev/null; then
+        _cmds+=($v); _args+=(""); cur=$((cur+1))
+      elif [ ${#_cmds[@]} -eq 0 ]; then
+        echo "Unknown command: $v"
+        exit 3
+      elif [ $cur -ge 0 ]; then
+        _args[$cur]="${_args[$cur]} $v"
+      fi
+      ;;
+    esac
+  done
+
+  # --help if nothing specified
+  if [ ${#_cmds[@]} -eq 0 ]; then
+    main --help
+    return 0
+  fi
+
+  # initialize act cache
+  declare -F act_get > /dev/null && act_get init
+
+  local _i _rc=0
+  for ((_i=0;_i<${#_cmds[*]};_i++)); do
+    case "${_cmds[$_i]}" in
+    setup|list|bootstrap|sbom|resume)
+      subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
+      _rc=$?
+      ;;
+    *)
+      if [[ " ${_globals[*]} " = *" --dry-run "* ]]; then
+        subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
+        _rc=$?
+      else
+        # save args for resume
+        ensure_prop set command "$*"
+
+        # critical group permissions
+        local -A _groups=()
+	local _j _dep _g _gf _deps _resolved _rest_args=() _restart=0 _m _carry=""
+        for ((_j=$_i;_j<${#_cmds[@]};_j++)); do
+          _rest_args+=(${_cmds[$_j]} ${_args[$_j]})
+	  # pass module names forward within this command line so groups are checked against actual use
+          _m="$(act_extract_modules ${_cmds[$_j]} ${_args[$_j]})"
+          [ -n "${_m// }" ] && _carry="$_m"
+          if [ -z "${_m// }" ] && [ -n "$_carry" ] && [ "${_cmds[$_j]}" != "stop" ] && ! [[ "${_cmds[$_j]}" = "remove" && " ${_args[$_j]} " = *" --remove-all "* ]]; then
+            _resolved=(${_globals[*]} $_carry ${_args[$_j]})
+          else
+            _resolved=($(act_resolve_args ${_cmds[$_j]} ${_globals[*]} ${_args[$_j]}))
+          fi
+	  _deps=($(act_find_deps install ${_resolved[*]}))
+          for _dep in ${_deps[*]}; do
+            _gf=${_dep/_install_/_group_}
+            declare -F $_gf > /dev/null 2>&1 || continue
+            for _g in $($_gf $(act_extract_args group ${_dep#*_*_*_} "${_deps[*]#${installer_family}_*_install_}" ${_resolved[*]})); do
+              _groups["$_g"]=1
+            done
+          done
+        done
+
+        [ ${#_groups[*]} -eq 0 ] || ensure_group_add ${!_groups[*]} || {
+          echo -e "${red}Failed to acquire required groups; aborting.${reset}" 1>&2
+          echo "If '$(id -un)' is a directory (LDAP/AD) account, local group membership" 1>&2
+          echo "may not apply. Ask your administrator to add: ${!_groups[*]}" 1>&2
+          return 3
+        }
+
+        for _dep in ${!_groups[*]}; do
+          [[ " $(id -nG) " == *" ${_dep%:*} "* ]] || { _restart=1; break; }
+        done
+
+        if [ $_restart -eq 0 ]; then
+          subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
+          _rc=$?
+        else
+          if [ -n "${OEP_GROUP_REEXEC:-}" ]; then
+            echo -e "${yellow}groups still not effective after re-exec${reset}" 1>&2
+            return 1
+          fi
+
+          [[ " ${_cmds[*]:0:$_i} " = *" setup "* ]] || subcommand_setup "${_globals[@]}"
+
+          [ -x "$installer_bin" ] || {
+            echo -e "${red}$installer_bin not found; run 'setup' first${reset}" 1>&2
+            return 3
+          }
+
+          local _sdir="" _sdir_secrets
+          ensure_tmpdir create _sdir secrets /dev/shm
+          local _sdir_secrets="$_sdir"/secrets
+          (
+            umask 077;
+            export OEP_GROUP_REEXEC=1
+            for e in $(compgen -e | grep -Ev '^BASH_FUNC_|^(SHELLOPTS|BASHOPTS|BASH_ENV|ENV)$'); do
+              printf "export %s=%q\n" "$e" "${!e}"
+            done > "$_sdir_secrets"
+          ) || { echo "Failed to write secrets" >&2; return 3; }
+          ensure_sudo setpriv --reuid "$(id -u)" --regid "$(id -g)" --groups "$(id -G "$(id -un)" | tr ' ' ',')" \
+            --inh-caps=-all bash -c '
+secrets="$1"; installer_bin="$2"; shift 2
+. "$secrets"; rm -f "$secrets"
+exec "$installer_bin" "$@"
+' bash "$_sdir_secrets" "$installer_bin" "${_rest_args[@]}" "${_globals[@]}"
+          _rc=$?
+          ensure_tmpdir destroy "$_sdir"
+          return $_rc
+        fi
+      fi
+      ;;
+    esac
+    [ $_rc -eq 0 ] || [[ " ${_globals[*]} " = *" --continue "* ]] || break
+  done
+  return $_rc
+}
+
+#### COLLECTION OF MODULES ####
+
+subcommand_bootstrap () {
+  local mydir="$(dirname "$(readlink -f "$0")")"
+
+  if [[ " $* " = *" --help "* ]]; then
+    echo "bootstrap options:"
+    echo "  --install=<name>       set default installation component|profile."
+    echo "  --start=<name>         set default start component|profile."
+    echo "  --family=<name>        enumate OS family."
+    echo "  --output/-o            specify the installer path to be created."
+    echo "  --validate             validate installation orders."
+    echo "  --dry-run              dry run the bootstrapping process."
+    echo
+    local profiles=($(cd "$mydir";find profile -name "$installer_family" | cut -f2 -d/))
+    [ ${#profiles[*]} -eq 0 ] || (
+      IFS=$'\n'
+      echo "  list of bootstrap profiles:"
+      echo "${profiles[*]/#/    }" | sort
+    )
+    local modules=($(cd "$mydir";find module -name "$installer_family" | cut -f2 -d/) $(cd "$mydir";find package -ipath "package/${installer_family}/*" -type f -print | cut -f3 -d/))
+    [ ${#modules[*]} -eq 0 ] || (
+      IFS=$'\n'
+      echo "  list of bootstrap components:"
+      echo "${modules[*]/#/    }" | sort
+    )
+    [ "${#profiles[*]}${#modules[*]}" = "00" ] || echo
+    return 0
+  fi
+  
+  # parse args
+  local install_modules=() start_modules=() modules=() rendered="" v vlast=""
+  for v in "${@}"; do
+    case "$v" in
+    --family=*)
+      installer_family="${v#*=}"
+      ;;
+    --install=*)
+      install_modules+=("${v#*=}")
+      ;;
+    --start=*)
+      start_modules+=("${v#*=}")
+      ;;
+    --output=*)
+      rendered="${v#*=}"
+      ;;
+    --output|-o|--family)
+      ;;
+    *)
+      case "$vlast" in
+      --output|-o)
+        rendered="$v"
+        ;;
+      --family)
+        installer_family="$v"
+        ;;
+      *)
+        [[ "$v" = -* ]] || modules+=("$v")
+        ;;
+      esac
+    esac
+    vlast="$v"
+  done
+
+  # scan for dependencies
+  [ ${#modules[*]} -gt 0 ] || modules+=($(cd "$mydir";find profile module -name "$installer_family" | cut -f2 -d/) $(cd "$mydir";find package -ipath "package/${installer_family}/*" -type f -print | cut -f3 -d/))
+  modules=(${modules[*]##*/})
+  local -A scripts=() orders=() known=() depsof=()
+  local i=0 script license_common=0
+  while [ $i -lt ${#modules[*]} ]; do
+    local script="$mydir"/profile/${modules[$i]}/${installer_family}
+    [ -r "$script" ] || script="$mydir"/module/${modules[$i]}/${installer_family}
+    [ -r "$script" ] || script="$mydir"/package/${installer_family}/${modules[$i]}
+    if [ ${scripts["$script"]:-0} -eq 1 ]; then
+      :
+    elif [ -r "$script" ]; then
+      scripts["$script"]=1
+      local script_nos="${script%/*}/linux"
+      local name=${modules[$i]}
+      local funcs=($(
+        [ ! -r "$script_nos" ] || . "$script_nos"
+        . "$script"
+        declare -F | grep -E " ${installer_family}_[0-9]+_(install|profile)_${name}$" | cut -f3 -d' '
+      ))
+      local profiler=$(printf '%s\n' "${funcs[@]}" | grep -m1 "_profile_${name}$")
+      local installer=$(printf '%s\n' "${funcs[@]}" | grep -m1 "_install_${name}$")
+      if [ -n "$installer" ]; then
+        local o=${installer#${installer_family}_}; orders[$name]=${o%%_*}
+      fi
+      known[$name]=1
+      local deps=()
+      [ -z "$profiler" ] || deps=($(
+        [ ! -r "$script_nos" ] || . "$script_nos"
+        . "$script"
+        for cmd in $(declare -F | grep " subcommand_" | cut -f2- -d_); do
+          $profiler $cmd
+        done | sort -u
+      ))
+      depsof[$name]="${deps[*]}"
+      modules+=(${deps[*]})
+      local licenser=$(
+        [ ! -r "$script_nos" ] || . "$script_nos"
+        . "$script"
+        declare -F | grep -E -m1 " ${installer_family}_[0-9]+_license_${modules[$i]}$"
+      )
+      [ -z "$licenser" ] || license_common=1
+    else
+      echo "Unknown component or profile: ${modules[$i]}. Skipping" 1>&2
+    fi
+    i=$((i+1))
+  done
+
+  # validate dependencies
+  if [[ " $* " = *" --validate "* ]]; then
+    echo "Checking component installation orders..."
+    local bad=0 p d j
+    for p in ${!known[*]}; do
+      [ -n "${orders[$p]:-}" ] || continue # virtual: checked through the modules that use it
+      local q=(${depsof[$p]}); local -A seen=(); j=0
+      while [ $j -lt ${#q[@]} ]; do
+        d=${q[$j]}; j=$((j+1))
+        [[ "$d" != "$p" && -z "${seen[$d]:-}" ]] || continue
+        seen[$d]=1
+        if [ -z "${known[$d]:-}" ]; then
+          [[ " $* " != *" --strict "* ]] || { echo "$p: unknown dependency '$d'" 1>&2; bad=1; }
+        elif [ -z "${orders[$d]:-}" ]; then
+          q+=(${depsof[$d]}) # virtual: look through it
+        elif [ "$d" != reboot ] && [ $((10#${orders[$d]})) -ne 99 ] && [ $((10#${orders[$d]})) -gt $((10#${orders[$p]})) ]; then
+          echo "$p (${orders[$p]}) depends on $d (${orders[$d]}) which installs later" 1>&2; bad=1
+        fi
+      done
+      unset seen
+    done
+    for p in ${!known[*]}; do
+      for d in ${depsof[$p]}; do [ "$d" = "$p" ] || echo "$d $p"; done
+    done | tsort > /dev/null || bad=1
+    if [ $bad -eq 0 ]; then
+      echo "OK"
+      exit 0
+    else
+      echo "Failed"
+      exit 3
+    fi
+  fi
+
+  # construct final installer
+  if [ ${#scripts[@]} -eq 0 ]; then
+    echo "No bootstrap component" 1>&2
+    exit 3
+  fi
+
+  # collect sources
+  local sources=() f
+  sources+=("$mydir"/common/linux/*)
+  [ ! -d "$mydir"/common/${installer_family} ] || sources+=("$mydir"/common/${installer_family}/*)
+  if [ $license_common -ne 0 ]; then
+    for f in "$mydir"/license/linux/ensure_license_* "$mydir"/license/${installer_family}/ensure_license_*; do
+      [ ! -r "$f" ] || sources+=("$f")
+    done
+  fi
+
+  local scripts_ordered
+  mapfile -t scripts_ordered < <(printf '%s\n' "${!scripts[@]}" | sort)
+  for script in "${scripts_ordered[@]}"; do
+    echo "==== bootstrapping ${script#"$mydir/"} ===="
+    sources+=("$script")
+    [ ! -r "${script%/*}/linux" ] || sources+=("${script%/*}/linux")
+  done
+
+  [[ " $* " != *" --dry-run "* ]] || return 0
+
+  rendered="${rendered:-$mydir/rendered/$installer_name}"
+  local tmp="$rendered.tmp.$$"
+  {
+    # header from openedge-cli verbatim (keeps license headers and comments)
+    sed '/^#### COLLECTION OF MODULES ####/q' "$0"
+    echo
+    # sanitized module code: source in a clean subshell, emit via declare -f
+    (
+      unset -f $(declare -F | cut -f3 -d' ')
+      for f in "${sources[@]}"; do
+        . "$f" || { echo "Failed to source $f" 1>&2; exit 3; }
+      done
+      unset -f main   # main comes from the verbatim header
+      misc_funcs=($(declare -F | cut -f3 -d' ' | grep -v -E "^(${installer_family}_[0-9]+|ensure_|act_|verify_|configure_|install_|start_|stop_|remove_|profile_|license_|sbom_|subcommand_|main$)"))
+      skill_text="$(base64 "$mydir"/.github/skills/openedge-cli/SKILL.md | tr -d '\n')"
+
+      # render bash completion once
+      act_get init > /dev/null
+      completion_plain="$(
+        all_cmds=(${_act_cache_cmds[*]})
+        cat <<EOF
+#!/bin/bash
+_${installer_name//-/_}_completion () {
+  if (( COMP_CWORD == 1 )); then
+    COMPREPLY=(\$(compgen -W "${all_cmds[*]} list setup --help" -- "\$2"))
+    return
+  fi
+
+  case "\${COMP_WORDS[1]}" in
+$(
+    # snapshot profiles ONCE; do not rely on _act_reply surviving a second act_get
+    act_get prefix profile_
+    local all_profilers=(${_act_reply[*]})
+    local cmd dcmd profiler pname mname found
+    local -A all_comps
+    for cmd in ${all_cmds[*]}; do
+      all_comps=()
+      all_comps["--continue"]=""
+      all_comps["--dry-run"]=""
+      all_comps["--reinstall"]=""
+      all_comps["--validate"]=""
+      # sbom handlers are sparse; resolve its dependency graph as if it were install
+      dcmd=$cmd; [ "$cmd" != sbom ] || dcmd=install
+      act_get prefix ${dcmd}_
+      local all_modules=(${_act_reply[*]#*_*_*_})
+      for profiler in ${all_profilers[*]}; do
+        pname=${profiler#*_*_*_}
+        [[ " ${all_modules[*]} " != *" $pname "* ]] || continue
+        found=0
+        for mname in $(act_expand_modules $dcmd $pname); do
+          if [[ -v _act_cache_functions[${dcmd}_${mname}] ]]; then
+            found=1
+            break
+          fi
+        done
+        [ $found -eq 0 ] || all_comps[$pname]=""
+      done
+      for mname in ${all_modules[*]}; do
+        all_comps[$mname]=""
+      done
+      echo "  $cmd)"
+      echo "    $(declare -p all_comps | sed 's|declare -A |local -A |')"
+      echo "    for ((i=2;i<COMP_CWORD;i++)); do unset \"all_comps[\${COMP_WORDS[\$i]}]\"; done"
+      echo "    COMPREPLY=(\$(compgen -W \"\${!all_comps[*]}\" -- \"\$2\"))"
+      echo "    ;;"
+    done
+    :
+)
+  *)
+    COMPREPLY=()
+    ;;
+  esac
+}
+complete -F _${installer_name//-/_}_completion $installer_name
+EOF
+      )" || { echo "Failed to render bash completion" 1>&2; exit 3; }
+      bash -n <<< "$completion_plain" > /dev/null || { echo "Rendered bash completion has syntax errors" 1>&2; exit 3; }
+      completion_text="$(base64 <<< "$completion_plain" | tr -d '\n')"
+      unset completion_plain
+
+      funcs="$(declare -f)"
+      funcs="${funcs/"@@INSTALLER_MISC_FUNCTIONS@@"/"${misc_funcs[*]}"}"
+      funcs="${funcs/"@@INSTALLER_SKILL_TEXT@@"/"$skill_text"}"
+      funcs="${funcs/"@@INSTALLER_COMPLETION_TEXT@@"/"$completion_text"}"
+      printf '%s\n' "$funcs"
+    ) || exit 3
+    echo
+    [ ${#start_modules[*]} -eq 0 ] || echo "[ \"\$0\" != bash ] || set -- start ${start_modules[*]} \"\$@\""
+    [ ${#install_modules[*]} -eq 0 ] || echo "[ \"\$0\" != bash ] || set -- install ${install_modules[*]} \"\$@\""
+    echo "[ \"\$0\" != bash ] || set -- setup \"\$@\""
+    echo 'main "$@"'
+  } > "$tmp" || { rm -f "$tmp"; exit 3; }
+
+  bash -n "$tmp" || { echo "Rendered installer has syntax errors: $tmp" 1>&2; exit 3; }
+  mv -f "$tmp" "$rendered"
+  chmod a+rx "$rendered"
+  echo "Rendered to $rendered"
+}
+
+main "$@"

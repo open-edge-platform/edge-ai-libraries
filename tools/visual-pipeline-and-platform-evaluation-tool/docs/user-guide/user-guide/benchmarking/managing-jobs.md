@@ -45,8 +45,8 @@ Click on a completed job to view its detailed results:
 To stop a job that is currently running:
 
 1. Locate the job in the list (state = RUNNING).
-2. Click the **Stop** button.
-3. The job will be terminated.
+1. Click the **Stop** button.
+1. The job will be terminated.
 
 **Behavior after stopping:**
 
@@ -56,7 +56,8 @@ To stop a job that is currently running:
 - **Density tests** — Cancelled density tests always transition to FAILED because partial results
   from an incomplete search algorithm are not meaningful.
 
-> **Note:** Stopping a job sends a cancellation signal to the underlying GStreamer subprocesses.
+> [!NOTE]
+> Stopping a job sends a cancellation signal to the underlying GStreamer subprocesses.
 > The actual termination may take a few seconds while pipelines flush their buffers.
 
 ## API endpoints

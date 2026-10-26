@@ -61,6 +61,12 @@ If you hit permission errors on `models/`, `chunks/`, `storage/`, or
 >
 > This is a host runtime environment limitation — no application or configuration change is
 > required. Use Docker Compose for the accelerator-enabled setup.
+>
+> **NPU users:** before starting the container, set `ACCEL_MOUNT_PATH` in your `.env` (or
+> export it before running Compose) to the host NPU device node (for example
+> `/dev/accel/accel0` on many Meteor Lake systems). Without it, the container will fail to
+> start when `device: NPU` is configured. See
+> [Configuration Guide](./get-started/configuration.md#openvino-npu-configuration) for details.
 
 <!--hide_directive:::
 :::{tab-item}hide_directive--> **Run on the Host**

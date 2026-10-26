@@ -9,7 +9,17 @@ for evaluation, demos, and API exploration.
 Before starting, ensure the following:
 
 - **System requirements**: The system meets the [minimum requirements](./system-requirements.md).
-- **Docker platform**: Docker is installed. For details, see the [Docker installation guide](https://docs.docker.com/get-docker/).
+- **Internet access**: The host has outbound internet connectivity. Container images, sample videos, models, and
+  the Python packages used by the `model-download` service are downloaded on first start. Offline or air-gapped
+  installation is not supported. See [Network Requirements](./system-requirements.md#network-requirements).
+- **Docker platform**: **Docker Engine** is installed. On Linux, install it from the Docker apt repository, see
+  [Install Docker Engine on Ubuntu](https://docs.docker.com/engine/install/ubuntu/), then complete the
+  [post-installation steps](https://docs.docker.com/engine/install/linux-postinstall/) to run Docker as a non-root user.
+
+  > [!NOTE]
+   > Do not use Docker Desktop on Linux. It runs the Docker daemon inside a virtual machine that is not forwarding GPU
+   > device on Linux (yet).
+
 - **Dependencies installed**:
   - **Make**: Standard build tool, typically provided by the `build-essential` (or equivalent) package on Linux.
   - **curl**: Command-line tool for transferring data with URLs, typically provided by the `curl` package on Linux.
@@ -18,7 +28,8 @@ For GPU and/or NPU usage, appropriate drivers must be installed. The recommended
 script, which detects available devices and installs the required drivers. Follow the `Prerequisites` section in
 [Install Guide Ubuntu - Prerequisites](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/install/install_guide_ubuntu.html#prerequisites).
 
-> **Note:** The same steps apply to Ubuntu 24.04 running under WSL 2 on Windows - run all commands
+> [!NOTE]
+> The same steps apply to Ubuntu 24.04 running under WSL 2 on Windows - run all commands
 > inside the WSL distribution. On WSL, only the CPU and GPU (WSL) variants are supported. See
 > [System Requirements](./system-requirements.md#windows-subsystem-for-linux-wsl).
 
@@ -44,19 +55,25 @@ For alternative ways to set up the sample application, refer to
    cd tools/visual-pipeline-and-platform-evaluation-tool
    ```
 
-1. Build the `vippet-onvif-discovery` image and start the application:
+1. Pull the pre-built images and start the application:
 
    ```bash
-   make build-onvif-discovery run
+   make run-prebuilt
    ```
 
-   These targets automatically:
+   This target automatically:
 
-   - run `setup_env.sh` to detect available hardware (CPU/GPU/NPU) and write `.env`,
-   - create the required directories under `shared/`,
-   - build the `vippet-onvif-discovery` image locally (it is not published),
-   - pull the pre-built images (`vippet-app`, `vippet-ui`, `model-download`,
-     `metrics-manager`, `mediamtx`) and start all services.
+   - runs `setup_env.sh` to detect available hardware (CPU/GPU/NPU) and write `.env`,
+   - creates the required directories under `shared/`,
+   - pulls the pre-built images (`vippet-app`, `vippet-ui`, `sensor-manager`, `model-download`,
+     `metrics-manager`, `mediamtx`) and starts all services.
+
+   On the `main` branch the images tagged `latest` are used; on a release branch, the images of that
+   release. To run a different published tag, for example a weekly build listed on
+   [Docker Hub](https://hub.docker.com/r/intel/vippet-app/tags), use `make run-prebuilt PREBUILT_TAG=<tag>`.
+
+   `make run-prebuilt` never builds images from source: if an image cannot be pulled, the command fails.
+   `make run` is the build-from-source path, see [Build from Source](./build-from-source.md).
 
 1. Verify that the application is running:
 
@@ -74,7 +91,8 @@ For alternative ways to set up the sample application, refer to
    Open a browser and navigate to `http://localhost/api/v1/docs` (or `http://<HOST-IP>/api/v1/docs`)
    to access the Swagger UI.
 
-> **Note:** On the first start the `model-download` service may take several minutes to become
+> [!NOTE]
+> On the first start the `model-download` service may take several minutes to become
 > healthy because it provisions its plugin virtual environments. The other services wait for it
 > automatically.
 

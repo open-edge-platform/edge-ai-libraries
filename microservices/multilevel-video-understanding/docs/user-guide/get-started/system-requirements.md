@@ -22,16 +22,22 @@ Two platforms have been validated:
 - At least **32 GB swap** — so the model load and KV cache can spill under peak memory pressure
 - At least 128 GB disk space (model weights + Hugging Face cache)
 
-> **Note:** To fit smaller-memory hosts, lower `MAX_MODEL_LEN` or use `awq` / `sym_int4` quantization in `docker/set_env.sh`.
+> [!NOTE]
+> To fit smaller-memory hosts, lower `MAX_MODEL_LEN` or use `awq` / `sym_int4` quantization in `docker/set_env.sh`.
 
 **Hardware — Platform #2: Intel® Xeon™ + Intel® Arc™ Pro B60, discrete-GPU serving host**
 
 - Intel® Xeon™ processor (validated on Intel® Xeon™ GOLD 6530)
-- Intel® Arc™ Pro B60 Graphics — multiple GPUs may be required to serve `Qwen3.5-35B-A3B`
+- Intel® Arc™ Pro B60 Graphics — at least 2 GPUs are required to serve `Qwen3.5-35B-A3B`
 - At least **64 GB RAM**
 - At least 128 GB disk space (model weights + Hugging Face cache)
 
-> **Note:** On this platform, deploy vLLM-IPEX ([llm-scaler](https://github.com/intel/llm-scaler)) on the B60 host and point the microservice at its endpoint via `VLM_BASE_URL` / `LLM_BASE_URL`.
+> [!NOTE]
+> On this platform, deploy vLLM ([llm-scaler](https://github.com/intel/llm-scaler)) on 2x B60 host and modify related env variables before deplyment:
+> ```bash
+> export GPU_MEM_UTIL=0.9
+> export TENSOR_PARALLEL_SIZE=2 
+> ```
 
 <!-- ## Minimum Requirements
 - As per sample application documentation. -->

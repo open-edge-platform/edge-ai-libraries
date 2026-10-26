@@ -36,6 +36,7 @@ flowchart LR
     SceneAPI([Scenescape<br/>REST API])
 
     subgraph Service["Scene Understanding Service (FastAPI, :8082)"]
+
         MQTT["MQTT Subscriber<br/>(scene/region/image topics)"]
         SM["Session Manager<br/>(per-person state machine)"]
         RA["Rule Adapter<br/>(sessions → rule engine)"]

@@ -11,11 +11,26 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBody, ApiParam, ApiOkResponse, ApiCreatedResponse } from '@nestjs/swagger';
-import { SearchQueryDTO, SearchShimQuery, RefetchBodyDTO, WatchBodyDTO } from '../model/search.model';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBody,
+  ApiParam,
+  ApiOkResponse,
+  ApiCreatedResponse,
+  ApiBadRequestResponse,
+} from '@nestjs/swagger';
+import {
+  SearchQueryDTO,
+  SearchShimQuery,
+  RefetchBodyDTO,
+  WatchBodyDTO,
+} from '../model/search.model';
 import { SearchStateService } from '../services/search-state.service';
 import { SearchDbService } from '../services/search-db.service';
 import { SearchShimService } from '../services/search-shim.service';
+import { SearchRefreshConfigService } from '../services/search-refresh-config.service';
+import { FeaturesService } from 'src/features/features.service';
 import { lastValueFrom } from 'rxjs';
 
 import { v4 as uuidV4 } from 'uuid';
@@ -27,7 +42,30 @@ export class SearchController {
     private $search: SearchStateService,
     private $searchDB: SearchDbService,
     private $searchShim: SearchShimService,
+    private $feature: FeaturesService,
+    private $refreshConfig: SearchRefreshConfigService,
   ) {}
+
+  private assertValidSearchInput(reqBody: SearchQueryDTO): boolean {
+    const hasImage =
+      typeof reqBody.image === 'string' && reqBody.image.trim().length > 0;
+    const hasText =
+      typeof reqBody.query === 'string' && reqBody.query.trim().length > 0;
+    if (hasImage && hasText) {
+      throw new BadRequestException(
+        'Provide either a text query or an image, not both.',
+      );
+    }
+    if (!hasImage && !hasText) {
+      throw new BadRequestException('Search query cannot be empty.');
+    }
+    if (hasImage && !this.$feature.isImageSearchEnabled()) {
+      throw new BadRequestException(
+        'Image search is not supported in this deployment mode.',
+      );
+    }
+    return hasImage;
+  }
 
   @Get('')
   @ApiOperation({ summary: 'Get all search queries' })
@@ -43,9 +81,25 @@ export class SearchController {
     return await this.$searchDB.readAllWatched();
   }
 
+  @Get('refresh-config')
+  @ApiOperation({
+    summary: 'Get the auto-refresh configuration for watched search queries',
+  })
+  @ApiOkResponse({
+    description:
+      'Effective auto-refresh settings applied to watched (checked) queries',
+  })
+  getRefreshConfig() {
+    return this.$refreshConfig.getConfig();
+  }
+
   @Get(':queryId')
   @ApiOperation({ summary: 'Get a search query by ID' })
-  @ApiParam({ name: 'queryId', type: String, description: 'ID of the search query' })
+  @ApiParam({
+    name: 'queryId',
+    type: String,
+    description: 'ID of the search query',
+  })
   @ApiOkResponse({ description: 'Search query details' })
   async getQuery(@Param() params: { queryId: string }) {
     return await this.$searchDB.read(params.queryId);
@@ -55,19 +109,31 @@ export class SearchController {
   @ApiOperation({ summary: 'Add a new search query' })
   @ApiBody({ type: SearchQueryDTO })
   @ApiCreatedResponse({ description: 'Search query created' })
+  @ApiBadRequestResponse({ description: 'Search query is empty or invalid' })
   async addQuery(@Body() reqBody: SearchQueryDTO) {
+    const hasImage = this.assertValidSearchInput(reqBody);
+
     try {
       let tags: string[] = [];
 
-      const searchQuery = reqBody.query;
+      const searchQuery = reqBody.query ?? '';
 
       if (reqBody.tags && reqBody.tags.length > 0) {
         tags = reqBody.tags.split(',').map((tag) => tag.trim());
       }
 
-      const query = await this.$search.newQuery(searchQuery, tags, reqBody.timeFilter);
+      const query = await this.$search.newQuery(
+        searchQuery,
+        tags,
+        reqBody.timeFilter,
+        hasImage ? reqBody.image : null,
+      );
       return query;
     } catch (error) {
+      // Preserve explicit client errors (e.g. unsupported mode / bad input).
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
       Logger.error('Error adding query', error);
       throw new BadRequestException('Error adding query');
     }
@@ -75,10 +141,17 @@ export class SearchController {
 
   @Post(':queryId/refetch')
   @ApiOperation({ summary: 'Refetch search results for a query' })
-  @ApiParam({ name: 'queryId', type: String, description: 'ID of the search query to refetch' })
+  @ApiParam({
+    name: 'queryId',
+    type: String,
+    description: 'ID of the search query to refetch',
+  })
   @ApiBody({ type: RefetchBodyDTO, required: false })
   @ApiOkResponse({ description: 'Search query refetched' })
-  async refetchQuery(@Param() params: { queryId: string }, @Body() body?: RefetchBodyDTO) {
+  async refetchQuery(
+    @Param() params: { queryId: string },
+    @Body() body?: RefetchBodyDTO,
+  ) {
     const res = await this.$search.reRunQuery(params.queryId, body?.timeFilter);
     return res;
   }
@@ -87,7 +160,10 @@ export class SearchController {
   @ApiOperation({ summary: 'Execute a one-off search query' })
   @ApiBody({ type: SearchQueryDTO })
   @ApiCreatedResponse({ description: 'Search results' })
+  @ApiBadRequestResponse({ description: 'Search query is empty or invalid' })
   async searchQuery(@Body() reqBody: SearchQueryDTO) {
+    const hasImage = this.assertValidSearchInput(reqBody);
+
     const normalized = this.$search.buildTimeFilterRange(reqBody.timeFilter);
     const tags = reqBody.tags
       ? reqBody.tags
@@ -96,11 +172,15 @@ export class SearchController {
           .filter((tag) => tag.length > 0)
       : [];
     const queryShim: SearchShimQuery = {
-      query: reqBody.query,
       query_id: uuidV4(),
     };
     if (tags.length > 0) {
       queryShim.tags = tags;
+    }
+    if (hasImage) {
+      queryShim.image_base64 = reqBody.image;
+    } else {
+      queryShim.query = reqBody.query;
     }
     if (normalized.range) {
       queryShim.time_filter = normalized.range;
@@ -111,13 +191,14 @@ export class SearchController {
 
   @Patch(':queryId/watch')
   @ApiOperation({ summary: 'Toggle watch status for a search query' })
-  @ApiParam({ name: 'queryId', type: String, description: 'ID of the search query' })
+  @ApiParam({
+    name: 'queryId',
+    type: String,
+    description: 'ID of the search query',
+  })
   @ApiBody({ type: WatchBodyDTO })
   @ApiOkResponse({ description: 'Watch status updated' })
-  watchQuery(
-    @Param() params: { queryId: string },
-    @Body() body: WatchBodyDTO,
-  ) {
+  watchQuery(@Param() params: { queryId: string }, @Body() body: WatchBodyDTO) {
     if (!Object.prototype.hasOwnProperty.call(body, 'watch')) {
       throw new BadRequestException('Watch property is required');
     }
@@ -129,7 +210,11 @@ export class SearchController {
 
   @Delete(':queryId')
   @ApiOperation({ summary: 'Delete a search query' })
-  @ApiParam({ name: 'queryId', type: String, description: 'ID of the search query to delete' })
+  @ApiParam({
+    name: 'queryId',
+    type: String,
+    description: 'ID of the search query to delete',
+  })
   @ApiOkResponse({ description: 'Search query deleted' })
   async deleteQuery(@Param() params: { queryId: string }) {
     return await this.$searchDB.remove(params.queryId);

@@ -54,16 +54,17 @@ When the test completes, the application reports:
 You can test multiple pipelines running concurrently to simulate a realistic multi-workload scenario.
 
 1. Select a pipeline from the list.
-2. Click *+ Add Pipeline* to add additional pipelines.
-3. Configure the number of streams for each pipeline independently.
-4. Set shared execution options (output mode, max runtime).
-5. Click *Run performance test*.
+1. Click *+ Add Pipeline* to add additional pipelines.
+1. Configure the number of streams for each pipeline independently.
+1. Set shared execution options (output mode, max runtime).
+1. Click *Run performance test*.
 
 While testing, real-time system metrics are displayed in the dashboard. The application reports *Total FPS*
 and *Per Stream FPS* metrics across all pipelines combined, and provides the output videos from the test
 if *Save output* was enabled.
 
-> **Tip:** Multi-pipeline tests are useful for understanding how different workloads compete for hardware
+> [!TIP]
+> Multi-pipeline tests are useful for understanding how different workloads compete for hardware
 > resources. For example, you can test a detection pipeline alongside a classification pipeline to see
 > how GPU utilization is shared.
 
@@ -83,7 +84,8 @@ To enable latency measurement for a pipeline run, set the **Enable latency metri
 When enabled, ViPPET configures GStreamer's built-in `latency_tracer` which samples the pipeline every
 1 000 ms and reports statistics for each interval.
 
-> **Note:** Enabling latency metrics adds minimal overhead to the pipeline. The tracer operates passively —
+> [!NOTE]
+> Enabling latency metrics adds minimal overhead to the pipeline. The tracer operates passively —
 > it timestamps buffers at the source and measures arrival time at the sink without modifying the data path.
 
 ### Reading the latency chart

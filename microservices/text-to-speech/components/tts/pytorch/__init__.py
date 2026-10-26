@@ -3,7 +3,13 @@ import torch
 
 def normalize_device(device_name: str) -> str:
     n = device_name.strip().lower()
-    return "cuda" if n in {"gpu", "cuda"} and torch.cuda.is_available() else "cpu"
+    if n == "cpu":
+        return "cpu"
+    if n in {"gpu", "cuda"}:
+        if not torch.cuda.is_available():
+            raise ValueError("Requested TTS device 'GPU' is not available to PyTorch.")
+        return "cuda"
+    raise ValueError(f"Unsupported PyTorch TTS device: {device_name}")
 
 
 def resolve_dtype(dtype_name: str, *, cpu_fallback: bool = False) -> torch.dtype:
@@ -18,8 +24,11 @@ def resolve_dtype(dtype_name: str, *, cpu_fallback: bool = False) -> torch.dtype
     return dtype
 
 
+from components.tts.kokoro import kokoro_tts  # noqa: E402
 from components.tts.pytorch import parler_tts, qwen_tts, speecht5  # noqa: E402
 
-IMPLEMENTATIONS = [qwen_tts, parler_tts, speecht5]
+# Kokoro runs on onnxruntime (CPU) and is runtime-independent, so it is offered
+# under both runtime lists and selected purely by model name.
+IMPLEMENTATIONS = [kokoro_tts, qwen_tts, parler_tts, speecht5]
 
 __all__ = ["IMPLEMENTATIONS", "normalize_device", "resolve_dtype"]

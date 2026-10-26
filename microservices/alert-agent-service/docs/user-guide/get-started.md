@@ -19,7 +19,8 @@ The Alert Agent Service is a generic multimodal alert action dispatcher. It acce
 - Docker Compose v2 plugin (`docker compose`)
 - Sufficient disk space for the LLM model (approximately 4 GB for the default Phi-4-mini-instruct model)
 
-> **Note:** The default configuration uses `TARGET_DEVICE=GPU` for the OVMS LLM container. To run on CPU-only Intel devices, set `TARGET_DEVICE=CPU` in your environment. This increases LLM inference latency but requires no GPU.
+> [!NOTE]
+> The default configuration uses `TARGET_DEVICE=GPU` for the OVMS LLM container. To run on CPU-only Intel devices, set `TARGET_DEVICE=CPU` in your environment. This increases LLM inference latency but requires no GPU.
 
 See [System Requirements](./get-started/system-requirements.md) for full details.
 
@@ -50,6 +51,7 @@ export TAG=latest
 # ----- ADK / LLM -----
 export AGENT_MODE=true
 export LLM_URL=http://ovms-llm:9000/v3
+export LLM_PORT=9001
 export LLM_MODEL=OpenVINO/Phi-4-mini-instruct-int4-ov
 export LLM_TIMEOUT=10.0
 export TARGET_DEVICE=GPU          # GPU (default) or CPU
@@ -61,6 +63,7 @@ export WEBHOOK_SECRET=                # leave empty to skip HMAC signing
 # ----- MQTT action tool (optional) -----
 export MQTT_BROKER=                   # e.g. mqtt.example.com
 export MQTT_PORT=1883
+export MQTT_HOST_PORT=1883
 export MQTT_USERNAME=
 export MQTT_PASSWORD=
 export MQTT_BASE_TOPIC=alerts
@@ -71,7 +74,8 @@ export https_proxy=
 export no_proxy=localhost,127.0.0.1,ovms-llm
 ```
 
-> **Note:** `WEBHOOK_URL` and `MQTT_BROKER` are optional. If not set, the corresponding tools are skipped gracefully when invoked.
+> [!NOTE]
+> `WEBHOOK_URL` and `MQTT_BROKER` are optional. If not set, the corresponding tools are skipped gracefully when invoked.
 
 ### 3. Start the Services
 
@@ -239,6 +243,7 @@ curl http://localhost:8000/api/v1/tools
 | `AGENT_MODE`               | `true`                                 | Enable ADK (LLM-reasoned) dispatch; set `false` for rule-based mode           |
 | `TARGET_DEVICE`            | `GPU`                                  | OVMS inference device — set to `CPU` for Intel devices without a discrete GPU |
 | `LLM_URL`                  | `http://ovms-llm:9000/v3`              | OpenAI-compatible LLM endpoint                                                |
+| `LLM_PORT`                 | `9001`                                 | Host port mapped to the OVMS container's internal port `9000`                 |
 | `LLM_MODEL`                | `OpenVINO/Phi-4-mini-instruct-int4-ov` | Model repository path / name                                                  |
 | `LLM_TIMEOUT`              | `10.0`                                 | LLM request timeout in seconds                                                |
 | `ACTION_WORKERS`           | `2`                                    | Concurrent worker pool size for tool execution                                |
@@ -246,6 +251,7 @@ curl http://localhost:8000/api/v1/tools
 | `WEBHOOK_SECRET`           | _(empty)_                              | HMAC-SHA256 secret for webhook request signing                                |
 | `MQTT_BROKER`              | _(empty)_                              | MQTT broker hostname or IP                                                    |
 | `MQTT_PORT`                | `1883`                                 | MQTT broker port                                                              |
+| `MQTT_HOST_PORT`           | `1883`                                 | Host port mapped to the bundled MQTT broker's internal port `1883`             |
 | `MQTT_USERNAME`            | _(empty)_                              | MQTT broker username                                                          |
 | `MQTT_PASSWORD`            | _(empty)_                              | MQTT broker password                                                          |
 | `MQTT_BASE_TOPIC`          | `alerts`                               | Base MQTT topic prefix                                                        |
@@ -304,7 +310,8 @@ subscriptions:
       enabled: false
 ```
 
-> **Note:** The `${WEBHOOK_URL}` placeholder is resolved at runtime from the environment variable.
+> [!NOTE]
+> The `${WEBHOOK_URL}` placeholder is resolved at runtime from the environment variable.
 
 ### MCP Server Configuration (`resources/mcp_servers.json`)
 

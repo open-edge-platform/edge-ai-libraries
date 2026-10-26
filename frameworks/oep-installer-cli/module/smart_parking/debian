@@ -1,0 +1,109 @@
+
+configure_smart_parking () {
+  workspace="$(ensure_project_path)/smart-parking"
+  version=release-2026.2.0
+  repository="https://github.com/open-edge-platform/metro-ai-suite.git"
+  used_ports=(80 443 3478)
+  wait_timeout=120
+}
+
+verify_smart_parking () {
+  local i p
+  for i in 1 2 3 4; do
+    [ -e "$workspace"/metro-vision-ai-app-recipe/smart-parking/src/dlstreamer-pipeline-server/videos/new_video_$i.mp4 ] || {
+      echo "Missing new_video_$1.mp4" >&2
+      return 1
+    }
+  done
+  for p in FP16 FP32 INT8; do
+    [ -e "$workspace"/metro-vision-ai-app-recipe/smart-parking/src/dlstreamer-pipeline-server/models/public/yolo11s/$p/yolo11s.bin ] || {
+      echo "Missing $p/yolo11s.bin" >&2
+      return 1
+    }
+  done
+  [ -e "$workspace"/metro-vision-ai-app-recipe/smart-parking/src/dlstreamer-pipeline-server/models/colorcls2/colorcls2.bin ] || {
+    echo "Missing colorcls2" >&2
+    return 1
+  }
+}
+
+debian_90_profile_smart_parking () {
+  echo "git curl gawk edge_base docker_io"
+}
+
+debian_90_install_smart_parking () {
+  configure_smart_parking
+  if verify_smart_parking && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Smart parking is installed." >&2
+  else
+    echo "@@STEP @@IF ^docker compose down @@THEN Stopping all apps"
+    ensure_disk_size 300
+    ensure_ports_open install smart_parking "${used_ports[@]}"
+
+    # clone the repository
+    echo "@@STEP Cloning repository"
+    ensure_git_export "$workspace" $version $repository metro-vision-ai-app-recipe
+
+    # setup
+    echo "@@STEP Setting up sample" 
+    echo "@@STEP @@IF ^Attempt : Running model download and quantization @@THEN Preparing model download"
+    echo "@@STEP @@IF ^Downloading and converting:.*[/]([a-z0-9]+)$ @@THEN Downloading \\1"
+    echo "@@STEP @@IF Starting ([A-Z0-9]+) quantization for ([a-z0-9]+) @@THEN Quantizing \\2 to \\1"
+    echo "@@STEP @@IF ^Download ([a-z0-9_]+.mp4)[.][.][.] @@THEN Downloading \\1"
+    cd "$workspace/metro-vision-ai-app-recipe"
+    sed -i 's|curl | curl -f |' smart-parking/install.sh
+    ./install.sh smart-parking $(ensure_ip)
+    verify_smart_parking
+  fi
+
+  local device=$(ensure_select_device "$@")
+  echo "$device" > "$workspace"/.device
+
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
+  echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]" 
+  echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]" 
+  echo "@@HIGHLIGHT $installer_name remove"
+}
+
+debian_90_start_smart_parking () {
+  configure_smart_parking
+  ensure_ports_open start smart_parking "${used_ports[@]}"
+
+  local device=$(ensure_select_device "$@")
+  [[ " ${*,,} " != *" --$device "* ]] || echo "$device" > "$workspace"/.device
+
+  cd "$workspace"/metro-vision-ai-app-recipe
+  docker compose up -d
+
+  local start_time=$SECONDS elapsed
+  while true; do
+    elapsed=$(( SECONDS - start_time ))
+    echo "Waiting...elapsed $elapsed seconds" >&2
+    if [[ $elapsed -gt $wait_timeout ]]; then
+      echo "Timeout waiting for pipelines up." >&2
+      return 3
+    fi
+    curl -k -s https://localhost/api/pipelines/status -H "accept: application/json" > /dev/null && break || sleep 5
+  done
+
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}"
+  echo "@@HIGHLIGHT Grafana AUTH: admin/admin"
+  echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]" 
+  echo "@@HIGHLIGHT $installer_name stop|remove"
+
+  ./sample_start.sh $(< ../.device) && ./sample_status.sh
+}
+
+debian_90_stop_smart_parking () {
+  configure_smart_parking
+  cd "$workspace"/metro-vision-ai-app-recipe && {
+    ./sample_stop.sh || true
+    docker compose down -v --remove-orphans
+  } || true
+}
+
+debian_90_remove_smart_parking () {
+  debian_90_stop_smart_parking "$@" || true
+  ensure_rm "$workspace"
+}
+

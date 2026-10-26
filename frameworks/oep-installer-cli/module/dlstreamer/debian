@@ -1,0 +1,88 @@
+
+configure_dlstreamer () {
+  repo_name="apt.repos.intel.com"
+  key_url="https://$repo_name/edgeai/dlstreamer/GPG-PUB-KEY-INTEL-DLS.gpg"
+  key_file=/usr/share/keyrings/dls-archive-keyring.gpg
+  deb_entry="deb [signed-by=$key_file] https://$repo_name/edgeai/dlstreamer/${ID}${VERSION_ID%.*} ${ID}${VERSION_ID%.*} main"
+  list_file=/etc/apt/sources.list.d/intel-dlstreamer.list
+  repository=https://github.com/open-edge-platform/dlstreamer
+  workspace="$(ensure_project_path)/dlstreamer"
+  version=2026.2.0
+  od_model=yolov5m-640_INT8/FP16-INT8/yolov5m-640_INT8
+  od_model_proc=yolov5m-640_INT8/yolo-v5
+  oc_model=efficientnet-b0_INT8/FP16-INT8/efficientnet-b0
+  model_repo=https://raw.githubusercontent.com/dlstreamer/pipeline-zoo-models/ee73878abc6fb6d864e59a5cd80016de4fc1d194
+  allow_downgrades=(libgbm1 libva-wayland2 libwayland-bin mesa-libgallium)
+  version_skills=release-2026.2.0
+  repository_skills=https://github.com/open-edge-platform/skills.git
+  skills=(dlstreamer-coding-agent)
+}
+
+debian_75_profile_dlstreamer () {
+  echo "git openvino edge_base"
+}
+
+verify_dlstreamer () {
+  ensure_apt_is_installed intel-dlstreamer=${version} || return 1
+}
+
+debian_75_install_dlstreamer () {
+  configure_dlstreamer
+  
+  if verify_dlstreamer && [[ " $* " != *" --reinstall "* ]]; then
+    echo "dlstreamer-${version} is installed." >&2
+  else
+    ensure_disk_size 15000
+    ensure_prop set installed/dlstreamer/owned true
+
+    # remove old versions
+    echo "@@STEP Removing intel-dlstreamer"
+    debian_75_remove_dlstreamer "$@"
+
+    # product key & list file
+    ensure_apt_key $key_file $key_url --dearmor
+    ensure_apt_source $list_file "$deb_entry" 
+
+    # apt update
+    ensure_apt update -y
+
+    # install dlstreamer
+    echo "@@STEP Installing intel-dlstreamer=$version"
+    ensure_apt_allow_downgrades "${allow_downgrades[*]}" --no-install-recommends -y intel-dlstreamer=$version
+    ensure_apt install --allow-downgrades --no-install-recommends -y intel-dlstreamer=$version
+
+    # install skills
+    echo "@@STEP Installing skills"
+    ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}"
+
+    verify_dlstreamer
+    echo "intel-dlstreamer=$version installed successfully."
+  fi
+
+  # validate dlstreamer
+  test_dlstreamer_pipeline "$@"
+    
+  # info
+  echo "@@HIGHLIGHT shell env @/opt/intel/dlstreamer/scripts/setup_dls_env.sh"
+  echo "@@HIGHLIGHT samples @/opt/intel/dlstreamer/samples"
+  echo "@@HIGHLIGHT optimizer @/opt/intel/dlstreamer/scripts/optimizer"
+}
+
+debian_75_remove_dlstreamer () {
+  configure_dlstreamer
+  [ "$(ensure_prop get installed/dlstreamer/owned)" = "true" ] || return 0
+  ensure_apt purge --auto-remove -y $(dpkg-query -l | awk '/^ii/&&/dlstreamer/{print$2}') || true
+  ensure_rm "$workspace" || true
+  ensure_skills remove "${skills[@]}"
+}
+
+debian_75_sbom_dlstreamer () {
+  configure_dlstreamer
+  ensure_sbom_format name "$repo_name"
+  ensure_sbom_format apt-source "$deb_entry"
+  ensure_sbom_format apt-list-file "$list_file"
+  ensure_sbom_format gpg-key "$key_url"
+  ensure_sbom_format key-file "$key_file"
+  ensure_sbom_format pkg-list "intel-dlstreamer=$version*"
+}
+

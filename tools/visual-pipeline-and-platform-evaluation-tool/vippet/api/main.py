@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse
 
 from api.middleware import InitializationMiddleware
 from api.routes import health
+from app_version import VIPPET_VERSION
 from database import close_db, init_db
 from images import ImagesManager
 from internal_types import InternalAppStatus
@@ -17,6 +18,7 @@ from managers.app_state_manager import AppStateManager
 from managers.model_manager import ModelManager
 from managers.pipeline_manager import PipelineManager
 from managers.pipeline_template_manager import PipelineTemplateManager
+from models import SupportedModelsManager
 from videos import VideosManager
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -79,9 +81,9 @@ def _initialize_in_background(app: FastAPI) -> None:
         # Initialize PipelineTemplateManager - loads pipeline templates
         PipelineTemplateManager()
 
-        # Initialize ModelManager - reads supported_models.yaml and the
-        # installed-models registry. Must run after PipelineManager so
-        # that ``GET /models`` can compute ``used_by_pipelines``.
+        # Initialize ModelManager - the model-catalog cache itself was
+        # already warmed in the lifespan (before PipelineManager loaded
+        # predefined pipelines); this just sets up job bookkeeping.
         ModelManager()
 
         # Register remaining routers after VideosManager, PipelineManager, and PipelineTemplateManager are initialized
@@ -154,6 +156,12 @@ async def lifespan(app: FastAPI):
     # Initialize database before serving requests that depend on sessions.
     await init_db()
 
+    # Warm the model-catalog cache before PipelineManager loads predefined
+    # pipelines in the background thread below: pipeline ingestion resolves
+    # each node's model file path to a display name via
+    # SupportedModelsManager, so the cache must already reflect the DB.
+    await SupportedModelsManager().reload_async()
+
     # Start initialization in background thread
     init_thread = threading.Thread(
         target=_initialize_in_background,
@@ -175,7 +183,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Visual Pipeline and Platform Evaluation Tool API",
     description="API for Visual Pipeline and Platform Evaluation Tool",
-    version="1.0.0",
+    version=VIPPET_VERSION,
     root_path="/api/v1",
     # without explicitly setting servers to the same value as root_path,
     # generating openapi schema would omit whole servers section in vippet.json

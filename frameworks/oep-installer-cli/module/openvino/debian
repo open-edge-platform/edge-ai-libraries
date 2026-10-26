@@ -1,0 +1,75 @@
+
+configure_openvino () {
+  repo_name="apt.repos.intel.com"
+  key_url="https://$repo_name/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
+  key_file=/usr/share/keyrings/intel-gpg-archive-keyring.gpg
+  apt_entry="deb [signed-by=$key_file] https://$repo_name/openvino ${ID}${VERSION_ID%.*} main"
+  apt_file=/etc/apt/sources.list.d/intel-openvino.list
+  workspace="$(ensure_project_path)/openvino"
+  version=$([[ " $* " = *" dlstreamer "* ]] && echo 2026.2.0 || echo 2026.3.0)
+  model="https://github.com/onnx/models/raw/4c46cd00fbdb7cd30b6c1c17ab54f2e1f4f7b177/validated/vision/classification/squeezenet/model/squeezenet1.0-12.onnx"
+}
+
+debian_70_profile_openvino () {
+  echo "curl gnupg python3_venv edge_base"
+  if [[ " $* " = *" --validate "* ]]; then
+    echo "build_essential cmake"
+  fi
+}
+
+verify_openvino () {
+  ensure_apt_is_installed openvino-${version} || return 1
+}
+
+debian_70_install_openvino () {
+  configure_openvino "$@"
+  
+  if verify_openvino && [[ " $* " != *" --reinstall "* ]]; then
+    echo "openvino-${version} is installed." >&2
+  else
+    ensure_disk_size 1500
+    ensure_prop set installed/openvino/owned true
+
+    # remove old versions
+    echo "@@STEP Removing openvino"
+    debian_70_remove_openvino "$@"
+
+    # product key
+    echo "@@STEP Installing openvino-$version"
+    ensure_apt_key $key_file $key_url --dearmor
+
+    # deb entry
+    ensure_apt_source $apt_file "$apt_entry"
+
+    # apt update
+    ensure_apt update -y
+
+    # install openvino
+    ensure_apt install --no-install-recommends -y openvino-$version
+
+    verify_openvino 
+    echo "openvino-${version} installed successfully."
+  fi
+
+  # validate openvino
+  test_openvino "$@"
+
+  # info
+  echo "@@HIGHLIGHT openvino samples @/usr/share/openvino"
+}
+
+debian_70_remove_openvino () {
+  [ "$(ensure_prop get installed/openvino/owned)" = "true" ] || return 0
+  ensure_apt purge --auto-remove -y $(dpkg -l | grep openvino | awk '{print$2}') || true
+  ensure_rm "$workspace"
+}
+
+debian_70_sbom_openvino () {
+  configure_openvino "$@"
+  ensure_sbom_format name "$repo_name"
+  ensure_sbom_format gpg-key "$key_url"
+  ensure_sbom_format key-file "$key_file"
+  ensure_sbom_format apt-source "$apt_entry"
+  ensure_sbom_format apt-list-file "$apt_file"
+  ensure_sbom_format pkg-list "openvino-$version"
+}

@@ -11,6 +11,7 @@ import {
   selectMetrics,
   selectNpuMetric,
   selectNpuMetrics,
+  selectVlmMetrics,
 } from "@/store/reducers/metrics.ts";
 
 export const useMetrics = () => {
@@ -19,6 +20,7 @@ export const useMetrics = () => {
   const cpuDetailed = useAppSelector(selectCpuMetrics);
   const memory = useAppSelector(selectMemoryMetric);
   const latency = useAppSelector(selectLatencyMetrics);
+  const vlm = useAppSelector(selectVlmMetrics);
   const npu = useAppSelector(selectNpuMetric);
   const npuDetailed = useAppSelector(selectNpuMetrics);
   const allMetrics = useAppSelector(selectMetrics);
@@ -127,6 +129,7 @@ export const useMetrics = () => {
     gpuDetailedMetrics,
     gpus,
     latency,
+    vlm,
     npu: npu ?? 0,
     npuDetailed,
   };

@@ -123,7 +123,8 @@ Before starting the Edge Node deployment, ensure you meet the following prerequi
   ./va_enablement_node_profile.sh -h
   ```
 
-> **Note:** For Prometheus secure configuration details, see [Prometheus configuration](https://prometheus.io/docs/prometheus/latest/configuration/configuration/).
+> [!NOTE]
+> For Prometheus secure configuration details, see [Prometheus configuration](https://prometheus.io/docs/prometheus/latest/configuration/configuration/).
 
 ### User Inputs Required for Installer Execution
 

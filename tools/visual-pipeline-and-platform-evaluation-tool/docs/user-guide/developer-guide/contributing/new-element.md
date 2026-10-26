@@ -11,7 +11,7 @@ reference it in a pipeline (see
 two extension points contributors actually have:
 
 1. Loading custom Python scripts through the `gvapython` element.
-2. Controlling whether an element is visible in the simplified pipeline view.
+1. Controlling whether an element is visible in the simplified pipeline view.
 
 ## Use custom `gvapython` modules (deprecated)
 
@@ -22,7 +22,7 @@ To add and use a new script:
 
 1. Drop your script into `shared/scripts` (for example
    `tracked_object_filter.py`).
-2. In your pipeline description, set the `module` property on the
+1. In your pipeline description, set the `module` property on the
    `gvapython` element to the script filename.
    Example: `gvapython module=tracked_object_filter.py`.
 
@@ -32,7 +32,8 @@ the filename to an absolute container path
 (`/scripts/<file>.py`) when building the runnable pipeline command, and
 maps it back to the bare filename when storing the graph.
 
-> **Note:** The `shared/scripts` directory is excluded from linter checks, as it
+> [!NOTE]
+> The `shared/scripts` directory is excluded from linter checks, as it
 > contains custom scripts that may not conform to standard linting rules.
 
 ### Limitations
@@ -62,7 +63,7 @@ configured on the `vippet` service in `compose.yml`:
 
 | Variable                         | Default                                                    | Meaning                                                                                                              |
 |----------------------------------|------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------|
-| `SIMPLE_VIEW_VISIBLE_ELEMENTS`   | `*src,urisourcebin,gva*,*sink,source`                      | Comma-separated wildcard patterns. An element is a candidate for the Simple view only if its type matches one entry. |
+| `SIMPLE_VIEW_VISIBLE_ELEMENTS`   | `*src,urisourcebin,gva*,*sink,source,videoscale`           | Comma-separated wildcard patterns. An element is a candidate for the Simple view only if its type matches one entry. |
 | `SIMPLE_VIEW_INVISIBLE_ELEMENTS` | `gvafpscounter,gvametapublish,gvametaconvert,gvawatermark` | Comma-separated wildcard patterns. Matches are removed from the Simple view even if they also match the visible set. |
 
 Evaluation order is **VISIBLE first, then INVISIBLE exclusions**. Caps nodes
@@ -80,7 +81,7 @@ references it):
   view, add it to `SIMPLE_VIEW_INVISIBLE_ELEMENTS` in `compose.yml`.
 - If your element name does not match any of the existing patterns
   (for example it is not `*src` / `gva*` / `*sink` / `urisourcebin` /
-  `source`) and should be exposed, extend `SIMPLE_VIEW_VISIBLE_ELEMENTS`
+  `source` / `videoscale`) and should be exposed, extend `SIMPLE_VIEW_VISIBLE_ELEMENTS`
   accordingly. Keep the patterns broad and named, not pipeline-specific.
 
 Any change to these variables must also be documented in the README and

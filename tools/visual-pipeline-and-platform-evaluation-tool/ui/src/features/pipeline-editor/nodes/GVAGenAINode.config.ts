@@ -9,7 +9,7 @@ export const gvaGenAIConfig = {
       defaultValue: "",
       description: "OpenVINO GenAI model",
       params: {
-        filter: "genai",
+        filter: "vision_language_models",
       },
     },
     {

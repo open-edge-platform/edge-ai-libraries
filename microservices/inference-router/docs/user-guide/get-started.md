@@ -90,15 +90,17 @@ replace `Qwen/Qwen3.5-2B` with that equivalent source:
 pip install -U huggingface_hub
 ```
 
-> **Note**: if you encounter an `externally-managed-environment` error,
-either run the install command with `--break-system-packages`, or create
-a Python virtual environment first.
+> [!NOTE]
+> if you encounter an `externally-managed-environment` error,
+> either run the install command with `--break-system-packages`, or create
+> a Python virtual environment first.
 
 ```bash
 hf download OpenVINO/Qwen3.5-2B-fp16-ov --local-dir /opt/models/Qwen2.5-2B-FP16
 ```
 
-> **Note**: **`/opt` permissions:** the default `/opt/models` is typically root-owned.
+> [!NOTE]
+> **`/opt` permissions:** the default `/opt/models` is typically root-owned.
 > Grant your user access
 > (`sudo mkdir -p /opt/models && sudo chown "$USER:$USER" /opt/models`).
 
@@ -307,7 +309,8 @@ endpoint it exposes):
 | `rerank`        | `POST /v1/rerank`               | Reranker (Cohere-compatible)   |
 | `ocr`           | `POST /v1/ocr`                  | OCR / document understanding   |
 
-> **Note**: Optical Character Recognition (OCR)
+> [!NOTE]
+> Optical Character Recognition (OCR)
 
 ### Enable a pass-through service
 
@@ -350,20 +353,20 @@ curl http://localhost:8000/v1/embeddings \
   -d '{"model": "bge-m3", "input": "hello world"}'
 ```
 
-Notes:
-
-- **Not listed in `/v1/models`.** Pass-through backends are not chat-capable
-  models, so they are omitted from `/v1/models`. They still appear in
-  `/v1/providers` and can be managed there.
-- **Concurrency.** Requests to these endpoints count against `max-concurrency`,
-  shared with `/v1/chat/completions` — when the limit is reached the router
-  returns `429`. Status and configuration endpoints
-  (`/health`, `/v1/models`, `/v1/config`) are never limited.
-- **Dynamic control.** Because they are ordinary providers, you can enable,
-  disable, update, or delete them at runtime through the `/v1/providers` API; the
-  change takes effect immediately. Disabling or removing the provider makes its
-  endpoint return `503`.
-- The backing services are **not** part of the router. Deploy them separately.
+> [!NOTE]
+>
+> - **Not listed in `/v1/models`.** Pass-through backends are not chat-capable
+>   models, so they are omitted from `/v1/models`. They still appear in
+>   `/v1/providers` and can be managed there.
+> - **Concurrency.** Requests to these endpoints count against `max-concurrency`,
+>   shared with `/v1/chat/completions` — when the limit is reached the router
+>   returns `429`. Status and configuration endpoints
+>   (`/health`, `/v1/models`, `/v1/config`) are never limited.
+> - **Dynamic control.** Because they are ordinary providers, you can enable,
+>   disable, update, or delete them at runtime through the `/v1/providers` API; the
+>   change takes effect immediately. Disabling or removing the provider makes its
+>   endpoint return `503`.
+> - The backing services are **not** part of the router. Deploy them separately.
 
 ## Optional: Compression Plugins
 
@@ -382,7 +385,7 @@ These backend services are **not** part of the router. To deploy
 the Lingua server and the tool predictor,
 see the
 [adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor)
-repository. 
+repository.
 For detailed purpose and behavior of each compressor, see the
 [adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor) repository documentation.
 
@@ -497,7 +500,7 @@ This endpoint includes compressor effect under `token_metrics`:
 - `token_metrics.before_router`: token counts before plugin processing.
 - `token_metrics.after_router`: token counts after plugin processing.
 
-> **Note**:
+> [!NOTE]
 > `after_router` is measured after the `prerouting` and `postrouting` stages are both
 > completed (it is the request that will be forwarded to the backend).
 

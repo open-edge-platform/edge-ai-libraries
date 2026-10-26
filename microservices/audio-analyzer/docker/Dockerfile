@@ -1,12 +1,16 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-FROM intel/dlstreamer:2026.2.0-ubuntu24-rc2
+FROM intel/dlstreamer:2026.2.0-ubuntu24
 
 ARG APP_UID=1000
 ARG APP_GID=1000
 # HF_TOKEN: HuggingFace token required to download gated pyannote models.
 # Pass at build time with --build-arg HF_TOKEN=<token> or at runtime via -e HF_TOKEN=<token>.
 ARG HF_TOKEN=""
+# INSTALL_CJK: set to "true" to add the optional FunASR Paraformer provider for
+# Chinese/English ASR (requirements-cjk.txt). Off by default so the standard
+# image and its existing consumers stay unchanged.
+ARG INSTALL_CJK="false"
 
 USER root
 
@@ -34,6 +38,14 @@ RUN python3 -m venv "$VIRTUAL_ENV" \
     && "$VIRTUAL_ENV/bin/pip" install --upgrade pip \
     && "$VIRTUAL_ENV/bin/pip" install -r requirements.txt \
     && "$VIRTUAL_ENV/bin/pip" uninstall -y torchcodec || true
+
+# Optional Chinese/English FunASR Paraformer provider. Only installed when the
+# image is built with --build-arg INSTALL_CJK=true; the default build is
+# byte-for-byte unchanged for existing consumers.
+COPY requirements-cjk.txt ./requirements-cjk.txt
+RUN if [ "$INSTALL_CJK" = "true" ]; then \
+        "$VIRTUAL_ENV/bin/pip" install -r requirements-cjk.txt; \
+    fi
 
 COPY . .
 

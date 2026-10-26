@@ -1,0 +1,48 @@
+
+configure_kernel_module_essential_debian () {
+  local ver
+  ver=$(configure_kernel_module_essential) || { local rc=$?; return $rc; }
+
+  local major=${ver%%.*} rest=${ver#*.}
+  # gcc >= 5 packages are gcc-N; older ones are gcc-X.Y
+  local suf=$major; (( major < 5 )) && suf=$major.${rest%%.*}
+
+  install_pkgs=(gcc-$suf g++-$suf linux-headers-$(uname -r))
+  export CC=gcc-$suf
+  export CXX=g++-$suf
+}
+
+debian_30_install_kernel_module_essential () {
+  configure_kernel_module_essential_debian
+
+  local p pkgs=()
+  for p in ${install_pkgs[*]}; do
+    if ensure_apt_is_installed $p; then
+      echo "$p is installed." >&2
+    else
+      ensure_prop set installed/kernel_module_essential/owned_$p true
+      pkgs+=($p)
+    fi
+  done
+
+  if [ ${#pkgs[@]} -gt 0 ]; then
+    echo ensure_apt update
+    ensure_apt install --no-install-recommends -y "${pkgs[@]}"
+  fi
+}
+
+debian_30_remove_kernel_module_essential () {
+  configure_kernel_module_essential_debian
+
+  local p
+  for p in ${install_pkgs[*]}; do
+    [ "$(ensure_prop get installed/kernel_module_essential/owned_$p)" = "true" ] || continue
+    pkgs+=($p)
+  done
+  [ ${#pkgs[@]} -eq 0 ] || ensure_apt purge --auto-remove -y "${pkgs[@]}"
+}
+
+debian_30_sbom_kernel_module_essential () {
+  configure_kernel_module_essential_debian
+  ensure_sbom_format pkg-list ${install_pkgs[*]}
+}

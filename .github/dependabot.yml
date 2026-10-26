@@ -29,7 +29,6 @@ updates:
         applies-to: version-updates
         patterns:
           - "*"
-
   # ─────────────────────────────────────────
   # Python (pip) — Microservices
   # ─────────────────────────────────────────
@@ -101,6 +100,62 @@ updates:
         patterns:
           - "*"
 
+  - package-ecosystem: "pip"
+    directories: &timeseries-directories
+      - "/microservices/time-series-analytics"
+      - "/microservices/time-series-analytics/*"
+      - "/microservices/time-series-analytics/*/*"
+      - "/microservices/time-series-analytics/*/*/*"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 1
+    groups:
+      industrial-edge-insights-python:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  - package-ecosystem: "docker"
+    directories: *timeseries-directories
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 1
+    groups:
+      docker-dependencies:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  - package-ecosystem: "docker-compose"
+    directories: *timeseries-directories
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 1
+    groups:
+      docker-compose-dependencies:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  - package-ecosystem: "helm"
+    directories: *timeseries-directories
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 1
+    groups:
+      helm-dependencies:
+        applies-to: version-updates
+        patterns:
+          - "*"
+  
   # ─────────────────────────────────────────
   # Python (pip) — Sample Applications
   # ─────────────────────────────────────────

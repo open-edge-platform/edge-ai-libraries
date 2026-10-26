@@ -42,7 +42,7 @@ class JSONFormatter(logging.Formatter):
     like ELK, Loki, or cloud logging services.
     """
 
-    def __init__(self, service_name: str = "metrics-manager", service_version: str = "2026.1.0"):
+    def __init__(self, service_name: str = "metrics-manager", service_version: str = "2026.2.0"):
         super().__init__()
         self.service_name = service_name
         self.service_version = service_version

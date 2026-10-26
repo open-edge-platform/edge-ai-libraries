@@ -12,7 +12,6 @@ Classes:
 
 Functions:
 - create_frames_manifest(): Create JSON manifest for extracted frames
-- store_enhanced_video_metadata(): Store enhanced video metadata with frame processing
 - extract_enhanced_video_metadata(): Generate enhanced metadata for video processing
 
 Usage:
@@ -187,60 +186,6 @@ def create_frames_manifest(frame_info_list: List[FrameInfo], temp_dir: str, vide
         raise Exception(f"Failed to create frames manifest: {e}")
 
 
-def store_enhanced_video_metadata(
-    bucket_name: str,
-    video_id: str,
-    video_filename: str,
-    temp_video_path: pathlib.Path,
-    metadata_temp_path: str,
-    frame_interval: int = None,
-    enable_object_detection: bool = None,
-    detection_confidence: float = None,
-    tags: List[str] | str = [],
-) -> Tuple[pathlib.Path, dict]:
-    """
-    Store enhanced video metadata with frame-based processing and object detection support
-
-    Args:
-        bucket_name (str): Bucket name where the video is stored
-        video_id (str): Directory containing the video
-        video_filename (str): Video filename
-        temp_video_path (pathlib.Path): Temporary path to the video file
-        metadata_temp_path (str): Path to store metadata
-        frame_interval (int): Number of frames between extractions. If None, uses config default.
-        enable_object_detection (bool): Whether to enable object detection. If None, uses config default.
-        detection_confidence (float): Confidence threshold for object detection. If None, uses config default.
-        tags (List[str] | str): Tags for the video
-
-    Returns:
-        Tuple containing metadata file path and processing summary
-    """
-    # Get config defaults if parameters not provided
-    config = get_config()
-    
-    if frame_interval is None:
-        frame_interval = config.get("frame_interval", 15)
-    if enable_object_detection is None:
-        enable_object_detection = config.get("enable_object_detection", True)
-    if detection_confidence is None:
-        detection_confidence = config.get("detection_confidence", 0.85)
-    
-    metadata, processing_summary = extract_enhanced_video_metadata(
-        temp_video_path=temp_video_path,
-        bucket_name=bucket_name,
-        video_id=video_id,
-        video_filename=video_filename,
-        frame_interval=frame_interval,
-        enable_object_detection=enable_object_detection,
-        detection_confidence=detection_confidence,
-        tags=tags,
-    )
-    metadata_file_path: pathlib.Path = save_metadata_at_temp(metadata_temp_path, metadata)
-
-    processing_summary["metadata_file_path"] = str(metadata_file_path)
-    return metadata_file_path, processing_summary
-
-
 def extract_enhanced_video_metadata(
     temp_video_path: pathlib.Path,
     bucket_name: str,
@@ -281,10 +226,12 @@ def extract_enhanced_video_metadata(
     processing_metrics: Dict[str, float] = {}
     logger.info("Extracting enhanced video metadata with frame-based processing...")
 
-    # Generate clean timestamp once 
-    date_time = datetime.datetime.now()
+    # Generate clean timestamp once. Use a timezone-aware local "now" directly:
+    # the previous code relabelled a naive local time as UTC before converting,
+    # which double-applied the UTC offset and stored created_at hours in the
+    # future, silently breaking "last N minutes" time filters on uploads.
     local_timezone = get_localzone()
-    current_time_local = date_time.replace(tzinfo=datetime.timezone.utc).astimezone(local_timezone)
+    current_time_local = datetime.datetime.now(local_timezone)
     iso_date_time = current_time_local.isoformat()
 
     # Construct the path to the video in Minio

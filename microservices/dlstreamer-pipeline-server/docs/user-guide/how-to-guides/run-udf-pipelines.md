@@ -99,7 +99,8 @@ curl http://localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detect
 }'
 ```
 
-> **Note:** The `"udfloader"` config needs to be present in either `config.json` or in the curl
+> [!NOTE]
+> The `"udfloader"` config needs to be present in either `config.json` or in the curl
 > command. It is not needed in both places. However, if specified in both places, then the config
 > in curl command will override the config present in `config.json`.
 

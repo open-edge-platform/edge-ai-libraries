@@ -1,0 +1,42 @@
+# SPDX-FileCopyrightText: Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# Pre-commit hooks for the stream-manager Go module.
+#
+# Install and verify the hooks explicitly for Stream Manager:
+#   pre-commit install --config microservices/stream-manager/.pre-commit-config.yaml
+#   pre-commit run  --config microservices/stream-manager/.pre-commit-config.yaml --all-files
+#
+# Go hooks need the executables in PATH. Install them as follows:
+#   go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+
+files: ^microservices/stream-manager/
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-added-large-files
+      - id: check-yaml
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  - repo: https://github.com/TekWizely/pre-commit-golang
+    rev: v1.0.0-rc.4
+    hooks:
+      # Formatting, imports, vet, gosec and staticcheck all runs here.
+      - id: golangci-lint-mod
+
+      # Compile code on each commit. Code which compiles is a good code.
+      - id: go-build-mod
+
+      # We will not be testing whole suite on each commit for now!
+      # Though it is a nice idea!
+      # - id: go-test-mod
+      #   args: [-race, -short, -count=1]
+
+      # Fails when go.mod or go.sum drift from the imports.
+      - id: go-mod-tidy

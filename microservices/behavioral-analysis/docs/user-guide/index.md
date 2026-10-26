@@ -72,6 +72,10 @@ graph TB
     I -->|result| K
 ```
 
+> [!NOTE]
+> The `swlp-service` mentioned above as an example upstream service refers to
+> [Store-Wide Loss Prevention](https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-retail/storewide-loss-prevention/index.html). Follow the link for more details.
+
 ### Request/Response Flow (MQTT Path)
 
 ```mermaid

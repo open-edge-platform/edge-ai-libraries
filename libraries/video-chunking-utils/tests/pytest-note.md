@@ -23,10 +23,10 @@ export FORCE_CHUNKING_VIDEO_READER=decord
 export DECORD_NUM_THREADS=0
 ```
 
-Notes:
-
-- `FORCE_CHUNKING_VIDEO_READER` supports `decord` or `ffmpeg`.
-- If not set, backend is auto-selected.
+> [!NOTE]
+>
+> - `FORCE_CHUNKING_VIDEO_READER` supports `decord` or `ffmpeg`.
+> - If not set, backend is auto-selected.
 
 ## 3) Install python module
 

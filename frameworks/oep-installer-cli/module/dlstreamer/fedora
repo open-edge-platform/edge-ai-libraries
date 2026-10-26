@@ -1,0 +1,84 @@
+
+configure_dlstreamer () {
+  repo_name="yum.repos.intel.com"
+  key_url="https://$repo_name/edgeai/dlstreamer/GPG-PUB-KEY-INTEL-DLS.gpg"
+  yum_repo_conf=(
+"[DLStreamer]"
+"name=Intel(R) DLStreamer"
+"baseurl=https://$repo_name/edgeai/dlstreamer"
+"enabled=1"
+"gpgcheck=1"
+"repo_gpgcheck=1"
+"gpgkey=$key_url"
+)
+  yum_repo_file="/etc/yum.repos.d/intel-dlstreamer.repo"
+  workspace="$(ensure_project_path)/dlstreamer"
+  version=2026.2.0
+  od_model=yolov5m-640_INT8/FP16-INT8/yolov5m-640_INT8
+  od_model_proc=yolov5m-640_INT8/yolo-v5
+  oc_model=efficientnet-b0_INT8/FP16-INT8/efficientnet-b0
+  model_repo=https://raw.githubusercontent.com/dlstreamer/pipeline-zoo-models/ee73878abc6fb6d864e59a5cd80016de4fc1d194
+
+  version_skills=release-2026.2.0
+  repository_skills=https://github.com/open-edge-platform/skills.git
+  skills=(dlstreamer-coding-agent)
+}
+
+fedora_75_profile_dlstreamer () {
+  echo "openvino"
+}
+
+verify_dlstreamer () {
+  ensure_dnf_is_installed intel-dlstreamer=${version}
+}
+
+fedora_75_install_dlstreamer () {
+  configure_dlstreamer
+  
+  if verify_dlstreamer && [[ " $* " != *" --reinstall "* ]]; then
+    echo "dlstreamer-${version} is installed." >&2
+  else
+    ensure_disk_size 15000
+    ensure_prop set installed/dlstreamer/owned true
+
+    # remove old versions
+    echo "@@STEP Removing intel-dlstreamer"
+    fedora_75_remove_dlstreamer "$@"
+
+    echo "@@STEP Installing intel-dlstreamer=$version"
+    printf "%s\n" "${yum_repo_conf[@]}" | ensure_sudo tee "$yum_repo_file"
+    ensure_dnf install -y intel-dlstreamer=$version
+
+    echo "@@STEP Installing skills"
+    ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}"
+
+    verify_dlstreamer
+    echo "intel-dlstreamer=$version installed successfully."
+  fi
+
+  # validate dlstreamer
+  test_dlstreamer_pipeline "$@"
+    
+  # info
+  echo "@@HIGHLIGHT shell env @/opt/intel/dlstreamer/scripts/setup_dls_env.sh"
+  echo "@@HIGHLIGHT samples @/opt/intel/dlstreamer/samples"
+  echo "@@HIGHLIGHT optimizer @/opt/intel/dlstreamer/scripts/optimizer"
+}
+
+fedora_75_remove_dlstreamer () {
+  configure_dlstreamer
+  [ "$(ensure_prop get installed/dlstreamer/owned)" = "true" ] || return 0
+  ensure_dnf autoremove -y $(dnf list --installed | grep openvino | awk '{print$1}') || true
+  ensure_rm "$workspace" || true
+  ensure_skills remove "${skills[@]}"
+}
+
+fedora_75_sbom_dlstreamer () {
+  configure_dlstreamer
+  ensure_sbom_format name "$repo_name"
+  ensure_sbom_format gpg-key "$key_url"
+  ensure_sbom_format yum-repo-conf "${yum_repo_conf[@]}"
+  ensure_sbom_format yum-repo-file "$yum_repo_file"
+  ensure_sbom_format pkg-list "intel-dlstreamer=$version*"
+}
+

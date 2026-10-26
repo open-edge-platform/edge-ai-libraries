@@ -9,6 +9,7 @@ between API schemas and internal types.
 import logging
 from typing import Annotated
 
+import httpx
 from fastapi import APIRouter, File, Form, UploadFile
 from fastapi.responses import JSONResponse
 
@@ -19,6 +20,7 @@ from internal_types import (
     InternalSupportedModel,
 )
 from managers.model_manager import ModelManager
+from models import MAX_MODEL_DESCRIPTION_LENGTH
 
 router = APIRouter()
 logger = logging.getLogger("api.routes.models")
@@ -34,6 +36,7 @@ def _internal_model_to_api(model: InternalSupportedModel) -> schemas.Model:
     return schemas.Model(
         name=model.name,
         display_name=model.display_name,
+        description=model.description,
         category=(
             schemas.ModelCategory(model.category.value) if model.category else None
         ),
@@ -70,8 +73,8 @@ async def get_models():
     """
     # List Models
 
-    Return every model known to vippet-app: entries from
-    `supported_models.yaml` plus user-uploaded custom models.
+    Return every model known to vippet-app: entries from the model
+    catalog (`vippet/models/*.yaml`) plus user-uploaded custom models.
 
     ## Response
 
@@ -86,7 +89,7 @@ async def get_models():
     is not currently used by any predefined pipeline.
     """
     try:
-        models = ModelManager().list_models()
+        models = await ModelManager().list_models()
         return [_internal_model_to_api(m) for m in models]
     except Exception:
         logger.error("Failed to list models", exc_info=True)
@@ -94,6 +97,48 @@ async def get_models():
             content=schemas.MessageResponse(
                 message="Unexpected error while listing models"
             ).model_dump(),
+            status_code=500,
+        )
+
+
+# ----------------------------------------------------------------------
+# POST /models/list
+# ----------------------------------------------------------------------
+
+
+@router.post(
+    "/list",
+    operation_id="list_hub_models",
+    summary="Search models in an upstream hub",
+    response_model=schemas.ModelHubListResponse,
+    responses={
+        400: {"description": "Invalid request or unsupported hub"},
+        401: {"description": "Hub authentication failed"},
+        422: {"description": "Hub listing request validation failed"},
+        501: {"description": "Hub does not support model listing"},
+        502: {"description": "Upstream hub request failed"},
+    },
+)
+async def list_hub_models(body: schemas.ModelHubListRequest):
+    """Search a model hub using its supported filters and pagination."""
+    try:
+        return await ModelManager().list_hub_models(body.model_dump(exclude_none=True))
+    except httpx.HTTPStatusError as exc:
+        try:
+            content = exc.response.json()
+        except ValueError:
+            content = {"detail": exc.response.text}
+        return JSONResponse(content=content, status_code=exc.response.status_code)
+    except (httpx.RequestError, ValueError):
+        logger.error("Upstream model catalog request failed", exc_info=True)
+        return JSONResponse(
+            content={"detail": "Upstream model catalog request failed"},
+            status_code=502,
+        )
+    except Exception:
+        logger.error("Unexpected error while listing hub models", exc_info=True)
+        return JSONResponse(
+            content={"detail": "Unexpected error while listing hub models"},
             status_code=500,
         )
 
@@ -132,6 +177,9 @@ async def upload_model(
     model_name: Annotated[str, Form(..., min_length=1)],
     category: Annotated[schemas.ModelCategory, Form(...)],
     file: Annotated[UploadFile, File(...)],
+    description: Annotated[
+        str | None, Form(max_length=MAX_MODEL_DESCRIPTION_LENGTH)
+    ] = None,
 ):
     """
     # Upload Model
@@ -146,6 +194,8 @@ async def upload_model(
     - **`model_name`** *(required)* - Canonical identifier for the model
     - **`category`** *(required)* - Logical model category
       (`classification`, `detection`, `genai`)
+    - **`description`** *(optional)* - Human-readable explanation of
+      what the model detects/classifies
     - **`file`** *(required)* - ZIP file containing the OpenVINO IR
 
     ## Response Codes
@@ -166,13 +216,15 @@ async def upload_model(
         tmp_path = ModelManager.write_upload_to_tempfile(
             file.file, file.filename or f"{model_name}.zip"
         )
+        normalized_description = (description or "").strip() or None
         spec = InternalModelUploadSpec(
             model_name=model_name,
             category=InternalModelCategory(category.value),
             file_path=tmp_path,
             original_filename=file.filename or f"{model_name}.zip",
+            description=normalized_description,
         )
-        model, status, message = ModelManager().upload_model(spec)
+        model, status, message = await ModelManager().upload_model(spec)
         if model is None:
             return JSONResponse(
                 content=schemas.MessageResponse(message=message).model_dump(),
@@ -227,7 +279,7 @@ async def upload_model(
         404: {
             "description": (
                 "All requested models were rejected with `404` only "
-                "(unknown / not in `supported_models.yaml`). Takes "
+                "(unknown / not in the model catalog). Takes "
                 "precedence over `409` in the envelope status."
             ),
             "model": schemas.ModelDownloadJobResponse,
@@ -256,8 +308,8 @@ async def start_model_download(body: schemas.ModelDownloadRequest):
     Start an asynchronous download job for each model in the request.
     Each entry of `names` is processed **independently** and produces
     its own per-model entry in the response map `jobs`. Names must be
-    declared in `supported_models.yaml`; OMZ models are downloaded
-    locally by vippet-app because model-download has no OMZ plugin yet.
+    declared in the model catalog (`vippet/models/*.yaml`); all model
+    sources are handled by the model-download microservice.
 
     Each accepted name spawns a background worker right away — the
     endpoint does **not** wait for any download to finish, so adding
@@ -267,6 +319,17 @@ async def start_model_download(body: schemas.ModelDownloadRequest):
 
     - **`names`** *(required)* - Non-empty list of unique supported-model
       names to install.
+    - **`hub`** *(optional)* - Upstream hub (`ultralytics`, `huggingface`)
+      for names not in the catalog, as returned by `POST /models/list`.
+      - `ultralytics`: when the download completes,
+        `ultralytics/public/<name>/` is scanned for installed precisions
+        (`FP*`, `INT*`); category is derived from the name suffix: `-seg`
+        → `image_segmentation`, `-cls` → `image_classification`, `-pose`
+        → `pose_estimation`, `-obb` or no suffix → `object_detection`.
+      - `huggingface`: `category` is required (no naming convention to
+        derive it from); `huggingface/<name>/` is scanned for the
+        downloaded artefact.
+    - **`category`** *(optional)* - Required when `hub` is `huggingface`.
 
     ## Response Body
 
@@ -293,10 +356,12 @@ async def start_model_download(body: schemas.ModelDownloadRequest):
     regardless of the envelope status.
     """
     manager = ModelManager()
+    hub = body.hub.value if body.hub else None
+    category = InternalModelCategory(body.category.value) if body.category else None
     try:
         items: dict[str, schemas.ModelDownloadJobItem] = {}
         for name in body.names:
-            job_id, status, message = manager.start_download(name)
+            job_id, status, message = await manager.start_download(name, hub, category)
             items[name] = schemas.ModelDownloadJobItem(
                 name=name,
                 job_id=job_id,
@@ -408,7 +473,7 @@ async def check_models_status(body: schemas.ModelCheckStatusRequest):
     """
     try:
         # Get all models and their current install status
-        all_models = ModelManager().list_models()
+        all_models = await ModelManager().list_models()
 
         # Build a map of display_name -> internal model for quick lookup
         display_name_map = {m.display_name: m for m in all_models}

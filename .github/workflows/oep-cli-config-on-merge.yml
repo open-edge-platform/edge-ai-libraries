@@ -1,0 +1,121 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+name: "[OEP CLI]  Generate Web UI config on merge"
+run-name: "[OEP CLI]  Generate Web UI config on merge (by @${{ github.actor }} via ${{ github.event_name }})"
+
+# Keep the committed Web UI configuration
+# (frameworks/oep-installer-cli/docs/oep-cli-installer-files/config.json) in sync
+# with its decentralized sources: the shared base file and the per-profile
+# fragments (profile/<name>/web_config.json). After a PR merges (push to a tracked
+# branch), regenerate config.json and, if it drifted, commit the refreshed file
+# straight back to that branch.
+#
+# On pull requests the workflow instead runs the generator in --check mode and
+# fails if the committed config.json is stale, so contributors regenerate before
+# merge.
+#
+# The merge commit is pushed with the SIV_USER_TOKEN_GH token, which must be a
+# bypass actor on the protected-branch ruleset so it may push directly to
+# main/release branches.
+on:
+  push:
+    branches:
+      - main
+      - 'release-*'
+      - 'release/**'
+    paths:
+      - 'frameworks/oep-installer-cli/profile/**'
+      - 'frameworks/oep-installer-cli/docs/oep-cli-installer-files/config.base.json'
+      - 'frameworks/oep-installer-cli/scripts/build-web-config.py'
+      - '.github/workflows/oep-cli-config-on-merge.yml'
+      # NOTE: config.json is intentionally NOT listed. The bot pushes its own
+      # regenerated file, and excluding it here prevents the workflow from
+      # re-triggering itself in an infinite loop.
+  pull_request:
+    paths:
+      - 'frameworks/oep-installer-cli/profile/**'
+      - 'frameworks/oep-installer-cli/docs/oep-cli-installer-files/config.base.json'
+      - 'frameworks/oep-installer-cli/docs/oep-cli-installer-files/config.json'
+      - 'frameworks/oep-installer-cli/scripts/build-web-config.py'
+      - '.github/workflows/oep-cli-config-on-merge.yml'
+
+# Serialize renders per branch so concurrent merges cannot race on the push.
+concurrency:
+  group: oep-cli-config-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Verify config.json is up to date (PR)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.12'
+      - name: Check for drift
+        working-directory: frameworks/oep-installer-cli
+        run: python3 scripts/build-web-config.py --check
+
+  generate:
+    name: Regenerate docs/oep-cli-installer-files/config.json
+    if: >-
+      github.event_name == 'push' &&
+      github.actor != 'github-actions[bot]' &&
+      github.actor != 'copilot-swe-agent[bot]' &&
+      github.actor != 'Copilot' &&
+      github.actor != vars.AUTOMATION_ACTOR
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - name: Clean workspace
+        run: |
+          set -euo pipefail
+          find "$GITHUB_WORKSPACE" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+          clean: true
+          persist-credentials: true
+          token: ${{ secrets.SIV_USER_TOKEN_GH }}
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.12'
+
+      - name: Regenerate Web UI config
+        working-directory: frameworks/oep-installer-cli
+        run: python3 scripts/build-web-config.py
+
+      - name: Commit and push if config.json changed
+        working-directory: frameworks/oep-installer-cli
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet -- docs/oep-cli-installer-files/config.json; then
+            echo "::notice::config.json already up to date — nothing to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add docs/oep-cli-installer-files/config.json
+          git commit -m "chore(oep-cli): regenerate config.json"
+          git push origin "HEAD:${BRANCH}"
+
+          echo "::notice::Pushed regenerated config.json to ${BRANCH}."
