@@ -648,15 +648,16 @@ Content-Type: application/json
 
 `GET /records`
 
-Returns a page of records. All query parameters are optional and AND-combined. A match
-requires only that the recorded window overlaps the filter.
+Returns a page of records. All query parameters are optional and AND-combined. When
+time bounds are supplied, a record must be fully contained within them. Both bounds
+are inclusive. A record without `end_ts` is open and does not match an `end_ts` bound.
 
 | Parameter | In | Type | Description |
 |---|---|---|---|
 | `sensor_id` | query | string | Only records from this sensor, imported as well as live. |
 | `stream_id` | query | string | Only records from this stream (never includes imports). |
-| `start_ts` | query | date-time | Inclusive lower bound of the filter window. |
-| `end_ts` | query | date-time | Exclusive upper bound of the filter window; must be later than `start_ts` when both are supplied. |
+| `start_ts` | query | date-time | Inclusive lower bound. The record's `start_ts` must be at or after this time. |
+| `end_ts` | query | date-time | Inclusive upper bound. The record's `end_ts` must be at or before this time; open records do not match. Must be later than `start_ts` when both are supplied. |
 | `expiry_ts` | query | date-time | Keep only records expiring at or before this time. |
 | `state` | query | string | One of `recording`, `finalizing`, `ready`, `failed`. |
 | `metadata[key]` | query | string | One or more metadata keys/values to match against. Repeatable. |

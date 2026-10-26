@@ -43,6 +43,11 @@ Stop and remove the running container:
 curl -fsSL https://raw.githubusercontent.com/krish918/edge-ai-libraries/feat/stream-record-routers/microservices/stream-manager/Makefile | make -f - docker-stop
 ```
 
+> [!NOTE]
+> Total memory used for buffering is limited by the container's shared memory.
+> The `make` command sets a custom shared memory size of the container.
+> This avoids issues of buffer failures when multiple streams are buffered simultaneously.
+
 ## Keep your data on the host
 
 By default, the above setup stores all data in a Docker volume. To use a host
