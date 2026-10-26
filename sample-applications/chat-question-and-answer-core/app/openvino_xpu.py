@@ -287,6 +287,8 @@ class GenAILLM(LLM):
             return openvino_genai.StreamingStatus.RUNNING
 
         with self._lock:
+            if cancel is not None and cancel.is_set():
+                return ""
             self.ov_pipe.generate(prompt, generation_config, streamer)
 
         return "".join(parts)
