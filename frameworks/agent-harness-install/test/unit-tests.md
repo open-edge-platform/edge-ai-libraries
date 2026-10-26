@@ -58,10 +58,32 @@ exit status. The Node runner reports pass/fail/skip separately. A skipped Hermes
 case is not a pass. Use the TAP output for execution results rather than treating
 this catalogue as a permanent pass report.
 
-Both relevant PRs and relevant pushes to `main` run the same offline suite in
+Both relevant PRs and relevant pushes to `main` run the same offline coverage in
 the [quality-gates workflow](../../../.github/workflows/agent-harness-openshell.yml).
+CI separates the suites into named steps and TAP artifacts rather than invoking
+the nested wrappers: `HARNESS_TEST_SKIP_NESTED=1 bash test/openshell-test.sh`
+runs the 70 direct cases; the other three suites run once in their own steps.
+The all-in-one local command still runs 73 outer registrations as documented
+above. CI additionally runs the reporting-helper tests described below.
 CI triggers, syntax checks and prepared-runner instructions are described in
 the [test README](README.md).
+
+### Reporting-helper regression tests
+
+Run `node --test --test-reporter=tap test/tap-summary-test.mjs` to verify the
+[TAP summary helper](tap-summary.mjs). Its five registered cases cover:
+
+| Registered test name | Objective |
+|---|---|
+| counts passing, failing and skipped cases without counting diagnostics | Separate executed/pass/fail/skip counts and retain skip reasons. |
+| rejects empty, truncated, bailed out and inconsistent reports | Never accept absent plans, incomplete counts, duplicate plans or invalid numbering as complete evidence. |
+| ignores indented subtests and treats TODO as unfinished validation | Avoid double counting nested TAP and do not turn unfinished tests into passes. |
+| provides a reason for an unspecified skip | Explicitly identify a skip lacking a supplied explanation. |
+| summary reports skips, missing files and failed process outcomes | Check totals, skip details, missing reports and non-successful runner outcomes. |
+
+The summary runs even after suite failure and lists unavailable reports as
+missing, not passed. Each suite's TAP report is uploaded with the job artifacts.
+The Hermes cases now supply an explicit image-runtime skip reason.
 
 ## Startup, runtime, profiles and boundaries
 

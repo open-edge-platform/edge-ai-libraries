@@ -558,9 +558,11 @@ run_case 'sandbox removal requires consent' expect_failure 'pass --yes' bash "$S
 run_case 'scoped sandbox removal requires OpenShell runtime' expect_failure 'requires --runtime openshell' bash "$SCRIPT_DIR/uninstall.sh" --runtime host --sandbox-only --yes
 run_case 'live suite requires explicit opt-in' expect_failure 'Set HARNESS_RUN_OPENSHELL_INTEGRATION=1' \
   env -u HARNESS_RUN_OPENSHELL_INTEGRATION bash "$SCRIPT_DIR/test/openshell-integration-test.sh"
-run_case 'managed Qwen inference regression suite' bash "$SCRIPT_DIR/test/managed-inference-test.sh"
-run_case 'model switch and complete uninstall regression suite' bash "$SCRIPT_DIR/test/model-lifecycle-test.sh"
-run_case 'Qwen local-model defaults regression suite' node --test "$SCRIPT_DIR/test/model-defaults-test.mjs"
+if [[ "${HARNESS_TEST_SKIP_NESTED:-0}" != 1 ]]; then
+  run_case 'managed Qwen inference regression suite' bash "$SCRIPT_DIR/test/managed-inference-test.sh"
+  run_case 'model switch and complete uninstall regression suite' bash "$SCRIPT_DIR/test/model-lifecycle-test.sh"
+  run_case 'Qwen local-model defaults regression suite' node --test "$SCRIPT_DIR/test/model-defaults-test.mjs"
+fi
 run_case 'interactive policy adds only sandbox-local PTY paths to the base policy' node -e '
   const fs=require("node:fs"),assert=require("node:assert/strict"),root=process.argv[1];
   const normalize=s=>s.split("\n").filter(x=>x.trim()&&!x.trim().startsWith("#")).join("\n");

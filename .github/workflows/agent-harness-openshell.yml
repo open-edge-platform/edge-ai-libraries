@@ -39,7 +39,8 @@ jobs:
       - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version: 24.21.0
-      - name: Shell syntax and offline regression
+      - name: Shell syntax
+        id: syntax
         working-directory: frameworks/agent-harness-install
         shell: bash
         run: |
@@ -47,14 +48,56 @@ jobs:
           while IFS= read -r -d '' file; do
             bash -n "$file"
           done < <(find scripts openshell test -name '*.sh' -print0)
-          bash -n install.sh uninstall.sh
-          bash test/openshell-test.sh | tee "$RUNNER_TEMP/openshell-offline.tap"
-      - name: Upload offline TAP report
+          bash -n install.sh
+          bash -n uninstall.sh
+          mkdir -p "$RUNNER_TEMP/openshell-offline"
+      - name: OpenShell startup, runtime and boundaries
+        id: core
+        if: ${{ !cancelled() && steps.syntax.outcome == 'success' }}
+        working-directory: frameworks/agent-harness-install
+        run: |
+          set -euo pipefail
+          HARNESS_TEST_SKIP_NESTED=1 bash test/openshell-test.sh | tee "$RUNNER_TEMP/openshell-offline/core.tap"
+      - name: Managed inference regression
+        id: inference
+        if: ${{ !cancelled() && steps.syntax.outcome == 'success' }}
+        working-directory: frameworks/agent-harness-install
+        run: |
+          set -euo pipefail
+          bash test/managed-inference-test.sh | tee "$RUNNER_TEMP/openshell-offline/inference.tap"
+      - name: Model lifecycle and CLI regression
+        id: lifecycle
+        if: ${{ !cancelled() && steps.syntax.outcome == 'success' }}
+        working-directory: frameworks/agent-harness-install
+        run: |
+          set -euo pipefail
+          bash test/model-lifecycle-test.sh | tee "$RUNNER_TEMP/openshell-offline/lifecycle.tap"
+      - name: Agent model defaults
+        id: defaults
+        if: ${{ !cancelled() && steps.syntax.outcome == 'success' }}
+        working-directory: frameworks/agent-harness-install
+        run: |
+          set -euo pipefail
+          node --test --test-reporter=tap test/model-defaults-test.mjs | tee "$RUNNER_TEMP/openshell-offline/defaults.tap"
+      - name: TAP reporting regression
+        id: reporting
+        if: ${{ !cancelled() && steps.syntax.outcome == 'success' }}
+        working-directory: frameworks/agent-harness-install
+        run: |
+          set -euo pipefail
+          node --test --test-reporter=tap test/tap-summary-test.mjs | tee "$RUNNER_TEMP/openshell-offline/reporting.tap"
+      - name: Publish offline test summary
+        if: always()
+        working-directory: frameworks/agent-harness-install
+        env:
+          TEST_STEP_OUTCOMES: '{"core":"${{ steps.core.outcome }}","inference":"${{ steps.inference.outcome }}","lifecycle":"${{ steps.lifecycle.outcome }}","defaults":"${{ steps.defaults.outcome }}","reporting":"${{ steps.reporting.outcome }}"}'
+        run: node test/tap-summary.mjs "$RUNNER_TEMP/openshell-offline"
+      - name: Upload offline TAP reports
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: openshell-offline-results
-          path: ${{ runner.temp }}/openshell-offline.tap
+          path: ${{ runner.temp }}/openshell-offline/
           if-no-files-found: warn
           retention-days: 14
 

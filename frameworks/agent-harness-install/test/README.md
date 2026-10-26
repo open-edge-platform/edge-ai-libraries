@@ -32,6 +32,19 @@ set -o pipefail
 bash test/openshell-test.sh | tee openshell-offline.tap
 ```
 
+The command above retains the all-in-one local behavior. In CI, named steps
+run each suite once: the core suite uses `HARNESS_TEST_SKIP_NESTED=1` (70 direct
+cases), followed by managed inference (33), lifecycle/CLI (40), and model
+defaults (9 registered cases; two Hermes-runtime skips on the host). A separate
+TAP-reporting regression step validates the reporting helper itself.
+
+Each step writes its own TAP file. Later suites still run after an earlier
+suite fails, provided syntax validation succeeded and the job was not cancelled.
+The job summary shows executed (excluding skipped), passed, failed and skipped
+counts, individual skip reasons, step outcomes and incomplete/missing reports.
+Missing or incomplete evidence is never reported as a pass. Syntax checks are
+reported separately and are not counted as test cases.
+
 | Area | Automated assertions |
 |---|---|
 | OpenClaw startup | Private SQLite temp directory exported before Node starts, real on-disk FTS5 initialization, inherited SQLite temp path replaced, mode 700, config/token/database preservation across restart, fail-fast directory creation and permissions |
@@ -138,8 +151,11 @@ and mocks rather than live OVMS model changes.
 
 The repository-level workflow `.github/workflows/agent-harness-openshell.yml`
 runs **OpenShell offline gate** for relevant pull requests and main pushes.
-It attempts to upload the TAP report even when tests fail; a failure before TAP
-generation (for example, a shell syntax failure) may leave no report to upload.
+It checks every shell file under `scripts`, `openshell` and `test`, plus each
+top-level install/uninstall entrypoint, with `bash -n` before running the suites.
+It publishes the summary and attempts to upload all per-suite TAP reports even
+when tests fail; a failure before TAP generation (for example, a shell syntax
+failure) may leave no report to upload.
 It does not run the existing destructive host smoke/full-flow suites.
 
 For live validation, administrators must:

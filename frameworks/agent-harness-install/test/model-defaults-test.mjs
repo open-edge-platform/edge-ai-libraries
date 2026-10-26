@@ -153,7 +153,7 @@ test("pre-existing empty configuration sections retain their identity and orderi
 });
 
 test("Hermes Qwen defaults normalize into actual custom-provider request overrides",
-  {skip: python === null}, t => {
+  {skip: python === null ? "Requires the pinned Hermes image Python/YAML runtime" : false}, t => {
     const f = fixture(t, "hermes");
     const config = f.apply();
     assert.equal(config.model.context_length, 65536);
@@ -183,7 +183,7 @@ assert body == {"max_tokens": 512, "temperature": 0.2, "chat_template_kwargs": {
   });
 
 test("Hermes explicit overrides survive restart and switching away",
-  {skip: python === null}, t => {
+  {skip: python === null ? "Requires the pinned Hermes image Python/YAML runtime" : false}, t => {
     const f = fixture(t, "hermes");
     const config = f.read();
     config.model.context_length = 16384;
