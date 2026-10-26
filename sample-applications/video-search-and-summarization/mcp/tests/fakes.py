@@ -4,14 +4,17 @@
 """Shared offline fixtures: settings, canned rows and a fake Pipeline Manager.
 
 The fake answers the same routes with the same shapes as the real service,
-including its awkward parts: ``200``-with-``null`` for a missing state, the
-double-nested search envelope, and a summary status that stops at ``na`` when
-the final rollup is skipped. Nothing here opens a network connection.
+including its awkward parts: ``200`` with an empty body for a missing state or
+search, a silent no-op when watching an unknown search, and a summary status
+that stops at ``na`` when the final rollup is skipped. It rejects what the real
+service's validation rejects, so a test cannot pass on a request VSS would
+refuse. Nothing here opens a network connection.
 """
 
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 import httpx
@@ -32,6 +35,28 @@ class NetworkAccessError(RuntimeError):
 
 BASE_URL = "http://vss.test/manager"
 DATASTORE_URL = "http://vss.test/datastore"
+
+#: ``GET /frames``'s crop box, as ``FrameQueryDto`` validates it.
+_CROP_BBOX_RE = re.compile(r"^\d+,\d+,\d+,\d+$")
+
+#: ``user:pass@`` in a stream URL; dataprep returns ``***@`` in its place.
+_CREDENTIALS_RE = re.compile(r"(?i)\b(rtsps?://)[^/@\s]+@")
+
+#: Fields ``PATCH /streams/{id}`` accepts (``LiveStreamUpdateDto``); the
+#: controller's ``forbidNonWhitelisted`` turns any other into a 400.
+_STREAM_UPDATE_FIELDS = {
+    "stream_name",
+    "description",
+    "frame_interval",
+    "enable_object_detection",
+    "detection_confidence",
+    "tags",
+    "state",
+}
+
+
+def _bad_request(message: str) -> httpx.Response:
+    return httpx.Response(400, json={"statusCode": 400, "message": message})
 
 
 def make_settings(**overrides: Any) -> Settings:
@@ -232,8 +257,15 @@ def make_stream(
         "frame_interval": 15,
         "enable_object_detection": True,
         "detection_confidence": 0.5,
-        "stats": {"frames_processed": 10, "embeddings_created": 4},
-        "created_at": "2026-01-01T00:00:00Z",
+        "stats": {
+            "frames_processed": 10,
+            "embeddings_created": 4,
+            "segments_stored": 2,
+            "frames_stored": 10,
+            "reconnect_count": 0,
+        },
+        "created_ts": 1767225600.0,  # 2026-01-01T00:00:00Z
+        "updated_ts": 1767225600.0,
     }
 
 
@@ -261,8 +293,11 @@ class FakeVss:
         }
         self.hits = hits or []
         self.streams = streams if streams is not None else []
-        #: ``GET /search/refresh-config`` body.
-        self.refresh_config: dict[str, Any] = {"enabled": True, "intervalMs": 10000}
+        #: ``GET /search/refresh-config`` body; ``None`` makes the route fail.
+        self.refresh_config: dict[str, Any] | None = {
+            "enabled": True,
+            "intervalMs": 10000,
+        }
         self.requests: list[tuple[str, str, Any]] = []
         #: Raw-state ``createdAt`` per state id, as ``GET /summary/{id}/raw``
         #: reports it; the UI states carry no timestamp.
@@ -280,6 +315,8 @@ class FakeVss:
         self.app_config: dict[str, Any] = {}
         #: Query parameters of every ``GET /frames`` call, in order.
         self.frame_params: list[dict[str, str]] = []
+        #: Stream ids deleted with ``purge_media`` or ``purge_embeddings`` set.
+        self.purged: list[str] = []
 
     def transport(self) -> httpx.MockTransport:
         """Return a transport routing httpx calls into :meth:`handle`."""
@@ -314,6 +351,7 @@ class FakeVss:
             config = {
                 "multiFrame": 8,
                 "frameOverlap": 0,
+                "evamPipeline": "object_detection",
                 "framePrompt": "Describe the frame.",
                 "meta": {
                     "evamPipelines": [
@@ -340,6 +378,9 @@ class FakeVss:
             return httpx.Response(200, json=list(dict.fromkeys(tags)))
 
         if path.startswith("/videos/search-embeddings/"):
+            video_id = path.rsplit("/", 1)[-1]
+            if not any(v["videoId"] == video_id for v in self.videos):
+                return httpx.Response(404, json={"message": "Video not found"})
             return httpx.Response(201, json={"status": "success", "message": "ok"})
 
         if path.startswith("/videos/") and request.method == "GET":
@@ -384,6 +425,8 @@ class FakeVss:
             return httpx.Response(200, json=match)
 
         if path == "/search/refresh-config":
+            if self.refresh_config is None:
+                return httpx.Response(500, json={"message": "Internal server error"})
             return httpx.Response(200, json=self.refresh_config)
 
         if path.startswith("/search"):
@@ -401,6 +444,9 @@ class FakeVss:
         """``GET /frames``: one frame, as dataprep's JSON variant returns it."""
 
         self.frame_params.append(params)
+        invalid = _invalid_frame_query(params)
+        if invalid:
+            return _bad_request(invalid)
         known = {v["videoId"] for v in self.videos} | {
             s["stream_id"] for s in self.streams
         }
@@ -433,6 +479,9 @@ class FakeVss:
 
         method = request.method
         if path == "/streams" and method == "GET":
+            unknown = set(request.url.params) - {"state", "tags"}
+            if unknown:
+                return _bad_request(f"property {min(unknown)} should not exist")
             state = request.url.params.get("state")
             tags = request.url.params.get_list("tags")
             listed = [
@@ -441,17 +490,26 @@ class FakeVss:
                 if (not state or s["state"] == state)
                 and all(t in s["tags"] for t in tags)
             ]
-            return httpx.Response(200, json={"count": len(listed), "streams": listed})
+            return httpx.Response(
+                200,
+                json={
+                    "message": f"{len(listed)} live stream(s).",
+                    "count": len(listed),
+                    "streams": [_stream_info(s) for s in listed],
+                },
+            )
         if path == "/streams" and method == "POST":
             stream = self._new_stream(body or {})
-            return httpx.Response(202, json={"stream": stream})
+            return httpx.Response(
+                202, json={"message": "Live stream registered.", "stream": _stream_info(stream)}
+            )
         if path == "/streams/batch" and method == "POST":
             items = []
             for item in (body or {}).get("items") or []:
                 if "bad" in item.get("stream_url", ""):
                     items.append(
                         {
-                            "identifier": item["stream_url"],
+                            "identifier": _redact(item["stream_url"]),
                             "status": "error",
                             "message": "unreachable",
                         }
@@ -460,15 +518,55 @@ class FakeVss:
                 stream = self._new_stream(item)
                 items.append(
                     {
-                        "identifier": item["stream_url"],
+                        "identifier": _redact(item["stream_url"]),
                         "stream_id": stream["stream_id"],
                         "status": "success",
+                        "message": "Registered.",
                     }
                 )
             accepted = sum(i["status"] == "success" for i in items)
             return httpx.Response(
                 202,
                 json={
+                    "message": (
+                        f"{accepted} live stream(s) registered, "
+                        f"{len(items) - accepted} rejected."
+                    ),
+                    "accepted": accepted,
+                    "rejected": len(items) - accepted,
+                    "items": items,
+                },
+            )
+        purge = _purge_flags(request.url.params)
+        if path == "/streams" and method == "DELETE":
+            items = []
+            for stream_id in (body or {}).get("stream_ids") or []:
+                if self._delete_stream(stream_id, purge) is None:
+                    items.append(
+                        {
+                            "identifier": stream_id,
+                            "stream_id": stream_id,
+                            "status": "error",
+                            "message": "No live stream registered with this id.",
+                        }
+                    )
+                    continue
+                items.append(
+                    {
+                        "identifier": stream_id,
+                        "stream_id": stream_id,
+                        "status": "success",
+                        "message": "Stopped and deregistered.",
+                    }
+                )
+            accepted = sum(i["status"] == "success" for i in items)
+            return httpx.Response(
+                200,
+                json={
+                    "message": (
+                        f"{accepted} live stream(s) deleted, "
+                        f"{len(items) - accepted} failed."
+                    ),
                     "accepted": accepted,
                     "rejected": len(items) - accepted,
                     "items": items,
@@ -479,14 +577,41 @@ class FakeVss:
         if stream is None:
             return httpx.Response(404, json={"message": "Stream not found"})
         if method == "GET":
-            return httpx.Response(200, json={"stream": stream})
+            return httpx.Response(
+                200, json={"message": "Live stream.", "stream": _stream_info(stream)}
+            )
         if method == "PATCH":
-            stream.update(body or {})
-            return httpx.Response(200, json={"stream": stream})
+            body = body or {}
+            unknown = set(body) - _STREAM_UPDATE_FIELDS
+            if unknown:
+                return _bad_request(f"property {min(unknown)} should not exist")
+            if "state" in body and body["state"] not in ("running", "paused"):
+                return _bad_request("state must be one of: running, paused")
+            stream.update(body)
+            return httpx.Response(
+                200,
+                json={"message": "Live stream updated.", "stream": _stream_info(stream)},
+            )
         if method == "DELETE":
-            self.streams.remove(stream)
-            return httpx.Response(200, json={"stream_id": stream_id, "deleted": True})
+            self._delete_stream(stream_id, purge)
+            return httpx.Response(
+                200,
+                json={
+                    "message": "Live stream deleted.",
+                    "stream_id": stream_id,
+                    "embeddings_purged": 0,
+                    "media_purged": 0,
+                },
+            )
         return httpx.Response(404, json={"message": f"no route {path}"})
+
+    def _delete_stream(self, stream_id: str, purge: bool) -> dict | None:
+        stream = next((s for s in self.streams if s["stream_id"] == stream_id), None)
+        if stream is not None:
+            self.streams.remove(stream)
+            if purge:
+                self.purged.append(stream_id)
+        return stream
 
     def _new_stream(self, body: dict) -> dict:
         stream = make_stream(
@@ -504,6 +629,9 @@ class FakeVss:
 
         if path == "/search" and method == "POST":
             body = body or {}
+            invalid = _invalid_search_body(body)
+            if invalid:
+                return _bad_request(invalid)
             stored = {
                 "queryId": f"q{len(self.searches) + 1}",
                 "query": body.get("query") or "",
@@ -529,20 +657,81 @@ class FakeVss:
         if len(parts) == 2 and method == "GET":
             # Like the real service: 200 with an empty body for an unknown id.
             return httpx.Response(200, json=stored)
+        if parts[2:] == ["watch"] and method == "PATCH":
+            # Like the real service: an unknown id is a silent no-op.
+            if stored is not None:
+                stored["watch"] = bool((body or {}).get("watch"))
+            return httpx.Response(200)
         if stored is None:
-            return httpx.Response(500, json={"message": "Internal server error"})
+            return httpx.Response(404, json={"message": "Search query not found"})
         if parts[2:] == ["refetch"] and method == "POST":
             if (body or {}).get("timeFilter"):
                 stored["timeFilter"] = body["timeFilter"]
             if "minPeakScore" in (body or {}):
                 stored["minPeakScore"] = body["minPeakScore"]
             return httpx.Response(201, json=_search_result(self, stored))
-        if parts[2:] == ["watch"] and method == "PATCH":
-            stored["watch"] = bool((body or {}).get("watch"))
-            if "minPeakScore" in (body or {}):
-                stored["minPeakScore"] = body["minPeakScore"]
-            return httpx.Response(200)
         return httpx.Response(404, json={"message": f"no route {path}"})
+
+
+def _redact(url: str) -> str:
+    return _CREDENTIALS_RE.sub(r"\1***@", url)
+
+
+def _stream_info(stream: dict) -> dict:
+    """A stream as dataprep's ``to_info`` returns it: credentials redacted."""
+
+    return {**stream, "stream_url": _redact(stream["stream_url"])}
+
+
+def _purge_flags(params: httpx.QueryParams) -> bool:
+    """Whether a delete asked to purge, as ``LiveStreamPurgeQueryDto`` reads it."""
+
+    return any(
+        params.get(key, "").lower() in ("true", "1")
+        for key in ("purge_media", "purge_embeddings")
+    )
+
+
+def _invalid_frame_query(params: dict[str, str]) -> str | None:
+    """Why ``FrameQueryDto`` would reject ``params``, or ``None``."""
+
+    allowed = {
+        "video_id", "timestamp", "bucket_name", "media_path",
+        "variant", "crop_bbox", "format", "quality",
+    }
+    unknown = set(params) - allowed
+    if unknown:
+        return f"property {min(unknown)} should not exist"
+    if not params.get("video_id"):
+        return "video_id should not be empty"
+    try:
+        if float(params.get("timestamp", "")) < 0:
+            return "timestamp must not be less than 0"
+    except ValueError:
+        return "timestamp must be a number"
+    if params.get("variant", "full") not in ("full", "crop"):
+        return "variant must be one of: full, crop"
+    if "crop_bbox" in params and not _CROP_BBOX_RE.match(params["crop_bbox"]):
+        return "crop_bbox must be four integers in the form x1,y1,x2,y2"
+    if "quality" in params and not (
+        params["quality"].isdigit() and 1 <= int(params["quality"]) <= 100
+    ):
+        return "quality must not be greater than 100"
+    return None
+
+
+def _invalid_search_body(body: dict) -> str | None:
+    """Why ``POST /search`` would reject ``body``, or ``None``."""
+
+    has_text = bool(str(body.get("query") or "").strip())
+    has_image = bool(body.get("image")) or bool(body.get("imageUrl"))
+    if body.get("image") and body.get("imageUrl"):
+        return "Provide either an image or an imageUrl, not both."
+    if has_text and has_image:
+        return "Provide either a text query or an image, not both."
+    if not has_text and not has_image:
+        return "Search query cannot be empty."
+    return None
 
 
 def _search_result(fake: "FakeVss", stored: dict) -> dict:

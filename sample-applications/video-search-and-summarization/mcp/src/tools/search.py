@@ -31,7 +31,6 @@ from ..projections import (
     parse_iso_epoch,
     slim_search_hit,
     slim_video,
-    unwrap_search_results,
 )
 from ..schemas import (
     FrameLocator,
@@ -85,9 +84,6 @@ _CROP_BBOX_RE = re.compile(r"^\d+,\d+,\d+,\d+$")
 #: plenty for a vision model to read.
 DEFAULT_FRAME_QUALITY = 80
 
-#: Bucket live-camera segments are stored in when the camera's own record
-#: is gone (dataprep's ``LIVE_STREAM_BUCKET`` default).
-DEFAULT_LIVE_STREAM_BUCKET = "live-streams"
 
 
 def _parse_iso(name: str, value: str) -> datetime:
@@ -204,7 +200,7 @@ def _hit_epoch(raw: dict[str, Any]) -> float:
 
 async def _project_pairs(
     deps: Deps,
-    raw_results: Any,
+    raw_results: list[dict[str, Any]],
     videos: list[dict[str, Any]] | None = None,
     *,
     video_ids: set[str] | None = None,
@@ -215,7 +211,7 @@ async def _project_pairs(
     """
 
     pairs = []
-    for item in unwrap_search_results(raw_results):
+    for item in raw_results:
         hit = slim_search_hit(item, deps.settings.vss_datastore_url)
         if not hit.get("video_id"):
             continue
@@ -238,7 +234,7 @@ async def _project_pairs(
 
 async def _project_hits(
     deps: Deps,
-    raw_results: Any,
+    raw_results: list[dict[str, Any]],
     limit: int,
     videos: list[dict[str, Any]] | None = None,
     *,
@@ -318,7 +314,7 @@ def _summarize_search(stored: dict[str, Any]) -> SearchSummary:
         "tags": stored.get("tags") or [],
         "status": stored.get("queryStatus"),
         "watch": bool(stored.get("watch")),
-        "result_count": len(unwrap_search_results(stored.get("results") or [])),
+        "result_count": len(stored.get("results") or []),
         "created_at": stored.get("createdAt"),
         "updated_at": stored.get("updatedAt"),
         "last_refreshed": stored.get("lastRefreshedAt"),
@@ -998,9 +994,12 @@ async def get_media_frame(
     media_path = (media_path or "").strip() or None
     bucket_name = (bucket_name or "").strip() or None
     if media_path and not bucket_name:
-        # Only live-camera hits carry a media_path. Without their bucket the
-        # backend looks in the uploads bucket and returns 404.
-        bucket_name = await _live_stream_bucket(deps, video_id)
+        # Only live-camera hits carry a media_path, always with its bucket.
+        # Without it the backend looks in the uploads bucket and returns 404.
+        raise VssError(
+            "media_path needs bucket_name: pass both from the hit's `frame` "
+            "object, unchanged."
+        )
     if media_path:
         params["media_path"] = media_path
     if bucket_name:
@@ -1022,19 +1021,6 @@ async def get_media_frame(
         + urlencode({**params, "format": "image"}),
     }
     return meta, payload["image_base64"]
-
-
-async def _live_stream_bucket(deps: Deps, stream_id: str) -> str:
-    """Bucket holding a live camera's segments: the camera's own, or the
-    default when the camera has been removed or cannot be looked up."""
-
-    try:
-        stream = await deps.client.get_stream(stream_id)
-    except VssError as exc:
-        logger.debug("Stream lookup for %s failed: %s", stream_id, exc)
-        stream = None
-    bucket = (stream or {}).get("bucket_name")
-    return bucket if isinstance(bucket, str) and bucket.strip() else DEFAULT_LIVE_STREAM_BUCKET
 
 
 def _is_absolute_http(url: str) -> bool:
@@ -1359,8 +1345,8 @@ def register(mcp: FastMCP, deps: Deps) -> None:
                 not the matched frame.
             media_path: frame.media_path; present on, and required for,
                 live-camera hits (the 10 s segment holding the frame).
-            bucket_name: frame.bucket_name, when present. Worked out from
-                the camera for live-camera hits if omitted.
+            bucket_name: frame.bucket_name; present on, and required with
+                media_path for, live-camera hits.
             crop_bbox: frame.crop_bbox, "x1,y1,x2,y2" in pixels, to return
                 only that region. Omit for the whole frame.
             quality: JPEG quality, 1-100. Lower it to save context when

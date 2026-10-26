@@ -24,7 +24,6 @@ from src.projections import (
     slim_search_hit,
     slim_summary,
     slim_video,
-    unwrap_search_results,
 )
 from src.tools.search import clip_links
 
@@ -188,6 +187,7 @@ def test_indexed_status(row: dict, expected: bool | None) -> None:
 def test_slim_search_hit_keeps_only_actionable_fields() -> None:
     assert set(slim_search_hit(make_search_hit())) == {
         "video_id",
+        "tags",
         "source",
         "start_s",
         "end_s",
@@ -197,6 +197,16 @@ def test_slim_search_hit_keeps_only_actionable_fields() -> None:
         "frame",
         "label",
     }
+
+
+def test_slim_search_hit_carries_the_segment_tags() -> None:
+    assert slim_search_hit(make_search_hit())["tags"] == ["outdoor", "daytime"]
+    hit = make_search_hit()
+    del hit["metadata"]["tags"]
+    hit["metadata"]["video_metadata"] = {"tags": ["camera_2"]}
+    assert slim_search_hit(hit)["tags"] == ["camera_2"]
+    del hit["metadata"]["video_metadata"]
+    assert "tags" not in slim_search_hit(hit)
 
 
 def test_slim_search_hit_drops_empty_urls_rather_than_forwarding_them() -> None:
@@ -563,29 +573,6 @@ def test_cap_payload_does_not_mutate_the_input() -> None:
     payload = {"items": ["x" * 100 for _ in range(50)]}
     cap_payload(payload, "items", max_bytes=500)
     assert len(payload["items"]) == 50
-
-
-# Search envelope
-
-
-def test_unwrap_search_results_unwraps_the_double_nested_envelope() -> None:
-    payload = {"results": [{"query_id": "q1", "results": [{"metadata": {}}] * 3}]}
-    assert len(unwrap_search_results(payload)) == 3
-
-
-def test_unwrap_search_results_flattens_multiple_query_blocks() -> None:
-    payload = {
-        "results": [
-            {"query_id": "q1", "results": [{"metadata": {}}]},
-            {"query_id": "q2", "results": [{"metadata": {}}, {"metadata": {}}]},
-        ]
-    }
-    assert len(unwrap_search_results(payload)) == 3
-
-
-@pytest.mark.parametrize("payload", (None, {"results": []}, "nonsense"))
-def test_unwrap_search_results_returns_empty_for_unrecognised_shapes(payload) -> None:
-    assert unwrap_search_results(payload) == []
 
 
 @pytest.mark.parametrize(

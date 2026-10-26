@@ -159,11 +159,15 @@ async def require_stream(deps: Deps, stream_id: str) -> dict[str, Any]:
     except VssError as exc:
         raise _redacted_error(exc) from exc
     if not raw:
-        raise VssError(
-            f"No live stream with id {stream_id!r}. Use vss_list_streams to "
-            "find the right id."
-        )
+        raise _no_stream(stream_id)
     return raw
+
+
+def _no_stream(stream_id: str) -> VssError:
+    return VssError(
+        f"No live stream with id {stream_id!r}. Use vss_list_streams to "
+        "find the right id."
+    )
 
 
 async def get_stream(deps: Deps, stream_id: str) -> Stream:
@@ -197,9 +201,7 @@ async def add_streams(deps: Deps, specs: list[dict[str, Any]]) -> StreamAddResul
                 "rejected": 0,
                 "items": [
                     {
-                        "stream_url": stream.get("url")
-                        or redact_url(bodies[0]["stream_url"])
-                        or "",
+                        "stream_url": stream["url"],
                         "accepted": True,
                         "stream_id": stream["stream_id"],
                     }
@@ -211,11 +213,10 @@ async def add_streams(deps: Deps, specs: list[dict[str, Any]]) -> StreamAddResul
         raise _redacted_error(exc) from exc
 
     items = []
-    for body, item in zip(bodies, outcome.get("items") or []):
-        accepted = str(item.get("status") or "").lower() == "success"
+    for item in outcome["items"]:
         entry: dict[str, Any] = {
-            "stream_url": redact_url(item.get("identifier") or body["stream_url"]) or "",
-            "accepted": accepted,
+            "stream_url": redact_url(item["identifier"]),
+            "accepted": item["status"] == "success",
         }
         if item.get("stream_id"):
             entry["stream_id"] = item["stream_id"]
@@ -232,10 +233,9 @@ async def add_streams(deps: Deps, specs: list[dict[str, Any]]) -> StreamAddResul
                 raw = None
             if raw:
                 streams.append(slim_stream(raw))
-    accepted = sum(1 for entry in items if entry["accepted"])
     return {
-        "accepted": accepted,
-        "rejected": len(items) - accepted,
+        "accepted": outcome["accepted"],
+        "rejected": outcome["rejected"],
         "items": items,
         "streams": streams,
     }
@@ -285,12 +285,14 @@ async def update_stream(
             "object_detection, detection_confidence or tags. A camera's URL "
             "cannot be changed; remove it and add it again instead."
         )
-    stream = await require_stream(deps, stream_id)
+    stream_id = (stream_id or "").strip()
     try:
-        updated = await deps.client.update_stream(stream["stream_id"], body)
+        updated = await deps.client.update_stream(stream_id, body)
     except VssError as exc:
+        if exc.status_code == 404:
+            raise _no_stream(stream_id) from exc
         raise _redacted_error(exc) from exc
-    return slim_stream(updated or {**stream, **body})
+    return slim_stream(updated)
 
 
 async def remove_streams(deps: Deps, stream_ids: list[str]) -> StreamRemoveResult:
@@ -307,24 +309,25 @@ async def remove_streams(deps: Deps, stream_ids: list[str]) -> StreamRemoveResul
     if len(ids) > MAX_BATCH:
         raise VssError(f"At most {MAX_BATCH} cameras can be removed in one call.")
 
-    items = []
-    for stream_id in ids:
-        try:
-            await deps.client.delete_stream(stream_id)
-            items.append({"stream_id": stream_id, "removed": True})
-        except VssError as exc:
-            message = (
-                "No live stream with this id."
-                if exc.status_code == 404
-                else redact_url(str(exc))
-            )
-            items.append({"stream_id": stream_id, "removed": False, "message": message})
+    try:
+        outcome = await deps.client.delete_streams(ids)
+    except VssError as exc:
+        raise _redacted_error(exc) from exc
+    items: list[dict[str, Any]] = []
+    for item in outcome["items"]:
+        entry: dict[str, Any] = {
+            "stream_id": item["stream_id"],
+            "removed": item["status"] == "success",
+        }
+        if not entry["removed"]:
+            entry["message"] = redact_url(item.get("message")) or ""
+        items.append(entry)
     if len(ids) == 1 and not items[0]["removed"]:
         raise VssError(
             f"Could not remove stream {ids[0]!r}: {items[0]['message']} Use "
             "vss_list_streams to find the right id."
         )
-    return {"removed": sum(1 for item in items if item["removed"]), "items": items}
+    return {"removed": outcome["accepted"], "items": items}
 
 
 def register(mcp: FastMCP, deps: Deps) -> None:

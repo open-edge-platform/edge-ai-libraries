@@ -17,7 +17,9 @@ tools that deployment can serve.
 
 Hits carry `observed_at` (ISO-8601 UTC) and `time_source`: `live` is a
 camera's capture time, `upload` is the video's upload time plus the frame
-offset. Hits from a live camera also carry `source: "live"` and `stream_id`.
+offset. Every hit carries `tags`, the camera tags VSS indexed it with (a live
+camera's footage has the stream's tags). Hits from a live camera also carry
+`source: "live"` and `stream_id`.
 `raw_score` is the absolute similarity; `score` is normalized so the top hit
 is 1. `vss_search_video` and `vss_get_search` take `sort` (`relevance`,
 `newest` or `oldest`), which reorders the returned top hits by `observed_at`.

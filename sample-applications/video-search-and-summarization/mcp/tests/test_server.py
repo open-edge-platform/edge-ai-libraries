@@ -131,6 +131,15 @@ def _assert_all_registered(text: str, registered: set[str], where: str) -> None:
         f"workflow whose step does not exist is answered by invention. "
         f"Registered here: {', '.join(sorted(registered))}."
     )
+    bare = sorted(
+        name
+        for name in registered
+        if re.search(rf"(?<!\w){name.removeprefix('vss_')}\b", text)
+    )
+    assert not bare, (
+        f"{where} names {', '.join(bare)} without the vss_ prefix; an agent "
+        f"calls such names literally and finds no tool."
+    )
 
 
 def _contains_network_refusal(caught: pytest.ExceptionInfo[BaseException]) -> bool:
