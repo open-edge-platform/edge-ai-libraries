@@ -153,6 +153,7 @@ func TestBatchRollbackFiltersAndPagination(t *testing.T) {
 	ctx := context.Background()
 	first, second := testRecording(t, media), testRecording(t, media)
 	second.SensorID = "other-camera"
+	second.StartTS = first.StartTS.Add(time.Second)
 	end := second.StartTS.Add(time.Second)
 	second.EndTS = &end
 	if _, err := metadata.createBatch(ctx, []model.Recording{first, second}); err != nil {
@@ -177,12 +178,35 @@ func TestBatchRollbackFiltersAndPagination(t *testing.T) {
 	}
 	for _, filter := range []model.RecordingFilter{
 		{SensorID: "camera", Metadata: map[string]any{"a.b": "literal"}},
-		{StartTS: end},
 	} {
 		got, _, err := metadata.ListMetadata(ctx, filter)
 		if err != nil || len(got) != 1 || got[0].RecordingID != first.RecordingID {
-			t.Fatalf("AND/overlap filter: %+v %v", got, err)
+			t.Fatalf("AND filter: %+v %v", got, err)
 		}
+	}
+	for _, test := range []struct {
+		name   string
+		filter model.RecordingFilter
+		want   string
+	}{
+		{"inclusive start bound", model.RecordingFilter{StartTS: second.StartTS}, second.RecordingID},
+		{"inclusive end bound", model.RecordingFilter{EndTS: end}, second.RecordingID},
+		{"inclusive contained window", model.RecordingFilter{StartTS: second.StartTS, EndTS: end}, second.RecordingID},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got, _, err := metadata.ListMetadata(ctx, test.filter)
+			if err != nil || len(got) != 1 || got[0].RecordingID != test.want {
+				t.Fatalf("time filter %+v: got %+v, want %q; err=%v", test.filter, got, test.want, err)
+			}
+		})
+	}
+	openMatches, _, err := metadata.ListMetadata(ctx, model.RecordingFilter{StartTS: first.StartTS})
+	if err != nil || len(openMatches) != 2 {
+		t.Fatalf("start-only filter should include open recordings: got %+v; err=%v", openMatches, err)
+	}
+	closedMatches, _, err := metadata.ListMetadata(ctx, model.RecordingFilter{EndTS: end})
+	if err != nil || len(closedMatches) != 1 || closedMatches[0].RecordingID != second.RecordingID {
+		t.Fatalf("end filter should exclude open recordings: got %+v; err=%v", closedMatches, err)
 	}
 	got, _, err := metadata.ListMetadata(ctx, model.RecordingFilter{Metadata: map[string]any{"label' OR 1=1 --": "door"}})
 	if err != nil || len(got) != 0 {

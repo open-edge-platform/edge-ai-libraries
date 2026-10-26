@@ -200,10 +200,10 @@ func (s *MetadataStore) ListMetadata(ctx context.Context, filter model.Recording
 		query = query.Where("state = ?", filter.State)
 	}
 	if !filter.StartTS.IsZero() {
-		query = query.Where("(end_ts IS NULL OR end_ts > ?)", filter.StartTS.UnixNano())
+		query = query.Where("start_ts >= ?", filter.StartTS.UnixNano())
 	}
 	if !filter.EndTS.IsZero() {
-		query = query.Where("start_ts < ?", filter.EndTS.UnixNano())
+		query = query.Where("end_ts <= ?", filter.EndTS.UnixNano())
 	}
 	if !filter.ExpiryTS.IsZero() {
 		query = query.Where("expiry_ts <= ?", filter.ExpiryTS.UnixNano())

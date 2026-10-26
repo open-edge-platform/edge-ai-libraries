@@ -22,6 +22,12 @@ This downloads the Makefile and runs it directly with `make`. It starts the
 container, publishes its port to a free host port, and prints the application
 access URLs.
 
+> [!NOTE]
+> The `make` command sets the container's `/dev/shm` capacity to 40% of the
+> host's available memory. It uses `4g` if it cannot read the available memory.
+> This is a capacity limit, not reserved RAM. Actual use depends on the data
+> written to shared memory.
+
 Check that the application is live:
 
 ```bash

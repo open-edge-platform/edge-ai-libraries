@@ -372,14 +372,14 @@ paths:
             type: string
         - name: start_ts
           in: query
-          description: Inclusive lower bound of the filter window. Timestamps must be RFC 3339 UTC and end in Z. Records must overlap [start_ts, end_ts).
+          description: Inclusive lower bound. A matching record must start at or after this time. If end_ts is also supplied, the record must be fully contained within the inclusive bounds. Timestamps must be RFC 3339 UTC and end in Z.
           required: false
           schema:
             type: string
             format: date-time
         - name: end_ts
           in: query
-          description: Exclusive upper bound of the filter window. It must be later than start_ts when both are supplied. Timestamps must be RFC 3339 UTC and end in Z.
+          description: Inclusive upper bound. A matching record must end at or before this time; open records without end_ts do not match. It must be later than start_ts when both are supplied. Timestamps must be RFC 3339 UTC and end in Z.
           required: false
           schema:
             type: string

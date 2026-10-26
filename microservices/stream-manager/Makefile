@@ -92,10 +92,18 @@ endif
 ifneq ($(strip $(CONFIG_FILE)),)
 	$(eval CONFIG_MOUNT := -v $(CONFIG_FILE):/config.json:ro)
 endif
+	@SHM_SIZE=$$(awk '/^MemAvailable:/ { printf "%d", int(($$2 * 40 + 102399) / 102400) }' /proc/meminfo 2>/dev/null); \
+	if ! printf '%s' "$$SHM_SIZE" | grep -Eq '^[1-9][0-9]*$$'; then \
+		echo "Could not fetch host Memory availability; using fallback size 4g." >&2; \
+		SHM_SIZE=4096; \
+	fi; \
+	SHM_SIZE="$${SHM_SIZE}m"; \
+	echo "Maximum memory available for buffer: $$SHM_SIZE"; \
 	docker run -d \
 		--rm \
 		--name $(CONTAINER_NAME) \
 		--pull missing \
+		--shm-size="$$SHM_SIZE" \
 		-P \
 		$(STORAGE_MOUNT) \
 		$(CONFIG_MOUNT) \
