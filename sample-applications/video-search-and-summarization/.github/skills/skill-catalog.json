@@ -261,6 +261,27 @@
         "bash",
         "curl"
       ]
+    },
+    {
+      "name": "vlm-model-selector",
+      "path": ".github/skills/vlm-model-selector/SKILL.md",
+      "description": "Select a Vision-Language Model (VLM) from the Hugging Face hub for a vision analytics task",
+      "triggers": [
+        "pick a vlm",
+        "choose a vision language model",
+        "recommend a vlm",
+        "select a vlm",
+        "vlm for core ultra",
+        "vlm for npu",
+        "vlm for igpu",
+        "vlm for arc gpu",
+        "vision language model selection",
+        "will this model run on my core ultra laptop"
+      ],
+      "requires": [
+        "network access to huggingface.co",
+        "network access to docs.openvino.ai"
+      ]
     }
   ]
 }

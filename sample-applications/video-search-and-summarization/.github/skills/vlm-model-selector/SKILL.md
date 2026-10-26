@@ -129,8 +129,10 @@ matching branch:
    **Plausible** — architecture resembles a listed one;
    **Unknown** — novel/unrecognized architecture, flag as needing an export
    feasibility probe) and license bucketing (`references/license-taxonomy.md`
-   — default an unrecognized or missing license to **not usable** until the
-   actual text is read, never assume permissive). Then do the full model-card
+   — for an unrecognized, `other`, or missing license tag, resolve it against
+   the actual license text before excluding the candidate; only exclude if the
+   text can't be found/verified or conflicts with the user's deployment, never
+   on the tag alone and never by assuming permissive). Then do the full model-card
    review in Step 5 for each one.
 4. If the Open VLM Leaderboard happens to have an entry for a named model,
    use it (third-party accuracy signal); otherwise use the model's own
@@ -165,26 +167,38 @@ matching branch:
    releases as `<Family><N>` or `<Family> <major>.<minor>`), not a claim about
    which one currently ships.
 2. **Cheap metadata triage (do this before any deep review):** for every
-   discovered candidate, apply two cheap, metadata-only checks:
-   - **License bucket** (`references/license-taxonomy.md`) — default an
-     unrecognized or missing license to **not usable** until the text is
-     actually read.
+   discovered candidate, apply two checks:
+   - **License bucket** (`references/license-taxonomy.md`) — bucket a clearly
+     tagged permissive license (e.g. Apache-2.0, MIT, BSD) directly from the
+     tag. For an unrecognized, `other`, or missing license tag, do **not**
+     exclude on the tag alone: immediately follow `license_link`/`license_name`
+     to the actual license text (a quick resolution, not the full Step 5
+     model-card review) and bucket it per `license-taxonomy.md`. Only exclude
+     a candidate at this stage if the actual text can't be found/verified, or
+     its terms conflict with the user's stated deployment constraints (e.g., a
+     non-commercial clause against a commercial deployment) — never exclude
+     solely because the Hub tag itself was ambiguous.
    - **Compute-fit tier** — **Validated** (architecture explicitly on the
      [OpenVINO supported-models page](https://docs.openvino.ai/nightly/documentation/compatibility-and-support/supported-models.html)
      — fetch this exact URL, don't rely on a remembered support list),
      **Plausible** (architecture class
      resembles a listed one, e.g. a fine-tune of an already-supported base),
      or **Unknown** (novel architecture).
-   Cut the list to roughly 8–10 candidates that pass the license gate and are
-   Validated or Plausible tier. Keep an Unknown-tier candidate only if nothing
-   else qualifies, and flag it explicitly as a stretch option.
+   Cut the list to roughly 8–10 candidates that pass the license gate
+   (verified usable or usable-with-conditions for this deployment, per the
+   actual text) and are Validated or Plausible tier. Keep an Unknown-tier
+   candidate only if nothing else qualifies, and flag it explicitly as a
+   stretch option.
 3. **Feasibility probe for Plausible/Unknown survivors:** for any
    Plausible/Unknown-tier candidate that still scores well after review,
    recommend actually attempting
-   `optimum-cli export openvino --model <id> --weight-format int4 --trust-remote-code <dir>`
+   `optimum-cli export openvino --model <id> --weight-format int4 <dir>`
    (or checking the model's Hub discussions for an existing community export)
    before finalizing it as a recommendation — don't resolve compute fit from
-   metadata inference alone for these tiers.
+   metadata inference alone for these tiers. Do **not** add `--trust-remote-code`
+   to this probe by default; if the export fails because the architecture
+   needs custom code, follow "Handling a model that requires custom code"
+   below before retrying with it.
 4. **Accuracy signal with graceful fallback:** prefer leaderboard numbers
    (third-party verified). If a candidate has no leaderboard entry, fall back
    to self-reported model-card numbers (label as self-reported, lower
@@ -287,6 +301,39 @@ into a terminal login prompt yourself.
    with the next-best candidate instead of blocking the whole recommendation
    on it.
 
+### Handling a model that requires custom code (`--trust-remote-code`)
+
+Some Hub checkpoints ship a custom `modeling_*.py`/`configuration_*.py` file
+and only load with `trust_remote_code=True` (`optimum-cli export openvino`'s
+`--trust-remote-code` flag). That flag executes arbitrary Python from the
+selected Hub repository locally, with the user's own permissions and whatever
+credentials are available in that environment — it is a code-execution
+decision, not a compute-fit or license decision. Passing a candidate's
+license and architecture-compatibility checks **never** establishes that its
+code is safe to run, so never enable this flag by default.
+
+1. Default to running every export or feasibility probe in this skill
+   (Step 4's feasibility probe, Step 6's recommended quantization command,
+   and the `references/intel-core-ultra-compute-envelope.md` export
+   reference) **without** `--trust-remote-code`. Try it without the flag
+   first.
+2. If the export fails specifically because the architecture needs custom
+   code (check the error output and the model card for a `trust_remote_code`
+   mention), stop and do not add the flag yourself. Tell the user: name the
+   exact repo, identify the exact revision you'd need to run (a commit SHA,
+   not a floating `main`/branch pointer that can change later), and describe
+   what the custom code file(s) do if that's visible from the repo.
+3. Only add `--trust-remote-code` after the user explicitly approves running
+   that specific pinned revision's code. Never enable it silently or because
+   it's the only way to "make the export work" — if the user doesn't approve,
+   drop the candidate (or keep it only as a Plausible/Unknown-tier option with
+   compute-fit explicitly marked unverified) and continue with the next-best
+   candidate instead of blocking the whole recommendation on it.
+4. When the user does approve, pin the revision in the actual command (e.g.
+   `--model <hf-model-id>@<commit-sha>`) rather than the bare repo id, so a
+   later, unreviewed commit to the same repo can't silently change what code
+   executes on a subsequent run.
+
 ### Step 6 — Score, rank, and recommend
 
 Build a comparison table across the 4 vectors (task relevance, accuracy,
@@ -306,8 +353,11 @@ Include deployment notes with the recommendation:
   and why.
 - Expected quantization path, e.g.:
   ```bash
-  optimum-cli export openvino --model <hf-model-id> --weight-format int4 --trust-remote-code <output-dir>
+  optimum-cli export openvino --model <hf-model-id> --weight-format int4 <output-dir>
   ```
+  Do not include `--trust-remote-code` in this default command. If the
+  architecture actually requires it, say so explicitly and follow "Handling a
+  model that requires custom code" below instead of silently adding the flag.
 - Any export caveats noted on the OpenVINO supported-models page for that
   architecture (e.g., required `transformers` version pins, extra packages).
 

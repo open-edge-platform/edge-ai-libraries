@@ -94,9 +94,16 @@ pip install optimum[openvino] nncf
 optimum-cli export openvino \
   --model <hf-model-id> \
   --weight-format int4 \
-  --trust-remote-code \
   <output-dir>
 ```
+
+Do not add `--trust-remote-code` to this command by default — it executes
+arbitrary Python from the Hub repository with the user's own permissions and
+credentials, and passing license/architecture checks does not establish that
+code is safe to run. Only add it for a specific, pinned revision
+(`<hf-model-id>@<commit-sha>`) after the user has explicitly approved running
+that revision's custom code — see SKILL.md's "Handling a model that requires
+custom code" procedure.
 
 Run inference device-agnostically via OpenVINO GenAI's `VLMPipeline`, selecting
 `"CPU"`, `"GPU"` (`"GPU.0"`/`"GPU.1"` to target a specific integrated or
