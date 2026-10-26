@@ -220,8 +220,8 @@ func TestFrame(t *testing.T) {
 					if !media.Result.StartTS.Equal(frameTS(tc.want)) || media.ExactMatch != tc.exact {
 						t.Fatalf("got frame at %v exact=%v, want %v exact=%v", media.Result.StartTS, media.ExactMatch, frameTS(tc.want), tc.exact)
 					}
-					if media.Result.MediaType != "frame" || media.Result.ContentType != "image/"+tc.format ||
-						!media.Result.RequestedStartTS.Equal(tc.ts) || media.Result.EndTS != nil {
+					if !media.Result.RequestedStartTS.Equal(tc.ts) || media.Result.EndTS != nil ||
+						media.Result.RequestedEndTS != nil {
 						t.Fatalf("unexpected result %+v", media.Result)
 					}
 					if tc.format == "png" {
@@ -327,8 +327,7 @@ func TestClip(t *testing.T) {
 			end := tc.start.Add(tc.duration)
 			if !media.Result.StartTS.Equal(frameTS(tc.wantStart)) || media.ExactMatch != tc.exact ||
 				media.Result.EndTS == nil || !media.Result.EndTS.Equal(end) ||
-				media.Result.RequestedEndTS == nil || !media.Result.RequestedEndTS.Equal(end) ||
-				media.Result.ContentType != "video/mp4" || media.Result.MediaType != "clip" {
+				media.Result.RequestedEndTS == nil || !media.Result.RequestedEndTS.Equal(end) {
 				t.Fatalf("unexpected result %+v exact=%v", media.Result, media.ExactMatch)
 			}
 			got := probeClip(t, media.Path)

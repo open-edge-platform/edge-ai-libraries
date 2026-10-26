@@ -121,7 +121,7 @@ func (h RetrieveHandler) respond(c *gin.Context, media retrieve.Media, asJSON bo
 	}
 	file, info, err := h.Retrievals.OpenMedia(c.Request.Context(), media.Result.RecordingID, media.Name)
 	if err != nil {
-		writeRetrieveError(c, err, media.Result.MediaType == "clip")
+		writeRetrieveError(c, err, media.Result.RequestedEndTS != nil)
 		return
 	}
 	defer closeMedia(file)

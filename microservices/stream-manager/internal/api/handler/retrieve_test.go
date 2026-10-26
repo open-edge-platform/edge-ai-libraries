@@ -42,7 +42,7 @@ type fakeRetriever struct {
 	noExpiry bool
 }
 
-func (f *fakeRetriever) media(kind, contentType, name string, start time.Time) (retrieve.Media, error) {
+func (f *fakeRetriever) media(kind, name string, start time.Time) (retrieve.Media, error) {
 	f.calls++
 	if f.err != nil {
 		return retrieve.Media{}, f.err
@@ -56,22 +56,28 @@ func (f *fakeRetriever) media(kind, contentType, name string, start time.Time) (
 		expiration := time.Now().Add(10 * time.Minute)
 		expiry = &expiration
 	}
+	var requestedEnd *time.Time
+	if kind == "clip" {
+		end := start.Add(f.duration)
+		requestedEnd = &end
+	}
 	return retrieve.Media{
 		Result: model.MediaResult{
-			RecordingID: testRecordingID, SensorID: "cam-1", MediaType: kind, ContentType: contentType,
-			RequestedStartTS: start, StartTS: retrieveStart.Add(1500 * time.Millisecond), ExpiryTS: expiry,
+			RecordingID: testRecordingID, SensorID: "cam-1",
+			RequestedStartTS: start, RequestedEndTS: requestedEnd,
+			StartTS: retrieveStart.Add(1500 * time.Millisecond), ExpiryTS: expiry,
 		},
 		Name: name, Path: path, ExactMatch: f.exact,
 	}, nil
 }
 
 func (f *fakeRetriever) Frame(_ context.Context, _ string, ts time.Time, format, _ string) (retrieve.Media, error) {
-	return f.media("frame", "image/"+format, "frame-1500000000."+format, ts)
+	return f.media("frame", "frame-1500000000."+format, ts)
 }
 
 func (f *fakeRetriever) Clip(_ context.Context, _ string, start time.Time, duration time.Duration, _ string) (retrieve.Media, error) {
 	f.duration = duration
-	return f.media("clip", "video/mp4", "clip-1500000000-3000000000.mp4", start)
+	return f.media("clip", "clip-1500000000-3000000000.mp4", start)
 }
 
 func (f *fakeRetriever) OpenMedia(_ context.Context, _, name string) (*os.File, retrieve.MediaFile, error) {

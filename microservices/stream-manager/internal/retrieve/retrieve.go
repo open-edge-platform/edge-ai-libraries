@@ -96,7 +96,7 @@ func NewService(metadata storage.MetadataHandler, media storage.MediaHandler, de
 // Frame returns the frame nearest to timestamp, or the frame at exactly that
 // time when match is "exact".
 func (s *Service) Frame(ctx context.Context, id string, ts time.Time, format, match string) (Media, error) {
-	contentType, ok := contentTypes[format]
+	_, ok := contentTypes[format]
 	if !ok || format == "mp4" || (match != "nearest" && match != "exact") {
 		return Media{}, ErrInvalidRequest
 	}
@@ -142,7 +142,7 @@ func (s *Service) Frame(ctx context.Context, id string, ts time.Time, format, ma
 	}
 	return Media{
 		Result: model.MediaResult{
-			RecordingID: rec.RecordingID, SensorID: rec.SensorID, MediaType: "frame", ContentType: contentType,
+			RecordingID: rec.RecordingID, SensorID: rec.SensorID,
 			RequestedStartTS: ts.UTC(), StartTS: frameTS.UTC(), ExpiryTS: s.expiry(mtime),
 		},
 		Name: name, Path: path, ExactMatch: exact,
@@ -189,7 +189,7 @@ func (s *Service) Clip(ctx context.Context, id string, start time.Time, duration
 	requestedEnd, clipEnd := end.UTC(), end.UTC()
 	return Media{
 		Result: model.MediaResult{
-			RecordingID: rec.RecordingID, SensorID: rec.SensorID, MediaType: "clip", ContentType: contentTypes[format],
+			RecordingID: rec.RecordingID, SensorID: rec.SensorID,
 			RequestedStartTS: start.UTC(), RequestedEndTS: &requestedEnd,
 			StartTS: clipStart.UTC(), EndTS: &clipEnd, ExpiryTS: s.expiry(mtime),
 		},
