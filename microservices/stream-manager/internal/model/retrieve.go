@@ -16,5 +16,5 @@ type MediaResult struct {
 	StartTS          time.Time  `json:"start_ts"`
 	EndTS            *time.Time `json:"end_ts"`
 	URL              string     `json:"url"`
-	ExpiryTS         time.Time  `json:"expiry_ts"`
+	ExpiryTS         *time.Time `json:"expiry_ts"`
 }

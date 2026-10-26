@@ -21,9 +21,13 @@ const (
 	DefaultBufferLength = 30 * time.Second
 	MaxBufferLength     = 300 * time.Second
 	MinBufferLength     = 5 * time.Second
-	DefaultStorageSize  = 10240 // MegaBytes; ~10 GB
-	MinStorageSize      = 5120  // MegaBytes; ~5 GB
+	DefaultStorageSize  = 10240   // MegaBytes; ~10 GB
+	MinStorageSize      = 5120    // MegaBytes; ~5 GB
+	MaxStorageSize      = 1 << 30 // MegaBytes; 1 PiB, keeps the byte count far below int64 overflow
 	ConcurrentRecorders = 10
+	MaxRetentionHours   = 10 * 365 * 24
+	DefaultDerivedTTL   = -1      // Disabled
+	MaxDerivedTTL       = 24 * 60 // Minutes; 1 day
 )
 
 type Config struct {
@@ -33,6 +37,8 @@ type Config struct {
 	StorageDir           string // Override via config.json or SM_DATA_DIR if set.
 	ConcurrentRecorders  int
 	RecordingStorageSize int
+	RecordingRetention   int // Hours a finished recording is kept; 0 keeps it until deleted.
+	DerivedMediaTTL      int // Minutes a cut frame or clip is kept; -1 disables the TTL.
 }
 
 // Load reads the configuration from config.json (or the file named by SM_CONFIG_FILE),
@@ -44,6 +50,7 @@ func Load() (Config, error) {
 		StorageDir:           DefaultStorageDir,
 		ConcurrentRecorders:  ConcurrentRecorders,
 		RecordingStorageSize: DefaultStorageSize,
+		DerivedMediaTTL:      DefaultDerivedTTL,
 	}
 
 	// look for config file provided via env var
@@ -84,6 +91,18 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("buffer length can not be less than %v or greater than %v", MinBufferLength, MaxBufferLength)
 	}
 
+	if cfg.RecordingStorageSize < MinStorageSize || cfg.RecordingStorageSize > MaxStorageSize {
+		return Config{}, fmt.Errorf("recording storage size must be between %d and %d MB", MinStorageSize, MaxStorageSize)
+	}
+
+	if cfg.RecordingRetention < 0 || cfg.RecordingRetention > MaxRetentionHours {
+		return Config{}, fmt.Errorf("recording retention must be between 0 and %d hours", MaxRetentionHours)
+	}
+
+	if cfg.DerivedMediaTTL < -1 || cfg.DerivedMediaTTL == 0 || cfg.DerivedMediaTTL > MaxDerivedTTL {
+		return Config{}, fmt.Errorf("derived media TTL must be -1 or between 1 and %d minutes", MaxDerivedTTL)
+	}
+
 	if storageDir, err := expandHome(cfg.StorageDir); err == nil {
 		cfg.StorageDir = storageDir
 	} else {
@@ -94,6 +113,24 @@ func Load() (Config, error) {
 	cfg.BufferDir = DefaultBufferDir
 
 	return cfg, nil
+}
+
+// RecordingStorageBytes returns the recording storage quota in bytes.
+func (c Config) RecordingStorageBytes() int64 {
+	return int64(c.RecordingStorageSize) << 20
+}
+
+// RecordingRetentionPeriod returns how long a finished recording is kept; 0 keeps it until deleted.
+func (c Config) RecordingRetentionPeriod() time.Duration {
+	return time.Duration(c.RecordingRetention) * time.Hour
+}
+
+// DerivedMediaTTLPeriod returns how long a cut frame or clip is kept; zero disables the TTL.
+func (c Config) DerivedMediaTTLPeriod() time.Duration {
+	if c.DerivedMediaTTL == -1 {
+		return 0
+	}
+	return time.Duration(c.DerivedMediaTTL) * time.Minute
 }
 
 // hasKey verifies whether the top-level JSON object in data contains a given key.

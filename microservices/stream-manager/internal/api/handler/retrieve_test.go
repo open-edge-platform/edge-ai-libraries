@@ -4,10 +4,12 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -37,6 +39,7 @@ type fakeRetriever struct {
 	exact    bool
 	duration time.Duration
 	calls    int
+	noExpiry bool
 }
 
 func (f *fakeRetriever) media(kind, contentType, name string, start time.Time) (retrieve.Media, error) {
@@ -48,10 +51,15 @@ func (f *fakeRetriever) media(kind, contentType, name string, start time.Time) (
 	if err := os.WriteFile(path, []byte(kind+" bytes"), 0o600); err != nil {
 		return retrieve.Media{}, err
 	}
+	var expiry *time.Time
+	if !f.noExpiry {
+		expiration := time.Now().Add(10 * time.Minute)
+		expiry = &expiration
+	}
 	return retrieve.Media{
 		Result: model.MediaResult{
 			RecordingID: testRecordingID, SensorID: "cam-1", MediaType: kind, ContentType: contentType,
-			RequestedStartTS: start, StartTS: retrieveStart.Add(1500 * time.Millisecond), ExpiryTS: time.Now().Add(10 * time.Minute),
+			RequestedStartTS: start, StartTS: retrieveStart.Add(1500 * time.Millisecond), ExpiryTS: expiry,
 		},
 		Name: name, Path: path, ExactMatch: f.exact,
 	}, nil
@@ -78,7 +86,12 @@ func (f *fakeRetriever) OpenMedia(_ context.Context, _, name string) (*os.File, 
 		return nil, retrieve.MediaFile{}, retrieve.ErrMediaNotFound
 	}
 	contentType := map[string]string{".jpeg": "image/jpeg", ".png": "image/png", ".mp4": "video/mp4"}[filepath.Ext(name)]
-	return file, retrieve.MediaFile{ContentType: contentType, ExpiryTS: time.Now().Add(10 * time.Minute)}, nil
+	var expiry *time.Time
+	if !f.noExpiry {
+		expiration := time.Now().Add(10 * time.Minute)
+		expiry = &expiration
+	}
+	return file, retrieve.MediaFile{ContentType: contentType, ExpiryTS: expiry}, nil
 }
 
 func retrieveRouter(f *fakeRetriever) *gin.Engine {
@@ -197,6 +210,26 @@ func TestRetrieveNegotiation(t *testing.T) {
 	}
 }
 
+func TestMediaRouteWithoutExpiry(t *testing.T) {
+	f := &fakeRetriever{dir: t.TempDir(), noExpiry: true}
+	router := retrieveRouter(f)
+	response := get(router, "/v1/retrieve/"+testRecordingID+"/frame?timestamp=2026-06-15T14:12:01.5Z", "application/json")
+
+	var result model.MediaResult
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.ExpiryTS != nil {
+		t.Fatalf("expiry %v, want null", result.ExpiryTS)
+	}
+
+	media := get(router, result.URL, "")
+	if media.Code != http.StatusOK || media.Header().Get("Cache-Control") != "private, no-cache" ||
+		media.Header().Get("Expires") != "" {
+		t.Fatalf("unexpected no-expiry media reply %d %v", media.Code, media.Header())
+	}
+}
+
 func TestRetrieveRemovedURLRoutes(t *testing.T) {
 	f := &fakeRetriever{dir: t.TempDir()}
 	router := retrieveRouter(f)
@@ -258,7 +291,7 @@ func TestRetrieveErrors(t *testing.T) {
 		{retrieve.ErrBusy, http.StatusTooManyRequests, "capacity_exhausted"},
 		{retrieve.ErrInvalidRequest, http.StatusBadRequest, "invalid_request"},
 		{storage.ErrStorageFull, http.StatusInsufficientStorage, "storage_full"},
-		{fmt.Errorf("%w: FFmpeg: exit status 1: /secret/path", retrieve.ErrExtraction), http.StatusServiceUnavailable, "storage_unavailable"},:microservices/stream-manager/internal/api/handler/retrieve_test.go
+		{fmt.Errorf("%w: FFmpeg: exit status 1: /secret/path", retrieve.ErrExtraction), http.StatusServiceUnavailable, "storage_unavailable"},
 		{fmt.Errorf("disk on fire"), http.StatusInternalServerError, "internal_error"},
 	}
 	targets := []string{
@@ -292,14 +325,53 @@ func TestRetrieveErrors(t *testing.T) {
 					strings.Contains(rec.Body.String(), "frame") {
 					t.Fatalf("clip error mentions a frame: %s", rec.Body)
 				}
-				if errors.Is(tc.err, retrieve.ErrBeyondSearchLimit) && !strings.Contains(rec.Body.String(), "within 5 minutes") {
-					t.Fatalf("got %s, want the 5 minute search limit in the detail", rec.Body)
+				if errors.Is(tc.err, retrieve.ErrBeyondSearchLimit) {
+					detail := "no decodable frame is available for the requested time"
+					if code == "clip_not_found" {
+						detail = "no clip is available for the requested interval"
+					}
+					if !strings.Contains(rec.Body.String(), detail) {
+						t.Fatalf("got %s, want detail %q", rec.Body, detail)
+					}
+					for _, internal := range []string{"5 minutes", "search limit", "keyframe"} {
+						if strings.Contains(rec.Body.String(), internal) {
+							t.Fatalf("error body leaks search details: %s", rec.Body)
+						}
+					}
 				}
 				if strings.Contains(rec.Body.String(), "secret") || strings.Contains(rec.Body.String(), "FFmpeg") {
 					t.Fatalf("error body leaks internals: %s", rec.Body)
 				}
 			})
 		}
+	}
+}
+
+func TestSearchLimitLoggedInternally(t *testing.T) {
+	var output bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&output, nil)))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+
+	target := "/v1/retrieve/" + testRecordingID + "/frame?timestamp=2026-06-15T14:12:01Z"
+	response := get(retrieveRouter(&fakeRetriever{
+		dir: t.TempDir(), err: fmt.Errorf("%w: no keyframe", retrieve.ErrBeyondSearchLimit),
+	}), target, "")
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", response.Code)
+	}
+	var entry struct {
+		Message     string        `json:"msg"`
+		RecordingID string        `json:"recording_id"`
+		SearchLimit time.Duration `json:"search_limit"`
+		Error       string        `json:"error"`
+	}
+	if err := json.Unmarshal(output.Bytes(), &entry); err != nil {
+		t.Fatal(err)
+	}
+	if entry.Message != "retrieve search limit reached" || entry.RecordingID != testRecordingID ||
+		entry.SearchLimit != retrieve.SearchLimit || !strings.Contains(entry.Error, "no keyframe") {
+		t.Fatalf("unexpected search-limit log: %s", output.String())
 	}
 }
 

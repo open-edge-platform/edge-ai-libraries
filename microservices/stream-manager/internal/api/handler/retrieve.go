@@ -201,10 +201,14 @@ func parseDuration(s string) (time.Duration, error) {
 }
 
 func serveMedia(c *gin.Context, file *os.File, info retrieve.MediaFile) {
-	maxAge := max(int64(time.Until(info.ExpiryTS)/time.Second), 0)
 	c.Header("Content-Type", info.ContentType)
-	c.Header("Cache-Control", "private, max-age="+strconv.FormatInt(maxAge, 10))
-	c.Header("Expires", info.ExpiryTS.UTC().Format(http.TimeFormat))
+	if info.ExpiryTS == nil {
+		c.Header("Cache-Control", "private, no-cache")
+	} else {
+		maxAge := max(int64(time.Until(*info.ExpiryTS)/time.Second), 0)
+		c.Header("Cache-Control", "private, max-age="+strconv.FormatInt(maxAge, 10))
+		c.Header("Expires", info.ExpiryTS.UTC().Format(http.TimeFormat))
+	}
 	c.Header("X-Content-Type-Options", "nosniff")
 	http.ServeContent(c.Writer, c.Request, "", time.Time{}, file)
 }
@@ -244,10 +248,11 @@ func writeRetrieveError(c *gin.Context, err error, clip bool) {
 		}
 		common.WriteError(c, http.StatusNotFound, notFoundCode, detail)
 	case errors.Is(err, retrieve.ErrBeyondSearchLimit):
-		limit := strconv.Itoa(int(retrieve.SearchLimit.Minutes())) + " minutes"
-		detail := "no decodable frame within " + limit + " of the requested time"
+		slog.Warn("retrieve search limit reached", "recording_id", c.Param("recording-id"),
+			"search_limit", retrieve.SearchLimit, "clip", clip, "error", err)
+		detail := "no decodable frame is available for the requested time"
 		if clip {
-			detail = "no keyframe within " + limit + " before the requested start"
+			detail = "no clip is available for the requested interval"
 		}
 		common.WriteError(c, http.StatusNotFound, notFoundCode, detail)
 	case errors.Is(err, retrieve.ErrMediaNotFound):

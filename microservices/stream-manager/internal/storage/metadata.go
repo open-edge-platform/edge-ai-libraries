@@ -57,7 +57,8 @@ CREATE TABLE IF NOT EXISTS recordings (
 	expiry_ts INTEGER,
 	error_detail TEXT
 );
-CREATE INDEX IF NOT EXISTS idx_recordings_sensor_stream ON recordings(sensor_id, stream_id);`
+CREATE INDEX IF NOT EXISTS idx_recordings_sensor_stream ON recordings(sensor_id, stream_id);
+`
 
 // slogWriter adapts gorm's logger.Writer interface to log/slog. GORM only
 // calls Printf for warn-level-and-above diagnostics (per the configured

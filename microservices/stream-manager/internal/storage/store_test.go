@@ -28,7 +28,7 @@ func testStores(t *testing.T) (*MetadataStore, *MediaStore, string) {
 			t.Error(err)
 		}
 	})
-	media, err := OpenMediaStore(dir)
+	media, err := OpenMediaStore(dir, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,12 +83,15 @@ func TestSchemaSerializationAndReopen(t *testing.T) {
 	if err := metadata.db.Raw("PRAGMA index_list('recordings')").Scan(&indexes).Error; err != nil {
 		t.Fatal(err)
 	}
-	found := false
+	found := map[string]bool{}
 	for _, index := range indexes {
-		found = found || index.Name == "idx_recordings_sensor_stream"
+		found[index.Name] = true
 	}
-	if !found {
-		t.Fatal("agreed sensor/stream index is missing")
+	if !found["idx_recordings_sensor_stream"] {
+		t.Fatal("sensor/stream index is missing")
+	}
+	if found["idx_recordings_expiry"] {
+		t.Fatal("expiry index still exists")
 	}
 	if _, err := OpenMetadataStore(dir); err == nil {
 		t.Fatal("second instance acquired the same metadata storage")
@@ -108,6 +111,29 @@ func TestSchemaSerializationAndReopen(t *testing.T) {
 	got, err = reopened.GetMetadataByRecordingID(ctx, rec.RecordingID)
 	if err != nil || !got.StartTS.Equal(rec.StartTS) {
 		t.Fatalf("migration was not idempotent: %+v %v", got, err)
+	}
+}
+
+func TestListMedia(t *testing.T) {
+	_, media, dir := testStores(t)
+	rec := testRecording(t, media)
+	if err := os.Mkdir(filepath.Join(dir, "unrelated"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(t.TempDir(), filepath.Join(dir, uuid.NewString())); err != nil {
+		t.Fatal(err)
+	}
+	listed, err := media.ListMedia(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(listed) != 1 || listed[rec.RecordingID] != rec.RecordingPath {
+		t.Fatalf("listed media = %v, want only %s", listed, rec.RecordingID)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := media.ListMedia(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled listing: %v", err)
 	}
 }
 

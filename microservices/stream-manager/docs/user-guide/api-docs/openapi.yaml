@@ -461,7 +461,7 @@ paths:
     delete:
       tags: [Recording Storage APIs]
       summary: Delete a record
-      description: Deletes the record's media, then its metadata. If either delete fails, the record remains and the request returns 503; send the request again to complete the delete. While a frame or clip extraction uses the media, the request returns 409 with active_dependency. Deleting again, or reading a deleted record, returns 404.
+      description: Deletes metadata first, then attempts media deletion. Metadata deletion failure returns 503 and keeps the media. Media deletion failure or an active extraction is logged and still returns 200. Cleanup retries removal of media without metadata at startup and every 24 hours. The media counts toward quota until removed. Deleting again, or reading a deleted record, returns 404.
       parameters:
         - $ref: '#/components/parameters/RecordingId'
       responses:
@@ -482,7 +482,7 @@ paths:
                 error_code: recording_not_found
                 error_detail: recording not found
         '409':
-          description: Record is still recording or finalizing, or a frame or clip extraction uses its media.
+          description: Record is still recording or finalizing.
           content:
             application/json:
               schema:
@@ -493,13 +493,8 @@ paths:
                     status: 409
                     error_code: record_not_ready
                     error_detail: recording cannot be changed in its current state
-                active_dependency:
-                  value:
-                    status: 409
-                    error_code: active_dependency
-                    error_detail: recording media is in use; retry later
         '503':
-          description: Media or metadata deletion failed. The record remains; retry later.
+          description: Metadata deletion failed. The record and media remain; retry later.
           content:
             application/json:
               schema:
@@ -583,7 +578,7 @@ paths:
                 error_code: invalid_timestamp
                 error_detail: timestamp must be an RFC 3339 UTC timestamp ending in Z with at most 9 fractional digits
         '404':
-          description: Record not found, timestamp outside coverage, exact frame missing, or no decodable frame within 5 minutes of the timestamp. The service searches a maximum of 5 minutes back for the keyframe that the frame decodes from.
+          description: Record not found, timestamp outside coverage, exact frame missing, or no decodable frame available for the requested time.
           content:
             application/json:
               schema:
@@ -729,7 +724,7 @@ paths:
                 error_code: invalid_request
                 error_detail: duration must be a positive number of seconds
         '404':
-          description: Record not found, the requested interval is not fully covered, or no keyframe within 5 minutes before start_ts. The service searches a maximum of 5 minutes back for the keyframe that the clip starts from.
+          description: Record not found, the requested interval is not fully covered, or no clip available for the requested interval.
           content:
             application/json:
               schema:
@@ -793,7 +788,7 @@ paths:
     get:
       tags: [Retrieval APIs]
       summary: Gets a produced frame or clip
-      description: Serves the bytes of a frame or clip named by a MediaResult's url. The file is kept only until its expiry_ts, which is capped by the recording's own expiry_ts.
+      description: Serves the bytes of a frame or clip named by a MediaResult's url. The file expires after DerivedMediaTTL minutes, capped by the recording's expiry_ts. When DerivedMediaTTL is -1, the file stays available until its recording expires or is deleted. expiry_ts is null when neither expiry applies.
       parameters:
         - $ref: '#/components/parameters/RecordingId'
         - name: file
@@ -807,11 +802,11 @@ paths:
           description: The frame or clip bytes.
           headers:
             Cache-Control:
-              description: private, max-age=<seconds until expiry_ts>.
+              description: private, max-age=<seconds until expiry_ts>; private, no-cache when there is no expiry.
               schema:
                 type: string
             Expires:
-              description: The file's expiry_ts, as an HTTP-date.
+              description: The file's expiry_ts, as an HTTP-date. Omitted when there is no expiry.
               schema:
                 type: string
             X-Content-Type-Options:
@@ -1126,7 +1121,8 @@ components:
         expiry_ts:
           type: string
           format: date-time
-          description: When url stops working; capped by the recording's own expiry_ts.
+          nullable: true
+          description: When url stops working; capped by the recording's own expiry_ts. Null when neither the derived media nor its recording expires.
       example:
         recording_id: rec-2
         sensor_id: cam-07

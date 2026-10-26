@@ -45,6 +45,7 @@ func TestLoadDefaults(t *testing.T) {
 		StorageDir:           filepath.Join(home, ".local/share/stream-manager"),
 		ConcurrentRecorders:  ConcurrentRecorders,
 		RecordingStorageSize: DefaultStorageSize,
+		DerivedMediaTTL:      DefaultDerivedTTL,
 	}
 	if cfg != want {
 		t.Fatalf("defaults: got %+v, want %+v", cfg, want)
@@ -112,7 +113,7 @@ func TestLoadFromConfigFile(t *testing.T) {
 	}
 	want := Config{
 		HTTPAddr: "127.0.0.1:9000", BufferLength: 60 * time.Second, BufferDir: DefaultBufferDir,
-		StorageDir: "/srv/sm-storage", ConcurrentRecorders: 4, RecordingStorageSize: 6000,
+		StorageDir: "/srv/sm-storage", ConcurrentRecorders: 4, RecordingStorageSize: 6000, DerivedMediaTTL: DefaultDerivedTTL,
 	}
 	if cfg != want {
 		t.Fatalf("config file load: got %+v, want %+v", cfg, want)
@@ -205,5 +206,53 @@ func TestExpandHome(t *testing.T) {
 	t.Setenv("HOME", "relative-home")
 	if _, err := expandHome("~/data"); err == nil {
 		t.Fatal("accepted a relative home directory")
+	}
+}
+
+func TestLoadRecordingStorageLimits(t *testing.T) {
+	dir := t.TempDir()
+	chdir(t, dir)
+
+	for _, body := range []string{
+		`{"RecordingStorageSize": 5119}`,
+		`{"RecordingStorageSize": ` + strconv.Itoa(MaxStorageSize+1) + `}`,
+		`{"RecordingStorageSize": 9007199254740993}`,
+		`{"RecordingRetention": -1}`,
+		`{"RecordingRetention": ` + strconv.Itoa(MaxRetentionHours+1) + `}`,
+		`{"DerivedMediaTTL": 0}`,
+		`{"DerivedMediaTTL": -2}`,
+		`{"DerivedMediaTTL": ` + strconv.Itoa(MaxDerivedTTL+1) + `}`,
+	} {
+		if err := os.WriteFile(filepath.Join(dir, DefaultConfigFile), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Load(); err == nil {
+			t.Fatalf("accepted %s", body)
+		}
+	}
+
+	if err := os.WriteFile(filepath.Join(dir, DefaultConfigFile), []byte(`{"DerivedMediaTTL": -1}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.DerivedMediaTTL != -1 || cfg.DerivedMediaTTLPeriod() != 0 {
+		t.Fatalf("disabled derived TTL: got %d and %v, want -1 and 0", cfg.DerivedMediaTTL, cfg.DerivedMediaTTLPeriod())
+	}
+
+	const body = `{"RecordingStorageSize": 6000, "RecordingRetention": 48, "DerivedMediaTTL": 60}`
+	if err := os.WriteFile(filepath.Join(dir, DefaultConfigFile), []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.RecordingStorageBytes() != 6000<<20 || cfg.RecordingRetentionPeriod() != 48*time.Hour ||
+		cfg.DerivedMediaTTLPeriod() != time.Hour {
+		t.Fatalf("got %d bytes, %v retention, %v derived TTL",
+			cfg.RecordingStorageBytes(), cfg.RecordingRetentionPeriod(), cfg.DerivedMediaTTLPeriod())
 	}
 }

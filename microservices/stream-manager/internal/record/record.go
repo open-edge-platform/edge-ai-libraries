@@ -34,9 +34,13 @@ var (
 	ErrConflict       = errors.New("recording cannot be changed in its current state")
 	ErrCapacity       = errors.New("recording capacity reached")
 	ErrCleanup        = errors.New("recording storage cleanup failed")
+	ErrFutureStart    = errors.New("start_ts is after the newest received video frame")
 )
 
-const recoveryBatchSize = 100
+const (
+	recoveryBatchSize = 100
+	expiryInterval    = 24 * time.Hour
+)
 
 // StartOptions describes one recording of a single attached stream.
 // TODO: accept several stream IDs and admit their recordings atomically.
@@ -57,8 +61,10 @@ type Service struct {
 	ffmpeg    string
 	ffprobe   string
 	max       int
+	retention time.Duration
 	jobs      map[string]*job
 	wg        sync.WaitGroup
+	done      chan struct{}
 	closed    bool
 	closeOnce sync.Once
 	closeErr  error
@@ -73,17 +79,22 @@ type job struct {
 	filename string
 	fixed    bool
 	stopped  bool
-	ctx      context.Context
-	cancel   context.CancelFunc
-	err      error
+	// truncated is set when the storage quota ends the recording early.
+	truncated bool
+	ctx       context.Context
+	cancel    context.CancelFunc
+	err       error
 }
 
 var _ Recorder = (*Service)(nil)
 
+// NewService recovers interrupted recordings and starts deleting expired ones.
+// A positive retention expires finished recordings that long after they end;
+// zero gives new recordings no expiry.
 func NewService(buffers stream.Bufferer, metadata storage.MetadataHandler, media storage.MediaHandler,
-	concurrentRecordings int,
+	concurrentRecordings int, retention time.Duration,
 ) (*Service, error) {
-	if concurrentRecordings < 1 || concurrentRecordings > 1024 {
+	if concurrentRecordings < 1 || concurrentRecordings > 1024 || retention < 0 {
 		return nil, ErrInvalidRequest
 	}
 	ffmpeg, err := exec.LookPath("ffmpeg")
@@ -96,12 +107,110 @@ func NewService(buffers stream.Bufferer, metadata storage.MetadataHandler, media
 	}
 	s := &Service{
 		buffers: buffers, metadata: metadata, media: media, ffmpeg: ffmpeg, ffprobe: ffprobe, max: concurrentRecordings,
-		jobs: make(map[string]*job), now: time.Now,
+		retention: retention, jobs: make(map[string]*job), done: make(chan struct{}), now: time.Now,
 	}
 	if err := s.recoverInterrupted(context.Background()); err != nil {
 		return nil, err
 	}
+	// Runs even without retention: rows expired under an earlier setting must still be deleted.
+	s.wg.Go(s.expireLoop)
 	return s, nil
+}
+
+// expiryTS returns when a recording that finishes now expires, or nil to keep it.
+func (s *Service) expiryTS() *time.Time {
+	if s.retention == 0 {
+		return nil
+	}
+	expiry := s.now().Add(s.retention).UTC()
+	return &expiry
+}
+
+func (s *Service) expireLoop() {
+	ticker := time.NewTicker(expiryInterval)
+	defer ticker.Stop()
+	for {
+		s.expireRecordings(context.Background())
+		s.cleanupOrphanedMedia(context.Background())
+		select {
+		case <-s.done:
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+func (s *Service) cleanupOrphanedMedia(ctx context.Context) {
+	media, err := s.media.ListMedia(ctx)
+	if err != nil {
+		slog.Error("list recording media for cleanup", "error", err)
+		return
+	}
+	for id, uri := range media {
+		if err := s.cleanupOrphan(ctx, id, uri); err != nil {
+			slog.Error("clean orphaned recording media", "recording_id", id, "error", err)
+		}
+	}
+}
+
+func (s *Service) cleanupOrphan(ctx context.Context, id, uri string) error {
+	// Start holds this lock while creating both the directory and its metadata.
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed || s.jobs[id] != nil {
+		return nil
+	}
+	_, err := s.metadata.GetMetadataByRecordingID(ctx, id)
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, storage.ErrNotFound) {
+		return err
+	}
+	if err := s.media.DeleteMedia(ctx, uri); err != nil && !errors.Is(err, storage.ErrMediaBusy) {
+		return err
+	}
+	return nil
+}
+
+// expireRecordings deletes the media and then the metadata of expired
+// recordings. A failed deletion keeps the metadata, so the next run retries it.
+func (s *Service) expireRecordings(ctx context.Context) {
+	cursor := ""
+	for {
+		records, next, err := s.metadata.ListMetadata(ctx,
+			model.RecordingFilter{ExpiryTS: s.now(), Limit: recoveryBatchSize, Cursor: cursor})
+		if err != nil {
+			slog.Error("list expired recordings", "error", err)
+			return
+		}
+		for _, rec := range records {
+			if err := s.expire(ctx, rec); err != nil {
+				slog.Error("delete expired recording", "recording_id", rec.RecordingID, "error", err)
+			}
+		}
+		if next == "" {
+			return
+		}
+		cursor = next
+	}
+}
+
+func (s *Service) expire(ctx context.Context, rec model.Recording) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed || s.jobs[rec.RecordingID] != nil {
+		return nil
+	}
+	if err := s.media.DeleteMedia(ctx, rec.RecordingPath); errors.Is(err, storage.ErrMediaBusy) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	if err := s.metadata.DeleteMetadata(ctx, rec.RecordingID); err != nil && !errors.Is(err, storage.ErrNotFound) {
+		return err
+	}
+	return nil
 }
 
 // recoverInterrupted fails the recordings that a previous run left unfinished and deletes their media.
@@ -117,7 +226,7 @@ func (s *Service) recoverInterrupted(ctx context.Context) error {
 				break
 			}
 			for _, rec := range records {
-				rec.State, rec.ErrorDetail = "failed", &detail
+				rec.State, rec.ErrorDetail, rec.ExpiryTS = "failed", &detail, s.expiryTS()
 				if _, err := s.metadata.UpdateMetadata(ctx, rec.RecordingID, rec); err != nil {
 					return err
 				}
@@ -141,7 +250,7 @@ func Seconds(value float64) (time.Duration, error) {
 
 // Start admits a recording of one stream; the requested history must be buffered.
 func (s *Service) Start(ctx context.Context, options StartOptions) (model.Recording, error) {
-	if options.StreamID == "" || options.StartTS.IsZero() || options.StartTS.After(s.now()) ||
+	if options.StreamID == "" || options.StartTS.IsZero() ||
 		options.PreEvent < 0 || options.PreEvent > 300*time.Second ||
 		(options.Duration != nil && *options.Duration <= 0) {
 		return model.Recording{}, ErrInvalidRequest
@@ -181,6 +290,9 @@ func (s *Service) Start(ctx context.Context, options StartOptions) (model.Record
 		info.BufferStat.OldestTS.IsZero() || start.Before(info.BufferStat.OldestTS) {
 		return model.Recording{}, stream.ErrHistoryUnavailable
 	}
+	if options.StartTS.After(info.BufferStat.LiveEdgeTS) {
+		return model.Recording{}, ErrFutureStart
+	}
 	workerCtx, cancel := context.WithCancel(context.Background())
 	lease, err := s.buffers.AcquireBuffer(workerCtx, info.StreamID, start, end)
 	if err != nil {
@@ -209,6 +321,9 @@ func (s *Service) Start(ctx context.Context, options StartOptions) (model.Record
 		return model.Recording{}, rollback(err)
 	}
 	j.id, j.uri, j.filename = shortID, uri, filename
+	if err := s.media.ReserveMedia(ctx, uri, 0); err != nil {
+		return model.Recording{}, rollback(err)
+	}
 	streamID := info.StreamID
 	j.record = model.Recording{
 		RecordingID: j.id, SensorID: info.SensorID, StreamID: &streamID,
@@ -262,10 +377,11 @@ func (s *Service) Stop(ctx context.Context, id string) (model.Recording, bool, e
 	if j.stopped {
 		return rec, true, nil
 	}
-	target := s.now().UTC()
-	if err := j.lease.SetEnd(target); err != nil {
+	target, err := j.lease.EndAtLiveEdge()
+	if err != nil {
 		return rec, false, err
 	}
+	target = target.UTC()
 	rec.State, rec.EndTS = "finalizing", &target
 	rec, err = s.metadata.UpdateMetadata(ctx, id, rec)
 	if err != nil {
@@ -317,14 +433,21 @@ func (s *Service) run(j *job) {
 	defer delete(s.jobs, j.record.RecordingID)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	j.record.ExpiryTS = s.expiryTS()
 	if err == nil {
 		j.record.StartTS, j.record.EndTS = start, &end
 		j.record.State, j.record.SizeBytes, j.record.Codec = "ready", &size, &codec
+		if j.truncated {
+			detail := "truncated: recording storage quota reached"
+			j.record.ErrorDetail = &detail
+		}
 		_, err = s.metadata.UpdateMetadata(ctx, j.record.RecordingID, j.record)
 	}
 	if err != nil {
 		detail := "recording could not be completed"
-		if errors.Is(err, stream.ErrSliceExpired) {
+		if errors.Is(err, storage.ErrStorageFull) {
+			detail = "recording storage quota reached"
+		} else if errors.Is(err, stream.ErrSliceExpired) {
 			detail = "a required buffer slice exceeded its retention grace period"
 		} else if errors.Is(err, stream.ErrSourceFailed) {
 			detail = "recording source became unavailable"
@@ -344,6 +467,7 @@ func (s *Service) Close() error {
 	s.closeOnce.Do(func() {
 		s.mu.Lock()
 		s.closed = true
+		close(s.done)
 		for _, j := range s.jobs {
 			j.cancel()
 		}
