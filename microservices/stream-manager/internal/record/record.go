@@ -34,7 +34,6 @@ var (
 	ErrConflict       = errors.New("recording cannot be changed in its current state")
 	ErrCapacity       = errors.New("recording capacity reached")
 	ErrCleanup        = errors.New("recording storage cleanup failed")
-	ErrFutureStart    = errors.New("start_ts is after the newest received video frame")
 )
 
 const (
@@ -250,7 +249,7 @@ func Seconds(value float64) (time.Duration, error) {
 
 // Start admits a recording of one stream; the requested history must be buffered.
 func (s *Service) Start(ctx context.Context, options StartOptions) (model.Recording, error) {
-	if options.StreamID == "" || options.StartTS.IsZero() ||
+	if options.StreamID == "" || options.StartTS.IsZero() || options.StartTS.After(s.now()) ||
 		options.PreEvent < 0 || options.PreEvent > 300*time.Second ||
 		(options.Duration != nil && *options.Duration <= 0) {
 		return model.Recording{}, ErrInvalidRequest
@@ -289,9 +288,6 @@ func (s *Service) Start(ctx context.Context, options StartOptions) (model.Record
 	if info.State != "buffering" || info.SyncConfidence != model.SyncNTPSynced ||
 		info.BufferStat.OldestTS.IsZero() || start.Before(info.BufferStat.OldestTS) {
 		return model.Recording{}, stream.ErrHistoryUnavailable
-	}
-	if options.StartTS.After(info.BufferStat.LiveEdgeTS) {
-		return model.Recording{}, ErrFutureStart
 	}
 	workerCtx, cancel := context.WithCancel(context.Background())
 	lease, err := s.buffers.AcquireBuffer(workerCtx, info.StreamID, start, end)
@@ -377,11 +373,10 @@ func (s *Service) Stop(ctx context.Context, id string) (model.Recording, bool, e
 	if j.stopped {
 		return rec, true, nil
 	}
-	target, err := j.lease.EndAtLiveEdge()
-	if err != nil {
+	target := s.now().UTC()
+	if err := j.lease.SetEnd(target); err != nil {
 		return rec, false, err
 	}
-	target = target.UTC()
 	rec.State, rec.EndTS = "finalizing", &target
 	rec, err = s.metadata.UpdateMetadata(ctx, id, rec)
 	if err != nil {

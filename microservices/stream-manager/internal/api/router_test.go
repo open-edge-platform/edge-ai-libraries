@@ -52,7 +52,7 @@ func TestStreamRoutes(t *testing.T) {
 			t.Error(err)
 		}
 	})
-	media, err := storage.OpenMediaStore(storageDir)
+	media, err := storage.OpenMediaStore(storageDir, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +61,7 @@ func TestStreamRoutes(t *testing.T) {
 			t.Error(err)
 		}
 	})
-	recordings, err := record.NewService(service, metadata, media, 64)
+	recordings, err := record.NewService(service, metadata, media, 64, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -54,7 +54,7 @@ func run() (errResult error) {
 		return err
 	}
 	defer func() { errResult = errors.Join(errResult, metadata.Close()) }()
-	media, err := storage.OpenMediaStore(cfg.StorageDir)
+	media, err := storage.OpenMediaStore(cfg.StorageDir, cfg.RecordingStorageBytes())
 	if err != nil {
 		return err
 	}
@@ -64,7 +64,7 @@ func run() (errResult error) {
 		return err
 	}
 	defer func() { errResult = errors.Join(errResult, buffers.Close()) }()
-	recordings, err := record.NewService(buffers, metadata, media, cfg.ConcurrentRecorders)
+	recordings, err := record.NewService(buffers, metadata, media, cfg.ConcurrentRecorders, cfg.RecordingRetentionPeriod())
 	if err != nil {
 		return err
 	}
