@@ -388,7 +388,7 @@ def results_collector(
         exporter.export(result_dict)
         html_content = generate_html_report([result_dict])
         html_path = output_dir / f"{benchmark_id}.html"
-        html_path.write_text(html_content)
+        html_path.write_text(html_content, encoding="utf-8")
         logger.info("Performance report: %s", html_path)
 
         if CREATE_LATEST_LINK:

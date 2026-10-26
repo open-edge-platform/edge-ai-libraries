@@ -36,19 +36,19 @@ debian_90_install_smart_parking () {
   if verify_smart_parking && [[ " $* " != *" --reinstall "* ]]; then
     echo "Smart parking is installed." >&2
   else
+    echo "@@STEP @@IF ^docker compose down @@THEN Stopping all apps"
     ensure_disk_size 300
     ensure_ports_open install smart_parking "${used_ports[@]}"
 
     # clone the repository
-    echo "@@STEP Clone git repository"
+    echo "@@STEP Cloning repository"
     ensure_git_export "$workspace" $version $repository metro-vision-ai-app-recipe
 
     # setup
-    echo "@@STEP Setup sample" 
-    echo "@@STEP @@IF ^docker compose down @@THEN Stopping all apps"
+    echo "@@STEP Setting up sample" 
     echo "@@STEP @@IF ^Attempt : Running model download and quantization @@THEN Preparing model download"
     echo "@@STEP @@IF ^Downloading and converting:.*[/]([a-z0-9]+)$ @@THEN Downloading \\1"
-    echo "@@STEP @@IF ^Starting ([A-Z0-9]+) quantization for ([a-z0-9]+) @@THEN Quantizing \\2 to \\1"
+    echo "@@STEP @@IF Starting ([A-Z0-9]+) quantization for ([a-z0-9]+) @@THEN Quantizing \\2 to \\1"
     echo "@@STEP @@IF ^Download ([a-z0-9_]+.mp4)[.][.][.] @@THEN Downloading \\1"
     cd "$workspace/metro-vision-ai-app-recipe"
     sed -i 's|curl | curl -f |' smart-parking/install.sh
@@ -59,7 +59,7 @@ debian_90_install_smart_parking () {
   local device=$(ensure_select_device "$@")
   echo "$device" > "$workspace"/.device
 
-  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
   echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]" 
   echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]" 
   echo "@@HIGHLIGHT $installer_name remove"
