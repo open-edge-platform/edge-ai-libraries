@@ -5,5 +5,5 @@
   "ConcurrentRecorders": 10,
   "RecordingStorageSize": 10240,
   "RecordingRetention": 0,
-  "DerivedMediaTTL": -1
+  "DerivedMediaTTL": 0
 }

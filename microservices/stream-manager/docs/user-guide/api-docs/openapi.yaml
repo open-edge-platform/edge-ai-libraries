@@ -788,7 +788,7 @@ paths:
     get:
       tags: [Retrieval APIs]
       summary: Gets a produced frame or clip
-      description: Serves the bytes of a frame or clip named by a MediaResult's url. The file expires after DerivedMediaTTL minutes, independent of the recording's expiry_ts. Automatic recording expiry removes source media but preserves derived files. When DerivedMediaTTL is -1, the file stays available after automatic recording expiry. Manual recording deletion removes derived files. expiry_ts is null when the TTL is disabled.
+      description: Serves the bytes of a frame or clip named by a MediaResult's url. The file expires after DerivedMediaTTL minutes, independent of the recording's expiry_ts. Automatic recording expiry removes source media but preserves derived files. When DerivedMediaTTL is 0, the file stays available after automatic recording expiry. Manual recording deletion removes derived files. expiry_ts is null when the TTL is disabled.
       parameters:
         - $ref: '#/components/parameters/RecordingId'
         - name: file

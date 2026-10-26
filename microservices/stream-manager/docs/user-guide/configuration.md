@@ -23,8 +23,8 @@ This page lists each setting, its purpose, and its default value.
 | `StorageDir` | string | — | `~/.local/share/stream-manager` | Directory where the database and recordings are stored. |
 | `ConcurrentRecorders` | integer | count | `10` | Maximum number of recordings that can run at the same time. |
 | `RecordingStorageSize` | integer | megabytes | `10240` | Storage quota for recorded media and the frames and clips cut from it. Must be between 5120 and 1073741824. |
-| `RecordingRetention` | integer | hours | `0` | Time after which retrieval of a finished or failed recording becomes unavailable. `0` does not set an expiry time. Must be between 0 and 87600. |
-| `DerivedMediaTTL` | integer | minutes | `-1` | Time before a frame or clip URL expires. Set to `-1` to disable expiry. Otherwise, use a value between 1 and 1440. |
+| `RecordingRetention` | integer | hours | `0` | Time after which retrieval of a finished or failed recording becomes unavailable. `0` does not set an expiry time. Must be between 0 and 360. |
+| `DerivedMediaTTL` | integer | minutes | `0` | Time before a frame or clip URL expires. Set to `0` to disable expiry. Otherwise, use a value between 1 and 1440. |
 
 ### Storage quota
 
@@ -53,7 +53,7 @@ Set it to `0` to disable recording expiry.
 ### Frame and clip lifetime
 
 `DerivedMediaTTL` controls how long frame and clip URLs remain available. This expiry
-is independent of recording expiry. Set it to `-1` to disable derived-media expiry.
+is independent of recording expiry. Set it to `0` to disable derived-media expiry.
 
 ## Example
 
@@ -65,7 +65,7 @@ is independent of recording expiry. Set it to `-1` to disable derived-media expi
   "ConcurrentRecorders": 10,
   "RecordingStorageSize": 10240,
   "RecordingRetention": 0,
-  "DerivedMediaTTL": -1
+  "DerivedMediaTTL": 0
 }
 ```
 

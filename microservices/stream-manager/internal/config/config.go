@@ -14,20 +14,19 @@ import (
 )
 
 const (
-	DefaultConfigFile   = "config.json" // relative to the CWD; override via SM_CONFIG_FILE.
-	DefaultHTTPAddr     = ":8080"       // override via config.json or SM_HTTP_ADDR if set.
-	DefaultStorageDir   = "~/.local/share/stream-manager"
-	DefaultBufferDir    = "/dev/shm/stream-manager"
-	DefaultBufferLength = 30 * time.Second
-	MaxBufferLength     = 300 * time.Second
-	MinBufferLength     = 5 * time.Second
-	DefaultStorageSize  = 10240   // MegaBytes; ~10 GB
-	MinStorageSize      = 5120    // MegaBytes; ~5 GB
-	MaxStorageSize      = 1 << 30 // MegaBytes; 1 PiB, keeps the byte count far below int64 overflow
-	ConcurrentRecorders = 10
-	MaxRetentionHours   = 10 * 365 * 24
-	DefaultDerivedTTL   = -1      // Disabled
-	MaxDerivedTTL       = 24 * 60 // Minutes; 1 day
+	DefaultConfigFile     = "config.json" // relative to the CWD; override via SM_CONFIG_FILE.
+	DefaultHTTPAddr       = ":8080"       // override via config.json or SM_HTTP_ADDR if set.
+	DefaultStorageDir     = "~/.local/share/stream-manager"
+	DefaultBufferDir      = "/dev/shm/stream-manager"
+	DefaultBufferLength   = 30 * time.Second
+	MaxBufferLength       = 300 * time.Second
+	MinBufferLength       = 5 * time.Second
+	DefaultStorageSize    = 10240   // MegaBytes; ~10 GB
+	MinStorageSize        = 5120    // MegaBytes; ~5 GB
+	MaxStorageSize        = 1 << 30 // MegaBytes; 1 PiB, keeps the byte count far below int64 overflow
+	ConcurrentRecorders   = 10
+	MaxRecordingRetention = 15 * 24 * time.Hour
+	MaxDerivedMediaTTL    = 24 * time.Hour
 )
 
 type Config struct {
@@ -36,9 +35,9 @@ type Config struct {
 	BufferDir            string
 	StorageDir           string // Override via config.json or SM_DATA_DIR if set.
 	ConcurrentRecorders  int
-	RecordingStorageSize int
-	RecordingRetention   int // Hours a finished recording is kept; 0 keeps it until deleted.
-	DerivedMediaTTL      int // Minutes a cut frame or clip is kept; -1 disables the TTL.
+	RecordingStorageSize int64         // Bytes allocated to recordings and derived media.
+	RecordingRetention   time.Duration // Zero keeps finished recordings until deleted.
+	DerivedMediaTTL      time.Duration // Zero disables the TTL for derived media.
 }
 
 // Load reads the configuration from config.json (or the file named by SM_CONFIG_FILE),
@@ -49,8 +48,7 @@ func Load() (Config, error) {
 		BufferLength:         DefaultBufferLength,
 		StorageDir:           DefaultStorageDir,
 		ConcurrentRecorders:  ConcurrentRecorders,
-		RecordingStorageSize: DefaultStorageSize,
-		DerivedMediaTTL:      DefaultDerivedTTL,
+		RecordingStorageSize: int64(DefaultStorageSize) << 20,
 	}
 
 	// look for config file provided via env var
@@ -67,10 +65,31 @@ func Load() (Config, error) {
 	if data, errFile := os.ReadFile(configFile); errFile == nil {
 		if err := json.Unmarshal(data, &cfg); err != nil {
 			slog.Warn("Invalid config file. Continuing with default config value.", "path", configFile, "error", err)
-		} else if hasKey(data, "BufferLength") {
-			// config.json expresses BufferLength in whole seconds, but time.Duration keeps ns.
-			// once we confirm config.json had BufferLength we convert it to ns.
-			cfg.BufferLength *= time.Second
+		} else {
+			if hasKey(data, "BufferLength") {
+				cfg.BufferLength *= time.Second
+			}
+			if hasKey(data, "RecordingStorageSize") {
+				if cfg.RecordingStorageSize < MinStorageSize || cfg.RecordingStorageSize > MaxStorageSize {
+					return Config{}, fmt.Errorf("recording storage size must be between %d and %d MB", MinStorageSize, MaxStorageSize)
+				}
+				cfg.RecordingStorageSize <<= 20
+			}
+			if hasKey(data, "RecordingRetention") {
+				maxRetentionHours := int(MaxRecordingRetention / time.Hour)
+				if cfg.RecordingRetention < 0 || cfg.RecordingRetention > time.Duration(maxRetentionHours) {
+					return Config{}, fmt.Errorf("recording retention must be between 0 and %d hours", maxRetentionHours)
+				}
+				cfg.RecordingRetention *= time.Hour
+			}
+			if hasKey(data, "DerivedMediaTTL") {
+				maxDerivedTTLMinutes := int(MaxDerivedMediaTTL / time.Minute)
+				if cfg.DerivedMediaTTL < 0 ||
+					cfg.DerivedMediaTTL > time.Duration(maxDerivedTTLMinutes) {
+					return Config{}, fmt.Errorf("derived media TTL must be 0 or between 1 and %d minutes", maxDerivedTTLMinutes)
+				}
+				cfg.DerivedMediaTTL *= time.Minute
+			}
 		}
 	} else {
 		slog.Warn("Failed to read config file. Continuing with default config value.", "path", configFile, "error", errFile)
@@ -90,17 +109,8 @@ func Load() (Config, error) {
 	if cfg.BufferLength < MinBufferLength || cfg.BufferLength > MaxBufferLength {
 		return Config{}, fmt.Errorf("buffer length can not be less than %v or greater than %v", MinBufferLength, MaxBufferLength)
 	}
-
-	if cfg.RecordingStorageSize < MinStorageSize || cfg.RecordingStorageSize > MaxStorageSize {
+	if cfg.RecordingStorageSize < int64(MinStorageSize)<<20 || cfg.RecordingStorageSize > int64(MaxStorageSize)<<20 {
 		return Config{}, fmt.Errorf("recording storage size must be between %d and %d MB", MinStorageSize, MaxStorageSize)
-	}
-
-	if cfg.RecordingRetention < 0 || cfg.RecordingRetention > MaxRetentionHours {
-		return Config{}, fmt.Errorf("recording retention must be between 0 and %d hours", MaxRetentionHours)
-	}
-
-	if cfg.DerivedMediaTTL < -1 || cfg.DerivedMediaTTL == 0 || cfg.DerivedMediaTTL > MaxDerivedTTL {
-		return Config{}, fmt.Errorf("derived media TTL must be -1 or between 1 and %d minutes", MaxDerivedTTL)
 	}
 
 	if storageDir, err := expandHome(cfg.StorageDir); err == nil {
@@ -115,25 +125,6 @@ func Load() (Config, error) {
 	return cfg, nil
 }
 
-// RecordingStorageBytes returns the recording storage quota in bytes.
-func (c Config) RecordingStorageBytes() int64 {
-	return int64(c.RecordingStorageSize) << 20
-}
-
-// RecordingRetentionPeriod returns how long a finished recording is kept; 0 keeps it until deleted.
-func (c Config) RecordingRetentionPeriod() time.Duration {
-	return time.Duration(c.RecordingRetention) * time.Hour
-}
-
-// DerivedMediaTTLPeriod returns how long a cut frame or clip is kept; zero disables the TTL.
-func (c Config) DerivedMediaTTLPeriod() time.Duration {
-	if c.DerivedMediaTTL == -1 {
-		return 0
-	}
-	return time.Duration(c.DerivedMediaTTL) * time.Minute
-}
-
-// hasKey verifies whether the top-level JSON object in data contains a given key.
 func hasKey(data []byte, key string) bool {
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(data, &raw); err != nil {

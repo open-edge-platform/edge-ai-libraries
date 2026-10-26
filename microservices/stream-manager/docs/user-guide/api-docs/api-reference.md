@@ -470,8 +470,6 @@ Saves the video around an event from one attached stream. If the stream lacks th
 requested history, no record is created. Video is copied as whole keyframe-aligned
 MPEG-TS slices without re-encoding; the stored window can extend to the enclosing
 keyframes, and `ready` records report those actual bounds.
-Stream Manager preserves the input time base when it copies video with FFmpeg.
-This prevents timestamp rounding during the copy.
 
 **Request body — `RecordStart`**
 
@@ -941,7 +939,7 @@ Serves the bytes of a frame or clip named by a `MediaResult`'s `url`. When
 `DerivedMediaTTL` is greater than `0`, the file is available for that many minutes
 after it is cut. This TTL is independent of the recording's `expiry_ts`. Automatic
 recording expiry removes the source media and metadata, but leaves derived files
-available. Set `DerivedMediaTTL` to `-1` to disable this TTL. In that case, the file
+available. Set `DerivedMediaTTL` to `0` to disable this TTL. In that case, the file
 stays available after automatic recording expiry. Deleting a recording through the
 API removes its derived files. `expiry_ts` is `null` when the TTL is disabled. Expired
 derived files remain stored until cleanup is implemented and continue to count toward
