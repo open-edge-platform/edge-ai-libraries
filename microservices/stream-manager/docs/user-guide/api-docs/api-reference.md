@@ -193,7 +193,7 @@ Returned by `DELETE /streams/{stream-id}` and `DELETE /records/{recording-id}`.
 |---|---|---|
 | `resource` | string | `stream` or `recording`. |
 | `id` | string | Which resource was deleted. |
-| `deleted` | boolean | Always `true`. For a recording, metadata deletion has finished; media cleanup can finish later. |
+| `deleted` | boolean | Always `true`, sent only once the deletion has finished. |
 
 ```json
 { "resource": "recording", "id": "rec-2", "deleted": true }
@@ -476,7 +476,7 @@ keyframes, and `ready` records report those actual bounds.
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `stream_id` | string | yes | The attached stream to record. |
-| `start_ts` | string (date-time) | yes | The moment the event happened (T), on the source clock. Cannot be later than the newest video frame from the source. |
+| `start_ts` | string (date-time) | yes | The moment the event happened (T). Cannot be later than the newest video frame from the source. |
 | `duration` | number | no | Positive seconds to record after T. Omit for an open recording ended later with `/records/stop`. |
 | `pre_event_duration` | number | no | Seconds of history before T to keep, 0-300, default 0. Must already be in the buffer. |
 | `metadata` | object | no | Arbitrary metadata to store with the record. |
@@ -578,9 +578,8 @@ Content-Type: application/json
 
 `POST /records/stop`
 
-Stops an open recording. The stop time is the time of the newest video frame from
-the source, on the source clock. The host clock is not used. The stop time is fixed
-and does not move if the request is repeated. An already finished recording returns `200` with the current record.
+Stops an open recording. The stop time is fixed and does not move if the request is
+repeated. An already finished recording returns `200` with the current record.
 
 **Request body — `RecordStop`**
 
@@ -773,9 +772,7 @@ Content-Type: application/json
 Deletes the record's metadata first, then attempts to delete its media. If metadata
 deletion fails, the request returns `503` and the media stays unchanged.
 If media deletion fails or an extraction still uses the media, the request returns
-`200`. If media remains after the request, it continues to count toward the storage
-quota.
-Deleting again, or reading the deleted recording, returns `404`.
+`200`. Deleting again, or reading the deleted recording, returns `404`.
 
 ```bash
 curl -i -X DELETE http://localhost:8080/v1/records/rec-2
@@ -935,16 +932,10 @@ curl -i "http://localhost:8080/v1/retrieve/rec-2/clip?start_ts=2026-09-16T09:12:
 
 `GET /media/{recording-id}/{file}`
 
-Serves the bytes of a frame or clip named by a `MediaResult`'s `url`. When
-`DerivedMediaTTL` is greater than `0`, the file is available for that many minutes
-after it is cut. This TTL is independent of the recording's `expiry_ts`. Automatic
-recording expiry removes the source media and metadata, but leaves derived files
-available. Set `DerivedMediaTTL` to `0` to disable this TTL. In that case, the file
-stays available after automatic recording expiry. Deleting a recording through the
-API removes its derived files. `expiry_ts` is `null` when the TTL is disabled. Expired
-derived files remain stored until cleanup is implemented and continue to count toward
-the storage quota. See
-[Configuration](../configuration.md#frame-and-clip-lifetime).
+Serves a derived frame or clip. `DerivedMediaTTL` sets how many minutes it remains
+available. Set it to `0` to disable expiry. Recording expiry does not affect derived
+media, but deleting the recording removes it. `expiry_ts` is `null` when expiry is
+disabled. See [Configuration](../configuration.md#frame-and-clip-lifetime).
 
 | Parameter | In | Type | Required | Description |
 |---|---|---|---|---|

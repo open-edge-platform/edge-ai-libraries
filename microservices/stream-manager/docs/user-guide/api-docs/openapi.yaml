@@ -234,7 +234,7 @@ paths:
         | Field | Type | Required | Unit / range |
         |---|---|---|---|
         | stream_id | string | yes | — |
-        | start_ts | string (date-time) | yes | RFC 3339 UTC timestamp on the source clock, cannot be later than the newest video frame |
+        | start_ts | string (date-time) | yes | RFC 3339 UTC timestamp, cannot be later than the newest video frame |
         | duration | number | no | positive seconds, fixed-length recording when given |
         | pre_event_duration | number | no | seconds, 0-300, default 0 |
         | metadata | object | no | arbitrary key-value pairs |
@@ -307,7 +307,7 @@ paths:
       tags: [Recording Storage APIs]
       summary: Stop an open recording
       description: |-
-        Stops an open recording. The stop time is the time of the newest video frame from the source, on the source clock. The host clock is not used. The stop time is fixed and does not move if the request is repeated. An already finished recording returns 200 with the current record.
+        Stops an open recording. The stop time is fixed and does not move if the request is repeated. An already finished recording returns 200 with the current record.
 
         | Field | Type | Required | Unit / range |
         |---|---|---|---|
@@ -461,7 +461,7 @@ paths:
     delete:
       tags: [Recording Storage APIs]
       summary: Delete a record
-      description: Deletes metadata first, then attempts media deletion. Metadata deletion failure returns 503 and keeps the media. Media deletion failure or an active extraction still returns 200. Remaining media counts toward quota. Deleting again, or reading a deleted record, returns 404.
+      description: Deletes metadata first, then attempts media deletion. Metadata deletion failure returns 503 and keeps the media. Media deletion failure or an active extraction still returns 200. Deleting again, or reading a deleted record, returns 404.
       parameters:
         - $ref: '#/components/parameters/RecordingId'
       responses:
@@ -788,7 +788,7 @@ paths:
     get:
       tags: [Retrieval APIs]
       summary: Gets a produced frame or clip
-      description: Serves the bytes of a frame or clip named by a MediaResult's url. The file expires after DerivedMediaTTL minutes, independent of the recording's expiry_ts. Automatic recording expiry removes source media but preserves derived files. When DerivedMediaTTL is 0, the file stays available after automatic recording expiry. Manual recording deletion removes derived files. expiry_ts is null when the TTL is disabled.
+      description: Serves a derived frame or clip. DerivedMediaTTL sets how many minutes it remains available; 0 disables expiry. Recording expiry does not affect derived media, but deleting the recording removes it. expiry_ts is null when expiry is disabled.
       parameters:
         - $ref: '#/components/parameters/RecordingId'
         - name: file
@@ -1234,7 +1234,7 @@ components:
           description: Which resource was deleted.
         deleted:
           type: boolean
-          description: Always true, and sent only once the deletion has finished.
+          description: Always true, sent only once the deletion has finished.
       example:
         resource: recording
         id: rec-2
