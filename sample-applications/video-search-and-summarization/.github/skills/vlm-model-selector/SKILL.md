@@ -16,7 +16,9 @@ SPDX-License-Identifier: Apache-2.0
 
 Pick a Vision-Language Model for a user's vision analytics task by eliciting task
 requirements, searching the Hugging Face hub, cross-referencing a benchmark
-leaderboard and the OpenVINO GenAI supported-models list for compute fit, and
+leaderboard and the
+[OpenVINO supported-models page](https://docs.openvino.ai/nightly/documentation/compatibility-and-support/supported-models.html)
+for compute fit, and
 checking the actual license terms — then return a ranked shortlist with
 rationale, not a single unexplained answer. Covers both Core Ultra's
 integrated NPU/iGPU and Intel's discrete GPUs in the Xe architecture series
@@ -30,7 +32,11 @@ hardware-vendor-maintained compatibility list before investing analysis time in
 them. See `references/` for supporting data backing this skill's design.
 
 Requires network access to huggingface.co (model hub, model cards) and the
-OpenVINO GenAI documentation site; no special tooling is needed beyond web
+canonical OpenVINO supported-models page
+(https://docs.openvino.ai/nightly/documentation/compatibility-and-support/supported-models.html)
+— always fetch this exact URL when checking compute-fit/architecture support,
+rather than a remembered or guessed OpenVINO documentation URL, since OpenVINO
+reorganizes its docs between releases; no special tooling is needed beyond web
 fetch.
 
 ## When to Use
@@ -118,8 +124,9 @@ matching branch:
    useful, immediate sibling sizes of the same family if the user seems open
    to that — confirm before adding any model they didn't name).
 3. Apply the same gates and review as the open-search branch, just scoped to
-   this list: compute-fit tiering (**Validated** — on the OpenVINO GenAI
-   supported-models list; **Plausible** — architecture resembles a listed one;
+   this list: compute-fit tiering (**Validated** — on the
+   [OpenVINO supported-models page](https://docs.openvino.ai/nightly/documentation/compatibility-and-support/supported-models.html);
+   **Plausible** — architecture resembles a listed one;
    **Unknown** — novel/unrecognized architecture, flag as needing an export
    feasibility probe) and license bucketing (`references/license-taxonomy.md`
    — default an unrecognized or missing license to **not usable** until the
@@ -163,7 +170,9 @@ matching branch:
      unrecognized or missing license to **not usable** until the text is
      actually read.
    - **Compute-fit tier** — **Validated** (architecture explicitly on the
-     OpenVINO GenAI supported-models list), **Plausible** (architecture class
+     [OpenVINO supported-models page](https://docs.openvino.ai/nightly/documentation/compatibility-and-support/supported-models.html)
+     — fetch this exact URL, don't rely on a remembered support list),
+     **Plausible** (architecture class
      resembles a listed one, e.g. a fine-tune of an already-supported base),
      or **Unknown** (novel architecture).
    Cut the list to roughly 8–10 candidates that pass the license gate and are

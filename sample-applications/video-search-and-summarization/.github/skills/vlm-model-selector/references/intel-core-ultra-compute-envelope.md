@@ -8,7 +8,11 @@ SPDX-License-Identifier: Apache-2.0
 **Snapshot date:** 2026-10-23. Re-verify current generation specs and OpenVINO
 device support before relying on this for a production decision — Intel ships
 new Core Ultra and Arc GPU generations roughly annually, and NPU/GPU driver
-and OpenVINO support matures after hardware launch.
+and OpenVINO support matures after hardware launch. For architecture/model
+compute-fit specifically, the canonical source is the
+[OpenVINO supported-models page](https://docs.openvino.ai/nightly/documentation/compatibility-and-support/supported-models.html)
+— always fetch that exact URL live rather than a remembered or guessed
+OpenVINO docs URL.
 
 ## Core Ultra generations at a glance (integrated NPU/iGPU)
 

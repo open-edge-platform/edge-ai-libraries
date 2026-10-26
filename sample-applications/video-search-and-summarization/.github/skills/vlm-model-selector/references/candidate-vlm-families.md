@@ -5,8 +5,11 @@ SPDX-License-Identifier: Apache-2.0
 
 # Candidate VLM Families — Seed Shortlist
 
-**Snapshot date:** 2026-10-13, cross-referenced against the OpenVINO GenAI
-supported-models page and general Hub popularity at time of writing. This is a
+**Snapshot date:** 2026-10-13, cross-referenced against the canonical
+[OpenVINO supported-models page](https://docs.openvino.ai/nightly/documentation/compatibility-and-support/supported-models.html)
+and general Hub popularity at time of writing. Always re-fetch that exact URL
+live rather than relying on this snapshot or a remembered/guessed OpenVINO
+docs URL — OpenVINO reorganizes its documentation between releases. This is a
 **starting seed list only** — re-verify license, size variants, and OpenVINO
 export notes live before recommending, since families release new sizes and
 license terms can differ by size within the same family.
