@@ -45,16 +45,6 @@ recordings or set `RecordingRetention`.
 > The quota does not include the database file. A recording can go above the quota by
 > a small amount when FFmpeg finishes the file.
 
-### Recording retention
-
-`RecordingRetention` sets when retrieval expires for finished and failed recordings.
-Set it to `0` to disable recording expiry.
-
-### Frame and clip lifetime
-
-`DerivedMediaTTL` controls how long frame and clip URLs remain available. This expiry
-is independent of recording expiry. Set it to `0` to disable derived-media expiry.
-
 ## Example
 
 ```json
