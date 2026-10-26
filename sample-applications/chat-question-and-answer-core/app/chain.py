@@ -384,9 +384,12 @@ def answer_with_sources(query: str):
 
 def _generate(prompt_text: str, streamer, cancel: threading.Event, errors: list) -> None:
     try:
-        with _generation_lock:
+        while not _generation_lock.acquire(timeout=0.1):
             if cancel.is_set():
-                pass
+                return
+        try:
+            if cancel.is_set():
+                return
             elif _is_genai():
                 llm.stream_text(
                     prompt_text, on_text=streamer.put, cancel=cancel, max_new_tokens=config.MAX_TOKENS
@@ -405,6 +408,8 @@ def _generate(prompt_text: str, streamer, cancel: threading.Event, errors: list)
                     max_new_tokens=config.MAX_TOKENS,
                     return_full_text=False,
                 )
+        finally:
+            _generation_lock.release()
     except Exception as exc:
         errors.append(exc)
     finally:
