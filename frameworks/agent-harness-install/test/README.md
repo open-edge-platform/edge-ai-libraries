@@ -16,6 +16,11 @@ succeeded.
 
 ## Offline PR gate
 
+See the [unit and offline regression test catalogue](unit-tests.md) for
+individual cases, objectives, execution commands and runtime-dependent skips.
+The catalogue separates fixture-based assertions from real local checks and
+does not claim live sandbox or browser acceptance.
+
 Requirements: Linux, Bash, Node.js 24 and standard command-line tools.
 No Docker daemon, OpenShell installation, GPU, model download or external network
 is required. HTTP response tests use a temporary server bound to host loopback.
@@ -40,7 +45,7 @@ bash test/openshell-test.sh | tee openshell-offline.tap
 | Managed inference | OpenShell Qwen3.5 default and snapshot exporter, native OVMS graph generation, host compatibility, explicit overrides, persisted selection, fresh-only provisioning, partial deployment refusal, managed OVMS readiness/network/publication, both proxy bypass variables |
 | Model lifecycle | Source/export option roundtrip, coordinated two-agent switch, original environment overridden after restart, token/history preservation, pending-switch retry and conflict rejection, legacy-image preflight, full/scoped uninstall and OpenShell package ownership safeguards |
 | Local-model defaults | Exact Qwen context/output/thinking/sampling/prompt settings, idempotence, explicit overrides and later edits, selection-only isolation, removal on model switch, non-Qwen preservation |
-| Hermes browser policy | Hermes policy differs from the base only by sandbox-local `/dev/ptmx` and `/dev/pts` write access; installer selects it only for Hermes |
+| Interactive agent policy | Interactive policy differs from the base only by sandbox-local `/dev/ptmx` and `/dev/pts` write access; installer selects it for Hermes and Deep Agents Code, while OpenClaw uses the base policy |
 | CLI safety | Help, invalid runtime, missing option values rejected without hanging, host connect rejection, interactive connections without deployment locking, Docker-group reexecution before locking, explicit sandbox deletion consent and host-only deletion flags |
 | Cleanup safeguards | Deletion order, archived records, unowned-resource refusal, pending deletion retaining provider/identity, global runtime removal blocked by sandbox/provider resources across all workspaces and incomplete resource lists |
 | Test infrastructure | Intermediate assertion failures produce a nonzero suite result; live suite requires explicit opt-in |
@@ -64,6 +69,10 @@ into request overrides without inference/network access. Config checks are not
 proof of chat quality, latency or model-driven tool use.
 
 ## Opt-in prepared-runner gate
+
+See the [live integration test catalogue](integration-tests.md) for individual
+cases and objectives, when to execute, manual/CI execution steps, cleanup and
+the limits of the evidence these tests provide.
 
 Requirements:
 
@@ -94,9 +103,10 @@ The IR and denied direct-OVMS ports must differ.
 | Area | Automated assertions |
 |---|---|
 | Prerequisites | Gateway health, exact model discovery and loopback-only IR publication |
-| Installation | Both images build, sandboxes become Ready, native inference checks pass |
+| Installation | All three agent images build, sandboxes become Ready, native inference checks pass |
 | Local-model defaults | Disposable network-isolated built Hermes image must run all defaults cases, including native YAML and provider request mapping (no runtime-dependent skips) |
 | Hermes browser terminal | Real sandbox Python can allocate and close a PTY; this is a prerequisite check, not an automated dashboard/browser chat turn |
+| Deep Agents Code terminal | Real sandbox Python can allocate and close a PTY for the interactive terminal |
 | Dispatch/idempotence | Status works; repeat installation preserves sandbox identity |
 | Drift prevention | An unserved `HARNESS_LLM_MODEL` environment override fails rather than silently selecting another model; explicit CLI model switches are covered by offline lifecycle fixtures |
 | Boundaries | Non-root runtime, host agent homes/host-only marker/Docker socket absence, exact workspace read/write, IR allowed and direct OVMS connection denied |
