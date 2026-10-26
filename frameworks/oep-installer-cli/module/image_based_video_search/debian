@@ -70,7 +70,7 @@ EOF
     verify_image_based_video_search
   fi
 
-  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
   echo "@@HIGHLIGHT start|stop|remove"
 }
 

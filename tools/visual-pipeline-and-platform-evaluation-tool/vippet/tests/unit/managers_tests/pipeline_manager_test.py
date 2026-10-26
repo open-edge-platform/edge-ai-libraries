@@ -1968,9 +1968,8 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
         self.assertIn(pipeline_id, pipeline_cmd.metadata_file_paths)
         self.assertEqual(len(pipeline_cmd.metadata_file_paths[pipeline_id]), 2)
 
-    def test_metadata_mode_file_only_injects_paths_for_first_stream(self):
-        """Metadata paths must be returned as a single list regardless of stream count
-        (injection happens only for stream_index 0)."""
+    def test_metadata_mode_file_injects_unique_paths_for_all_streams(self):
+        """Each stream must have a distinct metadata file for every publisher."""
         pipeline_id = "/pipelines/with-publish/variants/cpu"
         specs = [
             InternalPipelinePerformanceSpec(
@@ -1988,9 +1987,12 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
             specs, execution_config, self.job_id
         )
 
-        # Paths list length equals number of gvametapublish nodes, NOT stream count
         self.assertIn(pipeline_id, pipeline_cmd.metadata_file_paths)
-        self.assertEqual(len(pipeline_cmd.metadata_file_paths[pipeline_id]), 1)
+        paths = pipeline_cmd.metadata_file_paths[pipeline_id]
+        self.assertEqual(len(paths), 3)
+        self.assertEqual(len(paths), len(set(paths)))
+        for path in paths:
+            self.assertIn(path, pipeline_cmd.command)
 
     def test_metadata_mode_file_multiple_pipelines_get_independent_paths(self):
         """Each pipeline in a multi-pipeline spec gets its own entry in metadata_file_paths."""

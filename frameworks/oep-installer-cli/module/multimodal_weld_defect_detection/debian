@@ -72,7 +72,7 @@ EOF
   local device=$(ensure_select_device "$@")
   configure_multimodal_weld_defect_detection_device "$device"
 
-  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
   echo "@@HIGHLIGHT $installer_name start [--gpu|cpu]"
   echo "@@HIGHLIGHT $installer_name remove" 
 }

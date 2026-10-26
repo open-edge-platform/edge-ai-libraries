@@ -1,0 +1,26 @@
+
+debian_25_profile_linux_image_generic_7.0 () {
+  echo "reboot"
+}
+
+debian_25_install_linux_image_generic_7.0 () {
+  if [[ "$(uname -r)" = 7.0.* ]]; then
+    echo "kernel 7.0 is installed" >&2
+  else
+    echo "@@STEP Installing linux-image-generic-7.0" 
+    ensure_apt install linux-image-generic-7.0
+
+    # set grub default
+    local pkgver="$(apt policy linux-image-generic-7.0 2> /dev/null | grep -m1 Candidate: | cut -f2 -d: | cut -f1-3 -d. | tr -d ' ')-generic"
+    ensure_grub_set_default_entry $pkgver
+    ensure_grub_set_kernel_args GRUB_CMDLINE_LINUX xe.max_vfs=7 "xe.force_probe=*" modprobe.blacklist=i915 udmabuf.list_limit=8192
+
+    # schedule reboot"
+    configure_reboot
+  fi
+}
+
+debian_25_sbom_linux_image_generic_7.0 () {
+  ensure_sbom_format pkg-list linux-image-generic-7.0
+}
+
