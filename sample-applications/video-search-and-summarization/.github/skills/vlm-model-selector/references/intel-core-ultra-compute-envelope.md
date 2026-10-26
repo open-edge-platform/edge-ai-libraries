@@ -19,8 +19,16 @@ OpenVINO docs URL.
 | Generation | Codename | NPU | iGPU | Typical RAM (shared with GPU/NPU) |
 |---|---|---|---|---|
 | Core Ultra Series 1 | Meteor Lake | NPU 3 (~10–11 TOPS) | Arc (Xe-LPG), up to 8 Xe-cores | 16–32 GB |
-| Core Ultra Series 2 | Lunar Lake (mobile) / Arrow Lake (desktop/HX) | NPU 4 (~40–48 TOPS on Lunar Lake) | Arc (Xe2), up to 8 Xe2-cores | 16–32 GB (Lunar Lake: on-package LPDDR5X) |
+| Core Ultra Series 2 | Lunar Lake (mobile) | NPU 4 (~40–48 TOPS) | Arc (Xe2), up to 8 Xe2-cores | 16–32 GB on-package LPDDR5X (fixed, not user-upgradable) |
+| Core Ultra Series 2 | Arrow Lake (desktop/HX) | NPU 3 (~13 TOPS) — same NPU generation and a similar TOPS class as Meteor Lake, well below Lunar Lake's NPU 4 | Arc (Xe-LPG), not Xe2 — fewer Xe-cores than Lunar Lake (desktop: up to 4 Xe-cores; HX mobile: up to 8 Xe-cores) | Desktop: user-upgradable DDR5 system RAM, typically 32–128 GB+, shared with the iGPU; HX mobile: 16–32 GB shared RAM |
 | Core Ultra Series 3 | Panther Lake | NPU 5 (~50 TOPS class) | Arc (Xe3) | 16–32 GB+ |
+
+Arrow Lake's NPU 3 is markedly less capable than Lunar Lake's NPU 4 despite
+both shipping under the "Core Ultra Series 2" label — do not assume an
+Arrow Lake (desktop/HX) system has Lunar Lake's NPU/iGPU headroom. For
+NPU-tier VLM placement specifically, treat an Arrow Lake system the same as
+Meteor Lake (NPU 3 class) rather than as a Lunar Lake-class NPU, and confirm
+which specific SKU/codename the user has before sizing a model to the NPU.
 
 TOPS figures are vendor-reported INT8 NPU peak throughput and are not directly
 comparable to a VLM's end-to-end tokens/sec — actual throughput depends on KV
