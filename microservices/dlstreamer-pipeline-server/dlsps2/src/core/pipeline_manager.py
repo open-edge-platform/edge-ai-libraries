@@ -35,7 +35,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from core.worker_pool import WorkerPool
 
@@ -53,9 +53,28 @@ _VALIDATION_SUBPROCESS_TIMEOUT_SECONDS = 30.0
 class PipelineState(str, Enum):
     QUEUED = "QUEUED"
     RUNNING = "RUNNING"
+    RESTARTING = "RESTARTING"  # Pipeline stopped/errored, attempting automatic restart
     COMPLETED = "COMPLETED"
     ERROR = "ERROR"
     ABORTED = "ABORTED"
+
+
+class ValidationState(str, Enum):
+    QUEUED = "QUEUED"
+    VALID = "VALID"
+    INVALID = "INVALID"
+
+
+@dataclass
+class ValidationTicket:
+    """Represents a single pipeline validation request."""
+
+    validation_id: str
+    pipeline_description: str
+    timeout: int = 30  # Timeout in seconds for the validation request
+    state: ValidationState = ValidationState.QUEUED
+    message: Optional[str] = None  # error reason if state is INVALID
+    submitted_time: Optional[float] = None
 
 
 @dataclass
@@ -64,14 +83,17 @@ class PipelineInstance:
 
     instance_id: str
     pipeline_description: str
+    validate: bool = True
     state: PipelineState = PipelineState.QUEUED
     error: Optional[str] = None
 
     # Metrics (updated live from the shared worker's status events)
     avg_fps: float = 0.0
     frame_fps: float = 0.0
+    frame_interval: float = 0.0  # Time window in seconds for last_fps calculation
     start_time: Optional[float] = None
     stop_time: Optional[float] = None
+    first_frame_time: Optional[float] = None  # Unix epoch time when first frame was received
 
     # Optional request metadata, populated when the instance was started via
     # the legacy named-pipeline API (POST /pipelines/{name}/{version}). Mirrors
@@ -85,6 +107,12 @@ class PipelineInstance:
 
     # CPU affinity: list of core indices to pin this pipeline to, or None for unpinned
     cpu_cores: Optional[List[int]] = None
+    warmup_frames: Optional[int] = 0
+
+    # Restart configuration and state
+    restart_config: Optional[dict] = None  # {"enabled": bool, "max_attempts": int, "backoff_seconds": int}
+    restart_attempts: int = 0  # Current restart attempt count
+    restart_timer: Optional[Any] = None  # Scheduled restart GLib.timeout_source or thread timer
 
     def elapsed_time(self) -> Optional[float]:
         if self.start_time is None:
@@ -101,7 +129,9 @@ class PipelineInstance:
             "state": self.state.value,
             "avg_fps": self.avg_fps,
             "frame_fps": self.frame_fps,
+            "frame_interval": self.frame_interval,
             "start_time": self.start_time,
+            "first_frame_time": self.first_frame_time,
             "elapsed_time": self.elapsed_time(),
             "message": self.error or "",
         }
@@ -152,6 +182,7 @@ class PipelineManager:
 
     def __init__(self) -> None:
         self._instances: Dict[str, PipelineInstance] = {}
+        self._validations: Dict[str, ValidationTicket] = {}
         self._lock = threading.RLock()
 
         # Worker pool: manages multiple gst_worker subprocesses keyed by CPU affinity
@@ -166,10 +197,13 @@ class PipelineManager:
         self,
         pipeline_description: str,
         *,
+        validate: Optional[bool] = True,
         name: Optional[str] = None,
         version: Optional[str] = None,
         request: Optional[dict] = None,
         cpu_cores: Optional[List[int]] = None,
+        warmup_frames: Optional[int] = 0,
+        restart_config: Optional[dict] = None,
     ) -> str:
         """Validate and submit a new pipeline instance.
 
@@ -194,10 +228,13 @@ class PipelineManager:
         instance = PipelineInstance(
             instance_id=instance_id,
             pipeline_description=pipeline_description,
+            validate=validate,
             name=name,
             version=version,
             request=request,
             cpu_cores=cpu_cores,
+            warmup_frames=warmup_frames,
+            restart_config=restart_config,
         )
 
         with self._lock:
@@ -211,21 +248,22 @@ class PipelineManager:
         )
         thread.start()
 
-        logger.info("Submitted pipeline instance %s for validation", instance_id)
+        validation_status = "validation enabled" if validate else "validation skipped"
+        logger.info("Submitted pipeline instance %s (%s)", instance_id, validation_status)
         return instance_id
 
     def stop(self, instance_id: str) -> bool:
         """Request a graceful stop of one pipeline instance.
 
         Returns:
-            True if the instance was running and the stop request was sent,
-            False if the instance was not found or not in RUNNING state.
+            True if the instance was running/restarting and the stop request was sent,
+            False if the instance was not found or not in RUNNING/RESTARTING state.
         """
         with self._lock:
             instance = self._instances.get(instance_id)
             if not instance:
                 return False
-            if instance.state != PipelineState.RUNNING:
+            if instance.state not in (PipelineState.RUNNING, PipelineState.RESTARTING):
                 return False
             instance.state = PipelineState.ABORTED
 
@@ -253,6 +291,51 @@ class PipelineManager:
         with self._lock:
             return [i for i in self._instances.values() if i.state == PipelineState.RUNNING]
 
+    def validate(self, pipeline_description: str, timeout: int = 30) -> str:
+        """Start validation of a pipeline in the background.
+
+        Returns immediately with a validation_id; the validation runs on
+        a background thread and the result can be polled via get_validation().
+
+        Args:
+            pipeline_description: GStreamer pipeline string.
+            timeout: Timeout in seconds for the validation request.
+
+        Returns:
+            validation_id (UUID string) assigned to this validation.
+        """
+        validation_id = str(uuid.uuid4())
+        ticket = ValidationTicket(
+            validation_id=validation_id,
+            pipeline_description=pipeline_description,
+            submitted_time=time.time(),
+            timeout=timeout,
+        )
+
+        with self._lock:
+            self._validations[validation_id] = ticket
+
+        thread = threading.Thread(
+            target=self._run_validation,
+            args=(ticket,),
+            name=f"validate-{validation_id[:8]}",
+            daemon=True,
+        )
+        thread.start()
+
+        logger.info("Submitted validation request %s", validation_id)
+        return validation_id
+
+    def get_validation(self, validation_id: str) -> Optional[ValidationTicket]:
+        """Return the validation ticket for the given ID, or None if not found."""
+        with self._lock:
+            return self._validations.get(validation_id)
+
+    def list_validations(self) -> list[ValidationTicket]:
+        """Return a snapshot of all validations."""
+        with self._lock:
+            return list(self._validations.values())
+
     def shutdown(self) -> None:
         """Shut down all worker processes. Call this on application shutdown."""
         self._shutting_down.set()
@@ -264,8 +347,13 @@ class PipelineManager:
 
     def _validate_and_submit(self, instance: PipelineInstance) -> None:
         """Background-thread body: validate, then submit to the appropriate worker."""
-        logger.debug("Validating pipeline %s before submission", instance.instance_id)
-        ok, reason = self._validate(instance.pipeline_description)
+        logger.debug("Processing pipeline %s (validate=%s)", instance.instance_id, instance.validate)
+        if instance.validate:
+            logger.info("Validating pipeline %s before submission", instance.instance_id)
+            ok, reason = self._validate(instance.pipeline_description, _VALIDATION_SUBPROCESS_TIMEOUT_SECONDS)
+        else:
+            logger.info("Skipping validation for pipeline %s before submission", instance.instance_id)
+            ok, reason = True, None
 
         if not ok:
             with self._lock:
@@ -286,14 +374,17 @@ class PipelineManager:
             {
                 "cmd": "start",
                 "pipeline": instance.pipeline_description,
+                "warmup_frames": instance.warmup_frames,
             },
             cpu_cores=instance.cpu_cores,
         )
 
         if success:
+            validation_status = "passed validation" if instance.validate else "submitted (validation skipped)"
             logger.info(
-                "Pipeline %s passed validation and was submitted to gst_worker (affinity: %s)",
+                "Pipeline %s %s to gst_worker (affinity: %s)",
                 instance.instance_id,
+                validation_status,
                 instance.cpu_cores,
             )
         else:
@@ -304,7 +395,7 @@ class PipelineManager:
             logger.error("Pipeline %s failed to submit to worker", instance.instance_id)
 
     @staticmethod
-    def _validate(pipeline_description: str) -> Tuple[bool, Optional[str]]:
+    def _validate(pipeline_description: str, timeout: int = 30) -> Tuple[bool, Optional[str]]:
         """Run gst_validator.py in its own short-lived subprocess.
 
         Returns:
@@ -326,7 +417,7 @@ class PipelineManager:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                timeout=_VALIDATION_SUBPROCESS_TIMEOUT_SECONDS,
+                timeout=timeout,
             )
         except subprocess.TimeoutExpired:
             return False, "validation subprocess timed out"
@@ -355,6 +446,21 @@ class PipelineManager:
                     break
         return False, reason or f"validator exited with code {result.returncode}"
 
+    def _run_validation(self, ticket: ValidationTicket) -> None:
+        """Background-thread body: run validation on a ticket."""
+        logger.debug("Validating pipeline %s", ticket.validation_id)
+        ok, reason = self._validate(ticket.pipeline_description, ticket.timeout)
+
+        with self._lock:
+            if ok:
+                ticket.state = ValidationState.VALID
+                ticket.message = ""
+                logger.info("Pipeline %s validation PASSED", ticket.validation_id)
+            else:
+                ticket.state = ValidationState.INVALID
+                ticket.message = reason or "validation failed"
+                logger.warning("Pipeline %s validation FAILED: %s", ticket.validation_id, reason)
+
     # ------------------------------------------------------------------
     # ------------------------------------------------------------------
     # Event handling
@@ -377,13 +483,32 @@ class PipelineManager:
                     instance.avg_fps = float(event["avg_fps"])
                 if event.get("last_fps") is not None:
                     instance.frame_fps = float(event["last_fps"])
+                if event.get("frame_interval") is not None:
+                    instance.frame_interval = float(event["frame_interval"])
+        elif evt == "firstframe":
+            # Reset restart attempts on first frame (restart was successful)
+            with self._lock:
+                instance.restart_attempts = 0
+                first_frame_time = event.get("first_frame_time")
+                if first_frame_time is not None:
+                    instance.first_frame_time = first_frame_time
+            if instance.restart_attempts > 0:
+                logger.info("Pipeline %s received first frame at %.3f (after restart attempts)", instance_id, instance.first_frame_time)
+            else:
+                logger.info("Pipeline %s received first frame at %.3f", instance_id, instance.first_frame_time)
         elif evt == "started":
             logger.debug("Pipeline %s started", instance_id)
         elif evt == "eos":
             logger.info("Pipeline %s reached EOS", instance_id)
+            if instance.restart_config and instance.restart_config.get("enabled"):
+                self._attempt_restart(instance)
         elif evt == "error":
+            reason = event.get("reason")
+            source = event.get("source")
+            if reason and source:
+                reason = f"{reason} (element: {source})"
             with self._lock:
-                instance.error = event.get("reason") or instance.error
+                instance.error = reason or instance.error
                 # Some failures (e.g. Gst.parse_launch() raising before the
                 # pipeline is ever registered with gst_worker) are terminal
                 # and never followed by a "stopped" event, since there is no
@@ -397,8 +522,12 @@ class PipelineManager:
                 ):
                     instance.state = PipelineState.ERROR
                     instance.stop_time = time.time()
-            logger.error("Pipeline %s error: %s", instance_id, event.get("reason"))
+            logger.error("Pipeline %s error: %s", instance_id, reason)
+            if event.get("debug"):
+                logger.error("Pipeline %s error debug: %s", instance_id, event["debug"])
             self._worker_pool.untrack_pipeline(instance_id, instance.cpu_cores)
+            if instance.restart_config and instance.restart_config.get("enabled"):
+                self._attempt_restart(instance)
         elif evt == "stopped":
             with self._lock:
                 instance.stop_time = time.time()
@@ -413,3 +542,82 @@ class PipelineManager:
             )
         else:
             logger.debug("Unknown event for pipeline %s: %s", instance_id, event)
+
+    def _attempt_restart(self, instance: PipelineInstance) -> None:
+        """Check if automatic restart should be triggered for a failed/stopped pipeline."""
+        with self._lock:
+            # Not enabled or already restarting/aborted
+            if not instance.restart_config or not instance.restart_config.get("enabled"):
+                return
+            if instance.state in (PipelineState.RESTARTING, PipelineState.ABORTED):
+                return
+
+            max_attempts = instance.restart_config.get("max_attempts", 5)
+            # Check if we haven't exceeded max attempts yet
+            if instance.restart_attempts >= max_attempts:
+                logger.warning(
+                    "Pipeline %s reached max restart attempts (%d); giving up",
+                    instance.instance_id,
+                    max_attempts,
+                )
+                return
+
+            instance.restart_attempts += 1
+            instance.state = PipelineState.RESTARTING
+
+        backoff_seconds = instance.restart_config.get("backoff_seconds", 30)
+        logger.info(
+            "Pipeline %s scheduled for restart (attempt %d/%d, backoff %.0fs)",
+            instance.instance_id,
+            instance.restart_attempts,
+            instance.restart_config.get("max_attempts", 5),
+            backoff_seconds,
+        )
+
+        # Schedule restart on a background thread after backoff
+        thread = threading.Thread(
+            target=self._restart_pipeline_delayed,
+            args=(instance, backoff_seconds),
+            name=f"restart-{instance.instance_id[:8]}",
+            daemon=True,
+        )
+        thread.start()
+
+    def _restart_pipeline_delayed(self, instance: PipelineInstance, backoff_seconds: float) -> None:
+        """Background thread: wait for backoff, then restart the pipeline."""
+        time.sleep(backoff_seconds)
+        self._restart_pipeline(instance)
+
+    def _restart_pipeline(self, instance: PipelineInstance) -> None:
+        """Restart a failed pipeline: resubmit without revalidation."""
+        logger.info("Restarting pipeline %s (attempt %d)", instance.instance_id, instance.restart_attempts)
+
+        # Reset metrics for this restart attempt
+        with self._lock:
+            if instance.state != PipelineState.RESTARTING:
+                logger.warning("Pipeline %s no longer in RESTARTING state; aborting restart", instance.instance_id)
+                return
+            instance.first_frame_time = None
+            instance.error = None
+            instance.stop_time = None
+            instance.state = PipelineState.RUNNING
+            instance.start_time = time.time()
+
+        success = self._worker_pool.send_command(
+            instance.instance_id,
+            {
+                "cmd": "start",
+                "pipeline": instance.pipeline_description,
+                "warmup_frames": instance.warmup_frames,
+            },
+            cpu_cores=instance.cpu_cores,
+        )
+
+        if success:
+            logger.info("Restart submitted for pipeline %s (attempt %d)", instance.instance_id, instance.restart_attempts)
+        else:
+            with self._lock:
+                instance.state = PipelineState.ERROR
+                instance.error = "restart failed to submit to worker"
+                instance.stop_time = time.time()
+            logger.error("Failed to submit restart for pipeline %s", instance.instance_id)

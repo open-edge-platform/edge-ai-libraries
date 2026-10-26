@@ -4,6 +4,10 @@ act_panelled_logs () {(
 #
 # Protocol (markers your installer emits on stdout/stderr):
 #   @@COMP       <name>     start/switch to component (starts its timer)
+#   @@STEP       <text>     show <text> right-aligned in the title bar if it
+#   @@STEP       @@IF <re> @@THEN <text>  when a later log line matches regex <re>,
+#                           set the step text to <text> (\0..\9 = groups).
+#                           First matching rule wins; rules persist.
 #   @@OK         [name]     mark component installed OK   (stops its timer)
 #   @@FAIL       [name]     mark component failed         (stops its timer)
 #   @@HIGHLIGHT  <text>     append a custom line to this component's left-pane
@@ -15,6 +19,13 @@ act_panelled_logs () {(
 #                           report anchored to the BOTTOM.
 #   @@FOCUS      <name>     pin the right pane to <name>
 #   @@FOCUS                 (no argument) release the pin
+#   @@ATTENTION <text>      add a line to a centred overlay box on top of the panels
+#   @@ATTENTION @@BR        add a blank line to the box
+#   @@ATTENTION @@UNTIL <t> [fmt]
+#                           add a countdown line at this position and close the
+#                           box automatically at <t> (+<seconds> or epoch time).
+#                           <fmt> is a printf format; %s = remaining m:ss
+#                           (default "Closing in %s").
 #   anything else           log line attributed to the current component
 #
 # Environment:
@@ -50,13 +61,15 @@ readonly C_BOLD=$'\033[1m'
 # ------------------------------------------------------------------ charset
 if [[ ${LC_ALL:-${LC_CTYPE:-${LANG:-}}} == *[Uu][Tt][Ff]* ]]; then
   BC_H='─'; BC_V='│'; BC_B='│'
+  BC_TL='┌'; BC_TR='┐'; BC_BL='└'; BC_BR='┘'
   G_OK='✔'; G_FAIL='✘'; G_RUN='◐'; G_HL='▸'; G_ELL='…'; G_DN='>>'
 else
   BC_H='-'; BC_V='|'; BC_B='|'
+  BC_TL='+'; BC_TR='+'; BC_BL='+'; BC_BR='+'
   G_OK='+'; G_FAIL='x'; G_RUN='*'; G_HL='>'; G_ELL='~'; G_DN='>>'
 fi
 G_SEL='<<'
-readonly BC_H BC_V BC_B G_OK G_FAIL G_RUN G_HL G_ELL G_DN G_SEL
+readonly BC_H BC_V BC_B BC_TL BC_TR BC_BL BC_BR G_OK G_FAIL G_RUN G_HL G_ELL G_DN G_SEL
 
 # ------------------------------------------------------------------ tunables
 readonly TAIL_LINES=2
@@ -75,6 +88,9 @@ TICK_SEC=${TICK_SEC:-0.5}
 NARROW_GLYPHS=${NARROW_GLYPHS:-0}
 FAIL_ROWS=${FAIL_ROWS:-20}
 RAISE_MS=${RAISE_MS:-15}
+STEP_MIN=${STEP_MIN:-12}     # after RAISE_MS=...
+STEP_TEXT=""                 # after TITLE_WORD=completed
+declare -a STEP_RX=() STEP_FMT=()
 
 readonly CSI_FINAL='[A-Za-z@\[\\\]^_`{|}~]'
 readonly SEP_W=3
@@ -134,6 +150,14 @@ FAIL_H=0
 PREV_FH=-1
 FAIL_TITLE=""
 declare -a FAILROWS=()
+
+declare -a AT_LINES=()   # non-empty => attention overlay is showing
+declare -A AT_SEG=()     # screen row -> box segment for this frame
+AT_UNTIL=0               # epoch seconds when it closes (0 = stays up)
+AT_CD=-1                 # index of the countdown line in AT_LINES
+AT_FMT=""                # printf format for the countdown line
+AT_SEC=-1                # last second a full repaint was done
+AT_GUARD=0               # keep repainting until this epoch (after close)
 
 # ------------------------------------------------------------------ geometry
 _open_tty() {
@@ -605,6 +629,69 @@ _clear_highlight() {
   HL[$c]=""; HCNT[$c]=0; LDIRTY[$c]=1; LEFT_VALID=0
 }
 
+_attention_close() {
+  AT_LINES=(); AT_UNTIL=0; AT_CD=-1; AT_FMT=""; AT_SEG=()
+  AT_GUARD=$(( ${EPOCHREALTIME%.*} + 10 ))   # keep wiping late wall/console text
+  FULL_CLEAR=1; LEFT_VALID=0
+}
+
+# Returns 0 if the box should be drawn; closes it once its time is up
+_attention_active() {
+  (( ${#AT_LINES[@]} )) || return 1
+  if (( AT_UNTIL > 0 && ${EPOCHREALTIME%.*} >= AT_UNTIL )); then
+    _attention_close; return 1
+  fi
+  return 0
+}
+
+_set_step()   { STEP_TEXT=$1; }
+_clear_step() { STEP_TEXT=""; }
+
+_add_step_rule() {
+  local spec=$1 rx fmt
+  [[ $spec == *' @@THEN '* ]] || return 1
+  rx=${spec%%' @@THEN '*}; fmt=${spec#*' @@THEN '}
+  [[ -z $rx ]] && return 1
+  [[ x =~ $rx ]]; (( $? == 2 )) && return 1     # invalid regex
+  STEP_RX+=("$rx"); STEP_FMT+=("$fmt")
+}
+
+_clear_step_rules() { STEP_RX=(); STEP_FMT=(); }
+
+# Match $1 against the rules; on the first hit, set STEP_TEXT.
+_apply_step_rules() {
+  (( ${#STEP_RX[@]} == 0 )) && return 1
+  local s=$1 i j out
+  for (( i = 0; i < ${#STEP_RX[@]}; i++ )); do
+    if [[ $s =~ ${STEP_RX[i]} ]]; then
+      out=${STEP_FMT[i]}
+      for (( j = ${#BASH_REMATCH[@]} - 1; j >= 0; j-- )); do
+        out=${out//"\\$j"/"${BASH_REMATCH[j]}"}
+      done
+      _set_step "$out"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Title row: TITLE left, STEP_TEXT right-aligned (cyan) when it fits.
+TITLEROW=""
+_title_row() {
+  local w=$1 tw sw room left
+  _fit_v "$w" "$TITLE" 1
+  TITLEROW="${C_BOLD}${FITTED}${C_RESET}"
+  [[ -z $STEP_TEXT ]] && return
+  _dwidth "$TITLE"; tw=$REPLY
+  room=$(( w - tw - 3 ))                  # 2-cell gap + 1 trailing space
+  (( room < STEP_MIN )) && return         # not enough space: hide it
+  _dwidth "$STEP_TEXT"; sw=$REPLY
+  (( sw > room )) && sw=$room             # truncate with ellipsis
+  _fit_v $(( w - sw - 1 )) "$TITLE" 1; left=$FITTED
+  _fit_v "$sw" "$STEP_TEXT" 1
+  TITLEROW="${C_BOLD}${left}${C_RESET}${C_CYAN}${FITTED}${C_RESET} "
+}
+
 _ensure_wrap() {
   local c=$1 w=$2 src r
   [[ -z $c ]] && return
@@ -863,17 +950,25 @@ _draw() {
     fi
   fi
 
+  AT_SEG=()
+  _attention_active && _attention_build
+  local now_s=${EPOCHREALTIME%.*} at_wipe=0
+  if (( ${#AT_LINES[@]} || now_s < AT_GUARD )) && (( now_s != AT_SEC )); then
+    AT_SEC=$now_s; FULL_CLEAR=1; at_wipe=1    # full repaint once a second wipes wall text
+  fi
+
   local out="" l r rowstr
   if (( FULL_CLEAR )); then PREV=(); FULL_CLEAR=0; fi
+  (( at_wipe )) && printf -v out '\033[%d;1H\033[K' "$rows"   # last row isn't part of the panels
 
   _title_text "$REVIEW" "$TITLE_WORD"
-  _fit_v "$usable" "$TITLE" 1
-  rowstr="${C_BOLD}${FITTED}${C_RESET}"
+  _title_row "$usable"
+  rowstr=$TITLEROW${AT_SEG[1]:-}
   if [[ ${PREV[0]:-__} != "$rowstr" ]]; then
     out+=$'\033[1;1H'"$rowstr"$'\033[K'; PREV[0]=$rowstr
   fi
   _hrule_v "$usable"
-  rowstr="${C_DIM}${HRULE}${C_RESET}"
+  rowstr="${C_DIM}${HRULE}${C_RESET}${AT_SEG[2]:-}"
   if [[ ${PREV[1]:-__} != "$rowstr" ]]; then
     out+=$'\033[2;1H'"$rowstr"$'\033[K'; PREV[1]=$rowstr
   fi
@@ -882,7 +977,7 @@ _draw() {
     l=${LEFT_ROWS[i]:-}
     if [[ $l != *$'\033'* ]]; then _fit_v "$lw" "$l" 1; l=$FITTED; fi
     r=${right[i]:-}
-    rowstr="${l} ${C_DIM}${BC_V}${C_RESET} ${r}"
+    rowstr="${l} ${C_DIM}${BC_V}${C_RESET} ${r}${AT_SEG[$(( i + 3 ))]:-}"
     j=$(( i + 2 ))
     if [[ ${PREV[j]:-__} != "$rowstr" ]]; then
       printf -v out '%s\033[%d;1H%s\033[K' "$out" $(( i + 3 )) "$rowstr"
@@ -899,6 +994,7 @@ _draw() {
     for (( i = 0; i < fh; i++ )); do
       if (( i == 0 )); then rowstr=$frule
       else rowstr=${FAILROWS[i-1]:-}; fi
+      rowstr+=${AT_SEG[$(( body + i + 3 ))]:-}
       j=$(( body + i + 2 ))
       if [[ ${PREV[j]:-__} != "$rowstr" ]]; then
         printf -v out '%s\033[%d;1H%s\033[K' "$out" $(( body + i + 3 )) "$rowstr"
@@ -907,7 +1003,7 @@ _draw() {
     done
   fi
 
-  [[ -n $out ]] && printf '%s' "$out"
+  [[ -n $out ]] && printf '\033[?2026h%s\033[?2026l' "$out"
 
   FRAMES=$(( FRAMES + 1 ))
   DRAW_MS=$(( DRAW_MS + $(_now_ms) - t0 ))
@@ -988,9 +1084,41 @@ _finish() {
   # success: frame stays as is; failure/interrupt: raise the error panel
   _raise_fail_panel $(( rc != 0 ))
   printf '\033[?7h'
+  printf '\033[r'          # restore full-screen scrolling
   printf '\033[%d;1H\033[K' "$TTY_ROWS"   # last row, cleared, NO newline
   printf '\033[?25h'
   (( TTY_FD >= 0 )) && { stty echo <&"$TTY_FD" 2>/dev/null; exec {TTY_FD}>&-; }
+}
+
+_attention_build() {
+  local cols=$TTY_COLS rows=$TTY_ROWS line w maxw=0 i pl pr
+  local -a body=("${AT_LINES[@]}")
+  if (( AT_CD >= 0 )); then
+    local left=$(( AT_UNTIL - ${EPOCHREALTIME%.*} )) mmss
+    (( left < 0 )) && left=0
+    printf -v mmss '%d:%02d' $(( left / 60 )) $(( left % 60 ))
+    printf -v line -- "$AT_FMT" "$mmss" 2>/dev/null || line=$AT_FMT
+    body[AT_CD]=$line
+  fi
+  for line in "${body[@]}"; do _dwidth "$line"; (( REPLY > maxw )) && maxw=$REPLY; done
+
+  local bw=$(( maxw + 6 )); (( bw > cols - 2 )) && bw=$(( cols - 2 ))
+  local bh=$(( ${#body[@]} + 2 ))
+  local top=$(( (rows - bh) / 2 + 1 )) lc=$(( (cols - bw) / 2 + 1 ))
+  _hrule_v $(( bw - 2 ))
+  printf -v "AT_SEG[$top]" '\033[%d;%dH%s%s%s%s%s' \
+    $top $lc "$C_RED" "$BC_TL" "$HRULE" "$BC_TR" "$C_RESET"
+  for (( i = 0; i < ${#body[@]}; i++ )); do
+    line=${body[i]}
+    _dwidth "$line"; w=$REPLY
+    if (( w > bw - 4 )); then _fit_v $(( bw - 4 )) "$line" 1; line=$FITTED; w=$(( bw - 4 )); fi
+    pl=$(( (bw - 2 - w) / 2 )); pr=$(( bw - 2 - w - pl ))
+    printf -v "AT_SEG[$(( top + i + 1 ))]" '\033[%d;%dH%s%s%s%*s%s%s%s%*s%s%s%s' \
+      $(( top + i + 1 )) $lc "$C_RED" "$BC_V" "$C_RESET" $pl '' \
+      "$C_BOLD$C_YELLOW" "$line" "$C_RESET" $pr '' "$C_RED" "$BC_V" "$C_RESET"
+  done
+  printf -v "AT_SEG[$(( top + bh - 1 ))]" '\033[%d;%dH%s%s%s%s%s' \
+    $(( top + bh - 1 )) $lc "$C_RED" "$BC_BL" "$HRULE" "$BC_BR" "$C_RESET"
 }
 
 # ------------------------------------------------------------------ input
@@ -1010,8 +1138,23 @@ _handle_line() {
   rest=${rest#"${rest%%[![:space:]]*}"}
 
   case ${key^^} in
+    @@STEP)
+      if [[ -z $rest ]]; then
+        _clear_step
+      elif [[ $rest == '@@IF' ]]; then
+        _clear_step_rules
+      elif [[ $rest == '@@IF '*' @@THEN '* ]]; then
+        _add_step_rule "${rest#@@IF }" \
+          || _push_log "${CURRENT:-general}" "invalid @@STEP rule: $rest"
+        return
+      else
+        _set_step "$rest"
+      fi
+      _draw 1; return ;;
     @@COMP)
       [[ -z $rest ]] && return
+      _clear_step
+      _clear_step_rules
       if [[ -n $CURRENT && $CURRENT != "$rest" && -z ${REPORT[$CURRENT]:-} ]]; then
         _timer_stop "$CURRENT"
       fi
@@ -1026,6 +1169,7 @@ _handle_line() {
       _draw 1; return ;;
     @@REPORT)
       [[ -z $rest ]] && return
+      _clear_step
       if [[ -n $CURRENT && -z ${REPORT[$CURRENT]:-} ]]; then
         _timer_stop "$CURRENT"
       fi
@@ -1041,9 +1185,25 @@ _handle_line() {
       if [[ -z $rest ]]; then FOCUS=""
       else _touch_comp "$rest"; FOCUS=$rest; fi
       _draw 1; return ;;
+    @@ATTENTION)
+      case $rest in
+        '')    return ;;
+        @@BR)  AT_LINES+=("") ;;
+        '@@UNTIL '*)
+          local t=${rest#@@UNTIL } fmt
+          fmt=${t#* }; t=${t%% *}
+          [[ $fmt == "$t" ]] && fmt='Closing in %s'
+          if   [[ $t == ++([0-9]) ]]; then AT_UNTIL=$(( ${EPOCHREALTIME%.*} + ${t#+} ))
+          elif [[ $t == +([0-9])  ]]; then AT_UNTIL=$t
+          else return; fi
+          AT_FMT=$fmt; AT_CD=${#AT_LINES[@]}; AT_LINES+=("") ;;
+        *)     AT_LINES+=("$rest") ;;
+      esac
+      _draw 1; return ;;
     @@OK|@@FAIL)
       target=${rest:-$CURRENT}
       [[ -z $target ]] && return
+      _clear_step
       _touch_comp "$target"
       if [[ ${key^^} == @@OK ]]; then
         STATUS[$target]="ok"; _timer_stop "$target"
@@ -1065,15 +1225,10 @@ _handle_line() {
   if [[ -z $CURRENT ]]; then
     CURRENT="general"; _touch_comp "$CURRENT"; _timer_start "$CURRENT"
   fi
+  _apply_step_rules "$plainkey"          # STEP rules
   _push_log "$CURRENT" "$clean"
   _draw
 }
-
-# ------------------------------------------------------------------ main loop
-  [[ -t 1 ]] || { 
-    [ -z "$LOG_FILE" ] && cat || tee -a "$LOG_FILE"
-    return
-  }
 
   _open_tty
   _read_geom
@@ -1094,7 +1249,8 @@ _handle_line() {
     else
       rc=$?
       if (( rc > 128 )); then
-        _timer_tick && _draw 1
+        if (( ${#AT_LINES[@]} || ${EPOCHREALTIME%.*} < AT_GUARD )); then _draw 1
+        else _timer_tick && _draw 1; fi
         continue
       fi
       [[ -n $line ]] && _handle_line "$line"
@@ -1110,6 +1266,7 @@ _handle_line() {
   for c in "${ORDER[@]}"; do [[ -n $c ]] && LDIRTY[$c]=1; done
 
   REVIEW=1
+  _clear_step
   _draw 1
 )}
 

@@ -2,10 +2,10 @@
 debian_99_profile_edge_base () {
   case "$1" in
   bootstrap) # all components
-    echo "core_types pre_system_scan edge_pack_base_standard edge_pack_npu gpu_accel npu_accel"
+    echo "core_types system_inspection system_summary edge_pack_base_standard edge_pack_npu gpu_accel npu_accel"
     ;;
   *)
-    echo "core_types pre_system_scan"
+    echo "core_types system_inspection system_summary"
     if [[ " $* " = *" --edgepack "* ]]; then
       echo "edge_pack_base_standard edge_pack_npu"
     else

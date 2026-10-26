@@ -1,13 +1,21 @@
 {
-  "profile": { "label": "Health and Life Sciences AI Suite", "value": "health_and_life_sciences_ai_suite" },
+  "profile": {
+    "label": "Health and Life Sciences AI Suite",
+    "value": "health_and_life_sciences_ai_suite",
+    "supports": { "OP_SYSTEM": ["UBUNTU_24_04", "UBUNTU_26_04"] }
+  },
   "modules": [
-    { "label": "NICU Warmer", "value": "nicu_warmer", "startStop": true, "device": true }
+    { "label": "Multi-Modal Patient Monitoring", "value": "multi_modal_patient_monitoring", "startStop": true, "remove": true, "options": ["--gpu", "--cpu", "--npu"] },
+    { "label": "NICU Warmer", "value": "nicu_warmer", "startStop": true, "remove": true, "options": ["--gpu", "--cpu", "--npu"] },
+    { "label": "Surgical Instrument", "value": "surgical_instrument", "startStop": true, "remove": true, "options": [] }
   ],
   "getStarted": {
     "text": "Get Started",
     "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-health-and-life-sciences.html"
   },
   "resources": [
-    { "text": "NICU Warmer", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/nicu-warmer/index.html" }
+    { "text": "Multi-Modal Patient Monitoring", "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/multi-modal-patient-monitoring/index.html" },
+    { "text": "NICU Warmer", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/nicu-warmer/index.html" },
+    { "text": "Surgical Instrument", "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/surgical-instrument/index.html" }
   ]
 }
