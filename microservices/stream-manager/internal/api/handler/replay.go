@@ -200,6 +200,13 @@ func writeReplayError(c *gin.Context, err error, clip bool) {
 			detail = "no clip is available for the requested interval"
 		}
 		common.WriteError(c, http.StatusNotFound, notFoundCode, detail)
+	case errors.Is(err, replay.ErrBeyondSearchLimit):
+		limit := strconv.Itoa(int(replay.SearchLimit.Minutes())) + " minutes"
+		detail := "no decodable frame within " + limit + " of the requested time"
+		if clip {
+			detail = "no keyframe within " + limit + " before the requested start"
+		}
+		common.WriteError(c, http.StatusNotFound, notFoundCode, detail)
 	case errors.Is(err, replay.ErrMediaNotFound):
 		common.WriteError(c, http.StatusNotFound, notFoundCode, "media not found or expired")
 	case errors.Is(err, replay.ErrNotReady):

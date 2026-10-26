@@ -34,9 +34,11 @@ var (
 	ErrNotReady       = errors.New("recording is not ready")
 	ErrNotCovered     = errors.New("requested time is not covered by the recording")
 	ErrFrameNotFound  = errors.New("no frame sits at the requested time")
-	ErrMediaNotFound  = errors.New("media not found or expired")
-	ErrBusy           = errors.New("extraction capacity reached")
-	ErrExtraction     = errors.New("media extraction failed")
+	// ErrBeyondSearchLimit means the frame or its keyframe is farther than SearchLimit from the requested time.
+	ErrBeyondSearchLimit = errors.New("no decodable frame within the search limit")
+	ErrMediaNotFound     = errors.New("media not found or expired")
+	ErrBusy              = errors.New("extraction capacity reached")
+	ErrExtraction        = errors.New("media extraction failed")
 )
 
 var contentTypes = map[string]string{"jpeg": "image/jpeg", "png": "image/png", "mp4": "video/mp4"}

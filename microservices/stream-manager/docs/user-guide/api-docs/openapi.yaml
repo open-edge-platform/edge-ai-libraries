@@ -562,7 +562,7 @@ paths:
                 error_code: invalid_timestamp
                 error_detail: timestamp must be an RFC 3339 UTC timestamp ending in Z with at most 9 fractional digits
         '404':
-          description: Record not found, timestamp outside coverage or exact frame missing.
+          description: Record not found, timestamp outside coverage, exact frame missing, or no decodable frame within 5 minutes of the timestamp. The service searches a maximum of 5 minutes back for the keyframe that the frame decodes from.
           content:
             application/json:
               schema:
@@ -685,7 +685,7 @@ paths:
                 error_code: invalid_timestamp
                 error_detail: timestamp must be an RFC 3339 UTC timestamp ending in Z with at most 9 fractional digits
         '404':
-          description: Record not found, timestamp outside coverage or exact frame missing.
+          description: Record not found, timestamp outside coverage, exact frame missing, or no decodable frame within 5 minutes of the timestamp. The service searches a maximum of 5 minutes back for the keyframe that the frame decodes from.
           content:
             application/json:
               schema:
@@ -818,7 +818,7 @@ paths:
                 error_code: invalid_request
                 error_detail: duration must be a positive number of seconds
         '404':
-          description: Record not found, or the requested interval is not fully covered.
+          description: Record not found, the requested interval is not fully covered, or no keyframe within 5 minutes before start_ts. The service searches a maximum of 5 minutes back for the keyframe that the clip starts from.
           content:
             application/json:
               schema:
@@ -939,7 +939,7 @@ paths:
                 error_code: invalid_request
                 error_detail: duration must be a positive number of seconds
         '404':
-          description: Record not found, or the requested interval is not fully covered.
+          description: Record not found, the requested interval is not fully covered, or no keyframe within 5 minutes before start_ts. The service searches a maximum of 5 minutes back for the keyframe that the clip starts from.
           content:
             application/json:
               schema:

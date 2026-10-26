@@ -31,6 +31,10 @@ const (
 	fixtureFPS    = 30
 	fixtureFrames = 180
 	fixtureGOP    = 45
+	// sparseFixtureFrames is 6.5 minutes at 1 fps.
+	sparseFixtureFrames = 390
+	// testDerivedTTL differs from the 15-minute default to show the setting is used.
+	testDerivedTTL = 7 * time.Minute
 )
 
 var (
@@ -43,7 +47,18 @@ var (
 // passes it through the recorder's FFmpeg flags, as a recording's media.ts.
 func fixture(t *testing.T, bFrames int) string {
 	t.Helper()
-	if path, ok := fixtures.Load(bFrames); ok {
+	return cachedFixture(t, bFrames, fixtureFPS, fixtureFrames, fixtureGOP, bFrames)
+}
+
+// sparseFixture is a 1 fps fixture, longer than SearchLimit, whose only keyframe is its first frame.
+func sparseFixture(t *testing.T) string {
+	t.Helper()
+	return cachedFixture(t, "sparse", 1, sparseFixtureFrames, 100000, 0)
+}
+
+func cachedFixture(t *testing.T, key any, fps, frames, gop, bFrames int) string {
+	t.Helper()
+	if path, ok := fixtures.Load(key); ok {
 		return path.(string)
 	}
 	for _, tool := range []string{"ffmpeg", "ffprobe"} {
@@ -57,12 +72,12 @@ func fixture(t *testing.T, bFrames int) string {
 	}
 	source, media := filepath.Join(dir, "source.ts"), filepath.Join(dir, "media.ts")
 	run(t, "ffmpeg", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i",
-		fmt.Sprintf("testsrc2=size=160x120:rate=%d", fixtureFPS), "-frames:v", strconv.Itoa(fixtureFrames),
-		"-c:v", "libx264", "-pix_fmt", "yuv420p", "-g", strconv.Itoa(fixtureGOP), "-keyint_min", strconv.Itoa(fixtureGOP),
+		fmt.Sprintf("testsrc2=size=160x120:rate=%d", fps), "-frames:v", strconv.Itoa(frames),
+		"-c:v", "libx264", "-pix_fmt", "yuv420p", "-g", strconv.Itoa(gop), "-keyint_min", strconv.Itoa(gop),
 		"-sc_threshold", "0", "-bf", strconv.Itoa(bFrames), "-output_ts_offset", "1001.4", "-f", "mpegts", source)
 	run(t, "ffmpeg", "-hide_banner", "-loglevel", "error", "-f", "mpegts", "-i", source, "-map", "0:v:0", "-an",
 		"-c:v", "copy", "-copyts", "-start_at_zero", "-mpegts_copyts", "1", "-f", "mpegts", media)
-	fixtures.Store(bFrames, media)
+	fixtures.Store(key, media)
 	return media
 }
 
@@ -331,6 +346,38 @@ func TestClip(t *testing.T) {
 				t.Fatalf("got %v, want %v", err, tc.want)
 			}
 		})
+	}
+}
+
+// TestSearchLimit shows that a frame or clip whose keyframe lies more than
+// SearchLimit before it fails fast instead of reading from the recording start.
+func TestSearchLimit(t *testing.T) {
+	env := newEnvWithMedia(t, sparseFixture(t))
+	rec := env.addRecording(t, func(r *model.Recording) {
+		end := fixtureStart.Add(sparseFixtureFrames * time.Second)
+		r.EndTS = &end
+	})
+	near, far := fixtureStart.Add(4*time.Minute+30*time.Second), fixtureStart.Add(5*time.Minute+30*time.Second)
+
+	frame, err := env.svc.Frame(context.Background(), rec.RecordingID, near, "png", "exact")
+	if err != nil || !frame.Result.StartTS.Equal(near) {
+		t.Fatalf("frame within the limit: got %+v, %v", frame.Result, err)
+	}
+	if pixels(t, frame.Path, "") != referenceFrame(t, env.media, 270) {
+		t.Fatal("frame within the limit has the wrong pixels")
+	}
+	clip, err := env.svc.Clip(context.Background(), rec.RecordingID, near, time.Second, "mp4")
+	if err != nil || !clip.Result.StartTS.Equal(fixtureStart) {
+		t.Fatalf("clip within the limit: got %+v, %v", clip.Result, err)
+	}
+
+	for _, match := range []string{"nearest", "exact"} {
+		if _, err := env.svc.Frame(context.Background(), rec.RecordingID, far, "jpeg", match); !errors.Is(err, ErrBeyondSearchLimit) {
+			t.Fatalf("frame %s beyond the limit: got %v, want ErrBeyondSearchLimit", match, err)
+		}
+	}
+	if _, err := env.svc.Clip(context.Background(), rec.RecordingID, far, time.Second, "mp4"); !errors.Is(err, ErrBeyondSearchLimit) {
+		t.Fatalf("clip beyond the limit: got %v, want ErrBeyondSearchLimit", err)
 	}
 }
 

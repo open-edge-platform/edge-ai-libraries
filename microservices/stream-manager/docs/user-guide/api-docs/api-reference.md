@@ -799,6 +799,11 @@ Extracts media from a `ready` record. Frame and clip endpoints return JSON by de
 or media bytes when the `Accept` header allows them. Their `/url` endpoints return a
 JSON `MediaResult` with a link to the produced file.
 
+> **NOTE:** To decode a frame, the service must find a keyframe before it. The
+> service searches a maximum of 5 minutes back from the requested time. If the
+> recording has no keyframe in that range, the request fails with `404`. A retry
+> gives the same result. This limit applies to frames and clips.
+
 ### Extract a frame
 
 `GET /replays/{recording-id}/frame`
@@ -857,7 +862,7 @@ X-Exact-Match: false
 | 200 | — | `MediaResult`, or the image bytes when an image `Accept` header is used. |
 | 400 | `invalid_timestamp` | Missing or invalid `timestamp`. |
 | 400 | `invalid_request` | Unsupported `format` or `match`. |
-| 404 | `recording_not_found` / `frame_not_found` | Recording not found, timestamp outside coverage, or exact frame missing. |
+| 404 | `recording_not_found` / `frame_not_found` | Recording not found, timestamp outside coverage, exact frame missing, or no decodable frame within 5 minutes of the timestamp. |
 | 406 | `not_acceptable` | Incompatible `Accept` header. |
 | 409 | `record_not_ready` | Record not ready. |
 | 429 | `capacity_exhausted` | Extraction capacity reached. |
@@ -948,7 +953,7 @@ curl -i "http://localhost:8080/v1/replays/rec-2/clip?start_ts=2026-09-16T09:12:0
 | 200 | — | `MediaResult`, or video bytes when a video `Accept` header is used. |
 | 400 | `invalid_timestamp` | Missing or invalid `start_ts`. |
 | 400 | `invalid_request` | Missing or invalid `duration`, or unsupported `format`. |
-| 404 | `recording_not_found` / `clip_not_found` | Recording not found, or the requested interval is not fully covered. |
+| 404 | `recording_not_found` / `clip_not_found` | Recording not found, the requested interval is not fully covered, or no keyframe within 5 minutes before `start_ts`. |
 | 406 | `not_acceptable` | Incompatible `Accept` header. |
 | 409 | `record_not_ready` | Record not ready. |
 | 429 | `capacity_exhausted` | Extraction capacity reached. |
@@ -1007,8 +1012,8 @@ X-Content-Type-Options: nosniff
 | `invalid_timestamp` | 400 | A timestamp is malformed or out of range. A future `start_ts` in `POST /records/start` also uses this code. A missing `start_ts` there returns `invalid_request`. |
 | `stream_not_found` | 404 | The stream is unknown or has been detached. |
 | `recording_not_found` | 404 | The recording is unknown or has been deleted. |
-| `frame_not_found` | 404 | The requested frame is not covered, no frame sits at the exact requested time (`match=exact`), or a frame file is missing or expired. |
-| `clip_not_found` | 404 | The requested clip interval is not covered, or a clip file is missing or expired. |
+| `frame_not_found` | 404 | The requested frame is not covered, no frame sits at the exact requested time (`match=exact`), no decodable frame is within 5 minutes of the requested time, or a frame file is missing or expired. |
+| `clip_not_found` | 404 | The requested clip interval is not covered, no keyframe is within 5 minutes before the clip start, or a clip file is missing or expired. |
 | `not_acceptable` | 406 | The `Accept` header cannot be satisfied. |
 | `stream_exists` | 409 | The same `source_uri` is already attached for that `sensor_id`; the existing `stream_id` is named in `error_detail`. |
 | `record_not_ready` | 409 | The record is not in a state that allows the requested action. |

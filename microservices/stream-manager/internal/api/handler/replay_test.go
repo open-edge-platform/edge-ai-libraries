@@ -6,6 +6,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -218,6 +219,7 @@ func TestReplayErrors(t *testing.T) {
 		{replay.ErrNotFound, http.StatusNotFound, "recording_not_found"},
 		{replay.ErrNotCovered, http.StatusNotFound, "frame_not_found"},
 		{replay.ErrFrameNotFound, http.StatusNotFound, "frame_not_found"},
+		{fmt.Errorf("%w: no keyframe", replay.ErrBeyondSearchLimit), http.StatusNotFound, "frame_not_found"},
 		{replay.ErrMediaNotFound, http.StatusNotFound, "frame_not_found"},
 		{replay.ErrNotReady, http.StatusConflict, "record_not_ready"},
 		{replay.ErrBusy, http.StatusTooManyRequests, "capacity_exhausted"},
@@ -255,6 +257,9 @@ func TestReplayErrors(t *testing.T) {
 				if tc.err == replay.ErrFrameNotFound && code == "clip_not_found" &&
 					strings.Contains(rec.Body.String(), "frame") {
 					t.Fatalf("clip error mentions a frame: %s", rec.Body)
+				}
+				if errors.Is(tc.err, replay.ErrBeyondSearchLimit) && !strings.Contains(rec.Body.String(), "within 5 minutes") {
+					t.Fatalf("got %s, want the 5 minute search limit in the detail", rec.Body)
 				}
 				if strings.Contains(rec.Body.String(), "secret") || strings.Contains(rec.Body.String(), "FFmpeg") {
 					t.Fatalf("error body leaks internals: %s", rec.Body)
