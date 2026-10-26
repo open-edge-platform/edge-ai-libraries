@@ -235,6 +235,7 @@ describe('VlmService', () => {
       expect(params).toEqual({
         do_sample: true,
         seed: 42,
+        chat_template_kwargs: { enable_thinking: false },
         temperature: 0.7,
         top_p: 0.9,
         presence_penalty: 0.5,
@@ -254,6 +255,17 @@ describe('VlmService', () => {
       const params = (service as any).defaultParams();
       expect(params.do_sample).toBeUndefined();
     });
+
+    it('should not send chat_template_kwargs to vLLM', () => {
+      jest.spyOn(configService, 'get').mockImplementation((key) => {
+        if (key === 'openai.vlmCaptioning.useVLLM') return 'CONFIG_ON';
+        return mockConfigValues[key];
+      });
+
+      const params = (service as any).defaultParams();
+      expect(params).not.toHaveProperty('chat_template_kwargs');
+      expect(params).not.toHaveProperty('do_sample');
+    });
   });
 
   describe('runTextOnlyInference', () => {
@@ -271,6 +283,7 @@ describe('VlmService', () => {
         model: expect.any(String),
         do_sample: true,
         seed: 42,
+        chat_template_kwargs: { enable_thinking: false },
         temperature: 0.7,
         top_p: 0.9,
         presence_penalty: 0.5,
@@ -317,6 +330,7 @@ describe('VlmService', () => {
         model: service.model,
         do_sample: true,
         seed: 42,
+        chat_template_kwargs: { enable_thinking: false },
         temperature: 0.7,
         top_p: 0.9,
         presence_penalty: 0.5,
@@ -347,6 +361,7 @@ describe('VlmService', () => {
         model: service.model,
         do_sample: true,
         seed: 42,
+        chat_template_kwargs: { enable_thinking: false },
         temperature: 0.7,
         top_p: 0.9,
         presence_penalty: 0.5,
@@ -396,6 +411,7 @@ describe('VlmService', () => {
         model: expect.any(String),
         do_sample: true,
         seed: 42,
+        chat_template_kwargs: { enable_thinking: false },
         temperature: 0.7,
         top_p: 0.9,
         presence_penalty: 0.5,
