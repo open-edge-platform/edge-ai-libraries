@@ -133,10 +133,13 @@ normalized independently with no shared analysis pass.
 `models.asr.device`. When provided, the service validates the provider/model
 combination and OpenVINO visibility, then compiles or reuses the model cached for
 that device. Unsupported or unavailable devices are rejected without falling
-back to CPU. The streaming and VSS-compatible endpoints continue to use the
-configured device, as does the realtime WebSocket endpoint. When diarization
-is enabled, its independently configured `models.diarization.device` is not
-changed by the ASR request override.
+back to CPU. The VSS-compatible `POST /transcriptions` endpoint accepts the
+same per-request `device` and `model_name` override/validation (see
+[api-reference.md](../api-reference.md)); the streaming
+(`/v1/audio/transcriptions/stream`) and realtime WebSocket endpoints continue
+to use the configured device only. When diarization is enabled, its
+independently configured `models.diarization.device` is not changed by the
+ASR request override.
 
 The first request for a device can be slower because it loads and compiles the
 model. Models for previously requested devices remain cached until process exit,

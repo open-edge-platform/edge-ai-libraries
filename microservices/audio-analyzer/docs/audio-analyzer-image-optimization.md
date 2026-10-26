@@ -346,13 +346,12 @@ All commands below are run from `microservices/audio-analyzer/`.
 
 ```bash
 # ---- Build each variant ----
-docker build -f docker/Dockerfile -t audio-analyzer:ubuntu-slim-cpu .
+docker build -f docker/Dockerfile -t audio-analyzer:ubuntu-slim-cpu \
+    --build-arg IMAGE_VARIANT=slim --build-arg INSTALL_GPU_NPU_RUNTIME=false .
 docker build -f docker/Dockerfile -t audio-analyzer:ubuntu-full-cpu \
-    --build-arg IMAGE_VARIANT=full .
+    --build-arg IMAGE_VARIANT=full --build-arg INSTALL_GPU_NPU_RUNTIME=false .
 docker build -f docker/Dockerfile -t audio-analyzer:ubuntu-slim-gpu-npu \
-    --build-arg INSTALL_GPU_NPU_RUNTIME=true .
-docker build -f docker/Dockerfile -t audio-analyzer:ubuntu-minimal-cpu \
-    --target runtime-minimal .
+    --build-arg IMAGE_VARIANT=slim --build-arg INSTALL_GPU_NPU_RUNTIME=true .
 
 # ---- Check sizes ----
 docker images audio-analyzer --format "table {{.Repository}}:{{.Tag}}\t{{.Size}}"

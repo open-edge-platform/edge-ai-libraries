@@ -63,10 +63,14 @@ docker compose exec audio-analyzer python3 -c "import openvino as ov; print([str
 curl --noproxy '*' http://127.0.0.1:8010/api/v1/models
 ```
 
-The first command must include `GPU`; the `/models` response description
-should read `"...on GPU"`. If the host has no `/dev/dri` node at all (no
-Intel iGPU present), `docker compose up` fails at container creation —
-this is expected on GPU-less hardware; use CPU-only configuration instead.
+The first command must include `GPU` when GPU is configured as the default
+device. If the host has no `/dev/dri` node (no Intel iGPU present), select
+CPU **and** remove the `/dev/dri:/dev/dri` line from
+`services.audio-analyzer.devices` in `docker-compose.yml` (or run the image
+directly with `docker run`, omitting any `--device`/`devices:` mapping) —
+setting `models.asr.device: CPU` in `config.yaml` alone does not prevent
+Compose from still trying to map `/dev/dri`, which fails container creation
+on a GPU-less host regardless of the configured device.
 
 ### Speaker Diarization Setup (Optional)
 

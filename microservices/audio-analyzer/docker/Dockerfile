@@ -152,16 +152,23 @@ ARG LEVEL_ZERO_VERSION="1.32.0-1~24.04~ppa1"
 #   docker build --secret id=corporate_ca,src=/path/to/corporate-ca.pem ...
 # TLS verification is never disabled (no curl -k/--insecure); if no secret
 # is supplied, this is a pure no-op and behaves exactly as before.
+#
+# IMPORTANT: the CA is installed and the driver downloads below both happen
+# in this SAME RUN step, and the CA file + its trust-store entry are removed
+# again (via `update-ca-certificates --fresh`) before this step/layer
+# completes. A later `RUN rm` in a subsequent layer would still leave the
+# certificate's bytes recoverable in image history, so cleanup must happen
+# within this one layer for the CA to be genuinely build-only.
 RUN --mount=type=secret,id=corporate_ca,required=false \
-    if [ -s /run/secrets/corporate_ca ]; then \
-        apt-get update && apt-get install -y --no-install-recommends ca-certificates \
-        && cp /run/secrets/corporate_ca /usr/local/share/ca-certificates/corporate-ca.crt \
-        && update-ca-certificates; \
-    fi
-
-RUN if [ "$INSTALL_GPU_NPU_RUNTIME" = "true" ]; then \
+    if [ "$INSTALL_GPU_NPU_RUNTIME" = "true" ]; then \
         apt-get update && apt-get install -y --no-install-recommends \
             ca-certificates curl libnuma1 ocl-icd-libopencl1 libtbb12 \
+        && CORPORATE_CA_INSTALLED=0 \
+        && if [ -s /run/secrets/corporate_ca ]; then \
+            cp /run/secrets/corporate_ca /usr/local/share/ca-certificates/corporate-ca.crt \
+            && update-ca-certificates \
+            && CORPORATE_CA_INSTALLED=1; \
+        fi \
         && mkdir -p /tmp/gpu_deps && cd /tmp/gpu_deps \
         && curl -fL --retry 5 --retry-delay 5 --retry-all-errors -O \
             "https://github.com/intel/compute-runtime/releases/download/${GPU_DRIVER_VERSION}/libze-intel-gpu1_${GPU_DRIVER_VERSION}-0_amd64.deb" \
@@ -183,7 +190,11 @@ RUN if [ "$INSTALL_GPU_NPU_RUNTIME" = "true" ]; then \
         && dpkg -i ./*.deb && ldconfig \
         && test -e /usr/lib/x86_64-linux-gnu/libze_loader.so.1 \
         && cd / && rm -rf /tmp/npu_deps \
-        && apt-get purge -y curl && apt-get autoremove -y; \
+        && apt-get purge -y curl && apt-get autoremove -y \
+        && if [ "$CORPORATE_CA_INSTALLED" = "1" ]; then \
+            rm -f /usr/local/share/ca-certificates/corporate-ca.crt \
+            && update-ca-certificates --fresh; \
+        fi; \
     fi \
     && rm -rf /var/lib/apt/lists/*
 

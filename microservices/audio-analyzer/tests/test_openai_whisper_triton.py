@@ -20,17 +20,27 @@ installed, that the import/compute path never touches it regardless).
 NOTE: like tests/test_ov_pyannote_embedding_openvino.py, this module
 requires the real ML stack (torch, openai-whisper) to be installed and is
 NOT part of the tier1/2/3 functional split or any default `testpaths`
-collection. It must be run explicitly, e.g. inside the built container:
+collection. It must be run explicitly, e.g. inside the built container —
+`pip` and `tests/` are both stripped from the production image (see
+docker/Dockerfile and .dockerignore), so a *full*-variant image must be run
+with the checkout mounted in and pytest installed separately rather than
+through the (removed) venv's own pip:
 
-    docker run --rm --entrypoint bash <image> -c \
-        "pip install pytest && pytest tests/test_openai_whisper_triton.py -v"
+    docker run --rm --user 0:0 \
+        -v "$(pwd)":/app/audio_analyzer -w /app/audio_analyzer \
+        --entrypoint bash <full-image> -c \
+        'apt-get update && apt-get install -y --no-install-recommends python3-pytest \
+         && PYTHONPATH=/opt/venv/lib/python3.12/site-packages /usr/bin/python3.12 \
+            -m pytest tests/test_openai_whisper_triton.py -v'
 
 It is not currently invoked by any CI workflow for this component (no
 pytest job exists in .github/workflows/GENAI-Audio-analyzer.yaml today);
 treat it as a manual/Docker-integration regression check until such a job
 is added.
 """
+import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -43,15 +53,38 @@ def test_whisper_component_imports_without_requiring_triton():
 
     triton is only reachable from whisper's CUDA-only DTW/median_filter
     branches, so a plain module import must not pull it into sys.modules.
+
+    This check runs in a *fresh subprocess* rather than popping "triton"
+    from this process's sys.modules: the module-level
+    ``pytest.importorskip("whisper")`` above already imports whisper (and,
+    if whisper ever starts importing triton eagerly, triton too) during
+    test collection, before this test body runs. Clearing sys.modules in
+    this process afterwards would erase that evidence without undoing the
+    import, and re-importing components.asr.openai.whisper would reuse the
+    cached whisper module without re-triggering whatever whisper's own
+    import did. Spawning a fresh interpreter, with triton import blocked at
+    the sys.modules level from the very start, avoids depending on this
+    process's import history entirely.
     """
-    sys.modules.pop("triton", None)
-
-    import components.asr.openai.whisper  # noqa: F401  (import-only check)
-
-    assert "triton" not in sys.modules, (
-        "Importing components.asr.openai.whisper unexpectedly imported "
-        "triton — the CUDA-only lazy-import guard in whisper/timing.py may "
-        "have changed; re-evaluate whether triton can still be removed."
+    script = (
+        "import sys\n"
+        "sys.modules['triton'] = None\n"  # any `import triton` now raises ImportError
+        "import components.asr.openai.whisper\n"
+        "print('import-ok')\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=str(Path(__file__).resolve().parents[1]),
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0 and "import-ok" in result.stdout, (
+        "Importing components.asr.openai.whisper in a fresh interpreter with "
+        "triton import blocked failed — the CUDA-only lazy-import guard in "
+        "whisper/timing.py may have changed to import triton eagerly; "
+        "re-evaluate whether triton can still be removed.\n"
+        f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
     )
 
 

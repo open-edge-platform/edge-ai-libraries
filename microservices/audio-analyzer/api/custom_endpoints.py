@@ -26,7 +26,7 @@ from utils.audio_util import save_audio_file
 from utils.config_loader import config
 from utils.latency_store import asr_latency
 from utils.minio_handler import MinioHandler
-from utils.openvino_runtime_validation import _SUPPORTED_ASR_DEVICES
+from utils.openvino_runtime_validation import _SUPPORTED_ASR_DEVICES, _validate_asr_compatibility
 from utils.session_manager import generate_session_id, resolve_requested_session_id
 from utils.storage_manager import StorageManager
 from utils.subtitle_format import format_srt
@@ -124,9 +124,12 @@ def stream_transcribe_audio(
 #
 # NOTE: `device` and `model_name` are honored, not silently ignored:
 #   - `device` (CPU/GPU/NPU) overrides config.models.asr.device for this
-#     request only, validated and resolved via resolve_asr_device() (same
-#     validation Pipeline already applies to the configured default) before
-#     any work begins. An unsupported value is rejected with 400.
+#     request only. Literal validity and provider/device compatibility are
+#     checked via _validate_asr_compatibility() before any source ingestion
+#     (MinIO download / file save) happens; runtime visibility (e.g. GPU
+#     actually present) is still checked later by resolve_asr_device(),
+#     inside Pipeline(). An unsupported or incompatible value is rejected
+#     with 400.
 #   - `model_name`, if supplied, must match the single configured ASR model
 #     (config.models.asr.name) — this service does not support a multi-model
 #     picker, so a mismatched value is rejected with 400 rather than
@@ -173,16 +176,27 @@ async def vss_transcribe(
             detail="Provide 'file' or all of 'minio_bucket', 'video_id' and 'video_name'",
         )
 
-    # device: reject unsupported literal values outright. A value that is a
-    # supported literal but unavailable/unsupported for the configured
-    # provider (e.g. GPU on a hardware host with no GPU) is still caught
-    # below via resolve_asr_device(), which Pipeline() already calls.
+    # device: reject unsupported literal values outright, then reject
+    # literal-valid-but-provider-incompatible combinations (e.g. GPU with
+    # the openai provider) before any source ingestion happens below —
+    # resolve_asr_device()/Pipeline() would also catch this, but only after
+    # the MinIO download or file upload has already been performed, and its
+    # broad exception handling would turn a client input error into an
+    # HTTP 500. Hardware/runtime-visibility failures for an otherwise valid
+    # combination (e.g. GPU configured but no GPU present) are still only
+    # caught later, inside Pipeline(), since that requires actually probing
+    # the runtime.
     requested_device = request.device.strip().upper() if request.device else None
     if requested_device and requested_device not in _SUPPORTED_ASR_DEVICES:
         raise HTTPException(
             status_code=400,
             detail=f"Unsupported device '{request.device}'. Supported values: {sorted(_SUPPORTED_ASR_DEVICES)}",
         )
+    if requested_device:
+        try:
+            _validate_asr_compatibility(config.models.asr.provider, requested_device)
+        except RuntimeError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     # model_name: this service exposes exactly one configured ASR model (see
     # GET /models) — there is no multi-model picker to route to, so a
@@ -227,7 +241,9 @@ async def vss_transcribe(
             raise HTTPException(status_code=400, detail="Uploaded file could not be saved")
 
     try:
-        pipeline = Pipeline(session_id=job_id, append_to_session=False, device=requested_device)
+        pipeline = await run_in_threadpool(
+            Pipeline, session_id=job_id, append_to_session=False, device=requested_device
+        )
         result = await run_in_threadpool(
             pipeline.transcribe,
             SimpleNamespace(audio_filename=filepath, source_type=AudioSource.AUDIO_FILE),

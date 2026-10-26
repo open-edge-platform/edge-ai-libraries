@@ -93,51 +93,98 @@ def _run_in_image(image_tag: str, shell_cmd: str) -> subprocess.CompletedProcess
     )
 
 
+# Query installed distributions via the runtime python3.12 interpreter's
+# stdlib importlib.metadata, NOT `pip` — `pip` and its console script are
+# deliberately removed from the production image (see docker/Dockerfile),
+# so `pip list`/`pip check` fail with "command not found" there. Combined
+# with `|| true`, that previously made these tests pass without actually
+# inspecting the image.
+_LIST_DISTRIBUTIONS_SCRIPT = (
+    "import importlib.metadata as m; "
+    "print('\\n'.join(sorted(d.metadata['Name'].lower() for d in m.distributions() "
+    "if d.metadata.get('Name'))))"
+)
+
+
+def _installed_distribution_names(image_tag: str) -> set[str]:
+    """Lowercased distribution names installed in the image's venv."""
+    result = _run_in_image(image_tag, f'python3.12 -c "{_LIST_DISTRIBUTIONS_SCRIPT}"')
+    assert result.returncode == 0, (
+        f"Failed to query installed distributions inside {image_tag} "
+        f"(exit {result.returncode}).\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    )
+    return {line.strip() for line in result.stdout.splitlines() if line.strip()}
+
+
 class TestDependencyTrimming:
 
     @pytest.mark.tier3
     def test_triton_absent_from_built_image(self, built_image):
         """`triton` must not be present in the built production image."""
-        result = _run_in_image(built_image, "pip list --format=freeze | grep -i '^triton' || true")
-        assert result.stdout.strip() == "", (
-            f"Expected triton to be absent from the image, found: {result.stdout.strip()!r}"
+        installed = _installed_distribution_names(built_image)
+        assert "triton" not in installed, (
+            f"Expected triton to be absent from the image, but it is installed "
+            f"(queried via importlib.metadata, not pip)."
         )
 
     @pytest.mark.tier3
     def test_torchcodec_absent_from_built_image(self, built_image):
         """`torchcodec` must not be present in the built production image."""
-        result = _run_in_image(built_image, "pip list --format=freeze | grep -i '^torchcodec' || true")
-        assert result.stdout.strip() == "", (
-            f"Expected torchcodec to be absent from the image, found: {result.stdout.strip()!r}"
+        installed = _installed_distribution_names(built_image)
+        assert "torchcodec" not in installed, (
+            f"Expected torchcodec to be absent from the image, but it is installed "
+            f"(queried via importlib.metadata, not pip)."
         )
 
     @pytest.mark.tier3
     def test_pip_check_reports_only_expected_warnings(self, built_image):
         """
-        `pip check` is expected to fail with exactly the two known,
-        intentional warnings (triton via openai-whisper, torchcodec via
-        pyannote-audio). If a *different* package starts appearing here, a
-        dependency has broken unexpectedly and this test must fail to flag
-        the regression.
+        Dependency-graph equivalent of `pip check`, but implemented with the
+        runtime interpreter's own importlib.metadata + packaging (both
+        present in the image; `pip` is not) so it genuinely inspects the
+        final environment instead of silently no-opping when `pip` is
+        missing. Only the two known, intentional removals (triton via
+        openai-whisper, torchcodec via pyannote-audio) are expected to be
+        reported as missing requirements. If a *different* package starts
+        appearing here, a dependency has broken unexpectedly and this test
+        must fail to flag the regression.
         """
-        result = _run_in_image(built_image, "pip check")
+        script = r"""
+import importlib.metadata as m
+from packaging.requirements import Requirement
 
-        if result.returncode == 0:
-            # Nothing broken at all — stricter than required, not a failure.
-            return
+installed = {d.metadata["Name"].lower(): d for d in m.distributions() if d.metadata.get("Name")}
+missing = {}
+for name, dist in installed.items():
+    for raw_req in dist.requires or []:
+        try:
+            req = Requirement(raw_req)
+        except Exception:
+            continue
+        if req.marker is not None:
+            try:
+                if not req.marker.evaluate({"extra": ""}):
+                    continue
+            except Exception:
+                pass
+        base = req.name.lower()
+        if base not in installed:
+            missing.setdefault(base, set()).add(name)
+for pkg in sorted(missing):
+    print(f"{pkg}::{','.join(sorted(missing[pkg]))}")
+"""
+        result = _run_in_image(built_image, f"python3.12 - <<'PYEOF'\n{script}\nPYEOF")
+        assert result.returncode == 0, (
+            f"Dependency-graph check failed to execute inside the image "
+            f"(exit {result.returncode}).\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        )
 
-        offending_packages = set()
-        for line in result.stdout.splitlines() + result.stderr.splitlines():
-            line = line.strip()
-            if not line or "requires" not in line:
-                continue
-            # Typical line: "openai-whisper 20250625 requires triton, which is not installed."
-            missing = line.split("requires", 1)[1].split(",", 1)[0].strip()
-            offending_packages.add(missing.lower())
-
+        offending_packages = {
+            line.split("::", 1)[0] for line in result.stdout.splitlines() if "::" in line
+        }
         unexpected = offending_packages - EXPECTED_PIP_CHECK_MISSING
         assert not unexpected, (
-            f"`pip check` reported unexpected broken dependencies: {unexpected}. "
+            f"Dependency check reported unexpected broken dependencies: {unexpected}. "
             f"Only {EXPECTED_PIP_CHECK_MISSING} are expected (intentionally "
-            f"removed). Output:\n{result.stdout}\n{result.stderr}"
+            f"removed). Full output:\n{result.stdout}\n{result.stderr}"
         )
