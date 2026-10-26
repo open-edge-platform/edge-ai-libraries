@@ -55,6 +55,65 @@ before running it.
 
 ## Execute on a prepared Linux machine
 
+### Developer entrypoint: validate local changes
+
+Use [validate-local-openshell.sh](validate-local-openshell.sh) to validate the
+current checkout, including uncommitted changes. It never fetches, resets or
+switches revisions.
+
+```bash
+# Existing prepared machine: no prerequisite provisioning
+bash test/validate-local-openshell.sh
+
+# Explicitly allow preparation of missing prerequisites and default inference
+bash test/validate-local-openshell.sh --prepare
+
+# Reuse another exact model already served by prepared inference
+bash test/validate-local-openshell.sh --model <exact-served-id>
+```
+
+The stages are syntax/offline regression, environment inspection, optional
+preparation, live integration/scoped cleanup, and a success message with report
+locations. Any failed stage exits nonzero and prevents later dependent stages.
+Reports are retained in a printed temporary directory; `--report-dir` selects a
+new directory (an existing directory is rejected to avoid mixing old results).
+
+Base Linux/Bash/Node.js 24 and offline utilities must already exist; run
+`startup.sh` separately if they are missing. With `--prepare`, the script runs
+the normal prerequisite setup, checks Docker accessibility, uses
+`install.sh inference --runtime openshell --non-interactive` for missing default
+inference, and uses the installer's owned OpenShell provisioning helper under
+the deployment lock. Fresh automatic preparation supports only the default
+managed Qwen model. Prepare custom/external routes explicitly first.
+
+Compatible existing inference is validated and reused, not explicitly switched
+or repaired. Existing incompatible OpenShell, pending transitions, inaccessible
+Docker and partial inference deployments fail with diagnostics. Unset
+`HARNESS_HF_MODEL` before invoking the script. Existing installer safeguards
+still apply; preparation consent is not permission to overwrite unrelated
+resources. After Docker-group changes a new login may be required before retry.
+
+Preparation can need sudo, network downloads and substantial disk/RAM; there is
+no universal resource threshold guaranteeing a build. Run outside active demos
+and important inference sessions. Shared prerequisites, services and models
+remain installed after testing; only integration-owned sandboxes are cleaned.
+The wrapper does not perform full uninstall or guarantee recovery from host
+power loss. Review the final cleanup result and use the recovery steps below.
+
+The wrapper's safety behavior is tested without provisioning real resources:
+
+```bash
+node --test --test-reporter=tap test/validate-local-openshell-test.mjs
+```
+
+These nine fixture-based cases check prepared-service reuse, offline fail-fast,
+fresh opt-in preparation without an explicit model switch, refusal without
+consent, conflicting inference, incompatible OpenShell, custom fresh-model
+refusal, live-failure propagation and missing argument diagnostics. They also
+run in the CI reporting-regression step; they do not run live integration in CI.
+
+### Direct live-suite execution
+
 1. Check out the reviewed revision and enter the Agent Harness Install component
    directory. Run under the account that can access Docker and the gateway.
 2. Run the offline gate first:

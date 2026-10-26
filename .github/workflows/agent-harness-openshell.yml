@@ -85,7 +85,7 @@ jobs:
         working-directory: frameworks/agent-harness-install
         run: |
           set -euo pipefail
-          node --test --test-reporter=tap test/tap-summary-test.mjs | tee "$RUNNER_TEMP/openshell-offline/reporting.tap"
+          node --test --test-reporter=tap test/tap-summary-test.mjs test/validate-local-openshell-test.mjs | tee "$RUNNER_TEMP/openshell-offline/reporting.tap"
       - name: Publish offline test summary
         if: always()
         working-directory: frameworks/agent-harness-install

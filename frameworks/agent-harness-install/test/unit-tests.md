@@ -85,6 +85,12 @@ The summary runs even after suite failure and lists unavailable reports as
 missing, not passed. Each suite's TAP report is uploaded with the job artifacts.
 The Hermes cases now supply an explicit image-runtime skip reason.
 
+The same CI step also runs nine offline safety tests for the developer
+validation wrapper. Their objectives and execution command are documented with
+the [developer entrypoint](integration-tests.md#developer-entrypoint-validate-local-changes).
+They exercise mocked preparation and failure paths; they do not provision a
+machine or execute live integration.
+
 ## Startup, runtime, profiles and boundaries
 
 Source and execution: [openshell-test.sh](openshell-test.sh),

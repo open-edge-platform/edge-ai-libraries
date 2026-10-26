@@ -87,6 +87,13 @@ See the [live integration test catalogue](integration-tests.md) for individual
 cases and objectives, when to execute, manual/CI execution steps, cleanup and
 the limits of the evidence these tests provide.
 
+Developers can run `bash test/validate-local-openshell.sh` to validate their
+working-tree changes on a prepared machine, or explicitly add `--prepare` to
+allow missing default-service preparation. See the
+[developer entrypoint](integration-tests.md#developer-entrypoint-validate-local-changes)
+for safeguards, stage behavior and report locations. The CI reporting step also
+runs the wrapper's nine offline safety regressions, not the live wrapper itself.
+
 Requirements:
 
 - Linux with Bash, Node.js 24, curl and GNU timeout on PATH.

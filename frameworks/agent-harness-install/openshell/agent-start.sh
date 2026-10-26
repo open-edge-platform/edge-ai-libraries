@@ -46,6 +46,12 @@ JS
     fi
     node "${HARNESS_MODEL_CONFIG_SCRIPT:-/opt/harness/model-config.mjs}" \
       openclaw "$HARNESS_SANDBOX_MODEL" "$HARNESS_SANDBOX_ENDPOINT"
+    # The installer's first sandbox exec can hold OpenClaw's state lifecycle lock while the
+    # gateway starts. Retry briefly on that race, then replace this shell with the final attempt.
+    for _ in 1 2 3 4 5 6 7 8; do
+      openclaw gateway run && exit 0
+      sleep 3
+    done
     exec openclaw gateway run
     ;;
   hermes)
