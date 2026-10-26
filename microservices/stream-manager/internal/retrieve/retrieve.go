@@ -69,8 +69,7 @@ type Service struct {
 	ffprobe  string
 	slots    chan struct{}
 	now      func() time.Time
-	// derivedTTL is how long a cut frame or clip is kept stored (response caching);
-	// the recording's own expiry_ts wins when it comes sooner.
+	// derivedTTL is how long a cut frame or clip stays available.
 	derivedTTL time.Duration
 }
 
@@ -144,7 +143,7 @@ func (s *Service) Frame(ctx context.Context, id string, ts time.Time, format, ma
 	return Media{
 		Result: model.MediaResult{
 			RecordingID: rec.RecordingID, SensorID: rec.SensorID, MediaType: "frame", ContentType: contentType,
-			RequestedStartTS: ts.UTC(), StartTS: frameTS.UTC(), ExpiryTS: s.expiry(rec, mtime),
+			RequestedStartTS: ts.UTC(), StartTS: frameTS.UTC(), ExpiryTS: s.expiry(mtime),
 		},
 		Name: name, Path: path, ExactMatch: exact,
 	}, nil
@@ -192,19 +191,15 @@ func (s *Service) Clip(ctx context.Context, id string, start time.Time, duration
 		Result: model.MediaResult{
 			RecordingID: rec.RecordingID, SensorID: rec.SensorID, MediaType: "clip", ContentType: contentTypes[format],
 			RequestedStartTS: start.UTC(), RequestedEndTS: &requestedEnd,
-			StartTS: clipStart.UTC(), EndTS: &clipEnd, ExpiryTS: s.expiry(rec, mtime),
+			StartTS: clipStart.UTC(), EndTS: &clipEnd, ExpiryTS: s.expiry(mtime),
 		},
 		Name: name, Path: path, ExactMatch: clipStart.Equal(start),
 	}, nil
 }
 
-// OpenMedia opens a frame or clip cut earlier, unless its recording or itself has expired.
+// OpenMedia opens a frame or clip cut earlier, unless its own TTL has expired.
 func (s *Service) OpenMedia(ctx context.Context, id, name string) (*os.File, MediaFile, error) {
-	rec, err := s.recording(ctx, id)
-	if err != nil {
-		return nil, MediaFile{}, err
-	}
-	file, err := s.media.OpenDerived(ctx, rec.RecordingPath, name)
+	file, err := s.media.OpenDerivedByID(ctx, id, name)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, MediaFile{}, ErrMediaNotFound
 	}
@@ -215,7 +210,7 @@ func (s *Service) OpenMedia(ctx context.Context, id, name string) (*os.File, Med
 	if err != nil {
 		return nil, MediaFile{}, errors.Join(err, file.Close())
 	}
-	expiryTS := s.expiry(rec, info.ModTime())
+	expiryTS := s.expiry(info.ModTime())
 	if expiryTS != nil && !s.now().Before(*expiryTS) {
 		return nil, MediaFile{}, errors.Join(ErrMediaNotFound, file.Close())
 	}
@@ -323,19 +318,12 @@ func ffmpegArgs(args []string) []string {
 	return append([]string{"-hide_banner", "-loglevel", "error", "-nostdin", "-y"}, args...)
 }
 
-// expiry is the TTL of a derived file, capped by its recording's expiry_ts.
-func (s *Service) expiry(rec model.Recording, mtime time.Time) *time.Time {
+// expiry is the optional TTL of a derived file.
+func (s *Service) expiry(mtime time.Time) *time.Time {
 	if s.derivedTTL == 0 {
-		if rec.ExpiryTS == nil {
-			return nil
-		}
-		expiryTS := rec.ExpiryTS.UTC()
-		return &expiryTS
+		return nil
 	}
 	expiryTS := mtime.Add(s.derivedTTL)
-	if rec.ExpiryTS != nil && rec.ExpiryTS.Before(expiryTS) {
-		expiryTS = *rec.ExpiryTS
-	}
 	expiryTS = expiryTS.UTC()
 	return &expiryTS
 }

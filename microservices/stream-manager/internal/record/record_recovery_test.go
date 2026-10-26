@@ -97,7 +97,9 @@ func TestRecoverInterrupted(t *testing.T) {
 
 type failingMedia struct{ *storage.MediaStore }
 
-func (failingMedia) DeleteMedia(context.Context, string) error { return errors.New("disk gone") }
+func (failingMedia) DeleteMedia(context.Context, string) error {
+	return errors.New("disk gone")
+}
 
 type failingMetadata struct{ *storage.MetadataStore }
 
@@ -130,11 +132,9 @@ func TestDeleteOrder(t *testing.T) {
 		t.Fatalf("failed media deletion removed media: %v", err)
 	}
 	svc.media = media
-	svc.cleanupOrphanedMedia(ctx)
-	if _, err := os.Stat(filepath.Dir(filename)); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("orphan media kept after cleanup: %v", err)
+	if err := media.DeleteMedia(ctx, rec.RecordingPath); err != nil {
+		t.Fatalf("manual retry after media failure: %v", err)
 	}
-
 	rec, filename = seed(t, metadata, media, "ready")
 	release, err := media.AcquireMedia(ctx, rec.RecordingPath)
 	if err != nil {
@@ -146,14 +146,15 @@ func TestDeleteOrder(t *testing.T) {
 	if _, err := metadata.GetMetadataByRecordingID(ctx, rec.RecordingID); !errors.Is(err, storage.ErrNotFound) {
 		t.Fatalf("busy media metadata kept: %v", err)
 	}
-	svc.cleanupOrphanedMedia(ctx)
 	if _, err := os.Stat(filename); err != nil {
 		t.Fatalf("busy media removed: %v", err)
 	}
 	release()
-	svc.cleanupOrphanedMedia(ctx)
+	if err := media.DeleteMedia(ctx, rec.RecordingPath); err != nil {
+		t.Fatalf("manual retry after media was busy: %v", err)
+	}
 	if _, err := os.Stat(filepath.Dir(filename)); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("released orphan media kept: %v", err)
+		t.Fatalf("media kept after manual retry: %v", err)
 	}
 
 	rec, filename = seed(t, metadata, media, "ready")
@@ -178,79 +179,5 @@ func TestDeleteOrder(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Dir(filename)); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("media kept: %v", err)
-	}
-}
-
-type unreadableMetadata struct{ *storage.MetadataStore }
-
-func (unreadableMetadata) GetMetadataByRecordingID(context.Context, string) (model.Recording, error) {
-	return model.Recording{}, errors.New("db unavailable")
-}
-
-func TestCleanupOrphanedMedia(t *testing.T) {
-	ctx := context.Background()
-	metadata, media := openStores(t)
-	kept, keptFile := seed(t, metadata, media, "ready")
-	orphan, orphanFile := seed(t, metadata, media, "ready")
-	if _, _, err := media.PutDerived(ctx, orphan.RecordingPath, "frame-0.jpeg", func(path string) error {
-		return os.WriteFile(path, []byte("frame"), 0o600)
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if err := metadata.DeleteMetadata(ctx, orphan.RecordingID); err != nil {
-		t.Fatal(err)
-	}
-	svc := &Service{metadata: unreadableMetadata{metadata}, media: media}
-	if err := svc.cleanupOrphan(ctx, orphan.RecordingID, orphan.RecordingPath); err == nil {
-		t.Fatal("metadata lookup failure was ignored")
-	}
-	if _, err := os.Stat(orphanFile); err != nil {
-		t.Fatalf("media deleted after metadata lookup failure: %v", err)
-	}
-	svc.metadata = metadata
-	svc.media = failingMedia{media}
-	if err := svc.cleanupOrphan(ctx, orphan.RecordingID, orphan.RecordingPath); err == nil {
-		t.Fatal("media deletion failure was ignored")
-	}
-	svc.media = media
-	svc.jobs = map[string]*job{orphan.RecordingID: {}}
-	svc.cleanupOrphanedMedia(ctx)
-	if _, err := os.Stat(orphanFile); err != nil {
-		t.Fatalf("active job media deleted: %v", err)
-	}
-	delete(svc.jobs, orphan.RecordingID)
-	svc.cleanupOrphanedMedia(ctx)
-	if _, err := os.Stat(filepath.Dir(orphanFile)); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("orphan recording and derived media kept: %v", err)
-	}
-	if _, err := os.Stat(keptFile); err != nil {
-		t.Fatalf("media with metadata removed: %v", err)
-	}
-	if _, err := metadata.GetMetadataByRecordingID(ctx, kept.RecordingID); err != nil {
-		t.Fatal(err)
-	}
-	if media.UsedBytes() != 1 {
-		t.Fatalf("used bytes = %d, want 1", media.UsedBytes())
-	}
-}
-
-func TestStartupCleanupRemovesOrphans(t *testing.T) {
-	ctx := context.Background()
-	metadata, media := openStores(t)
-	rec, filename := seed(t, metadata, media, "ready")
-	if err := metadata.DeleteMetadata(ctx, rec.RecordingID); err != nil {
-		t.Fatal(err)
-	}
-	newTestService(t, metadata, media, 0)
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		_, err := os.Stat(filepath.Dir(filename))
-		if errors.Is(err, os.ErrNotExist) {
-			return
-		}
-		if err != nil || time.Now().After(deadline) {
-			t.Fatalf("startup cleanup kept orphan media: %v", err)
-		}
-		time.Sleep(10 * time.Millisecond)
 	}
 }

@@ -451,13 +451,26 @@ func TestDerivedTTLDisabled(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if expiringMedia.Result.ExpiryTS == nil || !expiringMedia.Result.ExpiryTS.Equal(recordExpiry) {
-		t.Fatalf("expiry %v, want the recording's %v", expiringMedia.Result.ExpiryTS, recordExpiry)
+	if expiringMedia.Result.ExpiryTS != nil {
+		t.Fatalf("expiry %v, want no derived-media expiry", expiringMedia.Result.ExpiryTS)
 	}
 	env.svc.now = func() time.Time { return recordExpiry }
-	if _, _, err := env.svc.OpenMedia(ctx, expiringRecording.RecordingID, expiringMedia.Name); !errors.Is(err, ErrNotFound) {
-		t.Fatalf("expired recording media: got %v, want ErrNotFound", err)
+	file, _, err = env.svc.OpenMedia(ctx, expiringRecording.RecordingID, expiringMedia.Name)
+	if err != nil {
+		t.Fatalf("derived media expired with recording: %v", err)
 	}
+	_ = file.Close()
+	if err := env.mediaStore.DeleteSourceMedia(ctx, expiringRecording.RecordingPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := env.metadataStore.DeleteMetadata(ctx, expiringRecording.RecordingID); err != nil {
+		t.Fatal(err)
+	}
+	file, _, err = env.svc.OpenMedia(ctx, expiringRecording.RecordingID, expiringMedia.Name)
+	if err != nil {
+		t.Fatalf("derived media unavailable after recording expiry cleanup: %v", err)
+	}
+	_ = file.Close()
 }
 
 func TestDerivedTTL(t *testing.T) {
@@ -521,7 +534,7 @@ func TestDerivedTTL(t *testing.T) {
 	}
 }
 
-func TestDerivedTTLCappedByRecordingExpiry(t *testing.T) {
+func TestDerivedTTLIndependentOfRecordingExpiry(t *testing.T) {
 	env := newEnv(t, 0)
 	soon := time.Now().Add(2 * time.Minute).UTC()
 	rec := env.addRecording(t, func(r *model.Recording) { r.ExpiryTS = &soon })
@@ -531,28 +544,41 @@ func TestDerivedTTLCappedByRecordingExpiry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if media.Result.ExpiryTS == nil || !media.Result.ExpiryTS.Equal(soon) {
-		t.Fatalf("expiry %v, want the recording's %v", media.Result.ExpiryTS, soon)
+	wantExpiry := modTime(t, media.Path).Add(testDerivedTTL).UTC()
+	if media.Result.ExpiryTS == nil || !media.Result.ExpiryTS.Equal(wantExpiry) {
+		t.Fatalf("expiry %v, want derived TTL %v", media.Result.ExpiryTS, wantExpiry)
 	}
 	file, info, err := env.svc.OpenMedia(ctx, rec.RecordingID, media.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if body, _ := io.ReadAll(file); len(body) == 0 || info.ContentType != "video/mp4" ||
-		info.ExpiryTS == nil || !info.ExpiryTS.Equal(soon) {
+		info.ExpiryTS == nil || !info.ExpiryTS.Equal(wantExpiry) {
 		t.Fatalf("unexpected media %+v (%d bytes)", info, len(body))
 	}
 	_ = file.Close()
 
-	// Once the recording expires, its derived media goes with it even though
-	// the clip's own TTL has 13 minutes left.
+	// The recording expires first, but the clip remains available until its TTL.
 	env.svc.now = func() time.Time { return soon }
-	if _, _, err := env.svc.OpenMedia(ctx, rec.RecordingID, media.Name); !errors.Is(err, ErrNotFound) {
-		t.Fatalf("got %v, want ErrNotFound", err)
+	file, info, err = env.svc.OpenMedia(ctx, rec.RecordingID, media.Name)
+	if err != nil || info.ExpiryTS == nil || !info.ExpiryTS.Equal(wantExpiry) {
+		t.Fatalf("derived media unavailable at recording expiry: %+v %v", info, err)
 	}
+	_ = file.Close()
 	if _, err := env.svc.Clip(ctx, rec.RecordingID, fixtureStart, time.Second, "mp4"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("got %v, want ErrNotFound", err)
 	}
+	if err := env.mediaStore.DeleteSourceMedia(ctx, rec.RecordingPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := env.metadataStore.DeleteMetadata(ctx, rec.RecordingID); err != nil {
+		t.Fatal(err)
+	}
+	file, _, err = env.svc.OpenMedia(ctx, rec.RecordingID, media.Name)
+	if err != nil {
+		t.Fatalf("derived media unavailable after recording cleanup: %v", err)
+	}
+	_ = file.Close()
 }
 
 func TestDeleteMediaRemovesDerived(t *testing.T) {
