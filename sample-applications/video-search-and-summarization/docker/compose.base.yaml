@@ -83,8 +83,8 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 5s
       timeout: 10s
-      retries: 40
-      start_period: 10s
+      retries: 60
+      start_period: 15s
     networks:
       - vs_network
 

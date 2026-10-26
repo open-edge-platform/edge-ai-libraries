@@ -7,6 +7,11 @@
 {{- $vlmStorageName := $ovms.vlmStorageName -}}
 {{- $llmStorageName := $ovms.llmStorageName -}}
 {{- $useVllm := .Values.vllm.enabled -}}
+{{- /* An NPU LLM is compiled for a fixed prompt length, so the summarization
+       char budget and completion cap default to values that fit it. */ -}}
+{{- $pmNpuLlm := and .Values.ovms.enabled (not $useVllm) $ovms.llmOnNpu -}}
+{{- $pmMaxContextLength := default (ternary $ovms.npuLlmContextChars "90000" $pmNpuLlm) (toString (default "" .Values.pipelinemanager.env.MAX_CONTEXT_LENGTH)) -}}
+{{- $pmSummaryMaxTokens := default (ternary $ovms.npuMinResponseLen "4000" $pmNpuLlm) (toString (default "" .Values.pipelinemanager.env.SUMMARIZATION_MAX_COMPLETION_TOKENS)) -}}
 {{- $odModelName := include "video-summarization.objectDetectionModel" .Values.videoingestion.odModelName | trim -}}
 apiVersion: apps/v1
 kind: Deployment
@@ -168,19 +173,19 @@ spec:
               # Use storage model name for OVMS (includes device/format), raw name for vLLM
               value: {{ if $useVllm }}{{ required "Value for `.global.vlmName` is required!" .Values.global.vlmName | quote }}{{ else if .Values.ovms.enabled }}{{ $vlmStorageName | quote }}{{ else }}{{ .Values.global.vlmName | quote }}{{ end }}
             - name: LLM_CONCURRENT
-              value: "{{ if and .Values.ovms.enabled (not $useVllm) $ovmsVlmUsesAccelerator }}1{{ else }}{{ .Values.pipelinemanager.env.LLM_CONCURRENT }}{{ end }}"
+              value: {{ .Values.pipelinemanager.env.LLM_CONCURRENT | quote }}
             - name: VLM_CONCURRENT
-              value: "{{ if and .Values.ovms.enabled (not $useVllm) $ovmsVlmUsesAccelerator }}1{{ else }}{{ .Values.pipelinemanager.env.VLM_CONCURRENT }}{{ end }}"
+              value: {{ .Values.pipelinemanager.env.VLM_CONCURRENT | quote }}
             - name: TICK_INTERVAL_MS
               value: "{{ .Values.pipelinemanager.env.TICK_INTERVAL_MS }}"
             - name: FAST_TICK_INTERVAL_MS
               value: "{{ .Values.pipelinemanager.env.FAST_TICK_INTERVAL_MS }}"
             - name: SUMMARIZATION_MAX_COMPLETION_TOKENS
-              value: "{{ .Values.pipelinemanager.env.SUMMARIZATION_MAX_COMPLETION_TOKENS }}"
+              value: {{ $pmSummaryMaxTokens | quote }}
             - name: CAPTIONING_MAX_COMPLETION_TOKENS
               value: "{{ .Values.pipelinemanager.env.CAPTIONING_MAX_COMPLETION_TOKENS }}"
             - name: MAX_CONTEXT_LENGTH
-              value: "{{ .Values.pipelinemanager.env.MAX_CONTEXT_LENGTH }}"
+              value: {{ $pmMaxContextLength | quote }}
             - name: LLM_MODEL_API
               value: "{{ .Values.pipelinemanager.env.LLM_MODEL_API }}"
             - name: VLM_MODEL_API
