@@ -23,10 +23,9 @@ container, publishes its port to a free host port, and prints the application
 access URLs.
 
 > [!NOTE]
-> The `make` command sets the container's `/dev/shm` capacity to 40% of the
-> host's available memory. It uses `4g` if it cannot read the available memory.
-> This is a capacity limit, not reserved RAM. Actual use depends on the data
-> written to shared memory.
+> Total memory used for buffering (for multiple streams) is limited by the container's shared memory.
+> The `make` command sets a custom shared memory size of the container.
+> This avoids issues of buffer failures when multiple streams are buffered simultaneously.
 
 Check that the application is live:
 
@@ -42,7 +41,6 @@ A healthy response looks like this:
 
 > [!TIP]
 > Read the full API documentation at `http://localhost:<port>/docs/v1/index.html`.
-
 Stop and remove the running container:
 
 ```bash
