@@ -1,5 +1,9 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import json
 import queue
+import threading
 import time
 
 import numpy as np
@@ -81,9 +85,10 @@ class FakePipeline:
 
     tokenizer = None
 
-    def __init__(self, tokens=None, generated_text=""):
+    def __init__(self, tokens=None, generated_text="", delay=0.0):
         self.tokens = tokens
         self.generated_text = generated_text
+        self.delay = delay
         self.prompts = []
         self.produced = 0
 
@@ -96,7 +101,8 @@ class FakePipeline:
                     break
                 streamer.put_text(token)
                 self.produced += 1
-                time.sleep(0.001)
+                if self.delay:
+                    time.sleep(self.delay)
         return [{"generated_text": self.generated_text}]
 
 
@@ -284,6 +290,18 @@ def test_retrieval_depth_from_config(mocker, chain, config):
     assert reranker.top_n == 4
 
 
+def test_get_retriever_uses_retrieval_depth(mocker, chain, config):
+    store = FakeVectorStore(CANDIDATES)
+    mocker.patch.object(chain, "vectorstore", store)
+    mocker.patch.object(config, "RETRIEVAL_K", 8)
+    mocker.patch.object(config, "_ENABLE_RERANK", False)
+
+    chain.get_retriever()
+
+    assert store.kwargs["search_kwargs"]["k"] == 8
+    assert store.kwargs["search_kwargs"]["fetch_k"] >= 16
+
+
 def test_retrieval_query_unchanged_without_prompt(mocker, chain, config):
     pipeline = FakePipeline(generated_text="rewritten")
     mocker.patch.object(chain, "llm", FakePipelineLLM(pipeline), create=True)
@@ -327,8 +345,31 @@ def test_chat_stream_with_pipeline_sends_sources_first(test_client, mocker, sour
     assert pipeline.prompts[0].endswith("Q: How?")
 
 
-async def test_stream_answer_stops_when_consumer_goes_away(mocker, chain, pipeline_streamer):
+async def test_stream_answer_cancelled_while_waiting_never_generates(mocker, chain, pipeline_streamer):
+    import anyio
+
     pipeline = FakePipeline()
+    mocker.patch.object(chain, "llm", FakePipelineLLM(pipeline), create=True)
+
+    # Another request holds the LLM for 1 s, so this one waits for its first chunk.
+    assert chain._generation_lock.acquire(timeout=5)
+    releaser = threading.Timer(1.0, chain._generation_lock.release)
+    releaser.start()
+    started = time.monotonic()
+    # StreamingResponse cancels the stream through an AnyIO cancel scope on disconnect.
+    with anyio.move_on_after(0.05):
+        await chain.stream_answer("prompt").__anext__()
+
+    assert time.monotonic() - started < 0.5
+    releaser.join()
+    assert chain._generation_lock.acquire(timeout=5)
+    chain._generation_lock.release()
+    assert pipeline.prompts == []
+
+
+async def test_stream_answer_stops_when_consumer_goes_away(mocker, chain, pipeline_streamer):
+    # Slow producer so cancellation lands before all 1000 tokens are generated.
+    pipeline = FakePipeline(delay=0.001)
     mocker.patch.object(chain, "llm", FakePipelineLLM(pipeline), create=True)
 
     stream = chain.stream_answer("prompt")

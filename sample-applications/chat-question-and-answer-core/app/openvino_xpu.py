@@ -1,9 +1,13 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Accelerator (GPU/NPU) helpers for the OpenVINO backend.
 
 - `StaticBatchModel` runs an optimum encoder (embedding, reranker) compiled with a static
   `[batch, seq]` shape, which the NPU requires, on inputs of any batch size. langchain's
   OpenVINO embeddings and reranker already pad the sequence to a static length.
+- `LockedModel` serializes calls to an encoder on CPU/GPU, which reuses one infer request.
 - `GenAILLM` is a LangChain LLM over `openvino_genai.LLMPipeline`, used for the LLM on NPU,
   where the optimum (HF pipeline) path is not supported.
 - `npu_lock` serializes inference across all models on the NPU.
@@ -96,6 +100,8 @@ class StaticBatchModel:
         self._lock = lock
 
     def __getattr__(self, name):
+        if name == "_model":
+            raise AttributeError(name)
         return getattr(self._model, name)
 
     def __call__(self, **inputs):
@@ -122,6 +128,28 @@ class StaticBatchModel:
         chunk = {k: _pad_batch(v, self.batch_size) for k, v in chunk.items()}
         output = self._model(**chunk, **others)
         return type(output)(**{key: _copy(output[key][:rows]) for key in output.keys()})
+
+
+class LockedModel:
+    """
+    Serializes calls to an optimum OVModel, which reuses one infer request (concurrent calls
+    fail with "Infer Request is busy"). Outputs are copied inside the lock because they can
+    share memory with that infer request.
+    """
+
+    def __init__(self, model: Any):
+        self._model = model
+        self._lock = threading.Lock()
+
+    def __getattr__(self, name):
+        if name == "_model":
+            raise AttributeError(name)
+        return getattr(self._model, name)
+
+    def __call__(self, *args, **kwargs):
+        with self._lock:
+            output = self._model(*args, **kwargs)
+            return type(output)(**{key: _copy(output[key]) for key in output.keys()})
 
 
 def make_static(model: Any, batch_size: int, seq_len: int) -> StaticBatchModel:
@@ -273,6 +301,8 @@ class GenAILLM(LLM):
         run_manager: Optional[CallbackManagerForLLMRun] = None,
         **kwargs: Any,
     ) -> str:
+        if stop:
+            raise ValueError("GenAILLM does not support stop sequences.")
         return self.stream_text(prompt, on_text=run_manager.on_llm_new_token if run_manager else None)
 
     def _stream(
@@ -282,6 +312,8 @@ class GenAILLM(LLM):
         run_manager: Optional[CallbackManagerForLLMRun] = None,
         **kwargs: Any,
     ) -> Iterator[GenerationChunk]:
+        if stop:
+            raise ValueError("GenAILLM does not support stop sequences.")
         texts = TextQueue()
         cancel = threading.Event()
         errors: list = []

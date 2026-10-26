@@ -32,8 +32,12 @@ class Settings(BaseSettings):
         MAX_TOKENS (int): Maximum number of tokens for LLM responses.
         KEEP_ALIVE (Union[str, int, None]): Keep-alive setting for the application.
         RETURN_SOURCES (bool): When True, context chunks are labelled [S1..Sn] in the prompt and
-            `/chat` returns them as `sources` (JSON field or a final `event: sources` SSE frame).
+            `/chat` returns them as `sources` (JSON field or an `event: sources` SSE frame sent before token events).
         SOURCE_SNIPPET_CHARS (int): Maximum length of the snippet returned per source.
+        RETRIEVAL_K (int): Chunks retrieved from the vector store.
+        RERANK_TOP_N (int): Chunks kept after reranking.
+        RETRIEVAL_TRANSLATE_PROMPT (str): Optional LLM prompt with `{question}` that rewrites
+            the question before retrieval (used when RETURN_SOURCES is True).
         LLM_NPU_MODEL_DIR (str): OpenVINO GenAI model directory for the LLM on NPU
             (default: <model cache>/<LLM_MODEL_ID>/npu).
         NPU_MAX_PROMPT_LEN (int): Prompt token limit of the LLM on NPU.
@@ -82,7 +86,8 @@ class Settings(BaseSettings):
     # Chunks fetched from FAISS and kept after reranking (stock: 3 and 2).
     RETRIEVAL_K: int = 3
     RERANK_TOP_N: int = 2
-    # Optional LLM prompt with `{question}` that rewrites the question for retrieval.
+    # Optional LLM prompt with `{question}` that rewrites the question for retrieval
+    # (used when RETURN_SOURCES is True).
     RETRIEVAL_TRANSLATE_PROMPT: str = ""
     # LLM on NPU runs through OpenVINO GenAI from an int4 channel-wise export
     # (default: <model cache>/<LLM_MODEL_ID>/npu), compiled for at most NPU_MAX_PROMPT_LEN

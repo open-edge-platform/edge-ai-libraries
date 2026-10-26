@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import json
 import sys
 import threading
@@ -264,6 +267,40 @@ def test_npu_models_never_infer_concurrently(fake_genai):
     assert not probe.overlapped
 
 
+def test_locked_model_serializes_calls_and_copies_outputs():
+    """A CPU/GPU encoder reuses one infer request: concurrent calls fail with "busy"."""
+
+    from app.openvino_xpu import LockedModel
+
+    probe = OverlapProbe()
+    shared = torch.zeros((2, 4, 1))
+
+    class SharedOutputEncoder:
+        request = "compiled-model"
+
+        def __call__(self, input_ids, attention_mask, **kwargs):
+            probe.run()
+            shared.fill_(float(input_ids[0, 0]))
+            return BaseModelOutput(last_hidden_state=shared)
+
+    model = LockedModel(SharedOutputEncoder())
+    results = {}
+
+    def infer(value):
+        ids = torch.full((2, 4), value, dtype=torch.long)
+        results[value] = model(input_ids=ids, attention_mask=ids, return_dict=True)
+
+    workers = [threading.Thread(target=infer, args=(value,)) for value in (1, 2, 3)]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join()
+
+    assert not probe.overlapped
+    assert all(float(out.last_hidden_state[0, 0, 0]) == value for value, out in results.items())
+    assert model.request == "compiled-model"
+
+
 def test_gpu_models_do_not_share_the_npu_lock(fake_genai):
     from app.openvino_xpu import GenAILLM, StaticBatchModel, npu_lock
 
@@ -362,6 +399,40 @@ def test_chat_json_with_genai_llm(test_client, fake_genai, mocker, chain):
     assert len(response.json()["sources"]) == 3
 
 
+@pytest.mark.parametrize("stream", [False, True])
+def test_chat_without_sources_fits_context_for_genai_llm(test_client, fake_genai, mocker, chain, stream):
+    from app.config import config
+
+    mocker.patch.object(config, "RETURN_SOURCES", False)
+    mocker.patch.object(config, "_ENABLE_RERANK", False)
+    pipe = FakeOVPipe(chunks=["Answer"])
+    llm = make_genai_llm(pipe, max_prompt_tokens=14)
+    mocker.patch.object(chain, "llm", llm)
+
+    response = test_client.post("/chat", json={"input": "How?", "stream": stream})
+
+    assert response.status_code == 200
+    sent = pipe.calls[0][0]
+    assert "alpha" in sent and "beta" in sent and "gamma" not in sent
+    assert llm.count_tokens(sent) <= 14
+
+
+@pytest.mark.parametrize("return_sources", [False, True])
+@pytest.mark.parametrize("stream", [False, True])
+def test_chat_rejects_question_over_prompt_limit(test_client, fake_genai, mocker, chain, stream, return_sources):
+    from app.config import config
+
+    mocker.patch.object(config, "RETURN_SOURCES", return_sources)
+    pipe = FakeOVPipe(chunks=["Answer"])
+    mocker.patch.object(chain, "llm", make_genai_llm(pipe, max_prompt_tokens=2))
+
+    response = test_client.post("/chat", json={"input": "How?", "stream": stream})
+
+    assert response.status_code == 413
+    assert "at most 2" in response.json()["detail"]
+    assert pipe.calls == []
+
+
 def test_retrieval_query_with_genai_llm(fake_genai, mocker, chain):
     from app.config import config
 
@@ -371,6 +442,24 @@ def test_retrieval_query_with_genai_llm(fake_genai, mocker, chain):
 
     assert chain.retrieval_query("Jak?") == "How to torque?"
     assert pipe.calls == [("Translate: Jak?", 64, False)]
+
+
+def test_retrieval_query_falls_back_when_rewrite_prompt_too_long(fake_genai, mocker, chain):
+    from app.config import config
+
+    pipe = FakeOVPipe(chunks=["rewritten"])
+    mocker.patch.object(chain, "llm", make_genai_llm(pipe, max_prompt_tokens=3))
+    mocker.patch.object(config, "RETRIEVAL_TRANSLATE_PROMPT", "Translate this into English please: {question}")
+
+    assert chain.retrieval_query("Jak?") == "Jak?"
+    assert pipe.calls == []
+
+
+def test_genai_llm_rejects_stop_sequences(fake_genai):
+    llm = make_genai_llm(FakeOVPipe(chunks=["x"]))
+
+    with pytest.raises(ValueError):
+        llm.invoke("prompt", stop=["\n"])
 
 
 async def test_stream_answer_with_genai_stops_when_consumer_goes_away(fake_genai, mocker, chain):
@@ -391,7 +480,7 @@ async def test_stream_answer_with_genai_stops_when_consumer_goes_away(fake_genai
 def test_encoder_compile_per_device(mocker):
     from app import openvino_backend
     from app.config import config
-    from app.openvino_xpu import StaticBatchModel
+    from app.openvino_xpu import LockedModel, StaticBatchModel
 
     backend = openvino_backend.OpenVINOBackend()
     backend.cache_dir = "/cache"
@@ -404,7 +493,8 @@ def test_encoder_compile_per_device(mocker):
     }
 
     model = mocker.Mock(config=types.SimpleNamespace(max_position_embeddings=512))
-    assert backend._compile_encoder(model, "GPU", 4) is model
+    wrapped = backend._compile_encoder(model, "GPU", 4)
+    assert isinstance(wrapped, LockedModel) and wrapped._model is model
     model.compile.assert_called_once_with()
 
     # Embedding and reranker have their own static batch on NPU.
@@ -427,7 +517,7 @@ def test_init_models_uses_genai_for_npu_llm(mocker):
     backend.huggingface_token = ""
     backend.llm_npu_model_dir = "/cache/org/llm/npu"
     mocker.patch.object(backend, "download_huggingface_model")
-    mocker.patch.object(backend, "convert_model")
+    convert_model = mocker.patch.object(backend, "convert_model")
     convert_npu = mocker.patch.object(backend, "convert_npu_llm")
     mocker.patch.object(openvino_backend, "OpenVINOBgeEmbeddings")
     mocker.patch.object(openvino_backend, "OpenVINOReranker")
@@ -438,21 +528,90 @@ def test_init_models_uses_genai_for_npu_llm(mocker):
 
     assert llm == "genai-llm"
     convert_npu.assert_called_once_with(backend.llm_model_id, "/cache/org/llm/npu")
+    assert [c.args[2] for c in convert_model.call_args_list] == ["embedding", "reranker"]
     hf_pipeline.from_model_id.assert_not_called()
     assert load.call_args.args == ("/cache/org/llm/npu", "NPU")
     assert load.call_args.kwargs["max_prompt_tokens"] == 4096
     assert load.call_args.kwargs["cache_dir"] == "/cache/org/llm/npu/model_cache"
 
 
-def test_convert_npu_llm_skips_existing_export(tmp_path, mocker):
+def test_init_models_cpu_llm_skips_npu_export(mocker):
     from app import openvino_backend
 
-    (tmp_path / "openvino_model.xml").write_text("")
-    export = mocker.patch.object(openvino_backend.OVModelForCausalLM, "from_pretrained")
+    backend = openvino_backend.OpenVINOBackend()
+    backend.cache_dir = "/cache"
+    backend.llm_device = "CPU"
+    backend.embedding_device = "CPU"
+    backend.reranker_device = "CPU"
+    backend.huggingface_token = ""
+    mocker.patch.object(backend, "download_huggingface_model")
+    convert_model = mocker.patch.object(backend, "convert_model")
+    convert_npu = mocker.patch.object(backend, "convert_npu_llm")
+    mocker.patch.object(openvino_backend, "OpenVINOBgeEmbeddings")
+    mocker.patch.object(openvino_backend, "OpenVINOReranker")
+    mocker.patch.object(openvino_backend, "HuggingFacePipeline")
+
+    backend.init_models()
+
+    convert_npu.assert_not_called()
+    assert [c.args[2] for c in convert_model.call_args_list] == ["embedding", "reranker", "llm"]
+
+
+@pytest.fixture
+def export_mocks(mocker):
+    from app import openvino_backend
+
+    mocker.patch.object(openvino_backend, "AutoTokenizer")
+    mocker.patch.object(openvino_backend, "convert_tokenizer", return_value=("tok", "detok"))
+    mocker.patch.object(openvino_backend.ov, "save_model")
+    return mocker.patch.object(openvino_backend.OVModelForCausalLM, "from_pretrained")
+
+
+def _touch(path, names):
+    path.mkdir(parents=True, exist_ok=True)
+    for name in names:
+        (path / name).write_text("")
+
+
+def test_convert_npu_llm_skips_existing_export(tmp_path, export_mocks):
+    from app import openvino_backend
+
+    _touch(tmp_path, openvino_backend._NPU_EXPORT_FILES)
 
     openvino_backend.OpenVINOBackend().convert_npu_llm("org/llm", str(tmp_path))
 
-    export.assert_not_called()
+    export_mocks.assert_not_called()
+
+
+def test_convert_npu_llm_redoes_incomplete_export(tmp_path, export_mocks):
+    from app import openvino_backend
+
+    _touch(tmp_path, ["openvino_model.xml"])
+
+    openvino_backend.OpenVINOBackend().convert_npu_llm("org/llm", str(tmp_path))
+
+    export_mocks.assert_called_once()
+    export_mocks.return_value.save_pretrained.assert_called_once_with(str(tmp_path))
+
+
+def test_convert_model_ignores_npu_subdir(tmp_path, export_mocks):
+    from app import openvino_backend
+
+    _touch(tmp_path / "org" / "llm" / "npu", openvino_backend._NPU_EXPORT_FILES)
+
+    openvino_backend.OpenVINOBackend().convert_model("org/llm", str(tmp_path), "llm")
+
+    export_mocks.assert_called_once()
+
+
+def test_convert_model_skips_complete_export(tmp_path, export_mocks):
+    from app import openvino_backend
+
+    _touch(tmp_path / "org" / "llm", openvino_backend._OV_EXPORT_FILES)
+
+    openvino_backend.OpenVINOBackend().convert_model("org/llm", str(tmp_path), "llm")
+
+    export_mocks.assert_not_called()
 
 
 def test_npu_lock_settles_between_jobs():

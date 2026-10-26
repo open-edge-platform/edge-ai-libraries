@@ -24,6 +24,7 @@ dependencies = [
 openvino = [
 	"huggingface_hub==1.19.0",
 	"langchain-huggingface==1.2.1",
+	"openvino-genai==2026.4.1.0",
 	"optimum[openvino,nncf]==2.2.0",
 ]
 ollama = [

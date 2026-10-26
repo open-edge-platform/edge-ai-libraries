@@ -1,6 +1,7 @@
 from .config import config
 from .document import load_file_document
 from .logger import logger
+from .openvino_xpu import PromptTooLongError
 from langchain_classic.retrievers.contextual_compression import ContextualCompressionRetriever
 from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document
@@ -9,6 +10,8 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from starlette.concurrency import run_in_threadpool
+import anyio
+import contextlib
 import os
 import json
 import importlib
@@ -81,8 +84,8 @@ def get_retriever():
     else:
         retriever = vectorstore.as_retriever(
             search_kwargs={
-                "k": 3,
-                "fetch_k": fetch_k,
+                "k": config.RETRIEVAL_K,
+                "fetch_k": max(fetch_k, 2 * config.RETRIEVAL_K),
             },
             search_type=search_method
         )
@@ -106,9 +109,9 @@ def build_chain(retriever=None):
     """
 
     if retriever:
-        context = retriever | (
-            lambda docs: "\n\n".join(doc.page_content for doc in docs)
-        )
+        def context(query):
+            docs = fit_documents(retriever.invoke(query), query, plain_context)
+            return plain_context(docs)
     else:
         context = default_context
 
@@ -276,28 +279,56 @@ def _is_genai() -> bool:
     return hasattr(llm, "stream_text")
 
 
-def _render_prompt(docs, query: str) -> str:
+def _render_prompt(docs, query: str, format_context=format_labelled_context) -> str:
     # Same text as `prompt | llm` sends (ChatPromptValue.to_string()).
-    return prompt.invoke({"context": format_labelled_context(docs), "question": query}).to_string()
+    return prompt.invoke({"context": format_context(docs), "question": query}).to_string()
 
 
-def fit_documents(docs, query: str):
+def _prompt_limit():
+    limit = getattr(llm, "max_prompt_tokens", None)
+    return limit if isinstance(limit, int) and limit > 0 else None
+
+
+def plain_context(docs) -> str:
+    """Joins context documents without source labels (the default `/chat` context)."""
+
+    return "\n\n".join(doc.page_content for doc in docs)
+
+
+def fit_documents(docs, query: str, format_context=format_labelled_context):
     """
     Drops the lowest-ranked context documents until the rendered prompt fits the LLM
     prompt limit (`max_prompt_tokens`, set for the LLM on NPU). Without a limit the
     documents are returned unchanged.
     """
 
-    limit = getattr(llm, "max_prompt_tokens", None)
-    if not isinstance(limit, int) or limit <= 0:
+    limit = _prompt_limit()
+    if limit is None:
         return docs
 
     docs = list(docs)
-    while docs and llm.count_tokens(_render_prompt(docs, query)) > limit:
+    while docs and llm.count_tokens(_render_prompt(docs, query, format_context)) > limit:
         logger.warning(f"Prompt exceeds {limit} tokens; dropping context chunk {len(docs)}.")
         docs.pop()
 
     return docs
+
+
+def check_prompt_fits(query: str) -> None:
+    """
+    Raises PromptTooLongError when the question does not fit the LLM prompt limit even
+    without context, so the request can be rejected before any response is sent.
+    """
+
+    limit = _prompt_limit()
+    if limit is None:
+        return
+
+    tokens = llm.count_tokens(_render_prompt([], query))
+    if tokens > limit:
+        raise PromptTooLongError(
+            f"The question needs {tokens} prompt tokens; the LLM on this device accepts at most {limit}."
+        )
 
 
 def retrieval_query(query: str) -> str:
@@ -312,16 +343,20 @@ def retrieval_query(query: str) -> str:
         return query
 
     with _generation_lock:
-        if _is_genai():
-            generated = llm.generate_text(template.replace("{question}", query), max_new_tokens=64)
-        else:
-            out = llm.pipeline(
-                template.replace("{question}", query),
-                max_new_tokens=64,
-                do_sample=False,
-                return_full_text=False,
-            )
-            generated = out[0]["generated_text"]
+        try:
+            if _is_genai():
+                generated = llm.generate_text(template.replace("{question}", query), max_new_tokens=64)
+            else:
+                out = llm.pipeline(
+                    template.replace("{question}", query),
+                    max_new_tokens=64,
+                    do_sample=False,
+                    return_full_text=False,
+                )
+                generated = out[0]["generated_text"]
+        except PromptTooLongError as exc:
+            logger.warning(f"Retrieval query rewrite skipped: {exc}")
+            return query
     lines = [line.strip() for line in str(generated).splitlines() if line.strip()]
 
     return lines[0] if lines else query
@@ -348,12 +383,6 @@ def answer_with_sources(query: str):
 
 
 def _generate(prompt_text: str, streamer, cancel: threading.Event, errors: list) -> None:
-    from transformers import StoppingCriteria, StoppingCriteriaList
-
-    class Cancelled(StoppingCriteria):
-        def __call__(self, input_ids, scores, **kwargs):
-            return cancel.is_set()
-
     try:
         with _generation_lock:
             if cancel.is_set():
@@ -363,6 +392,12 @@ def _generate(prompt_text: str, streamer, cancel: threading.Event, errors: list)
                     prompt_text, on_text=streamer.put, cancel=cancel, max_new_tokens=config.MAX_TOKENS
                 )
             else:
+                from transformers import StoppingCriteria, StoppingCriteriaList
+
+                class Cancelled(StoppingCriteria):
+                    def __call__(self, input_ids, scores, **kwargs):
+                        return cancel.is_set()
+
                 llm.pipeline(
                     prompt_text,
                     streamer=streamer,
@@ -401,7 +436,8 @@ async def stream_answer(prompt_text: str):
     ).start()
     try:
         while True:
-            chunk = await run_in_threadpool(next, streamer, None)
+            # Abandoned on cancellation (client disconnect); streamer.end() unblocks the thread.
+            chunk = await anyio.to_thread.run_sync(next, streamer, None, abandon_on_cancel=True)
             if chunk is None:
                 break
             yield chunk
@@ -421,7 +457,8 @@ async def process_query_with_sources(query: str = ""):
         as JSON data; token frames use standard multi-line `data:` encoding.
     """
 
-    docs = await run_in_threadpool(retrieve_documents, await run_in_threadpool(retrieval_query, query))
+    retrieval_q = await run_in_threadpool(retrieval_query, query)
+    docs = await run_in_threadpool(retrieve_documents, retrieval_q)
     docs = await run_in_threadpool(fit_documents, docs, query)
     yield f"event: sources\ndata: {json.dumps({'sources': build_sources(docs)})}\n\n"
 
@@ -432,8 +469,12 @@ async def process_query_with_sources(query: str = ""):
     else:
         chunks = build_answer_chain().astream(inputs)
 
-    async for chunk in chunks:
-        yield sse_data(chunk)
+    # Closes the inner generator (and cancels generation) as soon as the client goes away.
+    async with contextlib.aclosing(chunks):
+        async for chunk in chunks:
+            frame = sse_data(chunk)
+            if frame:
+                yield frame
 
 
 def create_faiss_vectordb(file_path: str = "", chunk_size=1000, chunk_overlap=200):

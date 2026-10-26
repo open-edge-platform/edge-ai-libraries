@@ -20,10 +20,17 @@ from .chain import (
     process_query,
     answer_with_sources,
     process_query_with_sources,
+    check_prompt_fits,
 )
 from .document import validate_document, save_document
+from .openvino_xpu import PromptTooLongError
 
 app = FastAPI(title="Chat Question and Answer Core", root_path="/v1/chatqna")
+
+
+@app.exception_handler(PromptTooLongError)
+async def prompt_too_long(request, exc: PromptTooLongError):
+    return JSONResponse(status_code=HTTPStatus.REQUEST_ENTITY_TOO_LARGE, content={"detail": str(exc)})
 
 app.add_middleware(
     CORSMiddleware,
@@ -273,8 +280,11 @@ async def query_chat(request: ChatRequest):
 
     st = time.perf_counter()
 
+    # Streams start with HTTP 200, so a question that cannot fit must be rejected up front.
+    await run_in_threadpool(check_prompt_fits, request.input)
+
     if config.RETURN_SOURCES:
-        if request.stream == False:
+        if not request.stream:
             answer, sources = await run_in_threadpool(answer_with_sources, request.input)
             et = time.perf_counter()
             logger.info(f"Time taken {et - st}")

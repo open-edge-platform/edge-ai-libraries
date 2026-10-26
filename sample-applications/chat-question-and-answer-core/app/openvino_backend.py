@@ -12,9 +12,20 @@ from openvino_tokenizers import convert_tokenizer
 from langchain_community.embeddings import OpenVINOBgeEmbeddings
 from langchain_community.document_compressors.openvino_rerank import OpenVINOReranker
 from langchain_huggingface import HuggingFacePipeline
-from .openvino_xpu import GenAILLM, make_static
+from .openvino_xpu import GenAILLM, LockedModel, make_static
 import os
 import openvino as ov
+
+
+_OV_EXPORT_FILES = (
+    "openvino_model.xml", "openvino_model.bin",
+    "openvino_tokenizer.xml", "openvino_tokenizer.bin",
+)
+_NPU_EXPORT_FILES = _OV_EXPORT_FILES + ("openvino_detokenizer.xml", "openvino_detokenizer.bin")
+
+
+def _has_export(model_path: str, files) -> bool:
+    return all(os.path.isfile(os.path.join(model_path, name)) for name in files)
 
 
 class OpenVINOBackend:
@@ -123,7 +134,7 @@ class OpenVINOBackend:
 
         model_path = os.path.join(cache_dir, model_id)
 
-        if os.path.isdir(model_path):
+        if _has_export(model_path, _OV_EXPORT_FILES):
             logger.info(f"Optimized {model_id} exists in {cache_dir}. Skipping conversion...")
             return
 
@@ -173,10 +184,10 @@ class OpenVINOBackend:
             model_path (str): Output directory.
 
         Notes:
-            - Skipped when `model_path` already holds `openvino_model.xml`.
+            - Skipped when `model_path` already holds the model, tokenizer and detokenizer.
         """
 
-        if os.path.isfile(os.path.join(model_path, "openvino_model.xml")):
+        if _has_export(model_path, _NPU_EXPORT_FILES):
             logger.info(f"NPU export of {model_id} exists in {model_path}. Skipping conversion...")
             return
 
@@ -210,7 +221,7 @@ class OpenVINOBackend:
             # The NPU needs static shapes.
             return make_static(model, npu_batch, config.NPU_ENCODER_SEQ_LEN)
         model.compile()
-        return model
+        return LockedModel(model)
 
     def init_models(self):
         """
@@ -234,9 +245,10 @@ class OpenVINOBackend:
         # Convert models
         self.convert_model(self.embedding_model_id, self.cache_dir, "embedding")
         self.convert_model(self.reranker_model_id, self.cache_dir, "reranker")
-        self.convert_model(self.llm_model_id, self.cache_dir, "llm")
         if self.llm_device == "NPU":
             self.convert_npu_llm(self.llm_model_id, self.llm_npu_model_dir)
+        else:
+            self.convert_model(self.llm_model_id, self.cache_dir, "llm")
 
         # Initialize embedding model
         embedding = OpenVINOBgeEmbeddings(
@@ -251,7 +263,7 @@ class OpenVINOBackend:
         reranker = OpenVINOReranker(
             model_name_or_path = os.path.join(self.cache_dir, self.reranker_model_id),
             model_kwargs = self._encoder_kwargs(self.reranker_model_id, self.reranker_device),
-            top_n = 2,
+            top_n = config.RERANK_TOP_N,
         )
         reranker.ov_model = self._compile_encoder(
             reranker.ov_model, self.reranker_device, config.NPU_RERANKER_BATCH

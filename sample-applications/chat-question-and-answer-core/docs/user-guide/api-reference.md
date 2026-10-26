@@ -245,6 +245,8 @@ Typical non-stream response (`200`):
 Common errors:
 
 - `422`: Missing or empty `input`.
+- `413`: The question does not fit the LLM prompt limit even without context (LLM on NPU,
+  see `NPU_MAX_PROMPT_LEN`).
 - `500`: Inference or processing failure.
 
 #### Returning sources (opt-in)
@@ -290,9 +292,9 @@ Related settings (same `model_settings` section or environment variables):
 | Setting | Default | Description |
 |---|---|---|
 | `SOURCE_SNIPPET_CHARS` | `300` | Maximum snippet length. |
-| `RETRIEVAL_K` | `3` | Chunks retrieved from the vector store. |
-| `RERANK_TOP_N` | `2` | Chunks kept after reranking. |
-| `RETRIEVAL_TRANSLATE_PROMPT` | empty | Optional prompt with a `{question}` placeholder. When set, the LLM (OpenVINO runtime) rewrites the question before retrieval, for example into English for an English-only embedding model. The answer still uses the original question. |
+| `RETRIEVAL_K` | `3` | Chunks retrieved from the vector store (also when `RETURN_SOURCES` is off). |
+| `RERANK_TOP_N` | `2` | Chunks kept after reranking (also when `RETURN_SOURCES` is off). |
+| `RETRIEVAL_TRANSLATE_PROMPT` | empty | Optional prompt with a `{question}` placeholder. When set, the LLM (OpenVINO runtime) rewrites the question before retrieval, for example into English for an English-only embedding model. The answer still uses the original question. Used only with `RETURN_SOURCES`; skipped when the rewrite prompt exceeds the LLM prompt limit. |
 
 #### Devices (OpenVINO runtime)
 
@@ -309,7 +311,7 @@ or `NPU`, independently per model.
 | Setting | Default | Description |
 |---|---|---|
 | `LLM_NPU_MODEL_DIR` | `<model cache>/<LLM_MODEL_ID>/npu` | OpenVINO GenAI model directory for the LLM on NPU. |
-| `NPU_MAX_PROMPT_LEN` | `4096` | Prompt token limit of the LLM on NPU. Lowest-ranked chunks are dropped to fit; a longer question is rejected. |
+| `NPU_MAX_PROMPT_LEN` | `4096` | Prompt token limit of the LLM on NPU. Lowest-ranked chunks are dropped to fit (with or without `RETURN_SOURCES`); a question that does not fit even without context is rejected with `413`. |
 | `NPU_EMBEDDING_BATCH` | `4` | Static batch size of the embedding model on NPU. |
 | `NPU_RERANKER_BATCH` | `2` | Static batch size of the reranker on NPU. |
 | `NPU_ENCODER_SEQ_LEN` | `512` | Static sequence length of the embedding model and reranker on NPU. |
