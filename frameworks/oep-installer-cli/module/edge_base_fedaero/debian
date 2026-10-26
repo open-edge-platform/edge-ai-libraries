@@ -1,0 +1,27 @@
+
+debian_99_profile_edge_base_fedaero () {
+  case "$1" in
+  bootstrap) # all components
+    echo "core_types system_inspection system_summary edge_pack_base_standard edge_pack_npu gpu_accel npu_accel pcm power_tuning docker_io k3s_fedaero"
+    ;;
+  *)
+    local modules=(core_types system_inspection system_summary pcm power_tuning cdi_fedaero git curl make realsense_fedaero chrony)
+    if [[ " $* " = *" --k3s "* ]]; then
+      if [[ " $* " = *" handheld_multi_modal "* ]]; then
+        echo "K3s is not supported with handheld_multi_modal (both use TCP port 6443)." 1>&2
+        modules+=(docker_io)
+      else
+        modules+=(k3s_fedaero)
+      fi
+    elif [[ " $* " = *" --docker "* ]]; then
+      modules+=(docker_io)
+    fi
+    if [[ " $* " = *" --edgepack "* ]]; then
+      modules+=(edge_pack_base_standard edge_pack_npu)
+    else
+      modules+=(gpu_accel npu_accel pcm)
+    fi
+    echo "${modules[*]}"
+    ;;
+  esac
+}

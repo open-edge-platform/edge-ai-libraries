@@ -1,0 +1,13 @@
+
+debian_30_install_turbostat () {
+  ensure_apt_install_package turbostat
+}
+
+debian_30_remove_turbostat () {
+  ensure_apt_remove_package turbostat
+}
+
+debian_30_sbom_turbostat () {
+  ensure_sbom_format pkg-list turbostat
+}
+

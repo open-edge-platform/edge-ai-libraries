@@ -1,0 +1,51 @@
+
+configure_k3s_fedaero () {
+  workspace="$(ensure_project_path)/k3s-fedaero"
+  repository="https://github.com/open-edge-platform/edge-node-infrastructure-blueprint.git"
+  version=8e6f01943286f0e838dad3bf46390119b7645ad2
+}
+
+verify_k3s_fedaero () {
+  [ -d "$workspace" ]
+}
+
+debian_30_profile_fedaero () {
+  echo "docker_io"
+}
+
+debian_30_install_k3s_fedaero () {
+  configure_k3s_fedaero "$@"
+  if verify_k3s_fedaero && [[ " $* " = *" --reinstall "* ]]; then
+    echo "k3s is installed" >&2
+  else
+    ensure_prop set installed/k3s_fedaero/owned true
+
+    echo "@@STEP Clone repository"
+    ensure_git_export "$workspace" "$version" "$repository" infrastructure/installation-scripts
+
+    echo "@@STEP Disable docker download"
+    cd "$workspace"/infrastructure/installation-scripts
+    sed -i '/^DOCKER_STATIC_URL/,/^success "docker-compose saved"/{d}' download-resources.sh
+
+    echo "@@STEP Downloading k3s resources"
+    cd "$workspace"/infrastructure/installation-scripts
+    mkdir -p resources/docker
+    ensure_sudo ./download-resources.sh
+
+    echo "@@STEP Installing k3s"
+    ensure_sudo ./install-k3s.sh
+  fi
+}
+
+debian_30_start_k3s_fedaero () {
+  configure_k3s_fedaero "$@"
+  [ "$(ensure_prop get installed/k3s_fedaero/owned)" = "true" ] || return 0
+
+  if kubectl status > /dev/null 2>&1; then
+    echo "k3s is started" >&2
+  else
+    cd "$workspace"/infrastructure/installation-scripts &&
+    ensure_sudo ./kubernetes-provision.sh
+  fi
+}
+

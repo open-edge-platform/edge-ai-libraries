@@ -1,9 +1,9 @@
 
-debian_60_profile_core_types () {
+debian_40_profile_core_types () {
   [ "$1" != "install" ] || echo "cpuid curl"
 }
 
-debian_60_install_core_types () {
+debian_40_install_core_types () {
   if [ -e /etc/core-types ] && [[ " $* " != *" --reinstall "* ]]; then
     echo "/etc/core-types exists." >&2
   else
@@ -17,7 +17,7 @@ debian_60_install_core_types () {
   fi
 }
 
-debian_60_remove_core_types () {
+debian_40_remove_core_types () {
   # leave untouched if not written by core_types
   [ "$(ensure_prop get installed/core_types/owned)" = "true" ] || return 0
   ensure_rm /etc/core-types
