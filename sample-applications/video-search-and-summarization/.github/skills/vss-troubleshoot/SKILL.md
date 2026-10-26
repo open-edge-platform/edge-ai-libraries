@@ -115,7 +115,7 @@ Inspect `ovms-service` logs and `ov_models/ovms/config.json`. Converted models
 live under
 `ov_models/ovms/openvino_models/<device>/<precision>/<source-model>`; setup
 registers storage-aware names such as
-`Qwen_Qwen3-VL-4B-Instruct_CPU_int8`.
+`OpenVINO_Qwen3.5-4B-int8-ov_CPU`.
 
 Why: `pipeline-manager` sends VLM/LLM requests to `http://ovms-service/v3` when `ENABLE_VLLM` is false. If OVMS is unhealthy, summary jobs can remain `Ready` or `In Progress`.
 

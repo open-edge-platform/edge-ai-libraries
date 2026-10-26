@@ -29,7 +29,7 @@ Sources: `setup.sh`, `.env.example`, `docker/compose.*.yaml`, `README.md`, `docs
 | `REGISTRY_URL` | empty | `setup.sh` trims/adds a trailing slash, combines with `PROJECT_NAME`, and exports `REGISTRY`. |
 | `PROJECT_NAME` | empty | Also normalized with trailing slash before composing `${REGISTRY_URL}${PROJECT_NAME}`. |
 | `REGISTRY` | derived | Prefix for images such as `${REGISTRY:-}pipeline-manager:${TAG:-latest}`. |
-| `TAG` | `latest` in `setup.sh`; docs example `2026.1.0-rc1` | Image tag for app images. |
+| `TAG` | `latest` in `setup.sh`; docs example `2026.3.0-rc1` | Image tag for app images. |
 
 ## Model download service
 
@@ -37,13 +37,21 @@ For a summary-capable deployment, `setup.sh` checks the host-backed
 `ov_models/` tree before starting Compose. If an OD artifact or an OVMS
 VLM/LLM artifact is missing, it starts a transient model-download REST service,
 submits the required jobs, persists failed logs, and removes the service
-container.
+container. The OD model and the OVMS models use separate containers with only
+the plugin each needs (`ultralytics` for OD, `openvino` for VLM/LLM). Both
+groups are always attempted, so a failure in one does not block the other, and
+a re-run downloads only what is still missing.
+
+For an `OpenVINO/*` model whose repo name carries a precision (for example
+`-int8-ov`), `setup.sh` uses that precision instead of
+`VLM/LLM_COMPRESSION_WEIGHT_FORMAT`. `-nf4-ov` repos are rejected because
+model-download cannot fetch them.
 
 | Variable | Default | What it controls |
 |---|---|---|
 | `MODEL_DOWNLOAD_IMAGE` | `intel/model-download:${MODEL_DOWNLOAD_TAG:-mcp-rc}` | Full image reference for the transient model-download service. |
 | `MODEL_DOWNLOAD_TAG` | `mcp-rc` | Fallback tag when `MODEL_DOWNLOAD_IMAGE` is unset. |
-| `MODEL_DOWNLOAD_OVMS_TAG` | `v2026.2.1` | OVMS release used by the OpenVINO export plugin. |
+| `MODEL_DOWNLOAD_OVMS_TAG` | `v2026.4.1` | OVMS release used by the OpenVINO export plugin. |
 | `MODEL_DOWNLOAD_HOST_PORT` | `8640` | Loopback-only REST port while setup downloads models. |
 | `MODEL_DOWNLOAD_JOB_TIMEOUT` | `5400` | Per-job timeout in seconds; `0` disables the wall-clock limit. |
 | `OVMS_MS_DOWNLOAD_PATH` | `ovms` | Subdirectory under `ov_models/` containing `config.json` and `openvino_models/`. |
@@ -80,17 +88,20 @@ written to `ov_models/model-download-*.log`.
 |---|---|---|
 | `ENABLE_VLLM` | `false` | When `true`, `setup.sh` uses `compose.vllm.yaml`, profile `vllm`, sets `USE_VLLM=CONFIG_ON`, and ignores a separate OVMS LLM model. |
 | `USE_VLLM` | `CONFIG_OFF` unless vLLM enabled | Passed to `pipeline-manager`. |
-| `VLM_TARGET_DEVICE` | `CPU` | OVMS VLM target; supports CPU/GPU/NPU/HETERO forms per docs. If contains `GPU`, setup adds `compose.gpu_ovms.yaml`. |
+| `VLM_TARGET_DEVICE` | `CPU` | OVMS VLM target: CPU, GPU or HETERO forms. NPU is not supported for the VLM (one image per request). If contains `GPU`, setup adds `compose.gpu_ovms.yaml`. |
 | `LLM_TARGET_DEVICE` | `CPU` | OVMS final-summary LLM target; if contains `GPU`, setup adds `compose.gpu_ovms.yaml`. |
-| `VLM_COMPRESSION_WEIGHT_FORMAT` | auto: `int8` for CPU, `int4` for GPU/NPU | OVMS export weight format for VLM unless overridden. |
+| `VLM_COMPRESSION_WEIGHT_FORMAT` | auto: `int8` for CPU, `int4` for GPU | OVMS export weight format for VLM unless overridden. Ignored for pre-converted `OpenVINO/*-<fmt>-ov` repos. |
 | `LLM_COMPRESSION_WEIGHT_FORMAT` | auto: `int8` for CPU, `int4` for GPU/NPU | OVMS export weight format for LLM unless overridden. |
 | `OVMS_CACHE_SIZE_GB` | dynamic | Overrides computed OVMS KV cache size; must be a positive integer. |
+| `OVMS_MAX_NUM_SEQS` | `max(16, PM_VLM_CONCURRENT + PM_LLM_CONCURRENT)` | OVMS `max_num_seqs` in `graph.pbtxt`; written on download and patched into existing graphs. Keeps hybrid linear-attention models (e.g. Qwen3.5) within the KV cache budget; must be a positive integer. |
+| `OVMS_NPU_MAX_PROMPT_LEN` | `8192` | Max prompt tokens written to `graph.pbtxt` `plugin_config` (`MAX_PROMPT_LEN`) of a text-only OVMS LLM on NPU; must be > 512. With `LLM_TARGET_DEVICE=NPU` an unset `PM_LLM_MAX_CONTEXT_LENGTH` becomes `(value - 256) * 2`. A vision-language model serving the LLM role on NPU is rejected. |
+| `OVMS_NPU_MIN_RESPONSE_LEN` | `1024` | Response tokens reserved beyond the prompt (`MIN_RESPONSE_LEN`) for an OVMS LLM on NPU; longer output is cut without an error. With `LLM_TARGET_DEVICE=NPU` an unset `PM_SUMMARIZATION_MAX_COMPLETION_TOKENS` takes this value. |
 | `OVMS_ALLOWED_MEDIA_DOMAINS` | `${MINIO_HOST},localhost` | Passed to `ovms-service --allowed_media_domains`. |
-| `PM_SUMMARIZATION_MAX_COMPLETION_TOKENS` | `4000` | Pipeline manager final-summary max completion tokens. |
+| `PM_SUMMARIZATION_MAX_COMPLETION_TOKENS` | `4000`; `OVMS_NPU_MIN_RESPONSE_LEN` when unset and the OVMS LLM is on NPU | Pipeline manager final-summary max completion tokens. |
 | `PM_CAPTIONING_MAX_COMPLETION_TOKENS` | `1024`, changed to `256` in defaulted vLLM mode | Captioning token limit. |
-| `PM_LLM_MAX_CONTEXT_LENGTH` | `90000` | Pipeline manager LLM context length. |
-| `PM_LLM_CONCURRENT` | `2`, but setup may reduce for vLLM/GPU | LLM request concurrency. |
-| `PM_VLM_CONCURRENT` | `4`, but setup may reduce for vLLM/GPU | VLM request concurrency. |
+| `PM_LLM_MAX_CONTEXT_LENGTH` | `90000`; `(OVMS_NPU_MAX_PROMPT_LEN - 256) * 2` when unset and the OVMS LLM is on NPU | Pipeline manager LLM prompt budget in characters. |
+| `PM_LLM_CONCURRENT` | `2` (OVMS on any device); `1` for vLLM/vLLM-XPU | LLM request concurrency. |
+| `PM_VLM_CONCURRENT` | `6` (OVMS on any device); `1` for vLLM/vLLM-XPU | VLM request concurrency. |
 | `PM_MULTI_FRAME_COUNT` | `12`, may reduce to `6` for non-CPU OVMS VLM | Multi-frame captioning count. |
 | `PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY` | `true` in compose | Enables full-transcript summary injection by default. |
 | `PM_PRODUCE_FINAL_SUMMARY` | `true` | Whether Pipeline Manager produces final summary. |

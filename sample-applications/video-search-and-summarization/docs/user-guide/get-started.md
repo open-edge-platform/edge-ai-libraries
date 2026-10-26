@@ -53,6 +53,7 @@ sample-applications/video-search-and-summarization/
 │   ├── compose.search.yaml
 │   ├── compose.search.vdms.yaml   # VDMS vector-DB backend overlay (default)
 │   ├── compose.search.milvus.yaml # Milvus vector-DB backend overlay
+│   ├── compose.ovms.yaml          # OVMS backend: makes ovms-service a required dependency
 │   ├── compose.vllm.yaml          # vLLM CPU backend
 │   ├── compose.vllm.xpu.yaml      # vLLM Intel Arc Pro B-series GPU/XPU backend (experimental)
 │   ├── compose.gpu_ovms.yaml
@@ -121,17 +122,16 @@ Before running the application, you need to set several environment variables:
      **Common to all modes except `--search`:**
 
       ```bash
-      # For VLM-based chunk captioning and video summarization on CPU
-      export VLM_MODEL_NAME="Qwen/Qwen3-VL-4B-Instruct"  # or any other supported VLM model on CPU
-
-      # For VLM-based chunk captioning and video summarization on GPU
-      export VLM_MODEL_NAME="OpenVINO/Phi-3.5-vision-instruct-int8-ov"  # or any other supported VLM model on GPU
-      export VLM_TARGET_DEVICE="GPU"  # Options: CPU, GPU, NPU, HETERO:GPU,CPU
+      # For VLM-based chunk captioning and video summarization with OVMS (CPU or GPU).
+      # See "Recommended OVMS Models" for alternatives. vLLM needs a Hugging Face
+      # checkpoint instead; see the vLLM options below.
+      export VLM_MODEL_NAME="OpenVINO/Qwen3.5-4B-int8-ov"
+      export VLM_TARGET_DEVICE="GPU"  # Options: CPU, GPU, HETERO:GPU,CPU (NPU is not supported for the VLM)
 
       # (OPTIONAL) For OVMS split-model summarization, set a dedicated LLM model for final summary.
       # If this is not set, OVMS falls back to VLM_MODEL_NAME as the LLM model source.
       # OVMS uses shared mode only when model source, target device, and compression format all match.
-      export OVMS_LLM_MODEL_NAME="Qwen/Qwen3-4B-Instruct-2507"  # or any other supported LLM model
+      export OVMS_LLM_MODEL_NAME="OpenVINO/Qwen3-4B-int8-ov"  # on NPU use OpenVINO/Phi-3.5-mini-instruct-int4-cw-ov
       export LLM_TARGET_DEVICE="CPU"  # Options: CPU, GPU, NPU, HETERO:GPU,CPU
 
       # When ENABLE_VLLM=true, vLLM is the only inference backend and setup.sh ignores OVMS_LLM_MODEL_NAME.
@@ -306,22 +306,22 @@ Before running the application, you need to set several environment variables:
     Control how many concurrent inference requests the pipeline manager sends to OVMS or vLLM. These values affect throughput and resource utilization:
 
     ```bash
-    # Maximum concurrent VLM requests for chunk captioning (default: 6 for CPU, 1 for GPU)
+    # Maximum concurrent VLM requests for chunk captioning (default: 6; 1 for vLLM)
     export PM_VLM_CONCURRENT=6
 
-    # Maximum concurrent LLM requests for final summarization (default: 1)
-    export PM_LLM_CONCURRENT=1
+    # Maximum concurrent LLM requests for final summarization (default: 2; 1 for vLLM)
+    export PM_LLM_CONCURRENT=2
     ```
 
     > [!NOTE]
-    > For OVMS deployments, these values should not exceed the `max_num_seqs` parameter configured during model export (default: 256). For GPU deployments, lower concurrency (1-2) is recommended to avoid memory pressure. The setup script automatically adjusts these defaults based on the selected device (CPU vs GPU).
+    > For OVMS deployments, the defaults are the same on CPU, GPU, and NPU. The setup script sets OVMS `max_num_seqs` to at least `PM_VLM_CONCURRENT + PM_LLM_CONCURRENT` (minimum 16; override with `OVMS_MAX_NUM_SEQS`). vLLM deployments default both values to `1`. Limits are global across all videos, and when the VLM and LLM are the same model, LLM requests share the VLM limit. If a GPU runs out of memory, lower these values.
 
 12. **Override OVMS Model Weight Compression Format (Summary and Dual UI mode)**:
 
-    When using OVMS for inference, the setup script auto-selects the model weight compression format based on the target device (`int8` for CPU, `int4` for GPU/NPU). You can override this auto-detection by setting these variables before running the setup script:
+    When OVMS converts a model from a non-`OpenVINO/` repo, the setup script auto-selects the weight compression format based on the target device (`int8` for CPU, `int4` for GPU/NPU). Pre-converted `OpenVINO/` repos, such as the recommended models, keep the format in their name (for example `-int8-ov`), and these variables do not apply. You can override this auto-detection by setting these variables before running the setup script:
 
     ```bash
-    # Override VLM model weight compression format (default: int8 for CPU, int4 for GPU/NPU)
+    # Override VLM model weight compression format (default: int8 for CPU, int4 for GPU)
     export VLM_COMPRESSION_WEIGHT_FORMAT=int4
 
     # Override LLM model weight compression format (default: int8 for CPU, int4 for GPU/NPU)
@@ -464,12 +464,12 @@ In modes, where Video Search is available (Search, Dual UI and Unified UI mode),
 
 | **Deployment Option** | **Chunk-Wise Summary<sup>(1)</sup> Configuration** | **Final Summary<sup>(2)</sup> Configuration** | **Environment Variables to Set** | **Recommended Models** | **Recommended Usage Model** |
 |--------|--------------------|---------------------|-----------------------|----------------|----------------|
-| OVMS shared-model CPU | OVMS-hosted VLM on CPU | Same OVMS-hosted VLM on CPU | Default | VLM: `Qwen/Qwen3-VL-4B-Instruct` | Default CPU-only summarization flow. |
-| OVMS shared-model GPU | OVMS-hosted VLM on GPU | Same OVMS-hosted VLM on GPU | `VLM_TARGET_DEVICE=GPU` with `LLM_TARGET_DEVICE=GPU` | VLM: `OpenVINO/Phi-3.5-vision-instruct-int8-ov` | Single-model OVMS deployment with GPU acceleration. |
-| OVMS split-model CPU/CPU | OVMS-hosted VLM on CPU | OVMS-hosted LLM on CPU | `OVMS_LLM_MODEL_NAME=<llm-model>` | VLM: `Qwen/Qwen3-VL-4B-Instruct`<br>LLM: `Qwen/Qwen3-4B-Instruct-2507` | One OVMS instance hosts separate VLM and LLM models on CPU. |
-| OVMS split-model GPU/CPU | OVMS-hosted VLM on GPU | OVMS-hosted LLM on CPU | `VLM_MODEL_NAME=Qwen/Qwen3-VL-4B-Instruct` + `VLM_TARGET_DEVICE=GPU` + `LLM_TARGET_DEVICE=CPU` (optionally set `OVMS_LLM_MODEL_NAME=<llm-model>`) | VLM: `Qwen/Qwen3-VL-4B-Instruct`<br>LLM: `Qwen/Qwen3-VL-4B-Instruct` (or dedicated `OVMS_LLM_MODEL_NAME`) | Use GPU for captioning while keeping final summary on CPU; also supports same-source split by device/weight. |
-| OVMS split-model CPU/GPU | OVMS-hosted VLM on CPU | OVMS-hosted LLM on GPU | `VLM_MODEL_NAME=Qwen/Qwen3-VL-4B-Instruct` + `LLM_TARGET_DEVICE=GPU` (optionally set `OVMS_LLM_MODEL_NAME=<llm-model>`) | VLM: `Qwen/Qwen3-VL-4B-Instruct`<br>LLM: `Qwen/Qwen3-VL-4B-Instruct` (or dedicated `OVMS_LLM_MODEL_NAME`) | Use GPU for final summary while keeping captioning on CPU; also supports same-source split by device/weight. |
-| OVMS split-model CPU/NPU | OVMS-hosted VLM on CPU | OVMS-hosted LLM on NPU | `LLM_TARGET_DEVICE=NPU` (optionally set `OVMS_LLM_MODEL_NAME=<llm-model>` for a dedicated LLM) | VLM: `Qwen/Qwen3-VL-4B-Instruct`<br>LLM: `OpenVINO/Qwen3-8B-int4-cw-ov` | Use NPU for the final-summary LLM while keeping captioning on CPU. |
+| OVMS shared-model CPU | OVMS-hosted VLM on CPU | Same OVMS-hosted VLM on CPU | Default | VLM: `OpenVINO/Qwen3.5-4B-int8-ov` | Default CPU-only summarization flow. |
+| OVMS shared-model GPU | OVMS-hosted VLM on GPU | Same OVMS-hosted VLM on GPU | `VLM_TARGET_DEVICE=GPU` with `LLM_TARGET_DEVICE=GPU` | VLM: `OpenVINO/Qwen3.5-4B-int8-ov` | Single-model OVMS deployment with GPU acceleration. |
+| OVMS split-model CPU/CPU | OVMS-hosted VLM on CPU | OVMS-hosted LLM on CPU | `OVMS_LLM_MODEL_NAME=<llm-model>` | VLM: `OpenVINO/Qwen3.5-4B-int8-ov`<br>LLM: `OpenVINO/Qwen3-4B-int8-ov` | One OVMS instance hosts separate VLM and LLM models on CPU. |
+| OVMS split-model GPU/CPU | OVMS-hosted VLM on GPU | OVMS-hosted LLM on CPU | `VLM_TARGET_DEVICE=GPU` + `LLM_TARGET_DEVICE=CPU` (optionally set `OVMS_LLM_MODEL_NAME=<llm-model>`) | VLM: `OpenVINO/Qwen3.5-4B-int8-ov`<br>LLM: same model on CPU (or `OpenVINO/Qwen3-4B-int8-ov`) | Use GPU for captioning while keeping final summary on CPU; also supports same-source split by device. |
+| OVMS split-model CPU/GPU | OVMS-hosted VLM on CPU | OVMS-hosted LLM on GPU | `LLM_TARGET_DEVICE=GPU` (optionally set `OVMS_LLM_MODEL_NAME=<llm-model>`) | VLM: `OpenVINO/Qwen3.5-4B-int8-ov`<br>LLM: same model on GPU (or `OpenVINO/Qwen3-4B-int8-ov`) | Use GPU for final summary while keeping captioning on CPU; also supports same-source split by device. |
+| OVMS split-model CPU/NPU | OVMS-hosted VLM on CPU | OVMS-hosted LLM on NPU | `LLM_TARGET_DEVICE=NPU` + `OVMS_LLM_MODEL_NAME=<text-only-llm-model>` | VLM: `OpenVINO/Qwen3.5-4B-int8-ov`<br>LLM: `OpenVINO/Phi-3.5-mini-instruct-int4-cw-ov` | Use NPU for the final-summary LLM while keeping captioning on CPU. The NPU LLM must be a text-only model; see [NPU LLM limits](#use-npu-acceleration-for-the-final-summary-llm-split-model-mode). |
 | vLLM-only CPU | vLLM-hosted VLM on CPU | Same vLLM-hosted VLM on CPU | `ENABLE_VLLM=true` | VLM: `Qwen/Qwen3-VL-4B-Instruct` | All-vLLM mode for CPU-only deployments. |
 | vLLM-only GPU/XPU (**EXPERIMENTAL**) | vLLM-hosted VLM on Intel Arc Pro B-series GPU | Same vLLM-hosted VLM on Intel Arc Pro B-series GPU | `ENABLE_VLLM_GPU=true` | VLM: `Qwen/Qwen3-VL-4B-Instruct` | **EXPERIMENTAL**: All-vLLM mode with Intel Arc Pro B-series GPU/XPU acceleration. Early-stage feature. |
 
@@ -478,11 +478,22 @@ In modes, where Video Search is available (Search, Dual UI and Unified UI mode),
 > 1) Chunk-Wise Summary is a method of summarization where it breaks videos into chunks and then summarizes each chunk.
 > 2) Final Summary is a method of summarization where it summarizes the whole video.
 > 3) Mixed OVMS+vLLM deployments are not supported in the compose setup. Choose either OVMS-only, vLLM-CPU-only, or vLLM-GPU-only for summarization.
-> 4) `VLM_TARGET_DEVICE` and `LLM_TARGET_DEVICE` support values: `CPU`, `GPU`, `NPU`, or `HETERO:GPU,CPU` for heterogeneous execution.
-> 5) **NPU Support:** Not all models support NPU execution. Verify model compatibility at the [OpenVINO™ Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page before selecting `NPU` as target device.
+> 4) `VLM_TARGET_DEVICE` supports `CPU`, `GPU`, or `HETERO:GPU,CPU`. `LLM_TARGET_DEVICE` supports the same values plus `NPU`.
+> 5) **NPU Support:** Only the OVMS final-summary LLM can run on NPU. The VLM is not supported on NPU, because NPU vision-language pipelines accept only one image per request while VSS sends several frames per chunk. The NPU LLM must be a text-only, NPU-optimized `-cw-` model such as `OpenVINO/Phi-3.5-mini-instruct-int4-cw-ov`.
 > 6) OVMS mode selection is based on effective VLM/LLM settings: if model source, target device, and compression format are all identical, setup uses shared mode; otherwise it uses split mode.
-> 7) For same-source split examples (same model name on different devices/formats), prefer non-`OpenVINO/` source models (for example, `Qwen/Qwen3-VL-4B-Instruct`). `OpenVINO/` namespace models are pre-converted and use model-intrinsic/fixed weight formats.
+> 7) `OpenVINO/` models are pre-converted, and the weight format is fixed by the repo name (for example `-int8-ov`). A same-source split, using the same model on two devices, works by device only. To also change the weight format, pick the other repo variant, such as `OpenVINO/Qwen3.5-4B-int4-ov`.
 > 8) ** EXPERIMENTAL - Intel Arc Pro B-series GPU Support:** vLLM on Intel Arc Pro B-series GPUs/XPUs (`ENABLE_VLLM_GPU=true`) is **experimental** and in early development stages. This feature provides GPU-accelerated inference for both VLM captioning and LLM summarization but may have stability issues and requires specific Intel Arc Pro B-series GPU hardware (e.g., B60, B65, B70). When enabled, it automatically disables OVMS and uses vLLM exclusively. Not recommended for production use.
+
+### Recommended OVMS Models
+
+All OVMS examples use pre-converted `OpenVINO/` models, which are pulled as-is without a conversion step. vLLM deployments use Hugging Face checkpoints instead; see the vLLM rows above.
+
+| Role and device | Primary example | Other examples |
+|---|---|---|
+| VLM on CPU or GPU (`VLM_MODEL_NAME`) | `OpenVINO/Qwen3.5-4B-int8-ov` | `OpenVINO/gemma-4-E4B-it-int8-ov`, `OpenVINO/Qwen3.5-4B-int4-ov`, `OpenVINO/Qwen3.5-9B-int4-ov` |
+| LLM on CPU or GPU (`OVMS_LLM_MODEL_NAME`) | `OpenVINO/Qwen3-4B-int8-ov` | `OpenVINO/Qwen3-4B-int4-ov`, `OpenVINO/phi-4-int4-ov`, `OpenVINO/Qwen3-8B-int4-ov` |
+| LLM on NPU (`OVMS_LLM_MODEL_NAME`) | `OpenVINO/Phi-3.5-mini-instruct-int4-cw-ov` | `OpenVINO/Qwen3-8B-int4-cw-ov` |
+| VLM on NPU | Not supported | Run the VLM on CPU or GPU. |
 
 ### Deployment Options for Video Search
 
@@ -651,13 +662,13 @@ Follow these steps to run the application:
       # Shared vs split mode is then decided from effective model/device/compression equality.
 
       # For Summary mode
-      OVMS_LLM_MODEL_NAME="Qwen/Qwen3-4B-Instruct-2507" source setup.sh --summary
+      OVMS_LLM_MODEL_NAME="OpenVINO/Qwen3-4B-int8-ov" source setup.sh --summary
 
       # For Dual UI mode
-      OVMS_LLM_MODEL_NAME="Qwen/Qwen3-4B-Instruct-2507" source setup.sh --summary --search
+      OVMS_LLM_MODEL_NAME="OpenVINO/Qwen3-4B-int8-ov" source setup.sh --summary --search
 
       # For Unified UI mode
-      OVMS_LLM_MODEL_NAME="Qwen/Qwen3-4B-Instruct-2507" source setup.sh --summary-and-search
+      OVMS_LLM_MODEL_NAME="OpenVINO/Qwen3-4B-int8-ov" source setup.sh --summary-and-search
       ```
 
    - **Use vLLM as the only inference backend (CPU):**
@@ -737,7 +748,7 @@ Follow these steps to run the application:
 
       # To see resolved configurations for OVMS split-model summarization without starting containers.
       # (for other modes, combine --summary with --search option or replace all options with --summary-and-search)
-      OVMS_LLM_MODEL_NAME="Qwen/Qwen3-4B-Instruct-2507" source setup.sh --summary config
+      OVMS_LLM_MODEL_NAME="OpenVINO/Qwen3-4B-int8-ov" source setup.sh --summary config
 
       # To see resolved configurations for summarization services with vLLM enabled without starting containers.
       # (for other modes, combine --summary with --search option or replace all options with --summary-and-search)
@@ -747,9 +758,9 @@ Follow these steps to run the application:
 ### Use GPU/NPU Acceleration
 
 > [!NOTE]
-> Offloading models to different devices (e.g., VLM on CPU and LLM on NPU) is only supported with the OVMS backend. The vLLM backend runs a single model on a single device.
+> Offloading models to different devices (e.g., VLM on GPU and LLM on NPU) is only supported with the OVMS backend. The vLLM backend runs a single model on a single device.
 > 
-> **⚠️ NPU Support is Experimental:** Running VLM/LLM models on NPU is experimental and may not work with all models or configurations. Not all model architectures are supported on NPU. If you encounter issues, verify model compatibility at the [OpenVINO™ Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page and consider falling back to CPU or GPU.
+> **⚠️ NPU Support is Experimental:** Only the final-summary LLM can run on NPU, and it must be a text-only, NPU-optimized `-cw-` model. The VLM is not supported on NPU: NPU vision-language pipelines accept only one image per request, while VSS sends several frames per chunk. Run the VLM on CPU or GPU.
 
 > [!NOTE]
 > To bring down a running deployment before re-running with different options, run:
@@ -775,13 +786,13 @@ Follow these steps to run the application:
 
    ```bash
    # for Summary mode
-   LLM_TARGET_DEVICE=GPU OVMS_LLM_MODEL_NAME=Qwen/Qwen3-4B-Instruct-2507 source setup.sh --summary
+   LLM_TARGET_DEVICE=GPU OVMS_LLM_MODEL_NAME=OpenVINO/Qwen3-4B-int8-ov source setup.sh --summary
 
    # for Dual UI mode
-   LLM_TARGET_DEVICE=GPU OVMS_LLM_MODEL_NAME=Qwen/Qwen3-4B-Instruct-2507 source setup.sh --summary --search
+   LLM_TARGET_DEVICE=GPU OVMS_LLM_MODEL_NAME=OpenVINO/Qwen3-4B-int8-ov source setup.sh --summary --search
 
    # for Unified UI mode
-   LLM_TARGET_DEVICE=GPU OVMS_LLM_MODEL_NAME=Qwen/Qwen3-4B-Instruct-2507 source setup.sh --summary-and-search
+   LLM_TARGET_DEVICE=GPU OVMS_LLM_MODEL_NAME=OpenVINO/Qwen3-4B-int8-ov source setup.sh --summary-and-search
    ```
 
 > [!NOTE]
@@ -799,14 +810,30 @@ To verify the configuration and resolved environment variables without running t
 
    ```bash
    # for Summary mode
-   LLM_TARGET_DEVICE=NPU OVMS_LLM_MODEL_NAME=OpenVINO/Qwen3-8B-int4-cw-ov source setup.sh --summary
+   LLM_TARGET_DEVICE=NPU OVMS_LLM_MODEL_NAME=OpenVINO/Phi-3.5-mini-instruct-int4-cw-ov source setup.sh --summary
 
    # for Dual UI mode
-   LLM_TARGET_DEVICE=NPU OVMS_LLM_MODEL_NAME=OpenVINO/Qwen3-8B-int4-cw-ov source setup.sh --summary --search
+   LLM_TARGET_DEVICE=NPU OVMS_LLM_MODEL_NAME=OpenVINO/Phi-3.5-mini-instruct-int4-cw-ov source setup.sh --summary --search
 
    # for Unified UI mode
-   LLM_TARGET_DEVICE=NPU OVMS_LLM_MODEL_NAME=OpenVINO/Qwen3-8B-int4-cw-ov source setup.sh --summary-and-search
+   LLM_TARGET_DEVICE=NPU OVMS_LLM_MODEL_NAME=OpenVINO/Phi-3.5-mini-instruct-int4-cw-ov source setup.sh --summary-and-search
    ```
+
+   > [!IMPORTANT]
+   > The LLM on NPU must be a **text-only** model, so set `OVMS_LLM_MODEL_NAME` explicitly. The setup script stops with an error when the model serving the LLM role on NPU is a vision-language model, because raising the NPU prompt limit breaks vision-language models on NPU and the 1024-token default is too small for a summary.
+   >
+   > For pre-converted `OpenVINO/*` repos on NPU, use an NPU-optimized channel-wise repo whose name contains `-cw-`, such as `OpenVINO/Phi-3.5-mini-instruct-int4-cw-ov` or `OpenVINO/Qwen3-8B-int4-cw-ov`. Other variants, such as `-int4-gq-ov`, cannot be downloaded for NPU, and `-cw-` repos cannot be downloaded for CPU or GPU. The setup script stops with an error before the download in either case.
+   >
+   > An NPU LLM is compiled for a fixed prompt length. The setup script writes the limits below into the model's `graph.pbtxt` and sizes Pipeline Manager's summarization prompts to fit:
+   >
+   > | Variable | Default | Effect |
+   > |---|---|---|
+   > | `OVMS_NPU_MAX_PROMPT_LEN` | `8192` | Maximum prompt tokens. Longer prompts are rejected by OVMS. |
+   > | `OVMS_NPU_MIN_RESPONSE_LEN` | `1024` | Response tokens reserved beyond the prompt. Output past `MAX_PROMPT_LEN + MIN_RESPONSE_LEN` tokens is cut without an error. |
+   > | `PM_LLM_MAX_CONTEXT_LENGTH` | `(OVMS_NPU_MAX_PROMPT_LEN - 256) * 2` chars (`15872`) | Character budget for each summarization prompt; assumes at least 2 characters per token. |
+   > | `PM_SUMMARIZATION_MAX_COMPLETION_TOKENS` | `OVMS_NPU_MIN_RESPONSE_LEN` (`1024`) | Final-summary completion cap. |
+   >
+   > Explicit `PM_LLM_MAX_CONTEXT_LENGTH` or `PM_SUMMARIZATION_MAX_COMPLETION_TOKENS` values are kept, with a warning when they exceed the NPU limits. Long videos are summarized in more map-reduce rounds. A single audio transcript longer than the character budget is still sent in one request and fails on NPU; disable audio or keep the LLM on GPU/CPU for long, speech-heavy videos. The NPU reserves memory for the full prompt limit at load time, so larger `OVMS_NPU_MAX_PROMPT_LEN` values increase system memory use, model load time, and the processing time of long prompts. Measured with `Phi-3.5-mini-instruct-int4-cw-ov`: about 7 GB at `4096`, 13 GB at `8192`, and 20 GB at `16384`. On systems with 16 GB of memory or less, set `OVMS_NPU_MAX_PROMPT_LEN=4096`.
 
 #### Use GPU acceleration for search-indexing embedding
 
@@ -836,9 +863,9 @@ To verify the configuration and resolved environment variables without running t
 
    ```bash
    # For LLM on NPU (split-model mode)
-   LLM_TARGET_DEVICE=NPU OVMS_LLM_MODEL_NAME=OpenVINO/Qwen3-8B-int4-cw-ov source setup.sh config --summary                 # for Summary mode
-   LLM_TARGET_DEVICE=NPU OVMS_LLM_MODEL_NAME=OpenVINO/Qwen3-8B-int4-cw-ov source setup.sh config --summary --search        # for Dual UI mode
-   LLM_TARGET_DEVICE=NPU OVMS_LLM_MODEL_NAME=OpenVINO/Qwen3-8B-int4-cw-ov source setup.sh config --summary-and-search     # for Unified UI mode
+   LLM_TARGET_DEVICE=NPU OVMS_LLM_MODEL_NAME=OpenVINO/Phi-3.5-mini-instruct-int4-cw-ov source setup.sh config --summary                 # for Summary mode
+   LLM_TARGET_DEVICE=NPU OVMS_LLM_MODEL_NAME=OpenVINO/Phi-3.5-mini-instruct-int4-cw-ov source setup.sh config --summary --search        # for Dual UI mode
+   LLM_TARGET_DEVICE=NPU OVMS_LLM_MODEL_NAME=OpenVINO/Phi-3.5-mini-instruct-int4-cw-ov source setup.sh config --summary-and-search     # for Unified UI mode
    ```
 
    ```bash
@@ -856,7 +883,7 @@ To verify the configuration and resolved environment variables without running t
    ```
 
 > [!TIP]
-> `VLM_TARGET_DEVICE` and `LLM_TARGET_DEVICE` support values: `CPU` (default), `GPU`, `NPU`, or `HETERO:GPU,CPU` for heterogeneous execution with fallback.
+> `VLM_TARGET_DEVICE` and `LLM_TARGET_DEVICE` support values: `CPU` (default), `GPU`, or `HETERO:GPU,CPU` for heterogeneous execution with fallback. `LLM_TARGET_DEVICE` also supports `NPU`; the VLM is not supported on NPU.
 
 > [!NOTE]
 > Avoid setting the `ENABLE_VLM_GPU`, `ENABLE_OVMS_LLM_SUMMARY_GPU`, or `ENABLE_EMBEDDING_GPU` flags explicitly on the shell using `export`, because you need to switch these flags off as well, to return to the CPU configuration.

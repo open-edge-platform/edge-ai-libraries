@@ -260,9 +260,12 @@ For vLLM, `setup.sh` adds `docker/compose.vllm.yaml`, starts `vllm-cpu-service`
 (profile `vllm`) on host port `8200`, and uses `VLM_MODEL_NAME` for both
 captioning and final summary. Experimental `ENABLE_VLLM_GPU=true` instead adds
 `docker/compose.vllm.xpu.yaml`, selects profile `vllm-xpu`, and disables OVMS.
-For OVMS GPU, `setup.sh` adds
+For OVMS (no vLLM toggle), `setup.sh` adds `docker/compose.ovms.yaml`, which
+makes a healthy `ovms-service` a required dependency of `pipeline-manager`, so
+startup fails instead of continuing without a model server.
+For OVMS GPU, `setup.sh` also adds
 `docker/compose.gpu_ovms.yaml` and switches `ovms-service` to
-`openvino/model_server:2026.1-gpu`.
+`openvino/model_server:2026.4.1-gpu`.
 
 The skill's fresh `bash -c` deployment flow prevents derived OVMS storage names
 from leaking between runs. If switching from OVMS to vLLM manually in the same

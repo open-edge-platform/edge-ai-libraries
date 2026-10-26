@@ -25,19 +25,22 @@ This map is grounded in `chart/Chart.yaml`, `chart/values.yaml`, the override fi
 | `VS_INDEX_NAME=video_frame_embeddings` | `global.vdmsIndexName` from `search_override.yaml` | VDMS DB collection/index for frame embeddings |
 | `VS_INDEX_NAME=video_summary_embeddings` | `global.vdmsIndexName` from `unified_summary_search.yaml` | VDMS DB collection/index for summary text embeddings |
 | `ENABLE_EMBEDDING_GPU=true`, `DATAPREP_EMBEDDING_DEVICE`, `DATAPREP_DETECTION_DEVICE`, `MME_EMBEDDING_DEVICE` | `global.devices.multimodalDataprep.embedding.device/key`, `global.devices.multimodalDataprep.detection.device/key`, `global.devices.multimodalEmbedding.device/key` | Independently schedules DataPrep in-process embedding, DataPrep detection, and the query-side embedding service; each non-CPU setting needs its resource key |
-| `VLM_TARGET_DEVICE`, `LLM_TARGET_DEVICE` | `global.devices.ovms.vlm.device`, `global.devices.ovms.llm.device` | OVMS target device per model: `CPU`, `GPU`, `NPU`, or `HETERO:GPU,CPU` |
+| `VLM_TARGET_DEVICE`, `LLM_TARGET_DEVICE` | `global.devices.ovms.vlm.device`, `global.devices.ovms.llm.device` | OVMS target device per model: `CPU`, `GPU`, or `HETERO:GPU,CPU`; `NPU` for the LLM only (the VLM is not supported on NPU) |
 | Intel device plugin resource | `global.devices.*.key` | Required when a device is GPU/NPU/HETERO; examples: `gpu.intel.com/i915`, `gpu.intel.com/xe`, `npu.intel.com/accel` |
-| `VLM_COMPRESSION_WEIGHT_FORMAT`, `LLM_COMPRESSION_WEIGHT_FORMAT` | `ovms.env.VLM_WEIGHT_FORMAT`, `ovms.env.LLM_WEIGHT_FORMAT` | Overrides auto weight format; default is CPU `int8`, GPU/NPU `int4` |
+| `VLM_COMPRESSION_WEIGHT_FORMAT`, `LLM_COMPRESSION_WEIGHT_FORMAT` | `ovms.env.VLM_WEIGHT_FORMAT`, `ovms.env.LLM_WEIGHT_FORMAT` | Overrides auto weight format; default is CPU `int8`, GPU/NPU `int4`. As in setup.sh, an `OpenVINO/*-<fmt>-*` repo name wins, `nf4` fails, and NPU is forced to `int4` |
+| `OVMS_MAX_NUM_SEQS` | `ovms.env.OVMS_MAX_NUM_SEQS` | `graph.pbtxt` `max_num_seqs`; empty renders `16` (setup.sh: `max(16, VLM+LLM concurrency)`). Patched into existing models by the download init container |
+| `OVMS_CACHE_SIZE_GB` | `ovms.env.OVMS_CACHE_SIZE_GB` | `graph.pbtxt` `cache_size` for both models; empty keeps model-download's `0` (dynamic). setup.sh instead auto-sizes per device from host RAM/VRAM |
+| `OVMS_NPU_MAX_PROMPT_LEN`, `OVMS_NPU_MIN_RESPONSE_LEN` | `ovms.env.OVMS_NPU_MAX_PROMPT_LEN`, `ovms.env.OVMS_NPU_MIN_RESPONSE_LEN` | NPU LLM `plugin_config` token limits; empty = `8192`/`1024`. Patched into text-only NPU models by the download init container; a vision-language model serving the LLM role on NPU fails that container. With the OVMS LLM on NPU, empty `MAX_CONTEXT_LENGTH` / `SUMMARIZATION_MAX_COMPLETION_TOKENS` render `(prompt - 256) * 2` / the response limit |
 | `MINIO_ROOT_USER/PASSWORD` | `global.env.MINIO_ROOT_USER`, `global.env.MINIO_ROOT_PASSWORD` | Required by MinIO and services that access buckets |
 | `POSTGRES_USER/PASSWORD` | `global.env.POSTGRES_USER`, `global.env.POSTGRES_PASSWORD` | Required by pipeline-manager/PostgreSQL |
 | `RABBITMQ_USER/PASSWORD` | `global.env.RABBITMQ_DEFAULT_USER`, `global.env.RABBITMQ_DEFAULT_PASS` | Required by summary video ingestion pipeline |
 | `HUGGINGFACE_TOKEN` | `global.huggingfaceToken`; vLLM also accepts `vllm.env.huggingfaceToken` but global is used by the template | Token for gated/private models |
 | `http_proxy`, `https_proxy`, `no_proxy` | `global.proxy.http_proxy`, `global.proxy.https_proxy`, `global.proxy.no_proxy` | Propagated into templates for VSS services |
-| `PM_LLM_CONCURRENT`, `PM_VLM_CONCURRENT` | `pipelinemanager.env.LLM_CONCURRENT`, `pipelinemanager.env.VLM_CONCURRENT` | Pipeline-manager concurrency; OVMS accelerator path forces both to `1` in template |
+| `PM_LLM_CONCURRENT`, `PM_VLM_CONCURRENT` | `pipelinemanager.env.LLM_CONCURRENT`, `pipelinemanager.env.VLM_CONCURRENT` | Pipeline-manager concurrency (defaults `2`/`6` on every OVMS device; `arc_vllm_values.yaml` lowers them for vLLM XPU) |
 | `PM_MULTI_FRAME_COUNT` | `pipelinemanager.env.MULTI_FRAME_COUNT` | Frames per VLM request; OVMS accelerator path renders `6` |
-| `PM_SUMMARIZATION_MAX_COMPLETION_TOKENS` | `pipelinemanager.env.SUMMARIZATION_MAX_COMPLETION_TOKENS` | Final summary token cap |
+| `PM_SUMMARIZATION_MAX_COMPLETION_TOKENS` | `pipelinemanager.env.SUMMARIZATION_MAX_COMPLETION_TOKENS` | Final summary token cap; empty renders `4000`, or `OVMS_NPU_MIN_RESPONSE_LEN` with the OVMS LLM on NPU |
 | `PM_CAPTIONING_MAX_COMPLETION_TOKENS` | `pipelinemanager.env.CAPTIONING_MAX_COMPLETION_TOKENS` | Captioning token cap |
-| `PM_LLM_MAX_CONTEXT_LENGTH` | `pipelinemanager.env.MAX_CONTEXT_LENGTH` | LLM context length used by pipeline-manager |
+| `PM_LLM_MAX_CONTEXT_LENGTH` | `pipelinemanager.env.MAX_CONTEXT_LENGTH` | LLM prompt budget in characters; empty renders `90000`, or `(OVMS_NPU_MAX_PROMPT_LEN - 256) * 2` with the OVMS LLM on NPU |
 | `AUDIO_USE_FULL_TRANSCRIPT_SUMMARY` | `pipelinemanager.env.AUDIO_USE_FULL_TRANSCRIPT_SUMMARY` | Include full audio transcript summary by default |
 | `PRODUCE_FINAL_SUMMARY` | `pipelinemanager.env.PRODUCE_FINAL_SUMMARY` | Consolidate chunk summaries into final summary by default |
 | `SEARCH_DATAPREP_TIMEOUT_MS` | `pipelinemanager.env.SEARCH_DATAPREP_TIMEOUT_MS`; `videosearch.env.SEARCH_DATAPREP_TIMEOUT_MS` | Timeout for search dataprep |
@@ -62,8 +65,8 @@ This map is grounded in `chart/Chart.yaml`, `chart/values.yaml`, the override fi
 | `global.vlmName` | empty | VLM model used by OVMS or vLLM; required in summary/unified. |
 | `global.llmName` | empty | Optional separate OVMS LLM model; empty means shared VLM model. |
 | `global.embeddingModelName` | empty | Required for search/unified; drives embedding service, dataprep, video search. |
-| `global.modelDownload.image.repository/tag/pullPolicy` | `intel/model-download` / `2026.2.0-ww30` / `IfNotPresent` | Image used by model-download init containers for OVMS VLM/LLM and video-ingestion OD models. |
-| `global.modelDownload.ovmsReleaseTag` | `v2026.1` | OVMS export version used by the model-download OpenVINO plugin. |
+| `global.modelDownload.image.repository/tag/pullPolicy` | `intel/model-download` / `latest` / `IfNotPresent` | Image used by model-download init containers for OVMS VLM/LLM and video-ingestion OD models. |
+| `global.modelDownload.ovmsReleaseTag` | `v2026.4.1` | OVMS export version used by the model-download OpenVINO plugin. |
 | `global.vdmsIndexName` | empty | Set by search/unified override files to choose VDMS collection. |
 | `global.devices.multimodalEmbedding.device/key` | `CPU` / empty | GPU scheduling for multimodal embedding service. |
 | `global.devices.multimodalDataprep.embedding.device/key` | `CPU` / empty | GPU/NPU scheduling for dataprep embedding. |
@@ -74,13 +77,13 @@ This map is grounded in `chart/Chart.yaml`, `chart/values.yaml`, the override fi
 | `global.env.POSTGRES_USER/PASSWORD` | empty | Required credentials. |
 | `global.env.MINIO_ROOT_USER/PASSWORD` | empty | Required credentials. |
 | `global.env.RABBITMQ_DEFAULT_USER/PASS` | empty | Required credentials for summary modes. |
-| `pipelinemanager.image.repository/tag` | `intel/pipeline-manager` / `2026.1.0-rc1` | Main backend image. |
+| `pipelinemanager.image.repository/tag` | `intel/pipeline-manager` / `2026.3.0-rc1` | Main backend image. |
 | `pipelinemanager.env.USE_VLLM` | `CONFIG_OFF` | Must be `CONFIG_ON` when `vllm.enabled=true`; set by `xeon_vllm_values.yaml`. |
 | `pipelinemanager.env.SUMMARY_FEATURE` | `FEATURE_OFF` | Turned on by summary/unified/dual overrides. |
 | `pipelinemanager.env.SEARCH_FEATURE` | `FEATURE_OFF` | Turned on by search/unified/dual overrides. |
 | `nginx.service.type` | `NodePort` | External UI access is via service `vss-nginx` when release name is `vss`. |
 | `ovms.enabled` | `false`; summary/search/unified overrides set true except vLLM override disables it | OVMS inference backend. |
-| `ovms.image.repository/tag/Gputag` | `openvino/model_server` / `2026.1` / `2026.1-gpu` | Template chooses GPU tag when OVMS device uses GPU. |
+| `ovms.image.repository/tag/Gputag` | `openvino/model_server` / `2026.4.1` / `2026.4.1-gpu` | Template chooses GPU tag when OVMS device uses GPU. |
 | `ovms.claimSize` | `6Gi` from parent | OVMS model PVC size. |
 | `videoingestion.claimSize` | `2Gi` from parent | Object-detection model PVC size. |
 | `multimodaldataprep.modelPvc.size` | chart value | DataPrep model-cache PVC size when enabled. |
@@ -102,15 +105,15 @@ This map is grounded in `chart/Chart.yaml`, `chart/values.yaml`, the override fi
 | `vllm.model.tensorParallelSize` | `1` | vLLM tensor parallel size. |
 | `rabbitmq.enabled` | `false` | Enabled by summary/unified. Service name `rabbitmq`. |
 | `audioanalyzer.enabled` | `false` | Enabled by summary/unified. Image `intel/audio-analyzer:1.3.3`. |
-| `videoingestion.enabled` | `false` | Enabled by summary/unified. Image `intel/video-ingestion:2026.1.0-rc1`. |
-| `multimodalembeddingms.enabled` | `false` | Enabled by search/unified. Image `intel/multimodal-embedding-serving:2026.1.0-rc1`. |
-| `multimodaldataprep.enabled` | `false` | Enabled by search/unified. Image `intel/multimodal-dataprep:2026.1.0-rc1`. |
-| `vectorretriever.enabled` | `false` | Enabled by search/unified. Image `intel/vector-retriever-<backend>:<tag>`. |
+| `videoingestion.enabled` | `false` | Enabled by summary/unified. Image `intel/video-ingestion:2026.3.0-rc1`. |
+| `multimodalembeddingms.enabled` | `false` | Enabled by search/unified. Image `intel/multimodal-embedding-serving:2026.3.0-rc1`. |
+| `multimodaldataprep.enabled` | `false` | Enabled by search/unified. Image `intel/multimodal-dataprep:2026.3.0-rc1`. |
+| `vectorretriever.enabled` | `false` | Enabled by search/unified. Image `intel/vector-retriever-<backend>:2026.3.0-rc1`. |
 | `vdmsvectordb.enabled` | `false` | Enabled by search/unified. Image `intellabs/vdms:v2.12.0`. |
-| `videosearch.enabled` | `false` | Enabled by search/unified. Image `intel/video-search:2026.1.0-rc1`. |
+| `videosearch.enabled` | `false` | Enabled by search/unified. Image `intel/video-search:2026.3.0-rc1`. |
 | `summaryui.enabled`, `searchui.enabled` | `false` | UI aliases. `summaryui` becomes summary or unified UI; `searchui` is separate Search UI in search/dual. |
 | `global.metricsManager.enabled` | `false` | Enables the Metrics Manager subchart, nginx health/SSE routes, and DataPrep publisher environment. |
-| `metricsmanager.image.repository/tag` | `intel/metrics-manager` / `2026.2.0-20260715-weekly` | Metrics Manager runtime image. |
+| `metricsmanager.image.repository/tag` | `intel/metrics-manager` / `2026.2.0` | Metrics Manager runtime image. |
 
 ## Rendered resource names with release `vss`
 
