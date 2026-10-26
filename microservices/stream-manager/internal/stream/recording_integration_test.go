@@ -359,7 +359,7 @@ func TestRecordingEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		req.Header.Set("Accept", "application/json;q=0.1, image/png;q=1")
+		req.Header.Set("Accept", "image/png")
 		response, err := client.Do(req)
 		if err != nil {
 			t.Fatal(err)

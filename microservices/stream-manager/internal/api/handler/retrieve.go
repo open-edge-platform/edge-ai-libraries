@@ -8,7 +8,6 @@ import (
 	"errors"
 	"log/slog"
 	"math"
-	"mime"
 	"net/http"
 	"os"
 	"strconv"
@@ -135,54 +134,17 @@ func negotiate(c *gin.Context, offers ...string) (string, bool) {
 	if strings.TrimSpace(header) == "" {
 		return offers[0], true
 	}
-	type mediaRange struct {
-		kind    string
-		quality float64
-	}
-	var ranges []mediaRange
-	parts := strings.Split(header, ",")
-	valid := len(header) <= 8192 && len(parts) <= 64
-	for _, part := range parts {
-		if !valid {
-			break
-		}
-		kind, params, err := mime.ParseMediaType(strings.TrimSpace(part))
-		quality := 1.0
-		if q, exists := params["q"]; exists {
-			quality, err = strconv.ParseFloat(q, 64)
-		}
-		if err != nil || math.IsNaN(quality) || math.IsInf(quality, 0) || quality < 0 || quality > 1 || len(params) > 1 ||
-			(len(params) == 1 && params["q"] == "") {
-			valid = false
-			break
-		}
-		ranges = append(ranges, mediaRange{kind, quality})
-	}
-	best, bestQuality := "", 0.0
-	if valid {
+	ranges := strings.Split(header, ",")
+	if len(header) <= 8192 && len(ranges) <= 64 {
 		for _, offer := range offers {
-			specificity, quality := -1, 0.0
-			for _, r := range ranges {
-				level := -1
-				switch {
-				case r.kind == offer:
-					level = 2
-				case r.kind == strings.SplitN(offer, "/", 2)[0]+"/*":
-					level = 1
-				case r.kind == "*/*":
-					level = 0
+			for _, accepted := range ranges {
+				accepted = strings.ToLower(strings.TrimSpace(accepted))
+				if accepted == offer || accepted == "*/*" ||
+					(strings.HasSuffix(accepted, "/*") && strings.HasPrefix(offer, strings.TrimSuffix(accepted, "*"))) {
+					return offer, true
 				}
-				if level >= 0 && (level > specificity || (level == specificity && r.quality > quality)) {
-					specificity, quality = level, r.quality
-				}
-			}
-			if quality > bestQuality {
-				best, bestQuality = offer, quality
 			}
 		}
-	}
-	if best != "" {
-		return best, true
 	}
 	common.WriteError(c, http.StatusNotAcceptable, "not_acceptable", "the Accept header allows none of the available media types")
 	return "", false
