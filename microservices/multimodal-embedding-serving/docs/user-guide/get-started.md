@@ -180,8 +180,7 @@ without Hugging Face access, convert the model beforehand and copy it into the
 service's model volume.
 
 `GME_PRECISION` selects the precision, for the conversion and for the service:
-`int8` (default), `int4` (fastest, lower accuracy, see
-[Accuracy](./gme-embedding-optimization.md#accuracy)) or `fp32` (original
+`int8` (default), `int4` (fastest, lower accuracy) or `fp32` (original
 accuracy, slowest).
 
 Run the following from the microservice root, in one Bash terminal:

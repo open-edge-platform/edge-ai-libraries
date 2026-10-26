@@ -69,6 +69,38 @@ docker compose -f docker/compose.yaml build \
 
 This produces `multimodal-embedding-serving:latest`.
 
+### Optional: prepare the INT4 model yourself
+
+You do not have to prepare a model: on its first start (Step 3), the service
+downloads GME from Hugging Face and exports it to OpenVINO INT4 by itself.
+Prepare the INT4 model yourself when the host cannot reach Hugging Face, or to
+convert it once and reuse it.
+
+Do it now, before Step 2, while `GME_PRECISION=int4` and `TAG=latest` from
+Step 1 are still set. Follow
+[Use a prepared GME OpenVINO model](./get-started.md#use-a-prepared-gme-openvino-model)
+in this terminal, with these changes:
+
+| Step there | What to do here |
+| --- | --- |
+| 1. Select the precision and build the image | Skip it: Step 1 above already built the image with these settings. |
+| 2. Download the original checkpoint | Follow it as written. |
+| 3. Convert it to OpenVINO | Follow it as written. It writes the model to `./gme-ov/gme-qwen2-vl-2b-instruct-openvino-int4`. |
+| 4. Copy the model into the volume | Follow it as written. |
+| 5. Start the service | Skip it: continue with Step 2 below, and start the service in Step 3. |
+
+If you already have an INT4 package, for example one converted on another host,
+skip steps 2 and 3 there and put it at
+`./gme-ov/gme-qwen2-vl-2b-instruct-openvino-int4` before step 4. Only a package
+written by [`scripts/export_gme_ov.py`](../../scripts/export_gme_ov.py) with
+`GME_PRECISION=int4` works: the service needs its `gme_openvino_config.json`
+and finds the model only under the `-int4` directory name. A directory without
+the suffix holds the INT8 package.
+
+The model files do not depend on the GPU plugin, so the same package works with
+the standard and the patched image. In Step 3, the log then shows
+`Reusing existing GME OpenVINO package` instead of an export.
+
 ## Step 2: Build the patched image
 
 ```bash
@@ -138,8 +170,10 @@ On the first start, GME is downloaded and exported to OpenVINO INT4 in the
 `ov-models` volume at
 `/app/ov_models/gme-qwen2-vl-2b-instruct-openvino-int4`. Export includes an
 INT4 calibration pass and takes from several minutes to tens of minutes,
-depending on the CPU; later starts reuse the package. The service becomes
-healthy once loading finishes.
+depending on the CPU; later starts reuse the package. If you
+[prepared the INT4 model yourself](#optional-prepare-the-int4-model-yourself),
+the log shows `Reusing existing GME OpenVINO package` instead.
+The service becomes healthy once loading finishes.
 
 ## Step 4: Verify
 
@@ -165,47 +199,6 @@ Both lines show the same checksum. Then check the service:
 curl -fsS http://localhost:9777/health
 curl -fsS http://localhost:9777/model/current
 ```
-
-## Expected results
-
-The figures below come from the validation of the GME OpenVINO export and of
-the patch set on an Intel GPU. They are warm, end-to-end latencies including
-tokenization and image preprocessing; actual numbers depend on the GPU, driver
-and image size.
-
-**INT4 versus INT8** (standard plugin, default image-token limit; the image
-used 1,260 visual tokens):
-
-| Model | Text | Query | Image | Image+text |
-| --- | ---: | ---: | ---: | ---: |
-| INT8 | 65.2 ms | 64.0 ms | 2,123 ms | 2,118 ms |
-| INT4 | 33.8 ms | 33.6 ms | 2,018 ms | 2,013 ms |
-
-**Patched versus standard plugin** (latency reduction with all six patches):
-
-| Model | 1,024-token text | 1,024-token query | 448x448 image | 448x448 image+text |
-| --- | ---: | ---: | ---: | ---: |
-| INT4 | 13.8% | 14.6% | 6.1% | 6.4% |
-| INT8 | 3.2% | 3.4% | 2.7% | 3.1% |
-
-The patches help INT4 most because the largest gain, the INT4 weight-layout
-patch (opt-3), applies only to INT4 weights. The visual-normalization fusion
-(opt-5) is gated by a GPU dynamic-quantization threshold that the service
-leaves at its default, so it does not trigger here; the figures above were
-measured the same way.
-
-### Accuracy
-
-- **Patched plugin:** with the INT8 model, every output was bitwise identical to
-  the standard plugin. With the INT4 model, text, query and 448x448
-  image/fused outputs were bitwise identical; full-resolution images changed
-  slightly (cosine 0.995–0.997 against the standard plugin).
-- **INT4 model:** INT4 trades accuracy for speed. Against the original FP32
-  model, INT4 measured cosine 0.94–0.96 on text, query, image and fused
-  inputs, against 0.987–0.999 for INT8. Validate retrieval quality on your own
-  data before switching a production index to INT4. INT4 and INT8 embeddings
-  are not interchangeable: re-embed the whole collection when you change the
-  model.
 
 ## Use the patched image with INT8
 
