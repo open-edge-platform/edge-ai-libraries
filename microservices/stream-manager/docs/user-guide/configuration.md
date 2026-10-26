@@ -23,8 +23,8 @@ This page lists each setting, its purpose, and its default value.
 | `StorageDir` | string | — | `~/.local/share/stream-manager` | Directory where the database and recordings are stored. |
 | `ConcurrentRecorders` | integer | count | `10` | Maximum number of recordings that can run at the same time. |
 | `RecordingStorageSize` | integer | megabytes | `10240` | Storage quota for recorded media and the frames and clips cut from it. Must be between 5120 and 1073741824. |
-| `RecordingRetention` | integer | hours | `0` | Time to keep a finished or failed recording. Stream Manager then deletes the recording and its media. `0` keeps recordings until you delete them. Must be between 0 and 87600. |
-| `DerivedMediaTTL` | integer | minutes | `-1` | Time to keep a frame or clip after Stream Manager cuts it. Set to `-1` to disable the TTL. Otherwise, use a value between 1 and 1440. |
+| `RecordingRetention` | integer | hours | `0` | Time after which retrieval of a finished or failed recording becomes unavailable. `0` does not set an expiry time. Must be between 0 and 87600. |
+| `DerivedMediaTTL` | integer | minutes | `-1` | Time before a frame or clip URL expires. Set to `-1` to disable expiry. Otherwise, use a value between 1 and 1440. |
 
 ### Storage quota
 
@@ -47,35 +47,13 @@ recordings or set `RecordingRetention`.
 
 ### Recording retention
 
-When `RecordingRetention` is more than `0`, Stream Manager sets `expiry_ts` on each
-recording when the recording becomes `ready` or `failed`. Stream Manager checks for
-expired recordings at startup and every 24 hours, then deletes them. Retrieve requests
-for an expired recording return `404`.
-
-The same cleanup job removes recording folders that have no metadata, including media
-left after a delete request. Media in use is kept until a later cleanup.
-
-If you change `RecordingRetention` to `0`, new recordings get no `expiry_ts`.
-Stream Manager continues to delete the recordings that already have an `expiry_ts`.
-
-> [!CAUTION]
-> Stream Manager deletes expired recordings permanently. Set `RecordingRetention` only
-> when you do not need the recordings after this time.
+`RecordingRetention` sets when retrieval expires for finished and failed recordings.
+Set it to `0` to disable recording expiry.
 
 ### Frame and clip lifetime
 
-When `DerivedMediaTTL` is greater than `0`, Stream Manager keeps each frame and clip
-for that many minutes. A request for the same frame or clip during this time gets the
-saved file. After this time, the `url` in the `MediaResult` returns `404`, and a new
-request cuts the frame or clip again.
-
-Set `DerivedMediaTTL` to `-1` to disable this expiry. The URL then stays available
-until the recording expires or you delete the recording. When neither expiry applies,
-`expiry_ts` is `null`.
-
-> [!NOTE]
-> A frame or clip never stays longer than its recording. When the recording has an
-> earlier `expiry_ts`, the frame or clip uses that time.
+`DerivedMediaTTL` controls how long frame and clip URLs remain available. This expiry
+is independent of recording expiry. Set it to `-1` to disable derived-media expiry.
 
 ## Example
 

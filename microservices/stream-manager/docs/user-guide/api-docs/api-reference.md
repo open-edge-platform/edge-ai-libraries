@@ -150,7 +150,7 @@ One record is one recording of one sensor.
 | `size_bytes` | integer, nullable | Size of the finished media; `null` until `ready`. |
 | `metadata` | object | Whatever metadata the caller supplied, or `{}` if none was. |
 | `creation_ts` | string (date-time) | Record creation time. |
-| `expiry_ts` | string (date-time), nullable | When Stream Manager deletes the recording automatically. It is set when the recording becomes `ready` or `failed` and the deployment sets `RecordingRetention`. It is `null` when no retention is set; the recording then stays until you delete it. |
+| `expiry_ts` | string (date-time), nullable | When retrieval becomes unavailable. It is set when the recording becomes `ready` or `failed` and `RecordingRetention` is set. |
 | `error_detail` | string, nullable | A short reason. It is present when `state` is `failed`. It is also present when `state` is `ready` and the storage quota stopped the recording early. |
 
 ```json
@@ -183,7 +183,7 @@ media.
 | `start_ts` | string (date-time) | Real time of the returned frame, or first frame of the clip. |
 | `end_ts` | string (date-time), nullable | Where the clip really ends (exclusive); `null` for a single frame. |
 | `url` | string | Origin-relative path that serves the file via [`GET /media/{recording-id}/{file}`](#get-produced-media) until `expiry_ts`. Never points at the original recording. |
-| `expiry_ts` | string (date-time) | When `url` stops working; capped by the recording's own `expiry_ts`. |
+| `expiry_ts` | string (date-time) | When `url` stops working based on `DerivedMediaTTL`. It is `null` when the TTL is disabled. Recording expiry does not change this time. |
 
 ### Deletion
 
@@ -775,9 +775,8 @@ Content-Type: application/json
 Deletes the record's metadata first, then attempts to delete its media. If metadata
 deletion fails, the request returns `503` and the media stays unchanged.
 If media deletion fails or an extraction still uses the media, the request returns
-`200`. Stream Manager logs the deferred deletion. The cleanup job retries removal of
-media without metadata at startup and every 24 hours. The media continues to count
-toward the storage quota until it is removed.
+`200`. If media remains after the request, it continues to count toward the storage
+quota.
 Deleting again, or reading the deleted recording, returns `404`.
 
 ```bash
@@ -803,17 +802,15 @@ Content-Type: application/json
 ## Retrieval APIs
 
 Extracts media from a `ready` record. Use the `Accept` header to select the response.
-There are no separate `/url` endpoints.
 
 | `Accept` | Response |
 |---|---|
-| Missing, `*/*`, or `application/json` | JSON `MediaResult` with a temporary download link. |
+| Missing, `*/*`, or `application/json` | JSON `MediaResult` with a media URL. |
 | `image/jpeg` or `image/png` on `/frame` | Image bytes in the selected format. |
 | `video/mp4` on `/clip` | MP4 bytes. |
 | No acceptable supported type | `406 not_acceptable`. |
 
-The service respects quality values (`q`) and excludes types with `q=0`.
-For equal quality values, the service prefers JSON, then JPEG, then PNG.
+When several supported types match, the service uses this order: JSON, JPEG, then PNG.
 Responses include `Vary: Accept`. Errors use JSON, including errors for binary requests.
 The `/media` endpoint serves the file referenced by a JSON response.
 
@@ -942,9 +939,13 @@ curl -i "http://localhost:8080/v1/retrieve/rec-2/clip?start_ts=2026-09-16T09:12:
 
 Serves the bytes of a frame or clip named by a `MediaResult`'s `url`. When
 `DerivedMediaTTL` is greater than `0`, the file is available for that many minutes
-after it is cut, capped by the recording's own `expiry_ts`. Set `DerivedMediaTTL` to
-`-1` to disable this TTL. In that case, the file stays available until its recording
-expires or is deleted. `expiry_ts` is `null` when neither expiry applies. See
+after it is cut. This TTL is independent of the recording's `expiry_ts`. Automatic
+recording expiry removes the source media and metadata, but leaves derived files
+available. Set `DerivedMediaTTL` to `-1` to disable this TTL. In that case, the file
+stays available after automatic recording expiry. Deleting a recording through the
+API removes its derived files. `expiry_ts` is `null` when the TTL is disabled. Expired
+derived files remain stored until cleanup is implemented and continue to count toward
+the storage quota. See
 [Configuration](../configuration.md#frame-and-clip-lifetime).
 
 | Parameter | In | Type | Required | Description |

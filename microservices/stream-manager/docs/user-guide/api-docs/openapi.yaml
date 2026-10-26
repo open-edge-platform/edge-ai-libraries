@@ -461,7 +461,7 @@ paths:
     delete:
       tags: [Recording Storage APIs]
       summary: Delete a record
-      description: Deletes metadata first, then attempts media deletion. Metadata deletion failure returns 503 and keeps the media. Media deletion failure or an active extraction is logged and still returns 200. Cleanup retries removal of media without metadata at startup and every 24 hours. The media counts toward quota until removed. Deleting again, or reading a deleted record, returns 404.
+      description: Deletes metadata first, then attempts media deletion. Metadata deletion failure returns 503 and keeps the media. Media deletion failure or an active extraction still returns 200. Remaining media counts toward quota. Deleting again, or reading a deleted record, returns 404.
       parameters:
         - $ref: '#/components/parameters/RecordingId'
       responses:
@@ -508,7 +508,7 @@ paths:
     get:
       tags: [Retrieval APIs]
       summary: Extracts a frame
-      description: Returns a JSON MediaResult with a temporary link when Accept is absent, */*, or application/json. Accept image/jpeg or image/png selects image bytes. JSON links default to JPEG; optional format selects the linked image format. An explicit format that conflicts with Accept returns 406. Quality values and q=0 exclusions are respected. Errors use JSON. There is no separate /url route.
+      description: Returns a JSON MediaResult by default. Accept image/jpeg or image/png selects image bytes. The format parameter selects the image format in a JSON result and must match the accepted image type for a binary reply. When several supported types match, JSON is preferred, then JPEG, then PNG. Errors use JSON.
       parameters:
         - $ref: '#/components/parameters/RecordingId'
         - name: timestamp
@@ -520,7 +520,7 @@ paths:
             format: date-time
         - name: format
           in: query
-          description: Optional image format. JSON links default to JPEG. When absent, a binary response uses the format selected by Accept. An explicit conflict returns 406.
+          description: Optional image format. JSON results default to JPEG. When absent, a binary response uses the accepted image type. A conflicting accepted image type returns 406.
           required: false
           schema:
             type: string
@@ -642,7 +642,7 @@ paths:
     get:
       tags: [Retrieval APIs]
       summary: Extracts a clip
-      description: Returns a JSON MediaResult with a temporary link when Accept is absent, */*, or application/json. Accept video/mp4 selects MP4 bytes. Quality values and q=0 exclusions are respected. Errors use JSON. There is no separate /url route. The whole span must be covered; a gap gives 404.
+      description: Returns a JSON MediaResult by default. Accept video/mp4 selects MP4 bytes. Errors use JSON. The whole span must be covered; a gap gives 404.
       parameters:
         - $ref: '#/components/parameters/RecordingId'
         - name: start_ts
@@ -788,7 +788,7 @@ paths:
     get:
       tags: [Retrieval APIs]
       summary: Gets a produced frame or clip
-      description: Serves the bytes of a frame or clip named by a MediaResult's url. The file expires after DerivedMediaTTL minutes, capped by the recording's expiry_ts. When DerivedMediaTTL is -1, the file stays available until its recording expires or is deleted. expiry_ts is null when neither expiry applies.
+      description: Serves the bytes of a frame or clip named by a MediaResult's url. The file expires after DerivedMediaTTL minutes, independent of the recording's expiry_ts. Automatic recording expiry removes source media but preserves derived files. When DerivedMediaTTL is -1, the file stays available after automatic recording expiry. Manual recording deletion removes derived files. expiry_ts is null when the TTL is disabled.
       parameters:
         - $ref: '#/components/parameters/RecordingId'
         - name: file
@@ -827,7 +827,7 @@ paths:
                 type: string
                 format: binary
         '404':
-          description: Unknown recording, or the frame or clip file is missing or past its expiry_ts. Missing frame files return frame_not_found; missing clip files return clip_not_found.
+          description: The frame or clip file is missing or past its expiry_ts. Missing frame files return frame_not_found; missing clip files return clip_not_found.
           content:
             application/json:
               schema:
@@ -1069,7 +1069,7 @@ components:
           type: string
           format: date-time
           nullable: true
-          description: When Stream Manager deletes the recording automatically. It is set when the recording becomes ready or failed and the deployment sets a retention period; otherwise it is empty and the recording stays until it is deleted.
+          description: When retrieval becomes unavailable. It is set when the recording becomes ready or failed and the deployment sets a retention period.
         error_detail:
           type: string
           nullable: true
@@ -1122,7 +1122,7 @@ components:
           type: string
           format: date-time
           nullable: true
-          description: When url stops working; capped by the recording's own expiry_ts. Null when neither the derived media nor its recording expires.
+          description: When url stops working based on DerivedMediaTTL. Recording expiry does not change this time. Null when the TTL is disabled.
       example:
         recording_id: rec-2
         sensor_id: cam-07
