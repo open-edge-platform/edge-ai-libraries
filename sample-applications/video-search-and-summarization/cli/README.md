@@ -46,14 +46,14 @@ cli/
 
 ## Prerequisites
 
-- **Go 1.23.0 or later**: The CLI requires Go version 1.23.0 or higher to build and run
+- **Go 1.26.0 or later**: The CLI requires Go version 1.26.0 or higher to build and run
   - Download and install from: https://golang.org/dl/
   - Verify installation: `go version`
   - The Makefile will automatically check for the correct Go version before building
 
 ## Build Steps
 
-- **Check Go Version**: Ensure you have Go 1.23.0 or later installed
+- **Check Go Version**: Ensure you have Go 1.26.0 or later installed
 ```bash
 # Check if Go version meets requirements
 make check-go-version

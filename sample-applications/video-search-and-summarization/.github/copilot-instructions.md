@@ -66,7 +66,7 @@ gateway. Core services (see `docker/compose.*.yaml`):
 | `search-ms/` | Python (Poetry, `^3.11`) video-search microservice. |
 | `video-ingestion/` | Python ingestion service. |
 | `mcp/` | MCP tool server exposing VSS search and summary to AI agents; runs with every VSS deployment (`docker/compose.mcp.yaml`). `mcp/compose.yaml` is a dev-only stack with MCP Inspector. |
-| `cli/` | Go (`go 1.23`) summarizer CLI. |
+| `cli/` | Go (`go 1.26`) summarizer CLI. |
 | `ui/react/` | React front-end(s). |
 | `chart/` | Helm chart for Kubernetes deployment. |
 | `docs/` | User/developer documentation. |
@@ -75,7 +75,7 @@ gateway. Core services (see `docker/compose.*.yaml`):
 ## Tech Stack
 
 NestJS + TypeScript (pipeline-manager), Python 3.11 + Poetry (search-ms,
-video-ingestion, mcp), Go 1.23 (cli), React (ui), Docker Compose for local
+video-ingestion, mcp), Go 1.26 (cli), React (ui), Docker Compose for local
 deploy and Helm for Kubernetes. Inference via vLLM or OpenVINO Model Server.
 
 ## Conventions

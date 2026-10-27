@@ -8,6 +8,7 @@ ENV PYTHONUNBUFFERED=1 \
     POETRY_VERSION=2.4.1 \
     POETRY_HOME="/opt/poetry" \
     POETRY_VIRTUALENVS_IN_PROJECT=true \
+    POETRY_VIRTUALENVS_OPTIONS_NO_PIP=true \
     POETRY_NO_INTERACTION=1 \
     SETUP_PATH="/opt/projsetup" \
     VENV_PATH="/opt/projsetup/.venv"
