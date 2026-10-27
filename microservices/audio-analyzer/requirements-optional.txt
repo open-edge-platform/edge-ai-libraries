@@ -1,0 +1,42 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# Additional dependencies for the FULL image variant (review point #4),
+# installed on top of requirements-slim.txt. These packages are only
+# required by optional, non-default features:
+#
+#   - openai-whisper: the "openai" ASR provider (components/asr/openai/
+#     whisper.py) and the legacy non-GenAI "openvino" ASR provider
+#     (components/asr/openvino/whisper.py, selected when
+#     app.use_ov_genai=false), both of which use openai-whisper's
+#     tokenizer/mel-spectrogram utilities.
+#   - torchaudio: transitive runtime dependency of pyannote.audio /
+#     speechbrain for audio I/O backends; not imported directly by this
+#     codebase and not needed unless diarization or sentiment is enabled.
+#   - pyannote.audio: speaker diarization (models.asr.diarization=true).
+#   - speechbrain: sentiment analysis (components/sentiment_component.py).
+#   - pywhispercpp: the "whispercpp" ASR provider.
+#
+# All four provider/feature code paths already import these packages
+# lazily (only when the corresponding provider/feature is actually
+# selected/enabled -- see components/asr_component.py's _resolve_backend()
+# and components/sentiment_component.py), so the slim image intentionally
+# omits them: selecting an excluded provider on a slim image fails with a
+# clear ImportError at request time rather than at startup.
+#
+# Install together with requirements-slim.txt:
+#   pip install -r requirements-slim.txt -r requirements-optional.txt -c requirements-lock.txt
+#
+# NOTE: --extra-index-url is a per-invocation pip option, not inherited
+# across separate `pip install` calls. This file is installed via its own
+# `pip install -r requirements-optional.txt ...` step in docker/Dockerfile
+# (after requirements-slim.txt), so the PyTorch CPU wheel index must be
+# repeated here too -- otherwise `torchaudio==2.8.0+cpu` resolves against
+# PyPI only, which does not host the `+cpu` local version, and pip fails
+# with ResolutionImpossible (confirmed via an actual full-variant build).
+--extra-index-url https://download.pytorch.org/whl/cpu
+torchaudio==2.8.0+cpu
+openai-whisper==20250625
+speechbrain==1.0.3
+pyannote.audio==4.0.4
+pywhispercpp==1.5.0

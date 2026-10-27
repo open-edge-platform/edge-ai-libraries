@@ -31,7 +31,7 @@ Recognized by `setup.py` when building the `kvweave.kvweave_quant` extension
 | `KVWEAVE_ISA` | `avx2` | Instruction set to compile the CPU kernels against. `avx2` is the safe default for client CPUs. Set `avx512` only on hosts confirmed to support AVX-512 FP16/BF16 — using it on unsupported hardware makes Python terminate with "Illegal instruction". |
 | `KVWEAVE_COMPILER` | `default` | Set `icpx` to build with the Intel oneAPI DPC++ compiler instead of the system default compiler. Requires `icpx` in `PATH`. |
 | `KVWEAVE_MULTITHREAD` | `1` | Set `0` to disable OpenMP multithreading in the CPU kernels. |
-| `KVWEAVE_XPU` | `0` | Set `1` to also build `kvweave.kvweave_quant_xpu`, the standalone SYCL/DPC++ quantize/dequantize kernels for Intel GPUs. Requires the Intel oneAPI DPC++ compiler (`icpx`) in `PATH` and a PyTorch build with XPU support; forces `CC=icx`/`CXX=icpx` regardless of `KVWEAVE_COMPILER`. This module is standalone — it is not wired into the LMCache serde/codec path. |
+| `KVWEAVE_XPU` | `0` | Set `1` to also build `kvweave.kvweave_quant_xpu`, the SYCL/DPC++ quantize/dequantize kernels for Intel GPUs. Requires the Intel oneAPI DPC++ compiler (`icpx`) in `PATH` and a PyTorch build with XPU support; forces `CC=icx`/`CXX=icpx` regardless of `KVWEAVE_COMPILER`. The LMCache integration Dockerfile (`integration/lmcache/vllm/docker/Dockerfile`) sets this by default so `LMCACHE_MP_KVWEAVE_QUANT_DEVICE=xpu` has a module to import; building `kvweave` standalone (e.g. via `pip install .` directly) still defaults to CPU-only unless you set this yourself. |
 
 ### Building with `icpx` (`KVWEAVE_COMPILER=icpx` or `KVWEAVE_XPU=1`)
 
@@ -100,97 +100,33 @@ Performance benchmarks are marked `perf` and deselected by default; pass
 | `MODEL` | `Qwen3.5-9B` | Model path/name under `MODEL_PATH`, passed to vLLM as `/models/${MODEL}`. |
 | `SERVE` | same as `MODEL` | Served model name exposed by the OpenAI-compatible API. |
 | `TP` | `1` | Tensor parallel size. |
-| `GPU_MEM_UTIL` | `0.86` | vLLM `--gpu-memory-utilization`. |
+| `GPU_MEM_UTIL` | `0.8` | vLLM `--gpu-memory-utilization`. |
 | `MAX_MODEL_LEN` | `8192` | vLLM `--max-model-len`. |
 | `DTYPE` | `float16` | vLLM `--dtype`. |
-| `QUANTIZATION` | `fp8` | vLLM `--quantization` (model weight quantization). Unrelated to the KVWeave KV cache quantization variables below. |
-| `DEBUG` | `False` | Enables `VLLM_SERVER_DEV_MODE`. |
+| `QUANTIZATION` | `fp8` | vLLM `--quantization` (model weight quantization, unrelated to KVWeave KV-cache quantization). |
+| `DEBUG` | `False` | Enable vLLM `VLLM_SERVER_DEV_MODE`. |
+| `VLLM_BLOCK_SIZE_OVERRIDE` | (unset) | Force LMCache `--chunk-size`, vLLM `--block-size` and `max_num_batched_tokens` (e.g. `256` for dense models). Unset: calculated automatically. |
+| `MAX_NUM_BATCHED_TOKENS` | (unset) | vLLM `max_num_batched_tokens`. Unset: the block size. |
 | `HOST_BIND_ADDRESS` | `127.0.0.1` | Host address the container ports are published on. |
 | `HOST_PORT` | `8000` | Host port mapped to the container's vLLM API port (8000). |
+| `LMCACHE_MP_HOST` | `tcp://localhost` | LMCache MP host URI inside the container. |
 | `LMCACHE_MP_PORT` | `6555` | LMCache MP server port. |
 | `LMCACHE_MP_HTTP_PORT` | `8090` | LMCache MP HTTP healthcheck port. |
+| `LMCACHE_MP_MQ_TIMEOUT` | `600` | LMCache MP message timeout, in seconds. |
+| `LMCACHE_MP_HEARTBEAT_INTERVAL` | `15` | LMCache MP heartbeat interval, in seconds. |
 | `LMCACHE_MP_L1_SIZE_GB` | `5` | LMCache L1 (host memory) tier size, in GB. |
-| `LMCACHE_MP_L2_ENABLE` | `true` | Enable the LMCache L2 filesystem adapter (disk tier). |
-| `LMCACHE_MP_EVICTION_TRIGGER_WATERMARK` | `0.7` | L1 occupancy fraction at which eviction starts. |
-| `LMCACHE_MP_EVICTION_RATIO` | `0.3` | Fraction of L1 evicted once the watermark is reached. |
-| `LMCACHE_MP_L1_KVWEAVE_QUANT` | `1` | See [KV cache quantization](#kv-cache-quantization) below. |
-| `LMCACHE_MP_KVWEAVE_LINEAR_QUANT_ENABLED` | `1` | See [KV cache quantization](#kv-cache-quantization) below. |
-| `LMCACHE_MP_KVWEAVE_CONV_QUANT_ENABLED` | `1` | See [KV cache quantization](#kv-cache-quantization) below. |
-| `LMCACHE_MP_KVWEAVE_SSM_QUANT_ENABLED` | `1` | See [KV cache quantization](#kv-cache-quantization) below. |
+| `LMCACHE_MP_L2_ENABLE` | `true` | Enable the LMCache L2 filesystem adapter (backed by `${MODEL_PATH}/lmcache_disk`). |
+| `LMCACHE_MP_EVICTION_POLICY` | `LRU` | L1 eviction policy. |
+| `LMCACHE_MP_EVICTION_TRIGGER_WATERMARK` | `0.7` | L1 eviction trigger watermark. |
+| `LMCACHE_MP_EVICTION_RATIO` | `0.3` | L1 eviction ratio. |
+| `LMCACHE_MP_SUPPORTED_TRANSFER_MODE` | `auto` | LMCache server transfer mode. |
+| `LMCACHE_MP_TRANSFER_MODE` | `engine_driven` | LMCache transfer mode. |
+| `LMCACHE_MP_SHM_NAME` | `lmcache_l1_pool_server` | LMCache server shared-memory pool name. |
+| `LMCACHE_MP_L1_KVWEAVE_QUANT` | `1` | Master switch for KVWeave L1 quantization. |
+| `LMCACHE_MP_KVWEAVE_QUANT_DEVICE` | `xpu` | Quantization hardware: `xpu` (SYCL kernels) or `cpu` (OpenMP kernels). `xpu` requires an image built with `KVWEAVE_XPU=1` (the Dockerfile sets it). |
 | `FORCE_BUILD` | `0` | See [FORCE_BUILD](#force_build) below. |
 | `DOCKER_BUILD_OPTS` | (empty) | Extra args appended to the `docker build` invocation. |
 | `DOCKER_RUN_OPTS` | (empty) | Extra args appended to the `docker run` invocation. |
-
-### KV cache quantization
-
-These four variables control KVWeave 4-bit quantization of the offloaded KV
-cache. They are distinct from `QUANTIZATION`, which is vLLM's *model weight*
-quantization. All default to `1` (enabled), matching the `ENV` defaults baked
-into `docker/Dockerfile`.
-
-| Variable | Scope |
-|---|---|
-| `LMCACHE_MP_L1_KVWEAVE_QUANT` | Master switch for worker-side L1 quantization. |
-| `LMCACHE_MP_KVWEAVE_LINEAR_QUANT_ENABLED` | Group-level gate: skips quantization for the entire linear-attention / Mamba group. Overrides the two sub-state switches below. |
-| `LMCACHE_MP_KVWEAVE_CONV_QUANT_ENABLED` | Mamba `conv_state` sub-state. |
-| `LMCACHE_MP_KVWEAVE_SSM_QUANT_ENABLED` | Mamba `ssm_state` sub-state. |
-
-The last three only apply to hybrid (Mamba / linear-attention) models such as
-Qwen3.5-9B. Pure attention models like Qwen3-8B are unaffected by them.
-
-Each variable can be disabled independently. To store the KV cache
-uncompressed, set the master switch to `0` — the other three then have no
-effect:
-
-```bash
-LMCACHE_MP_L1_KVWEAVE_QUANT=0 \
-  bash integration/lmcache/vllm/vllm-start.sh
-```
-
-Skip quantization for the whole linear-attention / Mamba group, leaving the
-full-attention layers quantized:
-
-```bash
-LMCACHE_MP_KVWEAVE_LINEAR_QUANT_ENABLED=0 \
-  bash integration/lmcache/vllm/vllm-start.sh
-```
-
-Store Mamba `conv_state` at full precision (`ssm_state` stays quantized):
-
-```bash
-LMCACHE_MP_KVWEAVE_CONV_QUANT_ENABLED=0 \
-  bash integration/lmcache/vllm/vllm-start.sh
-```
-
-Store Mamba `ssm_state` at full precision (`conv_state` stays quantized):
-
-```bash
-LMCACHE_MP_KVWEAVE_SSM_QUANT_ENABLED=0 \
-  bash integration/lmcache/vllm/vllm-start.sh
-```
-
-The two sub-state switches combine, so both Mamba states can be kept at full
-precision while attention stays quantized:
-
-```bash
-LMCACHE_MP_KVWEAVE_CONV_QUANT_ENABLED=0 \
-LMCACHE_MP_KVWEAVE_SSM_QUANT_ENABLED=0 \
-  bash integration/lmcache/vllm/vllm-start.sh
-```
-
-> [!NOTE]
-> All four variables only take effect on the data-transfer path used
-> by XPU. On CUDA the transfer context defaults to a handle-passing mode that
-> never applies KVWeave quantization, so setting them has no effect unless
-> `LMCACHE_MP_TRANSFER_MODE=data` is also set.
-
-> [!NOTE]
-> `LMCACHE_MP_L1_KVWEAVE_QUANT` is read by both the L1 worker and the
-> L2 storage manager, with opposite effects. Setting it to `0` disables L1
-> quantization, but if an L2 adapter is configured with a `serde_config`, that
-> serde wrapper is then *enabled* — the two tiers are mutually exclusive by
-> design, so that data is not compressed twice. Setting it to `0` alone
-> therefore does not guarantee that nothing is quantized.
 
 ### `FORCE_BUILD`
 

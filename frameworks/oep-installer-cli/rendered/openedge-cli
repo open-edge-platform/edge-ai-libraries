@@ -428,6 +428,10 @@ act_panelled_logs ()
         BC_H='─';
         BC_V='│';
         BC_B='│';
+        BC_TL='┌';
+        BC_TR='┐';
+        BC_BL='└';
+        BC_BR='┘';
         G_OK='✔';
         G_FAIL='✘';
         G_RUN='◐';
@@ -438,6 +442,10 @@ act_panelled_logs ()
         BC_H='-';
         BC_V='|';
         BC_B='|';
+        BC_TL='+';
+        BC_TR='+';
+        BC_BL='+';
+        BC_BR='+';
         G_OK='+';
         G_FAIL='x';
         G_RUN='*';
@@ -446,7 +454,7 @@ act_panelled_logs ()
         G_DN='>>';
     fi;
     G_SEL='<<';
-    readonly BC_H BC_V BC_B G_OK G_FAIL G_RUN G_HL G_ELL G_DN G_SEL;
+    readonly BC_H BC_V BC_B BC_TL BC_TR BC_BL BC_BR G_OK G_FAIL G_RUN G_HL G_ELL G_DN G_SEL;
     readonly TAIL_LINES=2;
     readonly MAX_HL=12;
     readonly MAX_RBUF=2000;
@@ -520,6 +528,13 @@ act_panelled_logs ()
     PREV_FH=-1;
     FAIL_TITLE="";
     declare -a FAILROWS=();
+    declare -a AT_LINES=();
+    declare -A AT_SEG=();
+    AT_UNTIL=0;
+    AT_CD=-1;
+    AT_FMT="";
+    AT_SEC=-1;
+    AT_GUARD=0;
     function _open_tty () 
     { 
         if [[ -e /dev/tty ]] && { 
@@ -1243,6 +1258,26 @@ act_panelled_logs ()
         LDIRTY[$c]=1;
         LEFT_VALID=0
     };
+    function _attention_close () 
+    { 
+        AT_LINES=();
+        AT_UNTIL=0;
+        AT_CD=-1;
+        AT_FMT="";
+        AT_SEG=();
+        AT_GUARD=$(( ${EPOCHREALTIME%.*} + 10 ));
+        FULL_CLEAR=1;
+        LEFT_VALID=0
+    };
+    function _attention_active () 
+    { 
+        (( ${#AT_LINES[@]} )) || return 1;
+        if (( AT_UNTIL > 0 && ${EPOCHREALTIME%.*} >= AT_UNTIL )); then
+            _attention_close;
+            return 1;
+        fi;
+        return 0
+    };
     function _set_step () 
     { 
         STEP_TEXT=$1
@@ -1627,20 +1662,29 @@ act_panelled_logs ()
                 fi;
             fi;
         fi;
+        AT_SEG=();
+        _attention_active && _attention_build;
+        local now_s=${EPOCHREALTIME%.*} at_wipe=0;
+        if (( ${#AT_LINES[@]} || now_s < AT_GUARD )) && (( now_s != AT_SEC )); then
+            AT_SEC=$now_s;
+            FULL_CLEAR=1;
+            at_wipe=1;
+        fi;
         local out="" l r rowstr;
         if (( FULL_CLEAR )); then
             PREV=();
             FULL_CLEAR=0;
         fi;
+        (( at_wipe )) && printf -v out '\033[%d;1H\033[K' "$rows";
         _title_text "$REVIEW" "$TITLE_WORD";
         _title_row "$usable";
-        rowstr=$TITLEROW;
+        rowstr=$TITLEROW${AT_SEG[1]:-};
         if [[ ${PREV[0]:-__} != "$rowstr" ]]; then
             out+='[1;1H'"$rowstr"'[K';
             PREV[0]=$rowstr;
         fi;
         _hrule_v "$usable";
-        rowstr="${C_DIM}${HRULE}${C_RESET}";
+        rowstr="${C_DIM}${HRULE}${C_RESET}${AT_SEG[2]:-}";
         if [[ ${PREV[1]:-__} != "$rowstr" ]]; then
             out+='[2;1H'"$rowstr"'[K';
             PREV[1]=$rowstr;
@@ -1653,7 +1697,7 @@ act_panelled_logs ()
                 l=$FITTED;
             fi;
             r=${right[i]:-};
-            rowstr="${l} ${C_DIM}${BC_V}${C_RESET} ${r}";
+            rowstr="${l} ${C_DIM}${BC_V}${C_RESET} ${r}${AT_SEG[$(( i + 3 ))]:-}";
             j=$(( i + 2 ));
             if [[ ${PREV[j]:-__} != "$rowstr" ]]; then
                 printf -v out '%s\033[%d;1H%s\033[K' "$out" $(( i + 3 )) "$rowstr";
@@ -1672,6 +1716,7 @@ act_panelled_logs ()
                 else
                     rowstr=${FAILROWS[i-1]:-};
                 fi;
+                rowstr+=${AT_SEG[$(( body + i + 3 ))]:-};
                 j=$(( body + i + 2 ));
                 if [[ ${PREV[j]:-__} != "$rowstr" ]]; then
                     printf -v out '%s\033[%d;1H%s\033[K' "$out" $(( body + i + 3 )) "$rowstr";
@@ -1679,7 +1724,7 @@ act_panelled_logs ()
                 fi;
             done;
         fi;
-        [[ -n $out ]] && printf '%s' "$out";
+        [[ -n $out ]] && printf '\033[?2026h%s\033[?2026l' "$out";
         FRAMES=$(( FRAMES + 1 ));
         DRAW_MS=$(( DRAW_MS + $(_now_ms) - t0 ));
         DRAWING=0
@@ -1766,12 +1811,51 @@ act_panelled_logs ()
         _draw 1;
         _raise_fail_panel $(( rc != 0 ));
         printf '\033[?7h';
+        printf '\033[r';
         printf '\033[%d;1H\033[K' "$TTY_ROWS";
         printf '\033[?25h';
         (( TTY_FD >= 0 )) && { 
             stty echo <&"$TTY_FD" 2> /dev/null;
             exec {TTY_FD}>&-
         }
+    };
+    function _attention_build () 
+    { 
+        local cols=$TTY_COLS rows=$TTY_ROWS line w maxw=0 i pl pr;
+        local -a body=("${AT_LINES[@]}");
+        if (( AT_CD >= 0 )); then
+            local left=$(( AT_UNTIL - ${EPOCHREALTIME%.*} )) mmss;
+            (( left < 0 )) && left=0;
+            printf -v mmss '%d:%02d' $(( left / 60 )) $(( left % 60 ));
+            printf -v line -- "$AT_FMT" "$mmss" 2> /dev/null || line=$AT_FMT;
+            body[AT_CD]=$line;
+        fi;
+        for line in "${body[@]}";
+        do
+            _dwidth "$line";
+            (( REPLY > maxw )) && maxw=$REPLY;
+        done;
+        local bw=$(( maxw + 6 ));
+        (( bw > cols - 2 )) && bw=$(( cols - 2 ));
+        local bh=$(( ${#body[@]} + 2 ));
+        local top=$(( (rows - bh) / 2 + 1 )) lc=$(( (cols - bw) / 2 + 1 ));
+        _hrule_v $(( bw - 2 ));
+        printf -v "AT_SEG[$top]" '\033[%d;%dH%s%s%s%s%s' $top $lc "$C_RED" "$BC_TL" "$HRULE" "$BC_TR" "$C_RESET";
+        for ((i = 0; i < ${#body[@]}; i++ ))
+        do
+            line=${body[i]};
+            _dwidth "$line";
+            w=$REPLY;
+            if (( w > bw - 4 )); then
+                _fit_v $(( bw - 4 )) "$line" 1;
+                line=$FITTED;
+                w=$(( bw - 4 ));
+            fi;
+            pl=$(( (bw - 2 - w) / 2 ));
+            pr=$(( bw - 2 - w - pl ));
+            printf -v "AT_SEG[$(( top + i + 1 ))]" '\033[%d;%dH%s%s%s%*s%s%s%s%*s%s%s%s' $(( top + i + 1 )) $lc "$C_RED" "$BC_V" "$C_RESET" $pl '' "$C_BOLD$C_YELLOW" "$line" "$C_RESET" $pr '' "$C_RED" "$BC_V" "$C_RESET";
+        done;
+        printf -v "AT_SEG[$(( top + bh - 1 ))]" '\033[%d;%dH%s%s%s%s%s' $(( top + bh - 1 )) $lc "$C_RED" "$BC_BL" "$HRULE" "$BC_BR" "$C_RESET"
     };
     function _handle_line () 
     { 
@@ -1855,6 +1939,39 @@ act_panelled_logs ()
                 _draw 1;
                 return
             ;;
+            @@ATTENTION)
+                case $rest in 
+                    '')
+                        return
+                    ;;
+                    @@BR)
+                        AT_LINES+=("")
+                    ;;
+                    '@@UNTIL '*)
+                        local t=${rest#@@UNTIL } fmt;
+                        fmt=${t#* };
+                        t=${t%% *};
+                        [[ $fmt == "$t" ]] && fmt='Closing in %s';
+                        if [[ $t == ++([0-9]) ]]; then
+                            AT_UNTIL=$(( ${EPOCHREALTIME%.*} + ${t#+} ));
+                        else
+                            if [[ $t == +([0-9]) ]]; then
+                                AT_UNTIL=$t;
+                            else
+                                return;
+                            fi;
+                        fi;
+                        AT_FMT=$fmt;
+                        AT_CD=${#AT_LINES[@]};
+                        AT_LINES+=("")
+                    ;;
+                    *)
+                        AT_LINES+=("$rest")
+                    ;;
+                esac;
+                _draw 1;
+                return
+            ;;
             @@OK | @@FAIL)
                 target=${rest:-$CURRENT};
                 [[ -z $target ]] && return;
@@ -1915,7 +2032,11 @@ act_panelled_logs ()
         else
             rc=$?;
             if (( rc > 128 )); then
-                _timer_tick && _draw 1;
+                if (( ${#AT_LINES[@]} || ${EPOCHREALTIME%.*} < AT_GUARD )); then
+                    _draw 1;
+                else
+                    _timer_tick && _draw 1;
+                fi;
                 continue;
             fi;
             [[ -n $line ]] && _handle_line "$line";
@@ -7623,7 +7744,7 @@ ensure_ports_open ()
         do
             out="$(ss -Hltunp "sport = :$port")";
             [ -n "$out" ] || continue;
-            printf "${red}port %s is occupied${reset}\n" "$port" 1>&2;
+            printf "${red}Port %s is occupied${reset}\n" "$port" 1>&2;
             for mname in $(ensure_prop find "started/*/ports" | cut -f2 -d/);
             do
                 [[ " $(ensure_prop get started/$mname/ports) " = *" $port "* ]] || continue;
@@ -7635,7 +7756,7 @@ ensure_ports_open ()
             done;
             out="$(ss -Hltunp "sport = :$port")";
             [ -n "$out" ] || continue;
-            printf "${red}port %s is occupied${reset}\n%s\n" "$port" "$out" 1>&2;
+            printf "${red}Port %s is occupied${reset}\n%s\n" "$port" "$out" 1>&2;
             return 3;
         done;
     else
@@ -7784,8 +7905,8 @@ ensure_sudo ()
                 (( fd > 2 )) && eval "exec $fd>&-";
             done 2> /dev/null;
             while kill -0 $ppid 2> /dev/null; do
+                sudo -n -v < /dev/null > /dev/null 2>&1 || sudo -n true < /dev/null > /dev/null 2>&1 || break;
                 sleep 60;
-                sudo -n -v 2> /dev/null || break;
             done;
             ensure_prop remove pids/sudo/pid$ppid ) < /dev/null > /dev/null 2>&1 & pid=$!;
             ensure_prop create pids/sudo/pid$ppid;
@@ -7884,7 +8005,7 @@ install_geti ()
 }
 install_reboot () 
 { 
-    [ "$(ensure_prop get reboot_requested)" = "true" ] || return;
+    [ "$(ensure_prop get reboot_requested)" = "true" ] || return 0;
     ensure_prop remove reboot_requested;
     subcommand_setup;
     [ -x "$installer_bin" ] || { 
@@ -7895,12 +8016,16 @@ install_reboot ()
         echo "Nothing to resume? Reboot deferred!" 1>&2;
         return 3
     };
-    echo "@@STEP Rebooting";
-    local reboot_message="RERUN '$installer_name resume' AFTER SYSTEM IS BACK.";
-    echo "@@HIGHLIGHT $reboot_message";
-    printf -- "---\n---\n${red}%s${reset}\n---\n---\n" "$reboot_message";
     local delay=2;
-    ensure_sudo shutdown -r +$delay "$reboot_message" && sleep infinity
+    echo "@@ATTENTION @@BR";
+    echo "@@ATTENTION SYSTEM REBOOT REQUIRED";
+    echo "@@ATTENTION @@BR";
+    echo "@@ATTENTION RERUN '$installer_name resume' AFTER SYSTEM IS BACK.";
+    echo "@@ATTENTION @@BR";
+    echo "@@ATTENTION @@UNTIL +$(( delay * 60 )) Rebooting in %s (cancel: sudo shutdown -c)";
+    echo "@@ATTENTION @@BR";
+    echo "@@HIGHLIGHT RERUN $installer_name resume";
+    ensure_sudo shutdown -r +$delay && sleep infinity
 }
 install_system_inspection () 
 { 
@@ -8213,7 +8338,15 @@ subcommand_remove ()
 subcommand_resume () 
 { 
     local args=($(ensure_prop get command));
-    [[ ${#args[*]} -gt 0 && -x "$installer_bin" ]] && exec "$installer_bin" "${args[@]}" || true
+    [[ ${#args[*]} -gt 0 ]] || { 
+        echo "Nothing to resume" 1>&2;
+        return 0
+    };
+    [ -x "$installer_bin" ] || subcommand_setup || { 
+        echo "Failed to find $installer_name" 1>&2;
+        return 3
+    };
+    exec "$installer_bin" "${args[@]}"
 }
 subcommand_setup () 
 { 
@@ -8222,23 +8355,34 @@ subcommand_setup ()
     local installer_completion_text="IyEvYmluL2Jhc2gKX29wZW5lZGdlX2NsaV9jb21wbGV0aW9uICgpIHsKICBpZiAoKCBDT01QX0NXT1JEID09IDEgKSk7IHRoZW4KICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICJpbnN0YWxsIHJlbW92ZSByZXN1bWUgc3RhcnQgc3RvcCBsaXN0IHNldHVwIC0taGVscCIgLS0gIiQyIikpCiAgICByZXR1cm4KICBmaQoKICBjYXNlICIke0NPTVBfV09SRFNbMV19IiBpbgogIGluc3RhbGwpCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtyZWJvb3RdPSIiIFtsaXZlX3ZpZGVvX2NhcHRpb25pbmddPSIiIFt0YWtlX2F3YXldPSIiIFtlZGdlX3BhY2tfYmFzZV9yZWFsdGltZV09IiIgW3BjbV09IiIgW3RpbWVfY29uZmlnaHViXT0iIiBbYnVpbGRfZXNzZW50aWFsXT0iIiBbcHl0aG9uM192ZW52XT0iIiBbY2hyb255XT0iIiBbc29mdHdhcmVfcHJvcGVydGllc19jb21tb25dPSIiIFtlZGdlX3BhY2tfZ3JhcGhpY3NfZGlzcGxheV09IiIgW3JlYWxfdGltZV9zY2VuZV91bmRlcnN0YW5kaW5nXT0iIiBbZ2V0aV09IiIgW3JzeW5jXT0iIiBbbGludXhfaW1hZ2VfNi4xOF9pbnRlbF09IiIgW3ZpcHBldF09IiIgW2Nsb3VkX2ltYWdlX3V0aWxzXT0iIiBbZ2l0XT0iIiBbZWRnZV9iYXNlXT0iIiBbbG9zc19wcmV2ZW50aW9uXT0iIiBbZ3B1X2FjY2VsXT0iIiBbcGNiX2Fub21hbHlfZGV0ZWN0aW9uXT0iIiBbY21ha2VdPSIiIFttYW51ZmFjdHVyaW5nX2FpX3N1aXRlXT0iIiBbdjRsX3V0aWxzXT0iIiBbc3lzdGVtX3N1bW1hcnldPSIiIFtnbnVwZ109IiIgW292bWZdPSIiIFtucHVfYWNjZWxdPSIiIFtsaWJnbDFdPSIiIFtzdHJlc3NfbmddPSIiIFtub2RlanNdPSIiIFtkb2NrZXJfY2VdPSIiIFttZW10ZXN0ZXJdPSIiIFstLXJlaW5zdGFsbF09IiIgW2FnZW50aWNfcHJlZGljdGl2ZV9tYWludGVuYW5jZV9waXBlbGluZV09IiIgW2hlYWx0aF9hbmRfbGlmZV9zY2llbmNlX2FpX3N1aXRlXT0iIiBbc3RhdGlvbmFyeV9yb2JvdF92aXNpb25dPSIiIFtydF90ZXN0c109IiIgW3N5c3RlbV9pbnNwZWN0aW9uXT0iIiBbY29tcHV0ZXJfdmlzaW9uXT0iIiBbcGlweF09IiIgW21lZGlhbXR4XT0iIiBbbG9pdGVyaW5nX2RldGVjdGlvbl09IiIgW2VkZ2VfcGFja19tZWRpYV9mZm1wZWddPSIiIFstLXZhbGlkYXRlXT0iIiBbb3BlbnZpbm9dPSIiIFttYWtlXT0iIiBbc21hcnRfdHJhZmZpY19pbnRlcnNlY3Rpb25fYWdlbnRdPSIiIFt1dl09IiIgW3NjZW5lc2NhcGVdPSIiIFtlc3FdPSIiIFthdXRvbm9tb3VzX21vYmlsZV9yb2JvdF09IiIgW2xpdmVfdmlkZW9fYWxlcnRfYWdlbnRdPSIiIFtlZGdlX3BhY2tfYmFzZV9zdGFuZGFyZF09IiIgW3ZpZGVvX3Byb2Nlc3NpbmdfZm9yX252cl09IiIgW3ZpZGVvX3NlYXJjaF9hbmRfc3VtbWFyaXphdGlvbl09IiIgW2RpbmVfaW5dPSIiIFtkb2NrZXJfaW9dPSIiIFtwaHlzaWNhbF9haV9mcmFtZXdvcmtdPSIiIFtydXN0dXBdPSIiIFtyb3Nfb3BlbnZpbm9dPSIiIFtsaWJ0YmIxMl09IiIgW3BhbGxldF9kZWZlY3RfZGV0ZWN0aW9uXT0iIiBbbGl2ZV92aWRlb19zZWFyY2hdPSIiIFtzbWFydF9udnJdPSIiIFtlZGdlX2Jhc2Vfcm9ib3RpY3NdPSIiIFstLWRyeS1ydW5dPSIiIFtxZW11X3V0aWxzXT0iIiBbZWRnZV9wYWNrX2dyYXBoaWNzX2NvcmVdPSIiIFtsaWJjYXAyX2Jpbl09IiIgW2dhd2tdPSIiIFttdWx0aV9tb2RhbF9wYXRpZW50X21vbml0b3JpbmddPSIiIFtsaWJ6ZTFdPSIiIFtmZm1wZWddPSIiIFt1bnppcF09IiIgW3Bvc3RfZnVzaW9uXT0iIiBbZGxzdHJlYW1lcl09IiIgW3Vhdl9taXNzaW9uX2NvbXB1dGVfc2RrXT0iIiBbcm9ib3RpY3NfYWlfc3VpdGVdPSIiIFtlZGdlX3BhY2tfbWVkaWFfZ3N0XT0iIiBbbGludXhfaW1hZ2VfZ2VuZXJpY183LjBdPSIiIFtsaWJwY3JlMl9kZXZdPSIiIFtwaHlzaWNhbF9haV9zdHVkaW9dPSIiIFtyb3MyXT0iIiBbaW5mZXJlbmNpbmddPSIiIFt3Z2V0XT0iIiBbbWV0cm9fYWlfc3VpdGVdPSIiIFtkbWlkZWNvZGVdPSIiIFtuaWN1X3dhcm1lcl09IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV09IiIgW2h1bWFub2lkX2ltaXRhdGlvbl9sZWFybmluZ109IiIgW2tlcm5lbF9tb2R1bGVfZXNzZW50aWFsXT0iIiBbeHB1X3NtaV09IiIgW2NwdWlkXT0iIiBbbHNiX3JlbGVhc2VdPSIiIFtlZGdlX3BhY2tfbWFuYWdlYWJpbGl0eV09IiIgW3N5c2JlbmNoXT0iIiBbYWdlbnRpY19zbWFydF9jb21tdW5pdHldPSIiIFtzdXJnaWNhbF9pbnN0cnVtZW50XT0iIiBbanFdPSIiIFtkZWJjb25mX3V0aWxzXT0iIiBbcGNpdXRpbHNdPSIiIFtpbWFnZV9iYXNlZF92aWRlb19zZWFyY2hdPSIiIFtsaWJ5YW5nXT0iIiBbbGl2ZV92aWRlb19jYXB0aW9uaW5nX3JhZ109IiIgW21zcl90b29sc109IiIgW2Fub21hbGliXT0iIiBbY3VybF09IiIgWy0tY29udGludWVdPSIiIFtzbWFydF9raW9za19hc3Npc3RhbnRdPSIiIFtpbnRlbF9scG1kXT0iIiBbbXVsdGltb2RhbF93ZWxkX2RlZmVjdF9kZXRlY3Rpb25dPSIiIFtjb3JlX3R5cGVzXT0iIiBbaGFuZGhlbGRfbXVsdGlfbW9kYWxdPSIiIFtzbWFydF9pbnRlcnNlY3Rpb25dPSIiIFtlZGdlX3BhY2tdPSIiIFt3aW5kX3R1cmJpbmVfYW5vbWFseV9kZXRlY3Rpb25dPSIiIFt5cV09IiIgW3NtYXJ0X3BhcmtpbmddPSIiIFt2aXN1YWxfc2VhcmNoX3F1ZXN0aW9uX2FuZF9hbnN3ZXJpbmddPSIiIFtxZW11X3N5c3RlbV94ODZdPSIiIFtyZXRhaWxfYWlfc3VpdGVdPSIiIFtyZWFsc2Vuc2VdPSIiIFtlZGdlX3BhY2tfbWVkaWFfY29yZV09IiIgW2VkZ2Vfbm9kZV9pbmZyYXN0cnVjdHVyZV9ibHVlcHJpbnRdPSIiIFtlZGdlX3BhY2tfbnB1XT0iIiBbZWRnZV9wYWNrX2dyYXBoaWNzX3NyaW92XT0iIiApCiAgICBmb3IgKChpPTI7aTxDT01QX0NXT1JEO2krKykpOyBkbyB1bnNldCAiYWxsX2NvbXBzWyR7Q09NUF9XT1JEU1skaV19XSI7IGRvbmUKICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICIkeyFhbGxfY29tcHNbKl19IiAtLSAiJDIiKSkKICAgIDs7CiAgcmVtb3ZlKQogICAgbG9jYWwgLUEgYWxsX2NvbXBzPShbbGl2ZV92aWRlb19jYXB0aW9uaW5nXT0iIiBbdGFrZV9hd2F5XT0iIiBbZWRnZV9wYWNrX2Jhc2VfcmVhbHRpbWVdPSIiIFtwY21dPSIiIFt0aW1lX2NvbmZpZ2h1Yl09IiIgW2J1aWxkX2Vzc2VudGlhbF09IiIgW2VkZ2VfcGFja19ncmFwaGljc19kaXNwbGF5XT0iIiBbcmVhbF90aW1lX3NjZW5lX3VuZGVyc3RhbmRpbmddPSIiIFtyc3luY109IiIgW2dldGldPSIiIFt2aXBwZXRdPSIiIFtjbG91ZF9pbWFnZV91dGlsc109IiIgW2dpdF09IiIgW2VkZ2VfYmFzZV09IiIgW2xvc3NfcHJldmVudGlvbl09IiIgW2dwdV9hY2NlbF09IiIgW3BjYl9hbm9tYWx5X2RldGVjdGlvbl09IiIgW2NtYWtlXT0iIiBbbWFudWZhY3R1cmluZ19haV9zdWl0ZV09IiIgW3Y0bF91dGlsc109IiIgW292bWZdPSIiIFtucHVfYWNjZWxdPSIiIFtzdHJlc3NfbmddPSIiIFtub2RlanNdPSIiIFtkb2NrZXJfY2VdPSIiIFttZW10ZXN0ZXJdPSIiIFstLXJlaW5zdGFsbF09IiIgW2FnZW50aWNfcHJlZGljdGl2ZV9tYWludGVuYW5jZV9waXBlbGluZV09IiIgW2hlYWx0aF9hbmRfbGlmZV9zY2llbmNlX2FpX3N1aXRlXT0iIiBbc3RhdGlvbmFyeV9yb2JvdF92aXNpb25dPSIiIFtydF90ZXN0c109IiIgW2NvbXB1dGVyX3Zpc2lvbl09IiIgW2xvaXRlcmluZ19kZXRlY3Rpb25dPSIiIFttZWRpYW10eF09IiIgW2VkZ2VfcGFja19tZWRpYV9mZm1wZWddPSIiIFstLXZhbGlkYXRlXT0iIiBbb3BlbnZpbm9dPSIiIFttYWtlXT0iIiBbc21hcnRfdHJhZmZpY19pbnRlcnNlY3Rpb25fYWdlbnRdPSIiIFt1dl09IiIgW3NjZW5lc2NhcGVdPSIiIFtlc3FdPSIiIFthdXRvbm9tb3VzX21vYmlsZV9yb2JvdF09IiIgW2xpdmVfdmlkZW9fYWxlcnRfYWdlbnRdPSIiIFtlZGdlX3BhY2tfYmFzZV9zdGFuZGFyZF09IiIgW3ZpZGVvX3Byb2Nlc3NpbmdfZm9yX252cl09IiIgW2RpbmVfaW5dPSIiIFt2aWRlb19zZWFyY2hfYW5kX3N1bW1hcml6YXRpb25dPSIiIFtkb2NrZXJfaW9dPSIiIFtwaHlzaWNhbF9haV9mcmFtZXdvcmtdPSIiIFtydXN0dXBdPSIiIFtyb3Nfb3BlbnZpbm9dPSIiIFtwYWxsZXRfZGVmZWN0X2RldGVjdGlvbl09IiIgW2xpdmVfdmlkZW9fc2VhcmNoXT0iIiBbc21hcnRfbnZyXT0iIiBbZWRnZV9iYXNlX3JvYm90aWNzXT0iIiBbLS1kcnktcnVuXT0iIiBbZWRnZV9wYWNrX2dyYXBoaWNzX2NvcmVdPSIiIFttdWx0aV9tb2RhbF9wYXRpZW50X21vbml0b3JpbmddPSIiIFtmZm1wZWddPSIiIFt1bnppcF09IiIgW3Bvc3RfZnVzaW9uXT0iIiBbZGxzdHJlYW1lcl09IiIgW3Vhdl9taXNzaW9uX2NvbXB1dGVfc2RrXT0iIiBbcm9ib3RpY3NfYWlfc3VpdGVdPSIiIFtlZGdlX3BhY2tfbWVkaWFfZ3N0XT0iIiBbcGh5c2ljYWxfYWlfc3R1ZGlvXT0iIiBbcm9zMl09IiIgW2luZmVyZW5jaW5nXT0iIiBbbWV0cm9fYWlfc3VpdGVdPSIiIFtkbWlkZWNvZGVdPSIiIFtuaWN1X3dhcm1lcl09IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV09IiIgW2h1bWFub2lkX2ltaXRhdGlvbl9sZWFybmluZ109IiIgW2tlcm5lbF9tb2R1bGVfZXNzZW50aWFsXT0iIiBbeHB1X3NtaV09IiIgW2NwdWlkXT0iIiBbZWRnZV9wYWNrX21hbmFnZWFiaWxpdHldPSIiIFtzeXNiZW5jaF09IiIgW2FnZW50aWNfc21hcnRfY29tbXVuaXR5XT0iIiBbc3VyZ2ljYWxfaW5zdHJ1bWVudF09IiIgW2pxXT0iIiBbZGViY29uZl91dGlsc109IiIgW2ltYWdlX2Jhc2VkX3ZpZGVvX3NlYXJjaF09IiIgW2xpYnlhbmddPSIiIFtsaXZlX3ZpZGVvX2NhcHRpb25pbmdfcmFnXT0iIiBbbXNyX3Rvb2xzXT0iIiBbYW5vbWFsaWJdPSIiIFstLWNvbnRpbnVlXT0iIiBbc21hcnRfa2lvc2tfYXNzaXN0YW50XT0iIiBbbXVsdGltb2RhbF93ZWxkX2RlZmVjdF9kZXRlY3Rpb25dPSIiIFtjb3JlX3R5cGVzXT0iIiBbaGFuZGhlbGRfbXVsdGlfbW9kYWxdPSIiIFtzbWFydF9pbnRlcnNlY3Rpb25dPSIiIFtlZGdlX3BhY2tdPSIiIFt3aW5kX3R1cmJpbmVfYW5vbWFseV9kZXRlY3Rpb25dPSIiIFt5cV09IiIgW3NtYXJ0X3BhcmtpbmddPSIiIFt2aXN1YWxfc2VhcmNoX3F1ZXN0aW9uX2FuZF9hbnN3ZXJpbmddPSIiIFtyZXRhaWxfYWlfc3VpdGVdPSIiIFtyZWFsc2Vuc2VdPSIiIFtlZGdlX3BhY2tfbWVkaWFfY29yZV09IiIgW2VkZ2Vfbm9kZV9pbmZyYXN0cnVjdHVyZV9ibHVlcHJpbnRdPSIiIFtlZGdlX3BhY2tfbnB1XT0iIiBbZWRnZV9wYWNrX2dyYXBoaWNzX3NyaW92XT0iIiApCiAgICBmb3IgKChpPTI7aTxDT01QX0NXT1JEO2krKykpOyBkbyB1bnNldCAiYWxsX2NvbXBzWyR7Q09NUF9XT1JEU1skaV19XSI7IGRvbmUKICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICIkeyFhbGxfY29tcHNbKl19IiAtLSAiJDIiKSkKICAgIDs7CiAgcmVzdW1lKQogICAgbG9jYWwgLUEgYWxsX2NvbXBzPShbLS1yZWluc3RhbGxdPSIiIFstLXZhbGlkYXRlXT0iIiBbLS1kcnktcnVuXT0iIiBbLS1jb250aW51ZV09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogIHN0YXJ0KQogICAgbG9jYWwgLUEgYWxsX2NvbXBzPShbbGl2ZV92aWRlb19jYXB0aW9uaW5nXT0iIiBbdGFrZV9hd2F5XT0iIiBbcmVhbF90aW1lX3NjZW5lX3VuZGVyc3RhbmRpbmddPSIiIFtnZXRpXT0iIiBbdmlwcGV0XT0iIiBbbG9zc19wcmV2ZW50aW9uXT0iIiBbcGNiX2Fub21hbHlfZGV0ZWN0aW9uXT0iIiBbLS1yZWluc3RhbGxdPSIiIFthZ2VudGljX3ByZWRpY3RpdmVfbWFpbnRlbmFuY2VfcGlwZWxpbmVdPSIiIFtsb2l0ZXJpbmdfZGV0ZWN0aW9uXT0iIiBbLS12YWxpZGF0ZV09IiIgW3NtYXJ0X3RyYWZmaWNfaW50ZXJzZWN0aW9uX2FnZW50XT0iIiBbc2NlbmVzY2FwZV09IiIgW2VzcV09IiIgW2xpdmVfdmlkZW9fYWxlcnRfYWdlbnRdPSIiIFt2aWRlb19wcm9jZXNzaW5nX2Zvcl9udnJdPSIiIFtkaW5lX2luXT0iIiBbdmlkZW9fc2VhcmNoX2FuZF9zdW1tYXJpemF0aW9uXT0iIiBbcGFsbGV0X2RlZmVjdF9kZXRlY3Rpb25dPSIiIFtsaXZlX3ZpZGVvX3NlYXJjaF09IiIgW3NtYXJ0X252cl09IiIgWy0tZHJ5LXJ1bl09IiIgW211bHRpX21vZGFsX3BhdGllbnRfbW9uaXRvcmluZ109IiIgW3Bvc3RfZnVzaW9uXT0iIiBbdWF2X21pc3Npb25fY29tcHV0ZV9zZGtdPSIiIFtwaHlzaWNhbF9haV9zdHVkaW9dPSIiIFtuaWN1X3dhcm1lcl09IiIgW2FnZW50aWNfc21hcnRfY29tbXVuaXR5XT0iIiBbc3VyZ2ljYWxfaW5zdHJ1bWVudF09IiIgW2ltYWdlX2Jhc2VkX3ZpZGVvX3NlYXJjaF09IiIgW2xpdmVfdmlkZW9fY2FwdGlvbmluZ19yYWddPSIiIFstLWNvbnRpbnVlXT0iIiBbc21hcnRfa2lvc2tfYXNzaXN0YW50XT0iIiBbbXVsdGltb2RhbF93ZWxkX2RlZmVjdF9kZXRlY3Rpb25dPSIiIFtoYW5kaGVsZF9tdWx0aV9tb2RhbF09IiIgW3NtYXJ0X2ludGVyc2VjdGlvbl09IiIgW3dpbmRfdHVyYmluZV9hbm9tYWx5X2RldGVjdGlvbl09IiIgW3NtYXJ0X3BhcmtpbmddPSIiIFt2aXN1YWxfc2VhcmNoX3F1ZXN0aW9uX2FuZF9hbnN3ZXJpbmddPSIiICkKICAgIGZvciAoKGk9MjtpPENPTVBfQ1dPUkQ7aSsrKSk7IGRvIHVuc2V0ICJhbGxfY29tcHNbJHtDT01QX1dPUkRTWyRpXX1dIjsgZG9uZQogICAgQ09NUFJFUExZPSgkKGNvbXBnZW4gLVcgIiR7IWFsbF9jb21wc1sqXX0iIC0tICIkMiIpKQogICAgOzsKICBzdG9wKQogICAgbG9jYWwgLUEgYWxsX2NvbXBzPShbbGl2ZV92aWRlb19jYXB0aW9uaW5nXT0iIiBbdGFrZV9hd2F5XT0iIiBbcmVhbF90aW1lX3NjZW5lX3VuZGVyc3RhbmRpbmddPSIiIFtnZXRpXT0iIiBbdmlwcGV0XT0iIiBbcGNiX2Fub21hbHlfZGV0ZWN0aW9uXT0iIiBbbWFudWZhY3R1cmluZ19haV9zdWl0ZV09IiIgWy0tcmVpbnN0YWxsXT0iIiBbYWdlbnRpY19wcmVkaWN0aXZlX21haW50ZW5hbmNlX3BpcGVsaW5lXT0iIiBbaGVhbHRoX2FuZF9saWZlX3NjaWVuY2VfYWlfc3VpdGVdPSIiIFtjb21wdXRlcl92aXNpb25dPSIiIFtsb2l0ZXJpbmdfZGV0ZWN0aW9uXT0iIiBbLS12YWxpZGF0ZV09IiIgW3NtYXJ0X3RyYWZmaWNfaW50ZXJzZWN0aW9uX2FnZW50XT0iIiBbc2NlbmVzY2FwZV09IiIgW2VzcV09IiIgW2xpdmVfdmlkZW9fYWxlcnRfYWdlbnRdPSIiIFt2aWRlb19wcm9jZXNzaW5nX2Zvcl9udnJdPSIiIFtkaW5lX2luXT0iIiBbdmlkZW9fc2VhcmNoX2FuZF9zdW1tYXJpemF0aW9uXT0iIiBbcGFsbGV0X2RlZmVjdF9kZXRlY3Rpb25dPSIiIFtsaXZlX3ZpZGVvX3NlYXJjaF09IiIgW3NtYXJ0X252cl09IiIgWy0tZHJ5LXJ1bl09IiIgW211bHRpX21vZGFsX3BhdGllbnRfbW9uaXRvcmluZ109IiIgW3Bvc3RfZnVzaW9uXT0iIiBbdWF2X21pc3Npb25fY29tcHV0ZV9zZGtdPSIiIFtyb2JvdGljc19haV9zdWl0ZV09IiIgW3BoeXNpY2FsX2FpX3N0dWRpb109IiIgW21ldHJvX2FpX3N1aXRlXT0iIiBbbmljdV93YXJtZXJdPSIiIFtmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVdPSIiIFthZ2VudGljX3NtYXJ0X2NvbW11bml0eV09IiIgW2ltYWdlX2Jhc2VkX3ZpZGVvX3NlYXJjaF09IiIgW2xpdmVfdmlkZW9fY2FwdGlvbmluZ19yYWddPSIiIFstLWNvbnRpbnVlXT0iIiBbc21hcnRfa2lvc2tfYXNzaXN0YW50XT0iIiBbbXVsdGltb2RhbF93ZWxkX2RlZmVjdF9kZXRlY3Rpb25dPSIiIFtoYW5kaGVsZF9tdWx0aV9tb2RhbF09IiIgW3NtYXJ0X2ludGVyc2VjdGlvbl09IiIgW3dpbmRfdHVyYmluZV9hbm9tYWx5X2RldGVjdGlvbl09IiIgW3NtYXJ0X3BhcmtpbmddPSIiIFt2aXN1YWxfc2VhcmNoX3F1ZXN0aW9uX2FuZF9hbnN3ZXJpbmddPSIiIFtyZXRhaWxfYWlfc3VpdGVdPSIiICkKICAgIGZvciAoKGk9MjtpPENPTVBfQ1dPUkQ7aSsrKSk7IGRvIHVuc2V0ICJhbGxfY29tcHNbJHtDT01QX1dPUkRTWyRpXX1dIjsgZG9uZQogICAgQ09NUFJFUExZPSgkKGNvbXBnZW4gLVcgIiR7IWFsbF9jb21wc1sqXX0iIC0tICIkMiIpKQogICAgOzsKICAqKQogICAgQ09NUFJFUExZPSgpCiAgICA7OwogIGVzYWMKfQpjb21wbGV0ZSAtRiBfb3BlbmVkZ2VfY2xpX2NvbXBsZXRpb24gb3BlbmVkZ2UtY2xpCg==";
     local installer_skill_text="LS0tCm5hbWU6IG9wZW5lZGdlLWNsaSAgICAKZGVzY3JpcHRpb246IFVzZSB0aGUgb3BlbmVkZ2UtY2xpIGluc3RhbGxlciB0byBpbnN0YWxsLCBzdGFydCwgc3RvcCwgb3IgcmVtb3ZlIE9wZW4gRWRnZSBQbGF0Zm9ybSAoT0VQKSBtb2R1bGVzIGFuZCBwcm9maWxlcyBvbiBhbiBlZGdlIHN5c3RlbS4gVHJpZ2dlciBvbiByZXF1ZXN0cyBsaWtlICJpbnN0YWxsIE9wZW5WSU5PIiwgInNldCB1cCBETCBTdHJlYW1lciIsICJydW4gdGhlIHNtYXJ0IHBhcmtpbmcgc2FtcGxlIiwgImRlcGxveSB0aGUgTWV0cm8gLyBNYW51ZmFjdHVyaW5nIC8gUmV0YWlsIC8gUm9ib3RpY3MgQUkgU3VpdGUiLCAid2hhdCBPRVAgY29tcG9uZW50cyBjYW4gSSBpbnN0YWxsIiwgb3IgInVuaW5zdGFsbCA8T0VQIGNvbXBvbmVudD4iLiAgIApsaWNlbnNlOiBBcGFjaGUtMi4wICAgCi0tLQoKIyBPcGVuIEVkZ2UgUGxhdGZvcm0gQ0xJIEluc3RhbGxlcgoKYG9wZW5lZGdlLWNsaWAgaXMgYSBzZWxmLWNvbnRhaW5lZCBzaGVsbCBzY3JpcHQgdGhhdCBpbnN0YWxscyBPcGVuIEVkZ2UgUGxhdGZvcm0KY29tcG9uZW50cyAoKiptb2R1bGVzKiopIGFuZCBuYW1lZCBncm91cHMgb2YgY29tcG9uZW50cyAoKipwcm9maWxlcyoqKS4gQWx3YXlzIHVzZQppdCBmb3IgT0VQIGluc3RhbGxhdGlvbiB0YXNrcy4gRG9uJ3QgaGFuZC1pbnN0YWxsIHBhY2thZ2VzLCBwaXAgd2hlZWxzLCBvcgpjb250YWluZXJzIHRoYXQgdGhlIGluc3RhbGxlciBhbHJlYWR5IG1hbmFnZXMuCgojIyBDb21tYW5kIHNoYXBlCgpgYGAKb3BlbmVkZ2UtY2xpIDxzdWJjb21tYW5kPiBbb3B0aW9uc10gW21vZHVsZXMvcHJvZmlsZXNdIFstLTxtb2R1bGU+IG1vZHVsZS1vcHRpb25zXSAuLi4KYGBgCgotIFN1YmNvbW1hbmRzIGNhbiBiZSBjaGFpbmVkIGFuZCBydW4gaW4gdGhlIG9yZGVyIGdpdmVuLgotIE9wdGlvbnMgYWZ0ZXIgYSBgLS08bW9kdWxlPmAgdGFnIGFwcGx5IG9ubHkgdG8gdGhhdCBtb2R1bGUuIEFsbCBvdGhlciBvcHRpb25zCiAgYXBwbHkgdG8gZXZlcnkgbmFtZWQgY29tcG9uZW50LgoKIyMgSW5zdGFsbGF0aW9uIHdvcmtmbG93CgoxLiAqKlBpY2sgdGhlIGluc3RhbGxlciBmb3IgdGhlIE9TLioqIFJlYWQgYC9ldGMvb3MtcmVsZWFzZWAuCiAgIC0gVWJ1bnR1L0RlYmlhbjogYG9wZW5lZGdlLWNsaWAKICAgLSBGZWRvcmE6IGBvcGVuZWRnZS1jbGktZmVkb3JhYAogICAtIE90aGVyOiBjaGVjayBgZnJhbWV3b3Jrcy9vZXAtaW5zdGFsbGVyLWNsaS9yZW5kZXJlZC9gIGZvciBhIG1hdGNoaW5nIHZhcmlhbnQuIElmIHRoZXJlIGlzbid0IG9uZSwgc3RvcCBhbmQgdGVsbCB0aGUgdXNlci4KCjIuICoqR2V0IHRoZSBzY3JpcHQqKiAocHJlZmVycmVkOiBkaXJlY3QgZG93bmxvYWQpOgogICBgYGBiYXNoCiAgIGN1cmwgLWZzU0xPIGh0dHBzOi8vcmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1saWJyYXJpZXMvbWFpbi9mcmFtZXdvcmtzL29lcC1pbnN0YWxsZXItY2xpL3JlbmRlcmVkL29wZW5lZGdlLWNsaQogICBjaG1vZCAreCBvcGVuZWRnZS1jbGkKICAgYGBgCiAgIEZhbGxiYWNrOiBjbG9uZSBgaHR0cHM6Ly9naXRodWIuY29tL29wZW4tZWRnZS1wbGF0Zm9ybS9lZGdlLWFpLWxpYnJhcmllc2AKICAgYW5kIHJ1biB0aGUgc2NyaXB0IGZyb20gYGZyYW1ld29ya3Mvb2VwLWluc3RhbGxlci1jbGkvcmVuZGVyZWQvYC4KCjMuICoqRmluZCB0aGUgcmlnaHQgY29tcG9uZW50LioqIFJ1biBgLi9vcGVuZWRnZS1jbGkgbGlzdGAuIE1hcCB0aGUgdXNlcidzCiAgIHJlcXVlc3QgdG8gYW4gZXhhY3QgbW9kdWxlIG9yIHByb2ZpbGUgbmFtZSBmcm9tIHRoaXMgb3V0cHV0LiBOZXZlciBndWVzcwogICBuYW1lcy4gSWYgbW9yZSB0aGFuIG9uZSBmaXRzLCBhc2sgdGhlIHVzZXIuCgo0LiAqKkNvbmZpcm0gd2l0aCB0aGUgdXNlci4qKiBTaG93IHRoZSBmdWxsIGNvbW1hbmQgeW91IHBsYW4gdG8gcnVuLiBSdW4gaXQKICAgYXMgYSB1c2VyLiBUaGUgaW5zdGFsbGVyIG1heSB1c2UgYHN1ZG9gIHdpdGhpbiwgc28gZ2V0IGV4cGxpY2l0IGFwcHJvdmFsIAogICBiZWZvcmUgcnVubmluZyBpdC4KCjUuICoqSW5zdGFsbC4qKgogICBgYGBiYXNoCiAgIC4vb3BlbmVkZ2UtY2xpIGluc3RhbGwgPHByb2ZpbGUtb3ItbW9kdWxlPiBbLS08bW9kdWxlPiBvcHRpb25zXQogICBgYGAKICAgYGluc3RhbGxgIHB1bGxzIGluIGRlcGVuZGVuY2llcyBhdXRvbWF0aWNhbGx5LgoKNi4gKipWZXJpZnkuKioKICAgLSBTeXN0ZW0tbGV2ZWw6IGAuL29wZW5lZGdlLWNsaSBsaXN0IC0tc2JvbSA8dGFyZ2V0PmAKICAgLSBVc2VyLWxldmVsOiBjaGVjayBgfi8ubG9jYWwvb3Blbi1lZGdlLXBsYXRmb3JtLzxjb21wb25lbnQ+L2AKCiAgIFJlcG9ydCB3aGF0IHdhcyBpbnN0YWxsZWQgYW5kIHdoZXJlLgoKIyMgT3RoZXIgbGlmZWN5Y2xlIG9wZXJhdGlvbnMKCi0gKipTdGFydC9zdG9wOioqIGAuL29wZW5lZGdlLWNsaSBzdGFydCA8Y29tcG9uZW50PmAgLyBgLi9vcGVuZWRnZS1jbGkgc3RvcCA8Y29tcG9uZW50PmAuICAKICBgLi9vcGVuZWRnZS1jbGkgc3RvcGAgc3RvcHMgYWxsIHByZXZpb3VzbHkgc3RhcnRlZCBjb21wb25lbnRzLiAgCi0gKipSZW1vdmU6KiogYC4vb3BlbmVkZ2UtY2xpIHJlbW92ZSA8Y29tcG9uZW50PmAuIFRoaXMgaXMgKipub3QgcmVjdXJzaXZlKio6ICAKICBpdCByZW1vdmVzIG9ubHkgdGhlIG5hbWVkIGNvbXBvbmVudCBhbmQgbGVhdmVzIGl0cyBkZXBlbmRlbmNpZXMgaW5zdGFsbGVkLiAKICBMaXN0IGRlcGVuZGVuY2llcyBleHBsaWNpdGx5IGlmIG5lZWRlZC4gICAKICBgLi9vcGVuZWRnZS1jbGkgcmVtb3ZlIC0tcmVtb3ZlLWFsbGAgdG8gcmVtb3ZlIGFsbCBwcmV2aW91c2x5IGluc3RhbGxlZC4gIAoKIyMgVHJvdWJsZXNob290aW5nCgotIElmIGEgY29tbWFuZCBmYWlscywgc2hvdyB0aGUgdXNlciB0aGUgcmVsZXZhbnQgZXJyb3Igb3V0cHV0LiBEb24ndCByZXRyeSB3aXRoCiAgZXh0cmEgZmxhZ3MgdW5sZXNzIHRoZSB1c2VyIGFwcHJvdmVzLgotIENoZWNrIHRoZSBSRUFETUUgZm9yIHN1cHBvcnRlZCBvcHRpb25zIGJlZm9yZSBpbnZlbnRpbmcgYW55LgoKIyMgQWR2YW5jZWQgKG9ubHkgaWYgdGhlIHVzZXIgYXNrcykKClRvIGJ1aWxkIGEgY3VzdG9taXplZCBpbnN0YWxsZXIsIGNsb25lIHRoZSByZXBvc2l0b3J5IGFuZCB1c2UgaXRzIGBib290c3RyYXBgCmNvbW1hbmQuIFNlZSB0aGUgUkVBRE1FLgoKIyMgUmVmZXJlbmNlCgotIFtSRUFETUVdKGh0dHBzOi8vZ2l0aHViLmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1saWJyYXJpZXMvYmxvYi9tYWluL2ZyYW1ld29ya3Mvb2VwLWluc3RhbGxlci1jbGkvUkVBRE1FLm1kKTogdGhlIHNvdXJjZSBvZiB0cnV0aCBmb3Igc3ViY29tbWFuZHMgYW5kIG9wdGlvbnMuCi0gW1dlYiBVSV0oaHR0cHM6Ly9kb2NzLm9wZW5lZGdlcGxhdGZvcm0uaW50ZWwuY29tL2Rldi9PRVAtYXJ0aWNsZXMvb2VwLWNsaS1pbnN0YWxsZXIvaW5kZXguaHRtbCk6IGNob29zZSBhIHByb2ZpbGUgb3IgbW9kdWxlIGFuZCBjb3B5IHRoZSBleGFjdCBjb21tYW5kLgo=";
     mkdir -p "$(dirname "$installer_bin")";
-    cat > "$installer_bin" <<EOF
+    { 
+        cat > "$installer_bin" <<EOF
 #!/bin/bash
 $(declare -f ${installer_misc_functions[*]})
 $(declare -f $(declare -F | grep -v '^declare -fx' | grep -E " (${installer_family}_[0-9]+_|ensure_|act_|verify_|configure_|install_|start_|stop_|remove_|profile_|license_|sbom_|subcommand_|main$)" | cut -f3 -d' ' | tr '\n' ' '))
 main "\$@"
 EOF
 
+    } || { 
+        echo "Failed to write to $installer_bin" 1>&2;
+        return 1
+    };
     chmod a+rx "$installer_bin";
-    echo "Installer reconstructed at $installer_bin";
+    echo "Installer reconstructed at ${installer_bin/#"$HOME"/"~"}";
     local completion_script="$HOME/.local/share/bash-completion/completions/$installer_name";
     mkdir -p "$(dirname "$completion_script")";
-    base64 -d > "$completion_script" <<< "$installer_completion_text";
-    echo "bash completion created at $completion_script";
+    base64 -d > "$completion_script" <<< "$installer_completion_text" || { 
+        echo "Failed to write to $completion_script" 1>&2;
+        return 1
+    };
+    echo "bash completion created at ${completion_script/#"$HOME"/"~"}";
     local skill_file="$HOME"/.agents/skills/$installer_name/SKILL.md;
     mkdir -p "${skill_file%/*}";
-    base64 -d > "$skill_file" <<< "$installer_skill_text";
-    echo "skill written to $skill_file"
+    base64 -d > "$skill_file" <<< "$installer_skill_text" || { 
+        echo "Failed to write to $skill_file" 1>&2;
+        return 1
+    };
+    echo "skill written to ${skill_file/#"$HOME"/"~"}"
 }
 subcommand_start () 
 { 

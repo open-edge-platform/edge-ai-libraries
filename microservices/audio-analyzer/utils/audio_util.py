@@ -4,6 +4,7 @@ import subprocess
 from fastapi import UploadFile, HTTPException
 from utils.config_loader import config
 from utils.app_paths import get_audio_upload_dir
+from utils.wav_header import read_pcm_wav_info
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,13 @@ def _build_unique_file_path(project_path: str, safe_filename: str) -> str:
 
 
 def _audio_stream_exists(file_path: str) -> bool:
+    # Fast path: an uncompressed WAV is fully described by its RIFF header, so
+    # a readable one is by definition valid audio. Streaming clients post such
+    # WAVs on every request, and probing them was costing a process spawn per
+    # upload on the latency-critical path.
+    if read_pcm_wav_info(file_path) is not None:
+        return True
+
     result = subprocess.run(
         [
             "ffprobe",
