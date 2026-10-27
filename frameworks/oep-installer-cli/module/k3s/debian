@@ -9,6 +9,10 @@ verify_k3s () {
   [ -d "$workspace" ]
 }
 
+debian_30_profile_k3s () {
+  echo "git cirl" 
+}
+
 debian_30_install_k3s () {
   configure_k3s "$@"
   if verify_k3s && [[ " $* " = *" --reinstall "* ]]; then
