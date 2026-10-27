@@ -1,5 +1,5 @@
 
-debian_99_profile_edge_base_fedaero () {
+debian_99_profile_edge_base_handheld () {
   case "$1" in
   bootstrap) # all components
     echo "core_types system_inspection system_summary edge_pack_base_standard edge_pack_npu gpu_accel npu_accel pcm power_tuning docker_io k3s_fedaero"
