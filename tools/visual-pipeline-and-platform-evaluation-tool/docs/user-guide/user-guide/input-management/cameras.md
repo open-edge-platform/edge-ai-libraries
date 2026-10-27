@@ -82,7 +82,8 @@ GigE Vision cameras requires running the ViPPET backend with host networking:
 make build run GIGE=1
 ```
 
-This applies the `compose.gige.yml` overlay. Use `make stop` to stop the services as usual.
+This applies the `compose.gige.yml` overlay. `GIGE=1` is also supported by `make run-prebuilt`
+and `make run-dev`. Use `make stop` to stop the services as usual.
 
 > [!NOTE]
 > The `GIGE=1` overlay is not supported together with `DLSPS2=1`.

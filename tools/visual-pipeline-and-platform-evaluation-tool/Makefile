@@ -161,16 +161,16 @@ docker-build: build build-videogenerator ## Build all images
 run: env-setup ## Run the docker compose services; DLSPS2=1 runs pipelines on DLSPS 2.0; GIGE=1 enables GigE camera streaming
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(DLSPS2_COMPOSE) $(GIGE_COMPOSE) up -d
 
-run-prebuilt: env-setup ## Pull and run the published images tagged PREBUILT_TAG (latest on main); never builds from source
+run-prebuilt: env-setup ## Pull and run the published images tagged PREBUILT_TAG (latest on main); never builds from source; GIGE=1 enables GigE camera streaming
 	. .env && export DOCKER_TAG="$$PREBUILT_TAG" && echo "Running published images tagged $$DOCKER_TAG" && \
-		docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml pull vippet vippet-ui sensor-manager && \
-		docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d --no-build
+		docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(GIGE_COMPOSE) pull vippet vippet-ui sensor-manager && \
+		docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(GIGE_COMPOSE) up -d --no-build
 
 run-videogenerator: env-setup build-videogenerator ## Run only the videogenerator service
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d videogenerator
 
-run-dev: env-setup ## Run the docker compose services for development
-	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) up -d
+run-dev: env-setup ## Run the docker compose services for development; GIGE=1 enables GigE camera streaming
+	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) $(GIGE_COMPOSE) up -d
 
 build-experimental: env-setup ## Build core images for experimental timeseries setup
 	. .env && docker compose -f $(COMPOSE_FILE) -f $(EXPERIMENTAL_COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build
