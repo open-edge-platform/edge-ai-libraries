@@ -16,10 +16,10 @@
 debian_90_profile_edge_base_robotics () {
   case "$1" in
   bootstrap) # all components
-    echo "core_types system_inspection system_summary edge_pack_base_standard edge_pack_base_realtime edge_pack_npu gpu_accel npu_accel ros2 ros_openvino realsense"
+    echo "core_types system_inspection system_summary edge_pack_base_standard edge_pack_base_realtime edge_pack_npu gpu_accel npu_accel ros2 ros_openvino realsense_robotics"
     ;;
   *)
-    echo "ros2 ros_openvino realsense"
+    echo "ros2 ros_openvino realsense_robotics"
     if [[ " $* " = *" --realtime "* ]] && [[ "$(uname -r)" = "7."* ]]; then
       echo "core_types system_inspection system_summary edge_pack_base_realtime edge_pack_npu"
     else

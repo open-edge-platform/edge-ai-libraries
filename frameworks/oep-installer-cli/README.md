@@ -113,7 +113,7 @@ The following global options are supported:
 | `--validate` | Validate features after installation. |
 | `--reinstall` | Force to reinstall a component, if already installed. |
 | `--gpu`/`--npu`/`--cpu` | Select GPU/NPU/CPU device at the component level. |
-| `--docker`/`--k3s` | Select Docker or K3s for an explicit `edge_node_infrastructure_blueprint` installation. `--k3s` also selects K3s for `handheld_platform` when `handheld_multi_modal` is not selected. If neither is given for the blueprint, its installed model is kept, or Docker is used for a new installation. |
+| `--docker`/`--k3s` | Select Docker or K3s deployment.
 
 To specify component specific options, insert a `--<component-name>` tag:
 
