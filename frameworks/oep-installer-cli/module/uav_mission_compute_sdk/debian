@@ -18,8 +18,9 @@ verify_uav_mission_compute_sdk () {
       uav-mission-compute-sdk/px4-gazebo:latest \
       uav-mission-compute-sdk/companion-bridge:latest \
       uav-mission-compute-sdk/camera-bridge:latest \
+      uav-mission-compute-sdk/usb-camera-bridge:latest \
       uav-mission-compute-sdk/vision-processor-multicam:latest \
-      sample-apps-edge-ai-showcase:latest > /dev/null 2>&1
+      sample-apps-edge-ai-showcase:latest > /dev/null
 }
 
 debian_90_profile_uav_mission_compute_sdk () {
@@ -28,7 +29,7 @@ debian_90_profile_uav_mission_compute_sdk () {
 
 debian_90_install_uav_mission_compute_sdk () {
   configure_uav_mission_compute_sdk
-  if verify_uav_mission_compute_sdk && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_uav_mission_compute_sdk 2>/dev/null && [[ " $* " != *" --reinstall "* ]]; then
     echo "UAV mission compute sdk is installed." >&2
   else
     ensure_ports_open install uav_mission_compute_sdk "${used_ports[@]}"
@@ -40,9 +41,12 @@ debian_90_install_uav_mission_compute_sdk () {
     cd "$workspace"/uav-mission-compute-sdk
     make init
     sed -i "s|^HOST_IP=.*$|HOST_IP=$(ensure_ip)|" .env
-    make build
+    COMPOSE_PROFILES=sim-camera,usb-camera,observability make build
 
-    verify_uav_mission_compute_sdk
+    if ! verify_uav_mission_compute_sdk; then
+      echo "UAV SDK build completed, but required simulation, camera, or application images are missing." >&2
+      return 1
+    fi
   fi
 
   if [ ! -r "$HOME/.agents/skills/uav-mission-compute-sdk/SKILL.md" ]; then
