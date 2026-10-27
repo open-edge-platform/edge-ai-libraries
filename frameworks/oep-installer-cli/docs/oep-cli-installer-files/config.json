@@ -704,10 +704,10 @@
       "label": "Next Steps",
       "fallback": "Select a module to see next steps…",
       "startStop": {
-        "start": "openedge-cli start",
-        "stop": "openedge-cli stop"
+        "start": "openedge-cli start {{MODULE}}",
+        "stop": "openedge-cli stop {{MODULE}}"
       },
-      "remove": "openedge-cli remove"
+      "remove": "openedge-cli remove {{MODULE}}"
     },
     {
       "id": "getstarted",
