@@ -1,24 +1,20 @@
 
-configure_k3s_fedaero () {
-  workspace="$(ensure_project_path)/k3s-fedaero"
+configure_k3s () {
+  workspace="$(ensure_project_path)/k3s"
   repository="https://github.com/open-edge-platform/edge-node-infrastructure-blueprint.git"
   version=8e6f01943286f0e838dad3bf46390119b7645ad2
 }
 
-verify_k3s_fedaero () {
+verify_k3s () {
   [ -d "$workspace" ]
 }
 
-debian_30_profile_fedaero () {
-  echo "docker_io"
-}
-
-debian_30_install_k3s_fedaero () {
-  configure_k3s_fedaero "$@"
-  if verify_k3s_fedaero && [[ " $* " = *" --reinstall "* ]]; then
+debian_30_install_k3s () {
+  configure_k3s "$@"
+  if verify_k3s && [[ " $* " = *" --reinstall "* ]]; then
     echo "k3s is installed" >&2
   else
-    ensure_prop set installed/k3s_fedaero/owned true
+    ensure_prop set installed/k3s/owned true
 
     echo "@@STEP Clone repository"
     ensure_git_export "$workspace" "$version" "$repository" infrastructure/installation-scripts
@@ -37,9 +33,9 @@ debian_30_install_k3s_fedaero () {
   fi
 }
 
-debian_30_start_k3s_fedaero () {
-  configure_k3s_fedaero "$@"
-  [ "$(ensure_prop get installed/k3s_fedaero/owned)" = "true" ] || return 0
+debian_30_start_k3s () {
+  configure_k3s "$@"
+  [ "$(ensure_prop get installed/k3s/owned)" = "true" ] || return 0
 
   if kubectl status > /dev/null 2>&1; then
     echo "k3s is started" >&2
@@ -49,8 +45,8 @@ debian_30_start_k3s_fedaero () {
   fi
 }
 
-debian_30_remove_k3s_fedaero () {
-  [ "$(ensure_prop get installed/k3s_fedaero/owned)" = "true" ] || return 0
+debian_30_remove_k3s () {
+  [ "$(ensure_prop get installed/k3s/owned)" = "true" ] || return 0
   local script found=0 kubeconfig=0
   # the blueprint copies the K3s kubeconfig to ~/.kube/config; drop it only if unchanged
   [ ! -f "$HOME"/.kube/config ] || ! ensure_sudo cmp -s /etc/rancher/k3s/k3s.yaml "$HOME"/.kube/config || kubeconfig=1
