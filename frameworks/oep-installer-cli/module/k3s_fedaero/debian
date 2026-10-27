@@ -49,3 +49,19 @@ debian_30_start_k3s_fedaero () {
   fi
 }
 
+debian_30_remove_k3s_fedaero () {
+  [ "$(ensure_prop get installed/k3s_fedaero/owned)" = "true" ] || return 0
+  local script found=0 kubeconfig=0
+  # the blueprint copies the K3s kubeconfig to ~/.kube/config; drop it only if unchanged
+  [ ! -f "$HOME"/.kube/config ] || ! ensure_sudo cmp -s /etc/rancher/k3s/k3s.yaml "$HOME"/.kube/config || kubeconfig=1
+  for script in /usr/local/bin/k3s-uninstall.sh /usr/local/bin/k3s-agent-uninstall.sh; do
+    [ -x "$script" ] || continue
+    found=1
+    echo "Removing the K3s runtime ($script)..."
+    ensure_sudo "$script"
+  done
+  [ $found -eq 1 ] || echo "K3s uninstall script not found; assuming K3s was already removed."
+  [ $kubeconfig -eq 0 ] || rm -f "$HOME"/.kube/config
+  ensure_rm "$workspace"
+}
+
