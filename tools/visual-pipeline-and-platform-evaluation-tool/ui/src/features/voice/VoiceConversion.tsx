@@ -41,7 +41,7 @@ import { MetricsDashboard } from "@/features/metrics/MetricsDashboard";
 import { PipelineModelsRequiredDialog } from "@/features/models/PipelineModelsRequiredDialog";
 import { useRequiredModelsStatus } from "@/features/models/useRequiredModelsStatus";
 import { PipelineVariantSelect } from "@/features/pipelines/PipelineVariantSelect";
-import { handleApiError } from "@/lib/apiUtils";
+import { getErrorMessage, handleApiError } from "@/lib/apiUtils";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { captureWav } from "./recording";
@@ -529,7 +529,7 @@ export function VoiceConversion() {
   if (catalogError)
     return (
       <p role="alert" className="p-6 text-sm text-destructive">
-        {catalogError}
+        {getErrorMessage(catalogError)}
       </p>
     );
   if (!selectedPipeline || !selectedVariant)
