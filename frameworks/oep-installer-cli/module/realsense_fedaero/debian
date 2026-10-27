@@ -42,12 +42,12 @@ debian_55_remove_realsense_fedaero () {
 }
 
 debian_55_sbom_realsense_fedaero () {
-  configure_realsense "$@"
+  configure_realsense_fedaero "$@"
   ensure_sbom_format name "$eci_repo_name"
   ensure_sbom_format gpg-key "$eci_key_url"
   ensure_sbom_format key-file "$eci_key_file"
-  ensure_sbom_format apt-source "$eci_list"
-  ensure_sbom_format apt-list-file "$eci_list_file"
+  ensure_sbom_format apt-source "$eci_repo_list"
+  ensure_sbom_format apt-list-file "$eci_repo_list_file"
   echo "---"
   ensure_sbom_format name "$rs_repo_name"
   ensure_sbom_format gpg-key "$rs_key_url"
