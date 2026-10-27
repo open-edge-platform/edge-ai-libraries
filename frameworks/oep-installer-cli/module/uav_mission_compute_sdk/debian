@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 
 configure_uav_mission_compute_sdk () {
   workspace="$(ensure_project_path)/uav-mission-compute-sdk"
@@ -15,7 +17,7 @@ verify_uav_mission_compute_sdk () {
 }
 
 debian_90_profile_uav_mission_compute_sdk () {
-  echo "docker_io git curl make v4l_utils edge_node_infrastructure_blueprint"
+  echo "docker_io git curl make v4l_utils uav_platform"
 }
 
 debian_90_install_uav_mission_compute_sdk () {
@@ -85,4 +87,3 @@ debian_90_remove_uav_mission_compute_sdk () {
   ensure_rm "$workspace" || true
   ensure_skills remove "${skills[@]}"
 }
-

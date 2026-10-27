@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 
 configure_handheld_multi_modal () {
   workspace="$(ensure_project_path)/handheld-multi-modal"
@@ -11,7 +13,7 @@ verify_handheld_multi_modal () {
 }
 
 debian_90_profile_handheld_multi_modal () {
-  echo "yq make curl git docker_io edge_base edge_node_infrastructure_blueprint"
+  echo "yq make curl git docker_io edge_base handheld_platform"
 }
 
 debian_90_install_handheld_multi_modal () {
@@ -62,4 +64,3 @@ debian_90_remove_handheld_multi_modal () {
   docker image rm -f whisper-stt:latest > /dev/null 2>&1 || true
   ensure_rm "$workspace"
 }
-

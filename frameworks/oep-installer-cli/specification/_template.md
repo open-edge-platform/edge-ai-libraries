@@ -33,9 +33,11 @@
      this component, or write "none" if it is a standalone utility.
      A maintainer will apply the profile/ edit; the agent only proposes it.
 
-     Available profiles: computer_vision, federal_and_aerospace_ai_suite,
-     health_and_life_science_ai_suite, inferencing, manufacturing_ai_suite,
-     metro_ai_suite, retail_ai_suite, robotics_ai_suite               -->
+     Available profiles: computer_vision,
+     federal_and_aerospace_ai_suite_handheld,
+     federal_and_aerospace_ai_suite_uav, health_and_life_science_ai_suite,
+     inferencing, manufacturing_ai_suite, metro_ai_suite, retail_ai_suite,
+     robotics_ai_suite                                                -->
 
 **Add to profiles**: <!-- e.g. manufacturing_ai_suite, metro_ai_suite — or "none" -->
 

@@ -28,7 +28,8 @@
     "manufacturing_ai_suite",
     "retail_ai_suite",
     "health_and_life_sciences_ai_suite",
-    "federal_and_aerospace_ai_suite",
+    "federal_and_aerospace_ai_suite_handheld",
+    "federal_and_aerospace_ai_suite_uav",
     "robotics_ai_suite"
   ],
 
