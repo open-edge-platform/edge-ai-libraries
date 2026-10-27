@@ -1,5 +1,5 @@
 
-debian_40_install_ubuntu_server () {
+debian_45_install_ubuntu_server () {
   if ( ensure_apt_is_installed ubuntu-desktop || ensure_apt_is_installed ubuntu-desktop-minimal || ensure_apt_is_installed gdm3 ) && [[ " $* " != *" --reinstall "* ]]; then
     ensure_sudo systemctl set-default multi-user.target
     ensure_sudo systemctl disable --now gdm3 
