@@ -1,6 +1,5 @@
 
 debian_99_profile_edge_base_server () {
-  debian_99_profile_edge_base_handheld "$@"
-  echo "ubuntu_server"
+  echo "edge_base_server ubuntu_server"
 }
 
