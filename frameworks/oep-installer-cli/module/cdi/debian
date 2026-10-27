@@ -1,6 +1,6 @@
 
-configure_cdi_fedaero () {
-  workspace="$(ensure_project_path)/cdi-fedaero"
+configure_cdi () {
+  workspace="$(ensure_project_path)/cdi"
   repository="https://github.com/open-edge-platform/edge-node-infrastructure-blueprint.git"
   version=8e6f01943286f0e838dad3bf46390119b7645ad2
 
@@ -8,20 +8,20 @@ configure_cdi_fedaero () {
   docker_config="/etc/docker/daemon.json"
 }
 
-verify_cdi_fedaero () {
+verify_cdi () {
   [[ -e $cdi_path/intel-cdi-specs-generator-gpu && -e $cdi_path/intel-cdi-npu-generator.sh ]] || { 
     echo "Missing cdi generator scripts" >&2
     return 1
   }
 }
 
-debian_55_profile_cdi_fedaero () {
+debian_55_profile_cdi () {
   echo "golang python3_venv docker_io"
 }
 
-debian_55_install_cdi_fedaero () {
-  configure_cdi_fedaero
-  if verify_cdi_fedaero && [[ " $* " = *" --reinstall "* ]]; then
+debian_55_install_cdi () {
+  configure_cdi
+  if verify_cdi && [[ " $* " = *" --reinstall "* ]]; then
     echo "CDI scripts are installed" >&2
   else
     ensure_sudo mkdir -p "$cdi_path"
@@ -57,9 +57,9 @@ f.close()
   fi
 }
 
-debian_55_remove_cdi_fedaero () {
-  configure_cdi_fedaero
-  [ "$(ensure_prop get installed/cdi_fedaero/owned)" = "true" ] || return 0
+debian_55_remove_cdi () {
+  configure_cdi
+  [ "$(ensure_prop get installed/cdi/owned)" = "true" ] || return 0
 
   if [ -e "$workspace"/${docker_config##*/}.bak ]; then
     ensure_sudo cp -f "$workspace"/${docker_config##*/}.bak "$docker_config"
