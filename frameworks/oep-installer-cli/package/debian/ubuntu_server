@@ -9,7 +9,7 @@ debian_45_install_ubuntu_server () {
   fi
 }
 
-debian_50_sbom_ubuntu_server () {
+debian_45_sbom_ubuntu_server () {
   ensure_sbom_format pkg-list ubuntu-server -ubuntu-desktop -ubuntu-desktop-minimal -gdm3
 }
 
