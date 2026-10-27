@@ -58,6 +58,11 @@ services:
       - WEB_SERVER_LOG_LEVEL=${WEB_SERVER_LOG_LEVEL:-WARNING}
       - GST_DEBUG=1
       - ADDITIONAL_GST_PLUGIN_PATH=${ADDITIONAL_GST_PLUGIN_PATH}
+      # OpenTelemetry metrics export
+      - ENABLE_OPEN_TELEMETRY=${ENABLE_OPEN_TELEMETRY:-false}
+      - OTEL_COLLECTOR_HOST=${OTEL_COLLECTOR_HOST:-otel-collector}
+      - OTEL_COLLECTOR_PORT=${OTEL_COLLECTOR_PORT:-4318}
+      - OTEL_EXPORT_INTERVAL_MILLIS=${OTEL_EXPORT_INTERVAL_MILLIS:-10000}
       # Publisher sink connection settings
       - MQTT_HOST=${MQTT_HOST}
       - MQTT_PORT=${MQTT_PORT}
@@ -76,7 +81,7 @@ services:
       # Proxies
       - http_proxy=${http_proxy}
       - https_proxy=${https_proxy}
-      - no_proxy=${no_proxy},mqtt,${INFLUXDB_HOST},${S3_STORAGE_HOST}
+      - no_proxy=${no_proxy},mqtt,${INFLUXDB_HOST},${S3_STORAGE_HOST},${OTEL_COLLECTOR_HOST:-otel-collector}
       # NPU related environment variable
       - ZE_ENABLE_ALT_DRIVERS=libze_intel_npu.so
     depends_on:

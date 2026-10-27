@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-ARG BASE_IMAGE=intel/dlstreamer:2026.1.0-ubuntu24
+ARG BASE_IMAGE=intel/dlstreamer:2026.2.0-ubuntu24
 FROM ${BASE_IMAGE}
 
 USER root
