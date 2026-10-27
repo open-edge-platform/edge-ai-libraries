@@ -25,18 +25,18 @@ debian_55_install_cdi_fedaero () {
     echo "CDI scripts are installed" >&2
   else
     ensure_sudo mkdir -p "$cdi_path"
-    ensure_git_export "$workspace" "$version" "$repository" infrastructure/installation-scripts/installation-scripts/cdi
+    ensure_git_export "$workspace" "$version" "$repository" infrastructure/installation-scripts/cdi
 
     echo "@@STEP Building cdi generators"
     cd "$workspace"/infrastructure/installation-scripts
-    ./cdi/build-gpu-generator.sh
+    ensure_sudo ./cdi/build-gpu-generator.sh
 
     ensure_sudo install -m 755 cdi/intel-cdi-specs-generator-gpu /opt/edge/scripts/cdi/intel-cdi-specs-generator-gpu
     ensure_sudo install -m 755 cdi/intel-cdi-npu-generator.sh /opt/edge/scripts/cdi/intel-cdi-npu-generator.sh
 
 	  if [ -f "$docker_config" ] && ! grep -q '"cdi"' "$docker_config" 2>/dev/null; then
 		  cp -f "$docker_config" "$workspace/${docker_config##*/}.bak"
-		  python3 -c "
+		  ensure_sudo python3 -c "
 import json
 f = open('$docker_config')
 config = json.load(f)
