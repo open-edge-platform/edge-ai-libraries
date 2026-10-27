@@ -23,7 +23,7 @@ const parseQuery = (keys) => {
   const out = {};
   for (const k of keys) {
     const v = qs.get(k);
-    if (v) out[k] = v;
+    if (v !== null) out[k] = v;
   }
   return out;
 };
@@ -32,8 +32,9 @@ const writeQuery = (state, keys) => {
   const qs = new URLSearchParams();
   keys.forEach((k) => {
     const v = state[k];
-    if (v != null && v !== "") qs.set(k, String(v));
+    if (v != null && (v !== "" || k === "MODULE")) qs.set(k, String(v));
   });
+  if (lockedProfile) qs.set("ENABLE_ONE_PROFILE", "true");
   const q = `?${qs.toString()}`;
   history.replaceState({}, "", q);
   return location.origin + location.pathname + q;
@@ -66,6 +67,14 @@ function findSelectedOption(categoryKey, state) {
   ) || null;
 }
 
+function selectedModules(state = STATE) {
+  const cat = (CONFIG.categories || []).find((c) => c.key === "MODULE");
+  const values = String(state.MODULE ?? "").split(",");
+  return (cat?.options || []).filter(
+    (o) => values.includes(o.value) && isOptionAvailable(cat, o, state)
+  );
+}
+
 // Return the `installAll` flag of the currently selected PROFILE option. When
 // true, the selected profile installs every one of its modules at once, so the
 // dependent Module category is shown read-only and the install command is keyed
@@ -77,6 +86,8 @@ function isInstallAllProfile(state) {
 
 // --- UI rendering ---
 let STATE = {};
+let selectionMessage = "";
+let lockedProfile = null;
 
 function init() {
   $("#app-title").textContent = CONFIG.title || "Selector";
@@ -85,11 +96,23 @@ function init() {
   const defaults = {};
   (CONFIG.categories || []).forEach((cat) => {
     const first = cat.options?.[0]?.value;
-    if (first != null) defaults[cat.key] = first;
+    if (first != null && cat.key !== "MODULE") defaults[cat.key] = first;
   });
   // state from URL (shareable)
   STATE = { ...defaults, ...parseQuery(CONFIG.shareKeys || []) };
-  repairState(STATE);
+  const query = new URLSearchParams(location.search);
+  lockedProfile = null;
+  selectionMessage = "";
+  if (query.get("ENABLE_ONE_PROFILE") === "true") {
+    const profileCategory = (CONFIG.categories || []).find((cat) => cat.key === "PROFILE");
+    const profile = profileCategory?.options?.find((opt) => opt.value === query.get("PROFILE"));
+    if (profile && isOptionAvailable(profileCategory, profile, STATE)) {
+      lockedProfile = profile.value;
+    } else {
+      selectionMessage = "The single-profile link has no available profile. Showing all available profiles.";
+    }
+  }
+  repairState(STATE, true);
 
   renderCategories();
   updateOutputsAndUrl();
@@ -114,9 +137,13 @@ function renderCategories() {
       (o) => o.supports && Object.prototype.hasOwnProperty.call(o.supports, "PROFILE")
     );
     const readOnly = dependsOnProfile && isInstallAllProfile(STATE);
+    if (cat.key === "MODULE" && !readOnly) {
+      content.append(el("p", "", "Select one or more modules from this profile."));
+    }
 
     const group = el("div", "spark-button-group option-button-group");
     (cat.options || []).forEach((opt) => {
+      if (cat.key === "PROFILE" && lockedProfile && opt.value !== lockedProfile) return;
       // Hide options that are not available for the current selection (e.g.
       // modules that don't belong to the selected profile) so each category
       // only shows relevant choices.
@@ -124,6 +151,7 @@ function renderCategories() {
       if (!available) return;
 
       const btn = el("button", "spark-button spark-button-size-l spark-button-ghost");
+      btn.id = `choice-${cat.key}-${opt.value}`;
       const inner = el("span", "spark-button-content");
       inner.append(el("span", "", opt.label));
       if (opt.subtitle) inner.append(el("span", "subtitle", opt.subtitle));
@@ -141,20 +169,32 @@ function renderCategories() {
         return;
       }
 
-      const isActive = STATE[cat.key] === opt.value;
+      const multiple = cat.key === "MODULE" && cat.type === "multiple";
+      const isActive = multiple
+        ? selectedModules().some((module) => module.value === opt.value)
+        : STATE[cat.key] === opt.value;
+      btn.setAttribute("aria-pressed", String(isActive));
       if (isActive) btn.classList.add("spark-toggle-button-clicked-ghost", "pill-active");
 
       btn.addEventListener("click", () => {
-        STATE[cat.key] = opt.value;
+        selectionMessage = "";
+        if (multiple) {
+          const values = selectedModules().map((module) => module.value);
+          STATE.MODULE = (isActive ? values.filter((v) => v !== opt.value) : [...values, opt.value]).join(",");
+        } else {
+          if (STATE[cat.key] === opt.value) return;
+          STATE[cat.key] = opt.value;
+        }
         // Clear selections in categories that depend on this one (e.g. MODULE
         // depends on PROFILE) so a stale dependent value doesn't invalidate the
-        // option the user just picked. repairState then fills them with the
-        // first option available for the new selection.
+        // option the user just picked. Module selections stay empty until the
+        // user chooses them; other categories use the first available option.
         clearDependents(cat.key, STATE);
         repairState(STATE);
         // Re-render everything
         renderCategories();
         updateOutputsAndUrl();
+        document.getElementById(btn.id)?.focus();
       });
 
       group.append(btn);
@@ -176,7 +216,22 @@ const optionsKey = () => CONFIG.options?.key || "OPTIONS";
 
 function moduleOptions() {
   if (isInstallAllProfile(STATE)) return [];
-  return findSelectedOption("MODULE", STATE)?.options || [];
+  const configurable = selectedModules().filter((module) => module.options?.length);
+  if (!configurable.length) return [];
+  return configurable[0].options.filter((value) => configurable.every((module) =>
+    module.options.some((other) => sameFlags(value, other))
+  ));
+}
+
+function sameFlags(left, right) {
+  const a = left ? left.split(/\s+/) : [];
+  const b = right ? right.split(/\s+/) : [];
+  return a.length === b.length && a.every((flag) => b.includes(flag));
+}
+
+function incompatibleOptions() {
+  return !isInstallAllProfile(STATE) &&
+    selectedModules().some((module) => module.options?.length) && !moduleOptions().length;
 }
 
 function selectedFlags() {
@@ -271,7 +326,12 @@ function renderOptions() {
 
 // Selected flags as a suffix for the install command (e.g. " --gpu").
 function installFlags() {
-  return selectedFlags().map((f) => ` ${f}`).join("");
+  const flags = selectedFlags().join(" ");
+  if (!flags) return "";
+  const modules = selectedModules();
+  if (modules.every((module) => module.options?.length)) return ` ${flags}`;
+  return modules.filter((module) => module.options?.length)
+    .map((module) => ` --${module.value} ${flags}`).join("");
 }
 
 // Return true if `opt` in category `cat` is compatible with the rest of `state`.
@@ -312,6 +372,10 @@ function clearDependents(changedKey, state) {
       (o) => o.supports && Object.prototype.hasOwnProperty.call(o.supports, changedKey)
     );
     if (dependsOnChanged) {
+      if (cat.key === "MODULE") {
+        if (changedKey === "PROFILE") delete state.MODULE;
+        return;
+      }
       const stillAvailable = (cat.options || []).some(
         (o) => o.value === state[cat.key] && isOptionAvailable(cat, o, state)
       );
@@ -322,8 +386,25 @@ function clearDependents(changedKey, state) {
 
 // If the current selection in any category is no longer available given the
 // rest of `state`, replace it with the first available option in that category.
-function repairState(state) {
+// Modules only retain explicit compatible selections and otherwise stay empty.
+function repairState(state, reportInvalid = false) {
+  if (lockedProfile && !findSelectedOption("PROFILE", state)) {
+    lockedProfile = null;
+    selectionMessage = "The linked profile is unavailable for this selection. Showing all available profiles.";
+  }
   (CONFIG.categories || []).forEach((cat) => {
+    if (cat.key === "MODULE") {
+      const raw = state.MODULE;
+      const modules = selectedModules(state);
+      if (reportInvalid && raw && String(raw).split(",").some(
+        (value) => !modules.some((module) => module.value === value)
+      )) {
+        selectionMessage += (selectionMessage ? " " : "") +
+          "Unavailable modules from the shared link were removed. Review the selection before copying a command.";
+      }
+      state.MODULE = modules.map((module) => module.value).join(",");
+      return;
+    }
     const currentValue = state[cat.key];
     const currentOpt = (cat.options || []).find(
       (o) => o.value === currentValue && isOptionAvailable(cat, o, state)
@@ -392,22 +473,34 @@ function updateOutputsAndUrl() {
   syncOptionsState();
   writeQuery(STATE, CONFIG.shareKeys || []);
   const profile = findSelectedOption("PROFILE", STATE);
-  const module = findSelectedOption("MODULE", STATE);
+  const modules = selectedModules();
+  const startModules = modules.filter((module) => module.startStop);
+  const removeModules = modules.filter((module) => module.remove);
   const installAll = isInstallAllProfile(STATE);
-  const hasTarget = Boolean(profile && (installAll || module));
+  const hasTarget = Boolean(profile && (installAll || modules.length));
+  const commandState = { ...STATE, MODULE: modules.map((module) => module.value).join(" ") };
+  const status = $("#selectionStatus");
+  if (status) status.textContent = selectionMessage;
 
   // compute outputs
   (CONFIG.outputs || []).forEach((o) => {
     const matched = firstMatch(o.rules, STATE);
 
     if (o.id === "install") {
-      $("#copyCmd").disabled = !hasTarget || !matched?.text;
+      $("#copyCmd").disabled = !hasTarget || !matched?.text || incompatibleOptions();
       if (!hasTarget) {
-        $("#installText").textContent = "No compatible modules available for this selection.";
+        $("#installText").textContent = "Select at least one compatible module to see a command.";
         return;
       }
-      const finalText = matched?.text ? interpolate(String(matched.text), STATE) : (o.fallback ?? "");
-      const suffix = installFlags() + (!installAll && module?.startStop ? " start" : "");
+      if (incompatibleOptions()) {
+        $("#installText").textContent = "Selected modules have no shared option combination. Change the module selection to install them together.";
+        return;
+      }
+      const finalText = matched?.text ? interpolate(String(matched.text), commandState) : (o.fallback ?? "");
+      const start = !installAll && startModules.length
+        ? " start" + (startModules.length === modules.length ? "" : ` ${startModules.map((module) => module.value).join(" ")}`)
+        : "";
+      const suffix = installFlags() + start;
       $("#installText").textContent = matched?.text ? finalText + suffix : finalText;
     }
 
@@ -417,24 +510,21 @@ function updateOutputsAndUrl() {
       container.innerHTML = "";
 
       const startStop = o.startStop;
-      if (hasTarget && !installAll && module?.startStop && startStop) {
+      if (hasTarget && !installAll && startModules.length && startStop) {
         if (startStop.start) {
-          const startText = interpolate(String(startStop.start), STATE);
           container.appendChild(makeStepLabel("Start"));
-          container.appendChild(makeCommandBox(startText, "copyNextStart"));
+          container.appendChild(makeCommandBox(String(startStop.start), "copyNextStart"));
         }
 
         if (startStop.stop) {
-          const stopText = interpolate(String(startStop.stop), STATE);
           container.appendChild(makeStepLabel("Stop"));
-          container.appendChild(makeCommandBox(stopText, "copyNextStop"));
+          container.appendChild(makeCommandBox(String(startStop.stop), "copyNextStop"));
         }
       }
-      const target = installAll ? profile : module;
-      if (hasTarget && target?.remove && o.remove) {
-        const removeText = interpolate(String(o.remove), { ...STATE, TARGET: target.value });
+      const targets = installAll ? (profile?.remove ? [profile] : []) : removeModules;
+      if (hasTarget && targets.length && o.remove) {
         container.appendChild(makeStepLabel("Remove"));
-        container.appendChild(makeCommandBox(removeText, "copyNextRemove"));
+        container.appendChild(makeCommandBox(String(o.remove), "copyNextRemove"));
       }
       if (section) section.style.display = container.childElementCount ? "" : "none";
     }

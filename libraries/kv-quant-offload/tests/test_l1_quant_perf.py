@@ -11,6 +11,8 @@ Two orthogonal axes:
 """
 from __future__ import annotations
 
+import itertools
+
 import pytest
 import torch
 
@@ -33,6 +35,9 @@ except ImportError:
 
 
 _PROD_PERF_THREADS = [1, 2, 4, 8, 16]
+
+# Rotate through distinct buffers so the GPU L2 stays cold, as in serving.
+_XPU_SRC_POOL_SIZE = 64
 
 
 @pytest.mark.perf
@@ -73,7 +78,7 @@ class TestL1QuantConfigSweep:
             )
             kvweave_quant.clear_scales_for_id(scale_id)
 
-        result = bench(_fn, warmup=5, iters=100, data_bytes=data_bytes,
+        result = bench(_fn, warmup=5, iters=1000, data_bytes=data_bytes,
                        stage=f"l1_quantize_config_q{qbit}_{scaling_method}_rh{rh}_pc{precond}")
         print_bench_result(result)
         perf_collector.append(result)
@@ -135,7 +140,7 @@ class TestL1QuantConfigSweep:
             )
             kvweave_quant.clear_scales_for_id(dq_id)
 
-        result = bench(_fn, warmup=5, iters=100, data_bytes=data_bytes,
+        result = bench(_fn, warmup=5, iters=1000, data_bytes=data_bytes,
                        stage=f"l1_dequantize_config_q{qbit}_{scaling_method}_rh{rh}_pc{precond}")
         print_bench_result(result)
         perf_collector.append(result)
@@ -191,7 +196,7 @@ class TestL1QuantThreadSweep:
         result = bench(
             _fn,
             warmup=5,
-            iters=100,
+            iters=1000,
             data_bytes=data_bytes,
             stage=f"l1_quantize_threads_t{num_threads}",
         )
@@ -264,7 +269,7 @@ class TestL1QuantThreadSweep:
         result = bench(
             _fn,
             warmup=5,
-            iters=100,
+            iters=1000,
             data_bytes=data_bytes,
             stage=f"l1_dequantize_threads_t{num_threads}",
         )
@@ -275,12 +280,7 @@ class TestL1QuantThreadSweep:
 @requires_xpu
 @pytest.mark.perf
 class TestL1QuantConfigSweepXPU:
-    """XPU (SYCL) quantize/dequantize throughput across scaling x rh_precond.
-
-    Mirrors TestL1QuantConfigSweep above via kvweave_quant_xpu. There is no
-    thread-sweep counterpart (TestL1QuantThreadSweep) — the SYCL kernel has
-    no num_threads knob; GPU parallelism is implicit.
-    """
+    """XPU quantize/dequantize throughput across scaling x rh_precond (no thread sweep)."""
 
     @pytest.mark.parametrize("qbit", [4], ids=["4bit"])
     @pytest.mark.parametrize("scaling_method", ["per_tensor", "per_token", "per_channel"])
@@ -294,12 +294,16 @@ class TestL1QuantConfigSweepXPU:
             rh=rh, asym=True, precond=precond,
         )
         element_count = cfg["blocks_num"] * cfg["block_size"] * cfg["head_num"] * cfg["head_dim"]
-        src = torch.randn(element_count, dtype=torch.float32).clamp(-0.3, 0.3).to(torch.float16).to("xpu")
-        data_bytes = src.numel() * src.element_size()
+        srcs = [
+            torch.randn(element_count, dtype=torch.float32).clamp(-0.3, 0.3).to(torch.float16).to("xpu")
+            for _ in range(_XPU_SRC_POOL_SIZE)
+        ]
+        data_bytes = srcs[0].numel() * srcs[0].element_size()
+        src_cycle = itertools.cycle(srcs)
 
         def _fn():
             kvweave_quant_xpu.quantize_kvcache(
-                src,
+                next(src_cycle),
                 cfg["qbit"],
                 cfg["blocks_num"],
                 cfg["block_size"],
@@ -312,7 +316,7 @@ class TestL1QuantConfigSweepXPU:
                 cfg["perm"],
             )
 
-        result = bench(_fn, warmup=5, iters=100, data_bytes=data_bytes,
+        result = bench(_fn, warmup=5, iters=1000, data_bytes=data_bytes,
                        stage=f"l1_quantize_config_q{qbit}_{scaling_method}_rh{rh}_pc{precond}_xpu")
         print_bench_result(result)
         perf_collector.append(result)
@@ -329,25 +333,30 @@ class TestL1QuantConfigSweepXPU:
             rh=rh, asym=True, precond=precond,
         )
         element_count = cfg["blocks_num"] * cfg["block_size"] * cfg["head_num"] * cfg["head_dim"]
-        src = torch.randn(element_count, dtype=torch.float32).clamp(-0.3, 0.3).to(torch.float16).to("xpu")
 
-        # Pre-quantize to get quantized data + scales
-        quantized, scale_bytes = kvweave_quant_xpu.quantize_kvcache(
-            src,
-            cfg["qbit"],
-            cfg["blocks_num"],
-            cfg["block_size"],
-            cfg["head_num"],
-            cfg["head_dim"],
-            cfg["rh"],
-            cfg["asym"],
-            cfg["scaling_method"],
-            cfg["signs"],
-            cfg["perm"],
-        )
-        data_bytes = quantized.numel() * quantized.element_size()
+        # Pre-quantize a pool of distinct chunks to get quantized data + scales.
+        pool = []
+        for _ in range(_XPU_SRC_POOL_SIZE):
+            src = torch.randn(element_count, dtype=torch.float32).clamp(-0.3, 0.3).to(torch.float16).to("xpu")
+            quantized, scale_bytes = kvweave_quant_xpu.quantize_kvcache(
+                src,
+                cfg["qbit"],
+                cfg["blocks_num"],
+                cfg["block_size"],
+                cfg["head_num"],
+                cfg["head_dim"],
+                cfg["rh"],
+                cfg["asym"],
+                cfg["scaling_method"],
+                cfg["signs"],
+                cfg["perm"],
+            )
+            pool.append((quantized, scale_bytes))
+        data_bytes = pool[0][0].numel() * pool[0][0].element_size()
+        pool_cycle = itertools.cycle(pool)
 
         def _fn():
+            quantized, scale_bytes = next(pool_cycle)
             kvweave_quant_xpu.dequantize_kvcache(
                 quantized,
                 scale_bytes,
@@ -364,7 +373,114 @@ class TestL1QuantConfigSweepXPU:
                 cfg["perm"],
             )
 
-        result = bench(_fn, warmup=5, iters=100, data_bytes=data_bytes,
+        result = bench(_fn, warmup=5, iters=1000, data_bytes=data_bytes,
                        stage=f"l1_dequantize_config_q{qbit}_{scaling_method}_rh{rh}_pc{precond}_xpu")
         print_bench_result(result)
         perf_collector.append(result)
+
+
+def _print_stage_breakdown(label, stats, stage_names):
+    print(f"PERF | {label}")
+    for stage in stage_names:
+        s = stats[stage]
+        print(f"  {stage:<16} total={s['total_ms']:.3f}ms  calls={s['calls']}  pct={s['pct']:.1f}%")
+
+
+_QUANTIZE_STAGES = ["LoadGather", "Hadamard", "ReduceQuantize", "Pack4bit"]
+_DEQUANTIZE_STAGES = ["Unpack4bit", "DequantLoad", "HadamardInverse", "PrecondWriteback"]
+
+
+@requires_xpu
+@pytest.mark.perf
+class TestL1QuantProfileBreakdownXPU:
+    """Per-stage time breakdown inside the SYCL kernel. Profiling forces the multi-kernel path, so only the relative percentages are meaningful."""
+
+    @pytest.mark.parametrize("scaling_method", ["per_tensor", "per_token", "per_channel"])
+    @pytest.mark.parametrize("rh_precond", [(False, False), (True, False), (True, True)],
+                             ids=["no_rh", "rh_no_precond", "rh_precond"])
+    def test_quantize_stage_breakdown(self, scaling_method, rh_precond):
+        rh, precond = rh_precond
+        cfg = build_quant_cfg(
+            qbit=4, scaling_method=scaling_method,
+            rh=rh, asym=True, precond=precond,
+        )
+        element_count = cfg["blocks_num"] * cfg["block_size"] * cfg["head_num"] * cfg["head_dim"]
+        src = torch.randn(element_count, dtype=torch.float32).clamp(-0.3, 0.3).to(torch.float16).to("xpu")
+
+        kvweave_quant_xpu.reset_profile_stats()
+        kvweave_quant_xpu.set_quant_profiling(True)
+        try:
+            for _ in range(50):
+                kvweave_quant_xpu.quantize_kvcache(
+                    src,
+                    cfg["qbit"],
+                    cfg["blocks_num"],
+                    cfg["block_size"],
+                    cfg["head_num"],
+                    cfg["head_dim"],
+                    cfg["rh"],
+                    cfg["asym"],
+                    cfg["scaling_method"],
+                    cfg["signs"],
+                    cfg["perm"],
+                )
+        finally:
+            kvweave_quant_xpu.set_quant_profiling(False)
+
+        stats = kvweave_quant_xpu.get_profile_stats()
+        _print_stage_breakdown(
+            f"quantize_stage_breakdown_{scaling_method}_rh{rh}_pc{precond}",
+            stats, _QUANTIZE_STAGES)
+
+    @pytest.mark.parametrize("scaling_method", ["per_tensor", "per_token", "per_channel"])
+    @pytest.mark.parametrize("rh_precond", [(False, False), (True, False), (True, True)],
+                             ids=["no_rh", "rh_no_precond", "rh_precond"])
+    def test_dequantize_stage_breakdown(self, scaling_method, rh_precond):
+        rh, precond = rh_precond
+        cfg = build_quant_cfg(
+            qbit=4, scaling_method=scaling_method,
+            rh=rh, asym=True, precond=precond,
+        )
+        element_count = cfg["blocks_num"] * cfg["block_size"] * cfg["head_num"] * cfg["head_dim"]
+        src = torch.randn(element_count, dtype=torch.float32).clamp(-0.3, 0.3).to(torch.float16).to("xpu")
+
+        quantized, scale_bytes = kvweave_quant_xpu.quantize_kvcache(
+            src,
+            cfg["qbit"],
+            cfg["blocks_num"],
+            cfg["block_size"],
+            cfg["head_num"],
+            cfg["head_dim"],
+            cfg["rh"],
+            cfg["asym"],
+            cfg["scaling_method"],
+            cfg["signs"],
+            cfg["perm"],
+        )
+
+        kvweave_quant_xpu.reset_profile_stats()
+        kvweave_quant_xpu.set_quant_profiling(True)
+        try:
+            for _ in range(50):
+                kvweave_quant_xpu.dequantize_kvcache(
+                    quantized,
+                    scale_bytes,
+                    cfg["qbit"],
+                    cfg["blocks_num"],
+                    cfg["block_size"],
+                    cfg["head_num"],
+                    cfg["head_dim"],
+                    cfg["rh"],
+                    cfg["asym"],
+                    cfg["scaling_method"],
+                    torch.float16,
+                    cfg["signs"],
+                    cfg["perm"],
+                )
+        finally:
+            kvweave_quant_xpu.set_quant_profiling(False)
+
+        stats = kvweave_quant_xpu.get_profile_stats()
+        _print_stage_breakdown(
+            f"dequantize_stage_breakdown_{scaling_method}_rh{rh}_pc{precond}",
+            stats, _DEQUANTIZE_STAGES)

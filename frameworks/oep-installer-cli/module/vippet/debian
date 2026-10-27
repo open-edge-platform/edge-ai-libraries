@@ -25,6 +25,8 @@ debian_90_install_vippet () {
     make build-onvif-discovery
     docker compose -f compose.yml pull --ignore-buildable
   fi
+  echo "@@HIGHLIGHT $installer_name start"
+  echo "@@HIGHLIGHT $installer_name remove"
 }
 
 debian_90_start_vippet () {
@@ -34,6 +36,7 @@ debian_90_start_vippet () {
   cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool"
   make run
   echo "@@HIGHLIGHT URL: http://$(ensure_ip)"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
 }
 
 debian_90_stop_vippet () {

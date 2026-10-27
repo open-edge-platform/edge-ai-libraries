@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 from dto.audiosource import AudioSource
 from dto.transcription_dto import validate_transcription_options
 from pipeline import Pipeline
+from utils.asr_model_capabilities import is_english_only_model
 from utils.config_loader import config
 from utils.openvino_runtime_validation import resolve_asr_device
 from utils.audio_util import save_audio_file
@@ -62,6 +63,7 @@ def transcribe_audio(
     response_format: str = Form("json"),
     temperature: float = Form(0.0),
     stream: bool = Form(False),
+    diarization: bool | None = Form(None),
     device: str | None = Form(None),
 ):
     language, _ = validate_transcription_options(
@@ -95,13 +97,27 @@ def transcribe_audio(
     if not os.path.isfile(filepath):
         raise HTTPException(status_code=400, detail=f"Audio file not found: {filepath}")
 
+    # The file-based endpoint is always a real, persisted transcription, so it
+    # always runs on the final pool -- including the first call of a brand-new
+    # session, which also has continue_session=False.
     pipeline = Pipeline(
         session_id=session_id,
         temperature=temperature,
         append_to_session=continue_session,
         speaker_scope_id=speaker_scope_id,
+        diarization=diarization,
         device=resolved_device,
+        pool=Pipeline.POOL_FINAL,
     )
+    if language and is_english_only_model(pipeline.asr_model_name):
+        # English-only Whisper checkpoints (".en" suffix) carry no language
+        # token at all; openvino_genai.WhisperPipeline raises for ANY language
+        # hint on one, not just a non-English one. Drop the hint for those
+        # models only -- multilingual deployments keep the caller's language.
+        logger.debug(
+            "Dropping language=%s: model %s is English-only", language, pipeline.asr_model_name
+        )
+        language = None
 
     if stream:
         # OpenAI only defines streaming for the JSON response formats.

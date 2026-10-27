@@ -1,0 +1,106 @@
+
+configure_multi_modal_patient_monitoring () {
+  workspace="$(ensure_project_path)/multi-modal-patient-monitoring"
+  version=4a9679b58090cd86d56d91e1e72cab462babfe31
+  repository=https://github.com/open-edge-platform/health-and-life-sciences-ai-suite.git
+
+  workspace_mdpnp="$workspace"/multi_modal_patient_monitoring/services/mdpnp/mdpnp
+  version_mdpnp=master
+  repository_mdpnp=https://github.com/mdpnp/mdpnp.git
+
+  used_ports=(3000)
+}
+
+verify_multi_modal_patient_monitoring () {
+  [ -e "$workspace"/multi_modal_patient_monitoring/services/mdpnp/mdpnp/gradlew ] || {
+    echo "Missing mdpnp" >&2
+    return 1
+  }
+  [ -e "$workspace"/multi_modal_patient_monitoring/models/downloads/rppg/mtts_can.hdf5 ] || {
+    echo "Missing mtts_can.hdf5" >&2
+    return 1
+  }
+  [ -e "$workspace"/multi_modal_patient_monitoring/models/downloads/3d-pose/human-pose-estimation-3d.tar.gz ] || {
+    echo "Missing human-pose-estimation-3d.tar.gz" >&2
+    return 1
+  }
+  [ -e "$workspace"/multi_modal_patient_monitoring/models/downloads/ai-ecg/hubert-ecg-small/model.safetensors ] || {
+    echo "Missing hubert-ecg-small" >&2
+    return 1
+  }
+}
+
+debian_90_profile_multi_modal_patient_monitoring () {
+  echo "git python3_venv docker_io make edge_base"
+}
+
+debian_90_install_multi_modal_patient_monitoring () {
+  configure_multi_modal_patient_monitoring
+  if verify_multi_modal_patient_monitoring && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Multi Modal Patient Monitoring is installed" >&2
+  else
+    ensure_disk_size 50000
+    ensure_ports_open install multi_modal_patient_monitoring "${used_ports[@]}"
+
+    ensure_git_export "$workspace" "$version" "$repository" multi_modal_patient_monitoring
+    rm -rf "$workspace_mdpnp"
+    ensure_git_export "$workspace_mdpnp" "$version_mdpnp" "$repository_mdpnp"
+
+    cd "$workspace"/multi_modal_patient_monitoring
+
+    # download models
+    mkdir -p models/downloads/rppg
+    ensure_fetch https://github.com/xliucs/MTTS-CAN/raw/main/mtts_can.hdf5 models/downloads/rppg/mtts_can.hdf5
+
+    mkdir -p models/downloads/3d-pose
+    ensure_fetch https://storage.openvinotoolkit.org/repositories/open_model_zoo/public/2022.1/human-pose-estimation-3d-0001/human-pose-estimation-3d.tar.gz models/downloads/3d-pose/human-pose-estimation-3d.tar.gz
+
+    mkdir -p models/downloads/ai-ecg
+    python3 -m venv hf-venv
+    . hf-venv/bin/activate
+    pip install huggingface_hub
+    hf download Edoardo-BS/hubert-ecg-small --local-dir models/downloads/ai-ecg/hubert-ecg-small
+
+    verify_multi_modal_patient_monitoring
+  fi
+
+  local device="$(ensure_select_device "$@")"
+  echo "${device^^}" > "$workspace"/multi_modal_patient_monitoring/.device
+
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
+  echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]"
+  echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]"
+  echo "$$HIGHLIGHT $installer_name remove"
+}
+
+debian_90_start_multi_modal_patient_monitoring () {
+  configure_multi_modal_patient_monitoring
+  ensure_ports_open start multi_modal_patient_monitoring "${used_ports[@]}"
+
+  cd "$workspace"/multi_modal_patient_monitoring
+
+  local device="$(ensure_select_device "$@")" d
+  [[ " ${*,,} " != *" --$device "* ]] || echo "${device^^}" > .device
+
+  device="$(< .device)"
+  for d in ECG_DEVICE RPPG_DEVICE MDPNP_DEVICE POST_3D_DEVICE; do
+    sed -i "s|^$d=.*|$d=$device|" configs/device.env
+  done
+
+  make run
+
+  echo "@@HIGHLIGHT UI: http://$(ensure_ip):${used_ports[0]}"
+  echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]"
+  echo "$$HIGHLIGHT $installer_name stop|remove"
+}
+
+debian_90_stop_multi_modal_patient_monitoring () {
+  configure_multi_modal_patient_monitoring
+  cd "$workspace"/multi_modal_patient_monitoring && docker compose down -v --remove-orphans || true
+}
+
+debian_90_remove_multi_modal_patient_monitoring () {
+  debian_90_stop_multi_modal_patient_monitoring "$@"
+  ensure_rm "$workspace"
+}
+
