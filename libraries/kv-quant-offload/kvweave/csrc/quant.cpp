@@ -7,20 +7,6 @@
 #include <stdexcept>
 #include <immintrin.h>
 
-// Validate that a preconditioning permutation is a valid index map for length
-// n: every entry must be in [0, n).  perm[] is used directly as gather/scatter
-// indices, so an out-of-range entry is an OOB read/write.  Called once per FWHT
-// invocation (O(n)); negligible next to the transform itself.
-static inline void validate_perm(const int32_t* perm, int64_t n) {
-    if (!perm) return;
-    for (int64_t i = 0; i < n; ++i) {
-        if (perm[i] < 0 || perm[i] >= n) {
-            throw std::invalid_argument(
-                "preconditioning perm entry out of range [0, n)");
-        }
-    }
-}
-
 // ---------------------------------------------------------------------------
 // AVX-512 in-register butterfly helpers (16 lanes, 4 stages)
 // ---------------------------------------------------------------------------
@@ -94,6 +80,13 @@ void fast_walsh_hadamard_transform(float* x, int64_t n) {
     if ((n & (n - 1)) != 0) {
         throw std::invalid_argument("Length must be a power of 2");
     }
+#if defined(__AVX512F__) || defined(__AVX2__)
+    // Delegates to the fused kernel (bit-identical; in-place safe without perm/signs).
+    if (n > 8) {
+        fast_walsh_hadamard_transform_fused(x, x, n, nullptr, nullptr);
+        return;
+    }
+#endif
 
     const float inv_sqrt_n = 1.0f / std::sqrt(static_cast<float>(n));
 
@@ -165,9 +158,13 @@ void fast_walsh_hadamard_transform_fused(const float* in, float* out, int64_t n,
     if ((n & (n - 1)) != 0) {
         throw std::invalid_argument("Length must be a power of 2");
     }
-    validate_perm(perm, n);
 
+#if defined(__AVX512F__) || defined(__AVX2__)
+    // Only small n falls back to scalar.
+    if (!perm && !signs && n <= 8) {
+#else
     if (!perm && !signs) {
+#endif
         // No preconditioning — fall back to in-place path if aliased, else copy+transform
         if (in != out) {
             std::memcpy(out, in, static_cast<std::size_t>(n) * sizeof(float));
@@ -306,16 +303,14 @@ void fast_walsh_hadamard_transform_fused(const float* in, float* out, int64_t n,
 // ---------------------------------------------------------------------------
 // Inverse transform for dequantization path:
 //   out = P^T @ D @ H @ in
-// Steps: (1) H @ in, (2) multiply by signs (D), (3) scatter via perm (P^T)
-// Uses the forward perm directly: out[perm[i]] = tmp[i] * signs[i],
-// which is equivalent to the inverse permutation without needing inv_perm.
+// Steps: (1) H @ in, (2) multiply by signs (D), (3) P^T via scatter with the
+// forward perm: out[perm[i]] = tmp[i] * signs[i].
 // ---------------------------------------------------------------------------
 void fast_walsh_hadamard_inverse_fused(const float* in, float* out, int64_t n,
                                        const int32_t* perm, const float* signs) {
     if ((n & (n - 1)) != 0) {
         throw std::invalid_argument("Length must be a power of 2");
     }
-    validate_perm(perm, n);
 
     if (!perm && !signs) {
         if (in != out) {
@@ -325,16 +320,12 @@ void fast_walsh_hadamard_inverse_fused(const float* in, float* out, int64_t n,
         return;
     }
 
-    // Step 1: Apply H to input → into a temp buffer
-    // We need a temporary because in and out may not alias, and we need
-    // an intermediate for the H result before applying D and P^T.
+    // H into a temp buffer, then apply D and P^T.
     std::vector<float> tmp(static_cast<std::size_t>(n));
     std::memcpy(tmp.data(), in, static_cast<std::size_t>(n) * sizeof(float));
     fast_walsh_hadamard_transform(tmp.data(), n);
 
-    // Step 2+3: Apply D (sign flip) and P^T (inverse permutation via scatter)
-    // Forward did: pre[i] = signs[i] * in[perm[i]], then y = H(pre).
-    // Inverse: out[perm[i]] = tmp[i] * signs[i]  (scatter using forward perm).
+    // Inverse of forward pre[i] = signs[i]*in[perm[i]]: out[perm[i]] = tmp[i]*signs[i].
     if (perm && signs) {
         for (int64_t i = 0; i < n; ++i) {
             out[perm[i]] = tmp[static_cast<size_t>(i)] * signs[i];
