@@ -7,13 +7,19 @@ configure_uav_mission_compute_sdk () {
   repository="https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git"
   used_ports=(8086 3000 9090 9273)
 
-  version_skills="release-2026.2.0"
+  version_skills="be9aa5e65f57c397bded94bae975469eb749eff7"
   repository_skills="https://github.com/open-edge-platform/skills.git"
   skills=(uav-mission-compute-sdk)
 }
 
 verify_uav_mission_compute_sdk () {
-  [ -e "$workspace" ]
+  [ -r "$workspace/uav-mission-compute-sdk/docker-compose.yml" ] &&
+    docker image inspect \
+      uav-mission-compute-sdk/px4-gazebo:latest \
+      uav-mission-compute-sdk/companion-bridge:latest \
+      uav-mission-compute-sdk/camera-bridge:latest \
+      uav-mission-compute-sdk/vision-processor-multicam:latest \
+      sample-apps-edge-ai-showcase:latest > /dev/null 2>&1
 }
 
 debian_90_profile_uav_mission_compute_sdk () {
@@ -36,11 +42,12 @@ debian_90_install_uav_mission_compute_sdk () {
     sed -i "s|^HOST_IP=.*$|HOST_IP=$(ensure_ip)|" .env
     make build
 
-    # install skills
+    verify_uav_mission_compute_sdk
+  fi
+
+  if [ ! -r "$HOME/.agents/skills/uav-mission-compute-sdk/SKILL.md" ]; then
     echo "@@STEP Installing skills"
     ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}"
-
-    verify_uav_mission_compute_sdk
   fi
 
   local profile="sim-camera"
