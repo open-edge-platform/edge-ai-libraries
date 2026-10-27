@@ -196,14 +196,17 @@ Run the following from the microservice root, in one Bash terminal:
    docker compose -f docker/compose.yaml build
    ```
 
-2. Download the original checkpoint (about 9 GB). To use a mirror, set
-   `HF_ENDPOINT` first, for example `export HF_ENDPOINT=https://hf-mirror.com`:
+2. Download the original checkpoint (about 9 GB). The download tool goes into
+   a temporary virtual environment, which is deleted once the checkpoint is on
+   disk. On Ubuntu, `python3 -m venv` needs the `python3-venv` package.
 
    ```bash
-   pip install -U huggingface_hub
-   hf download Alibaba-NLP/gme-Qwen2-VL-2B-Instruct \
+   python3 -m venv /tmp/hf-venv
+   /tmp/hf-venv/bin/pip install -U huggingface_hub
+   /tmp/hf-venv/bin/hf download Alibaba-NLP/gme-Qwen2-VL-2B-Instruct \
      --include "*.json" --include "*.safetensors" --include "merges.txt" \
      --local-dir ./gme-Qwen2-VL-2B-Instruct
+   rm -rf /tmp/hf-venv
    ```
 
 3. Convert it to OpenVINO with
