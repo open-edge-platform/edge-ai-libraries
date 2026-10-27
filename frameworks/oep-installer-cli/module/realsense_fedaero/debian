@@ -21,12 +21,12 @@ debian_55_install_realsense_fedaero () {
   if ensure_apt_is_installed ${rs_packages[*]} && [[ " $* " = *" --reinstall "* ]]; then
     echo "realsense is installed" >&2
   else
-    ensure_prop set intelled/realsense_fedaero/owned true
+    ensure_prop set installed/realsense_fedaero/owned true
 
     echo "@@STEP Configuring Apt"
     ensure_apt_key "$eci_key_file" "$eci_key_url" --dearmor
     ensure_apt_source "$eci_repo_list_file" "$eci_repo_list"
-    ensure_apt_key "$rs_key_file" "$rs_key_url"
+    ensure_apt_key "$rs_key_file" "$rs_key_url" --dearmor
     ensure_apt_source "$rs_list" "$rs_deb_entry"
     ensure_apt update -y
     
