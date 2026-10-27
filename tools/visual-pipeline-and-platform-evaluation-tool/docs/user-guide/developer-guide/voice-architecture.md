@@ -147,7 +147,7 @@ flowchart TB
   web["UI web server<br/>[Container: Nginx]<br/>Voice API and SSE proxy"]:::external
   subgraph spa[Browser UI - Container]
     direction TB
-    catalog["AudioPipelineCards<br/>[Component: React]<br/>Catalog cards grouped under Pipelines"]:::internal
+    catalog["PipelineCards<br/>[Component: React]<br/>Shared cards in the Audio tab of Pipelines"]:::internal
     voice["VoiceConversion<br/>[Component: React]<br/>Route-selected STT or TTS workflow"]:::internal
     variant["PipelineVariantSelect<br/>[Component: React]<br/>Route-backed Audio device variant selection"]:::internal
     recorder["Recording adapter<br/>[Component: Web Audio]<br/>captureWav prepares local PCM WAV"]:::internal
@@ -173,7 +173,7 @@ flowchart TB
     dashboard -->|Renders platform values| cards
   end
   catalog -->|"GET /api/v1/voice/pipelines"| web
-  catalog -->|"Opens first available variant"| voice
+  catalog -->|"Opens first variant"| voice
   voice -->|"All STT: start and poll managed job; multipart for a selected file"| web
   voice -->|"All TTS: start job with input/voice, poll and fetch artifact"| web
   jobs -->|"GET /api/v1/jobs/audio/status"| web
@@ -218,8 +218,8 @@ flowchart TB
     conversion["Voice conversion execution<br/>[Component: Python / wave]<br/>Validation, upstream calls and request timing"]:::internal
     adapter["Upstream service adapter<br/>[Component: httpx / asyncio / perf_counter]<br/>Bounded reads, errors, timeout, cleanup and timing"]:::internal
     publisher["Voice metrics publisher<br/>[Component: asyncio / httpx]<br/>Best-effort service round-trip publication"]:::internal
-    assets["AudioAssetsManager<br/>[Component: Python / YAML / wave]<br/>Bounded HTTPS download and managed paths"]:::internal
-    audiocatalog["AudioPipelineManager<br/>[Component: Python / YAML]<br/>Strict preset definitions and availability"]:::internal
+    assets["AudioAssetsManager<br/>[Component: Python / YAML / wave]<br/>Local recordings and managed paths"]:::internal
+    audiocatalog["AudioPipelineManager<br/>[Component: Python / YAML]<br/>Strict preset definitions"]:::internal
     audiojobs["AudioPipelineJobManager<br/>[Component: asyncio]<br/>Locked process-local state, private STT staging, retention and atomic TTS artifacts"]:::internal
     modelapi["Model routes / ModelManager<br/>[Component: FastAPI / Python]<br/>Catalog, background jobs and installed state"]:::internal
     catalog["Voice model catalog<br/>[Component: DB-backed models / model_variants]<br/>Seeded from vippet/models/*.yaml; requests, variants and install state"]:::internal
@@ -231,7 +231,6 @@ flowchart TB
     audiojobs -->|Execute managed STT or TTS| conversion
     conversion -->|Async call, bounded response| adapter
     conversion -->|Schedules validated Voice timing| publisher
-    audiocatalog -->|Resolves registered default input| assets
     voiceroutes -->|Lists pipeline definitions| audiocatalog
     audiojobs -->|Resolves pipeline and variant| audiocatalog
     audiojobs -->|Reads default STT WAV; publishes TTS WAV| assets
@@ -557,10 +556,11 @@ flowchart TD
     Poll -->|FAILED or request failure| UIError[Display safe inline error and persistent failure notification]
     Active -->|Input validation or start failure| UIError
     Active -->|Local recording or capture error| LocalError[Display safe inline error; no job notification]
-    Active -->|Explicit browser Cancel| Abort[AbortController stops local recording, fetch or polling]
-    Abort --> Managed{Managed job already started?}
-    Managed -->|Yes| StopToast[Show monitoring stopped; backend job may continue]
-    Managed -->|No| Discard[Discard local or pre-acceptance work]
+    Active -->|Stop button| StopJob{Job already accepted?}
+    StopJob -->|Yes| StopApi[DELETE /api/v1/jobs/audio/job_id cancels the backend task]
+    StopApi --> Poll
+    StopJob -->|No| Discard[AbortController discards pre-acceptance work]
+    Active -->|Microphone Cancel| Abort[AbortController stops local recording]
     Active -->|Start replacement| Supersede[Abort and silently discard superseded response]
     Active -->|Navigate away| Unmount[Abort and silently discard on unmount]
     Active -->|1210-second browser deadline| Deadline[Abort with timeout message]
@@ -578,10 +578,12 @@ flowchart TD
     BadGateway --> UIError
 ```
 
-Cancellation stops browser recording or fetches and prevents stale results from
-being displayed. It does **not** cancel a managed backend task or guarantee that
-an already-started upstream inference stops. A managed TTS job can therefore
-finish and persist its WAV after the browser stops polling. Backend contexts
+Stop on an accepted job cancels the managed backend task through
+`AudioPipelineJobManager.cancel_job`: the job moves to `CANCELLED`, the in-flight
+request to the upstream service is cancelled, and staged input and any
+uncommitted artifact are removed. It cannot guarantee that an already-started
+upstream inference stops. Navigating away does not cancel a managed job, which
+can still finish and persist its WAV. Backend contexts
 close resources on return or exceptions; their total upstream deadline is 20
 minutes, with a 5-second connection timeout. The browser and Nginx Voice
 read/send timeouts are 1210 seconds, allowing ten seconds beyond the backend

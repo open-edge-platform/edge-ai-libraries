@@ -54,7 +54,7 @@ export const PipelineVariantSelect = ({
   const navigateToVariant = (variantId: string) => {
     const searchParams = source ? `?source=${source}` : "";
     navigate(
-      `${routeBase ?? `/pipelines/${pipelineId}`}/${variantId}${searchParams}`,
+      `${routeBase ?? `/pipelines/vision/${pipelineId}`}/${variantId}${searchParams}`,
     );
   };
 

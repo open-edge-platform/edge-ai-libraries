@@ -3,13 +3,14 @@
 
 name: Speech to Text
 definition: >-
-  Transcribe the managed Open Speech Repository recording with the Audio Analyzer service.
+  Transcribe a bundled sample recording with the Audio Analyzer service.
 type: audio
 operation: speech_to_text
 thumbnail: images/speech-to-text.png
 tags:
   - Audio
   - Speech Recognition
+  - Retail
 required_models:
   - Whisper Base
 variants:
@@ -20,5 +21,5 @@ variants:
   - name: NPU
     device: NPU
 defaults:
-  audio: OSR_us_000_0060_8k.wav
+  audio: sample_male.wav
   language: en

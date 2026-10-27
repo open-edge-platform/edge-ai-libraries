@@ -10,13 +10,12 @@ thumbnail: images/text-to-speech.png
 tags:
   - Audio
   - Speech Synthesis
+  - Retail
 required_models:
   - SpeechT5
 variants:
   - name: CPU
     device: CPU
-  - name: GPU
-    device: GPU
 defaults:
   text: >-
     Welcome to Intel Performance Studio. This audio pipeline demonstrates clear text-to-speech

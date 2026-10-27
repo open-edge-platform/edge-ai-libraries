@@ -210,6 +210,43 @@ async def get_audio_job_status(
     return _audio_job_to_api_status(job)
 
 
+@router.delete(
+    "/audio/{job_id}",
+    operation_id="stop_audio_job",
+    summary="Stop a running audio job",
+    responses={
+        200: {
+            "description": "Successful Response",
+            "model": schemas.MessageResponse,
+        },
+        404: {
+            "description": "Audio job not found",
+            "model": schemas.MessageResponse,
+        },
+        409: {
+            "description": "Audio job not running",
+            "model": schemas.MessageResponse,
+        },
+    },
+)
+async def stop_audio_job(
+    job_id: str,
+    manager: AudioJobManagerDependency,
+):
+    """Request cancellation of a QUEUED or RUNNING Speech to Text or Text to Speech job."""
+    try:
+        await manager.cancel_job(job_id)
+    except ValueError as exc:
+        message = str(exc)
+        status_code = 404 if "not found" in message else 409
+        logger.warning("Failed to stop audio job %s: %s", job_id, message)
+        return JSONResponse(
+            content=schemas.MessageResponse(message=message).model_dump(),
+            status_code=status_code,
+        )
+    return schemas.MessageResponse(message=f"Job {job_id} stopped")
+
+
 @router.get(
     "/tests/performance/status",
     operation_id="get_performance_statuses",

@@ -79,9 +79,9 @@ To stop a performance or density job that is currently running:
 > Stopping a job sends a cancellation signal to the underlying GStreamer subprocesses.
 > The actual termination may take a few seconds while pipelines flush their buffers.
 
-Audio jobs do not provide a Stop action. Cancel in the Audio pipeline workflow
-stops monitoring in that browser view; it does not cancel an accepted backend
-job. Continue observing that run under **Jobs > Audio**.
+Audio jobs can be stopped while they are QUEUED or RUNNING. Click **Stop** in the
+Audio job row, or **Stop** in the Audio pipeline workflow. The job ends as
+CANCELLED, and no transcript or WAV artifact is kept.
 
 ## API endpoints
 
@@ -97,5 +97,6 @@ Jobs can also be managed programmatically via the REST API:
 | Stop density job           | `/api/v1/jobs/tests/density/{job_id}`            | DELETE |
 | List all Audio jobs        | `/api/v1/jobs/audio/status`                      | GET    |
 | Get Audio job status       | `/api/v1/jobs/audio/{job_id}/status`             | GET    |
+| Stop Audio job             | `/api/v1/jobs/audio/{job_id}`                    | DELETE |
 
 For full API documentation, see the auto-generated OpenAPI docs at `/docs` on the backend service.

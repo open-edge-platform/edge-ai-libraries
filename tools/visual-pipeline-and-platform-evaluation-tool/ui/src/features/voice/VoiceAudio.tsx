@@ -21,11 +21,13 @@ export function VoiceAudio({
   src,
   label,
   title,
+  showHeader = true,
   onDurationChange,
 }: {
   src: string;
   label: string;
   title: string;
+  showHeader?: boolean;
   onDurationChange?: (duration: number) => void;
 }) {
   const [preview, setPreview] = useState<AudioPreview | null>(null);
@@ -72,21 +74,23 @@ export function VoiceAudio({
   }, [onDurationChange, src]);
 
   return (
-    <div className="min-w-0 space-y-3 rounded-sm border border-border p-3 sm:p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h3 className="text-sm font-semibold">{title}</h3>
-          {current && (
-            <p className="text-xs text-muted-foreground">
-              {Math.floor(current.duration / 60)}:
-              {Math.floor(current.duration % 60)
-                .toString()
-                .padStart(2, "0")}{" "}
-              / WAV
-            </p>
-          )}
+    <div className="min-w-0 space-y-3 border border-border p-3 sm:p-4">
+      {showHeader && (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="text-sm font-semibold">{title}</h3>
+            {current && (
+              <p className="text-xs text-muted-foreground">
+                {Math.floor(current.duration / 60)}:
+                {Math.floor(current.duration % 60)
+                  .toString()
+                  .padStart(2, "0")}{" "}
+                / WAV
+              </p>
+            )}
+          </div>
         </div>
-      </div>
+      )}
       <div
         className="h-16 min-w-0 bg-muted"
         role="img"

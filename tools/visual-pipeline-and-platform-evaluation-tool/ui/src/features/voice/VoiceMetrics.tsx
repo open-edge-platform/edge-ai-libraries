@@ -1,27 +1,18 @@
 // SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-import { Activity, Clock, Timer } from "lucide-react";
+import { Clock, Timer } from "lucide-react";
 
 export interface ConversionMetrics {
   requestMs: number;
   serviceMs: number | null;
 }
 
-export type VoiceMetricsState = "idle" | "running" | "success" | "error";
-
 function formatDuration(value: number | null): { value: string; unit: string } {
   if (value === null) return { value: "--", unit: "" };
   if (value >= 1000) return { value: (value / 1000).toFixed(2), unit: "s" };
   return { value: value.toFixed(2), unit: "ms" };
 }
-
-const STATE_LABELS: Record<VoiceMetricsState, string> = {
-  idle: "Awaiting conversion",
-  running: "Processing",
-  success: "Last successful conversion",
-  error: "Conversion failed",
-};
 
 function DurationMetricCard({
   title,
@@ -63,12 +54,10 @@ function DurationMetricCard({
 export function VoiceMetrics({
   label,
   metrics,
-  state = metrics ? "success" : "idle",
   className = "",
 }: {
   label: string;
   metrics: ConversionMetrics | null;
-  state?: VoiceMetricsState;
   className?: string;
 }) {
   return (
@@ -77,17 +66,9 @@ export function VoiceMetrics({
       aria-live="polite"
       className={`min-w-0 space-y-4 ${className}`}
     >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-medium text-muted-foreground">{label}</p>
-          <h2 className="mt-1 text-lg font-semibold">Performance</h2>
-        </div>
-        <span className="inline-flex max-w-[50%] items-center justify-end gap-1.5 rounded-sm bg-muted px-2 py-1 text-right text-xs text-muted-foreground">
-          <Activity
-            className={`size-3.5 shrink-0 ${state === "running" ? "animate-pulse" : ""}`}
-          />
-          {STATE_LABELS[state]}
-        </span>
+      <div>
+        <p className="text-xs font-medium text-muted-foreground">{label}</p>
+        <h2 className="mt-1 text-lg font-semibold">Performance</h2>
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <DurationMetricCard

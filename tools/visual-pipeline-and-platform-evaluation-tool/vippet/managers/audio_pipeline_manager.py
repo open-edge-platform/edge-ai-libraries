@@ -9,10 +9,12 @@ from typing import Any, Literal, cast
 
 import yaml
 
-from audio_assets import AudioAssetsManager, SAFE_FILENAME_PATTERN
+from audio_assets import SAFE_FILENAME_PATTERN
+from internal_types import InternalPipelineType
 from utils import load_thumbnail_as_base64, slugify_text
 
-AUDIO_PIPELINES_DIR = Path(__file__).resolve().parent.parent / "pipelines" / "audio"
+AUDIO_PIPELINES_DIR = Path(__file__).resolve().parent.parent / "pipelines"
+OTHER_PIPELINE_TYPES = {pipeline_type.value for pipeline_type in InternalPipelineType}
 PIPELINE_FIELDS = {
     "name",
     "definition",
@@ -69,17 +71,10 @@ class AudioPipeline:
     required_models: list[str]
     variants: list[AudioPipelineVariant]
     defaults: AudioPipelineDefaults
-    available: bool
-    unavailable_reason: str | None = None
 
 
 class AudioPipelineManager:
-    def __init__(
-        self,
-        pipeline_dir: Path = AUDIO_PIPELINES_DIR,
-        assets: AudioAssetsManager | None = None,
-    ) -> None:
-        self._assets = assets or AudioAssetsManager()
+    def __init__(self, pipeline_dir: Path = AUDIO_PIPELINES_DIR) -> None:
         self._pipelines = self._load_pipelines(pipeline_dir)
 
     def _load_pipelines(self, pipeline_dir: Path) -> dict[str, AudioPipeline]:
@@ -88,12 +83,14 @@ class AudioPipelineManager:
         pipelines: dict[str, AudioPipeline] = {}
         for config_path in sorted(pipeline_dir.glob("*.yaml")):
             pipeline = self._load_pipeline(config_path)
+            if pipeline is None:
+                continue
             if pipeline.id in pipelines:
                 raise ValueError(f"Duplicate Audio pipeline id '{pipeline.id}'")
             pipelines[pipeline.id] = pipeline
         return pipelines
 
-    def _load_pipeline(self, config_path: Path) -> AudioPipeline:
+    def _load_pipeline(self, config_path: Path) -> AudioPipeline | None:
         try:
             config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
         except (OSError, yaml.YAMLError) as exc:
@@ -102,6 +99,12 @@ class AudioPipelineManager:
             ) from exc
         if not isinstance(config, dict):
             raise ValueError(f"Audio pipeline '{config_path.name}' must be a mapping")
+        # Vision and time-series definitions share this directory.
+        if (
+            config.get("type", InternalPipelineType.VISION.value)
+            in OTHER_PIPELINE_TYPES
+        ):
+            return None
         unknown_fields = set(config) - PIPELINE_FIELDS
         if unknown_fields:
             raise ValueError(
@@ -135,7 +138,7 @@ class AudioPipelineManager:
         thumbnail = load_thumbnail_as_base64(
             thumbnail_path,
             name,
-            base_path=str(config_path.parent.parent),
+            base_path=str(config_path.parent),
         )
         required_models = self._load_required_models(pipeline_id, config)
         variants = self._load_variants(pipeline_id, operation, config)
@@ -146,12 +149,6 @@ class AudioPipelineManager:
             )
         defaults = self._load_defaults(pipeline_id, operation, defaults_config)
 
-        available = True
-        unavailable_reason = None
-        if operation is AudioPipelineOperation.SPEECH_TO_TEXT:
-            available = self._assets.get_path(defaults.audio or "") is not None
-            if not available:
-                unavailable_reason = "Default audio input is unavailable."
         return AudioPipeline(
             id=pipeline_id,
             name=name,
@@ -163,8 +160,6 @@ class AudioPipelineManager:
             required_models=required_models,
             variants=variants,
             defaults=defaults,
-            available=available,
-            unavailable_reason=unavailable_reason,
         )
 
     def _load_defaults(

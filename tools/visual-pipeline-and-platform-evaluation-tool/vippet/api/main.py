@@ -76,7 +76,7 @@ def _initialize_in_background(app: FastAPI) -> None:
         # extracts metadata, and converts to TS format
         VideosManager()
 
-        # Download and validate managed inputs used by Audio pipeline presets.
+        # Install bundled recordings used by Audio pipeline presets.
         AudioAssetsManager()
 
         # Load and validate read-only Audio pipeline definitions.

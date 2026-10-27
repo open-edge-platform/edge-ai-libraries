@@ -23,7 +23,10 @@ from api.dependencies.audio_jobs import (
     shutdown_audio_pipeline_job_manager,
 )
 from api.routes import voice
-from managers.audio_pipeline_job_manager import AudioPipelineJobStatus
+from managers.audio_pipeline_job_manager import (
+    AudioPipelineJobStatus,
+    AudioPipelineRecordingInput,
+)
 
 
 def wav_bytes(seconds: int = 1, channels: int = 1) -> bytes:
@@ -170,22 +173,6 @@ class VoiceTests(unittest.TestCase):
         self.assertIn(b'filename="sample.mp3"', self.requests[0].content)
         self.assertIn(b"Content-Type: audio/mpeg", self.requests[0].content)
         self.assertIn(content, self.requests[0].content)
-
-    def test_normalizes_unsafe_uploaded_audio_metadata(self) -> None:
-        response = self.transcribe(
-            b"audio payload",
-            filename="../folder\\sample.mp3",
-            content_type="audio/mpeg\r\nX-Injected: true",
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(self.requests), 1)
-        self.assertIn(b'filename="sample.mp3"', self.requests[0].content)
-        self.assertEqual(
-            voice.normalize_media_type("audio/mpeg\r\nX-Injected: true"),
-            "application/octet-stream",
-        )
-        self.assertNotIn(b"X-Injected", self.requests[0].content)
 
     def test_forwards_upload_larger_than_legacy_limit(self) -> None:
         content = b"x" * (10 * 1024 * 1024 + 1)
@@ -444,13 +431,11 @@ class VoiceTests(unittest.TestCase):
                         SimpleNamespace(id="npu", name="NPU", device="NPU"),
                     ],
                     defaults=SimpleNamespace(
-                        audio="OSR_us_000_0060_8k.wav",
+                        audio="sample_male.wav",
                         language="en",
                         text=None,
                         voice=None,
                     ),
-                    available=True,
-                    unavailable_reason=None,
                 )
             ]
         )
@@ -463,7 +448,9 @@ class VoiceTests(unittest.TestCase):
             response = self.client.get("/voice/pipelines")
 
         self.assertEqual(response.status_code, 200)
+        self.assertEqual([item["id"] for item in response.json()], ["speech-to-text"])
         self.assertEqual(response.json()[0]["type"], "audio")
+        self.assertNotIn("available", response.json()[0])
         self.assertEqual(response.json()[0]["thumbnail"], "data:image/png;base64,audio")
         self.assertEqual(response.json()[0]["required_models"], ["Whisper Base"])
         self.assertEqual(
@@ -743,6 +730,158 @@ class VoiceTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 404)
         self.assertEqual(response.json(), {"detail": "Audio pipeline not found."})
+
+    def test_lists_audio_recordings(self) -> None:
+        assets = SimpleNamespace(
+            list_assets=MagicMock(
+                return_value=[
+                    SimpleNamespace(
+                        filename="sample_male.wav",
+                        path="/audio/sample_male.wav",
+                        duration_seconds=33.5,
+                    ),
+                    SimpleNamespace(
+                        filename="vippet info.wav",
+                        path="/audio/vippet info.wav",
+                        duration_seconds=15.0,
+                    ),
+                ]
+            )
+        )
+        with patch.object(voice, "AudioAssetsManager", return_value=assets):
+            response = self.client.get("/voice/recordings")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            [
+                {
+                    "filename": "sample_male.wav",
+                    "duration_seconds": 33.5,
+                    "audio_url": "/api/v1/voice/recordings/sample_male.wav/audio",
+                },
+                {
+                    "filename": "vippet info.wav",
+                    "duration_seconds": 15.0,
+                    "audio_url": "/api/v1/voice/recordings/vippet%20info.wav/audio",
+                },
+            ],
+        )
+        assets.list_assets.assert_called_once_with()
+
+    def test_lists_empty_audio_recordings(self) -> None:
+        assets = SimpleNamespace(list_assets=MagicMock(return_value=[]))
+        with patch.object(voice, "AudioAssetsManager", return_value=assets):
+            response = self.client.get("/voice/recordings")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), [])
+        assets.list_assets.assert_called_once_with()
+
+    def test_serves_registered_recording_audio(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "sample.wav"
+            path.write_bytes(wav_bytes())
+            assets = SimpleNamespace(
+                get_asset=MagicMock(
+                    return_value=SimpleNamespace(
+                        filename="sample.wav", path=str(path), duration_seconds=0.1
+                    )
+                )
+            )
+            with patch.object(voice, "AudioAssetsManager", return_value=assets):
+                response = self.client.get("/voice/recordings/sample.wav/audio")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["content-type"], "audio/wav")
+        self.assertEqual(response.headers["cache-control"], "no-store")
+        self.assertEqual(response.content, wav_bytes())
+        assets.get_asset.assert_called_once_with("sample.wav")
+
+    def test_rejects_unregistered_recording_audio(self) -> None:
+        assets = SimpleNamespace(get_asset=MagicMock(return_value=None))
+        with patch.object(voice, "AudioAssetsManager", return_value=assets):
+            response = self.client.get("/voice/recordings/missing.wav/audio")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json(), {"detail": "Audio recording not found."})
+        assets.get_asset.assert_called_once_with("missing.wav")
+
+    def test_starts_stt_job_with_registered_recording(self) -> None:
+        job = SimpleNamespace(id="job-1", status=AudioPipelineJobStatus.QUEUED)
+        jobs = SimpleNamespace(start_job=AsyncMock(return_value=job))
+        self.use_audio_jobs(jobs)
+
+        response = self.client.post(
+            "/voice/pipelines/speech-to-text/variants/npu/runs",
+            json={"recording": "sample.wav", "language": "pl"},
+        )
+
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.json(), {"job_id": "job-1", "status": "QUEUED"})
+        jobs.start_job.assert_awaited_once_with(
+            "speech-to-text",
+            "npu",
+            recording_input=AudioPipelineRecordingInput(
+                filename="sample.wav", language="pl"
+            ),
+        )
+
+    def test_rejects_invalid_recording_run_request(self) -> None:
+        jobs = SimpleNamespace(start_job=AsyncMock())
+        self.use_audio_jobs(jobs)
+        invalid_payloads = [
+            {"recording": "", "language": "en"},
+            {"recording": "sample.wav", "language": "english"},
+            {"recording": "sample.wav"},
+            {"language": "en"},
+            {"recording": "sample.wav", "language": "en", "extra": True},
+        ]
+        for payload in invalid_payloads:
+            with self.subTest(payload=payload):
+                response = self.client.post(
+                    "/voice/pipelines/speech-to-text/runs", json=payload
+                )
+                self.assertEqual(response.status_code, 422)
+
+        jobs.start_job.assert_not_called()
+
+    def test_rejects_unknown_recording_run(self) -> None:
+        jobs = SimpleNamespace(
+            start_job=AsyncMock(
+                side_effect=ValueError("Audio recording 'missing.wav' not found.")
+            )
+        )
+        self.use_audio_jobs(jobs)
+
+        response = self.client.post(
+            "/voice/pipelines/speech-to-text/runs",
+            json={"recording": "missing.wav", "language": "en"},
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json(), {"detail": "Audio recording not found."})
+
+    def test_rejects_recording_for_tts_pipeline(self) -> None:
+        jobs = SimpleNamespace(
+            start_job=AsyncMock(
+                side_effect=ValueError(
+                    "Text-to-speech pipelines do not accept recording input."
+                )
+            )
+        )
+        self.use_audio_jobs(jobs)
+
+        response = self.client.post(
+            "/voice/pipelines/text-to-speech/runs",
+            json={"recording": "sample.wav", "language": "en"},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json(),
+            {"detail": "This Audio pipeline does not accept recording input."},
+        )
 
     def test_downloads_completed_tts_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

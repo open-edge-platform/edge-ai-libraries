@@ -87,6 +87,12 @@ class AudioPipelineSTTInput:
 
 
 @dataclass(frozen=True)
+class AudioPipelineRecordingInput:
+    filename: str
+    language: str
+
+
+@dataclass(frozen=True)
 class _StagedSTTInput:
     path: Path
     filename: str
@@ -126,12 +132,11 @@ class AudioPipelineJobManager:
         input_text: str | None = None,
         voice: str | None = None,
         stt_input: AudioPipelineSTTInput | None = None,
+        recording_input: AudioPipelineRecordingInput | None = None,
     ) -> AudioPipelineJob:
         pipeline = self.pipelines.get_pipeline(pipeline_id)
         if pipeline is None:
             raise ValueError(f"Audio pipeline '{pipeline_id}' not found.")
-        if not pipeline.available:
-            raise ValueError(f"Audio pipeline '{pipeline_id}' is unavailable.")
         if pipeline.operation is not AudioPipelineOperation.TEXT_TO_SPEECH and (
             input_text is not None or voice is not None
         ):
@@ -141,6 +146,15 @@ class AudioPipelineJobManager:
             and stt_input is not None
         ):
             raise ValueError("Text-to-speech pipelines do not accept STT input.")
+        if recording_input is not None:
+            if pipeline.operation is not AudioPipelineOperation.SPEECH_TO_TEXT:
+                raise ValueError(
+                    "Text-to-speech pipelines do not accept recording input."
+                )
+            if self.assets.get_path(recording_input.filename) is None:
+                raise ValueError(
+                    f"Audio recording '{recording_input.filename}' not found."
+                )
         variant = (
             pipeline.variants[0]
             if variant_id is None
@@ -185,6 +199,7 @@ class AudioPipelineJobManager:
                         input_text=input_text,
                         voice=voice,
                         stt_input=staged_stt_input,
+                        recording_input=recording_input,
                     )
                 )
                 self._tasks[job.id] = task
@@ -240,6 +255,7 @@ class AudioPipelineJobManager:
         input_text: str | None,
         voice: str | None,
         stt_input: _StagedSTTInput | None,
+        recording_input: AudioPipelineRecordingInput | None = None,
     ) -> None:
         uncommitted_artifact_path: str | None = None
         try:
@@ -255,6 +271,7 @@ class AudioPipelineJobManager:
                     pipeline,
                     device,
                     stt_input,
+                    recording_input,
                 )
                 artifact_path = None
                 artifact_filename = None
@@ -332,8 +349,16 @@ class AudioPipelineJobManager:
         pipeline: AudioPipeline,
         device: str,
         stt_input: _StagedSTTInput | None,
+        recording_input: AudioPipelineRecordingInput | None = None,
     ) -> tuple[str, float]:
-        if stt_input is None:
+        if recording_input is not None:
+            filename = recording_input.filename
+            path = self.assets.get_path(filename)
+            if path is None:
+                raise RuntimeError("Selected audio recording became unavailable")
+            content_type = "audio/wav"
+            language = recording_input.language
+        elif stt_input is None:
             defaults = pipeline.defaults
             filename = defaults.audio or ""
             path = self.assets.get_path(filename)
@@ -482,6 +507,29 @@ class AudioPipelineJobManager:
         async with self._lock:
             job = self._jobs.get(job_id)
             return replace(job) if job is not None else None
+
+    async def cancel_job(self, job_id: str) -> AudioPipelineJob:
+        async with self._lock:
+            job = self._jobs.get(job_id)
+            if job is None:
+                raise ValueError(f"Audio pipeline job '{job_id}' not found.")
+            if job.status in TERMINAL_STATUSES:
+                raise ValueError(
+                    f"Audio pipeline job '{job_id}' is not running "
+                    f"(state: {job.status.value})."
+                )
+            # A task that has not started would skip its own cleanup if cancelled.
+            was_queued = job.status is AudioPipelineJobStatus.QUEUED
+            self._transition_locked(job, AudioPipelineJobStatus.CANCELLED)
+            cleanup_paths = self._prune_terminal_jobs_locked()
+            task = self._tasks.get(job_id)
+            snapshot = replace(job)
+        await self._delete_artifacts(cleanup_paths)
+        if task is not None:
+            if not was_queued:
+                task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+        return snapshot
 
     async def list_jobs(self) -> list[AudioPipelineJob]:
         async with self._lock:

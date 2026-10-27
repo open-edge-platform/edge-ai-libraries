@@ -1,5 +1,9 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-- url: "https://www.voiptroubleshooter.com/open_speech/american/OSR_us_000_0060_8k.wav"
-  filename: OSR_us_000_0060_8k.wav
+# Each entry copies `local` (a file name under vippet/pipelines/recordings)
+# to shared/audio/input/auto as `filename` when it is missing or invalid.
+- local: sample_male.wav
+  filename: sample_male.wav
+- local: sample_female.wav
+  filename: sample_female.wav

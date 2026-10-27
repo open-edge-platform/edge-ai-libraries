@@ -132,6 +132,13 @@ const injectedRtkApi = api
         query: (queryArg) => ({ url: `/jobs/audio/${queryArg.jobId}/status` }),
         providesTags: ["jobs"],
       }),
+      stopAudioJob: build.mutation<StopAudioJobApiResponse, StopAudioJobApiArg>({
+        query: (queryArg) => ({
+          url: `/jobs/audio/${queryArg.jobId}`,
+          method: "DELETE",
+        }),
+        invalidatesTags: ["jobs"],
+      }),
       getPerformanceStatuses: build.query<
         GetPerformanceStatusesApiResponse,
         GetPerformanceStatusesApiArg
@@ -614,6 +621,22 @@ const injectedRtkApi = api
         query: () => ({ url: `/voice/pipelines` }),
         providesTags: ["voice"],
       }),
+      listAudioRecordingsVoiceRecordingsGet: build.query<
+        ListAudioRecordingsVoiceRecordingsGetApiResponse,
+        ListAudioRecordingsVoiceRecordingsGetApiArg
+      >({
+        query: () => ({ url: `/voice/recordings` }),
+        providesTags: ["voice"],
+      }),
+      getAudioRecordingVoiceRecordingsFilenameAudioGet: build.query<
+        GetAudioRecordingVoiceRecordingsFilenameAudioGetApiResponse,
+        GetAudioRecordingVoiceRecordingsFilenameAudioGetApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/voice/recordings/${queryArg.filename}/audio`,
+        }),
+        providesTags: ["voice"],
+      }),
       runAudioPipelineVoicePipelinesPipelineIdRunsPost: build.mutation<
         RunAudioPipelineVoicePipelinesPipelineIdRunsPostApiResponse,
         RunAudioPipelineVoicePipelinesPipelineIdRunsPostApiArg
@@ -744,6 +767,11 @@ export type GetAudioStatusesApiArg = void;
 export type GetAudioJobStatusApiResponse =
   /** status 200 Successful Response */ AudioJobStatus;
 export type GetAudioJobStatusApiArg = {
+  jobId: string;
+};
+export type StopAudioJobApiResponse =
+  /** status 200 Successful Response */ MessageResponse;
+export type StopAudioJobApiArg = {
   jobId: string;
 };
 export type GetPerformanceStatusesApiResponse =
@@ -1022,14 +1050,19 @@ export type LoadCameraProfilesApiArg = {
 export type ListAudioPipelinesVoicePipelinesGetApiResponse =
   /** status 200 Successful Response */ AudioPipelineResponse[];
 export type ListAudioPipelinesVoicePipelinesGetApiArg = void;
+export type ListAudioRecordingsVoiceRecordingsGetApiResponse =
+  /** status 200 Successful Response */ AudioRecordingResponse[];
+export type ListAudioRecordingsVoiceRecordingsGetApiArg = void;
+export type GetAudioRecordingVoiceRecordingsFilenameAudioGetApiResponse =
+  unknown;
+export type GetAudioRecordingVoiceRecordingsFilenameAudioGetApiArg = {
+  filename: string;
+};
 export type RunAudioPipelineVoicePipelinesPipelineIdRunsPostApiResponse =
   /** status 202 Successful Response */ AudioPipelineJobStartResponse;
 export type RunAudioPipelineVoicePipelinesPipelineIdRunsPostApiArg = {
   pipelineId: string;
-  audioPipelineRunRequest: {
-    input: string;
-    voice: "Ryan" | "Miles" | "Aaron" | "Nora" | "Elena" | "Kabir" | "Angus";
-  };
+  audioPipelineRunRequest: AudioPipelineRunBody;
 };
 export type RunAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPostApiResponse =
   /** status 202 Successful Response */ AudioPipelineJobStartResponse;
@@ -1037,10 +1070,7 @@ export type RunAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRuns
   {
     pipelineId: string;
     variantId: string;
-    audioPipelineRunRequest: {
-      input: string;
-      voice: "Ryan" | "Miles" | "Aaron" | "Nora" | "Elena" | "Kabir" | "Angus";
-    };
+    audioPipelineRunRequest: AudioPipelineRunBody;
   };
 export type GetAudioPipelineJobVoiceJobsJobIdGetApiResponse =
   /** status 200 Successful Response */ AudioPipelineJobResponse;
@@ -1893,9 +1923,21 @@ export type AudioPipelineResponse = {
   required_models: string[];
   variants: AudioPipelineVariantResponse[];
   defaults: AudioPipelineDefaultsResponse;
-  available: boolean;
-  unavailable_reason?: string | null;
 };
+export type AudioRecordingResponse = {
+  filename: string;
+  duration_seconds: number;
+  audio_url: string;
+};
+export type AudioPipelineRunBody =
+  | {
+      input: string;
+      voice: "Ryan" | "Miles" | "Aaron" | "Nora" | "Elena" | "Kabir" | "Angus";
+    }
+  | {
+      recording: string;
+      language: string;
+    };
 export type AudioPipelineJobStartResponse = {
   job_id: string;
   status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
@@ -1958,6 +2000,7 @@ export const {
   useLazyGetAudioStatusesQuery,
   useGetAudioJobStatusQuery,
   useLazyGetAudioJobStatusQuery,
+  useStopAudioJobMutation,
   useGetPerformanceStatusesQuery,
   useLazyGetPerformanceStatusesQuery,
   useGetPerformanceJobStatusQuery,
@@ -2049,6 +2092,10 @@ export const {
   useLoadCameraProfilesMutation,
   useListAudioPipelinesVoicePipelinesGetQuery,
   useLazyListAudioPipelinesVoicePipelinesGetQuery,
+  useListAudioRecordingsVoiceRecordingsGetQuery,
+  useLazyListAudioRecordingsVoiceRecordingsGetQuery,
+  useGetAudioRecordingVoiceRecordingsFilenameAudioGetQuery,
+  useLazyGetAudioRecordingVoiceRecordingsFilenameAudioGetQuery,
   useRunAudioPipelineVoicePipelinesPipelineIdRunsPostMutation,
   useRunAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPostMutation,
   useGetAudioPipelineJobVoiceJobsJobIdGetQuery,

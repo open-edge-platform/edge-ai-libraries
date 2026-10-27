@@ -7,6 +7,7 @@ import os
 import re
 from time import perf_counter
 from typing import Annotated, BinaryIO, Literal, cast
+from urllib.parse import quote
 
 import httpx
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
@@ -22,6 +23,7 @@ from api.dependencies.audio_jobs import (
 from managers.audio_pipeline_job_manager import (
     AudioPipelineJobManager,
     AudioPipelineJobStatus,
+    AudioPipelineRecordingInput,
     AudioPipelineSTTInput,
 )
 from managers.audio_pipeline_manager import get_audio_pipeline_manager
@@ -109,13 +111,24 @@ class AudioPipelineResponse(BaseModel):
     required_models: list[str]
     variants: list[AudioPipelineVariantResponse]
     defaults: AudioPipelineDefaultsResponse
-    available: bool
-    unavailable_reason: str | None = None
 
 
 class AudioPipelineJobStartResponse(BaseModel):
     job_id: str
     status: Literal["QUEUED", "RUNNING", "COMPLETED", "FAILED"]
+
+
+class AudioRecordingResponse(BaseModel):
+    filename: str
+    duration_seconds: float
+    audio_url: str
+
+
+class AudioRecordingRunRequest(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    recording: str = Field(min_length=1, max_length=255)
+    language: str = Field(pattern=r"^[a-z]{2}$")
 
 
 class AudioPipelineRunRequest(BaseModel):
@@ -129,7 +142,14 @@ AUDIO_PIPELINE_RUN_OPENAPI = {
     "requestBody": {
         "required": False,
         "content": {
-            "application/json": {"schema": AudioPipelineRunRequest.model_json_schema()},
+            "application/json": {
+                "schema": {
+                    "oneOf": [
+                        AudioPipelineRunRequest.model_json_schema(),
+                        AudioRecordingRunRequest.model_json_schema(),
+                    ]
+                }
+            },
             "multipart/form-data": {
                 "schema": {
                     "type": "object",
@@ -441,6 +461,30 @@ async def list_audio_pipelines() -> list[AudioPipelineResponse]:
     ]
 
 
+@router.get("/recordings", response_model=list[AudioRecordingResponse])
+async def list_audio_recordings() -> list[AudioRecordingResponse]:
+    return [
+        AudioRecordingResponse(
+            filename=asset.filename,
+            duration_seconds=asset.duration_seconds,
+            audio_url=f"/api/v1/voice/recordings/{quote(asset.filename)}/audio",
+        )
+        for asset in AudioAssetsManager().list_assets()
+    ]
+
+
+@router.get("/recordings/{filename}/audio", response_class=FileResponse)
+async def get_audio_recording(filename: str) -> FileResponse:
+    asset = AudioAssetsManager().get_asset(filename)
+    if asset is None or not os.path.isfile(asset.path):
+        raise HTTPException(404, "Audio recording not found.")
+    return FileResponse(
+        asset.path,
+        media_type="audio/wav",
+        headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
+    )
+
+
 @router.post(
     "/pipelines/{pipeline_id}/runs",
     response_model=AudioPipelineJobStartResponse,
@@ -488,12 +532,20 @@ async def _start_audio_pipeline_request(
         return await _start_audio_pipeline_job(manager, pipeline_id, variant_id)
 
     if media_type == "application/json":
+        body = await request.body()
         try:
-            tts_request = AudioPipelineRunRequest.model_validate_json(
-                await request.body()
+            tts_request = AudioPipelineRunRequest.model_validate_json(body)
+        except ValidationError:
+            try:
+                recording_request = AudioRecordingRunRequest.model_validate_json(body)
+            except ValidationError as exc:
+                raise HTTPException(422, "Invalid Audio pipeline run request.") from exc
+            return await _start_audio_pipeline_job(
+                manager,
+                pipeline_id,
+                variant_id,
+                recording_request=recording_request,
             )
-        except ValidationError as exc:
-            raise HTTPException(422, "Invalid Audio pipeline run request.") from exc
         return await _start_audio_pipeline_job(
             manager,
             pipeline_id,
@@ -533,9 +585,19 @@ async def _start_audio_pipeline_job(
     *,
     tts_request: AudioPipelineRunRequest | None = None,
     stt_input: AudioPipelineSTTInput | None = None,
+    recording_request: AudioRecordingRunRequest | None = None,
 ) -> AudioPipelineJobStartResponse:
     try:
-        if stt_input is not None:
+        if recording_request is not None:
+            job = await manager.start_job(
+                pipeline_id,
+                variant_id,
+                recording_input=AudioPipelineRecordingInput(
+                    filename=recording_request.recording,
+                    language=recording_request.language,
+                ),
+            )
+        elif stt_input is not None:
             job = await manager.start_job(
                 pipeline_id,
                 variant_id,
@@ -552,6 +614,12 @@ async def _start_audio_pipeline_job(
             job = await manager.start_job(pipeline_id, variant_id)
     except ValueError as exc:
         message = str(exc)
+        if "Audio recording" in message and "not found" in message:
+            raise HTTPException(404, "Audio recording not found.") from exc
+        if "do not accept recording input" in message:
+            raise HTTPException(
+                400, "This Audio pipeline does not accept recording input."
+            ) from exc
         if "variant" in message and "not found" in message:
             raise HTTPException(404, "Audio pipeline variant not found.") from exc
         if "not found" in message:

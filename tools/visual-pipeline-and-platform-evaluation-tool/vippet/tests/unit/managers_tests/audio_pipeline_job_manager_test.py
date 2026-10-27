@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 from managers.audio_pipeline_job_manager import (
+    AudioPipelineRecordingInput,
     AudioPipelineSTTInput,
     AudioPipelineJobManager,
     AudioPipelineJobStatus,
@@ -34,8 +35,6 @@ def wav_bytes() -> bytes:
 
 def pipeline(
     operation: AudioPipelineOperation,
-    *,
-    available: bool = True,
 ) -> AudioPipeline:
     is_stt = operation is AudioPipelineOperation.SPEECH_TO_TEXT
     return AudioPipeline(
@@ -61,8 +60,6 @@ def pipeline(
             text=None if is_stt else "Hello world",
             voice=None if is_stt else "Ryan",
         ),
-        available=available,
-        unavailable_reason=None if available else "Default audio input is unavailable.",
     )
 
 
@@ -159,6 +156,71 @@ class AudioPipelineJobManagerTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(list(self.manager._input_directory.iterdir()), [])
 
+    async def test_completes_stt_job_with_registered_recording(self) -> None:
+        self.pipeline_manager.get_pipeline.return_value = pipeline(
+            AudioPipelineOperation.SPEECH_TO_TEXT
+        )
+        other_recording = Path(self.temp_dir.name) / "other.wav"
+        other_recording.write_bytes(wav_bytes() + b"extra")
+        self.assets.get_path.side_effect = lambda name: (
+            str(other_recording) if name == "other.wav" else None
+        )
+        observed: dict[str, object] = {}
+
+        async def transcribe(
+            audio_file, filename, content_type, language, device
+        ) -> tuple[str, float]:
+            observed["content"] = audio_file.read()
+            observed["metadata"] = (filename, content_type, language, device)
+            return "Recording transcript", 9.5
+
+        self.manager.transcribe = transcribe
+
+        job = await self.manager.start_job(
+            "speech-to-text",
+            "npu",
+            recording_input=AudioPipelineRecordingInput(
+                filename="other.wav", language="de"
+            ),
+        )
+        await self.manager.wait(job.id)
+
+        completed = await self.manager.get_job(job.id)
+        assert completed is not None
+        self.assertEqual(completed.status, AudioPipelineJobStatus.COMPLETED)
+        self.assertEqual(completed.transcript, "Recording transcript")
+        self.assertEqual(observed["content"], other_recording.read_bytes())
+        self.assertEqual(observed["metadata"], ("other.wav", "audio/wav", "de", "NPU"))
+
+    async def test_rejects_unknown_recording_input(self) -> None:
+        self.pipeline_manager.get_pipeline.return_value = pipeline(
+            AudioPipelineOperation.SPEECH_TO_TEXT
+        )
+        self.assets.get_path.return_value = None
+
+        with self.assertRaisesRegex(ValueError, "Audio recording 'missing.wav'"):
+            await self.manager.start_job(
+                "speech-to-text",
+                recording_input=AudioPipelineRecordingInput(
+                    filename="missing.wav", language="en"
+                ),
+            )
+
+        self.transcribe.assert_not_called()
+
+    async def test_rejects_recording_input_for_tts_pipeline(self) -> None:
+        self.pipeline_manager.get_pipeline.return_value = pipeline(
+            AudioPipelineOperation.TEXT_TO_SPEECH
+        )
+
+        with self.assertRaisesRegex(ValueError, "do not accept recording input"):
+            await self.manager.start_job(
+                "text-to-speech",
+                recording_input=AudioPipelineRecordingInput(
+                    filename="sample.wav", language="en"
+                ),
+            )
+
     async def test_completes_tts_job_with_atomic_wav_artifact(self) -> None:
         self.pipeline_manager.get_pipeline.return_value = pipeline(
             AudioPipelineOperation.TEXT_TO_SPEECH
@@ -238,15 +300,6 @@ class AudioPipelineJobManagerTests(unittest.IsolatedAsyncioTestCase):
 
         with self.assertRaisesRegex(ValueError, "not found"):
             await self.manager.start_job("missing")
-
-    async def test_rejects_unavailable_pipeline(self) -> None:
-        self.pipeline_manager.get_pipeline.return_value = pipeline(
-            AudioPipelineOperation.SPEECH_TO_TEXT,
-            available=False,
-        )
-
-        with self.assertRaisesRegex(ValueError, "unavailable"):
-            await self.manager.start_job("speech-to-text")
 
     async def test_rejects_unknown_variant(self) -> None:
         self.pipeline_manager.get_pipeline.return_value = pipeline(
@@ -372,6 +425,122 @@ class AudioPipelineJobManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(cancelled.status, AudioPipelineJobStatus.CANCELLED)
         await self.manager.wait(job.id)
         self.assertEqual(self.manager._tasks, {})
+
+    async def test_cancels_running_stt_job(self) -> None:
+        started = asyncio.Event()
+        interrupted = asyncio.Event()
+
+        async def blocked_transcription(*_args):
+            started.set()
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                interrupted.set()
+                raise
+            return "unreachable", 0.0
+
+        self.manager.transcribe = blocked_transcription
+        self.pipeline_manager.get_pipeline.return_value = pipeline(
+            AudioPipelineOperation.SPEECH_TO_TEXT
+        )
+        job = await self.manager.start_job("speech-to-text")
+        await started.wait()
+
+        cancelled = await self.manager.cancel_job(job.id)
+
+        self.assertEqual(cancelled.status, AudioPipelineJobStatus.CANCELLED)
+        self.assertTrue(interrupted.is_set())
+        stored = await self.manager.get_job(job.id)
+        assert stored is not None
+        self.assertEqual(stored.status, AudioPipelineJobStatus.CANCELLED)
+        self.assertIsNone(stored.transcript)
+        self.assertEqual(self.manager._tasks, {})
+
+    async def test_cancels_running_tts_job_without_artifact(self) -> None:
+        started = asyncio.Event()
+
+        async def blocked_synthesis(*_args):
+            started.set()
+            await asyncio.Event().wait()
+            return wav_bytes(), 0.0
+
+        self.manager.synthesize = blocked_synthesis
+        self.pipeline_manager.get_pipeline.return_value = pipeline(
+            AudioPipelineOperation.TEXT_TO_SPEECH
+        )
+        job = await self.manager.start_job("text-to-speech", "gpu")
+        await started.wait()
+
+        cancelled = await self.manager.cancel_job(job.id)
+
+        self.assertEqual(cancelled.status, AudioPipelineJobStatus.CANCELLED)
+        self.assertIsNone(cancelled.artifact_path)
+        self.assertFalse((Path(self.temp_dir.name) / f"{job.id}.wav").exists())
+        self.assertEqual(list(Path(self.temp_dir.name).glob(".audio-job-*")), [])
+        self.assertEqual(self.manager._tasks, {})
+
+    async def test_cancelling_uploaded_stt_job_cleans_staged_input(self) -> None:
+        started = asyncio.Event()
+
+        async def blocked_transcription(*_args):
+            started.set()
+            await asyncio.Event().wait()
+            return "unreachable", 0.0
+
+        self.manager.transcribe = blocked_transcription
+        self.pipeline_manager.get_pipeline.return_value = pipeline(
+            AudioPipelineOperation.SPEECH_TO_TEXT
+        )
+        job = await self.manager.start_job(
+            "speech-to-text",
+            stt_input=AudioPipelineSTTInput(
+                file=io.BytesIO(b"uploaded audio"),
+                filename="sample.wav",
+                content_type="audio/wav",
+                language="en",
+            ),
+        )
+        await started.wait()
+
+        await self.manager.cancel_job(job.id)
+
+        self.assertEqual(list(self.manager._input_directory.iterdir()), [])
+
+    async def test_cancels_queued_job_before_it_starts(self) -> None:
+        self.pipeline_manager.get_pipeline.return_value = pipeline(
+            AudioPipelineOperation.SPEECH_TO_TEXT
+        )
+        job = await self.manager.start_job(
+            "speech-to-text",
+            stt_input=AudioPipelineSTTInput(
+                file=io.BytesIO(b"uploaded audio"),
+                filename="sample.wav",
+                content_type="audio/wav",
+                language="en",
+            ),
+        )
+
+        cancelled = await self.manager.cancel_job(job.id)
+
+        self.assertEqual(cancelled.status, AudioPipelineJobStatus.CANCELLED)
+        self.transcribe.assert_not_called()
+        self.assertEqual(list(self.manager._input_directory.iterdir()), [])
+
+    async def test_rejects_cancelling_unknown_or_finished_job(self) -> None:
+        self.pipeline_manager.get_pipeline.return_value = pipeline(
+            AudioPipelineOperation.SPEECH_TO_TEXT
+        )
+        job = await self.manager.start_job("speech-to-text")
+        await self.manager.wait(job.id)
+
+        with self.assertRaisesRegex(ValueError, "not found"):
+            await self.manager.cancel_job("missing")
+        with self.assertRaisesRegex(ValueError, "not running"):
+            await self.manager.cancel_job(job.id)
+
+        completed = await self.manager.get_job(job.id)
+        assert completed is not None
+        self.assertEqual(completed.status, AudioPipelineJobStatus.COMPLETED)
 
     async def test_rejects_transition_from_terminal_state(self) -> None:
         self.pipeline_manager.get_pipeline.return_value = pipeline(

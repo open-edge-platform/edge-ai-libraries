@@ -770,6 +770,69 @@
         }
       }
     },
+    "/jobs/audio/{job_id}": {
+      "delete": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Stop a running audio job",
+        "description": "Request cancellation of a QUEUED or RUNNING Speech to Text or Text to Speech job.",
+        "operationId": "stop_audio_job",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Audio job not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Audio job not running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/jobs/tests/performance/status": {
       "get": {
         "tags": [
@@ -3933,6 +3996,66 @@
         }
       }
     },
+    "/voice/recordings": {
+      "get": {
+        "tags": [
+          "voice"
+        ],
+        "summary": "List Audio Recordings",
+        "operationId": "list_audio_recordings_voice_recordings_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AudioRecordingResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Audio Recordings Voice Recordings Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/voice/recordings/{filename}/audio": {
+      "get": {
+        "tags": [
+          "voice"
+        ],
+        "summary": "Get Audio Recording",
+        "operationId": "get_audio_recording_voice_recordings__filename__audio_get",
+        "parameters": [
+          {
+            "name": "filename",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Filename"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/voice/pipelines/{pipeline_id}/runs": {
       "post": {
         "tags": [
@@ -3978,34 +4101,60 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": false,
-                "properties": {
-                  "input": {
-                    "maxLength": 200,
-                    "minLength": 1,
-                    "title": "Input",
-                    "type": "string"
-                  },
-                  "voice": {
-                    "enum": [
-                      "Ryan",
-                      "Miles",
-                      "Aaron",
-                      "Nora",
-                      "Elena",
-                      "Kabir",
-                      "Angus"
+                "oneOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "input": {
+                        "maxLength": 200,
+                        "minLength": 1,
+                        "title": "Input",
+                        "type": "string"
+                      },
+                      "voice": {
+                        "enum": [
+                          "Ryan",
+                          "Miles",
+                          "Aaron",
+                          "Nora",
+                          "Elena",
+                          "Kabir",
+                          "Angus"
+                        ],
+                        "title": "Voice",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "input",
+                      "voice"
                     ],
-                    "title": "Voice",
-                    "type": "string"
+                    "title": "AudioPipelineRunRequest",
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "recording": {
+                        "maxLength": 255,
+                        "minLength": 1,
+                        "title": "Recording",
+                        "type": "string"
+                      },
+                      "language": {
+                        "pattern": "^[a-z]{2}$",
+                        "title": "Language",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "recording",
+                      "language"
+                    ],
+                    "title": "AudioRecordingRunRequest",
+                    "type": "object"
                   }
-                },
-                "required": [
-                  "input",
-                  "voice"
-                ],
-                "title": "AudioPipelineRunRequest",
-                "type": "object"
+                ]
               }
             },
             "multipart/form-data": {
@@ -4085,34 +4234,60 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": false,
-                "properties": {
-                  "input": {
-                    "maxLength": 200,
-                    "minLength": 1,
-                    "title": "Input",
-                    "type": "string"
-                  },
-                  "voice": {
-                    "enum": [
-                      "Ryan",
-                      "Miles",
-                      "Aaron",
-                      "Nora",
-                      "Elena",
-                      "Kabir",
-                      "Angus"
+                "oneOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "input": {
+                        "maxLength": 200,
+                        "minLength": 1,
+                        "title": "Input",
+                        "type": "string"
+                      },
+                      "voice": {
+                        "enum": [
+                          "Ryan",
+                          "Miles",
+                          "Aaron",
+                          "Nora",
+                          "Elena",
+                          "Kabir",
+                          "Angus"
+                        ],
+                        "title": "Voice",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "input",
+                      "voice"
                     ],
-                    "title": "Voice",
-                    "type": "string"
+                    "title": "AudioPipelineRunRequest",
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "recording": {
+                        "maxLength": 255,
+                        "minLength": 1,
+                        "title": "Recording",
+                        "type": "string"
+                      },
+                      "language": {
+                        "pattern": "^[a-z]{2}$",
+                        "title": "Language",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "recording",
+                      "language"
+                    ],
+                    "title": "AudioRecordingRunRequest",
+                    "type": "object"
                   }
-                },
-                "required": [
-                  "input",
-                  "voice"
-                ],
-                "title": "AudioPipelineRunRequest",
-                "type": "object"
+                ]
               }
             },
             "multipart/form-data": {
@@ -4808,21 +4983,6 @@
           },
           "defaults": {
             "$ref": "#/components/schemas/AudioPipelineDefaultsResponse"
-          },
-          "available": {
-            "type": "boolean",
-            "title": "Available"
-          },
-          "unavailable_reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Unavailable Reason"
           }
         },
         "type": "object",
@@ -4835,8 +4995,7 @@
           "tags",
           "required_models",
           "variants",
-          "defaults",
-          "available"
+          "defaults"
         ],
         "title": "AudioPipelineResponse"
       },
@@ -4867,6 +5026,29 @@
           "device"
         ],
         "title": "AudioPipelineVariantResponse"
+      },
+      "AudioRecordingResponse": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "duration_seconds": {
+            "type": "number",
+            "title": "Duration Seconds"
+          },
+          "audio_url": {
+            "type": "string",
+            "title": "Audio Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename",
+          "duration_seconds",
+          "audio_url"
+        ],
+        "title": "AudioRecordingResponse"
       },
       "BenchmarkJobResponse": {
         "properties": {

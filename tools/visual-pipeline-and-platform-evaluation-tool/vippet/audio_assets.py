@@ -4,16 +4,13 @@
 import logging
 import os
 import re
+import shutil
 import tempfile
 import threading
-import time
-import urllib.error
-import urllib.request
 import wave
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
 
 import yaml
 
@@ -23,16 +20,20 @@ DEFAULT_AUDIO_RECORDINGS_FILE = os.environ.get(
     "DEFAULT_AUDIO_RECORDINGS_FILE",
     "/audio/default_recordings.yaml",
 )
+# Source directory for the `local:` manifest entries.
+LOCAL_AUDIO_RECORDINGS_DIR = (
+    Path(__file__).resolve().parent / "pipelines" / "recordings"
+)
 
 logger = logging.getLogger("audio_assets")
 SAFE_FILENAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._ -]*\.wav$", re.IGNORECASE)
-MAX_AUDIO_DOWNLOAD_BYTES = 200 * 1024 * 1024
 
 
 @dataclass(frozen=True)
 class AudioAsset:
     filename: str
     path: str
+    duration_seconds: float = 0.0
 
 
 class AudioAssetsManager:
@@ -68,20 +69,63 @@ class AudioAssetsManager:
     def _load_default_recordings(self) -> None:
         manifest = self._read_manifest()
         for entry in manifest:
-            url = entry.get("url")
+            local = entry.get("local")
             filename = entry.get("filename")
-            if not isinstance(url, str) or not isinstance(filename, str):
+            if not isinstance(local, str) or not isinstance(filename, str):
                 logger.warning("Skipping invalid default audio recording entry")
                 continue
             if not self._is_safe_filename(filename):
                 logger.warning("Skipping default audio recording with unsafe filename")
                 continue
-            if urlparse(url).scheme != "https":
-                logger.warning("Skipping default audio recording with non-HTTPS URL")
-                continue
-            path = self._ensure_recording(url, filename)
+            path = self._ensure_local_recording(local, filename)
             if path is not None:
-                self._assets[filename] = AudioAsset(filename, path)
+                self._assets[filename] = AudioAsset(
+                    filename, path, self._wav_duration(Path(path))
+                )
+
+    def _ensure_local_recording(self, local: str, filename: str) -> str | None:
+        target = Path(AUTO_AUDIO_DIR) / filename
+        if target.is_symlink():
+            self._remove_file(target)
+        if target.is_file() and self._is_valid_wav(target):
+            return str(target)
+        if target.exists():
+            self._remove_file(target)
+
+        if not self._is_safe_filename(local):
+            logger.error("Local audio recording '%s' cannot be used", local)
+            return None
+        source = LOCAL_AUDIO_RECORDINGS_DIR / local
+        if source.is_symlink() or not self._is_valid_wav(source):
+            logger.error("Local audio recording '%s' is missing or not WAV", local)
+            return None
+
+        temporary_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="wb",
+                prefix=".audio-local-",
+                suffix=".wav",
+                dir=AUTO_AUDIO_DIR,
+                delete=False,
+            ) as temporary_file:
+                temporary_path = Path(temporary_file.name)
+                with source.open("rb") as source_file:
+                    shutil.copyfileobj(source_file, temporary_file)
+            os.replace(temporary_path, target)
+            temporary_path = None
+            logger.info("Installed local audio recording '%s'.", filename)
+            return str(target)
+        except OSError as exc:
+            logger.error(
+                "Unable to install local audio '%s': %s",
+                filename,
+                type(exc).__name__,
+            )
+            return None
+        finally:
+            if temporary_path is not None:
+                self._remove_file(temporary_path)
 
     def _read_manifest(self) -> list[dict[str, Any]]:
         try:
@@ -102,95 +146,6 @@ class AudioAssetsManager:
             logger.error("Default audio recordings manifest must contain a list")
             return []
         return [entry for entry in manifest if isinstance(entry, dict)]
-
-    def _ensure_recording(self, url: str, filename: str) -> str | None:
-        target = Path(AUTO_AUDIO_DIR) / filename
-        if target.is_symlink():
-            self._remove_file(target)
-        if target.is_file() and self._is_valid_wav(target):
-            return str(target)
-        if target.exists():
-            self._remove_file(target)
-
-        temporary_path: Path | None = None
-        try:
-            request = urllib.request.Request(
-                url,
-                headers={"User-Agent": "ViPPET/1.0"},
-            )
-            logger.info("Downloading '%s' from %s...", filename, url)
-            started_at = time.perf_counter()
-            with (
-                urllib.request.urlopen(request, timeout=600) as response,
-                tempfile.NamedTemporaryFile(
-                    mode="wb",
-                    prefix=".audio-download-",
-                    suffix=".wav",
-                    dir=AUTO_AUDIO_DIR,
-                    delete=False,
-                ) as temporary_file,
-            ):
-                temporary_path = Path(temporary_file.name)
-                if getattr(response, "status", 200) != 200:
-                    logger.error(
-                        "Unable to download default audio '%s': HTTP %s",
-                        filename,
-                        response.status,
-                    )
-                    return None
-                final_url = response.geturl()
-                if (
-                    not isinstance(final_url, str)
-                    or urlparse(final_url).scheme != "https"
-                ):
-                    logger.error(
-                        "Default audio '%s' redirected to a non-HTTPS URL", filename
-                    )
-                    return None
-                headers = getattr(response, "headers", None)
-                content_length = (
-                    headers.get("Content-Length") if headers is not None else None
-                )
-                if (
-                    isinstance(content_length, str)
-                    and content_length.isdigit()
-                    and int(content_length) > MAX_AUDIO_DOWNLOAD_BYTES
-                ):
-                    logger.error("Default audio '%s' exceeds the size limit", filename)
-                    return None
-                downloaded_bytes = 0
-                while chunk := response.read(8192):
-                    downloaded_bytes += len(chunk)
-                    if downloaded_bytes > MAX_AUDIO_DOWNLOAD_BYTES:
-                        logger.error(
-                            "Default audio '%s' exceeds the size limit", filename
-                        )
-                        return None
-                    temporary_file.write(chunk)
-            if not self._is_valid_wav(temporary_path):
-                logger.error("Downloaded default audio '%s' is not valid WAV", filename)
-                return None
-            os.replace(temporary_path, target)
-            temporary_path = None
-            elapsed_seconds = time.perf_counter() - started_at
-            file_size = target.stat().st_size if target.is_file() else 0
-            logger.info(
-                "Downloaded '%s' (%.1f MB) in %.1f seconds.",
-                filename,
-                file_size / (1024 * 1024),
-                elapsed_seconds,
-            )
-            return str(target)
-        except (OSError, TimeoutError, urllib.error.URLError) as exc:
-            logger.error(
-                "Unable to download default audio '%s': %s",
-                filename,
-                type(exc).__name__,
-            )
-            return None
-        finally:
-            if temporary_path is not None:
-                self._remove_file(temporary_path)
 
     @staticmethod
     def _is_safe_filename(filename: str) -> bool:
@@ -214,11 +169,19 @@ class AudioAssetsManager:
             return False
 
     @staticmethod
+    def _wav_duration(path: Path) -> float:
+        with wave.open(str(path), "rb") as audio:
+            return audio.getnframes() / audio.getframerate()
+
+    @staticmethod
     def _remove_file(path: Path) -> None:
         try:
             path.unlink(missing_ok=True)
         except OSError:
             logger.warning("Unable to remove invalid audio file")
+
+    def list_assets(self) -> list[AudioAsset]:
+        return sorted(self._assets.values(), key=lambda asset: asset.filename.lower())
 
     def get_asset(self, filename: str) -> AudioAsset | None:
         if not self._is_safe_filename(filename):

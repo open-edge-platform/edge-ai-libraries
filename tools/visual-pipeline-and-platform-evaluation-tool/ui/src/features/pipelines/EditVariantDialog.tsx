@@ -141,7 +141,7 @@ export const EditVariantDialog = ({
         toast.success("Variant created successfully");
         onSuccess?.();
 
-        navigate(`/pipelines/${pipelineId}/${newVariant.id}`);
+        navigate(`/pipelines/vision/${pipelineId}/${newVariant.id}`);
       }
     } catch (error) {
       handleApiError(

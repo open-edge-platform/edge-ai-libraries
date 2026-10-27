@@ -71,7 +71,7 @@ export const routeConfig: Array<RouteObject> = [
     path: "pipelines/audio/:pipelineId/:variantId",
     Component: VoiceConversion,
   },
-  { path: "pipelines/:id/:variant", Component: Pipelines },
+  { path: "pipelines/vision/:id/:variant", Component: Pipelines },
   { path: "models", Component: Models },
   { path: "videos", Component: Videos },
   { path: "images", Component: ImageSets },

@@ -2286,6 +2286,22 @@ class TestPredefinedPipelinesStructure(unittest.TestCase):
         self.assertGreater(multi_variant_count, 0)
         self.assertEqual(multi_variant_count, predefined_count)
 
+    @patch("managers.pipeline_manager.PipelineLoader")
+    def test_audio_definitions_are_skipped(self, mock_loader_cls):
+        """Audio definitions have no graph and must not be loaded as pipelines."""
+        configs = {
+            "config_0.yaml": MOCK_PIPELINE_CONFIGS[0],
+            "config_1.yaml": {"name": "Speech to Text", "type": "audio"},
+        }
+        mock_loader_cls.list.return_value = list(configs)
+        mock_loader_cls.config.side_effect = configs.__getitem__
+        mock_loader_cls.get_pipelines_directory.return_value = "/mock/pipelines"
+
+        names = [p.name for p in PipelineManager().get_pipelines()]
+
+        self.assertIn("object-detection", names)
+        self.assertNotIn("Speech to Text", names)
+
 
 class TestDeletePredefinedPipeline(unittest.TestCase):
     """Test cases for deleting predefined pipelines."""

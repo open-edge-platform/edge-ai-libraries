@@ -8,6 +8,7 @@ import {
   useGetDensityStatusesQuery,
   useGetOptimizationStatusesQuery,
   useGetPerformanceStatusesQuery,
+  useStopAudioJobMutation,
   useStopDensityTestJobMutation,
   useStopPerformanceTestJobMutation,
 } from "@/api/api.generated";
@@ -34,9 +35,13 @@ export const Jobs = () => {
   const [stoppingDensityJobIds, setStoppingDensityJobIds] = useState<
     Set<string>
   >(new Set());
+  const [stoppingAudioJobIds, setStoppingAudioJobIds] = useState<Set<string>>(
+    new Set(),
+  );
 
   const [stopPerformanceTestJob] = useStopPerformanceTestJobMutation();
   const [stopDensityTestJob] = useStopDensityTestJobMutation();
+  const [stopAudioJob] = useStopAudioJobMutation();
 
   const { data: performanceJobs, isLoading: isLoadingPerformance } =
     useGetPerformanceStatusesQuery(undefined, {
@@ -106,6 +111,29 @@ export const Jobs = () => {
     });
   }, [densityJobs]);
 
+  useEffect(() => {
+    if (!audioJobs) return;
+
+    const activeIds = new Set(
+      audioJobs
+        .filter((job) => job.state === "QUEUED" || job.state === "RUNNING")
+        .map((job) => job.id),
+    );
+
+    setStoppingAudioJobIds((prev) => {
+      if (prev.size === 0) return prev;
+
+      const next = new Set<string>();
+      prev.forEach((id) => {
+        if (activeIds.has(id)) {
+          next.add(id);
+        }
+      });
+
+      return next;
+    });
+  }, [audioJobs]);
+
   const tabs = [
     { id: "performance", label: "Performance", path: "/jobs/performance" },
     { id: "density", label: "Density", path: "/jobs/density" },
@@ -138,6 +166,25 @@ export const Jobs = () => {
       await stopDensityTestJob({ jobId }).unwrap();
     } catch (error) {
       handleApiError(error, "Failed to stop density job");
+    }
+  };
+
+  const handleStopAudioJob = async (jobId: string) => {
+    setStoppingAudioJobIds((prev) => {
+      const next = new Set(prev);
+      next.add(jobId);
+      return next;
+    });
+
+    try {
+      await stopAudioJob({ jobId }).unwrap();
+    } catch (error) {
+      setStoppingAudioJobIds((prev) => {
+        const next = new Set(prev);
+        next.delete(jobId);
+        return next;
+      });
+      handleApiError(error, "Failed to stop audio job");
     }
   };
 
@@ -500,7 +547,7 @@ export const Jobs = () => {
                         <TableHead>Elapsed Time</TableHead>
                         <TableHead>Service Latency</TableHead>
                         <TableHead>Artifact</TableHead>
-                        <TableHead className="w-[6rem]">Actions</TableHead>
+                        <TableHead className="w-[11rem]">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -563,12 +610,28 @@ export const Jobs = () => {
                               {job.artifact_available ? "Available" : "-"}
                             </TableCell>
                             <TableCell>
-                              <Link
-                                to={`/jobs/audio/${job.id}`}
-                                className="text-status-link hover:text-status-link-hover hover:underline"
-                              >
-                                View
-                              </Link>
+                              <div className="flex items-center gap-3">
+                                <Link
+                                  to={`/jobs/audio/${job.id}`}
+                                  className="text-status-link hover:text-status-link-hover hover:underline"
+                                >
+                                  View
+                                </Link>
+                                {active && (
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() =>
+                                      void handleStopAudioJob(job.id)
+                                    }
+                                    disabled={stoppingAudioJobIds.has(job.id)}
+                                  >
+                                    {stoppingAudioJobIds.has(job.id)
+                                      ? "Stopping..."
+                                      : "Stop"}
+                                  </Button>
+                                )}
+                              </div>
                             </TableCell>
                           </TableRow>
                         );

@@ -1,7 +1,13 @@
 // SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-import { expect, test, type Page, type Request } from "@playwright/test";
+import {
+  expect,
+  test,
+  type Locator,
+  type Page,
+  type Request,
+} from "@playwright/test";
 import { Buffer } from "node:buffer";
 import process from "node:process";
 
@@ -25,13 +31,11 @@ const AUDIO_PIPELINES = [
       { id: "npu", name: "NPU", device: "NPU" },
     ],
     defaults: {
-      audio: "OSR_us_000_0060_8k.wav",
+      audio: "sample_male.wav",
       language: "en",
       text: null,
       voice: null,
     },
-    available: true,
-    unavailable_reason: null,
   },
   {
     id: "text-to-speech",
@@ -53,8 +57,6 @@ const AUDIO_PIPELINES = [
       text: DEFAULT_TTS_TEXT,
       voice: "Ryan",
     },
-    available: true,
-    unavailable_reason: null,
   },
 ];
 const AUDIO_MODELS = [
@@ -77,6 +79,21 @@ const AUDIO_MODELS = [
     variants: [],
   },
 ];
+
+const AUDIO_RECORDINGS = [
+  {
+    filename: "sample_male.wav",
+    duration_seconds: 33,
+    audio_url: "/api/v1/voice/recordings/sample_male.wav/audio",
+  },
+  {
+    filename: "sample_female.wav",
+    duration_seconds: 15,
+    audio_url: "/api/v1/voice/recordings/sample_female.wav/audio",
+  },
+];
+let recordingListRequests: string[] = [];
+let recordingAudioRequests: string[] = [];
 
 const VISION_PIPELINES = [
   "People Detection",
@@ -133,6 +150,14 @@ function wav(volume = 1): Buffer {
 async function chooseOption(page: Page, label: string, option: string) {
   await page.getByRole("combobox", { name: label }).click();
   await page.getByRole("option", { name: option, exact: true }).click();
+}
+
+async function expectMetricsEmpty(metrics: Locator) {
+  for (const name of ["Request duration", "Service round trip"]) {
+    await expect(metrics.getByRole("group", { name }).locator("p")).toHaveText(
+      "--",
+    );
+  }
 }
 
 let ttsJobSequence = 0;
@@ -264,10 +289,22 @@ async function mockTtsJob(
 }
 
 test.beforeEach(async ({ page }) => {
+  recordingListRequests = [];
+  recordingAudioRequests = [];
   await page.route("**/api/v1/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path.endsWith("/voice/pipelines")) {
       await route.fulfill({ json: AUDIO_PIPELINES });
+      return;
+    }
+    if (path.endsWith("/voice/recordings")) {
+      recordingListRequests.push(path);
+      await route.fulfill({ json: AUDIO_RECORDINGS });
+      return;
+    }
+    if (path.includes("/voice/recordings/") && path.endsWith("/audio")) {
+      recordingAudioRequests.push(path);
+      await route.fulfill({ contentType: "audio/wav", body: wav() });
       return;
     }
     if (path.endsWith("/models/check-status")) {
@@ -339,9 +376,7 @@ test.beforeEach(async ({ page }) => {
   );
 });
 
-test("hides pipeline sections until the catalog finishes loading", async ({
-  page,
-}) => {
+test("shows a loader until the catalog finishes loading", async ({ page }) => {
   let releaseRequests: (() => void) | undefined;
   const pendingResponses = new Promise<void>((resolve) => {
     releaseRequests = resolve;
@@ -365,80 +400,98 @@ test("hides pipeline sections until the catalog finishes loading", async ({
   await page.goto(new URL("/pipelines", page.url()).toString(), {
     waitUntil: "domcontentloaded",
   });
-  await expect(
-    page.getByRole("button", { name: "Create Pipeline" }),
-  ).toBeVisible();
-  await expect(page.getByRole("region", { name: "Vision" })).toHaveCount(0);
-  await expect(page.getByRole("region", { name: "Time Series" })).toHaveCount(
+  await expect(page.getByRole("tab", { name: "Vision" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Audio" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Create Pipeline" })).toHaveCount(
     0,
   );
-  await expect(page.getByRole("region", { name: "Audio" })).toHaveCount(0);
 
   releaseRequests?.();
 
-  await expect(page.getByRole("region", { name: "Vision" })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Time Series" })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Audio" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Create Pipeline" }),
+  ).toBeVisible();
+  await expect(page.getByText("People Detection", { exact: true })).toBeVisible();
+  await expect(page.getByText("Anomaly Detection")).toHaveCount(0);
 });
 
-test("hides Audio when the Audio catalog is empty", async ({ page }) => {
+test("shows no cards in the Audio tab when the Audio catalog is empty", async ({
+  page,
+}) => {
   await page.route("**/api/v1/voice/pipelines", (route) =>
     route.fulfill({ json: [] }),
   );
 
-  await page.goto(new URL("/pipelines", page.url()).toString());
+  await page.goto(new URL("/pipelines?tab=audio", page.url()).toString());
 
-  await expect(page.getByRole("region", { name: "Vision" })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Audio" })).toHaveCount(0);
+  await expect(page.getByRole("tab", { name: "Audio" })).toHaveAttribute(
+    "data-state",
+    "active",
+  );
+  await expect(page.locator('[data-slot="card"]')).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Create Pipeline" }),
+  ).toBeDisabled();
 });
 
-test("groups Vision, Time Series, and Audio pipelines", async ({ page }) => {
+test("lists Vision and Audio pipelines in separate tabs", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(new URL("/pipelines", page.url()).toString());
 
   const createPipeline = page.getByRole("button", { name: "Create Pipeline" });
-  await expect(createPipeline).toBeVisible();
   await expect(createPipeline).toHaveCount(1);
-  const vision = page.getByRole("region", { name: "Vision" });
-  await expect(vision).toBeVisible();
   await expect(
-    vision.getByRole("button", { name: "Create Pipeline" }),
-  ).toHaveCount(0);
-  await expect(page.getByRole("region", { name: "Time Series" })).toHaveCount(
+    page.getByRole("link", { name: "People Detection" }).first(),
+  ).toHaveAttribute(
+    "href",
+    "/pipelines/vision/vision-1/default?source=pipelines",
+  );
+  await expect(page.getByText("Speech to Text")).toHaveCount(0);
+  const visionCard = page.locator('[data-slot="card"]').first();
+  const visionBox = await visionCard.boundingBox();
+
+  await page.getByRole("tab", { name: "Audio" }).click();
+
+  await expect(page).toHaveURL(/\/pipelines\?tab=audio$/);
+  await expect(createPipeline).toBeDisabled();
+  await expect(page.getByText("People Detection", { exact: true })).toHaveCount(
     0,
   );
-  const audio = page.getByRole("region", { name: "Audio" });
-  await expect(audio).toBeVisible();
   await expect(
-    audio.getByRole("link", { name: /Speech to Text/ }),
+    page.getByRole("link", { name: /Speech to Text/ }).first(),
   ).toHaveAttribute("href", "/pipelines/audio/speech-to-text/cpu");
   await expect(
-    audio.getByRole("link", { name: /Text to Speech/ }),
+    page.getByRole("link", { name: /Text to Speech/ }).first(),
   ).toHaveAttribute("href", "/pipelines/audio/text-to-speech/cpu");
+  await expect(page.getByRole("img", { name: "Speech to Text" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "Text to Speech" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "NPU" })).toHaveAttribute(
+    "href",
+    "/pipelines/audio/speech-to-text/npu",
+  );
   await expect(
-    audio.getByRole("img", { name: "Speech to Text" }),
-  ).toBeVisible();
-  await expect(
-    audio.getByRole("img", { name: "Text to Speech" }),
-  ).toBeVisible();
+    page.getByRole("button", { name: /Edit Pipeline|Delete/ }),
+  ).toHaveCount(0);
 
-  const visionCard = vision.locator('[data-slot="card"]').first();
-  const audioCard = audio.locator('[data-slot="card"]').first();
-  const visionBox = await visionCard.boundingBox();
-  const audioBox = await audioCard.boundingBox();
+  const audioBox = await page
+    .locator('[data-slot="card"]')
+    .first()
+    .boundingBox();
   expect(visionBox).not.toBeNull();
   expect(audioBox).not.toBeNull();
   expect(audioBox!.width).toBeLessThanOrEqual(visionBox!.width + 8);
 });
 
-test("returns from an Audio pipeline to the pipeline catalog", async ({
-  page,
-}) => {
+test("returns from an Audio pipeline to the Audio tab", async ({ page }) => {
   const back = page.getByRole("link", { name: "Back" });
-  await expect(back).toHaveAttribute("href", "/pipelines");
+  await expect(back).toHaveAttribute("href", "/pipelines?tab=audio");
   await expect(page.getByText("Back to Pipelines")).toHaveCount(0);
   await back.click();
-  await expect(page).toHaveURL(/\/pipelines$/);
+  await expect(page).toHaveURL(/\/pipelines\?tab=audio$/);
+  await expect(page.getByRole("tab", { name: "Audio" })).toHaveAttribute(
+    "data-state",
+    "active",
+  );
 });
 
 test("prompts to install Whisper Base when the STT model is missing", async ({
@@ -503,16 +556,21 @@ test("prompts to install SpeechT5 when the TTS model is missing", async ({
   ).toBeDisabled();
 });
 
-test("runs the managed speech-to-text preset without an upload", async ({
+test("runs the predefined speech-to-text recording by default", async ({
   page,
 }) => {
   await page.route(
     "**/voice/pipelines/speech-to-text/variants/cpu/runs",
-    (route) =>
-      route.fulfill({
+    (route) => {
+      expect(route.request().postDataJSON()).toEqual({
+        recording: "sample_male.wav",
+        language: "en",
+      });
+      return route.fulfill({
         status: 202,
         json: { job_id: "stt-job", status: "QUEUED" },
-      }),
+      });
+    },
   );
   await page.route("**/voice/jobs/stt-job", (route) =>
     route.fulfill({
@@ -538,7 +596,9 @@ test("runs the managed speech-to-text preset without an upload", async ({
   await page.goto(
     new URL("/pipelines/audio/speech-to-text/cpu", page.url()).toString(),
   );
-  await expect(page.getByText("OSR_us_000_0060_8k.wav")).toBeVisible();
+  await expect(
+    page.getByRole("combobox", { name: "Predefined recording" }),
+  ).toContainText("sample_male.wav");
   await expect(
     page.getByRole("button", { name: "Transcribe", exact: true }),
   ).toBeEnabled();
@@ -548,6 +608,111 @@ test("runs the managed speech-to-text preset without an upload", async ({
   );
   await expect(page.getByText("Audio pipeline run started")).toHaveCount(1);
   await expect(page.getByText("Audio pipeline run completed")).toHaveCount(1);
+});
+
+test("lists predefined recordings from the recordings endpoint", async ({
+  page,
+}) => {
+  const select = page.getByRole("combobox", { name: "Predefined recording" });
+  await expect(select).toContainText("sample_male.wav");
+  expect(recordingListRequests).toEqual(["/api/v1/voice/recordings"]);
+
+  await select.click();
+  await expect(page.getByRole("option")).toHaveText([
+    "sample_male.wav (0:33)",
+    "sample_female.wav (0:15)",
+  ]);
+  await page.getByRole("option", { name: /sample_female\.wav/ }).click();
+
+  const preview = page.getByLabel("Input recording");
+  await expect(preview).toHaveAttribute(
+    "src",
+    "/api/v1/voice/recordings/sample_female.wav/audio",
+  );
+  await expect(select).toContainText("sample_female.wav");
+  await expect
+    .poll(() => recordingAudioRequests)
+    .toContain("/api/v1/voice/recordings/sample_female.wav/audio");
+
+  await chooseOption(page, "Recognition language", "German");
+  await mockSttJob(page, {
+    transcript: "Hallo Welt",
+    inspectRequest: (request) => {
+      expect(request.url()).toContain(
+        "/voice/pipelines/speech-to-text/variants/cpu/runs",
+      );
+      expect(request.postDataJSON()).toEqual({
+        recording: "sample_female.wav",
+        language: "de",
+      });
+    },
+  });
+  await page.getByRole("button", { name: "Transcribe", exact: true }).click();
+  await expect(page.getByLabel("Transcription")).toHaveValue("Hallo Welt");
+});
+
+test("previews the selected audio for every input source", async ({ page }) => {
+  const preview = page.getByLabel("Input recording");
+  const transcribe = page.getByRole("button", {
+    name: "Transcribe",
+    exact: true,
+  });
+  await expect(
+    page.getByRole("radio", { name: "Available audio samples" }),
+  ).toBeChecked();
+  await expect(preview).toHaveAttribute("src", /\/voice\/recordings\//);
+
+  await page.getByRole("radio", { name: "Upload" }).click();
+  await expect(page.getByText("No audio selected.")).toBeVisible();
+  await expect(preview).toHaveCount(0);
+  await expect(transcribe).toBeDisabled();
+
+  await page.getByLabel("Audio file").setInputFiles({
+    name: "sentence.wav",
+    mimeType: "audio/wav",
+    buffer: wav(),
+  });
+  await expect(page.getByRole("radio", { name: "Upload" })).toBeChecked();
+  await expect(preview).toHaveAttribute("src", /^blob:/);
+  await expect(page.getByText("Selected file: sentence.wav")).toBeVisible();
+  await expect(transcribe).toBeEnabled();
+
+  await page.getByRole("radio", { name: "Available audio samples" }).click();
+  await expect(preview).toHaveAttribute(
+    "src",
+    "/api/v1/voice/recordings/sample_male.wav/audio",
+  );
+  await expect(page.getByText("Selected file:")).toHaveCount(0);
+
+  await page.getByRole("radio", { name: "Microphone" }).click();
+  await expect(page.getByText("No audio selected.")).toBeVisible();
+  await expect(transcribe).toBeDisabled();
+});
+
+test("keeps upload available when predefined recordings fail to load", async ({
+  page,
+}) => {
+  await page.route("**/api/v1/voice/recordings", (route) =>
+    route.fulfill({ status: 500, json: { detail: "Unexpected error" } }),
+  );
+  await page.reload();
+
+  await expect(page.getByRole("alert")).toHaveText(
+    "Unable to load predefined recordings.",
+  );
+  await expect(
+    page.getByRole("button", { name: "Transcribe", exact: true }),
+  ).toBeDisabled();
+  await mockSttJob(page, { transcript: "Uploaded fallback" });
+  await page.getByLabel("Audio file").setInputFiles({
+    name: "sentence.wav",
+    mimeType: "audio/wav",
+    buffer: wav(),
+  });
+  await page.getByRole("button", { name: "Transcribe", exact: true }).click();
+  await expect(page.getByLabel("Transcription")).toHaveValue(
+    "Uploaded fallback",
+  );
 });
 
 test("runs the managed text-to-speech preset with YAML defaults", async ({
@@ -743,20 +908,34 @@ for (const viewport of [
     const uploadBox = await page
       .getByRole("button", { name: /^Upload audio/ })
       .boundingBox();
+    const predefinedSelect = page.getByRole("combobox", {
+      name: "Predefined recording",
+    });
+    await expect(predefinedSelect).toBeVisible();
+    const predefinedBox = await predefinedSelect.boundingBox();
     const languageBox = await page
       .getByLabel("Recognition language")
       .boundingBox();
     expect(recordBox).not.toBeNull();
     expect(uploadBox).not.toBeNull();
+    expect(predefinedBox).not.toBeNull();
     expect(languageBox).not.toBeNull();
-    if (viewport.width >= 768) {
-      expect(Math.abs(recordBox!.width - uploadBox!.width)).toBeLessThan(2);
-      expect(Math.abs(recordBox!.width - languageBox!.width)).toBeLessThan(2);
-      expect(Math.abs(recordBox!.x - languageBox!.x)).toBeLessThan(2);
-    } else {
-      expect(uploadBox!.y).toBeGreaterThan(recordBox!.y);
-      expect(languageBox!.y).toBeGreaterThan(uploadBox!.y);
-    }
+    expect(Math.abs(recordBox!.width - uploadBox!.width)).toBeLessThan(2);
+    expect(Math.abs(recordBox!.width - predefinedBox!.width)).toBeLessThan(2);
+    expect(uploadBox!.y).toBeGreaterThan(predefinedBox!.y);
+    expect(recordBox!.y).toBeGreaterThan(uploadBox!.y);
+    expect(languageBox!.y).toBeGreaterThan(recordBox!.y);
+    const horizontalOverflow = await page.evaluate(() => {
+      let element: HTMLElement | null = document.querySelector("#voice-file");
+      while (
+        element &&
+        !["auto", "scroll"].includes(getComputedStyle(element).overflowX)
+      ) {
+        element = element.parentElement;
+      }
+      return element ? element.scrollWidth - element.clientWidth : 0;
+    });
+    expect(horizontalOverflow).toBeLessThanOrEqual(1);
     const sttMetrics = page.getByRole("region", {
       name: "Speech to text metrics",
     });
@@ -769,7 +948,7 @@ for (const viewport of [
     const metricsRail = page.getByRole("complementary", {
       name: "Performance and platform metrics",
     });
-    await expect(sttMetrics).toContainText("Awaiting conversion");
+    await expectMetricsEmpty(sttMetrics);
     await expect(requestDurationCard).toBeVisible();
     await expect(serviceRoundTripCard).toBeVisible();
     const requestCardBox = await requestDurationCard.boundingBox();
@@ -869,9 +1048,9 @@ for (const viewport of [
     await page.goto(
       new URL("/pipelines/audio/text-to-speech/cpu", page.url()).toString(),
     );
-    await expect(
+    await expectMetricsEmpty(
       page.getByRole("region", { name: "Text to speech metrics" }),
-    ).toContainText("Awaiting conversion");
+    );
     const ttsMetricsPanel = page.getByRole("region", {
       name: "Text to speech metrics",
     });
@@ -889,20 +1068,13 @@ for (const viewport of [
     ).toBeEnabled();
     await expect(page.getByLabel("Voice")).toHaveText("Ryan");
     const voiceBox = await page.getByLabel("Voice").boundingBox();
-    const sampleBox = await page.getByLabel("Sample text").boundingBox();
     const textBox = await page.getByLabel("Text input").boundingBox();
     expect(voiceBox).not.toBeNull();
-    expect(sampleBox).not.toBeNull();
     expect(textBox).not.toBeNull();
-    expect(Math.abs(sampleBox!.width - voiceBox!.width)).toBeLessThan(2);
-    expect(Math.abs(sampleBox!.x - voiceBox!.x)).toBeLessThan(2);
-    if (viewport.width >= 768) {
-      expect(textBox!.width).toBeGreaterThan(voiceBox!.width * 1.8);
-      expect(Math.abs(textBox!.x - voiceBox!.x)).toBeLessThan(2);
-    } else {
-      expect(Math.abs(textBox!.width - voiceBox!.width)).toBeLessThan(2);
-      expect(textBox!.y).toBeGreaterThan(voiceBox!.y);
-    }
+    expect(Math.abs(textBox!.width - voiceBox!.width)).toBeLessThan(2);
+    expect(Math.abs(textBox!.x - voiceBox!.x)).toBeLessThan(2);
+    expect(textBox!.y).toBeGreaterThan(voiceBox!.y);
+    await expect(page.getByLabel("Sample text")).toHaveCount(0);
     await chooseOption(page, "Voice", "Angus");
     const textInput = page.getByLabel("Text input");
     await expect(textInput).toHaveAttribute("maxlength", "200");
@@ -980,21 +1152,19 @@ for (const viewport of [
     await chooseOption(page, "Voice", "Miles");
     await expect(page.getByLabel("Text input")).toHaveValue("Hello world");
     await expect(page.getByLabel("Generated speech")).toHaveCount(0);
-    await expect(
+    await expectMetricsEmpty(
       page.getByRole("region", { name: "Text to speech metrics" }),
-    ).toContainText("Awaiting conversion");
-    await chooseOption(
-      page,
-      "Sample text",
-      "Welcome to Intel Performance Studio.",
     );
+    await page
+      .getByLabel("Text input")
+      .fill("Welcome to Intel Performance Studio.");
     await expect(page.getByLabel("Text input")).toHaveValue(
       "Welcome to Intel Performance Studio.",
     );
     await expect(page.getByLabel("Generated speech")).toHaveCount(0);
-    await expect(
+    await expectMetricsEmpty(
       page.getByRole("region", { name: "Text to speech metrics" }),
-    ).toContainText("Awaiting conversion");
+    );
     await expect(
       metricsRail.getByRole("heading", { name: "CPU Usage", exact: true }),
     ).toBeVisible();
@@ -1088,7 +1258,7 @@ test("service failure and cancellation", async ({ page }) => {
     "The speech service is unavailable.",
   );
   await expect(page.getByText("Audio pipeline run failed")).toHaveCount(1);
-  await expect(metrics).toContainText("Conversion failed");
+  await expectMetricsEmpty(metrics);
   let release: (() => void) | undefined;
   const pending = new Promise<void>((resolve) => {
     release = resolve;
@@ -1096,14 +1266,14 @@ test("service failure and cancellation", async ({ page }) => {
   await mockTtsJob(page, { serviceMs: 900, waitForStart: pending });
   await page.getByRole("button", { name: "Generate speech" }).click();
   await expect(
-    page.getByRole("button", { name: "Cancel", exact: true }),
+    page.getByRole("button", { name: "Stop", exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("button", { name: "Stop", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Generate speech" }),
   ).toBeEnabled();
   await expect(page.getByLabel("Generated speech")).toHaveCount(0);
-  await expect(metrics).toContainText("Awaiting conversion");
+  await expectMetricsEmpty(metrics);
   await mockTtsJob(page, { serviceMs: 700 });
   await page.getByRole("button", { name: "Generate speech" }).click();
   await expect(metrics).toContainText("700.00ms");
@@ -1112,7 +1282,7 @@ test("service failure and cancellation", async ({ page }) => {
   await expect(page.getByText("Audio pipeline run completed")).toHaveCount(2);
 });
 
-test("distinguishes backend cancellation from stopped monitoring", async ({
+test("shows a backend cancelled job as cancelled, not failed", async ({
   page,
 }) => {
   await page.goto(
@@ -1128,22 +1298,134 @@ test("distinguishes backend cancellation from stopped monitoring", async ({
   await page.getByRole("button", { name: "Generate speech" }).click();
   await expect(page.getByText("Audio pipeline run cancelled")).toHaveCount(1);
   await expect(page.getByText("Audio pipeline run failed")).toHaveCount(0);
+});
 
-  let releaseStatus: (() => void) | undefined;
-  const statusReleased = new Promise<void>((resolve) => {
-    releaseStatus = resolve;
+for (const scenario of [
+  {
+    name: "speech-to-text",
+    path: "/pipelines/audio/speech-to-text/cpu",
+    run: "Transcribe",
+    operation: "speech_to_text",
+  },
+  {
+    name: "text-to-speech",
+    path: "/pipelines/audio/text-to-speech/cpu",
+    run: "Generate speech",
+    operation: "text_to_speech",
+  },
+] as const) {
+  test(`Stop cancels a running ${scenario.name} job through the stop endpoint`, async ({
+    page,
+  }) => {
+    const jobId = `cancel-${scenario.name}`;
+    const stopRequests: string[] = [];
+    let stopped = false;
+    await page.route(
+      `**/voice/pipelines/${scenario.name}/variants/*/runs`,
+      (route) =>
+        route.fulfill({
+          status: 202,
+          json: { job_id: jobId, status: "QUEUED" },
+        }),
+    );
+    await page.route(`**/voice/jobs/${jobId}`, (route) =>
+      route.fulfill({
+        json: {
+          id: jobId,
+          pipeline_id: scenario.name,
+          pipeline_name: scenario.name,
+          variant_id: "cpu",
+          variant_name: "CPU",
+          device: "CPU",
+          operation: scenario.operation,
+          status: stopped ? "CANCELLED" : "RUNNING",
+          created_at: "2026-10-09T10:00:00Z",
+          modified_at: "2026-10-09T10:00:01Z",
+          transcript: null,
+          artifact_url: null,
+          service_round_trip_ms: null,
+          error: null,
+        },
+      }),
+    );
+    await page.route(`**/api/v1/jobs/audio/${jobId}`, (route) => {
+      stopRequests.push(
+        `${route.request().method()} ${new URL(route.request().url()).pathname}`,
+      );
+      stopped = true;
+      return route.fulfill({ json: { message: `Job ${jobId} stopped` } });
+    });
+
+    await page.goto(new URL(scenario.path, page.url()).toString());
+    if (scenario.name === "text-to-speech") {
+      await page.getByLabel("Text input").fill("Hello world");
+    }
+    const run = page.getByRole("button", { name: scenario.run, exact: true });
+    await expect(run).toBeEnabled();
+    await run.click();
+
+    const stop = page.getByRole("button", { name: "Stop", exact: true });
+    await expect(stop).toBeVisible();
+    await expect(run).toHaveCount(0);
+    await expect(page.getByText("Audio pipeline run started")).toHaveCount(1);
+    expect(stopRequests).toEqual([]);
+
+    await stop.click();
+
+    await expect(page.getByText("Audio pipeline run cancelled")).toHaveCount(1);
+    await expect(page.getByText("Audio pipeline run failed")).toHaveCount(0);
+    expect(stopRequests).toEqual([`DELETE /api/v1/jobs/audio/${jobId}`]);
+    await expect(
+      page.getByRole("button", { name: scenario.run, exact: true }),
+    ).toBeEnabled();
+    await expect(stop).toHaveCount(0);
   });
-  await mockTtsJob(page, { waitForStatus: statusReleased });
+}
+
+test("reports a failed stop request and keeps the job running", async ({
+  page,
+}) => {
+  const jobId = "stop-failure";
+  await page.route("**/voice/pipelines/text-to-speech/variants/*/runs", (route) =>
+    route.fulfill({ status: 202, json: { job_id: jobId, status: "QUEUED" } }),
+  );
+  await page.route(`**/voice/jobs/${jobId}`, (route) =>
+    route.fulfill({
+      json: {
+        id: jobId,
+        pipeline_id: "text-to-speech",
+        pipeline_name: "Text to Speech",
+        variant_id: "cpu",
+        variant_name: "CPU",
+        device: "CPU",
+        operation: "text_to_speech",
+        status: "RUNNING",
+        created_at: "2026-10-09T10:00:00Z",
+        modified_at: "2026-10-09T10:00:01Z",
+        transcript: null,
+        artifact_url: null,
+        service_round_trip_ms: null,
+        error: null,
+      },
+    }),
+  );
+  await page.route(`**/api/v1/jobs/audio/${jobId}`, (route) =>
+    route.fulfill({
+      status: 409,
+      json: { message: `Audio pipeline job '${jobId}' is not running.` },
+    }),
+  );
+  await page.goto(
+    new URL("/pipelines/audio/text-to-speech/cpu", page.url()).toString(),
+  );
+  await page.getByLabel("Text input").fill("Hello world");
   await page.getByRole("button", { name: "Generate speech" }).click();
-  await expect(page.getByText("Audio pipeline run started")).toHaveCount(2);
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
-  await expect(page.getByText("Audio job monitoring stopped")).toHaveCount(1);
-  await expect(
-    page.getByText("The job may continue in the background."),
-  ).toBeVisible();
-  await expect(page.getByText("Audio pipeline run cancelled")).toHaveCount(1);
-  releaseStatus?.();
-  await expect(page.getByText("Audio pipeline run completed")).toHaveCount(0);
+
+  const stop = page.getByRole("button", { name: "Stop", exact: true });
+  await stop.click();
+
+  await expect(stop).toBeEnabled();
+  await expect(page.getByText("Audio pipeline run cancelled")).toHaveCount(0);
 });
 
 test("missing or zero service timing does not break conversion", async ({
@@ -1198,6 +1480,7 @@ test("recording produces mono PCM WAV and releases microphone", async ({
     page.getByRole("button", { name: "Stop recording" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Stop recording" }).click();
+  await expect(page.getByRole("radio", { name: "Microphone" })).toBeChecked();
   await expect(page.getByLabel("Input recording")).toHaveJSProperty(
     "readyState",
     4,
@@ -1222,6 +1505,22 @@ test("recording produces mono PCM WAV and releases microphone", async ({
   ).toBe(true);
 });
 
+test("shows microphone errors inside the Microphone card", async ({ page }) => {
+  await page.addInitScript(() => {
+    navigator.mediaDevices.getUserMedia = () =>
+      Promise.reject(new Error("Permission denied"));
+  });
+  await page.reload();
+  await page.getByRole("button", { name: "Record", exact: true }).click();
+
+  const alert = page.getByRole("alert");
+  await expect(alert).toHaveText("Permission denied");
+  await expect(alert).toBeInViewport();
+  await expect(
+    page.getByRole("button", { name: "Record", exact: true }),
+  ).toBeEnabled();
+});
+
 test("waveform failure preserves audio playback and conversion metrics", async ({
   page,
 }) => {
@@ -1235,7 +1534,9 @@ test("waveform failure preserves audio playback and conversion metrics", async (
   await page.goto(
     new URL("/pipelines/audio/text-to-speech/cpu", page.url()).toString(),
   );
-  await chooseOption(page, "Sample text", "Your audio is ready for playback.");
+  await page
+    .getByLabel("Text input")
+    .fill("Your audio is ready for playback.");
   await mockTtsJob(page, { serviceMs: 120 });
   await page.getByRole("button", { name: "Generate speech" }).click();
   await expect(

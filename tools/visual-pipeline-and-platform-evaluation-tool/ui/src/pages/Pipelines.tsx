@@ -944,7 +944,7 @@ export const Pipelines = () => {
                 );
                 const firstVariant = remainingVariants[0];
                 if (firstVariant) {
-                  navigate(`/pipelines/${id}/${firstVariant.id}`);
+                  navigate(`/pipelines/vision/${id}/${firstVariant.id}`);
                 } else {
                   navigate("/pipelines");
                 }

@@ -84,6 +84,48 @@ test("lists Audio jobs without transcript content or stop actions", async ({
     ).toBe(true);
 });
 
+test("stops an active Audio job from the jobs list", async ({ page }) => {
+    const runningJob = {
+        ...completedTtsJob,
+        id: "job-running",
+        state: "RUNNING",
+        artifact_available: false,
+        service_round_trip_ms: null,
+    };
+    const stopRequests: string[] = [];
+    let stopped = false;
+    await page.route("**/api/v1/jobs/audio/status", (route) =>
+        route.fulfill({
+            json: [
+                completedSttJob,
+                stopped ? { ...runningJob, state: "CANCELLED" } : runningJob,
+            ],
+        }),
+    );
+    await page.route("**/api/v1/jobs/audio/job-running", (route) => {
+        stopRequests.push(
+            `${route.request().method()} ${new URL(route.request().url()).pathname}`,
+        );
+        stopped = true;
+        return route.fulfill({ json: { message: "Job job-running stopped" } });
+    });
+
+    await page.goto("/jobs/audio");
+
+    await expect(page.getByRole("button", { name: "Stop" })).toHaveCount(1);
+    expect(stopRequests).toEqual([]);
+
+    await page.getByRole("button", { name: "Stop" }).click();
+
+    await expect
+        .poll(() => stopRequests)
+        .toEqual(["DELETE /api/v1/jobs/audio/job-running"]);
+    await expect(
+        page.getByRole("row").filter({ hasText: "job-running" }),
+    ).toContainText("CANCELLED");
+    await expect(page.getByRole("button", { name: "Stop" })).toHaveCount(0);
+});
+
 test("shows Audio jobs loading and empty states", async ({ page }) => {
     let releaseRequest: (() => void) | undefined;
     const requestReleased = new Promise<void>((resolve) => {

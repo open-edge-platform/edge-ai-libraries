@@ -173,6 +173,42 @@ class TestAudioJobsAPI(unittest.TestCase):
         self.assertEqual(listed.status_code, 200)
         self.assertEqual(listed.json()[0]["id"], job.id)
 
+    def test_stop_audio_job_requests_cancellation(self) -> None:
+        self.manager.cancel_job = AsyncMock(
+            return_value=self._make_audio_job(
+                status=AudioPipelineJobStatus.CANCELLED, transcript=None
+            )
+        )
+
+        response = self.client.delete("/jobs/audio/audio-1")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"message": "Job audio-1 stopped"})
+        self.manager.cancel_job.assert_awaited_once_with("audio-1")
+
+    def test_stop_audio_job_returns_404_for_unknown_id(self) -> None:
+        self.manager.cancel_job = AsyncMock(
+            side_effect=ValueError("Audio pipeline job 'missing' not found.")
+        )
+
+        response = self.client.delete("/jobs/audio/missing")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertIn("not found", response.json()["message"])
+        self.manager.cancel_job.assert_awaited_once_with("missing")
+
+    def test_stop_audio_job_returns_409_when_not_running(self) -> None:
+        self.manager.cancel_job = AsyncMock(
+            side_effect=ValueError(
+                "Audio pipeline job 'audio-1' is not running (state: COMPLETED)."
+            )
+        )
+
+        response = self.client.delete("/jobs/audio/audio-1")
+
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("not running", response.json()["message"])
+
 
 class TestJobsAPI(unittest.TestCase):
     """

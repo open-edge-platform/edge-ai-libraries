@@ -3,33 +3,32 @@
 
 # Audio Pipelines
 
-The **Pipelines** page groups workloads into Vision, Time Series, and Audio.
+The **Pipelines** page has a Vision tab and an Audio tab.
 Audio includes YAML-defined **Speech to Text** and **Text to Speech** presets.
-After a successful empty Audio catalog response, the Audio section is hidden.
-If the Audio catalog request fails, the section remains visible with an error.
+If the Audio catalog request fails, the tab shows an error.
 Open either card under `/pipelines/audio/<preset-id>/<variant-id>` and run it
 immediately with its managed defaults, or replace those defaults with an
 upload, recording, edited text, voice, or language. The variant selector is the
 inference-device selector: Speech to Text provides CPU, GPU, and NPU variants,
-while Text to Speech provides CPU and GPU variants. The Back icon returns to
-the Pipelines catalog. Each conversion is independent. No conversation,
-previous transcript, LLM, or kiosk-core is involved.
+while Text to Speech provides CPU and GPU variants. The run button stays
+disabled until the pipeline's required models are installed. The Back icon
+returns to the Audio tab of the Pipelines page. Each conversion is independent.
+No conversation, previous transcript, LLM, or kiosk-core is involved.
 
 Each route renders one operation-specific workflow; there are no STT/TTS tabs.
 The pipeline card opens its first variant, and the variant selector updates the
 route for the same pipeline.
 
-The Speech to Text preset uses the managed
-`OSR_us_000_0060_8k.wav` recording from the Open Speech Repository and English.
-The Text to Speech preset uses the bundled 200-character demonstration text and
-the Ryan voice. Preset definitions live under `vippet/pipelines/audio/`; the
-recording URL and filename live in `shared/audio/default_recordings.yaml`; source attribution is
-documented here rather than stored in the manifest.
+The Speech to Text preset uses the bundled `sample_male.wav` recording and
+English. The Text to Speech preset uses the bundled 200-character demonstration
+text and the Ryan voice. Preset definitions live in `vippet/pipelines/` with
+`type: audio`.
 
-When the managed recording is absent, ViPPET downloads it over HTTPS and logs
-the source URL before transfer, then the resulting size and elapsed duration
-after validation and atomic publication. The log does not contain recording or
-transcript content.
+Predefined recordings are listed in `shared/audio/default_recordings.yaml`. Each
+entry sets `local: <file>.wav` and `filename`. The file is read from
+`vippet/pipelines/recordings/` (shipped in the image) and copied to
+`shared/audio/input/auto` only when the target is missing or not a valid WAV.
+Nothing is downloaded at startup.
 
 Every Speech to Text and Text to Speech conversion started from the Audio
 pipeline UI runs as a managed job. This includes uploaded or recorded audio,
@@ -68,7 +67,7 @@ core and Voice images, while
 named volumes. It uses the existing `.env` without rerunning `env-setup`.
 `make clean-output-audio` removes generated TTS WAV files. The broader
 `make clean` target also removes those outputs, but preserves managed Speech to
-Text input under `shared/audio/input` so downloaded default recordings can be
+Text input under `shared/audio/input` so installed default recordings can be
 reused.
 
 The Makefile defines and exports `AUDIO_ANALYZER_TAG` and `TEXT_TO_SPEECH_TAG`,
@@ -263,11 +262,13 @@ For GPU/NPU/WSL, use the same profile and override files as at startup.
 - Select a recognition language for STT. Default: English.
 - TTS input must contain 1-200 characters after trimming whitespace.
 - Playback is explicit using the audio controls. Generated WAV can be downloaded.
-- The STT source section offers the managed default, microphone recording, and
-  file upload. The selected audio preview and transcription appear below the
-  source controls.
-- The TTS **Sample text** menu fills the text input with an editable example.
-  Selecting a sample clears the previous generated audio and its request metrics.
+- The STT page walks through three steps: **1. Select input** (available audio
+  samples, file upload, or microphone recording, in that order; samples are
+  selected by default), **2. Verify audio (optional)** (a waveform preview and
+  player for the selected audio), and **3. Select language**, then press
+  **Transcribe**. All three inputs are shown stacked; the selected one is
+  highlighted. Available audio samples come from `GET /api/v1/voice/recordings`.
+  The transcription appears below the controls.
 - The TTS **Voice** menu initially selects `Ryan`. It also offers `Miles`,
   `Aaron`, `Nora`, `Elena`, `Kabir`, and `Angus`. Changing the voice preserves
   the text and clears the previous generated audio, metrics, and error.
@@ -292,12 +293,14 @@ For GPU/NPU/WSL, use the same profile and override files as at startup.
   A failed run keeps its inline error and shows a persistent, dismissible
   **Audio pipeline run failed** notification. A backend `CANCELLED` state shows
   **Audio pipeline run cancelled** instead.
-- Cancel stops local recording or the current browser request before a job is
-  accepted. After acceptance, it stops monitoring in that browser view and
-  shows **Audio job monitoring stopped** with a reminder that the backend job
-  may continue. The accepted run remains observable under **Jobs > Audio**.
-  Replaced requests and unmount cleanup discard stale terminal responses without
-  showing lifecycle notifications.
+- While a managed run is in progress, **Transcribe** and **Generate speech**
+  become a **Stop** button, like the Vision pipeline Run/Stop button. Stop
+  cancels the backend job (`DELETE /api/v1/jobs/audio/{job_id}`) and the UI shows
+  **Audio pipeline run cancelled** once the job reports `CANCELLED`. If the job
+  has not been accepted yet, Stop aborts the pending request. The microphone
+  **Cancel** button only stops local recording. Replaced requests and unmount
+  cleanup discard stale terminal responses without showing lifecycle
+  notifications.
 
 ## API
 
@@ -310,16 +313,21 @@ an Audio job.
 
 The preset API follows the asynchronous ViPPET job pattern:
 
-- `GET /api/v1/voice/pipelines` lists the Audio preset catalog and availability.
+- `GET /api/v1/voice/pipelines` lists the Audio preset catalog.
+- `GET /api/v1/voice/recordings` lists the predefined recordings (filename,
+  duration in seconds, and audio URL) registered from the recordings manifest.
+- `GET /api/v1/voice/recordings/{filename}/audio` returns one registered
+  recording as `audio/wav` for preview. Unregistered names return `404`.
 - `POST /api/v1/voice/pipelines/{pipeline_id}/variants/{variant_id}/runs`
   returns `202` with a job ID for the selected device variant.
 - `POST /api/v1/voice/pipelines/{pipeline_id}/runs` remains available for
   compatibility and selects the pipeline's first variant.
 
 Managed Speech to Text runs accept no request body to use the selected variant's
-device plus the validated YAML recording and language defaults. Alternatively,
-they accept multipart `file` and two-letter `language` fields for uploaded or
-recorded input. ViPPET copies multipart input to a random private temporary path
+device plus the validated YAML recording and language defaults. They also accept
+a JSON body with a registered `recording` filename and a two-letter `language`,
+or multipart `file` and `language` fields for uploaded or recorded input.
+ViPPET copies multipart input to a random private temporary path
 owned by the job and removes it after every terminal outcome or shutdown.
 Managed Text to Speech runs may omit the body to use YAML defaults or provide
 both `input` and `voice`:
@@ -348,9 +356,11 @@ removes them.
   Text to Speech detail can include the public WAV artifact URL.
 
 The Voice job endpoints are the conversion workflow's result and artifact API.
-The shared Jobs endpoints are a read-only projection of the same manager for
-the **Jobs > Audio** list and detail views; they do not create, stop, or cancel
-Audio jobs.
+The shared Jobs endpoints are a projection of the same manager for the
+**Jobs > Audio** list and detail views. They cannot create jobs, but
+`DELETE /api/v1/jobs/audio/{job_id}` stops a `QUEUED` or `RUNNING` job: `200`
+when cancellation was requested, `404` for an unknown job, and `409` when the
+job has already finished.
 
 ### Direct synchronous conversions
 
@@ -391,6 +401,16 @@ Start managed CPU STT with the registered recording and language:
 
 ```bash
 curl --noproxy '*' -sS -X POST \
+  http://127.0.0.1/api/v1/voice/pipelines/speech-to-text/variants/cpu/runs
+```
+
+List the predefined recordings and start CPU STT with one of them in German:
+
+```bash
+curl --noproxy '*' -sS http://127.0.0.1/api/v1/voice/recordings
+curl --noproxy '*' -sS -X POST \
+  -H 'Content-Type: application/json' \
+  -d '{"recording": "sample_female.wav", "language": "de"}' \
   http://127.0.0.1/api/v1/voice/pipelines/speech-to-text/variants/cpu/runs
 ```
 
@@ -482,7 +502,7 @@ language changes, a new recording starts, or a replacement conversion starts.
 Failed or cancelled browser requests do not display new results or timings.
 Navigating away aborts browser recording, polling, or managed-run fetches. It does
 not cancel an already-started managed backend job, which can still finish and
-persist a TTS artifact. Missing or invalid service timing values show "Service
+persist a TTS artifact; use **Stop** to cancel the job. Missing or invalid service timing values show "Service
 round trip unavailable" while conversion and browser-side duration remain
 available.
 
@@ -494,10 +514,10 @@ They use the existing metrics-manager stream and do not start extra service poll
 
 ## Storage and Security
 
-ViPPET does not log recording contents, sentences, or transcripts. It downloads
-the manifest-registered default WAV over HTTPS into `shared/audio/input/auto`,
-validates its logical filename and WAV structure, and atomically publishes it.
-Downloads have a global 200 MiB limit. Audio presets cannot select arbitrary
+ViPPET does not log recording contents, sentences, or transcripts. It copies
+each manifest-registered local WAV into `shared/audio/input/auto` after
+validating its logical filename and WAV structure, and atomically publishes it.
+Audio presets cannot select arbitrary
 paths or URLs. Completed preset TTS files are atomically written under
 `shared/audio/output` with UUID filenames and served only for known completed
 jobs. Define deployment cleanup for these files.
