@@ -10,7 +10,7 @@ verify_k3s () {
 }
 
 debian_30_profile_k3s () {
-  echo "git cirl" 
+  echo "git curl" 
 }
 
 debian_30_install_k3s () {

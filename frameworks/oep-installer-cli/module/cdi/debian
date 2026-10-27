@@ -16,7 +16,7 @@ verify_cdi () {
 }
 
 debian_55_profile_cdi () {
-  echo "golang python3_venv docker_io"
+  echo "git golang python3_venv docker_io"
 }
 
 debian_55_install_cdi () {
