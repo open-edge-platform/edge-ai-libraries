@@ -15,18 +15,23 @@ configure_loss_prevention_options () {
   local workload_dist="$(grep -m1 -E '^WORKLOAD_DIST [?]=' | cut -f2 -d= | tr -d ' ')"
 
   if [[ " $* " = *" --od "* ]]; then
+    echo "@@STEP Configured object detection $device"
     camera_stream="camera_to_workload_asc_object_detection.json"
     workload_dist="workload_to_pipeline_asc_object_detection_$device.json"
   elif [[ " $* " = *" --oc "* ]]; then
+    echo "@@STEP Configured object classification $device"
     camera_stream="camera_to_workload_asc_object_detection_classification.json"
     workload_dist="workload_to_pipeline_asc_object_detection_classification_$device.json"
   elif [[ " $* " = *" --age "* ]]; then
+    echo "@@STEP Configured age verification $device"
     camera_stream="camera_to_workload_asc_age_verification.json"
     workload_dist="workload_to_pipeline_asc_age_verification_$device.json"
   elif [[ " $* " = *" --lpvlm "* ]]; then
+    echo "@@STEP Configured VLM"
     camera_stream="camera_to_workload_vlm.json"
     workload_dist="workload_to_pipeline_vlm.json"
   elif [[ " $* " = *" --lp "* ]]; then
+    echo "@@STEP Configured default lp ${device/npu/gpu-npu}"
     camera_stream="camera_to_workload.json"
     workload_dist="workload_to_pipeline_${device/npu/gpu-npu}.json"
   fi
@@ -139,9 +144,18 @@ debian_90_start_loss_prevention () {
   echo "@@HIGHLIGHT $installer_name remove"
 }
 
+debian_90_stop_loss_prevention () {
+  configure_loss_prevention
+  cd "$workspace" && {
+    make down-lp || true
+    cd src && docker compose down -v --remove-orphans || true
+    pkill -f "python3 benchmark.py"
+  } || true
+}
+
 debian_90_remove_loss_prevention () {
   configure_loss_prevention
-  cd "$workspace" && make down-lp || true
+  debian_90_stop_loss_prevention "$@"
   ensure_rm "$workspace"
 }
 
