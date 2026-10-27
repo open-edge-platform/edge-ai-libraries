@@ -175,7 +175,7 @@ class TestBuildSummaryRowsCarriesKpiStatus(unittest.TestCase):
     def test_summary_row_exposes_npu_freq_and_status(self):
         tc = _test_case(
             hw_metrics={
-                "npu_frequency_avg": 1400.0,
+                "npu_frequency_mhz_avg": 1400.0,
                 "kpi_status": {"NPU": "idle", "CPU": "ok"},
             }
         )

@@ -204,17 +204,17 @@ class PmtTelemetry:
             LOG.error('Failed to read telemetry data: %s', e)
             sys.exit(1)
 
-    def get_freq(self) -> float:
-        """Get VPU frequency in MHz."""
+    def get_freq_mhz(self) -> float:
+        """Get NPU (DPU) clock frequency in MHz.
+
+        Decodes the VPU_WORKPOINT ratio (bits 7:0) and scales it to MHz:
+        MTL uses ``raw * 100 / 3`` (e.g. 42 -> 1400 MHz), later platforms
+        use ``raw * 25`` (e.g. 78 -> 1950 MHz).
+        """
         raw = self.read(self.regs['VPU_WORKPOINT'], 7, 0)
         if self.cpu_gen == CpuGen.MTL:
-            return 2 * raw / 3 / 10
-        return 0.05 * raw
-
-    def get_display_freq_hz(self) -> float:
-        """Get display frequency in Hz (converts MHz to Hz with hardware-specific scaling)."""
-        freq_mhz = self.get_freq()
-        return (freq_mhz * 1000) / 2
+            return raw * 100 / 3
+        return raw * 25.0
 
     def get_voltage(self) -> int:
         """Get VPU voltage reading."""
@@ -261,7 +261,7 @@ def main(): # pylint: disable=too-many-branches
         - Power consumption (in watts)
         - Processing unit utilization (percentage)
         - Memory utilization (MB/GB)
-        - Operating frequency (Hz)
+        - Operating frequency (MHz)
         - Temperature readings (°C)
         - Memory bandwidth (MB/GB)
         - Tile configuration
@@ -340,7 +340,7 @@ def main(): # pylint: disable=too-many-branches
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             csv_file_path = os.path.join(output_dir, f'npu_{timestamp}.csv')
             csv_file = open(csv_file_path, 'w', encoding='utf-8')
-            csv_file.write('timestamp,power,frequency,bandwidth,tile_config,temperature,utilization,memory_usage\n')
+            csv_file.write('timestamp,power,frequency_mhz,bandwidth,tile_config,temperature,utilization,memory_usage\n')
             LOG.info(f'CSV output enabled. Writing to: {csv_file_path}')
 
         while True:
@@ -390,8 +390,7 @@ def main(): # pylint: disable=too-many-branches
             curr_energy = pu.get_npu_energy()
             power = (curr_energy - prev_energy) / (interval * 1e-3)
             prev_energy = curr_energy
-            freq_mhz = pu.get_freq()
-            freq_hz = pu.get_display_freq_hz()
+            freq_mhz = pu.get_freq_mhz()
             tile_config = pu.get_tile_config()
 
             temp = pu.get_npu_temperature()
@@ -407,7 +406,7 @@ def main(): # pylint: disable=too-many-branches
 
             if csv_file:
                 timestamp = int(time_module.time())
-                csv_file.write(f'{timestamp},{power:.3f},{freq_hz:.0f},{bandwidth:.3f},{tile_config},{temp},{utilization},{mem_util_mb:.2f}\n')
+                csv_file.write(f'{timestamp},{power:.3f},{freq_mhz:.0f},{bandwidth:.3f},{tile_config},{temp},{utilization},{mem_util_mb:.2f}\n')
                 csv_file.flush()
 
             print( '+-----------------------------------------------------------------------------------------------+')
@@ -416,7 +415,7 @@ def main(): # pylint: disable=too-many-branches
             print(f'| {fw_version[75:]:<94}|')
             print( '+===============================================================================================+')
             print( '|       Power Usage        |      DPU Freq        | NPU DDR Average Bandwidth |    Tile Conf    |')
-            print(f'|{round(power, 3):>21} [W] |{round(freq_hz):>16} [Hz] | {round(bandwidth, 3):>18.2f} [{bw_unit}] | {tile_config:>15} |')
+            print(f'|{round(power, 3):>21} [W] |{round(freq_mhz):>15} [MHz] | {round(bandwidth, 3):>18.2f} [{bw_unit}] | {tile_config:>15} |')
             print( '+===============================================================================================+')
             print( '|       NPU Temperature    |       NPU Utilization       |      Memory Usage                    |')
             print(f'| {temp:>19} [°C] | {utilization:>26}% | {mem_util_str} |')

@@ -24,9 +24,9 @@ $ curl http://localhost:8000/metrics
 # HELP npu_monitor_temperature NPU Temperature [°C]
 # TYPE npu_monitor_temperature gauge
 npu_monitor_temperature{dev_id="0xad1d"} 35.0
-# HELP npu_monitor_freq_hz DPU Frequency [Hz]
-# TYPE npu_monitor_freq_hz gauge
-npu_monitor_freq_hz{dev_id="0xad1d"} 1200.0000000000002
+# HELP npu_monitor_freq_mhz DPU Frequency [MHz]
+# TYPE npu_monitor_freq_mhz gauge
+npu_monitor_freq_mhz{dev_id="0xad1d"} 1200.0
 # HELP npu_memory_util NPU Memory Utilization [MB]
 # TYPE npu_memory_util gauge
 npu_memory_util{dev_id="0xad1d"} 292.140625

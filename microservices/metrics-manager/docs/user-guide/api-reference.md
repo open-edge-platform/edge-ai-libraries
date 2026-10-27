@@ -478,15 +478,15 @@ Filtered to `coretemp_package_id_*` (CPU package temperature). Tag: `sensor`.
 
 ### Intel NPU (`npu`) via `scripts/npu_reader.py`
 
-| Prometheus Name   | Field         | Description                                                                                                                                       |
-|-------------------|---------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
-| `npu_power`       | `power`       | NPU power draw in watts (derived from `VPU_ENERGY` delta)                                                                                         |
-| `npu_frequency`   | `frequency`   | NPU display frequency in **MHz**                                                                                                                  |
-| `npu_temperature` | `temperature` | NPU SoC temperature in °C (integer)                                                                                                               |
-| `npu_bandwidth`   | `bandwidth`   | NoC memory bandwidth **rate** in MB/s (delta over the actual elapsed sampling interval, corrected for the underlying 32-bit counter rolling over) |
-| `npu_tile_config` | `tile_config` | Active tile configuration                                                                                                                         |
-| `npu_utilization` | `utilization` | % NPU utilization over the last interval (0–100). **Omitted** (not sent as `0`) when the `npu_busy_time_us` sysfs node isn't exposed              |
-| `npu_memory_mb`   | `memory_mb`   | NPU memory usage in MB. **Omitted** (not sent as `-1`) on platforms without the `npu_memory_utilization` sysfs node, e.g. MTL/ARL                 |
+| Prometheus Name     | Field           | Description                                                                                                                                       |
+|---------------------|-----------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
+| `npu_power`         | `power`         | NPU power draw in watts (derived from `VPU_ENERGY` delta)                                                                                         |
+| `npu_frequency_mhz` | `frequency_mhz` | NPU (DPU) clock frequency in **MHz** (decoded from `VPU_WORKPOINT`)                                                                               |
+| `npu_temperature`   | `temperature`   | NPU SoC temperature in °C (integer)                                                                                                               |
+| `npu_bandwidth`     | `bandwidth`     | NoC memory bandwidth **rate** in MB/s (delta over the actual elapsed sampling interval, corrected for the underlying 32-bit counter rolling over) |
+| `npu_tile_config`   | `tile_config`   | Active tile configuration                                                                                                                         |
+| `npu_utilization`   | `utilization`   | % NPU utilization over the last interval (0–100). **Omitted** (not sent as `0`) when the `npu_busy_time_us` sysfs node isn't exposed              |
+| `npu_memory_mb`     | `memory_mb`     | NPU memory usage in MB. **Omitted** (not sent as `-1`) on platforms without the `npu_memory_utilization` sysfs node, e.g. MTL/ARL                 |
 
 **Requirements:**
 

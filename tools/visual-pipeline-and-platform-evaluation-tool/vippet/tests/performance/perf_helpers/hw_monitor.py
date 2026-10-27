@@ -44,7 +44,7 @@ FAMILY_KPI_KEYS: dict[str, tuple[str, ...]] = {
     "NPU": (
         "npu_utilization",
         "npu_power",
-        "npu_frequency",
+        "npu_frequency_mhz",
         "npu_temperature",
         "npu_memory_mb",
         "npu_bandwidth",
@@ -61,7 +61,7 @@ FAMILY_KPI_KEYS: dict[str, tuple[str, ...]] = {
 # would misclassify an active GPU as idle.
 #
 # For NPU this set is exactly "npu_utilization, falling back to
-# npu_frequency / npu_power" as specced: if utilization is always 0/absent,
+# npu_frequency_mhz / npu_power" as specced: if utilization is always 0/absent,
 # a nonzero frequency or power reading still proves the NPU was awake.
 FAMILY_ACTIVITY_KEYS: dict[str, tuple[str, ...]] = {
     "CPU": ("cpu_util_pct",),
@@ -72,7 +72,7 @@ FAMILY_ACTIVITY_KEYS: dict[str, tuple[str, ...]] = {
         "gpu_compute_util_pct",
         "gpu_copy_util_pct",
     ),
-    "NPU": ("npu_utilization", "npu_frequency", "npu_power"),
+    "NPU": ("npu_utilization", "npu_frequency_mhz", "npu_power"),
 }
 
 
@@ -332,7 +332,7 @@ class HardwareMonitor:
         # NPU
         for key in (
             "npu_utilization",
-            "npu_frequency",
+            "npu_frequency_mhz",
             "npu_power",
             "npu_temperature",
             "npu_memory_mb",

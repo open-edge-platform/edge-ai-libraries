@@ -117,24 +117,23 @@ class TestBitSlicing:
 
 
 class TestGetters:
-    def test_get_freq_non_mtl_uses_0_05_scale(self, npu_mod):
-        # raw = 100 at low byte of VPU_WORKPOINT (PTL: 0x18)
+    def test_get_freq_mhz_non_mtl_uses_25_mhz_per_step(self, npu_mod):
+        # raw = 100 at low byte of VPU_WORKPOINT (PTL: 0x18) -> 2500 MHz
         buf = _buffer_with({0x18: b"\x64\x00\x00\x00\x00\x00\x00\x00"})
         pmt = _make_pmt(npu_mod, buf)
-        assert pmt.get_freq() == pytest.approx(0.05 * 100)
+        assert pmt.get_freq_mhz() == pytest.approx(2500.0)
 
-    def test_get_freq_mtl_uses_2_over_30_scale(self, npu_mod):
-        # raw = 30 at low byte of VPU_WORKPOINT (MTL: 0x68)
-        buf = _buffer_with({0x68: b"\x1e\x00\x00\x00\x00\x00\x00\x00"})
+    def test_get_freq_mhz_mtl_uses_100_over_3_mhz_per_step(self, npu_mod):
+        # raw = 42 at low byte of VPU_WORKPOINT (MTL: 0x68) -> 1400 MHz
+        buf = _buffer_with({0x68: b"\x2a\x00\x00\x00\x00\x00\x00\x00"})
         pmt = _make_pmt(
             npu_mod, buf, cpu_gen=npu_mod.CpuGen.MTL, regs=npu_mod.get_mtl_regs()
         )
-        assert pmt.get_freq() == pytest.approx(2 * 30 / 3 / 10)
+        assert pmt.get_freq_mhz() == pytest.approx(1400.0)
 
-    def test_get_display_freq_hz_converts_mhz(self, npu_mod):
-        # raw = 100 → freq_mhz = 5.0 → display = (5.0 * 1000) / 2 = 2500
-        buf = _buffer_with({0x18: b"\x64\x00\x00\x00\x00\x00\x00\x00"})
-        assert _make_pmt(npu_mod, buf).get_display_freq_hz() == pytest.approx(2500.0)
+    def test_legacy_freq_getters_removed(self, npu_mod):
+        assert not hasattr(npu_mod.PmtTelemetry, "get_freq")
+        assert not hasattr(npu_mod.PmtTelemetry, "get_display_freq_hz")
 
     def test_get_voltage_reads_byte_1_of_workpoint(self, npu_mod):
         buf = _buffer_with({0x18: b"\x00\x2a\x00\x00\x00\x00\x00\x00"})

@@ -14,7 +14,7 @@ to track and analyze NPU performance.
 - **Thermal Management**: Track NPU temperature in Celsius
 - **Utilization Metrics**: View processing unit utilization percentage
 - **Memory Monitoring**: Track memory usage in MB/GB (PTL and later)
-- **Frequency Information**: Display operating frequency in Hz
+- **Frequency Information**: Display NPU (DPU) operating frequency in MHz
 - **Bandwidth Analysis**: Monitor NPU DDR average bandwidth in MB/s or GB/s
 - **Tile Configuration**: View current tile configuration
 - **CSV Export**: Export metrics to CSV format for data analysis and visualization
@@ -89,7 +89,7 @@ sudo python3 npu-monitor-tool.py --csv -i 1000
 The CSV file will contain the following columns:
 - timestamp
 - power (W)
-- frequency (Hz)
+- frequency_mhz (MHz)
 - bandwidth (MB/s or GB/s)
 - tile_config
 - temperature (°C)
@@ -114,7 +114,7 @@ The CSV file will contain the following columns:
 |                                                                                               |
 +===============================================================================================+
 |       Power Usage        |      DPU Freq        | NPU DDR Average Bandwidth |    Tile Conf    |
-|                2.5 [W]   |        1400 [Hz]     |               123.45 [MB/s] |               4 |
+|                2.5 [W]   |        1400 [MHz]    |               123.45 [MB/s] |               4 |
 +===============================================================================================+
 |       NPU Temperature    |       NPU Utilization       |      Memory Usage                    |
 |              45 [°C]     |                       25%   |                         512.00 [MB] |

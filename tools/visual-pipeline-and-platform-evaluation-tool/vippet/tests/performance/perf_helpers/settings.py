@@ -109,6 +109,15 @@ def _check_min(value: float, minimum: float | None, exclusive: bool) -> None:
         raise SettingsError(f"must be at least {minimum:g}, got {value!r}")
 
 
+def _check_max(value: float, maximum: float | None, exclusive: bool) -> None:
+    if maximum is None:
+        return
+    if exclusive and value >= maximum:
+        raise SettingsError(f"must be less than {maximum:g}, got {value!r}")
+    if not exclusive and value > maximum:
+        raise SettingsError(f"must be at most {maximum:g}, got {value!r}")
+
+
 def _as_bool(value: Any) -> bool:
     if isinstance(value, bool):
         return value
@@ -163,6 +172,8 @@ class SettingSpec:
     env: str | None = None
     minimum: float | None = None
     exclusive_min: bool = False
+    maximum: float | None = None
+    exclusive_max: bool = False
     choices: tuple[str, ...] = field(default_factory=tuple)
     negative_flag: str | None = None
     """For booleans: the flag that sets the value to False."""
@@ -186,6 +197,7 @@ class SettingSpec:
         if kind in {"int", "float"}:
             number = _as_int(value) if kind == "int" else _as_number(value, float)
             _check_min(number, self.minimum, self.exclusive_min)
+            _check_max(number, self.maximum, self.exclusive_max)
             return number
         if kind == "pipelines":
             return _as_pipelines(value)
@@ -201,6 +213,7 @@ class SettingSpec:
             for item in raw:
                 number = _as_int(item)
                 _check_min(number, self.minimum, self.exclusive_min)
+                _check_max(number, self.maximum, self.exclusive_max)
                 if number not in numbers:
                     numbers.append(number)
             return numbers
@@ -418,6 +431,10 @@ SPECS: tuple[SettingSpec, ...] = (
         "averaging, to discard warm-up/wind-down outliers (0 <= value < 0.5).",
         env="PERF_METRICS_TRIM_FRACTION",
         minimum=0,
+        # At 0.5 or more, _trim_edge_samples() would trim everything and
+        # silently fall back to the untrimmed samples; reject it instead.
+        maximum=0.5,
+        exclusive_max=True,
         metavar="FRACTION",
     ),
     # --- results ---

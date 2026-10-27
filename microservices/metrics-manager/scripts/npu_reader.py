@@ -85,6 +85,7 @@ def find_npu_dev_path() -> str:
     return ""  # unreachable, keeps type checkers happy
 
 
+
 def compute_npu_sample(
     *,
     elapsed_s: float,
@@ -121,7 +122,7 @@ def compute_npu_sample(
             reads. These are scaled readings of a 32-bit hardware counter,
             so a negative delta means the counter wrapped and is corrected
             via ``NPU_BANDWIDTH_COUNTER_MAX_MB``.
-        freq_mhz: ``PmtTelemetry.get_freq()`` read, already in MHz.
+        freq_mhz: ``PmtTelemetry.get_freq_mhz()`` read (NPU clock in MHz).
         temp_c: ``PmtTelemetry.get_npu_temperature()`` read.
         tile_config: ``PmtTelemetry.get_tile_config()`` read.
         curr_busy_us, prev_busy_us: consecutive reads of
@@ -147,11 +148,8 @@ def compute_npu_sample(
 
     fields: dict = {
         "power": power_w,
-        # Renamed from a mislabeled pseudo-Hz value to the true display
-        # frequency in MHz. The InfluxDB field key stays "frequency" (and
-        # the Prometheus metric stays npu_frequency) so existing
-        # dashboards/queries keep working; only the unit/magnitude changes.
-        "frequency": freq_mhz,
+        # NPU (DPU) clock frequency in MHz -> Prometheus npu_frequency_mhz.
+        "frequency_mhz": freq_mhz,
         "temperature": temp_c,
         "bandwidth": bandwidth_mbs,
         "tile_config": tile_config,
@@ -181,7 +179,7 @@ def format_line_protocol(host: str, fields: dict, ts_ns: int) -> str:
     """
     parts = [
         f"power={fields['power']:.3f}",
-        f"frequency={fields['frequency']:.1f}",
+        f"frequency_mhz={fields['frequency_mhz']:.1f}",
         f"temperature={fields['temperature']}i",
         f"bandwidth={fields['bandwidth']:.3f}",
         f"tile_config={fields['tile_config']}i",
@@ -272,7 +270,7 @@ def main():
             prev_energy=prev_energy,
             curr_bandwidth_mb=curr_bandwidth,
             prev_bandwidth_mb=prev_bandwidth,
-            freq_mhz=pu.get_freq(),
+            freq_mhz=pu.get_freq_mhz(),
             temp_c=pu.get_npu_temperature(),
             tile_config=pu.get_tile_config(),
             curr_busy_us=curr_busy_us,
@@ -289,7 +287,7 @@ def main():
         logger.debug(
             "npu power=%.3f freq_mhz=%.1f temp=%d bw_mbs=%.3f tile=%d util=%s mem_mb=%s",
             fields["power"],
-            fields["frequency"],
+            fields["frequency_mhz"],
             fields["temperature"],
             fields["bandwidth"],
             fields["tile_config"],

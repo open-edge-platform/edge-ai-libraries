@@ -187,7 +187,7 @@ docker logs metrics-manager | grep qmassa
 
 ### No NPU Metrics
 
-**Symptom**: No `npu_power`, `npu_frequency`, etc., in `:9273/metrics`.
+**Symptom**: No `npu_power`, `npu_frequency_mhz`, etc., in `:9273/metrics`.
 
 **Check:**
 

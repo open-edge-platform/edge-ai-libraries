@@ -88,8 +88,8 @@ class TestFamilyKpiStatus(unittest.TestCase):
         # The "Defect Detection NPU" case: npu_utilization/frequency/power
         # all read 0 for the whole run even though samples exist.
         samples = [
-            {"npu_utilization": 0.0, "npu_frequency": 0.0, "npu_power": 0.0},
-            {"npu_utilization": 0.0, "npu_frequency": 0.0, "npu_power": 0.0},
+            {"npu_utilization": 0.0, "npu_frequency_mhz": 0.0, "npu_power": 0.0},
+            {"npu_utilization": 0.0, "npu_frequency_mhz": 0.0, "npu_power": 0.0},
         ]
         self.assertEqual(_family_kpi_status(samples, "NPU"), "idle")
 
@@ -98,11 +98,11 @@ class TestFamilyKpiStatus(unittest.TestCase):
         self.assertEqual(_family_kpi_status(samples, "NPU"), "ok")
 
     def test_ok_falls_back_to_frequency_when_utilization_always_zero(self):
-        # npu_utilization is 0 throughout, but npu_frequency proves the NPU
+        # npu_utilization is 0 throughout, but npu_frequency_mhz proves the NPU
         # was actually clocked up and doing work.
         samples = [
-            {"npu_utilization": 0.0, "npu_frequency": 0.0},
-            {"npu_utilization": 0.0, "npu_frequency": 850.0},
+            {"npu_utilization": 0.0, "npu_frequency_mhz": 0.0},
+            {"npu_utilization": 0.0, "npu_frequency_mhz": 850.0},
         ]
         self.assertEqual(_family_kpi_status(samples, "NPU"), "ok")
 
@@ -207,8 +207,8 @@ class TestStopPerFamilyStatus(unittest.TestCase):
     def test_idle_family_is_flagged_but_keeps_its_zero_values(self):
         monitor = self._monitor_with_samples(
             [
-                {"npu_utilization": 0, "npu_frequency": 0, "npu_power": 0.0},
-                {"npu_utilization": 0, "npu_frequency": 0, "npu_power": 0.0},
+                {"npu_utilization": 0, "npu_frequency_mhz": 0, "npu_power": 0.0},
+                {"npu_utilization": 0, "npu_frequency_mhz": 0, "npu_power": 0.0},
             ]
         )
         with warnings.catch_warnings(record=True):

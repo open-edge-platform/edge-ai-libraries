@@ -82,6 +82,22 @@ def npu_reader_module():
         yield module
 
 
+@pytest.fixture(scope="module")
+def real_lib():
+    """Load the real npu_monitor_tool under a private name (no /sys access).
+
+    A distinct module name avoids clobbering the ``npu_monitor_tool`` stub
+    that ``npu_reader_module`` may have registered in ``sys.modules``.
+    """
+    spec = importlib.util.spec_from_file_location(
+        "npu_monitor_tool_for_reader_tests", LIB_PATH
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 class TestScriptFiles:
     def test_reader_file_exists(self):
         assert READER_PATH.is_file(), f"Reader script missing: {READER_PATH}"
@@ -122,7 +138,7 @@ class TestReaderImportsAndOutput:
         # literals must still be present in the source.
         for field in (
             "power=",
-            "frequency=",
+            "frequency_mhz=",
             "temperature=",
             "bandwidth=",
             "tile_config=",
@@ -207,12 +223,13 @@ class TestComputeNpuSample:
         assert fields["bandwidth"] == pytest.approx(15.0)
         assert fields["bandwidth"] > 0
 
-    def test_frequency_field_carries_mhz_value_unchanged(self, npu_reader_module):
-        # freq_mhz is passed straight through — no Hz-style rescaling.
+    def test_frequency_mhz_field_carries_mhz_value_unchanged(self, npu_reader_module):
+        # freq_mhz is passed straight through — no rescaling.
         fields = npu_reader_module.compute_npu_sample(
             **self._base_kwargs(npu_reader_module, freq_mhz=1234.5)
         )
-        assert fields["frequency"] == pytest.approx(1234.5)
+        assert fields["frequency_mhz"] == pytest.approx(1234.5)
+        assert "frequency" not in fields
 
     def test_utilization_omitted_when_busy_time_unsupported(self, npu_reader_module):
         fields = npu_reader_module.compute_npu_sample(
@@ -257,11 +274,67 @@ class TestComputeNpuSample:
             )
 
 
+class TestFrequencyWiring:
+    """Regression: the reader must report the NPU clock in MHz.
+
+    Uses the real ``PmtTelemetry`` decode path (loaded from
+    ``scripts/npu_monitor_tool.py`` under a private module name so it does
+    not clash with the stub in ``sys.modules``) with a hand-built telemetry
+    buffer, so the reader -> getter wiring is covered end to end.
+    """
+
+    @staticmethod
+    def _make_pmt(lib, cpu_gen, regs, workpoint_raw):
+        pmt = lib.PmtTelemetry.__new__(lib.PmtTelemetry)
+        buf = bytearray(4096)
+        offset = regs["VPU_WORKPOINT"]
+        buf[offset : offset + 8] = workpoint_raw.to_bytes(8, "little")
+        pmt.buffer = bytes(buf)
+        pmt.cpu_gen = cpu_gen
+        pmt.regs = regs
+        pmt.pmt_root = "/sys/class/intel_pmt"
+        pmt.telemetry_path = None
+        return pmt
+
+    def test_mtl_workpoint_42_reports_1400_mhz(self, real_lib):
+        pmt = self._make_pmt(
+            real_lib, real_lib.CpuGen.MTL, real_lib.get_mtl_regs(), workpoint_raw=42
+        )
+        assert pmt.get_freq_mhz() == pytest.approx(1400.0)
+
+    def test_frequency_mhz_flows_into_line_protocol(self, npu_reader_module, real_lib):
+        pmt = self._make_pmt(
+            real_lib, real_lib.CpuGen.MTL, real_lib.get_mtl_regs(), workpoint_raw=42
+        )
+        fields = npu_reader_module.compute_npu_sample(
+            elapsed_s=1.0,
+            curr_energy=1.0,
+            prev_energy=0.0,
+            curr_bandwidth_mb=0.0,
+            prev_bandwidth_mb=0.0,
+            freq_mhz=pmt.get_freq_mhz(),
+            temp_c=50,
+            tile_config=1,
+            curr_busy_us=None,
+            prev_busy_us=None,
+            mem_util_bytes=None,
+        )
+        line = npu_reader_module.format_line_protocol("host1", fields, 1)
+        assert "frequency_mhz=1400.0" in line
+
+    def test_main_loop_uses_mhz_getter(self, reader_source):
+        # Guard the call site in main(): the loop must use the MHz getter,
+        # and the removed legacy getters must not come back.
+        assert "freq_mhz=pu.get_freq_mhz()" in reader_source
+        assert "get_freq()" not in reader_source
+        assert "get_display_freq_hz" not in reader_source
+
+
 class TestFormatLineProtocol:
     def test_omits_utilization_and_memory_mb_when_absent(self, npu_reader_module):
         fields = {
             "power": 1.0,
-            "frequency": 700.0,
+            "frequency_mhz": 700.0,
             "temperature": 50,
             "bandwidth": 2.0,
             "tile_config": 1,
@@ -275,7 +348,7 @@ class TestFormatLineProtocol:
     def test_includes_utilization_and_memory_mb_when_present(self, npu_reader_module):
         fields = {
             "power": 1.0,
-            "frequency": 700.0,
+            "frequency_mhz": 700.0,
             "temperature": 50,
             "bandwidth": 2.0,
             "tile_config": 1,
@@ -302,7 +375,7 @@ To manually verify NPU metrics on an NPU-equipped host:
 
 4. Confirm NPU metrics on the Prometheus endpoint:
    curl -s http://localhost:9273/metrics | grep '^npu_'
-   # Expect: npu_power, npu_frequency, npu_temperature, npu_bandwidth,
+   # Expect: npu_power, npu_frequency_mhz, npu_temperature, npu_bandwidth,
    #         npu_tile_config, npu_utilization, npu_memory_mb
    # npu_utilization / npu_memory_mb may be absent on platforms where the
    # underlying sysfs node isn't supported — that's the documented

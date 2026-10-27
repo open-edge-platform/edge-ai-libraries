@@ -4,10 +4,14 @@
 
 **Release Date:** TBD
 
+**Changed (breaking):**
+
+- **NPU Frequency Renamed to `npu_frequency_mhz`**: The NPU line-protocol field `frequency` is renamed to `frequency_mhz`, so the Prometheus metric `npu_frequency` is now `npu_frequency_mhz`. The value is the NPU (DPU) clock in **MHz** (e.g. 1400 on Meteor Lake), decoded by the new `PmtTelemetry.get_freq_mhz()`. The misleading `get_freq()` / `get_display_freq_hz()` getters were removed. Update dashboards and queries that reference `npu_frequency`.
+
 **Fixed:**
 
 - **NPU Bandwidth Rate**: `npu_bandwidth` is now a true MB/s rate (NoC bandwidth delta divided by the actual elapsed sampling interval) instead of a raw, interval-agnostic delta, and correctly handles the underlying 32-bit hardware counter rolling over.
-- **NPU Frequency Unit**: `npu_frequency` now reports the NPU's display frequency in **MHz** (previously a mislabeled pseudo-Hz value). The field key is unchanged, so existing dashboards keep working — only the displayed magnitude changes.
+- **NPU Monitor CLI Frequency Unit**: The bundled `npu_monitor_tool` CLI now displays the NPU clock in `[MHz]` (previously mislabeled as `[Hz]`), and its CSV column is renamed from `frequency` to `frequency_mhz`.
 - **No More Fake Sentinel Values**: `npu_utilization` is omitted from the emitted sample (instead of a fake `0`) when `npu_busy_time_us` isn't exposed by the platform, and `npu_memory_mb` is omitted (instead of a fake `-1`) when the memory-utilization sysfs node isn't supported. Consumers should treat a missing field as "not measurable on this platform", not as a real zero/negative reading.
 
 ## Version 2026.2.0

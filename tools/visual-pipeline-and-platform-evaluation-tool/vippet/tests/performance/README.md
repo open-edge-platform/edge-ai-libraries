@@ -237,17 +237,19 @@ With the default 2s sampling interval and a 30s run (~16 samples), a 10% trim
 only drops one sample from each end — some startup idle may still be present
 in the average. This matches VIPPET's built-in benchmark behavior today.
 
+The value must satisfy `0 <= trim_fraction < 0.5` (`0` disables trimming).
+
 ### Per-family KPI status (`ok` / `no_samples` / `idle`)
 
 For each device family requested by a test case (derived from
 `pipeline_case.device_family`, e.g. `GPU_NPU` → `GPU`, `NPU`), the HW monitor
 classifies that family's activity across the run:
 
-| Status       | Meaning                                                                                                                                   |
-|--------------|-------------------------------------------------------------------------------------------------------------------------------------------|
-| `ok`         | At least one activity KPI (e.g. `npu_utilization`, falling back to `npu_frequency`/`npu_power` for NPU) was nonzero somewhere in the run. |
-| `no_samples` | None of the family's KPI keys were ever reported by metrics-manager — the device is missing or the harness never got a successful poll.   |
-| `idle`       | Samples exist for the family, but every activity value was zero for the entire run (hardware present but never dispatched work).          |
+| Status       | Meaning                                                                                                                                       |
+|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------|
+| `ok`         | At least one activity KPI (e.g. `npu_utilization`, falling back to `npu_frequency_mhz`/`npu_power` for NPU) was nonzero somewhere in the run. |
+| `no_samples` | None of the family's KPI keys were ever reported by metrics-manager — the device is missing or the harness never got a successful poll.       |
+| `idle`       | Samples exist for the family, but every activity value was zero for the entire run (hardware present but never dispatched work).              |
 
 A requested family that isn't `ok` triggers both a `logger.warning` and a
 `warnings.warn` (so it's visible in the pytest warnings summary), and shows up
@@ -258,9 +260,7 @@ in the reports instead of a blank cell:
   real (zero) numeric values — only the `kpi_warnings` column
   (e.g. `NPU:idle` or `NPU:no_samples;GPU:idle`) flags it.
 - **HTML**: the per-pipeline table shows a small amber "no samples" / "idle"
-  warning badge next to the affected family's utilization cell, and `NPU
-  Freq` is labeled in **MHz** (matching metrics-manager's `npu_frequency`
-  field).
+  warning badge next to the affected family's utilization cell.
 - **JSON**: numeric KPI values stay numeric; the status lives in
   `hw_metrics.kpi_status` (per-family) and `hw_metrics.kpi_warnings`
   (semicolon-joined summary string).
