@@ -104,7 +104,9 @@ For host execution without Docker, use the instructions to
 ## Run Tests
 
 ```bash
-source .venv/bin/activate
+python3 -m venv testenv
+source testvenv/bin/activate
+pip install pytest requests numpy httpx opencv-python Pillow pytest-asyncio
 PYTHONPATH=src pytest tests/ -v
 ```
 

@@ -2,10 +2,10 @@
 
 <!--hide_directive
 <div class="component_card_widget">
-  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/microservices/behavioral-analysis">
+  <a class="icon_github" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/behavioral-analysis">
      GitHub
   </a>
-  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/release-2026.2.0/microservices/behavioral-analysis/README.md">
+  <a class="icon_document" href="https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/behavioral-analysis/README.md">
      Readme
   </a>
 </div>
@@ -74,7 +74,7 @@ graph TB
 
 > [!NOTE]
 > The `swlp-service` mentioned above as an example upstream service refers to
-> [Store-Wide Loss Prevention](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-retail/storewide-loss-prevention/index.html). Follow the link for more details.
+> [Store-Wide Loss Prevention](https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-retail/storewide-loss-prevention/index.html). Follow the link for more details.
 
 ### Request/Response Flow (MQTT Path)
 

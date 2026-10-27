@@ -161,7 +161,7 @@ print_success "  pip upgraded"
 
 # Install PyTorch CPU version
 print_step "  [2/4] Installing PyTorch (CPU)..."
-python -m pip install -q torch torchvision --index-url https://download.pytorch.org/whl/cpu
+python -m pip install -q torch==2.14.1 torchvision==0.29.1 --index-url https://download.pytorch.org/whl/cpu
 if [ $? -eq 0 ]; then
     print_success "  PyTorch installed"
 else
@@ -172,7 +172,7 @@ fi
 
 # Install Ultralytics
 print_step "  [3/4] Installing Ultralytics..."
-python -m pip install -q ultralytics
+python -m pip install -q "ultralytics==8.4.190"
 if [ $? -eq 0 ]; then
     print_success "  Ultralytics installed"
 else
@@ -183,7 +183,7 @@ fi
 
 # Install OpenVINO
 print_step "  [4/4] Installing OpenVINO..."
-python -m pip install -q openvino
+python -m pip install -q "openvino==2026.4.1"
 if [ $? -eq 0 ]; then
     print_success "  OpenVINO installed"
 else
@@ -246,7 +246,7 @@ print(f"\n[2/4] Converting to OpenVINO FP32 ...")
 if not export_dir.exists() and not target_dir.exists():
     try:
         model = YOLO(str(model_pt))
-        model.export(format="openvino", half=False)
+        model.export(format="openvino", half=False, nms=False)
         print(f"✓ Conversion complete: {export_dir}")
     except Exception as e:
         print(f"✗ Conversion failed: {e}")
@@ -360,6 +360,15 @@ VLM_PRECISION="${VLM_PRECISION:-int8}"
 TARGET_DEVICE="${TARGET_DEVICE:-GPU}"
 VLM_MODELS_DIR="${PROJECT_ROOT}/models/vlm_models"
 GET_MODEL_SCRIPT="${SCRIPT_DIR}/get_model.sh"
+ENV_FILE="${PROJECT_ROOT}/.env"
+
+# edge-ai-libraries branch to fetch get_model.sh from: shell environment > .env > "main"
+if [ -z "${MODEL_DOWNLOAD_VERSION:-}" ] && [ -f "${ENV_FILE}" ]; then
+    MODEL_DOWNLOAD_VERSION=$(grep -E '^[[:space:]]*MODEL_DOWNLOAD_VERSION=' "${ENV_FILE}" | tail -n 1 \
+        | cut -d'=' -f2- | sed -e 's/[[:space:]]*#.*$//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+        -e 's/^["'\'']//' -e 's/["'\'']$//')
+fi
+MODEL_DOWNLOAD_VERSION="${MODEL_DOWNLOAD_VERSION:-main}"
 
 print_header "VLM Model Download (${VLM_MODEL_NAME})"
 
@@ -367,6 +376,7 @@ echo -e "VLM Configuration:"
 echo -e "  Model Name:    ${VLM_MODEL_NAME}"
 echo -e "  Precision:     ${VLM_PRECISION}"
 echo -e "  Device:        ${TARGET_DEVICE}"
+echo -e "  Branch:        ${MODEL_DOWNLOAD_VERSION}"
 echo -e "  Output Dir:    ${VLM_MODELS_DIR}"
 echo ""
 
@@ -379,8 +389,8 @@ if [ ! -f "${GET_MODEL_SCRIPT}" ]; then
         cp "${LOCAL_GET_MODEL}" "${GET_MODEL_SCRIPT}"
         print_success "Copied get_model.sh from local repo"
     else
-        curl -sSLo "${GET_MODEL_SCRIPT}" \
-            "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/release-2026.2.0/microservices/model-download/scripts/get_model.sh"
+        curl -fsSLo "${GET_MODEL_SCRIPT}" \
+            "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/${MODEL_DOWNLOAD_VERSION}/microservices/model-download/scripts/get_model.sh"
         if [ $? -ne 0 ]; then
             print_error "Failed to download get_model.sh"
             exit 1
