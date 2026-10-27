@@ -3,7 +3,7 @@
 This page is the entry point for running the Behavioral Analysis Service.
 
 For a detailed overview of the service architecture, capabilities, and design, see
-[How It Works](./how-it-works).
+[How It Works](./how-it-works.md).
 
 ## Before You Begin
 

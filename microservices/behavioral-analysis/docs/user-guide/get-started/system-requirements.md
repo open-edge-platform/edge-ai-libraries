@@ -31,6 +31,8 @@
   - Optional (recommended for full experience):
     - Intel integrated or discrete GPU supported by Intel® Graphics Compute
       Runtime for VLM inference with `Qwen2.5-VL-7B-Instruct` (GPU-backed recommended)
+    - Intel NPU (Neural Processing Unit) for YOLO-Pose inference acceleration.
+      Requires `/dev/accel` device access and NPU-compatible OpenVINO drivers on the host.
 
 ## Required Ports
 

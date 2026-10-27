@@ -21,7 +21,7 @@ graph TD
 
 > [!NOTE]
 > The `swlp-service` mentioned above as an example upstream service refers to
-> [Store-Wide Loss Prevention](https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-retail/storewide-loss-prevention/index.html). Follow the link for more details.
+> [Store-Wide Loss Prevention](https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-retail/storewide-loss-prevention/index.html). Follow the link for more details.
 
 ## Component Responsibilities
 
