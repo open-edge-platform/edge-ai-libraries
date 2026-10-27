@@ -144,31 +144,13 @@ install_dependencies() {
             echo "0" > "${status_file}"
             ;;
         ultralytics)
-            echo -e "${BLUE}INFO:${NC} Downloading Ultralytics public models script from GitHub"
-            DLSTREAMER_SAMPLES_URL="https://raw.githubusercontent.com/open-edge-platform/dlstreamer/4d22f42ffe1df79800dc2ef1749f7e37f3d47bf1/samples"
-            mkdir -p /opt/scripts/models
-            if curl -fsSL -o /opt/scripts/download_public_models.sh "${DLSTREAMER_SAMPLES_URL}/download_public_models.sh"; then
-                chmod +x /opt/scripts/download_public_models.sh
-                echo -e "${GREEN} SUCCESS:${NC} Ultralytics public models script downloaded to /opt/scripts/download_public_models.sh"
-            else
-                echo -e "${RED} ERROR:${NC} Failed to download Ultralytics public models script"
+            echo -e "${BLUE}INFO:${NC} Using bundled Ultralytics model scripts"
+            if [[ ! -f /opt/scripts/download_public_models.sh || ! -f /opt/scripts/shared_utils.py || ! -f /opt/scripts/models/convert_mars_deepsort.py ]]; then
+                echo -e "${RED} ERROR:${NC} Bundled Ultralytics model scripts or companions are missing"
                 echo "1" > "${status_file}"
                 return 1
             fi
-
-            # mars-small128 relies on a companion converter (models/convert_mars_deepsort.py)
-            # and shared_utils.py; the script expects them alongside itself under /opt/scripts.
-            if ! curl -fsSL -o /opt/scripts/shared_utils.py "${DLSTREAMER_SAMPLES_URL}/shared_utils.py"; then
-                echo -e "${RED} ERROR:${NC} Failed to download shared_utils.py"
-                echo "1" > "${status_file}"
-                return 1
-            fi
-            if ! curl -fsSL -o /opt/scripts/models/convert_mars_deepsort.py "${DLSTREAMER_SAMPLES_URL}/models/convert_mars_deepsort.py"; then
-                echo -e "${RED} ERROR:${NC} Failed to download convert_mars_deepsort.py"
-                echo "1" > "${status_file}"
-                return 1
-            fi
-            echo -e "${GREEN} SUCCESS:${NC} Mars-Small128 converter and shared_utils.py downloaded"
+            echo -e "${GREEN} SUCCESS:${NC} Ultralytics model scripts and companions are available"
 
             echo -e "${BLUE}INFO:${NC} Ultralytics dependencies will be installed via uv sync"
             echo "0" > "${status_file}"
