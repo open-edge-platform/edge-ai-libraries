@@ -13,7 +13,7 @@ debian_99_profile_edge_base_handheld () {
       else
         modules+=(k3s)
       fi
-    elif [[ " $* " = *" --docker "* ]]; then
+    else
       modules+=(docker_io)
     fi
     if [[ " $* " = *" --edgepack "* ]]; then
