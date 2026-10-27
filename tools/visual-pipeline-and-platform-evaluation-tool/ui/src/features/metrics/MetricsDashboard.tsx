@@ -319,8 +319,9 @@ export const MetricsDashboard = ({
 
   return (
     <div
-      className={`space-y-4 ${className} text-foreground ${isSummary ? summaryContainerClassName : ""
-        }`}
+      className={`space-y-4 ${className} text-foreground ${
+        isSummary ? summaryContainerClassName : ""
+      }`}
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {showVideoMetrics && (

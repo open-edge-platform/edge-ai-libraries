@@ -132,13 +132,15 @@ const injectedRtkApi = api
         query: (queryArg) => ({ url: `/jobs/audio/${queryArg.jobId}/status` }),
         providesTags: ["jobs"],
       }),
-      stopAudioJob: build.mutation<StopAudioJobApiResponse, StopAudioJobApiArg>({
-        query: (queryArg) => ({
-          url: `/jobs/audio/${queryArg.jobId}`,
-          method: "DELETE",
-        }),
-        invalidatesTags: ["jobs"],
-      }),
+      stopAudioJob: build.mutation<StopAudioJobApiResponse, StopAudioJobApiArg>(
+        {
+          query: (queryArg) => ({
+            url: `/jobs/audio/${queryArg.jobId}`,
+            method: "DELETE",
+          }),
+          invalidatesTags: ["jobs"],
+        },
+      ),
       getPerformanceStatuses: build.query<
         GetPerformanceStatusesApiResponse,
         GetPerformanceStatusesApiArg
@@ -901,17 +903,17 @@ export type ListHubModelsApiResponse =
 export type ListHubModelsApiArg = {
   modelHubListRequest: ModelHubListRequest;
 };
-export type UploadModelApiResponse = /** status 200 Successful Response */
-  | any
-  | /** status 201 Model uploaded successfully */ ModelUploadResponse;
+export type UploadModelApiResponse =
+  /** status 200 Successful Response */
+  any | /** status 201 Model uploaded successfully */ ModelUploadResponse;
 export type UploadModelApiArg = {
   bodyUploadModel: BodyUploadModel;
 };
 export type StartModelDownloadApiResponse =
   /** status 200 Successful Response */
-    | any
-    | /** status 202 All requested downloads accepted */ ModelDownloadJobResponse
-    | /** status 207 Multi-Status: some downloads accepted, some rejected. Inspect `jobs[<name>].status_code` for per-model outcome. */ ModelDownloadJobResponse;
+  | any
+  | /** status 202 All requested downloads accepted */ ModelDownloadJobResponse
+  | /** status 207 Multi-Status: some downloads accepted, some rejected. Inspect `jobs[<name>].status_code` for per-model outcome. */ ModelDownloadJobResponse;
 export type StartModelDownloadApiArg = {
   modelDownloadRequest: ModelDownloadRequest;
 };

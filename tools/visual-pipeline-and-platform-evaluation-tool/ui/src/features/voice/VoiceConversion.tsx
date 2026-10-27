@@ -81,7 +81,7 @@ function formatDuration(seconds: number): string {
   return `${Math.floor(rounded / 60)}:${(rounded % 60).toString().padStart(2, "0")}`;
 }
 
-class AudioPipelineCancelledError extends Error { }
+class AudioPipelineCancelledError extends Error {}
 
 async function checkResponse(response: Response): Promise<void> {
   if (response.ok) return;
@@ -572,7 +572,9 @@ export function VoiceConversion() {
                     aria-label="Input source"
                     value={inputSource}
                     disabled={busy}
-                    onValueChange={(value) => selectInputSource(value as InputSource)}
+                    onValueChange={(value) =>
+                      selectInputSource(value as InputSource)
+                    }
                     className="grid min-w-0 grid-cols-1 gap-3"
                   >
                     <div
@@ -641,7 +643,10 @@ export function VoiceConversion() {
                       )}
                     >
                       <div className="flex items-center gap-2">
-                        <RadioGroupItem value="upload" id="voice-source-upload" />
+                        <RadioGroupItem
+                          value="upload"
+                          id="voice-source-upload"
+                        />
                         <Label htmlFor="voice-source-upload">Upload</Label>
                       </div>
                       <Button
@@ -686,7 +691,10 @@ export function VoiceConversion() {
                       )}
                     >
                       <div className="flex items-center gap-2">
-                        <RadioGroupItem value="record" id="voice-source-record" />
+                        <RadioGroupItem
+                          value="record"
+                          id="voice-source-record"
+                        />
                         <Label htmlFor="voice-source-record">Microphone</Label>
                       </div>
                       <Button
@@ -792,7 +800,10 @@ export function VoiceConversion() {
                     missingModels={missingModels.map((item) => item.model)}
                   >
                     {status === "transcribing" ? (
-                      <StopButton stopping={stopping} onStop={() => void stop()} />
+                      <StopButton
+                        stopping={stopping}
+                        onStop={() => void stop()}
+                      />
                     ) : (
                       <Button
                         className={RUN_BUTTON_WIDTH}

@@ -250,7 +250,7 @@ async function mockTtsJob(
           status: 202,
           json: { job_id: jobId, status: "QUEUED" },
         })
-        .catch(() => { });
+        .catch(() => {});
     },
     { times: 1 },
   );
@@ -277,7 +277,7 @@ async function mockTtsJob(
             error,
           },
         })
-        .catch(() => { });
+        .catch(() => {});
     },
     { times: 1 },
   );
@@ -372,7 +372,7 @@ test.beforeEach(async ({ page }) => {
   );
   await page.goto(
     process.env.VOICE_UI_URL ??
-    "http://127.0.0.1:5173/pipelines/audio/speech-to-text/cpu",
+      "http://127.0.0.1:5173/pipelines/audio/speech-to-text/cpu",
   );
 });
 
@@ -402,16 +402,18 @@ test("shows a loader until the catalog finishes loading", async ({ page }) => {
   });
   await expect(page.getByRole("tab", { name: "Vision" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Audio" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Create Pipeline" })).toHaveCount(
-    0,
-  );
+  await expect(
+    page.getByRole("button", { name: "Create Pipeline" }),
+  ).toHaveCount(0);
 
   releaseRequests?.();
 
   await expect(
     page.getByRole("button", { name: "Create Pipeline" }),
   ).toBeVisible();
-  await expect(page.getByText("People Detection", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("People Detection", { exact: true }),
+  ).toBeVisible();
   await expect(page.getByText("Anomaly Detection")).toHaveCount(0);
 });
 
@@ -1386,8 +1388,10 @@ test("reports a failed stop request and keeps the job running", async ({
   page,
 }) => {
   const jobId = "stop-failure";
-  await page.route("**/voice/pipelines/text-to-speech/variants/*/runs", (route) =>
-    route.fulfill({ status: 202, json: { job_id: jobId, status: "QUEUED" } }),
+  await page.route(
+    "**/voice/pipelines/text-to-speech/variants/*/runs",
+    (route) =>
+      route.fulfill({ status: 202, json: { job_id: jobId, status: "QUEUED" } }),
   );
   await page.route(`**/voice/jobs/${jobId}`, (route) =>
     route.fulfill({
@@ -1534,9 +1538,7 @@ test("waveform failure preserves audio playback and conversion metrics", async (
   await page.goto(
     new URL("/pipelines/audio/text-to-speech/cpu", page.url()).toString(),
   );
-  await page
-    .getByLabel("Text input")
-    .fill("Your audio is ready for playback.");
+  await page.getByLabel("Text input").fill("Your audio is ready for playback.");
   await mockTtsJob(page, { serviceMs: 120 });
   await page.getByRole("button", { name: "Generate speech" }).click();
   await expect(
