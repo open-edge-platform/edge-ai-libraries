@@ -49,8 +49,8 @@ All variables are case-insensitive.
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| YOLO_POSE_MODEL | /models/yolo_models/yolo26n-pose/yolo26n-pose.xml | Path to YOLO-Pose OpenVINO IR model (.xml) |
-| BA_GST_DEVICE | CPU | OpenVINO inference device: CPU, GPU. See the accelerator mapping requirement below. |
+| YOLO_POSE_MODEL | /models/yolo_models/yolo26n-pose/yolo26n-pose.xml | Path to YOLO-Pose OpenVINO™ IR model (.xml) |
+| BA_GST_DEVICE | CPU | OpenVINO™ inference device: CPU, GPU. See the accelerator mapping requirement below. |
 | BA_CONFIDENCE | 0.5 | Minimum keypoint confidence threshold |
 
 Download YOLO26n-pose model:
@@ -69,10 +69,10 @@ Expected output files:
 - `models/yolo_models/yolo26n-pose/yolo26n-pose.xml`
 - `models/yolo_models/yolo26n-pose/yolo26n-pose.bin`
 - `models/vlm_models/config.json`
-- `models/vlm_models/Qwen/Qwen2.5-VL-7B-Instruct/` (OpenVINO IR model files)
+- `models/vlm_models/Qwen/Qwen2.5-VL-7B-Instruct/` (OpenVINO™ IR model files)
 
 The host must expose accelerator devices to Docker, and the relevant device entries must be mapped into the `behavioral-analysis` service,
-because that container performs the YOLO-Pose OpenVINO inference. For example, `/dev/dri:/dev/dri` (GPU) or `/dev/accel:/dev/accel` (NPU).
+because that container performs the YOLO-Pose OpenVINO™ inference. For example, `/dev/dri:/dev/dri` (GPU) or `/dev/accel:/dev/accel` (NPU).
 
 > [!NOTE]
 > If `BA_GST_DEVICE` is set to `GPU` or `NPU`, the corresponding accelerator device must be added to the
@@ -114,7 +114,8 @@ services:
       - ${RENDER_GROUP_ID:-992}
 ```
 
-> **Note:** Only one `docker-compose.override.yml` can be active at a time. If switching
+> [!CAUTION]
+> Only one `docker-compose.override.yml` can be active at a time. If switching
 > between GPU and NPU, replace the override file with the appropriate template.
 
 ### Frame Analysis
@@ -163,7 +164,6 @@ In Docker Compose, `ovms-vlm` is defined under the `vlm` profile and its `depend
 | VLM_MAX_IMAGE_SIZE | 256 | Maximum frame size for VLM |
 | VLM_MAX_CONCURRENCY | 1 | Maximum concurrent VLM requests |
 
-
 ### Pattern Config Path
 
 | Variable | Default | Description |
@@ -172,10 +172,9 @@ In Docker Compose, `ovms-vlm` is defined under the `vlm` profile and its `depend
 
 ## .env File (Docker Compose)
 
-The project .env file controls Docker Compose substitution defaults.
+The project `.env` file controls Docker Compose substitution defaults.
 
-Please refer [environment file](../../../.env) for more details.
-
+See the full [environment file](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/behavioral-analysis/.env) for more details.
 
 ## Pattern Configuration (config/patterns.yaml)
 

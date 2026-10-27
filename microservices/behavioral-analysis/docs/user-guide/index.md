@@ -20,7 +20,7 @@ The Behavioral Analysis Service is a reusable Intel-developed microservice that 
 
 **Core capabilities:**
 
-- Pose keypoint extraction via YOLO26n-pose (OpenVINO Runtime)
+- Pose keypoint extraction via YOLO26n-pose (OpenVINO™ Runtime)
 - Declarative YAML-driven pattern engine (supports positional, angular, distance, velocity conditions)
 - Optional VLM-based frame-level visual confirmation
 - Event-driven processing via MQTT
@@ -109,7 +109,7 @@ sequenceDiagram
 | **MQTT Consumer** | Subscribe to requests, dispatch analysis, publish results |
 | **Frame Storage Client** | Async S3-compatible frame retrieval (aioboto3) |
 | **Pose Extraction** | YOLO-Pose inference orchestration per frame |
-| **OpenVINO Wrapper** | OpenVINO IR model loading, letterboxing, NMS |
+| **OpenVINO Wrapper** | OpenVINO™ IR model loading, letterboxing, NMS |
 | **Pattern Detection** | Orchestrates pose and VLM confirmation |
 | **Rule Engine** | Evaluates YAML-defined pose conditions and phases |
 | **VLM Client** | OpenAI-compatible HTTP client with circuit breaker |
@@ -118,7 +118,7 @@ sequenceDiagram
 
 ### 3.1 Pose Extraction
 
-- **Model:** YOLO26n-pose (OpenVINO IR format); runs without PyTorch dependencies
+- **Model:** YOLO26n-pose (OpenVINO™ IR format); runs without PyTorch dependencies
 - **Keypoints:** COCO 17-point skeletal format (pose coordinates + per-keypoint confidence)
 - **Device support:** CPU, GPU (configurable via `GST_INFERENCE_DEVICE`)
 - **Configuration:** `POSE_CONFIDENCE_THRESHOLD` (default 0.5) controls detection quality filtering

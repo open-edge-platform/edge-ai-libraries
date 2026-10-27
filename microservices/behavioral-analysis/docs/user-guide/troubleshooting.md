@@ -33,7 +33,7 @@ ValueError: Expected .xml model path, got: /models/yolo_models/yolo26n-pose/yolo
 FileNotFoundError: Model file not found
 ```
 
-**Cause:** The YOLO-Pose OpenVINO IR model (`.xml` + `.bin`) is not present at the path specified by `YOLO_POSE_MODEL`.
+**Cause:** The YOLO-Pose OpenVINO™ IR model (`.xml` + `.bin`) is not present at the path specified by `YOLO_POSE_MODEL`.
 
 **Resolution:**
 
@@ -129,7 +129,7 @@ VLM circuit breaker open — skipping analysis (cooldown: 30s remaining)
 Compilation failed. vclAllocatedExecutableCreate3 result: 0x78000004
 ```
 
-**Cause:** `BA_GST_DEVICE=NPU` is set but the `/dev/accel` device is not mapped into the container, so the OpenVINO NPU plugin cannot find the hardware.
+**Cause:** `BA_GST_DEVICE=NPU` is set but the `/dev/accel` device is not mapped into the container, so the OpenVINO™ NPU plugin cannot find the hardware.
 
 **Resolution:**
 

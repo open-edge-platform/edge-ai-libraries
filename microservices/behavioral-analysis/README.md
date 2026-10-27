@@ -2,20 +2,20 @@
 
 The Behavioral Analysis Service is an Intel-developed microservice that detects suspicious activity by analyzing sequences of video frames for tracked individuals.
 
-It extracts skeletal pose keypoints using a YOLO26n-pose model optimized with OpenVINO Runtime, then evaluates the resulting pose sequences against behavioral patterns defined in YAML. No code changes are required to add or modify detection behaviors.
+It extracts skeletal pose keypoints using a YOLO26n-pose model optimized with OpenVINO™ Runtime, then evaluates the resulting pose sequences against behavioral patterns defined in YAML. No code changes are required to add or modify detection behaviors.
 
-When a pose pattern matches, the service can optionally forward sampled key frames to a Visual Language Model (VLM) served by OpenVINO Model Server, adding a frame-level visual check on top of the geometric pose evidence.
+When a pose pattern matches, the service can optionally forward sampled key frames to a Visual Language Model (VLM) served by OpenVINO™ Model Server, adding a frame-level visual check on top of the geometric pose evidence.
 
 The service operates as an event-driven MQTT consumer — it subscribes to a configurable request topic, processes each request, and publishes results to a configurable result topic. It expects frames to already be present in SeaweedFS; frame capture and storage are the responsibility of the upstream system.
 
 **Key features and primary application areas:**
 
-- **Pose extraction** — YOLO26n-pose inference via OpenVINO Runtime (no PyTorch); COCO 17-keypoint skeletal output per frame
+- **Pose extraction** — YOLO26n-pose inference via OpenVINO™ Runtime (no PyTorch); COCO 17-keypoint skeletal output per frame
 - **Declarative pattern engine** — YAML-defined behavioral patterns with positional, angular, distance, and velocity conditions across ordered temporal phases; extensible without code changes
 - **VLM confirmation** — optional visual verification using an OpenAI-compatible endpoint (Qwen2.5-VL-7B-Instruct via OVMS) with a built-in circuit breaker and concurrency limiter
 - **Event-driven processing** — MQTT-based `request topic` → `result topic` pipeline with entity deduplication and configurable backpressure
 - **Built-in loss-prevention pattern** — `shelf_to_waist` concealment detection targeting retail shrinkage scenarios
-- **Container-ready** — based on `Intel Deep Learning Streamer (DL Streamer) `; fully configurable via environment variables and a volume-mounted YAML configuration file
+- **Container-ready** — based on Deep Learning Streamer (DL Streamer); fully configurable via environment variables and a volume-mounted YAML configuration file
 
 Below, you'll find links to detailed documentation to help you get started,
 configure, and deploy the microservice.
