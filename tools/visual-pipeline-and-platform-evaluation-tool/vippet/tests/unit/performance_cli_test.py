@@ -98,6 +98,9 @@ class TestParser(unittest.TestCase):
             ["--streams", "0"],
             ["--base-url", "file:///etc/passwd"],
             ["--output-mode", "stdout"],
+            ["--metrics-trim-fraction", "0.5"],
+            ["--metrics-trim-fraction", "1"],
+            ["--metrics-trim-fraction", "-0.1"],
             ["--dry-run", "--report-only"],
             ["--dry-run", "--report-only", "x"],
         ):

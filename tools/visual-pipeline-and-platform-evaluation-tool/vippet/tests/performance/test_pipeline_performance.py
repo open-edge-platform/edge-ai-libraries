@@ -182,7 +182,12 @@ def test_pipeline_performance(
             time.sleep(RETRY_DELAY_SECONDS)
             final_status = _attempt_performance_job(http_client, payload)
     finally:
-        hw_stats = hw_monitor.stop()
+        # device_family is an underscore-separated list of the families this
+        # variant requires (e.g. "GPU_NPU" -> ["GPU", "NPU"]); hw_monitor
+        # uses it to flag device families that reported no samples or were
+        # idle the whole run instead of silently producing blank KPI cells.
+        requested_families = pipeline_case.device_family.split("_")
+        hw_stats = hw_monitor.stop(requested_families)
 
     duration = time.time() - start_time
     is_success = final_status.get("state") == "COMPLETED"

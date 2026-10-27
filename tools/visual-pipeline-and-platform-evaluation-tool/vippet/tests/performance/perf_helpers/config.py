@@ -25,6 +25,7 @@ POLL_TIMEOUT: int = SETTINGS["vippet.max_job_duration"]
 METRICS_URL: str = SETTINGS["metrics.metrics_url"]
 CAPABILITIES_URL: str = SETTINGS["metrics.capabilities_url"]
 METRICS_SAMPLE_INTERVAL: float = SETTINGS["metrics.sample_interval_seconds"]
+METRICS_TRIM_FRACTION: float = SETTINGS["metrics.trim_fraction"]
 
 # --- benchmark section ---
 PIPELINE_FILTER: str | list[str] = SETTINGS["benchmark.pipelines"]

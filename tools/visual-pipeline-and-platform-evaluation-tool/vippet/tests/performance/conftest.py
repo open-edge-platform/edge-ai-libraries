@@ -33,6 +33,7 @@ try:
         CAPABILITIES_URL,
         CREATE_LATEST_LINK,
         METRICS_SAMPLE_INTERVAL,
+        METRICS_TRIM_FRACTION,
         METRICS_URL,
         ON_UNKNOWN_FILTER_ID,
         PERF_RESULTS_DIR,
@@ -329,7 +330,7 @@ def http_client() -> Generator[httpx.Client, None, None]:
 @pytest.fixture
 def hw_monitor() -> HardwareMonitor:
     """Create a HardwareMonitor instance for per-test HW sampling."""
-    return HardwareMonitor(METRICS_URL, METRICS_SAMPLE_INTERVAL)
+    return HardwareMonitor(METRICS_URL, METRICS_SAMPLE_INTERVAL, METRICS_TRIM_FRACTION)
 
 
 @pytest.fixture(scope="session")

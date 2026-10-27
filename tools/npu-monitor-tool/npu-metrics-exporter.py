@@ -75,7 +75,7 @@ prev_mem_bandwidth_ts = time.monotonic()
 @unique
 class PromMetric(Enum):
     npu_monitor_temperature = ('npu_monitor_temperature', 'NPU Temperature [°C]') # nopep8
-    npu_monitor_freq_hz = ('npu_monitor_freq_hz', 'DPU Frequency [Hz]') # nopep8
+    npu_monitor_freq_mhz = ('npu_monitor_freq_mhz', 'DPU Frequency [MHz]') # nopep8
     npu_memory_util = ('npu_memory_util', 'NPU Memory Utilization [MB]') # nopep8
     npu_memory_bandwidth =('npu_memory_bandwidth', 'NPU DDR Average Bandwidth [MB/s]') # nopep8
     npu_util = ('npu_util', 'NPU Utilization [%]') # nopep8
@@ -95,7 +95,7 @@ class Metric:
 
 metrics_map = {
     'NPU_TEMPERATURE': Metric(PromMetric.npu_monitor_temperature),
-    'NPU_FREQUENCY': Metric(PromMetric.npu_monitor_freq_hz),
+    'NPU_FREQUENCY': Metric(PromMetric.npu_monitor_freq_mhz),
     'NPU_MEM_UTIL': Metric(PromMetric.npu_memory_util),
     'NPU_MEM_BANDWIDTH': Metric(PromMetric.npu_memory_bandwidth),
     'NPU_UTIL': Metric(PromMetric.npu_util),
@@ -126,7 +126,7 @@ def process_npu_frequency():
     all_labelnames = ['dev_id']
     all_labelvalues = [f'{pciid}']
 
-    val = pu.get_display_freq_hz()
+    val = pu.get_freq_mhz()
     if metric_name not in metrics:
         metrics[metric_name] = Gauge(metric_name, metric_desc,
                                     labelnames=all_labelnames,

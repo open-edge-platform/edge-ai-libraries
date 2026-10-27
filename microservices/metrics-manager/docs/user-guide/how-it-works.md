@@ -183,14 +183,14 @@ See [Environment Variables](./get-started/environment-variables.md#security) for
 
 **Telegraf Inputs:**
 
-| Input   | Source                | Interval   | Fields                                                           |
-| ------- | --------------------- | ---------- | ---------------------------------------------------------------- |
-| `cpu`   | `/proc/stat`          | 1s         | usage_user, usage_system, usage_idle (per core + total)          |
-| `mem`   | `/proc/meminfo`       | 1s         | total, used, available, used_percent                             |
-| `temp`  | `/sys/class/thermal/` | 1s         | temperature (per sensor, filtered to coretemp)                   |
-| `exec`  | `read_cpu_freq.sh`    | 10s        | cpu_freq_mhz (per core)                                          |
-| `execd` | `qmassa_reader.py`    | continuous | gpu\_\* (engine usage, frequency, power)                         |
-| `execd` | `npu_reader.py`       | 1s         | npu_power, npu_frequency, npu_temperature, npu_utilization, etc. |
+| Input   | Source                | Interval   | Fields                                                               |
+|---------|-----------------------|------------|----------------------------------------------------------------------|
+| `cpu`   | `/proc/stat`          | 1s         | usage_user, usage_system, usage_idle (per core + total)              |
+| `mem`   | `/proc/meminfo`       | 1s         | total, used, available, used_percent                                 |
+| `temp`  | `/sys/class/thermal/` | 1s         | temperature (per sensor, filtered to coretemp)                       |
+| `exec`  | `read_cpu_freq.sh`    | 10s        | cpu_freq_mhz (per core)                                              |
+| `execd` | `qmassa_reader.py`    | continuous | gpu\_\* (engine usage, frequency, power)                             |
+| `execd` | `npu_reader.py`       | 1s         | npu_power, npu_frequency_mhz, npu_temperature, npu_utilization, etc. |
 
 **Telegraf Output:**
 

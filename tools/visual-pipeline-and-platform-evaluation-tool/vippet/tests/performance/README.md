@@ -172,6 +172,7 @@ Every YAML key has a CLI flag:
 | `--metrics-url`              | `metrics.metrics_url`                     | `VIPPET_METRICS_URL`              |
 | `--capabilities-url`         | `metrics.capabilities_url`                | `VIPPET_CAPABILITIES_URL`         |
 | `--metrics-interval`         | `metrics.sample_interval_seconds`         | `PERF_METRICS_INTERVAL`           |
+| `--metrics-trim-fraction`    | `metrics.trim_fraction`                   | `PERF_METRICS_TRIM_FRACTION`      |
 | `--results-dir`              | `results.output_dir`                      | `PERF_RESULTS_DIR`                |
 | `--formats`                  | `results.formats`                         |                                   |
 | `--[no-]latest-link`         | `results.create_latest_link`              |                                   |
@@ -214,12 +215,55 @@ Environment variable defaults:
 | `PERF_CONFIG_FILE`           | (unset)                                          | Explicit YAML path; wins over `PERF_CONFIG`                                                                                                                               |
 | `PERF_RESULTS_DIR`           | `vippet/tests/performance/results`               | Output directory for reports                                                                                                                                              |
 | `PERF_METRICS_INTERVAL`      | `2.0`                                            | HW sampling interval (seconds)                                                                                                                                            |
+| `PERF_METRICS_TRIM_FRACTION` | `0.1`                                            | Fraction of HW samples trimmed from each end before averaging (see [HW metric trimming](#hw-metric-trimming))                                                             |
 | `PERF_ON_UNKNOWN_ID`         | `fail`                                           | Unknown id in `pipelines` / `skip_pipelines` / `skip_variants` / `variants`: `fail` aborts the run, `warn` only logs a warning                                            |
 
 `VIPPET_JOB_POLL_INTERVAL` and `VIPPET_JOB_TIMEOUT_SECONDS` are also read by the
 functional-test helpers. The CLI and direct pytest both resolve them the same way.
 Numbers must be finite (`nan` and `inf` are rejected). With direct pytest, an invalid
 config also prints a one-line error and exits with `2`.
+
+### HW metric trimming
+
+`metrics.trim_fraction` (default `0.1`, override with `PERF_METRICS_TRIM_FRACTION`)
+trims that fraction of time-ordered hardware samples from **both ends** before
+computing each KPI's average — the same edge trimming VIPPET's own built-in
+benchmark applies (`managers.benchmark_metrics.TRIM_FRACTION`), so warm-up and
+wind-down samples don't drag the reported average down. `_min`/`_max` are
+always computed from the **untrimmed** samples, so a real transient peak
+still shows in the report.
+
+With the default 2s sampling interval and a 30s run (~16 samples), a 10% trim
+only drops one sample from each end — some startup idle may still be present
+in the average. This matches VIPPET's built-in benchmark behavior today.
+
+The value must satisfy `0 <= trim_fraction < 0.5` (`0` disables trimming).
+
+### Per-family KPI status (`ok` / `no_samples` / `idle`)
+
+For each device family requested by a test case (derived from
+`pipeline_case.device_family`, e.g. `GPU_NPU` → `GPU`, `NPU`), the HW monitor
+classifies that family's activity across the run:
+
+| Status       | Meaning                                                                                                                                       |
+|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------|
+| `ok`         | At least one activity KPI (e.g. `npu_utilization`, falling back to `npu_frequency_mhz`/`npu_power` for NPU) was nonzero somewhere in the run. |
+| `no_samples` | None of the family's KPI keys were ever reported by metrics-manager — the device is missing or the harness never got a successful poll.       |
+| `idle`       | Samples exist for the family, but every activity value was zero for the entire run (hardware present but never dispatched work).              |
+
+A requested family that isn't `ok` triggers both a `logger.warning` and a
+`warnings.warn` (so it's visible in the pytest warnings summary), and shows up
+in the reports instead of a blank cell:
+
+- **CSV**: a `no_samples` family's `_avg`/`_max` cells show the literal
+  `NO_SAMPLES` marker instead of an empty string. An `idle` family keeps its
+  real (zero) numeric values — only the `kpi_warnings` column
+  (e.g. `NPU:idle` or `NPU:no_samples;GPU:idle`) flags it.
+- **HTML**: the per-pipeline table shows a small amber "no samples" / "idle"
+  warning badge next to the affected family's utilization cell.
+- **JSON**: numeric KPI values stay numeric; the status lives in
+  `hw_metrics.kpi_status` (per-family) and `hw_metrics.kpi_warnings`
+  (semicolon-joined summary string).
 
 ## Layout
 
@@ -231,7 +275,7 @@ perf_helpers/
 ├── cli.py                  # CLI entry point (python -m perf_helpers.cli)
 ├── config.py               # module constants derived from settings.py
 ├── discovery.py            # read-only ViPPET queries feeding matrix.py
-├── hw_monitor.py           # background HW metric sampler
+├── hw_monitor.py           # background HW metric sampler + per-family status
 ├── matrix.py               # pure pipeline x variant x streams builder with exclusion reasons
 ├── preflight.py            # readiness checks + /devices, /capabilities, /status snapshots
 ├── reporters.py            # JSON/CSV export + HTML report generation
