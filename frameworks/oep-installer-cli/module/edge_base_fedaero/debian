@@ -19,7 +19,7 @@ debian_99_profile_edge_base_fedaero () {
     if [[ " $* " = *" --edgepack "* ]]; then
       modules+=(edge_pack_base_standard edge_pack_npu)
     else
-      modules+=(gpu_accel npu_accel pcm)
+      modules+=(gpu_accel npu_accel)
     fi
     echo "${modules[*]}"
     ;;
