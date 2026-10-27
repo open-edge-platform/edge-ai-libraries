@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Clock, Cpu, Gauge, Gpu } from "lucide-react";
 import { useTheme } from "next-themes";
 import { MetricCard } from "@/features/metrics/MetricCard.tsx";
@@ -28,6 +28,7 @@ import { useAppSelector } from "@/store/hooks.ts";
 import { selectHasNPU } from "@/store/reducers/devices.ts";
 
 interface MetricsDashboardProps {
+  children?: ReactNode;
   className?: string;
   forceDark?: boolean;
   useDemoStyles?: boolean;
@@ -47,6 +48,7 @@ interface MetricsDashboardProps {
 }
 
 export const MetricsDashboard = ({
+  children,
   className = "",
   forceDark = false,
   useDemoStyles = false,
@@ -529,6 +531,7 @@ export const MetricsDashboard = ({
             useDemoStyles={useDemoStyles}
           />
         )}
+        {children}
       </div>
     </div>
   );

@@ -6,10 +6,33 @@ ensure_sudo () {
   [ -z "$sp" ] || proxy_args+=("https_proxy=$sp" "HTTPS_PROXY=$sp")
   [ -z "$np" ] || proxy_args+=("no_proxy=$np" "NO_PROXY=$np")
 
+  # background process to persist sudo cache
+  if [ -e /dev/tty ] && : < /dev/tty 2>/dev/null; then
+    local ppid=$$
+    local pid="$(ensure_prop get pids/sudo/pid$ppid)"
+    if [ -z "$pid" ] || ! kill -0 "$pid" 2> /dev/null; then
+      (
+        set +e; trap - ERR EXIT INT TERM
+        for fd in /proc/$BASHPID/fd/*; do
+          fd=${fd##*/}; (( fd > 2 )) && eval "exec $fd>&-"
+        done 2>/dev/null
+        while kill -0 $ppid 2> /dev/null; do
+          sudo -n -v < /dev/null > /dev/null 2>&1 || sudo -n true < /dev/null > /dev/null 2>&1 || break
+          sleep 60
+        done
+        ensure_prop remove pids/sudo/pid$ppid
+      ) < /dev/null > /dev/null 2>&1 &
+      pid=$!
+      ensure_prop create pids/sudo/pid$ppid
+      ensure_prop set pids/sudo/pid$ppid "$pid"
+      disown $pid
+    fi
+  fi
+
   if sudo -n true 2>/dev/null; then
     # cached timestamp still valid or passwordless sudo: no password needed
     sudo env "${proxy_args[@]}" "$@"
-  elif [ -t 0 ] && [ -z "$SUDO_PASSWORD" ]; then
+  elif [ -t 0 ] && [ -z "$SUDO_PASSWORD" ] && [ -z "$_INSTALLER_PANEL_ACTIVE" ]; then
     # genuine interactive terminal: safe to prompt for a password
     sudo env "${proxy_args[@]}" "$@"
   else

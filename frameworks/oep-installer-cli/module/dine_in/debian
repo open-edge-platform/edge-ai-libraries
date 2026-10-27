@@ -25,18 +25,19 @@ verify_dine_in () {
 }
 
 debian_90_profile_dine_in () {
-  echo "git curl gawk make python3_venv docker edge_base"
+  echo "git curl gawk make python3_venv docker_io edge_base"
 }
 
 debian_90_install_dine_in () {
   configure_dine_in
 
   if verify_dine_in && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Order accuracy is already installed. Skipping"
+    echo "Order accuracy is installed." >&2
   else 
-    ensure_ports_open "${ports[*]}" return 3
+    ensure_disk_size 45000
+    ensure_ports_open install dine_in "${ports[@]}"
+
     # clone the repository
-    ensure_disk_size 10000
     ensure_git_clone "$workspace" $version $repository
 
     # initialize .env
@@ -57,7 +58,7 @@ debian_90_install_dine_in () {
   local device=$(ensure_select_device "$@")
   configure_dine_in_device "${device^^}"
 
-  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
   echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]"
   echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]"
   echo "@@HIGHLIGHT $installer_name remove"
@@ -65,7 +66,7 @@ debian_90_install_dine_in () {
 
 debian_90_start_dine_in () {
   configure_dine_in "$@"
-  ensure_ports_open "${ports[*]}" debian_90_stop_dine_in "$@"
+  ensure_ports_open start dine_in "${ports[@]}"
 
   local device=$(ensure_select_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_dine_in_device "${device^^}"
@@ -80,7 +81,7 @@ debian_90_start_dine_in () {
 
 debian_90_stop_dine_in () {
   configure_dine_in "$@"
-  cd "$workspace"/dine-in && make down || true
+  cd "$workspace"/dine-in && make clean || true
 }
 
 debian_90_remove_dine_in () {

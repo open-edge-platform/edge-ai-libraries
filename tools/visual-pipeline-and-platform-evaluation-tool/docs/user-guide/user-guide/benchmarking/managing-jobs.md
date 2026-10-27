@@ -64,8 +64,8 @@ by the retention guidance in the [Audio Pipelines guide](../voice-conversion.md)
 To stop a performance or density job that is currently running:
 
 1. Locate the job in the list (state = RUNNING).
-2. Click the **Stop** button.
-3. The job will be terminated.
+1. Click the **Stop** button.
+1. The job will be terminated.
 
 **Behavior after stopping:**
 

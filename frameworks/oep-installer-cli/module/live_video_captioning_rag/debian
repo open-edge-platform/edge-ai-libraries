@@ -26,18 +26,18 @@ verify_live_video_captioning_rag () {
 }
 
 debian_90_profile_live_video_captioning_rag () {
-  echo "git curl gawk jq edge_base docker"
+  echo "git curl gawk jq edge_base docker_io"
 }
 
 debian_90_install_live_video_captioning_rag () {
   configure_live_video_captioning_rag
   if verify_live_video_captioning_rag && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Live Video Captioning RAG is already installed. Skipping"
+    echo "Live Video Captioning RAG is installed." >&2
   else
-    ensure_ports_open "${used_ports[*]}" return 3
+    ensure_disk_size 20000
+    ensure_ports_open install live_video_captioning_rag "${used_ports[@]}"
 
     # clone the repository
-    ensure_disk_size 64000
     ensure_git_clone "$workspace" $version $repository live-video-analysis/live-video-captioning live-video-analysis/live-video-captioning-rag
     export -n socks_server ftp_proxy
 
@@ -56,14 +56,14 @@ debian_90_install_live_video_captioning_rag () {
   local device=$(ensure_select_device "$@")
   configure_live_video_captioning_rag_device "${device^^}"
 
-  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
   echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]"
   echo "@@HIGHLIGHT $installer_name start|remove"
 }
 
 debian_90_start_live_video_captioning_rag () {
   configure_live_video_captioning_rag
-  ensure_ports_open "${used_ports[*]}" debian_90_stop_live_video_captioning_rag
+  ensure_ports_open start live_video_captioning_rag "${used_ports[@]}"
 
   local device=$(ensure_select_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_captioning_rag_device "${device^^}"

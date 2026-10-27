@@ -157,7 +157,7 @@ class SettingSpec:
     flag: str
     """Long CLI flag, e.g. ``--base-url``."""
     kind: str
-    """One of: str, url, int, float, bool, str_list, int_list, pipelines, choice, choice_list."""
+    """One of: str, path, url, int, float, bool, str_list, int_list, pipelines, choice, choice_list."""
     default: Any
     help: str
     env: str | None = None
@@ -176,6 +176,8 @@ class SettingSpec:
         """Convert *value* (from YAML, env or CLI) to the canonical type."""
         kind = self.kind
         if kind == "str":
+            return _as_path_str(value)
+        if kind == "path":
             return _as_path_str(value)
         if kind == "url":
             return _as_url(value)
@@ -381,8 +383,19 @@ SPECS: tuple[SettingSpec, ...] = (
         "--metrics-url",
         "url",
         "http://localhost/metrics/stream",
-        "Hardware metrics endpoint.",
+        "Hardware metrics endpoint (nginx-proxied). Defaults to "
+        "vippet.base_url's host/port.",
         env="VIPPET_METRICS_URL",
+        metavar="URL",
+    ),
+    SettingSpec(
+        "metrics.capabilities_url",
+        "--capabilities-url",
+        "url",
+        "http://localhost:9090/api/v1/capabilities",
+        "metrics-manager capabilities endpoint (direct, not nginx-proxied). "
+        "Defaults to vippet.base_url's host on port 9090.",
+        env="VIPPET_CAPABILITIES_URL",
         metavar="URL",
     ),
     SettingSpec(
@@ -400,9 +413,13 @@ SPECS: tuple[SettingSpec, ...] = (
     SettingSpec(
         "results.output_dir",
         "--results-dir",
-        "str",
+        "path",
         str(PERF_DIR / "results"),
-        "Output directory for benchmark reports.",
+        "Output directory for benchmark reports. Defaults to "
+        "'results' inside the performance test directory (absolute, "
+        "so it does not depend on the current working directory); an "
+        "explicit override is resolved against the current working "
+        "directory, like any other path argument.",
         env="PERF_RESULTS_DIR",
         metavar="DIR",
     ),
@@ -561,4 +578,32 @@ def resolve_settings(
             raise SettingsError(f"invalid {spec.key} from {origin}: {exc}") from exc
         sources[spec.key] = source
 
+    _derive_metrics_defaults_from_base_url(values, sources, config_path)
+
     return ResolvedSettings(values=values, sources=sources, config_path=config_path)
+
+
+def _derive_metrics_defaults_from_base_url(
+    values: dict[str, Any],
+    sources: dict[str, str],
+    config_path: Path,
+) -> None:
+    """Default metrics/capabilities URLs to vippet.base_url's host.
+    Only applied when the key was *not* explicitly set via YAML/env/CLI
+    (i.e. still at its built-in default), so explicit overrides always win.
+    """
+    parsed = urlparse(values["vippet.base_url"])
+    if not parsed.hostname:
+        raise SettingsError(
+            f"vippet.base_url {values['vippet.base_url']!r} is missing a host; "
+            "cannot derive metrics.metrics_url/metrics.capabilities_url defaults "
+            f"from it (config: {config_path})"
+        )
+    if sources["metrics.metrics_url"] == SOURCE_DEFAULT:
+        values["metrics.metrics_url"] = (
+            f"{parsed.scheme}://{parsed.netloc}/metrics/stream"
+        )
+    if sources["metrics.capabilities_url"] == SOURCE_DEFAULT:
+        values["metrics.capabilities_url"] = (
+            f"{parsed.scheme}://{parsed.hostname}:9090/api/v1/capabilities"
+        )

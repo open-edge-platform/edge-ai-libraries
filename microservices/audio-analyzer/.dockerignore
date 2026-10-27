@@ -9,3 +9,24 @@ chunks/
 models/
 storage/
 .cache/
+
+# Git and local metadata
+.git/
+.github/
+.gitignore
+
+# Tests and docs — not needed inside the image
+tests/
+pytest.ini
+docs/
+*.md
+
+# Docker build files and compose — not needed inside the image
+Dockerfile
+docker/
+docker-compose.yml
+
+# Editor/IDE and misc caches
+.pytest_cache/
+.idea/
+.vscode/
