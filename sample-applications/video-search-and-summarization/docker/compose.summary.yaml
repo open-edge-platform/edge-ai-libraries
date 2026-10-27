@@ -146,7 +146,7 @@ services:
       - vs_network
 
   audio-analyzer:
-    image: intel/audio-analyzer:2026.2.0
+    image: intel/audio-analyzer:2026.3.0-20261027-weekly
     hostname: audio-analyzer
     ports:
       - "${AUDIO_HOST_PORT:-8999}:8010"
