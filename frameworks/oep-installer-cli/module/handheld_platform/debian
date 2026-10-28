@@ -1,6 +1,3 @@
-# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
-# SPDX-License-Identifier: Apache-2.0
-
 debian_99_profile_handheld_platform () {
   case "$1" in
   bootstrap) # all components

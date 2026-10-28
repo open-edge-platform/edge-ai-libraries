@@ -1,6 +1,4 @@
 {
-  "SPDX-FileCopyrightText": "(C) 2026 Intel Corporation",
-  "SPDX-License-Identifier": "Apache-2.0",
   "profile": {
     "label": "Federal and Aerospace (UAV)",
     "value": "federal_and_aerospace_ai_suite_uav",

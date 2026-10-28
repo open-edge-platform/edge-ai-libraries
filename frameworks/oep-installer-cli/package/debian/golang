@@ -1,4 +1,3 @@
-
 debian_30_install_golang () {
   ensure_apt_install_package golang
 }
