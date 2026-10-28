@@ -14,6 +14,7 @@ SCHEMA = {
         { "pattern": "^[a-z0-9][a-z0-9+.-]+(=[A-Za-z0-9.+~:-]+)?[*]?$" },
         { "pattern": "^[a-z0-9*?\\[][a-z0-9+.*?\\[\\]-]*$" },
         { "pattern": "^https://\\S+$" },
+        { "pattern": "^http://\\S+$" },
         { "pattern": "^-[a-z0-9][a-z0-9+.-]+$" }
       ]
     },
@@ -26,6 +27,13 @@ SCHEMA = {
         "module-list": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/nonEmpty" } }
       }
     },
+    "url": {
+      "type": "string",
+      "anyOf": [
+        { "pattern": "^https://\\S+$" },
+        { "pattern": "^http://\\S+$" }
+      ]
+    },
     "component": {
       "type": "object",
       "not": { "required": ["schema-version"] },
@@ -35,7 +43,7 @@ SCHEMA = {
         "kernel-cmdline": { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^\\S+$" } },
         "apt-repository": { "enum": ["universe", "multiverse", "restricted"] },
         "repo-name": { "$ref": "#/$defs/nonEmpty" },
-        "gpg-key": { "type": "string", "pattern": "^https://" },
+        "gpg-key": { "$ref": "#/$defs/url" },
         "gpg-key-fingerprint": { "type": "string", "pattern": "^[0-9A-F]{40}$" },
         "key-file": { "type": "string", "pattern": "^/[^\\s]+$" },
         "apt-source": { "type": "string", "pattern": "^deb (\\[[^\\]]*\\] )?https?://\\S+ \\S+ \\S+$" },
