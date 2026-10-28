@@ -177,7 +177,7 @@ subcommand_list () {
     fi
     local all_install_modules="${handles[*]#${installer_family}_*_install_}"
     echo "\"schema-version\": 1.0"
-    echo "\"cli-version\": \"main\""
+    echo "\"cli-version\": \"default\""
     ensure_sbom_format module-list "${mods[@]}"
     echo "---"
     local handler sbomer
