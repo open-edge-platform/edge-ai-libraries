@@ -14,6 +14,13 @@ removes the Prometheus output the SSE stream depends on) will fail in CI.
 End-to-end Docker-based tests are documented at the bottom of this file.
 """
 
+import fnmatch
+import json
+import os
+import re
+import shlex
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -259,10 +266,77 @@ class TestTcmiCollectorWiring:
                     "ENABLE_PSYS_POWER", "ENABLE_GPU_THROTTLE", "ENABLE_TURBOSTAT"):
             assert env in text, f"entrypoint.sh does not gate on {env}"
 
-    def test_turbostat_interval_uses_env_var(self):
+    def test_turbostat_interval_uses_env_var_with_default(self):
+        # Without a default, plain `docker run` (no TURBOSTAT_INTERVAL) fails
+        # Telegraf config parsing with `invalid duration "${TURBOSTAT_INTERVAL}s"`.
         text = (self.TELEGRAF_D / "60-turbostat.conf").read_text(encoding="utf-8")
-        assert 'interval = "${TURBOSTAT_INTERVAL}s"' in text
-        assert 'interval = "7s"' in text.replace("${TURBOSTAT_INTERVAL}", "7")
+        assert 'interval = "${TURBOSTAT_INTERVAL:-5}s"' in text
+
+    @staticmethod
+    def _turbostat_gate_script(turbostat_path: str) -> str:
+        """Extract is_enabled() and the turbostat gate from entrypoint.sh so the
+        real shell logic can be exercised against a fake binary path."""
+        text = ENTRYPOINT.read_text(encoding="utf-8")
+        is_enabled = re.search(r"^is_enabled\(\) \{.*?^\}\n", text, re.S | re.M)
+        gate = re.search(
+            r"^TURBOSTAT_PATH=/usr/local/bin/turbostat\n.*?^fi\n", text, re.S | re.M
+        )
+        assert is_enabled and gate, "turbostat gate not found in entrypoint.sh"
+        gate_src = gate.group(0).replace(
+            "TURBOSTAT_PATH=/usr/local/bin/turbostat",
+            f"TURBOSTAT_PATH={shlex.quote(turbostat_path)}",
+        )
+        return is_enabled.group(0) + gate_src + 'echo "RESULT=$ENABLE_TURBOSTAT"\n'
+
+    @pytest.mark.parametrize(
+        "kind, expected",
+        [
+            ("missing", "false"),       # TURBOSTAT_BIN unset / not mounted
+            ("directory", "false"),     # missing host path -> Docker mounts a dir
+            ("empty", "false"),         # empty placeholder file
+            ("not_executable", "false"),
+            ("failing", "false"),       # e.g. distro wrapper w/o kernel tools
+            ("working", "true"),
+        ],
+    )
+    def test_entrypoint_skips_unusable_turbostat(self, tmp_path, kind, expected):
+        if shutil.which("bash") is None or shutil.which("timeout") is None:
+            pytest.skip("bash/timeout not available")
+        target = tmp_path / "turbostat"
+        if kind == "directory":
+            target.mkdir()
+        elif kind == "empty":
+            target.touch(mode=0o755)
+        elif kind == "not_executable":
+            target.write_text("#!/bin/sh\nexit 0\n")
+            target.chmod(0o644)
+        elif kind in ("failing", "working"):
+            target.write_text(f"#!/bin/sh\nexit {2 if kind == 'failing' else 0}\n")
+            target.chmod(0o755)
+
+        result = subprocess.run(
+            ["bash", "-c", self._turbostat_gate_script(str(target))],
+            env={"PATH": os.environ.get("PATH", ""), "ENABLE_TURBOSTAT": "true"},
+            capture_output=True, text=True, timeout=30, check=True,
+        )
+        assert f"RESULT={expected}" in result.stdout
+        if expected == "false":
+            assert "[WARN]  60-turbostat" in result.stdout
+
+    def test_disk_io_restricted_to_physical_devices(self):
+        text = (self.TELEGRAF_D / "30-disk.conf").read_text(encoding="utf-8")
+        match = re.search(r"^\s*devices\s*=\s*(\[.*\])\s*$", text, re.M)
+        assert match, "30-disk.conf must set a default `devices` filter"
+        patterns = json.loads(match.group(1))
+
+        def matches(dev: str) -> bool:
+            return any(fnmatch.fnmatchcase(dev, p) for p in patterns)
+
+        for dev in ("nvme0n1", "nvme1n1", "sda", "vdb", "mmcblk0"):
+            assert matches(dev), f"{dev} should be collected"
+        for dev in ("loop0", "loop21", "dm-0", "zd0", "ram0", "sr0",
+                    "nvme0n1p1", "sda1", "mmcblk0p1"):
+            assert not matches(dev), f"{dev} should be filtered out"
 
     def test_temp_stats_are_opt_in_dropin(self):
         base_text = (REPO_ROOT / "telegraf.conf").read_text(encoding="utf-8")

@@ -155,13 +155,13 @@ config:
 
   # Hardware-telemetry collector toggles (gate telegraf.d/*.conf drop-ins).
   # A restart is required for any change to take effect (no hot-reload).
-  # ENABLE_DISK_IO and ENABLE_NET_IO are cheap and universally useful; the rest
-  # default off because they add privileged access, high cardinality, or
+  # Only ENABLE_DISK_IO (physical devices only) is on by default; the rest are
+  # opt-in because they add privileged access, high cardinality, or
   # platform-specific dependencies.
   enableRaplPower: "false"
-  enableDramBw: "auto"
+  enableDramBw: "false"
   enableDiskIo: "true"
-  enableNetIo: "true"
+  enableNetIo: "false"
   enableInterrupts: "false"
   enableTempStats: "false"
   enablePsysPower: "false"

@@ -189,6 +189,9 @@ def main():
         if line:
             print(line, flush=True)
             logger.debug("%s", line)
+        else:
+            # perf failed fast; back off instead of spinning.
+            time.sleep(INTERVAL_S)
 
 
 if __name__ == "__main__":

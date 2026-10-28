@@ -138,14 +138,14 @@ Accepted "on" values are case-insensitive: `true` / `1` / `yes` / `on` / `auto`.
 | Env var | Default | Effect |
 |---|---|---|
 | `ENABLE_RAPL_POWER` | **`false`** | load `10-power.conf` (CPU/DRAM power, per-core freq/temp, C-states). Requires `--privileged`; adds per-core series. |
-| `ENABLE_DRAM_BW` | `auto` | `auto` = load the perf reader and self-probe; `off` = disable; `pcm` = reserved for PCM fallback. Requires image built with `INSTALL_PERF=true`. |
-| `ENABLE_DISK_IO` | `true` | load `30-disk.conf` (cheap, universally useful) |
-| `ENABLE_NET_IO` | `true` | load `40-net.conf` (cheap, universally useful) |
+| `ENABLE_DRAM_BW` | `false` | `auto` = load the perf reader only if `perf` is installed (self-probes hardware); `off` = disable; `pcm` = reserved for PCM fallback. Requires image built with `INSTALL_PERF=true`. |
+| `ENABLE_DISK_IO` | `true` | load `30-disk.conf` (whole physical disks only: nvme/sd/vd/mmcblk) |
+| `ENABLE_NET_IO` | `false` | load `40-net.conf`. Only useful with host networking (`host-nic-telemetry` profile enables it by default); in bridge mode it sees just the container's `eth0`. |
 | `ENABLE_INTERRUPTS` | **`false`** | load `50-interrupts.conf`. Emits one series per device IRQ — significant cardinality increase on many hosts. |
 | `ENABLE_TEMP_STATS` | **`false`** | load `70-temp-stats.conf` for opt-in 100ms CPU package temperature sampling plus per-second min/max/mean. |
 | `ENABLE_PSYS_POWER` | **`false`** | load `90-tcmi-execd.conf` (psys / platform RAPL power execd reader). Requires `--privileged`. |
 | `ENABLE_GPU_THROTTLE` | **`false`** | load `91-gpu-throttle.conf` (xe GPU frequency + throttle-reason execd reader). Idles silently on non-Intel-GPU hosts. |
-| `ENABLE_TURBOSTAT` | `false` | load `60-turbostat.conf` (IPC/SMI/per-core diagnostics, opt-in). Requires kernel-matched turbostat binary. |
+| `ENABLE_TURBOSTAT` | `false` | load `60-turbostat.conf` (IPC/SMI/per-core diagnostics, opt-in). Requires kernel-matched turbostat binary; if none is usable the entrypoint logs a warning and skips it. |
 | `TURBOSTAT_INTERVAL` | `5` | turbostat sampling cadence in seconds |
 | `TURBOSTAT_BIN` | *(auto)* | host path to the kernel-matched turbostat binary (bind-mounted in). **`make up` resolves this dynamically** from the running kernel — you normally don't set it. See §5. |
 | `METRICS_MANAGER_HOSTNAME` | kernel hostname | stable `host=` tag stamped on every metric |
@@ -171,7 +171,7 @@ cp .env.example .env
 ```
 
 > **Note:** Docker Compose automatically reads `.env` at startup and substitutes
-> those values into `compose.yaml` (e.g. `${ENABLE_DRAM_BW:-auto}`). Every
+> those values into `compose.yaml` (e.g. `${ENABLE_DRAM_BW:-false}`). Every
 > variable still has a working default baked into `compose.yaml`, so this step is
 > not strictly required — but starting from a copy of the template gives you a
 > documented place to change collector toggles, the host tag, ports, or proxy
@@ -518,12 +518,12 @@ All optional (defaults work out of the box). Uncomment in `.env` to change:
 ```bash
 # .env  (copy from .env.example, uncomment what you need)
 #
-# Always-on (cheap, universally useful):
+# On by default:
 ENABLE_DISK_IO=true
-ENABLE_NET_IO=true
 
 # Off by default — enable for Intel hardware telemetry:
 # ENABLE_RAPL_POWER=true       # CPU/DRAM power, per-core freq/temp, C-states
+# ENABLE_NET_IO=true           # host NICs (needs network_mode: host / host-nic-telemetry profile)
 # ENABLE_DRAM_BW=auto          # auto | off  (requires INSTALL_PERF=true at build time)
 # ENABLE_INTERRUPTS=true       # per-device IRQ rates (high cardinality — see note below)
 # ENABLE_TEMP_STATS=true       # 100ms CPU package temp + min/max/mean stats
@@ -597,8 +597,13 @@ export TURBOSTAT_BIN=$( [ -x /usr/lib/linux-tools/$(uname -r)/turbostat ] \
 docker compose up -d
 ```
 
-If the binary and kernel don't match, turbostat refuses to read the MSRs and the
-R panels stay empty (no crash — just no data).
+Before loading `60-turbostat.conf`, the entrypoint checks that
+`/usr/local/bin/turbostat` is a non-empty executable file and that
+`turbostat --version` runs. If `TURBOSTAT_BIN` is unset (compose mounts
+`/dev/null`), points at a missing path, or resolves to the distro wrapper or a
+kernel-mismatched build, the collector is skipped with a `[WARN]  60-turbostat: …`
+line in `docker compose logs` and all other collectors keep running. The
+R panels then stay empty.
 
 ### Runtime knobs worth knowing
 

@@ -186,25 +186,25 @@ spec:
             - name: TELEGRAF_CONFIG_PATH
               value: /etc/telegraf/telegraf.conf
             - name: ENABLE_RAPL_POWER
-              value: {{ .Values.config.enableRaplPower | default "false" | quote }}
+              value: {{ .Values.config.enableRaplPower | toString | quote }}
             - name: ENABLE_DRAM_BW
-              value: {{ .Values.config.enableDramBw | default "auto" | quote }}
+              value: {{ .Values.config.enableDramBw | toString | quote }}
             - name: ENABLE_DISK_IO
-              value: {{ .Values.config.enableDiskIo | default "true" | quote }}
+              value: {{ .Values.config.enableDiskIo | toString | quote }}
             - name: ENABLE_NET_IO
-              value: {{ .Values.config.enableNetIo | default "true" | quote }}
+              value: {{ .Values.config.enableNetIo | toString | quote }}
             - name: ENABLE_INTERRUPTS
-              value: {{ .Values.config.enableInterrupts | default "false" | quote }}
+              value: {{ .Values.config.enableInterrupts | toString | quote }}
             - name: ENABLE_TEMP_STATS
-              value: {{ .Values.config.enableTempStats | default "false" | quote }}
+              value: {{ .Values.config.enableTempStats | toString | quote }}
             - name: ENABLE_PSYS_POWER
-              value: {{ .Values.config.enablePsysPower | default "false" | quote }}
+              value: {{ .Values.config.enablePsysPower | toString | quote }}
             - name: ENABLE_GPU_THROTTLE
-              value: {{ .Values.config.enableGpuThrottle | default "false" | quote }}
+              value: {{ .Values.config.enableGpuThrottle | toString | quote }}
             - name: ENABLE_TURBOSTAT
-              value: {{ .Values.config.enableTurbostat | default "false" | quote }}
+              value: {{ .Values.config.enableTurbostat | toString | quote }}
             - name: TURBOSTAT_INTERVAL
-              value: {{ .Values.config.turbostatInterval | default "5" | quote }}
+              value: {{ .Values.config.turbostatInterval | toString | quote }}
             {{- with .Values.config.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

@@ -80,10 +80,36 @@ enable_conf() {
 }
 
 echo "[INFO] Configuring hardware-telemetry collectors:"
+# DRAM bandwidth: `auto` means "enable only if perf is installed" (the default
+# image has no perf unless built with INSTALL_PERF=true).
+ENABLE_DRAM_BW="${ENABLE_DRAM_BW:-false}"
+if [ "$(printf '%s' "$ENABLE_DRAM_BW" | tr '[:upper:]' '[:lower:]')" = "auto" ] && \
+   ! command -v perf >/dev/null 2>&1; then
+    echo "[INFO]   20-dram-bw: ENABLE_DRAM_BW=auto but perf not installed — skipping"
+    ENABLE_DRAM_BW=false
+fi
+
+# Turbostat is a service input: if its binary can't be started, Telegraf fails
+# to start entirely (all collectors down). Only load it when the binary is
+# usable. Covers: TURBOSTAT_BIN unset (compose mounts /dev/null), TURBOSTAT_BIN
+# pointing at a missing host path (Docker mounts an empty directory), and
+# binaries that exist but can't run here (e.g. Ubuntu's /usr/bin/turbostat
+# wrapper script, or a build for another kernel/libc).
+TURBOSTAT_PATH=/usr/local/bin/turbostat
+if is_enabled "${ENABLE_TURBOSTAT:-false}"; then
+    if ! { [ -f "$TURBOSTAT_PATH" ] && [ -s "$TURBOSTAT_PATH" ] && [ -x "$TURBOSTAT_PATH" ]; }; then
+        echo "[WARN]  60-turbostat: ENABLE_TURBOSTAT=true but $TURBOSTAT_PATH is missing or not an executable file (set TURBOSTAT_BIN to the host's kernel-matched turbostat) — skipping"
+        ENABLE_TURBOSTAT=false
+    elif ! timeout 5 "$TURBOSTAT_PATH" --version >/dev/null 2>&1; then
+        echo "[WARN]  60-turbostat: ENABLE_TURBOSTAT=true but '$TURBOSTAT_PATH --version' failed (wrapper script or kernel/libc mismatch?) — skipping"
+        ENABLE_TURBOSTAT=false
+    fi
+fi
+
 enable_conf    "${ENABLE_RAPL_POWER:-false}"  "10-power"
-enable_conf    "${ENABLE_DRAM_BW:-auto}"      "20-dram-bw"
+enable_conf    "$ENABLE_DRAM_BW"              "20-dram-bw"
 enable_conf    "${ENABLE_DISK_IO:-true}"      "30-disk"
-enable_conf    "${ENABLE_NET_IO:-true}"       "40-net"
+enable_conf    "${ENABLE_NET_IO:-false}"      "40-net"
 enable_conf    "${ENABLE_INTERRUPTS:-false}"  "50-interrupts"
 enable_conf    "${ENABLE_TEMP_STATS:-false}"  "70-temp-stats"
 enable_conf    "${ENABLE_PSYS_POWER:-false}"    "90-tcmi-execd"
