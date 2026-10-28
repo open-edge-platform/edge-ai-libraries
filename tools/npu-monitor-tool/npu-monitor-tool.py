@@ -114,6 +114,25 @@ class CpuGen(enum.IntEnum):
             return "Wildcat Lake"
         return ""
 
+# NPU PLL reference clock (kernel: PLL_REF_CLK_FREQ_MHZ in ivpu_hw_btrs.c).
+PLL_REF_CLK_FREQ_MHZ = 50
+
+# Generations that use the MTL buttress (kernel: ivpu_hw_btrs_gen() returns
+# IVPU_HW_BTRS_MTL for PCI_DEVICE_ID_MTL and PCI_DEVICE_ID_ARL). Everything
+# else (LNL, PTL, WCL, ...) uses the LNL buttress.
+MTL_BUTTRESS_GENS = frozenset({CpuGen.MTL, CpuGen.ARL})
+
+def pll_ratio_to_mhz(cpu_gen: Optional[CpuGen], pll_ratio: int) -> int:
+    """Convert a VPU_WORKPOINT PLL ratio to MHz, mirroring the kernel's
+    ``ivpu_hw_btrs_pll_ratio_to_mhz()`` (integer arithmetic included):
+
+    - MTL buttress (MTL, ARL): ``ratio * 50 * 2 / 3`` (e.g. 48 -> 1600 MHz)
+    - LNL buttress (LNL, PTL, WCL, ...): ``ratio * 50 / 2`` (e.g. 78 -> 1950 MHz)
+    """
+    if cpu_gen in MTL_BUTTRESS_GENS:
+        return (pll_ratio * PLL_REF_CLK_FREQ_MHZ * 2) // 3
+    return (pll_ratio * PLL_REF_CLK_FREQ_MHZ) // 2
+
 def run_command(command: str, timeout: Optional[float] = None) -> subprocess.CompletedProcess:
     """Execute a shell command safely without shell=True."""
     try:
@@ -216,17 +235,16 @@ class PmtTelemetry:
         except (FileNotFoundError, PermissionError, OSError) as e:
             LOG.error('Failed to read telemetry data: %s', e)
 
-    def get_freq_mhz(self) -> float:
+    def get_freq_mhz(self) -> int:
         """Get NPU (DPU) clock frequency in MHz.
 
-        Decodes the VPU_WORKPOINT ratio (bits 7:0) and scales it to MHz:
-        MTL uses ``raw * 100 / 3`` (e.g. 42 -> 1400 MHz), later platforms
-        use ``raw * 25`` (e.g. 78 -> 1950 MHz).
+        Decodes the VPU_WORKPOINT PLL ratio (bits 7:0) and converts it to MHz
+        the same way the ``intel_vpu`` kernel driver does
+        (``ivpu_hw_btrs_pll_ratio_to_mhz``), so the value matches sysfs.
+        See :func:`pll_ratio_to_mhz` for the per-generation formulas.
         """
         raw = self.read(self.regs['VPU_WORKPOINT'], 7, 0) if 'VPU_WORKPOINT' in self.regs else 0
-        if self.cpu_gen == CpuGen.MTL:
-            return raw * 100 / 3
-        return raw * 25.0
+        return pll_ratio_to_mhz(self.cpu_gen, raw)
 
     def get_voltage(self) -> int:
         """Get VPU voltage reading."""

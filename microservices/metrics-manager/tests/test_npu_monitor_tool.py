@@ -131,6 +131,36 @@ class TestGetters:
         )
         assert pmt.get_freq_mhz() == pytest.approx(1400.0)
 
+    def test_get_freq_mhz_arl_uses_mtl_buttress_formula(self, npu_mod):
+        # ARL shares the MTL buttress in the kernel (ivpu_hw_btrs_gen), so
+        # raw = 48 must give 1600 MHz (matches kernel sysfs), not 48 * 25.
+        buf = _buffer_with({0x68: b"\x30\x00\x00\x00\x00\x00\x00\x00"})
+        pmt = _make_pmt(
+            npu_mod, buf, cpu_gen=npu_mod.CpuGen.ARL, regs=npu_mod.get_arl_regs()
+        )
+        assert pmt.get_freq_mhz() == 1600
+
+    @pytest.mark.parametrize(
+        "gen_name, raw, expected_mhz",
+        [
+            # MTL buttress: ratio * 50 * 2 // 3 (kernel pll_ratio_to_mhz_mtl)
+            ("MTL", 42, 1400),
+            ("ARL", 48, 1600),
+            ("ARL", 49, 1633),  # integer truncation, as in the kernel
+            ("ARL", 0, 0),      # idle
+            # LNL buttress: ratio * 50 // 2 (kernel pll_ratio_to_mhz_lnl)
+            ("LNL", 78, 1950),
+            ("PTL", 100, 2500),
+            ("PTL", 0, 0),      # idle
+        ],
+    )
+    def test_pll_ratio_to_mhz_matches_kernel(self, npu_mod, gen_name, raw, expected_mhz):
+        gen = getattr(npu_mod.CpuGen, gen_name)
+        assert npu_mod.pll_ratio_to_mhz(gen, raw) == expected_mhz
+
+    def test_mtl_buttress_gens_match_kernel(self, npu_mod):
+        assert npu_mod.MTL_BUTTRESS_GENS == {npu_mod.CpuGen.MTL, npu_mod.CpuGen.ARL}
+
     def test_legacy_freq_getters_removed(self, npu_mod):
         assert not hasattr(npu_mod.PmtTelemetry, "get_freq")
         assert not hasattr(npu_mod.PmtTelemetry, "get_display_freq_hz")
