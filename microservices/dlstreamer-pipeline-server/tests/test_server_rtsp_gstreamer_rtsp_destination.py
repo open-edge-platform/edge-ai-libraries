@@ -230,3 +230,136 @@ class TestGStreamerRtspDestination:
         gstreamer_rtsp_destination.finish()
         mock_end_stream.assert_called_once()
         mock_rtsp_server.remove_stream.assert_called_once_with(gstreamer_rtsp_destination._rtsp_path)
+
+
+class TestMediaLifecycle:
+    """The destination outlives its media pipelines: a client leaving tears one down, the next client creates another.
+
+    After 12-20 hours of relay reconnects a stream stayed dead (every DESCRIBE failed with "can't prepare media" and the
+    pipeline had logged "'NoneType' object has no attribute 'emit'") because the signals and the teardown of an older
+    media overwrote the state of the newer one.
+    """
+
+    @staticmethod
+    def _media(destination):
+        app_src, pipeline = MagicMock(), MagicMock()
+        pipeline.get_by_name.return_value = None
+        destination._frame_size = 1000
+        destination.set_app_src(app_src, False, pipeline)
+        return app_src
+
+    def test_late_signals_of_an_older_media_are_ignored(self, gstreamer_rtsp_destination):
+        old = self._media(gstreamer_rtsp_destination)
+        new = self._media(gstreamer_rtsp_destination)
+        gstreamer_rtsp_destination.on_need_data(old, 1000)
+        assert gstreamer_rtsp_destination._need_data is False
+        gstreamer_rtsp_destination.on_need_data(new, 1000)
+        assert gstreamer_rtsp_destination._need_data is True
+        gstreamer_rtsp_destination.on_enough_data(old)
+        assert gstreamer_rtsp_destination._need_data is True
+        gstreamer_rtsp_destination.on_enough_data(new)
+        assert gstreamer_rtsp_destination._need_data is False
+
+    def test_a_new_media_starts_without_the_need_data_of_the_previous_one(self, gstreamer_rtsp_destination):
+        self._media(gstreamer_rtsp_destination)
+        gstreamer_rtsp_destination._need_data = True
+        self._media(gstreamer_rtsp_destination)
+        assert gstreamer_rtsp_destination._need_data is False
+
+    def test_ending_an_older_media_keeps_the_current_one(self, gstreamer_rtsp_destination):
+        old = self._media(gstreamer_rtsp_destination)
+        new = self._media(gstreamer_rtsp_destination)
+        gstreamer_rtsp_destination._need_data = True
+        gstreamer_rtsp_destination._end_stream(old)
+        old.end_of_stream.assert_called_once()
+        new.end_of_stream.assert_not_called()
+        assert gstreamer_rtsp_destination._app_src is new
+        assert gstreamer_rtsp_destination._need_data is True
+
+    def test_a_failed_push_to_an_older_media_does_not_end_the_new_one(self, gstreamer_rtsp_destination, Gst):
+        old = self._media(gstreamer_rtsp_destination)
+        gstreamer_rtsp_destination._need_data = True
+        new = MagicMock()
+
+        def replaced_while_pushing(*_):                    # the next media is set up while the push to the old one runs
+            gstreamer_rtsp_destination.set_app_src(new, False, MagicMock(**{"get_by_name.return_value": None}))
+            return "flushing"
+        old.emit.side_effect = replaced_while_pushing
+        gstreamer_rtsp_destination._push_buffer(MagicMock())
+        old.end_of_stream.assert_called_once()
+        new.end_of_stream.assert_not_called()
+        assert gstreamer_rtsp_destination._app_src is new
+
+    def test_a_push_without_a_current_media_does_nothing(self, gstreamer_rtsp_destination):
+        gstreamer_rtsp_destination._app_src = None
+        gstreamer_rtsp_destination._need_data = True       # the signal of a media that ended just before
+        gstreamer_rtsp_destination._pts = 123
+        buffer = MagicMock()
+        gstreamer_rtsp_destination._push_buffer(buffer)    # used to raise 'NoneType' object has no attribute 'emit'
+        assert gstreamer_rtsp_destination._pts == 123
+
+    def test_ending_the_stream_twice_is_harmless(self, gstreamer_rtsp_destination):
+        media = self._media(gstreamer_rtsp_destination)
+        gstreamer_rtsp_destination._end_stream()
+        gstreamer_rtsp_destination._end_stream()
+        media.end_of_stream.assert_called_once()
+
+    def test_media_coming_and_going_while_frames_are_pushed(self, gstreamer_rtsp_destination, Gst):
+        """Frames, signals, new media and teardowns at the same time never raise and always end on a usable state."""
+        import threading
+        import time
+        Gst.FlowReturn.OK = "ok"
+        errors, stop = [], threading.Event()
+        gstreamer_rtsp_destination._clock = MagicMock(get_time=MagicMock(return_value=1))
+
+        def guarded(fn):
+            def run():
+                while not stop.is_set():
+                    try:
+                        fn()
+                    except Exception as exc:                # pylint: disable=broad-except
+                        errors.append(repr(exc))
+                        return
+            return threading.Thread(target=run, daemon=True)
+
+        media = []
+
+        def new_media():
+            app_src = MagicMock()
+            app_src.emit.return_value = "ok"
+            media.append(app_src)
+            self._media_set(gstreamer_rtsp_destination, app_src)
+            gstreamer_rtsp_destination.on_need_data(app_src, 1)
+
+        def end_media():
+            if media:
+                gstreamer_rtsp_destination._end_stream(media[0] if len(media) > 1 else None)
+                time.sleep(0.0005)
+
+        def late_signals():
+            if media:
+                gstreamer_rtsp_destination.on_need_data(media[0], 1)
+                gstreamer_rtsp_destination.on_enough_data(media[0])
+
+        def frames():
+            if gstreamer_rtsp_destination._need_data:
+                gstreamer_rtsp_destination._push_buffer(MagicMock())
+
+        threads = [guarded(f) for f in (new_media, end_media, late_signals, frames, frames)]
+        for thread in threads:
+            thread.start()
+        time.sleep(0.4)
+        stop.set()
+        for thread in threads:
+            thread.join(2)
+        assert not errors, errors
+        self._media_set(gstreamer_rtsp_destination, MagicMock())
+        gstreamer_rtsp_destination.on_need_data(gstreamer_rtsp_destination._app_src, 1)
+        assert gstreamer_rtsp_destination._need_data is True    # a media created afterwards works
+
+    @staticmethod
+    def _media_set(destination, app_src):
+        pipeline = MagicMock()
+        pipeline.get_by_name.return_value = None
+        destination._frame_size = 1000
+        destination.set_app_src(app_src, False, pipeline)

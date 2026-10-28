@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import threading
+
 import gi
 gi.require_version('Gst', '1.0')
 # pylint: disable=wrong-import-position
@@ -25,6 +27,13 @@ class GStreamerRtspDestination(AppDestination):
         self._rtsp_server = pipeline.rtsp_server
         self._identifier = pipeline.identifier
         self._app_src = None
+        # An RTSP stream can be served by several media pipelines one after another (a client that leaves tears its
+        # media down, the next client creates a new one), while this destination lives as long as the pipeline. The
+        # appsrc of the media, its need-data state and the timestamps are shared by the pipeline thread that pushes
+        # frames and the RTSP server threads that create, signal and end the media, so they are guarded by a lock, and
+        # a signal or a teardown of an older media must not touch the appsrc of the current one. The lock is never
+        # held while pushing a buffer: push-buffer blocks while the media is full.
+        self._lock = threading.RLock()
         self._is_audio_pipeline = False
         self._logger = logging.get_logger('GStreamerRtspDestination', is_static=True)
         self._need_data = False
@@ -70,16 +79,22 @@ class GStreamerRtspDestination(AppDestination):
             self._pipeline.appsink_element.set_property("sync", self._sync_with_source)
             self._logger.info("Setting the appsink sync property to {}".format(self._sync_with_source))
 
-    def on_need_data(self, _src, _):
-        self._need_data = True
+    def on_need_data(self, src, _):
+        with self._lock:
+            if src is self._app_src:                  # not the late signal of a media that is already gone
+                self._need_data = True
 
-    def on_enough_data(self, _):
-        self._need_data = False
+    def on_enough_data(self, src):
+        with self._lock:
+            if src is self._app_src:
+                self._need_data = False
 
     def set_app_src(self, app_src, is_audio_pipeline, rtsp_pipeline):
-        self._app_src = app_src
-        self._is_audio_pipeline = is_audio_pipeline
-        self._pts = 0
+        with self._lock:
+            self._app_src = app_src
+            self._need_data = False                   # the new media asks for data itself (need-data)
+            self._is_audio_pipeline = is_audio_pipeline
+            self._pts = 0
         self._app_src.set_property("is-live", True)
         self._app_src.set_property("do-timestamp", True)
         self._app_src.set_property("blocksize", self._frame_size)
@@ -108,17 +123,21 @@ class GStreamerRtspDestination(AppDestination):
 
     def _push_buffer(self, buffer):
         buffer.make_writable()
-        timestamp = self._clock.get_time()
-        delta = timestamp - self._last_timestamp
-        buffer.pts = buffer.dts = self._pts
-        buffer.duration = delta
-        self._pts += delta
-        self._last_timestamp = timestamp
-        retval = self._app_src.emit('push-buffer', buffer)
+        with self._lock:
+            app_src = self._app_src
+            if app_src is None:                       # the media ended between need-data and now
+                return
+            timestamp = self._clock.get_time()
+            delta = timestamp - self._last_timestamp
+            buffer.pts = buffer.dts = self._pts
+            buffer.duration = delta
+            self._pts += delta
+            self._last_timestamp = timestamp
+        retval = app_src.emit('push-buffer', buffer)
         if retval != Gst.FlowReturn.OK:
             self._logger.debug(
                 "Push buffer failed for stream {} with {}".format(self._rtsp_path, retval))
-            self._end_stream()
+            self._end_stream(app_src)
 
     def process_frame(self, frame):
         # pylint: disable=method-hidden
@@ -132,12 +151,19 @@ class GStreamerRtspDestination(AppDestination):
         else:
             self._last_timestamp = self._clock.get_time()
 
-    def _end_stream(self):
-        self._need_data = False
-        if self._app_src:
-            self._app_src.end_of_stream()
-            del self._app_src
-            self._app_src = None
+    def _end_stream(self, app_src=None):
+        """End the stream of `app_src` (the current media's appsrc by default).
+
+        Ending the appsrc of an older media, for example after a failed push, must leave the appsrc of the media that
+        replaced it alone, or that media would never receive frames and its clients would wait for them for good.
+        """
+        with self._lock:
+            target = app_src if app_src is not None else self._app_src
+            if target is self._app_src:
+                self._need_data = False
+                self._app_src = None
+        if target is not None:
+            target.end_of_stream()
 
     def finish(self):
         self._end_stream()
