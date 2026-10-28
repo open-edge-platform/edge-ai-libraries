@@ -49,7 +49,7 @@ debian_90_install_live_video_captioning () {
     verify_live_video_captioning
   fi
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   configure_live_video_captioning_device "${device^^}"
 
   echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
@@ -60,7 +60,7 @@ debian_90_start_live_video_captioning () {
   configure_live_video_captioning
   ensure_ports_open start live_video_captioning "${used_ports[@]}"
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_captioning_device "${device^^}"
 
   cd "$workspace"/live-video-analysis/live-video-captioning

@@ -69,7 +69,7 @@ EOF
     verify_multimodal_weld_defect_detection
   fi
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   configure_multimodal_weld_defect_detection_device "$device"
 
   echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
@@ -81,7 +81,7 @@ debian_90_start_multimodal_weld_defect_detection () {
   configure_multimodal_weld_defect_detection
   ensure_ports_open start multimodal_weld_defect_detection "${used_ports[@]}"
 
-  local device="$(ensure_select_device "$@")"
+  local device="$(ensure_parse_device "$@")"
   [[ " ${*,,} " != *" --${device} "* ]] || configure_multimodal_weld_defect_detection_device $device
 
   cd "$workspace"/industrial-edge-insights-multimodal

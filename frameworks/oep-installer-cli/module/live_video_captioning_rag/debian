@@ -53,7 +53,7 @@ debian_90_install_live_video_captioning_rag () {
     verify_live_video_captioning_rag
   fi
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   configure_live_video_captioning_rag_device "${device^^}"
 
   echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
@@ -65,7 +65,7 @@ debian_90_start_live_video_captioning_rag () {
   configure_live_video_captioning_rag
   ensure_ports_open start live_video_captioning_rag "${used_ports[@]}"
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_captioning_rag_device "${device^^}"
 
   cd "$workspace"/live-video-analysis/live-video-captioning-rag

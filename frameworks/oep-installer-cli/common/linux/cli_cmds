@@ -34,7 +34,7 @@ subcommand_install () {
       return 3
     fi
     [ $hit -eq 1 ] && out+=("${bind[@]}")
-    set -- "${out[*]}"
+    set -- "${out[@]}"
   fi
 
   act_helper "install,Installation,Installing,Installed" "" "$@"

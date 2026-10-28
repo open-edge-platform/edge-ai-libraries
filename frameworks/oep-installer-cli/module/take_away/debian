@@ -66,7 +66,7 @@ debian_90_install_take_away () {
     verify_take_away
   fi
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   configure_take_away_device "${device^^}"
 
   echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
@@ -79,7 +79,7 @@ debian_90_start_take_away () {
   configure_take_away "$@"
   ensure_ports_open start take_away "${used_ports[@]}"
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_take_away_device "${device^^}"
 
   cd "$workspace"/take-away

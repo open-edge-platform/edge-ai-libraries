@@ -83,7 +83,7 @@ debian_90_install_smart_kiosk_assistant () {
     docker compose pull --ignore-buildable
   fi
 
-  local device="$(ensure_select_device "$@")"
+  local device="$(ensure_parse_device "$@")"
   configure_smart_kiosk_assistant_device "${device^^}"
 
   echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
@@ -96,7 +96,7 @@ debian_90_start_smart_kiosk_assistant () {
   configure_smart_kiosk_assistant
   ensure_ports_open start smart_kiosk_assistant "${used_ports[@]}"
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_smart_kiosk_assistant_device "${device^^}"
 
   cd "$workspace"/smart-kiosk-assistant

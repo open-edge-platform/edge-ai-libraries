@@ -40,7 +40,7 @@ debian_90_install_loitering_detection () {
     verify_loitering_detection
   fi
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   echo "$device" > "$workspace"/.device
 
   echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
@@ -52,7 +52,7 @@ debian_90_start_loitering_detection () {
   configure_loitering_detection
   ensure_ports_open start loitering_detection "${used_ports[@]}"
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || echo "$device" > "$workspace"/.device
 
   cd "$workspace"/metro-vision-ai-app-recipe

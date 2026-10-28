@@ -49,7 +49,7 @@ EOF
     verify_wind_turbine_anomaly_detection
   fi
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   configure_wind_turbine_anomaly_detection_device "$device"
 
   echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
@@ -61,7 +61,7 @@ debian_90_start_wind_turbine_anomaly_detection () {
   configure_wind_turbine_anomaly_detection
   ensure_ports_open start wind_turbine_anomaly_detection "${used_ports[@]}"
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --${device} "* ]] || configure_wind_turbine_anomaly_detection_device "$device"
 
   cd "$workspace"/industrial-edge-insights-time-series

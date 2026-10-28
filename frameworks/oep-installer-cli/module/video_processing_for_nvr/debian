@@ -70,7 +70,7 @@ ov.save_model(ppp.build(), "modified_yolov8n/yolov8n.xml")
     verify_video_processing_for_nvr
   fi
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   echo "$device" > "$workspace"/.device
 
   echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
@@ -83,7 +83,7 @@ debian_90_start_video_processing_for_nvr () {
   debian_90_stop_video_processing_for_nvr "$@"
 
   [ ! -r "$workspace"/.device ] || set -- "$@" --"$(< "$workspace"/.device)"
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
 
   echo "@@HIGHLIGHT $installer_name start [--gpu|--npu]"
   echo "@@HIGHLIGHT $installer_name stop|remove"
