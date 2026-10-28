@@ -1,3 +1,4 @@
+
 debian_99_profile_federal_and_aerospace_ai_suite_handheld () {
-  [ "$1" = "start" ] || echo "handheld_platform handheld_multi_modal"
+  [ "$1" = "start" ] || echo "handheld_blueprint handheld_multi_modal"
 }

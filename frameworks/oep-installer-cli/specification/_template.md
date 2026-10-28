@@ -35,7 +35,7 @@
 
      Available profiles: computer_vision,
      federal_and_aerospace_ai_suite_handheld,
-     federal_and_aerospace_ai_suite_uav, health_and_life_science_ai_suite,
+     federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle, health_and_life_science_ai_suite,
      inferencing, manufacturing_ai_suite, metro_ai_suite, retail_ai_suite,
      robotics_ai_suite                                                -->
 
