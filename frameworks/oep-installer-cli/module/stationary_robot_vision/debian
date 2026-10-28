@@ -74,6 +74,7 @@ debian_90_sbom_stationary_robot_vision () {
   echo "---"
   ensure_sbom_format apt-pref "${rvc_ffmpeg_pref[@]}"
   ensure_sbom_format apt-pref-file "$rvc_ffmpeg_pref_file"
+  ensure_sbom_format pkg-list libavutil-dev libpostproc-dev
   echo "---"
   ensure_sbom_format pkg-list "${rvc_pkgs[@]}"
 }

@@ -92,10 +92,9 @@ subcommand_stop () {
 }
 
 subcommand_list () {
-  act_get prefix profile_; local all_profiles=(${_act_reply[*]})
-  local all_modules=(${_act_cache_modules[*]})
-  local all_list=" ${all_modules[*]} ${all_profiles[*]#*_*_*_} "
-  local k v sbom=0 args=() margs=() os_release=""
+  local all_list=" ${_act_cache_names[*]:-${_act_cache_modules[*]}} "
+  local module_region_list=" ${_act_cache_modules[*]/#/--} "
+  local k v args=() mods=() os_release="" sbom=0 margs=0
   for v in "$@"; do
     case "$v" in
     --help)
@@ -114,11 +113,21 @@ subcommand_list () {
     --os-release)
       ;;
     *)
-      if [ "$last_v" = "--os-release" ]; then
-        os_release="$v"
-      else
-        [[ " $all_list " != *" $v "* ]] || margs+=("$v")
+      if [ $margs -eq 1 ]; then
         args+=("$v")
+      elif [ "$last_v" = "--os-release" ]; then
+        os_release="$v"
+      elif [[ "$module_region_list" = *" $v "* ]]; then
+        args+=("$v")
+        margs=1
+      elif [[ "$all_list" = *" $v "* ]]; then
+        mods+=("$v")
+        args+=("$v")
+      elif [[ "$v" = "-"* ]]; then
+        args+=("$v")
+      else
+        echo "Unknown option: $v" >&2
+        return 3
       fi
       ;;
     esac
@@ -152,19 +161,24 @@ subcommand_list () {
     fi
   fi
 
-  [ ${#args[*]} -eq 0 ] && set -- $all_list || set -- "${args[@]}"
+  if [ ${#mods[*]} -eq 0 ]; then
+    mods=($all_list)
+    set -- $all_list "${args[@]}"
+  else
+    set -- "${args[@]}"
+  fi
 
   if [ $sbom -eq 1 ]; then
     # scan for dependencies
-    local handles=($(act_find_deps install $(act_resolve_args install "$@")))
+    local handles=($(act_find_deps install "$@"))
     if [ ${#handles[*]} -eq 0 ]; then
-      echo "No installable components from ${margs[*]}" >&2
+      echo "No installable components from ${mods[*]}" >&2
       return 3
     fi
     local all_install_modules="${handles[*]#${installer_family}_*_install_}"
-    echo "\"schema-version\": 1.0"
-    echo "\"version\": \"main\""
-    ensure_sbom_format module-list "${margs[@]}"
+    echo "\"schema-version\": \"1\""
+    echo "\"cli-version\": \"main\""
+    ensure_sbom_format module-list "${mods[@]}"
     echo "---"
     local handler sbomer
     for handler in $(printf '%s\n' "${handles[@]}" | sort); do
@@ -178,6 +192,7 @@ subcommand_list () {
     local profile_lines=() module_lines=()
 
     local -A module_act_cache=()
+    local all_modules=(${_act_cache_modules[*]})
     if [ ${#all_modules[@]} -gt 0 ]; then
       local module_name
       for module_name in "${all_modules[@]}"; do
@@ -196,6 +211,7 @@ subcommand_list () {
       done
     fi
   
+    act_get prefix profile_; local all_profiles=(${_act_reply[*]})
     if [ ${#all_profiles[@]} -gt 0 ]; then
       local profiler
       for profiler in "${all_profiles[@]}"; do
