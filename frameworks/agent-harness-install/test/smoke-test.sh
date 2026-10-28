@@ -498,6 +498,10 @@ phase_03_libunit() {
   check_fail "ovms_model_registered: false when there is no config.json" lib_eval 'HARNESS_MODELS_DIR=$(mktemp -d); ovms_model_registered a'
 
   # ensure_chat_end_token_stops runs python3 on the host (or in the -py image).
+  check_output_contains "ovms_pull_image_for: a pre-converted OpenVINO/* model is pulled with the serving image" "serve:1" \
+    lib_eval 'HARNESS_OVMS_IMAGE=serve:1 HARNESS_OVMS_EXPORT_IMAGE=export:1; ovms_pull_image_for OpenVINO/Qwen3.5-9B-int4-ov'
+  check_output_contains "ovms_pull_image_for: any other model is converted with the -py image" "export:1" \
+    lib_eval 'HARNESS_OVMS_IMAGE=serve:1 HARNESS_OVMS_EXPORT_IMAGE=export:1; ovms_pull_image_for Qwen/Qwen3-8B'
   local eos_cfg='d=$(mktemp -d); printf "%s" "{\"eos_token\":\"<|im_end|>\"}" > "$d/tokenizer_config.json"; printf "%s" "{\"added_tokens\":[{\"id\":7,\"content\":\"<|im_end|>\"}]}" > "$d/tokenizer.json"; '
   if command -v python3 >/dev/null 2>&1; then
     check_output_contains "ensure_chat_end_token_stops: adds the tokenizer eos_token id to a scalar eos_token_id" '[7,5]' \

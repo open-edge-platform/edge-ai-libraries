@@ -4,16 +4,18 @@
 # OpenVINO Model Server (OVMS) — serves an OpenAI-compatible chat-completions
 # endpoint on Intel Core Ultra iGPU and Arc (CRI) GPUs.
 
-# Serving image: tracks a recent OVMS release. The default docker-pull
-# exporter below needs OVMS's "-py" convenience variant, which is published
-# under a coarser version scheme (two-part "X.Y-py" tags) and has not had a
-# new tag since 2026.1 -- so the export image is pinned separately
-# (HARNESS_OVMS_EXPORT_IMAGE) instead of being derived from this one.
-# Exported model directories are plain OpenVINO IR + graph.pbtxt, which a
-# newer serving image is expected to load; that pairing is not covered by
-# the smoke test, only by test/full-flow-test.sh on real hardware.
+# Serving image: tracks a recent OVMS release. Converting a model in the
+# default docker-pull exporter below needs OVMS's "-py" convenience variant,
+# which is published under a coarser version scheme (two-part "X.Y-py" tags)
+# and has not had a new tag since 2026.1 -- so the export image is pinned
+# separately (HARNESS_OVMS_EXPORT_IMAGE) instead of being derived from this
+# one. Pre-converted OpenVINO/* models need no conversion, so they are pulled
+# with this serving image itself (see ovms_pull_image_for).
+# Models converted by the older -py image are plain OpenVINO IR + graph.pbtxt,
+# which a newer serving image is expected to load; that pairing is not covered
+# by the smoke test, only by test/full-flow-test.sh on real hardware.
 HARNESS_OVMS_IMAGE="${HARNESS_OVMS_IMAGE:-openvino/model_server:2026.4.1-gpu}"
-# Image used only by the docker-pull exporter (needs the "-py" variant).
+# Image the docker-pull exporter converts non-OpenVINO/* models with (needs the "-py" variant).
 HARNESS_OVMS_EXPORT_IMAGE="${HARNESS_OVMS_EXPORT_IMAGE:-openvino/model_server:2026.1-py}"
 HARNESS_OVMS_REST_PORT="${HARNESS_OVMS_REST_PORT:-8000}"
 HARNESS_MODELS_DIR="${HARNESS_MODELS_DIR:-$HOME/.agent-harness-install/models}"
@@ -173,6 +175,16 @@ ensure_chat_end_token_stops() {
   return 0
 }
 
+# ovms_pull_image_for hf_model_id -- image the docker-pull exporter runs.
+# OpenVINO/* repos are already converted, so the serving image can pull them;
+# anything else needs the "-py" image's optimum-cli.
+ovms_pull_image_for() {
+  case "$1" in
+    [Oo][Pp][Ee][Nn][Vv][Ii][Nn][Oo]/*) printf '%s' "$HARNESS_OVMS_IMAGE" ;;
+    *) printf '%s' "$HARNESS_OVMS_EXPORT_IMAGE" ;;
+  esac
+}
+
 # export_model_via_docker_pull hf_model_id [model_name] -- default exporter
 # (HARNESS_OVMS_EXPORTER=docker-pull): runs OVMS's own "-py" image (bundles
 # optimum-cli) in --pull mode, which downloads, converts, and quantizes the
@@ -218,7 +230,7 @@ OVMS config.json registration -- add a model_config_list entry for base_path
 '${existing_base_path}' manually if it doesn't serve requests."
     return 0
   fi
-  command_exists docker || error "Docker is required to pull/convert models via the OVMS -py image."
+  command_exists docker || error "Docker is required to pull/convert models via the OVMS Docker image."
   # The -py image's bundled optimum-cli/httpx tooling is the same conversion
   # stack export_model_to_openvino/export_model_via_model_download use
   # host-side -- it chokes the same way on a malformed proxy scheme, so this
@@ -227,7 +239,7 @@ OVMS config.json registration -- add a model_config_list entry for base_path
   ensure_ovms_config
   # The "-py" variant bundles optimum-cli for on-the-fly conversion -- the
   # regular serving image (HARNESS_OVMS_IMAGE) doesn't carry it at runtime.
-  pull_image="$HARNESS_OVMS_EXPORT_IMAGE"
+  pull_image="$(ovms_pull_image_for "$hf_model_id")"
   target_device="CPU"
   gpu_args="$(intel_gpu_docker_device_args)"
   group_add_args=""

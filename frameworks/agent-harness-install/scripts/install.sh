@@ -76,7 +76,7 @@ usage() {
                                     (default hub: a Hugging Face id such as org/name)
     HARNESS_OVMS_REST_PORT, HARNESS_MODELS_DIR
     HARNESS_OVMS_IMAGE            OVMS serving image (default: openvino/model_server:2026.4.1-gpu)
-    HARNESS_OVMS_EXPORT_IMAGE     OVMS "-py" image used by the docker-pull exporter (default: openvino/model_server:2026.1-py)
+    HARNESS_OVMS_EXPORT_IMAGE     OVMS "-py" image used by the docker-pull exporter to convert non-OpenVINO/* models (default: openvino/model_server:2026.1-py)
     HARNESS_BACKEND_NETWORK      Docker network joining OVMS + the Inference Router so they can reach each other by name (default: agent-harness-install-backend)
     MIN_NODE_VERSION
     HARNESS_OVMS_EXTRA_ARGS       Extra OVMS server flags (e.g. --tool_parser <parser>)
