@@ -64,7 +64,7 @@ debian_90_install_multi_modal_patient_monitoring () {
     verify_multi_modal_patient_monitoring
   fi
 
-  local device="$(ensure_select_device "$@")"
+  local device="$(ensure_parse_device "$@")"
   echo "${device^^}" > "$workspace"/multi_modal_patient_monitoring/.device
 
   echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
@@ -79,7 +79,7 @@ debian_90_start_multi_modal_patient_monitoring () {
 
   cd "$workspace"/multi_modal_patient_monitoring
 
-  local device="$(ensure_select_device "$@")" d
+  local device="$(ensure_parse_device "$@")" d
   [[ " ${*,,} " != *" --$device "* ]] || echo "${device^^}" > .device
 
   device="$(< .device)"

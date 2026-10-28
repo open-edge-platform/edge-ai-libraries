@@ -55,7 +55,7 @@ debian_90_install_dine_in () {
     verify_dine_in
   fi
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   configure_dine_in_device "${device^^}"
 
   echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
@@ -68,7 +68,7 @@ debian_90_start_dine_in () {
   configure_dine_in "$@"
   ensure_ports_open start dine_in "${ports[@]}"
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_dine_in_device "${device^^}"
 
   cd "$workspace"/dine-in

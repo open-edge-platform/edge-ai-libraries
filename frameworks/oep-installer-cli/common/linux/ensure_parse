@@ -1,7 +1,27 @@
 
+# version --version=2026.2.0
+ensure_parse_option () {
+  local key="$1"; shift
+  local v v1 value=""
+  for v in $*; do
+    case "$v" in
+    "--$key="*)
+      value="${v#*=}"
+      ;;
+    "--$key")
+      ;;
+    *)
+      [ "$v1" != "--$key" ] || value="$v"
+      ;;
+    esac
+    v1="$v"
+  done
+  echo "$value"
+}
+
 # select --gpu/--npu from command line arguments
 # default to best device for init and "" for start
-ensure_select_device () {
+ensure_parse_device () {
   local device="cpu"
   # Match device flags case-insensitively so both --gpu and --GPU are accepted.
   local args_uc=" ${*^^} "
@@ -12,3 +32,4 @@ ensure_select_device () {
   [[ "$args_uc" != *" --GPU "* ]] || [ ! -e /dev/dri/renderD128 ] || device="gpu"
   echo $device
 }
+

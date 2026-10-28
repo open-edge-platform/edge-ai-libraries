@@ -65,7 +65,7 @@ debian_90_install_autonomous_mobile_robot () {
     verify_autonomous_mobile_robot "$@"
   fi
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   configure_autonomous_mobile_robot_device "${device^^}"
 
   echo "@@HIGHLIGHT Autonomous Mobile Robot ($amr_sdk_pkg, $amr_slam_pkg) installed for ROS 2 $ros_distro"
@@ -91,7 +91,7 @@ debian_90_remove_autonomous_mobile_robot () {
 
 debian_90_sbom_autonomous_mobile_robot () {
   configure_autonomous_mobile_robot "$@"
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   configure_autonomous_mobile_robot_slam "${device^^}"
 
   sbom_oneapi_ros_openvino

@@ -50,7 +50,7 @@ debian_90_install_live_video_alert_agent () {
     verify_live_video_alert_agent
   fi
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   configure_live_video_alert_agent_device "${device^^}"
 
   echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
@@ -62,7 +62,7 @@ debian_90_start_live_video_alert_agent () {
   configure_live_video_alert_agent
   ensure_ports_open start live_video_alert_agent "${used_ports[@]}"
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_alert_agent_device "${device^^}"
 
   cd "$workspace"/live-video-analysis/live-video-alert-agent

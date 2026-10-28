@@ -56,7 +56,7 @@ debian_90_install_smart_parking () {
     verify_smart_parking
   fi
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   echo "$device" > "$workspace"/.device
 
   echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
@@ -69,7 +69,7 @@ debian_90_start_smart_parking () {
   configure_smart_parking
   ensure_ports_open start smart_parking "${used_ports[@]}"
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || echo "$device" > "$workspace"/.device
 
   cd "$workspace"/metro-vision-ai-app-recipe

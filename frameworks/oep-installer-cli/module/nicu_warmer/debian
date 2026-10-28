@@ -78,7 +78,7 @@ debian_90_install_nicu_warmer () {
     verify_nicu_warmer
   fi
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   configure_nicu_warmer_device "$device"
 
   echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
@@ -89,7 +89,7 @@ debian_90_start_nicu_warmer () {
   configure_nicu_warmer "$@"
   ensure_ports_open start nicu_warmer "${used_ports[@]}"
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_nicu_warmer_device "$device"
 
   cd "$workspace"/NICU-Warmer

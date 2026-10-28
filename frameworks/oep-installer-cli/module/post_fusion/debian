@@ -51,7 +51,7 @@ EOF
     verify_post_fusion
   fi
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   configure_post_fusion_device "$device"
 
   echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
@@ -63,7 +63,7 @@ debian_90_start_post_fusion () {
   configure_post_fusion "$@"
   debian_90_stop_post_fusion "$@"
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_post_fusion_device "$device"
 
   cd "$workspace"/sensor-fusion-for-traffic-management/post-fusion

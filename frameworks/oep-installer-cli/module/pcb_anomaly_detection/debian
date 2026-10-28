@@ -50,7 +50,7 @@ EOF
     verify_pcb_anomaly_detection
   fi
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   echo "_$device" > "$workspace"/.device
 
   echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
@@ -63,7 +63,7 @@ debian_90_start_pcb_anomaly_detection () {
   configure_pcb_anomaly_detection
   ensure_ports_open start pcb_anomaly_detection "${used_ports[@]}"
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || echo "_$device" > "$workspace"/.device
   
   cd "$workspace"/industrial-edge-insights-vision
