@@ -301,17 +301,6 @@ class AudioPipelineManager:
     def get_pipeline(self, pipeline_id: str) -> AudioPipeline | None:
         return self._pipelines.get(pipeline_id)
 
-    def get_variant(
-        self, pipeline_id: str, variant_id: str
-    ) -> AudioPipelineVariant | None:
-        pipeline = self.get_pipeline(pipeline_id)
-        if pipeline is None:
-            return None
-        return next(
-            (variant for variant in pipeline.variants if variant.id == variant_id),
-            None,
-        )
-
 
 _default_manager: AudioPipelineManager | None = None
 

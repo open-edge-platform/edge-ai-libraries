@@ -94,10 +94,6 @@ class AudioPipelineManagerTests(unittest.TestCase):
             [("cpu", "CPU"), ("gpu", "GPU")],
         )
         self.assertEqual(pipelines[1].required_models, ["SpeechT5"])
-        self.assertEqual(
-            manager.get_variant("speech-to-text", "npu"),
-            pipelines[0].variants[2],
-        )
         for pipeline in pipelines:
             assert pipeline.thumbnail is not None
             self.assertTrue(pipeline.thumbnail.startswith("data:image/png;base64,"))

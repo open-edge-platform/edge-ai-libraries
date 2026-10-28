@@ -33,11 +33,8 @@ Nothing is downloaded at startup.
 Every Speech to Text and Text to Speech conversion started from the Audio
 pipeline UI runs as a managed job. This includes uploaded or recorded audio,
 edited text, and another voice. Each successful TTS job publishes a UUID-named
-WAV file under `shared/audio/output`, which the browser downloads or plays. The
-lower-level `POST /api/v1/voice/transcriptions` and
-`POST /api/v1/voice/speech` endpoints remain synchronous headless options; the
-latter does not persist its WAV response. Accepted managed Audio runs appear
-under **Jobs > Audio** at `/jobs/audio`.
+WAV file under `shared/audio/output`, which the browser downloads or plays.
+Accepted managed Audio runs appear under **Jobs > Audio** at `/jobs/audio`.
 
 ## Deployment
 
@@ -223,8 +220,8 @@ The native GPU and NPU voice overrides also accept `VOICE_TTS_DEVICE` (`CPU` or
 `GPU`) and `VOICE_TTS_DTYPE`, which defaults to `fp16`. The bundled SpeechT5
 catalog installs only FP16. The CPU and `igpu-wsl` profiles use CPU/FP16.
 Device selection alone does not expose hardware: keep the
-corresponding Compose overrides. The UI can override these defaults per request,
-but it cannot add a missing container device mapping. SpeechT5 does not document NPU support, so the
+corresponding Compose overrides. Each Audio pipeline run sends its variant's
+device, but it cannot add a missing container device mapping. SpeechT5 does not document NPU support, so the
 NPU profile defaults to GPU for TTS. For CPU inference on a native GPU or NPU
 host, export `VOICE_ASR_DEVICE=CPU VOICE_TTS_DEVICE=CPU VOICE_TTS_DTYPE=fp16`.
 The former `gpu-wsl` profile has been replaced by `igpu-wsl`. Run `make run`
@@ -304,10 +301,8 @@ For GPU/NPU/WSL, use the same profile and override files as at startup.
 
 ## API
 
-Voice exposes two execution models. Managed pipeline endpoints return `202`,
-create tracked process-local Audio jobs, and support the browser workflow.
-Direct conversion endpoints wait for one synchronous response and do not create
-an Audio job.
+Voice runs are managed pipeline jobs: run endpoints return `202` and create
+tracked process-local Audio jobs.
 
 ### Managed pipeline runs
 
@@ -320,17 +315,13 @@ The preset API follows the asynchronous ViPPET job pattern:
   recording as `audio/wav` for preview. Unregistered names return `404`.
 - `POST /api/v1/voice/pipelines/{pipeline_id}/variants/{variant_id}/runs`
   returns `202` with a job ID for the selected device variant.
-- `POST /api/v1/voice/pipelines/{pipeline_id}/runs` remains available for
-  compatibility and selects the pipeline's first variant.
 
-Managed Speech to Text runs accept no request body to use the selected variant's
-device plus the validated YAML recording and language defaults. They also accept
-a JSON body with a registered `recording` filename and a two-letter `language`,
-or multipart `file` and `language` fields for uploaded or recorded input.
+Managed Speech to Text runs accept a JSON body with a registered `recording`
+filename and a two-letter `language`, or multipart `file` and `language` fields
+for uploaded or recorded input.
 ViPPET copies multipart input to a random private temporary path
 owned by the job and removes it after every terminal outcome or shutdown.
-Managed Text to Speech runs may omit the body to use YAML defaults or provide
-both `input` and `voice`:
+Managed Text to Speech runs require both `input` and `voice`:
 
 ```json
 {"input": "Custom text up to 200 characters", "voice": "Miles"}
@@ -338,52 +329,23 @@ both `input` and `voice`:
 
 The TTS body rejects unknown fields, unsupported voices, blank input, and input
 longer than 200 characters. Sending this body to an STT pipeline returns 400.
+A request without a body returns 415. YAML `defaults` only prefill the UI form.
 Job state is process-local and is lost when the ViPPET backend restarts. TTS
 artifacts remain on the mounted Audio output directory until deployment cleanup
 removes them.
 
-### Voice job results and shared Jobs API
+### Audio job status and artifacts
 
-- `GET /api/v1/voice/jobs/{job_id}` returns `QUEUED`, `RUNNING`, `COMPLETED`,
-  `FAILED`, or `CANCELLED`, selected variant metadata, and the transcript or
-  artifact URL when available.
-- `GET /api/v1/voice/jobs/{job_id}/artifact` returns a completed TTS WAV.
 - `GET /api/v1/jobs/audio/status` lists Audio job operational metadata without
   transcript content, Text to Speech input text, uploaded filenames, or local
   paths. Jobs are ordered oldest first, matching the Vision job list.
-- `GET /api/v1/jobs/audio/{job_id}/status` returns the Jobs detail model. A
-  completed Speech to Text detail can include a transcript, and a completed
-  Text to Speech detail can include the public WAV artifact URL.
-
-The Voice job endpoints are the conversion workflow's result and artifact API.
-The shared Jobs endpoints are a projection of the same manager for the
-**Jobs > Audio** list and detail views. They cannot create jobs, but
-`DELETE /api/v1/jobs/audio/{job_id}` stops a `QUEUED` or `RUNNING` job: `200`
-when cancellation was requested, `404` for an unknown job, and `409` when the
-job has already finished.
-
-### Direct synchronous conversions
-
-The direct conversion endpoints remain available to synchronous headless API
-clients. The Audio pipeline UI uses managed jobs for all STT and TTS
-conversions.
-
-`POST /api/v1/voice/transcriptions` accepts multipart `file`, optional
-two-letter `language` (default `en`), and optional `device` (`CPU`, `GPU`, or
-`NPU`). Omitting `device` uses the Audio Analyzer service default. It returns
-`{"text": "..."}`. No upstream `session_id`, history, or prompt is forwarded.
-
-`POST /api/v1/voice/speech` accepts the following body and returns `audio/wav`:
-
-```json
-{"input": "Hello world", "voice": "Angus", "device": "GPU"}
-```
-
-`input` and `voice` are required. `voice` must be one of `Ryan`, `Miles`, `Aaron`,
-`Nora`, `Elena`, `Kabir`, or `Angus`; ViPPET forwards it for that request.
-`device` is optional and uses the Text to Speech service default when omitted.
-This endpoint returns the WAV in the same synchronous response and does not
-persist it as a managed artifact.
+- `GET /api/v1/jobs/audio/{job_id}/status` returns `state` (`QUEUED`,
+  `RUNNING`, `COMPLETED`, `FAILED`, or `CANCELLED`), selected variant metadata,
+  and, when available, the transcript or the public WAV `artifact_url`.
+- `GET /api/v1/voice/jobs/{job_id}/artifact` returns a completed TTS WAV.
+- `DELETE /api/v1/jobs/audio/{job_id}` stops a `QUEUED` or `RUNNING` job: `200`
+  when cancellation was requested, `404` for an unknown job, and `409` when the
+  job has already finished.
 
 ### Headless managed pipeline examples
 
@@ -397,14 +359,7 @@ List the Audio catalog:
 curl --noproxy '*' -sS http://127.0.0.1/api/v1/voice/pipelines
 ```
 
-Start managed CPU STT with the registered recording and language:
-
-```bash
-curl --noproxy '*' -sS -X POST \
-  http://127.0.0.1/api/v1/voice/pipelines/speech-to-text/variants/cpu/runs
-```
-
-List the predefined recordings and start CPU STT with one of them in German:
+Start managed CPU STT with a predefined recording, after listing them:
 
 ```bash
 curl --noproxy '*' -sS http://127.0.0.1/api/v1/voice/recordings
@@ -432,13 +387,13 @@ curl --noproxy '*' -sS -X POST \
   http://127.0.0.1/api/v1/voice/pipelines/text-to-speech/variants/cpu/runs
 ```
 
-Each start returns HTTP 202 with a `job_id`. Poll the job until its status is
+Each start returns HTTP 202 with a `job_id`. Poll the job until its `state` is
 `COMPLETED`, `FAILED`, or `CANCELLED`. The run also appears under
-**Jobs > Audio**. Poll the Voice status endpoint:
+**Jobs > Audio**:
 
 ```bash
 curl --noproxy '*' -sS \
-  http://127.0.0.1/api/v1/voice/jobs/<job_id>
+  http://127.0.0.1/api/v1/jobs/audio/<job_id>/status
 ```
 
 A completed STT job contains `transcript`. A completed TTS job contains
@@ -449,8 +404,7 @@ curl --noproxy '*' -sS -o speech.wav \
   http://127.0.0.1/api/v1/voice/jobs/<job_id>/artifact
 ```
 
-Do not construct the status URL under the pipeline run path. Jobs belong under
-`/api/v1/voice/jobs/{job_id}`. A backend restart discards job lookup state, so
+A backend restart discards job lookup state, so
 even a persisted TTS WAV is no longer retrievable through the job endpoint
 after that restart.
 
@@ -478,21 +432,18 @@ there are no operation tabs.
 
 | Metric             | Unit | Measurement interval                                                                                   |
 | ------------------ | ---- | ------------------------------------------------------------------------------------------------------ |
-| Request duration   | ms   | Browser first-fetch start through a direct response or completed managed job status.                   |
+| Request duration   | ms   | Browser first-fetch start through a completed managed job status.                                      |
 | Service round trip | ms   | ViPPET upstream POST start through receipt and validation of the complete service response body.       |
 
 Both intervals use monotonic clocks. Managed request duration includes the
 initial POST and job polling, but excludes the later TTS artifact download.
-Direct request duration includes upload, proxy processing, the service call,
-download and browser response parsing. Both exclude microphone recording, WAV
+Both exclude microphone recording, WAV
 preparation and playback. Service round trip includes connection setup,
 transport, service queueing and processing. Neither is a pure model inference
 measurement or time to first byte/token. Startup/model loading can increase the
 observed duration. The values are not aggregated benchmarks.
 
-Successful direct conversion responses include
-`X-Voice-Service-Duration-Ms`, a decimal number in milliseconds, for example
-`250.000`. Completed managed jobs expose the same measurement in
+Completed managed jobs expose the service round trip in
 `service_round_trip_ms`. Failures do not include this success metric. No
 `/v1/performance` polling is used: the services' global `last_ms` cannot reliably
 identify a particular request.

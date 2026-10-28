@@ -165,7 +165,10 @@ class TestAudioJobsAPI(unittest.TestCase):
         self.manager.start_job.return_value = job
         self.manager.list_jobs.return_value = [job]
 
-        started = self.client.post("/voice/pipelines/speech-to-text/runs")
+        started = self.client.post(
+            "/voice/pipelines/speech-to-text/variants/cpu/runs",
+            json={"recording": "sample_male.wav", "language": "en"},
+        )
         listed = self.client.get("/jobs/audio/status")
 
         self.assertEqual(started.status_code, 202)

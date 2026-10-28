@@ -7,13 +7,12 @@ import json
 import tempfile
 import unittest
 import wave
-from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 from api.dependencies.audio_jobs import (
@@ -69,16 +68,13 @@ class AudioJobManagerDependencyTests(unittest.IsolatedAsyncioTestCase):
         manager.shutdown.assert_awaited_once_with()
 
 
-class VoiceTests(unittest.TestCase):
+class VoiceServiceTests(unittest.IsolatedAsyncioTestCase):
+    """Upstream speech-service calls made on behalf of Audio pipeline jobs."""
+
     def setUp(self) -> None:
-        app = FastAPI()
-        app.include_router(voice.router, prefix="/voice")
-        self.app = app
         self.requests: list[httpx.Request] = []
         self.upstream: httpx.Response | None = None
         self.failure: type[httpx.RequestError] | None = None
-        self.client = TestClient(app)
-        self.addCleanup(self.client.close)
         client_patch = patch.object(
             voice,
             "create_client",
@@ -86,13 +82,6 @@ class VoiceTests(unittest.TestCase):
         )
         client_patch.start()
         self.addCleanup(client_patch.stop)
-        metrics_patch = patch.object(voice, "schedule_voice_metric")
-        self.schedule_metric = metrics_patch.start()
-        self.addCleanup(metrics_patch.stop)
-        self.addCleanup(app.dependency_overrides.clear)
-
-    def use_audio_jobs(self, jobs) -> None:
-        self.app.dependency_overrides[get_audio_pipeline_job_manager] = lambda: jobs
 
     def respond(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
@@ -106,47 +95,41 @@ class VoiceTests(unittest.TestCase):
             200, content=wav_bytes(), headers={"content-type": "audio/wav"}
         )
 
-    def transcribe(
+    async def transcribe(
         self,
         content: bytes | None = None,
-        device: str | None = None,
+        device: str = "CPU",
         filename: str = "sentence.wav",
         content_type: str = "audio/wav",
-    ) -> httpx.Response:
-        data = {"device": device} if device else None
-        return self.client.post(
-            "/voice/transcriptions",
-            data=data,
-            files={
-                "file": (
-                    filename,
-                    wav_bytes() if content is None else content,
-                    content_type,
-                )
-            },
+    ) -> tuple[str, float]:
+        return await voice.execute_transcription(
+            io.BytesIO(wav_bytes() if content is None else content),
+            filename,
+            content_type,
+            "en",
+            device,
         )
 
-    def test_transcription_is_independent(self) -> None:
+    async def assert_http_error(self, coroutine, status_code: int) -> HTTPException:
+        with self.assertRaises(HTTPException) as context:
+            await coroutine
+        self.assertEqual(context.exception.status_code, status_code)
+        self.assertNotIn("private", str(context.exception.detail))
+        return context.exception
+
+    async def test_transcription_is_independent(self) -> None:
         for _ in range(2):
-            response = self.transcribe()
-            self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.json(), {"text": "Hello world"})
-            self.assertEqual(response.headers["cache-control"], "no-store")
+            text, _ = await self.transcribe()
+            self.assertEqual(text, "Hello world")
         self.assertEqual(len(self.requests), 2)
         for request in self.requests:
             self.assertNotIn(b"session_id", request.content)
             self.assertNotIn(b"prompt", request.content)
-            self.assertNotIn(b'name="device"', request.content)
 
-    def test_forwards_selected_devices(self) -> None:
-        transcription = self.transcribe(device="GPU")
-        speech = self.client.post(
-            "/voice/speech",
-            json={"input": "Hello world", "voice": "Angus", "device": "NPU"},
-        )
+    async def test_forwards_selected_devices(self) -> None:
+        await self.transcribe(device="GPU")
+        await voice.execute_synthesis("Hello world", "Angus", "NPU")
 
-        self.assertEqual(transcription.status_code, 200)
-        self.assertEqual(speech.status_code, 200)
         self.assertIn(b'name="device"', self.requests[0].content)
         self.assertIn(b"GPU", self.requests[0].content)
         self.assertEqual(
@@ -159,142 +142,35 @@ class VoiceTests(unittest.TestCase):
             },
         )
 
-    def test_preserves_uploaded_audio_metadata(self) -> None:
+    async def test_preserves_uploaded_audio_metadata(self) -> None:
         content = b"ID3\x04\x00\x00audio payload"
 
-        response = self.transcribe(
+        await self.transcribe(
             content,
-            filename="sample.mp3",
+            filename="../folder\\sample.mp3",
             content_type="audio/mpeg",
         )
 
-        self.assertEqual(response.status_code, 200)
         self.assertEqual(len(self.requests), 1)
         self.assertIn(b'filename="sample.mp3"', self.requests[0].content)
         self.assertIn(b"Content-Type: audio/mpeg", self.requests[0].content)
         self.assertIn(content, self.requests[0].content)
 
-    def test_forwards_upload_larger_than_legacy_limit(self) -> None:
-        content = b"x" * (10 * 1024 * 1024 + 1)
+    async def test_speech_returns_wav(self) -> None:
+        content, _ = await voice.execute_synthesis("Hello world", "Angus", "CPU")
 
-        response = self.transcribe(content, filename="large.mp3")
+        self.assertEqual(content, wav_bytes())
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(self.requests), 1)
-        self.assertIn(content, self.requests[0].content)
-
-    def test_rejects_unknown_devices(self) -> None:
-        self.assertEqual(self.transcribe(device="AUTO").status_code, 422)
-        self.assertEqual(
-            self.client.post(
-                "/voice/speech",
-                json={"input": "Hello", "voice": "Ryan", "device": "AUTO"},
-            ).status_code,
-            422,
-        )
-        self.assertEqual(self.requests, [])
-
-    def test_speech_returns_wav(self) -> None:
-        response = self.client.post(
-            "/voice/speech", json={"input": "Hello world", "voice": "Angus"}
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.headers["content-type"], "audio/wav")
-        self.assertEqual(response.headers["cache-control"], "no-store")
-        self.assertEqual(response.content, wav_bytes())
-        self.assertEqual(
-            self.requests[0].content,
-            b'{"input":"Hello world","voice":"Angus","response_format":"wav"}',
-        )
-
-    def test_accepts_supported_speech_voices(self) -> None:
-        for voice_name in [
-            "Ryan",
-            "Miles",
-            "Aaron",
-            "Nora",
-            "Elena",
-            "Kabir",
-            "Angus",
-        ]:
-            with self.subTest(voice=voice_name):
-                response = self.client.post(
-                    "/voice/speech", json={"input": "Hello", "voice": voice_name}
-                )
-                self.assertEqual(response.status_code, 200)
-                self.assertEqual(response.content, wav_bytes())
-
-    def test_rejects_invalid_speech_voice(self) -> None:
-        for payload in [
-            {"input": "Hello"},
-            {"input": "Hello", "voice": ""},
-            {"input": "Hello", "voice": "awb"},
-            {"input": "Hello", "voice": "angus"},
-            {"input": "Hello", "voice": "Unknown"},
-        ]:
-            with self.subTest(payload=payload):
-                self.assertEqual(
-                    self.client.post("/voice/speech", json=payload).status_code, 422
-                )
-        self.assertEqual(self.requests, [])
-
-    def test_timings_belong_to_each_conversion(self) -> None:
+    async def test_timings_belong_to_each_conversion(self) -> None:
         with patch.object(voice, "perf_counter", side_effect=[10, 10.25, 20, 20.75]):
-            transcription = self.transcribe()
-            speech = self.client.post(
-                "/voice/speech", json={"input": "Hello", "voice": "Ryan"}
-            )
-        self.assertEqual(transcription.status_code, 200)
-        self.assertEqual(speech.status_code, 200)
-        self.assertEqual(
-            transcription.headers["x-voice-service-duration-ms"], "250.000"
-        )
-        self.assertEqual(speech.headers["x-voice-service-duration-ms"], "750.000")
-        self.assertEqual(transcription.json(), {"text": "Hello world"})
-        self.assertEqual(speech.content, wav_bytes())
-        self.assertEqual(len(self.requests), 2)
+            _, transcription_ms = await self.transcribe()
+            _, speech_ms = await voice.execute_synthesis("Hello", "Ryan", "CPU")
 
-    def test_publishes_successful_conversion_metrics(self) -> None:
-        with patch.object(voice, "perf_counter", side_effect=[10, 10.25, 20, 20.75]):
-            transcription = self.transcribe(device="GPU")
-            speech = self.client.post(
-                "/voice/speech",
-                json={"input": "Hello", "voice": "Angus", "device": "NPU"},
-            )
+        self.assertEqual(transcription_ms, 250.0)
+        self.assertEqual(speech_ms, 750.0)
 
-        self.assertEqual(transcription.status_code, 200)
-        self.assertEqual(speech.status_code, 200)
-        self.assertEqual(
-            self.schedule_metric.call_args_list,
-            [
-                call(
-                    "voice_asr",
-                    250.0,
-                    {"device": "GPU", "language": "en"},
-                ),
-                call(
-                    "voice_tts",
-                    750.0,
-                    {"device": "NPU", "voice": "Angus"},
-                ),
-            ],
-        )
-
-    def test_failed_conversion_has_no_success_timing(self) -> None:
-        self.upstream = httpx.Response(500, text="private service detail")
-        response = self.transcribe()
-        self.assertEqual(response.status_code, 502)
-        self.assertNotIn("x-voice-service-duration-ms", response.headers)
-        self.schedule_metric.assert_not_called()
-
-    def test_forwards_safe_audio_validation_errors(self) -> None:
-        for detail in [
-            "No filename provided",
-            "Invalid file type",
-            "File too large",
-            "Uploaded file is empty",
-            "Uploaded file is not a valid audio file",
-        ]:
+    async def test_forwards_safe_audio_validation_errors(self) -> None:
+        for detail in sorted(voice.SAFE_AUDIO_VALIDATION_DETAILS):
             with self.subTest(detail=detail):
                 self.upstream = httpx.Response(
                     400,
@@ -308,12 +184,11 @@ class VoiceTests(unittest.TestCase):
                     },
                 )
 
-                response = self.transcribe()
+                error = await self.assert_http_error(self.transcribe(), 400)
 
-                self.assertEqual(response.status_code, 400)
-                self.assertEqual(response.json(), {"detail": detail})
+                self.assertEqual(error.detail, detail)
 
-    def test_sanitizes_unknown_audio_validation_errors(self) -> None:
+    async def test_sanitizes_unknown_audio_validation_errors(self) -> None:
         self.upstream = httpx.Response(
             400,
             json={
@@ -326,49 +201,25 @@ class VoiceTests(unittest.TestCase):
             },
         )
 
-        response = self.transcribe()
+        error = await self.assert_http_error(self.transcribe(), 400)
 
-        self.assertEqual(response.status_code, 400)
         self.assertEqual(
-            response.json(), {"detail": "The speech service rejected the input."}
+            error.detail, "The selected speech-to-text device is unavailable."
         )
-        self.assertNotIn("private", response.text)
 
-    def test_bounds_audio_validation_error_responses(self) -> None:
+    async def test_bounds_audio_validation_error_responses(self) -> None:
         self.upstream = httpx.Response(
             400,
             content=b"x" * (voice.MAX_ERROR_RESPONSE_BYTES + 1),
         )
 
-        response = self.transcribe()
+        error = await self.assert_http_error(self.transcribe(), 400)
 
-        self.assertEqual(response.status_code, 400)
         self.assertEqual(
-            response.json(), {"detail": "The speech service rejected the input."}
+            error.detail, "The selected speech-to-text device is unavailable."
         )
 
-    def test_rejects_invalid_text(self) -> None:
-        for text in ["", "   ", "a" * 5001]:
-            with self.subTest(length=len(text)):
-                self.assertEqual(
-                    self.client.post(
-                        "/voice/speech", json={"input": text, "voice": "Ryan"}
-                    ).status_code,
-                    422,
-                )
-        self.assertEqual(self.requests, [])
-
-    def test_rejects_conversation_fields(self) -> None:
-        self.assertEqual(
-            self.client.post(
-                "/voice/speech",
-                json={"input": "Hello", "voice": "Ryan", "session_id": "previous"},
-            ).status_code,
-            422,
-        )
-        self.assertEqual(self.requests, [])
-
-    def test_upstream_errors_are_sanitized(self) -> None:
+    async def test_upstream_errors_are_sanitized(self) -> None:
         for upstream_status, expected_status in [
             (400, 400),
             (422, 400),
@@ -380,38 +231,89 @@ class VoiceTests(unittest.TestCase):
                 self.upstream = httpx.Response(
                     upstream_status, text="private service detail"
                 )
-                response = self.client.post(
-                    "/voice/speech", json={"input": "Hello", "voice": "Ryan"}
+                await self.assert_http_error(
+                    voice.execute_synthesis("Hello", "Ryan", "CPU"),
+                    expected_status,
                 )
-                self.assertEqual(response.status_code, expected_status)
-                self.assertNotIn("private", response.text)
 
-    def test_unavailable_service(self) -> None:
+    async def test_unavailable_service(self) -> None:
         for error, expected_status in [
             (httpx.ConnectError, 503),
             (httpx.ReadTimeout, 504),
         ]:
             with self.subTest(error=error):
                 self.failure = error
-                response = self.client.post(
-                    "/voice/speech", json={"input": "Hello", "voice": "Ryan"}
+                await self.assert_http_error(
+                    voice.execute_synthesis("Hello", "Ryan", "CPU"),
+                    expected_status,
                 )
-                self.assertEqual(response.status_code, expected_status)
-                self.assertNotIn("private", response.text)
 
-    def test_rejects_invalid_upstream_payload(self) -> None:
+    async def test_rejects_invalid_upstream_payload(self) -> None:
         self.upstream = httpx.Response(200, json={"text": 123})
-        responses = [
-            self.transcribe(),
-            self.client.post("/voice/speech", json={"input": "Hello", "voice": "Ryan"}),
-        ]
-        for response in responses:
-            self.assertEqual(response.status_code, 502)
-            self.assertNotIn("x-voice-service-duration-ms", response.headers)
 
-    def test_rejects_oversized_upstream_response(self) -> None:
+        await self.assert_http_error(self.transcribe(), 502)
+        await self.assert_http_error(
+            voice.execute_synthesis("Hello", "Ryan", "CPU"), 502
+        )
+
+    async def test_rejects_oversized_upstream_response(self) -> None:
         self.upstream = httpx.Response(200, content=b"x" * (128 * 1024 + 1))
-        self.assertEqual(self.transcribe().status_code, 502)
+
+        await self.assert_http_error(self.transcribe(), 502)
+
+    async def test_timing_includes_body_and_is_isolated_between_requests(
+        self,
+    ) -> None:
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        class TranscriptionStream(httpx.AsyncByteStream):
+            async def __aiter__(self):
+                started.set()
+                yield b'{"text":'
+                await release.wait()
+                yield b'"Hello world"}'
+
+        def respond(request: httpx.Request) -> httpx.Response:
+            if request.url.path.endswith("transcriptions"):
+                return httpx.Response(200, stream=TranscriptionStream())
+            return httpx.Response(
+                200, content=wav_bytes(), headers={"content-type": "audio/wav"}
+            )
+
+        with (
+            patch.object(voice, "perf_counter", side_effect=[10, 20, 20.25, 21]),
+            patch.object(
+                voice,
+                "create_client",
+                lambda: httpx.AsyncClient(transport=httpx.MockTransport(respond)),
+            ),
+        ):
+            async with asyncio.timeout(5):
+                pending = asyncio.create_task(self.transcribe())
+                try:
+                    await started.wait()
+                    _, speech_ms = await voice.execute_synthesis("Hello", "Ryan", "CPU")
+                finally:
+                    release.set()
+                    text, transcription_ms = await pending
+
+        self.assertEqual(speech_ms, 250.0)
+        self.assertEqual(transcription_ms, 11000.0)
+        self.assertEqual(text, "Hello world")
+
+
+class VoiceRoutesTests(unittest.TestCase):
+    def setUp(self) -> None:
+        app = FastAPI()
+        app.include_router(voice.router, prefix="/voice")
+        self.app = app
+        self.client = TestClient(app)
+        self.addCleanup(self.client.close)
+        self.addCleanup(app.dependency_overrides.clear)
+
+    def use_audio_jobs(self, jobs) -> None:
+        self.app.dependency_overrides[get_audio_pipeline_job_manager] = lambda: jobs
 
     def test_lists_audio_pipeline_catalog(self) -> None:
         catalog = SimpleNamespace(
@@ -476,51 +378,6 @@ class VoiceTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), [])
 
-    def test_starts_and_reads_audio_pipeline_job(self) -> None:
-        now = datetime.now(timezone.utc)
-        job = SimpleNamespace(
-            id="job-1",
-            pipeline_id="speech-to-text",
-            pipeline_name="Speech to Text",
-            variant_id="cpu",
-            variant_name="CPU",
-            device="CPU",
-            operation="speech_to_text",
-            status=AudioPipelineJobStatus.QUEUED,
-            created_at=now,
-            modified_at=now,
-            transcript=None,
-            artifact_path=None,
-            artifact_filename=None,
-            service_round_trip_ms=None,
-            error=None,
-        )
-        jobs = SimpleNamespace(
-            start_job=AsyncMock(return_value=job),
-            get_job=AsyncMock(
-                side_effect=lambda job_id: job if job_id == "job-1" else None
-            ),
-        )
-        self.use_audio_jobs(jobs)
-        started = self.client.post("/voice/pipelines/speech-to-text/runs")
-        status = self.client.get("/voice/jobs/job-1")
-
-        self.assertEqual(started.status_code, 202)
-        self.assertEqual(started.json(), {"job_id": "job-1", "status": "QUEUED"})
-        jobs.start_job.assert_awaited_once_with("speech-to-text", None)
-        self.assertEqual(status.status_code, 200)
-        self.assertEqual(status.json()["pipeline_id"], "speech-to-text")
-        self.assertEqual(status.json()["variant_id"], "cpu")
-
-    def test_starts_audio_pipeline_variant_job(self) -> None:
-        job = SimpleNamespace(id="job-1", status=AudioPipelineJobStatus.QUEUED)
-        jobs = SimpleNamespace(start_job=AsyncMock(return_value=job))
-        self.use_audio_jobs(jobs)
-        response = self.client.post("/voice/pipelines/speech-to-text/variants/gpu/runs")
-
-        self.assertEqual(response.status_code, 202)
-        jobs.start_job.assert_awaited_once_with("speech-to-text", "gpu")
-
     def test_starts_custom_tts_pipeline_job(self) -> None:
         job = SimpleNamespace(id="job-1", status=AudioPipelineJobStatus.QUEUED)
         jobs = SimpleNamespace(start_job=AsyncMock(return_value=job))
@@ -531,6 +388,7 @@ class VoiceTests(unittest.TestCase):
         )
 
         self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.json(), {"job_id": "job-1", "status": "QUEUED"})
         jobs.start_job.assert_awaited_once_with(
             "text-to-speech",
             "gpu",
@@ -538,7 +396,7 @@ class VoiceTests(unittest.TestCase):
             voice="Angus",
         )
 
-    def test_starts_managed_stt_upload_on_existing_variant_run(self) -> None:
+    def test_starts_managed_stt_upload(self) -> None:
         job = SimpleNamespace(id="job-1", status=AudioPipelineJobStatus.QUEUED)
         observed: dict[str, object] = {}
 
@@ -588,7 +446,7 @@ class VoiceTests(unittest.TestCase):
         self.use_audio_jobs(jobs)
 
         response = self.client.post(
-            "/voice/pipelines/speech-to-text/runs",
+            "/voice/pipelines/speech-to-text/variants/cpu/runs",
             data={"language": "en"},
             files={
                 "file": (
@@ -607,7 +465,7 @@ class VoiceTests(unittest.TestCase):
         self.use_audio_jobs(jobs)
 
         missing_file = self.client.post(
-            "/voice/pipelines/speech-to-text/runs",
+            "/voice/pipelines/speech-to-text/variants/cpu/runs",
             data={"language": "en"},
             files={
                 "ignored": (
@@ -618,7 +476,7 @@ class VoiceTests(unittest.TestCase):
             },
         )
         invalid_language = self.client.post(
-            "/voice/pipelines/speech-to-text/runs",
+            "/voice/pipelines/speech-to-text/variants/cpu/runs",
             data={"language": "english"},
             files={"file": ("sample.wav", b"audio", "audio/wav")},
         )
@@ -627,17 +485,19 @@ class VoiceTests(unittest.TestCase):
         self.assertEqual(invalid_language.status_code, 422)
         jobs.start_job.assert_not_called()
 
-    def test_rejects_unsupported_managed_run_content_type(self) -> None:
+    def test_rejects_unsupported_or_missing_run_body(self) -> None:
         jobs = SimpleNamespace(start_job=AsyncMock())
         self.use_audio_jobs(jobs)
 
-        response = self.client.post(
-            "/voice/pipelines/speech-to-text/runs",
+        unsupported = self.client.post(
+            "/voice/pipelines/speech-to-text/variants/cpu/runs",
             content=b"audio",
             headers={"Content-Type": "audio/wav"},
         )
+        missing = self.client.post("/voice/pipelines/speech-to-text/variants/cpu/runs")
 
-        self.assertEqual(response.status_code, 415)
+        self.assertEqual(unsupported.status_code, 415)
+        self.assertEqual(missing.status_code, 415)
         jobs.start_job.assert_not_called()
 
     def test_rejects_stt_upload_for_tts_pipeline(self) -> None:
@@ -651,7 +511,7 @@ class VoiceTests(unittest.TestCase):
         self.use_audio_jobs(jobs)
 
         response = self.client.post(
-            "/voice/pipelines/text-to-speech/runs",
+            "/voice/pipelines/text-to-speech/variants/cpu/runs",
             data={"language": "en"},
             files={"file": ("sample.wav", b"audio", "audio/wav")},
         )
@@ -674,7 +534,7 @@ class VoiceTests(unittest.TestCase):
         for payload in invalid_payloads:
             with self.subTest(payload=payload):
                 response = self.client.post(
-                    "/voice/pipelines/text-to-speech/runs",
+                    "/voice/pipelines/text-to-speech/variants/cpu/runs",
                     json=payload,
                 )
                 self.assertEqual(response.status_code, 422)
@@ -691,7 +551,7 @@ class VoiceTests(unittest.TestCase):
         )
         self.use_audio_jobs(jobs)
         response = self.client.post(
-            "/voice/pipelines/speech-to-text/runs",
+            "/voice/pipelines/speech-to-text/variants/cpu/runs",
             json={"input": "Custom sentence", "voice": "Ryan"},
         )
 
@@ -711,7 +571,8 @@ class VoiceTests(unittest.TestCase):
         )
         self.use_audio_jobs(jobs)
         response = self.client.post(
-            "/voice/pipelines/speech-to-text/variants/missing/runs"
+            "/voice/pipelines/speech-to-text/variants/missing/runs",
+            json={"recording": "sample.wav", "language": "en"},
         )
 
         self.assertEqual(response.status_code, 404)
@@ -726,7 +587,10 @@ class VoiceTests(unittest.TestCase):
             )
         )
         self.use_audio_jobs(jobs)
-        response = self.client.post("/voice/pipelines/missing/runs")
+        response = self.client.post(
+            "/voice/pipelines/missing/variants/cpu/runs",
+            json={"recording": "sample.wav", "language": "en"},
+        )
 
         self.assertEqual(response.status_code, 404)
         self.assertEqual(response.json(), {"detail": "Audio pipeline not found."})
@@ -840,7 +704,7 @@ class VoiceTests(unittest.TestCase):
         for payload in invalid_payloads:
             with self.subTest(payload=payload):
                 response = self.client.post(
-                    "/voice/pipelines/speech-to-text/runs", json=payload
+                    "/voice/pipelines/speech-to-text/variants/cpu/runs", json=payload
                 )
                 self.assertEqual(response.status_code, 422)
 
@@ -855,7 +719,7 @@ class VoiceTests(unittest.TestCase):
         self.use_audio_jobs(jobs)
 
         response = self.client.post(
-            "/voice/pipelines/speech-to-text/runs",
+            "/voice/pipelines/speech-to-text/variants/cpu/runs",
             json={"recording": "missing.wav", "language": "en"},
         )
 
@@ -873,7 +737,7 @@ class VoiceTests(unittest.TestCase):
         self.use_audio_jobs(jobs)
 
         response = self.client.post(
-            "/voice/pipelines/text-to-speech/runs",
+            "/voice/pipelines/text-to-speech/variants/cpu/runs",
             json={"recording": "sample.wav", "language": "en"},
         )
 
@@ -902,112 +766,3 @@ class VoiceTests(unittest.TestCase):
         self.assertEqual(response.headers["cache-control"], "no-store")
         self.assertEqual(response.headers["x-content-type-options"], "nosniff")
         self.assertIn("speech.wav", response.headers["content-disposition"])
-
-
-class ConcurrentVoiceTests(unittest.IsolatedAsyncioTestCase):
-    async def test_timing_includes_body_and_is_isolated_between_requests(self) -> None:
-        started = asyncio.Event()
-        release = asyncio.Event()
-
-        class TranscriptionStream(httpx.AsyncByteStream):
-            async def __aiter__(self):
-                started.set()
-                yield b'{"text":'
-                await release.wait()
-                yield b'"Hello world"}'
-
-        def respond(request: httpx.Request) -> httpx.Response:
-            if request.url.path.endswith("transcriptions"):
-                return httpx.Response(200, stream=TranscriptionStream())
-            return httpx.Response(
-                200, content=wav_bytes(), headers={"content-type": "audio/wav"}
-            )
-
-        app = FastAPI()
-        app.include_router(voice.router, prefix="/voice")
-        with (
-            patch.object(voice, "perf_counter", side_effect=[10, 20, 20.25, 21]),
-            patch.object(
-                voice,
-                "create_client",
-                lambda: httpx.AsyncClient(transport=httpx.MockTransport(respond)),
-            ),
-        ):
-            async with (
-                asyncio.timeout(5),
-                httpx.AsyncClient(
-                    transport=httpx.ASGITransport(app=app), base_url="http://test"
-                ) as client,
-            ):
-                pending = asyncio.create_task(
-                    client.post(
-                        "/voice/transcriptions",
-                        files={"file": ("sentence.wav", wav_bytes(), "audio/wav")},
-                    )
-                )
-                try:
-                    await started.wait()
-                    speech = await client.post(
-                        "/voice/speech", json={"input": "Hello", "voice": "Ryan"}
-                    )
-                finally:
-                    release.set()
-                    transcription = await pending
-        self.assertEqual(speech.status_code, 200)
-        self.assertEqual(transcription.status_code, 200)
-        self.assertEqual(speech.headers["x-voice-service-duration-ms"], "250.000")
-        self.assertEqual(
-            transcription.headers["x-voice-service-duration-ms"], "11000.000"
-        )
-        self.assertEqual(transcription.json(), {"text": "Hello world"})
-
-
-class VoiceMetricPublisherTests(unittest.IsolatedAsyncioTestCase):
-    async def test_publishes_batch_payload(self) -> None:
-        requests: list[httpx.Request] = []
-
-        def respond(request: httpx.Request) -> httpx.Response:
-            requests.append(request)
-            return httpx.Response(202, json={"accepted": 1})
-
-        client_type = httpx.AsyncClient
-        with patch.object(
-            voice.httpx,
-            "AsyncClient",
-            lambda **_kwargs: client_type(transport=httpx.MockTransport(respond)),
-        ):
-            await voice.publish_voice_metric(
-                "voice_asr",
-                250.0,
-                {"device": "GPU", "language": "en"},
-            )
-
-        self.assertEqual(len(requests), 1)
-        self.assertEqual(
-            json.loads(requests[0].content),
-            {
-                "metrics": [
-                    {
-                        "name": "voice_asr",
-                        "fields": {"service_round_trip_ms": 250.0},
-                        "tags": {"device": "GPU", "language": "en"},
-                    }
-                ]
-            },
-        )
-
-    async def test_metrics_manager_failure_is_non_fatal(self) -> None:
-        def fail(request: httpx.Request) -> httpx.Response:
-            raise httpx.ConnectError("unavailable", request=request)
-
-        client_type = httpx.AsyncClient
-        with patch.object(
-            voice.httpx,
-            "AsyncClient",
-            lambda **_kwargs: client_type(transport=httpx.MockTransport(fail)),
-        ):
-            await voice.publish_voice_metric(
-                "voice_tts",
-                750.0,
-                {"device": "service-default", "voice": "Ryan"},
-            )

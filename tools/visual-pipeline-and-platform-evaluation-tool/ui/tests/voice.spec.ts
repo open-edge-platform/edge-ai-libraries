@@ -193,7 +193,7 @@ async function mockSttJob(
     { times: 1 },
   );
   await page.route(
-    `**/voice/jobs/${jobId}`,
+    `**/jobs/audio/${jobId}/status`,
     (route) =>
       route.fulfill({
         json: {
@@ -204,10 +204,11 @@ async function mockSttJob(
           variant_name: "CPU",
           device: "CPU",
           operation: "speech_to_text",
-          status,
+          state: status,
           created_at: "2026-10-09T10:00:00Z",
           modified_at: "2026-10-09T10:00:01Z",
           transcript: status === "COMPLETED" ? transcript : null,
+          artifact_available: false,
           artifact_url: null,
           service_round_trip_ms: serviceMs,
           error,
@@ -255,7 +256,7 @@ async function mockTtsJob(
     { times: 1 },
   );
   await page.route(
-    `**/voice/jobs/${jobId}`,
+    `**/jobs/audio/${jobId}/status`,
     async (route) => {
       await waitForStatus;
       await route
@@ -268,10 +269,11 @@ async function mockTtsJob(
             variant_name: "CPU",
             device: "CPU",
             operation: "text_to_speech",
-            status,
+            state: status,
             created_at: "2026-10-09T10:00:00Z",
             modified_at: "2026-10-09T10:00:01Z",
             transcript: null,
+            artifact_available: status === "COMPLETED",
             artifact_url: status === "COMPLETED" ? artifactUrl : null,
             service_round_trip_ms: serviceMs,
             error,
@@ -574,7 +576,7 @@ test("runs the predefined speech-to-text recording by default", async ({
       });
     },
   );
-  await page.route("**/voice/jobs/stt-job", (route) =>
+  await page.route("**/jobs/audio/stt-job/status", (route) =>
     route.fulfill({
       json: {
         id: "stt-job",
@@ -584,10 +586,11 @@ test("runs the predefined speech-to-text recording by default", async ({
         variant_name: "CPU",
         device: "CPU",
         operation: "speech_to_text",
-        status: "COMPLETED",
+        state: "COMPLETED",
         created_at: "2026-10-09T10:00:00Z",
         modified_at: "2026-10-09T10:00:01Z",
         transcript: "The managed recording was transcribed.",
+        artifact_available: false,
         artifact_url: null,
         service_round_trip_ms: 125,
         error: null,
@@ -736,7 +739,7 @@ test("runs the managed text-to-speech preset with YAML defaults", async ({
   await page.route("**/voice/jobs/tts-job/artifact", (route) =>
     route.fulfill({ contentType: "audio/wav", body: wav() }),
   );
-  await page.route("**/voice/jobs/tts-job", (route) =>
+  await page.route("**/jobs/audio/tts-job/status", (route) =>
     route.fulfill({
       json: {
         id: "tts-job",
@@ -746,10 +749,11 @@ test("runs the managed text-to-speech preset with YAML defaults", async ({
         variant_name: "CPU",
         device: "CPU",
         operation: "text_to_speech",
-        status: "COMPLETED",
+        state: "COMPLETED",
         created_at: "2026-10-09T10:00:00Z",
         modified_at: "2026-10-09T10:00:01Z",
         transcript: null,
+        artifact_available: true,
         artifact_url: "/api/v1/voice/jobs/tts-job/artifact",
         service_round_trip_ms: 250,
         error: null,
@@ -1330,7 +1334,7 @@ for (const scenario of [
           json: { job_id: jobId, status: "QUEUED" },
         }),
     );
-    await page.route(`**/voice/jobs/${jobId}`, (route) =>
+    await page.route(`**/jobs/audio/${jobId}/status`, (route) =>
       route.fulfill({
         json: {
           id: jobId,
@@ -1340,10 +1344,11 @@ for (const scenario of [
           variant_name: "CPU",
           device: "CPU",
           operation: scenario.operation,
-          status: stopped ? "CANCELLED" : "RUNNING",
+          state: stopped ? "CANCELLED" : "RUNNING",
           created_at: "2026-10-09T10:00:00Z",
           modified_at: "2026-10-09T10:00:01Z",
           transcript: null,
+          artifact_available: false,
           artifact_url: null,
           service_round_trip_ms: null,
           error: null,
@@ -1393,7 +1398,7 @@ test("reports a failed stop request and keeps the job running", async ({
     (route) =>
       route.fulfill({ status: 202, json: { job_id: jobId, status: "QUEUED" } }),
   );
-  await page.route(`**/voice/jobs/${jobId}`, (route) =>
+  await page.route(`**/jobs/audio/${jobId}/status`, (route) =>
     route.fulfill({
       json: {
         id: jobId,
@@ -1403,10 +1408,11 @@ test("reports a failed stop request and keeps the job running", async ({
         variant_name: "CPU",
         device: "CPU",
         operation: "text_to_speech",
-        status: "RUNNING",
+        state: "RUNNING",
         created_at: "2026-10-09T10:00:00Z",
         modified_at: "2026-10-09T10:00:01Z",
         transcript: null,
+        artifact_available: false,
         artifact_url: null,
         service_round_trip_ms: null,
         error: null,

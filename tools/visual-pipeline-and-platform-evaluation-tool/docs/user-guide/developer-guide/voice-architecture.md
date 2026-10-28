@@ -35,17 +35,17 @@ there is no Code-level diagram.
 flowchart TB
   operator["Operator<br/>[Person]<br/>Runs Audio pipelines in the browser"]:::person
   automation["Automation client<br/>[External software system]<br/>Runs Audio pipelines headlessly"]:::external
-  vippet["ViPPET<br/>[Software system]<br/>Audio catalog, jobs, direct conversion and metrics"]:::internal
+  vippet["ViPPET<br/>[Software system]<br/>Audio catalog, jobs and metrics"]:::internal
   asr["Audio Analyzer<br/>[External software system]<br/>Transcribes recordings"]:::external
   tts["Text to Speech<br/>[External software system]<br/>Synthesizes speech"]:::external
   models["Model Download<br/>[External software system]<br/>Downloads and exports Voice models"]:::external
-  telemetry["Metrics Manager<br/>[External software system]<br/>Collects platform telemetry and Voice timings"]:::external
+  telemetry["Metrics Manager<br/>[External software system]<br/>Collects platform telemetry"]:::external
   operator -->|Uses web UI| vippet
   automation -->|Uses public Audio HTTP API| vippet
   vippet -->|Recording to transcript| asr
   vippet -->|Text to audio| tts
   vippet -->|Requests Voice model installation| models
-  vippet -->|Publishes Voice timings and subscribes to platform metrics| telemetry
+  vippet -->|Subscribes to platform metrics| telemetry
   classDef person fill:#08427b,color:#fff,stroke:#052e56
   classDef internal fill:#1168bd,color:#fff,stroke:#0b4884
   classDef external fill:#666,color:#fff,stroke:#444
@@ -65,7 +65,7 @@ flowchart TB
     direction TB
     spa["Browser UI<br/>[Container: React / TypeScript]<br/>Audio catalog, execution, Jobs, notifications, model installation and metrics"]:::internal
     web["UI web server<br/>[Container: Nginx :80]<br/>Serves assets and proxies API / SSE"]:::internal
-    api["Backend<br/>[Container: FastAPI / Python :7860]<br/>Catalog, direct conversions, process-local jobs and artifacts"]:::internal
+    api["Backend<br/>[Container: FastAPI / Python :7860]<br/>Catalog, process-local jobs and artifacts"]:::internal
     spa -->|"Assets, API requests and SSE<br/>HTTP; HTTPS at deployment edge"| web
     web -->|"/api/v1/voice/*, /api/v1/jobs/audio/* and model APIs<br/>HTTP :7860"| api
   end
@@ -74,18 +74,17 @@ flowchart TB
   downloader["Model Download<br/>[External software system :8000]<br/>OpenVINO download and export jobs"]:::external
   modelstore[("Shared Voice model storage<br/>[External data store]<br/>shared/models/output/voice")]:::external
   audiostore[("Managed Audio storage<br/>[External data store]<br/>shared/audio input and output")]:::external
-  telemetry["Metrics Manager<br/>[External software system]<br/>Custom metrics API, SSE, Telegraf and hardware collectors"]:::external
+  telemetry["Metrics Manager<br/>[External software system]<br/>SSE, Telegraf and hardware collectors"]:::external
   operator -->|Browser interaction| spa
-  automation -->|"Catalog, managed jobs and direct conversion<br/>HTTP JSON / multipart"| web
+  automation -->|"Catalog and managed jobs<br/>HTTP JSON / multipart"| web
   api -->|"POST /v1/audio/transcriptions<br/>HTTP multipart :8010; JSON response"| asr
   api -->|"POST /v1/audio/speech<br/>HTTP JSON :8011; WAV response"| tts
   api -->|"Start and poll model jobs<br/>HTTP JSON :8000"| downloader
   api -->|"Reads catalog and installed state"| modelstore
-  api -->|"Reads default STT input; atomically writes and serves TTS WAV"| audiostore
+  api -->|"Reads registered STT input; atomically writes and serves TTS WAV"| audiostore
   downloader -->|"Writes exported OpenVINO artifacts"| modelstore
   asr -->|"Loads Whisper artifacts read-only"| modelstore
   tts -->|"Loads SpeechT5 artifacts read-only"| modelstore
-  api -->|"POST /api/v1/metrics<br/>Voice service round-trip timings :9090"| telemetry
   web -->|"GET /metrics/stream<br/>HTTP / SSE :9090"| telemetry
   classDef person fill:#08427b,color:#fff,stroke:#052e56
   classDef internal fill:#1168bd,color:#fff,stroke:#0b4884
@@ -120,23 +119,19 @@ these calls.
   volume mount; failed or interrupted runs can therefore leave chunks behind.
   TTS keeps runtime cache and storage in `voice_tts_cache` and
   `voice_tts_storage`, but `PERSIST_OUTPUTS=false` disables output persistence.
-- ViPPET stores the managed default WAV and every completed managed TTS job
-  artifact in the mounted `shared/audio` tree. Default and custom text or voice
-  runs use UUID-named files under `shared/audio/output`; direct
-  `POST /api/v1/voice/speech` responses are not persisted. Audio job metadata
+- ViPPET stores the registered STT recordings and every completed managed TTS
+  job artifact in the mounted `shared/audio` tree. TTS runs use UUID-named files
+  under `shared/audio/output`. Audio job metadata
   and STT transcripts are process-local. Uploaded or recorded managed STT input
   is copied to a UUID-named file in a private manager-owned temporary directory
   and removed after success, failure, cancellation, registration failure, or
   shutdown. `make clean` removes generated TTS artifacts but preserves only the
   managed default STT input. Browser results and per-conversion timings remain
-  in React state; blob URLs are revoked during cleanup. Backend service timings
-  are also published to Metrics Manager's runtime store, not to a durable
-  request log.
-- Managed and direct clients use the ViPPET API through Nginx. Managed run
-  requests return `202`, then clients poll process-local job state. Direct
-  conversion requests wait for one synchronous JSON or WAV response.
+  in React state; blob URLs are revoked during cleanup.
+- Clients use the ViPPET API through Nginx. Run requests return `202`, then
+  clients poll process-local job state.
 - Hardware overrides determine the default service devices and which device
-  nodes are mounted. Per-request Voice overrides select among compatible,
+  nodes are mounted. Each Audio variant selects among compatible,
   visible devices. Telemetry reflects the whole host and can include unrelated
   workloads on those devices.
 
@@ -174,7 +169,7 @@ flowchart TB
   end
   catalog -->|"GET /api/v1/voice/pipelines"| web
   catalog -->|"Opens first variant"| voice
-  voice -->|"All STT: start and poll managed job; multipart for a selected file"| web
+  voice -->|"All STT: start and poll managed job; JSON recording or multipart file"| web
   voice -->|"All TTS: start job with input/voice, poll and fetch artifact"| web
   jobs -->|"GET /api/v1/jobs/audio/status"| web
   detail -->|"GET /api/v1/jobs/audio/{job_id}/status until terminal"| web
@@ -184,10 +179,11 @@ flowchart TB
 ```
 
 The route selects one STT or TTS pipeline view; there are no operation tabs.
-Default STT uses the managed YAML input. Selecting or recording a file sends
-multipart input to the same managed run endpoint. Every UI STT and TTS
-conversion uses a managed job; TTS retrieves its persisted artifact after
-completion.
+STT sends a selected predefined recording as JSON, or an uploaded or recorded
+file as multipart, to the managed run endpoint. Every UI STT and TTS
+conversion uses a managed job polled through
+`GET /api/v1/jobs/audio/{job_id}/status`; TTS retrieves its persisted artifact
+after completion.
 
 The Audio tab on the shared Jobs page polls oldest-first operational summaries.
 Its detail view polls until `COMPLETED`, `FAILED`, or `CANCELLED`, then displays
@@ -211,46 +207,39 @@ flowchart TB
   automation["Automation client<br/>[External software system]<br/>Uses the public ViPPET API"]:::external
   subgraph api[Backend - Container]
     direction TB
-    direct["Direct conversion routes<br/>[Component: FastAPI / Pydantic]<br/>Synchronous multipart STT and response-only TTS"]:::internal
-    voiceroutes["Voice pipeline routes<br/>[Component: FastAPI / Pydantic]<br/>Catalog, 202 starts, Voice status and artifact response"]:::internal
-    jobsroutes["Audio Jobs adapter<br/>[Component: FastAPI / Pydantic]<br/>Read-only list and detail projection for the shared Jobs UI"]:::internal
+    voiceroutes["Voice pipeline routes<br/>[Component: FastAPI / Pydantic]<br/>Catalog, recordings, 202 starts and artifact response"]:::internal
+    jobsroutes["Audio Jobs routes<br/>[Component: FastAPI / Pydantic]<br/>List, status and stop for Audio jobs"]:::internal
     audiodependency["Audio job dependency<br/>[Component: FastAPI dependency]<br/>Provides the shared manager instance"]:::internal
     conversion["Voice conversion execution<br/>[Component: Python / wave]<br/>Validation, upstream calls and request timing"]:::internal
     adapter["Upstream service adapter<br/>[Component: httpx / asyncio / perf_counter]<br/>Bounded reads, errors, timeout, cleanup and timing"]:::internal
-    publisher["Voice metrics publisher<br/>[Component: asyncio / httpx]<br/>Best-effort service round-trip publication"]:::internal
     assets["AudioAssetsManager<br/>[Component: Python / YAML / wave]<br/>Local recordings and managed paths"]:::internal
     audiocatalog["AudioPipelineManager<br/>[Component: Python / YAML]<br/>Strict preset definitions"]:::internal
     audiojobs["AudioPipelineJobManager<br/>[Component: asyncio]<br/>Locked process-local state, private STT staging, retention and atomic TTS artifacts"]:::internal
     modelapi["Model routes / ModelManager<br/>[Component: FastAPI / Python]<br/>Catalog, background jobs and installed state"]:::internal
     catalog["Voice model catalog<br/>[Component: DB-backed models / model_variants]<br/>Seeded from vippet/models/*.yaml; requests, variants and install state"]:::internal
-    direct -->|Validated synchronous request| conversion
-    voiceroutes -->|"Start with defaults, JSON TTS, or multipart STT"| audiodependency
-    voiceroutes -->|Read Voice status and artifact metadata| audiodependency
-    jobsroutes -->|Read list and detail snapshots| audiodependency
+    voiceroutes -->|"Start with JSON recording, JSON TTS, or multipart STT"| audiodependency
+    voiceroutes -->|Read artifact metadata| audiodependency
+    jobsroutes -->|Read snapshots and cancel| audiodependency
     audiodependency -->|Shared instance| audiojobs
     audiojobs -->|Execute managed STT or TTS| conversion
     conversion -->|Async call, bounded response| adapter
-    conversion -->|Schedules validated Voice timing| publisher
     voiceroutes -->|Lists pipeline definitions| audiocatalog
     audiojobs -->|Resolves pipeline and variant| audiocatalog
-    audiojobs -->|Reads default STT WAV; publishes TTS WAV| assets
+    audiojobs -->|Reads registered STT WAV; publishes TTS WAV| assets
     modelapi -->|Reads download requests and required variants| catalog
     modelapi -->|Persists variant and aggregate install state| catalog
   end
   asr["Audio Analyzer<br/>[External software system]<br/>Transcription service :8010"]:::external
   tts["Text to Speech<br/>[External software system]<br/>Synthesis service :8011"]:::external
-  telemetry["Metrics Manager<br/>[External software system]<br/>Custom metrics API :9090"]:::external
   downloader["Model Download<br/>[External software system]<br/>OpenVINO plugin :8000"]:::external
   modelstore[("Shared Voice model storage<br/>[External data store]<br/>OpenVINO artifacts")]:::external
-  audiostore[("Managed Audio storage<br/>[External data store]<br/>Default STT input and UUID TTS output")]:::external
-  web -->|"Direct STT/TTS requests"| direct
-  web -->|"Catalog, managed starts, Voice status and artifact"| voiceroutes
-  web -->|"GET /api/v1/jobs/audio/*"| jobsroutes
-  automation -->|"Direct conversions or managed jobs"| web
+  audiostore[("Managed Audio storage<br/>[External data store]<br/>Registered STT input and UUID TTS output")]:::external
+  web -->|"Catalog, managed starts and artifact"| voiceroutes
+  web -->|"/api/v1/jobs/audio/*"| jobsroutes
+  automation -->|"Managed jobs"| web
   web -->|"Model list, install and job status<br/>HTTP JSON"| modelapi
   adapter -->|"POST /v1/audio/transcriptions<br/>HTTP multipart; JSON response"| asr
   adapter -->|"POST /v1/audio/speech<br/>HTTP JSON; WAV response"| tts
-  publisher -->|"POST /api/v1/metrics<br/>HTTP JSON; 2-second timeout"| telemetry
   assets -->|"Managed input read and atomic output write"| audiostore
   voiceroutes -->|"Completed TTS FileResponse"| audiostore
   modelapi -->|"POST downloads; poll jobs"| downloader
@@ -262,24 +251,21 @@ flowchart TB
   classDef external fill:#666,color:#fff,stroke:#444
 ```
 
-The direct and managed Voice routes, conversion execution, upstream adapter and
-metrics publisher currently reside in the Voice router module. The separate
-Jobs router is a read-only adapter over the same `AudioPipelineJobManager`
-provided by dependency injection; neither router imports the other.
+The Voice routes, conversion execution and upstream adapter reside in the Voice
+router module. The Jobs router lists, reads and stops jobs through the same
+`AudioPipelineJobManager` provided by dependency injection; neither router
+imports the other.
 `AudioPipelineJobManager`, `AudioPipelineManager` and `AudioAssetsManager` are
 separate Python components in the same backend process.
 
 The job manager guards its job and task maps with an `asyncio.Lock`. It returns
 list snapshots oldest first by creation time and retains every active job plus
 at most 500 terminal jobs. Evicting an older terminal TTS job removes its
-managed artifact. Direct uploaded audio is streamed to Audio Analyzer for
-validation. Managed uploaded audio is first copied to a UUID-named file in a
+managed artifact. Uploaded audio is first copied to a UUID-named file in a
 manager-owned temporary directory and deleted on every exit path, then opened
-for the same validated conversion path. Default managed STT opens the
-registered WAV; managed TTS atomically publishes a UUID-named artifact.
-Successful direct responses expose service timing in
-`X-Voice-Service-Duration-Ms`; managed jobs expose the same timing in job
-status. Publication failures do not fail a direct conversion or managed job.
+for the validated conversion path. Predefined-recording STT opens the
+registered WAV; TTS atomically publishes a UUID-named artifact.
+Jobs expose service timing in `service_round_trip_ms`.
 Model routes and `ModelManager` remain separate from the Voice router but run
 in the same backend container.
 
@@ -337,11 +323,10 @@ sequenceDiagram
   participant Jobs as AudioPipelineJobManager
   participant Assets as AudioAssetsManager
   participant ASR as Audio Analyzer
-  participant Metrics as Metrics Manager
-  alt Managed default input
-    Client->>Web: POST .../speech-to-text/variants/{variant}/runs without body
-    Web->>API: Forward bodyless request
-    API->>Jobs: start_job(pipeline, variant)
+  alt Predefined recording
+    Client->>Web: POST .../speech-to-text/variants/{variant}/runs with JSON recording and language
+    Web->>API: Forward JSON request
+    API->>Jobs: start_job(pipeline, variant, recording)
   else Uploaded or recorded input
     Client->>Web: POST .../speech-to-text/variants/{variant}/runs with file and language
     Web->>API: Stream multipart request without a separate size limit
@@ -351,57 +336,31 @@ sequenceDiagram
   API-->>Web: 202 Accepted with job_id
   Web-->>Client: Forward start response
   Jobs->>Jobs: Set RUNNING in process-local state
-  alt Managed default input
-    Jobs->>Assets: Resolve registered managed WAV
+  alt Predefined recording
+    Jobs->>Assets: Resolve registered WAV
     Assets-->>Jobs: Validated local path
   else Staged input
     Jobs->>Jobs: Open manager-owned temporary input
   end
   Jobs->>ASR: POST /v1/audio/transcriptions with WAV, language and device
   ASR-->>Jobs: Transcription JSON
-  Jobs-->>Metrics: Best-effort ASR service timing
   Jobs->>Jobs: Store transcript and timing; set COMPLETED; delete staged input
   loop Until COMPLETED, FAILED, or CANCELLED
-    Client->>Web: GET /api/v1/voice/jobs/{job_id}
+    Client->>Web: GET /api/v1/jobs/audio/{job_id}/status
     Web->>API: Forward status request
     API->>Jobs: Read process-local job
-    Jobs-->>API: Status, transcript and service timing
+    Jobs-->>API: State, transcript and service timing
     API-->>Web: Job JSON
     Web-->>Client: Job JSON
   end
 ```
 
-Managed STT accepts either no body for the YAML-defined recording and language,
-or multipart `file` and two-letter `language` fields for uploaded and recorded
-audio. The route stages multipart input before returning `202`; the job owns and
-deletes that temporary input on every terminal path and shutdown. The completed
-transcript and job metadata are process-local and disappear when the backend
-restarts; no STT artifact is created.
-
-## Flow: Direct Speech to Text
-
-```mermaid
-sequenceDiagram
-  autonumber
-  actor Client as Headless client
-  participant Web as Nginx
-  participant API as Direct conversion route
-  participant ASR as Audio Analyzer
-  participant Metrics as Metrics Manager
-  Client->>Web: POST /api/v1/voice/transcriptions (file, language, device)
-  Web->>API: Stream multipart request without a separate size limit
-  API->>ASR: POST /v1/audio/transcriptions
-  ASR-->>API: Transcription JSON
-  API->>API: Validate bounded response and calculate service duration
-  API-->>Metrics: Best-effort ASR service timing
-  API-->>Web: JSON text + timing header + Cache-Control no-store
-  Web-->>Client: Same body and timing header
-```
-
-The direct endpoint remains available to headless clients that need one
-synchronous response without a managed job. The Audio pipeline UI does not use
-this route. The adapter closes upstream resources before the route returns the
-validated response.
+Managed STT accepts either a JSON body with a registered `recording` and a
+two-letter `language`, or multipart `file` and `language` fields for uploaded
+and recorded audio. The route stages multipart input before returning `202`; the
+job owns and deletes that temporary input on every terminal path and shutdown.
+The completed transcript and job metadata are process-local and disappear when
+the backend restarts; no STT artifact is created.
 
 ## Flow: Managed Text to Speech
 
@@ -414,22 +373,20 @@ sequenceDiagram
   participant Jobs as AudioPipelineJobManager
   participant TTS as Text to Speech
   participant Store as shared/audio/output
-  participant Metrics as Metrics Manager
-  Client->>Web: POST .../text-to-speech/variants/{variant}/runs with optional input and voice
+  Client->>Web: POST .../text-to-speech/variants/{variant}/runs with input and voice
   Web->>API: Forward request
-  API->>API: Validate 1-200 characters and supported voice when body is present
-  API->>Jobs: start_job(pipeline, variant, optional overrides)
+  API->>API: Validate 1-200 characters and supported voice
+  API->>Jobs: start_job(pipeline, variant, input, voice)
   Jobs-->>API: QUEUED job with UUID
   API-->>Web: 202 Accepted with job_id
   Web-->>Client: Forward start response
-  Jobs->>Jobs: Set RUNNING; use overrides or YAML defaults
+  Jobs->>Jobs: Set RUNNING
   Jobs->>TTS: POST /v1/audio/speech with text, voice and device
   TTS-->>Jobs: WAV body
-  Jobs-->>Metrics: Best-effort TTS service timing
   Jobs->>Store: Write temporary file and atomically publish {job_id}.wav
   Jobs->>Jobs: Store artifact path and timing; set COMPLETED
   loop Until COMPLETED, FAILED, or CANCELLED
-    Client->>Web: GET /api/v1/voice/jobs/{job_id}
+    Client->>Web: GET /api/v1/jobs/audio/{job_id}/status
     Web->>API: Forward status request
     API-->>Web: Job JSON with artifact_url when complete
     Web-->>Client: Job JSON
@@ -446,31 +403,8 @@ Every TTS conversion started by the Audio pipeline UI follows this managed
 path. The browser creates a blob URL only after downloading the persisted
 artifact, then uses it for playback and download. Artifact retrieval, waveform
 decoding and playback are excluded from the displayed managed request duration.
-
-## Flow: Direct Text to Speech
-
-```mermaid
-sequenceDiagram
-  autonumber
-  actor Client as API client
-  participant Web as Nginx
-  participant API as Direct conversion route
-  participant TTS as Text to Speech
-  participant Metrics as Metrics Manager
-  Client->>Web: POST /api/v1/voice/speech (input, voice, optional device)
-  Web->>API: Forward JSON request
-  API->>API: Trim and validate 1-200 characters, voice and device
-  API->>TTS: POST /v1/audio/speech
-  TTS-->>API: WAV body
-  API->>API: Validate bounded MIME type and RIFF/WAVE response
-  API-->>Metrics: Best-effort TTS service timing
-  API-->>Web: audio/wav + timing header + Cache-Control no-store
-  Web-->>Client: Response-only WAV
-```
-
-The direct endpoint does not create a job or persist its response under managed
-Audio output. The proxy buffers the complete upstream body; neither TTS path is
-streaming playback or a time-to-first-byte measurement.
+The proxy buffers the complete upstream body; TTS is not streaming playback or
+a time-to-first-byte measurement.
 
 ## Flow: Conversion Timings and Telemetry
 
@@ -478,65 +412,44 @@ streaming playback or a time-to-first-byte measurement.
 flowchart TB
     subgraph request[Per-conversion timings]
       direction TB
-        BrowserStart[Browser performance.now before first fetch] --> HTTP[Voice request through Nginx and backend]
+        BrowserStart[Browser performance.now before first fetch] --> HTTP[Voice run request through Nginx and backend]
         HTTP --> ServiceStart[Backend perf_counter before upstream context entry]
         ServiceStart --> ServiceBody[Connect, upload, queue, process and receive complete body]
         ServiceBody --> ServiceMs[Calculate elapsed milliseconds]
         ServiceMs --> Valid{Successful payload validation?}
-        Valid -->|Direct| Header[X-Voice-Service-Duration-Ms response header]
-        Valid -->|Managed| JobField[service_round_trip_ms in completed job]
-        Valid -->|Yes| Publish[Schedule non-blocking metric publish]
-        Valid -->|No| NoMetric[HTTP error; persistent panel enters failed state]
-        Header --> Parsed[Browser reads full JSON or Blob and checks current request]
+        Valid -->|Yes| JobField[service_round_trip_ms in completed job]
+        Valid -->|No| NoMetric[Job FAILED; panel enters failed state]
         JobField --> Parsed[Browser reads completed job status]
         Parsed --> RequestMs[Browser elapsed milliseconds]
         RequestMs --> Panel[Persistent Voice performance panel]
-        Header --> TimingCheck{Finite non-negative timing?}
-        JobField --> TimingCheck
+        JobField --> TimingCheck{Timing present?}
         TimingCheck -->|Yes| Panel
-        TimingCheck -->|Missing or invalid| Unavailable[Show -- for service round trip]
+        TimingCheck -->|Missing| Unavailable[Show -- for service round trip]
         Unavailable --> Panel
-    end
-    subgraph telemetry[Shared telemetry path]
-      direction TB
-        Publish --> Manager[Metrics Manager POST /api/v1/metrics]
-        Manager --> Prometheus[Prometheus field-expanded metrics for external consumers]
-        Manager --> Proxy[Nginx proxies SSE /metrics/stream]
-        Proxy --> Stream[MetricsProvider / useMetricsStream EventSource]
-        Stream --> Redux[Redux latest metric samples]
     end
     subgraph platform[Continuous host-wide telemetry]
       direction TB
         Host[CPU, memory, GPU and NPU] --> Collectors[Telegraf and hardware collectors inside Metrics Manager]
-        Collectors --> Manager
+        Collectors --> Manager[Metrics Manager]
+        Manager --> Proxy[Nginx proxies SSE /metrics/stream]
+        Proxy --> Stream[MetricsProvider / useMetricsStream EventSource]
+        Stream --> Redux[Redux latest metric samples]
         Redux --> Dashboard[MetricsDashboard with useMetrics and local useMetricHistory]
         Dashboard --> Charts[Platform metrics section; no video FPS or pipeline latency]
     end
 ```
 
-After a successful upstream response is validated, the backend schedules a
-best-effort publish to Metrics Manager. Publishing has a separate 2-second
-timeout and does not delay or fail a direct response or managed job. ASR
-publishes metric `voice_asr` with field `service_round_trip_ms` and tags for
-requested `device` and `language`. TTS publishes metric `voice_tts` with the
-same field and tags for requested `device` and `voice`. A missing device is
-tagged `service-default` and must not be read as confirmation of the device the
-service actually used.
-
-- **Request duration:** browser first-fetch start through a direct response or
-  completed managed job status, including polling for managed runs. Managed TTS
-  artifact retrieval occurs after this interval. The value remains
-  browser-local and is not published to Metrics Manager.
+- **Request duration:** browser first-fetch start through the completed managed
+  job status, including polling. TTS artifact retrieval occurs after this
+  interval. The value remains browser-local.
 - **Service round trip:** backend adapter start through complete upstream body
   reception and local response construction; excludes browser transfer and
   subsequent route payload validation/context cleanup. Includes transport,
-  queueing and service processing, not only model inference. This is the only
-  Voice duration published to Metrics Manager.
+  queueing and service processing, not only model inference.
 - The intervals use independent monotonic clocks. No cross-machine timestamp
   subtraction or global last-request variable is needed.
-- Published Voice metrics remain available through Metrics Manager's Prometheus
-  and SSE interfaces, but the Voice performance panel shows only the current
-  request-scoped timings returned in the direct response or completed job.
+- The Voice performance panel shows only the request-scoped timings returned in
+  the completed job.
 - Platform charts are live system-wide telemetry, not a frozen snapshot of a
   conversion and not resource attribution to a particular STT/TTS request.
 - Voice does not query the services' global `last_ms` or `/v1/model-info` and does
@@ -549,7 +462,7 @@ service actually used.
 flowchart TD
     Start[Start independent conversion; clear its previous result and timings] --> Active{Outcome}
     Active -->|202 with valid job_id| Accepted[Own accepted job and show run started]
-    Accepted --> Poll[Poll Voice job status]
+    Accepted --> Poll[Poll Audio job status]
     Poll -->|COMPLETED and still current| Apply[Apply transcript or download and apply TTS artifact]
     Apply --> Complete[Show run completed notification]
     Poll -->|CANCELLED| Cancelled[Show run cancelled notification]

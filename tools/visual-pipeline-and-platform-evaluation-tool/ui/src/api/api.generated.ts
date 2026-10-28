@@ -650,17 +650,6 @@ const injectedRtkApi = api
         }),
         providesTags: ["voice"],
       }),
-      runAudioPipelineVoicePipelinesPipelineIdRunsPost: build.mutation<
-        RunAudioPipelineVoicePipelinesPipelineIdRunsPostApiResponse,
-        RunAudioPipelineVoicePipelinesPipelineIdRunsPostApiArg
-      >({
-        query: (queryArg) => ({
-          url: `/voice/pipelines/${queryArg.pipelineId}/runs`,
-          method: "POST",
-          body: queryArg.audioPipelineRunRequest,
-        }),
-        invalidatesTags: ["voice"],
-      }),
       runAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPost:
         build.mutation<
           RunAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPostApiResponse,
@@ -669,17 +658,10 @@ const injectedRtkApi = api
           query: (queryArg) => ({
             url: `/voice/pipelines/${queryArg.pipelineId}/variants/${queryArg.variantId}/runs`,
             method: "POST",
-            body: queryArg.audioPipelineRunRequest,
+            body: queryArg.body,
           }),
           invalidatesTags: ["voice"],
         }),
-      getAudioPipelineJobVoiceJobsJobIdGet: build.query<
-        GetAudioPipelineJobVoiceJobsJobIdGetApiResponse,
-        GetAudioPipelineJobVoiceJobsJobIdGetApiArg
-      >({
-        query: (queryArg) => ({ url: `/voice/jobs/${queryArg.jobId}` }),
-        providesTags: ["voice"],
-      }),
       getAudioPipelineArtifactVoiceJobsJobIdArtifactGet: build.query<
         GetAudioPipelineArtifactVoiceJobsJobIdArtifactGetApiResponse,
         GetAudioPipelineArtifactVoiceJobsJobIdArtifactGetApiArg
@@ -688,28 +670,6 @@ const injectedRtkApi = api
           url: `/voice/jobs/${queryArg.jobId}/artifact`,
         }),
         providesTags: ["voice"],
-      }),
-      transcribeVoice: build.mutation<
-        TranscribeVoiceApiResponse,
-        TranscribeVoiceApiArg
-      >({
-        query: (queryArg) => ({
-          url: `/voice/transcriptions`,
-          method: "POST",
-          body: queryArg.bodyTranscribeVoice,
-        }),
-        invalidatesTags: ["voice"],
-      }),
-      synthesizeVoice: build.mutation<
-        SynthesizeVoiceApiResponse,
-        SynthesizeVoiceApiArg
-      >({
-        query: (queryArg) => ({
-          url: `/voice/speech`,
-          method: "POST",
-          body: queryArg.speechRequest,
-        }),
-        invalidatesTags: ["voice"],
       }),
     }),
     overrideExisting: false,
@@ -1076,39 +1036,33 @@ export type GetAudioRecordingVoiceRecordingsFilenameAudioGetApiResponse =
 export type GetAudioRecordingVoiceRecordingsFilenameAudioGetApiArg = {
   filename: string;
 };
-export type RunAudioPipelineVoicePipelinesPipelineIdRunsPostApiResponse =
-  /** status 202 Successful Response */ AudioPipelineJobStartResponse;
-export type RunAudioPipelineVoicePipelinesPipelineIdRunsPostApiArg = {
-  pipelineId: string;
-  audioPipelineRunRequest: AudioPipelineRunBody;
-};
 export type RunAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPostApiResponse =
   /** status 202 Successful Response */ AudioPipelineJobStartResponse;
 export type RunAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPostApiArg =
   {
     pipelineId: string;
     variantId: string;
-    audioPipelineRunRequest: AudioPipelineRunBody;
+    body:
+      | {
+          input: string;
+          voice:
+            | "Ryan"
+            | "Miles"
+            | "Aaron"
+            | "Nora"
+            | "Elena"
+            | "Kabir"
+            | "Angus";
+        }
+      | {
+          recording: string;
+          language: string;
+        };
   };
-export type GetAudioPipelineJobVoiceJobsJobIdGetApiResponse =
-  /** status 200 Successful Response */ AudioPipelineJobResponse;
-export type GetAudioPipelineJobVoiceJobsJobIdGetApiArg = {
-  jobId: string;
-};
 export type GetAudioPipelineArtifactVoiceJobsJobIdArtifactGetApiResponse =
   unknown;
 export type GetAudioPipelineArtifactVoiceJobsJobIdArtifactGetApiArg = {
   jobId: string;
-};
-export type TranscribeVoiceApiResponse =
-  /** status 200 Successful Response */ TranscriptionResponse;
-export type TranscribeVoiceApiArg = {
-  bodyTranscribeVoice: BodyTranscribeVoice;
-};
-export type SynthesizeVoiceApiResponse =
-  /** status 200 Successful Response */ Blob;
-export type SynthesizeVoiceApiArg = {
-  speechRequest: SpeechRequest;
 };
 export type HealthResponse = {
   healthy: boolean;
@@ -1991,48 +1945,9 @@ export type AudioRecordingResponse = {
   duration_seconds: number;
   audio_url: string;
 };
-export type AudioPipelineRunBody =
-  | {
-      input: string;
-      voice: "Ryan" | "Miles" | "Aaron" | "Nora" | "Elena" | "Kabir" | "Angus";
-    }
-  | {
-      recording: string;
-      language: string;
-    };
 export type AudioPipelineJobStartResponse = {
   job_id: string;
   status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
-};
-export type AudioPipelineJobResponse = {
-  id: string;
-  pipeline_id: string;
-  pipeline_name: string;
-  variant_id: string;
-  variant_name: string;
-  device: "CPU" | "GPU" | "NPU";
-  operation: "speech_to_text" | "text_to_speech";
-  status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
-  created_at: string;
-  modified_at: string;
-  transcript?: string | null;
-  artifact_url?: string | null;
-  service_round_trip_ms?: number | null;
-  error?: string | null;
-};
-export type TranscriptionResponse = {
-  text: string;
-};
-export type BodyTranscribeVoice = {
-  /** Audio file */
-  file: string;
-  language?: string;
-  device?: ("CPU" | "GPU" | "NPU") | null;
-};
-export type SpeechRequest = {
-  input: string;
-  voice: "Ryan" | "Miles" | "Aaron" | "Nora" | "Elena" | "Kabir" | "Angus";
-  device?: ("CPU" | "GPU" | "NPU") | null;
 };
 export const {
   useGetHealthQuery,
@@ -2159,12 +2074,7 @@ export const {
   useLazyListAudioRecordingsVoiceRecordingsGetQuery,
   useGetAudioRecordingVoiceRecordingsFilenameAudioGetQuery,
   useLazyGetAudioRecordingVoiceRecordingsFilenameAudioGetQuery,
-  useRunAudioPipelineVoicePipelinesPipelineIdRunsPostMutation,
   useRunAudioPipelineVariantVoicePipelinesPipelineIdVariantsVariantIdRunsPostMutation,
-  useGetAudioPipelineJobVoiceJobsJobIdGetQuery,
-  useLazyGetAudioPipelineJobVoiceJobsJobIdGetQuery,
   useGetAudioPipelineArtifactVoiceJobsJobIdArtifactGetQuery,
   useLazyGetAudioPipelineArtifactVoiceJobsJobIdArtifactGetQuery,
-  useTranscribeVoiceMutation,
-  useSynthesizeVoiceMutation,
 } = injectedRtkApi;

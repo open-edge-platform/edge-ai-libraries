@@ -24,10 +24,8 @@ from managers.audio_pipeline_manager import (
 
 logger = logging.getLogger("audio_pipeline_jobs")
 
-Transcribe = Callable[
-    [BinaryIO, str, str, str, str | None], Awaitable[tuple[str, float]]
-]
-Synthesize = Callable[[str, str, str | None], Awaitable[tuple[bytes, float]]]
+Transcribe = Callable[[BinaryIO, str, str, str, str], Awaitable[tuple[str, float]]]
+Synthesize = Callable[[str, str, str], Awaitable[tuple[bytes, float]]]
 
 DEFAULT_MAX_TERMINAL_JOBS = 500
 
@@ -127,7 +125,7 @@ class AudioPipelineJobManager:
     async def start_job(
         self,
         pipeline_id: str,
-        variant_id: str | None = None,
+        variant_id: str,
         *,
         input_text: str | None = None,
         voice: str | None = None,
@@ -155,17 +153,18 @@ class AudioPipelineJobManager:
                 raise ValueError(
                     f"Audio recording '{recording_input.filename}' not found."
                 )
-        variant = (
-            pipeline.variants[0]
-            if variant_id is None
-            else next(
-                (
-                    candidate
-                    for candidate in pipeline.variants
-                    if candidate.id == variant_id
-                ),
-                None,
-            )
+        if pipeline.operation is AudioPipelineOperation.SPEECH_TO_TEXT:
+            if stt_input is None and recording_input is None:
+                raise ValueError("Speech-to-text pipelines require audio input.")
+        elif input_text is None or voice is None:
+            raise ValueError("Text-to-speech pipelines require text and voice.")
+        variant = next(
+            (
+                candidate
+                for candidate in pipeline.variants
+                if candidate.id == variant_id
+            ),
+            None,
         )
         if variant is None:
             raise ValueError(
@@ -268,7 +267,6 @@ class AudioPipelineJobManager:
 
             if pipeline.operation is AudioPipelineOperation.SPEECH_TO_TEXT:
                 transcript, duration = await self._execute_stt(
-                    pipeline,
                     device,
                     stt_input,
                     recording_input,
@@ -278,10 +276,9 @@ class AudioPipelineJobManager:
             else:
                 artifact_path, artifact_filename, duration = await self._execute_tts(
                     job_id,
-                    pipeline,
                     device,
-                    input_text=input_text,
-                    voice=voice,
+                    input_text=input_text or "",
+                    voice=voice or "",
                 )
                 uncommitted_artifact_path = artifact_path
                 transcript = None
@@ -346,10 +343,9 @@ class AudioPipelineJobManager:
 
     async def _execute_stt(
         self,
-        pipeline: AudioPipeline,
         device: str,
         stt_input: _StagedSTTInput | None,
-        recording_input: AudioPipelineRecordingInput | None = None,
+        recording_input: AudioPipelineRecordingInput | None,
     ) -> tuple[str, float]:
         if recording_input is not None:
             filename = recording_input.filename
@@ -358,19 +354,13 @@ class AudioPipelineJobManager:
                 raise RuntimeError("Selected audio recording became unavailable")
             content_type = "audio/wav"
             language = recording_input.language
-        elif stt_input is None:
-            defaults = pipeline.defaults
-            filename = defaults.audio or ""
-            path = self.assets.get_path(filename)
-            if path is None:
-                raise RuntimeError("Default audio input became unavailable")
-            content_type = "audio/wav"
-            language = defaults.language or "en"
-        else:
+        elif stt_input is not None:
             filename = stt_input.filename
             path = str(stt_input.path)
             content_type = stt_input.content_type
             language = stt_input.language
+        else:
+            raise RuntimeError("Speech-to-text job has no audio input")
         with open(path, "rb") as audio_file:
             transcript, duration = await self.transcribe(
                 audio_file,
@@ -384,18 +374,12 @@ class AudioPipelineJobManager:
     async def _execute_tts(
         self,
         job_id: str,
-        pipeline: AudioPipeline,
         device: str,
         *,
-        input_text: str | None,
-        voice: str | None,
+        input_text: str,
+        voice: str,
     ) -> tuple[str, str, float]:
-        defaults = pipeline.defaults
-        content, duration = await self.synthesize(
-            input_text if input_text is not None else defaults.text or "",
-            voice if voice is not None else defaults.voice or "Ryan",
-            device,
-        )
+        content, duration = await self.synthesize(input_text, voice, device)
         output_directory = Path(self.assets.get_output_directory())
         output_directory.mkdir(parents=True, exist_ok=True)
         destination = output_directory / f"{job_id}.wav"

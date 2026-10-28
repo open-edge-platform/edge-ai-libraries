@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { API_BASE_URL } from "@/api/apiSlice";
 import {
+  type AudioJobStatus,
   useListAudioPipelinesVoicePipelinesGetQuery,
   useListAudioRecordingsVoiceRecordingsGetQuery,
   useStopAudioJobMutation,
@@ -60,14 +61,6 @@ const SPEECH_VOICES = [
   "Angus",
 ] as const;
 type SpeechVoice = (typeof SPEECH_VOICES)[number];
-
-type AudioPipelineJob = {
-  status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
-  transcript: string | null;
-  artifact_url: string | null;
-  service_round_trip_ms: number | null;
-  error: string | null;
-};
 
 type InputSource = "record" | "upload" | "predefined";
 
@@ -332,18 +325,21 @@ export function VoiceConversion() {
   async function waitForJob(
     jobId: string,
     controller: AbortController,
-  ): Promise<AudioPipelineJob> {
+  ): Promise<AudioJobStatus> {
     while (true) {
-      const response = await fetch(`${API_BASE_URL}/voice/jobs/${jobId}`, {
-        cache: "no-store",
-        signal: controller.signal,
-      });
+      const response = await fetch(
+        `${API_BASE_URL}/jobs/audio/${jobId}/status`,
+        {
+          cache: "no-store",
+          signal: controller.signal,
+        },
+      );
       await checkResponse(response);
-      const job = (await response.json()) as AudioPipelineJob;
-      if (job.status === "COMPLETED") return job;
-      if (job.status === "FAILED")
+      const job = (await response.json()) as AudioJobStatus;
+      if (job.state === "COMPLETED") return job;
+      if (job.state === "FAILED")
         throw new Error(job.error ?? "Audio pipeline execution failed.");
-      if (job.status === "CANCELLED")
+      if (job.state === "CANCELLED")
         throw new AudioPipelineCancelledError(
           job.error ?? "Audio pipeline execution was cancelled.",
         );
@@ -364,7 +360,7 @@ export function VoiceConversion() {
   async function runManagedPipeline(
     controller: AbortController,
     startedAt: number,
-    requestBody?: ManagedAudioRunBody,
+    requestBody: ManagedAudioRunBody,
   ) {
     if (!selectedPipeline || !selectedVariant)
       throw new Error("Audio pipeline variant not found.");
@@ -373,15 +369,8 @@ export function VoiceConversion() {
       `${API_BASE_URL}/voice/pipelines/${selectedPipeline.id}/variants/${selectedVariant.id}/runs`,
       {
         method: "POST",
-        headers:
-          requestBody && !multipart
-            ? { "Content-Type": "application/json" }
-            : undefined,
-        body: multipart
-          ? requestBody
-          : requestBody
-            ? JSON.stringify(requestBody)
-            : undefined,
+        headers: multipart ? undefined : { "Content-Type": "application/json" },
+        body: multipart ? requestBody : JSON.stringify(requestBody),
         cache: "no-store",
         signal: controller.signal,
       },
@@ -406,7 +395,7 @@ export function VoiceConversion() {
     if (operation.current !== controller) return;
     const metrics = {
       requestMs: performance.now() - startedAt,
-      serviceMs: job.service_round_trip_ms,
+      serviceMs: job.service_round_trip_ms ?? null,
     };
     if (selectedPipeline.operation === "speech_to_text") {
       setTranscription(job.transcript ?? "");
