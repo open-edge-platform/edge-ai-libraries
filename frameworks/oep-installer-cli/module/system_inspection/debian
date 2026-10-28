@@ -1,0 +1,9 @@
+
+debian_08_profile_system_inspection () {
+  [ "$1" != "install" ] || echo "curl dmidecode pciutils"
+}
+
+debian_08_install_system_inspection () {
+  install_system_inspection
+}
+

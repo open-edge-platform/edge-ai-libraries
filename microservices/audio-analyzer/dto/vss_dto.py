@@ -45,11 +45,24 @@ class VssTranscriptionForm:
         ] = "",
         device: Annotated[
             str,
-            Form(description="_(Optional)_ Device hint (informational; this service uses its configured ASR device)."),
+            Form(
+                description=(
+                    "_(Optional)_ Device override (CPU, GPU, or NPU) for this request only. "
+                    "Validated against the configured ASR provider's supported devices; an "
+                    "unsupported or incompatible value is rejected with HTTP 400. Omit to use "
+                    "the configured device."
+                )
+            ),
         ] = "",
         model_name: Annotated[
             str,
-            Form(description="_(Optional)_ Model hint (informational; this service uses its single configured ASR model)."),
+            Form(
+                description=(
+                    "_(Optional)_ Must match the single configured ASR model (see GET /models) "
+                    "if supplied; this service does not support a multi-model picker. A mismatched "
+                    "value is rejected with HTTP 400. Omit to use the configured model."
+                )
+            ),
         ] = "",
         include_timestamps: Annotated[
             bool,

@@ -196,6 +196,43 @@ def validate_asr_runtime_configuration(cfg: SimpleNamespace) -> None:
     )
 
 
+def validate_asr_preview_configuration(cfg: SimpleNamespace) -> None:
+    """Validate the optional ``models.asr.preview`` pool.
+
+    The preview pool exists to run a cheaper model of the SAME backend as the
+    final pool. A different ``provider`` is rejected rather than silently
+    mishandled: ``get_asr_model_path()`` resolves the model directory under
+    ``models.asr.provider``, and the startup export step only exports OpenVINO
+    IR, so a cross-provider preview would look for weights in a directory
+    nothing ever populated and fail at first use instead of at startup.
+
+    The preview device IS validated here, so an unavailable accelerator is
+    reported at startup rather than on the first preview request.
+
+    Args:
+        cfg: The root config namespace.
+
+    Raises:
+        ValueError: If ``preview.provider`` differs from ``models.asr.provider``.
+    """
+    from utils.asr_pool_config import POOL_PREVIEW, get_preview_override, resolve_pool_config
+
+    if get_preview_override() is None:
+        return
+
+    preview = resolve_pool_config(POOL_PREVIEW)
+    main_provider = str(getattr(cfg.models.asr, "provider", "")).lower()
+    if preview.provider.lower() != main_provider:
+        raise ValueError(
+            "models.asr.preview.provider must match models.asr.provider "
+            f"(got preview={preview.provider!r}, asr={getattr(cfg.models.asr, 'provider', None)!r}). "
+            "The preview pool shares the main provider's model directory and "
+            "export step; use a smaller model name or a different device instead."
+        )
+
+    resolve_asr_device(preview.provider, preview.name, preview.device)
+
+
 def validate_openvino_npu_runtime(config: SimpleNamespace) -> None:
     if not (_asr_uses_openvino_npu(config) or _sentiment_uses_openvino_npu(config)):
         return
@@ -278,6 +315,7 @@ def validate_diarization_device_configuration(cfg: SimpleNamespace) -> None:
 
 def validate_runtime_configuration(config: SimpleNamespace) -> None:
     validate_asr_runtime_configuration(config)
+    validate_asr_preview_configuration(config)
     validate_diarization_device_configuration(config)
 
     if _sentiment_uses_openvino_npu(config) and not _asr_uses_openvino_npu(config):

@@ -1,0 +1,5 @@
+
+debian_99_profile_edge_base_server () {
+  echo "edge_base_handheld ubuntu_server"
+}
+

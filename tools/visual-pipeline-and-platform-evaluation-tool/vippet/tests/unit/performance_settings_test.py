@@ -100,6 +100,30 @@ class TestPrecedence(_TmpConfigMixin):
         resolved = s.resolve_settings(path, env={"PERF_RESULTS_DIR": ""})
         self.assertEqual(resolved["results.output_dir"], "/yaml")
 
+    def test_presets_do_not_override_output_dir(self) -> None:
+        for preset in ("default", "quick", "full"):
+            with self.subTest(preset=preset):
+                resolved = s.resolve_settings(preset, env={})
+                self.assertEqual(
+                    resolved.sources["results.output_dir"], s.SOURCE_DEFAULT
+                )
+
+    def test_default_output_dir_is_absolute(self) -> None:
+        resolved = s.resolve_settings("default", env={})
+        self.assertEqual(Path(resolved["results.output_dir"]), s.PERF_DIR / "results")
+
+    def test_absolute_output_dir_overrides_are_unaffected(self) -> None:
+        resolved = s.resolve_settings(
+            "default", env={}, cli_overrides={"results.output_dir": "/abs/path"}
+        )
+        self.assertEqual(resolved["results.output_dir"], "/abs/path")
+
+    def test_relative_output_dir_override_resolves_against_cwd(self) -> None:
+        resolved = s.resolve_settings(
+            "default", env={}, cli_overrides={"results.output_dir": "./my-results"}
+        )
+        self.assertEqual(resolved["results.output_dir"], "./my-results")
+
     def test_none_cli_override_is_ignored(self) -> None:
         resolved = s.resolve_settings(
             "quick", env={}, cli_overrides={"benchmark.stream_counts": None}
@@ -129,6 +153,180 @@ class TestPrecedence(_TmpConfigMixin):
         self.assertEqual(dict(again.values), dict(resolved.values))
 
 
+class TestDeriveMetricsDefaultsFromBaseUrl(unittest.TestCase):
+    """Unit tests for the private derivation helper.
+
+    Calling the private function directly (rather than only through
+    ``resolve_settings``) lets each case isolate exactly which of
+    metrics.metrics_url / metrics.capabilities_url is still at its
+    built-in default vs. explicitly set, independent of YAML/env/CLI
+    plumbing (covered separately in TestMetricsDerivationIntegration).
+    """
+
+    _DEFAULT_METRICS_URL = "http://localhost/metrics/stream"
+    _DEFAULT_CAPABILITIES_URL = "http://localhost:9090/api/v1/capabilities"
+
+    def _derive(
+        self,
+        base_url: str,
+        *,
+        metrics_source: str = s.SOURCE_DEFAULT,
+        metrics_value: str | None = None,
+        capabilities_source: str = s.SOURCE_DEFAULT,
+        capabilities_value: str | None = None,
+    ) -> dict[str, Any]:
+        values: dict[str, Any] = {
+            "vippet.base_url": base_url,
+            "metrics.metrics_url": metrics_value or self._DEFAULT_METRICS_URL,
+            "metrics.capabilities_url": (
+                capabilities_value or self._DEFAULT_CAPABILITIES_URL
+            ),
+        }
+        sources = {
+            "metrics.metrics_url": metrics_source,
+            "metrics.capabilities_url": capabilities_source,
+        }
+        s._derive_metrics_defaults_from_base_url(values, sources, Path("cfg.yaml"))
+        return values
+
+    def test_derives_both_urls_from_default_base_url(self) -> None:
+        values = self._derive("http://localhost/api/v1")
+        self.assertEqual(values["metrics.metrics_url"], self._DEFAULT_METRICS_URL)
+        self.assertEqual(
+            values["metrics.capabilities_url"], self._DEFAULT_CAPABILITIES_URL
+        )
+
+    def test_derives_from_custom_host(self) -> None:
+        values = self._derive("http://board/api/v1")
+        self.assertEqual(values["metrics.metrics_url"], "http://board/metrics/stream")
+        self.assertEqual(
+            values["metrics.capabilities_url"],
+            "http://board:9090/api/v1/capabilities",
+        )
+
+    def test_metrics_url_keeps_port_capabilities_url_overrides_it(self) -> None:
+        # metrics_url reuses the full netloc (host:port); capabilities_url
+        # always targets the metrics-manager's own port 9090 regardless of
+        # what port base_url uses.
+        values = self._derive("http://board:8080/api/v1")
+        self.assertEqual(
+            values["metrics.metrics_url"], "http://board:8080/metrics/stream"
+        )
+        self.assertEqual(
+            values["metrics.capabilities_url"],
+            "http://board:9090/api/v1/capabilities",
+        )
+
+    def test_preserves_https_scheme(self) -> None:
+        values = self._derive("https://board/api/v1")
+        self.assertEqual(values["metrics.metrics_url"], "https://board/metrics/stream")
+        self.assertEqual(
+            values["metrics.capabilities_url"],
+            "https://board:9090/api/v1/capabilities",
+        )
+
+    def test_explicit_metrics_url_is_not_overridden(self) -> None:
+        values = self._derive(
+            "http://board/api/v1",
+            metrics_source=s.SOURCE_YAML,
+            metrics_value="http://other-host/metrics/stream",
+        )
+        self.assertEqual(
+            values["metrics.metrics_url"], "http://other-host/metrics/stream"
+        )
+        # capabilities_url has no explicit source, so it is still derived.
+        self.assertEqual(
+            values["metrics.capabilities_url"],
+            "http://board:9090/api/v1/capabilities",
+        )
+
+    def test_explicit_capabilities_url_is_not_overridden(self) -> None:
+        values = self._derive(
+            "http://board/api/v1",
+            capabilities_source=s.SOURCE_ENV,
+            capabilities_value="http://other-host:1234/api/v1/capabilities",
+        )
+        self.assertEqual(
+            values["metrics.capabilities_url"],
+            "http://other-host:1234/api/v1/capabilities",
+        )
+        self.assertEqual(values["metrics.metrics_url"], "http://board/metrics/stream")
+
+    def test_both_explicit_overrides_are_preserved(self) -> None:
+        values = self._derive(
+            "http://board/api/v1",
+            metrics_source=s.SOURCE_CLI,
+            metrics_value="http://m/metrics/stream",
+            capabilities_source=s.SOURCE_CLI,
+            capabilities_value="http://c:7/api/v1/capabilities",
+        )
+        self.assertEqual(values["metrics.metrics_url"], "http://m/metrics/stream")
+        self.assertEqual(
+            values["metrics.capabilities_url"], "http://c:7/api/v1/capabilities"
+        )
+
+    def test_raises_when_base_url_has_no_host(self) -> None:
+        # "http://:8080/..." passes _as_url (netloc=":8080" is non-empty)
+        # but urlparse(...).hostname is None, so derivation must fail loudly
+        # instead of silently producing a broken metrics/capabilities URL.
+        values = {
+            "vippet.base_url": "http://:8080/api/v1",
+            "metrics.metrics_url": self._DEFAULT_METRICS_URL,
+            "metrics.capabilities_url": self._DEFAULT_CAPABILITIES_URL,
+        }
+        sources = {
+            "metrics.metrics_url": s.SOURCE_DEFAULT,
+            "metrics.capabilities_url": s.SOURCE_DEFAULT,
+        }
+        with self.assertRaisesRegex(s.SettingsError, "missing a host"):
+            s._derive_metrics_defaults_from_base_url(values, sources, Path("cfg.yaml"))
+
+
+class TestMetricsDerivationIntegration(_TmpConfigMixin):
+    """End-to-end checks that resolve_settings() actually wires the
+    derivation helper up to real YAML/env-resolved values."""
+
+    def test_yaml_base_url_cascades_to_metrics_defaults(self) -> None:
+        path = self.write_config('vippet:\n  base_url: "http://board/api/v1"\n')
+        resolved = s.resolve_settings(path, env={})
+        self.assertEqual(resolved["metrics.metrics_url"], "http://board/metrics/stream")
+        self.assertEqual(
+            resolved["metrics.capabilities_url"],
+            "http://board:9090/api/v1/capabilities",
+        )
+
+    def test_env_base_url_cascades_to_metrics_defaults(self) -> None:
+        resolved = s.resolve_settings(
+            "default", env={"VIPPET_BASE_URL": "http://board:8080/api/v1"}
+        )
+        self.assertEqual(
+            resolved["metrics.metrics_url"], "http://board:8080/metrics/stream"
+        )
+        self.assertEqual(
+            resolved["metrics.capabilities_url"],
+            "http://board:9090/api/v1/capabilities",
+        )
+
+    def test_explicit_metrics_env_vars_override_derivation(self) -> None:
+        resolved = s.resolve_settings(
+            "default",
+            env={
+                "VIPPET_BASE_URL": "http://board/api/v1",
+                "VIPPET_METRICS_URL": "http://metrics-host/metrics/stream",
+                "VIPPET_CAPABILITIES_URL": "http://caps-host:7/api/v1/capabilities",
+            },
+        )
+        self.assertEqual(
+            resolved["metrics.metrics_url"], "http://metrics-host/metrics/stream"
+        )
+        self.assertEqual(
+            resolved["metrics.capabilities_url"],
+            "http://caps-host:7/api/v1/capabilities",
+        )
+        self.assertEqual(resolved.sources["metrics.metrics_url"], s.SOURCE_ENV)
+        self.assertEqual(resolved.sources["metrics.capabilities_url"], s.SOURCE_ENV)
+
+
 class TestValidation(_TmpConfigMixin):
     def test_missing_preset_fails_loudly(self) -> None:
         with self.assertRaisesRegex(s.SettingsError, "unknown config preset"):
@@ -144,8 +342,61 @@ class TestValidation(_TmpConfigMixin):
             s.resolve_settings(path, env={})
 
     def test_invalid_env_value_names_the_source(self) -> None:
-        with self.assertRaisesRegex(s.SettingsError, "env VIPPET_BASE_URL"):
+        with self.assertRaisesRegex(s.SettingsError, "env VIPPET_BASE_URL") as ctx:
             s.resolve_settings(env={"VIPPET_BASE_URL": "ftp://host"})
+        self.assertIn(
+            "To fix: change or unset the VIPPET_BASE_URL environment variable",
+            str(ctx.exception),
+        )
+
+    def test_invalid_value_fix_matches_its_source(self) -> None:
+        path = self.write_config("benchmark:\n  stream_counts: [0]\n")
+        with self.assertRaises(s.SettingsError) as ctx:
+            s.resolve_settings(path, env={})
+        self.assertIn(
+            f"To fix: edit benchmark.stream_counts in {path}", str(ctx.exception)
+        )
+        with self.assertRaises(s.SettingsError) as ctx:
+            s.resolve_settings(
+                "default", env={}, cli_overrides={"benchmark.stream_counts": "0"}
+            )
+        self.assertIn("To fix: correct the --streams flag", str(ctx.exception))
+
+    def test_config_errors_name_their_origin_and_fix(self) -> None:
+        with self.assertRaises(s.SettingsError) as ctx:
+            s.select_config_source(None, {s.ENV_CONFIG: "nope"})
+        message = str(ctx.exception)
+        self.assertIn(f"given via env {s.ENV_CONFIG}", message)
+        self.assertIn("To fix: use one of these presets", message)
+        with self.assertRaises(s.SettingsError) as ctx:
+            s.select_config_source(None, {s.ENV_CONFIG_FILE: "/no/such.yaml"})
+        self.assertIn(f"given via env {s.ENV_CONFIG_FILE}", str(ctx.exception))
+        self.assertIn("To fix: check the path", str(ctx.exception))
+        with self.assertRaises(s.SettingsError) as ctx:
+            s.select_config_source(" ", {})
+        self.assertIn("given via --config is empty", str(ctx.exception))
+
+    def test_unknown_key_suggests_closest_valid_key(self) -> None:
+        path = self.write_config("vippet:\n  base_ulr: x\n")
+        with self.assertRaises(s.SettingsError) as ctx:
+            s.resolve_settings(path, env={})
+        message = str(ctx.exception)
+        self.assertIn("Did you mean: 'vippet.base_ulr' -> 'vippet.base_url'?", message)
+        self.assertIn("To fix: rename or remove them", message)
+
+    def test_malformed_yaml_is_actionable(self) -> None:
+        not_mapping = self.write_config("- a\n- b\n")
+        with self.assertRaises(s.SettingsError) as ctx:
+            s.resolve_settings(not_mapping, env={})
+        self.assertIn(
+            "must be a YAML mapping at the top level, got list", str(ctx.exception)
+        )
+        self.assertIn("To fix: start the file with sections", str(ctx.exception))
+        broken = self.write_config("vippet: [unclosed\n", "broken.yaml")
+        with self.assertRaises(s.SettingsError) as ctx:
+            s.resolve_settings(broken, env={})
+        self.assertIn("cannot read config", str(ctx.exception))
+        self.assertIn("valid YAML", str(ctx.exception))
 
     def test_coercions(self) -> None:
         spec = s.SPECS_BY_KEY
@@ -154,6 +405,8 @@ class TestValidation(_TmpConfigMixin):
         self.assertEqual(spec["benchmark.pipelines"].coerce("a,b"), ["a", "b"])
         self.assertEqual(spec["benchmark.filters.skip_pipelines"].coerce(""), [])
         self.assertIs(spec["results.create_latest_link"].coerce("false"), False)
+        self.assertIs(spec["results.save_log"].default, True)
+        self.assertIs(spec["results.save_log"].coerce("false"), False)
         bad = [
             ("benchmark.stream_counts", "0"),
             ("benchmark.stream_counts", []),

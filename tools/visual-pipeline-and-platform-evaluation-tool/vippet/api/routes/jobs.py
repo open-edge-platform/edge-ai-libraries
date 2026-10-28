@@ -1389,6 +1389,17 @@ def _performance_job_to_api_status(
         latency_tracer_metrics=_convert_latency_tracer_metrics(
             job.latency_tracer_metrics
         ),
+        events=[
+            schemas.PipelineEvent(
+                timestamp_ms=event.timestamp_ms,
+                source=event.source,
+                text=event.text,
+                element=event.element,
+                pts_seconds=event.pts_seconds,
+                prompt=event.prompt,
+            )
+            for event in list(job.events)
+        ],
     )
 
 
