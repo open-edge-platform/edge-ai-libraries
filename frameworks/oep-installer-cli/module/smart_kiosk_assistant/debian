@@ -1,7 +1,7 @@
 
 configure_smart_kiosk_assistant () {
   workspace="$(ensure_project_path)/smart-kiosk-assistant"
-  version=8d7c6d0a652525d834e63de07b1dda64bf7ef58a
+  version=66728aeb875b382c3f342380513ea00170ff45fd
   repository="https://github.com/intel-retail/voice-enabled-interactions.git"
   used_ports=(7860 7861 8012 8000 9000 8090 8020 8554 9001 8010 8011)
   used_models=(
@@ -112,13 +112,13 @@ debian_90_stop_smart_kiosk_assistant () {
   configure_smart_kiosk_assistant
   cd "$workspace"/smart-kiosk-assistant && {
     make down || true
+    make clean || true
     docker volume rm -f smart-kiosk-assistant_identity_data
   } || true
 }
 
 debian_90_remove_smart_kiosk_assistant () {
   debian_90_stop_smart_kiosk_assistant "$@"
-  cd "$workspace"/smart-kiosk-assistant && make clean || true
   ensure_rm "$workspace"
 }
 
