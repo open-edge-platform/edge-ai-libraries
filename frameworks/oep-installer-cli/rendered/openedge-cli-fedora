@@ -3649,7 +3649,7 @@ subcommand_list ()
     local all_profiles=(${_act_reply[*]});
     local all_modules=(${_act_cache_modules[*]});
     local all_list=" ${all_modules[*]} ${all_profiles[*]#*_*_*_} ";
-    local k v sbom=0 args=() os_release="";
+    local k v sbom=0 args=() margs=() os_release="";
     for v in "$@";
     do
         case "$v" in 
@@ -3673,12 +3673,8 @@ subcommand_list ()
                 if [ "$last_v" = "--os-release" ]; then
                     os_release="$v";
                 else
-                    if [[ " $all_list " = *" $v "* ]]; then
-                        args+=("$v");
-                    else
-                        echo "Invalid name: $v" 1>&2;
-                        return 3;
-                    fi;
+                    [[ " $all_list " != *" $v "* ]] || margs+=("$v");
+                    args+=("$v");
                 fi
             ;;
         esac;
@@ -3721,10 +3717,14 @@ subcommand_list ()
     [ ${#args[*]} -eq 0 ] && set -- $all_list || set -- "${args[@]}";
     if [ $sbom -eq 1 ]; then
         local handles=($(act_find_deps install $(act_resolve_args install "$@")));
+        if [ ${#handles[*]} -eq 0 ]; then
+            echo "No installable components from ${margs[*]}" 1>&2;
+            return 3;
+        fi;
         local all_install_modules="${handles[*]#${installer_family}_*_install_}";
         echo "\"schema-version\": 1.0";
         echo "\"version\": \"main\"";
-        ensure_sbom_format module-list "${@}";
+        ensure_sbom_format module-list "${margs[@]}";
         echo "---";
         local handler sbomer;
         for handler in $(printf '%s\n' "${handles[@]}" | sort);
