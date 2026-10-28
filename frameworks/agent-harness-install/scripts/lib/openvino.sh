@@ -117,6 +117,62 @@ export step's HTTP client may not support (only http/https/socks5/socks5h are)."
   done
 }
 
+# Some exported chat models (e.g. OpenVINO/Qwen3.5-9B-int4-ov) list only
+# <|endoftext|> as eos_token_id although the tokenizer's eos_token is the
+# end-of-turn token <|im_end|>; OVMS then never stops generating. Stdlib-only
+# python, run by ensure_chat_end_token_stops with the model directory as argv[1].
+_OVMS_EOS_FIX_PY='
+import json, os, sys
+d = sys.argv[1]
+def load(name):
+    path = os.path.join(d, name)
+    if not os.path.isfile(path):
+        return None
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+tok_cfg, tok, gen = load("tokenizer_config.json"), load("tokenizer.json"), load("generation_config.json")
+if not (tok_cfg and tok and isinstance(gen, dict)):
+    sys.exit(0)
+eos = tok_cfg.get("eos_token")
+if isinstance(eos, dict):
+    eos = eos.get("content")
+ids = [t["id"] for t in tok.get("added_tokens", []) if t.get("content") == eos] if isinstance(eos, str) else []
+if not ids:
+    sys.exit(0)
+cur = gen.get("eos_token_id")
+cur = [] if cur is None else cur if isinstance(cur, list) else [cur]
+if ids[0] in cur:
+    sys.exit(0)
+gen["eos_token_id"] = [ids[0]] + cur
+tmp = os.path.join(d, "generation_config.json.tmp")
+with open(tmp, "w", encoding="utf-8") as f:
+    json.dump(gen, f, indent=2)
+    f.write("\n")
+os.replace(tmp, os.path.join(d, "generation_config.json"))
+print("added %s (id %d) to eos_token_id in generation_config.json" % (eos, ids[0]))
+'
+
+# ensure_chat_end_token_stops model_dir -- adds the tokenizer's eos_token id
+# to generation_config.json's eos_token_id when missing. Idempotent; never
+# fatal, since a model that already stops correctly needs nothing.
+ensure_chat_end_token_stops() {
+  local dir="$1" out
+  [[ -f "${dir}/generation_config.json" && -f "${dir}/tokenizer_config.json" && -f "${dir}/tokenizer.json" ]] \
+    || return 0
+  if command_exists python3; then
+    out="$(python3 -c "$_OVMS_EOS_FIX_PY" "$dir" 2>&1)" \
+      || { warn "Could not check the stop tokens of ${dir}: ${out}"; return 0; }
+  else
+    command_exists docker || return 0
+    # The pinned -py image ships python3, so no host python is required.
+    out="$(docker run --rm -u "$(id -u):$(id -g)" -v "${dir}:/model:rw" --entrypoint python3 \
+      "$HARNESS_OVMS_EXPORT_IMAGE" -c "$_OVMS_EOS_FIX_PY" /model 2>&1)" \
+      || { warn "Could not check the stop tokens of ${dir}: ${out}"; return 0; }
+  fi
+  [[ -z "$out" ]] || info "$out"
+  return 0
+}
+
 # export_model_via_docker_pull hf_model_id [model_name] -- default exporter
 # (HARNESS_OVMS_EXPORTER=docker-pull): runs OVMS's own "-py" image (bundles
 # optimum-cli) in --pull mode, which downloads, converts, and quantizes the
@@ -145,6 +201,7 @@ export_model_via_docker_pull() {
   fi
   if [[ -n "$existing_base_path" ]]; then
     info "Model '${model_name}' is already exported."
+    ensure_chat_end_token_stops "${HARNESS_MODELS_DIR}/${existing_base_path}"
     # Re-registering unconditionally (not just when the directory first
     # appears) is cheap and idempotent (_add_model_config_entry_locked
     # replaces any existing same-name entry) -- without this, a directory
@@ -227,6 +284,7 @@ HARNESS_OVMS_EXPORTER=export-model-py as a fallback."
     error "No graph.pbtxt found at ${out_dir} or ${HARNESS_MODELS_DIR}/${hf_model_id}
 after pull -- OVMS will not serve chat completions for '${model_name}'."
   fi
+  ensure_chat_end_token_stops "$out_dir"
   if with_state_lock ovms-config _add_model_config_entry_locked \
       "${HARNESS_MODELS_DIR}/config.json" "$model_name" "$relative_base_path"; then
     ok "Exported ${hf_model_id} -> ${out_dir} (registered with OVMS)"

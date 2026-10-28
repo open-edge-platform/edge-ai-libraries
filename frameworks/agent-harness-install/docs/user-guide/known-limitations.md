@@ -120,7 +120,13 @@
     and the `export-model-py` exporters, except for pre-converted
     `OpenVINO/*` models, which are already quantized;
     `--model-revision` also to `hf-snapshot`).
-  - `hf-snapshot` — a plain `huggingface_hub.snapshot_download` in a host
+  - With the default `docker-pull` exporter, if a model's
+    `generation_config.json` does not list the tokenizer's `eos_token` id in
+    `eos_token_id` (for example `OpenVINO/Qwen3.5-9B-int4-ov` omits
+    `<|im_end|>`, so OVMS never stops generating), the installer adds it,
+    on fresh pulls and on re-runs. Reasoning models can spend several
+    hundred tokens thinking before the answer, so a small `max_tokens` may
+    return an empty reply.  - `hf-snapshot` — a plain `huggingface_hub.snapshot_download` in a host
     Python venv, no `optimum-cli` conversion step at all. For HF repos
     already published as ready-to-serve OpenVINO IR + an OVMS MediaPipe
     `graph.pbtxt`. Set `HARNESS_HF_MODEL_REVISION` to pin an exact

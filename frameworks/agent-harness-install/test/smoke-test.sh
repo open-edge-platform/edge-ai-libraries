@@ -497,6 +497,19 @@ phase_03_libunit() {
     lib_eval 'HARNESS_MODELS_DIR=$(mktemp -d); printf "%s" "{\"model_config_list\":[{\"config\":{\"name\":\"a\",\"base_path\":\"a\"}}]}" > "$HARNESS_MODELS_DIR/config.json"; ovms_model_registered b'
   check_fail "ovms_model_registered: false when there is no config.json" lib_eval 'HARNESS_MODELS_DIR=$(mktemp -d); ovms_model_registered a'
 
+  # ensure_chat_end_token_stops runs python3 on the host (or in the -py image).
+  local eos_cfg='d=$(mktemp -d); printf "%s" "{\"eos_token\":\"<|im_end|>\"}" > "$d/tokenizer_config.json"; printf "%s" "{\"added_tokens\":[{\"id\":7,\"content\":\"<|im_end|>\"}]}" > "$d/tokenizer.json"; '
+  if command -v python3 >/dev/null 2>&1; then
+    check_output_contains "ensure_chat_end_token_stops: adds the tokenizer eos_token id to a scalar eos_token_id" '[7,5]' \
+      lib_eval "$eos_cfg"'printf "%s" "{\"eos_token_id\":5}" > "$d/generation_config.json"; ensure_chat_end_token_stops "$d" >/dev/null; tr -d " \n" < "$d/generation_config.json"'
+    check_output_contains "ensure_chat_end_token_stops: leaves a config that already has the id unchanged" '[5,7]' \
+      lib_eval "$eos_cfg"'printf "%s" "{\"eos_token_id\":[5,7]}" > "$d/generation_config.json"; ensure_chat_end_token_stops "$d" >/dev/null; tr -d " \n" < "$d/generation_config.json"'
+    check_output_contains "ensure_chat_end_token_stops: is idempotent" '[7,5]' \
+      lib_eval "$eos_cfg"'printf "%s" "{\"eos_token_id\":5}" > "$d/generation_config.json"; ensure_chat_end_token_stops "$d" >/dev/null; ensure_chat_end_token_stops "$d" >/dev/null; tr -d " \n" < "$d/generation_config.json"'
+  else
+    skip "ensure_chat_end_token_stops checks" "python3 not installed"
+  fi
+
   # The model name onboarding wires an agent to.
   local hint_cfg='HARNESS_MODELS_DIR=$(mktemp -d); printf "%s" "{\"model_config_list\":[{\"config\":{\"name\":\"a\",\"base_path\":\"a\"}}]}" > "$HARNESS_MODELS_DIR/config.json"; '
   check_output_contains "resolve_onboarding_model_hint: an external router keeps the model name exactly as given (minus org/)" "llama3.2:3b" \
