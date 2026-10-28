@@ -170,4 +170,43 @@ describe('GeoService', () => {
     ]);
     expect(httpGet).toHaveBeenCalledTimes(1);
   });
+
+  it('keeps the last API data, marked stale, when a later answer is not a locations response', async () => {
+    geoConfig.apiUrl = 'http://geo-api/api/v1/intersections';
+    httpGet.mockReturnValueOnce(of({ data: API_BODY }));
+    await build();
+    await service.getIntersections();
+
+    httpGet.mockReturnValueOnce(of({ data: '<html>proxy error</html>' }));
+    (Date.now as jest.Mock).mockReturnValue(1_000_000 + 60001);
+    await service.refresh();
+
+    const result = await service.getIntersections();
+    expect(result.source).toBe('geo-api');
+    expect(result.stale).toBe(true);
+    expect(Object.keys(result.intersections)).toHaveLength(2);
+  });
+
+  it('uses the fallback file on first load when the API answers with something that is not a locations response', async () => {
+    geoConfig.apiUrl = 'http://geo-api/api/v1/intersections';
+    geoConfig.fallbackFile = '/app/config/geo-intersections.json';
+    httpGet.mockReturnValue(of({ data: '' }));
+    readFileMock.mockResolvedValue(JSON.stringify(FALLBACK_BODY));
+    await build();
+
+    const result = await service.getIntersections();
+    expect(result.source).toBe('fallback');
+    expect(Object.keys(result.intersections)).toEqual(['intersection_9']);
+  });
+
+  it('accepts an explicitly empty intersections object from the API', async () => {
+    geoConfig.apiUrl = 'http://geo-api/api/v1/intersections';
+    httpGet.mockReturnValue(of({ data: { version: 1, intersections: {} } }));
+    await build();
+
+    const result = await service.getIntersections();
+    expect(result.source).toBe('geo-api');
+    expect(result.stale).toBe(false);
+    expect(result.intersections).toEqual({});
+  });
 });

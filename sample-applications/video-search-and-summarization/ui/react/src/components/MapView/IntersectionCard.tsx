@@ -93,7 +93,7 @@ export const IntersectionCard: FC<IntersectionCardProps> = ({
     <CardAnchor
       $left={left}
       $top={top}
-      $zIndex={isActive ? 100000 : Math.round((90 - marker.lat) * 10) + 1}
+      $zIndex={isActive ? 2000 : Math.round((90 - marker.lat) * 10) + 1}
       onMouseEnter={() => onActivate(marker.id)}
       data-testid={`intersection-card-${marker.id}`}
     >

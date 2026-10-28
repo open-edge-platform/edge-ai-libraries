@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 import { describe, expect, it } from 'vitest';
-import { buildIntersectionMarkers, unmappedTags } from '../components/MapView/intersectionMarkers';
+import { buildIntersectionMarkers, unmappedResultCount, unmappedTags } from '../components/MapView/intersectionMarkers';
 import { buildTagIndex, IntersectionInfo } from '../redux/geo/geo';
 import { SearchResult } from '../redux/search/search';
 import { getSearchResultTags } from '../redux/search/searchResult';
@@ -156,5 +156,17 @@ describe('unmappedTags', () => {
   it('does not report a result with at least one mappable tag', () => {
     const results = [makeResult({ videoId: 'v1', metadataTags: 'camera1,intersection_2-camera3' })];
     expect(unmappedTags(results, intersections, tagIndex)).toEqual([]);
+  });
+});
+
+describe('unmappedResultCount', () => {
+  it('counts results, not tags', () => {
+    const results = [
+      makeResult({ videoId: 'v1', metadataTags: 'lobby,night' }),
+      makeResult({ videoId: 'v2', metadataTags: 'intersection_1-camera1' }),
+      makeResult({ videoId: 'v3', metadataTags: '' }),
+    ];
+    expect(unmappedResultCount(results, intersections, tagIndex)).toBe(2);
+    expect(unmappedResultCount(null, intersections, tagIndex)).toBe(0);
   });
 });

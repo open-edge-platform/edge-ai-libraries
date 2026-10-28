@@ -5,6 +5,7 @@ import { Provider } from 'react-redux';
 import { describe, expect, it, vi } from 'vitest';
 import MapDrawer from '../components/MapView/MapDrawer';
 import { GeoState } from '../redux/geo/geo';
+import { GeoActions } from '../redux/geo/geoSlice';
 import { SearchActions } from '../redux/search/searchSlice';
 import { createSearchQuery, createSearchResult, createSearchState, createTestStore } from './testUtils';
 
@@ -72,6 +73,34 @@ describe('MapDrawer', () => {
   it('moves focus to the close button when opened', () => {
     renderDrawer(true);
     expect(screen.getByRole('button', { name: 'CloseMap' })).toHaveFocus();
+  });
+
+  it('returns focus to the element that opened the drawer when it closes', () => {
+    const store = createTestStore({
+      search: createSearchState({
+        searchQueries: [createSearchQuery({ queryId: 'q1', results, topK: results.length })],
+        selectedQuery: 'q1',
+      }),
+      geo: { ...geo, mapDrawerOpen: false },
+    });
+    render(
+      <Provider store={store}>
+        <button type='button'>opener</button>
+        <MapDrawer />
+      </Provider>,
+    );
+    const opener = screen.getByRole('button', { name: 'opener' });
+    opener.focus();
+
+    act(() => {
+      store.dispatch(GeoActions.openMapDrawer());
+    });
+    expect(screen.getByRole('button', { name: 'CloseMap' })).toHaveFocus();
+
+    act(() => {
+      store.dispatch(GeoActions.closeMapDrawer());
+    });
+    expect(opener).toHaveFocus();
   });
 
   it('adds a pin when a watched query refresh brings a clip from a new intersection', () => {

@@ -193,6 +193,29 @@ describe('MapView', () => {
     expect(screen.getByTestId('unmapped-notice')).toHaveTextContent('UnmappedTags:3');
   });
 
+  it('reports the number of unmapped results when provided, not the sum of tag counts', () => {
+    render(
+      <MapView
+        markers={[makeMarker({})]}
+        unmapped={[
+          { tag: 'lobby', count: 1 },
+          { tag: 'night', count: 1 },
+        ]}
+        unmappedResults={1}
+      />,
+    );
+    expect(screen.getByTestId('unmapped-notice')).toHaveTextContent('UnmappedTags:1');
+  });
+
+  it('refits when an existing intersection moves', () => {
+    const { rerender } = render(<MapView markers={[makeMarker({ id: 'a', lat: 0, lon: 0 })]} unmapped={[]} />);
+
+    rerender(<MapView markers={[makeMarker({ id: 'a', lat: 40, lon: 100 })]} unmapped={[]} />);
+
+    expect(Number(screen.getByTestId('card-a').getAttribute('data-left'))).toBeCloseTo(400, 3);
+    expect(Number(screen.getByTestId('card-a').getAttribute('data-top'))).toBeCloseTo(300, 3);
+  });
+
   it('shows the stale-locations notice only when locations may be out of date', () => {
     const { rerender } = render(<MapView markers={[makeMarker({})]} unmapped={[]} />);
     expect(screen.queryByText('LocationsStale')).toBeNull();

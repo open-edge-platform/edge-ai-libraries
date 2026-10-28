@@ -22,6 +22,8 @@ import { MAP_TILE_URL } from '../../mapConfig';
 export interface MapViewProps {
   markers: IntersectionMarker[];
   unmapped: UnmappedTag[];
+  /** Number of unmapped results; defaults to the sum of per-tag counts. */
+  unmappedResults?: number;
   stale?: boolean;
 }
 
@@ -117,7 +119,7 @@ const StaleNotice = styled.div`
   z-index: 2500;
 `;
 
-export const MapView: FC<MapViewProps> = ({ markers, unmapped, stale = false }) => {
+export const MapView: FC<MapViewProps> = ({ markers, unmapped, unmappedResults, stale = false }) => {
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -163,23 +165,23 @@ export const MapView: FC<MapViewProps> = ({ markers, unmapped, stale = false }) 
     setView({ center, zoom, width: size.width, height: size.height });
   }, [size.width, size.height, markers]);
 
-  // Refit only when the set of intersections or the container size changes. Live result
+  // Refit only when the intersections, their positions or the container size change. Live result
   // updates at the same intersections (watched queries) keep the user's pan/zoom.
-  const markerIdsKey = useMemo(
+  const markerLayoutKey = useMemo(
     () =>
       markers
-        .map((m) => m.id)
+        .map((m) => `${m.id}:${m.lon}:${m.lat}`)
         .sort()
         .join('|'),
     [markers],
   );
   const lastFitKeyRef = useRef<string | null>(null);
   useEffect(() => {
-    const fitKey = `${markerIdsKey}@${size.width}x${size.height}`;
+    const fitKey = `${markerLayoutKey}@${size.width}x${size.height}`;
     if (lastFitKeyRef.current === fitKey) return;
     lastFitKeyRef.current = fitKey;
     fitAllIntersections();
-  }, [markerIdsKey, size.width, size.height, fitAllIntersections]);
+  }, [markerLayoutKey, size.width, size.height, fitAllIntersections]);
 
   const handlePointerDown = useCallback(
     (event: PointerEvent<HTMLDivElement>) => {
@@ -304,7 +306,7 @@ export const MapView: FC<MapViewProps> = ({ markers, unmapped, stale = false }) 
   const tileSourceFor = (z: number, x: number, y: number) =>
     tileUrl.replace('{z}', String(z)).replace('{x}', String(x)).replace('{y}', String(y));
 
-  const unmappedCount = unmapped.reduce((sum, entry) => sum + entry.count, 0);
+  const unmappedCount = unmappedResults ?? unmapped.reduce((sum, entry) => sum + entry.count, 0);
   const unmappedSummary = [
     ...unmapped.slice(0, MAX_UNMAPPED_TAGS_SHOWN).map(({ tag, count }) => `${tag || t('Untagged')} (${count})`),
     ...(unmapped.length > MAX_UNMAPPED_TAGS_SHOWN ? [`+${unmapped.length - MAX_UNMAPPED_TAGS_SHOWN}`] : []),

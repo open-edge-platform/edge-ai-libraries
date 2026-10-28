@@ -109,3 +109,13 @@ export const unmappedTags = (
     .map(([tag, count]) => ({ tag, count }))
     .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
 };
+
+/** Number of results that could not be placed on any intersection. */
+export const unmappedResultCount = (
+  results: SearchResult[] | null | undefined,
+  intersections: Record<string, IntersectionInfo>,
+  tagIndex: Map<string, string>,
+): number =>
+  (results ?? []).filter(
+    (result) => !getSearchResultTags(result).some((tag) => resolveIntersection(tag, intersections, tagIndex)),
+  ).length;

@@ -104,9 +104,11 @@ export const resolveIntersection = (
   intersections: Record<string, IntersectionInfo>,
   tagIndex: Map<string, string>,
 ): string | null => {
+  // Own-property check: tags such as "constructor" must not match inherited Object members.
+  const isKnown = (id: string) => Object.prototype.hasOwnProperty.call(intersections, id);
   const listed = tagIndex.get(tag);
   if (listed) return listed;
   const prefix = CAMERA_TAG_PATTERN.exec(tag)?.[1];
-  if (prefix && intersections[prefix]) return prefix;
-  return intersections[tag] ? tag : null;
+  if (prefix && isKnown(prefix)) return prefix;
+  return isKnown(tag) ? tag : null;
 };

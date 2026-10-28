@@ -78,6 +78,13 @@ export class GeoService {
             maxContentLength: MAX_RESPONSE_BYTES,
           }),
         );
+        const body = res.data as { intersections?: unknown } | null;
+        if (
+          typeof body?.intersections !== 'object' ||
+          body.intersections === null
+        ) {
+          throw new Error('response has no intersections object');
+        }
         if (this.cache?.source !== 'geo-api') {
           this.logger.log('geo: using intersections from the API');
         }

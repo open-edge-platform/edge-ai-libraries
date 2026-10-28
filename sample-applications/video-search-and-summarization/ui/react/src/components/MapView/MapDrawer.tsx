@@ -9,7 +9,7 @@ import { useAppDispatch, useAppSelector } from '../../redux/store';
 import { SearchSelector } from '../../redux/search/searchSlice';
 import { GeoActions, geoSelector } from '../../redux/geo/geoSlice';
 import MapView from './MapView';
-import { buildIntersectionMarkers, unmappedTags } from './intersectionMarkers';
+import { buildIntersectionMarkers, unmappedResultCount, unmappedTags } from './intersectionMarkers';
 
 // In-flow flex item (not position: fixed) so it squeezes the results column
 // instead of overlaying it; width animates between 0 and its open size.
@@ -67,8 +67,12 @@ export const MapResultsContainer: FC = () => {
     () => unmappedTags(selectedResults, intersections, tagIndex),
     [selectedResults, intersections, tagIndex],
   );
+  const unmappedResults = useMemo(
+    () => unmappedResultCount(selectedResults, intersections, tagIndex),
+    [selectedResults, intersections, tagIndex],
+  );
 
-  return <MapView markers={markers} unmapped={unmapped} stale={stale} />;
+  return <MapView markers={markers} unmapped={unmapped} unmappedResults={unmappedResults} stale={stale} />;
 };
 
 export const MapDrawer: FC = () => {
@@ -77,6 +81,7 @@ export const MapDrawer: FC = () => {
   const hasSelectedQuery = useAppSelector((state) => Boolean(SearchSelector(state).selectedQuery));
   const { hasIntersections, mapDrawerOpen } = useAppSelector(geoSelector);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const drawerRef = useRef<HTMLElement>(null);
 
   // Close when there is nothing to show, e.g. the query was deleted or no intersection is known any more.
   useEffect(() => {
@@ -87,17 +92,23 @@ export const MapDrawer: FC = () => {
 
   useEffect(() => {
     if (!mapDrawerOpen) return undefined;
+    const drawer = drawerRef.current;
+    const opener = document.activeElement as HTMLElement | null;
     closeButtonRef.current?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') dispatch(GeoActions.closeMapDrawer());
     };
     // Capture phase: the focused close button's tooltip would otherwise consume the first Escape.
     window.addEventListener('keydown', onKeyDown, true);
-    return () => window.removeEventListener('keydown', onKeyDown, true);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown, true);
+      if (drawer?.contains(document.activeElement)) opener?.focus();
+    };
   }, [mapDrawerOpen, dispatch]);
 
   return (
     <DrawerWrapper
+      ref={drawerRef}
       id='map-drawer'
       $open={mapDrawerOpen}
       aria-hidden={!mapDrawerOpen}

@@ -95,6 +95,12 @@ describe('geo helpers', () => {
       expect(resolveIntersection('intersection_9-camera1', intersections, tagIndex)).toBeNull();
       expect(resolveIntersection('lobby', intersections, tagIndex)).toBeNull();
     });
+
+    it('does not treat inherited object properties as locations', () => {
+      expect(resolveIntersection('constructor', intersections, tagIndex)).toBeNull();
+      expect(resolveIntersection('toString', intersections, tagIndex)).toBeNull();
+      expect(resolveIntersection('constructor-camera1', intersections, tagIndex)).toBeNull();
+    });
   });
 });
 
