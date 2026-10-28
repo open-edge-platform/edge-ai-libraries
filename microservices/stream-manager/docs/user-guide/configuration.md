@@ -72,7 +72,8 @@ Use these options with `make docker-run`:
 make docker-run DATA_DIR=/path/to/data CONFIG_FILE=/path/to/config.json
 ```
 
-`make docker-run` pulls the image if it is not present locally. It publishes the
+`make docker-run` pulls the image if it is not present locally. It stops and removes
+any existing container with the same name before it starts a new one. It publishes the
 container's port `8080` to a free host port and prints the access URLs.
 
 > [!CAUTION]
