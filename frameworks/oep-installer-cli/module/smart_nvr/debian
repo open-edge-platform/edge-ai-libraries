@@ -1,7 +1,7 @@
 
 configure_smart_nvr () {
   workspace="$(ensure_project_path)/smart-nvr"
-  version="release-2026.2.0"
+  version=b05301d7e027caf1953bad3811f65be2cb671b50
   repository="https://github.com/open-edge-platform/metro-ai-suite.git"
   used_ports=(7860 8000 5000 6379 1884 443 1880 3000 8086 8554)
 
@@ -28,9 +28,10 @@ debian_90_install_smart_nvr () {
   else
     ensure_disk_size 3000
     ensure_ports_open install smart_nvr "${used_ports[@]}"
+
+    echo "@@STEP Clonging repository"
     ensure_git_export "$workspace" "$version" "$repository" smart-nvr metro-vision-ai-app-recipe
-    # disable mqtt-broker
-    sed -i 's|^\( *\)\(image: eclipse-mosquitto:.*\)|\1\2\n\1profiles: ["disabled"]|' "$workspace"/smart-nvr/docker/compose.yaml
+    sed -i "s|^load_si_rtsp_from_brokers$||" "$workspace"/smart-nvr/setup.sh
   fi
 
   echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
