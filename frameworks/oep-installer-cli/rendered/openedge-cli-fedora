@@ -2815,12 +2815,12 @@ ensure_sbom_format ()
     local key=$1;
     shift;
     case "$key" in 
-        pkg-list | apt-pref | yum-repo-conf | kernel-args | module-list)
+        pkg-list | apt-pref | yum-repo-conf | kernel-cmdline | module-list)
             local IFS='|';
             local pkg_str="$*";
             echo "\"$key\": [\"${pkg_str//'|'/\",\"}\"]"
         ;;
-        name | gpg-key | key-file | apt-source | apt-src-source | apt-list-file | apt-pref-file | apt-repository | yum-repo-file)
+        component | repo-name | gpg-key | gpg-key-fingerprint | key-file | apt-source | apt-src-source | apt-list-file | apt-pref-file | apt-repository | yum-repo-file)
             echo "\"$key\": \"$*\""
         ;;
         *)
@@ -3274,7 +3274,7 @@ fedora_30_sbom_cmake ()
 fedora_30_sbom_docker_ce () 
 { 
     configure_docker_ce "$@";
-    ensure_sbom_format name $repo_name;
+    ensure_sbom_format repo-name $repo_name;
     ensure_sbom_format gpg-key "$key_url";
     ensure_sbom_format yum-repo-conf "${yum_repo_conf[@]}";
     ensure_sbom_format yum-repo-file "$yum_repo_file";
@@ -3412,7 +3412,7 @@ fedora_70_sbom_nodejs ()
 fedora_70_sbom_openvino () 
 { 
     configure_openvino "$@";
-    ensure_sbom_format name "$repo_name";
+    ensure_sbom_format repo-name "$repo_name";
     ensure_sbom_format gpg-key "$key_url";
     ensure_sbom_format yum-repo-conf "${yum_repo_conf[@]}";
     ensure_sbom_format yum-repo-file "$yum_repo_file";
@@ -3456,7 +3456,7 @@ fedora_75_remove_dlstreamer ()
 fedora_75_sbom_dlstreamer () 
 { 
     configure_dlstreamer;
-    ensure_sbom_format name "$repo_name";
+    ensure_sbom_format repo-name "$repo_name";
     ensure_sbom_format gpg-key "$key_url";
     ensure_sbom_format yum-repo-conf "${yum_repo_conf[@]}";
     ensure_sbom_format yum-repo-file "$yum_repo_file";
@@ -3808,7 +3808,7 @@ subcommand_list ()
             return 3;
         fi;
         local all_install_modules="${handles[*]#${installer_family}_*_install_}";
-        echo "\"schema-version\": 1.0";
+        echo "\"schema-version\": \"1\"";
         echo "\"cli-version\": \"main\"";
         ensure_sbom_format module-list "${mods[@]}";
         echo "---";

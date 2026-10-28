@@ -3696,12 +3696,12 @@ debian_25_profile_linux_image_generic_7.0 ()
 debian_25_sbom_linux_image_6.18_intel () 
 { 
     ensure_sbom_format pkg-list linux-image-6.18-intel;
-    ensure_sbom_format kernel-args xe.max_vfs=7 "xe.force_probe=*" modprobe.blacklist=i915 udmabuf.list_limit=8192
+    ensure_sbom_format kernel-cmdline xe.max_vfs=7 "xe.force_probe=*" modprobe.blacklist=i915 udmabuf.list_limit=8192
 }
 debian_25_sbom_linux_image_generic_7.0 () 
 { 
     ensure_sbom_format pkg-list linux-image-generic-7.0;
-    ensure_sbom_format kernel-args xe.max_vfs=7 "xe.force_probe=*" modprobe.blacklist=i915 udmabuf.list_limit=8192
+    ensure_sbom_format kernel-cmdline xe.max_vfs=7 "xe.force_probe=*" modprobe.blacklist=i915 udmabuf.list_limit=8192
 }
 debian_29_install_reboot () 
 { 
@@ -4125,7 +4125,7 @@ debian_30_sbom_cmake ()
 debian_30_sbom_docker_ce () 
 { 
     configure_docker_ce "$@";
-    ensure_sbom_format name $repo_name;
+    ensure_sbom_format repo-name $repo_name;
     ensure_sbom_format gpg-key "$key_url";
     ensure_sbom_format key-file "$key_file";
     ensure_sbom_format apt-source "$apt_entry";
@@ -4909,7 +4909,7 @@ debian_40_sbom_edge_pack_tsn ()
 debian_40_sbom_gpu_accel () 
 { 
     configure_gpu_accel "$@";
-    ensure_sbom_format name "$repo_name";
+    ensure_sbom_format repo-name "$repo_name";
     ensure_sbom_format apt-source "$apt_entry";
     ensure_sbom_format apt-list-file "$apt_file";
     ensure_sbom_format gpg-key "$key_url";
@@ -5257,13 +5257,13 @@ debian_55_remove_ros_openvino ()
 debian_55_sbom_realsense () 
 { 
     configure_realsense "$@";
-    ensure_sbom_format name "$eci_repo_name";
+    ensure_sbom_format repo-name "$eci_repo_name";
     ensure_sbom_format gpg-key "$eci_key_url";
     ensure_sbom_format key-file "$eci_key_file";
     ensure_sbom_format apt-source "$eci_repo_list";
     ensure_sbom_format apt-list-file "$eci_repo_list_file";
     echo "---";
-    ensure_sbom_format name "$rs_repo_name";
+    ensure_sbom_format repo-name "$rs_repo_name";
     ensure_sbom_format gpg-key "$rs_key_url";
     ensure_sbom_format key-file "$rs_key_file";
     ensure_sbom_format apt-source "$rs_deb_entry";
@@ -5273,7 +5273,7 @@ debian_55_sbom_realsense ()
 debian_55_sbom_ros_openvino () 
 { 
     configure_ros_openvino;
-    ensure_sbom_format name "$amr_repo_name";
+    ensure_sbom_format repo-name "$amr_repo_name";
     ensure_sbom_format gpg-key "$amr_key_url";
     ensure_sbom_format key-file "$amr_key_file";
     ensure_sbom_format apt-source "$amr_deb_entry";
@@ -5282,7 +5282,7 @@ debian_55_sbom_ros_openvino ()
     ensure_sbom_format apt-pref "${amr_pref[@]}";
     ensure_sbom_format apt-pref-file "$amr_pref_file";
     echo "---";
-    ensure_sbom_format name "$ov_repo_name";
+    ensure_sbom_format repo-name "$ov_repo_name";
     ensure_sbom_format gpg-key "$ov_key_url";
     ensure_sbom_format key-file "$ov_key_file";
     ensure_sbom_format apt-source "$ov_deb_entry";
@@ -5491,7 +5491,7 @@ debian_70_sbom_nodejs ()
 debian_70_sbom_openvino () 
 { 
     configure_openvino "$@";
-    ensure_sbom_format name "$repo_name";
+    ensure_sbom_format repo-name "$repo_name";
     ensure_sbom_format gpg-key "$key_url";
     ensure_sbom_format key-file "$key_file";
     ensure_sbom_format apt-source "$apt_entry";
@@ -5539,7 +5539,7 @@ debian_75_remove_dlstreamer ()
 debian_75_sbom_dlstreamer () 
 { 
     configure_dlstreamer;
-    ensure_sbom_format name "$repo_name";
+    ensure_sbom_format repo-name "$repo_name";
     ensure_sbom_format apt-source "$deb_entry";
     ensure_sbom_format apt-list-file "$list_file";
     ensure_sbom_format gpg-key "$key_url";
@@ -7066,6 +7066,7 @@ debian_90_sbom_stationary_robot_vision ()
     echo "---";
     ensure_sbom_format apt-pref "${rvc_ffmpeg_pref[@]}";
     ensure_sbom_format apt-pref-file "$rvc_ffmpeg_pref_file";
+    ensure_sbom_format pkg-list libavutil-dev libpostproc-dev;
     echo "---";
     ensure_sbom_format pkg-list "${rvc_pkgs[@]}"
 }
@@ -8535,12 +8536,12 @@ ensure_sbom_format ()
     local key=$1;
     shift;
     case "$key" in 
-        pkg-list | apt-pref | yum-repo-conf | kernel-args | module-list)
+        pkg-list | apt-pref | yum-repo-conf | kernel-cmdline | module-list)
             local IFS='|';
             local pkg_str="$*";
             echo "\"$key\": [\"${pkg_str//'|'/\",\"}\"]"
         ;;
-        name | gpg-key | key-file | apt-source | apt-src-source | apt-list-file | apt-pref-file | apt-repository | yum-repo-file)
+        component | repo-name | gpg-key | gpg-key-fingerprint | key-file | apt-source | apt-src-source | apt-list-file | apt-pref-file | apt-repository | yum-repo-file)
             echo "\"$key\": \"$*\""
         ;;
         *)
@@ -8840,7 +8841,7 @@ sbom_edge_pack_repo_entries ()
         ensure_sbom_format apt-list-file "$edge_pack_ppa_list_file";
         echo "---";
     fi;
-    ensure_sbom_format name "$edge_pack_repo";
+    ensure_sbom_format repo-name "$edge_pack_repo";
     ensure_sbom_format gpg-key "$edge_pack_key_url";
     ensure_sbom_format key-file "$edge_pack_key_file";
     ensure_sbom_format apt-source "$edge_pack_source";
@@ -8851,7 +8852,7 @@ sbom_edge_pack_repo_entries ()
 sbom_oneapi_ros_openvino () 
 { 
     configure_oneapi_ros_openvino;
-    ensure_sbom_format name "$oneapi_repo_name";
+    ensure_sbom_format repo-name "$oneapi_repo_name";
     ensure_sbom_format gpg-key "$oneapi_key_url";
     ensure_sbom_format key-file "$oneapi_key_file";
     ensure_sbom_format apt-source "$oneapi_deb_entry";
@@ -8865,7 +8866,7 @@ sbom_oneapi_ros_openvino ()
 sbom_osrf_gazebo_ros2 () 
 { 
     configure_osrf_gazebo_ros2;
-    ensure_sbom_format name $osrf_name;
+    ensure_sbom_format repo-name $osrf_name;
     ensure_sbom_format gpg-key "$osrf_key_url";
     ensure_sbom_format key-file "$osrf_key";
     ensure_sbom_format apt-source "$osrf_entry";
@@ -9030,7 +9031,7 @@ subcommand_list ()
             return 3;
         fi;
         local all_install_modules="${handles[*]#${installer_family}_*_install_}";
-        echo "\"schema-version\": 1.0";
+        echo "\"schema-version\": \"1\"";
         echo "\"cli-version\": \"main\"";
         ensure_sbom_format module-list "${mods[@]}";
         echo "---";
