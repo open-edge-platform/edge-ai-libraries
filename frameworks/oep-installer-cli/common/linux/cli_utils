@@ -100,6 +100,9 @@ act_helper () {
   shift
   shift
 
+  # reject unknown component names before anything else
+  act_validate_modules $act_name "$@" || return 3
+
   # fill in the saved module list if none is named; remember explicit ones
   local explicit_mods="$(act_extract_modules $act_name "$@")"
   local remove_all=0
@@ -273,4 +276,62 @@ act_find_parents () {
       [[ "$targets" != *" $d "* ]] || echo "$p:$d"
     done
   done
+}
+
+# Levenshtein distance between $1 and $2 (pure bash)
+_act_levenshtein () {
+  local a=$1 b=$2 la=${#1} lb=${#2} i j cost d ins sub
+  local -a prev=() cur=()
+  for ((j=0;j<=lb;j++)); do prev[j]=$j; done
+  for ((i=1;i<=la;i++)); do
+    cur=($i)
+    for ((j=1;j<=lb;j++)); do
+      [ "${a:i-1:1}" = "${b:j-1:1}" ] && cost=0 || cost=1
+      d=$((prev[j]+1)); ins=$((cur[j-1]+1)); sub=$((prev[j-1]+cost))
+      ((ins < d)) && d=$ins
+      ((sub < d)) && d=$sub
+      cur[j]=$d
+    done
+    prev=("${cur[@]}")
+  done
+  echo "${prev[lb]}"
+}
+
+# Print up to 3 known module names close to $1
+act_suggest_modules () {
+  local name=$1 m dist max
+  local all_modules=(${_act_cache_names[*]:-${_act_cache_modules[*]}})
+  max=$(( ${#name} / 3 )); ((max < 2)) && max=2
+  for m in "${all_modules[@]}"; do
+    if [[ "$m" == "$name"* || "$m" == *"$name"* || "$name" == *"$m"* ]]; then
+      echo "0 $m"
+    else
+      dist=$(_act_levenshtein "$name" "$m")
+      ((dist <= max)) && echo "$dist $m"
+    fi
+  done | sort -n -k1,1 | head -n 3 | cut -d' ' -f2
+}
+
+# Validate bare component names given on the command line.
+# Mirrors act_extract_modules: only words before the first "--<module>"
+# separator are module names; "-..." words are options.
+act_validate_modules () {
+  local act_name=${1%%,*}; shift
+  local all_modules=(${_act_cache_names[*]:-${_act_cache_modules[*]}})
+  local all_module_args=" ${all_modules[*]/#/--} "
+  local v s bad=0
+  for v in "$@"; do
+    [[ "$all_module_args" != *" $v "* ]] || break   # start of per-module args
+    [[ "$v" == -* ]] && continue                    # global option
+    [[ "$all_module_args" == *" --$v "* ]] && continue
+    bad=1
+    s=$(act_suggest_modules "$v" | paste -sd, - | sed 's/,/, /g')
+    if [ -n "$s" ]; then
+      echo -e "${red}Unknown component '$v'.${reset}" >&2
+      echo "Did you mean: $s?" >&2
+    else
+      echo -e "${red}Unknown component '$v'.${reset}" >&2
+    fi
+  done
+  [ $bad -eq 0 ] || return 3
 }
