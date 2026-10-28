@@ -336,7 +336,7 @@ if [[ -z "${PM_LLM_CONCURRENT+x}" ]]; then
 fi
 PM_VLM_CONCURRENT_DEFAULTED=false
 if [[ -z "${PM_VLM_CONCURRENT+x}" ]]; then
-    export PM_VLM_CONCURRENT=6
+    export PM_VLM_CONCURRENT=4
     PM_VLM_CONCURRENT_DEFAULTED=true
 fi
 PM_MULTI_FRAME_COUNT_DEFAULTED=false

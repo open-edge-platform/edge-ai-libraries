@@ -119,7 +119,7 @@ written to `ov_models/model-download-*.log`.
 | `PM_CAPTIONING_MAX_COMPLETION_TOKENS` | `1024`, changed to `256` in defaulted vLLM mode | Captioning token limit. |
 | `PM_LLM_MAX_CONTEXT_LENGTH` | `90000`; `(OVMS_NPU_MAX_PROMPT_LEN - 256) * 2` when unset and the OVMS LLM is on NPU | Pipeline manager LLM prompt budget in characters. |
 | `PM_LLM_CONCURRENT` | `2` (OVMS on any device); `1` for vLLM/vLLM-XPU | LLM request concurrency. |
-| `PM_VLM_CONCURRENT` | `6` (OVMS on any device); `1` for vLLM/vLLM-XPU | VLM request concurrency. |
+| `PM_VLM_CONCURRENT` | `4` (OVMS on any device); `1` for vLLM/vLLM-XPU | VLM request concurrency. |
 | `PM_MULTI_FRAME_COUNT` | `12`, may reduce to `6` for non-CPU OVMS VLM | Multi-frame captioning count. |
 | `PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY` | `true` in compose | Enables full-transcript summary injection by default. |
 | `PM_PRODUCE_FINAL_SUMMARY` | `true` | Whether Pipeline Manager produces final summary. |

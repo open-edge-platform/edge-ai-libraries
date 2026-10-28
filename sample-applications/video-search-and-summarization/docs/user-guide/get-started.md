@@ -315,8 +315,8 @@ Before running the application, you need to set several environment variables:
     Control how many concurrent inference requests the pipeline manager sends to OVMS or vLLM. These values affect throughput and resource utilization:
 
     ```bash
-    # Maximum concurrent VLM requests for chunk captioning (default: 6; 1 for vLLM)
-    export PM_VLM_CONCURRENT=6
+    # Maximum concurrent VLM requests for chunk captioning (default: 4; 1 for vLLM)
+    export PM_VLM_CONCURRENT=4
 
     # Maximum concurrent LLM requests for final summarization (default: 2; 1 for vLLM)
     export PM_LLM_CONCURRENT=2
