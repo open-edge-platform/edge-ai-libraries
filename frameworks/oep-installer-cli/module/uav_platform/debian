@@ -1,3 +1,0 @@
-debian_99_profile_uav_platform () {
-  echo "handheld_platform ubuntu_server"
-}

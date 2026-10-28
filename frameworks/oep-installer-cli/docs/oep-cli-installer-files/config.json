@@ -106,8 +106,18 @@
           }
         },
         {
-          "label": "Federal and Aerospace (UAV)",
-          "value": "federal_and_aerospace_ai_suite_uav",
+          "label": "Federal and Aerospace (Uncrewed Aerial Vehicle)",
+          "value": "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle",
+          "supports": {
+            "OP_SYSTEM": [
+              "UBUNTU_24_04",
+              "UBUNTU_26_04"
+            ]
+          }
+        },
+        {
+          "label": "Federal and Aerospace (Mission Decision Support)",
+          "value": "federal_and_aerospace_ai_suite_mission_decision_support",
           "supports": {
             "OP_SYSTEM": [
               "UBUNTU_24_04",
@@ -565,8 +575,8 @@
           "remove": true
         },
         {
-          "label": "Handheld Platform",
-          "value": "handheld_platform",
+          "label": "Handheld Blueprint",
+          "value": "handheld_blueprint",
           "supports": {
             "PROFILE": [
               "federal_and_aerospace_ai_suite_handheld"
@@ -585,23 +595,62 @@
           "remove": true
         },
         {
-          "label": "UAV Platform",
-          "value": "uav_platform",
+          "label": "Deterministic Threat Detection",
+          "value": "deterministic_threat_detection",
           "supports": {
             "PROFILE": [
-              "federal_and_aerospace_ai_suite_uav"
+              "federal_and_aerospace_ai_suite_handheld"
+            ]
+          },
+          "remove": true
+        },
+        {
+          "label": "Uncrewed Aerial Vehicle Blueprint",
+          "value": "uncrewed_aerial_vehicle_blueprint",
+          "supports": {
+            "PROFILE": [
+              "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle"
             ]
           }
         },
         {
-          "label": "UAV Mission Compute SDK",
-          "value": "uav_mission_compute_sdk",
+          "label": "Uncrewed Aerial Vehicle Mission",
+          "value": "uncrewed_aerial_vehicle_mission",
           "supports": {
             "PROFILE": [
-              "federal_and_aerospace_ai_suite_uav"
+              "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle"
             ]
           },
           "startStop": true,
+          "remove": true
+        },
+        {
+          "label": "Deterministic Threat Detection",
+          "value": "deterministic_threat_detection",
+          "supports": {
+            "PROFILE": [
+              "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle"
+            ]
+          },
+          "remove": true
+        },
+        {
+          "label": "Mission Decision Support Blueprint",
+          "value": "mission_decision_support_blueprint",
+          "supports": {
+            "PROFILE": [
+              "federal_and_aerospace_ai_suite_mission_decision_support"
+            ]
+          }
+        },
+        {
+          "label": "Deterministic Threat Detection",
+          "value": "deterministic_threat_detection",
+          "supports": {
+            "PROFILE": [
+              "federal_and_aerospace_ai_suite_mission_decision_support"
+            ]
+          },
           "remove": true
         },
         {
@@ -835,7 +884,7 @@
         },
         {
           "when": {
-            "PROFILE": "federal_and_aerospace_ai_suite_uav",
+            "PROFILE": "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle",
             "OP_SYSTEM": "UBUNTU_24_04"
           },
           "text": "Get Started",
@@ -843,7 +892,23 @@
         },
         {
           "when": {
-            "PROFILE": "federal_and_aerospace_ai_suite_uav",
+            "PROFILE": "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle",
+            "OP_SYSTEM": "UBUNTU_26_04"
+          },
+          "text": "Get Started",
+          "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-fed-aero.html"
+        },
+        {
+          "when": {
+            "PROFILE": "federal_and_aerospace_ai_suite_mission_decision_support",
+            "OP_SYSTEM": "UBUNTU_24_04"
+          },
+          "text": "Get Started",
+          "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-fed-aero.html"
+        },
+        {
+          "when": {
+            "PROFILE": "federal_and_aerospace_ai_suite_mission_decision_support",
             "OP_SYSTEM": "UBUNTU_26_04"
           },
           "text": "Get Started",
@@ -1209,6 +1274,10 @@
             {
               "text": "Handheld Multi-Modal Application",
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/handheld-multi-modal-application/index.html"
+            },
+            {
+              "text": "Deterministic Threat Detection",
+              "url": "https://github.com/open-edge-platform/federal-and-aerospace-ai-suite/tree/2026.3-20261027/deterministic-threat-detection"
             }
           ]
         },
@@ -1221,30 +1290,66 @@
             {
               "text": "Handheld Multi-Modal Application",
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/handheld-multi-modal-application/index.html"
+            },
+            {
+              "text": "Deterministic Threat Detection",
+              "url": "https://github.com/open-edge-platform/federal-and-aerospace-ai-suite/tree/2026.3-20261027/deterministic-threat-detection"
             }
           ]
         },
         {
           "when": {
-            "PROFILE": "federal_and_aerospace_ai_suite_uav",
+            "PROFILE": "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle",
             "OP_SYSTEM": "UBUNTU_24_04"
           },
           "links": [
             {
-              "text": "UAV Mission Compute SDK",
+              "text": "Uncrewed Aerial Vehicle Mission",
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/uav-vision-analytics/index.html"
+            },
+            {
+              "text": "Deterministic Threat Detection",
+              "url": "https://github.com/open-edge-platform/federal-and-aerospace-ai-suite/tree/2026.3-20261027/deterministic-threat-detection"
             }
           ]
         },
         {
           "when": {
-            "PROFILE": "federal_and_aerospace_ai_suite_uav",
+            "PROFILE": "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle",
             "OP_SYSTEM": "UBUNTU_26_04"
           },
           "links": [
             {
-              "text": "UAV Mission Compute SDK",
+              "text": "Uncrewed Aerial Vehicle Mission",
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/uav-vision-analytics/index.html"
+            },
+            {
+              "text": "Deterministic Threat Detection",
+              "url": "https://github.com/open-edge-platform/federal-and-aerospace-ai-suite/tree/2026.3-20261027/deterministic-threat-detection"
+            }
+          ]
+        },
+        {
+          "when": {
+            "PROFILE": "federal_and_aerospace_ai_suite_mission_decision_support",
+            "OP_SYSTEM": "UBUNTU_24_04"
+          },
+          "links": [
+            {
+              "text": "Deterministic Threat Detection",
+              "url": "https://github.com/open-edge-platform/federal-and-aerospace-ai-suite/tree/2026.3-20261027/deterministic-threat-detection"
+            }
+          ]
+        },
+        {
+          "when": {
+            "PROFILE": "federal_and_aerospace_ai_suite_mission_decision_support",
+            "OP_SYSTEM": "UBUNTU_26_04"
+          },
+          "links": [
+            {
+              "text": "Deterministic Threat Detection",
+              "url": "https://github.com/open-edge-platform/federal-and-aerospace-ai-suite/tree/2026.3-20261027/deterministic-threat-detection"
             }
           ]
         },

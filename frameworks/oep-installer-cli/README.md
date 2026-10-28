@@ -29,8 +29,9 @@ marketing segments. The table lists the profiles:
 | `manufacturing_ai_suite` | Industrial inspection and defect detection |
 | `retail_ai_suite` | Retail buying-process monitoring |
 | `robotics_ai_suite` | Robotics and Physical AI workflows |
-| `federal_and_aerospace_ai_suite_handheld` | Federal and Aerospace handheld platform and application |
-| `federal_and_aerospace_ai_suite_uav` | Federal and Aerospace UAV platform and application |
+| `federal_and_aerospace_ai_suite_handheld` | Federal and Aerospace handheld platform, application, and deterministic threat detection |
+| `federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle` | Federal and Aerospace uncrewed aerial vehicle platform, application, and deterministic threat detection |
+| `federal_and_aerospace_ai_suite_mission_decision_support` | Federal and Aerospace mission decision support blueprint and deterministic threat detection |
 | `health_and_life_science_ai_suite` | Patient and vitals monitoring |
 
 > See [`modules`](module) or [`packages`](package) for the list of available modules.   
@@ -124,12 +125,28 @@ where `--gpu` applies to the smart_parking component.
 
 > Omit `--<component-name>` if there is only a single component or the specified options apply to all components.  
 
-The Federal and Aerospace profiles separate their handheld and UAV platforms
-from their applications:
+The Federal and Aerospace profiles provide handheld, uncrewed aerial vehicle, and
+mission decision support blueprints, applications, and deterministic threat detection:
 
 ```bash
 openedge-cli install federal_and_aerospace_ai_suite_handheld
-openedge-cli install federal_and_aerospace_ai_suite_uav
+openedge-cli install federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle
+openedge-cli install federal_and_aerospace_ai_suite_mission_decision_support
+```
+
+The platform blueprints can also be installed independently:
+
+```bash
+openedge-cli install handheld_blueprint
+openedge-cli install uncrewed_aerial_vehicle_blueprint
+openedge-cli install mission_decision_support_blueprint
+```
+
+For any of these blueprints, pass `--edgepack` to install the Intel Edge Pack
+components, including EP-IPU, EP-Manageability, and EP-TSN:
+
+```bash
+openedge-cli install handheld_blueprint --edgepack
 ```
 
 To install the Edge Node Infrastructure Blueprint independently, choose its
@@ -142,9 +159,6 @@ openedge-cli install edge_node_infrastructure_blueprint --k3s
 Selecting both `--docker` and `--k3s` is rejected.
 
 > To switch an installed blueprint to the other deployment model, run `openedge-cli install edge_node_infrastructure_blueprint --reinstall --k3s` (or `--reinstall --docker`). Requesting a different model without `--reinstall` fails with this hint. Switching from K3s to Docker, or running `openedge-cli remove edge_node_infrastructure_blueprint` on a K3s installation, also removes the K3s runtime installed by the blueprint (using `k3s-uninstall.sh`) and its unmodified `~/.kube/config` copy; Docker, Helm and other shared components are kept.
-
-> K3s and `handheld_multi_modal` both use TCP port 6443. If both are selected
-> with `handheld_platform`, the platform uses Docker instead of installing K3s.
 
 ### List Profiles and Components
 
@@ -188,16 +202,24 @@ For bootstrapping with different modules/profiles, use the commands below:
 
 # install metro_ai_suite by default
 ./openedge-cli bootstrap --setup --install=metro_ai_suite metro_ai_suite -o rendered/openedge-cli-metro
+
+# include only the Federal and Aerospace profiles and their dependencies
+./openedge-cli bootstrap --family=debian \
+  federal_and_aerospace_ai_suite_handheld \
+  federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle \
+  federal_and_aerospace_ai_suite_mission_decision_support \
+  -o rendered/openedge-cli-federal-aerospace
 ```
 
 > Let `rendered/openedge-cli` be a reserved location for the full installer. If you generate a partial installer, save it other than `rendered/openedge-cli`. 
 
 > **Automated rendering.** You normally do not need to run `bootstrap` by hand. A GitHub
 > Actions workflow ([`oep-cli-render-on-merge.yml`](../../.github/workflows/oep-cli-render-on-merge.yml))
-> regenerates `rendered/openedge-cli` and commits it back automatically whenever the
+> regenerates the full installers and the Debian Federal and Aerospace partial installer,
+> then commits them back automatically whenever the
 > installer source (`openedge-cli`, `common/`, `license/`, `module/`, or `profile/`) changes
 > on `main` or a release branch — i.e. after a pull request is merged. The committed
-> `rendered/openedge-cli` therefore stays in sync with source without manual steps.
+> rendered installers therefore stay in sync with source without manual steps.
 
 ### Web UI Configuration
 

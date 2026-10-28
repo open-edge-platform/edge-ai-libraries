@@ -29,7 +29,8 @@
     "retail_ai_suite",
     "health_and_life_sciences_ai_suite",
     "federal_and_aerospace_ai_suite_handheld",
-    "federal_and_aerospace_ai_suite_uav",
+    "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle",
+    "federal_and_aerospace_ai_suite_mission_decision_support",
     "robotics_ai_suite"
   ],
 
