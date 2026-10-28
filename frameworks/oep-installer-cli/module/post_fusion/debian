@@ -39,6 +39,7 @@ debian_90_install_post_fusion () {
 
     cd "$workspace"/sensor-fusion-for-traffic-management/post-fusion
     sed -i -e "s|^numOfProcess=.*|numOfProcess=$inputs|" -e "s|^maxConcurrentWorkload=.*|maxConcurrentWorklod=$inputs|" ai_inference/source/low_latency_server/AiInference.config
+    sed -i "s|^RUN git clone https://github.com/oneapi-src/level-zero.git|RUN git clone --depth 1 --branch v1.24.2 https://github.com/oneapi-src/level-zero.git|" docker/Dockerfile_TFCC.dockerfile
 
     cat > docker/.env <<EOF
 VIDEO_GROUP_ID=$(getent group video | cut -f3 -d: || echo 44)

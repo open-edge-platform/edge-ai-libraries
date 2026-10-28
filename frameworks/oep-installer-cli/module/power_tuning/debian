@@ -1,0 +1,42 @@
+
+configure_power_tuning () {
+  workspace="$(ensure_project_path)/power_tuning"
+  repository="https://github.com/open-edge-platform/edge-node-infrastructure-blueprint.git"
+  version=8e6f01943286f0e838dad3bf46390119b7645ad2
+  power_tuning_path="/opt/edge/developer/tools"
+}
+
+verify_power_tuning () {
+  [ -x /usr/local/sbin/pcm ]
+}
+
+debian_40_profile_power_tuning () {
+  echo "intel_lpmd pcm sysbench msr_tools lm_sensors stress_ng linux_tools"
+}
+
+debian_40_install_power_tuning () {
+  configure_power_tuning
+  if verify_power_tuning && [[ " $* " != *" --reinstall "* ]]; then
+    echo "power_tuning is installed." >&2
+  else
+    ensure_prop set installed/power_tuning/owned true
+
+    echo "@@STEP Cloning repository"
+    ensure_git_export "$workspace" "$version" "$repository" tools/power-tuning
+    ensure_sudo mkdir -p "$power_tuning_path"
+    # fix paths
+    sed -i -e "s|^MODEL_PATH=.*|MODEL_PATH=$workspace/models|" -e "s|^GNU_VENV_DIR=.*|GNU_VENV_DIR=$workspace/.venv|" tools/power-tuning/openvino_stress.sh
+    
+    ensure_sudo cp -r "$workspace"/tools/power-tunning/* "$power_tuning_path"
+
+    verify_power_tuning
+  fi
+}
+
+debian_40_remove_power_tuning () {
+  configure_power_tuning
+  [ "$(ensure_prop get installed/power_tuning/owned)" = "true" ] || return 0
+
+  ensure_rm "$power_tuning_path"
+}
+

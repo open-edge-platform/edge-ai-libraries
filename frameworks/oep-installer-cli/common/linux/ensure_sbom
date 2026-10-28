@@ -2,7 +2,7 @@
 ensure_sbom_format () {
   local key=$1; shift
   case "$key" in
-  pkg-list|apt-pref|yum-repo-conf)
+  pkg-list|apt-pref|yum-repo-conf|kernel-args|module-list)
     local IFS=$'|'
     local pkg_str="$*"
     echo "\"$key\": [\"${pkg_str//'|'/\",\"}\"]"

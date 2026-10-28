@@ -1,0 +1,27 @@
+
+debian_99_profile_edge_base_handheld () {
+  case "$1" in
+  bootstrap) # all components
+    echo "core_types system_inspection system_summary edge_pack_base_standard edge_pack_npu gpu_accel npu_accel power_tuning docker_io k3s"
+    ;;
+  *)
+    local modules=(core_types system_inspection system_summary power_tuning cdi realsense_fedaero chrony)
+    if [[ " $* " = *" --k3s "* ]]; then
+      if [[ " $* " = *" handheld_multi_modal "* ]]; then
+        echo "K3s is not supported with handheld_multi_modal (both use TCP port 6443)." 1>&2
+        modules+=(docker_io)
+      else
+        modules+=(k3s)
+      fi
+    else
+      modules+=(docker_io)
+    fi
+    if [[ " $* " = *" --edgepack "* ]]; then
+      modules+=(edge_pack_base_standard edge_pack_npu)
+    else
+      modules+=(gpu_accel npu_accel)
+    fi
+    echo "${modules[*]}"
+    ;;
+  esac
+}

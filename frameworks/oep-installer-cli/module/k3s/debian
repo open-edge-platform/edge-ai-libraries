@@ -1,0 +1,67 @@
+
+configure_k3s () {
+  workspace="$(ensure_project_path)/k3s"
+  repository="https://github.com/open-edge-platform/edge-node-infrastructure-blueprint.git"
+  version=8e6f01943286f0e838dad3bf46390119b7645ad2
+}
+
+verify_k3s () {
+  [ -d "$workspace" ]
+}
+
+debian_30_profile_k3s () {
+  echo "git curl" 
+}
+
+debian_30_install_k3s () {
+  configure_k3s "$@"
+  if verify_k3s && [[ " $* " = *" --reinstall "* ]]; then
+    echo "k3s is installed" >&2
+  else
+    ensure_prop set installed/k3s/owned true
+
+    echo "@@STEP Clone repository"
+    ensure_git_export "$workspace" "$version" "$repository" infrastructure/installation-scripts
+
+    echo "@@STEP Disable docker download"
+    cd "$workspace"/infrastructure/installation-scripts
+    sed -i '/^DOCKER_STATIC_URL/,/^success "docker-compose saved"/{d}' download-resources.sh
+
+    echo "@@STEP Downloading k3s resources"
+    cd "$workspace"/infrastructure/installation-scripts
+    mkdir -p resources/docker
+    ensure_sudo ./download-resources.sh
+
+    echo "@@STEP Installing k3s"
+    ensure_sudo ./install-k3s.sh
+  fi
+}
+
+debian_30_start_k3s () {
+  configure_k3s "$@"
+  [ "$(ensure_prop get installed/k3s/owned)" = "true" ] || return 0
+
+  if kubectl status > /dev/null 2>&1; then
+    echo "k3s is started" >&2
+  else
+    cd "$workspace"/infrastructure/installation-scripts &&
+    ensure_sudo ./kubernetes-provision.sh
+  fi
+}
+
+debian_30_remove_k3s () {
+  [ "$(ensure_prop get installed/k3s/owned)" = "true" ] || return 0
+  local script found=0 kubeconfig=0
+  # the blueprint copies the K3s kubeconfig to ~/.kube/config; drop it only if unchanged
+  [ ! -f "$HOME"/.kube/config ] || ! ensure_sudo cmp -s /etc/rancher/k3s/k3s.yaml "$HOME"/.kube/config || kubeconfig=1
+  for script in /usr/local/bin/k3s-uninstall.sh /usr/local/bin/k3s-agent-uninstall.sh; do
+    [ -x "$script" ] || continue
+    found=1
+    echo "Removing the K3s runtime ($script)..."
+    ensure_sudo "$script"
+  done
+  [ $found -eq 1 ] || echo "K3s uninstall script not found; assuming K3s was already removed."
+  [ $kubeconfig -eq 0 ] || rm -f "$HOME"/.kube/config
+  ensure_rm "$workspace"
+}
+

@@ -98,7 +98,7 @@ This map is grounded in `chart/Chart.yaml`, `chart/values.yaml`, the override fi
 | `vllm.model.maxNumBatchedTokens` | `2048` | vLLM batching limit. |
 | `vllm.model.tensorParallelSize` | `1` | vLLM tensor parallel size. |
 | `rabbitmq.enabled` | `false` | Enabled by summary/unified. Service name `rabbitmq`. |
-| `audioanalyzer.enabled` | `false` | Enabled by summary/unified. Image `intel/audio-analyzer:1.3.3`. |
+| `audioanalyzer.enabled` | `false` | Enabled by summary/unified. Image `intel/audio-analyzer:2026.3.0-20261027-weekly`. |
 | `videoingestion.enabled` | `false` | Enabled by summary/unified. Image `intel/video-ingestion:2026.1.0-rc1`. |
 | `multimodalembeddingms.enabled` | `false` | Enabled by search/unified. Image `intel/multimodal-embedding-serving:2026.1.0-rc1`. |
 | `multimodaldataprep.enabled` | `false` | Enabled by search/unified. Image `intel/multimodal-dataprep:2026.1.0-rc1`. |

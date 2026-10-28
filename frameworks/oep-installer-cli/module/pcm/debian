@@ -2,7 +2,7 @@
 configure_pcm () {
   workspace="$(ensure_project_path)/pcm"
   repository="https://github.com/intel/pcm.git"
-  version=tags/202604
+  version=e534201d0fe6d6e3bc5fee54b229f215b976efbc
 }
 
 verify_pcm () {
@@ -10,7 +10,7 @@ verify_pcm () {
 }
 
 debian_40_profile_pcm () {
-  echo "git make cmake kernel_module_essential"
+  echo "pkg_config git make cmake kernel_module_essential msr_tools"
 }
 
 debian_40_install_pcm () {
@@ -18,7 +18,12 @@ debian_40_install_pcm () {
   if verify_pcm && [[ " $* " != *" --reinstall "* ]]; then
     echo "pcm is installed." >&2
   else
+    ensure_prop set installed/pcm/owned true
+
+    echo "@@STEP Installing build tools"
     configure_kernel_module_essential_debian "$@"
+
+    echo "@@STEP Building PCM"
     ensure_git_export "$workspace" "$version" "$repository"
     rm -rf "$workspace"/tests "$workspace"/examples
     mkdir "$workspace"/build "$workspace"/tests "$workspace"/examples
@@ -28,13 +33,21 @@ debian_40_install_pcm () {
     cmake --build . 
     ensure_sudo make install
     make clean
+
+    echo "@@STEP Configuring mods"
+    echo "msr" | ensure_sudo tee /etc/modules-load.d/99-intel-pcm.conf > /dev/null
+    ensure_sudo systemctl restart systemd-modules-load
+
     verify_pcm
   fi
 }
 
 debian_40_remove_pcm () {
   configure_pcm
+  [ "$(ensure_prop get installed/pcm/owned)" = "true" ] || return 0
+
   ensure_rm "$workspace" /usr/local/share/pcm /usr/local/sbin/pcm /usr/local/sbin/pcm-* \
-    /usr/local/bin/pcm-* /usr/local/share/licenses/pcm /usr/local/share/doc/PCM
+    /usr/local/bin/pcm-* /usr/local/share/licenses/pcm /usr/local/share/doc/PCM \
+    /etc/modules-load.d/99-intel-pcm.conf
 }
 

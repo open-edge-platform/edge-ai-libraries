@@ -52,7 +52,7 @@ curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-librarie
 <hr>
 
 > Prefer a guided experience? **[Open the OEP CLI Installer Web UI »](https://docs.openedgeplatform.intel.com/dev/OEP-articles/oep-cli-installer/index.html)**
-> to pick a profile and module and copy the exact install command.
+> to pick one profile and one or more of its modules and copy the exact install command.
 
 <hr>
 

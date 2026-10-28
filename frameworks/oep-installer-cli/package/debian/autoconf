@@ -1,0 +1,12 @@
+
+debian_30_install_autoconf () {
+  ensure_apt_install_package autoconf
+}
+
+debian_30_remove_autoconf () {
+  ensure_apt_remove_package autoconf
+}
+
+debian_30_sbom_autoconf () {
+  ensure_sbom_format pkg-list autoconf
+}

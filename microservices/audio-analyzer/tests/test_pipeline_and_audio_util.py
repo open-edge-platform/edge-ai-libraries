@@ -277,14 +277,17 @@ class ASRBackendSelectionTests(unittest.TestCase):
         ASRComponent._models = {}
 
     def test_whispercpp_backend_forces_cpu(self):
-        with patch("components.asr_component.WhisperCpp") as whispercpp_cls:
+        # NOTE: backend classes are imported lazily inside _resolve_backend
+        # (see components/asr_component.py), so the patch target is the
+        # class's defining module, not components.asr_component itself.
+        with patch("components.asr.whispercpp.whisper.WhisperCpp") as whispercpp_cls:
             ASRComponent(session_id="test", provider="whispercpp", model_name="whisper-small", device="GPU")
 
         whispercpp_cls.assert_called_once_with("whisper-small", "CPU", None)
 
     def test_openvino_backend_honors_ov_genai_toggle(self):
-        with patch("components.asr_component.OVGenAIWhisper") as ov_genai_cls, patch(
-            "components.asr_component.OV_Whisper"
+        with patch("components.asr.openvino_genai.whisper.Whisper") as ov_genai_cls, patch(
+            "components.asr.openvino.whisper.Whisper"
         ) as ov_cls, patch("components.asr_component.config.app.use_ov_genai", True):
             ASRComponent(session_id="test", provider="openvino", model_name="whisper-small", device="CPU")
 
@@ -292,7 +295,7 @@ class ASRBackendSelectionTests(unittest.TestCase):
         ov_cls.assert_not_called()
 
     def test_openvino_backend_is_cached_per_device(self):
-        with patch("components.asr_component.OV_Whisper") as ov_cls, patch(
+        with patch("components.asr.openvino.whisper.Whisper") as ov_cls, patch(
             "components.asr_component.config.app.use_ov_genai", False
         ):
             ov_cls.side_effect = [object(), object()]
@@ -309,6 +312,28 @@ class ASRBackendSelectionTests(unittest.TestCase):
         self.assertEqual(ov_cls.call_count, 2)
         self.assertIs(cpu_first.asr, cpu_second.asr)
         self.assertIsNot(cpu_first.asr, gpu.asr)
+
+    def test_module_does_not_eagerly_import_all_provider_backends(self):
+        """Image-size regression guard (review point #4).
+
+        components/asr_component.py used to import all four ASR backend
+        classes (openai, legacy openvino, openvino-genai, whispercpp) at
+        module load time, which forced every provider's dependencies
+        (including openai-whisper/torch/tiktoken and pywhispercpp) to be
+        installed even for deployments that only ever use the configured
+        default (openvino-genai). Backend imports are now deferred to
+        _resolve_backend() at the point of actual selection. This test
+        guards against that regressing back to eager, unconditional imports.
+        """
+        import components.asr_component as asr_component_module
+
+        for eager_name in ("OA_Whisper", "OV_Whisper", "OVGenAIWhisper", "WhisperCpp"):
+            self.assertFalse(
+                hasattr(asr_component_module, eager_name),
+                f"components.asr_component should not eagerly bind {eager_name} at module "
+                "scope -- backend classes must be imported lazily inside _resolve_backend() "
+                "so a slim image can omit unused providers' dependencies.",
+            )
 
 
 class WhisperCppTests(unittest.TestCase):
@@ -620,7 +645,7 @@ class ASRPoolCacheTests(unittest.TestCase):
         ASRComponent._models = {}
 
     def test_pools_do_not_evict_each_other(self):
-        with patch("components.asr_component.OV_Whisper") as ov_cls, patch(
+        with patch("components.asr.openvino.whisper.Whisper") as ov_cls, patch(
             "components.asr_component.config.app.use_ov_genai", False
         ):
             ov_cls.side_effect = [object(), object(), object()]
@@ -637,7 +662,7 @@ class ASRPoolCacheTests(unittest.TestCase):
         self.assertIsNot(final.asr, preview.asr)
 
     def test_same_pool_different_device_are_both_cached(self):
-        with patch("components.asr_component.OV_Whisper") as ov_cls, patch(
+        with patch("components.asr.openvino.whisper.Whisper") as ov_cls, patch(
             "components.asr_component.config.app.use_ov_genai", False
         ):
             ov_cls.side_effect = [object(), object()]

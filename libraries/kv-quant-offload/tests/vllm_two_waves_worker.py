@@ -3,26 +3,10 @@
 
 """Worker invoked by vllm-bench-two-waves.sh.
 
-Sends NUM_REQUESTS concurrent streaming chat-completion requests against a
-running vLLM server, measuring each request's own TTFT (time to first
-content token) and TPOT (mean inter-token latency over the remaining
-tokens).
-
-Each request gets a distinct, deterministically generated prompt: sentences
-from two fixed seed texts (Harry Potter / Pride and Prejudice openings) are
-pooled together and shuffled with a per-request-index seed, so within one
-wave every request's prompt is different (no shared prefix -> no prefix/KV
-cache hits between them), while the same request index produces the exact
-same prompt on every invocation (wave) -- letting you compare wave1 (cold)
-vs wave2 (e.g. KV-cache-warmed) latency for "the same" request. Each
-generated prompt is then repeated/truncated (via the model's own tokenizer,
-loaded from $TOKENIZER_PATH/$MODEL) to exactly INPUT_LEN tokens.
-
-Also reports each request's cached_tokens (vLLM local prefix cache + LMCache
-external cache hits, combined -- the server does not split the two out), via
-usage.prompt_tokens_details.cached_tokens. This requires vLLM to be started
-with --enable-prompt-tokens-details (that flag is off by default; without it
-cached_tokens will be reported as None).
+Sends NUM_REQUESTS concurrent streaming chat requests and measures per-request
+TTFT, TPOT and cached_tokens (needs --enable-prompt-tokens-details on the server).
+Prompts are deterministic per request index and distinct within a wave (shuffled
+seed-text sentences, trimmed to INPUT_LEN tokens), so wave 2 repeats wave 1 exactly.
 """
 
 import json
@@ -36,14 +20,10 @@ import urllib.request
 from transformers import AutoTokenizer
 
 BASE_URL = f"http://{os.environ['HOST']}:{os.environ['PORT']}"
-# Served model name, used as the "model" field in API requests.
+# Served model name (API "model" field).
 SERVE = os.environ["SERVE"]
-# Model name/subdirectory under TOKENIZER_PATH; matches the vLLM server's
-# --model basename, not the served-model-name.
+# Model subdir under TOKENIZER_PATH (vLLM --model basename).
 MODEL = os.environ.get("MODEL", SERVE)
-# Directory containing the model, mounted at /models in the container. Joined
-# with MODEL to form the path AutoTokenizer resolves -- same join the shell
-# script applies for `vllm bench serve --model`.
 TOKENIZER_PATH = os.path.join(os.environ.get("TOKENIZER_PATH", "/models"), MODEL)
 KEY = os.environ["KEY"]
 MAX_TOKENS = int(os.environ["MAX_TOKENS"])

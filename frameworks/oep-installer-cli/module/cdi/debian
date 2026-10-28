@@ -1,0 +1,75 @@
+
+configure_cdi () {
+  workspace="$(ensure_project_path)/cdi"
+  repository="https://github.com/open-edge-platform/edge-node-infrastructure-blueprint.git"
+  version=8e6f01943286f0e838dad3bf46390119b7645ad2
+
+  cdi_path="/opt/edge/scripts/cdi"
+  docker_config="/etc/docker/daemon.json"
+}
+
+verify_cdi () {
+  [[ -e $cdi_path/intel-cdi-specs-generator-gpu && -e $cdi_path/intel-cdi-npu-generator.sh ]] || { 
+    echo "Missing cdi generator scripts" >&2
+    return 1
+  }
+}
+
+debian_55_profile_cdi () {
+  echo "git golang python3_venv docker_io"
+}
+
+debian_55_install_cdi () {
+  configure_cdi
+  if verify_cdi && [[ " $* " = *" --reinstall "* ]]; then
+    echo "CDI scripts are installed" >&2
+  else
+    ensure_sudo mkdir -p "$cdi_path"
+    ensure_git_export "$workspace" "$version" "$repository" infrastructure/installation-scripts/cdi
+
+    echo "@@STEP Building cdi generators"
+    cd "$workspace"/infrastructure/installation-scripts
+    ensure_sudo ./cdi/build-gpu-generator.sh
+
+    ensure_sudo install -m 755 cdi/intel-cdi-specs-generator-gpu /opt/edge/scripts/cdi/intel-cdi-specs-generator-gpu
+    ensure_sudo install -m 755 cdi/intel-cdi-npu-generator.sh /opt/edge/scripts/cdi/intel-cdi-npu-generator.sh
+
+	  if [ -f "$docker_config" ] && ! grep -q '"cdi"' "$docker_config" 2>/dev/null; then
+		  cp -f "$docker_config" "$workspace/${docker_config##*/}.bak"
+		  ensure_sudo python3 -c "
+import json
+f = open('$docker_config')
+config = json.load(f)
+f.close()
+config.setdefault('features', {})['cdi'] = True
+config.setdefault('cdi-spec-dirs', [])
+if '/etc/cdi' not in config['cdi-spec-dirs']: config['cdi-spec-dirs'].append('/etc/cdi')
+f = open('$docker_config', 'w')
+json.dump(config, f, indent=2)
+f.close()
+" 2>/dev/null || { 
+        echo "Could not configure Docker for CDI" >&2
+        return 1
+      }
+		  ensure_sudo systemctl restart docker || true
+    fi
+    ensure_sudo cdi/systemd/install-systemd.sh
+  fi
+}
+
+debian_55_remove_cdi () {
+  configure_cdi
+  [ "$(ensure_prop get installed/cdi/owned)" = "true" ] || return 0
+
+  if [ -e "$workspace"/${docker_config##*/}.bak ]; then
+    ensure_sudo cp -f "$workspace"/${docker_config##*/}.bak "$docker_config"
+    ensure_sudo systemctl restart docker || true
+  fi
+
+  cd "$workspace"/infrastructure/installation-scripts && {
+    ensure_sudo cdi/systemd/install-sysetmd.sh --uninstall
+  } || true
+
+  ensure_rm "$workspace" "$cdi_path"
+}
+

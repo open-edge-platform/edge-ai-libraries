@@ -117,7 +117,9 @@
     edge-ai-libraries for the full parameter reference per hub. Other
     exporters ignore the options that don't apply to them and say so
     (`--model-precision` also applies to the default `docker-pull`
-    exporter; `--model-revision` also to `hf-snapshot`).
+    and the `export-model-py` exporters, except for pre-converted
+    `OpenVINO/*` models, which are already quantized;
+    `--model-revision` also to `hf-snapshot`).
   - `hf-snapshot` — a plain `huggingface_hub.snapshot_download` in a host
     Python venv, no `optimum-cli` conversion step at all. For HF repos
     already published as ready-to-serve OpenVINO IR + an OVMS MediaPipe
@@ -136,6 +138,13 @@
   by side; OVMS itself auto-detects the `graph.pbtxt` sitting in
   `base_path`) whenever they produce one. `model-download` registers a
   download only if it contains a `graph.pbtxt` (see above).
+- With the default `docker-pull` exporter, if a model's
+  `generation_config.json` does not list the tokenizer's `eos_token` id in
+  `eos_token_id` (for example `OpenVINO/Qwen3.5-9B-int4-ov` omits
+  `<|im_end|>`, so OVMS never stops generating), the installer adds it,
+  on fresh pulls and on re-runs. Reasoning models can spend several
+  hundred tokens thinking before the answer, so a small `max_tokens` may
+  return an empty reply.
 - The **Inference Router** (IR) always sits in front of the model backend and
   is what agents are actually wired to (`harness_llm_endpoint`) — not
   optional, including when `HARNESS_LLM_ROUTER_ENDPOINT` points at an
@@ -208,8 +217,10 @@
 - `HARNESS_OVMS_IMAGE` (the serving image, default `2026.4.1-gpu`) and
   `HARNESS_OVMS_EXPORT_IMAGE` (the "-py" image the default `docker-pull`
   exporter converts models with, default `2026.1-py`) are pinned separately
-  because OVMS has not published a newer "-py" tag. The export is therefore
-  produced by an older OVMS than the one that serves it; this pairing is
+  because OVMS has not published a newer "-py" tag. Pre-converted
+  `OpenVINO/*` models need no conversion, so they are pulled with the
+  serving image itself and the two always match. Any other model is
+  converted by an older OVMS than the one that serves it; this pairing is
   only exercised by `test/full-flow-test.sh` on real hardware.
 - There is no default model: a full install needs `--model` (or
   `HARNESS_HF_MODEL`), prompted for on a terminal and an error otherwise,

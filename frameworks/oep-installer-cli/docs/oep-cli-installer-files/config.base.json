@@ -19,7 +19,7 @@
   },
 
   "profileCategory": { "key": "PROFILE", "label": "Profile", "type": "single" },
-  "moduleCategory": { "key": "MODULE", "label": "Module", "type": "single" },
+  "moduleCategory": { "key": "MODULE", "label": "Modules", "type": "multiple" },
 
   "profileOrder": [
     "computer_vision",
@@ -45,10 +45,10 @@
       "label": "Next Steps",
       "fallback": "Select a module to see next steps…",
       "startStop": {
-        "start": "openedge-cli start {{MODULE}}",
-        "stop": "openedge-cli stop {{MODULE}}"
+        "start": "openedge-cli start",
+        "stop": "openedge-cli stop"
       },
-      "remove": "openedge-cli remove {{TARGET}}"
+      "remove": "openedge-cli remove"
     },
     "getstarted": {
       "label": "Get Started",

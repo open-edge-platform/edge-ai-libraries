@@ -1,0 +1,22 @@
+
+debian_30_install_linux_tools () {
+  local name="linux-tools-$(uname -r)"
+  if ensure_apt_is_installed $name; then
+    echo "$name is installed." >&2
+  else
+    ensure_prop set installed/linux_tools/owned true
+    ensure_apt update
+    ensure_apt install --no-install-recommends -y linux-tools-common $name || ensure_apt install --no-install-recommends -y --no-install-recommends linux-tools-common linux-tools-generic
+  fi
+}
+
+debian_30_remove_linux_tools () {
+  local name="linux-tools-$(uname -r)"
+  [ "$(ensure_prop get installed/linux_tools/owned)" = "true" ] || return 0
+  ensure_apt autoremove -y $name || true
+}
+
+debian_30_sbom_linux_tools () {
+  ensure_sbom_format pkg-list linux-tools-common linux-tools-$(uname -r)
+}
+
