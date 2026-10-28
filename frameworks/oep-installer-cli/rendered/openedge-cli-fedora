@@ -2158,19 +2158,38 @@ act_resolve_args ()
 }
 act_suggest_modules () 
 { 
-    local name=$1 m dist max;
+    local name=$1 m dist d2 max_pre max_full n=${#1} k;
     local all_modules=(${_act_cache_names[*]:-${_act_cache_modules[*]}});
-    max=$(( ${#name} / 3 ));
-    ((max < 2)) && max=2;
+    max_full=$(( n <= 6 ? 1 : 2 ));
     for m in "${all_modules[@]}";
     do
-        if [[ "$m" == "$name"* || "$m" == *"$name"* || "$name" == *"$m"* ]]; then
-            echo "0 $m";
-        else
-            dist=$(_act_levenshtein "$name" "$m");
-            ((dist <= max)) && echo "$dist $m";
+        if [[ "$m" == "$name"* ]]; then
+            echo "0 0 $m";
+            continue;
         fi;
-    done | sort -n -k1,1 | head -n 3 | cut -d' ' -f2
+        if [[ "$m" == *"$name"* || "$name" == *"$m"* ]]; then
+            echo "1 0 $m";
+            continue;
+        fi;
+        for ((k=0; k<n && k<${#m}; k++))
+        do
+            [ "${name:k:1}" = "${m:k:1}" ] || break;
+        done;
+        max_pre=$(( (n - k) / 2 ));
+        ((max_pre < 1)) && max_pre=1;
+        ((max_pre > 3)) && max_pre=3;
+        if ((${#m} > n)); then
+            dist=$(_act_levenshtein "$name" "${m:0:n}");
+            d2=$(_act_levenshtein "$name" "${m:0:n+1}");
+            ((d2 < dist)) && dist=$d2;
+            if ((dist <= max_pre)); then
+                echo "2 $dist $m";
+                continue;
+            fi;
+        fi;
+        dist=$(_act_levenshtein "$name" "$m");
+        ((dist <= max_full)) && echo "3 $dist $m";
+    done | sort -k1,1n -k2,2n -k3,3 | awk 'NR==1{t=$1; d=$2} $1==t && $2==d' | head -n 3 | cut -d' ' -f3
 }
 act_validate_modules () 
 { 
