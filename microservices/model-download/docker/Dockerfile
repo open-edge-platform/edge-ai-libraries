@@ -32,7 +32,7 @@ RUN curl -fSL --retry 3 --connect-timeout 20 -o /tmp/ollama.tar.zst \
     rm -f /tmp/ollama.tar.zst
 
 # Install uv
-RUN pip install uv==0.12.5
+RUN pip install uv==0.13.4
 
 # Copy project files
 COPY pyproject.toml uv.lock /opt/
