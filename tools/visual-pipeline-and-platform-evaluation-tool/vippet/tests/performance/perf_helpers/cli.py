@@ -11,18 +11,19 @@ Effective configuration precedence (later wins)::
 
     built-in defaults -> YAML (--config / PERF_CONFIG) -> env vars -> CLI flags
 
-A normal run writes the fully resolved config to a private temp file,
-exports it through ``PERF_CONFIG_FILE`` and runs ``python -m pytest -m perf``
-in a subprocess. ``--dry-run`` prints the resolved matrix with exclusion
-reasons and exits without submitting any job.
+A normal run passes ``--config``, the setting flags and
+``--allow-matrix-drift`` to a ``python -m pytest -m perf`` subprocess through
+``PERF_CLI_LAYER``; pytest resolves them again, so the result artefact
+records the same values and sources. ``--dry-run`` prints the resolved
+matrix with exclusion reasons and exits without submitting any job.
 """
 
 import argparse
 import httpx
+import json
 import os
 import subprocess
 import sys
-import tempfile
 from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime
 from pathlib import Path
@@ -46,8 +47,16 @@ from .reporters import (
     load_result,
     resolve_result_json,
 )
+from .run_config import (
+    MATRIX_DRIFT_EXIT_CODE,
+    compare_with_recording,
+    describe_matrix_drift,
+    format_replay,
+    suite_revision,
+)
 from .settings import (
-    ENV_CONFIG_FILE,
+    ENV_ALLOW_MATRIX_DRIFT,
+    ENV_CLI_LAYER,
     PERF_DIR,
     SPECS,
     ResolvedSettings,
@@ -92,9 +101,18 @@ def build_parser() -> argparse.ArgumentParser:
         "--config",
         metavar="NAME_OR_PATH",
         help=(
-            "Config preset name in config/ (default, quick, full) or a YAML "
-            "path. Defaults to $PERF_CONFIG_FILE, then $PERF_CONFIG, then "
-            "'default'."
+            "Config preset name in config/ (default, quick, full), a YAML "
+            "path, or a result JSON / run directory to replay. Defaults to "
+            "$PERF_CONFIG_FILE, then $PERF_CONFIG, then 'default'."
+        ),
+    )
+    parser.add_argument(
+        "--allow-matrix-drift",
+        action="store_true",
+        help=(
+            "Replay only: run even if the matrix differs from the recorded "
+            f"one (exit {MATRIX_DRIFT_EXIT_CODE} otherwise). Applies to this "
+            f"run only and is never replayed. [env: {ENV_ALLOW_MATRIX_DRIFT}]"
         ),
     )
     mode = parser.add_mutually_exclusive_group()
@@ -285,6 +303,13 @@ def run_dry_run(
     )
     if not matrix.included:
         print(f"\nnote: {describe_no_cases(matrix)}", file=stdout)
+    if settings.recording is not None:
+        # No pytest selection here, so only the matrix itself is compared.
+        replay = compare_with_recording(settings, matrix, {"suite": suite_revision()})
+        print(f"\n{format_replay(replay)}", file=stdout)
+        if replay["matrix_drift"] and not settings.allow_matrix_drift:
+            print(f"error: {describe_matrix_drift(replay)}", file=stderr)
+            return MATRIX_DRIFT_EXIT_CODE
     return EXIT_OK
 
 
@@ -374,25 +399,17 @@ def build_pytest_command(pytest_args: Sequence[str]) -> list[str]:
 
 
 def run_pytest(
-    settings: ResolvedSettings,
+    cli_layer: Mapping[str, Any],
     pytest_args: Sequence[str],
     *,
     base_env: Mapping[str, str] | None = None,
     runner: Callable[..., subprocess.CompletedProcess[Any]] = subprocess.run,
 ) -> int:
+    """Run pytest, which resolves the settings again from *cli_layer*."""
     env = dict(os.environ if base_env is None else base_env)
-    env.update(settings_env(settings))
-
-    fd, config_file = tempfile.mkstemp(prefix="vippet-perf-", suffix=".yaml")
-    try:
-        # mkstemp creates the file with 0600 permissions.
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(settings.to_yaml())
-        env[ENV_CONFIG_FILE] = config_file
-        completed = runner(build_pytest_command(pytest_args), env=env, check=False)
-        return int(completed.returncode)
-    finally:
-        Path(config_file).unlink(missing_ok=True)
+    env[ENV_CLI_LAYER] = json.dumps(cli_layer)
+    completed = runner(build_pytest_command(pytest_args), env=env, check=False)
+    return int(completed.returncode)
 
 
 # --------------------------------------------------------------------------- #
@@ -408,11 +425,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     if namespace.report_output is not None and namespace.report_only is None:
         parser.error("--report-output requires --report-only")
 
+    overrides = cli_overrides(namespace)
     try:
         settings = resolve_settings(
             config=namespace.config,
             env=os.environ,
-            cli_overrides=cli_overrides(namespace),
+            cli_overrides=overrides,
+            allow_matrix_drift=namespace.allow_matrix_drift,
         )
     except SettingsError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -422,7 +441,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         return run_dry_run(settings)
     if namespace.report_only is not None:
         return run_report_only(settings, namespace.report_only, namespace.report_output)
-    return run_pytest(settings, pytest_args)
+    return run_pytest(
+        {
+            "config": namespace.config,
+            "overrides": overrides,
+            "allow_matrix_drift": namespace.allow_matrix_drift,
+        },
+        pytest_args,
+    )
 
 
 if __name__ == "__main__":

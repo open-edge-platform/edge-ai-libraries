@@ -12,7 +12,7 @@ import os
 import re
 from collections import defaultdict
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeGuard
 
 logger = logging.getLogger(__name__)
 
@@ -197,6 +197,16 @@ MAX_RESULT_JSON_BYTES = 50 * 1024 * 1024
 # Keeps benchmark_id safe to use as a file name: no "..", "/" or "\".
 _BENCHMARK_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 
+# Layout version of a result's "config" block (see perf_helpers.run_config).
+CONFIG_SCHEMA_VERSION = 1
+# (title, key) of the lists in config.replay, shared by console and HTML.
+REPLAY_SECTIONS: tuple[tuple[str, str], ...] = (
+    ("Setting changes", "setting_changes"),
+    ("Revision changes", "revision_changes"),
+    ("Matrix drift", "matrix_drift"),
+    ("Notes", "notes"),
+)
+
 
 class ReportInputError(ValueError):
     """Raised when a result file cannot be used to build a report."""
@@ -244,7 +254,7 @@ def load_result(path: Path) -> dict[str, Any]:
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ReportInputError(f"cannot read result {path}: {exc}") from exc
 
-    _validate_result(data, path)
+    validate_result(data, path)
     return data
 
 
@@ -264,7 +274,109 @@ def _check_test_case(tc: Any, index: int, path: Path) -> None:
         )
 
 
-def _validate_result(data: Any, path: Path) -> None:
+def _is_str_list(value: Any) -> bool:
+    return isinstance(value, list) and all(isinstance(item, str) for item in value)
+
+
+def _is_str_map(value: Any) -> bool:
+    return isinstance(value, dict) and all(isinstance(v, str) for v in value.values())
+
+
+def _is_int(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _is_record(record: Any, /, **fields: type) -> TypeGuard[dict[str, Any]]:
+    """True for a dict whose named fields have the given types (bools are not ints)."""
+    return isinstance(record, dict) and all(
+        _is_int(record.get(name)) if kind is int else isinstance(record.get(name), kind)
+        for name, kind in fields.items()
+    )
+
+
+def _check_config(config: Any, prefix: str) -> None:
+    """Structural check of the "config" block. Setting keys are not checked,
+    so results written by other suite versions can still be rendered."""
+    if not isinstance(config, dict):
+        raise ReportInputError(
+            f"{prefix}config must be an object; results written before the "
+            "config block existed are not supported. To fix: rerun the benchmark."
+        )
+
+    def require(ok: bool, what: str) -> None:
+        if not ok:
+            raise ReportInputError(f"{prefix}config.{what}")
+
+    require(
+        config.get("schema_version") == CONFIG_SCHEMA_VERSION,
+        f"schema_version must be {CONFIG_SCHEMA_VERSION}",
+    )
+    require(
+        _is_record(config.get("selector"), value=str, origin=str, path=str, sha256=str),
+        "selector must have string value, origin, path and sha256",
+    )
+    require(isinstance(config.get("values"), dict), "values must be an object")
+    for key in ("sources", "revisions"):
+        require(_is_str_map(config.get(key)), f"{key} must map to strings")
+    require(_is_str_list(config.get("pytest_args")), "pytest_args must be strings")
+    require(
+        config.get("filter_problem") is None
+        or isinstance(config["filter_problem"], str),
+        "filter_problem must be a string or null",
+    )
+    matrix = config.get("matrix")
+    require(
+        _is_record(matrix, included=list, excluded=list, missing_models=dict)
+        and all(
+            _is_record(
+                c,
+                case_id=str,
+                pipeline_id=str,
+                variant_id=str,
+                device_family=str,
+                pipeline_name=str,
+            )
+            for c in matrix["included"]
+        )
+        and all(
+            _is_record(
+                e,
+                pipeline_id=str,
+                pipeline_name=str,
+                variant=str,
+                reason=str,
+                detail=str,
+            )
+            for e in matrix["excluded"]
+        )
+        and all(_is_str_list(v) for v in matrix["missing_models"].values())
+        and _is_str_list(matrix.get("available_families"))
+        and _is_str_list(matrix.get("known_pipeline_ids"))
+        and isinstance(matrix.get("stream_counts"), list)
+        and all(_is_int(n) for n in matrix["stream_counts"]),
+        "matrix is malformed",
+    )
+    require(
+        isinstance(config.get("selection"), list)
+        and all(
+            _is_record(s, pipeline_id=str, variant_id=str, streams=int, test_id=str)
+            for s in config["selection"]
+        ),
+        "selection must list pipeline_id, variant_id, streams and test_id",
+    )
+    replay = config.get("replay")
+    require(
+        replay is None
+        or (
+            _is_record(replay, benchmark_id=str, sha256=str, allow_matrix_drift=bool)
+            and all(_is_str_list(replay.get(key)) for _, key in REPLAY_SECTIONS)
+        ),
+        "replay is malformed",
+    )
+
+
+def validate_result(data: Any, path: Path) -> None:
+    """Raise ReportInputError unless *data* is a well-formed result."""
     prefix = f"invalid result {path}: "
     if not isinstance(data, dict):
         raise ReportInputError(f"{prefix}top level must be an object")
@@ -304,6 +416,8 @@ def _validate_result(data: Any, path: Path) -> None:
 
     if "system_info" in data and not isinstance(data["system_info"], dict):
         raise ReportInputError(f"{prefix}system_info must be an object")
+
+    _check_config(data.get("config"), prefix)
 
 
 # ---------------------------------------------------------------------------
@@ -663,6 +777,153 @@ def _build_run_cards(run_meta: list[dict[str, Any]]) -> str:
     return "".join(cards)
 
 
+_ABSENT = object()
+
+
+def _setting_text(value: Any) -> str:
+    if isinstance(value, list):
+        return ", ".join(map(str, value)) or "(none)"
+    return str(value)
+
+
+def _html_table(headers: tuple[str, ...], rows: list[tuple[Any, ...]]) -> str:
+    head = "".join(f"<th>{_esc(h)}</th>" for h in headers)
+    body = "".join(
+        "<tr>" + "".join(f"<td>{_esc(cell)}</td>" for cell in row) + "</tr>"
+        for row in rows
+    )
+    return (
+        f'<div class="table-wrap"><table><thead><tr>{head}</tr></thead>'
+        f"<tbody>{body}</tbody></table></div>"
+    )
+
+
+def _build_settings_tables(runs: list[dict[str, Any]]) -> str:
+    """One column per run; with several runs, differing rows come first."""
+    configs = [run["config"] for run in runs]
+    keys = list(dict.fromkeys(key for config in configs for key in config["values"]))
+
+    def differs(key: str) -> bool:
+        values = [config["values"].get(key, _ABSENT) for config in configs]
+        return any(value != values[0] for value in values[1:])
+
+    def table(row_keys: list[str], row_class: str = "") -> str:
+        head = "<th>Setting</th>" + "".join(
+            f"<th>{_esc(run['benchmark_id'])}</th>" for run in runs
+        )
+        rows = []
+        for key in row_keys:
+            cells = "".join(
+                f"<td>{_esc(_setting_text(config['values'][key]))} "
+                f'<span class="src">{_esc(config["sources"].get(key, ""))}</span></td>'
+                if key in config["values"]
+                else "<td>—</td>"
+                for config in configs
+            )
+            rows.append(f'<tr class="{row_class}"><td>{_esc(key)}</td>{cells}</tr>')
+        return (
+            f'<div class="table-wrap"><table><thead><tr>{head}</tr></thead>'
+            f"<tbody>{''.join(rows)}</tbody></table></div>"
+        )
+
+    different = [key for key in keys if differs(key)]
+    same = [key for key in keys if key not in different]
+    if len(runs) == 1:
+        return f"<details open><summary>Settings</summary>{table(same)}</details>"
+    html_parts = []
+    if different:
+        html_parts.append(
+            f"<h4>Different between runs ({len(different)})</h4>"
+            + table(different, "diff")
+        )
+    html_parts.append(
+        f"<details><summary>Same in all runs ({len(same)})</summary>"
+        f"{table(same)}</details>"
+    )
+    return "".join(html_parts)
+
+
+def _build_run_config(run: dict[str, Any]) -> str:
+    """Collapsible selector, revisions, replay and matrix of one run."""
+    config = run["config"]
+    selector = config["selector"]
+    matrix = config["matrix"]
+    facts = [
+        ("Config", f"{selector['value']} ({selector['origin']})"),
+        ("Config file", selector["path"]),
+        ("Config SHA-256", selector["sha256"]),
+        *((f"Revision: {name}", value) for name, value in config["revisions"].items()),
+        ("pytest args", " ".join(config["pytest_args"]) or "(none)"),
+        *(
+            (f"Missing models: {pipeline_id}", ", ".join(models))
+            for pipeline_id, models in matrix["missing_models"].items()
+        ),
+    ]
+    if config["filter_problem"]:
+        facts.append(("Filter problem", config["filter_problem"]))
+    rows = "".join(
+        f'<div class="si-row"><dt>{_esc(k)}</dt><dd>{_esc(v)}</dd></div>'
+        for k, v in facts
+    )
+    parts = [f'<div class="sysinfo-card"><dl>{rows}</dl></div>']
+
+    replay = config["replay"]
+    if replay:
+        parts.append(
+            f"<h4>Replay of {_esc(replay['benchmark_id'])} "
+            f"(sha256 {_esc(replay['sha256'])})</h4>"
+        )
+        for title, key in REPLAY_SECTIONS:
+            items = "".join(f"<li>{_esc(item)}</li>" for item in replay[key])
+            parts.append(f"<h4>{_esc(title)}</h4><ul>{items or '<li>(none)</li>'}</ul>")
+
+    parts += [
+        "<h4>Selected tests</h4>",
+        _html_table(
+            ("Test", "Pipeline", "Variant", "Streams"),
+            [
+                (s["test_id"], s["pipeline_id"], s["variant_id"], s["streams"])
+                for s in config["selection"]
+            ],
+        ),
+        "<h4>Included pipeline variants</h4>",
+        _html_table(
+            ("Pipeline", "Variant", "Device family"),
+            [
+                (c["pipeline_id"], c["variant_id"], c["device_family"])
+                for c in matrix["included"]
+            ],
+        ),
+        "<h4>Excluded</h4>",
+        _html_table(
+            ("Pipeline", "Variant", "Reason", "Detail"),
+            [
+                (
+                    e["pipeline_id"] or e["pipeline_name"],
+                    e["variant"],
+                    e["reason"],
+                    e["detail"],
+                )
+                for e in matrix["excluded"]
+            ],
+        ),
+    ]
+    summary = "matrix and revisions" + (", replay" if replay else "")
+    return (
+        f"<details><summary>{_esc(run['benchmark_id'])}: {summary}</summary>"
+        f"{''.join(parts)}</details>"
+    )
+
+
+def _build_config_section(runs: list[dict[str, Any]]) -> str:
+    return f"""
+    <div class="section cfg" id="configuration">
+      <div class="section-header"><h2>Configuration</h2></div>
+      {_build_settings_tables(runs)}
+      {"".join(_build_run_config(run) for run in runs)}
+    </div>"""
+
+
 def generate_html_report(runs: list[dict[str, Any]]) -> str:
     """Generate a self-contained HTML benchmark report from one or more run dicts.
 
@@ -966,6 +1227,12 @@ td.hi {{ color: var(--text); font-weight: 500; }}
 .chip.cpu {{ background: rgba(0,113,197,.12); color: #0550ae; }}
 .chip.gpu {{ background: rgba(26,127,55,.12); color: #1a7f37; }}
 .chip.npu {{ background: rgba(176,136,0,.12); color: #9a6700; }}
+.cfg details {{ margin-bottom: 16px; }}
+.cfg summary {{ cursor: pointer; font-weight: 600; color: var(--text-2); padding: 6px 0; }}
+.cfg h4 {{ font-size: 12px; font-weight: 600; color: var(--text-2); margin: 16px 0 8px; }}
+.cfg ul {{ padding-left: 20px; }}
+.cfg .src {{ font-size: 11px; color: var(--text-3); }}
+.cfg tr.diff td {{ background: #fff8c5; }}
 </style>
 </head>
 <body>
@@ -983,6 +1250,7 @@ td.hi {{ color: var(--text); font-weight: 500; }}
   <nav class="sidebar">
     <div class="sidebar-section">Overview</div>
     <a href="#overview">Summary</a>
+    <a href="#configuration">Configuration</a>
     <div class="sidebar-section" style="margin-top:12px">Pipelines</div>
     {"".join(f'<a href="#{_slugify(p)}">{_esc(p)}</a>' for p in pipelines)}
   </nav>
@@ -1001,6 +1269,7 @@ td.hi {{ color: var(--text); font-weight: 500; }}
         {_build_run_cards(run_meta)}
       </div>
     </div>
+    {_build_config_section(runs)}
     {"".join(pipeline_sections_html)}
   </main>
 </div>

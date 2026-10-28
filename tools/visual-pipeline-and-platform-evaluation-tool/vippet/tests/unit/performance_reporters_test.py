@@ -16,6 +16,7 @@ Covers three previously-reported issues in the --report-only HTML renderer:
 """
 
 import copy
+import json
 import shutil
 import tempfile
 import unittest
@@ -27,6 +28,20 @@ from tests.performance.perf_helpers.reporters import (
     generate_html_report,
     load_result,
     resolve_result_json,
+)
+from tests.performance.perf_helpers.run_config import build_config_block
+from tests.performance.perf_helpers.settings import resolve_settings
+
+_CONFIG: dict[str, Any] = build_config_block(
+    resolve_settings("default", env={}),
+    matrix=None,
+    selection=[
+        {"pipeline_id": "od", "variant_id": "cpu", "streams": 1, "test_id": "t1"}
+    ],
+    revisions={"suite": "abc123", "vippet": "9.9"},
+    pytest_args=["-m", "perf"],
+    filter_problem=None,
+    replay=None,
 )
 
 _BASE_RESULT: dict[str, Any] = {
@@ -49,6 +64,7 @@ _BASE_RESULT: dict[str, Any] = {
     "summary": {"total": 1, "success": 1, "failed": 0, "skipped": 0},
     "hardware": {"CPU": ["Test CPU"]},
     "system_info": {"system": {"Processor": "Test CPU"}},
+    "config": _CONFIG,
 }
 
 
@@ -267,6 +283,93 @@ class TestLoadResultErrorHandling(unittest.TestCase):
 
         with self.assertRaises(ReportInputError):
             load_result(resolved)
+
+
+class TestConfigBlock(unittest.TestCase):
+    """The result's "config" block is required, checked and rendered."""
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+
+    def _load(self, result: dict[str, Any]) -> dict[str, Any]:
+        path = self.tmp / "result.json"
+        path.write_text(json.dumps(result), encoding="utf-8")
+        return load_result(path)
+
+    def test_valid_config_round_trips(self) -> None:
+        self.assertEqual(
+            self._load(_BASE_RESULT)["config"], json.loads(json.dumps(_CONFIG))
+        )
+
+    def test_missing_or_malformed_config_is_rejected(self) -> None:
+        result = copy.deepcopy(_BASE_RESULT)
+        del result["config"]
+        with self.assertRaisesRegex(ReportInputError, "To fix: rerun the benchmark"):
+            self._load(result)
+        for key, value in (
+            ("schema_version", 2),
+            ("sources", {"vippet.timeout": 1}),
+            ("selection", [{"pipeline_id": "od"}]),
+            ("replay", {"benchmark_id": "b"}),
+        ):
+            with self.subTest(key=key):
+                result = copy.deepcopy(_BASE_RESULT)
+                result["config"][key] = value
+                with self.assertRaisesRegex(ReportInputError, f"config.{key}"):
+                    self._load(result)
+
+    def test_settings_from_other_suite_versions_still_render(self) -> None:
+        result = copy.deepcopy(_BASE_RESULT)
+        result["config"]["values"]["old.setting"] = 1
+        del result["config"]["values"]["vippet.timeout"]
+        html_out = generate_html_report([self._load(result)])
+        self.assertIn("old.setting", html_out)
+
+    def test_single_run_lists_settings_sources_and_selection(self) -> None:
+        html_out = generate_html_report([_BASE_RESULT])
+        self.assertIn('href="#configuration"', html_out)
+        self.assertIn("<details open><summary>Settings</summary>", html_out)
+        self.assertIn(
+            'vippet.base_url</td><td>http://localhost/api/v1 <span class="src">yaml</span>',
+            html_out,
+        )
+        self.assertIn(
+            'metrics.metrics_url</td><td>http://localhost/metrics/stream <span class="src">default</span>',
+            html_out,
+        )
+        self.assertIn("<td>t1</td>", html_out)
+        self.assertIn("abc123", html_out)
+        self.assertNotIn("Different between runs", html_out)
+
+    def test_multi_run_highlights_differing_settings_first(self) -> None:
+        run2 = copy.deepcopy(_BASE_RESULT)
+        run2["benchmark_id"] = "bench_run_2"
+        run2["config"]["values"]["benchmark.stream_counts"] = [1, 5]
+        html_out = generate_html_report([_BASE_RESULT, run2])
+        self.assertIn("Different between runs (1)", html_out)
+        self.assertIn('<tr class="diff"><td>benchmark.stream_counts</td>', html_out)
+        self.assertLess(
+            html_out.index("benchmark.stream_counts"), html_out.index("vippet.base_url")
+        )
+
+    def test_config_values_are_escaped(self) -> None:
+        payload = "<img src=x onerror=alert(1)>"
+        result = copy.deepcopy(_BASE_RESULT)
+        result["config"]["values"]["benchmark.pipelines"] = [payload]
+        result["config"]["selection"][0]["test_id"] = payload
+        result["config"]["replay"] = {
+            "benchmark_id": "bench_a",
+            "sha256": "f00",
+            "allow_matrix_drift": False,
+            "setting_changes": [payload],
+            "revision_changes": [],
+            "matrix_drift": [],
+            "notes": [],
+        }
+        html_out = generate_html_report([self._load(result)])
+        self.assertNotIn(payload, html_out)
+        self.assertIn("Replay of bench_a", html_out)
 
 
 if __name__ == "__main__":

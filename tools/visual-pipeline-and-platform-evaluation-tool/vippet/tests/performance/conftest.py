@@ -4,8 +4,8 @@
 """Shared fixtures for VIPPET performance benchmark tests.
 
 Console output of a normal run, in order: ViPPET readiness -> discovered
-hardware -> benchmark matrix -> per-test status -> pytest summary ->
-benchmark artefacts.
+hardware -> benchmark matrix -> replay differences (replays only) ->
+per-test status -> pytest summary -> benchmark artefacts.
 """
 
 import contextlib
@@ -66,12 +66,11 @@ except SettingsError as exc:
 
 # Propagate perf config to env vars consumed by functional helpers. This must
 # run BEFORE importing ``helpers.*``: helpers.config reads these env vars once
-# at import time. These keys are env-backed in perf_helpers.settings, so an
-# already-exported value is what BASE_URL/POLL_* resolved to; setdefault only
-# fills in YAML/default values.
-os.environ.setdefault("VIPPET_BASE_URL", BASE_URL)
-os.environ.setdefault("VIPPET_JOB_TIMEOUT_SECONDS", str(POLL_TIMEOUT))
-os.environ.setdefault("VIPPET_JOB_POLL_INTERVAL", str(POLL_INTERVAL))
+# at import time. Overwritten, not defaulted: a CLI flag may have overridden
+# an exported value.
+os.environ["VIPPET_BASE_URL"] = BASE_URL
+os.environ["VIPPET_JOB_TIMEOUT_SECONDS"] = str(POLL_TIMEOUT)
+os.environ["VIPPET_JOB_POLL_INTERVAL"] = str(POLL_INTERVAL)
 
 from helpers.pipeline_case_helpers import wrap_cases_for_pytest  # noqa: E402
 from perf_helpers.discovery import discover_matrix  # noqa: E402
@@ -82,6 +81,14 @@ from perf_helpers.matrix import (  # noqa: E402
     describe_unknown_filter_ids,
     find_unknown_filter_ids,
     format_matrix,
+)
+from perf_helpers.run_config import (  # noqa: E402
+    MATRIX_DRIFT_EXIT_CODE,
+    build_config_block,
+    compare_with_recording,
+    describe_matrix_drift,
+    format_replay,
+    suite_revision,
 )
 from perf_helpers.system_info import collect_system_info  # noqa: E402
 
@@ -128,6 +135,13 @@ _LATEST_LINK_ERROR: str | None = None
 # pytest_collection_finish, because pytest turns an Exit raised inside
 # pytest_generate_tests into a collection error with a traceback.
 _FILTER_PROBLEM: tuple[str, bool] | None = None
+
+# Set once collection is final: the selected tests (pipeline_id, variant_id,
+# streams, test_id), the code revisions and, for a replay, the comparison
+# with the recorded run. All end up in the result's "config" block.
+_SELECTION: list[dict[str, Any]] = []
+_REVISIONS: dict[str, str] = {}
+_REPLAY: dict[str, Any] | None = None
 
 
 _QUICK_STREAM_COUNTS: set[int] = {1, 3}
@@ -529,9 +543,61 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     metafunc.parametrize(["pipeline_case", "stream_count"], params, ids=ids)
 
 
+def _selected_case(item: pytest.Item) -> dict[str, Any] | None:
+    """Return the selection record of a benchmark test, if it has a case."""
+    callspec = getattr(item, "callspec", None)
+    if callspec is None or "pipeline_case" not in callspec.params:
+        return None
+    case = _unwrap_case(callspec.params["pipeline_case"])[0]
+    if case is None:
+        return None
+    return {
+        "pipeline_id": case.pipeline_id,
+        "variant_id": case.variant_id,
+        "streams": callspec.params["stream_count"],
+        "test_id": item.nodeid,
+    }
+
+
+def _case_key(case: dict[str, Any]) -> tuple[str, str, int]:
+    return case["pipeline_id"], case["variant_id"], case["streams"]
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_collection_modifyitems(
+    config: pytest.Config, items: list[pytest.Item]
+) -> None:
+    """Record the final selection; a replay keeps only the recorded tests.
+
+    ``trylast`` so ``-k``/``-m`` have already deselected their tests.
+    """
+    global _SELECTION, _REVISIONS, _REPLAY
+    if _DISCOVERED_CASES is None:
+        return
+    recording = SETTINGS.recording
+    if recording is not None:
+        recorded = {_case_key(case) for case in recording.config["selection"]}
+        kept = [
+            item
+            for item in items
+            if (case := _selected_case(item)) and _case_key(case) in recorded
+        ]
+        if len(kept) < len(items):
+            config.hook.pytest_deselected(
+                items=[item for item in items if item not in kept]
+            )
+            items[:] = kept
+    _SELECTION = [case for case in map(_selected_case, items) if case]
+    _REVISIONS = {"suite": suite_revision(), "vippet": _VIPPET_VERSION}
+    if recording is not None:
+        _REPLAY = compare_with_recording(
+            SETTINGS, _DISCOVERED_CASES.matrix or Matrix(), _REVISIONS, _SELECTION
+        )
+
+
 @pytest.hookimpl(trylast=True)
 def pytest_collection_finish(session: pytest.Session) -> None:
-    """End the session cleanly when parametrization found invalid filter ids.
+    """End the session cleanly on invalid filter ids or replay matrix drift.
 
     ``trylast`` so the matrix (printed by the terminal reporter's own
     collection-finish hook) comes first and the error is the last thing shown.
@@ -542,28 +608,39 @@ def pytest_collection_finish(session: pytest.Session) -> None:
             "Invalid benchmark filter ids (see the error above)",
             returncode=_INVALID_FILTER_EXIT_CODE,
         )
+    if _REPLAY and _REPLAY["matrix_drift"] and not SETTINGS.allow_matrix_drift:
+        _error_console(session.config)(describe_matrix_drift(_REPLAY))
+        pytest.exit(
+            "Replay matrix drift (see the error above)",
+            returncode=MATRIX_DRIFT_EXIT_CODE,
+        )
 
 
 def pytest_report_collectionfinish(
     config: pytest.Config, start_path: Path, items: list[pytest.Item]
 ) -> list[str]:
-    """Print the benchmark matrix (or why there is none) right after collection."""
+    """Print the benchmark matrix (or why there is none) right after collection,
+    then, for a replay, how it differs from the recorded run."""
     if _DISCOVERED_CASES is None:
         return []
     _section(config, "Benchmark matrix")
     if _DISCOVERED_CASES.matrix is None:
         _error_console(config)(_DISCOVERED_CASES.error or "matrix not available")
-        return []
-    write = _console(config)
-    write(
-        format_matrix(_DISCOVERED_CASES.matrix, skip_missing_models=SKIP_MISSING_MODELS)
-    )
-    if not _DISCOVERED_CASES.matrix.included:
-        _console(config, yellow=True)(
-            f"note: {describe_no_cases(_DISCOVERED_CASES.matrix)}"
+    else:
+        _console(config)(
+            format_matrix(
+                _DISCOVERED_CASES.matrix, skip_missing_models=SKIP_MISSING_MODELS
+            )
         )
+        if not _DISCOVERED_CASES.matrix.included:
+            _console(config, yellow=True)(
+                f"note: {describe_no_cases(_DISCOVERED_CASES.matrix)}"
+            )
     if _FILTER_PROBLEM is not None and not _FILTER_PROBLEM[1]:
         _console(config, yellow=True)(f"warning: {_FILTER_PROBLEM[0]}")
+    if _REPLAY is not None:
+        _section(config, "Replay")
+        _console(config)(format_replay(_REPLAY))
     return []
 
 
@@ -683,6 +760,15 @@ def results_collector(
             },
             "hardware": hw_families,
             "system_info": system_info,
+            "config": build_config_block(
+                SETTINGS,
+                matrix=_DISCOVERED_CASES.matrix if _DISCOVERED_CASES else None,
+                selection=_SELECTION,
+                revisions=_REVISIONS,
+                pytest_args=request.config.invocation_params.args,
+                filter_problem=_FILTER_PROBLEM[0] if _FILTER_PROBLEM else None,
+                replay=_REPLAY,
+            ),
         }
         try:
             exporter = ResultExporter(output_dir, formats=RESULT_FORMATS)

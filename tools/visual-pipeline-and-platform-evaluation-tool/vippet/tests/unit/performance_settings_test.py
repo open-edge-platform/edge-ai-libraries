@@ -3,12 +3,15 @@
 
 """Unit tests for performance-benchmark settings resolution."""
 
+import hashlib
+import json
 import tempfile
 import unittest
 from pathlib import Path
 from typing import Any
 
 from tests.performance.perf_helpers import settings as s
+from tests.performance.perf_helpers.run_config import build_config_block
 
 
 def _flatten(data: dict[str, Any], prefix: str = "") -> set[str]:
@@ -134,23 +137,92 @@ class TestPrecedence(_TmpConfigMixin):
         explicit = self.write_config("{}\n", "explicit.yaml")
         from_file = self.write_config("{}\n", "file.yaml")
         env = {s.ENV_CONFIG_FILE: str(from_file), s.ENV_CONFIG: "quick"}
-        self.assertEqual(s.select_config_source(explicit, env), explicit)
-        self.assertEqual(s.select_config_source(None, env), from_file)
+        self.assertEqual(
+            s.select_config_source(explicit, env), (explicit, str(explicit), "--config")
+        )
+        self.assertEqual(
+            s.select_config_source(None, env),
+            (from_file, str(from_file), f"env {s.ENV_CONFIG_FILE}"),
+        )
         self.assertEqual(
             s.select_config_source(None, {s.ENV_CONFIG: "quick"}),
-            s.CONFIG_DIR / "quick.yaml",
+            (s.CONFIG_DIR / "quick.yaml", "quick", f"env {s.ENV_CONFIG}"),
         )
         self.assertEqual(
-            s.select_config_source(None, {}), s.CONFIG_DIR / "default.yaml"
+            s.select_config_source(None, {}),
+            (s.CONFIG_DIR / "default.yaml", "default", "the built-in default"),
         )
 
-    def test_round_trip_through_yaml(self) -> None:
-        resolved = s.resolve_settings(
-            "full", env={}, cli_overrides={"benchmark.pipelines": ["a", "b"]}
+    def test_records_selector_and_checksum(self) -> None:
+        path = self.write_config("benchmark:\n  stream_counts: [2]\n")
+        resolved = s.resolve_settings(path, env={})
+        self.assertEqual(resolved.config_selector, str(path))
+        self.assertEqual(
+            resolved.config_sha256, hashlib.sha256(path.read_bytes()).hexdigest()
         )
-        path = self.write_config(resolved.to_yaml())
-        again = s.resolve_settings(path, env={})
-        self.assertEqual(dict(again.values), dict(resolved.values))
+        self.assertIsNone(resolved.recording)
+
+
+class TestReplay(_TmpConfigMixin):
+    def write_result(self, settings: s.ResolvedSettings) -> Path:
+        config = build_config_block(
+            settings,
+            matrix=None,
+            selection=[],
+            revisions={},
+            pytest_args=[],
+            filter_problem=None,
+            replay=None,
+        )
+        result = {"benchmark_id": "bench_1", "test_cases": [], "config": config}
+        return self.write_config(json.dumps(result), "bench_1.json")
+
+    def test_recorded_values_are_the_yaml_layer(self) -> None:
+        original = s.resolve_settings(
+            "full",
+            env={"VIPPET_BASE_URL": "http://env:1/api/v1"},
+            cli_overrides={"benchmark.pipelines": ["a", "b"]},
+        )
+        path = self.write_result(original)
+        for config in (path, path.parent):
+            with self.subTest(config=config):
+                replay = s.resolve_settings(config, env={})
+                self.assertEqual(dict(replay.values), dict(original.values))
+                self.assertEqual(set(replay.sources.values()), {s.SOURCE_YAML})
+                recording = replay.recording
+                assert recording is not None
+                self.assertEqual(recording.benchmark_id, "bench_1")
+                self.assertEqual(
+                    recording.sha256,
+                    hashlib.sha256(path.read_bytes()).hexdigest(),
+                )
+
+    def test_derived_metrics_urls_are_frozen(self) -> None:
+        path = self.write_result(
+            s.resolve_settings(env={"VIPPET_BASE_URL": "http://old:1/api/v1"})
+        )
+        replay = s.resolve_settings(
+            path, env={"VIPPET_BASE_URL": "http://new:2/api/v1"}
+        )
+        self.assertEqual(replay["metrics.metrics_url"], "http://old:1/metrics/stream")
+
+    def test_settings_of_other_suite_versions_are_refused(self) -> None:
+        path = self.write_result(s.resolve_settings("default", env={}))
+        result = json.loads(path.read_text(encoding="utf-8"))
+        del result["config"]["values"]["vippet.timeout"]
+        result["config"]["values"]["vippet.old"] = 1
+        path.write_text(json.dumps(result), encoding="utf-8")
+        with self.assertRaisesRegex(
+            s.SettingsError, r"missing settings: \['vippet.timeout'\].*'vippet.old'"
+        ):
+            s.resolve_settings(path, env={})
+
+    def test_allow_matrix_drift_only_for_replays(self) -> None:
+        with self.assertRaisesRegex(s.SettingsError, "only applies to a replay"):
+            s.resolve_settings("default", env={}, allow_matrix_drift=True)
+        path = self.write_result(s.resolve_settings("default", env={}))
+        replay = s.resolve_settings(path, env={s.ENV_ALLOW_MATRIX_DRIFT: "true"})
+        self.assertTrue(replay.allow_matrix_drift)
 
 
 class TestDeriveMetricsDefaultsFromBaseUrl(unittest.TestCase):
