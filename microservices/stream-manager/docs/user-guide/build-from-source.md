@@ -20,17 +20,13 @@ This repository holds many projects. Use a sparse checkout to download only the
 
 ```bash
 git clone --no-checkout --filter=blob:none --single-branch \
-  --branch feat/stream-record-routers \
-  https://github.com/krish918/edge-ai-libraries.git
+  --branch main \
+  https://github.com/open-edge-platform/edge-ai-libraries.git
 cd edge-ai-libraries
 git sparse-checkout set --cone microservices/stream-manager
 git checkout
 cd microservices/stream-manager
 ```
-
-> [!NOTE]
-> This guide uses the `feat/stream-record-routers` branch for now. It will change to
-> the `main` branch after this work merges upstream.
 
 All other commands in this guide run from this `stream-manager` directory.
 
@@ -54,9 +50,14 @@ Or do both in one step:
 make start
 ```
 
-The application reads `config.json` from the current directory by default, if present.
-To use a file at a different path, set the `SM_CONFIG_FILE` environment variable before
-running the binary. See [Configuration](configuration.md) for all available settings.
+To use your own configuration file:
+
+```bash
+make run CONFIG_FILE=/path/to/config.json
+```
+
+See [Host run options](configuration.md#host-run-options) for defaults and
+host data directory settings.
 
 ## Build and run a container image
 
@@ -69,7 +70,7 @@ make docker-build
 The default image is `intel/stream-manager:latest`. To use a different image name or tag. For example:
 
 ```bash
-make docker-build IMAGE=my-registry/stream-manager:v1-dev
+make docker-build IMAGE=<your_image_name>:<tag>
 ```
 
 > [!NOTE]
@@ -86,38 +87,19 @@ make docker-build IMAGE=my-registry/stream-manager:v1-dev
 Run the image you built, or a published image you already have:
 
 ```bash
-make docker-run IMAGE=my-registry/stream-manager:v1.2.3
+make docker-run IMAGE=<your_image_name>:<tag>
 ```
 
 > [!NOTE]
 > `make docker-run` pulls the image if it is not present locally.
-> If you do not set `IMAGE`, it pulls and runs the default image.
-
-### Container run options
-
-| Variable | Purpose | Default |
-| --- | --- | --- |
-| `IMAGE` | Image name, optionally with `:tag` | `intel/stream-manager:latest` |
-| `CONTAINER_NAME` | Name assigned to the container | `stream-manager` |
-| `DATA_VOLUME` | Docker volume mounted at `/data` when `DATA_DIR` is empty | `stream-manager-data` |
-| `DATA_DIR` | Host directory bind-mounted at `/data`, instead of `DATA_VOLUME` | Empty (uses `DATA_VOLUME`) |
-| `CONFIG_FILE` | Host config file mounted at `/config.json` | Empty (uses built-in defaults) |
+> If you do not set `IMAGE`, it pulls and runs
+> the default image i.e. `intel/stream-manager:latest`.
 
 `make docker-run` publishes the container's port `8080` to a random host port.
 It prints the assigned port and the application and API docs URLs after it starts.
 
-An example run with the default image, an overridden `DATA_DIR`, and `CONFIG_FILE`:
-
-```bash
-make docker-run DATA_DIR=/path/to/data CONFIG_FILE=/path/to/config.json
-```
-
-See [Configuration](configuration.md) for all settings you can put in `config.json`.
-
-> [!CAUTION]
-> When you set `DATA_DIR`, the target changes ownership of that directory.
-> This might require `sudo` access.
-> Only point it at a directory meant for this application's data.
+See [Container run options](configuration.md#container-run-options) for configuration
+file and data mount options.
 
 Stop and remove the running container:
 

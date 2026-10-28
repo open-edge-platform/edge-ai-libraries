@@ -21,7 +21,6 @@ ACCESS_PORT    ?= 8080
 
 CONFIG_FILE    :=
 
-DATA_VOLUME    := stream-manager-data
 DATA_DIR       :=
 
 DOCS_PATH      := /docs/v1/index.html
@@ -43,27 +42,30 @@ endef
 help: ## Show this help
 	@echo "Host targets:"
 	@echo "  make build                 Build the binary into $(BIN_DIR)"
-	@echo "  make run                   Run the already-built binary"
+	@echo "  make run                   Run the already-built binary; optional CONFIG_FILE"
 	@echo "  make start                 Build then run the binary"
 	@echo "  make access-urls           Show URLs (ACCESS_PORT=$(ACCESS_PORT), must match app port)"
 	@echo ""
 	@echo "Container targets:"
 	@echo "  make docker-build          Build IMAGE (default: intel/stream-manager:latest)"
-	@echo "  make docker-run            Run IMAGE (local or pulled); ephemeral host port; see CONFIG_FILE, DATA_VOLUME, DATA_DIR"
+	@echo "  make docker-run            Run IMAGE (local or pulled); ephemeral host port; see CONFIG_FILE, DATA_DIR"
 	@echo "  make docker-stop           Stop and remove the running container (CONTAINER_NAME)"
 	@echo ""
 	@echo "  make clean                 Remove local build artifacts"
 
 build: ## Build the binary on host into ./bin
 	@mkdir -p $(BIN_DIR)
-	CGO_ENABLED=0 GOOS=linux go build -buildmode=pie -ldflags "$(LDFLAGS)" -o $(BINARY_PATH) ./cmd/api-server
+	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o $(BINARY_PATH) ./cmd/api-server
 	@echo "Built $(BINARY_PATH) (version $(VERSION), build $(BUILD_NUMBER))"
 
-run: ## Run the binary already built in ./bin
+ifneq ($(strip $(CONFIG_FILE)),)
+run: export SM_CONFIG_FILE = $(CONFIG_FILE)
+endif
+run: ## Run the binary already built in ./bin; optional CONFIG_FILE
 	@echo "Starting $(BINARY_PATH)"
 	@PORT=$(ACCESS_PORT); \
 	$(PRINT_ACCESS_URLS)
-	$(BINARY_PATH)
+	$(if $(strip $(CONFIG_FILE)),,env -u SM_CONFIG_FILE )$(BINARY_PATH)
 
 start: build run ## Build then run the binary on host
 
@@ -87,7 +89,7 @@ ifneq ($(strip $(DATA_DIR)),)
 	@sudo chmod 0700 $(DATA_DIR)
 	$(eval STORAGE_MOUNT := -v $(DATA_DIR):/data)
 else
-	$(eval STORAGE_MOUNT := -v $(DATA_VOLUME):/data)
+	$(eval STORAGE_MOUNT := -v stream-manager-data:/data)
 endif
 ifneq ($(strip $(CONFIG_FILE)),)
 	$(eval CONFIG_MOUNT := -v $(CONFIG_FILE):/config.json:ro)
@@ -99,7 +101,7 @@ endif
 	fi; \
 	SHM_SIZE="$${SHM_SIZE}m"; \
 	echo "Maximum memory available for buffer: $$SHM_SIZE"; \
-	docker run -d \
+	env -u SM_DATA_DIR -u SM_CONFIG_FILE -u SM_HTTP_ADDR docker run -d \
 		--rm \
 		--name $(CONTAINER_NAME) \
 		--pull missing \
@@ -108,7 +110,7 @@ endif
 		$(STORAGE_MOUNT) \
 		$(CONFIG_MOUNT) \
 		$(IMAGE_REF)
-	@PORT=$$(docker port $(CONTAINER_NAME) $(CONTAINER_PORT)/tcp | head -1 | cut -d: -f2); \
+	@PORT=$$(env -u SM_DATA_DIR -u SM_CONFIG_FILE docker port $(CONTAINER_NAME) $(CONTAINER_PORT)/tcp | head -1 | cut -d: -f2); \
 	if [ -z "$$PORT" ]; then echo "Could not determine the published container port." >&2; exit 1; fi; \
 	echo "Container '$(CONTAINER_NAME)' started."; \
 	$(PRINT_ACCESS_URLS)

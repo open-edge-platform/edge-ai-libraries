@@ -150,7 +150,7 @@ One record is one recording of one sensor.
 | `size_bytes` | integer, nullable | Size of the finished media; `null` until `ready`. |
 | `metadata` | object | Whatever metadata the caller supplied, or `{}` if none was. |
 | `creation_ts` | string (date-time) | Record creation time. |
-| `expiry_ts` | string (date-time), nullable | When retrieval becomes unavailable. It is set when the recording becomes `ready` or `failed` and `RecordingRetention` is set. |
+| `expiry_ts` | string (date-time), nullable | When retrieval becomes unavailable. It is `null` unless the deployment sets an expiry. |
 | `error_detail` | string, nullable | A short reason. It is present when `state` is `failed`. It is also present when `state` is `ready` and the storage quota stopped the recording early. |
 
 ```json
@@ -179,11 +179,11 @@ media.
 | `recording_id` | string | The record the media was taken from. |
 | `sensor_id` | string | The sensor the media belongs to. |
 | `requested_start_ts` | string (date-time) | Time the caller asked for. |
-| `requested_end_ts` | string (date-time), nullable | End the caller asked for (exclusive); `null` for a single frame. |
-| `start_ts` | string (date-time) | Real time of the returned frame, or first frame of the clip. |
-| `end_ts` | string (date-time), nullable | Where the clip really ends (exclusive); `null` for a single frame. |
+| `requested_end_ts` | string (date-time), nullable | Requested end time (exclusive); `null` for a single frame. |
+| `start_ts` | string (date-time) | Actual time of the returned frame, or first frame of the clip. It can be earlier than `requested_start_ts` because clips start at a keyframe. |
+| `end_ts` | string (date-time), nullable | Exclusive end bound of the requested clip interval (`requested_start_ts` + duration); it is not the timestamp of the last frame. `null` for a single frame. |
 | `url` | string | Origin-relative path that serves the file via [`GET /media/{recording-id}/{file}`](#get-produced-media) until `expiry_ts`. Never points at the original recording. |
-| `expiry_ts` | string (date-time) | When `url` stops working based on `DerivedMediaTTL`. It is `null` when the TTL is disabled. Recording expiry does not change this time. |
+| `expiry_ts` | string (date-time) | Always `null`. Frames and clips do not expire. Deleting the recording removes them. |
 
 ### Deletion
 
@@ -382,6 +382,7 @@ Content-Type: application/json
 |---|---|---|
 | 200 | — | The `Stream` object. |
 | 404 | `stream_not_found` | The stream is unknown or has been detached. |
+| 422 | `not_ntp_synced` | The stream failed because it is not synced with NTP and its timestamp confidence is `best_effort` or `unverified`. |
 
 ### Detach a stream
 
@@ -878,11 +879,14 @@ X-Exact-Match: false
 `GET /retrieve/{recording-id}/clip`
 
 The whole requested span must be covered by the recording; a gap returns `404`.
+The clip starts at the keyframe at or before `start_ts`. So the returned
+`start_ts` can be earlier than the requested time. `end_ts` is the exclusive
+end bound (`start_ts` + `duration`), not the last frame timestamp.
 
 | Parameter | In | Type | Required | Description |
 |---|---|---|---|---|
 | `recording-id` | path | string | yes | The recording, e.g. `rec-2`. |
-| `start_ts` | query | date-time | yes | Where the clip starts, inclusive. Must be RFC 3339 UTC and end in `Z`. |
+| `start_ts` | query | date-time | yes | Requested start time. The clip can start earlier, at the preceding keyframe. Must be RFC 3339 UTC and end in `Z`. |
 | `duration` | query | number | yes | Positive clip length in seconds. The full interval must be covered by the recording. |
 | `format` | query | string | no | `mp4` (default) |
 
@@ -893,8 +897,8 @@ curl -i "http://localhost:8080/v1/retrieve/rec-2/clip?start_ts=2026-09-16T09:12:
 ```http
 HTTP/1.1 200 OK
 Content-Type: application/json
-X-Frame-Timestamp: 2026-09-16T09:12:00.400000000Z
-X-Exact-Match: true
+X-Frame-Timestamp: 2026-09-16T09:12:00Z
+X-Exact-Match: false
 Cache-Control: no-store
 
 {
@@ -902,7 +906,7 @@ Cache-Control: no-store
   "sensor_id": "cam-07",
   "requested_start_ts": "2026-09-16T09:12:00.400000000Z",
   "requested_end_ts": "2026-09-16T09:12:05.400000000Z",
-  "start_ts": "2026-09-16T09:12:00.400000000Z",
+  "start_ts": "2026-09-16T09:12:00Z",
   "end_ts": "2026-09-16T09:12:05.400000000Z",
   "url": "/v1/media/rec-2/clip-0-5000000000.mp4",
   "expiry_ts": "2026-09-16T09:20:00.000000000Z"
@@ -933,10 +937,7 @@ curl -i "http://localhost:8080/v1/retrieve/rec-2/clip?start_ts=2026-09-16T09:12:
 
 `GET /media/{recording-id}/{file}`
 
-Serves a derived frame or clip. `DerivedMediaTTL` sets how many minutes it remains
-available. Set it to `0` to disable expiry. Recording expiry does not affect derived
-media, but deleting the recording removes it. `expiry_ts` is `null` when expiry is
-disabled. See [Configuration](../configuration.md#frame-and-clip-lifetime).
+Serves a derived frame or clip. Derived media does not expire. Recording expiry does not affect it, but deleting the recording removes it. `expiry_ts` is always `null`.
 
 | Parameter | In | Type | Required | Description |
 |---|---|---|---|---|

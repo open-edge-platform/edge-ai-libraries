@@ -134,6 +134,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Stream'
+        '422':
+          description: The stream failed because it did not reach NTP/keyframe readiness and its timestamp confidence is best_effort or unverified.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                status: 422
+                error_code: not_ntp_synced
+                error_detail: stream is not NTP synced
         '404':
           description: The stream is unknown or has been detached.
           content:
@@ -642,12 +652,13 @@ paths:
     get:
       tags: [Retrieval APIs]
       summary: Extracts a clip
-      description: Returns a JSON MediaResult by default. Accept video/mp4 selects MP4 bytes. Errors use JSON. The whole span must be covered; a gap gives 404.
+      description: |-
+        Returns a JSON MediaResult by default. Accept video/mp4 selects MP4 bytes. Errors use JSON. The whole requested span must be covered; a gap gives 404. The clip starts at the keyframe at or before start_ts, so the returned start_ts can be earlier than requested. The exclusive end_ts is requested_start_ts plus duration; it is not the last frame timestamp.
       parameters:
         - $ref: '#/components/parameters/RecordingId'
         - name: start_ts
           in: query
-          description: Where the clip starts, inclusive. Must be an RFC 3339 UTC timestamp ending in Z.
+          description: Requested start time. The clip can start earlier, at the preceding keyframe. Must be an RFC 3339 UTC timestamp ending in Z.
           required: true
           schema:
             type: string
@@ -697,7 +708,7 @@ paths:
                 sensor_id: cam-07
                 requested_start_ts: '2026-09-16T09:12:00.400000000Z'
                 requested_end_ts: '2026-09-16T09:12:05.400000000Z'
-                start_ts: '2026-09-16T09:12:00.400000000Z'
+                start_ts: '2026-09-16T09:12:00Z'
                 end_ts: '2026-09-16T09:12:05.400000000Z'
                 url: /v1/media/rec-2/clip-0-5000000000.mp4
                 expiry_ts: '2026-09-16T09:20:00.000000000Z'
@@ -788,7 +799,7 @@ paths:
     get:
       tags: [Retrieval APIs]
       summary: Gets a produced frame or clip
-      description: Serves a derived frame or clip. DerivedMediaTTL sets how many minutes it remains available; 0 disables expiry. Recording expiry does not affect derived media, but deleting the recording removes it. expiry_ts is null when expiry is disabled.
+      description: Serves a derived frame or clip. Derived media does not expire. Recording expiry does not affect it, but deleting the recording removes it. expiry_ts is always null.
       parameters:
         - $ref: '#/components/parameters/RecordingId'
         - name: file
@@ -1069,7 +1080,7 @@ components:
           type: string
           format: date-time
           nullable: true
-          description: When retrieval becomes unavailable. It is set when the recording becomes ready or failed and the deployment sets a retention period.
+          description: When retrieval becomes unavailable. It is null unless the deployment sets an expiry.
         error_detail:
           type: string
           nullable: true
@@ -1109,12 +1120,12 @@ components:
         start_ts:
           type: string
           format: date-time
-          description: The real time of the frame returned, or of the first frame of the clip.
+          description: The actual time of the frame returned, or of the first frame of the clip. A clip can start earlier than requested, at the preceding keyframe.
         end_ts:
           type: string
           format: date-time
           nullable: true
-          description: Where the clip really ends, that instant not included; empty for a single frame.
+          description: The exclusive end bound of the requested clip interval (requested_start_ts plus duration), not the last frame timestamp; empty for a single frame.
         url:
           type: string
           description: An origin-relative path that serves the produced file via GET /media/{recording-id}/{file} until expiry_ts. It never points at the original recording.
@@ -1122,7 +1133,7 @@ components:
           type: string
           format: date-time
           nullable: true
-          description: When url stops working based on DerivedMediaTTL. Recording expiry does not change this time. Null when the TTL is disabled.
+          description: Always null. Frames and clips do not expire. Deleting the recording removes them.
       example:
         recording_id: rec-2
         sensor_id: cam-07

@@ -15,7 +15,7 @@ image `intel/stream-manager:latest`.
 ## Run the application
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/krish918/edge-ai-libraries/feat/stream-record-routers/microservices/stream-manager/Makefile | make -f - docker-run
+curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/microservices/stream-manager/Makefile | make -f - docker-run
 ```
 
 This downloads the Makefile and runs it directly with `make`. It starts the
@@ -31,7 +31,7 @@ curl http://localhost:<port>/v1/status
 A healthy response looks like this:
 
 ```json
-{"status":"ok","version":"v1.0.0","build_number":"42","build_date":"2026-01-01T00:00:00+0000"}
+{"status":"ok","version":"<version>","build_number":"<build>","build_date":"2026-01-01T00:00:00+0000"}
 ```
 
 > [!TIP]
@@ -40,7 +40,7 @@ A healthy response looks like this:
 Stop and remove the running container:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/krish918/edge-ai-libraries/feat/stream-record-routers/microservices/stream-manager/Makefile | make -f - docker-stop
+curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/microservices/stream-manager/Makefile | make -f - docker-stop
 ```
 
 > [!NOTE]
@@ -48,27 +48,26 @@ curl -fsSL https://raw.githubusercontent.com/krish918/edge-ai-libraries/feat/str
 > The `make` command sets a custom shared memory size of the container.
 > This avoids issues of buffer failures when multiple streams are buffered simultaneously.
 
-## Keep your data on the host
+## Options to run the application
 
-By default, the above setup stores all data in a Docker volume. To use a host
-directory instead, set `DATA_DIR`:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/krish918/edge-ai-libraries/feat/stream-record-routers/microservices/stream-manager/Makefile | make -f - docker-run DATA_DIR=/path/to/data/dir
-```
-
-> [!NOTE]
-> `make` changes the ownership of the directory you bind-mount, so the application can
-> write to it. This needs `sudo` access. Enter your password if asked.
-
-## Use your own configuration file
-
-Set `CONFIG_FILE` to mount your `config.json` over the default one:
+Set `DATA_DIR` to store data in a host directory instead of the default Docker volume:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/krish918/edge-ai-libraries/feat/stream-record-routers/microservices/stream-manager/Makefile | make -f - docker-run CONFIG_FILE=/path/to/config.json
+curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/microservices/stream-manager/Makefile | make -f - docker-run DATA_DIR=/path/to/data
 ```
 
-See [Configuration](configuration.md) for all settings you can put in `config.json`.
+> [!CAUTION]
+> `DATA_DIR` changes the ownership of the selected host directory.
+> This can require `sudo` access. Select a directory only for Stream Manager data.
+
+Set `CONFIG_FILE` to use your own configuration file:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/microservices/stream-manager/Makefile | make -f - docker-run CONFIG_FILE=/path/to/config.json
+```
+
+You can use both options in the same command.
+See [Container run options](configuration.md#container-run-options) for all options
+and [Configuration](configuration.md#configjson-fields) for the configuration file settings.
 
 See [API Reference](api-docs/api-reference.md) for all available endpoints.
