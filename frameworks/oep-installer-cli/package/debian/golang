@@ -1,0 +1,12 @@
+
+debian_30_install_golang () {
+  ensure_apt_install_package golang
+}
+
+debian_30_remove_golang () {
+  ensure_apt_remove_package golang
+}
+
+debian_30_sbom_golang () {
+  ensure_sbom_format pkg-list golang
+}

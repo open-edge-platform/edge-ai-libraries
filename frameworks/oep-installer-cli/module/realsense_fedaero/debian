@@ -1,0 +1,59 @@
+
+configure_realsense_fedaero () {
+  workspace="$(ensure_project_path)/realsense-fedaero"
+  eci_repo_name=eci.intel.com
+  eci_key_url="https://$eci_repo_name/repos/gpg-keys/GPG-PUB-KEY-INTEL-ECI.gpg"
+  eci_key_file=/etc/apt/keyrings/intel-eci.gpg
+  eci_repo_list="deb [signed-by=$eci_key_file] https://$eci_repo_name/repos/$VERSION_CODENAME isar main"
+  eci_repo_list_file=/etc/apt/sources.list.d/intel-eci.list
+
+  rs_repo_name="librealsense.realsenseai.com"
+  rs_key_url="https://$rs_repo_name/Debian/librealsenseai.asc"
+  rs_key_file=/etc/apt/keyrings/librealsenseai.gpg
+  rs_list=/etc/apt/sources.list.d/librealsense.list
+  rs_deb_entry="deb [signed-by=$rs_key_file] https://$rs_repo_name/Debian/apt-repo $VERSION_CODENAME main"
+
+  rs_packages=(librealsense2 librealsense2-dkms librealsense2-utils librealsense2-dev librealsense2-gl)
+}
+
+debian_55_install_realsense_fedaero () {
+  configure_realsense_fedaero
+  if ensure_apt_is_installed ${rs_packages[*]} && [[ " $* " = *" --reinstall "* ]]; then
+    echo "realsense is installed" >&2
+  else
+    ensure_prop set installed/realsense_fedaero/owned true
+
+    echo "@@STEP Configuring Apt"
+    ensure_apt_key "$eci_key_file" "$eci_key_url" --dearmor
+    ensure_apt_source "$eci_repo_list_file" "$eci_repo_list"
+    ensure_apt_key "$rs_key_file" "$rs_key_url" --dearmor
+    ensure_apt_source "$rs_list" "$rs_deb_entry"
+    ensure_apt update -y
+    
+    echo "@@STEP Installing realsense"
+    ensure_apt install -y --no-install-recommends ${rs_packages[*]}
+  fi
+}
+
+debian_55_remove_realsense_fedaero () {
+  configure_realsense_fedaero
+  [ "$(ensure_prop get installed/realsense_fedaero/owned)" = "true" ] || return 0
+  ensure_apt purge --auto-remove ${rs_packages[*]}
+}
+
+debian_55_sbom_realsense_fedaero () {
+  configure_realsense_fedaero "$@"
+  ensure_sbom_format name "$eci_repo_name"
+  ensure_sbom_format gpg-key "$eci_key_url"
+  ensure_sbom_format key-file "$eci_key_file"
+  ensure_sbom_format apt-source "$eci_repo_list"
+  ensure_sbom_format apt-list-file "$eci_repo_list_file"
+  echo "---"
+  ensure_sbom_format name "$rs_repo_name"
+  ensure_sbom_format gpg-key "$rs_key_url"
+  ensure_sbom_format key-file "$rs_key_file"
+  ensure_sbom_format apt-source "$rs_deb_entry"
+  ensure_sbom_format apt-list-file "$rs_list"
+  ensure_sbom_format pkg-list "${rs_packages[@]}"
+}
+
