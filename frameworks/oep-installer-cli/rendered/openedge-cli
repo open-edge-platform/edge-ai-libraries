@@ -3035,7 +3035,7 @@ configure_osrf_gazebo_ros2 ()
 configure_pallet_defect_detection () 
 { 
     workspace="$(ensure_project_path)/pallet-defect-detection";
-    version=release-2026.2.0;
+    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
     repository="https://github.com/open-edge-platform/manufacturing-ai-suite.git";
     used_ports=(80 443 8000 3478);
     wait_timeout=120
@@ -3071,7 +3071,7 @@ configure_physical_ai_framework_device ()
             paif_extra=cu128;
         else
             paif_extra=cpu;
-            [ "$(ensure_select_device "$@")" = cpu ] || [ ! -e /dev/dri/renderD128 ] || paif_extra=xpu;
+            [ "$(ensure_parse_device "$@")" = cpu ] || [ ! -e /dev/dri/renderD128 ] || paif_extra=xpu;
         fi;
     fi;
     paif_index="https://download.pytorch.org/whl/$paif_extra"
@@ -3097,7 +3097,7 @@ configure_physical_ai_studio_device ()
             pais_extra=cuda;
         else
             pais_extra=cpu;
-            [ "$(ensure_select_device "$@")" = cpu ] || [ ! -e /dev/dri/renderD128 ] || pais_extra=xpu;
+            [ "$(ensure_parse_device "$@")" = cpu ] || [ ! -e /dev/dri/renderD128 ] || pais_extra=xpu;
         fi;
     fi;
     case "$pais_extra" in 
@@ -3433,7 +3433,7 @@ configure_video_search_and_summarization ()
     export APP_HOST_PORT=${APP_HOST_PORT:-12345};
     used_ports=($APP_HOST_PORT 3001 7890 6016 6008 8999 9777 8300 9300 8090 4001 4002 55555 9090 9273 5432 1883 5672 8640);
     [ ! -r "$workspace"/.device_from_install ] || set -- "$@" "--$(< "$workspace"/.device_from_install)";
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct;
     export ENABLED_WHISPER_MODELS=tiny.en,small.en,medium.en;
     export OD_MODEL_NAME=yolov8l-worldv2;
@@ -3499,7 +3499,7 @@ configure_visual_search_question_and_answering ()
     export REGISTRY=intel/;
     export TAG=latest;
     [ ! -r "$workspace"/.device_from_install ] || set -- "$@" "--$(< "$worksapce"/.device_from_install)";
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     export VLM_DEVICE=${device^^};
     export EMBEDDING_DEVICE=${device^^}
 }
@@ -5636,7 +5636,7 @@ debian_85_install_video_search_and_summarization ()
         ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}";
         verify_video_search_and_summarization;
     fi;
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     echo "$device" > "$workspace"/.device_from_install;
     echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT start|stop|remove"
@@ -5747,7 +5747,7 @@ debian_90_install_agentic_predictive_maintenance_pipeline ()
         ensure_fetch https://github.com/open-edge-platform/edge-ai-resources/raw/c13b8dbf23d514c2667d39b66615bd1400cb889d/videos/anomalib_pcb_test.avi resources/videos/datastream.mp4;
         verify_agentic_predictive_maintenance_pipeline;
     fi;
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     configure_agentic_predictive_maintenance_pipeline_device "${device^^}";
     echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]";
@@ -5788,7 +5788,7 @@ debian_90_install_autonomous_mobile_robot ()
         ensure_apt install -y "$amr_sdk_pkg";
         verify_autonomous_mobile_robot "$@";
     fi;
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     configure_autonomous_mobile_robot_device "${device^^}";
     echo "@@HIGHLIGHT Autonomous Mobile Robot ($amr_sdk_pkg, $amr_slam_pkg) installed for ROS 2 $ros_distro";
     echo "@@HIGHLIGHT shell env @source /opt/ros/$ros_distro/setup.bash";
@@ -5838,7 +5838,7 @@ debian_90_install_dine_in ()
         make build;
         verify_dine_in;
     fi;
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     configure_dine_in_device "${device^^}";
     echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]";
@@ -5956,7 +5956,7 @@ debian_90_install_live_video_alert_agent ()
         ensure_git_clone "$workspace" $version $repository live-video-analysis/live-video-alert-agent;
         verify_live_video_alert_agent;
     fi;
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     configure_live_video_alert_agent_device "${device^^}";
     echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]";
@@ -5980,7 +5980,7 @@ debian_90_install_live_video_captioning ()
         docker compose -f compose.yaml pull || docker compose -f compose.yaml build;
         verify_live_video_captioning;
     fi;
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     configure_live_video_captioning_device "${device^^}";
     echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start|remove"
@@ -6003,7 +6003,7 @@ debian_90_install_live_video_captioning_rag ()
         docker compose -f compose.yaml pull || docker compose -f compose.yaml build;
         verify_live_video_captioning_rag;
     fi;
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     configure_live_video_captioning_rag_device "${device^^}";
     echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]";
@@ -6020,7 +6020,7 @@ debian_90_install_live_video_search ()
         ensure_git_clone "$workspace" $version $repository live-video-analysis/live-video-search;
         verify_live_video_search;
     fi;
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     configure_live_video_search_device "$device";
     echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start|remove"
@@ -6039,7 +6039,7 @@ debian_90_install_loitering_detection ()
         ./install.sh loitering-detection $(ensure_ip);
         verify_loitering_detection;
     fi;
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     echo "$device" > "$workspace"/.device;
     echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]";
@@ -6087,7 +6087,7 @@ EOF
         sed -i -e 's|python3* -m venv venv|echo|' -e 's|pip3* install -r requirements.txt|echo|' Makefile;
         verify_loss_prevention;
     fi;
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     configure_loss_prevention_options "$device" "$@" --lp;
     echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start --od";
@@ -6119,7 +6119,7 @@ debian_90_install_multi_modal_patient_monitoring ()
         hf download Edoardo-BS/hubert-ecg-small --local-dir models/downloads/ai-ecg/hubert-ecg-small;
         verify_multi_modal_patient_monitoring;
     fi;
-    local device="$(ensure_select_device "$@")";
+    local device="$(ensure_parse_device "$@")";
     echo "${device^^}" > "$workspace"/multi_modal_patient_monitoring/.device;
     echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]";
@@ -6147,7 +6147,7 @@ EOF
 
         verify_multimodal_weld_defect_detection;
     fi;
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     configure_multimodal_weld_defect_detection_device "$device";
     echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start [--gpu|cpu]";
@@ -6178,14 +6178,14 @@ debian_90_install_nicu_warmer ()
         docker compose --profile dlsps build --build-arg http_proxy --build-arg https_proxy --build-arg no_proxy;
         verify_nicu_warmer;
     fi;
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     configure_nicu_warmer_device "$device";
     echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start|remove"
 }
 debian_90_install_pallet_defect_detection () 
 { 
-    configure_pallet_defect_detection;
+    configure_pallet_defect_detection "$@";
     if verify_pallet_defect_detection && [[ " $* " != *" --reinstall "* ]]; then
         echo "Pallet defect detection is installed." 1>&2;
     else
@@ -6209,7 +6209,7 @@ EOF
         ./setup.sh;
         verify_pallet_defect_detection;
     fi;
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     echo "_$device" > "$workspace"/.device;
     echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]";
@@ -6242,7 +6242,7 @@ EOF
         ./setup.sh;
         verify_pcb_anomaly_detection;
     fi;
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     echo "_$device" > "$workspace"/.device;
     echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install [--gpu|--npu|--cpu]";
@@ -6339,7 +6339,7 @@ EOF
 
         verify_post_fusion;
     fi;
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     configure_post_fusion_device "$device";
     echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install|start [--gpu/npu]";
@@ -6362,7 +6362,7 @@ debian_90_install_real_time_scene_understanding ()
         docker compose -f compose.yaml pull || docker compose -f compose.yaml build;
         verify_real_time_scene_understanding;
     fi;
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     configure_real_time_scene_understanding_device "${device^^}";
     echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]";
@@ -6402,7 +6402,7 @@ debian_90_install_smart_intersection ()
         ./install.sh smart-intersection $(ensure_ip);
         verify_smart_intersection;
     fi;
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     configure_smart_intersection_device "$device";
     echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]";
@@ -6429,7 +6429,7 @@ debian_90_install_smart_kiosk_assistant ()
         REGISTRY=true make build;
         docker compose pull --ignore-buildable;
     fi;
-    local device="$(ensure_select_device "$@")";
+    local device="$(ensure_parse_device "$@")";
     configure_smart_kiosk_assistant_device "${device^^}";
     echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install [--gpu|cpu]";
@@ -6472,7 +6472,7 @@ debian_90_install_smart_parking ()
         ./install.sh smart-parking $(ensure_ip);
         verify_smart_parking;
     fi;
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     echo "$device" > "$workspace"/.device;
     echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]";
@@ -6495,7 +6495,7 @@ debian_90_install_smart_traffic_intersection_agent ()
         check_and_setup_dependencies;
         verify_smart_traffic_intersection_agent;
     fi;
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     echo "$device" > "$workspace"/.device;
     echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install/start [--gpu|npu|cpu]";
@@ -6572,7 +6572,7 @@ debian_90_install_take_away ()
         make build;
         verify_take_away;
     fi;
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     configure_take_away_device "${device^^}";
     echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]";
@@ -6662,7 +6662,7 @@ ov.save_model(ppp.build(), "modified_yolov8n/yolov8n.xml")
         sed -i 's|^\( *\)\(volumes:\)|\1\2\n\1  - "${WORKSPACE}/videos:/opt/video:ro"|' docker-compose.yml;
         verify_video_processing_for_nvr;
     fi;
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     echo "$device" > "$workspace"/.device;
     echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install|start [--gpu|npu]";
@@ -6705,7 +6705,7 @@ debian_90_install_visual_search_question_and_answering ()
         ensure_rm "$HOST_DATA_PATH"/$(basename "$demo_dataset");
         verify_visual_search_question_and_answering;
     fi;
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     echo "$device" > "$workspace"/.device_from_input;
     echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start|remove"
@@ -6731,7 +6731,7 @@ EOF
 
         verify_wind_turbine_anomaly_detection;
     fi;
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     configure_wind_turbine_anomaly_detection_device "$device";
     echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start [--gpu|cpu]";
@@ -7133,7 +7133,7 @@ debian_90_remove_wind_turbine_anomaly_detection ()
 debian_90_sbom_autonomous_mobile_robot () 
 { 
     configure_autonomous_mobile_robot "$@";
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     configure_autonomous_mobile_robot_slam "${device^^}";
     sbom_oneapi_ros_openvino;
     echo "---";
@@ -7162,7 +7162,7 @@ debian_90_start_agentic_predictive_maintenance_pipeline ()
 { 
     configure_agentic_predictive_maintenance_pipeline;
     ensure_ports_open start agentic_predictive_maintenance_pipeline "${used_ports[@]}";
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_agentic_predictive_maintenance_pipeline_device "${device^^}";
     cd "$workspace"/agentic-predictive-maintenance-pipeline;
     . ./setup.sh --use-case pipeline-defect-detection;
@@ -7185,7 +7185,7 @@ debian_90_start_dine_in ()
 { 
     configure_dine_in "$@";
     ensure_ports_open start dine_in "${ports[@]}";
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_dine_in_device "${device^^}";
     cd "$workspace"/dine-in;
     make up;
@@ -7219,7 +7219,7 @@ debian_90_start_live_video_alert_agent ()
 { 
     configure_live_video_alert_agent;
     ensure_ports_open start live_video_alert_agent "${used_ports[@]}";
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_alert_agent_device "${device^^}";
     cd "$workspace"/live-video-analysis/live-video-alert-agent;
     if [[ "$(< docker/.env)" = *"LLM_TARGET_DEVICE=NPU"* ]]; then
@@ -7235,7 +7235,7 @@ debian_90_start_live_video_captioning ()
 { 
     configure_live_video_captioning;
     ensure_ports_open start live_video_captioning "${used_ports[@]}";
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_captioning_device "${device^^}";
     cd "$workspace"/live-video-analysis/live-video-captioning;
     docker compose -f compose.yaml up -d;
@@ -7246,7 +7246,7 @@ debian_90_start_live_video_captioning_rag ()
 { 
     configure_live_video_captioning_rag;
     ensure_ports_open start live_video_captioning_rag "${used_ports[@]}";
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_captioning_rag_device "${device^^}";
     cd "$workspace"/live-video-analysis/live-video-captioning-rag;
     docker compose -f compose.yaml up -d;
@@ -7257,7 +7257,7 @@ debian_90_start_live_video_search ()
 { 
     configure_live_video_search;
     ensure_ports_open start live_video_search "${used_ports[@]}";
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_search_device "$device";
     cd "$workspace"/live-video-analysis/live-video-search;
     set -a;
@@ -7271,7 +7271,7 @@ debian_90_start_loitering_detection ()
 { 
     configure_loitering_detection;
     ensure_ports_open start loitering_detection "${used_ports[@]}";
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || echo "$device" > "$workspace"/.device;
     cd "$workspace"/metro-vision-ai-app-recipe;
     docker compose -f compose-without-scenescape.yml up -d;
@@ -7296,7 +7296,7 @@ debian_90_start_loss_prevention ()
     configure_loss_prevention;
     ensure_ports_open start loss_prevention "${used_ports[@]}";
     cd "$workspace";
-    local device1=$(ensure_select_device "$@");
+    local device1=$(ensure_parse_device "$@");
     local device2=$(grep -m1 -E '^TARGET_DEVICE [?]=' Makefile | cut -f2 -d= | tr -d ' ');
     [[ " $* " = *" --$device1 "* || " $* " = *" --${device1^^} "* ]] || device1="${device2,,}";
     configure_loss_prevention_options "$device1" "$@";
@@ -7314,7 +7314,7 @@ debian_90_start_multi_modal_patient_monitoring ()
     configure_multi_modal_patient_monitoring;
     ensure_ports_open start multi_modal_patient_monitoring "${used_ports[@]}";
     cd "$workspace"/multi_modal_patient_monitoring;
-    local device="$(ensure_select_device "$@")" d;
+    local device="$(ensure_parse_device "$@")" d;
     [[ " ${*,,} " != *" --$device "* ]] || echo "${device^^}" > .device;
     device="$(< .device)";
     for d in ECG_DEVICE RPPG_DEVICE MDPNP_DEVICE POST_3D_DEVICE;
@@ -7330,7 +7330,7 @@ debian_90_start_multimodal_weld_defect_detection ()
 { 
     configure_multimodal_weld_defect_detection;
     ensure_ports_open start multimodal_weld_defect_detection "${used_ports[@]}";
-    local device="$(ensure_select_device "$@")";
+    local device="$(ensure_parse_device "$@")";
     [[ " ${*,,} " != *" --${device} "* ]] || configure_multimodal_weld_defect_detection_device $device;
     cd "$workspace"/industrial-edge-insights-multimodal;
     export TELEGRAF_INPUT_PLUGIN=mqtt_consumer;
@@ -7399,7 +7399,7 @@ debian_90_start_nicu_warmer ()
 { 
     configure_nicu_warmer "$@";
     ensure_ports_open start nicu_warmer "${used_ports[@]}";
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_nicu_warmer_device "$device";
     cd "$workspace"/NICU-Warmer;
     local device_env="$(grep -E ^DEVICE_ENV= .env | tail -n1 | cut -f2 -d=)";
@@ -7409,9 +7409,9 @@ debian_90_start_nicu_warmer ()
 }
 debian_90_start_pallet_defect_detection () 
 { 
-    configure_pallet_defect_detection;
+    configure_pallet_defect_detection "$@";
     ensure_ports_open start pallet_defect_detection "${used_ports[@]}";
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || echo "_$device" > "$workspace"/.device;
     cd "$workspace"/industrial-edge-insights-vision;
     docker compose up -d;
@@ -7447,7 +7447,7 @@ debian_90_start_pcb_anomaly_detection ()
 { 
     configure_pcb_anomaly_detection;
     ensure_ports_open start pcb_anomaly_detection "${used_ports[@]}";
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || echo "_$device" > "$workspace"/.device;
     cd "$workspace"/industrial-edge-insights-vision;
     docker compose up -d --wait;
@@ -7513,7 +7513,7 @@ debian_90_start_post_fusion ()
 { 
     configure_post_fusion "$@";
     debian_90_stop_post_fusion "$@";
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_post_fusion_device "$device";
     cd "$workspace"/sensor-fusion-for-traffic-management/post-fusion;
     local image="$(< .image)";
@@ -7535,7 +7535,7 @@ debian_90_start_real_time_scene_understanding ()
 { 
     configure_real_time_scene_understanding;
     ensure_ports_open start real_time_scene_understanding "${used_ports[@]}";
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_real_time_scene_understanding_device "${device^^}";
     cd "$workspace"/live-video-analysis/real-time-scene-understanding;
     docker compose -f compose.yaml up -d;
@@ -7559,7 +7559,7 @@ debian_90_start_smart_intersection ()
 { 
     configure_smart_intersection;
     ensure_ports_open start smart_intersection "${used_ports[@]}";
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_smart_intersection_device "$device";
     cd "$workspace"/metro-vision-ai-app-recipe;
     export SUPASS=$(cat smart-intersection/src/secrets/supass);
@@ -7573,7 +7573,7 @@ debian_90_start_smart_kiosk_assistant ()
 { 
     configure_smart_kiosk_assistant;
     ensure_ports_open start smart_kiosk_assistant "${used_ports[@]}";
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_smart_kiosk_assistant_device "${device^^}";
     cd "$workspace"/smart-kiosk-assistant;
     make up;
@@ -7595,7 +7595,7 @@ debian_90_start_smart_parking ()
 { 
     configure_smart_parking;
     ensure_ports_open start smart_parking "${used_ports[@]}";
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || echo "$device" > "$workspace"/.device;
     cd "$workspace"/metro-vision-ai-app-recipe;
     docker compose up -d;
@@ -7620,7 +7620,7 @@ debian_90_start_smart_traffic_intersection_agent ()
     configure_smart_traffic_intersection_agent "$@";
     ensure_ports_open start smart_traffic_intersection_agent "${used_ports[@]}";
     [ ! -r "$workspace"/.device ] || set -- "$@" "$(< "$workspace"/.device)";
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     export VLM_TARGET_DEVICE=${device^^};
     ensure_hf_token "$VLM_MODEL_NAME";
     export HUGGINGFACE_TOKEN="$HF_TOKEN";
@@ -7649,7 +7649,7 @@ debian_90_start_take_away ()
 { 
     configure_take_away "$@";
     ensure_ports_open start take_away "${used_ports[@]}";
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_take_away_device "${device^^}";
     cd "$workspace"/take-away;
     make up;
@@ -7671,7 +7671,7 @@ debian_90_start_video_processing_for_nvr ()
     configure_video_processing_for_nvr "$@";
     debian_90_stop_video_processing_for_nvr "$@";
     [ ! -r "$workspace"/.device ] || set -- "$@" --"$(< "$workspace"/.device)";
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     echo "@@HIGHLIGHT $installer_name start [--gpu|--npu]";
     echo "@@HIGHLIGHT $installer_name stop|remove";
     cd "$workspace"/video-processing-for-nvr/docker;
@@ -7709,7 +7709,7 @@ debian_90_start_wind_turbine_anomaly_detection ()
 { 
     configure_wind_turbine_anomaly_detection;
     ensure_ports_open start wind_turbine_anomaly_detection "${used_ports[@]}";
-    local device=$(ensure_select_device "$@");
+    local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --${device} "* ]] || configure_wind_turbine_anomaly_detection_device "$device";
     cd "$workspace"/industrial-edge-insights-time-series;
     make -o check_env_variables up_mqtt_ingestion app=wind-turbine-anomaly-detection num_of_streams=$nstreams num_of_data_points_per_stream=$npoints;
@@ -7875,7 +7875,7 @@ debian_90_stop_nicu_warmer ()
 }
 debian_90_stop_pallet_defect_detection () 
 { 
-    configure_pallet_defect_detection;
+    configure_pallet_defect_detection "$@";
     cd "$workspace"/industrial-edge-insights-vision && { 
         ./sample_stop.sh || true;
         docker compose down -v
@@ -8557,6 +8557,42 @@ ensure_osrf_gazebo_ros2 ()
     ensure_apt update -y;
     [ "$ros_distro" != jazzy ] || ensure_apt install -y gz-harmonic || true
 }
+ensure_parse_device () 
+{ 
+    local device="cpu";
+    local args_uc=" ${*^^} ";
+    [ ! -e /dev/accel/accel0 ] || device="npu";
+    [ ! -e /dev/dri/renderD128 ] || device="gpu";
+    [[ "$args_uc" != *" --CPU "* ]] || device="cpu";
+    [[ "$args_uc" != *" --NPU "* ]] || [ ! -e /dev/accel/accel0 ] || device="npu";
+    [[ "$args_uc" != *" --GPU "* ]] || [ ! -e /dev/dri/renderD128 ] || device="gpu";
+    echo $device
+}
+ensure_parse_value_option () 
+{ 
+    local key="$1";
+    shift;
+    local v v1 value="";
+    for v in $*;
+    do
+        case "$v" in 
+            "--$key="*)
+                value="${v#*=}"
+            ;;
+            "--$key")
+
+            ;;
+            *)
+                if [ "$v1" = "--$key" ]; then
+                    value="$v";
+                    v="";
+                fi
+            ;;
+        esac;
+        v1="$v";
+    done;
+    echo "$value"
+}
 ensure_ports_open () 
 { 
     local act_name="${1:?}";
@@ -8676,17 +8712,6 @@ ensure_sbom_format ()
             return 3
         ;;
     esac
-}
-ensure_select_device () 
-{ 
-    local device="cpu";
-    local args_uc=" ${*^^} ";
-    [ ! -e /dev/accel/accel0 ] || device="npu";
-    [ ! -e /dev/dri/renderD128 ] || device="gpu";
-    [[ "$args_uc" != *" --CPU "* ]] || device="cpu";
-    [[ "$args_uc" != *" --NPU "* ]] || [ ! -e /dev/accel/accel0 ] || device="npu";
-    [[ "$args_uc" != *" --GPU "* ]] || [ ! -e /dev/dri/renderD128 ] || device="gpu";
-    echo $device
 }
 ensure_skills () 
 { 
@@ -9076,7 +9101,7 @@ subcommand_install ()
             return 3;
         fi;
         [ $hit -eq 1 ] && out+=("${bind[@]}");
-        set -- "${out[*]}";
+        set -- "${out[@]}";
     fi;
     act_helper "install,Installation,Installing,Installed" "" "$@"
 }

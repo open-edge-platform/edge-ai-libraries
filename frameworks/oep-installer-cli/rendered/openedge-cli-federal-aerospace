@@ -4439,6 +4439,42 @@ ensure_osrf_gazebo_ros2 ()
     ensure_apt update -y;
     [ "$ros_distro" != jazzy ] || ensure_apt install -y gz-harmonic || true
 }
+ensure_parse_device () 
+{ 
+    local device="cpu";
+    local args_uc=" ${*^^} ";
+    [ ! -e /dev/accel/accel0 ] || device="npu";
+    [ ! -e /dev/dri/renderD128 ] || device="gpu";
+    [[ "$args_uc" != *" --CPU "* ]] || device="cpu";
+    [[ "$args_uc" != *" --NPU "* ]] || [ ! -e /dev/accel/accel0 ] || device="npu";
+    [[ "$args_uc" != *" --GPU "* ]] || [ ! -e /dev/dri/renderD128 ] || device="gpu";
+    echo $device
+}
+ensure_parse_value_option () 
+{ 
+    local key="$1";
+    shift;
+    local v v1 value="";
+    for v in $*;
+    do
+        case "$v" in 
+            "--$key="*)
+                value="${v#*=}"
+            ;;
+            "--$key")
+
+            ;;
+            *)
+                if [ "$v1" = "--$key" ]; then
+                    value="$v";
+                    v="";
+                fi
+            ;;
+        esac;
+        v1="$v";
+    done;
+    echo "$value"
+}
 ensure_ports_open () 
 { 
     local act_name="${1:?}";
@@ -4558,17 +4594,6 @@ ensure_sbom_format ()
             return 3
         ;;
     esac
-}
-ensure_select_device () 
-{ 
-    local device="cpu";
-    local args_uc=" ${*^^} ";
-    [ ! -e /dev/accel/accel0 ] || device="npu";
-    [ ! -e /dev/dri/renderD128 ] || device="gpu";
-    [[ "$args_uc" != *" --CPU "* ]] || device="cpu";
-    [[ "$args_uc" != *" --NPU "* ]] || [ ! -e /dev/accel/accel0 ] || device="npu";
-    [[ "$args_uc" != *" --GPU "* ]] || [ ! -e /dev/dri/renderD128 ] || device="gpu";
-    echo $device
 }
 ensure_skills () 
 { 
@@ -4901,7 +4926,7 @@ subcommand_install ()
             return 3;
         fi;
         [ $hit -eq 1 ] && out+=("${bind[@]}");
-        set -- "${out[*]}";
+        set -- "${out[@]}";
     fi;
     act_helper "install,Installation,Installing,Installed" "" "$@"
 }
