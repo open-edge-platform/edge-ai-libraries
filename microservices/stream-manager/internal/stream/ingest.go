@@ -59,7 +59,7 @@ func runIngest(ctx context.Context, executable, source string, buffer *RollingBu
 	defer input.close()
 	select {
 	case <-ctx.Done():
-		return fmt.Errorf("%w: no NTP/keyframe readiness within %s", ErrSourceFailed, timeout)
+		return fmt.Errorf("%w: no NTP/keyframe readiness within %s (%w)", ErrSourceFailed, timeout, ErrNotNTPSynced)
 	case err := <-input.failures:
 		return err
 	case <-input.ready:

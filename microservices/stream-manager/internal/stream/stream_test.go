@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -159,6 +160,34 @@ func TestServiceRetriesAttachAfterRealIngestFailure(t *testing.T) {
 	}
 	if err != nil || retryID == failedID {
 		t.Fatalf("retry: id %q, err %v", retryID, err)
+	}
+}
+
+func TestStreamSnapshotRetainsNTPReadinessFailure(t *testing.T) {
+	s := testService(t, 30)
+	s.ingest = func(context.Context, string, string, *RollingBuffer, func(bool), func(), time.Duration) error {
+		return fmt.Errorf("%w: no NTP/keyframe readiness", ErrNotNTPSynced)
+	}
+	id, err := s.CreateBuffer(context.Background(), "rtsp://camera.invalid/live", "camera", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(time.Second)
+	for {
+		info, err := s.GetStream(context.Background(), id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.State == "failed" {
+			if !errors.Is(info.IngestFailure, ErrNotNTPSynced) {
+				t.Fatalf("snapshot lost NTP readiness failure: %v", info.IngestFailure)
+			}
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("stream did not fail, state %q", info.State)
+		}
+		time.Sleep(time.Millisecond)
 	}
 }
 

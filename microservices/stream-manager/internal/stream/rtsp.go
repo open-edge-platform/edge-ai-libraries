@@ -10,6 +10,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -183,6 +184,7 @@ func openRTSP(ctx context.Context, sourceURI string, onFrame func(bool)) (_ *rts
 		ready:     make(chan struct{}),
 	}
 	if err := s.client.Start(); err != nil {
+		slog.Error(fmt.Sprintln(err))
 		return nil, fmt.Errorf("%w: start RTSP client", ErrSourceFailed)
 	}
 	s.stopContext = context.AfterFunc(ctx, s.client.Close)
@@ -218,6 +220,7 @@ func openRTSP(ctx context.Context, sourceURI string, onFrame func(bool)) (_ *rts
 	}
 	s.relay.sequenceOrigin = codec.sequenceOrigin
 	if _, err := s.client.Setup(desc.BaseURL, media, 0, 0); err != nil {
+		slog.Error(fmt.Sprintln(err))
 		return nil, fmt.Errorf("%w: set up RTSP video", ErrSourceFailed)
 	}
 	var started bool
@@ -365,6 +368,10 @@ type videoRelay struct {
 }
 
 func newVideoRelay(codec format.Format, onClosed func()) (*videoRelay, error) {
+	return newVideoRelayAt(codec, onClosed, "127.0.0.1:0")
+}
+
+func newVideoRelayAt(codec format.Format, onClosed func(), address string) (*videoRelay, error) {
 	relayUUID, err := uuid.NewRandom()
 	if err != nil {
 		return nil, err
@@ -375,7 +382,7 @@ func newVideoRelay(codec format.Format, onClosed func()) (*videoRelay, error) {
 		media:           &description.Media{Type: description.MediaTypeVideo, Formats: []format.Format{codec}},
 	}
 	r.server = &gortsplib.Server{
-		RTSPAddress: "127.0.0.1:0", Handler: r, DisableRTCPSenderReports: true,
+		RTSPAddress: address, Handler: r, DisableRTCPSenderReports: true,
 		WriteQueueSize: relayWriteQueueSize,
 	}
 	if err := r.server.Start(); err != nil {

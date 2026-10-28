@@ -25,6 +25,7 @@ type StreamBuffer struct {
 	BufferStat     bufferStat
 	FrameStat      frameStat
 	CreationTS     time.Time
+	IngestFailure  error
 }
 
 // BufferSlice is one MPEG-TS segment held in the buffer.

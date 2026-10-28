@@ -148,12 +148,17 @@ func testPublisherAt(t *testing.T, codec string, sendNTP bool, baseNTP time.Time
 
 func testPublisherWithStop(t *testing.T, codec string, sendNTP bool, baseNTP time.Time) (string, time.Time, func()) {
 	t.Helper()
+	return testPublisherWithStopAt(t, codec, sendNTP, baseNTP, "127.0.0.1:0")
+}
+
+func testPublisherWithStopAt(t *testing.T, codec string, sendNTP bool, baseNTP time.Time, address string) (string, time.Time, func()) {
+	t.Helper()
 	packets, adapter := videoFixture(t, codec)
 	if _, _, err := adapter.prepare(packets[0].au, false); err != nil {
 		t.Fatal(err)
 	}
 	adapter.frozen = true
-	relay, err := newVideoRelay(adapter.local, func() {})
+	relay, err := newVideoRelayAt(adapter.local, func() {}, address)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -351,7 +356,7 @@ func TestRTSPMissingNTP(t *testing.T) {
 	err := runIngest(ctx, "ffmpeg", source, buffer, func(bool) {}, func() {
 		t.Error("published a slice without a source NTP mapping")
 	}, time.Second)
-	if !errors.Is(err, ErrSourceFailed) {
+	if !errors.Is(err, ErrSourceFailed) || !errors.Is(err, ErrNotNTPSynced) {
 		t.Fatalf("missing NTP did not fail: %v", err)
 	}
 	if len(buffer.snapshot().Slices) != 0 {

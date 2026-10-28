@@ -116,6 +116,11 @@ func (h StreamHandler) Get(c *gin.Context) {
 		writeStreamError(c, err)
 		return
 	}
+	if sb.State == "failed" && errors.Is(sb.IngestFailure, stream.ErrNotNTPSynced) &&
+		(sb.SyncConfidence == model.SyncBestEffort || sb.SyncConfidence == model.SyncUnverified) {
+		writeStreamError(c, stream.ErrNotNTPSynced)
+		return
+	}
 	c.JSON(http.StatusOK, toStreamResponse(sb))
 }
 
@@ -154,6 +159,8 @@ func writeStreamError(c *gin.Context, err error) {
 		common.WriteError(c, http.StatusNotFound, "stream_not_found", "stream not found")
 	case errors.Is(err, stream.ErrStreamExists):
 		common.WriteError(c, http.StatusConflict, "stream_exists", err.Error())
+	case errors.Is(err, stream.ErrNotNTPSynced):
+		common.WriteError(c, http.StatusUnprocessableEntity, "not_ntp_synced", err.Error())
 	case errors.Is(err, stream.ErrActiveReaders):
 		common.WriteError(c, http.StatusConflict, "active_dependency", "active readers still need this buffer")
 	case errors.Is(err, stream.ErrUnsupportedSource):

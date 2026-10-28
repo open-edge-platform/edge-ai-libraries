@@ -66,6 +66,7 @@ type attachedStream struct {
 	created     time.Time
 	state       string
 	synced      bool
+	failure     error
 	arrivals    []time.Time
 	dropped     int64
 	buffer      *RollingBuffer
@@ -240,6 +241,9 @@ func (e *attachedStream) fail(err error) {
 	e.mu.Lock()
 	wasFailed := e.state == "failed"
 	e.state = "failed"
+	if !wasFailed {
+		e.failure = err
+	}
 	e.mu.Unlock()
 	e.buffer.fail(err)
 	if !wasFailed {
@@ -289,6 +293,7 @@ func (e *attachedStream) snapshot() (model.StreamBuffer, error) {
 	e.pruneArrivals(time.Now())
 	result.StreamID, result.SensorID, result.SourceURI, result.CreationTS = e.id, e.sensor, e.source, e.created
 	result.State, result.SyncConfidence = e.state, model.SyncUnverified
+	result.IngestFailure = e.failure
 	if e.synced {
 		result.SyncConfidence = model.SyncNTPSynced
 	}
@@ -439,5 +444,6 @@ var (
 	ErrSliceExpired       = errors.New("buffer slice exceeded its retention grace period")
 	ErrBufferClosed       = errors.New("buffer is closed")
 	ErrLeaseClosed        = errors.New("buffer lease is closed")
+	ErrNotNTPSynced       = errors.New("stream is not NTP synced")
 	ErrSourceFailed       = errors.New("stream ingestion failed")
 )
