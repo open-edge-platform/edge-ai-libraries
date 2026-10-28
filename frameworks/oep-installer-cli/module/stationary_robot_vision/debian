@@ -1,11 +1,3 @@
-
-# Stationary Robot Vision & Control (RVC) - vision-guided pick-and-place
-# reference application (UR5e + MoveIt) from the Robotics AI Suite.
-# https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/rvc/index.html
-#
-# RVC ships as the ROS 2 meta-package `ros-<distro>-rvc-simulation` from the
-# AMR apt feed, which pulls in `ros-<distro>-rvc`, `ros-<distro>-robot-config`
-# and `ros-<distro>-robot-config-plugins`.
 configure_stationary_robot_vision () {
   case "$VERSION_CODENAME" in
   jammy) ros_distro=humble ;;
@@ -13,6 +5,12 @@ configure_stationary_robot_vision () {
   *)     ros_distro=jazzy ;;
   esac
   rvc_pkgs=("ros-$ros_distro-rvc-simulation")
+  rvc_ffmpeg_pref_file=/etc/apt/preferences.d/oep-rvc-ffmpeg
+  rvc_ffmpeg_pref=(
+    "Package: libavutil-dev libpostproc-dev"
+    "Pin: release o=Ubuntu"
+    "Pin-Priority: 1001"
+  )
 }
 
 debian_90_profile_stationary_robot_vision () {
@@ -30,13 +28,13 @@ debian_90_install_stationary_robot_vision () {
   if verify_stationary_robot_vision && [[ " $* " != *" --reinstall "* ]]; then
     echo "Stationary Robot Vision & Control is installed." >&2
   else
-    # declare ownership
     ensure_disk_size 15000
     ensure_prop set installed/stationary_robot_vision/owned true
 
     ensure_oneapi_ros_openvino
+    # Keep FFmpeg development libraries on Ubuntu's version instead of PPA FFmpeg 8.
+    ensure_apt_preference "$rvc_ffmpeg_pref_file" "${rvc_ffmpeg_pref[@]}"
     ensure_apt update -y
-    # RVC depends on Gazebo Harmonic (gz-harmonic) from the OSRF Gazebo apt repository
     ensure_osrf_gazebo_ros2
     ensure_apt install -y "${rvc_pkgs[@]}" || {
       echo "Could not install RVC packages (${rvc_pkgs[*]})." 1>&2
@@ -59,12 +57,13 @@ debian_90_remove_stationary_robot_vision () {
   configure_stationary_robot_vision
   if ensure_apt_is_installed ros-$ros_distro-rvc-simulation || ensure_apt_is_installed ros-$ros_distro-rvc; then
     ensure_apt purge --auto-remove -y ros-$ros_distro-rvc-simulation ros-$ros_distro-rvc \
-      ros-$ros_distro-robot-config ros-$ros_distro-robot-config-plugins || true
+      ros-$ros_distro-robot-config ros-$ros_distro-robot-config-plugins
     verify_robotics_in_use_ros_openvino || remove_osrf_gazebo_ros2
     remove_oneapi_ros_openvino
   else
     echo "Stationary Robot Vision & Control already removed. Skipping"
   fi
+  ensure_rm "$rvc_ffmpeg_pref_file"
 }
 
 debian_90_sbom_stationary_robot_vision () {
@@ -72,6 +71,9 @@ debian_90_sbom_stationary_robot_vision () {
   sbom_oneapi_ros_openvino
   echo "---"
   sbom_osrf_gazebo_ros2
+  echo "---"
+  ensure_sbom_format apt-pref "${rvc_ffmpeg_pref[@]}"
+  ensure_sbom_format apt-pref-file "$rvc_ffmpeg_pref_file"
   echo "---"
   ensure_sbom_format pkg-list "${rvc_pkgs[@]}"
 }

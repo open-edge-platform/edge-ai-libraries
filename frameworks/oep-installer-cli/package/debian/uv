@@ -1,4 +1,3 @@
-
 configure_uv () {
   echo "$PATH" | grep -q -F ~/.local/bin || export PATH=$PATH:~/.local/bin
 }
@@ -21,4 +20,3 @@ debian_50_remove_uv () {
   [ "$(ensure_prop get installed/uv/owned)" = "true" ] || return 0
   pipx uninstall uv
 }
-

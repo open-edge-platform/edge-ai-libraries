@@ -1,4 +1,3 @@
-
 debian_30_install_lm_sensors () {
   ensure_apt_install_package lm-sensors
 }
@@ -10,4 +9,3 @@ debian_30_remove_lm_sensors () {
 debian_30_sbom_lm_sensors () {
   ensure_sbom_format pkg-list lm-sensors
 }
-

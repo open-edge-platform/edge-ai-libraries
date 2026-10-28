@@ -1,4 +1,3 @@
-
 configure_edge_pack_npu () {
   configure_edge_pack "$@"
   version="1.0"
@@ -36,4 +35,3 @@ debian_40_sbom_edge_pack_npu () {
   sbom_edge_pack_repo_entries "$@"
   ensure_sbom_format pkg-list "intel-edge-npu=$version*"
 }
-

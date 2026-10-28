@@ -1,4 +1,3 @@
-
 configure_intel_lpmd () {
   workspace="$(ensure_project_path)/intel-lpmd"
   version=956df747e56aca1739b39bff8cff77e81758af9a
@@ -72,4 +71,3 @@ debian_30_remove_intel_lpmd () {
 debian_30_sbom_intel_lpmd () {
   ensure_sbom_format pkg-list autoconf-archive libglib2.0-dev libdbus-1-dev libxml2-dev libnl-3-dev libnl-genl-3-dev libsystemd-dev systemd-dev gtk-doc-tools libupower-glib-dev
 }
-

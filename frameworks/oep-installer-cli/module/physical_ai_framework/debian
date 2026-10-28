@@ -1,12 +1,3 @@
-
-# Physical AI Framework - the Physical AI training/deployment SDK (the
-# `physicalai-train` distribution, which also pulls in the `physicalai`
-# runtime). It provides the `physicalai` CLI (fit / export / benchmark /
-# run) for Vision-Language-Action imitation-learning policies (ACT, Pi0,
-# Pi0.5, GR00T, SmolVLA). Installed into a dedicated uv-managed Python 3.12
-# virtual environment with the PyTorch build matched to the local
-# accelerator (Intel XPU, NVIDIA CUDA, or CPU).
-# https://github.com/open-edge-platform/physical-ai-studio/tree/main/library
 configure_physical_ai_framework () {
   workspace="$(ensure_project_path)/physical-ai-framework"
   paif_venv="$workspace/.venv"
@@ -15,10 +6,7 @@ configure_physical_ai_framework () {
   paif_device_file="$workspace/.device"
 }
 
-# select the PyTorch build (paif_extra) and wheel index (paif_index):
-#   --gpu -> Intel XPU   --cpu -> CPU   --npu -> XPU if a GPU is present, else CPU
-# NVIDIA CUDA is used when nvidia-smi is present and no device option is given.
-# Without a device option, a previously installed build is kept.
+# Reuse the saved PyTorch device build unless the user selects another device.
 configure_physical_ai_framework_device () {
   local args_uc=" ${*^^} "
   if [[ "$args_uc" != *" --GPU "* && "$args_uc" != *" --CPU "* && "$args_uc" != *" --NPU "* ]] && [ -r "$paif_device_file" ]; then
