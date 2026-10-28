@@ -79,7 +79,7 @@ debian_40_remove_gpu_accel () {
 
 debian_40_sbom_gpu_accel () {
   configure_gpu_accel "$@"
-  ensure_sbom_format name "$repo_name"
+  ensure_sbom_format repo-name "$repo_name"
   ensure_sbom_format apt-source "$apt_entry"
   ensure_sbom_format apt-list-file "$apt_file"
   ensure_sbom_format gpg-key "$key_url"

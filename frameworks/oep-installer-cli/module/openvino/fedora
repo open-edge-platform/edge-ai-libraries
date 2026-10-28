@@ -71,7 +71,7 @@ fedora_70_remove_openvino () {
 
 fedora_70_sbom_openvino () {
   configure_openvino "$@"
-  ensure_sbom_format name "$repo_name"
+  ensure_sbom_format repo-name "$repo_name"
   ensure_sbom_format gpg-key "$key_url"
   ensure_sbom_format yum-repo-conf "${yum_repo_conf[@]}"
   ensure_sbom_format yum-repo-file "$yum_repo_file"

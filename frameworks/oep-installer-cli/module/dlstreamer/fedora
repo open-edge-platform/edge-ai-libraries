@@ -75,7 +75,7 @@ fedora_75_remove_dlstreamer () {
 
 fedora_75_sbom_dlstreamer () {
   configure_dlstreamer
-  ensure_sbom_format name "$repo_name"
+  ensure_sbom_format repo-name "$repo_name"
   ensure_sbom_format gpg-key "$key_url"
   ensure_sbom_format yum-repo-conf "${yum_repo_conf[@]}"
   ensure_sbom_format yum-repo-file "$yum_repo_file"
