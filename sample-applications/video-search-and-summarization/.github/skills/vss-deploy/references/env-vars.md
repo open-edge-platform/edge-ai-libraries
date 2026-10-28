@@ -15,13 +15,28 @@ Sources: `setup.sh`, `.env.example`, `docker/compose.*.yaml`, `README.md`, `docs
 | `RABBITMQ_USER` | all deployment modes | RabbitMQ user for `rabbitmq-service`, `pipeline-manager`, `video-ingestion`. |
 | `RABBITMQ_PASSWORD` | all deployment modes | RabbitMQ password. |
 | `VLM_MODEL_NAME` | Summary, Dual UI, Unified UI | VLM model source for captioning/summarization. In vLLM mode it is also the final-summary model. |
-| `ENABLED_WHISPER_MODELS` | Summary, Dual UI, Unified UI | Comma-separated Whisper models for `audio-analyzer` via `ENABLED_WHISPER_MODELS`. |
+| `ASR_MODEL` | Summary, Dual UI, Unified UI | Audio-analyzer Whisper model (single model per instance): `whisper-{tiny,base,small,medium,large}`. Maps to `AUDIO_ANALYZER__MODELS__ASR__NAME`. |
 | `OD_MODEL_NAME` | Summary, Dual UI, Unified UI | Generic YOLO id accepted by the model-download Ultralytics plugin. Setup stores it under `ov_models/object-detection/ultralytics/public/<model>/FP32`. YOLO-World names fall back to `yolov8l`. |
 | `MULTIMODAL_EMBEDDING_MODEL` | Search, Dual UI | Model for video frame embeddings; assigned to `EMBEDDING_MODEL_NAME`. |
 | `TEXT_EMBEDDING_MODEL` | Unified UI | Text embedding model for summary-text search; assigned to `EMBEDDING_MODEL_NAME`. |
 | `DATAPREP_DETECTION_MODEL` | Search, Dual UI | Hugging Face OpenVINO detection model for `multimodal-dataprep` object crops (`MM_DATAPREP_DETECTION_MODEL_NAME`), e.g. `OpenVINO/yolox_s-int8-ov` (also verified on CPU/GPU/NPU: `OpenVINO/yolox_tiny-fp16-ov`, `OpenVINO/yolox_l-int8-ov`, `OpenVINO/YOLO11n-fp16-ov`); only `OpenVINO/<repo>` ids are accepted (see <https://huggingface.co/OpenVINO>). No default; only the selected model is downloaded on first use, if not already in the `docker_dataprep-detection-models` volume. Review the model card license (e.g. YOLOX Apache-2.0, YOLO11 AGPL-3.0). Not required when `ENABLE_OBJECT_DETECTION=false`; Unified UI always runs dataprep without detection (summary text only). |
 | `DATAPREP_DETECTION_CLASSES` | optional for Search, Dual UI | Comma-separated class filter (`MM_DATAPREP_DETECTION_CLASSES`), e.g. `person,car`; case-insensitive, must match the model's labels. Empty (default) keeps all classes. |
 | `OVMS_LLM_MODEL_NAME` | optional for modes with summary | Dedicated OVMS final-summary LLM model. Split mode is selected when the effective LLM model, target device, or compression differs from the VLM; otherwise OVMS reuses the VLM. |
+
+## Audio Analyzer (ASR) knobs
+
+`ASR_MODEL` is required (listed in the table above). The remaining knobs are
+optional — the `audio-analyzer` 2026.x image ships a baked `config.yaml` and these
+override individual ASR settings on top of it (mapped to
+`AUDIO_ANALYZER__<SECTION>__<KEY>`), each with a default.
+
+| Variable | Default | Maps to | What it controls |
+|---|---|---|---|
+| `ASR_DEVICE` | `CPU` | `AUDIO_ANALYZER__MODELS__ASR__DEVICE` | ASR device: `CPU` \| `GPU` \| `NPU`. |
+| `ASR_WEIGHT_FORMAT` | `fp32` | `AUDIO_ANALYZER__MODELS__ASR__WEIGHT_FORMAT` | OpenVINO export precision: `int8` \| `fp16` \| `fp32`. |
+| `ASR_DIARIZATION` | `false` | `AUDIO_ANALYZER__MODELS__ASR__DIARIZATION` | Enable speaker diarization (also export `HF_TOKEN`). |
+| `AUDIO_SENTIMENT_ENABLED` | `false` | `AUDIO_ANALYZER__SENTIMENT__ENABLED` | Enable parallel voice sentiment analysis. |
+| `HF_TOKEN` | unset | `HF_TOKEN` | HuggingFace token; required only when `ASR_DIARIZATION=true` (gated pyannote models). |
 
 ## Proxy and image registry
 

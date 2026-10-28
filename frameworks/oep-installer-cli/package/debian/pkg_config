@@ -1,0 +1,12 @@
+
+debian_30_install_pkg_config () {
+  ensure_apt_install_package pkg-config
+}
+
+debian_30_remove_pkg_config () {
+  ensure_apt_remove_package pkg-config
+}
+
+debian_30_sbom_pkg_config () {
+  ensure_sbom_format pkg-list pkg-config
+}
