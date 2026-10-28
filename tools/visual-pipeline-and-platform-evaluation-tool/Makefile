@@ -23,8 +23,9 @@ export AUDIO_ANALYZER_TAG ?= 2026.2.0
 export TEXT_TO_SPEECH_TAG ?= 2026.2.0
 
 define base-compose
-	. .env && \
-	compose_files=(-f $(COMPOSE_FILE) $(2) -f compose.$$COMPOSE_PROFILES.yml) && \
+	{ [[ ! -f .env ]] || . .env; } && \
+	compose_files=(-f $(COMPOSE_FILE) $(2)) && \
+	{ [[ -z "$${COMPOSE_PROFILES:-}" ]] || compose_files+=(-f compose.$$COMPOSE_PROFILES.yml); } && \
 	$(if $(strip $(3)),$(3) &&) \
 	docker compose "$${compose_files[@]}" $(1)
 endef
@@ -35,7 +36,7 @@ endef
 
 define experimental-compose
 	$(call base-compose,$(1),-f $(EXPERIMENTAL_COMPOSE_FILE),\
-		case "$$COMPOSE_PROFILES" in \
+		case "$${COMPOSE_PROFILES:-}" in \
 			(igpu-wsl) compose_files+=(-f compose.experimental.$$COMPOSE_PROFILES.yml) ;; \
 		esac)
 endef
