@@ -10,9 +10,10 @@ configure_edge_pack () {
     "Pin: origin $edge_pack_repo"
     "Pin-Priority: 1001"
   )
-  edge_pack_pref_file=/etc/apt/preferences.d/edgepack.pref
+  edge_pack_pref_file=/etc/apt/preferences.d/intel-edge-pack.pref
+  edge_pack_incompatible_pref_files=(/etc/apt/preferences.d/priorities /etc/apt/preferences.d/edgepack.pref)
   edge_pack_install_options=("--no-install-recommends")
-  edge_pack_allow_downgrades=(libgbm1 libgstreamer-gl1.0-0 libva-wayland2 mesa-libgallium weston libegl-mesa0 libgbm-dev libgl1-mesa-dev libgl1-mesa-dri libglx-mesa0 mesa-common-dev mesa-vulkan-drivers)
+  edge_pack_allow_downgrades=(libgbm1 libgstreamer-gl1.0-0 libva-wayland2 mesa-libgallium weston libegl-mesa0 libgbm-dev libgl1-mesa-dev libgl1-mesa-dri libglx-mesa0 mesa-common-dev mesa-vulkan-drivers mesa-opencl-icd)
 
   edge_pack_ppa_repo=
   edge_pack_ppa_key_url=
@@ -21,11 +22,11 @@ configure_edge_pack () {
   edge_pack_ppa_list_file=
 }
 
-debian_19_profile_edge_pack () {
-  echo "curl gnupg"
+debian_39_profile_edge_pack () {
+  echo "curl gnupg linux_image_generic_7.0"
 }
 
-debian_19_install_edge_pack () {
+debian_39_install_edge_pack () {
   configure_edge_pack "$@"
   local reinstall=$([[ " $* " = *" --reinstall "* ]] && echo 1 || echo 0)
   local reconfigured=0
@@ -39,6 +40,10 @@ debian_19_install_edge_pack () {
   fi
   if [ ! -e "$edge_pack_pref_file" ] || [ $reinstall -eq 1 ]; then
     ensure_apt_preference "$edge_pack_pref_file" "${edge_pack_pref[@]}"
+    local p
+    for p in "${edge_pack_incompatible_pref_files[@]}"; do
+      [ ! -f "$p" ] || ensure_sudo mv -f "$p" "$p".save
+    done
     reconfigured=1
   fi
   if [ -n "$edge_pack_ppa_repo" ]; then
@@ -54,7 +59,7 @@ debian_19_install_edge_pack () {
   [ $reconfigured -eq 0 ] || ensure_apt update -y
 }
 
-debian_19_remove_edge_pack () {
+debian_39_remove_edge_pack () {
   dpkg -l | grep -q -F intel-edge- || { 
     configure_edge_pack "$@"
     ensure_rm "$edge_pack_key_file" "$edge_pack_source_file" "$edge_pack_pref_file"
@@ -62,7 +67,7 @@ debian_19_remove_edge_pack () {
   }
 }
 
-debian_19_sbom_edge_pack_repo_entries () {
+sbom_edge_pack_repo_entries () {
   if [ -n "$edge_pack_ppa_repo" ]; then
     ensure_sbom_format gpg-key "$edge_pack_ppa_key_url"
     ensure_sbom_format key-file "$edge_pack_ppa_key_file"

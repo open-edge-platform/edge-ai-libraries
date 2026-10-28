@@ -49,13 +49,15 @@ All variables are case-insensitive.
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| YOLO_POSE_MODEL | /models/yolo_models/yolo26n-pose/yolo26n-pose.xml | Path to YOLO-Pose OpenVINO IR model (.xml) |
-| BA_GST_DEVICE | CPU | OpenVINO inference device: CPU, GPU. See the accelerator mapping requirement below. |
+| YOLO_POSE_MODEL | /models/yolo_models/yolo26n-pose/yolo26n-pose.xml | Path to YOLO-Pose OpenVINO™ IR model (.xml) |
+| BA_GST_DEVICE | CPU | OpenVINO™ inference device: CPU, GPU. See the accelerator mapping requirement below. |
 | BA_CONFIDENCE | 0.5 | Minimum keypoint confidence threshold |
 
 Download YOLO26n-pose model:
 
-Run this before `docker compose up` when using `standalone+api` mode.
+Run this before `docker compose up` when using `standalone+api` mode. This script
+also downloads the default VLM model (`Qwen/Qwen2.5-VL-7B-Instruct`) and creates
+the OVMS config required for VLM serving.
 
 ```bash
 cd download-model
@@ -66,35 +68,23 @@ Expected output files:
 
 - `models/yolo_models/yolo26n-pose/yolo26n-pose.xml`
 - `models/yolo_models/yolo26n-pose/yolo26n-pose.bin`
+- `models/vlm_models/config.json`
+- `models/vlm_models/Qwen/Qwen2.5-VL-7B-Instruct/` (OpenVINO™ IR model files)
 
 The host must expose accelerator devices to Docker, and the relevant device entries must be mapped into the `behavioral-analysis` service,
-because that container performs the YOLO-Pose OpenVINO inference. For example, `/dev/dri:/dev/dri` (GPU).
+because that container performs the YOLO-Pose OpenVINO™ inference. For example, `/dev/dri:/dev/dri` (GPU) or `/dev/accel:/dev/accel` (NPU).
 
 > [!NOTE]
-> If `BA_GST_DEVICE=GPU` is used, the same accelerator device must be added to the
+> If `BA_GST_DEVICE` is set to `GPU` or `NPU`, the corresponding accelerator device must be added to the
 > `behavioral-analysis` service's `devices:` section. Do this using a Docker Compose override
 > file instead of editing the tracked `docker-compose.yml` directly, so local device mappings
 > survive project updates without merge conflicts.
 
 GPU setup with `docker-compose.override.yml`:
 
-1. Set the device in `.env`:
-
-   ```bash
-   BA_GST_DEVICE=GPU
-   ```
-
-2. Copy the provided GPU template to an override file (gitignored, never committed):
-
-   ```bash
-   cp docker-compose.override.yml.gpu-example docker-compose.override.yml
-   ```
-
-3. Run Docker Compose as usual; `docker-compose.override.yml` is merged automatically:
-
-   ```bash
-   docker compose up
-   ```
+1. Set `BA_GST_DEVICE=GPU` in `.env`.
+2. Copy the GPU template: `cp docker-compose.override.yml.gpu-example docker-compose.override.yml`
+3. Start with [Run with Docker Compose](run-container.md).
 
 The template (`docker-compose.override.yml.gpu-example`) contains:
 
@@ -106,6 +96,27 @@ services:
     group_add:
       - ${RENDERER_GROUP:-992}
 ```
+
+NPU setup with `docker-compose.override.yml`:
+
+1. Set `BA_GST_DEVICE=NPU` in `.env`.
+2. Copy the NPU template: `cp docker-compose.override.yml.npu-example docker-compose.override.yml`
+3. Start with [Run with Docker Compose](run-container.md).
+
+The template (`docker-compose.override.yml.npu-example`) contains:
+
+```yaml
+services:
+  behavioral-analysis:
+    devices:
+      - /dev/accel:/dev/accel
+    group_add:
+      - ${RENDER_GROUP_ID:-992}
+```
+
+> [!CAUTION]
+> Only one `docker-compose.override.yml` can be active at a time. If switching
+> between GPU and NPU, replace the override file with the appropriate template.
 
 ### Frame Analysis
 
@@ -153,8 +164,6 @@ In Docker Compose, `ovms-vlm` is defined under the `vlm` profile and its `depend
 | VLM_MAX_IMAGE_SIZE | 256 | Maximum frame size for VLM |
 | VLM_MAX_CONCURRENCY | 1 | Maximum concurrent VLM requests |
 
-To download the VLM model, follow the instructions in the [model-download microservice](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/model-download/README.md).
-
 ### Pattern Config Path
 
 | Variable | Default | Description |
@@ -163,47 +172,9 @@ To download the VLM model, follow the instructions in the [model-download micros
 
 ## .env File (Docker Compose)
 
-The project .env file controls Docker Compose substitution defaults.
+The project `.env` file controls Docker Compose substitution defaults.
 
-```bash
-# Release
-RELEASE_TAG=latest
-
-# Deployment mode
-# Options: seaweedfs+mqtt, standalone+api
-DEPLOYMENT_MODE=standalone+api
-LOG_LEVEL=DEBUG
-
-# SeaweedFS (required only for seaweedfs+mqtt mode)
-SEAWEEDFS_ENDPOINT=http://seaweedfs:8333
-SEAWEEDFS_BUCKET=behavioral-frames
-
-# VLM
-# ovms-vlm is behind the "vlm" Compose profile; add --profile vlm (or set
-# COMPOSE_PROFILES=vlm below) whenever VLM_ENABLED=true, otherwise ovms-vlm
-# won't start and VLM confirmation will be skipped.
-#COMPOSE_PROFILES=vlm
-VLM_ENDPOINT=http://ovms-vlm:8001
-VLM_ENABLED=false
-
-# MQTT (required only for seaweedfs+mqtt mode)
-MQTT_HOST=broker.scenescape.intel.com
-MQTT_PORT=1883
-BA_REQUEST_TOPIC=ba/requests
-BA_RESULT_TOPIC=ba/results
-
-# Behavioral Analysis service
-BA_SERVICE_PORT=8085
-BA_MIN_FRAMES=3
-BA_MAX_FRAMES=30
-BA_POSE_FRAMES=20
-BA_CONFIDENCE=0.5
-BA_GST_DEVICE=CPU
-# For GPU, set BA_GST_DEVICE=GPU above and create a docker-compose.override.yml from
-# docker-compose.override.yml.gpu-example to map host devices (e.g. /dev/dri) without
-# editing docker-compose.yml.
-DOWNLOADED_MODEL_PATH=./models
-```
+See the full [environment file](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/behavioral-analysis/.env) for more details.
 
 ## Pattern Configuration (config/patterns.yaml)
 

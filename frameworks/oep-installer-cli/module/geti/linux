@@ -1,8 +1,11 @@
 
 configure_geti () {
   workspace="$(ensure_project_path)/geti"
+  version_skills=release-2026.2.0
+  repository_skills=https://github.com/open-edge-platform/skills.git
+  skills=(geti-using-the-pipeline getitune-discovering-models getitune-exporting-a-model getitune-optimizing-a-model getitune-preparing-datasets getitune-running-inference getitune-training-a-model)
   image_name=ghcr.io/open-edge-platform/geti-xpu
-  port=8080
+  used_ports=(8080)
 }
 
 verify_geti () {
@@ -16,29 +19,34 @@ install_geti () {
     echo "Geti is installed." >&2
   else
     ensure_disk_size 20000
-    ensure_ports_open install geti "$port"
+    ensure_ram_size 16777216 # 16 GiB
+    ensure_ports_open install geti "${used_ports[@]}"
 
-    #ensure_ram_size 16777216 # 16 GiB
+    echo "@@STEP Pulling image"
     docker pull $image_name
+
+    echo "@@STEP Installing skills"
+    ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}"
   fi
 }
 
 start_geti () {
   configure_geti "$@"
-  ensure_ports_open start geti "$port"
+  ensure_ports_open start geti "${used_ports[@]}"
 
   mkdir -p "$workspace"/geti-data
   docker run --rm --name geti-app -d \
      -v "$workspace"/geti-data:/application/data:rw \
-     -e HOST=0.0.0.0 -e PORT=$port -p $port:$port \
+     -e HOST=0.0.0.0 -e PORT=${used_ports[0]} -p ${used_ports[0]}:${used_ports[0]} \
      -e http_proxy -e https_proxy -e no_proxy \
      -e HTTP_PROXY -e HTTPS_PROXY -e NO_PROXY \
      $([ ! -d /dev/dri ] || echo "--device /dev/dri:/dev/dri") --group-add $(getent group render | cut -d: -f3 || echo 992) --group-add $(id -g) \
      --shm-size 8g \
      $image_name
 
-  echo "@@HIGHLIGHT URL: http://$(ensure_ip):$port"
-  echo "@@HIGHLIGHT workspace: $workspace/geti-data"
+  echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}"
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}/geti-data"
+  echo "@@HIGHLIGHT $installer_name stop|remove"
 }
 
 stop_geti () {
@@ -50,5 +58,6 @@ remove_geti () {
   stop_geti "$@"
   docker image rm -f $image_name || true
   ensure_rm "$workspace"
+  ensure_skills remove "${skills[@]}"
 }
 

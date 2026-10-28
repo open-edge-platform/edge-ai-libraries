@@ -1,0 +1,75 @@
+
+configure_intel_lpmd () {
+  workspace="$(ensure_project_path)/intel-lpmd"
+  version=956df747e56aca1739b39bff8cff77e81758af9a
+  repository="https://github.com/intel/intel-lpmd.git"
+}
+
+verify_intel_lpmd () {
+  [ "$(systemctl is-active intel_lpmd.service)" = "active" ] || {
+    echo "Missing the intel_lpmd service" >&2
+    return 1
+  }
+}
+
+debian_30_profile_intel_lpmd () {
+  echo "kernel_module_essential linux_tools pkg_config autoconf automake"
+}
+
+debian_30_install_intel_lpmd () {
+  configure_intel_lpmd
+  if verify_intel_lpmd && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Intel-lpmd is installed" >&2
+  else
+    echo "@@STEP Installing prerequisites"
+    ensure_apt update
+    ensure_apt install -y autoconf-archive libglib2.0-dev libdbus-1-dev libxml2-dev libnl-3-dev libnl-genl-3-dev libsystemd-dev systemd-dev gtk-doc-tools libupower-glib-dev
+
+    echo "@@STEP Building intel-lpmd"
+    ensure_git_export "$workspace" "$version" "$repository"
+    cd "$workspace"
+    ./autogen.sh
+
+    if [[ -z "$(pkg-config --variable=systemdsystemunitdir systemd 2>/dev/null)" ]]; then
+		  echo "Failed to resolve systemd's systemdsystemunitdir (is the systemd-dev package installed?)." >&2
+		  return 3
+	  fi
+
+	  make
+	  ensure_sudo make install
+
+    # Remove restrictive hardware conditions so the service attempts to start
+	  # on all platforms. The daemon itself will exit gracefully if unsupported.
+	  ensure_sudo mkdir -p /etc/systemd/system/intel_lpmd.service.d
+	  ensure_sudo tee /etc/systemd/system/intel_lpmd.service.d/override.conf > /dev/null <<-EOF
+[Unit]
+# Clear all Condition* directives from the upstream unit
+ConditionPathExists=
+ConditionVirtualization=
+EOF
+
+    # NOTE: Not purging build dependencies — they are shared with dkms,
+    # build-essential, intel-mipi-gmsl-dkms, and librealsense2-dkms.
+    ensure_sudo apt-get clean -y
+    # Enable service
+    ensure_sudo systemctl daemon-reload
+    ensure_sudo systemctl --root=/ enable intel_lpmd.service
+    ensure_sudo systemctl start intel_lpmd.service
+  fi
+}
+
+debian_30_remove_intel_lpmd () {
+  [ "$(ensure_prop get installed/intel_lpmd/owned)" = "true" ] || return 0
+  cd "$workspace" && {
+    make clean
+  } || true
+  ensure_sudo systemctl stop intel_lpmd.service || true
+  ensure_sudo systemctl disable intel_lpmd.service || true
+  ensure_rm /etc/systemd/system/intel_lpmd.service.d 
+  ensure_sudo systemctl daemon-reload || true
+}
+
+debian_30_sbom_intel_lpmd () {
+  ensure_sbom_format pkg-list autoconf-archive libglib2.0-dev libdbus-1-dev libxml2-dev libnl-3-dev libnl-genl-3-dev libsystemd-dev systemd-dev gtk-doc-tools libupower-glib-dev
+}
+

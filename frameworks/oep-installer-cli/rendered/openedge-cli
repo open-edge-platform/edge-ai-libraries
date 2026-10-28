@@ -60,7 +60,7 @@ main () {
   local _i _rc=0
   for ((_i=0;_i<${#_cmds[*]};_i++)); do
     case "${_cmds[$_i]}" in
-    setup|list|bootstrap|sbom)
+    setup|list|bootstrap|sbom|resume)
       subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
       _rc=$?
       ;;
@@ -69,6 +69,9 @@ main () {
         subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
         _rc=$?
       else
+        # save args for resume
+        ensure_prop set command "$*"
+
         # critical group permissions
         local -A _groups=()
 	local _j _dep _g _gf _deps _resolved _rest_args=() _restart=0 _m _carry=""
@@ -220,10 +223,8 @@ act_find_parents ()
 { 
     local targets=" $1 ";
     shift;
-    local installed="$(ensure_project_path)/$installer_name/installed";
-    [ -d "$installed" ] || return 0;
     local p d;
-    for p in $(cd "$installed"; ls -1);
+    for p in $(ensure_prop find "installed/*" | cut -f2 -d/ | uniq);
     do
         [[ "$targets" != *" $p "* ]] || continue;
         for d in $(act_expand_modules install $p "$@");
@@ -273,7 +274,6 @@ act_helper ()
     local sort_options="$2";
     shift;
     shift;
-    local mods_file="$(ensure_project_path)/$installer_name/modules";
     local explicit_mods="$(act_extract_modules $act_name "$@")";
     local remove_all=0;
     if [[ "$act_name" = "remove" && " $* " = *" --remove-all "* ]]; then
@@ -358,8 +358,6 @@ act_helper ()
         [ -z "$sp" ] || export https_proxy="$sp" HTTPS_PROXY="$sp";
         [ -z "$np" ] || export no_proxy="${np%%,}" NO_PROXY="${np%%,}";
         local rc=0 order=0;
-        local installer_state="";
-        ensure_tmpdir create installer_state states /dev/shm;
         export _INSTALLER_PANEL_ACTIVE=;
         [ -t 1 ] && export _INSTALLER_PANEL_ACTIVE=1;
         { 
@@ -378,16 +376,14 @@ act_helper ()
                     echo "Invoke $handler with $invoke_args";
                     echo "@@OK $name1";
                 else
-                    local started_path="$(ensure_project_path)/$installer_name/started/$name1";
-                    local installed_path="$(ensure_project_path)/$installer_name/installed/$name1";
-                    [ "$act_name" = "start" ] && mkdir -p "$started_path";
-                    [ "$act_name" = "install" ] && mkdir -p "$installed_path";
+                    [ "$act_name" = "start" ] && ensure_prop create started/$name1/;
+                    [ "$act_name" = "install" ] && ensure_prop create installed/$name1/;
                     echo "@@COMP $name1";
                     local rc1=0;
                     ( set -e;
                     $handler $invoke_args ) & wait $! || rc1=$?;
-                    [[ " stop remove " = *" $act_name "* ]] && rm -rf "$started_path";
-                    [ "$act_name" = "remove" ] && [ $rc1 -eq 0 ] && rm -rf "$installed_path" 2> /dev/null;
+                    [[ " stop remove " = *" $act_name "* ]] && ensure_prop remove started/$name1/;
+                    [ "$act_name" = "remove" ] && [ $rc1 -eq 0 ] && ensure_prop remove installed/$name1/;
                     if [ $rc1 -eq 0 ]; then
                         echo "@@OK $name1";
                     else
@@ -407,17 +403,13 @@ else
     tee -a "$LOG_FILE";
 fi) 2>&1;
         wait;
-        ensure_tmpdir destroy $installer_state;
-        if [[ " $* " != *" --dry-run "* && -n "${explicit_mods// }" ]]; then
-            mkdir -p "${mods_file%/*}";
-            echo "$explicit_mods" > "$mods_file";
-        fi;
-        [[ $remove_all -eq 1 && $rc -eq 0 && " $* " != *" --dry-run "* ]] && rm -f "$mods_file";
+        [[ " $* " != *" --dry-run "* && -n "${explicit_mods// }" ]] && ensure_prop set modules "$explicit_mods";
+        [[ $remove_all -eq 1 && $rc -eq 0 && " $* " != *" --dry-run "* ]] && ensure_prop remove modules;
         return $rc;
     else
         echo "Component not found" 1>&2;
-        [[ " $* " = *" --dry-run "* ]] || rm -f "$mods_file";
-        exit 3;
+        [[ " $* " = *" --dry-run "* ]] || ensure_prop remove modules;
+        return 3;
     fi
 }
 act_panelled_logs () 
@@ -436,6 +428,10 @@ act_panelled_logs ()
         BC_H='─';
         BC_V='│';
         BC_B='│';
+        BC_TL='┌';
+        BC_TR='┐';
+        BC_BL='└';
+        BC_BR='┘';
         G_OK='✔';
         G_FAIL='✘';
         G_RUN='◐';
@@ -446,6 +442,10 @@ act_panelled_logs ()
         BC_H='-';
         BC_V='|';
         BC_B='|';
+        BC_TL='+';
+        BC_TR='+';
+        BC_BL='+';
+        BC_BR='+';
         G_OK='+';
         G_FAIL='x';
         G_RUN='*';
@@ -454,7 +454,7 @@ act_panelled_logs ()
         G_DN='>>';
     fi;
     G_SEL='<<';
-    readonly BC_H BC_V BC_B G_OK G_FAIL G_RUN G_HL G_ELL G_DN G_SEL;
+    readonly BC_H BC_V BC_B BC_TL BC_TR BC_BL BC_BR G_OK G_FAIL G_RUN G_HL G_ELL G_DN G_SEL;
     readonly TAIL_LINES=2;
     readonly MAX_HL=12;
     readonly MAX_RBUF=2000;
@@ -528,6 +528,13 @@ act_panelled_logs ()
     PREV_FH=-1;
     FAIL_TITLE="";
     declare -a FAILROWS=();
+    declare -a AT_LINES=();
+    declare -A AT_SEG=();
+    AT_UNTIL=0;
+    AT_CD=-1;
+    AT_FMT="";
+    AT_SEC=-1;
+    AT_GUARD=0;
     function _open_tty () 
     { 
         if [[ -e /dev/tty ]] && { 
@@ -1251,6 +1258,26 @@ act_panelled_logs ()
         LDIRTY[$c]=1;
         LEFT_VALID=0
     };
+    function _attention_close () 
+    { 
+        AT_LINES=();
+        AT_UNTIL=0;
+        AT_CD=-1;
+        AT_FMT="";
+        AT_SEG=();
+        AT_GUARD=$(( ${EPOCHREALTIME%.*} + 10 ));
+        FULL_CLEAR=1;
+        LEFT_VALID=0
+    };
+    function _attention_active () 
+    { 
+        (( ${#AT_LINES[@]} )) || return 1;
+        if (( AT_UNTIL > 0 && ${EPOCHREALTIME%.*} >= AT_UNTIL )); then
+            _attention_close;
+            return 1;
+        fi;
+        return 0
+    };
     function _set_step () 
     { 
         STEP_TEXT=$1
@@ -1635,20 +1662,29 @@ act_panelled_logs ()
                 fi;
             fi;
         fi;
+        AT_SEG=();
+        _attention_active && _attention_build;
+        local now_s=${EPOCHREALTIME%.*} at_wipe=0;
+        if (( ${#AT_LINES[@]} || now_s < AT_GUARD )) && (( now_s != AT_SEC )); then
+            AT_SEC=$now_s;
+            FULL_CLEAR=1;
+            at_wipe=1;
+        fi;
         local out="" l r rowstr;
         if (( FULL_CLEAR )); then
             PREV=();
             FULL_CLEAR=0;
         fi;
+        (( at_wipe )) && printf -v out '\033[%d;1H\033[K' "$rows";
         _title_text "$REVIEW" "$TITLE_WORD";
         _title_row "$usable";
-        rowstr=$TITLEROW;
+        rowstr=$TITLEROW${AT_SEG[1]:-};
         if [[ ${PREV[0]:-__} != "$rowstr" ]]; then
             out+='[1;1H'"$rowstr"'[K';
             PREV[0]=$rowstr;
         fi;
         _hrule_v "$usable";
-        rowstr="${C_DIM}${HRULE}${C_RESET}";
+        rowstr="${C_DIM}${HRULE}${C_RESET}${AT_SEG[2]:-}";
         if [[ ${PREV[1]:-__} != "$rowstr" ]]; then
             out+='[2;1H'"$rowstr"'[K';
             PREV[1]=$rowstr;
@@ -1661,7 +1697,7 @@ act_panelled_logs ()
                 l=$FITTED;
             fi;
             r=${right[i]:-};
-            rowstr="${l} ${C_DIM}${BC_V}${C_RESET} ${r}";
+            rowstr="${l} ${C_DIM}${BC_V}${C_RESET} ${r}${AT_SEG[$(( i + 3 ))]:-}";
             j=$(( i + 2 ));
             if [[ ${PREV[j]:-__} != "$rowstr" ]]; then
                 printf -v out '%s\033[%d;1H%s\033[K' "$out" $(( i + 3 )) "$rowstr";
@@ -1680,6 +1716,7 @@ act_panelled_logs ()
                 else
                     rowstr=${FAILROWS[i-1]:-};
                 fi;
+                rowstr+=${AT_SEG[$(( body + i + 3 ))]:-};
                 j=$(( body + i + 2 ));
                 if [[ ${PREV[j]:-__} != "$rowstr" ]]; then
                     printf -v out '%s\033[%d;1H%s\033[K' "$out" $(( body + i + 3 )) "$rowstr";
@@ -1687,7 +1724,7 @@ act_panelled_logs ()
                 fi;
             done;
         fi;
-        [[ -n $out ]] && printf '%s' "$out";
+        [[ -n $out ]] && printf '\0337\033[?2026h%s\033[?2026l\0338' "$out";
         FRAMES=$(( FRAMES + 1 ));
         DRAW_MS=$(( DRAW_MS + $(_now_ms) - t0 ));
         DRAWING=0
@@ -1774,12 +1811,51 @@ act_panelled_logs ()
         _draw 1;
         _raise_fail_panel $(( rc != 0 ));
         printf '\033[?7h';
+        printf '\033[r';
         printf '\033[%d;1H\033[K' "$TTY_ROWS";
         printf '\033[?25h';
         (( TTY_FD >= 0 )) && { 
             stty echo <&"$TTY_FD" 2> /dev/null;
             exec {TTY_FD}>&-
         }
+    };
+    function _attention_build () 
+    { 
+        local cols=$TTY_COLS rows=$TTY_ROWS line w maxw=0 i pl pr;
+        local -a body=("${AT_LINES[@]}");
+        if (( AT_CD >= 0 )); then
+            local left=$(( AT_UNTIL - ${EPOCHREALTIME%.*} )) mmss;
+            (( left < 0 )) && left=0;
+            printf -v mmss '%d:%02d' $(( left / 60 )) $(( left % 60 ));
+            printf -v line -- "$AT_FMT" "$mmss" 2> /dev/null || line=$AT_FMT;
+            body[AT_CD]=$line;
+        fi;
+        for line in "${body[@]}";
+        do
+            _dwidth "$line";
+            (( REPLY > maxw )) && maxw=$REPLY;
+        done;
+        local bw=$(( maxw + 6 ));
+        (( bw > cols - 2 )) && bw=$(( cols - 2 ));
+        local bh=$(( ${#body[@]} + 2 ));
+        local top=$(( (rows - bh) / 2 + 1 )) lc=$(( (cols - bw) / 2 + 1 ));
+        _hrule_v $(( bw - 2 ));
+        printf -v "AT_SEG[$top]" '\033[%d;%dH%s%s%s%s%s' $top $lc "$C_RED" "$BC_TL" "$HRULE" "$BC_TR" "$C_RESET";
+        for ((i = 0; i < ${#body[@]}; i++ ))
+        do
+            line=${body[i]};
+            _dwidth "$line";
+            w=$REPLY;
+            if (( w > bw - 4 )); then
+                _fit_v $(( bw - 4 )) "$line" 1;
+                line=$FITTED;
+                w=$(( bw - 4 ));
+            fi;
+            pl=$(( (bw - 2 - w) / 2 ));
+            pr=$(( bw - 2 - w - pl ));
+            printf -v "AT_SEG[$(( top + i + 1 ))]" '\033[%d;%dH%s%s%s%*s%s%s%s%*s%s%s%s' $(( top + i + 1 )) $lc "$C_RED" "$BC_V" "$C_RESET" $pl '' "$C_BOLD$C_YELLOW" "$line" "$C_RESET" $pr '' "$C_RED" "$BC_V" "$C_RESET";
+        done;
+        printf -v "AT_SEG[$(( top + bh - 1 ))]" '\033[%d;%dH%s%s%s%s%s' $(( top + bh - 1 )) $lc "$C_RED" "$BC_BL" "$HRULE" "$BC_BR" "$C_RESET"
     };
     function _handle_line () 
     { 
@@ -1863,6 +1939,39 @@ act_panelled_logs ()
                 _draw 1;
                 return
             ;;
+            @@ATTENTION)
+                case $rest in 
+                    '')
+                        return
+                    ;;
+                    @@BR)
+                        AT_LINES+=("")
+                    ;;
+                    '@@UNTIL '*)
+                        local t=${rest#@@UNTIL } fmt;
+                        fmt=${t#* };
+                        t=${t%% *};
+                        [[ $fmt == "$t" ]] && fmt='Closing in %s';
+                        if [[ $t == ++([0-9]) ]]; then
+                            AT_UNTIL=$(( ${EPOCHREALTIME%.*} + ${t#+} ));
+                        else
+                            if [[ $t == +([0-9]) ]]; then
+                                AT_UNTIL=$t;
+                            else
+                                return;
+                            fi;
+                        fi;
+                        AT_FMT=$fmt;
+                        AT_CD=${#AT_LINES[@]};
+                        AT_LINES+=("")
+                    ;;
+                    *)
+                        AT_LINES+=("$rest")
+                    ;;
+                esac;
+                _draw 1;
+                return
+            ;;
             @@OK | @@FAIL)
                 target=${rest:-$CURRENT};
                 [[ -z $target ]] && return;
@@ -1923,7 +2032,11 @@ act_panelled_logs ()
         else
             rc=$?;
             if (( rc > 128 )); then
-                _timer_tick && _draw 1;
+                if (( ${#AT_LINES[@]} || ${EPOCHREALTIME%.*} < AT_GUARD )); then
+                    _draw 1;
+                else
+                    _timer_tick && _draw 1;
+                fi;
                 continue;
             fi;
             [[ -n $line ]] && _handle_line "$line";
@@ -1952,18 +2065,47 @@ act_panelled_logs_askpass ()
 #!/bin/bash
 if [ -n "$ASKPASS_ENV" ]; then
   printf '%s\n' "$ASKPASS_ENV"
-else
+elif [ -e /dev/tty ]; then
   exec 8<>/dev/tty 2>/dev/null || exit 1
-  # size and style
-  rows=$(stty size <&8 | cut -d' ' -f1)
+  rows=$(stty size <&8 | cut -d' ' -f1); rows=${rows:-1}
   saved=$(stty -g <&8) || exit 1
-  # restore screen
-  trap 'stty "$saved" <&8 2>/dev/null; printf "\033[%d;1H\033[K" "${rows:-1}" >&8' EXIT INT TERM HUP PIPE
+  # restore tty and clear the prompt row (cleanup only)
+  trap 'stty "$saved" <&8 2>/dev/null; printf "\033[%d;1H\033[K" "$rows" >&8' EXIT
+  # cancel: tell sudo (our parent) to abort instead of re-asking, then exit
+  cancel() { kill -INT "$PPID" 2>/dev/null; exit "$1"; }
+  trap 'cancel 130' INT
+  trap 'cancel 143' TERM
+  trap 'cancel 129' HUP
+  trap 'cancel 141' PIPE
   stty -echo <&8
-  # last row: _draw only ever writes rows 1..rows-1, so this is never repainted
-  printf '\033[%d;1H\033[K%s' "${rows:-1}" "$1" >&8
-  IFS= read -r pw <&8
-  printf '\033[%d;1H\033[K' "${rows:-1}" >&8
+  case ${LC_ALL:-${LC_CTYPE:-${LANG:-}}} in
+    *[Uu][Tt][Ff]*) caret='▏' mask='•' ;;
+    *)              caret='_' mask='*' ;;
+  esac
+  prompt=$1 pw="" on=1
+  draw() {
+    local c=" "
+    (( on )) && c=$'\033[1;36m'"$caret"$'\033[0m'
+    # last row: _draw only ever writes rows 1..rows-1, so this is never repainted
+    printf '\033[%d;1H\033[K%s%s%s' "$rows" "$prompt" "${pw//?/$mask}" "$c" >&8
+  }
+  while :; do
+    draw
+    if IFS= read -r -s -n1 -t 0.5 ch <&8; then
+      case $ch in
+        '')            break ;;            # Enter
+        $'\177'|$'\b') pw=${pw%?} ;;       # Backspace
+        $'\025')       pw="" ;;            # Ctrl-U
+        $'\003')       cancel 130 ;;       # Ctrl-C read as a byte
+        *)             pw+=$ch ;;
+      esac
+      on=1                                 # keep caret solid while typing
+    else
+      rc=$?
+      (( rc > 128 )) || exit 1             # EOF / tty gone
+      on=$(( !on ))                        # timeout -> blink
+    fi
+  done
   printf '%s\n' "$pw"
 fi
 EOF
@@ -1976,16 +2118,13 @@ act_resolve_args ()
     shift;
     local args=("$@") margs=(${*##-*});
     if [ "$act_name" = "stop" ] && [ ${#margs[@]} -eq 0 ]; then
-        local started_path="$(ensure_project_path)/$installer_name/started";
-        [ -d "$started_path" ] && args+=($(cd "$started_path"; ls -1));
+        args+=($(ensure_prop find "started/*" | cut -f2 -d/ | uniq));
     else
         if [ "$act_name" = "remove" ] && [[ " $* " = *" --remove-all "* ]] && [ -z "$(act_extract_modules $act_name "$@")" ]; then
-            local installed_path="$(ensure_project_path)/$installer_name/installed";
-            [ -d "$installed_path" ] && args+=($(cd "$installed_path"; ls -1));
+            args+=($(ensure_prop find "installed/*" | cut -f2 -d/ | uniq));
         else
             if [ "$act_name" != "stop" ] && [ -z "$(act_extract_modules $act_name "$@")" ]; then
-                local mods_file="$(ensure_project_path)/$installer_name/modules";
-                [ ! -r "$mods_file" ] || args=($(< "$mods_file") "${args[@]}");
+                args=($(ensure_prop get modules) "${args[@]}");
             fi;
         fi;
     fi;
@@ -2030,6 +2169,8 @@ configure_anomalib ()
     workspace="$(ensure_project_path)/anomalib";
     version=2.7.0;
     repository=https://github.com/open-edge-platform/anomalib.git;
+    version_skills=release-2026.2.0;
+    repository_skills=https://github.com/open-edge-platform/anomalib.git;
     skills=(anomalib-adding-a-datamodule anomalib-adding-a-model anomalib-tiled-ensemble anomalib-training anomalib-benchmarking)
 }
 configure_autonomous_mobile_robot () 
@@ -2071,6 +2212,14 @@ configure_autonomous_mobile_robot_slam ()
         fi;
     fi
 }
+configure_cdi () 
+{ 
+    workspace="$(ensure_project_path)/cdi";
+    repository="https://github.com/open-edge-platform/edge-node-infrastructure-blueprint.git";
+    version=8e6f01943286f0e838dad3bf46390119b7645ad2;
+    cdi_path="/opt/edge/scripts/cdi";
+    docker_config="/etc/docker/daemon.json"
+}
 configure_dine_in () 
 { 
     workspace="$(ensure_project_path)/dine-in";
@@ -2105,8 +2254,9 @@ configure_dlstreamer ()
     oc_model=efficientnet-b0_INT8/FP16-INT8/efficientnet-b0;
     model_repo=https://raw.githubusercontent.com/dlstreamer/pipeline-zoo-models/ee73878abc6fb6d864e59a5cd80016de4fc1d194;
     allow_downgrades=(libgbm1 libva-wayland2 libwayland-bin mesa-libgallium);
-    version_skills=tags/v2026.2.0;
-    repository_skills=https://github.com/open-edge-platform/dlstreamer.git
+    version_skills=release-2026.2.0;
+    repository_skills=https://github.com/open-edge-platform/skills.git;
+    skills=(dlstreamer-coding-agent)
 }
 configure_docker () 
 { 
@@ -2182,9 +2332,10 @@ configure_edge_pack ()
     edge_pack_source="deb [signed-by=$edge_pack_key_file] https://$edge_pack_repo/edgepack $VERSION_CODENAME stable";
     edge_pack_list_file=/etc/apt/sources.list.d/intel-edge-pack.list;
     edge_pack_pref=("Package: *" "Pin: origin $edge_pack_repo" "Pin-Priority: 1001");
-    edge_pack_pref_file=/etc/apt/preferences.d/edgepack.pref;
+    edge_pack_pref_file=/etc/apt/preferences.d/intel-edge-pack.pref;
+    edge_pack_incompatible_pref_files=(/etc/apt/preferences.d/priorities /etc/apt/preferences.d/edgepack.pref);
     edge_pack_install_options=("--no-install-recommends");
-    edge_pack_allow_downgrades=(libgbm1 libgstreamer-gl1.0-0 libva-wayland2 mesa-libgallium weston libegl-mesa0 libgbm-dev libgl1-mesa-dev libgl1-mesa-dri libglx-mesa0 mesa-common-dev mesa-vulkan-drivers);
+    edge_pack_allow_downgrades=(libgbm1 libgstreamer-gl1.0-0 libva-wayland2 mesa-libgallium weston libegl-mesa0 libgbm-dev libgl1-mesa-dev libgl1-mesa-dri libglx-mesa0 mesa-common-dev mesa-vulkan-drivers mesa-opencl-icd);
     edge_pack_ppa_repo=;
     edge_pack_ppa_key_url=;
     edge_pack_ppa_key_file=;
@@ -2211,6 +2362,21 @@ configure_edge_pack_graphics_display ()
     configure_edge_pack "$@";
     version="1.0"
 }
+configure_edge_pack_graphics_sriov () 
+{ 
+    configure_edge_pack "$@";
+    version="1.0"
+}
+configure_edge_pack_ipu () 
+{ 
+    configure_edge_pack "$@";
+    version="1.0"
+}
+configure_edge_pack_manageability () 
+{ 
+    configure_edge_pack "$@";
+    version="1.0"
+}
 configure_edge_pack_media_core () 
 { 
     configure_edge_pack "$@";
@@ -2227,6 +2393,11 @@ configure_edge_pack_media_gst ()
     version="1.0"
 }
 configure_edge_pack_npu () 
+{ 
+    configure_edge_pack "$@";
+    version="1.0"
+}
+configure_edge_pack_tsn () 
 { 
     configure_edge_pack "$@";
     version="1.0"
@@ -2330,8 +2501,11 @@ configure_esq_telemetry_mods ()
 configure_geti () 
 { 
     workspace="$(ensure_project_path)/geti";
+    version_skills=release-2026.2.0;
+    repository_skills=https://github.com/open-edge-platform/skills.git;
+    skills=(geti-using-the-pipeline getitune-discovering-models getitune-exporting-a-model getitune-optimizing-a-model getitune-preparing-datasets getitune-running-inference getitune-training-a-model);
     image_name=ghcr.io/open-edge-platform/geti-xpu;
-    port=8080
+    used_ports=(8080)
 }
 configure_gpu_accel () 
 { 
@@ -2368,6 +2542,18 @@ configure_image_based_video_search ()
     version=release-2026.2.0;
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(443 80 8554)
+}
+configure_intel_lpmd () 
+{ 
+    workspace="$(ensure_project_path)/intel-lpmd";
+    version=956df747e56aca1739b39bff8cff77e81758af9a;
+    repository="https://github.com/intel/intel-lpmd.git"
+}
+configure_k3s () 
+{ 
+    workspace="$(ensure_project_path)/k3s";
+    repository="https://github.com/open-edge-platform/edge-node-infrastructure-blueprint.git";
+    version=8e6f01943286f0e838dad3bf46390119b7645ad2
 }
 configure_kernel_module_essential () 
 { 
@@ -2763,7 +2949,7 @@ configure_pcm ()
 { 
     workspace="$(ensure_project_path)/pcm";
     repository="https://github.com/intel/pcm.git";
-    version=tags/202604
+    version=e534201d0fe6d6e3bc5fee54b229f215b976efbc
 }
 configure_physical_ai_framework () 
 { 
@@ -2841,6 +3027,13 @@ configure_post_fusion_device ()
     echo "$image" > .image;
     docker compose -f docker/docker-compose.yml build $image --build-arg http_proxy --build-arg https_proxy --build-arg no_proxy
 }
+configure_power_tuning () 
+{ 
+    workspace="$(ensure_project_path)/power_tuning";
+    repository="https://github.com/open-edge-platform/edge-node-infrastructure-blueprint.git";
+    version=8e6f01943286f0e838dad3bf46390119b7645ad2;
+    power_tuning_path="/opt/edge/developer/tools"
+}
 configure_real_time_scene_understanding () 
 { 
     workspace="$(ensure_project_path)/real-time-scene-understanding";
@@ -2877,9 +3070,24 @@ configure_realsense ()
         ;;
     esac
 }
+configure_realsense_fedaero () 
+{ 
+    workspace="$(ensure_project_path)/realsense-fedaero";
+    eci_repo_name=eci.intel.com;
+    eci_key_url="https://$eci_repo_name/repos/gpg-keys/GPG-PUB-KEY-INTEL-ECI.gpg";
+    eci_key_file=/etc/apt/keyrings/intel-eci.gpg;
+    eci_repo_list="deb [signed-by=$eci_key_file] https://$eci_repo_name/repos/$VERSION_CODENAME isar main";
+    eci_repo_list_file=/etc/apt/sources.list.d/intel-eci.list;
+    rs_repo_name="librealsense.realsenseai.com";
+    rs_key_url="https://$rs_repo_name/Debian/librealsenseai.asc";
+    rs_key_file=/etc/apt/keyrings/librealsenseai.gpg;
+    rs_list=/etc/apt/sources.list.d/librealsense.list;
+    rs_deb_entry="deb [signed-by=$rs_key_file] https://$rs_repo_name/Debian/apt-repo $VERSION_CODENAME main";
+    rs_packages=(librealsense2 librealsense2-dkms librealsense2-utils librealsense2-dev librealsense2-gl)
+}
 configure_reboot () 
 { 
-    touch "${installer_state?}"/reboot_required
+    ensure_prop set reboot_requested true
 }
 configure_ros2 () 
 { 
@@ -2945,7 +3153,10 @@ configure_scenescape ()
     workspace="$(ensure_project_path)/scenescape";
     version=release-2026.2.0;
     repository=https://github.com/open-edge-platform/scenescape.git;
-    used_ports=(443)
+    used_ports=(443);
+    version_skills=release-2026.2.0;
+    repository_skills=https://github.com/open-edge-platform/skills.git;
+    skills=(scenescape-setup)
 }
 configure_smart_intersection () 
 { 
@@ -3080,7 +3291,10 @@ configure_uav_mission_compute_sdk ()
     workspace="$(ensure_project_path)/uav-mission-compute-sdk";
     version="release-2026.2.0";
     repository="https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git";
-    used_ports=(8086 3000 9090 9273)
+    used_ports=(8086 3000 9090 9273);
+    version_skills="release-2026.2.0";
+    repository_skills="https://github.com/open-edge-platform/skills.git";
+    skills=(uav-mission-compute-sdk)
 }
 configure_uv () 
 { 
@@ -3100,6 +3314,9 @@ configure_video_search_and_summarization ()
     workspace="$(ensure_project_path)/video-search-and-summarization";
     version=1c5fdc1f440e685c8f82322ec09b60b7320ea404;
     repository="https://github.com/open-edge-platform/edge-ai-libraries.git";
+    version_skills=release-2026.2.0;
+    repository_skills="https://github.com/open-edge-platform/skills.git";
+    skills=(vss-search-index vss-summarize-video);
     export APP_HOST_PORT=${APP_HOST_PORT:-12345};
     used_ports=($APP_HOST_PORT 3001 7890 6016 6008 8999 9777 8300 9300 8090 4001 4002 55555 9090 9273 5432 1883 5672 8640);
     [ ! -r "$workspace"/.device_from_install ] || set -- "$@" "--$(< "$workspace"/.device_from_install)";
@@ -3356,313 +3573,50 @@ debian_15_sbom_yq ()
 { 
     ensure_sbom_format pkg-list yq
 }
-debian_19_install_edge_pack () 
+debian_25_install_linux_image_6.18_intel () 
 { 
-    configure_edge_pack "$@";
-    local reinstall=$([[ " $* " = *" --reinstall "* ]] && echo 1 || echo 0);
-    local reconfigured=0;
-    if [ ! -e "$edge_pack_key_file" ] || [ $reinstall -eq 1 ]; then
-        ensure_apt_key "$edge_pack_key_file" "$edge_pack_key_url" --dearmor;
-        reconfigured=1;
-    fi;
-    if [ ! -e "$edge_pack_source_file" ] || [ $reinstall -eq 1 ]; then
-        ensure_apt_source "$edge_pack_list_file" "$edge_pack_source";
-        reconfigured=1;
-    fi;
-    if [ ! -e "$edge_pack_pref_file" ] || [ $reinstall -eq 1 ]; then
-        ensure_apt_preference "$edge_pack_pref_file" "${edge_pack_pref[@]}";
-        reconfigured=1;
-    fi;
-    if [ -n "$edge_pack_ppa_repo" ]; then
-        if [ ! -e "$edge_pack_ppa_key_file" ] || [ $reinstall -eq 1 ]; then
-            ensure_apt_key "$edge_pack_ppa_key_file" "$edge_pack_ppa_key_url" --dearmor;
-            reconfigured=1;
-        fi;
-        if [ ! -e "$edge_pack_ppa_source_file" ] || [ $reinstall -eq 1 ]; then
-            ensure_apt_source "$edge_pack_ppa_list_file" "$edge_pack_ppa_source";
-            reconfigured=1;
-        fi;
-    fi;
-    [ $reconfigured -eq 0 ] || ensure_apt update -y
-}
-debian_19_profile_edge_pack () 
-{ 
-    echo "curl gnupg"
-}
-debian_19_remove_edge_pack () 
-{ 
-    dpkg -l | grep -q -F intel-edge- || { 
-        configure_edge_pack "$@";
-        ensure_rm "$edge_pack_key_file" "$edge_pack_source_file" "$edge_pack_pref_file";
-        [ -z "$edge_pack_ppa_repo" ] || ensure_rm "$edge_pack_ppa_list_file" "$edge_pack_ppa_key_file"
-    }
-}
-debian_19_sbom_edge_pack_repo_entries () 
-{ 
-    if [ -n "$edge_pack_ppa_repo" ]; then
-        ensure_sbom_format gpg-key "$edge_pack_ppa_key_url";
-        ensure_sbom_format key-file "$edge_pack_ppa_key_file";
-        ensure_sbom_format apt-source "$edge_pack_ppa_source";
-        ensure_sbom_format apt-list-file "$edge_pack_ppa_list_file";
-        echo "---";
-    fi;
-    ensure_sbom_format name "$edge_pack_repo";
-    ensure_sbom_format gpg-key "$edge_pack_key_url";
-    ensure_sbom_format key-file "$edge_pack_key_file";
-    ensure_sbom_format apt-source "$edge_pack_source";
-    ensure_sbom_format apt-list-file "$edge_pack_list_file";
-    ensure_sbom_format apt-pref "${edge_pack_pref[@]}";
-    ensure_sbom_format apt-pref-file "$edge_pack_pref_file"
-}
-debian_20_group_edge_pack_base_realtime () 
-{ 
-    echo "render:992 video:"
-}
-debian_20_group_edge_pack_base_standard () 
-{ 
-    echo "render:992 video:"
-}
-debian_20_group_edge_pack_graphics_core () 
-{ 
-    echo "render:992 video:"
-}
-debian_20_group_edge_pack_graphics_display () 
-{ 
-    echo "render:992 video:"
-}
-debian_20_group_edge_pack_npu () 
-{ 
-    echo "render:992"
-}
-debian_20_install_core_types () 
-{ 
-    if [ -e /etc/core-types ] && [[ " $* " != *" --reinstall "* ]]; then
-        echo "/etc/core-types exists." 1>&2;
+    if [[ "$(uname -r)" = "6.18-intel" ]]; then
+        echo "kernel 6.18-intel is installed" 1>&2;
     else
-        ensure_prop set installed/core_types/owned true;
-        local script="https://raw.githubusercontent.com/open-edge-platform/edge-workloads-and-benchmarks/refs/heads/main/utils/obtain_cores.sh";
-        set -o pipefail;
-        ensure_fetch "$script" - | bash | sed -n -E 's/^[[:space:]]*([a-zA-Z0-9_-]+)[[:space:]]*:[[:space:]]*(.*)/\U\1\E=\2/p' | ensure_sudo tee /etc/core-types;
-        echo "@@HIGHLIGHT Core types are detected and written to /etc/core-types";
+        echo "@@STEP Installing linux-image-6.18-intel";
+        ensure_apt install linux-image-6.18-intel;
+        ensure_grub_set_kernel_args GRUB_CMDLINE_LINUX xe.max_vfs=7 "xe.force_probe=*" modprobe.blacklist=i915 udmabuf.list_limit=8192;
+        ensure_grub_set_default_entry 6.18-intel;
+        configure_reboot;
     fi
 }
-debian_20_install_edge_pack_base_realtime () 
+debian_25_install_linux_image_generic_7.0 () 
 { 
-    configure_edge_pack_base_realtime "$@";
-    if ensure_apt_is_installed intel-edge-base-realtime && [[ " $* " != *" --reinstall "* ]]; then
-        echo "intel-edge-base-realtime is installed." 1>&2;
+    if [[ "$(uname -r)" = 7.0.* ]]; then
+        echo "kernel 7.0 is installed" 1>&2;
     else
-        local candidate;
-        candidate="$(apt-cache policy intel-edge-base-realtime 2> /dev/null | awk '/Candidate:/{print $2}')";
-        if [ -z "$candidate" ] || [ "$candidate" = "(none)" ]; then
-            echo "intel-edge-base-realtime is not available in the edge-pack apt repo ($edge_pack_repo)." 1>&2;
-            echo "This is a known upstream gap: Intel has not yet published intel-edge-base-realtime." 1>&2;
-            echo "Falling back to the standard edge-pack base bundle (intel-edge-base-standard) instead." 1>&2;
-            ensure_prop set installed/edge_pack_base_realtime/fallback true;
-            debian_20_install_edge_pack_base_standard "$@";
-            [ -n "$(ensure_prop get installed/edge_pack_base_standard/owned)" ] || ensure_prop set installed/edge_pack_base_standard/owned false;
-            [ -c /dev/dri/renderD128 ];
-            ensure_group_add $(debian_20_group_edge_pack_base_realtime);
-            echo "@@HIGHLIGHT intel-edge-base-realtime unavailable @installed intel-edge-base-standard instead";
-            return 0;
-        fi;
-        ensure_prop remove installed/edge_pack_base_realtime/fallback;
-        ensure_prop set installed/edge_pack_base_realtime/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-base-realtime || true;
-        ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*";
-        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*";
-    fi;
-    [ -c /dev/dri/renderD128 ];
-    ensure_group_add $(debian_20_group_edge_pack_base_realtime)
-}
-debian_20_install_edge_pack_base_standard () 
-{ 
-    configure_edge_pack_base_standard "$@";
-    if ensure_apt_is_installed intel-edge-base-standard && [[ " $* " != *" --reinstall "* ]]; then
-        echo "intel-edge-base-standard is installed." 1>&2;
-    else
-        ensure_prop set installed/edge_pack_base_standard/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-base-standard || true;
-        ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*";
-        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*";
-    fi;
-    [ -c /dev/dri/renderD128 ];
-    ensure_group_add $(debian_20_group_edge_pack_base_standard)
-}
-debian_20_install_edge_pack_graphics_core () 
-{ 
-    configure_edge_pack_graphics_core "$@";
-    if ensure_apt_is_installed intel-edge-graphics-core && [[ " $* " != *" --reinstall "* ]]; then
-        echo "intel-edge-graphics-core is installed." 1>&2;
-    else
-        ensure_prop set installed/edge_pack_graphics_core/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-graphics-core || true;
-        ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-graphics-core=$version*";
-        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-graphics-core=$version*";
-    fi;
-    [ -c /dev/dri/renderD128 ];
-    ensure_group_add $(debian_20_group_edge_pack_graphics_core)
-}
-debian_20_install_edge_pack_graphics_display () 
-{ 
-    configure_edge_pack_graphics_display "$@";
-    if ensure_apt_is_installed intel-edge-graphics-display && [[ " $* " != *" --reinstall "* ]]; then
-        echo "intel-edge-graphics-display is installed." 1>&2;
-    else
-        ensure_prop set installed/edge_pack_graphics_display/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-graphics-display || true;
-        ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-graphics-display=$version*";
-        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-graphics-display=$version*";
-    fi;
-    [ -c /dev/dri/renderD128 ];
-    ensure_group_add $(debian_20_group_edge_pack_graphics_display)
-}
-debian_20_install_edge_pack_media_core () 
-{ 
-    configure_edge_pack_media_core "$@";
-    if ensure_apt_is_installed intel-edge-media-core && [[ " $* " != *" --reinstall "* ]]; then
-        echo "intel-edge-media-core is installed." 1>&2;
-    else
-        ensure_prop set installed/edge_pack_media_core/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-media-core || true;
-        ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-core=$version*";
+        echo "@@STEP Installing linux-image-generic-7.0";
+        ensure_apt install linux-image-generic-7.0;
+        local pkgver="$(apt policy linux-image-generic-7.0 2> /dev/null | grep -m1 Candidate: | cut -f2 -d: | cut -f1-3 -d. | tr -d ' ')-generic";
+        ensure_grub_set_default_entry $pkgver;
+        ensure_grub_set_kernel_args GRUB_CMDLINE_LINUX xe.max_vfs=7 "xe.force_probe=*" modprobe.blacklist=i915 udmabuf.list_limit=8192;
+        configure_reboot;
     fi
 }
-debian_20_install_edge_pack_npu () 
+debian_25_profile_linux_image_6.18_intel () 
 { 
-    configure_edge_pack_npu "$@";
-    if ensure_apt_is_installed intel-edge-npu && [[ " $* " != *" --reinstall "* ]]; then
-        echo "intel-edge-npu is installed." 1>&2;
-    else
-        ensure_prop set installed/edge_pack_npu/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-npu || true;
-        ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-npu=$version*";
-        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-npu=$version*";
-    fi;
-    [ -c /dev/accel/accel0 ];
-    ensure_group_add $(debian_20_group_edge_pack_npu)
+    [[ "$(uname -r)" = "6.18-intel" ]] || echo "reboot"
 }
-debian_20_profile_core_types () 
+debian_25_profile_linux_image_generic_7.0 () 
 { 
-    [ "$1" != "install" ] || echo "cpuid curl"
+    echo "reboot"
 }
-debian_20_profile_edge_pack_base_realtime () 
+debian_25_sbom_linux_image_6.18_intel () 
 { 
-    echo "edge_pack"
+    ensure_sbom_format pkg-list linux-image-6.18-intel
 }
-debian_20_profile_edge_pack_base_standard () 
+debian_25_sbom_linux_image_generic_7.0 () 
 { 
-    echo "edge_pack"
-}
-debian_20_profile_edge_pack_graphics_core () 
-{ 
-    echo "edge_pack"
-}
-debian_20_profile_edge_pack_graphics_display () 
-{ 
-    echo "edge_pack"
-}
-debian_20_profile_edge_pack_media_core () 
-{ 
-    echo "edge_pack"
-}
-debian_20_profile_edge_pack_npu () 
-{ 
-    echo "edge_pack libze1"
-}
-debian_20_remove_core_types () 
-{ 
-    [ "$(ensure_prop get installed/core_types/owned)" = "true" ] || return 0;
-    ensure_rm /etc/core-types
-}
-debian_20_remove_edge_pack_base_realtime () 
-{ 
-    if [ "$(ensure_prop get installed/edge_pack_base_realtime/fallback)" != "true" ]; then
-        [ "$(ensure_prop get installed/edge_pack_base_realtime/owned)" = "true" ] || return 0;
-        ensure_apt purge --auto-remove -y intel-edge-base-realtime || true;
-        debian_19_remove_edge_pack "$@" || true;
-    else
-        debian_20_remove_edge_pack_base_standard "$@";
-    fi;
-    ensure_prop remove installed/edge_pack_base_realtime/fallback
-}
-debian_20_remove_edge_pack_base_standard () 
-{ 
-    [ "$(ensure_prop get installed/edge_pack_base_standard/owned)" = "true" ] || return 0;
-    ensure_apt purge --auto-remove -y intel-edge-base-standard || true;
-    debian_19_remove_edge_pack "$@" || true
-}
-debian_20_remove_edge_pack_graphics_core () 
-{ 
-    [ "$(ensure_prop get installed/edge_pack_graphics_core/owned)" = "true" ] || return 0;
-    ensure_apt purge --auto-remove -y intel-edge-graphics-core || true;
-    debian_19_remove_edge_pack "$@" || true
-}
-debian_20_remove_edge_pack_graphics_display () 
-{ 
-    [ "$(ensure_prop get installed/edge_pack_graphics_display/owned)" = "true" ] || return 0;
-    ensure_apt purge --auto-remove -y intel-edge-graphics-display || true;
-    debian_19_remove_edge_pack "$@" || true
-}
-debian_20_remove_edge_pack_media_core () 
-{ 
-    [ "$(ensure_prop get installed/edge_pack_media_core/owned)" = "true" ] || return 0;
-    ensure_apt purge --auto-remove -y intel-edge-media-core || true;
-    debian_19_remove_edge_pack "$@" || true
-}
-debian_20_remove_edge_pack_npu () 
-{ 
-    [ "$(ensure_prop get installed/edge_pack_npu/owned)" = "true" ] || return 0;
-    ensure_apt purge --auto-remove -y intel-edge-npu || true;
-    debian_19_remove_edge_pack "$@" || true
-}
-debian_20_sbom_edge_pack_base_realtime () 
-{ 
-    configure_edge_pack_base_realtime "$@";
-    debian_19_sbom_edge_pack_repo_entries "$@";
-    if [ "$(ensure_prop get installed/edge_pack_base_realtime/fallback)" = "true" ]; then
-        ensure_sbom_format pkg-list "intel-edge-base-standard=$version*";
-    else
-        ensure_sbom_format pkg-list "intel-edge-base-realtime=$version*";
-    fi
-}
-debian_20_sbom_edge_pack_base_standard () 
-{ 
-    configure_edge_pack_base_standard "$@";
-    debian_19_sbom_edge_pack_repo_entries "$@";
-    ensure_sbom_format pkg-list "intel-edge-base-standard=$version*"
-}
-debian_20_sbom_edge_pack_graphics_core () 
-{ 
-    configure_edge_pack_graphics_core "$@";
-    debian_19_sbom_edge_pack_repo_entries "$@";
-    ensure_sbom_format pkg-list "intel-edge-graphics-core=$version*"
-}
-debian_20_sbom_edge_pack_graphics_display () 
-{ 
-    configure_edge_pack_graphics_display "$@";
-    debian_19_sbom_edge_pack_repo_entries "$@";
-    ensure_sbom_format pkg-list "intel-edge-graphics-display=$version*"
-}
-debian_20_sbom_edge_pack_media_core () 
-{ 
-    configure_edge_pack_media_core "$@";
-    debian_19_sbom_edge_pack_repo_entries "$@";
-    ensure_sbom_format pkg-list "intel-edge-media-core=$version*"
-}
-debian_20_sbom_edge_pack_npu () 
-{ 
-    configure_edge_pack_npu "$@";
-    debian_19_sbom_edge_pack_repo_entries "$@";
-    ensure_sbom_format pkg-list "intel-edge-npu=$version*"
+    ensure_sbom_format pkg-list linux-image-generic-7.0
 }
 debian_29_install_reboot () 
 { 
-    [ -e "${installer_state?}"/reboot_required ] || return;
-    local delay=2;
-    ensure_sudo shutdown -r +$delay "$installer_name scheduled a reboot in $delay minutes. Rerun $* after system is back.";
-    rm -f "${installer_state?}"/reboot_required;
-    sleep infinity
+    install_reboot "$@"
 }
 debian_30_group_docker_ce () 
 { 
@@ -3671,6 +3625,14 @@ debian_30_group_docker_ce ()
 debian_30_group_docker_io () 
 { 
     echo "docker:"
+}
+debian_30_install_autoconf () 
+{ 
+    ensure_apt_install_package autoconf
+}
+debian_30_install_automake () 
+{ 
+    ensure_apt_install_package automake
 }
 debian_30_install_build_essential () 
 { 
@@ -3803,9 +3765,62 @@ debian_30_install_git ()
 { 
     ensure_apt_install_package git ca-certificates
 }
+debian_30_install_golang () 
+{ 
+    ensure_apt_install_package golang
+}
 debian_30_install_intel_lpmd () 
 { 
-    ensure_apt_install_package intel-lpmd
+    configure_intel_lpmd;
+    if verify_intel_lpmd && [[ " $* " != *" --reinstall "* ]]; then
+        echo "Intel-lpmd is installed" 1>&2;
+    else
+        echo "@@STEP Installing prerequisites";
+        ensure_apt update;
+        ensure_apt install -y autoconf-archive libglib2.0-dev libdbus-1-dev libxml2-dev libnl-3-dev libnl-genl-3-dev libsystemd-dev systemd-dev gtk-doc-tools libupower-glib-dev;
+        echo "@@STEP Building intel-lpmd";
+        ensure_git_export "$workspace" "$version" "$repository";
+        cd "$workspace";
+        ./autogen.sh;
+        if [[ -z "$(pkg-config --variable=systemdsystemunitdir systemd 2> /dev/null)" ]]; then
+            echo "Failed to resolve systemd's systemdsystemunitdir (is the systemd-dev package installed?)." 1>&2;
+            return 3;
+        fi;
+        make;
+        ensure_sudo make install;
+        ensure_sudo mkdir -p /etc/systemd/system/intel_lpmd.service.d;
+        ensure_sudo tee /etc/systemd/system/intel_lpmd.service.d/override.conf > /dev/null <<-EOF
+[Unit]
+# Clear all Condition* directives from the upstream unit
+ConditionPathExists=
+ConditionVirtualization=
+EOF
+
+        ensure_sudo apt-get clean -y;
+        ensure_sudo systemctl daemon-reload;
+        ensure_sudo systemctl --root=/ enable intel_lpmd.service;
+        ensure_sudo systemctl start intel_lpmd.service;
+    fi
+}
+debian_30_install_k3s () 
+{ 
+    configure_k3s "$@";
+    if verify_k3s && [[ " $* " = *" --reinstall "* ]]; then
+        echo "k3s is installed" 1>&2;
+    else
+        ensure_prop set installed/k3s/owned true;
+        echo "@@STEP Clone repository";
+        ensure_git_export "$workspace" "$version" "$repository" infrastructure/installation-scripts;
+        echo "@@STEP Disable docker download";
+        cd "$workspace"/infrastructure/installation-scripts;
+        sed -i '/^DOCKER_STATIC_URL/,/^success "docker-compose saved"/{d}' download-resources.sh;
+        echo "@@STEP Downloading k3s resources";
+        cd "$workspace"/infrastructure/installation-scripts;
+        mkdir -p resources/docker;
+        ensure_sudo ./download-resources.sh;
+        echo "@@STEP Installing k3s";
+        ensure_sudo ./install-k3s.sh;
+    fi
 }
 debian_30_install_kernel_module_essential () 
 { 
@@ -3829,6 +3844,21 @@ debian_30_install_libpcre2_dev ()
 { 
     ensure_apt_install_package libpcre2-dev
 }
+debian_30_install_linux_tools () 
+{ 
+    local name="linux-tools-$(uname -r)";
+    if ensure_apt_is_installed $name; then
+        echo "$name is installed." 1>&2;
+    else
+        ensure_prop set installed/linux_tools/owned true;
+        ensure_apt update;
+        ensure_apt install --no-install-recommends -y linux-tools-common $name || ensure_apt install --no-install-recommends -y --no-install-recommends linux-tools-common linux-tools-generic;
+    fi
+}
+debian_30_install_lm_sensors () 
+{ 
+    ensure_apt_install_package lm-sensors
+}
 debian_30_install_make () 
 { 
     ensure_apt_install_package make
@@ -3836,6 +3866,10 @@ debian_30_install_make ()
 debian_30_install_msr_tools () 
 { 
     ensure_apt_install_package msr-tools
+}
+debian_30_install_pkg_config () 
+{ 
+    ensure_apt_install_package pkg-config
 }
 debian_30_install_python3_venv () 
 { 
@@ -3868,6 +3902,22 @@ debian_30_install_v4l_utils ()
 debian_30_install_xpu_smi () 
 { 
     ensure_apt_install_package xpu-smi || printf "${red}xpu-smi not installed${reset}\n"
+}
+debian_30_profile_intel_lpmd () 
+{ 
+    echo "kernel_module_essential linux_tools pkg_config autoconf automake"
+}
+debian_30_profile_k3s () 
+{ 
+    echo "git curl"
+}
+debian_30_remove_autoconf () 
+{ 
+    ensure_apt_remove_package autoconf
+}
+debian_30_remove_automake () 
+{ 
+    ensure_apt_remove_package automake
 }
 debian_30_remove_build_essential () 
 { 
@@ -3904,6 +3954,37 @@ debian_30_remove_git ()
 { 
     ensure_apt_remove_package git
 }
+debian_30_remove_golang () 
+{ 
+    ensure_apt_remove_package golang
+}
+debian_30_remove_intel_lpmd () 
+{ 
+    [ "$(ensure_prop get installed/intel_lpmd/owned)" = "true" ] || return 0;
+    cd "$workspace" && { 
+        make clean
+    } || true;
+    ensure_sudo systemctl stop intel_lpmd.service || true;
+    ensure_sudo systemctl disable intel_lpmd.service || true;
+    ensure_rm /etc/systemd/system/intel_lpmd.service.d;
+    ensure_sudo systemctl daemon-reload || true
+}
+debian_30_remove_k3s () 
+{ 
+    [ "$(ensure_prop get installed/k3s/owned)" = "true" ] || return 0;
+    local script found=0 kubeconfig=0;
+    [ ! -f "$HOME"/.kube/config ] || ! ensure_sudo cmp -s /etc/rancher/k3s/k3s.yaml "$HOME"/.kube/config || kubeconfig=1;
+    for script in /usr/local/bin/k3s-uninstall.sh /usr/local/bin/k3s-agent-uninstall.sh;
+    do
+        [ -x "$script" ] || continue;
+        found=1;
+        echo "Removing the K3s runtime ($script)...";
+        ensure_sudo "$script";
+    done;
+    [ $found -eq 1 ] || echo "K3s uninstall script not found; assuming K3s was already removed.";
+    [ $kubeconfig -eq 0 ] || rm -f "$HOME"/.kube/config;
+    ensure_rm "$workspace"
+}
 debian_30_remove_kernel_module_essential () 
 { 
     configure_kernel_module_essential_debian;
@@ -3915,6 +3996,16 @@ debian_30_remove_kernel_module_essential ()
     done;
     [ ${#pkgs[@]} -eq 0 ] || ensure_apt purge --auto-remove -y "${pkgs[@]}"
 }
+debian_30_remove_linux_tools () 
+{ 
+    local name="linux-tools-$(uname -r)";
+    [ "$(ensure_prop get installed/linux_tools/owned)" = "true" ] || return 0;
+    ensure_apt autoremove -y $name || true
+}
+debian_30_remove_lm_sensors () 
+{ 
+    ensure_apt_remove_package lm-sensors
+}
 debian_30_remove_make () 
 { 
     ensure_apt_remove_package make
@@ -3923,13 +4014,17 @@ debian_30_remove_msr_tools ()
 { 
     ensure_apt_remove_package msr-tools
 }
+debian_30_remove_pkg_config () 
+{ 
+    ensure_apt_remove_package pkg-config
+}
 debian_30_remove_rsync () 
 { 
     ensure_apt_remove_package rsync
 }
 debian_30_remove_rustup () 
 { 
-    "$HOME"/.cargo/bin/rustup self uninstall || true
+    yes | "$HOME"/.cargo/bin/rustup self uninstall || true
 }
 debian_30_remove_stress_ng () 
 { 
@@ -3946,6 +4041,14 @@ debian_30_remove_v4l_utils ()
 debian_30_remove_xpu_smi () 
 { 
     ensure_apt_remove_package xpu-smi
+}
+debian_30_sbom_autoconf () 
+{ 
+    ensure_sbom_format pkg-list autoconf
+}
+debian_30_sbom_automake () 
+{ 
+    ensure_sbom_format pkg-list automake
 }
 debian_30_sbom_build_essential () 
 { 
@@ -3977,9 +4080,13 @@ debian_30_sbom_git ()
 { 
     ensure_sbom_format pkg-list git ca-certificates
 }
+debian_30_sbom_golang () 
+{ 
+    ensure_sbom_format pkg-list golang
+}
 debian_30_sbom_intel_lpmd () 
 { 
-    ensure_sbom_format pkg-list intel-lpmd
+    ensure_sbom_format pkg-list autoconf-archive libglib2.0-dev libdbus-1-dev libxml2-dev libnl-3-dev libnl-genl-3-dev libsystemd-dev systemd-dev gtk-doc-tools libupower-glib-dev
 }
 debian_30_sbom_kernel_module_essential () 
 { 
@@ -3990,6 +4097,14 @@ debian_30_sbom_libpcre2_dev ()
 { 
     ensure_sbom_format pkg-list libpcre2-dev
 }
+debian_30_sbom_linux_tools () 
+{ 
+    ensure_sbom_format pkg-list linux-tools-common linux-tools-$(uname -r)
+}
+debian_30_sbom_lm_sensors () 
+{ 
+    ensure_sbom_format pkg-list lm-sensors
+}
 debian_30_sbom_make () 
 { 
     ensure_sbom_format pkg-list make
@@ -3997,6 +4112,10 @@ debian_30_sbom_make ()
 debian_30_sbom_msr_tools () 
 { 
     ensure_sbom_format pkg-list msr-tools
+}
+debian_30_sbom_pkg_config () 
+{ 
+    ensure_sbom_format pkg-list pkg-config
 }
 debian_30_sbom_python3_venv () 
 { 
@@ -4026,6 +4145,86 @@ debian_30_sbom_xpu_smi ()
 { 
     ensure_sbom_format pkg-list xpu-smi
 }
+debian_30_start_k3s () 
+{ 
+    configure_k3s "$@";
+    [ "$(ensure_prop get installed/k3s/owned)" = "true" ] || return 0;
+    if kubectl status > /dev/null 2>&1; then
+        echo "k3s is started" 1>&2;
+    else
+        cd "$workspace"/infrastructure/installation-scripts && ensure_sudo ./kubernetes-provision.sh;
+    fi
+}
+debian_39_install_edge_pack () 
+{ 
+    configure_edge_pack "$@";
+    local reinstall=$([[ " $* " = *" --reinstall "* ]] && echo 1 || echo 0);
+    local reconfigured=0;
+    if [ ! -e "$edge_pack_key_file" ] || [ $reinstall -eq 1 ]; then
+        ensure_apt_key "$edge_pack_key_file" "$edge_pack_key_url" --dearmor;
+        reconfigured=1;
+    fi;
+    if [ ! -e "$edge_pack_source_file" ] || [ $reinstall -eq 1 ]; then
+        ensure_apt_source "$edge_pack_list_file" "$edge_pack_source";
+        reconfigured=1;
+    fi;
+    if [ ! -e "$edge_pack_pref_file" ] || [ $reinstall -eq 1 ]; then
+        ensure_apt_preference "$edge_pack_pref_file" "${edge_pack_pref[@]}";
+        local p;
+        for p in "${edge_pack_incompatible_pref_files[@]}";
+        do
+            [ ! -f "$p" ] || ensure_sudo mv -f "$p" "$p".save;
+        done;
+        reconfigured=1;
+    fi;
+    if [ -n "$edge_pack_ppa_repo" ]; then
+        if [ ! -e "$edge_pack_ppa_key_file" ] || [ $reinstall -eq 1 ]; then
+            ensure_apt_key "$edge_pack_ppa_key_file" "$edge_pack_ppa_key_url" --dearmor;
+            reconfigured=1;
+        fi;
+        if [ ! -e "$edge_pack_ppa_source_file" ] || [ $reinstall -eq 1 ]; then
+            ensure_apt_source "$edge_pack_ppa_list_file" "$edge_pack_ppa_source";
+            reconfigured=1;
+        fi;
+    fi;
+    [ $reconfigured -eq 0 ] || ensure_apt update -y
+}
+debian_39_profile_edge_pack () 
+{ 
+    echo "curl gnupg linux_image_generic_7.0"
+}
+debian_39_remove_edge_pack () 
+{ 
+    dpkg -l | grep -q -F intel-edge- || { 
+        configure_edge_pack "$@";
+        ensure_rm "$edge_pack_key_file" "$edge_pack_source_file" "$edge_pack_pref_file";
+        [ -z "$edge_pack_ppa_repo" ] || ensure_rm "$edge_pack_ppa_list_file" "$edge_pack_ppa_key_file"
+    }
+}
+debian_40_group_edge_pack_base_realtime () 
+{ 
+    echo "render:992 video:"
+}
+debian_40_group_edge_pack_base_standard () 
+{ 
+    echo "render:992 video:"
+}
+debian_40_group_edge_pack_graphics_core () 
+{ 
+    echo "render:992 video:"
+}
+debian_40_group_edge_pack_graphics_display () 
+{ 
+    echo "render:992 video:"
+}
+debian_40_group_edge_pack_graphics_sriov () 
+{ 
+    echo "render:992 video:"
+}
+debian_40_group_edge_pack_npu () 
+{ 
+    echo "render:992"
+}
 debian_40_group_gpu_accel () 
 { 
     echo "render:992 video:"
@@ -4033,6 +4232,164 @@ debian_40_group_gpu_accel ()
 debian_40_group_npu_accel () 
 { 
     echo "render:992"
+}
+debian_40_install_core_types () 
+{ 
+    if [ -e /etc/core-types ] && [[ " $* " != *" --reinstall "* ]]; then
+        echo "/etc/core-types exists." 1>&2;
+    else
+        ensure_prop set installed/core_types/owned true;
+        local script="https://raw.githubusercontent.com/open-edge-platform/edge-workloads-and-benchmarks/refs/heads/main/utils/obtain_cores.sh";
+        set -o pipefail;
+        ensure_fetch "$script" - | bash | sed -n -E 's/^[[:space:]]*([a-zA-Z0-9_-]+)[[:space:]]*:[[:space:]]*(.*)/\U\1\E=\2/p' | ensure_sudo tee /etc/core-types;
+        echo "@@HIGHLIGHT Core types are detected and written to /etc/core-types";
+    fi
+}
+debian_40_install_edge_pack_base_realtime () 
+{ 
+    configure_edge_pack_base_realtime "$@";
+    if ensure_apt_is_installed intel-edge-base-realtime && [[ " $* " != *" --reinstall "* ]]; then
+        echo "intel-edge-base-realtime is installed." 1>&2;
+    else
+        local candidate;
+        candidate="$(apt-cache policy intel-edge-base-realtime 2> /dev/null | awk '/Candidate:/{print $2}')";
+        if [ -z "$candidate" ] || [ "$candidate" = "(none)" ]; then
+            echo "intel-edge-base-realtime is not available in the edge-pack apt repo ($edge_pack_repo)." 1>&2;
+            echo "This is a known upstream gap: Intel has not yet published intel-edge-base-realtime." 1>&2;
+            echo "Falling back to the standard edge-pack base bundle (intel-edge-base-standard) instead." 1>&2;
+            ensure_prop set installed/edge_pack_base_realtime/fallback true;
+            debian_40_install_edge_pack_base_standard "$@";
+            [ -n "$(ensure_prop get installed/edge_pack_base_standard/owned)" ] || ensure_prop set installed/edge_pack_base_standard/owned false;
+            [ -c /dev/dri/renderD128 ];
+            ensure_group_add $(debian_40_group_edge_pack_base_realtime);
+            echo "@@HIGHLIGHT intel-edge-base-realtime unavailable @installed intel-edge-base-standard instead";
+            return 0;
+        fi;
+        ensure_prop remove installed/edge_pack_base_realtime/fallback;
+        ensure_prop set installed/edge_pack_base_realtime/owned true;
+        ensure_apt purge --auto-remove -y intel-edge-base-realtime || true;
+        ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*" || true;
+        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*";
+    fi;
+    [ -c /dev/dri/renderD128 ];
+    ensure_group_add $(debian_40_group_edge_pack_base_realtime)
+}
+debian_40_install_edge_pack_base_standard () 
+{ 
+    configure_edge_pack_base_standard "$@";
+    if ensure_apt_is_installed intel-edge-base-standard && [[ " $* " != *" --reinstall "* ]]; then
+        echo "intel-edge-base-standard is installed." 1>&2;
+    else
+        ensure_prop set installed/edge_pack_base_standard/owned true;
+        ensure_apt purge --auto-remove -y intel-edge-base-standard || true;
+        ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*" || true;
+        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*";
+    fi;
+    [ -c /dev/dri/renderD128 ];
+    ensure_group_add $(debian_40_group_edge_pack_base_standard)
+}
+debian_40_install_edge_pack_graphics_core () 
+{ 
+    configure_edge_pack_graphics_core "$@";
+    if ensure_apt_is_installed intel-edge-graphics-core && [[ " $* " != *" --reinstall "* ]]; then
+        echo "intel-edge-graphics-core is installed." 1>&2;
+    else
+        ensure_prop set installed/edge_pack_graphics_core/owned true;
+        ensure_apt purge --auto-remove -y intel-edge-graphics-core || true;
+        ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-graphics-core=$version*" || true;
+        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-graphics-core=$version*";
+    fi;
+    [ -c /dev/dri/renderD128 ];
+    ensure_group_add $(debian_40_group_edge_pack_graphics_core)
+}
+debian_40_install_edge_pack_graphics_display () 
+{ 
+    configure_edge_pack_graphics_display "$@";
+    if ensure_apt_is_installed intel-edge-graphics-display && [[ " $* " != *" --reinstall "* ]]; then
+        echo "intel-edge-graphics-display is installed." 1>&2;
+    else
+        ensure_prop set installed/edge_pack_graphics_display/owned true;
+        ensure_apt purge --auto-remove -y intel-edge-graphics-display || true;
+        ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-graphics-display=$version*" || true;
+        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-graphics-display=$version*";
+    fi;
+    [ -c /dev/dri/renderD128 ];
+    ensure_group_add $(debian_40_group_edge_pack_graphics_display)
+}
+debian_40_install_edge_pack_graphics_sriov () 
+{ 
+    configure_edge_pack_graphics_sriov "$@";
+    if ensure_apt_is_installed intel-edge-graphics-sriov && [[ " $* " != *" --reinstall "* ]]; then
+        echo "intel-edge-graphics-sriov is installed." 1>&2;
+    else
+        ensure_prop set installed/edge_pack_graphics_sriov/owned true;
+        ensure_apt purge --auto-remove -y intel-edge-graphics-sriov || true;
+        ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-graphics-sriov=$version*" || true;
+        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-graphics-sriov=$version*";
+    fi;
+    [ -c /dev/dri/renderD128 ];
+    ensure_group_add $(debian_40_group_edge_pack_graphics_sriov)
+}
+debian_40_install_edge_pack_ipu () 
+{ 
+    configure_edge_pack_ipu "$@";
+    if ensure_apt_is_installed intel-edge-ipu && [[ " $* " != *" --reinstall "* ]]; then
+        echo "intel-edge-ipu is installed." 1>&2;
+    else
+        ensure_prop set installed/edge_pack_ipu/owned true;
+        ensure_apt purge --auto-remove -y intel-edge-ipu || true;
+        ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-ipu=$version*" || true;
+        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-ipu=$version*";
+    fi
+}
+debian_40_install_edge_pack_manageability () 
+{ 
+    configure_edge_pack_manageability "$@";
+    if ensure_apt_is_installed intel-edge-manageability && [[ " $* " != *" --reinstall "* ]]; then
+        echo "intel-edge-manageability is installed." 1>&2;
+    else
+        ensure_prop set installed/edge_pack_manageability/owned true;
+        ensure_apt purge --auto-remove -y intel-edge-manageability || true;
+        ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-manageability=$version*" || true;
+        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-manageability=$version*";
+    fi
+}
+debian_40_install_edge_pack_media_core () 
+{ 
+    configure_edge_pack_media_core "$@";
+    if ensure_apt_is_installed intel-edge-media-core && [[ " $* " != *" --reinstall "* ]]; then
+        echo "intel-edge-media-core is installed." 1>&2;
+    else
+        ensure_prop set installed/edge_pack_media_core/owned true;
+        ensure_apt purge --auto-remove -y intel-edge-media-core || true;
+        ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-core=$version*";
+    fi
+}
+debian_40_install_edge_pack_npu () 
+{ 
+    configure_edge_pack_npu "$@";
+    if ensure_apt_is_installed intel-edge-npu && [[ " $* " != *" --reinstall "* ]]; then
+        echo "intel-edge-npu is installed." 1>&2;
+    else
+        ensure_prop set installed/edge_pack_npu/owned true;
+        ensure_apt purge --auto-remove -y intel-edge-npu || true;
+        ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-npu=$version*" || true;
+        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-npu=$version*";
+    fi;
+    [ -c /dev/accel/accel0 ];
+    ensure_group_add $(debian_40_group_edge_pack_npu)
+}
+debian_40_install_edge_pack_tsn () 
+{ 
+    configure_edge_pack_tsn "$@";
+    if ensure_apt_is_installed intel-edge-tsn && [[ " $* " != *" --reinstall "* ]]; then
+        echo "intel-edge-tsn is installed." 1>&2;
+    else
+        ensure_prop set installed/edge_pack_tsn/owned true;
+        ensure_apt purge --auto-remove -y intel-edge-tsn || true;
+        ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-tsn=$version*" || true;
+        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-tsn=$version*";
+    fi
 }
 debian_40_install_gpu_accel () 
 { 
@@ -4104,7 +4461,10 @@ debian_40_install_pcm ()
     if verify_pcm && [[ " $* " != *" --reinstall "* ]]; then
         echo "pcm is installed." 1>&2;
     else
+        ensure_prop set installed/pcm/owned true;
+        echo "@@STEP Installing build tools";
         configure_kernel_module_essential_debian "$@";
+        echo "@@STEP Building PCM";
         ensure_git_export "$workspace" "$version" "$repository";
         rm -rf "$workspace"/tests "$workspace"/examples;
         mkdir "$workspace"/build "$workspace"/tests "$workspace"/examples;
@@ -4114,12 +4474,74 @@ debian_40_install_pcm ()
         cmake --build .;
         ensure_sudo make install;
         make clean;
+        echo "@@STEP Configuring mods";
+        echo "msr" | ensure_sudo tee /etc/modules-load.d/99-intel-pcm.conf > /dev/null;
+        ensure_sudo systemctl restart systemd-modules-load;
         verify_pcm;
+    fi
+}
+debian_40_install_power_tuning () 
+{ 
+    configure_power_tuning;
+    if verify_power_tuning && [[ " $* " != *" --reinstall "* ]]; then
+        echo "power_tuning is installed." 1>&2;
+    else
+        ensure_prop set installed/power_tuning/owned true;
+        echo "@@STEP Cloning repository";
+        ensure_git_export "$workspace" "$version" "$repository" tools/power-tuning;
+        ensure_sudo mkdir -p "$power_tuning_path";
+        sed -i -e "s|^MODEL_PATH=.*|MODEL_PATH=$workspace/models|" -e "s|^GNU_VENV_DIR=.*|GNU_VENV_DIR=$workspace/.venv|" tools/power-tuning/openvino_stress.sh;
+        ensure_sudo cp -r "$workspace"/tools/power-tunning/* "$power_tuning_path";
+        verify_power_tuning;
     fi
 }
 debian_40_install_software_properties_common () 
 { 
     ensure_apt_install_package software-properties-common
+}
+debian_40_profile_core_types () 
+{ 
+    [ "$1" != "install" ] || echo "cpuid curl"
+}
+debian_40_profile_edge_pack_base_realtime () 
+{ 
+    echo "edge_pack"
+}
+debian_40_profile_edge_pack_base_standard () 
+{ 
+    echo "edge_pack"
+}
+debian_40_profile_edge_pack_graphics_core () 
+{ 
+    echo "edge_pack"
+}
+debian_40_profile_edge_pack_graphics_display () 
+{ 
+    echo "edge_pack"
+}
+debian_40_profile_edge_pack_graphics_sriov () 
+{ 
+    echo "edge_pack"
+}
+debian_40_profile_edge_pack_ipu () 
+{ 
+    echo "edge_pack"
+}
+debian_40_profile_edge_pack_manageability () 
+{ 
+    echo "edge_pack"
+}
+debian_40_profile_edge_pack_media_core () 
+{ 
+    echo "edge_pack"
+}
+debian_40_profile_edge_pack_npu () 
+{ 
+    echo "edge_pack libze1"
+}
+debian_40_profile_edge_pack_tsn () 
+{ 
+    echo "edge_pack"
 }
 debian_40_profile_gpu_accel () 
 { 
@@ -4135,7 +4557,71 @@ debian_40_profile_npu_accel ()
 }
 debian_40_profile_pcm () 
 { 
-    echo "git make cmake kernel_module_essential"
+    echo "pkg_config git make cmake kernel_module_essential msr_tools"
+}
+debian_40_profile_power_tuning () 
+{ 
+    echo "intel_lpmd pcm sysbench msr_tools lm_sensors stress_ng linux_tools"
+}
+debian_40_remove_core_types () 
+{ 
+    [ "$(ensure_prop get installed/core_types/owned)" = "true" ] || return 0;
+    ensure_rm /etc/core-types
+}
+debian_40_remove_edge_pack_base_realtime () 
+{ 
+    if [ "$(ensure_prop get installed/edge_pack_base_realtime/fallback)" != "true" ]; then
+        [ "$(ensure_prop get installed/edge_pack_base_realtime/owned)" = "true" ] || return 0;
+        ensure_apt purge --auto-remove -y intel-edge-base-realtime || true;
+    else
+        debian_40_remove_edge_pack_base_standard "$@";
+    fi;
+    ensure_prop remove installed/edge_pack_base_realtime/fallback
+}
+debian_40_remove_edge_pack_base_standard () 
+{ 
+    [ "$(ensure_prop get installed/edge_pack_base_standard/owned)" = "true" ] || return 0;
+    ensure_apt purge --auto-remove -y intel-edge-base-standard || true
+}
+debian_40_remove_edge_pack_graphics_core () 
+{ 
+    [ "$(ensure_prop get installed/edge_pack_graphics_core/owned)" = "true" ] || return 0;
+    ensure_apt purge --auto-remove -y intel-edge-graphics-core || true
+}
+debian_40_remove_edge_pack_graphics_display () 
+{ 
+    [ "$(ensure_prop get installed/edge_pack_graphics_display/owned)" = "true" ] || return 0;
+    ensure_apt purge --auto-remove -y intel-edge-graphics-display || true
+}
+debian_40_remove_edge_pack_graphics_sriov () 
+{ 
+    [ "$(ensure_prop get installed/edge_pack_graphics_sriov/owned)" = "true" ] || return 0;
+    ensure_apt purge --auto-remove -y intel-edge-graphics-sriov || true
+}
+debian_40_remove_edge_pack_ipu () 
+{ 
+    [ "$(ensure_prop get installed/edge_pack_ipu/owned)" = "true" ] || return 0;
+    ensure_apt purge --auto-remove -y intel-edge-ipu || true
+}
+debian_40_remove_edge_pack_manageability () 
+{ 
+    [ "$(ensure_prop get installed/edge_pack_manageability/owned)" = "true" ] || return 0;
+    ensure_apt purge --auto-remove -y intel-edge-manageability || true
+}
+debian_40_remove_edge_pack_media_core () 
+{ 
+    [ "$(ensure_prop get installed/edge_pack_media_core/owned)" = "true" ] || return 0;
+    ensure_apt purge --auto-remove -y intel-edge-media-core || true
+}
+debian_40_remove_edge_pack_npu () 
+{ 
+    [ "$(ensure_prop get installed/edge_pack_npu/owned)" = "true" ] || return 0;
+    ensure_apt purge --auto-remove -y intel-edge-npu || true
+}
+debian_40_remove_edge_pack_tsn () 
+{ 
+    [ "$(ensure_prop get installed/edge_pack_tsn/owned)" = "true" ] || return 0;
+    ensure_apt purge --auto-remove -y intel-edge-tsn || true
 }
 debian_40_remove_gpu_accel () 
 { 
@@ -4161,7 +4647,78 @@ debian_40_remove_npu_accel ()
 debian_40_remove_pcm () 
 { 
     configure_pcm;
-    ensure_rm "$workspace" /usr/local/share/pcm /usr/local/sbin/pcm /usr/local/sbin/pcm-* /usr/local/bin/pcm-* /usr/local/share/licenses/pcm /usr/local/share/doc/PCM
+    [ "$(ensure_prop get installed/pcm/owned)" = "true" ] || return 0;
+    ensure_rm "$workspace" /usr/local/share/pcm /usr/local/sbin/pcm /usr/local/sbin/pcm-* /usr/local/bin/pcm-* /usr/local/share/licenses/pcm /usr/local/share/doc/PCM /etc/modules-load.d/99-intel-pcm.conf
+}
+debian_40_remove_power_tuning () 
+{ 
+    configure_power_tuning;
+    [ "$(ensure_prop get installed/power_tuning/owned)" = "true" ] || return 0;
+    ensure_rm "$power_tuning_path"
+}
+debian_40_sbom_edge_pack_base_realtime () 
+{ 
+    configure_edge_pack_base_realtime "$@";
+    sbom_edge_pack_repo_entries "$@";
+    if [ "$(ensure_prop get installed/edge_pack_base_realtime/fallback)" = "true" ]; then
+        ensure_sbom_format pkg-list "intel-edge-base-standard=$version*";
+    else
+        ensure_sbom_format pkg-list "intel-edge-base-realtime=$version*";
+    fi
+}
+debian_40_sbom_edge_pack_base_standard () 
+{ 
+    configure_edge_pack_base_standard "$@";
+    sbom_edge_pack_repo_entries "$@";
+    ensure_sbom_format pkg-list "intel-edge-base-standard=$version*"
+}
+debian_40_sbom_edge_pack_graphics_core () 
+{ 
+    configure_edge_pack_graphics_core "$@";
+    sbom_edge_pack_repo_entries "$@";
+    ensure_sbom_format pkg-list "intel-edge-graphics-core=$version*"
+}
+debian_40_sbom_edge_pack_graphics_display () 
+{ 
+    configure_edge_pack_graphics_display "$@";
+    sbom_edge_pack_repo_entries "$@";
+    ensure_sbom_format pkg-list "intel-edge-graphics-display=$version*"
+}
+debian_40_sbom_edge_pack_graphics_sriov () 
+{ 
+    configure_edge_pack_graphics_sriov "$@";
+    sbom_edge_pack_repo_entries "$@";
+    ensure_sbom_format pkg-list "intel-edge-graphics-sriov=$version*"
+}
+debian_40_sbom_edge_pack_ipu () 
+{ 
+    configure_edge_pack_ipu "$@";
+    sbom_edge_pack_repo_entries "$@";
+    ensure_sbom_format pkg-list "intel-edge-ipu=$version*"
+}
+debian_40_sbom_edge_pack_manageability () 
+{ 
+    configure_edge_pack_manageability "$@";
+    sbom_edge_pack_repo_entries "$@";
+    ensure_sbom_format pkg-list "intel-edge-manageability=$version*"
+}
+debian_40_sbom_edge_pack_media_core () 
+{ 
+    configure_edge_pack_media_core "$@";
+    sbom_edge_pack_repo_entries "$@";
+    ensure_sbom_format pkg-list "intel-edge-media-core=$version*"
+}
+debian_40_sbom_edge_pack_npu () 
+{ 
+    configure_edge_pack_npu "$@";
+    sbom_edge_pack_repo_entries "$@";
+    ensure_sbom_format pkg-list "intel-edge-npu=$version*"
+}
+debian_40_sbom_edge_pack_tsn () 
+{ 
+    configure_edge_pack_tsn "$@";
+    sbom_edge_pack_repo_entries "$@";
+    ensure_sbom_format pkg-list "intel-edge-tsn=$version*"
 }
 debian_40_sbom_gpu_accel () 
 { 
@@ -4219,6 +4776,16 @@ debian_45_install_rt_tests ()
 { 
     ensure_apt_install_package rt-tests
 }
+debian_45_install_ubuntu_server () 
+{ 
+    if ( ensure_apt_is_installed ubuntu-desktop || ensure_apt_is_installed ubuntu-desktop-minimal || ensure_apt_is_installed gdm3 ) && [[ " $* " != *" --reinstall "* ]]; then
+        ensure_sudo systemctl set-default multi-user.target;
+        ensure_sudo systemctl disable --now gdm3;
+        ensure_apt update;
+        ensure_apt install -y --no-install-recommends ubuntu-server;
+        ensure_apt purge -y --auto-remove ubuntu-desktop ubuntu-desktop-minimal gdm3;
+    fi
+}
 debian_45_profile_pipx () 
 { 
     echo "python3_venv"
@@ -4270,6 +4837,10 @@ debian_45_sbom_qemu_utils ()
 debian_45_sbom_rt_tests () 
 { 
     ensure_sbom_format pkg-list rt-tests
+}
+debian_45_sbom_ubuntu_server () 
+{ 
+    ensure_sbom_format pkg-list ubuntu-server -ubuntu-desktop -ubuntu-desktop-minimal -gdm3
 }
 debian_50_install_ros2 () 
 { 
@@ -4335,6 +4906,41 @@ debian_50_sbom_ros2 ()
     ensure_sbom_format pkg-list ros-$ros_distro-desktop ros-dev-tools;
     ensure_sbom_format apt-repository universe
 }
+debian_55_install_cdi () 
+{ 
+    configure_cdi;
+    if verify_cdi && [[ " $* " = *" --reinstall "* ]]; then
+        echo "CDI scripts are installed" 1>&2;
+    else
+        ensure_sudo mkdir -p "$cdi_path";
+        ensure_git_export "$workspace" "$version" "$repository" infrastructure/installation-scripts/cdi;
+        echo "@@STEP Building cdi generators";
+        cd "$workspace"/infrastructure/installation-scripts;
+        ensure_sudo ./cdi/build-gpu-generator.sh;
+        ensure_sudo install -m 755 cdi/intel-cdi-specs-generator-gpu /opt/edge/scripts/cdi/intel-cdi-specs-generator-gpu;
+        ensure_sudo install -m 755 cdi/intel-cdi-npu-generator.sh /opt/edge/scripts/cdi/intel-cdi-npu-generator.sh;
+        if [ -f "$docker_config" ] && ! grep -q '"cdi"' "$docker_config" 2> /dev/null; then
+            cp -f "$docker_config" "$workspace/${docker_config##*/}.bak";
+            ensure_sudo python3 -c "
+import json
+f = open('$docker_config')
+config = json.load(f)
+f.close()
+config.setdefault('features', {})['cdi'] = True
+config.setdefault('cdi-spec-dirs', [])
+if '/etc/cdi' not in config['cdi-spec-dirs']: config['cdi-spec-dirs'].append('/etc/cdi')
+f = open('$docker_config', 'w')
+json.dump(config, f, indent=2)
+f.close()
+" 2> /dev/null || { 
+                echo "Could not configure Docker for CDI" 1>&2;
+                return 1
+            };
+            ensure_sudo systemctl restart docker || true;
+        fi;
+        ensure_sudo cdi/systemd/install-systemd.sh;
+    fi
+}
 debian_55_install_realsense () 
 { 
     configure_realsense;
@@ -4348,6 +4954,23 @@ debian_55_install_realsense ()
         ensure_apt update -y;
         ensure_apt install -y --allow-downgrades ros-$ros_distro-librealsense2;
         ensure_apt install -y librealsense2-dkms librealsense2;
+    fi
+}
+debian_55_install_realsense_fedaero () 
+{ 
+    configure_realsense_fedaero;
+    if ensure_apt_is_installed ${rs_packages[*]} && [[ " $* " = *" --reinstall "* ]]; then
+        echo "realsense is installed" 1>&2;
+    else
+        ensure_prop set installed/realsense_fedaero/owned true;
+        echo "@@STEP Configuring Apt";
+        ensure_apt_key "$eci_key_file" "$eci_key_url" --dearmor;
+        ensure_apt_source "$eci_repo_list_file" "$eci_repo_list";
+        ensure_apt_key "$rs_key_file" "$rs_key_url" --dearmor;
+        ensure_apt_source "$rs_list" "$rs_deb_entry";
+        ensure_apt update -y;
+        echo "@@STEP Installing realsense";
+        ensure_apt install -y --no-install-recommends ${rs_packages[*]};
     fi
 }
 debian_55_install_ros_openvino () 
@@ -4379,6 +5002,10 @@ debian_55_install_ros_openvino ()
     echo "@@HIGHLIGHT OpenVINO $ov_version + ros-$ros_distro-openvino-node installed";
     echo "@@HIGHLIGHT If the OpenVINO IR models were not installed, reinstall ros-$ros_distro-openvino-node interactively and answer Yes"
 }
+debian_55_profile_cdi () 
+{ 
+    echo "git golang python3_venv docker_io"
+}
 debian_55_profile_realsense () 
 { 
     echo "curl gnupg ros2"
@@ -4387,6 +5014,19 @@ debian_55_profile_ros_openvino ()
 { 
     echo "curl gnupg ros2 libze1 debconf_utils";
     [[ " $* " = *" --realtime "* ]] || echo "edge_base"
+}
+debian_55_remove_cdi () 
+{ 
+    configure_cdi;
+    [ "$(ensure_prop get installed/cdi/owned)" = "true" ] || return 0;
+    if [ -e "$workspace"/${docker_config##*/}.bak ]; then
+        ensure_sudo cp -f "$workspace"/${docker_config##*/}.bak "$docker_config";
+        ensure_sudo systemctl restart docker || true;
+    fi;
+    cd "$workspace"/infrastructure/installation-scripts && { 
+        ensure_sudo cdi/systemd/install-sysetmd.sh --uninstall
+    } || true;
+    ensure_rm "$workspace" "$cdi_path"
 }
 debian_55_remove_realsense () 
 { 
@@ -4398,6 +5038,12 @@ debian_55_remove_realsense ()
     else
         echo "RealSense SDK already removed. Skipping";
     fi
+}
+debian_55_remove_realsense_fedaero () 
+{ 
+    configure_realsense_fedaero;
+    [ "$(ensure_prop get installed/realsense_fedaero/owned)" = "true" ] || return 0;
+    ensure_apt purge --auto-remove ${rs_packages[*]}
 }
 debian_55_remove_ros_openvino () 
 { 
@@ -4419,6 +5065,22 @@ debian_55_sbom_realsense ()
     ensure_sbom_format apt-source "$rs_deb_entry";
     ensure_sbom_format apt-list-file "$rs_list";
     ensure_sbom_format pkg-list ros-$ros_distro-librealsense2 librealsense2-dkms librealsense2
+}
+debian_55_sbom_realsense_fedaero () 
+{ 
+    configure_realsense_fedaero "$@";
+    ensure_sbom_format name "$eci_repo_name";
+    ensure_sbom_format gpg-key "$eci_key_url";
+    ensure_sbom_format key-file "$eci_key_file";
+    ensure_sbom_format apt-source "$eci_repo_list";
+    ensure_sbom_format apt-list-file "$eci_repo_list_file";
+    echo "---";
+    ensure_sbom_format name "$rs_repo_name";
+    ensure_sbom_format gpg-key "$rs_key_url";
+    ensure_sbom_format key-file "$rs_key_file";
+    ensure_sbom_format apt-source "$rs_deb_entry";
+    ensure_sbom_format apt-list-file "$rs_list";
+    ensure_sbom_format pkg-list "${rs_packages[@]}"
 }
 debian_55_sbom_ros_openvino () 
 { 
@@ -4474,7 +5136,7 @@ debian_60_install_edge_node_infrastructure_blueprint ()
         verify_edge_node_infrastructure_blueprint;
     fi;
     echo "@@HIGHLIGHT deployment model: $deployment";
-    echo "@@HIGHLIGHT workspace: $workspace"
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
 }
 debian_60_profile_edge_node_infrastructure_blueprint () 
 { 
@@ -4587,14 +5249,12 @@ debian_70_profile_time_confighub ()
 debian_70_remove_edge_pack_media_ffmpeg () 
 { 
     [ "$(ensure_prop get installed/edge_pack_media_ffmpeg/owned)" = "true" ] || return 0;
-    ensure_apt purge --auto-remove -y intel-edge-media-ffmpeg || true;
-    debian_19_remove_edge_pack "$@" || true
+    ensure_apt purge --auto-remove -y intel-edge-media-ffmpeg || true
 }
 debian_70_remove_edge_pack_media_gst () 
 { 
     [ "$(ensure_prop get installed/edge_pack_media_gst/owned)" = "true" ] || return 0;
-    ensure_apt purge --auto-remove -y intel-edge-media-gst || true;
-    debian_19_remove_edge_pack "$@" || true
+    ensure_apt purge --auto-remove -y intel-edge-media-gst || true
 }
 debian_70_remove_ffmpeg () 
 { 
@@ -4623,13 +5283,13 @@ debian_70_remove_time_confighub ()
 debian_70_sbom_edge_pack_media_ffmpeg () 
 { 
     configure_edge_pack_media_ffmpeg "$@";
-    debian_19_sbom_edge_pack_repo_entries "$@";
+    sbom_edge_pack_repo_entries "$@";
     ensure_sbom_format pkg-list "intel-edge-media-ffmpeg=$version*"
 }
 debian_70_sbom_edge_pack_media_gst () 
 { 
     configure_edge_pack_media_gst "$@";
-    debian_19_sbom_edge_pack_repo_entries "$@";
+    sbom_edge_pack_repo_entries "$@";
     ensure_sbom_format pkg-list "intel-edge-media-gst=$version*"
 }
 debian_70_sbom_ffmpeg () 
@@ -4667,7 +5327,7 @@ debian_75_install_dlstreamer ()
         ensure_apt_allow_downgrades "${allow_downgrades[*]}" --no-install-recommends -y intel-dlstreamer=$version;
         ensure_apt install --allow-downgrades --no-install-recommends -y intel-dlstreamer=$version;
         echo "@@STEP Installing skills";
-        ensure_skills add "$version_skills" "$repository_skills" .github/skills/dlstreamer-coding-agent;
+        ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}";
         verify_dlstreamer;
         echo "intel-dlstreamer=$version installed successfully.";
     fi;
@@ -4685,8 +5345,8 @@ debian_75_remove_dlstreamer ()
     configure_dlstreamer;
     [ "$(ensure_prop get installed/dlstreamer/owned)" = "true" ] || return 0;
     ensure_apt purge --auto-remove -y $(dpkg-query -l | awk '/^ii/&&/dlstreamer/{print$2}') || true;
-    ensure_rm "$workspace";
-    ensure_skills remove dlstreamer-coding-agent
+    ensure_rm "$workspace" || true;
+    ensure_skills remove "${skills[@]}"
 }
 debian_75_sbom_dlstreamer () 
 { 
@@ -4712,7 +5372,7 @@ debian_80_install_anomalib ()
         . .venv/bin/activate;
         pip install "anomalib[openvino,cpu]==${version}";
         echo "@@STEP Installing skills";
-        ensure_skills add tags/lib/v$version $repository "${skills[@]/#/.agents/skills/}";
+        ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}";
         verify_anomalib;
     fi;
     test_anomalib "$@";
@@ -4736,7 +5396,9 @@ debian_85_install_esq ()
         echo "Esq is installed." 1>&2;
     else
         ensure_disk_size 25000;
+        echo "@@STEP Cloning repository";
         ensure_git_clone "$workspace" "$version" "$repository";
+        echo "@@STEP Installing ESQ";
         cd "$workspace";
         uv tool install --force .;
     fi;
@@ -4752,18 +5414,25 @@ debian_85_install_video_search_and_summarization ()
     else
         ensure_disk_size 8000;
         ensure_ports_open install video_search_and_summarization "${used_ports[@]}";
+        echo "@@STEP Cloning repository";
         ensure_git_export "$workspace" $version $repository sample-applications/video-search-and-summarization;
+        echo "@@STEP Configuring models";
         configure_video_search_and_summarization_gated;
+        echo "@@STEP Setting up VSS";
+        echo "@@STEP @@IF [[]model-download] [^(]+ [(]([^)]+)[)]: queued @@THEN Downloading \\1";
+        echo "@@STEP @@IF docker compose .* pull .* @@THEN Pulling images";
         cd "$workspace"/sample-applications/video-search-and-summarization;
         sed -i "s|export HOST_IP=.*|export HOST_IP=$(ensure_ip)|" setup.sh;
         sed 's|FINAL_ARG=.*|FINAL_ARG="pull --ignore-pull-failures"|' setup.sh > .setup.sh;
         sed -i 's|"Unified Summarization/Search UI is now available.*"|""|' .setup.sh;
         . ./.setup.sh --search-and-summary;
+        echo "@@STEP Installing skills";
+        ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}";
         verify_video_search_and_summarization;
     fi;
     local device=$(ensure_select_device "$@");
     echo "$device" > "$workspace"/.device_from_install;
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT start|stop|remove"
 }
 debian_85_profile_esq () 
@@ -4785,7 +5454,8 @@ debian_85_remove_esq ()
 debian_85_remove_video_search_and_summarization () 
 { 
     debian_85_stop_video_search_and_summarization "$@";
-    ensure_rm "$workspace"
+    ensure_rm "$workspace" || true;
+    ensure_skills remove "${skills[@]}"
 }
 debian_85_start_esq () 
 { 
@@ -4847,7 +5517,7 @@ debian_90_install_agentic_predictive_maintenance_pipeline ()
     fi;
     local device=$(ensure_select_device "$@");
     configure_agentic_predictive_maintenance_pipeline_device "${device^^}";
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name start|remove"
 }
@@ -4913,7 +5583,7 @@ debian_90_install_dine_in ()
     fi;
     local device=$(ensure_select_device "$@");
     configure_dine_in_device "${device^^}";
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name remove"
@@ -4939,7 +5609,7 @@ debian_90_install_handheld_multi_modal ()
         docker compose -f docker-compose.yml pull --ignore-buildable;
         verify_handheld_multi_modal $*;
     fi;
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start|remove"
 }
 debian_90_install_humanoid_imitation_learning () 
@@ -5008,7 +5678,7 @@ EOF
 )";
         verify_image_based_video_search;
     fi;
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT start|stop|remove"
 }
 debian_90_install_live_video_alert_agent () 
@@ -5024,7 +5694,7 @@ debian_90_install_live_video_alert_agent ()
     fi;
     local device=$(ensure_select_device "$@");
     configure_live_video_alert_agent_device "${device^^}";
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name start|remove"
 }
@@ -5048,7 +5718,7 @@ debian_90_install_live_video_captioning ()
     fi;
     local device=$(ensure_select_device "$@");
     configure_live_video_captioning_device "${device^^}";
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start|remove"
 }
 debian_90_install_live_video_captioning_rag () 
@@ -5071,7 +5741,7 @@ debian_90_install_live_video_captioning_rag ()
     fi;
     local device=$(ensure_select_device "$@");
     configure_live_video_captioning_rag_device "${device^^}";
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name start|remove"
 }
@@ -5088,7 +5758,7 @@ debian_90_install_live_video_search ()
     fi;
     local device=$(ensure_select_device "$@");
     configure_live_video_search_device "$device";
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start|remove"
 }
 debian_90_install_loitering_detection () 
@@ -5107,7 +5777,7 @@ debian_90_install_loitering_detection ()
     fi;
     local device=$(ensure_select_device "$@");
     echo "$device" > "$workspace"/.device;
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name remove"
 }
@@ -5151,7 +5821,7 @@ EOF
     fi;
     local device=$(ensure_select_device "$@");
     configure_loss_prevention_options "$device" "$@" --lp;
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start --od";
     echo "@@HIGHLIGHT $installer_name start --oc";
     echo "@@HIGHLIGHT $installer_name start --age";
@@ -5183,7 +5853,7 @@ debian_90_install_multi_modal_patient_monitoring ()
     fi;
     local device="$(ensure_select_device "$@")";
     echo "${device^^}" > "$workspace"/multi_modal_patient_monitoring/.device;
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]";
     echo "$$HIGHLIGHT $installer_name remove"
@@ -5211,7 +5881,7 @@ EOF
     fi;
     local device=$(ensure_select_device "$@");
     configure_multimodal_weld_defect_detection_device "$device";
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start [--gpu|cpu]";
     echo "@@HIGHLIGHT $installer_name remove"
 }
@@ -5242,7 +5912,7 @@ debian_90_install_nicu_warmer ()
     fi;
     local device=$(ensure_select_device "$@");
     configure_nicu_warmer_device "$device";
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start|remove"
 }
 debian_90_install_pallet_defect_detection () 
@@ -5273,7 +5943,7 @@ EOF
     fi;
     local device=$(ensure_select_device "$@");
     echo "_$device" > "$workspace"/.device;
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name remove"
@@ -5306,7 +5976,7 @@ EOF
     fi;
     local device=$(ensure_select_device "$@");
     echo "_$device" > "$workspace"/.device;
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install [--gpu|--npu|--cpu]";
     echo "@@HIGHLIGHT $installer_name start [--gpu|--npu|--cpu]";
     echo "@@HIGHLIGHT $installer_name remove"
@@ -5402,7 +6072,7 @@ EOF
     fi;
     local device=$(ensure_select_device "$@");
     configure_post_fusion_device "$device";
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install|start [--gpu/npu]";
     echo "@@HIGHLIGHT $installer_name remove"
 }
@@ -5425,7 +6095,7 @@ debian_90_install_real_time_scene_understanding ()
     fi;
     local device=$(ensure_select_device "$@");
     configure_real_time_scene_understanding_device "${device^^}";
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name remove"
@@ -5438,10 +6108,13 @@ debian_90_install_scenescape ()
     else
         ensure_disk_size 300;
         ensure_ports_open install scenescape "${used_ports[@]}";
+        echo "@@STEP Cloning git repository";
         ensure_git_export "$workspace" "$version" "$repository";
+        echo "@@STEP Installing skills";
+        ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}";
         verify_scenescape;
     fi;
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start";
     echo "@@HIGHLIGHT $installer_name remove"
 }
@@ -5462,7 +6135,7 @@ debian_90_install_smart_intersection ()
     fi;
     local device=$(ensure_select_device "$@");
     configure_smart_intersection_device "$device";
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name remove"
 }
@@ -5489,7 +6162,7 @@ debian_90_install_smart_kiosk_assistant ()
     fi;
     local device="$(ensure_select_device "$@")";
     configure_smart_kiosk_assistant_device "${device^^}";
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install [--gpu|cpu]";
     echo "@@HIGHLIGHT $installer_name start [--gpu|cpu]";
     echo "@@HIGHLIGHT $installer_name remove"
@@ -5504,7 +6177,7 @@ debian_90_install_smart_nvr ()
         ensure_ports_open install smart_nvr "${used_ports[@]}";
         ensure_git_export "$workspace" "$version" "$repository" smart-nvr metro-vision-ai-app-recipe;
     fi;
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start|remove"
 }
 debian_90_install_smart_parking () 
@@ -5516,12 +6189,12 @@ debian_90_install_smart_parking ()
         echo "@@STEP @@IF ^docker compose down @@THEN Stopping all apps";
         ensure_disk_size 300;
         ensure_ports_open install smart_parking "${used_ports[@]}";
-        echo "@@STEP Clone git repository";
+        echo "@@STEP Cloning repository";
         ensure_git_export "$workspace" $version $repository metro-vision-ai-app-recipe;
-        echo "@@STEP Setup sample";
+        echo "@@STEP Setting up sample";
         echo "@@STEP @@IF ^Attempt : Running model download and quantization @@THEN Preparing model download";
         echo "@@STEP @@IF ^Downloading and converting:.*[/]([a-z0-9]+)$ @@THEN Downloading \\1";
-        echo "@@STEP @@IF ^Starting ([A-Z0-9]+) quantization for ([a-z0-9]+) @@THEN Quantizing \\2 to \\1";
+        echo "@@STEP @@IF Starting ([A-Z0-9]+) quantization for ([a-z0-9]+) @@THEN Quantizing \\2 to \\1";
         echo "@@STEP @@IF ^Download ([a-z0-9_]+.mp4)[.][.][.] @@THEN Downloading \\1";
         cd "$workspace/metro-vision-ai-app-recipe";
         sed -i 's|curl | curl -f |' smart-parking/install.sh;
@@ -5530,7 +6203,7 @@ debian_90_install_smart_parking ()
     fi;
     local device=$(ensure_select_device "$@");
     echo "$device" > "$workspace"/.device;
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name remove"
@@ -5553,7 +6226,7 @@ debian_90_install_smart_traffic_intersection_agent ()
     fi;
     local device=$(ensure_select_device "$@");
     echo "$device" > "$workspace"/.device;
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install/start [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name remove"
 }
@@ -5601,10 +6274,10 @@ debian_90_install_surgical_instrument ()
     if [ ! -e "$polyp_model" ]; then
         printf "${red}polyp model is not available.${reset}\n" 1>&2;
         printf "$installer_name install --train to train a polyp model." 1>&2;
-        echo "@@HIGHLIGHT workspace: $workspace";
+        echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
         echo "@@HIGHLIGHT $installer_name install --train";
     else
-        echo "@@HIGHLIGHT workspace: $workspace";
+        echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
         echo "@@HIGHLIGHT $installer_name start|remove";
     fi
 }
@@ -5629,7 +6302,7 @@ debian_90_install_take_away ()
     fi;
     local device=$(ensure_select_device "$@");
     configure_take_away_device "${device^^}";
-    echo "@@HIGHLIGHT workspace $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]";
     echo "@@HIGHLIGHT $installer_name remove"
@@ -5641,11 +6314,15 @@ debian_90_install_uav_mission_compute_sdk ()
         echo "UAV mission compute sdk is installed." 1>&2;
     else
         ensure_ports_open install uav_mission_compute_sdk "${used_ports[@]}";
+        echo "@@STEP Cloning repository";
         ensure_git_export "$workspace" "$version" "$repository" uav-mission-compute-sdk;
+        echo "@@STEP Building SDK";
         cd "$workspace"/uav-mission-compute-sdk;
         make init;
         sed -i "s|^HOST_IP=.*$|HOST_IP=$(ensure_ip)|" .env;
         make build;
+        echo "@@STEP Installing skills";
+        ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}";
         verify_uav_mission_compute_sdk;
     fi;
     local profile="sim-camera";
@@ -5655,7 +6332,7 @@ debian_90_install_uav_mission_compute_sdk ()
     cd "$workspace"/uav-mission-compute-sdk;
     sed -i '/^PROFILE=/{d}' "$workspace"/uav-mission-compute-sdk/.env;
     echo "PROFILE=$profile" >> "$workspace"/uav-mission-compute-sdk/.env;
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start|remove"
 }
 debian_90_install_video_processing_for_nvr () 
@@ -5701,7 +6378,7 @@ ov.save_model(ppp.build(), "modified_yolov8n/yolov8n.xml")
     fi;
     local device=$(ensure_select_device "$@");
     echo "$device" > "$workspace"/.device;
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name install|start [--gpu|npu]";
     echo "@@HIGHLIGHT $installer_name remove"
 }
@@ -5744,7 +6421,7 @@ debian_90_install_visual_search_question_and_answering ()
     fi;
     local device=$(ensure_select_device "$@");
     echo "$device" > "$workspace"/.device_from_input;
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start|remove"
 }
 debian_90_install_wind_turbine_anomaly_detection () 
@@ -5770,7 +6447,7 @@ EOF
     fi;
     local device=$(ensure_select_device "$@");
     configure_wind_turbine_anomaly_detection_device "$device";
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start [--gpu|cpu]";
     echo "@@HIGHLIGHT $installer_name remove"
 }
@@ -6079,7 +6756,8 @@ debian_90_remove_scenescape ()
 { 
     debian_90_stop_scenescape "$@";
     cd "$workspace" && make clean-all || true;
-    ensure_rm "$workspace"
+    ensure_rm "$workspace" || true;
+    ensure_skills remove "${skills[@]}"
 }
 debian_90_remove_smart_intersection () 
 { 
@@ -6138,7 +6816,8 @@ debian_90_remove_uav_mission_compute_sdk ()
         debian_90_stop_uav_mission_compute_sdk "$@";
         ( cd "$app_dir" && docker compose -f docker-compose.yml --profile sim-camera --profile usb-camera --profile observability down --remove-orphans --volumes --rmi all ) || true;
     fi;
-    ensure_rm "$workspace"
+    ensure_rm "$workspace" || true;
+    ensure_skills remove "${skills[@]}"
 }
 debian_90_remove_video_processing_for_nvr () 
 { 
@@ -6661,13 +7340,13 @@ debian_90_start_surgical_instrument ()
     if [ ! -e models/yolo11n_polyp/best_openvino_model/best.xml ]; then
         printf "${red}Missing yolo11n_polyp${reset}\n" 1>&2;
         printf "$installer_name install --train to train a polyp model\n" 1>&2;
-        echo "@@HIGHLIGHT workspace: $workspace";
+        echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
         echo "@@HIGHLIGHT $installer_name install --train";
         return 3;
     fi;
     make doctor;
     make up LOWLATENCY=1 CAMERA_TRIGGER=vsync VSYNC_DIVISOR=2 SERIAL=1234567890;
-    echo "@@HIGHLIGHT workspace: $workspace";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name remove"
 }
 debian_90_start_take_away () 
@@ -7019,7 +7698,7 @@ debian_90_stop_wind_turbine_anomaly_detection ()
 debian_99_install_system_summary () 
 { 
     echo "@@REPORT SYSTEM SUMMARY";
-    install_system_inspection "$@"
+    install_system_inspection "$@" || true
 }
 debian_99_profile_computer_vision () 
 { 
@@ -7033,13 +7712,44 @@ debian_99_profile_edge_base ()
         ;;
         *)
             echo "core_types system_inspection system_summary";
-            if [[ " $* " = *" --edgepack "* ]] && [[ "$(uname -r)" = "7."* ]]; then
+            if [[ " $* " = *" --edgepack "* ]]; then
                 echo "edge_pack_base_standard edge_pack_npu";
             else
                 echo "gpu_accel npu_accel";
             fi
         ;;
     esac
+}
+debian_99_profile_edge_base_handheld () 
+{ 
+    case "$1" in 
+        bootstrap)
+            echo "core_types system_inspection system_summary edge_pack_base_standard edge_pack_npu gpu_accel npu_accel power_tuning docker_io k3s"
+        ;;
+        *)
+            local modules=(core_types system_inspection system_summary power_tuning cdi realsense_fedaero chrony);
+            if [[ " $* " = *" --k3s "* ]]; then
+                if [[ " $* " = *" handheld_multi_modal "* ]]; then
+                    echo "K3s is not supported with handheld_multi_modal (both use TCP port 6443)." 1>&2;
+                    modules+=(docker_io);
+                else
+                    modules+=(k3s);
+                fi;
+            else
+                modules+=(docker_io);
+            fi;
+            if [[ " $* " = *" --edgepack "* ]]; then
+                modules+=(edge_pack_base_standard edge_pack_npu);
+            else
+                modules+=(gpu_accel npu_accel);
+            fi;
+            echo "${modules[*]}"
+        ;;
+    esac
+}
+debian_99_profile_edge_base_server () 
+{ 
+    echo "edge_base_handheld ubuntu_server"
 }
 debian_99_profile_federal_and_aerospace_ai_suite () 
 { 
@@ -7085,8 +7795,8 @@ ensure_apt ()
     done;
     case "$1" in 
         update)
-            [[ -e "${installer_state:?}"/apt_update && " $* " != *" -y "* ]] || ensure_sudo env DEBIAN_FRONTEND=noninteractive apt-get "$@";
-            touch "$installer_state"/apt_update
+            [[ "$(ensure_prop get apt_update)" = "true" && " $* " != *" -y "* ]] || ensure_sudo env DEBIAN_FRONTEND=noninteractive apt-get "$@";
+            ensure_prop set apt_update true
         ;;
         autoremove | remove | purge)
             local package_list=();
@@ -7107,7 +7817,7 @@ ensure_apt ()
             fi
         ;;
         *)
-            [ "$1" != "install" ] || [ -e "${installer_state:?}"/apt_update ] || ensure_apt update -y;
+            [ "$1" != "install" ] || [ "$(ensure_prop get apt_update)" = "true" ] || ensure_apt update -y;
             ensure_sudo env DEBIAN_FRONTEND=noninteractive apt-get -y "$@"
         ;;
     esac
@@ -7135,7 +7845,7 @@ flag&&$1{for(i=1;i<=NF;i++)print$i}
         [[ " ${allow_downgrades[*]} " = *" $dg "* ]] || downgrades+=("$dg");
     done;
     if [ ${#downgrades[*]} -gt 0 ]; then
-        echo "Detected unexpected downgrades: ${downgrades[*]}" 1>&2;
+        printf "${red}Detected unexpected downgrades: %s${reset}\n" "${downgrades[*]}" 1>&2;
         return 3;
     fi
 }
@@ -7371,6 +8081,37 @@ ensure_group_add ()
         sleep 1;
     done
 }
+ensure_grub_set_default_entry () 
+{ 
+    local kver="$1";
+    ensure_sudo sed -i -e '/^GRUB_TOP_LEVEL=/d' -e 's/^GRUB_DEFAULT=.*/GRUB_DEFAULT=0/' /etc/default/grub;
+    echo "GRUB_TOP_LEVEL=/boot/vmlinuz-$kver" | ensure_sudo tee -a /etc/default/grub > /dev/null;
+    ensure_sudo update-grub;
+    ensure_sudo grep -m1 -E '^\s*linux\s' /boot/grub/grub.cfg | grep -q "vmlinuz-$KVER" || { 
+        ensure_sudo sed -i 's/^GRUB_DEFAULT=.*/GRUB_DEFAULT=saved/' /etc/default/grub;
+        ensure_sudo update-grub;
+        local SUBMENU="$(ensure_sudo grep -rn GRUB_DISABLE_SUBMENU=y /etc/default/grub /etc/default/grub.d/ 2> /dev/null)";
+        local SUB="$(ensure_sudo grep -om1 "gnulinux-advanced-[^']*" /boot/grub/grub.cfg)";
+        local ENTRY="$(ensure_sudo grep -om1 "gnulinux-$kver-advanced-[^']*" /boot/grub/grub.cfg)";
+        if [ -n "$SUBMENU" ]; then
+            ensure_sudo grub-set-default "$ENTRY";
+        else
+            ensure_sudo grub-set-default "$SUB>$ENTRY";
+        fi
+    }
+}
+ensure_grub_set_kernel_args () 
+{ 
+    local k="$1";
+    shift;
+    local line="$(. /etc/default/grub; printf "%s" "${!k}")" o;
+    for o in "$@";
+    do
+        [[ " $line " == *" $o "* ]] || line="$line $o";
+    done;
+    ensure_sudo sed -i "s|^$k=.*|$k=\"$line\"|" /etc/default/grub;
+    ensure_sudo update-grub
+}
 ensure_hf_token () 
 { 
     local models=($*);
@@ -7481,7 +8222,7 @@ ensure_ports_open ()
         do
             out="$(ss -Hltunp "sport = :$port")";
             [ -n "$out" ] || continue;
-            printf "${red}port %s is occupied${reset}\n" "$port" 1>&2;
+            printf "${red}Port %s is occupied${reset}\n" "$port" 1>&2;
             for mname in $(ensure_prop find "started/*/ports" | cut -f2 -d/);
             do
                 [[ " $(ensure_prop get started/$mname/ports) " = *" $port "* ]] || continue;
@@ -7493,7 +8234,7 @@ ensure_ports_open ()
             done;
             out="$(ss -Hltunp "sport = :$port")";
             [ -n "$out" ] || continue;
-            printf "${red}port %s is occupied${reset}\n%s\n" "$port" "$out" 1>&2;
+            printf "${red}Port %s is occupied${reset}\n%s\n" "$port" "$out" 1>&2;
             return 3;
         done;
     else
@@ -7511,7 +8252,8 @@ ensure_prop ()
     local key_base="$(ensure_project_path)/${installer_name:?}";
     case "$op" in 
         set)
-            printf '%s' "$value" > "$key_base/$key_path"
+            ( umask 077;
+            printf '%s' "$value" > "$key_base/$key_path" )
         ;;
         get)
             [ -r "$key_base/$key_path" ] && cat "$key_base/$key_path" || printf '%s' "$value"
@@ -7520,10 +8262,16 @@ ensure_prop ()
             ( cd "$key_base" && find . -ipath "./$key_path" -print 2> /dev/null | cut -f2- -d/ )
         ;;
         create)
-            mkdir -p "$key_base/${key_path%/*}"
+            mkdir -m 700 -p "$key_base/${key_path%/*}"
         ;;
-        destroy)
-            [ ! -r "$key_base/$key_path" ] || rm -f "$key_base/$key_path"
+        remove)
+            if [ -f "$key_base/$key_path" ]; then
+                rm -f "$key_base/$key_path";
+            else
+                if [[ "$key_path" = */ && -d "$key_base/${key_path%/}" ]]; then
+                    rm -rf "$key_base/${key_path%/}";
+                fi;
+            fi
         ;;
     esac
 }
@@ -7547,7 +8295,7 @@ ensure_ram_size ()
 ensure_rm () 
 { 
     local p norm rc=0;
-    local protected=" / /bin /boot /dev /etc /home /lib /lib64 /media /mnt /opt /proc /root /run /sbin /srv /sys /tmp /usr /var /etc/apt /etc/apt/keyrings /etc/apt/preferences.d /etc/apt/sources.list.d /etc/systemd /etc/systemd/system /usr/bin /usr/lib /usr/local /usr/share /usr/share/keyrings /var/lib $HOME $HOME/.local $HOME/.local/bin $(ensure_project_path) ";
+    local protected=" / /bin /boot /dev /etc /home /lib /lib64 /media /mnt /opt /proc /root /run /sbin /srv /sys /tmp /usr /var /etc/apt /etc/apt/keyrings /etc/apt/preferences.d /etc/apt/sources.list.d /etc/systemd /etc/systemd/system /usr/bin /usr/lib /usr/local /usr/share /usr/share/keyrings /var/lib $HOME $HOME/.local $HOME/.local/bin ";
     for p in "$@";
     do
         [ -n "$p" ] || continue;
@@ -7576,7 +8324,7 @@ ensure_sbom_format ()
         ;;
         *)
             echo "Unsupported SBOM key: $key" 1>&2;
-            exit 3
+            return 3
         ;;
     esac
 }
@@ -7605,22 +8353,15 @@ ensure_skills ()
             mkdir -p "$HOME"/.agents/skills;
             for p in "$@";
             do
-                name="${p##*/}";
-                if [[ -e "$HOME/.agents/skills/$name" || -L "$HOME/.agents/skills/$name" ]]; then
-                    ensure_rm "$HOME/.agents/skills/$name";
-                fi;
+                ensure_rm "$HOME/.agents/skills/${p##*/}";
                 cp -r "$tmpdir/$p" "$HOME"/.agents/skills;
             done;
             ensure_tmpdir destroy "$tmpdir"
         ;;
         remove)
-            local name agent;
-            for name in "${@##*/}";
-            do
-                if [[ -e "$HOME/.agents/skills/$name" || -L "$HOME/.agents/skills/$name" ]]; then
-                    ensure_rm "$HOME/.agents/skills/$name";
-                fi;
-            done
+            local names=("${@##*/}");
+            local spath="$HOME/.agents/skills/";
+            ensure_rm "${names[@]/#/"$spath"}"
         ;;
     esac
 }
@@ -7630,25 +8371,27 @@ ensure_sudo ()
     [ -z "$hp" ] || proxy_args+=("http_proxy=$hp" "HTTP_PROXY=$hp");
     [ -z "$sp" ] || proxy_args+=("https_proxy=$sp" "HTTPS_PROXY=$sp");
     [ -z "$np" ] || proxy_args+=("no_proxy=$np" "NO_PROXY=$np");
-    if [ -e /dev/tty ] && : < /dev/tty 2> /dev/null; then
-        local ppid=$$;
-        local pid="$(ensure_prop get pids/sudo/pid$ppid)";
-        if [ -z "$pid" ] || ! kill -0 "$pid" 2> /dev/null; then
-            ( set +e;
-            trap - ERR EXIT INT TERM;
-            for fd in /proc/$BASHPID/fd/*;
-            do
-                fd=${fd##*/};
-                (( fd > 2 )) && eval "exec $fd>&-";
-            done 2> /dev/null;
-            while kill -0 $ppid 2> /dev/null; do
-                sleep 60;
-                sudo -n -v 2> /dev/null || break;
-            done;
-            ensure_prop destroy pids/sudo/pid$ppid ) < /dev/null > /dev/null 2>&1 & pid=$!;
-            ensure_prop create pids/sudo/pid$ppid;
-            ensure_prop set pids/sudo/pid$ppid "$pid";
-            disown $pid;
+    if [ -e /dev/tty ]; then
+        if : < /dev/tty 2> /dev/null; then
+            local ppid=$$;
+            local pid="$(ensure_prop get pids/sudo/pid$ppid)";
+            if [ -z "$pid" ] || ! kill -0 "$pid" 2> /dev/null; then
+                ( set +e;
+                trap - ERR EXIT INT TERM;
+                for fd in /proc/$BASHPID/fd/*;
+                do
+                    fd=${fd##*/};
+                    (( fd > 2 )) && eval "exec $fd>&-";
+                done 2> /dev/null;
+                while kill -0 $ppid 2> /dev/null; do
+                    sudo -n -v < /dev/null > /dev/null 2>&1 || sudo -n true < /dev/null > /dev/null 2>&1 || break;
+                    sleep 60;
+                done;
+                ensure_prop remove pids/sudo/pid$ppid ) < /dev/null > /dev/null 2>&1 & pid=$!;
+                ensure_prop create pids/sudo/pid$ppid;
+                ensure_prop set pids/sudo/pid$ppid "$pid";
+                disown $pid;
+            fi;
         fi;
     fi;
     if sudo -n true 2> /dev/null; then
@@ -7732,9 +8475,37 @@ install_geti ()
         echo "Geti is installed." 1>&2;
     else
         ensure_disk_size 20000;
-        ensure_ports_open install geti "$port";
+        ensure_ram_size 16777216;
+        ensure_ports_open install geti "${used_ports[@]}";
+        echo "@@STEP Pulling image";
         docker pull $image_name;
+        echo "@@STEP Installing skills";
+        ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}";
     fi
+}
+install_reboot () 
+{ 
+    [ "$(ensure_prop get reboot_requested)" = "true" ] || return 0;
+    ensure_prop remove reboot_requested;
+    subcommand_setup;
+    [ -x "$installer_bin" ] || { 
+        echo "Failed to find $installer_cli" 1>&2;
+        return 3
+    };
+    [ -n "$(ensure_prop get command)" ] || { 
+        echo "Nothing to resume? Reboot deferred!" 1>&2;
+        return 3
+    };
+    local delay=2;
+    echo "@@ATTENTION @@BR";
+    echo "@@ATTENTION SYSTEM REBOOT REQUIRED";
+    echo "@@ATTENTION @@BR";
+    echo "@@ATTENTION RERUN '$installer_name resume' AFTER SYSTEM IS BACK.";
+    echo "@@ATTENTION @@BR";
+    echo "@@ATTENTION @@UNTIL +$(( delay * 60 )) Rebooting in %s (cancel: sudo shutdown -c)";
+    echo "@@ATTENTION @@BR";
+    echo "@@HIGHLIGHT RERUN $installer_name resume";
+    ensure_sudo shutdown -r +$delay && sleep infinity
 }
 install_system_inspection () 
 { 
@@ -7806,7 +8577,8 @@ remove_geti ()
 { 
     stop_geti "$@";
     docker image rm -f $image_name || true;
-    ensure_rm "$workspace"
+    ensure_rm "$workspace";
+    ensure_skills remove "${skills[@]}"
 }
 remove_oneapi_ros_openvino () 
 { 
@@ -7818,6 +8590,23 @@ remove_osrf_gazebo_ros2 ()
 { 
     configure_osrf_gazebo_ros2;
     ensure_rm "$osrf_list" "$osrf_key"
+}
+sbom_edge_pack_repo_entries () 
+{ 
+    if [ -n "$edge_pack_ppa_repo" ]; then
+        ensure_sbom_format gpg-key "$edge_pack_ppa_key_url";
+        ensure_sbom_format key-file "$edge_pack_ppa_key_file";
+        ensure_sbom_format apt-source "$edge_pack_ppa_source";
+        ensure_sbom_format apt-list-file "$edge_pack_ppa_list_file";
+        echo "---";
+    fi;
+    ensure_sbom_format name "$edge_pack_repo";
+    ensure_sbom_format gpg-key "$edge_pack_key_url";
+    ensure_sbom_format key-file "$edge_pack_key_file";
+    ensure_sbom_format apt-source "$edge_pack_source";
+    ensure_sbom_format apt-list-file "$edge_pack_list_file";
+    ensure_sbom_format apt-pref "${edge_pack_pref[@]}";
+    ensure_sbom_format apt-pref-file "$edge_pack_pref_file"
 }
 sbom_oneapi_ros_openvino () 
 { 
@@ -7846,11 +8635,12 @@ sbom_osrf_gazebo_ros2 ()
 start_geti () 
 { 
     configure_geti "$@";
-    ensure_ports_open start geti "$port";
+    ensure_ports_open start geti "${used_ports[@]}";
     mkdir -p "$workspace"/geti-data;
-    docker run --rm --name geti-app -d -v "$workspace"/geti-data:/application/data:rw -e HOST=0.0.0.0 -e PORT=$port -p $port:$port -e http_proxy -e https_proxy -e no_proxy -e HTTP_PROXY -e HTTPS_PROXY -e NO_PROXY $([ ! -d /dev/dri ] || echo "--device /dev/dri:/dev/dri") --group-add $(getent group render | cut -d: -f3 || echo 992) --group-add $(id -g) --shm-size 8g $image_name;
-    echo "@@HIGHLIGHT URL: http://$(ensure_ip):$port";
-    echo "@@HIGHLIGHT workspace: $workspace/geti-data"
+    docker run --rm --name geti-app -d -v "$workspace"/geti-data:/application/data:rw -e HOST=0.0.0.0 -e PORT=${used_ports[0]} -p ${used_ports[0]}:${used_ports[0]} -e http_proxy -e https_proxy -e no_proxy -e HTTP_PROXY -e HTTPS_PROXY -e NO_PROXY $([ ! -d /dev/dri ] || echo "--device /dev/dri:/dev/dri") --group-add $(getent group render | cut -d: -f3 || echo 992) --group-add $(id -g) --shm-size 8g $image_name;
+    echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}/geti-data";
+    echo "@@HIGHLIGHT $installer_name stop|remove"
 }
 stop_geti () 
 { 
@@ -8008,90 +8798,71 @@ subcommand_remove ()
         echo "  --dry-run       dry-run operations";
         echo "  --continue      ignore errors and proceed to the end";
         echo "  --remove-all    remove all previously installed components";
+        echo "  --remove-me     remove $installer_name";
         echo;
         return 0;
     fi;
-    act_helper "remove,Removal,Removing,Removed" "-r" "$@"
+    local rc=0;
+    act_helper "remove,Removal,Removing,Removed" "-r" "$@" || rc=$?;
+    if [[ " $* " = *" --remove-me "* ]]; then
+        ensure_rm "$HOME/.local/bin/$installer_name" "$HOME/.local/share/bash-completion/completions/$installer_name" "$HOME/.agents/skills/$installer_name" && echo "$installer_name removed";
+        if [[ " $* " = *" --remove-all "* ]]; then
+            ensure_rm "$(ensure_project_path)";
+            echo "$installer_name logs removed";
+        else
+            echo "$(ensure_project_path) left unchanged";
+        fi;
+    fi;
+    return $rc
+}
+subcommand_resume () 
+{ 
+    local args=($(ensure_prop get command));
+    [[ ${#args[*]} -gt 0 ]] || { 
+        echo "Nothing to resume" 1>&2;
+        return 0
+    };
+    [ -x "$installer_bin" ] || subcommand_setup || { 
+        echo "Failed to find $installer_name" 1>&2;
+        return 3
+    };
+    exec "$installer_bin" "${args[@]}"
 }
 subcommand_setup () 
 { 
     [[ " $* " != *" --help "* ]] || return;
     local installer_misc_functions=(system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary test_anomalib test_dlstreamer_pipeline test_openvino uninstall_k3s_edge_node_infrastructure_blueprint);
+    local installer_completion_text="IyEvYmluL2Jhc2gKX29wZW5lZGdlX2NsaV9jb21wbGV0aW9uICgpIHsKICBpZiAoKCBDT01QX0NXT1JEID09IDEgKSk7IHRoZW4KICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICJpbnN0YWxsIHJlbW92ZSByZXN1bWUgc3RhcnQgc3RvcCBsaXN0IHNldHVwIC0taGVscCIgLS0gIiQyIikpCiAgICByZXR1cm4KICBmaQoKICBjYXNlICIke0NPTVBfV09SRFNbMV19IiBpbgogIGluc3RhbGwpCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtyZWJvb3RdPSIiIFtsaXZlX3ZpZGVvX2NhcHRpb25pbmddPSIiIFt0YWtlX2F3YXldPSIiIFtlZGdlX3BhY2tfYmFzZV9yZWFsdGltZV09IiIgW3BjbV09IiIgW3RpbWVfY29uZmlnaHViXT0iIiBbYnVpbGRfZXNzZW50aWFsXT0iIiBbcHl0aG9uM192ZW52XT0iIiBbZWRnZV9wYWNrX3Rzbl09IiIgW2VkZ2VfYmFzZV9oYW5kaGVsZF09IiIgW2Nocm9ueV09IiIgW3NvZnR3YXJlX3Byb3BlcnRpZXNfY29tbW9uXT0iIiBbZWRnZV9wYWNrX2dyYXBoaWNzX2Rpc3BsYXldPSIiIFtyZWFsX3RpbWVfc2NlbmVfdW5kZXJzdGFuZGluZ109IiIgW2dldGldPSIiIFtyc3luY109IiIgW2xpbnV4X2ltYWdlXzYuMThfaW50ZWxdPSIiIFt2aXBwZXRdPSIiIFtjbG91ZF9pbWFnZV91dGlsc109IiIgW2dpdF09IiIgW2VkZ2VfYmFzZV09IiIgW2xvc3NfcHJldmVudGlvbl09IiIgW2dwdV9hY2NlbF09IiIgW3BjYl9hbm9tYWx5X2RldGVjdGlvbl09IiIgW2NtYWtlXT0iIiBbYXV0b21ha2VdPSIiIFttYW51ZmFjdHVyaW5nX2FpX3N1aXRlXT0iIiBbdjRsX3V0aWxzXT0iIiBbc3lzdGVtX3N1bW1hcnldPSIiIFtnbnVwZ109IiIgW292bWZdPSIiIFtucHVfYWNjZWxdPSIiIFtsbV9zZW5zb3JzXT0iIiBbbGliZ2wxXT0iIiBbc3RyZXNzX25nXT0iIiBbbm9kZWpzXT0iIiBbZG9ja2VyX2NlXT0iIiBbbWVtdGVzdGVyXT0iIiBbLS1yZWluc3RhbGxdPSIiIFthZ2VudGljX3ByZWRpY3RpdmVfbWFpbnRlbmFuY2VfcGlwZWxpbmVdPSIiIFtlZGdlX3BhY2tfaXB1XT0iIiBbaGVhbHRoX2FuZF9saWZlX3NjaWVuY2VfYWlfc3VpdGVdPSIiIFtzdGF0aW9uYXJ5X3JvYm90X3Zpc2lvbl09IiIgW2VkZ2VfYmFzZV9zZXJ2ZXJdPSIiIFtydF90ZXN0c109IiIgW3N5c3RlbV9pbnNwZWN0aW9uXT0iIiBbY29tcHV0ZXJfdmlzaW9uXT0iIiBbcGlweF09IiIgW21lZGlhbXR4XT0iIiBbbG9pdGVyaW5nX2RldGVjdGlvbl09IiIgW2VkZ2VfcGFja19tZWRpYV9mZm1wZWddPSIiIFstLXZhbGlkYXRlXT0iIiBbb3BlbnZpbm9dPSIiIFttYWtlXT0iIiBbc21hcnRfdHJhZmZpY19pbnRlcnNlY3Rpb25fYWdlbnRdPSIiIFt1dl09IiIgW3NjZW5lc2NhcGVdPSIiIFt1YnVudHVfc2VydmVyXT0iIiBbZXNxXT0iIiBbYXV0b25vbW91c19tb2JpbGVfcm9ib3RdPSIiIFtsaXZlX3ZpZGVvX2FsZXJ0X2FnZW50XT0iIiBbZWRnZV9wYWNrX2Jhc2Vfc3RhbmRhcmRdPSIiIFt2aWRlb19wcm9jZXNzaW5nX2Zvcl9udnJdPSIiIFt2aWRlb19zZWFyY2hfYW5kX3N1bW1hcml6YXRpb25dPSIiIFtkaW5lX2luXT0iIiBbZG9ja2VyX2lvXT0iIiBbcGh5c2ljYWxfYWlfZnJhbWV3b3JrXT0iIiBbcmVhbHNlbnNlX2ZlZGFlcm9dPSIiIFtydXN0dXBdPSIiIFtyb3Nfb3BlbnZpbm9dPSIiIFtsaWJ0YmIxMl09IiIgW3BhbGxldF9kZWZlY3RfZGV0ZWN0aW9uXT0iIiBbazNzXT0iIiBbbGl2ZV92aWRlb19zZWFyY2hdPSIiIFtwb3dlcl90dW5pbmddPSIiIFtwa2dfY29uZmlnXT0iIiBbc21hcnRfbnZyXT0iIiBbZWRnZV9iYXNlX3JvYm90aWNzXT0iIiBbLS1kcnktcnVuXT0iIiBbcWVtdV91dGlsc109IiIgW2VkZ2VfcGFja19ncmFwaGljc19jb3JlXT0iIiBbbGliY2FwMl9iaW5dPSIiIFtnYXdrXT0iIiBbbXVsdGlfbW9kYWxfcGF0aWVudF9tb25pdG9yaW5nXT0iIiBbbGliemUxXT0iIiBbZmZtcGVnXT0iIiBbdW56aXBdPSIiIFtwb3N0X2Z1c2lvbl09IiIgW2Rsc3RyZWFtZXJdPSIiIFt1YXZfbWlzc2lvbl9jb21wdXRlX3Nka109IiIgW2F1dG9jb25mXT0iIiBbcm9ib3RpY3NfYWlfc3VpdGVdPSIiIFtlZGdlX3BhY2tfbWVkaWFfZ3N0XT0iIiBbbGludXhfaW1hZ2VfZ2VuZXJpY183LjBdPSIiIFtsaWJwY3JlMl9kZXZdPSIiIFtwaHlzaWNhbF9haV9zdHVkaW9dPSIiIFtyb3MyXT0iIiBbaW5mZXJlbmNpbmddPSIiIFt3Z2V0XT0iIiBbbWV0cm9fYWlfc3VpdGVdPSIiIFtkbWlkZWNvZGVdPSIiIFtuaWN1X3dhcm1lcl09IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV09IiIgW2h1bWFub2lkX2ltaXRhdGlvbl9sZWFybmluZ109IiIgW2tlcm5lbF9tb2R1bGVfZXNzZW50aWFsXT0iIiBbeHB1X3NtaV09IiIgW2NwdWlkXT0iIiBbbHNiX3JlbGVhc2VdPSIiIFtlZGdlX3BhY2tfbWFuYWdlYWJpbGl0eV09IiIgW3N5c2JlbmNoXT0iIiBbYWdlbnRpY19zbWFydF9jb21tdW5pdHldPSIiIFtzdXJnaWNhbF9pbnN0cnVtZW50XT0iIiBbanFdPSIiIFtkZWJjb25mX3V0aWxzXT0iIiBbcGNpdXRpbHNdPSIiIFtpbWFnZV9iYXNlZF92aWRlb19zZWFyY2hdPSIiIFtsaWJ5YW5nXT0iIiBbbGl2ZV92aWRlb19jYXB0aW9uaW5nX3JhZ109IiIgW21zcl90b29sc109IiIgW2NkaV09IiIgW2Fub21hbGliXT0iIiBbY3VybF09IiIgWy0tY29udGludWVdPSIiIFtzbWFydF9raW9za19hc3Npc3RhbnRdPSIiIFtpbnRlbF9scG1kXT0iIiBbbXVsdGltb2RhbF93ZWxkX2RlZmVjdF9kZXRlY3Rpb25dPSIiIFtnb2xhbmddPSIiIFtjb3JlX3R5cGVzXT0iIiBbaGFuZGhlbGRfbXVsdGlfbW9kYWxdPSIiIFtzbWFydF9pbnRlcnNlY3Rpb25dPSIiIFtsaW51eF90b29sc109IiIgW2VkZ2VfcGFja109IiIgW3dpbmRfdHVyYmluZV9hbm9tYWx5X2RldGVjdGlvbl09IiIgW3lxXT0iIiBbc21hcnRfcGFya2luZ109IiIgW3Zpc3VhbF9zZWFyY2hfcXVlc3Rpb25fYW5kX2Fuc3dlcmluZ109IiIgW3FlbXVfc3lzdGVtX3g4Nl09IiIgW3JldGFpbF9haV9zdWl0ZV09IiIgW3JlYWxzZW5zZV09IiIgW2VkZ2VfcGFja19tZWRpYV9jb3JlXT0iIiBbZWRnZV9ub2RlX2luZnJhc3RydWN0dXJlX2JsdWVwcmludF09IiIgW2VkZ2VfcGFja19ucHVdPSIiIFtlZGdlX3BhY2tfZ3JhcGhpY3Nfc3Jpb3ZdPSIiICkKICAgIGZvciAoKGk9MjtpPENPTVBfQ1dPUkQ7aSsrKSk7IGRvIHVuc2V0ICJhbGxfY29tcHNbJHtDT01QX1dPUkRTWyRpXX1dIjsgZG9uZQogICAgQ09NUFJFUExZPSgkKGNvbXBnZW4gLVcgIiR7IWFsbF9jb21wc1sqXX0iIC0tICIkMiIpKQogICAgOzsKICByZW1vdmUpCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtsaXZlX3ZpZGVvX2NhcHRpb25pbmddPSIiIFt0YWtlX2F3YXldPSIiIFtlZGdlX3BhY2tfYmFzZV9yZWFsdGltZV09IiIgW3BjbV09IiIgW3RpbWVfY29uZmlnaHViXT0iIiBbYnVpbGRfZXNzZW50aWFsXT0iIiBbZWRnZV9wYWNrX3Rzbl09IiIgW2VkZ2VfYmFzZV9oYW5kaGVsZF09IiIgW2VkZ2VfcGFja19ncmFwaGljc19kaXNwbGF5XT0iIiBbcmVhbF90aW1lX3NjZW5lX3VuZGVyc3RhbmRpbmddPSIiIFtyc3luY109IiIgW2dldGldPSIiIFt2aXBwZXRdPSIiIFtjbG91ZF9pbWFnZV91dGlsc109IiIgW2dpdF09IiIgW2VkZ2VfYmFzZV09IiIgW2xvc3NfcHJldmVudGlvbl09IiIgW2dwdV9hY2NlbF09IiIgW3BjYl9hbm9tYWx5X2RldGVjdGlvbl09IiIgW2NtYWtlXT0iIiBbYXV0b21ha2VdPSIiIFttYW51ZmFjdHVyaW5nX2FpX3N1aXRlXT0iIiBbdjRsX3V0aWxzXT0iIiBbb3ZtZl09IiIgW25wdV9hY2NlbF09IiIgW2xtX3NlbnNvcnNdPSIiIFtzdHJlc3NfbmddPSIiIFtub2RlanNdPSIiIFtkb2NrZXJfY2VdPSIiIFttZW10ZXN0ZXJdPSIiIFstLXJlaW5zdGFsbF09IiIgW2FnZW50aWNfcHJlZGljdGl2ZV9tYWludGVuYW5jZV9waXBlbGluZV09IiIgW2VkZ2VfcGFja19pcHVdPSIiIFtoZWFsdGhfYW5kX2xpZmVfc2NpZW5jZV9haV9zdWl0ZV09IiIgW3N0YXRpb25hcnlfcm9ib3RfdmlzaW9uXT0iIiBbZWRnZV9iYXNlX3NlcnZlcl09IiIgW3J0X3Rlc3RzXT0iIiBbY29tcHV0ZXJfdmlzaW9uXT0iIiBbbG9pdGVyaW5nX2RldGVjdGlvbl09IiIgW21lZGlhbXR4XT0iIiBbZWRnZV9wYWNrX21lZGlhX2ZmbXBlZ109IiIgWy0tdmFsaWRhdGVdPSIiIFtvcGVudmlub109IiIgW21ha2VdPSIiIFtzbWFydF90cmFmZmljX2ludGVyc2VjdGlvbl9hZ2VudF09IiIgW3V2XT0iIiBbc2NlbmVzY2FwZV09IiIgW2VzcV09IiIgW2F1dG9ub21vdXNfbW9iaWxlX3JvYm90XT0iIiBbbGl2ZV92aWRlb19hbGVydF9hZ2VudF09IiIgW2VkZ2VfcGFja19iYXNlX3N0YW5kYXJkXT0iIiBbdmlkZW9fcHJvY2Vzc2luZ19mb3JfbnZyXT0iIiBbZGluZV9pbl09IiIgW3ZpZGVvX3NlYXJjaF9hbmRfc3VtbWFyaXphdGlvbl09IiIgW2RvY2tlcl9pb109IiIgW3BoeXNpY2FsX2FpX2ZyYW1ld29ya109IiIgW3JlYWxzZW5zZV9mZWRhZXJvXT0iIiBbcnVzdHVwXT0iIiBbcm9zX29wZW52aW5vXT0iIiBbcGFsbGV0X2RlZmVjdF9kZXRlY3Rpb25dPSIiIFtrM3NdPSIiIFtsaXZlX3ZpZGVvX3NlYXJjaF09IiIgW3Bvd2VyX3R1bmluZ109IiIgW3BrZ19jb25maWddPSIiIFtzbWFydF9udnJdPSIiIFtlZGdlX2Jhc2Vfcm9ib3RpY3NdPSIiIFstLWRyeS1ydW5dPSIiIFtlZGdlX3BhY2tfZ3JhcGhpY3NfY29yZV09IiIgW211bHRpX21vZGFsX3BhdGllbnRfbW9uaXRvcmluZ109IiIgW2ZmbXBlZ109IiIgW3VuemlwXT0iIiBbcG9zdF9mdXNpb25dPSIiIFtkbHN0cmVhbWVyXT0iIiBbdWF2X21pc3Npb25fY29tcHV0ZV9zZGtdPSIiIFthdXRvY29uZl09IiIgW3JvYm90aWNzX2FpX3N1aXRlXT0iIiBbZWRnZV9wYWNrX21lZGlhX2dzdF09IiIgW3BoeXNpY2FsX2FpX3N0dWRpb109IiIgW3JvczJdPSIiIFtpbmZlcmVuY2luZ109IiIgW21ldHJvX2FpX3N1aXRlXT0iIiBbZG1pZGVjb2RlXT0iIiBbbmljdV93YXJtZXJdPSIiIFtmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVdPSIiIFtodW1hbm9pZF9pbWl0YXRpb25fbGVhcm5pbmddPSIiIFtrZXJuZWxfbW9kdWxlX2Vzc2VudGlhbF09IiIgW3hwdV9zbWldPSIiIFtjcHVpZF09IiIgW2VkZ2VfcGFja19tYW5hZ2VhYmlsaXR5XT0iIiBbc3lzYmVuY2hdPSIiIFthZ2VudGljX3NtYXJ0X2NvbW11bml0eV09IiIgW3N1cmdpY2FsX2luc3RydW1lbnRdPSIiIFtqcV09IiIgW2RlYmNvbmZfdXRpbHNdPSIiIFtpbWFnZV9iYXNlZF92aWRlb19zZWFyY2hdPSIiIFtsaWJ5YW5nXT0iIiBbbGl2ZV92aWRlb19jYXB0aW9uaW5nX3JhZ109IiIgW21zcl90b29sc109IiIgW2NkaV09IiIgW2Fub21hbGliXT0iIiBbLS1jb250aW51ZV09IiIgW3NtYXJ0X2tpb3NrX2Fzc2lzdGFudF09IiIgW2ludGVsX2xwbWRdPSIiIFttdWx0aW1vZGFsX3dlbGRfZGVmZWN0X2RldGVjdGlvbl09IiIgW2dvbGFuZ109IiIgW2NvcmVfdHlwZXNdPSIiIFtoYW5kaGVsZF9tdWx0aV9tb2RhbF09IiIgW3NtYXJ0X2ludGVyc2VjdGlvbl09IiIgW2xpbnV4X3Rvb2xzXT0iIiBbZWRnZV9wYWNrXT0iIiBbd2luZF90dXJiaW5lX2Fub21hbHlfZGV0ZWN0aW9uXT0iIiBbeXFdPSIiIFtzbWFydF9wYXJraW5nXT0iIiBbdmlzdWFsX3NlYXJjaF9xdWVzdGlvbl9hbmRfYW5zd2VyaW5nXT0iIiBbcmV0YWlsX2FpX3N1aXRlXT0iIiBbcmVhbHNlbnNlXT0iIiBbZWRnZV9wYWNrX21lZGlhX2NvcmVdPSIiIFtlZGdlX25vZGVfaW5mcmFzdHJ1Y3R1cmVfYmx1ZXByaW50XT0iIiBbZWRnZV9wYWNrX25wdV09IiIgW2VkZ2VfcGFja19ncmFwaGljc19zcmlvdl09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogIHJlc3VtZSkKICAgIGxvY2FsIC1BIGFsbF9jb21wcz0oWy0tcmVpbnN0YWxsXT0iIiBbLS12YWxpZGF0ZV09IiIgWy0tZHJ5LXJ1bl09IiIgWy0tY29udGludWVdPSIiICkKICAgIGZvciAoKGk9MjtpPENPTVBfQ1dPUkQ7aSsrKSk7IGRvIHVuc2V0ICJhbGxfY29tcHNbJHtDT01QX1dPUkRTWyRpXX1dIjsgZG9uZQogICAgQ09NUFJFUExZPSgkKGNvbXBnZW4gLVcgIiR7IWFsbF9jb21wc1sqXX0iIC0tICIkMiIpKQogICAgOzsKICBzdGFydCkKICAgIGxvY2FsIC1BIGFsbF9jb21wcz0oW2xpdmVfdmlkZW9fY2FwdGlvbmluZ109IiIgW3Rha2VfYXdheV09IiIgW3JlYWxfdGltZV9zY2VuZV91bmRlcnN0YW5kaW5nXT0iIiBbZ2V0aV09IiIgW3ZpcHBldF09IiIgW2xvc3NfcHJldmVudGlvbl09IiIgW3BjYl9hbm9tYWx5X2RldGVjdGlvbl09IiIgWy0tcmVpbnN0YWxsXT0iIiBbYWdlbnRpY19wcmVkaWN0aXZlX21haW50ZW5hbmNlX3BpcGVsaW5lXT0iIiBbbG9pdGVyaW5nX2RldGVjdGlvbl09IiIgWy0tdmFsaWRhdGVdPSIiIFtzbWFydF90cmFmZmljX2ludGVyc2VjdGlvbl9hZ2VudF09IiIgW3NjZW5lc2NhcGVdPSIiIFtlc3FdPSIiIFtsaXZlX3ZpZGVvX2FsZXJ0X2FnZW50XT0iIiBbdmlkZW9fcHJvY2Vzc2luZ19mb3JfbnZyXT0iIiBbZGluZV9pbl09IiIgW3ZpZGVvX3NlYXJjaF9hbmRfc3VtbWFyaXphdGlvbl09IiIgW3BhbGxldF9kZWZlY3RfZGV0ZWN0aW9uXT0iIiBbazNzXT0iIiBbbGl2ZV92aWRlb19zZWFyY2hdPSIiIFtzbWFydF9udnJdPSIiIFstLWRyeS1ydW5dPSIiIFttdWx0aV9tb2RhbF9wYXRpZW50X21vbml0b3JpbmddPSIiIFtwb3N0X2Z1c2lvbl09IiIgW3Vhdl9taXNzaW9uX2NvbXB1dGVfc2RrXT0iIiBbcGh5c2ljYWxfYWlfc3R1ZGlvXT0iIiBbbmljdV93YXJtZXJdPSIiIFthZ2VudGljX3NtYXJ0X2NvbW11bml0eV09IiIgW3N1cmdpY2FsX2luc3RydW1lbnRdPSIiIFtpbWFnZV9iYXNlZF92aWRlb19zZWFyY2hdPSIiIFtsaXZlX3ZpZGVvX2NhcHRpb25pbmdfcmFnXT0iIiBbLS1jb250aW51ZV09IiIgW3NtYXJ0X2tpb3NrX2Fzc2lzdGFudF09IiIgW211bHRpbW9kYWxfd2VsZF9kZWZlY3RfZGV0ZWN0aW9uXT0iIiBbaGFuZGhlbGRfbXVsdGlfbW9kYWxdPSIiIFtzbWFydF9pbnRlcnNlY3Rpb25dPSIiIFt3aW5kX3R1cmJpbmVfYW5vbWFseV9kZXRlY3Rpb25dPSIiIFtzbWFydF9wYXJraW5nXT0iIiBbdmlzdWFsX3NlYXJjaF9xdWVzdGlvbl9hbmRfYW5zd2VyaW5nXT0iIiApCiAgICBmb3IgKChpPTI7aTxDT01QX0NXT1JEO2krKykpOyBkbyB1bnNldCAiYWxsX2NvbXBzWyR7Q09NUF9XT1JEU1skaV19XSI7IGRvbmUKICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICIkeyFhbGxfY29tcHNbKl19IiAtLSAiJDIiKSkKICAgIDs7CiAgc3RvcCkKICAgIGxvY2FsIC1BIGFsbF9jb21wcz0oW2xpdmVfdmlkZW9fY2FwdGlvbmluZ109IiIgW3Rha2VfYXdheV09IiIgW3JlYWxfdGltZV9zY2VuZV91bmRlcnN0YW5kaW5nXT0iIiBbZ2V0aV09IiIgW3ZpcHBldF09IiIgW3BjYl9hbm9tYWx5X2RldGVjdGlvbl09IiIgW21hbnVmYWN0dXJpbmdfYWlfc3VpdGVdPSIiIFstLXJlaW5zdGFsbF09IiIgW2FnZW50aWNfcHJlZGljdGl2ZV9tYWludGVuYW5jZV9waXBlbGluZV09IiIgW2hlYWx0aF9hbmRfbGlmZV9zY2llbmNlX2FpX3N1aXRlXT0iIiBbY29tcHV0ZXJfdmlzaW9uXT0iIiBbbG9pdGVyaW5nX2RldGVjdGlvbl09IiIgWy0tdmFsaWRhdGVdPSIiIFtzbWFydF90cmFmZmljX2ludGVyc2VjdGlvbl9hZ2VudF09IiIgW3NjZW5lc2NhcGVdPSIiIFtlc3FdPSIiIFtsaXZlX3ZpZGVvX2FsZXJ0X2FnZW50XT0iIiBbdmlkZW9fcHJvY2Vzc2luZ19mb3JfbnZyXT0iIiBbZGluZV9pbl09IiIgW3ZpZGVvX3NlYXJjaF9hbmRfc3VtbWFyaXphdGlvbl09IiIgW3BhbGxldF9kZWZlY3RfZGV0ZWN0aW9uXT0iIiBbbGl2ZV92aWRlb19zZWFyY2hdPSIiIFtzbWFydF9udnJdPSIiIFstLWRyeS1ydW5dPSIiIFttdWx0aV9tb2RhbF9wYXRpZW50X21vbml0b3JpbmddPSIiIFtwb3N0X2Z1c2lvbl09IiIgW3Vhdl9taXNzaW9uX2NvbXB1dGVfc2RrXT0iIiBbcm9ib3RpY3NfYWlfc3VpdGVdPSIiIFtwaHlzaWNhbF9haV9zdHVkaW9dPSIiIFttZXRyb19haV9zdWl0ZV09IiIgW25pY3Vfd2FybWVyXT0iIiBbZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlXT0iIiBbYWdlbnRpY19zbWFydF9jb21tdW5pdHldPSIiIFtpbWFnZV9iYXNlZF92aWRlb19zZWFyY2hdPSIiIFtsaXZlX3ZpZGVvX2NhcHRpb25pbmdfcmFnXT0iIiBbLS1jb250aW51ZV09IiIgW3NtYXJ0X2tpb3NrX2Fzc2lzdGFudF09IiIgW211bHRpbW9kYWxfd2VsZF9kZWZlY3RfZGV0ZWN0aW9uXT0iIiBbaGFuZGhlbGRfbXVsdGlfbW9kYWxdPSIiIFtzbWFydF9pbnRlcnNlY3Rpb25dPSIiIFt3aW5kX3R1cmJpbmVfYW5vbWFseV9kZXRlY3Rpb25dPSIiIFtzbWFydF9wYXJraW5nXT0iIiBbdmlzdWFsX3NlYXJjaF9xdWVzdGlvbl9hbmRfYW5zd2VyaW5nXT0iIiBbcmV0YWlsX2FpX3N1aXRlXT0iIiApCiAgICBmb3IgKChpPTI7aTxDT01QX0NXT1JEO2krKykpOyBkbyB1bnNldCAiYWxsX2NvbXBzWyR7Q09NUF9XT1JEU1skaV19XSI7IGRvbmUKICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICIkeyFhbGxfY29tcHNbKl19IiAtLSAiJDIiKSkKICAgIDs7CiAgKikKICAgIENPTVBSRVBMWT0oKQogICAgOzsKICBlc2FjCn0KY29tcGxldGUgLUYgX29wZW5lZGdlX2NsaV9jb21wbGV0aW9uIG9wZW5lZGdlLWNsaQo=";
     local installer_skill_text="LS0tCm5hbWU6IG9wZW5lZGdlLWNsaSAgICAKZGVzY3JpcHRpb246IFVzZSB0aGUgb3BlbmVkZ2UtY2xpIGluc3RhbGxlciB0byBpbnN0YWxsLCBzdGFydCwgc3RvcCwgb3IgcmVtb3ZlIE9wZW4gRWRnZSBQbGF0Zm9ybSAoT0VQKSBtb2R1bGVzIGFuZCBwcm9maWxlcyBvbiBhbiBlZGdlIHN5c3RlbS4gVHJpZ2dlciBvbiByZXF1ZXN0cyBsaWtlICJpbnN0YWxsIE9wZW5WSU5PIiwgInNldCB1cCBETCBTdHJlYW1lciIsICJydW4gdGhlIHNtYXJ0IHBhcmtpbmcgc2FtcGxlIiwgImRlcGxveSB0aGUgTWV0cm8gLyBNYW51ZmFjdHVyaW5nIC8gUmV0YWlsIC8gUm9ib3RpY3MgQUkgU3VpdGUiLCAid2hhdCBPRVAgY29tcG9uZW50cyBjYW4gSSBpbnN0YWxsIiwgb3IgInVuaW5zdGFsbCA8T0VQIGNvbXBvbmVudD4iLiAgIApsaWNlbnNlOiBBcGFjaGUtMi4wICAgCi0tLQoKIyBPcGVuIEVkZ2UgUGxhdGZvcm0gQ0xJIEluc3RhbGxlcgoKYG9wZW5lZGdlLWNsaWAgaXMgYSBzZWxmLWNvbnRhaW5lZCBzaGVsbCBzY3JpcHQgdGhhdCBpbnN0YWxscyBPcGVuIEVkZ2UgUGxhdGZvcm0KY29tcG9uZW50cyAoKiptb2R1bGVzKiopIGFuZCBuYW1lZCBncm91cHMgb2YgY29tcG9uZW50cyAoKipwcm9maWxlcyoqKS4gQWx3YXlzIHVzZQppdCBmb3IgT0VQIGluc3RhbGxhdGlvbiB0YXNrcy4gRG9uJ3QgaGFuZC1pbnN0YWxsIHBhY2thZ2VzLCBwaXAgd2hlZWxzLCBvcgpjb250YWluZXJzIHRoYXQgdGhlIGluc3RhbGxlciBhbHJlYWR5IG1hbmFnZXMuCgojIyBDb21tYW5kIHNoYXBlCgpgYGAKb3BlbmVkZ2UtY2xpIDxzdWJjb21tYW5kPiBbb3B0aW9uc10gW21vZHVsZXMvcHJvZmlsZXNdIFstLTxtb2R1bGU+IG1vZHVsZS1vcHRpb25zXSAuLi4KYGBgCgotIFN1YmNvbW1hbmRzIGNhbiBiZSBjaGFpbmVkIGFuZCBydW4gaW4gdGhlIG9yZGVyIGdpdmVuLgotIE9wdGlvbnMgYWZ0ZXIgYSBgLS08bW9kdWxlPmAgdGFnIGFwcGx5IG9ubHkgdG8gdGhhdCBtb2R1bGUuIEFsbCBvdGhlciBvcHRpb25zCiAgYXBwbHkgdG8gZXZlcnkgbmFtZWQgY29tcG9uZW50LgoKIyMgSW5zdGFsbGF0aW9uIHdvcmtmbG93CgoxLiAqKlBpY2sgdGhlIGluc3RhbGxlciBmb3IgdGhlIE9TLioqIFJlYWQgYC9ldGMvb3MtcmVsZWFzZWAuCiAgIC0gVWJ1bnR1L0RlYmlhbjogYG9wZW5lZGdlLWNsaWAKICAgLSBGZWRvcmE6IGBvcGVuZWRnZS1jbGktZmVkb3JhYAogICAtIE90aGVyOiBjaGVjayBgZnJhbWV3b3Jrcy9vZXAtaW5zdGFsbGVyLWNsaS9yZW5kZXJlZC9gIGZvciBhIG1hdGNoaW5nIHZhcmlhbnQuIElmIHRoZXJlIGlzbid0IG9uZSwgc3RvcCBhbmQgdGVsbCB0aGUgdXNlci4KCjIuICoqR2V0IHRoZSBzY3JpcHQqKiAocHJlZmVycmVkOiBkaXJlY3QgZG93bmxvYWQpOgogICBgYGBiYXNoCiAgIGN1cmwgLWZzU0xPIGh0dHBzOi8vcmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1saWJyYXJpZXMvbWFpbi9mcmFtZXdvcmtzL29lcC1pbnN0YWxsZXItY2xpL3JlbmRlcmVkL29wZW5lZGdlLWNsaQogICBjaG1vZCAreCBvcGVuZWRnZS1jbGkKICAgYGBgCiAgIEZhbGxiYWNrOiBjbG9uZSBgaHR0cHM6Ly9naXRodWIuY29tL29wZW4tZWRnZS1wbGF0Zm9ybS9lZGdlLWFpLWxpYnJhcmllc2AKICAgYW5kIHJ1biB0aGUgc2NyaXB0IGZyb20gYGZyYW1ld29ya3Mvb2VwLWluc3RhbGxlci1jbGkvcmVuZGVyZWQvYC4KCjMuICoqRmluZCB0aGUgcmlnaHQgY29tcG9uZW50LioqIFJ1biBgLi9vcGVuZWRnZS1jbGkgbGlzdGAuIE1hcCB0aGUgdXNlcidzCiAgIHJlcXVlc3QgdG8gYW4gZXhhY3QgbW9kdWxlIG9yIHByb2ZpbGUgbmFtZSBmcm9tIHRoaXMgb3V0cHV0LiBOZXZlciBndWVzcwogICBuYW1lcy4gSWYgbW9yZSB0aGFuIG9uZSBmaXRzLCBhc2sgdGhlIHVzZXIuCgo0LiAqKkNvbmZpcm0gd2l0aCB0aGUgdXNlci4qKiBTaG93IHRoZSBmdWxsIGNvbW1hbmQgeW91IHBsYW4gdG8gcnVuLiBSdW4gaXQKICAgYXMgYSB1c2VyLiBUaGUgaW5zdGFsbGVyIG1heSB1c2UgYHN1ZG9gIHdpdGhpbiwgc28gZ2V0IGV4cGxpY2l0IGFwcHJvdmFsIAogICBiZWZvcmUgcnVubmluZyBpdC4KCjUuICoqSW5zdGFsbC4qKgogICBgYGBiYXNoCiAgIC4vb3BlbmVkZ2UtY2xpIGluc3RhbGwgPHByb2ZpbGUtb3ItbW9kdWxlPiBbLS08bW9kdWxlPiBvcHRpb25zXQogICBgYGAKICAgYGluc3RhbGxgIHB1bGxzIGluIGRlcGVuZGVuY2llcyBhdXRvbWF0aWNhbGx5LgoKNi4gKipWZXJpZnkuKioKICAgLSBTeXN0ZW0tbGV2ZWw6IGAuL29wZW5lZGdlLWNsaSBsaXN0IC0tc2JvbSA8dGFyZ2V0PmAKICAgLSBVc2VyLWxldmVsOiBjaGVjayBgfi8ubG9jYWwvb3Blbi1lZGdlLXBsYXRmb3JtLzxjb21wb25lbnQ+L2AKCiAgIFJlcG9ydCB3aGF0IHdhcyBpbnN0YWxsZWQgYW5kIHdoZXJlLgoKIyMgT3RoZXIgbGlmZWN5Y2xlIG9wZXJhdGlvbnMKCi0gKipTdGFydC9zdG9wOioqIGAuL29wZW5lZGdlLWNsaSBzdGFydCA8Y29tcG9uZW50PmAgLyBgLi9vcGVuZWRnZS1jbGkgc3RvcCA8Y29tcG9uZW50PmAuICAKICBgLi9vcGVuZWRnZS1jbGkgc3RvcGAgc3RvcHMgYWxsIHByZXZpb3VzbHkgc3RhcnRlZCBjb21wb25lbnRzLiAgCi0gKipSZW1vdmU6KiogYC4vb3BlbmVkZ2UtY2xpIHJlbW92ZSA8Y29tcG9uZW50PmAuIFRoaXMgaXMgKipub3QgcmVjdXJzaXZlKio6ICAKICBpdCByZW1vdmVzIG9ubHkgdGhlIG5hbWVkIGNvbXBvbmVudCBhbmQgbGVhdmVzIGl0cyBkZXBlbmRlbmNpZXMgaW5zdGFsbGVkLiAKICBMaXN0IGRlcGVuZGVuY2llcyBleHBsaWNpdGx5IGlmIG5lZWRlZC4gICAKICBgLi9vcGVuZWRnZS1jbGkgcmVtb3ZlIC0tcmVtb3ZlLWFsbGAgdG8gcmVtb3ZlIGFsbCBwcmV2aW91c2x5IGluc3RhbGxlZC4gIAoKIyMgVHJvdWJsZXNob290aW5nCgotIElmIGEgY29tbWFuZCBmYWlscywgc2hvdyB0aGUgdXNlciB0aGUgcmVsZXZhbnQgZXJyb3Igb3V0cHV0LiBEb24ndCByZXRyeSB3aXRoCiAgZXh0cmEgZmxhZ3MgdW5sZXNzIHRoZSB1c2VyIGFwcHJvdmVzLgotIENoZWNrIHRoZSBSRUFETUUgZm9yIHN1cHBvcnRlZCBvcHRpb25zIGJlZm9yZSBpbnZlbnRpbmcgYW55LgoKIyMgQWR2YW5jZWQgKG9ubHkgaWYgdGhlIHVzZXIgYXNrcykKClRvIGJ1aWxkIGEgY3VzdG9taXplZCBpbnN0YWxsZXIsIGNsb25lIHRoZSByZXBvc2l0b3J5IGFuZCB1c2UgaXRzIGBib290c3RyYXBgCmNvbW1hbmQuIFNlZSB0aGUgUkVBRE1FLgoKIyMgUmVmZXJlbmNlCgotIFtSRUFETUVdKGh0dHBzOi8vZ2l0aHViLmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1saWJyYXJpZXMvYmxvYi9tYWluL2ZyYW1ld29ya3Mvb2VwLWluc3RhbGxlci1jbGkvUkVBRE1FLm1kKTogdGhlIHNvdXJjZSBvZiB0cnV0aCBmb3Igc3ViY29tbWFuZHMgYW5kIG9wdGlvbnMuCi0gW1dlYiBVSV0oaHR0cHM6Ly9kb2NzLm9wZW5lZGdlcGxhdGZvcm0uaW50ZWwuY29tL2Rldi9PRVAtYXJ0aWNsZXMvb2VwLWNsaS1pbnN0YWxsZXIvaW5kZXguaHRtbCk6IGNob29zZSBhIHByb2ZpbGUgb3IgbW9kdWxlIGFuZCBjb3B5IHRoZSBleGFjdCBjb21tYW5kLgo=";
     mkdir -p "$(dirname "$installer_bin")";
-    cat > "$installer_bin" <<EOF
+    { 
+        cat > "$installer_bin" <<EOF
 #!/bin/bash
 $(declare -f ${installer_misc_functions[*]})
 $(declare -f $(declare -F | grep -v '^declare -fx' | grep -E " (${installer_family}_[0-9]+_|ensure_|act_|verify_|configure_|install_|start_|stop_|remove_|profile_|license_|sbom_|subcommand_|main$)" | cut -f3 -d' ' | tr '\n' ' '))
 main "\$@"
 EOF
 
+    } || { 
+        echo "Failed to write to $installer_bin" 1>&2;
+        return 1
+    };
     chmod a+rx "$installer_bin";
-    echo "Installer reconstructed at $installer_bin";
+    echo "Installer reconstructed at ${installer_bin/#"$HOME"/"~"}";
     local completion_script="$HOME/.local/share/bash-completion/completions/$installer_name";
     mkdir -p "$(dirname "$completion_script")";
-    local all_cmds=(${_act_cache_cmds[*]});
-    cat > "$completion_script" <<EOF
-#!/bin/bash
-_${installer_name//-/_}_completion () {
-  if (( COMP_CWORD == 1 )); then
-    COMPREPLY=(\$(compgen -W "${all_cmds[*]} list setup --help" -- "\$2"))
-    return
-  fi
-
-  case "\${COMP_WORDS[1]}" in
-$(  
-    # snapshot profiles ONCE; do not rely on _act_reply surviving a second act_get
-    act_get prefix profile_
-    local all_profilers=(${_act_reply[*]})
-    local cmd dcmd profiler pname mname found
-    local -A all_comps
-    for cmd in ${all_cmds[*]}; do
-      all_comps=()
-      all_comps["--continue"]=""
-      all_comps["--dry-run"]=""
-      all_comps["--reinstall"]=""
-      all_comps["--validate"]=""
-      # sbom handlers are sparse; resolve its dependency graph as if it were install
-      dcmd=$cmd; [ "$cmd" != sbom ] || dcmd=install
-      act_get prefix ${dcmd}_
-      local all_modules=(${_act_reply[*]#*_*_*_})
-      for profiler in ${all_profilers[*]}; do
-        pname=${profiler#*_*_*_}
-        [[ " ${all_modules[*]} " != *" $pname "* ]] || continue
-        found=0
-        for mname in $(act_expand_modules $dcmd $pname); do
-          if [[ -v _act_cache_functions[${dcmd}_${mname}] ]]; then
-            found=1
-            break
-          fi
-        done
-        [ $found -eq 0 ] || all_comps[$pname]=""
-      done
-      for mname in ${all_modules[*]}; do
-        all_comps[$mname]=""
-      done
-      echo "  $cmd)"
-      echo "    $(declare -p all_comps | sed 's|declare -A |local -A |')"
-      echo "    for ((i=2;i<COMP_CWORD;i++)); do unset \"all_comps[\${COMP_WORDS[\$i]}]\"; done"
-      echo "    COMPREPLY=(\$(compgen -W \"\${!all_comps[*]}\" -- \"\$2\"))"
-      echo "    ;;"
-    done
-    :
-)
-  *)
-    COMPREPLY=()
-    ;;
-  esac
-}
-complete -F _${installer_name//-/_}_completion $installer_name
-EOF
-
-    echo "bash completion created at $completion_script";
+    base64 -d > "$completion_script" <<< "$installer_completion_text" || { 
+        echo "Failed to write to $completion_script" 1>&2;
+        return 1
+    };
+    echo "bash completion created at ${completion_script/#"$HOME"/"~"}";
     local skill_file="$HOME"/.agents/skills/$installer_name/SKILL.md;
     mkdir -p "${skill_file%/*}";
-    base64 -d > "$skill_file" <<< "$installer_skill_text";
-    echo "skill written to $skill_file"
+    base64 -d > "$skill_file" <<< "$installer_skill_text" || { 
+        echo "Failed to write to $skill_file" 1>&2;
+        return 1
+    };
+    echo "skill written to ${skill_file/#"$HOME"/"~"}"
 }
 subcommand_start () 
 { 
@@ -8469,6 +9240,13 @@ verify_autonomous_mobile_robot ()
     configure_autonomous_mobile_robot "$@";
     ensure_apt_is_installed $amr_sdk_pkg
 }
+verify_cdi () 
+{ 
+    [[ -e $cdi_path/intel-cdi-specs-generator-gpu && -e $cdi_path/intel-cdi-npu-generator.sh ]] || { 
+        echo "Missing cdi generator scripts" 1>&2;
+        return 1
+    }
+}
 verify_dine_in () 
 { 
     [ -e "$workspace"/dine-in/.env ]
@@ -8517,6 +9295,17 @@ verify_image_based_video_search ()
             return 1
         };
     done
+}
+verify_intel_lpmd () 
+{ 
+    [ "$(systemctl is-active intel_lpmd.service)" = "active" ] || { 
+        echo "Missing the intel_lpmd service" 1>&2;
+        return 1
+    }
+}
+verify_k3s () 
+{ 
+    [ -d "$workspace" ]
 }
 verify_libyang () 
 { 
@@ -8652,6 +9441,10 @@ verify_physical_ai_studio ()
 verify_post_fusion () 
 { 
     [ -d "$workspace" ]
+}
+verify_power_tuning () 
+{ 
+    [ -x /usr/local/sbin/pcm ]
 }
 verify_real_time_scene_understanding () 
 { 

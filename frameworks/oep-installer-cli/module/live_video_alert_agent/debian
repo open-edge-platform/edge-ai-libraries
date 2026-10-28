@@ -53,7 +53,7 @@ debian_90_install_live_video_alert_agent () {
   local device=$(ensure_select_device "$@")
   configure_live_video_alert_agent_device "${device^^}"
 
-  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
   echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]"
   echo "@@HIGHLIGHT $installer_name start|remove"
 }
