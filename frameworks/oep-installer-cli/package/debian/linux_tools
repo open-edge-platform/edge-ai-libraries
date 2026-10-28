@@ -1,4 +1,3 @@
-
 debian_30_install_linux_tools () {
   local name="linux-tools-$(uname -r)"
   if ensure_apt_is_installed $name; then
@@ -19,4 +18,3 @@ debian_30_remove_linux_tools () {
 debian_30_sbom_linux_tools () {
   ensure_sbom_format pkg-list linux-tools-common linux-tools-$(uname -r)
 }
-

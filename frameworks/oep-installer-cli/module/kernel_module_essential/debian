@@ -1,4 +1,3 @@
-
 configure_kernel_module_essential_debian () {
   local ver
   ver=$(configure_kernel_module_essential) || { local rc=$?; return $rc; }

@@ -497,9 +497,7 @@ function updateOutputsAndUrl() {
         return;
       }
       const finalText = matched?.text ? interpolate(String(matched.text), commandState) : (o.fallback ?? "");
-      const start = !installAll && startModules.length
-        ? " start" + (startModules.length === modules.length ? "" : ` ${startModules.map((module) => module.value).join(" ")}`)
-        : "";
+      const start = !installAll && modules.length === 1 && startModules.length === 1 ? " start" : "";
       const suffix = installFlags() + start;
       $("#installText").textContent = matched?.text ? finalText + suffix : finalText;
     }
@@ -511,20 +509,41 @@ function updateOutputsAndUrl() {
 
       const startStop = o.startStop;
       if (hasTarget && !installAll && startModules.length && startStop) {
+        const startStopState = {
+          ...commandState,
+          MODULE: modules.length > 1
+            ? "<module_name>"
+            : startModules.map((module) => module.value).join(" "),
+        };
         if (startStop.start) {
           container.appendChild(makeStepLabel("Start"));
-          container.appendChild(makeCommandBox(String(startStop.start), "copyNextStart"));
+          container.appendChild(makeCommandBox(
+            interpolate(String(startStop.start), startStopState),
+            "copyNextStart",
+          ));
         }
 
         if (startStop.stop) {
           container.appendChild(makeStepLabel("Stop"));
-          container.appendChild(makeCommandBox(String(startStop.stop), "copyNextStop"));
+          container.appendChild(makeCommandBox(
+            interpolate(String(startStop.stop), startStopState),
+            "copyNextStop",
+          ));
         }
       }
       const targets = installAll ? (profile?.remove ? [profile] : []) : removeModules;
       if (hasTarget && targets.length && o.remove) {
         container.appendChild(makeStepLabel("Remove"));
-        container.appendChild(makeCommandBox(String(o.remove), "copyNextRemove"));
+        const removeState = {
+          ...commandState,
+          MODULE: !installAll && modules.length > 1
+            ? "<module_name>"
+            : targets.map((module) => module.value).join(" "),
+        };
+        container.appendChild(makeCommandBox(
+          interpolate(String(o.remove), removeState),
+          "copyNextRemove",
+        ));
       }
       if (section) section.style.display = container.childElementCount ? "" : "none";
     }

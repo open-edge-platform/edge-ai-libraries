@@ -1,4 +1,3 @@
-
 configure_handheld_multi_modal () {
   workspace="$(ensure_project_path)/handheld-multi-modal"
   version=release-2026.2.0
@@ -11,7 +10,7 @@ verify_handheld_multi_modal () {
 }
 
 debian_90_profile_handheld_multi_modal () {
-  echo "yq make curl git docker_io edge_base edge_node_infrastructure_blueprint"
+  echo "yq make curl git docker_io edge_base handheld_platform"
 }
 
 debian_90_install_handheld_multi_modal () {
@@ -20,7 +19,7 @@ debian_90_install_handheld_multi_modal () {
     echo "handheld_multi_modal is installed." >&2
   else
     ensure_disk_size 45000
-    ensure_ports_open install_handheld_multi_modal "${used_ports[@]}"
+    ensure_ports_open install handheld_multi_modal "${used_ports[@]}"
 
     ensure_git_clone "$workspace" $version $repository handheld-multi-modal
     cd "$workspace"/handheld-multi-modal
@@ -37,8 +36,8 @@ debian_90_install_handheld_multi_modal () {
 }
 
 debian_90_start_handheld_multi_modal () {
-  ensure_ports_open start handheld_multi_modal "${used_ports[@]}"
   configure_handheld_multi_modal
+  ensure_ports_open start handheld_multi_modal "${used_ports[@]}"
   cd "$workspace"/handheld-multi-modal
   make deploy
   echo "@@HIGHLIGHT URL: https://$(ensure_ip):${used_ports[0]}"
@@ -62,4 +61,3 @@ debian_90_remove_handheld_multi_modal () {
   docker image rm -f whisper-stt:latest > /dev/null 2>&1 || true
   ensure_rm "$workspace"
 }
-

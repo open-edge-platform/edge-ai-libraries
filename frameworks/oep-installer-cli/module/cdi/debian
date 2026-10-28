@@ -1,4 +1,3 @@
-
 configure_cdi () {
   workspace="$(ensure_project_path)/cdi"
   repository="https://github.com/open-edge-platform/edge-node-infrastructure-blueprint.git"
@@ -72,4 +71,3 @@ debian_55_remove_cdi () {
 
   ensure_rm "$workspace" "$cdi_path"
 }
-

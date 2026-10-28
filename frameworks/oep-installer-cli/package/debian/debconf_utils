@@ -1,4 +1,3 @@
-
 debian_15_install_debconf_utils () {
   ensure_apt_install_package debconf-utils
 }
