@@ -134,8 +134,10 @@ debian_85_stop_video_search_and_summarization () {
 
   docker rm -f vss-model-download || true
   cd "$workspace"/sample-applications/video-search-and-summarization && {
-  . ./setup.sh --stop || true
-  . ./setup.sh --clean-data
+    . ./setup.sh --stop || true
+    . ./setup.sh --clean-data || true
+    docker volume rm -f docker_ov-models || true
+    docker volume rm -f docker_dataprep-yolox-models
   } || true
 }
 

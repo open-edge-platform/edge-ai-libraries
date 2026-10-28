@@ -130,8 +130,8 @@ debian_30_sbom_docker_ce () {
   ensure_sbom_format name $repo_name
   ensure_sbom_format gpg-key "$key_url"
   ensure_sbom_format key-file "$key_file"
-  ensure_sbom_format apt-entry "$apt_entry"
-  ensure_sbom_format apt-file "$apt_file"
+  ensure_sbom_format apt-source "$apt_entry"
+  ensure_sbom_format apt-list-file "$apt_file"
   ensure_sbom_format pkg-list docker-ce docker-buildx-plugin docker-compose-plugin
 }
 
