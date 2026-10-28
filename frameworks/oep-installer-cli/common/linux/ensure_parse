@@ -1,6 +1,6 @@
 
 # version --version=2026.2.0
-ensure_parse_option () {
+ensure_parse_value_option () {
   local key="$1"; shift
   local v v1 value=""
   for v in $*; do
@@ -11,7 +11,9 @@ ensure_parse_option () {
     "--$key")
       ;;
     *)
-      [ "$v1" != "--$key" ] || value="$v"
+      if [ "$v1" != "--$key" ]; then
+        value="$v"; v=""
+      fi
       ;;
     esac
     v1="$v"

@@ -1,7 +1,7 @@
 
 configure_pallet_defect_detection () {
   workspace="$(ensure_project_path)/pallet-defect-detection"
-  version="$(ensure_parse_option version --version=release-2026.2.0 "$@")"
+  version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")"
   repository="https://github.com/open-edge-platform/manufacturing-ai-suite.git"
   used_ports=(80 443 8000 3478)
   wait_timeout=120
