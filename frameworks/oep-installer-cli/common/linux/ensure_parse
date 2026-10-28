@@ -11,7 +11,7 @@ ensure_parse_value_option () {
     "--$key")
       ;;
     *)
-      if [ "$v1" != "--$key" ]; then
+      if [ "$v1" = "--$key" ]; then
         value="$v"; v=""
       fi
       ;;
