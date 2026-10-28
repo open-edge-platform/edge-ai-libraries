@@ -1,4 +1,5 @@
-
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 # OpenVINO(TM) Runtime (pinned to 2025.3.0) and the ROS 2 OpenVINO Toolkit
 # required by the Robotics AI Suite perception tutorials. Kept separate from the
 # generic `openvino` module because the robotics stack pins a specific version
@@ -55,10 +56,9 @@ configure_oneapi_ros_openvino () {
   oneapi_key_url="https://$oneapi_repo_name/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
   oneapi_key_file=/usr/share/keyrings/oneapi-archive-keyring.gpg
   oneapi_list=/etc/apt/sources.list.d/oneAPI.list
+  # PCL 1.15 requires runtime >= 2026.0.0; let APT resolve runtime versions
+  # independently of the compiler and MKL development-tool pins.
   oneapi_pref=(
-    "Package: intel-oneapi-runtime-*"
-    "Pin: version 2025.3.*"
-    "Pin-Priority: 1001"
     "Package: intel-oneapi-compiler-*"
     "Pin: version 2025.3.*"
     "Pin-Priority: 1001"
