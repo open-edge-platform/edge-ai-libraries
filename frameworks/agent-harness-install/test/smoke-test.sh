@@ -236,8 +236,12 @@ phase_00_prereqs() {
   # get local issuer certificate" -- a host prerequisite gap, not a product
   # bug -- so refresh it proactively rather than letting it surface later as
   # a confusing mid-install failure.
-  check "ca-certificates is installed and up to date" \
-    bash -c 'sudo apt-get update -qq && sudo apt-get install -y -qq --reinstall ca-certificates && sudo update-ca-certificates >/dev/null'
+  if sudo -n true 2>/dev/null; then
+    check "ca-certificates is installed and up to date" \
+      bash -c 'sudo apt-get update -qq && sudo apt-get install -y -qq --reinstall ca-certificates && sudo update-ca-certificates >/dev/null'
+  else
+    skip "ca-certificates is installed and up to date" "no passwordless sudo"
+  fi
 
   if ! command -v shellcheck >/dev/null 2>&1; then
     note "shellcheck not found; attempting apt install (informational phase only)"
@@ -809,8 +813,11 @@ phase_12_inference() {
       env NON_INTERACTIVE=1 bash "$REPO_ROOT/install.sh" --harness "$SMOKE_PRIMARY_AGENT" --non-interactive --skip-gpu-check --model "$SMOKE_HF_MODEL"
     local model_name="${SMOKE_HF_MODEL##*/}"
     check_output_contains "models list shows the exported model" "$model_name" bash "$REPO_ROOT/install.sh" models list
-    check_output_contains "OVMS readiness endpoint responds for the exported model" "" \
-      curl -sf "http://127.0.0.1:8000/v2/models/${model_name}/ready"
+    # Published ports bind to the advertised host, so 127.0.0.1 is not always reachable; OVMS may still be loading after the restart.
+    local probe_host
+    probe_host="$(lib_eval 'resolve_probe_host')"
+    check_with_retry "OVMS readiness endpoint responds for the exported model" 10 \
+      curl -sf "http://${probe_host}:8000/v2/models/${model_name}/ready"
     check "models remove cleans it up" bash "$REPO_ROOT/install.sh" models remove "$model_name"
 
     # --model-hub alone selects the Model Download exporter (no
