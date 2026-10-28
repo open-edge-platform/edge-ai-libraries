@@ -49,7 +49,6 @@ _STREAM_UPDATE_FIELDS = {
     "description",
     "frame_interval",
     "enable_object_detection",
-    "detection_confidence",
     "tags",
     "state",
 }
@@ -256,7 +255,6 @@ def make_stream(
         "tags": tags or [],
         "frame_interval": 15,
         "enable_object_detection": True,
-        "detection_confidence": 0.5,
         "stats": {
             "frames_processed": 10,
             "embeddings_created": 4,

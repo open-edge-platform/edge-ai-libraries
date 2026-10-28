@@ -354,10 +354,6 @@ export const enTranslations = {
   enableDetection: 'Enable object detection',
   enableDetectionInfo:
     'Finds objects such as people and vehicles in each frame and indexes them separately. This makes searches for a specific object more accurate, especially when it is small or in a busy scene. It costs extra processing, so turn it off for high camera counts.',
-  detectionConfidence: 'Detection confidence',
-  detectionConfidenceInvalid: 'Enter a value between 0.1 and 1.0.',
-  detectionConfidenceInfo:
-    'How certain the detector must be before an object is indexed. Lower values catch more objects but add false matches to your search results; higher values index only confident detections and may miss some.',
   startImmediately: 'Start ingesting immediately',
   startImmediatelyInfo:
     'Begin recording and indexing as soon as the camera is added. Clear this to register the camera in a paused state and start it later from the camera list.',

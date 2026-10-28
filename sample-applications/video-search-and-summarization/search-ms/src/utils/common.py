@@ -93,7 +93,7 @@ class Settings(BaseSettings):
         default=0.0, env="AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS"
     )
     # When enabled, the per-segment seek/thumbnail anchor prefers a FULL frame over a
-    # (higher-scoring) YOLOX object crop, provided a full frame exists whose relevance is
+    # (higher-scoring) object-detection crop, provided a full frame exists whose relevance is
     # within AGGREGATION_FULL_FRAME_SEEK_BAND (fraction of the segment peak). This only
     # changes which frame the UI seeks to / shows; segment ranking and scores are untouched.
     AGGREGATION_PREFER_FULL_FRAME_SEEK: bool = Field(

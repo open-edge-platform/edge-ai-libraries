@@ -58,7 +58,15 @@ data:
   MM_DATAPREP_ENABLE_OBJECT_DETECTION: "true"
   {{- end }}
   MM_DATAPREP_DETECTION_CONFIDENCE: {{ .Values.frameProcessing.detectionConfidence | default 0.85 | quote }}
-  MM_DATAPREP_DETECTION_MODEL_DIR: {{ .Values.frameProcessing.detectionModelDir | default "/app/models/yolox" | quote }}
+  MM_DATAPREP_DETECTION_MODEL_DIR: {{ .Values.frameProcessing.detectionModelDir | default "/app/models/object-detection" | quote }}
+  {{- if or (not (hasKey .Values.frameProcessing "enableObjectDetection")) (eq (printf "%v" .Values.frameProcessing.enableObjectDetection | lower) "true") }}
+  MM_DATAPREP_DETECTION_MODEL_NAME: {{ required "multimodaldataprep.frameProcessing.detectionModelName is required when object detection is enabled (or set multimodaldataprep.frameProcessing.enableObjectDetection=false)" .Values.frameProcessing.detectionModelName | quote }}
+  {{- else if .Values.frameProcessing.detectionModelName }}
+  MM_DATAPREP_DETECTION_MODEL_NAME: {{ .Values.frameProcessing.detectionModelName | quote }}
+  {{- end }}
+  {{- with .Values.frameProcessing.detectionClasses }}
+  MM_DATAPREP_DETECTION_CLASSES: {{ . | quote }}
+  {{- end }}
   MM_DATAPREP_FRAMES_TEMP_DIR: {{ .Values.frameProcessing.framesTempDir | default "/tmp/dataprep" | quote }}
   MM_DATAPREP_EMBEDDING_BATCH_SIZE: {{ .Values.sdkPipeline.embeddingBatchSize | default .Values.global.env.EMBEDDING_BATCH_SIZE | default 32 | quote }}
   MM_DATAPREP_MAX_PARALLEL_WORKERS: {{ .Values.sdkPipeline.maxParallelWorkers | default .Values.global.env.MAX_PARALLEL_WORKERS | quote }}

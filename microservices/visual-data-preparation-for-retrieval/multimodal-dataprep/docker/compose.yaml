@@ -103,8 +103,10 @@ services:
             - MM_DATAPREP_FRAMES_TEMP_DIR=${MM_DATAPREP_FRAMES_TEMP_DIR:-/tmp/dataprep}
 
             # Object detection model directory
-            - MM_DATAPREP_DETECTION_MODEL_DIR=${YOLOX_MODELS_MOUNT_PATH:-/app/models/yolox}
+            - MM_DATAPREP_DETECTION_MODEL_DIR=${DETECTION_MODELS_MOUNT_PATH:-/app/models/object-detection}
+            - MM_DATAPREP_DETECTION_MODEL_NAME=${MM_DATAPREP_DETECTION_MODEL_NAME:-}
             - MM_DATAPREP_DETECTION_DEVICE=${MM_DATAPREP_DETECTION_DEVICE:-CPU}
+            - MM_DATAPREP_DETECTION_CLASSES=${MM_DATAPREP_DETECTION_CLASSES:-}
 
             # ROI consolidation settings
             - MM_DATAPREP_ROI_CONSOLIDATION_ENABLED=${MM_DATAPREP_ROI_CONSOLIDATION_ENABLED:-false}
@@ -166,7 +168,7 @@ services:
             retries: 40
             start_period: 5s
         volumes:
-            - '${YOLOX_MODELS_VOLUME_NAME:-dataprep-yolox-models}:${YOLOX_MODELS_MOUNT_PATH:-/app/models/yolox}'
+            - '${DETECTION_MODELS_VOLUME_NAME:-dataprep-detection-models}:${DETECTION_MODELS_MOUNT_PATH:-/app/models/object-detection}'
             - data-prep:/tmp/dataprep
             # Optional bind mount for POST /media/ingest-dir (directory ingest).
             # Point MM_DATAPREP_INGEST_DATA_ROOT_HOST at a host directory of videos.
@@ -196,7 +198,7 @@ networks:
 volumes:
     MM_minio_data:
         driver: local
-    dataprep-yolox-models:
+    dataprep-detection-models:
         driver: local
     ov-models:
         driver: local

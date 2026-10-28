@@ -1,330 +1,319 @@
-# Copyright (C) 2025 Intel Corporation
+# Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-# Adapted from YOLOX: https://github.com/Megvii-BaseDetection/YOLOX
 
-import os
+"""Object detection with Hugging Face ``OpenVINO/*`` models via OpenVINO Model API.
+
+The configured model (``MM_DATAPREP_DETECTION_MODEL_NAME``, an ``OpenVINO/<repo>``
+Hugging Face repo) is downloaded once into the model directory and
+loaded with ``model_api``, which picks the right pre/post-processing wrapper
+(SSD-style exports with in-graph NMS, YOLO, ...) from the model's runtime info.
+"""
+
 import logging
-import tarfile
-import urllib.request
-import urllib.error
-import shutil
+import threading
+import time
+from pathlib import Path
 from typing import List, Optional, Tuple, Union
 
 import cv2
 import numpy as np
 from PIL import Image
+
 from src.common.logger import sanitize_for_log
 
-# Import VDMS local modules
-from ..utils.config_utils import get_config
-from .yolox_utils import preproc, multiclass_nms, demo_postprocess, compute_iou
-from .default_class_names import DEFAULT_COCO_CLASS_NAMES
+from ..utils.config_utils import (
+    get_config,
+    normalize_class_name,
+    parse_detection_classes,
+    validate_detection_model_name,
+)
 
 logger = logging.getLogger(__name__)
 
-try:
-    import openvino as ov
-    OPENVINO_AVAILABLE = True
-except ImportError:
-    OPENVINO_AVAILABLE = False
-    logger.warning("OpenVINO not available. Object detection will be disabled.")
+MODEL_DOWNLOAD_PATTERNS = ["*.xml", "*.bin"]
+MODEL_DOWNLOAD_ATTEMPTS = 3
 
-class YOLOXDetector:
+try:
+    from model_api.models import DetectionModel, Model
+
+    MODEL_API_AVAILABLE = True
+except ImportError:
+    MODEL_API_AVAILABLE = False
+    logger.warning("openvino-model-api not available. Object detection will be disabled.")
+
+
+def compute_iou(box, boxes):
+    """Compute IoU between a single [x1, y1, x2, y2] box and an (N, 4) array of boxes."""
+    boxes = np.asarray(boxes)
+    box = np.asarray(box)
+    if boxes.size == 0:
+        return np.asarray([])
+
+    xx1 = np.maximum(box[0], boxes[:, 0])
+    yy1 = np.maximum(box[1], boxes[:, 1])
+    xx2 = np.minimum(box[2], boxes[:, 2])
+    yy2 = np.minimum(box[3], boxes[:, 3])
+
+    inter = np.maximum(0.0, xx2 - xx1) * np.maximum(0.0, yy2 - yy1)
+    area_box = (box[2] - box[0] + 1) * (box[3] - box[1] + 1)
+    area_boxes = (boxes[:, 2] - boxes[:, 0] + 1) * (boxes[:, 3] - boxes[:, 1] + 1)
+    union = area_box + area_boxes - inter
+    return np.where(union > 0, inter / union, 0.0)
+
+
+def _empty_detections() -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    return (
+        np.empty((0, 4), dtype=int),
+        np.empty((0,), dtype=float),
+        np.empty((0,), dtype=int),
+    )
+
+
+class ObjectDetector:
+    """Object detector for frame-based video processing.
+
+    Wraps an OpenVINO Model API detection model and adds an optional class
+    filter and ROI consolidation.
     """
-    YOLOX object detector using OpenVINO inference.
-    
-    Provides object detection capabilities for frame-based video processing,
-    including configurable confidence thresholds and crop extraction.
-    """
-    
+
     def __init__(self, config: Optional[dict] = None):
         """
-        Initialize YOLOX detector.
-        
+        Initialize the detector, downloading the model if it is not cached yet.
+
         Args:
             config: Configuration dictionary. If None, loads from effective config.
         """
-        if not OPENVINO_AVAILABLE:
-            raise ImportError("OpenVINO is required for object detection. Please install openvino.")
-        
-        # Load configuration
+        if not MODEL_API_AVAILABLE:
+            raise ImportError(
+                "openvino-model-api is required for object detection. "
+                "Please install openvino-model-api."
+            )
+
         if config is None:
             config = get_config()
 
         self.config = config
-        self.detection_config = config.get('object_detection', {}).copy()
-        
-        # Detection parameters
-        self.device = self.detection_config.get('device', 'CPU')
-        self.confidence_threshold = self.detection_config.get('confidence_threshold', 0.5)
-        self.nms_threshold = self.detection_config.get('nms_threshold', 0.45)
-        self.input_size = tuple(self.detection_config.get('input_size', [640, 640]))
-        
-        # Model configuration - use persistent mount path
-        self.model_dir = self.detection_config.get('model_dir', '/app/models/yolox')
-        self.model_name = self.detection_config.get('model_name')  # No default - must be explicitly provided
+        self.detection_config = config.get("object_detection", {}).copy()
+
+        self.device = self.detection_config.get("device") or "CPU"
+        self.confidence_threshold = float(self.detection_config.get("confidence_threshold", 0.85))
+        self.model_dir = self.detection_config.get("model_dir") or "/app/models/object-detection"
+        self.model_name = validate_detection_model_name(self.detection_config.get("model_name"))
         if not self.model_name:
-            raise ValueError("Object detection model name must be explicitly provided via DETECTION_MODEL_NAME environment variable or config file")
-        self.model_file = os.path.join(self.model_dir, f"{self.model_name}.xml")
+            raise ValueError(
+                "Object detection model name must be set via MM_DATAPREP_DETECTION_MODEL_NAME"
+            )
+        self.class_filter = parse_detection_classes(self.detection_config.get("classes"))
+        self.model_path = self._local_model_dir()
 
-        class_names_config = self.detection_config.get('class_names')
-        class_names: Optional[List[str]] = None
+        self._local = threading.local()
+        self.model = None
+        self.class_names: Tuple[str, ...] = ()
 
-        if class_names_config:
-            if isinstance(class_names_config, str):
-                class_names = [entry.strip() for entry in class_names_config.split(',') if entry.strip()]
-            else:
-                class_names = [str(entry).strip() for entry in class_names_config if str(entry).strip()]
+        xml_path = self._ensure_model_available()
+        self._load_model(xml_path)
+        self._validate_class_filter()
 
-            if not class_names:
-                class_names = None
-
-        if class_names is None:
-            fallback_class_names = self._load_default_class_names()
-            if fallback_class_names is not None:
-                class_names = fallback_class_names
-                logger.info(
-                    "Object detection class names not specified; falling back to built-in YOLOX COCO labels (%d entries).",
-                    len(class_names),
-                )
-            else:
-                logger.info(
-                    "Object detection class names not specified; detection metadata will use generated placeholders. "
-                    "Provide object_detection.class_names in config.yaml to map IDs to labels."
-                )
-
-        self.class_names = tuple(class_names) if class_names is not None else None
-        
-        # Initialize OpenVINO
-        self._init_openvino()
-        
         logger.info(
-            "YOLOX detector initialized: device=%s, confidence=%s",
+            "Object detector initialized: model=%s, wrapper=%s, device=%s, confidence=%s, classes=%s",
+            sanitize_for_log(self.model_name, max_length=128),
+            type(self.model).__name__,
             sanitize_for_log(self.device, max_length=64),
             sanitize_for_log(self.confidence_threshold, max_length=32),
+            sanitize_for_log(",".join(self.class_filter) if self.class_filter else "all", max_length=512),
         )
-    
-    def _init_openvino(self):
-        """Initialize OpenVINO core and load model."""
-        try:
-            # Download model if needed
-            self._ensure_model_available()
-            
-            # Initialize OpenVINO
-            self.core = ov.Core()
-            self.net = self.core.read_model(model=self.model_file)
-            self.exec_net = self.core.compile_model(self.net, self.device)
-            
-            # Get input/output information
-            self.input_tensor = self.exec_net.inputs[0]
-            self.output_tensor = self.exec_net.outputs[0]
-            
-            _, _, self.h, self.w = self.input_tensor.shape
-            
-            logger.info(f"Model loaded successfully: input_shape=({self.h}, {self.w})")
-            
-        except Exception as e:
-            logger.error(f"Failed to initialize OpenVINO: {e}")
-            raise
-    
-    def _ensure_model_available(self):
-        """Download YOLOX model if not available using pure Python methods."""
-        if os.path.exists(self.model_file):
-            logger.info(f"Model found: {self.model_file}")
-            return
-        
-        logger.info(f"Model not found. Downloading to {self.model_dir}")
-        os.makedirs(self.model_dir, exist_ok=True)
-        
-        try:
-            # Download the model using urllib
-            model_url = "https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/yolox_s_openvino.tar.gz"
-            tar_file = os.path.join(self.model_dir, "yolox_s_openvino.tar.gz")
-            
-            logger.info(f"Downloading model from {model_url}")
-            
-            # Download with retry logic
-            max_retries = 5
-            for attempt in range(max_retries):
-                try:
-                    with urllib.request.urlopen(model_url, timeout=30) as response:
-                        with open(tar_file, 'wb') as f:
-                            # Download in chunks
-                            chunk_size = 8192
-                            while True:
-                                chunk = response.read(chunk_size)
-                                if not chunk:
-                                    break
-                                f.write(chunk)
-                    break  # Success, exit retry loop
-                    
-                except (urllib.error.URLError, urllib.error.HTTPError, OSError) as e:
-                    if attempt < max_retries - 1:
-                        logger.warning(f"Download attempt {attempt + 1} failed: {e}. Retrying...")
-                        continue
-                    else:
-                        raise RuntimeError(f"Download failed after {max_retries} attempts: {e}")
-            
-            # Extract the model using tarfile
-            logger.info(f"Extracting model archive")
+
+    def _local_model_dir(self) -> Path:
+        """Return ``<model_dir>/<namespace>/<repo>``, refusing paths that escape model_dir."""
+        root = Path(self.model_dir).resolve()
+        target = root.joinpath(*self.model_name.split("/")).resolve()
+        if not target.is_relative_to(root):
+            raise ValueError(f"Invalid object detection model name: {self.model_name!r}")
+        return target
+
+    def _find_model_xml(self) -> Optional[Path]:
+        """Return the cached model IR (.xml with matching .bin), if present."""
+        if not self.model_path.is_dir():
+            return None
+        candidates = [
+            xml for xml in sorted(self.model_path.glob("*.xml")) if xml.with_suffix(".bin").is_file()
+        ]
+        if len(candidates) > 1:
+            raise RuntimeError(
+                f"Expected one OpenVINO IR model in {self.model_path}, found: "
+                f"{', '.join(c.name for c in candidates)}"
+            )
+        return candidates[0] if candidates else None
+
+    def _ensure_model_available(self) -> Path:
+        """Download the configured Hugging Face model unless it is already cached."""
+        xml_path = self._find_model_xml()
+        if xml_path is not None:
+            logger.info("Detection model found: %s", xml_path)
+            return xml_path
+
+        from huggingface_hub import snapshot_download
+
+        logger.info(
+            "Detection model %s not found locally. Downloading from Hugging Face to %s",
+            sanitize_for_log(self.model_name, max_length=128),
+            self.model_path,
+        )
+        self.model_path.mkdir(parents=True, exist_ok=True)
+        for attempt in range(1, MODEL_DOWNLOAD_ATTEMPTS + 1):
             try:
-                # Try as gzipped tar first, then fallback to regular tar
-                try:
-                    with tarfile.open(tar_file, 'r:gz') as tar:
-                        self._extract_tar_safely(tar, self.model_dir)
-                except tarfile.TarError:
-                    # If gzip fails, try as regular tar
-                    logger.info("Gzip extraction failed, trying as regular tar")
-                    with tarfile.open(tar_file, 'r') as tar:
-                        self._extract_tar_safely(tar, self.model_dir)
-                    
-            except tarfile.TarError as e:
-                raise RuntimeError(f"Extraction failed: {e}")
-            
-            # Cleanup downloaded archive
-            try:
-                os.remove(tar_file)
-                logger.info("Cleaned up downloaded archive")
-            except OSError:
-                logger.warning("Failed to cleanup archive file")
-            
-            # Verify model file exists after extraction
-            if not os.path.exists(self.model_file):
-                raise FileNotFoundError(f"Model file not found after download: {self.model_file}")
-                
-            logger.info("Model downloaded and extracted successfully")
-            
-        except Exception as e:
-            logger.error(f"Failed to download model: {e}")
-            raise
+                snapshot_download(
+                    repo_id=self.model_name,
+                    local_dir=str(self.model_path),
+                    allow_patterns=MODEL_DOWNLOAD_PATTERNS,
+                )
+                break
+            except Exception as exc:
+                if attempt == MODEL_DOWNLOAD_ATTEMPTS:
+                    raise RuntimeError(
+                        f"Failed to download detection model {self.model_name} from Hugging Face "
+                        f"after {MODEL_DOWNLOAD_ATTEMPTS} attempts: {exc}"
+                    ) from exc
+                logger.warning("Download attempt %d failed: %s. Retrying...", attempt, exc)
+                time.sleep(2 * attempt)
+
+        xml_path = self._find_model_xml()
+        if xml_path is None:
+            raise FileNotFoundError(
+                f"{self.model_name} does not contain an OpenVINO IR model (.xml/.bin). "
+                "Use an OpenVINO object detection model from https://huggingface.co/OpenVINO."
+            )
+        logger.info("Detection model downloaded: %s", xml_path)
+        return xml_path
+
+    def _load_model(self, xml_path: Path) -> None:
+        """Load the model with the Model API wrapper named in its runtime info."""
+        model = Model.create_model(
+            str(xml_path),
+            device=self.device,
+            configuration={"confidence_threshold": self.confidence_threshold},
+            preload=True,
+        )
+        if not isinstance(model, DetectionModel):
+            raise ValueError(
+                f"{self.model_name} is not an object detection model "
+                f"(Model API wrapper: {type(model).__name__})."
+            )
+        self._prefilter_nms_by_confidence(model)
+        self.model = model
+        self.class_names = tuple(str(label) for label in (model.params.labels or []))
+        logger.info(
+            "Detection model loaded on %s: wrapper=%s, input=%sx%s, classes=%d",
+            sanitize_for_log(self.device, max_length=64),
+            type(model).__name__,
+            getattr(model, "w", "?"),
+            getattr(model, "h", "?"),
+            len(self.class_names),
+        )
 
     @staticmethod
-    def _extract_tar_safely(tar: tarfile.TarFile, destination: str) -> None:
-        """Safely extract a tar archive into destination.
+    def _prefilter_nms_by_confidence(model: "DetectionModel") -> None:
+        """Run NMS only on boxes above the confidence threshold.
 
-        This extraction routine blocks path traversal and disallows symlinks,
-        hard links, and special device files.
+        Some Model API wrappers (e.g. SSD, used by Geti-style exports) run a
+        pure-Python NMS over every candidate box (thousands per frame) and only
+        drop low-confidence boxes afterwards. Greedy NMS lets a box suppress only
+        lower-scoring boxes, so discarding boxes the wrapper would filter out
+        anyway gives identical results at a fraction of the cost.
         """
-        destination_real = os.path.realpath(destination)
-        os.makedirs(destination_real, exist_ok=True)
+        calculate_nms = model._calculate_nms
 
-        for member in tar.getmembers():
-            member_name = member.name
+        def _calculate_nms(boxes, scores, labels, *args, **kwargs):
+            candidates = np.flatnonzero(np.asarray(scores) > model.params.confidence_threshold)
+            if candidates.size == len(scores):
+                return calculate_nms(boxes, scores, labels, *args, **kwargs)
+            keep = calculate_nms(
+                boxes[candidates], scores[candidates], labels[candidates], *args, **kwargs
+            )
+            return candidates[np.asarray(keep, dtype=np.int64)].tolist()
 
-            if not member_name:
-                continue
+        model._calculate_nms = _calculate_nms
 
-            normalized_name = os.path.normpath(member_name)
+    def _validate_class_filter(self) -> None:
+        """Fail fast when the class filter names labels the model does not have."""
+        if not self.class_filter:
+            return
+        if not self.class_names:
+            raise ValueError(
+                f"{self.model_name} has no class labels, so MM_DATAPREP_DETECTION_CLASSES "
+                "cannot be applied."
+            )
+        available = {normalize_class_name(name) for name in self.class_names}
+        unknown = [name for name in self.class_filter if name not in available]
+        if unknown:
+            raise ValueError(
+                f"MM_DATAPREP_DETECTION_CLASSES contains classes not provided by {self.model_name}: "
+                f"{', '.join(unknown)}. Available classes: {', '.join(self.class_names)}"
+            )
 
-            if normalized_name.startswith('/') or normalized_name.startswith('..'):
-                raise RuntimeError(f"Unsafe tar member path detected: {member_name}")
+    def _infer(self, image_bgr: np.ndarray):
+        """Run one detection on a BGR image; safe to call from multiple threads.
 
-            target_path = os.path.realpath(os.path.join(destination_real, normalized_name))
-            if not (target_path == destination_real or target_path.startswith(destination_real + os.sep)):
-                raise RuntimeError(f"Tar member escapes destination: {member_name}")
+        Model API's own ``__call__`` shares one infer request across callers, so
+        reuse its stateless pre/post-processing with a per-thread infer request.
+        """
+        adapter = self.model.inference_adapter
+        dict_data, meta = self.model.base_preprocess(image_bgr)
+        if getattr(adapter, "use_python_preprocessing", False):
+            dict_data = {key: adapter.preprocessor(value) for key, value in dict_data.items()}
 
-            if member.issym() or member.islnk():
-                raise RuntimeError(f"Unsupported tar member type (link): {member_name}")
+        request = getattr(self._local, "request", None)
+        if request is None:
+            request = adapter.compiled_model.create_infer_request()
+            self._local.request = request
+        request.infer(dict_data)
+        raw_result = {name: request.get_tensor(name).data for name in adapter.get_output_layers()}
+        return self.model.postprocess(raw_result, meta)
 
-            if member.ischr() or member.isblk() or member.isfifo():
-                raise RuntimeError(f"Unsupported tar member type (special file): {member_name}")
-
-            if member.isdir():
-                os.makedirs(target_path, exist_ok=True)
-                continue
-
-            if not member.isfile():
-                logger.debug("Skipping unsupported tar member: %s", member_name)
-                continue
-
-            os.makedirs(os.path.dirname(target_path), exist_ok=True)
-
-            extracted_file = tar.extractfile(member)
-            if extracted_file is None:
-                raise RuntimeError(f"Failed to read tar member: {member_name}")
-
-            with extracted_file, open(target_path, 'wb') as output_file:
-                shutil.copyfileobj(extracted_file, output_file)
-    
-    def detect_objects(self, image: Union[np.ndarray, Image.Image]) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def detect_objects(
+        self, image: Union[np.ndarray, Image.Image]
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Detect objects in an image.
-        
+
         Args:
-            image: Input image (numpy array or PIL Image)
-            
+            image: Input image (BGR numpy array or PIL Image)
+
         Returns:
             Tuple of (bounding_boxes, confidence_scores, class_indices)
         """
-        # Convert PIL Image to numpy array if needed
         if isinstance(image, Image.Image):
             image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
-        
-        # Preprocess image
-        processed_image, ratio = preproc(image, (self.h, self.w))
-        
-        # Run inference
+
+        self._local.roi_metadata = []
         try:
-            result = self.exec_net.infer_new_request({self.input_tensor: processed_image})
-            output = result[self.output_tensor]
-            
-            # Post-process results
-            predictions = demo_postprocess(output, (self.h, self.w))[0]
-            
-            boxes = predictions[:, :4]
-            scores = predictions[:, 4, None] * predictions[:, 5:]
-            
-            # Convert center format to corner format
-            boxes_xyxy = np.ones_like(boxes)
-            boxes_xyxy[:, 0] = boxes[:, 0] - boxes[:, 2] / 2.0
-            boxes_xyxy[:, 1] = boxes[:, 1] - boxes[:, 3] / 2.0
-            boxes_xyxy[:, 2] = boxes[:, 0] + boxes[:, 2] / 2.0
-            boxes_xyxy[:, 3] = boxes[:, 1] + boxes[:, 3] / 2.0
-            boxes_xyxy /= ratio
-            
-            # Apply NMS
-            dets = multiclass_nms(
-                boxes_xyxy, 
-                scores, 
-                nms_thr=self.nms_threshold, 
-                score_thr=self.confidence_threshold
-            )
-            
-            final_boxes = np.empty((0, 4), dtype=int)
-            final_scores = np.empty((0,), dtype=float)
-            final_cls_inds = np.empty((0,), dtype=int)
-            if dets is not None:
-                # Convert bounding boxes to integers for compatibility with embedding service
-                final_boxes = np.round(dets[:, :4]).astype(int)
-                final_scores = dets[:, 4]
-                final_cls_inds = dets[:, 5].astype(int)
+            result = self._infer(image)
 
-            # Default metadata for per-box ROI consolidation stats (used by detect()).
-            self._last_roi_metadata = [
-                {"merged_boxes_count": 1, "context_expansion_applied": False}
-                for _ in range(len(final_boxes))
-            ]
-            
-            if len(final_boxes) > 0:
-                # Optional ROI consolidation happens after NMS so we only merge
-                # high-confidence, non-overlapping detections that survived filtering.
-                final_boxes, final_scores, final_cls_inds, roi_metadata = self._consolidate_rois(
-                    final_boxes,
-                    final_scores,
-                    final_cls_inds,
-                    image.shape[:2],
+            boxes = np.asarray(result.bboxes, dtype=int).reshape(-1, 4)
+            scores = np.asarray(result.scores, dtype=float).reshape(-1)
+            class_ids = np.asarray(result.labels, dtype=int).reshape(-1)
+
+            if self.class_filter and len(class_ids):
+                keep = np.array(
+                    [normalize_class_name(self._get_class_name(cid)) in self.class_filter for cid in class_ids],
+                    dtype=bool,
                 )
-                self._last_roi_metadata = roi_metadata
+                boxes, scores, class_ids = boxes[keep], scores[keep], class_ids[keep]
 
-            return final_boxes, final_scores, final_cls_inds
-            
+            roi_metadata = [
+                {"merged_boxes_count": 1, "context_expansion_applied": False}
+                for _ in range(len(boxes))
+            ]
+            if len(boxes) > 0:
+                boxes, scores, class_ids, roi_metadata = self._consolidate_rois(
+                    boxes, scores, class_ids, image.shape[:2]
+                )
+            self._local.roi_metadata = roi_metadata
+            return boxes, scores, class_ids
+
         except Exception as e:
             logger.error(f"Detection failed: {e}")
-            return (
-                np.empty((0, 4), dtype=int),
-                np.empty((0,), dtype=float),
-                np.empty((0,), dtype=int),
-            )
+            return _empty_detections()
 
     def detect(
         self,
@@ -332,32 +321,21 @@ class YOLOXDetector:
         *,
         return_metadata: bool = True,
     ) -> Union[List[dict], Tuple[np.ndarray, np.ndarray, np.ndarray]]:
-        """Backward-compatible detection helper.
-
-        This method provides the legacy ``detect`` interface that some callers
-        expect (for example the object detector preload routine). By default it
-        returns rich detection metadata dictionaries; callers that need the raw
-        tensors can set ``return_metadata=False`` to receive the tuple produced
-        by :meth:`detect_objects`.
+        """Detect objects and return metadata dictionaries (or the raw tuple).
 
         Args:
             image: Input image to run detection against.
             return_metadata: When ``True`` (default) return a list of detection
                 metadata dictionaries. When ``False`` return the raw
                 ``(boxes, scores, class_ids)`` tuple.
-
-        Returns:
-            Either a list of detection metadata dictionaries or the raw tuple
-            from :meth:`detect_objects`, depending on ``return_metadata``.
         """
-
         boxes, scores, class_ids = self.detect_objects(image)
 
         if not return_metadata:
             return boxes, scores, class_ids
 
         metadata: List[dict] = []
-        roi_metadata = getattr(self, "_last_roi_metadata", [])
+        roi_metadata = getattr(self._local, "roi_metadata", [])
         for i, (box, score, class_id) in enumerate(zip(boxes, scores, class_ids)):
             roi_info = roi_metadata[i] if i < len(roi_metadata) else {
                 "merged_boxes_count": 1,
@@ -366,7 +344,7 @@ class YOLOXDetector:
             metadata.append(
                 {
                     "detection_id": i,
-                    "bbox": box.tolist() if hasattr(box, "tolist") else list(map(int, box)),
+                    "bbox": [int(round(float(v))) for v in box],
                     "confidence": float(score),
                     "class_id": int(class_id),
                     "class_name": self._get_class_name(int(class_id)),
@@ -377,94 +355,11 @@ class YOLOXDetector:
             )
 
         return metadata
-    
-    def extract_crops(self, image: Union[np.ndarray, Image.Image]) -> List[Union[np.ndarray, Image.Image]]:
-        """
-        Detect objects and extract crop regions.
-        
-        Args:
-            image: Input image
-            
-        Returns:
-            List of cropped images
-        """
-        # Remember input format for output consistency
-        input_is_pil = isinstance(image, Image.Image)
-        
-        # Convert PIL to numpy for processing if needed
-        if input_is_pil:
-            image_np = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
-        else:
-            image_np = image
-        
-        # Detect objects
-        boxes, scores, class_ids = self.detect_objects(image_np)
-        
-        crops = []
-        for box, score, class_id in zip(boxes, scores, class_ids):
-            x1, y1, x2, y2 = map(int, box)
-            
-            # Ensure bounds are within image
-            x1 = max(0, x1)
-            y1 = max(0, y1)
-            x2 = min(image_np.shape[1], x2)
-            y2 = min(image_np.shape[0], y2)
-            
-            # Skip invalid boxes
-            if x1 >= x2 or y1 >= y2:
-                continue
-            
-            # Extract crop
-            crop = image_np[y1:y2, x1:x2]
-            
-            # Convert back to PIL if input was PIL
-            if input_is_pil:
-                crop_rgb = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
-                crop = Image.fromarray(crop_rgb)
-            
-            crops.append(crop)
-        
-        return crops
-    
-    def get_detection_metadata(self, image: Union[np.ndarray, Image.Image]) -> List[dict]:
-        """
-        Get detection metadata for all detected objects.
-        
-        Args:
-            image: Input image
-            
-        Returns:
-            List of detection metadata dictionaries
-        """
-        return self.detect(image, return_metadata=True)
-    
-    def is_available(self) -> bool:
-        """Check if detector is available and functional."""
-        return OPENVINO_AVAILABLE and hasattr(self, 'exec_net')
-
-    @staticmethod
-    def _load_default_class_names() -> Optional[Tuple[str, ...]]:
-        """Return the packaged YOLOX COCO class labels, if available."""
-        if not DEFAULT_COCO_CLASS_NAMES:
-            return None
-
-        filtered = tuple(name for name in DEFAULT_COCO_CLASS_NAMES if isinstance(name, str) and name)
-        if filtered:
-            return filtered
-
-        logger.warning(
-            "Default YOLOX class label list was present but empty; detection metadata will use generated placeholders."
-        )
-        return None
 
     def _get_class_name(self, class_id: int) -> str:
-        """Map a class index to a human-readable label."""
-        if self.class_names and 0 <= class_id < len(self.class_names):
+        """Map a class index to the model's label."""
+        if 0 <= class_id < len(self.class_names):
             return self.class_names[class_id]
-
-        if 0 <= class_id < len(DEFAULT_COCO_CLASS_NAMES):
-            return DEFAULT_COCO_CLASS_NAMES[class_id]
-
         return f"class_{class_id}"
 
     def _consolidate_rois(
@@ -601,23 +496,23 @@ class YOLOXDetector:
         return boxes_array, scores_array, class_ids_array, merged_metadata
 
 
-def create_detector(config: Optional[dict] = None) -> Optional[YOLOXDetector]:
+def create_detector(config: Optional[dict] = None) -> Optional[ObjectDetector]:
     """
-    Factory function to create YOLOXDetector instance.
-    
+    Factory function to create an ObjectDetector instance.
+
     Args:
         config: Configuration dictionary
-        
+
     Returns:
-        YOLOXDetector instance or None if detection is disabled
+        ObjectDetector instance or None if detection is disabled or fails to initialize
     """
     try:
         if config is None:
             config = get_config()
-        
-        detection_config = config.get('object_detection', {})
-        is_enabled = detection_config.get('enabled', False)
-        
+
+        detection_config = config.get("object_detection", {})
+        is_enabled = detection_config.get("enabled", False)
+
         logger.info(
             "Creating detector with config: enabled=%s",
             sanitize_for_log(is_enabled, max_length=32),
@@ -626,30 +521,19 @@ def create_detector(config: Optional[dict] = None) -> Optional[YOLOXDetector]:
             "Full detection config: %s",
             sanitize_for_log(detection_config, max_length=512),
         )
-        
+
         if not is_enabled:
             logger.info("Object detection disabled in configuration - returning None")
             return None
-        
-        if not OPENVINO_AVAILABLE:
-            logger.error("OpenVINO is not available - cannot create detector")
-            raise ImportError("OpenVINO is required for object detection but is not available")
-        
-        logger.info("Creating YOLOXDetector instance...")
-        try:
-            detector = YOLOXDetector(config)
-            logger.info("YOLOXDetector created successfully")
-            return detector
-        except Exception as detector_error:
-            logger.error(f"YOLOXDetector creation failed: {detector_error}")
-            logger.error(f"YOLOXDetector exception type: {type(detector_error).__name__}")
-            import traceback
-            logger.error(f"YOLOXDetector traceback: {traceback.format_exc()}")
-            raise  # Re-raise the exception instead of returning None
-        
+
+        if not MODEL_API_AVAILABLE:
+            raise ImportError("openvino-model-api is required for object detection but is not available")
+
+        detector = ObjectDetector(config)
+        logger.info("ObjectDetector created successfully")
+        return detector
+
     except Exception as e:
-        logger.error(f"Failed to create detector: {e}")
-        logger.error(f"Exception type: {type(e).__name__}")
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
+        logger.error(f"Failed to create object detector: {type(e).__name__}: {e}")
+        logger.debug("Object detector creation traceback", exc_info=True)
         return None

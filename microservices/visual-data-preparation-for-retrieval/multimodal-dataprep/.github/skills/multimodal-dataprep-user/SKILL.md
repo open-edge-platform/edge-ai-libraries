@@ -78,14 +78,20 @@ Also fetch `docker/compose-milvus.yaml` or
 ## 3. Start the prebuilt stack
 
 Never commit credentials. In runbooks, keep `MINIO_ROOT_USER`,
-`MINIO_ROOT_PASSWORD`, and `EMBEDDING_MODEL_NAME` as the `<...>` placeholders
-below; do not substitute sample usernames, passwords, or model names. For the
+`MINIO_ROOT_PASSWORD`, `EMBEDDING_MODEL_NAME`, and
+`MM_DATAPREP_DETECTION_MODEL_NAME` as the `<...>` placeholders below; do not
+substitute sample usernames, passwords, or model names. The detection model has
+no default: `setup.sh` refuses to continue without it unless
+`MM_DATAPREP_ENABLE_OBJECT_DETECTION=false`. For the
 default VDMS + MinIO deployment:
 
 ```bash
 export MINIO_ROOT_USER='<user>'
 export MINIO_ROOT_PASSWORD='<strong-password>'
 export EMBEDDING_MODEL_NAME='<embedding-model>'   # a supported model ID
+export MM_DATAPREP_DETECTION_MODEL_NAME='OpenVINO/<repo>'   # a Hugging Face OpenVINO detection model, e.g. OpenVINO/yolox_s-int8-ov
+# Also verified on CPU/GPU/NPU: OpenVINO/yolox_tiny-fp16-ov (lightest), OpenVINO/yolox_l-int8-ov (more accurate), OpenVINO/YOLO11n-fp16-ov (AGPL-3.0)
+# export MM_DATAPREP_DETECTION_CLASSES='person,car'   # optional class filter
 export REGISTRY_URL='docker.io/intel'
 export TAG='latest'
 
@@ -260,14 +266,15 @@ the direct source for detailed per-ingestion stage timings.
 
 | Symptom | Action |
 |---|---|
-| API is unavailable | Inspect `docker compose ... ps` and DataPrep logs; initial model/YOLOX downloads can take time |
+| API is unavailable | Inspect `docker compose ... ps` and DataPrep logs; initial embedding/detection model downloads can take time |
 | `embedding_client_status` is `not_loaded` or `error` | Verify `EMBEDDING_MODEL_NAME`, model compatibility, device access, and startup logs |
 | Dimension mismatch | Use a fresh collection compatible with the selected model; get explicit user confirmation before wiping an existing collection |
 | Milvus connection failure behind a proxy | Use `docker/compose-milvus.yaml` and ensure Milvus/etcd/in-cluster addresses bypass proxies |
 | MinIO authentication failure | Verify the effective `MM_DATAPREP_MINIO_*` values and reuse the same credentials across restarts |
 | Large upload returns 413 | Identify the rejecting proxy/server from headers and logs; stage media in storage and call `/media/process` |
 | Duplicate upload returns 409 | `MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS=false` is enforcing content-hash deduplication |
-| Object crops are absent | Check whether YOLOX downloaded and whether detection is enabled on a supported device |
+| Object crops are absent | Check `detection_status` in `/health` (`not_loaded` means the Hugging Face download failed, a class in `MM_DATAPREP_DETECTION_CLASSES` is not in the model's labels, or the model is not a detection model; logs say which) and that detection is enabled on a supported device |
+| Startup fails with `no detection model is configured` | Set `MM_DATAPREP_DETECTION_MODEL_NAME`, or set `MM_DATAPREP_ENABLE_OBJECT_DETECTION=false` |
 | Local directory ingest is rejected | Keep `dir_path` beneath `MM_DATAPREP_INGEST_DATA_ROOT`; traversal outside that root is intentionally blocked |
 | Live stream registration returns 503 | The concurrency limit is reached (`MM_DATAPREP_LIVE_STREAM_MAX_CONCURRENT`) or live ingestion is disabled |
 | Live stream sits in `reconnecting` or `error` | Read `last_error` from `GET /media/streams/{stream_id}`; check camera reachability from inside the container and the reconnect budget |

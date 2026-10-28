@@ -546,7 +546,6 @@ def slim_stream(info: dict[str, Any]) -> dict[str, Any]:
         "tags": list(info.get("tags") or []),
         "frame_interval": info.get("frame_interval"),
         "object_detection": info.get("enable_object_detection"),
-        "detection_confidence": info.get("detection_confidence"),
         "stats": slim_stats,
         "error": redact_url(info.get("last_error")),
         "created_at": iso_utc(info.get("created_ts")),

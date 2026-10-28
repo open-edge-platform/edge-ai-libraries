@@ -146,7 +146,8 @@ See [references/modes-and-overlays.md](references/modes-and-overlays.md) for the
    `POSTGRES_USER`, `POSTGRES_PASSWORD`, `RABBITMQ_USER`, `RABBITMQ_PASSWORD`.
    Mode-specific model vars (`VLM_MODEL_NAME`, `ENABLED_WHISPER_MODELS`,
    `OD_MODEL_NAME` for summary; `MULTIMODAL_EMBEDDING_MODEL` for search/dual;
-   `TEXT_EMBEDDING_MODEL` for unified) ship with defaults in `vss.config` -
+   `TEXT_EMBEDDING_MODEL` for unified; `DATAPREP_DETECTION_MODEL` for
+   search/dual) ship with defaults in `vss.config` -
    see [`references/env-vars.md`](./references/env-vars.md) for the full table.
    To inject your own credentials (vault/CI) instead of random ones, export them
    before running `gen-secrets.sh` - it reuses any credential already set.
@@ -309,7 +310,7 @@ source setup.sh --help       # full help
 `docker_pg_data`, `docker_vdms-db`, `docker_milvus-db`, `docker_milvus-etcd`,
 `docker_audio_analyzer_data`, and `docker_data-prep` (volumes absent in the
 current mode are skipped). The **model-cache** volumes -
-`docker_dataprep-yolox-models`, `docker_ov-models`, `docker_vllm_model_cache` -
+`docker_dataprep-detection-models`, `docker_ov-models`, `docker_vllm_model_cache` -
 and the host-backed `ov_models/` directory are deliberately **preserved**, so a
 `--clean-data` never forces a costly model re-download.
 

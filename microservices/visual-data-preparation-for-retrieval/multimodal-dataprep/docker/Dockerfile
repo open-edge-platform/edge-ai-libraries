@@ -173,7 +173,7 @@ WORKDIR /app
 
 # Create temporary directory to store app artifacts. Ownership is changed to appuser later.
 # Create model directory for persistent storage mount
-RUN mkdir -p /tmp/dataprep /app/models/yolox /app/ov_models /home/appuser/.cache/huggingface
+RUN mkdir -p /tmp/dataprep /app/models/object-detection /app/ov_models /home/appuser/.cache/huggingface
 
 
 # Set ownership of all necessary directories to appuser

@@ -120,7 +120,6 @@ async def test_adding_several_cameras_reports_each() -> None:
     [
         {"stream_url": "http://cam.local/a"},
         {"stream_url": "rtsp://cam.local/a", "frame_interval": 0},
-        {"stream_url": "rtsp://cam.local/a", "detection_confidence": 2},
         {"stream_url": "rtsp://cam.local/a", "sensor_id": "-bad"},
     ],
 )

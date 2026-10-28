@@ -15,10 +15,11 @@ langchain-vdms = ">=0.2.0,<1.0.0"
 langchain-milvus = "^0.3.3"
 pymilvus = "^2.6.0"
 tzlocal = "^5.3.1"
-decord = ">=0.6.0,<1.0.0"
 minio = "^7.2.20"
 httpx = ">=0.28.1,<1.0.0"
 psycopg = {extras = ["binary"], version = "^3.3.6"}
+# Object detection: OpenVINO Model API wrappers (huggingface-hub comes via multimodal-embedding-serving)
+openvino-model-api = ">=0.4.7,<0.5"
 
 # Multimodal Embedding Service from local sibling microservice
 multimodal-embedding-serving = { path = "../../multimodal-embedding-serving" }

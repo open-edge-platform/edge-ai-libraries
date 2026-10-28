@@ -171,7 +171,6 @@ class TestPipelineFailsOnHungInference:
                     metadata_dict={"video_id": "v", "filename": "v.mp4"},
                     frame_interval=1,
                     enable_object_detection=True,
-                    detection_confidence=0.5,
                     shutdown_event=threading.Event(),
                 )
             except Exception as exc:  # noqa: BLE001 - asserting on the type below

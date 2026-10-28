@@ -295,10 +295,10 @@ describe('Live stream DTO validation', () => {
       ).rejects.toThrow();
     });
 
-    it('rejects a detection_confidence outside 0.1-1.0', async () => {
+    it('rejects the removed detection_confidence field', async () => {
       await expect(
         validate(
-          { stream_url: 'rtsp://cam/s', detection_confidence: 1.5 },
+          { stream_url: 'rtsp://cam/s', detection_confidence: 0.5 },
           LiveStreamCreateDto,
         ),
       ).rejects.toThrow();

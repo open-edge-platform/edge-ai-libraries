@@ -265,7 +265,6 @@ class Stream(TypedDict):
     tags: list[str]
     frame_interval: NotRequired[int]
     object_detection: NotRequired[bool]
-    detection_confidence: NotRequired[float]
     stats: StreamStats
     error: NotRequired[str]
     created_at: NotRequired[str]

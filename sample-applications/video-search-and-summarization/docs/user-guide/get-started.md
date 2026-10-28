@@ -116,6 +116,8 @@ Before running the application, you need to set several environment variables:
       | `OD_MODEL_NAME` | Summary, Dual UI, Unified UI | YOLO model for object detection during video ingestion. |
       | `MULTIMODAL_EMBEDDING_MODEL` | Search, Dual UI | Multimodal model for generating video frame embeddings. |
       | `TEXT_EMBEDDING_MODEL` | Unified UI | Text embedding model for generating summary text embeddings. |
+      | `DATAPREP_DETECTION_MODEL` | Search, Dual UI | Hugging Face OpenVINO detection model used by `multimodal-dataprep` for object crops, for example `OpenVINO/yolox_s-int8-ov` (any object-detection model under [huggingface.co/OpenVINO](https://huggingface.co/OpenVINO) supported by OpenVINO Model API, such as YOLOX or YOLO11 exports). `OpenVINO/yolox_tiny-fp16-ov` (lightest), `OpenVINO/yolox_l-int8-ov` (higher accuracy) and `OpenVINO/YOLO11n-fp16-ov` are also verified on CPU, GPU and NPU. Only the selected model is downloaded on first use and cached in the `docker_dataprep-detection-models` volume. Each model keeps its own license (for example YOLOX is Apache-2.0, YOLO11 is AGPL-3.0); review the model card. No default; not needed when `ENABLE_OBJECT_DETECTION=false`. Unified UI mode embeds summary text only and always runs without object detection. |
+      | `DATAPREP_DETECTION_CLASSES` | _(Optional)_ Search, Dual UI | Comma-separated class filter for DataPrep object crops, for example `person,car`. Case-insensitive; spaces and hyphens become `_` (model labels look like `traffic_light`). The tested OpenVINO detection models use the 80 [COCO classes](https://github.com/ultralytics/ultralytics/blob/main/ultralytics/cfg/datasets/coco.yaml). Classes the model does not have prevent the detector from loading. Empty (default) keeps all classes. |
       | `OVMS_LLM_MODEL_NAME` | _(Optional)_ Summary, Dual UI, or Unified UI | LLM for OVMS-based final summary generation. When set and different from `VLM_MODEL_NAME`, enables split-model mode (separate VLM for captioning, LLM for summarization). |
       | `PM_AUDIO_USE_FULL_TRANSCRIPT_SUMMARY` | _(Optional)_ Summary, Dual UI | Enables condensed transcript summary injection in the prompt to generate video summary. |
 
@@ -152,6 +154,12 @@ Before running the application, you need to set several environment variables:
       ```bash
       # Required for searching on video frame embeddings
       export MULTIMODAL_EMBEDDING_MODEL="CLIP/clip-vit-b-32"
+      # Required Hugging Face OpenVINO object detection model for DataPrep (or export ENABLE_OBJECT_DETECTION=false)
+      export DATAPREP_DETECTION_MODEL="OpenVINO/yolox_s-int8-ov"
+      # Also verified on CPU/GPU/NPU: OpenVINO/yolox_tiny-fp16-ov (lightest), OpenVINO/yolox_l-int8-ov (more accurate),
+      # OpenVINO/YOLO11n-fp16-ov (AGPL-3.0)
+      # Optional: keep only some detected classes (COCO class names: https://github.com/ultralytics/ultralytics/blob/main/ultralytics/cfg/datasets/coco.yaml)
+      # export DATAPREP_DETECTION_CLASSES="person,car"
       ```
 
      **Required in `--summary-and-search` mode:**
@@ -229,8 +237,11 @@ Before running the application, you need to set several environment variables:
    | Tags | None | Lets you narrow a search to one camera or group |
    | Frame interval | 15 | Lower indexes more moments; higher costs less |
    | Enable object detection | On | Indexes detected objects separately, improving accuracy for small or crowded subjects |
-   | Detection confidence | 0.85 | Lower catches more objects but adds false matches; higher indexes only confident detections |
    | Start ingesting immediately | On | Clear it to register the camera paused |
+
+   The object detection confidence threshold applies to all cameras and
+   uploads. Set it with the `DETECTION_CONFIDENCE` environment variable
+   (default `0.85`) before running `source setup.sh`.
 
 7. **Control the frame extraction interval (Search and Dual UI mode)**:
 
@@ -353,7 +364,7 @@ Before running the application, you need to set several environment variables:
     ```bash
     # Embedding in multimodal-dataprep (in-process)
     export DATAPREP_EMBEDDING_DEVICE=GPU
-    # YOLOX object detection in multimodal-dataprep
+    # Object detection in multimodal-dataprep (CPU, GPU or NPU)
     export DATAPREP_DETECTION_DEVICE=CPU
     # Embedding in multimodal-embedding-serving (used by vector-retriever at query time)
     export MME_EMBEDDING_DEVICE=GPU
@@ -361,7 +372,7 @@ Before running the application, you need to set several environment variables:
 
     There is no "baseline" device, each component is configured directly, matching the Helm chart's per-component model.
 
-    > **Device note:** `DATAPREP_EMBEDDING_DEVICE` controls in-process embedding execution in `multimodal-dataprep`. `DATAPREP_DETECTION_DEVICE` controls YOLOX object detection in `multimodal-dataprep`. `MME_EMBEDDING_DEVICE` controls embedding execution in `multimodal-embedding-serving`, which `vector-retriever` uses to embed queries at search time. `ENABLE_EMBEDDING_GPU=true` is a shortcut that sets `DATAPREP_EMBEDDING_DEVICE=GPU`. For NPU, set the explicit device variables.
+    > **Device note:** `DATAPREP_EMBEDDING_DEVICE` controls in-process embedding execution in `multimodal-dataprep`. `DATAPREP_DETECTION_DEVICE` controls object detection in `multimodal-dataprep` (`CPU`, `GPU` or `NPU`; check per-model NPU support on the [OpenVINO supported models](https://docs.openvino.ai/nightly/documentation/compatibility-and-support/supported-models.html) page and test your model — `OpenVINO/yolox_s-int8-ov`, `OpenVINO/yolox_tiny-fp16-ov`, `OpenVINO/yolox_l-int8-ov` and `OpenVINO/YOLO11n-fp16-ov` are verified on all three; on GPU, YOLOX FP16 variants run faster than INT8). `MME_EMBEDDING_DEVICE` controls embedding execution in `multimodal-embedding-serving`, which `vector-retriever` uses to embed queries at search time. `ENABLE_EMBEDDING_GPU=true` is a shortcut that sets `DATAPREP_EMBEDDING_DEVICE=GPU`. For NPU, set the explicit device variables.
 
 15. **EXPERIMENTAL: Configure vLLM Intel Arc Pro B-series GPU/XPU Backend**:
 

@@ -4,29 +4,16 @@
 """
 Object Detection Module
 
-This module provides object detection functionality using YOLOX models with OpenVINO backend.
-It supports in-process embedding generation.
-
-Main Components:
-- YOLOXDetector: Main detector class for object detection
-- YOLOX utilities: Preprocessing and postprocessing functions
-- Model configurations: Detection model settings and parameters
+Object detection with Hugging Face ``OpenVINO/*`` detection models, loaded
+through OpenVINO Model API.
 
 Usage:
-    from src.core.object_detection import YOLOXDetector, create_detector
-    
-    # Create detector instance
+    from src.core.object_detection import ObjectDetector, create_detector
+
     detector = create_detector(config)
-    
-    # Perform detection
     results = detector.detect(image)
 """
 
-from .detector import YOLOXDetector, create_detector
-from . import yolox_utils
+from .detector import ObjectDetector, create_detector
 
-__all__ = [
-    'YOLOXDetector',
-    'create_detector', 
-    'yolox_utils'
-]
+__all__ = ["ObjectDetector", "create_detector"]

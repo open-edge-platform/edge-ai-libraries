@@ -18,6 +18,7 @@
 - **Live camera limit is configurable:** `LIVE_STREAM_MAX_CONCURRENT` (default `8`; Helm `multimodaldataprep.liveStream.maxConcurrent`) sets how many cameras ingest at once. Registering more returns `503`; pause or delete a camera to free a slot.
 - **Search filters panel:** The time range, number of results and minimum peak score filters share one panel. Edits are drafts until **Apply**, and sliders show their value while dragging.
 - **Result tags in every view:** Each search result shows its tags with **Group by** set to **None** as well, and each tag gets a stable colour derived from its name, dark enough for white text.
+- **DataPrep object detection uses Hugging Face OpenVINO models:** Set `DATAPREP_DETECTION_MODEL` (Helm `multimodaldataprep.frameProcessing.detectionModelName`) to an `OpenVINO/<repo>` object-detection model, for example `OpenVINO/yolox_s-int8-ov`; `OpenVINO/yolox_tiny-fp16-ov`, `OpenVINO/yolox_l-int8-ov` and `OpenVINO/YOLO11n-fp16-ov` are also verified on CPU, GPU and NPU. It has no default and is required in `--search` and `--summary --search` mode unless `ENABLE_OBJECT_DETECTION=false`; `--summary-and-search` mode always runs without detection. The optional `DATAPREP_DETECTION_CLASSES` (Helm `detectionClasses`) keeps only the listed classes. Models are cached in the `docker_dataprep-detection-models` volume; the old `docker_dataprep-yolox-models` volume is no longer used and can be removed.
 
 **Fixed:**
 

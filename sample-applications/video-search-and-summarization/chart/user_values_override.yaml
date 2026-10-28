@@ -107,3 +107,11 @@ videoingestion:
   # odModelName defines the name of Object Detection Model
   odModelName: ""
 
+multimodaldataprep:
+  frameProcessing:
+    # detectionModelName selects the Hugging Face OpenVINO object detection model
+    # (OpenVINO/<repo>) used by DataPrep (search and dual modes). Required unless enableObjectDetection is false;
+    # unified_summary_search.yaml disables detection, so unified mode needs no model.
+    detectionModelName: ""
+    # Optional comma-separated class filter, e.g. "person,car"; empty keeps all classes.
+    detectionClasses: ""

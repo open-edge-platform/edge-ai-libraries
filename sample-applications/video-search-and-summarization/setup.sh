@@ -109,7 +109,7 @@ stop_containers() {
 
 remove_volumes() {
     echo -e "${YELLOW}Removing Docker volumes... ${NC}"
-    # User-data volumes only. Model-cache volumes (docker_dataprep-yolox-models,
+    # User-data volumes only. Model-cache volumes (docker_dataprep-detection-models,
     # docker_ov-models, docker_vllm_model_cache) are intentionally preserved so
     # a --clean-data does not force a costly re-download of models.
     # Milvus volumes are included because they hold vector data when the Milvus
@@ -423,13 +423,20 @@ export MM_DATAPREP_ENDPOINT=http://$MM_DATAPREP_HOST:8000
 export VIDEO_UPLOAD_ENDPOINT=http://pipeline-manager:3000
 export DEFAULT_BUCKET_NAME="video-summary"
 
-# YOLOX model volume configuration for object detection
-export YOLOX_MODELS_VOLUME_NAME="dataprep-yolox-models"
-export YOLOX_MODELS_MOUNT_PATH="/app/models/yolox"
+# Object detection model cache volume (Hugging Face OpenVINO IR models)
+export DETECTION_MODELS_VOLUME_NAME="dataprep-detection-models"
+export DETECTION_MODELS_MOUNT_PATH="/app/models/object-detection"
 
 # Frame processing settings
 export FRAME_INTERVAL=${FRAME_INTERVAL:-15}
 export ENABLE_OBJECT_DETECTION=${ENABLE_OBJECT_DETECTION:-true}
+# Hugging Face OpenVINO detection model (OpenVINO/<repo>)
+# used by multimodal-dataprep for object crops. No default: required for
+# --search/--dual unless ENABLE_OBJECT_DETECTION=false. --unified embeds summary
+# text only, so detection is always off there and no model is needed.
+export DATAPREP_DETECTION_MODEL=${DATAPREP_DETECTION_MODEL:-}
+# Optional comma-separated class filter (e.g. "person,car"); empty keeps all classes.
+export DATAPREP_DETECTION_CLASSES=${DATAPREP_DETECTION_CLASSES:-}
 export DETECTION_CONFIDENCE=${DETECTION_CONFIDENCE:-0.85}
 # ROI consolidation parameters for grouping overlapping detections
 # ROI_CONSOLIDATION_IOU_THRESHOLD: IoU threshold used to cluster ROIs (higher = stricter merging)
@@ -459,7 +466,7 @@ export EMBEDDING_USE_OV=${EMBEDDING_USE_OV:-$SDK_USE_OPENVINO}
 # Per-component device selection (CPU default | GPU | NPU). Each component is
 # independent — parity with the Helm charts. No "baseline" device.
 #   DATAPREP_EMBEDDING_DEVICE → embedding in multimodal-dataprep (in-process SDK)
-#   DATAPREP_DETECTION_DEVICE → YOLOX object detection in multimodal-dataprep
+#   DATAPREP_DETECTION_DEVICE → object detection in multimodal-dataprep
 #   MME_EMBEDDING_DEVICE      → embedding in multimodal-embedding-serving (used by video-search)
 export DATAPREP_EMBEDDING_DEVICE=${DATAPREP_EMBEDDING_DEVICE:-"CPU"}
 export DATAPREP_DETECTION_DEVICE=${DATAPREP_DETECTION_DEVICE:-"CPU"}
@@ -539,6 +546,11 @@ if [ $1 != "--summary" ]; then
     echo -e "[multimodal-dataprep] ${BLUE}Runtime Summary (per-component devices, default CPU):${NC}"
     echo -e "  • [multimodal-dataprep] Embedding Device: ${YELLOW}${DATAPREP_EMBEDDING_DEVICE}${NC} (in-process SDK embedding)."
     echo -e "  • [multimodal-dataprep] Detection Device: ${YELLOW}${DATAPREP_DETECTION_DEVICE}${NC}"
+    if [ "$1" = "--unified" ]; then
+        echo -e "  • [multimodal-dataprep] Object Detection: ${YELLOW}disabled${NC} (unified mode embeds summary text only)."
+    else
+        echo -e "  • [multimodal-dataprep] Detection Model: ${YELLOW}${DATAPREP_DETECTION_MODEL:-"(not set)"}${NC} (object detection enabled: ${ENABLE_OBJECT_DETECTION})"
+    fi
     echo -e "  • [multimodal-embedding-serving] Embedding Device: ${YELLOW}${MME_EMBEDDING_DEVICE}${NC} (used by video-search at ${embedding_endpoint_display})."
     echo -e "  • [multimodal-embedding-serving] Embedding Model: ${YELLOW}${embedding_model_display}${NC}"
 fi
@@ -610,6 +622,11 @@ if [ "$1" != "--down" ] && [ "$1" != "--stop" ] && [ "$1" != "--clean-data" ] &&
         echo -e "${RED}ERROR: MULTIMODAL_EMBEDDING_MODEL is not set in your shell environment.${NC}" >&2
         echo -e "${YELLOW}This is required for Video Search embedding.${NC}" >&2
         return 1
+    fi
+
+    # multimodal-dataprep has no default detection model; require an explicit choice.
+    if [[ "$1" =~ ^--(search|dual)$ ]] && [[ ! "${ENABLE_OBJECT_DETECTION,,}" =~ ^(false|0|no|off)$ ]]; then
+        require_env DATAPREP_DETECTION_MODEL "Set a Hugging Face OpenVINO detection model (OpenVINO/<repo>; see https://huggingface.co/OpenVINO) or export ENABLE_OBJECT_DETECTION=false. NPU support per model: https://docs.openvino.ai/nightly/documentation/compatibility-and-support/supported-models.html" || return 1
     fi
 
     # Enforce dedicated text-embedding selection only for unified mode.
@@ -1438,6 +1455,7 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
             # live off here.
             export UI_LIVE_STREAMS_FEATURE="FEATURE_ON"
             export LIVE_STREAM_ENABLED="true"
+            export DATAPREP_ENABLE_OBJECT_DETECTION="${ENABLE_OBJECT_DETECTION}"
             DEPLOYMENT_LABEL="Search-only UI deployment. For searching over video frame embeddings."
             UI_PROFILE="singleton_search_ui"
             APP_COMPOSE_FILE="${APP_COMPOSE_FILE} -f docker/compose.search.yaml"
@@ -1456,6 +1474,10 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
             # API cannot accept a registration that could never succeed.
             export UI_LIVE_STREAMS_FEATURE="FEATURE_OFF"
             export LIVE_STREAM_ENABLED="false"
+            # Only caption text is embedded here, so object crops are never used.
+            # Set per mode (not via ENABLE_OBJECT_DETECTION) so a sourced shell
+            # does not carry "off" into a later --search/--dual run.
+            export DATAPREP_ENABLE_OBJECT_DETECTION="false"
             DEPLOYMENT_LABEL="Unified single UI for summarization and searching. For searching over text embeddings of summaries."
             UI_PROFILE="singleton_unified_ui"
             APP_COMPOSE_FILE="${APP_COMPOSE_FILE} -f docker/compose.summary.yaml -f docker/compose.search.yaml"
@@ -1465,6 +1487,7 @@ if [ "$1" = "--summary" ] || [ "$1" = "--search" ] || [ "$1" = "--dual" ] || [ "
             export NGINX_UI_CONFIG="${nginx_config_dir}/dual_ui.conf"
             export UI_LIVE_STREAMS_FEATURE="FEATURE_ON"
             export LIVE_STREAM_ENABLED="true"
+            export DATAPREP_ENABLE_OBJECT_DETECTION="${ENABLE_OBJECT_DETECTION}"
             DEPLOYMENT_LABEL="Dual UI (Separate Summary and Search UI) deployment. For summarizing video content and searching over video frame embeddings."
             UI_PROFILE="dual_ui"
             APP_COMPOSE_FILE="${APP_COMPOSE_FILE} -f docker/compose.summary.yaml -f docker/compose.search.yaml"

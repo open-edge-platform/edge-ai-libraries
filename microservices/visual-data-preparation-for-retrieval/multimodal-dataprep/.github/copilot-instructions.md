@@ -14,7 +14,7 @@ as short pointers to this file.
 ## What This Service Is
 
 Multimodal DataPrep ingests videos, images, and text summaries for retrieval. It
-extracts video frames, optionally creates YOLOX object crops, generates
+extracts video frames, optionally creates object-detection crops, generates
 multimodal embeddings in-process, and stores vectors plus metadata through a
 pluggable VDMS or Milvus backend. Raw media uses MinIO or local storage. The
 service handles ingestion only; search and query are separate concerns.
@@ -38,7 +38,9 @@ the storage backend with `MM_DATAPREP_STORAGE_BACKEND` (`minio` or `local`).
 
 - `setup.sh` must be **sourced**, never executed. It requires
   `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` (any strong values — never commit
-  them) and `EMBEDDING_MODEL_NAME` (e.g. `CLIP/clip-vit-b-32`) exported first.
+  them), `EMBEDDING_MODEL_NAME` (e.g. `CLIP/clip-vit-b-32`) and
+  `MM_DATAPREP_DETECTION_MODEL_NAME` (e.g. `OpenVINO/yolox_s-int8-ov`; not needed when
+  `MM_DATAPREP_ENABLE_OBJECT_DETECTION=false`) exported first.
 - Bare `source ./setup.sh` **builds from source** via `./build.sh`, then
   `docker compose -f docker/compose.yaml up -d --no-build`.
 - Subcommands: `--nd` (foreground), `--down`, `--conf` (print resolved
@@ -78,11 +80,12 @@ the storage backend with `MM_DATAPREP_STORAGE_BACKEND` (`minio` or `local`).
 | `setup.sh` / `setup-with-embedding.sh` | Env + lifecycle entrypoints (source them). |
 | `build.sh` | The only sanctioned image build (context = `microservices/`). |
 | `docker/` | `compose.yaml` (sdk), `compose-with-embedding.yaml` (api), `Dockerfile`. |
-| `src/main.py` | FastAPI app (`root_path=/v1/dataprep`); lifespan preloads SDK client + YOLOX, flushes the VDMS index on shutdown. |
+| `src/main.py` | FastAPI app (`root_path=/v1/dataprep`); lifespan preloads SDK client + object detector, flushes the VDMS index on shutdown. |
 | `src/endpoints/` | One router package per API area. |
 | `src/core/embedding/` | The pipeline: `sdk_embedding_helper.py` (SDK mode), `simple_client.py` (api mode), `sdk_client.py` (VDMS writes via langchain-vdms), `decoder.py` (frame extraction). |
 | `src/core/live/` | Live-stream registry, manager, per-stream worker, playback recorder, retention sweeper. |
-| `src/core/object_detection/` | YOLOX detector + utils. |
+| `src/core/object_detection/` | `detector.py`: OpenVINO Model API detector (`ObjectDetector`, `create_detector`), Hugging Face download, class filter, ROI consolidation. |
+| `src/core/utils/config_utils.py` | `get_config()` built from Settings (env-only, no config file); detection model-name and class validation. |
 | `src/core/minio_client.py`, `src/common/settings.py` | Object storage client; pydantic Settings. |
 | `scripts/` | Container entrypoint and runtime helpers. |
 | `tests/` | pytest suite + `conftest.py` (mocked MinIO, TestClient); live-stream coverage in `test_live_stream_{store,manager,endpoints,retention}.py`. |
@@ -102,11 +105,24 @@ the storage backend with `MM_DATAPREP_STORAGE_BACKEND` (`minio` or `local`).
 - **VDMS dimension mismatch**: reusing a `DB_COLLECTION` created with a
   different embedding model throws "Dimensions mismatch" — fix is destructive
   (new collection name or wipe), so confirm first.
-- **YOLOX downloads on first run** — without network, object detection is
-  **silently disabled**.
+- **Detection model downloads from Hugging Face on first use** — without
+  network (or with an unknown class in `MM_DATAPREP_DETECTION_CLASSES`, or a
+  non-detection model) the service still starts but object detection is
+  skipped; `/health` reports `detection_status: "not_loaded"` and the logs say
+  why. Offline: pre-populate the `dataprep-detection-models` volume.
+- **No default detection model** — `MM_DATAPREP_DETECTION_MODEL_NAME` is
+  required while detection is enabled; config loading fails otherwise. It must
+  be a Hugging Face repo in the `OpenVINO/` namespace (e.g.
+  `OpenVINO/yolox_s-int8-ov`; also verified on CPU/GPU/NPU:
+  `OpenVINO/yolox_tiny-fp16-ov`, `OpenVINO/yolox_l-int8-ov`,
+  `OpenVINO/YOLO11n-fp16-ov`) that OpenVINO Model
+  API loads as a `DetectionModel`. Only the selected model is downloaded, into
+  `MM_DATAPREP_DETECTION_MODEL_DIR/<repo id>`. Each model keeps its own license
+  (YOLOX Apache-2.0, YOLO11 AGPL-3.0).
+- **No `src/config.yaml`** — all configuration is env-only (`MM_DATAPREP_*`).
 - `setup.sh` exports `INDEX_NAME=video-rag`; compose maps it to
   `DB_COLLECTION`.
-- Volumes `dataprep-yolox-models`, `ov-models`, `data-prep` hold model/scratch
+- Volumes `dataprep-detection-models`, `ov-models`, `data-prep` hold model/scratch
   state; MinIO persists to the named Docker volume `MM_minio_data`.
 - A 413 may come from an upstream proxy/server; the source upload endpoint has
   no implemented size check and buffers the full body. Stage large files in

@@ -89,7 +89,7 @@ Why: Compose `depends_on` gates many services on health. For example, summary mo
 
 Actions:
 - Read the first failing dependency's logs from `triage.sh`; later services often fail only because they waited for it.
-- Verify required environment variables from `setup.sh`: MinIO, Postgres, RabbitMQ credentials; `VLM_MODEL_NAME`, `ENABLED_WHISPER_MODELS`, `OD_MODEL_NAME` for summary; `MULTIMODAL_EMBEDDING_MODEL` for search; `TEXT_EMBEDDING_MODEL` for unified mode.
+- Verify required environment variables from `setup.sh`: MinIO, Postgres, RabbitMQ credentials; `VLM_MODEL_NAME`, `ENABLED_WHISPER_MODELS`, `OD_MODEL_NAME` for summary; `MULTIMODAL_EMBEDDING_MODEL` for search; `TEXT_EMBEDDING_MODEL` for unified mode; `DATAPREP_DETECTION_MODEL` for search/dual unless `ENABLE_OBJECT_DETECTION=false`.
 - If containers start but app state is corrupt, only then consider `source setup.sh --clean-data` (this deletes Docker volumes listed by setup, including MinIO/Postgres/VDMS/data-prep data).
 
 ### 2. Port conflict or UI unreachable
@@ -193,6 +193,7 @@ Actions:
 - Confirm the `vector-retriever` container is healthy and matches the backend: `vector-retriever-vdms` for VDMS, `vector-retriever-milvus` for Milvus (selected by `VECTORDB_BACKEND`). A mismatch, or a metric/index mismatch (`VDB_METRIC_TYPE`/`VDB_INDEX_TYPE`) between `multimodal-dataprep` and `vector-retriever`, yields empty results.
 - Check `vector-retriever` logs for the embedding call to `multimodal-embedding-serving` and the vector-DB read; check `video-search` logs for the delegation call to `http://vector-retriever:8000/query`.
 - Check accuracy settings: model dimensionality, `FRAME_INTERVAL`, `ENABLE_OBJECT_DETECTION`, and video diversity affect result quality.
+- If object crops are missing, check `detection_status` in the dataprep health response (`not_loaded` means the `DATAPREP_DETECTION_MODEL` download, class filter `DATAPREP_DETECTION_CLASSES`, or device initialization failed; the dataprep logs say which).
 
 ### 9. A live RTSP camera will not ingest
 

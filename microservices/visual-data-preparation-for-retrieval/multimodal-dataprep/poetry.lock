@@ -699,24 +699,6 @@ files = [
 ]
 
 [[package]]
-name = "decord"
-version = "0.6.0"
-description = "Decord Video Loader"
-optional = false
-python-versions = "*"
-groups = ["main"]
-files = [
-    {file = "decord-0.6.0-cp36-cp36m-macosx_10_15_x86_64.whl", hash = "sha256:85ef90d2f872384657d7774cc486c237c5b12df62d4ac5cb5c8d6001fa611323"},
-    {file = "decord-0.6.0-cp37-cp37m-macosx_10_15_x86_64.whl", hash = "sha256:9c20674964fb1490c677bd911d2023d2a09fec7a58a4bb0b7ddf1ccc269f107a"},
-    {file = "decord-0.6.0-cp38-cp38-macosx_10_15_x86_64.whl", hash = "sha256:a0eb1258beade34dceb29d97856a7764d179db1b5182899b61874f3418a1abc8"},
-    {file = "decord-0.6.0-py3-none-manylinux2010_x86_64.whl", hash = "sha256:51997f20be8958e23b7c4061ba45d0efcd86bffd5fe81c695d0befee0d442976"},
-    {file = "decord-0.6.0-py3-none-win_amd64.whl", hash = "sha256:02665d7c4f1193a330205a791bc128f7e108eb6ae5b67144437a02f700943bad"},
-]
-
-[package.dependencies]
-numpy = ">=1.14.0"
-
-[[package]]
 name = "distro"
 version = "1.9.0"
 description = "Distro - an OS platform information API"
@@ -2055,6 +2037,30 @@ files = [
 [package.dependencies]
 numpy = ">=1.16.6,<2.6.0"
 openvino-telemetry = ">=2023.2.1"
+
+[[package]]
+name = "openvino-model-api"
+version = "0.4.7"
+description = "Model API: model wrappers and pipelines for inference with OpenVINO"
+optional = false
+python-versions = ">=3.11"
+groups = ["main"]
+files = [
+    {file = "openvino_model_api-0.4.7-py3-none-any.whl", hash = "sha256:483e1a38f5dd9ac5a76d325fe54acfa438b906395c6687975d3adbc2766f88d6"},
+    {file = "openvino_model_api-0.4.7.tar.gz", hash = "sha256:778146c4263a7ce557b38ed35ae16056dc465d0f44cbbeb41df3c4043a1cbd03"},
+]
+
+[package.dependencies]
+numpy = ">=1.16.6"
+opencv-python-headless = ">=4.0,<5.0"
+openvino = ">=2025.3"
+pillow = "*"
+
+[package.extras]
+examples = ["httpx", "onnx", "onnxruntime", "sympy"]
+huggingface = ["huggingface-hub"]
+onnx = ["onnx", "onnxruntime", "sympy"]
+ovms = ["tritonclient[http]"]
 
 [[package]]
 name = "openvino-telemetry"
@@ -4787,4 +4793,4 @@ cffi = ["cffi (>=1.17,<2.0) ; platform_python_implementation != \"PyPy\" and pyt
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.14"
-content-hash = "ec47fe6d6b9efab2f51d6b73c44d211eab86112159a80e2ba73eea86353fb991"
+content-hash = "204f65285c955d52ced60fe3bd1ee8147085c5b17b2280ee6d01e83ef9ec5f20"

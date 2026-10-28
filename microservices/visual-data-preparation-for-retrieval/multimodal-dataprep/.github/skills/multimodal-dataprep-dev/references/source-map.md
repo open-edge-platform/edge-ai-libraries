@@ -90,11 +90,11 @@ endpoint code.
 | Path | Responsibility |
 |---|---|
 | `src/common/settings.py` | Pydantic settings with `MM_DATAPREP_` environment prefix |
-| `src/config.yaml` | Frame extraction, detection, ROI, and runtime defaults |
+| `src/core/utils/config_utils.py` | `get_config()` built from Settings (env-only; there is no `src/config.yaml`), detection model-name (`OpenVINO/<repo>`) and `MM_DATAPREP_DETECTION_CLASSES` validation |
+| `src/core/object_detection/detector.py` | OpenVINO Model API `ObjectDetector`/`create_detector`: Hugging Face download of the selected model, per-thread infer requests, class filter, ROI consolidation (tests: `tests/test_object_detector.py`, `tests/test_config_utils_security.py`) |
 | `src/core/validation.py` | Request/path validation and sanitization |
 | `src/core/telemetry/` | Persistent JSONL ingestion records exposed by `/telemetry` |
 | `src/core/metrics_manager.py` | Optional asynchronous publisher configured by `MM_DATAPREP_METRICS_MANAGER_URL` |
-| `src/core/utils/metadata_utils.py` | Canonical metadata and download URL generation |
 
 ## Build and deployment
 

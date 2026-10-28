@@ -72,7 +72,7 @@ flowchart TD
 **Key Decisions:**
 
 - **Entry Point Selection**: Direct upload saves to MinIO first; MinIO processing retrieves from existing storage
-- **Configuration Priority**: Request params → Config file defaults → Service defaults
+- **Configuration Priority**: Request params → Environment variables (`MM_DATAPREP_*`) → Service defaults
 
 **Performance Factors:**
 
@@ -84,21 +84,19 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    START[Frame Extraction Stage] --> VIDEO_INFO[Read Video Information<br/>Using Decord VideoReader]
+    START[Frame Extraction Stage] --> VIDEO_INFO[Open Video Container<br/>Using PyAV]
 
-    VIDEO_INFO --> CALC[Calculate Video Metrics<br/>• Total Frames: len vr<br/>• FPS: vr.get_avg_fps<br/>• Duration: frames / fps]
+    VIDEO_INFO --> CALC[Read Stream Metadata<br/>• FPS, total frames, duration<br/>• Resolution]
 
-    CALC --> INTERVAL[Calculate Frame Indices<br/>frame_indices = range 0, total_frames, frame_interval<br/><br/>Example: 900 frames, interval=15<br/>→ Extract 60 frames]
+    CALC --> EXTRACT_LOOP{For each<br/>decoded frame}
 
-    INTERVAL --> EXTRACT_LOOP{For each<br/>frame_index}
+    EXTRACT_LOOP --> INTERVAL[Keep every Nth frame<br/>frame_idx % frame_interval == 0<br/><br/>Example: 900 frames, interval=15<br/>→ Extract 60 frames]
 
-    EXTRACT_LOOP --> SEEK[Seek to Frame<br/>vr at frame_idx]
-
-    SEEK --> CONVERT[Convert Tensor to NumPy<br/>• Handle decord NDArray<br/>• Ensure uint8 format<br/>• Verify shape H,W,C]
+    INTERVAL --> CONVERT[Convert to NumPy<br/>• PyAV frame → RGB uint8 H,W,C]
 
     CONVERT --> META["Create Frame Metadata<br/>frame_metadata = <br/>• frame_id: video_id_framenum<br/>• frame_number<br/>• timestamp: frame_idx/fps<br/>• frame_type: 'full_frame'<br/>• content_type: 'video'<br/>• video_id, filename, bucket<br/>• video_url, video_rel_url<br/>• source_path (dir ingest)<br/>• tags, user metadata<br/>• fps, total_frames, duration"]
 
-    META --> STORE_FRAME[Store Frame Array<br/>frames.append frame_numpy<br/>frames_metadata.append metadata]
+    META --> STORE_FRAME[Add Frame to Batch<br/>Batches of MM_DATAPREP_VIDEO_EXTRACTION_BATCH_SIZE<br/>are handed to object detection]
 
     STORE_FRAME --> MORE{More frames?}
 
@@ -112,7 +110,7 @@ flowchart TD
 
 **Optimization Highlights:**
 
-1. **Decord Library**: GPU-capable video reading (though currently using CPU context for reliability)
+1. **Streaming Decode**: PyAV decodes the video sequentially; only every Nth frame is converted and kept
 2. **Memory Efficiency**: Frames stored as numpy arrays, not written to disk between stages
 3. **Metadata Richness**: Comprehensive frame metadata for search/retrieval
 
@@ -129,7 +127,7 @@ flowchart TD
     START[Object Detection Stage] --> CHECK{Object Detection<br/>Enabled?}
 
     CHECK -->|Disabled| SKIP[Skip Detection<br/>Use full frames only<br/>frames remain unchanged]
-    CHECK -->|Enabled| INIT[Initialize YOLOX Detector<br/>• Model: yolox_s<br/>• Device: CPU/GPU<br/>• Confidence: 0.85<br/>• Input Size: 640x640<br/>• NMS Threshold: 0.45]
+    CHECK -->|Enabled| INIT["Initialize Object Detector<br/>• Model: MM_DATAPREP_DETECTION_MODEL_NAME - Hugging Face OpenVINO repo<br/>• Device: MM_DATAPREP_DETECTION_DEVICE - CPU/GPU/NPU<br/>• Confidence: 0.85<br/>• Input size, NMS and labels: from model metadata<br/>• Optional class filter: MM_DATAPREP_DETECTION_CLASSES"]
 
     INIT --> BATCH_DETECT[Create Detection Batches<br/>detection_batch_size = 32<br/><br/>Example: 60 frames → 2 batches]
 
@@ -141,7 +139,7 @@ flowchart TD
 
     FRAME_LOOP --> CONVERT_PIL[Convert Frame to PIL<br/>Image.fromarray frame_numpy]
 
-    CONVERT_PIL --> DETECT[Run YOLOX Detection<br/>detector.detect frame_pil]
+    CONVERT_PIL --> DETECT[Run Object Detection<br/>detector.detect frame_pil]
 
     DETECT --> ADD_FULL[Add Full Frame<br/>frame_type: full_frame<br/>Keep original frame metadata]
 
@@ -178,22 +176,23 @@ flowchart TD
 
 **Model Specifications:**
 
-- **Architecture**: YOLOX-S (small variant)
-- **Framework**: OpenVINO IR format
-- **Input Resolution**: 640x640 (preprocessed)
-- **Classes**: 80 COCO categories (person, car, bicycle, etc.)
-- **Download**: Auto-downloaded from GitHub on first use
+- **Model**: Any object-detection model in the [Hugging Face `OpenVINO` namespace](https://huggingface.co/OpenVINO) that OpenVINO Model API supports (for example `OpenVINO/yolox_s-int8-ov`, `OpenVINO/yolox_tiny-fp16-ov`, `OpenVINO/yolox_l-int8-ov` or `OpenVINO/YOLO11n-fp16-ov`, all verified on CPU, GPU and NPU). The loaded model must be a Model API `DetectionModel`, otherwise the detector fails to start
+- **Framework**: OpenVINO IR format, loaded through OpenVINO Model API (`openvino-model-api`)
+- **Input Resolution, NMS and Labels**: Read from the model's own metadata (`rt_info`)
+- **Classes**: The model's labels (for example [COCO classes](https://github.com/ultralytics/ultralytics/blob/main/ultralytics/cfg/datasets/coco.yaml) such as `person`, `car`, `traffic_light`); optionally restricted with `MM_DATAPREP_DETECTION_CLASSES`
+- **Download**: Only the selected model (`MM_DATAPREP_DETECTION_MODEL_NAME`) is downloaded from Hugging Face (`*.xml`/`*.bin` only) on first use into `MM_DATAPREP_DETECTION_MODEL_DIR/<repo id>` and reused from the persistent volume afterwards
+- **License**: Each model keeps its own license (for example YOLOX repos are Apache-2.0, YOLO11 repos are AGPL-3.0); review the model card before use
 
 **Detection Process:**
 
-1. **Preprocessing**: Image resized to 640x640, normalized
-2. **Inference**: OpenVINO execution on CPU/GPU
-3. **Postprocessing**: NMS filtering with threshold 0.45
+1. **Preprocessing**: Resize and normalization as defined by the model metadata
+2. **Inference**: OpenVINO execution on CPU, GPU or NPU (check per-model NPU support in the [OpenVINO supported models list](https://docs.openvino.ai/nightly/documentation/compatibility-and-support/supported-models.html))
+3. **Postprocessing**: Model API postprocessing (including NMS where the model needs it), confidence filtering (`MM_DATAPREP_DETECTION_CONFIDENCE`) and optional class filtering
 4. **Crop Extraction**: Bounding boxes validated and extracted
 
 **Performance Characteristics:**
 
-- **Detection Speed**: ~50-100ms per frame (CPU), ~10-20ms (GPU)
+- **Detection Speed**: Small models such as YOLOX-S or YOLOX-Tiny take roughly 15-35 ms per frame on CPU, 5-10 ms on GPU (FP16) and 20-25 ms on NPU (INT8); larger models cost proportionally more. Varies by hardware, model and precision
 - **Parallel Batches**: 2-4 detection workers typical
 - **Expansion Factor**: 1.5x to 5x (avg 3 objects/frame)
 - **Memory Impact**: +20-50% for crop storage
@@ -588,7 +587,7 @@ graph TB
 
     subgraph "Stage 3: Object Detection<br/> Optional"
         F --> G{Object Detection<br/>Enabled?}
-        G -->|Yes| H[YOLOX Detection<br/>Parallel batches<br/>Time: 2.4s total]
+        G -->|Yes| H[Object Detection<br/>Parallel batches<br/>Time: 2.4s total]
         G -->|No| I[Skip Detection]
         H --> J[Expanded List<br/>240 items<br/>60 frames + 180 crops]
         I --> K[Original List<br/>60 items]
@@ -656,7 +655,7 @@ graph TB
 | `frame_interval` | 15 | Frame extraction density | Lower = more frames (slower, more detail) |
 | `batch_size` | 32 | Items per embedding batch | Fixed optimal value |
 | `pipeline_count` | auto | Parallel workers | CPU cores ÷ 4 (OpenVINO) or ÷ 16 (PyTorch) |
-| `detection_confidence` | 0.85 | Object detection threshold | Higher = fewer detections (faster) |
+| `MM_DATAPREP_DETECTION_CONFIDENCE` | 0.85 | Object detection threshold (service setting) | Higher = fewer detections (faster) |
 | `enable_object_detection` | true | Crop extraction | Disable for 4x fewer embeddings (faster) |
 
 ### Performance Expectations
@@ -686,7 +685,7 @@ graph LR
     subgraph "Multimodal DataPrep Microservice"
         A[FastAPI Endpoints] --> B[Video Processing]
         B --> C[Frame Extraction]
-        C --> D[Object Detection<br/>YOLOX]
+        C --> D[Object Detection<br/>OpenVINO Model API]
         D --> E[Embedding Helper]
     end
 
@@ -722,10 +721,10 @@ graph LR
    - Generates embeddings from images
    - OpenVINO or PyTorch backend
 
-4. **YOLOX Object Detection**
-   - OpenVINO IR format
-   - CPU/GPU inference
-   - Auto-downloads model files
+4. **Object Detection (OpenVINO Model API)**
+   - Hugging Face OpenVINO IR models
+   - CPU/GPU/NPU inference
+   - Downloads only the selected model on first use
 
 ## Troubleshooting & Monitoring
 
@@ -799,7 +798,7 @@ The Multimodal DataPrep ingestion pipeline is a highly optimized system that eff
 ## References
 
 - **Source Code**: `microservices/visual-data-preparation-for-retrieval/multimodal-dataprep/`
-- **Configuration**: `src/config.yaml`
+- **Configuration**: `MM_DATAPREP_*` environment variables (`src/common/settings.py`)
 - **API Endpoints**: `src/endpoints/video_processing/`
 - **Core Processing**: `src/core/embedding/embedding_helper.py`
 - **Object Detection**: `src/core/object_detection/detector.py`

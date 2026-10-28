@@ -63,12 +63,13 @@ current change. See
 ## Build and run
 
 `setup.sh` must be sourced. With no argument it exports defaults and creates the
-YOLOX model volume; it does not start the stack.
+detection model volume (`dataprep-detection-models`); it does not start the stack.
 
 ```bash
 export MINIO_ROOT_USER='<user>'
 export MINIO_ROOT_PASSWORD='<strong-password>'
 export EMBEDDING_MODEL_NAME='CLIP/clip-vit-b-32'
+export MM_DATAPREP_DETECTION_MODEL_NAME='OpenVINO/yolox_s-int8-ov'
 source ./setup.sh --nosetup
 
 ./build.sh
@@ -84,7 +85,7 @@ For Milvus, use `docker/compose-milvus.yaml`. For local media storage, layer
 ## Current architecture
 
 `src/main.py` creates the FastAPI app at `/v1/dataprep`, starts the optional
-Metrics Manager publisher, preloads the embedding client and YOLOX detector,
+Metrics Manager publisher, preloads the embedding client and object detector,
 and asks the active vector store to update its index during shutdown.
 
 Requests flow through `src/endpoints/` into
@@ -118,5 +119,7 @@ through `src/core/vectorstores/`. Media bytes and metadata go through
 | `setup.sh` sets `INDEX_NAME=video-rag`; default compose maps it to `MM_DATAPREP_DB_COLLECTION` | For a one-off VDMS collection, set `INDEX_NAME` after sourcing and before Compose |
 | Milvus collection names cannot contain hyphens | `compose-milvus.yaml` uses `MILVUS_INDEX_NAME` with default `video_rag` |
 | Changing embedding dimensions is incompatible with an existing collection | Choose a fresh collection or obtain confirmation before deleting data |
-| YOLOX weights are downloaded on first use | An offline first run can leave object detection unavailable while other ingestion continues |
+| The detection model name has no default | Startup fails unless `MM_DATAPREP_DETECTION_MODEL_NAME` is set or detection is disabled; it must be a Hugging Face repo in the `OpenVINO/` namespace (e.g. `OpenVINO/yolox_s-int8-ov`; `OpenVINO/yolox_tiny-fp16-ov`, `OpenVINO/yolox_l-int8-ov` and `OpenVINO/YOLO11n-fp16-ov` are also verified on CPU/GPU/NPU) that OpenVINO Model API loads as a `DetectionModel` (`src/core/utils/config_utils.py` validates the name and `MM_DATAPREP_DETECTION_CLASSES`) |
+| The selected model is downloaded from Hugging Face on first use into `MM_DATAPREP_DETECTION_MODEL_DIR/<repo id>` | An offline first run, an unknown class in `MM_DATAPREP_DETECTION_CLASSES` or a non-detection model leaves detection unavailable (`/health` `detection_status: "not_loaded"`) while other ingestion continues |
+| There is no `src/config.yaml` | All configuration is env-only via `src/common/settings.py`; input size, NMS and labels come from the model metadata |
 | Metrics Manager publishing is optional | It is enabled only when `MM_DATAPREP_METRICS_MANAGER_URL` is non-empty and must not delay ingestion |

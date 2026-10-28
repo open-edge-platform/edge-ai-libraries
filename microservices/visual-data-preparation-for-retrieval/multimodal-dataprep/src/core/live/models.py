@@ -76,7 +76,6 @@ class LiveStream:
     stream_name: str
     frame_interval: int
     enable_object_detection: bool
-    detection_confidence: float
     description: Optional[str] = None
     bucket_name: Optional[str] = None
     #: Stable logical identity of the physical source (camera/sensor), independent
@@ -113,7 +112,6 @@ class LiveStream:
         stream_url: str,
         frame_interval: Optional[int] = None,
         enable_object_detection: Optional[bool] = None,
-        detection_confidence: Optional[float] = None,
         bucket_name: Optional[str] = None,
         stream_name: Optional[str] = None,
         description: Optional[str] = None,
@@ -143,11 +141,6 @@ class LiveStream:
                 enable_object_detection
                 if enable_object_detection is not None
                 else settings.ENABLE_OBJECT_DETECTION
-            ),
-            detection_confidence=float(
-                detection_confidence
-                if detection_confidence is not None
-                else settings.DETECTION_CONFIDENCE
             ),
             tags=list(tags or []),
             state=LiveStreamStateEnum.pending,
@@ -195,7 +188,6 @@ class LiveStream:
             sensor_id=self.effective_sensor_id,
             frame_interval=self.frame_interval,
             enable_object_detection=self.enable_object_detection,
-            detection_confidence=self.detection_confidence,
             tags=list(self.tags),
             stats=LiveStreamStats(
                 **self.stats.to_dict(),
@@ -217,7 +209,6 @@ class LiveStream:
             "sensor_id": self.sensor_id,
             "frame_interval": self.frame_interval,
             "enable_object_detection": self.enable_object_detection,
-            "detection_confidence": self.detection_confidence,
             "tags": list(self.tags),
             "state": self.state.value,
             "desired_state": self.desired_state.value,
@@ -242,7 +233,6 @@ class LiveStream:
             sensor_id=row.get("sensor_id") or row["stream_id"],
             frame_interval=int(row["frame_interval"]),
             enable_object_detection=bool(row["enable_object_detection"]),
-            detection_confidence=float(row["detection_confidence"]),
             tags=list(row.get("tags") or []),
             state=LiveStreamStateEnum(row.get("state") or LiveStreamStateEnum.pending.value),
             desired_state=LiveStreamStateEnum(

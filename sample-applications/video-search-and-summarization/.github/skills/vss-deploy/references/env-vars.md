@@ -19,6 +19,8 @@ Sources: `setup.sh`, `.env.example`, `docker/compose.*.yaml`, `README.md`, `docs
 | `OD_MODEL_NAME` | Summary, Dual UI, Unified UI | Generic YOLO id accepted by the model-download Ultralytics plugin. Setup stores it under `ov_models/object-detection/ultralytics/public/<model>/FP32`. YOLO-World names fall back to `yolov8l`. |
 | `MULTIMODAL_EMBEDDING_MODEL` | Search, Dual UI | Model for video frame embeddings; assigned to `EMBEDDING_MODEL_NAME`. |
 | `TEXT_EMBEDDING_MODEL` | Unified UI | Text embedding model for summary-text search; assigned to `EMBEDDING_MODEL_NAME`. |
+| `DATAPREP_DETECTION_MODEL` | Search, Dual UI | Hugging Face OpenVINO detection model for `multimodal-dataprep` object crops (`MM_DATAPREP_DETECTION_MODEL_NAME`), e.g. `OpenVINO/yolox_s-int8-ov` (also verified on CPU/GPU/NPU: `OpenVINO/yolox_tiny-fp16-ov`, `OpenVINO/yolox_l-int8-ov`, `OpenVINO/YOLO11n-fp16-ov`); only `OpenVINO/<repo>` ids are accepted (see <https://huggingface.co/OpenVINO>). No default; only the selected model is downloaded on first use, if not already in the `docker_dataprep-detection-models` volume. Review the model card license (e.g. YOLOX Apache-2.0, YOLO11 AGPL-3.0). Not required when `ENABLE_OBJECT_DETECTION=false`; Unified UI always runs dataprep without detection (summary text only). |
+| `DATAPREP_DETECTION_CLASSES` | optional for Search, Dual UI | Comma-separated class filter (`MM_DATAPREP_DETECTION_CLASSES`), e.g. `person,car`; case-insensitive, must match the model's labels. Empty (default) keeps all classes. |
 | `OVMS_LLM_MODEL_NAME` | optional for modes with summary | Dedicated OVMS final-summary LLM model. Split mode is selected when the effective LLM model, target device, or compression differs from the VLM; otherwise OVMS reuses the VLM. |
 
 ## Proxy and image registry
@@ -139,7 +141,7 @@ written to `ov_models/model-download-*.log`.
 | `VDB_METRIC_TYPE`, `VDB_INDEX_TYPE` | `IP`, `FLAT` | Distance metric and index type; must match between `multimodal-dataprep` and `vector-retriever`. |
 | `ENABLE_EMBEDDING_GPU` | unset/false | If `true`, setup sets `DATAPREP_EMBEDDING_DEVICE=GPU`. |
 | `DATAPREP_EMBEDDING_DEVICE` | `CPU` | Device for in-process embedding in `multimodal-dataprep`. |
-| `DATAPREP_DETECTION_DEVICE` | `CPU` | Device for YOLOX object detection in `multimodal-dataprep`. |
+| `DATAPREP_DETECTION_DEVICE` | `CPU` | Device for object detection in `multimodal-dataprep` (`CPU`, `GPU` or `NPU`; per-model NPU support: [OpenVINO supported models](https://docs.openvino.ai/nightly/documentation/compatibility-and-support/supported-models.html)). |
 | `MME_EMBEDDING_DEVICE` | `CPU` | Device for `multimodal-embedding-serving` (used by `vector-retriever` to embed queries). |
 | `SDK_USE_OPENVINO` | `true` | OpenVINO use for in-process `multimodal-dataprep` embedding; forced true by GPU/NPU configuration. |
 | `EMBEDDING_DEVICE` | `$MME_EMBEDDING_DEVICE` | Device passed to `multimodal-embedding-serving`. |

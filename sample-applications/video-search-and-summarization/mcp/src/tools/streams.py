@@ -49,7 +49,6 @@ class StreamSpec(TypedDict):
     sensor_id: NotRequired[str]
     frame_interval: NotRequired[int]
     object_detection: NotRequired[bool]
-    detection_confidence: NotRequired[float]
     tags: NotRequired[list[str]]
     start: NotRequired[bool]
 
@@ -60,23 +59,13 @@ def _redacted_error(exc: VssError) -> VssError:
     return VssError(redact_url(str(exc)) or "", status_code=exc.status_code)
 
 
-def _check_tuning(
-    frame_interval: Any, detection_confidence: Any, tags: Any
-) -> None:
+def _check_tuning(frame_interval: Any, tags: Any) -> None:
     if frame_interval is not None and (
         not is_number(frame_interval, integer=True)
         or not 1 <= frame_interval <= 60
     ):
         raise VssError(
             f"frame_interval must be a whole number from 1 to 60, got {frame_interval!r}."
-        )
-    if detection_confidence is not None and (
-        not is_number(detection_confidence)
-        or not 0.1 <= detection_confidence <= 1.0
-    ):
-        raise VssError(
-            "detection_confidence must be between 0.1 and 1.0, got "
-            f"{detection_confidence!r}."
         )
     if tags is not None and (
         not isinstance(tags, list)
@@ -105,9 +94,7 @@ def build_stream_body(spec: dict[str, Any]) -> dict[str, Any]:
             "sensor_id must start with a letter or digit and contain only "
             "letters, digits, '.', '_', ':' or '-'."
         )
-    _check_tuning(
-        spec.get("frame_interval"), spec.get("detection_confidence"), spec.get("tags")
-    )
+    _check_tuning(spec.get("frame_interval"), spec.get("tags"))
 
     body: dict[str, Any] = {"stream_url": url}
     optional = {
@@ -116,7 +103,6 @@ def build_stream_body(spec: dict[str, Any]) -> dict[str, Any]:
         "sensor_id": sensor_id,
         "frame_interval": spec.get("frame_interval"),
         "enable_object_detection": spec.get("object_detection"),
-        "detection_confidence": spec.get("detection_confidence"),
         "tags": [tag.strip() for tag in spec["tags"]] if spec.get("tags") else None,
         "start": spec.get("start"),
     }
@@ -250,7 +236,6 @@ async def update_stream(
     description: str | None = None,
     frame_interval: int | None = None,
     object_detection: bool | None = None,
-    detection_confidence: float | None = None,
     tags: list[str] | None = None,
 ) -> Stream:
     """Pause, resume or retune a camera.
@@ -265,7 +250,7 @@ async def update_stream(
             "state can only be set to 'paused' or 'running' (resume); the "
             "other states are managed by VSS."
         )
-    _check_tuning(frame_interval, detection_confidence, tags)
+    _check_tuning(frame_interval, tags)
     body = {
         key: value
         for key, value in {
@@ -274,7 +259,6 @@ async def update_stream(
             "description": description,
             "frame_interval": frame_interval,
             "enable_object_detection": object_detection,
-            "detection_confidence": detection_confidence,
             "tags": [tag.strip() for tag in tags] if tags is not None else None,
         }.items()
         if value is not None
@@ -282,8 +266,8 @@ async def update_stream(
     if not body:
         raise VssError(
             "Nothing to change: give state, name, description, frame_interval, "
-            "object_detection, detection_confidence or tags. A camera's URL "
-            "cannot be changed; remove it and add it again instead."
+            "object_detection or tags. A camera's URL cannot be changed; "
+            "remove it and add it again instead."
         )
     stream_id = (stream_id or "").strip()
     try:
@@ -374,7 +358,6 @@ def register(mcp: FastMCP, deps: Deps) -> None:
         sensor_id: str | None = None,
         frame_interval: int | None = None,
         object_detection: bool | None = None,
-        detection_confidence: float | None = None,
         tags: list[str] | None = None,
         start: bool = True,
         streams: list[StreamSpec] | None = None,
@@ -399,7 +382,6 @@ def register(mcp: FastMCP, deps: Deps) -> None:
                 and costs more compute.
             object_detection: Also embed detected-object crops, which makes
                 people and vehicles easier to find.
-            detection_confidence: Minimum detector score for a crop, 0.1-1.0.
             tags: Tags applied to every embedding; usable as search tags.
             start: false registers the camera paused.
             streams: Several cameras, each with the fields above.
@@ -418,7 +400,6 @@ def register(mcp: FastMCP, deps: Deps) -> None:
                     "sensor_id": sensor_id,
                     "frame_interval": frame_interval,
                     "object_detection": object_detection,
-                    "detection_confidence": detection_confidence,
                     "tags": tags,
                     "start": start,
                 }
@@ -433,7 +414,6 @@ def register(mcp: FastMCP, deps: Deps) -> None:
         description: str | None = None,
         frame_interval: int | None = None,
         object_detection: bool | None = None,
-        detection_confidence: float | None = None,
         tags: list[str] | None = None,
     ) -> Stream:
         """Pause, resume or retune a live camera. Pausing stops ingestion
@@ -448,7 +428,6 @@ def register(mcp: FastMCP, deps: Deps) -> None:
             description: New description.
             frame_interval: Embed every Nth frame, 1-60.
             object_detection: Turn detected-object crops on or off.
-            detection_confidence: Minimum detector score, 0.1-1.0.
             tags: Replaces the camera's tags.
         """
 
@@ -460,7 +439,6 @@ def register(mcp: FastMCP, deps: Deps) -> None:
             description=description,
             frame_interval=frame_interval,
             object_detection=object_detection,
-            detection_confidence=detection_confidence,
             tags=tags,
         )
 
