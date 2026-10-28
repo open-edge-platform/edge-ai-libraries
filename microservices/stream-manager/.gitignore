@@ -21,6 +21,9 @@ go.work.sum
 
 .idea/
 .vscode/
+.ruff_cache/
+.design/
+.copilot/
 *.swp
 *.swo
 .DS_Store
