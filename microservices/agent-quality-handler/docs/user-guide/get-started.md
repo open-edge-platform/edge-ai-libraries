@@ -31,7 +31,7 @@ section, particularly `STORAGE_SERVICE_URL`, before starting the application.
 
 ## Start in LLM Mode
 
-Set `LLM_MODE=llm` in `start.sh`, then start the application:
+`LLM_MODE` defaults to `llm`. Start the application:
 
 ```bash
 ./start.sh
@@ -46,6 +46,16 @@ MQTT_USERNAME="$AQH_MQTT_USERNAME" \
 MQTT_PASSWORD="$AQH_MQTT_PASSWORD" \
 HUGGINGFACEHUB_API_TOKEN="$AQH_HUGGINGFACE_TOKEN" \
 ./start.sh
+```
+
+### Agent Orchestration Mode
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `AGENT_MODE` | `routing` classifies severity and runs only the specialist agents the route requires. `sequential` always runs every registered agent in dependency order (legacy chain). | `routing` |
+
+```bash
+AGENT_MODE=sequential ./start.sh
 ```
 
 ### LLM Model Settings
@@ -120,7 +130,7 @@ STORAGE_SERVICE_URL=http://mock-storage:5001 \
 Verify all services are healthy:
 
 ```bash
-docker compose -f docker/compose.yaml --profile dev ps
+docker ps 
 curl http://localhost:5001/detections
 ```
 
@@ -131,12 +141,6 @@ a run against the mock data.
 
 ```bash
 uv run pytest
-```
-
-Tear down when finished:
-
-```bash
-docker compose -f docker/compose.yaml --profile dev down
 ```
 
 ## Stop

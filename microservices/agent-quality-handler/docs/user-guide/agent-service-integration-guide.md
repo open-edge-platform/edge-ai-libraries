@@ -192,7 +192,8 @@ broker/topic, or use-case config:
 | `MQTT_DISABLED` | `false` | Set `true` to disable the event subscriber entirely and rely only on Contract 2b |
 | `AGENTS_CONFIG_PATH` | — | Path to `agents.yaml` (agent policy/config, including optional `agent_registry`) |
 | `USE_CASE_PROMPTS_DIR` | — | Path to prompt templates for the LLM-backed agents |
-| `LLM_BASE_URL` / `LLM_MODE` | — | LLM backend (OVMS) or `fallback` for rule-based reasoning without an LLM |
+| `LLM_BASE_URL` / `LLM_MODE` | — | LLM backend (OVMS). `LLM_MODE` defaults to `llm`; set `fallback` for rule-based reasoning without an LLM |
+| `AGENT_MODE` | `routing` | `routing` runs only the agents the severity route requires; `sequential` always runs all registered agents in order |
 | `APM_API_KEY` | — | Sent as `X-API-Key` header on storage-service calls, if your storage API enforces it |
 
 ## Minimal Integration Checklist

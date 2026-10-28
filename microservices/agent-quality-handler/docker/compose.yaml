@@ -23,6 +23,7 @@ services:
       LLM_MODEL_NAME: ${LLM_MODEL_NAME:-Qwen/Qwen2.5-3B-Instruct}
       LLM_API_KEY: ${LLM_API_KEY:-UNUSED}
       LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-512}
+      AGENT_MODE: ${AGENT_MODE:-routing}
       MQTT_DISABLED: ${MQTT_DISABLED:-false}
       MQTT_HOST: ${MQTT_HOST:-mqtt-broker}
       MQTT_PORT: ${MQTT_PORT:-1883}

@@ -143,7 +143,7 @@ class RuntimeSettings:
 
 def load_runtime_settings(*, validate_assets: bool = True) -> RuntimeSettings:
     """Load and validate settings from the current process environment."""
-    llm_mode = os.environ.get("LLM_MODE", "fallback").strip().lower()
+    llm_mode = os.environ.get("LLM_MODE", "llm").strip().lower()
     if llm_mode not in {"llm", "fallback"}:
         raise ConfigurationError("LLM_MODE must be 'llm' or 'fallback'")
 
@@ -211,11 +211,11 @@ def load_runtime_settings(*, validate_assets: bool = True) -> RuntimeSettings:
         raise ConfigurationError("MQTT_USERNAME is required when MQTT_PASSWORD is set")
 
     llm_base_url = os.environ.get(
-        "LLM_BASE_URL", "http://aqh-ovms:8000/v1"
+        "LLM_BASE_URL", "http://aqh-ovms:8010/v3"
     ).rstrip("/")
     if llm_mode == "llm":
         llm_base_url = _validate_http_url("LLM_BASE_URL", llm_base_url)
-    llm_model_name = os.environ.get("LLM_MODEL_NAME", "Qwen2.5-3B-Instruct").strip()
+    llm_model_name = os.environ.get("LLM_MODEL_NAME", "Qwen/Qwen2.5-3B-Instruct").strip()
     if llm_mode == "llm" and not llm_model_name:
         raise ConfigurationError("LLM_MODEL_NAME is required in LLM mode")
     llm_api_key = os.environ.get("LLM_API_KEY", "UNUSED").strip() or "UNUSED"
