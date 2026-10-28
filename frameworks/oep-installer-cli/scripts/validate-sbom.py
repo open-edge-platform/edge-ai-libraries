@@ -34,7 +34,7 @@ SCHEMA = {
         "pkg-list": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/pkg" } },
         "kernel-cmdline": { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^\\S+$" } },
         "apt-repository": { "enum": ["universe", "multiverse", "restricted"] },
-        "name": { "$ref": "#/$defs/nonEmpty" },
+        "repo-name": { "$ref": "#/$defs/nonEmpty" },
         "gpg-key": { "type": "string", "pattern": "^https://" },
         "gpg-key-fingerprint": { "type": "string", "pattern": "^[0-9A-F]{40}$" },
         "key-file": { "type": "string", "pattern": "^/[^\\s]+$" },
@@ -45,7 +45,7 @@ SCHEMA = {
         "apt-pref-file": { "type": "string", "pattern": "^/etc/apt/preferences\\.d/[^/\\s]+$" }
       },
       "dependentRequired": {
-        "name": ["gpg-key", "key-file", "apt-source", "apt-list-file"],
+        "repo-name": ["gpg-key", "key-file", "apt-source", "apt-list-file"],
         "gpg-key": ["key-file", "apt-source", "apt-list-file"],
         "key-file": ["gpg-key", "apt-source", "apt-list-file"],
         "apt-source": ["gpg-key", "key-file", "apt-list-file"],

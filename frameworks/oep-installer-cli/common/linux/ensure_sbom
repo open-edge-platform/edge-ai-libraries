@@ -7,7 +7,7 @@ ensure_sbom_format () {
     local pkg_str="$*"
     echo "\"$key\": [\"${pkg_str//'|'/\",\"}\"]"
     ;;
-  component|name|gpg-key|gpg-key-fingerprint|key-file|apt-source|apt-src-source|apt-list-file|apt-pref-file|apt-repository|yum-repo-file)
+  component|repo-name|gpg-key|gpg-key-fingerprint|key-file|apt-source|apt-src-source|apt-list-file|apt-pref-file|apt-repository|yum-repo-file)
     echo "\"$key\": \"$*\""
     ;;
   *)
