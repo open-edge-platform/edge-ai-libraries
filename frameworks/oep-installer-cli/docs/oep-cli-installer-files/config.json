@@ -96,8 +96,18 @@
           }
         },
         {
-          "label": "Federal and Aerospace",
-          "value": "federal_and_aerospace_ai_suite",
+          "label": "Federal and Aerospace (Handheld)",
+          "value": "federal_and_aerospace_ai_suite_handheld",
+          "supports": {
+            "OP_SYSTEM": [
+              "UBUNTU_24_04",
+              "UBUNTU_26_04"
+            ]
+          }
+        },
+        {
+          "label": "Federal and Aerospace (UAV)",
+          "value": "federal_and_aerospace_ai_suite_uav",
           "supports": {
             "OP_SYSTEM": [
               "UBUNTU_24_04",
@@ -119,8 +129,8 @@
     },
     {
       "key": "MODULE",
-      "label": "Module",
-      "type": "single",
+      "label": "Modules",
+      "type": "multiple",
       "options": [
         {
           "label": "DL Streamer",
@@ -512,6 +522,22 @@
           ]
         },
         {
+          "label": "Multi-Modal Patient Monitoring",
+          "value": "multi_modal_patient_monitoring",
+          "supports": {
+            "PROFILE": [
+              "health_and_life_sciences_ai_suite"
+            ]
+          },
+          "startStop": true,
+          "remove": true,
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
+        },
+        {
           "label": "NICU Warmer",
           "value": "nicu_warmer",
           "supports": {
@@ -528,47 +554,55 @@
           ]
         },
         {
-          "label": "Edge Node Infrastructure Blueprint",
-          "value": "edge_node_infrastructure_blueprint",
+          "label": "Surgical Instrument",
+          "value": "surgical_instrument",
           "supports": {
             "PROFILE": [
-              "federal_and_aerospace_ai_suite"
+              "health_and_life_sciences_ai_suite"
             ]
           },
-          "remove": true,
-          "options": [
-            "--docker",
-            "--k3s"
-          ]
+          "startStop": true,
+          "remove": true
+        },
+        {
+          "label": "Handheld Platform",
+          "value": "handheld_platform",
+          "supports": {
+            "PROFILE": [
+              "federal_and_aerospace_ai_suite_handheld"
+            ]
+          }
         },
         {
           "label": "Handheld Multi-Modal",
           "value": "handheld_multi_modal",
           "supports": {
             "PROFILE": [
-              "federal_and_aerospace_ai_suite"
+              "federal_and_aerospace_ai_suite_handheld"
             ]
           },
           "startStop": true,
-          "remove": true,
-          "options": [
-            "--docker"
-          ]
+          "remove": true
+        },
+        {
+          "label": "UAV Platform",
+          "value": "uav_platform",
+          "supports": {
+            "PROFILE": [
+              "federal_and_aerospace_ai_suite_uav"
+            ]
+          }
         },
         {
           "label": "UAV Mission Compute SDK",
           "value": "uav_mission_compute_sdk",
           "supports": {
             "PROFILE": [
-              "federal_and_aerospace_ai_suite"
+              "federal_and_aerospace_ai_suite_uav"
             ]
           },
           "startStop": true,
-          "remove": true,
-          "options": [
-            "--docker",
-            "--k3s"
-          ]
+          "remove": true
         },
         {
           "label": "Autonomous Mobile Robot",
@@ -680,7 +714,7 @@
         "start": "openedge-cli start {{MODULE}}",
         "stop": "openedge-cli stop {{MODULE}}"
       },
-      "remove": "openedge-cli remove {{TARGET}}"
+      "remove": "openedge-cli remove {{MODULE}}"
     },
     {
       "id": "getstarted",
@@ -785,7 +819,7 @@
         },
         {
           "when": {
-            "PROFILE": "federal_and_aerospace_ai_suite",
+            "PROFILE": "federal_and_aerospace_ai_suite_handheld",
             "OP_SYSTEM": "UBUNTU_24_04"
           },
           "text": "Get Started",
@@ -793,7 +827,23 @@
         },
         {
           "when": {
-            "PROFILE": "federal_and_aerospace_ai_suite",
+            "PROFILE": "federal_and_aerospace_ai_suite_handheld",
+            "OP_SYSTEM": "UBUNTU_26_04"
+          },
+          "text": "Get Started",
+          "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-fed-aero.html"
+        },
+        {
+          "when": {
+            "PROFILE": "federal_and_aerospace_ai_suite_uav",
+            "OP_SYSTEM": "UBUNTU_24_04"
+          },
+          "text": "Get Started",
+          "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-fed-aero.html"
+        },
+        {
+          "when": {
+            "PROFILE": "federal_and_aerospace_ai_suite_uav",
             "OP_SYSTEM": "UBUNTU_26_04"
           },
           "text": "Get Started",
@@ -1117,8 +1167,16 @@
           },
           "links": [
             {
+              "text": "Multi-Modal Patient Monitoring",
+              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/multi-modal-patient-monitoring/index.html"
+            },
+            {
               "text": "NICU Warmer",
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/nicu-warmer/index.html"
+            },
+            {
+              "text": "Surgical Instrument",
+              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/surgical-instrument/index.html"
             }
           ]
         },
@@ -1129,25 +1187,49 @@
           },
           "links": [
             {
+              "text": "Multi-Modal Patient Monitoring",
+              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/multi-modal-patient-monitoring/index.html"
+            },
+            {
               "text": "NICU Warmer",
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/nicu-warmer/index.html"
+            },
+            {
+              "text": "Surgical Instrument",
+              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/surgical-instrument/index.html"
             }
           ]
         },
         {
           "when": {
-            "PROFILE": "federal_and_aerospace_ai_suite",
+            "PROFILE": "federal_and_aerospace_ai_suite_handheld",
             "OP_SYSTEM": "UBUNTU_24_04"
           },
           "links": [
             {
-              "text": "Edge Node Infrastructure Blueprint",
-              "url": "https://github.com/open-edge-platform/edge-node-infrastructure-blueprint"
-            },
+              "text": "Handheld Multi-Modal Application",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/handheld-multi-modal-application/index.html"
+            }
+          ]
+        },
+        {
+          "when": {
+            "PROFILE": "federal_and_aerospace_ai_suite_handheld",
+            "OP_SYSTEM": "UBUNTU_26_04"
+          },
+          "links": [
             {
               "text": "Handheld Multi-Modal Application",
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/handheld-multi-modal-application/index.html"
-            },
+            }
+          ]
+        },
+        {
+          "when": {
+            "PROFILE": "federal_and_aerospace_ai_suite_uav",
+            "OP_SYSTEM": "UBUNTU_24_04"
+          },
+          "links": [
             {
               "text": "UAV Mission Compute SDK",
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/uav-vision-analytics/index.html"
@@ -1156,18 +1238,10 @@
         },
         {
           "when": {
-            "PROFILE": "federal_and_aerospace_ai_suite",
+            "PROFILE": "federal_and_aerospace_ai_suite_uav",
             "OP_SYSTEM": "UBUNTU_26_04"
           },
           "links": [
-            {
-              "text": "Edge Node Infrastructure Blueprint",
-              "url": "https://github.com/open-edge-platform/edge-node-infrastructure-blueprint"
-            },
-            {
-              "text": "Handheld Multi-Modal Application",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/handheld-multi-modal-application/index.html"
-            },
             {
               "text": "UAV Mission Compute SDK",
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/uav-vision-analytics/index.html"

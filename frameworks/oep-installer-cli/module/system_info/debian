@@ -1,0 +1,50 @@
+configure_system_info () {
+  workspace="$(ensure_project_path)/system_info"
+  repository=https://github.com/open-edge-platform/edge-node-infrastructure-blueprint.git
+  version=8e6f01943286f0e838dad3bf46390119b7645ad2
+  system_info_path=/opt/edge/developer/tools/system-info
+}
+
+verify_system_info () {
+  [ -x "$system_info_path/system-info.sh" ]
+}
+
+debian_40_profile_system_info () {
+  echo "git"
+}
+
+debian_40_install_system_info () {
+  configure_system_info
+  if verify_system_info && [[ " $* " != *" --reinstall "* ]]; then
+    echo "System info script is installed." >&2
+  else
+    ensure_git_export "$workspace" "$version" "$repository" tools/system-info || return $?
+    if [ ! -r "$workspace/tools/system-info/system-info.sh" ]; then
+      echo "System info script is missing from the exported blueprint." >&2
+      return 1
+    fi
+    if [ ! -e "$system_info_path/system-info.sh" ] && [ ! -L "$system_info_path/system-info.sh" ]; then
+      ensure_prop set installed/system_info/owned true
+    fi
+    ensure_sudo install -D -m 755 "$workspace/tools/system-info/system-info.sh" \
+      "$system_info_path/system-info.sh" || return $?
+    verify_system_info || return $?
+  fi
+  echo "@@HIGHLIGHT system info: $system_info_path/system-info.sh"
+}
+
+debian_40_remove_system_info () {
+  configure_system_info
+  if [ "$(ensure_prop get installed/system_info/owned)" = true ]; then
+    ensure_rm "$system_info_path/system-info.sh" || return $?
+  fi
+  ensure_rm "$workspace"
+}
+
+debian_40_sbom_system_info () {
+  configure_system_info
+  ensure_sbom_format name system_info
+  ensure_sbom_format repository "$repository"
+  ensure_sbom_format version "$version"
+  ensure_sbom_format file "$system_info_path/system-info.sh"
+}

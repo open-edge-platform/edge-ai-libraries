@@ -19,7 +19,7 @@
   },
 
   "profileCategory": { "key": "PROFILE", "label": "Profile", "type": "single" },
-  "moduleCategory": { "key": "MODULE", "label": "Module", "type": "single" },
+  "moduleCategory": { "key": "MODULE", "label": "Modules", "type": "multiple" },
 
   "profileOrder": [
     "computer_vision",
@@ -28,7 +28,8 @@
     "manufacturing_ai_suite",
     "retail_ai_suite",
     "health_and_life_sciences_ai_suite",
-    "federal_and_aerospace_ai_suite",
+    "federal_and_aerospace_ai_suite_handheld",
+    "federal_and_aerospace_ai_suite_uav",
     "robotics_ai_suite"
   ],
 
@@ -48,7 +49,7 @@
         "start": "openedge-cli start {{MODULE}}",
         "stop": "openedge-cli stop {{MODULE}}"
       },
-      "remove": "openedge-cli remove {{TARGET}}"
+      "remove": "openedge-cli remove {{MODULE}}"
     },
     "getstarted": {
       "label": "Get Started",

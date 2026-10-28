@@ -1724,7 +1724,7 @@ act_panelled_logs ()
                 fi;
             done;
         fi;
-        [[ -n $out ]] && printf '\033[?2026h%s\033[?2026l' "$out";
+        [[ -n $out ]] && printf '\0337\033[?2026h%s\033[?2026l\0338' "$out";
         FRAMES=$(( FRAMES + 1 ));
         DRAW_MS=$(( DRAW_MS + $(_now_ms) - t0 ));
         DRAWING=0
@@ -2065,18 +2065,47 @@ act_panelled_logs_askpass ()
 #!/bin/bash
 if [ -n "$ASKPASS_ENV" ]; then
   printf '%s\n' "$ASKPASS_ENV"
-else
+elif [ -e /dev/tty ]; then
   exec 8<>/dev/tty 2>/dev/null || exit 1
-  # size and style
-  rows=$(stty size <&8 | cut -d' ' -f1)
+  rows=$(stty size <&8 | cut -d' ' -f1); rows=${rows:-1}
   saved=$(stty -g <&8) || exit 1
-  # restore screen
-  trap 'stty "$saved" <&8 2>/dev/null; printf "\033[%d;1H\033[K" "${rows:-1}" >&8' EXIT INT TERM HUP PIPE
+  # restore tty and clear the prompt row (cleanup only)
+  trap 'stty "$saved" <&8 2>/dev/null; printf "\033[%d;1H\033[K" "$rows" >&8' EXIT
+  # cancel: tell sudo (our parent) to abort instead of re-asking, then exit
+  cancel() { kill -INT "$PPID" 2>/dev/null; exit "$1"; }
+  trap 'cancel 130' INT
+  trap 'cancel 143' TERM
+  trap 'cancel 129' HUP
+  trap 'cancel 141' PIPE
   stty -echo <&8
-  # last row: _draw only ever writes rows 1..rows-1, so this is never repainted
-  printf '\033[%d;1H\033[K%s' "${rows:-1}" "$1" >&8
-  IFS= read -r pw <&8
-  printf '\033[%d;1H\033[K' "${rows:-1}" >&8
+  case ${LC_ALL:-${LC_CTYPE:-${LANG:-}}} in
+    *[Uu][Tt][Ff]*) caret='▏' mask='•' ;;
+    *)              caret='_' mask='*' ;;
+  esac
+  prompt=$1 pw="" on=1
+  draw() {
+    local c=" "
+    (( on )) && c=$'\033[1;36m'"$caret"$'\033[0m'
+    # last row: _draw only ever writes rows 1..rows-1, so this is never repainted
+    printf '\033[%d;1H\033[K%s%s%s' "$rows" "$prompt" "${pw//?/$mask}" "$c" >&8
+  }
+  while :; do
+    draw
+    if IFS= read -r -s -n1 -t 0.5 ch <&8; then
+      case $ch in
+        '')            break ;;            # Enter
+        $'\177'|$'\b') pw=${pw%?} ;;       # Backspace
+        $'\025')       pw="" ;;            # Ctrl-U
+        $'\003')       cancel 130 ;;       # Ctrl-C read as a byte
+        *)             pw+=$ch ;;
+      esac
+      on=1                                 # keep caret solid while typing
+    else
+      rc=$?
+      (( rc > 128 )) || exit 1             # EOF / tty gone
+      on=$(( !on ))                        # timeout -> blink
+    fi
+  done
   printf '%s\n' "$pw"
 fi
 EOF
@@ -2182,6 +2211,14 @@ configure_autonomous_mobile_robot_slam ()
             amr_slam_pkg=ros-$ros_distro-collab-slam-avx2;
         fi;
     fi
+}
+configure_cdi () 
+{ 
+    workspace="$(ensure_project_path)/cdi";
+    repository="https://github.com/open-edge-platform/edge-node-infrastructure-blueprint.git";
+    version=8e6f01943286f0e838dad3bf46390119b7645ad2;
+    cdi_path="/opt/edge/scripts/cdi";
+    docker_config="/etc/docker/daemon.json"
 }
 configure_dine_in () 
 { 
@@ -2330,6 +2367,11 @@ configure_edge_pack_graphics_sriov ()
     configure_edge_pack "$@";
     version="1.0"
 }
+configure_edge_pack_ipu () 
+{ 
+    configure_edge_pack "$@";
+    version="1.0"
+}
 configure_edge_pack_manageability () 
 { 
     configure_edge_pack "$@";
@@ -2351,6 +2393,11 @@ configure_edge_pack_media_gst ()
     version="1.0"
 }
 configure_edge_pack_npu () 
+{ 
+    configure_edge_pack "$@";
+    version="1.0"
+}
+configure_edge_pack_tsn () 
 { 
     configure_edge_pack "$@";
     version="1.0"
@@ -2495,6 +2542,19 @@ configure_image_based_video_search ()
     version=release-2026.2.0;
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(443 80 8554)
+}
+configure_intel_lpmd () 
+{ 
+    workspace="$(ensure_project_path)/intel-lpmd";
+    version=956df747e56aca1739b39bff8cff77e81758af9a;
+    repository="https://github.com/intel/intel-lpmd.git"
+}
+configure_k3s_io () 
+{ 
+    workspace="$(ensure_project_path)/k3s_io";
+    repository="https://github.com/open-edge-platform/edge-node-infrastructure-blueprint.git";
+    version=8e6f01943286f0e838dad3bf46390119b7645ad2;
+    install_sh_sha256=d75e014f2d2ab5d30a318efa5c326f3b0b7596f194afcff90fa7a7a91166d5f7
 }
 configure_kernel_module_essential () 
 { 
@@ -2706,8 +2766,9 @@ configure_loitering_detection ()
 configure_loss_prevention () 
 { 
     workspace="$(ensure_project_path)/loss-prevention";
-    version=v2026.2.0;
-    repository="https://github.com/intel-retail/loss-prevention.git"
+    version=1e960e399a4f82feca32dcd65b023f7a46d3ebf1;
+    repository="https://github.com/intel-retail/loss-prevention.git";
+    used_ports=(4000 15672 5672 8002 4001)
 }
 configure_loss_prevention_options () 
 { 
@@ -2717,23 +2778,29 @@ configure_loss_prevention_options ()
     sed -i -e "s|^TARGET_DEVICE [?]= .*|TARGET_DEVICE ?= ${device^^}|" -e "s|^VLM_DEVICE [?]= .*|VLM_DEVICE ?= ${device^^}|" Makefile;
     local camera_stream="$(grep -m1 -E '^CAMREA_STREAM [?]=' | cut -f2 -d= | tr -d ' ')";
     local workload_dist="$(grep -m1 -E '^WORKLOAD_DIST [?]=' | cut -f2 -d= | tr -d ' ')";
+    local mode;
     if [[ " $* " = *" --od "* ]]; then
+        mode="object detection $device";
         camera_stream="camera_to_workload_asc_object_detection.json";
         workload_dist="workload_to_pipeline_asc_object_detection_$device.json";
     else
         if [[ " $* " = *" --oc "* ]]; then
+            mode="object classification $device";
             camera_stream="camera_to_workload_asc_object_detection_classification.json";
             workload_dist="workload_to_pipeline_asc_object_detection_classification_$device.json";
         else
             if [[ " $* " = *" --age "* ]]; then
+                mode="age verification $device";
                 camera_stream="camera_to_workload_asc_age_verification.json";
                 workload_dist="workload_to_pipeline_asc_age_verification_$device.json";
             else
                 if [[ " $* " = *" --lpvlm "* ]]; then
+                    mode="VLM gpu";
                     camera_stream="camera_to_workload_vlm.json";
                     workload_dist="workload_to_pipeline_vlm.json";
                 else
                     if [[ " $* " = *" --lp "* ]]; then
+                        mode="default ${device/npu/gpu-npu}";
                         camera_stream="camera_to_workload.json";
                         workload_dist="workload_to_pipeline_${device/npu/gpu-npu}.json";
                     fi;
@@ -2742,28 +2809,31 @@ configure_loss_prevention_options ()
         fi;
     fi;
     sed -i -e "s|^CAMERA_STREAM [?]= .*|CAMERA_STREAM ?= $camera_stream|" -e "s|^WORKLOAD_DIST [?]= .*|WORKLOAD_DIST ?= $workload_dist|" Makefile;
+    echo "@@STEP Download videos";
     make download-sample-videos && { 
         local v rc=0;
         for v in $(grep '"fileSrc":' configs/$camera_stream | cut -f4 -d'"' | cut -f1 -d'|');
         do
             [ $(find performance-tools/sample-media -name "${v/.mp4}-*.mp4" | wc -l) -gt 0 ] || { 
-                echo "Failed to find video $v" 1>&2;
+                echo "Failed to download video $v" 1>&2;
                 rc=1
             };
         done;
         [ $rc -eq 0 ]
     };
+    echo "@@STEP Download models";
     make download-models && { 
         local m rc=0;
         for m in $(grep -E '"model":|"vlm_model":' configs/$workload_dist | cut -f4 -d'"');
         do
             [ $(find models -ipath "*/$m/*" -name "*.bin" -print | wc -l) -gt 0 ] || { 
-                echo "Failed to find model $m" 1>&2;
+                echo "Failed to download model $m" 1>&2;
                 rc=1
             };
         done;
         [ $rc -eq 0 ]
-    }
+    };
+    echo "@@STEP Configured $mode"
 }
 configure_mediamtx () 
 { 
@@ -2848,7 +2918,7 @@ configure_oneapi_ros_openvino ()
     oneapi_key_url="https://$oneapi_repo_name/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB";
     oneapi_key_file=/usr/share/keyrings/oneapi-archive-keyring.gpg;
     oneapi_list=/etc/apt/sources.list.d/oneAPI.list;
-    oneapi_pref=("Package: intel-oneapi-runtime-*" "Pin: version 2025.3.*" "Pin-Priority: 1001" "Package: intel-oneapi-compiler-*" "Pin: version 2025.3.*" "Pin-Priority: 1001" "Package: intel-oneapi-mkl-*" "Pin: version 2025.3.*" "Pin-Priority: 1001");
+    oneapi_pref=("Package: intel-oneapi-compiler-*" "Pin: version 2025.3.*" "Pin-Priority: 1001" "Package: intel-oneapi-mkl-*" "Pin: version 2025.3.*" "Pin-Priority: 1001");
     oneapi_pref_file=/etc/apt/preferences.d/oneapi;
     oneapi_deb_entry="deb [signed-by=$oneapi_key_file] https://$oneapi_repo_name/oneapi all main"
 }
@@ -2890,7 +2960,7 @@ configure_pcm ()
 { 
     workspace="$(ensure_project_path)/pcm";
     repository="https://github.com/intel/pcm.git";
-    version=tags/202604
+    version=e534201d0fe6d6e3bc5fee54b229f215b976efbc
 }
 configure_physical_ai_framework () 
 { 
@@ -2924,7 +2994,7 @@ configure_physical_ai_studio ()
     pais_pid_file="$pais_run_dir/physicalai-studio.pid";
     pais_log_file="$pais_run_dir/physicalai-studio.logs";
     pais_device_file="$pais_run_dir/.device";
-    pais_port=7860
+    used_ports=(7860)
 }
 configure_physical_ai_studio_device () 
 { 
@@ -2968,6 +3038,13 @@ configure_post_fusion_device ()
     echo "$image" > .image;
     docker compose -f docker/docker-compose.yml build $image --build-arg http_proxy --build-arg https_proxy --build-arg no_proxy
 }
+configure_power_tuning () 
+{ 
+    workspace="$(ensure_project_path)/power_tuning";
+    repository="https://github.com/open-edge-platform/edge-node-infrastructure-blueprint.git";
+    version=8e6f01943286f0e838dad3bf46390119b7645ad2;
+    power_tuning_path="/opt/edge/developer/tools"
+}
 configure_real_time_scene_understanding () 
 { 
     workspace="$(ensure_project_path)/real-time-scene-understanding";
@@ -2987,22 +3064,34 @@ configure_real_time_scene_understanding_device ()
 }
 configure_realsense () 
 { 
+    workspace="$(ensure_project_path)/realsense";
+    eci_repo_name=eci.intel.com;
+    eci_key_url="https://$eci_repo_name/repos/gpg-keys/GPG-PUB-KEY-INTEL-ECI.gpg";
+    eci_key_file=/etc/apt/keyrings/intel-eci.gpg;
+    eci_repo_list="deb [signed-by=$eci_key_file] https://$eci_repo_name/repos/$VERSION_CODENAME isar main";
+    eci_repo_list_file=/etc/apt/sources.list.d/intel-eci.list;
     rs_repo_name="librealsense.realsenseai.com";
     rs_key_url="https://$rs_repo_name/Debian/librealsenseai.asc";
     rs_key_file=/etc/apt/keyrings/librealsenseai.gpg;
     rs_list=/etc/apt/sources.list.d/librealsense.list;
     rs_deb_entry="deb [signed-by=$rs_key_file] https://$rs_repo_name/Debian/apt-repo $VERSION_CODENAME main";
-    case "$VERSION_CODENAME" in 
-        jammy)
-            ros_distro=humble
-        ;;
-        noble)
-            ros_distro=jazzy
-        ;;
-        *)
-            ros_distro=jazzy
-        ;;
-    esac
+    rs_packages=(librealsense2 librealsense2-dkms librealsense2-utils librealsense2-dev librealsense2-gl);
+    rs_ros_package=;
+    if [[ " $* " = *" ros2 "* || " $* " = *" edge_base_robotics "* ]]; then
+        case "$VERSION_CODENAME" in 
+            jammy)
+                rs_ros_package=ros-humble-librealsense2
+            ;;
+            noble)
+                rs_ros_package=ros-jazzy-librealsense2
+            ;;
+            *)
+                echo "RealSense ROS support requires Ubuntu jammy or noble." 1>&2;
+                return 3
+            ;;
+        esac;
+        rs_packages+=("$rs_ros_package");
+    fi
 }
 configure_reboot () 
 { 
@@ -3108,7 +3197,7 @@ configure_smart_intersection_device ()
 configure_smart_kiosk_assistant () 
 { 
     workspace="$(ensure_project_path)/smart-kiosk-assistant";
-    version=8d7c6d0a652525d834e63de07b1dda64bf7ef58a;
+    version=66728aeb875b382c3f342380513ea00170ff45fd;
     repository="https://github.com/intel-retail/voice-enabled-interactions.git";
     used_ports=(7860 7861 8012 8000 9000 8090 8020 8554 9001 8010 8011);
     used_models=(pyannote/speaker-diarization-community-1 pyannote/speaker-diarization-3.1 pyannote/segmentation-3.0)
@@ -3132,9 +3221,9 @@ configure_smart_kiosk_assistant_device ()
 configure_smart_nvr () 
 { 
     workspace="$(ensure_project_path)/smart-nvr";
-    version="release-2026.2.0";
+    version=b05301d7e027caf1953bad3811f65be2cb671b50;
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
-    used_ports=(7860 8000 5000 6379 1884 443 1880 3000 1883 8086 8554);
+    used_ports=(7860 8000 5000 6379 1884 443 1880 3000 8086 8554);
     export REGISTRY_URL="intel";
     export TAG="latest";
     export VSS_IP=$(ensure_ip);
@@ -3171,7 +3260,9 @@ configure_stationary_robot_vision ()
             ros_distro=jazzy
         ;;
     esac;
-    rvc_pkgs=("ros-$ros_distro-rvc-simulation")
+    rvc_pkgs=("ros-$ros_distro-rvc-simulation");
+    rvc_ffmpeg_pref_file=/etc/apt/preferences.d/oep-rvc-ffmpeg;
+    rvc_ffmpeg_pref=("Package: libavutil-dev libpostproc-dev" "Pin: release o=Ubuntu" "Pin-Priority: 1001")
 }
 configure_surgical_instrument () 
 { 
@@ -3179,6 +3270,13 @@ configure_surgical_instrument ()
     version="5bf04485b67cda526a1dbd8435141733e05fd61a";
     repository="https://github.com/open-edge-platform/health-and-life-sciences-ai-suite.git";
     polyp_model="models/yolo11n_polyp/best_openvino_model/best.xml"
+}
+configure_system_info () 
+{ 
+    workspace="$(ensure_project_path)/system_info";
+    repository=https://github.com/open-edge-platform/edge-node-infrastructure-blueprint.git;
+    version=8e6f01943286f0e838dad3bf46390119b7645ad2;
+    system_info_path=/opt/edge/developer/tools/system-info
 }
 configure_take_away () 
 { 
@@ -3211,13 +3309,18 @@ configure_uav_mission_compute_sdk ()
     version="release-2026.2.0";
     repository="https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git";
     used_ports=(8086 3000 9090 9273);
-    version_skills="release-2026.2.0";
+    version_skills="be9aa5e65f57c397bded94bae975469eb749eff7";
     repository_skills="https://github.com/open-edge-platform/skills.git";
     skills=(uav-mission-compute-sdk)
 }
 configure_uv () 
 { 
     echo "$PATH" | grep -q -F ~/.local/bin || export PATH=$PATH:~/.local/bin
+}
+configure_v4l_utils () 
+{ 
+    v4l_pref_file=/etc/apt/preferences.d/oep-v4l-utils;
+    v4l_pref=("Package: v4l-utils libv4l*" "Pin: release o=Ubuntu" "Pin-Priority: 1001")
 }
 configure_video_processing_for_nvr () 
 { 
@@ -3527,11 +3630,13 @@ debian_25_profile_linux_image_generic_7.0 ()
 }
 debian_25_sbom_linux_image_6.18_intel () 
 { 
-    ensure_sbom_format pkg-list linux-image-6.18-intel
+    ensure_sbom_format pkg-list linux-image-6.18-intel;
+    ensure_sbom_format kernel-args xe.max_vfs=7 "xe.force_probe=*" modprobe.blacklist=i915 udmabuf.list_limit=8192
 }
 debian_25_sbom_linux_image_generic_7.0 () 
 { 
-    ensure_sbom_format pkg-list linux-image-generic-7.0
+    ensure_sbom_format pkg-list linux-image-generic-7.0;
+    ensure_sbom_format kernel-args xe.max_vfs=7 "xe.force_probe=*" modprobe.blacklist=i915 udmabuf.list_limit=8192
 }
 debian_29_install_reboot () 
 { 
@@ -3544,6 +3649,14 @@ debian_30_group_docker_ce ()
 debian_30_group_docker_io () 
 { 
     echo "docker:"
+}
+debian_30_install_autoconf () 
+{ 
+    ensure_apt_install_package autoconf
+}
+debian_30_install_automake () 
+{ 
+    ensure_apt_install_package automake
 }
 debian_30_install_build_essential () 
 { 
@@ -3676,9 +3789,42 @@ debian_30_install_git ()
 { 
     ensure_apt_install_package git ca-certificates
 }
+debian_30_install_golang () 
+{ 
+    ensure_apt_install_package golang
+}
 debian_30_install_intel_lpmd () 
 { 
-    ensure_apt_install_package intel-lpmd
+    configure_intel_lpmd;
+    if verify_intel_lpmd && [[ " $* " != *" --reinstall "* ]]; then
+        echo "Intel-lpmd is installed" 1>&2;
+    else
+        echo "@@STEP Installing prerequisites";
+        ensure_apt update;
+        ensure_apt install -y autoconf-archive libglib2.0-dev libdbus-1-dev libxml2-dev libnl-3-dev libnl-genl-3-dev libsystemd-dev systemd-dev gtk-doc-tools libupower-glib-dev;
+        echo "@@STEP Building intel-lpmd";
+        ensure_git_export "$workspace" "$version" "$repository";
+        cd "$workspace";
+        ./autogen.sh;
+        if [[ -z "$(pkg-config --variable=systemdsystemunitdir systemd 2> /dev/null)" ]]; then
+            echo "Failed to resolve systemd's systemdsystemunitdir (is the systemd-dev package installed?)." 1>&2;
+            return 3;
+        fi;
+        make;
+        ensure_sudo make install;
+        ensure_sudo mkdir -p /etc/systemd/system/intel_lpmd.service.d;
+        ensure_sudo tee /etc/systemd/system/intel_lpmd.service.d/override.conf > /dev/null <<-EOF
+[Unit]
+# Clear all Condition* directives from the upstream unit
+ConditionPathExists=
+ConditionVirtualization=
+EOF
+
+        ensure_sudo apt-get clean -y;
+        ensure_sudo systemctl daemon-reload;
+        ensure_sudo systemctl --root=/ enable intel_lpmd.service;
+        ensure_sudo systemctl start intel_lpmd.service;
+    fi
 }
 debian_30_install_kernel_module_essential () 
 { 
@@ -3702,6 +3848,21 @@ debian_30_install_libpcre2_dev ()
 { 
     ensure_apt_install_package libpcre2-dev
 }
+debian_30_install_linux_tools () 
+{ 
+    local name="linux-tools-$(uname -r)";
+    if ensure_apt_is_installed $name; then
+        echo "$name is installed." 1>&2;
+    else
+        ensure_prop set installed/linux_tools/owned true;
+        ensure_apt update;
+        ensure_apt install --no-install-recommends -y linux-tools-common $name || ensure_apt install --no-install-recommends -y --no-install-recommends linux-tools-common linux-tools-generic;
+    fi
+}
+debian_30_install_lm_sensors () 
+{ 
+    ensure_apt_install_package lm-sensors
+}
 debian_30_install_make () 
 { 
     ensure_apt_install_package make
@@ -3709,6 +3870,10 @@ debian_30_install_make ()
 debian_30_install_msr_tools () 
 { 
     ensure_apt_install_package msr-tools
+}
+debian_30_install_pkg_config () 
+{ 
+    ensure_apt_install_package pkg-config
 }
 debian_30_install_python3_venv () 
 { 
@@ -3736,11 +3901,32 @@ debian_30_install_sysbench ()
 }
 debian_30_install_v4l_utils () 
 { 
-    ensure_apt_install_package v4l-utils
+    configure_v4l_utils;
+    ensure_apt_preference "$v4l_pref_file" "${v4l_pref[@]}" || return $?;
+    if ensure_apt_is_installed v4l-utils; then
+        echo "v4l-utils is installed." 1>&2;
+    else
+        ensure_prop set installed/v4l_utils/owned true;
+        ensure_apt update || return $?;
+        ensure_apt install --no-install-recommends --allow-downgrades --no-remove -y v4l-utils || return $?;
+        ensure_apt_is_installed v4l-utils;
+    fi
 }
 debian_30_install_xpu_smi () 
 { 
     ensure_apt_install_package xpu-smi || printf "${red}xpu-smi not installed${reset}\n"
+}
+debian_30_profile_intel_lpmd () 
+{ 
+    echo "kernel_module_essential linux_tools pkg_config autoconf automake"
+}
+debian_30_remove_autoconf () 
+{ 
+    ensure_apt_remove_package autoconf
+}
+debian_30_remove_automake () 
+{ 
+    ensure_apt_remove_package automake
 }
 debian_30_remove_build_essential () 
 { 
@@ -3777,6 +3963,21 @@ debian_30_remove_git ()
 { 
     ensure_apt_remove_package git
 }
+debian_30_remove_golang () 
+{ 
+    ensure_apt_remove_package golang
+}
+debian_30_remove_intel_lpmd () 
+{ 
+    [ "$(ensure_prop get installed/intel_lpmd/owned)" = "true" ] || return 0;
+    cd "$workspace" && { 
+        make clean
+    } || true;
+    ensure_sudo systemctl stop intel_lpmd.service || true;
+    ensure_sudo systemctl disable intel_lpmd.service || true;
+    ensure_rm /etc/systemd/system/intel_lpmd.service.d;
+    ensure_sudo systemctl daemon-reload || true
+}
 debian_30_remove_kernel_module_essential () 
 { 
     configure_kernel_module_essential_debian;
@@ -3788,6 +3989,16 @@ debian_30_remove_kernel_module_essential ()
     done;
     [ ${#pkgs[@]} -eq 0 ] || ensure_apt purge --auto-remove -y "${pkgs[@]}"
 }
+debian_30_remove_linux_tools () 
+{ 
+    local name="linux-tools-$(uname -r)";
+    [ "$(ensure_prop get installed/linux_tools/owned)" = "true" ] || return 0;
+    ensure_apt autoremove -y $name || true
+}
+debian_30_remove_lm_sensors () 
+{ 
+    ensure_apt_remove_package lm-sensors
+}
 debian_30_remove_make () 
 { 
     ensure_apt_remove_package make
@@ -3795,6 +4006,10 @@ debian_30_remove_make ()
 debian_30_remove_msr_tools () 
 { 
     ensure_apt_remove_package msr-tools
+}
+debian_30_remove_pkg_config () 
+{ 
+    ensure_apt_remove_package pkg-config
 }
 debian_30_remove_rsync () 
 { 
@@ -3814,11 +4029,21 @@ debian_30_remove_sysbench ()
 }
 debian_30_remove_v4l_utils () 
 { 
-    ensure_apt_remove_package v4l-utils
+    configure_v4l_utils;
+    ensure_apt_remove_package v4l-utils || return $?;
+    ensure_rm "$v4l_pref_file"
 }
 debian_30_remove_xpu_smi () 
 { 
     ensure_apt_remove_package xpu-smi
+}
+debian_30_sbom_autoconf () 
+{ 
+    ensure_sbom_format pkg-list autoconf
+}
+debian_30_sbom_automake () 
+{ 
+    ensure_sbom_format pkg-list automake
 }
 debian_30_sbom_build_essential () 
 { 
@@ -3838,8 +4063,8 @@ debian_30_sbom_docker_ce ()
     ensure_sbom_format name $repo_name;
     ensure_sbom_format gpg-key "$key_url";
     ensure_sbom_format key-file "$key_file";
-    ensure_sbom_format apt-entry "$apt_entry";
-    ensure_sbom_format apt-file "$apt_file";
+    ensure_sbom_format apt-source "$apt_entry";
+    ensure_sbom_format apt-list-file "$apt_file";
     ensure_sbom_format pkg-list docker-ce docker-buildx-plugin docker-compose-plugin
 }
 debian_30_sbom_docker_io () 
@@ -3850,9 +4075,13 @@ debian_30_sbom_git ()
 { 
     ensure_sbom_format pkg-list git ca-certificates
 }
+debian_30_sbom_golang () 
+{ 
+    ensure_sbom_format pkg-list golang
+}
 debian_30_sbom_intel_lpmd () 
 { 
-    ensure_sbom_format pkg-list intel-lpmd
+    ensure_sbom_format pkg-list autoconf-archive libglib2.0-dev libdbus-1-dev libxml2-dev libnl-3-dev libnl-genl-3-dev libsystemd-dev systemd-dev gtk-doc-tools libupower-glib-dev
 }
 debian_30_sbom_kernel_module_essential () 
 { 
@@ -3863,6 +4092,14 @@ debian_30_sbom_libpcre2_dev ()
 { 
     ensure_sbom_format pkg-list libpcre2-dev
 }
+debian_30_sbom_linux_tools () 
+{ 
+    ensure_sbom_format pkg-list linux-tools-common linux-tools-$(uname -r)
+}
+debian_30_sbom_lm_sensors () 
+{ 
+    ensure_sbom_format pkg-list lm-sensors
+}
 debian_30_sbom_make () 
 { 
     ensure_sbom_format pkg-list make
@@ -3870,6 +4107,10 @@ debian_30_sbom_make ()
 debian_30_sbom_msr_tools () 
 { 
     ensure_sbom_format pkg-list msr-tools
+}
+debian_30_sbom_pkg_config () 
+{ 
+    ensure_sbom_format pkg-list pkg-config
 }
 debian_30_sbom_python3_venv () 
 { 
@@ -3893,11 +4134,102 @@ debian_30_sbom_sysbench ()
 }
 debian_30_sbom_v4l_utils () 
 { 
+    configure_v4l_utils;
+    ensure_sbom_format apt-pref "${v4l_pref[@]}";
+    ensure_sbom_format apt-pref-file "$v4l_pref_file";
     ensure_sbom_format pkg-list v4l-utils
 }
 debian_30_sbom_xpu_smi () 
 { 
     ensure_sbom_format pkg-list xpu-smi
+}
+debian_31_install_k3s_io () 
+{ 
+    configure_k3s_io "$@";
+    if verify_k3s_io && [[ " $* " != *" --reinstall "* ]]; then
+        echo "k3s_io is installed." 1>&2;
+    else
+        if [ -e "$HOME/.kube/config" ] && { 
+            [ ! -r /etc/rancher/k3s/k3s.yaml ] || ! cmp -s /etc/rancher/k3s/k3s.yaml "$HOME/.kube/config"
+        }; then
+            echo "Refusing to overwrite the existing $HOME/.kube/config." 1>&2;
+            echo "Back it up or move it before installing k3s_io." 1>&2;
+            return 1;
+        fi;
+        echo "@@STEP Clone repository";
+        ensure_git_export "$workspace" "$version" "$repository" infrastructure/installation-scripts;
+        echo "@@STEP Disable docker download";
+        cd "$workspace"/infrastructure/installation-scripts;
+        sed -i '/^DOCKER_STATIC_URL/,/^success "docker-compose saved"/{d}' download-resources.sh;
+        echo "@@STEP Downloading k3s resources";
+        cd "$workspace"/infrastructure/installation-scripts;
+        mkdir -p resources/docker;
+        local k3s_binary="$PWD/resources/k3s/k3s";
+        ( local kubectl_wrapper_dir;
+        kubectl_wrapper_dir="$(mktemp -d "${TMPDIR:-/tmp}/oep-k3s-kubectl.XXXXXX")";
+        trap 'rm -rf -- "$kubectl_wrapper_dir"' EXIT;
+        printf '%s\n' '#!/bin/sh' 'exec "'"$k3s_binary"'" kubectl "$@"' > "$kubectl_wrapper_dir/kubectl";
+        chmod 755 "$kubectl_wrapper_dir/kubectl";
+        ensure_sudo env PATH="$kubectl_wrapper_dir:$PATH" K3S_INSTALL_SH_SHA256="$install_sh_sha256" ./download-resources.sh );
+        local manifest;
+        for manifest in nfd nfd-node-feature-rules gpu-plugin npu-plugin;
+        do
+            if [ ! -s "$workspace/infrastructure/installation-scripts/resources/intel-device-plugins/manifests/$manifest.yaml" ]; then
+                echo "Intel device-plugin manifest '$manifest.yaml' was not prepared; refusing to install K3s without the plugin resources." 1>&2;
+                return 1;
+            fi;
+        done;
+        echo "@@STEP Installing k3s";
+        ensure_sudo ./install-k3s.sh;
+        verify_k3s_io || { 
+            echo "K3s installation completed without an active K3s service." 1>&2;
+            return 1
+        };
+        ensure_prop set installed/k3s_io/owned true;
+    fi
+}
+debian_31_profile_k3s_io () 
+{ 
+    echo "git curl docker_io"
+}
+debian_31_remove_k3s_io () 
+{ 
+    configure_k3s_io;
+    [ "$(ensure_prop get installed/k3s_io/owned)" = "true" ] || return 0;
+    local script found=0 kubeconfig=0;
+    if [ -f "$HOME/.kube/config" ] && ! ensure_sudo cmp -s /etc/rancher/k3s/k3s.yaml "$HOME/.kube/config"; then
+        kubeconfig=1;
+    fi;
+    for script in /usr/local/bin/k3s-uninstall.sh /usr/local/bin/k3s-agent-uninstall.sh;
+    do
+        [ -x "$script" ] || continue;
+        found=1;
+        echo "Removing the K3s runtime ($script)...";
+        ensure_sudo "$script";
+    done;
+    if [ $found -eq 0 ] && { 
+        command -v k3s > /dev/null 2>&1 || systemctl is-active --quiet k3s
+    }; then
+        echo "K3s is still installed, but no K3s uninstall script was found." 1>&2;
+        return 1;
+    fi;
+    [ $kubeconfig -eq 1 ] || rm -f "$HOME/.kube/config";
+    if command -v k3s > /dev/null 2>&1 || systemctl is-active --quiet k3s; then
+        echo "K3s is still present after running its uninstall script." 1>&2;
+        return 1;
+    fi;
+    ensure_rm "$workspace";
+    ensure_prop remove installed/k3s_io/owned
+}
+debian_31_start_k3s_io () 
+{ 
+    configure_k3s_io "$@";
+    [ "$(ensure_prop get installed/k3s_io/owned)" = "true" ] || return 0;
+    if kubectl status > /dev/null 2>&1; then
+        echo "k3s is started" 1>&2;
+    else
+        cd "$workspace"/infrastructure/installation-scripts && ensure_sudo ./kubernetes-provision.sh;
+    fi
 }
 debian_39_install_edge_pack () 
 { 
@@ -3976,6 +4308,18 @@ debian_40_group_gpu_accel ()
 debian_40_group_npu_accel () 
 { 
     echo "render:992"
+}
+debian_40_install_core_types () 
+{ 
+    if [ -e /etc/core-types ] && [[ " $* " != *" --reinstall "* ]]; then
+        echo "/etc/core-types exists." 1>&2;
+    else
+        ensure_prop set installed/core_types/owned true;
+        local script="https://raw.githubusercontent.com/open-edge-platform/edge-workloads-and-benchmarks/refs/heads/main/utils/obtain_cores.sh";
+        set -o pipefail;
+        ensure_fetch "$script" - | bash | sed -n -E 's/^[[:space:]]*([a-zA-Z0-9_-]+)[[:space:]]*:[[:space:]]*(.*)/\U\1\E=\2/p' | ensure_sudo tee /etc/core-types;
+        echo "@@HIGHLIGHT Core types are detected and written to /etc/core-types";
+    fi
 }
 debian_40_install_edge_pack_base_realtime () 
 { 
@@ -4062,6 +4406,18 @@ debian_40_install_edge_pack_graphics_sriov ()
     [ -c /dev/dri/renderD128 ];
     ensure_group_add $(debian_40_group_edge_pack_graphics_sriov)
 }
+debian_40_install_edge_pack_ipu () 
+{ 
+    configure_edge_pack_ipu "$@";
+    if ensure_apt_is_installed intel-edge-ipu && [[ " $* " != *" --reinstall "* ]]; then
+        echo "intel-edge-ipu is installed." 1>&2;
+    else
+        ensure_prop set installed/edge_pack_ipu/owned true;
+        ensure_apt purge --auto-remove -y intel-edge-ipu || true;
+        ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-ipu=$version*" || true;
+        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-ipu=$version*";
+    fi
+}
 debian_40_install_edge_pack_manageability () 
 { 
     configure_edge_pack_manageability "$@";
@@ -4099,14 +4455,34 @@ debian_40_install_edge_pack_npu ()
     [ -c /dev/accel/accel0 ];
     ensure_group_add $(debian_40_group_edge_pack_npu)
 }
+debian_40_install_edge_pack_tsn () 
+{ 
+    configure_edge_pack_tsn "$@";
+    if ensure_apt_is_installed intel-edge-tsn && [[ " $* " != *" --reinstall "* ]]; then
+        echo "intel-edge-tsn is installed." 1>&2;
+    else
+        ensure_prop set installed/edge_pack_tsn/owned true;
+        ensure_apt purge --auto-remove -y intel-edge-tsn || true;
+        ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-tsn=$version*" || true;
+        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-tsn=$version*";
+    fi
+}
 debian_40_install_gpu_accel () 
 { 
     configure_gpu_accel "$@";
     if verify_gpu_accel && [[ " $* " != *" --reinstall "* ]]; then
         echo "Gpu drivers are installed." 1>&2;
     else
+        debian_40_remove_gpu_accel;
+        ensure_prop create installed/gpu_accel/repositories/;
         ensure_prop set installed/gpu_accel/owned true;
-        debian_40_remove_gpu_accel || true;
+        local repo_file;
+        for repo_file in "$key_file" "$apt_file";
+        do
+            if [ ! -e "$repo_file" ] && [ ! -L "$repo_file" ]; then
+                ensure_prop set "installed/gpu_accel/repositories/${repo_file##*/}" true;
+            fi;
+        done;
         ensure_apt_key $key_file $key_url --dearmor;
         ensure_apt_source $apt_file "$apt_entry";
         ensure_apt update -y;
@@ -4169,7 +4545,10 @@ debian_40_install_pcm ()
     if verify_pcm && [[ " $* " != *" --reinstall "* ]]; then
         echo "pcm is installed." 1>&2;
     else
+        ensure_prop set installed/pcm/owned true;
+        echo "@@STEP Installing build tools";
         configure_kernel_module_essential_debian "$@";
+        echo "@@STEP Building PCM";
         ensure_git_export "$workspace" "$version" "$repository";
         rm -rf "$workspace"/tests "$workspace"/examples;
         mkdir "$workspace"/build "$workspace"/tests "$workspace"/examples;
@@ -4179,12 +4558,53 @@ debian_40_install_pcm ()
         cmake --build .;
         ensure_sudo make install;
         make clean;
+        echo "@@STEP Configuring mods";
+        echo "msr" | ensure_sudo tee /etc/modules-load.d/99-intel-pcm.conf > /dev/null;
+        ensure_sudo systemctl restart systemd-modules-load;
         verify_pcm;
+    fi
+}
+debian_40_install_power_tuning () 
+{ 
+    configure_power_tuning;
+    if verify_power_tuning && [[ " $* " != *" --reinstall "* ]]; then
+        echo "power_tuning is installed." 1>&2;
+    else
+        ensure_prop set installed/power_tuning/owned true;
+        echo "@@STEP Cloning repository";
+        ensure_git_export "$workspace" "$version" "$repository" tools/power-tuning;
+        ensure_sudo mkdir -p "$power_tuning_path";
+        sed -i -e "s|^MODEL_PATH=.*|MODEL_PATH=$workspace/models|" -e "s|^GNU_VENV_DIR=.*|GNU_VENV_DIR=$workspace/.venv|" tools/power-tuning/openvino_stress.sh;
+        ensure_sudo cp -r "$workspace"/tools/power-tunning/* "$power_tuning_path";
+        verify_power_tuning;
     fi
 }
 debian_40_install_software_properties_common () 
 { 
     ensure_apt_install_package software-properties-common
+}
+debian_40_install_system_info () 
+{ 
+    configure_system_info;
+    if verify_system_info && [[ " $* " != *" --reinstall "* ]]; then
+        echo "System info script is installed." 1>&2;
+    else
+        ensure_git_export "$workspace" "$version" "$repository" tools/system-info || return $?;
+        if [ ! -r "$workspace/tools/system-info/system-info.sh" ]; then
+            echo "System info script is missing from the exported blueprint." 1>&2;
+            return 1;
+        fi;
+        if [ ! -e "$system_info_path/system-info.sh" ] && [ ! -L "$system_info_path/system-info.sh" ]; then
+            ensure_prop set installed/system_info/owned true;
+        fi;
+        ensure_sudo install -D -m 755 "$workspace/tools/system-info/system-info.sh" "$system_info_path/system-info.sh" || return $?;
+        verify_system_info || return $?;
+    fi;
+    echo "@@HIGHLIGHT system info: $system_info_path/system-info.sh"
+}
+debian_40_profile_core_types () 
+{ 
+    [ "$1" != "install" ] || echo "cpuid curl"
 }
 debian_40_profile_edge_pack_base_realtime () 
 { 
@@ -4206,6 +4626,10 @@ debian_40_profile_edge_pack_graphics_sriov ()
 { 
     echo "edge_pack"
 }
+debian_40_profile_edge_pack_ipu () 
+{ 
+    echo "edge_pack"
+}
 debian_40_profile_edge_pack_manageability () 
 { 
     echo "edge_pack"
@@ -4217,6 +4641,10 @@ debian_40_profile_edge_pack_media_core ()
 debian_40_profile_edge_pack_npu () 
 { 
     echo "edge_pack libze1"
+}
+debian_40_profile_edge_pack_tsn () 
+{ 
+    echo "edge_pack"
 }
 debian_40_profile_gpu_accel () 
 { 
@@ -4232,7 +4660,20 @@ debian_40_profile_npu_accel ()
 }
 debian_40_profile_pcm () 
 { 
-    echo "git make cmake kernel_module_essential"
+    echo "pkg_config git make cmake kernel_module_essential msr_tools"
+}
+debian_40_profile_power_tuning () 
+{ 
+    echo "intel_lpmd pcm sysbench msr_tools lm_sensors stress_ng linux_tools"
+}
+debian_40_profile_system_info () 
+{ 
+    echo "git"
+}
+debian_40_remove_core_types () 
+{ 
+    [ "$(ensure_prop get installed/core_types/owned)" = "true" ] || return 0;
+    ensure_rm /etc/core-types
 }
 debian_40_remove_edge_pack_base_realtime () 
 { 
@@ -4264,6 +4705,11 @@ debian_40_remove_edge_pack_graphics_sriov ()
     [ "$(ensure_prop get installed/edge_pack_graphics_sriov/owned)" = "true" ] || return 0;
     ensure_apt purge --auto-remove -y intel-edge-graphics-sriov || true
 }
+debian_40_remove_edge_pack_ipu () 
+{ 
+    [ "$(ensure_prop get installed/edge_pack_ipu/owned)" = "true" ] || return 0;
+    ensure_apt purge --auto-remove -y intel-edge-ipu || true
+}
 debian_40_remove_edge_pack_manageability () 
 { 
     [ "$(ensure_prop get installed/edge_pack_manageability/owned)" = "true" ] || return 0;
@@ -4279,13 +4725,24 @@ debian_40_remove_edge_pack_npu ()
     [ "$(ensure_prop get installed/edge_pack_npu/owned)" = "true" ] || return 0;
     ensure_apt purge --auto-remove -y intel-edge-npu || true
 }
+debian_40_remove_edge_pack_tsn () 
+{ 
+    [ "$(ensure_prop get installed/edge_pack_tsn/owned)" = "true" ] || return 0;
+    ensure_apt purge --auto-remove -y intel-edge-tsn || true
+}
 debian_40_remove_gpu_accel () 
 { 
     [ "$(ensure_prop get installed/gpu_accel/owned)" = "true" ] || return 0;
     configure_gpu_accel "$@";
-    ensure_apt purge --auto-remove -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || true;
-    ensure_apt_source_remove https://repositories.intel.com/gpu;
-    ensure_rm /usr/share/keyrings/intel-gpu-archive-keyring.gpg "$key_file" "$apt_file"
+    ensure_apt purge --auto-remove -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || return $?;
+    local repo_file;
+    for repo_file in "$apt_file" "$key_file";
+    do
+        if [ "$(ensure_prop get "installed/gpu_accel/repositories/${repo_file##*/}")" = true ]; then
+            ensure_rm "$repo_file" || return $?;
+            ensure_prop remove "installed/gpu_accel/repositories/${repo_file##*/}";
+        fi;
+    done
 }
 debian_40_remove_libyang () 
 { 
@@ -4303,7 +4760,22 @@ debian_40_remove_npu_accel ()
 debian_40_remove_pcm () 
 { 
     configure_pcm;
-    ensure_rm "$workspace" /usr/local/share/pcm /usr/local/sbin/pcm /usr/local/sbin/pcm-* /usr/local/bin/pcm-* /usr/local/share/licenses/pcm /usr/local/share/doc/PCM
+    [ "$(ensure_prop get installed/pcm/owned)" = "true" ] || return 0;
+    ensure_rm "$workspace" /usr/local/share/pcm /usr/local/sbin/pcm /usr/local/sbin/pcm-* /usr/local/bin/pcm-* /usr/local/share/licenses/pcm /usr/local/share/doc/PCM /etc/modules-load.d/99-intel-pcm.conf
+}
+debian_40_remove_power_tuning () 
+{ 
+    configure_power_tuning;
+    [ "$(ensure_prop get installed/power_tuning/owned)" = "true" ] || return 0;
+    ensure_rm "$power_tuning_path"
+}
+debian_40_remove_system_info () 
+{ 
+    configure_system_info;
+    if [ "$(ensure_prop get installed/system_info/owned)" = true ]; then
+        ensure_rm "$system_info_path/system-info.sh" || return $?;
+    fi;
+    ensure_rm "$workspace"
 }
 debian_40_sbom_edge_pack_base_realtime () 
 { 
@@ -4339,6 +4811,12 @@ debian_40_sbom_edge_pack_graphics_sriov ()
     sbom_edge_pack_repo_entries "$@";
     ensure_sbom_format pkg-list "intel-edge-graphics-sriov=$version*"
 }
+debian_40_sbom_edge_pack_ipu () 
+{ 
+    configure_edge_pack_ipu "$@";
+    sbom_edge_pack_repo_entries "$@";
+    ensure_sbom_format pkg-list "intel-edge-ipu=$version*"
+}
 debian_40_sbom_edge_pack_manageability () 
 { 
     configure_edge_pack_manageability "$@";
@@ -4356,6 +4834,12 @@ debian_40_sbom_edge_pack_npu ()
     configure_edge_pack_npu "$@";
     sbom_edge_pack_repo_entries "$@";
     ensure_sbom_format pkg-list "intel-edge-npu=$version*"
+}
+debian_40_sbom_edge_pack_tsn () 
+{ 
+    configure_edge_pack_tsn "$@";
+    sbom_edge_pack_repo_entries "$@";
+    ensure_sbom_format pkg-list "intel-edge-tsn=$version*"
 }
 debian_40_sbom_gpu_accel () 
 { 
@@ -4380,6 +4864,14 @@ debian_40_sbom_npu_accel ()
 debian_40_sbom_software_properties_common () 
 { 
     ensure_sbom_format pkg-list software-properties-common
+}
+debian_40_sbom_system_info () 
+{ 
+    configure_system_info;
+    ensure_sbom_format name system_info;
+    ensure_sbom_format repository "$repository";
+    ensure_sbom_format version "$version";
+    ensure_sbom_format file "$system_info_path/system-info.sh"
 }
 debian_45_install_cloud_image_utils () 
 { 
@@ -4412,6 +4904,16 @@ debian_45_install_qemu_utils ()
 debian_45_install_rt_tests () 
 { 
     ensure_apt_install_package rt-tests
+}
+debian_45_install_ubuntu_server () 
+{ 
+    if ( ensure_apt_is_installed ubuntu-desktop || ensure_apt_is_installed ubuntu-desktop-minimal || ensure_apt_is_installed gdm3 ) && [[ " $* " != *" --reinstall "* ]]; then
+        ensure_sudo systemctl set-default multi-user.target;
+        ensure_sudo systemctl disable --now gdm3;
+        ensure_apt update;
+        ensure_apt install -y --no-install-recommends ubuntu-server;
+        ensure_apt purge -y --auto-remove ubuntu-desktop ubuntu-desktop-minimal gdm3;
+    fi
 }
 debian_45_profile_pipx () 
 { 
@@ -4464,6 +4966,10 @@ debian_45_sbom_qemu_utils ()
 debian_45_sbom_rt_tests () 
 { 
     ensure_sbom_format pkg-list rt-tests
+}
+debian_45_sbom_ubuntu_server () 
+{ 
+    ensure_sbom_format pkg-list ubuntu-server -ubuntu-desktop -ubuntu-desktop-minimal -gdm3
 }
 debian_50_install_ros2 () 
 { 
@@ -4529,19 +5035,73 @@ debian_50_sbom_ros2 ()
     ensure_sbom_format pkg-list ros-$ros_distro-desktop ros-dev-tools;
     ensure_sbom_format apt-repository universe
 }
+debian_55_install_cdi () 
+{ 
+    configure_cdi;
+    if verify_cdi && [[ " $* " = *" --reinstall "* ]]; then
+        echo "CDI scripts are installed" 1>&2;
+    else
+        ensure_sudo mkdir -p "$cdi_path";
+        ensure_git_export "$workspace" "$version" "$repository" infrastructure/installation-scripts/cdi;
+        echo "@@STEP Building cdi generators";
+        cd "$workspace"/infrastructure/installation-scripts;
+        ensure_sudo ./cdi/build-gpu-generator.sh;
+        ensure_sudo install -m 755 cdi/intel-cdi-specs-generator-gpu /opt/edge/scripts/cdi/intel-cdi-specs-generator-gpu;
+        ensure_sudo install -m 755 cdi/intel-cdi-npu-generator.sh /opt/edge/scripts/cdi/intel-cdi-npu-generator.sh;
+        if [ -f "$docker_config" ] && ! grep -q '"cdi"' "$docker_config" 2> /dev/null; then
+            cp -f "$docker_config" "$workspace/${docker_config##*/}.bak";
+            ensure_sudo python3 -c "
+import json
+f = open('$docker_config')
+config = json.load(f)
+f.close()
+config.setdefault('features', {})['cdi'] = True
+config.setdefault('cdi-spec-dirs', [])
+if '/etc/cdi' not in config['cdi-spec-dirs']: config['cdi-spec-dirs'].append('/etc/cdi')
+f = open('$docker_config', 'w')
+json.dump(config, f, indent=2)
+f.close()
+" 2> /dev/null || { 
+                echo "Could not configure Docker for CDI" 1>&2;
+                return 1
+            };
+            ensure_sudo systemctl restart docker || true;
+        fi;
+        ensure_sudo cdi/systemd/install-systemd.sh;
+    fi
+}
 debian_55_install_realsense () 
 { 
-    configure_realsense;
-    if verify_realsense && [[ " $* " != *" --reinstall "* ]]; then
-        echo "RealSense SDK is installed." 1>&2;
+    configure_realsense "$@";
+    ensure_prop create installed/realsense/packages/;
+    migrate_ownership_realsense;
+    if ensure_apt_is_installed "${rs_packages[@]}" && [[ " $* " != *" --reinstall "* ]]; then
+        echo "RealSense packages are installed." 1>&2;
     else
-        ensure_prop set installed/realsense/owned true;
-        ensure_sudo mkdir -p /etc/apt/keyrings;
-        ensure_apt_key $rs_key_file $rs_key_url --dearmor;
-        ensure_apt_source $rs_list "$rs_deb_entry";
+        local package;
+        for package in "${rs_packages[@]}";
+        do
+            if ! ensure_apt_is_installed "$package"; then
+                ensure_prop set "installed/realsense/packages/$package" true;
+            fi;
+        done;
+        echo "@@STEP Configuring Apt";
+        local repo_file;
+        ensure_prop create installed/realsense/repositories/;
+        for repo_file in "$eci_key_file" "$eci_repo_list_file" "$rs_key_file" "$rs_list";
+        do
+            if [ ! -e "$repo_file" ] && [ ! -L "$repo_file" ]; then
+                ensure_prop set "installed/realsense/repositories/${repo_file##*/}" true;
+            fi;
+        done;
+        ensure_apt_key "$eci_key_file" "$eci_key_url" --dearmor;
+        ensure_apt_source "$eci_repo_list_file" "$eci_repo_list";
+        ensure_apt_key "$rs_key_file" "$rs_key_url" --dearmor;
+        ensure_apt_source "$rs_list" "$rs_deb_entry";
         ensure_apt update -y;
-        ensure_apt install -y --allow-downgrades ros-$ros_distro-librealsense2;
-        ensure_apt install -y librealsense2-dkms librealsense2;
+        echo "@@STEP Installing RealSense packages";
+        ensure_apt install -y --no-install-recommends "${rs_packages[@]}";
+        verify_realsense "$@";
     fi
 }
 debian_55_install_ros_openvino () 
@@ -4573,25 +5133,58 @@ debian_55_install_ros_openvino ()
     echo "@@HIGHLIGHT OpenVINO $ov_version + ros-$ros_distro-openvino-node installed";
     echo "@@HIGHLIGHT If the OpenVINO IR models were not installed, reinstall ros-$ros_distro-openvino-node interactively and answer Yes"
 }
+debian_55_profile_cdi () 
+{ 
+    echo "git golang python3_venv docker_io"
+}
 debian_55_profile_realsense () 
 { 
-    echo "curl gnupg ros2"
+    echo "curl gnupg";
+    if [ "$1" = bootstrap ] || [[ " $* " = *" ros2 "* || " $* " = *" edge_base_robotics "* ]]; then
+        echo "ros2";
+    fi
 }
 debian_55_profile_ros_openvino () 
 { 
     echo "curl gnupg ros2 libze1 debconf_utils";
     [[ " $* " = *" --realtime "* ]] || echo "edge_base"
 }
+debian_55_remove_cdi () 
+{ 
+    configure_cdi;
+    [ "$(ensure_prop get installed/cdi/owned)" = "true" ] || return 0;
+    if [ -e "$workspace"/${docker_config##*/}.bak ]; then
+        ensure_sudo cp -f "$workspace"/${docker_config##*/}.bak "$docker_config";
+        ensure_sudo systemctl restart docker || true;
+    fi;
+    cd "$workspace"/infrastructure/installation-scripts && { 
+        ensure_sudo cdi/systemd/install-sysetmd.sh --uninstall
+    } || true;
+    ensure_rm "$workspace" "$cdi_path"
+}
 debian_55_remove_realsense () 
 { 
-    [ "$(ensure_prop get installed/realsense/owned)" = "true" ] || return 0;
     configure_realsense;
-    if verify_realsense; then
-        ensure_apt purge --auto-remove -y librealsense2 librealsense2-dkms ros-$ros_distro-librealsense2 || true;
-        ensure_rm "$rs_key_file" "$rs_list";
-    else
-        echo "RealSense SDK already removed. Skipping";
-    fi
+    ensure_prop create installed/realsense/packages/;
+    migrate_ownership_realsense;
+    local package owned_packages=();
+    for package in "${rs_packages[@]}" ros-humble-librealsense2 ros-jazzy-librealsense2;
+    do
+        if [ "$(ensure_prop get "installed/realsense/packages/$package")" = true ]; then
+            owned_packages+=("$package");
+        fi;
+    done;
+    if [ ${#owned_packages[@]} -gt 0 ]; then
+        ensure_apt purge -y "${owned_packages[@]}" || return $?;
+    fi;
+    local repo_file;
+    for repo_file in "$eci_repo_list_file" "$rs_list" "$eci_key_file" "$rs_key_file";
+    do
+        if [ "$(ensure_prop get "installed/realsense/repositories/${repo_file##*/}")" = true ]; then
+            ensure_rm "$repo_file" || return $?;
+            ensure_prop remove "installed/realsense/repositories/${repo_file##*/}";
+        fi;
+    done
 }
 debian_55_remove_ros_openvino () 
 { 
@@ -4607,12 +5200,18 @@ debian_55_remove_ros_openvino ()
 debian_55_sbom_realsense () 
 { 
     configure_realsense "$@";
+    ensure_sbom_format name "$eci_repo_name";
+    ensure_sbom_format gpg-key "$eci_key_url";
+    ensure_sbom_format key-file "$eci_key_file";
+    ensure_sbom_format apt-source "$eci_repo_list";
+    ensure_sbom_format apt-list-file "$eci_repo_list_file";
+    echo "---";
     ensure_sbom_format name "$rs_repo_name";
     ensure_sbom_format gpg-key "$rs_key_url";
     ensure_sbom_format key-file "$rs_key_file";
     ensure_sbom_format apt-source "$rs_deb_entry";
     ensure_sbom_format apt-list-file "$rs_list";
-    ensure_sbom_format pkg-list ros-$ros_distro-librealsense2 librealsense2-dkms librealsense2
+    ensure_sbom_format pkg-list "${rs_packages[@]}"
 }
 debian_55_sbom_ros_openvino () 
 { 
@@ -4636,18 +5235,6 @@ debian_55_sbom_ros_openvino ()
     ensure_sbom_format apt-pref "${ov_deb_pref[@]}";
     echo "---";
     ensure_sbom_format pkg-list curl gnupg
-}
-debian_60_install_core_types () 
-{ 
-    if [ -e /etc/core-types ] && [[ " $* " != *" --reinstall "* ]]; then
-        echo "/etc/core-types exists." 1>&2;
-    else
-        ensure_prop set installed/core_types/owned true;
-        local script="https://raw.githubusercontent.com/open-edge-platform/edge-workloads-and-benchmarks/refs/heads/main/utils/obtain_cores.sh";
-        set -o pipefail;
-        ensure_fetch "$script" - | bash | sed -n -E 's/^[[:space:]]*([a-zA-Z0-9_-]+)[[:space:]]*:[[:space:]]*(.*)/\U\1\E=\2/p' | ensure_sudo tee /etc/core-types;
-        echo "@@HIGHLIGHT Core types are detected and written to /etc/core-types";
-    fi
 }
 debian_60_install_edge_node_infrastructure_blueprint () 
 { 
@@ -4682,18 +5269,9 @@ debian_60_install_edge_node_infrastructure_blueprint ()
     echo "@@HIGHLIGHT deployment model: $deployment";
     echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
 }
-debian_60_profile_core_types () 
-{ 
-    [ "$1" != "install" ] || echo "cpuid curl"
-}
 debian_60_profile_edge_node_infrastructure_blueprint () 
 { 
     echo "git make curl docker_io"
-}
-debian_60_remove_core_types () 
-{ 
-    [ "$(ensure_prop get installed/core_types/owned)" = "true" ] || return 0;
-    ensure_rm /etc/core-types
 }
 debian_60_remove_edge_node_infrastructure_blueprint () 
 { 
@@ -4797,7 +5375,7 @@ debian_70_profile_openvino ()
 }
 debian_70_profile_time_confighub () 
 { 
-    echo "libyang git cmake make kernel_module_essential"
+    echo "libyang git cmake make kernel_module_essential python3_venv"
 }
 debian_70_remove_edge_pack_media_ffmpeg () 
 { 
@@ -5048,7 +5626,9 @@ debian_85_stop_video_search_and_summarization ()
     docker rm -f vss-model-download || true;
     cd "$workspace"/sample-applications/video-search-and-summarization && { 
         . ./setup.sh --stop || true;
-        . ./setup.sh --clean-data
+        . ./setup.sh --clean-data || true;
+        docker volume rm -f docker_ov-models || true;
+        docker volume rm -f docker_dataprep-yolox-models
     } || true
 }
 debian_90_install_agentic_predictive_maintenance_pipeline () 
@@ -5152,7 +5732,7 @@ debian_90_install_handheld_multi_modal ()
         echo "handheld_multi_modal is installed." 1>&2;
     else
         ensure_disk_size 45000;
-        ensure_ports_open install_handheld_multi_modal "${used_ports[@]}";
+        ensure_ports_open install handheld_multi_modal "${used_ports[@]}";
         ensure_git_clone "$workspace" $version $repository handheld-multi-modal;
         cd "$workspace"/handheld-multi-modal;
         make setup;
@@ -5341,6 +5921,8 @@ debian_90_install_loss_prevention ()
         echo "Loss prevention is installed." 1>&2;
     else
         ensure_disk_size 15000;
+        ensure_ports_open install loss_prevention "${used_ports[@]}";
+        echo "@@STEP Clonging repository";
         ensure_git_clone "$workspace" $version $repository;
         pushd "$workspace" > /dev/null;
         cat > src/.env <<EOF
@@ -5364,7 +5946,9 @@ LOCAL_UID=$(id -u)
 LOCAL_GID=$(id -g)
 EOF
 
+        echo "@@STEP Building benchmark";
         make build-benchmark;
+        echo "@@STEP Creating venv";
         ( cd performance-tools/benchmark-scripts;
         python3 -m venv venv;
         . venv/bin/activate;
@@ -5586,7 +6170,7 @@ debian_90_install_physical_ai_studio ()
         echo "Physical AI Studio is installed." 1>&2;
     else
         ensure_disk_size 20000;
-        ensure_ports_open install physical_ai_studio "$pais_port";
+        ensure_ports_open install physical_ai_studio "${used_ports[@]}";
         debian_90_stop_physical_ai_studio "$@" || true;
         ensure_rm "$pais_device_file";
         echo "Installing ${pais_pkg}[${pais_extra}]==${pais_version} (PyTorch ${pais_extra} build; this may take a while)...";
@@ -5614,6 +6198,7 @@ debian_90_install_post_fusion ()
         ensure_git_export "$workspace" "$version" "$repository" sensor-fusion-for-traffic-management/post-fusion;
         cd "$workspace"/sensor-fusion-for-traffic-management/post-fusion;
         sed -i -e "s|^numOfProcess=.*|numOfProcess=$inputs|" -e "s|^maxConcurrentWorkload=.*|maxConcurrentWorklod=$inputs|" ai_inference/source/low_latency_server/AiInference.config;
+        sed -i "s|^RUN git clone https://github.com/oneapi-src/level-zero.git|RUN git clone --depth 1 --branch v1.24.2 https://github.com/oneapi-src/level-zero.git|" docker/Dockerfile_TFCC.dockerfile;
         cat > docker/.env <<EOF
 VIDEO_GROUP_ID=$(getent group video | cut -f3 -d: || echo 44)
 RENDER_GROUP_ID=$(getent group render | cut -f3 -d: || echo 992)
@@ -5728,7 +6313,9 @@ debian_90_install_smart_nvr ()
     else
         ensure_disk_size 3000;
         ensure_ports_open install smart_nvr "${used_ports[@]}";
+        echo "@@STEP Clonging repository";
         ensure_git_export "$workspace" "$version" "$repository" smart-nvr metro-vision-ai-app-recipe;
+        sed -i "s|^load_si_rtsp_from_brokers$||" "$workspace"/smart-nvr/setup.sh;
     fi;
     echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
     echo "@@HIGHLIGHT $installer_name start|remove"
@@ -5792,6 +6379,7 @@ debian_90_install_stationary_robot_vision ()
         ensure_disk_size 15000;
         ensure_prop set installed/stationary_robot_vision/owned true;
         ensure_oneapi_ros_openvino;
+        ensure_apt_preference "$rvc_ffmpeg_pref_file" "${rvc_ffmpeg_pref[@]}";
         ensure_apt update -y;
         ensure_osrf_gazebo_ros2;
         ensure_apt install -y "${rvc_pkgs[@]}" || { 
@@ -5863,7 +6451,7 @@ debian_90_install_take_away ()
 debian_90_install_uav_mission_compute_sdk () 
 { 
     configure_uav_mission_compute_sdk;
-    if verify_uav_mission_compute_sdk && [[ " $* " != *" --reinstall "* ]]; then
+    if verify_uav_mission_compute_sdk 2> /dev/null && [[ " $* " != *" --reinstall "* ]]; then
         echo "UAV mission compute sdk is installed." 1>&2;
     else
         ensure_ports_open install uav_mission_compute_sdk "${used_ports[@]}";
@@ -5873,10 +6461,15 @@ debian_90_install_uav_mission_compute_sdk ()
         cd "$workspace"/uav-mission-compute-sdk;
         make init;
         sed -i "s|^HOST_IP=.*$|HOST_IP=$(ensure_ip)|" .env;
-        make build;
+        COMPOSE_PROFILES=sim-camera,usb-camera,observability make build;
+        if ! verify_uav_mission_compute_sdk; then
+            echo "UAV SDK build completed, but required simulation, camera, or application images are missing." 1>&2;
+            return 1;
+        fi;
+    fi;
+    if [ ! -r "$HOME/.agents/skills/uav-mission-compute-sdk/SKILL.md" ]; then
         echo "@@STEP Installing skills";
         ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}";
-        verify_uav_mission_compute_sdk;
     fi;
     local profile="sim-camera";
     [[ " $* " != *" --sim "* ]] || profile="sim-camera";
@@ -6042,7 +6635,7 @@ debian_90_profile_geti ()
 }
 debian_90_profile_handheld_multi_modal () 
 { 
-    echo "yq make curl git docker_io edge_base edge_node_infrastructure_blueprint"
+    echo "yq make curl git docker_io edge_base handheld_platform"
 }
 debian_90_profile_humanoid_imitation_learning () 
 { 
@@ -6150,7 +6743,7 @@ debian_90_profile_take_away ()
 }
 debian_90_profile_uav_mission_compute_sdk () 
 { 
-    echo "docker_io git curl make v4l_utils edge_node_infrastructure_blueprint"
+    echo "docker_io git curl make v4l_utils uav_platform"
 }
 debian_90_profile_video_processing_for_nvr () 
 { 
@@ -6254,7 +6847,7 @@ debian_90_remove_loitering_detection ()
 debian_90_remove_loss_prevention () 
 { 
     configure_loss_prevention;
-    cd "$workspace" && make down-lp || true;
+    debian_90_stop_loss_prevention "$@";
     ensure_rm "$workspace"
 }
 debian_90_remove_multi_modal_patient_monitoring () 
@@ -6320,7 +6913,6 @@ debian_90_remove_smart_intersection ()
 debian_90_remove_smart_kiosk_assistant () 
 { 
     debian_90_stop_smart_kiosk_assistant "$@";
-    cd "$workspace"/smart-kiosk-assistant && make clean || true;
     ensure_rm "$workspace"
 }
 debian_90_remove_smart_nvr () 
@@ -6344,12 +6936,13 @@ debian_90_remove_stationary_robot_vision ()
     [ "$(ensure_prop get installed/stationary_robot_vision/owned)" = "true" ] || return 0;
     configure_stationary_robot_vision;
     if ensure_apt_is_installed ros-$ros_distro-rvc-simulation || ensure_apt_is_installed ros-$ros_distro-rvc; then
-        ensure_apt purge --auto-remove -y ros-$ros_distro-rvc-simulation ros-$ros_distro-rvc ros-$ros_distro-robot-config ros-$ros_distro-robot-config-plugins || true;
+        ensure_apt purge --auto-remove -y ros-$ros_distro-rvc-simulation ros-$ros_distro-rvc ros-$ros_distro-robot-config ros-$ros_distro-robot-config-plugins;
         verify_robotics_in_use_ros_openvino || remove_osrf_gazebo_ros2;
         remove_oneapi_ros_openvino;
     else
         echo "Stationary Robot Vision & Control already removed. Skipping";
-    fi
+    fi;
+    ensure_rm "$rvc_ffmpeg_pref_file"
 }
 debian_90_remove_surgical_instrument () 
 { 
@@ -6414,6 +7007,9 @@ debian_90_sbom_stationary_robot_vision ()
     echo "---";
     sbom_osrf_gazebo_ros2;
     echo "---";
+    ensure_sbom_format apt-pref "${rvc_ffmpeg_pref[@]}";
+    ensure_sbom_format apt-pref-file "$rvc_ffmpeg_pref_file";
+    echo "---";
     ensure_sbom_format pkg-list "${rvc_pkgs[@]}"
 }
 debian_90_start_agentic_predictive_maintenance_pipeline () 
@@ -6457,8 +7053,8 @@ debian_90_start_geti ()
 }
 debian_90_start_handheld_multi_modal () 
 { 
-    ensure_ports_open start handheld_multi_modal "${used_ports[@]}";
     configure_handheld_multi_modal;
+    ensure_ports_open start handheld_multi_modal "${used_ports[@]}";
     cd "$workspace"/handheld-multi-modal;
     make deploy;
     echo "@@HIGHLIGHT URL: https://$(ensure_ip):${used_ports[0]}";
@@ -6552,6 +7148,7 @@ debian_90_start_loitering_detection ()
 debian_90_start_loss_prevention () 
 { 
     configure_loss_prevention;
+    ensure_ports_open start loss_prevention "${used_ports[@]}";
     cd "$workspace";
     local device1=$(ensure_select_device "$@");
     local device2=$(grep -m1 -E '^TARGET_DEVICE [?]=' Makefile | cut -f2 -d= | tr -d ' ');
@@ -6729,7 +7326,7 @@ debian_90_start_pcb_anomaly_detection ()
 debian_90_start_physical_ai_studio () 
 { 
     configure_physical_ai_studio;
-    ensure_ports_open start physical_ai_studio "$pais_port";
+    ensure_ports_open start physical_ai_studio "${used_ports[@]}";
     if [ ! -x "$pais_bin" ]; then
         echo "Physical AI Studio is not installed. Run 'install physical_ai_studio' first." 1>&2;
         return 3;
@@ -6741,7 +7338,7 @@ debian_90_start_physical_ai_studio ()
         fd=${fd##*/};
         (( fd > 2 )) && eval "exec $fd>&-";
     done 2> /dev/null;
-    exec setsid nohup "$pais_bin" serve --port "$pais_port" > "$pais_log_file" 2>&1 < /dev/null ) & echo $! > "$pais_pid_file";
+    exec setsid nohup "$pais_bin" serve --port "${used_ports[0]}" > "$pais_log_file" 2>&1 < /dev/null ) & echo $! > "$pais_pid_file";
     disown $! 2> /dev/null || true;
     local pid i ready=0;
     pid="$(cat "$pais_pid_file")";
@@ -6752,17 +7349,17 @@ debian_90_start_physical_ai_studio ()
             rm -f "$pais_pid_file";
             return 3;
         fi;
-        curl -s -o /dev/null --max-time 2 "http://127.0.0.1:$pais_port/" && { 
+        curl -s -o /dev/null --max-time 2 "http://127.0.0.1:${used_ports[0]}/" && { 
             ready=1;
             break
         };
         sleep 2;
     done;
     if [ $ready -eq 0 ]; then
-        echo "Physical AI Studio did not respond on port $pais_port yet. See $pais_log_file" 1>&2;
+        echo "Physical AI Studio did not respond on port ${used_ports[0]} yet. See $pais_log_file" 1>&2;
     fi;
     echo "@@HIGHLIGHT Physical AI Studio started (PID $(cat "$pais_pid_file"))";
-    echo "@@HIGHLIGHT URL: http://localhost:$pais_port";
+    echo "@@HIGHLIGHT URL: http://localhost:${used_ports[0]}";
     echo "@@HIGHLIGHT logs @$pais_log_file";
     echo "@@HIGHLIGHT $installer_name stop|remove"
 }
@@ -7102,6 +7699,15 @@ debian_90_stop_loitering_detection ()
     ./sample_stop.sh || true;
     docker compose -f compose-without-scenescape.yml down -v --remove-orphans || true
 }
+debian_90_stop_loss_prevention () 
+{ 
+    configure_loss_prevention;
+    cd "$workspace" && { 
+        make down-lp || true;
+        cd src && docker compose down -v --remove-orphans || true;
+        pkill -f "python3 benchmark.py"
+    } || true
+}
 debian_90_stop_multi_modal_patient_monitoring () 
 { 
     configure_multi_modal_patient_monitoring;
@@ -7181,6 +7787,7 @@ debian_90_stop_smart_kiosk_assistant ()
     configure_smart_kiosk_assistant;
     cd "$workspace"/smart-kiosk-assistant && { 
         make down || true;
+        make clean || true;
         docker volume rm -f smart-kiosk-assistant_identity_data
     } || true
 }
@@ -7273,9 +7880,40 @@ debian_99_profile_edge_base ()
         ;;
     esac
 }
-debian_99_profile_federal_and_aerospace_ai_suite () 
+debian_99_profile_federal_and_aerospace_ai_suite_handheld () 
 { 
-    [ "$1" = "start" ] || echo "edge_node_infrastructure_blueprint handheld_multi_modal uav_mission_compute_sdk"
+    [ "$1" = "start" ] || echo "handheld_platform handheld_multi_modal"
+}
+debian_99_profile_federal_and_aerospace_ai_suite_uav () 
+{ 
+    [ "$1" = "start" ] || echo "uav_platform uav_mission_compute_sdk"
+}
+debian_99_profile_handheld_platform () 
+{ 
+    case "$1" in 
+        bootstrap)
+            echo "core_types system_inspection system_summary edge_pack_base_standard edge_pack_npu gpu_accel npu_accel power_tuning system_info docker_io k3s_io"
+        ;;
+        *)
+            local modules=(core_types system_inspection system_summary power_tuning system_info cdi realsense chrony);
+            if [[ " $* " = *" --k3s "* ]]; then
+                if [[ " $* " = *" handheld_multi_modal "* ]]; then
+                    echo "K3s is not supported with handheld_multi_modal (both use TCP port 6443)." 1>&2;
+                    modules+=(docker_io);
+                else
+                    modules+=(k3s_io);
+                fi;
+            else
+                modules+=(docker_io);
+            fi;
+            if [[ " $* " = *" --edgepack "* ]]; then
+                modules+=(edge_pack_base_standard edge_pack_npu);
+            else
+                modules+=(gpu_accel npu_accel);
+            fi;
+            echo "${modules[*]}"
+        ;;
+    esac
 }
 debian_99_profile_health_and_life_science_ai_suite () 
 { 
@@ -7308,6 +7946,10 @@ debian_99_profile_system_summary ()
 { 
     [ "$1" != "bootstrap" ] || echo "system_inspection curl dmidecode pciutils";
     [ "$1" != "install" ] || echo "curl dmidecode pciutils"
+}
+debian_99_profile_uav_platform () 
+{ 
+    echo "handheld_platform ubuntu_server"
 }
 ensure_apt () 
 { 
@@ -7836,7 +8478,7 @@ ensure_sbom_format ()
     local key=$1;
     shift;
     case "$key" in 
-        pkg-list | apt-pref | yum-repo-conf)
+        pkg-list | apt-pref | yum-repo-conf | kernel-args | module-list)
             local IFS='|';
             local pkg_str="$*";
             echo "\"$key\": [\"${pkg_str//'|'/\",\"}\"]"
@@ -7893,25 +8535,27 @@ ensure_sudo ()
     [ -z "$hp" ] || proxy_args+=("http_proxy=$hp" "HTTP_PROXY=$hp");
     [ -z "$sp" ] || proxy_args+=("https_proxy=$sp" "HTTPS_PROXY=$sp");
     [ -z "$np" ] || proxy_args+=("no_proxy=$np" "NO_PROXY=$np");
-    if [ -e /dev/tty ] && : < /dev/tty 2> /dev/null; then
-        local ppid=$$;
-        local pid="$(ensure_prop get pids/sudo/pid$ppid)";
-        if [ -z "$pid" ] || ! kill -0 "$pid" 2> /dev/null; then
-            ( set +e;
-            trap - ERR EXIT INT TERM;
-            for fd in /proc/$BASHPID/fd/*;
-            do
-                fd=${fd##*/};
-                (( fd > 2 )) && eval "exec $fd>&-";
-            done 2> /dev/null;
-            while kill -0 $ppid 2> /dev/null; do
-                sudo -n -v < /dev/null > /dev/null 2>&1 || sudo -n true < /dev/null > /dev/null 2>&1 || break;
-                sleep 60;
-            done;
-            ensure_prop remove pids/sudo/pid$ppid ) < /dev/null > /dev/null 2>&1 & pid=$!;
-            ensure_prop create pids/sudo/pid$ppid;
-            ensure_prop set pids/sudo/pid$ppid "$pid";
-            disown $pid;
+    if [ -e /dev/tty ]; then
+        if : < /dev/tty 2> /dev/null; then
+            local ppid=$$;
+            local pid="$(ensure_prop get pids/sudo/pid$ppid)";
+            if [ -z "$pid" ] || ! kill -0 "$pid" 2> /dev/null; then
+                ( set +e;
+                trap - ERR EXIT INT TERM;
+                for fd in /proc/$BASHPID/fd/*;
+                do
+                    fd=${fd##*/};
+                    (( fd > 2 )) && eval "exec $fd>&-";
+                done 2> /dev/null;
+                while kill -0 $ppid 2> /dev/null; do
+                    sudo -n -v < /dev/null > /dev/null 2>&1 || sudo -n true < /dev/null > /dev/null 2>&1 || break;
+                    sleep 60;
+                done;
+                ensure_prop remove pids/sudo/pid$ppid ) < /dev/null > /dev/null 2>&1 & pid=$!;
+                ensure_prop create pids/sudo/pid$ppid;
+                ensure_prop set pids/sudo/pid$ppid "$pid";
+                disown $pid;
+            fi;
         fi;
     fi;
     if sudo -n true 2> /dev/null; then
@@ -8093,6 +8737,25 @@ install_system_inspection ()
     echo "----------------------------------------------------------------";
     [ "$net_pass" = "$ok" ] ) | ensure_columns
 }
+migrate_ownership_realsense () 
+{ 
+    local package;
+    local legacy_packages=();
+    if [ "$(ensure_prop get installed/realsense/owned)" = true ] || [ "$(ensure_prop get installed/realsense_fedaero/owned)" = true ]; then
+        legacy_packages+=(librealsense2 librealsense2-dkms librealsense2-utils librealsense2-dev librealsense2-gl);
+    fi;
+    if [ "$(ensure_prop get installed/realsense_robotics/owned)" = true ]; then
+        legacy_packages+=(librealsense2 librealsense2-dkms ros-humble-librealsense2 ros-jazzy-librealsense2);
+    fi;
+    for package in "${legacy_packages[@]}";
+    do
+        ensure_apt_is_installed "$package" || continue;
+        ensure_prop set "installed/realsense/packages/$package" true;
+    done;
+    ensure_prop remove installed/realsense/owned;
+    ensure_prop remove installed/realsense_fedaero/;
+    ensure_prop remove installed/realsense_robotics/
+}
 remove_geti () 
 { 
     stop_geti "$@";
@@ -8212,104 +8875,165 @@ subcommand_install ()
 }
 subcommand_list () 
 { 
-    case " $* " in 
-        *" --help "*)
-            echo "list options:";
-            echo "  --sbom          show component SBOM items";
-            echo
-        ;;
-        *" --sbom "*)
-            if [ ${#*} -eq 1 ]; then
-                act_get prefix profile_;
-                local all_profiles=(${_act_reply[*]});
-                local all_modules=(${_act_cache_modules[*]});
-                set -- ${all_modules[*]} ${all_profiles[*]#*_*_*_};
-            fi;
-            local handles=($(act_find_deps install $(act_resolve_args install "$@")));
-            local all_install_modules="${handles[*]#${installer_family}_*_install_}";
-            local handler sbomer;
-            for handler in $(printf '%s\n' "${handles[@]}" | sort);
-            do
-                sbomer=${handler/_install_/_sbom_};
-                declare -F $sbomer > /dev/null 2>&1 || continue;
-                $sbomer $(act_extract_args sbom ${handler#*_*_*_} "$all_install_modules" "$@");
-                echo "---";
-            done
-        ;;
-        *)
-            local all_cmds=(${_act_cache_cmds[*]});
-            act_get prefix profile_;
-            local all_profiles=(${_act_reply[*]});
-            local all_modules=(${_act_cache_modules[*]});
-            local profile_lines=() module_lines=();
-            local -A module_act_cache=();
-            if [ ${#all_modules[@]} -gt 0 ]; then
-                local module_name;
-                for module_name in "${all_modules[@]}";
-                do
-                    [ ${#*} -eq 0 ] || [[ " $* " = *" $module_name "* ]] || continue;
-                    local module_cmds=() mname cmd;
-                    for cmd in ${all_cmds[*]};
-                    do
-                        for mname in $(act_expand_modules $cmd $module_name "$@");
-                        do
-                            if [[ -v _act_cache_functions[${cmd}_${mname}] ]]; then
-                                module_cmds+=($cmd);
-                                break;
-                            fi;
-                        done;
-                    done;
-                    module_act_cache[$module_name]="${module_cmds[*]}";
-                    module_lines+=("|$module_name|[${module_act_cache[$module_name]}]");
-                done;
-            fi;
-            if [ ${#all_profiles[@]} -gt 0 ]; then
-                local profiler;
-                for profiler in "${all_profiles[@]}";
-                do
-                    local profile_name=${profiler#*_*_*_};
-                    [ ${#*} -eq 0 ] || [[ " $* " = *" $profile_name "* ]] || continue;
-                    [[ " ${all_modules[*]} " != *" $profile_name "* ]] || continue;
-                    local profile_cmds=() mname1 mname2 cmd found;
-                    for cmd in ${all_cmds[*]};
-                    do
-                        for mname1 in $($profiler $cmd "$@");
-                        do
-                            if [[ " ${module_act_cache[$mname1]:-} " = *" $cmd "* ]]; then
-                                profile_cmds+=($cmd);
-                                break;
-                            fi;
-                            found=0;
-                            for mname2 in $(act_expand_modules $cmd $mname1 "$@");
-                            do
-                                if [[ -v _act_cache_functions[${cmd}_${mname2}] ]]; then
-                                    found=1;
-                                    break;
-                                fi;
-                            done;
-                            if [ $found -eq 1 ]; then
-                                profile_cmds+=($cmd);
-                                break;
-                            fi;
-                        done;
-                    done;
-                    profile_lines+=("|$profile_name|[${profile_cmds[*]}]");
-                done;
-            fi;
-            { 
-                if [ ${#profile_lines[@]} -gt 0 ]; then
-                    printf "List of Profiles:\n";
-                    printf "%s\n" "${profile_lines[@]}" | sort;
-                    printf "\n";
-                fi;
-                if [ ${#module_lines[@]} -gt 0 ]; then
-                    printf "List of Components:\n";
-                    printf "%s\n" "${module_lines[@]}" | sort;
-                    printf "\n";
+    act_get prefix profile_;
+    local all_profiles=(${_act_reply[*]});
+    local all_modules=(${_act_cache_modules[*]});
+    local all_list=" ${all_modules[*]} ${all_profiles[*]#*_*_*_} ";
+    local k v sbom=0 args=() margs=() os_release="";
+    for v in "$@";
+    do
+        case "$v" in 
+            --help)
+                echo "list options:";
+                echo "  --os-release=<file> import an os-release file";
+                echo "  --sbom              show component SBOM items";
+                echo;
+                return 0
+            ;;
+            --os-release=*)
+                os_release="${v#*=}"
+            ;;
+            --sbom)
+                sbom=1
+            ;;
+            --os-release)
+
+            ;;
+            *)
+                if [ "$last_v" = "--os-release" ]; then
+                    os_release="$v";
+                else
+                    [[ " $all_list " != *" $v "* ]] || margs+=("$v");
+                    args+=("$v");
                 fi
-            } | ensure_columns
-        ;;
-    esac
+            ;;
+        esac;
+        last_v="$v";
+    done;
+    if [ -n "$os_release" ]; then
+        if [ -f "$os_release" ] && [ -r "$os_release" ]; then
+            local -A data=();
+            while read -r v; do
+                case "$v" in 
+                    PRETTY_NAME=* | NAME=* | VERSION_ID=* | VERSION=* | VERSION_CODENAME=* | ID=* | ID_LIKE=* | UBUNTU_CODENAME=*)
+                        k="${v%%=*}";
+                        v="${v#*=}";
+                        [[ "$v" = '"'*'"' ]] && { 
+                            v="${v#'"'}";
+                            v="${v%'"'}"
+                        };
+                        [[ "$v" = "'"*"'" ]] && { 
+                            v="${v#"'"}";
+                            v="${v%"'"}"
+                        };
+                        data["$k"]="$v"
+                    ;;
+                esac;
+            done < "$os_release";
+            PRETTY_NAME="${data["PRETTY_NAME"]:-"$PRETTY_NAME"}";
+            NAME="${data["NAME"]:-"$NAME"}";
+            VERSION_ID="${data["VERSION_ID"]:-"$VERSION_ID"}";
+            VERSION="${data["VERSION"]:-"$VERSION"}";
+            VERSION_CODENAME="${data["VERSION_CODENAME"]:-"$VERSION_CODENAME"}";
+            ID="${data["ID"]:-"$ID"}";
+            ID_LIKE="${data["ID_LIKE"]:-"$ID_LIKE"}";
+            UBUNTU_CODENAME="${data["UBUNTU_CODENAME"]:-"$UBUNTU_CODENAME"}";
+            installer_family="$(x="${ID_LIKE:-$ID}"; x="${x##* }"; echo "${x//[^a-zA-Z0-9]/}")";
+        else
+            echo "Invalid $os_release" 1>&2;
+            return 3;
+        fi;
+    fi;
+    [ ${#args[*]} -eq 0 ] && set -- $all_list || set -- "${args[@]}";
+    if [ $sbom -eq 1 ]; then
+        local handles=($(act_find_deps install $(act_resolve_args install "$@")));
+        if [ ${#handles[*]} -eq 0 ]; then
+            echo "No installable components from ${margs[*]}" 1>&2;
+            return 3;
+        fi;
+        local all_install_modules="${handles[*]#${installer_family}_*_install_}";
+        echo "\"schema-version\": 1.0";
+        echo "\"version\": \"main\"";
+        ensure_sbom_format module-list "${margs[@]}";
+        echo "---";
+        local handler sbomer;
+        for handler in $(printf '%s\n' "${handles[@]}" | sort);
+        do
+            sbomer=${handler/_install_/_sbom_};
+            declare -F $sbomer > /dev/null 2>&1 || continue;
+            $sbomer $(act_extract_args sbom ${handler#*_*_*_} "$all_install_modules" "$@");
+            echo "---";
+        done;
+    else
+        local all_cmds=(${_act_cache_cmds[*]});
+        local profile_lines=() module_lines=();
+        local -A module_act_cache=();
+        if [ ${#all_modules[@]} -gt 0 ]; then
+            local module_name;
+            for module_name in "${all_modules[@]}";
+            do
+                [ ${#*} -eq 0 ] || [[ " $* " = *" $module_name "* ]] || continue;
+                local module_cmds=() mname cmd;
+                for cmd in ${all_cmds[*]};
+                do
+                    for mname in $(act_expand_modules $cmd $module_name "$@");
+                    do
+                        if [[ -v _act_cache_functions[${cmd}_${mname}] ]]; then
+                            module_cmds+=($cmd);
+                            break;
+                        fi;
+                    done;
+                done;
+                module_act_cache[$module_name]="${module_cmds[*]}";
+                module_lines+=("|$module_name|[${module_act_cache[$module_name]}]");
+            done;
+        fi;
+        if [ ${#all_profiles[@]} -gt 0 ]; then
+            local profiler;
+            for profiler in "${all_profiles[@]}";
+            do
+                local profile_name=${profiler#*_*_*_};
+                [ ${#*} -eq 0 ] || [[ " $* " = *" $profile_name "* ]] || continue;
+                [[ " ${all_modules[*]} " != *" $profile_name "* ]] || continue;
+                local profile_cmds=() mname1 mname2 cmd found;
+                for cmd in ${all_cmds[*]};
+                do
+                    for mname1 in $($profiler $cmd "$@");
+                    do
+                        if [[ " ${module_act_cache[$mname1]:-} " = *" $cmd "* ]]; then
+                            profile_cmds+=($cmd);
+                            break;
+                        fi;
+                        found=0;
+                        for mname2 in $(act_expand_modules $cmd $mname1 "$@");
+                        do
+                            if [[ -v _act_cache_functions[${cmd}_${mname2}] ]]; then
+                                found=1;
+                                break;
+                            fi;
+                        done;
+                        if [ $found -eq 1 ]; then
+                            profile_cmds+=($cmd);
+                            break;
+                        fi;
+                    done;
+                done;
+                profile_lines+=("|$profile_name|[${profile_cmds[*]}]");
+            done;
+        fi;
+        { 
+            if [ ${#profile_lines[@]} -gt 0 ]; then
+                printf "List of Profiles:\n";
+                printf "%s\n" "${profile_lines[@]}" | sort;
+                printf "\n";
+            fi;
+            if [ ${#module_lines[@]} -gt 0 ]; then
+                printf "List of Components:\n";
+                printf "%s\n" "${module_lines[@]}" | sort;
+                printf "\n";
+            fi
+        } | ensure_columns;
+    fi
 }
 subcommand_remove () 
 { 
@@ -8351,8 +9075,8 @@ subcommand_resume ()
 subcommand_setup () 
 { 
     [[ " $* " != *" --help "* ]] || return;
-    local installer_misc_functions=(system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary test_anomalib test_dlstreamer_pipeline test_openvino uninstall_k3s_edge_node_infrastructure_blueprint);
-    local installer_completion_text="IyEvYmluL2Jhc2gKX29wZW5lZGdlX2NsaV9jb21wbGV0aW9uICgpIHsKICBpZiAoKCBDT01QX0NXT1JEID09IDEgKSk7IHRoZW4KICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICJpbnN0YWxsIHJlbW92ZSByZXN1bWUgc3RhcnQgc3RvcCBsaXN0IHNldHVwIC0taGVscCIgLS0gIiQyIikpCiAgICByZXR1cm4KICBmaQoKICBjYXNlICIke0NPTVBfV09SRFNbMV19IiBpbgogIGluc3RhbGwpCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtyZWJvb3RdPSIiIFtsaXZlX3ZpZGVvX2NhcHRpb25pbmddPSIiIFt0YWtlX2F3YXldPSIiIFtlZGdlX3BhY2tfYmFzZV9yZWFsdGltZV09IiIgW3BjbV09IiIgW3RpbWVfY29uZmlnaHViXT0iIiBbYnVpbGRfZXNzZW50aWFsXT0iIiBbcHl0aG9uM192ZW52XT0iIiBbY2hyb255XT0iIiBbc29mdHdhcmVfcHJvcGVydGllc19jb21tb25dPSIiIFtlZGdlX3BhY2tfZ3JhcGhpY3NfZGlzcGxheV09IiIgW3JlYWxfdGltZV9zY2VuZV91bmRlcnN0YW5kaW5nXT0iIiBbZ2V0aV09IiIgW3JzeW5jXT0iIiBbbGludXhfaW1hZ2VfNi4xOF9pbnRlbF09IiIgW3ZpcHBldF09IiIgW2Nsb3VkX2ltYWdlX3V0aWxzXT0iIiBbZ2l0XT0iIiBbZWRnZV9iYXNlXT0iIiBbbG9zc19wcmV2ZW50aW9uXT0iIiBbZ3B1X2FjY2VsXT0iIiBbcGNiX2Fub21hbHlfZGV0ZWN0aW9uXT0iIiBbY21ha2VdPSIiIFttYW51ZmFjdHVyaW5nX2FpX3N1aXRlXT0iIiBbdjRsX3V0aWxzXT0iIiBbc3lzdGVtX3N1bW1hcnldPSIiIFtnbnVwZ109IiIgW292bWZdPSIiIFtucHVfYWNjZWxdPSIiIFtsaWJnbDFdPSIiIFtzdHJlc3NfbmddPSIiIFtub2RlanNdPSIiIFtkb2NrZXJfY2VdPSIiIFttZW10ZXN0ZXJdPSIiIFstLXJlaW5zdGFsbF09IiIgW2FnZW50aWNfcHJlZGljdGl2ZV9tYWludGVuYW5jZV9waXBlbGluZV09IiIgW2hlYWx0aF9hbmRfbGlmZV9zY2llbmNlX2FpX3N1aXRlXT0iIiBbc3RhdGlvbmFyeV9yb2JvdF92aXNpb25dPSIiIFtydF90ZXN0c109IiIgW3N5c3RlbV9pbnNwZWN0aW9uXT0iIiBbY29tcHV0ZXJfdmlzaW9uXT0iIiBbcGlweF09IiIgW21lZGlhbXR4XT0iIiBbbG9pdGVyaW5nX2RldGVjdGlvbl09IiIgW2VkZ2VfcGFja19tZWRpYV9mZm1wZWddPSIiIFstLXZhbGlkYXRlXT0iIiBbb3BlbnZpbm9dPSIiIFttYWtlXT0iIiBbc21hcnRfdHJhZmZpY19pbnRlcnNlY3Rpb25fYWdlbnRdPSIiIFt1dl09IiIgW3NjZW5lc2NhcGVdPSIiIFtlc3FdPSIiIFthdXRvbm9tb3VzX21vYmlsZV9yb2JvdF09IiIgW2xpdmVfdmlkZW9fYWxlcnRfYWdlbnRdPSIiIFtlZGdlX3BhY2tfYmFzZV9zdGFuZGFyZF09IiIgW3ZpZGVvX3Byb2Nlc3NpbmdfZm9yX252cl09IiIgW3ZpZGVvX3NlYXJjaF9hbmRfc3VtbWFyaXphdGlvbl09IiIgW2RpbmVfaW5dPSIiIFtkb2NrZXJfaW9dPSIiIFtwaHlzaWNhbF9haV9mcmFtZXdvcmtdPSIiIFtydXN0dXBdPSIiIFtyb3Nfb3BlbnZpbm9dPSIiIFtsaWJ0YmIxMl09IiIgW3BhbGxldF9kZWZlY3RfZGV0ZWN0aW9uXT0iIiBbbGl2ZV92aWRlb19zZWFyY2hdPSIiIFtzbWFydF9udnJdPSIiIFtlZGdlX2Jhc2Vfcm9ib3RpY3NdPSIiIFstLWRyeS1ydW5dPSIiIFtxZW11X3V0aWxzXT0iIiBbZWRnZV9wYWNrX2dyYXBoaWNzX2NvcmVdPSIiIFtsaWJjYXAyX2Jpbl09IiIgW2dhd2tdPSIiIFttdWx0aV9tb2RhbF9wYXRpZW50X21vbml0b3JpbmddPSIiIFtsaWJ6ZTFdPSIiIFtmZm1wZWddPSIiIFt1bnppcF09IiIgW3Bvc3RfZnVzaW9uXT0iIiBbZGxzdHJlYW1lcl09IiIgW3Vhdl9taXNzaW9uX2NvbXB1dGVfc2RrXT0iIiBbcm9ib3RpY3NfYWlfc3VpdGVdPSIiIFtlZGdlX3BhY2tfbWVkaWFfZ3N0XT0iIiBbbGludXhfaW1hZ2VfZ2VuZXJpY183LjBdPSIiIFtsaWJwY3JlMl9kZXZdPSIiIFtwaHlzaWNhbF9haV9zdHVkaW9dPSIiIFtyb3MyXT0iIiBbaW5mZXJlbmNpbmddPSIiIFt3Z2V0XT0iIiBbbWV0cm9fYWlfc3VpdGVdPSIiIFtkbWlkZWNvZGVdPSIiIFtuaWN1X3dhcm1lcl09IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV09IiIgW2h1bWFub2lkX2ltaXRhdGlvbl9sZWFybmluZ109IiIgW2tlcm5lbF9tb2R1bGVfZXNzZW50aWFsXT0iIiBbeHB1X3NtaV09IiIgW2NwdWlkXT0iIiBbbHNiX3JlbGVhc2VdPSIiIFtlZGdlX3BhY2tfbWFuYWdlYWJpbGl0eV09IiIgW3N5c2JlbmNoXT0iIiBbYWdlbnRpY19zbWFydF9jb21tdW5pdHldPSIiIFtzdXJnaWNhbF9pbnN0cnVtZW50XT0iIiBbanFdPSIiIFtkZWJjb25mX3V0aWxzXT0iIiBbcGNpdXRpbHNdPSIiIFtpbWFnZV9iYXNlZF92aWRlb19zZWFyY2hdPSIiIFtsaWJ5YW5nXT0iIiBbbGl2ZV92aWRlb19jYXB0aW9uaW5nX3JhZ109IiIgW21zcl90b29sc109IiIgW2Fub21hbGliXT0iIiBbY3VybF09IiIgWy0tY29udGludWVdPSIiIFtzbWFydF9raW9za19hc3Npc3RhbnRdPSIiIFtpbnRlbF9scG1kXT0iIiBbbXVsdGltb2RhbF93ZWxkX2RlZmVjdF9kZXRlY3Rpb25dPSIiIFtjb3JlX3R5cGVzXT0iIiBbaGFuZGhlbGRfbXVsdGlfbW9kYWxdPSIiIFtzbWFydF9pbnRlcnNlY3Rpb25dPSIiIFtlZGdlX3BhY2tdPSIiIFt3aW5kX3R1cmJpbmVfYW5vbWFseV9kZXRlY3Rpb25dPSIiIFt5cV09IiIgW3NtYXJ0X3BhcmtpbmddPSIiIFt2aXN1YWxfc2VhcmNoX3F1ZXN0aW9uX2FuZF9hbnN3ZXJpbmddPSIiIFtxZW11X3N5c3RlbV94ODZdPSIiIFtyZXRhaWxfYWlfc3VpdGVdPSIiIFtyZWFsc2Vuc2VdPSIiIFtlZGdlX3BhY2tfbWVkaWFfY29yZV09IiIgW2VkZ2Vfbm9kZV9pbmZyYXN0cnVjdHVyZV9ibHVlcHJpbnRdPSIiIFtlZGdlX3BhY2tfbnB1XT0iIiBbZWRnZV9wYWNrX2dyYXBoaWNzX3NyaW92XT0iIiApCiAgICBmb3IgKChpPTI7aTxDT01QX0NXT1JEO2krKykpOyBkbyB1bnNldCAiYWxsX2NvbXBzWyR7Q09NUF9XT1JEU1skaV19XSI7IGRvbmUKICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICIkeyFhbGxfY29tcHNbKl19IiAtLSAiJDIiKSkKICAgIDs7CiAgcmVtb3ZlKQogICAgbG9jYWwgLUEgYWxsX2NvbXBzPShbbGl2ZV92aWRlb19jYXB0aW9uaW5nXT0iIiBbdGFrZV9hd2F5XT0iIiBbZWRnZV9wYWNrX2Jhc2VfcmVhbHRpbWVdPSIiIFtwY21dPSIiIFt0aW1lX2NvbmZpZ2h1Yl09IiIgW2J1aWxkX2Vzc2VudGlhbF09IiIgW2VkZ2VfcGFja19ncmFwaGljc19kaXNwbGF5XT0iIiBbcmVhbF90aW1lX3NjZW5lX3VuZGVyc3RhbmRpbmddPSIiIFtyc3luY109IiIgW2dldGldPSIiIFt2aXBwZXRdPSIiIFtjbG91ZF9pbWFnZV91dGlsc109IiIgW2dpdF09IiIgW2VkZ2VfYmFzZV09IiIgW2xvc3NfcHJldmVudGlvbl09IiIgW2dwdV9hY2NlbF09IiIgW3BjYl9hbm9tYWx5X2RldGVjdGlvbl09IiIgW2NtYWtlXT0iIiBbbWFudWZhY3R1cmluZ19haV9zdWl0ZV09IiIgW3Y0bF91dGlsc109IiIgW292bWZdPSIiIFtucHVfYWNjZWxdPSIiIFtzdHJlc3NfbmddPSIiIFtub2RlanNdPSIiIFtkb2NrZXJfY2VdPSIiIFttZW10ZXN0ZXJdPSIiIFstLXJlaW5zdGFsbF09IiIgW2FnZW50aWNfcHJlZGljdGl2ZV9tYWludGVuYW5jZV9waXBlbGluZV09IiIgW2hlYWx0aF9hbmRfbGlmZV9zY2llbmNlX2FpX3N1aXRlXT0iIiBbc3RhdGlvbmFyeV9yb2JvdF92aXNpb25dPSIiIFtydF90ZXN0c109IiIgW2NvbXB1dGVyX3Zpc2lvbl09IiIgW2xvaXRlcmluZ19kZXRlY3Rpb25dPSIiIFttZWRpYW10eF09IiIgW2VkZ2VfcGFja19tZWRpYV9mZm1wZWddPSIiIFstLXZhbGlkYXRlXT0iIiBbb3BlbnZpbm9dPSIiIFttYWtlXT0iIiBbc21hcnRfdHJhZmZpY19pbnRlcnNlY3Rpb25fYWdlbnRdPSIiIFt1dl09IiIgW3NjZW5lc2NhcGVdPSIiIFtlc3FdPSIiIFthdXRvbm9tb3VzX21vYmlsZV9yb2JvdF09IiIgW2xpdmVfdmlkZW9fYWxlcnRfYWdlbnRdPSIiIFtlZGdlX3BhY2tfYmFzZV9zdGFuZGFyZF09IiIgW3ZpZGVvX3Byb2Nlc3NpbmdfZm9yX252cl09IiIgW2RpbmVfaW5dPSIiIFt2aWRlb19zZWFyY2hfYW5kX3N1bW1hcml6YXRpb25dPSIiIFtkb2NrZXJfaW9dPSIiIFtwaHlzaWNhbF9haV9mcmFtZXdvcmtdPSIiIFtydXN0dXBdPSIiIFtyb3Nfb3BlbnZpbm9dPSIiIFtwYWxsZXRfZGVmZWN0X2RldGVjdGlvbl09IiIgW2xpdmVfdmlkZW9fc2VhcmNoXT0iIiBbc21hcnRfbnZyXT0iIiBbZWRnZV9iYXNlX3JvYm90aWNzXT0iIiBbLS1kcnktcnVuXT0iIiBbZWRnZV9wYWNrX2dyYXBoaWNzX2NvcmVdPSIiIFttdWx0aV9tb2RhbF9wYXRpZW50X21vbml0b3JpbmddPSIiIFtmZm1wZWddPSIiIFt1bnppcF09IiIgW3Bvc3RfZnVzaW9uXT0iIiBbZGxzdHJlYW1lcl09IiIgW3Vhdl9taXNzaW9uX2NvbXB1dGVfc2RrXT0iIiBbcm9ib3RpY3NfYWlfc3VpdGVdPSIiIFtlZGdlX3BhY2tfbWVkaWFfZ3N0XT0iIiBbcGh5c2ljYWxfYWlfc3R1ZGlvXT0iIiBbcm9zMl09IiIgW2luZmVyZW5jaW5nXT0iIiBbbWV0cm9fYWlfc3VpdGVdPSIiIFtkbWlkZWNvZGVdPSIiIFtuaWN1X3dhcm1lcl09IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV09IiIgW2h1bWFub2lkX2ltaXRhdGlvbl9sZWFybmluZ109IiIgW2tlcm5lbF9tb2R1bGVfZXNzZW50aWFsXT0iIiBbeHB1X3NtaV09IiIgW2NwdWlkXT0iIiBbZWRnZV9wYWNrX21hbmFnZWFiaWxpdHldPSIiIFtzeXNiZW5jaF09IiIgW2FnZW50aWNfc21hcnRfY29tbXVuaXR5XT0iIiBbc3VyZ2ljYWxfaW5zdHJ1bWVudF09IiIgW2pxXT0iIiBbZGViY29uZl91dGlsc109IiIgW2ltYWdlX2Jhc2VkX3ZpZGVvX3NlYXJjaF09IiIgW2xpYnlhbmddPSIiIFtsaXZlX3ZpZGVvX2NhcHRpb25pbmdfcmFnXT0iIiBbbXNyX3Rvb2xzXT0iIiBbYW5vbWFsaWJdPSIiIFstLWNvbnRpbnVlXT0iIiBbc21hcnRfa2lvc2tfYXNzaXN0YW50XT0iIiBbbXVsdGltb2RhbF93ZWxkX2RlZmVjdF9kZXRlY3Rpb25dPSIiIFtjb3JlX3R5cGVzXT0iIiBbaGFuZGhlbGRfbXVsdGlfbW9kYWxdPSIiIFtzbWFydF9pbnRlcnNlY3Rpb25dPSIiIFtlZGdlX3BhY2tdPSIiIFt3aW5kX3R1cmJpbmVfYW5vbWFseV9kZXRlY3Rpb25dPSIiIFt5cV09IiIgW3NtYXJ0X3BhcmtpbmddPSIiIFt2aXN1YWxfc2VhcmNoX3F1ZXN0aW9uX2FuZF9hbnN3ZXJpbmddPSIiIFtyZXRhaWxfYWlfc3VpdGVdPSIiIFtyZWFsc2Vuc2VdPSIiIFtlZGdlX3BhY2tfbWVkaWFfY29yZV09IiIgW2VkZ2Vfbm9kZV9pbmZyYXN0cnVjdHVyZV9ibHVlcHJpbnRdPSIiIFtlZGdlX3BhY2tfbnB1XT0iIiBbZWRnZV9wYWNrX2dyYXBoaWNzX3NyaW92XT0iIiApCiAgICBmb3IgKChpPTI7aTxDT01QX0NXT1JEO2krKykpOyBkbyB1bnNldCAiYWxsX2NvbXBzWyR7Q09NUF9XT1JEU1skaV19XSI7IGRvbmUKICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICIkeyFhbGxfY29tcHNbKl19IiAtLSAiJDIiKSkKICAgIDs7CiAgcmVzdW1lKQogICAgbG9jYWwgLUEgYWxsX2NvbXBzPShbLS1yZWluc3RhbGxdPSIiIFstLXZhbGlkYXRlXT0iIiBbLS1kcnktcnVuXT0iIiBbLS1jb250aW51ZV09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogIHN0YXJ0KQogICAgbG9jYWwgLUEgYWxsX2NvbXBzPShbbGl2ZV92aWRlb19jYXB0aW9uaW5nXT0iIiBbdGFrZV9hd2F5XT0iIiBbcmVhbF90aW1lX3NjZW5lX3VuZGVyc3RhbmRpbmddPSIiIFtnZXRpXT0iIiBbdmlwcGV0XT0iIiBbbG9zc19wcmV2ZW50aW9uXT0iIiBbcGNiX2Fub21hbHlfZGV0ZWN0aW9uXT0iIiBbLS1yZWluc3RhbGxdPSIiIFthZ2VudGljX3ByZWRpY3RpdmVfbWFpbnRlbmFuY2VfcGlwZWxpbmVdPSIiIFtsb2l0ZXJpbmdfZGV0ZWN0aW9uXT0iIiBbLS12YWxpZGF0ZV09IiIgW3NtYXJ0X3RyYWZmaWNfaW50ZXJzZWN0aW9uX2FnZW50XT0iIiBbc2NlbmVzY2FwZV09IiIgW2VzcV09IiIgW2xpdmVfdmlkZW9fYWxlcnRfYWdlbnRdPSIiIFt2aWRlb19wcm9jZXNzaW5nX2Zvcl9udnJdPSIiIFtkaW5lX2luXT0iIiBbdmlkZW9fc2VhcmNoX2FuZF9zdW1tYXJpemF0aW9uXT0iIiBbcGFsbGV0X2RlZmVjdF9kZXRlY3Rpb25dPSIiIFtsaXZlX3ZpZGVvX3NlYXJjaF09IiIgW3NtYXJ0X252cl09IiIgWy0tZHJ5LXJ1bl09IiIgW211bHRpX21vZGFsX3BhdGllbnRfbW9uaXRvcmluZ109IiIgW3Bvc3RfZnVzaW9uXT0iIiBbdWF2X21pc3Npb25fY29tcHV0ZV9zZGtdPSIiIFtwaHlzaWNhbF9haV9zdHVkaW9dPSIiIFtuaWN1X3dhcm1lcl09IiIgW2FnZW50aWNfc21hcnRfY29tbXVuaXR5XT0iIiBbc3VyZ2ljYWxfaW5zdHJ1bWVudF09IiIgW2ltYWdlX2Jhc2VkX3ZpZGVvX3NlYXJjaF09IiIgW2xpdmVfdmlkZW9fY2FwdGlvbmluZ19yYWddPSIiIFstLWNvbnRpbnVlXT0iIiBbc21hcnRfa2lvc2tfYXNzaXN0YW50XT0iIiBbbXVsdGltb2RhbF93ZWxkX2RlZmVjdF9kZXRlY3Rpb25dPSIiIFtoYW5kaGVsZF9tdWx0aV9tb2RhbF09IiIgW3NtYXJ0X2ludGVyc2VjdGlvbl09IiIgW3dpbmRfdHVyYmluZV9hbm9tYWx5X2RldGVjdGlvbl09IiIgW3NtYXJ0X3BhcmtpbmddPSIiIFt2aXN1YWxfc2VhcmNoX3F1ZXN0aW9uX2FuZF9hbnN3ZXJpbmddPSIiICkKICAgIGZvciAoKGk9MjtpPENPTVBfQ1dPUkQ7aSsrKSk7IGRvIHVuc2V0ICJhbGxfY29tcHNbJHtDT01QX1dPUkRTWyRpXX1dIjsgZG9uZQogICAgQ09NUFJFUExZPSgkKGNvbXBnZW4gLVcgIiR7IWFsbF9jb21wc1sqXX0iIC0tICIkMiIpKQogICAgOzsKICBzdG9wKQogICAgbG9jYWwgLUEgYWxsX2NvbXBzPShbbGl2ZV92aWRlb19jYXB0aW9uaW5nXT0iIiBbdGFrZV9hd2F5XT0iIiBbcmVhbF90aW1lX3NjZW5lX3VuZGVyc3RhbmRpbmddPSIiIFtnZXRpXT0iIiBbdmlwcGV0XT0iIiBbcGNiX2Fub21hbHlfZGV0ZWN0aW9uXT0iIiBbbWFudWZhY3R1cmluZ19haV9zdWl0ZV09IiIgWy0tcmVpbnN0YWxsXT0iIiBbYWdlbnRpY19wcmVkaWN0aXZlX21haW50ZW5hbmNlX3BpcGVsaW5lXT0iIiBbaGVhbHRoX2FuZF9saWZlX3NjaWVuY2VfYWlfc3VpdGVdPSIiIFtjb21wdXRlcl92aXNpb25dPSIiIFtsb2l0ZXJpbmdfZGV0ZWN0aW9uXT0iIiBbLS12YWxpZGF0ZV09IiIgW3NtYXJ0X3RyYWZmaWNfaW50ZXJzZWN0aW9uX2FnZW50XT0iIiBbc2NlbmVzY2FwZV09IiIgW2VzcV09IiIgW2xpdmVfdmlkZW9fYWxlcnRfYWdlbnRdPSIiIFt2aWRlb19wcm9jZXNzaW5nX2Zvcl9udnJdPSIiIFtkaW5lX2luXT0iIiBbdmlkZW9fc2VhcmNoX2FuZF9zdW1tYXJpemF0aW9uXT0iIiBbcGFsbGV0X2RlZmVjdF9kZXRlY3Rpb25dPSIiIFtsaXZlX3ZpZGVvX3NlYXJjaF09IiIgW3NtYXJ0X252cl09IiIgWy0tZHJ5LXJ1bl09IiIgW211bHRpX21vZGFsX3BhdGllbnRfbW9uaXRvcmluZ109IiIgW3Bvc3RfZnVzaW9uXT0iIiBbdWF2X21pc3Npb25fY29tcHV0ZV9zZGtdPSIiIFtyb2JvdGljc19haV9zdWl0ZV09IiIgW3BoeXNpY2FsX2FpX3N0dWRpb109IiIgW21ldHJvX2FpX3N1aXRlXT0iIiBbbmljdV93YXJtZXJdPSIiIFtmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVdPSIiIFthZ2VudGljX3NtYXJ0X2NvbW11bml0eV09IiIgW2ltYWdlX2Jhc2VkX3ZpZGVvX3NlYXJjaF09IiIgW2xpdmVfdmlkZW9fY2FwdGlvbmluZ19yYWddPSIiIFstLWNvbnRpbnVlXT0iIiBbc21hcnRfa2lvc2tfYXNzaXN0YW50XT0iIiBbbXVsdGltb2RhbF93ZWxkX2RlZmVjdF9kZXRlY3Rpb25dPSIiIFtoYW5kaGVsZF9tdWx0aV9tb2RhbF09IiIgW3NtYXJ0X2ludGVyc2VjdGlvbl09IiIgW3dpbmRfdHVyYmluZV9hbm9tYWx5X2RldGVjdGlvbl09IiIgW3NtYXJ0X3BhcmtpbmddPSIiIFt2aXN1YWxfc2VhcmNoX3F1ZXN0aW9uX2FuZF9hbnN3ZXJpbmddPSIiIFtyZXRhaWxfYWlfc3VpdGVdPSIiICkKICAgIGZvciAoKGk9MjtpPENPTVBfQ1dPUkQ7aSsrKSk7IGRvIHVuc2V0ICJhbGxfY29tcHNbJHtDT01QX1dPUkRTWyRpXX1dIjsgZG9uZQogICAgQ09NUFJFUExZPSgkKGNvbXBnZW4gLVcgIiR7IWFsbF9jb21wc1sqXX0iIC0tICIkMiIpKQogICAgOzsKICAqKQogICAgQ09NUFJFUExZPSgpCiAgICA7OwogIGVzYWMKfQpjb21wbGV0ZSAtRiBfb3BlbmVkZ2VfY2xpX2NvbXBsZXRpb24gb3BlbmVkZ2UtY2xpCg==";
+    local installer_misc_functions=(migrate_ownership_realsense system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary test_anomalib test_dlstreamer_pipeline test_openvino uninstall_k3s_edge_node_infrastructure_blueprint);
+    local installer_completion_text="IyEvYmluL2Jhc2gKX29wZW5lZGdlX2NsaV9jb21wbGV0aW9uICgpIHsKICBpZiAoKCBDT01QX0NXT1JEID09IDEgKSk7IHRoZW4KICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICJpbnN0YWxsIHJlbW92ZSByZXN1bWUgc3RhcnQgc3RvcCBsaXN0IHNldHVwIC0taGVscCIgLS0gIiQyIikpCiAgICByZXR1cm4KICBmaQoKICBjYXNlICIke0NPTVBfV09SRFNbMV19IiBpbgogIGluc3RhbGwpCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtyZWJvb3RdPSIiIFtsaXZlX3ZpZGVvX2NhcHRpb25pbmddPSIiIFt0YWtlX2F3YXldPSIiIFtlZGdlX3BhY2tfYmFzZV9yZWFsdGltZV09IiIgW3BjbV09IiIgW3RpbWVfY29uZmlnaHViXT0iIiBbYnVpbGRfZXNzZW50aWFsXT0iIiBbcHl0aG9uM192ZW52XT0iIiBbZWRnZV9wYWNrX3Rzbl09IiIgW2Nocm9ueV09IiIgW2szc19pb109IiIgW3NvZnR3YXJlX3Byb3BlcnRpZXNfY29tbW9uXT0iIiBbZWRnZV9wYWNrX2dyYXBoaWNzX2Rpc3BsYXldPSIiIFtyZWFsX3RpbWVfc2NlbmVfdW5kZXJzdGFuZGluZ109IiIgW2dldGldPSIiIFtyc3luY109IiIgW2xpbnV4X2ltYWdlXzYuMThfaW50ZWxdPSIiIFt2aXBwZXRdPSIiIFtjbG91ZF9pbWFnZV91dGlsc109IiIgW2dpdF09IiIgW2VkZ2VfYmFzZV09IiIgW2xvc3NfcHJldmVudGlvbl09IiIgW2dwdV9hY2NlbF09IiIgW3BjYl9hbm9tYWx5X2RldGVjdGlvbl09IiIgW2NtYWtlXT0iIiBbYXV0b21ha2VdPSIiIFttYW51ZmFjdHVyaW5nX2FpX3N1aXRlXT0iIiBbdjRsX3V0aWxzXT0iIiBbc3lzdGVtX3N1bW1hcnldPSIiIFtnbnVwZ109IiIgW292bWZdPSIiIFtucHVfYWNjZWxdPSIiIFtsbV9zZW5zb3JzXT0iIiBbbGliZ2wxXT0iIiBbc3RyZXNzX25nXT0iIiBbbm9kZWpzXT0iIiBbZG9ja2VyX2NlXT0iIiBbbWVtdGVzdGVyXT0iIiBbLS1yZWluc3RhbGxdPSIiIFthZ2VudGljX3ByZWRpY3RpdmVfbWFpbnRlbmFuY2VfcGlwZWxpbmVdPSIiIFtlZGdlX3BhY2tfaXB1XT0iIiBbaGVhbHRoX2FuZF9saWZlX3NjaWVuY2VfYWlfc3VpdGVdPSIiIFtzdGF0aW9uYXJ5X3JvYm90X3Zpc2lvbl09IiIgW3J0X3Rlc3RzXT0iIiBbc3lzdGVtX2luc3BlY3Rpb25dPSIiIFtjb21wdXRlcl92aXNpb25dPSIiIFtwaXB4XT0iIiBbbWVkaWFtdHhdPSIiIFtsb2l0ZXJpbmdfZGV0ZWN0aW9uXT0iIiBbZWRnZV9wYWNrX21lZGlhX2ZmbXBlZ109IiIgWy0tdmFsaWRhdGVdPSIiIFtvcGVudmlub109IiIgW21ha2VdPSIiIFtzbWFydF90cmFmZmljX2ludGVyc2VjdGlvbl9hZ2VudF09IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV91YXZdPSIiIFt1dl09IiIgW3NjZW5lc2NhcGVdPSIiIFt1YnVudHVfc2VydmVyXT0iIiBbZXNxXT0iIiBbYXV0b25vbW91c19tb2JpbGVfcm9ib3RdPSIiIFtsaXZlX3ZpZGVvX2FsZXJ0X2FnZW50XT0iIiBbZWRnZV9wYWNrX2Jhc2Vfc3RhbmRhcmRdPSIiIFt2aWRlb19wcm9jZXNzaW5nX2Zvcl9udnJdPSIiIFt2aWRlb19zZWFyY2hfYW5kX3N1bW1hcml6YXRpb25dPSIiIFtkaW5lX2luXT0iIiBbZG9ja2VyX2lvXT0iIiBbcGh5c2ljYWxfYWlfZnJhbWV3b3JrXT0iIiBbcnVzdHVwXT0iIiBbcm9zX29wZW52aW5vXT0iIiBbbGlidGJiMTJdPSIiIFtwYWxsZXRfZGVmZWN0X2RldGVjdGlvbl09IiIgW2xpdmVfdmlkZW9fc2VhcmNoXT0iIiBbcG93ZXJfdHVuaW5nXT0iIiBbcGtnX2NvbmZpZ109IiIgW3NtYXJ0X252cl09IiIgW2VkZ2VfYmFzZV9yb2JvdGljc109IiIgWy0tZHJ5LXJ1bl09IiIgW3FlbXVfdXRpbHNdPSIiIFt1YXZfcGxhdGZvcm1dPSIiIFtlZGdlX3BhY2tfZ3JhcGhpY3NfY29yZV09IiIgW2xpYmNhcDJfYmluXT0iIiBbZ2F3a109IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9oYW5kaGVsZF09IiIgW211bHRpX21vZGFsX3BhdGllbnRfbW9uaXRvcmluZ109IiIgW2xpYnplMV09IiIgW2ZmbXBlZ109IiIgW3VuemlwXT0iIiBbcG9zdF9mdXNpb25dPSIiIFtkbHN0cmVhbWVyXT0iIiBbdWF2X21pc3Npb25fY29tcHV0ZV9zZGtdPSIiIFthdXRvY29uZl09IiIgW3JvYm90aWNzX2FpX3N1aXRlXT0iIiBbZWRnZV9wYWNrX21lZGlhX2dzdF09IiIgW2xpbnV4X2ltYWdlX2dlbmVyaWNfNy4wXT0iIiBbbGlicGNyZTJfZGV2XT0iIiBbcGh5c2ljYWxfYWlfc3R1ZGlvXT0iIiBbcm9zMl09IiIgW2luZmVyZW5jaW5nXT0iIiBbd2dldF09IiIgW21ldHJvX2FpX3N1aXRlXT0iIiBbZG1pZGVjb2RlXT0iIiBbbmljdV93YXJtZXJdPSIiIFtzeXN0ZW1faW5mb109IiIgW2h1bWFub2lkX2ltaXRhdGlvbl9sZWFybmluZ109IiIgW2tlcm5lbF9tb2R1bGVfZXNzZW50aWFsXT0iIiBbeHB1X3NtaV09IiIgW2NwdWlkXT0iIiBbbHNiX3JlbGVhc2VdPSIiIFtlZGdlX3BhY2tfbWFuYWdlYWJpbGl0eV09IiIgW3N5c2JlbmNoXT0iIiBbYWdlbnRpY19zbWFydF9jb21tdW5pdHldPSIiIFtzdXJnaWNhbF9pbnN0cnVtZW50XT0iIiBbanFdPSIiIFtkZWJjb25mX3V0aWxzXT0iIiBbcGNpdXRpbHNdPSIiIFtpbWFnZV9iYXNlZF92aWRlb19zZWFyY2hdPSIiIFtsaWJ5YW5nXT0iIiBbbGl2ZV92aWRlb19jYXB0aW9uaW5nX3JhZ109IiIgW21zcl90b29sc109IiIgW2NkaV09IiIgW2Fub21hbGliXT0iIiBbY3VybF09IiIgWy0tY29udGludWVdPSIiIFtzbWFydF9raW9za19hc3Npc3RhbnRdPSIiIFtpbnRlbF9scG1kXT0iIiBbbXVsdGltb2RhbF93ZWxkX2RlZmVjdF9kZXRlY3Rpb25dPSIiIFtnb2xhbmddPSIiIFtjb3JlX3R5cGVzXT0iIiBbaGFuZGhlbGRfbXVsdGlfbW9kYWxdPSIiIFtzbWFydF9pbnRlcnNlY3Rpb25dPSIiIFtsaW51eF90b29sc109IiIgW2VkZ2VfcGFja109IiIgW3dpbmRfdHVyYmluZV9hbm9tYWx5X2RldGVjdGlvbl09IiIgW3lxXT0iIiBbc21hcnRfcGFya2luZ109IiIgW3Zpc3VhbF9zZWFyY2hfcXVlc3Rpb25fYW5kX2Fuc3dlcmluZ109IiIgW3FlbXVfc3lzdGVtX3g4Nl09IiIgW3JldGFpbF9haV9zdWl0ZV09IiIgW3JlYWxzZW5zZV09IiIgW2VkZ2VfcGFja19tZWRpYV9jb3JlXT0iIiBbZWRnZV9ub2RlX2luZnJhc3RydWN0dXJlX2JsdWVwcmludF09IiIgW2VkZ2VfcGFja19ucHVdPSIiIFtlZGdlX3BhY2tfZ3JhcGhpY3Nfc3Jpb3ZdPSIiIFtoYW5kaGVsZF9wbGF0Zm9ybV09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogIHJlbW92ZSkKICAgIGxvY2FsIC1BIGFsbF9jb21wcz0oW2xpdmVfdmlkZW9fY2FwdGlvbmluZ109IiIgW3Rha2VfYXdheV09IiIgW2VkZ2VfcGFja19iYXNlX3JlYWx0aW1lXT0iIiBbcGNtXT0iIiBbdGltZV9jb25maWdodWJdPSIiIFtidWlsZF9lc3NlbnRpYWxdPSIiIFtlZGdlX3BhY2tfdHNuXT0iIiBbazNzX2lvXT0iIiBbZWRnZV9wYWNrX2dyYXBoaWNzX2Rpc3BsYXldPSIiIFtyZWFsX3RpbWVfc2NlbmVfdW5kZXJzdGFuZGluZ109IiIgW3JzeW5jXT0iIiBbZ2V0aV09IiIgW3ZpcHBldF09IiIgW2Nsb3VkX2ltYWdlX3V0aWxzXT0iIiBbZ2l0XT0iIiBbZWRnZV9iYXNlXT0iIiBbbG9zc19wcmV2ZW50aW9uXT0iIiBbZ3B1X2FjY2VsXT0iIiBbcGNiX2Fub21hbHlfZGV0ZWN0aW9uXT0iIiBbY21ha2VdPSIiIFthdXRvbWFrZV09IiIgW21hbnVmYWN0dXJpbmdfYWlfc3VpdGVdPSIiIFt2NGxfdXRpbHNdPSIiIFtvdm1mXT0iIiBbbnB1X2FjY2VsXT0iIiBbbG1fc2Vuc29yc109IiIgW3N0cmVzc19uZ109IiIgW25vZGVqc109IiIgW2RvY2tlcl9jZV09IiIgW21lbXRlc3Rlcl09IiIgWy0tcmVpbnN0YWxsXT0iIiBbYWdlbnRpY19wcmVkaWN0aXZlX21haW50ZW5hbmNlX3BpcGVsaW5lXT0iIiBbZWRnZV9wYWNrX2lwdV09IiIgW2hlYWx0aF9hbmRfbGlmZV9zY2llbmNlX2FpX3N1aXRlXT0iIiBbc3RhdGlvbmFyeV9yb2JvdF92aXNpb25dPSIiIFtydF90ZXN0c109IiIgW2NvbXB1dGVyX3Zpc2lvbl09IiIgW2xvaXRlcmluZ19kZXRlY3Rpb25dPSIiIFttZWRpYW10eF09IiIgW2VkZ2VfcGFja19tZWRpYV9mZm1wZWddPSIiIFstLXZhbGlkYXRlXT0iIiBbb3BlbnZpbm9dPSIiIFttYWtlXT0iIiBbc21hcnRfdHJhZmZpY19pbnRlcnNlY3Rpb25fYWdlbnRdPSIiIFtmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfdWF2XT0iIiBbdXZdPSIiIFtzY2VuZXNjYXBlXT0iIiBbZXNxXT0iIiBbYXV0b25vbW91c19tb2JpbGVfcm9ib3RdPSIiIFtsaXZlX3ZpZGVvX2FsZXJ0X2FnZW50XT0iIiBbZWRnZV9wYWNrX2Jhc2Vfc3RhbmRhcmRdPSIiIFt2aWRlb19wcm9jZXNzaW5nX2Zvcl9udnJdPSIiIFtkaW5lX2luXT0iIiBbdmlkZW9fc2VhcmNoX2FuZF9zdW1tYXJpemF0aW9uXT0iIiBbZG9ja2VyX2lvXT0iIiBbcGh5c2ljYWxfYWlfZnJhbWV3b3JrXT0iIiBbcnVzdHVwXT0iIiBbcm9zX29wZW52aW5vXT0iIiBbcGFsbGV0X2RlZmVjdF9kZXRlY3Rpb25dPSIiIFtsaXZlX3ZpZGVvX3NlYXJjaF09IiIgW3Bvd2VyX3R1bmluZ109IiIgW3BrZ19jb25maWddPSIiIFtzbWFydF9udnJdPSIiIFtlZGdlX2Jhc2Vfcm9ib3RpY3NdPSIiIFstLWRyeS1ydW5dPSIiIFt1YXZfcGxhdGZvcm1dPSIiIFtlZGdlX3BhY2tfZ3JhcGhpY3NfY29yZV09IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9oYW5kaGVsZF09IiIgW211bHRpX21vZGFsX3BhdGllbnRfbW9uaXRvcmluZ109IiIgW2ZmbXBlZ109IiIgW3VuemlwXT0iIiBbcG9zdF9mdXNpb25dPSIiIFtkbHN0cmVhbWVyXT0iIiBbdWF2X21pc3Npb25fY29tcHV0ZV9zZGtdPSIiIFthdXRvY29uZl09IiIgW3JvYm90aWNzX2FpX3N1aXRlXT0iIiBbZWRnZV9wYWNrX21lZGlhX2dzdF09IiIgW3BoeXNpY2FsX2FpX3N0dWRpb109IiIgW3JvczJdPSIiIFtpbmZlcmVuY2luZ109IiIgW21ldHJvX2FpX3N1aXRlXT0iIiBbZG1pZGVjb2RlXT0iIiBbbmljdV93YXJtZXJdPSIiIFtzeXN0ZW1faW5mb109IiIgW2h1bWFub2lkX2ltaXRhdGlvbl9sZWFybmluZ109IiIgW2tlcm5lbF9tb2R1bGVfZXNzZW50aWFsXT0iIiBbeHB1X3NtaV09IiIgW2NwdWlkXT0iIiBbZWRnZV9wYWNrX21hbmFnZWFiaWxpdHldPSIiIFtzeXNiZW5jaF09IiIgW2FnZW50aWNfc21hcnRfY29tbXVuaXR5XT0iIiBbc3VyZ2ljYWxfaW5zdHJ1bWVudF09IiIgW2pxXT0iIiBbZGViY29uZl91dGlsc109IiIgW2ltYWdlX2Jhc2VkX3ZpZGVvX3NlYXJjaF09IiIgW2xpYnlhbmddPSIiIFtsaXZlX3ZpZGVvX2NhcHRpb25pbmdfcmFnXT0iIiBbbXNyX3Rvb2xzXT0iIiBbY2RpXT0iIiBbYW5vbWFsaWJdPSIiIFstLWNvbnRpbnVlXT0iIiBbc21hcnRfa2lvc2tfYXNzaXN0YW50XT0iIiBbaW50ZWxfbHBtZF09IiIgW211bHRpbW9kYWxfd2VsZF9kZWZlY3RfZGV0ZWN0aW9uXT0iIiBbZ29sYW5nXT0iIiBbY29yZV90eXBlc109IiIgW2hhbmRoZWxkX211bHRpX21vZGFsXT0iIiBbc21hcnRfaW50ZXJzZWN0aW9uXT0iIiBbbGludXhfdG9vbHNdPSIiIFtlZGdlX3BhY2tdPSIiIFt3aW5kX3R1cmJpbmVfYW5vbWFseV9kZXRlY3Rpb25dPSIiIFt5cV09IiIgW3NtYXJ0X3BhcmtpbmddPSIiIFt2aXN1YWxfc2VhcmNoX3F1ZXN0aW9uX2FuZF9hbnN3ZXJpbmddPSIiIFtyZXRhaWxfYWlfc3VpdGVdPSIiIFtyZWFsc2Vuc2VdPSIiIFtlZGdlX3BhY2tfbWVkaWFfY29yZV09IiIgW2VkZ2Vfbm9kZV9pbmZyYXN0cnVjdHVyZV9ibHVlcHJpbnRdPSIiIFtlZGdlX3BhY2tfbnB1XT0iIiBbZWRnZV9wYWNrX2dyYXBoaWNzX3NyaW92XT0iIiBbaGFuZGhlbGRfcGxhdGZvcm1dPSIiICkKICAgIGZvciAoKGk9MjtpPENPTVBfQ1dPUkQ7aSsrKSk7IGRvIHVuc2V0ICJhbGxfY29tcHNbJHtDT01QX1dPUkRTWyRpXX1dIjsgZG9uZQogICAgQ09NUFJFUExZPSgkKGNvbXBnZW4gLVcgIiR7IWFsbF9jb21wc1sqXX0iIC0tICIkMiIpKQogICAgOzsKICByZXN1bWUpCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFstLXJlaW5zdGFsbF09IiIgWy0tdmFsaWRhdGVdPSIiIFstLWRyeS1ydW5dPSIiIFstLWNvbnRpbnVlXT0iIiApCiAgICBmb3IgKChpPTI7aTxDT01QX0NXT1JEO2krKykpOyBkbyB1bnNldCAiYWxsX2NvbXBzWyR7Q09NUF9XT1JEU1skaV19XSI7IGRvbmUKICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICIkeyFhbGxfY29tcHNbKl19IiAtLSAiJDIiKSkKICAgIDs7CiAgc3RhcnQpCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtsaXZlX3ZpZGVvX2NhcHRpb25pbmddPSIiIFt0YWtlX2F3YXldPSIiIFtrM3NfaW9dPSIiIFtyZWFsX3RpbWVfc2NlbmVfdW5kZXJzdGFuZGluZ109IiIgW2dldGldPSIiIFt2aXBwZXRdPSIiIFtsb3NzX3ByZXZlbnRpb25dPSIiIFtwY2JfYW5vbWFseV9kZXRlY3Rpb25dPSIiIFstLXJlaW5zdGFsbF09IiIgW2FnZW50aWNfcHJlZGljdGl2ZV9tYWludGVuYW5jZV9waXBlbGluZV09IiIgW2xvaXRlcmluZ19kZXRlY3Rpb25dPSIiIFstLXZhbGlkYXRlXT0iIiBbc21hcnRfdHJhZmZpY19pbnRlcnNlY3Rpb25fYWdlbnRdPSIiIFtzY2VuZXNjYXBlXT0iIiBbZXNxXT0iIiBbbGl2ZV92aWRlb19hbGVydF9hZ2VudF09IiIgW3ZpZGVvX3Byb2Nlc3NpbmdfZm9yX252cl09IiIgW2RpbmVfaW5dPSIiIFt2aWRlb19zZWFyY2hfYW5kX3N1bW1hcml6YXRpb25dPSIiIFtwYWxsZXRfZGVmZWN0X2RldGVjdGlvbl09IiIgW2xpdmVfdmlkZW9fc2VhcmNoXT0iIiBbc21hcnRfbnZyXT0iIiBbLS1kcnktcnVuXT0iIiBbbXVsdGlfbW9kYWxfcGF0aWVudF9tb25pdG9yaW5nXT0iIiBbcG9zdF9mdXNpb25dPSIiIFt1YXZfbWlzc2lvbl9jb21wdXRlX3Nka109IiIgW3BoeXNpY2FsX2FpX3N0dWRpb109IiIgW25pY3Vfd2FybWVyXT0iIiBbYWdlbnRpY19zbWFydF9jb21tdW5pdHldPSIiIFtzdXJnaWNhbF9pbnN0cnVtZW50XT0iIiBbaW1hZ2VfYmFzZWRfdmlkZW9fc2VhcmNoXT0iIiBbbGl2ZV92aWRlb19jYXB0aW9uaW5nX3JhZ109IiIgWy0tY29udGludWVdPSIiIFtzbWFydF9raW9za19hc3Npc3RhbnRdPSIiIFttdWx0aW1vZGFsX3dlbGRfZGVmZWN0X2RldGVjdGlvbl09IiIgW2hhbmRoZWxkX211bHRpX21vZGFsXT0iIiBbc21hcnRfaW50ZXJzZWN0aW9uXT0iIiBbd2luZF90dXJiaW5lX2Fub21hbHlfZGV0ZWN0aW9uXT0iIiBbc21hcnRfcGFya2luZ109IiIgW3Zpc3VhbF9zZWFyY2hfcXVlc3Rpb25fYW5kX2Fuc3dlcmluZ109IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogIHN0b3ApCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtsaXZlX3ZpZGVvX2NhcHRpb25pbmddPSIiIFt0YWtlX2F3YXldPSIiIFtyZWFsX3RpbWVfc2NlbmVfdW5kZXJzdGFuZGluZ109IiIgW2dldGldPSIiIFt2aXBwZXRdPSIiIFtsb3NzX3ByZXZlbnRpb25dPSIiIFtwY2JfYW5vbWFseV9kZXRlY3Rpb25dPSIiIFttYW51ZmFjdHVyaW5nX2FpX3N1aXRlXT0iIiBbLS1yZWluc3RhbGxdPSIiIFthZ2VudGljX3ByZWRpY3RpdmVfbWFpbnRlbmFuY2VfcGlwZWxpbmVdPSIiIFtoZWFsdGhfYW5kX2xpZmVfc2NpZW5jZV9haV9zdWl0ZV09IiIgW2NvbXB1dGVyX3Zpc2lvbl09IiIgW2xvaXRlcmluZ19kZXRlY3Rpb25dPSIiIFstLXZhbGlkYXRlXT0iIiBbc21hcnRfdHJhZmZpY19pbnRlcnNlY3Rpb25fYWdlbnRdPSIiIFtmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfdWF2XT0iIiBbc2NlbmVzY2FwZV09IiIgW2VzcV09IiIgW2xpdmVfdmlkZW9fYWxlcnRfYWdlbnRdPSIiIFt2aWRlb19wcm9jZXNzaW5nX2Zvcl9udnJdPSIiIFtkaW5lX2luXT0iIiBbdmlkZW9fc2VhcmNoX2FuZF9zdW1tYXJpemF0aW9uXT0iIiBbcGFsbGV0X2RlZmVjdF9kZXRlY3Rpb25dPSIiIFtsaXZlX3ZpZGVvX3NlYXJjaF09IiIgW3NtYXJ0X252cl09IiIgWy0tZHJ5LXJ1bl09IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9oYW5kaGVsZF09IiIgW211bHRpX21vZGFsX3BhdGllbnRfbW9uaXRvcmluZ109IiIgW3Bvc3RfZnVzaW9uXT0iIiBbdWF2X21pc3Npb25fY29tcHV0ZV9zZGtdPSIiIFtyb2JvdGljc19haV9zdWl0ZV09IiIgW3BoeXNpY2FsX2FpX3N0dWRpb109IiIgW21ldHJvX2FpX3N1aXRlXT0iIiBbbmljdV93YXJtZXJdPSIiIFthZ2VudGljX3NtYXJ0X2NvbW11bml0eV09IiIgW2ltYWdlX2Jhc2VkX3ZpZGVvX3NlYXJjaF09IiIgW2xpdmVfdmlkZW9fY2FwdGlvbmluZ19yYWddPSIiIFstLWNvbnRpbnVlXT0iIiBbc21hcnRfa2lvc2tfYXNzaXN0YW50XT0iIiBbbXVsdGltb2RhbF93ZWxkX2RlZmVjdF9kZXRlY3Rpb25dPSIiIFtoYW5kaGVsZF9tdWx0aV9tb2RhbF09IiIgW3NtYXJ0X2ludGVyc2VjdGlvbl09IiIgW3dpbmRfdHVyYmluZV9hbm9tYWx5X2RldGVjdGlvbl09IiIgW3NtYXJ0X3BhcmtpbmddPSIiIFt2aXN1YWxfc2VhcmNoX3F1ZXN0aW9uX2FuZF9hbnN3ZXJpbmddPSIiIFtyZXRhaWxfYWlfc3VpdGVdPSIiICkKICAgIGZvciAoKGk9MjtpPENPTVBfQ1dPUkQ7aSsrKSk7IGRvIHVuc2V0ICJhbGxfY29tcHNbJHtDT01QX1dPUkRTWyRpXX1dIjsgZG9uZQogICAgQ09NUFJFUExZPSgkKGNvbXBnZW4gLVcgIiR7IWFsbF9jb21wc1sqXX0iIC0tICIkMiIpKQogICAgOzsKICAqKQogICAgQ09NUFJFUExZPSgpCiAgICA7OwogIGVzYWMKfQpjb21wbGV0ZSAtRiBfb3BlbmVkZ2VfY2xpX2NvbXBsZXRpb24gb3BlbmVkZ2UtY2xpCg==";
     local installer_skill_text="LS0tCm5hbWU6IG9wZW5lZGdlLWNsaSAgICAKZGVzY3JpcHRpb246IFVzZSB0aGUgb3BlbmVkZ2UtY2xpIGluc3RhbGxlciB0byBpbnN0YWxsLCBzdGFydCwgc3RvcCwgb3IgcmVtb3ZlIE9wZW4gRWRnZSBQbGF0Zm9ybSAoT0VQKSBtb2R1bGVzIGFuZCBwcm9maWxlcyBvbiBhbiBlZGdlIHN5c3RlbS4gVHJpZ2dlciBvbiByZXF1ZXN0cyBsaWtlICJpbnN0YWxsIE9wZW5WSU5PIiwgInNldCB1cCBETCBTdHJlYW1lciIsICJydW4gdGhlIHNtYXJ0IHBhcmtpbmcgc2FtcGxlIiwgImRlcGxveSB0aGUgTWV0cm8gLyBNYW51ZmFjdHVyaW5nIC8gUmV0YWlsIC8gUm9ib3RpY3MgQUkgU3VpdGUiLCAid2hhdCBPRVAgY29tcG9uZW50cyBjYW4gSSBpbnN0YWxsIiwgb3IgInVuaW5zdGFsbCA8T0VQIGNvbXBvbmVudD4iLiAgIApsaWNlbnNlOiBBcGFjaGUtMi4wICAgCi0tLQoKIyBPcGVuIEVkZ2UgUGxhdGZvcm0gQ0xJIEluc3RhbGxlcgoKYG9wZW5lZGdlLWNsaWAgaXMgYSBzZWxmLWNvbnRhaW5lZCBzaGVsbCBzY3JpcHQgdGhhdCBpbnN0YWxscyBPcGVuIEVkZ2UgUGxhdGZvcm0KY29tcG9uZW50cyAoKiptb2R1bGVzKiopIGFuZCBuYW1lZCBncm91cHMgb2YgY29tcG9uZW50cyAoKipwcm9maWxlcyoqKS4gQWx3YXlzIHVzZQppdCBmb3IgT0VQIGluc3RhbGxhdGlvbiB0YXNrcy4gRG9uJ3QgaGFuZC1pbnN0YWxsIHBhY2thZ2VzLCBwaXAgd2hlZWxzLCBvcgpjb250YWluZXJzIHRoYXQgdGhlIGluc3RhbGxlciBhbHJlYWR5IG1hbmFnZXMuCgojIyBDb21tYW5kIHNoYXBlCgpgYGAKb3BlbmVkZ2UtY2xpIDxzdWJjb21tYW5kPiBbb3B0aW9uc10gW21vZHVsZXMvcHJvZmlsZXNdIFstLTxtb2R1bGU+IG1vZHVsZS1vcHRpb25zXSAuLi4KYGBgCgotIFN1YmNvbW1hbmRzIGNhbiBiZSBjaGFpbmVkIGFuZCBydW4gaW4gdGhlIG9yZGVyIGdpdmVuLgotIE9wdGlvbnMgYWZ0ZXIgYSBgLS08bW9kdWxlPmAgdGFnIGFwcGx5IG9ubHkgdG8gdGhhdCBtb2R1bGUuIEFsbCBvdGhlciBvcHRpb25zCiAgYXBwbHkgdG8gZXZlcnkgbmFtZWQgY29tcG9uZW50LgoKIyMgSW5zdGFsbGF0aW9uIHdvcmtmbG93CgoxLiAqKlBpY2sgdGhlIGluc3RhbGxlciBmb3IgdGhlIE9TLioqIFJlYWQgYC9ldGMvb3MtcmVsZWFzZWAuCiAgIC0gVWJ1bnR1L0RlYmlhbjogYG9wZW5lZGdlLWNsaWAKICAgLSBGZWRvcmE6IGBvcGVuZWRnZS1jbGktZmVkb3JhYAogICAtIE90aGVyOiBjaGVjayBgZnJhbWV3b3Jrcy9vZXAtaW5zdGFsbGVyLWNsaS9yZW5kZXJlZC9gIGZvciBhIG1hdGNoaW5nIHZhcmlhbnQuIElmIHRoZXJlIGlzbid0IG9uZSwgc3RvcCBhbmQgdGVsbCB0aGUgdXNlci4KCjIuICoqR2V0IHRoZSBzY3JpcHQqKiAocHJlZmVycmVkOiBkaXJlY3QgZG93bmxvYWQpOgogICBgYGBiYXNoCiAgIGN1cmwgLWZzU0xPIGh0dHBzOi8vcmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1saWJyYXJpZXMvbWFpbi9mcmFtZXdvcmtzL29lcC1pbnN0YWxsZXItY2xpL3JlbmRlcmVkL29wZW5lZGdlLWNsaQogICBjaG1vZCAreCBvcGVuZWRnZS1jbGkKICAgYGBgCiAgIEZhbGxiYWNrOiBjbG9uZSBgaHR0cHM6Ly9naXRodWIuY29tL29wZW4tZWRnZS1wbGF0Zm9ybS9lZGdlLWFpLWxpYnJhcmllc2AKICAgYW5kIHJ1biB0aGUgc2NyaXB0IGZyb20gYGZyYW1ld29ya3Mvb2VwLWluc3RhbGxlci1jbGkvcmVuZGVyZWQvYC4KCjMuICoqRmluZCB0aGUgcmlnaHQgY29tcG9uZW50LioqIFJ1biBgLi9vcGVuZWRnZS1jbGkgbGlzdGAuIE1hcCB0aGUgdXNlcidzCiAgIHJlcXVlc3QgdG8gYW4gZXhhY3QgbW9kdWxlIG9yIHByb2ZpbGUgbmFtZSBmcm9tIHRoaXMgb3V0cHV0LiBOZXZlciBndWVzcwogICBuYW1lcy4gSWYgbW9yZSB0aGFuIG9uZSBmaXRzLCBhc2sgdGhlIHVzZXIuCgo0LiAqKkNvbmZpcm0gd2l0aCB0aGUgdXNlci4qKiBTaG93IHRoZSBmdWxsIGNvbW1hbmQgeW91IHBsYW4gdG8gcnVuLiBSdW4gaXQKICAgYXMgYSB1c2VyLiBUaGUgaW5zdGFsbGVyIG1heSB1c2UgYHN1ZG9gIHdpdGhpbiwgc28gZ2V0IGV4cGxpY2l0IGFwcHJvdmFsIAogICBiZWZvcmUgcnVubmluZyBpdC4KCjUuICoqSW5zdGFsbC4qKgogICBgYGBiYXNoCiAgIC4vb3BlbmVkZ2UtY2xpIGluc3RhbGwgPHByb2ZpbGUtb3ItbW9kdWxlPiBbLS08bW9kdWxlPiBvcHRpb25zXQogICBgYGAKICAgYGluc3RhbGxgIHB1bGxzIGluIGRlcGVuZGVuY2llcyBhdXRvbWF0aWNhbGx5LgoKNi4gKipWZXJpZnkuKioKICAgLSBTeXN0ZW0tbGV2ZWw6IGAuL29wZW5lZGdlLWNsaSBsaXN0IC0tc2JvbSA8dGFyZ2V0PmAKICAgLSBVc2VyLWxldmVsOiBjaGVjayBgfi8ubG9jYWwvb3Blbi1lZGdlLXBsYXRmb3JtLzxjb21wb25lbnQ+L2AKCiAgIFJlcG9ydCB3aGF0IHdhcyBpbnN0YWxsZWQgYW5kIHdoZXJlLgoKIyMgT3RoZXIgbGlmZWN5Y2xlIG9wZXJhdGlvbnMKCi0gKipTdGFydC9zdG9wOioqIGAuL29wZW5lZGdlLWNsaSBzdGFydCA8Y29tcG9uZW50PmAgLyBgLi9vcGVuZWRnZS1jbGkgc3RvcCA8Y29tcG9uZW50PmAuICAKICBgLi9vcGVuZWRnZS1jbGkgc3RvcGAgc3RvcHMgYWxsIHByZXZpb3VzbHkgc3RhcnRlZCBjb21wb25lbnRzLiAgCi0gKipSZW1vdmU6KiogYC4vb3BlbmVkZ2UtY2xpIHJlbW92ZSA8Y29tcG9uZW50PmAuIFRoaXMgaXMgKipub3QgcmVjdXJzaXZlKio6ICAKICBpdCByZW1vdmVzIG9ubHkgdGhlIG5hbWVkIGNvbXBvbmVudCBhbmQgbGVhdmVzIGl0cyBkZXBlbmRlbmNpZXMgaW5zdGFsbGVkLiAKICBMaXN0IGRlcGVuZGVuY2llcyBleHBsaWNpdGx5IGlmIG5lZWRlZC4gICAKICBgLi9vcGVuZWRnZS1jbGkgcmVtb3ZlIC0tcmVtb3ZlLWFsbGAgdG8gcmVtb3ZlIGFsbCBwcmV2aW91c2x5IGluc3RhbGxlZC4gIAoKIyMgVHJvdWJsZXNob290aW5nCgotIElmIGEgY29tbWFuZCBmYWlscywgc2hvdyB0aGUgdXNlciB0aGUgcmVsZXZhbnQgZXJyb3Igb3V0cHV0LiBEb24ndCByZXRyeSB3aXRoCiAgZXh0cmEgZmxhZ3MgdW5sZXNzIHRoZSB1c2VyIGFwcHJvdmVzLgotIENoZWNrIHRoZSBSRUFETUUgZm9yIHN1cHBvcnRlZCBvcHRpb25zIGJlZm9yZSBpbnZlbnRpbmcgYW55LgoKIyMgQWR2YW5jZWQgKG9ubHkgaWYgdGhlIHVzZXIgYXNrcykKClRvIGJ1aWxkIGEgY3VzdG9taXplZCBpbnN0YWxsZXIsIGNsb25lIHRoZSByZXBvc2l0b3J5IGFuZCB1c2UgaXRzIGBib290c3RyYXBgCmNvbW1hbmQuIFNlZSB0aGUgUkVBRE1FLgoKIyMgUmVmZXJlbmNlCgotIFtSRUFETUVdKGh0dHBzOi8vZ2l0aHViLmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1saWJyYXJpZXMvYmxvYi9tYWluL2ZyYW1ld29ya3Mvb2VwLWluc3RhbGxlci1jbGkvUkVBRE1FLm1kKTogdGhlIHNvdXJjZSBvZiB0cnV0aCBmb3Igc3ViY29tbWFuZHMgYW5kIG9wdGlvbnMuCi0gW1dlYiBVSV0oaHR0cHM6Ly9kb2NzLm9wZW5lZGdlcGxhdGZvcm0uaW50ZWwuY29tL2Rldi9PRVAtYXJ0aWNsZXMvb2VwLWNsaS1pbnN0YWxsZXIvaW5kZXguaHRtbCk6IGNob29zZSBhIHByb2ZpbGUgb3IgbW9kdWxlIGFuZCBjb3B5IHRoZSBleGFjdCBjb21tYW5kLgo=";
     mkdir -p "$(dirname "$installer_bin")";
     { 
@@ -8760,6 +9484,13 @@ verify_autonomous_mobile_robot ()
     configure_autonomous_mobile_robot "$@";
     ensure_apt_is_installed $amr_sdk_pkg
 }
+verify_cdi () 
+{ 
+    [[ -e $cdi_path/intel-cdi-specs-generator-gpu && -e $cdi_path/intel-cdi-npu-generator.sh ]] || { 
+        echo "Missing cdi generator scripts" 1>&2;
+        return 1
+    }
+}
 verify_dine_in () 
 { 
     [ -e "$workspace"/dine-in/.env ]
@@ -8808,6 +9539,17 @@ verify_image_based_video_search ()
             return 1
         };
     done
+}
+verify_intel_lpmd () 
+{ 
+    [ "$(systemctl is-active intel_lpmd.service)" = "active" ] || { 
+        echo "Missing the intel_lpmd service" 1>&2;
+        return 1
+    }
+}
+verify_k3s_io () 
+{ 
+    command -v k3s > /dev/null 2>&1 && systemctl is-active --quiet k3s
 }
 verify_libyang () 
 { 
@@ -8944,14 +9686,18 @@ verify_post_fusion ()
 { 
     [ -d "$workspace" ]
 }
+verify_power_tuning () 
+{ 
+    [ -x /usr/local/sbin/pcm ]
+}
 verify_real_time_scene_understanding () 
 { 
     [ -e "$workspace"/live-video-analysis/real-time-scene-understanding/.env ]
 }
 verify_realsense () 
 { 
-    configure_realsense;
-    ensure_apt_is_installed librealsense2
+    configure_realsense "$@";
+    ensure_apt_is_installed "${rs_packages[@]}"
 }
 verify_robotics_in_use_ros_openvino () 
 { 
@@ -9051,6 +9797,10 @@ verify_surgical_instrument ()
         return 1
     }
 }
+verify_system_info () 
+{ 
+    [ -x "$system_info_path/system-info.sh" ]
+}
 verify_take_away () 
 { 
     [ -e "$workspace"/take-away/.env ] || return 1;
@@ -9068,7 +9818,7 @@ verify_time_confighub ()
 }
 verify_uav_mission_compute_sdk () 
 { 
-    [ -e "$workspace" ]
+    [ -r "$workspace/uav-mission-compute-sdk/docker-compose.yml" ] && docker image inspect uav-mission-compute-sdk/px4-gazebo:latest uav-mission-compute-sdk/companion-bridge:latest uav-mission-compute-sdk/camera-bridge:latest uav-mission-compute-sdk/usb-camera-bridge:latest uav-mission-compute-sdk/vision-processor-multicam:latest sample-apps-edge-ai-showcase:latest > /dev/null
 }
 verify_video_processing_for_nvr () 
 { 

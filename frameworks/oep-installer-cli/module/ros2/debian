@@ -1,5 +1,3 @@
-
-# ROS 2 distribution, auto-selected from the Ubuntu codename:
 #   Ubuntu 22.04 (jammy) -> ROS 2 Humble
 #   Ubuntu 24.04 (noble) -> ROS 2 Jazzy
 # https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/robotics/gsg_robot/index.html

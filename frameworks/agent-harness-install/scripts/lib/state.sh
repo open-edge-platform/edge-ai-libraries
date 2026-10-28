@@ -84,6 +84,28 @@ with_state_lock() {
   ) 200>"$lock_file"
 }
 
+# Serializes mutating CLI operations across install, model changes, and full
+# uninstall. This lock lives beside (not inside) the removable state root.
+with_deployment_lock() {
+  [[ -n "${HOME:-}" ]] || error "HOME is not set; cannot lock the deployment."
+  command_exists flock || error "flock is required to safely modify this deployment."
+  local lock_file="${HOME}/${HARNESS_STATE_DIRNAME}.deployment.lock"
+  [[ ! -L "$lock_file" ]] || error "Refusing symlinked deployment lock: ${lock_file}"
+  if [[ -e "$lock_file" ]]; then
+    [[ -f "$lock_file" ]] || error "Refusing non-regular deployment lock: ${lock_file}"
+    assert_owned_by_current_user "$lock_file"
+  fi
+  (umask 077; : >>"$lock_file") || error "Could not create deployment lock: ${lock_file}"
+  [[ -f "$lock_file" && ! -L "$lock_file" ]] \
+    || error "Refusing unsafe deployment lock: ${lock_file}"
+  chmod 600 "$lock_file" || error "Could not secure deployment lock: ${lock_file}"
+  assert_owned_by_current_user "$lock_file"
+  (
+    flock -w 30 200 || error "Could not acquire deployment lock within 30s."
+    "$@"
+  ) 200>>"$lock_file"
+}
+
 # Atomic write via mktemp+rename (same-filesystem rename is POSIX-atomic).
 # Uses Node's O_NOFOLLOW when available for stronger symlink-swap protection.
 # Re-verifies the result so a symlink-swap race during the write is caught.
