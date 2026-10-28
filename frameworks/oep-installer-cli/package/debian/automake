@@ -1,0 +1,12 @@
+
+debian_30_install_automake () {
+  ensure_apt_install_package automake
+}
+
+debian_30_remove_automake () {
+  ensure_apt_remove_package automake
+}
+
+debian_30_sbom_automake () {
+  ensure_sbom_format pkg-list automake
+}

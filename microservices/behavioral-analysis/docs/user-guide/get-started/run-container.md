@@ -61,6 +61,12 @@ docker compose logs behavioral-analysis -f
 docker compose down
 ```
 
+If profile enabled:
+
+```bash
+docker compose --profile vlm down
+```
+
 ## Network Configuration
 
 The service uses a Docker network defined in `docker-compose.yml` (currently `ba-network`).

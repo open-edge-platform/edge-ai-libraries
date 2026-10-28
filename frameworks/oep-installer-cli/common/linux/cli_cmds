@@ -92,21 +92,80 @@ subcommand_stop () {
 }
 
 subcommand_list () {
-  case " $* " in
-  *" --help "*)
-    echo "list options:"
-    echo "  --sbom          show component SBOM items"
-    echo
-    ;;
-  *" --sbom "*)
-    # scan for dependencies
-    if [ ${#*} -eq 1 ]; then
-      act_get prefix profile_; local all_profiles=(${_act_reply[*]})
-      local all_modules=(${_act_cache_modules[*]})
-      set -- ${all_modules[*]} ${all_profiles[*]#*_*_*_}
+  act_get prefix profile_; local all_profiles=(${_act_reply[*]})
+  local all_modules=(${_act_cache_modules[*]})
+  local all_list=" ${all_modules[*]} ${all_profiles[*]#*_*_*_} "
+  local k v sbom=0 args=() margs=() os_release=""
+  for v in "$@"; do
+    case "$v" in
+    --help)
+      echo "list options:"
+      echo "  --os-release=<file> import an os-release file"
+      echo "  --sbom              show component SBOM items"
+      echo
+      return 0
+      ;;
+    --os-release=*)
+      os_release="${v#*=}"
+      ;;
+    --sbom)
+      sbom=1
+      ;;
+    --os-release)
+      ;;
+    *)
+      if [ "$last_v" = "--os-release" ]; then
+        os_release="$v"
+      else
+        [[ " $all_list " != *" $v "* ]] || margs+=("$v")
+        args+=("$v")
+      fi
+      ;;
+    esac
+    last_v="$v"
+  done
+  
+  if [ -n "$os_release" ]; then
+    if [ -f "$os_release" ] && [ -r "$os_release" ]; then
+      local -A data=()
+      while read -r v; do
+        case "$v" in
+        PRETTY_NAME=*|NAME=*|VERSION_ID=*|VERSION=*|VERSION_CODENAME=*|ID=*|ID_LIKE=*|UBUNTU_CODENAME=*)
+          k="${v%%=*}"; v="${v#*=}"
+          [[ "$v" = '"'*'"' ]] && { v="${v#'"'}"; v="${v%'"'}"; }
+          [[ "$v" = "'"*"'" ]] && { v="${v#"'"}"; v="${v%"'"}"; }
+          data["$k"]="$v"
+        esac
+      done < "$os_release"
+      PRETTY_NAME="${data["PRETTY_NAME"]:-"$PRETTY_NAME"}"
+      NAME="${data["NAME"]:-"$NAME"}"
+      VERSION_ID="${data["VERSION_ID"]:-"$VERSION_ID"}"
+      VERSION="${data["VERSION"]:-"$VERSION"}"
+      VERSION_CODENAME="${data["VERSION_CODENAME"]:-"$VERSION_CODENAME"}"
+      ID="${data["ID"]:-"$ID"}"
+      ID_LIKE="${data["ID_LIKE"]:-"$ID_LIKE"}"
+      UBUNTU_CODENAME="${data["UBUNTU_CODENAME"]:-"$UBUNTU_CODENAME"}"
+      installer_family="$(x="${ID_LIKE:-$ID}";x="${x##* }";echo "${x//[^a-zA-Z0-9]/}")"
+    else
+      echo "Invalid $os_release" >&2
+      return 3
     fi
+  fi
+
+  [ ${#args[*]} -eq 0 ] && set -- $all_list || set -- "${args[@]}"
+
+  if [ $sbom -eq 1 ]; then
+    # scan for dependencies
     local handles=($(act_find_deps install $(act_resolve_args install "$@")))
+    if [ ${#handles[*]} -eq 0 ]; then
+      echo "No installable components from ${margs[*]}" >&2
+      return 3
+    fi
     local all_install_modules="${handles[*]#${installer_family}_*_install_}"
+    echo "\"schema-version\": 1.0"
+    echo "\"version\": \"main\""
+    ensure_sbom_format module-list "${margs[@]}"
+    echo "---"
     local handler sbomer
     for handler in $(printf '%s\n' "${handles[@]}" | sort); do
       sbomer=${handler/_install_/_sbom_}
@@ -114,11 +173,8 @@ subcommand_list () {
       $sbomer $(act_extract_args sbom ${handler#*_*_*_} "$all_install_modules" "$@")
       echo "---"
     done
-    ;;
-  *)
+  else
     local all_cmds=(${_act_cache_cmds[*]})
-    act_get prefix profile_; local all_profiles=(${_act_reply[*]})
-    local all_modules=(${_act_cache_modules[*]})
     local profile_lines=() module_lines=()
 
     local -A module_act_cache=()
@@ -182,8 +238,7 @@ subcommand_list () {
         printf "\n"
       fi
     } | ensure_columns
-    ;;
-  esac
+  fi
 }
 
 subcommand_setup () {

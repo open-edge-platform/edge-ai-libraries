@@ -8,21 +8,21 @@
 
 Initial release of the Behavioral Analysis Service, a pose-based suspicious activity
 detection microservice for retail loss-prevention use cases. This is a production-ready
-microservice that leverages OpenVINO Runtime for efficient edge inference without
+microservice that leverages OpenVINO™ Runtime for efficient edge inference without
 requiring PyTorch dependencies.
 
 The Behavioral Analysis Service analyzes video frame sequences to detect suspicious behaviors by:
 
-1. Extracting skeletal pose keypoints using YOLO26n-pose optimized with OpenVINO Runtime.
+1. Extracting skeletal pose keypoints using YOLO26n-pose optimized with OpenVINO™ Runtime.
 2. Evaluating pose sequences against behavioral patterns defined in YAML.
 3. Optionally forwarding key frames to a Visual Language Model (VLM) for visual verification.
 
 **Features:**
 
-- **Pose extraction** — YOLO26n-pose inference via OpenVINO Runtime (no PyTorch dependency)
+- **Pose extraction** — YOLO26n-pose inference via OpenVINO™ Runtime (no PyTorch dependency)
 - **Declarative YAML behavioral pattern engine** — add new patterns without code changes
 - **Built-in `shelf_to_waist` concealment detection pattern** — targeting retail shrinkage scenarios
-- **Optional VLM confirmation** — via OpenVINO Model Server (Qwen2.5-VL-7B-Instruct)
+- **Optional VLM confirmation** — via OpenVINO™ Model Server (Qwen2.5-VL-7B-Instruct)
 - **Event-driven MQTT processing** — `ba/requests` → `ba/results` with entity deduplication
 - **Async SeaweedFS (S3-compatible) frame retrieval** — via `aioboto3`
 - **Circuit breaker in VLM client** — 3-failure threshold, 30-second cooldown
