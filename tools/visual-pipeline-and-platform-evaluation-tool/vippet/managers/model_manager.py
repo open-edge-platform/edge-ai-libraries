@@ -227,6 +227,7 @@ def scan_huggingface_variant(
         else (precision, os.path.relpath(xml_path, MODELS_PATH))
     )
 
+
 DownloadRequest = dict[str, Any]
 
 
