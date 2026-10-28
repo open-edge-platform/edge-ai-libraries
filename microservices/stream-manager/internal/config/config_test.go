@@ -43,8 +43,8 @@ func TestLoadDefaults(t *testing.T) {
 	want := Config{
 		HTTPAddr: DefaultHTTPAddr, BufferLength: DefaultBufferLength, BufferDir: DefaultBufferDir,
 		StorageDir:           filepath.Join(home, ".local/share/stream-manager"),
-		ConcurrentRecorders:  ConcurrentRecorders,
-		RecordingStorageSize: int64(DefaultStorageSize) << 20,
+		ConcurrentRecorders:  15,
+		RecordingStorageSize: int64(DefaultStorageSize),
 	}
 	if cfg != want {
 		t.Fatalf("defaults: got %+v, want %+v", cfg, want)
@@ -112,7 +112,7 @@ func TestLoadFromConfigFile(t *testing.T) {
 	}
 	want := Config{
 		HTTPAddr: "127.0.0.1:9000", BufferLength: 60 * time.Second, BufferDir: DefaultBufferDir,
-		StorageDir: "/srv/sm-storage", ConcurrentRecorders: 4, RecordingStorageSize: 6000 << 20,
+		StorageDir: "/srv/sm-storage", ConcurrentRecorders: 4, RecordingStorageSize: 6000 << 30,
 	}
 	if cfg != want {
 		t.Fatalf("config file load: got %+v, want %+v", cfg, want)
@@ -213,14 +213,9 @@ func TestLoadRecordingStorageLimits(t *testing.T) {
 	chdir(t, dir)
 
 	for _, body := range []string{
-		`{"RecordingStorageSize": 5119}`,
-		`{"RecordingStorageSize": ` + strconv.Itoa(MaxStorageSize+1) + `}`,
-		`{"RecordingStorageSize": 9007199254740993}`,
-		`{"RecordingRetention": -1}`,
-		`{"RecordingRetention": ` + strconv.Itoa(int(MaxRecordingRetention/time.Hour)+1) + `}`,
-		`{"DerivedMediaTTL": -1}`,
-		`{"DerivedMediaTTL": -2}`,
-		`{"DerivedMediaTTL": ` + strconv.Itoa(int(MaxDerivedMediaTTL/time.Minute)+1) + `}`,
+		`{"RecordingStorageSize": 4}`,
+		`{"RecordingStorageSize": 102401}`,
+		`{"RecordingStorageSize": 17179869184}`,
 	} {
 		if err := os.WriteFile(filepath.Join(dir, DefaultConfigFile), []byte(body), 0o600); err != nil {
 			t.Fatal(err)
@@ -230,42 +225,45 @@ func TestLoadRecordingStorageLimits(t *testing.T) {
 		}
 	}
 
-	if err := os.WriteFile(filepath.Join(dir, DefaultConfigFile), []byte(`{"DerivedMediaTTL": 0}`), 0o600); err != nil {
+	const body = `{"RecordingStorageSize": 6000}`
+	if err := os.WriteFile(filepath.Join(dir, DefaultConfigFile), []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	cfg, err := Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.DerivedMediaTTL != 0 {
-		t.Fatalf("disabled derived TTL: got %v, want 0", cfg.DerivedMediaTTL)
+	if cfg.RecordingStorageSize != 6000<<30 {
+		t.Fatalf("got %d bytes, want %d", cfg.RecordingStorageSize, int64(6000)<<30)
 	}
+}
 
-	const body = `{"RecordingStorageSize": 6000, "RecordingRetention": 48, "DerivedMediaTTL": 60}`
-	if err := os.WriteFile(filepath.Join(dir, DefaultConfigFile), []byte(body), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	cfg, err = Load()
+func TestShippedConfigMatchesDefaults(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("SM_DATA_DIR", "")
+	t.Setenv("SM_HTTP_ADDR", "")
+	t.Setenv("SM_CONFIG_FILE", "")
+
+	shippedConfig, err := filepath.Abs(filepath.Join("..", "..", DefaultConfigFile))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.RecordingStorageSize != 6000<<20 || cfg.RecordingRetention != 48*time.Hour ||
-		cfg.DerivedMediaTTL != time.Hour {
-		t.Fatalf("got %d bytes, %v retention, %v derived TTL",
-			cfg.RecordingStorageSize, cfg.RecordingRetention, cfg.DerivedMediaTTL)
-	}
 
-	maxConfig := `{"RecordingRetention": ` + strconv.Itoa(int(MaxRecordingRetention/time.Hour)) +
-		`, "DerivedMediaTTL": ` + strconv.Itoa(int(MaxDerivedMediaTTL/time.Minute)) + `}`
-	if err := os.WriteFile(filepath.Join(dir, DefaultConfigFile), []byte(maxConfig), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	cfg, err = Load()
+	chdir(t, t.TempDir())
+	defaults, err := Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.RecordingRetention != MaxRecordingRetention || cfg.DerivedMediaTTL != MaxDerivedMediaTTL {
-		t.Fatalf("maximum durations: got %v retention, %v derived TTL, want %v and %v",
-			cfg.RecordingRetention, cfg.DerivedMediaTTL, MaxRecordingRetention, MaxDerivedMediaTTL)
+
+	t.Setenv("SM_CONFIG_FILE", shippedConfig)
+	shipped, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// ":8080" and "0.0.0.0:8080" both listen on all interfaces.
+	defaults.HTTPAddr = shipped.HTTPAddr
+	if shipped != defaults {
+		t.Fatalf("shipped config.json: got %+v, want defaults %+v", shipped, defaults)
 	}
 }

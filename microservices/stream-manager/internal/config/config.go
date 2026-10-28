@@ -14,19 +14,18 @@ import (
 )
 
 const (
-	DefaultConfigFile     = "config.json" // relative to the CWD; override via SM_CONFIG_FILE.
-	DefaultHTTPAddr       = ":8080"       // override via config.json or SM_HTTP_ADDR if set.
-	DefaultStorageDir     = "~/.local/share/stream-manager"
-	DefaultBufferDir      = "/dev/shm/stream-manager"
-	DefaultBufferLength   = 30 * time.Second
-	MaxBufferLength       = 300 * time.Second
-	MinBufferLength       = 5 * time.Second
-	DefaultStorageSize    = 10240   // MegaBytes; ~10 GB
-	MinStorageSize        = 5120    // MegaBytes; ~5 GB
-	MaxStorageSize        = 1 << 30 // MegaBytes; 1 PiB, keeps the byte count far below int64 overflow
-	ConcurrentRecorders   = 10
-	MaxRecordingRetention = 15 * 24 * time.Hour
-	MaxDerivedMediaTTL    = 24 * time.Hour
+	DefaultConfigFile   = "config.json" // relative to the CWD; override via SM_CONFIG_FILE.
+	DefaultHTTPAddr     = ":8080"       // override via config.json or SM_HTTP_ADDR if set.
+	DefaultStorageDir   = "~/.local/share/stream-manager"
+	DefaultBufferDir    = "/dev/shm/stream-manager"
+	DefaultBufferLength = 30 * time.Second
+	MaxBufferLength     = 300 * time.Second
+	MinBufferLength     = 5 * time.Second
+	ConcurrentRecorders = 15
+
+	DefaultStorageSize int64 = 10 << 30  // ~10 GiB
+	MinStorageSize           = 5 << 30   // ~5 GiB
+	MaxStorageSize           = 100 << 40 // ~100 TiB
 )
 
 type Config struct {
@@ -35,9 +34,7 @@ type Config struct {
 	BufferDir            string
 	StorageDir           string // Override via config.json or SM_DATA_DIR if set.
 	ConcurrentRecorders  int
-	RecordingStorageSize int64         // Bytes allocated to recordings and derived media.
-	RecordingRetention   time.Duration // Zero keeps finished recordings until deleted.
-	DerivedMediaTTL      time.Duration // Zero disables the TTL for derived media.
+	RecordingStorageSize int64 // Bytes allocated to recordings and derived media.
 }
 
 // Load reads the configuration from config.json (or the file named by SM_CONFIG_FILE),
@@ -48,7 +45,7 @@ func Load() (Config, error) {
 		BufferLength:         DefaultBufferLength,
 		StorageDir:           DefaultStorageDir,
 		ConcurrentRecorders:  ConcurrentRecorders,
-		RecordingStorageSize: int64(DefaultStorageSize) << 20,
+		RecordingStorageSize: DefaultStorageSize,
 	}
 
 	// look for config file provided via env var
@@ -70,25 +67,7 @@ func Load() (Config, error) {
 				cfg.BufferLength *= time.Second
 			}
 			if hasKey(data, "RecordingStorageSize") {
-				if cfg.RecordingStorageSize < MinStorageSize || cfg.RecordingStorageSize > MaxStorageSize {
-					return Config{}, fmt.Errorf("recording storage size must be between %d and %d MB", MinStorageSize, MaxStorageSize)
-				}
-				cfg.RecordingStorageSize <<= 20
-			}
-			if hasKey(data, "RecordingRetention") {
-				maxRetentionHours := int(MaxRecordingRetention / time.Hour)
-				if cfg.RecordingRetention < 0 || cfg.RecordingRetention > time.Duration(maxRetentionHours) {
-					return Config{}, fmt.Errorf("recording retention must be between 0 and %d hours", maxRetentionHours)
-				}
-				cfg.RecordingRetention *= time.Hour
-			}
-			if hasKey(data, "DerivedMediaTTL") {
-				maxDerivedTTLMinutes := int(MaxDerivedMediaTTL / time.Minute)
-				if cfg.DerivedMediaTTL < 0 ||
-					cfg.DerivedMediaTTL > time.Duration(maxDerivedTTLMinutes) {
-					return Config{}, fmt.Errorf("derived media TTL must be 0 or between 1 and %d minutes", maxDerivedTTLMinutes)
-				}
-				cfg.DerivedMediaTTL *= time.Minute
+				cfg.RecordingStorageSize <<= 30
 			}
 		}
 	} else {
@@ -100,8 +79,7 @@ func Load() (Config, error) {
 		cfg.StorageDir = dataDir
 	}
 
-	// override http listen address using env var if available; this lets a
-	// container fix its internal listen port regardless of a mounted config.json.
+	// override http listen address using env var if available
 	if httpAddr := strings.TrimSpace(os.Getenv("SM_HTTP_ADDR")); httpAddr != "" {
 		cfg.HTTPAddr = httpAddr
 	}
@@ -109,8 +87,8 @@ func Load() (Config, error) {
 	if cfg.BufferLength < MinBufferLength || cfg.BufferLength > MaxBufferLength {
 		return Config{}, fmt.Errorf("buffer length can not be less than %v or greater than %v", MinBufferLength, MaxBufferLength)
 	}
-	if cfg.RecordingStorageSize < int64(MinStorageSize)<<20 || cfg.RecordingStorageSize > int64(MaxStorageSize)<<20 {
-		return Config{}, fmt.Errorf("recording storage size must be between %d and %d MB", MinStorageSize, MaxStorageSize)
+	if cfg.RecordingStorageSize < MinStorageSize || cfg.RecordingStorageSize > MaxStorageSize {
+		return Config{}, fmt.Errorf("recording storage size must be between %d and %d GB", MinStorageSize>>30, MaxStorageSize>>30)
 	}
 
 	if storageDir, err := expandHome(cfg.StorageDir); err == nil {

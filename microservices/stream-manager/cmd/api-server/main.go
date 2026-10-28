@@ -64,12 +64,12 @@ func run() (errResult error) {
 		return err
 	}
 	defer func() { errResult = errors.Join(errResult, buffers.Close()) }()
-	recordings, err := record.NewService(buffers, metadata, media, cfg.ConcurrentRecorders, cfg.RecordingRetention)
+	recordings, err := record.NewService(buffers, metadata, media, cfg.ConcurrentRecorders, 0)
 	if err != nil {
 		return err
 	}
 	defer func() { errResult = errors.Join(errResult, recordings.Close()) }()
-	retrievals, err := retrieve.NewService(metadata, media, cfg.DerivedMediaTTL)
+	retrievals, err := retrieve.NewService(metadata, media, 0)
 	if err != nil {
 		return err
 	}
