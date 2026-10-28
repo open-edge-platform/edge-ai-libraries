@@ -1724,7 +1724,7 @@ act_panelled_logs ()
                 fi;
             done;
         fi;
-        [[ -n $out ]] && printf '\033[?2026h%s\033[?2026l' "$out";
+        [[ -n $out ]] && printf '\0337\033[?2026h%s\033[?2026l\0338' "$out";
         FRAMES=$(( FRAMES + 1 ));
         DRAW_MS=$(( DRAW_MS + $(_now_ms) - t0 ));
         DRAWING=0
@@ -2065,18 +2065,47 @@ act_panelled_logs_askpass ()
 #!/bin/bash
 if [ -n "$ASKPASS_ENV" ]; then
   printf '%s\n' "$ASKPASS_ENV"
-else
+elif [ -e /dev/tty ]; then
   exec 8<>/dev/tty 2>/dev/null || exit 1
-  # size and style
-  rows=$(stty size <&8 | cut -d' ' -f1)
+  rows=$(stty size <&8 | cut -d' ' -f1); rows=${rows:-1}
   saved=$(stty -g <&8) || exit 1
-  # restore screen
-  trap 'stty "$saved" <&8 2>/dev/null; printf "\033[%d;1H\033[K" "${rows:-1}" >&8' EXIT INT TERM HUP PIPE
+  # restore tty and clear the prompt row (cleanup only)
+  trap 'stty "$saved" <&8 2>/dev/null; printf "\033[%d;1H\033[K" "$rows" >&8' EXIT
+  # cancel: tell sudo (our parent) to abort instead of re-asking, then exit
+  cancel() { kill -INT "$PPID" 2>/dev/null; exit "$1"; }
+  trap 'cancel 130' INT
+  trap 'cancel 143' TERM
+  trap 'cancel 129' HUP
+  trap 'cancel 141' PIPE
   stty -echo <&8
-  # last row: _draw only ever writes rows 1..rows-1, so this is never repainted
-  printf '\033[%d;1H\033[K%s' "${rows:-1}" "$1" >&8
-  IFS= read -r pw <&8
-  printf '\033[%d;1H\033[K' "${rows:-1}" >&8
+  case ${LC_ALL:-${LC_CTYPE:-${LANG:-}}} in
+    *[Uu][Tt][Ff]*) caret='▏' mask='•' ;;
+    *)              caret='_' mask='*' ;;
+  esac
+  prompt=$1 pw="" on=1
+  draw() {
+    local c=" "
+    (( on )) && c=$'\033[1;36m'"$caret"$'\033[0m'
+    # last row: _draw only ever writes rows 1..rows-1, so this is never repainted
+    printf '\033[%d;1H\033[K%s%s%s' "$rows" "$prompt" "${pw//?/$mask}" "$c" >&8
+  }
+  while :; do
+    draw
+    if IFS= read -r -s -n1 -t 0.5 ch <&8; then
+      case $ch in
+        '')            break ;;            # Enter
+        $'\177'|$'\b') pw=${pw%?} ;;       # Backspace
+        $'\025')       pw="" ;;            # Ctrl-U
+        $'\003')       cancel 130 ;;       # Ctrl-C read as a byte
+        *)             pw+=$ch ;;
+      esac
+      on=1                                 # keep caret solid while typing
+    else
+      rc=$?
+      (( rc > 128 )) || exit 1             # EOF / tty gone
+      on=$(( !on ))                        # timeout -> blink
+    fi
+  done
   printf '%s\n' "$pw"
 fi
 EOF
@@ -2721,7 +2750,7 @@ ensure_sbom_format ()
     local key=$1;
     shift;
     case "$key" in 
-        pkg-list | apt-pref | yum-repo-conf)
+        pkg-list | apt-pref | yum-repo-conf | kernel-args | module-list)
             local IFS='|';
             local pkg_str="$*";
             echo "\"$key\": [\"${pkg_str//'|'/\",\"}\"]"
@@ -2778,25 +2807,27 @@ ensure_sudo ()
     [ -z "$hp" ] || proxy_args+=("http_proxy=$hp" "HTTP_PROXY=$hp");
     [ -z "$sp" ] || proxy_args+=("https_proxy=$sp" "HTTPS_PROXY=$sp");
     [ -z "$np" ] || proxy_args+=("no_proxy=$np" "NO_PROXY=$np");
-    if [ -e /dev/tty ] && : < /dev/tty 2> /dev/null; then
-        local ppid=$$;
-        local pid="$(ensure_prop get pids/sudo/pid$ppid)";
-        if [ -z "$pid" ] || ! kill -0 "$pid" 2> /dev/null; then
-            ( set +e;
-            trap - ERR EXIT INT TERM;
-            for fd in /proc/$BASHPID/fd/*;
-            do
-                fd=${fd##*/};
-                (( fd > 2 )) && eval "exec $fd>&-";
-            done 2> /dev/null;
-            while kill -0 $ppid 2> /dev/null; do
-                sudo -n -v < /dev/null > /dev/null 2>&1 || sudo -n true < /dev/null > /dev/null 2>&1 || break;
-                sleep 60;
-            done;
-            ensure_prop remove pids/sudo/pid$ppid ) < /dev/null > /dev/null 2>&1 & pid=$!;
-            ensure_prop create pids/sudo/pid$ppid;
-            ensure_prop set pids/sudo/pid$ppid "$pid";
-            disown $pid;
+    if [ -e /dev/tty ]; then
+        if : < /dev/tty 2> /dev/null; then
+            local ppid=$$;
+            local pid="$(ensure_prop get pids/sudo/pid$ppid)";
+            if [ -z "$pid" ] || ! kill -0 "$pid" 2> /dev/null; then
+                ( set +e;
+                trap - ERR EXIT INT TERM;
+                for fd in /proc/$BASHPID/fd/*;
+                do
+                    fd=${fd##*/};
+                    (( fd > 2 )) && eval "exec $fd>&-";
+                done 2> /dev/null;
+                while kill -0 $ppid 2> /dev/null; do
+                    sudo -n -v < /dev/null > /dev/null 2>&1 || sudo -n true < /dev/null > /dev/null 2>&1 || break;
+                    sleep 60;
+                done;
+                ensure_prop remove pids/sudo/pid$ppid ) < /dev/null > /dev/null 2>&1 & pid=$!;
+                ensure_prop create pids/sudo/pid$ppid;
+                ensure_prop set pids/sudo/pid$ppid "$pid";
+                disown $pid;
+            fi;
         fi;
     fi;
     if sudo -n true 2> /dev/null; then
@@ -3614,104 +3645,165 @@ subcommand_install ()
 }
 subcommand_list () 
 { 
-    case " $* " in 
-        *" --help "*)
-            echo "list options:";
-            echo "  --sbom          show component SBOM items";
-            echo
-        ;;
-        *" --sbom "*)
-            if [ ${#*} -eq 1 ]; then
-                act_get prefix profile_;
-                local all_profiles=(${_act_reply[*]});
-                local all_modules=(${_act_cache_modules[*]});
-                set -- ${all_modules[*]} ${all_profiles[*]#*_*_*_};
-            fi;
-            local handles=($(act_find_deps install $(act_resolve_args install "$@")));
-            local all_install_modules="${handles[*]#${installer_family}_*_install_}";
-            local handler sbomer;
-            for handler in $(printf '%s\n' "${handles[@]}" | sort);
-            do
-                sbomer=${handler/_install_/_sbom_};
-                declare -F $sbomer > /dev/null 2>&1 || continue;
-                $sbomer $(act_extract_args sbom ${handler#*_*_*_} "$all_install_modules" "$@");
-                echo "---";
-            done
-        ;;
-        *)
-            local all_cmds=(${_act_cache_cmds[*]});
-            act_get prefix profile_;
-            local all_profiles=(${_act_reply[*]});
-            local all_modules=(${_act_cache_modules[*]});
-            local profile_lines=() module_lines=();
-            local -A module_act_cache=();
-            if [ ${#all_modules[@]} -gt 0 ]; then
-                local module_name;
-                for module_name in "${all_modules[@]}";
-                do
-                    [ ${#*} -eq 0 ] || [[ " $* " = *" $module_name "* ]] || continue;
-                    local module_cmds=() mname cmd;
-                    for cmd in ${all_cmds[*]};
-                    do
-                        for mname in $(act_expand_modules $cmd $module_name "$@");
-                        do
-                            if [[ -v _act_cache_functions[${cmd}_${mname}] ]]; then
-                                module_cmds+=($cmd);
-                                break;
-                            fi;
-                        done;
-                    done;
-                    module_act_cache[$module_name]="${module_cmds[*]}";
-                    module_lines+=("|$module_name|[${module_act_cache[$module_name]}]");
-                done;
-            fi;
-            if [ ${#all_profiles[@]} -gt 0 ]; then
-                local profiler;
-                for profiler in "${all_profiles[@]}";
-                do
-                    local profile_name=${profiler#*_*_*_};
-                    [ ${#*} -eq 0 ] || [[ " $* " = *" $profile_name "* ]] || continue;
-                    [[ " ${all_modules[*]} " != *" $profile_name "* ]] || continue;
-                    local profile_cmds=() mname1 mname2 cmd found;
-                    for cmd in ${all_cmds[*]};
-                    do
-                        for mname1 in $($profiler $cmd "$@");
-                        do
-                            if [[ " ${module_act_cache[$mname1]:-} " = *" $cmd "* ]]; then
-                                profile_cmds+=($cmd);
-                                break;
-                            fi;
-                            found=0;
-                            for mname2 in $(act_expand_modules $cmd $mname1 "$@");
-                            do
-                                if [[ -v _act_cache_functions[${cmd}_${mname2}] ]]; then
-                                    found=1;
-                                    break;
-                                fi;
-                            done;
-                            if [ $found -eq 1 ]; then
-                                profile_cmds+=($cmd);
-                                break;
-                            fi;
-                        done;
-                    done;
-                    profile_lines+=("|$profile_name|[${profile_cmds[*]}]");
-                done;
-            fi;
-            { 
-                if [ ${#profile_lines[@]} -gt 0 ]; then
-                    printf "List of Profiles:\n";
-                    printf "%s\n" "${profile_lines[@]}" | sort;
-                    printf "\n";
-                fi;
-                if [ ${#module_lines[@]} -gt 0 ]; then
-                    printf "List of Components:\n";
-                    printf "%s\n" "${module_lines[@]}" | sort;
-                    printf "\n";
+    act_get prefix profile_;
+    local all_profiles=(${_act_reply[*]});
+    local all_modules=(${_act_cache_modules[*]});
+    local all_list=" ${all_modules[*]} ${all_profiles[*]#*_*_*_} ";
+    local k v sbom=0 args=() os_release="";
+    for v in "$@";
+    do
+        case "$v" in 
+            --help)
+                echo "list options:";
+                echo "  --os-release=<file> import an os-release file";
+                echo "  --sbom              show component SBOM items";
+                echo;
+                return 0
+            ;;
+            --os-release=*)
+                os_release="${v#*=}"
+            ;;
+            --sbom)
+                sbom=1
+            ;;
+            --os-release)
+
+            ;;
+            *)
+                if [ "$last_v" = "--os-release" ]; then
+                    os_release="$v";
+                else
+                    if [[ " $all_list " = *" $v "* ]]; then
+                        args+=("$v");
+                    else
+                        echo "Invalid name: $v" 1>&2;
+                        return 3;
+                    fi;
                 fi
-            } | ensure_columns
-        ;;
-    esac
+            ;;
+        esac;
+        last_v="$v";
+    done;
+    if [ -n "$os_release" ]; then
+        if [ -f "$os_release" ] && [ -r "$os_release" ]; then
+            local -A data=();
+            while read -r v; do
+                case "$v" in 
+                    PRETTY_NAME=* | NAME=* | VERSION_ID=* | VERSION=* | VERSION_CODENAME=* | ID=* | ID_LIKE=* | UBUNTU_CODENAME=*)
+                        k="${v%%=*}";
+                        v="${v#*=}";
+                        [[ "$v" = '"'*'"' ]] && { 
+                            v="${v#'"'}";
+                            v="${v%'"'}"
+                        };
+                        [[ "$v" = "'"*"'" ]] && { 
+                            v="${v#"'"}";
+                            v="${v%"'"}"
+                        };
+                        data["$k"]="$v"
+                    ;;
+                esac;
+            done < "$os_release";
+            PRETTY_NAME="${data["PRETTY_NAME"]:-"$PRETTY_NAME"}";
+            NAME="${data["NAME"]:-"$NAME"}";
+            VERSION_ID="${data["VERSION_ID"]:-"$VERSION_ID"}";
+            VERSION="${data["VERSION"]:-"$VERSION"}";
+            VERSION_CODENAME="${data["VERSION_CODENAME"]:-"$VERSION_CODENAME"}";
+            ID="${data["ID"]:-"$ID"}";
+            ID_LIKE="${data["ID_LIKE"]:-"$ID_LIKE"}";
+            UBUNTU_CODENAME="${data["UBUNTU_CODENAME"]:-"$UBUNTU_CODENAME"}";
+            installer_family="$(x="${ID_LIKE:-$ID}"; x="${x##* }"; echo "${x//[^a-zA-Z0-9]/}")";
+        else
+            echo "Invalid $os_release" 1>&2;
+            return 3;
+        fi;
+    fi;
+    [ ${#args[*]} -eq 0 ] && set -- $all_list || set -- "${args[@]}";
+    if [ $sbom -eq 1 ]; then
+        local handles=($(act_find_deps install $(act_resolve_args install "$@")));
+        local all_install_modules="${handles[*]#${installer_family}_*_install_}";
+        echo "\"schema-version\": 1.0";
+        echo "\"version\": \"main\"";
+        ensure_sbom_format module-list "${@}";
+        echo "---";
+        local handler sbomer;
+        for handler in $(printf '%s\n' "${handles[@]}" | sort);
+        do
+            sbomer=${handler/_install_/_sbom_};
+            declare -F $sbomer > /dev/null 2>&1 || continue;
+            $sbomer $(act_extract_args sbom ${handler#*_*_*_} "$all_install_modules" "$@");
+            echo "---";
+        done;
+    else
+        local all_cmds=(${_act_cache_cmds[*]});
+        local profile_lines=() module_lines=();
+        local -A module_act_cache=();
+        if [ ${#all_modules[@]} -gt 0 ]; then
+            local module_name;
+            for module_name in "${all_modules[@]}";
+            do
+                [ ${#*} -eq 0 ] || [[ " $* " = *" $module_name "* ]] || continue;
+                local module_cmds=() mname cmd;
+                for cmd in ${all_cmds[*]};
+                do
+                    for mname in $(act_expand_modules $cmd $module_name "$@");
+                    do
+                        if [[ -v _act_cache_functions[${cmd}_${mname}] ]]; then
+                            module_cmds+=($cmd);
+                            break;
+                        fi;
+                    done;
+                done;
+                module_act_cache[$module_name]="${module_cmds[*]}";
+                module_lines+=("|$module_name|[${module_act_cache[$module_name]}]");
+            done;
+        fi;
+        if [ ${#all_profiles[@]} -gt 0 ]; then
+            local profiler;
+            for profiler in "${all_profiles[@]}";
+            do
+                local profile_name=${profiler#*_*_*_};
+                [ ${#*} -eq 0 ] || [[ " $* " = *" $profile_name "* ]] || continue;
+                [[ " ${all_modules[*]} " != *" $profile_name "* ]] || continue;
+                local profile_cmds=() mname1 mname2 cmd found;
+                for cmd in ${all_cmds[*]};
+                do
+                    for mname1 in $($profiler $cmd "$@");
+                    do
+                        if [[ " ${module_act_cache[$mname1]:-} " = *" $cmd "* ]]; then
+                            profile_cmds+=($cmd);
+                            break;
+                        fi;
+                        found=0;
+                        for mname2 in $(act_expand_modules $cmd $mname1 "$@");
+                        do
+                            if [[ -v _act_cache_functions[${cmd}_${mname2}] ]]; then
+                                found=1;
+                                break;
+                            fi;
+                        done;
+                        if [ $found -eq 1 ]; then
+                            profile_cmds+=($cmd);
+                            break;
+                        fi;
+                    done;
+                done;
+                profile_lines+=("|$profile_name|[${profile_cmds[*]}]");
+            done;
+        fi;
+        { 
+            if [ ${#profile_lines[@]} -gt 0 ]; then
+                printf "List of Profiles:\n";
+                printf "%s\n" "${profile_lines[@]}" | sort;
+                printf "\n";
+            fi;
+            if [ ${#module_lines[@]} -gt 0 ]; then
+                printf "List of Components:\n";
+                printf "%s\n" "${module_lines[@]}" | sort;
+                printf "\n";
+            fi
+        } | ensure_columns;
+    fi
 }
 subcommand_remove () 
 { 
