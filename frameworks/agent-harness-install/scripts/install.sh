@@ -53,7 +53,7 @@ usage() {
                                        (sets HARNESS_MODEL_CONFIG_JSON)
     --model-revision <rev>             Branch, tag or commit (model-download and hf-snapshot exporters)
     --model-type <type>                Model type, e.g. llm (model-download exporter; hls needs 3d-pose|rppg|ai-ecg)
-    --model-precision <int4|int8|fp16|fp32>  Weight precision (default: int8; model-download and docker-pull exporters)
+    --model-precision <int4|int8|fp16|fp32>  Weight precision (default: int8; model-download, docker-pull and export-model-py exporters)
     --model-device <CPU|GPU|NPU|HETERO:…>    Conversion target device (model-download exporter; default: CPU)
     --help, -h                        Show this help message and exit
 
@@ -76,7 +76,7 @@ usage() {
                                     (default hub: a Hugging Face id such as org/name)
     HARNESS_OVMS_REST_PORT, HARNESS_MODELS_DIR
     HARNESS_OVMS_IMAGE            OVMS serving image (default: openvino/model_server:2026.4.1-gpu)
-    HARNESS_OVMS_EXPORT_IMAGE     OVMS "-py" image used by the docker-pull exporter (default: openvino/model_server:2026.1-py)
+    HARNESS_OVMS_EXPORT_IMAGE     OVMS "-py" image used by the docker-pull exporter to convert non-OpenVINO/* models (default: openvino/model_server:2026.1-py)
     HARNESS_BACKEND_NETWORK      Docker network joining OVMS + the Inference Router so they can reach each other by name (default: agent-harness-install-backend)
     MIN_NODE_VERSION
     HARNESS_OVMS_EXTRA_ARGS       Extra OVMS server flags (e.g. --tool_parser <parser>)
