@@ -4865,14 +4865,6 @@ debian_40_sbom_software_properties_common ()
 { 
     ensure_sbom_format pkg-list software-properties-common
 }
-debian_40_sbom_system_info () 
-{ 
-    configure_system_info;
-    ensure_sbom_format name system_info;
-    ensure_sbom_format repository "$repository";
-    ensure_sbom_format version "$version";
-    ensure_sbom_format file "$system_info_path/system-info.sh"
-}
 debian_45_install_cloud_image_utils () 
 { 
     ensure_apt_install_package cloud-image-utils
