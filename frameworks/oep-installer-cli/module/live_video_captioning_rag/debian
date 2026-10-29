@@ -1,7 +1,7 @@
 
 configure_live_video_captioning_rag () {
   workspace="$(ensure_project_path)/live-video-captioning-rag"
-  version=release-2026.2.0
+  version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")"
   repository="https://github.com/open-edge-platform/metro-ai-suite.git"
   used_ports=(4173 4172 8040 1883 9090 8889 9273 8556)
   get_model_script="https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/tags/2026.2.1/microservices/model-download/scripts/get_model.sh"
@@ -30,7 +30,7 @@ debian_90_profile_live_video_captioning_rag () {
 }
 
 debian_90_install_live_video_captioning_rag () {
-  configure_live_video_captioning_rag
+  configure_live_video_captioning_rag "$@"
   if verify_live_video_captioning_rag && [[ " $* " != *" --reinstall "* ]]; then
     echo "Live Video Captioning RAG is installed." >&2
   else
@@ -62,7 +62,7 @@ debian_90_install_live_video_captioning_rag () {
 }
 
 debian_90_start_live_video_captioning_rag () {
-  configure_live_video_captioning_rag
+  configure_live_video_captioning_rag "$@"
   ensure_ports_open start live_video_captioning_rag "${used_ports[@]}"
 
   local device=$(ensure_parse_device "$@")
@@ -76,7 +76,7 @@ debian_90_start_live_video_captioning_rag () {
 }
 
 debian_90_stop_live_video_captioning_rag () {
-  configure_live_video_captioning_rag
+  configure_live_video_captioning_rag "$@"
   cd "$workspace"/live-video-analysis/live-video-captioning-rag && 
   docker compose -f compose.yaml down -v --remove-orphans || true
 }
