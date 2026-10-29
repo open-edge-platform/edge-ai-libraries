@@ -6,7 +6,7 @@ configure_openvino () {
   apt_entry="deb [signed-by=$key_file] https://$repo_name/openvino ${ID}${VERSION_ID%.*} main"
   apt_file=/etc/apt/sources.list.d/intel-openvino.list
   workspace="$(ensure_project_path)/openvino"
-  version=$([[ " $* " = *" dlstreamer "* ]] && echo 2026.2.0 || echo 2026.3.0)
+  version="$(ensure_parse_value_option version --version=$([[ " $* " = *" dlstreamer "* ]] && echo 2026.2.0 || echo 2026.3.0) "$@")"
   model="https://github.com/onnx/models/raw/4c46cd00fbdb7cd30b6c1c17ab54f2e1f4f7b177/validated/vision/classification/squeezenet/model/squeezenet1.0-12.onnx"
 }
 
