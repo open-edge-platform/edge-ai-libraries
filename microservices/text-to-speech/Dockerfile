@@ -41,9 +41,10 @@ RUN apt-get update \
     && for pkg in setuptools urllib3; do \
          latest=$(ls -d /usr/local/lib/python3.12/dist-packages/${pkg}-*.dist-info 2>/dev/null | sort -V | tail -1); \
          for d in /usr/local/lib/python3.12/dist-packages/${pkg}-*.dist-info; do \
+           [ -e "$d" ] || continue; \
            if [ -n "$latest" ] && [ "$d" != "$latest" ]; then rm -rf "$d"; fi; \
          done; \
-       done; true \
+       done \
     && rm -rf /var/lib/apt/lists/*
 
 
