@@ -4,12 +4,12 @@
 openapi: 3.0.3
 info:
   title: Stream Manager API
-  version: 0.1.0-draft
+  version: "RC-1-2026.03"
   description: |
 
     Stream Manager attaches live sources, keeps a bounded per-stream buffer,
     saves media around events, and returns timestamp-correlated clips and frames.
-    Example IDs such as str-1 and rec-2 are placeholders. Use IDs returned by the service.
+    Example IDs such as `str-1` and `rec-2` are placeholders. Use IDs returned by the service.
 
 servers:
   - url: /v1
@@ -135,7 +135,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Stream'
         '422':
-          description: The stream failed because it did not reach NTP/keyframe readiness and its timestamp confidence is best_effort or unverified.
+          description: The stream failed. The source did not give NTP-synced timestamps in the startup time, or the source sent no keyframe in that time.
           content:
             application/json:
               schema:
@@ -193,7 +193,7 @@ paths:
       tags: [Stream Attachment APIs]
       summary: Resize a stream buffer
       description: |-
-        Changes how many seconds of history the buffer holds. Growing keeps every existing slice and lets the buffer hold more history. Shrinking immediately discards the oldest slices that no longer fit the smaller window. The same buffer_length limits as attachment apply, and requesting the current size is a no-op.
+        Changes how many seconds of history the buffer holds. Growing keeps every existing video slice and lets the buffer hold more history. Shrinking immediately discards the oldest video slices that no longer fit the smaller window. The same buffer_length limits as attachment apply, and requesting the current size is a no-op.
 
         | Field | Type | Required | Unit / range |
         |---|---|---|---|
@@ -239,7 +239,7 @@ paths:
       tags: [Recording Storage APIs]
       summary: Start a recording
       description: |-
-        Saves the video around an event from one attached stream. If the stream lacks the requested history, no record is created. Video is copied as whole keyframe-aligned MPEG-TS slices without re-encoding; the stored window can extend to the enclosing keyframes, and ready records report those actual bounds.
+        Saves the video around an event from one attached stream. If the stream lacks the requested history, no record is created. Video is copied as whole keyframe-aligned MPEG-TS video slices without re-encoding; the stored window can extend to the enclosing keyframes, and ready records report those actual bounds.
 
         | Field | Type | Required | Unit / range |
         |---|---|---|---|
@@ -292,7 +292,7 @@ paths:
                 error_code: history_unavailable
                 error_detail: requested history is not available
         '429':
-          description: Recording capacity reached.
+          description: The number of active recordings is at the ConcurrentRecorders limit. The service does not create a record and does not queue the request. Send the request again when an active recording ends.
           content:
             application/json:
               schema:
@@ -317,7 +317,11 @@ paths:
       tags: [Recording Storage APIs]
       summary: Stop an open recording
       description: |-
-        Stops an open recording. The stop time is fixed and does not move if the request is repeated. An already finished recording returns 200 with the current record.
+        Stops an open recording. The stop time is the service UTC time when the service accepts the first stop request. It is not the time when the client sends the request. A repeated stop request does not change the stop time.
+
+        While the state is finalizing, end_ts is null. When the state is ready, end_ts is the end of the last stored video slice. This value can be later than the stop time. Use GET /records/{recording_id} to read it.
+
+        A ready recording returns 200 with its current record.
 
         | Field | Type | Required | Unit / range |
         |---|---|---|---|
@@ -330,13 +334,13 @@ paths:
               $ref: '#/components/schemas/RecordStop'
       responses:
         '200':
-          description: The recording was already finished; the current record is returned.
+          description: The recording is ready. The service returns its current record.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Recording'
         '202':
-          description: Record accepted for finalizing.
+          description: The service accepted the stop request. The state is finalizing and end_ts is null. A repeated stop request during finalizing also returns 202.
           content:
             application/json:
               schema:
@@ -362,7 +366,7 @@ paths:
                 error_code: recording_not_found
                 error_detail: recording not found
         '409':
-          description: The record is not an active open recording (record_not_ready), or the source sent no video frame after the recording start (history_unavailable). Repeated stops while finalizing retain the original stop target and return 202.
+          description: The record is not an active open recording (record_not_ready), or the source sent no video frame after the recording start (history_unavailable).
           content:
             application/json:
               schema:
@@ -376,7 +380,7 @@ paths:
     get:
       tags: [Recording Storage APIs]
       summary: Find records
-      description: Returns a page of records. All query parameters are optional and AND-combined. A match only shows the recorded window overlaps the filter.
+      description: Returns a page of records. All query parameters are optional and AND-combined. When time bounds(both start_ts and end_ts) are supplied, a record must be fully contained within them. Both bounds (start_ts and end_ts) are inclusive. A record with a null end_ts does not match a recording with non-null end_ts bound.
       parameters:
         - name: sensor_id
           in: query
@@ -399,7 +403,7 @@ paths:
             format: date-time
         - name: end_ts
           in: query
-          description: Inclusive upper bound. A matching record must end at or before this time; open records without end_ts do not match. It must be later than start_ts when both are supplied. Timestamps must be RFC 3339 UTC and end in Z.
+          description: Inclusive upper bound. A matching record must end at or before this time; a record with a null end_ts does not match. It must be later than start_ts when both are supplied. Timestamps must be RFC 3339 UTC and end in Z.
           required: false
           schema:
             type: string
@@ -711,7 +715,7 @@ paths:
                 start_ts: '2026-09-16T09:12:00Z'
                 end_ts: '2026-09-16T09:12:05.400000000Z'
                 url: /v1/media/rec-2/clip-0-5000000000.mp4
-                expiry_ts: '2026-09-16T09:20:00.000000000Z'
+                expiry_ts: null
             video/mp4:
               schema:
                 type: string
@@ -813,11 +817,7 @@ paths:
           description: The frame or clip bytes.
           headers:
             Cache-Control:
-              description: private, max-age=<seconds until expiry_ts>; private, no-cache when there is no expiry.
-              schema:
-                type: string
-            Expires:
-              description: The file's expiry_ts, as an HTTP-date. Omitted when there is no expiry.
+              description: Always private, no-cache.
               schema:
                 type: string
             X-Content-Type-Options:
@@ -838,7 +838,7 @@ paths:
                 type: string
                 format: binary
         '404':
-          description: The frame or clip file is missing or past its expiry_ts. Missing frame files return frame_not_found; missing clip files return clip_not_found.
+          description: The recording is unknown, or the frame or clip file is missing. Missing frame files return frame_not_found; missing clip files return clip_not_found.
           content:
             application/json:
               schema:
@@ -914,6 +914,7 @@ components:
             - history_unavailable
             - active_dependency
             - unsupported_media
+            - not_ntp_synced
             - capacity_exhausted
             - internal_error
             - storage_full
@@ -955,7 +956,7 @@ components:
       properties:
         buffer_length:
           type: integer
-          description: The new size in seconds, 5-300. Growing does not conjure up that much history straight away; shrinking immediately discards the oldest slices that no longer fit.
+          description: The new size in seconds, 5-300. Growing does not conjure up that much history straight away; shrinking immediately discards the oldest video slices that no longer fit.
           minimum: 5
           maximum: 300
       example:
@@ -1058,12 +1059,12 @@ components:
         start_ts:
           type: string
           format: date-time
-          description: The first moment covered, itself included.
+          description: The timestamp of the first moment covered in the recording, itself included. The recording starts at the keyframe at or before the requested start (start_ts minus pre_event_duration). Thus, this value can be earlier than the requested start.
         end_ts:
           type: string
           format: date-time
           nullable: true
-          description: The moment coverage stops, that instant not itself included; empty while an open recording is still running.
+          description: The timestamp when the recording is requested to be stopped.  Requested time is considered as `planned end time`. For a fixed-length recording, it is the `planned end time` (start_ts plus duration) while the state is recording or finalizing. For an open recording, it is null until the state is ready. When the state is ready, it is the end of the last stored video slice. This value is equal to or later than the `planned end time`. It is earlier only if the storage quota stops the recording early. In that case, error_detail shows the cause.
         size_bytes:
           type: integer
           nullable: true
@@ -1097,6 +1098,7 @@ components:
           incident_id: incident-17
         creation_ts: '2026-09-16T09:12:03.600000000Z'
         expiry_ts: null
+        error_detail: null
 
     MediaResult:
       type: object
@@ -1128,7 +1130,7 @@ components:
           description: The exclusive end bound of the requested clip interval (requested_start_ts plus duration), not the last frame timestamp; empty for a single frame.
         url:
           type: string
-          description: An origin-relative path that serves the produced file via GET /media/{recording-id}/{file} until expiry_ts. It never points at the original recording.
+          description: An origin-relative path that serves the produced file via GET /media/{recording-id}/{file}. It never points at the original recording.
         expiry_ts:
           type: string
           format: date-time
@@ -1142,7 +1144,7 @@ components:
         start_ts: '2026-09-16T09:12:03.400000000Z'
         end_ts: null
         url: /v1/media/rec-2/frame-3000000000.jpg
-        expiry_ts: '2026-09-16T09:20:00.000000000Z'
+        expiry_ts: null
 
     RecordStart:
       type: object
@@ -1185,7 +1187,7 @@ components:
       properties:
         recordings:
           type: array
-          description: Contains one Record in the recording state. start_ts is the enclosing starting keyframe; end_ts is the planned end for a fixed-length recording and null for an open one. Once ready, end_ts is the actual ending slice boundary.
+          description: Contains one Record in the recording state. See the Recording schema for the meaning of start_ts and end_ts.
           items:
             $ref: '#/components/schemas/Recording'
 
@@ -1195,7 +1197,7 @@ components:
       properties:
         recording_id:
           type: string
-          description: The open recording to stop. Use the returned recording_id. Active fixed-length and failed recordings are refused. Repeated stops while finalizing retain their target; ready recordings return their current record.
+          description: The open recording to stop. Use the returned recording_id. Active fixed-length and failed recordings are refused. A repeated stop request during finalizing does not change the stop time. A ready recording returns its current record.
           minLength: 1
           maxLength: 128
           pattern: '^[A-Za-z0-9_-][A-Za-z0-9._:-]*$'

@@ -33,9 +33,7 @@ It complements the OpenAPI specification with necessary examples and finer detai
   - [Delete a record](#delete-a-record)
 - [Retrieval APIs](#retrieval-apis)
   - [Extract a frame](#extract-a-frame)
-  - [Get an HTTP link to a frame](#get-an-http-link-to-a-frame)
   - [Extract a clip](#extract-a-clip)
-  - [Get an HTTP link to a clip](#get-an-http-link-to-a-clip)
   - [Get produced media](#get-produced-media)
 - [Error code reference](#error-code-reference)
 
@@ -145,8 +143,8 @@ One record is one recording of one sensor.
 | `sensor_id` | string | Recorded sensor. |
 | `stream_id` | string, nullable | The stream it was recorded from; `null` for an imported recording. |
 | `state` | string | One of `recording`, `finalizing`, `ready`, `failed`. Media can only be retrieved once `ready`. |
-| `start_ts` | string (date-time) | First moment covered, itself included. |
-| `end_ts` | string (date-time), nullable | Moment coverage stops (exclusive); `null` while an open recording is still running. |
+| `start_ts` | string (date-time) | The timestamp of first moment covered in the recording, itself included. The recording starts at the keyframe at or before the requested start (`start_ts` minus `pre_event_duration`). Thus, this value can be earlier than the requested start. |
+| `end_ts` | string (date-time), nullable | The timestamp when the recording is requested to be stopped. Requested time is considered as **planned end time**. For a fixed-length recording, it is the **planned end time** (`start_ts` plus `duration`) while the state is `recording` or `finalizing`. For an open recording, it is `null` until the state is `ready`. When the state is `ready`, it is the end of the last stored video slice from the buffer. This value is equal to or later than the **planned end time**. It is earlier only if the storage quota stops the recording early. In that case, `error_detail` shows the cause. |
 | `size_bytes` | integer, nullable | Size of the finished media; `null` until `ready`. |
 | `metadata` | object | Whatever metadata the caller supplied, or `{}` if none was. |
 | `creation_ts` | string (date-time) | Record creation time. |
@@ -182,7 +180,7 @@ media.
 | `requested_end_ts` | string (date-time), nullable | Requested end time (exclusive); `null` for a single frame. |
 | `start_ts` | string (date-time) | Actual time of the returned frame, or first frame of the clip. It can be earlier than `requested_start_ts` because clips start at a keyframe. |
 | `end_ts` | string (date-time), nullable | Exclusive end bound of the requested clip interval (`requested_start_ts` + duration); it is not the timestamp of the last frame. `null` for a single frame. |
-| `url` | string | Origin-relative path that serves the file via [`GET /media/{recording-id}/{file}`](#get-produced-media) until `expiry_ts`. Never points at the original recording. |
+| `url` | string | Origin-relative path that serves the file via [`GET /media/{recording-id}/{file}`](#get-produced-media). |
 | `expiry_ts` | string (date-time) | Always `null`. Frames and clips do not expire. Deleting the recording removes them. |
 
 ### Deletion
@@ -382,7 +380,7 @@ Content-Type: application/json
 |---|---|---|
 | 200 | — | The `Stream` object. |
 | 404 | `stream_not_found` | The stream is unknown or has been detached. |
-| 422 | `not_ntp_synced` | The stream failed because it is not synced with NTP and its timestamp confidence is `best_effort` or `unverified`. |
+| 422 | `not_ntp_synced` | The stream failed. The source did not give NTP-synced timestamps in the startup time, or the source sent no keyframe in that time. |
 
 ### Detach a stream
 
@@ -569,18 +567,25 @@ Content-Type: application/json
 | Status | `error_code` | Meaning |
 |---|---|---|
 | 201 | — | Record accepted in the `recording` state. Acceptance does not mean the media is finished. |
-| 400 | `invalid_request` / `invalid_selector` / `invalid_timestamp` | Malformed body or missing `start_ts` (`invalid_request`); malformed `stream_id` (`invalid_selector`); invalid `start_ts`, or `start_ts` later than the newest video frame (`invalid_timestamp`); invalid `duration` or `pre_event_duration` (`invalid_request`). |
+| 400 | `invalid_request` / `invalid_selector` / `invalid_timestamp` | Malformed body or missing `start_ts` (`invalid_request`); missing or malformed `stream_id` (`invalid_selector`); invalid `start_ts`, or `start_ts` later than the newest video frame (`invalid_timestamp`); invalid `duration` or `pre_event_duration` (`invalid_request`). |
 | 404 | `stream_not_found` | Unknown stream. |
 | 409 | `history_unavailable` | Requested history unavailable, or the stream is not buffering with NTP-synced timestamps. |
-| 429 | `capacity_exhausted` | Recording capacity reached. |
+| 429 | `capacity_exhausted` | The number of active recordings is at the `ConcurrentRecorders` limit. The service does not create a record and does not queue the request. Send the request again when an active recording ends. |
 | 507 | `storage_full` | The recording storage quota is reached. Delete recordings to free space. |
 
 ### Stop an open recording
 
 `POST /records/stop`
 
-Stops an open recording. The stop time is fixed and does not move if the request is
-repeated. An already finished recording returns `200` with the current record.
+Stops an open recording. The stop time is the service UTC time when the service
+accepts the first stop request. It is not the time when the client sends the
+request. A repeated stop request does not change the stop time.
+
+While the state is `finalizing`, `end_ts` is `null`. When the state is `ready`,
+`end_ts` is the end of the last stored video slice. This value can be later than
+the stop time. Use `GET /records/{recording_id}` to read it.
+
+A `ready` recording returns `200` with its current record.
 
 **Request body — `RecordStop`**
 
@@ -606,7 +611,7 @@ Content-Type: application/json
   "stream_id": "str-1",
   "state": "finalizing",
   "start_ts": "2026-09-16T09:12:03.400000000Z",
-  "end_ts": "2026-09-16T09:15:10.000000000Z",
+  "end_ts": null,
   "size_bytes": null,
   "metadata": {},
   "creation_ts": "2026-09-16T09:12:03.600000000Z",
@@ -627,7 +632,7 @@ Content-Type: application/json
   "stream_id": "str-1",
   "state": "ready",
   "start_ts": "2026-09-16T09:12:03.400000000Z",
-  "end_ts": "2026-09-16T09:15:10.000000000Z",
+  "end_ts": "2026-09-16T09:15:10.400000000Z",
   "size_bytes": 20971520,
   "metadata": {},
   "creation_ts": "2026-09-16T09:12:03.600000000Z",
@@ -638,11 +643,11 @@ Content-Type: application/json
 
 | Status | `error_code` | Meaning |
 |---|---|---|
-| 200 | — | The recording was already finished; the current record is returned. |
-| 202 | — | Record accepted for finalizing. |
+| 200 | — | The recording is `ready`. The service returns its current record. |
+| 202 | — | The service accepted the stop request. The state is `finalizing`. A repeated stop request during `finalizing` also returns `202`. |
 | 400 | `invalid_request` | Malformed body or invalid `recording_id`. |
 | 404 | `recording_not_found` | Unknown recording. |
-| 409 | `record_not_ready` | The record is not an active open recording. Repeated stops while finalizing retain the original stop target and return `202`. |
+| 409 | `record_not_ready` | The record is not an active open recording. For example, it is a fixed-length or `failed` recording. |
 | 409 | `history_unavailable` | The source sent no video frame after the recording start. |
 
 ### Find records
@@ -658,7 +663,7 @@ are inclusive. A record without `end_ts` is open and does not match an `end_ts` 
 | `sensor_id` | query | string | Only records from this sensor, imported as well as live. |
 | `stream_id` | query | string | Only records from this stream (never includes imports). |
 | `start_ts` | query | date-time | Inclusive lower bound. The record's `start_ts` must be at or after this time. |
-| `end_ts` | query | date-time | Inclusive upper bound. The record's `end_ts` must be at or before this time; open records do not match. Must be later than `start_ts` when both are supplied. |
+| `end_ts` | query | date-time | Inclusive upper bound. The record's `end_ts` must be at or before this time. A record with `end_ts` set to `null` does not match. Must be later than `start_ts` when both are supplied. |
 | `expiry_ts` | query | date-time | Keep only records expiring at or before this time. |
 | `state` | query | string | One of `recording`, `finalizing`, `ready`, `failed`. |
 | `metadata[key]` | query | string | One or more metadata keys/values to match against. Repeatable. |
@@ -843,7 +848,7 @@ Cache-Control: no-store
   "start_ts": "2026-09-16T09:12:03.400000000Z",
   "end_ts": null,
   "url": "/v1/media/rec-2/frame-3000000000.jpg",
-  "expiry_ts": "2026-09-16T09:20:00.000000000Z"
+  "expiry_ts": null
 }
 ```
 
@@ -878,7 +883,7 @@ X-Exact-Match: false
 
 `GET /retrieve/{recording-id}/clip`
 
-The whole requested span must be covered by the recording; a gap returns `404`.
+The whole requested span must be covered by the recording; If not covered, `404` is returned.
 The clip starts at the keyframe at or before `start_ts`. So the returned
 `start_ts` can be earlier than the requested time. `end_ts` is the exclusive
 end bound (`start_ts` + `duration`), not the last frame timestamp.
@@ -909,7 +914,7 @@ Cache-Control: no-store
   "start_ts": "2026-09-16T09:12:00Z",
   "end_ts": "2026-09-16T09:12:05.400000000Z",
   "url": "/v1/media/rec-2/clip-0-5000000000.mp4",
-  "expiry_ts": "2026-09-16T09:20:00.000000000Z"
+  "expiry_ts": null
 }
 ```
 
@@ -951,15 +956,14 @@ curl -i "http://localhost:8080/v1/media/rec-2/frame-3000000000.jpg" -o frame.jpg
 ```http
 HTTP/1.1 200 OK
 Content-Type: image/jpeg
-Cache-Control: private, max-age=712
-Expires: Wed, 16 Sep 2026 09:20:00 GMT
+Cache-Control: private, no-cache
 X-Content-Type-Options: nosniff
 ```
 
 | Status | `error_code` | Meaning |
 |---|---|---|
 | 200 | — | The frame or clip bytes (`image/jpeg`, `image/png`, or `video/mp4`). |
-| 404 | `recording_not_found` / `frame_not_found` / `clip_not_found` | Unknown recording, or the frame or clip is missing or past its `expiry_ts`. |
+| 404 | `recording_not_found` / `frame_not_found` / `clip_not_found` | Unknown recording, or the frame or clip file is missing. |
 
 ---
 
@@ -972,14 +976,15 @@ X-Content-Type-Options: nosniff
 | `invalid_timestamp` | 400 | A timestamp is malformed or out of range. A `start_ts` in `POST /records/start` that is later than the newest video frame from the source also uses this code. A missing `start_ts` there returns `invalid_request`. |
 | `stream_not_found` | 404 | The stream is unknown or has been detached. |
 | `recording_not_found` | 404 | The recording is unknown or has been deleted. |
-| `frame_not_found` | 404 | The requested frame is not covered, no frame sits at the exact requested time (`match=exact`), no decodable frame is available for the requested time, or a frame file is missing or expired. |
-| `clip_not_found` | 404 | The requested clip interval is not covered, no clip is available for the requested interval, or a clip file is missing or expired. |
+| `frame_not_found` | 404 | The requested frame is not covered, no frame sits at the exact requested time (`match=exact`), no decodable frame is available for the requested time, or a frame file is missing. |
+| `clip_not_found` | 404 | The requested clip interval is not covered, no clip is available for the requested interval, or a clip file is missing. |
 | `not_acceptable` | 406 | The `Accept` header cannot be satisfied. |
 | `stream_exists` | 409 | The same `source_uri` is already attached for that `sensor_id`; the existing `stream_id` is named in `error_detail`. |
 | `record_not_ready` | 409 | The record is not in a state that allows the requested action. |
 | `history_unavailable` | 409 | Requested history is unavailable, or the stream is not buffering with NTP-synced timestamps. |
 | `active_dependency` | 409 | Another resource still depends on this one (e.g. an active recording). |
 | `unsupported_media` | 415 | The source is not RTSP/RTSPS H.264/H.265 video. |
+| `not_ntp_synced` | 422 | The stream failed. The source did not give NTP-synced timestamps in the startup time, or the source sent no keyframe in that time. |
 | `capacity_exhausted` | 429 | Capacity limit reached for a stream, recording, or extraction. |
 | `internal_error` | 500 | An unexpected server-side failure. |
 | `storage_full` | 507 | The recording storage quota (`RecordingStorageSize`) is reached. |
