@@ -36,8 +36,8 @@ def test_uploaded_models_appear_in_models_list(
     custom models with the right category.
     """
     expected_categories = {
-        "face-detection-retail-0004": "detection",
-        "age-gender-recognition-retail-0013": "classification",
+        "face-detection-retail-0004": "object_detection",
+        "age-gender-recognition-retail-0013": "image_classification",
     }
 
     models = fetch_models(http_client)
@@ -63,6 +63,7 @@ def test_uploaded_models_appear_in_models_list(
             f"{entry.get('category')!r}, expected "
             f"{expected_categories[source_name]!r}"
         )
+        assert entry.get("description") == f"Uploaded {source_name} model"
 
 
 @pytest.mark.full
@@ -80,7 +81,7 @@ def test_uploading_same_model_name_twice_is_rejected(
     response = upload_model_file(
         http_client,
         model_name=existing_name,
-        category="detection",
+        category="object_detection",
         payload=b"PK\x05\x06" + b"\x00" * 18,  # empty zip
     )
     assert response.status_code in {400, 409, 422}, (

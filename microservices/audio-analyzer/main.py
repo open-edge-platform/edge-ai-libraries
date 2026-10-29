@@ -47,7 +47,10 @@ def _clear_storage_on_startup() -> None:
         if os.path.isdir(entry_path):
             shutil.rmtree(entry_path, ignore_errors=True)
             count += 1
-    logger.info("Cleared %d session folder(s) from storage on startup", count)
+    logger.warning(
+        "clear_storage_on_startup is enabled — cleared %d session folder(s) from storage "
+        "on startup", count
+    )
 
 
 @app.on_event("startup")
@@ -68,8 +71,16 @@ def startup_event():
             "Runtime configuration validation failed — service will start but "
             "some inference paths may not be available: %s", exc
         )
-    ensure_model()
-    preload_models()
+    try:
+        ensure_model()
+        preload_models()
+    except Exception as exc:
+        logger.warning(
+            "ASR model is unavailable. "
+            "Startup will be retried by the container runtime: %s",
+            exc,
+        )
+        raise
 
 
 app.include_router(openai_router)

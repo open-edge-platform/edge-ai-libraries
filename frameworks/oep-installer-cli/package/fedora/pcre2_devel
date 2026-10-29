@@ -1,0 +1,9 @@
+
+fedora_30_install_pcre2_devel () {
+  ensure_dnf_install_package pcre2-devel
+}
+
+fedora_30_sbom_pcre2_devel () {
+  ensure_sbom_format pkg-list pcre2-devel
+}
+

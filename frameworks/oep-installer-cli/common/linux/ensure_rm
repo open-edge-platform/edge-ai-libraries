@@ -1,0 +1,23 @@
+
+# robustly remove files or dirs
+
+ensure_rm () {
+  local p norm rc=0
+  local protected=" / /bin /boot /dev /etc /home /lib /lib64 /media /mnt /opt /proc /root /run /sbin /srv /sys /tmp /usr /var \
+/etc/apt /etc/apt/keyrings /etc/apt/preferences.d /etc/apt/sources.list.d /etc/systemd /etc/systemd/system \
+/usr/bin /usr/lib /usr/local /usr/share /usr/share/keyrings /var/lib \
+$HOME $HOME/.local $HOME/.local/bin "
+
+  for p in "$@"; do
+    [ -n "$p" ] || continue
+    # normalize (collapse //, ./, ../ and trailing /) without following symlinks
+    norm="$(realpath -m -s -- "$p")"
+    if [[ "$protected" = *" $norm "* ]]; then
+      echo "ensure_rm: refusing to remove protected path '$p'" 1>&2
+      return 3
+    fi
+    [ -e "$norm" ] || [ -L "$norm" ] || continue
+    rm -rf -- "$norm" 2> /dev/null || ensure_sudo rm -rf -- "$norm" || rc=$?
+  done
+  return $rc
+}

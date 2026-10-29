@@ -76,7 +76,8 @@ Provide the `multilevel-video-understanding` image in one of two ways:
   docker pull intel/multilevel-video-understanding:2026.2.0
   ```
 
-> **Note:** If `REGISTRY_URL` is provided, the final image name is `${REGISTRY_URL}/multilevel-video-understanding:${TAG}`; otherwise it is `multilevel-video-understanding:${TAG}`.
+> [!NOTE]
+> If `REGISTRY_URL` is provided, the final image name is `${REGISTRY_URL}/multilevel-video-understanding:${TAG}`; otherwise it is `multilevel-video-understanding:${TAG}`.
 
 ## Step 3. Launch
 
@@ -142,7 +143,8 @@ INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
 
 To stop everything: `./setup_docker.sh --down`.
 
-> **Note:** `--light` is the equivalent of `docker compose up -d --no-deps multilevel-video-understanding` plus a readiness probe of the configured endpoint — use the raw command if you prefer to manage the serving entirely yourself.
+> [!NOTE]
+> `--light` is the equivalent of `docker compose up -d --no-deps multilevel-video-understanding` plus a readiness probe of the configured endpoint — use the raw command if you prefer to manage the serving entirely yourself.
 
 ## Microservice Usage Examples
 
@@ -224,8 +226,9 @@ http://localhost:8192/docs
    poetry install
    ```
 
-   > **Note:** sometimes `poetry install` may take a long time; in that case, an alternative option to install packages could be:
-   >
+   > [!NOTE]
+   > sometimes `poetry install` may take a long time; in that case, an alternative option to install packages could be:
+   > 
    > ```bash
    > poetry export -f requirements.txt > requirements.txt
    > pip install -r requirements.txt
@@ -243,7 +246,8 @@ http://localhost:8192/docs
    source docker/set_env.sh
    ```
 
-   > **Note:** Ensure `VLM_MODEL_NAME` / `LLM_MODEL_NAME` match the served model and `VLM_BASE_URL` / `LLM_BASE_URL` point at your on-device serving.
+   > [!NOTE]
+   > Ensure `VLM_MODEL_NAME` / `LLM_MODEL_NAME` match the served model and `VLM_BASE_URL` / `LLM_BASE_URL` point at your on-device serving.
 
 6. Run the service:
 

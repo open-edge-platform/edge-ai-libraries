@@ -30,7 +30,8 @@ docker build \
 
 This packages the application code, installs Python dependencies, and configures the container to run as a non-root user with User Identifier (UID) 1000.
 
-> **Note**: If you are behind a corporate proxy, pass `--build-arg HTTP_PROXY` and `--build-arg HTTPS_PROXY` as shown above so `pip` can reach the PyPI repository during the build.
+> [!NOTE]
+> If you are behind a corporate proxy, pass `--build-arg HTTP_PROXY` and `--build-arg HTTPS_PROXY` as shown above so `pip` can reach the PyPI repository during the build.
 
 ## Build a Python Environment (Standalone)
 

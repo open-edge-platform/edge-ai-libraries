@@ -1,0 +1,18 @@
+
+ensure_sbom_format () {
+  local key=$1; shift
+  case "$key" in
+  pkg-list|apt-pref|yum-repo-conf|kernel-cmdline|module-list)
+    local IFS=$'|'
+    local pkg_str="$*"
+    echo "\"$key\": [\"${pkg_str//'|'/\",\"}\"]"
+    ;;
+  component|repo-name|gpg-key|gpg-key-fingerprint|key-file|apt-source|apt-src-source|apt-list-file|apt-pref-file|apt-repository|yum-repo-file)
+    echo "\"$key\": \"$*\""
+    ;;
+  *)
+    echo "Unsupported SBOM key: $key" 1>&2
+    return 3
+    ;;
+  esac
+}

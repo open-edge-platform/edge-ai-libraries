@@ -18,6 +18,7 @@ import PipelineEditorCanvas, {
   type PipelineEditorHandle,
 } from "@/features/pipeline-editor/PipelineEditor.tsx";
 import { useUndoRedo } from "@/hooks/useUndoRedo";
+import { useDismissOnOutsidePointerDown } from "@/hooks/useDismissOnOutsidePointerDown";
 import { useAsyncJob } from "@/hooks/useAsyncJob";
 import { useActiveJobSync } from "@/hooks/useActiveJobSync";
 import NodeDataPanel from "@/features/pipeline-editor/NodeDataPanel.tsx";
@@ -256,13 +257,14 @@ export const Pipelines = () => {
 
   // Default Metadata JSON ON for the VLM pipeline (its only output is metadata
   // JSON lines); OFF for other pipelines.
+  const isVlmPipeline =
+    data?.variants
+      .find((v) => v.id === variant)
+      ?.pipeline_graph.nodes.some((n) => n.type === "gvagenai") ?? false;
+
   useEffect(() => {
-    const variantData = data?.variants.find((v) => v.id === variant);
-    const isVlmPipeline =
-      variantData?.pipeline_graph.nodes.some((n) => n.type === "gvagenai") ??
-      false;
     setMetadataEnabled(isVlmPipeline);
-  }, [variant, data]);
+  }, [isVlmPipeline]);
 
   const handleViewportChange = (viewport: Viewport) => {
     setCurrentViewport(viewport);
@@ -466,41 +468,24 @@ export const Pipelines = () => {
     setEditorKey((prev) => prev + 1); // Force PipelineEditor to re-initialize
   };
 
-  useEffect(() => {
-    if (!showDetailsPanel) return;
-
-    const handleClickOutside = (event: MouseEvent) => {
-      if (isResizingRef.current) return;
-
-      const target = event.target as HTMLElement;
-
-      if (target.closest("header")) return;
-
-      if (
-        detailsPanelRef.current &&
-        !detailsPanelRef.current.contains(target)
-      ) {
-        const isResizeHandle =
-          target.closest("[data-resize-handle]") ||
-          target.closest("[data-resize-handle-active]") ||
-          target.closest('[role="separator"]') ||
-          target.getAttribute("data-resize-handle") !== null;
-
-        if (!isResizeHandle) {
-          if (jobStatus?.state !== "RUNNING" && !completedVideoPath) {
-            setShowDetailsPanel(false);
-            setSelectedNode(null);
-          }
-        }
+  useDismissOnOutsidePointerDown({
+    ref: detailsPanelRef,
+    enabled: showDetailsPanel,
+    ignoreSelectors: [
+      "header",
+      "[data-resize-handle]",
+      "[data-resize-handle-active]",
+      '[role="separator"]',
+      ".react-flow__node",
+    ],
+    shouldIgnore: () => isResizingRef.current,
+    onDismiss: () => {
+      if (jobStatus?.state !== "RUNNING" && !completedVideoPath) {
+        setShowDetailsPanel(false);
+        setSelectedNode(null);
       }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [showDetailsPanel, jobStatus?.state, completedVideoPath]);
+    },
+  });
 
   if (isSuccess && data) {
     const isTimeSeriesPipeline = data.tags?.includes("Time Series") ?? false;
@@ -1002,10 +987,12 @@ export const Pipelines = () => {
                       videoOutputEnabled={videoOutputEnabled}
                       enableLatencyMetrics={latencyMetricsEnabled}
                       enableMetadata={metadataEnabled && pipelineHasMetadata}
+                      isVlmPipeline={isVlmPipeline}
                       liveStreamUrl={
                         Object.values(jobStatus?.live_stream_urls ?? {})[0] ??
                         null
                       }
+                      events={jobStatus?.events}
                       resultOverrides={
                         jobStatus
                           ? {

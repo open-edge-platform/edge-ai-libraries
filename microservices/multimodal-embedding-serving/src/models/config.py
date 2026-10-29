@@ -157,6 +157,18 @@ MODEL_CONFIGS = {
             "image_probs": default_image_probs,
         },
     },
+    "MarketaJu": {
+        "siglip2-person-description-reid": {
+            "hf_model_id": "MarketaJu/siglip2-person-description-reid",
+            "revision": "196e5d6f384bde2d711ad07d432b762f777af747",
+            "processor_id": "google/siglip2-base-patch16-224",
+            "image_size": 224,
+            "max_length": 64,
+            "weight_format": "int8",
+            "handler_class": "SigLIPTransformersHandler",
+            "image_probs": default_image_probs,
+        },
+    },
     "SigLIP": {
         "siglip2-vit-b-16": {
             "model_name": "ViT-B-16-SigLIP2",
@@ -224,12 +236,17 @@ MODEL_CONFIGS = {
 }
 
 
+MODEL_ALIASES = {
+    "SigLIP/siglip2-person-description-reid": "MarketaJu/siglip2-person-description-reid",
+}
+
+
 def get_model_config(model_id: str, device=None, ov_models_dir=None, use_openvino=None) -> dict:
     """
     Get model configuration by model ID with optional parameter overrides.
     
     Args:
-        model_id (str): Model identifier in format "type/name" or just "name"
+        model_id (str): Registered "type/name", Hugging Face ID, alias, or bare name
         device (str, optional): Device for inference (e.g., "CPU")
         ov_models_dir (str, optional): Directory for OpenVINO models
         use_openvino (bool, optional): Whether to use OpenVINO
@@ -240,6 +257,8 @@ def get_model_config(model_id: str, device=None, ov_models_dir=None, use_openvin
     Raises:
         ValueError: If model is not found
     """
+    model_id = MODEL_ALIASES.get(model_id, model_id)
+
     # Handle both "type/name" and "name" formats
     if "/" in model_id:
         model_type, model_name = model_id.split("/", 1)

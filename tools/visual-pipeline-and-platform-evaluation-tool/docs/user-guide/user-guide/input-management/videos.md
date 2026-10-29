@@ -23,7 +23,7 @@ Before the file is accepted, ViPPET runs two layers of validation:
       hyphen and space; no path separators);
     - the file extension is in the allow-list;
     - no video with the same basename already exists on the server.
-2. **Post-write checks** (after the upload finishes streaming to a temporary file):
+1. **Post-write checks** (after the upload finishes streaming to a temporary file):
     - the container format is in the allow-list;
     - the codec is in the allow-list;
     - the file can be opened by the video decoder.
@@ -51,11 +51,11 @@ or `.hevc` extension), which have no container wrapper.
 When all checks pass, ViPPET:
 
 1. Moves the temporary file into the `uploaded` directory under its original basename.
-2. Probes the video to extract metadata (width, height, frame rate, frame count, codec, duration)
+1. Probes the video to extract metadata (width, height, frame rate, frame count, codec, duration)
    and writes a JSON sidecar next to the video.
-3. Converts the video to MPEG-TS (kept alongside the original file) so that pipelines requiring a
+1. Converts the video to MPEG-TS (kept alongside the original file) so that pipelines requiring a
    seekable TS source can use it without re-encoding at run time.
-4. Registers the new entry in the in-memory video cache so it appears immediately in the Videos
+1. Registers the new entry in the in-memory video cache so it appears immediately in the Videos
    page and in the Pipeline Builder's input dropdown.
 
 ## Where uploaded videos live
@@ -83,7 +83,8 @@ Change them in `compose.yml` and restart the stack to take effect.
 | `UPLOAD_ALLOWED_CODECS`     | `h264,h265`                            | Comma-separated list of video codecs accepted after probing.                                                                                                                                  |
 | `UPLOAD_MAX_SIZE_BYTES`     | `2147483648` (2 GiB)                   | Maximum accepted upload body size in bytes. Enforced per chunk while streaming the upload to disk. Keep in sync with the `client_max_body_size` directive in `ui/nginx.conf` if you raise it. |
 
-> **Note:** Tightening these allow-lists never deletes files that are already on disk; it only prevents new
+> [!NOTE]
+> Tightening these allow-lists never deletes files that are already on disk; it only prevents new
 > uploads from being accepted. Widening the codec or container list does not implicitly add the
 > matching file extensions - extend `UPLOAD_ALLOWED_EXTENSIONS` as well.
 

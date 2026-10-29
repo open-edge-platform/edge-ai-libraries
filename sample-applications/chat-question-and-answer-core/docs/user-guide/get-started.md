@@ -28,7 +28,8 @@ By following this guide, you will learn how to:
    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
    ```
 
-   > **Note:** Adjust the repo link appropriately in case of forked repo.
+   > [!NOTE]
+   > Adjust the repo link appropriately in case of forked repo.
 
 2. **Navigate to the Directory**:
 
@@ -117,11 +118,11 @@ By following this guide, you will learn how to:
        LLM_DEVICE: "GPU"
      ```
 
-     >**Note:**
-     >
+     > [!NOTE]
+     > 
      > - **GPU inferencing only supported for OpenVINO toolkit framework not Ollama framework.**
      > - If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel® GPU) It is done by specifying GPU.0, GPU.1
-     >
+     > 
      >   ```bash
      >   device_settings:
      >     EMBEDDING_DEVICE: "<GPU.0/GPU.1>"

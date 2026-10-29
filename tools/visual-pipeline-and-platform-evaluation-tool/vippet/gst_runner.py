@@ -44,6 +44,7 @@ Running semantics:
 
 import argparse
 import gc
+import json
 import logging
 import signal
 import sys
@@ -111,6 +112,27 @@ def get_logger() -> logging.Logger:
     return logging.getLogger("gst_runner")
 
 
+def _add_prompt_to_meta_message(text: str, obj: Any) -> str:
+    """Add the emitting element's ``prompt`` property to a ``gvagenai`` meta JSON."""
+    try:
+        prompt = obj.get_property("prompt") if obj is not None else None
+    except (AttributeError, TypeError):
+        return text
+    if not isinstance(prompt, str) or not prompt.strip():
+        return text
+    json_start = text.find("{")
+    if json_start == -1:
+        return text
+    try:
+        payload = json.loads(text[json_start:])
+    except ValueError:
+        return text
+    if not isinstance(payload, dict) or "prompt" in payload:
+        return text
+    payload["prompt"] = prompt.strip()
+    return text[:json_start] + json.dumps(payload)
+
+
 def gst_log_bridge(
     category,
     level,
@@ -173,6 +195,23 @@ def gst_log_bridge(
         logger.info("%s", text)
         return
 
+    # Prepend the emitting element's name in `<name>` form for the
+    # `gvagenai` metadata records so the VLM-metrics parser in
+    # `pipeline_runner.py` can tag `vlm_metrics` samples with the
+    # originating element (unique per stream after
+    # `unify_all_element_names`). Scoped strictly to the
+    # `Added meta message:` marker to keep every other log line
+    # (errors, warnings, other INFOs) byte-identical to the previous
+    # behaviour.
+    if text.startswith("Added meta message:"):
+        text = _add_prompt_to_meta_message(text, obj)
+        try:
+            obj_name = obj.get_name() if obj is not None else None
+        except (AttributeError, TypeError):
+            obj_name = None
+        if obj_name:
+            text = f"<{obj_name}> {text}"
+
     # Log only the message body, without any extra category/prefix.
     # Note: GStreamer debug levels use lower values for higher severity:
     # ERROR=1, WARNING=2, FIXME=3, INFO=4, DEBUG=5, LOG=6, TRACE=7
@@ -221,6 +260,27 @@ def initialize_gstreamer_logging() -> None:
 ###############################################################################
 # Bus processing utilities
 ###############################################################################
+
+# Element messages with this structure name (posted e.g. by the bundled
+# ``gvaproximitytrigger_py`` element) are forwarded to stdout as
+# ``Pipeline event: {json}`` lines, parsed by ``pipeline_runner.py``.
+PIPELINE_EVENT_STRUCTURE = "vippet-event"
+PIPELINE_EVENT_MARKER = "Pipeline event:"
+
+
+def log_pipeline_event(
+    logger: logging.Logger, src: Optional[Gst.Object], structure: Gst.Structure
+) -> None:
+    """Log a ``vippet-event`` element message as a single JSON line."""
+    payload: dict[str, Any] = {}
+    for i in range(structure.n_fields()):
+        name = structure.nth_field_name(i)
+        value = structure.get_value(name)
+        if isinstance(value, (str, int, float, bool)):
+            payload[name] = value
+    if src is not None:
+        payload["element"] = src.get_name()
+    logger.info("%s %s", PIPELINE_EVENT_MARKER, json.dumps(payload))
 
 
 def drain_bus_messages(
@@ -494,6 +554,14 @@ class _PipelineRunner:
             self._state.eos_seen = True
             self._state.reason = self._state.reason or None
             loop.quit()
+
+        elif msg_type == Gst.MessageType.ELEMENT:
+            structure = message.get_structure()
+            if (
+                structure is not None
+                and structure.get_name() == PIPELINE_EVENT_STRUCTURE
+            ):
+                log_pipeline_event(self._logger, message.src, structure)
 
         return True
 

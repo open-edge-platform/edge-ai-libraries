@@ -1,14 +1,14 @@
-# Release Notes
+# Release Notes: Adaptive Token Compressor
 
 ## Version 2026.2
 
 **Release Date:** September 9, 2026
 
-**Summary**
+**Summary**:
 
 Initial release of the Adaptive Token Compressor — a pluggable compression library purpose-built for LLM agent systems. Using a single unified interface, it compresses system prompts, context, and tool schemas across an LLM agent pipeline to reduce token usage and improve inference efficiency.
 
-**Features**
+**Features**:
 
 - Unified compressor API with two compression types: conversation messages (harness) and tool descriptions (tool)
 - Factory-based construction for drop-in integration as a plugin in other projects

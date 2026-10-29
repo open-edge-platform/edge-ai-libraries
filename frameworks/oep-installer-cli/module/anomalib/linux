@@ -1,0 +1,115 @@
+
+configure_anomalib () {
+  workspace="$(ensure_project_path)/anomalib"
+  version=2.7.0
+  repository=https://github.com/open-edge-platform/anomalib.git
+
+  version_skills=release-2026.2.0
+  repository_skills=https://github.com/open-edge-platform/anomalib.git
+  skills=(anomalib-adding-a-datamodule anomalib-adding-a-model anomalib-tiled-ensemble anomalib-training anomalib-benchmarking)
+}
+
+verify_anomalib () {
+  [ -r "$workspace"/.venv/bin/activate ] || return 1
+  . "$workspace"/.venv/bin/activate && python3 -c "import anomalib; assert anomalib.__version__ == '$version'"
+}
+
+test_anomalib () {
+  if [[ " $* " = *" --validate "* ]]; then
+    . "$workspace"/.venv/bin/activate
+    ensure_rm "$workspace"/test
+    mkdir -p "$workspace"/test
+    cd "$workspace"/test
+
+    local validated=()
+    local -A device_map=(
+      [CPU]=/proc/cpuinfo
+      [GPU]=/dev/dri/renderD128
+    )
+    for device in ${!device_map[*]}; do
+      [ -e ${device_map[$device]} ] || continue
+      echo "@@STEP Validating on $device"
+      echo "Validating anomalib on device $device..."
+      PYTHONWARNINGS=ignore python3 -c '
+import sys
+import os
+import logging
+import warnings
+warnings.filterwarnings("ignore")
+logging.disable(logging.WARNING)
+from pathlib import Path
+from PIL import Image
+from anomalib.data import Folder
+from anomalib.models import Padim
+from anomalib.engine import Engine
+from anomalib.deploy import ExportType, OpenVINOInferencer
+from anomalib.data.utils import ValSplitMode
+
+def create_mock_dataset(dataset_path):
+  train_good = dataset_path / "train" / "good"
+  test_good = dataset_path / "test" / "good"
+  test_defect = dataset_path / "test" / "defect"
+  for d in [train_good, test_good, test_defect]:
+    d.mkdir(parents=True, exist_ok=True)
+  for i in range(5):
+    img = Image.new("RGB", (256, 256), color=(200, 200, 200))
+    img.save(train_good / f"normal_{i}.png")
+    if i < 2:
+      img.save(test_good / f"normal_test_{i}.png")
+  for i in range(2):
+    img = Image.new("RGB", (256, 256), color=(200, 200, 200))
+    for x in range(100, 150):
+      for y in range(100, 150):
+        img.putpixel((x, y), (50, 50, 50))  # Synthetic anomaly block
+    img.save(test_defect / f"defect_{i}.png")
+
+def test_anomalib_pipeline(dataset_path, device):
+  datamodule = Folder(
+    name="synthetic_test",
+    root=dataset_path,
+    normal_dir="train/good",
+    abnormal_dir="test/defect",
+    normal_test_dir="test/good",
+    train_batch_size=2,
+    eval_batch_size=2,
+    val_split_mode=ValSplitMode.SAME_AS_TEST,
+  )
+  model = Padim()
+  engine = Engine(
+    default_root_dir="results",
+    max_epochs=1,
+    accelerator="auto",
+    devices=1,
+  )
+  engine.fit(model=model, datamodule=datamodule)
+  test_results = engine.test(model=model, datamodule=datamodule)
+  assert test_results is not None, "Evaluation test results returned None."
+  assert "image_AUROC" in test_results[0]
+  export_dir = Path("export")
+  engine.export(
+    model=model,
+    export_type=ExportType.OPENVINO,
+    export_root=export_dir,
+    input_size=(256, 256),
+  )
+  model_xml_files = list(export_dir.glob("**/*.xml"))
+  assert len(model_xml_files) > 0, "OpenVINO model XML representation was not generated."
+  inferencer = OpenVINOInferencer(
+    path=model_xml_files[0],
+    device=device,
+  )
+  sample_image_path = dataset_path / "test" / "defect" / "defect_0.png"
+  prediction = inferencer.predict(str(sample_image_path))
+  assert prediction is not None, "Inference prediction failed."
+  assert hasattr(prediction, "pred_score") or hasattr(prediction, "anomaly_map"), "Prediction output missing anomaly score or map attributes."
+
+dataset_path = Path("mock_dataset")
+create_mock_dataset(dataset_path)
+test_anomalib_pipeline(dataset_path, sys.argv[1])
+' $device && validated+=("$device ok") || validated+=("$device failed")
+    done
+    echo "@@HIGHLIGHT Validation: ${validated[*]}"
+    [[ "${validated[*]}" != *failed* ]] || return 3
+  fi
+}
+

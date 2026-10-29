@@ -1,0 +1,18 @@
+# Shared Robotics AI Suite prerequisites: acceleration, ROS 2, OpenVINO and RealSense.
+# --realtime uses the edge-pack route; the real-time package currently falls back
+# to the standard bundle until Intel publishes intel-edge-base-realtime.
+debian_90_profile_edge_base_robotics () {
+  case "$1" in
+  bootstrap) # all components
+    echo "core_types system_inspection system_summary edge_pack_base_standard edge_pack_base_realtime edge_pack_npu gpu_accel npu_accel ros2 ros_openvino realsense"
+    ;;
+  *)
+    echo "ros2 ros_openvino realsense"
+    if [[ " $* " = *" --realtime "* ]] && [[ "$(uname -r)" = "7."* ]]; then
+      echo "core_types system_inspection system_summary edge_pack_base_realtime edge_pack_npu"
+    else
+      echo "edge_base"
+    fi
+    ;;
+  esac
+}

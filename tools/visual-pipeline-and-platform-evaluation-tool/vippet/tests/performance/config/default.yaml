@@ -7,6 +7,9 @@ vippet:
   # Connection timeout in seconds
   timeout: 600
 
+  # Maximum time to wait for ViPPET to become ready before discovery
+  readiness_timeout_seconds: 60
+
   # Job status polling interval in seconds
   poll_interval: 2
 
@@ -56,26 +59,41 @@ benchmark:
     # Skip these variants
     skip_variants: []
 
-    # Only test pipelines with all required models installed
-    require_models: true
+    # Skip pipelines with missing models; set false to expose runtime failures.
+    skip_missing_models: true
+
+    # How to react when pipelines/skip_pipelines/skip_variants/variants above
+    # reference an id that doesn't exist (e.g. a typo):
+    # "fail" (default) aborts the run naming the bad id and valid ids.
+    # "warn" logs a warning and reports each bad id as an explicit skipped case.
+    on_unknown_id: "fail"
 
 # Hardware metrics collection
 metrics:
-  # Metrics endpoint via nginx proxy (override with VIPPET_METRICS_URL env var)
-  metrics_url: "http://localhost/metrics/stream"
+  # Metrics endpoint via nginx proxy; defaults to the same host/port as
+  # vippet.base_url. Override with VIPPET_METRICS_URL env var, or uncomment
+  # and set this explicitly for non-standard topologies.
+  # metrics_url: "http://localhost/metrics/stream"
 
   # Sampling interval in seconds while a job runs
   sample_interval_seconds: 2.0
 
+  # metrics-manager capabilities endpoint (direct, not nginx-proxied);
+  # defaults to vippet.base_url's host on port 9090. Override with
+  # VIPPET_CAPABILITIES_URL env var, or uncomment and set this explicitly
+  # for non-standard topologies.
+  # capabilities_url: "http://localhost:9090/api/v1/capabilities"
+
 # Results configuration
 results:
-  # Output directory for benchmark results
-  output_dir: "./results"
-
   # Export formats
   formats:
     - json
     - csv
 
-  # Create symlink to latest results
+  # Point results/latest at the most recent run directory (updated at the
+  # end of every run, including failed or aborted ones)
   create_latest_link: true
+
+  # Write the run's full INFO log to bench_<timestamp>/bench_<timestamp>.log next to the reports.
+  save_log: true

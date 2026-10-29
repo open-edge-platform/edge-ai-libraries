@@ -147,8 +147,7 @@ class InternalModelSource(str, Enum):
         HUGGINGFACE: HuggingFace Hub.
         ULTRALYTICS: Ultralytics model zoo.
         PIPELINE_ZOO_MODELS: OpenVINO Pipeline Zoo models.
-        OMZ: OpenVINO Open Model Zoo (handled locally by vippet-app
-            until the ``models`` container is removed).
+        OMZ: OpenVINO Open Model Zoo.
         CUSTOM: User-uploaded model.
     """
 
@@ -164,14 +163,24 @@ class InternalModelCategory(str, Enum):
     Internal representation of model category.
 
     Values:
-        CLASSIFICATION: Classification model.
-        DETECTION: Detection model.
-        GENAI: Generative AI model (e.g. VLM/LLM).
+        IMAGE_CLASSIFICATION: Image classification model.
+        OBJECT_DETECTION: Object detection model.
+        IMAGE_SEGMENTATION: Image segmentation model.
+        POSE_ESTIMATION: Pose estimation model.
+        VISION_LANGUAGE_MODELS: Vision-language model (e.g. VLM).
+        LARGE_LANGUAGE_MODELS: Large language model (text-only, e.g. LLM).
+        AUTOMATIC_SPEECH_RECOGNITION: Automatic speech recognition model.
+        TEXT_TO_SPEECH: Text-to-speech synthesis model.
     """
 
-    CLASSIFICATION = "classification"
-    DETECTION = "detection"
-    GENAI = "genai"
+    IMAGE_CLASSIFICATION = "image_classification"
+    OBJECT_DETECTION = "object_detection"
+    IMAGE_SEGMENTATION = "image_segmentation"
+    POSE_ESTIMATION = "pose_estimation"
+    VISION_LANGUAGE_MODELS = "vision_language_models"
+    LARGE_LANGUAGE_MODELS = "large_language_models"
+    AUTOMATIC_SPEECH_RECOGNITION = "automatic_speech_recognition"
+    TEXT_TO_SPEECH = "text_to_speech"
 
 
 class InternalModelDownloadJobState(str, Enum):
@@ -536,6 +545,22 @@ class InternalLatencyMetrics:
 
 
 @dataclass
+class InternalPipelineEvent:
+    """
+    Live event observed during a performance run (mirrors
+    ``pipeline_runner.PipelineEvent``), e.g. a proximity trigger firing
+    or a VLM (``gvagenai``) answer.
+    """
+
+    timestamp_ms: int
+    source: str
+    text: str
+    element: str | None = None
+    pts_seconds: float | None = None
+    prompt: str | None = None
+
+
+@dataclass
 class InternalExecutionConfig:
     """
     Internal representation of execution configuration.
@@ -632,6 +657,7 @@ class InternalPerformanceJobStatus:
             not started at all); an empty dict means the tracer was
             active but no samples were produced (e.g. the pipeline
             exited before the first interval).
+        events: Most recent live pipeline events (oldest first), bounded.
     """
 
     id: str
@@ -648,6 +674,7 @@ class InternalPerformanceJobStatus:
     live_stream_urls: dict[str, str] | None = None
     metadata_stream_urls: dict[str, list[str]] | None = None
     latency_tracer_metrics: dict[str, InternalLatencyMetrics] | None = None
+    events: list[InternalPipelineEvent] = field(default_factory=list)
 
 
 @dataclass
@@ -1104,8 +1131,9 @@ class InternalModelVariant:
 @dataclass
 class InternalSupportedModel:
     """
-    Internal representation of one entry in ``supported_models.yaml``
-    enriched with runtime state (install status, recommendation).
+    Internal representation of one model in the catalog
+    (``vippet/models/*.yaml``, seeded into the DB at startup) enriched
+    with runtime state (install status, recommendation).
 
     The route layer maps this into the API ``Model`` schema.
 
@@ -1124,14 +1152,16 @@ class InternalSupportedModel:
             installing / failed).
         used_by_pipelines: List of predefined-pipeline ids that reference
             this model. Empty list means the model is not recommended.
-        default: Whether this model is marked as a default choice in
-            ``supported_models.yaml`` (internal-only; not exposed via API).
+        default: Whether at least one predefined pipeline references this
+            model (mirrors ``used_by_pipelines``; internal-only, not exposed via API).
         unsupported_devices: Comma-separated string of devices on which
             the model cannot run (e.g. "NPU"). ``None`` when no
             restrictions exist.
         download_request: Body fragment (or full body) to POST to the
             model-download microservice in order to install this model.
             ``None`` when no automated download is wired up yet.
+        description: Human-readable explanation of what the model
+            detects/classifies. ``None`` when not provided in the YAML.
     """
 
     name: str
@@ -1145,6 +1175,7 @@ class InternalSupportedModel:
     default: bool = False
     unsupported_devices: str | None = None
     download_request: dict[str, Any] | None = None
+    description: str | None = None
 
 
 @dataclass
@@ -1165,12 +1196,15 @@ class InternalModelUploadSpec:
             model-download).
         original_filename: Original filename provided by the client,
             kept only for logging.
+        description: Optional human-readable explanation of what the
+            model detects/classifies. ``None`` when not provided.
     """
 
     model_name: str
     category: InternalModelCategory
     file_path: str
     original_filename: str
+    description: str | None = None
 
 
 @dataclass
@@ -1179,7 +1213,7 @@ class InternalModelDownloadRequest:
     Internal representation of a model download request.
 
     Attributes:
-        name: Supported model name (must exist in supported_models.yaml).
+        name: Supported model name (must exist in the model catalog).
     """
 
     name: str

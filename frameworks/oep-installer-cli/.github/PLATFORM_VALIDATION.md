@@ -132,7 +132,8 @@ access allow-listed repositories, these two workflows can be reverted to
 
 ## Registering the self-hosted runner
 
-> **Important**: use a **dedicated runner group scoped to this repository
+> [!IMPORTANT]
+> use a **dedicated runner group scoped to this repository
 > only** — never add the runner to a group shared with other repositories.
 
 1. In the repository, go to **Settings → Actions → Runners → New self-hosted

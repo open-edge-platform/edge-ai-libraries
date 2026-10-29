@@ -7,7 +7,15 @@ The service loads configuration in this order:
 1. `config.yaml`
 2. Environment variables with the `AUDIO_ANALYZER__...` prefix
 
-The same `config.yaml` is used for both Docker and standalone runs. In Docker, `config.yaml` is bind-mounted into the container, so edits on the host take effect on `docker compose restart`.
+The same `config.yaml` is used for both Docker and standalone runs. In Docker, `config.yaml` is bind-mounted into the container, so edits on the host take effect after the container reloads the file.
+
+> **Important:** `docker compose restart` is only reliable if the host edit
+> rewrites `config.yaml` *in place* (same inode). Most editors, `sed -i`, and
+> `mv`-based saves replace the file with a new inode, and Docker's single-file
+> bind mount keeps pointing at the old (now-detached) inode — so `restart`
+> can silently keep serving the stale config. Use
+> `docker compose up -d --force-recreate` after editing `config.yaml` to
+> guarantee the container picks up the change; `restart` is not guaranteed to.
 
 ## Config File
 
@@ -31,7 +39,7 @@ AUDIO_ANALYZER__MODELS__ASR__DEVICE=GPU python main.py
 ## Key Sections
 
 - `models.asr`: backend provider, model name, device, export precision, decoding settings
-- `audio_preprocessing`: chunk size, silence detection, denoise settings, chunk directory
+- `audio_preprocessing`: chunk size, silence detection, denoise and loudness-normalization filters, chunk directory
 - `audio_util`: max file size, allowed extensions, upload read chunk size
 - `minio`: external MinIO endpoint/credentials, used only by `POST /transcriptions` when a MinIO source is supplied instead of a direct file upload
 - `pipeline.delete_chunks_after_use`: whether temporary chunks are removed after processing
@@ -39,7 +47,7 @@ AUDIO_ANALYZER__MODELS__ASR__DEVICE=GPU python main.py
 
 ## Common Values
 
-- `models.asr.provider`: `openai` | `openvino` | `whispercpp`
+- `models.asr.provider`: `openai` | `openvino` | `whispercpp` | `funasr`
 - `models.asr.device`: `CPU` | `GPU` | `NPU`
 - `models.asr.weight_format`: OpenVINO export precision such as `int8`, `fp16`, or `null`; for `whispercpp`, quantization such as `q5`, `q5_0`, `q5_1`, `q8`, `q8_0`, `int5`, `int8`, or `null`
 - `sentiment.enabled`: `true` or `false`
@@ -51,14 +59,91 @@ AUDIO_ANALYZER__MODELS__ASR__DEVICE=GPU python main.py
 - `openai`: uses `openai-whisper` and downloads PyTorch Whisper weights on first use.
 - `openvino`: exports the configured Whisper model to OpenVINO IR under `models/openvino/...` and supports `CPU`, `GPU`, and `NPU` (when available and correctly configured).
 - `whispercpp`: downloads the matching whisper.cpp `ggml` model under `models/whispercpp/...` and runs on `CPU` only.
+- `funasr`: optional Chinese/English provider using Paraformer models
+  (`whisper-base`/`whisper-tiny`/etc. are not applicable; use
+  `models.asr.name: paraformer-zh | paraformer-en | paraformer-online`
+  instead). Runs on `CPU` only. Requires the optional dependencies in
+  `requirements-cjk.txt`, which are **not** installed in the default image —
+  build with `--build-arg INSTALL_CJK=true` (see
+  [Build From Source](./build-from-source.md#optional-chinese-english-funasr-provider)).
+  `models.asr.model_hub` (`modelscope` | `huggingface`) selects the download
+  source, and `models.asr.vad_model` / `models.asr.punc_model` configure the
+  companion voice-activity-detection and punctuation-restoration models.
 
 ### ASR Provider/Device Matrix
 
 - `openai`: `CPU` only
 - `whispercpp`: `CPU` only
+- `funasr`: `CPU` only
 - `openvino`: `CPU` | `GPU` | `NPU`
 
 If an invalid provider/device combination is configured, startup fails with a clear validation error.
+
+### Preview ASR pool (optional)
+
+`models.asr.preview` configures a second ASR model pool used **only** by the
+realtime `input_audio_buffer.preview` event, which returns a throwaway snapshot
+of the trailing audio while the speaker is still talking. Committed transcripts
+and `POST /v1/audio/transcriptions` always run on the main `models.asr` model,
+so enabling a preview pool never changes final output.
+
+The block is absent by default; previews then reuse the main model and no
+second model is loaded or exported. Every key is optional and falls back to the
+corresponding `models.asr` value, so you can override only `device:` to run
+previews on an idle accelerator:
+
+```yaml
+models:
+  asr:
+    name: whisper-base
+    device: CPU
+    preview:
+      device: GPU        # name/provider/weight_format inherited from models.asr
+```
+
+A preview pool that resolves to the same model as `models.asr` is not exported
+or cached twice.
+
+`preview.provider` must match `models.asr.provider`; the two pools share the
+provider's model directory and export step, so a mismatch is rejected at
+startup rather than failing on the first preview request. The preview device is
+also validated at startup, so an unavailable accelerator is reported there.
+
+### Audio filters and the short-input fast path
+
+Short uploads that are already 16 kHz mono PCM WAV and fit in a single chunk
+skip ffmpeg entirely, which removes a subprocess launch from the request path.
+
+That fast path is only taken when **no** audio filter is configured. Both
+`audio_preprocessing.denoise` and `audio_preprocessing.normalize` default to
+`false` for this reason; enabling either one sends every segment through ffmpeg
+again. Enable them when the input audio is noisy or uneven enough that the
+accuracy gain outweighs the added per-request latency.
+
+- `audio_preprocessing.normalize`: `true` or `false` (per-chunk loudness normalization)
+- `audio_preprocessing.normalize_filter`: ffmpeg filter name, default `dynaudnorm`
+
+`dynaudnorm` is used rather than `loudnorm`/EBU R128 because chunks are
+normalized independently with no shared analysis pass.
+
+### Per-request ASR device
+
+`POST /v1/audio/transcriptions` accepts an optional multipart form field named
+`device` with `CPU`, `GPU`, or `NPU`. When omitted, the endpoint uses
+`models.asr.device`. When provided, the service validates the provider/model
+combination and OpenVINO visibility, then compiles or reuses the model cached for
+that device. Unsupported or unavailable devices are rejected without falling
+back to CPU. The VSS-compatible `POST /transcriptions` endpoint accepts the
+same per-request `device` and `model_name` override/validation (see
+[api-reference.md](../api-reference.md)); the streaming
+(`/v1/audio/transcriptions/stream`) and realtime WebSocket endpoints continue
+to use the configured device only. When diarization is enabled, its
+independently configured `models.diarization.device` is not changed by the
+ASR request override.
+
+The first request for a device can be slower because it loads and compiles the
+model. Models for previously requested devices remain cached until process exit,
+which increases memory use when several devices are selected.
 
 ### OpenVINO NPU Configuration
 

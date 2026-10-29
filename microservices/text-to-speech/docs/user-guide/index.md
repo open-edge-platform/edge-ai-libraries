@@ -29,16 +29,25 @@ return either raw WAV audio or a JSON payload with metadata.
 - OpenAI-style speech endpoint and a voices/metadata endpoint.
 - Multi-runtime backends: OpenVINO (Intel-optimized) and PyTorch.
 - Configurable device (`CPU`, `GPU`) and precision (`int8`, `int4`,
-  `fp16`, `fp32`) where the runtime/model supports it.
+  `fp16`, `fp32`) where the runtime/model supports it. `NPU` is not
+  currently supported by any model (see
+  [Configuration > NPU](./get-started/configuration.md#npu)).
 - Selectable speaker / voice per model family.
 - Optional persistence of synthesized output for session reuse.
 
 ## Supported Models
 
-- **SpeechT5** — `microsoft/speecht5_tts` (default). Lightweight,
-  English-only, well suited for CPU and edge devices.
+- **Kokoro** — `kokoro` (default). Runs on onnxruntime CPU only; this is
+  the model used out of the box.
+- **SpeechT5** — `microsoft/speecht5_tts`. Lightweight, English-only, runs
+  on CPU or GPU with `models.tts.runtime: openvino`. Its PyTorch
+  implementation is not available. Does not support NPU.
 - **Qwen3-TTS** — `Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice` with
-  `model_variant: custom_voice` or `voice_design` for richer voice control.
+  `model_variant: custom_voice` or `voice_design` for richer voice
+  control. This is the only model with NPU-specific code, but it cannot
+  currently run on any device (CPU, GPU, or NPU) because its required
+  `qwen-tts` package is not installed — see
+  [Configuration > NPU](./get-started/configuration.md#npu) for details.
 - Runtimes: `openvino` (recommended on Intel hardware) and `pytorch`.
 - English-only synthesis in the current service build.
 

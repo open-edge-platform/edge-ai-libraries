@@ -232,7 +232,7 @@ class PipelineManager:
         filesystem paths because pipeline ingest replaces paths with
         display names (see ``_model_path_to_display_name`` in
         ``graph.py``); callers that need the canonical model ``name``
-        from ``supported_models.yaml`` must resolve the display name via
+        from the model catalog must resolve the display name via
         ``SupportedModelsManager``.
 
         Returns:
@@ -711,16 +711,14 @@ class PipelineManager:
                     # Create a placeholder node for the main output sink to be replaced later
                     graph_instance = graph_instance.prepare_main_output_placeholder()
 
-                # Inject metadata file paths into gvametapublish elements for metadata streaming
-                if (
-                    execution_config.metadata_mode == InternalMetadataMode.FILE
-                    and stream_index == 0
-                ):
+                # Each duplicated stream needs distinct gvametapublish files so
+                # metadata from every input is available to the API/UI.
+                if execution_config.metadata_mode == InternalMetadataMode.FILE:
                     paths = graph_instance.inject_metadata_file_paths(
-                        metadata_pipeline_dir
+                        metadata_pipeline_dir, stream_index
                     )
                     if paths:
-                        metadata_file_paths[pipeline_id] = paths
+                        metadata_file_paths.setdefault(pipeline_id, []).extend(paths)
 
                 # Drop gvawatermark elements when the pipeline has no real
                 # video output to render onto. This is decided per stream

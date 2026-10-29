@@ -1,39 +1,36 @@
 
-configure_anomalib () {
-  workspace="$(ensure_project_path)/anomalib"
-  version=2.6.0
-  repository=https://github.com/open-edge-platform/anomalib.git
-}
-
-verify_anomalib () {
-  [ -r "$workspace"/venv/bin/activate ] || return 1
-  . "$workspace"/venv/bin/activate
-  set -o pipefail
-  pip show anomalib | grep -q -F $version || return 1
-}
-
-debian_70_profile_anomalib () {
+debian_80_profile_anomalib () {
   echo "python3_venv edge_base"
 }
 
-debian_70_install_anomalib () {
-  configure_anomalib $*
-  if verify_anomalib && [[ " $* " != *" --reset-anomalib "* ]]; then
-    echo "Anomalib already installed. Skipping"
+debian_80_install_anomalib () {
+  configure_anomalib "$@"
+  if verify_anomalib && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Anomalib is installed." >&2
   else
-    ensure_disk_space 6000
+    ensure_disk_size 15000
+
+    echo "@@STEP Installing anomalib==${version}"
     mkdir -p "$workspace"
     cd "$workspace"
-    python3 -m venv venv
-    . venv/bin/activate
-    pip install anomalib==${version}
+    python3 -m venv .venv
+    . .venv/bin/activate
+    pip install "anomalib[openvino,cpu]==${version}"
+
+    echo "@@STEP Installing skills"
+    ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}"
+    verify_anomalib
   fi
 
-  echo "@@HIGHLIGHT venv: $workspace/venv"
+  # validation
+  test_anomalib "$@"
+
+  echo "@@HIGHLIGHT venv: $workspace/.venv"
 }
 
-debian_70_remove_anomalib () {
-  configure_anomalib $*
-  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+debian_80_remove_anomalib () {
+  configure_anomalib "$@"
+  ensure_rm "$workspace"
+  ensure_skills remove "${skills[@]}"
 }
 

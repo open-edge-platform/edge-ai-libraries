@@ -1,0 +1,30 @@
+
+debian_99_profile_mission_decision_support_blueprint () {
+  case "$1" in
+  bootstrap)
+    echo "core_types system_inspection system_summary cdi realsense chrony edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn gpu_accel npu_accel power_tuning system_info docker_io k3s_io"
+    ;;
+  *)
+    local modules=(core_types system_inspection system_summary power_tuning system_info cdi realsense chrony)
+    if [[ " $* " = *" --k3s "* ]]; then
+      modules+=(k3s_io)
+    else
+      modules+=(docker_io)
+    fi
+    if [[ " $* " = *" --edgepack "* ]]; then
+      modules+=(edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn)
+    else
+      modules+=(gpu_accel npu_accel)
+    fi
+    echo "${modules[*]}"
+    ;;
+  esac
+}
+
+debian_89_install_mission_decision_support_blueprint () {
+  :
+}
+
+debian_89_remove_mission_decision_support_blueprint () {
+  :
+}

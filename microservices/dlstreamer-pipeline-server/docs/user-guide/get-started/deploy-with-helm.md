@@ -23,7 +23,8 @@ Follow the steps in this section to quickly pull the latest pre-built DL Streame
 
 ### Pull the Helm chart (Optional)
 
-> **Note:** The Helm chart should be downloaded when you are not using the Helm chart provided
+> [!NOTE]
+> The Helm chart should be downloaded when you are not using the Helm chart provided
 > the DL Streamer Pipeline Server repository's [Helm folder](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices/dlstreamer-pipeline-server/helm).
 
 - Download Helm chart with the following command:

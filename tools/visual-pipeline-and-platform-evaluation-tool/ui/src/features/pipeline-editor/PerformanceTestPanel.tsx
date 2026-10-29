@@ -1,144 +1,35 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { MetadataJsonViewer } from "@/features/metadata/MetadataJsonViewer.tsx";
 import { MetricsDashboard } from "@/features/metrics/MetricsDashboard.tsx";
+import {
+  VlmMetricsCharts,
+  type VlmMetricsPoint,
+} from "@/features/metrics/VlmMetricsCharts.tsx";
 import WebRTCVideoPlayer from "@/features/webrtc/WebRTCVideoPlayer.tsx";
+import { LivePipelineEvents } from "@/features/pipeline-editor/LivePipelineEvents.tsx";
 import {
   useFrozenMetrics,
   type FrozenSnapshotOverrides,
 } from "@/hooks/useFrozenMetrics";
+import { useMetricHistory } from "@/hooks/useMetricHistory";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useGetPerformanceStatusesQuery } from "@/api/api.generated";
-import { Button } from "@/components/ui/button";
-import {
-  ChevronLeft,
-  ChevronRight,
-  ChevronsRight,
-  ExternalLink,
-} from "lucide-react";
-import { highlightJson } from "@/lib/jsonUtils";
+import type { PipelineEvent } from "@/api/api.generated";
+import { ExternalLink } from "lucide-react";
 import "@/lib/hljs-theme.css";
 
 const MAX_JSON_LINES_PER_PIPELINE = 400;
 const METADATA_POLL_INTERVAL = 3000;
-
 type ConnectionState = "connecting" | "open" | "error" | "closed";
 
 type PerformanceJobStatusWithMetadata = {
   metadata_stream_urls?: Record<string, string[]> | null;
 };
 
-/** Label shown in the pipeline tab: "job-short … pipeline-short" */
-const buildStreamLabel = (jobId: string, pipelineId: string): string => {
-  const shortJob = jobId.slice(0, 8);
-  const shortPipeline = pipelineId.replace(/^__graph-/, "").slice(0, 8);
-  return `${shortJob} / ${shortPipeline}`;
-};
-
 /** Shorten a stream URL to its last two meaningful path segments. */
 const shortenStreamUrl = (url: string): string => {
   const segments = url.replace(/\/+$/, "").split("/").filter(Boolean);
   return segments.length > 2 ? `…/${segments.slice(-2).join("/")}` : url;
-};
-
-const MetadataJsonViewer = ({
-  lines,
-  stale = false,
-}: {
-  lines: string[];
-  stale?: boolean;
-}) => {
-  const [currentIndex, setCurrentIndex] = useState(lines.length - 1);
-  const [followLatest, setFollowLatest] = useState(true);
-
-  useEffect(() => {
-    if (followLatest && lines.length > 0) {
-      setCurrentIndex(lines.length - 1);
-    }
-  }, [lines.length, followLatest]);
-
-  const goPrev = useCallback(() => {
-    setFollowLatest(false);
-    setCurrentIndex((i) => Math.max(0, i - 1));
-  }, []);
-
-  const goNext = useCallback(() => {
-    setCurrentIndex((i) => {
-      const next = Math.min(lines.length - 1, i + 1);
-      if (next === lines.length - 1) setFollowLatest(true);
-      return next;
-    });
-  }, [lines.length]);
-
-  const goLatest = useCallback(() => {
-    setFollowLatest(true);
-    setCurrentIndex(lines.length - 1);
-  }, [lines.length]);
-
-  const safeIndex =
-    lines.length > 0
-      ? Math.max(0, Math.min(currentIndex, lines.length - 1))
-      : 0;
-  const currentLine = lines[safeIndex] ?? "";
-  const highlightedHtml = useMemo(
-    () => (currentLine ? highlightJson(currentLine) : ""),
-    [currentLine],
-  );
-
-  if (lines.length === 0) {
-    return (
-      <div className="min-h-[100px] flex items-center justify-center border bg-muted/20 p-3">
-        <p className="text-sm text-muted-foreground">
-          Waiting for JSON entries...
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col space-y-2 min-w-0">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1">
-          <Button
-            variant="outline"
-            size="icon-sm"
-            onClick={goPrev}
-            disabled={safeIndex === 0}
-            aria-label="Previous entry"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon-sm"
-            onClick={goNext}
-            disabled={safeIndex >= lines.length - 1}
-            aria-label="Next entry"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-        <span className="text-xs tabular-nums text-muted-foreground">
-          {safeIndex + 1} / {lines.length}
-        </span>
-        <Button
-          variant={followLatest ? "secondary" : "outline"}
-          size="sm"
-          onClick={goLatest}
-          className="text-xs gap-1 h-7"
-        >
-          <ChevronsRight className="h-3.5 w-3.5" />
-          Follow
-        </Button>
-      </div>
-      <pre
-        className={`min-h-[100px] max-h-[40vh] overflow-auto border p-3 font-mono text-xs leading-5 whitespace-pre-wrap break-all bg-zinc-100 dark:bg-zinc-900/80 text-zinc-700 dark:text-zinc-300 ${stale ? "border-2 dark:border-energy-blue/40 dark:shadow-energy-blue/20 dark:ring-1 dark:ring-energy-blue/20 border-classic-blue/40 shadow-classic-blue/20 ring-1 ring-classic-blue/20 shadow-lg" : ""}`}
-      >
-        <code
-          className="hljs"
-          dangerouslySetInnerHTML={{ __html: highlightedHtml }}
-        />
-      </pre>
-    </div>
-  );
 };
 
 const collectMetadataStreams = (
@@ -151,9 +42,11 @@ const collectMetadataStreams = (
     if (!urls) continue;
     for (const [pipelineId, streamUrls] of Object.entries(urls)) {
       if (!Array.isArray(streamUrls) || streamUrls.length === 0) continue;
-      const raw = streamUrls[0];
-      const url = raw && !raw.startsWith("/api/") ? `/api/v1${raw}` : raw;
-      result[`${jobId}::${pipelineId}`] = url;
+      streamUrls.forEach((raw, streamIndex) => {
+        if (!raw) return;
+        const url = raw.startsWith("/api/") ? raw : `/api/v1${raw}`;
+        result[`${jobId}::${pipelineId}::${streamIndex}`] = url;
+      });
     }
   }
   return result;
@@ -167,8 +60,10 @@ type PerformanceTestPanelProps = {
   videoOutputEnabled?: boolean;
   enableLatencyMetrics?: boolean;
   enableMetadata?: boolean;
+  isVlmPipeline?: boolean;
   liveStreamUrl?: string | null;
   resultOverrides?: FrozenSnapshotOverrides | null;
+  events?: PipelineEvent[];
 };
 
 const PerformanceTestPanel = ({
@@ -179,11 +74,14 @@ const PerformanceTestPanel = ({
   videoOutputEnabled = false,
   enableLatencyMetrics = false,
   enableMetadata = true,
+  isVlmPipeline = false,
   liveStreamUrl,
   resultOverrides,
+  events,
 }: PerformanceTestPanelProps) => {
   const { frozenHistory, frozenSummary, startRecording, freezeSnapshot } =
     useFrozenMetrics();
+  const liveHistory = useMetricHistory();
   const prevIsRunningRef = useRef(false);
   const metadataSourcesRef = useRef<Record<string, EventSource>>({});
   const metadataSourceUrlsRef = useRef<Record<string, string>>({});
@@ -200,6 +98,14 @@ const PerformanceTestPanel = ({
   const [connectionErrors, setConnectionErrors] = useState<
     Record<string, string | null>
   >({});
+  // Last non-empty events list, kept visible after the job status stops polling.
+  const [displayedEvents, setDisplayedEvents] = useState<PipelineEvent[]>([]);
+
+  useEffect(() => {
+    if (events && events.length > 0) {
+      setDisplayedEvents(events);
+    }
+  }, [events]);
 
   // Frozen snapshot of metadata kept after the run finishes
   const [frozenMetadata, setFrozenMetadata] = useState<{
@@ -251,6 +157,7 @@ const PerformanceTestPanel = ({
     if (!wasRunning && isRunning) {
       startRecording();
       setFrozenMetadata(null);
+      setDisplayedEvents(events?.length ? events : []);
     } else if (wasRunning && !isRunning) {
       freezeSnapshot(resultOverrides);
       setFrozenMetadata((prev) => {
@@ -264,13 +171,16 @@ const PerformanceTestPanel = ({
     startRecording,
     freezeSnapshot,
     resultOverrides,
+    events,
     metadataLines,
     metadataEntries,
   ]);
 
   useEffect(() => {
     if (metadataEntries.length === 0) {
-      setActiveMetadataTab(null);
+      if (!frozenMetadata) {
+        setActiveMetadataTab(null);
+      }
       return;
     }
 
@@ -364,7 +274,7 @@ const PerformanceTestPanel = ({
     if (!activeMetadataTab || !availableKeys.has(activeMetadataTab)) {
       setActiveMetadataTab(metadataEntries[0][0]);
     }
-  }, [activeMetadataTab, metadataEntries]);
+  }, [activeMetadataTab, frozenMetadata, metadataEntries]);
 
   useEffect(() => {
     const metadataSources = metadataSourcesRef;
@@ -386,9 +296,28 @@ const PerformanceTestPanel = ({
   const displayEntries = hasMetadataStreams
     ? metadataEntries
     : (frozenMetadata?.entries ?? []);
-  const displayLines = hasMetadataStreams
-    ? metadataLines
-    : (frozenMetadata?.lines ?? {});
+  const displayLines = useMemo(
+    () => (hasMetadataStreams ? metadataLines : (frozenMetadata?.lines ?? {})),
+    [frozenMetadata?.lines, hasMetadataStreams, metadataLines],
+  );
+
+  const genAIMetricsData: VlmMetricsPoint[] = useMemo(
+    () =>
+      (isRunning ? liveHistory : frozenHistory)
+        .filter(
+          (point) =>
+            point.vlmTtftMs !== undefined ||
+            point.vlmTpotMs !== undefined ||
+            point.vlmGenerateDurationMs !== undefined,
+        )
+        .map((point) => ({
+          timestamp: point.timestamp,
+          ttft: point.vlmTtftMs ?? 0,
+          tpot: point.vlmTpotMs ?? 0,
+          totalLatency: point.vlmGenerateDurationMs ?? 0,
+        })),
+    [frozenHistory, isRunning, liveHistory],
+  );
 
   const metadataTabValue = activeMetadataTab ?? displayEntries[0]?.[0] ?? "";
 
@@ -398,27 +327,37 @@ const PerformanceTestPanel = ({
   const hasOutputVideo =
     !livePreviewEnabled && !isRunning && !!completedVideoPath;
   const showMetadataSection = enableMetadata && showMetadataTab;
-  const visibleTabCount = (hasMediaTab ? 1 : 0) + (showMetadataSection ? 1 : 0);
-  const effectiveMainTab =
-    activeMainTab === "media" && !hasMediaTab
-      ? "metadata"
-      : activeMainTab === "metadata" && !showMetadataSection
-        ? hasMediaTab
-          ? "media"
-          : "metadata"
-        : activeMainTab;
+  const showSummaryStyles = !isRunning && frozenSummary !== null;
+
+  const availableMainTabs = useMemo(() => {
+    const tabs: string[] = [];
+    if (hasMediaTab) tabs.push("media");
+    if (showMetadataSection) tabs.push("metadata");
+    return tabs;
+  }, [hasMediaTab, showMetadataSection]);
+
+  // Snap `activeMainTab` back to the first available tab whenever the current
+  // one disappears (e.g. a metadata stream ends).
+  useEffect(() => {
+    if (
+      availableMainTabs.length > 0 &&
+      !availableMainTabs.includes(activeMainTab)
+    ) {
+      setActiveMainTab(availableMainTabs[0]);
+    }
+  }, [availableMainTabs, activeMainTab]);
 
   return (
     <div className="flex flex-col w-full h-full bg-background p-4 space-y-4 overflow-y-auto overflow-x-hidden min-w-0">
       <h2 className="text-lg font-semibold">Test pipeline</h2>
 
       <Tabs
-        value={effectiveMainTab}
+        value={activeMainTab}
         onValueChange={setActiveMainTab}
         className="flex flex-col min-w-0"
       >
-        {visibleTabCount > 1 && (
-          <TabsList>
+        {availableMainTabs.length > 1 && (
+          <TabsList className="grid w-full grid-flow-col auto-cols-fr">
             {hasMediaTab && (
               <TabsTrigger value="media">{mediaTabLabel}</TabsTrigger>
             )}
@@ -461,6 +400,15 @@ const PerformanceTestPanel = ({
                   </p>
                 ) : null}
               </div>
+            )}
+
+            {displayedEvents.length > 0 && (
+              <LivePipelineEvents
+                events={displayedEvents}
+                isRunning={isRunning}
+                title={isVlmPipeline ? "Video captions" : "Live events"}
+                showTriggeredCount={!isVlmPipeline}
+              />
             )}
           </TabsContent>
         )}
@@ -525,12 +473,15 @@ const PerformanceTestPanel = ({
                 value={metadataTabValue}
                 onValueChange={setActiveMetadataTab}
               >
-                <TabsList className="w-full h-auto flex-wrap justify-start">
-                  {displayEntries.map(([compositeKey]) => {
-                    const [jobId, pipelineId] = compositeKey.split("::");
+                <TabsList className="grid h-10 w-full grid-cols-[repeat(auto-fit,minmax(min(100%,7rem),1fr))] items-stretch gap-0 rounded-none border-b border-border bg-transparent p-0">
+                  {displayEntries.map(([compositeKey], index) => {
                     return (
-                      <TabsTrigger key={compositeKey} value={compositeKey}>
-                        {buildStreamLabel(jobId, pipelineId)}
+                      <TabsTrigger
+                        key={compositeKey}
+                        value={compositeKey}
+                        className="h-full w-full min-w-0 flex-1 self-stretch rounded-none border-0 border-b-2 border-transparent px-3 text-sm after:hidden data-[state=active]:border-primary data-[state=active]:bg-primary/5 data-[state=active]:text-primary data-[state=active]:shadow-none"
+                      >
+                        Stream {index + 1}
                       </TabsTrigger>
                     );
                   })}
@@ -596,14 +547,25 @@ const PerformanceTestPanel = ({
       </Tabs>
 
       {isRunning && (
-        <MetricsDashboard enableLatencyMetrics={enableLatencyMetrics} />
+        <MetricsDashboard enableLatencyMetrics={enableLatencyMetrics}>
+          {genAIMetricsData.length > 0 && (
+            <VlmMetricsCharts data={genAIMetricsData} />
+          )}
+        </MetricsDashboard>
       )}
       {!isRunning && frozenSummary && (
         <MetricsDashboard
           enableLatencyMetrics={enableLatencyMetrics}
           historyOverride={frozenHistory}
           metricsOverride={frozenSummary}
-        />
+        >
+          {genAIMetricsData.length > 0 && (
+            <VlmMetricsCharts
+              data={genAIMetricsData}
+              isSummary={showSummaryStyles}
+            />
+          )}
+        </MetricsDashboard>
       )}
     </div>
   );

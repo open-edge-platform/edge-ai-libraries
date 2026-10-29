@@ -81,5 +81,6 @@ To adjust for latency and CPU utilization:
 export CPU_SLEEP_TIME=<sleep duration in microseconds>
 ```
 
-NOTE: Higher sleep value leads to higher latency
-      and reduced CPU utilization and vice versa
+> [!NOTE]
+> Higher sleep value leads to higher latency
+> and reduced CPU utilization and vice versa
