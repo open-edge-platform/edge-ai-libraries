@@ -26,12 +26,10 @@ DATA_DIR       :=
 DOCS_PATH      := /docs/v1/index.html
 
 define PRINT_ACCESS_URLS
-	echo "App (localhost): http://localhost:$$PORT/v1/status"; \
-	echo "Docs (localhost): http://localhost:$$PORT$(DOCS_PATH)"; \
 	REMOTE_IP="$$(ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([^ ]*\).*/\1/p')"; \
 	if [ -n "$$REMOTE_IP" ]; then \
-		echo "App (remote): http://$$REMOTE_IP:$$PORT/v1/status"; \
-		echo "Docs (remote): http://$$REMOTE_IP:$$PORT$(DOCS_PATH)"; \
+		echo "API Health Status: http://$$REMOTE_IP:$$PORT/v1/status"; \
+		echo "API Docs UI: http://$$REMOTE_IP:$$PORT$(DOCS_PATH)"; \
 	else \
 		echo "No primary IPv4 address found. Check the host network configuration."; \
 	fi
@@ -113,9 +111,9 @@ endif
 		-P \
 		$(STORAGE_MOUNT) \
 		$(CONFIG_MOUNT) \
-		$(IMAGE_REF)
+		$(IMAGE_REF) > /dev/null
 	@PORT=$$(env -u SM_DATA_DIR -u SM_CONFIG_FILE docker port $(CONTAINER_NAME) $(CONTAINER_PORT)/tcp | head -1 | cut -d: -f2); \
-	if [ -z "$$PORT" ]; then echo "Could not determine the published container port." >&2; exit 1; fi; \
+	if [ -z "$$PORT" ]; then echo "Could not determine the container port. This could be because container is not ready or failed to start!" >&2; exit 1; fi; \
 	echo "Container '$(CONTAINER_NAME)' started."; \
 	$(PRINT_ACCESS_URLS)
 
