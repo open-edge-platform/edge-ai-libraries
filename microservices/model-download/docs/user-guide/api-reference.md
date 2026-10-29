@@ -206,6 +206,7 @@ curl -X POST "http://localhost:8200/api/v1/models/download?download_path=my-mode
 | Hub                  | Description                          |
 | -------------------- | ------------------------------------ |
 | `huggingface`        | HuggingFace model hub               |
+| `modelscope`         | ModelScope snapshots (including FunASR) |
 | `ollama`             | Ollama model registry                |
 | `ultralytics`        | Ultralytics YOLO models             |
 | `pipeline-zoo-models`| Pipeline Zoo Models                  |
@@ -214,6 +215,33 @@ curl -X POST "http://localhost:8200/api/v1/models/download?download_path=my-mode
 | `geti`               | Intel Geti™                          |
 | `hls`                | HLS model source                     |
 | `remote-url`         | Download from a remote URL           |
+
+FunASR snapshots use the `modelscope` plugin. Enable it with
+`--plugins modelscope` (or add `modelscope` to `ENABLED_PLUGINS`). For example,
+download Mandarin Paraformer, VAD, and punctuation models together:
+
+```bash
+curl -X POST "http://localhost:8200/models/download?download_path=funasr" \
+  -H 'Content-Type: application/json' \
+  -d '{"models":[{"name":"iic/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-pytorch","hub":"modelscope","revision":"v2.0.4"},{"name":"iic/speech_fsmn_vad_zh-cn-16k-common-pytorch","hub":"modelscope","revision":"v2.0.4"},{"name":"iic/punc_ct-transformer_zh-cn-common-vocab272727-pytorch","hub":"modelscope","revision":"v2.0.4"}]}'
+```
+
+The response contains a `job_ids` array. Poll `GET /jobs/<job_id>` until
+`status` is `completed`; the model files are then available to containers
+sharing the downloader's model storage volume. These FunASR requests download
+native PyTorch snapshots, not OpenVINO IR. Use `hub: "openvino"` for supported
+OpenVINO exports instead.
+
+Snapshots are stored under `<MODELS_DIR>/funasr/modelscope/<owner>_<model>/`.
+Use ModelScope repository IDs and revisions, not Hugging Face commit hashes.
+Hugging Face remains supported for other downloads.
+
+For whisper.cpp, request `hub: "huggingface"` with
+`name: "ggerganov/whisper.cpp"` and `config: {"files": ["ggml-base.bin"]}`
+to fetch only that filename. The `files` option is limited to plain filenames.
+The `openai-whisper` provider in Audio Analyzer downloads its official `.pt`
+checkpoint directly through the OpenAI Whisper package; it is not a Model
+Download service hub.
 
 **Model Types:**
 
@@ -244,7 +272,7 @@ curl -X POST "http://localhost:8200/api/v1/models/download?download_path=my-mode
 
 **`name` Format by Hub:**
 
-- `huggingface`, `ollama`, `openvino`, `geti`, `hls`, `remote-url`: single model name
+- `huggingface`, `modelscope`, `ollama`, `openvino`, `geti`, `hls`, `remote-url`: single model name
 - `ultralytics`: single name, comma-separated names, or `all`
 - `pipeline-zoo-models`: single name, comma-separated names, or `all`
 - `omz`: single name or comma-separated names (`all` is not supported)

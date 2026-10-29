@@ -1,3 +1,6 @@
+<!-- SPDX-FileCopyrightText: (C) 2026 Intel Corporation -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Configuration
 
 ## Load Order
@@ -56,19 +59,21 @@ AUDIO_ANALYZER__MODELS__ASR__DEVICE=GPU python main.py
 
 ## ASR Provider Notes
 
-- `openai`: uses `openai-whisper` and downloads PyTorch Whisper weights on first use.
+- `openai`: uses `openai-whisper` to download official PyTorch Whisper weights directly
+  into Audio Analyzer's model directory on first use; it does not use Model Download.
 - `openvino`: exports the configured Whisper model to OpenVINO IR under `models/openvino/...` and supports `CPU`, `GPU`, and `NPU` (when available and correctly configured).
 - `whispercpp`: downloads the matching whisper.cpp `ggml` model under `models/whispercpp/...` and runs on `CPU` only.
-- `funasr`: optional Chinese/English provider using Paraformer models
-  (`whisper-base`/`whisper-tiny`/etc. are not applicable; use
-  `models.asr.name: paraformer-zh | paraformer-en | paraformer-online`
-  instead). Runs on `CPU` only. Requires the optional dependencies in
-  `requirements-cjk.txt`, which are **not** installed in the default image —
-  build with `--build-arg INSTALL_CJK=true` (see
-  [Build From Source](./build-from-source.md#optional-chinese-english-funasr-provider)).
-  `models.asr.model_hub` (`modelscope` | `huggingface`) selects the download
-  source, and `models.asr.vad_model` / `models.asr.punc_model` configure the
-  companion voice-activity-detection and punctuation-restoration models.
+
+- `funasr`: loads provisioned Paraformer, VAD, and punctuation snapshots locally;
+  requires the optional `INSTALL_CJK=true` image build.
+
+Compose runs Model Download as a one-shot provisioning job, deriving its model
+selection from this same configuration. Audio Analyzer starts only after the job
+completes successfully. `AUDIO_ANALYZER_MODEL_DOWNLOAD_URL` is no longer used.
+OpenVINO conversion still runs in Audio Analyzer, using the local source snapshot;
+native OpenAI Whisper and optional sentiment keep their direct-download behavior.
+See [model provisioning and restart instructions](../get-started.md#funasr-paraformer-with-modelscope).
+
 
 ### ASR Provider/Device Matrix
 

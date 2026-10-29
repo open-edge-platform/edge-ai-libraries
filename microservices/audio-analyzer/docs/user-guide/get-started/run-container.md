@@ -1,3 +1,6 @@
+<!-- SPDX-FileCopyrightText: (C) 2026 Intel Corporation -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Run With Docker Compose
 
 Use this path to run the service in a container using the prebuilt image
@@ -10,6 +13,17 @@ To rebuild the image from source instead of pulling, see the
 
 - Edit `config.yaml` with the settings you want. The same file is used for both standalone and container runs. For configuration details, see the [Configuration Guide](./configuration.md).
 - The Compose setup bind-mounts `config.yaml` and stores model, chunk, storage, and Hugging Face cache data in named Docker volumes (`audio_analyzer_models`, `audio_analyzer_chunks`, `audio_analyzer_storage`, `audio_analyzer_cache`). Nothing is written into the source tree.
+- `model-downloader` is an ephemeral provisioning job, not a running API service.
+  It reads the same configuration, downloads the selected Hugging Face snapshots
+  onto the persistent models volume, and exits. Audio Analyzer waits for exit code
+  `0` before starting. The downloader has no health check or published port;
+  `Exited (0)` in `docker compose ps -a` is normal.
+- Behind a proxy, export `http_proxy`/`https_proxy` (or their uppercase forms)
+  before running Compose. The provisioning container receives both forms with
+  identical values for compatibility with Python and `uv`; lowercase values take
+  precedence when both are set. The same normalization applies to `no_proxy`.
+  Dependency resolution still needs network access even when model snapshots
+  are cached.
 - `/dev/dri` is passed through by default for host Intel iGPU access.
 - For Intel NPU acceleration, set `ACCEL_MOUNT_PATH` in your local `.env` (or export it before running Compose) to the host NPU device node. The host path is machine-specific; on some Meteor Lake systems it is `/dev/accel/accel0`.
 - Compose maps the configurable host path `${ACCEL_MOUNT_PATH}` to the fixed container path `/dev/accel/accel0` expected by the OpenVINO NPU stack.
@@ -83,13 +97,17 @@ If you plan to enable speaker diarization by setting `models.asr.diarization: tr
    ```bash
    HF_TOKEN=hf_your_token_here
    ```
-4. Restart the container:
+4. Provision the newly enabled models, then recreate Audio Analyzer:
    ```bash
-   docker compose up -d
+   docker compose run --rm model-downloader
+   docker compose up -d --force-recreate audio-analyzer
    ```
 
-Without a valid `HF_TOKEN` and gate acceptance, speaker diarization will not initialize. The service
-continues running, logs a warning, and disables diarization for that session.
+Without valid credentials and gate acceptance on the first download, provisioning
+fails and Audio Analyzer does not start with missing diarization models.
+Inspect `docker compose logs model-downloader` after a failed initial deployment.
+Already provisioned, validated snapshots do not require a token or downloader API
+to load locally.
 If diarization is disabled in `config.yaml`, `HF_TOKEN` is not required.
 
 ### MinIO (External Object Storage)

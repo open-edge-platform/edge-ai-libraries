@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 set -e
 
 # Make downloaded artifacts group-writable (dirs 0775, files 0664) so the
@@ -127,8 +130,8 @@ install_dependencies() {
             fi
             echo "0" > "${status_file}"
             ;;
-        huggingface)
-            echo -e "${BLUE}INFO:${NC} HuggingFace dependencies will be installed via uv sync"
+        huggingface|modelscope)
+            echo -e "${BLUE}INFO:${NC} ${plugin} dependencies will be installed via uv sync"
             echo "0" > "${status_file}"
             ;;
         ollama)
@@ -316,7 +319,7 @@ done
 # external-sources plugin are listed individually; 'external-sources'
 # itself is an internal plugin name and is rejected if passed by the user.
 EXTERNAL_SOURCES_HUBS=(pipeline-zoo-models omz remote-url)
-AVAILABLE_PLUGINS=("openvino" "huggingface" "ollama" "ultralytics" "${EXTERNAL_SOURCES_HUBS[@]}" "geti" "hls")
+AVAILABLE_PLUGINS=("openvino" "huggingface" "modelscope" "ollama" "ultralytics" "${EXTERNAL_SOURCES_HUBS[@]}" "geti" "hls")
 
 # Install plugin-specific dependencies (in parallel)
 if [ "$PLUGINS" = "all" ]; then
@@ -367,15 +370,15 @@ cd /opt
 # ollama to PATH if it's not already there
 export PATH="/opt/bin/:$PATH"
 
-# Generate a lockfile so per-plugin venv syncs below can resolve packages from
-# the current pyproject.toml and any declared extras/conflicts.
+# Resolve dependencies at startup, then use that lockfile for every venv sync.
 print_info "Generating lockfile..."
 if ! uv lock; then
-    print_warning "Failed to generate lockfile; plugin venvs may be incomplete"
+    print_error "Failed to resolve dependencies and generate the startup lockfile"
+    exit 1
 fi
 
 print_info "Installing core dependencies from pyproject.toml..."
-if ! uv sync --no-dev; then
+if ! uv sync --locked --no-dev; then
     print_error "Failed to sync base dependencies"
     exit 1
 fi
@@ -396,7 +399,7 @@ for plugin in "${ACTIVATED_PLUGIN_LIST[@]}"; do
     if [[ "$plugin" == "omz" ]]; then
         OMZ_VENV="/opt/.venv-omz"
         print_info "Creating isolated OMZ venv at ${OMZ_VENV} with openvino-dev==2024.6.0"
-        if UV_PROJECT_ENVIRONMENT="${OMZ_VENV}" uv sync --extra omz --no-dev; then
+        if UV_PROJECT_ENVIRONMENT="${OMZ_VENV}" uv sync --locked --extra omz --no-dev; then
             if uv pip install --python "${OMZ_VENV}/bin/python" -r /opt/requirements/omz.txt --index-url https://pypi.org/simple --extra-index-url https://download.pytorch.org/whl/cpu; then
                 if "${OMZ_VENV}/bin/omz_downloader" --help > /dev/null 2>&1; then
                     print_success "OMZ venv created with openvino-dev and OMZ tools ready"
@@ -425,7 +428,7 @@ for plugin in "${ACTIVATED_PLUGIN_LIST[@]}"; do
     PLUGIN_VENV="/opt/.venv-${plugin}"
     print_info "Creating venv for plugin '${plugin}' at ${PLUGIN_VENV} ..."
 
-    if UV_PROJECT_ENVIRONMENT="${PLUGIN_VENV}" uv sync --extra "${plugin}" --no-dev; then
+    if UV_PROJECT_ENVIRONMENT="${PLUGIN_VENV}" uv sync --locked --extra "${plugin}" --no-dev; then
         print_success "Plugin venv created: ${plugin}"
 
         # For openvino with a custom OVMS release tag, also install the
@@ -458,6 +461,13 @@ fi
 if [ "$EPHEMERAL_MODE" = true ]; then
     print_header "Running in Ephemeral Mode"
     print_info "Executing one-shot download/conversion..."
+    if [ "${EPHEMERAL_ARGS[0]:-}" = "--command" ]; then
+        if [ "${#EPHEMERAL_ARGS[@]}" -lt 2 ]; then
+            print_error "--ephemeral --command requires a command"
+            exit 1
+        fi
+        exec "${EPHEMERAL_ARGS[@]:1}"
+    fi
     exec /opt/scripts/get_model.sh --internal "${EPHEMERAL_ARGS[@]}"
 elif [ "$START_SERVICE" = true ]; then
     if [ "$MCP_MODE" = true ]; then

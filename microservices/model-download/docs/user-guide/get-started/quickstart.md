@@ -1,3 +1,6 @@
+<!-- SPDX-FileCopyrightText: (C) 2026 Intel Corporation -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Quick Start - Ephemeral Container
 
 This microservice can be run as an ephemeral (one-shot) container that downloads or converts a model and exits automatically. This is useful for CI/CD pipelines, pre-provisioning model caches, or scripted workflows.
@@ -62,6 +65,23 @@ curl -sSLO https://raw.githubusercontent.com/open-edge-platform/edge-ai-librarie
 ---
 
 ## Advanced Options
+
+### Application-driven one-shot provisioning
+
+The container entrypoint also accepts
+`--plugins <list> --ephemeral --command <executable> [arguments...]`.
+It prepares the selected plugin environments, then executes the command directly
+(without shell evaluation or launching the REST server). The container exits with
+the command's exit status. Use only trusted commands and read-only mounts for
+application provisioning code/configuration; keep artifacts on persistent storage.
+Put `--plugins` before `--ephemeral`, since all following arguments belong to
+the one-shot command.
+
+Audio Analyzer uses this mode with `python -m utils.provision_models` to derive
+the required snapshots from its mounted configuration, provision them using the
+existing model submission/job machinery, and exit before inference starts.
+See its [provisioning setup](../../../../audio-analyzer/docs/user-guide/get-started.md#funasr-paraformer-with-modelscope).
+Existing `--ephemeral --model-name ... --hub ...` behavior is unchanged.
 
 ### Model Parameters
 

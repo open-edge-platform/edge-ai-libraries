@@ -96,6 +96,7 @@ DeviceValue = Annotated[str, BeforeValidator(_validate_device)]
 
 class ModelHub(str, Enum):
     HUGGINGFACE = "huggingface"
+    MODELSCOPE = "modelscope"
     ULTRALYTICS = "ultralytics"
     PIPELINE_ZOO_MODELS = "pipeline-zoo-models"
     OLLAMA = "ollama"

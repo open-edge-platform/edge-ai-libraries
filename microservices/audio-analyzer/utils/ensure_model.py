@@ -1,9 +1,13 @@
-import logging, os, sys
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+import logging, os, sys, shutil
 import yaml
 from typing import Tuple
 from utils.asr_pool_config import POOL_PREVIEW, preview_differs_from_final, resolve_pool_config
 from utils.config_loader import config
 from utils.cli_utils import run_cli
+from utils.local_models import get_local_model
 logger = logging.getLogger(__name__)
 
 HF_PYTORCH_WEIGHTS_NAME = "pytorch_model.bin"
@@ -16,54 +20,6 @@ _OPENAI_WHISPER_ID_MAP = {
     "whisper-medium": "medium",
     "whisper-large": "large-v3",
 }
-
-
-def _is_hf_auth_or_access_error(exc: Exception) -> bool:
-    text = str(exc).lower()
-    markers = (
-        "401",
-        "403",
-        "unauthorized",
-        "forbidden",
-        "invalid token",
-        "token is invalid",
-        "gated",
-        "permission",
-        "access denied",
-    )
-    return any(marker in text for marker in markers)
-
-
-def _validate_diarization_hf_access(model_name: str, hf_token: str | None) -> None:
-    if not hf_token:
-        raise RuntimeError(
-            "Speaker diarization is enabled but HF_TOKEN is not configured. "
-            "Set models.asr.hf_token or export HF_TOKEN with access to the "
-            f"{model_name} repository."
-        )
-
-    try:
-        from huggingface_hub import HfApi
-    except ImportError as exc:
-        raise RuntimeError(
-            "huggingface_hub is required to validate diarization access. "
-            "Install it in the runtime image/environment."
-        ) from exc
-
-    try:
-        HfApi().model_info(repo_id=model_name, token=hf_token)
-    except Exception as exc:
-        if _is_hf_auth_or_access_error(exc):
-            raise RuntimeError(
-                "Speaker diarization is enabled but HF_TOKEN is invalid or does not have access "
-                f"to {model_name}. Ensure token validity and accept the model terms on Hugging Face."
-            ) from exc
-        # Preserve startup behavior for transient/non-auth HF errors.
-        logger.warning(
-            "Could not verify HF access for diarization model due to a non-auth error: %s. "
-            "Proceeding to local-cache/download step.",
-            exc,
-        )
 
 
 def _resolve_hf_token() -> str | None:
@@ -79,67 +35,28 @@ def _resolve_hf_token() -> str | None:
     return env_token if env_token else None
 
 
-def _download_hf_model(
+def _get_diarization_snapshot(
     model_name: str,
-    output_dir: str,
-    hf_token: str = None,
-    force: bool = False,
     required_files: list[str] | None = None,
-) -> Tuple[bool, str]:
-    """Download a HuggingFace model snapshot locally (offline-capable after first download)."""
-    os.makedirs(output_dir, exist_ok=True)
-
-    required_files = required_files or []
-    has_required_files = all(
-        os.path.exists(os.path.join(output_dir, f)) for f in required_files
+) -> str:
+    """Resolve a snapshot prepared by the one-shot downloader."""
+    return get_local_model(
+        model_name, download_path="diarization",
+        required_files=required_files,
+        models_base_path=config.models.diarization.models_base_path,
     )
 
-    if not force and os.listdir(output_dir) and has_required_files:
-        logger.info("⚡ Using cached HF model at %s", output_dir)
-        return True, output_dir
 
-    if os.listdir(output_dir) and not has_required_files:
-        logger.warning("Incomplete HF model cache detected at %s. Re-downloading.", output_dir)
-
-    logger.info(
-        "🚀 Downloading HF model %s → %s\n"
-        "⏳ This may take time depending on model size…\n"
-        "⚠️  Please do not terminate.",
-        model_name, output_dir,
-    )
-
-    try:
-        from huggingface_hub import snapshot_download
-    except ImportError as exc:
-        raise RuntimeError("huggingface_hub is required. Run: pip install huggingface_hub") from exc
-
-    try:
-        snapshot_download(
-            repo_id=model_name,
-            local_dir=output_dir,
-            local_dir_use_symlinks=False,
-            token=hf_token,
-        )
-    except Exception as exc:
-        logger.error("❌ HF download failed: %s", exc)
-        return False, output_dir
-
-    success = len(os.listdir(output_dir)) > 0
-    logger.info("✅ Download successful" if success else "❌ Download incomplete")
-    return success, output_dir
-
-
-def _cache_diarization_dependencies_locally(pipeline_dir: str, hf_token: str = None) -> None:
-    """Rewrite pyannote pipeline config.yaml so all sub-model refs point to local paths."""
+def _cache_diarization_dependencies_locally(pipeline_dir: str) -> None:
+    """Write a local pipeline config without modifying the provisioned snapshot."""
     config_path = os.path.join(pipeline_dir, "config.yaml")
     if not os.path.exists(config_path):
-        return
+        raise FileNotFoundError(f"Provisioned diarization configuration is missing: {config_path}")
 
     with open(config_path, "r", encoding="utf-8") as fh:
         pipeline_cfg = yaml.safe_load(fh) or {}
 
     pipeline_params = pipeline_cfg.get("pipeline", {}).get("params", {})
-    changed = False
 
     for key in ("segmentation", "embedding", "plda"):
         model_ref = pipeline_params.get(key)
@@ -157,32 +74,31 @@ def _cache_diarization_dependencies_locally(pipeline_dir: str, hf_token: str = N
             local_checkpoint = os.path.join(sub_dir, HF_PYTORCH_WEIGHTS_NAME)
             if os.path.exists(local_checkpoint):
                 pipeline_params[key] = local_checkpoint
-                changed = True
             elif os.path.isdir(sub_dir):
                 pipeline_params[key] = sub_dir
-                changed = True
+            else:
+                raise RuntimeError(f"Bundled diarization model is missing: {sub_dir}")
             continue
 
         # Standalone HF sub-model (pyannote 3.x style)
-        dep_dir = os.path.join(pipeline_dir, "dependencies", model_ref.replace("/", "_"))
-        success, _ = _download_hf_model(
-            model_ref, dep_dir, hf_token=hf_token,
+        dep_dir = _get_diarization_snapshot(
+            model_ref,
             required_files=[HF_PYTORCH_WEIGHTS_NAME, "config.yaml"],
         )
-        if not success:
-            continue
         checkpoint = os.path.join(dep_dir, HF_PYTORCH_WEIGHTS_NAME)
         if os.path.exists(checkpoint):
             pipeline_params[key] = checkpoint
-            changed = True
+        else:
+            raise RuntimeError(f"Diarization dependency weights missing: {checkpoint}")
 
-    if changed:
-        with open(config_path, "w", encoding="utf-8") as fh:
-            yaml.safe_dump(pipeline_cfg, fh, sort_keys=False)
+    with open(os.path.join(pipeline_dir, "config.local.yaml"), "w", encoding="utf-8") as fh:
+        yaml.safe_dump(pipeline_cfg, fh, sort_keys=False)
 
 
 def get_diarization_model_path() -> str:
     diar_cfg = config.models.diarization
+    if diar_cfg.provider == "huggingface":
+        return os.path.join(diar_cfg.models_base_path, "diarization", "huggingface", diar_cfg.name.replace("/", "_"))
     return os.path.join(
         diar_cfg.models_base_path,
         diar_cfg.provider,
@@ -289,6 +205,14 @@ def _ir_exists(output_dir: str) -> bool:
     de_bin_file = os.path.join(output_dir, "openvino_decoder_model.bin")
     return (os.path.exists(xml_file) and os.path.exists(bin_file)) or (os.path.exists(en_xml_file) and os.path.exists(en_bin_file) and os.path.exists(de_xml_file) and os.path.exists(de_bin_file))
 
+def _whisper_ir_exists(output_dir: str) -> bool:
+    if not _ir_exists(output_dir):
+        return False
+    import openvino as ov
+
+    decoder = ov.Core().read_model(os.path.join(output_dir, "openvino_decoder_model.xml"))
+    return any("beam_idx" in port.get_names() for port in decoder.inputs)
+
 def _download_openvino_model(
     model_name: str,
     output_dir: str,
@@ -298,7 +222,9 @@ def _download_openvino_model(
     """Export a HuggingFace model to OpenVINO IR using optimum-cli."""
     os.makedirs(output_dir, exist_ok=True)
 
-    if not force and _ir_exists(output_dir):
+    is_whisper = model_name.startswith("openai/whisper-")
+    is_exported = _whisper_ir_exists if is_whisper else _ir_exists
+    if not force and is_exported(output_dir):
         logger.info(f"⚡ Using cached export at {output_dir}")
         return True, output_dir
 
@@ -307,9 +233,17 @@ def _download_openvino_model(
     # Windows can hit a different environment's optimum-cli (e.g. a conda/venv
     # whose Scripts dir happens to be on PATH) and export with the wrong package
     # set, producing no IR. sys.executable guarantees this venv's optimum.
+    source_dir = (
+        get_local_model(
+            model_name, download_path="whisper-source",
+            required_files=["config.json"],
+        )
+        if is_whisper else model_name
+    )
     cmd = [
         sys.executable, "-m", "optimum.commands.optimum_cli", "export", "openvino",
-        "--model", model_name,
+        "--model", source_dir,
+        *(["--task", "automatic-speech-recognition-with-past"] if is_whisper else []),
         "--trust-remote-code",
         output_dir,
     ] + (["--weight-format", weight_format] if weight_format else [])
@@ -323,26 +257,24 @@ def _download_openvino_model(
         logger.error(f"❌ Export failed: {return_code}")
         return False, output_dir
 
-    success = _ir_exists(output_dir)
+    success = is_exported(output_dir)
     logger.info("✅ Export successful" if success else "❌ Export incomplete")
     return success, output_dir
 
 def _download_whispercpp_model(model_name: str, output_dir: str, weight_format: str | None = None) -> bool:
-    """Download a whisper.cpp GGUF model from HuggingFace."""
+    """Copy a whisper.cpp model already fetched by model-download."""
     filename = get_whispercpp_model_filename(model_name, weight_format)
     dest = os.path.join(output_dir, filename)
     if os.path.isfile(dest):
         logger.info(f"⚡ Using cached whisper.cpp model at {dest}")
         return True
 
+    source = get_local_model(
+        "ggerganov/whisper.cpp", download_path="whisper-source",
+        required_files=[filename],
+    )
     os.makedirs(output_dir, exist_ok=True)
-    try:
-        from huggingface_hub import hf_hub_download
-    except ImportError as exc:
-        raise RuntimeError("huggingface_hub is required. Run: pip install huggingface_hub") from exc
-
-    logger.info(f"⬇️  Downloading {filename} from ggerganov/whisper.cpp ...")
-    hf_hub_download(repo_id="ggerganov/whisper.cpp", filename=filename, local_dir=output_dir)
+    shutil.copyfile(os.path.join(source, filename), dest)
     success = os.path.isfile(dest)
     logger.info("✅ Download complete" if success else "❌ Download incomplete")
     return success
@@ -469,43 +401,41 @@ def ensure_model():
             config.models.asr.name.replace("whisper-", ""),
         )
         model_file = os.path.join(output_dir, f"{model_id}.pt")
-        if os.path.isfile(model_file):
-            logger.info("⚡ Using cached openai-whisper model at %s", model_file)
-        else:
-            logger.info(
-                "🚀 Downloading openai-whisper model '%s' → %s\n"
-                "⏳ This may take time depending on model size…\n"
-                "⚠️  Please do not terminate.",
-                model_id, output_dir,
+        try:
+            import whisper
+        except ImportError as exc:
+            raise RuntimeError(
+                "The openai provider requires openai-whisper in the Audio Analyzer environment."
+            ) from exc
+        model_url = whisper._MODELS.get(model_id)
+        if model_url is None:
+            raise ValueError(
+                f"Unsupported openai Whisper model {config.models.asr.name!r}. "
+                f"Supported models: {', '.join(_OPENAI_WHISPER_ID_MAP)}"
             )
-            try:
-                import whisper as _whisper
-                _whisper.load_model(model_id, device="cpu", download_root=output_dir)
-                logger.info("✅ openai-whisper model download complete")
-            except Exception as exc:
-                logger.error("❌ openai-whisper model download failed: %s", exc)
-                raise
+
+        logger.info(
+            "Ensuring official openai-whisper checkpoint '%s' in %s",
+            model_id,
+            output_dir,
+        )
+        checkpoint = whisper._download(model_url, output_dir, False)
+        if not os.path.isfile(checkpoint) or os.path.abspath(checkpoint) != os.path.abspath(model_file):
+            raise RuntimeError(
+                f"openai-whisper did not create the expected checkpoint at {model_file}"
+            )
+        logger.info("openai-whisper model ready at %s", model_file)
 
     # Download diarization model when diarization is enabled
     if getattr(config.models.asr, "diarization", False):
         diar_cfg = getattr(config.models, "diarization", None)
         if diar_cfg and getattr(diar_cfg, "provider", None) == "huggingface":
-            hf_token = _resolve_hf_token()
-            _validate_diarization_hf_access(diar_cfg.name, hf_token)
             output_dir = get_diarization_model_path()
-            success, _ = _download_hf_model(
+            _get_diarization_snapshot(
                 diar_cfg.name,
-                output_dir,
-                hf_token=hf_token,
                 required_files=["config.yaml"],
             )
-            if not success:
-                raise RuntimeError(
-                    "Speaker diarization is enabled but pyannote model download/initialization failed. "
-                    "Verify HF_TOKEN permissions and network connectivity, then retry."
-                )
-            if success:
-                _cache_diarization_dependencies_locally(output_dir, hf_token=hf_token)
+            _cache_diarization_dependencies_locally(output_dir)
 
     # Sentiment model download (if enabled)
     sent_cfg = getattr(config, "sentiment", None)

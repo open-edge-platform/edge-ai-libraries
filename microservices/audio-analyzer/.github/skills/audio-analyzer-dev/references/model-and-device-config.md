@@ -26,7 +26,7 @@ Configured via `models.asr.provider` and `models.asr.device` in
 
 | Provider | CPU | GPU | NPU | Notes |
 |----------|-----|-----|-----|-------|
-| `openai` | ✅ | ❌ | ❌ | `openai-whisper`, downloads PyTorch Whisper weights on first use |
+| `openai` | ✅ | ❌ | ❌ | `openai-whisper`, downloads official PyTorch Whisper weights directly from OpenAI on first use |
 | `whispercpp` | ✅ | ❌ | ❌ | Downloads matching `ggml` model under `models/whispercpp/...` |
 | `openvino` | ✅ | ✅ | ✅ | Exports to OpenVINO IR under `models/openvino/...` |
 
