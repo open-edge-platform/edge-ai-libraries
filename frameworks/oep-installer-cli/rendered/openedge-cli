@@ -3043,7 +3043,7 @@ configure_pallet_defect_detection ()
 configure_pcb_anomaly_detection () 
 { 
     workspace="$(ensure_project_path)/pcb-anomaly-detection";
-    version=release-2026.2.0;
+    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
     repository="https://github.com/open-edge-platform/manufacturing-ai-suite.git";
     used_ports=(80 443 3478 8000)
 }
@@ -3324,7 +3324,7 @@ configure_smart_nvr ()
 configure_smart_parking () 
 { 
     workspace="$(ensure_project_path)/smart-parking";
-    version=release-2026.2.0;
+    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(80 443 3478);
     wait_timeout=120
@@ -5281,7 +5281,7 @@ debian_55_remove_ros_openvino ()
 debian_55_sbom_realsense () 
 { 
     configure_realsense "$@";
-    ensure_sbom_format name "$rs_repo_name";
+    ensure_sbom_format repo-name "$rs_repo_name";
     ensure_sbom_format gpg-key "$rs_key_url";
     ensure_sbom_format key-file "$rs_key_file";
     ensure_sbom_format apt-source "$rs_deb_entry";
@@ -6218,7 +6218,7 @@ EOF
 }
 debian_90_install_pcb_anomaly_detection () 
 { 
-    configure_pcb_anomaly_detection;
+    configure_pcb_anomaly_detection "$@";
     if verify_pcb_anomaly_detection && [[ " $* " != *" --reinstall "* ]]; then
         echo "PCB anomaly detection is installed." 1>&2;
     else
@@ -6453,7 +6453,7 @@ debian_90_install_smart_nvr ()
 }
 debian_90_install_smart_parking () 
 { 
-    configure_smart_parking;
+    configure_smart_parking "$@";
     if verify_smart_parking && [[ " $* " != *" --reinstall "* ]]; then
         echo "Smart parking is installed." 1>&2;
     else
@@ -7445,7 +7445,7 @@ debian_90_start_pallet_defect_detection ()
 }
 debian_90_start_pcb_anomaly_detection () 
 { 
-    configure_pcb_anomaly_detection;
+    configure_pcb_anomaly_detection "$@";
     ensure_ports_open start pcb_anomaly_detection "${used_ports[@]}";
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || echo "_$device" > "$workspace"/.device;
@@ -7593,7 +7593,7 @@ debian_90_start_smart_nvr ()
 }
 debian_90_start_smart_parking () 
 { 
-    configure_smart_parking;
+    configure_smart_parking "$@";
     ensure_ports_open start smart_parking "${used_ports[@]}";
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || echo "$device" > "$workspace"/.device;
@@ -7883,7 +7883,7 @@ debian_90_stop_pallet_defect_detection ()
 }
 debian_90_stop_pcb_anomaly_detection () 
 { 
-    configure_pcb_anomaly_detection;
+    configure_pcb_anomaly_detection "$@";
     cd "$workspace"/industrial-edge-insights-vision && { 
         ./sample_stop.sh || true;
         docker compose down -v --remove-orphans
@@ -7946,7 +7946,7 @@ debian_90_stop_smart_nvr ()
 }
 debian_90_stop_smart_parking () 
 { 
-    configure_smart_parking;
+    configure_smart_parking "$@";
     cd "$workspace"/metro-vision-ai-app-recipe && { 
         ./sample_stop.sh || true;
         docker compose down -v --remove-orphans
