@@ -2217,7 +2217,7 @@ act_validate_modules ()
 configure_agentic_predictive_maintenance_pipeline () 
 { 
     workspace="$(ensure_project_path)/agentic-predictive-maintenance-pipeline";
-    version=release-2026.2.0;
+    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
     repository=https://github.com/open-edge-platform/metro-ai-suite.git;
     used_ports=(8080 8010 8554 8200 9091 9090);
     models=(Qwen/Qwen2.5-1.5B-Instruct microsoft/Phi-4-mini-instruct)
@@ -2234,11 +2234,11 @@ configure_agentic_predictive_maintenance_pipeline_device ()
 configure_agentic_smart_community () 
 { 
     workspace="$(ensure_project_path)/agentic-smart-community";
-    version="release-2026.2.0";
+    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(3100 3101 41091 8192 8999);
     mlvu_workspace="$workspace/agentic-smart-community/.external/edge-ai-libraries";
-    mlvu_version="release-2026.2.0";
+    mlvu_version="$version";
     mlvu_repository="https://github.com/open-edge-platform/edge-ai-libraries.git";
     mlvu_subpath="microservices/multilevel-video-understanding";
     export HF_HOME="$workspace/models/huggingface";
@@ -2314,7 +2314,7 @@ configure_deterministic_threat_detection ()
 configure_dine_in () 
 { 
     workspace="$(ensure_project_path)/dine-in";
-    version=65d1959a5b3ac268370220e972f5c97efee21d48;
+    version="$(ensure_parse_value_option version --version=65d1959a5b3ac268370220e972f5c97efee21d48 "$@")";
     repository="https://github.com/intel-retail/order-accuracy.git";
     ports=(7861 8083 8002 8011 9000 8081 9091)
 }
@@ -2630,7 +2630,7 @@ configure_humanoid_imitation_learning ()
 configure_image_based_video_search () 
 { 
     workspace="$(ensure_project_path)/image-based-video-search";
-    version=release-2026.2.0;
+    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(443 80 8554)
 }
@@ -2753,7 +2753,7 @@ configure_libze1 ()
 configure_live_video_alert_agent () 
 { 
     workspace="$(ensure_project_path)/live-video-alert-agent";
-    version=release-2026.2.0;
+    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(9000 9090 8000 8001 8002 1883 9273);
     get_model_script="https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/tags/2026.2.1/microservices/model-download/scripts/get_model.sh";
@@ -2784,7 +2784,7 @@ EOF
 configure_live_video_captioning () 
 { 
     workspace="$(ensure_project_path)/live-video-captioning";
-    version=release-2026.2.0;
+    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(4173 8040 1883 9090 8889 9273 8556);
     get_model_script="https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/tags/2026.2.1/microservices/model-download/scripts/get_model.sh";
@@ -2802,7 +2802,7 @@ configure_live_video_captioning_device ()
 configure_live_video_captioning_rag () 
 { 
     workspace="$(ensure_project_path)/live-video-captioning-rag";
-    version=release-2026.2.0;
+    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(4173 4172 8040 1883 9090 8889 9273 8556);
     get_model_script="https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/tags/2026.2.1/microservices/model-download/scripts/get_model.sh";
@@ -2822,7 +2822,7 @@ configure_live_video_captioning_rag_device ()
 configure_live_video_search () 
 { 
     workspace="$(ensure_project_path)/live-video-search";
-    version=release-2026.2.0;
+    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(8080 3001 9998 4001 4002 5432 7890 6008 19530 55555 6016 9766 80 5000 8000 1883 6379 9777 6008 19530 9091 8554 9090 9273);
     get_model_script="https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/tags/2026.2.1/microservices/model-download/scripts/get_model.sh"
@@ -2849,7 +2849,7 @@ EOF
 configure_loitering_detection () 
 { 
     workspace="$(ensure_project_path)/loitering-detection";
-    version=release-2026.2.0;
+    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(80 443 3478);
     wait_timeout=120
@@ -2935,7 +2935,7 @@ configure_mediamtx ()
 configure_multi_modal_patient_monitoring () 
 { 
     workspace="$(ensure_project_path)/multi-modal-patient-monitoring";
-    version=4a9679b58090cd86d56d91e1e72cab462babfe31;
+    version="$(ensure_parse_value_option version --version=4a9679b58090cd86d56d91e1e72cab462babfe31 "$@")";
     repository=https://github.com/open-edge-platform/health-and-life-sciences-ai-suite.git;
     workspace_mdpnp="$workspace"/multi_modal_patient_monitoring/services/mdpnp/mdpnp;
     version_mdpnp=master;
@@ -2945,7 +2945,7 @@ configure_multi_modal_patient_monitoring ()
 configure_multimodal_weld_defect_detection () 
 { 
     workspace="$(ensure_project_path)/multimodal-weld-defect-detection";
-    version=release-2026.2.0;
+    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
     repository="https://github.com/open-edge-platform/manufacturing-ai-suite.git";
     tsam_config="configs/time-series-analytics-microservice/config.json";
     pipeline_config="configs/dlstreamer-pipeline-server/config.json";
@@ -2977,7 +2977,7 @@ configure_multimodal_weld_defect_detection_device ()
 configure_nicu_warmer () 
 { 
     workspace="$(ensure_project_path)/nicu-warmer";
-    version=release-2026.2.0;
+    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
     repository="https://github.com/open-edge-platform/health-and-life-sciences-ai-suite.git";
     models=("https://huggingface.co/Intel/patient-present/resolve/main/patient-detect-fp32.bin?download=true patient-detect-fp32.bin" "https://huggingface.co/Intel/patient-present/resolve/main/patient-detect-fp32.xml?download=true patient-detect-fp32.xml" "https://huggingface.co/Intel/people-present/resolve/main/person-detect-fp32.bin?download=true person-detect-fp32.bin" "https://huggingface.co/Intel/people-present/resolve/main/person-detect-fp32.xml?download=true person-detect-fp32.xml" "https://huggingface.co/Intel/latch-detect/resolve/main/latch-detect-fp32.bin?download=true latch-detect-fp32.bin" "https://huggingface.co/Intel/latch-detect/resolve/main/latch-detect-fp32.xml?download=true latch-detect-fp32.xml" "https://github.com/xliucs/MTTS-CAN/raw/main/mtts_can.hdf5 models_rppg/mtts_can.hdf5" "https://storage.openvinotoolkit.org/repositories/open_model_zoo/temp/action-recognition-0001/action-recognition-0001-encoder/FP16-INT8/action-recognition-0001-encoder.xml action-recognition-0001-encoder.xml" "https://storage.openvinotoolkit.org/repositories/open_model_zoo/temp/action-recognition-0001/action-recognition-0001-encoder/FP16-INT8/action-recognition-0001-encoder.bin action-recognition-0001-encoder.bin" "https://storage.openvinotoolkit.org/repositories/open_model_zoo/temp/action-recognition-0001/action-recognition-0001-decoder/FP16-INT8/action-recognition-0001-decoder.xml action-recognition-0001-decoder.xml" "https://storage.openvinotoolkit.org/repositories/open_model_zoo/temp/action-recognition-0001/action-recognition-0001-decoder/FP16-INT8/action-recognition-0001-decoder.bin action-recognition-0001-decoder.bin");
     used_ports=(8080)
@@ -3112,7 +3112,7 @@ configure_physical_ai_studio_device ()
 configure_post_fusion () 
 { 
     workspace="$(ensure_project_path)/post-fusion";
-    version=release-2026.2.0;
+    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
     repository=https://github.com/open-edge-platform/metro-ai-suite.git;
     inputs=2;
     pipeline=kitti/2C1L/localFusionPipeline;
@@ -3250,7 +3250,7 @@ configure_ros_openvino ()
 configure_scenescape () 
 { 
     workspace="$(ensure_project_path)/scenescape";
-    version=release-2026.2.0;
+    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
     repository=https://github.com/open-edge-platform/scenescape.git;
     used_ports=(443);
     version_skills=release-2026.2.0;
@@ -3260,7 +3260,7 @@ configure_scenescape ()
 configure_smart_intersection () 
 { 
     workspace="$(ensure_project_path)/smart-intersection";
-    version=release-2026.2.0;
+    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(443)
 }
@@ -3288,7 +3288,7 @@ configure_smart_intersection_device ()
 configure_smart_kiosk_assistant () 
 { 
     workspace="$(ensure_project_path)/smart-kiosk-assistant";
-    version=66728aeb875b382c3f342380513ea00170ff45fd;
+    version="$(ensure_parse_value_option version --version=66728aeb875b382c3f342380513ea00170ff45fd "$@")";
     repository="https://github.com/intel-retail/voice-enabled-interactions.git";
     used_ports=(7860 7861 8012 8000 9000 8090 8020 8554 9001 8010 8011);
     used_models=(pyannote/speaker-diarization-community-1 pyannote/speaker-diarization-3.1 pyannote/segmentation-3.0)
@@ -3312,7 +3312,7 @@ configure_smart_kiosk_assistant_device ()
 configure_smart_nvr () 
 { 
     workspace="$(ensure_project_path)/smart-nvr";
-    version=b05301d7e027caf1953bad3811f65be2cb671b50;
+    version="$(ensure_parse_value_option version --version=b05301d7e027caf1953bad3811f65be2cb671b50 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(7860 8000 5000 6379 1884 443 1880 3000 8086 8554);
     export REGISTRY_URL="intel";
@@ -3332,7 +3332,7 @@ configure_smart_parking ()
 configure_smart_traffic_intersection_agent () 
 { 
     workspace="$(ensure_project_path)/smart-traffic-intersection-agent";
-    version="release-2026.2.0";
+    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(32776 32770 32771 32772 32773 32774 32775);
     export VLM_MODEL_NAME=OpenVINO/Phi-3.5-vision-instruct-int8-ov;
@@ -3358,7 +3358,7 @@ configure_stationary_robot_vision ()
 configure_surgical_instrument () 
 { 
     workspace="$(ensure_project_path)/surgical-instrument";
-    version="5bf04485b67cda526a1dbd8435141733e05fd61a";
+    version="$(ensure_parse_value_option version --version=5bf04485b67cda526a1dbd8435141733e05fd61a "$@")";
     repository="https://github.com/open-edge-platform/health-and-life-sciences-ai-suite.git";
     polyp_model="models/yolo11n_polyp/best_openvino_model/best.xml"
 }
@@ -3372,7 +3372,7 @@ configure_system_info ()
 configure_take_away () 
 { 
     workspace="$(ensure_project_path)/take-away";
-    version=65d1959a5b3ac268370220e972f5c97efee21d48;
+    version="$(ensure_parse_value_option version --version=65d1959a5b3ac268370220e972f5c97efee21d48 "$@")";
     repository="https://github.com/intel-retail/order-accuracy.git";
     used_ports=(7860 8000 8080 8001 9000 9001 8010)
 }
@@ -3416,7 +3416,7 @@ configure_v4l_utils ()
 configure_video_processing_for_nvr () 
 { 
     workspace="$(ensure_project_path)/video-processing-for-nvr";
-    version="release-2026.2.0";
+    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     duration=45;
     export MODEL_DIR="$workspace"/models/modified_yolov8n;
@@ -3425,7 +3425,7 @@ configure_video_processing_for_nvr ()
 configure_video_search_and_summarization () 
 { 
     workspace="$(ensure_project_path)/video-search-and-summarization";
-    version=1c5fdc1f440e685c8f82322ec09b60b7320ea404;
+    version="$(ensure_parse_value_option version --version=1c5fdc1f440e685c8f82322ec09b60b7320ea404 "$@")";
     repository="https://github.com/open-edge-platform/edge-ai-libraries.git";
     version_skills=release-2026.2.0;
     repository_skills="https://github.com/open-edge-platform/skills.git";
@@ -3481,14 +3481,14 @@ configure_video_search_and_summarization_gated ()
 configure_vippet () 
 { 
     workspace="$(ensure_project_path)/vippet";
-    version=release-2026.2.0;
+    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
     repository=https://github.com/open-edge-platform/edge-ai-libraries.git;
     used_ports=(80 7860 8000 9090 8554 8889)
 }
 configure_visual_search_question_and_answering () 
 { 
     workspace="$(ensure_project_path)/visual-search-question-and-answering";
-    version=release-2026.2.0;
+    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
     repository="https://github.com/open-edge-platform/metro-ai-suite.git";
     used_ports=(17580 19530 9764 9990 6008 9777);
     demo_dataset="https://data.vision.ee.ethz.ch/csergi/share/davis/DAVIS-2017-test-dev-480p.zip";
@@ -3506,7 +3506,7 @@ configure_visual_search_question_and_answering ()
 configure_wind_turbine_anomaly_detection () 
 { 
     workspace="$(ensure_project_path)/wind-turbine-anomaly-detection";
-    version="release-2026.2.0";
+    version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")";
     repository="https://github.com/open-edge-platform/manufacturing-ai-suite.git";
     nstreams=20;
     npoints=500;
@@ -5566,7 +5566,7 @@ debian_75_sbom_dlstreamer ()
 }
 debian_80_install_anomalib () 
 { 
-    configure_anomalib $*;
+    configure_anomalib "$@";
     if verify_anomalib && [[ " $* " != *" --reinstall "* ]]; then
         echo "Anomalib is installed." 1>&2;
     else
@@ -5590,7 +5590,7 @@ debian_80_profile_anomalib ()
 }
 debian_80_remove_anomalib () 
 { 
-    configure_anomalib $*;
+    configure_anomalib "$@";
     ensure_rm "$workspace";
     ensure_skills remove "${skills[@]}"
 }
@@ -5732,7 +5732,7 @@ debian_89_remove_uncrewed_aerial_vehicle_blueprint ()
 }
 debian_90_install_agentic_predictive_maintenance_pipeline () 
 { 
-    configure_agentic_predictive_maintenance_pipeline;
+    configure_agentic_predictive_maintenance_pipeline "$@";
     if verify_agentic_predictive_maintenance_pipeline && [[ " $* " != *" --reinstall "* ]]; then
         echo "Agentic Predictive Maintenance Pipeline is installed." 1>&2;
     else
@@ -5755,7 +5755,7 @@ debian_90_install_agentic_predictive_maintenance_pipeline ()
 }
 debian_90_install_agentic_smart_community () 
 { 
-    configure_agentic_smart_community;
+    configure_agentic_smart_community "$@";
     if verify_agentic_smart_community && [[ " $* " != *" --reinstall "* ]]; then
         echo "Agentic Smart Community is installed." 1>&2;
     else
@@ -5823,7 +5823,7 @@ debian_90_install_deterministic_threat_detection ()
 }
 debian_90_install_dine_in () 
 { 
-    configure_dine_in;
+    configure_dine_in "$@";
     if verify_dine_in && [[ " $* " != *" --reinstall "* ]]; then
         echo "Order accuracy is installed." 1>&2;
     else
@@ -5947,7 +5947,7 @@ EOF
 }
 debian_90_install_live_video_alert_agent () 
 { 
-    configure_live_video_alert_agent;
+    configure_live_video_alert_agent "$@";
     if verify_live_video_alert_agent && [[ " $* " != *" --reinstall "* ]]; then
         echo "Live Video Alert Agent is installed." 1>&2;
     else
@@ -5964,7 +5964,7 @@ debian_90_install_live_video_alert_agent ()
 }
 debian_90_install_live_video_captioning () 
 { 
-    configure_live_video_captioning;
+    configure_live_video_captioning "$@";
     if verify_live_video_captioning && [[ " $* " != *" --reinstall "* ]]; then
         echo "Live Video Captioning is installed." 1>&2;
     else
@@ -5987,7 +5987,7 @@ debian_90_install_live_video_captioning ()
 }
 debian_90_install_live_video_captioning_rag () 
 { 
-    configure_live_video_captioning_rag;
+    configure_live_video_captioning_rag "$@";
     if verify_live_video_captioning_rag && [[ " $* " != *" --reinstall "* ]]; then
         echo "Live Video Captioning RAG is installed." 1>&2;
     else
@@ -6011,7 +6011,7 @@ debian_90_install_live_video_captioning_rag ()
 }
 debian_90_install_live_video_search () 
 { 
-    configure_live_video_search;
+    configure_live_video_search "$@";
     if verify_live_video_search && [[ " $* " != *" --reinstall "* ]]; then
         echo "Live Video Search is installed." 1>&2;
     else
@@ -6027,7 +6027,7 @@ debian_90_install_live_video_search ()
 }
 debian_90_install_loitering_detection () 
 { 
-    configure_loitering_detection;
+    configure_loitering_detection "$@";
     if verify_loitering_detection && [[ " $* " != *" --reinstall "* ]]; then
         echo "Loitering detection is installed." 1>&2;
     else
@@ -6098,7 +6098,7 @@ EOF
 }
 debian_90_install_multi_modal_patient_monitoring () 
 { 
-    configure_multi_modal_patient_monitoring;
+    configure_multi_modal_patient_monitoring "$@";
     if verify_multi_modal_patient_monitoring && [[ " $* " != *" --reinstall "* ]]; then
         echo "Multi Modal Patient Monitoring is installed" 1>&2;
     else
@@ -6128,7 +6128,7 @@ debian_90_install_multi_modal_patient_monitoring ()
 }
 debian_90_install_multimodal_weld_defect_detection () 
 { 
-    configure_multimodal_weld_defect_detection;
+    configure_multimodal_weld_defect_detection "$@";
     if verify_multimodal_weld_defect_detection && [[ " $* " != *" --reinstall "* ]]; then
         echo "Multimodal weld defect detection is installed." 1>&2;
     else
@@ -6155,7 +6155,7 @@ EOF
 }
 debian_90_install_nicu_warmer () 
 { 
-    configure_nicu_warmer $*;
+    configure_nicu_warmer "$@";
     if verify_nicu_warmer && [[ " $* " != *" --reinstall "* ]]; then
         echo "NICU Warmer is installed." 1>&2;
     else
@@ -6371,7 +6371,7 @@ debian_90_install_real_time_scene_understanding ()
 }
 debian_90_install_scenescape () 
 { 
-    configure_scenescape;
+    configure_scenescape "$@";
     if verify_scenescape && [[ " $* " != *" --reinstall "* ]]; then
         echo "Scenescape is installed." 1>&2;
     else
@@ -6389,7 +6389,7 @@ debian_90_install_scenescape ()
 }
 debian_90_install_smart_intersection () 
 { 
-    configure_smart_intersection;
+    configure_smart_intersection "$@";
     if verify_smart_intersection && [[ " $* " != *" --reinstall "* ]]; then
         echo "Smart intersection is installed." 1>&2;
     else
@@ -6410,7 +6410,7 @@ debian_90_install_smart_intersection ()
 }
 debian_90_install_smart_kiosk_assistant () 
 { 
-    configure_smart_kiosk_assistant;
+    configure_smart_kiosk_assistant "$@";
     if verify_smart_kiosk_assistant && [[ " $* " = *" --reinstall "* ]]; then
         echo "Smart Kiosk Assistant is installed." 1>&2;
     else
@@ -6526,7 +6526,7 @@ debian_90_install_stationary_robot_vision ()
 }
 debian_90_install_surgical_instrument () 
 { 
-    configure_surgical_instrument;
+    configure_surgical_instrument "$@";
     if verify_surgical_instrument && [[ " $* " = *" --reinstall "* ]]; then
         echo "Surgical Instrument is installed" 1>&2;
     else
@@ -6555,7 +6555,7 @@ debian_90_install_surgical_instrument ()
 }
 debian_90_install_take_away () 
 { 
-    configure_take_away;
+    configure_take_away "$@";
     if verify_take_away && [[ " $* " != *" --reinstall "* ]]; then
         echo "Order accuracy Take Away is installed." 1>&2;
     else
@@ -6670,7 +6670,7 @@ ov.save_model(ppp.build(), "modified_yolov8n/yolov8n.xml")
 }
 debian_90_install_vippet () 
 { 
-    configure_vippet;
+    configure_vippet "$@";
     if verify_vippet && [[ " $* " != *" --reinstall "* ]]; then
         echo "Vipet is installed." 1>&2;
     else
@@ -6712,7 +6712,7 @@ debian_90_install_visual_search_question_and_answering ()
 }
 debian_90_install_wind_turbine_anomaly_detection () 
 { 
-    configure_wind_turbine_anomaly_detection;
+    configure_wind_turbine_anomaly_detection "$@";
     if verify_wind_turbine_anomaly_detection && [[ " $* " != *" --reinstall "* ]]; then
         echo "Wind turbine anomaly detection is installed." 1>&2;
     else
@@ -7091,7 +7091,7 @@ debian_90_remove_stationary_robot_vision ()
 }
 debian_90_remove_surgical_instrument () 
 { 
-    configure_surgical_instrument;
+    configure_surgical_instrument "$@";
     ensure_rm "$workspace"
 }
 debian_90_remove_take_away () 
@@ -7117,7 +7117,7 @@ debian_90_remove_video_processing_for_nvr ()
 }
 debian_90_remove_vippet () 
 { 
-    debian_90_stop_vippet $* || true;
+    debian_90_stop_vippet "$@";
     ensure_rm "$workspace"
 }
 debian_90_remove_visual_search_question_and_answering () 
@@ -7160,7 +7160,7 @@ debian_90_sbom_stationary_robot_vision ()
 }
 debian_90_start_agentic_predictive_maintenance_pipeline () 
 { 
-    configure_agentic_predictive_maintenance_pipeline;
+    configure_agentic_predictive_maintenance_pipeline "$@";
     ensure_ports_open start agentic_predictive_maintenance_pipeline "${used_ports[@]}";
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_agentic_predictive_maintenance_pipeline_device "${device^^}";
@@ -7172,7 +7172,7 @@ debian_90_start_agentic_predictive_maintenance_pipeline ()
 }
 debian_90_start_agentic_smart_community () 
 { 
-    configure_agentic_smart_community;
+    configure_agentic_smart_community "$@";
     ensure_ports_open start agentic_smart_community "${used_ports[@]}";
     cd "$workspace"/agentic-smart-community;
     bash setup_docker.sh;
@@ -7217,7 +7217,7 @@ debian_90_start_image_based_video_search ()
 }
 debian_90_start_live_video_alert_agent () 
 { 
-    configure_live_video_alert_agent;
+    configure_live_video_alert_agent "$@";
     ensure_ports_open start live_video_alert_agent "${used_ports[@]}";
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_alert_agent_device "${device^^}";
@@ -7233,7 +7233,7 @@ debian_90_start_live_video_alert_agent ()
 }
 debian_90_start_live_video_captioning () 
 { 
-    configure_live_video_captioning;
+    configure_live_video_captioning "$@";
     ensure_ports_open start live_video_captioning "${used_ports[@]}";
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_captioning_device "${device^^}";
@@ -7244,7 +7244,7 @@ debian_90_start_live_video_captioning ()
 }
 debian_90_start_live_video_captioning_rag () 
 { 
-    configure_live_video_captioning_rag;
+    configure_live_video_captioning_rag "$@";
     ensure_ports_open start live_video_captioning_rag "${used_ports[@]}";
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_captioning_rag_device "${device^^}";
@@ -7255,7 +7255,7 @@ debian_90_start_live_video_captioning_rag ()
 }
 debian_90_start_live_video_search () 
 { 
-    configure_live_video_search;
+    configure_live_video_search "$@";
     ensure_ports_open start live_video_search "${used_ports[@]}";
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_search_device "$device";
@@ -7269,7 +7269,7 @@ debian_90_start_live_video_search ()
 }
 debian_90_start_loitering_detection () 
 { 
-    configure_loitering_detection;
+    configure_loitering_detection "$@";
     ensure_ports_open start loitering_detection "${used_ports[@]}";
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || echo "$device" > "$workspace"/.device;
@@ -7311,7 +7311,7 @@ debian_90_start_loss_prevention ()
 }
 debian_90_start_multi_modal_patient_monitoring () 
 { 
-    configure_multi_modal_patient_monitoring;
+    configure_multi_modal_patient_monitoring "$@";
     ensure_ports_open start multi_modal_patient_monitoring "${used_ports[@]}";
     cd "$workspace"/multi_modal_patient_monitoring;
     local device="$(ensure_parse_device "$@")" d;
@@ -7328,7 +7328,7 @@ debian_90_start_multi_modal_patient_monitoring ()
 }
 debian_90_start_multimodal_weld_defect_detection () 
 { 
-    configure_multimodal_weld_defect_detection;
+    configure_multimodal_weld_defect_detection "$@";
     ensure_ports_open start multimodal_weld_defect_detection "${used_ports[@]}";
     local device="$(ensure_parse_device "$@")";
     [[ " ${*,,} " != *" --${device} "* ]] || configure_multimodal_weld_defect_detection_device $device;
@@ -7545,7 +7545,7 @@ debian_90_start_real_time_scene_understanding ()
 }
 debian_90_start_scenescape () 
 { 
-    configure_scenescape;
+    configure_scenescape "$@";
     ensure_ports_open start scenescape "${used_ports[@]}";
     cd "$workspace";
     export SUPASS=$(cat /dev/random | tr -dc a-z | head -c 5);
@@ -7557,7 +7557,7 @@ debian_90_start_scenescape ()
 }
 debian_90_start_smart_intersection () 
 { 
-    configure_smart_intersection;
+    configure_smart_intersection "$@";
     ensure_ports_open start smart_intersection "${used_ports[@]}";
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_smart_intersection_device "$device";
@@ -7571,7 +7571,7 @@ debian_90_start_smart_intersection ()
 }
 debian_90_start_smart_kiosk_assistant () 
 { 
-    configure_smart_kiosk_assistant;
+    configure_smart_kiosk_assistant "$@";
     ensure_ports_open start smart_kiosk_assistant "${used_ports[@]}";
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --$device "* ]] || configure_smart_kiosk_assistant_device "${device^^}";
@@ -7631,7 +7631,7 @@ debian_90_start_smart_traffic_intersection_agent ()
 }
 debian_90_start_surgical_instrument () 
 { 
-    configure_surgical_instrument;
+    configure_surgical_instrument "$@";
     cd "$workspace"/surgical-instrument;
     if [ ! -e models/yolo11n_polyp/best_openvino_model/best.xml ]; then
         printf "${red}Missing yolo11n_polyp${reset}\n" 1>&2;
@@ -7687,7 +7687,7 @@ debian_90_start_video_processing_for_nvr ()
 }
 debian_90_start_vippet () 
 { 
-    configure_vippet;
+    configure_vippet "$@";
     ensure_ports_open start vippet "${used_ports[@]}";
     cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool";
     make run;
@@ -7707,7 +7707,7 @@ debian_90_start_visual_search_question_and_answering ()
 }
 debian_90_start_wind_turbine_anomaly_detection () 
 { 
-    configure_wind_turbine_anomaly_detection;
+    configure_wind_turbine_anomaly_detection "$@";
     ensure_ports_open start wind_turbine_anomaly_detection "${used_ports[@]}";
     local device=$(ensure_parse_device "$@");
     [[ " ${*,,} " != *" --${device} "* ]] || configure_wind_turbine_anomaly_detection_device "$device";
@@ -7776,7 +7776,7 @@ END {
 }
 debian_90_stop_agentic_predictive_maintenance_pipeline () 
 { 
-    configure_agentic_predictive_maintenance_pipeline;
+    configure_agentic_predictive_maintenance_pipeline "$@";
     cd "$workspace"/agentic-predictive-maintenance-pipeline && { 
         . ./setup.sh --stop || true;
         . ./setup.sh --clean-data || true;
@@ -7785,7 +7785,7 @@ debian_90_stop_agentic_predictive_maintenance_pipeline ()
 }
 debian_90_stop_agentic_smart_community () 
 { 
-    configure_agentic_smart_community;
+    configure_agentic_smart_community "$@";
     cd "$workspace"/agentic-smart-community && bash setup_docker.sh --down || true
 }
 debian_90_stop_dine_in () 
@@ -7812,23 +7812,23 @@ debian_90_stop_image_based_video_search ()
 }
 debian_90_stop_live_video_alert_agent () 
 { 
-    configure_live_video_alert_agent;
+    configure_live_video_alert_agent "$@";
     cd "$workspace"/live-video-analysis/live-video-alert-agent && docker compose -f docker/docker-compose.yml -f docker/docker-compose.npu.yml down -v --remove-orphans || true
 }
 debian_90_stop_live_video_captioning () 
 { 
-    configure_live_video_captioning;
+    configure_live_video_captioning "$@";
     cd "$workspace"/live-video-analysis/live-video-captioning;
     docker compose -f compose.yaml down -v --remove-orphans
 }
 debian_90_stop_live_video_captioning_rag () 
 { 
-    configure_live_video_captioning_rag;
+    configure_live_video_captioning_rag "$@";
     cd "$workspace"/live-video-analysis/live-video-captioning-rag && docker compose -f compose.yaml down -v --remove-orphans || true
 }
 debian_90_stop_live_video_search () 
 { 
-    configure_live_video_search;
+    configure_live_video_search "$@";
     cd "$workspace"/live-video-analysis/live-video-search && { 
         set -a;
         . ./docker/.env || true;
@@ -7840,7 +7840,7 @@ debian_90_stop_live_video_search ()
 }
 debian_90_stop_loitering_detection () 
 { 
-    configure_loitering_detection;
+    configure_loitering_detection "$@";
     cd "$workspace"/metro-vision-ai-app-recipe;
     ./sample_stop.sh || true;
     docker compose -f compose-without-scenescape.yml down -v --remove-orphans || true
@@ -7856,12 +7856,12 @@ debian_90_stop_loss_prevention ()
 }
 debian_90_stop_multi_modal_patient_monitoring () 
 { 
-    configure_multi_modal_patient_monitoring;
+    configure_multi_modal_patient_monitoring "$@";
     cd "$workspace"/multi_modal_patient_monitoring && docker compose down -v --remove-orphans || true
 }
 debian_90_stop_multimodal_weld_defect_detection () 
 { 
-    configure_multimodal_weld_defect_detection;
+    configure_multimodal_weld_defect_detection "$@";
     cd "$workspace"/industrial-edge-insights-multimodal && make down || true
 }
 debian_90_stop_nicu_warmer () 
@@ -7920,17 +7920,17 @@ debian_90_stop_real_time_scene_understanding ()
 }
 debian_90_stop_scenescape () 
 { 
-    configure_scenescape;
+    configure_scenescape "$@";
     cd "$workspace" && make demo-close || true
 }
 debian_90_stop_smart_intersection () 
 { 
-    configure_smart_intersection;
+    configure_smart_intersection "$@";
     cd "$workspace"/metro-vision-ai-app-recipe && docker compose -f compose-scenescape.yml down -v --remove-orphans || true
 }
 debian_90_stop_smart_kiosk_assistant () 
 { 
-    configure_smart_kiosk_assistant;
+    configure_smart_kiosk_assistant "$@";
     cd "$workspace"/smart-kiosk-assistant && { 
         make down || true;
         make clean || true;
@@ -7984,7 +7984,7 @@ debian_90_stop_video_processing_for_nvr ()
 }
 debian_90_stop_vippet () 
 { 
-    configure_vippet;
+    configure_vippet "$@";
     cd "$workspace/tools/visual-pipeline-and-platform-evaluation-tool" && make stop || true
 }
 debian_90_stop_visual_search_question_and_answering () 
@@ -7998,7 +7998,7 @@ debian_90_stop_visual_search_question_and_answering ()
 }
 debian_90_stop_wind_turbine_anomaly_detection () 
 { 
-    configure_wind_turbine_anomaly_detection;
+    configure_wind_turbine_anomaly_detection "$@";
     cd "$workspace"/industrial-edge-insights-time-series && make down || true
 }
 debian_99_install_system_summary () 
@@ -9872,7 +9872,7 @@ verify_multi_modal_patient_monitoring ()
 }
 verify_multimodal_weld_defect_detection () 
 { 
-    configure_multimodal_weld_defect_detection;
+    configure_multimodal_weld_defect_detection "$@";
     [ -e "$workspace"/industrial-edge-insights-multimodal/weld-data-simulator/simulation-data/good_weld_02-16-23-0081-00.csv ] || { 
         echo "Missing good_weld_02-16-23-0081-00.csv" 1>&2;
         return 1

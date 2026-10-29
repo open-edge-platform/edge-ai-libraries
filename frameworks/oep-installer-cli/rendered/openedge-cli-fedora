@@ -3508,7 +3508,7 @@ fedora_75_sbom_dlstreamer ()
 }
 fedora_80_install_anomalib () 
 { 
-    configure_anomalib $*;
+    configure_anomalib "$@";
     if verify_anomalib && [[ " $* " != *" --reinstall "* ]]; then
         echo "Anomalib is installed." 1>&2;
     else
@@ -3532,7 +3532,7 @@ fedora_80_profile_anomalib ()
 }
 fedora_80_remove_anomalib () 
 { 
-    configure_anomalib $*;
+    configure_anomalib "$@";
     ensure_rm "$workspace" || true;
     ensure_skills remove "${skills[@]}"
 }
