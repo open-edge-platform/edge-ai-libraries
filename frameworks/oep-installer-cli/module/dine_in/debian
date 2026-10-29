@@ -1,7 +1,7 @@
 
 configure_dine_in () {
   workspace="$(ensure_project_path)/dine-in"
-  version=65d1959a5b3ac268370220e972f5c97efee21d48
+  version="$(ensure_parse_value_option version --version=65d1959a5b3ac268370220e972f5c97efee21d48 "$@")"
   repository="https://github.com/intel-retail/order-accuracy.git"
   ports=(7861 8083 8002 8011 9000 8081 9091)
 }
@@ -29,7 +29,7 @@ debian_90_profile_dine_in () {
 }
 
 debian_90_install_dine_in () {
-  configure_dine_in
+  configure_dine_in "$@"
 
   if verify_dine_in && [[ " $* " != *" --reinstall "* ]]; then
     echo "Order accuracy is installed." >&2
