@@ -28,7 +28,8 @@ _CONTROL_TIMEOUT_S = 10
 
 _DEVICE_LINE_RE = re.compile(r"^(?P<id>.+?)\s+\((?P<address>[^()]+)\)$")
 # Device ids come from the network; no leading dash so they can never be parsed as options.
-_ARAVIS_ID_RE = re.compile(r"^[A-Za-z0-9._][A-Za-z0-9._ \-]{0,255}$")
+# Length is capped so that the derived sensor id fits SENSOR_ID_MAX_LENGTH (256).
+_ARAVIS_ID_RE = re.compile(r"^[A-Za-z0-9._][A-Za-z0-9._ \-]{0,243}$")
 _FEATURE_LINE_RE = re.compile(r"^(?P<name>\w+)\s*=\s*(?P<value>.*)$")
 _NUMBER_RE = re.compile(r"^-?\d+(?:\.\d+)?")
 
@@ -57,8 +58,10 @@ def _slug(text: str) -> str:
     return slugify(text, regex_pattern=r"[^-a-z0-9_\.]+")
 
 
-def make_gige_camera_id(vendor: str, serial: str) -> str:
-    return f"{GIGE_CAMERA_ID_PREFIX}{_slug(vendor)}-{_slug(serial)}"
+def make_gige_camera_id(aravis_id: str) -> str:
+    # The Aravis id comes from the discovery reply, so it stays the same whether or not
+    # the camera can be opened; the id must not depend on the feature read.
+    return f"{GIGE_CAMERA_ID_PREFIX}{_slug(aravis_id)}"
 
 
 def _parse_number(value: Optional[str]) -> Optional[float]:
@@ -125,10 +128,11 @@ def _to_device_info(features: Dict[str, str]) -> Optional[_GigEDeviceInfo]:
 
 
 def _make_gige_camera(aravis_id: str, ip: str, info: Optional[_GigEDeviceInfo]) -> InternalCamera:
+    device_id = make_gige_camera_id(aravis_id)
     if info is None:
-        # Identity is unknown until the camera can be opened (e.g. it is streaming elsewhere).
+        # Details are unknown until the camera can be opened (e.g. it is streaming elsewhere).
         return InternalCamera(
-            device_id=f"{GIGE_CAMERA_ID_PREFIX}{_slug(aravis_id)}",
+            device_id=device_id,
             device_name=f"GigE Camera {ip}",
             device_type=InternalCameraType.GIGE,
             details=InternalGigECameraDetails(ip=ip),
@@ -136,7 +140,7 @@ def _make_gige_camera(aravis_id: str, ip: str, info: Optional[_GigEDeviceInfo]) 
 
     name = " ".join(part for part in (info.vendor, info.model) if part)
     return InternalCamera(
-        device_id=make_gige_camera_id(info.vendor, info.serial),
+        device_id=device_id,
         device_name=name,
         device_type=InternalCameraType.GIGE,
         details=InternalGigECameraDetails(

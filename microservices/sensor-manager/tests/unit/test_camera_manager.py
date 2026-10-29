@@ -17,7 +17,7 @@ from src.core.internal_types import (
 )
 
 NET_ID = "network-camera-192.168.1.100-80"
-GIGE_ID = "gige-camera-basler-21234567"
+GIGE_ID = "gige-camera-basler-aca1300-30gm-21234567"
 
 
 def _gige(device_id=GIGE_ID):
@@ -88,6 +88,23 @@ def test_gige_discovery_error_keeps_cache(manager, gige_discovery):
     gige_discovery.discover_cameras.side_effect = RuntimeError("boom")
 
     assert [c.device_id for c in manager.discover_gige_cameras()] == [GIGE_ID]
+
+
+def test_gige_details_are_refreshed_under_same_id(manager, gige_discovery):
+    busy = InternalCamera(
+        device_id=GIGE_ID,
+        device_name="GigE Camera 192.168.10.20",
+        device_type=InternalCameraType.GIGE,
+        details=InternalGigECameraDetails(ip="192.168.10.20"),
+    )
+    gige_discovery.discover_cameras.return_value = [busy]
+    manager.discover_gige_cameras()
+    gige_discovery.discover_cameras.return_value = [_gige()]
+
+    cameras = manager.discover_gige_cameras()
+
+    assert [c.device_id for c in cameras] == [GIGE_ID]
+    assert cast(InternalGigECameraDetails, cameras[0].details).serial == "21234567"
 
 
 def test_get_gige_camera_by_id(manager, gige_discovery):

@@ -41,7 +41,7 @@ loaded earlier are preserved.
     }
   },
   {
-    "device_id": "gige-camera-basler-21234567",
+    "device_id": "gige-camera-basler-aca1300-30gm-21234567",
     "device_name": "Basler acA1300-30gm",
     "device_type": "GIGE",
     "details": {

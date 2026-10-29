@@ -23,6 +23,8 @@ Aravis-USB-Cam-001 (usb:1-2)
 -evil (192.168.10.21)
 """
 
+CAMERA_ID = "gige-camera-basler-aca1300-30gm-21234567"
+
 # Format of arv-tool-0.8 (Aravis 0.8.34) output.
 CONTROL_OUTPUT = """DeviceVendorName = Basler
 DeviceModelName = acA1300-30gm
@@ -50,7 +52,7 @@ def _fake_run(list_output=LIST_OUTPUT, control_output=CONTROL_OUTPUT):
 
 
 def test_make_gige_camera_id():
-    assert make_gige_camera_id("Basler AG", "SN 123") == "gige-camera-basler-ag-sn-123"
+    assert make_gige_camera_id("Basler AG-acA 1300-SN 1") == "gige-camera-basler-ag-aca-1300-sn-1"
 
 
 def test_parse_device_list_keeps_only_valid_gige_devices():
@@ -77,7 +79,7 @@ def test_scan_reads_identity_and_capture(mock_run):
 
     assert len(cameras) == 1
     camera = cameras[0]
-    assert camera.device_id == "gige-camera-basler-21234567"
+    assert camera.device_id == CAMERA_ID
     assert camera.device_name == "Basler acA1300-30gm"
     assert camera.device_type == InternalCameraType.GIGE
     details = cast(InternalGigECameraDetails, camera.details)
@@ -107,21 +109,37 @@ def test_scan_reads_features_once_per_device(mock_run):
 
 
 @patch("src.core.gige.subprocess.run")
-def test_scan_without_identity_lists_camera_and_retries(mock_run):
+def test_scan_without_identity_lists_camera_and_retries_with_same_id(mock_run):
     mock_run.side_effect = _fake_run(control_output="")
     discovery = GigECameraDiscovery()
 
     discovery.scan_once()
     camera = discovery.discover_cameras()[0]
 
-    assert camera.device_id == "gige-camera-basler-aca1300-30gm-21234567"
+    assert camera.device_id == CAMERA_ID
     details = cast(InternalGigECameraDetails, camera.details)
     assert details.serial is None
     assert details.current_capture is None
 
     mock_run.side_effect = _fake_run()
     discovery.scan_once()
-    assert discovery.discover_cameras()[0].device_id == "gige-camera-basler-21234567"
+    camera = discovery.discover_cameras()[0]
+    assert camera.device_id == CAMERA_ID
+    assert cast(InternalGigECameraDetails, camera.details).serial == "21234567"
+
+
+@patch("src.core.gige.subprocess.run")
+def test_id_is_stable_when_camera_reappears_busy(mock_run):
+    mock_run.side_effect = _fake_run()
+    discovery = GigECameraDiscovery()
+    discovery.scan_once()
+
+    mock_run.side_effect = _fake_run(list_output="")
+    discovery.scan_once()
+    mock_run.side_effect = _fake_run(control_output="")
+    discovery.scan_once()
+
+    assert [c.device_id for c in discovery.discover_cameras()] == [CAMERA_ID]
 
 
 @patch("src.core.gige.subprocess.run")
@@ -134,7 +152,8 @@ def test_scan_uses_device_id_as_serial_fallback(mock_run):
 
     discovery.scan_once()
 
-    assert discovery.discover_cameras()[0].device_id == "gige-camera-aravis-gv01"
+    details = cast(InternalGigECameraDetails, discovery.discover_cameras()[0].details)
+    assert details.serial == "GV01"
 
 
 @patch("src.core.gige.subprocess.run")
@@ -178,7 +197,7 @@ def test_failed_sweep_keeps_previous_result(mock_run, error):
     mock_run.side_effect = error
     discovery.scan_once()
 
-    assert [c.device_id for c in discovery.discover_cameras()] == ["gige-camera-basler-21234567"]
+    assert [c.device_id for c in discovery.discover_cameras()] == [CAMERA_ID]
 
 
 @patch("src.core.gige.subprocess.run")

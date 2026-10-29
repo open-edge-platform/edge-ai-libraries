@@ -82,7 +82,9 @@ class CameraManager:
         try:
             discovered = self.gige_discovery.discover_cameras()
             with self._lock:
-                self._gige_cameras = self._update_camera_cache(self._gige_cameras, discovered)
+                # Nothing to preserve for GigE, and details (vendor, serial, capture) are filled
+                # in a later sweep under the same id, so the latest sweep replaces the cache.
+                self._gige_cameras = list(discovered)
         except Exception as e:
             logger.error(f"Failed GigE camera discovery: {e}", exc_info=True)
 

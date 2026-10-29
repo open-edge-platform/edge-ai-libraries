@@ -59,7 +59,7 @@ def manager():
 
 def _gige_camera():
     return InternalCamera(
-        device_id="gige-camera-basler-21234567",
+        device_id="gige-camera-basler-aca1300-30gm-21234567",
         device_name="Basler acA1300-30gm",
         device_type=InternalCameraType.GIGE,
         details=InternalGigECameraDetails(

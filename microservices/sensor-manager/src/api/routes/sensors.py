@@ -27,7 +27,7 @@ SensorId = Annotated[
         max_length=schemas.SENSOR_ID_MAX_LENGTH,
         pattern=schemas.SENSOR_ID_PATTERN,
         description="Sensor identifier, e.g. `usb-camera-integrated-camera-0`, "
-        "`network-camera-192.168.1.100-80` or `gige-camera-basler-12345678`.",
+        "`network-camera-192.168.1.100-80` or `gige-camera-basler-aca1300-30gm-21234567`.",
     ),
 ]
 

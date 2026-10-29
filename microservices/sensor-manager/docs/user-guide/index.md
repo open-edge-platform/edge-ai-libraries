@@ -46,11 +46,13 @@ returned by the service; clients that open RTSP streams must keep them on their 
 | ----- | ---------------------------------------------------------- | --------------------------------- |
 | USB   | `usb-camera-{slugified device name}-{video device number}` | `usb-camera-integrated-camera-0`  |
 | ONVIF | `network-camera-{host}-{port}`                             | `network-camera-192.168.1.100-80` |
-| GigE  | `gige-camera-{slugified vendor}-{slugified serial}`        | `gige-camera-basler-21234567`     |
+| GigE  | `gige-camera-{slugified Aravis device id}`                 | `gige-camera-basler-aca1300-30gm-21234567` |
 
-If the identity of a GigE camera cannot be read, the camera is listed as
-`gige-camera-{slugified Aravis device id}` with empty `vendor`, `model` and `serial` until the
-identity is read in a later sweep.
+The GigE identifier is built from the Aravis device id (vendor, model and serial number from the
+GigE Vision discovery reply), so it does not change while the service runs, even if the camera
+cannot be opened. When the camera cannot be opened (for example, another application controls
+it), `vendor`, `model`, `serial` and `current_capture` are empty until they are read in a later
+sweep.
 
 ## Learn More
 
