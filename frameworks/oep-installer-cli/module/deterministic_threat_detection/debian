@@ -17,15 +17,17 @@ debian_90_profile_deterministic_threat_detection () {
 }
 
 debian_90_install_deterministic_threat_detection () {
-  local installed_path="$(ensure_project_path)/$installer_name/installed"
+  local installed
+  installed="$(ensure_prop find "installed/*")" || return $?
   local blueprint
-  for blueprint in uncrewed_aerial_vehicle_blueprint handheld_blueprint; do
-    if [ -d "$installed_path/$blueprint" ]; then
-      echo "Cannot install deterministic_threat_detection while $blueprint is installed." >&2
+  while IFS= read -r blueprint; do
+    case "$blueprint" in
+    installed/uncrewed_aerial_vehicle_blueprint|installed/handheld_blueprint)
+      echo "Cannot install deterministic_threat_detection while ${blueprint#installed/} is installed." >&2
       return 1
-    fi
-  done
-
+      ;;
+    esac
+  done <<< "$installed"
 
   configure_deterministic_threat_detection
   if verify_deterministic_threat_detection && [[ " $* " != *" --reinstall "* ]]; then
