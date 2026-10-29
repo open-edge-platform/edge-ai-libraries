@@ -4575,7 +4575,7 @@ debian_40_install_gpu_accel ()
         ensure_apt_key $key_file $key_url --dearmor;
         ensure_apt_source $apt_file "$apt_entry";
         ensure_apt update -y;
-        ensure_apt_allow_downgrades "${allow_downgrades[*]}" --no-install-recommends "${pkg_list[@]}";
+        ensure_apt_allow_downgrades "${allow_downgrades[*]}" --no-install-recommends "${pkg_list[@]}" || true;
         ensure_apt install --no-install-recommends --allow-downgrades -y "${pkg_list[@]}";
         verify_gpu_accel_packages;
     fi;
@@ -4622,7 +4622,7 @@ debian_40_install_npu_accel ()
                 return 3
             };
         done;
-        ensure_apt install -y $(find . -name "*.deb" -print);
+        ensure_apt install -y --allow-downgrades $(find . -name "*.deb" -print);
         ensure_rm "$workspace";
         verify_npu_accel_packages;
     fi;
@@ -9090,19 +9090,23 @@ subcommand_list ()
 { 
     local all_list=" ${_act_cache_names[*]:-${_act_cache_modules[*]}} ";
     local module_region_list=" ${_act_cache_modules[*]/#/--} ";
-    local k v args=() mods=() os_release="" sbom=0 margs=0;
+    local k v args=() mods=() os_release="" cli_url="" sbom=0 margs=0;
     for v in "$@";
     do
         case "$v" in 
             --help)
                 echo "list options:";
-                echo "  --os-release=<file> import an os-release file";
-                echo "  --sbom              show component SBOM items";
+                echo "  --os-release=<file> [deprecated] import an os-release file";
+                echo "  --sbom [<cli-url>]  show component SBOM items";
                 echo;
                 return 0
             ;;
             --os-release=*)
                 os_release="${v#*=}"
+            ;;
+            --sbom=*)
+                sbom=1;
+                cli_url="${v#*=}"
             ;;
             --sbom)
                 sbom=1
@@ -9117,19 +9121,23 @@ subcommand_list ()
                     if [ "$last_v" = "--os-release" ]; then
                         os_release="$v";
                     else
-                        if [[ "$module_region_list" = *" $v "* ]]; then
-                            args+=("$v");
-                            margs=1;
+                        if [[ "$last_v" = "--sbom" && ( "$v" = "http://"* || "$v" = "https://"* ) ]]; then
+                            cli_url="$v";
                         else
-                            if [[ "$all_list" = *" $v "* ]]; then
-                                mods+=("$v");
+                            if [[ "$module_region_list" = *" $v "* ]]; then
                                 args+=("$v");
+                                margs=1;
                             else
-                                if [[ "$v" = "-"* ]]; then
+                                if [[ "$all_list" = *" $v "* ]]; then
+                                    mods+=("$v");
                                     args+=("$v");
                                 else
-                                    echo "Unknown option: $v" 1>&2;
-                                    return 3;
+                                    if [[ "$v" = "-"* ]]; then
+                                        args+=("$v");
+                                    else
+                                        echo "Unknown option: $v" 1>&2;
+                                        return 3;
+                                    fi;
                                 fi;
                             fi;
                         fi;
@@ -9188,6 +9196,7 @@ subcommand_list ()
         local all_install_modules="${handles[*]#${installer_family}_*_install_}";
         echo "\"schema-version\": \"1\"";
         echo "\"cli-version\": \"main\"";
+        [ -z "$cli_url" ] || echo "\"cli-url\": \"$cli_url\"";
         ensure_sbom_format module-list "${mods[@]}";
         echo "---";
         local handler sbomer;
