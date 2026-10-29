@@ -5706,30 +5706,6 @@ debian_85_stop_video_search_and_summarization ()
         docker volume rm -f docker_dataprep-yolox-models
     } || true
 }
-debian_89_install_handheld_blueprint () 
-{ 
-    :
-}
-debian_89_install_mission_decision_support_blueprint () 
-{ 
-    :
-}
-debian_89_install_uncrewed_aerial_vehicle_blueprint () 
-{ 
-    :
-}
-debian_89_remove_handheld_blueprint () 
-{ 
-    :
-}
-debian_89_remove_mission_decision_support_blueprint () 
-{ 
-    :
-}
-debian_89_remove_uncrewed_aerial_vehicle_blueprint () 
-{ 
-    :
-}
 debian_90_install_agentic_predictive_maintenance_pipeline () 
 { 
     configure_agentic_predictive_maintenance_pipeline "$@";
@@ -8001,10 +7977,22 @@ debian_90_stop_wind_turbine_anomaly_detection ()
     configure_wind_turbine_anomaly_detection "$@";
     cd "$workspace"/industrial-edge-insights-time-series && make down || true
 }
+debian_99_install_handheld_blueprint () 
+{ 
+    :
+}
+debian_99_install_mission_decision_support_blueprint () 
+{ 
+    :
+}
 debian_99_install_system_summary () 
 { 
     echo "@@REPORT SYSTEM SUMMARY";
     install_system_inspection "$@" || true
+}
+debian_99_install_uncrewed_aerial_vehicle_blueprint () 
+{ 
+    :
 }
 debian_99_profile_computer_vision () 
 { 
@@ -8135,6 +8123,18 @@ debian_99_profile_uncrewed_aerial_vehicle_blueprint ()
             echo "${modules[*]}"
         ;;
     esac
+}
+debian_99_remove_handheld_blueprint () 
+{ 
+    :
+}
+debian_99_remove_mission_decision_support_blueprint () 
+{ 
+    :
+}
+debian_99_remove_uncrewed_aerial_vehicle_blueprint () 
+{ 
+    :
 }
 ensure_apt () 
 { 
