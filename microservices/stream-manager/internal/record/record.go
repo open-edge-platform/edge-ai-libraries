@@ -286,7 +286,7 @@ func (s *Service) Stop(ctx context.Context, id string) (model.Recording, bool, e
 	if err := j.lease.SetEnd(target); err != nil {
 		return rec, false, err
 	}
-	rec.State, rec.EndTS = "finalizing", &target
+	rec.State = "finalizing"
 	rec, err = s.metadata.UpdateMetadata(ctx, id, rec)
 	if err != nil {
 		j.cancel()

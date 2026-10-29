@@ -287,8 +287,8 @@ func TestRecordingEndToEnd(t *testing.T) {
 	data, repeatedStatus := request("POST", "/records/stop", map[string]string{"recording_id": open.ID}, 200, 202)
 	var repeated recordingWire
 	decode(data, &repeated)
-	if repeatedStatus == 202 && (stopped.End == nil || repeated.End == nil || !stopped.End.Equal(*repeated.End)) {
-		t.Fatal("repeated stop moved the fixed stop target")
+	if stopped.State != "finalizing" || stopped.End != nil || (repeatedStatus == 202 && repeated.End != nil) {
+		t.Fatalf("stopped open recording exposed end_ts before ready: %s", data)
 	}
 	for _, accepted := range []recordingWire{fixed, open} {
 		deadline := time.Now().Add(20 * time.Second)
