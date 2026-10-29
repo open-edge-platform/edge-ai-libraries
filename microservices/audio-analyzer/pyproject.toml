@@ -11,7 +11,12 @@ readme = "README.md"
 packages = []
 
 [tool.poetry.dependencies]
-python = "^3.11"
+# Poetry's caret syntax already permitted 3.12 under "^3.11" (>=3.11,<4.0),
+# so this was not a strict violation, but it was misleading: the project is
+# only ever built/tested against 3.12 (both the previous DLStreamer base's
+# bundled 3.12.3 and the python:3.12-slim image). Pinned explicitly to match
+# what is actually supported and tested.
+python = ">=3.12,<3.13"
 
 # Runtime dependencies are managed via requirements.txt and installed inside the
 # Docker image.  Only dev-tooling is declared here so `poetry install --with dev`

@@ -5,6 +5,7 @@
 #
 
 import os
+import faulthandler
 import json
 import signal
 import sys
@@ -52,6 +53,9 @@ def sig_cleanup_handler(sig, *args):
 signal.signal(signal.SIGINT, sig_cleanup_handler)
 signal.signal(signal.SIGTERM, sig_cleanup_handler)
 signal.signal(signal.SIGABRT, sig_cleanup_handler)
+# "kill -USR1 <pid>" prints the stack of every Python thread to stderr (the container log): shows where a hung
+# server (for example an RTSP server that stopped answering) is blocked, without needing ptrace.
+faulthandler.register(signal.SIGUSR1, all_threads=True)
 
 
 def watch_file_cbfunc():

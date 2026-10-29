@@ -43,8 +43,8 @@ singlePromptOverride: |
 # Override for the Video Ingestion pipeline (e.g., object detection or video_ingestion)
 ingestionPipelineOverride: "object_detection" 
 
-# Audio transcription model to use (e.g. tiny.en, small.en or medium.en )
-# audioModelOverride: "medium.en"   
+# Audio transcription model to use (e.g. whisper-tiny, whisper-base, whisper-small, whisper-medium, whisper-large)
+# audioModelOverride: "whisper-medium"   
 
 # absolute video path (mp4 streamable) to the video file to be analyzed
 videoPath: "resources/ceramic_store.mp4"

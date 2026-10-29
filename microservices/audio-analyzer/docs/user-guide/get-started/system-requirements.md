@@ -52,7 +52,8 @@ sudo apt-get install -y ffmpeg alsa-utils libsndfile1
 
 ### Python
 
-- Python 3.10 or newer.
+- Python 3.12 (pinned in `pyproject.toml` as `>=3.12,<3.13`; matches the
+  Python version installed in `docker/Dockerfile`).
 - Dependencies installed from `requirements.txt`.
 
 ### Hugging Face Access (For Speaker Diarization)
