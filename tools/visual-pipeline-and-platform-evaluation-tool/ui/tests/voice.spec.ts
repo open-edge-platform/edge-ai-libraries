@@ -903,7 +903,7 @@ for (const viewport of [
     ).toBeVisible();
     await expect(
       page.getByRole("heading", {
-        name: "Automatic Speech Recognition Workload Configuration",
+        name: "Workload Configuration",
         exact: true,
       }),
     ).toBeVisible();
@@ -981,7 +981,7 @@ for (const viewport of [
     ).toBeVisible();
     const workflowBox = await page
       .getByRole("heading", {
-        name: "Automatic Speech Recognition Workload Configuration",
+        name: "Workload Configuration",
         exact: true,
       })
       .boundingBox();
