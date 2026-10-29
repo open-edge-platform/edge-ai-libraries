@@ -1,17 +1,38 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+import os
 from typing import Any, List, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+
+def _validate_cpu_cores(value: Optional[List[int]]) -> Optional[List[int]]:
+    if not value:
+        return None
+    allowed = os.sched_getaffinity(0)
+    invalid = sorted(set(value) - allowed)
+    if invalid:
+        raise ValueError(f"cpu_cores {invalid} not available; allowed cores: {sorted(allowed)}")
+    return value
 
 
 # ---------------------------------------------------------------------------
 # Requests
 # ---------------------------------------------------------------------------
+class RestartConfig(BaseModel):
+    enabled: bool = False
+    max_attempts: int = 5
+    backoff_seconds: int = 30
 
 class StartPipelineRequest(BaseModel):
     pipeline: str
+    validate_pipeline: Optional[bool] = Field(default=True, description="Whether to validate the pipeline before starting")
+    cpu_cores: Optional[List[int]] = None  # CPU core indices to pin this pipeline to (e.g., [0, 1, 2])
+    warmup_frames: Optional[int] = Field(default=0, description="Number of initial frames excluded from avg_fps; frame_fps is still reported during warmup")
+    restart_config: Optional[RestartConfig] = None
+
+    _check_cpu_cores = field_validator("cpu_cores")(_validate_cpu_cores)
 
 
 class SourceConfig(BaseModel):
@@ -60,6 +81,9 @@ class StartNamedPipelineRequest(BaseModel):
     destination: Optional[DestinationConfig] = None
     parameters: Optional[dict[str, Any]] = None
     tags: Optional[dict[str, Any]] = None
+    cpu_cores: Optional[List[int]] = None  # CPU core indices to pin this pipeline to (e.g., [0, 1, 2])
+
+    _check_cpu_cores = field_validator("cpu_cores")(_validate_cpu_cores)
 
     model_config = {"extra": "allow"}
 
@@ -73,7 +97,9 @@ class PipelineStatusResponse(BaseModel):
     state: str
     avg_fps: float
     frame_fps: float
-    start_time: Optional[float]
+    frame_interval: float  # Time window in seconds for last_fps (frame_fps) calculation
+    start_time: Optional[float]  # Unix epoch when pipeline transitioned to RUNNING
+    first_frame_time: Optional[float]  # Unix epoch when first frame was received
     elapsed_time: Optional[float]
     message: str
 
@@ -90,6 +116,7 @@ class PipelineSummaryResponse(PipelineStatusResponse):
     name: Optional[str] = None
     version: Optional[str] = None
     request: Optional[dict] = None
+    cpu_cores: Optional[List[int]] = None
 
 
 class PipelineDefinitionResponse(BaseModel):
@@ -116,3 +143,44 @@ class StartPipelineResponse(BaseModel):
 
 class StopPipelineResponse(BaseModel):
     instance_id: str
+
+
+# ---------------------------------------------------------------------------
+# Validation
+# ---------------------------------------------------------------------------
+
+class ValidateRequest(BaseModel):
+    pipeline: str
+    timeout: Optional[int] = Field(default=30, description="Timeout in seconds for the validation request")
+
+
+class ValidateResponse(BaseModel):
+    validation_id: str
+
+
+class ValidationStatus(BaseModel):
+    validation_id: str
+    state: str  # One of: QUEUED, VALID, INVALID
+    message: str  # error reason if state is INVALID, otherwise empty string
+
+
+# ---------------------------------------------------------------------------
+# GStreamer Elements
+# ---------------------------------------------------------------------------
+
+class ElementInfo(BaseModel):
+    """Information about a GStreamer element."""
+
+    name: str
+    plugin: str
+    description: str
+
+
+class ElementDetailResponse(BaseModel):
+    """Detailed information about a specific GStreamer element."""
+
+    name: str
+    plugin: str
+    description: str
+    details: str  # Full gst-inspect output
+

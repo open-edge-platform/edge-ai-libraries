@@ -60,7 +60,8 @@ sudo rm /swapfile_temp
 sudo sysctl vm.swappiness=60
 ```
 
-> **Note:** If you added the swap file to `/etc/fstab`, also remove its line there before deleting the file, otherwise the next boot will fail to mount it.
+> [!NOTE]
+> If you added the swap file to `/etc/fstab`, also remove its line there before deleting the file, otherwise the next boot will fail to mount it.
 
 ## Supporting Resources
 

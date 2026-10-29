@@ -55,6 +55,11 @@ export interface MultiFileUploaderProps {
     fields: Record<string, string>,
   ) => Promise<PreUploadMessage | null> | PreUploadMessage | null;
   preUploadImmediate?: boolean;
+  portalContainer?:
+    | HTMLElement
+    | ShadowRoot
+    | null
+    | React.RefObject<HTMLElement | ShadowRoot | null>;
   formFields?: Array<
     {
       name: string;
@@ -66,11 +71,13 @@ export interface MultiFileUploaderProps {
           type?: "input";
           regex?: RegExp | string;
           regexMessage?: string;
+          maxLength?: number;
+          maxLengthMessage?: string;
           options?: never;
         }
       | {
           type: "combobox";
-          options: string[];
+          options: Array<{ label: string; value: string }>;
           regex?: never;
           regexMessage?: never;
         }
@@ -90,6 +97,7 @@ export const MultiFileUploader = ({
   maxConcurrentUploads = 3,
   preUpload,
   preUploadImmediate,
+  portalContainer,
   formFields,
   className,
 }: MultiFileUploaderProps) => {
@@ -757,11 +765,14 @@ export const MultiFileUploader = ({
                               placeholder={field.placeholder}
                               className="mt-1 w-full"
                             />
-                            <ComboboxContent>
+                            <ComboboxContent portalContainer={portalContainer}>
                               <ComboboxList>
                                 {field.options.map((option) => (
-                                  <ComboboxItem key={option} value={option}>
-                                    {option}
+                                  <ComboboxItem
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {option.label}
                                   </ComboboxItem>
                                 ))}
                               </ComboboxList>
@@ -789,9 +800,18 @@ export const MultiFileUploader = ({
                                     "Value does not match the required format",
                                 }
                               : undefined,
+                            maxLength: field.maxLength
+                              ? {
+                                  value: field.maxLength,
+                                  message:
+                                    field.maxLengthMessage ??
+                                    `Must be ${field.maxLength} characters or fewer`,
+                                }
+                              : undefined,
                           },
                         )}
                         placeholder={field.placeholder}
+                        maxLength={field.maxLength}
                         className="mt-1"
                       />
                     )}

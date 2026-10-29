@@ -40,7 +40,9 @@
         "summary mode",
         "search mode",
         "dual mode",
-        "unified mode"
+        "unified mode",
+        "enable live streams",
+        "live stream mode"
       ],
       "requires": [
         ".github/skills/vss-deploy/scripts/vss-bootstrap.sh",
@@ -70,14 +72,20 @@
     {
       "name": "vss-search-index",
       "path": ".github/skills/vss-search-index/SKILL.md",
-      "description": "Upload, index, and search videos with natural language through the Pipeline Manager search API.",
+      "description": "Search a video library with natural language: upload a video, generate embeddings, run ranked queries with tag/time filters, and continuously index live RTSP cameras via the /streams CRUD API.",
       "triggers": [
         "search my videos",
         "find something in videos",
         "upload video",
         "index video",
         "generate embeddings",
-        "query video library"
+        "query video library",
+        "add live camera",
+        "index rtsp stream",
+        "live stream ingestion",
+        "register camera",
+        "pause live stream",
+        "remove live camera"
       ],
       "requires": [
         ".github/skills/vss-search-index/scripts/vss-bootstrap.sh",
@@ -101,7 +109,10 @@
         "no summary appearing",
         "search returns nothing",
         "container restarting",
-        "vss not working"
+        "vss not working",
+        "live stream not ingesting",
+        "rtsp camera not working",
+        "stream stuck reconnecting"
       ],
       "requires": [
         ".github/skills/vss-troubleshoot/scripts/vss-bootstrap.sh",
@@ -204,7 +215,9 @@
         "call api",
         "upload video api",
         "search api",
-        "rest api"
+        "rest api",
+        "streams api",
+        "live stream api"
       ],
       "requires": [
         ".github/skills/vss-api-client/scripts/vss-bootstrap.sh",
@@ -247,6 +260,27 @@
         ".github/skills/vss-e2e-smoke/scripts/e2e_search.sh",
         "bash",
         "curl"
+      ]
+    },
+    {
+      "name": "vlm-model-selector",
+      "path": ".github/skills/vlm-model-selector/SKILL.md",
+      "description": "Select a Vision-Language Model (VLM) from the Hugging Face hub for a vision analytics task",
+      "triggers": [
+        "pick a vlm",
+        "choose a vision language model",
+        "recommend a vlm",
+        "select a vlm",
+        "vlm for core ultra",
+        "vlm for npu",
+        "vlm for igpu",
+        "vlm for arc gpu",
+        "vision language model selection",
+        "will this model run on my core ultra laptop"
+      ],
+      "requires": [
+        "network access to huggingface.co",
+        "network access to docs.openvino.ai"
       ]
     }
   ]

@@ -2,7 +2,8 @@
 
 Running the service outside Docker requires Python 3.12, OpenVINO Runtime, and all Python dependencies installed locally. This mode is primarily useful for development and testing.
 
-> **Note:** The container image (`intel/dlstreamer:2026.1.0-ubuntu24`) provides
+> [!NOTE]
+> The container image (`intel/dlstreamer:2026.1.0-ubuntu24`) provides
 > OpenVINO and GStreamer pre-installed. Replicating this environment locally requires manual OpenVINO installation.
 
 ## Prerequisites

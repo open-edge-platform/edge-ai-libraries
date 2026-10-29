@@ -1,4 +1,4 @@
-# Release Notes
+# Release Notes: Behavioral Analysis Service
 
 ## Version 1.0.0
 

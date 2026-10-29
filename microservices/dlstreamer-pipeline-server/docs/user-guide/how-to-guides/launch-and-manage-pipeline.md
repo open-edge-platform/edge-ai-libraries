@@ -34,7 +34,8 @@ with the following variables. Add the corresponding IP address in place of
 
    - To use Python snippet, save the below snippet on your system as `start_pipeline.py`:
 
-     > **Note:** Please make sure to install Python libraries "requests" and "json" if not already installed before running the below Python snippet.
+     > [!NOTE]
+     > Please make sure to install Python libraries "requests" and "json" if not already installed before running the below Python snippet.
 
      ```python
      import requests
@@ -115,7 +116,8 @@ with the following variables. Add the corresponding IP address in place of
    ./start_pipeline.sh
    ```
 
-   > **Note:** Instance ID of the pipeline will be mentioned in the "response" field after successfully running the above snippet. This ID can be used later to stop the pipeline as mentioned in step 7.
+   > [!NOTE]
+   > Instance ID of the pipeline will be mentioned in the "response" field after successfully running the above snippet. This ID can be used later to stop the pipeline as mentioned in step 7.
 
 5. Run the following command to check MQTT messages. Replace `<SYSTEM_IP_ADDRESS>` with corresponding IP address:
 

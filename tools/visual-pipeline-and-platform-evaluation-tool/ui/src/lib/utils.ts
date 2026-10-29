@@ -43,3 +43,7 @@ export const formatDeviceName = (name: string | undefined | null): string => {
  */
 export const unslug = (slug: string): string =>
   slug.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+/** Narrow an unknown value to a non-empty string, otherwise null. */
+export const asString = (value: unknown): string | null =>
+  typeof value === "string" && value !== "" ? value : null;

@@ -1,0 +1,21 @@
+
+# set/get properties
+ensure_prop () {
+  local op="$1" key_path="${2:?}" value="${3:-}"
+  local key_base="$(ensure_project_path)/${installer_name:?}"
+  case "$op" in
+  set)     ( umask 077; printf '%s' "$value" > "$key_base/$key_path" ) ;;
+  get)     [ -r "$key_base/$key_path" ] && cat "$key_base/$key_path" || printf '%s' "$value" ;;
+  find)    ( cd "$key_base" && find . -ipath "./$key_path" -print 2> /dev/null | cut -f2- -d/) ;;
+  create)
+    mkdir -m 700 -p "$key_base/${key_path%/*}" ;;
+  remove)
+    if [ -f "$key_base/$key_path" ]; then
+      rm -f "$key_base/$key_path"
+    elif [[ "$key_path" = */ && -d "$key_base/${key_path%/}" ]]; then
+      rm -rf "$key_base/${key_path%/}"
+    fi
+    ;;
+  esac
+}
+

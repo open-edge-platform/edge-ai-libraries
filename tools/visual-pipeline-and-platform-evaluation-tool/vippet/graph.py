@@ -30,6 +30,30 @@ USB_DEVICE_PREFIX = "/dev/video"
 # delivery) instead of having it converted to OUTPUT_PLACEHOLDER.
 METADATA_ONLY_NODE_TYPES: frozenset[str] = frozenset({"gvagenai"})
 
+# Matches printf-style integer specifiers (e.g. %d, %05d, %-3d) as used by
+# GStreamer sinks like multifilesink for numbering the emitted files.
+_PRINTF_INT_SPEC_RE = re.compile(r"%[-+ #0]*\d*d")
+
+
+def _slugify_preserving_printf_int_spec(name: str) -> str:
+    """Slugify ``name`` while preserving printf-style integer specifiers.
+
+    The regular slugifier strips ``%`` (turning e.g. ``vlm_frame_%05d`` into
+    ``vlm_frame_-05d``), which breaks sinks that rely on the specifier to
+    number their output files.
+    """
+    if "%" not in name:
+        return slugify_text(name)
+    specs = _PRINTF_INT_SPEC_RE.findall(name)
+    chunks = _PRINTF_INT_SPEC_RE.split(name)
+    slugged = [slugify_text(chunk) if chunk else "" for chunk in chunks]
+    parts: list[str] = []
+    for i, chunk in enumerate(slugged):
+        parts.append(chunk)
+        if i < len(specs):
+            parts.append(specs[i])
+    return "".join(parts)
+
 
 def graph_is_metadata_only(nodes: list["Node"]) -> bool:
     """Return True if the pipeline produces only metadata (no video output)."""
@@ -820,7 +844,7 @@ class Graph:
                 continue
 
             path = Path(location)
-            file_name = slugify_text(Path(path.name).stem)
+            file_name = _slugify_preserving_printf_int_spec(Path(path.name).stem)
             ext = path.suffix if path.suffix else ".mp4"
             ext = slugify_text(ext)
 
@@ -1218,15 +1242,18 @@ class Graph:
 
         return modified_graph
 
-    def inject_metadata_file_paths(self, metadata_dir: str) -> list[str]:
+    def inject_metadata_file_paths(
+        self, metadata_dir: str, stream_index: int = 0
+    ) -> list[str]:
         """
         Assign output file paths to all gvametapublish nodes and configure them for file output.
 
-        Sets method=file, file-format=json-lines, and file-path on every gvametapublish
-        node found in the graph, overwriting any existing values.
+        Sets method=file, file-format=json-lines, and a stream-unique file-path on
+        every gvametapublish node found in the graph, overwriting existing values.
 
         Args:
             metadata_dir: Directory where metadata files will be written.
+            stream_index: Zero-based index of the pipeline stream.
 
         Returns:
             list[str]: Paths of the metadata files that were injected (one per gvametapublish node).
@@ -1234,9 +1261,10 @@ class Graph:
         metadata_file_paths: list[str] = []
         for node in self.nodes:
             if node.type == "gvametapublish":
+                stream_suffix = f"_stream_{stream_index}" if stream_index > 0 else ""
                 meta_path = os.path.join(
                     metadata_dir,
-                    f"metadata_{node.id}.jsonl",
+                    f"metadata_{node.id}{stream_suffix}.jsonl",
                 )
                 node.data["method"] = "file"
                 node.data["file-format"] = "json-lines"
@@ -1287,8 +1315,10 @@ class Graph:
 
     def get_recommended_encoder_device(self) -> str:
         """
-        Iterate backwards through nodes to find the last video/x-raw node
-        and return the recommended encoder device based on memory type.
+        Find the video/x-raw caps feeding the main output sink (walking edges
+        backwards from it) and return the recommended encoder device based on
+        memory type. Falls back to the last video/x-raw node in the list when
+        the main output sink cannot be identified.
 
         Note: NPU variants are not considered because NPUs do not provide dedicated
         memory accessible for GStreamer pipeline buffering; they operate exclusively
@@ -1302,14 +1332,58 @@ class Graph:
         from video_encoder import ENCODER_DEVICE_CPU, ENCODER_DEVICE_GPU
         # TODO: temporary, to avoid circular import. In the near future, this file will be refactored to not depend on managers at all.
 
-        for node in reversed(self.nodes):
-            if not node.type.startswith("video/x-raw"):
-                continue
-            if "memory:VAMemory" in node.type:
+        def _device_for_caps(caps_type: str) -> str:
+            if "memory:VAMemory" in caps_type:
                 return ENCODER_DEVICE_GPU
             return ENCODER_DEVICE_CPU
 
+        # Prefer caps on the path feeding the main output sink; caps on other
+        # tee branches (e.g. a sysmem VLM branch) must not decide the encoder.
+        main_sink = self._find_main_output_sink()
+        if main_sink is not None:
+            nodes_by_id = {node.id: node for node in self.nodes}
+            sources_by_target: dict[str, list[str]] = defaultdict(list)
+            for edge in self.edges:
+                sources_by_target[edge.target].append(edge.source)
+
+            visited: set[str] = set()
+            pending = list(sources_by_target.get(main_sink.id, []))
+            while pending:
+                node_id = pending.pop(0)
+                if node_id in visited:
+                    continue
+                visited.add(node_id)
+                node = nodes_by_id.get(node_id)
+                if node is None:
+                    continue
+                if node.type.startswith("video/x-raw"):
+                    return _device_for_caps(node.type)
+                pending.extend(sources_by_target.get(node_id, []))
+            return ENCODER_DEVICE_CPU
+
+        for node in reversed(self.nodes):
+            if node.type.startswith("video/x-raw"):
+                return _device_for_caps(node.type)
+
         return ENCODER_DEVICE_CPU
+
+    def _find_main_output_sink(self) -> Optional[Node]:
+        """Return the sink that ``prepare_main_output_placeholder`` would replace, if unambiguous."""
+        for node in self.nodes:
+            if node.type == OUTPUT_PLACEHOLDER:
+                return node
+        named = [
+            node
+            for node in self.nodes
+            if node.type == "fakesink"
+            and node.data.get("name") == "default_output_sink"
+        ]
+        if len(named) == 1:
+            return named[0]
+        fakesinks = [node for node in self.nodes if node.type == "fakesink"]
+        if len(fakesinks) == 1:
+            return fakesinks[0]
+        return None
 
     def to_simple_view(self) -> "Graph":
         """
@@ -4188,22 +4262,11 @@ def _model_path_to_display_name(nodes: list[Node]) -> None:
         # pipelines referencing a not-yet-installed model still get a
         # resolved display name. This lets ``used_by_pipelines`` in the
         # /models endpoint stay populated regardless of install status.
+        # Custom/uploaded models are unified into the same DB-backed cache,
+        # so no separate ModelManager fallback is needed here.
         model = SupportedModelsManager().find_model_by_model_and_proc_path(
             model_path, model_proc_path, installed_only=False
         )
-
-        # Fallback: uploaded (custom) models live in the ModelManager
-        # registry, not in supported_models.yaml. Without this, advanced
-        # graphs that reference an uploaded model would lose the
-        # display-name on ingestion and be rejected on conversion back
-        # to a runnable pipeline.
-        if model is None:
-            # Local import to avoid an import cycle with model_manager.
-            from managers.model_manager import ModelManager
-
-            model = ModelManager().find_uploaded_model_by_path(
-                model_path, model_proc_path
-            )
 
         if model is not None:
             # Canonical in-memory key is always ``model`` regardless of how
@@ -4258,17 +4321,10 @@ def _model_display_name_to_path(nodes: list[Node]) -> None:
         if name is None:
             continue
 
-        # model handling
+        # model handling. Custom/uploaded models are unified into the same
+        # DB-backed SupportedModelsManager cache, so no separate
+        # ModelManager fallback is needed here.
         model = SupportedModelsManager().find_installed_model_by_display_name(name)
-        if not model:
-            # Fallback: the display name may identify an uploaded (custom)
-            # model that is tracked by ModelManager rather than the YAML
-            # catalogue. Without this fallback the convert-to-advanced
-            # flow would reject any pipeline referencing an uploaded
-            # model, even though the UI happily lists it.
-            from managers.model_manager import ModelManager
-
-            model = ModelManager().find_installed_uploaded_model_by_display_name(name)
 
         if not model:
             raise ValueError(
@@ -4364,23 +4420,12 @@ def _validate_models_supported_on_devices(nodes: list[Node]) -> None:
             )
 
         if not SupportedModelsManager().is_model_supported_on_device(name, device):
-            # Uploaded (custom) models live in the ModelManager registry,
-            # not in supported_models.yaml. They carry no
-            # ``unsupported_devices`` metadata, so if the registry knows
-            # the display name we treat the model as supported on every
-            # device. Without this fallback convert-to-advanced would
-            # reject any graph that references an uploaded model.
-            from managers.model_manager import (
-                ModelManager,
-            )  # local import to avoid cycle
-
-            if (
-                ModelManager().find_installed_uploaded_model_by_display_name(name)
-                is None
-            ):
-                raise ValueError(
-                    f"Node {node.type}: model '{name}' is not supported on the '{device}' device"
-                )
+            # Custom/uploaded models are unified into the same DB-backed
+            # cache with unsupported_devices=None, so is_model_supported_on_device
+            # already treats them as supported everywhere - no fallback needed.
+            raise ValueError(
+                f"Node {node.type}: model '{name}' is not supported on the '{device}' device"
+            )
 
         logger.debug(f"Model '{name}' is supported on the '{device}' device")
 

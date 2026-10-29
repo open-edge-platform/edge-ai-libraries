@@ -27,9 +27,7 @@ class FrameExtractionModeEnum(str, Enum):
 class ObjectDetectionConfig(BaseModel):
     """Configuration for object detection in frame extraction"""
 
-    enabled: bool = Field(
-        default=False, description="Enable object detection for frame extraction"
-    )
+    enabled: bool = Field(default=False, description="Enable object detection for frame extraction")
     confidence_threshold: float = Field(
         default=0.85,
         ge=0.0,
@@ -83,6 +81,14 @@ class HealthResponse(BaseModel):
     vectordb_error: Optional[str] = None
     storage_backend: Optional[str] = None
     default_bucket_name: Optional[str] = None
+    live_streams_enabled: Optional[bool] = None
+    live_streams: Annotated[
+        Optional[Dict[str, int]],
+        Field(
+            default=None,
+            description="Histogram of registered live streams by state, plus a 'total'.",
+        ),
+    ] = None
 
 
 class VideoRequest(BaseModel):
@@ -161,7 +167,10 @@ class ImageIngestItem(BaseModel):
     ]
     image_base64: Annotated[
         Optional[str],
-        Field(default=None, description="Base64-encoded image (bare or 'data:' URL) when type=image_base64."),
+        Field(
+            default=None,
+            description="Base64-encoded image (bare or 'data:' URL) when type=image_base64.",
+        ),
     ] = None
     image_url: Annotated[
         Optional[str],
@@ -169,11 +178,16 @@ class ImageIngestItem(BaseModel):
     ] = None
     filename: Annotated[
         Optional[str],
-        Field(default=None, description="Optional filename hint; extension is derived from the real bytes."),
+        Field(
+            default=None,
+            description="Optional filename hint; extension is derived from the real bytes.",
+        ),
     ] = None
     tags: Annotated[
         Optional[List[str]],
-        Field(default=None, description="Optional per-image tags (merged with request-level tags)."),
+        Field(
+            default=None, description="Optional per-image tags (merged with request-level tags)."
+        ),
     ] = None
 
     @model_validator(mode="after")
@@ -191,15 +205,26 @@ class ImageIngestRequest(ImageIngestItem):
 
     bucket_name: Annotated[
         Optional[str],
-        Field(default=None, description="Target bucket for the stored image (default bucket if unset)."),
+        Field(
+            default=None,
+            description="Target bucket for the stored image (default bucket if unset).",
+        ),
     ] = None
     enable_object_detection: Annotated[
         Optional[bool],
-        Field(default=None, description="Enable object detection and crop extraction (defaults to the service's configured setting, enabled unless overridden)."),
+        Field(
+            default=None,
+            description="Enable object detection and crop extraction (defaults to the service's configured setting, enabled unless overridden).",
+        ),
     ] = None
     detection_confidence: Annotated[
         Optional[float],
-        Field(default=None, ge=0.1, le=1.0, description="Object detection confidence threshold (defaults to the service's configured threshold, 0.85 unless overridden)."),
+        Field(
+            default=None,
+            ge=0.1,
+            le=1.0,
+            description="Object detection confidence threshold (defaults to the service's configured threshold, 0.85 unless overridden).",
+        ),
     ] = None
 
 
@@ -212,11 +237,16 @@ class ImageBatchIngestRequest(BaseModel):
     ]
     bucket_name: Annotated[
         Optional[str],
-        Field(default=None, description="Target bucket for all stored images (default bucket if unset)."),
+        Field(
+            default=None,
+            description="Target bucket for all stored images (default bucket if unset).",
+        ),
     ] = None
     enable_object_detection: Annotated[
         Optional[bool],
-        Field(default=None, description="Enable object detection and crop extraction for every image."),
+        Field(
+            default=None, description="Enable object detection and crop extraction for every image."
+        ),
     ] = None
     detection_confidence: Annotated[
         Optional[float],
@@ -273,7 +303,12 @@ class BatchProcessExistingRequest(BaseModel):
     ] = None
     frame_interval: Annotated[
         Optional[int],
-        Field(default=None, ge=1, le=60, description="Extract every Nth frame (defaults to the service's configured frame_interval, 15 unless overridden)."),
+        Field(
+            default=None,
+            ge=1,
+            le=60,
+            description="Extract every Nth frame (defaults to the service's configured frame_interval, 15 unless overridden).",
+        ),
     ] = None
     enable_object_detection: Annotated[
         Optional[bool],
@@ -303,15 +338,24 @@ class DirectoryIngestRequest(BaseModel):
     ]
     bucket_name: Annotated[
         Optional[str],
-        Field(default=None, description="Target bucket for stored videos (default bucket if unset)."),
+        Field(
+            default=None, description="Target bucket for stored videos (default bucket if unset)."
+        ),
     ] = None
     recursive: Annotated[
         bool,
-        Field(default=False, description="Recurse into subdirectories (the 'meta' dir is skipped)."),
+        Field(
+            default=False, description="Recurse into subdirectories (the 'meta' dir is skipped)."
+        ),
     ] = False
     frame_interval: Annotated[
         Optional[int],
-        Field(default=None, ge=1, le=60, description="Extract every Nth frame (defaults to the service's configured frame_interval, 15 unless overridden)."),
+        Field(
+            default=None,
+            ge=1,
+            le=60,
+            description="Extract every Nth frame (defaults to the service's configured frame_interval, 15 unless overridden).",
+        ),
     ] = None
     enable_object_detection: Annotated[
         Optional[bool],
@@ -470,6 +514,7 @@ class TelemetryStageTiming(BaseModel):
 
 class TelemetryBatchDetail(BaseModel):
     """Timing details for a single batch."""
+
     stream_id: int = Field(ge=0)
     batch_index: int = Field(ge=0)
     input_frames: int = Field(ge=0)
@@ -484,6 +529,7 @@ class TelemetryBatchDetail(BaseModel):
 
 class TelemetryCounts(BaseModel):
     """Aggregate frame and embedding counts."""
+
     stream_id: int = Field(ge=0)
     frames_extracted: int = Field(ge=0)
     items_after_detection: int = Field(ge=0)
@@ -500,7 +546,6 @@ class TelemetryThroughput(BaseModel):
     embedding_infer_throughput: float = Field(ge=0.0)
     pipeline_throughput: float = Field(ge=0.0)
     pipeline_throughput_with_od: float = Field(ge=0.0)
-
 
 
 class TelemetryVideoMetadata(BaseModel):
@@ -555,3 +600,254 @@ class TelemetryResponse(BaseModel):
 
     count: int
     items: List[TelemetryRecord]
+
+
+class LiveStreamStateEnum(str, Enum):
+    """Lifecycle states of a registered live (RTSP) stream."""
+
+    pending = "pending"
+    starting = "starting"
+    running = "running"
+    paused = "paused"
+    reconnecting = "reconnecting"
+    error = "error"
+    stopped = "stopped"
+
+
+#: States in which a worker thread is expected to be alive.
+LIVE_ACTIVE_STATES = frozenset(
+    {
+        LiveStreamStateEnum.starting,
+        LiveStreamStateEnum.running,
+        LiveStreamStateEnum.reconnecting,
+        LiveStreamStateEnum.paused,
+    }
+)
+
+
+class LiveStreamCreateRequest(BaseModel):
+    """Request model for registering and starting a live RTSP stream."""
+
+    stream_url: Annotated[
+        str,
+        Field(
+            description="RTSP source URL (rtsp:// or rtsps://). Embedded credentials "
+            "are accepted for connection but are never returned by the API nor "
+            "written to the vector database.",
+        ),
+    ]
+    stream_name: Annotated[
+        Optional[str],
+        Field(
+            default=None,
+            max_length=256,
+            description="Friendly label; defaults to the redacted URL.",
+        ),
+    ] = None
+    description: Annotated[
+        Optional[str],
+        Field(default=None, max_length=1024, description="Free-text description of the stream."),
+    ] = None
+    sensor_id: Annotated[
+        Optional[str],
+        Field(
+            default=None,
+            max_length=128,
+            pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            description=(
+                "Stable logical identity of the physical source (camera/sensor). "
+                "Recorded on every embedding so externally stored media for the "
+                "same source can be correlated back to it. Defaults to the "
+                "generated stream_id."
+            ),
+        ),
+    ] = None
+    frame_interval: Annotated[
+        Optional[int],
+        Field(
+            default=None,
+            ge=1,
+            le=60,
+            description="Sample every Nth frame (defaults to the service's configured frame_interval).",
+        ),
+    ] = None
+    enable_object_detection: Annotated[
+        Optional[bool],
+        Field(default=None, description="Enable object detection and crop extraction."),
+    ] = None
+    detection_confidence: Annotated[
+        Optional[float],
+        Field(default=None, ge=0.1, le=1.0, description="Object detection confidence threshold."),
+    ] = None
+    tags: Annotated[
+        Optional[List[str]],
+        Field(
+            default_factory=list,
+            description="Tags associated with every embedding from this stream.",
+        ),
+    ]
+    start: Annotated[
+        bool,
+        Field(
+            default=True,
+            description="Start ingesting immediately. False registers the stream in the paused state.",
+        ),
+    ] = True
+
+
+class LiveStreamBatchCreateRequest(BaseModel):
+    """Request model for registering several live streams in one call."""
+
+    items: Annotated[
+        List[LiveStreamCreateRequest],
+        Field(min_length=1, description="Live streams to register."),
+    ]
+
+
+class LiveStreamUpdateRequest(BaseModel):
+    """Request model for updating a registered live stream.
+
+    Every field is optional; only supplied fields are changed. Setting ``state``
+    to ``paused`` or ``running`` pauses or resumes ingestion without
+    deregistering the stream.
+    """
+
+    stream_name: Annotated[Optional[str], Field(default=None, max_length=256)] = None
+    description: Annotated[Optional[str], Field(default=None, max_length=1024)] = None
+    frame_interval: Annotated[Optional[int], Field(default=None, ge=1, le=60)] = None
+    enable_object_detection: Annotated[Optional[bool], Field(default=None)] = None
+    detection_confidence: Annotated[Optional[float], Field(default=None, ge=0.1, le=1.0)] = None
+    tags: Annotated[
+        Optional[List[str]],
+        Field(default=None, description="Replaces the existing tag list when supplied."),
+    ] = None
+    state: Annotated[
+        Optional[LiveStreamStateEnum],
+        Field(
+            default=None,
+            description="Only 'running' (resume) and 'paused' (pause) are accepted. "
+            "Use DELETE to stop and deregister a stream.",
+        ),
+    ] = None
+
+    @model_validator(mode="after")
+    def _validate_state(self):
+        """Reject state transitions that are not caller-drivable."""
+        if self.state is not None and self.state not in (
+            LiveStreamStateEnum.running,
+            LiveStreamStateEnum.paused,
+        ):
+            raise ValueError("state must be either 'running' or 'paused'")
+        return self
+
+
+class LiveStreamStats(BaseModel):
+    """Runtime counters for a live stream."""
+
+    frames_processed: int = 0
+    embeddings_created: int = 0
+    segments_stored: int = 0
+    reconnect_count: int = 0
+    last_frame_ts: Optional[float] = None
+    started_ts: Optional[float] = None
+    uptime_seconds: Optional[float] = None
+
+
+class LiveStreamInfo(BaseModel):
+    """A registered live stream as exposed by the API.
+
+    ``stream_url`` is always the redacted form of the source URL: any embedded
+    credentials are stripped before the value leaves the registry.
+    """
+
+    stream_id: str
+    stream_url: Annotated[str, Field(description="Source URL with credentials redacted.")]
+    stream_name: str
+    description: Optional[str] = None
+    state: LiveStreamStateEnum = LiveStreamStateEnum.pending
+    bucket_name: Optional[str] = None
+    video_id: Annotated[
+        Optional[str],
+        Field(
+            default=None,
+            description=(
+                "Identity this stream's embeddings and media are stored under. "
+                "Always equal to stream_id, so GET /media, GET /media/download "
+                "and DELETE /media/{bucket_name}/{video_id} work on live data."
+            ),
+        ),
+    ] = None
+    sensor_id: Annotated[
+        Optional[str],
+        Field(
+            default=None,
+            description=(
+                "Stable logical identity of the physical source, recorded on "
+                "every embedding from this stream. Equal to stream_id unless the "
+                "caller supplied one at registration."
+            ),
+        ),
+    ] = None
+    frame_interval: int
+    enable_object_detection: bool
+    detection_confidence: float
+    tags: Annotated[List[str], Field(default_factory=list)]
+    stats: Annotated[LiveStreamStats, Field(default_factory=LiveStreamStats)]
+    last_error: Optional[str] = None
+    created_ts: Optional[float] = None
+    updated_ts: Optional[float] = None
+
+
+class LiveStreamResponse(DataPrepResponse):
+    """Response carrying a single live stream record."""
+
+    stream: LiveStreamInfo
+
+
+class LiveStreamListResponse(DataPrepResponse):
+    """Response carrying all registered live streams."""
+
+    count: int = 0
+    streams: Annotated[List[LiveStreamInfo], Field(default_factory=list)]
+
+
+class LiveStreamBatchItemResult(BaseModel):
+    """Per-item outcome of a bulk live-stream create or delete."""
+
+    identifier: Annotated[str, Field(description="Redacted stream URL or stream_id.")]
+    stream_id: Optional[str] = None
+    status: BatchItemStatusEnum = BatchItemStatusEnum.pending
+    message: Optional[str] = None
+
+
+class LiveStreamBatchResponse(DataPrepResponse):
+    """Response for bulk live-stream create/delete operations."""
+
+    accepted: int = 0
+    rejected: int = 0
+    items: Annotated[List[LiveStreamBatchItemResult], Field(default_factory=list)]
+
+
+class LiveStreamDeleteRequest(BaseModel):
+    """Request model for deleting several live streams in one call."""
+
+    stream_ids: Annotated[
+        List[str], Field(min_length=1, description="Streams to stop and deregister.")
+    ]
+
+
+class LiveStreamDeleteResponse(DataPrepResponse):
+    """Response returned after stopping and deregistering a live stream."""
+
+    stream_id: str
+    embeddings_purged: Annotated[
+        Optional[int],
+        Field(
+            default=None,
+            description="Embeddings deleted; -1 when the backend does not report a count.",
+        ),
+    ] = None
+    media_purged: Annotated[
+        Optional[int],
+        Field(default=None, description="Stored media objects deleted."),
+    ] = None

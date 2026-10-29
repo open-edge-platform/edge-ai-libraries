@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: Apache-2.0
+name: yolo11s-pose
+display_name: YOLO 11s Pose
+description: "YOLO11 small pose-estimation model that detects people and predicts human body keypoints (skeleton joints) for each detected person."
+source: public
+hub: ultralytics
+type: pose_estimation
+precisions:
+  - precision: FP32
+    model_path: ultralytics/public/yolo11s-pose/FP32/yolo11s-pose.xml
+    model_proc: ""
+  - precision: FP16
+    model_path: ultralytics/public/yolo11s-pose/FP16/yolo11s-pose.xml
+    model_proc: ""
+extra_model_procs: []
+unsupported_devices: ""
+download_request:
+  hub: ultralytics
+  name: yolo11s-pose

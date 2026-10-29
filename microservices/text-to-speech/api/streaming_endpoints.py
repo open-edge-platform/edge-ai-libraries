@@ -16,6 +16,8 @@ from fastapi.responses import StreamingResponse
 from api.error_responses import openai_error_response
 from dto.speech_dto import SpeechRequest
 from pipeline import Pipeline
+from utils.config_loader import config
+from utils.device_validation import resolve_tts_device
 from utils.session_manager import generate_session_id
 
 
@@ -33,6 +35,11 @@ def _wav_bytes(audio, sampling_rate: int) -> bytes:
 def stream_speech(request: SpeechRequest):
     try:
         request.validate_for_service()
+        device = resolve_tts_device(
+            config.models.tts.runtime,
+            config.models.tts.name,
+            request.device or config.models.tts.device,
+        )
     except ValueError as exc:
         return openai_error_response(400, str(exc), code="invalid_request")
 
@@ -40,7 +47,7 @@ def stream_speech(request: SpeechRequest):
 
     def event_stream():
         try:
-            pipeline = Pipeline(session_id=session_id)
+            pipeline = Pipeline(session_id=session_id, device=device)
             emitted = 0
             for chunk in pipeline.synthesize_stream(
                 text=request.input,

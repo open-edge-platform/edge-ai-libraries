@@ -7,7 +7,15 @@ configure_dlstreamer () {
   list_file=/etc/apt/sources.list.d/intel-dlstreamer.list
   repository=https://github.com/open-edge-platform/dlstreamer
   workspace="$(ensure_project_path)/dlstreamer"
-  version=2026.2.0-rc1
+  version=2026.2.0
+  od_model=yolov5m-640_INT8/FP16-INT8/yolov5m-640_INT8
+  od_model_proc=yolov5m-640_INT8/yolo-v5
+  oc_model=efficientnet-b0_INT8/FP16-INT8/efficientnet-b0
+  model_repo=https://raw.githubusercontent.com/dlstreamer/pipeline-zoo-models/ee73878abc6fb6d864e59a5cd80016de4fc1d194
+  allow_downgrades=(libgbm1 libva-wayland2 libwayland-bin mesa-libgallium)
+  version_skills=release-2026.2.0
+  repository_skills=https://github.com/open-edge-platform/skills.git
+  skills=(dlstreamer-coding-agent)
 }
 
 debian_75_profile_dlstreamer () {
@@ -15,73 +23,66 @@ debian_75_profile_dlstreamer () {
 }
 
 verify_dlstreamer () {
-  dpkg-query -l intel-dlstreamer | grep -q -F ${version} > /dev/null 2>&1 || return 1
-  [ -r "$workspace/python3-venv/bin/activate" ] || return 1
-  cd "$workspace"
-  . python3-venv/bin/activate
-  pip show ultralytics nncf
+  ensure_apt_is_installed intel-dlstreamer=${version} || return 1
 }
 
 debian_75_install_dlstreamer () {
   configure_dlstreamer
   
-  if verify_dlstreamer && [[ " $* " != *" --reset-dlstreamer "* ]]; then
-    echo "dlstreamer-${version} already installed. Skipping"
+  if verify_dlstreamer && [[ " $* " != *" --reinstall "* ]]; then
+    echo "dlstreamer-${version} is installed." >&2
   else
+    ensure_disk_size 15000
+    ensure_prop set installed/dlstreamer/owned true
+
     # remove old versions
-    ensure_apt autoremove -m -y $(dpkg-query -l | grep dlstreamer | awk '{print$2}') || true
+    echo "@@STEP Removing intel-dlstreamer"
+    debian_75_remove_dlstreamer "$@"
 
-    # product key
-    sudo mkdir -p $(dirname $key_file)
-    no_proxy= NO_PROXY= curl -fsL $key_url | gpg --dearmor | ensure_sudo tee $key_file > /dev/null
-
-    # deb entry
-    echo "$deb_entry" | ensure_sudo tee $list_file
+    # product key & list file
+    ensure_apt_key $key_file $key_url --dearmor
+    ensure_apt_source $list_file "$deb_entry" 
 
     # apt update
     ensure_apt update -y
 
     # install dlstreamer
-    ensure_apt install --no-install-recommends -y intel-dlstreamer=$version
+    echo "@@STEP Installing intel-dlstreamer=$version"
+    ensure_apt_allow_downgrades "${allow_downgrades[*]}" --no-install-recommends -y intel-dlstreamer=$version
+    ensure_apt install --allow-downgrades --no-install-recommends -y intel-dlstreamer=$version
 
-    # clone the dlstreamer repostiory
-    ensure_git_clone "$workspace" v$version $repository
+    # install skills
+    echo "@@STEP Installing skills"
+    ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}"
 
-    # create the dlstreamer venv
-    cd "$workspace"
-    python3 -m venv python3-venv
-    . python3-venv/bin/activate
-    pip install nncf==3.0.0 ultralytics==8.4.57
+    verify_dlstreamer
+    echo "intel-dlstreamer=$version installed successfully."
   fi
 
+  # validate dlstreamer
+  test_dlstreamer_pipeline "$@"
+    
   # info
   echo "@@HIGHLIGHT shell env @/opt/intel/dlstreamer/scripts/setup_dls_env.sh"
   echo "@@HIGHLIGHT samples @/opt/intel/dlstreamer/samples"
   echo "@@HIGHLIGHT optimizer @/opt/intel/dlstreamer/scripts/optimizer"
-  echo "@@HIGHLIGHT python venv @$workspace/python3-venv"
 }
 
 debian_75_remove_dlstreamer () {
   configure_dlstreamer
-
-  if verify_dlstreamer; then
-    ensure_apt autoremove -m -y intel-dlstreamer
-    ensure_sudo rm -f $list_file
-    ensure_sudo -rf "$workspace" 2> /dev/null || true
-  else
-    echo "dlstreamer already removed. Skipping"
-  fi
+  [ "$(ensure_prop get installed/dlstreamer/owned)" = "true" ] || return 0
+  ensure_apt purge --auto-remove -y $(dpkg-query -l | awk '/^ii/&&/dlstreamer/{print$2}') || true
+  ensure_rm "$workspace" || true
+  ensure_skills remove "${skills[@]}"
 }
 
 debian_75_sbom_dlstreamer () {
   configure_dlstreamer
-  cat <<EOF
-"name": "$repo_name"
-"apt-source": "$deb_entry"
-"apt-list-file": "$list_file"
-"gpg-key": "$key_url"
-"key-file": "$key_file"
-"pkg-list": ["intel-dlstreamer=$version"]
-EOF
+  ensure_sbom_format name "$repo_name"
+  ensure_sbom_format apt-source "$deb_entry"
+  ensure_sbom_format apt-list-file "$list_file"
+  ensure_sbom_format gpg-key "$key_url"
+  ensure_sbom_format key-file "$key_file"
+  ensure_sbom_format pkg-list "intel-dlstreamer=$version*"
 }
 

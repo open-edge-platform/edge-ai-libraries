@@ -48,6 +48,16 @@ class BaseStorage(ABC):
     def ensure_bucket_exists(self, bucket_name: str) -> None:
         """Create the bucket/container if it does not already exist."""
 
+    def ensure_public_read(self, bucket_name: str) -> None:
+        """Make a bucket's objects anonymously readable, where applicable.
+
+        Default no-op: only object stores fronted by the gateway's
+        ``/datastore`` proxy (MinIO) need an anonymous read policy for browser
+        playback. Backends that do not serve media this way (e.g. local disk)
+        override nothing.
+        """
+        return None
+
     # --- object existence / naming -----------------------------------------
     @abstractmethod
     def compose_object_name(self, video_id: str, object_name: str) -> str:
@@ -59,9 +69,7 @@ class BaseStorage(ABC):
 
     # --- listing ------------------------------------------------------------
     @abstractmethod
-    def list_objects_in_directory(
-        self, bucket_name: str, video_id: str
-    ) -> List[StorageObject]:
+    def list_objects_in_directory(self, bucket_name: str, video_id: str) -> List[StorageObject]:
         """List all objects under a ``video_id`` directory prefix."""
 
     @abstractmethod
@@ -76,9 +84,7 @@ class BaseStorage(ABC):
 
     # --- read / write -------------------------------------------------------
     @abstractmethod
-    def download_video_stream(
-        self, bucket_name: str, object_name: str
-    ) -> Optional[io.BytesIO]:
+    def download_video_stream(self, bucket_name: str, object_name: str) -> Optional[io.BytesIO]:
         """Download an object into an in-memory stream."""
 
     @abstractmethod

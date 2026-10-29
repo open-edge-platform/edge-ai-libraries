@@ -65,4 +65,5 @@
 
 - For testing the hardware trigger functionality Basler `acA1920-40gc` camera model had been used.
 
-  >**Note**: Other triggering capabilities with different camera models are not tested.
+  > [!NOTE]
+  > Other triggering capabilities with different camera models are not tested.

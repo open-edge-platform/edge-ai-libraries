@@ -1,0 +1,4149 @@
+#!/bin/bash
+
+main () {
+  if [ -z "$HOME" ]; then
+    echo "\$HOME must be set" >&2
+    return 3
+  fi
+
+  red="\033[31m" green="\033[32m" yellow="\033[33m" reset="\033[0m"
+  installer_name=openedge-cli
+  installer_bin="$HOME/.local/bin/$installer_name"
+
+  . /etc/os-release
+  installer_family="$(x="${ID_LIKE:-$ID}";x="${x##* }";echo "${x//[^a-zA-Z0-9]/}")"
+
+  local _globals=() _cmds=() _args=() cur=-1 v
+  for v in "$@"; do
+    case $v in
+    --help)
+      if [ $cur -ge 0 ]; then
+        subcommand_${_cmds[$cur]} --help
+      else
+        _cmds=($(declare -F | grep " subcommand_" | cut -f2- -d_))
+        echo "Usage: <$(IFS='|';echo "${_cmds[*]}")> component [component...]"
+        echo "common options:"
+        echo "  --help          this help message." 
+        echo
+        local cmd
+        for cmd in $(declare -F | grep -E " subcommand_" | cut -f3 -d' '); do
+          $cmd --help
+        done
+      fi
+      return 0
+      ;;
+    --dry-run|--continue)
+      _globals+=($v)
+      ;;
+    *)
+      if declare -F subcommand_$v > /dev/null; then
+        _cmds+=($v); _args+=(""); cur=$((cur+1))
+      elif [ ${#_cmds[@]} -eq 0 ]; then
+        echo "Unknown command: $v"
+        exit 3
+      elif [ $cur -ge 0 ]; then
+        _args[$cur]="${_args[$cur]} $v"
+      fi
+      ;;
+    esac
+  done
+
+  # --help if nothing specified
+  if [ ${#_cmds[@]} -eq 0 ]; then
+    main --help
+    return 0
+  fi
+
+  # initialize act cache
+  declare -F act_get > /dev/null && act_get init
+
+  local _i _rc=0
+  for ((_i=0;_i<${#_cmds[*]};_i++)); do
+    case "${_cmds[$_i]}" in
+    setup|list|bootstrap|sbom|resume)
+      subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
+      _rc=$?
+      ;;
+    *)
+      if [[ " ${_globals[*]} " = *" --dry-run "* ]]; then
+        subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
+        _rc=$?
+      else
+        # save args for resume
+        ensure_prop set command "$*"
+
+        # critical group permissions
+        local -A _groups=()
+	local _j _dep _g _gf _deps _resolved _rest_args=() _restart=0 _m _carry=""
+        for ((_j=$_i;_j<${#_cmds[@]};_j++)); do
+          _rest_args+=(${_cmds[$_j]} ${_args[$_j]})
+	  # pass module names forward within this command line so groups are checked against actual use
+          _m="$(act_extract_modules ${_cmds[$_j]} ${_args[$_j]})"
+          [ -n "${_m// }" ] && _carry="$_m"
+          if [ -z "${_m// }" ] && [ -n "$_carry" ] && [ "${_cmds[$_j]}" != "stop" ] && ! [[ "${_cmds[$_j]}" = "remove" && " ${_args[$_j]} " = *" --remove-all "* ]]; then
+            _resolved=(${_globals[*]} $_carry ${_args[$_j]})
+          else
+            _resolved=($(act_resolve_args ${_cmds[$_j]} ${_globals[*]} ${_args[$_j]}))
+          fi
+	  _deps=($(act_find_deps install ${_resolved[*]}))
+          for _dep in ${_deps[*]}; do
+            _gf=${_dep/_install_/_group_}
+            declare -F $_gf > /dev/null 2>&1 || continue
+            for _g in $($_gf $(act_extract_args group ${_dep#*_*_*_} "${_deps[*]#${installer_family}_*_install_}" ${_resolved[*]})); do
+              _groups["$_g"]=1
+            done
+          done
+        done
+
+        [ ${#_groups[*]} -eq 0 ] || ensure_group_add ${!_groups[*]} || {
+          echo -e "${red}Failed to acquire required groups; aborting.${reset}" 1>&2
+          echo "If '$(id -un)' is a directory (LDAP/AD) account, local group membership" 1>&2
+          echo "may not apply. Ask your administrator to add: ${!_groups[*]}" 1>&2
+          return 3
+        }
+
+        for _dep in ${!_groups[*]}; do
+          [[ " $(id -nG) " == *" ${_dep%:*} "* ]] || { _restart=1; break; }
+        done
+
+        if [ $_restart -eq 0 ]; then
+          subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
+          _rc=$?
+        else
+          if [ -n "${OEP_GROUP_REEXEC:-}" ]; then
+            echo -e "${yellow}groups still not effective after re-exec${reset}" 1>&2
+            return 1
+          fi
+
+          [[ " ${_cmds[*]:0:$_i} " = *" setup "* ]] || subcommand_setup "${_globals[@]}"
+
+          [ -x "$installer_bin" ] || {
+            echo -e "${red}$installer_bin not found; run 'setup' first${reset}" 1>&2
+            return 3
+          }
+
+          local _sdir="" _sdir_secrets
+          ensure_tmpdir create _sdir secrets /dev/shm
+          local _sdir_secrets="$_sdir"/secrets
+          (
+            umask 077;
+            export OEP_GROUP_REEXEC=1
+            for e in $(compgen -e | grep -Ev '^BASH_FUNC_|^(SHELLOPTS|BASHOPTS|BASH_ENV|ENV)$'); do
+              printf "export %s=%q\n" "$e" "${!e}"
+            done > "$_sdir_secrets"
+          ) || { echo "Failed to write secrets" >&2; return 3; }
+          ensure_sudo setpriv --reuid "$(id -u)" --regid "$(id -g)" --groups "$(id -G "$(id -un)" | tr ' ' ',')" \
+            --inh-caps=-all bash -c '
+secrets="$1"; installer_bin="$2"; shift 2
+. "$secrets"; rm -f "$secrets"
+exec "$installer_bin" "$@"
+' bash "$_sdir_secrets" "$installer_bin" "${_rest_args[@]}" "${_globals[@]}"
+          _rc=$?
+          ensure_tmpdir destroy "$_sdir"
+          return $_rc
+        fi
+      fi
+      ;;
+    esac
+    [ $_rc -eq 0 ] || [[ " ${_globals[*]} " = *" --continue "* ]] || break
+  done
+  return $_rc
+}
+
+#### COLLECTION OF MODULES ####
+
+act_expand_modules () 
+{ 
+    local act_name=${1%%,*};
+    local -a q=($2);
+    local -A seen=();
+    local i=0;
+    while [ $i -lt ${#q[*]} ]; do
+        local n=${q[$i]};
+        i=$((i+1));
+        [ -z "${seen[$n]:-}" ] || continue;
+        seen[$n]=1;
+        local p="${_act_cache_functions[profile_$n]:-}";
+        [ -n "$p" ] && q+=($($p $act_name $(act_extract_args $act_name $n "${q[*]}" "${@:3}")));
+    done;
+    echo "${!seen[*]}"
+}
+act_extract_args () 
+{ 
+    local act_name=${1%%,*};
+    local module_name=$2;
+    local act_modules="$3";
+    local all_modules=(${_act_cache_names[*]:-${_act_cache_modules[*]}});
+    local all_module_args=" ${all_modules[*]/#/--} ";
+    local args1=() args2=() i j;
+    for ((i=4; i<=${#@}; i++))
+    do
+        if [[ " ${all_module_args} " = *" ${*:$i:1} "* ]]; then
+            for ((j=++i; j<=${#*}; j++))
+            do
+                [[ " ${all_module_args} " != *" ${*:$j:1} "* ]] || break;
+            done;
+            [ "${*:$((i-1)):1}" != "--${module_name}" ] || args2+=(${*:$i:$((j-i))});
+            i=$((j-1));
+        else
+            if [[ " ${all_module_args} " != *" --${*:$i:1} "* ]]; then
+                args1+=(${*:$i:1});
+            fi;
+        fi;
+    done;
+    echo "${args1[*]} ${act_modules} -- ${args2[*]}"
+}
+act_extract_modules () 
+{ 
+    local act_name=${1%%,*};
+    local all_modules=(${_act_cache_names[*]:-${_act_cache_modules[*]}});
+    local all_module_args=" ${all_modules[*]/#/--} ";
+    local -A modules=();
+    local v;
+    for v in ${*:2};
+    do
+        [[ " ${all_module_args} " != *" $v "* ]] || break;
+        [[ " ${all_module_args} " != *" --$v "* ]] || modules[$v]=1;
+    done;
+    echo "${!modules[*]}"
+}
+act_find_deps () 
+{ 
+    local act_name=${1%%,*};
+    local -A handlers=();
+    local name handler;
+    for name in $(act_expand_modules $act_name "$(act_extract_modules "$@")" "${@:2}");
+    do
+        local p="${_act_cache_functions[${act_name}_${name}]:-}";
+        [ -n "$p" ] && handlers[$p]=1;
+    done;
+    echo "${!handlers[*]}"
+}
+act_find_parents () 
+{ 
+    local targets=" $1 ";
+    shift;
+    local p d;
+    for p in $(ensure_prop find "installed/*" | cut -f2 -d/ | uniq);
+    do
+        [[ "$targets" != *" $p "* ]] || continue;
+        for d in $(act_expand_modules install $p "$@");
+        do
+            [ "$d" != "$p" ] || continue;
+            [[ "$targets" != *" $d "* ]] || echo "$p:$d";
+        done;
+    done
+}
+act_get () 
+{ 
+    case "$1" in 
+        prefix)
+            declare -ga _act_reply=();
+            local f;
+            for f in ${!_act_cache_functions[*]};
+            do
+                [[ "$f" = "$2"* ]] && _act_reply+=("${_act_cache_functions[$f]}");
+            done
+        ;;
+        init)
+            declare -g _act_cache_cmds=($(declare -F | grep -E " subcommand_" | grep -v -E 'subcommand_(list|setup)$' | cut -f2- -d_));
+            declare -g _act_cache_modules=($(declare -F | grep -E " ${installer_family}_[0-9]+_($(IFS='|'; echo "${_act_cache_cmds[*]}"))_" | cut -f2,4- -d_ | sort | cut -f2- -d_ | awk '!seen[$0]++'));
+            declare -gA _act_cache_functions=();
+            local f rest;
+            while read -r _ _ f; do
+                case $f in 
+                    "${installer_family}_"*)
+                        rest=${f#"${installer_family}_"};
+                        _act_cache_functions[${rest#*_}]=$f
+                    ;;
+                esac;
+            done < <(declare -F);
+            declare -ga _act_cache_names=(${_act_cache_modules[*]});
+            for f in ${!_act_cache_functions[*]};
+            do
+                [[ "$f" = profile_* ]] || continue;
+                [[ " ${_act_cache_names[*]} " = *" ${f#profile_} "* ]] || _act_cache_names+=("${f#profile_}");
+            done
+        ;;
+    esac
+}
+act_helper () 
+{ 
+    local act_name=${1%%,*};
+    local act_text="${1#*,}";
+    local sort_options="$2";
+    shift;
+    shift;
+    local explicit_mods="$(act_extract_modules $act_name "$@")";
+    local remove_all=0;
+    if [[ "$act_name" = "remove" && " $* " = *" --remove-all "* ]]; then
+        if [ -z "${explicit_mods// }" ]; then
+            remove_all=1;
+        else
+            echo -e "${yellow}--remove-all ignored: components specified ($explicit_mods)${reset}" 1>&2;
+        fi;
+    fi;
+    set -- $(act_resolve_args $act_name "$@");
+    local _act_args="$*";
+    local handles=($(act_find_deps $act_name "$@"));
+    if [ "$act_name" = "remove" ] && [ $remove_all -eq 0 ] && [ ${#handles[@]} -gt 0 ]; then
+        local _targets=() _top=0 _h _o _pair;
+        for _h in $(printf '%s\n' "${handles[@]}" | sort $sort_options);
+        do
+            _o=${_h#*_};
+            _o=${_o%%_*};
+            [ "$_top" -gt 0 ] || _top=$_o;
+            [ "$_o" -ge "$_top" ] || break;
+            _targets+=(${_h#*_*_*_});
+        done;
+        local -A _needed=();
+        for _pair in $(act_find_parents "${_targets[*]}" "$@");
+        do
+            _needed[${_pair#*:}]+="${_needed[${_pair#*:}]:+, }${_pair%%:*}";
+        done;
+        if [ ${#_needed[@]} -gt 0 ]; then
+            for _h in ${!_needed[*]};
+            do
+                echo -e "${red}Cannot remove $_h: required by ${_needed[$_h]}${reset}" 1>&2;
+            done;
+            echo "Remove the dependent components in the same command, or use --remove-all." 1>&2;
+            return 3;
+        fi;
+    fi;
+    if [ ${#handles[@]} -gt 0 ]; then
+        if [ "$act_name" = "install" ]; then
+            local -A licenses=() licenses_text=();
+            local all_install_modules="${handles[*]#${installer_family}_*_install_}";
+            for licenser in ${handles[*]/_install_/_license_};
+            do
+                if declare -F $licenser > /dev/null 2>&1; then
+                    local name1=${licenser#*_*_*_} license_line license_id="" license_keep=0;
+                    while IFS= read -r license_line; do
+                        case "$license_line" in 
+                            "@@LICENSE-ID "*)
+                                license_id="${license_line#* }";
+                                [ -z "$license_id" ] || licenses[$license_id]="${licenses[$license_id]:-}$name1,";
+                                [[ -v licenses_text[$license_id] ]] && license_keep=0 || license_keep=1
+                            ;;
+                        esac;
+                        [ $license_keep -eq 1 ] && licenses_text[$license_id]+="${license_line}"'
+';
+                    done < <($licenser $(act_extract_args install $name1 "$all_install_modules" "$@"));
+                fi;
+            done;
+            if [ ${#licenses[*]} -gt 0 ]; then
+                local id1 rc;
+                for id1 in ${!licenses[*]};
+                do
+                    echo "${licenses_text[$id1]}";
+                    echo "@@LICENSE-COMPONENT $(echo "${licenses[$id1]%,}")";
+                done | ensure_license_gate $installer_name "$@";
+                rc=$?;
+                if [ $rc -eq 1 ]; then
+                    echo "License declined";
+                    exit 3;
+                else
+                    if [ $rc -ne 0 ]; then
+                        echo "License gate failed (no terminal or parse error)";
+                        exit 3;
+                    fi;
+                fi;
+            fi;
+        fi;
+        local hp="${http_proxy:-$HTTP_PROXY}" sp="${https_proxy:-$HTTPS_PROXY}" np=",${no_proxy:-$NO_PROXY},";
+        np="${np//,intel.com,/,}";
+        np="${np//,.intel.com,/,}";
+        np="${np##,}";
+        [ -z "$hp" ] || export http_proxy="$hp" HTTP_PROXY="$hp";
+        [ -z "$sp" ] || export https_proxy="$sp" HTTPS_PROXY="$sp";
+        [ -z "$np" ] || export no_proxy="${np%%,}" NO_PROXY="${np%%,}";
+        local rc=0 order=0;
+        export _INSTALLER_PANEL_ACTIVE=;
+        [ -t 1 ] && export _INSTALLER_PANEL_ACTIVE=1;
+        { 
+            for handler in $(echo "${handles[*]}" | tr ' ' '\n' | sort $sort_options);
+            do
+                local name1=${handler#*_*_*_};
+                if [ "$act_name" = "remove" ] && [ $remove_all -eq 0 ]; then
+                    local order1=${handler#*_};
+                    order1=${order1%%_*};
+                    [ "$order" -gt 0 ] || order=$order1;
+                    [ "$order1" -ge "$order" ] || break;
+                fi;
+                local invoke_args="$(act_extract_args $act_name $name1 "${handles[*]#${installer_family}_*_${act_name}_}" "$@")";
+                if [[ " $* " = *" --dry-run "* ]]; then
+                    echo "@@COMP $name1";
+                    echo "Invoke $handler with $invoke_args";
+                    echo "@@OK $name1";
+                else
+                    [ "$act_name" = "start" ] && ensure_prop create started/$name1/;
+                    [ "$act_name" = "install" ] && ensure_prop create installed/$name1/;
+                    echo "@@COMP $name1";
+                    local rc1=0;
+                    ( set -e;
+                    $handler $invoke_args ) & wait $! || rc1=$?;
+                    [[ " stop remove " = *" $act_name "* ]] && ensure_prop remove started/$name1/;
+                    [ "$act_name" = "remove" ] && [ $rc1 -eq 0 ] && ensure_prop remove installed/$name1/;
+                    if [ $rc1 -eq 0 ]; then
+                        echo "@@OK $name1";
+                    else
+                        echo "@@FAIL $name1";
+                        rc=$rc1;
+                        [[ " $* " = *" --continue "* ]] || break;
+                    fi;
+                fi;
+            done
+        } > >(LOG_FILE="$(ensure_project_path)/$installer_name/$(date +%m-%d-%Y).logs"
+mkdir -p "$(dirname "$LOG_FILE")"
+echo "========== $(date -Ins) ==========" >> "$LOG_FILE"
+echo "@@COMMAND $act_name $*" >> "$LOG_FILE"
+if [ -n "$_INSTALLER_PANEL_ACTIVE" ]; then
+    act_panelled_logs ${act_text//,/ };
+else
+    tee -a "$LOG_FILE";
+fi) 2>&1;
+        wait;
+        [[ " $* " != *" --dry-run "* && -n "${explicit_mods// }" ]] && ensure_prop set modules "$explicit_mods";
+        [[ $remove_all -eq 1 && $rc -eq 0 && " $* " != *" --dry-run "* ]] && ensure_prop remove modules;
+        return $rc;
+    else
+        echo "Component not found" 1>&2;
+        [[ " $* " = *" --dry-run "* ]] || ensure_prop remove modules;
+        return 3;
+    fi
+}
+act_panelled_logs () 
+{ 
+    ( set -o pipefail;
+    set -u;
+    readonly ACT_TEXT=($*);
+    readonly C_RESET='[0m';
+    readonly C_GREEN='[1;32m';
+    readonly C_RED='[1;31m';
+    readonly C_YELLOW='[1;33m';
+    readonly C_CYAN='[1;36m';
+    readonly C_DIM='[2m';
+    readonly C_BOLD='[1m';
+    if [[ ${LC_ALL:-${LC_CTYPE:-${LANG:-}}} == *[Uu][Tt][Ff]* ]]; then
+        BC_H='─';
+        BC_V='│';
+        BC_B='│';
+        BC_TL='┌';
+        BC_TR='┐';
+        BC_BL='└';
+        BC_BR='┘';
+        G_OK='✔';
+        G_FAIL='✘';
+        G_RUN='◐';
+        G_HL='▸';
+        G_ELL='…';
+        G_DN='>>';
+    else
+        BC_H='-';
+        BC_V='|';
+        BC_B='|';
+        BC_TL='+';
+        BC_TR='+';
+        BC_BL='+';
+        BC_BR='+';
+        G_OK='+';
+        G_FAIL='x';
+        G_RUN='*';
+        G_HL='>';
+        G_ELL='~';
+        G_DN='>>';
+    fi;
+    G_SEL='<<';
+    readonly BC_H BC_V BC_B BC_TL BC_TR BC_BL BC_BR G_OK G_FAIL G_RUN G_HL G_ELL G_DN G_SEL;
+    readonly TAIL_LINES=2;
+    readonly MAX_HL=12;
+    readonly MAX_RBUF=2000;
+    readonly MAX_WRAP=3000;
+    readonly LEFT_MIN=16;
+    KEEP_COLOR=${KEEP_COLOR:-1};
+    WRAP_MODE=${WRAP_MODE:-wrap};
+    LEFT_WIDTH=${LEFT_WIDTH:-0};
+    LEFT_MAX_PCT=${LEFT_MAX_PCT:-34};
+    REPORT_MAX_PCT=${REPORT_MAX_PCT:-55};
+    SPLIT_MIN=${SPLIT_MIN:-6};
+    REDRAW_MS=${REDRAW_MS:-50};
+    TICK_SEC=${TICK_SEC:-0.5};
+    NARROW_GLYPHS=${NARROW_GLYPHS:-0};
+    FAIL_ROWS=${FAIL_ROWS:-20};
+    RAISE_MS=${RAISE_MS:-15};
+    STEP_MIN=${STEP_MIN:-12};
+    STEP_TEXT="";
+    declare -a STEP_RX=() STEP_FMT=();
+    readonly CSI_FINAL='[A-Za-z@\[\\\]^_`{|}~]';
+    readonly SEP_W=3;
+    declare -a ORDER=();
+    declare -A STATUS=();
+    declare -A L1=() L2=();
+    declare -A RBUF=();
+    declare -A RCNT=();
+    declare -A HL=();
+    declare -A HCNT=();
+    declare -A REPORT=();
+    declare -A TSTART=();
+    declare -A TACC=();
+    declare -A TDONE=();
+    declare -A TSHOWN=();
+    declare -a FAILED=();
+    declare -A WCACHE=();
+    declare -A DWCACHE=();
+    declare -A HRCACHE=();
+    declare -A WRAPC=();
+    declare -A WRAPCN=();
+    declare -A WRAPW=();
+    declare -A LBLK=();
+    declare -A LDIRTY=();
+    declare -a LEFT_ROWS=();
+    declare -a PREV=();
+    declare -a RCACHE_ROWS=();
+    RCACHE_COMP="";
+    RCACHE_W=-1;
+    RCACHE_N=-1;
+    LEFT_VALID=0;
+    CURRENT="";
+    FOCUS="";
+    SHOWN="";
+    REVIEW=0;
+    LAST_DRAW=0;
+    WIDEST=0;
+    FRAMES=0;
+    DRAW_MS=0;
+    T_FIRST=0;
+    T_LAST=0;
+    TTY_COLS=0;
+    TTY_ROWS=0;
+    TTY_FD=-1;
+    GEOM_DIRTY=1;
+    DRAWING=0;
+    PREV_LW=-1;
+    PREV_RW=-1;
+    FULL_CLEAR=1;
+    RW_NOW=0;
+    TITLE_WORD=completed;
+    FAIL_H=0;
+    PREV_FH=-1;
+    FAIL_TITLE="";
+    declare -a FAILROWS=();
+    declare -a AT_LINES=();
+    declare -A AT_SEG=();
+    AT_UNTIL=0;
+    AT_CD=-1;
+    AT_FMT="";
+    AT_SEC=-1;
+    AT_GUARD=0;
+    function _open_tty () 
+    { 
+        if [[ -e /dev/tty ]] && { 
+            exec {TTY_FD}<> /dev/tty
+        } 2> /dev/null; then
+            return 0;
+        fi;
+        if [[ -t 2 ]] && { 
+            exec {TTY_FD}>&2
+        } 2> /dev/null; then
+            return 0;
+        fi;
+        if [[ -t 1 ]] && { 
+            exec {TTY_FD}>&1
+        } 2> /dev/null; then
+            return 0;
+        fi;
+        TTY_FD=-1;
+        return 1
+    };
+    function _probe_geom () 
+    { 
+        local sz;
+        if (( TTY_FD >= 0 )); then
+            sz=$(stty size <&"$TTY_FD" 2> /dev/null);
+            if [[ $sz == +([0-9])' '+([0-9]) ]]; then
+                printf '%s %s' "${sz##* }" "${sz%% *}";
+                return 0;
+            fi;
+        fi;
+        if [[ -n ${COLUMNS:-} && -n ${LINES:-} ]]; then
+            printf '%s %s' "$COLUMNS" "$LINES";
+            return 0;
+        fi;
+        return 1
+    };
+    function _read_geom () 
+    { 
+        local c r sz;
+        shopt -s checkwinsize 2> /dev/null;
+        if [[ -n ${FORCE_COLS:-} ]]; then
+            c=$FORCE_COLS;
+            r=${FORCE_ROWS:-${LINES:-24}};
+        else
+            sz=$(_probe_geom) || sz="";
+            if [[ -n $sz ]]; then
+                c=${sz%% *};
+                r=${sz##* };
+            else
+                c=${COLUMNS:-80};
+                r=${LINES:-24};
+            fi;
+        fi;
+        [[ $c == +([0-9]) ]] || c=80;
+        [[ $r == +([0-9]) ]] || r=24;
+        (( c < 40 )) && c=40;
+        (( r < 10 )) && r=10;
+        if (( c != TTY_COLS || r != TTY_ROWS )); then
+            FULL_CLEAR=1;
+            DWCACHE=();
+            HRCACHE=();
+            PREV=();
+        fi;
+        TTY_COLS=$c;
+        TTY_ROWS=$r;
+        GEOM_DIRTY=0
+    };
+    function _cellw () 
+    { 
+        local ch=$1 cp;
+        if [[ -z $ch ]]; then
+            REPLY=0;
+            return;
+        fi;
+        if [[ $ch == [[:ascii:]] ]]; then
+            REPLY=1;
+            return;
+        fi;
+        if (( NARROW_GLYPHS )); then
+            REPLY=1;
+            return;
+        fi;
+        if [[ -n ${WCACHE[$ch]:-} ]]; then
+            REPLY=${WCACHE[$ch]};
+            return;
+        fi;
+        printf -v cp '%d' "'$ch" 2> /dev/null || cp=0;
+        local w=1;
+        if (( cp >= 0x1100  && cp <= 0x115F  )); then
+            w=2;
+        else
+            if (( cp >= 0x2E80  && cp <= 0x303E  )); then
+                w=2;
+            else
+                if (( cp >= 0x3041  && cp <= 0x33FF  )); then
+                    w=2;
+                else
+                    if (( cp >= 0x3400  && cp <= 0x4DBF  )); then
+                        w=2;
+                    else
+                        if (( cp >= 0x4E00  && cp <= 0x9FFF  )); then
+                            w=2;
+                        else
+                            if (( cp >= 0xA000  && cp <= 0xA4CF  )); then
+                                w=2;
+                            else
+                                if (( cp >= 0xAC00  && cp <= 0xD7A3  )); then
+                                    w=2;
+                                else
+                                    if (( cp >= 0xF900  && cp <= 0xFAFF  )); then
+                                        w=2;
+                                    else
+                                        if (( cp >= 0xFE30  && cp <= 0xFE6F  )); then
+                                            w=2;
+                                        else
+                                            if (( cp >= 0xFF00  && cp <= 0xFF60  )); then
+                                                w=2;
+                                            else
+                                                if (( cp >= 0xFFE0  && cp <= 0xFFE6  )); then
+                                                    w=2;
+                                                else
+                                                    if (( cp >= 0x1F300 && cp <= 0x1FAFF )); then
+                                                        w=2;
+                                                    else
+                                                        if (( cp >= 0x20000 && cp <= 0x3FFFD )); then
+                                                            w=2;
+                                                        else
+                                                            if (( cp == 0x26D4 || cp == 0x2757 || cp == 0x2753 )); then
+                                                                w=2;
+                                                            else
+                                                                if (( cp >= 0x25B6 && cp <= 0x25C0 )); then
+                                                                    w=1;
+                                                                else
+                                                                    if (( cp >= 0x2B00 && cp <= 0x2BFF )); then
+                                                                        w=2;
+                                                                    else
+                                                                        if (( cp >= 0x0300 && cp <= 0x036F )); then
+                                                                            w=0;
+                                                                        else
+                                                                            if (( cp >= 0xFE00 && cp <= 0xFE0F )); then
+                                                                                w=0;
+                                                                            fi;
+                                                                        fi;
+                                                                    fi;
+                                                                fi;
+                                                            fi;
+                                                        fi;
+                                                    fi;
+                                                fi;
+                                            fi;
+                                        fi;
+                                    fi;
+                                fi;
+                            fi;
+                        fi;
+                    fi;
+                fi;
+            fi;
+        fi;
+        WCACHE[$ch]=$w;
+        REPLY=$w
+    };
+    function _dwidth () 
+    { 
+        local s=$1;
+        if [[ -z $s ]]; then
+            REPLY=0;
+            return;
+        fi;
+        if [[ $s != *[![:ascii:]]* ]]; then
+            REPLY=${#s};
+            return;
+        fi;
+        if [[ -n ${DWCACHE[$s]:-} ]]; then
+            REPLY=${DWCACHE[$s]};
+            return;
+        fi;
+        local n=0 i;
+        for ((i = 0; i < ${#s}; i++ ))
+        do
+            _cellw "${s:i:1}";
+            n=$(( n + REPLY ));
+        done;
+        (( ${#DWCACHE[@]} > 4000 )) && DWCACHE=();
+        DWCACHE[$s]=$n;
+        REPLY=$n
+    };
+    TAKEN="";
+    TAKENW=0;
+    function _take_cells () 
+    { 
+        local w=$1 s=$2;
+        if (( w <= 0 )) || [[ -z $s ]]; then
+            TAKEN="";
+            TAKENW=0;
+            return;
+        fi;
+        if [[ $s != *[![:ascii:]]* ]]; then
+            if (( ${#s} <= w )); then
+                TAKEN=$s;
+                TAKENW=${#s};
+            else
+                TAKEN=${s:0:w};
+                TAKENW=$w;
+            fi;
+            return;
+        fi;
+        local n=0 i out="";
+        for ((i = 0; i < ${#s}; i++ ))
+        do
+            _cellw "${s:i:1}";
+            (( n + REPLY > w )) && break;
+            out+=${s:i:1};
+            n=$(( n + REPLY ));
+        done;
+        TAKEN=$out;
+        TAKENW=$n
+    };
+    function _now_ms () 
+    { 
+        printf '%s' $(( ${EPOCHREALTIME/./} / 1000 ))
+    };
+    function _elapsed_ms () 
+    { 
+        local c=$1;
+        REPLY=0;
+        [[ -z $c ]] && return;
+        if [[ -n ${TDONE[$c]:-} ]]; then
+            REPLY=${TDONE[$c]};
+            return;
+        fi;
+        local acc=${TACC[$c]:-0};
+        if [[ -n ${TSTART[$c]:-} ]]; then
+            REPLY=$(( acc + $(_now_ms) - ${TSTART[$c]} ));
+        else
+            REPLY=$acc;
+        fi;
+        (( REPLY < 0 )) && REPLY=0
+    };
+    function _fmt_elapsed () 
+    { 
+        local ms=${1:-0} s m h;
+        (( ms < 0 )) && ms=0;
+        s=$(( ms / 1000 ));
+        if (( s < 60 )); then
+            printf -v REPLY '%ds' "$s";
+        else
+            if (( s < 3600 )); then
+                printf -v REPLY '%dm%02ds' $(( s / 60 )) $(( s % 60 ));
+            else
+                printf -v REPLY '%dh%02dm' $(( s / 3600 )) $(( (s % 3600) / 60 ));
+            fi;
+        fi
+    };
+    function _timer_start () 
+    { 
+        local c=$1;
+        [[ -z $c ]] && return;
+        if [[ -n ${TDONE[$c]:-} ]]; then
+            TACC[$c]=${TDONE[$c]};
+            unset "TDONE[$c]";
+        fi;
+        : "${TACC[$c]:=0}";
+        TSTART[$c]=$(_now_ms);
+        TSHOWN[$c]=-1;
+        (( T_FIRST == 0 )) && T_FIRST=${TSTART[$c]}
+    };
+    function _timer_stop () 
+    { 
+        local c=$1;
+        [[ -z $c ]] && return;
+        [[ -n ${TDONE[$c]:-} ]] && return;
+        [[ -z ${TSTART[$c]:-} && -z ${TACC[$c]:-} ]] && return;
+        _elapsed_ms "$c";
+        TDONE[$c]=$REPLY;
+        unset "TSTART[$c]"
+    };
+    HRULE="";
+    function _hrule_v () 
+    { 
+        local w=$1;
+        (( w <= 0 )) && { 
+            HRULE="";
+            return
+        };
+        if [[ -n ${HRCACHE[$w]:-} ]]; then
+            HRULE=${HRCACHE[$w]};
+            return;
+        fi;
+        local s;
+        printf -v s '%*s' "$w" '';
+        HRULE=${s// /$BC_H};
+        HRCACHE[$w]=$HRULE
+    };
+    PLAIN="";
+    SGRTEXT="";
+    function _sanitize_v () 
+    { 
+        local s=$1 keep=$2 out="" pre rest fin i ch;
+        s=${s//'	'/    };
+        s=${s//''/ };
+        s=${s//''/ };
+        s=${s//''/};
+        while [[ $s == *'' ]]; do
+            s=${s%''};
+        done;
+        [[ $s == *''* ]] && s=${s##*''};
+        if [[ $s == *''* ]]; then
+            while [[ $s == *''* ]]; do
+                pre=${s%%''*};
+                out+=$pre;
+                rest=${s:${#pre}+1};
+                case ${rest:0:1} in 
+                    '[')
+                        i=1;
+                        while (( i < ${#rest} )); do
+                            ch=${rest:i:1};
+                            [[ $ch == $CSI_FINAL ]] && break;
+                            (( i++ ));
+                        done;
+                        fin=${rest:i:1};
+                        if (( keep )) && [[ $fin == m ]]; then
+                            out+=''"${rest:0:i+1}";
+                        fi;
+                        s=${rest:i+1}
+                    ;;
+                    ']')
+                        if [[ $rest == *''* ]]; then
+                            s=${rest#*''};
+                        else
+                            if [[ $rest == *'\'* ]]; then
+                                s=${rest#*'\'};
+                            else
+                                s="";
+                            fi;
+                        fi
+                    ;;
+                    'P' | 'X' | '^' | '_')
+                        if [[ $rest == *'\'* ]]; then
+                            s=${rest#*'\'};
+                        else
+                            s="";
+                        fi
+                    ;;
+                    *)
+                        s=${rest:1}
+                    ;;
+                esac;
+            done;
+            out+=$s;
+        else
+            out=$s;
+        fi;
+        out=${out%"${out##*[![:space:]]}"};
+        if (( keep )); then
+            SGRTEXT=$out;
+        else
+            PLAIN=$out;
+        fi
+    };
+    function _plain_v () 
+    { 
+        _sanitize_v "$1" 0
+    };
+    FITTED="";
+    function _fit_v () 
+    { 
+        local w=$1 raw=$2 fp=${3:-0};
+        if (( w <= 0 )); then
+            FITTED="";
+            return;
+        fi;
+        _plain_v "$raw";
+        local plain=$PLAIN;
+        _dwidth "$plain";
+        local pw=$REPLY;
+        if (( ! fp && KEEP_COLOR )) && [[ $raw == *''* ]]; then
+            _sanitize_v "$raw" 1;
+            local c=$SGRTEXT;
+            if (( pw <= w )); then
+                printf -v FITTED '%s%s%*s' "$c" "$C_RESET" $(( w - pw )) '';
+                return;
+            fi;
+            local out="" n=0 i ch seg;
+            while [[ -n $c ]]; do
+                if [[ ${c:0:1} == '' ]]; then
+                    i=2;
+                    while (( i < ${#c} )); do
+                        ch=${c:i:1};
+                        [[ $ch == $CSI_FINAL ]] && break;
+                        (( i++ ));
+                    done;
+                    out+=${c:0:i+1};
+                    c=${c:i+1};
+                    continue;
+                fi;
+                seg=${c%%''*};
+                c=${c:${#seg}};
+                _take_cells $(( w - 1 - n )) "$seg";
+                out+=$TAKEN;
+                n=$(( n + TAKENW ));
+                (( n >= w - 1 )) && break;
+            done;
+            printf -v FITTED '%s%s%s%*s' "$out" "$C_RESET" "$G_ELL" $(( w - n - 1 )) '';
+            return;
+        fi;
+        if (( pw <= w )); then
+            printf -v FITTED '%s%*s' "$plain" $(( w - pw )) '';
+        else
+            _take_cells $(( w - 1 )) "$plain";
+            printf -v FITTED '%s%s%*s' "$TAKEN" "$G_ELL" $(( w - TAKENW - 1 )) '';
+        fi
+    };
+    declare -a WRAPPED=();
+    function _wrap_into () 
+    { 
+        local w=$1;
+        (( w <= 0 )) && return;
+        _plain_v "$2";
+        local s=$PLAIN t tw brk sw row;
+        if [[ -z $s ]]; then
+            printf -v row '%*s' "$w" '';
+            WRAPPED+=("$row");
+            return;
+        fi;
+        while :; do
+            _dwidth "$s";
+            sw=$REPLY;
+            if (( sw <= w )); then
+                printf -v row '%s%*s' "$s" $(( w - sw )) '';
+                WRAPPED+=("$row");
+                return;
+            fi;
+            _take_cells "$w" "$s";
+            t=$TAKEN;
+            tw=$TAKENW;
+            [[ -z $t ]] && { 
+                t=${s:0:1};
+                _dwidth "$t";
+                tw=$REPLY
+            };
+            if [[ $t == *" "* && ${s:${#t}:1} != " " ]]; then
+                brk=${t% *};
+                if (( ${#brk} > 0 )); then
+                    t=$brk;
+                    _dwidth "$t";
+                    tw=$REPLY;
+                fi;
+            else
+                if [[ $t == *"/"* && ${s:${#t}:1} != " " ]]; then
+                    brk=${t%/*};
+                    brk=${t:0:${#brk}+1};
+                    if (( ${#brk} > 1 && ${#brk} < ${#t} )); then
+                        t=$brk;
+                        _dwidth "$t";
+                        tw=$REPLY;
+                    fi;
+                fi;
+            fi;
+            printf -v row '%s%*s' "$t" $(( w - tw )) '';
+            WRAPPED+=("$row");
+            s=${s:${#t}};
+            [[ ${s:0:1} == " " ]] && s=${s:1};
+            [[ -z $s ]] && return;
+        done
+    };
+    function _wrap_color_into () 
+    { 
+        local w=$1 s=$2;
+        (( w <= 0 )) && return;
+        local active="" row="" n=0 seg i ch esc brk segw t tw out;
+        while [[ -n $s ]]; do
+            if [[ ${s:0:1} == '' ]]; then
+                i=2;
+                while (( i < ${#s} )); do
+                    ch=${s:i:1};
+                    [[ $ch == $CSI_FINAL ]] && break;
+                    (( i++ ));
+                done;
+                esc=${s:0:i+1};
+                s=${s:i+1};
+                if [[ $esc == '[0m' || $esc == '[m' ]]; then
+                    active="";
+                else
+                    active+=$esc;
+                fi;
+                row+=$esc;
+                continue;
+            fi;
+            seg=${s%%''*};
+            [[ -z $seg ]] && continue;
+            s=${s:${#seg}};
+            while :; do
+                _dwidth "$seg";
+                segw=$REPLY;
+                if (( n + segw <= w )); then
+                    row+=$seg;
+                    n=$(( n + segw ));
+                    break;
+                fi;
+                _take_cells $(( w - n )) "$seg";
+                t=$TAKEN;
+                tw=$TAKENW;
+                [[ -z $t ]] && { 
+                    t=${seg:0:1};
+                    _dwidth "$t";
+                    tw=$REPLY
+                };
+                if [[ $t == *" "* && ${seg:${#t}:1} != " " ]]; then
+                    brk=${t% *};
+                    if (( ${#brk} > 0 )); then
+                        t=$brk;
+                        _dwidth "$t";
+                        tw=$REPLY;
+                    fi;
+                fi;
+                row+=$t;
+                n=$(( n + tw ));
+                printf -v out '%s%s%*s' "$row" "$C_RESET" $(( w - n )) '';
+                WRAPPED+=("$out");
+                row=$active;
+                n=0;
+                seg=${seg:${#t}};
+                [[ ${seg:0:1} == " " ]] && seg=${seg:1};
+                [[ -z $seg ]] && break;
+            done;
+        done;
+        printf -v out '%s%s%*s' "$row" "$C_RESET" $(( w - n )) '';
+        WRAPPED+=("$out")
+    };
+    function _wrap_one () 
+    { 
+        local w=$1 line=$2;
+        WRAPPED=();
+        if [[ $WRAP_MODE == clip ]]; then
+            _fit_v "$w" "$line";
+            WRAPPED=("$FITTED");
+        else
+            if (( KEEP_COLOR )); then
+                _wrap_color_into "$w" "$line";
+            else
+                _wrap_into "$w" "$line";
+            fi;
+        fi
+    };
+    SG_C="";
+    SG_M="";
+    SG_L="";
+    function _sg () 
+    { 
+        case ${1:-} in 
+            ok)
+                SG_C=$C_GREEN;
+                SG_M=$G_OK;
+                SG_L="${ACT_TEXT[2],,}"
+            ;;
+            fail)
+                SG_C=$C_RED;
+                SG_M=$G_FAIL;
+                SG_L="failed"
+            ;;
+            *)
+                SG_C=$C_YELLOW;
+                SG_M=$G_RUN;
+                SG_L="${ACT_TEXT[1],,}"
+            ;;
+        esac
+    };
+    HDRTXT="";
+    function _header_text () 
+    { 
+        local name=$1;
+        HDRTXT="";
+        [[ -z $name ]] && return;
+        _sg "${STATUS[$name]:-}";
+        _elapsed_ms "$name";
+        local ms=$REPLY;
+        if (( ms <= 0 )) && [[ -z ${TDONE[$name]:-} ]]; then
+            HDRTXT="${name} [${SG_L}]";
+            return;
+        fi;
+        _fmt_elapsed "$ms";
+        if [[ -z $REPLY ]]; then
+            HDRTXT="${name} [${SG_L}]";
+        else
+            HDRTXT="${name} [${SG_L}, ${REPLY}]";
+        fi
+    };
+    TITLE="";
+    function _title_text () 
+    { 
+        local final=${1:-0} word=${2:-completed} name nok=0 nbad=0;
+        TITLE=" ${ACT_TEXT[0]} progress ";
+        if (( final )); then
+            for name in "${ORDER[@]}";
+            do
+                [[ -z $name ]] && continue;
+                [[ -n ${REPORT[$name]:-} ]] && continue;
+                case ${STATUS[$name]:-} in 
+                    ok)
+                        nok=$(( nok + 1 ))
+                    ;;
+                    fail)
+                        nbad=$(( nbad + 1 ))
+                    ;;
+                esac;
+            done;
+            TITLE=" ${ACT_TEXT[0]} ${word}:  ${G_OK} ${nok}  ${G_FAIL} ${nbad}";
+        fi;
+        if (( T_FIRST > 0 )); then
+            local endms=$T_LAST;
+            (( endms == 0 )) && endms=$(_now_ms);
+            _fmt_elapsed $(( endms - T_FIRST ));
+            [[ -n $REPLY ]] && TITLE+="  ${REPLY}";
+        fi
+    };
+    function _note_width () 
+    { 
+        local name=$1;
+        [[ -z $name ]] && return;
+        _header_text "$name";
+        _dwidth "$HDRTXT";
+        local wneed=$(( REPLY + 5 ));
+        (( wneed > WIDEST )) && WIDEST=$wneed
+    };
+    function _touch_comp () 
+    { 
+        local name=$1;
+        [[ -z $name ]] && return;
+        [[ -n ${STATUS[$name]:-} ]] && return;
+        ORDER+=("$name");
+        STATUS[$name]="${ACT_TEXT[1],,}";
+        L1[$name]="";
+        L2[$name]="";
+        RBUF[$name]="";
+        RCNT[$name]=0;
+        HL[$name]="";
+        HCNT[$name]=0;
+        REPORT[$name]="";
+        TACC[$name]=0;
+        TSHOWN[$name]=-1;
+        WRAPC[$name]="";
+        WRAPCN[$name]=0;
+        WRAPW[$name]=-1;
+        LDIRTY[$name]=1;
+        LEFT_VALID=0;
+        _dwidth "$name";
+        local wneed=$(( REPLY + 26 ));
+        (( wneed > WIDEST )) && WIDEST=$wneed
+    };
+    function _mark_fail () 
+    { 
+        local name=$1 f;
+        [[ -z $name ]] && return;
+        STATUS[$name]="fail";
+        _timer_stop "$name";
+        LDIRTY[$name]=1;
+        LEFT_VALID=0;
+        for f in "${FAILED[@]}";
+        do
+            [[ $f == "$name" ]] && return;
+        done;
+        FAILED+=("$name")
+    };
+    function _push_log () 
+    { 
+        local c=$1 line=$2 r;
+        [[ -z $c ]] && return;
+        L1[$c]=${L2[$c]:-};
+        L2[$c]=$line;
+        LDIRTY[$c]=1;
+        LEFT_VALID=0;
+        RBUF[$c]+="${line}"'
+';
+        RCNT[$c]=$(( ${RCNT[$c]:-0} + 1 ));
+        if (( RW_NOW > 0 )) && [[ ${WRAPW[$c]:--1} == "$RW_NOW" ]]; then
+            _wrap_one "$RW_NOW" "$line";
+            for r in "${WRAPPED[@]}";
+            do
+                WRAPC[$c]+="${r}"'
+';
+                WRAPCN[$c]=$(( ${WRAPCN[$c]:-0} + 1 ));
+            done;
+            if (( ${WRAPCN[$c]:-0} > MAX_WRAP )); then
+                WRAPW[$c]=-1;
+            fi;
+            [[ $c == "$RCACHE_COMP" ]] && RCACHE_N=-1;
+        fi;
+        if (( ${RCNT[$c]:-0} > MAX_RBUF )); then
+            local keep=$(( MAX_RBUF / 2 ));
+            RBUF[$c]=$(printf '%s' "${RBUF[$c]}" | tail -n "$keep")'
+';
+            RCNT[$c]=$keep;
+            WRAPW[$c]=-1;
+            [[ $c == "$RCACHE_COMP" ]] && RCACHE_N=-1;
+        fi
+    };
+    function _push_highlight () 
+    { 
+        local c=$1 text=$2;
+        [[ -z $c ]] && return;
+        HL[$c]+="${text}"'
+';
+        HCNT[$c]=$(( ${HCNT[$c]:-0} + 1 ));
+        _dwidth "  ${G_HL} ${text}";
+        (( REPLY > WIDEST )) && WIDEST=$REPLY;
+        if (( ${HCNT[$c]:-0} > MAX_HL )); then
+            HL[$c]=$(printf '%s' "${HL[$c]}" | tail -n "$MAX_HL")'
+';
+            HCNT[$c]=$MAX_HL;
+        fi;
+        LDIRTY[$c]=1;
+        LEFT_VALID=0
+    };
+    function _clear_highlight () 
+    { 
+        local c=$1;
+        [[ -z $c ]] && return;
+        HL[$c]="";
+        HCNT[$c]=0;
+        LDIRTY[$c]=1;
+        LEFT_VALID=0
+    };
+    function _attention_close () 
+    { 
+        AT_LINES=();
+        AT_UNTIL=0;
+        AT_CD=-1;
+        AT_FMT="";
+        AT_SEG=();
+        AT_GUARD=$(( ${EPOCHREALTIME%.*} + 10 ));
+        FULL_CLEAR=1;
+        LEFT_VALID=0
+    };
+    function _attention_active () 
+    { 
+        (( ${#AT_LINES[@]} )) || return 1;
+        if (( AT_UNTIL > 0 && ${EPOCHREALTIME%.*} >= AT_UNTIL )); then
+            _attention_close;
+            return 1;
+        fi;
+        return 0
+    };
+    function _set_step () 
+    { 
+        STEP_TEXT=$1
+    };
+    function _clear_step () 
+    { 
+        STEP_TEXT=""
+    };
+    function _add_step_rule () 
+    { 
+        local spec=$1 rx fmt;
+        [[ $spec == *' @@THEN '* ]] || return 1;
+        rx=${spec%%' @@THEN '*};
+        fmt=${spec#*' @@THEN '};
+        [[ -z $rx ]] && return 1;
+        [[ x =~ $rx ]];
+        (( $? == 2 )) && return 1;
+        STEP_RX+=("$rx");
+        STEP_FMT+=("$fmt")
+    };
+    function _clear_step_rules () 
+    { 
+        STEP_RX=();
+        STEP_FMT=()
+    };
+    function _apply_step_rules () 
+    { 
+        (( ${#STEP_RX[@]} == 0 )) && return 1;
+        local s=$1 i j out;
+        for ((i = 0; i < ${#STEP_RX[@]}; i++ ))
+        do
+            if [[ $s =~ ${STEP_RX[i]} ]]; then
+                out=${STEP_FMT[i]};
+                for ((j = ${#BASH_REMATCH[@]} - 1; j >= 0; j-- ))
+                do
+                    out=${out//"\\$j"/"${BASH_REMATCH[j]}"};
+                done;
+                _set_step "$out";
+                return 0;
+            fi;
+        done;
+        return 1
+    };
+    TITLEROW="";
+    function _title_row () 
+    { 
+        local w=$1 tw sw room left;
+        _fit_v "$w" "$TITLE" 1;
+        TITLEROW="${C_BOLD}${FITTED}${C_RESET}";
+        [[ -z $STEP_TEXT ]] && return;
+        _dwidth "$TITLE";
+        tw=$REPLY;
+        room=$(( w - tw - 3 ));
+        (( room < STEP_MIN )) && return;
+        _dwidth "$STEP_TEXT";
+        sw=$REPLY;
+        (( sw > room )) && sw=$room;
+        _fit_v $(( w - sw - 1 )) "$TITLE" 1;
+        left=$FITTED;
+        _fit_v "$sw" "$STEP_TEXT" 1;
+        TITLEROW="${C_BOLD}${left}${C_RESET}${C_CYAN}${FITTED}${C_RESET} "
+    };
+    function _ensure_wrap () 
+    { 
+        local c=$1 w=$2 src r;
+        [[ -z $c ]] && return;
+        [[ ${WRAPW[$c]:--1} == "$w" ]] && return;
+        local acc="" n=0;
+        if [[ -n ${RBUF[$c]:-} ]]; then
+            while IFS= read -r src; do
+                _wrap_one "$w" "$src";
+                for r in "${WRAPPED[@]}";
+                do
+                    acc+="${r}"'
+';
+                    n=$(( n + 1 ));
+                done;
+            done <<< "${RBUF[$c]}";
+        fi;
+        WRAPC[$c]=$acc;
+        WRAPCN[$c]=$n;
+        WRAPW[$c]=$w;
+        [[ $c == "$RCACHE_COMP" ]] && RCACHE_N=-1
+    };
+    function _load_rows () 
+    { 
+        local c=$1 w=$2;
+        if [[ -z $c ]]; then
+            RCACHE_ROWS=();
+            RCACHE_COMP="";
+            RCACHE_W=-1;
+            RCACHE_N=-1;
+            return;
+        fi;
+        _ensure_wrap "$c" "$w";
+        if [[ $c == "$RCACHE_COMP" ]] && (( RCACHE_W == w )) && (( RCACHE_N == ${WRAPCN[$c]:-0} )); then
+            return;
+        fi;
+        RCACHE_ROWS=();
+        if [[ -n ${WRAPC[$c]:-} ]]; then
+            mapfile -t RCACHE_ROWS <<< "${WRAPC[$c]%'
+'}";
+        fi;
+        RCACHE_COMP=$c;
+        RCACHE_W=$w;
+        RCACHE_N=${WRAPCN[$c]:-0}
+    };
+    function _timer_tick () 
+    { 
+        (( ${#TSTART[@]} == 0 )) && return 1;
+        local c s hit=1;
+        for c in "${!TSTART[@]}";
+        do
+            [[ -z $c ]] && continue;
+            _elapsed_ms "$c";
+            s=$(( REPLY / 1000 ));
+            if (( s != ${TSHOWN[$c]:--1} )); then
+                TSHOWN[$c]=$s;
+                LDIRTY[$c]=1;
+                LEFT_VALID=0;
+                hit=0;
+            fi;
+        done;
+        return $hit
+    };
+    function _build_block () 
+    { 
+        local name=$1 lw=$2;
+        [[ -z $name ]] && return;
+        local st=${STATUS[$name]:-} src wline i;
+        _header_text "$name";
+        local hdr=$HDRTXT;
+        if (( REVIEW )) && [[ $name == "$SHOWN" && $st == fail ]]; then
+            hdr+=" ${G_SEL}";
+        fi;
+        _fit_v $(( lw - 2 )) "$hdr" 1;
+        local buf="${SG_C}${SG_M} ${FITTED}${C_RESET}";
+        if [[ -n ${HL[$name]:-} ]]; then
+            local hpfx="  ${G_HL} ";
+            _dwidth "$hpfx";
+            local hpw=$REPLY;
+            local hw=$(( lw - hpw ));
+            (( hw < 1 )) && hw=1;
+            while IFS= read -r src; do
+                [[ -z $src ]] && continue;
+                WRAPPED=();
+                _wrap_into "$hw" "$src";
+                local first=1 cont;
+                for wline in "${WRAPPED[@]}";
+                do
+                    if (( first )); then
+                        _fit_v "$lw" "${hpfx}${wline}" 1;
+                        first=0;
+                    else
+                        printf -v cont '%*s' "$hpw" '';
+                        _fit_v "$lw" "${cont}${wline}" 1;
+                    fi;
+                    buf+='
+'"${C_CYAN}${FITTED}${C_RESET}";
+                done;
+            done <<< "${HL[$name]}";
+        else
+            local -a tl=();
+            [[ -n ${L1[$name]:-} ]] && tl+=("${L1[$name]}");
+            [[ -n ${L2[$name]:-} ]] && tl+=("${L2[$name]}");
+            for ((i = ${#tl[@]} - TAIL_LINES; i < ${#tl[@]}; i++ ))
+            do
+                (( i < 0 )) && continue;
+                _fit_v "$lw" "  ${BC_B} ${tl[i]}" 1;
+                buf+='
+'"${C_DIM}${FITTED}${C_RESET}";
+            done;
+        fi;
+        LBLK[$name]=$buf;
+        LDIRTY[$name]=""
+    };
+    function _draw () 
+    { 
+        local force=${1:-0};
+        (( DRAWING )) && return;
+        DRAWING=1;
+        local t0;
+        t0=$(_now_ms);
+        if (( ! force && t0 - LAST_DRAW < REDRAW_MS )); then
+            DRAWING=0;
+            return;
+        fi;
+        LAST_DRAW=$t0;
+        (( GEOM_DIRTY )) && _read_geom;
+        local cols=$TTY_COLS rows=$TTY_ROWS;
+        local usable=$cols lw;
+        if (( LEFT_WIDTH > 0 )); then
+            lw=$LEFT_WIDTH;
+        else
+            local cap=$(( usable * LEFT_MAX_PCT / 100 ));
+            lw=$WIDEST;
+            (( lw < LEFT_MIN )) && lw=$LEFT_MIN;
+            (( lw > cap )) && lw=$cap;
+        fi;
+        local rw=$(( usable - lw - SEP_W ));
+        if (( rw < 24 )); then
+            rw=24;
+            lw=$(( usable - rw - SEP_W ));
+        fi;
+        (( lw < 8 )) && lw=8;
+        if (( lw != PREV_LW )); then
+            PREV_LW=$lw;
+            FULL_CLEAR=1;
+            LEFT_VALID=0;
+            local k;
+            for k in "${ORDER[@]}";
+            do
+                [[ -n $k ]] && LDIRTY[$k]=1;
+            done;
+        fi;
+        if (( rw != PREV_RW )); then
+            PREV_RW=$rw;
+            RW_NOW=$rw;
+            export LOG_COLUMNS=$rw;
+            FULL_CLEAR=1;
+            RCACHE_COMP="";
+            RCACHE_N=-1;
+            local k;
+            for k in "${ORDER[@]}";
+            do
+                [[ -n $k ]] && WRAPW[$k]=-1;
+            done;
+        fi;
+        local full=$(( rows - 3 ));
+        (( full < 1 )) && full=1;
+        local fh=$FAIL_H;
+        (( fh > full - SPLIT_MIN )) && fh=$(( full - SPLIT_MIN ));
+        (( fh < 0 )) && fh=0;
+        if (( fh != PREV_FH )); then
+            PREV_FH=$fh;
+            LEFT_VALID=0;
+        fi;
+        local body=$(( full - fh ));
+        local name src i j;
+        local view=${FOCUS:-$CURRENT};
+        local is_report=0;
+        [[ -n $view && -n ${REPORT[$view]:-} ]] && is_report=1;
+        local upper="" nfail=${#FAILED[@]};
+        if [[ -n $FOCUS ]]; then
+            upper=$FOCUS;
+        else
+            if (( REVIEW )) && (( nfail > 0 )); then
+                upper=${FAILED[0]};
+            else
+                if (( is_report )); then
+                    for ((j = ${#ORDER[@]} - 1; j >= 0; j-- ))
+                    do
+                        if [[ -z ${REPORT[${ORDER[j]}]:-} ]]; then
+                            upper=${ORDER[j]};
+                            break;
+                        fi;
+                    done;
+                else
+                    upper=$view;
+                fi;
+            fi;
+        fi;
+        if [[ $upper != "$SHOWN" ]]; then
+            [[ -n $SHOWN ]] && LDIRTY[$SHOWN]=1;
+            [[ -n $upper ]] && LDIRTY[$upper]=1;
+            SHOWN=$upper;
+            LEFT_VALID=0;
+        fi;
+        for name in "${ORDER[@]}";
+        do
+            [[ -z $name ]] && continue;
+            [[ -n ${REPORT[$name]:-} ]] && continue;
+            [[ -n ${LDIRTY[$name]:-} ]] && { 
+                _build_block "$name" "$lw";
+                LEFT_VALID=0
+            };
+        done;
+        if (( ! LEFT_VALID )); then
+            local -a blk=() blk_nm=();
+            for name in "${ORDER[@]}";
+            do
+                [[ -z $name ]] && continue;
+                [[ -n ${REPORT[$name]:-} ]] && continue;
+                blk+=("${LBLK[$name]:-}");
+                blk_nm+=("$name");
+            done;
+            local nl;
+            LEFT_ROWS=();
+            for ((j = 0; j < ${#blk[@]}; j++ ))
+            do
+                while IFS= read -r src; do
+                    LEFT_ROWS+=("$src");
+                done <<< "${blk[j]}";
+            done;
+            local nrows=${#LEFT_ROWS[@]};
+            if (( nrows > body )); then
+                local wstart=$(( nrows - body ));
+                if (( REVIEW )) && (( ${#FAILED[@]} > 0 )) && [[ -n $SHOWN ]]; then
+                    local off=0 hit=-1;
+                    for ((j = 0; j < ${#blk[@]}; j++ ))
+                    do
+                        if [[ ${blk_nm[j]} == "$SHOWN" ]]; then
+                            hit=$off;
+                            break;
+                        fi;
+                        nl=${blk[j]//[!'
+']/};
+                        off=$(( off + ${#nl} + 1 ));
+                    done;
+                    if (( hit >= 0 )); then
+                        wstart=$hit;
+                        (( wstart > nrows - body )) && wstart=$(( nrows - body ));
+                        (( wstart < 0 )) && wstart=0;
+                    fi;
+                fi;
+                LEFT_ROWS=("${LEFT_ROWS[@]:wstart:body}");
+            fi;
+            LEFT_VALID=1;
+        fi;
+        local -a right=();
+        local counter="";
+        if (( REVIEW )) && (( nfail > 1 )); then
+            if [[ -n $FOCUS ]]; then
+                counter="  (pinned, ${nfail} failed)";
+            else
+                counter="  (+$(( nfail - 1 )) more failed)";
+            fi;
+        fi;
+        local hcomp=${upper:-$view};
+        if [[ -z $hcomp ]]; then
+            _fit_v "$rw" "waiting..." 1;
+            right+=("${C_DIM}${FITTED}${C_RESET}");
+        else
+            local tstr="";
+            _sg "${STATUS[$hcomp]:-}";
+            if [[ -z ${REPORT[$hcomp]:-} ]]; then
+                _elapsed_ms "$hcomp";
+                if (( REPLY > 0 )); then
+                    _fmt_elapsed "$REPLY";
+                    [[ -n $REPLY ]] && tstr=", ${REPLY}";
+                fi;
+            fi;
+            _fit_v "$rw" "${SG_M} ${hcomp} [${SG_L}${tstr}]${counter}" 1;
+            right+=("${SG_C}${FITTED}${C_RESET}");
+            _hrule_v "$rw";
+            right+=("${C_DIM}${HRULE}${C_RESET}");
+        fi;
+        local avail=$(( body - ${#right[@]} ));
+        if (( avail > 0 )) && [[ -n $hcomp ]]; then
+            if (( is_report )) && [[ -n $upper ]] && (( avail >= SPLIT_MIN * 2 + 1 )); then
+                local rcap=$(( avail * REPORT_MAX_PCT / 100 ));
+                (( rcap < SPLIT_MIN )) && rcap=$SPLIT_MIN;
+                _load_rows "$view" "$rw";
+                local -a rep=("${RCACHE_ROWS[@]:0:rcap}");
+                local lo=${#rep[@]};
+                (( lo < 1 )) && lo=1;
+                local hi=$(( avail - lo - 1 ));
+                (( hi < SPLIT_MIN )) && { 
+                    hi=$SPLIT_MIN;
+                    lo=$(( avail - hi - 1 ))
+                };
+                _load_rows "$upper" "$rw";
+                local n=${#RCACHE_ROWS[@]} start=0;
+                (( n > hi )) && start=$(( n - hi ));
+                (( n > 0 )) && right+=("${RCACHE_ROWS[@]:start:hi}");
+                while (( ${#right[@]} < body - lo - 1 )); do
+                    right+=("");
+                done;
+                _fit_v "$rw" "${G_DN} ${view}" 1;
+                right+=("${C_BOLD}${C_CYAN}${FITTED}${C_RESET}");
+                (( lo > 0 )) && right+=("${rep[@]:0:lo}");
+            else
+                _load_rows "$hcomp" "$rw";
+                local n=${#RCACHE_ROWS[@]} start=0;
+                if (( n > 0 )); then
+                    if (( is_report )); then
+                        right+=("${RCACHE_ROWS[@]:0:avail}");
+                    else
+                        (( n > avail )) && start=$(( n - avail ));
+                        right+=("${RCACHE_ROWS[@]:start:avail}");
+                    fi;
+                fi;
+            fi;
+        fi;
+        AT_SEG=();
+        _attention_active && _attention_build;
+        local now_s=${EPOCHREALTIME%.*} at_wipe=0;
+        if (( ${#AT_LINES[@]} || now_s < AT_GUARD )) && (( now_s != AT_SEC )); then
+            AT_SEC=$now_s;
+            FULL_CLEAR=1;
+            at_wipe=1;
+        fi;
+        local out="" l r rowstr;
+        if (( FULL_CLEAR )); then
+            PREV=();
+            FULL_CLEAR=0;
+        fi;
+        (( at_wipe )) && printf -v out '\033[%d;1H\033[K' "$rows";
+        _title_text "$REVIEW" "$TITLE_WORD";
+        _title_row "$usable";
+        rowstr=$TITLEROW${AT_SEG[1]:-};
+        if [[ ${PREV[0]:-__} != "$rowstr" ]]; then
+            out+='[1;1H'"$rowstr"'[K';
+            PREV[0]=$rowstr;
+        fi;
+        _hrule_v "$usable";
+        rowstr="${C_DIM}${HRULE}${C_RESET}${AT_SEG[2]:-}";
+        if [[ ${PREV[1]:-__} != "$rowstr" ]]; then
+            out+='[2;1H'"$rowstr"'[K';
+            PREV[1]=$rowstr;
+        fi;
+        for ((i = 0; i < body; i++ ))
+        do
+            l=${LEFT_ROWS[i]:-};
+            if [[ $l != *''* ]]; then
+                _fit_v "$lw" "$l" 1;
+                l=$FITTED;
+            fi;
+            r=${right[i]:-};
+            rowstr="${l} ${C_DIM}${BC_V}${C_RESET} ${r}${AT_SEG[$(( i + 3 ))]:-}";
+            j=$(( i + 2 ));
+            if [[ ${PREV[j]:-__} != "$rowstr" ]]; then
+                printf -v out '%s\033[%d;1H%s\033[K' "$out" $(( i + 3 )) "$rowstr";
+                PREV[j]=$rowstr;
+            fi;
+        done;
+        if (( fh > 0 )); then
+            local frule;
+            _dwidth "$FAIL_TITLE";
+            _hrule_v $(( usable - REPLY - 2 ));
+            frule="${C_RED}${BC_H}${BC_H}${FAIL_TITLE}${HRULE}${C_RESET}";
+            for ((i = 0; i < fh; i++ ))
+            do
+                if (( i == 0 )); then
+                    rowstr=$frule;
+                else
+                    rowstr=${FAILROWS[i-1]:-};
+                fi;
+                rowstr+=${AT_SEG[$(( body + i + 3 ))]:-};
+                j=$(( body + i + 2 ));
+                if [[ ${PREV[j]:-__} != "$rowstr" ]]; then
+                    printf -v out '%s\033[%d;1H%s\033[K' "$out" $(( body + i + 3 )) "$rowstr";
+                    PREV[j]=$rowstr;
+                fi;
+            done;
+        fi;
+        [[ -n $out ]] && printf '\033[?2026h%s\033[?2026l' "$out";
+        FRAMES=$(( FRAMES + 1 ));
+        DRAW_MS=$(( DRAW_MS + $(_now_ms) - t0 ));
+        DRAWING=0
+    };
+    function _stop_all_timers () 
+    { 
+        local c;
+        (( ${#TSTART[@]} == 0 )) && return;
+        for c in "${!TSTART[@]}";
+        do
+            [[ -n $c ]] && _timer_stop "$c";
+        done
+    };
+    function _build_fail_rows () 
+    { 
+        local interrupted=${1:-0} w=$2 name src per extra=0;
+        local -a names=("${FAILED[@]}") tailrows;
+        if (( interrupted )) && [[ -n $CURRENT && -z ${REPORT[$CURRENT]:-} && ${STATUS[$CURRENT]:-} != ok && ${STATUS[$CURRENT]:-} != fail ]]; then
+            names+=("$CURRENT");
+        fi;
+        FAILROWS=();
+        (( ${#names[@]} == 0 || FAIL_ROWS <= 0 )) && return 1;
+        [[ -n ${LOG_FILE:-} ]] && extra=1;
+        per=$(( (FAIL_ROWS - ${#names[@]} - extra) / ${#names[@]} ));
+        (( per < 3 )) && per=3;
+        for name in "${names[@]}";
+        do
+            [[ -z $name ]] && continue;
+            tailrows=();
+            while IFS= read -r src; do
+                WRAPPED=();
+                _wrap_into "$w" "$src";
+                (( ${#WRAPPED[@]} )) && tailrows+=("${WRAPPED[@]}");
+            done < <(printf '%s' "${RBUF[$name]:-}" | tail -n "$per");
+            (( ${#tailrows[@]} > per )) && tailrows=("${tailrows[@]: -per}");
+            _fit_v "$w" "${G_FAIL} ${name}: last ${#tailrows[@]} lines" 1;
+            FAILROWS+=("${C_RED}${FITTED}${C_RESET}");
+            (( ${#tailrows[@]} )) && FAILROWS+=("${tailrows[@]}");
+        done;
+        if (( extra )); then
+            _fit_v "$w" "Full log: $LOG_FILE" 1;
+            FAILROWS+=("${C_DIM}${FITTED}${C_RESET}");
+        fi;
+        return 0
+    };
+    function _raise_fail_panel () 
+    { 
+        local interrupted=${1:-0} nf=${#FAILED[@]} h target cap d;
+        (( GEOM_DIRTY )) && _read_geom;
+        _build_fail_rows "$interrupted" "$TTY_COLS" || return 0;
+        if (( nf == 0 )); then
+            FAIL_TITLE=" interrupted - last log lines ";
+        else
+            FAIL_TITLE=" ${G_FAIL} ${nf} failed - error log ";
+        fi;
+        target=$(( ${#FAILROWS[@]} + 1 ));
+        (( target > FAIL_ROWS + 1 )) && target=$(( FAIL_ROWS + 1 ));
+        cap=$(( TTY_ROWS - 3 - SPLIT_MIN ));
+        (( target > cap )) && target=$cap;
+        (( target < 2 )) && return 0;
+        printf -v d '%d.%03d' $(( RAISE_MS / 1000 )) $(( RAISE_MS % 1000 ));
+        for ((h = 1; h <= target; h++ ))
+        do
+            FAIL_H=$h;
+            _draw 1;
+            (( RAISE_MS > 0 && h < target )) && sleep "$d";
+        done;
+        return 0
+    };
+    function _finish () 
+    { 
+        local rc=$?;
+        DRAWING=0;
+        _stop_all_timers;
+        (( T_LAST == 0 )) && T_LAST=$(_now_ms);
+        (( rc != 0 )) && { 
+            REVIEW=1;
+            TITLE_WORD=interrupted
+        };
+        FULL_CLEAR=1;
+        LEFT_VALID=0;
+        RCACHE_COMP="";
+        RCACHE_N=-1;
+        _draw 1;
+        _raise_fail_panel $(( rc != 0 ));
+        printf '\033[?7h';
+        printf '\033[r';
+        printf '\033[%d;1H\033[K' "$TTY_ROWS";
+        printf '\033[?25h';
+        (( TTY_FD >= 0 )) && { 
+            stty echo <&"$TTY_FD" 2> /dev/null;
+            exec {TTY_FD}>&-
+        }
+    };
+    function _attention_build () 
+    { 
+        local cols=$TTY_COLS rows=$TTY_ROWS line w maxw=0 i pl pr;
+        local -a body=("${AT_LINES[@]}");
+        if (( AT_CD >= 0 )); then
+            local left=$(( AT_UNTIL - ${EPOCHREALTIME%.*} )) mmss;
+            (( left < 0 )) && left=0;
+            printf -v mmss '%d:%02d' $(( left / 60 )) $(( left % 60 ));
+            printf -v line -- "$AT_FMT" "$mmss" 2> /dev/null || line=$AT_FMT;
+            body[AT_CD]=$line;
+        fi;
+        for line in "${body[@]}";
+        do
+            _dwidth "$line";
+            (( REPLY > maxw )) && maxw=$REPLY;
+        done;
+        local bw=$(( maxw + 6 ));
+        (( bw > cols - 2 )) && bw=$(( cols - 2 ));
+        local bh=$(( ${#body[@]} + 2 ));
+        local top=$(( (rows - bh) / 2 + 1 )) lc=$(( (cols - bw) / 2 + 1 ));
+        _hrule_v $(( bw - 2 ));
+        printf -v "AT_SEG[$top]" '\033[%d;%dH%s%s%s%s%s' $top $lc "$C_RED" "$BC_TL" "$HRULE" "$BC_TR" "$C_RESET";
+        for ((i = 0; i < ${#body[@]}; i++ ))
+        do
+            line=${body[i]};
+            _dwidth "$line";
+            w=$REPLY;
+            if (( w > bw - 4 )); then
+                _fit_v $(( bw - 4 )) "$line" 1;
+                line=$FITTED;
+                w=$(( bw - 4 ));
+            fi;
+            pl=$(( (bw - 2 - w) / 2 ));
+            pr=$(( bw - 2 - w - pl ));
+            printf -v "AT_SEG[$(( top + i + 1 ))]" '\033[%d;%dH%s%s%s%*s%s%s%s%*s%s%s%s' $(( top + i + 1 )) $lc "$C_RED" "$BC_V" "$C_RESET" $pl '' "$C_BOLD$C_YELLOW" "$line" "$C_RESET" $pr '' "$C_RED" "$BC_V" "$C_RESET";
+        done;
+        printf -v "AT_SEG[$(( top + bh - 1 ))]" '\033[%d;%dH%s%s%s%s%s' $(( top + bh - 1 )) $lc "$C_RED" "$BC_BL" "$HRULE" "$BC_BR" "$C_RESET"
+    };
+    function _handle_line () 
+    { 
+        local line="$1" key rest target clean plainkey hpay;
+        [ -z "$LOG_FILE" ] || printf "%s\n" "$line" >> "$LOG_FILE";
+        if (( KEEP_COLOR )); then
+            _sanitize_v "$line" 1;
+            clean=$SGRTEXT;
+        else
+            _sanitize_v "$line" 0;
+            clean=$PLAIN;
+        fi;
+        _plain_v "$line";
+        plainkey=$PLAIN;
+        plainkey=${plainkey#"${plainkey%%[![:space:]]*}"};
+        [[ -z $plainkey ]] && return 0;
+        key=${plainkey%%[[:space:]]*};
+        rest=${plainkey#"$key"};
+        rest=${rest#"${rest%%[![:space:]]*}"};
+        case ${key^^} in 
+            @@STEP)
+                if [[ -z $rest ]]; then
+                    _clear_step;
+                else
+                    if [[ $rest == '@@IF' ]]; then
+                        _clear_step_rules;
+                    else
+                        if [[ $rest == '@@IF '*' @@THEN '* ]]; then
+                            _add_step_rule "${rest#@@IF }" || _push_log "${CURRENT:-general}" "invalid @@STEP rule: $rest";
+                            return;
+                        else
+                            _set_step "$rest";
+                        fi;
+                    fi;
+                fi;
+                _draw 1;
+                return
+            ;;
+            @@COMP)
+                [[ -z $rest ]] && return;
+                _clear_step;
+                _clear_step_rules;
+                if [[ -n $CURRENT && $CURRENT != "$rest" && -z ${REPORT[$CURRENT]:-} ]]; then
+                    _timer_stop "$CURRENT";
+                fi;
+                CURRENT=$rest;
+                _touch_comp "$CURRENT";
+                STATUS[$CURRENT]="${ACT_TEXT[1],,}";
+                [[ -n ${TDONE[$CURRENT]:-} ]] && unset "TDONE[$CURRENT]";
+                _timer_start "$CURRENT";
+                _note_width "$CURRENT";
+                LDIRTY[$CURRENT]=1;
+                LEFT_VALID=0;
+                REVIEW=0;
+                _draw 1;
+                return
+            ;;
+            @@REPORT)
+                [[ -z $rest ]] && return;
+                _clear_step;
+                if [[ -n $CURRENT && -z ${REPORT[$CURRENT]:-} ]]; then
+                    _timer_stop "$CURRENT";
+                fi;
+                T_LAST=$(_now_ms);
+                CURRENT=$rest;
+                _touch_comp "$CURRENT";
+                REPORT[$CURRENT]=1;
+                STATUS[$CURRENT]="ok";
+                LEFT_VALID=0;
+                REVIEW=1;
+                _draw 1;
+                return
+            ;;
+            @@FOCUS)
+                if [[ -z $rest ]]; then
+                    FOCUS="";
+                else
+                    _touch_comp "$rest";
+                    FOCUS=$rest;
+                fi;
+                _draw 1;
+                return
+            ;;
+            @@ATTENTION)
+                case $rest in 
+                    '')
+                        return
+                    ;;
+                    @@BR)
+                        AT_LINES+=("")
+                    ;;
+                    '@@UNTIL '*)
+                        local t=${rest#@@UNTIL } fmt;
+                        fmt=${t#* };
+                        t=${t%% *};
+                        [[ $fmt == "$t" ]] && fmt='Closing in %s';
+                        if [[ $t == ++([0-9]) ]]; then
+                            AT_UNTIL=$(( ${EPOCHREALTIME%.*} + ${t#+} ));
+                        else
+                            if [[ $t == +([0-9]) ]]; then
+                                AT_UNTIL=$t;
+                            else
+                                return;
+                            fi;
+                        fi;
+                        AT_FMT=$fmt;
+                        AT_CD=${#AT_LINES[@]};
+                        AT_LINES+=("")
+                    ;;
+                    *)
+                        AT_LINES+=("$rest")
+                    ;;
+                esac;
+                _draw 1;
+                return
+            ;;
+            @@OK | @@FAIL)
+                target=${rest:-$CURRENT};
+                [[ -z $target ]] && return;
+                _clear_step;
+                _touch_comp "$target";
+                if [[ ${key^^} == @@OK ]]; then
+                    STATUS[$target]="ok";
+                    _timer_stop "$target";
+                    LDIRTY[$target]=1;
+                    LEFT_VALID=0;
+                else
+                    _mark_fail "$target";
+                fi;
+                _note_width "$target";
+                _draw 1;
+                return
+            ;;
+            @@HIGHLIGHT)
+                if [[ -z $CURRENT ]]; then
+                    CURRENT="general";
+                    _touch_comp "$CURRENT";
+                    _timer_start "$CURRENT";
+                fi;
+                hpay=${clean#*"$key"};
+                hpay=${hpay#"${hpay%%[![:space:]]*}"};
+                if [[ -z $rest ]]; then
+                    _clear_highlight "$CURRENT";
+                else
+                    _push_highlight "$CURRENT" "$hpay";
+                fi;
+                _draw 1;
+                return
+            ;;
+        esac;
+        if [[ -z $CURRENT ]]; then
+            CURRENT="general";
+            _touch_comp "$CURRENT";
+            _timer_start "$CURRENT";
+        fi;
+        _apply_step_rules "$plainkey";
+        _push_log "$CURRENT" "$clean";
+        _draw
+    };
+    _open_tty;
+    _read_geom;
+    printf '\033[?25l';
+    printf '\033[?7l';
+    trap '_finish' EXIT;
+    trap 'exit 130' INT;
+    trap 'exit 143' TERM;
+    trap 'GEOM_DIRTY=1; FULL_CLEAR=1' WINCH;
+    printf '\033[2J\033[H';
+    local line rc;
+    while true; do
+        line="";
+        if IFS= read -r -t "$TICK_SEC" line; then
+            _handle_line "$line";
+        else
+            rc=$?;
+            if (( rc > 128 )); then
+                if (( ${#AT_LINES[@]} || ${EPOCHREALTIME%.*} < AT_GUARD )); then
+                    _draw 1;
+                else
+                    _timer_tick && _draw 1;
+                fi;
+                continue;
+            fi;
+            [[ -n $line ]] && _handle_line "$line";
+            break;
+        fi;
+        _timer_tick && _draw;
+    done;
+    _stop_all_timers;
+    (( T_LAST == 0 )) && T_LAST=$(_now_ms);
+    LEFT_VALID=0;
+    local c;
+    for c in "${ORDER[@]}";
+    do
+        [[ -n $c ]] && LDIRTY[$c]=1;
+    done;
+    REVIEW=1;
+    _clear_step;
+    _draw 1 )
+}
+act_panelled_logs_askpass () 
+{ 
+    local askpass_helper="$1";
+    local askpass_env="$2";
+    ( umask 077;
+    read -r -d '' template <<'EOF'
+#!/bin/bash
+if [ -n "$ASKPASS_ENV" ]; then
+  printf '%s\n' "$ASKPASS_ENV"
+else
+  exec 8<>/dev/tty 2>/dev/null || exit 1
+  # size and style
+  rows=$(stty size <&8 | cut -d' ' -f1)
+  saved=$(stty -g <&8) || exit 1
+  # restore screen
+  trap 'stty "$saved" <&8 2>/dev/null; printf "\033[%d;1H\033[K" "${rows:-1}" >&8' EXIT INT TERM HUP PIPE
+  stty -echo <&8
+  # last row: _draw only ever writes rows 1..rows-1, so this is never repainted
+  printf '\033[%d;1H\033[K%s' "${rows:-1}" "$1" >&8
+  IFS= read -r pw <&8
+  printf '\033[%d;1H\033[K' "${rows:-1}" >&8
+  printf '%s\n' "$pw"
+fi
+EOF
+
+    printf '%s\n' "${template//ASKPASS_ENV/$askpass_env}" > "$askpass_helper" ) && chmod 700 "$askpass_helper"
+}
+act_resolve_args () 
+{ 
+    local act_name=$1;
+    shift;
+    local args=("$@") margs=(${*##-*});
+    if [ "$act_name" = "stop" ] && [ ${#margs[@]} -eq 0 ]; then
+        args+=($(ensure_prop find "started/*" | cut -f2 -d/ | uniq));
+    else
+        if [ "$act_name" = "remove" ] && [[ " $* " = *" --remove-all "* ]] && [ -z "$(act_extract_modules $act_name "$@")" ]; then
+            args+=($(ensure_prop find "installed/*" | cut -f2 -d/ | uniq));
+        else
+            if [ "$act_name" != "stop" ] && [ -z "$(act_extract_modules $act_name "$@")" ]; then
+                args=($(ensure_prop get modules) "${args[@]}");
+            fi;
+        fi;
+    fi;
+    echo "${args[*]}"
+}
+configure_anomalib () 
+{ 
+    workspace="$(ensure_project_path)/anomalib";
+    version=2.7.0;
+    repository=https://github.com/open-edge-platform/anomalib.git;
+    version_skills=release-2026.2.0;
+    repository_skills=https://github.com/open-edge-platform/anomalib.git;
+    skills=(anomalib-adding-a-datamodule anomalib-adding-a-model anomalib-tiled-ensemble anomalib-training anomalib-benchmarking)
+}
+configure_dlstreamer () 
+{ 
+    repo_name="yum.repos.intel.com";
+    key_url="https://$repo_name/edgeai/dlstreamer/GPG-PUB-KEY-INTEL-DLS.gpg";
+    yum_repo_conf=("[DLStreamer]" "name=Intel(R) DLStreamer" "baseurl=https://$repo_name/edgeai/dlstreamer" "enabled=1" "gpgcheck=1" "repo_gpgcheck=1" "gpgkey=$key_url");
+    yum_repo_file="/etc/yum.repos.d/intel-dlstreamer.repo";
+    workspace="$(ensure_project_path)/dlstreamer";
+    version=2026.2.0;
+    od_model=yolov5m-640_INT8/FP16-INT8/yolov5m-640_INT8;
+    od_model_proc=yolov5m-640_INT8/yolo-v5;
+    oc_model=efficientnet-b0_INT8/FP16-INT8/efficientnet-b0;
+    model_repo=https://raw.githubusercontent.com/dlstreamer/pipeline-zoo-models/ee73878abc6fb6d864e59a5cd80016de4fc1d194;
+    version_skills=release-2026.2.0;
+    repository_skills=https://github.com/open-edge-platform/skills.git;
+    skills=(dlstreamer-coding-agent)
+}
+configure_docker_ce () 
+{ 
+    repo_name="download.docker.com";
+    key_url="https://$repo_name/linux/fedora/gpg";
+    yum_repo_conf=("[docker-ce-stable]" "name=Docker CE Stable - \$basearch" "baseurl=https://$repo_name/linux/$ID/\$releasever/\$basearch/stable" "enabled=1" "gpgcheck=1" "gpgkey=$key_url");
+    yum_repo_file="/etc/yum.repos.d/docker-ce.repo";
+    docker_compose_plugin="https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$(uname -m)";
+    docker_compose_bin="/usr/local/docker-compose"
+}
+configure_docker_proxy () 
+{ 
+    if [ -n "${http_proxy:-$HTTP_PROXY}${https_proxy:-$HTTPS_PROXY}" ]; then
+        if ensure_dnf_is_installed podman; then
+            ensure_sudo mkdir -p /etc/systemd/system/podman.socket.d;
+            cat | ensure_sudo tee /etc/systemd/system/podman.socket.d/20-proxy.conf <<EOF
+[Service]
+Environment="HTTP_PROXY=${http_proxy:-$HTTP_PROXY}"
+Environment="HTTPS_PROXY=${https_proxy:-$HTTPS_PROXY}"
+Environment="NO_PROXY=${no_proxy:-$NO_PROXY}"
+EOF
+
+            ensure_sudo systemctl daemon-reload;
+            ensure_sudo systemctl restart podman.socket;
+        else
+            if ensure_dnf_is_installed docker-ce; then
+                grep -q -E 'HTTPS*_PROXY=' /etc/systemd/system/docker.service.d/*.conf 2> /dev/null || ( ensure_sudo mkdir -p /etc/systemd/system/docker.service.d;
+                ensure_sudo tee /etc/systemd/system/docker.service.d/99-oep-proxy.conf <<EOF
+[Service]
+Environment="HTTP_PROXY=${http_proxy:-$HTTP_PROXY}"
+Environment="HTTPS_PROXY=${https_proxy:-$HTTPS_PROXY}"
+Environment="NO_PROXY=${no_proxy:-$NO_PROXY}"
+EOF
+
+                ensure_sudo systemctl daemon-reload;
+                ensure_sudo systemctl restart docker );
+                local CONFIG_JSON="$HOME/.docker/config.json";
+                echo "Configure docker client proxies...";
+                mkdir -p "$(dirname "$CONFIG_JSON")";
+                python3 - "$CONFIG_JSON" <<'EOF'
+import json, os, sys
+p = sys.argv[1]
+cfg = json.load(open(p)) if os.path.exists(p) else {}
+cfg.setdefault("proxies", {})["default"] = {
+    "httpProxy":  os.environ.get("http_proxy",  os.environ.get("HTTP_PROXY", "")),
+    "httpsProxy": os.environ.get("https_proxy", os.environ.get("HTTPS_PROXY", "")),
+    "noProxy":    os.environ.get("no_proxy",    os.environ.get("NO_PROXY", "")),
+}
+json.dump(cfg, open(p, "w"), indent=2)
+EOF
+
+            fi;
+        fi;
+    fi
+}
+configure_geti () 
+{ 
+    workspace="$(ensure_project_path)/geti";
+    version_skills=release-2026.2.0;
+    repository_skills=https://github.com/open-edge-platform/skills.git;
+    skills=(geti-using-the-pipeline getitune-discovering-models getitune-exporting-a-model getitune-optimizing-a-model getitune-preparing-datasets getitune-running-inference getitune-training-a-model);
+    image_name=ghcr.io/open-edge-platform/geti-xpu;
+    used_ports=(8080)
+}
+configure_kernel_module_essential () 
+{ 
+    local ver="";
+    local barner="${1:-"$(< /proc/version 2> /dev/null || true)"}";
+    if [ -n "$barner" ]; then
+        ver=$(LC_ALL=C awk '{
+      s = $0; depth = 0
+      for (i = 1; i <= length(s); i++) {
+        c = substr(s, i, 1)
+        if (c == "(") {
+          depth++
+          if (depth == 1) { full = ""; clean = ""; cut = 0 }
+          else full = full c
+          continue
+        }
+        if (c == ")") {
+          if (depth == 1) {
+            if (full ~ /gcc|GCC|clang/) { found = 1; break }
+          } else if (depth > 1) full = full c
+            if (depth > 0) depth--
+            continue
+        }
+        if (depth >= 1) full = full c
+        if (depth == 1 && !cut) {
+          if (c == ",") cut = 1
+          else clean = clean c
+        }
+      }
+      # Fallback: no balanced group matched; use the whole line
+      if (!found) { full = s; clean = s; gsub(/\([^()]*\)/, " ", clean) }
+
+      kind = (clean ~ /clang/ && clean !~ /gcc|GCC/) ? "clang" : "gcc"
+      if (match(clean, /(^|[ \t])[0-9]+\.[0-9]+(\.[0-9]+)?/)) {
+        v = substr(clean, RSTART, RLENGTH)
+        gsub(/^[ \t]+/, "", v)
+        print kind, v
+      }
+    }' <<< "$barner");
+        case $ver in 
+            gcc\ *)
+                echo "${ver#gcc }";
+                return 0
+            ;;
+            clang\ *)
+                echo "kernel built with clang ${ver#clang }, not gcc" 1>&2;
+                return 2
+            ;;
+        esac;
+    fi;
+    local cfg n;
+    for cfg in "/boot/config-$(uname -r)" /proc/config.gz "/lib/modules/$(uname -r)/build/.config";
+    do
+        [[ -r $cfg ]] || continue;
+        local reader=cat;
+        [[ $cfg == *.gz ]] && reader=zcat;
+        n=$($reader "$cfg" 2> /dev/null | sed -n 's/^CONFIG_GCC_VERSION=\([0-9]\+\)$/\1/p');
+        if [[ -n $n && $n -gt 0 ]]; then
+            echo "$(( n / 10000 )).$(( n / 100 % 100 )).$(( n % 100 ))";
+            return 0;
+        fi;
+        if $reader "$cfg" 2> /dev/null | grep -q '^CONFIG_CC_IS_CLANG=y'; then
+            echo "kernel built with clang, not gcc" 1>&2;
+            return 2;
+        fi;
+        ver=$($reader "$cfg" 2> /dev/null | sed -n 's/^CONFIG_CC_VERSION_TEXT="\(.*\)"$/\1/p');
+        if [[ -n $ver ]]; then
+            configure_kernel_gcc "($ver)";
+            return 0;
+        fi;
+    done;
+    echo "unable to determine kernel gcc version" 1>&2;
+    return 1
+}
+configure_kernel_module_essential_fedora () 
+{ 
+    local ver;
+    ver=$(configure_kernel_module_essential) || { 
+        local rc=$?;
+        return $?
+    };
+    local rel="${VERSION_ID%%.*}" major=${ver%%.*} def;
+    case $rel in 
+        6 | 7)
+            def=4
+        ;;
+        8)
+            def=8
+        ;;
+        9)
+            def=11
+        ;;
+        10)
+            def=14
+        ;;
+        *)
+            def=$major
+        ;;
+    esac;
+    install_pkgs=("kernel-devel-$(uname -r)");
+    if (( major == def )); then
+        install_pkgs+=(gcc gcc-c++);
+        export CC=gcc;
+        export CXX=g++;
+    else
+        if (( rel == 7 )); then
+            install_pkgs+=(devtoolset-$major-gcc devtoolset-$major-gcc-c++);
+            export CC=/opt/rh/devtoolset-$major/root/usr/bin/gcc;
+            export CXX=/opt/rh/devtoolset-$major/root/usr/bin/g++;
+        else
+            install_pkgs+=(gcc-toolset-$major-gcc gcc-toolset-$major-gcc-c++);
+            export CC=/opt/rh/gcc-toolset-$major/root/usr/bin/gcc;
+            export CXX=/opt/rh/gcc-toolset-$major/root/usr/bin/g++;
+        fi;
+    fi
+}
+configure_openvino () 
+{ 
+    repo_name="yum.repos.intel.com";
+    key_url="https://$repo_name/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB";
+    yum_repo_conf=("[OpenVINO]" "name=Intel(R) Distribution of OpenVINO" "baseurl=https://$repo_name/openvino" "enabled=1" "gpgcheck=1" "repo_gpgcheck=1" "gpgkey=$key_url");
+    yum_repo_file="/etc/yum.repos.d/intel-openvino.repo";
+    version=$([[ " $* " = *" dlstreamer "* ]] && echo 2026.2.0 || echo 2026.4.1);
+    workspace="$(ensure_project_path)/openvino";
+    model="https://github.com/onnx/models/raw/4c46cd00fbdb7cd30b6c1c17ab54f2e1f4f7b177/validated/vision/classification/squeezenet/model/squeezenet1.0-12.onnx"
+}
+configure_pipx () 
+{ 
+    echo "$PATH" | grep -q -F ~/.local/bin || export PATH=$PATH:~/.local/bin
+}
+configure_podman_docker () 
+{ 
+    docker_compose_plugin="https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$(uname -m)";
+    docker_compose_bin=/usr/local/bin/docker-compose
+}
+configure_reboot () 
+{ 
+    ensure_prop set reboot_requested true
+}
+configure_uv () 
+{ 
+    configure_pipx "$@"
+}
+ensure_columns () 
+{ 
+    local sep=${1:-'|'};
+    python3 -c '
+import sys,re
+ansi_re = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]|\033\[[0-9;]*[a-zA-Z]")
+rows=[line.strip().split(sys.argv[1]) for line in sys.stdin]
+if not rows: sys.exit(0)
+cols=max(len(r) for r in rows)
+widths=[max((len(ansi_re.sub("",r[c])) for r in rows if c < len(r)-1),default=0) for c in range(cols-1)]
+for r in rows:
+  print((" "*2).join([r[i]+(" "*max(0,widths[i]-len(ansi_re.sub("",r[i])))) for i in range(len(r)-1)]+[r[-1]]))
+' "$sep"
+}
+ensure_disk_size () 
+{ 
+    local disk_size=$1;
+    local disk_path="${2:-$HOME}";
+    local disk_avail=$(df -B1 --output=avail "$disk_path" | awk 'NR==2{print int($1/1000000)}');
+    if [ "$disk_size" -gt "$disk_avail" ]; then
+        echo "Not enough disk space: required ${disk_size} MB and available ${disk_avail} MB" 1>&2;
+        return 3;
+    fi
+}
+ensure_dnf () 
+{ 
+    case "$1" in 
+        *)
+            ensure_sudo dnf -y "$@"
+        ;;
+    esac
+}
+ensure_dnf_enable_epel () 
+{ 
+    local rhel=$(rpm -E %rhel);
+    ensure_sudo subscription-manager repos --enable=codeready-builder-for-rhel-${rhel}-$(arch)-rpms;
+    ensure_sudo dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-${rhel}.noarch.rpm
+}
+ensure_dnf_install_package () 
+{ 
+    local module="${1%%=*}";
+    if ensure_dnf_is_installed "${@%%"*"}"; then
+        echo "${*%%=*} $([ ${#*} -eq 1 ] && echo is || echo are) installed." 1>&2;
+    else
+        ensure_prop installed/${module//[^a-zA-Z0-9]/_}/owned true;
+        ensure_dnf install -y "$@";
+    fi
+}
+ensure_dnf_is_installed () 
+{ 
+    for pkg in $*;
+    do
+        local pkg_name="${pkg%%=*}" pkg_ver="${pkg#*=}" matched=0 versions vr;
+        versions=$(rpm -q --qf '%{VERSION}-%{RELEASE}\n' "$pkg_name" 2> /dev/null) || return 1;
+        [[ "$pkg" = *=* ]] && [ -n "$pkg_ver" ] || continue;
+        while IFS= read -r vr; do
+            if [[ $vr == $pkg_ver || ${vr%%-*} == $pkg_ver ]]; then
+                matched=1;
+                break;
+            fi;
+        done <<< "$versions";
+        [ $matched -eq 1 ] || return 1;
+    done
+}
+ensure_dnf_remove_package () 
+{ 
+    local module="${1%%=*}";
+    [ "$(ensure_prop get installed/${module//[^a-zA-Z0-9]/_}/owned)" = "true" ] || return 0;
+    ensure_dnf autoremove -y "$@"
+}
+ensure_fetch () 
+{ 
+    local url="$1" dest="${2:-?}" html="${3:-}";
+    local rc=1 first tmp_dir i;
+    ensure_tmpdir create tmp_dir fetch || return 1;
+    local tmp_file="$tmp_dir/download";
+    for i in {1..5};
+    do
+        [ $i -eq 1 ] || sleep 5;
+        if command -v curl > /dev/null 2>&1; then
+            curl -fsSL --retry 3 --retry-delay 5 -A Mozilla/5.0 -o "$tmp_file" "$url" && rc=0 || rc=$?;
+        else
+            if command -v wget > /dev/null 2>&1; then
+                wget -q -t 3 -w 5 -O "$tmp_file" "$url" && rc=0 || rc=$?;
+            else
+                if command -v python3 > /dev/null 2>&1; then
+                    python3 - "$url" > "$tmp_file" <<'PY' && 
+import sys, shutil, urllib.request
+with urllib.request.urlopen(sys.argv[1], timeout=60) as r:
+  shutil.copyfileobj(r, sys.stdout.buffer)
+PY
+ rc=0 || rc=$?;
+                else
+                    echo "ensure_fetch: no curl, wget, or python3 available" 1>&2;
+                    rc=127;
+                    break;
+                fi;
+            fi;
+        fi;
+        if [ "$rc" -eq 0 ] && [ -s "$tmp_file" ]; then
+            [ "$html" != "--html" ] || break;
+            first=$(head -c 512 "$tmp_file" 2> /dev/null | tr -d '\0') || true;
+            case "${first,,}" in 
+                *"<!doctype html"* | *"<html"*)
+
+                ;;
+                *)
+                    break
+                ;;
+            esac;
+        fi;
+        rc=1;
+        rm -f "$tmp_file";
+    done;
+    if [ "$rc" -eq 0 ]; then
+        if [ "$dest" = "-" ]; then
+            cat "$tmp_file" && rc=0 || rc=$?;
+        else
+            { 
+                cp -f "$tmp_file" "$dest" 2> /dev/null || ensure_sudo cp -f "$tmp_file" "$dest"
+            } && rc=0 || rc=$?;
+        fi;
+    else
+        echo "ensure_fetch: giving up on $url" 1>&2;
+    fi;
+    ensure_tmpdir destroy "$tmp_dir" || true;
+    return "$rc"
+}
+ensure_git_clone () 
+{ 
+    local workspace="$1";
+    local version="$2";
+    local repository="$3";
+    ensure_rm "$workspace";
+    mkdir -p "$(dirname "$workspace")";
+    if [ ${#@} -ge 4 ]; then
+        mkdir -p "$workspace";
+        pushd "$workspace" > /dev/null;
+        git clone --filter=blob:none --no-checkout $repository .;
+        git sparse-checkout init --cone;
+        git sparse-checkout set "${@:4}";
+        git checkout $version;
+        popd > /dev/null;
+    else
+        mkdir -p "$workspace";
+        pushd "$workspace" > /dev/null;
+        git init -q;
+        git remote add origin "$repository";
+        git fetch --depth 1 origin "$version";
+        git checkout -q FETCH_HEAD;
+        [ ! -e .gitmodules ] || git submodule update --init --recursive;
+        popd > /dev/null;
+    fi
+}
+ensure_git_export () 
+{ 
+    ensure_git_clone "$@";
+    ensure_rm "$1"/.git
+}
+ensure_group_add () 
+{ 
+    local group1 gid1;
+    for group1 in "$@";
+    do
+        case "$group1" in 
+            *:)
+                gid1="--system"
+            ;;
+            *:*)
+                gid1="--system --gid ${group1#*:}";
+                getent group ${group1%:*} > /dev/null 2>&1 || [ -z "$(getent group ${gid1##* })" ] || { 
+                    echo "gid ${gid1##* } is taken" 1>&2;
+                    gid1="--system"
+                }
+            ;;
+            *)
+                gid1=""
+            ;;
+        esac;
+        getent group ${group1%:*} > /dev/null 2>&1 || ensure_sudo groupadd $gid1 ${group1%:*};
+        id -nG | tr ' ' '\n' | grep -qx ${group1%:*} || ensure_sudo usermod -aG ${group1%:*} "$(id -un)";
+    done;
+    local deadline=$((SECONDS + 30));
+    local flushed=0 missing;
+    while :; do
+        missing="";
+        for group1 in "$@";
+        do
+            id -G "$(id -un)" | tr ' ' '\n' | grep -qx "$(getent group ${group1%:*} | cut -f3 -d:)" || missing+=" ${group1%:*}";
+        done;
+        [ -n "$missing" ] || return 0;
+        if [ $flushed -eq 0 ]; then
+            flushed=1;
+            command -v nscd > /dev/null && ensure_sudo nscd -i group > /dev/null 2>&1;
+            command -v sss_cache > /dev/null && ensure_sudo sss_cache -G > /dev/null 2>&1;
+            continue;
+        fi;
+        [ $SECONDS -ge $deadline ] && { 
+            echo -e "${red}groups not visible:${missing}${reset}" 1>&2;
+            return 1
+        };
+        sleep 1;
+    done
+}
+ensure_hf_token () 
+{ 
+    local models=($*);
+    export HF_TOKEN;
+    [ -n "$HF_TOKEN" ] || [ ! -r "$HOME"/.cache/huggingface/token ] || export HF_TOKEN="$(< "$HOME"/.cache/huggingface/token)";
+    [ -n "$HF_TOKEN" ] || [ ! -r "$HOME"/.vscode/launch.json ] || export HF_TOKEN="$(grep -m1 -F '"HF_TOKEN":' "$HOME"/.vscode/launch.json)";
+    if ! ensure_hf_token_check_models "$@"; then
+        [ -z "$HF_TOKEN" ] || { 
+            echo "Invalid or unauthroized HF_TOKEN" 1>&2;
+            return 3
+        };
+        echo -e "${red}HF_TOKEN requried for downloading the following models:{reset}" 1>&2;
+        echo "$*" 1>&2;
+        local rundir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}";
+        [ -d "$rundir" ] && [ -w "$rundir" ] || rundir="$(ensure_project_path)/${installer_name:?}";
+        mkdir -p "$rundir" 2> /dev/null || return 1;
+        { 
+            flock -w 300 -e 9 || { 
+                echo "ensure_hf_token: timed out waiting for another installer" 1>&2;
+                return 1
+            };
+            local askpass_helper="$rundir"/askpass-hftoken;
+            act_panelled_logs_askpass "$askpass_helper" HF_TOKEN || { 
+                echo "ensure_hf_token: failed to create askpass helper" 1>&2;
+                return 1
+            };
+            export HF_TOKEN="$("$askpass_helper" 'HF_TOKEN:' | tr -d '\n')"
+        } 9< "$rundir";
+        if [[ -n "$HF_TOKEN" && ! -e "$HOME"/.cache/huggingface/token ]]; then
+            mkdir -p "$HOME"/.cache/huggingface;
+            ( umask 0077;
+            echo "$HF_TOKEN" > "$HOME"/.cache/huggingface/token );
+        fi;
+        ensure_hf_token_check_models "$@";
+    fi
+}
+ensure_hf_token_check_models () 
+{ 
+    local models=("$@");
+    local model f;
+    for model in ${models[*]};
+    do
+        local probes=();
+        for f in $(curl -s -L "https://huggingface.co/api/models/${model}?full=tree" | tr ',' '\n' | grep -F '"rfilename":' | cut -f4 -d'"');
+        do
+            case "$f" in 
+                *config.yaml | *config.json | *tokenizer.json)
+                    probes+=($f);
+                    break
+                ;;
+            esac;
+        done;
+        if [ ${#probes[*]} -eq 0 ]; then
+            echo "No probe found with $model" 1>&2;
+            return 3;
+        fi;
+        for f in ${probes[*]};
+        do
+            local code=$(curl -s -o /dev/null -w "%{http_code}" -L -r 0-0 -H "Authorization: Bearer $HF_TOKEN" https://huggingface.co/${model}/resolve/main/$f);
+            case "$code" in 
+                200 | 206)
+                    continue
+                ;;
+                401 | 403 | 404)
+                    echo "gated model: $model" 1>&2;
+                    return 1
+                ;;
+                *)
+                    echo "Unknown probe code $code" 1>&2;
+                    return 3
+                ;;
+            esac;
+        done;
+    done;
+    return 0
+}
+ensure_ip () 
+{ 
+    ip -4 addr show scope global | sed -n '/^[0-9]*:.*state UP/,/^[0-9]*:/{/^ *inet /{s|.*inet \([0-9.]*\).*|\1|;p}}' | head -n1
+}
+ensure_ports_open () 
+{ 
+    local act_name="${1:?}";
+    local name="${2:?}";
+    shift 2;
+    if [ "$act_name" = "start" ]; then
+        ensure_prop set started/$name/ports "$*";
+    fi;
+    if command -v ss > /dev/null; then
+        local port out stopper;
+        for port in $*;
+        do
+            out="$(ss -Hltunp "sport = :$port")";
+            [ -n "$out" ] || continue;
+            printf "${red}Port %s is occupied${reset}\n" "$port" 1>&2;
+            for mname in $(ensure_prop find "started/*/ports" | cut -f2 -d/);
+            do
+                [[ " $(ensure_prop get started/$mname/ports) " = *" $port "* ]] || continue;
+                stopper="${_act_cache_functions[stop_$mname]:-}";
+                [ -n "$stopper" ] || continue;
+                printf "${red}Stopping $mname to release port %s${reset}\n" "$port" 1>&2;
+                ( set -e;
+                $stopper "$mname" -- ) 1>&2 || true;
+            done;
+            out="$(ss -Hltunp "sport = :$port")";
+            [ -n "$out" ] || continue;
+            printf "${red}Port %s is occupied${reset}\n%s\n" "$port" "$out" 1>&2;
+            return 3;
+        done;
+    else
+        printf "${red}Missing ss on the system${reset}\n" 1>&2;
+        return 1;
+    fi
+}
+ensure_project_path () 
+{ 
+    echo "$HOME/.local/open-edge-platform"
+}
+ensure_prop () 
+{ 
+    local op="$1" key_path="${2:?}" value="${3:-}";
+    local key_base="$(ensure_project_path)/${installer_name:?}";
+    case "$op" in 
+        set)
+            ( umask 077;
+            printf '%s' "$value" > "$key_base/$key_path" )
+        ;;
+        get)
+            [ -r "$key_base/$key_path" ] && cat "$key_base/$key_path" || printf '%s' "$value"
+        ;;
+        find)
+            ( cd "$key_base" && find . -ipath "./$key_path" -print 2> /dev/null | cut -f2- -d/ )
+        ;;
+        create)
+            mkdir -m 700 -p "$key_base/${key_path%/*}"
+        ;;
+        remove)
+            if [ -f "$key_base/$key_path" ]; then
+                rm -f "$key_base/$key_path";
+            else
+                if [[ "$key_path" = */ && -d "$key_base/${key_path%/}" ]]; then
+                    rm -rf "$key_base/${key_path%/}";
+                fi;
+            fi
+        ;;
+    esac
+}
+ensure_ram_size () 
+{ 
+    local ram_size=$1;
+    local mem_total=$(awk '/^MemTotal:/{print$2}' /proc/meminfo);
+    if [ "$ram_size" -gt "$mem_total" ]; then
+        echo "Not enough RAM: required ${ram_size} KiB and available ${mem_total} KiB" 1>&2;
+        return 3;
+    fi;
+    local swap_size=${2:-0};
+    local swap_total=$(awk '/^SwapTotal:/{print$2}' /proc/meminfo);
+    if [ "$(( ram_size + swap_size ))" -gt "$(( mem_total + swap_total ))" ]; then
+        echo "Not enough RAM or swap space:" 1>&2;
+        echo " required swap ${swap_size} KiB and available ${swap_total} KiB" 1>&2;
+        echo " required mem+swap $(( ram_size + swap_size )) KiB and available $(( mem_total + swap_total )) KiB" 1>&2;
+        return 3;
+    fi
+}
+ensure_rm () 
+{ 
+    local p norm rc=0;
+    local protected=" / /bin /boot /dev /etc /home /lib /lib64 /media /mnt /opt /proc /root /run /sbin /srv /sys /tmp /usr /var /etc/apt /etc/apt/keyrings /etc/apt/preferences.d /etc/apt/sources.list.d /etc/systemd /etc/systemd/system /usr/bin /usr/lib /usr/local /usr/share /usr/share/keyrings /var/lib $HOME $HOME/.local $HOME/.local/bin ";
+    for p in "$@";
+    do
+        [ -n "$p" ] || continue;
+        norm="$(realpath -m -s -- "$p")";
+        if [[ "$protected" = *" $norm "* ]]; then
+            echo "ensure_rm: refusing to remove protected path '$p'" 1>&2;
+            return 3;
+        fi;
+        [ -e "$norm" ] || [ -L "$norm" ] || continue;
+        rm -rf -- "$norm" 2> /dev/null || ensure_sudo rm -rf -- "$norm" || rc=$?;
+    done;
+    return $rc
+}
+ensure_sbom_format () 
+{ 
+    local key=$1;
+    shift;
+    case "$key" in 
+        pkg-list | apt-pref | yum-repo-conf)
+            local IFS='|';
+            local pkg_str="$*";
+            echo "\"$key\": [\"${pkg_str//'|'/\",\"}\"]"
+        ;;
+        name | gpg-key | key-file | apt-source | apt-src-source | apt-list-file | apt-pref-file | apt-repository | yum-repo-file)
+            echo "\"$key\": \"$*\""
+        ;;
+        *)
+            echo "Unsupported SBOM key: $key" 1>&2;
+            return 3
+        ;;
+    esac
+}
+ensure_select_device () 
+{ 
+    local device="cpu";
+    local args_uc=" ${*^^} ";
+    [ ! -e /dev/accel/accel0 ] || device="npu";
+    [ ! -e /dev/dri/renderD128 ] || device="gpu";
+    [[ "$args_uc" != *" --CPU "* ]] || device="cpu";
+    [[ "$args_uc" != *" --NPU "* ]] || [ ! -e /dev/accel/accel0 ] || device="npu";
+    [[ "$args_uc" != *" --GPU "* ]] || [ ! -e /dev/dri/renderD128 ] || device="gpu";
+    echo $device
+}
+ensure_skills () 
+{ 
+    local op="$1";
+    case "$op" in 
+        add)
+            local version="${2:?}";
+            local repository="${3:?}";
+            shift 3;
+            local tmpdir p name;
+            ensure_tmpdir create tmpdir skills;
+            ensure_git_export "$tmpdir" "$version" "$repository" "$@";
+            mkdir -p "$HOME"/.agents/skills;
+            for p in "$@";
+            do
+                ensure_rm "$HOME/.agents/skills/${p##*/}";
+                cp -r "$tmpdir/$p" "$HOME"/.agents/skills;
+            done;
+            ensure_tmpdir destroy "$tmpdir"
+        ;;
+        remove)
+            local names=("${@##*/}");
+            local spath="$HOME/.agents/skills/";
+            ensure_rm "${names[@]/#/"$spath"}"
+        ;;
+    esac
+}
+ensure_sudo () 
+{ 
+    local hp="${http_proxy:-$HTTP_PROXY}" sp="${https_proxy:-$HTTPS_PROXY}" np="${no_proxy:-$NO_PROXY}" proxy_args=();
+    [ -z "$hp" ] || proxy_args+=("http_proxy=$hp" "HTTP_PROXY=$hp");
+    [ -z "$sp" ] || proxy_args+=("https_proxy=$sp" "HTTPS_PROXY=$sp");
+    [ -z "$np" ] || proxy_args+=("no_proxy=$np" "NO_PROXY=$np");
+    if [ -e /dev/tty ] && : < /dev/tty 2> /dev/null; then
+        local ppid=$$;
+        local pid="$(ensure_prop get pids/sudo/pid$ppid)";
+        if [ -z "$pid" ] || ! kill -0 "$pid" 2> /dev/null; then
+            ( set +e;
+            trap - ERR EXIT INT TERM;
+            for fd in /proc/$BASHPID/fd/*;
+            do
+                fd=${fd##*/};
+                (( fd > 2 )) && eval "exec $fd>&-";
+            done 2> /dev/null;
+            while kill -0 $ppid 2> /dev/null; do
+                sudo -n -v < /dev/null > /dev/null 2>&1 || sudo -n true < /dev/null > /dev/null 2>&1 || break;
+                sleep 60;
+            done;
+            ensure_prop remove pids/sudo/pid$ppid ) < /dev/null > /dev/null 2>&1 & pid=$!;
+            ensure_prop create pids/sudo/pid$ppid;
+            ensure_prop set pids/sudo/pid$ppid "$pid";
+            disown $pid;
+        fi;
+    fi;
+    if sudo -n true 2> /dev/null; then
+        sudo env "${proxy_args[@]}" "$@";
+    else
+        if [ -t 0 ] && [ -z "$SUDO_PASSWORD" ] && [ -z "$_INSTALLER_PANEL_ACTIVE" ]; then
+            sudo env "${proxy_args[@]}" "$@";
+        else
+            local rundir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}";
+            [ -d "$rundir" ] && [ -w "$rundir" ] || rundir="$(ensure_project_path)/${installer_name:?}";
+            mkdir -p "$rundir" 2> /dev/null || return 1;
+            ( flock -w 300 -e 9 || { 
+                echo "ensure_sudo: timed out waiting for another installer" 1>&2;
+                exit 1
+            };
+            if [ ! -x "$SUDO_ASKPASS" ]; then
+                askpass_helper="$rundir"/askpass-sudo;
+                act_panelled_logs_askpass "$askpass_helper" SUDO_PASSWORD || { 
+                    echo "ensure_sudo: failed to create askpass helper" 1>&2;
+                    exit 1
+                };
+                export SUDO_ASKPASS="$askpass_helper";
+            fi;
+            sudo -A env "${proxy_args[@]}" "$@" ) 9< "$rundir";
+        fi;
+    fi
+}
+ensure_tmpdir () 
+{ 
+    case "$1" in 
+        create)
+            printf -v $2 "%s" $(mktemp -d ${4:-/tmp}/openedge-cli-${3:-}.XXXXXX);
+            ensure_trap "rm -rf ${!2} || ensure_sudo rm -rf ${!2}" SIGINT EXIT
+        ;;
+        destroy)
+            rm -rf "$2";
+            ensure_trap - SIGINT EXIT
+        ;;
+    esac
+}
+ensure_trap () 
+{ 
+    local script="$1" sig var_sig;
+    shift;
+    for sig in "$@";
+    do
+        var_sig="${sig//[^a-zA-Z0-9_]/_}";
+        local -n stack="_ENSURE_TRAP_STACK_${var_sig}";
+        if [[ "$script" == "-" || -z "$script" ]]; then
+            if (( ${#stack[@]} > 0 )); then
+                unset "stack[$((${#stack[@]} - 1))]";
+                stack=("${stack[@]}");
+            fi;
+            if (( ${#stack[@]} == 0 )); then
+                trap - "$sig";
+            fi;
+        else
+            if [[ -z "$(trap -p "$sig")" ]]; then
+                stack=();
+                trap "
+          _ENSURE_TRAP_IDX_${var_sig}=\$((\${#_ENSURE_TRAP_STACK_${var_sig}[@]} - 1))
+          while (( _ENSURE_TRAP_IDX_${var_sig} >= 0 )); do
+            eval \"\${_ENSURE_TRAP_STACK_${var_sig}[\$_ENSURE_TRAP_IDX_${var_sig}]}\"
+            (( _ENSURE_TRAP_IDX_${var_sig}-- )) || true
+          done
+          trap - \"$sig\"
+          case \"$sig\" in
+            EXIT|0|ERR|RETURN|DEBUG) ;;
+            *) kill -s \"$sig\" \$\$ ;;
+          esac
+        " "$sig";
+            fi;
+            stack+=("$script");
+        fi;
+    done
+}
+fedora_05_install_curl () 
+{ 
+    ensure_dnf_install_package curl ca-certificates
+}
+fedora_05_install_dmidecode () 
+{ 
+    ensure_dnf_install_package dmidecode
+}
+fedora_05_install_pciutils () 
+{ 
+    ensure_dnf_install_package pciutils
+}
+fedora_05_remove_dmidecode () 
+{ 
+    ensure_dnf_remove_package dmidecode
+}
+fedora_05_sbom_curl () 
+{ 
+    ensure_sbom_format pkg-list curl ca-certificates
+}
+fedora_05_sbom_dmidecode () 
+{ 
+    ensure_sbom_format pkg-list dmidecode
+}
+fedora_05_sbom_pciutils () 
+{ 
+    ensure_sbom_format pkg-list pciutils
+}
+fedora_08_install_system_inspection () 
+{ 
+    install_system_inspection
+}
+fedora_08_profile_system_inspection () 
+{ 
+    [ "$1" != "install" ] || echo "curl dmidecode pciutils"
+}
+fedora_10_install_gnupg2 () 
+{ 
+    ensure_dnf_install_package gnupg2
+}
+fedora_10_install_wget () 
+{ 
+    ensure_dnf_install_package wget ca-certificates
+}
+fedora_10_sbom_gnupg2 () 
+{ 
+    ensure_sbom_format pkg-list gnupg2
+}
+fedora_10_sbom_wget () 
+{ 
+    ensure_sbom_format pkg-list wget ca-certificates
+}
+fedora_15_install_gawk () 
+{ 
+    ensure_dnf_install_package gawk
+}
+fedora_15_install_jq () 
+{ 
+    ensure_dnf_install_package jq
+}
+fedora_15_install_unzip () 
+{ 
+    ensure_dnf_install_package unzip
+}
+fedora_15_remove_jq () 
+{ 
+    ensure_dnf_remove_package jq
+}
+fedora_15_remove_unzip () 
+{ 
+    ensure_dnf_remove_package unzip
+}
+fedora_15_sbom_gawk () 
+{ 
+    ensure_sbom_format pkg-list gawk
+}
+fedora_15_sbom_jq () 
+{ 
+    ensure_sbom_format pkg-list jq
+}
+fedora_15_sbom_unzip () 
+{ 
+    ensure_sbom_format pkg-list unzip
+}
+fedora_29_install_reboot () 
+{ 
+    install_reboot "$@"
+}
+fedora_30_group_docker_ce () 
+{ 
+    echo "docker:"
+}
+fedora_30_group_podman_docker () 
+{ 
+    echo "docker:"
+}
+fedora_30_install_chrony () 
+{ 
+    ensure_dnf_install_package chrony
+}
+fedora_30_install_cmake () 
+{ 
+    ensure_dnf_install_package cmake
+}
+fedora_30_install_docker_ce () 
+{ 
+    configure_docker_ce "$@";
+    if docker version > /dev/null 2>&1 && docker buildx version > /dev/null 2>&1 && docker compose version > /dev/null 2>&1 && [[ " $* " != *" --reinstall "* ]]; then
+        echo "docker is installed." 1>&2;
+    else
+        if ensure_dnf_is_installed docker-ce && [[ " $* " != *" --reinstall "* ]]; then
+            ensure_dnf install -y docker-buildx-plugin docker-compose-plugin;
+        else
+            if ensure_dnf_is_installed podman && [[ " $* " != *" --reinstall "* ]]; then
+                ensure_dnf install -y podman-docker;
+                [ -x /usr/local/bin/docker-compose ] || { 
+                    ensure_fetch "$docker_compose_plugin" /usr/local/bin/docker-compose && ensure_sudo chmod a+rx /usr/local/bin/docker-compose
+                };
+            else
+                ensure_disk_size 800;
+                ensure_prop set installed/docker_ce/owned true;
+                ensure_prop remove installed/podman_docker/owned;
+                echo "Remove legacy installation";
+                fedora_30_remove_docker_ce "$@";
+                ensure_sudo mkdir -p /etc/systemd/system/docker.service.d;
+                ensure_sudo tee /etc/systemd/system/docker.service.d/10-socket.conf <<EOF
+[Unit]
+Requires=docker.socket
+After=docker.socket
+EOF
+
+                ensure_sudo systemctl daemon-reload;
+                ensure_sudo systemctl reset-failed docker.service docker.socket containerd.service 2> /dev/null || true;
+                ensure_group_add $(fedora_30_group_docker_ce);
+                printf "%s\n" "${yum_repo_conf[@]}" | ensure_sudo tee "$yum_repo_file";
+                ensure_dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin;
+                ensure_sudo systemctl daemon-reload;
+                ensure_sudo systemctl reset-failed docker.service docker.socket containerd.service 2> /dev/null || true;
+                ensure_sudo systemctl enable --now containerd.service;
+                ensure_sudo systemctl enable --now docker.socket;
+                ensure_sudo systemctl start docker.service;
+                local deadline=$((SECONDS+60));
+                until ensure_sudo docker info > /dev/null 2>&1; do
+                    [ $SECONDS -lt $deadline ] || { 
+                        echo -e "${red}dockerd did not become ready${reset}" 1>&2;
+                        ensure_sudo systemctl status docker.socket --no-pager 1>&2;
+                        ensure_sudo systemctl status docker.service --no-pager 1>&2;
+                        ensure_sudo journalctl -u docker.socket -u docker.service --since "-5 min" --no-pager 1>&2;
+                        return 1
+                    };
+                    if ensure_sudo systemctl is-failed --quiet docker.service docker.socket; then
+                        ensure_sudo systemctl reset-failed docker.service docker.socket 2> /dev/null || true;
+                        ensure_sudo systemctl start docker.socket 2> /dev/null || true;
+                        ensure_sudo systemctl start docker.service 2> /dev/null || true;
+                    fi;
+                    sleep 1;
+                done;
+            fi;
+        fi;
+    fi;
+    configure_docker_proxy
+}
+fedora_30_install_gcc () 
+{ 
+    ensure_dnf_install_package gcc gcc-c++
+}
+fedora_30_install_git () 
+{ 
+    ensure_dnf_install_package git ca-certificates
+}
+fedora_30_install_kernel_module_essential () 
+{ 
+    configure_kernel_module_essential_fedora;
+    local p pkgs=();
+    for p in ${install_pkgs[*]};
+    do
+        if ensure_dnf_is_installed $p; then
+            echo "$p is installed." 1>&2;
+        else
+            ensure_prop set installed/kernel_module_essential/owned_$p true;
+            pkgs+=($p);
+        fi;
+    done;
+    if [ ${#pkgs[@]} -gt 0 ]; then
+        ensure_dnf install "${pkgs[@]}";
+    fi
+}
+fedora_30_install_make () 
+{ 
+    ensure_dnf_install_package make
+}
+fedora_30_install_pcre2_devel () 
+{ 
+    ensure_dnf_install_package pcre2-devel
+}
+fedora_30_install_podman_docker () 
+{ 
+    configure_podman_docker "$@";
+    if docker version > /dev/null 2>&1 && docker buildx version > /dev/null 2>&1 && docker compose version > /dev/null 2>&1 && [[ " $* " != *" --reinstall "* ]]; then
+        echo "podman-docker is installed." 1>&2;
+    else
+        if ensure_dnf_is_installed docker-ce && [[ " $* " != *" --reinstall "* ]]; then
+            ensure_rm "$docker_compose_bin";
+            ensure_dnf install -y docker-buildx-plugin docker-compose-plugin;
+        else
+            if ensure_dnf_is_installed podman && [[ " $* " != *" --reinstall "* ]]; then
+                ensure_dnf install -y podman-docker;
+                [ -x "$docker_compose_bin" ] || { 
+                    ensure_fetch "$docker_compose_plugin" "$docker_compose_bin" && ensure_sudo chmod a+rx "$docker_compose_bin"
+                };
+            else
+                ensure_disk_size 800;
+                ensure_prop set installed/podman_docker/owned true;
+                ensure_prop remove installed/docker_ce/owned;
+                echo "Remove legacy installation";
+                fedora_30_remove_podman_docker "$@";
+                ensure_group_add $(fedora_30_group_podman_docker);
+                ensure_dnf install -y podman podman-docker;
+                ensure_fetch "$docker_compose_plugin" "$docker_compose_bin" && ensure_sudo chmod a+rx "$docker_compose_bin";
+                ensure_sudo mkdir -p /etc/systemd/system/podman.socket.d;
+                cat | sudo tee /etc/systemd/system/podman.socket.d/10-socket.conf <<EOF
+[Socket]
+SocketMode=0660
+SocketGroup=docker
+EOF
+
+                ensure_sudo systemctl daemon-reload;
+                ensure_sudo systemctl enable --now podman.socket;
+            fi;
+        fi;
+    fi;
+    configure_docker_proxy
+}
+fedora_30_install_rsync () 
+{ 
+    ensure_dnf_install_package rsync
+}
+fedora_30_install_stress_ng () 
+{ 
+    ensure_dnf_install_package stress-ng
+}
+fedora_30_remove_cmake () 
+{ 
+    ensure_dnf_remove_package cmake
+}
+fedora_30_remove_docker_ce () 
+{ 
+    configure_docker_ce "$@";
+    [ "$(ensure_prop get installed/docker_ce/owned)" = "true" ] || return 0;
+    ensure_sudo systemctl reset-failed docker.service docker.socket containerd.service 2> /dev/null || true;
+    ensure_sudo systemctl stop docker.socket docker.service 2> /dev/null || true;
+    ensure_dnf autoremove -y docker docker-ce-cli docker-client docker-client-latest docker-common docker-latest docker-latest-logrotate docker-logrotate docker-engine docker-selinux docker-engine-selinux podman runc podman-docker docker-ce containerd.io docker-buildx-plugin docker-compose-plugin || true;
+    ensure_rm /etc/systemd/system/docker.service.d /etc/systemd/system/podman.socket.d "$docker_compose_bin" "$apt_file" "$key_file";
+    ensure_sudo systemctl daemon-reload || true
+}
+fedora_30_remove_gcc () 
+{ 
+    ensure_dnf_remove_package gcc gcc-c++
+}
+fedora_30_remove_git () 
+{ 
+    ensure_dnf_remove_package git
+}
+fedora_30_remove_kernel_module_essential () 
+{ 
+    configure_kernel_module_essential_fedora;
+    local p pkgs=();
+    for p in ${install_pkgs[*]};
+    do
+        [ "$(ensure_prop get installed/kernel_module_essential/owned_$p)" = "true" ] || continue;
+        pkgs+=($p);
+    done;
+    [ ${#pkgs[@]} -eq 0 ] || ensure_dnf remove ${pkgs[*]}
+}
+fedora_30_remove_make () 
+{ 
+    ensure_dnf_remove_package make
+}
+fedora_30_remove_podman_docker () 
+{ 
+    configure_podman_docker "$@";
+    [ "$(ensure_prop get installed/podman_docker/owned)" = "true" ] || return 0;
+    ensure_dnf autoremove -y docker docker-ce-cli docker-client docker-client-latest docker-common docker-latest docker-latest-logrotate docker-logrotate docker-engine docker-selinux docker-engine-selinux podman podman-docker runc containerd.io docker-buildx-plugin docker-compose-plugin || true;
+    ensure_rm /etc/systemd/system/podman.socket.d /etc/systemd/system/docker.service.d "$docker_compose_bin";
+    ensure_sudo systemctl daemon-reload || true
+}
+fedora_30_remove_rsync () 
+{ 
+    ensure_dnf_remove_package rsync
+}
+fedora_30_remove_stress_ng () 
+{ 
+    ensure_dnf_remove_package stress-ng
+}
+fedora_30_sbom_chrony () 
+{ 
+    ensure_sbom_format pkg-list chrony
+}
+fedora_30_sbom_cmake () 
+{ 
+    ensure_sbom_format pkg-list cmake
+}
+fedora_30_sbom_docker_ce () 
+{ 
+    configure_docker_ce "$@";
+    ensure_sbom_format name $repo_name;
+    ensure_sbom_format gpg-key "$key_url";
+    ensure_sbom_format yum-repo-conf "${yum_repo_conf[@]}";
+    ensure_sbom_format yum-repo-file "$yum_repo_file";
+    ensure_sbom_format pkg-list docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+}
+fedora_30_sbom_gcc () 
+{ 
+    ensure_sbom_format pkg-list gcc gcc-c++
+}
+fedora_30_sbom_git () 
+{ 
+    ensure_sbom_format pkg-list git ca-certificates
+}
+fedora_30_sbom_kernel_module_essential () 
+{ 
+    configure_kernel_module_essential_fedora;
+    ensure_sbom_format pkg-list ${install_pkgs[*]}
+}
+fedora_30_sbom_make () 
+{ 
+    ensure_sbom_format pkg-list make
+}
+fedora_30_sbom_pcre2_devel () 
+{ 
+    ensure_sbom_format pkg-list pcre2-devel
+}
+fedora_30_sbom_podman_docker () 
+{ 
+    configure_podman_docker "$@";
+    ensure_sbom_format pkg-list podman podman-docker
+}
+fedora_30_sbom_rsync () 
+{ 
+    ensure_sbom_format pkg-list rsync
+}
+fedora_30_sbom_stress_ng () 
+{ 
+    ensure_sbom_format pkg-list stress-ng
+}
+fedora_40_install_python3_pip () 
+{ 
+    ensure_dnf_install_package python3-pip
+}
+fedora_40_sbom_python3_pip () 
+{ 
+    ensure_sbom_format pkg-list python3-pip
+}
+fedora_45_install_pipx () 
+{ 
+    configure_pipx "$@";
+    if command -v pipx > /dev/null 2>&1; then
+        echo "pipx is installed. Skipping" 1>&2;
+    else
+        ensure_prop set installed/pipx/owned true;
+        ensure_rm ~/.local/share/pipx-venv;
+        python3 -m venv ~/.local/share/pipx-venv;
+        ~/.local/share/pipx-venv/bin/pip install pipx;
+        ln -srf ~/.local/share/pipx-venv/bin/pipx ~/.local/bin/pipx;
+    fi
+}
+fedora_45_profile_pipx () 
+{ 
+    echo "pip"
+}
+fedora_45_remove_pipx () 
+{ 
+    [ "$(ensure_prop get installed/pipx/owned)" = "true" ] || return 0;
+    ensure_rm ~/.local/share/pipx-venv ~/.local/bin/pipx
+}
+fedora_50_install_uv () 
+{ 
+    configure_uv "$@";
+    if uv --version 2> /dev/null && [[ " $* " != *" --reinstall "* ]]; then
+        echo "Uv is already installed. Skipping...";
+    else
+        pipx install uv;
+        ensure_prop set installed/uv/owned true;
+    fi
+}
+fedora_50_profile_uv () 
+{ 
+    echo "pipx"
+}
+fedora_50_remove_uv () 
+{ 
+    configure_pipx "$@";
+    [ "$(ensure_prop get installed/uv/owned)" = "true" ] || return 0;
+    pipx uninstall uv
+}
+fedora_70_install_nodejs () 
+{ 
+    ensure_dnf_install_package nodejs
+}
+fedora_70_install_openvino () 
+{ 
+    configure_openvino "$@";
+    if verify_openvino && [[ " $* " != *" --reinstall "* ]]; then
+        echo "openvino-${version} is installed." 1>&2;
+    else
+        ensure_disk_size 1500;
+        ensure_prop set installed/openvino/owned true;
+        echo "@@STEP Removing openvino";
+        fedora_70_remove_openvino "$@";
+        echo "@@STEP Installing openvino-$version";
+        printf "%s\n" "${yum_repo_conf[@]}" | ensure_sudo tee "$yum_repo_file";
+        ensure_dnf install -y openvino-$version;
+        verify_openvino;
+        echo "openvino-${version} installed successfully.";
+    fi;
+    test_openvino "$@";
+    echo "@@HIGHLIGHT openvino samples @/usr/share/openvino"
+}
+fedora_70_profile_openvino () 
+{ 
+    echo "curl gnupg2 pip";
+    if [[ " $* " = *" --validate "* ]]; then
+        echo "make cmake gcc";
+    fi
+}
+fedora_70_remove_nodejs () 
+{ 
+    ensure_dnf_remove_package nodejs
+}
+fedora_70_remove_openvino () 
+{ 
+    configure_openvino "$@";
+    [ "$(ensure_prop get installed/openvino/owned)" = "true" ] || return 0;
+    ensure_dnf autoremove -y $(dnf list --installed | grep openvino | awk '{print$1}') || true;
+    ensure_rm "$workspace"
+}
+fedora_70_sbom_nodejs () 
+{ 
+    ensure_sbom_format pkg-list nodejs
+}
+fedora_70_sbom_openvino () 
+{ 
+    configure_openvino "$@";
+    ensure_sbom_format name "$repo_name";
+    ensure_sbom_format gpg-key "$key_url";
+    ensure_sbom_format yum-repo-conf "${yum_repo_conf[@]}";
+    ensure_sbom_format yum-repo-file "$yum_repo_file";
+    ensure_sbom_format pkg-list "openvino-$version"
+}
+fedora_75_install_dlstreamer () 
+{ 
+    configure_dlstreamer;
+    if verify_dlstreamer && [[ " $* " != *" --reinstall "* ]]; then
+        echo "dlstreamer-${version} is installed." 1>&2;
+    else
+        ensure_disk_size 15000;
+        ensure_prop set installed/dlstreamer/owned true;
+        echo "@@STEP Removing intel-dlstreamer";
+        fedora_75_remove_dlstreamer "$@";
+        echo "@@STEP Installing intel-dlstreamer=$version";
+        printf "%s\n" "${yum_repo_conf[@]}" | ensure_sudo tee "$yum_repo_file";
+        ensure_dnf install -y intel-dlstreamer=$version;
+        echo "@@STEP Installing skills";
+        ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}";
+        verify_dlstreamer;
+        echo "intel-dlstreamer=$version installed successfully.";
+    fi;
+    test_dlstreamer_pipeline "$@";
+    echo "@@HIGHLIGHT shell env @/opt/intel/dlstreamer/scripts/setup_dls_env.sh";
+    echo "@@HIGHLIGHT samples @/opt/intel/dlstreamer/samples";
+    echo "@@HIGHLIGHT optimizer @/opt/intel/dlstreamer/scripts/optimizer"
+}
+fedora_75_profile_dlstreamer () 
+{ 
+    echo "openvino"
+}
+fedora_75_remove_dlstreamer () 
+{ 
+    configure_dlstreamer;
+    [ "$(ensure_prop get installed/dlstreamer/owned)" = "true" ] || return 0;
+    ensure_dnf autoremove -y $(dnf list --installed | grep openvino | awk '{print$1}') || true;
+    ensure_rm "$workspace" || true;
+    ensure_skills remove "${skills[@]}"
+}
+fedora_75_sbom_dlstreamer () 
+{ 
+    configure_dlstreamer;
+    ensure_sbom_format name "$repo_name";
+    ensure_sbom_format gpg-key "$key_url";
+    ensure_sbom_format yum-repo-conf "${yum_repo_conf[@]}";
+    ensure_sbom_format yum-repo-file "$yum_repo_file";
+    ensure_sbom_format pkg-list "intel-dlstreamer=$version*"
+}
+fedora_80_install_anomalib () 
+{ 
+    configure_anomalib $*;
+    if verify_anomalib && [[ " $* " != *" --reinstall "* ]]; then
+        echo "Anomalib is installed." 1>&2;
+    else
+        ensure_disk_size 15000;
+        echo "@@STEP Installing anomalib=${version}";
+        mkdir -p "$workspace";
+        cd "$workspace";
+        python3 -m venv .venv;
+        . .venv/bin/activate;
+        pip install "anomalib[openvino,cpu]==${version}";
+        echo "@@STEP Installing skills";
+        ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}";
+        verify_anomalib;
+    fi;
+    test_anomalib "$@";
+    echo "@@HIGHLIGHT venv: $workspace/.venv"
+}
+fedora_80_profile_anomalib () 
+{ 
+    :
+}
+fedora_80_remove_anomalib () 
+{ 
+    configure_anomalib $*;
+    ensure_rm "$workspace" || true;
+    ensure_skills remove "${skills[@]}"
+}
+fedora_90_install_geti () 
+{ 
+    install_geti "$@"
+}
+fedora_90_profile_geti () 
+{ 
+    echo "podman_docker edge_base"
+}
+fedora_90_remove_geti () 
+{ 
+    remove_geti "$@"
+}
+fedora_90_start_geti () 
+{ 
+    start_geti "$@"
+}
+fedora_90_stop_geti () 
+{ 
+    stop_geti "$@"
+}
+fedora_99_install_system_summary () 
+{ 
+    echo "@@REPORT SYSTEM SUMMARY";
+    install_system_inspection "$@" || true
+}
+fedora_99_profile_edge_base () 
+{ 
+    case "$1" in 
+        bootstrap)
+            echo "core_types system_inspection system_summary edge_pack_base_standard edge_pack_npu gpu_accel npu_accel"
+        ;;
+        *)
+            echo "core_types system_inspection system_summary";
+            if [[ " $* " = *" --edgepack "* ]] && [[ "$(uname -r)" = "7."* ]]; then
+                echo "edge_pack_base_standard edge_pack_npu";
+            else
+                echo "gpu_accel npu_accel";
+            fi
+        ;;
+    esac
+}
+fedora_99_profile_system_summary () 
+{ 
+    [ "$1" != "bootstrap" ] || echo "system_inspection curl dmidecode pciutils";
+    [ "$1" != "install" ] || echo "curl dmidecode pciutils"
+}
+install_geti () 
+{ 
+    configure_geti "$@";
+    if verify_geti && [[ " $* " != *" --reinstall "* ]]; then
+        echo "Geti is installed." 1>&2;
+    else
+        ensure_disk_size 20000;
+        ensure_ram_size 16777216;
+        ensure_ports_open install geti "${used_ports[@]}";
+        echo "@@STEP Pulling image";
+        docker pull $image_name;
+        echo "@@STEP Installing skills";
+        ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}";
+    fi
+}
+install_reboot () 
+{ 
+    [ "$(ensure_prop get reboot_requested)" = "true" ] || return 0;
+    ensure_prop remove reboot_requested;
+    subcommand_setup;
+    [ -x "$installer_bin" ] || { 
+        echo "Failed to find $installer_cli" 1>&2;
+        return 3
+    };
+    [ -n "$(ensure_prop get command)" ] || { 
+        echo "Nothing to resume? Reboot deferred!" 1>&2;
+        return 3
+    };
+    local delay=2;
+    echo "@@ATTENTION @@BR";
+    echo "@@ATTENTION SYSTEM REBOOT REQUIRED";
+    echo "@@ATTENTION @@BR";
+    echo "@@ATTENTION RERUN '$installer_name resume' AFTER SYSTEM IS BACK.";
+    echo "@@ATTENTION @@BR";
+    echo "@@ATTENTION @@UNTIL +$(( delay * 60 )) Rebooting in %s (cancel: sudo shutdown -c)";
+    echo "@@ATTENTION @@BR";
+    echo "@@HIGHLIGHT RERUN $installer_name resume";
+    ensure_sudo shutdown -r +$delay && sleep infinity
+}
+install_system_inspection () 
+{ 
+    set -o pipefail;
+    ( echo "----------------------------------------------------------------";
+    ok="${green}✓  PASS${reset}";
+    nok="${red}⚠  MSG${reset}";
+    system_summary="$(system_scan_get_system_summary)";
+    echo "System|$system_summary";
+    pass=$ok;
+    membank_info="$(ensure_prop get installed/system_inspection/membank)";
+    [ -n "$membank_info" ] || membank_info="$(system_scan_check_membank)";
+    [ -z "$membank_info" ] || ensure_prop set installed/system_inspection/membank "$membank_info";
+    [ "$membank_info" = "DUAL/MULTI-CHANNELS" ] || pass="${nok/MSG/Check Memory}";
+    echo -e "RAM|$membank_info|$pass";
+    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT RAM|$membank_info|$pass" 1>&2;
+    case "$PRETTY_NAME" in 
+        *"24.04"* | *"26.04"* | *"Red Hat Enterprise"*)
+            pass=$ok
+        ;;
+        *)
+            pass="${nok/MSG/Not supported}"
+        ;;
+    esac;
+    echo -e "OS|$PRETTY_NAME|$pass";
+    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT OS|$PRETTY_NAME|$pass" 1>&2;
+    pass=$ok;
+    docker_ver="$(system_scan_check_docker)";
+    [[ "$docker_ver" = *Compose* ]] || pass="${nok/MSG/Missing Docker Compose}";
+    [ -n "$docker_ver" ] || pass="${nok} Missing Docker";
+    echo -e "Docker|$docker_ver|$pass";
+    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT Docker|$docker_ver|$pass" 1>&2;
+    net_pass=$ok;
+    net_access="$(system_scan_check_network_access)";
+    [[ "$net_access" = *reachable* ]] || net_pass="${nok/MSG/Check Proxies}";
+    echo -e "Network|$net_access|$net_pass";
+    [ "$net_pass" = "$ok" ] || echo -e "@@HIGHLIGHT Network|$net_access|$net_pass" 1>&2;
+    echo;
+    echo "Accelerators:";
+    pass=$ok;
+    cpuinst_info="$(system_scan_check_cpu_instructions)";
+    [[ "$cpuinst_info" != *Missing* ]] || pass="${nok/MSG/Check CPU}";
+    echo -e "CPU|$cpuinst_info|$pass";
+    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT CPU|$cpuinst_info|$pass";
+    for accel in $(lspci -d 8086::0300 -n | cut -f3 -d' ');
+    do
+        pass=$ok;
+        accel_info="$(system_scan_check_pci_device $accel "Intel Integrated Graphics")";
+        if [ -n "$accel_info" ]; then
+            [[ "$accel_info" = *driver* ]] || pass="${nok/MSG/Missing Driver}";
+            echo -e "GPU|$accel_info|$pass";
+            [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT GPU|$accel_info|$pass" 1>&2;
+        fi;
+    done;
+    for accel in $(lspci -d 8086::1200 -n | cut -f3 -d' ');
+    do
+        pass=$ok;
+        accel_info="$(system_scan_check_pci_device $accel "Intel AI Boost")";
+        if [ -n "$accel_info" ]; then
+            [[ "$accel_info" = *driver* ]] || pass="${nok/MSG/Missing Driver}";
+            echo -e "NPU|$accel_info|$pass";
+            [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT NPU|$accel_info|$pass" 1>&2;
+        fi;
+    done;
+    echo "----------------------------------------------------------------";
+    [ "$net_pass" = "$ok" ] ) | ensure_columns
+}
+remove_geti () 
+{ 
+    stop_geti "$@";
+    docker image rm -f $image_name || true;
+    ensure_rm "$workspace";
+    ensure_skills remove "${skills[@]}"
+}
+start_geti () 
+{ 
+    configure_geti "$@";
+    ensure_ports_open start geti "${used_ports[@]}";
+    mkdir -p "$workspace"/geti-data;
+    docker run --rm --name geti-app -d -v "$workspace"/geti-data:/application/data:rw -e HOST=0.0.0.0 -e PORT=${used_ports[0]} -p ${used_ports[0]}:${used_ports[0]} -e http_proxy -e https_proxy -e no_proxy -e HTTP_PROXY -e HTTPS_PROXY -e NO_PROXY $([ ! -d /dev/dri ] || echo "--device /dev/dri:/dev/dri") --group-add $(getent group render | cut -d: -f3 || echo 992) --group-add $(id -g) --shm-size 8g $image_name;
+    echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}/geti-data";
+    echo "@@HIGHLIGHT $installer_name stop|remove"
+}
+stop_geti () 
+{ 
+    configure_geti "$@";
+    docker rm -f geti-app || true
+}
+subcommand_install () 
+{ 
+    if [[ " $* " = *" --help "* ]]; then
+        echo "install options:";
+        echo "  --dry-run       dry-run operations";
+        echo "  --continue      ignore errors and proceed to the end";
+        echo "  --validate      perform sanity check of features after installation.";
+        echo "  --reinstall     force reinstallation of the component if exit.";
+        echo;
+        return 0;
+    fi;
+    if [[ " $* " = *" --reinstall "* ]]; then
+        local all=" ${_act_cache_names[*]:-${_act_cache_modules[*]}} " scoped=0 hit=0 a out=() bind=();
+        for a in "$@";
+        do
+            if [[ "$a" = --* && "$all" = *" ${a#--} "* ]]; then
+                scoped=1;
+            else
+                if [ $scoped -eq 0 ]; then
+                    if [ "$a" = "--reinstall" ]; then
+                        hit=1;
+                        continue;
+                    fi;
+                    if [[ "$a" != -* && "$all" = *" $a "* ]]; then
+                        if [ -n "${_act_cache_functions[install_$a]:-}" ]; then
+                            bind+=("--$a" "--reinstall");
+                        else
+                            echo "note: --reinstall skipped for profile '$a'" 1>&2;
+                        fi;
+                    fi;
+                fi;
+            fi;
+            out+=("$a");
+        done;
+        if [ $hit -eq 1 ] && [ ${#bind[@]} -eq 0 ]; then
+            echo "--reinstall requires at least one explicitly named module" 1>&2;
+            return 3;
+        fi;
+        [ $hit -eq 1 ] && out+=("${bind[@]}");
+        set -- "${out[*]}";
+    fi;
+    act_helper "install,Installation,Installing,Installed" "" "$@"
+}
+subcommand_list () 
+{ 
+    case " $* " in 
+        *" --help "*)
+            echo "list options:";
+            echo "  --sbom          show component SBOM items";
+            echo
+        ;;
+        *" --sbom "*)
+            if [ ${#*} -eq 1 ]; then
+                act_get prefix profile_;
+                local all_profiles=(${_act_reply[*]});
+                local all_modules=(${_act_cache_modules[*]});
+                set -- ${all_modules[*]} ${all_profiles[*]#*_*_*_};
+            fi;
+            local handles=($(act_find_deps install $(act_resolve_args install "$@")));
+            local all_install_modules="${handles[*]#${installer_family}_*_install_}";
+            local handler sbomer;
+            for handler in $(printf '%s\n' "${handles[@]}" | sort);
+            do
+                sbomer=${handler/_install_/_sbom_};
+                declare -F $sbomer > /dev/null 2>&1 || continue;
+                $sbomer $(act_extract_args sbom ${handler#*_*_*_} "$all_install_modules" "$@");
+                echo "---";
+            done
+        ;;
+        *)
+            local all_cmds=(${_act_cache_cmds[*]});
+            act_get prefix profile_;
+            local all_profiles=(${_act_reply[*]});
+            local all_modules=(${_act_cache_modules[*]});
+            local profile_lines=() module_lines=();
+            local -A module_act_cache=();
+            if [ ${#all_modules[@]} -gt 0 ]; then
+                local module_name;
+                for module_name in "${all_modules[@]}";
+                do
+                    [ ${#*} -eq 0 ] || [[ " $* " = *" $module_name "* ]] || continue;
+                    local module_cmds=() mname cmd;
+                    for cmd in ${all_cmds[*]};
+                    do
+                        for mname in $(act_expand_modules $cmd $module_name "$@");
+                        do
+                            if [[ -v _act_cache_functions[${cmd}_${mname}] ]]; then
+                                module_cmds+=($cmd);
+                                break;
+                            fi;
+                        done;
+                    done;
+                    module_act_cache[$module_name]="${module_cmds[*]}";
+                    module_lines+=("|$module_name|[${module_act_cache[$module_name]}]");
+                done;
+            fi;
+            if [ ${#all_profiles[@]} -gt 0 ]; then
+                local profiler;
+                for profiler in "${all_profiles[@]}";
+                do
+                    local profile_name=${profiler#*_*_*_};
+                    [ ${#*} -eq 0 ] || [[ " $* " = *" $profile_name "* ]] || continue;
+                    [[ " ${all_modules[*]} " != *" $profile_name "* ]] || continue;
+                    local profile_cmds=() mname1 mname2 cmd found;
+                    for cmd in ${all_cmds[*]};
+                    do
+                        for mname1 in $($profiler $cmd "$@");
+                        do
+                            if [[ " ${module_act_cache[$mname1]:-} " = *" $cmd "* ]]; then
+                                profile_cmds+=($cmd);
+                                break;
+                            fi;
+                            found=0;
+                            for mname2 in $(act_expand_modules $cmd $mname1 "$@");
+                            do
+                                if [[ -v _act_cache_functions[${cmd}_${mname2}] ]]; then
+                                    found=1;
+                                    break;
+                                fi;
+                            done;
+                            if [ $found -eq 1 ]; then
+                                profile_cmds+=($cmd);
+                                break;
+                            fi;
+                        done;
+                    done;
+                    profile_lines+=("|$profile_name|[${profile_cmds[*]}]");
+                done;
+            fi;
+            { 
+                if [ ${#profile_lines[@]} -gt 0 ]; then
+                    printf "List of Profiles:\n";
+                    printf "%s\n" "${profile_lines[@]}" | sort;
+                    printf "\n";
+                fi;
+                if [ ${#module_lines[@]} -gt 0 ]; then
+                    printf "List of Components:\n";
+                    printf "%s\n" "${module_lines[@]}" | sort;
+                    printf "\n";
+                fi
+            } | ensure_columns
+        ;;
+    esac
+}
+subcommand_remove () 
+{ 
+    if [[ " $* " = *" --help "* ]]; then
+        echo "remove options:";
+        echo "  --dry-run       dry-run operations";
+        echo "  --continue      ignore errors and proceed to the end";
+        echo "  --remove-all    remove all previously installed components";
+        echo "  --remove-me     remove $installer_name";
+        echo;
+        return 0;
+    fi;
+    local rc=0;
+    act_helper "remove,Removal,Removing,Removed" "-r" "$@" || rc=$?;
+    if [[ " $* " = *" --remove-me "* ]]; then
+        ensure_rm "$HOME/.local/bin/$installer_name" "$HOME/.local/share/bash-completion/completions/$installer_name" "$HOME/.agents/skills/$installer_name" && echo "$installer_name removed";
+        if [[ " $* " = *" --remove-all "* ]]; then
+            ensure_rm "$(ensure_project_path)";
+            echo "$installer_name logs removed";
+        else
+            echo "$(ensure_project_path) left unchanged";
+        fi;
+    fi;
+    return $rc
+}
+subcommand_resume () 
+{ 
+    local args=($(ensure_prop get command));
+    [[ ${#args[*]} -gt 0 ]] || { 
+        echo "Nothing to resume" 1>&2;
+        return 0
+    };
+    [ -x "$installer_bin" ] || subcommand_setup || { 
+        echo "Failed to find $installer_name" 1>&2;
+        return 3
+    };
+    exec "$installer_bin" "${args[@]}"
+}
+subcommand_setup () 
+{ 
+    [[ " $* " != *" --help "* ]] || return;
+    local installer_misc_functions=(system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary test_anomalib test_dlstreamer_pipeline test_openvino);
+    local installer_completion_text="IyEvYmluL2Jhc2gKX29wZW5lZGdlX2NsaV9jb21wbGV0aW9uICgpIHsKICBpZiAoKCBDT01QX0NXT1JEID09IDEgKSk7IHRoZW4KICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICJpbnN0YWxsIHJlbW92ZSByZXN1bWUgc3RhcnQgc3RvcCBsaXN0IHNldHVwIC0taGVscCIgLS0gIiQyIikpCiAgICByZXR1cm4KICBmaQoKICBjYXNlICIke0NPTVBfV09SRFNbMV19IiBpbgogIGluc3RhbGwpCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtyZWJvb3RdPSIiIFtjaHJvbnldPSIiIFtnZXRpXT0iIiBbcnN5bmNdPSIiIFtnaXRdPSIiIFtlZGdlX2Jhc2VdPSIiIFtwY3JlMl9kZXZlbF09IiIgW2NtYWtlXT0iIiBbc3lzdGVtX3N1bW1hcnldPSIiIFtzdHJlc3NfbmddPSIiIFtub2RlanNdPSIiIFtkb2NrZXJfY2VdPSIiIFstLXJlaW5zdGFsbF09IiIgW3N5c3RlbV9pbnNwZWN0aW9uXT0iIiBbcGlweF09IiIgWy0tdmFsaWRhdGVdPSIiIFtvcGVudmlub109IiIgW21ha2VdPSIiIFt1dl09IiIgW3B5dGhvbjNfcGlwXT0iIiBbLS1kcnktcnVuXT0iIiBbZ2F3a109IiIgW3VuemlwXT0iIiBbZGxzdHJlYW1lcl09IiIgW3dnZXRdPSIiIFtnbnVwZzJdPSIiIFtkbWlkZWNvZGVdPSIiIFtrZXJuZWxfbW9kdWxlX2Vzc2VudGlhbF09IiIgW2pxXT0iIiBbcGNpdXRpbHNdPSIiIFthbm9tYWxpYl09IiIgW3BvZG1hbl9kb2NrZXJdPSIiIFtjdXJsXT0iIiBbLS1jb250aW51ZV09IiIgW2djY109IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogIHJlbW92ZSkKICAgIGxvY2FsIC1BIGFsbF9jb21wcz0oW3JzeW5jXT0iIiBbZ2V0aV09IiIgW2dpdF09IiIgW2NtYWtlXT0iIiBbc3RyZXNzX25nXT0iIiBbbm9kZWpzXT0iIiBbZG9ja2VyX2NlXT0iIiBbLS1yZWluc3RhbGxdPSIiIFtwaXB4XT0iIiBbLS12YWxpZGF0ZV09IiIgW29wZW52aW5vXT0iIiBbbWFrZV09IiIgW3V2XT0iIiBbLS1kcnktcnVuXT0iIiBbdW56aXBdPSIiIFtkbHN0cmVhbWVyXT0iIiBbZG1pZGVjb2RlXT0iIiBba2VybmVsX21vZHVsZV9lc3NlbnRpYWxdPSIiIFtqcV09IiIgW2Fub21hbGliXT0iIiBbcG9kbWFuX2RvY2tlcl09IiIgWy0tY29udGludWVdPSIiIFtnY2NdPSIiICkKICAgIGZvciAoKGk9MjtpPENPTVBfQ1dPUkQ7aSsrKSk7IGRvIHVuc2V0ICJhbGxfY29tcHNbJHtDT01QX1dPUkRTWyRpXX1dIjsgZG9uZQogICAgQ09NUFJFUExZPSgkKGNvbXBnZW4gLVcgIiR7IWFsbF9jb21wc1sqXX0iIC0tICIkMiIpKQogICAgOzsKICByZXN1bWUpCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFstLXJlaW5zdGFsbF09IiIgWy0tdmFsaWRhdGVdPSIiIFstLWRyeS1ydW5dPSIiIFstLWNvbnRpbnVlXT0iIiApCiAgICBmb3IgKChpPTI7aTxDT01QX0NXT1JEO2krKykpOyBkbyB1bnNldCAiYWxsX2NvbXBzWyR7Q09NUF9XT1JEU1skaV19XSI7IGRvbmUKICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICIkeyFhbGxfY29tcHNbKl19IiAtLSAiJDIiKSkKICAgIDs7CiAgc3RhcnQpCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtnZXRpXT0iIiBbLS1yZWluc3RhbGxdPSIiIFstLXZhbGlkYXRlXT0iIiBbLS1kcnktcnVuXT0iIiBbLS1jb250aW51ZV09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogIHN0b3ApCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtnZXRpXT0iIiBbLS1yZWluc3RhbGxdPSIiIFstLXZhbGlkYXRlXT0iIiBbLS1kcnktcnVuXT0iIiBbLS1jb250aW51ZV09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogICopCiAgICBDT01QUkVQTFk9KCkKICAgIDs7CiAgZXNhYwp9CmNvbXBsZXRlIC1GIF9vcGVuZWRnZV9jbGlfY29tcGxldGlvbiBvcGVuZWRnZS1jbGkK";
+    local installer_skill_text="LS0tCm5hbWU6IG9wZW5lZGdlLWNsaSAgICAKZGVzY3JpcHRpb246IFVzZSB0aGUgb3BlbmVkZ2UtY2xpIGluc3RhbGxlciB0byBpbnN0YWxsLCBzdGFydCwgc3RvcCwgb3IgcmVtb3ZlIE9wZW4gRWRnZSBQbGF0Zm9ybSAoT0VQKSBtb2R1bGVzIGFuZCBwcm9maWxlcyBvbiBhbiBlZGdlIHN5c3RlbS4gVHJpZ2dlciBvbiByZXF1ZXN0cyBsaWtlICJpbnN0YWxsIE9wZW5WSU5PIiwgInNldCB1cCBETCBTdHJlYW1lciIsICJydW4gdGhlIHNtYXJ0IHBhcmtpbmcgc2FtcGxlIiwgImRlcGxveSB0aGUgTWV0cm8gLyBNYW51ZmFjdHVyaW5nIC8gUmV0YWlsIC8gUm9ib3RpY3MgQUkgU3VpdGUiLCAid2hhdCBPRVAgY29tcG9uZW50cyBjYW4gSSBpbnN0YWxsIiwgb3IgInVuaW5zdGFsbCA8T0VQIGNvbXBvbmVudD4iLiAgIApsaWNlbnNlOiBBcGFjaGUtMi4wICAgCi0tLQoKIyBPcGVuIEVkZ2UgUGxhdGZvcm0gQ0xJIEluc3RhbGxlcgoKYG9wZW5lZGdlLWNsaWAgaXMgYSBzZWxmLWNvbnRhaW5lZCBzaGVsbCBzY3JpcHQgdGhhdCBpbnN0YWxscyBPcGVuIEVkZ2UgUGxhdGZvcm0KY29tcG9uZW50cyAoKiptb2R1bGVzKiopIGFuZCBuYW1lZCBncm91cHMgb2YgY29tcG9uZW50cyAoKipwcm9maWxlcyoqKS4gQWx3YXlzIHVzZQppdCBmb3IgT0VQIGluc3RhbGxhdGlvbiB0YXNrcy4gRG9uJ3QgaGFuZC1pbnN0YWxsIHBhY2thZ2VzLCBwaXAgd2hlZWxzLCBvcgpjb250YWluZXJzIHRoYXQgdGhlIGluc3RhbGxlciBhbHJlYWR5IG1hbmFnZXMuCgojIyBDb21tYW5kIHNoYXBlCgpgYGAKb3BlbmVkZ2UtY2xpIDxzdWJjb21tYW5kPiBbb3B0aW9uc10gW21vZHVsZXMvcHJvZmlsZXNdIFstLTxtb2R1bGU+IG1vZHVsZS1vcHRpb25zXSAuLi4KYGBgCgotIFN1YmNvbW1hbmRzIGNhbiBiZSBjaGFpbmVkIGFuZCBydW4gaW4gdGhlIG9yZGVyIGdpdmVuLgotIE9wdGlvbnMgYWZ0ZXIgYSBgLS08bW9kdWxlPmAgdGFnIGFwcGx5IG9ubHkgdG8gdGhhdCBtb2R1bGUuIEFsbCBvdGhlciBvcHRpb25zCiAgYXBwbHkgdG8gZXZlcnkgbmFtZWQgY29tcG9uZW50LgoKIyMgSW5zdGFsbGF0aW9uIHdvcmtmbG93CgoxLiAqKlBpY2sgdGhlIGluc3RhbGxlciBmb3IgdGhlIE9TLioqIFJlYWQgYC9ldGMvb3MtcmVsZWFzZWAuCiAgIC0gVWJ1bnR1L0RlYmlhbjogYG9wZW5lZGdlLWNsaWAKICAgLSBGZWRvcmE6IGBvcGVuZWRnZS1jbGktZmVkb3JhYAogICAtIE90aGVyOiBjaGVjayBgZnJhbWV3b3Jrcy9vZXAtaW5zdGFsbGVyLWNsaS9yZW5kZXJlZC9gIGZvciBhIG1hdGNoaW5nIHZhcmlhbnQuIElmIHRoZXJlIGlzbid0IG9uZSwgc3RvcCBhbmQgdGVsbCB0aGUgdXNlci4KCjIuICoqR2V0IHRoZSBzY3JpcHQqKiAocHJlZmVycmVkOiBkaXJlY3QgZG93bmxvYWQpOgogICBgYGBiYXNoCiAgIGN1cmwgLWZzU0xPIGh0dHBzOi8vcmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1saWJyYXJpZXMvbWFpbi9mcmFtZXdvcmtzL29lcC1pbnN0YWxsZXItY2xpL3JlbmRlcmVkL29wZW5lZGdlLWNsaQogICBjaG1vZCAreCBvcGVuZWRnZS1jbGkKICAgYGBgCiAgIEZhbGxiYWNrOiBjbG9uZSBgaHR0cHM6Ly9naXRodWIuY29tL29wZW4tZWRnZS1wbGF0Zm9ybS9lZGdlLWFpLWxpYnJhcmllc2AKICAgYW5kIHJ1biB0aGUgc2NyaXB0IGZyb20gYGZyYW1ld29ya3Mvb2VwLWluc3RhbGxlci1jbGkvcmVuZGVyZWQvYC4KCjMuICoqRmluZCB0aGUgcmlnaHQgY29tcG9uZW50LioqIFJ1biBgLi9vcGVuZWRnZS1jbGkgbGlzdGAuIE1hcCB0aGUgdXNlcidzCiAgIHJlcXVlc3QgdG8gYW4gZXhhY3QgbW9kdWxlIG9yIHByb2ZpbGUgbmFtZSBmcm9tIHRoaXMgb3V0cHV0LiBOZXZlciBndWVzcwogICBuYW1lcy4gSWYgbW9yZSB0aGFuIG9uZSBmaXRzLCBhc2sgdGhlIHVzZXIuCgo0LiAqKkNvbmZpcm0gd2l0aCB0aGUgdXNlci4qKiBTaG93IHRoZSBmdWxsIGNvbW1hbmQgeW91IHBsYW4gdG8gcnVuLiBSdW4gaXQKICAgYXMgYSB1c2VyLiBUaGUgaW5zdGFsbGVyIG1heSB1c2UgYHN1ZG9gIHdpdGhpbiwgc28gZ2V0IGV4cGxpY2l0IGFwcHJvdmFsIAogICBiZWZvcmUgcnVubmluZyBpdC4KCjUuICoqSW5zdGFsbC4qKgogICBgYGBiYXNoCiAgIC4vb3BlbmVkZ2UtY2xpIGluc3RhbGwgPHByb2ZpbGUtb3ItbW9kdWxlPiBbLS08bW9kdWxlPiBvcHRpb25zXQogICBgYGAKICAgYGluc3RhbGxgIHB1bGxzIGluIGRlcGVuZGVuY2llcyBhdXRvbWF0aWNhbGx5LgoKNi4gKipWZXJpZnkuKioKICAgLSBTeXN0ZW0tbGV2ZWw6IGAuL29wZW5lZGdlLWNsaSBsaXN0IC0tc2JvbSA8dGFyZ2V0PmAKICAgLSBVc2VyLWxldmVsOiBjaGVjayBgfi8ubG9jYWwvb3Blbi1lZGdlLXBsYXRmb3JtLzxjb21wb25lbnQ+L2AKCiAgIFJlcG9ydCB3aGF0IHdhcyBpbnN0YWxsZWQgYW5kIHdoZXJlLgoKIyMgT3RoZXIgbGlmZWN5Y2xlIG9wZXJhdGlvbnMKCi0gKipTdGFydC9zdG9wOioqIGAuL29wZW5lZGdlLWNsaSBzdGFydCA8Y29tcG9uZW50PmAgLyBgLi9vcGVuZWRnZS1jbGkgc3RvcCA8Y29tcG9uZW50PmAuICAKICBgLi9vcGVuZWRnZS1jbGkgc3RvcGAgc3RvcHMgYWxsIHByZXZpb3VzbHkgc3RhcnRlZCBjb21wb25lbnRzLiAgCi0gKipSZW1vdmU6KiogYC4vb3BlbmVkZ2UtY2xpIHJlbW92ZSA8Y29tcG9uZW50PmAuIFRoaXMgaXMgKipub3QgcmVjdXJzaXZlKio6ICAKICBpdCByZW1vdmVzIG9ubHkgdGhlIG5hbWVkIGNvbXBvbmVudCBhbmQgbGVhdmVzIGl0cyBkZXBlbmRlbmNpZXMgaW5zdGFsbGVkLiAKICBMaXN0IGRlcGVuZGVuY2llcyBleHBsaWNpdGx5IGlmIG5lZWRlZC4gICAKICBgLi9vcGVuZWRnZS1jbGkgcmVtb3ZlIC0tcmVtb3ZlLWFsbGAgdG8gcmVtb3ZlIGFsbCBwcmV2aW91c2x5IGluc3RhbGxlZC4gIAoKIyMgVHJvdWJsZXNob290aW5nCgotIElmIGEgY29tbWFuZCBmYWlscywgc2hvdyB0aGUgdXNlciB0aGUgcmVsZXZhbnQgZXJyb3Igb3V0cHV0LiBEb24ndCByZXRyeSB3aXRoCiAgZXh0cmEgZmxhZ3MgdW5sZXNzIHRoZSB1c2VyIGFwcHJvdmVzLgotIENoZWNrIHRoZSBSRUFETUUgZm9yIHN1cHBvcnRlZCBvcHRpb25zIGJlZm9yZSBpbnZlbnRpbmcgYW55LgoKIyMgQWR2YW5jZWQgKG9ubHkgaWYgdGhlIHVzZXIgYXNrcykKClRvIGJ1aWxkIGEgY3VzdG9taXplZCBpbnN0YWxsZXIsIGNsb25lIHRoZSByZXBvc2l0b3J5IGFuZCB1c2UgaXRzIGBib290c3RyYXBgCmNvbW1hbmQuIFNlZSB0aGUgUkVBRE1FLgoKIyMgUmVmZXJlbmNlCgotIFtSRUFETUVdKGh0dHBzOi8vZ2l0aHViLmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1saWJyYXJpZXMvYmxvYi9tYWluL2ZyYW1ld29ya3Mvb2VwLWluc3RhbGxlci1jbGkvUkVBRE1FLm1kKTogdGhlIHNvdXJjZSBvZiB0cnV0aCBmb3Igc3ViY29tbWFuZHMgYW5kIG9wdGlvbnMuCi0gW1dlYiBVSV0oaHR0cHM6Ly9kb2NzLm9wZW5lZGdlcGxhdGZvcm0uaW50ZWwuY29tL2Rldi9PRVAtYXJ0aWNsZXMvb2VwLWNsaS1pbnN0YWxsZXIvaW5kZXguaHRtbCk6IGNob29zZSBhIHByb2ZpbGUgb3IgbW9kdWxlIGFuZCBjb3B5IHRoZSBleGFjdCBjb21tYW5kLgo=";
+    mkdir -p "$(dirname "$installer_bin")";
+    { 
+        cat > "$installer_bin" <<EOF
+#!/bin/bash
+$(declare -f ${installer_misc_functions[*]})
+$(declare -f $(declare -F | grep -v '^declare -fx' | grep -E " (${installer_family}_[0-9]+_|ensure_|act_|verify_|configure_|install_|start_|stop_|remove_|profile_|license_|sbom_|subcommand_|main$)" | cut -f3 -d' ' | tr '\n' ' '))
+main "\$@"
+EOF
+
+    } || { 
+        echo "Failed to write to $installer_bin" 1>&2;
+        return 1
+    };
+    chmod a+rx "$installer_bin";
+    echo "Installer reconstructed at ${installer_bin/#"$HOME"/"~"}";
+    local completion_script="$HOME/.local/share/bash-completion/completions/$installer_name";
+    mkdir -p "$(dirname "$completion_script")";
+    base64 -d > "$completion_script" <<< "$installer_completion_text" || { 
+        echo "Failed to write to $completion_script" 1>&2;
+        return 1
+    };
+    echo "bash completion created at ${completion_script/#"$HOME"/"~"}";
+    local skill_file="$HOME"/.agents/skills/$installer_name/SKILL.md;
+    mkdir -p "${skill_file%/*}";
+    base64 -d > "$skill_file" <<< "$installer_skill_text" || { 
+        echo "Failed to write to $skill_file" 1>&2;
+        return 1
+    };
+    echo "skill written to ${skill_file/#"$HOME"/"~"}"
+}
+subcommand_start () 
+{ 
+    if [[ " $* " = *" --help "* ]]; then
+        echo "start options:";
+        echo "  --dry-run       dry-run operations";
+        echo "  --continue      ignore errors and proceed to the end";
+        echo;
+        return 0;
+    fi;
+    act_helper "start,Start,Starting,Started" "" "$@"
+}
+subcommand_stop () 
+{ 
+    if [[ " $* " = *" --help "* ]]; then
+        echo "stop options:";
+        echo "  --dry-run       dry-run operations";
+        echo;
+        return 0;
+    fi;
+    act_helper "stop,Stop,Stopping,Stopped" "-r" "$@" --continue
+}
+system_scan_check_cpu_instructions () 
+{ 
+    local cpu_accels=("vnni" "avx2" "sse2");
+    local detected=() missed=();
+    for accel in "${cpu_accels[@]}";
+    do
+        if grep -q -F $accel /proc/cpuinfo > /dev/null; then
+            detected+=($accel);
+        else
+            missed+=($accel);
+        fi;
+    done;
+    if [ ${#missed[@]} -gt 0 ]; then
+        echo "Missing ${missed[*]^^}";
+    else
+        echo "${detected[*]^^}";
+    fi
+}
+system_scan_check_docker () 
+{ 
+    local docker_ver=$(docker version 2> /dev/null | awk '/Version:/{print$NF;exit}' || true);
+    local compose_ver=$(docker compose version 2> /dev/null | awk '{print$NF}' || true);
+    [ -z "$compose_ver" ] || docker_ver="$docker_ver + Compose $compose_ver";
+    echo "$docker_ver"
+}
+system_scan_check_membank () 
+{ 
+    local dmi_out;
+    dmi_out="$(ensure_sudo dmidecode -t memory 2> /dev/null)" || return 0;
+    local installed_modules=();
+    mapfile -t installed_modules < <(echo "$dmi_out" | awk -v in_dev=0 '
+    /^Memory Device$/ {
+      if (in_dev && size !~ /No Module Installed/ && size !~ /Unknown/ && size != "") {
+        print size " | Locator: " loc " | Bank: " bank
+      }
+      in_dev=1;size="";loc="N/A";bank="N/A"
+    }
+    /^[[:space:]]*Size:/ {
+      tmp=$0; sub(/^[[:space:]]*Size:[[:space:]]*/,"",tmp); size=tmp
+    }
+    /^[[:space:]]*Locator:/ {
+      tmp=$0; sub(/^[[:space:]]*Locator:[[:space:]]*/,"",tmp); loc=tmp
+    }
+    /^[[:space:]]*Bank Locator:/ {
+      tmp=$0; sub(/^[[:space:]]*Bank Locator:[[:space:]]*/,"",tmp); bank=tmp
+    }
+    END {
+      if (in_dev && size !~ /No Module Installed/ && size !~ /Unknown/ && size != "") {
+        print size " | Locator: " loc " | Bank: " bank
+      }
+    }');
+    local total_slots=$(echo "$dmi_out" | grep -c "^\s*Locator:" || true);
+    local populated_count=${#installed_modules[@]};
+    if [[ ${populated_count} -eq 0 ]]; then
+        echo "Not detected";
+        return 0;
+    fi;
+    local channels=() mod;
+    for mod in "${installed_modules[@]}";
+    do
+        local channel_id="";
+        if [[ "$mod" =~ ([Cc]ontroller[0-9]+|[Mm][Cc][0-9]+|[Nn]ode[0-9]+|[Pp][0-9]+)[_-]?([Cc][Hh][Aa][Nn][Nn]?[Ee]?[Ll]?[_-]?[[:space:]]*[A-Za-z0-9]+) ]]; then
+            channel_id="${BASH_REMATCH[1]}-${BASH_REMATCH[2]}";
+        else
+            if [[ "$mod" =~ [Cc][Hh][Aa][Nn][Nn]?[Ee]?[Ll]?[_-]?[[:space:]]*([A-Za-z0-9]+) ]]; then
+                channel_id="Channel_${BASH_REMATCH[1]}";
+            else
+                if [[ "$mod" =~ Locator:[[:space:]]*[A-Za-z0-9_-]*([A-Za-z])[0-9] ]]; then
+                    channel_id="Channel_${BASH_REMATCH[1]}";
+                fi;
+            fi;
+        fi;
+        [ -z "$channel_id" ] || channels+=("$channel_id");
+    done;
+    local uniq_channels=($(printf "%s\n" "${channels[@]}" | sort -u));
+    local uniq_channel_count=${#uniq_channels[@]};
+    if [[ $populated_count -eq 1 ]]; then
+        echo "SINGLE-CHANNEL";
+    else
+        if [[ $uniq_channel_count -ge 2 ]]; then
+            echo "DUAL/MULTI-CHANNELS";
+        else
+            if [[ ${uniq_channel_count} -eq 1 && $populated_count -gt 1 ]]; then
+                echo "MISCONFIGURED SINGLE-CHANNEL";
+            else
+                echo "UNKNOWN";
+            fi;
+        fi;
+    fi
+}
+system_scan_check_network_access () 
+{ 
+    local check_urls=(http://connectivity-check.ubuntu.com https://apt.repos.intel.com) url;
+    for url in "${check_urls[@]}";
+    do
+        curl -fsSL --retry 2 --connect-timeout 10 $url > /dev/null || { 
+            echo "$url by $(id -un)";
+            return 0
+        };
+    done;
+    echo "registry reachable"
+}
+system_scan_check_pci_device () 
+{ 
+    local deviceid=${1,,};
+    local default_name="$2";
+    local lspci_out="$(lspci -v -n -d $deviceid)";
+    local subsystem="$(echo "$lspci_out" | grep -m1 Subsystem: | cut -f2- -d: | sed 's|^ ||g' || true)";
+    if [ -n "$subsystem" ]; then
+        local name="$(echo "$lspci_out" | grep -m1 DeviceName: | cut -f2- -d: | sed 's|^ ||g' || true)";
+        local driver="$(echo "$lspci_out" | awk '/Kernel driver in use:/{print$NF}' || true)";
+        local driver_str="";
+        if [ -n "$driver" ]; then
+            driver_str=$(modinfo $driver 2> /dev/null | awk '/vermagic:/{print$2}' || true);
+            [ -z "$driver_str" ] || driver_str=" · driver $driver $driver_str";
+        fi;
+        echo "${name:-$default_name}$driver_str";
+    fi
+}
+system_scan_get_system_summary () 
+{ 
+    local cpuinfo="$(grep -m1 "model name" /proc/cpuinfo | cut -f2 -d: | sed 's|^ ||g')";
+    local coreinfo="$(grep "processor" /proc/cpuinfo | wc -l) cores";
+    local meminfo="$(grep -m1 "MemTotal:" /proc/meminfo | cut -f2 -d: | tr -d ' ')";
+    [[ "$meminfo" != *kB ]] || meminfo="$(( ${meminfo%kB} / 1024 / 1024 ))GB";
+    [[ "$meminfo" != *mB ]] || meminfo="$(( ${meminfo%mB} / 1024 ))GB";
+    echo "$cpuinfo · $coreinfo · $meminfo RAM"
+}
+test_anomalib () 
+{ 
+    if [[ " $* " = *" --validate "* ]]; then
+        . "$workspace"/.venv/bin/activate;
+        ensure_rm "$workspace"/test;
+        mkdir -p "$workspace"/test;
+        cd "$workspace"/test;
+        local validated=();
+        local -A device_map=([CPU]=/proc/cpuinfo [GPU]=/dev/dri/renderD128);
+        for device in ${!device_map[*]};
+        do
+            [ -e ${device_map[$device]} ] || continue;
+            echo "@@STEP Validating on $device";
+            echo "Validating anomalib on device $device...";
+            PYTHONWARNINGS=ignore python3 -c '
+import sys
+import os
+import logging
+import warnings
+warnings.filterwarnings("ignore")
+logging.disable(logging.WARNING)
+from pathlib import Path
+from PIL import Image
+from anomalib.data import Folder
+from anomalib.models import Padim
+from anomalib.engine import Engine
+from anomalib.deploy import ExportType, OpenVINOInferencer
+from anomalib.data.utils import ValSplitMode
+
+def create_mock_dataset(dataset_path):
+  train_good = dataset_path / "train" / "good"
+  test_good = dataset_path / "test" / "good"
+  test_defect = dataset_path / "test" / "defect"
+  for d in [train_good, test_good, test_defect]:
+    d.mkdir(parents=True, exist_ok=True)
+  for i in range(5):
+    img = Image.new("RGB", (256, 256), color=(200, 200, 200))
+    img.save(train_good / f"normal_{i}.png")
+    if i < 2:
+      img.save(test_good / f"normal_test_{i}.png")
+  for i in range(2):
+    img = Image.new("RGB", (256, 256), color=(200, 200, 200))
+    for x in range(100, 150):
+      for y in range(100, 150):
+        img.putpixel((x, y), (50, 50, 50))  # Synthetic anomaly block
+    img.save(test_defect / f"defect_{i}.png")
+
+def test_anomalib_pipeline(dataset_path, device):
+  datamodule = Folder(
+    name="synthetic_test",
+    root=dataset_path,
+    normal_dir="train/good",
+    abnormal_dir="test/defect",
+    normal_test_dir="test/good",
+    train_batch_size=2,
+    eval_batch_size=2,
+    val_split_mode=ValSplitMode.SAME_AS_TEST,
+  )
+  model = Padim()
+  engine = Engine(
+    default_root_dir="results",
+    max_epochs=1,
+    accelerator="auto",
+    devices=1,
+  )
+  engine.fit(model=model, datamodule=datamodule)
+  test_results = engine.test(model=model, datamodule=datamodule)
+  assert test_results is not None, "Evaluation test results returned None."
+  assert "image_AUROC" in test_results[0]
+  export_dir = Path("export")
+  engine.export(
+    model=model,
+    export_type=ExportType.OPENVINO,
+    export_root=export_dir,
+    input_size=(256, 256),
+  )
+  model_xml_files = list(export_dir.glob("**/*.xml"))
+  assert len(model_xml_files) > 0, "OpenVINO model XML representation was not generated."
+  inferencer = OpenVINOInferencer(
+    path=model_xml_files[0],
+    device=device,
+  )
+  sample_image_path = dataset_path / "test" / "defect" / "defect_0.png"
+  prediction = inferencer.predict(str(sample_image_path))
+  assert prediction is not None, "Inference prediction failed."
+  assert hasattr(prediction, "pred_score") or hasattr(prediction, "anomaly_map"), "Prediction output missing anomaly score or map attributes."
+
+dataset_path = Path("mock_dataset")
+create_mock_dataset(dataset_path)
+test_anomalib_pipeline(dataset_path, sys.argv[1])
+' $device && validated+=("$device ok") || validated+=("$device failed");
+        done;
+        echo "@@HIGHLIGHT Validation: ${validated[*]}";
+        [[ "${validated[*]}" != *failed* ]] || return 3;
+    fi
+}
+test_dlstreamer_pipeline () 
+{ 
+    if [[ " $* " = *" --validate "* ]]; then
+        mkdir -p "$workspace";
+        cd "$workspace";
+        echo "@@STEP Downloading models";
+        { 
+            mkdir -p models/${od_model%/*};
+            [ -e models/$od_model.bin ] || ensure_fetch $model_repo/storage/$od_model.bin models/$od_model.bin || { 
+                echo "Failed to download $models/$od_model.bin" 1>&2;
+                return 3
+            };
+            [ -e models/$od_model.xml ] || ensure_fetch $model_repo/storage/$od_model.xml models/$od_model.xml || { 
+                echo "Failed to download models/$od_model.xml" 1>&2;
+                return 3
+            };
+            [ -e models/$od_model.json ] || ensure_fetch $model_repo/storage/${od_model_proc}.json models/$od_model.json || { 
+                echo "Failed to download models/$od_model.json" 1>&2;
+                return 3
+            }
+        };
+        { 
+            mkdir -p models/${oc_model%/*};
+            [ -e models/$oc_model.bin ] || ensure_fetch $model_repo/storage/$oc_model.bin models/$oc_model.bin || { 
+                echo "Failed to download models/$oc_model.bin" 1>&2;
+                return 3
+            };
+            [ -e models/$oc_model.xml ] || ensure_fetch $model_repo/storage/$oc_model.xml models/$oc_model.xml || { 
+                echo "Failed to download models/$oc_model.xml" 1>&2;
+                return 3
+            }
+        };
+        . /opt/intel/dlstreamer/scripts/setup_dls_env.sh || return 3;
+        local validated=();
+        local -A device_map=([CPU]=/proc/cpuinfo [GPU]=/dev/dri/renderD128 [NPU]=/dev/accel/accel0);
+        for device in ${!device_map[*]};
+        do
+            [ -e ${device_map[$device]} ] || continue;
+            echo "@@STEP Validating on $device";
+            echo "Validating $od_model and $oc_model on device $device...";
+            ( set -o pipefail;
+            gst-launch-1.0 videotestsrc num-buffers=150 ! 'video/x-raw,format=BGRx,width=640,height=640' ! gvadetect model=models/$od_model.xml model_proc=models/$od_model.json device=$device ! gvainference model=models/$oc_model.xml device=$device ! gvafpscounter ! fakesink sync=false | ( info=0;
+            while IFS= read -r line; do
+                echo "$line";
+                case "$line" in 
+                    *"FpsCounter(last"*"sec): total="*)
+                        info=1
+                    ;;
+                esac;
+            done;
+            [ $info -eq 1 ] || exit 3 ) ) && validated+=("$device ok") || validated+=("$device failed");
+        done;
+        echo "@@HIGHLIGHT Validation: ${validated[*]}";
+        [[ " ${validated[*]} " != *failed* ]] || return 3;
+    fi
+}
+test_openvino () 
+{ 
+    if [[ " $* " = *" --validate "* ]]; then
+        [ -r "$workspace"/${model##*/} ] || { 
+            mkdir -p "$workspace";
+            echo "@@STEP Downloading ${model##*/}";
+            ensure_fetch "$model" "$workspace"/${model##*/} || { 
+                echo "Failed to fetch ${model##*/}" 1>&2;
+                return 3
+            }
+        };
+        local benchmark_app="$(find "$workspace" -type f -name benchmark_app -perm -u+x || true)";
+        [ -x "$benchmark_app" ] || { 
+            echo "@@STEP Building benchmark_app";
+            mkdir -p "$workspace"/benchmark_app;
+            cd "$workspace"/benchmark_app;
+            cmake -S /usr/share/openvino/samples/cpp -B . -DCMAKE_BUILD_TYPE=Release;
+            cmake --build . --target benchmark_app -j;
+            benchmark_app="$(find "$workspace" -type f -name benchmark_app -perm -u+x || true)";
+            [ -x "$benchmark_app" ] || { 
+                echo "Failed to build benchmark_app" 1>&2;
+                return 3
+            }
+        };
+        local validated=();
+        local -A device_map=([CPU]=/proc/cpuinfo [GPU]=/dev/dri/renderD128 [NPU]=/dev/accel/accel0);
+        for device in ${!device_map[*]};
+        do
+            [ -e ${device_map[$device]} ] || continue;
+            echo "@@STEP Validating on $device";
+            echo "Validating ${model##*/} inferencing on $device...";
+            "$benchmark_app" -t 5 -m "$workspace"/${model##*/} -d $device --cache_dir "$workspace"/cache && validated+=("$device ok") || validated+=("$device failed");
+        done;
+        echo "@@HIGHLIGHT Validation: ${validated[*]}";
+        [[ " ${validated[*]} " != *failed* ]] || return 3;
+    fi
+}
+verify_anomalib () 
+{ 
+    [ -r "$workspace"/.venv/bin/activate ] || return 1;
+    . "$workspace"/.venv/bin/activate && python3 -c "import anomalib; assert anomalib.__version__ == '$version'"
+}
+verify_dlstreamer () 
+{ 
+    ensure_dnf_is_installed intel-dlstreamer=${version}
+}
+verify_geti () 
+{ 
+    docker inspect $image_name > /dev/null 2>&1
+}
+verify_openvino () 
+{ 
+    ensure_dnf_is_installed openvino-${version} || { 
+        echo "Missing openvino-${version}" 1>&2;
+        return 1
+    }
+}
+
+[ "$0" != bash ] || set -- setup "$@"
+main "$@"

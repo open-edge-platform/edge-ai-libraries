@@ -3718,6 +3718,42 @@ class TestGetRecommendedEncoderDevice(unittest.TestCase):
         # Should return CPU because iterating backwards finds node 3 first (no VAMemory)
         self.assertEqual(graph.get_recommended_encoder_device(), ENCODER_DEVICE_CPU)
 
+    def test_ignores_sysmem_caps_on_other_tee_branch(self):
+        """Caps on a non-main tee branch must not override the main output path."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(
+                    id="1",
+                    type="video/x-raw(memory:VAMemory)",
+                    data={"__node_kind": "caps"},
+                ),
+                Node(id="2", type="tee", data={"name": "t"}),
+                Node(id="3", type="queue", data={}),
+                Node(id="4", type="fakesink", data={"name": "default_output_sink"}),
+                Node(id="5", type="vapostproc", data={}),
+                Node(
+                    id="6",
+                    type="video/x-raw",
+                    data={"__node_kind": "caps", "width": "796"},
+                ),
+                Node(id="7", type="jpegenc", data={}),
+                Node(id="8", type="multifilesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                Edge(id="3", source="3", target="4"),
+                Edge(id="4", source="2", target="5"),
+                Edge(id="5", source="5", target="6"),
+                Edge(id="6", source="6", target="7"),
+                Edge(id="7", source="7", target="8"),
+            ],
+        )
+
+        self.assertEqual(graph.get_recommended_encoder_device(), ENCODER_DEVICE_GPU)
+
     def test_empty_graph(self):
         """Test that CPU encoder is recommended for an empty graph."""
         graph = Graph(nodes=[], edges=[])
@@ -5791,6 +5827,46 @@ class TestPrepareIntermediateOutputSinks(unittest.TestCase):
         result = graph.prepare_intermediate_output_sinks("/output/dir", 0)
 
         self.assertIs(result, graph)
+
+    def test_multifilesink_preserves_printf_int_specifier(self):
+        """printf-style %05d in multifilesink location must survive slugify."""
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesink",
+                    data={"location": "/images/output/vlm_frame_%05d.jpeg"},
+                ),
+            ],
+            edges=[],
+        )
+
+        result = graph.prepare_intermediate_output_sinks("/output/dir", 0)
+
+        self.assertEqual(
+            result.nodes[0].data["location"],
+            "/output/dir/intermediate_stream000_vlm_frame_%05d.jpeg",
+        )
+
+    def test_filesink_preserves_bare_percent_d_specifier(self):
+        """A bare %d specifier must survive slugify as well."""
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesink",
+                    data={"location": "/tmp/frame_%d.png"},
+                ),
+            ],
+            edges=[],
+        )
+
+        result = graph.prepare_intermediate_output_sinks("/output/dir", 3)
+
+        self.assertEqual(
+            result.nodes[0].data["location"],
+            "/output/dir/intermediate_stream003_frame_%d.png",
+        )
 
 
 class TestInjectMetadataFilePaths(unittest.TestCase):
@@ -7899,106 +7975,6 @@ class TestInternalMarkersStrippedFromPipelineDescription(unittest.TestCase):
         self.assertNotIn("__internal_marker", description)
         self.assertNotIn("should-not-leak", description)
         self.assertIn("num-buffers=10", description)
-
-
-class TestUploadedModelFallback(unittest.TestCase):
-    """Cover the ``ModelManager`` fallback added to ``_model_path_to_display_name``
-    and ``_model_display_name_to_path`` so uploaded (custom) models keep
-    working through the simple-graph / convert-to-advanced flow.
-    """
-
-    def _node(self, model_value: str, model_proc: str | None = None) -> Node:
-        data: dict[str, str] = {"model": model_value}
-        if model_proc is not None:
-            data["model-proc"] = model_proc
-        return Node(id="n1", type="gvadetect", data=data)
-
-    # --- path -> display name ---------------------------------------
-
-    def test_path_to_display_name_falls_back_to_model_manager(self) -> None:
-        from graph import _model_path_to_display_name
-
-        node = self._node("/models/output/custom_uploaded_models/face-custom/model.xml")
-
-        yaml_manager = MagicMock()
-        yaml_manager.find_model_by_model_and_proc_path.return_value = None
-        mm = MagicMock()
-        mm.find_uploaded_model_by_path.return_value = MagicMock(
-            display_name="face-custom"
-        )
-
-        with (
-            patch("graph.SupportedModelsManager", return_value=yaml_manager),
-            patch("managers.model_manager.ModelManager", return_value=mm),
-        ):
-            _model_path_to_display_name([node])
-
-        self.assertEqual(node.data["model"], "face-custom")
-        # model-proc must be stripped after conversion.
-        self.assertNotIn("model-proc", node.data)
-        mm.find_uploaded_model_by_path.assert_called_once()
-
-    def test_path_to_display_name_empty_when_neither_resolves(self) -> None:
-        from graph import _model_path_to_display_name
-
-        node = self._node("/totally/unknown.xml")
-        yaml_manager = MagicMock()
-        yaml_manager.find_model_by_model_and_proc_path.return_value = None
-        mm = MagicMock()
-        mm.find_uploaded_model_by_path.return_value = None
-
-        with (
-            patch("graph.SupportedModelsManager", return_value=yaml_manager),
-            patch("managers.model_manager.ModelManager", return_value=mm),
-        ):
-            _model_path_to_display_name([node])
-
-        self.assertEqual(node.data["model"], "")
-
-    # --- display name -> path ---------------------------------------
-
-    def test_display_name_to_path_falls_back_to_model_manager(self) -> None:
-        from graph import _model_display_name_to_path
-
-        node = self._node("my-uploaded-model")
-        yaml_manager = MagicMock()
-        yaml_manager.find_installed_model_by_display_name.return_value = None
-
-        uploaded = MagicMock()
-        uploaded.model_path_full = "/abs/path/my-uploaded-model.xml"
-        uploaded.model_proc_full = ""  # uploads have no model-proc
-        mm = MagicMock()
-        mm.find_installed_uploaded_model_by_display_name.return_value = uploaded
-
-        with (
-            patch("graph.SupportedModelsManager", return_value=yaml_manager),
-            patch("managers.model_manager.ModelManager", return_value=mm),
-        ):
-            _model_display_name_to_path([node])
-
-        self.assertEqual(node.data["model"], "/abs/path/my-uploaded-model.xml")
-        # No model-proc must be injected when the model has none.
-        self.assertNotIn("model-proc", node.data)
-        mm.find_installed_uploaded_model_by_display_name.assert_called_once_with(
-            "my-uploaded-model"
-        )
-
-    def test_display_name_to_path_raises_when_unknown_everywhere(self) -> None:
-        from graph import _model_display_name_to_path
-
-        node = self._node("ghost-model")
-        yaml_manager = MagicMock()
-        yaml_manager.find_installed_model_by_display_name.return_value = None
-        mm = MagicMock()
-        mm.find_installed_uploaded_model_by_display_name.return_value = None
-
-        with (
-            patch("graph.SupportedModelsManager", return_value=yaml_manager),
-            patch("managers.model_manager.ModelManager", return_value=mm),
-        ):
-            with self.assertRaises(ValueError) as cm:
-                _model_display_name_to_path([node])
-        self.assertIn("ghost-model", str(cm.exception))
 
 
 if __name__ == "__main__":

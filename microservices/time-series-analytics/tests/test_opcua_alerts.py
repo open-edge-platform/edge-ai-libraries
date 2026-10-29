@@ -30,10 +30,11 @@ def invalid_config():
 
 def test_load_opcua_config_success(valid_config):
     alerts = OpcuaAlerts(valid_config)
-    node_id, namespace, opcua_server = alerts.load_opcua_config()
+    with patch("socket.gethostbyname", return_value="127.0.0.1"):
+        node_id, namespace, opcua_server = alerts.load_opcua_config()
     assert node_id == "123"
     assert namespace == "2"
-    assert opcua_server == "opc.tcp://localhost:4840"
+    assert opcua_server == "opc.tcp://127.0.0.1:4840"
 
 def test_load_opcua_config_failure(invalid_config, caplog):
     alerts = OpcuaAlerts(invalid_config)
@@ -95,11 +96,12 @@ async def test_connect_opcua_client_no_server(valid_config):
 @pytest.mark.asyncio
 async def test_initialize_opcua_success(valid_config):
     alerts = OpcuaAlerts(valid_config)
-    with patch.object(alerts, "connect_opcua_client", new=AsyncMock(return_value=True)):
+    with patch.object(alerts, "connect_opcua_client", new=AsyncMock(return_value=True)), \
+         patch("socket.gethostbyname", return_value="127.0.0.1"):
         await alerts.initialize_opcua()
         assert alerts.node_id == "123"
         assert alerts.namespace == "2"
-        assert alerts.opcua_server == "opc.tcp://localhost:4840"
+        assert alerts.opcua_server == "opc.tcp://127.0.0.1:4840"
 
 @pytest.mark.asyncio
 async def test_initialize_opcua_failure(valid_config):
@@ -142,20 +144,19 @@ async def test_is_connected_true(valid_config):
     alerts = OpcuaAlerts(valid_config)
     alerts.node_id, alerts.namespace, alerts.opcua_server = alerts.load_opcua_config()
     alerts.client = MagicMock()
-    mock_node = AsyncMock()
-    alerts.client.get_node.return_value = mock_node
-    mock_node.read_value.return_value = "some_value"
+    alerts.client.uaclient.protocol.state = "open"
+    alerts.client.check_connection = AsyncMock(return_value=None)
     result = await alerts.is_connected()
     assert result is True
-    alerts.client.get_node.assert_called_with("ns=2;i=123")
-    mock_node.read_value.assert_awaited_once()
+    alerts.client.check_connection.assert_awaited_once()
 
 @pytest.mark.asyncio
 async def test_is_connected_false(valid_config, caplog):
     alerts = OpcuaAlerts(valid_config)
     alerts.node_id, alerts.namespace, alerts.opcua_server = alerts.load_opcua_config()
     alerts.client = MagicMock()
-    alerts.client.get_node.side_effect = Exception("fail")
+    alerts.client.uaclient.protocol.state = "open"
+    alerts.client.check_connection = AsyncMock(side_effect=Exception("fail"))
     result = await alerts.is_connected()
     assert result is False
     assert "Error checking OPC UA connection status" in caplog.text

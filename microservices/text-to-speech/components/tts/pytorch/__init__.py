@@ -3,7 +3,13 @@ import torch
 
 def normalize_device(device_name: str) -> str:
     n = device_name.strip().lower()
-    return "cuda" if n in {"gpu", "cuda"} and torch.cuda.is_available() else "cpu"
+    if n == "cpu":
+        return "cpu"
+    if n in {"gpu", "cuda"}:
+        if not torch.cuda.is_available():
+            raise ValueError("Requested TTS device 'GPU' is not available to PyTorch.")
+        return "cuda"
+    raise ValueError(f"Unsupported PyTorch TTS device: {device_name}")
 
 
 def resolve_dtype(dtype_name: str, *, cpu_fallback: bool = False) -> torch.dtype:

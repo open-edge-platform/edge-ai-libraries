@@ -65,6 +65,7 @@ def start_named_pipeline(
         name=name,
         version=version,
         request=request.model_dump(exclude_none=True),
+        cpu_cores=request.cpu_cores,
     )
 
 
@@ -131,10 +132,19 @@ async def list_pipelines():
 
 @router.post("", status_code=200, response_model=StartPipelineResponse)
 async def run_pipeline(request: StartPipelineRequest):
-    """Start a new pipeline instance from an inline GStreamer pipeline description."""
+    """Start a new pipeline instance from an inline GStreamer pipeline description.
+    
+    Optionally pin the pipeline to specific CPU cores via the ``cpu_cores`` field.
+    """
     if not request.pipeline.strip():
         raise HTTPException(status_code=400, detail="pipeline must not be empty")
-    instance_id = _get_manager().start(request.pipeline)
+    instance_id = _get_manager().start(
+        request.pipeline,
+        validate=request.validate_pipeline,
+        cpu_cores=request.cpu_cores,
+        warmup_frames=request.warmup_frames,
+        restart_config=request.restart_config.model_dump(exclude_none=True) if request.restart_config else None,
+    )
     return {"instance_id": instance_id}
 
 
@@ -207,5 +217,4 @@ async def run_named_pipeline(
 
     instance_id = start_named_pipeline(pipeline_cfg, name=name, version=version, request=request)
     return {"instance_id": instance_id}
-
 
