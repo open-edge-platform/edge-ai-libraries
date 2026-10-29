@@ -1,7 +1,7 @@
 
 configure_smart_intersection () {
   workspace="$(ensure_project_path)/smart-intersection"
-  version=release-2026.2.0
+  version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")"
   repository="https://github.com/open-edge-platform/metro-ai-suite.git"
   used_ports=(443)
 }
@@ -46,7 +46,7 @@ debian_90_profile_smart_intersection () {
 }
 
 debian_90_install_smart_intersection () {
-  configure_smart_intersection
+  configure_smart_intersection "$@"
   if verify_smart_intersection && [[ " $* " != *" --reinstall "* ]]; then
     echo "Smart intersection is installed." >&2
   else
@@ -71,7 +71,7 @@ debian_90_install_smart_intersection () {
 }
 
 debian_90_start_smart_intersection () {
-  configure_smart_intersection
+  configure_smart_intersection "$@"
   ensure_ports_open start smart_intersection "${used_ports[@]}"
 
   local device=$(ensure_parse_device "$@")
@@ -88,7 +88,7 @@ debian_90_start_smart_intersection () {
 }
 
 debian_90_stop_smart_intersection () {
-  configure_smart_intersection
+  configure_smart_intersection "$@"
   cd "$workspace"/metro-vision-ai-app-recipe && docker compose -f compose-scenescape.yml down -v --remove-orphans || true
 }
 

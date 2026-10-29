@@ -1,7 +1,7 @@
 
 configure_loitering_detection () {
   workspace="$(ensure_project_path)/loitering-detection"
-  version=release-2026.2.0
+  version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")"
   repository="https://github.com/open-edge-platform/metro-ai-suite.git"
   used_ports=(80 443 3478)
   wait_timeout=120
@@ -23,7 +23,7 @@ debian_90_profile_loitering_detection () {
 }
 
 debian_90_install_loitering_detection () {
-  configure_loitering_detection
+  configure_loitering_detection "$@"
   if verify_loitering_detection && [[ " $* " != *" --reinstall "* ]]; then
     echo "Loitering detection is installed." >&2
   else
@@ -49,7 +49,7 @@ debian_90_install_loitering_detection () {
 }
 
 debian_90_start_loitering_detection () {
-  configure_loitering_detection
+  configure_loitering_detection "$@"
   ensure_ports_open start loitering_detection "${used_ports[@]}"
 
   local device=$(ensure_parse_device "$@")
@@ -78,7 +78,7 @@ debian_90_start_loitering_detection () {
 }
 
 debian_90_stop_loitering_detection () {
-  configure_loitering_detection
+  configure_loitering_detection "$@"
   cd "$workspace"/metro-vision-ai-app-recipe
   ./sample_stop.sh || true
   docker compose -f compose-without-scenescape.yml down -v --remove-orphans || true
