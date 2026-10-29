@@ -81,7 +81,7 @@ raw `curl` requests.
 | Ollama | `ollama` | Downloads Ollama models, runs local Ollama server | — |
 | Ultralytics | `ultralytics` | Downloads YOLO models, optional INT8 quantization | — |
 | OpenVINO | `openvino` | Converts HF models to OpenVINO IR for OVMS | `HUGGINGFACEHUB_API_TOKEN` for compose-based startup (usually needed) |
-| Geti | `geti` | Downloads trained models from Intel Geti platform | `GETI_HOST`, `GETI_TOKEN`, `GETI_WORKSPACE_ID` |
+| Geti | `geti` | Downloads trained models from Intel Geti 3.0 Model API | `GETI_HOST` |
 | Pipeline Zoo | `pipeline-zoo-models` | Downloads DL Streamer pipeline-zoo models | — |
 | HLS | `hls` | Downloads healthcare AI models (3d-pose, rppg, ai-ecg) | — |
 | Open Model Zoo | `omz` | Downloads + converts OMZ models via `omz_downloader`/`omz_converter` | — |

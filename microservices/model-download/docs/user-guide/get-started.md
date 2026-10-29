@@ -52,10 +52,7 @@ export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
 To use the Geti™ plugin, set these variables:
 
 ```bash
-export GETI_WORKSPACE_ID=<YOUR_GETI_WORKSPACE_ID>
 export GETI_HOST=<GETI_HOST_ADDRESS>
-export GETI_TOKEN=<GETI_ACCESS_TOKEN>
-export GETI_SERVER_API_VERSION=v1
 export GETI_SERVER_SSL_VERIFY=False  # Default is FALSE
 ```
 
@@ -172,7 +169,7 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/list" \
   }'
 ```
 
-For Geti™ software, listing discovers the latest model of every model group across the projects in the configured workspace. Each item's `model_type` is the Geti task type (for example, `DETECTION` or `CLASSIFICATION`) resolved from the model group's task, and `metadata` includes `project_id`, `project_name`, `model_group_id`, `model_group_name`, `model_id`, and `optimized_model_ids`. Requires `GETI_HOST`, `GETI_TOKEN`, and `GETI_WORKSPACE_ID` to be set.
+For Geti™ software, listing discovers the models registered under each project on the configured Geti server. Each item's `model_type` is the Geti task type (for example, `detection` or `classification`) resolved from the model or project. The `metadata` includes `project_id`, `project_name`, `model_id`, the available `variants` (with each variant's ID, format, and precision), and `architecture`. Requires `GETI_HOST` to be set; the Geti 3.0 Model API is unauthenticated.
 
 ```bash
 curl -X POST "http://<host-ip>:8200/api/v1/models/list" \
@@ -188,7 +185,47 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/list" \
   }'
 ```
 
-Call `GET /api/v1/plugins` to see which plugins support listing and which `listing_filter_fields` each plugin accepts. Hugging Face supports `author`, `search`, and `tags`. The `author` filter is the repository namespace and accepts a user, owner, or organization name (for example, `microsoft` or `meta-llama`); `tags` filters by Hugging Face tags (library, language, task, license, and so on). Each returned Hugging Face item also includes `license`, `gated` (`false`, `"auto"`, or `"manual"`), and `requires_token` (true when the model is gated and needs an HF token to download). Ultralytics and Pipeline Zoo Models support `search`. Geti™ supports `project_id`, `project_name`, `model_group_id`, `model_group_name`, `model_name`, `export_type`, `precision`, and `model_format`.
+An item in the listing response looks like this:
+
+```json
+{
+  "name": "YOLOX-S (ff43ddac)",
+  "owner": "Pallet Defect Detection",
+  "model_type": "detection",
+  "metadata": {
+    "project_id": "<project-id>",
+    "project_name": "Pallet Defect Detection",
+    "model_id": "<model-id>",
+    "variants": [
+      {
+        "variant_id": "<pytorch-variant-id>",
+        "model_format": "pytorch",
+        "precision": "fp32"
+      },
+      {
+        "variant_id": "<openvino-fp16-variant-id>",
+        "model_format": "openvino",
+        "precision": "fp16"
+      },
+      {
+        "variant_id": "<onnx-variant-id>",
+        "model_format": "onnx",
+        "precision": "fp16"
+      },
+      {
+        "variant_id": "<openvino-int8-variant-id>",
+        "model_format": "openvino",
+        "precision": "int8"
+      }
+    ],
+    "architecture": "object-detection-yolox-s"
+  }
+}
+```
+
+Use the returned model `name` and `metadata` IDs/variants in the Geti download examples below.
+
+Call `GET /api/v1/plugins` to see which plugins support listing and which `listing_filter_fields` each plugin accepts. Hugging Face supports `author`, `search`, and `tags`. The `author` filter is the repository namespace and accepts a user, owner, or organization name (for example, `microsoft` or `meta-llama`); `tags` filters by Hugging Face tags (library, language, task, license, and so on). Each returned Hugging Face item also includes `license`, `gated` (`false`, `"auto"`, or `"manual"`), and `requires_token` (true when the model is gated and needs an HF token to download). Ultralytics and Pipeline Zoo Models support `search`. Geti™ supports `project_id`, `project_name`, `model_name`, `precision`, `model_format`, `architecture`, and `variant_id`.
 
 > **Name format by hub (`models[].name`):**
 > `huggingface`, `ollama`, `openvino`, `geti`, `hls`, `remote-url`: single model name.
@@ -338,28 +375,69 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=ovms_mo
 > - Boolean flags are emitted only when they evaluate to true. Leave them unset or false to skip the corresponding CLI switch.
 > - Hugging Face authentication is still required for OVMS exports; provide `HUGGINGFACEHUB_API_TOKEN` (or pass the token via the API) before invoking these parameters.
 
-**Download models from Geti™ software, which are optimized through OpenVINO toolkit's optimization tool:**
+**Download a Geti™ model:**
 
+Select an exact variant using its `variant_id`:
 ```bash
-curl -X POST 'http://<host-ip>:8200/api/v1/models/download?download_path=geti_folder' \
+curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=geti_models" \
   -H "Content-Type: application/json" \
   -d '{
     "models": [
-        {
-            "name": "yolox-tiny",
-            "hub": "geti",
-            "revision": "1",
-            "config":{
-                "precision": "fp32"
-            }
+      {
+        "name": "YOLOX-S (ff43ddac)",
+        "hub": "geti",
+        "config": {
+          "variant_id": "<openvino-fp16-variant-id>",
+          "precision": "fp16"
         }
+      }
     ],
-    "parallel_downloads": true
+    "parallel_downloads": false
+  }'
+```
+
+Select a variant by model name, format, and precision:
+```bash
+curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=geti_models" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "models": [
+      {
+        "name": "YOLOX-S (ff43ddac)",
+        "hub": "geti",
+        "config": {
+          "model_format": "openvino",
+          "precision": "fp16"
+        }
+      }
+    ],
+    "parallel_downloads": false
+  }'
+```
+
+Provide both `project_id` and `model_id` to skip project and model name lookup:
+```bash
+curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=geti_models" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "models": [
+      {
+        "name": "YOLOX-S (ff43ddac)",
+        "hub": "geti",
+        "config": {
+          "project_id": "<project-id>",
+          "model_id": "<model-id>",
+          "variant_id": "<openvino-fp16-variant-id>",
+          "precision": "fp16"
+        }
+      }
+    ],
+    "parallel_downloads": false
   }'
 ```
 
 > [!NOTE]
-> The default precision is FP16.
+> `variant_id` selects the downloaded variant, but the output directory precision is based on `config.precision` (default `fp16`). Set `precision` to the variant's actual precision if you want the directory name to match it.
 
 **Download a Pipeline Zoo model:**
 
@@ -545,7 +623,7 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=hf_gate
   }'
 ```
 
-**Download a Geti™ model with per-request credentials override (`GETI_HOST`, `GETI_TOKEN`, `GETI_WORKSPACE_ID`):**
+**Download a Geti™ model with per-request Geti host override (`GETI_HOST`):**
 
 ```bash
 curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=geti_override" \
@@ -557,9 +635,7 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=geti_ov
         "hub": "geti",
         "revision": "1",
         "override_credentials": {
-          "GETI_HOST": "<base64_GETI_HOST>",
-          "GETI_TOKEN": "<base64_GETI_TOKEN>",
-          "GETI_WORKSPACE_ID": "<base64_GETI_WORKSPACE_ID>"
+          "GETI_HOST": "<base64_GETI_HOST>"
         },
         "config": {
           "precision": "fp16"
@@ -571,7 +647,7 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=geti_ov
 ```
 
 > [!NOTE]
-> When overriding a grouped set of keys (for example the `geti` group), all required keys in that group must be provided together. Use `GET /api/v1/plugins` to see which keys belong to each group.
+> Geti has one required connection setting: `GETI_HOST`. Use `GET /api/v1/plugins` to see the keys each plugin accepts.
 
 **Download a remote-url model with per-request allowlist override (`EXTERNAL_SOURCES_URL_ALLOWLIST`):**
 
