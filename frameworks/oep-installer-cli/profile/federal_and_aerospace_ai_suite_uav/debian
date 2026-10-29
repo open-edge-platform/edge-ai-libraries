@@ -1,3 +1,0 @@
-debian_99_profile_federal_and_aerospace_ai_suite_uav () {
-  [ "$1" = "start" ] || echo "uav_platform uav_mission_compute_sdk"
-}

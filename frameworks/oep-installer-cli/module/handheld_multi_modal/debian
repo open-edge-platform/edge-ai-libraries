@@ -1,19 +1,34 @@
+
 configure_handheld_multi_modal () {
   workspace="$(ensure_project_path)/handheld-multi-modal"
-  version=release-2026.2.0
+  version=main
   repository=https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git
-  used_ports=(443 1443 5443 6443 7443 8443 80 7860 8000 9090 8554 8889)
+  used_ports=(3478 8010 8011 8012 8080 8186 8189 8200 8443 8554 8888 9090 9273 9997)
 }
 
 verify_handheld_multi_modal () {
-  [ -e "$workspace"/vippet-fedaero/tools/visual-pipeline-and-platform-evaluation-tool/shared/models/supported_models.yaml ]
+  local app_dir="$workspace"/handheld-multi-modal
+  [ -r "$app_dir/Makefile" ] &&
+    [ -r "$app_dir/compose/handheld-multi-modal.yaml" ] &&
+    [ -r "$app_dir/docs/user-guide/index.md" ] &&
+    [ -r "$app_dir/config/devices.yaml" ] &&
+    python3 "$app_dir/scripts/demo_assets.py" check-model --root "$app_dir"
 }
 
 debian_90_profile_handheld_multi_modal () {
-  echo "yq make curl git docker_io edge_base handheld_platform"
+  echo "yq make curl git docker_io edge_base"
 }
 
 debian_90_install_handheld_multi_modal () {
+  local installed_path="$(ensure_project_path)/$installer_name/installed"
+  local blueprint
+  for blueprint in uncrewed_aerial_vehicle_blueprint mission_decision_support_blueprint; do
+    if [ -d "$installed_path/$blueprint" ]; then
+      echo "Cannot install handheld_multi_modal while $blueprint is installed." >&2
+      return 1
+    fi
+  done
+
   configure_handheld_multi_modal
   if verify_handheld_multi_modal $* && [[ " $* " != *" --reinstall "* ]]; then
     echo "handheld_multi_modal is installed." >&2
@@ -24,10 +39,8 @@ debian_90_install_handheld_multi_modal () {
     ensure_git_clone "$workspace" $version $repository handheld-multi-modal
     cd "$workspace"/handheld-multi-modal
     make setup
-    make build-whisper
-    make vippet-get
-    yes | make models-license
-    docker compose -f docker-compose.yml pull --ignore-buildable
+    make prereq CONFIRM=yes
+    docker compose -f compose/handheld-multi-modal.yaml -f compose/cameras.yaml -f config/devices.yaml pull --ignore-buildable
     verify_handheld_multi_modal $*
   fi
 
@@ -39,25 +52,20 @@ debian_90_start_handheld_multi_modal () {
   configure_handheld_multi_modal
   ensure_ports_open start handheld_multi_modal "${used_ports[@]}"
   cd "$workspace"/handheld-multi-modal
-  make deploy
-  echo "@@HIGHLIGHT URL: https://$(ensure_ip):${used_ports[0]}"
+  make up CONFIRM=yes
+  echo "@@HIGHLIGHT URL: https://localhost:8443/ (trust config/tls/server.crt)"
   echo "@@HIGHLIGHT $installer_name stop|remove"
 }
 
 debian_90_stop_handheld_multi_modal () {
   configure_handheld_multi_modal
   cd "$workspace"/handheld-multi-modal
-  make down
+  make stop
 }
 
 debian_90_remove_handheld_multi_modal () {
   configure_handheld_multi_modal
   local app_dir="$workspace"/handheld-multi-modal
-  local vippet_dir="$workspace"/vippet-fedaero/tools/visual-pipeline-and-platform-evaluation-tool
-  [ ! -d "$app_dir" ] || debian_90_stop_handheld_multi_modal $* || true
-  # drop the stacks' containers, volumes and images (not a system-wide prune)
-  [ ! -r "$vippet_dir/compose.yml" ] || (cd "$vippet_dir" && docker compose down --remove-orphans --volumes --rmi all) || true
-  [ ! -r "$app_dir/docker-compose.yml" ] || (cd "$app_dir" && docker compose -f docker-compose.yml down --remove-orphans --volumes --rmi all) || true
-  docker image rm -f whisper-stt:latest > /dev/null 2>&1 || true
+  [ ! -d "$app_dir" ] || (cd "$app_dir" && make clean-all CONFIRM=yes)
   ensure_rm "$workspace"
 }

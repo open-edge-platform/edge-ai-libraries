@@ -40,11 +40,3 @@ debian_40_remove_system_info () {
   fi
   ensure_rm "$workspace"
 }
-
-debian_40_sbom_system_info () {
-  configure_system_info
-  ensure_sbom_format name system_info
-  ensure_sbom_format repository "$repository"
-  ensure_sbom_format version "$version"
-  ensure_sbom_format file "$system_info_path/system-info.sh"
-}

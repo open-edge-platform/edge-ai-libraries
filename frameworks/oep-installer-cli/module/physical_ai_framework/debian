@@ -15,7 +15,7 @@ configure_physical_ai_framework_device () {
     paif_extra=cu128
   else
     paif_extra=cpu
-    [ "$(ensure_select_device "$@")" = cpu ] || [ ! -e /dev/dri/renderD128 ] || paif_extra=xpu
+    [ "$(ensure_parse_device "$@")" = cpu ] || [ ! -e /dev/dri/renderD128 ] || paif_extra=xpu
   fi
   paif_index="https://download.pytorch.org/whl/$paif_extra"
 }
