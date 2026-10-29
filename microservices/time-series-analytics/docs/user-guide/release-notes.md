@@ -8,7 +8,7 @@ This release introduces **pipeline control APIs**, **a source-built Kapacitor 1.
 
 **New**
 
-- **Pipeline control APIs**: added endpoints to stop a running UDF task and check its status without shutting down Kapacitor.
+- **Pipeline status APIs**: added endpoints to stop a running UDF task and check its status without shutting down Kapacitor.
 
 **Improved**
 
