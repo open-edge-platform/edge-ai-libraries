@@ -192,18 +192,8 @@ def cli_overrides(namespace: argparse.Namespace) -> dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- #
-# Environment handed to pytest / helpers
+# Environment handed to pytest
 # --------------------------------------------------------------------------- #
-
-
-def settings_env(settings: ResolvedSettings) -> dict[str, str]:
-    """Env vars that make downstream consumers see the resolved values.
-
-    Every exported variable is declared as ``env=`` on its spec, so values a
-    user already exported are part of the resolution (env layer) and direct
-    ``pytest`` runs see exactly the same values as CLI runs.
-    """
-    return {spec.env: str(settings[spec.key]) for spec in SPECS if spec.env}
 
 
 def _ensure_import_paths() -> None:
@@ -235,12 +225,12 @@ def _render(value: Any) -> str:
 
 
 def _default_discover(settings: ResolvedSettings) -> Matrix:
-    # helpers.config reads VIPPET_BASE_URL at import time; export first.
-    os.environ.update(settings_env(settings))
     _ensure_import_paths()
     from .discovery import discover_matrix
 
-    return discover_matrix(MatrixFilters.from_settings(settings))
+    return discover_matrix(
+        MatrixFilters.from_settings(settings), base_url=settings["vippet.base_url"]
+    )
 
 
 def _default_preflight(

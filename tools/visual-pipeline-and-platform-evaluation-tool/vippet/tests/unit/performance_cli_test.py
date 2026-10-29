@@ -701,27 +701,6 @@ class TestRunPytest(unittest.TestCase):
                 )
 
 
-class TestSettingsEnv(unittest.TestCase):
-    def test_exports_every_env_backed_key(self) -> None:
-        settings = resolve_settings(
-            "default", env={}, cli_overrides={"vippet.max_job_duration": 42}
-        )
-        env = cli.settings_env(settings)
-        self.assertEqual(set(env), {spec.env for spec in SPECS if spec.env})
-        # helpers.config parses this with int(); must not be "42.0".
-        self.assertEqual(env["VIPPET_JOB_TIMEOUT_SECONDS"], "42")
-
-    def test_user_env_is_resolved_not_clobbered(self) -> None:
-        user_env = {
-            "VIPPET_JOB_TIMEOUT_SECONDS": "77",
-            "VIPPET_JOB_POLL_INTERVAL": "0.5",
-        }
-        settings = resolve_settings("default", env=user_env)
-        env = cli.settings_env(settings)
-        self.assertEqual(env["VIPPET_JOB_TIMEOUT_SECONDS"], "77")
-        self.assertEqual(env["VIPPET_JOB_POLL_INTERVAL"], "0.5")
-
-
 class TestDirectPytestConfigError(unittest.TestCase):
     def test_bad_config_prints_one_line_and_exits_2(self) -> None:
         env = {k: v for k, v in os.environ.items() if not k.startswith("PERF_")}

@@ -48,7 +48,7 @@ def _required_families(variant_name: str) -> set[str] | None:
 
 
 def missing_models_per_pipeline(
-    session: requests.Session,
+    session: requests.Session, *, base_url: str | None = None
 ) -> dict[str, set[str]]:
     """Return ``{pipeline_id: {display_name, ...}}`` of models the pipeline
     needs but that are **not** installed on the current system.
@@ -66,7 +66,7 @@ def missing_models_per_pipeline(
     the ``device`` property differs), so this is the right granularity.
     """
     result: dict[str, set[str]] = defaultdict(set)
-    for model in fetch_models(session):
+    for model in fetch_models(session, base_url=base_url):
         status = str(model.get("install_status") or "").lower()
         if status in _RUNNABLE_INSTALL_STATUSES:
             continue

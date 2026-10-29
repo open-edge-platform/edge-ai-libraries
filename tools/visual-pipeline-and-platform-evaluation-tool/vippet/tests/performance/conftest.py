@@ -22,7 +22,6 @@ from pathlib import Path
 from typing import Any
 
 from dataclasses import dataclass, field
-from helpers.pipeline_case_helpers import PipelineCase
 from perf_helpers.hw_monitor import HardwareMonitor
 from perf_helpers.job_outcome import describe_missing_hw_samples
 from perf_helpers.preflight import (
@@ -46,7 +45,6 @@ try:
         ON_UNKNOWN_FILTER_ID,
         PERF_RESULTS_DIR,
         POLL_INTERVAL,
-        POLL_TIMEOUT,
         READINESS_TIMEOUT_SECONDS,
         REQUEST_TIMEOUT,
         RESULT_FORMATS,
@@ -64,15 +62,8 @@ except SettingsError as exc:
     print(f"error: invalid performance config: {exc}", file=sys.stderr)
     raise SystemExit(2) from None
 
-# Propagate perf config to env vars consumed by functional helpers. This must
-# run BEFORE importing ``helpers.*``: helpers.config reads these env vars once
-# at import time. Overwritten, not defaulted: a CLI flag may have overridden
-# an exported value.
-os.environ["VIPPET_BASE_URL"] = BASE_URL
-os.environ["VIPPET_JOB_TIMEOUT_SECONDS"] = str(POLL_TIMEOUT)
-os.environ["VIPPET_JOB_POLL_INTERVAL"] = str(POLL_INTERVAL)
 
-from helpers.pipeline_case_helpers import wrap_cases_for_pytest  # noqa: E402
+from helpers.pipeline_case_helpers import PipelineCase, wrap_cases_for_pytest  # noqa: E402
 from perf_helpers.discovery import discover_matrix  # noqa: E402
 from perf_helpers.matrix import (  # noqa: E402
     Matrix,
@@ -138,10 +129,18 @@ _FILTER_PROBLEM: tuple[str, bool] | None = None
 
 # Set once collection is final: the selected tests (pipeline_id, variant_id,
 # streams, test_id), the code revisions and, for a replay, the comparison
-# with the recorded run. All end up in the result's "config" block.
+# with the recorded run. Used for the pre-run replay/drift comparison; the
+# result's "config" block instead records _RUN_SELECTION (see below), since
+# a run may stop (-x / --maxfail) before running everything collected here.
 _SELECTION: list[dict[str, Any]] = []
 _REVISIONS: dict[str, str] = {}
 _REPLAY: dict[str, Any] | None = None
+
+# Subset of _SELECTION whose run actually started (pytest_runtest_protocol
+# below), in run order. Serialized into the result's "config.selection" so a
+# replay never claims to have executed a benchmark that -x / --maxfail cut
+# off before it started.
+_RUN_SELECTION: list[dict[str, Any]] = []
 
 
 _QUICK_STREAM_COUNTS: set[int] = {1, 3}
@@ -372,6 +371,16 @@ def _unwrap_case(
     return actual_case, skip_marks, is_skipped
 
 
+def _was_recorded_pipeline_id(issue: Any, recorded_ids: frozenset[str]) -> bool:
+    """Whether *issue*'s id named a real pipeline when a replayed run was
+    recorded, matched the same way ``find_unknown_filter_ids`` matches it."""
+    if issue.key == "benchmark.pipelines":
+        return issue.value in recorded_ids
+    if issue.key == "benchmark.filters.skip_pipelines":
+        return issue.value.lower() in {p.lower() for p in recorded_ids}
+    return False
+
+
 def _validate_filter_ids(
     config: pytest.Config, known_pipeline_ids: list[str]
 ) -> list[PipelineCase | object]:
@@ -382,6 +391,14 @@ def _validate_filter_ids(
     no cases are added and the session is aborted once collection has
     finished (see ``pytest_collection_finish``). Either way the explanation
     is kept in ``_FILTER_PROBLEM`` and printed after the matrix.
+
+    On a replay, a pipeline/skip_pipelines id that named a real pipeline
+    *when the recorded run was made* but is no longer discovered now (the
+    pipeline disappeared) is not treated as an invalid filter: it is
+    replay drift, already surfaced and gated by --allow-matrix-drift via
+    ``compare_with_recording`` (the recorded case is simply missing from
+    the current matrix). Only ids that were never valid still follow
+    ``ON_UNKNOWN_FILTER_ID``.
     """
     global _FILTER_PROBLEM
     issues = find_unknown_filter_ids(
@@ -389,6 +406,17 @@ def _validate_filter_ids(
     )
     if not issues:
         return []
+
+    recording = SETTINGS.recording
+    if recording is not None:
+        recorded_ids = frozenset(recording.config["matrix"]["known_pipeline_ids"])
+        issues = [
+            issue
+            for issue in issues
+            if not _was_recorded_pipeline_id(issue, recorded_ids)
+        ]
+        if not issues:
+            return []
 
     message = describe_unknown_filter_ids(issues, SETTINGS.config_path)
     _FILTER_PROBLEM = (message, ON_UNKNOWN_FILTER_ID == "fail")
@@ -462,7 +490,9 @@ def _discover_case_params() -> _DiscoveredCases:
     :func:`wrap_cases_for_pytest`.
     """
     try:
-        matrix = discover_matrix(MatrixFilters.from_settings(SETTINGS))
+        matrix = discover_matrix(
+            MatrixFilters.from_settings(SETTINGS), base_url=BASE_URL
+        )
     except Exception as exc:
         reason = describe_discovery_error(exc, BASE_URL)
         logger.debug("Inventory discovery failed", exc_info=True)
@@ -616,6 +646,22 @@ def pytest_collection_finish(session: pytest.Session) -> None:
         )
 
 
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_protocol(
+    item: pytest.Item, nextitem: pytest.Item | None
+) -> Generator[None, object, object]:
+    """Record that *item*'s run (not just its collection) is starting.
+
+    Items never reach this hook when ``-x`` / ``--maxfail`` stops the
+    session before them, so ``_RUN_SELECTION`` only ever contains
+    benchmarks that were actually attempted.
+    """
+    if case := _selected_case(item):
+        _RUN_SELECTION.append(case)
+    result = yield
+    return result
+
+
 def pytest_report_collectionfinish(
     config: pytest.Config, start_path: Path, items: list[pytest.Item]
 ) -> list[str]:
@@ -763,7 +809,7 @@ def results_collector(
             "config": build_config_block(
                 SETTINGS,
                 matrix=_DISCOVERED_CASES.matrix if _DISCOVERED_CASES else None,
-                selection=_SELECTION,
+                selection=_RUN_SELECTION,
                 revisions=_REVISIONS,
                 pytest_args=request.config.invocation_params.args,
                 filter_problem=_FILTER_PROBLEM[0] if _FILTER_PROBLEM else None,

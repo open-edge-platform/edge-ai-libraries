@@ -288,10 +288,12 @@ Environment variable defaults:
 | `PERF_METRICS_INTERVAL`      | `2.0`                                            | HW sampling interval (seconds)                                                                                                                                            |
 | `PERF_ON_UNKNOWN_ID`         | `fail`                                           | Unknown id in `pipelines` / `skip_pipelines` / `skip_variants` / `variants`: `fail` aborts the run, `warn` only logs a warning                                            |
 
-`VIPPET_JOB_POLL_INTERVAL` and `VIPPET_JOB_TIMEOUT_SECONDS` are also read by the
-functional-test helpers. The CLI and direct pytest both resolve them the same way.
-Numbers must be finite (`nan` and `inf` are rejected). With direct pytest, an invalid
-config also prints a one-line error and exits with `2`.
+This suite reuses some functional-test helper functions (device/pipeline discovery,
+job submission/polling) instead of duplicating them; it passes its own resolved
+`vippet.base_url` / `vippet.poll_interval` / `vippet.max_job_duration` to them
+explicitly. The CLI and direct pytest both resolve settings the same way. 
+Numbers must be finite (`nan` and `inf` are rejected). With direct pytest,
+an invalid config also prints a one-line error and exits with `2`.
 
 ### Replaying a run
 
