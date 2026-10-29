@@ -420,6 +420,47 @@ export GETI_HOST=https://geti.example.com
 
 Every trained Geti 3.0 model exposes multiple variants side by side (`pytorch`, `onnx`, `openvino`), each with its own `precision`. To download the raw/base weights instead of the OpenVINO-optimized variant, set `config.model_format` to `"pytorch"` and `config.precision` to `"fp32"` (pytorch variants are always fp32).
 
+Use the exact model `name` returned by `POST /api/v1/models/list`. Select the variant using one of these approaches:
+
+**Select by exact variant ID:**
+
+```json
+{
+  "name": "YOLOX-S (ff43ddac)",
+  "hub": "geti",
+  "config": {
+    "variant_id": "<variant-id>"
+  }
+}
+```
+
+**Select by format and precision:**
+
+```json
+{
+  "name": "YOLOX-S (ff43ddac)",
+  "hub": "geti",
+  "config": {
+    "model_format": "openvino",
+    "precision": "fp16"
+  }
+}
+```
+
+**Select using project and model IDs:** provide both IDs to skip project and model name lookup. A `variant_id` can be included to select a specific variant.
+
+```json
+{
+  "name": "YOLOX-S (ff43ddac)",
+  "hub": "geti",
+  "config": {
+    "project_id": "<project-id>",
+    "model_id": "<model-id>",
+    "variant_id": "<variant-id>"
+  }
+}
+```
+
 ### Output Path
 
 `<model-path>/<download_path>/geti/<model-name>/<precision>/`
