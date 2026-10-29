@@ -533,6 +533,4 @@ above.
   [Compose configuration](../../../compose.yml) and
   [system telemetry architecture](./metrics/system-performance.md).
 - [Voice user guide](../user-guide/voice-conversion.md),
-  [backend regression tests](../../../vippet/tests/unit/api_tests/voice_test.py) and
-  [Voice browser regression tests](../../../ui/tests/voice.spec.ts) and
-  [Audio Jobs browser regression tests](../../../ui/tests/audio-jobs.spec.ts).
+  [backend regression tests](../../../vippet/tests/unit/api_tests/voice_test.py).

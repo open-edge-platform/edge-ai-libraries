@@ -501,16 +501,3 @@ and protect reachable endpoints with appropriate access control and TLS.
 PYTHONPATH=vippet .venv/bin/python -m unittest discover \
   -s vippet/tests/unit/api_tests -p voice_test.py -v
 ```
-
-Start the UI development server, then run the browser checks in another terminal:
-
-```bash
-cd ui
-npm run dev -- --host 127.0.0.1
-# In another terminal, from ui/:
-npx playwright install chromium
-npx playwright test tests/voice.spec.ts
-```
-
-Set `VOICE_UI_URL` when the server uses another port. Browser tests mock service
-responses and use a synthetic microphone; they do not validate model quality.
