@@ -21,10 +21,10 @@ debian_99_profile_uncrewed_aerial_vehicle_blueprint () {
   esac
 }
 
-debian_89_install_uncrewed_aerial_vehicle_blueprint () {
+debian_99_install_uncrewed_aerial_vehicle_blueprint () {
   :
 }
 
-debian_89_remove_uncrewed_aerial_vehicle_blueprint () {
+debian_99_remove_uncrewed_aerial_vehicle_blueprint () {
   :
 }

@@ -3736,30 +3736,6 @@ debian_55_sbom_realsense ()
     ensure_sbom_format apt-list-file "$rs_list";
     ensure_sbom_format pkg-list "${rs_packages[@]}"
 }
-debian_89_install_handheld_blueprint () 
-{ 
-    :
-}
-debian_89_install_mission_decision_support_blueprint () 
-{ 
-    :
-}
-debian_89_install_uncrewed_aerial_vehicle_blueprint () 
-{ 
-    :
-}
-debian_89_remove_handheld_blueprint () 
-{ 
-    :
-}
-debian_89_remove_mission_decision_support_blueprint () 
-{ 
-    :
-}
-debian_89_remove_uncrewed_aerial_vehicle_blueprint () 
-{ 
-    :
-}
 debian_90_install_deterministic_threat_detection () 
 { 
     local installed_path="$(ensure_project_path)/$installer_name/installed";
@@ -3922,10 +3898,22 @@ debian_90_stop_uncrewed_aerial_vehicle_mission ()
         docker volume prune -f
     } || true
 }
+debian_99_install_handheld_blueprint () 
+{ 
+    :
+}
+debian_99_install_mission_decision_support_blueprint () 
+{ 
+    :
+}
 debian_99_install_system_summary () 
 { 
     echo "@@REPORT SYSTEM SUMMARY";
     install_system_inspection "$@" || true
+}
+debian_99_install_uncrewed_aerial_vehicle_blueprint () 
+{ 
+    :
 }
 debian_99_profile_edge_base () 
 { 
@@ -4025,6 +4013,18 @@ debian_99_profile_uncrewed_aerial_vehicle_blueprint ()
             echo "${modules[*]}"
         ;;
     esac
+}
+debian_99_remove_handheld_blueprint () 
+{ 
+    :
+}
+debian_99_remove_mission_decision_support_blueprint () 
+{ 
+    :
+}
+debian_99_remove_uncrewed_aerial_vehicle_blueprint () 
+{ 
+    :
 }
 ensure_apt () 
 { 

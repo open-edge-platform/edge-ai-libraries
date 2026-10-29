@@ -21,10 +21,10 @@ debian_99_profile_handheld_blueprint () {
   esac
 }
 
-debian_89_install_handheld_blueprint () {
+debian_99_install_handheld_blueprint () {
   :
 }
 
-debian_89_remove_handheld_blueprint () {
+debian_99_remove_handheld_blueprint () {
   :
 }
