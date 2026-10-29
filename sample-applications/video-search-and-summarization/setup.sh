@@ -741,7 +741,7 @@ md_start_service() {
         -e "MODEL_PATH=/opt/models"
         -e "HF_HUB_ENABLE_HF_TRANSFER=1"
         -e "OVMS_RELEASE_TAG=${MODEL_DOWNLOAD_OVMS_TAG}"
-        -e "UV_CACHE_DIR=/opt/models/.model-download-cache/uv"
+        -e "UV_CACHE_DIR=/tmp/model-download-cache/uv"
         -e "no_proxy=${no_proxy:-}"
         -e "http_proxy=${http_proxy:-}"
         -e "https_proxy=${https_proxy:-}"
