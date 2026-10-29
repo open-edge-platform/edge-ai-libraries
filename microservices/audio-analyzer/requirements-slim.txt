@@ -39,19 +39,19 @@ PyYAML==6.0.2
 # long as on-container model export is part of the architecture (seeing
 # review point #4's suggestion to move export to a separate tool/init
 # container -- not implemented in this pass; see optimization log).
-torch==2.8.0+cpu
+torch==2.11.0+cpu
 # onnx is not imported directly anywhere in this codebase, but it is an
 # unconditional transitive dependency of optimum-onnx, which is itself an
 # unconditional dependency of optimum-intel (used below for the OpenVINO
 # export path). Pinned explicitly (rather than left to float) purely for
 # reproducibility, since it is pulled in either way.
-onnx==1.21.0
+onnx==1.22.0
 transformers==4.53.3
 uvicorn==0.35.0
 # WebSocket transport for uvicorn — required by the realtime transcription
 # endpoint (api/realtime_endpoints.py); uvicorn has no WS support without it.
 websockets==15.0.1
-fsspec>=2023.1.0,<=2025.3.0
+fsspec>=2023.5.0,<=2026.6.0
 numpy==2.2.6
 optimum==2.1.0
 optimum-intel[openvino]==1.27.0
