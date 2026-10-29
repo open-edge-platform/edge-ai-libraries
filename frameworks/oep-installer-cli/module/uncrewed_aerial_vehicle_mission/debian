@@ -1,0 +1,129 @@
+
+configure_uncrewed_aerial_vehicle_mission () {
+  workspace="$(ensure_project_path)/uav-mission-compute-sdk"
+  version="main"
+  repository="https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git"
+  used_ports=(8086 3000 9090 9273)
+
+  version_skills="be9aa5e65f57c397bded94bae975469eb749eff7"
+  repository_skills="https://github.com/open-edge-platform/skills.git"
+  skills=(uav-mission-compute-sdk)
+}
+
+verify_uncrewed_aerial_vehicle_mission () {
+  [ -r "$workspace/uav-mission-compute-sdk/docker-compose.yml" ] &&
+    docker image inspect \
+      uav-mission-compute-sdk/px4-gazebo:latest \
+      uav-mission-compute-sdk/companion-bridge:latest \
+      uav-mission-compute-sdk/camera-bridge:latest \
+      uav-mission-compute-sdk/usb-camera-bridge:latest \
+      uav-mission-compute-sdk/vision-processor-multicam:latest \
+      sample-apps-edge-ai-showcase:latest > /dev/null
+}
+
+initialize_uncrewed_aerial_vehicle_mission () {
+  local device shim_dir status
+  for device in /dev/video* /dev/media*; do
+    [[ -c "$device" ]] || continue
+    make init
+    return
+  done
+
+  shim_dir="$(mktemp -d)"
+  printf '#!/bin/sh\nexit 0\n' > "$shim_dir/v4l2-ctl"
+  chmod 700 "$shim_dir/v4l2-ctl"
+  if PATH="$shim_dir:$PATH" make init; then
+    rm -f "$shim_dir/v4l2-ctl"
+    rmdir "$shim_dir"
+  else
+    status=$?
+    rm -f "$shim_dir/v4l2-ctl"
+    rmdir "$shim_dir"
+    return "$status"
+  fi
+}
+
+debian_90_profile_uncrewed_aerial_vehicle_mission () {
+  echo "docker_io git curl make v4l_utils"
+}
+
+debian_90_install_uncrewed_aerial_vehicle_mission () {
+  local installed_path="$(ensure_project_path)/$installer_name/installed"
+  local blueprint
+  for blueprint in handheld_blueprint mission_decision_support_blueprint; do
+    if [ -d "$installed_path/$blueprint" ]; then
+      echo "Cannot install uncrewed_aerial_vehicle_mission while $blueprint is installed." >&2
+      return 1
+    fi
+  done
+
+  configure_uncrewed_aerial_vehicle_mission
+  if verify_uncrewed_aerial_vehicle_mission 2>/dev/null && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Uncrewed aerial vehicle mission compute SDK is installed." >&2
+  else
+    ensure_ports_open install uncrewed_aerial_vehicle_mission "${used_ports[@]}"
+
+    echo "@@STEP Cloning repository"
+    ensure_git_export "$workspace" "$version" "$repository" uav-mission-compute-sdk
+
+    echo "@@STEP Building SDK"
+    cd "$workspace"/uav-mission-compute-sdk
+    initialize_uncrewed_aerial_vehicle_mission
+    sed -i "s|^HOST_IP=.*$|HOST_IP=$(ensure_ip)|" .env
+    COMPOSE_PROFILES=sim-camera,usb-camera,observability make build
+
+    if ! verify_uncrewed_aerial_vehicle_mission; then
+      echo "Uncrewed aerial vehicle SDK build completed, but required simulation, camera, or application images are missing." >&2
+      return 1
+    fi
+  fi
+
+  if [ ! -r "$HOME/.agents/skills/uav-mission-compute-sdk/SKILL.md" ]; then
+    echo "@@STEP Installing skills"
+    ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}"
+  fi
+
+  local profile="sim-camera"
+  [[ " $* " != *" --sim "* ]] || profile="sim-camera"
+  [[ " $* " != *" --usb "* ]] || profile="usb-camera"
+  [[ " $* " != *" --realsense "* ]] || profile="realsense-camera"
+  cd "$workspace"/uav-mission-compute-sdk
+  sed -i '/^PROFILE=/{d}' "$workspace"/uav-mission-compute-sdk/.env
+  echo "PROFILE=$profile" >> "$workspace"/uav-mission-compute-sdk/.env
+
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
+  echo "@@HIGHLIGHT $installer_name start|remove"
+}
+
+debian_90_start_uncrewed_aerial_vehicle_mission () {
+  configure_uncrewed_aerial_vehicle_mission
+  ensure_ports_open start uncrewed_aerial_vehicle_mission "${used_ports[@]}"
+
+  cd "$workspace"/uav-mission-compute-sdk
+  . .env
+  make up-$PROFILE
+
+  echo "@@HIGHLIGHT $installer_name remove"
+}
+
+debian_90_stop_uncrewed_aerial_vehicle_mission () {
+  configure_uncrewed_aerial_vehicle_mission
+  cd "$workspace"/uav-mission-compute-sdk && {
+    make down || true
+    docker volume rm -f uav-mission-compute-sdk_grafana-data uav-mission-compute-sdk_influxdb-data || true
+    docker volume prune -f
+  } || true
+}
+
+debian_90_remove_uncrewed_aerial_vehicle_mission () {
+  configure_uncrewed_aerial_vehicle_mission
+  local app_dir="$workspace"/uav-mission-compute-sdk
+  if [ -r "$app_dir/docker-compose.yml" ]; then
+    debian_90_stop_uncrewed_aerial_vehicle_mission "$@"
+    # drop the stack's containers, volumes and images (not a system-wide prune)
+    (cd "$app_dir" && docker compose -f docker-compose.yml --profile sim-camera --profile usb-camera --profile observability \
+      down --remove-orphans --volumes --rmi all) || true
+  fi
+  ensure_rm "$workspace" || true
+  ensure_skills remove "${skills[@]}"
+}

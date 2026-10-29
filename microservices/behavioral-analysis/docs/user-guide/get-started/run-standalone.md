@@ -1,15 +1,15 @@
 # Run Standalone
 
-Running the service outside Docker requires Python 3.12, OpenVINO Runtime, and all Python dependencies installed locally. This mode is primarily useful for development and testing.
+Running the service outside Docker requires Python 3.12, OpenVINO™ Runtime, and all Python dependencies installed locally. This mode is primarily useful for development and testing.
 
 > [!NOTE]
 > The container image (`intel/dlstreamer:2026.1.0-ubuntu24`) provides
-> OpenVINO and GStreamer pre-installed. Replicating this environment locally requires manual OpenVINO installation.
+> OpenVINO™ and GStreamer pre-installed. Replicating this environment locally requires manual OpenVINO™ installation.
 
 ## Prerequisites
 
 - Python 3.12
-- OpenVINO Runtime (matching the version in `intel/dlstreamer:2026.1.0-ubuntu24`)
+- OpenVINO™ Runtime (matching the version in `intel/dlstreamer:2026.1.0-ubuntu24`)
 - Git (required for the `git+https://` dependency in `requirements.txt`)
 - Running instances of SeaweedFS, MQTT broker, and OVMS (if VLM is enabled)
 - YOLO-Pose model files (`.xml` + `.bin`) accessible at a local path
@@ -79,7 +79,7 @@ Expected response:
 Uvicorn arguments relevant to this service:
 
 | Argument | Description | Example |
-|---|---|---|
+| --- | --- | --- |
 | `--host` | Bind address | `0.0.0.0` |
 | `--port` | Listen port | `8080` |
 | `--reload` | Auto-reload on code changes (dev only) | — |
@@ -110,7 +110,7 @@ kill -TERM <uvicorn-pid>
 
 ### `ModuleNotFoundError: No module named 'openvino'`
 
-Install OpenVINO Runtime for Python:
+Install OpenVINO™ Runtime for Python:
 
 ```bash
 pip install openvino

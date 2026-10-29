@@ -1,0 +1,24 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+version: 1
+# Match the base agent policy; Hermes browser chat additionally needs PTYs.
+filesystem_policy:
+  include_workdir: true
+  read_only:
+    - /bin
+    - /usr
+    - /lib
+    - /lib64
+    - /etc
+    - /proc
+    - /dev/urandom
+    - /opt/harness
+  read_write:
+    - /home/node
+    - /sandbox
+    - /tmp
+    - /dev/null
+    - /dev/ptmx
+    - /dev/pts
+landlock:
+  compatibility: best_effort

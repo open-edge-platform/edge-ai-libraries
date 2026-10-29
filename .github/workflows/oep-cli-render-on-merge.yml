@@ -80,6 +80,11 @@ jobs:
           set -euo pipefail
           ./openedge-cli bootstrap --family=debian --output rendered/openedge-cli
           ./openedge-cli bootstrap --family=fedora --output rendered/openedge-cli-fedora
+          ./openedge-cli bootstrap --family=debian \
+            federal_and_aerospace_ai_suite_handheld \
+            federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle \
+            federal_and_aerospace_ai_suite_mission_decision_support \
+            --output rendered/openedge-cli-federal-aerospace
 
       - name: Commit and push if the rendered installer changed
         working-directory: frameworks/oep-installer-cli
@@ -93,9 +98,11 @@ jobs:
 
           # -f is required: rendered/.gitignore contains "*", which would otherwise
           # block staging the (already tracked) rendered artifact.
-          git add -f rendered/openedge-cli rendered/openedge-cli-fedora
+          git add -f rendered/openedge-cli rendered/openedge-cli-fedora \
+            rendered/openedge-cli-federal-aerospace
 
-          if git diff --cached --quiet -- rendered/openedge-cli rendered/openedge-cli-fedora; then
+          if git diff --cached --quiet -- rendered/openedge-cli rendered/openedge-cli-fedora \
+            rendered/openedge-cli-federal-aerospace; then
             echo "::notice::rendered already up to date — nothing to commit."
             exit 0
           fi

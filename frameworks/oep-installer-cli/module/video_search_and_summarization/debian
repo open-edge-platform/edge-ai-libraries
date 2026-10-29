@@ -1,7 +1,7 @@
 
 configure_video_search_and_summarization () {
   workspace="$(ensure_project_path)/video-search-and-summarization"
-  version=1c5fdc1f440e685c8f82322ec09b60b7320ea404
+  version="$(ensure_parse_value_option version --version=1c5fdc1f440e685c8f82322ec09b60b7320ea404 "$@")"
   repository="https://github.com/open-edge-platform/edge-ai-libraries.git"
 
   version_skills=release-2026.2.0
@@ -12,7 +12,7 @@ configure_video_search_and_summarization () {
   used_ports=($APP_HOST_PORT 3001 7890 6016 6008 8999 9777 8300 9300 8090 4001 4002 55555 9090 9273 5432 1883 5672 8640)
 
   [ ! -r "$workspace"/.device_from_install ] || set -- "$@" "--$(< "$workspace"/.device_from_install)"
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
 
   export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
   export ENABLED_WHISPER_MODELS=tiny.en,small.en,medium.en
@@ -110,7 +110,7 @@ debian_85_install_video_search_and_summarization () {
     verify_video_search_and_summarization
   fi
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   echo "$device" > "$workspace"/.device_from_install
 
   echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
@@ -134,8 +134,10 @@ debian_85_stop_video_search_and_summarization () {
 
   docker rm -f vss-model-download || true
   cd "$workspace"/sample-applications/video-search-and-summarization && {
-  . ./setup.sh --stop || true
-  . ./setup.sh --clean-data
+    . ./setup.sh --stop || true
+    . ./setup.sh --clean-data || true
+    docker volume rm -f docker_ov-models || true
+    docker volume rm -f docker_dataprep-yolox-models
   } || true
 }
 

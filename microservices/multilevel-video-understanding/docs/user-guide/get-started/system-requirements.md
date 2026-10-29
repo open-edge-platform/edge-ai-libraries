@@ -4,7 +4,7 @@ This page provides detailed hardware, software, and platform requirements to hel
 
 ## Supported Platforms
 
-The `multilevel-video-understanding` microservice itself is platform-agnostic — it only needs an OpenAI-compatible model serving. In practice the platform sensitivity comes entirely from the model serving (**vLLM-IPEX**: [llm-scaler](https://github.com/intel/llm-scaler)). To run on a different platform, simply deploy llm-scaler on that platform and point the microservice at its endpoint; nothing else changes.
+The `multilevel-video-understanding` microservice itself is platform-agnostic — it only needs an OpenAI-compatible model serving. In practice the platform sensitivity comes entirely from the model serving (**vLLM**: [llm-scaler](https://github.com/intel/llm-scaler)). To run on a different platform, simply deploy llm-scaler on that platform and point the microservice at its endpoint; nothing else changes.
 
 Two platforms have been validated:
 
@@ -18,6 +18,7 @@ Two platforms have been validated:
 **Hardware — Platform #1: Intel® Core™ Ultra (PTL 358H), on-device iGPU**
 
 - Intel® Core™ Ultra processor with integrated GPU (validated on Panther Lake, PTL 358H), sharing system RAM
+- Validated kernel: `7.0.0-38-generic`
 - At least **64 GB RAM** — default deployment target for `Qwen3.5-35B-A3B` (FP8, 60k context)
 - At least **32 GB swap** — so the model load and KV cache can spill under peak memory pressure
 - At least 128 GB disk space (model weights + Hugging Face cache)
