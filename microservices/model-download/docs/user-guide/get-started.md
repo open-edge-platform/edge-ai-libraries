@@ -555,7 +555,8 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=geti_ov
   }'
 ```
 
-> **Note:** Geti has one required connection setting: `GETI_HOST`. Use `GET /api/v1/plugins` to see the keys each plugin accepts.
+> [!NOTE]
+> Geti has one required connection setting: `GETI_HOST`. Use `GET /api/v1/plugins` to see the keys each plugin accepts.
 
 **Download a remote-url model with per-request allowlist override (`EXTERNAL_SOURCES_URL_ALLOWLIST`):**
 

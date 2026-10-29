@@ -337,7 +337,7 @@ Every trained Geti 3.0 model exposes multiple variants side by side (`pytorch`, 
 
 ### Output Path
 
-`<model-path>/geti/<model-name>/<precision>/`
+`<model-path>/<download_path>/geti/<model-name>/<precision>/`
 
 ---
 
