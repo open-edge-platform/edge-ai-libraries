@@ -4,7 +4,7 @@
 
 **December 2026**
 
-This release introduces **pipeline control APIs**, **a source-built Kapacitor 1.8.7**, and **a smaller GPU image**, along with dependency updates and documentation improvements.
+This release introduces **pipeline control APIs**, **a source-built Kapacitor 1.8.7**, and **a smaller containerized image**, along with dependency updates and documentation improvements.
 
 **New**
 
@@ -13,7 +13,7 @@ This release introduces **pipeline control APIs**, **a source-built Kapacitor 1.
 **Improved**
 
 - **Kapacitor**: built version 1.8.7 from source and kept build tools out of the runtime image.
-- **GPU image**: reduced image size and simplified driver installation.
+- **Smaller Containerized image**: Removed not used dependencies and simplified driver installation.
 - **Dependencies**: updated Python runtime, test, and simulator dependencies, including FastAPI, scikit-learn, asyncua, and protobuf.
 - **Deployment images**: updated Docker and Helm image versions to 2026.3.0 and refreshed the Python base image.
 - **Validation**: added shell linting to CI and corrected ShellCheck findings in startup scripts.
