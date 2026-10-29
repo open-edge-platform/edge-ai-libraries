@@ -73,22 +73,22 @@ SCHEMA = {
 }
 
 validator = Draft202012Validator(SCHEMA)
-stream = open(sys.argv[2]) if len(sys.argv) > 2 else sys.stdin
+stream = open(sys.argv[1]) if len(sys.argv) > 1 else sys.stdin
 
 failed = False
 for i, doc in enumerate(yaml.safe_load_all(stream)):
-    if doc is None:            # skip empty docs (e.g. trailing '---')
-        continue
-    errors = sorted(validator.iter_errors(doc), key=lambda e: list(e.path))
-    for e in errors:
-        failed = True
-        path = "/".join(map(str, e.path)) or "<root>"
-        print(f"doc[{i}] {path}: {e.message}")
-        for sub in sorted(e.context, key=lambda s: [str(p) for p in s.schema_path]):
-            branch = sub.schema_path[0] if sub.schema_path else "?"
-            subpath = "/".join(map(str, sub.path)) or "<root>"
-            print(f"    oneOf[{branch}] {subpath}: {sub.message}")
-    if not errors:
-        print(f"doc[{i}] OK")
+  if doc is None:
+    continue
+  errors = sorted(validator.iter_errors(doc), key=lambda e: list(e.path))
+  for e in errors:
+    failed = True
+    path = "/".join(map(str, e.path)) or "<root>"
+    print(f"doc[{i}] {path}: {e.message}")
+    for sub in sorted(e.context, key=lambda s: [str(p) for p in s.schema_path]):
+      branch = sub.schema_path[0] if sub.schema_path else "?"
+      subpath = "/".join(map(str, sub.path)) or "<root>"
+      print(f"    oneOf[{branch}] {subpath}: {sub.message}")
+  if not errors:
+    print(f"doc[{i}] OK")
 sys.exit(1 if failed else 0)
 
