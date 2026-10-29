@@ -2339,13 +2339,13 @@ configure_dlstreamer ()
     list_file=/etc/apt/sources.list.d/intel-dlstreamer.list;
     repository=https://github.com/open-edge-platform/dlstreamer;
     workspace="$(ensure_project_path)/dlstreamer";
-    version=2026.2.0;
+    version="$(ensure_parse_value_option version --version=2026.2.0 "$@")";
     od_model=yolov5m-640_INT8/FP16-INT8/yolov5m-640_INT8;
     od_model_proc=yolov5m-640_INT8/yolo-v5;
     oc_model=efficientnet-b0_INT8/FP16-INT8/efficientnet-b0;
     model_repo=https://raw.githubusercontent.com/dlstreamer/pipeline-zoo-models/ee73878abc6fb6d864e59a5cd80016de4fc1d194;
     allow_downgrades=(libgbm1 libva-wayland2 libwayland-bin mesa-libgallium);
-    version_skills=release-2026.2.0;
+    version_skills="release-${version%-rc*}";
     repository_skills=https://github.com/open-edge-platform/skills.git;
     skills=(dlstreamer-coding-agent)
 }
@@ -3021,7 +3021,7 @@ configure_openvino ()
     apt_entry="deb [signed-by=$key_file] https://$repo_name/openvino ${ID}${VERSION_ID%.*} main";
     apt_file=/etc/apt/sources.list.d/intel-openvino.list;
     workspace="$(ensure_project_path)/openvino";
-    version=$([[ " $* " = *" dlstreamer "* ]] && echo 2026.2.0 || echo 2026.3.0);
+    version="$(ensure_parse_value_option version --version=$([[ " $* " = *" dlstreamer "* ]] && echo 2026.2.0 || echo 2026.3.0) "$@")";
     model="https://github.com/onnx/models/raw/4c46cd00fbdb7cd30b6c1c17ab54f2e1f4f7b177/validated/vision/classification/squeezenet/model/squeezenet1.0-12.onnx"
 }
 configure_osrf_gazebo_ros2 () 
@@ -5518,7 +5518,7 @@ debian_70_sbom_openvino ()
 }
 debian_75_install_dlstreamer () 
 { 
-    configure_dlstreamer;
+    configure_dlstreamer "$@";
     if verify_dlstreamer && [[ " $* " != *" --reinstall "* ]]; then
         echo "dlstreamer-${version} is installed." 1>&2;
     else
@@ -5548,7 +5548,7 @@ debian_75_profile_dlstreamer ()
 }
 debian_75_remove_dlstreamer () 
 { 
-    configure_dlstreamer;
+    configure_dlstreamer "$@";
     [ "$(ensure_prop get installed/dlstreamer/owned)" = "true" ] || return 0;
     ensure_apt purge --auto-remove -y $(dpkg-query -l | awk '/^ii/&&/dlstreamer/{print$2}') || true;
     ensure_rm "$workspace" || true;
@@ -5556,7 +5556,7 @@ debian_75_remove_dlstreamer ()
 }
 debian_75_sbom_dlstreamer () 
 { 
-    configure_dlstreamer;
+    configure_dlstreamer "$@";
     ensure_sbom_format repo-name "$repo_name";
     ensure_sbom_format apt-source "$deb_entry";
     ensure_sbom_format apt-list-file "$list_file";
