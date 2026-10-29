@@ -118,7 +118,7 @@ debian_55_remove_realsense () {
 
 debian_55_sbom_realsense () {
   configure_realsense "$@"
-  ensure_sbom_format name "$rs_repo_name"
+  ensure_sbom_format repo-name "$rs_repo_name"
   ensure_sbom_format gpg-key "$rs_key_url"
   ensure_sbom_format key-file "$rs_key_file"
   ensure_sbom_format apt-source "$rs_deb_entry"
