@@ -14,6 +14,8 @@ from pathlib import Path
 from typing import BinaryIO
 from uuid import uuid4
 
+from fastapi import HTTPException
+
 from audio_assets import AudioAssetsManager
 from managers.audio_pipeline_manager import (
     AudioDevice,
@@ -319,10 +321,13 @@ class AudioPipelineJobManager:
             )
             raise
         except Exception as exc:
+            # HTTPException details are static, sanitized messages from the voice routes.
+            reason = exc.detail if isinstance(exc, HTTPException) else None
             logger.error(
-                "Audio pipeline job %s failed (%s)",
+                "Audio pipeline job %s failed (%s%s)",
                 job_id,
                 type(exc).__name__,
+                f": {reason}" if reason else "",
             )
             async with self._lock:
                 job = self._jobs.get(job_id)
