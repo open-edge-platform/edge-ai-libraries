@@ -31,7 +31,7 @@ export const proximityTriggerConfig: NodeConfig = {
       key: "distance",
       label: "Distance",
       type: "text",
-      defaultValue: "1350",
+      defaultValue: "600",
       description:
         "Maximum center-to-center distance in pixels to consider the two objects as being in proximity",
     },

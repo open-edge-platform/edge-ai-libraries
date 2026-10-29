@@ -72,6 +72,7 @@ _IMAGE_SET_UNSUPPORTED: frozenset[str] = frozenset(
         "Smart NVR",
         "Motion Detection",
         "Video Captioning VLM",
+        "Alerting VLM",
     }
 )
 
