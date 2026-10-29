@@ -94,18 +94,22 @@ subcommand_stop () {
 subcommand_list () {
   local all_list=" ${_act_cache_names[*]:-${_act_cache_modules[*]}} "
   local module_region_list=" ${_act_cache_modules[*]/#/--} "
-  local k v args=() mods=() os_release="" sbom=0 margs=0
+  local k v args=() mods=() os_release="" cli_url="" sbom=0 margs=0
   for v in "$@"; do
     case "$v" in
     --help)
       echo "list options:"
-      echo "  --os-release=<file> import an os-release file"
-      echo "  --sbom              show component SBOM items"
+      echo "  --os-release=<file> [deprecated] import an os-release file"
+      echo "  --sbom [<cli-url>]  show component SBOM items"
       echo
       return 0
       ;;
     --os-release=*)
       os_release="${v#*=}"
+      ;;
+    --sbom=*)
+      sbom=1
+      cli_url="${v#*=}"
       ;;
     --sbom)
       sbom=1
@@ -117,6 +121,8 @@ subcommand_list () {
         args+=("$v")
       elif [ "$last_v" = "--os-release" ]; then
         os_release="$v"
+      elif [[ "$last_v" = "--sbom" && ( "$v" = "http://"* || "$v" = "https://"* ) ]]; then
+        cli_url="$v"
       elif [[ "$module_region_list" = *" $v "* ]]; then
         args+=("$v")
         margs=1
@@ -178,6 +184,7 @@ subcommand_list () {
     local all_install_modules="${handles[*]#${installer_family}_*_install_}"
     echo "\"schema-version\": \"1\""
     echo "\"cli-version\": \"main\""
+    [ -z "$cli_url" ] || echo "\"cli-url\": \"$cli_url\""
     ensure_sbom_format module-list "${mods[@]}"
     echo "---"
     local handler sbomer
