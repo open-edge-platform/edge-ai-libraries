@@ -28,7 +28,5 @@ debian_30_remove_v4l_utils () {
 
 debian_30_sbom_v4l_utils () {
   configure_v4l_utils
-  ensure_sbom_format apt-pref "${v4l_pref[@]}"
-  ensure_sbom_format apt-pref-file "$v4l_pref_file"
   ensure_sbom_format pkg-list v4l-utils
 }

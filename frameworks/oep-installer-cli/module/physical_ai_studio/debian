@@ -18,7 +18,7 @@ configure_physical_ai_studio_device () {
     pais_extra=cuda
   else
     pais_extra=cpu
-    [ "$(ensure_select_device "$@")" = cpu ] || [ ! -e /dev/dri/renderD128 ] || pais_extra=xpu
+    [ "$(ensure_parse_device "$@")" = cpu ] || [ ! -e /dev/dri/renderD128 ] || pais_extra=xpu
   fi
   case "$pais_extra" in
   cuda) pais_index="https://download.pytorch.org/whl/cu128" ;;
