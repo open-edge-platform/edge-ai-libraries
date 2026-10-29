@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+services:
+  federation-proxy:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      - ../nodes.yaml:/app/nodes.yaml:ro
+    depends_on:
+      dlstreamer-pipeline-server:
+        condition: service_started
+    environment:
+      - LOG_LEVEL=info
+
+  dlstreamer-pipeline-server:
+    image: intel/dlstreamer-pipeline-server:latest
+    ports:
+      - "8081:8080"
