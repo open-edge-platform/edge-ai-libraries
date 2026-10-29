@@ -1,6 +1,6 @@
 Set-StrictMode -Version 2.0
 
-function EnsureSelectDevice {
+function EnsureParseDevice {
     param(
         [string]$Pattern = ''
     )
