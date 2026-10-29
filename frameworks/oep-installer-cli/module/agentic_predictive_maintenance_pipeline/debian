@@ -1,7 +1,7 @@
 
 configure_agentic_predictive_maintenance_pipeline () {
   workspace="$(ensure_project_path)/agentic-predictive-maintenance-pipeline"
-  version="$(ensure_parse_value_option vision --vision=release-2026.2.0 "$@")"
+  version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")"
   repository=https://github.com/open-edge-platform/metro-ai-suite.git
   used_ports=(8080 8010 8554 8200 9091 9090)
   models=(Qwen/Qwen2.5-1.5B-Instruct microsoft/Phi-4-mini-instruct)
