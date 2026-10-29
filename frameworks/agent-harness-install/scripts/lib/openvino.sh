@@ -4,16 +4,18 @@
 # OpenVINO Model Server (OVMS) — serves an OpenAI-compatible chat-completions
 # endpoint on Intel Core Ultra iGPU and Arc (CRI) GPUs.
 
-# Serving image: tracks a recent OVMS release. The default docker-pull
-# exporter below needs OVMS's "-py" convenience variant, which is published
-# under a coarser version scheme (two-part "X.Y-py" tags) and has not had a
-# new tag since 2026.1 -- so the export image is pinned separately
-# (HARNESS_OVMS_EXPORT_IMAGE) instead of being derived from this one.
-# Exported model directories are plain OpenVINO IR + graph.pbtxt, which a
-# newer serving image is expected to load; that pairing is not covered by
-# the smoke test, only by test/full-flow-test.sh on real hardware.
+# Serving image: tracks a recent OVMS release. Converting a model in the
+# default docker-pull exporter below needs OVMS's "-py" convenience variant,
+# which is published under a coarser version scheme (two-part "X.Y-py" tags)
+# and has not had a new tag since 2026.1 -- so the export image is pinned
+# separately (HARNESS_OVMS_EXPORT_IMAGE) instead of being derived from this
+# one. Pre-converted OpenVINO/* models need no conversion, so they are pulled
+# with this serving image itself (see ovms_pull_image_for).
+# Models converted by the older -py image are plain OpenVINO IR + graph.pbtxt,
+# which a newer serving image is expected to load; that pairing is not covered
+# by the smoke test, only by test/full-flow-test.sh on real hardware.
 HARNESS_OVMS_IMAGE="${HARNESS_OVMS_IMAGE:-openvino/model_server:2026.4.1-gpu}"
-# Image used only by the docker-pull exporter (needs the "-py" variant).
+# Image the docker-pull exporter converts non-OpenVINO/* models with (needs the "-py" variant).
 HARNESS_OVMS_EXPORT_IMAGE="${HARNESS_OVMS_EXPORT_IMAGE:-openvino/model_server:2026.1-py}"
 HARNESS_OVMS_REST_PORT="${HARNESS_OVMS_REST_PORT:-8000}"
 HARNESS_MODELS_DIR="${HARNESS_MODELS_DIR:-$HOME/.agent-harness-install/models}"
@@ -117,6 +119,72 @@ export step's HTTP client may not support (only http/https/socks5/socks5h are)."
   done
 }
 
+# Some exported chat models (e.g. OpenVINO/Qwen3.5-9B-int4-ov) list only
+# <|endoftext|> as eos_token_id although the tokenizer's eos_token is the
+# end-of-turn token <|im_end|>; OVMS then never stops generating. Stdlib-only
+# python, run by ensure_chat_end_token_stops with the model directory as argv[1].
+_OVMS_EOS_FIX_PY='
+import json, os, sys
+d = sys.argv[1]
+def load(name):
+    path = os.path.join(d, name)
+    if not os.path.isfile(path):
+        return None
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+tok_cfg, tok, gen = load("tokenizer_config.json"), load("tokenizer.json"), load("generation_config.json")
+if not (tok_cfg and tok and isinstance(gen, dict)):
+    sys.exit(0)
+eos = tok_cfg.get("eos_token")
+if isinstance(eos, dict):
+    eos = eos.get("content")
+ids = [t["id"] for t in tok.get("added_tokens", []) if t.get("content") == eos] if isinstance(eos, str) else []
+if not ids:
+    sys.exit(0)
+cur = gen.get("eos_token_id")
+cur = [] if cur is None else cur if isinstance(cur, list) else [cur]
+if ids[0] in cur:
+    sys.exit(0)
+gen["eos_token_id"] = [ids[0]] + cur
+tmp = os.path.join(d, "generation_config.json.tmp")
+with open(tmp, "w", encoding="utf-8") as f:
+    json.dump(gen, f, indent=2)
+    f.write("\n")
+os.replace(tmp, os.path.join(d, "generation_config.json"))
+print("added %s (id %d) to eos_token_id in generation_config.json" % (eos, ids[0]))
+'
+
+# ensure_chat_end_token_stops model_dir -- adds the tokenizer's eos_token id
+# to generation_config.json's eos_token_id when missing. Idempotent; never
+# fatal, since a model that already stops correctly needs nothing.
+ensure_chat_end_token_stops() {
+  local dir="$1" out
+  [[ -f "${dir}/generation_config.json" && -f "${dir}/tokenizer_config.json" && -f "${dir}/tokenizer.json" ]] \
+    || return 0
+  if command_exists python3; then
+    out="$(python3 -c "$_OVMS_EOS_FIX_PY" "$dir" 2>&1)" \
+      || { warn "Could not check the stop tokens of ${dir}: ${out}"; return 0; }
+  else
+    command_exists docker || return 0
+    # The pinned -py image ships python3, so no host python is required.
+    out="$(docker run --rm -u "$(id -u):$(id -g)" -v "${dir}:/model:rw" --entrypoint python3 \
+      "$HARNESS_OVMS_EXPORT_IMAGE" -c "$_OVMS_EOS_FIX_PY" /model 2>&1)" \
+      || { warn "Could not check the stop tokens of ${dir}: ${out}"; return 0; }
+  fi
+  [[ -z "$out" ]] || info "$out"
+  return 0
+}
+
+# ovms_pull_image_for hf_model_id -- image the docker-pull exporter runs.
+# OpenVINO/* repos are already converted, so the serving image can pull them;
+# anything else needs the "-py" image's optimum-cli.
+ovms_pull_image_for() {
+  case "$1" in
+    [Oo][Pp][Ee][Nn][Vv][Ii][Nn][Oo]/*) printf '%s' "$HARNESS_OVMS_IMAGE" ;;
+    *) printf '%s' "$HARNESS_OVMS_EXPORT_IMAGE" ;;
+  esac
+}
+
 # export_model_via_docker_pull hf_model_id [model_name] -- default exporter
 # (HARNESS_OVMS_EXPORTER=docker-pull): runs OVMS's own "-py" image (bundles
 # optimum-cli) in --pull mode, which downloads, converts, and quantizes the
@@ -145,6 +213,7 @@ export_model_via_docker_pull() {
   fi
   if [[ -n "$existing_base_path" ]]; then
     info "Model '${model_name}' is already exported."
+    ensure_chat_end_token_stops "${HARNESS_MODELS_DIR}/${existing_base_path}"
     # Re-registering unconditionally (not just when the directory first
     # appears) is cheap and idempotent (_add_model_config_entry_locked
     # replaces any existing same-name entry) -- without this, a directory
@@ -161,7 +230,7 @@ OVMS config.json registration -- add a model_config_list entry for base_path
 '${existing_base_path}' manually if it doesn't serve requests."
     return 0
   fi
-  command_exists docker || error "Docker is required to pull/convert models via the OVMS -py image."
+  command_exists docker || error "Docker is required to pull/convert models via the OVMS Docker image."
   # The -py image's bundled optimum-cli/httpx tooling is the same conversion
   # stack export_model_to_openvino/export_model_via_model_download use
   # host-side -- it chokes the same way on a malformed proxy scheme, so this
@@ -170,7 +239,7 @@ OVMS config.json registration -- add a model_config_list entry for base_path
   ensure_ovms_config
   # The "-py" variant bundles optimum-cli for on-the-fly conversion -- the
   # regular serving image (HARNESS_OVMS_IMAGE) doesn't carry it at runtime.
-  pull_image="$HARNESS_OVMS_EXPORT_IMAGE"
+  pull_image="$(ovms_pull_image_for "$hf_model_id")"
   target_device="CPU"
   gpu_args="$(intel_gpu_docker_device_args)"
   group_add_args=""
@@ -191,6 +260,16 @@ OVMS config.json registration -- add a model_config_list entry for base_path
   for hf_var in HF_TOKEN HUGGINGFACEHUB_API_TOKEN; do
     [[ -z "${!hf_var:-}" ]] || proxy_args+=(-e "$hf_var")
   done
+  # Models from the Hugging Face "OpenVINO" org are already converted and
+  # quantized; OVMS rejects --weight-format for them ("unsupported for
+  # OpenVINO models"), so it is only passed for models it must convert.
+  local -a weight_args=()
+  case "$hf_model_id" in
+    [Oo][Pp][Ee][Nn][Vv][Ii][Nn][Oo]/*)
+      [[ " $HARNESS_MODEL_OPTS_GIVEN " != *" precision "* ]] \
+        || warn "--model-precision is ignored for ${hf_model_id}: it is already quantized." ;;
+    *) weight_args=(--weight-format "$HARNESS_MODEL_PRECISION") ;;
+  esac
   # shellcheck disable=SC2086
   if ! spin "Pulling+converting ${hf_model_id} via ${pull_image} (--pull, target: ${target_device})" \
     docker run --rm -u "$(id -u):$(id -g)" \
@@ -200,7 +279,7 @@ OVMS config.json registration -- add a model_config_list entry for base_path
       "$pull_image" --pull \
       --source_model "$hf_model_id" --model_name "$model_name" \
       --model_repository_path /models --task text_generation \
-      --weight-format "$HARNESS_MODEL_PRECISION" --target_device "$target_device"; then
+      ${weight_args[@]+"${weight_args[@]}"} --target_device "$target_device"; then
     rm -rf -- "$out_dir" "${HARNESS_MODELS_DIR:?}/${hf_model_id:?}"
     error "Pulling/converting ${hf_model_id} via ${pull_image} failed. Check network
 access to huggingface.co, and that '${pull_image}' is a published tag
@@ -217,6 +296,7 @@ HARNESS_OVMS_EXPORTER=export-model-py as a fallback."
     error "No graph.pbtxt found at ${out_dir} or ${HARNESS_MODELS_DIR}/${hf_model_id}
 after pull -- OVMS will not serve chat completions for '${model_name}'."
   fi
+  ensure_chat_end_token_stops "$out_dir"
   if with_state_lock ovms-config _add_model_config_entry_locked \
       "${HARNESS_MODELS_DIR}/config.json" "$model_name" "$relative_base_path"; then
     ok "Exported ${hf_model_id} -> ${out_dir} (registered with OVMS)"
@@ -238,6 +318,10 @@ export_model_to_openvino() {
   out_dir="${HARNESS_MODELS_DIR}/${model_name}"
   if [[ -f "${out_dir}/graph.pbtxt" ]]; then
     info "Model '${model_name}' is already exported."
+    ensure_ovms_config
+    with_state_lock ovms-config _add_model_config_entry_locked \
+      "${HARNESS_MODELS_DIR}/config.json" "$model_name" "$model_name" \
+      || error "Could not register the cached model '${model_name}' with OVMS."
     return 0
   fi
   command_exists python3 || error "python3 is required to export models to OpenVINO IR --
@@ -290,11 +374,14 @@ HARNESS_ALLOW_UNVERIFIED_OVMS_EXPORTER=1 to accept the risk)."
   # proxy work, not just parse — installed alongside regardless of whether a
   # proxy is configured, since it's a small, side-effect-free addition.
   spin "Installing export_model.py's dependencies" pip install --quiet -r "$requirements_file" "httpx[socks]"
+  # Pre-converted models from the "OpenVINO" org reject --weight-format.
+  local -a weight_args=(--weight-format "$HARNESS_MODEL_PRECISION")
+  case "$hf_model_id" in [Oo][Pp][Ee][Nn][Vv][Ii][Nn][Oo]/*) weight_args=() ;; esac
   if ! spin "Exporting ${hf_model_id} to OpenVINO IR + OVMS graph" \
     python3 "$exporter" text_generation \
       --source_model "$hf_model_id" \
       --model_name "$model_name" \
-      --weight-format int8 \
+      ${weight_args[@]+"${weight_args[@]}"} \
       --config_file_path "${HARNESS_MODELS_DIR}/config.json" \
       --model_repository_path "$HARNESS_MODELS_DIR"; then
     # Remove a partial out_dir so a retry doesn't see it and skip export
@@ -462,10 +549,10 @@ Unset HARNESS_OVMS_EXPORTER (or set it to model-download), or drop --model-hub."
   local applies_to
   for opt in $HARNESS_MODEL_OPTS_GIVEN; do
     case "${opt}:${HARNESS_OVMS_EXPORTER}" in
-      *:model-download | precision:docker-pull | revision:hf-snapshot) continue ;;
+      *:model-download | precision:docker-pull | precision:export-model-py | revision:hf-snapshot) continue ;;
     esac
     case "$opt" in
-      precision) applies_to="model-download and docker-pull" ;;
+      precision) applies_to="model-download, docker-pull and export-model-py" ;;
       revision) applies_to="model-download and hf-snapshot" ;;
       *) applies_to="model-download" ;;
     esac
@@ -808,7 +895,8 @@ _remove_unregistered_download_entry_locked() {
 # plain huggingface_hub.snapshot_download, unlike the other three exporters
 # which all run an optimum-cli-based conversion step. Set
 # HARNESS_HF_MODEL_REVISION to pin an exact commit/tag for reproducible
-# deployments.
+# deployments. Qwen3.5's preconverted repository omits graph.pbtxt; the pinned
+# serving image generates that graph after download, without reconversion.
 export_model_via_hf_snapshot() {
   local hf_model_id="$1" model_name="${2:-${1##*/}}" out_dir venv revision_desc
   out_dir="${HARNESS_MODELS_DIR}/${model_name}"
@@ -853,6 +941,9 @@ access to huggingface.co, and that '${hf_model_id}' (revision: ${revision_desc})
 exists."
   fi
   deactivate
+  if [[ "$hf_model_id" == OpenVINO/Qwen3.5-9B-int8-ov && ! -f "${out_dir}/graph.pbtxt" ]]; then
+    configure_ovms_text_generation_graph "$out_dir"
+  fi
   if [[ ! -f "${out_dir}/graph.pbtxt" ]]; then
     rm -rf -- "$out_dir"
     error "Downloaded ${hf_model_id} to ${out_dir} but it has no graph.pbtxt -- this
@@ -868,6 +959,20 @@ HARNESS_OVMS_EXPORTER=docker-pull or export-model-py to convert a plain
     error "Downloaded ${hf_model_id} but could not update OVMS's config.json --
 add a model_config_list entry for base_path '${model_name}' manually."
   fi
+}
+
+configure_ovms_text_generation_graph() {
+  local out_dir="$1" target_device=CPU
+  command_exists docker || error "Docker is required to configure the OVMS model graph."
+  [[ -z "$(intel_gpu_docker_device_args)" ]] || target_device=GPU
+  # --configure writes metadata only: no model loading, GPU access or network is needed.
+  spin "Configuring the downloaded OVMS text-generation graph (${target_device})" \
+    docker run --rm --network none -u "$(id -u):$(id -g)" \
+      -v "${out_dir}:/model:rw" "$HARNESS_OVMS_IMAGE" \
+      --configure --model_path /model --task text_generation --target_device "$target_device" \
+    || error "Could not configure the OVMS graph for ${out_dir}; downloaded weights were preserved."
+  [[ -s "${out_dir}/graph.pbtxt" ]] \
+    || error "OVMS graph configuration produced no graph.pbtxt in ${out_dir}."
 }
 
 # Lock-protected append/replace of a model_config_list entry -- mirrors
@@ -1030,6 +1135,9 @@ ensure_inference_backend() {
 docker-pull, export-model-py, model-download, or hf-snapshot)." ;;
         esac
         [[ "$HARNESS_LAST_MODEL_REGISTERED" -eq 1 ]] || model_download_unregistered=1
+        if [[ "${HARNESS_RUNTIME:-host}" == openshell && "$model_download_unregistered" == 0 ]]; then
+          with_state_lock ovms-config _select_ovms_model_locked "$(model_dir_name "$HARNESS_HF_MODEL")"
+        fi
         ensure_openvino_model_server
         # wait_for_ovms_model_ready returning 1 means "still loading, not
         # confirmed ready yet" -- its own warn() message is the complete,
@@ -1075,6 +1183,33 @@ Set HARNESS_LLM_ROUTER_ENDPOINT instead to route to an existing external
 OpenAI-compatible endpoint without this installer managing a backend."
       ;;
   esac
+}
+
+_select_ovms_model_locked() {
+  local tmp config_file="${HARNESS_MODELS_DIR}/config.json"
+  tmp="$(mktemp "${config_file}.XXXXXX")"
+  chmod 644 "$tmp"
+  if ! node - "$config_file" "$1" >"$tmp" <<'JS'
+const fs = require("node:fs");
+const [file, model] = process.argv.slice(2);
+const config = JSON.parse(fs.readFileSync(file, "utf8"));
+let found = false;
+for (const key of ["model_config_list", "mediapipe_config_list"]) {
+  if (!Array.isArray(config[key])) continue;
+  config[key] = config[key].filter(e => {
+    const selected = (e?.config?.name ?? e?.name) === model;
+    found ||= selected;
+    return selected;
+  });
+}
+if (!found) throw Error(`Selected OVMS model '${model}' is not registered`);
+console.log(JSON.stringify(config, null, 2));
+JS
+  then
+    rm -f -- "$tmp"
+    error "Could not select the requested OVMS model; existing configuration was preserved."
+  fi
+  mv -f -- "$tmp" "$config_file"
 }
 
 # ovms_has_exported_models — true if config.json already lists at least one

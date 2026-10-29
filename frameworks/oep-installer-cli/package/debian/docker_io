@@ -1,4 +1,3 @@
-
 configure_docker () {
   if [ -n "${http_proxy:-$HTTP_PROXY}${https_proxy:-$HTTPS_PROXY}" ]; then
     echo "Configure docker engine proxies..."
@@ -116,4 +115,3 @@ debian_30_remove_docker_io () {
 debian_30_sbom_docker_io () {
   ensure_sbom_format pkg-list docker.io docker-buildx docker-compose-v2
 }
-

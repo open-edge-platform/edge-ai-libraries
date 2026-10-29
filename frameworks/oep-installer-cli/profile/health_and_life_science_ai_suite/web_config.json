@@ -7,7 +7,7 @@
   "modules": [
     { "label": "Multi-Modal Patient Monitoring", "value": "multi_modal_patient_monitoring", "startStop": true, "remove": true, "options": ["--gpu", "--cpu", "--npu"] },
     { "label": "NICU Warmer", "value": "nicu_warmer", "startStop": true, "remove": true, "options": ["--gpu", "--cpu", "--npu"] },
-    { "label": "Surgical Instrument", "value": "surgical_instrument", "startStop": true, "remove": true, "options": [] }
+    { "label": "Surgical Instrument", "value": "surgical_instrument", "startStop": true, "remove": true }
   ],
   "getStarted": {
     "text": "Get Started",

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
+
 let lastHeight = 0;
 const maxHeight = 2000; // Maximum allowed height
 const minHeight = 0;    // No hard minimum: let the frame shrink to its content
@@ -73,6 +76,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Cross-origin or unsupported - fall back to load/resize handlers.
             }
         });
+
+        const source = new URL(iframe.src, document.baseURI);
+        const params = new URLSearchParams(window.location.search);
+        for (const key of ['OP_SYSTEM', 'PROFILE', 'MODULE', 'OPTIONS', 'ENABLE_ONE_PROFILE']) {
+            if (params.has(key)) {
+                source.searchParams.set(key, params.get(key));
+            }
+        }
+        if (source.href !== iframe.src) {
+            iframe.src = source.href;
+        }
     }
 });
 

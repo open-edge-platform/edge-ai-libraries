@@ -1,8 +1,9 @@
 
 configure_loss_prevention () {
   workspace="$(ensure_project_path)/loss-prevention"
-  version=v2026.2.0
+  version=1e960e399a4f82feca32dcd65b023f7a46d3ebf1
   repository="https://github.com/intel-retail/loss-prevention.git"
+  used_ports=(4000 15672 5672 8002 4001)
 }
 
 configure_loss_prevention_options () {
@@ -13,40 +14,56 @@ configure_loss_prevention_options () {
 
   local camera_stream="$(grep -m1 -E '^CAMREA_STREAM [?]=' | cut -f2 -d= | tr -d ' ')"
   local workload_dist="$(grep -m1 -E '^WORKLOAD_DIST [?]=' | cut -f2 -d= | tr -d ' ')"
+  local mode
 
   if [[ " $* " = *" --od "* ]]; then
+    mode="object detection $device"
     camera_stream="camera_to_workload_asc_object_detection.json"
     workload_dist="workload_to_pipeline_asc_object_detection_$device.json"
   elif [[ " $* " = *" --oc "* ]]; then
+    mode="object classification $device"
     camera_stream="camera_to_workload_asc_object_detection_classification.json"
     workload_dist="workload_to_pipeline_asc_object_detection_classification_$device.json"
   elif [[ " $* " = *" --age "* ]]; then
+    mode="age verification $device"
     camera_stream="camera_to_workload_asc_age_verification.json"
     workload_dist="workload_to_pipeline_asc_age_verification_$device.json"
   elif [[ " $* " = *" --lpvlm "* ]]; then
+    mode="VLM gpu"
     camera_stream="camera_to_workload_vlm.json"
     workload_dist="workload_to_pipeline_vlm.json"
   elif [[ " $* " = *" --lp "* ]]; then
+    mode="default ${device/npu/gpu-npu}"
     camera_stream="camera_to_workload.json"
     workload_dist="workload_to_pipeline_${device/npu/gpu-npu}.json"
   fi
   sed -i -e "s|^CAMERA_STREAM [?]= .*|CAMERA_STREAM ?= $camera_stream|" -e "s|^WORKLOAD_DIST [?]= .*|WORKLOAD_DIST ?= $workload_dist|" Makefile
 
+  echo "@@STEP Download videos"
   make download-sample-videos && {
     local v rc=0
     for v in $(grep '"fileSrc":' configs/$camera_stream | cut -f4 -d'"' | cut -f1 -d'|'); do
-      [ $(find performance-tools/sample-media -name "${v/.mp4}-*.mp4" | wc -l) -gt 0 ] || { echo "Failed to find video $v" 1>&2; rc=1; }
+      [ $(find performance-tools/sample-media -name "${v/.mp4}-*.mp4" | wc -l) -gt 0 ] || { 
+        echo "Failed to download video $v" 1>&2
+        rc=1
+      }
     done
     [ $rc -eq 0 ]
   }
 
+  echo "@@STEP Download models"
   make download-models && {
     local m rc=0
     for m in $(grep -E '"model":|"vlm_model":' configs/$workload_dist | cut -f4 -d'"'); do
-      [ $(find models -ipath "*/$m/*" -name "*.bin" -print | wc -l) -gt 0 ] || { echo "Failed to find model $m" 1>&2; rc=1; }
+      [ $(find models -ipath "*/$m/*" -name "*.bin" -print | wc -l) -gt 0 ] || { 
+        echo "Failed to download model $m" 1>&2
+        rc=1
+      }
     done
     [ $rc -eq 0 ]
   }
+
+  echo "@@STEP Configured $mode"
 }
 
 verify_loss_prevention () {
@@ -64,8 +81,11 @@ debian_90_install_loss_prevention () {
   if verify_loss_prevention && [[ " $* " != *" --reinstall "* ]]; then
     echo "Loss prevention is installed." >&2
   else 
-    # clone the repository
     ensure_disk_size 15000
+    ensure_ports_open install loss_prevention "${used_ports[@]}"
+
+    # clone the repository
+    echo "@@STEP Clonging repository"
     ensure_git_clone "$workspace" $version $repository
 
     # setup
@@ -92,9 +112,11 @@ LOCAL_GID=$(id -g)
 EOF
 
     # build images
+    echo "@@STEP Building benchmark"
     make build-benchmark
 
     # create benchmark venv
+    echo "@@STEP Creating venv"
     ( 
       cd performance-tools/benchmark-scripts
       python3 -m venv venv
@@ -108,7 +130,7 @@ EOF
     verify_loss_prevention
   fi
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   configure_loss_prevention_options "$device" "$@" --lp   # --lp as default
 
   echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
@@ -121,9 +143,10 @@ EOF
 
 debian_90_start_loss_prevention () {
   configure_loss_prevention
+  ensure_ports_open start loss_prevention "${used_ports[@]}"
 
   cd "$workspace"
-  local device1=$(ensure_select_device "$@")
+  local device1=$(ensure_parse_device "$@")
   local device2=$(grep -m1 -E '^TARGET_DEVICE [?]=' Makefile | cut -f2 -d= | tr -d ' ')
   [[ " $* " = *" --$device1 "* || " $* " = *" --${device1^^} "* ]] || device1="${device2,,}"
   configure_loss_prevention_options "$device1" "$@"
@@ -139,9 +162,18 @@ debian_90_start_loss_prevention () {
   echo "@@HIGHLIGHT $installer_name remove"
 }
 
+debian_90_stop_loss_prevention () {
+  configure_loss_prevention
+  cd "$workspace" && {
+    make down-lp || true
+    cd src && docker compose down -v --remove-orphans || true
+    pkill -f "python3 benchmark.py"
+  } || true
+}
+
 debian_90_remove_loss_prevention () {
   configure_loss_prevention
-  cd "$workspace" && make down-lp || true
+  debian_90_stop_loss_prevention "$@"
   ensure_rm "$workspace"
 }
 

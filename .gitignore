@@ -1,5 +1,6 @@
 .gradio/*
 .idea/*
+.vscode/
 
 # Adding the go workspace files for handling the local path of go modules
 go.work
