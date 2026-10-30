@@ -23,10 +23,19 @@ type JsonDict = dict[str, Any]
 type JobAttemptFn = Callable[[], JsonDict]
 
 
-def fetch_devices(session: requests.Session) -> list[JsonDict]:
-    """Return the raw list of devices from GET /devices."""
-    logger.info("Fetching devices from %s/devices", BASE_URL)
-    response = session.get(f"{BASE_URL}/devices", timeout=30)
+def fetch_devices(
+    session: requests.Session, *, base_url: str | None = None
+) -> list[JsonDict]:
+    """Return the raw list of devices from GET /devices.
+
+    ``base_url`` overrides :data:`BASE_URL`; callers outside this suite
+    (e.g. the performance benchmark suite, which resolves its own
+    ``--base-url``) should pass their resolved server explicitly instead
+    of relying on this module's env-derived default.
+    """
+    base_url = BASE_URL if base_url is None else base_url
+    logger.info("Fetching devices from %s/devices", base_url)
+    response = session.get(f"{base_url}/devices", timeout=30)
     response.raise_for_status()
     payload = response.json()
     assert isinstance(payload, list), (
@@ -36,10 +45,13 @@ def fetch_devices(session: requests.Session) -> list[JsonDict]:
     return payload
 
 
-def fetch_pipelines(session: requests.Session) -> list[JsonDict]:
+def fetch_pipelines(
+    session: requests.Session, *, base_url: str | None = None
+) -> list[JsonDict]:
     """Return the raw list of pipelines from GET /pipelines."""
-    logger.info("Fetching pipelines from %s/pipelines", BASE_URL)
-    response = session.get(f"{BASE_URL}/pipelines", timeout=30)
+    base_url = BASE_URL if base_url is None else base_url
+    logger.info("Fetching pipelines from %s/pipelines", base_url)
+    response = session.get(f"{base_url}/pipelines", timeout=30)
     response.raise_for_status()
     payload = response.json()
     assert isinstance(payload, list), (
@@ -199,10 +211,13 @@ def upload_image_archive(
     return response
 
 
-def fetch_models(session: requests.Session) -> list[JsonDict]:
+def fetch_models(
+    session: requests.Session, *, base_url: str | None = None
+) -> list[JsonDict]:
     """Return the raw list of models from GET /models."""
-    logger.info("Fetching models from %s/models", BASE_URL)
-    response = session.get(f"{BASE_URL}/models", timeout=30)
+    base_url = BASE_URL if base_url is None else base_url
+    logger.info("Fetching models from %s/models", base_url)
+    response = session.get(f"{base_url}/models", timeout=30)
     response.raise_for_status()
     payload = response.json()
     assert isinstance(payload, list), (
@@ -280,9 +295,12 @@ def start_optimization_job(
     return job_id
 
 
-def start_performance_job(session: requests.Session, payload: JsonDict) -> str:
+def start_performance_job(
+    session: requests.Session, payload: JsonDict, *, base_url: str | None = None
+) -> str:
     """Submit a performance test job and return the assigned ``job_id``."""
-    response = session.post(f"{BASE_URL}/tests/performance", json=payload, timeout=30)
+    base_url = BASE_URL if base_url is None else base_url
+    response = session.post(f"{base_url}/tests/performance", json=payload, timeout=30)
     response.raise_for_status()
     job_id: str = response.json().get("job_id", "")
     assert job_id, "Performance test response missing 'job_id'"
@@ -290,12 +308,15 @@ def start_performance_job(session: requests.Session, payload: JsonDict) -> str:
     return job_id
 
 
-def stop_performance_job(session: requests.Session, job_id: str) -> None:
+def stop_performance_job(
+    session: requests.Session, job_id: str, *, base_url: str | None = None
+) -> None:
     """Send DELETE to stop a performance job.
 
     Accepts 200 (stopped) and 409 (already finished) as valid outcomes.
     """
-    response = session.delete(f"{BASE_URL}/jobs/tests/performance/{job_id}", timeout=30)
+    base_url = BASE_URL if base_url is None else base_url
+    response = session.delete(f"{base_url}/jobs/tests/performance/{job_id}", timeout=30)
     assert response.status_code in {200, 409}, (
         f"Expected 200 or 409 from stop endpoint, "
         f"got {response.status_code}: {response.text}"
@@ -365,6 +386,7 @@ def wait_for_job_completion(
     assert_initial_running: bool = True,
     fail_on_timeout: bool = True,
     timeout_seconds: float | None = None,
+    poll_interval: float | None = None,
 ) -> JsonDict:
     """Poll *status_url* until the job leaves ``RUNNING`` state.
 
@@ -393,6 +415,11 @@ def wait_for_job_completion(
         known to legitimately run longer (e.g. a full benchmark suite
         run, which executes many sequential test cases). Defaults to
         ``POLL_TIMEOUT_SECONDS`` when omitted.
+    poll_interval:
+        Overrides ``POLL_INTERVAL_SECONDS`` for callers resolving their
+        own polling cadence (e.g. the performance suite's
+        ``--poll-interval``). Defaults to ``POLL_INTERVAL_SECONDS`` when
+        omitted.
 
     Returns
     -------
@@ -410,6 +437,9 @@ def wait_for_job_completion(
     """
     effective_timeout = (
         POLL_TIMEOUT_SECONDS if timeout_seconds is None else timeout_seconds
+    )
+    effective_poll_interval = (
+        POLL_INTERVAL_SECONDS if poll_interval is None else poll_interval
     )
     deadline = time.monotonic() + effective_timeout
 
@@ -433,7 +463,7 @@ def wait_for_job_completion(
         if state != "RUNNING":
             logger.info("Job at %s finished with state=%s", status_url, state)
             return last_status
-        time.sleep(POLL_INTERVAL_SECONDS)
+        time.sleep(effective_poll_interval)
         response = session.get(status_url, timeout=30)
         response.raise_for_status()
         last_status = response.json()

@@ -7,7 +7,6 @@ import io
 import json
 import os
 import shutil
-import stat
 import subprocess
 import sys
 import tempfile
@@ -21,9 +20,13 @@ from tests.performance.perf_helpers import reporters
 from tests.performance.perf_helpers.matrix import MatrixFilters, build_matrix
 from tests.performance.perf_helpers.preflight import PreflightError
 from tests.performance.perf_helpers.reporters import generate_html_report
+from tests.performance.perf_helpers.run_config import build_config_block
 from tests.performance.perf_helpers.settings import (
-    ENV_CONFIG_FILE,
+    ENV_CLI_LAYER,
+    SOURCE_CLI,
     SPECS,
+    SettingsError,
+    read_cli_layer,
     resolve_settings,
 )
 
@@ -249,6 +252,62 @@ class TestDryRun(unittest.TestCase):
 
         self.assertIs(cli.format_matrix, matrix.format_matrix)
 
+    def _replay_settings(self, **kwargs: Any) -> Any:
+        """Settings replaying a run recorded with self.settings and self._discover."""
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        config = build_config_block(
+            self.settings,
+            matrix=self._discover(self.settings),
+            selection=[],
+            revisions={},
+            pytest_args=[],
+            filter_problem=None,
+            replay=None,
+        )
+        run_dir = _write_run(tmp, dict(_RESULT, config=config))
+        return resolve_settings(str(run_dir), env={}, **kwargs)
+
+    def test_replay_without_drift_lists_changed_settings(self) -> None:
+        settings = self._replay_settings(
+            cli_overrides={"benchmark.execution.max_retries": 0}
+        )
+        out = io.StringIO()
+        rc = cli.run_dry_run(
+            settings,
+            discover=self._discover,
+            preflight=Mock(),
+            stdout=out,
+            stderr=io.StringIO(),
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn(f"Replay of {_RESULT['benchmark_id']}", out.getvalue())
+        self.assertIn("benchmark.execution.max_retries: 2 -> 0 (cli)", out.getvalue())
+        self.assertIn("Matrix drift: (none)", out.getvalue())
+
+    def test_replay_with_drift_exits_6_unless_allowed(self) -> None:
+        def discover(settings: Any) -> Any:  # pipeline "od" is gone
+            return build_matrix(
+                _PIPELINES[1:],
+                [{"device_family": "CPU"}],
+                {"lpr": {"LPR Net"}},
+                MatrixFilters.from_settings(settings),
+            )
+
+        for allow, code in ((False, 6), (True, 0)):
+            with self.subTest(allow=allow):
+                out, err = io.StringIO(), io.StringIO()
+                rc = cli.run_dry_run(
+                    self._replay_settings(allow_matrix_drift=allow),
+                    discover=discover,
+                    preflight=Mock(),
+                    stdout=out,
+                    stderr=err,
+                )
+                self.assertEqual(rc, code)
+                self.assertIn("removed case: od/1 (CPU)", out.getvalue())
+                self.assertEqual("--allow-matrix-drift" in err.getvalue(), not allow)
+
 
 _RESULT: dict[str, Any] = {
     "benchmark_id": "bench_20260101_000000",
@@ -278,6 +337,15 @@ _RESULT: dict[str, Any] = {
     "summary": {"total": 2, "success": 1, "failed": 0, "skipped": 1},
     "hardware": {"CPU": ["Test CPU"]},
     "system_info": {"system": {"Processor": "Test CPU"}},
+    "config": build_config_block(
+        resolve_settings("default", env={}),
+        matrix=None,
+        selection=[],
+        revisions={},
+        pytest_args=[],
+        filter_problem=None,
+        replay=None,
+    ),
 }
 
 
@@ -553,38 +621,68 @@ class TestReportOnly(unittest.TestCase):
 
 
 class TestRunPytest(unittest.TestCase):
-    def test_passes_resolved_config_to_pytest(self) -> None:
-        settings = resolve_settings(
+    def test_pytest_resolves_the_same_values_and_sources(self) -> None:
+        argv = [
+            "--config",
             "quick",
-            env={},
-            cli_overrides={
-                "vippet.base_url": "http://cli:9/api/v1",
-                "benchmark.stream_counts": [7],
-            },
-        )
+            "--base-url",
+            "http://cli:9/api/v1",
+            "--streams",
+            "7",
+        ]
+        user_env = {"VIPPET_BASE_URL": "http://env:1/api/v1"}
         seen: dict[str, Any] = {}
 
         def runner(cmd: list[str], env: dict[str, str], check: bool) -> Any:
-            path = Path(env[ENV_CONFIG_FILE])
             seen["cmd"] = cmd
-            seen["env"] = env
-            seen["path"] = path
-            seen["mode"] = stat.S_IMODE(os.stat(path).st_mode)
-            seen["reloaded"] = resolve_settings(env=env)
+            seen["child"] = resolve_settings(env=env, **read_cli_layer(env))
             return subprocess.CompletedProcess(cmd, 5)
 
-        rc = cli.run_pytest(settings, ["-k", "x"], base_env={}, runner=runner)
+        real_run_pytest = cli.run_pytest
+        with (
+            patch.dict(os.environ, user_env, clear=True),
+            patch.object(
+                cli,
+                "run_pytest",
+                lambda layer, args: real_run_pytest(layer, args, runner=runner),
+            ),
+        ):
+            parent = resolve_settings(
+                "quick", cli_overrides=cli.cli_overrides(_parse(*argv))
+            )
+            rc = cli.main([*argv, "--", "-k", "x"])
 
         self.assertEqual(rc, 5)
         self.assertEqual(seen["cmd"][1:5], ["-m", "pytest", "-m", "perf"])
         self.assertEqual(seen["cmd"][-2:], ["-k", "x"])
-        self.assertIn(str(cli.PERF_DIR), seen["cmd"])
-        self.assertEqual(seen["env"]["VIPPET_BASE_URL"], "http://cli:9/api/v1")
-        self.assertEqual(seen["reloaded"]["benchmark.stream_counts"], [7])
-        self.assertEqual(dict(seen["reloaded"].values), dict(settings.values))
-        if os.name == "posix":
-            self.assertEqual(seen["mode"], 0o600)
-        self.assertFalse(seen["path"].exists(), "temp config must be removed")
+        child = seen["child"]
+        self.assertEqual(dict(child.values), dict(parent.values))
+        self.assertEqual(dict(child.sources), dict(parent.sources))
+        self.assertEqual(child.sources["vippet.base_url"], SOURCE_CLI)
+        self.assertEqual(child.config_selector, "quick")
+        self.assertEqual(child.config_origin, "--config")
+
+    def test_cli_layer_env_is_validated(self) -> None:
+        self.assertEqual(read_cli_layer({}), {})
+        for raw in (
+            "not json",
+            "[]",
+            json.dumps(
+                {"config": None, "overrides": {"nope": 1}, "allow_matrix_drift": False}
+            ),
+            json.dumps({"config": 1, "overrides": {}, "allow_matrix_drift": False}),
+        ):
+            with self.subTest(raw=raw):
+                with self.assertRaisesRegex(SettingsError, ENV_CLI_LAYER):
+                    read_cli_layer({ENV_CLI_LAYER: raw})
+
+    def test_allow_matrix_drift_requires_a_replay(self) -> None:
+        err = io.StringIO()
+        with patch("sys.stderr", err), patch.object(cli, "run_pytest") as run:
+            rc = cli.main(["--config", "quick", "--allow-matrix-drift"])
+        self.assertEqual(rc, 2)
+        self.assertIn("only applies to a replay", err.getvalue())
+        run.assert_not_called()
 
     def test_perf_dir_always_passed_before_passthrough(self) -> None:
         test_file = str(cli.PERF_DIR / "test_pipeline_performance.py")
@@ -601,27 +699,6 @@ class TestRunPytest(unittest.TestCase):
                 self.assertEqual(
                     cmd[1:], ["-m", "pytest", "-m", "perf", str(cli.PERF_DIR), *args]
                 )
-
-
-class TestSettingsEnv(unittest.TestCase):
-    def test_exports_every_env_backed_key(self) -> None:
-        settings = resolve_settings(
-            "default", env={}, cli_overrides={"vippet.max_job_duration": 42}
-        )
-        env = cli.settings_env(settings)
-        self.assertEqual(set(env), {spec.env for spec in SPECS if spec.env})
-        # helpers.config parses this with int(); must not be "42.0".
-        self.assertEqual(env["VIPPET_JOB_TIMEOUT_SECONDS"], "42")
-
-    def test_user_env_is_resolved_not_clobbered(self) -> None:
-        user_env = {
-            "VIPPET_JOB_TIMEOUT_SECONDS": "77",
-            "VIPPET_JOB_POLL_INTERVAL": "0.5",
-        }
-        settings = resolve_settings("default", env=user_env)
-        env = cli.settings_env(settings)
-        self.assertEqual(env["VIPPET_JOB_TIMEOUT_SECONDS"], "77")
-        self.assertEqual(env["VIPPET_JOB_POLL_INTERVAL"], "0.5")
 
 
 class TestDirectPytestConfigError(unittest.TestCase):

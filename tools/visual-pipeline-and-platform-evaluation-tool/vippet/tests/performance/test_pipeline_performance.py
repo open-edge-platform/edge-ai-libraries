@@ -28,6 +28,7 @@ from perf_helpers.config import (
     MAX_RUNTIME,
     OUTPUT_MODE,
     POLL_INTERVAL,
+    POLL_TIMEOUT,
     RETRY_DELAY_SECONDS,
 )
 from perf_helpers.hw_monitor import HardwareMonitor
@@ -124,7 +125,7 @@ def _attempt_performance_job(
     the test with an explanation of what to change.
     """
     try:
-        job_id = start_performance_job(session, payload)  # type: ignore[arg-type]
+        job_id = start_performance_job(session, payload, base_url=BASE_URL)  # type: ignore[arg-type]
     except httpx.HTTPStatusError as exc:
         if exc.response.status_code == 409:
             message = (
@@ -141,12 +142,18 @@ def _attempt_performance_job(
         )
 
     status_url = f"{BASE_URL}/jobs/tests/performance/{job_id}/status"
-    status = wait_for_job_completion(session, status_url, fail_on_timeout=False)  # type: ignore[arg-type]
+    status = wait_for_job_completion(
+        session,
+        status_url,
+        fail_on_timeout=False,
+        timeout_seconds=POLL_TIMEOUT,
+        poll_interval=POLL_INTERVAL,
+    )  # type: ignore[arg-type]
     status = {**status, "job_id": status.get("job_id") or job_id}
 
     if status.get("state") == "TIMEOUT":
         try:
-            stop_performance_job(session, job_id)  # type: ignore[arg-type]
+            stop_performance_job(session, job_id, base_url=BASE_URL)  # type: ignore[arg-type]
         except Exception:
             logger.warning(
                 "Failed to stop timed-out job_id=%s – it may still be running "

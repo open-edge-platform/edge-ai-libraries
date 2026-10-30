@@ -4,8 +4,8 @@
 """Shared fixtures for VIPPET performance benchmark tests.
 
 Console output of a normal run, in order: ViPPET readiness -> discovered
-hardware -> benchmark matrix -> per-test status -> pytest summary ->
-benchmark artefacts.
+hardware -> benchmark matrix -> replay differences (replays only) ->
+per-test status -> pytest summary -> benchmark artefacts.
 """
 
 import contextlib
@@ -22,7 +22,6 @@ from pathlib import Path
 from typing import Any
 
 from dataclasses import dataclass, field
-from helpers.pipeline_case_helpers import PipelineCase
 from perf_helpers.hw_monitor import HardwareMonitor
 from perf_helpers.job_outcome import describe_missing_hw_samples
 from perf_helpers.preflight import (
@@ -46,7 +45,6 @@ try:
         ON_UNKNOWN_FILTER_ID,
         PERF_RESULTS_DIR,
         POLL_INTERVAL,
-        POLL_TIMEOUT,
         READINESS_TIMEOUT_SECONDS,
         REQUEST_TIMEOUT,
         RESULT_FORMATS,
@@ -64,16 +62,8 @@ except SettingsError as exc:
     print(f"error: invalid performance config: {exc}", file=sys.stderr)
     raise SystemExit(2) from None
 
-# Propagate perf config to env vars consumed by functional helpers. This must
-# run BEFORE importing ``helpers.*``: helpers.config reads these env vars once
-# at import time. These keys are env-backed in perf_helpers.settings, so an
-# already-exported value is what BASE_URL/POLL_* resolved to; setdefault only
-# fills in YAML/default values.
-os.environ.setdefault("VIPPET_BASE_URL", BASE_URL)
-os.environ.setdefault("VIPPET_JOB_TIMEOUT_SECONDS", str(POLL_TIMEOUT))
-os.environ.setdefault("VIPPET_JOB_POLL_INTERVAL", str(POLL_INTERVAL))
 
-from helpers.pipeline_case_helpers import wrap_cases_for_pytest  # noqa: E402
+from helpers.pipeline_case_helpers import PipelineCase, wrap_cases_for_pytest  # noqa: E402
 from perf_helpers.discovery import discover_matrix  # noqa: E402
 from perf_helpers.matrix import (  # noqa: E402
     Matrix,
@@ -82,6 +72,14 @@ from perf_helpers.matrix import (  # noqa: E402
     describe_unknown_filter_ids,
     find_unknown_filter_ids,
     format_matrix,
+)
+from perf_helpers.run_config import (  # noqa: E402
+    MATRIX_DRIFT_EXIT_CODE,
+    build_config_block,
+    compare_with_recording,
+    describe_matrix_drift,
+    format_replay,
+    suite_revision,
 )
 from perf_helpers.system_info import collect_system_info  # noqa: E402
 
@@ -128,6 +126,21 @@ _LATEST_LINK_ERROR: str | None = None
 # pytest_collection_finish, because pytest turns an Exit raised inside
 # pytest_generate_tests into a collection error with a traceback.
 _FILTER_PROBLEM: tuple[str, bool] | None = None
+
+# Set once collection is final: the selected tests (pipeline_id, variant_id,
+# streams, test_id), the code revisions and, for a replay, the comparison
+# with the recorded run. Used for the pre-run replay/drift comparison; the
+# result's "config" block instead records _RUN_SELECTION (see below), since
+# a run may stop (-x / --maxfail) before running everything collected here.
+_SELECTION: list[dict[str, Any]] = []
+_REVISIONS: dict[str, str] = {}
+_REPLAY: dict[str, Any] | None = None
+
+# Subset of _SELECTION whose run actually started (pytest_runtest_protocol
+# below), in run order. Serialized into the result's "config.selection" so a
+# replay never claims to have executed a benchmark that -x / --maxfail cut
+# off before it started.
+_RUN_SELECTION: list[dict[str, Any]] = []
 
 
 _QUICK_STREAM_COUNTS: set[int] = {1, 3}
@@ -358,6 +371,16 @@ def _unwrap_case(
     return actual_case, skip_marks, is_skipped
 
 
+def _was_recorded_pipeline_id(issue: Any, recorded_ids: frozenset[str]) -> bool:
+    """Whether *issue*'s id named a real pipeline when a replayed run was
+    recorded, matched the same way ``find_unknown_filter_ids`` matches it."""
+    if issue.key == "benchmark.pipelines":
+        return issue.value in recorded_ids
+    if issue.key == "benchmark.filters.skip_pipelines":
+        return issue.value.lower() in {p.lower() for p in recorded_ids}
+    return False
+
+
 def _validate_filter_ids(
     config: pytest.Config, known_pipeline_ids: list[str]
 ) -> list[PipelineCase | object]:
@@ -368,6 +391,14 @@ def _validate_filter_ids(
     no cases are added and the session is aborted once collection has
     finished (see ``pytest_collection_finish``). Either way the explanation
     is kept in ``_FILTER_PROBLEM`` and printed after the matrix.
+
+    On a replay, a pipeline/skip_pipelines id that named a real pipeline
+    *when the recorded run was made* but is no longer discovered now (the
+    pipeline disappeared) is not treated as an invalid filter: it is
+    replay drift, already surfaced and gated by --allow-matrix-drift via
+    ``compare_with_recording`` (the recorded case is simply missing from
+    the current matrix). Only ids that were never valid still follow
+    ``ON_UNKNOWN_FILTER_ID``.
     """
     global _FILTER_PROBLEM
     issues = find_unknown_filter_ids(
@@ -375,6 +406,17 @@ def _validate_filter_ids(
     )
     if not issues:
         return []
+
+    recording = SETTINGS.recording
+    if recording is not None:
+        recorded_ids = frozenset(recording.config["matrix"]["known_pipeline_ids"])
+        issues = [
+            issue
+            for issue in issues
+            if not _was_recorded_pipeline_id(issue, recorded_ids)
+        ]
+        if not issues:
+            return []
 
     message = describe_unknown_filter_ids(issues, SETTINGS.config_path)
     _FILTER_PROBLEM = (message, ON_UNKNOWN_FILTER_ID == "fail")
@@ -448,7 +490,9 @@ def _discover_case_params() -> _DiscoveredCases:
     :func:`wrap_cases_for_pytest`.
     """
     try:
-        matrix = discover_matrix(MatrixFilters.from_settings(SETTINGS))
+        matrix = discover_matrix(
+            MatrixFilters.from_settings(SETTINGS), base_url=BASE_URL
+        )
     except Exception as exc:
         reason = describe_discovery_error(exc, BASE_URL)
         logger.debug("Inventory discovery failed", exc_info=True)
@@ -529,9 +573,61 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     metafunc.parametrize(["pipeline_case", "stream_count"], params, ids=ids)
 
 
+def _selected_case(item: pytest.Item) -> dict[str, Any] | None:
+    """Return the selection record of a benchmark test, if it has a case."""
+    callspec = getattr(item, "callspec", None)
+    if callspec is None or "pipeline_case" not in callspec.params:
+        return None
+    case = _unwrap_case(callspec.params["pipeline_case"])[0]
+    if case is None:
+        return None
+    return {
+        "pipeline_id": case.pipeline_id,
+        "variant_id": case.variant_id,
+        "streams": callspec.params["stream_count"],
+        "test_id": item.nodeid,
+    }
+
+
+def _case_key(case: dict[str, Any]) -> tuple[str, str, int]:
+    return case["pipeline_id"], case["variant_id"], case["streams"]
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_collection_modifyitems(
+    config: pytest.Config, items: list[pytest.Item]
+) -> None:
+    """Record the final selection; a replay keeps only the recorded tests.
+
+    ``trylast`` so ``-k``/``-m`` have already deselected their tests.
+    """
+    global _SELECTION, _REVISIONS, _REPLAY
+    if _DISCOVERED_CASES is None:
+        return
+    recording = SETTINGS.recording
+    if recording is not None:
+        recorded = {_case_key(case) for case in recording.config["selection"]}
+        kept = [
+            item
+            for item in items
+            if (case := _selected_case(item)) and _case_key(case) in recorded
+        ]
+        if len(kept) < len(items):
+            config.hook.pytest_deselected(
+                items=[item for item in items if item not in kept]
+            )
+            items[:] = kept
+    _SELECTION = [case for case in map(_selected_case, items) if case]
+    _REVISIONS = {"suite": suite_revision(), "vippet": _VIPPET_VERSION}
+    if recording is not None:
+        _REPLAY = compare_with_recording(
+            SETTINGS, _DISCOVERED_CASES.matrix or Matrix(), _REVISIONS, _SELECTION
+        )
+
+
 @pytest.hookimpl(trylast=True)
 def pytest_collection_finish(session: pytest.Session) -> None:
-    """End the session cleanly when parametrization found invalid filter ids.
+    """End the session cleanly on invalid filter ids or replay matrix drift.
 
     ``trylast`` so the matrix (printed by the terminal reporter's own
     collection-finish hook) comes first and the error is the last thing shown.
@@ -542,28 +638,55 @@ def pytest_collection_finish(session: pytest.Session) -> None:
             "Invalid benchmark filter ids (see the error above)",
             returncode=_INVALID_FILTER_EXIT_CODE,
         )
+    if _REPLAY and _REPLAY["matrix_drift"] and not SETTINGS.allow_matrix_drift:
+        _error_console(session.config)(describe_matrix_drift(_REPLAY))
+        pytest.exit(
+            "Replay matrix drift (see the error above)",
+            returncode=MATRIX_DRIFT_EXIT_CODE,
+        )
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_protocol(
+    item: pytest.Item, nextitem: pytest.Item | None
+) -> Generator[None, object, object]:
+    """Record that *item*'s run (not just its collection) is starting.
+
+    Items never reach this hook when ``-x`` / ``--maxfail`` stops the
+    session before them, so ``_RUN_SELECTION`` only ever contains
+    benchmarks that were actually attempted.
+    """
+    if case := _selected_case(item):
+        _RUN_SELECTION.append(case)
+    result = yield
+    return result
 
 
 def pytest_report_collectionfinish(
     config: pytest.Config, start_path: Path, items: list[pytest.Item]
 ) -> list[str]:
-    """Print the benchmark matrix (or why there is none) right after collection."""
+    """Print the benchmark matrix (or why there is none) right after collection,
+    then, for a replay, how it differs from the recorded run."""
     if _DISCOVERED_CASES is None:
         return []
     _section(config, "Benchmark matrix")
     if _DISCOVERED_CASES.matrix is None:
         _error_console(config)(_DISCOVERED_CASES.error or "matrix not available")
-        return []
-    write = _console(config)
-    write(
-        format_matrix(_DISCOVERED_CASES.matrix, skip_missing_models=SKIP_MISSING_MODELS)
-    )
-    if not _DISCOVERED_CASES.matrix.included:
-        _console(config, yellow=True)(
-            f"note: {describe_no_cases(_DISCOVERED_CASES.matrix)}"
+    else:
+        _console(config)(
+            format_matrix(
+                _DISCOVERED_CASES.matrix, skip_missing_models=SKIP_MISSING_MODELS
+            )
         )
+        if not _DISCOVERED_CASES.matrix.included:
+            _console(config, yellow=True)(
+                f"note: {describe_no_cases(_DISCOVERED_CASES.matrix)}"
+            )
     if _FILTER_PROBLEM is not None and not _FILTER_PROBLEM[1]:
         _console(config, yellow=True)(f"warning: {_FILTER_PROBLEM[0]}")
+    if _REPLAY is not None:
+        _section(config, "Replay")
+        _console(config)(format_replay(_REPLAY))
     return []
 
 
@@ -683,6 +806,15 @@ def results_collector(
             },
             "hardware": hw_families,
             "system_info": system_info,
+            "config": build_config_block(
+                SETTINGS,
+                matrix=_DISCOVERED_CASES.matrix if _DISCOVERED_CASES else None,
+                selection=_RUN_SELECTION,
+                revisions=_REVISIONS,
+                pytest_args=request.config.invocation_params.args,
+                filter_problem=_FILTER_PROBLEM[0] if _FILTER_PROBLEM else None,
+                replay=_REPLAY,
+            ),
         }
         try:
             exporter = ResultExporter(output_dir, formats=RESULT_FORMATS)
