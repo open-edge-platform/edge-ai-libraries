@@ -6,7 +6,10 @@
 This repository uses two test layers:
 
 - `unit/`: deterministic, in-process tests that do not require a running gateway.
-- `integration/`: live end-to-end validation against a running gateway service.
+- `integration/`: end-to-end validation over HTTP against an externally running
+  gateway. The provider-probe suite additionally stands up its own mock *backends*
+  (not its own router), so it needs no real LLM — see
+  [Provider Probes](#provider-probes).
 
 Unless you are specifically validating deployment or backend connectivity, start with the unit suites.
 
@@ -62,7 +65,7 @@ These tests run in-process with `fastapi.testclient.TestClient` and stubbed rout
 ### Router API Contract
 
 - `tests/unit/test_api_protocol_contract.py`
-  Coverage: root and health endpoints, `/health/detailed`, `/v1/models`, `/v1/metrics`, `/v1/metrics/reset`, request-id rewriting, SSE streaming protocol, metrics aggregation, and response shape guarantees.
+  Coverage: root and health endpoints, `/v1/models`, `/v1/metrics`, `/v1/metrics/reset`, request-id rewriting, SSE streaming protocol, metrics aggregation, and response shape guarantees.
 
 - `tests/unit/test_api_validation_and_errors.py`
   Coverage: invalid request payloads, 422 validation responses, 400 routing errors, 500 internal failures, 503 uninitialized-state failures, streaming error chunks, and 429 concurrency enforcement.
@@ -158,7 +161,7 @@ pip install adaptive-token-compressor
 
 ## Integration Test Suites
 
-These tests talk to a real running gateway over HTTP. They are grouped under `tests/integration/` and are auto-marked as `integration` by `tests/integration/conftest.py`.
+These tests are grouped under `tests/integration/` and are auto-marked as `integration` by `tests/integration/conftest.py`. They all talk to an externally running gateway over HTTP — the **Provider Probes** suite additionally stands up its own mock *backends* (never its own router), so the running gateway has something to probe and route to without a real LLM.
 
 ### Live Gateway Validation
 
@@ -168,9 +171,63 @@ These tests talk to a real running gateway over HTTP. They are grouped under `te
 - `tests/integration/test_gateway_request_types.py`
   Coverage: request-shape compatibility, tool-calling variants, structured outputs, streaming variants, generation parameters, large payloads, and tool-definition variants against a running gateway.
 
+### Provider Probes
+
+- `tests/integration/test_live_router_probes.py`
+  The single home for provider-probe end-to-end coverage, driven entirely over
+  HTTP against the **running gateway** (like the other integration suites). Instead
+  of requiring a real LLM, each test stands up **mock provider backends** —
+  lightweight threaded HTTP servers, each on its own free port (so they never
+  collide with a real backend) — that serve a Prometheus `/metrics` body (what a
+  probe scrapes) and an OpenAI-compatible `/v1/chat/completions` that echoes the
+  backend's identity (so a routing decision is visible in the response).
+
+  Each test registers temporary providers (names prefixed `itest_`) pointed at
+  those mocks via the providers API, drives the probe lifecycle over HTTP, and
+  deletes everything it created on teardown (providers, and — for the routing test
+  — a temporary strategy/policy with the original routing restored). Nothing is
+  asserted that a remote client cannot observe (no router logs, no sink files), so
+  the suite is portable.
+
+  Requirements — the suite auto-skips (with a single up-front reachability check)
+  unless all hold:
+  - a gateway is reachable at `GATEWAY_BASE_URL`;
+  - it can reach **loopback mock servers on this host** (i.e. it runs on this host,
+    e.g. natively or with host networking);
+  - it runs code new enough that `GET /v1/providers` reflects live probe metadata.
+
+  The one exception is a pure-logic aggregation-math test, which needs no gateway
+  and always runs.
+
+  Coverage:
+  - zero-match and over-cardinality (`max_series`) regex extraction never crash
+    the probe (observed behaviorally: the flood is capped, the service stays up);
+  - enabling a probe via the providers API surfaces its metric in
+    `GET /v1/providers/{name}` metadata and round-trips the spec; disabling it
+    (lifecycle) removes the metric;
+  - every aggregation method (`latest/mean/median/p50/p90/p95/p99/ewma/min/max/stdev`)
+    publishes the numerically correct value;
+  - publish `prefix` routes a metric into the right metadata namespace
+    (`performance.*`, `capability.*`, free-form `probe.*`);
+  - a strategy keyed on a probe metric (`tpot_ms`) — installed and activated via
+    the strategy/policy/routing APIs, then restored — makes `auto` routing prefer
+    the fastest mock;
+  - a probe with an unreachable endpoint fails quietly without downing the service.
+
+  > **Note:** the routing test briefly changes the gateway's **active routing
+  > policy** (restored on teardown), so prefer running this suite against a dev
+  > gateway rather than one serving production traffic.
+
+  Run it against a gateway on this host:
+
+  ```bash
+  GATEWAY_BASE_URL=http://127.0.0.1:8000 \
+  pytest tests/integration/test_live_router_probes.py
+  ```
+
 ## Running Integration Tests
 
-Integration suites require a running gateway that exposes the API endpoints expected by `tests/integration/test_client.py`.
+All integration suites require a running gateway. The **Live Gateway Validation** suites expect the API endpoints used by `tests/integration/test_client.py`; the **Provider Probes** suite additionally requires that the gateway run on this host so it can reach the in-test mock backends on loopback (see above).
 
 Default base URL:
 

@@ -9,9 +9,10 @@ import pytest
 
 from src.models import ChatCompletionMessage, ChatCompletionRequest, ChatCompletionRole
 from src.providers.base import ProviderAdapter, ProviderMetadata
-from src.rsd.strategy import (
+from src.rsd.engine.strategy import (
     build_strategy_definition,
     CapabilitySelector,
+    PerformanceSelector,
     ProviderSelector,
     RuleBinding,
     SortCriterion,
@@ -19,7 +20,7 @@ from src.rsd.strategy import (
     StrategyExecutor,
 )
 from src.exceptions import ConfigurationError
-from src.rsd.rule import ContextLengthRule, QueryComplexityScoreRule
+from src.rsd.rule_based.rules import ContextLengthRule, QueryComplexityScoreRule
 
 
 class MockProvider(ProviderAdapter):
@@ -422,6 +423,110 @@ def test_strategy_executor_filters_providers_by_cost_selector():
     candidates = asyncio.run(executor.execute(request, providers, definition))
 
     assert [candidate.provider.name for candidate in candidates] == ["cheap"]
+
+
+@pytest.mark.unit
+def test_strategy_executor_filters_and_ranks_by_performance_selector():
+    """Performance selector should drop over-threshold providers and rank the rest by TTFT."""
+    request = ChatCompletionRequest(
+        model="test-model",
+        messages=[
+            ChatCompletionMessage(
+                role=ChatCompletionRole.USER,
+                content="compare inference routing options",
+            )
+        ],
+    )
+    providers = [
+        MockProvider(
+            "fast",
+            metadata=ProviderMetadata(performance={"ttft_ms": 200, "tpot_ms": 15}),
+        ),
+        MockProvider(
+            "mid",
+            metadata=ProviderMetadata(performance={"ttft_ms": 450, "tpot_ms": 30}),
+        ),
+        MockProvider(
+            "slow-ttft",
+            metadata=ProviderMetadata(performance={"ttft_ms": 900, "tpot_ms": 15}),
+        ),
+        MockProvider(
+            "slow-tpot",
+            metadata=ProviderMetadata(performance={"ttft_ms": 200, "tpot_ms": 80}),
+        ),
+        MockProvider(
+            "no-perf",
+            metadata=ProviderMetadata(cost=0.1),
+        ),
+    ]
+    executor = StrategyExecutor()
+    definition = StrategyDefinition(
+        name="performance_based",
+        provider_selector=ProviderSelector(
+            performance=PerformanceSelector(thresholds={"ttft_ms": 500, "tpot_ms": 50})
+        ),
+        rules=[
+            RuleBinding(
+                "perf_score",
+                QueryComplexityScoreRule((0.0, 1.0), target=0.5),
+            )
+        ],
+        sort=[SortCriterion("performance.ttft_ms", descending=False)],
+    )
+
+    candidates = asyncio.run(executor.execute(request, providers, definition))
+
+    # slow-ttft (900 > 500), slow-tpot (80 > 50) and no-perf (missing) are filtered;
+    # survivors ranked ascending by ttft.
+    assert [candidate.provider.name for candidate in candidates] == ["fast", "mid"]
+
+
+@pytest.mark.unit
+def test_strategy_loader_builds_performance_selector():
+    """provider_selector.performance should parse into a PerformanceSelector."""
+    definition = build_strategy_definition(
+        {
+            "name": "performance_based",
+            "rules": [],
+            "provider_selector": {"performance": {"ttft_ms": 500, "tpot_ms": 50}},
+        }
+    )
+
+    assert definition.provider_selector.performance == PerformanceSelector(
+        thresholds={"ttft_ms": 500.0, "tpot_ms": 50.0}
+    )
+
+
+@pytest.mark.unit
+def test_strategy_loader_rejects_non_numeric_performance_threshold():
+    """performance selector thresholds must be numbers."""
+    with pytest.raises(
+        ConfigurationError,
+        match="provider_selector.performance.ttft_ms must be a number",
+    ):
+        build_strategy_definition(
+            {
+                "name": "performance_based",
+                "rules": [],
+                "provider_selector": {"performance": {"ttft_ms": "fast"}},
+            }
+        )
+
+
+@pytest.mark.unit
+def test_strategy_loader_rejects_non_mapping_performance_selector():
+    """performance selector must be a non-empty mapping."""
+    with pytest.raises(
+        ConfigurationError,
+        match="provider_selector.performance must be a non-empty mapping",
+    ):
+        build_strategy_definition(
+            {
+                "name": "performance_based",
+                "rules": [],
+                "provider_selector": {"performance": 500},
+            }
+        )
 
 
 @pytest.mark.unit
