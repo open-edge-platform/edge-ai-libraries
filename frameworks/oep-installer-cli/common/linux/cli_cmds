@@ -180,10 +180,9 @@ subcommand_list () {
     if git rev-parse --is-inside-work-tree &>/dev/null && git remote get-url origin 2>/dev/null | grep -qE 'github\.com[:/]'; then
       local sha=$(git rev-parse HEAD)
       ensure_sbom_format cli-version "$sha"
-      local remote="$(git remote get-url origin | sed -E 's#(git@|https://)github.com[:/]##; s#\.git$##')"
       if [[ "/$0" = *"/rendered/"* ]]; then
-        local cli_url="https://raw.githubusercontent.com/$remote/$sha/${0/#*rendered/rendered}"
-        ensure_sbom_format cli-url "$cli_url"
+        local remote="$(git remote get-url origin | sed -E 's#(git@|https://)github.com[:/]##; s#\.git$##')"
+        ensure_sbom_format cli-url "https://raw.githubusercontent.com/$remote/$sha/${0/#*rendered/rendered}"
       fi
     fi
     ensure_sbom_format install-cmdline $installer_name install "${args[@]}"
