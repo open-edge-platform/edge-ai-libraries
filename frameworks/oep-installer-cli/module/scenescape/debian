@@ -1,9 +1,13 @@
 
 configure_scenescape () {
   workspace="$(ensure_project_path)/scenescape"
-  version=release-2026.2.0
+  version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")"
   repository=https://github.com/open-edge-platform/scenescape.git
   used_ports=(443)
+
+  version_skills=release-2026.2.0
+  repository_skills=https://github.com/open-edge-platform/skills.git
+  skills=(scenescape-setup)
 }
 
 verify_scenescape () {
@@ -15,23 +19,30 @@ debian_90_profile_scenescape () {
 }
 
 debian_90_install_scenescape () {
-  configure_scenescape
+  configure_scenescape "$@"
   if verify_scenescape && [[ " $* " != *" --reinstall "* ]]; then
     echo "Scenescape is installed." >&2
   else
     ensure_disk_size 300
+    ensure_ports_open install scenescape "${used_ports[@]}"
+
+    echo "@@STEP Cloning git repository"
     ensure_git_export "$workspace" "$version" "$repository"
+
+    echo "@@STEP Installing skills"
+    ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}"
+
     verify_scenescape
   fi
 
-  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
   echo "@@HIGHLIGHT $installer_name start"
   echo "@@HIGHLIGHT $installer_name remove"
 }
 
 debian_90_start_scenescape () {
-  configure_scenescape
-  ensure_ports_open "${used_ports[*]}" debian_90_stop_scenescape "$@"
+  configure_scenescape "$@"
+  ensure_ports_open start scenescape "${used_ports[@]}"
 
   cd "$workspace"
   export SUPASS=$(cat /dev/random | tr -dc a-z | head -c 5)
@@ -44,13 +55,14 @@ debian_90_start_scenescape () {
 }
 
 debian_90_stop_scenescape () {
-  configure_scenescape
+  configure_scenescape "$@"
   cd "$workspace" && make demo-close || true
 }
 
 debian_90_remove_scenescape () {
   debian_90_stop_scenescape "$@"
   cd "$workspace" && make clean-all || true
-  ensure_rm "$workspace"
+  ensure_rm "$workspace" || true
+  ensure_skills remove "${skills[@]}"
 }
 

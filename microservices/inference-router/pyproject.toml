@@ -46,9 +46,9 @@ dependencies = [
 
 [project.optional-dependencies]
 ov = [
-    "openvino>=2026.2",
-    "optimum-intel[openvino]==2.0.0",
-    "torch==2.13.0"
+    "openvino==2026.2",
+    "openvino-tokenizers==2026.2",
+    "numpy>=1.26",
 ]
 
 dev = [
@@ -68,7 +68,7 @@ namespaces = false
 
 [tool.setuptools.package-data]
 "src.rsd" = ["*.yaml"]
-"src.rsd.tools" = ["prompts/*.txt"]
+"src.rsd.model_based" = ["prompts/*.txt", "prompts/*/*.rcv"]
 
 [tool.black]
 line-length = 100

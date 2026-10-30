@@ -15,7 +15,7 @@ The batch analysis endpoint accepts multiple uploaded image frames in a single r
 ## 3. Headers
 
 | Header | Required | Value | Description |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `Content-Type` | Yes | `multipart/form-data` | Required for form fields and image file uploads |
 | `Accept` | No | `application/json` | Recommended response content type |
 
@@ -24,7 +24,7 @@ The batch analysis endpoint accepts multiple uploaded image frames in a single r
 The request body must be sent as multipart form-data.
 
 | Field | Type | Required | Default | Description |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `entity_id` | `string` | Yes | - | Unique entity identifier |
 | `pattern_id` | `string` | No | `shelf_to_waist` | Pattern to detect |
 | `vlm_enabled` | `boolean` | No | `null` | Optional override for global VLM enable setting |
@@ -108,7 +108,7 @@ Possible `status` values:
 ## 8. HTTP Status Codes
 
 | Status Code | Meaning | When Returned |
-|---|---|---|
+| --- | --- | --- |
 | `200` | OK | Request processed successfully (includes `suspicious`, `no_match`, or `pose_not_detected` response statuses) |
 | `400` | Bad Request | No frames provided |
 | `422` | Unprocessable Entity | All uploaded frames invalid or undecodable |

@@ -1,4 +1,3 @@
-
 debian_30_install_chrony () {
   ensure_apt_install_package chrony
 }
@@ -8,4 +7,3 @@ debian_30_install_chrony () {
 debian_30_sbom_chrony () {
   ensure_sbom_format pkg-list chrony
 }
-

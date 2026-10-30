@@ -12,7 +12,7 @@ configure_openvino () {
 "gpgkey=$key_url"
 )
   yum_repo_file="/etc/yum.repos.d/intel-openvino.repo"
-  version=$([[ " $* " = *" dlstreamer "* ]] && echo 2026.2.0 || echo 2026.4.1)
+  version="$(ensure_parse_value_option version --version=$([[ " $* " = *" dlstreamer "* ]] && echo 2026.2.0 || echo 2026.4.1) "$@")"
   workspace="$(ensure_project_path)/openvino"
   model="https://github.com/onnx/models/raw/4c46cd00fbdb7cd30b6c1c17ab54f2e1f4f7b177/validated/vision/classification/squeezenet/model/squeezenet1.0-12.onnx"
 }
@@ -41,9 +41,11 @@ fedora_70_install_openvino () {
     ensure_prop set installed/openvino/owned true
 
     # remove old versions
+    echo "@@STEP Removing openvino"
     fedora_70_remove_openvino "$@"
 
     # product entrypoint
+    echo "@@STEP Installing openvino-$version"
     printf "%s\n" "${yum_repo_conf[@]}" | ensure_sudo tee "$yum_repo_file"
 
     # install openvino
@@ -69,7 +71,7 @@ fedora_70_remove_openvino () {
 
 fedora_70_sbom_openvino () {
   configure_openvino "$@"
-  ensure_sbom_format name "$repo_name"
+  ensure_sbom_format repo-name "$repo_name"
   ensure_sbom_format gpg-key "$key_url"
   ensure_sbom_format yum-repo-conf "${yum_repo_conf[@]}"
   ensure_sbom_format yum-repo-file "$yum_repo_file"

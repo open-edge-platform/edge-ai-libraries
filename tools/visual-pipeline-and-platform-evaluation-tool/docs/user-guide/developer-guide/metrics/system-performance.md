@@ -41,10 +41,10 @@ Browser (EventSource) → Redux store → System dashboard charts
 
 1. **Telegraf** samples the host every second (`interval = "1s"`) and exposes
    the readings as Prometheus metrics on port `9273`.
-2. **metrics-manager** scrapes that endpoint, keeps a 300-second rolling
+1. **metrics-manager** scrapes that endpoint, keeps a 300-second rolling
    window in memory and pushes new samples to every connected SSE client on
    `/metrics/stream` (port `9090`).
-3. **vippet-ui** opens a single `EventSource` connection (proxied by nginx)
+1. **vippet-ui** opens a single `EventSource` connection (proxied by nginx)
    and dispatches incoming samples into the Redux store, which feeds the
    system-performance charts on the dashboard.
 

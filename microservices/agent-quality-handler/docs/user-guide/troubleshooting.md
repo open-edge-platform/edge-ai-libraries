@@ -41,14 +41,13 @@ delivery of the same `run_id` is expected and does not rerun reasoning.
 
 ## LLM Services Are Missing
 
-Both settings are required:
+`LLM_MODE` defaults to `llm`, and the Compose deployment starts `aqh-ovms` and `model-download` with it:
 
 ```bash
-export LLM_MODE=llm
-docker compose -f docker/compose.yaml --profile llm up --build -d
+docker compose -f docker/compose.yaml up --build -d
 ```
 
-Without `--profile llm`, `aqh-ovms` and `model-download` do not start. For rule-based operation, unset `LLM_MODE` or set it to `fallback` and start without the profile.
+Check that both services are running with `docker compose -f docker/compose.yaml ps`. For rule-based operation without an LLM, set `LLM_MODE=fallback`.
 
 ## Result Has Status `error`
 

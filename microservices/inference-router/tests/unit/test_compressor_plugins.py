@@ -4,15 +4,17 @@
 """Unit tests for the adaptive-token-compressor plugin.
 
 One ``CompressorPlugin`` (``node = "compressor"``) covers every compressor kind;
-``settings.type`` (harness / tool) selects the kind and the library
+``settings.type`` (harness / tool / context) selects the kind and the library
 factory ``adaptive_token_compressor.create_compressor`` builds it. These tests
-patch that factory so no Lingua server or predictor endpoint is required, and
+use fakes for plugin isolation and real compressors for YAML wiring, without
+requiring running services. They
 verify the plugin layer: registration, per-type settings validation, the
 request→compress→apply flow, trigger placement, error containment, and metrics
 (per-instance via ``describe()``, cross-instance ``overall.*`` via
 ``describe_node()``).
 """
 
+import json
 from types import SimpleNamespace
 from typing import Any, Dict, Optional
 
@@ -25,7 +27,7 @@ pytest.importorskip("adaptive_token_compressor")
 
 pytestmark = pytest.mark.compressor
 
-from src.config import PluginConfig
+from src.config import PluginConfig, load_config
 from src.exceptions import ConfigurationError
 from src.models import ChatCompletionMessage, ChatCompletionRequest
 from src.plugins.manager import create_plugin_manager, set_request_id
@@ -194,6 +196,215 @@ def test_tool_requires_predictor_url(patch_factory):
         create_plugin_manager([_cfg("bad", "tool")])  # missing predictor_url
 
 
+def test_context_excluded_tools_forwarded(patch_factory):
+    captured: Dict[str, Any] = {}
+    patch_factory(capture=captured)
+    create_plugin_manager([_cfg(
+        "context_pre", "context", excluded_tools=["read"], large_result_stub=True,
+    )])
+    assert captured["excluded_tools"] == ["read"]
+    assert captured["large_result_stub"] is True
+    assert "protect_tool_results" not in captured
+    assert "large_result_excluded_tools" not in captured
+
+
+@pytest.mark.parametrize("legacy", ["protect_tool_results", "large_result_excluded_tools"])
+def test_context_rejects_legacy_protection_settings(patch_factory, legacy):
+    patch_factory()
+    with pytest.raises(ConfigurationError, match=legacy):
+        create_plugin_manager([_cfg("bad", "context", **{legacy: True})])
+
+
+@pytest.mark.parametrize("invalid", ["", "Recovery", "invalid", None, True, 1, [], {}])
+def test_context_rejects_invalid_stub_guidance(patch_factory, invalid):
+    patch_factory()
+    with pytest.raises(ConfigurationError, match="guidance"):
+        create_plugin_manager([_cfg(
+            "bad", "context", large_result_stub_guidance=invalid,
+        )])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("guidance", [None, "legacy", "recovery"])
+async def test_context_stub_guidance_from_yaml_changes_real_output(tmp_path, guidance):
+    from adaptive_token_compressor.context import ContextCompressor
+    from adaptive_token_compressor.context.result_stub import render_stub
+
+    setting = "" if guidance is None else f"        large_result_stub_guidance: {guidance}\n"
+    config_path = tmp_path / "router.yaml"
+    config_path.write_text(
+        "plugins:\n"
+        "  prerouting:\n"
+        "    - name: context_recovery\n"
+        "      node: compressor\n"
+        "      enabled: true\n"
+        "      settings:\n"
+        "        type: context\n"
+        "        assistant_arguments: false\n"
+        "        protect_recent_tool_turns: 2\n"
+        "        compress_stride_tool_turns: 1\n"
+        "        tool_results: true\n"
+        "        excluded_tools: []\n"
+        "        compression_mode: none\n"
+        "        large_result_stub: true\n"
+        "        large_result_min_tokens: 4000\n"
+        "        large_result_keep_tool_turns: 1\n"
+        "        large_result_exempt_edited_files: false\n"
+        + setting
+    )
+    config = load_config(str(config_path))
+    pm = create_plugin_manager(config.plugins)
+    plugin = pm.prerouting_plugins[0]
+    effective = guidance or "legacy"
+    assert isinstance(plugin._compressor, ContextCompressor)
+    assert plugin._compressor._large_result_stub_guidance == effective
+    assert plugin.parsed_settings.model_dump()["large_result_stub_guidance"] == effective
+    if guidance is not None:
+        assert plugin.describe()["settings"]["large_result_stub_guidance"] == guidance
+    parsed_settings = plugin.parsed_settings.model_dump()
+    for key, value in plugin._compressor.effective_config.items():
+        assert parsed_settings[key] == value
+
+    call = {
+        "id": "read0", "type": "function",
+        "function": {"name": "read", "arguments": '{"path":"src/a.py","offset":10,"limit":20}'},
+    }
+    original = "line of original file\n" * 2000
+    request = _request(messages=[
+        ChatCompletionMessage(role="assistant", tool_calls=[call]),
+        ChatCompletionMessage(role="tool", tool_call_id="read0", content=original),
+        ChatCompletionMessage(role="assistant", tool_calls=[{
+            "id": "latest", "type": "function",
+            "function": {"name": "exec", "arguments": '{"command":"true"}'},
+        }]),
+        ChatCompletionMessage(role="tool", tool_call_id="latest", content="done"),
+    ])
+    out = await pm.process_prerouting_request(request)
+    assert out.messages[1].content == render_stub(
+        "read", original, tool_call=call, guidance=effective,
+    )
+    assert ("target: read src/a.py offset=10 limit=20" in out.messages[1].content) == \
+        (effective == "recovery")
+    assert out.messages[3].content == "done"
+    assert request.messages[1].content == original
+
+
+def test_context_flat_settings_resolve_defaults(patch_factory):
+    from adaptive_token_compressor import config_schema
+
+    overrides = {
+        "protect_recent_tool_turns": 2,
+        "rules_web_search_strip": False,
+        "compress_rate": 0.4,
+    }
+    captured = {}
+    patch_factory(capture=captured)
+    pm = create_plugin_manager([_cfg("flat", "context", **overrides)])
+    defaults = {
+        key: fragment["default"]
+        for key, fragment in config_schema("context")["properties"].items()
+        if "default" in fragment
+    }
+    assert captured == {"type": "context", **defaults, **overrides}
+    assert not any(isinstance(value, dict) for value in captured.values())
+    serialized = json.loads(pm.prerouting_plugins[0].parsed_settings.model_dump_json())
+    for key, value in captured.items():
+        assert serialized[key] == value
+
+
+@pytest.mark.parametrize("settings,field", [
+    ({"unexpected_setting": True}, "unexpected_setting"),
+    ({"compression_mode": "bad"}, "compression_mode"),
+])
+def test_context_schema_prechecks_preserved(patch_factory, settings, field):
+    captured = {}
+    patch_factory(capture=captured)
+    with pytest.raises(ConfigurationError, match=field):
+        create_plugin_manager([_cfg("invalid_schema", "context", **settings)])
+    assert captured == {}
+
+
+@pytest.mark.parametrize("ctype,settings,field", [
+    ("context", {"excluded_tools": "read"}, "excluded_tools"),
+    ("tool", {"timeout": 0}, "timeout"),
+    ("harness", {"timeout": 0}, "timeout"),
+])
+def test_library_config_errors_preserve_cause(ctype, settings, field):
+    from adaptive_token_compressor.core.exceptions import ConfigError
+
+    from src.plugins.base import PluginSchemaError
+
+    if ctype == "tool":
+        settings = {"predictor_url": "http://offline.test/v1/chat/completions", **settings}
+    with pytest.raises(
+        ConfigurationError, match=f"Invalid settings for compressor type {ctype!r}",
+    ) as caught:
+        create_plugin_manager([_cfg("invalid_library", ctype, **settings)])
+    schema_error = caught.value.__cause__
+    assert isinstance(schema_error, PluginSchemaError)
+    cause = schema_error.__cause__
+    assert isinstance(cause, ConfigError)
+    assert field in str(cause)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mode,expected,backend_calls", [
+    ("none", "original", 0), ("backend_only", "BACKEND", 1),
+    ("claw_only", "CLAW", 0), ("claw_with_backend", "CLAW", 0),
+])
+async def test_context_compression_mode_from_yaml_reaches_real_instance(
+    tmp_path, monkeypatch, mode, expected, backend_calls,
+):
+    import sys
+
+    calls = []
+
+    def post(url, **kwargs):
+        calls.append((url, kwargs))
+        return SimpleNamespace(
+            raise_for_status=lambda: None,
+            json=lambda: {"compressed_prompt": "BACKEND"},
+        )
+
+    adapter = SimpleNamespace(
+        detect=lambda text: "code",
+        compress_with_claw=lambda text, content_type: "CLAW",
+    )
+    monkeypatch.setitem(
+        sys.modules, "adaptive_token_compressor.context.claw_adapter",
+        SimpleNamespace(ContextClawAdapter=lambda **kwargs: adapter),
+    )
+    monkeypatch.setattr("adaptive_token_compressor.core.backends.requests.post", post)
+    settings = {
+        "type": "context", "protect_recent_tool_turns": 0, "compression_mode": mode,
+        "compress_server_url": "http://offline.test/compress",
+        "compress_rate": 0.4, "timeout": 12.0,
+    }
+    path = tmp_path / "flat.yaml"
+    path.write_text(json.dumps({"plugins": {"prerouting": [
+        {"name": "flat", "node": "compressor", "settings": settings},
+    ]}}))
+    pm = create_plugin_manager(load_config(str(path)).plugins)
+    plugin = pm.prerouting_plugins[0]
+    original = "original source text\n" * 1000
+    out = await pm.process_prerouting_request(_request(messages=[
+        ChatCompletionMessage(role="tool", tool_call_id="custom", content=original),
+    ]))
+    assert out.messages[0].content == (original if expected == "original" else expected)
+    assert len(calls) == backend_calls
+    if calls:
+        url, kwargs = calls[0]
+        assert url == "http://offline.test/compress"
+        assert kwargs["timeout"] == 12.0
+        assert kwargs["json"]["rate"] == 0.4
+    effective = plugin._compressor.effective_config
+    assert effective["compression_mode"] == mode
+    parsed_settings = plugin.parsed_settings.model_dump()
+    for key, value in effective.items():
+        assert parsed_settings[key] == value
+    assert plugin.describe()["settings"] == settings
+
+
 # ─────────────────────────────────────────────────────────────────────────
 # Compression flow
 # ─────────────────────────────────────────────────────────────────────────
@@ -205,7 +416,7 @@ async def test_harness_compresses_request(patch_factory):
     patch_factory()
     pm = create_plugin_manager(
         [_cfg("compressor_post", "harness", trigger="postrouting",
-              lingua_url="http://x/compress")]
+              compress_server_url="http://x/compress")]
     )
     out = await pm.process_postrouting_request(_request())
     assert len(out.messages) == 1
@@ -582,6 +793,284 @@ async def test_reset_node_clears_all(patch_factory):
     assert CompressorPlugin.reset_node() is True
     # No req_id seen post-reset → PerRequest snapshot empties.
     assert comp.get_compression_metrics() == {}
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Keyed metrics (postrouting compressors receive external metrics_values)
+# ─────────────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_postrouting_metrics_split_by_provider(patch_factory):
+    """External provider values bucket metrics; bucket sums equal the global value."""
+    patch_factory()
+    from src.plugins.compressor import CompressorPlugin
+
+    pm = create_plugin_manager([_cfg("compressor_post", "harness", trigger="postrouting")])
+    set_request_id("req-1")
+    await pm.process_postrouting_request(_request(), metrics_values={"provider": "prov-a"})
+    set_request_id("req-2")
+    await pm.process_postrouting_request(_request(), metrics_values={"provider": "prov-b"})
+    set_request_id("req-3")
+    await pm.process_postrouting_request(_request(), metrics_values={"provider": "prov-b"})
+
+    node_view = CompressorPlugin.describe_node()
+    assert set(node_view["metrics_by_keys"]) == {"provider"}
+    by_provider = node_view["metrics_by_keys"]["provider"]
+    assert set(by_provider) == {"prov-a", "prov-b"}
+    assert by_provider["prov-a"]["compressor_post.total_input"] == 100
+    assert by_provider["prov-b"]["compressor_post.total_input"] == 200
+    assert by_provider["prov-b"]["overall.total_requests"] == 2
+    for name in ("compressor_post.total_input", "compressor_post.total_output",
+                 "compressor_post.call_count"):
+        assert sum(snap[name] for snap in by_provider.values()) == node_view["metrics"][name]
+
+    plugin = pm.get_plugin_by_name_and_node("compressor_post", "compressor")
+    instance_view = plugin.describe()["metrics_by_keys"]["provider"]
+    assert instance_view["prov-b"]["compressor_post.total_input"] == 200
+    assert "overall.total_requests" not in instance_view["prov-b"]
+
+
+@pytest.mark.parametrize("trigger", ["prerouting", "postrouting"])
+@pytest.mark.asyncio
+async def test_instance_view_excludes_overall_metrics(patch_factory, trigger):
+    from src.plugins.compressor import (
+        CompressorPlugin,
+        get_compression_metrics,
+        get_compression_metrics_by_keys,
+    )
+
+    patch_factory()
+    pm = create_plugin_manager([_cfg("only", "harness", trigger=trigger)])
+    set_request_id("instance-only-1")
+    await pm.process_request(_request(), metrics_values={"provider": "prov-a"})
+    plugin = pm.get_plugin_by_name_and_node("only", "compressor")
+    view = plugin.describe()
+
+    assert view["metrics"]["only.call_count"] == 1
+    assert not any(name.startswith("overall.") for name in view["metrics"])
+    assert "overall.total_input" in get_compression_metrics(source="only")
+    node = CompressorPlugin.describe_node()
+    assert node["metrics"]["overall.total_input"] == 100
+    if trigger == "postrouting":
+        bucket = view["metrics_by_keys"]["provider"]["prov-a"]
+        assert bucket["only.call_count"] == 1
+        assert not any(name.startswith("overall.") for name in bucket)
+        raw = get_compression_metrics_by_keys(source="only")
+        assert "overall.total_input" in raw["provider"]["prov-a"]
+        assert node["metrics_by_keys"]["provider"]["prov-a"]["overall.total_input"] == 100
+    else:
+        assert view["metrics_by_keys"] is None
+
+
+@pytest.mark.asyncio
+async def test_prerouting_ignores_provider_name(patch_factory):
+    """A prerouting compressor never records into provider buckets."""
+    patch_factory()
+    from src.plugins.compressor import CompressorPlugin
+
+    pm = create_plugin_manager(
+        [
+            _cfg("compressor_pre", "tool", predictor_url="http://x/v1/chat/completions"),
+            _cfg("compressor_post", "harness", trigger="postrouting"),
+        ]
+    )
+    set_request_id("req-1")
+    await pm.process_prerouting_request(_request(), provider_name="prov-a")
+    await pm.process_postrouting_request(_request(), metrics_values={"provider": "prov-a"})
+
+    node_view = CompressorPlugin.describe_node()
+    snap = node_view["metrics_by_keys"]["provider"]["prov-a"]
+    assert not any(k.startswith("compressor_pre.") for k in snap)
+    assert snap["overall.total_input"] == 100  # postrouting only
+    assert node_view["metrics"]["overall.total_input"] == 200  # global has both
+
+    pre = pm.get_plugin_by_name_and_node("compressor_pre", "compressor")
+    assert pre.describe()["metrics_by_keys"] is None
+
+
+@pytest.mark.asyncio
+async def test_metrics_keys_declared_by_trigger(patch_factory):
+    """Postrouting registers with metrics_keys=["provider"]; prerouting with none."""
+    patch_factory()
+    from src.plugins import compressor as comp
+
+    create_plugin_manager(
+        [
+            _cfg("compressor_pre", "tool", predictor_url="http://x/v1/chat/completions"),
+            _cfg("compressor_post", "harness", trigger="postrouting"),
+        ]
+    )
+    assert comp._MANAGER["compressor_post"]._metrics_keys == ("provider",)
+    assert comp._MANAGER["compressor_pre"]._metrics_keys == ()
+
+
+@pytest.mark.parametrize("keys", [[], ["provider"], ["provider", "user"]])
+@pytest.mark.asyncio
+async def test_compressor_uses_injected_metrics_keys(patch_factory, monkeypatch, keys):
+    from src.plugins import compressor as comp
+
+    patch_factory()
+    plugin = comp.CompressorPlugin(
+        name="injected",
+        settings={"type": "harness"},
+        trigger="postrouting",
+        metrics_keys=keys,
+    )
+    assert plugin.metrics_keys == keys
+    assert comp._MANAGER["injected"]._metrics_keys == tuple(keys)
+    calls = []
+    original = plugin._wrapper.compress
+
+    def record(ctx, **kwargs):
+        calls.append(kwargs)
+        return original(ctx, **kwargs)
+
+    monkeypatch.setattr(plugin._wrapper, "compress", record)
+    set_request_id("injected-1")
+    values = {"provider": "prov-a", "user": "user-a"}
+    supplied = {key: values[key] for key in keys}
+    await plugin.process_request(
+        _request(), metrics_values=supplied, provider_name="ignored"
+    )
+
+    expected = {"req_id": "injected-1"}
+    if keys:
+        expected["metrics_values"] = supplied
+    assert calls == [expected]
+
+
+@pytest.mark.parametrize("values", [None, {}, {"provider": "external-provider"}])
+@pytest.mark.asyncio
+async def test_manager_forwards_external_metrics_values(patch_factory, values):
+    from src.plugins.compressor import get_compression_metrics_by_keys
+
+    patch_factory()
+    pm = create_plugin_manager([_cfg("post", "harness", trigger="postrouting")])
+    set_request_id("external-values-1")
+    await pm.process_postrouting_request(
+        _request(), provider_name="ignored", metrics_values=values
+    )
+
+    metrics = get_compression_metrics_by_keys(source="post")
+    if values:
+        assert set(metrics["provider"]) == {"external-provider"}
+    else:
+        assert metrics == {}
+
+
+@pytest.mark.asyncio
+async def test_no_provider_name_records_global_only(patch_factory):
+    """Without provider_name, postrouting compresses and records globally only."""
+    patch_factory()
+    from src.plugins.compressor import CompressorPlugin
+
+    pm = create_plugin_manager([_cfg("compressor_post", "harness", trigger="postrouting")])
+    set_request_id("req-1")
+    out = await pm.process_postrouting_request(_request())
+
+    assert out.messages[0].content == "compressed"
+    node_view = CompressorPlugin.describe_node()
+    assert node_view["metrics"]["compressor_post.total_input"] == 100
+    assert node_view["metrics_by_keys"] == {}
+
+
+@pytest.mark.asyncio
+async def test_old_library_without_keyed_metrics(patch_factory, monkeypatch):
+    """A library without keyed metrics: compression still works, no metrics_values sent."""
+    patch_factory()
+    import adaptive_token_compressor as atc
+    from src.plugins.compressor import CompressorPlugin
+
+    seen_kwargs = []
+
+    class _OldWrapper:
+        def __init__(self, inner):
+            self._inner = inner
+
+        def compress(self, ctx, *, req_id=None):  # old signature: no metrics_values
+            seen_kwargs.append({"req_id": req_id})
+            return self._inner.compress(ctx, req_id=req_id)
+
+    class _OldManager(atc.CompressionManager):
+        @property
+        def snapshot_by_keys(self):  # absent on the old library
+            raise AttributeError("snapshot_by_keys")
+
+        def register_compressor(self, name, compressor):  # old signature: no metrics_keys
+            return _OldWrapper(super().register_compressor(name, compressor))
+
+    monkeypatch.setattr(atc, "CompressionManager", _OldManager)
+
+    pm = create_plugin_manager([_cfg("compressor_post", "harness", trigger="postrouting")])
+    set_request_id("req-1")
+    out = await pm.process_postrouting_request(
+        _request(), metrics_values={"provider": "prov-a"}
+    )
+
+    assert out.messages[0].content == "compressed"
+    assert seen_kwargs == [{"req_id": "req-1"}]
+    plugin = pm.get_plugin_by_name_and_node("compressor_post", "compressor")
+    assert plugin.describe()["metrics_by_keys"] == {}
+    assert CompressorPlugin.describe_node()["metrics_by_keys"] == {}
+    assert plugin.describe()["metrics"]["compressor_post.total_input"] == 100
+
+
+@pytest.mark.asyncio
+async def test_metrics_fields_sorted_by_name(patch_factory):
+    """Every metrics object lists fields (and keys / providers) sorted by name."""
+    patch_factory()
+    from src.plugins.compressor import CompressorPlugin
+
+    pm = create_plugin_manager(
+        [
+            _cfg("compressor_pre", "tool", predictor_url="http://x/v1/chat/completions"),
+            _cfg("compressor_post", "harness", trigger="postrouting"),
+        ]
+    )
+    for i, provider in enumerate(["prov-b", "prov-a"]):
+        set_request_id(f"req-{i}")
+        await pm.process_prerouting_request(_request())
+        await pm.process_postrouting_request(_request(), metrics_values={"provider": provider})
+
+    node_view = CompressorPlugin.describe_node()
+    post = pm.get_plugin_by_name_and_node("compressor_post", "compressor").describe()
+    snaps = [node_view["metrics"], post["metrics"],
+             *node_view["metrics_by_keys"]["provider"].values(),
+             *post["metrics_by_keys"]["provider"].values()]
+    for snap in snaps:
+        assert list(snap) == sorted(snap)
+    assert list(node_view["metrics_by_keys"]["provider"]) == ["prov-a", "prov-b"]
+    assert list(post["metrics_by_keys"]["provider"]) == ["prov-a", "prov-b"]
+
+
+@pytest.mark.asyncio
+async def test_instance_reset_zeroes_its_provider_metrics(patch_factory):
+    """reset() zeroes this compressor under every provider; others are untouched."""
+    patch_factory()
+
+    pm = create_plugin_manager(
+        [
+            _cfg("compressor_a", "harness", trigger="postrouting"),
+            _cfg("compressor_b", "harness", trigger="postrouting"),
+        ]
+    )
+    for i, provider in enumerate(["prov-a", "prov-b"]):
+        set_request_id(f"req-{i}")
+        await pm.process_postrouting_request(_request(), metrics_values={"provider": provider})
+
+    a = pm.get_plugin_by_name_and_node("compressor_a", "compressor")
+    b = pm.get_plugin_by_name_and_node("compressor_b", "compressor")
+    assert a.reset() is True
+
+    a_view = a.describe()["metrics_by_keys"]["provider"]
+    assert set(a_view) == {"prov-a", "prov-b"}
+    for snap in a_view.values():
+        assert snap["compressor_a.total_input"] == 0
+        assert snap["compressor_a.call_count"] == 0
+    b_view = b.describe()["metrics_by_keys"]["provider"]
+    assert b_view["prov-a"]["compressor_b.total_input"] == 100
+    assert b_view["prov-b"]["compressor_b.total_input"] == 100
 
 
 # ─────────────────────────────────────────────────────────────────────────

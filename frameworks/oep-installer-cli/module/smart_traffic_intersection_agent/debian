@@ -1,7 +1,7 @@
 
 configure_smart_traffic_intersection_agent () {
   workspace="$(ensure_project_path)/smart-traffic-intersection-agent"
-  version="release-2026.2.0"
+  version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")"
   repository="https://github.com/open-edge-platform/metro-ai-suite.git"
   used_ports=(32776 32770 32771 32772 32773 32774 32775)
 
@@ -25,7 +25,7 @@ debian_90_install_smart_traffic_intersection_agent () {
   else
     ensure_disk_size 16000
     ensure_ram_size 52428800 # 50GiB
-    ensure_ports_open "${used_ports[*]}" return 3
+    ensure_ports_open install smart_traffic_intersection_agent "${used_ports[@]}"
 
     ensure_git_export "$workspace" "$version" "$repository" smart-traffic-intersection-agent
     
@@ -38,20 +38,20 @@ debian_90_install_smart_traffic_intersection_agent () {
     verify_smart_traffic_intersection_agent
   fi
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   echo "$device" > "$workspace"/.device
 
-  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
   echo "@@HIGHLIGHT $installer_name install/start [--gpu|npu|cpu]"
   echo "@@HIGHLIGHT $installer_name remove"
 }
 
 debian_90_start_smart_traffic_intersection_agent () {
   configure_smart_traffic_intersection_agent "$@"
-  ensure_ports_open "${used_ports[*]}" debian_90_stop_smart_traffic_intersection_agent "$@"
+  ensure_ports_open start smart_traffic_intersection_agent "${used_ports[@]}"
 
   [ ! -r "$workspace"/.device ] || set -- "$@" "$(< "$workspace"/.device)"
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   export VLM_TARGET_DEVICE=${device^^}
   
   ensure_hf_token "$VLM_MODEL_NAME" 

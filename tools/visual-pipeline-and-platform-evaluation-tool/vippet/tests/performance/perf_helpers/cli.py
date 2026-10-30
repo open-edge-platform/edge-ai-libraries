@@ -24,10 +24,28 @@ import subprocess
 import sys
 import tempfile
 from collections.abc import Callable, Mapping, Sequence
+from datetime import datetime
 from pathlib import Path
 from typing import Any, TextIO
-from .matrix import Matrix, MatrixFilters
-from .preflight import FATAL_PREFLIGHT_EXIT_CODE, PreflightError, wait_for_vippet_ready
+from .matrix import (
+    Matrix,
+    MatrixFilters,
+    describe_no_cases,
+    format_matrix,
+    format_table,
+)
+from .preflight import (
+    FATAL_PREFLIGHT_EXIT_CODE,
+    PreflightError,
+    describe_discovery_error,
+    wait_for_vippet_ready,
+)
+from .reporters import (
+    ReportInputError,
+    generate_html_report,
+    load_result,
+    resolve_result_json,
+)
 from .settings import (
     ENV_CONFIG_FILE,
     PERF_DIR,
@@ -42,7 +60,7 @@ FUNCTIONAL_DIR: Path = PERF_DIR.parent / "functional"
 
 EXIT_OK = 0
 EXIT_USAGE = 2
-EXIT_NOT_IMPLEMENTED = 3
+LATEST_LINK_NAME = "latest"
 
 
 # --------------------------------------------------------------------------- #
@@ -87,8 +105,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     mode.add_argument(
         "--report-only",
-        action="store_true",
-        help="Regenerate reports from existing results without running jobs (not yet implemented).",
+        nargs="*",
+        metavar="PATH",
+        default=None,
+        # None means the flag is absent; [] means "use latest".
+        help=(
+            "Rebuild the HTML report from result JSON (file, run directory "
+            "or 'latest' symlink); several paths render as several runs. "
+            "Defaults to <results-dir>/latest. Does not contact ViPPET."
+        ),
+    )
+    parser.add_argument(
+        "--report-output",
+        metavar="PATH",
+        default=None,
+        help="HTML output path for --report-only.",
     )
 
     group = parser.add_argument_group("settings (override YAML and env)")
@@ -169,23 +200,12 @@ def _ensure_import_paths() -> None:
 # --------------------------------------------------------------------------- #
 
 
-def _table(headers: Sequence[str], rows: Sequence[Sequence[Any]]) -> str:
-    cells = [list(map(str, headers))] + [[str(c) for c in row] for row in rows]
-    widths = [max(len(row[i]) for row in cells) for i in range(len(headers))]
-    lines = []
-    for n, row in enumerate(cells):
-        lines.append("  ".join(c.ljust(w) for c, w in zip(row, widths)).rstrip())
-        if n == 0:
-            lines.append("  ".join("-" * w for w in widths))
-    return "\n".join(lines)
-
-
 def format_settings(settings: ResolvedSettings) -> str:
     rows = [
         (spec.key, _render(settings[spec.key]), settings.sources[spec.key])
         for spec in SPECS
     ]
-    return f"Config file: {settings.config_path}\n" + _table(
+    return f"Config file: {settings.config_path}\n" + format_table(
         ("setting", "value", "source"), rows
     )
 
@@ -194,68 +214,6 @@ def _render(value: Any) -> str:
     if isinstance(value, list):
         return ",".join(map(str, value)) if value else "(none)"
     return str(value)
-
-
-def format_matrix(matrix: Matrix) -> str:
-    """Render the dry-run report: matrix, exclusions and run-time skips."""
-    out: list[str] = []
-    families = ", ".join(matrix.available_families) or "(none)"
-    out.append(f"Host device families: {families}")
-    streams = ", ".join(map(str, matrix.stream_counts))
-
-    rows = matrix.rows()
-    will_run = [
-        (case.pipeline_id, case.device_family, s, case.case_id + f"_x{s}")
-        for case, s in rows
-        if case.pipeline_id not in matrix.missing_models
-    ]
-    out.append("")
-    out.append(
-        f"Matrix: {len(will_run)} run(s) = pipeline x variant x streams [{streams}]"
-    )
-    out.append(
-        _table(("pipeline", "variant", "streams", "test id"), will_run)
-        if will_run
-        else "  (empty)"
-    )
-
-    out.append("")
-    out.append(f"Excluded: {len(matrix.excluded)} pipeline/variant(s)")
-    out.append(
-        _table(
-            ("pipeline", "variant", "reason", "detail"),
-            [
-                (
-                    e.pipeline_id or e.pipeline_name or "?",
-                    e.variant,
-                    e.reason.value,
-                    e.detail,
-                )
-                for e in matrix.excluded
-            ],
-        )
-        if matrix.excluded
-        else "  (none)"
-    )
-
-    skipped = [
-        (
-            case.pipeline_id,
-            case.device_family,
-            s,
-            ", ".join(matrix.missing_models[case.pipeline_id]),
-        )
-        for case, s in rows
-        if case.pipeline_id in matrix.missing_models
-    ]
-    out.append("")
-    out.append(f"Skipped at run time: missing_models: {len(skipped)} run(s)")
-    out.append(
-        _table(("pipeline", "variant", "streams", "missing models"), skipped)
-        if skipped
-        else "  (none)"
-    )
-    return "\n".join(out)
 
 
 def _default_discover(settings: ResolvedSettings) -> Matrix:
@@ -314,11 +272,19 @@ def run_dry_run(
         return FATAL_PREFLIGHT_EXIT_CODE
     except Exception as exc:  # report any discovery failure, never crash
         print(
-            f"error: pipeline discovery failed: {type(exc).__name__}: {exc}",
+            f"error: {describe_discovery_error(exc, settings['vippet.base_url'])}",
             file=stderr,
         )
         return FATAL_PREFLIGHT_EXIT_CODE
-    print(format_matrix(matrix), file=stdout)
+    print(
+        format_matrix(
+            matrix,
+            skip_missing_models=settings["benchmark.filters.skip_missing_models"],
+        ),
+        file=stdout,
+    )
+    if not matrix.included:
+        print(f"\nnote: {describe_no_cases(matrix)}", file=stdout)
     return EXIT_OK
 
 
@@ -327,14 +293,72 @@ def run_dry_run(
 # --------------------------------------------------------------------------- #
 
 
-def run_report_only(settings: ResolvedSettings, *, stderr: TextIO | None = None) -> int:
-    """Placeholder: report regeneration will be implemented within ITEP-96716."""
-    print(
-        "error: --report-only is not yet implemented "
-        f"(results dir: {settings['results.output_dir']})",
-        file=stderr or sys.stderr,
-    )
-    return EXIT_NOT_IMPLEMENTED
+def _report_output_path(
+    runs: list[dict[str, Any]],
+    paths: list[Path],
+    output: str | None,
+    results_dir: Path,
+) -> Path:
+    if output is not None:
+        return Path(output).expanduser()
+    if len(runs) == 1:
+        return paths[0].parent / f"{runs[0]['benchmark_id']}.html"
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return results_dir / f"report_{timestamp}.html"
+
+
+def run_report_only(
+    settings: ResolvedSettings,
+    inputs: Sequence[str],
+    output: str | None = None,
+    *,
+    stdout: TextIO | None = None,
+    stderr: TextIO | None = None,
+) -> int:
+    """Rebuild the HTML report from saved result JSON. Never contacts ViPPET."""
+    stdout = stdout or sys.stdout
+    stderr = stderr or sys.stderr
+
+    results_dir = Path(settings["results.output_dir"])
+    using_default = not inputs
+    targets = list(inputs) or [str(results_dir / LATEST_LINK_NAME)]
+
+    try:
+        paths: list[Path] = []
+        for target in targets:
+            resolved = resolve_result_json(target)
+            if resolved not in paths:
+                paths.append(resolved)
+        runs = [load_result(p) for p in paths]
+        html = generate_html_report(runs)
+    except ReportInputError as exc:
+        message = str(exc)
+        if using_default and message.startswith("result path not found"):
+            message += (
+                f"; no benchmark results in {results_dir} yet. Run a "
+                "benchmark first (e.g. `make test-performance` or "
+                "`python -m perf_helpers.cli`), or rebuild from a specific "
+                "run with --report-only PATH."
+            )
+        print(f"error: {message}", file=stderr)
+        return EXIT_USAGE
+    except (KeyError, TypeError, ValueError, AttributeError) as exc:
+        print(
+            f"error: cannot render report: {type(exc).__name__}: {exc}",
+            file=stderr,
+        )
+        return EXIT_USAGE
+
+    html_path = _report_output_path(runs, paths, output, results_dir)
+    try:
+        html_path.parent.mkdir(parents=True, exist_ok=True)
+        html_path.write_text(html, encoding="utf-8")
+    except OSError as exc:
+        print(f"error: cannot write report {html_path}: {exc}", file=stderr)
+        return EXIT_USAGE
+
+    print(f"HTML report: {html_path}", file=stdout)
+    return EXIT_OK
 
 
 # --------------------------------------------------------------------------- #
@@ -381,6 +405,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     namespace = parser.parse_args(cli_args)
 
+    if namespace.report_output is not None and namespace.report_only is None:
+        parser.error("--report-output requires --report-only")
+
     try:
         settings = resolve_settings(
             config=namespace.config,
@@ -393,8 +420,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if namespace.dry_run:
         return run_dry_run(settings)
-    if namespace.report_only:
-        return run_report_only(settings)
+    if namespace.report_only is not None:
+        return run_report_only(settings, namespace.report_only, namespace.report_output)
     return run_pytest(settings, pytest_args)
 
 

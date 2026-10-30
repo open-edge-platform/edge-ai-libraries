@@ -7,7 +7,8 @@
 plus the per-pipeline missing-model map and returns which cases are
 included, which are excluded (with a reason), and which included pipelines
 have models that are not installed. It performs no I/O so it can be used by
-both the pytest ``conftest`` and the CLI ``--dry-run``.
+both the pytest ``conftest`` and the CLI ``--dry-run``; :func:`format_matrix`
+renders it as plain text for both.
 
 Missing models are *reported*, not decided on here: the pytest side passes
 them to ``wrap_cases_for_pytest`` which owns the skip-with-reason behaviour.
@@ -19,7 +20,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
-from .settings import ResolvedSettings
+from .settings import SPECS_BY_KEY, ResolvedSettings
 
 # Mirrors helpers.pipeline_case_helpers.SUPPORTED_DEVICE_FAMILIES; kept local
 # so this module stays importable without the functional-test helpers.
@@ -233,3 +234,200 @@ def build_matrix(
             matrix.missing_models[pipeline_id] = missing
 
     return matrix
+
+
+# --------------------------------------------------------------------------- #
+# Plain-text rendering (shared by the CLI --dry-run and the pytest run log)
+# --------------------------------------------------------------------------- #
+
+
+def format_table(headers: Sequence[str], rows: Sequence[Sequence[Any]]) -> str:
+    cells = [list(map(str, headers))] + [[str(c) for c in row] for row in rows]
+    widths = [max(len(row[i]) for row in cells) for i in range(len(headers))]
+    lines = []
+    for n, row in enumerate(cells):
+        lines.append("  ".join(c.ljust(w) for c, w in zip(row, widths)).rstrip())
+        if n == 0:
+            lines.append("  ".join("-" * w for w in widths))
+    return "\n".join(lines)
+
+
+def format_matrix(matrix: Matrix, skip_missing_models: bool = True) -> str:
+    """Render the matrix, exclusions and missing-model runs as plain text.
+
+    ``skip_missing_models`` mirrors ``benchmark.filters.skip_missing_models``:
+    when false, runs whose models are missing are scheduled anyway, so they
+    are counted as runs and listed as "will run anyway" instead of skipped.
+    The ``matrix`` itself is not modified.
+    """
+    out: list[str] = []
+    families = ", ".join(matrix.available_families) or "(none)"
+    out.append(f"Host device families: {families}")
+    streams = ", ".join(map(str, matrix.stream_counts))
+
+    rows = matrix.rows()
+    will_run = [
+        (case.pipeline_id, case.device_family, s, case.case_id + f"_x{s}")
+        for case, s in rows
+        if not skip_missing_models or case.pipeline_id not in matrix.missing_models
+    ]
+    out.append("")
+    out.append(
+        f"Matrix: {len(will_run)} run(s) = pipeline x variant x streams [{streams}]"
+    )
+    out.append(
+        format_table(("pipeline", "variant", "streams", "test id"), will_run)
+        if will_run
+        else "  (empty)"
+    )
+
+    out.append("")
+    out.append(f"Excluded: {len(matrix.excluded)} pipeline/variant(s)")
+    out.append(
+        format_table(
+            ("pipeline", "variant", "reason", "detail"),
+            [
+                (
+                    e.pipeline_id or e.pipeline_name or "?",
+                    e.variant,
+                    e.reason.value,
+                    e.detail,
+                )
+                for e in matrix.excluded
+            ],
+        )
+        if matrix.excluded
+        else "  (none)"
+    )
+
+    missing = [
+        (
+            case.pipeline_id,
+            case.device_family,
+            s,
+            ", ".join(matrix.missing_models[case.pipeline_id]),
+        )
+        for case, s in rows
+        if case.pipeline_id in matrix.missing_models
+    ]
+    out.append("")
+    if skip_missing_models:
+        out.append(f"Skipped at run time: missing_models: {len(missing)} run(s)")
+    else:
+        out.append(
+            f"Missing models, will run anyway: {len(missing)} run(s) "
+            "(benchmark.filters.skip_missing_models is false; these runs may "
+            "fail)"
+        )
+    out.append(
+        format_table(("pipeline", "variant", "streams", "missing models"), missing)
+        if missing
+        else "  (none)"
+    )
+    return "\n".join(out)
+
+
+def describe_no_cases(matrix: Matrix) -> str:
+    """Explain why the matrix has nothing to run, and what to change."""
+    if matrix.excluded:
+        return (
+            f"All {len(matrix.excluded)} discovered pipeline/variant(s) were "
+            "excluded by the benchmark filters or because this host lacks the "
+            "device they need, so there is nothing to benchmark (see the "
+            "'Excluded' table in the matrix above). To fix: widen --pipelines "
+            "/ --variants, shorten --skip-pipelines / --skip-variants, or run "
+            "on a host that has the required devices."
+        )
+    return (
+        "ViPPET returned no pipelines with variants, so there is nothing to "
+        "benchmark. To fix: check that ViPPET loaded its pipeline definitions "
+        "(GET /pipelines should list pipelines with variants; see the ViPPET "
+        "logs)."
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Validation of user-supplied filter ids
+# --------------------------------------------------------------------------- #
+
+
+@dataclass(frozen=True)
+class UnknownFilterId:
+    """A configured id that matches nothing ViPPET (or this suite) knows."""
+
+    key: str
+    """Settings key the id came from, e.g. ``benchmark.pipelines``."""
+    value: str
+    valid: list[str]
+
+    @property
+    def flag(self) -> str:
+        return SPECS_BY_KEY[self.key].flag
+
+    def describe(self) -> str:
+        kind = "pipeline id" if self.key.endswith("pipelines") else "device family"
+        valid = ", ".join(self.valid) or "(none)"
+        return (
+            f"{self.value!r} in {self.key} ({self.flag}) is not a known "
+            f"{kind}; valid values: {valid}"
+        )
+
+
+def find_unknown_filter_ids(
+    filters: MatrixFilters, known_pipeline_ids: Iterable[str]
+) -> list[UnknownFilterId]:
+    """Return every filter id that matches no known pipeline or device family.
+
+    ``pipelines`` is matched exactly (as the matrix does); ``skip_pipelines``
+    case-insensitively; variant filters against the supported families.
+    """
+    valid_pipelines = sorted(set(known_pipeline_ids))
+    valid_pipelines_lower = {p.lower() for p in valid_pipelines}
+    families = sorted(SUPPORTED_DEVICE_FAMILIES)
+    issues: list[UnknownFilterId] = []
+
+    if filters.pipelines != "*":
+        requested = (
+            [filters.pipelines]
+            if isinstance(filters.pipelines, str)
+            else list(filters.pipelines)
+        )
+        issues += [
+            UnknownFilterId("benchmark.pipelines", pid, valid_pipelines)
+            for pid in requested
+            if pid not in valid_pipelines
+        ]
+    issues += [
+        UnknownFilterId("benchmark.filters.skip_pipelines", pid, valid_pipelines)
+        for pid in filters.skip_pipelines
+        if pid.lower() not in valid_pipelines_lower
+    ]
+    issues += [
+        UnknownFilterId("benchmark.filters.skip_variants", variant, families)
+        for variant in filters.skip_variants
+        if variant.upper() not in SUPPORTED_DEVICE_FAMILIES
+    ]
+    issues += [
+        UnknownFilterId("benchmark.variants", variant, families)
+        for variant in filters.variants
+        if variant.upper() not in SUPPORTED_DEVICE_FAMILIES
+    ]
+    return issues
+
+
+def describe_unknown_filter_ids(
+    issues: Sequence[UnknownFilterId], config_path: Any
+) -> str:
+    """Multi-line explanation for an aborted run (``on_unknown_id: fail``)."""
+    lines = [
+        f"{len(issues)} benchmark filter id(s) match no pipeline or device "
+        "family that ViPPET reports, so the run would not benchmark what was "
+        "asked for:"
+    ]
+    lines += [f"  - {issue.describe()}" for issue in issues]
+    lines.append(
+        f"To fix: correct or remove these ids in {config_path} or in the "
+        "matching CLI flag, or set PERF_ON_UNKNOWN_ID=warn (--on-unknown-id "
+        "warn) to skip them and run the rest."
+    )
+    return "\n".join(lines)

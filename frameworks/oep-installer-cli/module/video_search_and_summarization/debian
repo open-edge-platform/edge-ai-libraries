@@ -1,14 +1,18 @@
 
 configure_video_search_and_summarization () {
   workspace="$(ensure_project_path)/video-search-and-summarization"
-  version=1c5fdc1f440e685c8f82322ec09b60b7320ea404
+  version="$(ensure_parse_value_option version --version=1c5fdc1f440e685c8f82322ec09b60b7320ea404 "$@")"
   repository="https://github.com/open-edge-platform/edge-ai-libraries.git"
+
+  version_skills=release-2026.2.0
+  repository_skills="https://github.com/open-edge-platform/skills.git"
+  skills=(vss-search-index vss-summarize-video)
 
   export APP_HOST_PORT=${APP_HOST_PORT:-12345}
   used_ports=($APP_HOST_PORT 3001 7890 6016 6008 8999 9777 8300 9300 8090 4001 4002 55555 9090 9273 5432 1883 5672 8640)
 
   [ ! -r "$workspace"/.device_from_install ] || set -- "$@" "--$(< "$workspace"/.device_from_install)"
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
 
   export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
   export ENABLED_WHISPER_MODELS=tiny.en,small.en,medium.en
@@ -82,36 +86,40 @@ debian_85_install_video_search_and_summarization () {
   if verify_video_search_and_summarization && [[ " $* " != *" --reinstall "* ]]; then
     echo "Video Search and Summarization is installed." >&2
   else
-    ensure_ports_open "${used_ports[*]}" docker rm -f vss-model-download || true
-    ensure_ports_open "${used_ports[*]}" return 3
-
-    # clone the repository
     ensure_disk_size 8000
+    ensure_ports_open install video_search_and_summarization "${used_ports[@]}"
+
+    echo "@@STEP Cloning repository"
     ensure_git_export "$workspace" $version $repository sample-applications/video-search-and-summarization
 
-    # gated model setup
+    echo "@@STEP Configuring models"
     configure_video_search_and_summarization_gated
 
-    # setup
+    echo "@@STEP Setting up VSS"
+    echo "@@STEP @@IF [[]model-download] [^(]+ [(]([^)]+)[)]: queued @@THEN Downloading \\1"
+    echo "@@STEP @@IF docker compose .* pull .* @@THEN Pulling images"
     cd "$workspace"/sample-applications/video-search-and-summarization
     sed -i "s|export HOST_IP=.*|export HOST_IP=$(ensure_ip)|" setup.sh
     sed 's|FINAL_ARG=.*|FINAL_ARG="pull --ignore-pull-failures"|' setup.sh > .setup.sh
     sed -i 's|"Unified Summarization/Search UI is now available.*"|""|' .setup.sh
     . ./.setup.sh --search-and-summary
 
+    echo "@@STEP Installing skills"
+    ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}"
+
     verify_video_search_and_summarization
   fi
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   echo "$device" > "$workspace"/.device_from_install
 
-  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
   echo "@@HIGHLIGHT start|stop|remove"
 }
 
 debian_85_start_video_search_and_summarization () {
   configure_video_search_and_summarization "$@"
-  ensure_ports_open "${used_ports[*]}" debian_85_stop_video_search_and_summarization $*
+  ensure_ports_open start video_search_and_summarization "${used_ports[@]}"
 
   configure_video_search_and_summarization_gated
   cd "$workspace"/sample-applications/video-search-and-summarization
@@ -126,12 +134,15 @@ debian_85_stop_video_search_and_summarization () {
 
   docker rm -f vss-model-download || true
   cd "$workspace"/sample-applications/video-search-and-summarization && {
-  . ./setup.sh --stop || true
-  . ./setup.sh --clean-data
+    . ./setup.sh --stop || true
+    . ./setup.sh --clean-data || true
+    docker volume rm -f docker_ov-models || true
+    docker volume rm -f docker_dataprep-yolox-models
   } || true
 }
 
 debian_85_remove_video_search_and_summarization () {
   debian_85_stop_video_search_and_summarization "$@"
-  ensure_rm "$workspace"
+  ensure_rm "$workspace" || true
+  ensure_skills remove "${skills[@]}"
 }

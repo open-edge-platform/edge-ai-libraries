@@ -6,6 +6,7 @@ policies:
     criterion: FirstMatch
     strategies:
       - Planning
+      - DataAnalysis
       - ContextLengthQuality
 
   - name: CostFirst
@@ -13,7 +14,13 @@ policies:
     strategies:
       - ZeroCost
 
-  - name: Intelligent
+  - name: ModelBased
     criterion: FirstMatch
     strategies:
-      - IntelligentRouting
+      - ModelBasedRouting
+
+  - name: PerformanceFirst
+    criterion: FirstMatch
+    strategies:
+      - PerformanceBased
+      - ZeroCost          # fallback when no provider clears the perf thresholds
