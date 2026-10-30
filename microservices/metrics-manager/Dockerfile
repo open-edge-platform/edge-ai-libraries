@@ -172,6 +172,7 @@ COPY pyproject.toml ./
 COPY VERSION ./
 COPY .env.example ./
 COPY telegraf.conf ./
+COPY telegraf.d/ ./telegraf.d/
 COPY compose.yaml ./
 COPY supervisord.conf ./
 COPY entrypoint.sh ./
@@ -216,15 +217,22 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Install capabilities-required system tools.
 # - dmidecode: memory technology discovery (DDR4/DDR5/etc.)
 # - pciutils: lspci-based PCI/GPU branding discovery
-# - libva-utils: vainfo for runtime VAAPI codec capability detection
 # - util-linux: lsblk for storage device enumeration
 # - hwinfo: extended hardware information probing
+# - libva-utils: vainfo for VAAPI codec capability detection (INSTALL_OPENVINO=true only)
+# - linux-perf: perf stat on IMC free-running counters for DRAM bandwidth
+#   (scripts/dram_bw_reader.py). Opt-in via INSTALL_PERF=true; adds ~115 MB
+#   of image size and CVE surface, so it is off by default. Set INSTALL_PERF=true when ENABLE_DRAM_BW=auto.
 # Install supervisor via pip to avoid pulling Debian's python3.13 (CVE-2026-7210).
 # perl-base is not needed at runtime; purging it removes several known CVEs.
+ARG INSTALL_PERF=false
 RUN apt-get update && \
     packages="dmidecode pciutils util-linux hwinfo"; \
     if [ "$INSTALL_OPENVINO" = "true" ]; then \
         packages="$packages vainfo intel-media-va-driver"; \
+    fi; \
+    if [ "$INSTALL_PERF" = "true" ]; then \
+        packages="$packages linux-perf"; \
     fi; \
     apt-get install --yes --no-install-recommends $packages && \
     pip install --no-cache-dir pip==26.2.1 supervisor==4.3.0 && \
@@ -265,14 +273,18 @@ COPY app ./app
 COPY scripts ./scripts
 COPY VERSION ./
 COPY telegraf.conf /etc/telegraf/telegraf.conf
+# Drop-in plugin configs copied to the source dir; entrypoint.sh copies only
+# enabled files into /etc/telegraf/active.d before Telegraf starts.
+COPY telegraf.d/ /etc/telegraf/telegraf.d/
 COPY supervisord.conf /etc/supervisor/supervisord.conf
 COPY entrypoint.sh /entrypoint.sh
 
 # Strip CRLF (handles files copied from Windows working directories)
 RUN sed -i 's/\r$//' /entrypoint.sh /etc/telegraf/telegraf.conf /etc/supervisor/supervisord.conf && \
+    find /etc/telegraf/telegraf.d -name "*.conf" -exec sed -i 's/\r$//' {} + && \
     find /app/scripts -name "*.sh" -o -name "*.py" | xargs sed -i 's/\r$//'
 
-# Make scripts executable
+# Make scripts executable and create non-root service user
 RUN chmod +x /entrypoint.sh && \
     find /app/scripts -name "*.sh" -exec chmod +x {} + && \
     find /app/scripts -name "*.py" -exec chmod +x {} + && \
@@ -282,9 +294,13 @@ RUN chmod +x /entrypoint.sh && \
     chown -R ${METRICS_MANAGER_UID}:${METRICS_MANAGER_GID} \
         /app /tmp /var/log/telegraf /etc/telegraf /etc/supervisor
 
+# No USER directive: host telemetry (PMT sysfs, dmidecode) is readable only by
+# root, so the image defaults to root; override with --user to opt out.
+
 # Environment variables with defaults
 ENV METRICS_PORT=9090
 ENV TELEGRAF_PORT=9273
+ENV TELEGRAF_HTTP_PORT=8186
 # Gates the qmassa GPU collector in supervisord. Set to false for deployments
 # that cannot grant /dev/dri access (the Helm chart does this explicitly).
 ENV HARDWARE_TELEMETRY_ENABLED=true
@@ -313,9 +329,10 @@ LABEL org.opencontainers.image.title="metrics-manager" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.licenses="Apache-2.0"
 
-# Health check
+# Health check — reads METRICS_PORT at runtime so the host-NIC-telemetry
+# Compose variant (which may remap it) is checked on the right port.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:9090/health', timeout=8)" || exit 1
+    CMD python -c "import os, urllib.request; urllib.request.urlopen('http://localhost:' + os.environ.get('METRICS_PORT', '9090') + '/health', timeout=8)" || exit 1
 
 # Use supervisor to manage both Telegraf and Python service
 CMD ["/entrypoint.sh"]
