@@ -418,11 +418,13 @@ deadline. The browser conversion timer and Nginx Voice read/send timeouts are
 1210 seconds, allowing ten seconds beyond the backend deadline. Responses are
 limited to 128 KiB for STT and 64 MiB for TTS.
 Input rejected by a speech service returns 400; invalid request fields return
-422; invalid upstream responses return 502; unavailable/busy services return
-503; timeouts return 504. ViPPET forwards known Audio Analyzer file-validation
-messages, such as `File too large` and `Invalid file type`, but sanitizes all
-other upstream error bodies. Nginx streams voice request bodies without a
-separate size limit and disables response caching.
+422; uploads above the 200 MiB limit return 413; invalid upstream responses
+return 502; unavailable/busy services return 503; timeouts return 504. ViPPET
+forwards known Audio Analyzer file-validation messages, such as `File too large`
+and `Invalid file type`, but sanitizes all other upstream error bodies. Nginx
+streams voice request bodies with a 200 MiB `client_max_body_size` and disables
+response caching. The same limit is enforced while staging the upload to disk
+(`MAX_STT_UPLOAD_BYTES`); keep the two values in sync.
 
 ## Metrics
 

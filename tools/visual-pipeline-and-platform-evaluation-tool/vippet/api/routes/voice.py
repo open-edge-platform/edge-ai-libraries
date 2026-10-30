@@ -21,6 +21,7 @@ from api.dependencies.audio_jobs import (
     get_audio_pipeline_job_manager,
 )
 from managers.audio_pipeline_job_manager import (
+    AudioInputTooLargeError,
     AudioPipelineJobManager,
     AudioPipelineJobStatus,
     AudioPipelineRecordingInput,
@@ -461,6 +462,8 @@ async def _start_audio_pipeline_job(
             )
         else:
             raise HTTPException(422, "Invalid Audio pipeline run request.")
+    except AudioInputTooLargeError as exc:
+        raise HTTPException(413, "The input exceeds the upload limit.") from exc
     except ValueError as exc:
         message = str(exc)
         if "Audio recording" in message and "not found" in message:

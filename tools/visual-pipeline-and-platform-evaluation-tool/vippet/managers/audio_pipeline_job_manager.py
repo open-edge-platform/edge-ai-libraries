@@ -4,7 +4,6 @@
 import asyncio
 import logging
 import os
-import shutil
 import tempfile
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
@@ -30,6 +29,13 @@ Transcribe = Callable[[BinaryIO, str, str, str, str], Awaitable[tuple[str, float
 Synthesize = Callable[[str, str, str], Awaitable[tuple[bytes, float]]]
 
 DEFAULT_MAX_TERMINAL_JOBS = 500
+
+MAX_STT_UPLOAD_BYTES = 200 * 1024 * 1024
+_STAGE_CHUNK_BYTES = 1024 * 1024
+
+
+class AudioInputTooLargeError(ValueError):
+    pass
 
 
 class AudioPipelineJobStatus(str, Enum):
@@ -233,13 +239,22 @@ class AudioPipelineJobManager:
     def _stage_stt_input(self, source: AudioPipelineSTTInput) -> _StagedSTTInput:
         destination = self._input_directory / f"{uuid4()}.upload"
         try:
+            written = 0
             with destination.open("xb") as target:
-                shutil.copyfileobj(source.file, target, length=1024 * 1024)
-        except Exception:
+                while chunk := source.file.read(_STAGE_CHUNK_BYTES):
+                    written += len(chunk)
+                    if written > MAX_STT_UPLOAD_BYTES:
+                        raise AudioInputTooLargeError(
+                            "Audio input exceeds the upload size limit."
+                        )
+                    target.write(chunk)
+        except Exception as exc:
             try:
                 destination.unlink(missing_ok=True)
             except OSError:
                 logger.error("Failed to remove incomplete staged Audio input")
+            if isinstance(exc, AudioInputTooLargeError):
+                raise
             raise RuntimeError("Unable to stage Audio input.") from None
         return _StagedSTTInput(
             path=destination,

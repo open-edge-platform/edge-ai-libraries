@@ -51,6 +51,9 @@ import { VoiceAudio } from "./VoiceAudio";
 
 const MAX_SPEECH_TEXT_LENGTH = 200;
 
+const MAX_UPLOAD_BYTES = 200 * 1024 * 1024;
+const UPLOAD_ACCEPT = ".wav,.mp3,.m4a,.mp4,.mkv,.mov,.avi,audio/*,video/*";
+
 const SPEECH_VOICES = [
   "Ryan",
   "Miles",
@@ -658,6 +661,7 @@ export function VoiceConversion() {
                         id="voice-file"
                         aria-label="Audio file"
                         type="file"
+                        accept={UPLOAD_ACCEPT}
                         className="sr-only w-px"
                         tabIndex={-1}
                         disabled={busy}
@@ -666,6 +670,14 @@ export function VoiceConversion() {
                           setError(null);
                           setTranscription(null);
                           setSttMetrics(null);
+                          if (selected && selected.size > MAX_UPLOAD_BYTES) {
+                            event.target.value = "";
+                            setUploadedFile(null);
+                            setError(
+                              "The selected file exceeds the 200 MiB upload limit.",
+                            );
+                            return;
+                          }
                           setUploadedFile(selected ?? null);
                           if (selected) setInputSource("upload");
                         }}
