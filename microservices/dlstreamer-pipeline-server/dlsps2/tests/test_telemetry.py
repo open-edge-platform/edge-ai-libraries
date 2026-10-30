@@ -1,19 +1,32 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Unit tests for core.telemetry (metric selection) and the manager's finished hook."""
+"""Unit tests for core.telemetry: metric selection, the manager's finished hook, and
+structured DL Streamer metrics on the OTel path."""
+
+import json
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 
 from core.pipeline_manager import FpsSample, Lifecycle, PipelineInstance, PipelineManager, PipelineState
-from core.telemetry import PipelineMetrics, telemetry_enabled
+from core.telemetry import PipelineMetrics, _CollectionSnapshot, telemetry_enabled
 
 
 class _FakeManager:
     def __init__(self, instances=()):
         self.instances = list(instances)
+        self.finished_listener = None
+        self.metric_listener = None
 
     def list_running(self):
         return [i for i in self.instances if i.state == PipelineState.RUNNING]
+
+    def set_finished_listener(self, listener):
+        self.finished_listener = listener
+
+    def set_metric_listener(self, listener):
+        self.metric_listener = listener
 
 
 class _Clock:
@@ -38,6 +51,48 @@ def _instance(instance_id="a", **kwargs):
 
 def _by_name(observations):
     return {name: (value, attrs) for name, value, attrs in observations}
+
+
+def _window_event(count, sum_ms, min_ms, max_ms, source="src", sink="sink"):
+    return {
+        "event": "metric",
+        "kind": "latency-window",
+        "element": sink,
+        "fields": {
+            "pipeline": "ignored",
+            "source": source,
+            "sink": sink,
+            "window_ms": 1000.0,
+            "count": count,
+            "sum_ms": sum_ms,
+            "min_ms": min_ms,
+            "max_ms": max_ms,
+        },
+    }
+
+
+def _distribution_event(count, sum_ms, min_ms, max_ms, sum_sq_ms, bounds, counts):
+    event = _window_event(count, sum_ms, min_ms, max_ms)
+    event["fields"].update(sum_sq_ms=sum_sq_ms, bucket_bounds_ms=bounds, bucket_counts=counts)
+    return event
+
+
+def _genai_event(ttft_ms, tpot_ms, element="gvagenai0"):
+    return {
+        "event": "metric",
+        "kind": "genai-request",
+        "element": element,
+        "fields": {
+            "frames": 1,
+            "ttft_ms": ttft_ms,
+            "tpot_ms": tpot_ms,
+            "generate_duration_ms": ttft_ms + 10 * tpot_ms,
+            "inference_duration_ms": ttft_ms,
+            "prepare_embeddings_duration_ms": 1.0,
+            "num_input_tokens": 100,
+            "num_generated_tokens": 11,
+        },
+    }
 
 
 class TestTelemetryEnabled:
@@ -292,3 +347,289 @@ class TestManagerFinishedListener:
         manager._handle_event({"instance_id": "x", "event": "fps", "avg_fps": 5.0})
 
         assert seen == []
+
+
+def _running(instance_id):
+    return PipelineInstance(instance_id=instance_id, pipeline_description="x", state=PipelineState.RUNNING)
+
+
+def _latency(observations):
+    return {
+        (name, attrs["pipeline_id"], attrs["source"]): value
+        for name, value, attrs in observations
+        if name.startswith("pipeline_latency_")
+    }
+
+
+class TestPipelineMetricsLatency:
+    def test_windows_are_merged_until_collect_and_then_drained(self):
+        a, b = _running("a"), _running("b")
+        metrics = PipelineMetrics(_FakeManager([a, b]), retention_seconds=30)
+        metrics.on_metric(a, _window_event(2, 20.0, 8.0, 12.0))
+        metrics.on_metric(a, _window_event(2, 40.0, 15.0, 25.0))
+        metrics.on_metric(b, _window_event(1, 300.0, 300.0, 300.0))
+
+        values = _latency(metrics.collect())
+        assert values[("pipeline_latency_avg", "a", "src")] == 15.0
+        assert values[("pipeline_latency_min", "a", "src")] == 8.0
+        assert values[("pipeline_latency_max", "a", "src")] == 25.0
+        assert values[("pipeline_latency_frames", "a", "src")] == 4.0
+        assert values[("pipeline_latency_avg", "b", "src")] == 300.0
+        assert _latency(metrics.collect()) == {}
+
+    def test_distribution_gauges_come_from_the_merged_period(self):
+        a = _running("a")
+        metrics = PipelineMetrics(_FakeManager([a]), retention_seconds=30)
+        # frames 1, 2, 3 | 4, 10 with buckets <=2, (2, 5], >5
+        metrics.on_metric(a, _distribution_event(3, 6.0, 1.0, 3.0, 14.0, [2.0, 5.0], [2, 1, 0]))
+        metrics.on_metric(a, _distribution_event(2, 14.0, 4.0, 10.0, 116.0, [2.0, 5.0], [0, 1, 1]))
+        values = _latency(metrics.collect())
+        assert values[("pipeline_latency_avg", "a", "src")] == 4.0
+        assert values[("pipeline_latency_stddev", "a", "src")] == pytest.approx(10.0 ** 0.5)
+        assert values[("pipeline_latency_p50", "a", "src")] == pytest.approx(2.75)
+        assert values[("pipeline_latency_p95", "a", "src")] == pytest.approx(8.75)
+        assert values[("pipeline_latency_p99", "a", "src")] == pytest.approx(9.75)
+
+    def test_period_mixing_an_older_tracer_window_exports_no_distribution(self):
+        a = _running("a")
+        metrics = PipelineMetrics(_FakeManager([a]), retention_seconds=30)
+        metrics.on_metric(a, _distribution_event(3, 6.0, 1.0, 3.0, 14.0, [2.0, 5.0], [2, 1, 0]))
+        metrics.on_metric(a, _window_event(1, 10.0, 10.0, 10.0))
+        values = _latency(metrics.collect())
+        assert values[("pipeline_latency_avg", "a", "src")] == 4.0
+        assert not any(name in ("pipeline_latency_stddev", "pipeline_latency_p50") for name, _a, _s in values)
+
+    def test_genai_events_are_not_latency(self):
+        a = _running("a")
+        metrics = PipelineMetrics(_FakeManager([a]), retention_seconds=30)
+        metrics.on_metric(a, _genai_event(100.0, 20.0))
+        assert _latency(metrics.collect()) == {}
+
+    def test_finished_instance_reports_its_last_windows_once(self):
+        a = _running("a")
+        manager = _FakeManager([a])
+        metrics = PipelineMetrics(manager, retention_seconds=30)
+        metrics.on_metric(a, _window_event(1, 5.0, 5.0, 5.0))
+        a.state = PipelineState.COMPLETED
+        metrics.on_finished(a)
+        assert _latency(metrics.collect())[("pipeline_latency_avg", "a", "src")] == 5.0
+        assert _latency(metrics.collect()) == {}
+
+
+class TestCollectionSnapshot:
+    """Every gauge of one collection shares one collect(); each collection gets its own."""
+
+    @staticmethod
+    def _counting_collect(calls):
+        def collect():
+            calls.append(1)
+            return [("a", float(len(calls)), {}), ("b", float(len(calls)), {})]
+
+        return collect
+
+    def test_gauges_of_one_collection_share_one_collect(self):
+        calls = []
+        snapshot = _CollectionSnapshot(self._counting_collect(calls))
+        assert snapshot.get("a") == [("a", 1.0, {})]
+        assert snapshot.get("b") == [("b", 1.0, {})]
+        assert snapshot.get("absent") == []
+        assert len(calls) == 1
+
+    def test_back_to_back_collections_each_collect_once(self):
+        calls = []
+        snapshot = _CollectionSnapshot(self._counting_collect(calls))
+        snapshot.get("a")
+        snapshot.get("b")
+        # No time passes: the second request for "a" alone starts the next collection.
+        assert snapshot.get("a") == [("a", 2.0, {})]
+        assert snapshot.get("b") == [("b", 2.0, {})]
+        assert len(calls) == 2
+
+    def test_windows_are_drained_exactly_once_across_collections(self):
+        a = _running("a")
+        metrics = PipelineMetrics(_FakeManager([a]), retention_seconds=30)
+        snapshot = _CollectionSnapshot(metrics.collect)
+        metrics.on_metric(a, _window_event(1, 5.0, 5.0, 5.0))
+        assert [v for _n, v, _a in snapshot.get("pipeline_latency_avg")] == [5.0]
+        assert [v for _n, v, _a in snapshot.get("pipeline_latency_max")] == [5.0]
+        # A window arriving between two collections belongs to the second one only.
+        metrics.on_metric(a, _window_event(1, 9.0, 9.0, 9.0))
+        assert [v for _n, v, _a in snapshot.get("pipeline_latency_avg")] == [9.0]
+        assert [v for _n, v, _a in snapshot.get("pipeline_latency_max")] == [9.0]
+        assert snapshot.get("pipeline_latency_avg") == []
+
+
+class TestManagerDispatch:
+    def _manager_with(self, instance):
+        manager = PipelineManager()
+        manager._instances[instance.instance_id] = instance
+        return manager
+
+    def test_metric_event_reaches_listener_with_its_instance(self):
+        a = _running("a")
+        manager = self._manager_with(a)
+        received = []
+        manager.set_metric_listener(lambda inst, event: received.append((inst, event)))
+        event = {"instance_id": "a", **_window_event(1, 1.0, 1.0, 1.0)}
+        manager._handle_event(event)
+        assert received == [(a, event)]
+
+    def test_without_listener_metric_events_are_dropped(self):
+        manager = self._manager_with(_running("a"))
+        manager._handle_event({"instance_id": "a", **_window_event(1, 1.0, 1.0, 1.0)})
+
+    def test_unknown_instance_and_failing_listener_do_not_raise(self):
+        manager = self._manager_with(_running("a"))
+        received = []
+        manager.set_metric_listener(lambda inst, event: received.append(inst))
+        manager._handle_event({"instance_id": "nope", **_window_event(1, 1.0, 1.0, 1.0)})
+        assert received == []
+
+        def boom(_inst, _event):
+            raise RuntimeError("listener bug")
+
+        manager.set_metric_listener(boom)
+        manager._handle_event({"instance_id": "a", **_window_event(1, 1.0, 1.0, 1.0)})
+
+
+class _Collector(BaseHTTPRequestHandler):
+    bodies: list = []
+
+    def do_POST(self):  # noqa: N802
+        length = int(self.headers.get("Content-Length", 0))
+        _Collector.bodies.append(json.loads(self.rfile.read(length)))
+        self.send_response(200)
+        self.end_headers()
+
+    def log_message(self, *_args):
+        pass
+
+
+@pytest.fixture
+def otlp_collector(monkeypatch):
+    pytest.importorskip("opentelemetry.sdk.metrics")
+    _Collector.bodies = []
+    server = HTTPServer(("127.0.0.1", 0), _Collector)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    monkeypatch.setenv("OTEL_COLLECTOR_HOST", "127.0.0.1")
+    monkeypatch.setenv("OTEL_COLLECTOR_PORT", str(server.server_port))
+    monkeypatch.setenv("OTEL_COLLECTOR_PATH", "/api/v1/metrics/otlp")
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_PROTOCOL", "http/json")
+    monkeypatch.setenv("OTEL_EXPORT_INTERVAL_MILLIS", "600000")
+    monkeypatch.setenv("NO_PROXY", "127.0.0.1")
+    monkeypatch.setenv("no_proxy", "127.0.0.1")
+    yield _Collector.bodies
+    server.shutdown()
+
+
+def _points(bodies):
+    """(metric name, kind, attributes, data point) for every exported data point."""
+    for body in bodies:
+        for rm in body["resourceMetrics"]:
+            for sm in rm["scopeMetrics"]:
+                for metric in sm["metrics"]:
+                    for kind in ("gauge", "histogram", "sum"):
+                        if kind in metric:
+                            for dp in metric[kind]["dataPoints"]:
+                                attrs = {a["key"]: a["value"]["stringValue"] for a in dp.get("attributes", [])}
+                                yield metric["name"], kind, metric[kind], attrs, dp
+
+
+class TestOpenTelemetryExport:
+    def test_latency_and_genai_reach_otlp_with_identity(self, otlp_collector):
+        from core.telemetry import OpenTelemetryExporter
+
+        a, b = _running("job-a"), _running("job-b")
+        manager = _FakeManager([a, b])
+        exporter = OpenTelemetryExporter(manager)
+        manager.metric_listener(a, _window_event(3, 30.0, 5.0, 15.0))
+        manager.metric_listener(b, _window_event(1, 80.0, 80.0, 80.0))
+        manager.metric_listener(a, _genai_event(100.0, 20.0))
+        manager.metric_listener(a, _genai_event(300.0, 40.0))
+        manager.metric_listener(b, _genai_event(1000.0, 50.0, element="gvagenai1"))
+        exporter.shutdown()
+
+        points = list(_points(otlp_collector))
+        latency = {(n, attrs["pipeline_id"]): dp for n, kind, _m, attrs, dp in points if kind == "gauge"}
+        assert latency[("pipeline_latency_avg", "job-a")]["asDouble"] == 10.0
+        assert latency[("pipeline_latency_frames", "job-a")]["asDouble"] == 3.0
+        assert latency[("pipeline_latency_max", "job-b")]["asDouble"] == 80.0
+        gauge_attrs = next(attrs for n, kind, _m, attrs, _dp in points if n == "pipeline_latency_avg")
+        assert set(gauge_attrs) == {"pipeline_id", "source", "sink"}
+
+        ttft = {
+            attrs["pipeline_id"]: (metric, attrs, dp)
+            for n, kind, metric, attrs, dp in points
+            if n == "genai_ttft" and kind == "histogram"
+        }
+        metric, attrs, dp = ttft["job-a"]
+        assert metric["aggregationTemporality"] == "AGGREGATION_TEMPORALITY_DELTA"
+        assert attrs == {"pipeline_id": "job-a", "element": "gvagenai0"}
+        assert (int(dp["count"]), dp["sum"], dp["min"], dp["max"]) == (2, 400.0, 100.0, 300.0)
+        assert ttft["job-b"][1]["element"] == "gvagenai1"
+        assert int(ttft["job-b"][2]["count"]) == 1
+
+    def test_token_histograms_use_token_buckets(self, otlp_collector):
+        from core.metrics import TOKEN_BUCKETS
+        from core.telemetry import OpenTelemetryExporter
+
+        a = _running("job-a")
+        manager = _FakeManager([a])
+        exporter = OpenTelemetryExporter(manager)
+        manager.metric_listener(a, _genai_event(100.0, 20.0))
+        exporter.shutdown()
+
+        metrics = {n: (metric, dp) for n, kind, metric, _attrs, dp in _points(otlp_collector) if kind == "histogram"}
+        assert set(metrics) == {
+            "genai_ttft", "genai_tpot", "genai_generate_duration", "genai_inference_duration",
+            "genai_prepare_embeddings_duration", "genai_input_tokens", "genai_generated_tokens",
+        }
+        assert [float(b) for b in metrics["genai_input_tokens"][1]["explicitBounds"]] == list(TOKEN_BUCKETS)
+        assert [float(b) for b in metrics["genai_ttft"][1]["explicitBounds"]] != list(TOKEN_BUCKETS)
+
+    def test_back_to_back_flushes_export_each_window_once(self, otlp_collector):
+        from core.telemetry import OpenTelemetryExporter
+
+        a = _running("job-a")
+        manager = _FakeManager([a])
+        exporter = OpenTelemetryExporter(manager)
+        manager.metric_listener(a, _window_event(1, 5.0, 5.0, 5.0))
+        exporter._provider.force_flush()
+        # Arrives right after a collection: the next flush must carry it, not a stale snapshot.
+        manager.metric_listener(a, _window_event(1, 9.0, 9.0, 9.0))
+        exporter._provider.force_flush()
+        exporter.shutdown()
+
+        per_export = [
+            [dp["asDouble"] for n, _k, _m, _attrs, dp in _points([body]) if n == "pipeline_latency_avg"]
+            for body in otlp_collector
+        ]
+        assert per_export == [[5.0], [9.0], []]
+
+    def test_latency_gauge_units(self, otlp_collector):
+        from core.telemetry import OpenTelemetryExporter
+
+        a = _running("job-a")
+        manager = _FakeManager([a])
+        exporter = OpenTelemetryExporter(manager)
+        manager.metric_listener(a, _distribution_event(2, 6.0, 2.0, 4.0, 20.0, [2.0, 5.0], [1, 1, 0]))
+        exporter.shutdown()
+
+        units = {}
+        for body in otlp_collector:
+            for rm in body["resourceMetrics"]:
+                for sm in rm["scopeMetrics"]:
+                    for metric in sm["metrics"]:
+                        units[metric["name"]] = metric.get("unit", "")
+        assert {name: units[name] for name in units if name.startswith("pipeline_latency_")} == {
+            "pipeline_latency_avg": "ms",
+            "pipeline_latency_min": "ms",
+            "pipeline_latency_max": "ms",
+            "pipeline_latency_window": "ms",
+            "pipeline_latency_frames": "",
+            "pipeline_latency_stddev": "ms",
+            "pipeline_latency_p50": "ms",
+            "pipeline_latency_p95": "ms",
+            "pipeline_latency_p99": "ms",
+        }
