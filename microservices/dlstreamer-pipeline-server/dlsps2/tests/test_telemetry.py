@@ -4,13 +4,15 @@
 structured DL Streamer metrics on the OTel path."""
 
 import json
+import logging
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 
 from core.pipeline_manager import FpsSample, Lifecycle, PipelineInstance, PipelineManager, PipelineState
-from core.telemetry import PipelineMetrics, _CollectionSnapshot, telemetry_enabled
+from core.telemetry import PipelineMetrics, _CollectionSnapshot, _FlushOnFinish, telemetry_enabled
 
 
 class _FakeManager:
@@ -491,6 +493,87 @@ class TestManagerDispatch:
         manager.set_metric_listener(boom)
         manager._handle_event({"instance_id": "a", **_window_event(1, 1.0, 1.0, 1.0)})
 
+    def test_final_metric_events_reach_the_listener_before_finished(self):
+        a = _running("a")
+        manager = self._manager_with(a)
+        order = []
+        manager.set_metric_listener(lambda inst, event: order.append("metric"))
+        manager.set_finished_listener(lambda inst: order.append("finished"))
+        # The worker forwards the tracer's EOS window before "eos", and "stopped" after both.
+        for event in ({"instance_id": "a", **_window_event(1, 1.0, 1.0, 1.0)},
+                      {"instance_id": "a", "event": "eos"},
+                      {"instance_id": "a", "event": "stopped"}):
+            manager._handle_event(event)
+        assert order == ["metric", "finished"]
+
+    def test_without_telemetry_finishing_is_a_no_op(self, monkeypatch):
+        monkeypatch.delenv("ENABLE_OPEN_TELEMETRY", raising=False)
+        assert not telemetry_enabled()
+        a = _running("a")
+        manager = self._manager_with(a)
+        manager._handle_event({"instance_id": "a", "event": "stopped"})
+        assert a.state == PipelineState.COMPLETED
+
+
+def _wait_for(predicate, timeout=5.0):
+    deadline = time.monotonic() + timeout
+    while not predicate():
+        if time.monotonic() > deadline:
+            return False
+        time.sleep(0.01)
+    return True
+
+
+class TestFlushOnFinish:
+    def test_one_request_flushes_once_with_a_bounded_timeout(self):
+        calls = []
+        flusher = _FlushOnFinish(lambda **kwargs: calls.append(kwargs) or True, timeout_millis=1234)
+        flusher.request()
+        assert _wait_for(lambda: calls)
+        flusher.stop()
+        assert calls == [{"timeout_millis": 1234}]
+
+    def test_requests_during_a_flush_cause_exactly_one_more(self):
+        release = threading.Event()
+        calls = []
+
+        def slow_flush(**_kwargs):
+            calls.append(1)
+            release.wait(5)
+
+        flusher = _FlushOnFinish(slow_flush, timeout_millis=1000)
+        flusher.request()
+        assert _wait_for(lambda: calls)
+        for _ in range(3):
+            flusher.request()
+        release.set()
+        assert _wait_for(lambda: len(calls) == 2)
+        flusher.stop()
+        assert len(calls) == 2
+
+    def test_flush_errors_are_logged_not_raised(self, caplog):
+        calls = []
+
+        def failing_flush(**_kwargs):
+            calls.append(1)
+            raise RuntimeError("collector down")
+
+        flusher = _FlushOnFinish(failing_flush, timeout_millis=1000)
+        with caplog.at_level(logging.WARNING, logger="core.telemetry"):
+            flusher.request()
+            assert _wait_for(lambda: len(calls) == 1)
+            # The thread survives the error and keeps serving requests.
+            flusher.request()
+            assert _wait_for(lambda: len(calls) == 2)
+            flusher.stop()
+        assert any("flush" in r.getMessage() for r in caplog.records)
+
+    def test_stop_without_requests_does_not_flush(self):
+        calls = []
+        flusher = _FlushOnFinish(lambda **_kwargs: calls.append(1), timeout_millis=1000)
+        flusher.stop()
+        assert calls == []
+
 
 class _Collector(BaseHTTPRequestHandler):
     bodies: list = []
@@ -633,3 +716,26 @@ class TestOpenTelemetryExport:
             "pipeline_latency_p95": "ms",
             "pipeline_latency_p99": "ms",
         }
+
+    def test_finishing_an_instance_exports_once_without_waiting_for_the_interval(self, otlp_collector):
+        from core.telemetry import OpenTelemetryExporter
+
+        a = _running("job-a")
+        manager = _FakeManager([a])
+        exporter = OpenTelemetryExporter(manager)
+        flushes = []
+        force_flush = exporter._flusher._flush
+        exporter._flusher._flush = lambda **kwargs: flushes.append(kwargs) or force_flush(**kwargs)
+
+        manager.metric_listener(a, _window_event(2, 6.0, 2.0, 4.0))
+        a.state = PipelineState.COMPLETED
+        a.set_lifecycle(stop_time=1234.5)
+        manager.finished_listener(a)
+
+        assert _wait_for(lambda: otlp_collector)
+        exported = {n: dp for n, _kind, _m, attrs, dp in _points(otlp_collector) if attrs.get("pipeline_id") == "job-a"}
+        assert exported["pipeline_latency_avg"]["asDouble"] == 3.0
+        assert exported["pipeline_running"]["asDouble"] == 0.0
+        assert exported["pipeline_end_timestamp_seconds"]["asDouble"] == 1234.5
+        exporter.shutdown()
+        assert len(flushes) == 1

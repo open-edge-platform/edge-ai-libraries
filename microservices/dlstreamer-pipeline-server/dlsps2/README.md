@@ -61,6 +61,14 @@ Running instances are reported live. A finished instance is reported for
 runs still reach the backend. CPU and memory metrics from DLSPS 1.0 are not
 ported, because pipelines run in worker subprocesses.
 
+When an instance finishes (EOS, stop or error), DLSPS exports immediately
+instead of waiting for the next interval. The flush runs after every event the
+worker reported for that instance, including the last latency window posted at
+EOS, so a short run's final values arrive promptly. It runs on a background
+thread: `DELETE /pipelines/{instance_id}` still returns once the stop is
+requested, as before, without waiting for the pipeline to stop or for the
+export. Flush failures are logged and the periodic export carries on.
+
 ### DL Streamer latency and GenAI metrics
 
 DL Streamer can post its own measurements on the pipeline bus as
@@ -105,7 +113,8 @@ Standard deviation and percentiles need a tracer that also posts `sum_sq_ms`,
 `bucket_bounds_ms` and `bucket_counts`. They are left out of an export period in
 which any window lacks them, has malformed values or uses other bucket bounds,
 with one warning per reason; the other latency gauges are still reported. The
-window still open at EOS is posted too.
+window still open at EOS is posted too, but a stopped or failed instance gets no
+EOS, so its last partial window is lost.
 Histograms use delta temporality, so each export holds only the requests
 completed since the previous one.
 

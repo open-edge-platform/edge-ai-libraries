@@ -12,6 +12,10 @@ Structured DL Streamer observations arriving as ``metric`` events (see
 gauges merged over each export period, and ``gvagenai`` requests as histograms
 with delta temporality.
 
+When a pipeline instance finishes, the next export is not left to the timer:
+a flush exports the instance's final values right away. See
+:class:`_FlushOnFinish`.
+
 Enable with ``ENABLE_OPEN_TELEMETRY=true``. The collector location and the
 export interval come from ``OTEL_COLLECTOR_HOST``, ``OTEL_COLLECTOR_PORT`` and
 ``OTEL_EXPORT_INTERVAL_MILLIS``, matching DLSPS 1.0.
@@ -45,6 +49,9 @@ _GAUGES = (
 
 # (metric name, value, attributes)
 Observation = Tuple[str, float, Dict[str, str]]
+
+# Upper bound for collecting one flush. The HTTP request itself is bounded by the OTLP exporter's own timeout.
+_FLUSH_TIMEOUT_MILLIS = 5000
 
 
 def telemetry_enabled() -> bool:
@@ -199,7 +206,6 @@ class OpenTelemetryExporter:
         )
 
         self._metrics = PipelineMetrics(manager, retention_seconds=max(2 * interval_ms / 1000.0, 30.0))
-        manager.set_finished_listener(self._metrics.on_finished)
 
         snapshot = _CollectionSnapshot(self._metrics.collect)
 
@@ -223,6 +229,9 @@ class OpenTelemetryExporter:
                 description=description,
             )
 
+        self._flusher = _FlushOnFinish(self._provider.force_flush, _FLUSH_TIMEOUT_MILLIS)
+        manager.set_finished_listener(self._on_finished)
+
         logger.info(
             "OpenTelemetry metrics export enabled: %s every %d ms (service.name=%s)",
             endpoint,
@@ -238,9 +247,64 @@ class OpenTelemetryExporter:
         else:
             self._metrics.on_metric(instance, event)
 
+    def _on_finished(self, instance: "PipelineInstance") -> None:
+        self._metrics.on_finished(instance)
+        self._flusher.request()
+
     def shutdown(self) -> None:
         """Flush a final export and stop the background reader."""
+        self._flusher.stop()
         self._provider.shutdown()
+
+
+class _FlushOnFinish:
+    """Exports immediately, on its own thread, after a pipeline instance finishes.
+
+    Without this, the final values of an instance reach the collector only at
+    the next periodic export, up to a whole interval after the run ended.
+
+    ``request`` is called from ``PipelineManager``'s event dispatch, after the
+    instance's ``stopped`` (or ``error``) event. Every earlier event of that
+    instance, including the final latency window the tracer posts at EOS, has
+    been dispatched by then, because a worker's events are dispatched in order
+    on one thread. ``request`` only sets a flag: exporting does HTTP, and
+    blocking the dispatch thread would stall every pipeline of that worker.
+
+    Requests coalesce. A request made while a flush runs causes one more
+    flush afterwards, so data recorded after a collection started is never
+    left behind. ``MeterProvider.force_flush`` exports every instrument, which
+    also brings forward the data of other running instances; that is harmless.
+    Errors are logged, never raised.
+    """
+
+    def __init__(self, flush: Callable[..., object], timeout_millis: int) -> None:
+        self._flush = flush
+        self._timeout_millis = timeout_millis
+        self._requested = threading.Event()
+        self._stopping = False
+        self._thread = threading.Thread(target=self._run, name="otel-flush-on-finish", daemon=True)
+        self._thread.start()
+
+    def request(self) -> None:
+        self._requested.set()
+
+    def stop(self) -> None:
+        """Stop the thread; ``MeterProvider.shutdown`` performs the last export."""
+        self._stopping = True
+        self._requested.set()
+        self._thread.join(timeout=self._timeout_millis / 1000.0)
+
+    def _run(self) -> None:
+        while True:
+            self._requested.wait()
+            if self._stopping:
+                return
+            self._requested.clear()
+            try:
+                if self._flush(timeout_millis=self._timeout_millis) is False:
+                    logger.warning("OpenTelemetry flush after a pipeline finished did not complete")
+            except Exception:  # noqa: BLE001
+                logger.warning("OpenTelemetry flush after a pipeline finished failed", exc_info=True)
 
 
 class _CollectionSnapshot:
