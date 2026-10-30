@@ -21,7 +21,7 @@ from adaptive_token_compressor.harness.compressor import HarnessCompressor
 class ShrinkBackend:
     """Backend that always returns a shorter string; never raises."""
 
-    cache_tag = "lingua"
+    cache_tag = "token_prune"
 
     def compress(self, text, *, rate, force_tokens=None,
                  force_reserve_digit=False, digit_neighbor_radius=0):

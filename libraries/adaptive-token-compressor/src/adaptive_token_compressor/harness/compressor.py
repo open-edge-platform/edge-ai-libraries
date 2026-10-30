@@ -15,7 +15,7 @@ from dataclasses import dataclass
 
 import cachetools
 
-from ..core.backends import CompressionBackend, build_backend
+from ..core.backends import CompressionBackend, TokenPruneBackend
 from ..core.base import CompressionContext, CompressorResult
 from ..core.cache import cache_get, cache_set
 from ..core.exceptions import BackendError, ConfigError
@@ -45,7 +45,7 @@ class HarnessCompressor:
     """Section-aware compression for system / developer messages.
 
     `compress()` never raises: BackendError is caught per section. ConfigError
-    raises only at construction (unknown profile, missing claw-compactor).
+    raises only at construction (invalid settings, missing claw-compactor).
     Cache is injected via `set_cache()` — standalone use skips caching.
     """
 
@@ -55,12 +55,10 @@ class HarnessCompressor:
         self,
         *,
         profile: str = "openclaw",
-        lingua_url: str = "http://localhost:8001/compress",
+        compress_server_url: str = "http://localhost:8001/compress",
         compress_rate: float = 0.5,
         compress_min_chars: int = 500,
         timeout: float = 60.0,
-        # Backend selection: "lingua" (default).
-        compressor_backend: str = "lingua",
         enable_quantum_lock: bool = False,
     ) -> None:
         if not (0.0 <= compress_rate <= 1.0):
@@ -81,21 +79,17 @@ class HarnessCompressor:
         self._profile = resolve_profile(profile)
         self._splitter = SectionSplitter(self._profile.sectioning)
         self._normalizer = self._profile.normalizer
-        try:
-            self._backend: CompressionBackend = build_backend(
-                compressor_backend,
-                lingua_url=lingua_url,
-                timeout=timeout,
-            )
-        except ValueError as e:
-            raise ConfigError(f"HarnessCompressor: {e}") from e
+        self._backend: CompressionBackend = TokenPruneBackend(
+            compress_server_url=compress_server_url,
+            timeout=timeout,
+        )
         self._cache: cachetools.LRUCache | None = None
         self._cache_lock: threading.Lock | None = None
         self._compress_rate = compress_rate
         self._compress_min_chars = compress_min_chars
         self._timeout = timeout
 
-        # Tokens lingua must NOT split (e.g. __AGENT_WORKSPACE__) — without
+        # Tokens compress-server must NOT split (e.g. __AGENT_WORKSPACE__) — without
         # this, BERT chops the placeholder and restore can't find it.
         placeholders_fn = getattr(self._normalizer, "placeholders", None)
         self._normalizer_placeholders: list[str] = (
@@ -118,15 +112,16 @@ class HarnessCompressor:
             except ImportError as e:
                 raise ConfigError(
                     "HarnessCompressor: enable_quantum_lock=True requires the "
-                    "'claw-compactor' extra. Install via "
-                    "`pip install adaptive-token-compressor[claw-compactor]`, "
+                    "'claw-compactor' package (a core dependency that is missing "
+                    "from this environment). Install via "
+                    "`pip install \"claw-compactor>=7,<8\"`, "
                     "or pass enable_quantum_lock=False to use raw compression."
                 ) from e
             self._quantum_lock = QuantumLock()
             self._FusionContext = FusionContext
             self._ql_appendix_start = APPENDIX_START
             self._ql_appendix_end = APPENDIX_END
-            # Protect QLock placeholders too — otherwise lingua drops them and
+            # Protect QLock placeholders too — otherwise compress-server drops them and
             # the appendix loses its anchor in the prefix.
             self._normalizer_placeholders = list(
                 self._normalizer_placeholders
@@ -141,10 +136,8 @@ class HarnessCompressor:
         self._cache_lock = lock
 
     def _cached_backend(self, normalised: str, rate: float) -> tuple[str, bool]:
-        # Wraps the selected main backend (lingua). force_tokens is part of the
-        # cache key so different placeholder sets don't collide on identical
-        # normalised text; backend.cache_tag prefixes the key so distinct
-        # backends never share an entry.
+        # Placeholder sets and backend identity are part of the cache key so
+        # different compression inputs never share an entry.
         force_tokens = self._normalizer_placeholders
         force_tokens_key = tuple(force_tokens)
         key, cached = cache_get(
@@ -236,7 +229,7 @@ class HarnessCompressor:
                 )
                 working_content = content
 
-        # Bypass: keep the QLock appendix verbatim. Lingua treats the
+        # Bypass: keep the QLock appendix verbatim. The compress-server backend treats the
         # `<!-- ... -->` markers + field-name lines as low-importance text
         # and shreds them, breaking the appendix → original-value mapping.
         # Split it off here, compress only the prefix, and re-attach.
@@ -317,7 +310,7 @@ class HarnessCompressor:
 
         # Re-attach the QLock appendix bypassed earlier. It is byte-identical
         # to QuantumLock.apply()'s output → LLM sees the same originals it
-        # would have seen without the bypass; lingua simply never touched it.
+        # would have seen without the bypass; compress-server simply never touched it.
         if appendix_tail:
             final = final + appendix_tail
 

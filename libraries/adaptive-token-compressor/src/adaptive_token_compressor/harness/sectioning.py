@@ -28,7 +28,7 @@ class SectionSplitter:
 
         if config.workspace_path_pattern:
             # File-path heading: ``## <workspace>/<filename>`` lines used by
-            # router prompts to mark attached project-context files. The
+            # agent prompts to mark attached project-context files. The
             # escaped variant must end at whitespace/backslash so the literal
             # ``\\n`` separator stops the match.
             self._file_path_re_real = re.compile(
