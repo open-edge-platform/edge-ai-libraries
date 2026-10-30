@@ -530,13 +530,15 @@ class InternalLatencyMetrics:
     Attributes:
         interval_ms: Length of the measurement window reported by the
             tracer (``interval`` field, milliseconds).
-        avg_ms: Average frame latency over the window (``avg``, ms).
+        avg_ms: Mean frame latency over the window (``avg``, ms): from
+            the source element's output to the push into the sink.
         min_ms: Minimum frame latency observed in the window
             (``min``, ms).
         max_ms: Maximum frame latency observed in the window
             (``max``, ms).
-        latency_ms: Current end-to-end latency reported by the tracer
-            (``latency``, ms).
+        latency_ms: Deprecated. The tracer's ``latency`` field: the mean
+            time between output frames (``1000 / fps``, ms), not a frame
+            latency. Use ``avg_ms`` and ``max_ms`` instead.
     """
 
     interval_ms: float

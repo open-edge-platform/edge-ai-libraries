@@ -5719,7 +5719,7 @@
           "enable_latency_metrics": {
             "type": "boolean",
             "title": "Enable Latency Metrics",
-            "description": "When true, activates the DLStreamer `latency_tracer` in pipeline-only mode with a 1000 ms interval by setting `GST_DEBUG=GST_TRACER:7` (appended if already set) and `GST_TRACERS=latency_tracer(flags=pipeline,interval=1000)` on the GStreamer subprocess environment. When false (default), neither environment variable is modified.",
+            "description": "When true, runs the DLStreamer `latency_tracer` in pipeline-only mode with a 1000 ms interval and reports one latency sample per stream and interval. The tracer posts each interval as a `dlstreamer/latency-window` bus message; with a DLStreamer that predates these messages, ViPPET falls back to parsing the tracer's log records. When false (default), the tracer is not started.",
             "default": false
           }
         },
@@ -6097,7 +6097,7 @@
           "avg_ms": {
             "type": "number",
             "title": "Avg Ms",
-            "description": "Average frame latency over the window, in ms.",
+            "description": "Mean per-frame latency over the window, in ms: the time from the source element's output to the push into the sink (the sink's own work excluded).",
             "examples": [
               364.31
             ]
@@ -6105,7 +6105,7 @@
           "min_ms": {
             "type": "number",
             "title": "Min Ms",
-            "description": "Minimum frame latency observed in the window, in ms.",
+            "description": "Minimum per-frame latency in the window, in ms: the time from the source element's output to the push into the sink (the sink's own work excluded).",
             "examples": [
               0.004
             ]
@@ -6113,7 +6113,7 @@
           "max_ms": {
             "type": "number",
             "title": "Max Ms",
-            "description": "Maximum frame latency observed in the window, in ms.",
+            "description": "Maximum per-frame latency in the window, in ms: the time from the source element's output to the push into the sink (the sink's own work excluded).",
             "examples": [
               529.26
             ]
@@ -6121,7 +6121,8 @@
           "latency_ms": {
             "type": "number",
             "title": "Latency Ms",
-            "description": "Current end-to-end latency reported by the tracer, in ms.",
+            "description": "Deprecated: mean time between output frames in the window, in ms (frame period, = 1000 / fps). It is NOT a frame latency - use `avg_ms` (mean) and `max_ms`.",
+            "deprecated": true,
             "examples": [
               21.28
             ]
@@ -6136,7 +6137,7 @@
           "latency_ms"
         ],
         "title": "LatencyMetrics",
-        "description": "**Last observed DLStreamer `latency_tracer` sample for a single stream.**\n\nEach value is extracted from a single\n`latency_tracer_pipeline_interval` line emitted by the\n`latency_tracer` (one such line per stream per interval ~1000 ms).\nOnly the most recent sample per stream is kept; history is not\nreported here.\n\nAll timing fields are in milliseconds. `fps` reported by the tracer\nis intentionally **not** included because FPS is already exposed on\nthe job status via `total_fps` / `per_stream_fps` (from\n`gvafpscounter`).\n\n## Attributes\n- `interval_ms` - Length of the measurement window, in milliseconds\n- `avg_ms` - Average frame latency over the window, in milliseconds\n- `min_ms` - Minimum frame latency observed in the window, in milliseconds\n- `max_ms` - Maximum frame latency observed in the window, in milliseconds\n- `latency_ms` - Current end-to-end latency reported by the tracer, in milliseconds\n\n### Example\n```json\n{\n  \"interval_ms\": 1000.25,\n  \"avg_ms\": 364.31,\n  \"min_ms\": 0.004,\n  \"max_ms\": 529.26,\n  \"latency_ms\": 21.28\n}\n```"
+        "description": "**Last observed DLStreamer `latency_tracer` sample for a single stream.**\n\nEach value describes one `latency_tracer` interval (~1000 ms) of\none stream. Only the most recent sample per stream is kept; history\nis not reported here.\n\nAll timing fields are in milliseconds. `fps` reported by the tracer\nis intentionally **not** included because FPS is already exposed on\nthe job status via `total_fps` / `per_stream_fps` (from\n`gvafpscounter`).\n\n## Attributes\n- `interval_ms` - Length of the measurement window, in milliseconds\n- `avg_ms` - Mean frame latency over the window, in milliseconds\n- `min_ms` - Minimum frame latency observed in the window, in milliseconds\n- `max_ms` - Maximum frame latency observed in the window, in milliseconds\n- `latency_ms` - **Deprecated.** Mean time between output frames in the window, in milliseconds (frame period, `1000 / fps`). It is **not** a frame latency; use `avg_ms` (mean) and `max_ms`\n\nA frame's latency is the time from the moment the source element\noutputs the frame to the moment the frame is pushed into the sink;\nthe sink's own work is excluded.\n\n### Example\n```json\n{\n  \"interval_ms\": 1000.25,\n  \"avg_ms\": 364.31,\n  \"min_ms\": 0.004,\n  \"max_ms\": 529.26,\n  \"latency_ms\": 21.28\n}\n```"
       },
       "MessageResponse": {
         "properties": {

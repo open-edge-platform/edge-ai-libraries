@@ -1181,13 +1181,13 @@ export type PipelineStreamSpec = {
 export type LatencyMetrics = {
   /** Length of the measurement window reported by the tracer, in ms. */
   interval_ms: number;
-  /** Average frame latency over the window, in ms. */
+  /** Mean per-frame latency over the window, in ms: the time from the source element's output to the push into the sink (the sink's own work excluded). */
   avg_ms: number;
-  /** Minimum frame latency observed in the window, in ms. */
+  /** Minimum per-frame latency in the window, in ms: the time from the source element's output to the push into the sink (the sink's own work excluded). */
   min_ms: number;
-  /** Maximum frame latency observed in the window, in ms. */
+  /** Maximum per-frame latency in the window, in ms: the time from the source element's output to the push into the sink (the sink's own work excluded). */
   max_ms: number;
-  /** Current end-to-end latency reported by the tracer, in ms. */
+  /** Deprecated: mean time between output frames in the window, in ms (frame period, = 1000 / fps). It is NOT a frame latency - use `avg_ms` (mean) and `max_ms`. */
   latency_ms: number;
 };
 export type PipelineEvent = {
@@ -1601,7 +1601,7 @@ export type ExecutionConfig = {
   max_runtime?: number;
   /** Metadata publishing mode. 'disabled' (default): no metadata produced. 'file': gvametapublish elements write JSON-Lines metadata, available via SSE endpoints. */
   metadata_mode?: MetadataMode;
-  /** When true, activates the DLStreamer `latency_tracer` in pipeline-only mode with a 1000 ms interval by setting `GST_DEBUG=GST_TRACER:7` (appended if already set) and `GST_TRACERS=latency_tracer(flags=pipeline,interval=1000)` on the GStreamer subprocess environment. When false (default), neither environment variable is modified. */
+  /** When true, runs the DLStreamer `latency_tracer` in pipeline-only mode with a 1000 ms interval and reports one latency sample per stream and interval. The tracer posts each interval as a `dlstreamer/latency-window` bus message; with a DLStreamer that predates these messages, ViPPET falls back to parsing the tracer's log records. When false (default), the tracer is not started. */
   enable_latency_metrics?: boolean;
 };
 export type PerformanceTestSpec = {

@@ -46,6 +46,7 @@ import argparse
 import gc
 import json
 import logging
+import os
 import signal
 import sys
 import threading
@@ -133,6 +134,103 @@ def _add_prompt_to_meta_message(text: str, obj: Any) -> str:
     return text[:json_start] + json.dumps(payload)
 
 
+def _drop_metrics_from_meta_message(text: str, obj: Any) -> str:
+    """Drop the cumulative ``metrics`` block of a ``gvagenai`` meta JSON.
+
+    Only when the emitting element runs with ``post-metrics=true``: it then
+    posts the values of every request as a ``dlstreamer/genai-request`` bus
+    message, so the means over all requests in the JSON must not be read as
+    well. Without ``post-metrics`` the block is the only source of VLM
+    metrics and is kept.
+    """
+    try:
+        post_metrics = obj.get_property("post-metrics") if obj is not None else None
+    except (AttributeError, TypeError):
+        return text
+    if post_metrics is not True:
+        return text
+    json_start = text.find("{")
+    if json_start == -1:
+        return text
+    try:
+        payload = json.loads(text[json_start:])
+    except ValueError:
+        return text
+    if not isinstance(payload, dict) or "metrics" not in payload:
+        return text
+    del payload["metrics"]
+    return text[:json_start] + json.dumps(payload)
+
+
+# Text record that `latency_tracer` logs for every interval window at TRACE
+# level in the GST_TRACER category. It is only the fallback source of latency
+# windows: a tracer that knows `post-metrics` posts each window as a
+# `dlstreamer/latency-window` bus message instead (see
+# `note_latency_window_posted`).
+LATENCY_TRACER_INTERVAL_RECORD = "latency_tracer_pipeline_interval,"
+
+# Set to "1" by ``pipeline_runner.py`` when latency metrics are enabled: the
+# tracer's text records are then needed as the fallback (see
+# `enable_latency_record_fallback`).
+LATENCY_RECORD_FALLBACK_ENV = "VIPPET_LATENCY_RECORD_FALLBACK"
+_TRACER_CATEGORY = "GST_TRACER"
+
+
+@dataclass
+class _LatencyRecordState:
+    """State of the ``latency_tracer`` text-record fallback.
+
+    ``prior_threshold`` is the GST_TRACER threshold before the fallback
+    raised it, or ``None`` if it was not raised. ``window_posted`` is set
+    from a sync bus handler in the streaming thread that posted the first
+    window, right after the tracer logged the same window as a text
+    record. From then on the text records are no longer promoted.
+    """
+
+    prior_threshold: Optional[Gst.DebugLevel] = None
+    window_posted: bool = False
+
+
+_latency_record_state = _LatencyRecordState()
+
+
+def enable_latency_record_fallback() -> None:
+    """Raise the GST_TRACER threshold to TRACE, remembering the previous one.
+
+    A DL Streamer that predates ``post-metrics`` ignores the tracer
+    parameter and only logs its windows as TRACE records in the GST_TRACER
+    category. The threshold is raised here, after ``Gst.init()``, rather
+    than through ``GST_DEBUG``, so that the level the user's ``GST_DEBUG``
+    gave the category can be read first and restored by
+    `note_latency_window_posted`.
+    """
+    category = next(
+        (c for c in Gst.debug_get_all_categories() if c.get_name() == _TRACER_CATEGORY),
+        None,
+    )
+    if category is None:
+        return
+    _latency_record_state.prior_threshold = category.get_threshold()
+    Gst.debug_set_threshold_for_name(_TRACER_CATEGORY, Gst.DebugLevel.TRACE)
+
+
+def note_latency_window_posted() -> None:
+    """Stop the text-record fallback after the first posted latency window.
+
+    Once a window arrives as a bus message the text records are redundant,
+    so they are no longer promoted, and the GST_TRACER threshold goes back
+    to the level it had before `enable_latency_record_fallback`: the
+    per-frame records stop being formatted and bridged to Python, while a
+    level the user set through ``GST_DEBUG`` still applies.
+    """
+    if _latency_record_state.window_posted:
+        return
+    _latency_record_state.window_posted = True
+    prior = _latency_record_state.prior_threshold
+    if prior is not None:
+        Gst.debug_set_threshold_for_name(_TRACER_CATEGORY, prior)
+
+
 def gst_log_bridge(
     category,
     level,
@@ -180,19 +278,17 @@ def gst_log_bridge(
     text = text.replace("\r", " ").replace("\n", " ")
 
     # ------------------------------------------------------------------
-    # latency_tracer sample promotion
+    # latency_tracer fallback
     #
-    # The DLStreamer `latency_tracer` emits its aggregated samples at
-    # GStreamer TRACE level with a message body starting with
-    # `latency_tracer_pipeline_interval,`. By default we would drop TRACE
-    # to `logger.debug()` (and thus suppress it at INFO log level), but
-    # the parent ViPPET process needs these samples on its INFO stream so
-    # they can be forwarded / parsed. Promote them to INFO explicitly.
-    # Only the pipeline-interval samples are forwarded; per-frame and
-    # element-level tracer messages stay at DEBUG as before.
+    # A `latency_tracer` without `post-metrics` support only reports its
+    # windows as TRACE records. Promote the interval records to INFO so
+    # `pipeline_runner.py` can parse them, until the tracer is seen posting
+    # windows as bus messages. Per-frame and element-level records stay at
+    # DEBUG.
     # ------------------------------------------------------------------
-    if text.startswith("latency_tracer_pipeline_interval,"):
-        logger.info("%s", text)
+    if text.startswith(LATENCY_TRACER_INTERVAL_RECORD):
+        if not _latency_record_state.window_posted:
+            logger.info("%s", text)
         return
 
     # Prepend the emitting element's name in `<name>` form for the
@@ -204,6 +300,7 @@ def gst_log_bridge(
     # (errors, warnings, other INFOs) byte-identical to the previous
     # behaviour.
     if text.startswith("Added meta message:"):
+        text = _drop_metrics_from_meta_message(text, obj)
         text = _add_prompt_to_meta_message(text, obj)
         try:
             obj_name = obj.get_name() if obj is not None else None
@@ -256,6 +353,9 @@ def initialize_gstreamer_logging() -> None:
     Gst.debug_remove_log_function(None)
     Gst.debug_add_log_function(gst_log_bridge, None)
 
+    if os.environ.get(LATENCY_RECORD_FALLBACK_ENV) == "1":
+        enable_latency_record_fallback()
+
 
 ###############################################################################
 # Bus processing utilities
@@ -281,6 +381,60 @@ def log_pipeline_event(
     if src is not None:
         payload["element"] = src.get_name()
     logger.info("%s %s", PIPELINE_EVENT_MARKER, json.dumps(payload))
+
+
+# Element messages whose structure name starts with this prefix carry
+# structured measurements posted by DL Streamer itself: ``latency_tracer`` with
+# ``post-metrics=true`` and ``gvagenai`` with ``post-metrics=true``. They are
+# forwarded to stdout as ``Pipeline metric: {json}`` lines, parsed by
+# ``pipeline_runner.py``.
+DLSTREAMER_METRIC_PREFIX = "dlstreamer/"
+LATENCY_WINDOW_STRUCTURE = "dlstreamer/latency-window"
+PIPELINE_METRIC_MARKER = "Pipeline metric:"
+GENAI_ELEMENT_FACTORY = "gvagenai"
+
+
+def enable_genai_post_metrics(pipeline: Gst.Element, logger: logging.Logger) -> None:
+    """Set ``post-metrics=true`` on ``gvagenai`` elements that run with ``metrics=true``.
+
+    ``post-metrics`` makes ``gvagenai`` post the values of every generation
+    request as a ``dlstreamer/genai-request`` bus message. It is set on the
+    parsed elements rather than in the pipeline description, because an
+    unknown property in a description fails parsing: a ``gvagenai`` that
+    predates ``post-metrics`` keeps running, and ``pipeline_runner.py`` falls
+    back to the cumulative ``metrics`` block of its JSON metadata.
+    """
+    if not isinstance(pipeline, Gst.Bin):
+        return
+    for element in pipeline.iterate_all_by_element_factory_name(GENAI_ELEMENT_FACTORY):
+        if not element.get_property("metrics"):
+            continue
+        if element.find_property("post-metrics") is None:
+            logger.debug(
+                "%s has no post-metrics property; VLM metrics come from its "
+                "JSON metadata.",
+                element.get_name(),
+            )
+            continue
+        element.set_property("post-metrics", True)
+
+
+def log_pipeline_metric(
+    logger: logging.Logger, src: Optional[Gst.Object], structure: Gst.Structure
+) -> None:
+    """Log a ``dlstreamer/*`` element message as a single JSON line."""
+    fields: dict[str, Any] = {}
+    for i in range(structure.n_fields()):
+        name = structure.nth_field_name(i)
+        value = structure.get_value(name)
+        if isinstance(value, (str, int, float, bool)):
+            fields[name] = value
+    payload = {
+        "kind": structure.get_name()[len(DLSTREAMER_METRIC_PREFIX) :],
+        "element": src.get_name() if src is not None else None,
+        "fields": fields,
+    }
+    logger.info("%s %s", PIPELINE_METRIC_MARKER, json.dumps(payload))
 
 
 def drain_bus_messages(
@@ -325,6 +479,13 @@ def drain_bus_messages(
             )
         elif mtype == Gst.MessageType.EOS:
             logger.info("Pipeline reached EOS (end-of-stream).")
+        elif (
+            mtype == Gst.MessageType.ELEMENT
+            and (structure := message.get_structure()) is not None
+            and structure.get_name().startswith(DLSTREAMER_METRIC_PREFIX)
+        ):
+            # A last latency window or GenAI request posted during shutdown.
+            log_pipeline_metric(logger, message.src, structure)
         else:
             logger.debug("Pipeline bus message: %s", message)
 
@@ -514,6 +675,7 @@ class _PipelineRunner:
         self._mode = mode
         self._state = _RunState()
         self._logger = get_logger()
+        self._sync_handler_id: Optional[int] = None
 
     def _on_bus_message(self, bus: Gst.Bus, message: Gst.Message, loop: GLib.MainLoop):
         """Handle GStreamer bus messages.
@@ -557,13 +719,26 @@ class _PipelineRunner:
 
         elif msg_type == Gst.MessageType.ELEMENT:
             structure = message.get_structure()
-            if (
-                structure is not None
-                and structure.get_name() == PIPELINE_EVENT_STRUCTURE
-            ):
-                log_pipeline_event(self._logger, message.src, structure)
+            if structure is not None:
+                name = structure.get_name()
+                if name == PIPELINE_EVENT_STRUCTURE:
+                    log_pipeline_event(self._logger, message.src, structure)
+                elif name.startswith(DLSTREAMER_METRIC_PREFIX):
+                    log_pipeline_metric(self._logger, message.src, structure)
 
         return True
+
+    @staticmethod
+    def _on_sync_element_message(_bus: Gst.Bus, message: Gst.Message) -> None:
+        """Note a posted ``latency_tracer`` window in the posting thread.
+
+        Runs synchronously in the streaming thread that posted the message,
+        right after the tracer logged the same window as a text record, so
+        no later record of that window's branch is promoted any more.
+        """
+        structure = message.get_structure()
+        if structure is not None and structure.get_name() == LATENCY_WINDOW_STRUCTURE:
+            note_latency_window_posted()
 
     def _initiate_shutdown(self, reason: str, loop: GLib.MainLoop) -> None:
         """Initiate a graceful pipeline shutdown.
@@ -656,6 +831,13 @@ class _PipelineRunner:
             bus.disconnect(handler_id)
         except Exception as exc:  # noqa: BLE001
             self._logger.debug("Error disconnecting bus signal handler: %r", exc)
+        if self._sync_handler_id is not None:
+            try:
+                bus.disconnect(self._sync_handler_id)
+            except Exception as exc:  # noqa: BLE001
+                self._logger.debug("Error disconnecting bus sync handler: %r", exc)
+            self._sync_handler_id = None
+            bus.disable_sync_message_emission()
         bus.remove_signal_watch()
         try:
             self._pipeline.set_state(Gst.State.NULL)
@@ -688,7 +870,8 @@ class _PipelineRunner:
         The sequence is:
 
         1. Obtain the pipeline's bus and create a GLib.MainLoop.
-        2. Attach a bus watch and connect _on_bus_message for ERROR/EOS.
+        2. Attach a bus watch and connect _on_bus_message for ERROR/EOS,
+           plus a sync handler that notes posted latency windows.
         3. Install a Python-level SIGINT handler that schedules a graceful
            shutdown via GLib.idle_add().  Installed early so that SIGINT
            during hardware initialization does not raise KeyboardInterrupt.
@@ -708,7 +891,7 @@ class _PipelineRunner:
              - SIGINT (Ctrl+C) triggers a graceful shutdown.
         9. After the loop exits, call _cleanup() which:
              a. Restores the original SIGINT handler.
-             b. Disconnects the bus signal handler and removes the signal
+             b. Disconnects the bus signal and sync handlers and removes the signal
                 watch to break reference cycles (needed for GObject
                 element finalization by Python's GC).
              c. Transitions the pipeline to NULL.
@@ -737,6 +920,10 @@ class _PipelineRunner:
         # Attach bus watch and connect handler.
         bus.add_signal_watch()
         handler_id = bus.connect("message", self._on_bus_message, loop)
+        bus.enable_sync_message_emission()
+        self._sync_handler_id = bus.connect(
+            "sync-message::element", self._on_sync_element_message
+        )
 
         # Install a Python-level SIGINT handler that schedules a graceful
         # shutdown on the GLib main loop via GLib.idle_add().
@@ -899,6 +1086,8 @@ def run_pipeline(
     if not parsed_ok or pipeline is None:
         logger.error("Pipeline run failed: pipeline parsing error.")
         return False
+
+    enable_genai_post_metrics(pipeline, logger)
 
     run_ok: bool = False
     failure_reason: Optional[str] = None

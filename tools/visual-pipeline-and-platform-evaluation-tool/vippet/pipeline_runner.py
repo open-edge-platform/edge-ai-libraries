@@ -80,8 +80,9 @@ class LatencyTracerSample:
         avg_ms: Average frame latency over the window (``avg``).
         min_ms: Minimum frame latency observed in the window (``min``).
         max_ms: Maximum frame latency observed in the window (``max``).
-        latency_ms: Current end-to-end latency reported by the tracer
-            (``latency``).
+        latency_ms: The tracer's ``latency`` field: the window length
+            divided by its frame count, i.e. the mean output frame period
+            (``1000 / fps``), not an end-to-end delay.
     """
 
     interval_ms: float
@@ -118,10 +119,10 @@ class PipelineResult:
               activated at all, so no samples could ever be produced.
             * Empty ``dict`` when the tracer was active but produced no
               samples (e.g. the pipeline exited before the first 1000 ms
-              interval closed, or the tracer output was not forwarded).
+              interval closed).
             * Non-empty ``dict`` otherwise. Only the latest sample per
               stream is kept; earlier samples for the same stream are
-              overwritten as new interval lines arrive.
+              overwritten as new tracer windows arrive.
         stream_fps: Measured FPS per stream, keyed by ``stream_id``.
             Empty when the runner cannot attribute FPS to individual
             streams (the local runner reports totals only).
@@ -211,111 +212,66 @@ class PipelineRunner:
     _metrics_executor: "ThreadPoolExecutor | None" = None
 
     # ------------------------------------------------------------------
-    # latency_tracer configuration
+    # DL Streamer metrics
     #
-    # When `enable_latency_metrics=True`, the GStreamer subprocess is
-    # launched with the DLStreamer `latency_tracer` active in
-    # pipeline-only mode with a 1000 ms aggregation interval. Tracer
-    # samples are emitted by GStreamer at TRACE level and routed through
-    # `gst_runner.py`'s log bridge, which promotes
-    # `latency_tracer_pipeline_interval` messages to INFO so they appear
-    # on the subprocess stdout as `gst_runner - INFO - ...` lines and
-    # are forwarded to our logger by `_is_loggable_gst_runner_line`.
-    # Those lines are then parsed by `_parse_and_record_latency_sample`
-    # to populate `self.latency_tracer_metrics`.
-    # ------------------------------------------------------------------
-    LATENCY_TRACER_GST_DEBUG = "GST_TRACER:7"
-    LATENCY_TRACER_GST_TRACERS = "latency_tracer(flags=pipeline,interval=1000)"
-
-    # ------------------------------------------------------------------
-    # gvagenai metrics configuration
+    # DL Streamer posts latency windows and GenAI requests as
+    # `dlstreamer/*` element messages on the pipeline bus, and
+    # `gst_runner.py` forwards each as one `Pipeline metric: {json}` stdout
+    # line, which `_parse_and_handle_pipeline_metric` consumes:
     #
-    # `gvagenai` logs every JSON metadata message it attaches to a
-    # buffer at GStreamer INFO level for its own debug category. The
-    # message carries the `metrics` block when the element runs with
-    # `metrics=true`, so raising that single category to INFO is enough
-    # to observe VLM performance metrics on the subprocess stdout —
-    # without depending on `metadata_mode` (the metadata file is a UI
-    # feature and may be disabled) and without parsing the published
-    # JSON-Lines file.
+    # - `latency-window`: one `latency_tracer` window per stream. With
+    #   `enable_latency_metrics=True` the subprocess runs the tracer in
+    #   pipeline-only mode with a 1000 ms interval and `post-metrics=true`.
+    # - `genai-request`: one `gvagenai` generation request. `gst_runner.py`
+    #   sets `post-metrics=true` on every `gvagenai` with `metrics=true`
+    #   whose DL Streamer supports it. Values describe that request only.
     #
-    # The category is only enabled for pipelines that actually contain a
-    # `gvagenai` element (see `run`), so non-GenAI pipelines keep their
-    # original log verbosity.
+    # A DL Streamer that predates `post-metrics` posts neither message, so
+    # each run falls back to the log output it already parsed before:
+    #
+    # - latency: the tracer ignores the unknown parameter and only logs its
+    #   windows as `latency_tracer_pipeline_interval` TRACE records.
+    #   `gst_runner.py` raises the GST_TRACER threshold to log them (see
+    #   `LATENCY_RECORD_FALLBACK_ENV`) and promotes them to INFO until the
+    #   tracer posts its first window; it then restores the threshold. Which
+    #   source a run uses is decided in `_parse_latency_record`.
+    # - VLM: a `gvagenai` without `post-metrics` keeps the `metrics` block in
+    #   its JSON metadata (see `_parse_genai_meta_line`). That block holds
+    #   means over every request since the element started.
     # ------------------------------------------------------------------
-    GENAI_METRICS_GST_DEBUG = "gvagenai:4"
-    GENAI_PIPELINE_ELEMENT = "gvagenai"
-    _GENAI_METRICS_MARKER = "Added meta message:"
-    # Extracts the emitting element name from a genai log line of the
-    # form ``... <element_name> Added meta message: {...}``. The
-    # ``<name>`` prefix is added by ``gst_runner.gst_log_bridge`` when
-    # the record carries a named ``GstObject`` — after
-    # ``unify_all_element_names`` the name is unique per stream (e.g.
-    # ``gvagenai_0_0``), so it is a natural ``stream_id`` for
-    # multi-stream runs. When the prefix is missing (older subprocesses
-    # or logs from non-object contexts) the match fails and the sample
-    # is pushed without a ``stream_id`` tag.
-    _GENAI_METRICS_ELEMENT_PATTERN = re.compile(
-        r"<(?P<element>[^>]+)>\s+Added meta message:"
+    # Must match ``gst_runner.LATENCY_RECORD_FALLBACK_ENV``.
+    LATENCY_RECORD_FALLBACK_ENV = "VIPPET_LATENCY_RECORD_FALLBACK"
+    LATENCY_TRACER_GST_TRACERS = (
+        "latency_tracer(flags=pipeline,interval=1000,post-metrics=true)"
     )
-    # Maps OpenVINO™ GenAI VLMPerfMetrics keys -> metrics-manager field names.
-    _GENAI_METRIC_FIELDS = {
-        "ttft_ms": "ttft_mean",
-        "tpot_ms": "tpot_mean",
-        "generate_duration_ms": "generate_duration_mean",
-    }
-
-    # Must match ``gst_runner.PIPELINE_EVENT_MARKER``.
-    _PIPELINE_EVENT_MARKER = "Pipeline event:"
+    # Must match ``gst_runner.PIPELINE_METRIC_MARKER``.
+    _PIPELINE_METRIC_MARKER = "Pipeline metric:"
+    # Message schema version this runner understands. Messages with any
+    # other version are skipped, as their fields may have changed meaning.
+    _METRIC_MESSAGE_VERSION = 1
+    # genai-request field -> `vlm_metrics` field pushed to metrics-manager.
+    _GENAI_REQUEST_FIELDS = ("ttft_ms", "tpot_ms", "generate_duration_ms")
+    # Latency sources of a run, see `_parse_latency_record`.
+    _LATENCY_FROM_MESSAGES = "messages"
+    _LATENCY_FROM_RECORDS = "records"
 
     # ------------------------------------------------------------------
-    # latency_tracer output parser
+    # latency_tracer record parser (fallback)
     #
-    # Every 1000 ms the tracer emits ONE line per running stream, for
+    # The tracer logs ONE record per running stream and window, for
     # example (single line, reformatted here for readability)::
     #
     #   latency_tracer_pipeline_interval,
+    #   pipeline_name=(string)pipeline0,
     #   source_name=(string)src_p0_s0_0_0,
     #   sink_name=(string)sink_p0_s0_0_0,
     #   interval=(double)1000.25, avg=(double)364.31,
     #   min=(double)0.004, max=(double)529.26,
     #   latency=(double)21.28, fps=(double)46.99;
     #
-    # In our stack these lines reach us on the subprocess stdout with the
-    # `gst_runner - INFO - ` prefix (see gst_runner._log_gst_message for
-    # the promotion from GST_TRACER:7 to python INFO).
-    #
-    # The regex below is intentionally ONE compiled `re.Pattern`
-    # instance (built at module-import time) because the parser runs in
-    # the hot stdout-reading loop — one subprocess line per stream per
-    # second. Using named groups + `re.search` with a single pattern
-    # keeps per-line parsing at a single regex operation; there is no
-    # backtracking cost because every field appears at most once.
-    #
-    # Notes on the pattern:
-    #   * We anchor on the literal marker `latency_tracer_pipeline_interval,`
-    #     and match everywhere in the line (no `^` anchor) so any log
-    #     prefix — `gst_runner - INFO - `, a timestamp, etc. — is
-    #     simply ignored.
-    #   * Between the marker and each captured field we allow any
-    #     characters (``.*?``, non-greedy). The tracer optionally emits
-    #     extra leading fields such as ``pipeline_name=(string)pipelineN``
-    #     that we neither need nor want; tolerating arbitrary text keeps
-    #     the parser forward-compatible with future tracer additions.
-    #     Non-greedy quantifiers together with fixed literal field
-    #     anchors (``source_name=(string)``, ``sink_name=(string)``, ...)
-    #     keep the effective match linear in line length.
-    #   * The DLStreamer tracer emits double values as plain decimals
-    #     (`364.31`, `0.004`); no scientific notation, no sign. A strict
-    #     `\d+\.\d+` is enough and cheaper than `[\d.eE+\-]+`.
-    #   * Fields are matched in the exact order emitted by the tracer,
-    #     which avoids the quadratic cost of independent lookups.
-    #   * `fps` is captured but intentionally discarded at the Python
-    #     level — FPS is already reported by `gvafpscounter` on the
-    #     `PipelineResult`, so re-exposing it here would only duplicate
-    #     state. Keeping the group in the regex still documents the
-    #     full tracer layout and lets us drop it without re-parsing
-    #     should the need arise.
+    # The pattern anchors on the record name and tolerates any text between
+    # the fields it captures, in the order the tracer emits them. Values are
+    # plain decimals. `fps` is not used: `gvafpscounter` reports FPS.
     # ------------------------------------------------------------------
     _LATENCY_TRACER_INTERVAL_MARKER = "latency_tracer_pipeline_interval,"
     _LATENCY_TRACER_INTERVAL_PATTERN = re.compile(
@@ -329,6 +285,43 @@ class PipelineRunner:
         r".*?latency=\(double\)(?P<latency>\d+\.\d+),"
         r".*?fps=\(double\)(?P<fps>\d+\.\d+)"
     )
+
+    # ------------------------------------------------------------------
+    # gvagenai metadata
+    #
+    # `gvagenai` logs every JSON metadata message it attaches to a
+    # buffer at GStreamer INFO level for its own debug category. Raising
+    # that single category to INFO lets the runner forward each generated
+    # result as a `vlm` pipeline event, and read the fallback VLM metrics,
+    # without depending on `metadata_mode` (the metadata file is a UI
+    # feature and may be disabled).
+    #
+    # The category is only enabled for pipelines that actually contain a
+    # `gvagenai` element (see `run`), so non-GenAI pipelines keep their
+    # original log verbosity.
+    # ------------------------------------------------------------------
+    GENAI_METRICS_GST_DEBUG = "gvagenai:4"
+    GENAI_PIPELINE_ELEMENT = "gvagenai"
+    _GENAI_METRICS_MARKER = "Added meta message:"
+    # Extracts the emitting element name from a genai log line of the
+    # form ``... <element_name> Added meta message: {...}``. The
+    # ``<name>`` prefix is added by ``gst_runner.gst_log_bridge`` when
+    # the record carries a named ``GstObject`` — after
+    # ``unify_all_element_names`` the name is unique per stream (e.g.
+    # ``gvagenai_0_0``).
+    _GENAI_METRICS_ELEMENT_PATTERN = re.compile(
+        r"<(?P<element>[^>]+)>\s+Added meta message:"
+    )
+    # Fallback: OpenVINO™ GenAI VLMPerfMetrics means in the JSON metadata
+    # -> `vlm_metrics` field pushed to metrics-manager.
+    _GENAI_METRIC_FIELDS = {
+        "ttft_ms": "ttft_mean",
+        "tpot_ms": "tpot_mean",
+        "generate_duration_ms": "generate_duration_mean",
+    }
+
+    # Must match ``gst_runner.PIPELINE_EVENT_MARKER``.
+    _PIPELINE_EVENT_MARKER = "Pipeline event:"
 
     def __init__(
         self,
@@ -361,10 +354,8 @@ class PipelineRunner:
                 If None in validation mode, defaults to max_runtime + 60.
             enable_latency_metrics: When True, activates the DLStreamer
                 `latency_tracer` in pipeline-only mode with a 1000 ms interval
-                by augmenting the GStreamer subprocess environment with
-                `GST_DEBUG=GST_TRACER:7` (appended to any existing value) and
-                `GST_TRACERS=latency_tracer(flags=pipeline,interval=1000)`.
-                When False (default), neither variable is modified.
+                (see ``_build_subprocess_env``). When False (default), the
+                tracer is not started.
             job_id: Identifier of the owning job. When provided, every
                 metric pushed by this runner — both FPS and
                 ``pipeline_latency`` — carries a ``tags.job_id`` field
@@ -428,6 +419,13 @@ class PipelineRunner:
         self.latency_tracer_metrics: "dict[str, LatencyTracerSample] | None" = (
             None if not enable_latency_metrics else {}
         )
+        # Per-run state of the structured metrics and their fallbacks, reset
+        # by `_reset_dl_streamer_metrics_state` at the start of every run.
+        # `_latency_source` is None until the run's latency source is known.
+        self._latency_source: str | None = None
+        self._held_latency_records: dict[str, LatencyTracerSample] = {}
+        self._genai_fallback_warned = False
+        self._unknown_metric_versions: set[tuple[str, object]] = set()
 
         # Set of stream_ids the latency_tracer parser is allowed to
         # record. Populated per-run from `PipelineRunner.run()`. `None`
@@ -491,7 +489,7 @@ class PipelineRunner:
             RuntimeError: If pipeline execution fails in normal mode.
         """
         # Normalize and store on the instance so the stdout hot loop
-        # can cheaply consult it via `_parse_and_record_latency_sample`.
+        # can cheaply consult it via `_store_latency_sample`.
         # An empty set is treated as "no streams allowed" and will drop
         # every sample; that is only correct if the caller actually
         # passed an empty set, which is a programmer error we do not
@@ -655,6 +653,7 @@ class PipelineRunner:
         ]
 
         self.logger.info(f"Pipeline Command: {' '.join(pipeline_cmd)}")
+        self._reset_dl_streamer_metrics_state()
 
         try:
             # Spawn command in a subprocess
@@ -773,43 +772,15 @@ class PipelineRunner:
                             self._push_fps_metric(latest_fps)
 
                         # ----------------------------------------------------------
-                        # latency_tracer_pipeline_interval parsing
+                        # DL Streamer metrics
                         #
-                        # The tracer emits one interval line per running
-                        # stream every 1000 ms. The in-memory map of
-                        # last-seen samples is updated live in this hot
-                        # loop (not post-run) so the map on the runner
-                        # always reflects the most recent sample while
-                        # the pipeline is still running.
-                        #
-                        # A cheap prefix check avoids running the full
-                        # regex on every single line; the match is only
-                        # attempted after the marker substring is
-                        # confirmed to be present. When the tracer is
-                        # disabled, `latency_tracer_metrics is None`
-                        # short-circuits the whole branch.
+                        # `latency_tracer` windows, `gvagenai` requests and
+                        # their log fallbacks. Cheap substring checks keep
+                        # parsing off every other line. `gvagenai` JSON
+                        # metadata also carries the generated result text,
+                        # forwarded as a `vlm` pipeline event.
                         # ----------------------------------------------------------
-                        if (
-                            self.latency_tracer_metrics is not None
-                            and self._LATENCY_TRACER_INTERVAL_MARKER in line_str
-                        ):
-                            self._parse_and_record_latency_sample(line_str)
-
-                        # ----------------------------------------------------------
-                        # gvagenai metrics parsing
-                        #
-                        # `gvagenai` logs one JSON metadata message per
-                        # completed inference. When the element runs
-                        # with `metrics=true`, that JSON carries the VLM
-                        # performance block, which is forwarded to
-                        # metrics-manager exactly like the tracer
-                        # samples above.
-                        # ----------------------------------------------------------
-                        if (
-                            self._genai_metrics_enabled
-                            and self._GENAI_METRICS_MARKER in line_str
-                        ):
-                            self._parse_and_push_genai_sample(line_str)
+                        self._handle_dl_streamer_metric_line(line_str, emit_events=True)
 
                         if (
                             self.on_event is not None
@@ -857,6 +828,14 @@ class PipelineRunner:
 
             if remaining_stdout:
                 process_output.append(remaining_stdout)
+                # Metrics drained by gst_runner at shutdown, such as the
+                # last latency window posted at EOS, can arrive after the
+                # loop above stopped reading.
+                for tail_line in remaining_stdout.decode(
+                    "utf-8", errors="replace"
+                ).splitlines():
+                    self._handle_dl_streamer_metric_line(tail_line, emit_events=False)
+            self._finish_latency_records()
             if remaining_stderr:
                 process_stderr.append(remaining_stderr)
 
@@ -1023,6 +1002,17 @@ class PipelineRunner:
                 self.logger.debug("STDOUT:\n%s", stdout_str)
                 self.logger.debug("STDERR:\n%s", stderr_str)
 
+            if (
+                self.latency_tracer_metrics is not None
+                and self._latency_source is None
+                and not self.is_cancelled()
+            ):
+                self.logger.warning(
+                    "Latency metrics were enabled but no latency_tracer window "
+                    "arrived, for example because the run ended before the first "
+                    "interval closed."
+                )
+
             return PipelineResult(
                 total_fps=total_fps,
                 per_stream_fps=per_stream_fps,
@@ -1034,7 +1024,7 @@ class PipelineRunner:
                 details=details,
                 # Stays `None` when the tracer was not enabled (no
                 # sampling happened); otherwise a dict with one entry
-                # per stream that produced at least one interval line.
+                # per stream that produced at least one tracer window.
                 latency_tracer_metrics=self.latency_tracer_metrics,
             )
 
@@ -1180,8 +1170,8 @@ class PipelineRunner:
         Push a single ``latency_tracer`` sample to metrics-manager.
 
         Called live from the stdout hot loop every time a new
-        ``latency_tracer_pipeline_interval`` line is parsed for an
-        allowed stream (see ``_parse_and_record_latency_sample``). No
+        latency window is parsed for an allowed stream (see
+        ``_store_latency_sample``). No
         push is made when ``enable_latency_metrics`` is False, because
         the caller itself short-circuits on that condition.
 
@@ -1257,35 +1247,56 @@ class PipelineRunner:
         for stream_id, sample in self.latency_tracer_metrics.items():
             self._push_latency_sample(stream_id, sample)
 
-    def _parse_and_push_genai_sample(self, line: str) -> None:
+    def _handle_dl_streamer_metric_line(self, line: str, emit_events: bool) -> None:
         """
-        Parse a ``gvagenai`` JSON metadata line and forward its
-        ``metrics`` block to metrics-manager via
-        :meth:`_push_vlm_metrics_sample`.
+        Dispatch one subprocess stdout line that may carry DL Streamer metrics.
 
-        Mirrors :meth:`_parse_and_record_latency_sample`: the hot-loop
-        caller pre-filters with the ``_GENAI_METRICS_MARKER`` substring
-        check; any parsing error (missing marker, malformed JSON,
-        missing ``metrics`` block, non-numeric fields) drops the sample
-        silently, so the runner stays resilient to metadata shape
-        changes.
+        Handles ``Pipeline metric:`` lines, ``latency_tracer`` interval
+        records (latency fallback) and ``gvagenai`` JSON metadata lines.
+        Every other line is ignored after a few substring checks.
 
-        The values are the OpenVINO™ GenAI ``VLMPerfMetrics`` means:
-        ``ttft_mean`` (time to first token), ``tpot_mean`` (time per
-        output token) and ``generate_duration_mean`` (total generation
-        time). The UI never reads these from ``gvagenai`` directly — it
-        consumes them from the metrics-manager SSE stream.
+        Args:
+            line: Raw stdout line from the subprocess.
+            emit_events: Whether a ``gvagenai`` result is also forwarded
+                as a ``vlm`` pipeline event. False for the output drained
+                after the process exited.
+        """
+        if self._PIPELINE_METRIC_MARKER in line:
+            self._parse_and_handle_pipeline_metric(line)
+        elif (
+            self.latency_tracer_metrics is not None
+            and self._LATENCY_TRACER_INTERVAL_MARKER in line
+        ):
+            self._parse_latency_record(line)
+        elif self._genai_metrics_enabled and self._GENAI_METRICS_MARKER in line:
+            self._parse_genai_meta_line(line, emit_event=emit_events)
+
+    def _parse_genai_meta_line(self, line: str, emit_event: bool = True) -> None:
+        """
+        Parse a ``gvagenai`` JSON metadata line.
+
+        The generated ``result`` is forwarded as a ``vlm`` pipeline event
+        when ``emit_event`` is set.
+
+        A ``metrics`` block is only present when the element could not run
+        with ``post-metrics=true``: ``gst_runner.gst_log_bridge`` drops it
+        otherwise, because the per-request values then arrive as
+        ``genai-request`` metric lines (see :meth:`_record_genai_request`).
+        Its OpenVINO™ GenAI ``VLMPerfMetrics`` means (``ttft_mean``,
+        ``tpot_mean``, ``generate_duration_mean``) are pushed as the
+        fallback ``vlm_metrics`` sample, with one warning per run, because
+        they average every request since the element started. Malformed
+        lines and blocks without these means (e.g. the token usage of the
+        ``openai-http`` backend) are dropped.
 
         The emitting ``gvagenai_*`` element name (added by
-        ``gst_runner.gst_log_bridge`` as a ``<name>`` prefix) is
-        extracted and forwarded as ``stream_id`` so metrics-manager can
-        partition VLM samples per stream in multi-stream runs. When the
-        prefix is missing the sample is still pushed, but without the
-        ``stream_id`` tag.
+        ``gst_runner.gst_log_bridge`` as a ``<name>`` prefix) is used as
+        the event's ``element`` and the sample's ``stream_id``.
 
         Args:
             line: Raw stdout line from the subprocess, including any
                 log prefix (e.g. ``"gst_runner - INFO - ..."``).
+            emit_event: Whether to forward the result as a pipeline event.
         """
         json_start = line.find("{", line.find(self._GENAI_METRICS_MARKER))
         if json_start == -1:
@@ -1299,34 +1310,43 @@ class PipelineRunner:
             return
 
         element_match = self._GENAI_METRICS_ELEMENT_PATTERN.search(line)
-        stream_id = element_match.group("element") if element_match else None
+        element = element_match.group("element") if element_match else None
 
         result = payload.get("result")
-        if self.on_event is not None and isinstance(result, str) and result.strip():
+        if emit_event and isinstance(result, str) and result.strip():
             pts_seconds = payload.get("timestamp_seconds")
             prompt = payload.get("prompt")
             self._emit_event(
                 source="vlm",
                 text=result.strip(),
-                element=stream_id,
+                element=element,
                 pts_seconds=pts_seconds
                 if isinstance(pts_seconds, (int, float))
                 else None,
                 prompt=prompt if isinstance(prompt, str) else None,
             )
 
+        metrics = payload.get("metrics")
+        if not isinstance(metrics, dict):
+            return
         try:
-            metrics = payload["metrics"]
             fields = {
                 dst: float(metrics[src])
                 for dst, src in self._GENAI_METRIC_FIELDS.items()
             }
         except (KeyError, TypeError, ValueError):
             return
-
-        self._push_vlm_metrics_sample(fields, stream_id=stream_id)
+        if not self._genai_fallback_warned:
+            self._genai_fallback_warned = True
+            self.logger.warning(
+                "gvagenai element %s does not support post-metrics; VLM metrics "
+                "fall back to the means in its JSON metadata, which average every "
+                "request since the element started.",
+                element,
+            )
+        self._push_vlm_metrics_sample(fields, stream_id=element)
         self.logger.debug(
-            "gvagenai metrics sample: stream=%s fields=%s", stream_id, fields
+            "gvagenai metrics (fallback): stream=%s fields=%s", element, fields
         )
 
     def _parse_and_emit_pipeline_event(self, line: str) -> None:
@@ -1414,95 +1434,254 @@ class PipelineRunner:
             description="vlm",
         )
 
-    def _parse_and_record_latency_sample(self, line: str) -> None:
+    def _parse_and_handle_pipeline_metric(self, line: str) -> None:
         """
-        Parse a single `latency_tracer_pipeline_interval` line and
-        update ``self.latency_tracer_metrics`` for the reported stream.
+        Parse a ``Pipeline metric: {json}`` line logged by ``gst_runner``
+        and dispatch it by kind.
 
-        Called from the stdout hot loop; callers are expected to pre-filter
-        with the ``_LATENCY_TRACER_INTERVAL_MARKER`` substring check so the
-        compiled regex only runs on likely matches.
-
-        Silently ignores lines that contain the marker substring but do
-        not match the full pattern, so the runner stays resilient to
-        tracer format variations and to log-line truncation.
-
-        Also silently drops samples whose ``stream_id`` is not in
-        ``self._allowed_stream_ids`` (when that filter is set). This
-        discards tracer rows for internal bin sinks (commonly named
-        ``sink``) and intermediate ``splitmuxsink`` elements that are
-        not part of the user-facing stream surface.
-
-        Only the last sample per stream_id is retained: when a line
-        arrives for a stream already present in the map, the previous
-        entry is overwritten. No history is kept.
+        The line carries one ``dlstreamer/*`` bus message as
+        ``{"kind": ..., "element": ..., "fields": {...}}``. Malformed
+        lines and unknown kinds are dropped, so the runner stays
+        resilient to newer DL Streamer producers.
 
         Args:
-            line: Raw stdout line from the subprocess. May include any
-                prefix (e.g. ``"gst_runner - INFO - ..."``); the regex
-                scans without anchoring.
+            line: Raw stdout line from the subprocess, including any log
+                prefix (e.g. ``"gst_runner - INFO - ..."``).
         """
-        # Defensive: this should not happen when the caller respects
-        # the `is not None` precondition, but re-checking keeps the
-        # method safe to call from anywhere.
+        json_start = line.find("{", line.find(self._PIPELINE_METRIC_MARKER))
+        if json_start == -1:
+            return
+        try:
+            payload = json.loads(line[json_start:])
+        except ValueError:
+            return
+        if not isinstance(payload, dict) or not isinstance(payload.get("fields"), dict):
+            return
+        kind = payload.get("kind")
+        element = payload.get("element")
+        if kind == "latency-window":
+            self._record_latency_window(payload["fields"])
+        elif kind == "genai-request":
+            self._record_genai_request(
+                payload["fields"], element if isinstance(element, str) else None
+            )
+
+    def _reset_dl_streamer_metrics_state(self) -> None:
+        """Forget the latency source and fallback warnings of the previous run."""
+        self._latency_source = None
+        self._held_latency_records = {}
+        self._genai_fallback_warned = False
+        self._unknown_metric_versions = set()
+
+    def _is_known_metric_version(self, kind: str, fields: dict) -> bool:
+        """
+        Check the schema ``version`` of a ``dlstreamer/*`` metric message.
+
+        A message with another version may have fields whose meaning
+        changed, so it is skipped. One warning is logged per kind and
+        version within a run.
+
+        Args:
+            kind: Message kind, e.g. ``"latency-window"``.
+            fields: ``fields`` of the metric line.
+
+        Returns:
+            True if the message has the version this runner understands.
+        """
+        version = fields.get("version")
+        if version == self._METRIC_MESSAGE_VERSION and not isinstance(version, bool):
+            return True
+        key = (kind, version)
+        if key not in self._unknown_metric_versions:
+            self._unknown_metric_versions.add(key)
+            self.logger.warning(
+                "Skipping DL Streamer %s messages with unsupported version %r "
+                "(supported: %d).",
+                kind,
+                version,
+                self._METRIC_MESSAGE_VERSION,
+            )
+        return False
+
+    def _record_latency_window(self, fields: dict) -> None:
+        """
+        Record one ``latency_tracer`` window posted as a bus message.
+
+        The window carries raw aggregates (``count``, ``sum_ms``,
+        ``min_ms``, ``max_ms``, ``window_ms``); the sample fields are
+        derived exactly as the tracer derives its own record:
+        ``avg = sum_ms / count`` and ``latency = window_ms / count``.
+
+        The first window makes messages the latency source of the run, and
+        drops the interval records held back until then (see
+        :meth:`_parse_latency_record`).
+
+        Args:
+            fields: ``fields`` of a ``latency-window`` metric line.
+        """
         if self.latency_tracer_metrics is None:
             return
+        if not self._is_known_metric_version("latency-window", fields):
+            return
+        if self._latency_source != self._LATENCY_FROM_MESSAGES:
+            self._latency_source = self._LATENCY_FROM_MESSAGES
+            self._held_latency_records = {}
+        try:
+            stream_id = f"{fields['source']}__{fields['sink']}"
+            count = int(fields["count"])
+            window_ms = float(fields["window_ms"])
+            sum_ms = float(fields["sum_ms"])
+            min_ms = float(fields["min_ms"])
+            max_ms = float(fields["max_ms"])
+        except (KeyError, TypeError, ValueError):
+            return
+        if count <= 0:
+            return
 
+        self._store_latency_sample(
+            stream_id,
+            LatencyTracerSample(
+                interval_ms=window_ms,
+                avg_ms=sum_ms / count,
+                min_ms=min_ms,
+                max_ms=max_ms,
+                latency_ms=window_ms / count,
+            ),
+        )
+
+    def _parse_latency_record(self, line: str) -> None:
+        """
+        Parse a ``latency_tracer_pipeline_interval`` record (fallback).
+
+        ``gst_runner`` promotes these records until the tracer posts its
+        first window as a bus message. The tracer logs the record of a
+        window just before it posts the window, in the same thread, and
+        ``gst_runner`` stops promoting records as soon as the first window
+        is posted. So while the run's latency source is undecided, a record
+        is held back per stream:
+
+        * a ``latency-window`` message arrives: messages are the source and
+          the held records are dropped (see :meth:`_record_latency_window`);
+        * a second record of the same stream arrives: the tracer did not
+          post the first one, so it predates ``post-metrics``. Records
+          become the source, a warning is logged, and the held records are
+          recorded (see :meth:`_use_latency_records`).
+
+        Lines that do not match the full pattern are ignored.
+
+        Args:
+            line: Raw stdout line from the subprocess, including any log
+                prefix (e.g. ``"gst_runner - INFO - ..."``).
+        """
+        if (
+            self.latency_tracer_metrics is None
+            or self._latency_source == self._LATENCY_FROM_MESSAGES
+        ):
+            return
         match = self._LATENCY_TRACER_INTERVAL_PATTERN.search(line)
         if match is None:
             return
 
-        # Build the composite stream_id used as the dict key. This must
-        # match the format produced by `InternalStreamInfo.stream_id`
-        # so downstream code can correlate entries back to streams
-        # declared by `PipelineManager.build_pipeline_command`.
-        source_name = match.group("source")
-        sink_name = match.group("sink")
-        stream_id = f"{source_name}__{sink_name}"
-
-        # Drop samples that refer to elements other than the user-facing
-        # main source/sink pair of a running stream. The DLStreamer
-        # latency_tracer emits one row per GStreamer sink it sees,
-        # which includes internal bin sinks (typically named ``sink``)
-        # and, in recorder pipelines, the intermediate ``splitmuxsink``.
-        # Without this filter the metrics map would contain rows like
-        # ``src_p0_s0_0_0__sink`` or ``src_p0_s0_0_0__splitmuxsink0``
-        # that are not addressable by ViPPET callers.
-        if (
-            self._allowed_stream_ids is not None
-            and stream_id not in self._allowed_stream_ids
-        ):
-            return
-
-        metrics = LatencyTracerSample(
+        stream_id = f"{match.group('source')}__{match.group('sink')}"
+        sample = LatencyTracerSample(
             interval_ms=float(match.group("interval")),
             avg_ms=float(match.group("avg")),
             min_ms=float(match.group("min")),
             max_ms=float(match.group("max")),
             latency_ms=float(match.group("latency")),
         )
-        self.latency_tracer_metrics[stream_id] = metrics
+        if self._latency_source is None:
+            if stream_id not in self._held_latency_records:
+                self._held_latency_records[stream_id] = sample
+                return
+            self._use_latency_records()
+        self._store_latency_sample(stream_id, sample)
 
-        # Live push: forward every new sample to metrics-manager as
-        # soon as it is parsed. The call is fire-and-forget (runs on
-        # a daemon thread in `_post_metrics_async`) so a slow or
+    def _use_latency_records(self) -> None:
+        """Make interval records the latency source of the run and record the held ones."""
+        self._latency_source = self._LATENCY_FROM_RECORDS
+        self.logger.warning(
+            "DL Streamer latency_tracer does not post latency-window messages "
+            "(post-metrics); falling back to parsing its log records."
+        )
+        held, self._held_latency_records = self._held_latency_records, {}
+        for stream_id, sample in held.items():
+            self._store_latency_sample(stream_id, sample)
+
+    def _finish_latency_records(self) -> None:
+        """
+        Resolve records still held back when the subprocess has exited.
+
+        A run that ended within the first windows may never have shown a
+        second record of a stream. Without any ``latency-window`` message
+        the held records are the only latency data, so they are recorded.
+        """
+        if self._latency_source is None and self._held_latency_records:
+            self._use_latency_records()
+
+    def _store_latency_sample(
+        self, stream_id: str, sample: LatencyTracerSample
+    ) -> None:
+        """
+        Keep a latency sample of a stream and push it to metrics-manager.
+
+        Samples whose ``stream_id`` is not in ``self._allowed_stream_ids``
+        (when that filter is set) are dropped. This discards windows for
+        internal bin sinks (commonly named ``sink``) and intermediate
+        ``splitmuxsink`` elements that are not part of the user-facing
+        stream surface. Only the last sample per stream is retained.
+
+        Args:
+            stream_id: ``"{source_name}__{sink_name}"`` of the window.
+            sample: The window's latency sample.
+        """
+        if self.latency_tracer_metrics is None:
+            return
+        if (
+            self._allowed_stream_ids is not None
+            and stream_id not in self._allowed_stream_ids
+        ):
+            return
+        self.latency_tracer_metrics[stream_id] = sample
+
+        # Live push: fire-and-forget on the metrics executor, so a slow or
         # unavailable backend can never stall the stdout reader.
-        self._push_latency_sample(stream_id, metrics)
-
-        # Per-sample log is kept at DEBUG level: metrics-manager is
-        # now the primary surface for tracer values, so this log is
-        # only useful for local troubleshooting when the backend is
-        # unavailable or the payload shape is under review.
+        self._push_latency_sample(stream_id, sample)
         self.logger.debug(
-            "latency_tracer sample: stream=%s interval_ms=%.3f avg_ms=%.3f "
+            "latency_tracer window: stream=%s interval_ms=%.3f avg_ms=%.3f "
             "min_ms=%.3f max_ms=%.3f latency_ms=%.3f",
             stream_id,
-            metrics.interval_ms,
-            metrics.avg_ms,
-            metrics.min_ms,
-            metrics.max_ms,
-            metrics.latency_ms,
+            sample.interval_ms,
+            sample.avg_ms,
+            sample.min_ms,
+            sample.max_ms,
+            sample.latency_ms,
         )
+
+    def _record_genai_request(self, fields: dict, element: str | None) -> None:
+        """
+        Push the metrics of one ``gvagenai`` generation request.
+
+        The values come from OpenVINO™ GenAI ``PerfMetrics`` of that
+        request only: ``ttft_ms`` (time to first token), ``tpot_ms``
+        (mean time per output token of the request) and
+        ``generate_duration_ms``. Messages with an unknown ``version``
+        are skipped.
+
+        Args:
+            fields: ``fields`` of a ``genai-request`` metric line.
+            element: Emitting ``gvagenai`` element name, used as the
+                ``stream_id`` tag (unique per stream after
+                ``unify_all_element_names``).
+        """
+        if not self._is_known_metric_version("genai-request", fields):
+            return
+        try:
+            values = {name: float(fields[name]) for name in self._GENAI_REQUEST_FIELDS}
+        except (KeyError, TypeError, ValueError):
+            return
+        self._push_vlm_metrics_sample(values, stream_id=element)
+        self.logger.debug("gvagenai request: stream=%s fields=%s", element, values)
 
     def _build_subprocess_env(self) -> dict[str, str]:
         """
@@ -1519,12 +1698,17 @@ class PipelineRunner:
         - Adds the GStreamer debug categories required by the metrics the
           runner parses off the subprocess stdout:
 
-          - ``enable_latency_metrics`` adds ``GST_TRACER:7`` and sets
-            ``GST_TRACERS`` to ``latency_tracer(flags=pipeline,interval=1000)``,
-            activating the DLStreamer tracer in pipeline-only mode.
+          - ``enable_latency_metrics`` sets ``GST_TRACERS`` to
+            ``latency_tracer(flags=pipeline,interval=1000,post-metrics=true)``,
+            activating the DLStreamer tracer in pipeline-only mode, and
+            ``VIPPET_LATENCY_RECORD_FALLBACK=1``. The tracer posts its windows
+            as bus messages; for a tracer that predates ``post-metrics``,
+            ``gst_runner.py`` raises the GST_TRACER threshold to log its TRACE
+            records instead, and restores the previous threshold once the
+            first window is posted. ``GST_DEBUG`` is not changed for it.
           - a pipeline containing ``gvagenai`` adds ``gvagenai:4`` so the
-            element logs its JSON metadata (including the VLM ``metrics``
-            block) at INFO level.
+            element logs its JSON metadata (the generated result, and the
+            fallback VLM metrics) at INFO level.
 
         ``GST_DEBUG`` is never overwritten: any pre-existing categories are
         preserved and the required ones are appended with a comma
@@ -1559,8 +1743,8 @@ class PipelineRunner:
         gst_debug_categories: list[str] = []
 
         if self.enable_latency_metrics:
-            gst_debug_categories.append(self.LATENCY_TRACER_GST_DEBUG)
             env["GST_TRACERS"] = self.LATENCY_TRACER_GST_TRACERS
+            env[self.LATENCY_RECORD_FALLBACK_ENV] = "1"
 
         if self._genai_metrics_enabled:
             gst_debug_categories.append(self.GENAI_METRICS_GST_DEBUG)

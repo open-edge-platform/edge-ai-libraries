@@ -686,16 +686,22 @@ class TestMain(unittest.TestCase):
         self.assertEqual(exit_code, 1)
 
 
-class TestGstLogBridgeLatencyTracer(unittest.TestCase):
-    """Tests for the `gst_log_bridge` latency_tracer promotion logic.
+class TestGstLogBridge(unittest.TestCase):
+    """Tests for the `gst_log_bridge` level mapping and ``<name>`` prefixing.
 
-    The DLStreamer `latency_tracer` emits samples at GStreamer TRACE
-    level. Normally TRACE is mapped to ``logger.debug()`` and thus
-    suppressed at the default INFO log level. The bridge makes a single
-    exception for ``latency_tracer_pipeline_interval`` messages which
-    must be promoted to INFO so the parent ViPPET process can consume
-    them from the subprocess stdout.
+    The DLStreamer `latency_tracer` posts its windows as
+    ``dlstreamer/latency-window`` bus messages (``post-metrics=true``). A
+    tracer that predates ``post-metrics`` only logs them as
+    ``latency_tracer_pipeline_interval`` TRACE records, so the bridge
+    promotes those records to INFO until the first window is posted.
     """
+
+    def setUp(self) -> None:
+        state = mock.patch.object(
+            gst_runner, "_latency_record_state", gst_runner._LatencyRecordState()
+        )
+        state.start()
+        self.addCleanup(state.stop)
 
     def _invoke_bridge(self, text: str, level: int) -> None:
         """Call gst_log_bridge with a fake GLib message carrying `text`."""
@@ -740,20 +746,27 @@ class TestGstLogBridgeLatencyTracer(unittest.TestCase):
             user_data=None,
         )
 
-    def test_pipeline_interval_sample_is_promoted_to_info(self) -> None:
-        """`latency_tracer_pipeline_interval,...` TRACE messages must be logged as INFO."""
-        sample = (
-            "latency_tracer_pipeline_interval, pipeline_name=(string)pipeline0, "
-            "source_name=(string)filesrc0, sink_name=(string)sink0, "
-            "interval=(double)1000.0, avg=(double)5.0, min=(double)1.0, "
-            "max=(double)9.0, latency=(double)3.0, fps=(double)60.0"
-        )
-        with self.assertLogs("gst_runner", level="INFO") as captured:
-            self._invoke_bridge(sample, RealGst.DebugLevel.TRACE)
+    INTERVAL_SAMPLE = (
+        "latency_tracer_pipeline_interval, pipeline_name=(string)pipeline0, "
+        "source_name=(string)filesrc0, sink_name=(string)sink0, "
+        "interval=(double)1000.0, avg=(double)5.0, min=(double)1.0, "
+        "max=(double)9.0, latency=(double)3.0, fps=(double)60.0"
+    )
 
-        joined = "\n".join(captured.output)
-        self.assertIn("INFO", joined)
-        self.assertIn("latency_tracer_pipeline_interval", joined)
+    def test_pipeline_interval_sample_is_promoted_to_info(self) -> None:
+        """Without a posted window, interval TRACE records are promoted to INFO."""
+        with self.assertLogs("gst_runner", level="DEBUG") as captured:
+            self._invoke_bridge(self.INTERVAL_SAMPLE, RealGst.DebugLevel.TRACE)
+
+        self.assertEqual([r.levelname for r in captured.records], ["INFO"])
+        self.assertEqual(captured.records[0].getMessage(), self.INTERVAL_SAMPLE)
+
+    def test_pipeline_interval_sample_is_dropped_after_window_posted(self) -> None:
+        """Once the tracer posts windows, its interval records are not logged at all."""
+        gst_runner._latency_record_state.window_posted = True
+
+        with self.assertNoLogs("gst_runner", level="DEBUG"):
+            self._invoke_bridge(self.INTERVAL_SAMPLE, RealGst.DebugLevel.TRACE)
 
     def test_unrelated_trace_message_stays_at_debug(self) -> None:
         """Non-tracer TRACE messages must still land at DEBUG (default suppressed at INFO)."""
@@ -841,21 +854,42 @@ class TestGstLogBridgeLatencyTracer(unittest.TestCase):
         self.assertIn("Added meta message: {}", joined)
 
     def test_tracer_line_is_not_prefixed_even_if_obj_is_named(self) -> None:
-        """The tracer promotion path must run BEFORE any marker-prefix logic."""
-        sample = (
-            "latency_tracer_pipeline_interval, pipeline_name=(string)pipeline0, "
-            "source_name=(string)filesrc0, sink_name=(string)sink0, "
-            "interval=(double)1000.0, avg=(double)5.0, min=(double)1.0, "
-            "max=(double)9.0, latency=(double)3.0, fps=(double)60.0"
-        )
-        with self.assertLogs("gst_runner", level="INFO") as captured:
+        """Tracer records are not ``Added meta message:`` lines, so they get no ``<name>`` prefix."""
+        with self.assertLogs("gst_runner", level="DEBUG") as captured:
             self._invoke_bridge_with_obj(
-                sample, RealGst.DebugLevel.TRACE, obj_name="some_tracer"
+                self.INTERVAL_SAMPLE, RealGst.DebugLevel.TRACE, obj_name="some_tracer"
             )
 
-        joined = "\n".join(captured.output)
-        self.assertNotIn("<some_tracer>", joined)
-        self.assertIn("latency_tracer_pipeline_interval", joined)
+        self.assertEqual([r.levelname for r in captured.records], ["INFO"])
+        self.assertEqual(captured.records[0].getMessage(), self.INTERVAL_SAMPLE)
+
+    def test_meta_message_metrics_dropped_for_post_metrics_element(self) -> None:
+        """An element with ``post-metrics=true`` gets its cumulative block removed."""
+        obj = mock.MagicMock()
+        obj.get_name.return_value = "gvagenai_0_0"
+        obj.get_property.side_effect = {"post-metrics": True, "prompt": ""}.__getitem__
+
+        with self.assertLogs("gst_runner", level="INFO") as captured:
+            gst_runner.gst_log_bridge(
+                None,
+                RealGst.DebugLevel.INFO,
+                None,
+                None,
+                0,
+                obj,
+                mock.MagicMock(
+                    get=mock.MagicMock(
+                        return_value='Added meta message: {"result": "No", '
+                        '"metrics": {"ttft_mean": 1.0}}'
+                    )
+                ),
+                None,
+            )
+
+        self.assertEqual(
+            captured.records[0].getMessage(),
+            '<gvagenai_0_0> Added meta message: {"result": "No"}',
+        )
 
 
 class TestAddPromptToMetaMessage(unittest.TestCase):
@@ -884,6 +918,198 @@ class TestAddPromptToMetaMessage(unittest.TestCase):
         self.assertEqual(gst_runner._add_prompt_to_meta_message(text, obj), text)
 
 
+class TestDropMetricsFromMetaMessage(unittest.TestCase):
+    """The cumulative ``metrics`` block is dropped only for ``post-metrics=true`` elements."""
+
+    TEXT = 'Added meta message: {"result": "No", "metrics": {"ttft_mean": 1.0}}'
+
+    @staticmethod
+    def _obj(post_metrics: Any) -> mock.MagicMock:
+        obj = mock.MagicMock()
+        obj.get_property.side_effect = {"post-metrics": post_metrics}.__getitem__
+        return obj
+
+    def test_block_is_dropped_with_post_metrics(self) -> None:
+        text = gst_runner._drop_metrics_from_meta_message(self.TEXT, self._obj(True))
+        self.assertEqual(text, 'Added meta message: {"result": "No"}')
+
+    def test_block_is_kept_without_post_metrics(self) -> None:
+        for obj in (self._obj(False), None):
+            with self.subTest(obj=obj):
+                self.assertEqual(
+                    gst_runner._drop_metrics_from_meta_message(self.TEXT, obj),
+                    self.TEXT,
+                )
+
+    def test_block_is_kept_when_element_has_no_post_metrics_property(self) -> None:
+        obj = mock.MagicMock()
+        obj.get_property.side_effect = TypeError("no property 'post-metrics'")
+        self.assertEqual(
+            gst_runner._drop_metrics_from_meta_message(self.TEXT, obj), self.TEXT
+        )
+
+    def test_text_unchanged_without_block_or_valid_json(self) -> None:
+        for text in (
+            'Added meta message: {"result": "No"}',
+            "Added meta message: {not-json",
+            "Added meta message: no json",
+        ):
+            with self.subTest(text=text):
+                self.assertEqual(
+                    gst_runner._drop_metrics_from_meta_message(text, self._obj(True)),
+                    text,
+                )
+
+
+class TestNoteLatencyWindowPosted(unittest.TestCase):
+    """The first posted latency window stops the record fallback once."""
+
+    def setUp(self) -> None:
+        state = mock.patch.object(
+            gst_runner, "_latency_record_state", gst_runner._LatencyRecordState()
+        )
+        state.start()
+        self.addCleanup(state.stop)
+
+    @staticmethod
+    def _tracer_threshold() -> Any:
+        return next(
+            c.get_threshold()
+            for c in RealGst.debug_get_all_categories()
+            if c.get_name() == "GST_TRACER"
+        )
+
+    def _keep_tracer_threshold(self) -> None:
+        RealGst.init(None)
+        before = self._tracer_threshold()
+        self.addCleanup(RealGst.debug_set_threshold_for_name, "GST_TRACER", before)
+
+    def test_fallback_raises_then_restores_the_user_threshold(self) -> None:
+        """The level from GST_DEBUG (here WARNING) is back after the first window."""
+        self._keep_tracer_threshold()
+        RealGst.debug_set_threshold_for_name("GST_TRACER", RealGst.DebugLevel.WARNING)
+
+        gst_runner.enable_latency_record_fallback()
+        self.assertEqual(self._tracer_threshold(), RealGst.DebugLevel.TRACE)
+        self.assertEqual(
+            gst_runner._latency_record_state.prior_threshold,
+            RealGst.DebugLevel.WARNING,
+        )
+
+        gst_runner.note_latency_window_posted()
+        self.assertTrue(gst_runner._latency_record_state.window_posted)
+        self.assertEqual(self._tracer_threshold(), RealGst.DebugLevel.WARNING)
+
+    def test_first_window_restores_the_threshold_once(self) -> None:
+        gst_runner._latency_record_state.prior_threshold = RealGst.DebugLevel.ERROR
+        with mock.patch.object(gst_runner, "Gst") as mock_gst:
+            gst_runner.note_latency_window_posted()
+            gst_runner.note_latency_window_posted()
+
+        mock_gst.debug_set_threshold_for_name.assert_called_once_with(
+            "GST_TRACER", RealGst.DebugLevel.ERROR
+        )
+
+    def test_threshold_untouched_without_the_fallback(self) -> None:
+        """Without a raised threshold (no latency metrics) nothing is restored."""
+        with mock.patch.object(gst_runner, "Gst") as mock_gst:
+            gst_runner.note_latency_window_posted()
+
+        self.assertTrue(gst_runner._latency_record_state.window_posted)
+        mock_gst.debug_set_threshold_for_name.assert_not_called()
+        mock_gst.debug_unset_threshold_for_name.assert_not_called()
+
+    def test_initialization_enables_the_fallback_only_when_requested(self) -> None:
+        for env, expected in (({"VIPPET_LATENCY_RECORD_FALLBACK": "1"}, 1), ({}, 0)):
+            with self.subTest(env=env):
+                with (
+                    mock.patch.dict("os.environ", env, clear=True),
+                    mock.patch.object(gst_runner, "Gst"),
+                    mock.patch.object(
+                        gst_runner, "enable_latency_record_fallback"
+                    ) as mock_enable,
+                ):
+                    gst_runner.initialize_gstreamer_logging()
+                self.assertEqual(mock_enable.call_count, expected)
+
+    def test_sync_handler_notes_only_latency_windows(self) -> None:
+        for name, expected in (
+            ("dlstreamer/latency-window", 1),
+            ("dlstreamer/genai-request", 0),
+            ("vippet-event", 0),
+            (None, 0),
+        ):
+            with self.subTest(name=name):
+                message = mock.Mock()
+                if name is None:
+                    message.get_structure.return_value = None
+                else:
+                    message.get_structure.return_value.get_name.return_value = name
+                with mock.patch.object(
+                    gst_runner, "note_latency_window_posted"
+                ) as mock_note:
+                    gst_runner._PipelineRunner._on_sync_element_message(
+                        mock.Mock(), message
+                    )
+                self.assertEqual(mock_note.call_count, expected)
+
+
+class TestEnableGenaiPostMetrics(unittest.TestCase):
+    """``post-metrics=true`` is set only where it is wanted and supported."""
+
+    @staticmethod
+    def _element(name: str, metrics: bool, has_post_metrics: bool) -> mock.Mock:
+        element = mock.Mock()
+        element.get_name.return_value = name
+        element.get_property.side_effect = {"metrics": metrics}.__getitem__
+        element.find_property.return_value = (
+            mock.Mock(name="GParamSpec") if has_post_metrics else None
+        )
+        return element
+
+    def test_sets_post_metrics_on_supported_elements_with_metrics(self) -> None:
+        supported = self._element("gvagenai_0_0", True, True)
+        old = self._element("gvagenai_0_1", True, False)
+        no_metrics = self._element("gvagenai_0_2", False, True)
+        pipeline = mock.create_autospec(gst_runner.Gst.Pipeline, instance=True)
+        pipeline.iterate_all_by_element_factory_name.return_value = [
+            supported,
+            old,
+            no_metrics,
+        ]
+
+        gst_runner.enable_genai_post_metrics(pipeline, gst_runner.get_logger())
+
+        pipeline.iterate_all_by_element_factory_name.assert_called_once_with("gvagenai")
+        supported.set_property.assert_called_once_with("post-metrics", True)
+        old.set_property.assert_not_called()
+        no_metrics.set_property.assert_not_called()
+
+    def test_non_bin_is_ignored(self) -> None:
+        gst_runner.enable_genai_post_metrics(object(), gst_runner.get_logger())  # type: ignore[arg-type]
+
+    def test_real_pipeline_without_gvagenai_is_unchanged(self) -> None:
+        RealGst.init(None)
+        pipeline = RealGst.parse_launch("fakesrc num-buffers=1 ! fakesink")
+
+        gst_runner.enable_genai_post_metrics(pipeline, gst_runner.get_logger())
+
+    def test_run_pipeline_enables_post_metrics_after_parsing(self) -> None:
+        fake_pipeline = object()
+        with (
+            mock.patch.object(
+                gst_runner, "parse_pipeline", return_value=(fake_pipeline, True)
+            ),
+            mock.patch.object(gst_runner, "enable_genai_post_metrics") as mock_enable,
+            mock.patch.object(
+                gst_runner, "run_pipeline_for_duration", return_value=(True, None)
+            ),
+        ):
+            self.assertTrue(gst_runner.run_pipeline("x", 1.0, "normal"))
+
+        mock_enable.assert_called_once_with(fake_pipeline, gst_runner.get_logger())
+
+
 class TestLogPipelineEvent(unittest.TestCase):
     """``vippet-event`` element messages are logged as one JSON line."""
 
@@ -910,6 +1136,254 @@ class TestLogPipelineEvent(unittest.TestCase):
                 "pts-seconds": 1.5,
                 "element": "gvaproximitytrigger_py0",
             },
+        )
+
+
+class TestLogPipelineMetric(unittest.TestCase):
+    """``dlstreamer/*`` element messages are logged as one ``Pipeline metric:`` JSON line."""
+
+    @staticmethod
+    def _parse_line(captured: Any) -> dict:
+        line = captured.records[0].getMessage()
+        assert line.startswith(gst_runner.PIPELINE_METRIC_MARKER)
+        return json.loads(line[len(gst_runner.PIPELINE_METRIC_MARKER) :])
+
+    def test_logs_kind_element_and_scalar_fields(self) -> None:
+        RealGst.init(None)
+        structure = RealGst.Structure.new_empty("dlstreamer/latency-window")
+        structure.set_value("source", "src_p0_s0_0_0")
+        structure.set_value("sink", "sink_p0_s0_0_0")
+        structure.set_value("count", 4)
+        structure.set_value("window_ms", 1000.5)
+        structure.set_value("partial", True)
+        src = mock.MagicMock()
+        src.get_name.return_value = "pipeline0"
+
+        with self.assertLogs("gst_runner", level="INFO") as captured:
+            gst_runner.log_pipeline_metric(gst_runner.get_logger(), src, structure)
+
+        self.assertEqual(captured.records[0].levelname, "INFO")
+        self.assertEqual(
+            self._parse_line(captured),
+            {
+                "kind": "latency-window",
+                "element": "pipeline0",
+                "fields": {
+                    "source": "src_p0_s0_0_0",
+                    "sink": "sink_p0_s0_0_0",
+                    "count": 4,
+                    "window_ms": 1000.5,
+                    "partial": True,
+                },
+            },
+        )
+
+    def test_element_is_none_without_src(self) -> None:
+        RealGst.init(None)
+        structure = RealGst.Structure.new_empty("dlstreamer/genai-request")
+        structure.set_value("ttft_ms", 12.5)
+
+        with self.assertLogs("gst_runner", level="INFO") as captured:
+            gst_runner.log_pipeline_metric(gst_runner.get_logger(), None, structure)
+
+        self.assertEqual(
+            self._parse_line(captured),
+            {"kind": "genai-request", "element": None, "fields": {"ttft_ms": 12.5}},
+        )
+
+    def test_non_scalar_fields_are_dropped(self) -> None:
+        values: dict[str, Any] = {
+            "ttft_ms": 12.5,
+            "caps": mock.MagicMock(name="Gst.Caps"),
+            "tokens": [1, 2, 3],
+            "nested": {"a": 1},
+            "missing": None,
+        }
+        structure = mock.MagicMock()
+        structure.get_name.return_value = "dlstreamer/genai-request"
+        structure.n_fields.return_value = len(values)
+        structure.nth_field_name.side_effect = list(values).__getitem__
+        structure.get_value.side_effect = values.__getitem__
+        src = mock.MagicMock()
+        src.get_name.return_value = "gvagenai_0_0"
+
+        with self.assertLogs("gst_runner", level="INFO") as captured:
+            gst_runner.log_pipeline_metric(gst_runner.get_logger(), src, structure)
+
+        self.assertEqual(
+            self._parse_line(captured),
+            {
+                "kind": "genai-request",
+                "element": "gvagenai_0_0",
+                "fields": {"ttft_ms": 12.5},
+            },
+        )
+
+
+class TestElementMessageDispatch(unittest.TestCase):
+    """``_PipelineRunner._on_bus_message`` routes ELEMENT messages by structure name."""
+
+    def _make_runner(self) -> Any:
+        fake_pipeline = mock.create_autospec(gst_runner.Gst.Pipeline)
+        with mock.patch.object(gst_runner, "GLib"):
+            return gst_runner._PipelineRunner(
+                fake_pipeline, max_run_time_sec=0.1, mode="normal"
+            )
+
+    @staticmethod
+    def _make_element_message(structure_name: str | None) -> mock.Mock:
+        message = mock.Mock()
+        message.type = gst_runner.Gst.MessageType.ELEMENT
+        if structure_name is None:
+            message.get_structure.return_value = None
+        else:
+            message.get_structure.return_value.get_name.return_value = structure_name
+        return message
+
+    def _dispatch(self, structure_name: str | None) -> Tuple[Any, Any, Any, Any]:
+        runner = self._make_runner()
+        message = self._make_element_message(structure_name)
+        loop = mock.Mock()
+        with (
+            mock.patch.object(gst_runner, "log_pipeline_metric") as mock_metric,
+            mock.patch.object(gst_runner, "log_pipeline_event") as mock_event,
+        ):
+            result = runner._on_bus_message(mock.Mock(), message, loop)
+        self.assertTrue(result)
+        loop.quit.assert_not_called()
+        return runner, message, mock_metric, mock_event
+
+    def test_dlstreamer_messages_are_logged_as_metrics(self) -> None:
+        for name in ("dlstreamer/latency-window", "dlstreamer/genai-request"):
+            with self.subTest(name=name):
+                runner, message, mock_metric, mock_event = self._dispatch(name)
+
+                mock_metric.assert_called_once_with(
+                    runner._logger, message.src, message.get_structure.return_value
+                )
+                mock_event.assert_not_called()
+
+    def test_vippet_event_is_logged_as_event(self) -> None:
+        runner, message, mock_metric, mock_event = self._dispatch(
+            gst_runner.PIPELINE_EVENT_STRUCTURE
+        )
+
+        mock_event.assert_called_once_with(
+            runner._logger, message.src, message.get_structure.return_value
+        )
+        mock_metric.assert_not_called()
+
+    def test_other_element_messages_are_ignored(self) -> None:
+        for name in (None, "GstMultiQueueOverrun", "dlstreamer", "latency-window"):
+            with self.subTest(name=name):
+                _, _, mock_metric, mock_event = self._dispatch(name)
+
+                mock_metric.assert_not_called()
+                mock_event.assert_not_called()
+
+
+class TestDrainBusMessagesMetrics(unittest.TestCase):
+    """``drain_bus_messages`` forwards ``dlstreamer/*`` element messages left on the bus.
+
+    A last latency window or GenAI request can be posted during shutdown,
+    after the main loop stopped dispatching bus messages. Draining must
+    still log it as a ``Pipeline metric:`` line; every other ELEMENT
+    message stays on the DEBUG ``Pipeline bus message:`` branch.
+    """
+
+    @staticmethod
+    def _make_bus(*messages: Any) -> mock.Mock:
+        bus = mock.Mock()
+        bus.pop.side_effect = [*messages, None]
+        return bus
+
+    @staticmethod
+    def _make_element_message(structure: Any, src_name: str | None) -> mock.Mock:
+        message = mock.Mock()
+        message.type = gst_runner.Gst.MessageType.ELEMENT
+        message.get_structure.return_value = structure
+        if src_name is None:
+            message.src = None
+        else:
+            message.src.get_name.return_value = src_name
+        return message
+
+    def test_dlstreamer_element_message_is_logged_as_metric(self) -> None:
+        RealGst.init(None)
+        structure = RealGst.Structure.new_empty("dlstreamer/latency-window")
+        structure.set_value("source", "src_p0_s0_0_0")
+        structure.set_value("sink", "sink_p0_s0_0_0")
+        structure.set_value("count", 3)
+        structure.set_value("window_ms", 450.0)
+        bus = self._make_bus(self._make_element_message(structure, "pipeline0"))
+
+        with self.assertLogs("gst_runner", level="INFO") as captured:
+            saw_error = gst_runner.drain_bus_messages(bus, gst_runner.get_logger())
+
+        self.assertFalse(saw_error)
+        self.assertEqual(len(captured.records), 1)
+        record = captured.records[0]
+        self.assertEqual(record.levelname, "INFO")
+        line = record.getMessage()
+        self.assertTrue(line.startswith(gst_runner.PIPELINE_METRIC_MARKER))
+        self.assertEqual(
+            json.loads(line[len(gst_runner.PIPELINE_METRIC_MARKER) :]),
+            {
+                "kind": "latency-window",
+                "element": "pipeline0",
+                "fields": {
+                    "source": "src_p0_s0_0_0",
+                    "sink": "sink_p0_s0_0_0",
+                    "count": 3,
+                    "window_ms": 450.0,
+                },
+            },
+        )
+
+    def test_other_element_messages_are_not_logged_as_metrics(self) -> None:
+        for name in ("GstMultiQueueOverrun", gst_runner.PIPELINE_EVENT_STRUCTURE, None):
+            with self.subTest(name=name):
+                structure = None
+                if name is not None:
+                    structure = mock.Mock()
+                    structure.get_name.return_value = name
+                bus = self._make_bus(self._make_element_message(structure, "elem0"))
+
+                with mock.patch.object(
+                    gst_runner, "log_pipeline_metric"
+                ) as mock_metric:
+                    with self.assertNoLogs("gst_runner", level="INFO"):
+                        with self.assertLogs("gst_runner", level="DEBUG") as captured:
+                            saw_error = gst_runner.drain_bus_messages(
+                                bus, gst_runner.get_logger()
+                            )
+
+                self.assertFalse(saw_error)
+                mock_metric.assert_not_called()
+                messages = [r.getMessage() for r in captured.records]
+                self.assertEqual(len(messages), 1)
+                self.assertTrue(messages[0].startswith("Pipeline bus message:"))
+
+    def test_metric_and_error_are_both_drained(self) -> None:
+        RealGst.init(None)
+        structure = RealGst.Structure.new_empty("dlstreamer/genai-request")
+        structure.set_value("ttft_ms", 12.5)
+        error_message = mock.Mock()
+        error_message.type = gst_runner.Gst.MessageType.ERROR
+        fake_error = mock.Mock()
+        fake_error.message = "late-error"
+        error_message.parse_error.return_value = (fake_error, "debug-info")
+        bus = self._make_bus(self._make_element_message(structure, None), error_message)
+
+        with self.assertLogs("gst_runner", level="INFO") as captured:
+            saw_error = gst_runner.drain_bus_messages(bus, gst_runner.get_logger())
+
+        self.assertTrue(saw_error)
+        self.assertEqual([r.levelname for r in captured.records], ["INFO", "ERROR"])
+        line = captured.records[0].getMessage()
+        self.assertEqual(
+            json.loads(line[len(gst_runner.PIPELINE_METRIC_MARKER) :]),
+            {"kind": "genai-request", "element": None, "fields": {"ttft_ms": 12.5}},
         )
 
 

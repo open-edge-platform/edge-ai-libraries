@@ -1442,12 +1442,13 @@ class ExecutionConfig(BaseModel):
     enable_latency_metrics: bool = Field(
         default=False,
         description=(
-            "When true, activates the DLStreamer `latency_tracer` in "
-            "pipeline-only mode with a 1000 ms interval by setting "
-            "`GST_DEBUG=GST_TRACER:7` (appended if already set) and "
-            "`GST_TRACERS=latency_tracer(flags=pipeline,interval=1000)` on "
-            "the GStreamer subprocess environment. When false (default), "
-            "neither environment variable is modified."
+            "When true, runs the DLStreamer `latency_tracer` in "
+            "pipeline-only mode with a 1000 ms interval and reports one "
+            "latency sample per stream and interval. The tracer posts each "
+            "interval as a `dlstreamer/latency-window` bus message; with a "
+            "DLStreamer that predates these messages, ViPPET falls back to "
+            "parsing the tracer's log records. When false (default), the "
+            "tracer is not started."
         ),
     )
 
@@ -1817,11 +1818,9 @@ class LatencyMetrics(BaseModel):
     """
     **Last observed DLStreamer `latency_tracer` sample for a single stream.**
 
-    Each value is extracted from a single
-    `latency_tracer_pipeline_interval` line emitted by the
-    `latency_tracer` (one such line per stream per interval ~1000 ms).
-    Only the most recent sample per stream is kept; history is not
-    reported here.
+    Each value describes one `latency_tracer` interval (~1000 ms) of
+    one stream. Only the most recent sample per stream is kept; history
+    is not reported here.
 
     All timing fields are in milliseconds. `fps` reported by the tracer
     is intentionally **not** included because FPS is already exposed on
@@ -1830,10 +1829,14 @@ class LatencyMetrics(BaseModel):
 
     ## Attributes
     - `interval_ms` - Length of the measurement window, in milliseconds
-    - `avg_ms` - Average frame latency over the window, in milliseconds
+    - `avg_ms` - Mean frame latency over the window, in milliseconds
     - `min_ms` - Minimum frame latency observed in the window, in milliseconds
     - `max_ms` - Maximum frame latency observed in the window, in milliseconds
-    - `latency_ms` - Current end-to-end latency reported by the tracer, in milliseconds
+    - `latency_ms` - **Deprecated.** Mean time between output frames in the window, in milliseconds (frame period, `1000 / fps`). It is **not** a frame latency; use `avg_ms` (mean) and `max_ms`
+
+    A frame's latency is the time from the moment the source element
+    outputs the frame to the moment the frame is pushed into the sink;
+    the sink's own work is excluded.
 
     ### Example
     ```json
@@ -1854,23 +1857,40 @@ class LatencyMetrics(BaseModel):
     )
     avg_ms: float = Field(
         ...,
-        description="Average frame latency over the window, in ms.",
+        description=(
+            "Mean per-frame latency over the window, in ms: the time from "
+            "the source element's output to the push into the sink (the "
+            "sink's own work excluded)."
+        ),
         examples=[364.31],
     )
     min_ms: float = Field(
         ...,
-        description="Minimum frame latency observed in the window, in ms.",
+        description=(
+            "Minimum per-frame latency in the window, in ms: the time from "
+            "the source element's output to the push into the sink (the "
+            "sink's own work excluded)."
+        ),
         examples=[0.004],
     )
     max_ms: float = Field(
         ...,
-        description="Maximum frame latency observed in the window, in ms.",
+        description=(
+            "Maximum per-frame latency in the window, in ms: the time from "
+            "the source element's output to the push into the sink (the "
+            "sink's own work excluded)."
+        ),
         examples=[529.26],
     )
     latency_ms: float = Field(
         ...,
-        description="Current end-to-end latency reported by the tracer, in ms.",
+        description=(
+            "Deprecated: mean time between output frames in the window, "
+            "in ms (frame period, = 1000 / fps). It is NOT a frame "
+            "latency - use `avg_ms` (mean) and `max_ms`."
+        ),
         examples=[21.28],
+        deprecated=True,
     )
 
 

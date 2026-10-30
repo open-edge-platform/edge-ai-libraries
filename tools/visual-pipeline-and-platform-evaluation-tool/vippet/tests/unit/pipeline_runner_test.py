@@ -99,6 +99,69 @@ def _extract_latency_payloads(mock_urlopen: MagicMock) -> list[dict]:
     return payloads
 
 
+def _make_metric_line(
+    kind: str,
+    fields: dict,
+    element: str | None = None,
+    prefix: str = "gst_runner - INFO - ",
+) -> str:
+    """Build a ``Pipeline metric: {json}`` stdout line as logged by ``gst_runner``.
+
+    Mirrors ``gst_runner.log_pipeline_metric``: one ``dlstreamer/*`` bus
+    message rendered as ``{"kind", "element", "fields"}`` after the
+    marker, behind the Python log prefix of the subprocess.
+    """
+    payload = {"kind": kind, "element": element, "fields": fields}
+    return f"{prefix}Pipeline metric: {json.dumps(payload)}"
+
+
+def _latency_window_fields(
+    source: str = "src_p0_s0_0_0",
+    sink: str = "sink_p0_s0_0_0",
+    count: int = 4,
+    window_ms: float = 1000.0,
+    sum_ms: float = 100.0,
+    min_ms: float = 10.0,
+    max_ms: float = 40.0,
+    version: int = 1,
+) -> dict:
+    """Fields of a ``dlstreamer/latency-window`` message (raw tracer aggregates)."""
+    return {
+        "version": version,
+        "source": source,
+        "sink": sink,
+        "count": count,
+        "window_ms": window_ms,
+        "sum_ms": sum_ms,
+        "min_ms": min_ms,
+        "max_ms": max_ms,
+    }
+
+
+def _make_record_line(
+    source: str = "src_p0_s0_0_0",
+    sink: str = "sink_p0_s0_0_0",
+    interval: float = 1000.25,
+    avg: float = 364.31,
+    min_: float = 0.004,
+    max_: float = 529.26,
+    latency: float = 21.28,
+    prefix: str = "gst_runner - INFO - ",
+) -> str:
+    """Build a ``latency_tracer_pipeline_interval`` record as promoted by ``gst_runner``.
+
+    The latency fallback for a ``latency_tracer`` that predates
+    ``post-metrics``.
+    """
+    return (
+        f"{prefix}latency_tracer_pipeline_interval, "
+        f"pipeline_name=(string)pipeline0, source_name=(string){source}, "
+        f"sink_name=(string){sink}, interval=(double){interval}, "
+        f"avg=(double){avg}, min=(double){min_}, max=(double){max_}, "
+        f"latency=(double){latency}, fps=(double)46.99;"
+    )
+
+
 def _make_process_mock(stdout_lines: list[str], exit_code: int = 0) -> MagicMock:
     """Create a mocked Popen process that emits given stdout lines.
 
@@ -772,12 +835,17 @@ class TestPipelineRunnerLatencyMetrics(unittest.TestCase):
     test_pipeline_command = "videotestsrc ! fakesink"
 
     def _assert_tracer_env_applied(self, env: dict[str, str]) -> None:
-        """Shared assertions for an env dict built with the flag enabled."""
-        self.assertIn("GST_DEBUG", env)
-        self.assertIn("GST_TRACER:7", env["GST_DEBUG"])
+        """Shared assertions for an env dict built with the flag enabled.
+
+        The tracer's text records are the fallback; ``gst_runner`` raises the
+        GST_TRACER threshold for them at runtime, so ``GST_DEBUG`` never
+        carries ``GST_TRACER``.
+        """
+        self.assertEqual(env["VIPPET_LATENCY_RECORD_FALLBACK"], "1")
+        self.assertNotIn("GST_TRACER", env.get("GST_DEBUG", ""))
         self.assertEqual(
             env["GST_TRACERS"],
-            "latency_tracer(flags=pipeline,interval=1000)",
+            "latency_tracer(flags=pipeline,interval=1000,post-metrics=true)",
         )
 
     # --- Pure _build_subprocess_env unit tests --------------------------------
@@ -789,21 +857,22 @@ class TestPipelineRunnerLatencyMetrics(unittest.TestCase):
         env = runner._build_subprocess_env()
         self.assertNotIn("GST_DEBUG", env)
         self.assertNotIn("GST_TRACERS", env)
+        self.assertNotIn("VIPPET_LATENCY_RECORD_FALLBACK", env)
 
     @patch.dict("os.environ", {}, clear=True)
-    def test_build_env_enabled_sets_tracer_vars_when_gst_debug_unset(self):
-        """With the flag True and no pre-existing GST_DEBUG, both vars are set."""
+    def test_build_env_enabled_sets_tracer_vars_without_gst_debug(self):
+        """With the flag True and no pre-existing GST_DEBUG, GST_DEBUG stays unset."""
         runner = PipelineRunner(mode="normal", enable_latency_metrics=True)
         env = runner._build_subprocess_env()
-        self.assertEqual(env["GST_DEBUG"], "GST_TRACER:7")
+        self.assertNotIn("GST_DEBUG", env)
         self._assert_tracer_env_applied(env)
 
     @patch.dict("os.environ", {"GST_DEBUG": "2,GST_ELEMENT_PADS:5"}, clear=True)
-    def test_build_env_enabled_appends_to_existing_gst_debug(self):
-        """Existing GST_DEBUG must be extended with `,GST_TRACER:7`, not overwritten."""
+    def test_build_env_enabled_preserves_existing_gst_debug(self):
+        """An existing GST_DEBUG is passed through unchanged by the latency flag."""
         runner = PipelineRunner(mode="normal", enable_latency_metrics=True)
         env = runner._build_subprocess_env()
-        self.assertEqual(env["GST_DEBUG"], "2,GST_ELEMENT_PADS:5,GST_TRACER:7")
+        self.assertEqual(env["GST_DEBUG"], "2,GST_ELEMENT_PADS:5")
         self._assert_tracer_env_applied(env)
 
     @patch.dict(
@@ -830,11 +899,11 @@ class TestPipelineRunnerLatencyMetrics(unittest.TestCase):
 
     @patch.dict("os.environ", {}, clear=True)
     def test_build_env_genai_and_latency_combine_debug_categories(self):
-        """With both flags on, GST_DEBUG carries both categories and GST_TRACERS is set."""
+        """With both flags on, GST_DEBUG carries gvagenai:4 and GST_TRACERS is set."""
         runner = PipelineRunner(mode="normal", enable_latency_metrics=True)
         runner._genai_metrics_enabled = True
         env = runner._build_subprocess_env()
-        self.assertEqual(env["GST_DEBUG"], "GST_TRACER:7,gvagenai:4")
+        self.assertEqual(env["GST_DEBUG"], "gvagenai:4")
         self._assert_tracer_env_applied(env)
 
     @patch.dict("os.environ", {"GST_DEBUG": "2,GST_ELEMENT_PADS:5"}, clear=True)
@@ -848,14 +917,11 @@ class TestPipelineRunnerLatencyMetrics(unittest.TestCase):
 
     @patch.dict("os.environ", {"GST_DEBUG": "2,GST_ELEMENT_PADS:5"}, clear=True)
     def test_build_env_genai_and_latency_append_to_existing_gst_debug(self):
-        """Both categories must be appended in order after any pre-existing GST_DEBUG value."""
+        """gvagenai:4 must be appended after any pre-existing GST_DEBUG value."""
         runner = PipelineRunner(mode="normal", enable_latency_metrics=True)
         runner._genai_metrics_enabled = True
         env = runner._build_subprocess_env()
-        self.assertEqual(
-            env["GST_DEBUG"],
-            "2,GST_ELEMENT_PADS:5,GST_TRACER:7,gvagenai:4",
-        )
+        self.assertEqual(env["GST_DEBUG"], "2,GST_ELEMENT_PADS:5,gvagenai:4")
         self._assert_tracer_env_applied(env)
 
     # --- Pure _build_subprocess_env unit tests: bundled plugin path -----------
@@ -984,7 +1050,7 @@ class TestPipelineRunnerLatencyMetrics(unittest.TestCase):
     def test_normal_mode_gvagenai_pipeline_with_latency_combines_categories(
         self, mock_select, mock_ps, mock_popen
     ):
-        """With both a gvagenai pipeline and the latency flag, both GST_DEBUG categories are set."""
+        """With a gvagenai pipeline and the latency flag, GST_DEBUG is gvagenai:4 and GST_TRACERS is set."""
         process_mock = _make_process_mock([])
         mock_select.return_value = ([], [], [])
         mock_popen.return_value = process_mock
@@ -999,7 +1065,7 @@ class TestPipelineRunnerLatencyMetrics(unittest.TestCase):
         )
 
         env = mock_popen.call_args.kwargs["env"]
-        self.assertEqual(env["GST_DEBUG"], "GST_TRACER:7,gvagenai:4")
+        self.assertEqual(env["GST_DEBUG"], "gvagenai:4")
         self._assert_tracer_env_applied(env)
 
     # --- Popen-level integration: validation mode -----------------------------
@@ -1105,29 +1171,25 @@ class TestPipelineRunnerLatencyMetrics(unittest.TestCase):
 
         self.assertEqual(result.latency_tracer_metrics, {})
 
-    # --- latency_tracer sample line from gst_runner is forwarded to INFO ---
+    # --- latency-window metric line from gst_runner is forwarded and parsed ---
 
     @patch("pipeline_runner.Popen")
     @patch("pipeline_runner.ps")
     @patch("pipeline_runner.select.select")
     @patch.dict("os.environ", {}, clear=True)
-    def test_latency_tracer_interval_line_forwarded_from_gst_runner_stdout(
+    def test_pipeline_metric_line_forwarded_from_gst_runner_stdout(
         self, mock_select, mock_ps, mock_popen
     ):
-        """`gst_runner - INFO - latency_tracer_pipeline_interval,...` stdout lines must be forwarded to INFO log.
+        """`gst_runner - INFO - Pipeline metric: {...}` stdout lines are logged and recorded.
 
-        In production the subprocess's ``gst_log_bridge`` promotes tracer
-        samples to INFO level, which Python logging prints to stdout as
-        ``gst_runner - INFO - latency_tracer_pipeline_interval, ...``.
-        The parent PipelineRunner then picks them up through
-        ``_is_loggable_gst_runner_line`` and logs them as INFO.
+        In production ``gst_runner`` forwards each ``dlstreamer/latency-window``
+        bus message as one INFO ``Pipeline metric:`` line. The parent
+        PipelineRunner logs it through ``_is_loggable_gst_runner_line`` and
+        records the window in ``PipelineResult.latency_tracer_metrics``.
         """
-        sample_line = (
-            "gst_runner - INFO - latency_tracer_pipeline_interval, "
-            "pipeline_name=(string)pipeline0, source_name=(string)filesrc0, "
-            "sink_name=(string)default_output_sink_0_0, interval=(double)1000.0, "
-            "avg=(double)5.0, min=(double)1.0, max=(double)9.0, "
-            "latency=(double)3.0, fps=(double)60.0"
+        sample_line = _make_metric_line(
+            "latency-window",
+            _latency_window_fields(source="filesrc0", sink="default_output_sink_0_0"),
         )
         process_mock = _make_process_mock([sample_line])
         mock_select.return_value = ([process_mock.stdout], [], [])
@@ -1137,46 +1199,34 @@ class TestPipelineRunnerLatencyMetrics(unittest.TestCase):
         runner = PipelineRunner(mode="normal", enable_latency_metrics=True)
 
         with self.assertLogs("PipelineRunner", level="INFO") as captured:
-            runner.run(pipeline_command=self.test_pipeline_command, total_streams=1)
+            result = runner.run(
+                pipeline_command=self.test_pipeline_command, total_streams=1
+            )
 
         joined = "\n".join(captured.output)
-        self.assertIn("latency_tracer_pipeline_interval", joined)
+        self.assertIn("Pipeline metric:", joined)
+        self.assertEqual(
+            set(result.latency_tracer_metrics or {}),
+            {"filesrc0__default_output_sink_0_0"},
+        )
 
 
 @patch("pipeline_runner.urllib.request.urlopen", new=MagicMock())
 @_patch_sync_metrics_executor
-class TestLatencyTracerIntervalParser(unittest.TestCase):
-    """Unit tests for the `latency_tracer_pipeline_interval` line parser.
+class TestLatencyWindowParser(unittest.TestCase):
+    """Unit tests for the ``latency-window`` pipeline-metric parser.
 
-    The parser lives on :class:`PipelineRunner` as
-    ``_parse_and_record_latency_sample`` and is driven by the
-    class-level compiled regex ``_LATENCY_TRACER_INTERVAL_PATTERN``.
-    These tests exercise the parser directly (no subprocess) so we can
-    assert the exact shape of the resulting
-    :class:`InternalLatencyMetrics` entries.
-
-    Sample lines follow the format documented in
-    ``/docs/user-guide/dev_guide/latency_tracer.md`` in the DLStreamer
-    repository.
+    ``gst_runner`` forwards every ``dlstreamer/latency-window`` bus
+    message posted by the DLStreamer ``latency_tracer``
+    (``post-metrics=true``) as a ``Pipeline metric: {json}`` line.
+    :meth:`PipelineRunner._parse_and_handle_pipeline_metric` decodes it
+    and :meth:`PipelineRunner._record_latency_window` derives the
+    :class:`LatencyTracerSample`. These tests exercise the parser
+    directly (no subprocess) so we can assert the exact shape of the
+    resulting map entries.
     """
 
-    # Sample line taken from the DLStreamer `latency_tracer` documentation.
-    SAMPLE_INTERVAL_LINE = (
-        "latency_tracer_pipeline_interval, "
-        "pipeline_name=(string)pipeline0, "
-        "source_name=(string)src_p0_s0_0_0, "
-        "sink_name=(string)sink_p0_s0_0_0, "
-        "interval=(double)1000.25, "
-        "avg=(double)364.31, "
-        "min=(double)0.004, "
-        "max=(double)529.26, "
-        "latency=(double)21.28, "
-        "fps=(double)46.99;"
-    )
-
-    # Same payload as seen on our subprocess stdout — prefixed with the
-    # Python log format emitted by `gst_runner`.
-    SAMPLE_INTERVAL_LINE_WITH_PREFIX = "gst_runner - INFO - " + SAMPLE_INTERVAL_LINE
+    STREAM_ID = "src_p0_s0_0_0__sink_p0_s0_0_0"
 
     def _make_runner(self, enable: bool) -> PipelineRunner:
         """Return a PipelineRunner configured for parser testing.
@@ -1188,99 +1238,161 @@ class TestLatencyTracerIntervalParser(unittest.TestCase):
         """
         return PipelineRunner(mode="normal", enable_latency_metrics=enable)
 
-    def test_parser_extracts_all_five_fields(self):
-        """All five timing fields are extracted as floats from a sample line."""
+    def test_window_derives_sample_fields(self):
+        """avg = sum/count and latency = window/count; interval/min/max pass through."""
         runner = self._make_runner(enable=True)
-        runner._parse_and_record_latency_sample(self.SAMPLE_INTERVAL_LINE)
+        runner._parse_and_handle_pipeline_metric(
+            _make_metric_line(
+                "latency-window",
+                _latency_window_fields(
+                    count=4, window_ms=1000.0, sum_ms=100.0, min_ms=10.0, max_ms=40.0
+                ),
+            )
+        )
 
-        self.assertIsNotNone(runner.latency_tracer_metrics)
         assert runner.latency_tracer_metrics is not None  # for the type-checker
         self.assertEqual(len(runner.latency_tracer_metrics), 1)
+        self.assertEqual(
+            runner.latency_tracer_metrics[self.STREAM_ID],
+            LatencyTracerSample(
+                interval_ms=1000.0,
+                avg_ms=25.0,
+                min_ms=10.0,
+                max_ms=40.0,
+                latency_ms=250.0,
+            ),
+        )
 
-        stream_id = "src_p0_s0_0_0__sink_p0_s0_0_0"
-        self.assertIn(stream_id, runner.latency_tracer_metrics)
-        metrics = runner.latency_tracer_metrics[stream_id]
+    def test_parser_accepts_any_log_prefix(self):
+        """The JSON after the marker is parsed regardless of the log prefix before it."""
+        for prefix in ("", "gst_runner - INFO - ", "12:00:00 gst_runner - INFO - "):
+            with self.subTest(prefix=prefix):
+                runner = self._make_runner(enable=True)
+                runner._parse_and_handle_pipeline_metric(
+                    _make_metric_line(
+                        "latency-window", _latency_window_fields(), prefix=prefix
+                    )
+                )
 
-        # Exact values, rounded to the tracer's emitted precision.
-        self.assertAlmostEqual(metrics.interval_ms, 1000.25)
-        self.assertAlmostEqual(metrics.avg_ms, 364.31)
-        self.assertAlmostEqual(metrics.min_ms, 0.004)
-        self.assertAlmostEqual(metrics.max_ms, 529.26)
-        self.assertAlmostEqual(metrics.latency_ms, 21.28)
+                assert runner.latency_tracer_metrics is not None
+                self.assertEqual(set(runner.latency_tracer_metrics), {self.STREAM_ID})
 
-    def test_parser_accepts_gst_runner_prefix(self):
-        """Any log prefix before the marker is ignored by the parser."""
+    def test_record_latency_window_accepts_integer_values(self):
+        """Integral JSON numbers (e.g. ``1000``) are accepted and stored as floats."""
         runner = self._make_runner(enable=True)
-        runner._parse_and_record_latency_sample(self.SAMPLE_INTERVAL_LINE_WITH_PREFIX)
+        runner._record_latency_window(
+            _latency_window_fields(count=2, window_ms=1000, sum_ms=50, min_ms=20)
+        )
 
         assert runner.latency_tracer_metrics is not None
-        self.assertEqual(len(runner.latency_tracer_metrics), 1)
+        sample = runner.latency_tracer_metrics[self.STREAM_ID]
+        self.assertIsInstance(sample.interval_ms, float)
+        self.assertEqual(sample.avg_ms, 25.0)
+        self.assertEqual(sample.latency_ms, 500.0)
 
-    def test_parser_ignores_non_interval_lines(self):
-        """Lines that don't contain the interval marker produce no update."""
+    def test_parser_ignores_malformed_lines(self):
+        """Broken JSON, non-dict payloads and missing/non-dict ``fields`` are dropped."""
         runner = self._make_runner(enable=True)
 
-        runner._parse_and_record_latency_sample(
-            "FpsCounter(average 5.0sec): total=120.0 fps, "
-            "number-streams=2, per-stream=60.0 fps"
-        )
-        runner._parse_and_record_latency_sample(
-            "latency_tracer_pipeline, frame_latency=(double)704.90, "
-            "avg=(double)238.75, min=(double)0.013, max=(double)704.90, "
-            "latency=(double)32.28, fps=(double)30.98, frame_num=(uint)27;"
-        )
-        runner._parse_and_record_latency_sample("some unrelated stderr line")
+        for line in (
+            "gst_runner - INFO - Pipeline metric: not-json",
+            "gst_runner - INFO - Pipeline metric:",
+            "gst_runner - INFO - Pipeline metric: [1, 2]",
+            'gst_runner - INFO - Pipeline metric: {"kind": "latency-window"',
+            'gst_runner - INFO - Pipeline metric: {"kind": "latency-window"}',
+            'gst_runner - INFO - Pipeline metric: {"kind": "latency-window", '
+            '"fields": "count=4"}',
+        ):
+            with self.subTest(line=line):
+                runner._parse_and_handle_pipeline_metric(line)
 
         assert runner.latency_tracer_metrics is not None
         self.assertEqual(runner.latency_tracer_metrics, {})
 
-    def test_parser_ignores_malformed_interval_lines(self):
-        """Lines with the marker but a broken field layout are dropped silently."""
+    def test_parser_ignores_malformed_window_fields(self):
+        """Missing or non-numeric window fields drop the sample silently."""
         runner = self._make_runner(enable=True)
 
-        # Truncated after `source_name`: `sink_name` and the rest missing.
-        runner._parse_and_record_latency_sample(
-            "latency_tracer_pipeline_interval, source_name=(string)src_p0_s0"
+        complete = _latency_window_fields()
+        for missing in complete:
+            fields = {k: v for k, v in complete.items() if k != missing}
+            with self.subTest(missing=missing):
+                runner._parse_and_handle_pipeline_metric(
+                    _make_metric_line("latency-window", fields)
+                )
+        for key, value in (("count", "four"), ("sum_ms", None), ("max_ms", [1])):
+            with self.subTest(key=key, value=value):
+                runner._parse_and_handle_pipeline_metric(
+                    _make_metric_line("latency-window", {**complete, key: value})
+                )
+
+        assert runner.latency_tracer_metrics is not None
+        self.assertEqual(runner.latency_tracer_metrics, {})
+
+    def test_parser_ignores_non_positive_count(self):
+        """Windows with ``count <= 0`` carry no frames and must not divide by zero."""
+        runner = self._make_runner(enable=True)
+
+        for count in (0, -1):
+            with self.subTest(count=count):
+                runner._parse_and_handle_pipeline_metric(
+                    _make_metric_line(
+                        "latency-window", _latency_window_fields(count=count)
+                    )
+                )
+
+        assert runner.latency_tracer_metrics is not None
+        self.assertEqual(runner.latency_tracer_metrics, {})
+
+    def test_parser_ignores_unknown_kind(self):
+        """Unknown or missing ``kind`` values are dropped, even with valid window fields."""
+        runner = self._make_runner(enable=True)
+
+        runner._parse_and_handle_pipeline_metric(
+            _make_metric_line("frame-latency", _latency_window_fields())
+        )
+        runner._parse_and_handle_pipeline_metric(
+            "gst_runner - INFO - Pipeline metric: "
+            + json.dumps({"fields": _latency_window_fields()})
         )
 
         assert runner.latency_tracer_metrics is not None
         self.assertEqual(runner.latency_tracer_metrics, {})
 
     def test_parser_keeps_only_last_sample_per_stream(self):
-        """Successive samples for the same stream_id overwrite the entry."""
+        """Successive windows for the same stream_id overwrite the entry."""
         runner = self._make_runner(enable=True)
 
-        runner._parse_and_record_latency_sample(self.SAMPLE_INTERVAL_LINE)
-
-        second_line = (
-            "latency_tracer_pipeline_interval, "
-            "source_name=(string)src_p0_s0_0_0, "
-            "sink_name=(string)sink_p0_s0_0_0, "
-            "interval=(double)2000.50, avg=(double)400.00, "
-            "min=(double)0.010, max=(double)600.00, "
-            "latency=(double)25.00, fps=(double)48.00"
+        runner._parse_and_handle_pipeline_metric(
+            _make_metric_line("latency-window", _latency_window_fields())
         )
-        runner._parse_and_record_latency_sample(second_line)
+        runner._parse_and_handle_pipeline_metric(
+            _make_metric_line(
+                "latency-window",
+                _latency_window_fields(count=5, window_ms=2000.0, sum_ms=500.0),
+            )
+        )
 
         assert runner.latency_tracer_metrics is not None
         self.assertEqual(len(runner.latency_tracer_metrics), 1)
-        metrics = runner.latency_tracer_metrics["src_p0_s0_0_0__sink_p0_s0_0_0"]
+        metrics = runner.latency_tracer_metrics[self.STREAM_ID]
         # Only the latest values are retained — no history.
-        self.assertAlmostEqual(metrics.interval_ms, 2000.50)
-        self.assertAlmostEqual(metrics.avg_ms, 400.00)
+        self.assertEqual(metrics.interval_ms, 2000.0)
+        self.assertEqual(metrics.avg_ms, 100.0)
+        self.assertEqual(metrics.latency_ms, 400.0)
 
     def test_parser_separates_streams_by_source_sink_pair(self):
         """Different source/sink pairs produce distinct map entries."""
         runner = self._make_runner(enable=True)
 
-        runner._parse_and_record_latency_sample(self.SAMPLE_INTERVAL_LINE)
-        runner._parse_and_record_latency_sample(
-            "latency_tracer_pipeline_interval, "
-            "source_name=(string)src_p0_s1_0_1, "
-            "sink_name=(string)sink_p0_s1_0_1, "
-            "interval=(double)1000.00, avg=(double)100.0, "
-            "min=(double)1.0, max=(double)200.0, "
-            "latency=(double)10.0, fps=(double)30.0"
+        runner._parse_and_handle_pipeline_metric(
+            _make_metric_line("latency-window", _latency_window_fields())
+        )
+        runner._parse_and_handle_pipeline_metric(
+            _make_metric_line(
+                "latency-window",
+                _latency_window_fields(source="src_p0_s1_0_1", sink="sink_p0_s1_0_1"),
+            )
         )
 
         assert runner.latency_tracer_metrics is not None
@@ -1298,14 +1410,79 @@ class TestLatencyTracerIntervalParser(unittest.TestCase):
 
         self.assertIsNone(runner.latency_tracer_metrics)
 
-        # Calling the parser must not crash and must not allocate the map.
-        runner._parse_and_record_latency_sample(self.SAMPLE_INTERVAL_LINE)
+        # Neither entry point may crash or allocate the map.
+        runner._parse_and_handle_pipeline_metric(
+            _make_metric_line("latency-window", _latency_window_fields())
+        )
+        runner._record_latency_window(_latency_window_fields())
 
         self.assertIsNone(runner.latency_tracer_metrics)
 
+    def test_window_makes_messages_the_latency_source(self):
+        """Filtered and malformed windows still prove the tracer posts messages."""
+        runner = self._make_runner(enable=True)
+        runner._allowed_stream_ids = {"some_other_src__some_other_sink"}
+        self.assertIsNone(runner._latency_source)
+
+        runner._record_latency_window(_latency_window_fields())
+        runner._record_latency_window(_latency_window_fields(count=0))
+        runner._parse_and_handle_pipeline_metric(
+            _make_metric_line(
+                "latency-window", {"version": 1, "source": "src_p0_s0_0_0"}
+            )
+        )
+
+        self.assertEqual(runner._latency_source, "messages")
+        self.assertEqual(runner.latency_tracer_metrics, {})
+
+        disabled = self._make_runner(enable=False)
+        disabled._record_latency_window(_latency_window_fields())
+        self.assertIsNone(disabled._latency_source)
+
+    def test_non_window_metrics_do_not_set_latency_source(self):
+        """Only ``latency-window`` lines decide the source; other kinds and broken lines do not."""
+        runner = self._make_runner(enable=True)
+
+        runner._parse_and_handle_pipeline_metric(
+            _make_metric_line("frame-latency", _latency_window_fields())
+        )
+        runner._parse_and_handle_pipeline_metric(
+            _make_metric_line(
+                "genai-request",
+                {
+                    "version": 1,
+                    "ttft_ms": 1.0,
+                    "tpot_ms": 1.0,
+                    "generate_duration_ms": 1.0,
+                },
+            )
+        )
+        runner._parse_and_handle_pipeline_metric("Pipeline metric: not-json")
+
+        self.assertIsNone(runner._latency_source)
+
+    def test_window_with_unknown_version_is_skipped_with_one_warning(self):
+        """Windows of another schema version are dropped; the warning is logged once."""
+        runner = self._make_runner(enable=True)
+
+        with self.assertLogs("PipelineRunner", level="WARNING") as captured:
+            runner._record_latency_window(_latency_window_fields(version=2))
+            runner._record_latency_window(_latency_window_fields(version=2))
+            fields = _latency_window_fields()
+            del fields["version"]
+            runner._record_latency_window(fields)
+
+        self.assertEqual(runner.latency_tracer_metrics, {})
+        self.assertIsNone(runner._latency_source)
+        messages = [r.getMessage() for r in captured.records]
+        self.assertEqual(len(messages), 2, messages)
+        self.assertIn("latency-window", messages[0])
+        self.assertIn("version 2", messages[0])
+        self.assertIn("version None", messages[1])
+
     def test_parser_drops_samples_outside_allowed_stream_ids(self):
         """
-        Samples whose stream_id is not in ``_allowed_stream_ids`` are
+        Windows whose stream_id is not in ``_allowed_stream_ids`` are
         silently discarded. This models the production filter applied
         by ``PipelineRunner.run(allowed_stream_ids=...)`` that keeps
         only user-facing source/sink pairs (dropping internal bin
@@ -1313,35 +1490,21 @@ class TestLatencyTracerIntervalParser(unittest.TestCase):
         """
         runner = self._make_runner(enable=True)
         # Only accept the "real" main source/sink pair for stream 0.
-        runner._allowed_stream_ids = {"src_p0_s0_0_0__sink_p0_s0_0_0"}
+        runner._allowed_stream_ids = {self.STREAM_ID}
 
         # Allowed: appears verbatim in the allowlist.
-        runner._parse_and_record_latency_sample(self.SAMPLE_INTERVAL_LINE)
-
-        # Disallowed: an internal bin sink named just "sink".
-        runner._parse_and_record_latency_sample(
-            "latency_tracer_pipeline_interval, "
-            "source_name=(string)src_p0_s0_0_0, "
-            "sink_name=(string)sink, "
-            "interval=(double)1000.0, avg=(double)1.0, "
-            "min=(double)1.0, max=(double)1.0, "
-            "latency=(double)1.0, fps=(double)30.0"
+        runner._parse_and_handle_pipeline_metric(
+            _make_metric_line("latency-window", _latency_window_fields())
         )
-        # Disallowed: the recorder's splitmuxsink.
-        runner._parse_and_record_latency_sample(
-            "latency_tracer_pipeline_interval, "
-            "source_name=(string)src_p0_s0_0_0, "
-            "sink_name=(string)splitmuxsink0, "
-            "interval=(double)1000.0, avg=(double)1.0, "
-            "min=(double)1.0, max=(double)1.0, "
-            "latency=(double)1.0, fps=(double)30.0"
-        )
+        # Disallowed: an internal bin sink named just "sink", and the
+        # recorder's splitmuxsink.
+        for sink in ("sink", "splitmuxsink0"):
+            runner._parse_and_handle_pipeline_metric(
+                _make_metric_line("latency-window", _latency_window_fields(sink=sink))
+            )
 
         assert runner.latency_tracer_metrics is not None
-        self.assertEqual(
-            set(runner.latency_tracer_metrics.keys()),
-            {"src_p0_s0_0_0__sink_p0_s0_0_0"},
-        )
+        self.assertEqual(set(runner.latency_tracer_metrics.keys()), {self.STREAM_ID})
 
 
 @_patch_sync_metrics_executor
@@ -1349,28 +1512,15 @@ class TestLatencyMetricsPush(unittest.TestCase):
     """Tests for the live + final latency push to metrics-manager.
 
     Covers the following runner behavior:
-    ``_push_latency_sample`` fires on every parsed interval line, and
-    ``_push_final_latency_metrics`` re-pushes the last sample per
-    stream once the subprocess exits. The shared metrics-push
-    ``ThreadPoolExecutor`` is replaced with a synchronous stub so
-    every push runs inline in the calling thread, which keeps
+    ``_push_latency_sample`` fires on every recorded ``latency-window``
+    metric line, and ``_push_final_latency_metrics`` re-pushes the last
+    sample per stream once the subprocess exits. The shared
+    metrics-push ``ThreadPoolExecutor`` is replaced with a synchronous
+    stub so every push runs inline in the calling thread, which keeps
     urlopen assertions deterministic.
     """
 
-    # Sample from the DLStreamer tracer documentation — identical to
-    # the fixture used in `TestLatencyTracerIntervalParser`, repeated
-    # here so the push tests are self-contained.
-    SAMPLE_INTERVAL_LINE = (
-        "latency_tracer_pipeline_interval, "
-        "source_name=(string)src_p0_s0_0_0, "
-        "sink_name=(string)sink_p0_s0_0_0, "
-        "interval=(double)1000.25, "
-        "avg=(double)364.31, "
-        "min=(double)0.004, "
-        "max=(double)529.26, "
-        "latency=(double)21.28, "
-        "fps=(double)46.99;"
-    )
+    SAMPLE_WINDOW_LINE = _make_metric_line("latency-window", _latency_window_fields())
 
     def _sample(self, seed: float = 1.0) -> LatencyTracerSample:
         """Build a deterministic sample where every field derives from a single seed."""
@@ -1477,16 +1627,16 @@ class TestLatencyMetricsPush(unittest.TestCase):
         )
 
     # ------------------------------------------------------------------
-    # Live push: every parsed sample is forwarded
+    # Live push: every recorded window is forwarded
     # ------------------------------------------------------------------
 
     @patch("pipeline_runner.urllib.request.urlopen")
     def test_parser_triggers_live_push_for_each_sample(self, mock_urlopen):
-        """Each parsed interval line produces exactly one batch POST."""
+        """Each recorded latency-window line produces exactly one batch POST."""
         runner = PipelineRunner(mode="normal", enable_latency_metrics=True)
 
-        runner._parse_and_record_latency_sample(self.SAMPLE_INTERVAL_LINE)
-        runner._parse_and_record_latency_sample(self.SAMPLE_INTERVAL_LINE)
+        runner._parse_and_handle_pipeline_metric(self.SAMPLE_WINDOW_LINE)
+        runner._parse_and_handle_pipeline_metric(self.SAMPLE_WINDOW_LINE)
 
         self.assertEqual(mock_urlopen.call_count, 2)
         for call in mock_urlopen.call_args_list:
@@ -1494,13 +1644,17 @@ class TestLatencyMetricsPush(unittest.TestCase):
             self.assertTrue(req.full_url.endswith("/api/v1/metrics"))
             body = json.loads(req.data.decode())
             self.assertEqual(body["metrics"][0]["name"], "pipeline_latency")
+            self.assertEqual(
+                body["metrics"][0]["fields"],
+                {"avg_ms": 25.0, "min_ms": 10.0, "max_ms": 40.0, "latency_ms": 250.0},
+            )
 
     @patch("pipeline_runner.urllib.request.urlopen")
     def test_parser_live_push_uses_parsed_stream_id_as_tag(self, mock_urlopen):
         """The `stream_id` tag matches the composite `source__sink` key in the map."""
         runner = PipelineRunner(mode="normal", enable_latency_metrics=True)
 
-        runner._parse_and_record_latency_sample(self.SAMPLE_INTERVAL_LINE)
+        runner._parse_and_handle_pipeline_metric(self.SAMPLE_WINDOW_LINE)
 
         body = json.loads(mock_urlopen.call_args[0][0].data.decode())
         self.assertEqual(
@@ -1513,7 +1667,7 @@ class TestLatencyMetricsPush(unittest.TestCase):
         """When `enable_latency_metrics=False`, no HTTP request is ever made."""
         runner = PipelineRunner(mode="normal", enable_latency_metrics=False)
 
-        runner._parse_and_record_latency_sample(self.SAMPLE_INTERVAL_LINE)
+        runner._parse_and_handle_pipeline_metric(self.SAMPLE_WINDOW_LINE)
 
         mock_urlopen.assert_not_called()
 
@@ -1524,7 +1678,22 @@ class TestLatencyMetricsPush(unittest.TestCase):
         # Allow only a different stream_id than the one in the sample line.
         runner._allowed_stream_ids = {"some_other_stream"}
 
-        runner._parse_and_record_latency_sample(self.SAMPLE_INTERVAL_LINE)
+        runner._parse_and_handle_pipeline_metric(self.SAMPLE_WINDOW_LINE)
+
+        mock_urlopen.assert_not_called()
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_parser_does_not_push_for_malformed_or_unknown_lines(self, mock_urlopen):
+        """Dropped metric lines (bad JSON, count <= 0, unknown kind) never push."""
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=True)
+
+        runner._parse_and_handle_pipeline_metric("Pipeline metric: not-json")
+        runner._parse_and_handle_pipeline_metric(
+            _make_metric_line("latency-window", _latency_window_fields(count=0))
+        )
+        runner._parse_and_handle_pipeline_metric(
+            _make_metric_line("frame-latency", _latency_window_fields())
+        )
 
         mock_urlopen.assert_not_called()
 
@@ -1584,9 +1753,9 @@ class TestLatencyMetricsPush(unittest.TestCase):
         self, mock_urlopen, mock_select, mock_ps, mock_popen
     ):
         """A full `_run_normal` emits both a live push and a final push per stream."""
-        # One interval line on stdout: the live push fires once, then the
+        # One window line on stdout: the live push fires once, then the
         # `finally` block re-pushes the same stream → 2 batch POSTs total.
-        process_mock = _make_process_mock([self.SAMPLE_INTERVAL_LINE])
+        process_mock = _make_process_mock([self.SAMPLE_WINDOW_LINE])
         mock_select.return_value = ([process_mock.stdout], [], [])
         mock_popen.return_value = process_mock
         mock_ps.Process.return_value.status.return_value = "zombie"
@@ -1618,7 +1787,7 @@ class TestLatencyMetricsPush(unittest.TestCase):
         self, mock_urlopen, mock_select, mock_ps, mock_popen
     ):
         """With `enable_latency_metrics=False`, no batch-endpoint call is ever made."""
-        process_mock = _make_process_mock([self.SAMPLE_INTERVAL_LINE])
+        process_mock = _make_process_mock([self.SAMPLE_WINDOW_LINE])
         mock_select.return_value = ([process_mock.stdout], [], [])
         mock_popen.return_value = process_mock
         mock_ps.Process.return_value.status.return_value = "zombie"
@@ -1631,44 +1800,415 @@ class TestLatencyMetricsPush(unittest.TestCase):
         batch_bodies = _extract_latency_payloads(mock_urlopen)
         self.assertEqual(batch_bodies, [])
 
+    # ------------------------------------------------------------------
+    # `_run_normal` warns when the tracer was enabled but stayed silent
+    #
+    # The warning is logged only on the successful-return path, when no
+    # `latency-window` line reached `_record_latency_window` during the
+    # run (counted before stream filtering) and the run was not
+    # cancelled.
+    # ------------------------------------------------------------------
+
+    NO_WINDOW_WARNING = "no latency_tracer window arrived"
+
+    def _run_normal_with_lines(
+        self,
+        stdout_lines: list[str],
+        enable_latency_metrics: bool = True,
+        *,
+        runner: PipelineRunner | None = None,
+        allowed_stream_ids: set[str] | None = None,
+        exit_code: int = 0,
+        cancel_after_first_line: bool = False,
+    ) -> tuple[PipelineRunner, PipelineResult]:
+        """Run `_run_normal` against a mocked subprocess emitting `stdout_lines`.
+
+        With ``cancel_after_first_line`` the runner is cancelled from
+        inside the first ``readline()``, so the next loop iteration
+        takes the cancellation path (``_graceful_terminate`` is mocked).
+        """
+        process_mock = _make_process_mock(stdout_lines, exit_code=exit_code)
+        if runner is None:
+            runner = PipelineRunner(
+                mode="normal", enable_latency_metrics=enable_latency_metrics
+            )
+        if cancel_after_first_line:
+            lines = process_mock.stdout.readline.side_effect
+
+            def _readline_then_cancel():
+                line = next(lines)
+                runner.cancel()
+                return line
+
+            process_mock.stdout.readline.side_effect = _readline_then_cancel
+        with (
+            patch("pipeline_runner.Popen", return_value=process_mock),
+            patch("pipeline_runner.ps") as mock_ps,
+            patch(
+                "pipeline_runner.select.select",
+                return_value=([process_mock.stdout], [], []),
+            ),
+            patch("pipeline_runner.urllib.request.urlopen"),
+            patch.object(runner, "_graceful_terminate"),
+        ):
+            mock_ps.Process.return_value.status.return_value = "zombie"
+            result = runner.run(
+                pipeline_command="videotestsrc ! fakesink",
+                total_streams=1,
+                allowed_stream_ids=allowed_stream_ids,
+            )
+        return runner, result
+
+    def _assert_no_window_warning(self, output: list[str]) -> None:
+        self.assertFalse(
+            any(self.NO_WINDOW_WARNING in line for line in output),
+            f"Unexpected no-window warning in: {output}",
+        )
+
+    def test_run_normal_warns_when_no_latency_window_arrived(self):
+        """Enabled tracer + zero windows logs one WARNING."""
+        with self.assertLogs("PipelineRunner", level="WARNING") as captured:
+            runner, result = self._run_normal_with_lines(["some unrelated line"])
+
+        self.assertEqual(runner.latency_tracer_metrics, {})
+        self.assertEqual(result.latency_tracer_metrics, {})
+        warnings = [
+            r for r in captured.records if self.NO_WINDOW_WARNING in r.getMessage()
+        ]
+        self.assertEqual(len(warnings), 1)
+        self.assertEqual(warnings[0].levelname, "WARNING")
+
+    def test_run_normal_does_not_warn_when_latency_window_arrived(self):
+        """At least one recorded window suppresses the warning."""
+        with self.assertNoLogs("PipelineRunner", level="WARNING"):
+            self._run_normal_with_lines([self.SAMPLE_WINDOW_LINE])
+
+    def test_run_normal_does_not_warn_when_latency_disabled(self):
+        """With the tracer disabled (map `None`) there is nothing to warn about."""
+        with self.assertNoLogs("PipelineRunner", level="WARNING"):
+            self._run_normal_with_lines(
+                ["some unrelated line"], enable_latency_metrics=False
+            )
+
+    def test_run_normal_does_not_warn_when_all_windows_are_filtered(self):
+        """Windows dropped by `allowed_stream_ids` still prove the tracer posts messages."""
+        with self.assertNoLogs("PipelineRunner", level="WARNING"):
+            _, result = self._run_normal_with_lines(
+                [self.SAMPLE_WINDOW_LINE],
+                allowed_stream_ids={"some_other_src__some_other_sink"},
+            )
+
+        # Nothing was recorded, yet the tracer was demonstrably active.
+        self.assertEqual(result.latency_tracer_metrics, {})
+
+    def test_run_normal_does_not_warn_when_cancelled(self):
+        """A cancelled run may end before the first window; that is not worth a warning."""
+        # Cancellation makes gst_runner exit non-zero (SIGINT), which logs at
+        # ERROR, so filter on the warning text rather than on the level.
+        with self.assertLogs("PipelineRunner", level="INFO") as captured:
+            _, result = self._run_normal_with_lines(
+                ["some unrelated line"], exit_code=-2, cancel_after_first_line=True
+            )
+
+        self.assertTrue(result.cancelled)
+        self.assertEqual(result.latency_tracer_metrics, {})
+        self._assert_no_window_warning(captured.output)
+
+    def test_run_normal_does_not_warn_when_run_fails(self):
+        """A failed run raises; the warning is only logged on the successful-return path."""
+        with self.assertLogs("PipelineRunner", level="INFO") as captured:
+            with self.assertRaises(RuntimeError):
+                self._run_normal_with_lines(["some unrelated line"], exit_code=1)
+
+        self._assert_no_window_warning(captured.output)
+
+    def test_run_normal_resets_latency_source_per_run(self):
+        """A window seen in an earlier run on the same runner must not hide the warning."""
+        runner, _ = self._run_normal_with_lines([self.SAMPLE_WINDOW_LINE])
+        self.assertEqual(runner._latency_source, "messages")
+
+        with self.assertLogs("PipelineRunner", level="WARNING") as captured:
+            self._run_normal_with_lines(["some unrelated line"], runner=runner)
+
+        self.assertIsNone(runner._latency_source)
+        self.assertTrue(any(self.NO_WINDOW_WARNING in line for line in captured.output))
+
+    # ------------------------------------------------------------------
+    # End-to-end latency fallback and output drained after exit
+    # ------------------------------------------------------------------
+
+    FALLBACK_WARNING = "falling back to parsing its log records"
+
+    def test_run_normal_records_single_held_record_at_end_of_run(self):
+        """Without any window message, a run's only record is recorded with one warning."""
+        with self.assertLogs("PipelineRunner", level="WARNING") as captured:
+            _, result = self._run_normal_with_lines([_make_record_line(avg=12.5)])
+
+        assert result.latency_tracer_metrics is not None
+        self.assertEqual(
+            result.latency_tracer_metrics["src_p0_s0_0_0__sink_p0_s0_0_0"].avg_ms, 12.5
+        )
+        warnings = [r.getMessage() for r in captured.records]
+        self.assertEqual(
+            [m for m in warnings if self.FALLBACK_WARNING in m], [warnings[0]]
+        )
+        self._assert_no_window_warning(warnings)
+
+    def test_run_normal_prefers_window_messages_over_records(self):
+        """A record logged before the first posted window is dropped, without a warning."""
+        with self.assertNoLogs("PipelineRunner", level="WARNING"):
+            _, result = self._run_normal_with_lines(
+                [_make_record_line(avg=99.0), self.SAMPLE_WINDOW_LINE]
+            )
+
+        assert result.latency_tracer_metrics is not None
+        self.assertEqual(
+            result.latency_tracer_metrics["src_p0_s0_0_0__sink_p0_s0_0_0"].avg_ms, 25.0
+        )
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_run_normal_parses_metrics_drained_after_exit(self, mock_urlopen):
+        """Metric lines read by ``communicate()`` after the loop still count."""
+        process_mock = _make_process_mock([])
+        process_mock.communicate.return_value = (
+            f"{self.SAMPLE_WINDOW_LINE}\nPipeline run succeeded.\n".encode(),
+            b"",
+        )
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=True)
+        with (
+            patch("pipeline_runner.Popen", return_value=process_mock),
+            patch("pipeline_runner.ps") as mock_ps,
+            patch("pipeline_runner.select.select", return_value=([], [], [])),
+            self.assertNoLogs("PipelineRunner", level="WARNING"),
+        ):
+            mock_ps.Process.return_value.status.return_value = "zombie"
+            result = runner.run(
+                pipeline_command="videotestsrc ! fakesink", total_streams=1
+            )
+
+        assert result.latency_tracer_metrics is not None
+        self.assertEqual(
+            set(result.latency_tracer_metrics), {"src_p0_s0_0_0__sink_p0_s0_0_0"}
+        )
+
+
+class TestLatencyRecordFallback(unittest.TestCase):
+    """``latency_tracer_pipeline_interval`` records as the latency fallback.
+
+    A ``latency_tracer`` that predates ``post-metrics`` ignores the
+    parameter and only logs its windows as text records, which
+    ``gst_runner`` promotes until the tracer posts a window as a bus
+    message. The runner holds a record per stream back until it knows
+    which source the run has: a ``latency-window`` message (records are
+    dropped) or a second record of the same stream (records are used).
+    """
+
+    STREAM_ID = "src_p0_s0_0_0__sink_p0_s0_0_0"
+    FALLBACK_WARNING = "falling back to parsing its log records"
+
+    def _runner(self) -> PipelineRunner:
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=True)
+        self.push = MagicMock()
+        runner._push_latency_sample = self.push  # type: ignore[method-assign]
+        return runner
+
+    def test_second_record_of_a_stream_selects_records(self):
+        """Both records are recorded and pushed, in order; one warning is logged."""
+        runner = self._runner()
+
+        with self.assertLogs("PipelineRunner", level="WARNING") as captured:
+            runner._handle_dl_streamer_metric_line(
+                _make_record_line(avg=1.5), emit_events=True
+            )
+            self.assertIsNone(runner._latency_source)
+            runner._handle_dl_streamer_metric_line(
+                _make_record_line(avg=2.5), emit_events=True
+            )
+            runner._handle_dl_streamer_metric_line(
+                _make_record_line(avg=3.5), emit_events=True
+            )
+
+        self.assertEqual(runner._latency_source, "records")
+        self.assertEqual(len(captured.records), 1)
+        self.assertIn(self.FALLBACK_WARNING, captured.records[0].getMessage())
+        pushed = [c.args[1].avg_ms for c in self.push.call_args_list]
+        self.assertEqual(pushed, [1.5, 2.5, 3.5])
+        assert runner.latency_tracer_metrics is not None
+        self.assertEqual(
+            runner.latency_tracer_metrics[self.STREAM_ID],
+            LatencyTracerSample(
+                interval_ms=1000.25,
+                avg_ms=3.5,
+                min_ms=0.004,
+                max_ms=529.26,
+                latency_ms=21.28,
+            ),
+        )
+
+    def test_records_of_different_streams_are_held(self):
+        """One record per stream does not decide the source yet."""
+        runner = self._runner()
+
+        runner._parse_latency_record(_make_record_line())
+        runner._parse_latency_record(
+            _make_record_line(source="src_p0_s1_0_1", sink="sink_p0_s1_0_1")
+        )
+
+        self.assertIsNone(runner._latency_source)
+        self.assertEqual(runner.latency_tracer_metrics, {})
+        self.push.assert_not_called()
+
+    def test_window_message_drops_held_records_and_later_records(self):
+        """Once a window arrives, records are never recorded, and no warning is logged."""
+        runner = self._runner()
+
+        with self.assertNoLogs("PipelineRunner", level="WARNING"):
+            runner._parse_latency_record(_make_record_line(avg=99.0))
+            runner._parse_latency_record(
+                _make_record_line(source="src_p0_s1_0_1", sink="sink_p0_s1_0_1")
+            )
+            runner._handle_dl_streamer_metric_line(
+                _make_metric_line("latency-window", _latency_window_fields()),
+                emit_events=True,
+            )
+            runner._parse_latency_record(_make_record_line(avg=98.0))
+            runner._parse_latency_record(_make_record_line(avg=97.0))
+            runner._finish_latency_records()
+
+        self.assertEqual(runner._latency_source, "messages")
+        assert runner.latency_tracer_metrics is not None
+        self.assertEqual(set(runner.latency_tracer_metrics), {self.STREAM_ID})
+        self.assertEqual(runner.latency_tracer_metrics[self.STREAM_ID].avg_ms, 25.0)
+        self.assertEqual(self.push.call_count, 1)
+
+    def test_window_message_after_records_switches_to_messages(self):
+        """Messages win even after records were selected."""
+        runner = self._runner()
+        runner._parse_latency_record(_make_record_line(avg=1.0))
+        with self.assertLogs("PipelineRunner", level="WARNING"):
+            runner._parse_latency_record(_make_record_line(avg=2.0))
+
+        runner._record_latency_window(_latency_window_fields())
+        runner._parse_latency_record(_make_record_line(avg=3.0))
+
+        self.assertEqual(runner._latency_source, "messages")
+        assert runner.latency_tracer_metrics is not None
+        self.assertEqual(runner.latency_tracer_metrics[self.STREAM_ID].avg_ms, 25.0)
+
+    def test_finish_records_held_records_with_one_warning(self):
+        """Held records are recorded when the run ends without a window message."""
+        runner = self._runner()
+        runner._parse_latency_record(_make_record_line())
+        runner._parse_latency_record(
+            _make_record_line(source="src_p0_s1_0_1", sink="sink_p0_s1_0_1")
+        )
+
+        with self.assertLogs("PipelineRunner", level="WARNING") as captured:
+            runner._finish_latency_records()
+            runner._finish_latency_records()
+
+        self.assertEqual(len(captured.records), 1)
+        self.assertEqual(runner._latency_source, "records")
+        assert runner.latency_tracer_metrics is not None
+        self.assertEqual(
+            set(runner.latency_tracer_metrics),
+            {self.STREAM_ID, "src_p0_s1_0_1__sink_p0_s1_0_1"},
+        )
+
+    def test_finish_without_records_keeps_source_undecided(self):
+        runner = self._runner()
+
+        with self.assertNoLogs("PipelineRunner", level="WARNING"):
+            runner._finish_latency_records()
+
+        self.assertIsNone(runner._latency_source)
+
+    def test_records_respect_allowed_stream_ids(self):
+        """Records of internal sinks are used to decide the source but not stored."""
+        runner = self._runner()
+        runner._allowed_stream_ids = {self.STREAM_ID}
+
+        with self.assertLogs("PipelineRunner", level="WARNING"):
+            runner._parse_latency_record(_make_record_line(sink="sink"))
+            runner._parse_latency_record(_make_record_line(sink="sink"))
+        runner._parse_latency_record(_make_record_line())
+
+        assert runner.latency_tracer_metrics is not None
+        self.assertEqual(set(runner.latency_tracer_metrics), {self.STREAM_ID})
+
+    def test_malformed_records_are_ignored(self):
+        runner = self._runner()
+
+        for line in (
+            "gst_runner - INFO - latency_tracer_pipeline_interval, garbage",
+            _make_record_line().replace("avg=(double)364.31", "avg=(double)nan"),
+        ):
+            runner._parse_latency_record(line)
+            runner._parse_latency_record(line)
+
+        self.assertIsNone(runner._latency_source)
+        self.assertEqual(runner.latency_tracer_metrics, {})
+
+    def test_records_are_ignored_when_latency_disabled(self):
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=False)
+
+        runner._handle_dl_streamer_metric_line(_make_record_line(), emit_events=True)
+        runner._handle_dl_streamer_metric_line(_make_record_line(), emit_events=True)
+        runner._finish_latency_records()
+
+        self.assertIsNone(runner.latency_tracer_metrics)
+        self.assertIsNone(runner._latency_source)
+
+    def test_reset_clears_per_run_state(self):
+        runner = self._runner()
+        runner._parse_latency_record(_make_record_line())
+        runner._finish_latency_records()
+        runner._genai_fallback_warned = True
+        runner._unknown_metric_versions.add(("genai-request", 2))
+
+        runner._reset_dl_streamer_metrics_state()
+
+        self.assertIsNone(runner._latency_source)
+        self.assertEqual(runner._held_latency_records, {})
+        self.assertFalse(runner._genai_fallback_warned)
+        self.assertEqual(runner._unknown_metric_versions, set())
+
 
 @_patch_sync_metrics_executor
 class TestVlmMetricsPush(unittest.TestCase):
     """Tests for the ``gvagenai`` VLM-metrics parse + push path.
 
-    The parser reads the ``Added meta message: {...}`` JSON line
-    ``gvagenai`` logs (with `metrics=true`), extracts the
-    ``VLMPerfMetrics`` mean fields, and forwards them to
-    metrics-manager. Since these metrics originate from a specific
-    ``gvagenai_*`` element instance, the runner tags every push with
-    ``stream_id`` so multi-stream jobs can be partitioned on the
-    dashboard.
+    ``gvagenai`` (with ``post-metrics=true``, set by ``gst_runner``) posts
+    one ``dlstreamer/genai-request`` bus message per generation request.
+    ``gst_runner`` forwards it as a ``Pipeline metric: {json}`` line
+    whose ``fields`` carry that request's ``ttft_ms``, ``tpot_ms`` and
+    ``generate_duration_ms``; the runner pushes them unchanged to
+    metrics-manager as ``vlm_metrics``. The emitting ``gvagenai_*``
+    element name (``element`` in the payload) is used as the
+    ``stream_id`` tag so multi-stream jobs can be partitioned on the
+    dashboard; when it is ``null`` the push omits the tag rather than
+    failing.
 
-    ``gst_runner.gst_log_bridge`` prepends the emitting element's
-    name in ``<name>`` form; when that prefix is absent (older
-    subprocess builds or logs from unnamed objects) the push omits
-    the ``stream_id`` tag rather than failing.
+    A ``gvagenai`` that predates ``post-metrics`` keeps the cumulative
+    ``metrics`` block in its ``Added meta message:`` JSON line, which is
+    then pushed as the fallback (``gst_runner`` drops the block for
+    elements that do post messages).
     """
 
-    # Realistic gvagenai stdout line as it reaches `pipeline_runner`
-    # after `gst_log_bridge` promotion. The `<gvagenai_0_0>` prefix is
-    # the element-name marker the runner keys on for `stream_id`.
-    # The JSON uses the OpenVINO GenAI `VLMPerfMetrics` field names
-    # (`ttft_mean`, `tpot_mean`, `generate_duration_mean`) that the
-    # runner then maps onto its metrics-manager field names
-    # (`ttft_ms`, `tpot_ms`, `generate_duration_ms`) via
-    # `_GENAI_METRIC_FIELDS`.
-    SAMPLE_META_LINE = (
-        "gst_runner - INFO - <gvagenai_0_0> Added meta message: "
-        '{"metrics": {"ttft_mean": 12.5, "tpot_mean": 3.25, '
-        '"generate_duration_mean": 250.0}}'
-    )
+    # Pushed `vlm_metrics` fields, and the message fields they come from.
+    REQUEST_FIELDS = {"ttft_ms": 12.5, "tpot_ms": 3.25, "generate_duration_ms": 250.0}
+    MESSAGE_FIELDS = {"version": 1, **REQUEST_FIELDS}
 
-    SAMPLE_META_LINE_NO_ELEMENT = (
-        "gst_runner - INFO - Added meta message: "
-        '{"metrics": {"ttft_mean": 12.5, "tpot_mean": 3.25, '
-        '"generate_duration_mean": 250.0}}'
+    SAMPLE_REQUEST_LINE = _make_metric_line(
+        "genai-request", MESSAGE_FIELDS, element="gvagenai_0_0"
     )
+    SAMPLE_REQUEST_LINE_NO_ELEMENT = _make_metric_line("genai-request", MESSAGE_FIELDS)
+    META_LINE_WITH_METRICS = (
+        "gst_runner - INFO - <gvagenai_0_0> Added meta message: "
+        '{"result": "Yes", "metrics": {"ttft_mean": 12.5, "tpot_mean": 3.25, '
+        '"generate_duration_mean": 250.0, "load_time": 1.0}}'
+    )
+    FALLBACK_WARNING = "does not support post-metrics"
 
     def _get_vlm_payload(self, mock_urlopen: MagicMock) -> dict:
         """Return the single ``vlm_metrics`` batch payload sent to metrics-manager."""
@@ -1682,11 +2222,11 @@ class TestVlmMetricsPush(unittest.TestCase):
         self.fail("No vlm_metrics batch push was made")
 
     @patch("pipeline_runner.urllib.request.urlopen")
-    def test_parser_pushes_element_name_as_stream_id(self, mock_urlopen):
-        """The ``<element>`` prefix must be forwarded as the ``stream_id`` tag."""
+    def test_genai_request_pushes_element_name_as_stream_id(self, mock_urlopen):
+        """The payload ``element`` must be forwarded as the ``stream_id`` tag."""
         runner = PipelineRunner(mode="normal", job_id="job-42")
 
-        runner._parse_and_push_genai_sample(self.SAMPLE_META_LINE)
+        runner._parse_and_handle_pipeline_metric(self.SAMPLE_REQUEST_LINE)
 
         body = self._get_vlm_payload(mock_urlopen)
         tags = body["metrics"][0]["tags"]
@@ -1694,24 +2234,27 @@ class TestVlmMetricsPush(unittest.TestCase):
         self.assertEqual(tags["job_id"], "job-42")
 
     @patch("pipeline_runner.urllib.request.urlopen")
-    def test_parser_forwards_metric_fields(self, mock_urlopen):
-        """All three VLMPerfMetrics means must be mapped to metrics-manager field names."""
+    def test_genai_request_forwards_metric_fields(self, mock_urlopen):
+        """Exactly the three per-request fields are pushed; extra fields are ignored."""
         runner = PipelineRunner(mode="normal")
 
-        runner._parse_and_push_genai_sample(self.SAMPLE_META_LINE)
-
-        body = self._get_vlm_payload(mock_urlopen)
-        self.assertEqual(
-            body["metrics"][0]["fields"],
-            {"ttft_ms": 12.5, "tpot_ms": 3.25, "generate_duration_ms": 250.0},
+        runner._parse_and_handle_pipeline_metric(
+            _make_metric_line(
+                "genai-request",
+                {**self.MESSAGE_FIELDS, "num_generated_tokens": 42},
+                element="gvagenai_0_0",
+            )
         )
 
+        body = self._get_vlm_payload(mock_urlopen)
+        self.assertEqual(body["metrics"][0]["fields"], self.REQUEST_FIELDS)
+
     @patch("pipeline_runner.urllib.request.urlopen")
-    def test_parser_omits_stream_id_when_element_prefix_missing(self, mock_urlopen):
-        """Without the ``<element>`` prefix the push must still succeed, minus ``stream_id``."""
+    def test_genai_request_omits_stream_id_when_element_missing(self, mock_urlopen):
+        """Without an ``element`` the push must still succeed, minus ``stream_id``."""
         runner = PipelineRunner(mode="normal", job_id="job-42")
 
-        runner._parse_and_push_genai_sample(self.SAMPLE_META_LINE_NO_ELEMENT)
+        runner._parse_and_handle_pipeline_metric(self.SAMPLE_REQUEST_LINE_NO_ELEMENT)
 
         body = self._get_vlm_payload(mock_urlopen)
         tags = body["metrics"][0]["tags"]
@@ -1719,33 +2262,50 @@ class TestVlmMetricsPush(unittest.TestCase):
         self.assertEqual(tags["job_id"], "job-42")
 
     @patch("pipeline_runner.urllib.request.urlopen")
+    def test_genai_request_ignores_non_string_element(self, mock_urlopen):
+        """A non-string ``element`` is treated as missing, not stringified."""
+        runner = PipelineRunner(mode="normal", job_id="job-42")
+
+        runner._parse_and_handle_pipeline_metric(
+            "gst_runner - INFO - Pipeline metric: "
+            + json.dumps(
+                {"kind": "genai-request", "element": 7, "fields": self.MESSAGE_FIELDS}
+            )
+        )
+
+        body = self._get_vlm_payload(mock_urlopen)
+        self.assertEqual(body["metrics"][0]["tags"], {"job_id": "job-42"})
+
+    @patch("pipeline_runner.urllib.request.urlopen")
     def test_push_without_job_id_still_tags_stream_id(self, mock_urlopen):
         """When only ``stream_id`` is known the payload must still carry a ``tags`` block."""
         runner = PipelineRunner(mode="normal", job_id=None)
 
-        runner._parse_and_push_genai_sample(self.SAMPLE_META_LINE)
+        runner._parse_and_handle_pipeline_metric(self.SAMPLE_REQUEST_LINE)
 
         body = self._get_vlm_payload(mock_urlopen)
         self.assertEqual(body["metrics"][0]["tags"], {"stream_id": "gvagenai_0_0"})
 
     @patch("pipeline_runner.urllib.request.urlopen")
     def test_push_without_tags_omits_tags_field(self, mock_urlopen):
-        """No job_id and no element prefix must produce a payload without a ``tags`` field."""
+        """No job_id and no element must produce a payload without a ``tags`` field."""
         runner = PipelineRunner(mode="normal", job_id=None)
 
-        runner._parse_and_push_genai_sample(self.SAMPLE_META_LINE_NO_ELEMENT)
+        runner._parse_and_handle_pipeline_metric(self.SAMPLE_REQUEST_LINE_NO_ELEMENT)
 
         body = self._get_vlm_payload(mock_urlopen)
         self.assertNotIn("tags", body["metrics"][0])
 
     @patch("pipeline_runner.urllib.request.urlopen")
-    def test_parser_streams_are_pushed_separately_per_element(self, mock_urlopen):
+    def test_genai_requests_are_pushed_separately_per_element(self, mock_urlopen):
         """Two elements in the same run must produce two pushes with distinct ``stream_id`` tags."""
         runner = PipelineRunner(mode="normal", job_id="job-42")
 
-        runner._parse_and_push_genai_sample(self.SAMPLE_META_LINE)
-        runner._parse_and_push_genai_sample(
-            self.SAMPLE_META_LINE.replace("<gvagenai_0_0>", "<gvagenai_0_1>")
+        runner._parse_and_handle_pipeline_metric(self.SAMPLE_REQUEST_LINE)
+        runner._parse_and_handle_pipeline_metric(
+            _make_metric_line(
+                "genai-request", self.MESSAGE_FIELDS, element="gvagenai_0_1"
+            )
         )
 
         stream_ids: list[str] = []
@@ -1756,15 +2316,164 @@ class TestVlmMetricsPush(unittest.TestCase):
         self.assertEqual(stream_ids, ["gvagenai_0_0", "gvagenai_0_1"])
 
     @patch("pipeline_runner.urllib.request.urlopen")
-    def test_parser_drops_malformed_json_silently(self, mock_urlopen):
-        """A ``<name>`` prefix is not enough — malformed JSON must still be dropped."""
+    def test_genai_request_with_missing_or_non_numeric_field_is_dropped(
+        self, mock_urlopen
+    ):
+        """All three fields are required and must be numeric; otherwise nothing is pushed."""
         runner = PipelineRunner(mode="normal", job_id="job-42")
 
-        runner._parse_and_push_genai_sample(
-            "gst_runner - INFO - <gvagenai_0_0> Added meta message: not-json"
+        for missing in self.REQUEST_FIELDS:
+            fields = {k: v for k, v in self.MESSAGE_FIELDS.items() if k != missing}
+            runner._parse_and_handle_pipeline_metric(
+                _make_metric_line("genai-request", fields, element="gvagenai_0_0")
+            )
+        runner._parse_and_handle_pipeline_metric(
+            _make_metric_line(
+                "genai-request",
+                {**self.MESSAGE_FIELDS, "ttft_ms": "fast"},
+                element="gvagenai_0_0",
+            )
+        )
+        runner._parse_and_handle_pipeline_metric(
+            "gst_runner - INFO - Pipeline metric: not-json"
         )
 
         mock_urlopen.assert_not_called()
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_genai_request_with_unknown_version_is_skipped(self, mock_urlopen):
+        """Requests of another schema version are not pushed; one warning per version."""
+        runner = PipelineRunner(mode="normal", job_id="job-42")
+
+        with self.assertLogs("PipelineRunner", level="WARNING") as captured:
+            for _ in range(2):
+                runner._parse_and_handle_pipeline_metric(
+                    _make_metric_line(
+                        "genai-request",
+                        {**self.MESSAGE_FIELDS, "version": 2},
+                        element="gvagenai_0_0",
+                    )
+                )
+            runner._parse_and_handle_pipeline_metric(
+                _make_metric_line(
+                    "genai-request", self.REQUEST_FIELDS, element="gvagenai_0_0"
+                )
+            )
+
+        mock_urlopen.assert_not_called()
+        messages = [r.getMessage() for r in captured.records]
+        self.assertEqual(len(messages), 2, messages)
+        self.assertIn("genai-request", messages[0])
+        self.assertIn("version 2", messages[0])
+        self.assertIn("version None", messages[1])
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_meta_message_metrics_block_is_pushed_as_fallback(self, mock_urlopen):
+        """A ``metrics`` block (no ``post-metrics``) is pushed, warning once per run."""
+        events = []
+        runner = PipelineRunner(mode="normal", job_id="job-42", on_event=events.append)
+        runner._genai_metrics_enabled = True
+
+        with self.assertLogs("PipelineRunner", level="WARNING") as captured:
+            runner._parse_genai_meta_line(self.META_LINE_WITH_METRICS)
+            runner._parse_genai_meta_line(self.META_LINE_WITH_METRICS)
+
+        bodies = _extract_latency_payloads(mock_urlopen)
+        self.assertEqual(len(bodies), 2)
+        self.assertEqual(bodies[0]["metrics"][0]["name"], "vlm_metrics")
+        self.assertEqual(bodies[0]["metrics"][0]["fields"], self.REQUEST_FIELDS)
+        self.assertEqual(
+            bodies[0]["metrics"][0]["tags"],
+            {"job_id": "job-42", "stream_id": "gvagenai_0_0"},
+        )
+        self.assertEqual(len(captured.records), 1)
+        self.assertIn(self.FALLBACK_WARNING, captured.records[0].getMessage())
+        self.assertIn("gvagenai_0_0", captured.records[0].getMessage())
+        self.assertEqual([e.text for e in events], ["Yes", "Yes"])
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_meta_message_without_means_is_not_pushed(self, mock_urlopen):
+        """Blocks without the VLM means (e.g. openai-http token usage) are not pushed."""
+        runner = PipelineRunner(mode="normal")
+        runner._genai_metrics_enabled = True
+
+        with self.assertNoLogs("PipelineRunner", level="WARNING"):
+            for metrics in (
+                '{"prompt_tokens": 10, "completion_tokens": 5}',
+                '{"ttft_mean": "fast", "tpot_mean": 1, "generate_duration_mean": 1}',
+                '"not-a-dict"',
+            ):
+                runner._parse_genai_meta_line(
+                    "gst_runner - INFO - <gvagenai_0_0> Added meta message: "
+                    f'{{"result": "Yes", "metrics": {metrics}}}'
+                )
+
+        mock_urlopen.assert_not_called()
+
+    @patch("pipeline_runner.Popen")
+    @patch("pipeline_runner.ps")
+    @patch("pipeline_runner.select.select")
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_run_normal_pushes_genai_request(
+        self, mock_urlopen, mock_select, mock_ps, mock_popen
+    ):
+        """End-to-end: with post-metrics the meta line has no block; the request is pushed."""
+        process_mock = _make_process_mock(
+            [
+                self.SAMPLE_REQUEST_LINE,
+                "gst_runner - INFO - <gvagenai_0_0> Added meta message: "
+                '{"result": "Yes"}',
+            ]
+        )
+        mock_select.return_value = ([process_mock.stdout], [], [])
+        mock_popen.return_value = process_mock
+        mock_ps.Process.return_value.status.return_value = "zombie"
+
+        events = []
+        runner = PipelineRunner(mode="normal", job_id="job-42", on_event=events.append)
+        with self.assertNoLogs("PipelineRunner", level="WARNING"):
+            runner.run(
+                pipeline_command="videotestsrc ! gvagenai metrics=true ! fakesink",
+                total_streams=1,
+            )
+
+        vlm_fields = [
+            body["metrics"][0]["fields"]
+            for body in _extract_latency_payloads(mock_urlopen)
+            if body["metrics"][0]["name"] == "vlm_metrics"
+        ]
+        self.assertEqual(vlm_fields, [self.REQUEST_FIELDS])
+        self.assertEqual([(e.source, e.text) for e in events], [("vlm", "Yes")])
+
+    @patch("pipeline_runner.Popen")
+    @patch("pipeline_runner.ps")
+    @patch("pipeline_runner.select.select")
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_run_normal_falls_back_to_meta_metrics(
+        self, mock_urlopen, mock_select, mock_ps, mock_popen
+    ):
+        """End-to-end: without post-metrics the meta block is pushed, also without on_event."""
+        process_mock = _make_process_mock([self.META_LINE_WITH_METRICS])
+        mock_select.return_value = ([process_mock.stdout], [], [])
+        mock_popen.return_value = process_mock
+        mock_ps.Process.return_value.status.return_value = "zombie"
+
+        runner = PipelineRunner(mode="normal", job_id="job-42")
+        with self.assertLogs("PipelineRunner", level="WARNING") as captured:
+            runner.run(
+                pipeline_command="videotestsrc ! gvagenai metrics=true ! fakesink",
+                total_streams=1,
+            )
+
+        vlm_fields = [
+            body["metrics"][0]["fields"]
+            for body in _extract_latency_payloads(mock_urlopen)
+            if body["metrics"][0]["name"] == "vlm_metrics"
+        ]
+        self.assertEqual(vlm_fields, [self.REQUEST_FIELDS])
+        self.assertTrue(
+            any(self.FALLBACK_WARNING in r.getMessage() for r in captured.records)
+        )
 
 
 class TestPipelineEvents(unittest.TestCase):
@@ -1775,7 +2484,7 @@ class TestPipelineEvents(unittest.TestCase):
         events = []
         runner = PipelineRunner(mode="normal", on_event=events.append)
 
-        runner._parse_and_push_genai_sample(
+        runner._parse_genai_meta_line(
             "gst_runner - INFO - <gvagenai_0_0> Added meta message: "
             '{"result": " Yes ", "timestamp_seconds": 9.97, "prompt": "Riding?"}'
         )
@@ -1786,6 +2495,27 @@ class TestPipelineEvents(unittest.TestCase):
         self.assertEqual(events[0].prompt, "Riding?")
         self.assertEqual(events[0].element, "gvagenai_0_0")
         self.assertEqual(events[0].pts_seconds, 9.97)
+
+    def test_vlm_result_without_text_or_element_prefix(self):
+        """Blank results are dropped; a missing ``<name>`` prefix yields ``element=None``."""
+        events = []
+        runner = PipelineRunner(mode="normal", on_event=events.append)
+
+        runner._parse_genai_meta_line(
+            'gst_runner - INFO - <gvagenai_0_0> Added meta message: {"result": "  "}'
+        )
+        runner._parse_genai_meta_line(
+            "gst_runner - INFO - <gvagenai_0_0> Added meta message: not-json"
+        )
+        runner._parse_genai_meta_line(
+            'gst_runner - INFO - Added meta message: {"result": "No"}'
+        )
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].text, "No")
+        self.assertIsNone(events[0].element)
+        self.assertIsNone(events[0].pts_seconds)
+        self.assertIsNone(events[0].prompt)
 
     def test_pipeline_event_line_is_emitted(self):
         events = []
