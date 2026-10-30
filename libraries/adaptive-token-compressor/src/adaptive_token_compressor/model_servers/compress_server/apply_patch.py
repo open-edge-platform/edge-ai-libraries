@@ -1,14 +1,14 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""Apply LLMLingua-2 source patches required by ``digit_neighbor_radius``.
+"""Apply the neighbor-protection patch to LLMLingua-2 (required by ``digit_neighbor_radius``).
 
 Run once after installing extras:
 
-    python -m adaptive_token_compressor.model_servers.lingua.apply_patch
+    python -m adaptive_token_compressor.model_servers.compress_server.apply_patch
 
 ``--check`` exits 0 if already patched, 1 if not (no apply). Idempotent.
-Same patch file is COPY'd by ``deployment/lingua/Dockerfile``.
+Same patch file is COPY'd by ``deployment/compress-server/Dockerfile``.
 """
 from __future__ import annotations
 
@@ -28,12 +28,17 @@ def _llmlingua_dir() -> Path:
         import llmlingua
     except ImportError as e:
         raise SystemExit(
-            "llmlingua is not installed. Install one of the lingua extras first:\n"
-            "  pip install adaptive-token-compressor[lingua-server-cpu]   # CPU (PyTorch)\n"
-            "  pip install adaptive-token-compressor[lingua-server-ov]    # OpenVINO\n"
+            "llmlingua is not installed. Install one of the compress-server extras first\n"
+            "(from the adaptive-token-compressor repository root):\n"
+            "  pip install --index-url https://download.pytorch.org/whl/cpu \\\n"
+            "              --extra-index-url https://pypi.org/simple \\\n"
+            "              \".[compress-server-pytorch-cpu]\"   # CPU (PyTorch)\n"
+            "  pip install --index-url https://download.pytorch.org/whl/cpu \\\n"
+            "              --extra-index-url https://pypi.org/simple \\\n"
+            "              \".[compress-server-ov]\"            # OpenVINO\n"
             "  pip install --extra-index-url https://download.pytorch.org/whl/xpu \\\n"
             "              --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/xpu/us/ \\\n"
-            "              adaptive-token-compressor[lingua-server-xpu]   # XPU (PyTorch)"
+            "              \".[compress-server-pytorch-xpu]\"   # XPU (PyTorch)"
         ) from e
     return Path(llmlingua.__file__).parent
 
@@ -67,7 +72,7 @@ def apply() -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Apply LLMLingua-2 source patches required by digit_neighbor_radius."
+        description="Apply the neighbor-protection patch to LLMLingua-2 (required by digit_neighbor_radius)."
     )
     parser.add_argument(
         "--check",
@@ -80,11 +85,11 @@ def main() -> int:
         return 0 if is_patched() else 1
 
     if is_patched():
-        print("LLMLingua-2 already patched, skipping.")
+        print("Neighbor-protection patch already applied, skipping.")
         return 0
 
     apply()
-    print("LLMLingua-2 patch applied successfully.")
+    print("Neighbor-protection patch applied successfully.")
     return 0
 
 

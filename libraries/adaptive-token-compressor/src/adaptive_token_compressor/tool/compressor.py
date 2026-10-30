@@ -40,7 +40,7 @@ report for the full evidence). They stay in the API for reproducibility.
                         `_INLINE_DELTA_REPLAY_REMINDER` persists+replays that
                         reminder at each user-query offset instead.
 
-`accumulate` (cross-cutting flag, default False). Per-turn prediction changes
+`accumulate` (cross-cutting flag, default True). Per-turn prediction changes
 the tool set across turns of one conversation (measured: ~60% of turn
 transitions differ), and since the chat template renders tools at the FRONT of
 the prompt, every change breaks the prefix cache. With accumulate=True the
@@ -80,9 +80,16 @@ from .message_extractors import (
     extract_skill_content,
     extract_skills,
 )
-from .predictor import HTTPToolPredictor, ToolCandidate, ToolPredictor
+from .predictor import (
+    HTTPToolPredictor,
+    RerankerToolPredictor,
+    ToolCandidate,
+    ToolDefinition,
+    ToolPredictor,
+)
 from .prompts import (
     BASE_PROMPT,
+    TOOL_COUNT_RULES,
     FOCUS_FIVE_TOOL_PROMPT,
     build_dynamic_prediction_prompt,
     build_static_prediction_prompt,
@@ -90,6 +97,12 @@ from .prompts import (
 from .tool_descriptions import DEFAULT_TOOL_DESCRIPTIONS, build_dynamic_tool_descriptions
 
 logger = logging.getLogger("adaptive_token_compressor.tool.compressor")
+
+# Selection defaults when neither `score_threshold` nor `top_k` is given. The
+# reranker's 1+4p scores are not calibrated across workloads, so it ranks
+# instead of thresholding; 20 is the BFCL e2e-validated K for ~28-tool pools.
+_DEFAULT_SCORE_THRESHOLD: float = 2.0
+_DEFAULT_RERANKER_TOP_K: int = 20
 
 
 def filter_tools(
@@ -302,9 +315,23 @@ class ToolCompressor:
         *,
         predictor_url: str,
         predictor_model: str = "Qwen/Qwen3.6-35B-A3B",
-        score_threshold: float = 2.0,
+        predictor_backend: Literal["generative", "reranker"] = "generative",
+        # Fallback for weak predictor models that cannot reliably emit the
+        # score JSON on their own; not recommended otherwise.
+        # TODO: the schema makes the model write every tool name on every
+        # request, which dominates latency (~4 s for 22 tools on gemma-3-1b).
+        # Emit a positional score array instead and map it back to names.
+        predictor_json_schema: bool = False,
+        predictor_max_input_tokens: int | None = None,
+        predictor_max_output_tokens: int = 256,
+        # Both None -> backend default: generative thresholds at 2.0, reranker
+        # keeps the top 20. An explicit `top_k` overrides `score_threshold`.
+        score_threshold: float | None = None,
+        top_k: int | None = None,
         timeout: int = 120,
         prompt_mode: Literal["static", "dynamic"] = "dynamic",
+        # Dynamic-prompt tool-count rule: small=5-7, medium=5-10, high=7-15.
+        tool_count_level: Literal["small", "medium", "high"] = "small",
         tool_descriptions_mode: Literal["static", "dynamic"] = "dynamic",
         placement: Literal[
             "schema", "user_tail", "system_tail",
@@ -317,6 +344,20 @@ class ToolCompressor:
             raise ConfigError(
                 f"ToolCompressor: prompt_mode must be 'static' or 'dynamic', "
                 f"got {prompt_mode!r}"
+            )
+        if tool_count_level not in TOOL_COUNT_RULES:
+            raise ConfigError(
+                "ToolCompressor: tool_count_level must be 'small', 'medium', "
+                f"or 'high', got {tool_count_level!r}"
+            )
+        # Only the dynamic, non-schema prompt carries this rule; reject a
+        # non-default level that would otherwise be silently ignored.
+        if tool_count_level != "small" and (
+            prompt_mode != "dynamic" or predictor_json_schema
+        ):
+            raise ConfigError(
+                "ToolCompressor: tool_count_level requires prompt_mode='dynamic' "
+                "and predictor_json_schema=False"
             )
         if tool_descriptions_mode not in ("static", "dynamic"):
             raise ConfigError(
@@ -339,24 +380,62 @@ class ToolCompressor:
                 "accumulate=True (it emits per-turn tool deltas over the "
                 "conversation's running union)."
             )
-        if not (1.0 <= score_threshold <= 5.0):
+        if score_threshold is not None and not (1.0 <= score_threshold <= 5.0):
             raise ConfigError(
                 f"ToolCompressor: score_threshold must be in [1.0, 5.0], "
                 f"got {score_threshold!r}"
             )
+        if top_k is not None and top_k <= 0:
+            raise ConfigError(
+                f"ToolCompressor: top_k must be > 0 when set, got {top_k!r}"
+            )
         if timeout <= 0:
             raise ConfigError(f"ToolCompressor: timeout must be > 0, got {timeout!r}")
+        if predictor_backend not in ("generative", "reranker"):
+            raise ConfigError(
+                "ToolCompressor: predictor_backend must be 'generative' or "
+                f"'reranker', got {predictor_backend!r}"
+            )
+        if predictor_json_schema:
+            if predictor_backend != "generative":
+                raise ConfigError(
+                    "ToolCompressor: predictor_json_schema requires "
+                    "predictor_backend='generative'"
+                )
+            # The schema requires a score for every tool, which contradicts
+            # FOCUS_FIVE_TOOL_PROMPT's hard-coded "EXACTLY 5 to 10 tools".
+            if prompt_mode != "dynamic":
+                raise ConfigError(
+                    "ToolCompressor: predictor_json_schema requires "
+                    "prompt_mode='dynamic'"
+                )
 
-        self._predictor: ToolPredictor = HTTPToolPredictor(
-            url=predictor_url,
-            model=predictor_model,
-            timeout=timeout,
-        )
+        if predictor_backend == "reranker":
+            self._predictor: ToolPredictor = RerankerToolPredictor(
+                url=predictor_url, model=predictor_model, timeout=timeout,
+                max_input_tokens=predictor_max_input_tokens,
+            )
+        else:
+            self._predictor = HTTPToolPredictor(
+                url=predictor_url,
+                model=predictor_model,
+                timeout=timeout,
+                enforce_json_schema=predictor_json_schema,
+                max_output_tokens=predictor_max_output_tokens,
+            )
+        self._predictor_json_schema = predictor_json_schema
+        if score_threshold is None and top_k is None:
+            if predictor_backend == "reranker":
+                top_k = _DEFAULT_RERANKER_TOP_K
+            else:
+                score_threshold = _DEFAULT_SCORE_THRESHOLD
         self._score_threshold = score_threshold
+        self._top_k = top_k
         self._prompt_template = (
             FOCUS_FIVE_TOOL_PROMPT if prompt_mode == "static" else BASE_PROMPT
         )
         self._prompt_mode = prompt_mode
+        self._tool_count_level = tool_count_level
         self._tool_descriptions_mode = tool_descriptions_mode
         self._placement = placement
         # Cumulative-append mode: accumulate the predicted tool set per
@@ -410,6 +489,8 @@ class ToolCompressor:
             skills=skills,
             call_history=call_history,
             skill_content=skill_content,
+            score_all=self._predictor_json_schema,
+            tool_count_level=self._tool_count_level,
         )
 
     @staticmethod
@@ -619,9 +700,46 @@ class ToolCompressor:
         )
 
         try:
-            candidates, raw_meta = self._predictor.predict(
-                task_text, system_prompt=system_prompt,
-            )
+            if isinstance(self._predictor, RerankerToolPredictor):
+                tool_definitions = []
+                for tool in ctx.tools:
+                    function = tool.get("function") if isinstance(tool, dict) else None
+                    if not isinstance(function, dict):
+                        continue
+                    name = function.get("name")
+                    if not isinstance(name, str) or not name.strip():
+                        continue
+                    description = function.get("description")
+                    parameters = function.get("parameters")
+                    tool_definitions.append(ToolDefinition(
+                        name=name,
+                        description=description if isinstance(description, str) else "",
+                        parameters=parameters if isinstance(parameters, dict) else None,
+                    ))
+                candidates, raw_meta = self._predictor.predict(
+                    task_text,
+                    system_prompt=system_prompt,
+                    tool_definitions=tool_definitions,
+                )
+            elif self._predictor_json_schema:
+                tool_names = [
+                    function["name"]
+                    for tool in ctx.tools
+                    if isinstance(tool, dict)
+                    and isinstance((function := tool.get("function")), dict)
+                    and isinstance(function.get("name"), str)
+                    and function["name"].strip()
+                ]
+                candidates, raw_meta = self._predictor.predict(
+                    task_text,
+                    system_prompt=system_prompt,
+                    tool_names=tool_names,
+                )
+            else:
+                candidates, raw_meta = self._predictor.predict(
+                    task_text,
+                    system_prompt=system_prompt,
+                )
         except PredictorError as e:
             logger.warning("Predictor failed: %s", type(e).__name__)
             duration_ms = (time.perf_counter() - start) * 1000
@@ -644,9 +762,16 @@ class ToolCompressor:
                 metrics=metrics,
             )
 
-        predicted: list[ToolCandidate] = [
-            c for c in candidates if c.score >= self._score_threshold
-        ]
+        if self._top_k is not None:
+            predicted = sorted(
+                candidates, key=lambda candidate: candidate.score, reverse=True
+            )[:self._top_k]
+        else:
+            predicted = [
+                candidate
+                for candidate in candidates
+                if candidate.score >= self._score_threshold
+            ]
         predicted_names = [c.name for c in predicted]
 
         # Cumulative-append mode: merge this turn's prediction into the
@@ -679,6 +804,7 @@ class ToolCompressor:
                     "compressed_tool_count": original_tool_count,
                     "filtered_count": 0,
                     "score_threshold": self._score_threshold,
+                    "top_k": self._top_k,
                     "predicted_count": 0,
                     "skills_found": len(skills),
                     "call_history_length": len(call_history),
@@ -790,6 +916,7 @@ class ToolCompressor:
                 "compressed_tool_count": len(filtered_tools),
                 "filtered_count": original_tool_count - len(filtered_tools),
                 "score_threshold": self._score_threshold,
+                "top_k": self._top_k,
                 "predicted_count": len(predicted_names),
                 "predicted_tools": predicted_names,
                 "placement": self._placement,

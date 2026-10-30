@@ -3,9 +3,9 @@
 
 """LLMLingua-2 FastAPI server. Dual-mode entry:
 
-  - Module:     python -m adaptive_token_compressor.model_servers.lingua
-    - Standalone: python lingua_server.py --backend pytorch --device xpu --port 8001  (Docker)
-      OpenVINO:   python lingua_server.py --backend ov --device gpu --port 8001
+  - Module:     python -m adaptive_token_compressor.model_servers.compress_server
+    - Standalone: python compress_server.py --runtime pytorch --device xpu --port 8001  (Docker)
+      OpenVINO:   python compress_server.py --runtime ov --device gpu --port 8001
                   (ov devices: cpu / gpu, lowercase; default gpu)
 
 Heavy deps (torch / llmlingua / fastapi / IPEX) are deferred into
@@ -21,14 +21,14 @@ from pathlib import Path
 from typing import Any, Literal
 
 # HF env must be set BEFORE huggingface_hub is imported transitively (it
-# reads HF_ENDPOINT / HF_HUB_OFFLINE on first import). Defaults match
-# router production: hf-mirror endpoint, online so first-run can download.
-# Configurable via LINGUA_HF_ENDPOINT (this module-import path) or the
+# reads HF_ENDPOINT / HF_HUB_OFFLINE on first import). Defaults use the
+# hf-mirror endpoint, online so first-run can download.
+# Configurable via COMPRESS_SERVER_HF_ENDPOINT (this module-import path) or the
 # --hf_endpoint CLI flag / HF_ENDPOINT env (server path, applied in build_app
 # before llmlingua is imported).
 DEFAULT_HF_ENDPOINT = "https://hf-mirror.com"
 os.environ.setdefault(
-    "HF_ENDPOINT", os.environ.get("LINGUA_HF_ENDPOINT", DEFAULT_HF_ENDPOINT)
+    "HF_ENDPOINT", os.environ.get("COMPRESS_SERVER_HF_ENDPOINT", DEFAULT_HF_ENDPOINT)
 )
 os.environ.setdefault("HF_HUB_OFFLINE", "0")
 
@@ -45,7 +45,6 @@ class CompressRequest(BaseModel):
     force_tokens: list[str] | None = Field(default=None, max_length=100)
     force_reserve_digit: bool = Field(default=False, strict=True)
     digit_neighbor_radius: int = Field(default=0, ge=0, le=100)
-
     @field_validator("digit_neighbor_radius", mode="before")
     @classmethod
     def _reject_bool_radius(cls, v: Any) -> Any:
@@ -57,11 +56,11 @@ class CompressRequest(BaseModel):
         return v
 
 
-logger = logging.getLogger("adaptive_token_compressor.model_servers.lingua")
+logger = logging.getLogger("adaptive_token_compressor.model_servers.compress_server")
 
 # Ensure app logger emits INFO in container too. Uvicorn logs alone are not
-# enough to confirm backend/device mapping.
-_LOG_LEVEL = os.environ.get("LINGUA_LOG_LEVEL", "INFO").upper()
+# enough to confirm runtime/device mapping.
+_LOG_LEVEL = os.environ.get("COMPRESS_SERVER_LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
     level=getattr(logging, _LOG_LEVEL, logging.INFO),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -69,17 +68,17 @@ logging.basicConfig(
 logger.setLevel(getattr(logging, _LOG_LEVEL, logging.INFO))
 
 # Hard ceiling on request `text` length (chars). Non-zero by default (DoS
-# guard); set LINGUA_MAX_TEXT_CHARS<=0 to opt out of the limit.
+# guard); set COMPRESS_SERVER_MAX_TEXT_CHARS<=0 to opt out of the limit.
 DEFAULT_MAX_TEXT_CHARS = 200_000
 
 
 def _parse_max_text_chars() -> int:
-    raw = os.environ.get("LINGUA_MAX_TEXT_CHARS", str(DEFAULT_MAX_TEXT_CHARS)).strip()
+    raw = os.environ.get("COMPRESS_SERVER_MAX_TEXT_CHARS", str(DEFAULT_MAX_TEXT_CHARS)).strip()
     try:
         val = int(raw)
     except ValueError:
         logger.warning(
-            "Invalid LINGUA_MAX_TEXT_CHARS=%r; falling back to default %d",
+            "Invalid COMPRESS_SERVER_MAX_TEXT_CHARS=%r; falling back to default %d",
             raw, DEFAULT_MAX_TEXT_CHARS,
         )
         return DEFAULT_MAX_TEXT_CHARS
@@ -90,22 +89,22 @@ MAX_TEXT_CHARS = _parse_max_text_chars()
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="LLMLingua-2 FastAPI server")
+    parser = argparse.ArgumentParser(description="Compress server (FastAPI)")
 
     def _env_str(name: str, default: str) -> str:
         return os.environ.get(name, default)
 
     parser.add_argument(
-        "--backend",
+        "--runtime",
         type=str,
-        default=_env_str("LINGUA_BACKEND", "pytorch"),
+        default=_env_str("COMPRESS_SERVER_RUNTIME", "pytorch"),
         choices=["pytorch", "ov"],
-        help="Execution backend: pytorch (with optional IPEX) or OpenVINO",
+        help="Inference runtime: pytorch (with optional IPEX) or OpenVINO",
     )
     parser.add_argument(
         "--device",
         type=str,
-        default=_env_str("LINGUA_DEVICE", ""),
+        default=_env_str("COMPRESS_SERVER_DEVICE", ""),
         help=(
             "Execution device, lowercase (case-insensitive). "
             "pytorch: cpu / cuda / xpu; ov: cpu / gpu. "
@@ -115,18 +114,18 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--device_index",
         type=int,
-        default=int(_env_str("LINGUA_DEVICE_INDEX", "0")),
+        default=int(_env_str("COMPRESS_SERVER_DEVICE_INDEX", "0")),
         help=(
             "Index within the selected device class (e.g. GPU.1, xpu:1). "
             "Ignored for CPU; it does not accept an index."
         ),
     )
-    parser.add_argument("--port", type=int, default=int(_env_str("LINGUA_PORT", "8001")))
-    parser.add_argument("--host", type=str, default=_env_str("LINGUA_HOST", "localhost"))
+    parser.add_argument("--port", type=int, default=int(_env_str("COMPRESS_SERVER_PORT", "8001")))
+    parser.add_argument("--host", type=str, default=_env_str("COMPRESS_SERVER_HOST", "localhost"))
     parser.add_argument(
         "--model_name_id",
         type=str,
-        default=_env_str("LINGUA_MODEL_NAME_ID", _env_str("LINGUA_MODEL", "")),
+        default=_env_str("COMPRESS_SERVER_MODEL_NAME_ID", ""),
         help=(
             "HF model id (optional). "
             "If omitted, the LLMLingua-2 default model is used."
@@ -135,14 +134,14 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--mode",
         type=str,
-        default=_env_str("LINGUA_MODE", "llmlingua2"),
+        default=_env_str("COMPRESS_SERVER_MODE", "llmlingua2"),
         choices=["llmlingua2"],
         help="Compression mode. Only llmlingua2 (LLMLingua-2 path) is supported.",
     )
     parser.add_argument(
         "--hf_endpoint",
         type=str,
-        default=_env_str("HF_ENDPOINT", _env_str("LINGUA_HF_ENDPOINT", DEFAULT_HF_ENDPOINT)),
+        default=_env_str("HF_ENDPOINT", _env_str("COMPRESS_SERVER_HF_ENDPOINT", DEFAULT_HF_ENDPOINT)),
         help=(
             "HuggingFace Hub endpoint (sets HF_ENDPOINT before model download). "
             "Defaults to the hf-mirror.com mirror."
@@ -151,37 +150,37 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-# Canonical device names per backend. pytorch uses lowercase torch device
+# Canonical device names per runtime. pytorch uses lowercase torch device
 # strings; OpenVINO uses uppercase native device names (CPU/GPU).
 _VALID_DEVICES = {
     "pytorch": {"cpu", "cuda", "xpu"},
     "ov": {"CPU", "GPU"},
 }
-# Device class used when --device is omitted, per backend.
+# Device class used when --device is omitted, per runtime.
 _DEFAULT_DEVICE = {"pytorch": "xpu", "ov": "GPU"}
 
 
-def _resolve_device(backend: str, raw: str) -> str:
-    """Normalize --device to the backend's canonical form and validate it.
+def _resolve_device(runtime: str, raw: str) -> str:
+    """Normalize --device to the runtime's canonical form and validate it.
 
     Case-insensitive: ov -> uppercase, pytorch -> lowercase. An empty value
-    falls back to the per-backend default. Raises SystemExit(2) (matching
+    falls back to the per-runtime default. Raises SystemExit(2) (matching
     argparse's own choices behavior) on an unknown device, listing the valid
-    values for the active backend.
+    values for the active runtime.
     """
     dev = (raw or "").strip()
     if not dev:
-        dev = _DEFAULT_DEVICE[backend]
+        dev = _DEFAULT_DEVICE[runtime]
     # Internal canonical form: ov must be uppercase for the OpenVINO API and to
     # match core.available_devices; pytorch must be lowercase for torch.device.
-    dev = dev.upper() if backend == "ov" else dev.lower()
+    dev = dev.upper() if runtime == "ov" else dev.lower()
     base = dev.split(".", 1)[0]
-    valid = _VALID_DEVICES[backend]
+    valid = _VALID_DEVICES[runtime]
     if base not in valid:
         # Present valid values in lowercase — the input surface is uniformly
-        # lowercase across both backends to avoid casing confusion.
+        # lowercase across both runtimes to avoid casing confusion.
         raise SystemExit(
-            f"--device {raw!r} is not valid for --backend {backend}. "
+            f"--device {raw!r} is not valid for --runtime {runtime}. "
             f"Valid devices: {sorted(v.lower() for v in valid)}"
         )
     return dev
@@ -190,14 +189,14 @@ def _resolve_device(backend: str, raw: str) -> str:
 def build_app(args: argparse.Namespace) -> Any:
     # Apply the configured HF endpoint before any transitive huggingface_hub
     # import reads it (llmlingua below). --hf_endpoint (or HF_ENDPOINT /
-    # LINGUA_HF_ENDPOINT env) wins over the module-import default at line 24.
+    # COMPRESS_SERVER_HF_ENDPOINT env) wins over the module-import default at line 24.
     hf_endpoint = getattr(args, "hf_endpoint", None)
     if hf_endpoint:
         os.environ["HF_ENDPOINT"] = hf_endpoint
 
     # Resolve/normalize/validate the requested device up front so both the
     # pytorch and ov paths below can assume a canonical value.
-    args.device = _resolve_device(args.backend, args.device)
+    args.device = _resolve_device(args.runtime, args.device)
 
     import torch  # noqa: F401
     from fastapi import FastAPI, HTTPException, Request
@@ -205,22 +204,22 @@ def build_app(args: argparse.Namespace) -> Any:
     from fastapi.responses import JSONResponse
     from llmlingua import PromptCompressor
 
-    if args.backend == "pytorch" and args.device == "xpu":
+    if args.runtime == "pytorch" and args.device == "xpu":
         # Fail fast: pytorch+xpu must not silently fall back to CPU.
         import intel_extension_for_pytorch  # noqa: F401
-    if args.backend == "pytorch" and args.device == "cuda":
+    if args.runtime == "pytorch" and args.device == "cuda":
         if not torch.cuda.is_available():
             raise RuntimeError(
                 "--device cuda requested, but this PyTorch build has no CUDA support. "
                 "Use --device cpu or --device xpu."
             )
 
-    logger.info("Backend=%s  Requested device=%s", args.backend, args.device)
+    logger.info("Runtime=%s  Requested device=%s", args.runtime, args.device)
 
     startup_mode = (args.mode or "llmlingua2").strip().lower()
     supported_modes = {"llmlingua2"}
     if startup_mode not in supported_modes:
-        raise ValueError("--mode must be: llmlingua2")
+        raise ValueError("--mode must be one of: llmlingua2")
 
     requested_model_name = (args.model_name_id or "").strip()
     logger.info("Startup default compression mode: %s", startup_mode)
@@ -236,9 +235,7 @@ def build_app(args: argparse.Namespace) -> Any:
         if selected_mode in mode_state:
             return mode_state[selected_mode]
 
-        default_model_name = (
-            "microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank"
-        )
+        default_model_name = "microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank"
         effective_model_name = requested_model_name or default_model_name
 
         safe_mode = next((m for m in supported_modes if m == selected_mode), "<invalid>")
@@ -257,7 +254,7 @@ def build_app(args: argparse.Namespace) -> Any:
         runtime_device = str(llm_lingua.device)
         ov_exec_devices = "n/a"
 
-        if args.backend == "pytorch":
+        if args.runtime == "pytorch":
             if args.device == "xpu":
                 device_index = args.device_index
                 try:
@@ -305,7 +302,7 @@ def build_app(args: argparse.Namespace) -> Any:
                 from optimum.intel import OVModelForTokenClassification
             except ImportError as exc:
                 raise RuntimeError(
-                    "--backend ov requires openvino + optimum-intel. "
+                    "--runtime ov requires openvino + optimum-intel. "
                     "Install with: pip install openvino optimum[openvino]"
                 ) from exc
 
@@ -324,7 +321,7 @@ def build_app(args: argparse.Namespace) -> Any:
                 else:
                     gpu_like = [d for d in available_devices if d.startswith("GPU")]
                     raise RuntimeError(
-                        "--backend ov with --device GPU could not map "
+                        "--runtime ov with --device GPU could not map "
                         f"--device_index={device_index}. Requested {preferred_ov_gpu!r}, "
                         f"available OV GPU devices: {gpu_like or 'none'}"
                     )
@@ -365,14 +362,11 @@ def build_app(args: argparse.Namespace) -> Any:
 
             # Persist OpenVINO IR under mounted cache so restarts can reuse it.
             ov_cache_root = Path(
-                os.environ.get(
-                    "LINGUA_OV_CACHE_DIR",
-                    os.path.expanduser("~/.cache/huggingface/ov_ir"),
-                )
+                os.environ.get("COMPRESS_SERVER_OV_CACHE_DIR", "/root/.cache/huggingface/ov_ir")
             )
             if not effective_model_name:
                 raise RuntimeError(
-                    "--backend ov requires --model_name_id to be explicitly set."
+                    "--runtime ov requires --model_name_id to be explicitly set."
                 )
 
             model_cache_key = effective_model_name.replace("/", "__")
@@ -429,22 +423,22 @@ def build_app(args: argparse.Namespace) -> Any:
         mode_state[selected_mode] = state
         return state
 
-    # Ensure startup mode is ready at boot; other mode(s) are loaded lazily on first request.
+    # Ensure startup mode is ready at boot.
     _ensure_mode_state(startup_mode)
 
     if not _is_patched():
         logger.warning(
-            "LLMLingua-2 source patch NOT applied — digit_neighbor_radius "
+            "Neighbor-protection patch NOT applied — digit_neighbor_radius "
             "is silently ignored. Run "
-            "`python -m adaptive_token_compressor.model_servers.lingua.apply_patch`."
+            "`python -m adaptive_token_compressor.model_servers.compress_server.apply_patch`."
         )
 
-    # Introspection endpoints off by default; set LINGUA_ENABLE_DOCS=1 to expose.
-    _docs_enabled = os.environ.get("LINGUA_ENABLE_DOCS", "0").strip().lower() in {
+    # Introspection endpoints off by default; set COMPRESS_SERVER_ENABLE_DOCS=1 to expose.
+    _docs_enabled = os.environ.get("COMPRESS_SERVER_ENABLE_DOCS", "0").strip().lower() in {
         "1", "true", "yes", "on",
     }
     app = FastAPI(
-        title="Lingua Server",
+        title="Compress Server",
         docs_url="/docs" if _docs_enabled else None,
         redoc_url="/redoc" if _docs_enabled else None,
         openapi_url="/openapi.json" if _docs_enabled else None,
@@ -479,7 +473,7 @@ def build_app(args: argparse.Namespace) -> Any:
 
     _ERROR_RESPONSES = {
         400: {"description": "Malformed request body or unsupported mode"},
-        413: {"description": "Request text exceeds LINGUA_MAX_TEXT_CHARS"},
+        413: {"description": "Request text exceeds COMPRESS_SERVER_MAX_TEXT_CHARS"},
         422: {"description": "Request failed schema validation"},
     }
 
@@ -489,7 +483,7 @@ def build_app(args: argparse.Namespace) -> Any:
         # Deployment-tunable hard ceiling on text size (DoS guard). 0 = no limit.
         if MAX_TEXT_CHARS and len(request.text) > MAX_TEXT_CHARS:
             logger.warning(
-                "oversized /compress request rejected (413): text=%d chars exceeds LINGUA_MAX_TEXT_CHARS=%d",
+                "oversized /compress request rejected (413): text=%d chars exceeds COMPRESS_SERVER_MAX_TEXT_CHARS=%d",
                 len(request.text), MAX_TEXT_CHARS,
             )
             raise HTTPException(status_code=413, detail="text too large")
@@ -512,14 +506,6 @@ def build_app(args: argparse.Namespace) -> Any:
             request.force_tokens if request.force_tokens else ["\n", "?"]
         )
 
-        def _plain_compress() -> dict:
-            return llm_lingua.compress_prompt(
-                request.text,
-                rate=request.rate,
-                force_tokens=force_tokens,
-                force_reserve_digit=request.force_reserve_digit,
-            )
-
         # Patched LLMLingua reads `_digit_neighbor_radius` instance attr;
         # vanilla version ignores it.
         llm_lingua._digit_neighbor_radius = request.digit_neighbor_radius
@@ -527,7 +513,12 @@ def build_app(args: argparse.Namespace) -> Any:
         # on adversarial-but-schema-valid inputs. Convert any such failure into a
         # clean 400 with a generic message instead of leaking a 500 + stack trace.
         try:
-            result = _plain_compress()
+            result = llm_lingua.compress_prompt(
+                request.text,
+                rate=request.rate,
+                force_tokens=force_tokens,
+                force_reserve_digit=request.force_reserve_digit,
+            )
         except HTTPException:
             raise
         except Exception as exc:
@@ -535,7 +526,7 @@ def build_app(args: argparse.Namespace) -> Any:
             raise HTTPException(status_code=400, detail="compression failed for the given parameters") from exc
 
         # On OV path, retry execution-device probe after first real inference.
-        if args.backend == "ov" and not state["ov_exec_reprobe_done"]:
+        if args.runtime == "ov" and not state["ov_exec_reprobe_done"]:
             try:
                 req = getattr(llm_lingua.model, "request", None)
                 compiled_model = getattr(req, "compiled_model", None)
@@ -593,5 +584,5 @@ def start_server(args: argparse.Namespace) -> None:
 
 
 if __name__ == "__main__":
-    # Docker COPYs this file as lingua_server.py and invokes it directly.
+    # Docker COPYs this file as compress_server.py and invokes it directly.
     start_server(_parse_args())

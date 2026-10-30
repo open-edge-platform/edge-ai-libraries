@@ -1,7 +1,7 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""Input-validation hardening for the Lingua `/compress` interface (ATC-SEC-002).
+"""Input-validation hardening for the compress-server `/compress` interface (ATC-SEC-002).
 
 Canonical, hermetic spec for `CompressRequest` and the server's rejection
 behavior — independent of the fuzzing deliverable. Two layers:
@@ -10,7 +10,7 @@ behavior — independent of the fuzzing deliverable. Two layers:
   every out-of-contract shape (``extra=forbid``, bounds, strict bool, mode enum).
   Pure pydantic; no app build, no model load, no network.
 * **HTTP layer** — the two properties the model alone cannot express: the
-  ``LINGUA_MAX_TEXT_CHARS`` size cap (413, DoS guard) and the generic 422 body
+  ``COMPRESS_SERVER_MAX_TEXT_CHARS`` size cap (413, DoS guard) and the generic 422 body
   that never echoes attacker-controlled values back to the client.
 """
 from __future__ import annotations
@@ -22,8 +22,8 @@ import types
 import pytest
 from pydantic import ValidationError
 
-from adaptive_token_compressor.model_servers.lingua import app as app_module
-from adaptive_token_compressor.model_servers.lingua.app import CompressRequest
+from adaptive_token_compressor.model_servers.compress_server import app as app_module
+from adaptive_token_compressor.model_servers.compress_server.app import CompressRequest
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -138,7 +138,7 @@ def client(monkeypatch):
     )
     app = app_module.build_app(
         argparse.Namespace(
-            backend="pytorch",
+            runtime="pytorch",
             device="cpu",
             device_index=0,
             model_name_id="",
@@ -149,7 +149,7 @@ def client(monkeypatch):
 
 
 def test_oversized_text_rejected_with_413(client, monkeypatch):
-    # DoS guard: text over LINGUA_MAX_TEXT_CHARS is rejected before compression.
+    # DoS guard: text over COMPRESS_SERVER_MAX_TEXT_CHARS is rejected before compression.
     monkeypatch.setattr(app_module, "MAX_TEXT_CHARS", 10)
     resp = client.post("/compress", json={"text": "x" * 50})
     assert resp.status_code == 413

@@ -14,7 +14,11 @@ from adaptive_token_compressor.tool.compressor import (
     filter_tools,
     filter_tooling_section,
 )
-from adaptive_token_compressor.tool.predictor import ToolCandidate
+from adaptive_token_compressor.tool.predictor import (
+    HTTPToolPredictor,
+    RerankerToolPredictor,
+    ToolCandidate,
+)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -201,9 +205,118 @@ class TestToolCompressorConstruction:
         with pytest.raises(ConfigError):
             ToolCompressor(predictor_url=URL, score_threshold=6.0)
 
+    def test_invalid_top_k_raises(self):
+        with pytest.raises(ConfigError):
+            ToolCompressor(predictor_url=URL, top_k=0)
+
     def test_invalid_timeout_raises(self):
         with pytest.raises(ConfigError):
             ToolCompressor(predictor_url=URL, timeout=0)
+
+    def test_reranker_backend_constructs_reranker_predictor(self):
+        comp = ToolCompressor(predictor_url=URL, predictor_backend="reranker")
+        assert isinstance(comp._predictor, RerankerToolPredictor)
+
+    def test_generative_default_selection_is_threshold(self):
+        comp = ToolCompressor(predictor_url=URL)
+        assert comp._score_threshold == 2.0
+        assert comp._top_k is None
+
+    def test_reranker_default_selection_is_top_k(self):
+        comp = ToolCompressor(predictor_url=URL, predictor_backend="reranker")
+        assert comp._top_k == 20
+        assert comp._score_threshold is None
+
+    def test_reranker_explicit_threshold_is_kept(self):
+        comp = ToolCompressor(
+            predictor_url=URL, predictor_backend="reranker", score_threshold=1.1,
+        )
+        assert comp._score_threshold == 1.1
+        assert comp._top_k is None
+
+    def test_json_schema_with_reranker_raises(self):
+        with pytest.raises(ConfigError):
+            ToolCompressor(
+                predictor_url=URL, predictor_backend="reranker",
+                predictor_json_schema=True,
+            )
+
+    def test_json_schema_with_static_prompt_raises(self):
+        with pytest.raises(ConfigError):
+            ToolCompressor(
+                predictor_url=URL, prompt_mode="static",
+                predictor_json_schema=True,
+            )
+
+    @pytest.mark.parametrize("level,expected", [
+        ("small", "- You MUST include 5-7 tools (3-4 core + 1-3 fallback)\n"),
+        ("medium", "- You MUST include 5-10 tools (3-5 core + 2-4 fallback)\n"),
+        ("high", "- You MUST include 7-15 tools (4-6 core + 3-9 fallback)\n"),
+    ])
+    def test_tool_count_level_in_prompt(self, level, expected):
+        comp = ToolCompressor(predictor_url=URL, tool_count_level=level)
+        prompt = comp._compose_system_prompt(
+            "- read: rd", skills=[], call_history=[], skill_content=None,
+        )
+        assert expected in prompt
+        assert prompt.count("You MUST include") == 1
+
+    def test_invalid_tool_count_level_raises(self):
+        with pytest.raises(ConfigError):
+            ToolCompressor(predictor_url=URL, tool_count_level="huge")  # type: ignore[arg-type]
+
+    def test_non_default_tool_count_level_with_static_or_schema_raises(self):
+        with pytest.raises(ConfigError):
+            ToolCompressor(
+                predictor_url=URL, prompt_mode="static", tool_count_level="high",
+            )
+        with pytest.raises(ConfigError):
+            ToolCompressor(
+                predictor_url=URL, predictor_json_schema=True,
+                tool_count_level="high",
+            )
+
+    def test_json_schema_swaps_count_rule_in_prompt(self):
+        comp = ToolCompressor(predictor_url=URL, predictor_json_schema=True)
+        prompt = comp._compose_system_prompt(
+            "- read: rd", skills=[], call_history=[], skill_content=None,
+        )
+        assert "Score every available tool from 1 to 5" in prompt
+        assert "5-7 tools" not in prompt
+
+    def test_no_json_schema_keeps_count_rule_in_prompt(self):
+        comp = ToolCompressor(predictor_url=URL)
+        prompt = comp._compose_system_prompt(
+            "- read: rd", skills=[], call_history=[], skill_content=None,
+        )
+        assert "You MUST include 5-7 tools" in prompt
+        assert "Score every available tool" not in prompt
+
+    def test_json_schema_is_opt_in_for_generative_predictor(self):
+        default_comp = ToolCompressor(predictor_url=URL)
+        schema_comp = ToolCompressor(
+            predictor_url=URL, predictor_json_schema=True,
+        )
+
+        assert isinstance(default_comp._predictor, HTTPToolPredictor)
+        assert default_comp._predictor._enforce_json_schema is False
+        assert isinstance(schema_comp._predictor, HTTPToolPredictor)
+        assert schema_comp._predictor._enforce_json_schema is True
+
+    def test_predictor_max_output_tokens_is_forwarded(self):
+        comp = ToolCompressor(
+            predictor_url=URL, predictor_max_output_tokens=1024,
+        )
+
+        assert isinstance(comp._predictor, HTTPToolPredictor)
+        assert comp._predictor._max_output_tokens == 1024
+
+    def test_invalid_predictor_backend_raises(self):
+        with pytest.raises(ConfigError):
+            ToolCompressor(
+                predictor_url=URL,
+                predictor_backend="invalid",  # type: ignore[arg-type]
+            )
 
     def test_invalid_placement_raises(self):
         with pytest.raises(ConfigError):
@@ -333,6 +446,37 @@ class TestToolCompressorNoToolsPredicted:
 
 
 class TestToolCompressorSuccess:
+    def test_reranker_receives_tool_definitions(self):
+        comp = ToolCompressor(
+            predictor_url=URL,
+            predictor_backend="reranker",
+            score_threshold=3.0,
+        )
+        calls = []
+
+        def fake_predict(task, *, system_prompt, tool_definitions=None):
+            calls.append({
+                "task": task,
+                "system_prompt": system_prompt,
+                "tool_definitions": tool_definitions,
+            })
+            return [ToolCandidate(name="read", score=4.0)], {}
+
+        comp._predictor.predict = fake_predict  # type: ignore[method-assign]
+        tools = [_tool("read", "Read a file"), _tool("write", "Write a file")]
+        tools[0]["function"]["parameters"] = {
+            "type": "object",
+            "properties": {"path": {"type": "string"}},
+        }
+
+        result = comp.compress(_make_request(tools=tools))
+
+        definitions = calls[0]["tool_definitions"]
+        assert [definition.name for definition in definitions] == ["read", "write"]
+        assert definitions[0].description == "Read a file"
+        assert definitions[0].parameters["properties"]["path"] == {"type": "string"}
+        assert [tool["function"]["name"] for tool in result.tools] == ["read"]
+
     def test_filters_below_threshold(self):
         comp = ToolCompressor(predictor_url=URL, score_threshold=3.0)
         comp._predictor = FakePredictor(
@@ -348,6 +492,29 @@ class TestToolCompressorSuccess:
         assert result.metrics.error is None
         assert result.metrics.succeeded
         assert result.metrics.scope == CompressionScope.TOOL
+
+    def test_top_k_selects_highest_scores_instead_of_threshold(self):
+        comp = ToolCompressor(
+            predictor_url=URL,
+            score_threshold=5.0,
+            top_k=2,
+            accumulate=False,
+        )
+        comp._predictor = FakePredictor(
+            candidates=[
+                ToolCandidate(name="read", score=2),
+                ToolCandidate(name="write", score=4),
+                ToolCandidate(name="exec", score=3),
+            ],
+        )
+
+        result = comp.compress(
+            _make_request(tools=[_tool("read"), _tool("write"), _tool("exec")])
+        )
+
+        assert [tool["function"]["name"] for tool in result.tools] == ["write", "exec"]
+        assert result.metrics.details["top_k"] == 2
+        assert result.metrics.details["predicted_count"] == 2
 
     def test_metrics_details_populated(self):
         comp = ToolCompressor(predictor_url=URL, score_threshold=3.0)

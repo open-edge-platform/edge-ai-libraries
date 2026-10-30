@@ -331,7 +331,7 @@ class TestAggregatorReset:
         assert agg.snapshot(source="src1")["src1.total_in"] == 0.0
         assert agg.snapshot(source="src2")["src2.total_in"] == 70.0
 
-    def test_snapshot_source_filters_to_source_prefixed_metrics(self):
+    def test_snapshot_source_filters_to_single_source_metrics(self):
         agg = MetricsAggregator()
         agg._add_sum("src1.total_in", "tokens_before", ["src1"])
         agg._add_sum("overall.total_in", "tokens_before", ["src1", "src2"])
@@ -340,6 +340,55 @@ class TestAggregatorReset:
         snap = agg.snapshot(source="src1")
         assert "src1.total_in" in snap
         assert "overall.total_in" not in snap
+
+    def test_snapshot_source_selects_by_rule_sources_not_name(self):
+        agg = MetricsAggregator()
+        TotalSaved(sources="src1")._emit_rules("saved_of_first", agg)       # no prefix
+        CompressionRatio(sources="src1")._emit_rules("ratio_of_first", agg)  # via buckets
+        TotalSaved(sources=["src1", "src2"])._emit_rules("src1.mixed", agg)  # misleading prefix
+        RequestCount()._emit_rules("src1.requests", agg)                     # source-agnostic
+        agg.observe("src1", _metrics(tokens_before=100, tokens_after=60), req_id="r1")
+        agg.observe("src2", _metrics(tokens_before=100, tokens_after=50), req_id="r1")
+
+        assert agg.snapshot(source="src1") == {
+            "saved_of_first": 40.0,
+            "ratio_of_first": pytest.approx(0.6),
+        }
+
+    def test_snapshot_source_no_prefix_collision(self):
+        agg = MetricsAggregator()
+        TotalSaved(sources="comp")._emit_rules("comp.saved", agg)
+        TotalSaved(sources="comp.v2")._emit_rules("comp.v2.saved", agg)
+        agg.observe("comp", _metrics(tokens_before=100, tokens_after=60))
+        agg.observe("comp.v2", _metrics(tokens_before=100, tokens_after=50))
+
+        assert agg.snapshot(source="comp") == {"comp.saved": 40.0}
+        assert agg.snapshot(source="comp.v2") == {"comp.v2.saved": 50.0}
+
+    def test_metric_sources_resolves_rules(self):
+        agg = MetricsAggregator()
+        TotalSaved(sources="src1")._emit_rules("saved", agg)
+        CompressionRatio(sources=["src1", "src2"])._emit_rules("ratio", agg)
+        AvgSavedPerRequest(sources="src2")._emit_rules("avg_req", agg)
+        RequestCount()._emit_rules("requests", agg)
+
+        assert agg._metric_sources() == {
+            "saved": frozenset({"src1"}),
+            "ratio": frozenset({"src1", "src2"}),
+            "avg_req": frozenset({"src2"}),
+            "requests": None,
+        }  # hidden buckets are not listed
+
+    def test_seen_sources_tracks_observe_and_reset(self):
+        agg = MetricsAggregator()
+        assert agg._seen_sources() == set()
+        agg.observe("src1", _metrics())
+        agg.observe("src2", _metrics())
+        assert agg._seen_sources() == {"src1", "src2"}
+        agg.reset(source="src1")
+        assert agg._seen_sources() == {"src2"}
+        agg.reset()
+        assert agg._seen_sources() == set()
 
     def test_global_snapshot_rebuilds_after_source_reset(self):
         agg = MetricsAggregator()
@@ -551,7 +600,7 @@ class TestMetricSpecExpansion:
 
 
 class TestParallelMultiSourceScenario:
-    """Test parallel multi-source compression (router real-world scenario).
+    """Test parallel multi-source compression for a shared request.
 
     harness/tools/context process different fields of the same request:
     - harness: compresses system/developer messages
@@ -736,23 +785,37 @@ class TestConcurrentObserve:
 
 
 class TestAggregatorSourceDenominatorBoundaries:
-    def test_source_snapshot_raises_when_other_source_has_only_req_id(self):
+    def test_source_snapshot_matches_global_when_source_has_no_req_id(self):
+        """Only src2 passed a req_id: src1 saw no request, so its average is 0 in both views."""
         agg = MetricsAggregator()
         AvgSavedPerRequest(sources="src1")._emit_rules("src1.avg_saved_req", agg)
 
         agg.observe("src2", _metrics(tokens_before=100, tokens_after=50), req_id="r1")
 
-        with pytest.raises(RuntimeError, match="PerRequest metric requires"):
-            agg.snapshot(source="src1")
+        assert agg.snapshot(source="src1") == {"src1.avg_saved_req": 0.0}
+        assert agg.snapshot() == {"src1.avg_saved_req": 0.0}
 
-    def test_source_snapshot_raises_when_anchor_not_in_selected_source(self):
+    def test_source_snapshot_uses_anchor_outside_selected_source(self):
+        """Without req_ids, the anchor's call count is the denominator in both views."""
         agg = MetricsAggregator()
         agg._set_anchor("src1")
         AvgSavedPerRequest(sources="src2")._emit_rules("src2.avg_saved_req", agg)
+        agg.observe("src1", _metrics(tokens_before=100, tokens_after=100))
+        agg.observe("src1", _metrics(tokens_before=100, tokens_after=100))
         agg.observe("src2", _metrics(tokens_before=100, tokens_after=80))
 
+        assert agg.snapshot(source="src2") == {"src2.avg_saved_req": 10.0}  # 20 / 2 anchor calls
+        assert agg.snapshot()["src2.avg_saved_req"] == 10.0
+
+    def test_source_snapshot_raises_without_any_denominator(self):
+        agg = MetricsAggregator()
+        AvgSavedPerRequest(sources="src1")._emit_rules("src1.avg_saved_req", agg)
+        agg.observe("src1", _metrics())
+
         with pytest.raises(RuntimeError, match="PerRequest metric requires"):
-            agg.snapshot(source="src2")
+            agg.snapshot(source="src1")
+        with pytest.raises(RuntimeError, match="PerRequest metric requires"):
+            agg.snapshot()
 
     def test_source_request_count_uses_union_not_sum(self):
         agg = MetricsAggregator()
@@ -762,8 +825,21 @@ class TestAggregatorSourceDenominatorBoundaries:
         agg.observe("src2", _metrics(), req_id="r1")
         agg.observe("src2", _metrics(), req_id="r2")
 
-        snap = agg.snapshot(source="src2")
-        assert snap["src2.req_count"] == 2.0
+        assert agg.request_count(source="src2") == 2
+        # RequestCount is source-agnostic: global snapshot only, whatever its name.
+        assert "src2.req_count" not in agg.snapshot(source="src2")
+        assert agg.snapshot()["src2.req_count"] == 2.0
+
+    def test_source_snapshot_ignores_cross_source_per_request_metric(self):
+        """Denominator check only covers metrics the source snapshot returns."""
+        agg = MetricsAggregator()
+        TotalSaved(sources="src1")._emit_rules("src1.saved", agg)
+        AvgSavedPerRequest(sources=["src1", "src2"])._emit_rules("src1.avg_req", agg)
+        agg.observe("src1", _metrics(tokens_before=100, tokens_after=60))
+
+        assert agg.snapshot(source="src1") == {"src1.saved": 40.0}
+        with pytest.raises(RuntimeError, match="PerRequest metric requires"):
+            agg.snapshot()
 
 
 class TestAggregatorRandomizedInvariants:
@@ -861,3 +937,45 @@ class TestAggregatorRandomizedInvariants:
                 manual[src]["req_ids"].clear()
 
             _validate()
+
+
+class TestPerRequestDenominatorBySources:
+    """Avg*PerRequest divides by the unique requests that went through its own sources."""
+
+    def _agg(self):
+        agg = MetricsAggregator()
+        AvgSavedPerRequest(sources="a")._emit_rules("a.avg", agg)
+        AvgSavedPerRequest(sources="b")._emit_rules("b.avg", agg)
+        AvgSavedPerRequest(sources=["a", "b"])._emit_rules("all.avg", agg)
+        RequestCount()._emit_rules("requests", agg)
+        return agg
+
+    def test_requests_not_through_a_source_are_not_counted(self):
+        agg = self._agg()
+        agg.observe("a", _metrics(tokens_before=100, tokens_after=60), req_id="r1")
+        agg.observe("b", _metrics(tokens_before=100, tokens_after=60), req_id="r2")
+
+        assert agg.snapshot() == {"a.avg": 40.0, "b.avg": 40.0, "all.avg": 40.0, "requests": 2.0}
+
+    def test_source_snapshot_equals_global_value(self):
+        agg = self._agg()
+        agg.observe("a", _metrics(tokens_before=100, tokens_after=60), req_id="r1")
+        agg.observe("a", _metrics(tokens_before=100, tokens_after=80), req_id="r2")
+        agg.observe("b", _metrics(tokens_before=100, tokens_after=40), req_id="r2")
+        agg.observe("b", _metrics(tokens_before=100, tokens_after=40), req_id="r3")
+
+        glob = agg.snapshot()
+        assert glob["a.avg"] == 30.0  # (40 + 20) / {r1, r2}
+        assert glob["b.avg"] == 60.0  # (60 + 60) / {r2, r3}
+        assert glob["all.avg"] == pytest.approx(180 / 3)  # union {r1, r2, r3}
+        assert agg.snapshot(source="a") == {"a.avg": glob["a.avg"]}
+        assert agg.snapshot(source="b") == {"b.avg": glob["b.avg"]}
+
+    def test_cross_source_denominator_excludes_other_sources(self):
+        agg = self._agg()
+        agg.observe("a", _metrics(tokens_before=100, tokens_after=60), req_id="r1")
+        agg.observe("c", _metrics(tokens_before=100, tokens_after=60), req_id="r2")
+
+        snap = agg.snapshot()
+        assert snap["all.avg"] == 40.0  # r2 only went through c
+        assert snap["requests"] == 2.0  # RequestCount still counts every request
