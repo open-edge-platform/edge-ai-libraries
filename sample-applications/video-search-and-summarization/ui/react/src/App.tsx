@@ -25,6 +25,8 @@ import { SearchQuery } from './redux/search/search.ts';
 import { LiveStream } from './redux/streams/streams.ts';
 import { StreamsActions } from './redux/streams/streamsSlice.ts';
 import { useDocumentTitle } from './hooks/useDocumentTitle.ts';
+import { FEATURE_MAP } from './mapConfig.ts';
+import { GEO_REFRESH_INTERVAL_MS, LoadIntersections } from './redux/geo/geoSlice.ts';
 
 const App: FC = () => {
   const { summaryIds } = useAppSelector(SummarySelector);
@@ -43,6 +45,14 @@ const App: FC = () => {
       throw new Error(`Feature Mux ${FEATURE_MUX} is not supported`);
     }
   });
+
+  // Without loaded intersections the Map View button and drawer stay hidden.
+  useEffect(() => {
+    if (FEATURE_SEARCH === FEATURE_STATE.OFF || FEATURE_MAP !== FEATURE_STATE.ON) return undefined;
+    dispatch(LoadIntersections());
+    const refreshTimer = window.setInterval(() => dispatch(LoadIntersections()), GEO_REFRESH_INTERVAL_MS);
+    return () => window.clearInterval(refreshTimer);
+  }, [dispatch]);
 
   useEffect(() => {
     const connectedSockets = connectedSocketsRef.current;

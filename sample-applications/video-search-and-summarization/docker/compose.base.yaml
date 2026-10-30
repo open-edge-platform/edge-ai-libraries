@@ -76,6 +76,13 @@ services:
       SEARCH_WATCH_REFRESH_BATCH_SIZE: ${SEARCH_WATCH_REFRESH_BATCH_SIZE:-10}
       SEARCH_WATCH_REFRESH_MIN_QUERY_INTERVAL_MS: ${SEARCH_WATCH_REFRESH_MIN_QUERY_INTERVAL_MS:-10000}
       SEARCH_WATCH_REFRESH_MAX_QUERIES_PER_TICK: ${SEARCH_WATCH_REFRESH_MAX_QUERIES_PER_TICK:-50}
+      # Intersection locations for Map View: intersections API first, file as fallback.
+      GEO_API_URL: ${GEO_API_URL:-}
+      GEO_FALLBACK_FILE: /app/config/geo-intersections.json
+      GEO_REFRESH_MS: ${GEO_REFRESH_MS:-60000}
+      GEO_TIMEOUT_MS: ${GEO_TIMEOUT_MS:-3000}
+    volumes:
+      - ${GEO_INTERSECTIONS_FILE:-../config/geo-intersections.json}:/app/config/geo-intersections.json:ro
     restart: unless-stopped
     user: "0:0"
     healthcheck:
