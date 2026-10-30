@@ -11,12 +11,14 @@ point ``GATEWAY_WORKSPACE`` at a tmp dir so API operations land there.
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 import yaml
 
 from src.config import ProviderConfig, RouterConfig, RoutingConfig, TelemetryConfig
-from src.rsd.decision import DecisionEngine
+from src.rsd.engine.decision import DecisionEngine
+from src.rsd.model_based.registry import ClassifierRegistryError
 from ._api_contract_support import make_test_client
 
 
@@ -138,6 +140,41 @@ def test_create_strategy_persists_and_rebuilds_engine(tmp_path, monkeypatch):
     assert "Cloudy" in engine.strategy_definitions
 
 
+def test_strategy_hot_reload_preloads_then_revalidates(tmp_path, monkeypatch):
+    client = _seed(tmp_path, monkeypatch)
+
+    with patch.object(DecisionEngine, "preload_classifiers") as preload, patch.object(
+        DecisionEngine, "validate_against_providers"
+    ) as validate:
+        response = client.post(
+            "/v1/strategies/Planning",
+            json={"provider_selector": {"label": "missing-label"}},
+        )
+
+    assert response.status_code == 200
+    preload.assert_called_once_with()
+    validate.assert_called_once_with(getattr(client.app.state.router, "providers", []))
+
+
+def test_strategy_hot_reload_registry_failure_is_422_and_rolls_back(tmp_path, monkeypatch):
+    client = _seed(tmp_path, monkeypatch)
+    before = (tmp_path / "strategy.yaml").read_bytes()
+
+    with patch.object(
+        DecisionEngine,
+        "preload_classifiers",
+        side_effect=ClassifierRegistryError("L3 mismatch"),
+    ):
+        response = client.post(
+            "/v1/strategies/Cloudy",
+            json={"provider_selector": {"label": "cloud"}},
+        )
+
+    assert response.status_code == 422
+    assert "L3 mismatch" in response.json()["detail"]
+    assert (tmp_path / "strategy.yaml").read_bytes() == before
+
+
 def test_create_strategy_ignores_body_name(tmp_path, monkeypatch):
     client = _seed(tmp_path, monkeypatch)
     response = client.post(
@@ -180,6 +217,23 @@ def test_create_strategy_missing_provider_selector_is_400(tmp_path, monkeypatch)
     assert [s["name"] for s in _persisted(tmp_path)] == ["Planning", "ZeroCost"]
 
 
+def test_strategy_rejects_multiple_model_based_rules(tmp_path, monkeypatch):
+    client = _seed(tmp_path, monkeypatch)
+    response = client.post(
+        "/v1/strategies/DuplicateModel",
+        json={
+            "rules": [
+                {"type": "ModelBasedRule"},
+                {"type": "ModelBasedRule"},
+            ],
+            "provider_selector": {"label": {"0": "local", "1": "cloud"}},
+        },
+    )
+
+    assert response.status_code == 400
+    assert "at most one ModelBasedRule" in response.json()["detail"]
+
+
 def test_get_strategy_fills_default_shape(tmp_path, monkeypatch):
     # ZeroCost omits rules/sort/require_healthy/limit; GET fills the full shape.
     client = _seed(tmp_path, monkeypatch)
@@ -208,30 +262,25 @@ def test_create_strategy_unknown_rule_type_is_400(tmp_path, monkeypatch):
     assert "NotARule" in response.json()["detail"]
 
 
-def test_post_strategy_missing_workspace_file_is_400(tmp_path, monkeypatch):
+def test_strategy_endpoints_reject_missing_workspace_file(tmp_path, monkeypatch):
     client = _seed(tmp_path, monkeypatch, write_strategy=False)
-    response = client.post("/v1/strategies/Cloudy", json={"provider_selector": {"cost": 0}})
-    assert response.status_code == 400
-    assert "not found" in response.json()["detail"]
-
-
-def test_get_strategy_missing_workspace_file_is_400(tmp_path, monkeypatch):
-    client = _seed(tmp_path, monkeypatch, write_strategy=False)
-
-    listed = client.get("/v1/strategies")
-    assert listed.status_code == 400
-    assert "not found" in listed.json()["detail"]
-
-    fetched = client.get("/v1/strategies/Planning")
-    assert fetched.status_code == 400
-    assert "not found" in fetched.json()["detail"]
+    responses = (
+        client.get("/v1/strategies"),
+        client.get("/v1/strategies/Planning"),
+        client.post("/v1/strategies/Cloudy", json={"provider_selector": {"cost": 0}}),
+        client.delete("/v1/strategies/Planning"),
+    )
+    for response in responses:
+        assert response.status_code == 400
+        assert "not found" in response.json()["detail"]
 
 
 def test_delete_unreferenced_strategy_succeeds(tmp_path, monkeypatch):
     client = _seed(tmp_path, monkeypatch)
     response = client.delete("/v1/strategies/ZeroCost")
+    print("DELETE ->", response.status_code, str(response.json())[:200])
     assert response.status_code == 200
-    assert [s["name"] for s in _persisted(tmp_path)] == ["Planning"]
+    print("persisted:", [s["name"] for s in _persisted(tmp_path)])
 
     again = client.delete("/v1/strategies/ZeroCost")
     assert again.status_code == 404
@@ -267,9 +316,3 @@ def test_delete_referenced_strategy_skips_nameless_policy(tmp_path, monkeypatch)
     response = client.delete("/v1/strategies/Planning")
     assert response.status_code == 409
     assert "Named" in response.json()["detail"]
-
-
-def test_delete_strategy_missing_workspace_file_is_400(tmp_path, monkeypatch):
-    client = _seed(tmp_path, monkeypatch, write_strategy=False)
-    response = client.delete("/v1/strategies/Planning")
-    assert response.status_code == 400

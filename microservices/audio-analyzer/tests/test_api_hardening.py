@@ -12,6 +12,46 @@ import main
 from utils.audio_util import save_audio_file
 
 
+class ClearStorageOnStartupTests(unittest.TestCase):
+    def test_does_not_clear_storage_when_disabled(self):
+        with tempfile.TemporaryDirectory() as storage_root:
+            session_dir = os.path.join(storage_root, "session-1")
+            os.makedirs(session_dir)
+            with patch("utils.app_paths.STORAGE_ROOT", storage_root), patch(
+                "utils.config_loader.config",
+                SimpleNamespace(app=SimpleNamespace(clear_storage_on_startup=False)),
+            ), patch("main.logger.warning") as warning:
+                main._clear_storage_on_startup()
+
+            self.assertTrue(os.path.isdir(session_dir))
+            warning.assert_not_called()
+
+    def test_clears_storage_when_enabled(self):
+        with tempfile.TemporaryDirectory() as storage_root:
+            session_dir = os.path.join(storage_root, "session-1")
+            os.makedirs(session_dir)
+            with patch("utils.app_paths.STORAGE_ROOT", storage_root), patch(
+                "utils.config_loader.config",
+                SimpleNamespace(app=SimpleNamespace(clear_storage_on_startup=True)),
+            ), patch("main.logger.warning") as warning:
+                main._clear_storage_on_startup()
+
+            self.assertFalse(os.path.isdir(session_dir))
+            warning.assert_called_once()
+
+    def test_defaults_to_disabled_when_setting_missing(self):
+        with tempfile.TemporaryDirectory() as storage_root:
+            session_dir = os.path.join(storage_root, "session-1")
+            os.makedirs(session_dir)
+            with patch("utils.app_paths.STORAGE_ROOT", storage_root), patch(
+                "utils.config_loader.config", SimpleNamespace(app=SimpleNamespace())
+            ), patch("main.logger.warning") as warning:
+                main._clear_storage_on_startup()
+
+            self.assertTrue(os.path.isdir(session_dir))
+            warning.assert_not_called()
+
+
 class StartupModelTests(unittest.TestCase):
     def test_startup_fails_when_model_preparation_fails(self):
         error = FileNotFoundError("missing model")

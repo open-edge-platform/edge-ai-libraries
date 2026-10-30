@@ -1,4 +1,3 @@
-
 debian_15_install_cpuid () {
   ensure_apt_install_package cpuid
 }

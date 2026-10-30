@@ -4,6 +4,16 @@ services:
       context: .
       dockerfile: docker/Dockerfile
       args:
+        # IMAGE_VARIANT=full (default) builds every supported ASR provider
+        # (openai, openvino, whispercpp) plus diarization and sentiment
+        # analysis. INSTALL_GPU_NPU_RUNTIME=true (default) installs the
+        # Intel GPU/NPU userspace driver packages needed for GPU/NPU
+        # inference. Override IMAGE_VARIANT=slim for a smaller, CPU-only,
+        # default-ASR-only image; see docker/Dockerfile and
+        # docs/audio-analyzer-image-optimization.md for the full variant
+        # matrix and measured sizes.
+        IMAGE_VARIANT: ${IMAGE_VARIANT:-full}
+        INSTALL_GPU_NPU_RUNTIME: ${INSTALL_GPU_NPU_RUNTIME:-true}
         # Set INSTALL_CJK=true to bundle the optional FunASR Paraformer provider
         # (Chinese/English ASR). Defaults to false so the standard image is
         # unchanged for existing consumers.

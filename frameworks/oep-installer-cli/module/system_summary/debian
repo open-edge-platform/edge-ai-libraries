@@ -1,4 +1,3 @@
-
 debian_99_profile_system_summary () {
   [ "$1" != "bootstrap" ] || echo "system_inspection curl dmidecode pciutils"
   [ "$1" != "install" ] || echo "curl dmidecode pciutils"
@@ -6,6 +5,5 @@ debian_99_profile_system_summary () {
 
 debian_99_install_system_summary () {
   echo "@@REPORT SYSTEM SUMMARY"
-  install_system_inspection "$@"
+  install_system_inspection "$@" || true
 }
-

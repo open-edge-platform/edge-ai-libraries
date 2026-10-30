@@ -3,31 +3,28 @@
 
 """FastAPI application factory."""
 
-import json
 import asyncio
+import json
 import logging
 import time
 import traceback
 from pathlib import Path
 from typing import Optional
 
-from fastapi.encoders import jsonable_encoder
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-
-from src.config import RouterConfig
-from src.router import RouterOrchestrator
-from src.router.logging_utils import log_to_gateway_file, sanitize_for_log
-from src.observability import Telemetry
 
 from src.api.concurrency import (
     get_active_requests,
     get_max_concurrency,
     set_max_concurrency,
 )
-
+from src.config import RouterConfig
+from src.observability import Telemetry
+from src.router import RouterOrchestrator
+from src.router.logging_utils import log_to_gateway_file, sanitize_for_log
 
 logger = logging.getLogger("gateway")
 
@@ -177,15 +174,6 @@ def create_app(
                 "active_requests": get_active_requests(),
                 "max_concurrency": max_conc if max_conc > 0 else "unlimited",
             },
-        }
-
-    # Detailed health check with provider status.
-    @app.get("/health/detailed")
-    async def health_detailed():
-        provider_health = await router.health_check()
-        return {
-            "status": "healthy",
-            "providers": provider_health,
         }
 
     # Validation error handler — logs the offending request body so 422s are

@@ -71,6 +71,7 @@ def _group_plugins(plugins: list[dict]) -> dict[str, list[dict]]:
         "prerouting": [],
         "postrouting": [],
         "postresponse": [],
+        "standalone": [],
     }
     for plugin in plugins:
         grouped.setdefault(plugin["trigger"], []).append(
@@ -128,6 +129,7 @@ async def _persist_plugins(http_request: Request, plugins: list[dict]) -> list[d
                 "type": provider.type,
                 "model": provider.model,
                 "enabled": provider.enabled,
+                "fallback": provider.fallback,
                 "metadata": copy.deepcopy(provider.metadata),
                 "settings": copy.deepcopy(provider.settings),
             }
