@@ -65,6 +65,7 @@ COPY src /opt/src
 COPY .github/skills/model-download-user /opt/.github/skills/model-download-user
 COPY scripts /opt/scripts
 COPY requirements /opt/requirements
+COPY third_party_programs.txt /opt/third_party_programs.txt
 COPY pyproject.toml /opt/
 COPY docs/user-guide/_assets/openapi.yaml /opt/docs/user-guide/_assets/openapi.yaml
 
