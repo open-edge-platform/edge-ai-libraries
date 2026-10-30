@@ -1,0 +1,51 @@
+
+configure_deterministic_threat_detection () {
+  workspace="$(ensure_project_path)/federal-and-aerospace-ai-suite"
+  version="main"
+  repository="https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git"
+  application="$workspace/deterministic-threat-detection"
+}
+
+verify_deterministic_threat_detection () {
+  [ -r "$application/README.md" ] &&
+    [ -r "$application/docs/user-guide/get-started.md" ] &&
+    [ -r "$application/docs/user-guide/get-started-scenescape.md" ]
+}
+
+debian_90_profile_deterministic_threat_detection () {
+  echo "docker_io git"
+}
+
+debian_90_install_deterministic_threat_detection () {
+  local installed
+  installed="$(ensure_prop find "installed/*")" || return $?
+  local blueprint
+  while IFS= read -r blueprint; do
+    case "$blueprint" in
+    installed/uncrewed_aerial_vehicle_blueprint|installed/handheld_blueprint)
+      echo "Cannot install deterministic_threat_detection while ${blueprint#installed/} is installed." >&2
+      return 1
+      ;;
+    esac
+  done <<< "$installed"
+
+  configure_deterministic_threat_detection
+  if verify_deterministic_threat_detection && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Deterministic Threat Detection source is already available." >&2
+  else
+    echo "@@STEP Downloading Deterministic Threat Detection"
+    ensure_git_export "$workspace" "$version" "$repository" deterministic-threat-detection
+    if ! verify_deterministic_threat_detection; then
+      echo "Deterministic Threat Detection checkout is missing its expected documentation." >&2
+      return 1
+    fi
+  fi
+
+  echo "@@HIGHLIGHT application: ${application/#"$HOME"/"~"}"
+  echo "@@HIGHLIGHT guide: ${application/#"$HOME"/"~"}/docs/user-guide/get-started.md"
+}
+
+debian_90_remove_deterministic_threat_detection () {
+  configure_deterministic_threat_detection
+  ensure_rm "$workspace"
+}

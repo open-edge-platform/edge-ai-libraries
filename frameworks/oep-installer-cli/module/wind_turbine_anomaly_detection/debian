@@ -1,7 +1,7 @@
 
 configure_wind_turbine_anomaly_detection () {
   workspace="$(ensure_project_path)/wind-turbine-anomaly-detection"
-  version="release-2026.2.0"
+  version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")"
   repository="https://github.com/open-edge-platform/manufacturing-ai-suite.git"
   nstreams=20
   npoints=500
@@ -23,17 +23,18 @@ verify_wind_turbine_anomaly_detection () {
 }
 
 debian_90_profile_wind_turbine_anomaly_detection () {
-  echo "git gawk curl make docker edge_base python3_venv"
+  echo "git gawk curl make docker_io edge_base python3_venv"
 }
 
 debian_90_install_wind_turbine_anomaly_detection () {
-  configure_wind_turbine_anomaly_detection
+  configure_wind_turbine_anomaly_detection "$@"
   if verify_wind_turbine_anomaly_detection && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Wind turbine anomaly detection already installed. Skipping..." 1>&2
+    echo "Wind turbine anomaly detection is installed." >&2
   else
     ensure_disk_size 64000
     ensure_ram_size 16777216 # 16 GiB
-    ensure_ports_open "${used_ports[*]}" return 3
+    ensure_ports_open install wind_turbine_anomaly_detection "${used_ports[@]}"
+
     ensure_git_export "$workspace" "$version" "$repository" industrial-edge-insights-time-series
     cd "$workspace"/industrial-edge-insights-time-series
 
@@ -48,19 +49,19 @@ EOF
     verify_wind_turbine_anomaly_detection
   fi
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   configure_wind_turbine_anomaly_detection_device "$device"
 
-  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
   echo "@@HIGHLIGHT $installer_name start [--gpu|cpu]"
   echo "@@HIGHLIGHT $installer_name remove"
 }
 
 debian_90_start_wind_turbine_anomaly_detection () {
-  configure_wind_turbine_anomaly_detection
-  ensure_ports_open "${used_ports[*]}" debian_90_stop_wind_turbine_anomaly_detection "$@"
+  configure_wind_turbine_anomaly_detection "$@"
+  ensure_ports_open start wind_turbine_anomaly_detection "${used_ports[@]}"
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --${device} "* ]] || configure_wind_turbine_anomaly_detection_device "$device"
 
   cd "$workspace"/industrial-edge-insights-time-series
@@ -131,7 +132,7 @@ END {
 }
 
 debian_90_stop_wind_turbine_anomaly_detection () {
-  configure_wind_turbine_anomaly_detection
+  configure_wind_turbine_anomaly_detection "$@"
   cd "$workspace"/industrial-edge-insights-time-series && make down || true
 }
 

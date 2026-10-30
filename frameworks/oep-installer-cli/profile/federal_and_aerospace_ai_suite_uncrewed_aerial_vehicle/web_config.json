@@ -1,0 +1,18 @@
+{
+  "profile": {
+    "label": "Federal and Aerospace (Uncrewed Aerial Vehicle)",
+    "value": "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle",
+    "supports": { "OP_SYSTEM": ["UBUNTU_24_04", "UBUNTU_26_04"] }
+  },
+  "modules": [
+    { "label": "Uncrewed Aerial Vehicle Blueprint", "value": "uncrewed_aerial_vehicle_blueprint" },
+    { "label": "Uncrewed Aerial Vehicle Mission", "value": "uncrewed_aerial_vehicle_mission", "startStop": true, "remove": true }
+  ],
+  "getStarted": {
+    "text": "Get Started",
+    "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-fed-aero.html"
+  },
+  "resources": [
+    { "text": "Uncrewed Aerial Vehicle Mission", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/uav-vision-analytics/index.html" }
+  ]
+}

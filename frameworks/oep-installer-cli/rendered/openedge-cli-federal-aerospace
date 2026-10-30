@@ -1,0 +1,5276 @@
+#!/bin/bash
+
+main () {
+  if [ -z "$HOME" ]; then
+    echo "\$HOME must be set" >&2
+    return 3
+  fi
+
+  red="\033[31m" green="\033[32m" yellow="\033[33m" reset="\033[0m"
+  installer_name=openedge-cli
+  installer_bin="$HOME/.local/bin/$installer_name"
+
+  . /etc/os-release
+  installer_family="$(x="${ID_LIKE:-$ID}";x="${x##* }";echo "${x//[^a-zA-Z0-9]/}")"
+
+  local _globals=() _cmds=() _args=() cur=-1 v
+  for v in "$@"; do
+    case $v in
+    --help)
+      if [ $cur -ge 0 ]; then
+        subcommand_${_cmds[$cur]} --help
+      else
+        _cmds=($(declare -F | grep " subcommand_" | cut -f2- -d_))
+        echo "Usage: <$(IFS='|';echo "${_cmds[*]}")> component [component...]"
+        echo "common options:"
+        echo "  --help          this help message." 
+        echo
+        local cmd
+        for cmd in $(declare -F | grep -E " subcommand_" | cut -f3 -d' '); do
+          $cmd --help
+        done
+      fi
+      return 0
+      ;;
+    --dry-run|--continue)
+      _globals+=($v)
+      ;;
+    *)
+      if declare -F subcommand_$v > /dev/null; then
+        _cmds+=($v); _args+=(""); cur=$((cur+1))
+      elif [ ${#_cmds[@]} -eq 0 ]; then
+        echo "Unknown command: $v"
+        exit 3
+      elif [ $cur -ge 0 ]; then
+        _args[$cur]="${_args[$cur]} $v"
+      fi
+      ;;
+    esac
+  done
+
+  # --help if nothing specified
+  if [ ${#_cmds[@]} -eq 0 ]; then
+    main --help
+    return 0
+  fi
+
+  # initialize act cache
+  declare -F act_get > /dev/null && act_get init
+
+  local _i _rc=0
+  for ((_i=0;_i<${#_cmds[*]};_i++)); do
+    case "${_cmds[$_i]}" in
+    setup|list|bootstrap|sbom|resume)
+      subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
+      _rc=$?
+      ;;
+    *)
+      if [[ " ${_globals[*]} " = *" --dry-run "* ]]; then
+        subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
+        _rc=$?
+      else
+        # save args for resume
+        ensure_prop set command "$*"
+
+        # critical group permissions
+        local -A _groups=()
+	local _j _dep _g _gf _deps _resolved _rest_args=() _restart=0 _m _carry=""
+        for ((_j=$_i;_j<${#_cmds[@]};_j++)); do
+          _rest_args+=(${_cmds[$_j]} ${_args[$_j]})
+	  # pass module names forward within this command line so groups are checked against actual use
+          _m="$(act_extract_modules ${_cmds[$_j]} ${_args[$_j]})"
+          [ -n "${_m// }" ] && _carry="$_m"
+          if [ -z "${_m// }" ] && [ -n "$_carry" ] && [ "${_cmds[$_j]}" != "stop" ] && ! [[ "${_cmds[$_j]}" = "remove" && " ${_args[$_j]} " = *" --remove-all "* ]]; then
+            _resolved=(${_globals[*]} $_carry ${_args[$_j]})
+          else
+            _resolved=($(act_resolve_args ${_cmds[$_j]} ${_globals[*]} ${_args[$_j]}))
+          fi
+	  _deps=($(act_find_deps install ${_resolved[*]}))
+          for _dep in ${_deps[*]}; do
+            _gf=${_dep/_install_/_group_}
+            declare -F $_gf > /dev/null 2>&1 || continue
+            for _g in $($_gf $(act_extract_args group ${_dep#*_*_*_} "${_deps[*]#${installer_family}_*_install_}" ${_resolved[*]})); do
+              _groups["$_g"]=1
+            done
+          done
+        done
+
+        [ ${#_groups[*]} -eq 0 ] || ensure_group_add ${!_groups[*]} || {
+          echo -e "${red}Failed to acquire required groups; aborting.${reset}" 1>&2
+          echo "If '$(id -un)' is a directory (LDAP/AD) account, local group membership" 1>&2
+          echo "may not apply. Ask your administrator to add: ${!_groups[*]}" 1>&2
+          return 3
+        }
+
+        for _dep in ${!_groups[*]}; do
+          [[ " $(id -nG) " == *" ${_dep%:*} "* ]] || { _restart=1; break; }
+        done
+
+        if [ $_restart -eq 0 ]; then
+          subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
+          _rc=$?
+        else
+          if [ -n "${OEP_GROUP_REEXEC:-}" ]; then
+            echo -e "${yellow}groups still not effective after re-exec${reset}" 1>&2
+            return 1
+          fi
+
+          [[ " ${_cmds[*]:0:$_i} " = *" setup "* ]] || subcommand_setup "${_globals[@]}"
+
+          [ -x "$installer_bin" ] || {
+            echo -e "${red}$installer_bin not found; run 'setup' first${reset}" 1>&2
+            return 3
+          }
+
+          local _sdir="" _sdir_secrets
+          ensure_tmpdir create _sdir secrets /dev/shm
+          local _sdir_secrets="$_sdir"/secrets
+          (
+            umask 077;
+            export OEP_GROUP_REEXEC=1
+            for e in $(compgen -e | grep -Ev '^BASH_FUNC_|^(SHELLOPTS|BASHOPTS|BASH_ENV|ENV)$'); do
+              printf "export %s=%q\n" "$e" "${!e}"
+            done > "$_sdir_secrets"
+          ) || { echo "Failed to write secrets" >&2; return 3; }
+          ensure_sudo setpriv --reuid "$(id -u)" --regid "$(id -g)" --groups "$(id -G "$(id -un)" | tr ' ' ',')" \
+            --inh-caps=-all bash -c '
+secrets="$1"; installer_bin="$2"; shift 2
+. "$secrets"; rm -f "$secrets"
+exec "$installer_bin" "$@"
+' bash "$_sdir_secrets" "$installer_bin" "${_rest_args[@]}" "${_globals[@]}"
+          _rc=$?
+          ensure_tmpdir destroy "$_sdir"
+          return $_rc
+        fi
+      fi
+      ;;
+    esac
+    [ $_rc -eq 0 ] || [[ " ${_globals[*]} " = *" --continue "* ]] || break
+  done
+  return $_rc
+}
+
+#### COLLECTION OF MODULES ####
+
+_act_levenshtein () 
+{ 
+    local a=$1 b=$2 la=${#1} lb=${#2} i j cost d ins sub;
+    local -a prev=() cur=();
+    for ((j=0; j<=lb; j++))
+    do
+        prev[j]=$j;
+    done;
+    for ((i=1; i<=la; i++))
+    do
+        cur=($i);
+        for ((j=1; j<=lb; j++))
+        do
+            [ "${a:i-1:1}" = "${b:j-1:1}" ] && cost=0 || cost=1;
+            d=$((prev[j]+1));
+            ins=$((cur[j-1]+1));
+            sub=$((prev[j-1]+cost));
+            ((ins < d)) && d=$ins;
+            ((sub < d)) && d=$sub;
+            cur[j]=$d;
+        done;
+        prev=("${cur[@]}");
+    done;
+    echo "${prev[lb]}"
+}
+act_expand_modules () 
+{ 
+    local act_name=${1%%,*};
+    local -a q=($2);
+    local -A seen=();
+    local i=0;
+    while [ $i -lt ${#q[*]} ]; do
+        local n=${q[$i]};
+        i=$((i+1));
+        [ -z "${seen[$n]:-}" ] || continue;
+        seen[$n]=1;
+        local p="${_act_cache_functions[profile_$n]:-}";
+        [ -n "$p" ] && q+=($($p $act_name $(act_extract_args $act_name $n "${q[*]}" "${@:3}")));
+    done;
+    echo "${!seen[*]}"
+}
+act_extract_args () 
+{ 
+    local act_name=${1%%,*};
+    local module_name=$2;
+    local act_modules="$3";
+    local all_modules=(${_act_cache_names[*]:-${_act_cache_modules[*]}});
+    local all_module_args=" ${all_modules[*]/#/--} ";
+    local args1=() args2=() i j;
+    for ((i=4; i<=${#@}; i++))
+    do
+        if [[ " ${all_module_args} " = *" ${*:$i:1} "* ]]; then
+            for ((j=++i; j<=${#*}; j++))
+            do
+                [[ " ${all_module_args} " != *" ${*:$j:1} "* ]] || break;
+            done;
+            [ "${*:$((i-1)):1}" != "--${module_name}" ] || args2+=(${*:$i:$((j-i))});
+            i=$((j-1));
+        else
+            if [[ " ${all_module_args} " != *" --${*:$i:1} "* ]]; then
+                args1+=(${*:$i:1});
+            fi;
+        fi;
+    done;
+    echo "${args1[*]} ${act_modules} -- ${args2[*]}"
+}
+act_extract_modules () 
+{ 
+    local act_name=${1%%,*};
+    local all_modules=(${_act_cache_names[*]:-${_act_cache_modules[*]}});
+    local all_module_args=" ${all_modules[*]/#/--} ";
+    local -A modules=();
+    local v;
+    for v in ${*:2};
+    do
+        [[ " ${all_module_args} " != *" $v "* ]] || break;
+        [[ " ${all_module_args} " != *" --$v "* ]] || modules[$v]=1;
+    done;
+    echo "${!modules[*]}"
+}
+act_find_deps () 
+{ 
+    local act_name=${1%%,*};
+    local -A handlers=();
+    local name handler;
+    for name in $(act_expand_modules $act_name "$(act_extract_modules "$@")" "${@:2}");
+    do
+        local p="${_act_cache_functions[${act_name}_${name}]:-}";
+        [ -n "$p" ] && handlers[$p]=1;
+    done;
+    echo "${!handlers[*]}"
+}
+act_find_parents () 
+{ 
+    local targets=" $1 ";
+    shift;
+    local p d;
+    for p in $(ensure_prop find "installed/*" | cut -f2 -d/ | uniq);
+    do
+        [[ "$targets" != *" $p "* ]] || continue;
+        for d in $(act_expand_modules install $p "$@");
+        do
+            [ "$d" != "$p" ] || continue;
+            [[ "$targets" != *" $d "* ]] || echo "$p:$d";
+        done;
+    done
+}
+act_get () 
+{ 
+    case "$1" in 
+        prefix)
+            declare -ga _act_reply=();
+            local f;
+            for f in ${!_act_cache_functions[*]};
+            do
+                [[ "$f" = "$2"* ]] && _act_reply+=("${_act_cache_functions[$f]}");
+            done
+        ;;
+        init)
+            declare -g _act_cache_cmds=($(declare -F | grep -E " subcommand_" | grep -v -E 'subcommand_(list|setup)$' | cut -f2- -d_));
+            declare -g _act_cache_modules=($(declare -F | grep -E " ${installer_family}_[0-9]+_($(IFS='|'; echo "${_act_cache_cmds[*]}"))_" | cut -f2,4- -d_ | sort | cut -f2- -d_ | awk '!seen[$0]++'));
+            declare -gA _act_cache_functions=();
+            local f rest;
+            while read -r _ _ f; do
+                case $f in 
+                    "${installer_family}_"*)
+                        rest=${f#"${installer_family}_"};
+                        _act_cache_functions[${rest#*_}]=$f
+                    ;;
+                esac;
+            done < <(declare -F);
+            declare -ga _act_cache_names=(${_act_cache_modules[*]});
+            for f in ${!_act_cache_functions[*]};
+            do
+                [[ "$f" = profile_* ]] || continue;
+                [[ " ${_act_cache_names[*]} " = *" ${f#profile_} "* ]] || _act_cache_names+=("${f#profile_}");
+            done
+        ;;
+    esac
+}
+act_helper () 
+{ 
+    local act_name=${1%%,*};
+    local act_text="${1#*,}";
+    local sort_options="$2";
+    shift;
+    shift;
+    act_validate_modules $act_name "$@" || return 3;
+    local explicit_mods="$(act_extract_modules $act_name "$@")";
+    local remove_all=0;
+    if [[ "$act_name" = "remove" && " $* " = *" --remove-all "* ]]; then
+        if [ -z "${explicit_mods// }" ]; then
+            remove_all=1;
+        else
+            echo -e "${yellow}--remove-all ignored: components specified ($explicit_mods)${reset}" 1>&2;
+        fi;
+    fi;
+    set -- $(act_resolve_args $act_name "$@");
+    local _act_args="$*";
+    local handles=($(act_find_deps $act_name "$@"));
+    if [ "$act_name" = "remove" ] && [ $remove_all -eq 0 ] && [ ${#handles[@]} -gt 0 ]; then
+        local _targets=() _top=0 _h _o _pair;
+        for _h in $(printf '%s\n' "${handles[@]}" | sort $sort_options);
+        do
+            _o=${_h#*_};
+            _o=${_o%%_*};
+            [ "$_top" -gt 0 ] || _top=$_o;
+            [ "$_o" -ge "$_top" ] || break;
+            _targets+=(${_h#*_*_*_});
+        done;
+        local -A _needed=();
+        for _pair in $(act_find_parents "${_targets[*]}" "$@");
+        do
+            _needed[${_pair#*:}]+="${_needed[${_pair#*:}]:+, }${_pair%%:*}";
+        done;
+        if [ ${#_needed[@]} -gt 0 ]; then
+            for _h in ${!_needed[*]};
+            do
+                echo -e "${red}Cannot remove $_h: required by ${_needed[$_h]}${reset}" 1>&2;
+            done;
+            echo "Remove the dependent components in the same command, or use --remove-all." 1>&2;
+            return 3;
+        fi;
+    fi;
+    if [ ${#handles[@]} -gt 0 ]; then
+        if [ "$act_name" = "install" ]; then
+            local -A licenses=() licenses_text=();
+            local all_install_modules="${handles[*]#${installer_family}_*_install_}";
+            for licenser in ${handles[*]/_install_/_license_};
+            do
+                if declare -F $licenser > /dev/null 2>&1; then
+                    local name1=${licenser#*_*_*_} license_line license_id="" license_keep=0;
+                    while IFS= read -r license_line; do
+                        case "$license_line" in 
+                            "@@LICENSE-ID "*)
+                                license_id="${license_line#* }";
+                                [ -z "$license_id" ] || licenses[$license_id]="${licenses[$license_id]:-}$name1,";
+                                [[ -v licenses_text[$license_id] ]] && license_keep=0 || license_keep=1
+                            ;;
+                        esac;
+                        [ $license_keep -eq 1 ] && licenses_text[$license_id]+="${license_line}"'
+';
+                    done < <($licenser $(act_extract_args install $name1 "$all_install_modules" "$@"));
+                fi;
+            done;
+            if [ ${#licenses[*]} -gt 0 ]; then
+                local id1 rc;
+                for id1 in ${!licenses[*]};
+                do
+                    echo "${licenses_text[$id1]}";
+                    echo "@@LICENSE-COMPONENT $(echo "${licenses[$id1]%,}")";
+                done | ensure_license_gate $installer_name "$@";
+                rc=$?;
+                if [ $rc -eq 1 ]; then
+                    echo "License declined";
+                    exit 3;
+                else
+                    if [ $rc -ne 0 ]; then
+                        echo "License gate failed (no terminal or parse error)";
+                        exit 3;
+                    fi;
+                fi;
+            fi;
+        fi;
+        local hp="${http_proxy:-$HTTP_PROXY}" sp="${https_proxy:-$HTTPS_PROXY}" np=",${no_proxy:-$NO_PROXY},";
+        np="${np//,intel.com,/,}";
+        np="${np//,.intel.com,/,}";
+        np="${np##,}";
+        [ -z "$hp" ] || export http_proxy="$hp" HTTP_PROXY="$hp";
+        [ -z "$sp" ] || export https_proxy="$sp" HTTPS_PROXY="$sp";
+        [ -z "$np" ] || export no_proxy="${np%%,}" NO_PROXY="${np%%,}";
+        local rc=0 order=0;
+        export _INSTALLER_PANEL_ACTIVE=;
+        [ -t 1 ] && export _INSTALLER_PANEL_ACTIVE=1;
+        { 
+            for handler in $(echo "${handles[*]}" | tr ' ' '\n' | sort $sort_options);
+            do
+                local name1=${handler#*_*_*_};
+                if [ "$act_name" = "remove" ] && [ $remove_all -eq 0 ]; then
+                    local order1=${handler#*_};
+                    order1=${order1%%_*};
+                    [ "$order" -gt 0 ] || order=$order1;
+                    [ "$order1" -ge "$order" ] || break;
+                fi;
+                local invoke_args="$(act_extract_args $act_name $name1 "${handles[*]#${installer_family}_*_${act_name}_}" "$@")";
+                if [[ " $* " = *" --dry-run "* ]]; then
+                    echo "@@COMP $name1";
+                    echo "Invoke $handler with $invoke_args";
+                    echo "@@OK $name1";
+                else
+                    [ "$act_name" = "start" ] && ensure_prop create started/$name1/;
+                    [ "$act_name" = "install" ] && ensure_prop create installed/$name1/;
+                    echo "@@COMP $name1";
+                    local rc1=0;
+                    ( set -e;
+                    $handler $invoke_args ) & wait $! || rc1=$?;
+                    [[ " stop remove " = *" $act_name "* ]] && ensure_prop remove started/$name1/;
+                    [ "$act_name" = "remove" ] && [ $rc1 -eq 0 ] && ensure_prop remove installed/$name1/;
+                    if [ $rc1 -eq 0 ]; then
+                        echo "@@OK $name1";
+                    else
+                        echo "@@FAIL $name1";
+                        rc=$rc1;
+                        [[ " $* " = *" --continue "* ]] || break;
+                    fi;
+                fi;
+            done
+        } > >(LOG_FILE="$(ensure_project_path)/$installer_name/$(date +%m-%d-%Y).logs"
+mkdir -p "$(dirname "$LOG_FILE")"
+echo "========== $(date -Ins) ==========" >> "$LOG_FILE"
+echo "@@COMMAND $act_name $*" >> "$LOG_FILE"
+if [ -n "$_INSTALLER_PANEL_ACTIVE" ]; then
+    act_panelled_logs ${act_text//,/ };
+else
+    tee -a "$LOG_FILE";
+fi) 2>&1;
+        wait;
+        [[ " $* " != *" --dry-run "* && -n "${explicit_mods// }" ]] && ensure_prop set modules "$explicit_mods";
+        [[ $remove_all -eq 1 && $rc -eq 0 && " $* " != *" --dry-run "* ]] && ensure_prop remove modules;
+        return $rc;
+    else
+        echo "Component not found" 1>&2;
+        [[ " $* " = *" --dry-run "* ]] || ensure_prop remove modules;
+        return 3;
+    fi
+}
+act_panelled_logs () 
+{ 
+    ( set -o pipefail;
+    set -u;
+    readonly ACT_TEXT=($*);
+    readonly C_RESET='[0m';
+    readonly C_GREEN='[1;32m';
+    readonly C_RED='[1;31m';
+    readonly C_YELLOW='[1;33m';
+    readonly C_CYAN='[1;36m';
+    readonly C_DIM='[2m';
+    readonly C_BOLD='[1m';
+    if [[ ${LC_ALL:-${LC_CTYPE:-${LANG:-}}} == *[Uu][Tt][Ff]* ]]; then
+        BC_H='─';
+        BC_V='│';
+        BC_B='│';
+        BC_TL='┌';
+        BC_TR='┐';
+        BC_BL='└';
+        BC_BR='┘';
+        G_OK='✔';
+        G_FAIL='✘';
+        G_RUN='◐';
+        G_HL='▸';
+        G_ELL='…';
+        G_DN='>>';
+    else
+        BC_H='-';
+        BC_V='|';
+        BC_B='|';
+        BC_TL='+';
+        BC_TR='+';
+        BC_BL='+';
+        BC_BR='+';
+        G_OK='+';
+        G_FAIL='x';
+        G_RUN='*';
+        G_HL='>';
+        G_ELL='~';
+        G_DN='>>';
+    fi;
+    G_SEL='<<';
+    readonly BC_H BC_V BC_B BC_TL BC_TR BC_BL BC_BR G_OK G_FAIL G_RUN G_HL G_ELL G_DN G_SEL;
+    readonly TAIL_LINES=2;
+    readonly MAX_HL=12;
+    readonly MAX_RBUF=2000;
+    readonly MAX_WRAP=3000;
+    readonly LEFT_MIN=16;
+    KEEP_COLOR=${KEEP_COLOR:-1};
+    WRAP_MODE=${WRAP_MODE:-wrap};
+    LEFT_WIDTH=${LEFT_WIDTH:-0};
+    LEFT_MAX_PCT=${LEFT_MAX_PCT:-34};
+    REPORT_MAX_PCT=${REPORT_MAX_PCT:-55};
+    SPLIT_MIN=${SPLIT_MIN:-6};
+    REDRAW_MS=${REDRAW_MS:-50};
+    TICK_SEC=${TICK_SEC:-0.5};
+    NARROW_GLYPHS=${NARROW_GLYPHS:-0};
+    FAIL_ROWS=${FAIL_ROWS:-20};
+    RAISE_MS=${RAISE_MS:-15};
+    STEP_MIN=${STEP_MIN:-12};
+    STEP_TEXT="";
+    declare -a STEP_RX=() STEP_FMT=();
+    readonly CSI_FINAL='[A-Za-z@\[\\\]^_`{|}~]';
+    readonly SEP_W=3;
+    declare -a ORDER=();
+    declare -A STATUS=();
+    declare -A L1=() L2=();
+    declare -A RBUF=();
+    declare -A RCNT=();
+    declare -A HL=();
+    declare -A HCNT=();
+    declare -A REPORT=();
+    declare -A TSTART=();
+    declare -A TACC=();
+    declare -A TDONE=();
+    declare -A TSHOWN=();
+    declare -a FAILED=();
+    declare -A WCACHE=();
+    declare -A DWCACHE=();
+    declare -A HRCACHE=();
+    declare -A WRAPC=();
+    declare -A WRAPCN=();
+    declare -A WRAPW=();
+    declare -A LBLK=();
+    declare -A LDIRTY=();
+    declare -a LEFT_ROWS=();
+    declare -a PREV=();
+    declare -a RCACHE_ROWS=();
+    RCACHE_COMP="";
+    RCACHE_W=-1;
+    RCACHE_N=-1;
+    LEFT_VALID=0;
+    CURRENT="";
+    FOCUS="";
+    SHOWN="";
+    REVIEW=0;
+    LAST_DRAW=0;
+    WIDEST=0;
+    FRAMES=0;
+    DRAW_MS=0;
+    T_FIRST=0;
+    T_LAST=0;
+    TTY_COLS=0;
+    TTY_ROWS=0;
+    TTY_FD=-1;
+    GEOM_DIRTY=1;
+    DRAWING=0;
+    PREV_LW=-1;
+    PREV_RW=-1;
+    FULL_CLEAR=1;
+    RW_NOW=0;
+    TITLE_WORD=completed;
+    FAIL_H=0;
+    PREV_FH=-1;
+    FAIL_TITLE="";
+    declare -a FAILROWS=();
+    declare -a AT_LINES=();
+    declare -A AT_SEG=();
+    AT_UNTIL=0;
+    AT_CD=-1;
+    AT_FMT="";
+    AT_SEC=-1;
+    AT_GUARD=0;
+    function _open_tty () 
+    { 
+        if [[ -e /dev/tty ]] && { 
+            exec {TTY_FD}<> /dev/tty
+        } 2> /dev/null; then
+            return 0;
+        fi;
+        if [[ -t 2 ]] && { 
+            exec {TTY_FD}>&2
+        } 2> /dev/null; then
+            return 0;
+        fi;
+        if [[ -t 1 ]] && { 
+            exec {TTY_FD}>&1
+        } 2> /dev/null; then
+            return 0;
+        fi;
+        TTY_FD=-1;
+        return 1
+    };
+    function _probe_geom () 
+    { 
+        local sz;
+        if (( TTY_FD >= 0 )); then
+            sz=$(stty size <&"$TTY_FD" 2> /dev/null);
+            if [[ $sz == +([0-9])' '+([0-9]) ]]; then
+                printf '%s %s' "${sz##* }" "${sz%% *}";
+                return 0;
+            fi;
+        fi;
+        if [[ -n ${COLUMNS:-} && -n ${LINES:-} ]]; then
+            printf '%s %s' "$COLUMNS" "$LINES";
+            return 0;
+        fi;
+        return 1
+    };
+    function _read_geom () 
+    { 
+        local c r sz;
+        shopt -s checkwinsize 2> /dev/null;
+        if [[ -n ${FORCE_COLS:-} ]]; then
+            c=$FORCE_COLS;
+            r=${FORCE_ROWS:-${LINES:-24}};
+        else
+            sz=$(_probe_geom) || sz="";
+            if [[ -n $sz ]]; then
+                c=${sz%% *};
+                r=${sz##* };
+            else
+                c=${COLUMNS:-80};
+                r=${LINES:-24};
+            fi;
+        fi;
+        [[ $c == +([0-9]) ]] || c=80;
+        [[ $r == +([0-9]) ]] || r=24;
+        (( c < 40 )) && c=40;
+        (( r < 10 )) && r=10;
+        if (( c != TTY_COLS || r != TTY_ROWS )); then
+            FULL_CLEAR=1;
+            DWCACHE=();
+            HRCACHE=();
+            PREV=();
+        fi;
+        TTY_COLS=$c;
+        TTY_ROWS=$r;
+        GEOM_DIRTY=0
+    };
+    function _cellw () 
+    { 
+        local ch=$1 cp;
+        if [[ -z $ch ]]; then
+            REPLY=0;
+            return;
+        fi;
+        if [[ $ch == [[:ascii:]] ]]; then
+            REPLY=1;
+            return;
+        fi;
+        if (( NARROW_GLYPHS )); then
+            REPLY=1;
+            return;
+        fi;
+        if [[ -n ${WCACHE[$ch]:-} ]]; then
+            REPLY=${WCACHE[$ch]};
+            return;
+        fi;
+        printf -v cp '%d' "'$ch" 2> /dev/null || cp=0;
+        local w=1;
+        if (( cp >= 0x1100  && cp <= 0x115F  )); then
+            w=2;
+        else
+            if (( cp >= 0x2E80  && cp <= 0x303E  )); then
+                w=2;
+            else
+                if (( cp >= 0x3041  && cp <= 0x33FF  )); then
+                    w=2;
+                else
+                    if (( cp >= 0x3400  && cp <= 0x4DBF  )); then
+                        w=2;
+                    else
+                        if (( cp >= 0x4E00  && cp <= 0x9FFF  )); then
+                            w=2;
+                        else
+                            if (( cp >= 0xA000  && cp <= 0xA4CF  )); then
+                                w=2;
+                            else
+                                if (( cp >= 0xAC00  && cp <= 0xD7A3  )); then
+                                    w=2;
+                                else
+                                    if (( cp >= 0xF900  && cp <= 0xFAFF  )); then
+                                        w=2;
+                                    else
+                                        if (( cp >= 0xFE30  && cp <= 0xFE6F  )); then
+                                            w=2;
+                                        else
+                                            if (( cp >= 0xFF00  && cp <= 0xFF60  )); then
+                                                w=2;
+                                            else
+                                                if (( cp >= 0xFFE0  && cp <= 0xFFE6  )); then
+                                                    w=2;
+                                                else
+                                                    if (( cp >= 0x1F300 && cp <= 0x1FAFF )); then
+                                                        w=2;
+                                                    else
+                                                        if (( cp >= 0x20000 && cp <= 0x3FFFD )); then
+                                                            w=2;
+                                                        else
+                                                            if (( cp == 0x26D4 || cp == 0x2757 || cp == 0x2753 )); then
+                                                                w=2;
+                                                            else
+                                                                if (( cp >= 0x25B6 && cp <= 0x25C0 )); then
+                                                                    w=1;
+                                                                else
+                                                                    if (( cp >= 0x2B00 && cp <= 0x2BFF )); then
+                                                                        w=2;
+                                                                    else
+                                                                        if (( cp >= 0x0300 && cp <= 0x036F )); then
+                                                                            w=0;
+                                                                        else
+                                                                            if (( cp >= 0xFE00 && cp <= 0xFE0F )); then
+                                                                                w=0;
+                                                                            fi;
+                                                                        fi;
+                                                                    fi;
+                                                                fi;
+                                                            fi;
+                                                        fi;
+                                                    fi;
+                                                fi;
+                                            fi;
+                                        fi;
+                                    fi;
+                                fi;
+                            fi;
+                        fi;
+                    fi;
+                fi;
+            fi;
+        fi;
+        WCACHE[$ch]=$w;
+        REPLY=$w
+    };
+    function _dwidth () 
+    { 
+        local s=$1;
+        if [[ -z $s ]]; then
+            REPLY=0;
+            return;
+        fi;
+        if [[ $s != *[![:ascii:]]* ]]; then
+            REPLY=${#s};
+            return;
+        fi;
+        if [[ -n ${DWCACHE[$s]:-} ]]; then
+            REPLY=${DWCACHE[$s]};
+            return;
+        fi;
+        local n=0 i;
+        for ((i = 0; i < ${#s}; i++ ))
+        do
+            _cellw "${s:i:1}";
+            n=$(( n + REPLY ));
+        done;
+        (( ${#DWCACHE[@]} > 4000 )) && DWCACHE=();
+        DWCACHE[$s]=$n;
+        REPLY=$n
+    };
+    TAKEN="";
+    TAKENW=0;
+    function _take_cells () 
+    { 
+        local w=$1 s=$2;
+        if (( w <= 0 )) || [[ -z $s ]]; then
+            TAKEN="";
+            TAKENW=0;
+            return;
+        fi;
+        if [[ $s != *[![:ascii:]]* ]]; then
+            if (( ${#s} <= w )); then
+                TAKEN=$s;
+                TAKENW=${#s};
+            else
+                TAKEN=${s:0:w};
+                TAKENW=$w;
+            fi;
+            return;
+        fi;
+        local n=0 i out="";
+        for ((i = 0; i < ${#s}; i++ ))
+        do
+            _cellw "${s:i:1}";
+            (( n + REPLY > w )) && break;
+            out+=${s:i:1};
+            n=$(( n + REPLY ));
+        done;
+        TAKEN=$out;
+        TAKENW=$n
+    };
+    function _now_ms () 
+    { 
+        printf '%s' $(( ${EPOCHREALTIME/./} / 1000 ))
+    };
+    function _elapsed_ms () 
+    { 
+        local c=$1;
+        REPLY=0;
+        [[ -z $c ]] && return;
+        if [[ -n ${TDONE[$c]:-} ]]; then
+            REPLY=${TDONE[$c]};
+            return;
+        fi;
+        local acc=${TACC[$c]:-0};
+        if [[ -n ${TSTART[$c]:-} ]]; then
+            REPLY=$(( acc + $(_now_ms) - ${TSTART[$c]} ));
+        else
+            REPLY=$acc;
+        fi;
+        (( REPLY < 0 )) && REPLY=0
+    };
+    function _fmt_elapsed () 
+    { 
+        local ms=${1:-0} s m h;
+        (( ms < 0 )) && ms=0;
+        s=$(( ms / 1000 ));
+        if (( s < 60 )); then
+            printf -v REPLY '%ds' "$s";
+        else
+            if (( s < 3600 )); then
+                printf -v REPLY '%dm%02ds' $(( s / 60 )) $(( s % 60 ));
+            else
+                printf -v REPLY '%dh%02dm' $(( s / 3600 )) $(( (s % 3600) / 60 ));
+            fi;
+        fi
+    };
+    function _timer_start () 
+    { 
+        local c=$1;
+        [[ -z $c ]] && return;
+        if [[ -n ${TDONE[$c]:-} ]]; then
+            TACC[$c]=${TDONE[$c]};
+            unset "TDONE[$c]";
+        fi;
+        : "${TACC[$c]:=0}";
+        TSTART[$c]=$(_now_ms);
+        TSHOWN[$c]=-1;
+        (( T_FIRST == 0 )) && T_FIRST=${TSTART[$c]}
+    };
+    function _timer_stop () 
+    { 
+        local c=$1;
+        [[ -z $c ]] && return;
+        [[ -n ${TDONE[$c]:-} ]] && return;
+        [[ -z ${TSTART[$c]:-} && -z ${TACC[$c]:-} ]] && return;
+        _elapsed_ms "$c";
+        TDONE[$c]=$REPLY;
+        unset "TSTART[$c]"
+    };
+    HRULE="";
+    function _hrule_v () 
+    { 
+        local w=$1;
+        (( w <= 0 )) && { 
+            HRULE="";
+            return
+        };
+        if [[ -n ${HRCACHE[$w]:-} ]]; then
+            HRULE=${HRCACHE[$w]};
+            return;
+        fi;
+        local s;
+        printf -v s '%*s' "$w" '';
+        HRULE=${s// /$BC_H};
+        HRCACHE[$w]=$HRULE
+    };
+    PLAIN="";
+    SGRTEXT="";
+    function _sanitize_v () 
+    { 
+        local s=$1 keep=$2 out="" pre rest fin i ch;
+        s=${s//'	'/    };
+        s=${s//''/ };
+        s=${s//''/ };
+        s=${s//''/};
+        while [[ $s == *'' ]]; do
+            s=${s%''};
+        done;
+        [[ $s == *''* ]] && s=${s##*''};
+        if [[ $s == *''* ]]; then
+            while [[ $s == *''* ]]; do
+                pre=${s%%''*};
+                out+=$pre;
+                rest=${s:${#pre}+1};
+                case ${rest:0:1} in 
+                    '[')
+                        i=1;
+                        while (( i < ${#rest} )); do
+                            ch=${rest:i:1};
+                            [[ $ch == $CSI_FINAL ]] && break;
+                            (( i++ ));
+                        done;
+                        fin=${rest:i:1};
+                        if (( keep )) && [[ $fin == m ]]; then
+                            out+=''"${rest:0:i+1}";
+                        fi;
+                        s=${rest:i+1}
+                    ;;
+                    ']')
+                        if [[ $rest == *''* ]]; then
+                            s=${rest#*''};
+                        else
+                            if [[ $rest == *'\'* ]]; then
+                                s=${rest#*'\'};
+                            else
+                                s="";
+                            fi;
+                        fi
+                    ;;
+                    'P' | 'X' | '^' | '_')
+                        if [[ $rest == *'\'* ]]; then
+                            s=${rest#*'\'};
+                        else
+                            s="";
+                        fi
+                    ;;
+                    *)
+                        s=${rest:1}
+                    ;;
+                esac;
+            done;
+            out+=$s;
+        else
+            out=$s;
+        fi;
+        out=${out%"${out##*[![:space:]]}"};
+        if (( keep )); then
+            SGRTEXT=$out;
+        else
+            PLAIN=$out;
+        fi
+    };
+    function _plain_v () 
+    { 
+        _sanitize_v "$1" 0
+    };
+    FITTED="";
+    function _fit_v () 
+    { 
+        local w=$1 raw=$2 fp=${3:-0};
+        if (( w <= 0 )); then
+            FITTED="";
+            return;
+        fi;
+        _plain_v "$raw";
+        local plain=$PLAIN;
+        _dwidth "$plain";
+        local pw=$REPLY;
+        if (( ! fp && KEEP_COLOR )) && [[ $raw == *''* ]]; then
+            _sanitize_v "$raw" 1;
+            local c=$SGRTEXT;
+            if (( pw <= w )); then
+                printf -v FITTED '%s%s%*s' "$c" "$C_RESET" $(( w - pw )) '';
+                return;
+            fi;
+            local out="" n=0 i ch seg;
+            while [[ -n $c ]]; do
+                if [[ ${c:0:1} == '' ]]; then
+                    i=2;
+                    while (( i < ${#c} )); do
+                        ch=${c:i:1};
+                        [[ $ch == $CSI_FINAL ]] && break;
+                        (( i++ ));
+                    done;
+                    out+=${c:0:i+1};
+                    c=${c:i+1};
+                    continue;
+                fi;
+                seg=${c%%''*};
+                c=${c:${#seg}};
+                _take_cells $(( w - 1 - n )) "$seg";
+                out+=$TAKEN;
+                n=$(( n + TAKENW ));
+                (( n >= w - 1 )) && break;
+            done;
+            printf -v FITTED '%s%s%s%*s' "$out" "$C_RESET" "$G_ELL" $(( w - n - 1 )) '';
+            return;
+        fi;
+        if (( pw <= w )); then
+            printf -v FITTED '%s%*s' "$plain" $(( w - pw )) '';
+        else
+            _take_cells $(( w - 1 )) "$plain";
+            printf -v FITTED '%s%s%*s' "$TAKEN" "$G_ELL" $(( w - TAKENW - 1 )) '';
+        fi
+    };
+    declare -a WRAPPED=();
+    function _wrap_into () 
+    { 
+        local w=$1;
+        (( w <= 0 )) && return;
+        _plain_v "$2";
+        local s=$PLAIN t tw brk sw row;
+        if [[ -z $s ]]; then
+            printf -v row '%*s' "$w" '';
+            WRAPPED+=("$row");
+            return;
+        fi;
+        while :; do
+            _dwidth "$s";
+            sw=$REPLY;
+            if (( sw <= w )); then
+                printf -v row '%s%*s' "$s" $(( w - sw )) '';
+                WRAPPED+=("$row");
+                return;
+            fi;
+            _take_cells "$w" "$s";
+            t=$TAKEN;
+            tw=$TAKENW;
+            [[ -z $t ]] && { 
+                t=${s:0:1};
+                _dwidth "$t";
+                tw=$REPLY
+            };
+            if [[ $t == *" "* && ${s:${#t}:1} != " " ]]; then
+                brk=${t% *};
+                if (( ${#brk} > 0 )); then
+                    t=$brk;
+                    _dwidth "$t";
+                    tw=$REPLY;
+                fi;
+            else
+                if [[ $t == *"/"* && ${s:${#t}:1} != " " ]]; then
+                    brk=${t%/*};
+                    brk=${t:0:${#brk}+1};
+                    if (( ${#brk} > 1 && ${#brk} < ${#t} )); then
+                        t=$brk;
+                        _dwidth "$t";
+                        tw=$REPLY;
+                    fi;
+                fi;
+            fi;
+            printf -v row '%s%*s' "$t" $(( w - tw )) '';
+            WRAPPED+=("$row");
+            s=${s:${#t}};
+            [[ ${s:0:1} == " " ]] && s=${s:1};
+            [[ -z $s ]] && return;
+        done
+    };
+    function _wrap_color_into () 
+    { 
+        local w=$1 s=$2;
+        (( w <= 0 )) && return;
+        local active="" row="" n=0 seg i ch esc brk segw t tw out;
+        while [[ -n $s ]]; do
+            if [[ ${s:0:1} == '' ]]; then
+                i=2;
+                while (( i < ${#s} )); do
+                    ch=${s:i:1};
+                    [[ $ch == $CSI_FINAL ]] && break;
+                    (( i++ ));
+                done;
+                esc=${s:0:i+1};
+                s=${s:i+1};
+                if [[ $esc == '[0m' || $esc == '[m' ]]; then
+                    active="";
+                else
+                    active+=$esc;
+                fi;
+                row+=$esc;
+                continue;
+            fi;
+            seg=${s%%''*};
+            [[ -z $seg ]] && continue;
+            s=${s:${#seg}};
+            while :; do
+                _dwidth "$seg";
+                segw=$REPLY;
+                if (( n + segw <= w )); then
+                    row+=$seg;
+                    n=$(( n + segw ));
+                    break;
+                fi;
+                _take_cells $(( w - n )) "$seg";
+                t=$TAKEN;
+                tw=$TAKENW;
+                [[ -z $t ]] && { 
+                    t=${seg:0:1};
+                    _dwidth "$t";
+                    tw=$REPLY
+                };
+                if [[ $t == *" "* && ${seg:${#t}:1} != " " ]]; then
+                    brk=${t% *};
+                    if (( ${#brk} > 0 )); then
+                        t=$brk;
+                        _dwidth "$t";
+                        tw=$REPLY;
+                    fi;
+                fi;
+                row+=$t;
+                n=$(( n + tw ));
+                printf -v out '%s%s%*s' "$row" "$C_RESET" $(( w - n )) '';
+                WRAPPED+=("$out");
+                row=$active;
+                n=0;
+                seg=${seg:${#t}};
+                [[ ${seg:0:1} == " " ]] && seg=${seg:1};
+                [[ -z $seg ]] && break;
+            done;
+        done;
+        printf -v out '%s%s%*s' "$row" "$C_RESET" $(( w - n )) '';
+        WRAPPED+=("$out")
+    };
+    function _wrap_one () 
+    { 
+        local w=$1 line=$2;
+        WRAPPED=();
+        if [[ $WRAP_MODE == clip ]]; then
+            _fit_v "$w" "$line";
+            WRAPPED=("$FITTED");
+        else
+            if (( KEEP_COLOR )); then
+                _wrap_color_into "$w" "$line";
+            else
+                _wrap_into "$w" "$line";
+            fi;
+        fi
+    };
+    SG_C="";
+    SG_M="";
+    SG_L="";
+    function _sg () 
+    { 
+        case ${1:-} in 
+            ok)
+                SG_C=$C_GREEN;
+                SG_M=$G_OK;
+                SG_L="${ACT_TEXT[2],,}"
+            ;;
+            fail)
+                SG_C=$C_RED;
+                SG_M=$G_FAIL;
+                SG_L="failed"
+            ;;
+            *)
+                SG_C=$C_YELLOW;
+                SG_M=$G_RUN;
+                SG_L="${ACT_TEXT[1],,}"
+            ;;
+        esac
+    };
+    HDRTXT="";
+    function _header_text () 
+    { 
+        local name=$1;
+        HDRTXT="";
+        [[ -z $name ]] && return;
+        _sg "${STATUS[$name]:-}";
+        _elapsed_ms "$name";
+        local ms=$REPLY;
+        if (( ms <= 0 )) && [[ -z ${TDONE[$name]:-} ]]; then
+            HDRTXT="${name} [${SG_L}]";
+            return;
+        fi;
+        _fmt_elapsed "$ms";
+        if [[ -z $REPLY ]]; then
+            HDRTXT="${name} [${SG_L}]";
+        else
+            HDRTXT="${name} [${SG_L}, ${REPLY}]";
+        fi
+    };
+    TITLE="";
+    function _title_text () 
+    { 
+        local final=${1:-0} word=${2:-completed} name nok=0 nbad=0;
+        TITLE=" ${ACT_TEXT[0]} progress ";
+        if (( final )); then
+            for name in "${ORDER[@]}";
+            do
+                [[ -z $name ]] && continue;
+                [[ -n ${REPORT[$name]:-} ]] && continue;
+                case ${STATUS[$name]:-} in 
+                    ok)
+                        nok=$(( nok + 1 ))
+                    ;;
+                    fail)
+                        nbad=$(( nbad + 1 ))
+                    ;;
+                esac;
+            done;
+            TITLE=" ${ACT_TEXT[0]} ${word}:  ${G_OK} ${nok}  ${G_FAIL} ${nbad}";
+        fi;
+        if (( T_FIRST > 0 )); then
+            local endms=$T_LAST;
+            (( endms == 0 )) && endms=$(_now_ms);
+            _fmt_elapsed $(( endms - T_FIRST ));
+            [[ -n $REPLY ]] && TITLE+="  ${REPLY}";
+        fi
+    };
+    function _note_width () 
+    { 
+        local name=$1;
+        [[ -z $name ]] && return;
+        _header_text "$name";
+        _dwidth "$HDRTXT";
+        local wneed=$(( REPLY + 5 ));
+        (( wneed > WIDEST )) && WIDEST=$wneed
+    };
+    function _touch_comp () 
+    { 
+        local name=$1;
+        [[ -z $name ]] && return;
+        [[ -n ${STATUS[$name]:-} ]] && return;
+        ORDER+=("$name");
+        STATUS[$name]="${ACT_TEXT[1],,}";
+        L1[$name]="";
+        L2[$name]="";
+        RBUF[$name]="";
+        RCNT[$name]=0;
+        HL[$name]="";
+        HCNT[$name]=0;
+        REPORT[$name]="";
+        TACC[$name]=0;
+        TSHOWN[$name]=-1;
+        WRAPC[$name]="";
+        WRAPCN[$name]=0;
+        WRAPW[$name]=-1;
+        LDIRTY[$name]=1;
+        LEFT_VALID=0;
+        _dwidth "$name";
+        local wneed=$(( REPLY + 26 ));
+        (( wneed > WIDEST )) && WIDEST=$wneed
+    };
+    function _mark_fail () 
+    { 
+        local name=$1 f;
+        [[ -z $name ]] && return;
+        STATUS[$name]="fail";
+        _timer_stop "$name";
+        LDIRTY[$name]=1;
+        LEFT_VALID=0;
+        for f in "${FAILED[@]}";
+        do
+            [[ $f == "$name" ]] && return;
+        done;
+        FAILED+=("$name")
+    };
+    function _push_log () 
+    { 
+        local c=$1 line=$2 r;
+        [[ -z $c ]] && return;
+        L1[$c]=${L2[$c]:-};
+        L2[$c]=$line;
+        LDIRTY[$c]=1;
+        LEFT_VALID=0;
+        RBUF[$c]+="${line}"'
+';
+        RCNT[$c]=$(( ${RCNT[$c]:-0} + 1 ));
+        if (( RW_NOW > 0 )) && [[ ${WRAPW[$c]:--1} == "$RW_NOW" ]]; then
+            _wrap_one "$RW_NOW" "$line";
+            for r in "${WRAPPED[@]}";
+            do
+                WRAPC[$c]+="${r}"'
+';
+                WRAPCN[$c]=$(( ${WRAPCN[$c]:-0} + 1 ));
+            done;
+            if (( ${WRAPCN[$c]:-0} > MAX_WRAP )); then
+                WRAPW[$c]=-1;
+            fi;
+            [[ $c == "$RCACHE_COMP" ]] && RCACHE_N=-1;
+        fi;
+        if (( ${RCNT[$c]:-0} > MAX_RBUF )); then
+            local keep=$(( MAX_RBUF / 2 ));
+            RBUF[$c]=$(printf '%s' "${RBUF[$c]}" | tail -n "$keep")'
+';
+            RCNT[$c]=$keep;
+            WRAPW[$c]=-1;
+            [[ $c == "$RCACHE_COMP" ]] && RCACHE_N=-1;
+        fi
+    };
+    function _push_highlight () 
+    { 
+        local c=$1 text=$2;
+        [[ -z $c ]] && return;
+        HL[$c]+="${text}"'
+';
+        HCNT[$c]=$(( ${HCNT[$c]:-0} + 1 ));
+        _dwidth "  ${G_HL} ${text}";
+        (( REPLY > WIDEST )) && WIDEST=$REPLY;
+        if (( ${HCNT[$c]:-0} > MAX_HL )); then
+            HL[$c]=$(printf '%s' "${HL[$c]}" | tail -n "$MAX_HL")'
+';
+            HCNT[$c]=$MAX_HL;
+        fi;
+        LDIRTY[$c]=1;
+        LEFT_VALID=0
+    };
+    function _clear_highlight () 
+    { 
+        local c=$1;
+        [[ -z $c ]] && return;
+        HL[$c]="";
+        HCNT[$c]=0;
+        LDIRTY[$c]=1;
+        LEFT_VALID=0
+    };
+    function _attention_close () 
+    { 
+        AT_LINES=();
+        AT_UNTIL=0;
+        AT_CD=-1;
+        AT_FMT="";
+        AT_SEG=();
+        AT_GUARD=$(( ${EPOCHREALTIME%.*} + 10 ));
+        FULL_CLEAR=1;
+        LEFT_VALID=0
+    };
+    function _attention_active () 
+    { 
+        (( ${#AT_LINES[@]} )) || return 1;
+        if (( AT_UNTIL > 0 && ${EPOCHREALTIME%.*} >= AT_UNTIL )); then
+            _attention_close;
+            return 1;
+        fi;
+        return 0
+    };
+    function _set_step () 
+    { 
+        STEP_TEXT=$1
+    };
+    function _clear_step () 
+    { 
+        STEP_TEXT=""
+    };
+    function _add_step_rule () 
+    { 
+        local spec=$1 rx fmt;
+        [[ $spec == *' @@THEN '* ]] || return 1;
+        rx=${spec%%' @@THEN '*};
+        fmt=${spec#*' @@THEN '};
+        [[ -z $rx ]] && return 1;
+        [[ x =~ $rx ]];
+        (( $? == 2 )) && return 1;
+        STEP_RX+=("$rx");
+        STEP_FMT+=("$fmt")
+    };
+    function _clear_step_rules () 
+    { 
+        STEP_RX=();
+        STEP_FMT=()
+    };
+    function _apply_step_rules () 
+    { 
+        (( ${#STEP_RX[@]} == 0 )) && return 1;
+        local s=$1 i j out;
+        for ((i = 0; i < ${#STEP_RX[@]}; i++ ))
+        do
+            if [[ $s =~ ${STEP_RX[i]} ]]; then
+                out=${STEP_FMT[i]};
+                for ((j = ${#BASH_REMATCH[@]} - 1; j >= 0; j-- ))
+                do
+                    out=${out//"\\$j"/"${BASH_REMATCH[j]}"};
+                done;
+                _set_step "$out";
+                return 0;
+            fi;
+        done;
+        return 1
+    };
+    TITLEROW="";
+    function _title_row () 
+    { 
+        local w=$1 tw sw room left;
+        _fit_v "$w" "$TITLE" 1;
+        TITLEROW="${C_BOLD}${FITTED}${C_RESET}";
+        [[ -z $STEP_TEXT ]] && return;
+        _dwidth "$TITLE";
+        tw=$REPLY;
+        room=$(( w - tw - 3 ));
+        (( room < STEP_MIN )) && return;
+        _dwidth "$STEP_TEXT";
+        sw=$REPLY;
+        (( sw > room )) && sw=$room;
+        _fit_v $(( w - sw - 1 )) "$TITLE" 1;
+        left=$FITTED;
+        _fit_v "$sw" "$STEP_TEXT" 1;
+        TITLEROW="${C_BOLD}${left}${C_RESET}${C_CYAN}${FITTED}${C_RESET} "
+    };
+    function _ensure_wrap () 
+    { 
+        local c=$1 w=$2 src r;
+        [[ -z $c ]] && return;
+        [[ ${WRAPW[$c]:--1} == "$w" ]] && return;
+        local acc="" n=0;
+        if [[ -n ${RBUF[$c]:-} ]]; then
+            while IFS= read -r src; do
+                _wrap_one "$w" "$src";
+                for r in "${WRAPPED[@]}";
+                do
+                    acc+="${r}"'
+';
+                    n=$(( n + 1 ));
+                done;
+            done <<< "${RBUF[$c]}";
+        fi;
+        WRAPC[$c]=$acc;
+        WRAPCN[$c]=$n;
+        WRAPW[$c]=$w;
+        [[ $c == "$RCACHE_COMP" ]] && RCACHE_N=-1
+    };
+    function _load_rows () 
+    { 
+        local c=$1 w=$2;
+        if [[ -z $c ]]; then
+            RCACHE_ROWS=();
+            RCACHE_COMP="";
+            RCACHE_W=-1;
+            RCACHE_N=-1;
+            return;
+        fi;
+        _ensure_wrap "$c" "$w";
+        if [[ $c == "$RCACHE_COMP" ]] && (( RCACHE_W == w )) && (( RCACHE_N == ${WRAPCN[$c]:-0} )); then
+            return;
+        fi;
+        RCACHE_ROWS=();
+        if [[ -n ${WRAPC[$c]:-} ]]; then
+            mapfile -t RCACHE_ROWS <<< "${WRAPC[$c]%'
+'}";
+        fi;
+        RCACHE_COMP=$c;
+        RCACHE_W=$w;
+        RCACHE_N=${WRAPCN[$c]:-0}
+    };
+    function _timer_tick () 
+    { 
+        (( ${#TSTART[@]} == 0 )) && return 1;
+        local c s hit=1;
+        for c in "${!TSTART[@]}";
+        do
+            [[ -z $c ]] && continue;
+            _elapsed_ms "$c";
+            s=$(( REPLY / 1000 ));
+            if (( s != ${TSHOWN[$c]:--1} )); then
+                TSHOWN[$c]=$s;
+                LDIRTY[$c]=1;
+                LEFT_VALID=0;
+                hit=0;
+            fi;
+        done;
+        return $hit
+    };
+    function _build_block () 
+    { 
+        local name=$1 lw=$2;
+        [[ -z $name ]] && return;
+        local st=${STATUS[$name]:-} src wline i;
+        _header_text "$name";
+        local hdr=$HDRTXT;
+        if (( REVIEW )) && [[ $name == "$SHOWN" && $st == fail ]]; then
+            hdr+=" ${G_SEL}";
+        fi;
+        _fit_v $(( lw - 2 )) "$hdr" 1;
+        local buf="${SG_C}${SG_M} ${FITTED}${C_RESET}";
+        if [[ -n ${HL[$name]:-} ]]; then
+            local hpfx="  ${G_HL} ";
+            _dwidth "$hpfx";
+            local hpw=$REPLY;
+            local hw=$(( lw - hpw ));
+            (( hw < 1 )) && hw=1;
+            while IFS= read -r src; do
+                [[ -z $src ]] && continue;
+                WRAPPED=();
+                _wrap_into "$hw" "$src";
+                local first=1 cont;
+                for wline in "${WRAPPED[@]}";
+                do
+                    if (( first )); then
+                        _fit_v "$lw" "${hpfx}${wline}" 1;
+                        first=0;
+                    else
+                        printf -v cont '%*s' "$hpw" '';
+                        _fit_v "$lw" "${cont}${wline}" 1;
+                    fi;
+                    buf+='
+'"${C_CYAN}${FITTED}${C_RESET}";
+                done;
+            done <<< "${HL[$name]}";
+        else
+            local -a tl=();
+            [[ -n ${L1[$name]:-} ]] && tl+=("${L1[$name]}");
+            [[ -n ${L2[$name]:-} ]] && tl+=("${L2[$name]}");
+            for ((i = ${#tl[@]} - TAIL_LINES; i < ${#tl[@]}; i++ ))
+            do
+                (( i < 0 )) && continue;
+                _fit_v "$lw" "  ${BC_B} ${tl[i]}" 1;
+                buf+='
+'"${C_DIM}${FITTED}${C_RESET}";
+            done;
+        fi;
+        LBLK[$name]=$buf;
+        LDIRTY[$name]=""
+    };
+    function _draw () 
+    { 
+        local force=${1:-0};
+        (( DRAWING )) && return;
+        DRAWING=1;
+        local t0;
+        t0=$(_now_ms);
+        if (( ! force && t0 - LAST_DRAW < REDRAW_MS )); then
+            DRAWING=0;
+            return;
+        fi;
+        LAST_DRAW=$t0;
+        (( GEOM_DIRTY )) && _read_geom;
+        local cols=$TTY_COLS rows=$TTY_ROWS;
+        local usable=$cols lw;
+        if (( LEFT_WIDTH > 0 )); then
+            lw=$LEFT_WIDTH;
+        else
+            local cap=$(( usable * LEFT_MAX_PCT / 100 ));
+            lw=$WIDEST;
+            (( lw < LEFT_MIN )) && lw=$LEFT_MIN;
+            (( lw > cap )) && lw=$cap;
+        fi;
+        local rw=$(( usable - lw - SEP_W ));
+        if (( rw < 24 )); then
+            rw=24;
+            lw=$(( usable - rw - SEP_W ));
+        fi;
+        (( lw < 8 )) && lw=8;
+        if (( lw != PREV_LW )); then
+            PREV_LW=$lw;
+            FULL_CLEAR=1;
+            LEFT_VALID=0;
+            local k;
+            for k in "${ORDER[@]}";
+            do
+                [[ -n $k ]] && LDIRTY[$k]=1;
+            done;
+        fi;
+        if (( rw != PREV_RW )); then
+            PREV_RW=$rw;
+            RW_NOW=$rw;
+            export LOG_COLUMNS=$rw;
+            FULL_CLEAR=1;
+            RCACHE_COMP="";
+            RCACHE_N=-1;
+            local k;
+            for k in "${ORDER[@]}";
+            do
+                [[ -n $k ]] && WRAPW[$k]=-1;
+            done;
+        fi;
+        local full=$(( rows - 3 ));
+        (( full < 1 )) && full=1;
+        local fh=$FAIL_H;
+        (( fh > full - SPLIT_MIN )) && fh=$(( full - SPLIT_MIN ));
+        (( fh < 0 )) && fh=0;
+        if (( fh != PREV_FH )); then
+            PREV_FH=$fh;
+            LEFT_VALID=0;
+        fi;
+        local body=$(( full - fh ));
+        local name src i j;
+        local view=${FOCUS:-$CURRENT};
+        local is_report=0;
+        [[ -n $view && -n ${REPORT[$view]:-} ]] && is_report=1;
+        local upper="" nfail=${#FAILED[@]};
+        if [[ -n $FOCUS ]]; then
+            upper=$FOCUS;
+        else
+            if (( REVIEW )) && (( nfail > 0 )); then
+                upper=${FAILED[0]};
+            else
+                if (( is_report )); then
+                    for ((j = ${#ORDER[@]} - 1; j >= 0; j-- ))
+                    do
+                        if [[ -z ${REPORT[${ORDER[j]}]:-} ]]; then
+                            upper=${ORDER[j]};
+                            break;
+                        fi;
+                    done;
+                else
+                    upper=$view;
+                fi;
+            fi;
+        fi;
+        if [[ $upper != "$SHOWN" ]]; then
+            [[ -n $SHOWN ]] && LDIRTY[$SHOWN]=1;
+            [[ -n $upper ]] && LDIRTY[$upper]=1;
+            SHOWN=$upper;
+            LEFT_VALID=0;
+        fi;
+        for name in "${ORDER[@]}";
+        do
+            [[ -z $name ]] && continue;
+            [[ -n ${REPORT[$name]:-} ]] && continue;
+            [[ -n ${LDIRTY[$name]:-} ]] && { 
+                _build_block "$name" "$lw";
+                LEFT_VALID=0
+            };
+        done;
+        if (( ! LEFT_VALID )); then
+            local -a blk=() blk_nm=();
+            for name in "${ORDER[@]}";
+            do
+                [[ -z $name ]] && continue;
+                [[ -n ${REPORT[$name]:-} ]] && continue;
+                blk+=("${LBLK[$name]:-}");
+                blk_nm+=("$name");
+            done;
+            local nl;
+            LEFT_ROWS=();
+            for ((j = 0; j < ${#blk[@]}; j++ ))
+            do
+                while IFS= read -r src; do
+                    LEFT_ROWS+=("$src");
+                done <<< "${blk[j]}";
+            done;
+            local nrows=${#LEFT_ROWS[@]};
+            if (( nrows > body )); then
+                local wstart=$(( nrows - body ));
+                if (( REVIEW )) && (( ${#FAILED[@]} > 0 )) && [[ -n $SHOWN ]]; then
+                    local off=0 hit=-1;
+                    for ((j = 0; j < ${#blk[@]}; j++ ))
+                    do
+                        if [[ ${blk_nm[j]} == "$SHOWN" ]]; then
+                            hit=$off;
+                            break;
+                        fi;
+                        nl=${blk[j]//[!'
+']/};
+                        off=$(( off + ${#nl} + 1 ));
+                    done;
+                    if (( hit >= 0 )); then
+                        wstart=$hit;
+                        (( wstart > nrows - body )) && wstart=$(( nrows - body ));
+                        (( wstart < 0 )) && wstart=0;
+                    fi;
+                fi;
+                LEFT_ROWS=("${LEFT_ROWS[@]:wstart:body}");
+            fi;
+            LEFT_VALID=1;
+        fi;
+        local -a right=();
+        local counter="";
+        if (( REVIEW )) && (( nfail > 1 )); then
+            if [[ -n $FOCUS ]]; then
+                counter="  (pinned, ${nfail} failed)";
+            else
+                counter="  (+$(( nfail - 1 )) more failed)";
+            fi;
+        fi;
+        local hcomp=${upper:-$view};
+        if [[ -z $hcomp ]]; then
+            _fit_v "$rw" "waiting..." 1;
+            right+=("${C_DIM}${FITTED}${C_RESET}");
+        else
+            local tstr="";
+            _sg "${STATUS[$hcomp]:-}";
+            if [[ -z ${REPORT[$hcomp]:-} ]]; then
+                _elapsed_ms "$hcomp";
+                if (( REPLY > 0 )); then
+                    _fmt_elapsed "$REPLY";
+                    [[ -n $REPLY ]] && tstr=", ${REPLY}";
+                fi;
+            fi;
+            _fit_v "$rw" "${SG_M} ${hcomp} [${SG_L}${tstr}]${counter}" 1;
+            right+=("${SG_C}${FITTED}${C_RESET}");
+            _hrule_v "$rw";
+            right+=("${C_DIM}${HRULE}${C_RESET}");
+        fi;
+        local avail=$(( body - ${#right[@]} ));
+        if (( avail > 0 )) && [[ -n $hcomp ]]; then
+            if (( is_report )) && [[ -n $upper ]] && (( avail >= SPLIT_MIN * 2 + 1 )); then
+                local rcap=$(( avail * REPORT_MAX_PCT / 100 ));
+                (( rcap < SPLIT_MIN )) && rcap=$SPLIT_MIN;
+                _load_rows "$view" "$rw";
+                local -a rep=("${RCACHE_ROWS[@]:0:rcap}");
+                local lo=${#rep[@]};
+                (( lo < 1 )) && lo=1;
+                local hi=$(( avail - lo - 1 ));
+                (( hi < SPLIT_MIN )) && { 
+                    hi=$SPLIT_MIN;
+                    lo=$(( avail - hi - 1 ))
+                };
+                _load_rows "$upper" "$rw";
+                local n=${#RCACHE_ROWS[@]} start=0;
+                (( n > hi )) && start=$(( n - hi ));
+                (( n > 0 )) && right+=("${RCACHE_ROWS[@]:start:hi}");
+                while (( ${#right[@]} < body - lo - 1 )); do
+                    right+=("");
+                done;
+                _fit_v "$rw" "${G_DN} ${view}" 1;
+                right+=("${C_BOLD}${C_CYAN}${FITTED}${C_RESET}");
+                (( lo > 0 )) && right+=("${rep[@]:0:lo}");
+            else
+                _load_rows "$hcomp" "$rw";
+                local n=${#RCACHE_ROWS[@]} start=0;
+                if (( n > 0 )); then
+                    if (( is_report )); then
+                        right+=("${RCACHE_ROWS[@]:0:avail}");
+                    else
+                        (( n > avail )) && start=$(( n - avail ));
+                        right+=("${RCACHE_ROWS[@]:start:avail}");
+                    fi;
+                fi;
+            fi;
+        fi;
+        AT_SEG=();
+        _attention_active && _attention_build;
+        local now_s=${EPOCHREALTIME%.*} at_wipe=0;
+        if (( ${#AT_LINES[@]} || now_s < AT_GUARD )) && (( now_s != AT_SEC )); then
+            AT_SEC=$now_s;
+            FULL_CLEAR=1;
+            at_wipe=1;
+        fi;
+        local out="" l r rowstr;
+        if (( FULL_CLEAR )); then
+            PREV=();
+            FULL_CLEAR=0;
+        fi;
+        (( at_wipe )) && printf -v out '\033[%d;1H\033[K' "$rows";
+        _title_text "$REVIEW" "$TITLE_WORD";
+        _title_row "$usable";
+        rowstr=$TITLEROW${AT_SEG[1]:-};
+        if [[ ${PREV[0]:-__} != "$rowstr" ]]; then
+            out+='[1;1H'"$rowstr"'[K';
+            PREV[0]=$rowstr;
+        fi;
+        _hrule_v "$usable";
+        rowstr="${C_DIM}${HRULE}${C_RESET}${AT_SEG[2]:-}";
+        if [[ ${PREV[1]:-__} != "$rowstr" ]]; then
+            out+='[2;1H'"$rowstr"'[K';
+            PREV[1]=$rowstr;
+        fi;
+        for ((i = 0; i < body; i++ ))
+        do
+            l=${LEFT_ROWS[i]:-};
+            if [[ $l != *''* ]]; then
+                _fit_v "$lw" "$l" 1;
+                l=$FITTED;
+            fi;
+            r=${right[i]:-};
+            rowstr="${l} ${C_DIM}${BC_V}${C_RESET} ${r}${AT_SEG[$(( i + 3 ))]:-}";
+            j=$(( i + 2 ));
+            if [[ ${PREV[j]:-__} != "$rowstr" ]]; then
+                printf -v out '%s\033[%d;1H%s\033[K' "$out" $(( i + 3 )) "$rowstr";
+                PREV[j]=$rowstr;
+            fi;
+        done;
+        if (( fh > 0 )); then
+            local frule;
+            _dwidth "$FAIL_TITLE";
+            _hrule_v $(( usable - REPLY - 2 ));
+            frule="${C_RED}${BC_H}${BC_H}${FAIL_TITLE}${HRULE}${C_RESET}";
+            for ((i = 0; i < fh; i++ ))
+            do
+                if (( i == 0 )); then
+                    rowstr=$frule;
+                else
+                    rowstr=${FAILROWS[i-1]:-};
+                fi;
+                rowstr+=${AT_SEG[$(( body + i + 3 ))]:-};
+                j=$(( body + i + 2 ));
+                if [[ ${PREV[j]:-__} != "$rowstr" ]]; then
+                    printf -v out '%s\033[%d;1H%s\033[K' "$out" $(( body + i + 3 )) "$rowstr";
+                    PREV[j]=$rowstr;
+                fi;
+            done;
+        fi;
+        [[ -n $out ]] && printf '\0337\033[?2026h%s\033[?2026l\0338' "$out";
+        FRAMES=$(( FRAMES + 1 ));
+        DRAW_MS=$(( DRAW_MS + $(_now_ms) - t0 ));
+        DRAWING=0
+    };
+    function _stop_all_timers () 
+    { 
+        local c;
+        (( ${#TSTART[@]} == 0 )) && return;
+        for c in "${!TSTART[@]}";
+        do
+            [[ -n $c ]] && _timer_stop "$c";
+        done
+    };
+    function _build_fail_rows () 
+    { 
+        local interrupted=${1:-0} w=$2 name src per extra=0;
+        local -a names=("${FAILED[@]}") tailrows;
+        if (( interrupted )) && [[ -n $CURRENT && -z ${REPORT[$CURRENT]:-} && ${STATUS[$CURRENT]:-} != ok && ${STATUS[$CURRENT]:-} != fail ]]; then
+            names+=("$CURRENT");
+        fi;
+        FAILROWS=();
+        (( ${#names[@]} == 0 || FAIL_ROWS <= 0 )) && return 1;
+        [[ -n ${LOG_FILE:-} ]] && extra=1;
+        per=$(( (FAIL_ROWS - ${#names[@]} - extra) / ${#names[@]} ));
+        (( per < 3 )) && per=3;
+        for name in "${names[@]}";
+        do
+            [[ -z $name ]] && continue;
+            tailrows=();
+            while IFS= read -r src; do
+                WRAPPED=();
+                _wrap_into "$w" "$src";
+                (( ${#WRAPPED[@]} )) && tailrows+=("${WRAPPED[@]}");
+            done < <(printf '%s' "${RBUF[$name]:-}" | tail -n "$per");
+            (( ${#tailrows[@]} > per )) && tailrows=("${tailrows[@]: -per}");
+            _fit_v "$w" "${G_FAIL} ${name}: last ${#tailrows[@]} lines" 1;
+            FAILROWS+=("${C_RED}${FITTED}${C_RESET}");
+            (( ${#tailrows[@]} )) && FAILROWS+=("${tailrows[@]}");
+        done;
+        if (( extra )); then
+            _fit_v "$w" "Full log: $LOG_FILE" 1;
+            FAILROWS+=("${C_DIM}${FITTED}${C_RESET}");
+        fi;
+        return 0
+    };
+    function _raise_fail_panel () 
+    { 
+        local interrupted=${1:-0} nf=${#FAILED[@]} h target cap d;
+        (( GEOM_DIRTY )) && _read_geom;
+        _build_fail_rows "$interrupted" "$TTY_COLS" || return 0;
+        if (( nf == 0 )); then
+            FAIL_TITLE=" interrupted - last log lines ";
+        else
+            FAIL_TITLE=" ${G_FAIL} ${nf} failed - error log ";
+        fi;
+        target=$(( ${#FAILROWS[@]} + 1 ));
+        (( target > FAIL_ROWS + 1 )) && target=$(( FAIL_ROWS + 1 ));
+        cap=$(( TTY_ROWS - 3 - SPLIT_MIN ));
+        (( target > cap )) && target=$cap;
+        (( target < 2 )) && return 0;
+        printf -v d '%d.%03d' $(( RAISE_MS / 1000 )) $(( RAISE_MS % 1000 ));
+        for ((h = 1; h <= target; h++ ))
+        do
+            FAIL_H=$h;
+            _draw 1;
+            (( RAISE_MS > 0 && h < target )) && sleep "$d";
+        done;
+        return 0
+    };
+    function _finish () 
+    { 
+        local rc=$?;
+        DRAWING=0;
+        _stop_all_timers;
+        (( T_LAST == 0 )) && T_LAST=$(_now_ms);
+        (( rc != 0 )) && { 
+            REVIEW=1;
+            TITLE_WORD=interrupted
+        };
+        FULL_CLEAR=1;
+        LEFT_VALID=0;
+        RCACHE_COMP="";
+        RCACHE_N=-1;
+        _draw 1;
+        _raise_fail_panel $(( rc != 0 ));
+        printf '\033[?7h';
+        printf '\033[r';
+        printf '\033[%d;1H\033[K' "$TTY_ROWS";
+        printf '\033[?25h';
+        (( TTY_FD >= 0 )) && { 
+            stty echo <&"$TTY_FD" 2> /dev/null;
+            exec {TTY_FD}>&-
+        }
+    };
+    function _attention_build () 
+    { 
+        local cols=$TTY_COLS rows=$TTY_ROWS line w maxw=0 i pl pr;
+        local -a body=("${AT_LINES[@]}");
+        if (( AT_CD >= 0 )); then
+            local left=$(( AT_UNTIL - ${EPOCHREALTIME%.*} )) mmss;
+            (( left < 0 )) && left=0;
+            printf -v mmss '%d:%02d' $(( left / 60 )) $(( left % 60 ));
+            printf -v line -- "$AT_FMT" "$mmss" 2> /dev/null || line=$AT_FMT;
+            body[AT_CD]=$line;
+        fi;
+        for line in "${body[@]}";
+        do
+            _dwidth "$line";
+            (( REPLY > maxw )) && maxw=$REPLY;
+        done;
+        local bw=$(( maxw + 6 ));
+        (( bw > cols - 2 )) && bw=$(( cols - 2 ));
+        local bh=$(( ${#body[@]} + 2 ));
+        local top=$(( (rows - bh) / 2 + 1 )) lc=$(( (cols - bw) / 2 + 1 ));
+        _hrule_v $(( bw - 2 ));
+        printf -v "AT_SEG[$top]" '\033[%d;%dH%s%s%s%s%s' $top $lc "$C_RED" "$BC_TL" "$HRULE" "$BC_TR" "$C_RESET";
+        for ((i = 0; i < ${#body[@]}; i++ ))
+        do
+            line=${body[i]};
+            _dwidth "$line";
+            w=$REPLY;
+            if (( w > bw - 4 )); then
+                _fit_v $(( bw - 4 )) "$line" 1;
+                line=$FITTED;
+                w=$(( bw - 4 ));
+            fi;
+            pl=$(( (bw - 2 - w) / 2 ));
+            pr=$(( bw - 2 - w - pl ));
+            printf -v "AT_SEG[$(( top + i + 1 ))]" '\033[%d;%dH%s%s%s%*s%s%s%s%*s%s%s%s' $(( top + i + 1 )) $lc "$C_RED" "$BC_V" "$C_RESET" $pl '' "$C_BOLD$C_YELLOW" "$line" "$C_RESET" $pr '' "$C_RED" "$BC_V" "$C_RESET";
+        done;
+        printf -v "AT_SEG[$(( top + bh - 1 ))]" '\033[%d;%dH%s%s%s%s%s' $(( top + bh - 1 )) $lc "$C_RED" "$BC_BL" "$HRULE" "$BC_BR" "$C_RESET"
+    };
+    function _handle_line () 
+    { 
+        local line="$1" key rest target clean plainkey hpay;
+        [ -z "$LOG_FILE" ] || printf "%s\n" "$line" >> "$LOG_FILE";
+        if (( KEEP_COLOR )); then
+            _sanitize_v "$line" 1;
+            clean=$SGRTEXT;
+        else
+            _sanitize_v "$line" 0;
+            clean=$PLAIN;
+        fi;
+        _plain_v "$line";
+        plainkey=$PLAIN;
+        plainkey=${plainkey#"${plainkey%%[![:space:]]*}"};
+        [[ -z $plainkey ]] && return 0;
+        key=${plainkey%%[[:space:]]*};
+        rest=${plainkey#"$key"};
+        rest=${rest#"${rest%%[![:space:]]*}"};
+        case ${key^^} in 
+            @@STEP)
+                if [[ -z $rest ]]; then
+                    _clear_step;
+                else
+                    if [[ $rest == '@@IF' ]]; then
+                        _clear_step_rules;
+                    else
+                        if [[ $rest == '@@IF '*' @@THEN '* ]]; then
+                            _add_step_rule "${rest#@@IF }" || _push_log "${CURRENT:-general}" "invalid @@STEP rule: $rest";
+                            return;
+                        else
+                            _set_step "$rest";
+                        fi;
+                    fi;
+                fi;
+                _draw 1;
+                return
+            ;;
+            @@COMP)
+                [[ -z $rest ]] && return;
+                _clear_step;
+                _clear_step_rules;
+                if [[ -n $CURRENT && $CURRENT != "$rest" && -z ${REPORT[$CURRENT]:-} ]]; then
+                    _timer_stop "$CURRENT";
+                fi;
+                CURRENT=$rest;
+                _touch_comp "$CURRENT";
+                STATUS[$CURRENT]="${ACT_TEXT[1],,}";
+                [[ -n ${TDONE[$CURRENT]:-} ]] && unset "TDONE[$CURRENT]";
+                _timer_start "$CURRENT";
+                _note_width "$CURRENT";
+                LDIRTY[$CURRENT]=1;
+                LEFT_VALID=0;
+                REVIEW=0;
+                _draw 1;
+                return
+            ;;
+            @@REPORT)
+                [[ -z $rest ]] && return;
+                _clear_step;
+                if [[ -n $CURRENT && -z ${REPORT[$CURRENT]:-} ]]; then
+                    _timer_stop "$CURRENT";
+                fi;
+                T_LAST=$(_now_ms);
+                CURRENT=$rest;
+                _touch_comp "$CURRENT";
+                REPORT[$CURRENT]=1;
+                STATUS[$CURRENT]="ok";
+                LEFT_VALID=0;
+                REVIEW=1;
+                _draw 1;
+                return
+            ;;
+            @@FOCUS)
+                if [[ -z $rest ]]; then
+                    FOCUS="";
+                else
+                    _touch_comp "$rest";
+                    FOCUS=$rest;
+                fi;
+                _draw 1;
+                return
+            ;;
+            @@ATTENTION)
+                case $rest in 
+                    '')
+                        return
+                    ;;
+                    @@BR)
+                        AT_LINES+=("")
+                    ;;
+                    '@@UNTIL '*)
+                        local t=${rest#@@UNTIL } fmt;
+                        fmt=${t#* };
+                        t=${t%% *};
+                        [[ $fmt == "$t" ]] && fmt='Closing in %s';
+                        if [[ $t == ++([0-9]) ]]; then
+                            AT_UNTIL=$(( ${EPOCHREALTIME%.*} + ${t#+} ));
+                        else
+                            if [[ $t == +([0-9]) ]]; then
+                                AT_UNTIL=$t;
+                            else
+                                return;
+                            fi;
+                        fi;
+                        AT_FMT=$fmt;
+                        AT_CD=${#AT_LINES[@]};
+                        AT_LINES+=("")
+                    ;;
+                    *)
+                        AT_LINES+=("$rest")
+                    ;;
+                esac;
+                _draw 1;
+                return
+            ;;
+            @@OK | @@FAIL)
+                target=${rest:-$CURRENT};
+                [[ -z $target ]] && return;
+                _clear_step;
+                _touch_comp "$target";
+                if [[ ${key^^} == @@OK ]]; then
+                    STATUS[$target]="ok";
+                    _timer_stop "$target";
+                    LDIRTY[$target]=1;
+                    LEFT_VALID=0;
+                else
+                    _mark_fail "$target";
+                fi;
+                _note_width "$target";
+                _draw 1;
+                return
+            ;;
+            @@HIGHLIGHT)
+                if [[ -z $CURRENT ]]; then
+                    CURRENT="general";
+                    _touch_comp "$CURRENT";
+                    _timer_start "$CURRENT";
+                fi;
+                hpay=${clean#*"$key"};
+                hpay=${hpay#"${hpay%%[![:space:]]*}"};
+                if [[ -z $rest ]]; then
+                    _clear_highlight "$CURRENT";
+                else
+                    _push_highlight "$CURRENT" "$hpay";
+                fi;
+                _draw 1;
+                return
+            ;;
+        esac;
+        if [[ -z $CURRENT ]]; then
+            CURRENT="general";
+            _touch_comp "$CURRENT";
+            _timer_start "$CURRENT";
+        fi;
+        _apply_step_rules "$plainkey";
+        _push_log "$CURRENT" "$clean";
+        _draw
+    };
+    _open_tty;
+    _read_geom;
+    printf '\033[?25l';
+    printf '\033[?7l';
+    trap '_finish' EXIT;
+    trap 'exit 130' INT;
+    trap 'exit 143' TERM;
+    trap 'GEOM_DIRTY=1; FULL_CLEAR=1' WINCH;
+    printf '\033[2J\033[H';
+    local line rc;
+    while true; do
+        line="";
+        if IFS= read -r -t "$TICK_SEC" line; then
+            _handle_line "$line";
+        else
+            rc=$?;
+            if (( rc > 128 )); then
+                if (( ${#AT_LINES[@]} || ${EPOCHREALTIME%.*} < AT_GUARD )); then
+                    _draw 1;
+                else
+                    _timer_tick && _draw 1;
+                fi;
+                continue;
+            fi;
+            [[ -n $line ]] && _handle_line "$line";
+            break;
+        fi;
+        _timer_tick && _draw;
+    done;
+    _stop_all_timers;
+    (( T_LAST == 0 )) && T_LAST=$(_now_ms);
+    LEFT_VALID=0;
+    local c;
+    for c in "${ORDER[@]}";
+    do
+        [[ -n $c ]] && LDIRTY[$c]=1;
+    done;
+    REVIEW=1;
+    _clear_step;
+    _draw 1 )
+}
+act_panelled_logs_askpass () 
+{ 
+    local askpass_helper="$1";
+    local askpass_env="$2";
+    ( umask 077;
+    read -r -d '' template <<'EOF'
+#!/bin/bash
+if [ -n "$ASKPASS_ENV" ]; then
+  printf '%s\n' "$ASKPASS_ENV"
+elif [ -e /dev/tty ]; then
+  exec 8<>/dev/tty 2>/dev/null || exit 1
+  rows=$(stty size <&8 | cut -d' ' -f1); rows=${rows:-1}
+  saved=$(stty -g <&8) || exit 1
+  # restore tty and clear the prompt row (cleanup only)
+  trap 'stty "$saved" <&8 2>/dev/null; printf "\033[%d;1H\033[K" "$rows" >&8' EXIT
+  # cancel: tell sudo (our parent) to abort instead of re-asking, then exit
+  cancel() { kill -INT "$PPID" 2>/dev/null; exit "$1"; }
+  trap 'cancel 130' INT
+  trap 'cancel 143' TERM
+  trap 'cancel 129' HUP
+  trap 'cancel 141' PIPE
+  stty -echo <&8
+  case ${LC_ALL:-${LC_CTYPE:-${LANG:-}}} in
+    *[Uu][Tt][Ff]*) caret='▏' mask='•' ;;
+    *)              caret='_' mask='*' ;;
+  esac
+  prompt=$1 pw="" on=1
+  draw() {
+    local c=" "
+    (( on )) && c=$'\033[1;36m'"$caret"$'\033[0m'
+    # last row: _draw only ever writes rows 1..rows-1, so this is never repainted
+    printf '\033[%d;1H\033[K%s%s%s' "$rows" "$prompt" "${pw//?/$mask}" "$c" >&8
+  }
+  while :; do
+    draw
+    if IFS= read -r -s -n1 -t 0.5 ch <&8; then
+      case $ch in
+        '')            break ;;            # Enter
+        $'\177'|$'\b') pw=${pw%?} ;;       # Backspace
+        $'\025')       pw="" ;;            # Ctrl-U
+        $'\003')       cancel 130 ;;       # Ctrl-C read as a byte
+        *)             pw+=$ch ;;
+      esac
+      on=1                                 # keep caret solid while typing
+    else
+      rc=$?
+      (( rc > 128 )) || exit 1             # EOF / tty gone
+      on=$(( !on ))                        # timeout -> blink
+    fi
+  done
+  printf '%s\n' "$pw"
+fi
+EOF
+
+    printf '%s\n' "${template//ASKPASS_ENV/$askpass_env}" > "$askpass_helper" ) && chmod 700 "$askpass_helper"
+}
+act_resolve_args () 
+{ 
+    local act_name=$1;
+    shift;
+    local args=("$@") margs=(${*##-*});
+    if [ "$act_name" = "stop" ] && [ ${#margs[@]} -eq 0 ]; then
+        args+=($(ensure_prop find "started/*" | cut -f2 -d/ | uniq));
+    else
+        if [ "$act_name" = "remove" ] && [[ " $* " = *" --remove-all "* ]] && [ -z "$(act_extract_modules $act_name "$@")" ]; then
+            args+=($(ensure_prop find "installed/*" | cut -f2 -d/ | uniq));
+        else
+            if [ "$act_name" != "stop" ] && [ -z "$(act_extract_modules $act_name "$@")" ]; then
+                args=($(ensure_prop get modules) "${args[@]}");
+            fi;
+        fi;
+    fi;
+    echo "${args[*]}"
+}
+act_suggest_modules () 
+{ 
+    local name=$1 m dist d2 max_pre max_full n=${#1} k;
+    local all_modules=(${_act_cache_names[*]:-${_act_cache_modules[*]}});
+    max_full=$(( n <= 6 ? 1 : 2 ));
+    for m in "${all_modules[@]}";
+    do
+        if [[ "$m" == "$name"* ]]; then
+            echo "0 0 $m";
+            continue;
+        fi;
+        if [[ "$m" == *"$name"* || "$name" == *"$m"* ]]; then
+            echo "1 0 $m";
+            continue;
+        fi;
+        for ((k=0; k<n && k<${#m}; k++))
+        do
+            [ "${name:k:1}" = "${m:k:1}" ] || break;
+        done;
+        max_pre=$(( (n - k) / 2 ));
+        ((max_pre < 1)) && max_pre=1;
+        ((max_pre > 3)) && max_pre=3;
+        if ((${#m} > n)); then
+            dist=$(_act_levenshtein "$name" "${m:0:n}");
+            d2=$(_act_levenshtein "$name" "${m:0:n+1}");
+            ((d2 < dist)) && dist=$d2;
+            if ((dist <= max_pre)); then
+                echo "2 $dist $m";
+                continue;
+            fi;
+        fi;
+        dist=$(_act_levenshtein "$name" "$m");
+        ((dist <= max_full)) && echo "3 $dist $m";
+    done | sort -k1,1n -k2,2n -k3,3 | awk 'NR==1{t=$1; d=$2} $1==t && $2==d' | head -n 3 | cut -d' ' -f3
+}
+act_validate_modules () 
+{ 
+    local act_name=${1%%,*};
+    shift;
+    local all_modules=(${_act_cache_names[*]:-${_act_cache_modules[*]}});
+    local all_module_args=" ${all_modules[*]/#/--} ";
+    local v s bad=0;
+    for v in "$@";
+    do
+        [[ "$all_module_args" != *" $v "* ]] || break;
+        [[ "$v" == -* ]] && continue;
+        [[ "$all_module_args" == *" --$v "* ]] && continue;
+        bad=1;
+        s=$(act_suggest_modules "$v" | paste -sd, - | sed 's/,/, /g');
+        if [ -n "$s" ]; then
+            echo -e "${red}Unknown component '$v'.${reset}" 1>&2;
+            echo "Did you mean: $s?" 1>&2;
+        else
+            echo -e "${red}Unknown component '$v'.${reset}" 1>&2;
+        fi;
+    done;
+    [ $bad -eq 0 ] || return 3
+}
+configure_cdi () 
+{ 
+    workspace="$(ensure_project_path)/cdi";
+    repository="https://github.com/open-edge-platform/edge-node-infrastructure-blueprint.git";
+    version=8e6f01943286f0e838dad3bf46390119b7645ad2;
+    cdi_path="/opt/edge/scripts/cdi";
+    docker_config="/etc/docker/daemon.json"
+}
+configure_deterministic_threat_detection () 
+{ 
+    workspace="$(ensure_project_path)/federal-and-aerospace-ai-suite";
+    version="main";
+    repository="https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git";
+    application="$workspace/deterministic-threat-detection"
+}
+configure_docker () 
+{ 
+    if [ -n "${http_proxy:-$HTTP_PROXY}${https_proxy:-$HTTPS_PROXY}" ]; then
+        echo "Configure docker engine proxies...";
+        grep -q -E 'HTTPS*_PROXY=' /etc/systemd/system/docker.service.d/*.conf 2> /dev/null || ( ensure_sudo mkdir -p /etc/systemd/system/docker.service.d;
+        ensure_sudo tee /etc/systemd/system/docker.service.d/99-oep-proxy.conf <<EOF
+[Service]
+Environment="HTTP_PROXY=${http_proxy:-$HTTP_PROXY}"
+Environment="HTTPS_PROXY=${https_proxy:-$HTTPS_PROXY}"
+Environment="NO_PROXY=${no_proxy:-$NO_PROXY}"
+EOF
+
+        ensure_sudo systemctl daemon-reload;
+        ensure_sudo systemctl restart docker );
+        local CONFIG_JSON="$HOME/.docker/config.json";
+        echo "Configure docker client proxies...";
+        mkdir -p "$(dirname "$CONFIG_JSON")";
+        python3 - "$CONFIG_JSON" <<'EOF'
+import json, os, sys
+p = sys.argv[1]
+cfg = json.load(open(p)) if os.path.exists(p) else {}
+cfg.setdefault("proxies", {})["default"] = {
+    "httpProxy":  os.environ.get("http_proxy",  os.environ.get("HTTP_PROXY", "")),
+    "httpsProxy": os.environ.get("https_proxy", os.environ.get("HTTPS_PROXY", "")),
+    "noProxy":    os.environ.get("no_proxy",    os.environ.get("NO_PROXY", "")),
+}
+json.dump(cfg, open(p, "w"), indent=2)
+EOF
+
+    fi
+}
+configure_edge_pack () 
+{ 
+    edge_pack_repo="apt.repos.intel.com";
+    edge_pack_key_url="https://$edge_pack_repo/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB";
+    edge_pack_key_file=/etc/apt/keyrings/intel-edge-pack.gpg;
+    edge_pack_source="deb [signed-by=$edge_pack_key_file] https://$edge_pack_repo/edgepack $VERSION_CODENAME stable";
+    edge_pack_list_file=/etc/apt/sources.list.d/intel-edge-pack.list;
+    edge_pack_pref=("Package: *" "Pin: origin $edge_pack_repo" "Pin-Priority: 1001");
+    edge_pack_pref_file=/etc/apt/preferences.d/intel-edge-pack.pref;
+    edge_pack_incompatible_pref_files=(/etc/apt/preferences.d/priorities /etc/apt/preferences.d/edgepack.pref);
+    edge_pack_install_options=("--no-install-recommends");
+    edge_pack_allow_downgrades=(libgbm1 libgstreamer-gl1.0-0 libva-wayland2 mesa-libgallium weston libegl-mesa0 libgbm-dev libgl1-mesa-dev libgl1-mesa-dri libglx-mesa0 mesa-common-dev mesa-vulkan-drivers mesa-opencl-icd);
+    edge_pack_ppa_repo=;
+    edge_pack_ppa_key_url=;
+    edge_pack_ppa_key_file=;
+    edge_pack_ppa_source=;
+    edge_pack_ppa_list_file=
+}
+configure_edge_pack_base_standard () 
+{ 
+    configure_edge_pack "$@";
+    version="1.0"
+}
+configure_edge_pack_ipu () 
+{ 
+    configure_edge_pack "$@";
+    version="1.0"
+}
+configure_edge_pack_manageability () 
+{ 
+    configure_edge_pack "$@";
+    version="1.0"
+}
+configure_edge_pack_npu () 
+{ 
+    configure_edge_pack "$@";
+    version="1.0"
+}
+configure_edge_pack_tsn () 
+{ 
+    configure_edge_pack "$@";
+    version="1.0"
+}
+configure_gpu_accel () 
+{ 
+    repo_name="repositories.intel.com";
+    key_url="https://$repo_name/gpu/intel-graphics.key";
+    key_file="/usr/share/keyrings/intel-graphics.gpg";
+    apt_entry="deb [signed-by=$key_file] https://$repo_name/gpu/${ID} ${VERSION_CODENAME} unified";
+    apt_file="/etc/apt/sources.list.d/intel-graphics.list";
+    pkg_list=(clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd);
+    allow_downgrades=(libva-wayland2)
+}
+configure_handheld_multi_modal () 
+{ 
+    workspace="$(ensure_project_path)/handheld-multi-modal";
+    version=main;
+    repository=https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git;
+    used_ports=(3478 8010 8011 8012 8080 8186 8189 8200 8443 8554 8888 9090 9273 9997)
+}
+configure_intel_lpmd () 
+{ 
+    workspace="$(ensure_project_path)/intel-lpmd";
+    version=956df747e56aca1739b39bff8cff77e81758af9a;
+    repository="https://github.com/intel/intel-lpmd.git"
+}
+configure_k3s_io () 
+{ 
+    workspace="$(ensure_project_path)/k3s_io";
+    repository="https://github.com/open-edge-platform/edge-node-infrastructure-blueprint.git";
+    version=8e6f01943286f0e838dad3bf46390119b7645ad2;
+    install_sh_sha256=d75e014f2d2ab5d30a318efa5c326f3b0b7596f194afcff90fa7a7a91166d5f7
+}
+configure_kernel_module_essential () 
+{ 
+    local ver="";
+    local barner="${1:-"$(< /proc/version 2> /dev/null || true)"}";
+    if [ -n "$barner" ]; then
+        ver=$(LC_ALL=C awk '{
+      s = $0; depth = 0
+      for (i = 1; i <= length(s); i++) {
+        c = substr(s, i, 1)
+        if (c == "(") {
+          depth++
+          if (depth == 1) { full = ""; clean = ""; cut = 0 }
+          else full = full c
+          continue
+        }
+        if (c == ")") {
+          if (depth == 1) {
+            if (full ~ /gcc|GCC|clang/) { found = 1; break }
+          } else if (depth > 1) full = full c
+            if (depth > 0) depth--
+            continue
+        }
+        if (depth >= 1) full = full c
+        if (depth == 1 && !cut) {
+          if (c == ",") cut = 1
+          else clean = clean c
+        }
+      }
+      # Fallback: no balanced group matched; use the whole line
+      if (!found) { full = s; clean = s; gsub(/\([^()]*\)/, " ", clean) }
+
+      kind = (clean ~ /clang/ && clean !~ /gcc|GCC/) ? "clang" : "gcc"
+      if (match(clean, /(^|[ \t])[0-9]+\.[0-9]+(\.[0-9]+)?/)) {
+        v = substr(clean, RSTART, RLENGTH)
+        gsub(/^[ \t]+/, "", v)
+        print kind, v
+      }
+    }' <<< "$barner");
+        case $ver in 
+            gcc\ *)
+                echo "${ver#gcc }";
+                return 0
+            ;;
+            clang\ *)
+                echo "kernel built with clang ${ver#clang }, not gcc" 1>&2;
+                return 2
+            ;;
+        esac;
+    fi;
+    local cfg n;
+    for cfg in "/boot/config-$(uname -r)" /proc/config.gz "/lib/modules/$(uname -r)/build/.config";
+    do
+        [[ -r $cfg ]] || continue;
+        local reader=cat;
+        [[ $cfg == *.gz ]] && reader=zcat;
+        n=$($reader "$cfg" 2> /dev/null | sed -n 's/^CONFIG_GCC_VERSION=\([0-9]\+\)$/\1/p');
+        if [[ -n $n && $n -gt 0 ]]; then
+            echo "$(( n / 10000 )).$(( n / 100 % 100 )).$(( n % 100 ))";
+            return 0;
+        fi;
+        if $reader "$cfg" 2> /dev/null | grep -q '^CONFIG_CC_IS_CLANG=y'; then
+            echo "kernel built with clang, not gcc" 1>&2;
+            return 2;
+        fi;
+        ver=$($reader "$cfg" 2> /dev/null | sed -n 's/^CONFIG_CC_VERSION_TEXT="\(.*\)"$/\1/p');
+        if [[ -n $ver ]]; then
+            configure_kernel_gcc "($ver)";
+            return 0;
+        fi;
+    done;
+    echo "unable to determine kernel gcc version" 1>&2;
+    return 1
+}
+configure_kernel_module_essential_debian () 
+{ 
+    local ver;
+    ver=$(configure_kernel_module_essential) || { 
+        local rc=$?;
+        return $rc
+    };
+    local major=${ver%%.*} rest=${ver#*.};
+    local suf=$major;
+    (( major < 5 )) && suf=$major.${rest%%.*};
+    install_pkgs=(gcc-$suf g++-$suf linux-headers-$(uname -r));
+    export CC=gcc-$suf;
+    export CXX=g++-$suf
+}
+configure_libze1 () 
+{ 
+    if [[ " $* " = *" edge_pack_npu "* ]]; then
+        version=1.28.2;
+        libze1_deb="https://snapshot.ppa.launchpadcontent.net/kobuk-team/intel-graphics/ubuntu/20260606T100000Z/pool/main/l/level-zero-loader/libze1_1.28.2-1~${VERSION_ID}~ppa1_amd64.deb";
+    else
+        version=1.32.0;
+        libze1_deb="https://github.com/oneapi-src/level-zero/releases/download/v$version/libze1_$version+u${VERSION_ID}_amd64.deb";
+    fi
+}
+configure_npu_accel () 
+{ 
+    version=1.38.0;
+    repository=https://api.github.com/repos/intel/linux-npu-driver;
+    releases=https://github.com/intel/linux-npu-driver/releases;
+    workspace="$(ensure_project_path)/npu"
+}
+configure_npu_accel_packages () 
+{ 
+    local suffix="${ID}${VERSION_ID//./}.tar.gz";
+    ( set -o pipefail;
+    ensure_fetch "$repository/releases/tags/v$version" - | jq -r ".assets[] | select(.name|endswith(\"-$suffix\")) | .browser_download_url" || ensure_fetch "$releases/expanded_assets/v$version" - --html | grep -oP 'href="\K/([^"]+/releases/download/[^"]+'"$suffix"')' | sed 's|^|https://github.com|' )
+}
+configure_pcm () 
+{ 
+    workspace="$(ensure_project_path)/pcm";
+    repository="https://github.com/intel/pcm.git";
+    version=e534201d0fe6d6e3bc5fee54b229f215b976efbc
+}
+configure_power_tuning () 
+{ 
+    workspace="$(ensure_project_path)/power_tuning";
+    repository="https://github.com/open-edge-platform/edge-node-infrastructure-blueprint.git";
+    version=8e6f01943286f0e838dad3bf46390119b7645ad2;
+    power_tuning_path="/opt/edge/developer/tools"
+}
+configure_realsense () 
+{ 
+    workspace="$(ensure_project_path)/realsense";
+    eci_repo_name=eci.intel.com;
+    eci_key_url="https://$eci_repo_name/repos/gpg-keys/GPG-PUB-KEY-INTEL-ECI.gpg";
+    eci_key_file=/etc/apt/keyrings/intel-eci.gpg;
+    eci_repo_list="deb [signed-by=$eci_key_file] https://$eci_repo_name/repos/$VERSION_CODENAME isar main";
+    eci_repo_list_file=/etc/apt/sources.list.d/intel-eci.list;
+    rs_repo_name="librealsense.realsenseai.com";
+    rs_key_url="https://$rs_repo_name/Debian/librealsenseai.asc";
+    rs_key_file=/etc/apt/keyrings/librealsenseai.gpg;
+    rs_list=/etc/apt/sources.list.d/librealsense.list;
+    rs_deb_entry="deb [signed-by=$rs_key_file] https://$rs_repo_name/Debian/apt-repo $VERSION_CODENAME main";
+    rs_packages=(librealsense2 librealsense2-dkms librealsense2-utils librealsense2-dev librealsense2-gl);
+    rs_ros_package=;
+    if [[ " $* " = *" ros2 "* || " $* " = *" edge_base_robotics "* ]]; then
+        case "$VERSION_CODENAME" in 
+            jammy)
+                rs_ros_package=ros-humble-librealsense2
+            ;;
+            noble)
+                rs_ros_package=ros-jazzy-librealsense2
+            ;;
+            *)
+                echo "RealSense ROS support requires Ubuntu jammy or noble." 1>&2;
+                return 3
+            ;;
+        esac;
+        rs_packages+=("$rs_ros_package");
+    fi
+}
+configure_reboot () 
+{ 
+    ensure_prop set reboot_requested true
+}
+configure_system_info () 
+{ 
+    workspace="$(ensure_project_path)/system_info";
+    repository=https://github.com/open-edge-platform/edge-node-infrastructure-blueprint.git;
+    version=8e6f01943286f0e838dad3bf46390119b7645ad2;
+    system_info_path=/opt/edge/developer/tools/system-info
+}
+configure_uncrewed_aerial_vehicle_mission () 
+{ 
+    workspace="$(ensure_project_path)/uav-mission-compute-sdk";
+    version="main";
+    repository="https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git";
+    used_ports=(8086 3000 9090 9273);
+    version_skills="be9aa5e65f57c397bded94bae975469eb749eff7";
+    repository_skills="https://github.com/open-edge-platform/skills.git";
+    skills=(uav-mission-compute-sdk)
+}
+configure_v4l_utils () 
+{ 
+    v4l_pref_file=/etc/apt/preferences.d/oep-v4l-utils;
+    v4l_pref=("Package: v4l-utils libv4l*" "Pin: release o=Ubuntu" "Pin-Priority: 1001")
+}
+debian_05_install_curl () 
+{ 
+    ensure_apt_install_package curl ca-certificates
+}
+debian_05_install_dmidecode () 
+{ 
+    ensure_apt_install_package dmidecode
+}
+debian_05_install_pciutils () 
+{ 
+    ensure_apt_install_package pciutils
+}
+debian_05_remove_dmidecode () 
+{ 
+    ensure_apt_remove_package dmidecode
+}
+debian_05_sbom_curl () 
+{ 
+    ensure_sbom_format pkg-list curl ca-certificates
+}
+debian_05_sbom_dmidecode () 
+{ 
+    ensure_sbom_format pkg-list dmidecode
+}
+debian_05_sbom_pciutils () 
+{ 
+    ensure_sbom_format pkg-list pciutils
+}
+debian_08_install_system_inspection () 
+{ 
+    install_system_inspection
+}
+debian_08_profile_system_inspection () 
+{ 
+    [ "$1" != "install" ] || echo "curl dmidecode pciutils"
+}
+debian_10_install_gnupg () 
+{ 
+    ensure_apt_install_package gnupg
+}
+debian_10_sbom_gnupg () 
+{ 
+    ensure_sbom_format pkg-list gnupg
+}
+debian_15_install_jq () 
+{ 
+    ensure_apt_install_package jq
+}
+debian_15_install_libtbb12 () 
+{ 
+    ensure_apt_install_package libtbb12
+}
+debian_15_install_libze1 () 
+{ 
+    configure_libze1 "$@";
+    if ensure_apt_is_installed libze1=$version && [[ " $* " != *" --reinstall "* ]]; then
+        echo "libze1 is installed." 1>&2;
+    else
+        local deb="/tmp/$(basename "$libze1_deb")";
+        ensure_fetch "$libze1_deb" "$deb" && { 
+            ensure_apt install -y "$deb" || { 
+                ensure_apt purge -y level-zero level-zero-devel libze1;
+                ensure_apt install -y --no-install-recommends "$deb"
+            }
+        };
+        rm -f "$deb";
+    fi
+}
+debian_15_install_yq () 
+{ 
+    ensure_apt_install_package yq
+}
+debian_15_profile_libze1 () 
+{ 
+    echo "curl"
+}
+debian_15_remove_jq () 
+{ 
+    ensure_apt_remove_package jq
+}
+debian_15_remove_yq () 
+{ 
+    ensure_apt_remove_package yq
+}
+debian_15_sbom_jq () 
+{ 
+    ensure_sbom_format pkg-list jq
+}
+debian_15_sbom_libtbb12 () 
+{ 
+    ensure_sbom_format pkg-list libtbb12
+}
+debian_15_sbom_libze1 () 
+{ 
+    configure_libze1 "$@";
+    ensure_sbom_format pkg-list "$libze1_deb"
+}
+debian_15_sbom_yq () 
+{ 
+    ensure_sbom_format pkg-list yq
+}
+debian_25_install_linux_image_generic_7.0 () 
+{ 
+    if [[ "$(uname -r)" = 7.0.* ]]; then
+        echo "kernel 7.0 is installed" 1>&2;
+    else
+        echo "@@STEP Installing linux-image-generic-7.0";
+        ensure_apt install linux-image-generic-7.0;
+        local pkgver="$(apt policy linux-image-generic-7.0 2> /dev/null | grep -m1 Candidate: | cut -f2 -d: | cut -f1-3 -d. | tr -d ' ')-generic";
+        ensure_grub_set_default_entry $pkgver;
+        ensure_grub_set_kernel_args GRUB_CMDLINE_LINUX xe.max_vfs=7 "xe.force_probe=*" modprobe.blacklist=i915 udmabuf.list_limit=8192;
+        configure_reboot;
+    fi
+}
+debian_25_profile_linux_image_generic_7.0 () 
+{ 
+    echo "reboot"
+}
+debian_25_sbom_linux_image_generic_7.0 () 
+{ 
+    ensure_sbom_format pkg-list linux-image-generic-7.0;
+    ensure_sbom_format kernel-cmdline xe.max_vfs=7 "xe.force_probe=*" modprobe.blacklist=i915 udmabuf.list_limit=8192
+}
+debian_29_install_reboot () 
+{ 
+    install_reboot "$@"
+}
+debian_30_group_docker_io () 
+{ 
+    echo "docker:"
+}
+debian_30_install_autoconf () 
+{ 
+    ensure_apt_install_package autoconf
+}
+debian_30_install_automake () 
+{ 
+    ensure_apt_install_package automake
+}
+debian_30_install_chrony () 
+{ 
+    ensure_apt_install_package chrony
+}
+debian_30_install_cmake () 
+{ 
+    ensure_apt_install_package cmake
+}
+debian_30_install_docker_io () 
+{ 
+    if docker version > /dev/null 2>&1 && docker buildx version > /dev/null 2>&1 && docker compose version > /dev/null 2>&1 && [[ " $* " != *" --reinstall "* ]]; then
+        echo "docker is already installed." 1>&2;
+    else
+        if ensure_apt_is_installed docker.io && [[ " $* " != *" --reinstall "* ]]; then
+            ensure_apt update;
+            ensure_apt install -y docker-buildx docker-compose-v2;
+        else
+            if ensure_apt_is_installed docker-ce && [[ " $* " != *" --reinstall "* ]]; then
+                ensure_apt update;
+                ensure_apt install -y docker-buildx-plugin docker-compose-plugin;
+            else
+                ensure_disk_size 800;
+                ensure_prop set installed/docker_io/owned true;
+                ensure_prop remove installed/docker_ce/owned;
+                echo "Remove legacy installation";
+                debian_30_remove_docker_io "$@";
+                ensure_sudo mkdir -p /etc/systemd/system/docker.service.d;
+                ensure_sudo tee /etc/systemd/system/docker.service.d/10-socket.conf <<EOF
+[Unit]
+Requires=docker.socket
+After=docker.socket
+EOF
+
+                ensure_sudo systemctl daemon-reload;
+                ensure_sudo systemctl reset-failed docker.service docker.socket containerd.service 2> /dev/null || true;
+                ensure_group_add docker:;
+                ensure_apt update;
+                ensure_apt install -y docker.io docker-buildx docker-compose-v2;
+                ensure_sudo systemctl daemon-reload;
+                ensure_sudo systemctl reset-failed docker.service docker.socket containerd.service 2> /dev/null || true;
+                ensure_sudo systemctl enable --now containerd.service;
+                ensure_sudo systemctl enable --now docker.socket;
+                ensure_sudo systemctl start docker.service;
+                local deadline=$((SECONDS+60));
+                until ensure_sudo docker info > /dev/null 2>&1; do
+                    [ $SECONDS -lt $deadline ] || { 
+                        echo -e "${red}dockerd did not become ready${reset}" 1>&2;
+                        ensure_sudo systemctl status docker.socket --no-pager 1>&2;
+                        ensure_sudo systemctl status docker.service --no-pager 1>&2;
+                        ensure_sudo journalctl -u docker.socket -u docker.service --since "-5 min" --no-pager 1>&2;
+                        return 1
+                    };
+                    if ensure_sudo systemctl is-failed --quiet docker.service docker.socket; then
+                        ensure_sudo systemctl reset-failed docker.service docker.socket 2> /dev/null || true;
+                        ensure_sudo systemctl start docker.socket 2> /dev/null || true;
+                        ensure_sudo systemctl start docker.service 2> /dev/null || true;
+                    fi;
+                    sleep 1;
+                done;
+            fi;
+        fi;
+    fi;
+    configure_docker
+}
+debian_30_install_git () 
+{ 
+    ensure_apt_install_package git ca-certificates
+}
+debian_30_install_golang () 
+{ 
+    ensure_apt_install_package golang
+}
+debian_30_install_intel_lpmd () 
+{ 
+    configure_intel_lpmd;
+    if verify_intel_lpmd && [[ " $* " != *" --reinstall "* ]]; then
+        echo "Intel-lpmd is installed" 1>&2;
+    else
+        echo "@@STEP Installing prerequisites";
+        ensure_apt update;
+        ensure_apt install -y autoconf-archive libglib2.0-dev libdbus-1-dev libxml2-dev libnl-3-dev libnl-genl-3-dev libsystemd-dev systemd-dev gtk-doc-tools libupower-glib-dev;
+        echo "@@STEP Building intel-lpmd";
+        ensure_git_export "$workspace" "$version" "$repository";
+        cd "$workspace";
+        ./autogen.sh;
+        if [[ -z "$(pkg-config --variable=systemdsystemunitdir systemd 2> /dev/null)" ]]; then
+            echo "Failed to resolve systemd's systemdsystemunitdir (is the systemd-dev package installed?)." 1>&2;
+            return 3;
+        fi;
+        make;
+        ensure_sudo make install;
+        ensure_sudo mkdir -p /etc/systemd/system/intel_lpmd.service.d;
+        ensure_sudo tee /etc/systemd/system/intel_lpmd.service.d/override.conf > /dev/null <<-EOF
+[Unit]
+# Clear all Condition* directives from the upstream unit
+ConditionPathExists=
+ConditionVirtualization=
+EOF
+
+        ensure_sudo apt-get clean -y;
+        ensure_sudo systemctl daemon-reload;
+        ensure_sudo systemctl --root=/ enable intel_lpmd.service;
+        ensure_sudo systemctl start intel_lpmd.service;
+    fi
+}
+debian_30_install_kernel_module_essential () 
+{ 
+    configure_kernel_module_essential_debian;
+    local p pkgs=();
+    for p in ${install_pkgs[*]};
+    do
+        if ensure_apt_is_installed $p; then
+            echo "$p is installed." 1>&2;
+        else
+            ensure_prop set installed/kernel_module_essential/owned_$p true;
+            pkgs+=($p);
+        fi;
+    done;
+    if [ ${#pkgs[@]} -gt 0 ]; then
+        echo ensure_apt update;
+        ensure_apt install --no-install-recommends -y "${pkgs[@]}";
+    fi
+}
+debian_30_install_linux_tools () 
+{ 
+    local name="linux-tools-$(uname -r)";
+    if ensure_apt_is_installed $name; then
+        echo "$name is installed." 1>&2;
+    else
+        ensure_prop set installed/linux_tools/owned true;
+        ensure_apt update;
+        ensure_apt install --no-install-recommends -y linux-tools-common $name || ensure_apt install --no-install-recommends -y --no-install-recommends linux-tools-common linux-tools-generic;
+    fi
+}
+debian_30_install_lm_sensors () 
+{ 
+    ensure_apt_install_package lm-sensors
+}
+debian_30_install_make () 
+{ 
+    ensure_apt_install_package make
+}
+debian_30_install_msr_tools () 
+{ 
+    ensure_apt_install_package msr-tools
+}
+debian_30_install_pkg_config () 
+{ 
+    ensure_apt_install_package pkg-config
+}
+debian_30_install_python3_venv () 
+{ 
+    ensure_apt_install_package python3-venv
+}
+debian_30_install_stress_ng () 
+{ 
+    ensure_apt_install_package stress-ng
+}
+debian_30_install_sysbench () 
+{ 
+    ensure_apt_install_package sysbench
+}
+debian_30_install_v4l_utils () 
+{ 
+    configure_v4l_utils;
+    ensure_apt_preference "$v4l_pref_file" "${v4l_pref[@]}" || return $?;
+    if ensure_apt_is_installed v4l-utils; then
+        echo "v4l-utils is installed." 1>&2;
+    else
+        ensure_prop set installed/v4l_utils/owned true;
+        ensure_apt update || return $?;
+        ensure_apt install --no-install-recommends --allow-downgrades --no-remove -y v4l-utils || return $?;
+        ensure_apt_is_installed v4l-utils;
+    fi
+}
+debian_30_profile_intel_lpmd () 
+{ 
+    echo "kernel_module_essential linux_tools pkg_config autoconf automake"
+}
+debian_30_remove_autoconf () 
+{ 
+    ensure_apt_remove_package autoconf
+}
+debian_30_remove_automake () 
+{ 
+    ensure_apt_remove_package automake
+}
+debian_30_remove_cmake () 
+{ 
+    ensure_apt_remove_package cmake
+}
+debian_30_remove_docker_io () 
+{ 
+    [ "$(ensure_prop get installed/docker_io/owned)" = "true" ] || return 0;
+    ensure_sudo systemctl reset-failed docker.service docker.socket containerd.service 2> /dev/null || true;
+    ensure_sudo systemctl stop docker.socket docker.service 2> /dev/null || true;
+    ensure_apt purge -y docker docker-engine docker.io docker-ce docker-ce-cli docker-compose-plugin docker-compose-v2 docker-buildx-plugin docker-ce-rootless-extras docker-scan-plugin docker-doc docker-compose podman-docker containerd containerd.io runc || true;
+    ensure_rm /etc/systemd/system/docker.service.d;
+    if declare -F configure_docker_ce > /dev/null; then
+        configure_docker_ce "$@";
+        ensure_rm "$apt_file" "$key_file";
+    fi;
+    ensure_sudo systemctl daemon-reload || true
+}
+debian_30_remove_git () 
+{ 
+    ensure_apt_remove_package git
+}
+debian_30_remove_golang () 
+{ 
+    ensure_apt_remove_package golang
+}
+debian_30_remove_intel_lpmd () 
+{ 
+    [ "$(ensure_prop get installed/intel_lpmd/owned)" = "true" ] || return 0;
+    cd "$workspace" && { 
+        make clean
+    } || true;
+    ensure_sudo systemctl stop intel_lpmd.service || true;
+    ensure_sudo systemctl disable intel_lpmd.service || true;
+    ensure_rm /etc/systemd/system/intel_lpmd.service.d;
+    ensure_sudo systemctl daemon-reload || true
+}
+debian_30_remove_kernel_module_essential () 
+{ 
+    configure_kernel_module_essential_debian;
+    local p;
+    for p in ${install_pkgs[*]};
+    do
+        [ "$(ensure_prop get installed/kernel_module_essential/owned_$p)" = "true" ] || continue;
+        pkgs+=($p);
+    done;
+    [ ${#pkgs[@]} -eq 0 ] || ensure_apt purge --auto-remove -y "${pkgs[@]}"
+}
+debian_30_remove_linux_tools () 
+{ 
+    local name="linux-tools-$(uname -r)";
+    [ "$(ensure_prop get installed/linux_tools/owned)" = "true" ] || return 0;
+    ensure_apt autoremove -y $name || true
+}
+debian_30_remove_lm_sensors () 
+{ 
+    ensure_apt_remove_package lm-sensors
+}
+debian_30_remove_make () 
+{ 
+    ensure_apt_remove_package make
+}
+debian_30_remove_msr_tools () 
+{ 
+    ensure_apt_remove_package msr-tools
+}
+debian_30_remove_pkg_config () 
+{ 
+    ensure_apt_remove_package pkg-config
+}
+debian_30_remove_stress_ng () 
+{ 
+    ensure_apt_remove_package stress-ng
+}
+debian_30_remove_sysbench () 
+{ 
+    ensure_apt_install_package sysbench
+}
+debian_30_remove_v4l_utils () 
+{ 
+    configure_v4l_utils;
+    ensure_apt_remove_package v4l-utils || return $?;
+    ensure_rm "$v4l_pref_file"
+}
+debian_30_sbom_autoconf () 
+{ 
+    ensure_sbom_format pkg-list autoconf
+}
+debian_30_sbom_automake () 
+{ 
+    ensure_sbom_format pkg-list automake
+}
+debian_30_sbom_chrony () 
+{ 
+    ensure_sbom_format pkg-list chrony
+}
+debian_30_sbom_cmake () 
+{ 
+    ensure_sbom_format pkg-list cmake
+}
+debian_30_sbom_docker_io () 
+{ 
+    ensure_sbom_format pkg-list docker.io docker-buildx docker-compose-v2
+}
+debian_30_sbom_git () 
+{ 
+    ensure_sbom_format pkg-list git ca-certificates
+}
+debian_30_sbom_golang () 
+{ 
+    ensure_sbom_format pkg-list golang
+}
+debian_30_sbom_intel_lpmd () 
+{ 
+    ensure_sbom_format pkg-list autoconf-archive libglib2.0-dev libdbus-1-dev libxml2-dev libnl-3-dev libnl-genl-3-dev libsystemd-dev systemd-dev gtk-doc-tools libupower-glib-dev
+}
+debian_30_sbom_kernel_module_essential () 
+{ 
+    configure_kernel_module_essential_debian;
+    ensure_sbom_format pkg-list ${install_pkgs[*]}
+}
+debian_30_sbom_linux_tools () 
+{ 
+    ensure_sbom_format pkg-list linux-tools-common linux-tools-$(uname -r)
+}
+debian_30_sbom_lm_sensors () 
+{ 
+    ensure_sbom_format pkg-list lm-sensors
+}
+debian_30_sbom_make () 
+{ 
+    ensure_sbom_format pkg-list make
+}
+debian_30_sbom_msr_tools () 
+{ 
+    ensure_sbom_format pkg-list msr-tools
+}
+debian_30_sbom_pkg_config () 
+{ 
+    ensure_sbom_format pkg-list pkg-config
+}
+debian_30_sbom_python3_venv () 
+{ 
+    ensure_sbom_format pkg-list python3-venv
+}
+debian_30_sbom_stress_ng () 
+{ 
+    ensure_sbom_format pkg-list stress-ng
+}
+debian_30_sbom_sysbench () 
+{ 
+    ensure_sbom_format pkg-list sysbench
+}
+debian_30_sbom_v4l_utils () 
+{ 
+    configure_v4l_utils;
+    ensure_sbom_format pkg-list v4l-utils
+}
+debian_31_install_k3s_io () 
+{ 
+    configure_k3s_io "$@";
+    if verify_k3s_io && [[ " $* " != *" --reinstall "* ]]; then
+        echo "k3s_io is installed." 1>&2;
+    else
+        if [ -e "$HOME/.kube/config" ] && { 
+            [ ! -r /etc/rancher/k3s/k3s.yaml ] || ! cmp -s /etc/rancher/k3s/k3s.yaml "$HOME/.kube/config"
+        }; then
+            echo "Refusing to overwrite the existing $HOME/.kube/config." 1>&2;
+            echo "Back it up or move it before installing k3s_io." 1>&2;
+            return 1;
+        fi;
+        echo "@@STEP Clone repository";
+        ensure_git_export "$workspace" "$version" "$repository" infrastructure/installation-scripts;
+        echo "@@STEP Disable docker download";
+        cd "$workspace"/infrastructure/installation-scripts;
+        sed -i '/^DOCKER_STATIC_URL/,/^success "docker-compose saved"/{d}' download-resources.sh;
+        echo "@@STEP Downloading k3s resources";
+        cd "$workspace"/infrastructure/installation-scripts;
+        mkdir -p resources/docker;
+        local k3s_binary="$PWD/resources/k3s/k3s";
+        ( local kubectl_wrapper_dir;
+        kubectl_wrapper_dir="$(mktemp -d "${TMPDIR:-/tmp}/oep-k3s-kubectl.XXXXXX")";
+        trap 'rm -rf -- "$kubectl_wrapper_dir"' EXIT;
+        printf '%s\n' '#!/bin/sh' 'exec "'"$k3s_binary"'" kubectl "$@"' > "$kubectl_wrapper_dir/kubectl";
+        chmod 755 "$kubectl_wrapper_dir/kubectl";
+        ensure_sudo env PATH="$kubectl_wrapper_dir:$PATH" K3S_INSTALL_SH_SHA256="$install_sh_sha256" ./download-resources.sh );
+        local manifest;
+        for manifest in nfd nfd-node-feature-rules gpu-plugin npu-plugin;
+        do
+            if [ ! -s "$workspace/infrastructure/installation-scripts/resources/intel-device-plugins/manifests/$manifest.yaml" ]; then
+                echo "Intel device-plugin manifest '$manifest.yaml' was not prepared; refusing to install K3s without the plugin resources." 1>&2;
+                return 1;
+            fi;
+        done;
+        echo "@@STEP Installing k3s";
+        ensure_sudo ./install-k3s.sh;
+        verify_k3s_io || { 
+            echo "K3s installation completed without an active K3s service." 1>&2;
+            return 1
+        };
+        ensure_prop set installed/k3s_io/owned true;
+    fi
+}
+debian_31_profile_k3s_io () 
+{ 
+    echo "git curl docker_io"
+}
+debian_31_remove_k3s_io () 
+{ 
+    configure_k3s_io;
+    [ "$(ensure_prop get installed/k3s_io/owned)" = "true" ] || return 0;
+    local script found=0 kubeconfig=0;
+    if [ -f "$HOME/.kube/config" ] && ! ensure_sudo cmp -s /etc/rancher/k3s/k3s.yaml "$HOME/.kube/config"; then
+        kubeconfig=1;
+    fi;
+    for script in /usr/local/bin/k3s-uninstall.sh /usr/local/bin/k3s-agent-uninstall.sh;
+    do
+        [ -x "$script" ] || continue;
+        found=1;
+        echo "Removing the K3s runtime ($script)...";
+        ensure_sudo "$script";
+    done;
+    if [ $found -eq 0 ] && { 
+        command -v k3s > /dev/null 2>&1 || systemctl is-active --quiet k3s
+    }; then
+        echo "K3s is still installed, but no K3s uninstall script was found." 1>&2;
+        return 1;
+    fi;
+    [ $kubeconfig -eq 1 ] || rm -f "$HOME/.kube/config";
+    if command -v k3s > /dev/null 2>&1 || systemctl is-active --quiet k3s; then
+        echo "K3s is still present after running its uninstall script." 1>&2;
+        return 1;
+    fi;
+    ensure_rm "$workspace";
+    ensure_prop remove installed/k3s_io/owned
+}
+debian_31_start_k3s_io () 
+{ 
+    configure_k3s_io "$@";
+    [ "$(ensure_prop get installed/k3s_io/owned)" = "true" ] || return 0;
+    if kubectl status > /dev/null 2>&1; then
+        echo "k3s is started" 1>&2;
+    else
+        cd "$workspace"/infrastructure/installation-scripts && ensure_sudo ./kubernetes-provision.sh;
+    fi
+}
+debian_39_install_edge_pack () 
+{ 
+    configure_edge_pack "$@";
+    local reinstall=$([[ " $* " = *" --reinstall "* ]] && echo 1 || echo 0);
+    local reconfigured=0;
+    if [ ! -e "$edge_pack_key_file" ] || [ $reinstall -eq 1 ]; then
+        ensure_apt_key "$edge_pack_key_file" "$edge_pack_key_url" --dearmor;
+        reconfigured=1;
+    fi;
+    if [ ! -e "$edge_pack_source_file" ] || [ $reinstall -eq 1 ]; then
+        ensure_apt_source "$edge_pack_list_file" "$edge_pack_source";
+        reconfigured=1;
+    fi;
+    if [ ! -e "$edge_pack_pref_file" ] || [ $reinstall -eq 1 ]; then
+        ensure_apt_preference "$edge_pack_pref_file" "${edge_pack_pref[@]}";
+        local p;
+        for p in "${edge_pack_incompatible_pref_files[@]}";
+        do
+            [ ! -f "$p" ] || ensure_sudo mv -f "$p" "$p".save;
+        done;
+        reconfigured=1;
+    fi;
+    if [ -n "$edge_pack_ppa_repo" ]; then
+        if [ ! -e "$edge_pack_ppa_key_file" ] || [ $reinstall -eq 1 ]; then
+            ensure_apt_key "$edge_pack_ppa_key_file" "$edge_pack_ppa_key_url" --dearmor;
+            reconfigured=1;
+        fi;
+        if [ ! -e "$edge_pack_ppa_source_file" ] || [ $reinstall -eq 1 ]; then
+            ensure_apt_source "$edge_pack_ppa_list_file" "$edge_pack_ppa_source";
+            reconfigured=1;
+        fi;
+    fi;
+    [ $reconfigured -eq 0 ] || ensure_apt update -y
+}
+debian_39_profile_edge_pack () 
+{ 
+    echo "curl gnupg linux_image_generic_7.0"
+}
+debian_39_remove_edge_pack () 
+{ 
+    dpkg -l | grep -q -F intel-edge- || { 
+        configure_edge_pack "$@";
+        ensure_rm "$edge_pack_key_file" "$edge_pack_source_file" "$edge_pack_pref_file";
+        [ -z "$edge_pack_ppa_repo" ] || ensure_rm "$edge_pack_ppa_list_file" "$edge_pack_ppa_key_file"
+    }
+}
+debian_40_group_edge_pack_base_standard () 
+{ 
+    echo "render:992 video:"
+}
+debian_40_group_edge_pack_npu () 
+{ 
+    echo "render:992"
+}
+debian_40_group_gpu_accel () 
+{ 
+    echo "render:992 video:"
+}
+debian_40_group_npu_accel () 
+{ 
+    echo "render:992"
+}
+debian_40_install_core_types () 
+{ 
+    if [ -e /etc/core-types ] && [[ " $* " != *" --reinstall "* ]]; then
+        echo "/etc/core-types exists." 1>&2;
+    else
+        ensure_prop set installed/core_types/owned true;
+        local script="https://raw.githubusercontent.com/open-edge-platform/edge-workloads-and-benchmarks/refs/heads/main/utils/obtain_cores.sh";
+        set -o pipefail;
+        ensure_fetch "$script" - | bash | sed -n -E 's/^[[:space:]]*([a-zA-Z0-9_-]+)[[:space:]]*:[[:space:]]*(.*)/\U\1\E=\2/p' | ensure_sudo tee /etc/core-types;
+        echo "@@HIGHLIGHT Core types are detected and written to /etc/core-types";
+    fi
+}
+debian_40_install_edge_pack_base_standard () 
+{ 
+    configure_edge_pack_base_standard "$@";
+    if ensure_apt_is_installed intel-edge-base-standard && [[ " $* " != *" --reinstall "* ]]; then
+        echo "intel-edge-base-standard is installed." 1>&2;
+    else
+        ensure_prop set installed/edge_pack_base_standard/owned true;
+        ensure_apt purge --auto-remove -y intel-edge-base-standard || true;
+        ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*" || true;
+        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*";
+    fi;
+    [ -c /dev/dri/renderD128 ];
+    ensure_group_add $(debian_40_group_edge_pack_base_standard)
+}
+debian_40_install_edge_pack_ipu () 
+{ 
+    configure_edge_pack_ipu "$@";
+    if ensure_apt_is_installed intel-edge-ipu && [[ " $* " != *" --reinstall "* ]]; then
+        echo "intel-edge-ipu is installed." 1>&2;
+    else
+        ensure_prop set installed/edge_pack_ipu/owned true;
+        ensure_apt purge --auto-remove -y intel-edge-ipu || true;
+        ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-ipu=$version*" || true;
+        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-ipu=$version*";
+    fi
+}
+debian_40_install_edge_pack_manageability () 
+{ 
+    configure_edge_pack_manageability "$@";
+    if ensure_apt_is_installed intel-edge-manageability && [[ " $* " != *" --reinstall "* ]]; then
+        echo "intel-edge-manageability is installed." 1>&2;
+    else
+        ensure_prop set installed/edge_pack_manageability/owned true;
+        ensure_apt purge --auto-remove -y intel-edge-manageability || true;
+        ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-manageability=$version*" || true;
+        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-manageability=$version*";
+    fi
+}
+debian_40_install_edge_pack_npu () 
+{ 
+    configure_edge_pack_npu "$@";
+    if ensure_apt_is_installed intel-edge-npu && [[ " $* " != *" --reinstall "* ]]; then
+        echo "intel-edge-npu is installed." 1>&2;
+    else
+        ensure_prop set installed/edge_pack_npu/owned true;
+        ensure_apt purge --auto-remove -y intel-edge-npu || true;
+        ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-npu=$version*" || true;
+        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-npu=$version*";
+    fi;
+    [ -c /dev/accel/accel0 ];
+    ensure_group_add $(debian_40_group_edge_pack_npu)
+}
+debian_40_install_edge_pack_tsn () 
+{ 
+    configure_edge_pack_tsn "$@";
+    if ensure_apt_is_installed intel-edge-tsn && [[ " $* " != *" --reinstall "* ]]; then
+        echo "intel-edge-tsn is installed." 1>&2;
+    else
+        ensure_prop set installed/edge_pack_tsn/owned true;
+        ensure_apt purge --auto-remove -y intel-edge-tsn || true;
+        ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-tsn=$version*" || true;
+        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-tsn=$version*";
+    fi
+}
+debian_40_install_gpu_accel () 
+{ 
+    configure_gpu_accel "$@";
+    if verify_gpu_accel && [[ " $* " != *" --reinstall "* ]]; then
+        echo "Gpu drivers are installed." 1>&2;
+    else
+        debian_40_remove_gpu_accel;
+        ensure_prop create installed/gpu_accel/repositories/;
+        ensure_prop set installed/gpu_accel/owned true;
+        local repo_file;
+        for repo_file in "$key_file" "$apt_file";
+        do
+            if [ ! -e "$repo_file" ] && [ ! -L "$repo_file" ]; then
+                ensure_prop set "installed/gpu_accel/repositories/${repo_file##*/}" true;
+            fi;
+        done;
+        ensure_apt_key $key_file $key_url --dearmor;
+        ensure_apt_source $apt_file "$apt_entry";
+        ensure_apt update -y;
+        ensure_apt_allow_downgrades "${allow_downgrades[*]}" --no-install-recommends "${pkg_list[@]}" || true;
+        ensure_apt install --no-install-recommends --allow-downgrades -y "${pkg_list[@]}";
+        verify_gpu_accel_packages;
+    fi;
+    ensure_group_add $(debian_40_group_gpu_accel)
+}
+debian_40_install_npu_accel () 
+{ 
+    configure_npu_accel "$@";
+    if verify_npu_accel && [[ " $* " != *" --reinstall "* ]]; then
+        echo "Npu drivers are installed." 1>&2;
+    else
+        ensure_prop set installed/npu_accel/owned true;
+        debian_40_remove_npu_accel "$@";
+        mkdir -p "$workspace";
+        cd "$workspace";
+        local packages=($(configure_npu_accel_packages));
+        [ ${#packages[*]} -gt 0 ] || return 3;
+        for p in ${packages[*]};
+        do
+            ( set -o pipefail;
+            ensure_fetch "$p" - | tar xfz - ) || { 
+                echo "npu_accel: failed to download/extract $p" 1>&2;
+                return 3
+            };
+        done;
+        ensure_apt install -y --allow-downgrades $(find . -name "*.deb" -print);
+        ensure_rm "$workspace";
+        verify_npu_accel_packages;
+    fi;
+    ensure_group_add $(debian_40_group_npu_accel)
+}
+debian_40_install_pcm () 
+{ 
+    configure_pcm;
+    if verify_pcm && [[ " $* " != *" --reinstall "* ]]; then
+        echo "pcm is installed." 1>&2;
+    else
+        ensure_prop set installed/pcm/owned true;
+        echo "@@STEP Installing build tools";
+        configure_kernel_module_essential_debian "$@";
+        echo "@@STEP Building PCM";
+        ensure_git_export "$workspace" "$version" "$repository";
+        rm -rf "$workspace"/tests "$workspace"/examples;
+        mkdir "$workspace"/build "$workspace"/tests "$workspace"/examples;
+        touch "$workspace"/tests/CMakeLists.txt "$workspace"/examples/CMakeLists.txt;
+        cd "$workspace"/build;
+        cmake ..;
+        cmake --build .;
+        ensure_sudo make install;
+        make clean;
+        echo "@@STEP Configuring mods";
+        echo "msr" | ensure_sudo tee /etc/modules-load.d/99-intel-pcm.conf > /dev/null;
+        ensure_sudo systemctl restart systemd-modules-load;
+        verify_pcm;
+    fi
+}
+debian_40_install_power_tuning () 
+{ 
+    configure_power_tuning;
+    if verify_power_tuning && [[ " $* " != *" --reinstall "* ]]; then
+        echo "power_tuning is installed." 1>&2;
+    else
+        ensure_prop set installed/power_tuning/owned true;
+        echo "@@STEP Cloning repository";
+        ensure_git_export "$workspace" "$version" "$repository" tools/power-tuning;
+        ensure_sudo mkdir -p "$power_tuning_path";
+        sed -i -e "s|^MODEL_PATH=.*|MODEL_PATH=$workspace/models|" -e "s|^GNU_VENV_DIR=.*|GNU_VENV_DIR=$workspace/.venv|" tools/power-tuning/openvino_stress.sh;
+        ensure_sudo cp -r "$workspace"/tools/power-tunning/* "$power_tuning_path";
+        verify_power_tuning;
+    fi
+}
+debian_40_install_system_info () 
+{ 
+    configure_system_info;
+    if verify_system_info && [[ " $* " != *" --reinstall "* ]]; then
+        echo "System info script is installed." 1>&2;
+    else
+        ensure_git_export "$workspace" "$version" "$repository" tools/system-info || return $?;
+        if [ ! -r "$workspace/tools/system-info/system-info.sh" ]; then
+            echo "System info script is missing from the exported blueprint." 1>&2;
+            return 1;
+        fi;
+        if [ ! -e "$system_info_path/system-info.sh" ] && [ ! -L "$system_info_path/system-info.sh" ]; then
+            ensure_prop set installed/system_info/owned true;
+        fi;
+        ensure_sudo install -D -m 755 "$workspace/tools/system-info/system-info.sh" "$system_info_path/system-info.sh" || return $?;
+        verify_system_info || return $?;
+    fi;
+    echo "@@HIGHLIGHT system info: $system_info_path/system-info.sh"
+}
+debian_40_profile_core_types () 
+{ 
+    [ "$1" != "install" ] || echo "cpuid curl"
+}
+debian_40_profile_edge_pack_base_standard () 
+{ 
+    echo "edge_pack"
+}
+debian_40_profile_edge_pack_ipu () 
+{ 
+    echo "edge_pack"
+}
+debian_40_profile_edge_pack_manageability () 
+{ 
+    echo "edge_pack"
+}
+debian_40_profile_edge_pack_npu () 
+{ 
+    echo "edge_pack libze1"
+}
+debian_40_profile_edge_pack_tsn () 
+{ 
+    echo "edge_pack"
+}
+debian_40_profile_gpu_accel () 
+{ 
+    echo "curl gnupg libze1"
+}
+debian_40_profile_npu_accel () 
+{ 
+    echo "libtbb12 jq libze1"
+}
+debian_40_profile_pcm () 
+{ 
+    echo "pkg_config git make cmake kernel_module_essential msr_tools"
+}
+debian_40_profile_power_tuning () 
+{ 
+    echo "intel_lpmd pcm sysbench msr_tools lm_sensors stress_ng linux_tools"
+}
+debian_40_profile_system_info () 
+{ 
+    echo "git"
+}
+debian_40_remove_core_types () 
+{ 
+    [ "$(ensure_prop get installed/core_types/owned)" = "true" ] || return 0;
+    ensure_rm /etc/core-types
+}
+debian_40_remove_edge_pack_base_standard () 
+{ 
+    [ "$(ensure_prop get installed/edge_pack_base_standard/owned)" = "true" ] || return 0;
+    ensure_apt purge --auto-remove -y intel-edge-base-standard || true
+}
+debian_40_remove_edge_pack_ipu () 
+{ 
+    [ "$(ensure_prop get installed/edge_pack_ipu/owned)" = "true" ] || return 0;
+    ensure_apt purge --auto-remove -y intel-edge-ipu || true
+}
+debian_40_remove_edge_pack_manageability () 
+{ 
+    [ "$(ensure_prop get installed/edge_pack_manageability/owned)" = "true" ] || return 0;
+    ensure_apt purge --auto-remove -y intel-edge-manageability || true
+}
+debian_40_remove_edge_pack_npu () 
+{ 
+    [ "$(ensure_prop get installed/edge_pack_npu/owned)" = "true" ] || return 0;
+    ensure_apt purge --auto-remove -y intel-edge-npu || true
+}
+debian_40_remove_edge_pack_tsn () 
+{ 
+    [ "$(ensure_prop get installed/edge_pack_tsn/owned)" = "true" ] || return 0;
+    ensure_apt purge --auto-remove -y intel-edge-tsn || true
+}
+debian_40_remove_gpu_accel () 
+{ 
+    [ "$(ensure_prop get installed/gpu_accel/owned)" = "true" ] || return 0;
+    configure_gpu_accel "$@";
+    ensure_apt purge --auto-remove -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || return $?;
+    local repo_file;
+    for repo_file in "$apt_file" "$key_file";
+    do
+        if [ "$(ensure_prop get "installed/gpu_accel/repositories/${repo_file##*/}")" = true ]; then
+            ensure_rm "$repo_file" || return $?;
+            ensure_prop remove "installed/gpu_accel/repositories/${repo_file##*/}";
+        fi;
+    done
+}
+debian_40_remove_npu_accel () 
+{ 
+    [ "$(ensure_prop get installed/npu_accel/owned)" = "true" ] || return 0;
+    configure_npu_accel "$@";
+    ensure_apt purge --auto-remove -y intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu intel-level-zero-npu-dbgsym || true;
+    ensure_rm "$workspace"
+}
+debian_40_remove_pcm () 
+{ 
+    configure_pcm;
+    [ "$(ensure_prop get installed/pcm/owned)" = "true" ] || return 0;
+    ensure_rm "$workspace" /usr/local/share/pcm /usr/local/sbin/pcm /usr/local/sbin/pcm-* /usr/local/bin/pcm-* /usr/local/share/licenses/pcm /usr/local/share/doc/PCM /etc/modules-load.d/99-intel-pcm.conf
+}
+debian_40_remove_power_tuning () 
+{ 
+    configure_power_tuning;
+    [ "$(ensure_prop get installed/power_tuning/owned)" = "true" ] || return 0;
+    ensure_rm "$power_tuning_path"
+}
+debian_40_remove_system_info () 
+{ 
+    configure_system_info;
+    if [ "$(ensure_prop get installed/system_info/owned)" = true ]; then
+        ensure_rm "$system_info_path/system-info.sh" || return $?;
+    fi;
+    ensure_rm "$workspace"
+}
+debian_40_sbom_edge_pack_base_standard () 
+{ 
+    configure_edge_pack_base_standard "$@";
+    sbom_edge_pack_repo_entries "$@";
+    ensure_sbom_format pkg-list "intel-edge-base-standard=$version*"
+}
+debian_40_sbom_edge_pack_ipu () 
+{ 
+    configure_edge_pack_ipu "$@";
+    sbom_edge_pack_repo_entries "$@";
+    ensure_sbom_format pkg-list "intel-edge-ipu=$version*"
+}
+debian_40_sbom_edge_pack_manageability () 
+{ 
+    configure_edge_pack_manageability "$@";
+    sbom_edge_pack_repo_entries "$@";
+    ensure_sbom_format pkg-list "intel-edge-manageability=$version*"
+}
+debian_40_sbom_edge_pack_npu () 
+{ 
+    configure_edge_pack_npu "$@";
+    sbom_edge_pack_repo_entries "$@";
+    ensure_sbom_format pkg-list "intel-edge-npu=$version*"
+}
+debian_40_sbom_edge_pack_tsn () 
+{ 
+    configure_edge_pack_tsn "$@";
+    sbom_edge_pack_repo_entries "$@";
+    ensure_sbom_format pkg-list "intel-edge-tsn=$version*"
+}
+debian_40_sbom_gpu_accel () 
+{ 
+    configure_gpu_accel "$@";
+    ensure_sbom_format repo-name "$repo_name";
+    ensure_sbom_format apt-source "$apt_entry";
+    ensure_sbom_format apt-list-file "$apt_file";
+    ensure_sbom_format gpg-key "$key_url";
+    ensure_sbom_format key-file "$key_file";
+    ensure_sbom_format pkg-list "${pkg_list[@]}"
+}
+debian_40_sbom_npu_accel () 
+{ 
+    configure_npu_accel "$@";
+    local packages=($(configure_npu_accel_packages));
+    [ ${#packages[*]} -gt 0 ] || { 
+        echo "Failed to fetch npu_accel latest package" 1>&2;
+        return 3
+    };
+    ensure_sbom_format pkg-list "${packages[@]}"
+}
+debian_45_install_ubuntu_server () 
+{ 
+    if ( ensure_apt_is_installed ubuntu-desktop || ensure_apt_is_installed ubuntu-desktop-minimal || ensure_apt_is_installed gdm3 ) && [[ " $* " != *" --reinstall "* ]]; then
+        ensure_sudo systemctl set-default multi-user.target;
+        ensure_sudo systemctl disable --now gdm3;
+        ensure_apt update;
+        ensure_apt install -y --no-install-recommends ubuntu-server;
+        ensure_apt purge -y --auto-remove ubuntu-desktop ubuntu-desktop-minimal gdm3;
+    fi
+}
+debian_45_sbom_ubuntu_server () 
+{ 
+    ensure_sbom_format pkg-list ubuntu-server -ubuntu-desktop -ubuntu-desktop-minimal -gdm3
+}
+debian_55_install_cdi () 
+{ 
+    configure_cdi;
+    if verify_cdi && [[ " $* " = *" --reinstall "* ]]; then
+        echo "CDI scripts are installed" 1>&2;
+    else
+        ensure_sudo mkdir -p "$cdi_path";
+        ensure_git_export "$workspace" "$version" "$repository" infrastructure/installation-scripts/cdi;
+        echo "@@STEP Building cdi generators";
+        cd "$workspace"/infrastructure/installation-scripts;
+        ensure_sudo ./cdi/build-gpu-generator.sh;
+        ensure_sudo install -m 755 cdi/intel-cdi-specs-generator-gpu /opt/edge/scripts/cdi/intel-cdi-specs-generator-gpu;
+        ensure_sudo install -m 755 cdi/intel-cdi-npu-generator.sh /opt/edge/scripts/cdi/intel-cdi-npu-generator.sh;
+        if [ -f "$docker_config" ] && ! grep -q '"cdi"' "$docker_config" 2> /dev/null; then
+            cp -f "$docker_config" "$workspace/${docker_config##*/}.bak";
+            ensure_sudo python3 -c "
+import json
+f = open('$docker_config')
+config = json.load(f)
+f.close()
+config.setdefault('features', {})['cdi'] = True
+config.setdefault('cdi-spec-dirs', [])
+if '/etc/cdi' not in config['cdi-spec-dirs']: config['cdi-spec-dirs'].append('/etc/cdi')
+f = open('$docker_config', 'w')
+json.dump(config, f, indent=2)
+f.close()
+" 2> /dev/null || { 
+                echo "Could not configure Docker for CDI" 1>&2;
+                return 1
+            };
+            ensure_sudo systemctl restart docker || true;
+        fi;
+        ensure_sudo cdi/systemd/install-systemd.sh;
+    fi
+}
+debian_55_install_realsense () 
+{ 
+    configure_realsense "$@";
+    ensure_prop create installed/realsense/packages/;
+    if ensure_apt_is_installed "${rs_packages[@]}" && [[ " $* " != *" --reinstall "* ]]; then
+        echo "RealSense packages are installed." 1>&2;
+    else
+        local package;
+        for package in "${rs_packages[@]}";
+        do
+            if ! ensure_apt_is_installed "$package"; then
+                ensure_prop set "installed/realsense/packages/$package" true;
+            fi;
+        done;
+        echo "@@STEP Configuring Apt";
+        local repo_file;
+        ensure_prop create installed/realsense/repositories/;
+        for repo_file in "$eci_key_file" "$eci_repo_list_file" "$rs_key_file" "$rs_list";
+        do
+            if [ ! -e "$repo_file" ] && [ ! -L "$repo_file" ]; then
+                ensure_prop set "installed/realsense/repositories/${repo_file##*/}" true;
+            fi;
+        done;
+        ensure_apt_key "$eci_key_file" "$eci_key_url" --dearmor;
+        ensure_apt_source "$eci_repo_list_file" "$eci_repo_list";
+        ensure_apt_key "$rs_key_file" "$rs_key_url" --dearmor;
+        ensure_apt_source "$rs_list" "$rs_deb_entry";
+        ensure_apt update -y;
+        echo "@@STEP Installing RealSense packages";
+        ensure_apt install -y --no-install-recommends "${rs_packages[@]}";
+        verify_realsense "$@";
+    fi
+}
+debian_55_profile_cdi () 
+{ 
+    echo "git golang python3_venv docker_io"
+}
+debian_55_profile_realsense () 
+{ 
+    echo "curl gnupg"
+}
+debian_55_remove_cdi () 
+{ 
+    configure_cdi;
+    [ "$(ensure_prop get installed/cdi/owned)" = "true" ] || return 0;
+    if [ -e "$workspace"/${docker_config##*/}.bak ]; then
+        ensure_sudo cp -f "$workspace"/${docker_config##*/}.bak "$docker_config";
+        ensure_sudo systemctl restart docker || true;
+    fi;
+    cd "$workspace"/infrastructure/installation-scripts && { 
+        ensure_sudo cdi/systemd/install-sysetmd.sh --uninstall
+    } || true;
+    ensure_rm "$workspace" "$cdi_path"
+}
+debian_55_remove_realsense () 
+{ 
+    configure_realsense;
+    local package owned_packages=();
+    for package in "${rs_packages[@]}" ros-humble-librealsense2 ros-jazzy-librealsense2;
+    do
+        if [ "$(ensure_prop get "installed/realsense/packages/$package")" = true ]; then
+            owned_packages+=("$package");
+        fi;
+    done;
+    if [ ${#owned_packages[@]} -gt 0 ]; then
+        ensure_apt purge -y "${owned_packages[@]}" || return $?;
+    fi;
+    local repo_file;
+    for repo_file in "$eci_repo_list_file" "$rs_list" "$eci_key_file" "$rs_key_file";
+    do
+        if [ "$(ensure_prop get "installed/realsense/repositories/${repo_file##*/}")" = true ]; then
+            ensure_rm "$repo_file" || return $?;
+            ensure_prop remove "installed/realsense/repositories/${repo_file##*/}";
+        fi;
+    done
+}
+debian_55_sbom_realsense () 
+{ 
+    configure_realsense "$@";
+    ensure_sbom_format repo-name "$rs_repo_name";
+    ensure_sbom_format gpg-key "$rs_key_url";
+    ensure_sbom_format key-file "$rs_key_file";
+    ensure_sbom_format apt-source "$rs_deb_entry";
+    ensure_sbom_format apt-list-file "$rs_list";
+    ensure_sbom_format pkg-list "${rs_packages[@]}"
+}
+debian_85_install_handheld_blueprint () 
+{ 
+    :
+}
+debian_85_install_mission_decision_support_blueprint () 
+{ 
+    :
+}
+debian_85_install_uncrewed_aerial_vehicle_blueprint () 
+{ 
+    :
+}
+debian_90_install_deterministic_threat_detection () 
+{ 
+    local installed;
+    installed="$(ensure_prop find "installed/*")" || return $?;
+    local blueprint;
+    while IFS= read -r blueprint; do
+        case "$blueprint" in 
+            installed/uncrewed_aerial_vehicle_blueprint | installed/handheld_blueprint)
+                echo "Cannot install deterministic_threat_detection while ${blueprint#installed/} is installed." 1>&2;
+                return 1
+            ;;
+        esac;
+    done <<< "$installed";
+    configure_deterministic_threat_detection;
+    if verify_deterministic_threat_detection && [[ " $* " != *" --reinstall "* ]]; then
+        echo "Deterministic Threat Detection source is already available." 1>&2;
+    else
+        echo "@@STEP Downloading Deterministic Threat Detection";
+        ensure_git_export "$workspace" "$version" "$repository" deterministic-threat-detection;
+        if ! verify_deterministic_threat_detection; then
+            echo "Deterministic Threat Detection checkout is missing its expected documentation." 1>&2;
+            return 1;
+        fi;
+    fi;
+    echo "@@HIGHLIGHT application: ${application/#"$HOME"/"~"}";
+    echo "@@HIGHLIGHT guide: ${application/#"$HOME"/"~"}/docs/user-guide/get-started.md"
+}
+debian_90_install_handheld_multi_modal () 
+{ 
+    local installed;
+    installed="$(ensure_prop find "installed/*")" || return $?;
+    local blueprint;
+    while IFS= read -r blueprint; do
+        case "$blueprint" in 
+            installed/uncrewed_aerial_vehicle_blueprint | installed/mission_decision_support_blueprint)
+                echo "Cannot install handheld_multi_modal while ${blueprint#installed/} is installed." 1>&2;
+                return 1
+            ;;
+        esac;
+    done <<< "$installed";
+    configure_handheld_multi_modal;
+    if verify_handheld_multi_modal $* && [[ " $* " != *" --reinstall "* ]]; then
+        echo "handheld_multi_modal is installed." 1>&2;
+    else
+        ensure_disk_size 45000;
+        ensure_ports_open install handheld_multi_modal "${used_ports[@]}";
+        ensure_git_clone "$workspace" $version $repository handheld-multi-modal;
+        cd "$workspace"/handheld-multi-modal;
+        make setup;
+        make prereq CONFIRM=yes;
+        docker compose -f compose/handheld-multi-modal.yaml -f compose/cameras.yaml -f config/devices.yaml pull --ignore-buildable;
+        verify_handheld_multi_modal $*;
+    fi;
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
+    echo "@@HIGHLIGHT $installer_name start|remove"
+}
+debian_90_install_uncrewed_aerial_vehicle_mission () 
+{ 
+    local installed;
+    installed="$(ensure_prop find "installed/*")" || return $?;
+    local blueprint;
+    while IFS= read -r blueprint; do
+        case "$blueprint" in 
+            installed/handheld_blueprint | installed/mission_decision_support_blueprint)
+                echo "Cannot install uncrewed_aerial_vehicle_mission while ${blueprint#installed/} is installed." 1>&2;
+                return 1
+            ;;
+        esac;
+    done <<< "$installed";
+    configure_uncrewed_aerial_vehicle_mission;
+    if verify_uncrewed_aerial_vehicle_mission 2> /dev/null && [[ " $* " != *" --reinstall "* ]]; then
+        echo "Uncrewed aerial vehicle mission compute SDK is installed." 1>&2;
+    else
+        ensure_ports_open install uncrewed_aerial_vehicle_mission "${used_ports[@]}";
+        echo "@@STEP Cloning repository";
+        ensure_git_export "$workspace" "$version" "$repository" uav-mission-compute-sdk;
+        echo "@@STEP Building SDK";
+        cd "$workspace"/uav-mission-compute-sdk;
+        initialize_uncrewed_aerial_vehicle_mission;
+        sed -i "s|^HOST_IP=.*$|HOST_IP=$(ensure_ip)|" .env;
+        COMPOSE_PROFILES=sim-camera,usb-camera,observability make build;
+        if ! verify_uncrewed_aerial_vehicle_mission; then
+            echo "Uncrewed aerial vehicle SDK build completed, but required simulation, camera, or application images are missing." 1>&2;
+            return 1;
+        fi;
+    fi;
+    if [ ! -r "$HOME/.agents/skills/uav-mission-compute-sdk/SKILL.md" ]; then
+        echo "@@STEP Installing skills";
+        ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}";
+    fi;
+    local profile="sim-camera";
+    [[ " $* " != *" --sim "* ]] || profile="sim-camera";
+    [[ " $* " != *" --usb "* ]] || profile="usb-camera";
+    [[ " $* " != *" --realsense "* ]] || profile="realsense-camera";
+    cd "$workspace"/uav-mission-compute-sdk;
+    sed -i '/^PROFILE=/{d}' "$workspace"/uav-mission-compute-sdk/.env;
+    echo "PROFILE=$profile" >> "$workspace"/uav-mission-compute-sdk/.env;
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}";
+    echo "@@HIGHLIGHT $installer_name start|remove"
+}
+debian_90_profile_deterministic_threat_detection () 
+{ 
+    echo "docker_io git"
+}
+debian_90_profile_handheld_multi_modal () 
+{ 
+    echo "yq make curl git docker_io edge_base"
+}
+debian_90_profile_uncrewed_aerial_vehicle_mission () 
+{ 
+    echo "docker_io git curl make v4l_utils"
+}
+debian_90_remove_deterministic_threat_detection () 
+{ 
+    configure_deterministic_threat_detection;
+    ensure_rm "$workspace"
+}
+debian_90_remove_handheld_multi_modal () 
+{ 
+    configure_handheld_multi_modal;
+    local app_dir="$workspace"/handheld-multi-modal;
+    [ ! -d "$app_dir" ] || ( cd "$app_dir" && make clean-all CONFIRM=yes );
+    ensure_rm "$workspace"
+}
+debian_90_remove_uncrewed_aerial_vehicle_mission () 
+{ 
+    configure_uncrewed_aerial_vehicle_mission;
+    local app_dir="$workspace"/uav-mission-compute-sdk;
+    if [ -r "$app_dir/docker-compose.yml" ]; then
+        debian_90_stop_uncrewed_aerial_vehicle_mission "$@";
+        ( cd "$app_dir" && docker compose -f docker-compose.yml --profile sim-camera --profile usb-camera --profile observability down --remove-orphans --volumes --rmi all ) || true;
+    fi;
+    ensure_rm "$workspace" || true;
+    ensure_skills remove "${skills[@]}"
+}
+debian_90_start_handheld_multi_modal () 
+{ 
+    configure_handheld_multi_modal;
+    ensure_ports_open start handheld_multi_modal "${used_ports[@]}";
+    cd "$workspace"/handheld-multi-modal;
+    make up CONFIRM=yes;
+    echo "@@HIGHLIGHT URL: https://localhost:8443/ (trust config/tls/server.crt)";
+    echo "@@HIGHLIGHT $installer_name stop|remove"
+}
+debian_90_start_uncrewed_aerial_vehicle_mission () 
+{ 
+    configure_uncrewed_aerial_vehicle_mission;
+    ensure_ports_open start uncrewed_aerial_vehicle_mission "${used_ports[@]}";
+    cd "$workspace"/uav-mission-compute-sdk;
+    . .env;
+    make up-$PROFILE;
+    echo "@@HIGHLIGHT $installer_name remove"
+}
+debian_90_stop_handheld_multi_modal () 
+{ 
+    configure_handheld_multi_modal;
+    cd "$workspace"/handheld-multi-modal;
+    make stop
+}
+debian_90_stop_uncrewed_aerial_vehicle_mission () 
+{ 
+    configure_uncrewed_aerial_vehicle_mission;
+    cd "$workspace"/uav-mission-compute-sdk && { 
+        make down || true;
+        docker volume rm -f uav-mission-compute-sdk_grafana-data uav-mission-compute-sdk_influxdb-data || true;
+        docker volume prune -f
+    } || true
+}
+debian_99_install_system_summary () 
+{ 
+    echo "@@REPORT SYSTEM SUMMARY";
+    install_system_inspection "$@" || true
+}
+debian_99_profile_edge_base () 
+{ 
+    case "$1" in 
+        bootstrap)
+            echo "core_types system_inspection system_summary edge_pack_base_standard edge_pack_npu gpu_accel npu_accel"
+        ;;
+        *)
+            echo "core_types system_inspection system_summary";
+            if [[ " $* " = *" --edgepack "* ]]; then
+                echo "edge_pack_base_standard edge_pack_npu";
+            else
+                echo "gpu_accel npu_accel";
+            fi
+        ;;
+    esac
+}
+debian_99_profile_federal_and_aerospace_ai_suite_handheld () 
+{ 
+    [ "$1" = "start" ] || echo "handheld_blueprint handheld_multi_modal"
+}
+debian_99_profile_federal_and_aerospace_ai_suite_mission_decision_support () 
+{ 
+    [ "$1" = "start" ] || echo "mission_decision_support_blueprint deterministic_threat_detection"
+}
+debian_99_profile_federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle () 
+{ 
+    [ "$1" = "start" ] || echo "uncrewed_aerial_vehicle_blueprint uncrewed_aerial_vehicle_mission"
+}
+debian_99_profile_handheld_blueprint () 
+{ 
+    case "$1" in 
+        bootstrap)
+            echo "core_types system_inspection system_summary cdi realsense chrony edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn gpu_accel npu_accel power_tuning system_info docker_io k3s_io"
+        ;;
+        *)
+            local modules=(core_types system_inspection system_summary power_tuning system_info cdi realsense chrony);
+            if [[ " $* " = *" --k3s "* ]]; then
+                modules+=(k3s_io);
+            else
+                modules+=(docker_io);
+            fi;
+            if [[ " $* " = *" --edgepack "* ]]; then
+                modules+=(edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn);
+            else
+                modules+=(gpu_accel npu_accel);
+            fi;
+            echo "${modules[*]}"
+        ;;
+    esac
+}
+debian_99_profile_mission_decision_support_blueprint () 
+{ 
+    case "$1" in 
+        bootstrap)
+            echo "core_types system_inspection system_summary cdi realsense chrony edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn gpu_accel npu_accel power_tuning system_info docker_io k3s_io"
+        ;;
+        *)
+            local modules=(core_types system_inspection system_summary power_tuning system_info cdi realsense chrony);
+            if [[ " $* " = *" --k3s "* ]]; then
+                modules+=(k3s_io);
+            else
+                modules+=(docker_io);
+            fi;
+            if [[ " $* " = *" --edgepack "* ]]; then
+                modules+=(edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn);
+            else
+                modules+=(gpu_accel npu_accel);
+            fi;
+            echo "${modules[*]}"
+        ;;
+    esac
+}
+debian_99_profile_system_summary () 
+{ 
+    [ "$1" != "bootstrap" ] || echo "system_inspection curl dmidecode pciutils";
+    [ "$1" != "install" ] || echo "curl dmidecode pciutils"
+}
+debian_99_profile_uncrewed_aerial_vehicle_blueprint () 
+{ 
+    case "$1" in 
+        bootstrap)
+            echo "core_types system_inspection system_summary cdi realsense chrony edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn gpu_accel npu_accel power_tuning system_info docker_io k3s_io ubuntu_server"
+        ;;
+        *)
+            local modules=(core_types system_inspection system_summary power_tuning system_info cdi realsense chrony ubuntu_server);
+            if [[ " $* " = *" --k3s "* ]]; then
+                modules+=(k3s_io);
+            else
+                modules+=(docker_io);
+            fi;
+            if [[ " $* " = *" --edgepack "* ]]; then
+                modules+=(edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn);
+            else
+                modules+=(gpu_accel npu_accel);
+            fi;
+            echo "${modules[*]}"
+        ;;
+    esac
+}
+debian_99_remove_handheld_blueprint () 
+{ 
+    :
+}
+debian_99_remove_mission_decision_support_blueprint () 
+{ 
+    :
+}
+debian_99_remove_uncrewed_aerial_vehicle_blueprint () 
+{ 
+    :
+}
+ensure_apt () 
+{ 
+    while fuser /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock > /dev/null 2>&1; do
+        echo "Waiting for apt/unattended-upgrades to finish..." 1>&2;
+        sleep 5;
+    done;
+    case "$1" in 
+        update)
+            [[ "$(ensure_prop get apt_update)" = "true" && " $* " != *" -y "* ]] || ensure_sudo env DEBIAN_FRONTEND=noninteractive apt-get "$@";
+            ensure_prop set apt_update true
+        ;;
+        autoremove | remove | purge)
+            local package_list=();
+            local options=();
+            for v in ${*:2};
+            do
+                if [[ "$v" = -* ]]; then
+                    options+=($v);
+                else
+                    package_list+=($v);
+                fi;
+            done;
+            if [ ${#package_list[*]} -gt 0 ]; then
+                local valid_packages=($(dpkg-query -W -f='${db:Status-Status} ${Package}\n' "${package_list[@]}" 2> /dev/null | awk '$1!="not-installed"{print $2}'));
+                if [ ${#valid_packages[*]} -gt 0 ]; then
+                    ensure_sudo env DEBIAN_FRONTEND=noninteractive apt-get $1 -y ${options[*]} ${valid_packages[*]};
+                fi;
+            fi
+        ;;
+        *)
+            [ "$1" != "install" ] || [ "$(ensure_prop get apt_update)" = "true" ] || ensure_apt update -y;
+            ensure_sudo env DEBIAN_FRONTEND=noninteractive apt-get -y "$@"
+        ;;
+    esac
+}
+ensure_apt_add_repository () 
+{ 
+    local r;
+    for r in "$@";
+    do
+        ensure_sudo add-apt-repository -y -n "$r";
+    done;
+    ensure_apt update -y
+}
+ensure_apt_allow_downgrades () 
+{ 
+    local allow_downgrades=($1);
+    shift;
+    local dg downgrades=();
+    for dg in $(apt-get install -s "$@" | awk '
+/The following packages will be DOWNGRADED:/{flag=1;next}
+/^[^ ]/{flag=0}
+flag&&$1{for(i=1;i<=NF;i++)print$i}
+');
+    do
+        [[ " ${allow_downgrades[*]} " = *" $dg "* ]] || downgrades+=("$dg");
+    done;
+    if [ ${#downgrades[*]} -gt 0 ]; then
+        printf "${red}Detected unexpected downgrades: %s${reset}\n" "${downgrades[*]}" 1>&2;
+        return 3;
+    fi
+}
+ensure_apt_install_package () 
+{ 
+    local module="${1%%=*}";
+    if ensure_apt_is_installed "${@%%"*"}"; then
+        echo "${*%%=*} $([ ${#*} -eq 1 ] && echo is || echo are) installed." 1>&2;
+    else
+        ensure_prop set installed/${module//[^a-zA-Z0-9]/_}/owned true;
+        ensure_apt update;
+        ensure_apt install --no-install-recommends -y "$@";
+    fi
+}
+ensure_apt_is_installed () 
+{ 
+    for pkg in $*;
+    do
+        [ "$(dpkg-query -W -f='${db:Status-Status}' ${pkg%%=*} 2> /dev/null)" = "installed" ] || return 1;
+        [[ "$pkg" != *=* ]] || [[ "$(dpkg-query -W -f='${Version}' ${pkg%%=*} 2> /dev/null)" = "${pkg#*=}"* ]] || return 1;
+    done
+}
+ensure_apt_key () 
+{ 
+    local key_file="$1" key_url="$2";
+    local tmp_dir rc=0;
+    ensure_tmpdir create tmp_dir apt_key || return 1;
+    ensure_fetch "$key_url" "$tmp_dir/key" || rc=$?;
+    if [ $rc -eq 0 ]; then
+        ensure_sudo mkdir -p "$(dirname "$key_file")";
+        if [[ "$*" = *"--dearmor"* ]]; then
+            gpg --batch --yes --dearmor -o "$tmp_dir/key.gpg" "$tmp_dir/key" && ensure_sudo install -m 0644 "$tmp_dir/key.gpg" "$key_file" || rc=$?;
+        else
+            ensure_sudo install -m 0644 "$tmp_dir/key" "$key_file" || rc=$?;
+        fi;
+    fi;
+    ensure_tmpdir destroy "$tmp_dir" || true;
+    return $rc
+}
+ensure_apt_preference () 
+{ 
+    local pref_file=$1;
+    shift;
+    local line first=1;
+    for line in "$@";
+    do
+        [[ "$line" != Package:* ]] || [ $first -eq 1 ] || echo;
+        first=0;
+        echo "$line";
+    done | ensure_sudo tee "$pref_file" > /dev/null
+}
+ensure_apt_remove_package () 
+{ 
+    local module="${1%%=*}";
+    [ "$(ensure_prop get installed/${module//[^a-zA-Z0-9]/_}/owned)" = "true" ] || return 0;
+    ensure_apt autoremove -y "$@"
+}
+ensure_apt_source () 
+{ 
+    local list_file=$1;
+    shift;
+    ( IFS='
+';
+    echo "$*" ) | ensure_sudo tee $list_file > /dev/null
+}
+ensure_apt_source_remove () 
+{ 
+    local r e;
+    for r in "$@";
+    do
+        [ -r /etc/apt/sources.list ] && ensure_sudo sed -i "s|^\(deb.*$r\)|#\1|" /etc/apt/sources.list || true;
+        for e in /etc/apt/sources.list.d/*.list;
+        do
+            [ -r "$e" ] && grep -s -q -E "deb.*$r" "$e" && ensure_sudo mv -f "$e" "$e".save || true;
+        done;
+    done
+}
+ensure_columns () 
+{ 
+    local sep=${1:-'|'};
+    python3 -c '
+import sys,re
+ansi_re = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]|\033\[[0-9;]*[a-zA-Z]")
+rows=[line.strip().split(sys.argv[1]) for line in sys.stdin]
+if not rows: sys.exit(0)
+cols=max(len(r) for r in rows)
+widths=[max((len(ansi_re.sub("",r[c])) for r in rows if c < len(r)-1),default=0) for c in range(cols-1)]
+for r in rows:
+  print((" "*2).join([r[i]+(" "*max(0,widths[i]-len(ansi_re.sub("",r[i])))) for i in range(len(r)-1)]+[r[-1]]))
+' "$sep"
+}
+ensure_disk_size () 
+{ 
+    local disk_size=$1;
+    local disk_path="${2:-$HOME}";
+    local disk_avail=$(df -B1 --output=avail "$disk_path" | awk 'NR==2{print int($1/1000000)}');
+    if [ "$disk_size" -gt "$disk_avail" ]; then
+        echo "Not enough disk space: required ${disk_size} MB and available ${disk_avail} MB" 1>&2;
+        return 3;
+    fi
+}
+ensure_fetch () 
+{ 
+    local url="$1" dest="${2:-?}" html="${3:-}";
+    local rc=1 first tmp_dir i;
+    ensure_tmpdir create tmp_dir fetch || return 1;
+    local tmp_file="$tmp_dir/download";
+    for i in {1..5};
+    do
+        [ $i -eq 1 ] || sleep 5;
+        if command -v curl > /dev/null 2>&1; then
+            curl -fsSL --retry 3 --retry-delay 5 -A Mozilla/5.0 -o "$tmp_file" "$url" && rc=0 || rc=$?;
+        else
+            if command -v wget > /dev/null 2>&1; then
+                wget -q -t 3 -w 5 -O "$tmp_file" "$url" && rc=0 || rc=$?;
+            else
+                if command -v python3 > /dev/null 2>&1; then
+                    python3 - "$url" > "$tmp_file" <<'PY' && 
+import sys, shutil, urllib.request
+with urllib.request.urlopen(sys.argv[1], timeout=60) as r:
+  shutil.copyfileobj(r, sys.stdout.buffer)
+PY
+ rc=0 || rc=$?;
+                else
+                    echo "ensure_fetch: no curl, wget, or python3 available" 1>&2;
+                    rc=127;
+                    break;
+                fi;
+            fi;
+        fi;
+        if [ "$rc" -eq 0 ] && [ -s "$tmp_file" ]; then
+            [ "$html" != "--html" ] || break;
+            first=$(head -c 512 "$tmp_file" 2> /dev/null | tr -d '\0') || true;
+            case "${first,,}" in 
+                *"<!doctype html"* | *"<html"*)
+
+                ;;
+                *)
+                    break
+                ;;
+            esac;
+        fi;
+        rc=1;
+        rm -f "$tmp_file";
+    done;
+    if [ "$rc" -eq 0 ]; then
+        if [ "$dest" = "-" ]; then
+            cat "$tmp_file" && rc=0 || rc=$?;
+        else
+            { 
+                cp -f "$tmp_file" "$dest" 2> /dev/null || ensure_sudo cp -f "$tmp_file" "$dest"
+            } && rc=0 || rc=$?;
+        fi;
+    else
+        echo "ensure_fetch: giving up on $url" 1>&2;
+    fi;
+    ensure_tmpdir destroy "$tmp_dir" || true;
+    return "$rc"
+}
+ensure_git_clone () 
+{ 
+    local workspace="$1";
+    local version="$2";
+    local repository="$3";
+    ensure_rm "$workspace";
+    mkdir -p "$(dirname "$workspace")";
+    if [ ${#@} -ge 4 ]; then
+        mkdir -p "$workspace";
+        pushd "$workspace" > /dev/null;
+        git clone --filter=blob:none --no-checkout $repository .;
+        git sparse-checkout init --cone;
+        git sparse-checkout set "${@:4}";
+        git checkout $version;
+        popd > /dev/null;
+    else
+        mkdir -p "$workspace";
+        pushd "$workspace" > /dev/null;
+        git init -q;
+        git remote add origin "$repository";
+        git fetch --depth 1 origin "$version";
+        git checkout -q FETCH_HEAD;
+        [ ! -e .gitmodules ] || git submodule update --init --recursive;
+        popd > /dev/null;
+    fi
+}
+ensure_git_export () 
+{ 
+    ensure_git_clone "$@";
+    ensure_rm "$1"/.git
+}
+ensure_group_add () 
+{ 
+    local group1 gid1;
+    for group1 in "$@";
+    do
+        case "$group1" in 
+            *:)
+                gid1="--system"
+            ;;
+            *:*)
+                gid1="--system --gid ${group1#*:}";
+                getent group ${group1%:*} > /dev/null 2>&1 || [ -z "$(getent group ${gid1##* })" ] || { 
+                    echo "gid ${gid1##* } is taken" 1>&2;
+                    gid1="--system"
+                }
+            ;;
+            *)
+                gid1=""
+            ;;
+        esac;
+        getent group ${group1%:*} > /dev/null 2>&1 || ensure_sudo groupadd $gid1 ${group1%:*};
+        id -nG | tr ' ' '\n' | grep -qx ${group1%:*} || ensure_sudo usermod -aG ${group1%:*} "$(id -un)";
+    done;
+    local deadline=$((SECONDS + 30));
+    local flushed=0 missing;
+    while :; do
+        missing="";
+        for group1 in "$@";
+        do
+            id -G "$(id -un)" | tr ' ' '\n' | grep -qx "$(getent group ${group1%:*} | cut -f3 -d:)" || missing+=" ${group1%:*}";
+        done;
+        [ -n "$missing" ] || return 0;
+        if [ $flushed -eq 0 ]; then
+            flushed=1;
+            command -v nscd > /dev/null && ensure_sudo nscd -i group > /dev/null 2>&1;
+            command -v sss_cache > /dev/null && ensure_sudo sss_cache -G > /dev/null 2>&1;
+            continue;
+        fi;
+        [ $SECONDS -ge $deadline ] && { 
+            echo -e "${red}groups not visible:${missing}${reset}" 1>&2;
+            return 1
+        };
+        sleep 1;
+    done
+}
+ensure_grub_set_default_entry () 
+{ 
+    local kver="$1";
+    ensure_sudo sed -i -e '/^GRUB_TOP_LEVEL=/d' -e 's/^GRUB_DEFAULT=.*/GRUB_DEFAULT=0/' /etc/default/grub;
+    echo "GRUB_TOP_LEVEL=/boot/vmlinuz-$kver" | ensure_sudo tee -a /etc/default/grub > /dev/null;
+    ensure_sudo update-grub;
+    ensure_sudo grep -m1 -E '^\s*linux\s' /boot/grub/grub.cfg | grep -q "vmlinuz-$KVER" || { 
+        ensure_sudo sed -i 's/^GRUB_DEFAULT=.*/GRUB_DEFAULT=saved/' /etc/default/grub;
+        ensure_sudo update-grub;
+        local SUBMENU="$(ensure_sudo grep -rn GRUB_DISABLE_SUBMENU=y /etc/default/grub /etc/default/grub.d/ 2> /dev/null)";
+        local SUB="$(ensure_sudo grep -om1 "gnulinux-advanced-[^']*" /boot/grub/grub.cfg)";
+        local ENTRY="$(ensure_sudo grep -om1 "gnulinux-$kver-advanced-[^']*" /boot/grub/grub.cfg)";
+        if [ -n "$SUBMENU" ]; then
+            ensure_sudo grub-set-default "$ENTRY";
+        else
+            ensure_sudo grub-set-default "$SUB>$ENTRY";
+        fi
+    }
+}
+ensure_grub_set_kernel_args () 
+{ 
+    local k="$1";
+    shift;
+    local line="$(. /etc/default/grub; printf "%s" "${!k}")" o;
+    for o in "$@";
+    do
+        [[ " $line " == *" $o "* ]] || line="$line $o";
+    done;
+    ensure_sudo sed -i "s|^$k=.*|$k=\"$line\"|" /etc/default/grub;
+    ensure_sudo update-grub
+}
+ensure_hf_token () 
+{ 
+    local models=($*);
+    export HF_TOKEN;
+    [ -n "$HF_TOKEN" ] || [ ! -r "$HOME"/.cache/huggingface/token ] || export HF_TOKEN="$(< "$HOME"/.cache/huggingface/token)";
+    [ -n "$HF_TOKEN" ] || [ ! -r "$HOME"/.vscode/launch.json ] || export HF_TOKEN="$(grep -m1 -F '"HF_TOKEN":' "$HOME"/.vscode/launch.json)";
+    if ! ensure_hf_token_check_models "$@"; then
+        [ -z "$HF_TOKEN" ] || { 
+            echo "Invalid or unauthroized HF_TOKEN" 1>&2;
+            return 3
+        };
+        echo -e "${red}HF_TOKEN requried for downloading the following models:{reset}" 1>&2;
+        echo "$*" 1>&2;
+        local rundir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}";
+        [ -d "$rundir" ] && [ -w "$rundir" ] || rundir="$(ensure_project_path)/${installer_name:?}";
+        mkdir -p "$rundir" 2> /dev/null || return 1;
+        { 
+            flock -w 300 -e 9 || { 
+                echo "ensure_hf_token: timed out waiting for another installer" 1>&2;
+                return 1
+            };
+            local askpass_helper="$rundir"/askpass-hftoken;
+            act_panelled_logs_askpass "$askpass_helper" HF_TOKEN || { 
+                echo "ensure_hf_token: failed to create askpass helper" 1>&2;
+                return 1
+            };
+            export HF_TOKEN="$("$askpass_helper" 'HF_TOKEN:' | tr -d '\n')"
+        } 9< "$rundir";
+        if [[ -n "$HF_TOKEN" && ! -e "$HOME"/.cache/huggingface/token ]]; then
+            mkdir -p "$HOME"/.cache/huggingface;
+            ( umask 0077;
+            echo "$HF_TOKEN" > "$HOME"/.cache/huggingface/token );
+        fi;
+        ensure_hf_token_check_models "$@";
+    fi
+}
+ensure_hf_token_check_models () 
+{ 
+    local models=("$@");
+    local model f;
+    for model in ${models[*]};
+    do
+        local probes=();
+        for f in $(curl -s -L "https://huggingface.co/api/models/${model}?full=tree" | tr ',' '\n' | grep -F '"rfilename":' | cut -f4 -d'"');
+        do
+            case "$f" in 
+                *config.yaml | *config.json | *tokenizer.json)
+                    probes+=($f);
+                    break
+                ;;
+            esac;
+        done;
+        if [ ${#probes[*]} -eq 0 ]; then
+            echo "No probe found with $model" 1>&2;
+            return 3;
+        fi;
+        for f in ${probes[*]};
+        do
+            local code=$(curl -s -o /dev/null -w "%{http_code}" -L -r 0-0 -H "Authorization: Bearer $HF_TOKEN" https://huggingface.co/${model}/resolve/main/$f);
+            case "$code" in 
+                200 | 206)
+                    continue
+                ;;
+                401 | 403 | 404)
+                    echo "gated model: $model" 1>&2;
+                    return 1
+                ;;
+                *)
+                    echo "Unknown probe code $code" 1>&2;
+                    return 3
+                ;;
+            esac;
+        done;
+    done;
+    return 0
+}
+ensure_ip () 
+{ 
+    ip -4 addr show scope global | sed -n '/^[0-9]*:.*state UP/,/^[0-9]*:/{/^ *inet /{s|.*inet \([0-9.]*\).*|\1|;p}}' | head -n1
+}
+ensure_parse_device () 
+{ 
+    local device="cpu";
+    local args_uc=" ${*^^} ";
+    [ ! -e /dev/accel/accel0 ] || device="npu";
+    [ ! -e /dev/dri/renderD128 ] || device="gpu";
+    [[ "$args_uc" != *" --CPU "* ]] || device="cpu";
+    [[ "$args_uc" != *" --NPU "* ]] || [ ! -e /dev/accel/accel0 ] || device="npu";
+    [[ "$args_uc" != *" --GPU "* ]] || [ ! -e /dev/dri/renderD128 ] || device="gpu";
+    echo $device
+}
+ensure_parse_value_option () 
+{ 
+    local key="$1";
+    shift;
+    local v v1 value="";
+    for v in $*;
+    do
+        case "$v" in 
+            "--$key="*)
+                value="${v#*=}"
+            ;;
+            "--$key")
+
+            ;;
+            *)
+                if [ "$v1" = "--$key" ]; then
+                    value="$v";
+                    v="";
+                fi
+            ;;
+        esac;
+        v1="$v";
+    done;
+    echo "$value"
+}
+ensure_ports_open () 
+{ 
+    local act_name="${1:?}";
+    local name="${2:?}";
+    shift 2;
+    if [ "$act_name" = "start" ]; then
+        ensure_prop set started/$name/ports "$*";
+    fi;
+    if command -v ss > /dev/null; then
+        local port out stopper;
+        for port in $*;
+        do
+            out="$(ss -Hltunp "sport = :$port")";
+            [ -n "$out" ] || continue;
+            printf "${red}Port %s is occupied${reset}\n" "$port" 1>&2;
+            for mname in $(ensure_prop find "started/*/ports" | cut -f2 -d/);
+            do
+                [[ " $(ensure_prop get started/$mname/ports) " = *" $port "* ]] || continue;
+                stopper="${_act_cache_functions[stop_$mname]:-}";
+                [ -n "$stopper" ] || continue;
+                printf "${red}Stopping $mname to release port %s${reset}\n" "$port" 1>&2;
+                ( set -e;
+                $stopper "$mname" -- ) 1>&2 || true;
+            done;
+            out="$(ss -Hltunp "sport = :$port")";
+            [ -n "$out" ] || continue;
+            printf "${red}Port %s is occupied${reset}\n%s\n" "$port" "$out" 1>&2;
+            return 3;
+        done;
+    else
+        printf "${red}Missing ss on the system${reset}\n" 1>&2;
+        return 1;
+    fi
+}
+ensure_project_path () 
+{ 
+    echo "$HOME/.local/open-edge-platform"
+}
+ensure_prop () 
+{ 
+    local op="$1" key_path="${2:?}" value="${3:-}";
+    local key_base="$(ensure_project_path)/${installer_name:?}";
+    case "$op" in 
+        set)
+            ( umask 077;
+            printf '%s' "$value" > "$key_base/$key_path" )
+        ;;
+        get)
+            [ -r "$key_base/$key_path" ] && cat "$key_base/$key_path" || printf '%s' "$value"
+        ;;
+        find)
+            ( cd "$key_base" && find . -ipath "./$key_path" -print 2> /dev/null | cut -f2- -d/ )
+        ;;
+        create)
+            mkdir -m 700 -p "$key_base/${key_path%/*}"
+        ;;
+        remove)
+            if [ -f "$key_base/$key_path" ]; then
+                rm -f "$key_base/$key_path";
+            else
+                if [[ "$key_path" = */ && -d "$key_base/${key_path%/}" ]]; then
+                    rm -rf "$key_base/${key_path%/}";
+                fi;
+            fi
+        ;;
+    esac
+}
+ensure_ram_size () 
+{ 
+    local ram_size=$1;
+    local mem_total=$(awk '/^MemTotal:/{print$2}' /proc/meminfo);
+    if [ "$ram_size" -gt "$mem_total" ]; then
+        echo "Not enough RAM: required ${ram_size} KiB and available ${mem_total} KiB" 1>&2;
+        return 3;
+    fi;
+    local swap_size=${2:-0};
+    local swap_total=$(awk '/^SwapTotal:/{print$2}' /proc/meminfo);
+    if [ "$(( ram_size + swap_size ))" -gt "$(( mem_total + swap_total ))" ]; then
+        echo "Not enough RAM or swap space:" 1>&2;
+        echo " required swap ${swap_size} KiB and available ${swap_total} KiB" 1>&2;
+        echo " required mem+swap $(( ram_size + swap_size )) KiB and available $(( mem_total + swap_total )) KiB" 1>&2;
+        return 3;
+    fi
+}
+ensure_rm () 
+{ 
+    local p norm rc=0;
+    local protected=" / /bin /boot /dev /etc /home /lib /lib64 /media /mnt /opt /proc /root /run /sbin /srv /sys /tmp /usr /var /etc/apt /etc/apt/keyrings /etc/apt/preferences.d /etc/apt/sources.list.d /etc/systemd /etc/systemd/system /usr/bin /usr/lib /usr/local /usr/share /usr/share/keyrings /var/lib $HOME $HOME/.local $HOME/.local/bin ";
+    for p in "$@";
+    do
+        [ -n "$p" ] || continue;
+        norm="$(realpath -m -s -- "$p")";
+        if [[ "$protected" = *" $norm "* ]]; then
+            echo "ensure_rm: refusing to remove protected path '$p'" 1>&2;
+            return 3;
+        fi;
+        [ -e "$norm" ] || [ -L "$norm" ] || continue;
+        rm -rf -- "$norm" 2> /dev/null || ensure_sudo rm -rf -- "$norm" || rc=$?;
+    done;
+    return $rc
+}
+ensure_sbom_format () 
+{ 
+    local key=$1;
+    shift;
+    case "$key" in 
+        pkg-list | apt-pref | yum-repo-conf | kernel-cmdline | module-list)
+            local IFS='|';
+            local pkg_str="$*";
+            echo "\"$key\": [\"${pkg_str//'|'/\",\"}\"]"
+        ;;
+        component | repo-name | gpg-key | gpg-key-fingerprint | key-file | apt-source | apt-src-source | apt-list-file | apt-pref-file | apt-repository | yum-repo-file)
+            echo "\"$key\": \"$*\""
+        ;;
+        *)
+            echo "Unsupported SBOM key: $key" 1>&2;
+            return 3
+        ;;
+    esac
+}
+ensure_skills () 
+{ 
+    local op="$1";
+    case "$op" in 
+        add)
+            local version="${2:?}";
+            local repository="${3:?}";
+            shift 3;
+            local tmpdir p name;
+            ensure_tmpdir create tmpdir skills;
+            ensure_git_export "$tmpdir" "$version" "$repository" "$@";
+            mkdir -p "$HOME"/.agents/skills;
+            for p in "$@";
+            do
+                ensure_rm "$HOME/.agents/skills/${p##*/}";
+                cp -r "$tmpdir/$p" "$HOME"/.agents/skills;
+            done;
+            ensure_tmpdir destroy "$tmpdir"
+        ;;
+        remove)
+            local names=("${@##*/}");
+            local spath="$HOME/.agents/skills/";
+            ensure_rm "${names[@]/#/"$spath"}"
+        ;;
+    esac
+}
+ensure_sudo () 
+{ 
+    local hp="${http_proxy:-$HTTP_PROXY}" sp="${https_proxy:-$HTTPS_PROXY}" np="${no_proxy:-$NO_PROXY}" proxy_args=();
+    [ -z "$hp" ] || proxy_args+=("http_proxy=$hp" "HTTP_PROXY=$hp");
+    [ -z "$sp" ] || proxy_args+=("https_proxy=$sp" "HTTPS_PROXY=$sp");
+    [ -z "$np" ] || proxy_args+=("no_proxy=$np" "NO_PROXY=$np");
+    if [ -e /dev/tty ]; then
+        if : < /dev/tty 2> /dev/null; then
+            local ppid=$$;
+            local pid="$(ensure_prop get pids/sudo/pid$ppid)";
+            if [ -z "$pid" ] || ! kill -0 "$pid" 2> /dev/null; then
+                ( set +e;
+                trap - ERR EXIT INT TERM;
+                for fd in /proc/$BASHPID/fd/*;
+                do
+                    fd=${fd##*/};
+                    (( fd > 2 )) && eval "exec $fd>&-";
+                done 2> /dev/null;
+                while kill -0 $ppid 2> /dev/null; do
+                    sudo -n -v < /dev/null > /dev/null 2>&1 || sudo -n true < /dev/null > /dev/null 2>&1 || break;
+                    sleep 60;
+                done;
+                ensure_prop remove pids/sudo/pid$ppid ) < /dev/null > /dev/null 2>&1 & pid=$!;
+                ensure_prop create pids/sudo/pid$ppid;
+                ensure_prop set pids/sudo/pid$ppid "$pid";
+                disown $pid;
+            fi;
+        fi;
+    fi;
+    if sudo -n true 2> /dev/null; then
+        sudo env "${proxy_args[@]}" "$@";
+    else
+        if [ -t 0 ] && [ -z "$SUDO_PASSWORD" ] && [ -z "$_INSTALLER_PANEL_ACTIVE" ]; then
+            sudo env "${proxy_args[@]}" "$@";
+        else
+            local rundir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}";
+            [ -d "$rundir" ] && [ -w "$rundir" ] || rundir="$(ensure_project_path)/${installer_name:?}";
+            mkdir -p "$rundir" 2> /dev/null || return 1;
+            ( flock -w 300 -e 9 || { 
+                echo "ensure_sudo: timed out waiting for another installer" 1>&2;
+                exit 1
+            };
+            if [ ! -x "$SUDO_ASKPASS" ]; then
+                askpass_helper="$rundir"/askpass-sudo;
+                act_panelled_logs_askpass "$askpass_helper" SUDO_PASSWORD || { 
+                    echo "ensure_sudo: failed to create askpass helper" 1>&2;
+                    exit 1
+                };
+                export SUDO_ASKPASS="$askpass_helper";
+            fi;
+            sudo -A env "${proxy_args[@]}" "$@" ) 9< "$rundir";
+        fi;
+    fi
+}
+ensure_tmpdir () 
+{ 
+    case "$1" in 
+        create)
+            printf -v $2 "%s" $(mktemp -d ${4:-/tmp}/openedge-cli-${3:-}.XXXXXX);
+            ensure_trap "rm -rf ${!2} || ensure_sudo rm -rf ${!2}" SIGINT EXIT
+        ;;
+        destroy)
+            rm -rf "$2";
+            ensure_trap - SIGINT EXIT
+        ;;
+    esac
+}
+ensure_trap () 
+{ 
+    local script="$1" sig var_sig;
+    shift;
+    for sig in "$@";
+    do
+        var_sig="${sig//[^a-zA-Z0-9_]/_}";
+        local -n stack="_ENSURE_TRAP_STACK_${var_sig}";
+        if [[ "$script" == "-" || -z "$script" ]]; then
+            if (( ${#stack[@]} > 0 )); then
+                unset "stack[$((${#stack[@]} - 1))]";
+                stack=("${stack[@]}");
+            fi;
+            if (( ${#stack[@]} == 0 )); then
+                trap - "$sig";
+            fi;
+        else
+            if [[ -z "$(trap -p "$sig")" ]]; then
+                stack=();
+                trap "
+          _ENSURE_TRAP_IDX_${var_sig}=\$((\${#_ENSURE_TRAP_STACK_${var_sig}[@]} - 1))
+          while (( _ENSURE_TRAP_IDX_${var_sig} >= 0 )); do
+            eval \"\${_ENSURE_TRAP_STACK_${var_sig}[\$_ENSURE_TRAP_IDX_${var_sig}]}\"
+            (( _ENSURE_TRAP_IDX_${var_sig}-- )) || true
+          done
+          trap - \"$sig\"
+          case \"$sig\" in
+            EXIT|0|ERR|RETURN|DEBUG) ;;
+            *) kill -s \"$sig\" \$\$ ;;
+          esac
+        " "$sig";
+            fi;
+            stack+=("$script");
+        fi;
+    done
+}
+initialize_uncrewed_aerial_vehicle_mission () 
+{ 
+    local device shim_dir status;
+    for device in /dev/video* /dev/media*;
+    do
+        [[ -c "$device" ]] || continue;
+        make init;
+        return;
+    done;
+    shim_dir="$(mktemp -d)";
+    printf '#!/bin/sh\nexit 0\n' > "$shim_dir/v4l2-ctl";
+    chmod 700 "$shim_dir/v4l2-ctl";
+    if PATH="$shim_dir:$PATH" make init; then
+        rm -f "$shim_dir/v4l2-ctl";
+        rmdir "$shim_dir";
+    else
+        status=$?;
+        rm -f "$shim_dir/v4l2-ctl";
+        rmdir "$shim_dir";
+        return "$status";
+    fi
+}
+install_reboot () 
+{ 
+    [ "$(ensure_prop get reboot_requested)" = "true" ] || return 0;
+    ensure_prop remove reboot_requested;
+    subcommand_setup;
+    [ -x "$installer_bin" ] || { 
+        echo "Failed to find $installer_cli" 1>&2;
+        return 3
+    };
+    [ -n "$(ensure_prop get command)" ] || { 
+        echo "Nothing to resume? Reboot deferred!" 1>&2;
+        return 3
+    };
+    local delay=2;
+    echo "@@ATTENTION @@BR";
+    echo "@@ATTENTION SYSTEM REBOOT REQUIRED";
+    echo "@@ATTENTION @@BR";
+    echo "@@ATTENTION RERUN '$installer_name resume' AFTER SYSTEM IS BACK.";
+    echo "@@ATTENTION @@BR";
+    echo "@@ATTENTION @@UNTIL +$(( delay * 60 )) Rebooting in %s (cancel: sudo shutdown -c)";
+    echo "@@ATTENTION @@BR";
+    echo "@@HIGHLIGHT RERUN $installer_name resume";
+    ensure_sudo shutdown -r +$delay && sleep infinity
+}
+install_system_inspection () 
+{ 
+    set -o pipefail;
+    ( echo "----------------------------------------------------------------";
+    ok="${green}✓  PASS${reset}";
+    nok="${red}⚠  MSG${reset}";
+    system_summary="$(system_scan_get_system_summary)";
+    echo "System|$system_summary";
+    pass=$ok;
+    membank_info="$(ensure_prop get installed/system_inspection/membank)";
+    [ -n "$membank_info" ] || membank_info="$(system_scan_check_membank)";
+    [ -z "$membank_info" ] || ensure_prop set installed/system_inspection/membank "$membank_info";
+    [ "$membank_info" = "DUAL/MULTI-CHANNELS" ] || pass="${nok/MSG/Check Memory}";
+    echo -e "RAM|$membank_info|$pass";
+    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT RAM|$membank_info|$pass" 1>&2;
+    case "$PRETTY_NAME" in 
+        *"24.04"* | *"26.04"* | *"Red Hat Enterprise"*)
+            pass=$ok
+        ;;
+        *)
+            pass="${nok/MSG/Not supported}"
+        ;;
+    esac;
+    echo -e "OS|$PRETTY_NAME|$pass";
+    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT OS|$PRETTY_NAME|$pass" 1>&2;
+    pass=$ok;
+    docker_ver="$(system_scan_check_docker)";
+    [[ "$docker_ver" = *Compose* ]] || pass="${nok/MSG/Missing Docker Compose}";
+    [ -n "$docker_ver" ] || pass="${nok} Missing Docker";
+    echo -e "Docker|$docker_ver|$pass";
+    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT Docker|$docker_ver|$pass" 1>&2;
+    net_pass=$ok;
+    net_access="$(system_scan_check_network_access)";
+    [[ "$net_access" = *reachable* ]] || net_pass="${nok/MSG/Check Proxies}";
+    echo -e "Network|$net_access|$net_pass";
+    [ "$net_pass" = "$ok" ] || echo -e "@@HIGHLIGHT Network|$net_access|$net_pass" 1>&2;
+    echo;
+    echo "Accelerators:";
+    pass=$ok;
+    cpuinst_info="$(system_scan_check_cpu_instructions)";
+    [[ "$cpuinst_info" != *Missing* ]] || pass="${nok/MSG/Check CPU}";
+    echo -e "CPU|$cpuinst_info|$pass";
+    [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT CPU|$cpuinst_info|$pass";
+    for accel in $(lspci -d 8086::0300 -n | cut -f3 -d' ');
+    do
+        pass=$ok;
+        accel_info="$(system_scan_check_pci_device $accel "Intel Integrated Graphics")";
+        if [ -n "$accel_info" ]; then
+            [[ "$accel_info" = *driver* ]] || pass="${nok/MSG/Missing Driver}";
+            echo -e "GPU|$accel_info|$pass";
+            [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT GPU|$accel_info|$pass" 1>&2;
+        fi;
+    done;
+    for accel in $(lspci -d 8086::1200 -n | cut -f3 -d' ');
+    do
+        pass=$ok;
+        accel_info="$(system_scan_check_pci_device $accel "Intel AI Boost")";
+        if [ -n "$accel_info" ]; then
+            [[ "$accel_info" = *driver* ]] || pass="${nok/MSG/Missing Driver}";
+            echo -e "NPU|$accel_info|$pass";
+            [ "$pass" = "$ok" ] || echo -e "@@HIGHLIGHT NPU|$accel_info|$pass" 1>&2;
+        fi;
+    done;
+    echo "----------------------------------------------------------------";
+    [ "$net_pass" = "$ok" ] ) | ensure_columns
+}
+sbom_edge_pack_repo_entries () 
+{ 
+    if [ -n "$edge_pack_ppa_repo" ]; then
+        ensure_sbom_format gpg-key "$edge_pack_ppa_key_url";
+        ensure_sbom_format key-file "$edge_pack_ppa_key_file";
+        ensure_sbom_format apt-source "$edge_pack_ppa_source";
+        ensure_sbom_format apt-list-file "$edge_pack_ppa_list_file";
+        echo "---";
+    fi;
+    ensure_sbom_format repo-name "$edge_pack_repo";
+    ensure_sbom_format gpg-key "$edge_pack_key_url";
+    ensure_sbom_format key-file "$edge_pack_key_file";
+    ensure_sbom_format apt-source "$edge_pack_source";
+    ensure_sbom_format apt-list-file "$edge_pack_list_file";
+    ensure_sbom_format apt-pref "${edge_pack_pref[@]}";
+    ensure_sbom_format apt-pref-file "$edge_pack_pref_file"
+}
+subcommand_install () 
+{ 
+    if [[ " $* " = *" --help "* ]]; then
+        echo "install options:";
+        echo "  --dry-run       dry-run operations";
+        echo "  --continue      ignore errors and proceed to the end";
+        echo "  --validate      perform sanity check of features after installation.";
+        echo "  --reinstall     force reinstallation of the component if exit.";
+        echo;
+        return 0;
+    fi;
+    if [[ " $* " = *" --reinstall "* ]]; then
+        local all=" ${_act_cache_names[*]:-${_act_cache_modules[*]}} " scoped=0 hit=0 a out=() bind=();
+        for a in "$@";
+        do
+            if [[ "$a" = --* && "$all" = *" ${a#--} "* ]]; then
+                scoped=1;
+            else
+                if [ $scoped -eq 0 ]; then
+                    if [ "$a" = "--reinstall" ]; then
+                        hit=1;
+                        continue;
+                    fi;
+                    if [[ "$a" != -* && "$all" = *" $a "* ]]; then
+                        if [ -n "${_act_cache_functions[install_$a]:-}" ]; then
+                            bind+=("--$a" "--reinstall");
+                        else
+                            echo "note: --reinstall skipped for profile '$a'" 1>&2;
+                        fi;
+                    fi;
+                fi;
+            fi;
+            out+=("$a");
+        done;
+        if [ $hit -eq 1 ] && [ ${#bind[@]} -eq 0 ]; then
+            echo "--reinstall requires at least one explicitly named module" 1>&2;
+            return 3;
+        fi;
+        [ $hit -eq 1 ] && out+=("${bind[@]}");
+        set -- "${out[@]}";
+    fi;
+    act_helper "install,Installation,Installing,Installed" "" "$@"
+}
+subcommand_list () 
+{ 
+    local all_list=" ${_act_cache_names[*]:-${_act_cache_modules[*]}} ";
+    local module_region_list=" ${_act_cache_modules[*]/#/--} ";
+    local k v args=() mods=() os_release="" cli_url="" sbom=0 margs=0;
+    for v in "$@";
+    do
+        case "$v" in 
+            --help)
+                echo "list options:";
+                echo "  --os-release=<file> [deprecated] import an os-release file";
+                echo "  --sbom [<cli-url>]  show component SBOM items";
+                echo;
+                return 0
+            ;;
+            --os-release=*)
+                os_release="${v#*=}"
+            ;;
+            --sbom=*)
+                sbom=1;
+                cli_url="${v#*=}"
+            ;;
+            --sbom)
+                sbom=1
+            ;;
+            --os-release)
+
+            ;;
+            *)
+                if [ $margs -eq 1 ]; then
+                    args+=("$v");
+                else
+                    if [ "$last_v" = "--os-release" ]; then
+                        os_release="$v";
+                    else
+                        if [[ "$last_v" = "--sbom" && ( "$v" = "http://"* || "$v" = "https://"* ) ]]; then
+                            cli_url="$v";
+                        else
+                            if [[ "$module_region_list" = *" $v "* ]]; then
+                                args+=("$v");
+                                margs=1;
+                            else
+                                if [[ "$all_list" = *" $v "* ]]; then
+                                    mods+=("$v");
+                                    args+=("$v");
+                                else
+                                    if [[ "$v" = "-"* ]]; then
+                                        args+=("$v");
+                                    else
+                                        echo "Unknown option: $v" 1>&2;
+                                        return 3;
+                                    fi;
+                                fi;
+                            fi;
+                        fi;
+                    fi;
+                fi
+            ;;
+        esac;
+        last_v="$v";
+    done;
+    if [ -n "$os_release" ]; then
+        if [ -f "$os_release" ] && [ -r "$os_release" ]; then
+            local -A data=();
+            while read -r v; do
+                case "$v" in 
+                    PRETTY_NAME=* | NAME=* | VERSION_ID=* | VERSION=* | VERSION_CODENAME=* | ID=* | ID_LIKE=* | UBUNTU_CODENAME=*)
+                        k="${v%%=*}";
+                        v="${v#*=}";
+                        [[ "$v" = '"'*'"' ]] && { 
+                            v="${v#'"'}";
+                            v="${v%'"'}"
+                        };
+                        [[ "$v" = "'"*"'" ]] && { 
+                            v="${v#"'"}";
+                            v="${v%"'"}"
+                        };
+                        data["$k"]="$v"
+                    ;;
+                esac;
+            done < "$os_release";
+            PRETTY_NAME="${data["PRETTY_NAME"]:-"$PRETTY_NAME"}";
+            NAME="${data["NAME"]:-"$NAME"}";
+            VERSION_ID="${data["VERSION_ID"]:-"$VERSION_ID"}";
+            VERSION="${data["VERSION"]:-"$VERSION"}";
+            VERSION_CODENAME="${data["VERSION_CODENAME"]:-"$VERSION_CODENAME"}";
+            ID="${data["ID"]:-"$ID"}";
+            ID_LIKE="${data["ID_LIKE"]:-"$ID_LIKE"}";
+            UBUNTU_CODENAME="${data["UBUNTU_CODENAME"]:-"$UBUNTU_CODENAME"}";
+            installer_family="$(x="${ID_LIKE:-$ID}"; x="${x##* }"; echo "${x//[^a-zA-Z0-9]/}")";
+        else
+            echo "Invalid $os_release" 1>&2;
+            return 3;
+        fi;
+    fi;
+    if [ ${#mods[*]} -eq 0 ]; then
+        mods=($all_list);
+        set -- $all_list "${args[@]}";
+    else
+        set -- "${args[@]}";
+    fi;
+    if [ $sbom -eq 1 ]; then
+        local handles=($(act_find_deps install "$@"));
+        if [ ${#handles[*]} -eq 0 ]; then
+            echo "No installable components from ${mods[*]}" 1>&2;
+            return 3;
+        fi;
+        local all_install_modules="${handles[*]#${installer_family}_*_install_}";
+        echo "\"schema-version\": \"1\"";
+        echo "\"cli-version\": \"main\"";
+        [ -z "$cli_url" ] || echo "\"cli-url\": \"$cli_url\"";
+        ensure_sbom_format module-list "${mods[@]}";
+        echo "---";
+        local handler sbomer;
+        for handler in $(printf '%s\n' "${handles[@]}" | sort);
+        do
+            sbomer=${handler/_install_/_sbom_};
+            declare -F $sbomer > /dev/null 2>&1 || continue;
+            $sbomer $(act_extract_args sbom ${handler#*_*_*_} "$all_install_modules" "$@");
+            echo "---";
+        done;
+    else
+        local all_cmds=(${_act_cache_cmds[*]});
+        local profile_lines=() module_lines=();
+        local -A module_act_cache=();
+        local all_modules=(${_act_cache_modules[*]});
+        if [ ${#all_modules[@]} -gt 0 ]; then
+            local module_name;
+            for module_name in "${all_modules[@]}";
+            do
+                [ ${#*} -eq 0 ] || [[ " $* " = *" $module_name "* ]] || continue;
+                local module_cmds=() mname cmd;
+                for cmd in ${all_cmds[*]};
+                do
+                    for mname in $(act_expand_modules $cmd $module_name "$@");
+                    do
+                        if [[ -v _act_cache_functions[${cmd}_${mname}] ]]; then
+                            module_cmds+=($cmd);
+                            break;
+                        fi;
+                    done;
+                done;
+                module_act_cache[$module_name]="${module_cmds[*]}";
+                module_lines+=("|$module_name|[${module_act_cache[$module_name]}]");
+            done;
+        fi;
+        act_get prefix profile_;
+        local all_profiles=(${_act_reply[*]});
+        if [ ${#all_profiles[@]} -gt 0 ]; then
+            local profiler;
+            for profiler in "${all_profiles[@]}";
+            do
+                local profile_name=${profiler#*_*_*_};
+                [ ${#*} -eq 0 ] || [[ " $* " = *" $profile_name "* ]] || continue;
+                [[ " ${all_modules[*]} " != *" $profile_name "* ]] || continue;
+                local profile_cmds=() mname1 mname2 cmd found;
+                for cmd in ${all_cmds[*]};
+                do
+                    for mname1 in $($profiler $cmd "$@");
+                    do
+                        if [[ " ${module_act_cache[$mname1]:-} " = *" $cmd "* ]]; then
+                            profile_cmds+=($cmd);
+                            break;
+                        fi;
+                        found=0;
+                        for mname2 in $(act_expand_modules $cmd $mname1 "$@");
+                        do
+                            if [[ -v _act_cache_functions[${cmd}_${mname2}] ]]; then
+                                found=1;
+                                break;
+                            fi;
+                        done;
+                        if [ $found -eq 1 ]; then
+                            profile_cmds+=($cmd);
+                            break;
+                        fi;
+                    done;
+                done;
+                profile_lines+=("|$profile_name|[${profile_cmds[*]}]");
+            done;
+        fi;
+        { 
+            if [ ${#profile_lines[@]} -gt 0 ]; then
+                printf "List of Profiles:\n";
+                printf "%s\n" "${profile_lines[@]}" | sort;
+                printf "\n";
+            fi;
+            if [ ${#module_lines[@]} -gt 0 ]; then
+                printf "List of Components:\n";
+                printf "%s\n" "${module_lines[@]}" | sort;
+                printf "\n";
+            fi
+        } | ensure_columns;
+    fi
+}
+subcommand_remove () 
+{ 
+    if [[ " $* " = *" --help "* ]]; then
+        echo "remove options:";
+        echo "  --dry-run       dry-run operations";
+        echo "  --continue      ignore errors and proceed to the end";
+        echo "  --remove-all    remove all previously installed components";
+        echo "  --remove-me     remove $installer_name";
+        echo;
+        return 0;
+    fi;
+    local rc=0;
+    act_helper "remove,Removal,Removing,Removed" "-r" "$@" || rc=$?;
+    if [[ " $* " = *" --remove-me "* ]]; then
+        ensure_rm "$HOME/.local/bin/$installer_name" "$HOME/.local/share/bash-completion/completions/$installer_name" "$HOME/.agents/skills/$installer_name" && echo "$installer_name removed";
+        if [[ " $* " = *" --remove-all "* ]]; then
+            ensure_rm "$(ensure_project_path)";
+            echo "$installer_name logs removed";
+        else
+            echo "$(ensure_project_path) left unchanged";
+        fi;
+    fi;
+    return $rc
+}
+subcommand_resume () 
+{ 
+    local args=($(ensure_prop get command));
+    [[ ${#args[*]} -gt 0 ]] || { 
+        echo "Nothing to resume" 1>&2;
+        return 0
+    };
+    [ -x "$installer_bin" ] || subcommand_setup || { 
+        echo "Failed to find $installer_name" 1>&2;
+        return 3
+    };
+    exec "$installer_bin" "${args[@]}"
+}
+subcommand_setup () 
+{ 
+    [[ " $* " != *" --help "* ]] || return;
+    local installer_misc_functions=(_act_levenshtein initialize_uncrewed_aerial_vehicle_mission system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary);
+    local installer_completion_text="IyEvYmluL2Jhc2gKX29wZW5lZGdlX2NsaV9jb21wbGV0aW9uICgpIHsKICBpZiAoKCBDT01QX0NXT1JEID09IDEgKSk7IHRoZW4KICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICJpbnN0YWxsIHJlbW92ZSByZXN1bWUgc3RhcnQgc3RvcCBsaXN0IHNldHVwIC0taGVscCIgLS0gIiQyIikpCiAgICByZXR1cm4KICBmaQoKICBjYXNlICIke0NPTVBfV09SRFNbMV19IiBpbgogIGluc3RhbGwpCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtyZWJvb3RdPSIiIFtwY21dPSIiIFtweXRob24zX3ZlbnZdPSIiIFtlZGdlX3BhY2tfdHNuXT0iIiBbY2hyb255XT0iIiBbazNzX2lvXT0iIiBbdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfYmx1ZXByaW50XT0iIiBbZ2l0XT0iIiBbZWRnZV9iYXNlXT0iIiBbZGV0ZXJtaW5pc3RpY190aHJlYXRfZGV0ZWN0aW9uXT0iIiBbZ3B1X2FjY2VsXT0iIiBbY21ha2VdPSIiIFthdXRvbWFrZV09IiIgW3Y0bF91dGlsc109IiIgW3N5c3RlbV9zdW1tYXJ5XT0iIiBbZ251cGddPSIiIFtucHVfYWNjZWxdPSIiIFtsbV9zZW5zb3JzXT0iIiBbc3RyZXNzX25nXT0iIiBbLS1yZWluc3RhbGxdPSIiIFtlZGdlX3BhY2tfaXB1XT0iIiBbc3lzdGVtX2luc3BlY3Rpb25dPSIiIFstLXZhbGlkYXRlXT0iIiBbbWFrZV09IiIgW3VidW50dV9zZXJ2ZXJdPSIiIFttaXNzaW9uX2RlY2lzaW9uX3N1cHBvcnRfYmx1ZXByaW50XT0iIiBbZWRnZV9wYWNrX2Jhc2Vfc3RhbmRhcmRdPSIiIFtkb2NrZXJfaW9dPSIiIFtsaWJ0YmIxMl09IiIgW3Bvd2VyX3R1bmluZ109IiIgW3BrZ19jb25maWddPSIiIFtoYW5kaGVsZF9ibHVlcHJpbnRdPSIiIFstLWRyeS1ydW5dPSIiIFtmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfaGFuZGhlbGRdPSIiIFtsaWJ6ZTFdPSIiIFthdXRvY29uZl09IiIgW2xpbnV4X2ltYWdlX2dlbmVyaWNfNy4wXT0iIiBbZG1pZGVjb2RlXT0iIiBbc3lzdGVtX2luZm9dPSIiIFtrZXJuZWxfbW9kdWxlX2Vzc2VudGlhbF09IiIgW2VkZ2VfcGFja19tYW5hZ2VhYmlsaXR5XT0iIiBbc3lzYmVuY2hdPSIiIFtqcV09IiIgW3BjaXV0aWxzXT0iIiBbZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlXT0iIiBbbXNyX3Rvb2xzXT0iIiBbY2RpXT0iIiBbY3VybF09IiIgWy0tY29udGludWVdPSIiIFtmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfbWlzc2lvbl9kZWNpc2lvbl9zdXBwb3J0XT0iIiBbaW50ZWxfbHBtZF09IiIgW2dvbGFuZ109IiIgW2NvcmVfdHlwZXNdPSIiIFtoYW5kaGVsZF9tdWx0aV9tb2RhbF09IiIgW2xpbnV4X3Rvb2xzXT0iIiBbZWRnZV9wYWNrXT0iIiBbeXFdPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9taXNzaW9uXT0iIiBbcmVhbHNlbnNlXT0iIiBbZWRnZV9wYWNrX25wdV09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogIHJlbW92ZSkKICAgIGxvY2FsIC1BIGFsbF9jb21wcz0oW3BjbV09IiIgW2VkZ2VfcGFja190c25dPSIiIFtrM3NfaW9dPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ibHVlcHJpbnRdPSIiIFtnaXRdPSIiIFtlZGdlX2Jhc2VdPSIiIFtkZXRlcm1pbmlzdGljX3RocmVhdF9kZXRlY3Rpb25dPSIiIFtncHVfYWNjZWxdPSIiIFtjbWFrZV09IiIgW2F1dG9tYWtlXT0iIiBbdjRsX3V0aWxzXT0iIiBbbnB1X2FjY2VsXT0iIiBbbG1fc2Vuc29yc109IiIgW3N0cmVzc19uZ109IiIgWy0tcmVpbnN0YWxsXT0iIiBbZWRnZV9wYWNrX2lwdV09IiIgWy0tdmFsaWRhdGVdPSIiIFttYWtlXT0iIiBbbWlzc2lvbl9kZWNpc2lvbl9zdXBwb3J0X2JsdWVwcmludF09IiIgW2VkZ2VfcGFja19iYXNlX3N0YW5kYXJkXT0iIiBbZG9ja2VyX2lvXT0iIiBbcG93ZXJfdHVuaW5nXT0iIiBbcGtnX2NvbmZpZ109IiIgW2hhbmRoZWxkX2JsdWVwcmludF09IiIgWy0tZHJ5LXJ1bl09IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9oYW5kaGVsZF09IiIgW2F1dG9jb25mXT0iIiBbZG1pZGVjb2RlXT0iIiBbc3lzdGVtX2luZm9dPSIiIFtrZXJuZWxfbW9kdWxlX2Vzc2VudGlhbF09IiIgW2VkZ2VfcGFja19tYW5hZ2VhYmlsaXR5XT0iIiBbc3lzYmVuY2hdPSIiIFtqcV09IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV91bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV09IiIgW21zcl90b29sc109IiIgW2NkaV09IiIgWy0tY29udGludWVdPSIiIFtmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfbWlzc2lvbl9kZWNpc2lvbl9zdXBwb3J0XT0iIiBbaW50ZWxfbHBtZF09IiIgW2dvbGFuZ109IiIgW2NvcmVfdHlwZXNdPSIiIFtoYW5kaGVsZF9tdWx0aV9tb2RhbF09IiIgW2xpbnV4X3Rvb2xzXT0iIiBbZWRnZV9wYWNrXT0iIiBbeXFdPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9taXNzaW9uXT0iIiBbcmVhbHNlbnNlXT0iIiBbZWRnZV9wYWNrX25wdV09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogIHJlc3VtZSkKICAgIGxvY2FsIC1BIGFsbF9jb21wcz0oWy0tcmVpbnN0YWxsXT0iIiBbLS12YWxpZGF0ZV09IiIgWy0tZHJ5LXJ1bl09IiIgWy0tY29udGludWVdPSIiICkKICAgIGZvciAoKGk9MjtpPENPTVBfQ1dPUkQ7aSsrKSk7IGRvIHVuc2V0ICJhbGxfY29tcHNbJHtDT01QX1dPUkRTWyRpXX1dIjsgZG9uZQogICAgQ09NUFJFUExZPSgkKGNvbXBnZW4gLVcgIiR7IWFsbF9jb21wc1sqXX0iIC0tICIkMiIpKQogICAgOzsKICBzdGFydCkKICAgIGxvY2FsIC1BIGFsbF9jb21wcz0oW2szc19pb109IiIgWy0tcmVpbnN0YWxsXT0iIiBbLS12YWxpZGF0ZV09IiIgWy0tZHJ5LXJ1bl09IiIgWy0tY29udGludWVdPSIiIFtoYW5kaGVsZF9tdWx0aV9tb2RhbF09IiIgW3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX21pc3Npb25dPSIiICkKICAgIGZvciAoKGk9MjtpPENPTVBfQ1dPUkQ7aSsrKSk7IGRvIHVuc2V0ICJhbGxfY29tcHNbJHtDT01QX1dPUkRTWyRpXX1dIjsgZG9uZQogICAgQ09NUFJFUExZPSgkKGNvbXBnZW4gLVcgIiR7IWFsbF9jb21wc1sqXX0iIC0tICIkMiIpKQogICAgOzsKICBzdG9wKQogICAgbG9jYWwgLUEgYWxsX2NvbXBzPShbLS1yZWluc3RhbGxdPSIiIFstLXZhbGlkYXRlXT0iIiBbLS1kcnktcnVuXT0iIiBbZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX2hhbmRoZWxkXT0iIiBbZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlXT0iIiBbLS1jb250aW51ZV09IiIgW2hhbmRoZWxkX211bHRpX21vZGFsXT0iIiBbdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfbWlzc2lvbl09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogICopCiAgICBDT01QUkVQTFk9KCkKICAgIDs7CiAgZXNhYwp9CmNvbXBsZXRlIC1GIF9vcGVuZWRnZV9jbGlfY29tcGxldGlvbiBvcGVuZWRnZS1jbGkK";
+    local installer_skill_text="LS0tCm5hbWU6IG9wZW5lZGdlLWNsaSAgICAKZGVzY3JpcHRpb246IFVzZSB0aGUgb3BlbmVkZ2UtY2xpIGluc3RhbGxlciB0byBpbnN0YWxsLCBzdGFydCwgc3RvcCwgb3IgcmVtb3ZlIE9wZW4gRWRnZSBQbGF0Zm9ybSAoT0VQKSBtb2R1bGVzIGFuZCBwcm9maWxlcyBvbiBhbiBlZGdlIHN5c3RlbS4gVHJpZ2dlciBvbiByZXF1ZXN0cyBsaWtlICJpbnN0YWxsIE9wZW5WSU5PIiwgInNldCB1cCBETCBTdHJlYW1lciIsICJydW4gdGhlIHNtYXJ0IHBhcmtpbmcgc2FtcGxlIiwgImRlcGxveSB0aGUgTWV0cm8gLyBNYW51ZmFjdHVyaW5nIC8gUmV0YWlsIC8gUm9ib3RpY3MgQUkgU3VpdGUiLCAid2hhdCBPRVAgY29tcG9uZW50cyBjYW4gSSBpbnN0YWxsIiwgb3IgInVuaW5zdGFsbCA8T0VQIGNvbXBvbmVudD4iLiAgIApsaWNlbnNlOiBBcGFjaGUtMi4wICAgCi0tLQoKIyBPcGVuIEVkZ2UgUGxhdGZvcm0gQ0xJIEluc3RhbGxlcgoKYG9wZW5lZGdlLWNsaWAgaXMgYSBzZWxmLWNvbnRhaW5lZCBzaGVsbCBzY3JpcHQgdGhhdCBpbnN0YWxscyBPcGVuIEVkZ2UgUGxhdGZvcm0KY29tcG9uZW50cyAoKiptb2R1bGVzKiopIGFuZCBuYW1lZCBncm91cHMgb2YgY29tcG9uZW50cyAoKipwcm9maWxlcyoqKS4gQWx3YXlzIHVzZQppdCBmb3IgT0VQIGluc3RhbGxhdGlvbiB0YXNrcy4gRG9uJ3QgaGFuZC1pbnN0YWxsIHBhY2thZ2VzLCBwaXAgd2hlZWxzLCBvcgpjb250YWluZXJzIHRoYXQgdGhlIGluc3RhbGxlciBhbHJlYWR5IG1hbmFnZXMuCgojIyBDb21tYW5kIHNoYXBlCgpgYGAKb3BlbmVkZ2UtY2xpIDxzdWJjb21tYW5kPiBbb3B0aW9uc10gW21vZHVsZXMvcHJvZmlsZXNdIFstLTxtb2R1bGU+IG1vZHVsZS1vcHRpb25zXSAuLi4KYGBgCgotIFN1YmNvbW1hbmRzIGNhbiBiZSBjaGFpbmVkIGFuZCBydW4gaW4gdGhlIG9yZGVyIGdpdmVuLgotIE9wdGlvbnMgYWZ0ZXIgYSBgLS08bW9kdWxlPmAgdGFnIGFwcGx5IG9ubHkgdG8gdGhhdCBtb2R1bGUuIEFsbCBvdGhlciBvcHRpb25zCiAgYXBwbHkgdG8gZXZlcnkgbmFtZWQgY29tcG9uZW50LgoKIyMgSW5zdGFsbGF0aW9uIHdvcmtmbG93CgoxLiAqKlBpY2sgdGhlIGluc3RhbGxlciBmb3IgdGhlIE9TLioqIFJlYWQgYC9ldGMvb3MtcmVsZWFzZWAuCiAgIC0gVWJ1bnR1L0RlYmlhbjogYG9wZW5lZGdlLWNsaWAKICAgLSBGZWRvcmE6IGBvcGVuZWRnZS1jbGktZmVkb3JhYAogICAtIE90aGVyOiBjaGVjayBgZnJhbWV3b3Jrcy9vZXAtaW5zdGFsbGVyLWNsaS9yZW5kZXJlZC9gIGZvciBhIG1hdGNoaW5nIHZhcmlhbnQuIElmIHRoZXJlIGlzbid0IG9uZSwgc3RvcCBhbmQgdGVsbCB0aGUgdXNlci4KCjIuICoqR2V0IHRoZSBzY3JpcHQqKiAocHJlZmVycmVkOiBkaXJlY3QgZG93bmxvYWQpOgogICBgYGBiYXNoCiAgIGN1cmwgLWZzU0xPIGh0dHBzOi8vcmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1saWJyYXJpZXMvbWFpbi9mcmFtZXdvcmtzL29lcC1pbnN0YWxsZXItY2xpL3JlbmRlcmVkL29wZW5lZGdlLWNsaQogICBjaG1vZCAreCBvcGVuZWRnZS1jbGkKICAgYGBgCiAgIEZhbGxiYWNrOiBjbG9uZSBgaHR0cHM6Ly9naXRodWIuY29tL29wZW4tZWRnZS1wbGF0Zm9ybS9lZGdlLWFpLWxpYnJhcmllc2AKICAgYW5kIHJ1biB0aGUgc2NyaXB0IGZyb20gYGZyYW1ld29ya3Mvb2VwLWluc3RhbGxlci1jbGkvcmVuZGVyZWQvYC4KCjMuICoqRmluZCB0aGUgcmlnaHQgY29tcG9uZW50LioqIFJ1biBgLi9vcGVuZWRnZS1jbGkgbGlzdGAuIE1hcCB0aGUgdXNlcidzCiAgIHJlcXVlc3QgdG8gYW4gZXhhY3QgbW9kdWxlIG9yIHByb2ZpbGUgbmFtZSBmcm9tIHRoaXMgb3V0cHV0LiBOZXZlciBndWVzcwogICBuYW1lcy4gSWYgbW9yZSB0aGFuIG9uZSBmaXRzLCBhc2sgdGhlIHVzZXIuCgo0LiAqKkNvbmZpcm0gd2l0aCB0aGUgdXNlci4qKiBTaG93IHRoZSBmdWxsIGNvbW1hbmQgeW91IHBsYW4gdG8gcnVuLiBSdW4gaXQKICAgYXMgYSB1c2VyLiBUaGUgaW5zdGFsbGVyIG1heSB1c2UgYHN1ZG9gIHdpdGhpbiwgc28gZ2V0IGV4cGxpY2l0IGFwcHJvdmFsIAogICBiZWZvcmUgcnVubmluZyBpdC4KCjUuICoqSW5zdGFsbC4qKgogICBgYGBiYXNoCiAgIC4vb3BlbmVkZ2UtY2xpIGluc3RhbGwgPHByb2ZpbGUtb3ItbW9kdWxlPiBbLS08bW9kdWxlPiBvcHRpb25zXQogICBgYGAKICAgYGluc3RhbGxgIHB1bGxzIGluIGRlcGVuZGVuY2llcyBhdXRvbWF0aWNhbGx5LgoKNi4gKipWZXJpZnkuKioKICAgLSBTeXN0ZW0tbGV2ZWw6IGAuL29wZW5lZGdlLWNsaSBsaXN0IC0tc2JvbSA8dGFyZ2V0PmAKICAgLSBVc2VyLWxldmVsOiBjaGVjayBgfi8ubG9jYWwvb3Blbi1lZGdlLXBsYXRmb3JtLzxjb21wb25lbnQ+L2AKCiAgIFJlcG9ydCB3aGF0IHdhcyBpbnN0YWxsZWQgYW5kIHdoZXJlLgoKIyMgT3RoZXIgbGlmZWN5Y2xlIG9wZXJhdGlvbnMKCi0gKipTdGFydC9zdG9wOioqIGAuL29wZW5lZGdlLWNsaSBzdGFydCA8Y29tcG9uZW50PmAgLyBgLi9vcGVuZWRnZS1jbGkgc3RvcCA8Y29tcG9uZW50PmAuICAKICBgLi9vcGVuZWRnZS1jbGkgc3RvcGAgc3RvcHMgYWxsIHByZXZpb3VzbHkgc3RhcnRlZCBjb21wb25lbnRzLiAgCi0gKipSZW1vdmU6KiogYC4vb3BlbmVkZ2UtY2xpIHJlbW92ZSA8Y29tcG9uZW50PmAuIFRoaXMgaXMgKipub3QgcmVjdXJzaXZlKio6ICAKICBpdCByZW1vdmVzIG9ubHkgdGhlIG5hbWVkIGNvbXBvbmVudCBhbmQgbGVhdmVzIGl0cyBkZXBlbmRlbmNpZXMgaW5zdGFsbGVkLiAKICBMaXN0IGRlcGVuZGVuY2llcyBleHBsaWNpdGx5IGlmIG5lZWRlZC4gICAKICBgLi9vcGVuZWRnZS1jbGkgcmVtb3ZlIC0tcmVtb3ZlLWFsbGAgdG8gcmVtb3ZlIGFsbCBwcmV2aW91c2x5IGluc3RhbGxlZC4gIAoKIyMgVHJvdWJsZXNob290aW5nCgotIElmIGEgY29tbWFuZCBmYWlscywgc2hvdyB0aGUgdXNlciB0aGUgcmVsZXZhbnQgZXJyb3Igb3V0cHV0LiBEb24ndCByZXRyeSB3aXRoCiAgZXh0cmEgZmxhZ3MgdW5sZXNzIHRoZSB1c2VyIGFwcHJvdmVzLgotIENoZWNrIHRoZSBSRUFETUUgZm9yIHN1cHBvcnRlZCBvcHRpb25zIGJlZm9yZSBpbnZlbnRpbmcgYW55LgoKIyMgQWR2YW5jZWQgKG9ubHkgaWYgdGhlIHVzZXIgYXNrcykKClRvIGJ1aWxkIGEgY3VzdG9taXplZCBpbnN0YWxsZXIsIGNsb25lIHRoZSByZXBvc2l0b3J5IGFuZCB1c2UgaXRzIGBib290c3RyYXBgCmNvbW1hbmQuIFNlZSB0aGUgUkVBRE1FLgoKIyMgUmVmZXJlbmNlCgotIFtSRUFETUVdKGh0dHBzOi8vZ2l0aHViLmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1saWJyYXJpZXMvYmxvYi9tYWluL2ZyYW1ld29ya3Mvb2VwLWluc3RhbGxlci1jbGkvUkVBRE1FLm1kKTogdGhlIHNvdXJjZSBvZiB0cnV0aCBmb3Igc3ViY29tbWFuZHMgYW5kIG9wdGlvbnMuCi0gW1dlYiBVSV0oaHR0cHM6Ly9kb2NzLm9wZW5lZGdlcGxhdGZvcm0uaW50ZWwuY29tL2Rldi9PRVAtYXJ0aWNsZXMvb2VwLWNsaS1pbnN0YWxsZXIvaW5kZXguaHRtbCk6IGNob29zZSBhIHByb2ZpbGUgb3IgbW9kdWxlIGFuZCBjb3B5IHRoZSBleGFjdCBjb21tYW5kLgo=";
+    mkdir -p "$(dirname "$installer_bin")";
+    { 
+        cat > "$installer_bin" <<EOF
+#!/bin/bash
+$(declare -f ${installer_misc_functions[*]})
+$(declare -f $(declare -F | grep -v '^declare -fx' | grep -E " (${installer_family}_[0-9]+_|ensure_|act_|verify_|configure_|install_|start_|stop_|remove_|profile_|license_|sbom_|subcommand_|main$)" | cut -f3 -d' ' | tr '\n' ' '))
+main "\$@"
+EOF
+
+    } || { 
+        echo "Failed to write to $installer_bin" 1>&2;
+        return 1
+    };
+    chmod a+rx "$installer_bin";
+    echo "Installer reconstructed at ${installer_bin/#"$HOME"/"~"}";
+    local completion_script="$HOME/.local/share/bash-completion/completions/$installer_name";
+    mkdir -p "$(dirname "$completion_script")";
+    base64 -d > "$completion_script" <<< "$installer_completion_text" || { 
+        echo "Failed to write to $completion_script" 1>&2;
+        return 1
+    };
+    echo "bash completion created at ${completion_script/#"$HOME"/"~"}";
+    local skill_file="$HOME"/.agents/skills/$installer_name/SKILL.md;
+    mkdir -p "${skill_file%/*}";
+    base64 -d > "$skill_file" <<< "$installer_skill_text" || { 
+        echo "Failed to write to $skill_file" 1>&2;
+        return 1
+    };
+    echo "skill written to ${skill_file/#"$HOME"/"~"}"
+}
+subcommand_start () 
+{ 
+    if [[ " $* " = *" --help "* ]]; then
+        echo "start options:";
+        echo "  --dry-run       dry-run operations";
+        echo "  --continue      ignore errors and proceed to the end";
+        echo;
+        return 0;
+    fi;
+    act_helper "start,Start,Starting,Started" "" "$@"
+}
+subcommand_stop () 
+{ 
+    if [[ " $* " = *" --help "* ]]; then
+        echo "stop options:";
+        echo "  --dry-run       dry-run operations";
+        echo;
+        return 0;
+    fi;
+    act_helper "stop,Stop,Stopping,Stopped" "-r" "$@" --continue
+}
+system_scan_check_cpu_instructions () 
+{ 
+    local cpu_accels=("vnni" "avx2" "sse2");
+    local detected=() missed=();
+    for accel in "${cpu_accels[@]}";
+    do
+        if grep -q -F $accel /proc/cpuinfo > /dev/null; then
+            detected+=($accel);
+        else
+            missed+=($accel);
+        fi;
+    done;
+    if [ ${#missed[@]} -gt 0 ]; then
+        echo "Missing ${missed[*]^^}";
+    else
+        echo "${detected[*]^^}";
+    fi
+}
+system_scan_check_docker () 
+{ 
+    local docker_ver=$(docker version 2> /dev/null | awk '/Version:/{print$NF;exit}' || true);
+    local compose_ver=$(docker compose version 2> /dev/null | awk '{print$NF}' || true);
+    [ -z "$compose_ver" ] || docker_ver="$docker_ver + Compose $compose_ver";
+    echo "$docker_ver"
+}
+system_scan_check_membank () 
+{ 
+    local dmi_out;
+    dmi_out="$(ensure_sudo dmidecode -t memory 2> /dev/null)" || return 0;
+    local installed_modules=();
+    mapfile -t installed_modules < <(echo "$dmi_out" | awk -v in_dev=0 '
+    /^Memory Device$/ {
+      if (in_dev && size !~ /No Module Installed/ && size !~ /Unknown/ && size != "") {
+        print size " | Locator: " loc " | Bank: " bank
+      }
+      in_dev=1;size="";loc="N/A";bank="N/A"
+    }
+    /^[[:space:]]*Size:/ {
+      tmp=$0; sub(/^[[:space:]]*Size:[[:space:]]*/,"",tmp); size=tmp
+    }
+    /^[[:space:]]*Locator:/ {
+      tmp=$0; sub(/^[[:space:]]*Locator:[[:space:]]*/,"",tmp); loc=tmp
+    }
+    /^[[:space:]]*Bank Locator:/ {
+      tmp=$0; sub(/^[[:space:]]*Bank Locator:[[:space:]]*/,"",tmp); bank=tmp
+    }
+    END {
+      if (in_dev && size !~ /No Module Installed/ && size !~ /Unknown/ && size != "") {
+        print size " | Locator: " loc " | Bank: " bank
+      }
+    }');
+    local total_slots=$(echo "$dmi_out" | grep -c "^\s*Locator:" || true);
+    local populated_count=${#installed_modules[@]};
+    if [[ ${populated_count} -eq 0 ]]; then
+        echo "Not detected";
+        return 0;
+    fi;
+    local channels=() mod;
+    for mod in "${installed_modules[@]}";
+    do
+        local channel_id="";
+        if [[ "$mod" =~ ([Cc]ontroller[0-9]+|[Mm][Cc][0-9]+|[Nn]ode[0-9]+|[Pp][0-9]+)[_-]?([Cc][Hh][Aa][Nn][Nn]?[Ee]?[Ll]?[_-]?[[:space:]]*[A-Za-z0-9]+) ]]; then
+            channel_id="${BASH_REMATCH[1]}-${BASH_REMATCH[2]}";
+        else
+            if [[ "$mod" =~ [Cc][Hh][Aa][Nn][Nn]?[Ee]?[Ll]?[_-]?[[:space:]]*([A-Za-z0-9]+) ]]; then
+                channel_id="Channel_${BASH_REMATCH[1]}";
+            else
+                if [[ "$mod" =~ Locator:[[:space:]]*[A-Za-z0-9_-]*([A-Za-z])[0-9] ]]; then
+                    channel_id="Channel_${BASH_REMATCH[1]}";
+                fi;
+            fi;
+        fi;
+        [ -z "$channel_id" ] || channels+=("$channel_id");
+    done;
+    local uniq_channels=($(printf "%s\n" "${channels[@]}" | sort -u));
+    local uniq_channel_count=${#uniq_channels[@]};
+    if [[ $populated_count -eq 1 ]]; then
+        echo "SINGLE-CHANNEL";
+    else
+        if [[ $uniq_channel_count -ge 2 ]]; then
+            echo "DUAL/MULTI-CHANNELS";
+        else
+            if [[ ${uniq_channel_count} -eq 1 && $populated_count -gt 1 ]]; then
+                echo "MISCONFIGURED SINGLE-CHANNEL";
+            else
+                echo "UNKNOWN";
+            fi;
+        fi;
+    fi
+}
+system_scan_check_network_access () 
+{ 
+    local check_urls=(http://connectivity-check.ubuntu.com https://apt.repos.intel.com) url;
+    for url in "${check_urls[@]}";
+    do
+        curl -fsSL --retry 2 --connect-timeout 10 $url > /dev/null || { 
+            echo "$url by $(id -un)";
+            return 0
+        };
+    done;
+    echo "registry reachable"
+}
+system_scan_check_pci_device () 
+{ 
+    local deviceid=${1,,};
+    local default_name="$2";
+    local lspci_out="$(lspci -v -n -d $deviceid)";
+    local subsystem="$(echo "$lspci_out" | grep -m1 Subsystem: | cut -f2- -d: | sed 's|^ ||g' || true)";
+    if [ -n "$subsystem" ]; then
+        local name="$(echo "$lspci_out" | grep -m1 DeviceName: | cut -f2- -d: | sed 's|^ ||g' || true)";
+        local driver="$(echo "$lspci_out" | awk '/Kernel driver in use:/{print$NF}' || true)";
+        local driver_str="";
+        if [ -n "$driver" ]; then
+            driver_str=$(modinfo $driver 2> /dev/null | awk '/vermagic:/{print$2}' || true);
+            [ -z "$driver_str" ] || driver_str=" · driver $driver $driver_str";
+        fi;
+        echo "${name:-$default_name}$driver_str";
+    fi
+}
+system_scan_get_system_summary () 
+{ 
+    local cpuinfo="$(grep -m1 "model name" /proc/cpuinfo | cut -f2 -d: | sed 's|^ ||g')";
+    local coreinfo="$(grep "processor" /proc/cpuinfo | wc -l) cores";
+    local meminfo="$(grep -m1 "MemTotal:" /proc/meminfo | cut -f2 -d: | tr -d ' ')";
+    [[ "$meminfo" != *kB ]] || meminfo="$(( ${meminfo%kB} / 1024 / 1024 ))GB";
+    [[ "$meminfo" != *mB ]] || meminfo="$(( ${meminfo%mB} / 1024 ))GB";
+    echo "$cpuinfo · $coreinfo · $meminfo RAM"
+}
+verify_cdi () 
+{ 
+    [[ -e $cdi_path/intel-cdi-specs-generator-gpu && -e $cdi_path/intel-cdi-npu-generator.sh ]] || { 
+        echo "Missing cdi generator scripts" 1>&2;
+        return 1
+    }
+}
+verify_deterministic_threat_detection () 
+{ 
+    [ -r "$application/README.md" ] && [ -r "$application/docs/user-guide/get-started.md" ] && [ -r "$application/docs/user-guide/get-started-scenescape.md" ]
+}
+verify_gpu_accel () 
+{ 
+    [ -c /dev/dri/renderD128 ] && verify_gpu_accel_packages
+}
+verify_gpu_accel_packages () 
+{ 
+    ensure_apt_is_installed intel-media-va-driver-non-free
+}
+verify_handheld_multi_modal () 
+{ 
+    local app_dir="$workspace"/handheld-multi-modal;
+    [ -r "$app_dir/Makefile" ] && [ -r "$app_dir/compose/handheld-multi-modal.yaml" ] && [ -r "$app_dir/docs/user-guide/index.md" ] && [ -r "$app_dir/config/devices.yaml" ] && python3 "$app_dir/scripts/demo_assets.py" check-model --root "$app_dir"
+}
+verify_intel_lpmd () 
+{ 
+    [ "$(systemctl is-active intel_lpmd.service)" = "active" ] || { 
+        echo "Missing the intel_lpmd service" 1>&2;
+        return 1
+    }
+}
+verify_k3s_io () 
+{ 
+    command -v k3s > /dev/null 2>&1 && systemctl is-active --quiet k3s
+}
+verify_npu_accel () 
+{ 
+    [ -c /dev/accel/accel0 ] && verify_npu_accel_packages
+}
+verify_npu_accel_packages () 
+{ 
+    ensure_apt_is_installed intel-level-zero-npu=$version intel-fw-npu=$version intel-driver-compiler-npu=$version
+}
+verify_pcm () 
+{ 
+    [ -x /usr/local/sbin/pcm ]
+}
+verify_power_tuning () 
+{ 
+    [ -x /usr/local/sbin/pcm ]
+}
+verify_realsense () 
+{ 
+    configure_realsense "$@";
+    ensure_apt_is_installed "${rs_packages[@]}"
+}
+verify_system_info () 
+{ 
+    [ -x "$system_info_path/system-info.sh" ]
+}
+verify_uncrewed_aerial_vehicle_mission () 
+{ 
+    [ -r "$workspace/uav-mission-compute-sdk/docker-compose.yml" ] && docker image inspect uav-mission-compute-sdk/px4-gazebo:latest uav-mission-compute-sdk/companion-bridge:latest uav-mission-compute-sdk/camera-bridge:latest uav-mission-compute-sdk/usb-camera-bridge:latest uav-mission-compute-sdk/vision-processor-multicam:latest sample-apps-edge-ai-showcase:latest > /dev/null
+}
+
+[ "$0" != bash ] || set -- setup "$@"
+main "$@"

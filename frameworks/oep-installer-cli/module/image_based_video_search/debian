@@ -1,7 +1,7 @@
 
 configure_image_based_video_search () {
   workspace="$(ensure_project_path)/image-based-video-search"
-  version=release-2026.2.0
+  version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")"
   repository="https://github.com/open-edge-platform/metro-ai-suite.git"
   used_ports=(443 80 8554)
 }
@@ -23,18 +23,18 @@ verify_image_based_video_search () {
 }
 
 debian_90_profile_image_based_video_search () {
-  echo "git curl edge_base docker"
+  echo "git curl edge_base docker_io"
 }
 
 debian_90_install_image_based_video_search () {
   configure_image_based_video_search "$@"
   if verify_image_based_video_search && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Video Search and Summarization is already installed. Skipping..."
+    echo "Video Search and Summarization is installed." >&2
   else
-    ensure_ports_open "${used_ports[*]}" return 3
+    ensure_disk_size 8000
+    ensure_ports_open install image_based_video_search "${used_ports[@]}"
 
     # clone the repository
-    ensure_disk_size 8000
     ensure_git_export "$workspace" $version $repository image-based-video-search
 
     # download models
@@ -70,13 +70,13 @@ EOF
     verify_image_based_video_search
   fi
 
-  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
   echo "@@HIGHLIGHT start|stop|remove"
 }
 
 debian_90_start_image_based_video_search () {
   configure_image_based_video_search "$@"
-  ensure_ports_open "${used_ports[*]}" debian_90_stop_image_based_video_search "$@"
+  ensure_ports_open start image_based_video_search "${used_ports[@]}"
 
   cd "$workspace"/image-based-video-search
   docker compose up -d

@@ -1,7 +1,7 @@
 
 configure_take_away () {
   workspace="$(ensure_project_path)/take-away"
-  version=65d1959a5b3ac268370220e972f5c97efee21d48
+  version="$(ensure_parse_value_option version --version=65d1959a5b3ac268370220e972f5c97efee21d48 "$@")"
   repository="https://github.com/intel-retail/order-accuracy.git"
   used_ports=(7860 8000 8080 8001 9000 9001 8010)
 }
@@ -32,18 +32,19 @@ verify_take_away () {
 }
 
 debian_90_profile_take_away () {
-  echo "git curl gawk make python3_venv docker edge_base"
+  echo "git curl gawk make python3_venv docker_io edge_base"
 }
 
 debian_90_install_take_away () {
-  configure_take_away
+  configure_take_away "$@"
 
   if verify_take_away && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Order accuracy Take Away is already installed. Skipping"
+    echo "Order accuracy Take Away is installed." >&2
   else 
-    ensure_ports_open "${used_ports[*]}" return 3
-    # clone the repository
     ensure_disk_size 10000
+    ensure_ports_open install take_away "${used_ports[@]}"
+
+    # clone the repository
     ensure_git_clone "$workspace" $version $repository
 
     # initialize .env
@@ -65,10 +66,10 @@ debian_90_install_take_away () {
     verify_take_away
   fi
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   configure_take_away_device "${device^^}"
 
-  echo "@@HIGHLIGHT workspace $workspace"
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
   echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]"
   echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]"
   echo "@@HIGHLIGHT $installer_name remove"
@@ -76,9 +77,9 @@ debian_90_install_take_away () {
 
 debian_90_start_take_away () {
   configure_take_away "$@"
-  ensure_ports_open "${used_ports[*]}" debian_90_stop_take_away "$@"
+  ensure_ports_open start take_away "${used_ports[@]}"
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_take_away_device "${device^^}"
 
   cd "$workspace"/take-away
@@ -91,7 +92,7 @@ debian_90_start_take_away () {
 
 debian_90_stop_take_away () {
   configure_take_away "$@"
-  cd "$workspace"/take-away && make down || true
+  cd "$workspace"/take-away && make clean || true
 }
 
 debian_90_remove_take_away () {

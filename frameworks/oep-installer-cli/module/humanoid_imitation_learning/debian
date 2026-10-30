@@ -1,16 +1,8 @@
-
-# Humanoid - Imitation Learning - the Robotics AI Suite track for teaching
-# robots tasks by demonstration (ACT and Pi0.5 RTC-OV imitation-learning
-# policies). Unlike the AMR and RVC components, this track is delivered as
-# Docker images built from the Robotics AI Suite container recipes, not as
-# native apt packages.
-# https://docs.openedgeplatform.intel.com/dev/ai-suite-robotics.html
 configure_humanoid_imitation_learning () {
   workspace="$(ensure_project_path)/humanoid-imitation-learning"
   version=main
   repository="https://github.com/open-edge-platform/edge-developer-kit-reference-scripts.git"
   container_dir="$workspace/samples/robotics/robotics-ai-suite-containers"
-  # sample: act-sample (default) or pi05-rtc-ov, selectable via a module arg
   humanoid_samples=(act-sample pi05-rtc-ov)
   humanoid_sample=act-sample
   [[ " $* " != *" pi05-rtc-ov "* && " $* " != *" --pi05-rtc-ov "* ]] || humanoid_sample=pi05-rtc-ov
@@ -19,10 +11,9 @@ configure_humanoid_imitation_learning () {
 }
 
 debian_90_profile_humanoid_imitation_learning () {
-  echo "git curl edge_base docker"
+  echo "git curl edge_base docker_io"
 }
 
-# the container recipes are checked out at the pinned version
 verify_humanoid_imitation_learning_workspace () {
   local head
   head="$(git -C "$workspace" rev-parse -q --verify HEAD 2> /dev/null)" && \
@@ -41,14 +32,11 @@ debian_90_install_humanoid_imitation_learning () {
   configure_humanoid_imitation_learning "$@"
 
   if verify_humanoid_imitation_learning "$@" && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Humanoid - Imitation Learning is already installed. Skipping..."
+    echo "Humanoid - Imitation Learning is installed." >&2
   else
-    # The base image bundles the OpenVINO dev stack, Intel GPU runtime, oneAPI
-    # and a clone of edge-ai-suites; the sample image adds the policy packages.
     ensure_disk_size 25000
     if ! verify_humanoid_imitation_learning_workspace || [[ " $* " = *" --reinstall "* ]]; then
       ensure_git_clone "$workspace" "$version" "$repository" samples/robotics/robotics-ai-suite-containers
-      # new recipes: the base image must be rebuilt
       docker image rm -f "$humanoid_base_image" > /dev/null 2>&1 || true
     fi
 

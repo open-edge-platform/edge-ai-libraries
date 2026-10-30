@@ -19,7 +19,7 @@ Current automated API suite in `test_api_v1_direct.py` contains 3 main tests:
 
 - Behavioral Analysis service running and reachable on `http://localhost:8085`
 - Test frames available in `tests/test_frames/`
-- Python environment with test dependencies installed (`pytest`, `requests`, `numpy`)
+- Python environment with test dependencies installed (`pytest`,`requests`, `numpy`,`httpx`,`opencv-python`,`Pillow`,`pytest-asyncio`)
 
 ---
 

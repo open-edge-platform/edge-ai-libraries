@@ -41,6 +41,13 @@ target_compile_options(gstgencamsrc PRIVATE
     ${GST_VIDEO_CFLAGS_OTHER}
 )
 
+# Build-time toggle for the hardware-timestamp GstReferenceTimestampMeta
+# feature (see GENCAMSRC_ENABLE_HW_TIMESTAMP_META option in the top-level
+# CMakeLists.txt).
+if(GENCAMSRC_ENABLE_HW_TIMESTAMP_META)
+    target_compile_definitions(gstgencamsrc PRIVATE GENCAMSRC_ENABLE_HW_TIMESTAMP_META)
+endif()
+
 target_link_libraries(gstgencamsrc
     PRIVATE
         # Internal genicam wrapper (transitive GenICam .so/.lib deps)
