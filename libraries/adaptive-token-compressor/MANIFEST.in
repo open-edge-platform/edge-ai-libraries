@@ -1,6 +1,0 @@
-# Ensure license + attribution files ship in the source distribution (sdist).
-# For the wheel, these are also declared via `license-files` in pyproject.toml
-# so they land in the .dist-info metadata for `pip install` users.
-include LICENSE
-include NOTICE
-include README.md

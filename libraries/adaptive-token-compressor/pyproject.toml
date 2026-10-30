@@ -110,11 +110,9 @@ compress-server-ov = [
 ]
 dev = ["pytest>=8", "responses>=0.25", "httpx>=0.27,<0.28", "ruff", "mypy"]
 
-# Ship LICENSE + NOTICE + third_party_program.txt in the wheel's .dist-info so
-# `pip install` users receive the license and third-party dependency notices.
-# MANIFEST.in covers the sdist.
+# Include license and third-party notices in the sdist and wheel metadata.
 [tool.setuptools]
-license-files = ["LICENSE", "NOTICE", "third_party_program.txt"]
+license-files = ["LICENSE", "third_party_program.txt"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
