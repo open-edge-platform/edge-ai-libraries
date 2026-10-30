@@ -1,8 +1,23 @@
+import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union, Literal
 
 from enum import Enum
 from pydantic import BaseModel, Field, model_validator
+
+_HUB_MODEL_NAME_SEGMENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+
+
+def _is_valid_hub_model_name(name: str) -> bool:
+    """Allow a plain model name or an ``owner/name`` hub repo id.
+
+    Each segment must start with an alphanumeric character, which also
+    rejects path-traversal segments (``.``, ``..``) and empty segments.
+    """
+    segments = name.split("/")
+    return len(segments) <= 2 and all(
+        _HUB_MODEL_NAME_SEGMENT_RE.match(segment) for segment in segments
+    )
 
 
 # # Enums based on OpenAPI schema
@@ -1857,6 +1872,27 @@ class LatencyMetrics(BaseModel):
     )
 
 
+class PipelineEvent(BaseModel):
+    """
+    **Live event observed while a performance test pipeline is running.**
+
+    ## Attributes
+    - `timestamp_ms` - Wall-clock time the event was observed, in ms since epoch
+    - `source` - Event origin, e.g. `proximity-trigger` or `vlm`
+    - `text` - Human-readable description of the event (or the VLM answer). Truncated to 4096 characters, with `... [truncated]` appended when the original was longer
+    - `element` - Name of the emitting GStreamer element, when known
+    - `pts_seconds` - Stream position the event refers to, in seconds, when known
+    - `prompt` - Prompt that produced a VLM answer (`source` = `vlm`), when known. Truncated to 1024 characters, with `... [truncated]` appended when the original was longer
+    """
+
+    timestamp_ms: int
+    source: str
+    text: str
+    element: Optional[str] = None
+    pts_seconds: Optional[float] = None
+    prompt: Optional[str] = None
+
+
 class TestsJobStatus(BaseModel):
     """
     **Base status fields shared by performance and density jobs.**
@@ -1906,16 +1942,25 @@ class PerformanceJobStatus(TestsJobStatus):
     **Status of a performance test job.**
 
     Inherits all fields from TestsJobStatus and adds live_stream_urls and
-    metadata_stream_urls for live-streaming output mode support.
+    metadata_stream_urls for live-streaming output mode support, plus events
+    carrying recent live pipeline events.
 
     ## Attributes
     - *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, total_streams, streams_per_pipeline, video_output_paths
     - `live_stream_urls` - Mapping from pipeline id to live stream URL when using live_stream output mode (keys use the same id format as streams_per_pipeline entries; only available for performance tests)
     - `metadata_stream_urls` - Mapping from pipeline id to list of SSE endpoint URLs for streaming live metadata records, one URL per gvametapublish file (null when the pipeline does not include a gvametapublish element writing to a file; URL index corresponds to file_index path parameter)
+    - `events` - Most recent live pipeline events (oldest first), e.g. a proximity trigger firing or a VLM answer
     """
 
     live_stream_urls: Optional[Dict[str, str]]
     metadata_stream_urls: Optional[Dict[str, list[str]]]
+    events: list[PipelineEvent] = Field(
+        default_factory=list,
+        description=(
+            "Most recent live pipeline events (oldest first, bounded), e.g. "
+            "a `gvaproximitytrigger_py` trigger firing or a `gvagenai` answer."
+        ),
+    )
 
 
 class DensityJobStatus(TestsJobStatus):
@@ -2386,7 +2431,7 @@ class ModelDownloadRequest(BaseModel):
     """
     **Request body for starting a batch of model download jobs.**
 
-    Each name must match an entry in the model catalog (`vippet/models/*.yaml`). Names are
+    Each name must match an entry in the model catalog (`vippet/models/*.yaml`) unless `hub` is set. Names are
     validated as a unique set: duplicates are rejected with 422 so the
     per-name map returned by the endpoint stays unambiguous. An empty
     list is also rejected (`min_length=1`).
@@ -2395,8 +2440,18 @@ class ModelDownloadRequest(BaseModel):
     name — and the per-model status is returned in
     `ModelDownloadJobResponse.jobs[name]`.
 
+    When `hub` is set, names not found in the catalog are downloaded from
+    that hub (names as returned by `POST /models/list`) and registered in
+    the catalog together with every installed precision. Supported hubs:
+    `ultralytics` (category derived from the name suffix) and
+    `huggingface` (category must be provided via `category`, since
+    HuggingFace repo ids have no fixed naming convention to derive it
+    from).
+
     ## Attributes
     - `names` - List of supported-model names to install. Must be non-empty and unique.
+    - `hub` - Optional upstream hub for names not in the catalog.
+    - `category` - Required when `hub` is `huggingface`; ignored otherwise.
 
     ### Example
     ```json
@@ -2414,6 +2469,18 @@ class ModelDownloadRequest(BaseModel):
         ),
         examples=[["yolo11n", "yolov8n"]],
     )
+    hub: ModelSource | None = Field(
+        default=None,
+        description="Upstream hub used for names not found in the model catalog.",
+        examples=["ultralytics"],
+    )
+    category: ModelCategory | None = Field(
+        default=None,
+        description=(
+            "Model category, required when `hub` is `huggingface` (ignored "
+            "for other hubs)."
+        ),
+    )
 
     @model_validator(mode="after")
     def _validate_unique_names(self) -> "ModelDownloadRequest":
@@ -2423,6 +2490,9 @@ class ModelDownloadRequest(BaseModel):
         for name in self.names:
             if not name:
                 raise ValueError("Model names must be non-empty strings.")
+            # Hub names become filesystem path segments.
+            if self.hub is not None and not _is_valid_hub_model_name(name):
+                raise ValueError(f"Invalid hub model name: {name!r}")
             if name in seen:
                 duplicates.append(name)
             seen.add(name)
@@ -2431,6 +2501,49 @@ class ModelDownloadRequest(BaseModel):
                 f"Duplicate model names are not allowed: {sorted(set(duplicates))}"
             )
         return self
+
+
+class ModelHubListRequest(BaseModel):
+    """Request body for searching models in an upstream model hub."""
+
+    hub: str = Field(..., description="Model hub to search, such as huggingface.")
+    filters: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Hub-specific listing filters, such as author, search, or tags.",
+    )
+    limit: int = Field(default=50, ge=1, le=200)
+    offset: int = Field(default=0, ge=0)
+    override_credentials: dict[str, str] | None = Field(
+        default=None,
+        description="Optional Base64-encoded connection overrides for this request.",
+    )
+
+
+class ModelHubListResponse(BaseModel):
+    """Paginated results returned by an upstream model hub.
+
+    Some hubs (for example HuggingFace) cannot report a `total` count
+    cheaply; callers must then paginate using `has_more`/`next_offset`
+    instead of computing a page count from `total`.
+    """
+
+    hub: str
+    items: list[dict[str, Any]]
+    count: int | None = Field(
+        default=None, description="Number of items returned in this response."
+    )
+    total: int | None = Field(
+        default=None,
+        description="Total number of items available, when the hub reports it.",
+    )
+    limit: int
+    offset: int
+    has_more: bool | None = Field(
+        default=None, description="Whether another page is available."
+    )
+    next_offset: int | None = Field(
+        default=None, description="Offset to request the next page, when available."
+    )
 
 
 class ModelDownloadJobItem(BaseModel):

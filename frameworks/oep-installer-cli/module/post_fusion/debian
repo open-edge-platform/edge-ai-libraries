@@ -1,7 +1,7 @@
 
 configure_post_fusion () {
   workspace="$(ensure_project_path)/post-fusion"
-  version=release-2026.2.0
+  version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")"
   repository=https://github.com/open-edge-platform/metro-ai-suite.git
   inputs=2
   pipeline=kitti/2C1L/localFusionPipeline
@@ -32,13 +32,14 @@ debian_90_profile_post_fusion () {
 debian_90_install_post_fusion () {
   configure_post_fusion "$@"
   if verify_post_fusion && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Sensor Fusion for Traffic Management - Post Fusion is installed. Skipping" 1>&2
+    echo "Sensor Fusion for Traffic Management - Post Fusion is installed." >&2
   else
     ensure_disk_size 300
     ensure_git_export "$workspace" "$version" "$repository" sensor-fusion-for-traffic-management/post-fusion
 
     cd "$workspace"/sensor-fusion-for-traffic-management/post-fusion
     sed -i -e "s|^numOfProcess=.*|numOfProcess=$inputs|" -e "s|^maxConcurrentWorkload=.*|maxConcurrentWorklod=$inputs|" ai_inference/source/low_latency_server/AiInference.config
+    sed -i "s|^RUN git clone https://github.com/oneapi-src/level-zero.git|RUN git clone --depth 1 --branch v1.24.2 https://github.com/oneapi-src/level-zero.git|" docker/Dockerfile_TFCC.dockerfile
 
     cat > docker/.env <<EOF
 VIDEO_GROUP_ID=$(getent group video | cut -f3 -d: || echo 44)
@@ -50,10 +51,10 @@ EOF
     verify_post_fusion
   fi
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   configure_post_fusion_device "$device"
 
-  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
   echo "@@HIGHLIGHT $installer_name install|start [--gpu/npu]"
   echo "@@HIGHLIGHT $installer_name remove"
 }
@@ -62,7 +63,7 @@ debian_90_start_post_fusion () {
   configure_post_fusion "$@"
   debian_90_stop_post_fusion "$@"
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_post_fusion_device "$device"
 
   cd "$workspace"/sensor-fusion-for-traffic-management/post-fusion

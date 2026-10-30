@@ -12,8 +12,9 @@ from Docker Hub without rebuilding, see
 
 ## Build the Docker Image
 
-The repository ships a `Dockerfile` and a `docker-compose.yml`. The
-compose file declares both `image:` and `build:` for the service:
+The repository ships `docker/Dockerfile` (Ubuntu 24.04-based, multi-stage)
+and a `docker-compose.yml`. The compose file declares both `image:` and
+`build:` for the service:
 
 - `docker compose pull && docker compose up -d` runs the prebuilt
   image from Docker Hub.
@@ -26,11 +27,37 @@ docker compose build
 docker compose up -d
 ```
 
-To build the image directly with `docker`:
+To build the image directly with `docker` (run from `audio-analyzer/`,
+note the `-f` flag since the Dockerfile lives under `docker/`, not at
+the repository root):
 
 ```bash
-docker build -t audio-analyzer:local .
+docker build -f docker/Dockerfile -t audio-analyzer:local .
 ```
+
+By default this builds the `full` image variant with GPU/NPU runtime
+packages included (`IMAGE_VARIANT=full`, `INSTALL_GPU_NPU_RUNTIME=true`),
+matching what `docker compose build` produces. For a smaller CPU-only,
+default-ASR-only image, pass `--build-arg IMAGE_VARIANT=slim
+--build-arg INSTALL_GPU_NPU_RUNTIME=false` explicitly.
+
+### Optional Chinese/English FunASR Provider
+
+The `funasr` ASR provider (Paraformer models for Chinese/English
+transcription) is **not installed by default** in either the `slim` or
+`full` variant, to keep the standard image unchanged for existing
+consumers. To add it, build with:
+
+```bash
+docker build -f docker/Dockerfile -t audio-analyzer:full-cjk \
+    --build-arg INSTALL_CJK=true .
+```
+
+This installs the extra dependencies listed in `requirements-cjk.txt`
+(`funasr`, `modelscope`, etc.) on top of whichever `IMAGE_VARIANT` is
+selected. See [`funasr` provider notes](./configuration.md#asr-provider-notes)
+for the corresponding `config.yaml` settings
+(`models.asr.provider: funasr`, `models.asr.name: paraformer-zh | paraformer-en | paraformer-online`).
 
 The Compose setup bind-mounts `config.yaml` and stores model, chunk,
 storage, and Hugging Face cache data in named Docker volumes

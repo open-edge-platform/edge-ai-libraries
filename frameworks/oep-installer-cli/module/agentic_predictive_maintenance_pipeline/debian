@@ -1,7 +1,7 @@
 
 configure_agentic_predictive_maintenance_pipeline () {
   workspace="$(ensure_project_path)/agentic-predictive-maintenance-pipeline"
-  version=release-2026.2.0
+  version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")"
   repository=https://github.com/open-edge-platform/metro-ai-suite.git
   used_ports=(8080 8010 8554 8200 9091 9090)
   models=(Qwen/Qwen2.5-1.5B-Instruct microsoft/Phi-4-mini-instruct)
@@ -29,12 +29,12 @@ debian_90_profile_agentic_predictive_maintenance_pipeline () {
 }
 
 debian_90_install_agentic_predictive_maintenance_pipeline () {
-  configure_agentic_predictive_maintenance_pipeline
+  configure_agentic_predictive_maintenance_pipeline "$@"
   if verify_agentic_predictive_maintenance_pipeline && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Agentic Predictive Maintenance Pipeline already installed. Skipping" 1>&2
+    echo "Agentic Predictive Maintenance Pipeline is installed." 1>&2
   else
-    ensure_ports_open "${used_ports[*]}" return 3
-    ensure_disk_size 60
+    ensure_disk_size 15000
+    ensure_ports_open install agentic_predictive_maintenance_pipeline "${used_ports[@]}"
     ensure_git_export "$workspace" "$version" "$repository" agentic-predictive-maintenance-pipeline
 
     cd "$workspace"/agentic-predictive-maintenance-pipeline/apps/pipeline-defect-detection
@@ -49,19 +49,19 @@ debian_90_install_agentic_predictive_maintenance_pipeline () {
     verify_agentic_predictive_maintenance_pipeline
   fi
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   configure_agentic_predictive_maintenance_pipeline_device "${device^^}"
 
-  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
   echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]"
   echo "@@HIGHLIGHT $installer_name start|remove"
 }
 
 debian_90_start_agentic_predictive_maintenance_pipeline () {
-  configure_agentic_predictive_maintenance_pipeline
-  ensure_ports_open "${used_ports[*]}" debian_90_stop_agentic_predictive_maintenance_pipeline "$@"
+  configure_agentic_predictive_maintenance_pipeline "$@"
+  ensure_ports_open start agentic_predictive_maintenance_pipeline "${used_ports[@]}"
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_agentic_predictive_maintenance_pipeline_device "${device^^}"
 
   cd "$workspace"/agentic-predictive-maintenance-pipeline
@@ -73,7 +73,7 @@ debian_90_start_agentic_predictive_maintenance_pipeline () {
 }
 
 debian_90_stop_agentic_predictive_maintenance_pipeline () {
-  configure_agentic_predictive_maintenance_pipeline
+  configure_agentic_predictive_maintenance_pipeline "$@"
   cd "$workspace"/agentic-predictive-maintenance-pipeline && {
     . ./setup.sh --stop || true
     . ./setup.sh --clean-data || true

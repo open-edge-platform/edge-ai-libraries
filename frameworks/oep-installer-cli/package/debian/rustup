@@ -1,0 +1,16 @@
+
+debian_30_install_rustup () {
+  if [ -x "$HOME"/.cargo/bin/rustup ]; then
+    echo "cargo already installed"
+  else
+    ensure_fetch https://sh.rustup.rs - | sh -s -- -y --default-toolchain stable --profile minimal
+  fi
+}
+
+debian_30_remove_rustup () {
+  yes | "$HOME"/.cargo/bin/rustup self uninstall || true
+}
+
+debian_30_sbom_rustup () {
+  ensure_sbom_format pkg-list https://sh.rustup.rs
+}

@@ -82,9 +82,9 @@ Use this flow when you want to build and start the experimental Time Series envi
 compose stack:
 
 1. Build the experimental images with `make build-experimental`.
-2. Start the services with `make run-experimental`.
-3. Stop them with `make stop-experimental` when testing is complete.
-4. Remove the generated containers and volumes with `make clean-experimental`.
+1. Start the services with `make run-experimental`.
+1. Stop them with `make stop-experimental` when testing is complete.
+1. Remove the generated containers and volumes with `make clean-experimental`.
 
 This keeps the experimental Time Series pipeline isolated behind the `compose.experimental.yml` override,
 layered on top of the standard `compose.yml` stack while still reusing the same hardware-specific profile

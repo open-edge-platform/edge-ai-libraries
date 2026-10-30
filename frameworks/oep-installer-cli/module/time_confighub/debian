@@ -12,14 +12,15 @@ verify_time_confighub () {
 }
 
 debian_70_profile_time_confighub () {
-  echo "libyang git cmake make kernel_module_essential"
+  echo "libyang git cmake make kernel_module_essential python3_venv"
 }
 
 debian_70_install_time_confighub () {
   configure_time_confighub
   if verify_pcm && [[ " $* " != *" --reinstall "* ]]; then
-    echo "pcm is installed. Skipping"
+    echo "Time-Confighub is installed." >&2
   else
+    configure_kernel_module_essential_debian "$@"
     ensure_git_export "$workspace" "$version" "$repository"
     cd "$workspace"
     chmod a+rx install.sh uninstall.sh

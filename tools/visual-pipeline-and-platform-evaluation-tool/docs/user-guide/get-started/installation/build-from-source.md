@@ -23,7 +23,8 @@ Before starting, ensure the following:
   [post-installation steps](https://docs.docker.com/engine/install/linux-postinstall/) to run Docker as a non-root user.
 
   > [!NOTE]
-  > Do not use Docker Desktop on Linux. It runs the Docker daemon inside a virtual machine that is not forwarding GPU device on Linux (yet).
+   > Do not use Docker Desktop on Linux. It runs the Docker daemon inside a virtual machine that is not forwarding GPU
+   > device on Linux (yet).
 
 - **Dependencies installed**:
   - **Git**: [Install Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git).
@@ -54,7 +55,7 @@ Hugging Face Hub.
    cd edge-ai-libraries/tools/visual-pipeline-and-platform-evaluation-tool
    ```
 
-2. Build and start the application:
+1. Build and start the application:
 
    ```bash
    make build run
@@ -69,18 +70,18 @@ Hugging Face Hub.
    sources, run `make build` again. To run published images instead, see
    [Use Pre-Built Docker Images](./docker-compose.md).
 
-3. Verify that the application is running:
+1. Verify that the application is running:
 
    ```bash
    docker compose ps
    ```
 
-4. Access the application:
+1. Access the application:
 
    Open a browser and navigate to `http://localhost` (or `http://<HOST-IP>`) to access
    the Visual Pipeline and Platform Evaluation Tool UI.
 
-5. Access the application API documentation:
+1. Access the application API documentation:
 
    Open a browser and navigate to `http://localhost/api/v1/docs` (or `http://<HOST-IP>/api/v1/docs`)
    to access the Swagger UI.

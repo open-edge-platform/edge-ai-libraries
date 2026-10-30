@@ -134,16 +134,22 @@ class RuntimeSettings:
     llm_base_url: str
     llm_model_name: str
     llm_api_key: str
+    llm_max_tokens: int
     agents_config_path: str
     prompts_dir: str
     fallback_policy_path: str
+    agent_mode: str
 
 
 def load_runtime_settings(*, validate_assets: bool = True) -> RuntimeSettings:
     """Load and validate settings from the current process environment."""
-    llm_mode = os.environ.get("LLM_MODE", "fallback").strip().lower()
+    llm_mode = os.environ.get("LLM_MODE", "llm").strip().lower()
     if llm_mode not in {"llm", "fallback"}:
         raise ConfigurationError("LLM_MODE must be 'llm' or 'fallback'")
+
+    agent_mode = os.environ.get("AGENT_MODE", "routing").strip().lower()
+    if agent_mode not in {"routing", "sequential"}:
+        raise ConfigurationError("AGENT_MODE must be 'routing' or 'sequential'")
 
     storage_url = _validate_http_url(
         "STORAGE_SERVICE_URL",
@@ -205,14 +211,15 @@ def load_runtime_settings(*, validate_assets: bool = True) -> RuntimeSettings:
         raise ConfigurationError("MQTT_USERNAME is required when MQTT_PASSWORD is set")
 
     llm_base_url = os.environ.get(
-        "LLM_BASE_URL", "http://aqh-ovms:8000/v1"
+        "LLM_BASE_URL", "http://aqh-ovms:8010/v3"
     ).rstrip("/")
     if llm_mode == "llm":
         llm_base_url = _validate_http_url("LLM_BASE_URL", llm_base_url)
-    llm_model_name = os.environ.get("LLM_MODEL_NAME", "Phi-4-mini-instruct").strip()
+    llm_model_name = os.environ.get("LLM_MODEL_NAME", "Qwen/Qwen2.5-3B-Instruct").strip()
     if llm_mode == "llm" and not llm_model_name:
         raise ConfigurationError("LLM_MODEL_NAME is required in LLM mode")
     llm_api_key = os.environ.get("LLM_API_KEY", "UNUSED").strip() or "UNUSED"
+    llm_max_tokens = _as_int("LLM_MAX_TOKENS", 512, minimum=1, maximum=8192)
 
     configs_dir = Path(
         os.environ.get("USE_CASE_CONFIGS_DIR", str(_DEFAULTS_DIR / "config"))
@@ -260,9 +267,11 @@ def load_runtime_settings(*, validate_assets: bool = True) -> RuntimeSettings:
         llm_base_url=llm_base_url,
         llm_model_name=llm_model_name,
         llm_api_key=llm_api_key,
+        llm_max_tokens=llm_max_tokens,
         agents_config_path=agents_config_path,
         prompts_dir=prompts_dir,
         fallback_policy_path=fallback_policy_path,
+        agent_mode=agent_mode,
     )
 
 

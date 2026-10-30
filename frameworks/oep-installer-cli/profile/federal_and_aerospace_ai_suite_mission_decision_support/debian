@@ -1,0 +1,4 @@
+
+debian_99_profile_federal_and_aerospace_ai_suite_mission_decision_support () {
+  [ "$1" = "start" ] || echo "mission_decision_support_blueprint deterministic_threat_detection"
+}

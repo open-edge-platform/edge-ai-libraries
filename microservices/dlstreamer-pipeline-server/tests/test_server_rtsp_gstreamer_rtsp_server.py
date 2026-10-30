@@ -6,7 +6,7 @@
 
 import pytest
 from unittest.mock import MagicMock, patch
-from src.server.rtsp.gstreamer_rtsp_server import GStreamerRtspServer
+from src.server.rtsp.gstreamer_rtsp_server import GStreamerRtspServer, Stream
 
 @pytest.fixture
 def Gstrtsp(mocker):
@@ -28,6 +28,32 @@ def mock_factory(mocker):
 def gstreamer_rtsp_server(mock_logging, mock_factory,Gstrtsp,Gst):
     return GStreamerRtspServer(port=8888)
 
+class TestGStreamerRtspServerThreading:
+    """One thread per RTSP server blocks every client behind a single stream whose media never gets prepared."""
+
+    def _pool(self, server):
+        return server._server.get_thread_pool.return_value
+
+    def test_default_thread_pool_is_not_a_single_thread(self, gstreamer_rtsp_server, monkeypatch):
+        self._pool(gstreamer_rtsp_server).set_max_threads.assert_called_once_with(8)
+
+    def test_max_threads_can_be_set(self, mock_logging, mock_factory, Gstrtsp, Gst, monkeypatch):
+        monkeypatch.setenv("RTSP_SERVER_MAX_THREADS", "3")
+        server = GStreamerRtspServer(port=8888)
+        self._pool(server).set_max_threads.assert_called_once_with(3)
+
+    def test_unlimited_threads(self, mock_logging, mock_factory, Gstrtsp, Gst, monkeypatch):
+        monkeypatch.setenv("RTSP_SERVER_MAX_THREADS", "-1")
+        server = GStreamerRtspServer(port=8888)
+        self._pool(server).set_max_threads.assert_called_once_with(-1)
+
+    @pytest.mark.parametrize("bad", ["0", "-5", "many", ""])
+    def test_invalid_max_threads_fall_back_to_the_default(self, mock_logging, mock_factory, Gstrtsp, Gst, monkeypatch, bad):
+        monkeypatch.setenv("RTSP_SERVER_MAX_THREADS", bad)
+        server = GStreamerRtspServer(port=8888)
+        self._pool(server).set_max_threads.assert_called_once_with(8)
+
+
 class TestGStreamerRtspServer:
 
     def test_check_if_path_exists(self, gstreamer_rtsp_server):
@@ -35,15 +61,30 @@ class TestGStreamerRtspServer:
         with pytest.raises(Exception, match="RTSP Stream at /test already exists, use different path"):
             gstreamer_rtsp_server.check_if_path_exists('/test')
 
-    def test_add_stream(self, gstreamer_rtsp_server, mocker,mock_logging):
-        mock_stream = mocker.patch('src.server.rtsp.gstreamer_rtsp_server.Stream', return_value=MagicMock())
-        mock_mount_points = MagicMock()
-        gstreamer_rtsp_server._mount_points = mock_mount_points
-        gstreamer_rtsp_server.add_stream('test_id', '/test', 'caps', 'source',True)
-        assert '/test' in gstreamer_rtsp_server._streams
-        mock_stream.assert_called_once_with('source', 'caps',True, None)
-        gstreamer_rtsp_server._mount_points.add_factory.assert_called_once_with('/test',gstreamer_rtsp_server._factory)
-        mock_logging.get_logger.return_value.info.assert_called_once_with("Created RTSP Stream for instance test_id at rtsp:://<host ip>:8888/test")
+    def test_add_stream(self, request):
+        """add_stream must store the caller-supplied Stream and register
+        its RTSP mount-point factory, logging the resulting URL."""
+        server = request.getfixturevalue("gstreamer_rtsp_server")
+        logging_mock = request.getfixturevalue("mock_logging")
+        setattr(server, '_mount_points', MagicMock())
+        stream = Stream('source', 'caps', True, None, 'mjpeg')
+        server.add_stream('test_id', '/test', stream)
+        assert getattr(server, '_streams')['/test'] == stream
+        getattr(server, '_mount_points').add_factory.assert_called_once_with(
+            '/test', getattr(server, '_factory')
+        )
+        logging_mock.get_logger.return_value.info.assert_called_once_with(
+            "Created RTSP Stream for instance test_id at rtsp:://<host ip>:8888/test"
+        )
+
+    def test_add_stream_h264_encoding(self, request):
+        """add_stream must store the caller-supplied Stream, including an
+        explicit encoding='h264' instead of the default 'mjpeg'."""
+        server = request.getfixturevalue("gstreamer_rtsp_server")
+        setattr(server, '_mount_points', MagicMock())
+        stream = Stream('source', 'caps', True, None, 'h264')
+        server.add_stream('test_id', '/test', stream)
+        assert getattr(server, '_streams')['/test'] == stream
 
     def test_remove_stream(self, gstreamer_rtsp_server):
         gstreamer_rtsp_server._streams = {'/test': MagicMock()}

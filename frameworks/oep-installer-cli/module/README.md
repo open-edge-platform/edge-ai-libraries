@@ -1,13 +1,13 @@
 
 ### Introduction
 
-Components are installable modules within the OEP installer. Their filenames are in the pattern of `<component-name>/linux` (distribution neutral) or `<component-name>/<OS_LIKE>` (distribution specific), where `<OS_LIKE>` is the OS family identifier (from `/etc/os-release`.) Windows modules use `OS_LIKE=windows`.  
+Components are installable modules within the OEP installer. Their filenames are in the pattern of `<component-name>/linux` (distribution neutral) or `<component-name>/<OS_FAMILY>` (distribution specific), where `<OS_FAMILY>` is derived from `/etc/os-release` (`debian` for Ubuntu). Windows modules use `OS_FAMILY=windows`.  
 The component name should contain no whitespace or special character except '_'.  
 
 ### Develop a component
 
-A component can be defined in optional shell functions: `<OS_LIKE>_<order>_<profile|install|remove|start|stop>_<component-name>` (Windows functions use the Camel case pattern: `Windows<order><Profile|Install|Remove|Start|Stop><ComponentName>`), where 
-- `<OS_LIKE>`: The OS family identifier such as `debian`. You can get it from `/etc/os-release`.
+A component can be defined in optional shell functions: `<OS_FAMILY>_<order>_<profile|install|remove|start|stop>_<component-name>` (Windows functions use the Camel case pattern: `Windows<order><Profile|Install|Remove|Start|Stop><ComponentName>`), where 
+- `<OS_FAMILY>`: The OS family identifier such as `debian`. You can get it from `/etc/os-release`.
 - `<order>`: A number (prefixed with `0` if less than 10) from 0 to 99 to specify the installation order. The OEP installer will install components in the following order:
 
 ```
@@ -21,7 +21,7 @@ A component can be defined in optional shell functions: `<OS_LIKE>_<order>_<prof
 - `<start|stop|install|group|remove|profile|license|sbom>`: The `profile` function works similarly to a profile, which specifies the component dependencies, and the `install/group/remove/start/stop` functions perform their corresponding functions. At least one of thoses functions must be defined for the component. Others are optional.
 
   - For simple system-level packages, for example, `curl`, it is ok to define only an installation function without an uninstaller. The assumption is that `curl` can reside on the system for future use, while uninstalling it everytime is a bit overkill and may cause potentially unintended consequence. For other non-system components, there usually should define both an `install` function and a corresponding `remove` function.
-  - The function arguments are as follows: `[global-options] <complete list of component names> -- <this component specific arguments>`, with exception of the `profile` function, where `<subcommand>` such as `install`, `start`, `stop`, and `remove` are inserted as the very first argument. The list of installed components is useful to resolve any dependency issues. For example, `openvino` can use a newer version when installed standalone but a different version when installed together with `dlstreamer`. The arguments of this component can be used for component specific configurations, for example, selecting accelerator devices ([`ensure_select_device`](../common/linux/ensure_select_device)).   
+  - The function arguments are as follows: `[global-options] <complete list of component names> -- <this component specific arguments>`, with exception of the `profile` function, where `<subcommand>` such as `install`, `start`, `stop`, and `remove` are inserted as the very first argument. The list of installed components is useful to resolve any dependency issues. For example, `openvino` can use a newer version when installed standalone but a different version when installed together with `dlstreamer`. The arguments of this component can be used for component specific configurations, for example, selecting accelerator devices ([`ensure_parse_device`](../common/linux/ensure_parse)).   
   - All component shell scripts run with `set -e` to terminate early on any errors.
   - It is highly recommended to reuse common functions defined under the [`debian`](../common/debian), [`linux`](../common/linux), or [`windows`](../common/windows) folders. Do not reinvent the wheels. 
 
@@ -38,7 +38,7 @@ A component can be defined in optional shell functions: `<OS_LIKE>_<order>_<prof
   - Use `$(ensure_project_path)/<component_name>` as the default installation path.  
   - The `install` function should cover the following conditions: (1) The component is not yet installed. (2) The component is previously installed but misconfigured. (3) The component of an older version is installed. After installation, it is assumed that the component is fully configured and ready to be launched (`start`).
   - If the component (of the same version) is already installed, the `install` function should skip the installation unless the `--reinstall` option is specified, in which case, the `install` function should reinstall the component cleanly.    
-  - For components that support multiple device accelerations, the `install` function must use the [`ensure_select_device`](../common/linux/ensure_select_device) function to take user input and configure the component accordingly. 
+  - For components that support multiple device accelerations, the `install` function must use the [`ensure_parse_device`](../common/linux/ensure_parse) function to take user input and configure the component accordingly. 
   - For components that require certain memory size or disk space, use the [`ensure_disk_size`](../common/linux/ensure_disk_size) and [`ensure_ram_size`](../common/linux/ensure_ram_size) functions to enforce the requirements and exit early.
   - For components that need to download AI models from huggingface, use the [`ensure_hf_token`](../common/linux/ensure_hf_token) function to set `HF_TOKEN`. The `ensure_hf_token` function can be used to check model access permissions for gated models.   
   - For components that download any dataset, video files, AI models, implement a check that the download files actually exist, to ensure there is no silent failure during installation/setup. The check can be part of the `verify_<component>` helper, which checks if a previous installation/setup is complete.   
@@ -51,7 +51,7 @@ A component can be defined in optional shell functions: `<OS_LIKE>_<order>_<prof
   - A component that is shared across other components (for example a driver, repository, or toolkit that may already exist on the system independently of this installer) must not be removed if the installer never actually installed it. Use the [`ensure_prop`](../common/linux/ensure_prop) helper to record ownership: in the `install` function, call `ensure_prop set installed/<component>/owned true` only inside the real-install branch (never in the "already installed, skipping" branch, so a pre-existing/inherited install is never marked as owned). In the `remove` function, guard the removal with `[ "$(ensure_prop get installed/<component>/owned)" = "true" ] || return 0` so the function is a no-op for anything the installer didn't itself install (whether the component pre-existed on the system before the installer ran, or is still relied upon by another component). See `gpu_accel`, `npu_accel`, `ros2`, `ros_openvino`, `realsense`, and the `edge_pack_*` modules for examples.
 
 - `start`: The optional `start` function launches the component.
-  - The `start` function should check the system to make sure the system meet the launch criteria. Use the [`ensure_ports_open`](../common/linux/ensure_ports_open) function to ensure required TCP or UDP ports are not occupied. The `ensure_ports_open` function invokes the component `stop` function to stop the component if a previous run occupies the ports.  
+  - The `start` function should check the system to make sure the system meet the launch criteria. Use the [`ensure_ports_open`](../common/linux/ensure_ports_open) function to ensure required TCP or UDP ports are not occupied.  
   - After the launch, the `start` function should highlight what is next to the users. For example, for web services, the function should show the URL. If there are any generated usernames/passwords, show those as well. See the [`@@HIGHLIGH`](#highlight-protocol) section for more details.  
 
 - `stop`: The optional `stop` function stops a launched component and restores the component state for next launch.  
@@ -117,7 +117,7 @@ debian_85_install_my_component () {
   fi
 
   # additional configurations such as configuring acceleration device
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   ...
 
   # For a SDK, application or service, highlight what's next after installation
@@ -127,7 +127,7 @@ debian_85_install_my_component () {
 # optional function if the component is start-able.
 #debian_85_start_my_component () {
 #  configure_my_component "$@"
-#  ensure_ports_open "80 443" debian_85_stop_my_component "$@"
+#  ensure_ports_open start my_component 80 443
 #  ...
 #
 #  # For an application or service, highlight what's next after starting the application or service.
@@ -162,7 +162,7 @@ The general use pattern is `install`, `start`, `stop`, `install`, `start`, `stop
 
 ---
 
-### @@HIGHLIGHT protocol
+### @@HIGHLIGHT Protocol
 
 `@@HIGHLIGHT` is a marker to display a short hint to the user in the left-pane summary after installation or component launch.  
 
@@ -189,6 +189,18 @@ echo "@@HIGHLIGHT URL: http://$(ensure_ip):$port"
 echo "@@HIGHLIGHT workspace: $workspace"
 echo "@@HIGHLIGHT setup env: setup-vars.sh"
 echo "@@HIGHLIGHT make help to see full list of build targets"
+```
+
+### @@STEP Protocol
+
+The `@@STEP` marker can be used to show a hint of current installation step. The hint is right aligned on the title bar. The hint message should be short and concise for better user experience.   
+
+```
+# Show static text
+echo "@@STEP Setup sample"                               
+
+# Show dynamitc text based on logging output
+echo "@@STEP @@IF Download ([a-z0-9_]*) @@THEN Downloading \\1"  
 ```
 
 ### Custom Options
@@ -225,7 +237,7 @@ debian_90_install_my_component () {
   fi
 
   # configure device (default GPU)
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   configure_my_component_device "${device^^}"
   ...
   echo "@@HIGHLIGHTS $installer_name install [--gpu|npu|cpu]"
@@ -236,11 +248,24 @@ debian_90_install_my_component () {
 debian_90_start_my_component () {
   ...
   # Reconfigure only if a device option is specified
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_my_component_device "${device^^}"
   ...
   echo "@@HIGHLIGHTS $installer_name start [--gpu|npu|cpu]"
   echo "@@HIGHLIGHTS $installer_name stop|remove"
 }
+```
+
+### Handling Credentials
+
+Use [`ensure_hf_token`](../common/linux/ensure_hf_token) to scan the specified list of models. If any model is a gated model, the function scans the following locations for the token value:
+- The `HF_TOKEN` environment variable
+- Read from `~/.cache/huggingface/token`, if available    
+- Read `HF_TOKEN` from `~/.vscode/launch.json`, if available
+- Prompt the user for `HF_TOKEN`   
+
+```
+ensure_hf_token meta-llama/Llama-3.2-3B-Instruct
+# return HF_TOKEN 
 ```
 

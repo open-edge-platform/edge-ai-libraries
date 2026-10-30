@@ -23,6 +23,7 @@ POLL_TIMEOUT: int = SETTINGS["vippet.max_job_duration"]
 
 # --- metrics section ---
 METRICS_URL: str = SETTINGS["metrics.metrics_url"]
+CAPABILITIES_URL: str = SETTINGS["metrics.capabilities_url"]
 METRICS_SAMPLE_INTERVAL: float = SETTINGS["metrics.sample_interval_seconds"]
 
 # --- benchmark section ---
@@ -42,3 +43,4 @@ ON_UNKNOWN_FILTER_ID: str = SETTINGS["benchmark.filters.on_unknown_id"]
 PERF_RESULTS_DIR: str = SETTINGS["results.output_dir"]
 RESULT_FORMATS: list[str] = SETTINGS["results.formats"]
 CREATE_LATEST_LINK: bool = SETTINGS["results.create_latest_link"]
+SAVE_LOG: bool = SETTINGS["results.save_log"]
