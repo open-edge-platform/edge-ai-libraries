@@ -25,9 +25,10 @@ With Helm, set `feature.map: "FEATURE_ON"` in the `vss-ui` chart values.
 Edit the locations (id, label, latitude, longitude, cameras) in
 [`config/geo-intersections.json`](../../config/geo-intersections.json).
 
-A search result is pinned to a location when its video tag is
-`<location id>-camera<N>` (for example `intersection_1-camera2`) or the location
-id itself. To map other tags, list them under the location's `cameras`. Results
+A search result is pinned to a location when its video tag is the location id
+itself or starts with `<location id>-` (for example `intersection_1-camera2` or
+`intersection_1-crosswalk`). To map other tags, list them under the location's
+`cameras`. Results
 whose tags match no location are not pinned; a notice at the top of the map
 shows how many.
 

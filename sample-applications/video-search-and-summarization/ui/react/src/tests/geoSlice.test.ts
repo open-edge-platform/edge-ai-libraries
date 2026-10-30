@@ -86,6 +86,19 @@ describe('geo helpers', () => {
       expect(resolveIntersection('intersection_1-camera1', intersections, tagIndex)).toBe('intersection_1');
     });
 
+    it('maps any `<id>-` prefixed tag, such as a region tag', () => {
+      expect(resolveIntersection('intersection_1-Crosswalk North', intersections, tagIndex)).toBe('intersection_1');
+      expect(resolveIntersection('intersection_2-region1', intersections, tagIndex)).toBe('intersection_2');
+    });
+
+    it('prefers the longest matching id prefix', () => {
+      const nested = { ...intersections, 'intersection_1-north': { label: 'North', lat: 1, lon: 1, cameras: {} } };
+      expect(resolveIntersection('intersection_1-north-camera1', nested, buildTagIndex(nested))).toBe(
+        'intersection_1-north',
+      );
+      expect(resolveIntersection('intersection_10-camera1', intersections, tagIndex)).toBeNull();
+    });
+
     it('accepts a tag that is itself an intersection id', () => {
       expect(resolveIntersection('intersection_1', intersections, tagIndex)).toBe('intersection_1');
     });

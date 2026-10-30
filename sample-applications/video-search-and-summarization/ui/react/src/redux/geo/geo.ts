@@ -87,8 +87,6 @@ export const parseGeoResponse = (body: unknown): Omit<GeoState, 'loaded'> => {
   return { intersections, source, stale: body.stale === true };
 };
 
-const CAMERA_TAG_PATTERN = /^(.+)-camera\d+$/i;
-
 /** Map of camera tag -> intersection id for cameras explicitly listed under an intersection. */
 export const buildTagIndex = (intersections: Record<string, IntersectionInfo>): Map<string, string> => {
   const index = new Map<string, string>();
@@ -98,7 +96,7 @@ export const buildTagIndex = (intersections: Record<string, IntersectionInfo>): 
   return index;
 };
 
-/** Resolve a camera tag to its intersection id: listed camera, then `<id>-cameraN` prefix, then the tag itself. */
+/** Resolve a tag to its intersection id: listed camera, then the tag itself, then the longest `<id>-` prefix. */
 export const resolveIntersection = (
   tag: string,
   intersections: Record<string, IntersectionInfo>,
@@ -108,7 +106,10 @@ export const resolveIntersection = (
   const isKnown = (id: string) => Object.prototype.hasOwnProperty.call(intersections, id);
   const listed = tagIndex.get(tag);
   if (listed) return listed;
-  const prefix = CAMERA_TAG_PATTERN.exec(tag)?.[1];
-  if (prefix && isKnown(prefix)) return prefix;
-  return isKnown(tag) ? tag : null;
+  if (isKnown(tag)) return tag;
+  let match: string | null = null;
+  for (const id of Object.keys(intersections)) {
+    if (tag.startsWith(`${id}-`) && (!match || id.length > match.length)) match = id;
+  }
+  return match;
 };
