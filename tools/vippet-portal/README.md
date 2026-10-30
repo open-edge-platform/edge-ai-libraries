@@ -41,6 +41,11 @@ make run          # http://localhost:8080
 make stop
 ```
 
+Docker builds forward the shell's `http_proxy`, `https_proxy`, and `no_proxy`
+settings (falling back to uppercase names) for npm and pip downloads. Export
+these variables before running `make run` when a network proxy is required.
+They are build-only settings and are not persisted in the runtime image.
+
 ### Local development
 
 ```bash
