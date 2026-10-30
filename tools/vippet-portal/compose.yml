@@ -1,0 +1,24 @@
+services:
+  vippet-portal:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        http_proxy: ${http_proxy:-${HTTP_PROXY:-}}
+        https_proxy: ${https_proxy:-${HTTPS_PROXY:-}}
+        no_proxy: ${no_proxy:-${NO_PROXY:-}}
+    image: vippet-portal:latest
+    container_name: vippet-portal
+    user: "${PORTAL_UID:-10001}:${PORTAL_GID:-10001}"
+    ports:
+      - "${PORTAL_PORT:-8080}:8080"
+    environment:
+      # Seeded on first start only; afterwards manage instances in the UI.
+      # Format: "Name=url,Name2=url2" (the name is optional).
+      PORTAL_INSTANCES: ${PORTAL_INSTANCES:-}
+      PORTAL_REQUEST_TIMEOUT: ${PORTAL_REQUEST_TIMEOUT:-15}
+      PORTAL_CACHE_TTL: ${PORTAL_CACHE_TTL:-15}
+      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,10.0.0.0/8,192.168.0.0/16}
+    volumes:
+      - ./shared/db:/shared/db
+    restart: unless-stopped
