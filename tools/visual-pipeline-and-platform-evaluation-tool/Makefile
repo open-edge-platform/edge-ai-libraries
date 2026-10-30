@@ -24,6 +24,10 @@ EXPERIMENTAL_COMPOSE_FILE := compose.experimental.yml
 DLSPS2 ?= 0
 DLSPS2_COMPOSE := $(if $(filter 1,$(DLSPS2)),-f compose.dlsps2.yml)
 
+# Set GIGE=1 to run vippet with host networking for GigE Vision camera streaming (see compose.gige.yml).
+GIGE ?= 0
+GIGE_COMPOSE := $(if $(filter 1,$(GIGE)),-f compose.gige.yml)
+
 # Speed up `docker compose build` by skipping provenance/SBOM attestations
 # (saves ~hundreds of ms per build on warm cache, more on cold).
 export BUILDX_NO_DEFAULT_ATTESTATIONS := 1
@@ -139,7 +143,7 @@ env-setup: $(ENV_DIRS_SENTINEL) ## Create shared/ dirs and (always) re-run setup
 	./setup_env.sh
 
 build: env-setup ## Build core images (vippet-app, vippet-ui, sensor-manager); DLSPS2=1 adds DLSPS 2.0
-	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(DLSPS2_COMPOSE) build
+	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(DLSPS2_COMPOSE) $(GIGE_COMPOSE) build
 
 build-dev: env-setup ## Build core dev images (vippet-app, vippet-ui, sensor-manager)
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) build
@@ -154,19 +158,19 @@ build-onvif-discovery: build-sensor-manager ## Deprecated alias of build-sensor-
 
 docker-build: build build-videogenerator ## Build all images
 
-run: env-setup ## Run the docker compose services; DLSPS2=1 runs pipelines on DLSPS 2.0
-	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(DLSPS2_COMPOSE) up -d
+run: env-setup ## Run the docker compose services; DLSPS2=1 runs pipelines on DLSPS 2.0; GIGE=1 enables GigE camera streaming
+	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(DLSPS2_COMPOSE) $(GIGE_COMPOSE) up -d
 
-run-prebuilt: env-setup ## Pull and run the published images tagged PREBUILT_TAG (latest on main); never builds from source
+run-prebuilt: env-setup ## Pull and run the published images tagged PREBUILT_TAG (latest on main); never builds from source; GIGE=1 enables GigE camera streaming
 	. .env && export DOCKER_TAG="$$PREBUILT_TAG" && echo "Running published images tagged $$DOCKER_TAG" && \
-		docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml pull vippet vippet-ui sensor-manager && \
-		docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d --no-build
+		docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(GIGE_COMPOSE) pull vippet vippet-ui sensor-manager && \
+		docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(GIGE_COMPOSE) up -d --no-build
 
 run-videogenerator: env-setup build-videogenerator ## Run only the videogenerator service
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d videogenerator
 
-run-dev: env-setup ## Run the docker compose services for development
-	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) up -d
+run-dev: env-setup ## Run the docker compose services for development; GIGE=1 enables GigE camera streaming
+	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) $(GIGE_COMPOSE) up -d
 
 build-experimental: env-setup ## Build core images for experimental timeseries setup
 	. .env && docker compose -f $(COMPOSE_FILE) -f $(EXPERIMENTAL_COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build

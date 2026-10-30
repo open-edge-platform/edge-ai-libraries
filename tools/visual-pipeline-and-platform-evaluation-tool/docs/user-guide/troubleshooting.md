@@ -234,3 +234,21 @@ If you are able to discover network cameras but cannot authenticate to them, che
 - Ensure time synchronization between the ViPPET host and the cameras,
   as some ONVIF implementations require closely synchronized clocks for authentication.
 - Check for any specific ONVIF profiles or settings required by the cameras for authentication.
+
+---
+
+## 15. GigE Vision camera is discovered, but the pipeline receives no frames
+
+If a GigE Vision camera appears in the *Cameras* tab, but a pipeline that uses it fails or does not
+produce frames, check the following:
+
+- Ensure that ViPPET was started with `make run GIGE=1`. Without host networking, the `vippet`
+  container cannot receive the UDP video stream (GVSP) sent by the camera.
+- Make sure that the camera is not streaming to another application. A GigE Vision camera can be
+  controlled by only one application at a time.
+- Check for firewall rules on the host that may block incoming UDP traffic from the camera.
+- Verify that the IP address shown in the *Cameras* tab matches the one used in the pipeline
+  (`gige://<IP address>`). If the camera IP address has changed, select the camera again in the
+  Pipeline Builder.
+- For high-resolution cameras, enable jumbo frames (for example, MTU 9000) on the network interface
+  connected to the camera to reduce packet loss.

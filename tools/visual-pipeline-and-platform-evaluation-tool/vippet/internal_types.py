@@ -207,10 +207,12 @@ class InternalCameraType(str, Enum):
     Values:
         USB: USB camera connected directly to the system.
         NETWORK: Network camera accessible via IP protocols.
+        GIGE: GigE Vision machine vision camera.
     """
 
     USB = "USB"
     NETWORK = "NETWORK"
+    GIGE = "GIGE"
 
 
 class InternalOutputMode(str, Enum):
@@ -1067,21 +1069,63 @@ class InternalNetworkCameraDetails:
 
 
 @dataclass
+class InternalGigECapture:
+    """
+    Internal GigE Vision camera capture configuration (as currently set on the camera).
+
+    Attributes:
+        pixel_format: GenICam pixel format (e.g. "Mono8", "BayerRG8").
+        width: Frame width in pixels.
+        height: Frame height in pixels.
+        fps: Acquisition frame rate.
+    """
+
+    pixel_format: Optional[str] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    fps: Optional[float] = None
+
+
+@dataclass
+class InternalGigECameraDetails:
+    """
+    Internal GigE Vision camera details.
+
+    Attributes:
+        ip: IP address of the camera.
+        vendor: Camera vendor name.
+        model: Camera model name.
+        serial: Camera serial number.
+        current_capture: Capture configuration currently set on the camera.
+    """
+
+    ip: str
+    vendor: Optional[str] = None
+    model: Optional[str] = None
+    serial: Optional[str] = None
+    current_capture: Optional[InternalGigECapture] = None
+
+
+@dataclass
 class InternalCamera:
     """
-    Internal camera device information supporting both USB and network cameras.
+    Internal camera device information supporting USB, network and GigE cameras.
 
     Attributes:
         device_id: Unique identifier for the camera.
         device_name: Human-readable camera name.
-        device_type: Type of camera (USB or NETWORK).
+        device_type: Type of camera (USB, NETWORK or GIGE).
         details: Type-specific camera details.
     """
 
     device_id: str
     device_name: str
     device_type: InternalCameraType
-    details: Union[InternalUSBCameraDetails, InternalNetworkCameraDetails]
+    details: Union[
+        InternalUSBCameraDetails,
+        InternalNetworkCameraDetails,
+        InternalGigECameraDetails,
+    ]
 
 
 @dataclass

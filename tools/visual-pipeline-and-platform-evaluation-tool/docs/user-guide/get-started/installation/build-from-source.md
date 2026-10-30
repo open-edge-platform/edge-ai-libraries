@@ -110,6 +110,18 @@ The server is not part of `compose.yml`, so `docker compose logs` does not show 
 `docker logs -f dlstreamer-pipeline-server` to follow its log, or `make shell-dlsps` to
 open a shell in it.
 
+## Optional: stream from GigE Vision cameras
+
+To use GigE Vision cameras as pipeline input, run the `vippet` container with host networking
+by adding `GIGE=1`:
+
+```bash
+make build run GIGE=1
+```
+
+See [GigE Vision Cameras](../../user-guide/input-management/cameras.md#gige-vision-cameras)
+for details.
+
 ## Stop the application
 
 Stop and remove all running containers:

@@ -4,7 +4,7 @@
 """
 CameraManager: client of the sensor-manager microservice.
 
-Camera discovery (USB and ONVIF) and ONVIF profile loading are performed by
+Camera discovery (USB, ONVIF and GigE Vision) and ONVIF profile loading are performed by
 sensor-manager. This manager caches the last known camera list for lookups
 done while building pipelines, and keeps ONVIF credentials supplied by the
 user in memory only, so they can be injected into ``rtspsrc`` elements.
@@ -22,6 +22,8 @@ from internal_types import (
     InternalCamera,
     InternalCameraProfileInfo,
     InternalCameraType,
+    InternalGigECameraDetails,
+    InternalGigECapture,
     InternalNetworkCameraDetails,
     InternalUSBCameraDetails,
     InternalV4L2BestCapture,
@@ -58,24 +60,55 @@ def _profile_from_api(data: Dict[str, Any]) -> InternalCameraProfileInfo:
     )
 
 
+def _optional_int(value: Any) -> Optional[int]:
+    return int(value) if value is not None else None
+
+
+def _optional_float(value: Any) -> Optional[float]:
+    return float(value) if value is not None else None
+
+
+def _gige_details_from_api(details: Dict[str, Any]) -> InternalGigECameraDetails:
+    capture = details.get("current_capture")
+    return InternalGigECameraDetails(
+        ip=details["ip"],
+        vendor=details.get("vendor"),
+        model=details.get("model"),
+        serial=details.get("serial"),
+        current_capture=InternalGigECapture(
+            pixel_format=capture.get("pixel_format"),
+            width=_optional_int(capture.get("width")),
+            height=_optional_int(capture.get("height")),
+            fps=_optional_float(capture.get("fps")),
+        )
+        if capture
+        else None,
+    )
+
+
 def _camera_from_api(data: Dict[str, Any]) -> InternalCamera:
     device_type = InternalCameraType(data["device_type"])
     details = data["details"]
+    camera_details: (
+        InternalUSBCameraDetails
+        | InternalNetworkCameraDetails
+        | InternalGigECameraDetails
+    )
     if device_type == InternalCameraType.USB:
         best_capture = details.get("best_capture")
-        camera_details: InternalUSBCameraDetails | InternalNetworkCameraDetails = (
-            InternalUSBCameraDetails(
-                device_path=details["device_path"],
-                best_capture=InternalV4L2BestCapture(
-                    fourcc=best_capture["fourcc"],
-                    width=int(best_capture["width"]),
-                    height=int(best_capture["height"]),
-                    fps=float(best_capture["fps"]),
-                )
-                if best_capture
-                else None,
+        camera_details = InternalUSBCameraDetails(
+            device_path=details["device_path"],
+            best_capture=InternalV4L2BestCapture(
+                fourcc=best_capture["fourcc"],
+                width=int(best_capture["width"]),
+                height=int(best_capture["height"]),
+                fps=float(best_capture["fps"]),
             )
+            if best_capture
+            else None,
         )
+    elif device_type == InternalCameraType.GIGE:
+        camera_details = _gige_details_from_api(details)
     else:
         best_profile = details.get("best_profile")
         camera_details = InternalNetworkCameraDetails(
@@ -215,6 +248,24 @@ class CameraManager:
                 if any(p.rtsp_url == normalized for p in camera.details.profiles):
                     return camera.details
         logger.debug(f"No network camera found for RTSP URL {rtsp_url}")
+        return None
+
+    def get_gige_camera_details_by_ip(
+        self, ip: str
+    ) -> Optional[InternalGigECameraDetails]:
+        """Get cached GigE camera details by IP address."""
+        if not ip:
+            return None
+        normalized = ip.strip()
+        with self._cache_lock:
+            for camera in self._cameras:
+                details = camera.details
+                if (
+                    isinstance(details, InternalGigECameraDetails)
+                    and details.ip == normalized
+                ):
+                    return details
+        logger.debug(f"No GigE camera found for IP {ip}")
         return None
 
     def get_encoding_for_rtsp_url(self, rtsp_url: str) -> Optional[str]:

@@ -3,7 +3,7 @@
 
 apiVersion: v2
 name: sensor-manager
-description: Helm chart for the Sensor Manager microservice (USB and ONVIF camera discovery)
+description: Helm chart for the Sensor Manager microservice (USB, ONVIF and GigE Vision camera discovery)
 type: application
 version: 1.0.0
 appVersion: "1.0.0"

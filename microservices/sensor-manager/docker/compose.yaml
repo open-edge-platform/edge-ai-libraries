@@ -12,7 +12,7 @@ services:
         https_proxy:
         no_proxy:
     container_name: sensor-manager
-    # WS-Discovery replies are unicast to the multicast sender and do not pass Docker NAT.
+    # WS-Discovery and GigE Vision (GVCP broadcast) replies do not pass Docker NAT.
     network_mode: host
     init: true
     restart: unless-stopped
@@ -36,6 +36,8 @@ services:
       SENSOR_MANAGER_PORT: ${SENSOR_MANAGER_PORT:-8090}
       ONVIF_DISCOVERY_ENABLED: ${ONVIF_DISCOVERY_ENABLED:-true}
       ONVIF_DISCOVERY_INTERVAL_S: ${ONVIF_DISCOVERY_INTERVAL_S:-20}
+      GIGE_DISCOVERY_ENABLED: ${GIGE_DISCOVERY_ENABLED:-true}
+      GIGE_DISCOVERY_INTERVAL_S: ${GIGE_DISCOVERY_INTERVAL_S:-20}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       http_proxy: ${http_proxy:-}
       https_proxy: ${https_proxy:-}

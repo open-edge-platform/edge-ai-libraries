@@ -4,7 +4,7 @@
 [project]
 name = "sensor-manager"
 version = "2026.3.0-dev"
-description = "Microservice for discovering and describing USB and ONVIF network cameras."
+description = "Microservice for discovering and describing USB, ONVIF and GigE Vision cameras."
 readme = "README.md"
 requires-python = "==3.12.*"
 
@@ -47,3 +47,5 @@ select = ["E", "F", "W", "I", "B", "S"]
 "tests/**" = ["S101", "S105", "S106"]
 # v4l2-ctl is invoked with a fixed argument list, never through a shell.
 "src/core/usb.py" = ["S603", "S607"]
+# arv-tool-0.8 is invoked with a fixed argument list and validated device ids, never via a shell.
+"src/core/gige.py" = ["S603", "S607"]

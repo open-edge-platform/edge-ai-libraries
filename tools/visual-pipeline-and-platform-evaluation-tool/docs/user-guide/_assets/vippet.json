@@ -3702,7 +3702,7 @@
           "cameras"
         ],
         "summary": "Get all cameras",
-        "description": "**Get all cameras (both USB and network) available to the system.**\n\n## Operation\nCombines results from both USB and network camera discovery to provide\na comprehensive list of all available camera devices.\n\n1. Discover all USB cameras using v4l2-ctl or device scanning\n2. Discover all network cameras using various protocols\n3. Combine and return the complete list\n\n## Parameters\n- **Path/Query parameters:** None\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 200 | JSON array of Camera objects (USB and network cameras) |\n| 500 | `MessageResponse` - Unexpected error during discovery |\n\n## Conditions\n\n### \u2705 Success\n- At least one discovery method succeeds\n- Results can be combined and returned\n- Empty list is returned if no cameras are found\n\n### \u274c Failure\n- Both USB and network discovery fail\n- System error during discovery process\n\n## Example Response\n\n```json\n[\n  {\n    \"device_id\": \"usb-camera-0\",\n    \"device_name\": \"Integrated Camera\",\n    \"device_type\": \"USB\",\n    \"details\": {\n      \"device_path\": \"/dev/video0\",\n      \"resolution\": \"1920x1080\"\n    }\n  },\n  {\n    \"device_id\": \"network-camera-192.168.1.100-80\",\n    \"device_name\": \"ONVIF Camera 192.168.1.100\",\n    \"device_type\": \"NETWORK\",\n    \"details\": {\n      \"ip\": \"192.168.1.100\",\n      \"port\": 80,\n      \"profiles\": []\n    }\n  }\n]\n```",
+        "description": "**Get all cameras (USB, network and GigE Vision) available to the system.**\n\n## Operation\nCombines results from USB, network and GigE Vision camera discovery to provide\na comprehensive list of all available camera devices.\n\n1. Discover all USB cameras using v4l2-ctl or device scanning\n2. Discover all network cameras using various protocols\n3. Discover all GigE Vision cameras using Aravis\n4. Combine and return the complete list\n\n## Parameters\n- **Path/Query parameters:** None\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 200 | JSON array of Camera objects (USB, network and GigE Vision cameras) |\n| 500 | `MessageResponse` - Unexpected error during discovery |\n\n## Conditions\n\n### \u2705 Success\n- At least one discovery method succeeds\n- Results can be combined and returned\n- Empty list is returned if no cameras are found\n\n### \u274c Failure\n- Both USB and network discovery fail\n- System error during discovery process\n\n## Example Response\n\n```json\n[\n  {\n    \"device_id\": \"usb-camera-0\",\n    \"device_name\": \"Integrated Camera\",\n    \"device_type\": \"USB\",\n    \"details\": {\n      \"device_path\": \"/dev/video0\",\n      \"resolution\": \"1920x1080\"\n    }\n  },\n  {\n    \"device_id\": \"network-camera-192.168.1.100-80\",\n    \"device_name\": \"ONVIF Camera 192.168.1.100\",\n    \"device_type\": \"NETWORK\",\n    \"details\": {\n      \"ip\": \"192.168.1.100\",\n      \"port\": 80,\n      \"profiles\": []\n    }\n  },\n  {\n    \"device_id\": \"gige-camera-basler-12345678\",\n    \"device_name\": \"Basler acA1920-25gc\",\n    \"device_type\": \"GIGE\",\n    \"details\": {\n      \"ip\": \"192.168.1.50\",\n      \"vendor\": \"Basler\",\n      \"model\": \"acA1920-25gc\",\n      \"serial\": \"12345678\",\n      \"current_capture\": {\n        \"pixel_format\": \"BayerRG8\",\n        \"width\": 1920,\n        \"height\": 1080,\n        \"fps\": 25.0\n      }\n    }\n  }\n]\n```",
         "operationId": "get_cameras",
         "responses": {
           "200": {
@@ -5185,6 +5185,9 @@
               },
               {
                 "$ref": "#/components/schemas/NetworkCameraDetails"
+              },
+              {
+                "$ref": "#/components/schemas/GigECameraDetails"
               }
             ],
             "title": "Details"
@@ -5198,7 +5201,7 @@
           "details"
         ],
         "title": "Camera",
-        "description": "**Camera device information supporting both USB and network cameras.**\n\nCommon attributes apply to all camera types. Type-specific details are stored\nin the details field which contains either USBCameraDetails or NetworkCameraDetails.\n\n## Attributes\n- `device_id` - Unique identifier for the camera\n- `device_name` - Human-readable camera name\n- `device_type` - Type of camera (USB or NETWORK)\n- `details` - Type-specific camera details (USBCameraDetails for USB, NetworkCameraDetails for NETWORK)\n\n### Example (USB Camera)\n```json\n{\n  \"device_id\": \"usb-camera-0\",\n  \"device_name\": \"Integrated Camera\",\n  \"device_type\": \"USB\",\n  \"details\": {\n    \"device_path\": \"/dev/video0\",\n    \"best_capture\": {\n      \"fourcc\": \"YUYV\",\n      \"width\": 1920,\n      \"height\": 1080,\n      \"fps\": 30\n    }\n  }\n}\n```\n\n### Example (Network Camera)\n```json\n{\n  \"device_id\": \"network-camera-192.168.1.100-80\",\n  \"device_name\": \"ONVIF Camera 192.168.1.100\",\n  \"device_type\": \"NETWORK\",\n  \"details\": {\n    \"ip\": \"192.168.1.100\",\n    \"port\": 80,\n    \"profiles\": [\n      {\n        \"name\": \"Profile_1\",\n        \"rtsp_url\": \"rtsp://192.168.1.100:554/stream1\",\n        \"resolution\": \"1920x1080\",\n        \"encoding\": \"H264\",\n        \"framerate\": 30,\n        \"bitrate\": 4096\n      }\n    ],\n    \"best_profile\": {\n      \"name\": \"Profile_1\",\n      \"rtsp_url\": \"rtsp://192.168.1.100:554/stream1\",\n      \"resolution\": \"1920x1080\",\n      \"encoding\": \"H264\",\n      \"framerate\": 30,\n      \"bitrate\": 4096\n    }\n  }\n}\n```"
+        "description": "**Camera device information supporting USB, network and GigE Vision cameras.**\n\nCommon attributes apply to all camera types. Type-specific details are stored\nin the details field which contains USBCameraDetails, NetworkCameraDetails\nor GigECameraDetails.\n\n## Attributes\n- `device_id` - Unique identifier for the camera\n- `device_name` - Human-readable camera name\n- `device_type` - Type of camera (USB, NETWORK or GIGE)\n- `details` - Type-specific camera details (USBCameraDetails for USB,\n  NetworkCameraDetails for NETWORK, GigECameraDetails for GIGE)\n\n### Example (USB Camera)\n```json\n{\n  \"device_id\": \"usb-camera-0\",\n  \"device_name\": \"Integrated Camera\",\n  \"device_type\": \"USB\",\n  \"details\": {\n    \"device_path\": \"/dev/video0\",\n    \"best_capture\": {\n      \"fourcc\": \"YUYV\",\n      \"width\": 1920,\n      \"height\": 1080,\n      \"fps\": 30\n    }\n  }\n}\n```\n\n### Example (Network Camera)\n```json\n{\n  \"device_id\": \"network-camera-192.168.1.100-80\",\n  \"device_name\": \"ONVIF Camera 192.168.1.100\",\n  \"device_type\": \"NETWORK\",\n  \"details\": {\n    \"ip\": \"192.168.1.100\",\n    \"port\": 80,\n    \"profiles\": [\n      {\n        \"name\": \"Profile_1\",\n        \"rtsp_url\": \"rtsp://192.168.1.100:554/stream1\",\n        \"resolution\": \"1920x1080\",\n        \"encoding\": \"H264\",\n        \"framerate\": 30,\n        \"bitrate\": 4096\n      }\n    ],\n    \"best_profile\": {\n      \"name\": \"Profile_1\",\n      \"rtsp_url\": \"rtsp://192.168.1.100:554/stream1\",\n      \"resolution\": \"1920x1080\",\n      \"encoding\": \"H264\",\n      \"framerate\": 30,\n      \"bitrate\": 4096\n    }\n  }\n}\n```\n\n### Example (GigE Vision Camera)\n```json\n{\n  \"device_id\": \"gige-camera-basler-12345678\",\n  \"device_name\": \"Basler acA1920-25gc\",\n  \"device_type\": \"GIGE\",\n  \"details\": {\n    \"ip\": \"192.168.1.50\",\n    \"vendor\": \"Basler\",\n    \"model\": \"acA1920-25gc\",\n    \"serial\": \"12345678\",\n    \"current_capture\": {\n      \"pixel_format\": \"BayerRG8\",\n      \"width\": 1920,\n      \"height\": 1080,\n      \"fps\": 25.0\n    }\n  }\n}\n```"
       },
       "CameraAuthResponse": {
         "properties": {
@@ -5306,10 +5309,11 @@
         "type": "string",
         "enum": [
           "USB",
-          "NETWORK"
+          "NETWORK",
+          "GIGE"
         ],
         "title": "CameraType",
-        "description": "**Type of camera device.**\n\n## Values\n- `USB` - USB camera connected directly to the system\n- `NETWORK` - Network camera accessible via IP protocols\n\n### Example\n```json\n\"USB\"\n```"
+        "description": "**Type of camera device.**\n\n## Values\n- `USB` - USB camera connected directly to the system\n- `NETWORK` - Network camera accessible via IP protocols\n- `GIGE` - GigE Vision machine vision camera\n\n### Example\n```json\n\"USB\"\n```"
       },
       "DensityJobStatus": {
         "properties": {
@@ -5627,6 +5631,114 @@
         "type": "object",
         "title": "ExecutionConfig",
         "description": "**Configuration for pipeline execution behavior.**\n\nThis configuration controls output generation, runtime limits,\nand metadata publishing for test pipelines.\n\n## Attributes\n- `output_mode` - Mode for pipeline output generation:\n  - `disabled` - No output (fakesink remains, default)\n  - `file` - Save video to file (only allowed with max_runtime=0)\n  - `live_stream` - Stream output live to media server\n- `max_runtime` - Maximum runtime in seconds for the pipeline:\n  - 0: Run until natural completion (EOS), no time limit (default)\n  - >0: Stop pipeline after this duration, with looping if EOS comes early (only allowed with output_mode=disabled or output_mode=live_stream)\n  - <0: Not allowed (will be rejected)\n- `metadata_mode` - Mode for metadata publishing via `gvametapublish` elements present in the pipeline:\n  - `disabled` - No metadata file paths are injected; gvametapublish elements remain unchanged (default)\n  - `file` - gvametapublish elements write JSON-Lines metadata, available via SSE endpoints\n\n### Example (disabled output, no runtime limit)\n```json\n{\n  \"output_mode\": \"disabled\",\n  \"max_runtime\": 0\n}\n```\n\n### Example (save to file, run until EOS)\n```json\n{\n  \"output_mode\": \"file\",\n  \"max_runtime\": 0\n}\n```\n\n### Example (live streaming with 60 second limit)\n```json\n{\n  \"output_mode\": \"live_stream\",\n  \"max_runtime\": 60\n}\n```\n\n### Example (metadata publishing to file)\n```json\n{\n  \"output_mode\": \"disabled\",\n  \"max_runtime\": 0,\n  \"metadata_mode\": \"file\"\n}\n```"
+      },
+      "GigECameraDetails": {
+        "properties": {
+          "ip": {
+            "type": "string",
+            "title": "Ip"
+          },
+          "vendor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "serial": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Serial"
+          },
+          "current_capture": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GigECapture"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "ip"
+        ],
+        "title": "GigECameraDetails",
+        "description": "**GigE Vision camera details.**\n\nIdentity fields may be missing when the camera could not be opened during\ndiscovery (e.g. it is streaming to another application).\n\n## Attributes\n- `ip` - IP address of the camera\n- `vendor` - Camera vendor name (optional)\n- `model` - Camera model name (optional)\n- `serial` - Camera serial number (optional)\n- `current_capture` - Capture configuration currently set on the camera (optional)"
+      },
+      "GigECapture": {
+        "properties": {
+          "pixel_format": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pixel Format"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "fps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fps"
+          }
+        },
+        "type": "object",
+        "title": "GigECapture",
+        "description": "**Capture configuration currently set on a GigE Vision camera.**\n\n## Attributes\n- `pixel_format` - GenICam pixel format (e.g., \"Mono8\", \"BayerRG8\")\n- `width` - Frame width in pixels\n- `height` - Frame height in pixels\n- `fps` - Acquisition frame rate"
       },
       "GraphInline": {
         "properties": {

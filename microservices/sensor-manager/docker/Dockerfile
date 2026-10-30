@@ -27,7 +27,7 @@ ARG UID=1000
 ARG GID=1000
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends v4l-utils && \
+    apt-get install -y --no-install-recommends v4l-utils aravis-tools-cli && \
     rm -rf /var/lib/apt/lists/*
 
 RUN groupadd -g ${GID} appuser && \
