@@ -10,6 +10,12 @@ variants:
     pipeline_description: >-
       filesrc location=/videos/input/people.mp4 !
       decodebin3 !
+      tee name=t !
+      queue !
+      videoconvert !
+      fakesink name=default_output_sink sync=false async=false
+      t. !
+      queue leaky=downstream max-size-buffers=1 !
       videoconvert !
       video/x-raw,format=RGB !
       gvagenai
@@ -28,6 +34,12 @@ variants:
       filesrc location=/videos/input/people.mp4 !
       parsebin !
       avdec_h264 !
+      tee name=t !
+      queue !
+      videoconvert !
+      fakesink name=default_output_sink sync=false async=false
+      t. !
+      queue leaky=downstream max-size-buffers=1 !
       videoconvert !
       video/x-raw,format=RGB !
       gvagenai

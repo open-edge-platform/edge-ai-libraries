@@ -33,6 +33,9 @@ _EXTERNAL_MODEL_PATH_TEMPLATES: dict[str, str] = {
     "Video Captioning VLM": (
         "shared/models/output/openvino_models/{family}/int4/google/gemma-3-4b-it"
     ),
+    "Alerting VLM": (
+        "shared/models/output/openvino_models/{family}/int4/google/gemma-3-4b-it"
+    ),
 }
 
 
