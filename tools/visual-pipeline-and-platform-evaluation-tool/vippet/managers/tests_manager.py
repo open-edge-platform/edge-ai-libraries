@@ -25,7 +25,7 @@ from internal_types import (
     InternalPipelineStreamSpec,
     InternalTestJobState,
 )
-from dlsps2_runner import Dlsps2PipelineRunner
+from dlsps2_runner import Dlsps2PipelineRunner, dlsps2_latency_configured
 from pipeline_runner import LatencyTracerSample, PipelineEvent, PipelineRunner
 from benchmark import Benchmark
 from managers.execution_coordinator import (
@@ -43,9 +43,23 @@ logger = logging.getLogger("tests_manager")
 # Selects the pipeline execution backend for performance and density
 # tests: "local" (default) spawns gst_runner.py as before; "dlsps2" runs
 # every stream as its own DLSPS 2.0 instance via Dlsps2PipelineRunner.
-# Runs with latency metrics always use the local runner: DLSPS 2.0 has no
-# latency tracer.
+# Runs with latency metrics use the local runner unless DLSPS 2.0 is set up
+# to export latency (see _use_dlsps2).
 _EXECUTION_BACKEND = os.environ.get("VIPPET_EXECUTION_BACKEND", "local").strip().lower()
+
+
+def _use_dlsps2(enable_latency_metrics: bool) -> bool:
+    """Whether a performance or density test runs on DLSPS 2.0.
+
+    Only with ``VIPPET_EXECUTION_BACKEND=dlsps2``. A test with latency metrics
+    runs there only when DLSPS 2.0 is set up to export latency (see
+    ``dlsps2_latency_configured``); otherwise it keeps the local runner, which
+    always measures latency.
+    """
+    if _EXECUTION_BACKEND != "dlsps2":
+        return False
+    return not enable_latency_metrics or dlsps2_latency_configured()
+
 
 METRICS_MANAGER_URL: str = os.environ.get(
     "METRICS_MANAGER_URL", "http://metrics-manager:9090"
@@ -755,18 +769,18 @@ class TestsManager:
             # from execution_config.
             #
             # Dlsps2PipelineRunner is only used when explicitly enabled via
-            # VIPPET_EXECUTION_BACKEND=dlsps2 and latency metrics are off:
-            # DLSPS 2.0 has no latency_tracer support. Each stream runs as
-            # its own DLSPS 2.0 instance.
-            use_dlsps2 = (
-                _EXECUTION_BACKEND == "dlsps2"
-                and not internal_spec.execution_config.enable_latency_metrics
+            # VIPPET_EXECUTION_BACKEND=dlsps2 (see _use_dlsps2). Each stream
+            # runs as its own DLSPS 2.0 instance; latency samples come from the
+            # DLSPS OpenTelemetry export to metrics-manager.
+            use_dlsps2 = _use_dlsps2(
+                internal_spec.execution_config.enable_latency_metrics
             )
             runner: PipelineRunner | Dlsps2PipelineRunner
             if use_dlsps2:
                 runner = Dlsps2PipelineRunner(
                     mode="normal",
                     max_runtime=internal_spec.execution_config.max_runtime,
+                    enable_latency_metrics=internal_spec.execution_config.enable_latency_metrics,
                     job_id=job_id,
                 )
             else:
@@ -793,6 +807,7 @@ class TestsManager:
                 runner.run(
                     pipeline_command=pipeline_command,
                     total_streams=total_streams,
+                    allowed_stream_ids=set(pipeline_cmd.all_stream_ids),
                     stream_commands=pipeline_cmd.stream_commands,
                 )
                 if isinstance(runner, Dlsps2PipelineRunner)
@@ -1000,8 +1015,7 @@ class TestsManager:
                 max_runtime=internal_spec.execution_config.max_runtime,
                 enable_latency_metrics=enable_latency_metrics,
                 job_id=job_id,
-                use_dlsps2=_EXECUTION_BACKEND == "dlsps2"
-                and not enable_latency_metrics,
+                use_dlsps2=_use_dlsps2(enable_latency_metrics),
             )
 
             # Store benchmark runner for this job so that a future extension could cancel it.

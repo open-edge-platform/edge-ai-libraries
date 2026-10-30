@@ -125,11 +125,15 @@ class Benchmark:
         # `job_id` is forwarded so FPS metrics pushed during each density
         # iteration are tagged with the owning job's id in metrics-manager.
         # `use_dlsps2` runs every stream as its own DLSPS 2.0 instance instead,
-        # which reports per-stream FPS; it has no latency tracer.
+        # which reports per-stream FPS; its latency samples come from the DLSPS
+        # OpenTelemetry export to metrics-manager.
         self.runner: PipelineRunner | Dlsps2PipelineRunner
         if use_dlsps2:
             self.runner = Dlsps2PipelineRunner(
-                mode="normal", max_runtime=max_runtime, job_id=job_id
+                mode="normal",
+                max_runtime=max_runtime,
+                enable_latency_metrics=enable_latency_metrics,
+                job_id=job_id,
             )
         else:
             self.runner = PipelineRunner(

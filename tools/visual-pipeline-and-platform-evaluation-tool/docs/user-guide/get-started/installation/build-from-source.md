@@ -120,8 +120,9 @@ The server then runs:
 
 Current limitations:
 
-- Tests with latency metrics still run inside `vippet`.
-- The metrics of VLM pipelines (`gvagenai`) are not collected.
+- Latency and VLM (`gvagenai`) metrics are collected only with the server set up as
+  described below. Otherwise VLM metrics are missing from the results, and tests with
+  latency metrics run in `vippet`.
 - Live pipeline events (proximity triggers, VLM answers) are not shown. The custom
   elements in `vippet/gst_plugins/` are mounted into the server, so pipelines that
   use them run.
@@ -138,6 +139,34 @@ and stop times, labeled with the server's `pipeline_id`) to `metrics-manager`,
 add `DLSPS2_OTEL=true`; `DLSPS2_OTEL_INTERVAL_MS` sets the export interval
 (default `10000`). This needs a server build with OpenTelemetry support. The UI
 does not use these metrics: its live FPS chart still comes from `vippet`.
+
+Latency and VLM metrics of a run on DLSPS 2.0 travel the same way. DL Streamer
+posts them on the pipeline bus, the server exports them, and `vippet` reads the
+series of its own instances from `metrics-manager` and republishes them under the
+job. Each republished sample aggregates one export period: the latency windows of
+that period, or the mean over its `gvagenai` requests.
+
+VLM metrics need only `DLSPS2_OTEL=true` and `metrics=true` on `gvagenai`: `vippet`
+adds `post-metrics=true` to such an element when the server's `gvagenai` has that
+property, as reported by the server's `GET /elements/gvagenai`. Otherwise the pipeline
+runs unchanged, without VLM metrics.
+Tests with latency metrics run on the server only with `DLSPS2_LATENCY=true`, which
+also needs the tracer, enabled for the whole server:
+
+```bash
+export DLSPS2_OTEL=true
+export DLSPS2_LATENCY=true
+export DLSPS2_GST_TRACERS='latency_tracer(flags=pipeline,interval=1000,post-metrics=true)'
+make run DLSPS2=1
+```
+
+Without `DLSPS2_LATENCY=true`, or if `DLSPS2_OTEL` or `DLSPS2_GST_TRACERS` is missing,
+these tests keep running in `vippet`. Both metrics need a DL Streamer whose
+`latency_tracer` and `gvagenai` support `post-metrics`. With an older one no samples
+arrive, and `vippet` logs a warning.
+
+After a run, `vippet` waits for the server's final export, for at most
+`DLSPS2_OTEL_INTERVAL_MS` plus two seconds.
 
 The server is not part of `compose.yml`, so `docker compose logs` does not show it. Use
 `docker logs -f dlstreamer-pipeline-server` to follow its log, or `make shell-dlsps` to

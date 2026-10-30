@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import httpx
 
+import dlsps2_runner
 from dlsps2_runner import Dlsps2PipelineRunner
 
 PIPELINE = "filesrc location=/tmp/a.mp4 ! decodebin3 ! fakesink"
@@ -78,8 +79,14 @@ class _FakeStreamSet:
         delete_codes: dict[str, list[int]] | None = None,
         instance_states: dict[str, list[str]] | None = None,
         validations: list | None = None,
+        metrics: list[dict] | httpx.Response | None = None,
+        gvagenai: str | httpx.Response | None = None,
     ):
         self.polls = list(polls)
+        # GET /elements/gvagenai: gst-inspect output, or a fixed response (404 if None).
+        self.gvagenai = gvagenai
+        # metrics-manager GET /api/v1/metrics: stored metrics, or a fixed response.
+        self.metrics = metrics if metrics is not None else []
         self.post_responses = list(post_responses or [])
         self.delete_codes = delete_codes or {}
         self.instance_states = instance_states or {}
@@ -97,6 +104,26 @@ class _FakeStreamSet:
     def handler(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
         path = request.url.path
+        if path == "/api/v1/metrics":
+            if isinstance(self.metrics, httpx.Response):
+                return self.metrics
+            name = request.url.params.get("name")
+            found = [m for m in self.metrics if m["name"] == name]
+            return httpx.Response(200, json={"metrics": found, "count": len(found)})
+        if path == "/elements/gvagenai":
+            if isinstance(self.gvagenai, httpx.Response):
+                return self.gvagenai
+            if self.gvagenai is None:
+                return httpx.Response(404, json={"detail": "not found"})
+            return httpx.Response(
+                200,
+                json={
+                    "name": "gvagenai",
+                    "plugin": "genai",
+                    "description": "GenAI",
+                    "details": self.gvagenai,
+                },
+            )
         if path == "/validate":
             self.validated += 1
             return httpx.Response(200, json={"validation_id": f"val-{self.validated}"})
@@ -149,6 +176,9 @@ class _FakeStreamSet:
     @property
     def pipeline_requests(self) -> list[httpx.Request]:
         return [r for r in self.requests if r.url.path.startswith("/pipelines")]
+
+    def metrics_reads(self) -> list[httpx.Request]:
+        return [r for r in self.requests if r.url.path == "/api/v1/metrics"]
 
     def calls(self, method: str) -> list[httpx.Request]:
         """Requests to ``/pipelines`` only; ``/validate`` ones are left out."""
@@ -207,7 +237,10 @@ class Dlsps2RunnerTestBase(unittest.TestCase):
         total_streams: int = 1,
         stream_commands: dict[str, str] | None = None,
     ):
-        with patch.object(runner, "_client", side_effect=fake.client):
+        with (
+            patch.object(runner, "_client", side_effect=fake.client),
+            patch.object(runner, "_metrics_client", side_effect=fake.client),
+        ):
             return runner.run(
                 PIPELINE,
                 total_streams=total_streams,
@@ -216,9 +249,12 @@ class Dlsps2RunnerTestBase(unittest.TestCase):
 
 
 class TestDlsps2RunnerInit(unittest.TestCase):
-    def test_latency_metrics_not_supported(self):
-        with self.assertRaises(NotImplementedError):
-            Dlsps2PipelineRunner(enable_latency_metrics=True)
+    def test_latency_metrics_start_with_an_empty_map(self):
+        self.assertEqual(
+            Dlsps2PipelineRunner(enable_latency_metrics=True).latency_tracer_metrics,
+            {},
+        )
+        self.assertIsNone(Dlsps2PipelineRunner().latency_tracer_metrics)
 
     def test_hard_timeout_defaults_to_max_runtime_plus_60(self):
         runner = Dlsps2PipelineRunner(max_runtime=10)
@@ -761,6 +797,620 @@ class TestDlsps2RunnerFpsPush(unittest.TestCase):
             Dlsps2PipelineRunner()._push_fps_metric(1.0)
 
         self.assertIn("Failed to push fps metric", logs.output[0])
+
+
+def _mm_point(name: str, pipeline_id: str, ts: int, value: float, **tags) -> dict:
+    """A metric as metrics-manager stores a DLSPS OTLP data point."""
+    histogram = name.startswith("genai_")
+    if histogram:
+        tags.setdefault("temporality", "delta")
+    return {
+        "name": name,
+        "fields": (
+            {"count": 2, "sum": 2 * value, "avg": value, "min": value, "max": value}
+            if histogram
+            else {"value": value}
+        ),
+        "tags": {"service.name": "dlsps2", "pipeline_id": pipeline_id, **tags},
+        "timestamp": ts,
+    }
+
+
+def _latency_export(pipeline_id, ts, source, sink, avg, mn, mx, frames, window):
+    branch = {"source": source, "sink": sink}
+    return [
+        _mm_point("pipeline_latency_avg", pipeline_id, ts, avg, **branch),
+        _mm_point("pipeline_latency_min", pipeline_id, ts, mn, **branch),
+        _mm_point("pipeline_latency_max", pipeline_id, ts, mx, **branch),
+        _mm_point("pipeline_latency_frames", pipeline_id, ts, frames, **branch),
+        _mm_point("pipeline_latency_window", pipeline_id, ts, window, **branch),
+    ]
+
+
+def _genai_export(pipeline_id, ts, ttft, tpot, duration, element="gvagenai_a"):
+    return [
+        _mm_point(name, pipeline_id, ts, value, element=element)
+        for name, value in (
+            ("genai_ttft", ttft),
+            ("genai_tpot", tpot),
+            ("genai_generate_duration", duration),
+        )
+    ]
+
+
+GVAGENAI_WITH_POST_METRICS = """Element Properties:
+
+  metrics             : Include performance metrics in the JSON output
+                        flags: readable, writable
+                        Boolean. Default: false
+  post-metrics        : Post a "dlstreamer/genai-request" element message
+                        flags: readable, writable
+                        Boolean. Default: false
+"""
+GVAGENAI_WITHOUT_POST_METRICS = """Element Properties:
+
+  metrics             : Include performance metrics in the JSON output
+                        flags: readable, writable
+                        Boolean. Default: false
+"""
+
+
+def _finished(*pipeline_ids: str, ts: int = 500) -> list[dict]:
+    return [_mm_point("pipeline_running", iid, ts, 0.0) for iid in pipeline_ids]
+
+
+class TestDlsps2RunnerMetricsManager(Dlsps2RunnerTestBase):
+    """Latency and VLM samples come from DLSPS's OTel export via metrics-manager."""
+
+    STREAMS = {"src_a__sink_a": "pipeline a", "src_b__sink_b": "pipeline b"}
+    POLLS = [[_running(30.0), _running(30.0)]]
+
+    def _runner(self, **kwargs) -> Dlsps2PipelineRunner:
+        runner = Dlsps2PipelineRunner(
+            mode="normal",
+            base_url="http://dlsps:8080",
+            job_id="job-1",
+            max_runtime=4,
+            **kwargs,
+        )
+        patch.object(runner, "_push_fps_metric").start()
+        self.batches: list[tuple[list[dict], str]] = []
+        patch.object(
+            runner,
+            "_post_batch",
+            side_effect=lambda metrics, description: self.batches.append(
+                (metrics, description)
+            ),
+        ).start()
+        self.addCleanup(patch.stopall)
+        return runner
+
+    def _run_with(self, runner, fake, streams=None):
+        with (
+            patch.object(runner, "_client", side_effect=fake.client),
+            patch.object(runner, "_metrics_client", side_effect=fake.client),
+        ):
+            return runner.run(
+                PIPELINE,
+                total_streams=2,
+                allowed_stream_ids=set(self.STREAMS),
+                stream_commands=streams or self.STREAMS,
+            )
+
+    def _pushed(self, description: str) -> list[dict]:
+        return [m for metrics, d in self.batches if d == description for m in metrics]
+
+    def test_latency_is_republished_per_stream_with_job_tags(self):
+        metrics = (
+            _latency_export(
+                "inst-1", 100, "src_a", "sink_a", 10.0, 5.0, 20.0, 30, 1000.0
+            )
+            + _latency_export(
+                "inst-1", 200, "src_a", "sink_a", 12.0, 6.0, 30.0, 25, 1000.0
+            )
+            + _latency_export(
+                "inst-2", 100, "src_b", "sink_b", 50.0, 40.0, 60.0, 10, 2000.0
+            )
+            # Another job's instance, an internal bin sink, an incomplete export.
+            + _latency_export("other", 100, "src_a", "sink_a", 1.0, 1.0, 1.0, 1, 1.0)
+            + _latency_export("inst-1", 100, "src_a", "sink", 1.0, 1.0, 1.0, 1, 1.0)
+            + [
+                _mm_point(
+                    "pipeline_latency_avg",
+                    "inst-2",
+                    300,
+                    99.0,
+                    source="src_b",
+                    sink="sink_b",
+                )
+            ]
+            + _finished("inst-1", "inst-2")
+        )
+        fake = _FakeStreamSet(self.POLLS, metrics=metrics)
+
+        result = self._run_with(self._runner(enable_latency_metrics=True), fake)
+
+        latency = result.latency_tracer_metrics
+        assert latency is not None
+        self.assertEqual(set(latency), set(self.STREAMS))
+        self.assertEqual(latency["src_a__sink_a"].avg_ms, 12.0)
+        self.assertEqual(latency["src_a__sink_a"].max_ms, 30.0)
+        self.assertEqual(latency["src_a__sink_a"].latency_ms, 1000.0 / 25)
+        self.assertEqual(latency["src_b__sink_b"].interval_ms, 2000.0)
+        self.assertEqual(latency["src_b__sink_b"].latency_ms, 200.0)
+
+        pushed = self._pushed("latency")
+        # Every export period exactly once, though metrics-manager was read repeatedly.
+        self.assertEqual(len(pushed), 3)
+        self.assertGreater(len(fake.metrics_reads()), 5)
+        self.assertEqual(
+            pushed[0],
+            {
+                "name": "pipeline_latency",
+                "fields": {
+                    "avg_ms": 10.0,
+                    "min_ms": 5.0,
+                    "max_ms": 20.0,
+                    "latency_ms": 1000.0 / 30,
+                },
+                "tags": {"job_id": "job-1", "stream_id": "src_a__sink_a"},
+            },
+        )
+
+    def test_only_dlsps_series_names_are_read(self):
+        """ViPPET's own republished series are never read back as DLSPS data."""
+        fake = _FakeStreamSet(
+            self.POLLS,
+            metrics=[
+                {
+                    "name": "pipeline_latency",
+                    "fields": {"avg_ms": 1.0, "min_ms": 1.0, "max_ms": 1.0},
+                    "tags": {"job_id": "job-1", "stream_id": "src_a__sink_a"},
+                    "timestamp": 100,
+                }
+            ]
+            + _finished("inst-1", "inst-2"),
+        )
+
+        with self.assertLogs("dlsps2_runner", level="WARNING"):
+            result = self._run_with(self._runner(enable_latency_metrics=True), fake)
+
+        self.assertEqual(result.latency_tracer_metrics, {})
+        names = {r.url.params.get("name") for r in fake.metrics_reads()}
+        self.assertEqual(
+            names,
+            {
+                "pipeline_running",
+                "pipeline_latency_avg",
+                "pipeline_latency_min",
+                "pipeline_latency_max",
+                "pipeline_latency_frames",
+                "pipeline_latency_window",
+            },
+        )
+
+    def test_export_split_over_two_seconds_is_joined(self):
+        export = _latency_export(
+            "inst-1", 100, "src_a", "sink_a", 10.0, 5.0, 20.0, 30, 1000.0
+        )
+        for point in export[3:]:
+            point["timestamp"] = 101
+        fake = _FakeStreamSet(
+            self.POLLS, metrics=export + _finished("inst-1", "inst-2")
+        )
+
+        result = self._run_with(self._runner(enable_latency_metrics=True), fake)
+
+        assert result.latency_tracer_metrics is not None
+        self.assertEqual(result.latency_tracer_metrics["src_a__sink_a"].avg_ms, 10.0)
+        self.assertEqual(len(self._pushed("latency")), 1)
+
+    def test_two_exports_within_one_second_are_both_republished(self):
+        fake = _FakeStreamSet(self.POLLS)
+        fake.metrics = _finished("inst-1", "inst-2")
+        first = _latency_export(
+            "inst-1", 100, "src_a", "sink_a", 10.0, 5.0, 20.0, 30, 1000.0
+        )
+        second = _latency_export(
+            "inst-1", 100, "src_a", "sink_a", 11.0, 5.0, 20.0, 3, 100.0
+        )
+        runner = self._runner(enable_latency_metrics=True)
+        instances = {"src_a__sink_a": "inst-1"}
+
+        with fake.client() as client:
+            fake.metrics = first
+            runner._poll_metrics_manager(client, instances, None, False)
+            fake.metrics = first + second
+            runner._poll_metrics_manager(client, instances, None, False)
+            runner._poll_metrics_manager(client, instances, None, False)
+
+        self.assertEqual(
+            [p["fields"]["avg_ms"] for p in self._pushed("latency")], [10.0, 11.0]
+        )
+
+    def test_vlm_requests_are_republished_with_the_element_as_stream(self):
+        streams = {"src_a__sink_a": "a ! gvagenai name=gvagenai_a metrics=true ! b"}
+        cumulative = _genai_export("inst-1", 150, 1.0, 1.0, 1.0)
+        for point in cumulative:
+            point["tags"]["temporality"] = "cumulative"
+        idle = _mm_point("genai_ttft", "inst-1", 160, 0.0, element="gvagenai_a")
+        idle["fields"] = {"count": 0}
+        metrics = (
+            _genai_export("inst-1", 100, 900.0, 40.0, 1300.0)
+            + cumulative
+            + [idle]
+            + _finished("inst-1")
+        )
+        fake = _FakeStreamSet(
+            [[_running(1.0)]], metrics=metrics, gvagenai=GVAGENAI_WITH_POST_METRICS
+        )
+
+        result = self._run_with(self._runner(), fake, streams)
+
+        self.assertIsNone(result.latency_tracer_metrics)
+        self.assertEqual(
+            self._pushed("vlm"),
+            [
+                {
+                    "name": "vlm_metrics",
+                    "fields": {
+                        "ttft_ms": 900.0,
+                        "tpot_ms": 40.0,
+                        "generate_duration_ms": 1300.0,
+                    },
+                    "tags": {"job_id": "job-1", "stream_id": "gvagenai_a"},
+                }
+            ],
+        )
+
+    def test_metrics_manager_is_not_read_without_latency_or_vlm(self):
+        fake = _FakeStreamSet(self.POLLS)
+
+        self._run_with(self._runner(), fake)
+
+        self.assertEqual(fake.metrics_reads(), [])
+
+    def test_missing_samples_are_warned_about(self):
+        fake = _FakeStreamSet(self.POLLS, metrics=_finished("inst-1", "inst-2"))
+
+        with self.assertLogs("dlsps2_runner", level="WARNING") as logs:
+            result = self._run_with(self._runner(enable_latency_metrics=True), fake)
+
+        self.assertEqual(result.latency_tracer_metrics, {})
+        self.assertIn("no DLSPS latency samples", logs.output[-1])
+        self.assertIn("post-metrics=true", logs.output[-1])
+
+    def test_no_missing_samples_warning_when_cancelled(self):
+        runner = self._runner(enable_latency_metrics=True)
+
+        def _cancel():
+            runner.cancel()
+            return [_running(30.0), _running(30.0)]
+
+        fake = _FakeStreamSet([_cancel], metrics=_finished("inst-1", "inst-2"))
+
+        with self.assertNoLogs("dlsps2_runner", level="WARNING"):
+            result = self._run_with(runner, fake)
+
+        self.assertTrue(result.cancelled)
+        self.assertEqual(result.latency_tracer_metrics, {})
+
+    def test_unreachable_metrics_manager_does_not_fail_the_run(self):
+        fake = _FakeStreamSet(self.POLLS, metrics=httpx.Response(503))
+
+        with self.assertLogs("dlsps2_runner", level="WARNING") as logs:
+            result = self._run_with(self._runner(enable_latency_metrics=True), fake)
+
+        self.assertEqual(result.total_fps, 60.0)
+        failures = [line for line in logs.output if "Failed to read DLSPS" in line]
+        self.assertEqual(len(failures), 1)
+
+    def test_metrics_manager_uses_its_own_short_timeout_client(self):
+        runner = Dlsps2PipelineRunner()
+
+        with runner._metrics_client() as client:
+            self.assertEqual(
+                client.timeout.read, dlsps2_runner.DLSPS2_METRICS_HTTP_TIMEOUT_S
+            )
+        self.assertLess(
+            dlsps2_runner.DLSPS2_METRICS_HTTP_TIMEOUT_S,
+            dlsps2_runner.DLSPS2_HTTP_TIMEOUT_S,
+        )
+
+    def test_metrics_reads_go_through_the_metrics_client(self):
+        fake = _FakeStreamSet(self.POLLS, metrics=_finished("inst-1", "inst-2"))
+        dlsps_only = _FakeStreamSet(self.POLLS)
+        runner = self._runner(enable_latency_metrics=True)
+
+        with (
+            patch.object(runner, "_client", side_effect=dlsps_only.client),
+            patch.object(runner, "_metrics_client", side_effect=fake.client),
+            self.assertLogs("dlsps2_runner", level="WARNING"),
+        ):
+            runner.run(PIPELINE, total_streams=2, stream_commands=self.STREAMS)
+
+        self.assertEqual(dlsps_only.metrics_reads(), [])
+        self.assertTrue(fake.metrics_reads())
+
+    def test_state_of_an_earlier_run_is_dropped(self):
+        runner = self._runner(enable_latency_metrics=True)
+        first = _FakeStreamSet(
+            self.POLLS,
+            metrics=_latency_export(
+                "inst-1", 100, "src_a", "sink_a", 10.0, 5.0, 20.0, 30, 1000.0
+            )
+            + _finished("inst-1", "inst-2"),
+        )
+        self._run_with(runner, first)
+        self.assertEqual(set(runner.latency_tracer_metrics or {}), {"src_a__sink_a"})
+
+        second = _FakeStreamSet(self.POLLS, metrics=_finished("inst-1", "inst-2"))
+        with self.assertLogs("dlsps2_runner", level="WARNING"):
+            result = self._run_with(runner, second)
+
+        self.assertEqual(result.latency_tracer_metrics, {})
+
+
+class TestDlsps2RunnerFinalExport(Dlsps2RunnerTestBase):
+    """After stopping, metrics-manager is read until each instance's final export arrives."""
+
+    STREAMS = {"src_a__sink_a": "pipeline a"}
+
+    def _runner(self, max_runtime: float = 4) -> Dlsps2PipelineRunner:
+        runner = Dlsps2PipelineRunner(
+            mode="normal",
+            base_url="http://dlsps:8080",
+            max_runtime=max_runtime,
+            enable_latency_metrics=True,
+        )
+        patch.object(runner, "_push_fps_metric").start()
+        patch.object(runner, "_post_batch").start()
+        self.addCleanup(patch.stopall)
+        return runner
+
+    def _run_with(self, runner, fake):
+        self.stopped_at: float | None = None
+        original = runner._stop_all
+
+        def _stop_all(client, ids):
+            self.stopped_at = self.clock.now
+            original(client, ids)
+
+        with (
+            patch.object(runner, "_client", side_effect=fake.client),
+            patch.object(runner, "_metrics_client", side_effect=fake.client),
+            patch.object(runner, "_stop_all", side_effect=_stop_all),
+        ):
+            return runner.run(PIPELINE, total_streams=1, stream_commands=self.STREAMS)
+
+    def _final_reads(self, fake) -> int:
+        return sum(
+            1
+            for r in fake.metrics_reads()
+            if r.url.params.get("name") == "pipeline_running"
+        )
+
+    def test_final_export_arriving_late_is_still_read(self):
+        """The flush lands after DELETE returned; the runner waits for it."""
+        running = [_mm_point("pipeline_running", "inst-1", 100, 1.0)]
+        fake = _FakeStreamSet([[_running(30.0)]], metrics=running)
+        late = _latency_export(
+            "inst-1", 200, "src_a", "sink_a", 10.0, 5.0, 20.0, 30, 1000.0
+        ) + _finished("inst-1", ts=200)
+        reads_after_stop = 0
+        handler = fake.handler
+
+        def _handler(request):
+            nonlocal reads_after_stop
+            if (
+                self.stopped_at is not None
+                and request.url.params.get("name") == "pipeline_running"
+            ):
+                reads_after_stop += 1
+                if reads_after_stop == 3:
+                    fake.metrics = running + late
+            return handler(request)
+
+        fake.handler = _handler  # type: ignore[method-assign]
+
+        result = self._run_with(self._runner(), fake)
+
+        assert result.latency_tracer_metrics is not None
+        self.assertEqual(result.latency_tracer_metrics["src_a__sink_a"].avg_ms, 10.0)
+        self.assertEqual(reads_after_stop, 3)
+
+    def test_wait_is_bounded_by_the_export_interval(self):
+        running = [_mm_point("pipeline_running", "inst-1", 100, 1.0)]
+        fake = _FakeStreamSet([[_running(30.0)]], metrics=running)
+
+        with self.assertLogs("dlsps2_runner", level="WARNING"):
+            self._run_with(self._runner(), fake)
+
+        assert self.stopped_at is not None
+        waited = self.clock.now - self.stopped_at
+        limit = dlsps2_runner.DLSPS2_OTEL_INTERVAL_MS / 1000 + 2.0
+        self.assertLessEqual(waited, limit + 1.0)
+        self.assertGreaterEqual(waited, limit - 1.0)
+
+    def test_no_wait_once_the_final_export_is_there(self):
+        fake = _FakeStreamSet([[_running(30.0)]], metrics=_finished("inst-1"))
+
+        with self.assertLogs("dlsps2_runner", level="WARNING"):
+            self._run_with(self._runner(), fake)
+
+        assert self.stopped_at is not None
+        self.assertLess(self.clock.now - self.stopped_at, 1.0)
+
+    def test_no_wait_without_any_export_in_a_long_run(self):
+        """A run longer than the wait that saw no export: telemetry is off."""
+        fake = _FakeStreamSet([[_running(30.0)]])
+
+        with self.assertLogs("dlsps2_runner", level="WARNING"):
+            self._run_with(self._runner(max_runtime=30), fake)
+
+        assert self.stopped_at is not None
+        self.assertLess(self.clock.now - self.stopped_at, 1.0)
+
+    def test_no_wait_when_cancelled(self):
+        runner = self._runner()
+
+        def _cancel():
+            runner.cancel()
+            return [_running(30.0)]
+
+        fake = _FakeStreamSet([_cancel])
+
+        self._run_with(runner, fake)
+
+        assert self.stopped_at is not None
+        self.assertLess(self.clock.now - self.stopped_at, 1.0)
+        self.assertEqual(self._final_reads(fake), 1)
+
+
+class TestDlsps2LatencyConfigured(unittest.TestCase):
+    TRACERS = "latency_tracer(flags=pipeline,interval=1000,post-metrics=true)"
+
+    def test_off_by_default(self):
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertFalse(dlsps2_runner.dlsps2_latency_configured())
+
+    def test_on_with_complete_setup(self):
+        env = {
+            "DLSPS2_LATENCY": "true",
+            "DLSPS2_OTEL": "true",
+            "DLSPS2_GST_TRACERS": self.TRACERS,
+        }
+        with patch.dict(os.environ, env, clear=True):
+            self.assertTrue(dlsps2_runner.dlsps2_latency_configured())
+
+    def test_incomplete_setup_is_warned_about_and_off(self):
+        for env in (
+            {"DLSPS2_LATENCY": "true", "DLSPS2_GST_TRACERS": self.TRACERS},
+            {"DLSPS2_LATENCY": "true", "DLSPS2_OTEL": "true"},
+            {
+                "DLSPS2_LATENCY": "true",
+                "DLSPS2_OTEL": "true",
+                "DLSPS2_GST_TRACERS": "latency_tracer(flags=pipeline)",
+            },
+        ):
+            with self.subTest(env=env):
+                with (
+                    patch.dict(os.environ, env, clear=True),
+                    self.assertLogs("dlsps2_runner", level="WARNING"),
+                ):
+                    self.assertFalse(dlsps2_runner.dlsps2_latency_configured())
+
+
+class TestWithGenaiPostMetrics(unittest.TestCase):
+    def test_adds_post_metrics_to_gvagenai_with_metrics(self):
+        command = (
+            'filesrc ! gvagenai prompt="Hi! Is it?" metrics=true ! '
+            "gvagenai metrics=false ! gvagenai ! fakesink"
+        )
+        self.assertTrue(dlsps2_runner.wants_genai_post_metrics(command))
+        self.assertEqual(
+            dlsps2_runner.with_genai_post_metrics(command),
+            'filesrc ! gvagenai prompt="Hi! Is it?" metrics=true post-metrics=true ! '
+            "gvagenai metrics=false ! gvagenai ! fakesink",
+        )
+
+    def test_keeps_an_explicit_post_metrics(self):
+        command = "a ! gvagenai metrics=true post-metrics=false ! b"
+        self.assertFalse(dlsps2_runner.wants_genai_post_metrics(command))
+        self.assertEqual(dlsps2_runner.with_genai_post_metrics(command), command)
+
+    def test_nothing_wanted_without_metrics(self):
+        for command in (PIPELINE, "a ! gvagenai ! b", "a ! gvagenai metrics=false ! b"):
+            with self.subTest(command=command):
+                self.assertFalse(dlsps2_runner.wants_genai_post_metrics(command))
+
+
+class TestDlsps2RunnerGenaiPostMetrics(unittest.TestCase):
+    """``post-metrics=true`` is added only if the server's gvagenai has it."""
+
+    STREAMS = {"s": "a ! gvagenai metrics=true ! b"}
+
+    def _run(self, fake: _FakeStreamSet, streams=None) -> Dlsps2PipelineRunner:
+        runner = Dlsps2PipelineRunner(
+            mode="normal", base_url="http://dlsps:8080", max_runtime=0
+        )
+        with (
+            patch.object(runner, "_push_fps_metric"),
+            patch.object(runner, "_client", side_effect=fake.client),
+            patch.object(runner, "_metrics_client", side_effect=fake.client),
+        ):
+            runner.run(PIPELINE, stream_commands=streams or self.STREAMS)
+        return runner
+
+    @staticmethod
+    def _fake(**kwargs) -> _FakeStreamSet:
+        return _FakeStreamSet(
+            [[{"state": "COMPLETED"}]], metrics=_finished("inst-1"), **kwargs
+        )
+
+    @staticmethod
+    def _sent(fake: _FakeStreamSet) -> list[str]:
+        return [json.loads(r.content)["pipeline"] for r in fake.calls("POST")]
+
+    def test_added_when_the_server_gvagenai_has_the_property(self):
+        fake = self._fake(gvagenai=GVAGENAI_WITH_POST_METRICS)
+
+        self._run(fake)
+
+        self.assertEqual(
+            self._sent(fake), ["a ! gvagenai metrics=true post-metrics=true ! b"]
+        )
+        self.assertEqual(
+            fake.validate_posts()[0]["pipeline"],
+            "a ! gvagenai metrics=true post-metrics=true ! b",
+        )
+        self.assertTrue(fake.metrics_reads())
+
+    def test_not_added_when_the_server_cannot_tell(self):
+        """An older server image, a missing element, or an error: run unchanged, warn."""
+        for gvagenai in (
+            GVAGENAI_WITHOUT_POST_METRICS,
+            None,
+            httpx.Response(500),
+            httpx.Response(200, json=["not", "a", "dict"]),
+        ):
+            with self.subTest(gvagenai=gvagenai):
+                fake = self._fake(gvagenai=gvagenai)
+
+                with self.assertLogs("dlsps2_runner", level="WARNING") as logs:
+                    self._run(fake)
+
+                self.assertEqual(self._sent(fake), ["a ! gvagenai metrics=true ! b"])
+                self.assertIn("VLM metrics are not collected", logs.output[0])
+                # Without posting elements there is nothing to read.
+                self.assertEqual(fake.metrics_reads(), [])
+
+    def test_server_is_asked_once_per_runner(self):
+        fake = self._fake(gvagenai=GVAGENAI_WITH_POST_METRICS)
+        runner = Dlsps2PipelineRunner(
+            mode="normal", base_url="http://dlsps:8080", max_runtime=0
+        )
+        with (
+            patch.object(runner, "_push_fps_metric"),
+            patch.object(runner, "_client", side_effect=fake.client),
+            patch.object(runner, "_metrics_client", side_effect=fake.client),
+        ):
+            for _ in range(2):
+                fake.posted = 0
+                fake.stopped.clear()
+                runner.run(PIPELINE, stream_commands=self.STREAMS)
+
+        asked = [r for r in fake.requests if r.url.path == "/elements/gvagenai"]
+        self.assertEqual(len(asked), 1)
+
+    def test_server_not_asked_without_gvagenai_metrics(self):
+        fake = self._fake(gvagenai=GVAGENAI_WITH_POST_METRICS)
+
+        self._run(fake, {"s": PIPELINE})
+
+        self.assertFalse(
+            [r for r in fake.requests if r.url.path.startswith("/elements")]
+        )
 
 
 if __name__ == "__main__":

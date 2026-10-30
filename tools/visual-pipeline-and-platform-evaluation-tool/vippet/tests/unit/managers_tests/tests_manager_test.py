@@ -1,3 +1,4 @@
+import os
 import time
 import unittest
 from unittest.mock import ANY, patch, MagicMock
@@ -2210,7 +2211,7 @@ class TestDlsps2Backend(unittest.TestCase):
 
     @patch("managers.tests_manager.collect_video_outputs_from_dirs", return_value={})
     @patch("managers.tests_manager.PipelineManager")
-    def test_latency_metrics_keep_the_local_runner(
+    def test_latency_metrics_keep_the_local_runner_by_default(
         self, mock_pipeline_manager_cls, _mock_collect
     ):
         mock_pipeline_manager_cls.return_value.build_pipeline_command.return_value = (
@@ -2222,6 +2223,7 @@ class TestDlsps2Backend(unittest.TestCase):
         )
 
         with (
+            patch.dict(os.environ, {"DLSPS2_LATENCY": "false"}),
             patch.object(Dlsps2PipelineRunner, "run") as mock_dlsps2_run,
             patch.object(
                 PipelineRunner,
@@ -2233,6 +2235,34 @@ class TestDlsps2Backend(unittest.TestCase):
 
         mock_dlsps2_run.assert_not_called()
         mock_local_run.assert_called_once()
+
+    @patch("managers.tests_manager.dlsps2_latency_configured", return_value=True)
+    @patch("managers.tests_manager.collect_video_outputs_from_dirs", return_value={})
+    @patch("managers.tests_manager.PipelineManager")
+    def test_latency_metrics_run_on_dlsps2_when_configured(
+        self, mock_pipeline_manager_cls, _mock_collect, _mock_configured
+    ):
+        mock_pipeline_manager_cls.return_value.build_pipeline_command.return_value = (
+            PipelineCommand(command="fakesrc ! fakesink")
+        )
+        manager = TestsManager()
+        job_id, internal_spec = self._performance_job(
+            manager, enable_latency_metrics=True
+        )
+
+        with (
+            patch.object(
+                Dlsps2PipelineRunner,
+                "run",
+                return_value=PipelineResult(total_fps=10.0, num_streams=1),
+            ) as mock_dlsps2_run,
+            patch.object(PipelineRunner, "run") as mock_local_run,
+        ):
+            manager._execute_performance_test(job_id, internal_spec)
+
+        mock_local_run.assert_not_called()
+        mock_dlsps2_run.assert_called_once()
+        self.assertIn("allowed_stream_ids", mock_dlsps2_run.call_args.kwargs)
 
     @patch("managers.tests_manager.Benchmark")
     @patch("managers.tests_manager.PipelineManager")
@@ -2256,6 +2286,39 @@ class TestDlsps2Backend(unittest.TestCase):
             manager._execute_density_test(job_id, internal_spec)
 
         self.assertTrue(mock_benchmark_cls.call_args.kwargs["use_dlsps2"])
+
+    @patch("managers.tests_manager.dlsps2_latency_configured")
+    @patch("managers.tests_manager.Benchmark")
+    @patch("managers.tests_manager.PipelineManager")
+    def test_density_benchmark_with_latency_uses_dlsps2_when_configured(
+        self, _mock_pipeline_manager_cls, mock_benchmark_cls, mock_configured
+    ):
+        for configured in (False, True):
+            with self.subTest(configured=configured):
+                mock_configured.return_value = configured
+                kwargs = self._run_density_with_latency(mock_benchmark_cls)
+                self.assertEqual(kwargs["use_dlsps2"], configured)
+                self.assertTrue(kwargs["enable_latency_metrics"])
+
+    def _run_density_with_latency(self, mock_benchmark_cls) -> dict:
+        mock_benchmark_cls.return_value.runner.is_cancelled.return_value = False
+        manager = TestsManager()
+        internal_spec = create_internal_density_test_spec()
+        internal_spec.execution_config.enable_latency_metrics = True
+        job_id = "test-density-dlsps2-latency"
+        manager.jobs[job_id] = InternalDensityJobStatus(
+            id=job_id,
+            request=internal_spec.original_request,
+            start_time=int(time.time() * 1000),
+            state=InternalTestJobState.RUNNING,
+        )
+
+        with patch(
+            "managers.tests_manager.collect_video_outputs_from_dirs", return_value={}
+        ):
+            manager._execute_density_test(job_id, internal_spec)
+
+        return mock_benchmark_cls.call_args.kwargs
 
 
 if __name__ == "__main__":

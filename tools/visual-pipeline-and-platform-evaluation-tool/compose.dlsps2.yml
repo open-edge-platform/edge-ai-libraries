@@ -4,9 +4,10 @@
 # Optional overlay: runs a DLSPS 2.0 (dlstreamer-pipeline-server) instance
 # alongside VIPPET and points VIPPET's pipeline execution at it instead of the
 # local gst_runner.py subprocess: validation, performance and density tests
-# (one DLSPS 2.0 instance per stream) and the TS conversion of videos. Tests
-# with latency metrics still use the local runner. See vippet/dlsps2_runner.py
-# for what is and is not supported.
+# (one DLSPS 2.0 instance per stream), the TS conversion of videos and the
+# lookup of GStreamer elements. Tests with latency metrics still use the local
+# runner unless DLSPS2_LATENCY=true (see below). See vippet/dlsps2_runner.py for
+# what is and is not supported.
 #
 # Usage: make build run DLSPS2=1
 #   (or: docker compose -f compose.yml -f compose.$COMPOSE_PROFILES.yml -f compose.dlsps2.yml up -d)
@@ -62,8 +63,13 @@ services:
       # the server's run.sh appends this to GST_PLUGIN_PATH.
       ADDITIONAL_GST_PLUGIN_PATH: /opt/vippet/gst_plugins
       # The server's own per-instance metrics (OTLP/JSON into metrics-manager), off by
-      # default. VIPPET does not read them; its live "fps" metric is pushed by vippet.
+      # default. VIPPET reads the latency and VLM series of its own instances from
+      # metrics-manager; its live "fps" metric is still pushed by vippet.
       ENABLE_OPEN_TELEMETRY: ${DLSPS2_OTEL:-false}
+      # Tracers are process-wide, so latency is measured for every pipeline once set.
+      # Latency metrics need DLSPS2_OTEL=true, DLSPS2_LATENCY=true and
+      # DLSPS2_GST_TRACERS=latency_tracer(flags=pipeline,interval=1000,post-metrics=true)
+      GST_TRACERS: ${DLSPS2_GST_TRACERS:-}
       OTEL_COLLECTOR_HOST: metrics-manager
       OTEL_COLLECTOR_PORT: "9090"
       OTEL_COLLECTOR_PATH: /api/v1/metrics/otlp
@@ -95,4 +101,11 @@ services:
       VIPPET_EXECUTION_BACKEND: dlsps2
       DLSPS2_BASE_URL: http://dlstreamer-pipeline-server:8080
       DLSPS2_VERIFY_TLS: "false"
+      # Run tests with latency metrics on the server too. Off by default, so they
+      # keep the local runner; vippet also checks DLSPS2_OTEL and DLSPS2_GST_TRACERS.
+      DLSPS2_LATENCY: ${DLSPS2_LATENCY:-false}
+      DLSPS2_OTEL: ${DLSPS2_OTEL:-false}
+      DLSPS2_GST_TRACERS: ${DLSPS2_GST_TRACERS:-}
+      # How long vippet waits for the server's final export after a run.
+      DLSPS2_OTEL_INTERVAL_MS: ${DLSPS2_OTEL_INTERVAL_MS:-10000}
       no_proxy: "${no_proxy:+${no_proxy},}mediamtx,metrics-manager,model-download,dlstreamer-pipeline-server"
