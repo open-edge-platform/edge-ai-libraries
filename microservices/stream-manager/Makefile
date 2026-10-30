@@ -1,0 +1,124 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+BINARY_NAME    := stream-manager
+BIN_DIR        := ./bin
+BINARY_PATH    := $(BIN_DIR)/$(BINARY_NAME)
+VERSION        := $(shell git describe --tags 2>/dev/null || echo dev)
+BUILD_NUMBER   := $(shell git rev-list --count HEAD -- . 2>/dev/null || echo 0)
+BUILD_DATE     := $(shell date +%Y-%m-%dT%H:%M:%S%z)
+LDFLAGS        := -s -w \
+	-X main.Version=$(VERSION) \
+	-X main.BuildNumber=$(BUILD_NUMBER) \
+	-X main.BuildDate=$(BUILD_DATE) \
+	-extldflags '-z relro -z now'
+
+IMAGE          ?= intel/stream-manager:latest
+IMAGE_REF      := $(if $(findstring :,$(notdir $(IMAGE))),$(IMAGE),$(IMAGE):latest-dev)
+CONTAINER_NAME := stream-manager
+CONTAINER_PORT := 8080
+ACCESS_PORT    ?= 8080
+
+CONFIG_FILE    :=
+
+DATA_DIR       :=
+
+DOCS_PATH      := /docs/v1/index.html
+
+define PRINT_ACCESS_URLS
+	REMOTE_IP="$$(ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([^ ]*\).*/\1/p')"; \
+	if [ -n "$$REMOTE_IP" ]; then \
+		echo "API Health Status: http://$$REMOTE_IP:$$PORT/v1/status"; \
+		echo "API Docs UI: http://$$REMOTE_IP:$$PORT$(DOCS_PATH)"; \
+	else \
+		echo "No primary IPv4 address found. Check the host network configuration."; \
+	fi
+endef
+
+.PHONY: help build run start access-urls docker-build docker-run docker-stop clean
+
+help: ## Show this help
+	@echo "Host targets:"
+	@echo "  make build                 Build the binary into $(BIN_DIR)"
+	@echo "  make run                   Run the already-built binary; optional CONFIG_FILE"
+	@echo "  make start                 Build then run the binary"
+	@echo "  make access-urls           Show URLs (ACCESS_PORT=$(ACCESS_PORT), must match app port)"
+	@echo ""
+	@echo "Container targets:"
+	@echo "  make docker-build          Build IMAGE (default: intel/stream-manager:latest)"
+	@echo "  make docker-run            Run IMAGE (local or pulled); ephemeral host port; see CONFIG_FILE, DATA_DIR"
+	@echo "  make docker-stop           Stop and remove the running container (CONTAINER_NAME)"
+	@echo ""
+	@echo "  make clean                 Remove local build artifacts"
+
+build: ## Build the binary on host into ./bin
+	@mkdir -p $(BIN_DIR)
+	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o $(BINARY_PATH) ./cmd/api-server
+	@echo "Built $(BINARY_PATH) (version $(VERSION), build $(BUILD_NUMBER))"
+
+ifneq ($(strip $(CONFIG_FILE)),)
+run: export SM_CONFIG_FILE = $(CONFIG_FILE)
+endif
+run: ## Run the binary already built in ./bin; optional CONFIG_FILE
+	@echo "Starting $(BINARY_PATH)"
+	@PORT=$(ACCESS_PORT); \
+	$(PRINT_ACCESS_URLS)
+	$(if $(strip $(CONFIG_FILE)),,env -u SM_CONFIG_FILE )$(BINARY_PATH)
+
+start: build run ## Build then run the binary on host
+
+access-urls: ## Show local and primary remote URLs for ACCESS_PORT
+	@PORT=$(ACCESS_PORT); \
+	$(PRINT_ACCESS_URLS)
+
+docker-build: ## Build IMAGE (default: intel/stream-manager:latest).
+	docker build \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg BUILD_NUMBER=$(BUILD_NUMBER) \
+		--build-arg BUILD_DATE=$(BUILD_DATE) \
+		-t $(IMAGE_REF) .
+	@echo "Built image $(IMAGE_REF)"
+
+docker-run: ## Run IMAGE (default: intel/stream-manager:latest); pull if missing.
+ifneq ($(strip $(DATA_DIR)),)
+	@echo "Preparing bind-mount directory $(DATA_DIR) for distroless uid/gid 65532"
+	@mkdir -p $(DATA_DIR)
+	@sudo chown -R 65532:65532 $(DATA_DIR)
+	@sudo chmod 0700 $(DATA_DIR)
+	$(eval STORAGE_MOUNT := -v $(DATA_DIR):/data)
+else
+	$(eval STORAGE_MOUNT := -v stream-manager-data:/data)
+endif
+ifneq ($(strip $(CONFIG_FILE)),)
+	$(eval CONFIG_MOUNT := -v $(CONFIG_FILE):/config.json:ro)
+endif
+	@if [ -n "$$(docker ps -aq --filter name=^/$(CONTAINER_NAME)$$)" ]; then \
+		echo "Removing existing container '$(CONTAINER_NAME)'"; \
+		docker rm -f $(CONTAINER_NAME) >/dev/null; \
+	fi
+	@SHM_SIZE=$$(awk '/^MemAvailable:/ { printf "%d", int(($$2 * 40 + 102399) / 102400) }' /proc/meminfo 2>/dev/null); \
+	if ! printf '%s' "$$SHM_SIZE" | grep -Eq '^[1-9][0-9]*$$'; then \
+		echo "Could not fetch host Memory availability; using fallback size 4g." >&2; \
+		SHM_SIZE=4096; \
+	fi; \
+	SHM_SIZE="$${SHM_SIZE}m"; \
+	echo "Maximum memory available for buffer: $$SHM_SIZE"; \
+	env -u SM_DATA_DIR -u SM_CONFIG_FILE -u SM_HTTP_ADDR docker run -d \
+		--rm \
+		--name $(CONTAINER_NAME) \
+		--pull missing \
+		--shm-size="$$SHM_SIZE" \
+		-P \
+		$(STORAGE_MOUNT) \
+		$(CONFIG_MOUNT) \
+		$(IMAGE_REF) > /dev/null
+	@PORT=$$(env -u SM_DATA_DIR -u SM_CONFIG_FILE docker port $(CONTAINER_NAME) $(CONTAINER_PORT)/tcp | head -1 | cut -d: -f2); \
+	if [ -z "$$PORT" ]; then echo "Could not determine the container port. This could be because container is not ready or failed to start!" >&2; exit 1; fi; \
+	echo "Container '$(CONTAINER_NAME)' started."; \
+	$(PRINT_ACCESS_URLS)
+
+docker-stop: ## Stop and remove the running container
+	docker stop $(CONTAINER_NAME)
+
+clean: ## Remove built binaries from ./bin (keeps the directory)
+	rm -f $(BIN_DIR)/*

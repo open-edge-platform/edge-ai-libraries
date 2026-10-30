@@ -5,6 +5,8 @@
 .git
 .gitignore
 .DS_Store
+.dockerignore
+.ruff_cache/
 
 # Go build artifacts and test output
 bin/
@@ -12,3 +14,15 @@ bin/
 *.test
 *.out
 coverage/
+dist/
+Makefile
+
+# User Config do not get copied to container
+config.json
+.pre-commit-config.yaml
+AGENTS.md
+README.md
+TODO.md
+.design/
+.github/
+.copilot/
