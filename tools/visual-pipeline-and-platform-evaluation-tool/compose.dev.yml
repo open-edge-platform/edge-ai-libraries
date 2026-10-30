@@ -1,7 +1,31 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 services:
   vippet:
     command: tail -f /dev/null
     volumes:
       - ./vippet:/home/dlstreamer/vippet
     healthcheck:
-      test: ["CMD", "true"]
+      test: [ "CMD", "true" ]
+  model-download:
+    image: docker.io/intel/model-download:latest
+    build:
+      context: ../../microservices/model-download
+      dockerfile: docker/Dockerfile
+    healthcheck:
+      test: [ "CMD", "true" ]
+  audio-analyzer:
+    build:
+      context: ../../microservices/audio-analyzer
+      args:
+        http_proxy:
+        https_proxy:
+        no_proxy:
+  text-to-speech:
+    build:
+      context: ../../microservices/text-to-speech
+      args:
+        http_proxy:
+        https_proxy:
+        no_proxy:

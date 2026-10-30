@@ -1,9 +1,14 @@
+// SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
+
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router";
 import {
+  useGetAudioStatusesQuery,
   useGetDensityStatusesQuery,
   useGetOptimizationStatusesQuery,
   useGetPerformanceStatusesQuery,
+  useStopAudioJobMutation,
   useStopDensityTestJobMutation,
   useStopPerformanceTestJobMutation,
 } from "@/api/api.generated";
@@ -30,9 +35,13 @@ export const Jobs = () => {
   const [stoppingDensityJobIds, setStoppingDensityJobIds] = useState<
     Set<string>
   >(new Set());
+  const [stoppingAudioJobIds, setStoppingAudioJobIds] = useState<Set<string>>(
+    new Set(),
+  );
 
   const [stopPerformanceTestJob] = useStopPerformanceTestJobMutation();
   const [stopDensityTestJob] = useStopDensityTestJobMutation();
+  const [stopAudioJob] = useStopAudioJobMutation();
 
   const { data: performanceJobs, isLoading: isLoadingPerformance } =
     useGetPerformanceStatusesQuery(undefined, {
@@ -50,6 +59,12 @@ export const Jobs = () => {
     useGetOptimizationStatusesQuery(undefined, {
       pollingInterval: 2000,
       skip: currentTab !== "optimize",
+    });
+
+  const { data: audioJobs, isLoading: isLoadingAudio } =
+    useGetAudioStatusesQuery(undefined, {
+      pollingInterval: 2000,
+      skip: currentTab !== "audio",
     });
 
   useEffect(() => {
@@ -96,10 +111,34 @@ export const Jobs = () => {
     });
   }, [densityJobs]);
 
+  useEffect(() => {
+    if (!audioJobs) return;
+
+    const activeIds = new Set(
+      audioJobs
+        .filter((job) => job.state === "QUEUED" || job.state === "RUNNING")
+        .map((job) => job.id),
+    );
+
+    setStoppingAudioJobIds((prev) => {
+      if (prev.size === 0) return prev;
+
+      const next = new Set<string>();
+      prev.forEach((id) => {
+        if (activeIds.has(id)) {
+          next.add(id);
+        }
+      });
+
+      return next;
+    });
+  }, [audioJobs]);
+
   const tabs = [
     { id: "performance", label: "Performance", path: "/jobs/performance" },
     { id: "density", label: "Density", path: "/jobs/density" },
     { id: "optimize", label: "Optimize", path: "/jobs/optimize" },
+    { id: "audio", label: "Audio", path: "/jobs/audio" },
   ];
 
   const handleStopPerformanceJob = async (jobId: string) => {
@@ -130,6 +169,25 @@ export const Jobs = () => {
     }
   };
 
+  const handleStopAudioJob = async (jobId: string) => {
+    setStoppingAudioJobIds((prev) => {
+      const next = new Set(prev);
+      next.add(jobId);
+      return next;
+    });
+
+    try {
+      await stopAudioJob({ jobId }).unwrap();
+    } catch (error) {
+      setStoppingAudioJobIds((prev) => {
+        const next = new Set(prev);
+        next.delete(jobId);
+        return next;
+      });
+      handleApiError(error, "Failed to stop audio job");
+    }
+  };
+
   return (
     <>
       <div className="container pl-16 mx-auto pt-10 pb-16">
@@ -141,12 +199,16 @@ export const Jobs = () => {
         </div>
 
         {/* Tabs */}
-        <div className="border-b border-border mb-6">
-          <nav className="flex space-x-8" aria-label="Tabs">
+        <div className="border-b border-border mb-6 overflow-x-auto">
+          <nav
+            className="flex w-max min-w-full justify-between gap-2 pr-2 sm:min-w-max sm:justify-start sm:gap-8"
+            aria-label="Tabs"
+          >
             {tabs.map((tab) => (
               <Link
                 key={tab.id}
                 to={tab.path}
+                aria-current={currentTab === tab.id ? "page" : undefined}
                 className={cn(
                   "py-4 px-1 border-b-2 font-medium text-sm transition-colors",
                   currentTab === tab.id
@@ -459,6 +521,124 @@ export const Jobs = () => {
                     ))}
                   </TableBody>
                 </Table>
+              )}
+            </div>
+          )}
+
+          {currentTab === "audio" && (
+            <div className="pb-16">
+              <h2 className="text-xl font-semibold mb-4">Audio Jobs</h2>
+              {isLoadingAudio ? (
+                <p className="text-muted-foreground">Loading jobs...</p>
+              ) : !audioJobs || audioJobs.length === 0 ? (
+                <p className="text-muted-foreground">No audio jobs found</p>
+              ) : (
+                <div className="w-full overflow-x-auto">
+                  <Table className="mb-10 min-w-[72rem] border-separate border-spacing-4">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[8.75rem]">Job ID</TableHead>
+                        <TableHead>Pipeline</TableHead>
+                        <TableHead>Operation</TableHead>
+                        <TableHead>Variant</TableHead>
+                        <TableHead>Device</TableHead>
+                        <TableHead>State</TableHead>
+                        <TableHead>Start Time</TableHead>
+                        <TableHead>Elapsed Time</TableHead>
+                        <TableHead>Service Latency</TableHead>
+                        <TableHead>Artifact</TableHead>
+                        <TableHead className="w-[11rem]">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {audioJobs.map((job) => {
+                        const active =
+                          job.state === "QUEUED" || job.state === "RUNNING";
+                        const startedAt = Date.parse(job.created_at);
+                        const endedAt = active
+                          ? Date.now()
+                          : Date.parse(job.modified_at);
+
+                        return (
+                          <TableRow key={job.id}>
+                            <TableCell className="font-mono text-xs max-w-[8.75rem]">
+                              <Link
+                                to={`/jobs/audio/${job.id}`}
+                                className="block truncate text-status-link hover:text-status-link-hover hover:underline"
+                              >
+                                {job.id}
+                              </Link>
+                            </TableCell>
+                            <TableCell>{job.pipeline_name}</TableCell>
+                            <TableCell>
+                              {job.operation === "speech_to_text"
+                                ? "Speech to Text"
+                                : "Text to Speech"}
+                            </TableCell>
+                            <TableCell>{job.variant_name}</TableCell>
+                            <TableCell>{job.device}</TableCell>
+                            <TableCell>
+                              <span
+                                className={cn(
+                                  "px-2 py-1 text-xs font-medium bg-status-bg text-status-fg",
+                                  job.state === "COMPLETED"
+                                    ? "status-success"
+                                    : active
+                                      ? "status-info"
+                                      : job.state === "FAILED"
+                                        ? "status-error"
+                                        : "bg-status-neutral-bg text-status-neutral-fg",
+                                )}
+                              >
+                                {job.state}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-xs">
+                              {formatTimestamp(startedAt)}
+                            </TableCell>
+                            <TableCell>
+                              {formatElapsedTimeMillis(
+                                Math.max(0, endedAt - startedAt),
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {job.service_round_trip_ms == null
+                                ? "-"
+                                : `${job.service_round_trip_ms.toFixed(2)} ms`}
+                            </TableCell>
+                            <TableCell>
+                              {job.artifact_available ? "Available" : "-"}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-3">
+                                <Link
+                                  to={`/jobs/audio/${job.id}`}
+                                  className="text-status-link hover:text-status-link-hover hover:underline"
+                                >
+                                  View
+                                </Link>
+                                {active && (
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() =>
+                                      void handleStopAudioJob(job.id)
+                                    }
+                                    disabled={stoppingAudioJobIds.has(job.id)}
+                                  >
+                                    {stoppingAudioJobIds.has(job.id)
+                                      ? "Stopping..."
+                                      : "Stop"}
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </div>
           )}

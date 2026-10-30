@@ -433,6 +433,10 @@ class PipelineManager:
         for config_path in PipelineLoader.list():
             config = PipelineLoader.config(config_path)
 
+            # Audio pipelines have no GStreamer graph; AudioPipelineManager owns them.
+            if config.get("type") == "audio":
+                continue
+
             pipeline_name = config.get("name", "").strip()
             if not pipeline_name:
                 raise ValueError(

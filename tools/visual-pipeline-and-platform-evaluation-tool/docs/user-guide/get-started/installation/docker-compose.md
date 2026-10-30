@@ -94,7 +94,8 @@ For alternative ways to set up the sample application, refer to
 > [!NOTE]
 > On the first start the `model-download` service may take several minutes to become
 > healthy because it provisions its plugin virtual environments. The other services wait for it
-> automatically.
+> automatically. Package downloads use a 300-second HTTP timeout by default. Set
+> `UV_HTTP_TIMEOUT` before startup to override it for slower or faster networks.
 
 ## Stop the application
 

@@ -1,0 +1,12 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+services:
+  ia-time-series-analytics-microservice:
+    devices: !override
+      - /dev/dxg:/dev/dxg
+    group_add: !reset []
+    volumes: !override
+      - vol_temp_time_series_analytics_microservice:/tmp/
+      - /run/udev:/run/udev:ro
+      - /usr/lib/wsl:/usr/lib/wsl:ro

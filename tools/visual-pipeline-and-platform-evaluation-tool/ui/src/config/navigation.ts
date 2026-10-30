@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
+
 import { ChartNoAxesCombined, type LucideIcon } from "lucide-react";
 import {
   Cpu,
@@ -23,12 +26,14 @@ import { Jobs } from "@/pages/Jobs.tsx";
 import { PerformanceJobDetail } from "@/pages/PerformanceJobDetail.tsx";
 import { DensityJobDetail } from "@/pages/DensityJobDetail.tsx";
 import { OptimizationJobDetail } from "@/pages/OptimizationJobDetail.tsx";
+import { AudioJobDetail } from "@/pages/AudioJobDetail.tsx";
 import { PipelineList } from "@/pages/PipelineList";
 import { Cameras } from "@/pages/Cameras";
 import { Benchmarks } from "@/pages/Benchmarks";
 import { BenchmarkDetail } from "@/pages/BenchmarkDetail";
 import { BenchmarkRunDetail } from "@/pages/BenchmarkRunDetail";
 import { BenchmarkRunTestDetail } from "@/pages/BenchmarkRunTestDetail";
+import { VoiceConversion } from "@/features/voice/VoiceConversion";
 
 export type NavigationItem = {
   url: string;
@@ -62,7 +67,11 @@ export const menuItems: Array<NavigationItem> = [
 export const routeConfig: Array<RouteObject> = [
   { index: true, path: "", Component: HomePage },
   { path: "pipelines", Component: PipelineList },
-  { path: "pipelines/:id/:variant", Component: Pipelines },
+  {
+    path: "pipelines/audio/:pipelineId/:variantId",
+    Component: VoiceConversion,
+  },
+  { path: "pipelines/vision/:id/:variant", Component: Pipelines },
   { path: "models", Component: Models },
   { path: "videos", Component: Videos },
   { path: "images", Component: ImageSets },
@@ -81,6 +90,8 @@ export const routeConfig: Array<RouteObject> = [
   { path: "jobs/density/:jobId", Component: DensityJobDetail },
   { path: "jobs/optimize", Component: Jobs },
   { path: "jobs/optimize/:jobId", Component: OptimizationJobDetail },
+  { path: "jobs/audio", Component: Jobs },
+  { path: "jobs/audio/:jobId", Component: AudioJobDetail },
   { path: "benchmarks", Component: Benchmarks },
   { path: "benchmarks/:id", Component: BenchmarkDetail },
   { path: "benchmarks/:id/run/:runId", Component: BenchmarkRunDetail },

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import logging
 import os
 import threading
@@ -8,6 +11,8 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 
+from audio_assets import AudioAssetsManager
+from api.dependencies.audio_jobs import shutdown_audio_pipeline_job_manager
 from api.middleware import InitializationMiddleware
 from api.routes import health
 from app_version import VIPPET_VERSION
@@ -15,6 +20,7 @@ from database import close_db, init_db
 from images import ImagesManager
 from internal_types import InternalAppStatus
 from managers.app_state_manager import AppStateManager
+from managers.audio_pipeline_manager import get_audio_pipeline_manager
 from managers.model_manager import ModelManager
 from managers.pipeline_manager import PipelineManager
 from managers.pipeline_template_manager import PipelineTemplateManager
@@ -70,6 +76,12 @@ def _initialize_in_background(app: FastAPI) -> None:
         # extracts metadata, and converts to TS format
         VideosManager()
 
+        # Install bundled recordings used by Audio pipeline presets.
+        AudioAssetsManager()
+
+        # Load and validate read-only Audio pipeline definitions.
+        get_audio_pipeline_manager()
+
         # Initialize ImagesManager - ensures the uploaded image-set
         # root directory exists with the right permissions before any
         # request hits POST /images/upload.
@@ -120,6 +132,7 @@ def register_routers(app: FastAPI) -> None:
         timeseries,
         videos,
         cameras,
+        voice,
     )
 
     # Include routers from different modules
@@ -139,6 +152,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(videos.router, prefix="/videos", tags=["videos"])
     app.include_router(images.router, prefix="/images", tags=["images"])
     app.include_router(cameras.router, prefix="/cameras", tags=["cameras"])
+    app.include_router(voice.router, prefix="/voice", tags=["voice"])
 
 
 @asynccontextmanager
@@ -175,6 +189,7 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("Application shutting down...")
+    await shutdown_audio_pipeline_job_manager()
     await close_db()
     app_state_manager.set_status(InternalAppStatus.SHUTDOWN)
 
