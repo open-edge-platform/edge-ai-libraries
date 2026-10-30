@@ -31,11 +31,11 @@
 # across separate `pip install` calls. This file is installed via its own
 # `pip install -r requirements-optional.txt ...` step in docker/Dockerfile
 # (after requirements-slim.txt), so the PyTorch CPU wheel index must be
-# repeated here too -- otherwise `torchaudio==2.8.0+cpu` resolves against
+# repeated here too -- otherwise `torchaudio==2.11.0+cpu` resolves against
 # PyPI only, which does not host the `+cpu` local version, and pip fails
 # with ResolutionImpossible (confirmed via an actual full-variant build).
 --extra-index-url https://download.pytorch.org/whl/cpu
-torchaudio==2.8.0+cpu
+torchaudio==2.11.0+cpu
 openai-whisper==20250625
 speechbrain==1.0.3
 pyannote.audio==4.0.4

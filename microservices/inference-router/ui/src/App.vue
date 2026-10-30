@@ -5,7 +5,7 @@
 
 <template>
   <a-config-provider
-    :locale="getGlobalI18n"
+    :locale="antLocale"
     :theme="currentTheme"
     prefixCls="intel"
     autoInsertSpaceInButton
@@ -16,6 +16,8 @@
 <script setup lang="ts">
 import { themeAppStore } from "@/store/theme";
 import { antTheme } from "@/utils/antTheme";
+import enLocale from "ant-design-vue/es/locale/en_US";
+import zhLocale from "ant-design-vue/es/locale/zh_CN";
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 
@@ -25,9 +27,9 @@ const currentTheme = computed(() => {
   return antTheme[themeStore.theme as keyof typeof antTheme];
 });
 
-const { messages, locale } = useI18n();
-const getGlobalI18n = computed(() => {
-  return messages.value[locale.value];
-});
+const { locale } = useI18n();
+const antLocale = computed(() =>
+  locale.value === "zh_CN" ? zhLocale : enLocale,
+);
 </script>
 <style scoped lang="less"></style>

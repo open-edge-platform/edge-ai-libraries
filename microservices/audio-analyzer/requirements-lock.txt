@@ -34,7 +34,7 @@ argon2-cffi-bindings==26.1.0
 asteroid-filterbanks==0.4.0
 attrs==26.1.0
 audioread==3.1.0
-certifi==2026.7.22
+certifi==2026.10.18
 cffi==2.1.1
 charset-normalizer==3.5.2
 click==8.5.0
@@ -45,10 +45,10 @@ cycler==0.12.1
 decorator==5.3.1
 einops==0.8.2
 fastapi==0.141.1
-filelock==4.1.1
+filelock==4.2.1
 fonttools==4.66.1
 frozenlist==1.8.0
-fsspec==2025.3.0
+fsspec==2026.6.0
 googleapis-common-protos==1.75.5
 grpcio==1.84.0
 h11==0.16.0
@@ -82,7 +82,7 @@ ninja==1.13.2
 nncf==3.1.0
 numba==0.61.2
 numpy==2.2.6
-onnx==1.21.0
+onnx==1.22.0
 openai-whisper==20250625
 opentelemetry-api==1.45.1
 opentelemetry-exporter-http-transport==0.66b1
@@ -104,7 +104,7 @@ optimum-onnx==0.1.0
 optuna==5.0.0
 packaging==26.3
 pandas==3.0.6
-pillow==12.3.0
+pillow==13.0.0
 platformdirs==4.13.0
 pooch==1.9.0
 primePy==1.3
@@ -151,8 +151,8 @@ tabulate==0.10.0
 threadpoolctl==3.7.0
 tiktoken==0.14.0
 tokenizers==0.21.4
-torch==2.8.0+cpu
-torchaudio==2.8.0+cpu
+torch==2.11.0+cpu
+torchaudio==2.11.0+cpu
 torch-audiomentations==0.12.0
 torchmetrics==1.9.0
 torch_pitch_shift==1.2.5

@@ -13,8 +13,7 @@ from src.config import RouterConfig, ProviderConfig
 from src.models import ChatCompletionRequest, ChatCompletionResponse, ChatCompletionStreamChunk
 from src.providers import create_provider, ProviderAdapter, PassthroughProvider
 from src.plugins import create_plugin_manager
-from src.rsd.decision import DecisionEngine
-from src.rsd.rule import IntelligentRule
+from src.rsd.engine.decision import DecisionEngine
 from src.exceptions import ConfigurationError, RoutingError
 
 
@@ -96,6 +95,12 @@ class RouterOrchestrator:
                     logger.info(f"Provider disabled: {provider_config.name}")
                     continue
 
+                # Launch this provider's probes (if any). Both provider families
+                # mix in ProbeHost; only probes with ``enabled: true`` are run.
+                start_probes = getattr(provider, "start_probes", None)
+                if start_probes is not None:
+                    await start_probes()
+
                 if isinstance(provider, PassthroughProvider):
                     # Pass-through backend — exposed by service, not routed for chat.
                     # First-match wins when two providers claim the same service.
@@ -148,6 +153,8 @@ class RouterOrchestrator:
             f"Initialized {len(self.providers)} chat provider(s), "
             f"{len(self.passthrough_map)} pass-through service(s)"
         )
+        # Warn (don't fail) about strategy label selectors no provider satisfies.
+        self.decision_engine.validate_against_providers(self.providers)
         logger.info(
             "Initialized plugins: total=%d, prerouting=%d, postrouting=%d, postresponse=%d",
             len(self.plugin_manager.plugins),
@@ -156,12 +163,14 @@ class RouterOrchestrator:
             len(self.plugin_manager.postresponse_plugins),
         )
 
-        # Warm up the intelligent-router OV classifier once
+        # Load only the classifiers the active routing policy uses. Best-effort:
+        # a broken version degrades (referenced version -> default -> -1) instead
+        # of failing startup; GET /v1/strategies surfaces the status.
         try:
-            await asyncio.to_thread(IntelligentRule.preload)
-            logger.info("Preloaded IntelligentRule OV classifier")
+            count = await asyncio.to_thread(self.decision_engine.preload_classifiers)
+            logger.info("Preloaded %d ModelBasedRule classifier(s) for the active policy", count)
         except Exception as e:  # noqa: BLE001 - preload is best-effort
-            logger.warning("Skipped IntelligentRule preload: %s", e)
+            logger.warning("Skipped ModelBasedRule preload: %s", e)
 
     def passthrough_for(self, service: str) -> Optional[PassthroughProvider]:
         """Return the enabled pass-through provider for ``service``, or None."""
@@ -186,6 +195,9 @@ class RouterOrchestrator:
           same as above. ``is_direct=True``.
         - otherwise → raise :class:`RoutingError`.
 
+        Postrouting plugins receive the chosen provider as the
+        ``provider_name`` keyword argument (prerouting runs before it is known).
+
         Returns ``(provider, route_info, request)``. The request is returned
         because the prerouting/postrouting plugins may have replaced it.
         """
@@ -205,7 +217,11 @@ class RouterOrchestrator:
                     f"providers: {available_providers}, "
                     f"or use {ROUTER_MODEL_NAME!r} for automatic routing."
                 )
-            request = await self.plugin_manager.process_postrouting_request(request)
+            request = await self.plugin_manager.process_postrouting_request(
+                request,
+                provider_name=provider.name,
+                metrics_values={"provider": provider.name},
+            )
             return provider, RouteInfo(
                 provider_name=provider.name,
                 reason="direct_model_selection",
@@ -215,7 +231,11 @@ class RouterOrchestrator:
 
         # Routed path: DecisionEngine picks the provider.
         route_decision = await self.decision_engine.route(request, self.providers)
-        request = await self.plugin_manager.process_postrouting_request(request)
+        request = await self.plugin_manager.process_postrouting_request(
+            request,
+            provider_name=route_decision.provider.name,
+            metrics_values={"provider": route_decision.provider.name},
+        )
 
         logger.debug(f"Route decision: {route_decision.reason}")
         return route_decision.provider, RouteInfo(
@@ -293,23 +313,6 @@ class RouterOrchestrator:
 
         return all_models
 
-    async def health_check(self) -> dict:
-        """
-        Check health of all providers.
-
-        Returns:
-            Dict with health status for each provider
-        """
-        health_status = {}
-        for provider in [*self.providers, *self.passthrough_map.values()]:
-            try:
-                is_healthy = await provider.health_check()
-                health_status[provider.name] = {"healthy": is_healthy}
-            except Exception as e:
-                health_status[provider.name] = {"healthy": False, "error": str(e)}
-
-        return health_status
-
     async def _record_chat_event(
         self,
         request: ChatCompletionRequest,
@@ -331,5 +334,16 @@ class RouterOrchestrator:
 
     def shutdown(self) -> None:
         """Clean up provider resources."""
-        # Can be extended for providers that need cleanup
+        # Tear down every provider's probes. ``stop_probes`` is synchronous
+        # (cancelling asyncio tasks needs no await), so this stays a sync method
+        # as its callers (main shutdown hook, config-swap teardown) expect.
+        for provider in [*self.providers, *self.passthrough_map.values()]:
+            stop_probes = getattr(provider, "stop_probes", None)
+            if stop_probes is not None:
+                try:
+                    stop_probes()
+                except Exception:  # noqa: BLE001 - shutdown must not raise
+                    logger.warning(
+                        "failed to stop probes for %s", provider.name, exc_info=True
+                    )
         logger.info("Router orchestrator shutdown")

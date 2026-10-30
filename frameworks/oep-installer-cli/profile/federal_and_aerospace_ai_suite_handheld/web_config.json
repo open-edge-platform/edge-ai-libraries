@@ -6,15 +6,13 @@
   },
   "modules": [
     { "label": "Handheld Blueprint", "value": "handheld_blueprint" },
-    { "label": "Handheld Multi-Modal", "value": "handheld_multi_modal", "startStop": true, "remove": true },
-    { "label": "Deterministic Threat Detection", "value": "deterministic_threat_detection", "remove": true }
+    { "label": "Handheld Multi-Modal", "value": "handheld_multi_modal", "startStop": true, "remove": true }
   ],
   "getStarted": {
     "text": "Get Started",
     "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-fed-aero.html"
   },
   "resources": [
-    { "text": "Handheld Multi-Modal Application", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/handheld-multi-modal-application/index.html" },
-    { "text": "Deterministic Threat Detection", "url": "https://github.com/open-edge-platform/federal-and-aerospace-ai-suite/tree/2026.3-20261027/deterministic-threat-detection" }
+    { "text": "Handheld Multi-Modal Application", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/handheld-multi-modal-application/index.html" }
   ]
 }

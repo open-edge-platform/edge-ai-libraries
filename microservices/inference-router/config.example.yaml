@@ -13,10 +13,15 @@ providers:
     type: "hosted_vllm"
     model: "Qwen/Qwen3.5-9B"
     enabled: true
+    # Optional. Mark one provider as the routing fallback: it is selected
+    # whenever the routing policy fails to match any provider. If no provider
+    # sets this, a request that matches no provider is rejected with an error.
+    fallback: true
     metadata:
       labels:
         - "planning"
         - "local"
+        - "data-analysis"
       cost: 0
       performance: 0.85
       capability:
@@ -28,6 +33,36 @@ providers:
         scheme: "none"
         api_key: null
         custom_headers: {}
+
+      # Probes (optional). Each probe is a background task that, every
+      # `interval` seconds, GETs `endpoint`, extracts numeric fields from the
+      # response, aggregates each over a sliding window, and publishes them.
+      # One generic runner — behaviour is entirely config. See
+      # docs/probes/probe-design.md. Read live values via GET /health/detailed;
+      # enable/disable by editing `enabled` and re-submitting the provider.
+      # probes:
+      #   - name: "load"                          # unique within the provider
+      #     enabled: true
+      #     endpoint: "http://localhost:5000/metrics"  # omit to reuse the provider endpoint
+      #     interval: 10                          # seconds between ticks
+      #     timeout: 5                            # per-request timeout
+      #     extract:                              # regex → (name, value) per match
+      #       - regex: 'vllm:(num_requests_\w+)\S*\s+([0-9.]+)'
+      #         #        └──── group 1: NAME ───┘      └ group 2: VALUE ┘
+      #     aggregate: { window: 20, method: mean }   # latest|mean|median|p50|p90|p95|p99|ewma|min|max|stdev
+      #     publish:
+      #       - { to: metadata, prefix: attributes.probe }   # → routing metadata (live)
+      #       - { to: file, path: probes/local.load.jsonl }  # JSONL history (workspace-relative)
+      #   # A JSON endpoint instead of Prometheus text:
+      #   - name: "queue"
+      #     enabled: false
+      #     endpoint: "http://localhost:5000/health"
+      #     interval: 15
+      #     extract:
+      #       - json: "stats.pending_requests"   # name = last segment (pending_requests)
+      #     aggregate: { window: 10, method: p95 }
+      #     publish:
+      #       - { to: metadata, prefix: performance }   # feeds performance.* routing filters
 
   # Pass-through service providers. Their `type` names the service (one of:
   # transcription, tts, embeddings, rerank, ocr) which exposes the matching
@@ -55,11 +90,20 @@ providers:
 #        type: "tool"
 #        predictor_url: "http://localhost:8088/v1/chat/completions"
 #        predictor_model: "Qwen/Qwen3.6-35B-A3B"
+#        predictor_backend: "generative"
 #        score_threshold: 2.0
-#        timeout: 120
-#        prompt_mode: "dynamic"
-#        tool_descriptions_mode: "dynamic"
 #        placement: "schema"
+#        accumulate: true
+#   Small-model alternative for "compressor_tool" (faster, saves fewer tool
+#   tokens; size top_k to the number of tools per request):
+#      settings:
+#        type: "tool"
+#        predictor_url: "http://localhost:8091/v1/rerank"
+#        predictor_model: "Qwen/Qwen3-Reranker-0.6B"
+#        predictor_backend: "reranker"
+#        top_k: 10
+#        placement: "schema"
+#        accumulate: true
 #  postrouting:
 #    - name: "compressor_harness"
 #      node: "compressor"
@@ -67,11 +111,23 @@ providers:
 #      settings:
 #        type: "harness"
 #        profile: "openclaw"
-#        lingua_url: "http://localhost:8001/compress"
+#        compress_server_url: "http://localhost:8001/compress"
 #        compress_rate: 0.5
 #        compress_min_chars: 200
 #        timeout: 60.0
 #        enable_quantum_lock: false
+#    # The context compressor is experimental and is disabled by default.
+#    - name: "compressor_context"
+#      node: "compressor"
+#      enabled: false
+#      settings:
+#        type: "context"
+#        protect_recent_tool_turns: 1
+#        large_result_stub: true
+#        large_result_stub_guidance: "legacy"
+#        large_result_min_tokens: 4000
+#        large_result_keep_tool_turns: 1
+#        compression_mode: "none"
 plugins:
   prerouting: []
 
@@ -83,7 +139,7 @@ plugins:
 # Routing Configuration
 routing:
   policy: "Balanced"  # Must exist in /workspace/policy.yaml
-  # Set to "Intelligent" to enable the intelligent routing policy
+  # Set to "ModelBased" to enable the model-based routing policy
 
 # Telemetry Configuration
 telemetry:

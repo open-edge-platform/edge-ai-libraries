@@ -15,14 +15,43 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app/text-to-speech
 
+# Security hardening flagged by the weekly image scan:
+#  - Full apt upgrade pulls in every published Ubuntu security point-release
+#    (kernel headers, openssl/libssl3t64, curl, libxml2, glib, python3.12,
+#    perl, etc.) without changing package names/major versions.
+#  - certifi/setuptools/urllib3 are reinstalled via pip because the base
+#    image's bundled system-Python copies lag behind the patched releases;
+#    reinstalling (unpinned) pulls the latest available fix.
+#  - The base image also leaves orphaned *older* dist-info metadata
+#    directories behind for setuptools/urllib3 (not tracked by pip's own
+#    RECORD, so `pip install --upgrade` doesn't clean them up). Scanners
+#    keep flagging those stale/unused copies even though only the newest
+#    version is ever imported, so drop every dist-info except the newest
+#    per package name.
+#  - NOTE: pip's vendored msgpack (CVE-2026-114613 / GHSA-6v7p-g79w-8964)
+#    cannot be fixed here: it ships inside the apt `python3-pip` package,
+#    which `python3.12-venv` depends on, and Ubuntu has not published a
+#    newer `python3-pip` for noble yet (apt-cache policy candidate == installed).
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libsndfile1 python3-venv sox \
+    && apt-get -y upgrade \
+    && python3 -m pip uninstall -y --break-system-packages certifi \
+    && python3 -m pip install --no-cache-dir --break-system-packages --upgrade \
+         --ignore-installed pip setuptools urllib3 certifi \
+    && for pkg in setuptools urllib3; do \
+         latest=$(ls -d /usr/local/lib/python3.12/dist-packages/${pkg}-*.dist-info 2>/dev/null | sort -V | tail -1); \
+         for d in /usr/local/lib/python3.12/dist-packages/${pkg}-*.dist-info; do \
+           [ -e "$d" ] || continue; \
+           if [ -n "$latest" ] && [ "$d" != "$latest" ]; then rm -rf "$d"; fi; \
+         done; \
+       done \
     && rm -rf /var/lib/apt/lists/*
+
 
 COPY requirements.txt ./requirements.txt
 
 RUN python3 -m venv "$VIRTUAL_ENV" \
-    && "$VIRTUAL_ENV/bin/pip" install --upgrade pip \
+    && "$VIRTUAL_ENV/bin/pip" install --upgrade pip setuptools \
     && "$VIRTUAL_ENV/bin/pip" install -r requirements.txt
 
 

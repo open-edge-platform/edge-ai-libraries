@@ -99,7 +99,8 @@ Key Features:
 :hidden:
 
 ./get-started.md
-./policy-based-router.md
+./routing.md
+./probe.md
 ./plugin.md
 ./api-reference.md
 Release Notes <./release-notes.md>

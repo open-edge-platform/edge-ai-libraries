@@ -14,8 +14,10 @@ provider/plugin APIs.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
+import time
 from pathlib import Path
 from typing import Any
 
@@ -25,8 +27,9 @@ from fastapi import HTTPException, Request
 from src.api.v1._config_runtime import _atomic_write_yaml
 from src.config.loader import resolve_workspace_dir
 from src.exceptions import ConfigurationError
-from src.rsd.decision import DecisionEngine
-
+from src.rsd.engine.decision import DecisionEngine
+from src.rsd.model_based.registry import ClassifierRegistryError, get_registry
+from src.rsd.model_based.settings import swap_mode
 
 logger = logging.getLogger(__name__)
 
@@ -82,19 +85,58 @@ def _atomic_write_bytes(path: Path, data: bytes) -> None:
     os.replace(tmp_path, path)
 
 
+class ReconcileReport:
+    """Classifier versions loaded / released by one activation, for API responses.
+
+    Snapshot the registry before applying a change, then :meth:`result`.
+    """
+
+    def __init__(self) -> None:
+        self._before = get_registry().published()
+        self._started = time.perf_counter()
+
+    def result(self) -> dict[str, Any]:
+        after = get_registry().published()
+        return {
+            "loaded": sorted(f"{m}/{v}" for m, v in after - self._before),
+            "released": sorted(f"{m}/{v}" for m, v in self._before - after),
+            "elapsed_ms": (time.perf_counter() - self._started) * 1000,
+        }
+
+
 def rebuild_decision_engine(http_request: Request) -> None:
     """Rebuild the running router's DecisionEngine from the on-disk RSD files.
 
     ``DecisionEngine.from_config`` re-reads the resolved ``policy.yaml`` /
     ``strategy.yaml`` on construction, so a fresh instance reflects the latest
-    file contents. The new engine is only swapped in after it builds cleanly;
-    if construction raises, the current engine is left untouched.
+    file contents. The new engine is only swapped in after it builds cleanly
+    and the active policy's classifiers are loaded (load first, then swap; the
+    old engine's models are released once nothing references them); if
+    construction raises, the current engine is left untouched. Blocking (model
+    loading): call it off the event loop.
     """
     router = getattr(http_request.app.state, "router", None)
     config = getattr(http_request.app.state, "config", None)
     if router is None or config is None:
         raise HTTPException(status_code=503, detail="Router not initialized")
+    old = getattr(router, "decision_engine", None)
     engine = DecisionEngine.from_config(config.routing)
+    released = False
+    unload_first = old is not None and swap_mode() == "unload_first"
+    if unload_first:
+        # Free the old backbones before loading the new policy: the rules of
+        # the running engine and the registry let go of their classifiers, so
+        # requests in the window answer -1 (the documented trade-off) and the
+        # new compile starts from one backbone instead of two.
+        old.release_classifiers()
+        released = True
+    try:
+        engine.preload_classifiers()
+        engine.validate_against_providers(getattr(router, "providers", []))
+    except Exception:
+        if released:
+            old.rebind_classifiers()  # best-effort: put the old versions back
+        raise
     router.decision_engine = engine
 
 
@@ -114,10 +156,13 @@ async def apply_rsd_document(
     old_bytes = workspace_path.read_bytes()
     _atomic_write_yaml(workspace_path, document)
     try:
-        rebuild_decision_engine(http_request)
+        await asyncio.to_thread(rebuild_decision_engine, http_request)
     except HTTPException:
         _atomic_write_bytes(workspace_path, old_bytes)
         raise
+    except ClassifierRegistryError as exc:
+        _atomic_write_bytes(workspace_path, old_bytes)
+        raise HTTPException(status_code=422, detail=str(exc))
     except ConfigurationError as exc:
         _atomic_write_bytes(workspace_path, old_bytes)
         raise HTTPException(status_code=400, detail=str(exc))

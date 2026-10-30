@@ -20,14 +20,17 @@ debian_90_profile_handheld_multi_modal () {
 }
 
 debian_90_install_handheld_multi_modal () {
-  local installed_path="$(ensure_project_path)/$installer_name/installed"
+  local installed
+  installed="$(ensure_prop find "installed/*")" || return $?
   local blueprint
-  for blueprint in uncrewed_aerial_vehicle_blueprint mission_decision_support_blueprint; do
-    if [ -d "$installed_path/$blueprint" ]; then
-      echo "Cannot install handheld_multi_modal while $blueprint is installed." >&2
+  while IFS= read -r blueprint; do
+    case "$blueprint" in
+    installed/uncrewed_aerial_vehicle_blueprint|installed/mission_decision_support_blueprint)
+      echo "Cannot install handheld_multi_modal while ${blueprint#installed/} is installed." >&2
       return 1
-    fi
-  done
+      ;;
+    esac
+  done <<< "$installed"
 
   configure_handheld_multi_modal
   if verify_handheld_multi_modal $* && [[ " $* " != *" --reinstall "* ]]; then

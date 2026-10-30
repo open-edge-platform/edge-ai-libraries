@@ -24,6 +24,8 @@ SCHEMA = {
       "properties": {
         "schema-version": { "const": "1" },
         "cli-version": { "$ref": "#/$defs/nonEmpty" },
+        "cli-url": { "$ref": "#/$defs/url" },
+        "install-cmdline": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/nonEmpty" } },
         "module-list": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/nonEmpty" } }
       }
     },
