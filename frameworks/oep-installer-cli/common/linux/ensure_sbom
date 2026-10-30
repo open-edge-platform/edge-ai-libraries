@@ -2,12 +2,12 @@
 ensure_sbom_format () {
   local key=$1; shift
   case "$key" in
-  pkg-list|apt-pref|yum-repo-conf|kernel-cmdline|module-list)
+  pkg-list|apt-pref|yum-repo-conf|kernel-cmdline|module-list|install-cmdline)
     local IFS=$'|'
     local pkg_str="$*"
     echo "\"$key\": [\"${pkg_str//'|'/\",\"}\"]"
     ;;
-  component|repo-name|gpg-key|gpg-key-fingerprint|key-file|apt-source|apt-src-source|apt-list-file|apt-pref-file|apt-repository|yum-repo-file)
+  component|repo-name|gpg-key|gpg-key-fingerprint|key-file|apt-source|apt-src-source|apt-list-file|apt-pref-file|apt-repository|yum-repo-file|schema-version|cli-version|cli-url)
     echo "\"$key\": \"$*\""
     ;;
   *)

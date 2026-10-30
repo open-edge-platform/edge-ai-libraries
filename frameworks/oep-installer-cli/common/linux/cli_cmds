@@ -107,10 +107,6 @@ subcommand_list () {
     --os-release=*)
       os_release="${v#*=}"
       ;;
-    --sbom=*)
-      sbom=1
-      cli_url="${v#*=}"
-      ;;
     --sbom)
       sbom=1
       ;;
@@ -121,8 +117,6 @@ subcommand_list () {
         args+=("$v")
       elif [ "$last_v" = "--os-release" ]; then
         os_release="$v"
-      elif [[ "$last_v" = "--sbom" && ( "$v" = "http://"* || "$v" = "https://"* ) ]]; then
-        cli_url="$v"
       elif [[ "$module_region_list" = *" $v "* ]]; then
         args+=("$v")
         margs=1
@@ -181,19 +175,29 @@ subcommand_list () {
       echo "No installable components from ${mods[*]}" >&2
       return 3
     fi
-    local all_install_modules="${handles[*]#${installer_family}_*_install_}"
-    echo "\"schema-version\": \"1\""
-    echo "\"cli-version\": \"main\""
-    [ -z "$cli_url" ] || echo "\"cli-url\": \"$cli_url\""
+
+    ensure_sbom_format schema-version 1
+    if git rev-parse --is-inside-work-tree &>/dev/null && git remote get-url origin 2>/dev/null | grep -qE 'github\.com[:/]'; then
+      local sha=$(git rev-parse HEAD)
+      ensure_sbom_format cli-version "$sha"
+      local remote="$(git remote get-url origin | sed -E 's#(git@|https://)github.com[:/]##; s#\.git$##')"
+      if [[ "/$0" = *"/rendered/"* ]]; then
+        local cli_url="https://raw.githubusercontent.com/$remote/$sha/${0/#*rendered/rendered}"
+        ensure_sbom_format cli-url "$cli_url"
+      fi
+    fi
+    ensure_sbom_format install-cmdline $installer_name install "${args[@]}"
     ensure_sbom_format module-list "${mods[@]}"
+
     echo "---"
-    local handler sbomer
+    local all_install_modules="${handles[*]#${installer_family}_*_install_}" handler sbomer
     for handler in $(printf '%s\n' "${handles[@]}" | sort); do
       sbomer=${handler/_install_/_sbom_}
       declare -F $sbomer > /dev/null 2>&1 || continue
       $sbomer $(act_extract_args sbom ${handler#*_*_*_} "$all_install_modules" "$@")
       echo "---"
     done
+
   else
     local all_cmds=(${_act_cache_cmds[*]})
     local profile_lines=() module_lines=()
