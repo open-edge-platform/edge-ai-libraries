@@ -103,12 +103,12 @@ class CpuGen(enum.IntEnum):
             return "Panther Lake"
         return ""
 
-# NPU PLL reference clock in Hz (kernel: PLL_REF_CLK_FREQ in ivpu_hw_btrs.c).
+# NPU PLL reference clock in Hz (kernel: PLL_REF_CLK_FREQ_MHZ = 50 in ivpu_hw_btrs.c).
 PLL_REF_CLK_FREQ_HZ = 50_000_000
 
-# Generations that use the MTL buttress (kernel: ivpu_hw_btrs_gen() returns
-# IVPU_HW_BTRS_MTL for PCI_DEVICE_ID_MTL and PCI_DEVICE_ID_ARL). Everything
-# else (LNL, PTL, ...) uses the LNL buttress.
+# Generations that use the MTL buttress (kernel: ivpu_hw_btrs_gen() in ivpu_drv.h
+# returns IVPU_HW_BTRS_MTL for PCI_DEVICE_ID_MTL and PCI_DEVICE_ID_ARL).
+# Everything else (LNL, PTL, WCL, NVL) uses the LNL buttress.
 MTL_BUTTRESS_GENS = frozenset({CpuGen.MTL, CpuGen.ARL})
 
 # VPU_MEMORY_BW is a 32-bit counter (bits 31:0) that
@@ -119,15 +119,15 @@ NOC_BW_COUNTER_WRAP_MB = (2 ** 32) / 1e3
 def pll_ratio_to_hz(cpu_gen: Optional[CpuGen], pll_ratio: int) -> float:
     """Convert a VPU_WORKPOINT PLL ratio to the NPU (DPU) clock in Hz.
 
-    Mirrors the kernel's ``pll_ratio_to_dpu_freq_{mtl,lnl}()`` in
-    ``ivpu_hw_btrs.c`` (integer arithmetic included):
+    Same per-buttress formula as the kernel's ``pll_ratio_to_mhz_{mtl,lnl}()``:
 
     - MTL buttress (MTL, ARL): ``ratio * 50 MHz * 2 / 3`` (e.g. 48 -> 1.6e9 Hz)
     - LNL buttress (LNL, PTL, ...): ``ratio * 50 MHz / 2`` (e.g. 78 -> 1.95e9 Hz)
     """
+    freq_hz = pll_ratio * PLL_REF_CLK_FREQ_HZ
     if cpu_gen in MTL_BUTTRESS_GENS:
-        return float((pll_ratio * PLL_REF_CLK_FREQ_HZ * 2) // 3)
-    return float((pll_ratio * PLL_REF_CLK_FREQ_HZ) // 2)
+        return freq_hz * 2 / 3
+    return freq_hz / 2
 
 def noc_bandwidth_rate_mbs(prev_mb: float, curr_mb: float, elapsed_s: float) -> float:
     """Convert two consecutive ``get_noc_bandwidth()`` reads into an MB/s rate.

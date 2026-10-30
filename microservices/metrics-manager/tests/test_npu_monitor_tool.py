@@ -153,12 +153,11 @@ class TestGetters:
     @pytest.mark.parametrize(
         "gen_name, raw, expected_hz",
         [
-            # MTL buttress: ratio * 50e6 * 2 // 3 (kernel pll_ratio_to_dpu_freq_mtl)
+            # MTL buttress: ratio * 50e6 * 2 / 3 (kernel pll_ratio_to_mhz_mtl)
             ("MTL", 42, 1_400_000_000),
             ("ARL", 48, 1_600_000_000),
-            ("ARL", 49, 1_633_333_333),  # integer truncation, as in the kernel
             ("ARL", 0, 0),               # idle
-            # LNL buttress: ratio * 50e6 // 2 (kernel pll_ratio_to_dpu_freq_lnl)
+            # LNL buttress: ratio * 50e6 / 2 (kernel pll_ratio_to_mhz_lnl)
             ("LNL", 78, 1_950_000_000),
             ("PTL", 82, 2_050_000_000),
             ("PTL", 0, 0),               # idle
@@ -167,6 +166,13 @@ class TestGetters:
     def test_pll_ratio_to_hz_matches_kernel(self, npu_mod, gen_name, raw, expected_hz):
         gen = getattr(npu_mod.CpuGen, gen_name)
         assert npu_mod.pll_ratio_to_hz(gen, raw) == float(expected_hz)
+
+    def test_pll_ratio_to_hz_keeps_fractional_clock(self, npu_mod):
+        # The kernel truncates to integer MHz (49 -> 1633 MHz); the exact
+        # clock is 4.9e9 / 3 Hz, and no integer truncation must happen here.
+        hz = npu_mod.pll_ratio_to_hz(npu_mod.CpuGen.ARL, 49)
+        assert hz == pytest.approx(4_900_000_000 / 3)
+        assert hz != int(hz)
 
     def test_mtl_buttress_gens_match_kernel(self, npu_mod):
         assert npu_mod.MTL_BUTTRESS_GENS == {npu_mod.CpuGen.MTL, npu_mod.CpuGen.ARL}
