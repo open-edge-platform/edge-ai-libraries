@@ -2,7 +2,7 @@ __pycache__/
 *.py[cod]
 server/.venv/
 server/static/
-data/
+shared/db/
 ui/node_modules/
 ui/dist/
 .env

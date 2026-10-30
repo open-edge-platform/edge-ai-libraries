@@ -9,6 +9,7 @@ services:
         no_proxy: ${no_proxy:-${NO_PROXY:-}}
     image: vippet-portal:latest
     container_name: vippet-portal
+    user: "${PORTAL_UID:-10001}:${PORTAL_GID:-10001}"
     ports:
       - "${PORTAL_PORT:-8080}:8080"
     environment:
@@ -19,8 +20,5 @@ services:
       PORTAL_CACHE_TTL: ${PORTAL_CACHE_TTL:-15}
       NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,10.0.0.0/8,192.168.0.0/16}
     volumes:
-      - portal-data:/data
+      - ./shared/db:/shared/db
     restart: unless-stopped
-
-volumes:
-  portal-data:

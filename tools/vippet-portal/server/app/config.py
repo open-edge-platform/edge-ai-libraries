@@ -10,6 +10,8 @@ from pathlib import Path
 #: or the Instances page.
 DEFAULT_SEED_INSTANCES: tuple[str, ...] = ()
 
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
 
 def _env_int(name: str, default: int) -> int:
     try:
@@ -36,8 +38,10 @@ def _parse_seed_instances(raw: str | None) -> list[tuple[str | None, str]]:
 
 @dataclass(frozen=True)
 class Settings:
-    data_dir: Path = field(
-        default_factory=lambda: Path(os.environ.get("PORTAL_DATA_DIR", "./data"))
+    db_path: Path = field(
+        default_factory=lambda: Path(
+            os.environ.get("PORTAL_DB_PATH", _PROJECT_ROOT / "shared" / "db" / "app.db")
+        )
     )
     #: Per-request timeout when talking to a single ViPPET instance.
     request_timeout: float = field(
@@ -50,10 +54,6 @@ class Settings:
             _parse_seed_instances(os.environ.get("PORTAL_INSTANCES"))
         )
     )
-
-    @property
-    def db_path(self) -> Path:
-        return self.data_dir / "portal.db"
 
     @property
     def database_url(self) -> str:

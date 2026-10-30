@@ -10,7 +10,7 @@ WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PORTAL_DATA_DIR=/data
+    PORTAL_DB_PATH=/shared/db/app.db
 
 COPY server/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
@@ -18,7 +18,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY server/app ./app
 COPY --from=ui-build /ui/dist ./static
 
-RUN useradd --create-home --uid 10001 portal && mkdir -p /data && chown -R portal /data /app
+RUN useradd --create-home --uid 10001 portal && mkdir -p /shared/db && chown -R portal /shared /app
 USER portal
 
 EXPOSE 8080

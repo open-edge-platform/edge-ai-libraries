@@ -107,7 +107,7 @@ async def get_session() -> AsyncIterator[AsyncSession]:
 
 
 async def init_db() -> None:
-    settings.data_dir.mkdir(parents=True, exist_ok=True)
+    settings.db_path.parent.mkdir(parents=True, exist_ok=True)
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
 

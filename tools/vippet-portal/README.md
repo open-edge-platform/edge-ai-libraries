@@ -61,7 +61,7 @@ Node 20.19+ (22 recommended) is required by Vite 8.
 | Variable                 | Default                        | Purpose |
 | ------------------------ | ------------------------------ | ------- |
 | `PORTAL_INSTANCES`       | _(empty)_                      | `Name=url,Name2=url2`, seeded into the database on first start only |
-| `PORTAL_DATA_DIR`        | `./data`                       | Where `portal.db` lives |
+| `PORTAL_DB_PATH`         | `shared/db/app.db`             | SQLite database file (Docker bind-mounts `shared/db`) |
 | `PORTAL_REQUEST_TIMEOUT` | `15`                           | Per-request timeout against one instance (seconds) |
 | `PORTAL_CACHE_TTL`       | `15`                           | TTL of cached benchmark run details (seconds) |
 
