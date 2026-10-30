@@ -14,7 +14,6 @@ The analyzer is accessible through both a web-based dashboard and a REST API, en
 
 > [!NOTE]
 > This tool is designed solely for **summary evaluation**. It does not process video files, generate reference summaries, perform video summarization using VLMs, video summarization tool or pipeline workflow.
->
 
 Users should first obtain the video content and corresponding summaries through their preferred annotation, labeling, or video-understanding pipeline. The analyzer can then be used to compare a generated summary against a reference summary and evaluate its quality across the supported metrics.
 
