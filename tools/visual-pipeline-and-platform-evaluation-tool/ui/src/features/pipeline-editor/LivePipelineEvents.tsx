@@ -55,7 +55,7 @@ export const LivePipelineEvents = ({
             const isAlert =
               highlightAffirmativeVlmEvents &&
               event.source === "vlm" &&
-              /^\s*yes\b/i.test(event.text);
+              /^\s*(?:\*\*|__)?yes(?:\*\*|__)?(?:\b|$)/i.test(event.text);
 
             return (
               <li
