@@ -56,16 +56,24 @@ class ProviderMetadata:
 class ProviderAdapter(ABC):
     """Abstract base class for LLM provider adapters."""
 
-    def __init__(self, name: str, metadata: Optional[ProviderMetadata] = None):
+    def __init__(
+        self,
+        name: str,
+        metadata: Optional[ProviderMetadata] = None,
+        fallback: bool = False,
+    ):
         """
         Initialize the provider adapter.
 
         Args:
             name: Name identifier for this provider
             metadata: Routing metadata for this provider
+            fallback: Whether this provider is the routing fallback, selected
+                when the DecisionEngine policy matches no provider.
         """
         self.name = name
         self.metadata = metadata or ProviderMetadata()
+        self.fallback = fallback
 
     @abstractmethod
     async def chat(

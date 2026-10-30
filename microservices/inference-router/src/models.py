@@ -189,7 +189,10 @@ class PluginResponse(BaseModel):
     enabled: bool = Field(default=True, description="Whether plugin is enabled")
     trigger: str = Field(
         default="prerouting",
-        description="Trigger phase: prerouting, postrouting, or postresponse",
+        description=(
+            "Plugin phase: prerouting, postrouting, postresponse, or standalone "
+            "(built and mounted but not run in any hook chain)"
+        ),
     )
     settings: PluginSettingsResponse = Field(default_factory=PluginSettingsResponse)
 
@@ -230,7 +233,9 @@ class PluginConfigUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     enabled: Optional[bool] = None
-    trigger: Optional[Literal["prerouting", "postrouting", "postresponse"]] = None
+    trigger: Optional[
+        Literal["prerouting", "postrouting", "postresponse", "standalone"]
+    ] = None
     settings: Optional[PluginSettingsResponse] = None
 
 
@@ -253,11 +258,15 @@ class ProviderResponse(BaseModel):
     type: str = Field(..., description="Provider type, e.g. 'hosted_vllm', 'openai'")
     model: str = Field(..., description="Backend model identifier")
     enabled: bool = Field(default=True, description="Whether provider is enabled")
+    fallback: bool = Field(
+        default=False,
+        description="Whether this provider is the routing fallback (used when the policy matches no provider)",
+    )
     metadata: ProviderMetadataResponse = Field(default_factory=ProviderMetadataResponse)
     settings: ProviderSettingsResponse = Field(default_factory=ProviderSettingsResponse)
     extra: Dict[str, Any] = Field(
         default_factory=dict,
-        description="Generic passthrough config (e.g. extra.management_endpoint)",
+        description="Generic passthrough config (e.g. extra.manager_url set by provider_management)",
     )
 
 
@@ -287,6 +296,7 @@ class ProviderConfigUpdateRequest(BaseModel):
     type: Optional[str] = None
     model: Optional[str] = None
     enabled: Optional[bool] = None
+    fallback: Optional[bool] = None
     metadata: Optional[ProviderMetadataResponse] = None
     settings: Optional[ProviderSettingsResponse] = None
     # Replaced wholesale (like ``settings``/``metadata``) when present.
@@ -311,6 +321,10 @@ class RoutingConfigResponse(BaseModel):
     """
 
     policy: Optional[str] = Field(default=None, description="Routing policy name (must exist in policy.yaml)")
+
+
+class RoutingConfigUpdateResponse(RoutingConfigResponse):
+    """Response for ``POST /routing``."""
 
 
 class RoutingConfigUpdateRequest(BaseModel):

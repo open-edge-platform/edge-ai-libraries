@@ -43,16 +43,58 @@ router = APIRouter()
 
 
 def _provider_to_response(provider: dict) -> ProviderResponse:
-    """Build a response model, redacting secrets in metadata and settings."""
+    """Build a response model, redacting secrets in metadata and settings.
+
+    ``metadata`` may carry the live view (see :func:`_live_metadata`): when a
+    provider is running, probes mutate its in-memory ``ProviderMetadata`` and
+    those values — the very ones routing reads — are surfaced here. This is a
+    read-only reflection; nothing is written back to ``config.yaml``.
+    """
     return ProviderResponse(
         name=provider["name"],
         type=provider["type"],
         model=provider["model"],
         enabled=provider.get("enabled", True),
+        fallback=provider.get("fallback", False),
         metadata=ProviderMetadataResponse(**redact_sensitive_values(provider.get("metadata", {}))),
         settings=ProviderSettingsResponse(**redact_sensitive_values(provider.get("settings", {}))),
         extra=redact_sensitive_values(provider.get("extra", {})),
     )
+
+
+def _live_metadata(http_request: Request, name: str) -> dict | None:
+    """Live routing metadata for a running provider, or ``None``.
+
+    Returns ``provider.metadata.to_dict()`` for the in-memory provider instance
+    held by the orchestrator — the same object probes mutate and the strategy
+    layer reads on every route — so the API reflects exactly what routing sees
+    (e.g. ``performance.num_requests_waiting`` published by a probe). Only
+    enabled providers have a live instance; disabled/unknown providers return
+    ``None`` so the caller falls back to the static config metadata.
+    """
+    router_runtime = getattr(http_request.app.state, "router", None)
+    provider_map = getattr(router_runtime, "provider_map", None)
+    if not provider_map:
+        return None
+    provider = provider_map.get(name)
+    metadata = getattr(provider, "metadata", None)
+    to_dict = getattr(metadata, "to_dict", None)
+    if not callable(to_dict):
+        return None
+    return to_dict()
+
+
+def _with_live_metadata(http_request: Request, provider: dict) -> dict:
+    """Overlay the live routing metadata onto a config provider dict (read path).
+
+    Deliberately applied only when building GET responses — never in
+    ``_iter_provider_configs`` / ``_raw_provider_entries``, which feed the
+    persist path, so volatile probe values can never leak into ``config.yaml``.
+    """
+    live = _live_metadata(http_request, provider.get("name", ""))
+    if live is None:
+        return provider
+    return {**provider, "metadata": live}
 
 
 def _iter_provider_configs(http_request: Request) -> list[dict]:
@@ -67,6 +109,7 @@ def _iter_provider_configs(http_request: Request) -> list[dict]:
             "type": provider.type,
             "model": provider.model,
             "enabled": provider.enabled,
+            "fallback": provider.fallback,
             "metadata": copy.deepcopy(provider.metadata),
             "settings": copy.deepcopy(provider.settings),
             "extra": copy.deepcopy(provider.extra),
@@ -125,6 +168,7 @@ def _updated_provider_payload(
             "type": update_req.type,
             "model": update_req.model,
             "enabled": True,
+            "fallback": False,
             "metadata": {},
             "settings": {},
             "extra": {},
@@ -139,6 +183,8 @@ def _updated_provider_payload(
         payload["model"] = update_req.model
     if update_req.enabled is not None:
         payload["enabled"] = update_req.enabled
+    if update_req.fallback is not None:
+        payload["fallback"] = update_req.fallback
     if update_req.metadata is not None:
         payload["metadata"] = update_req.metadata.model_dump(exclude_unset=True)
     if update_req.settings is not None:
@@ -147,6 +193,27 @@ def _updated_provider_payload(
         payload["extra"] = update_req.extra
 
     return payload
+
+
+def _clear_other_fallbacks(providers: list[dict], name: str) -> list[dict]:
+    """Return ``providers`` with ``fallback: false`` on every entry except ``name``.
+
+    Only one provider may be the routing fallback at a time, so designating a
+    new one demotes the previous holder. Entries that never set the flag are
+    left untouched (it already defaults to ``false``) to keep the on-disk diff
+    minimal.
+    """
+    cleared = []
+    for provider in providers:
+        if provider.get("name") != name and provider.get("fallback"):
+            logger.info(
+                "Provider %s is no longer the routing fallback (replaced by %s)",
+                sanitize_for_log(provider.get("name", "")),
+                sanitize_for_log(name),
+            )
+            provider = {**provider, "fallback": False}
+        cleared.append(provider)
+    return cleared
 
 
 async def _persist_providers(http_request: Request, raw_providers: list[dict]) -> list[dict]:
@@ -165,6 +232,7 @@ async def _persist_providers(http_request: Request, raw_providers: list[dict]) -
             "type": provider.type,
             "model": provider.model,
             "enabled": provider.enabled,
+            "fallback": provider.fallback,
             "metadata": copy.deepcopy(provider.metadata),
             "settings": copy.deepcopy(provider.settings),
             "extra": copy.deepcopy(provider.extra),
@@ -177,7 +245,9 @@ async def _persist_providers(http_request: Request, raw_providers: list[dict]) -
 async def list_providers(http_request: Request) -> ProviderListResponse:
     """List all configured providers."""
     providers = _iter_provider_configs(http_request)
-    return ProviderListResponse(data=[_provider_to_response(provider) for provider in providers])
+    return ProviderListResponse(
+        data=[_provider_to_response(_with_live_metadata(http_request, provider)) for provider in providers]
+    )
 
 
 @router.get("/providers/{name}")
@@ -186,7 +256,7 @@ async def get_provider(name: str, http_request: Request) -> ProviderResponse:
     provider = _find_provider(http_request, name)
     if provider is None:
         raise HTTPException(status_code=404, detail=f"Provider '{name}' not found")
-    return _provider_to_response(provider)
+    return _provider_to_response(_with_live_metadata(http_request, provider))
 
 
 @router.post("/providers/{name}")
@@ -198,7 +268,15 @@ async def create_or_update_provider(
     The body accepts the same shape ``GET /providers/{name}`` returns (extra
     keys like ``name`` are ignored), so a GET response round-trips as a POST
     payload. Caveat: GET redacts secrets, so omit or re-supply ``api_key`` and
-    friends — re-POSTing a redacted value would persist the mask.
+    friends — re-POSTing a redacted value would persist the mask. GET also
+    reflects *live* probe metadata (e.g. ``performance.num_requests_waiting``);
+    echoing the whole ``metadata`` back would persist those volatile values, so
+    prefer sending only the sections you changed (the edit-in-place flow posts
+    ``settings`` alone).
+
+    ``fallback`` is exclusive: setting it ``true`` on this provider sets it
+    ``false`` on whichever provider held it before, in both the runtime and
+    ``config.yaml``.
     """
     try:
         async with http_request.app.state.config_lock:
@@ -213,6 +291,9 @@ async def create_or_update_provider(
                     updated if provider.get("name") == name else provider
                     for provider in providers
                 ]
+
+            if update_req.fallback:
+                next_providers = _clear_other_fallbacks(next_providers, name)
 
             persisted_providers = await _persist_providers(http_request, next_providers)
         persisted = next(

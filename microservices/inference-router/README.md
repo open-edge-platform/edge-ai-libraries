@@ -56,7 +56,7 @@ cp .env.example workspace/.env
 ```
 
 Docker Compose deployments also require the OpenVINO classifier model (used by
-intelligent routing) prepared **before starting the router**. Download the
+model-based routing) prepared **before starting the router**. Download the
 supported `Qwen3.5-2B-FP16` model and export its path — see
 [Model preparation](docs/user-guide/get-started.md#model-preparation) for the
 full steps:
@@ -135,7 +135,7 @@ By default the UI is available at `http://<SERVER_HOST>:7010`. Stop it with
 ## Optional Compression Plugins
 
 Optional compression plugins (`tool` and `harness`) can cut prompt tokens
-before requests reach the backend. They need a Lingua server and a tool
+before requests reach the backend. They need a compress server and a tool
 predictor started separately, then enabled under `plugins` in your config. See
 [Optional: Compression Plugins](docs/user-guide/get-started.md#optional-compression-plugins)
 for setup and the

@@ -17,7 +17,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List, Literal, Optional, Type
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -67,16 +67,39 @@ def _get_manager(cache_size: int = 4096) -> Optional[Any]:
     return _MANAGER
 
 
+def _sorted(snap: Dict[str, Any]) -> Dict[str, Any]:
+    """Sort by name so each plugin's fields are listed together."""
+    return dict(sorted(snap.items()))
+
+
 def get_compression_metrics(source: str | None = None) -> Dict[str, float]:
     """Metric snapshot from the shared manager (global or source-scoped)."""
     if _MANAGER is None:
         return {}
     try:
-        return _MANAGER.snapshot(source=source)
+        return _sorted(_MANAGER.snapshot(source=source))
     except Exception as exc:
         # e.g. PerRequest metrics registered but no request seen yet.
         logger.debug("compression snapshot unavailable: %s", type(exc).__name__)
         return {}
+
+
+def get_compression_metrics_by_keys(
+    source: str | None = None,
+) -> Dict[str, Dict[str, Dict[str, float]]]:
+    """``{key: {value: snapshot}}`` (global or source-scoped); ``{}`` if unsupported or unavailable."""
+    if _MANAGER is None:
+        return {}
+    try:
+        by_keys = _MANAGER.snapshot_by_keys(source=source)
+    except Exception as exc:
+        # Includes AttributeError on library versions without keyed metrics.
+        logger.debug("keyed compression snapshot unavailable: %s", type(exc).__name__)
+        return {}
+    return {
+        key: {value: _sorted(snap) for value, snap in sorted(by_value.items())}
+        for key, by_value in sorted(by_keys.items())
+    }
 
 
 def get_compression_cache_stats() -> Dict[str, Dict[str, int]]:
@@ -281,6 +304,19 @@ class CompressorPlugin(PluginBaseNode):
     ``overall.*`` metrics into ``describe_node()``.
     """
 
+    def __init__(
+        self,
+        name: str,
+        settings: Dict[str, Any],
+        trigger: Literal[
+            "prerouting", "postrouting", "postresponse", "standalone"
+        ] = "prerouting",
+        *,
+        metrics_keys: List[str] | None = None,
+    ):
+        self.metrics_keys = list(metrics_keys or [])
+        super().__init__(name=name, settings=settings, trigger=trigger)
+
     @classmethod
     def plugin_type(cls) -> str:
         return _NODE
@@ -381,10 +417,20 @@ class CompressorPlugin(PluginBaseNode):
         # Register with the shared manager; `name` is the (unique) source key. On
         # failure (e.g. duplicate name) degrade to standalone — no cache/aggregation.
         self._wrapper = None
+        self._keyed_metrics = False
         manager = _get_manager(cache_size=s.cache_size)
         if manager is not None:
             try:
-                self._wrapper = manager.register_compressor(self.name, self._compressor)
+                # Older libraries reject `metrics_keys`; probe for the keyed API.
+                self._keyed_metrics = bool(self.metrics_keys) and hasattr(
+                    manager, "snapshot_by_keys"
+                )
+                if self._keyed_metrics:
+                    self._wrapper = manager.register_compressor(
+                        self.name, self._compressor, metrics_keys=self.metrics_keys
+                    )
+                else:
+                    self._wrapper = manager.register_compressor(self.name, self._compressor)
                 logger.info(
                     "Registered compressor '%s' (type=%s, trigger=%s)",
                     self.name,
@@ -394,6 +440,7 @@ class CompressorPlugin(PluginBaseNode):
                 requested = s.metrics or DEFAULT_PER_COMPRESSOR_METRICS
                 _register_metrics(manager, self.name, requested)
             except Exception as exc:
+                self._keyed_metrics = False
                 logger.warning(
                     "compressor '%s': manager registration failed (%s); running standalone.",
                     self.name,
@@ -412,11 +459,20 @@ class CompressorPlugin(PluginBaseNode):
                 f"Invalid settings for compressor type {self._ctype!r}"
             ) from exc
 
-    def _compress(self, request: ChatCompletionRequest) -> ChatCompletionRequest:
+    def _compress(
+        self,
+        request: ChatCompletionRequest,
+        metrics_values: Dict[str, str | None] | None = None,
+    ) -> ChatCompletionRequest:
         """Shared request→compress→apply path with error containment."""
         try:
             ctx = _request_to_context(request)
-            if self._wrapper is not None:
+            if self._wrapper is not None and metrics_values is not None:
+                # req_id dedups requests within a bucket; metrics_values picks the buckets.
+                result = self._wrapper.compress(
+                    ctx, req_id=get_request_id(), metrics_values=metrics_values
+                )
+            elif self._wrapper is not None:
                 # req_id lets the library count unique requests, not compress calls.
                 result = self._wrapper.compress(ctx, req_id=get_request_id())
             else:
@@ -433,29 +489,63 @@ class CompressorPlugin(PluginBaseNode):
             return request
 
     async def process_request(
-        self, request: ChatCompletionRequest
+        self,
+        request: ChatCompletionRequest,
+        *,
+        metrics_values: Dict[str, str | None] | None = None,
+        **kwargs: Any,
     ) -> ChatCompletionRequest:
         # `_compress` calls the library compressor, which makes *synchronous*
-        # blocking HTTP calls (lingua / predictor). Offload to a worker thread so
+        # blocking HTTP calls (compress server / predictor). Offload to a worker thread so
         # the event loop stays responsive. Safe to run concurrently: the library
-        # compressor's cache/aggregator are lock-guarded.
-        return await asyncio.to_thread(self._compress, request)
+        # compressor's cache/aggregator are lock-guarded. The metrics values are
+        # passed explicitly because the worker thread does not see the caller's context.
+        values = metrics_values if self._keyed_metrics else None
+        return await asyncio.to_thread(self._compress, request, values)
 
     # Compressors act on requests only; process_response inherits the passthrough.
 
     def describe(self) -> Dict[str, Any]:
-        """Instance view + this compressor's own (source-scoped) metrics."""
+        """Instance view + this compressor's own (source-scoped) metrics.
+
+        ``metrics_by_keys`` is ``None`` unless the instance is postrouting
+        (only postrouting compressors are split by key).
+        """
+        def instance_only(snapshot: Dict[str, float]) -> Dict[str, float]:
+            return {
+                name: value
+                for name, value in snapshot.items()
+                if not name.startswith(f"{_OVERALL_PREFIX}.")
+            }
+
         return {
             **super().describe(),
-            "metrics": get_compression_metrics(source=self.name),
+            "metrics": instance_only(get_compression_metrics(source=self.name)),
+            "metrics_by_keys": (
+                {
+                    key: {
+                        value: instance_only(snapshot)
+                        for value, snapshot in buckets.items()
+                    }
+                    for key, buckets in get_compression_metrics_by_keys(
+                        source=self.name
+                    ).items()
+                }
+                if self.trigger == "postrouting"
+                else None
+            ),
         }
 
     @classmethod
     def describe_node(cls) -> Dict[str, Any]:
-        """Node view + metrics across ALL compressor instances (incl. overall.*)."""
+        """Node view + metrics across ALL compressor instances (incl. overall.*).
+
+        ``metrics_by_keys`` covers postrouting compressors only.
+        """
         return {
             **cls.node_metadata(),
             "metrics": get_compression_metrics(),
+            "metrics_by_keys": get_compression_metrics_by_keys(),
             "cache_stats": get_compression_cache_stats(),
         }
 
@@ -471,7 +561,7 @@ class CompressorPlugin(PluginBaseNode):
         return True
 
     async def health_check(self) -> Dict[str, Any]:
-        """Probe the library compressor's backend (Lingua / predictor)."""
+        """Probe the library compressor's backend (compress server / predictor)."""
 
         def _probe() -> Dict[str, Any]:
             try:
