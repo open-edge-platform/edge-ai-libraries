@@ -545,6 +545,336 @@ class TestStartDownload(_AsyncDBTestCase):
         )
 
 
+class TestUltralyticsCategory(unittest.TestCase):
+    def test_suffix_mapping(self) -> None:
+        cases = {
+            "yolo11n": InternalModelCategory.OBJECT_DETECTION,
+            "yolo11n-obb": InternalModelCategory.OBJECT_DETECTION,
+            "yolo11n-seg": InternalModelCategory.IMAGE_SEGMENTATION,
+            "yolo11n-cls": InternalModelCategory.IMAGE_CLASSIFICATION,
+            "yolo11n-pose": InternalModelCategory.POSE_ESTIMATION,
+        }
+        for name, expected in cases.items():
+            self.assertEqual(mm_module.ultralytics_category(name), expected, name)
+
+
+class TestGuessPrecisionFromName(unittest.TestCase):
+    def test_known_suffixes(self) -> None:
+        cases = {
+            "OpenVINO/gemma-4-E4B-it-int8-ov": "INT8",
+            "OpenVINO/gemma-4-E4B-it-int4-ov": "INT4",
+            "OpenVINO/model-fp16-ov": "FP16",
+            "OpenVINO/model-FP32-ov": "FP32",
+            "OpenVINO/model-ov": "",
+        }
+        for name, expected in cases.items():
+            self.assertEqual(mm_module._guess_precision_from_name(name), expected, name)
+
+
+class TestStripOrgPrefix(unittest.TestCase):
+    def test_strips_owner_segment(self) -> None:
+        self.assertEqual(
+            mm_module._strip_org_prefix("OpenVINO/gemma-4-E4B-it-int8-ov"),
+            "gemma-4-E4B-it-int8-ov",
+        )
+
+    def test_leaves_plain_name_unchanged(self) -> None:
+        self.assertEqual(mm_module._strip_org_prefix("yolo11n-seg"), "yolo11n-seg")
+
+
+class TestScanHuggingfaceVariant(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmpdir = tempfile.mkdtemp(prefix="vippet-mm-hf-")
+        self._orig_models_path = mm_module.MODELS_PATH
+        mm_module.MODELS_PATH = self._tmpdir
+
+    def tearDown(self) -> None:
+        mm_module.MODELS_PATH = self._orig_models_path
+        shutil.rmtree(self._tmpdir, ignore_errors=True)
+
+    def _model_dir(self, name: str) -> str:
+        path = os.path.join(self._tmpdir, "huggingface", name.replace("/", "_"))
+        os.makedirs(path, exist_ok=True)
+        return path
+
+    def test_returns_none_when_not_downloaded(self) -> None:
+        result = mm_module.scan_huggingface_variant(
+            "OpenVINO/missing", InternalModelCategory.VISION_LANGUAGE_MODELS
+        )
+        self.assertIsNone(result)
+
+    def test_vlm_requires_sentinel_file(self) -> None:
+        name = "OpenVINO/gemma-4-E4B-it-int8-ov"
+        model_dir = self._model_dir(name)
+        # Directory exists but the sentinel file is missing (partial download).
+        open(os.path.join(model_dir, "config.json"), "w").close()
+        self.assertIsNone(
+            mm_module.scan_huggingface_variant(
+                name, InternalModelCategory.VISION_LANGUAGE_MODELS
+            )
+        )
+
+        open(os.path.join(model_dir, "openvino_language_model.xml"), "w").close()
+        scan_result = mm_module.scan_huggingface_variant(
+            name, InternalModelCategory.VISION_LANGUAGE_MODELS
+        )
+        assert scan_result is not None
+        precision, model_path = scan_result
+        self.assertEqual(precision, "INT8")
+        self.assertEqual(model_path, f"huggingface/{name.replace('/', '_')}")
+
+    def test_vlm_sentinel_file_in_nested_subdir(self) -> None:
+        name = "OpenVINO/nested-model"
+        model_dir = self._model_dir(name)
+        nested = os.path.join(model_dir, "openvino_model")
+        os.makedirs(nested, exist_ok=True)
+        open(os.path.join(nested, "openvino_language_model.xml"), "w").close()
+
+        scan_result = mm_module.scan_huggingface_variant(
+            name, InternalModelCategory.VISION_LANGUAGE_MODELS
+        )
+        assert scan_result is not None
+        precision, model_path = scan_result
+        self.assertEqual(precision, "")
+        self.assertEqual(
+            model_path, f"huggingface/{name.replace('/', '_')}/openvino_model"
+        )
+
+    def test_llm_accepts_any_non_empty_download(self) -> None:
+        name = "OpenVINO/some-llm-int4-ov"
+        model_dir = self._model_dir(name)
+        open(os.path.join(model_dir, "openvino_model.bin"), "w").close()
+
+        scan_result = mm_module.scan_huggingface_variant(
+            name, InternalModelCategory.LARGE_LANGUAGE_MODELS
+        )
+        assert scan_result is not None
+        precision, model_path = scan_result
+        self.assertEqual(precision, "INT4")
+        self.assertEqual(model_path, f"huggingface/{name.replace('/', '_')}")
+
+    def test_image_category_finds_first_non_tokenizer_xml(self) -> None:
+        name = "OpenVINO/detector-fp16-ov"
+        model_dir = self._model_dir(name)
+        open(os.path.join(model_dir, "tokenizer.xml"), "w").close()
+        open(os.path.join(model_dir, "openvino_model.xml"), "w").close()
+
+        scan_result = mm_module.scan_huggingface_variant(
+            name, InternalModelCategory.OBJECT_DETECTION
+        )
+        assert scan_result is not None
+        precision, model_path = scan_result
+        self.assertEqual(precision, "FP16")
+        self.assertEqual(
+            model_path,
+            f"huggingface/{name.replace('/', '_')}/openvino_model.xml",
+        )
+
+    def test_image_category_returns_none_without_xml(self) -> None:
+        name = "OpenVINO/no-xml"
+        self._model_dir(name)
+        self.assertIsNone(
+            mm_module.scan_huggingface_variant(
+                name, InternalModelCategory.OBJECT_DETECTION
+            )
+        )
+
+
+class _ModelsPathTestCase(unittest.TestCase):
+    """Redirect ``MODELS_PATH`` to a temp dir for filesystem scan helpers."""
+
+    def setUp(self) -> None:
+        self._tmpdir = tempfile.mkdtemp(prefix="vippet-mm-scan-")
+        self._orig_models_path = mm_module.MODELS_PATH
+        mm_module.MODELS_PATH = self._tmpdir
+
+    def tearDown(self) -> None:
+        mm_module.MODELS_PATH = self._orig_models_path
+        shutil.rmtree(self._tmpdir, ignore_errors=True)
+
+    def _touch(self, *parts: str) -> str:
+        path = os.path.join(self._tmpdir, *parts)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        open(path, "w").close()
+        return path
+
+
+class TestScanUltralyticsVariants(_ModelsPathTestCase):
+    def test_returns_empty_when_model_dir_missing(self) -> None:
+        self.assertEqual(mm_module.scan_ultralytics_variants("yolo11n"), [])
+
+    def test_returns_sorted_precisions_with_relative_paths(self) -> None:
+        self._touch("ultralytics", "public", "yolo11n", "INT8", "yolo11n.xml")
+        self._touch("ultralytics", "public", "yolo11n", "FP16", "yolo11n.xml")
+
+        self.assertEqual(
+            mm_module.scan_ultralytics_variants("yolo11n"),
+            [
+                ("FP16", "ultralytics/public/yolo11n/FP16/yolo11n.xml"),
+                ("INT8", "ultralytics/public/yolo11n/INT8/yolo11n.xml"),
+            ],
+        )
+
+    def test_ignores_non_precision_dirs_and_dirs_without_xml(self) -> None:
+        self._touch("ultralytics", "public", "yolo11n", "FP32", "yolo11n.xml")
+        self._touch("ultralytics", "public", "yolo11n", "notes", "yolo11n.xml")
+        self._touch("ultralytics", "public", "yolo11n", "INT8", "yolo11n.bin")
+        self._touch("ultralytics", "public", "yolo11n", "stray.txt")
+
+        self.assertEqual(
+            mm_module.scan_ultralytics_variants("yolo11n"),
+            [("FP32", "ultralytics/public/yolo11n/FP32/yolo11n.xml")],
+        )
+
+    def test_falls_back_to_first_xml_when_named_xml_missing(self) -> None:
+        self._touch("ultralytics", "public", "yolo11n", "FP16", "b.xml")
+        self._touch("ultralytics", "public", "yolo11n", "FP16", "a.xml")
+
+        self.assertEqual(
+            mm_module.scan_ultralytics_variants("yolo11n"),
+            [("FP16", "ultralytics/public/yolo11n/FP16/a.xml")],
+        )
+
+
+class TestGenaiAndXmlLookup(_ModelsPathTestCase):
+    def test_find_genai_model_dir_in_root(self) -> None:
+        self._touch("m", mm_module.GENAI_SENTINEL_FILE)
+        root = os.path.join(self._tmpdir, "m")
+        self.assertEqual(mm_module._find_genai_model_dir(root), root)
+
+    def test_find_genai_model_dir_in_child(self) -> None:
+        self._touch("m", "child", mm_module.GENAI_SENTINEL_FILE)
+        root = os.path.join(self._tmpdir, "m")
+        self.assertEqual(
+            mm_module._find_genai_model_dir(root), os.path.join(root, "child")
+        )
+
+    def test_find_genai_model_dir_returns_none_when_absent(self) -> None:
+        self.assertIsNone(
+            mm_module._find_genai_model_dir(os.path.join(self._tmpdir, "missing"))
+        )
+        self._touch("m", "config.json")
+        self.assertIsNone(
+            mm_module._find_genai_model_dir(os.path.join(self._tmpdir, "m"))
+        )
+
+    def test_find_first_xml_skips_tokenizer_and_recurses(self) -> None:
+        self._touch("m", "openvino_tokenizer.xml")
+        nested = self._touch("m", "sub", "model.xml")
+        self.assertEqual(
+            mm_module._find_first_xml(os.path.join(self._tmpdir, "m")), nested
+        )
+
+    def test_find_first_xml_returns_none_without_xml(self) -> None:
+        self._touch("m", "model.bin")
+        self.assertIsNone(mm_module._find_first_xml(os.path.join(self._tmpdir, "m")))
+
+
+class TestPrecisionIsComplete(_ModelsPathTestCase):
+    def test_vlm_requires_sentinel_file(self) -> None:
+        model_dir = os.path.join(self._tmpdir, "vlm")
+        os.makedirs(model_dir)
+        self.assertFalse(
+            mm_module._precision_is_complete("vision_language_models", model_dir)
+        )
+        self._touch("vlm", mm_module.GENAI_SENTINEL_FILE)
+        self.assertTrue(
+            mm_module._precision_is_complete("vision_language_models", model_dir)
+        )
+
+    def test_other_categories_only_need_path_to_exist(self) -> None:
+        xml = self._touch("det", "model.xml")
+        self.assertTrue(mm_module._precision_is_complete("object_detection", xml))
+        self.assertTrue(mm_module._precision_is_complete(None, xml))
+        self.assertFalse(
+            mm_module._precision_is_complete(
+                "object_detection", os.path.join(self._tmpdir, "nope.xml")
+            )
+        )
+
+
+class TestStartDownloadFromHub(_AsyncDBTestCase):
+    async def asyncSetUp(self) -> None:
+        await super().asyncSetUp()
+        self.mgr = ModelManager.__new__(ModelManager)
+        self.mgr._jobs = {}
+        import threading
+
+        self.mgr._jobs_lock = threading.Lock()
+
+    async def test_rejects_unsupported_hub(self) -> None:
+        job_id, status, _ = await self.mgr.start_download("x", "geti")
+        self.assertIsNone(job_id)
+        self.assertEqual(status, 400)
+
+    async def test_huggingface_requires_category(self) -> None:
+        job_id, status, msg = await self.mgr.start_download(
+            "OpenVINO/gemma-4-E4B-it-int8-ov", "huggingface"
+        )
+        self.assertIsNone(job_id)
+        self.assertEqual(status, 400)
+        self.assertIn("category", msg)
+
+    @patch("managers.model_manager.threading.Thread")
+    async def test_huggingface_spawns_worker_with_category(
+        self, mock_thread_cls
+    ) -> None:
+        job_id, status, _ = await self.mgr.start_download(
+            "OpenVINO/gemma-4-E4B-it-int8-ov",
+            "huggingface",
+            InternalModelCategory.VISION_LANGUAGE_MODELS,
+        )
+        self.assertEqual(status, 202)
+        self.assertIn(job_id, self.mgr._jobs)
+        args = mock_thread_cls.call_args.kwargs["args"]
+        self.assertEqual(
+            args[:3],
+            (
+                job_id,
+                "OpenVINO/gemma-4-E4B-it-int8-ov",
+                {"hub": "huggingface", "name": "OpenVINO/gemma-4-E4B-it-int8-ov"},
+            ),
+        )
+        self.assertTrue(callable(args[3]))
+
+    async def test_existing_catalog_model_uses_catalog_flow(self) -> None:
+        await self._add_model(name="yolo11n", install_status="installed")
+        job_id, status, msg = await self.mgr.start_download("yolo11n", "ultralytics")
+        self.assertIsNone(job_id)
+        self.assertEqual(status, 409)
+        self.assertIn("already installed", msg)
+
+    @patch("managers.model_manager.threading.Thread")
+    async def test_new_model_spawns_worker_with_hub_finalizer(
+        self, mock_thread_cls
+    ) -> None:
+        job_id, status, _ = await self.mgr.start_download("yolo11n-seg", "ultralytics")
+        self.assertEqual(status, 202)
+        self.assertIn(job_id, self.mgr._jobs)
+        args = mock_thread_cls.call_args.kwargs["args"]
+        self.assertEqual(
+            args[:3],
+            (job_id, "yolo11n-seg", {"hub": "ultralytics", "name": "yolo11n-seg"}),
+        )
+        self.assertTrue(callable(args[3]))
+
+    @patch("managers.model_manager.threading.Thread")
+    async def test_download_request_has_no_quantize_config(
+        self, mock_thread_cls
+    ) -> None:
+        await self.mgr.start_download("yolov8m", "ultralytics")
+        download_request = mock_thread_cls.call_args.kwargs["args"][2]
+        self.assertEqual(download_request, {"hub": "ultralytics", "name": "yolov8m"})
+
+    async def test_returns_409_when_job_running(self) -> None:
+        self.mgr._jobs["existing"] = _make_running_job(
+            job_id="existing", model_name="yolo11n-seg"
+        )
+        job_id, status, _ = await self.mgr.start_download("yolo11n-seg", "ultralytics")
+        self.assertIsNone(job_id)
+        self.assertEqual(status, 409)
+
+
 # ----------------------------------------------------------------------
 # Remote download worker — happy path / failures / timeout
 # ----------------------------------------------------------------------
@@ -1051,6 +1381,127 @@ class TestJobLifecycle(unittest.TestCase):
                 return db_model.install_status
 
         self.assertEqual(asyncio.run(_check()), "not_installed")
+
+    def _create_ultralytics_files(self, name: str, precisions: list[str]) -> None:
+        for precision in precisions:
+            prec_dir = os.path.join(
+                self._models_path, "ultralytics", "public", name, precision
+            )
+            os.makedirs(prec_dir, exist_ok=True)
+            open(os.path.join(prec_dir, f"{name}.xml"), "w").close()
+        os.makedirs(
+            os.path.join(self._models_path, "ultralytics", "public", name, "datasets"),
+            exist_ok=True,
+        )
+
+    def test_finalize_hub_install_persists_model_and_variants(self) -> None:
+        self._create_ultralytics_files("yolo11n-pose", ["FP16", "FP32"])
+        job = _make_running_job(job_id="job-3", model_name="yolo11n-pose")
+        self.mgr._jobs["job-3"] = job
+
+        self.mgr._finalize_ultralytics_install(
+            "job-3",
+            "yolo11n-pose",
+            InternalModelCategory.POSE_ESTIMATION,
+            {"hub": "ultralytics", "name": "yolo11n-pose"},
+        )
+
+        self.assertEqual(job.state, InternalModelDownloadJobState.COMPLETED)
+
+        from sqlalchemy import select
+
+        async def _check() -> tuple[Model, list[ModelVariant]]:
+            async with database.async_session_maker() as session:
+                db_model = await session.scalar(
+                    select(Model).where(Model.name == "yolo11n-pose")
+                )
+                assert db_model is not None
+                variants = (
+                    await session.scalars(
+                        select(ModelVariant).where(ModelVariant.model_id == db_model.id)
+                    )
+                ).all()
+                return db_model, list(variants)
+
+        db_model, variants = asyncio.run(_check())
+        self.assertEqual(db_model.category, "pose_estimation")
+        self.assertEqual(db_model.hub, "ultralytics")
+        self.assertEqual(db_model.install_status, "installed")
+        self.assertEqual(
+            sorted((v.precision, v.model_path, v.installed) for v in variants),
+            [
+                ("FP16", "ultralytics/public/yolo11n-pose/FP16/yolo11n-pose.xml", True),
+                ("FP32", "ultralytics/public/yolo11n-pose/FP32/yolo11n-pose.xml", True),
+            ],
+        )
+
+    def test_finalize_hub_install_fails_without_files(self) -> None:
+        job = _make_running_job(job_id="job-4", model_name="yolo11n-cls")
+        self.mgr._jobs["job-4"] = job
+        self.mgr._finalize_ultralytics_install(
+            "job-4",
+            "yolo11n-cls",
+            InternalModelCategory.IMAGE_CLASSIFICATION,
+            {"hub": "ultralytics", "name": "yolo11n-cls"},
+        )
+        self.assertEqual(job.state, InternalModelDownloadJobState.FAILED)
+
+    def test_finalize_huggingface_install_persists_genai_model(self) -> None:
+        name = "OpenVINO/gemma-4-E4B-it-int8-ov"
+        model_dir = os.path.join(
+            self._models_path, "huggingface", name.replace("/", "_")
+        )
+        os.makedirs(model_dir, exist_ok=True)
+        open(os.path.join(model_dir, "openvino_language_model.xml"), "w").close()
+
+        job = _make_running_job(job_id="job-5", model_name=name)
+        self.mgr._jobs["job-5"] = job
+
+        self.mgr._finalize_huggingface_install(
+            "job-5",
+            name,
+            InternalModelCategory.VISION_LANGUAGE_MODELS,
+            {"hub": "huggingface", "name": name},
+        )
+
+        self.assertEqual(job.state, InternalModelDownloadJobState.COMPLETED)
+
+        from sqlalchemy import select
+
+        async def _check() -> tuple[Model, list[ModelVariant]]:
+            async with database.async_session_maker() as session:
+                db_model = await session.scalar(select(Model).where(Model.name == name))
+                assert db_model is not None
+                variants = (
+                    await session.scalars(
+                        select(ModelVariant).where(ModelVariant.model_id == db_model.id)
+                    )
+                ).all()
+                return db_model, list(variants)
+
+        db_model, variants = asyncio.run(_check())
+        self.assertEqual(db_model.category, "vision_language_models")
+        self.assertEqual(db_model.hub, "huggingface")
+        self.assertEqual(db_model.install_status, "installed")
+        self.assertEqual(db_model.display_name, "gemma-4-E4B-it-int8-ov")
+        self.assertEqual(len(variants), 1)
+        self.assertEqual(variants[0].precision, "INT8")
+        self.assertEqual(
+            variants[0].model_path, f"huggingface/{name.replace('/', '_')}"
+        )
+        self.assertEqual(variants[0].display_name, "gemma-4-E4B-it-int8-ov (INT8)")
+        self.assertTrue(variants[0].installed)
+
+    def test_finalize_huggingface_install_fails_without_artefacts(self) -> None:
+        job = _make_running_job(job_id="job-6", model_name="OpenVINO/missing")
+        self.mgr._jobs["job-6"] = job
+        self.mgr._finalize_huggingface_install(
+            "job-6",
+            "OpenVINO/missing",
+            InternalModelCategory.VISION_LANGUAGE_MODELS,
+            {"hub": "huggingface", "name": "OpenVINO/missing"},
+        )
+        self.assertEqual(job.state, InternalModelDownloadJobState.FAILED)
 
 
 # ----------------------------------------------------------------------

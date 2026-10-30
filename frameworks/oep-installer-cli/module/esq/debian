@@ -1,24 +1,32 @@
 
 configure_esq () {
   workspace="$(ensure_project_path)/esq"
+  version=main
+  repository=https://github.com/open-edge-platform/edge-system-qualification.git
 }
 
 debian_85_profile_esq () {
-  echo "curl git libgl1 make docker uv edge_base openvino dlstreamer"
+  echo "curl git libgl1 make docker_io uv edge_base openvino dlstreamer libcap2_bin memtester qemu_system_x86 qemu_utils cloud_image_utils ovmf rt_tests stress_ng msr_tools rustup"
 }
 
 debian_85_install_esq () {
   configure_uv
-  if uv tool list 2> /dev/null | grep -q -E "^esq " && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Esq is already installed. Skipping..."
-  else
-    curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-system-qualification/refs/heads/main/scripts/system-setup.sh | ensure_sudo bash -s -- -f || true
-    curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-system-qualification/refs/heads/main/scripts/system-setup-advanced.sh | ensure_sudo bash -s -- -f || true
-    uv tool install --force --refresh git+https://github.com/open-edge-platform/edge-system-qualification.git@main
+  configure_esq
 
-    configure_esq
-    mkdir -p "$workspace"
+  if uv tool list 2> /dev/null | grep -q -E "^esq " && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Esq is installed." >&2
+  else
+    ensure_disk_size 25000
+
+    echo "@@STEP Cloning repository"
+    ensure_git_clone "$workspace" "$version" "$repository" 
+
+    echo "@@STEP Installing ESQ"
+    cd "$workspace"
+    uv tool install --force .
   fi
+
+  configure_esq_pci_info
 
   echo "@@HIGHLIGHT esq @$(which esq)"
   echo "@@HIGHLIGHT workspace @$workspace"
@@ -28,7 +36,6 @@ debian_85_start_esq () {
   configure_uv
   configure_esq
 
-  mkdir -p "$workspace"
   cd "$workspace" 
   esq clean --all
 
@@ -36,14 +43,131 @@ debian_85_start_esq () {
   local options=(${cmdline_str#* -- })
   [ ${#options[@]} -gt 0 ] || options=(-qo)
 
+  configure_esq_telemetry_mods
+  configure_esq_debugfs
+  configure_esq_npu_telemetry
+  configure_esq_memlock
+  configure_esq_powercap
+  configure_esq_gpu_perf_events
+
   esq run "${options[@]}" -v -f && esq summary && esq report
   echo "@@HIGHLIGHT workspace @$workspace"
+}
+
+debian_85_stop_esq () {
+  :
 }
 
 debian_85_remove_esq () {
   configure_uv
   configure_esq
-  esq clean --all
-  uv tool uninstall --force esq || true
-  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+  cd "$workspace" && esq clean --all || true
+  uv tool uninstall esq || true
+  ensure_rm "$workspace"
 }
+
+configure_esq_telemetry_mods () {
+  local m
+  for m in coretemp intel_rapl_common intel_rapl_msr intel_pmt_telemetry intel_vpu; do
+    if lsmod | awk '{print $1}' | grep -qx "$m"; then
+      echo "  [OK] $m already loaded"
+      continue
+    fi
+    if modprobe "$m" 2>/dev/null; then
+      echo "  [OK] modprobe $m"
+    else
+      echo "  [WARN] modprobe $m failed (module may not be available on this kernel)"
+    fi
+  done
+}
+
+configure_esq_debugfs () {
+  if mountpoint -q /sys/kernel/debug; then
+    echo "  [OK] /sys/kernel/debug already mounted"
+  else
+    if ensure_sudo mount -t debugfs none /sys/kernel/debug 2>/dev/null; then
+      echo "  [OK] Mounted debugfs on /sys/kernel/debug"
+    else
+      echo "  [ERROR] Failed to mount debugfs"
+      return 1
+    fi
+  fi
+
+  if [ -d /sys/kernel/debug/accel ]; then
+    if chmod o+x /sys/kernel/debug 2>/dev/null && chmod o+rx /sys/kernel/debug/accel 2>/dev/null; then
+      echo "  [OK] Granted unprivileged traversal of /sys/kernel/debug/accel"
+    else
+      echo "  [WARN] Could not chmod debugfs traversal (NPU monitor tool may need it)"
+    fi
+  fi
+}
+
+configure_esq_npu_telemetry () {
+  local telem_file
+  for telem_file in /sys/class/intel_pmt/telem*/telem; do
+    [ -e "$telem_file" ] || continue
+    # Resolve the symlink so chmod hits the real sysfs node.
+    ensure_sudo chmod o+r "$(readlink -f "$telem_file" 2>/dev/null || echo "$telem_file")" 2>/dev/null
+  done
+}
+
+configure_esq_pci_info () {
+  local ESQ_CACHE_DIR="$(ensure_project_path)/esq/pci"
+  local LSPCI_DUMP="$ESQ_CACHE_DIR/lspci_verbose.txt"
+
+  # Create ~/.esq/pci/ with user-only permissions.
+  # chmod 0700 ensures the directory (and its contents) are not world-readable.
+  mkdir -p "$ESQ_CACHE_DIR"
+  chmod 0700 "$ESQ_CACHE_DIR"
+
+  # Capture full PCI device information as root.
+  # -vvv: maximum verbosity (all capabilities including extended at >0x100).
+  # -nn:  numeric vendor/device/class IDs alongside human-readable names.
+  # As root, lspci reads the full 4096-byte PCIe config space via sysfs.
+  echo "  [INFO] Capturing full PCI device information (lspci -vvvnn)..."
+  if ensure_sudo lspci -vvvnn > "$LSPCI_DUMP" 2>/dev/null; then
+    local device_count
+    device_count=$(grep -c '^[0-9a-f]' "$LSPCI_DUMP" 2>/dev/null || echo 0)
+    echo "  [OK] Captured $device_count PCI device(s) to $LSPCI_DUMP"
+  else
+    echo "  [ERROR] lspci failed to capture PCI device information"
+    rm -f "$LSPCI_DUMP"
+  fi
+
+  # User-only file permissions (not world-readable).
+  chmod 0600 "$LSPCI_DUMP"
+  echo "  [OK] Saved: $LSPCI_DUMP (mode: 0600)"
+}
+
+configure_esq_memlock () {
+  ensure_sudo prlimit --memlock=unlimited:unlimited --pid $$ &&
+    echo "  [OK] prlimit unlimited applied to PID $pid" ||
+    echo "  [INFO] prlimit unavailable; run in your terminal: ulimit -l unlimited"
+}
+
+configure_esq_gpu_perf_events () {
+  local TARGET_PARANOID=0
+  ensure_sudo sysctl -w kernel.perf_event_paranoid="$TARGET_PARANOID" > /dev/null 2>&1 || {
+    printf "${red}sysctl write failed for kernel.perf_event_paranoid${reset}\n"
+    return 1
+  }
+  if [ -f /proc/sys/dev/i915/perf_stream_paranoid ]; then
+    ensure_sudo sysctl -w dev.i915.perf_stream_paranoid="$TARGET_PARANOID" > /dev/null 2>&1 ||
+      printf "${red}sysctl write failed for dev.i915.perf_stream_paranoid${reset}\n"
+  fi
+
+  if [ -f /proc/sys/dev/xe/observation_paranoid ]; then
+    ensure_sudo sysctl -w dev.xe.observation_paranoid="$TARGET_PARANOID" > /dev/null 2>&1 ||
+      printf "${red}sysctl write failed for dev.xe.observation_paranoid${reset}\n"
+  fi
+}
+
+configure_esq_powercap () {
+  local energy_file
+  for energy_file in /sys/class/powercap/*/energy_uj; do
+    [ -e "$energy_file" ] || continue
+    ensure_sudo chmod o+r "$energy_file" || true
+  done
+}
+
+

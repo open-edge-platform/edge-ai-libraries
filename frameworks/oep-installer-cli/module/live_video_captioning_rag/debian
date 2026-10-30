@@ -1,7 +1,7 @@
 
 configure_live_video_captioning_rag () {
   workspace="$(ensure_project_path)/live-video-captioning-rag"
-  version=release-2026.2.0
+  version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")"
   repository="https://github.com/open-edge-platform/metro-ai-suite.git"
   used_ports=(4173 4172 8040 1883 9090 8889 9273 8556)
   get_model_script="https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/tags/2026.2.1/microservices/model-download/scripts/get_model.sh"
@@ -21,23 +21,23 @@ configure_live_video_captioning_rag_device () {
 }
 
 verify_live_video_captioning_rag () {
-  [ -e "$workspace"/live-video-analysis/live-video-captioning-rag/.env ]
+  [ -e "$workspace"/live-video-analysis/live-video-captioning-rag/.env ] &&
   [ -d "$workspace"/live-video-analysis/live-video-captioning ]
 }
 
 debian_90_profile_live_video_captioning_rag () {
-  echo "git curl gawk jq edge_base docker"
+  echo "git curl gawk jq edge_base docker_io"
 }
 
 debian_90_install_live_video_captioning_rag () {
-  configure_live_video_captioning_rag
+  configure_live_video_captioning_rag "$@"
   if verify_live_video_captioning_rag && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Live Video Captioning RAG is already installed. Skipping"
+    echo "Live Video Captioning RAG is installed." >&2
   else
-    ensure_ports_open "${used_ports[*]}" return 3
+    ensure_disk_size 20000
+    ensure_ports_open install live_video_captioning_rag "${used_ports[@]}"
 
     # clone the repository
-    ensure_disk_size 64000
     ensure_git_clone "$workspace" $version $repository live-video-analysis/live-video-captioning live-video-analysis/live-video-captioning-rag
     export -n socks_server ftp_proxy
 
@@ -48,24 +48,24 @@ debian_90_install_live_video_captioning_rag () {
     sed -i "s|^HUGGINGFACEHUB_API_TOKEN=.*|HUGGINGFACEHUB_API_TOKEN=$HF_TOKEN|" .env.example
 
     bash scripts/setup_env.sh
-    docker compose -f compose.yaml pull 
+    docker compose -f compose.yaml pull || docker compose -f compose.yaml build
 
     verify_live_video_captioning_rag
   fi
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   configure_live_video_captioning_rag_device "${device^^}"
 
-  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
   echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]"
   echo "@@HIGHLIGHT $installer_name start|remove"
 }
 
 debian_90_start_live_video_captioning_rag () {
-  configure_live_video_captioning_rag
-  ensure_ports_open "${used_ports[*]}" debian_90_stop_live_video_captioning_rag
+  configure_live_video_captioning_rag "$@"
+  ensure_ports_open start live_video_captioning_rag "${used_ports[@]}"
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_captioning_rag_device "${device^^}"
 
   cd "$workspace"/live-video-analysis/live-video-captioning-rag
@@ -76,12 +76,12 @@ debian_90_start_live_video_captioning_rag () {
 }
 
 debian_90_stop_live_video_captioning_rag () {
-  configure_live_video_captioning_rag
-  cd "$workspace"/live-video-analysis/live-video-captioning-rag
-  docker compose -f compose.yaml down -v --remove-orphans
+  configure_live_video_captioning_rag "$@"
+  cd "$workspace"/live-video-analysis/live-video-captioning-rag && 
+  docker compose -f compose.yaml down -v --remove-orphans || true
 }
 
 debian_90_remove_live_video_captioning_rag () {
-  debian_90_stop_live_video_captioning_rag || true
-  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+  debian_90_stop_live_video_captioning_rag
+  ensure_rm "$workspace"
 }

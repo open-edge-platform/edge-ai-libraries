@@ -1,4 +1,3 @@
-
 configure_gpu_accel () {
   repo_name="repositories.intel.com"
   key_url="https://$repo_name/gpu/intel-graphics.key"
@@ -11,8 +10,6 @@ configure_gpu_accel () {
 
 verify_gpu_accel () {
   [ -c /dev/dri/renderD128 ] &&
-  getent group render >/dev/null 2>&1 &&
-  id -nG | grep -qw render &&
   verify_gpu_accel_packages
 }
 
@@ -34,13 +31,19 @@ debian_40_install_gpu_accel () {
   configure_gpu_accel "$@"
 
   if verify_gpu_accel && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Gpu drivers are already installed. Skipping..."
+    echo "Gpu drivers are installed." >&2
   else
     # remove legacies
-    debian_40_remove_gpu_accel || true
+    debian_40_remove_gpu_accel
 
-    # create the render group
-    ensure_group_add $(debian_40_group_gpu_accel)
+    ensure_prop create installed/gpu_accel/repositories/
+    ensure_prop set installed/gpu_accel/owned true
+    local repo_file
+    for repo_file in "$key_file" "$apt_file"; do
+      if [ ! -e "$repo_file" ] && [ ! -L "$repo_file" ]; then
+        ensure_prop set "installed/gpu_accel/repositories/${repo_file##*/}" true
+      fi
+    done
 
     # product key & list 
     ensure_apt_key $key_file $key_url --dearmor
@@ -50,35 +53,36 @@ debian_40_install_gpu_accel () {
     ensure_apt update -y
 
     # install the packages
-    ensure_apt_allow_downgrades "${allow_downgrades[*]}" --no-install-recommends "${pkg_list[@]}"
+    ensure_apt_allow_downgrades "${allow_downgrades[*]}" --no-install-recommends "${pkg_list[@]}" || true
     ensure_apt install --no-install-recommends --allow-downgrades -y "${pkg_list[@]}"
     verify_gpu_accel_packages
   fi
+
+  # create the render group
+  ensure_group_add $(debian_40_group_gpu_accel)
 }
 
 debian_40_remove_gpu_accel () {
+  # Leave untouched if not installed by gpu_accel
+  [ "$(ensure_prop get installed/gpu_accel/owned)" = "true" ] || return 0
+
   configure_gpu_accel "$@"
-  ensure_apt autoremove -m -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || true
-  # Remove legacy/conflicting apt sources and keyrings for the Intel GPU repo.
-  # Older installer versions wrote /etc/apt/sources.list.d/intel-gpu.list using the
-  # intel-gpu-archive-keyring.gpg keyring. Because that entry points at the same
-  # repository as $apt_file but with a different Signed-By, apt refuses to update
-  # ("Conflicting values set for option Signed-By"). Drop any such stale entry
-  # (anything referencing the gpu repo other than our own $apt_file) so the current
-  # entry is authoritative.
-  ensure_apt_source_remove https://repositories.intel.com/gpu
-  ensure_sudo rm -f /usr/share/keyrings/intel-gpu-archive-keyring.gpg $key_file $apt_file
+  ensure_apt purge --auto-remove -y clinfo libze-intel-gpu1 intel-media-va-driver-non-free intel-opencl-icd || return $?
+  local repo_file
+  for repo_file in "$apt_file" "$key_file"; do
+    if [ "$(ensure_prop get "installed/gpu_accel/repositories/${repo_file##*/}")" = true ]; then
+      ensure_rm "$repo_file" || return $?
+      ensure_prop remove "installed/gpu_accel/repositories/${repo_file##*/}"
+    fi
+  done
 }
 
 debian_40_sbom_gpu_accel () {
   configure_gpu_accel "$@"
-  cat <<EOF
-$(ensure_sbom_format name "$repo_name")
-$(ensure_sbom_format apt-source "$apt_entry")
-$(ensure_sbom_format apt-list-file "$apt_file")
-$(ensure_sbom_format gpg-key "$key_url")
-$(ensure_sbom_format key-file "$key_file")
-$(ensure_sbom_format pkg-list "${pkg_list[@]}")
-EOF
+  ensure_sbom_format repo-name "$repo_name"
+  ensure_sbom_format apt-source "$apt_entry"
+  ensure_sbom_format apt-list-file "$apt_file"
+  ensure_sbom_format gpg-key "$key_url"
+  ensure_sbom_format key-file "$key_file"
+  ensure_sbom_format pkg-list "${pkg_list[@]}"
 }
-

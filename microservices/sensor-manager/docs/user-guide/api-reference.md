@@ -20,32 +20,42 @@ WS-Discovery sweep). ONVIF profiles loaded earlier are preserved.
     "device_type": "USB",
     "details": {
       "device_path": "/dev/video0",
-      "best_capture": {"fourcc": "MJPG", "width": 1920, "height": 1080, "fps": 30.0}
+      "best_capture": {
+        "fourcc": "MJPG",
+        "width": 1920,
+        "height": 1080,
+        "fps": 30.0
+      }
     }
   },
   {
     "device_id": "network-camera-192.168.1.100-80",
     "device_name": "ONVIF Camera 192.168.1.100",
     "device_type": "NETWORK",
-    "details": {"ip": "192.168.1.100", "port": 80, "profiles": [], "best_profile": null}
+    "details": {
+      "ip": "192.168.1.100",
+      "port": 80,
+      "profiles": [],
+      "best_profile": null
+    }
   }
 ]
 ```
 
-| Code | Description |
-|------|-------------|
-| 200 | List of sensors (possibly empty) |
-| 500 | `{"message": "..."}` – unexpected error |
+| Code | Description                             |
+| ---- | --------------------------------------- |
+| 200  | List of sensors (possibly empty)        |
+| 500  | `{"message": "..."}` – unexpected error |
 
 ## GET /sensors/{sensor_id}
 
 Returns a single sensor. If the sensor is not cached yet, discovery is refreshed once.
 
-| Code | Description |
-|------|-------------|
-| 200 | Sensor |
-| 404 | Sensor not found |
-| 422 | Invalid `sensor_id` (allowed characters: `A-Z a-z 0-9 . _ : -`, max. 256) |
+| Code | Description                                                               |
+| ---- | ------------------------------------------------------------------------- |
+| 200  | Sensor                                                                    |
+| 404  | Sensor not found                                                          |
+| 422  | Invalid `sensor_id` (allowed characters: `A-Z a-z 0-9 . _ : -`, max. 256) |
 
 ## POST /sensors/{sensor_id}/profiles
 
@@ -54,7 +64,7 @@ Connects to an ONVIF camera and reads its media profiles.
 Request body (`username` and `password` up to 256 characters each):
 
 ```json
-{"username": "<user>", "password": "<password>"}
+{ "username": "<user>", "password": "<password>" }
 ```
 
 Response:
@@ -91,11 +101,11 @@ Response:
 }
 ```
 
-| Code | Description |
-|------|-------------|
-| 200 | Profiles loaded |
-| 400 | `sensor_id` is not a valid network camera identifier or camera not discovered |
-| 401 | Credentials rejected by the camera |
-| 404 | Camera not reachable |
-| 422 | Invalid request body |
-| 500 | Unexpected ONVIF error |
+| Code | Description                                                                   |
+| ---- | ----------------------------------------------------------------------------- |
+| 200  | Profiles loaded                                                               |
+| 400  | `sensor_id` is not a valid network camera identifier or camera not discovered |
+| 401  | Credentials rejected by the camera                                            |
+| 404  | Camera not reachable                                                          |
+| 422  | Invalid request body                                                          |
+| 500  | Unexpected ONVIF error                                                        |

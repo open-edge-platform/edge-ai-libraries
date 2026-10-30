@@ -1,14 +1,10 @@
 
 configure_pallet_defect_detection () {
   workspace="$(ensure_project_path)/pallet-defect-detection"
-  version=release-2026.2.0
+  version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")"
   repository="https://github.com/open-edge-platform/manufacturing-ai-suite.git"
-  used_ports=(80 443)
-}
-
-configure_pallet_defect_detection_device () {
-  local device="$1"
-  sed -i "s|^PIPELINE=.*$|PIPELINE=pallet_defect_detection${device//_cpu/}|" "$workspace"/industrial-edge-insights-vision/sample_start.sh
+  used_ports=(80 443 8000 3478)
+  wait_timeout=120
 }
 
 verify_pallet_defect_detection () {
@@ -23,17 +19,18 @@ verify_pallet_defect_detection () {
 }
 
 debian_90_profile_pallet_defect_detection () {
-  echo "git curl gawk unzip docker edge_base"
+  echo "git curl gawk unzip docker_io edge_base"
 }
 
 debian_90_install_pallet_defect_detection () {
-  configure_pallet_defect_detection
+  configure_pallet_defect_detection "$@"
   if verify_pallet_defect_detection && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Pallet defect detection is already installed. Skipping"
+    echo "Pallet defect detection is installed." >&2
   else
-    ensure_ports_open "${used_ports[*]}" return 3
+    ensure_disk_size 10000
+    ensure_ports_open install pallet_defect_detection "${used_ports[@]}"
+
     # clone the repository
-    ensure_disk_size 50
     ensure_git_export "$workspace" $version $repository industrial-edge-insights-vision
 
     # setup
@@ -54,34 +51,56 @@ EOF
     verify_pallet_defect_detection
   fi
 
-  local device=$(ensure_select_device "$@")
-  configure_pallet_defect_detection_device "_$device"
+  local device=$(ensure_parse_device "$@")
+  echo "_$device" > "$workspace"/.device
 
-  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
   echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]"
   echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]"
   echo "@@HIGHLIGHT $installer_name remove"
 }
 
 debian_90_start_pallet_defect_detection () {
-  configure_pallet_defect_detection
-  ensure_ports_open "${used_ports[*]}" debian_90_stop_pallet_defect_detection
+  configure_pallet_defect_detection "$@"
+  ensure_ports_open start pallet_defect_detection "${used_ports[@]}"
 
-  local device=$(ensure_select_device "$@")
-  [[ " ${*,,} " != *" --$device "* ]] || configure_pallet_defect_detection_device "_$device"
+  local device=$(ensure_parse_device "$@")
+  [[ " ${*,,} " != *" --$device "* ]] || echo "_$device" > "$workspace"/.device
 
   cd "$workspace"/industrial-edge-insights-vision
-  docker compose up -d --wait
+  docker compose up -d
+
+  local start_time=$SECONDS elapsed
+  while true; do
+    elapsed=$(( SECONDS - start_time ))
+    echo "Waiting...elapsed $elapsed seconds" >&2
+    if [[ $elapsed -gt $wait_timeout ]]; then
+      echo "Timeout waiting for pipelines up." >&2
+      return 3
+    fi
+    curl -k -s https://localhost/api/pipelines/status -H "accept: application/json" > /dev/null && break || sleep 5
+  done
 
   echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}"
   echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]"
   echo "@@HIGHLIGHT $installer_name remove"
 
-  ./sample_start.sh && ./sample_status.sh
+  local pipeline="pallet_defect_detection$(< ../.device)"
+  ./sample_start.sh -p ${pipeline%_cpu} && {
+    local status
+    while true; do
+      status="$(./sample_status.sh)" || break
+      printf "%s\n" "$status" | grep frame_fps
+      case "$status" in
+      *COMPLETE*|*ERROR*) break;;
+      esac
+      sleep 5
+    done
+  }
 }
 
 debian_90_stop_pallet_defect_detection () {
-  configure_pallet_defect_detection
+  configure_pallet_defect_detection "$@"
   cd "$workspace"/industrial-edge-insights-vision && {
     ./sample_stop.sh || true
     docker compose down -v
@@ -90,5 +109,5 @@ debian_90_stop_pallet_defect_detection () {
 
 debian_90_remove_pallet_defect_detection () {
   debian_90_stop_pallet_defect_detection
-  ensure_sudo rm -rf "$workspace" 2> /dev/null || true
+  ensure_rm "$workspace"
 }

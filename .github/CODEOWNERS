@@ -132,6 +132,10 @@ README.md           @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 # Tools
 # ============================================================================
 
+/tools/oep-sdk-manager/                                      @vagheshp @rranjan3 @xwu2intel
+/tools/oep-sdk-manager/docs/                                 @vagheshp @rranjan3 @xwu2intel @open-edge-platform/open-edge-platform-docs-write
+/tools/oep-sdk-manager/README.md                             @vagheshp @rranjan3 @xwu2intel @open-edge-platform/open-edge-platform-docs-write
+
 # the main folder lacks codeowners, needs resolution
 # /tools/npu-monitor-tool/
 
@@ -144,6 +148,7 @@ README.md           @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 # ============================================================================
 # Frameworks
 # ============================================================================
+/frameworks/agent-harness-install/                      @vinayg-intel @bharagha @shahmitu
 /frameworks/edgedevice-enablement-framework/             @chinthap @ANUSHABHASKAR @mutra-vamsi
 /frameworks/edgedevice-enablement-framework/docs/        @chinthap @ANUSHABHASKAR @mutra-vamsi @k-mochi  @open-edge-platform/open-edge-platform-docs-write
 /frameworks/edgedevice-enablement-framework/README.md    @chinthap @ANUSHABHASKAR @mutra-vamsi @k-mochi  @open-edge-platform/open-edge-platform-docs-write

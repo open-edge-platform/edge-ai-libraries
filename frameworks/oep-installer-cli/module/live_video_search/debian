@@ -1,7 +1,7 @@
 
 configure_live_video_search () {
   workspace="$(ensure_project_path)/live-video-search"
-  version=release-2026.2.0
+  version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")"
   repository="https://github.com/open-edge-platform/metro-ai-suite.git"
   used_ports=(8080 3001 9998 4001 4002 5432 7890 6008 19530 55555 6016 9766 80 5000 8000 1883 6379 9777 6008 19530 9091 8554 9090 9273)
   get_model_script="https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/tags/2026.2.1/microservices/model-download/scripts/get_model.sh"
@@ -30,34 +30,34 @@ verify_live_video_search () {
 }
 
 debian_90_profile_live_video_search () {
-  echo "git curl gawk jq edge_base docker"
+  echo "git curl gawk jq edge_base docker_io"
 }
 
 debian_90_install_live_video_search () {
-  configure_live_video_search
+  configure_live_video_search "$@"
   if verify_live_video_search && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Live Video Search is already installed. Skipping"
+    echo "Live Video Search is installed." >&2
   else
-    ensure_ports_open "${used_ports[*]}" return 3
+    ensure_disk_size 25000
+    ensure_ports_open install live_video_search "${used_ports[@]}"
 
     # clone the repository
-    ensure_disk_size 64000
     ensure_git_clone "$workspace" $version $repository live-video-analysis/live-video-search
     verify_live_video_search
   fi
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   configure_live_video_search_device "$device"
 
-  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
   echo "@@HIGHLIGHT $installer_name start|remove"
 }
 
 debian_90_start_live_video_search () {
-  configure_live_video_search
-  ensure_ports_open "${used_ports[*]}" debian_90_stop_live_video_search
+  configure_live_video_search "$@"
+  ensure_ports_open start live_video_search "${used_ports[@]}"
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_live_video_search_device "$device"
 
   cd "$workspace"/live-video-analysis/live-video-search
@@ -71,17 +71,18 @@ debian_90_start_live_video_search () {
 }
 
 debian_90_stop_live_video_search () {
-  configure_live_video_search
+  configure_live_video_search "$@"
   cd "$workspace"/live-video-analysis/live-video-search && {
     set -a
     . ./docker/.env || true
     set +a
     . ./setup.sh --down || true
     . ./setup.sh --clean-data || true
-  }
+    docker volume rm docker_ov_models -f
+  } || true
 }
 
 debian_90_remove_live_video_search () {
   debian_90_stop_live_video_search "$@"
-  rm -rf "$workspace" 2> /dev/null || ensure_sudo rm -rf "$workspace" 
+  ensure_rm "$workspace"
 }

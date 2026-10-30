@@ -2,7 +2,7 @@
 
 ## High-Level Architecture
 
-The Behavioral Analysis Service is a single-process Python microservice that combines three distinct AI capabilities: skeletal pose extraction (YOLO-Pose via OpenVINO), declarative pattern matching (rule engine), and optional visual confirmation (VLM via OVMS). It is fully event-driven; processing is triggered by MQTT messages.
+The Behavioral Analysis Service is a single-process Python microservice that combines three distinct AI capabilities: skeletal pose extraction (YOLO-Pose via OpenVINO™), declarative pattern matching (rule engine), and optional visual confirmation (VLM via OVMS). It is fully event-driven; processing is triggered by MQTT messages.
 
 ```mermaid
 graph TD
@@ -21,7 +21,7 @@ graph TD
 
 > [!NOTE]
 > The `swlp-service` mentioned above as an example upstream service refers to
-> [Store-Wide Loss Prevention](https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-retail/storewide-loss-prevention/index.html). Follow the link for more details.
+> [Store-Wide Loss Prevention](https://docs.openedgeplatform.intel.com/main/edge-ai-suites/ai-suite-retail/storewide-loss-prevention/index.html). Follow the link for more details.
 
 ## Component Responsibilities
 

@@ -105,10 +105,31 @@ export interface SearchQuery {
   createdAt: string;
   updatedAt: string;
   errorMessage?: string;
+  lastRefreshedAt?: string | null;
 }
 
 export interface SearchQueryUI extends SearchQuery {
   topK: number;
+  /**
+   * Per-query "group results by tag" view toggle. Must not leak across queries.
+   * Optional on construction; the slice defaults it to `false` in every
+   * query-creation path, and all reads coerce with `Boolean(...)`.
+   */
+  showVideoGroups?: boolean;
+}
+
+/**
+ * Auto-refresh settings for watched ("checked") queries, as resolved by the
+ * pipeline manager. Watched queries are refreshed on this cadence only when new
+ * embeddings have been indexed since the previous refresh.
+ */
+export interface SearchRefreshConfig {
+  enabled: boolean;
+  intervalMs: number;
+  quietPeriodMs: number;
+  batchSize: number;
+  minQueryIntervalMs: number;
+  maxQueriesPerTick: number;
 }
 
 export interface SearchState {
@@ -117,4 +138,5 @@ export interface SearchState {
   unreads: string[];
   selectedQuery: string | null;
   triggerLoad: boolean;
+  refreshConfig?: SearchRefreshConfig | null;
 }
