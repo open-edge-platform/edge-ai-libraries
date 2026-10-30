@@ -1,4 +1,3 @@
-
 debian_40_profile_core_types () {
   [ "$1" != "install" ] || echo "cpuid curl"
 }
@@ -22,4 +21,3 @@ debian_40_remove_core_types () {
   [ "$(ensure_prop get installed/core_types/owned)" = "true" ] || return 0
   ensure_rm /etc/core-types
 }
-

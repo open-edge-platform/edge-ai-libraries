@@ -1,4 +1,3 @@
-
 configure_edge_pack () {
   edge_pack_repo="apt.repos.intel.com"
   edge_pack_key_url="https://$edge_pack_repo/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
@@ -75,7 +74,7 @@ sbom_edge_pack_repo_entries () {
     ensure_sbom_format apt-list-file "$edge_pack_ppa_list_file"
     echo "---"
   fi
-  ensure_sbom_format name "$edge_pack_repo"
+  ensure_sbom_format repo-name "$edge_pack_repo"
   ensure_sbom_format gpg-key "$edge_pack_key_url"
   ensure_sbom_format key-file "$edge_pack_key_file"
   ensure_sbom_format apt-source "$edge_pack_source"
@@ -83,4 +82,3 @@ sbom_edge_pack_repo_entries () {
   ensure_sbom_format apt-pref "${edge_pack_pref[@]}"
   ensure_sbom_format apt-pref-file "$edge_pack_pref_file"
 }
-

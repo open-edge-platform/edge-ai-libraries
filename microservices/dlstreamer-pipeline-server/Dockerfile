@@ -248,8 +248,8 @@ RUN pip3 install --no-cache-dir wheel==0.46.2 setuptools==82.0.1 packaging==25.0
 
 USER ${USER}
 
-# Disable OpenVINO Telemetry
-RUN opt_in_out --opt_out
+# Disable OpenVINO Telemetry (opt_in_out ships with openvino-telemetry; skip if the base image doesn't provide it)
+RUN command -v opt_in_out >/dev/null 2>&1 && opt_in_out --opt_out || echo "opt_in_out not found, skipping OpenVINO telemetry opt-out"
 
 # Create Models directory
 RUN mkdir -p /home/pipeline-server/models

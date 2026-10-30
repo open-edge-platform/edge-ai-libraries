@@ -130,7 +130,7 @@ EOF
     verify_loss_prevention
   fi
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   configure_loss_prevention_options "$device" "$@" --lp   # --lp as default
 
   echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
@@ -146,7 +146,7 @@ debian_90_start_loss_prevention () {
   ensure_ports_open start loss_prevention "${used_ports[@]}"
 
   cd "$workspace"
-  local device1=$(ensure_select_device "$@")
+  local device1=$(ensure_parse_device "$@")
   local device2=$(grep -m1 -E '^TARGET_DEVICE [?]=' Makefile | cut -f2 -d= | tr -d ' ')
   [[ " $* " = *" --$device1 "* || " $* " = *" --${device1^^} "* ]] || device1="${device2,,}"
   configure_loss_prevention_options "$device1" "$@"

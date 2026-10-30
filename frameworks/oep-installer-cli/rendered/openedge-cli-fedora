@@ -152,6 +152,31 @@ exec "$installer_bin" "$@"
 
 #### COLLECTION OF MODULES ####
 
+_act_levenshtein () 
+{ 
+    local a=$1 b=$2 la=${#1} lb=${#2} i j cost d ins sub;
+    local -a prev=() cur=();
+    for ((j=0; j<=lb; j++))
+    do
+        prev[j]=$j;
+    done;
+    for ((i=1; i<=la; i++))
+    do
+        cur=($i);
+        for ((j=1; j<=lb; j++))
+        do
+            [ "${a:i-1:1}" = "${b:j-1:1}" ] && cost=0 || cost=1;
+            d=$((prev[j]+1));
+            ins=$((cur[j-1]+1));
+            sub=$((prev[j-1]+cost));
+            ((ins < d)) && d=$ins;
+            ((sub < d)) && d=$sub;
+            cur[j]=$d;
+        done;
+        prev=("${cur[@]}");
+    done;
+    echo "${prev[lb]}"
+}
 act_expand_modules () 
 { 
     local act_name=${1%%,*};
@@ -274,6 +299,7 @@ act_helper ()
     local sort_options="$2";
     shift;
     shift;
+    act_validate_modules $act_name "$@" || return 3;
     local explicit_mods="$(act_extract_modules $act_name "$@")";
     local remove_all=0;
     if [[ "$act_name" = "remove" && " $* " = *" --remove-all "* ]]; then
@@ -2130,6 +2156,64 @@ act_resolve_args ()
     fi;
     echo "${args[*]}"
 }
+act_suggest_modules () 
+{ 
+    local name=$1 m dist d2 max_pre max_full n=${#1} k;
+    local all_modules=(${_act_cache_names[*]:-${_act_cache_modules[*]}});
+    max_full=$(( n <= 6 ? 1 : 2 ));
+    for m in "${all_modules[@]}";
+    do
+        if [[ "$m" == "$name"* ]]; then
+            echo "0 0 $m";
+            continue;
+        fi;
+        if [[ "$m" == *"$name"* || "$name" == *"$m"* ]]; then
+            echo "1 0 $m";
+            continue;
+        fi;
+        for ((k=0; k<n && k<${#m}; k++))
+        do
+            [ "${name:k:1}" = "${m:k:1}" ] || break;
+        done;
+        max_pre=$(( (n - k) / 2 ));
+        ((max_pre < 1)) && max_pre=1;
+        ((max_pre > 3)) && max_pre=3;
+        if ((${#m} > n)); then
+            dist=$(_act_levenshtein "$name" "${m:0:n}");
+            d2=$(_act_levenshtein "$name" "${m:0:n+1}");
+            ((d2 < dist)) && dist=$d2;
+            if ((dist <= max_pre)); then
+                echo "2 $dist $m";
+                continue;
+            fi;
+        fi;
+        dist=$(_act_levenshtein "$name" "$m");
+        ((dist <= max_full)) && echo "3 $dist $m";
+    done | sort -k1,1n -k2,2n -k3,3 | awk 'NR==1{t=$1; d=$2} $1==t && $2==d' | head -n 3 | cut -d' ' -f3
+}
+act_validate_modules () 
+{ 
+    local act_name=${1%%,*};
+    shift;
+    local all_modules=(${_act_cache_names[*]:-${_act_cache_modules[*]}});
+    local all_module_args=" ${all_modules[*]/#/--} ";
+    local v s bad=0;
+    for v in "$@";
+    do
+        [[ "$all_module_args" != *" $v "* ]] || break;
+        [[ "$v" == -* ]] && continue;
+        [[ "$all_module_args" == *" --$v "* ]] && continue;
+        bad=1;
+        s=$(act_suggest_modules "$v" | paste -sd, - | sed 's/,/, /g');
+        if [ -n "$s" ]; then
+            echo -e "${red}Unknown component '$v'.${reset}" 1>&2;
+            echo "Did you mean: $s?" 1>&2;
+        else
+            echo -e "${red}Unknown component '$v'.${reset}" 1>&2;
+        fi;
+    done;
+    [ $bad -eq 0 ] || return 3
+}
 configure_anomalib () 
 { 
     workspace="$(ensure_project_path)/anomalib";
@@ -2146,12 +2230,12 @@ configure_dlstreamer ()
     yum_repo_conf=("[DLStreamer]" "name=Intel(R) DLStreamer" "baseurl=https://$repo_name/edgeai/dlstreamer" "enabled=1" "gpgcheck=1" "repo_gpgcheck=1" "gpgkey=$key_url");
     yum_repo_file="/etc/yum.repos.d/intel-dlstreamer.repo";
     workspace="$(ensure_project_path)/dlstreamer";
-    version=2026.2.0;
+    version="$(ensure_parse_value_option version --version=2026.2.0 "$@")";
     od_model=yolov5m-640_INT8/FP16-INT8/yolov5m-640_INT8;
     od_model_proc=yolov5m-640_INT8/yolo-v5;
     oc_model=efficientnet-b0_INT8/FP16-INT8/efficientnet-b0;
     model_repo=https://raw.githubusercontent.com/dlstreamer/pipeline-zoo-models/ee73878abc6fb6d864e59a5cd80016de4fc1d194;
-    version_skills=release-2026.2.0;
+    version_skills="release-${version%-rc*}";
     repository_skills=https://github.com/open-edge-platform/skills.git;
     skills=(dlstreamer-coding-agent)
 }
@@ -2339,7 +2423,7 @@ configure_openvino ()
     key_url="https://$repo_name/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB";
     yum_repo_conf=("[OpenVINO]" "name=Intel(R) Distribution of OpenVINO" "baseurl=https://$repo_name/openvino" "enabled=1" "gpgcheck=1" "repo_gpgcheck=1" "gpgkey=$key_url");
     yum_repo_file="/etc/yum.repos.d/intel-openvino.repo";
-    version=$([[ " $* " = *" dlstreamer "* ]] && echo 2026.2.0 || echo 2026.4.1);
+    version="$(ensure_parse_value_option version --version=$([[ " $* " = *" dlstreamer "* ]] && echo 2026.2.0 || echo 2026.4.1) "$@")";
     workspace="$(ensure_project_path)/openvino";
     model="https://github.com/onnx/models/raw/4c46cd00fbdb7cd30b6c1c17ab54f2e1f4f7b177/validated/vision/classification/squeezenet/model/squeezenet1.0-12.onnx"
 }
@@ -2644,6 +2728,42 @@ ensure_ip ()
 { 
     ip -4 addr show scope global | sed -n '/^[0-9]*:.*state UP/,/^[0-9]*:/{/^ *inet /{s|.*inet \([0-9.]*\).*|\1|;p}}' | head -n1
 }
+ensure_parse_device () 
+{ 
+    local device="cpu";
+    local args_uc=" ${*^^} ";
+    [ ! -e /dev/accel/accel0 ] || device="npu";
+    [ ! -e /dev/dri/renderD128 ] || device="gpu";
+    [[ "$args_uc" != *" --CPU "* ]] || device="cpu";
+    [[ "$args_uc" != *" --NPU "* ]] || [ ! -e /dev/accel/accel0 ] || device="npu";
+    [[ "$args_uc" != *" --GPU "* ]] || [ ! -e /dev/dri/renderD128 ] || device="gpu";
+    echo $device
+}
+ensure_parse_value_option () 
+{ 
+    local key="$1";
+    shift;
+    local v v1 value="";
+    for v in $*;
+    do
+        case "$v" in 
+            "--$key="*)
+                value="${v#*=}"
+            ;;
+            "--$key")
+
+            ;;
+            *)
+                if [ "$v1" = "--$key" ]; then
+                    value="$v";
+                    v="";
+                fi
+            ;;
+        esac;
+        v1="$v";
+    done;
+    echo "$value"
+}
 ensure_ports_open () 
 { 
     local act_name="${1:?}";
@@ -2750,12 +2870,12 @@ ensure_sbom_format ()
     local key=$1;
     shift;
     case "$key" in 
-        pkg-list | apt-pref | yum-repo-conf | kernel-args | module-list)
+        pkg-list | apt-pref | yum-repo-conf | kernel-cmdline | module-list)
             local IFS='|';
             local pkg_str="$*";
             echo "\"$key\": [\"${pkg_str//'|'/\",\"}\"]"
         ;;
-        name | gpg-key | key-file | apt-source | apt-src-source | apt-list-file | apt-pref-file | apt-repository | yum-repo-file)
+        component | repo-name | gpg-key | gpg-key-fingerprint | key-file | apt-source | apt-src-source | apt-list-file | apt-pref-file | apt-repository | yum-repo-file)
             echo "\"$key\": \"$*\""
         ;;
         *)
@@ -2763,17 +2883,6 @@ ensure_sbom_format ()
             return 3
         ;;
     esac
-}
-ensure_select_device () 
-{ 
-    local device="cpu";
-    local args_uc=" ${*^^} ";
-    [ ! -e /dev/accel/accel0 ] || device="npu";
-    [ ! -e /dev/dri/renderD128 ] || device="gpu";
-    [[ "$args_uc" != *" --CPU "* ]] || device="cpu";
-    [[ "$args_uc" != *" --NPU "* ]] || [ ! -e /dev/accel/accel0 ] || device="npu";
-    [[ "$args_uc" != *" --GPU "* ]] || [ ! -e /dev/dri/renderD128 ] || device="gpu";
-    echo $device
 }
 ensure_skills () 
 { 
@@ -3209,7 +3318,7 @@ fedora_30_sbom_cmake ()
 fedora_30_sbom_docker_ce () 
 { 
     configure_docker_ce "$@";
-    ensure_sbom_format name $repo_name;
+    ensure_sbom_format repo-name $repo_name;
     ensure_sbom_format gpg-key "$key_url";
     ensure_sbom_format yum-repo-conf "${yum_repo_conf[@]}";
     ensure_sbom_format yum-repo-file "$yum_repo_file";
@@ -3347,7 +3456,7 @@ fedora_70_sbom_nodejs ()
 fedora_70_sbom_openvino () 
 { 
     configure_openvino "$@";
-    ensure_sbom_format name "$repo_name";
+    ensure_sbom_format repo-name "$repo_name";
     ensure_sbom_format gpg-key "$key_url";
     ensure_sbom_format yum-repo-conf "${yum_repo_conf[@]}";
     ensure_sbom_format yum-repo-file "$yum_repo_file";
@@ -3355,7 +3464,7 @@ fedora_70_sbom_openvino ()
 }
 fedora_75_install_dlstreamer () 
 { 
-    configure_dlstreamer;
+    configure_dlstreamer "$@";
     if verify_dlstreamer && [[ " $* " != *" --reinstall "* ]]; then
         echo "dlstreamer-${version} is installed." 1>&2;
     else
@@ -3382,7 +3491,7 @@ fedora_75_profile_dlstreamer ()
 }
 fedora_75_remove_dlstreamer () 
 { 
-    configure_dlstreamer;
+    configure_dlstreamer "$@";
     [ "$(ensure_prop get installed/dlstreamer/owned)" = "true" ] || return 0;
     ensure_dnf autoremove -y $(dnf list --installed | grep openvino | awk '{print$1}') || true;
     ensure_rm "$workspace" || true;
@@ -3390,8 +3499,8 @@ fedora_75_remove_dlstreamer ()
 }
 fedora_75_sbom_dlstreamer () 
 { 
-    configure_dlstreamer;
-    ensure_sbom_format name "$repo_name";
+    configure_dlstreamer "$@";
+    ensure_sbom_format repo-name "$repo_name";
     ensure_sbom_format gpg-key "$key_url";
     ensure_sbom_format yum-repo-conf "${yum_repo_conf[@]}";
     ensure_sbom_format yum-repo-file "$yum_repo_file";
@@ -3399,7 +3508,7 @@ fedora_75_sbom_dlstreamer ()
 }
 fedora_80_install_anomalib () 
 { 
-    configure_anomalib $*;
+    configure_anomalib "$@";
     if verify_anomalib && [[ " $* " != *" --reinstall "* ]]; then
         echo "Anomalib is installed." 1>&2;
     else
@@ -3423,7 +3532,7 @@ fedora_80_profile_anomalib ()
 }
 fedora_80_remove_anomalib () 
 { 
-    configure_anomalib $*;
+    configure_anomalib "$@";
     ensure_rm "$workspace" || true;
     ensure_skills remove "${skills[@]}"
 }
@@ -3639,29 +3748,31 @@ subcommand_install ()
             return 3;
         fi;
         [ $hit -eq 1 ] && out+=("${bind[@]}");
-        set -- "${out[*]}";
+        set -- "${out[@]}";
     fi;
     act_helper "install,Installation,Installing,Installed" "" "$@"
 }
 subcommand_list () 
 { 
-    act_get prefix profile_;
-    local all_profiles=(${_act_reply[*]});
-    local all_modules=(${_act_cache_modules[*]});
-    local all_list=" ${all_modules[*]} ${all_profiles[*]#*_*_*_} ";
-    local k v sbom=0 args=() margs=() os_release="";
+    local all_list=" ${_act_cache_names[*]:-${_act_cache_modules[*]}} ";
+    local module_region_list=" ${_act_cache_modules[*]/#/--} ";
+    local k v args=() mods=() os_release="" cli_url="" sbom=0 margs=0;
     for v in "$@";
     do
         case "$v" in 
             --help)
                 echo "list options:";
-                echo "  --os-release=<file> import an os-release file";
-                echo "  --sbom              show component SBOM items";
+                echo "  --os-release=<file> [deprecated] import an os-release file";
+                echo "  --sbom [<cli-url>]  show component SBOM items";
                 echo;
                 return 0
             ;;
             --os-release=*)
                 os_release="${v#*=}"
+            ;;
+            --sbom=*)
+                sbom=1;
+                cli_url="${v#*=}"
             ;;
             --sbom)
                 sbom=1
@@ -3670,11 +3781,33 @@ subcommand_list ()
 
             ;;
             *)
-                if [ "$last_v" = "--os-release" ]; then
-                    os_release="$v";
-                else
-                    [[ " $all_list " != *" $v "* ]] || margs+=("$v");
+                if [ $margs -eq 1 ]; then
                     args+=("$v");
+                else
+                    if [ "$last_v" = "--os-release" ]; then
+                        os_release="$v";
+                    else
+                        if [[ "$last_v" = "--sbom" && ( "$v" = "http://"* || "$v" = "https://"* ) ]]; then
+                            cli_url="$v";
+                        else
+                            if [[ "$module_region_list" = *" $v "* ]]; then
+                                args+=("$v");
+                                margs=1;
+                            else
+                                if [[ "$all_list" = *" $v "* ]]; then
+                                    mods+=("$v");
+                                    args+=("$v");
+                                else
+                                    if [[ "$v" = "-"* ]]; then
+                                        args+=("$v");
+                                    else
+                                        echo "Unknown option: $v" 1>&2;
+                                        return 3;
+                                    fi;
+                                fi;
+                            fi;
+                        fi;
+                    fi;
                 fi
             ;;
         esac;
@@ -3714,17 +3847,23 @@ subcommand_list ()
             return 3;
         fi;
     fi;
-    [ ${#args[*]} -eq 0 ] && set -- $all_list || set -- "${args[@]}";
+    if [ ${#mods[*]} -eq 0 ]; then
+        mods=($all_list);
+        set -- $all_list "${args[@]}";
+    else
+        set -- "${args[@]}";
+    fi;
     if [ $sbom -eq 1 ]; then
-        local handles=($(act_find_deps install $(act_resolve_args install "$@")));
+        local handles=($(act_find_deps install "$@"));
         if [ ${#handles[*]} -eq 0 ]; then
-            echo "No installable components from ${margs[*]}" 1>&2;
+            echo "No installable components from ${mods[*]}" 1>&2;
             return 3;
         fi;
         local all_install_modules="${handles[*]#${installer_family}_*_install_}";
-        echo "\"schema-version\": 1.0";
-        echo "\"version\": \"main\"";
-        ensure_sbom_format module-list "${margs[@]}";
+        echo "\"schema-version\": \"1\"";
+        echo "\"cli-version\": \"main\"";
+        [ -z "$cli_url" ] || echo "\"cli-url\": \"$cli_url\"";
+        ensure_sbom_format module-list "${mods[@]}";
         echo "---";
         local handler sbomer;
         for handler in $(printf '%s\n' "${handles[@]}" | sort);
@@ -3738,6 +3877,7 @@ subcommand_list ()
         local all_cmds=(${_act_cache_cmds[*]});
         local profile_lines=() module_lines=();
         local -A module_act_cache=();
+        local all_modules=(${_act_cache_modules[*]});
         if [ ${#all_modules[@]} -gt 0 ]; then
             local module_name;
             for module_name in "${all_modules[@]}";
@@ -3758,6 +3898,8 @@ subcommand_list ()
                 module_lines+=("|$module_name|[${module_act_cache[$module_name]}]");
             done;
         fi;
+        act_get prefix profile_;
+        local all_profiles=(${_act_reply[*]});
         if [ ${#all_profiles[@]} -gt 0 ]; then
             local profiler;
             for profiler in "${all_profiles[@]}";
@@ -3845,7 +3987,7 @@ subcommand_resume ()
 subcommand_setup () 
 { 
     [[ " $* " != *" --help "* ]] || return;
-    local installer_misc_functions=(system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary test_anomalib test_dlstreamer_pipeline test_openvino);
+    local installer_misc_functions=(_act_levenshtein system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary test_anomalib test_dlstreamer_pipeline test_openvino);
     local installer_completion_text="IyEvYmluL2Jhc2gKX29wZW5lZGdlX2NsaV9jb21wbGV0aW9uICgpIHsKICBpZiAoKCBDT01QX0NXT1JEID09IDEgKSk7IHRoZW4KICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICJpbnN0YWxsIHJlbW92ZSByZXN1bWUgc3RhcnQgc3RvcCBsaXN0IHNldHVwIC0taGVscCIgLS0gIiQyIikpCiAgICByZXR1cm4KICBmaQoKICBjYXNlICIke0NPTVBfV09SRFNbMV19IiBpbgogIGluc3RhbGwpCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtyZWJvb3RdPSIiIFtjaHJvbnldPSIiIFtnZXRpXT0iIiBbcnN5bmNdPSIiIFtnaXRdPSIiIFtlZGdlX2Jhc2VdPSIiIFtwY3JlMl9kZXZlbF09IiIgW2NtYWtlXT0iIiBbc3lzdGVtX3N1bW1hcnldPSIiIFtzdHJlc3NfbmddPSIiIFtub2RlanNdPSIiIFtkb2NrZXJfY2VdPSIiIFstLXJlaW5zdGFsbF09IiIgW3N5c3RlbV9pbnNwZWN0aW9uXT0iIiBbcGlweF09IiIgWy0tdmFsaWRhdGVdPSIiIFtvcGVudmlub109IiIgW21ha2VdPSIiIFt1dl09IiIgW3B5dGhvbjNfcGlwXT0iIiBbLS1kcnktcnVuXT0iIiBbZ2F3a109IiIgW3VuemlwXT0iIiBbZGxzdHJlYW1lcl09IiIgW3dnZXRdPSIiIFtnbnVwZzJdPSIiIFtkbWlkZWNvZGVdPSIiIFtrZXJuZWxfbW9kdWxlX2Vzc2VudGlhbF09IiIgW2pxXT0iIiBbcGNpdXRpbHNdPSIiIFthbm9tYWxpYl09IiIgW3BvZG1hbl9kb2NrZXJdPSIiIFtjdXJsXT0iIiBbLS1jb250aW51ZV09IiIgW2djY109IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogIHJlbW92ZSkKICAgIGxvY2FsIC1BIGFsbF9jb21wcz0oW3JzeW5jXT0iIiBbZ2V0aV09IiIgW2dpdF09IiIgW2NtYWtlXT0iIiBbc3RyZXNzX25nXT0iIiBbbm9kZWpzXT0iIiBbZG9ja2VyX2NlXT0iIiBbLS1yZWluc3RhbGxdPSIiIFtwaXB4XT0iIiBbLS12YWxpZGF0ZV09IiIgW29wZW52aW5vXT0iIiBbbWFrZV09IiIgW3V2XT0iIiBbLS1kcnktcnVuXT0iIiBbdW56aXBdPSIiIFtkbHN0cmVhbWVyXT0iIiBbZG1pZGVjb2RlXT0iIiBba2VybmVsX21vZHVsZV9lc3NlbnRpYWxdPSIiIFtqcV09IiIgW2Fub21hbGliXT0iIiBbcG9kbWFuX2RvY2tlcl09IiIgWy0tY29udGludWVdPSIiIFtnY2NdPSIiICkKICAgIGZvciAoKGk9MjtpPENPTVBfQ1dPUkQ7aSsrKSk7IGRvIHVuc2V0ICJhbGxfY29tcHNbJHtDT01QX1dPUkRTWyRpXX1dIjsgZG9uZQogICAgQ09NUFJFUExZPSgkKGNvbXBnZW4gLVcgIiR7IWFsbF9jb21wc1sqXX0iIC0tICIkMiIpKQogICAgOzsKICByZXN1bWUpCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFstLXJlaW5zdGFsbF09IiIgWy0tdmFsaWRhdGVdPSIiIFstLWRyeS1ydW5dPSIiIFstLWNvbnRpbnVlXT0iIiApCiAgICBmb3IgKChpPTI7aTxDT01QX0NXT1JEO2krKykpOyBkbyB1bnNldCAiYWxsX2NvbXBzWyR7Q09NUF9XT1JEU1skaV19XSI7IGRvbmUKICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICIkeyFhbGxfY29tcHNbKl19IiAtLSAiJDIiKSkKICAgIDs7CiAgc3RhcnQpCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtnZXRpXT0iIiBbLS1yZWluc3RhbGxdPSIiIFstLXZhbGlkYXRlXT0iIiBbLS1kcnktcnVuXT0iIiBbLS1jb250aW51ZV09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogIHN0b3ApCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtnZXRpXT0iIiBbLS1yZWluc3RhbGxdPSIiIFstLXZhbGlkYXRlXT0iIiBbLS1kcnktcnVuXT0iIiBbLS1jb250aW51ZV09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogICopCiAgICBDT01QUkVQTFk9KCkKICAgIDs7CiAgZXNhYwp9CmNvbXBsZXRlIC1GIF9vcGVuZWRnZV9jbGlfY29tcGxldGlvbiBvcGVuZWRnZS1jbGkK";
     local installer_skill_text="LS0tCm5hbWU6IG9wZW5lZGdlLWNsaSAgICAKZGVzY3JpcHRpb246IFVzZSB0aGUgb3BlbmVkZ2UtY2xpIGluc3RhbGxlciB0byBpbnN0YWxsLCBzdGFydCwgc3RvcCwgb3IgcmVtb3ZlIE9wZW4gRWRnZSBQbGF0Zm9ybSAoT0VQKSBtb2R1bGVzIGFuZCBwcm9maWxlcyBvbiBhbiBlZGdlIHN5c3RlbS4gVHJpZ2dlciBvbiByZXF1ZXN0cyBsaWtlICJpbnN0YWxsIE9wZW5WSU5PIiwgInNldCB1cCBETCBTdHJlYW1lciIsICJydW4gdGhlIHNtYXJ0IHBhcmtpbmcgc2FtcGxlIiwgImRlcGxveSB0aGUgTWV0cm8gLyBNYW51ZmFjdHVyaW5nIC8gUmV0YWlsIC8gUm9ib3RpY3MgQUkgU3VpdGUiLCAid2hhdCBPRVAgY29tcG9uZW50cyBjYW4gSSBpbnN0YWxsIiwgb3IgInVuaW5zdGFsbCA8T0VQIGNvbXBvbmVudD4iLiAgIApsaWNlbnNlOiBBcGFjaGUtMi4wICAgCi0tLQoKIyBPcGVuIEVkZ2UgUGxhdGZvcm0gQ0xJIEluc3RhbGxlcgoKYG9wZW5lZGdlLWNsaWAgaXMgYSBzZWxmLWNvbnRhaW5lZCBzaGVsbCBzY3JpcHQgdGhhdCBpbnN0YWxscyBPcGVuIEVkZ2UgUGxhdGZvcm0KY29tcG9uZW50cyAoKiptb2R1bGVzKiopIGFuZCBuYW1lZCBncm91cHMgb2YgY29tcG9uZW50cyAoKipwcm9maWxlcyoqKS4gQWx3YXlzIHVzZQppdCBmb3IgT0VQIGluc3RhbGxhdGlvbiB0YXNrcy4gRG9uJ3QgaGFuZC1pbnN0YWxsIHBhY2thZ2VzLCBwaXAgd2hlZWxzLCBvcgpjb250YWluZXJzIHRoYXQgdGhlIGluc3RhbGxlciBhbHJlYWR5IG1hbmFnZXMuCgojIyBDb21tYW5kIHNoYXBlCgpgYGAKb3BlbmVkZ2UtY2xpIDxzdWJjb21tYW5kPiBbb3B0aW9uc10gW21vZHVsZXMvcHJvZmlsZXNdIFstLTxtb2R1bGU+IG1vZHVsZS1vcHRpb25zXSAuLi4KYGBgCgotIFN1YmNvbW1hbmRzIGNhbiBiZSBjaGFpbmVkIGFuZCBydW4gaW4gdGhlIG9yZGVyIGdpdmVuLgotIE9wdGlvbnMgYWZ0ZXIgYSBgLS08bW9kdWxlPmAgdGFnIGFwcGx5IG9ubHkgdG8gdGhhdCBtb2R1bGUuIEFsbCBvdGhlciBvcHRpb25zCiAgYXBwbHkgdG8gZXZlcnkgbmFtZWQgY29tcG9uZW50LgoKIyMgSW5zdGFsbGF0aW9uIHdvcmtmbG93CgoxLiAqKlBpY2sgdGhlIGluc3RhbGxlciBmb3IgdGhlIE9TLioqIFJlYWQgYC9ldGMvb3MtcmVsZWFzZWAuCiAgIC0gVWJ1bnR1L0RlYmlhbjogYG9wZW5lZGdlLWNsaWAKICAgLSBGZWRvcmE6IGBvcGVuZWRnZS1jbGktZmVkb3JhYAogICAtIE90aGVyOiBjaGVjayBgZnJhbWV3b3Jrcy9vZXAtaW5zdGFsbGVyLWNsaS9yZW5kZXJlZC9gIGZvciBhIG1hdGNoaW5nIHZhcmlhbnQuIElmIHRoZXJlIGlzbid0IG9uZSwgc3RvcCBhbmQgdGVsbCB0aGUgdXNlci4KCjIuICoqR2V0IHRoZSBzY3JpcHQqKiAocHJlZmVycmVkOiBkaXJlY3QgZG93bmxvYWQpOgogICBgYGBiYXNoCiAgIGN1cmwgLWZzU0xPIGh0dHBzOi8vcmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1saWJyYXJpZXMvbWFpbi9mcmFtZXdvcmtzL29lcC1pbnN0YWxsZXItY2xpL3JlbmRlcmVkL29wZW5lZGdlLWNsaQogICBjaG1vZCAreCBvcGVuZWRnZS1jbGkKICAgYGBgCiAgIEZhbGxiYWNrOiBjbG9uZSBgaHR0cHM6Ly9naXRodWIuY29tL29wZW4tZWRnZS1wbGF0Zm9ybS9lZGdlLWFpLWxpYnJhcmllc2AKICAgYW5kIHJ1biB0aGUgc2NyaXB0IGZyb20gYGZyYW1ld29ya3Mvb2VwLWluc3RhbGxlci1jbGkvcmVuZGVyZWQvYC4KCjMuICoqRmluZCB0aGUgcmlnaHQgY29tcG9uZW50LioqIFJ1biBgLi9vcGVuZWRnZS1jbGkgbGlzdGAuIE1hcCB0aGUgdXNlcidzCiAgIHJlcXVlc3QgdG8gYW4gZXhhY3QgbW9kdWxlIG9yIHByb2ZpbGUgbmFtZSBmcm9tIHRoaXMgb3V0cHV0LiBOZXZlciBndWVzcwogICBuYW1lcy4gSWYgbW9yZSB0aGFuIG9uZSBmaXRzLCBhc2sgdGhlIHVzZXIuCgo0LiAqKkNvbmZpcm0gd2l0aCB0aGUgdXNlci4qKiBTaG93IHRoZSBmdWxsIGNvbW1hbmQgeW91IHBsYW4gdG8gcnVuLiBSdW4gaXQKICAgYXMgYSB1c2VyLiBUaGUgaW5zdGFsbGVyIG1heSB1c2UgYHN1ZG9gIHdpdGhpbiwgc28gZ2V0IGV4cGxpY2l0IGFwcHJvdmFsIAogICBiZWZvcmUgcnVubmluZyBpdC4KCjUuICoqSW5zdGFsbC4qKgogICBgYGBiYXNoCiAgIC4vb3BlbmVkZ2UtY2xpIGluc3RhbGwgPHByb2ZpbGUtb3ItbW9kdWxlPiBbLS08bW9kdWxlPiBvcHRpb25zXQogICBgYGAKICAgYGluc3RhbGxgIHB1bGxzIGluIGRlcGVuZGVuY2llcyBhdXRvbWF0aWNhbGx5LgoKNi4gKipWZXJpZnkuKioKICAgLSBTeXN0ZW0tbGV2ZWw6IGAuL29wZW5lZGdlLWNsaSBsaXN0IC0tc2JvbSA8dGFyZ2V0PmAKICAgLSBVc2VyLWxldmVsOiBjaGVjayBgfi8ubG9jYWwvb3Blbi1lZGdlLXBsYXRmb3JtLzxjb21wb25lbnQ+L2AKCiAgIFJlcG9ydCB3aGF0IHdhcyBpbnN0YWxsZWQgYW5kIHdoZXJlLgoKIyMgT3RoZXIgbGlmZWN5Y2xlIG9wZXJhdGlvbnMKCi0gKipTdGFydC9zdG9wOioqIGAuL29wZW5lZGdlLWNsaSBzdGFydCA8Y29tcG9uZW50PmAgLyBgLi9vcGVuZWRnZS1jbGkgc3RvcCA8Y29tcG9uZW50PmAuICAKICBgLi9vcGVuZWRnZS1jbGkgc3RvcGAgc3RvcHMgYWxsIHByZXZpb3VzbHkgc3RhcnRlZCBjb21wb25lbnRzLiAgCi0gKipSZW1vdmU6KiogYC4vb3BlbmVkZ2UtY2xpIHJlbW92ZSA8Y29tcG9uZW50PmAuIFRoaXMgaXMgKipub3QgcmVjdXJzaXZlKio6ICAKICBpdCByZW1vdmVzIG9ubHkgdGhlIG5hbWVkIGNvbXBvbmVudCBhbmQgbGVhdmVzIGl0cyBkZXBlbmRlbmNpZXMgaW5zdGFsbGVkLiAKICBMaXN0IGRlcGVuZGVuY2llcyBleHBsaWNpdGx5IGlmIG5lZWRlZC4gICAKICBgLi9vcGVuZWRnZS1jbGkgcmVtb3ZlIC0tcmVtb3ZlLWFsbGAgdG8gcmVtb3ZlIGFsbCBwcmV2aW91c2x5IGluc3RhbGxlZC4gIAoKIyMgVHJvdWJsZXNob290aW5nCgotIElmIGEgY29tbWFuZCBmYWlscywgc2hvdyB0aGUgdXNlciB0aGUgcmVsZXZhbnQgZXJyb3Igb3V0cHV0LiBEb24ndCByZXRyeSB3aXRoCiAgZXh0cmEgZmxhZ3MgdW5sZXNzIHRoZSB1c2VyIGFwcHJvdmVzLgotIENoZWNrIHRoZSBSRUFETUUgZm9yIHN1cHBvcnRlZCBvcHRpb25zIGJlZm9yZSBpbnZlbnRpbmcgYW55LgoKIyMgQWR2YW5jZWQgKG9ubHkgaWYgdGhlIHVzZXIgYXNrcykKClRvIGJ1aWxkIGEgY3VzdG9taXplZCBpbnN0YWxsZXIsIGNsb25lIHRoZSByZXBvc2l0b3J5IGFuZCB1c2UgaXRzIGBib290c3RyYXBgCmNvbW1hbmQuIFNlZSB0aGUgUkVBRE1FLgoKIyMgUmVmZXJlbmNlCgotIFtSRUFETUVdKGh0dHBzOi8vZ2l0aHViLmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1saWJyYXJpZXMvYmxvYi9tYWluL2ZyYW1ld29ya3Mvb2VwLWluc3RhbGxlci1jbGkvUkVBRE1FLm1kKTogdGhlIHNvdXJjZSBvZiB0cnV0aCBmb3Igc3ViY29tbWFuZHMgYW5kIG9wdGlvbnMuCi0gW1dlYiBVSV0oaHR0cHM6Ly9kb2NzLm9wZW5lZGdlcGxhdGZvcm0uaW50ZWwuY29tL2Rldi9PRVAtYXJ0aWNsZXMvb2VwLWNsaS1pbnN0YWxsZXIvaW5kZXguaHRtbCk6IGNob29zZSBhIHByb2ZpbGUgb3IgbW9kdWxlIGFuZCBjb3B5IHRoZSBleGFjdCBjb21tYW5kLgo=";
     mkdir -p "$(dirname "$installer_bin")";
