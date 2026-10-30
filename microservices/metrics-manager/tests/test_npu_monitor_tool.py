@@ -117,53 +117,63 @@ class TestBitSlicing:
 
 
 class TestGetters:
-    def test_get_freq_mhz_non_mtl_uses_25_mhz_per_step(self, npu_mod):
-        # raw = 100 at low byte of VPU_WORKPOINT (PTL: 0x18) -> 2500 MHz
+    def test_get_freq_hz_ptl_uses_lnl_buttress_formula(self, npu_mod):
+        # raw = 100 at low byte of VPU_WORKPOINT (PTL: 0x18) -> 100 * 50 MHz / 2
         buf = _buffer_with({0x18: b"\x64\x00\x00\x00\x00\x00\x00\x00"})
         pmt = _make_pmt(npu_mod, buf)
-        assert pmt.get_freq_mhz() == pytest.approx(2500.0)
+        freq = pmt.get_freq_hz()
+        assert isinstance(freq, float)
+        assert freq == 2_500_000_000.0
 
-    def test_get_freq_mhz_mtl_uses_100_over_3_mhz_per_step(self, npu_mod):
-        # raw = 42 at low byte of VPU_WORKPOINT (MTL: 0x68) -> 1400 MHz
+    def test_get_freq_hz_lnl_uses_lnl_buttress_formula(self, npu_mod):
+        # raw = 78 at LNL VPU_WORKPOINT (0x18) -> 1950 MHz
+        buf = _buffer_with({0x18: b"\x4e\x00\x00\x00\x00\x00\x00\x00"})
+        pmt = _make_pmt(
+            npu_mod, buf, cpu_gen=npu_mod.CpuGen.LNL, regs=npu_mod.get_lnl_regs()
+        )
+        assert pmt.get_freq_hz() == 1_950_000_000.0
+
+    def test_get_freq_hz_mtl_uses_mtl_buttress_formula(self, npu_mod):
+        # raw = 42 at low byte of VPU_WORKPOINT (MTL: 0x68) -> 42 * 50 MHz * 2 / 3
         buf = _buffer_with({0x68: b"\x2a\x00\x00\x00\x00\x00\x00\x00"})
         pmt = _make_pmt(
             npu_mod, buf, cpu_gen=npu_mod.CpuGen.MTL, regs=npu_mod.get_mtl_regs()
         )
-        assert pmt.get_freq_mhz() == pytest.approx(1400.0)
+        assert pmt.get_freq_hz() == 1_400_000_000.0
 
-    def test_get_freq_mhz_arl_uses_mtl_buttress_formula(self, npu_mod):
+    def test_get_freq_hz_arl_uses_mtl_buttress_formula(self, npu_mod):
         # ARL shares the MTL buttress in the kernel (ivpu_hw_btrs_gen), so
-        # raw = 48 must give 1600 MHz (matches kernel sysfs), not 48 * 25.
+        # raw = 48 must give 1.6 GHz, not the LNL-formula 48 * 25 MHz = 1.2 GHz.
         buf = _buffer_with({0x68: b"\x30\x00\x00\x00\x00\x00\x00\x00"})
         pmt = _make_pmt(
             npu_mod, buf, cpu_gen=npu_mod.CpuGen.ARL, regs=npu_mod.get_arl_regs()
         )
-        assert pmt.get_freq_mhz() == 1600
+        assert pmt.get_freq_hz() == 1_600_000_000.0
 
     @pytest.mark.parametrize(
-        "gen_name, raw, expected_mhz",
+        "gen_name, raw, expected_hz",
         [
-            # MTL buttress: ratio * 50 * 2 // 3 (kernel pll_ratio_to_mhz_mtl)
-            ("MTL", 42, 1400),
-            ("ARL", 48, 1600),
-            ("ARL", 49, 1633),  # integer truncation, as in the kernel
-            ("ARL", 0, 0),      # idle
-            # LNL buttress: ratio * 50 // 2 (kernel pll_ratio_to_mhz_lnl)
-            ("LNL", 78, 1950),
-            ("PTL", 100, 2500),
-            ("PTL", 0, 0),      # idle
+            # MTL buttress: ratio * 50e6 * 2 // 3 (kernel pll_ratio_to_dpu_freq_mtl)
+            ("MTL", 42, 1_400_000_000),
+            ("ARL", 48, 1_600_000_000),
+            ("ARL", 49, 1_633_333_333),  # integer truncation, as in the kernel
+            ("ARL", 0, 0),               # idle
+            # LNL buttress: ratio * 50e6 // 2 (kernel pll_ratio_to_dpu_freq_lnl)
+            ("LNL", 78, 1_950_000_000),
+            ("PTL", 82, 2_050_000_000),
+            ("PTL", 0, 0),               # idle
         ],
     )
-    def test_pll_ratio_to_mhz_matches_kernel(self, npu_mod, gen_name, raw, expected_mhz):
+    def test_pll_ratio_to_hz_matches_kernel(self, npu_mod, gen_name, raw, expected_hz):
         gen = getattr(npu_mod.CpuGen, gen_name)
-        assert npu_mod.pll_ratio_to_mhz(gen, raw) == expected_mhz
+        assert npu_mod.pll_ratio_to_hz(gen, raw) == float(expected_hz)
 
     def test_mtl_buttress_gens_match_kernel(self, npu_mod):
         assert npu_mod.MTL_BUTTRESS_GENS == {npu_mod.CpuGen.MTL, npu_mod.CpuGen.ARL}
 
     def test_legacy_freq_getters_removed(self, npu_mod):
-        assert not hasattr(npu_mod.PmtTelemetry, "get_freq")
-        assert not hasattr(npu_mod.PmtTelemetry, "get_display_freq_hz")
+        for name in ("get_freq", "get_display_freq_hz", "get_freq_mhz"):
+            assert not hasattr(npu_mod.PmtTelemetry, name), name
 
     def test_get_voltage_reads_byte_1_of_workpoint(self, npu_mod):
         buf = _buffer_with({0x18: b"\x00\x2a\x00\x00\x00\x00\x00\x00"})
@@ -192,6 +202,39 @@ class TestGetters:
         # raw = 1000 at VPU_MEMORY_BW (PTL: 0xC18), bits 0-31
         buf = _buffer_with({0xC18: (1000).to_bytes(8, "little")})
         assert _make_pmt(npu_mod, buf).get_noc_bandwidth() == pytest.approx(1.0)
+
+
+class TestNocBandwidthRate:
+    def test_rate_is_delta_over_elapsed_seconds(self, npu_mod):
+        assert npu_mod.noc_bandwidth_rate_mbs(90.0, 100.0, 2.0) == pytest.approx(5.0)
+
+    def test_counter_wrap_is_corrected(self, npu_mod):
+        wrap = npu_mod.NOC_BW_COUNTER_WRAP_MB
+        assert wrap == pytest.approx((2**32) / 1e3)
+        # prev near the top of the 32-bit range, curr wrapped and advanced 15 MB total.
+        rate = npu_mod.noc_bandwidth_rate_mbs(wrap - 5.0, 10.0, 1.0)
+        assert rate == pytest.approx(15.0)
+
+    def test_zero_delta_is_zero(self, npu_mod):
+        assert npu_mod.noc_bandwidth_rate_mbs(42.0, 42.0, 1.0) == 0.0
+
+    @pytest.mark.parametrize("elapsed", [0.0, -1.0])
+    def test_rejects_non_positive_elapsed(self, npu_mod, elapsed):
+        with pytest.raises(ValueError):
+            npu_mod.noc_bandwidth_rate_mbs(0.0, 1.0, elapsed)
+
+
+class TestCsvCell:
+    def test_none_renders_empty_cell(self, npu_mod):
+        assert npu_mod.csv_cell(None) == ""
+        assert npu_mod.csv_cell(None, ".2f") == ""
+
+    def test_zero_is_kept(self, npu_mod):
+        # A real 0 reading must not be confused with "unsupported".
+        assert npu_mod.csv_cell(0) == "0"
+
+    def test_format_spec_applied(self, npu_mod):
+        assert npu_mod.csv_cell(1.23456, ".2f") == "1.23"
 
 
 class TestFdump:

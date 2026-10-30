@@ -261,7 +261,7 @@
       "targets": [
         {
           "exemplar": true,
-          "expr": "npu_monitor_freq_mhz{}",
+          "expr": "npu_monitor_freq_hz{}",
           "interval": "",
           "legendFormat": "NPU: {{dev_id}}",
           "refId": "S"
@@ -318,7 +318,7 @@
               }
             ]
           },
-          "unit": "rotmhz"
+          "unit": "rothz"
         },
         "overrides": []
       },
@@ -347,7 +347,7 @@
       "targets": [
         {
           "exemplar": true,
-          "expr": "npu_monitor_freq_mhz{}",
+          "expr": "npu_monitor_freq_hz{}",
           "interval": "",
           "legendFormat": "NPU: {{dev_id}}",
           "refId": "S"
@@ -380,7 +380,7 @@
               }
             ]
           },
-          "unit": "rotmhz"
+          "unit": "rothz"
         },
         "overrides": []
       },

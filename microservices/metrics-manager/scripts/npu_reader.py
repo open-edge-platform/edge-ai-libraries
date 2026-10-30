@@ -28,7 +28,7 @@ import logging
 # Re-use the PmtTelemetry class from the npu-monitor-tool script.
 # The script is installed alongside this reader in /app.
 sys.path.insert(0, '/app')
-from npu_monitor_tool import PmtTelemetry  # noqa: E402
+from npu_monitor_tool import PmtTelemetry, noc_bandwidth_rate_mbs  # noqa: E402
 
 # Hostname used in the `host=` tag of every emitted line. Defaults to the
 # kernel hostname (matches Telegraf's default behaviour) but can be overridden
@@ -41,12 +41,6 @@ INTERVAL_S = 1.0
 # keeps the Telegraf log quiet on hosts without an Intel NPU.
 IDLE_SLEEP_S = 3600
 DEBUG_LOG = os.environ.get("NPU_READER_LOG_FILE", "/app/npu_reader_trace.log")
-
-# PmtTelemetry.get_noc_bandwidth() reads a 32-bit hardware counter (bits
-# 31:0) scaled by /1e3. When the raw counter wraps around 2**32 the scaled
-# delta goes negative; add back the full counter's scaled range to correct
-# for the rollover before converting the delta into a MB/s rate.
-NPU_BANDWIDTH_COUNTER_MAX_MB = (2 ** 32) / 1e3
 
 file_handler = logging.FileHandler(DEBUG_LOG)
 file_handler.setFormatter(
@@ -85,7 +79,6 @@ def find_npu_dev_path() -> str:
     return ""  # unreachable, keeps type checkers happy
 
 
-
 def compute_npu_sample(
     *,
     elapsed_s: float,
@@ -93,7 +86,7 @@ def compute_npu_sample(
     prev_energy: float,
     curr_bandwidth_mb: float,
     prev_bandwidth_mb: float,
-    freq_mhz: float,
+    freq_hz: float,
     temp_c: int,
     tile_config: int,
     curr_busy_us: int | None,
@@ -119,10 +112,9 @@ def compute_npu_sample(
         curr_energy, prev_energy: ``PmtTelemetry.get_npu_energy()`` reads
             (joules), used to derive power (W).
         curr_bandwidth_mb, prev_bandwidth_mb: ``PmtTelemetry.get_noc_bandwidth()``
-            reads. These are scaled readings of a 32-bit hardware counter,
-            so a negative delta means the counter wrapped and is corrected
-            via ``NPU_BANDWIDTH_COUNTER_MAX_MB``.
-        freq_mhz: ``PmtTelemetry.get_freq_mhz()`` read (NPU clock in MHz).
+            reads of a 32-bit hardware counter; converted to an MB/s rate
+            with counter wrap corrected by ``noc_bandwidth_rate_mbs``.
+        freq_hz: ``PmtTelemetry.get_freq_hz()`` read (NPU clock in Hz).
         temp_c: ``PmtTelemetry.get_npu_temperature()`` read.
         tile_config: ``PmtTelemetry.get_tile_config()`` read.
         curr_busy_us, prev_busy_us: consecutive reads of
@@ -139,17 +131,13 @@ def compute_npu_sample(
     # Power (W) — use actual elapsed time, not the nominal sleep interval.
     power_w = (curr_energy - prev_energy) / elapsed_s
 
-    # NoC bandwidth rate (MB/s). A negative delta means the underlying
-    # 32-bit counter wrapped around; correct it before converting to a rate.
-    bandwidth_delta_mb = curr_bandwidth_mb - prev_bandwidth_mb
-    if bandwidth_delta_mb < 0:
-        bandwidth_delta_mb += NPU_BANDWIDTH_COUNTER_MAX_MB
-    bandwidth_mbs = bandwidth_delta_mb / elapsed_s
+    # NoC bandwidth rate (MB/s), corrected for 32-bit counter wrap.
+    bandwidth_mbs = noc_bandwidth_rate_mbs(prev_bandwidth_mb, curr_bandwidth_mb, elapsed_s)
 
     fields: dict = {
         "power": power_w,
-        # NPU (DPU) clock frequency in MHz -> Prometheus npu_frequency_mhz.
-        "frequency_mhz": freq_mhz,
+        # NPU (DPU) clock frequency in Hz -> Prometheus npu_frequency.
+        "frequency": float(freq_hz),
         "temperature": temp_c,
         "bandwidth": bandwidth_mbs,
         "tile_config": tile_config,
@@ -179,7 +167,7 @@ def format_line_protocol(host: str, fields: dict, ts_ns: int) -> str:
     """
     parts = [
         f"power={fields['power']:.3f}",
-        f"frequency_mhz={fields['frequency_mhz']:.1f}",
+        f"frequency={fields['frequency']:.1f}",
         f"temperature={fields['temperature']}i",
         f"bandwidth={fields['bandwidth']:.3f}",
         f"tile_config={fields['tile_config']}i",
@@ -270,7 +258,7 @@ def main():
             prev_energy=prev_energy,
             curr_bandwidth_mb=curr_bandwidth,
             prev_bandwidth_mb=prev_bandwidth,
-            freq_mhz=pu.get_freq_mhz(),
+            freq_hz=pu.get_freq_hz(),
             temp_c=pu.get_npu_temperature(),
             tile_config=pu.get_tile_config(),
             curr_busy_us=curr_busy_us,
@@ -285,9 +273,9 @@ def main():
         print(format_line_protocol(HOSTNAME, fields, ts_ns), flush=True)
 
         logger.debug(
-            "npu power=%.3f freq_mhz=%.1f temp=%d bw_mbs=%.3f tile=%d util=%s mem_mb=%s",
+            "npu power=%.3f freq_hz=%.1f temp=%d bw_mbs=%.3f tile=%d util=%s mem_mb=%s",
             fields["power"],
-            fields["frequency_mhz"],
+            fields["frequency"],
             fields["temperature"],
             fields["bandwidth"],
             fields["tile_config"],

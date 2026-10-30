@@ -292,11 +292,11 @@ For each device family requested by a test case (derived from
 `pipeline_case.device_family`, e.g. `GPU_NPU` → `GPU`, `NPU`), the HW monitor
 classifies that family's activity across the run:
 
-| Status       | Meaning                                                                                                                                       |
-|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------|
-| `ok`         | At least one activity KPI (e.g. `npu_utilization`, falling back to `npu_frequency_mhz`/`npu_power` for NPU) was nonzero somewhere in the run. |
-| `no_samples` | None of the family's KPI keys were ever reported by metrics-manager — the device is missing or the harness never got a successful poll.       |
-| `idle`       | Samples exist for the family, but every activity value was zero for the entire run (hardware present but never dispatched work).              |
+| Status       | Meaning                                                                                                                                                                                                                                           |
+|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ok`         | At least one activity KPI (e.g. `npu_utilization`, falling back to `npu_frequency_mhz`/`npu_power` for NPU) was nonzero somewhere in the run. `npu_frequency_mhz` is derived from the metrics-manager `npu_frequency` metric (Hz) divided by 1e6. |
+| `no_samples` | None of the family's KPI keys were ever reported by metrics-manager — the device is missing or the harness never got a successful poll.                                                                                                           |
+| `idle`       | Samples exist for the family, but every activity value was zero for the entire run (hardware present but never dispatched work).                                                                                                                  |
 
 A requested family that isn't `ok` triggers both a `logger.warning` and a
 `warnings.warn` (so it's visible in the pytest warnings summary), and shows up
@@ -311,6 +311,19 @@ in the reports instead of a blank cell:
 - **JSON**: numeric KPI values stay numeric; the status lives in
   `hw_metrics.kpi_status` (per-family) and `hw_metrics.kpi_warnings`
   (semicolon-joined summary string).
+
+### NPU settle sample
+
+The first metrics-manager poll of a test case can still carry NPU readings from
+the previous test case, because NPU telemetry is sampled over the preceding
+interval. When a run has at least 3 samples, the HW monitor drops only the NPU
+keys (`npu_utilization`, `npu_power`, `npu_frequency_mhz`, `npu_temperature`,
+`npu_memory_mb`, `npu_bandwidth`) from the first sample before it computes the NPU
+`_avg`/`_min`/`_max`, `kpi_status` and `npu_sample_count`. A first sample with NPU
+activity followed only by zeros is therefore reported as `NPU:idle`. CPU and GPU
+values of that sample are kept, and the edge trimming above is unchanged.
+`hw_metrics.npu_settle_samples_dropped` (`0` or `1`) records whether this happened;
+`sample_count` / `hw_sample_count` still counts every poll.
 
 ## Layout
 

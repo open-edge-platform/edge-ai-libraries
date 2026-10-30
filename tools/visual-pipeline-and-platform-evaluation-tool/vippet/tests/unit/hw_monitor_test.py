@@ -11,9 +11,11 @@ device families in reports instead of leaving blank cells.
 
 import unittest
 import warnings
+from unittest import mock
 
 from tests.performance.perf_helpers.hw_monitor import (
     HardwareMonitor,
+    _drop_npu_settle_sample,
     _family_kpi_status,
     _family_sample_count,
     _trim_edge_samples,
@@ -237,6 +239,110 @@ class TestStopPerFamilyStatus(unittest.TestCase):
         monitor = self._monitor_with_samples([])
         stats = monitor.stop()
         self.assertEqual(stats, {"sample_count": 0})
+
+
+class TestNpuSettleSample(unittest.TestCase):
+    """NPU readings carried over into the first sample must not count."""
+
+    @staticmethod
+    def _npu(active: bool) -> dict[str, float]:
+        v = 1.0 if active else 0.0
+        return {
+            "cpu_util_pct": 50.0,
+            "npu_utilization": 40.0 * v,
+            "npu_frequency_mhz": 1400.0 * v,
+            "npu_power": 2.5 * v,
+        }
+
+    def _stop(self, samples, families):
+        monitor = HardwareMonitor()
+        monitor._samples = samples  # noqa: SLF001
+        monitor._thread = None
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            return monitor.stop(families)
+
+    def test_carry_over_first_sample_then_zeros_is_idle(self):
+        samples = [self._npu(True)] + [self._npu(False) for _ in range(4)]
+
+        stats = self._stop(samples, ["CPU", "NPU"])
+
+        self.assertEqual(stats["kpi_status"]["NPU"], "idle")
+        self.assertEqual(stats["kpi_warnings"], "NPU:idle")
+        self.assertEqual(stats["npu_settle_samples_dropped"], 1)
+        self.assertEqual(stats["npu_sample_count"], 4)
+        self.assertEqual(stats["npu_frequency_mhz_max"], 0)
+        self.assertEqual(stats["npu_utilization_avg"], 0)
+
+    def test_cpu_keys_of_first_sample_are_kept(self):
+        samples = [self._npu(True)] + [self._npu(False) for _ in range(4)]
+        samples[0]["cpu_util_pct"] = 100.0
+
+        stats = self._stop(samples, ["CPU", "NPU"])
+
+        self.assertEqual(stats["cpu_util_pct_max"], 100.0)
+        self.assertEqual(stats["sample_count"], 5)
+
+    def test_sustained_npu_activity_stays_ok(self):
+        samples = [self._npu(True) for _ in range(5)]
+
+        stats = self._stop(samples, ["NPU"])
+
+        self.assertEqual(stats["kpi_status"]["NPU"], "ok")
+        self.assertEqual(stats["npu_frequency_mhz_avg"], 1400.0)
+        self.assertEqual(stats["npu_settle_samples_dropped"], 1)
+
+    def test_fewer_than_three_samples_are_not_dropped(self):
+        samples = [self._npu(True), self._npu(False)]
+
+        stats = self._stop(samples, ["NPU"])
+
+        self.assertEqual(stats["kpi_status"]["NPU"], "ok")
+        self.assertEqual(stats["npu_settle_samples_dropped"], 0)
+        self.assertEqual(stats["npu_sample_count"], 2)
+
+    def test_helper_does_not_mutate_input(self):
+        samples = [self._npu(True) for _ in range(3)]
+
+        settled, dropped = _drop_npu_settle_sample(samples)
+
+        self.assertEqual(dropped, 1)
+        self.assertEqual(settled[0], {"cpu_util_pct": 50.0})
+        self.assertIn("npu_utilization", samples[0])
+
+    def test_first_sample_without_npu_keys_is_not_counted(self):
+        samples = [{"cpu_util_pct": 1.0}] + [self._npu(False) for _ in range(3)]
+
+        _, dropped = _drop_npu_settle_sample(samples)
+
+        self.assertEqual(dropped, 0)
+
+
+class TestCollectNpuFrequency(unittest.TestCase):
+    """``_collect`` maps metrics-manager ``npu_frequency`` (Hz) to MHz."""
+
+    def _collect_from(self, mm: dict[str, float]) -> dict[str, float]:
+        monitor = HardwareMonitor()
+        with mock.patch(
+            "tests.performance.perf_helpers.hw_monitor._fetch_metrics_manager",
+            return_value=mm,
+        ):
+            return monitor._collect()  # noqa: SLF001
+
+    def test_npu_frequency_hz_is_reported_in_mhz(self):
+        sample = self._collect_from({"npu_frequency": 1.4e9, "npu_power": 1.5})
+        self.assertEqual(sample["npu_frequency_mhz"], 1400.0)
+        self.assertEqual(sample["npu_power"], 1.5)
+        self.assertNotIn("npu_frequency", sample)
+
+    def test_missing_npu_frequency_is_omitted(self):
+        sample = self._collect_from({"npu_power": 1.5})
+        self.assertNotIn("npu_frequency_mhz", sample)
+
+    def test_legacy_npu_frequency_mhz_metric_is_ignored(self):
+        # metrics-manager never publishes npu_frequency_mhz; don't pick it up.
+        sample = self._collect_from({"npu_frequency_mhz": 1400.0})
+        self.assertNotIn("npu_frequency_mhz", sample)
 
 
 if __name__ == "__main__":

@@ -165,6 +165,35 @@ def _trim_edge_samples(
     return samples[trim_count:-trim_count]
 
 
+# NPU settle sample: the first metrics-manager poll after a run starts can
+# still carry NPU readings from the *previous* test case (PMT telemetry and the
+# busy-time / bandwidth counters are sampled over the preceding interval). With
+# enough samples, the NPU keys of the first sample are dropped so that this
+# carry-over cannot mark an otherwise idle NPU as "ok" or skew its averages.
+# CPU/GPU keys of that sample are kept, and _trim_edge_samples is unchanged.
+NPU_SETTLE_MIN_SAMPLES = 3
+
+
+def _drop_npu_settle_sample(
+    samples: list[dict[str, float]],
+) -> tuple[list[dict[str, float]], int]:
+    """Return *samples* with the NPU keys removed from the first sample.
+
+    Only applies when there are at least ``NPU_SETTLE_MIN_SAMPLES`` samples
+    and the first sample actually carries an NPU KPI key. Returns the
+    (possibly new) sample list and the number of samples whose NPU keys were
+    dropped (0 or 1). The input list and its dicts are not modified.
+    """
+    if len(samples) < NPU_SETTLE_MIN_SAMPLES:
+        return samples, 0
+    npu_keys = FAMILY_KPI_KEYS["NPU"]
+    first = samples[0]
+    if not any(k in first for k in npu_keys):
+        return samples, 0
+    settled_first = {k: v for k, v in first.items() if k not in npu_keys}
+    return [settled_first, *samples[1:]], 1
+
+
 def _family_sample_count(samples: list[dict[str, float]], family: str) -> int:
     """Count samples that reported at least one of *family*'s KPI keys."""
     keys = FAMILY_KPI_KEYS.get(family, ())
@@ -329,10 +358,15 @@ class HardwareMonitor:
         if val is not None:
             sample["pkg_power_w"] = round(val, 3)
 
-        # NPU
+        # NPU frequency: metrics-manager reports npu_frequency in Hz; the
+        # report KPI is in MHz like cpu_freq_mhz / gpu_freq_mhz.
+        val = mm.get("npu_frequency")
+        if val is not None:
+            sample["npu_frequency_mhz"] = round(val / 1e6, 1)
+
+        # NPU (other KPIs pass through unchanged)
         for key in (
             "npu_utilization",
-            "npu_frequency_mhz",
             "npu_power",
             "npu_temperature",
             "npu_memory_mb",
@@ -346,19 +380,26 @@ class HardwareMonitor:
     def _aggregate(self, families: list[str]) -> dict[str, Any]:
         agg: dict[str, Any] = {"sample_count": len(self._samples)}
 
-        if self._samples:
+        # Drop NPU readings carried over into the first sample (see
+        # NPU_SETTLE_MIN_SAMPLES) before any NPU _avg/_min/_max, kpi_status
+        # or npu_sample_count is computed.
+        samples, npu_settle_dropped = _drop_npu_settle_sample(self._samples)
+
+        if samples:
+            agg["npu_settle_samples_dropped"] = npu_settle_dropped
+
             # Trim warm-up/wind-down samples from both ends before
             # averaging (see DEFAULT_TRIM_FRACTION / _trim_edge_samples).
             # _min / _max are computed from the *untrimmed* samples so a
             # real transient peak still shows in the report.
-            trimmed = _trim_edge_samples(self._samples, self._trim_fraction)
+            trimmed = _trim_edge_samples(samples, self._trim_fraction)
 
             keys: set[str] = set()
-            for s in self._samples:
+            for s in samples:
                 keys.update(s.keys())
 
             for key in sorted(keys):
-                all_values = [s[key] for s in self._samples if key in s]
+                all_values = [s[key] for s in samples if key in s]
                 if not all_values:
                     continue
                 trimmed_values = [s[key] for s in trimmed if key in s]
@@ -370,7 +411,7 @@ class HardwareMonitor:
             # Combined GPU utilization: max(render, video) per sample, then
             # averaged (over the trimmed samples); max is over all samples.
             combined_all = []
-            for s in self._samples:
+            for s in samples:
                 render = s.get("gpu_render_util_pct")
                 video = s.get("gpu_video_util_pct")
                 vals = [v for v in (render, video) if v is not None]
@@ -392,12 +433,10 @@ class HardwareMonitor:
                 )
 
         if families:
-            kpi_status = {f: _family_kpi_status(self._samples, f) for f in families}
+            kpi_status = {f: _family_kpi_status(samples, f) for f in families}
             agg["kpi_status"] = kpi_status
             for f in families:
-                agg[f"{f.lower()}_sample_count"] = _family_sample_count(
-                    self._samples, f
-                )
+                agg[f"{f.lower()}_sample_count"] = _family_sample_count(samples, f)
             agg["kpi_warnings"] = ";".join(
                 f"{f}:{s}" for f, s in kpi_status.items() if s != "ok"
             )
