@@ -28,6 +28,32 @@ def mock_factory(mocker):
 def gstreamer_rtsp_server(mock_logging, mock_factory,Gstrtsp,Gst):
     return GStreamerRtspServer(port=8888)
 
+class TestGStreamerRtspServerThreading:
+    """One thread per RTSP server blocks every client behind a single stream whose media never gets prepared."""
+
+    def _pool(self, server):
+        return server._server.get_thread_pool.return_value
+
+    def test_default_thread_pool_is_not_a_single_thread(self, gstreamer_rtsp_server, monkeypatch):
+        self._pool(gstreamer_rtsp_server).set_max_threads.assert_called_once_with(8)
+
+    def test_max_threads_can_be_set(self, mock_logging, mock_factory, Gstrtsp, Gst, monkeypatch):
+        monkeypatch.setenv("RTSP_SERVER_MAX_THREADS", "3")
+        server = GStreamerRtspServer(port=8888)
+        self._pool(server).set_max_threads.assert_called_once_with(3)
+
+    def test_unlimited_threads(self, mock_logging, mock_factory, Gstrtsp, Gst, monkeypatch):
+        monkeypatch.setenv("RTSP_SERVER_MAX_THREADS", "-1")
+        server = GStreamerRtspServer(port=8888)
+        self._pool(server).set_max_threads.assert_called_once_with(-1)
+
+    @pytest.mark.parametrize("bad", ["0", "-5", "many", ""])
+    def test_invalid_max_threads_fall_back_to_the_default(self, mock_logging, mock_factory, Gstrtsp, Gst, monkeypatch, bad):
+        monkeypatch.setenv("RTSP_SERVER_MAX_THREADS", bad)
+        server = GStreamerRtspServer(port=8888)
+        self._pool(server).set_max_threads.assert_called_once_with(8)
+
+
 class TestGStreamerRtspServer:
 
     def test_check_if_path_exists(self, gstreamer_rtsp_server):

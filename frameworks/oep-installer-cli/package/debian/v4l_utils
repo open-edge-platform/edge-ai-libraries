@@ -1,13 +1,32 @@
+configure_v4l_utils () {
+  v4l_pref_file=/etc/apt/preferences.d/oep-v4l-utils
+  v4l_pref=(
+    "Package: v4l-utils libv4l*"
+    "Pin: release o=Ubuntu"
+    "Pin-Priority: 1001"
+  )
+}
 
 debian_30_install_v4l_utils () {
-  ensure_apt_install_package v4l-utils
+  configure_v4l_utils
+  ensure_apt_preference "$v4l_pref_file" "${v4l_pref[@]}" || return $?
+  if ensure_apt_is_installed v4l-utils; then
+    echo "v4l-utils is installed." >&2
+  else
+    ensure_prop set installed/v4l_utils/owned true
+    ensure_apt update || return $?
+    ensure_apt install --no-install-recommends --allow-downgrades --no-remove -y v4l-utils || return $?
+    ensure_apt_is_installed v4l-utils
+  fi
 }
 
 debian_30_remove_v4l_utils () {
-  ensure_apt_remove_package v4l-utils
+  configure_v4l_utils
+  ensure_apt_remove_package v4l-utils || return $?
+  ensure_rm "$v4l_pref_file"
 }
 
 debian_30_sbom_v4l_utils () {
+  configure_v4l_utils
   ensure_sbom_format pkg-list v4l-utils
 }
-

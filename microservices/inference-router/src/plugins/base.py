@@ -37,7 +37,9 @@ class PluginBaseNode(ABC):
         self,
         name: str,
         settings: Dict[str, Any],
-        trigger: Literal["prerouting", "postrouting", "postresponse"] = "prerouting",
+        trigger: Literal[
+            "prerouting", "postrouting", "postresponse", "standalone"
+        ] = "prerouting",
     ):
         self.name = name
         self.settings = settings
@@ -182,7 +184,7 @@ class PluginBaseNode(ABC):
         Default: **skipped**. The base class cannot know how to probe a concrete
         plugin's backing service, so rather than fabricate a healthy verdict it
         logs a warning and reports ``probe: "unavailable"``. Override this to
-        perform a real probe (e.g. the compressor pings its Lingua/predictor
+        perform a real probe (e.g. the compressor pings its compress server/predictor
         server). Return at least ``{"healthy": bool}``; add detail keys
         (``state``, ``message``, …) as useful.
         """

@@ -46,11 +46,21 @@ class PluginManager:
         prerouting_plugins: List[PluginBaseNode],
         postrouting_plugins: List[PluginBaseNode],
         postresponse_plugins: List[PluginBaseNode],
+        standalone_plugins: List[PluginBaseNode] | None = None,
     ):
         self.prerouting_plugins = prerouting_plugins
         self.postrouting_plugins = postrouting_plugins
         self.postresponse_plugins = postresponse_plugins
-        self.plugins = prerouting_plugins + postrouting_plugins + postresponse_plugins
+        # ``standalone`` plugins are built and discoverable (routes, settings) but are
+        # deliberately absent from every hook list, so no request/response chain
+        # ever runs them. They are still in ``self.plugins`` for lookup/finalizers.
+        self.standalone_plugins = standalone_plugins or []
+        self.plugins = (
+            prerouting_plugins
+            + postrouting_plugins
+            + postresponse_plugins
+            + self.standalone_plugins
+        )
 
     async def process_prerouting_request(
         self, request: ChatCompletionRequest, **kwargs: Any
@@ -246,10 +256,17 @@ def build_plugin(plugin_config: PluginConfig) -> PluginBaseNode:
         )
 
     try:
+        kwargs: Dict[str, Any] = {}
+        if plugin_node == "compressor":
+            # Temporary adapter until router config supplies per-plugin metrics keys.
+            kwargs["metrics_keys"] = (
+                ["provider"] if plugin_config.trigger == "postrouting" else []
+            )
         plugin = plugin_cls(
             name=plugin_config.name,
             settings=plugin_config.settings,
             trigger=plugin_config.trigger,
+            **kwargs,
         )
     except PluginSchemaError as exc:
         raise ConfigurationError(str(exc)) from exc
@@ -263,18 +280,22 @@ def create_plugin_manager(plugin_configs: List[PluginConfig]) -> PluginManager:
     prerouting_plugins: List[PluginBaseNode] = []
     postrouting_plugins: List[PluginBaseNode] = []
     postresponse_plugins: List[PluginBaseNode] = []
+    standalone_plugins: List[PluginBaseNode] = []
+    trigger_buckets = {
+        "prerouting": prerouting_plugins,
+        "postrouting": postrouting_plugins,
+        "postresponse": postresponse_plugins,
+        "standalone": standalone_plugins,
+    }
     for plugin_config in plugin_configs:
         if not plugin_config.enabled:
             logger.info("Plugin disabled: %s", plugin_config.name)
             continue
 
         plugin = build_plugin(plugin_config)
-        if plugin_config.trigger == "prerouting":
-            prerouting_plugins.append(plugin)
-        elif plugin_config.trigger == "postrouting":
-            postrouting_plugins.append(plugin)
-        else:
-            postresponse_plugins.append(plugin)
+        # Unknown triggers are rejected at config-load time; default to prerouting
+        # defensively for any direct caller that bypassed the loader.
+        trigger_buckets.get(plugin_config.trigger, prerouting_plugins).append(plugin)
         logger.info(
             "Loaded plugin: %s (%s, trigger=%s)",
             plugin_config.name,
@@ -283,7 +304,9 @@ def create_plugin_manager(plugin_configs: List[PluginConfig]) -> PluginManager:
         )
 
     # Run each node's finalizer once with all instances of that node.
-    all_plugins = prerouting_plugins + postrouting_plugins + postresponse_plugins
+    all_plugins = (
+        prerouting_plugins + postrouting_plugins + postresponse_plugins + standalone_plugins
+    )
     by_node: Dict[str, List[PluginBaseNode]] = {}
     for plugin in all_plugins:
         by_node.setdefault(plugin.plugin_type(), []).append(plugin)
@@ -296,4 +319,6 @@ def create_plugin_manager(plugin_configs: List[PluginConfig]) -> PluginManager:
         except Exception as exc:
             logger.warning("Node finalizer failed for %r: %s", node, exc)
 
-    return PluginManager(prerouting_plugins, postrouting_plugins, postresponse_plugins)
+    return PluginManager(
+        prerouting_plugins, postrouting_plugins, postresponse_plugins, standalone_plugins
+    )

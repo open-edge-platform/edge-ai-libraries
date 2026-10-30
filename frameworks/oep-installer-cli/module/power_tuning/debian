@@ -1,4 +1,3 @@
-
 configure_power_tuning () {
   workspace="$(ensure_project_path)/power_tuning"
   repository="https://github.com/open-edge-platform/edge-node-infrastructure-blueprint.git"
@@ -39,4 +38,3 @@ debian_40_remove_power_tuning () {
 
   ensure_rm "$power_tuning_path"
 }
-

@@ -17,5 +17,5 @@ debian_25_install_linux_image_6.18_intel () {
 
 debian_25_sbom_linux_image_6.18_intel () {
   ensure_sbom_format pkg-list linux-image-6.18-intel
-  ensure_sbom_format kernel-args xe.max_vfs=7 "xe.force_probe=*" modprobe.blacklist=i915 udmabuf.list_limit=8192
+  ensure_sbom_format kernel-cmdline xe.max_vfs=7 "xe.force_probe=*" modprobe.blacklist=i915 udmabuf.list_limit=8192
 }

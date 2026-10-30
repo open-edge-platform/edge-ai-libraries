@@ -39,6 +39,13 @@ class ProviderConfig:
     type: str  # 'vllm', 'ollama', 'openai', etc.
     model: str  # Backend model identifier, e.g. "Qwen/Qwen3.5-9B"
     enabled: bool = True
+    # When True, this provider is the routing fallback: it is selected whenever
+    # the DecisionEngine's policy fails to match any provider (see
+    # ``DecisionEngine._fallback_decision``). At most one provider should set
+    # this — ``POST /providers/{name}`` with ``fallback: true`` clears it on
+    # all others; if a hand-edited config sets several, the earliest-configured
+    # one wins. With no provider marked, unmatched requests are rejected.
+    fallback: bool = False
     metadata: Dict[str, Any] = field(default_factory=dict)
     settings: Dict[str, Any] = field(default_factory=dict)
     # Generic passthrough mapping for integrations that are not part of the core provider contract

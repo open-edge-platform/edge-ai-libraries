@@ -100,6 +100,9 @@ act_helper () {
   shift
   shift
 
+  # reject unknown component names before anything else
+  act_validate_modules $act_name "$@" || return 3
+
   # fill in the saved module list if none is named; remember explicit ones
   local explicit_mods="$(act_extract_modules $act_name "$@")"
   local remove_all=0
@@ -273,4 +276,79 @@ act_find_parents () {
       [[ "$targets" != *" $d "* ]] || echo "$p:$d"
     done
   done
+}
+
+# Levenshtein distance between $1 and $2 (pure bash)
+_act_levenshtein () {
+  local a=$1 b=$2 la=${#1} lb=${#2} i j cost d ins sub
+  local -a prev=() cur=()
+  for ((j=0;j<=lb;j++)); do prev[j]=$j; done
+  for ((i=1;i<=la;i++)); do
+    cur=($i)
+    for ((j=1;j<=lb;j++)); do
+      [ "${a:i-1:1}" = "${b:j-1:1}" ] && cost=0 || cost=1
+      d=$((prev[j]+1)); ins=$((cur[j-1]+1)); sub=$((prev[j-1]+cost))
+      ((ins < d)) && d=$ins
+      ((sub < d)) && d=$sub
+      cur[j]=$d
+    done
+    prev=("${cur[@]}")
+  done
+  echo "${prev[lb]}"
+}
+
+# Print up to 3 known module names close to $1
+act_suggest_modules () {
+  local name=$1 m dist d2 max_pre max_full n=${#1} k
+  local all_modules=(${_act_cache_names[*]:-${_act_cache_modules[*]}})
+  max_full=$(( n <= 6 ? 1 : 2 ))
+  for m in "${all_modules[@]}"; do
+    # tier 0: exact prefix -- strongest signal of intent
+    if [[ "$m" == "$name"* ]]; then
+      echo "0 0 $m"; continue
+    fi
+    # tier 1: substring either way -- only used if nothing starts with the input
+    if [[ "$m" == *"$name"* || "$name" == *"$m"* ]]; then
+      echo "1 0 $m"; continue
+    fi
+    # tier 2: fuzzy prefix; threshold applies only past the common prefix
+    for ((k=0; k<n && k<${#m}; k++)); do
+      [ "${name:k:1}" = "${m:k:1}" ] || break
+    done
+    max_pre=$(( (n - k) / 2 )); ((max_pre < 1)) && max_pre=1; ((max_pre > 3)) && max_pre=3
+    if ((${#m} > n)); then
+      dist=$(_act_levenshtein "$name" "${m:0:n}")
+      d2=$(_act_levenshtein "$name" "${m:0:n+1}"); ((d2 < dist)) && dist=$d2
+      if ((dist <= max_pre)); then echo "2 $dist $m"; continue; fi
+    fi
+    # tier 3: fuzzy full name, tightest threshold
+    dist=$(_act_levenshtein "$name" "$m")
+    ((dist <= max_full)) && echo "3 $dist $m"
+  done | sort -k1,1n -k2,2n -k3,3 \
+       | awk 'NR==1{t=$1; d=$2} $1==t && $2==d' \
+       | head -n 3 | cut -d' ' -f3
+}
+
+# Validate bare component names given on the command line.
+# Mirrors act_extract_modules: only words before the first "--<module>"
+# separator are module names; "-..." words are options.
+act_validate_modules () {
+  local act_name=${1%%,*}; shift
+  local all_modules=(${_act_cache_names[*]:-${_act_cache_modules[*]}})
+  local all_module_args=" ${all_modules[*]/#/--} "
+  local v s bad=0
+  for v in "$@"; do
+    [[ "$all_module_args" != *" $v "* ]] || break   # start of per-module args
+    [[ "$v" == -* ]] && continue                    # global option
+    [[ "$all_module_args" == *" --$v "* ]] && continue
+    bad=1
+    s=$(act_suggest_modules "$v" | paste -sd, - | sed 's/,/, /g')
+    if [ -n "$s" ]; then
+      echo -e "${red}Unknown component '$v'.${reset}" >&2
+      echo "Did you mean: $s?" >&2
+    else
+      echo -e "${red}Unknown component '$v'.${reset}" >&2
+    fi
+  done
+  [ $bad -eq 0 ] || return 3
 }

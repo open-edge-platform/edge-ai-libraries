@@ -1,4 +1,3 @@
-
 configure_pcm () {
   workspace="$(ensure_project_path)/pcm"
   repository="https://github.com/intel/pcm.git"
@@ -50,4 +49,3 @@ debian_40_remove_pcm () {
     /usr/local/bin/pcm-* /usr/local/share/licenses/pcm /usr/local/share/doc/PCM \
     /etc/modules-load.d/99-intel-pcm.conf
 }
-
