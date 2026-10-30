@@ -233,12 +233,41 @@ MODEL_CONFIGS = {
             "trust_remote_code": True,
         },
     },
+    "GME": {
+        "gme-qwen2-vl-2b-instruct": {
+            "hf_model_id": "Alibaba-NLP/gme-Qwen2-VL-2B-Instruct",
+            # Precision comes from GME_PRECISION (int8 default, int4, fp32);
+            # non-INT8 packages get a "-<precision>" suffix on this directory.
+            "package_dir": "gme-qwen2-vl-2b-instruct-openvino",
+            "handler_class": "GMEHandler",
+        },
+    },
 }
 
 
 MODEL_ALIASES = {
     "SigLIP/siglip2-person-description-reid": "MarketaJu/siglip2-person-description-reid",
+    "Alibaba-NLP/gme-Qwen2-VL-2B-Instruct": "GME/gme-qwen2-vl-2b-instruct",
 }
+
+
+def resolve_model_id(model_id: str) -> str:
+    """
+    Return the registered "type/name" for a model ID, alias or bare name.
+
+    Raises:
+        ValueError: If the model is not registered
+    """
+    model_id = MODEL_ALIASES.get(model_id, model_id)
+    if "/" in model_id:
+        model_type, model_name = model_id.split("/", 1)
+        if model_name in MODEL_CONFIGS.get(model_type, {}):
+            return model_id
+    else:
+        for model_type, models in MODEL_CONFIGS.items():
+            if model_id in models:
+                return f"{model_type}/{model_id}"
+    raise ValueError(f"Model {model_id} not found")
 
 
 def get_model_config(model_id: str, device=None, ov_models_dir=None, use_openvino=None) -> dict:

@@ -207,7 +207,35 @@ class BaseEmbeddingModel(ABC):
         The default implementation returns the incoming list unchanged.
         """
         return texts
-    
+
+    def encode_query(self, text: str) -> torch.Tensor:
+        """
+        Encode one query; returns the ``encode_text`` result for a batch of one.
+
+        The default prepares the text with ``prepare_query`` and encodes it as
+        text. Handlers whose model selects the query side by something other
+        than the input string (for example a prompt argument) override this.
+        """
+        return self.encode_text([self.prepare_query(text)])
+
+    def encode_documents(self, texts: List[str]) -> torch.Tensor:
+        """
+        Encode a batch of documents; the default is ``prepare_documents`` + ``encode_text``.
+        """
+        return self.encode_text(self.prepare_documents(texts))
+
+    def supports_fused(self) -> bool:
+        """Return True if the handler embeds an image together with its text as one vector."""
+        return False
+
+    def encode_fused(self, texts: List[str], images: List[Image.Image]) -> torch.Tensor:
+        """
+        Encode (text, image) pairs, one joint embedding per pair.
+
+        Only handlers that return True from ``supports_fused`` implement this.
+        """
+        raise NotImplementedError("Fused image+text embeddings are not supported by this model")
+
     def get_embedding_dim(self) -> int:
         """
         Get the dimension of the embeddings produced by this model.

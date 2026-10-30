@@ -67,9 +67,9 @@ README.md           @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 /microservices/multilevel-video-understanding/docs/      @Johere @zhangcong2019 @llin60 @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 /microservices/multilevel-video-understanding/README.md  @Johere @zhangcong2019 @llin60 @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 
-/microservices/multimodal-embedding-serving/           @bhardwaj-nakul @bharagha @yogeshmpandey @llin60
-/microservices/multimodal-embedding-serving/docs/      @bhardwaj-nakul @bharagha @yogeshmpandey @llin60  @open-edge-platform/open-edge-platform-docs-write
-/microservices/multimodal-embedding-serving/README.md  @bhardwaj-nakul @bharagha @yogeshmpandey @llin60  @open-edge-platform/open-edge-platform-docs-write
+/microservices/multimodal-embedding-serving/           @bhardwaj-nakul @bharagha @yogeshmpandey @llin60 @Yongbozzz
+/microservices/multimodal-embedding-serving/docs/      @bhardwaj-nakul @bharagha @yogeshmpandey @llin60 @open-edge-platform/open-edge-platform-docs-write @Yongbozzz
+/microservices/multimodal-embedding-serving/README.md  @bhardwaj-nakul @bharagha @yogeshmpandey @llin60 @open-edge-platform/open-edge-platform-docs-write @Yongbozzz
 
 # lack codeowners, need resolution
 # /microservices/scene-understanding-service/          owners needed
