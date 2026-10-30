@@ -12,7 +12,7 @@ The Video Summary Accuracy Analyzer is an evaluation tool that measures the qual
 
 The analyzer is accessible through both a web-based dashboard and a REST API, enabling integration into automated evaluation workflows.
 
-> This tool is designed solely for **summary evaluation**. It does not process video files, generate reference summaries, perform video summarization using any video summarization tool or pipeline workflow.
+> This tool is designed solely for **summary evaluation**. It does not process video files, generate reference summaries, perform video summarization using VLMs, video summarization tool or pipeline workflow.
 >
 
 Users should first obtain the video content and corresponding summaries through their preferred annotation, labeling, or video-understanding pipeline. The analyzer can then be used to compare a generated summary against a reference summary and evaluate its quality across the supported metrics.
@@ -20,7 +20,7 @@ Users should first obtain the video content and corresponding summaries through 
 ## Using the Capability
 
 1. **Video with reference summary.** Have a video with reference (ground-truth) summary against which generated summary will be evaluated.
-2. **Generate a summary.** Run the same video through a video summarization tool/pipelines workflow and collect its generated summary. 
+2. **Generate a summary.** Run the same video through VLM or video summarization tool/pipelines and collect its generated summary. 
 3. **Compare the summaries.** In Summary Evaluation tab, upload and submit a single Markdown file containing both the Reference and Generated summaries. Review the results for sentence-level comparisons, factual consistency, and temporal coherence.
 4. **Inspect individual metrics if needed.** In Metrics tab, enter the reference text and generated text, then select any one metric (BERTScore, Semantic Similarity, ROUGE, or Factual Consistency) to review the results.
 
