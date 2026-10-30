@@ -15,6 +15,7 @@ The Video Summary Accuracy Analyzer is an evaluation tool that measures the qual
 video summary by comparing it against a ground-truth reference summary. It is accessible through
 both a web-based dashboard and a REST API, enabling integration into automated evaluation workflows.
 
+> [!NOTE]
 > This tool is designed solely for **summary evaluation**. It does not process video files, generate
 > reference summaries, or perform video summarization using VLMs, video summarization tools, or
 > pipeline workflows.
