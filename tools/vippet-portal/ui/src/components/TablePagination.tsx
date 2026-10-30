@@ -41,13 +41,13 @@ export const TablePagination = ({
         </Label>
         <Select
           value={String(pageSize)}
-          onValueChange={(value) => onPageSizeChange(Number(value))}
+          onValueChange={value => onPageSizeChange(Number(value))}
         >
           <SelectTrigger id={`${idPrefix}-page-size`} className="w-[5.5rem]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {PAGE_SIZE_OPTIONS.map((size) => (
+            {PAGE_SIZE_OPTIONS.map(size => (
               <SelectItem key={size} value={String(size)}>
                 {size}
               </SelectItem>

@@ -43,7 +43,7 @@ export const Navigation = ({ ...props }: ComponentProps<typeof Sidebar>) => {
         <SidebarGroup>
           <SidebarGroupContent className="flex flex-col gap-2">
             <SidebarMenu>
-              {menuItems.map((item) => (
+              {menuItems.map(item => (
                 <SidebarMenuItem key={item.title}>
                   <NavLink to={item.url} end={item.url === "/"}>
                     {({ isActive }) => (
@@ -51,7 +51,7 @@ export const Navigation = ({ ...props }: ComponentProps<typeof Sidebar>) => {
                         tooltip={item.title}
                         className={cn(
                           isActive &&
-                            "bg-sidebar-accent border-r-3 border-brand-accent",
+                            "bg-sidebar-accent border-r-3 border-brand-accent"
                         )}
                       >
                         {item.icon && <item.icon />}
@@ -69,7 +69,7 @@ export const Navigation = ({ ...props }: ComponentProps<typeof Sidebar>) => {
         <div
           className={cn(
             "px-2 py-2 text-xs text-muted-foreground whitespace-nowrap transition-opacity ease-linear group-data-[collapsible=icon]:opacity-0",
-            state === "collapsed" ? "duration-100" : "duration-200 delay-100",
+            state === "collapsed" ? "duration-100" : "duration-200 delay-100"
           )}
         >
           Version: 2026.3.0

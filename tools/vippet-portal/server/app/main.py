@@ -54,7 +54,7 @@ if UI_DIST.is_dir():
 
     @app.get("/{full_path:path}", include_in_schema=False)
     async def serve_spa(full_path: str) -> FileResponse:
-        candidate = UI_DIST / full_path
-        if full_path and candidate.is_file():
+        candidate = (UI_DIST / full_path).resolve()
+        if full_path and candidate.is_relative_to(UI_DIST) and candidate.is_file():
             return FileResponse(candidate)
         return FileResponse(UI_DIST / "index.html")

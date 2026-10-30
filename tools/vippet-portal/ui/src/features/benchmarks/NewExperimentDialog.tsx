@@ -34,22 +34,22 @@ export const NewExperimentDialog = () => {
 
   const { data: suites, isLoading: suitesLoading } = useGetBenchmarkSuitesQuery(
     undefined,
-    { skip: !open },
+    { skip: !open }
   );
   const { data: instances } = useGetInstancesQuery();
   const [startExperiment, { isLoading: isStarting }] =
     useStartExperimentMutation();
 
-  const suite = suites?.find((entry) => entry.slug === suiteSlug);
+  const suite = suites?.find(entry => entry.slug === suiteSlug);
   const candidates = useMemo(
-    () => (instances ?? []).filter((instance) => instance.enabled),
-    [instances],
+    () => (instances ?? []).filter(instance => instance.enabled),
+    [instances]
   );
 
   const supports = (instanceId: number) =>
     !suite || suite.instance_ids.includes(instanceId);
   const runnable = (instanceId: number) => {
-    const instance = candidates.find((entry) => entry.id === instanceId);
+    const instance = candidates.find(entry => entry.id === instanceId);
     return Boolean(instance?.reachable) && supports(instanceId);
   };
   const chosen = selectedIds.filter(runnable);
@@ -68,7 +68,7 @@ export const NewExperimentDialog = () => {
       toast.success(
         `Started ${suite?.name ?? suiteSlug} on ${chosen.length} machine${
           chosen.length === 1 ? "" : "s"
-        }.`,
+        }.`
       );
       reset();
       setOpen(false);
@@ -83,7 +83,7 @@ export const NewExperimentDialog = () => {
   return (
     <Dialog
       open={open}
-      onOpenChange={(next) => {
+      onOpenChange={next => {
         setOpen(next);
         if (!next) reset();
       }}
@@ -119,7 +119,7 @@ export const NewExperimentDialog = () => {
                 />
               </SelectTrigger>
               <SelectContent>
-                {(suites ?? []).map((entry) => (
+                {(suites ?? []).map(entry => (
                   <SelectItem key={entry.slug} value={entry.slug}>
                     {entry.name} ({entry.workload_count} workloads)
                   </SelectItem>
@@ -140,7 +140,7 @@ export const NewExperimentDialog = () => {
                 No machine is enabled for aggregation.
               </p>
             ) : null}
-            {candidates.map((instance) => {
+            {candidates.map(instance => {
               const offline = !instance.reachable;
               const unsupported = !supports(instance.id);
               const disabled = offline || unsupported;
@@ -152,11 +152,11 @@ export const NewExperimentDialog = () => {
                     className="mt-0.5"
                     disabled={disabled}
                     checked={selectedIds.includes(instance.id) && !disabled}
-                    onCheckedChange={(checked) =>
-                      setSelectedIds((current) =>
+                    onCheckedChange={checked =>
+                      setSelectedIds(current =>
                         checked === true
                           ? [...current, instance.id]
-                          : current.filter((id) => id !== instance.id),
+                          : current.filter(id => id !== instance.id)
                       )
                     }
                   />

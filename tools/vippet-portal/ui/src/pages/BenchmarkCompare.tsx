@@ -44,11 +44,11 @@ export const BenchmarkCompare = () => {
     () => [
       ...new Set(
         (data?.rows ?? [])
-          .map((row) => row.group)
-          .filter((group): group is string => Boolean(group)),
+          .map(row => row.group)
+          .filter((group): group is string => Boolean(group))
       ),
     ],
-    [data],
+    [data]
   );
 
   // Falls back to the first workload until one is picked, and after the
@@ -60,7 +60,7 @@ export const BenchmarkCompare = () => {
     if (!data) return data;
     return {
       ...data,
-      rows: data.rows.filter((row) => row.group === activeWorkload),
+      rows: data.rows.filter(row => row.group === activeWorkload),
     };
   }, [data, activeWorkload]);
 
@@ -125,7 +125,7 @@ export const BenchmarkCompare = () => {
                   <SelectValue placeholder="Workload" />
                 </SelectTrigger>
                 <SelectContent>
-                  {workloads.map((name) => (
+                  {workloads.map(name => (
                     <SelectItem key={name} value={name}>
                       {name}
                     </SelectItem>

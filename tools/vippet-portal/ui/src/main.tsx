@@ -17,5 +17,5 @@ createRoot(document.getElementById("root")!).render(
         </ThemeProvider>
       </PersistGate>
     </Provider>
-  </StrictMode>,
+  </StrictMode>
 );

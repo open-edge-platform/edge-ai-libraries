@@ -6,31 +6,31 @@ export const useRefSelection = (limit = 6) => {
 
   const toggle = useCallback(
     (ref: string) =>
-      setSelected((current) =>
+      setSelected(current =>
         current.includes(ref)
-          ? current.filter((item) => item !== ref)
+          ? current.filter(item => item !== ref)
           : current.length >= limit
             ? current
-            : [...current, ref],
+            : [...current, ref]
       ),
-    [limit],
+    [limit]
   );
 
   const clear = useCallback(() => setSelected([]), []);
 
   const isSelected = useCallback(
     (ref: string) => selected.includes(ref),
-    [selected],
+    [selected]
   );
 
   const compareHref = useCallback(
     (basePath: string) =>
-      `${basePath}/compare?${selected.map((ref) => `refs=${encodeURIComponent(ref)}`).join("&")}`,
-    [selected],
+      `${basePath}/compare?${selected.map(ref => `refs=${encodeURIComponent(ref)}`).join("&")}`,
+    [selected]
   );
 
   return useMemo(
     () => ({ selected, toggle, clear, isSelected, compareHref, limit }),
-    [selected, toggle, clear, isSelected, compareHref, limit],
+    [selected, toggle, clear, isSelected, compareHref, limit]
   );
 };

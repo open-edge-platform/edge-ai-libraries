@@ -44,16 +44,16 @@ export const NewTestDialog = ({ kind }: { kind: TestKind }) => {
   const [startTest, { isLoading: isStarting }] =
     useStartTestExperimentMutation();
 
-  const pipeline = pipelines?.find((entry) => entry.id === pipelineId);
+  const pipeline = pipelines?.find(entry => entry.id === pipelineId);
   const candidates = useMemo(
-    () => (instances ?? []).filter((instance) => instance.enabled),
-    [instances],
+    () => (instances ?? []).filter(instance => instance.enabled),
+    [instances]
   );
 
   const supports = (instanceId: number) =>
     !pipeline || pipeline.instance_ids.includes(instanceId);
   const runnable = (instanceId: number) => {
-    const instance = candidates.find((entry) => entry.id === instanceId);
+    const instance = candidates.find(entry => entry.id === instanceId);
     return Boolean(instance?.reachable) && supports(instanceId);
   };
   const chosen = selectedIds.filter(runnable);
@@ -68,15 +68,17 @@ export const NewTestDialog = ({ kind }: { kind: TestKind }) => {
     try {
       await startTest({
         kind,
-        pipeline_id: pipelineId,
-        variant_id: variantId,
-        instance_ids: chosen,
-        streams: Number(streams) || 1,
-        max_runtime: kind === "density" ? Number(maxRuntime) || 0 : 0,
-        fps_floor: Number(fpsFloor) || 30,
+        testExperimentCreate: {
+          pipeline_id: pipelineId,
+          variant_id: variantId,
+          instance_ids: chosen,
+          streams: Number(streams) || 1,
+          max_runtime: kind === "density" ? Number(maxRuntime) || 0 : 0,
+          fps_floor: Number(fpsFloor) || 30,
+        },
       }).unwrap();
       toast.success(
-        `Started on ${chosen.length} machine${chosen.length === 1 ? "" : "s"}.`,
+        `Started on ${chosen.length} machine${chosen.length === 1 ? "" : "s"}.`
       );
       reset();
       setOpen(false);
@@ -91,7 +93,7 @@ export const NewTestDialog = ({ kind }: { kind: TestKind }) => {
   return (
     <Dialog
       open={open}
-      onOpenChange={(next) => {
+      onOpenChange={next => {
         setOpen(next);
         if (!next) reset();
       }}
@@ -118,7 +120,7 @@ export const NewTestDialog = ({ kind }: { kind: TestKind }) => {
             <Label htmlFor="test-pipeline">Pipeline</Label>
             <Select
               value={pipelineId}
-              onValueChange={(value) => {
+              onValueChange={value => {
                 setPipelineId(value);
                 setVariantId("");
               }}
@@ -134,7 +136,7 @@ export const NewTestDialog = ({ kind }: { kind: TestKind }) => {
                 />
               </SelectTrigger>
               <SelectContent>
-                {(pipelines ?? []).map((entry) => (
+                {(pipelines ?? []).map(entry => (
                   <SelectItem key={entry.id} value={entry.id}>
                     {entry.name}
                   </SelectItem>
@@ -155,7 +157,7 @@ export const NewTestDialog = ({ kind }: { kind: TestKind }) => {
                   <SelectValue placeholder="Select a variant" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(pipeline?.variants ?? []).map((variant) => (
+                  {(pipeline?.variants ?? []).map(variant => (
                     <SelectItem key={variant.id} value={variant.id}>
                       {variant.name}
                     </SelectItem>
@@ -173,7 +175,7 @@ export const NewTestDialog = ({ kind }: { kind: TestKind }) => {
                   min={1}
                   className="w-[7rem]"
                   value={streams}
-                  onChange={(event) => setStreams(event.target.value)}
+                  onChange={event => setStreams(event.target.value)}
                 />
               </div>
             ) : (
@@ -186,7 +188,7 @@ export const NewTestDialog = ({ kind }: { kind: TestKind }) => {
                     min={1}
                     className="w-[9rem]"
                     value={fpsFloor}
-                    onChange={(event) => setFpsFloor(event.target.value)}
+                    onChange={event => setFpsFloor(event.target.value)}
                   />
                 </div>
                 <div className="grid gap-1.5">
@@ -197,7 +199,7 @@ export const NewTestDialog = ({ kind }: { kind: TestKind }) => {
                     min={0}
                     className="w-[11rem]"
                     value={maxRuntime}
-                    onChange={(event) => setMaxRuntime(event.target.value)}
+                    onChange={event => setMaxRuntime(event.target.value)}
                   />
                 </div>
               </>
@@ -217,7 +219,7 @@ export const NewTestDialog = ({ kind }: { kind: TestKind }) => {
                 No machine is enabled for aggregation.
               </p>
             ) : null}
-            {candidates.map((instance) => {
+            {candidates.map(instance => {
               const offline = !instance.reachable;
               const unsupported = !supports(instance.id);
               const disabled = offline || unsupported;
@@ -229,11 +231,11 @@ export const NewTestDialog = ({ kind }: { kind: TestKind }) => {
                     className="mt-0.5"
                     disabled={disabled}
                     checked={selectedIds.includes(instance.id) && !disabled}
-                    onCheckedChange={(checked) =>
-                      setSelectedIds((current) =>
+                    onCheckedChange={checked =>
+                      setSelectedIds(current =>
                         checked === true
                           ? [...current, instance.id]
-                          : current.filter((id) => id !== instance.id),
+                          : current.filter(id => id !== instance.id)
                       )
                     }
                   />

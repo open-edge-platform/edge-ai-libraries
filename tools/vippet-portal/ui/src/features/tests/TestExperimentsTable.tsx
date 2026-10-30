@@ -22,11 +22,11 @@ import { formatTimestamp } from "@/lib/timeUtils";
 
 const compareHref = (experiment: TestExperiment) => {
   const refs = experiment.runs
-    .map((run) => run.ref)
+    .map(run => run.ref)
     .filter((ref): ref is string => Boolean(ref));
   if (refs.length < 2) return null;
   return `/tests/${experiment.kind}/compare?${refs
-    .map((ref) => `refs=${encodeURIComponent(ref)}`)
+    .map(ref => `refs=${encodeURIComponent(ref)}`)
     .join("&")}`;
 };
 
@@ -62,7 +62,7 @@ export const TestExperimentsTable = ({
         </TableRow>
       </TableHeader>
       <TableBody>
-        {(experiments ?? []).map((experiment) => {
+        {(experiments ?? []).map(experiment => {
           const href = compareHref(experiment);
 
           return [
@@ -108,7 +108,7 @@ export const TestExperimentsTable = ({
                 </div>
               </TableCell>
             </TableRow>,
-            ...experiment.runs.map((run) => (
+            ...experiment.runs.map(run => (
               <TableRow
                 key={`test-experiment-${experiment.id}-${run.instance_id}`}
               >

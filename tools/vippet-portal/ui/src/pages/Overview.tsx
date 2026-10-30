@@ -46,7 +46,7 @@ export const Overview = () => {
 
       {isLoading ? (
         <div className={CARDS_GRID_CLASS}>
-          {[0, 1].map((index) => (
+          {[0, 1].map(index => (
             <Skeleton key={index} className="h-56 w-full" />
           ))}
         </div>
@@ -62,7 +62,7 @@ export const Overview = () => {
         </Card>
       ) : (
         <div className={CARDS_GRID_CLASS}>
-          {instances?.map((instance) => {
+          {instances?.map(instance => {
             return (
               <Card key={instance.id}>
                 <CardHeader>

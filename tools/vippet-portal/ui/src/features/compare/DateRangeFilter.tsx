@@ -31,7 +31,7 @@ export const DateRangeFilter = ({
         className="w-[10rem]"
         value={value.from}
         max={value.to || undefined}
-        onChange={(event) => onChange({ ...value, from: event.target.value })}
+        onChange={event => onChange({ ...value, from: event.target.value })}
       />
     </div>
     <div className="grid gap-1.5">
@@ -44,7 +44,7 @@ export const DateRangeFilter = ({
         className="w-[10rem]"
         value={value.to}
         min={value.from || undefined}
-        onChange={(event) => onChange({ ...value, to: event.target.value })}
+        onChange={event => onChange({ ...value, to: event.target.value })}
       />
     </div>
     {isDateRangeActive(value) ? (

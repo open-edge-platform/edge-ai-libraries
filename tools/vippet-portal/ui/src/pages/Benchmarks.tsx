@@ -52,35 +52,31 @@ export const Benchmarks = () => {
 
   const instanceOptions = useMemo(
     () => [
-      ...new Map(
-        (runs ?? []).map((run) => [run.instance_id, run.instance_name]),
-      ),
+      ...new Map((runs ?? []).map(run => [run.instance_id, run.instance_name])),
     ],
-    [runs],
+    [runs]
   );
   const suiteOptions = useMemo(
-    () => [...new Set((runs ?? []).map((run) => run.suite_slug))],
-    [runs],
+    () => [...new Set((runs ?? []).map(run => run.suite_slug))],
+    [runs]
   );
   const experimentRefs = useMemo(
     () =>
       new Set(
-        (experiments ?? []).flatMap((experiment) =>
-          experiment.runs.map((run) => run.ref).filter(Boolean),
-        ),
+        (experiments ?? []).flatMap(experiment =>
+          experiment.runs.map(run => run.ref).filter(Boolean)
+        )
       ),
-    [experiments],
+    [experiments]
   );
 
   const visibleRuns = (runs ?? []).filter(
-    (run) =>
+    run =>
       !experimentRefs.has(run.ref) &&
       (instanceFilter === ALL || String(run.instance_id) === instanceFilter) &&
       (suiteFilter === ALL || run.suite_slug === suiteFilter) &&
       isWithinDateRange(run.start_time, dateRange) &&
-      !(
-        hideUnsuccessful && UNSUCCESSFUL_STATUSES.has(run.status.toLowerCase())
-      ),
+      !(hideUnsuccessful && UNSUCCESSFUL_STATUSES.has(run.status.toLowerCase()))
   );
 
   const { pageItems, controls } = usePagination(visibleRuns);
@@ -131,7 +127,7 @@ export const Benchmarks = () => {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>All suites</SelectItem>
-            {suiteOptions.map((slug) => (
+            {suiteOptions.map(slug => (
               <SelectItem key={slug} value={slug}>
                 {slug}
               </SelectItem>
@@ -147,7 +143,7 @@ export const Benchmarks = () => {
           <Checkbox
             id="hide-unsuccessful"
             checked={hideUnsuccessful}
-            onCheckedChange={(checked) => setHideUnsuccessful(checked === true)}
+            onCheckedChange={checked => setHideUnsuccessful(checked === true)}
           />
           <Label htmlFor="hide-unsuccessful" className="font-normal">
             Hide cancelled &amp; failed
@@ -175,7 +171,7 @@ export const Benchmarks = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {pageItems.map((run) => {
+            {pageItems.map(run => {
               const total = run.total_test_cases ?? 0;
               const passRate = total
                 ? ((run.passed_test_cases ?? 0) / total) * 100

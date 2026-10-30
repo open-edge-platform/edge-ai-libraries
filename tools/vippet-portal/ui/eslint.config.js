@@ -8,7 +8,7 @@ import prettierPlugin from "eslint-plugin-prettier";
 import prettierConfig from "eslint-config-prettier";
 
 export default defineConfig([
-  globalIgnores(["dist", "../server/static"]),
+  globalIgnores(["dist", "../server/static", "src/api/*.generated.ts"]),
   {
     files: ["**/*.{ts,tsx,js,jsx}"],
     extends: [
@@ -23,10 +23,26 @@ export default defineConfig([
     },
     rules: {
       "prettier/prettier": "error",
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["**/*.generated"],
+              message:
+                "Import from '@/api/portalApi' so endpoint overrides are applied.",
+            },
+          ],
+        },
+      ],
     },
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+  },
+  {
+    files: ["src/api/**"],
+    rules: { "no-restricted-imports": "off" },
   },
 ]);

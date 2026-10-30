@@ -3,11 +3,21 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Literal
+from enum import StrEnum
+from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel as _PydanticBaseModel
+from pydantic import ConfigDict, Field, field_validator
 
-TestKind = Literal["performance", "density"]
+
+class TestKind(StrEnum):
+    performance = "performance"
+    density = "density"
+
+
+class BaseModel(_PydanticBaseModel):
+    # Responses always include defaulted fields, so the generated UI types must not mark them optional.
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
 
 class InstanceCreate(BaseModel):

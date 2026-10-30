@@ -14,7 +14,7 @@ export const isDateRangeActive = (range: DateRange) =>
 /** Bounds are interpreted in local time and both ends are inclusive. */
 export const isWithinDateRange = (
   timestamp: number | null | undefined,
-  range: DateRange,
+  range: DateRange
 ) => {
   if (!isDateRangeActive(range)) return true;
   // An undated result cannot be proven to fall inside an active range.

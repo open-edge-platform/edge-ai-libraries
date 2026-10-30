@@ -103,7 +103,7 @@ const METRICS: Record<string, MetricMeta> = {
 
 export const metricLabel = (metric: string) =>
   METRICS[metric]?.label ??
-  metric.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+  metric.replace(/_/g, " ").replace(/^\w/, c => c.toUpperCase());
 
 export const metricUnit = (metric: string) => METRICS[metric]?.unit ?? "";
 
@@ -141,7 +141,7 @@ export type Delta = {
 export const computeDelta = (
   metric: string,
   value: unknown,
-  baseline: unknown,
+  baseline: unknown
 ): Delta | null => {
   const current = toNumber(value);
   const reference = toNumber(baseline);

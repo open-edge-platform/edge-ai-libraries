@@ -27,7 +27,7 @@ export const usePagination = <T>(items: T[]) => {
     pageCount,
     totalItems: items.length,
     onPageChange: setPage,
-    onPageSizeChange: (size) => {
+    onPageSizeChange: size => {
       setPageSize(size);
       setPage(1);
     },

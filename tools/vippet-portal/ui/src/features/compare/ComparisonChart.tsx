@@ -39,11 +39,11 @@ export const ComparisonChart = ({
   metric,
 }: ComparisonChartProps) => {
   const rows = comparison.rows
-    .filter((row) => !row.key.endsWith("::_suite_"))
-    .filter((row) =>
+    .filter(row => !row.key.endsWith("::_suite_"))
+    .filter(row =>
       comparison.columns.some(
-        (column) => toNumber(row.cells[column.ref]?.[metric]) !== null,
-      ),
+        column => toNumber(row.cells[column.ref]?.[metric]) !== null
+      )
     );
 
   if (rows.length === 0 || comparison.columns.length === 0) return null;
@@ -52,21 +52,21 @@ export const ComparisonChart = ({
     comparison.columns.map((column, index) => [
       column.ref,
       { label: column.instance_name, color: PALETTE[index % PALETTE.length] },
-    ]),
+    ])
   );
 
   // A single-workload chart names it elsewhere, so the prefix only adds noise.
-  const showGroup = new Set(rows.map((row) => row.group ?? "")).size > 1;
+  const showGroup = new Set(rows.map(row => row.group ?? "")).size > 1;
 
-  const data = rows.map((row) => ({
+  const data = rows.map(row => ({
     name: truncate(
-      showGroup && row.group ? `${row.group} · ${row.label}` : row.label,
+      showGroup && row.group ? `${row.group} · ${row.label}` : row.label
     ),
     ...Object.fromEntries(
-      comparison.columns.map((column) => [
+      comparison.columns.map(column => [
         column.ref,
         toNumber(row.cells[column.ref]?.[metric]),
-      ]),
+      ])
     ),
   }));
 
@@ -88,7 +88,7 @@ export const ComparisonChart = ({
         <ChartTooltip
           content={
             <ChartTooltipContent
-              formatter={(value) => formatMetric(metric, value)}
+              formatter={value => formatMetric(metric, value)}
             />
           }
         />

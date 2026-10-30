@@ -76,34 +76,32 @@ export const TestJobsPage = ({ kind }: { kind: TestKind }) => {
 
   const instanceOptions = useMemo(
     () => [
-      ...new Map(
-        (jobs ?? []).map((job) => [job.instance_id, job.instance_name]),
-      ),
+      ...new Map((jobs ?? []).map(job => [job.instance_id, job.instance_name])),
     ],
-    [jobs],
+    [jobs]
   );
   const stateOptions = useMemo(
-    () => [...new Set((jobs ?? []).map((job) => job.state))],
-    [jobs],
+    () => [...new Set((jobs ?? []).map(job => job.state))],
+    [jobs]
   );
   const experimentRefs = useMemo(
     () =>
       new Set(
-        (experiments ?? []).flatMap((experiment) =>
-          experiment.runs.map((run) => run.ref).filter(Boolean),
-        ),
+        (experiments ?? []).flatMap(experiment =>
+          experiment.runs.map(run => run.ref).filter(Boolean)
+        )
       ),
-    [experiments],
+    [experiments]
   );
 
   const needle = search.trim().toLowerCase();
   const visibleJobs = (jobs ?? []).filter(
-    (job) =>
+    job =>
       !experimentRefs.has(job.ref) &&
       (instanceFilter === ALL || String(job.instance_id) === instanceFilter) &&
       (stateFilter === ALL || job.state === stateFilter) &&
       isWithinDateRange(job.start_time, dateRange) &&
-      (!needle || (job.workload ?? "").toLowerCase().includes(needle)),
+      (!needle || (job.workload ?? "").toLowerCase().includes(needle))
   );
 
   const { pageItems, controls } = usePagination(visibleJobs);
@@ -151,7 +149,7 @@ export const TestJobsPage = ({ kind }: { kind: TestKind }) => {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>All states</SelectItem>
-            {stateOptions.map((state) => (
+            {stateOptions.map(state => (
               <SelectItem key={state} value={state}>
                 {state}
               </SelectItem>
@@ -162,7 +160,7 @@ export const TestJobsPage = ({ kind }: { kind: TestKind }) => {
           className="w-[20rem]"
           placeholder="Filter by workload…"
           value={search}
-          onChange={(event) => setSearch(event.target.value)}
+          onChange={event => setSearch(event.target.value)}
         />
         <DateRangeFilter
           idPrefix={kind}
@@ -188,7 +186,7 @@ export const TestJobsPage = ({ kind }: { kind: TestKind }) => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {pageItems.map((job) => {
+            {pageItems.map(job => {
               const checked = selection.isSelected(job.ref);
               const headlineMetric =
                 kind === "density"

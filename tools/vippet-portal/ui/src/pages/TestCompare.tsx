@@ -29,13 +29,13 @@ export const TestCompare = () => {
   const [searchParams] = useSearchParams();
   const refs = searchParams.getAll("refs");
   const [metric, setMetric] = useState(
-    kind === "density" ? "total_streams" : "total_fps",
+    kind === "density" ? "total_streams" : "total_fps"
   );
   const [showDelta, setShowDelta] = useState(true);
 
   const { data, isLoading, error } = useCompareTestJobsQuery(
     { kind, refs },
-    { skip: refs.length === 0 },
+    { skip: refs.length === 0 }
   );
 
   const listPath = `/tests/${kind}`;

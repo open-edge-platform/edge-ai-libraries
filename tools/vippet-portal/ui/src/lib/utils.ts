@@ -14,7 +14,7 @@ export const CARDS_GRID_CLASS =
 
 export const formatErrorMessage = (
   errorMessage: string[] | string | null | undefined,
-  defaultMessage: string = "Unknown error",
+  defaultMessage: string = "Unknown error"
 ): string => {
   if (!errorMessage) return defaultMessage;
   if (Array.isArray(errorMessage)) {
@@ -42,7 +42,7 @@ export const formatDeviceName = (name: string | undefined | null): string => {
  * Example: "my-benchmark-suite" → "My Benchmark Suite"
  */
 export const unslug = (slug: string): string =>
-  slug.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  slug.replace(/[-_]+/g, " ").replace(/\b\w/g, c => c.toUpperCase());
 
 const CORE_ULTRA_GENERATIONS: Record<string, string> = {
   1: "Meteor Lake",

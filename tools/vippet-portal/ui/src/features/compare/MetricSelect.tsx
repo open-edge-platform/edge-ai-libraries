@@ -21,7 +21,7 @@ export const MetricSelect = ({
       <SelectValue placeholder="Metric" />
     </SelectTrigger>
     <SelectContent>
-      {metrics.map((metric) => (
+      {metrics.map(metric => (
         <SelectItem key={metric} value={metric}>
           {metricLabel(metric)}
         </SelectItem>

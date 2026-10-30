@@ -95,7 +95,7 @@ export const ScoreRadarCharts = () => {
     const scored = [...latest.values()];
     const machines = [
       ...new Map(
-        scored.map((run) => [run.instance_id, run.instance_name]),
+        scored.map(run => [run.instance_id, run.instance_name])
       ).entries(),
     ].map(([id, name]) => ({ id, name }));
 
@@ -110,14 +110,14 @@ export const ScoreRadarCharts = () => {
             machines.map(({ id }) => [
               String(id),
               score(latest.get(`${id}:${slug}`), metric),
-            ]),
+            ])
           ),
         }));
 
         const average = new Map(
           machines.map(({ id }) => {
             const values = REAL_SUITES.map(({ slug }) =>
-              score(latest.get(`${id}:${slug}`), metric),
+              score(latest.get(`${id}:${slug}`), metric)
             ).filter((value): value is number => value !== null);
             return [
               id,
@@ -125,12 +125,12 @@ export const ScoreRadarCharts = () => {
                 ? values.reduce((sum, value) => sum + value, 0) / values.length
                 : null,
             ];
-          }),
+          })
         );
 
         const best = Math.max(
           0,
-          ...[...average.values()].filter((value) => value !== null),
+          ...[...average.values()].filter(value => value !== null)
         );
 
         const mockRows = MOCK_SUITES.map(({ label, factor }) => ({
@@ -147,15 +147,15 @@ export const ScoreRadarCharts = () => {
                         (own + (best - own) * LEVELLING) *
                         factor *
                         jitter(id, label)
-                      ).toFixed(metric === "score_performance" ? 1 : 2),
+                      ).toFixed(metric === "score_performance" ? 1 : 2)
                     ),
               ];
-            }),
+            })
           ),
         }));
 
         return [metric, [...realRows, ...mockRows]];
-      }),
+      })
     ) as Record<Metric, ChartRow[]>;
 
     // Recharts only grids up to its own ticks, so the scale needs an explicit top.
@@ -164,13 +164,13 @@ export const ScoreRadarCharts = () => {
         metric,
         Math.max(
           0,
-          ...dataByMetric[metric].flatMap((row) =>
+          ...dataByMetric[metric].flatMap(row =>
             machines
               .map(({ id }) => row[String(id)])
-              .filter((value): value is number => typeof value === "number"),
-          ),
+              .filter((value): value is number => typeof value === "number")
+          )
         ),
-      ]),
+      ])
     ) as Record<Metric, number>;
 
     return { machines, dataByMetric, maxByMetric };
@@ -192,7 +192,7 @@ export const ScoreRadarCharts = () => {
     machines.map((machine, index) => [
       String(machine.id),
       { label: machine.name, color: PALETTE[index % PALETTE.length] },
-    ]),
+    ])
   );
 
   return (
@@ -220,7 +220,7 @@ export const ScoreRadarCharts = () => {
                 <ChartTooltip
                   content={
                     <ChartTooltipContent
-                      formatter={(value) => formatMetric(metric, value)}
+                      formatter={value => formatMetric(metric, value)}
                     />
                   }
                 />

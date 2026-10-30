@@ -42,14 +42,14 @@ export const ComparisonSummary = ({
             </p>
           </CardHeader>
           <CardContent className="space-y-1">
-            {metrics.map((metric) => {
+            {metrics.map(metric => {
               const delta =
                 index === 0
                   ? null
                   : computeDelta(
                       metric,
                       column.summary[metric],
-                      baseline?.summary[metric],
+                      baseline?.summary[metric]
                     );
               return (
                 <div
@@ -67,7 +67,7 @@ export const ComparisonSummary = ({
                       <span
                         className={cn(
                           "text-xs",
-                          delta.better ? "text-success" : "text-destructive",
+                          delta.better ? "text-success" : "text-destructive"
                         )}
                       >
                         {formatDelta(delta)}

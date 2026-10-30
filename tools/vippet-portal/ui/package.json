@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "format:check": "prettier --check .",
+    "codegen": "rtk-query-codegen-openapi openapi-config.json && prettier --write openapi.json src/api/portalApi.generated.ts",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -37,6 +39,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",
+    "@rtk-query/codegen-openapi": "^2.2.0",
     "@types/node": "^24.9.1",
     "@types/react": "^19.1.16",
     "@types/react-dom": "^19.1.9",

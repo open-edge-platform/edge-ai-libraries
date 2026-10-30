@@ -76,8 +76,8 @@ export const Instances = () => {
                 className="w-[22rem]"
                 placeholder="http://vippet-host:8080"
                 value={url}
-                onChange={(event) => setUrl(event.target.value)}
-                onKeyDown={(event) => event.key === "Enter" && handleAdd()}
+                onChange={event => setUrl(event.target.value)}
+                onKeyDown={event => event.key === "Enter" && handleAdd()}
               />
             </div>
             <div className="grid gap-1.5">
@@ -87,8 +87,8 @@ export const Instances = () => {
                 className="w-[18rem]"
                 placeholder="Lab machine 1"
                 value={name}
-                onChange={(event) => setName(event.target.value)}
-                onKeyDown={(event) => event.key === "Enter" && handleAdd()}
+                onChange={event => setName(event.target.value)}
+                onKeyDown={event => event.key === "Enter" && handleAdd()}
               />
             </div>
             <Button onClick={handleAdd} disabled={isAdding || !url.trim()}>
@@ -112,7 +112,7 @@ export const Instances = () => {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {instances?.map((instance) => (
+          {instances?.map(instance => (
             <TableRow key={instance.id}>
               <TableCell className="font-medium">{instance.name}</TableCell>
               <TableCell>
@@ -152,8 +152,11 @@ export const Instances = () => {
                 <Switch
                   checked={instance.enabled}
                   aria-label={`Include ${instance.name} in aggregation`}
-                  onCheckedChange={(enabled) =>
-                    updateInstance({ id: instance.id, enabled })
+                  onCheckedChange={enabled =>
+                    updateInstance({
+                      instanceId: instance.id,
+                      instanceUpdate: { enabled },
+                    })
                   }
                 />
               </TableCell>

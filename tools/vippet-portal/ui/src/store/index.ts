@@ -17,7 +17,7 @@ const storage = {
 
 const persistedUiConfigReducer = persistReducer(
   { key: "uiConfig", storage },
-  uiConfigReducer,
+  uiConfigReducer
 );
 
 export const store = configureStore({
@@ -25,7 +25,7 @@ export const store = configureStore({
     [portalApi.reducerPath]: portalApi.reducer,
     uiConfig: persistedUiConfigReducer,
   },
-  middleware: (getDefaultMiddleware) =>
+  middleware: getDefaultMiddleware =>
     getDefaultMiddleware({
       serializableCheck: {
         ignoredActions: ["persist/PERSIST", "persist/REHYDRATE"],

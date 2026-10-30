@@ -22,11 +22,11 @@ import { formatElapsedTimeMillis, formatTimestamp } from "@/lib/timeUtils";
 
 const compareHref = (experiment: Experiment) => {
   const refs = experiment.runs
-    .map((run) => run.ref)
+    .map(run => run.ref)
     .filter((ref): ref is string => Boolean(ref));
   if (refs.length < 2) return null;
   return `/benchmarks/compare?${refs
-    .map((ref) => `refs=${encodeURIComponent(ref)}`)
+    .map(ref => `refs=${encodeURIComponent(ref)}`)
     .join("&")}`;
 };
 
@@ -52,7 +52,7 @@ export const ExperimentsTable = () => {
         </TableRow>
       </TableHeader>
       <TableBody>
-        {(experiments ?? []).map((experiment) => {
+        {(experiments ?? []).map(experiment => {
           const href = compareHref(experiment);
 
           return [
@@ -99,7 +99,7 @@ export const ExperimentsTable = () => {
                 </div>
               </TableCell>
             </TableRow>,
-            ...experiment.runs.map((run) => {
+            ...experiment.runs.map(run => {
               const total = run.total_test_cases ?? 0;
               const done = run.completed_test_cases ?? 0;
               const percent = total ? (done / total) * 100 : 0;

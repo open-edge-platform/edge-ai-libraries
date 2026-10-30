@@ -26,12 +26,12 @@ type ComparisonMatrixProps = {
 const bestRefForRow = (
   row: Comparison["rows"][number],
   refs: string[],
-  metric: string,
+  metric: string
 ): string | null => {
   const candidates = refs
-    .map((ref) => ({ ref, value: toNumber(row.cells[ref]?.[metric]) }))
+    .map(ref => ({ ref, value: toNumber(row.cells[ref]?.[metric]) }))
     .filter(
-      (entry): entry is { ref: string; value: number } => entry.value !== null,
+      (entry): entry is { ref: string; value: number } => entry.value !== null
     );
   if (candidates.length < 2) return null;
 
@@ -43,7 +43,7 @@ const bestRefForRow = (
         : best
       : entry.value < best.value
         ? entry
-        : best,
+        : best
   ).ref;
 };
 
@@ -56,7 +56,7 @@ export const ComparisonMatrix = ({
   metric,
   showDelta,
 }: ComparisonMatrixProps) => {
-  const refs = comparison.columns.map((column) => column.ref);
+  const refs = comparison.columns.map(column => column.ref);
   const baselineRef = refs[0];
   let lastGroup: string | null = null;
 
@@ -65,7 +65,7 @@ export const ComparisonMatrix = ({
       <TableHeader className="bg-muted">
         <TableRow>
           <TableHead className="min-w-[16rem]">Workload</TableHead>
-          {comparison.columns.map((column) => (
+          {comparison.columns.map(column => (
             <TableHead key={column.ref} className="text-right">
               <div className="font-medium">{column.instance_name}</div>
               <div className="text-xs font-normal text-muted-foreground">
@@ -76,7 +76,7 @@ export const ComparisonMatrix = ({
         </TableRow>
       </TableHeader>
       <TableBody>
-        {comparison.rows.map((row) => {
+        {comparison.rows.map(row => {
           const groupHeader =
             row.group && row.group !== lastGroup ? row.group : null;
           lastGroup = row.group ?? lastGroup;
@@ -101,7 +101,7 @@ export const ComparisonMatrix = ({
                 >
                   {isSuiteRow ? "Workload total" : row.label}
                 </TableCell>
-                {refs.map((ref) => {
+                {refs.map(ref => {
                   const cell = row.cells[ref];
                   const value = cell?.[metric];
                   const delta =
@@ -109,7 +109,7 @@ export const ComparisonMatrix = ({
                       ? computeDelta(
                           metric,
                           value,
-                          row.cells[baselineRef]?.[metric],
+                          row.cells[baselineRef]?.[metric]
                         )
                       : null;
 
@@ -119,7 +119,7 @@ export const ComparisonMatrix = ({
                         <div className="flex items-baseline justify-end gap-2">
                           <span
                             className={cn(
-                              bestRef === ref && "font-semibold text-success",
+                              bestRef === ref && "font-semibold text-success"
                             )}
                           >
                             {formatMetric(metric, value)}
@@ -130,7 +130,7 @@ export const ComparisonMatrix = ({
                                 "text-xs",
                                 delta.better
                                   ? "text-success"
-                                  : "text-destructive",
+                                  : "text-destructive"
                               )}
                             >
                               {formatDelta(delta)}
