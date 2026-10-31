@@ -103,8 +103,28 @@ int main() {
                             [](float value) { return std::isfinite(value); });
     }
 
-    std::printf("Gaussian pyramid: %zu levels, first-level max error %.8f\n",
-                levels.size(), max_error);
+    const auto dog_levels = pyramid.difference_levels(levels, octaves, intervals);
+    const size_t dog_levels_per_octave = static_cast<size_t>(intervals + 2);
+    passed &= dog_levels.size() ==
+              static_cast<size_t>(octaves) * dog_levels_per_octave;
+    float max_dog_error = 0.0f;
+    for (const auto &dog : dog_levels) {
+      const size_t gaussian_offset =
+          static_cast<size_t>(dog.octave) * levels_per_octave + dog.scale;
+      const auto &lower = levels[gaussian_offset];
+      const auto &upper = levels[gaussian_offset + 1];
+      passed &= dog.width == lower.width && dog.height == lower.height;
+      for (size_t i = 0; i < dog.pixels.size(); ++i) {
+        const float expected = upper.pixels[i] - lower.pixels[i];
+        max_dog_error = std::max(max_dog_error,
+                                 std::abs(dog.pixels[i] - expected));
+      }
+    }
+    passed &= max_dog_error == 0.0f;
+
+    std::printf("Gaussian pyramid: %zu levels, DoG levels %zu, "
+                "first-level max error %.8f, DoG max error %.8f\n",
+                levels.size(), dog_levels.size(), max_error, max_dog_error);
     if (!passed) {
       std::fprintf(stderr, "OpenCL Gaussian pyramid check failed\n");
       return 1;

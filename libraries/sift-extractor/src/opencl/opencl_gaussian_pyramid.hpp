@@ -15,6 +15,15 @@ struct GaussianLevel {
   std::vector<float> pixels;
 };
 
+struct DoGLevel {
+  int octave = 0;
+  int scale = 0;
+  int width = 0;
+  int height = 0;
+  float sigma = 0.0f;
+  std::vector<float> pixels;
+};
+
 class OpenCLGaussianPyramid {
 public:
   OpenCLGaussianPyramid() = default;
@@ -26,6 +35,9 @@ public:
   std::vector<GaussianLevel> build(const std::vector<float> &image, int width,
                                    int height, int octave_count,
                                    int intervals, float base_sigma);
+  std::vector<DoGLevel> difference_levels(
+      const std::vector<GaussianLevel> &gaussian_levels, int octave_count,
+      int intervals);
 
 private:
   OpenCLGaussianBlur primitives_;

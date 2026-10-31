@@ -91,4 +91,44 @@ std::vector<GaussianLevel> OpenCLGaussianPyramid::build(
   return levels;
 }
 
+std::vector<DoGLevel> OpenCLGaussianPyramid::difference_levels(
+    const std::vector<GaussianLevel> &gaussian_levels, int octave_count,
+    int intervals) {
+  if (octave_count <= 0 || intervals <= 0)
+    throw std::invalid_argument("Octave count and intervals must be positive");
+  const int gaussian_levels_per_octave = intervals + 3;
+  const size_t expected_count =
+      static_cast<size_t>(octave_count) * gaussian_levels_per_octave;
+  if (gaussian_levels.size() != expected_count)
+    throw std::invalid_argument("Gaussian level count does not match pyramid configuration");
+
+  std::vector<DoGLevel> differences;
+  differences.reserve(static_cast<size_t>(octave_count) * (intervals + 2));
+  for (int octave = 0; octave < octave_count; ++octave) {
+    const size_t octave_offset =
+        static_cast<size_t>(octave) * gaussian_levels_per_octave;
+    for (int scale = 0; scale < intervals + 2; ++scale) {
+      const GaussianLevel &lower =
+          gaussian_levels[octave_offset + static_cast<size_t>(scale)];
+      const GaussianLevel &upper =
+          gaussian_levels[octave_offset + static_cast<size_t>(scale + 1)];
+      if (lower.octave != octave || upper.octave != octave ||
+          lower.scale != scale || upper.scale != scale + 1 ||
+          lower.width != upper.width || lower.height != upper.height)
+        throw std::invalid_argument("Gaussian levels are not a contiguous octave pyramid");
+
+      DoGLevel difference;
+      difference.octave = octave;
+      difference.scale = scale;
+      difference.width = lower.width;
+      difference.height = lower.height;
+      difference.sigma = std::sqrt(lower.sigma * upper.sigma);
+      difference.pixels = primitives_.difference_of_gaussians(
+          upper.pixels, lower.pixels, difference.width, difference.height);
+      differences.push_back(std::move(difference));
+    }
+  }
+  return differences;
+}
+
 } // namespace sift_extractor::detail
