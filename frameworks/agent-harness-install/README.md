@@ -202,29 +202,26 @@ flowchart TD
     classDef store fill:#FFF6DD,stroke:#B38600,color:#4A3900
     classDef ext fill:#F3F3F3,stroke:#777777,color:#222222,stroke-dasharray: 4 3
 
-    CMD(["./install.sh metrics enable | disable | show<br/>--target harness, router or all"]):::step
+    CMD(["./install.sh metrics<br/>enable | disable | show<br/>--target harness, router or all"]):::step
     LOCK{"Verb"}:::decision
-    SHOWN["show: read-only CLI summary, runs without<br/>the deployment lock; prints the Jaeger UI URL"]:::step
+    SHOWN["show: read-only summary<br/>of the Router (/v1/metrics)<br/>and the Hermes store; no lock;<br/>prints the Jaeger UI URL"]:::step
     STATE[("~/.agent-harness-install/metrics.json<br/>router.* and harness.* settings")]:::store
 
     CMD --> LOCK
-    LOCK -- "enable: --backend, --endpoint, --content<br/>disable: --clean or --keep-jaeger<br/>(takes the deployment lock)" --> STATE
     LOCK -- "show" --> SHOWN
+    LOCK -- "enable: --backend,<br/>--endpoint, --content<br/>disable: --clean,<br/>--keep-jaeger<br/>(deployment lock held)" --> STATE
 
     subgraph RT["Target: router"]
         direction TB
-        RCFG["Rewrite only the telemetry block of the Router config.yaml<br/>enable: file, /app/telemetry.jsonl<br/>disable: memory (default)"]:::step
-        RIR["Restart the Inference Router container<br/>(it reads config.yaml only at startup)"]:::step
-        RREQ["Each completed request<br/>counts, tokens, latency; no prompt text"]:::step
-        RMEM[("memory: in-process counters<br/>reset to zero on every restart")]:::store
-        RJSONL[("file: telemetry.jsonl in the Router workspace<br/>one JSON line per request, survives restarts")]:::store
+        RCFG["Rewrite only the telemetry block<br/>of the Router config.yaml<br/>enable: file, disable: memory"]:::step
+        RIR["Restart the Inference Router<br/>(reads config.yaml only at startup)"]:::step
+        RMEM[("memory (default)<br/>in-process counters<br/>reset to zero on every restart")]:::store
+        RJSONL[("file: telemetry.jsonl<br/>one JSON line per request: counts,<br/>tokens, latency; no prompt text")]:::store
         RAPI["GET /v1/metrics<br/>memory: reads counters<br/>file: re-reads the whole file"]:::step
-        RCLR["Cleared by: disable --clean, POST /v1/metrics/reset,<br/>manual delete, or uninstall.<br/>Plain disable keeps it. Rotated to telemetry.jsonl.1 above a size limit at install or enable; no database backend"]:::ext
+        RCLR["Cleared by disable --clean,<br/>POST /v1/metrics/reset or uninstall<br/>Rotated to telemetry.jsonl.1 above<br/>a size limit; no database backend"]:::ext
         RCFG --> RIR
-        RIR -- "backend: memory" --> RMEM
-        RIR -- "backend: file" --> RJSONL
-        RREQ -. "appends" .-> RJSONL
-        RREQ -. "counts" .-> RMEM
+        RIR --> RMEM
+        RIR --> RJSONL
         RMEM --> RAPI
         RJSONL --> RAPI
         RCLR -.-> RJSONL
@@ -233,23 +230,20 @@ flowchart TD
 
     subgraph HT["Target: harness"]
         direction TB
-        HCHK{"Hermes installed,<br/>host runtime?"}:::decision
-        HSKIP["Skipped with a reason<br/>OpenClaw, Deep Agents Code, OpenShell"]:::ext
-        HPLUG["hermes plugins install and enable hermes_otel"]:::agent
-        HCFG["Write ~/.hermes/hermes_otel.yaml<br/>backend and content capture off, preview or full"]:::agent
+        HCHK["Check: Hermes installed, host runtime?<br/>Otherwise skipped with a reason<br/>(OpenClaw, Deep Agents Code, OpenShell)"]:::decision
+        HPLUG["hermes plugins install<br/>and enable hermes_otel"]:::agent
+        HCFG["Write ~/.hermes/hermes_otel.yaml<br/>backend and content capture<br/>off, preview or full"]:::agent
         HBE{"--backend"}:::decision
-        HSQL[("sqlite: local store<br/>hermes_otel_live.db<br/>emptied in place by disable --clean")]:::store
-        HJ["jaeger: managed container<br/>127.0.0.1 only, UI 16686, OTLP 4318<br/>removed by disable unless --keep-jaeger"]:::agent
-        HO["otlp or jaeger with --endpoint<br/>external collector"]:::ext
-        HCHK -- "no" --> HSKIP
-        HCHK -- "yes" --> HPLUG --> HCFG --> HBE
-        HBE -- "sqlite (default)" --> HSQL
-        HBE -- "jaeger, no --endpoint" --> HJ
-        HBE -- "otlp or --endpoint" --> HO
+        HSQL[("sqlite (default)<br/>hermes_otel_live.db<br/>emptied by --clean")]:::store
+        HJ["jaeger: managed container<br/>UI on 127.0.0.1:16686<br/>--keep-jaeger keeps it"]:::agent
+        HO["otlp, or jaeger with<br/>--endpoint: external<br/>collector"]:::ext
+        HCHK --> HPLUG --> HCFG --> HBE
+        HBE --> HSQL
+        HBE --> HJ
+        HBE --> HO
     end
+    RAPI ~~~ HCHK
     STATE --> HCHK
-    SHOWN -. "reads" .-> RAPI
-    SHOWN -. "reads" .-> HSQL
 ```
 
 ### OpenShell sandbox runtime
