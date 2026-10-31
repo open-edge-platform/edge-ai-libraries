@@ -17,7 +17,7 @@ The recommended way to build is inside Docker, which handles all dependencies (R
 ### Step 1: Navigate to the Project
 
 ```bash
-cd edge-ai-libraries/metrics-manager
+cd edge-ai-libraries/microservices/metrics-manager
 ```
 
 ### Step 2: Copy Environment Configuration
@@ -82,7 +82,7 @@ If you want to run the service locally without Docker, use the following approac
 
 ```bash
 git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b main
-cd edge-ai-libraries/metrics-manager
+cd edge-ai-libraries/microservices/metrics-manager
 ```
 
 ### Step 2: Create a Virtual Environment

@@ -31,7 +31,7 @@ A unified metrics collection, ingestion, and relay service that combines Telegra
 ### Prerequisites
 
 ```bash
-cd siv-telemetry/metrics-manager
+cd microservices/metrics-manager
 
 # (Optional) If behind a proxy, edit .env and uncomment proxy settings
 ```
