@@ -91,6 +91,16 @@ if(SIFT_ENABLE_OPENCL)
     )
     target_link_libraries(test_sift_opencl_extrema PRIVATE sift_opencl_runtime)
     add_test(NAME sift_opencl_runtime.extrema COMMAND test_sift_opencl_extrema)
+
+    add_executable(test_sift_opencl_refinement
+      tests/opencl/test_opencl_refinement.cpp
+    )
+    target_include_directories(test_sift_opencl_refinement PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/opencl
+    )
+    target_link_libraries(test_sift_opencl_refinement PRIVATE sift_opencl_runtime)
+    add_test(NAME sift_opencl_runtime.refinement
+      COMMAND test_sift_opencl_refinement)
   endif()
 endif()
 

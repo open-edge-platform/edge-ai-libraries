@@ -13,6 +13,14 @@ struct ExtremaCandidate {
   float response = 0.0f;
 };
 
+struct RefinedKeypoint {
+  float x = 0.0f;
+  float y = 0.0f;
+  float scale = 0.0f;
+  float response = 0.0f;
+  float edge_response = 0.0f;
+};
+
 class OpenCLDoGExtrema {
 public:
   OpenCLDoGExtrema();
@@ -25,6 +33,10 @@ public:
 
   std::vector<ExtremaCandidate> detect(const std::vector<DoGLevel> &dog_levels,
                                        float contrast_threshold);
+  std::vector<RefinedKeypoint> refine(
+      const std::vector<DoGLevel> &dog_levels,
+      const std::vector<ExtremaCandidate> &candidates,
+      float contrast_threshold, float edge_limit);
 
 private:
   struct Impl;

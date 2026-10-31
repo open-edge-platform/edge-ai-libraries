@@ -55,6 +55,97 @@ __kernel void find_dog_extrema(__global const float *dog,
   }
   candidate_mask[mask_index] = (uchar)1;
 }
+
+typedef struct {
+  int x;
+  int y;
+  int scale;
+  float response;
+} ExtremaCandidateData;
+
+__kernel void refine_dog_extrema(__global const float *dog,
+                                 __global const ExtremaCandidateData *candidates,
+                                 __global float *refined,
+                                 const int width, const int height,
+                                 const int scale_count,
+                                 const int candidate_count,
+                                 const float contrast_threshold,
+                                 const float edge_limit) {
+  const int index = (int)get_global_id(0);
+  if (index >= candidate_count)
+    return;
+
+  const ExtremaCandidateData candidate = candidates[index];
+  const int x = candidate.x;
+  const int y = candidate.y;
+  const int scale = candidate.scale;
+  const int output = index * 6;
+  const int plane_size = width * height;
+  if (x < 1 || x >= width - 1 || y < 1 || y >= height - 1 ||
+      scale < 1 || scale >= scale_count - 1) {
+    refined[output + 5] = 0.0f;
+    return;
+  }
+
+  const int center = scale * plane_size + y * width + x;
+  const float value = dog[center];
+  const float gx = 0.5f * (dog[center + 1] - dog[center - 1]);
+  const float gy = 0.5f * (dog[center + width] - dog[center - width]);
+  const float gs = 0.5f * (dog[center + plane_size] - dog[center - plane_size]);
+  const float dxx = dog[center + 1] + dog[center - 1] - 2.0f * value;
+  const float dyy = dog[center + width] + dog[center - width] - 2.0f * value;
+  const float dss = dog[center + plane_size] + dog[center - plane_size] - 2.0f * value;
+  const float dxy = 0.25f * (dog[center + width + 1] - dog[center + width - 1] -
+                             dog[center - width + 1] + dog[center - width - 1]);
+  const float dxs = 0.25f * (dog[center + plane_size + 1] -
+                             dog[center + plane_size - 1] -
+                             dog[center - plane_size + 1] +
+                             dog[center - plane_size - 1]);
+  const float dys = 0.25f * (dog[center + plane_size + width] -
+                             dog[center + plane_size - width] -
+                             dog[center - plane_size + width] +
+                             dog[center - plane_size - width]);
+
+  const float a11 = dyy * dss - dys * dys;
+  const float a12 = dxs * dys - dxy * dss;
+  const float a13 = dxy * dys - dyy * dxs;
+  const float a22 = dxx * dss - dxs * dxs;
+  const float a23 = dxy * dxs - dxx * dys;
+  const float a33 = dxx * dyy - dxy * dxy;
+  const float determinant = dxx * a11 + dxy * a12 + dxs * a13;
+  if (!isfinite(determinant) || fabs(determinant) < 1e-10f) {
+    refined[output + 5] = 0.0f;
+    return;
+  }
+
+  const float offset_x = -(a11 * gx + a12 * gy + a13 * gs) / determinant;
+  const float offset_y = -(a12 * gx + a22 * gy + a23 * gs) / determinant;
+  const float offset_s = -(a13 * gx + a23 * gy + a33 * gs) / determinant;
+  if (!isfinite(offset_x) || !isfinite(offset_y) || !isfinite(offset_s) ||
+      fabs(offset_x) > 0.5f || fabs(offset_y) > 0.5f || fabs(offset_s) > 0.5f) {
+    refined[output + 5] = 0.0f;
+    return;
+  }
+
+  const float interpolated_response =
+      value + 0.5f * (gx * offset_x + gy * offset_y + gs * offset_s);
+  const float spatial_determinant = dxx * dyy - dxy * dxy;
+  const float trace = dxx + dyy;
+  if (!isfinite(interpolated_response) ||
+      fabs(interpolated_response) < contrast_threshold ||
+      spatial_determinant <= 0.0f ||
+      trace * trace / spatial_determinant >= edge_limit) {
+    refined[output + 5] = 0.0f;
+    return;
+  }
+
+  refined[output + 0] = (float)x + offset_x;
+  refined[output + 1] = (float)y + offset_y;
+  refined[output + 2] = (float)scale + offset_s;
+  refined[output + 3] = interpolated_response;
+  refined[output + 4] = trace * trace / spatial_determinant;
+  refined[output + 5] = 1.0f;
+}
 )CLC";
 
 void check_opencl(cl_int status, const char *operation) {
@@ -110,6 +201,7 @@ struct OpenCLDoGExtrema::Impl {
   cl_command_queue queue = nullptr;
   cl_program program = nullptr;
   cl_kernel kernel = nullptr;
+  cl_kernel refine_kernel = nullptr;
 
   Impl() {
     cl_int status = CL_SUCCESS;
@@ -164,9 +256,24 @@ struct OpenCLDoGExtrema::Impl {
       context = nullptr;
       check_opencl(status, "clCreateKernel(find_dog_extrema)");
     }
+
+    refine_kernel = clCreateKernel(program, "refine_dog_extrema", &status);
+    if (status != CL_SUCCESS) {
+      clReleaseKernel(kernel);
+      clReleaseProgram(program);
+      clReleaseCommandQueue(queue);
+      clReleaseContext(context);
+      kernel = nullptr;
+      program = nullptr;
+      queue = nullptr;
+      context = nullptr;
+      check_opencl(status, "clCreateKernel(refine_dog_extrema)");
+    }
   }
 
   ~Impl() {
+    if (refine_kernel)
+      clReleaseKernel(refine_kernel);
     if (kernel)
       clReleaseKernel(kernel);
     if (program)
@@ -268,6 +375,116 @@ std::vector<ExtremaCandidate> OpenCLDoGExtrema::detect(
   } catch (...) {
     clReleaseMemObject(mask);
     clReleaseMemObject(input);
+    throw;
+  }
+}
+
+std::vector<RefinedKeypoint> OpenCLDoGExtrema::refine(
+    const std::vector<DoGLevel> &dog_levels,
+    const std::vector<ExtremaCandidate> &candidates,
+    float contrast_threshold, float edge_limit) {
+  if (!std::isfinite(contrast_threshold) || contrast_threshold < 0.0f ||
+      !std::isfinite(edge_limit) || edge_limit <= 0.0f)
+    throw std::invalid_argument("Refinement thresholds must be finite and positive");
+  if (candidates.empty() || dog_levels.size() < 3)
+    return {};
+
+  const int width = dog_levels.front().width;
+  const int height = dog_levels.front().height;
+  const int scale_count = static_cast<int>(dog_levels.size());
+  const int octave = dog_levels.front().octave;
+  std::vector<float> dog_data;
+  dog_data.reserve(static_cast<size_t>(scale_count) * width * height);
+  for (int scale = 0; scale < scale_count; ++scale) {
+    const DoGLevel &level = dog_levels[static_cast<size_t>(scale)];
+    if (level.octave != octave || level.scale != scale || level.width != width ||
+        level.height != height ||
+        level.pixels.size() != static_cast<size_t>(width) * height)
+      throw std::invalid_argument("DoG levels must form one contiguous octave");
+    dog_data.insert(dog_data.end(), level.pixels.begin(), level.pixels.end());
+  }
+
+  static_assert(sizeof(ExtremaCandidate) == sizeof(int) * 3 + sizeof(float));
+  const size_t dog_bytes = dog_data.size() * sizeof(float);
+  const size_t candidate_bytes = candidates.size() * sizeof(ExtremaCandidate);
+  cl_int status = CL_SUCCESS;
+  cl_mem dog_buffer = clCreateBuffer(impl_->context,
+                                     CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                                     dog_bytes, dog_data.data(), &status);
+  check_opencl(status, "clCreateBuffer(DoG volume for refinement)");
+  cl_mem candidate_buffer = clCreateBuffer(
+      impl_->context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, candidate_bytes,
+      const_cast<ExtremaCandidate *>(candidates.data()), &status);
+  if (status != CL_SUCCESS) {
+    clReleaseMemObject(dog_buffer);
+    check_opencl(status, "clCreateBuffer(candidates for refinement)");
+  }
+  const size_t output_count = candidates.size() * 6;
+  cl_mem refined_buffer = clCreateBuffer(
+      impl_->context, CL_MEM_WRITE_ONLY, output_count * sizeof(float), nullptr,
+      &status);
+  if (status != CL_SUCCESS) {
+    clReleaseMemObject(candidate_buffer);
+    clReleaseMemObject(dog_buffer);
+    check_opencl(status, "clCreateBuffer(refined candidates)");
+  }
+
+  try {
+    const int candidate_count = static_cast<int>(candidates.size());
+    check_opencl(clSetKernelArg(impl_->refine_kernel, 0, sizeof(dog_buffer),
+                                &dog_buffer),
+                 "clSetKernelArg(refinement DoG volume)");
+    check_opencl(clSetKernelArg(impl_->refine_kernel, 1,
+                                sizeof(candidate_buffer), &candidate_buffer),
+                 "clSetKernelArg(refinement candidates)");
+    check_opencl(clSetKernelArg(impl_->refine_kernel, 2, sizeof(refined_buffer),
+                                &refined_buffer),
+                 "clSetKernelArg(refinement output)");
+    check_opencl(clSetKernelArg(impl_->refine_kernel, 3, sizeof(width), &width),
+                 "clSetKernelArg(refinement width)");
+    check_opencl(clSetKernelArg(impl_->refine_kernel, 4, sizeof(height), &height),
+                 "clSetKernelArg(refinement height)");
+    check_opencl(clSetKernelArg(impl_->refine_kernel, 5, sizeof(scale_count),
+                                &scale_count),
+                 "clSetKernelArg(refinement scale count)");
+    check_opencl(clSetKernelArg(impl_->refine_kernel, 6,
+                                sizeof(candidate_count), &candidate_count),
+                 "clSetKernelArg(refinement candidate count)");
+    check_opencl(clSetKernelArg(impl_->refine_kernel, 7,
+                                sizeof(contrast_threshold),
+                                &contrast_threshold),
+                 "clSetKernelArg(refinement contrast threshold)");
+    check_opencl(clSetKernelArg(impl_->refine_kernel, 8, sizeof(edge_limit),
+                                &edge_limit),
+                 "clSetKernelArg(refinement edge limit)");
+
+    const size_t global_size = candidates.size();
+    check_opencl(clEnqueueNDRangeKernel(impl_->queue, impl_->refine_kernel, 1,
+                                        nullptr, &global_size, nullptr, 0,
+                                        nullptr, nullptr),
+                 "clEnqueueNDRangeKernel(refinement)");
+
+    std::vector<float> host_output(output_count);
+    check_opencl(clEnqueueReadBuffer(impl_->queue, refined_buffer, CL_TRUE, 0,
+                                     output_count * sizeof(float),
+                                     host_output.data(), 0, nullptr, nullptr),
+                 "clEnqueueReadBuffer(refinement)");
+
+    std::vector<RefinedKeypoint> result;
+    for (size_t i = 0; i < candidates.size(); ++i) {
+      const float *values = host_output.data() + i * 6;
+      if (values[5] != 0.0f)
+        result.push_back({values[0], values[1], values[2], values[3], values[4]});
+    }
+
+    clReleaseMemObject(refined_buffer);
+    clReleaseMemObject(candidate_buffer);
+    clReleaseMemObject(dog_buffer);
+    return result;
+  } catch (...) {
+    clReleaseMemObject(refined_buffer);
+    clReleaseMemObject(candidate_buffer);
+    clReleaseMemObject(dog_buffer);
     throw;
   }
 }
