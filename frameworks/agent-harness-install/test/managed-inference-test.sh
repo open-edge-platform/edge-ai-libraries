@@ -306,6 +306,8 @@ router_proxy() {
   grep -Fxq "no_proxy=upper.example,lower.example,$HARNESS_OVMS_CONTAINER" "$ACTIONS"
   grep -Fxq "$HARNESS_BACKEND_NETWORK" "$ACTIONS"
   grep -Fxq "127.0.0.1:$HARNESS_IR_PORT:8000" "$ACTIONS"
+  # The telemetry file is group-writable, so the container joins the host user's group.
+  [[ "$(id -g)" == 0 ]] || { grep -Fxq -- '--group-add' "$ACTIONS" && grep -Fxq "$(id -g)" "$ACTIONS"; }
 }
 cached_snapshot() {
   fixture

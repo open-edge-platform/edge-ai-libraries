@@ -8,7 +8,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
-for lib in colors verify state sudo shim gpu-intel docker-setup nodejs openvino inference-router agents openshell; do
+for lib in colors verify state sudo shim gpu-intel docker-setup nodejs openvino inference-router agents metrics openshell; do
   # shellcheck disable=SC1090
   . "${SCRIPT_DIR}/scripts/lib/${lib}.sh"
 done
@@ -183,6 +183,8 @@ main() {
   info "Removing Inference Router…"
   remove_deployment_container "$HARNESS_IR_CONTAINER"
   ok "Inference Router removed"
+  remove_deployment_container "$HARNESS_JAEGER_CONTAINER"
+  metrics_remove_managed_config
   if ovms_is_managed; then
     info "Removing OpenVINO Model Server…"
     remove_deployment_container "$HARNESS_OVMS_CONTAINER"
