@@ -19,6 +19,10 @@ public:
   std::vector<float> difference_of_gaussians(
       const std::vector<float> &first, const std::vector<float> &second,
       int width, int height);
+  std::vector<float> downsample_by_two(const std::vector<float> &image,
+                                       int width, int height,
+                                       int &output_width,
+                                       int &output_height);
 
 private:
   struct Impl;

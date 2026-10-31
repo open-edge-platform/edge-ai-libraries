@@ -60,6 +60,16 @@ if(SIFT_ENABLE_OPENCL)
     )
     target_link_libraries(test_sift_opencl_dog PRIVATE sift_opencl_runtime)
     add_test(NAME sift_opencl_runtime.dog COMMAND test_sift_opencl_dog)
+
+    add_executable(test_sift_opencl_downsample
+      tests/opencl/test_opencl_downsample.cpp
+    )
+    target_include_directories(test_sift_opencl_downsample PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/opencl
+    )
+    target_link_libraries(test_sift_opencl_downsample PRIVATE sift_opencl_runtime)
+    add_test(NAME sift_opencl_runtime.downsample
+      COMMAND test_sift_opencl_downsample)
   endif()
 endif()
 

@@ -64,6 +64,18 @@ __kernel void difference_of_gaussians(__global const float *first,
   const int index = y * width + x;
   destination[index] = first[index] - second[index];
 }
+
+__kernel void downsample_by_two(__global const float *source,
+                                __global float *destination,
+                                const int width, const int height,
+                                const int output_width,
+                                const int output_height) {
+  const int x = (int)get_global_id(0);
+  const int y = (int)get_global_id(1);
+  if (x >= output_width || y >= output_height)
+    return;
+  destination[y * output_width + x] = source[(2 * y) * width + (2 * x)];
+}
 )CLC";
 
 void check_opencl(cl_int status, const char *operation) {
@@ -132,6 +144,7 @@ struct OpenCLGaussianBlur::Impl {
   cl_kernel horizontal = nullptr;
   cl_kernel vertical = nullptr;
   cl_kernel dog = nullptr;
+  cl_kernel downsample = nullptr;
 
   Impl() {
     cl_int status = CL_SUCCESS;
@@ -215,9 +228,28 @@ struct OpenCLGaussianBlur::Impl {
       context = nullptr;
       check_opencl(status, "clCreateKernel(difference_of_gaussians)");
     }
+
+    downsample = clCreateKernel(program, "downsample_by_two", &status);
+    if (status != CL_SUCCESS) {
+      clReleaseKernel(dog);
+      clReleaseKernel(vertical);
+      clReleaseKernel(horizontal);
+      clReleaseProgram(program);
+      clReleaseCommandQueue(queue);
+      clReleaseContext(context);
+      dog = nullptr;
+      vertical = nullptr;
+      horizontal = nullptr;
+      program = nullptr;
+      queue = nullptr;
+      context = nullptr;
+      check_opencl(status, "clCreateKernel(downsample_by_two)");
+    }
   }
 
   ~Impl() {
+    if (downsample)
+      clReleaseKernel(downsample);
     if (dog)
       clReleaseKernel(dog);
     if (vertical)
@@ -388,6 +420,65 @@ std::vector<float> OpenCLGaussianBlur::difference_of_gaussians(
     if (second_buffer)
       clReleaseMemObject(second_buffer);
     clReleaseMemObject(first_buffer);
+    throw;
+  }
+}
+
+std::vector<float> OpenCLGaussianBlur::downsample_by_two(
+    const std::vector<float> &image, int width, int height, int &output_width,
+    int &output_height) {
+  if (width <= 0 || height <= 0)
+    throw std::invalid_argument("Image dimensions must be positive");
+  if (image.size() != static_cast<size_t>(width) * height)
+    throw std::invalid_argument("Image buffer size does not match dimensions");
+  output_width = (width + 1) / 2;
+  output_height = (height + 1) / 2;
+  const size_t input_bytes = image.size() * sizeof(float);
+  const size_t output_count =
+      static_cast<size_t>(output_width) * output_height;
+  const size_t output_bytes = output_count * sizeof(float);
+  cl_mem source = create_buffer(impl_->context,
+                                CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                                input_bytes,
+                                const_cast<float *>(image.data()));
+  cl_mem destination = nullptr;
+  try {
+    destination = create_buffer(impl_->context, CL_MEM_WRITE_ONLY, output_bytes);
+    check_opencl(clSetKernelArg(impl_->downsample, 0, sizeof(source), &source),
+                 "clSetKernelArg(downsample source)");
+    check_opencl(clSetKernelArg(impl_->downsample, 1, sizeof(destination),
+                                &destination),
+                 "clSetKernelArg(downsample destination)");
+    check_opencl(clSetKernelArg(impl_->downsample, 2, sizeof(width), &width),
+                 "clSetKernelArg(downsample width)");
+    check_opencl(clSetKernelArg(impl_->downsample, 3, sizeof(height), &height),
+                 "clSetKernelArg(downsample height)");
+    check_opencl(clSetKernelArg(impl_->downsample, 4, sizeof(output_width),
+                                &output_width),
+                 "clSetKernelArg(downsample output width)");
+    check_opencl(clSetKernelArg(impl_->downsample, 5, sizeof(output_height),
+                                &output_height),
+                 "clSetKernelArg(downsample output height)");
+
+    const size_t global_size[2] = {static_cast<size_t>(output_width),
+                                   static_cast<size_t>(output_height)};
+    check_opencl(clEnqueueNDRangeKernel(impl_->queue, impl_->downsample, 2,
+                                        nullptr, global_size, nullptr, 0, nullptr,
+                                        nullptr),
+                 "clEnqueueNDRangeKernel(downsample)");
+
+    std::vector<float> result(output_count);
+    check_opencl(clEnqueueReadBuffer(impl_->queue, destination, CL_TRUE, 0,
+                                     output_bytes, result.data(), 0, nullptr,
+                                     nullptr),
+                 "clEnqueueReadBuffer(downsample)");
+    clReleaseMemObject(destination);
+    clReleaseMemObject(source);
+    return result;
+  } catch (...) {
+    if (destination)
+      clReleaseMemObject(destination);
+    clReleaseMemObject(source);
     throw;
   }
 }

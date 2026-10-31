@@ -11,7 +11,7 @@ This component is an early development snapshot, not a production release. The c
 - A small synthetic-image extraction test checks feature bounds and finite, nonzero descriptors.
 - The extrema kernel has been changed to avoid assuming a fixed Intel GPU subgroup width.
 - An independent OpenCL runtime target enumerates platforms and reports device capabilities; no OpenCL SIFT kernels are implemented yet.
-- Context-owned separable OpenCL Gaussian blur and DoG primitives are covered against CPU references, providing initial scale-space building blocks.
+- Context-owned separable OpenCL Gaussian blur, DoG, and 2x downsample primitives are covered against CPU references, providing initial scale-space building blocks.
 - OpenCL SIFT kernels, matching/geometry API, stable context ownership, Python bindings, packaging, and primary-host SIFT benchmarking remain in progress.
 - Existing source-derived timings and reported CudaSift results are not performance claims for this component.
 

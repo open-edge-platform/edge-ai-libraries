@@ -25,6 +25,7 @@ path = [
     "src/opencl/opencl_gaussian_blur.hpp",
     "tests/opencl/test_opencl_gaussian_blur.cpp",
     "tests/opencl/test_opencl_dog.cpp",
+    "tests/opencl/test_opencl_downsample.cpp",
 ]
 SPDX-FileCopyrightText = "2026 Intel Corporation"
 SPDX-License-Identifier = "Apache-2.0"
