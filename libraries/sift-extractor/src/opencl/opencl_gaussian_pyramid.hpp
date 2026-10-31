@@ -1,0 +1,34 @@
+#pragma once
+
+#include "opencl_gaussian_blur.hpp"
+
+#include <vector>
+
+namespace sift_extractor::detail {
+
+struct GaussianLevel {
+  int octave = 0;
+  int scale = 0;
+  int width = 0;
+  int height = 0;
+  float sigma = 0.0f;
+  std::vector<float> pixels;
+};
+
+class OpenCLGaussianPyramid {
+public:
+  OpenCLGaussianPyramid() = default;
+  OpenCLGaussianPyramid(const OpenCLGaussianPyramid &) = delete;
+  OpenCLGaussianPyramid &operator=(const OpenCLGaussianPyramid &) = delete;
+  OpenCLGaussianPyramid(OpenCLGaussianPyramid &&) = delete;
+  OpenCLGaussianPyramid &operator=(OpenCLGaussianPyramid &&) = delete;
+
+  std::vector<GaussianLevel> build(const std::vector<float> &image, int width,
+                                   int height, int octave_count,
+                                   int intervals, float base_sigma);
+
+private:
+  OpenCLGaussianBlur primitives_;
+};
+
+} // namespace sift_extractor::detail
