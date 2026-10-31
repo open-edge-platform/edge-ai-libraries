@@ -1,0 +1,26 @@
+version = 1
+
+[[annotations]]
+path = [
+    "src/sycl_reference/**",
+    "tests/sycl_reference/test_sycl_kernels.cpp",
+]
+SPDX-FileCopyrightText = "2017 Mårten Björkman"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = [
+    "CMakeLists.txt",
+    "cmake/sift_extractorConfig.cmake.in",
+    "README.md",
+    "REUSE.toml",
+    "scripts/host_inventory.sh",
+    "scripts/stage_opencl_host.sh",
+    "tests/sycl_reference/test_sift_extract.cpp",
+    "tests/sycl_reference/test_sift_match.cpp",
+    "include/sift_extractor/opencl_device.hpp",
+    "src/opencl/opencl_device.cpp",
+    "tests/opencl/test_opencl_device.cpp",
+]
+SPDX-FileCopyrightText = "2026 Intel Corporation"
+SPDX-License-Identifier = "Apache-2.0"
