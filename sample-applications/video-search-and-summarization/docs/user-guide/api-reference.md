@@ -45,8 +45,8 @@ The Pipeline Manager is the primary API for interacting with the application. It
 | **Audio** | `GET /audio/models` | Available audio transcription models |
 | **Tags** | `GET /tags`, `DELETE /tags/{tagId}` | Tag management |
 | **Video** | `POST /videos`, `GET /videos`, `GET /videos/{videoId}`, `POST /videos/search-embeddings/{videoId}` | Video upload, listing, and embedding creation |
-| **Search** | `POST /search`, `GET /search`, `POST /search/query`, `GET /search/{queryId}`, `DELETE /search/{queryId}`, `POST /search/{queryId}/refetch`, `PATCH /search/{queryId}/watch`, `GET /search/watched`, `GET /search/refresh-config` | Search query management and execution. `GET /search/refresh-config` returns the effective auto-refresh settings applied to watched queries. |
-| **Frames** | `GET /frames` | On-demand single-frame retrieval for a search hit. Extracts one frame of stored media (uploaded video or live segment) by `video_id` + `timestamp` — nothing is persisted. Supports the full frame or a detected-crop region (`variant=full\|crop` + `crop_bbox`) and raw `image/jpeg` (default) or JSON base64 output (`format=json`). Fed by the `best_frame_info` returned on each search result. |
+| **Search** | `POST /search`, `GET /search`, `POST /search/query`, `GET /search/{queryId}`, `DELETE /search/{queryId}`, `POST /search/{queryId}/refetch`, `PATCH /search/{queryId}/watch`, `GET /search/watched`, `GET /search/refresh-config`, `GET /search/config`, `POST /search/images`, `DELETE /search/images/{imageId}` | Search query management and execution; query-image upload for search-by-image. `GET /search/refresh-config` returns the effective auto-refresh settings applied to watched queries; `GET /search/config` returns search defaults such as `minPeakScoreDefault`. |
+| **Frames** | `GET /frames` | One stored frame (whole, or cropped to a detected object) located by a search hit's `best_frame_info`; raw JPEG, or base64 JSON with `format=json` (search deployments only) |
 | **Live Streams** | `POST /streams`, `POST /streams/batch`, `GET /streams`, `GET /streams/{streamId}`, `PATCH /streams/{streamId}`, `DELETE /streams/{streamId}`, `DELETE /streams` | RTSP camera registration and lifecycle (search deployments only) |
 | **Summary** | `POST /summary`, `GET /summary`, `GET /summary/ui`, `GET /summary/{stateId}`, `GET /summary/{stateId}/raw`, `DELETE /summary/{stateId}` | Video summarization pipeline |
 
@@ -62,6 +62,151 @@ The Pipeline Manager is the primary API for interacting with the application. It
 > When accessing the Pipeline Manager through nginx, all paths are prefixed with `/manager/` (for example, `GET /manager/health`).
 
 For full request/response schemas, refer to the interactive docs or the OpenAPI spec.
+
+## Video Embedding Status
+
+Each video returned by `GET /videos` and `GET /videos/{videoId}` records which
+search index it has been embedded into. These flags apply to **uploaded videos
+only**; live RTSP cameras have no video record, and their ingestion progress is
+reported by `GET /streams` (`stats.embeddings_created`).
+
+| Field | Set by | Meaning |
+| ----- | ------ | ------- |
+| `searchEmbeddings` | `POST /videos/search-embeddings/{videoId}` and `POST /videos/search-embeddings-batch` | `true` once frame embeddings were created (`--search`, `--dual`); `false` if DataPrep rejected the request or the batch item failed |
+| `textEmbeddings` | Summary pipeline, when search is enabled (`--unified`, `--dual`) | `true` once at least one chunk caption was embedded |
+
+`null` means no outcome has been recorded, either because embedding was never
+requested or because the video was embedded before this status was tracked. A
+`true` flag is never reset by a later failed attempt, and a timed-out request
+leaves the flag unchanged because DataPrep may still complete it. Batch jobs are
+followed by Pipeline Manager until they finish, so their result is recorded even
+if no client polls `GET /videos/search-embeddings-jobs/{jobId}`.
+
+## Re-adding an Existing Video
+
+`POST /videos/{videoId}/copy` adds an already-uploaded video again as a new,
+independent video, exactly as if its file were uploaded again. The stored file
+is copied inside the object store to a new `videoId`, and a new record with the
+same name is created. The response is `{ "videoId": "<new id>" }`.
+
+- Tags are the source video's tags plus any passed in the optional `tags` body
+  field (comma-separated).
+- Embeddings, embedding status and summaries are not copied. Call
+  `POST /videos/search-embeddings/{videoId}` (or the batch endpoint) with the
+  new ID to index it.
+- The source video is not changed.
+- Each copy is indexed and ranked separately, so a query can return the same
+  moment once per copy.
+- With `MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS=false`, embedding a copy is
+  rejected with `409` and the copy is removed, the same as a content-identical
+  upload.
+
+The UI uses this when you pick videos from **recent uploads** in the search
+upload dialog. Calling `POST /videos/search-embeddings/{videoId}` on a video
+that is already indexed adds a second set of embeddings under the same ID
+instead.
+
+## Filtering Search Results by Minimum Peak Score
+
+`POST /search`, `POST /search/query`, `POST /search/{queryId}/refetch` and
+`PATCH /search/{queryId}/watch` accept an optional `minPeakScore` (a number from 0 to 1). Frames whose
+similarity score is below it are dropped at retrieval, in the Vector Retriever,
+before frames are aggregated into segments. Every returned result's peak
+(best-frame) score is therefore at least `minPeakScore`, and the
+`AGGREGATION_MAX_RESULTS` results returned are the best ones that pass the
+filter rather than what remains of an unfiltered top N.
+
+| Value | Behavior |
+| ----- | -------- |
+| omitted | The query's saved value (refetch and watch), otherwise the deployment default `SEARCH_MIN_PEAK_SCORE` |
+| `0` | Filter off (the default) |
+| `0` < value ≤ `1` | Only frames scoring at least `value` are ranked; outside `[0, 1]` returns `400` |
+
+A query created with `POST /search` saves the value it ran with. Refetching
+with a new `minPeakScore` replaces the saved value, and watched-query refreshes
+reuse it, so a watch only ever reports matches above the threshold. To gate a
+watch while turning it on, send the threshold with the toggle:
+`PATCH /search/{queryId}/watch` with `{"watch": true, "minPeakScore": 0.3}`.
+When the value differs from the saved one, it is saved and the query re-runs
+in the background, so its stored results match the new threshold straight
+away; omit `minPeakScore` to keep the saved value. `GET /search/config` returns `{ "minPeakScoreDefault": <number> }` so
+clients can show the deployment default.
+
+```bash
+curl -s -X POST "$BASE/search" -H 'Content-Type: application/json' \
+  -d '{"query": "forklift", "minPeakScore": 0.2}'
+curl -s -X POST "$BASE/search/<queryId>/refetch" -H 'Content-Type: application/json' \
+  -d '{"minPeakScore": 0.3}'
+curl -s -X PATCH "$BASE/search/<queryId>/watch" -H 'Content-Type: application/json' \
+  -d '{"watch": true, "minPeakScore": 0.3}'
+```
+
+> [!NOTE]
+> - Scores are compared to the raw similarity the vector database returns,
+>   which assumes higher is better (inner product, the VSS default for both
+>   VDMS and Milvus).
+> - With the filter on, segment scores are computed only from frames that pass
+>   it, so the ranking can also change, not only the number of results.
+> - A high threshold can return no results. In unified mode (`--unified`), the
+>   score is a text-to-text similarity over summaries and is distributed
+>   differently from frame similarity, so choose the threshold separately.
+> - Live-stream hits go through the same path and are filtered the same way.
+
+## Search Result Timeline Fields
+
+Pipeline Manager adds three top-level fields (siblings of `metadata`) to every
+search result it returns, from `GET /search/{queryId}`, `GET /search`,
+`POST /search/query` and the `SEARCH_UPDATE` socket event:
+
+| Field | Description |
+| ----- | ----------- |
+| `observedAt` | ISO-8601 UTC time of the result's best frame. Omitted when it cannot be determined. |
+| `timeSource` | `live`: capture time of a live-camera frame (segment epoch from the file name plus the frame offset). `upload`: the video's upload time (`createdAt`) plus the frame offset, not the recording time. |
+| `streamId` | The camera's stream id, on live hits only. |
+
+Sort or group by these fields on the client, e.g. newest first or per camera.
+They reorder only the returned results (at most `AGGREGATION_MAX_RESULTS`,
+ranked by relevance); add a `timeFilter` to cover a specific period.
+
+```bash
+curl -s -X POST "$BASE/search/query" -H 'Content-Type: application/json' \
+  -d '{"query": "forklift"}' \
+  | jq '[.results[].results[] | {observedAt, timeSource, streamId, id: .metadata.video_id}]
+        | sort_by(.observedAt) | reverse'
+```
+
+## Search by an Uploaded Image
+
+In `--search` and `--dual` modes, search-by-image can use an image stored in the
+object store instead of inline base64 data (claim-check pattern). This keeps
+large image payloads out of search requests and out of agent/MCP tool calls.
+
+1. Upload the image with `POST /search/images` (`multipart/form-data`, field
+   `image`). Accepted: `.jpg`/`.jpeg` (`image/jpeg`), `.png` (`image/png`),
+   `.webp` (`image/webp`), at most 2 MB. The file content must match its
+   extension. The response carries `imageId`, `imageUrl`, and `imagePath`.
+   `imageUrl` is the image's externally reachable gateway URL, for example
+   `http://<HOST_IP>:12345/datastore/<bucket>/search-images/<imageId>`. It is
+   built from `PM_PUBLIC_BASE_URL` (`setup.sh` defaults it to
+   `http://$HOST_IP:$APP_HOST_PORT`; set it for a DNS name or TLS proxy). If
+   that is unset, it is built from the request's `Host`/`X-Forwarded-*`
+   headers. `imagePath` is the same URL without the host.
+2. Search with `imageUrl` in place of `image` or `query` on `POST /search/query`
+   or `POST /search`. It accepts the returned `imageUrl`, `imagePath`, or the
+   bare `imageId`. Any host is accepted, so a caller can use whatever address
+   reaches the gateway. Only the path is used, and it must name an image stored
+   by step 1: Pipeline Manager reads the object from its own bucket and never
+   fetches any other URL.
+3. Delete the image with `DELETE /search/images/{imageId}` when it is no longer
+   needed. After that, searching by its URL returns `404`.
+
+```bash
+BASE=http://<HOST_IP>:12345/manager
+IMAGE_URL=$(curl -s -F "image=@frame.jpg;type=image/jpeg" "$BASE/search/images" | jq -r .imageUrl)
+curl -s -X POST "$BASE/search/query" -H 'Content-Type: application/json' \
+  -d "{\"imageUrl\": \"$IMAGE_URL\"}"
+curl -s -X DELETE "$BASE/search/images/$(basename "$IMAGE_URL")"
+```
 
 ## Using the OpenAPI Specification Offline
 

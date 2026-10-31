@@ -39,8 +39,8 @@ ovms:
   name: ovms
   image:
     repository: openvino/model_server
-    tag: "2026.1"
-    Gputag: "2026.1-gpu"
+    tag: "2026.4.1"
+    Gputag: "2026.4.1-gpu"
     pullPolicy: IfNotPresent
 
   containerPort: 8300   # Port on which container application listens internally
@@ -57,6 +57,15 @@ ovms:
     # If not set, auto-detected based on device (GPU/NPU → int4, CPU → int8)
     LLM_WEIGHT_FORMAT: ""
     VLM_WEIGHT_FORMAT: ""
+    # OVMS continuous-batching sequence cap written to graph.pbtxt (default 16).
+    # Keep >= pipelinemanager VLM_CONCURRENT + LLM_CONCURRENT.
+    OVMS_MAX_NUM_SEQS: ""
+    # OVMS KV cache size in GB written to graph.pbtxt. Empty = model-download
+    # default (0, dynamic allocation).
+    OVMS_CACHE_SIZE_GB: ""
+    # NPU LLM token limits written to graph.pbtxt plugin_config (empty = 8192 / 1024).
+    OVMS_NPU_MAX_PROMPT_LEN: ""
+    OVMS_NPU_MIN_RESPONSE_LEN: ""
     ALLOWED_MEDIA_DOMAINS: "minio-server,localhost"
     model_directory_name: "converted_model"
 

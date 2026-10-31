@@ -64,6 +64,12 @@ class QueryRequest(BaseModel):
         default=None,
         validation_alias=AliasChoices("time_filter", "timeFilter"),
     )
+    min_peak_score: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        validation_alias=AliasChoices("min_peak_score", "minPeakScore"),
+    )
 
     @model_validator(mode="after")
     def _require_text_or_image(self) -> "QueryRequest":
@@ -145,6 +151,13 @@ def resolve_time_range(query_request: "QueryRequest") -> Optional[Tuple[str, str
     if start and end:
         return start.isoformat(), end.isoformat()
     return None
+
+
+def resolve_min_peak_score(query_request: "QueryRequest") -> float:
+    """Per-query minimum peak score, else the SEARCH_MIN_PEAK_SCORE default."""
+    if query_request.min_peak_score is not None:
+        return float(query_request.min_peak_score)
+    return float(settings.SEARCH_MIN_PEAK_SCORE)
 
 
 def format_aggregated_results(aggregated_videos: list[dict]) -> list[dict]:
@@ -275,6 +288,10 @@ async def query_endpoint(request: list[Any] = Body(...)):
             )  # Get more frame results before aggregation
             logger.debug(f"Searching with initial_k={initial_k}")
 
+            min_peak_score = resolve_min_peak_score(query_request)
+            if min_peak_score > 0:
+                logger.info(f"Applying minimum peak score: {min_peak_score}")
+
             retrieval_start = time.perf_counter()
             try:
                 docs_with_score: List[Tuple[Any, float]] = (
@@ -282,6 +299,7 @@ async def query_endpoint(request: list[Any] = Body(...)):
                         query_request,
                         initial_k=initial_k,
                         time_range=time_range,
+                        min_score=min_peak_score,
                     )
                 )
             except Exception as retriever_error:
@@ -303,6 +321,10 @@ async def query_endpoint(request: list[Any] = Body(...)):
             filter_start = time.perf_counter()
             frame_results = []
             for res, score in docs_with_score:
+                # Also enforced here in case the retriever ignores min_score.
+                if min_peak_score > 0 and score < min_peak_score:
+                    continue
+
                 res.metadata["relevance_score"] = score
 
                 # Filter by tags if specified
@@ -346,6 +368,7 @@ async def query_endpoint(request: list[Any] = Body(...)):
                     logger.info(
                         f"Aggregation completed: {len(aggregated_videos)} videos"
                     )
+                    aggregation_stats["min_peak_score"] = min_peak_score
                     logger.debug(f"Aggregation stats: {aggregation_stats}")
 
                     # Convert aggregated results back to langchain document format for API compatibility

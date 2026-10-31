@@ -91,15 +91,15 @@ global:
   usePvc: true
   keepPvc: true
   huggingfaceToken: "hf_..."   # needed for gated/private Hugging Face models
-  vlmName: "Qwen/Qwen3-VL-4B-Instruct"
-  llmName: ""                  # optional OVMS split-model summarization model
+  vlmName: "OpenVINO/Qwen3.5-4B-int8-ov"  # OVMS; vLLM needs a HF checkpoint, e.g. Qwen/Qwen3-VL-4B-Instruct
+  llmName: ""                  # optional OVMS split-model LLM, e.g. OpenVINO/Qwen3-4B-int8-ov
   embeddingModelName: ""       # set per mode below
   modelDownload:
     image:
       repository: intel/model-download
-      tag: "2026.2.0-ww30"
+      tag: "latest"
       pullPolicy: IfNotPresent
-    ovmsReleaseTag: "v2026.1"
+    ovmsReleaseTag: "v2026.4.1"
   proxy:
     http_proxy: ""
     https_proxy: ""
@@ -217,10 +217,10 @@ helm uninstall vss -n "$NAMESPACE"
 
 ## 4. GPU/NPU and vLLM values
 
-OVMS GPU VLM example:
+OVMS GPU VLM example (the VLM runs on CPU or GPU only; NPU is not supported for it):
 ```yaml
 global:
-  vlmName: "OpenVINO/Phi-3.5-vision-instruct-int8-ov"
+  vlmName: "OpenVINO/Qwen3.5-4B-int8-ov"
   devices:
     ovms:
       vlm:
@@ -234,8 +234,8 @@ global:
 OVMS split model, e.g. GPU VLM + NPU LLM:
 ```yaml
 global:
-  vlmName: "OpenVINO/Phi-3.5-vision-instruct-int8-ov"
-  llmName: "OpenVINO/Qwen3-8B-int4-cw-ov"
+  vlmName: "OpenVINO/Qwen3.5-4B-int8-ov"
+  llmName: "OpenVINO/Phi-3.5-mini-instruct-int4-cw-ov"  # NPU LLM: text-only -cw- repo
   devices:
     ovms:
       vlm:
@@ -246,8 +246,12 @@ global:
         key: "npu.intel.com/accel"
 ovms:
   env:
-    VLM_WEIGHT_FORMAT: ""   # auto: CPU int8, GPU/NPU int4
+    VLM_WEIGHT_FORMAT: ""   # auto: CPU int8, GPU int4; OpenVINO/*-<fmt>-ov repos use <fmt>
     LLM_WEIGHT_FORMAT: ""
+    OVMS_MAX_NUM_SEQS: ""   # empty = 16; keep >= VLM_CONCURRENT + LLM_CONCURRENT
+    OVMS_CACHE_SIZE_GB: ""  # empty = 0 (dynamic KV cache)
+    OVMS_NPU_MAX_PROMPT_LEN: ""    # empty = 8192; NPU LLM must be text-only
+    OVMS_NPU_MIN_RESPONSE_LEN: ""  # empty = 1024
 ```
 
 Search GPU for embedding/dataprep:

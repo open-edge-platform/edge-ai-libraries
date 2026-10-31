@@ -545,3 +545,51 @@ def test_pooled_backends_are_not_serialized(monkeypatch):
     )
 
     assert db.max_active > 1
+
+
+def _scored_docs(*scores):
+    return [
+        (
+            types.SimpleNamespace(metadata={"video_id": f"v{i}"}, page_content=f"frame-{i}"),
+            score,
+        )
+        for i, score in enumerate(scores)
+    ]
+
+
+def test_execute_single_query_drops_items_below_min_score(monkeypatch):
+    """min_score removes low-scoring items before the top_k cut."""
+    fake_db = _FakeVectorDb(_scored_docs(0.9, 0.35, 0.2, 0.19, 0.05))
+    monkeypatch.setattr(service_module, "get_vectordb", lambda: fake_db)
+    monkeypatch.setattr(service_module.settings, "RETRIEVER_BACKEND", "vdms")
+
+    result = service_module.execute_single_query(
+        QueryRequest(query="test query", top_k=10, min_score=0.2)
+    )
+
+    assert [item.score for item in result.items] == [0.9, 0.35, 0.2]
+    assert result.count == 3
+
+
+def test_execute_single_query_min_score_applies_before_top_k(monkeypatch):
+    """The returned top_k are the best items that clear min_score."""
+    fake_db = _FakeVectorDb(_scored_docs(0.1, 0.8, 0.5, 0.15, 0.6))
+    monkeypatch.setattr(service_module, "get_vectordb", lambda: fake_db)
+    monkeypatch.setattr(service_module.settings, "RETRIEVER_BACKEND", "vdms")
+
+    result = service_module.execute_single_query(
+        QueryRequest(query="test query", top_k=2, min_score=0.55)
+    )
+
+    assert [item.score for item in result.items] == [0.8, 0.6]
+
+
+def test_execute_single_query_without_min_score_keeps_all(monkeypatch):
+    """Omitting min_score keeps the existing unfiltered behavior."""
+    fake_db = _FakeVectorDb(_scored_docs(0.9, 0.01, -0.2))
+    monkeypatch.setattr(service_module, "get_vectordb", lambda: fake_db)
+    monkeypatch.setattr(service_module.settings, "RETRIEVER_BACKEND", "vdms")
+
+    result = service_module.execute_single_query(QueryRequest(query="test query", top_k=10))
+
+    assert result.count == 3

@@ -19,6 +19,15 @@ client can display what the service is running without a separate info call. The
 configured fields are always present; `embedding_client_status` additionally
 reports whether the in-process embedding client has been preloaded.
 
+Detection fields: `detection_model` is the configured Hugging Face OpenVINO
+model (`MM_DATAPREP_DETECTION_MODEL_NAME`), `detection_device` is the inference
+device, `detection_classes` lists the active class filter
+(`MM_DATAPREP_DETECTION_CLASSES`, `null` when all model classes are kept), and
+`detection_status` is `ready` (detector loaded), `not_loaded` (detection is
+enabled but the model could not be downloaded or initialized, so no object
+crops are produced; see the service logs) or `disabled`
+(`MM_DATAPREP_ENABLE_OBJECT_DETECTION=false`).
+
 **Response:**
 
 - 200 OK (embedding client preloaded):
@@ -30,8 +39,10 @@ reports whether the in-process embedding client has been preloaded.
       "model_name": "CLIP/clip-vit-b-16",
       "embedding_device": "CPU",
       "use_openvino": false,
-      "detection_model": "yolox_s",
+      "detection_model": "OpenVINO/yolox_s-int8-ov",
       "detection_device": "CPU",
+      "detection_classes": null,
+      "detection_status": "ready",
       "vectordb_backend": "milvus",
       "vectordb_status": "ok",
       "storage_backend": "minio",
@@ -145,7 +156,6 @@ detection is enabled, detected object crops are embedded as separate entries.
     "video_id": "video-dir-001",
     "frame_interval": 15,
     "enable_object_detection": true,
-    "detection_confidence": 0.85,
     "tags": ["indoor", "machine"]
 }
 ```
@@ -156,8 +166,11 @@ detection is enabled, detected object crops are embedded as separate entries.
 | `video_id`               | string         | Yes      | —       | Video directory (ID) inside the bucket. The single video in this directory is processed.            |
 | `frame_interval`         | integer (1–60) | No       | `15`    | Extract every Nth frame for processing.                                                             |
 | `enable_object_detection`| boolean        | No       | `true`  | Run object detection and embed detected object crops separately.                                    |
-| `detection_confidence`   | float (0.1–1.0)| No       | `0.85`  | Confidence threshold for filtering object detections.                                               |
 | `tags`                   | list of string | No       | `[]`    | Tags associated with the video for filtering searches.                                              |
+
+The object detection confidence threshold is a service setting
+(`MM_DATAPREP_DETECTION_CONFIDENCE`, default `0.85`) and applies to every request,
+including uploads, batches and live streams.
 
 **Responses:**
 
@@ -215,8 +228,7 @@ curl -X POST http://localhost:8000/v1/dataprep/media/process \
     "bucket_name": "my-bucket",
     "video_id": "video-dir-001",
     "frame_interval": 15,
-    "enable_object_detection": true,
-    "detection_confidence": 0.85
+    "enable_object_detection": true
   }'
 ```
 
@@ -236,7 +248,6 @@ plus optional detected-object crops). Supported image formats: `.jpg`, `.jpeg`,
 | `bucket_name`            | query    | string         | No       | config  | Destination bucket in Minio. Falls back to the application default bucket. |
 | `frame_interval`         | query    | integer (1–60) | No       | `15`    | Extract every Nth frame for processing. Ignored for images.                |
 | `enable_object_detection`| query    | boolean        | No       | `true`  | Run object detection and embed detected object crops separately.           |
-| `detection_confidence`   | query    | float (0.1–1.0)| No       | `0.85`  | Confidence threshold for filtering object detections.                      |
 | `tags`                   | query    | list of string | No       | `[]`    | Tags associated with the media for filtering searches.                     |
 
 **Responses:**
@@ -329,7 +340,6 @@ Ingest a single image from a typed source (synchronous, `201 Created`).
 | `bucket_name`             | string  | No       | config  | Destination bucket.                                      |
 | `filename`                | string  | No       | derived | Optional filename; extension is corrected to the sniffed format. |
 | `enable_object_detection` | boolean | No       | `true`  | Embed detected-object crops separately.                  |
-| `detection_confidence`    | float   | No       | `0.85`  | Detection confidence threshold.                          |
 | `tags`                    | list    | No       | `[]`    | Tags for filtering searches.                             |
 
 **Responses:** `201 Created` (embeddings created), `400` (bad/undecodable
@@ -390,8 +400,8 @@ while the non-duplicate items complete normally.
 Upload multiple MP4 files in one multipart request.
 
 **Request:** `multipart/form-data` — repeat the `files` field for each file.
-Query params (`bucket_name`, `frame_interval`, `enable_object_detection`,
-`detection_confidence`, `tags`) apply to every file in the batch.
+Query params (`bucket_name`, `frame_interval`, `enable_object_detection`, `tags`)
+apply to every file in the batch.
 
 ```bash
 curl -X POST "http://localhost:8000/v1/dataprep/media/upload/batch?frame_interval=15" \
@@ -444,7 +454,6 @@ Mount a host directory to `MM_DATAPREP_INGEST_DATA_ROOT` via
 | `bucket_name`             | string  | No       | config  | Destination bucket.                                                                             |
 | `frame_interval`          | integer | No       | `15`    | Extract every Nth frame (videos only).                                                          |
 | `enable_object_detection` | boolean | No       | `true`  | Embed detected-object crops separately.                                                         |
-| `detection_confidence`    | float   | No       | `0.85`  | Detection confidence threshold.                                                                 |
 | `store_copy`              | boolean | No       | `true`  | Copy each file into the storage backend. `false` references files in place (see below).         |
 | `tags`                    | list    | No       | `[]`    | Tags applied to every ingested file.                                                            |
 | `metadata`                | object  | No       | `{}`    | Caller-supplied metadata applied to every ingested file (see below).                            |
@@ -922,7 +931,6 @@ Register an RTSP stream and start ingesting it.
 | `description`             | string        | No       | `null`                              | Free-text description.                                           |
 | `frame_interval`          | integer       | No       | `MM_DATAPREP_FRAME_INTERVAL`        | Embed every Nth frame (1 – 60).                                  |
 | `enable_object_detection` | boolean       | No       | service default                     | Generate object crops in addition to full frames.                |
-| `detection_confidence`    | number        | No       | service default                     | Detection threshold (0.1 – 1.0).                                 |
 | `tags`                    | array(string) | No       | `[]`                                | Applied to every embedding from this stream.                     |
 | `start`                   | boolean       | No       | `true`                              | Register without starting ingestion when `false`.                |
 
@@ -943,7 +951,6 @@ Register an RTSP stream and start ingesting it.
           "video_id": "2f6c1d...",
           "frame_interval": 15,
           "enable_object_detection": true,
-          "detection_confidence": 0.85,
           "tags": ["lobby"],
           "stats": {
               "frames_processed": 0,
@@ -1025,7 +1032,7 @@ Update a stream, or pause/resume it. Only supplied fields change.
 | Field                                                              | Type          | Description                                                        |
 | ------------------------------------------------------------------ | ------------- | ------------------------------------------------------------------ |
 | `stream_name`, `description`                                        | string        | Descriptive fields.                                                |
-| `frame_interval`, `enable_object_detection`, `detection_confidence` | –             | Processing parameters; a running stream restarts its session so the new value applies immediately. |
+| `frame_interval`, `enable_object_detection`                         | –             | Processing parameters; a running stream restarts its session so the new value applies immediately. |
 | `tags`                                                              | array(string) | Replaces the existing tag list.                                    |
 | `state`                                                             | string        | `paused` to stop ingesting while staying registered, `running` to resume. |
 

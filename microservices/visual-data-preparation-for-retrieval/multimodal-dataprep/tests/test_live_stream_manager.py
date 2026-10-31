@@ -99,7 +99,7 @@ def test_create_with_start_false_registers_without_ingesting(manager):
 def test_create_applies_defaults_from_settings(manager):
     stream = manager.create(stream_url=CREDENTIALED_URL)
     assert stream.frame_interval == settings.FRAME_INTERVAL
-    assert stream.detection_confidence == settings.DETECTION_CONFIDENCE
+    assert stream.enable_object_detection == settings.ENABLE_OBJECT_DETECTION
 
 
 def test_create_rejects_a_non_rtsp_url(manager):

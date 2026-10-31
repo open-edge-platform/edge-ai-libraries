@@ -11,7 +11,6 @@ Sub-modules:
 - video_utils: Video processing and frame extraction utilities
 - config_utils: Configuration loading and validation utilities
 - file_utils: File operations and temporary directory management
-- metadata_utils: Metadata generation and storage utilities  
 - common_utils: General purpose utility functions
 
 Usage:
@@ -27,7 +26,6 @@ Usage:
 from . import video_utils
 from . import config_utils  
 from . import file_utils
-from . import metadata_utils
 from . import common_utils
 
 # Import key functions for backward compatibility
@@ -36,8 +34,6 @@ from . import common_utils
 # Configuration utilities
 from .config_utils import (
     get_config,
-    read_config,
-    clear_config_cache
 )
 
 # Common utilities  
@@ -49,10 +45,6 @@ from .common_utils import (
 
 # File utilities
 from .file_utils import (
-    save_video_to_temp,
-    create_temp_directory,
-    cleanup_temp_directory,
-    save_metadata_at_temp,
     resolve_under_ingest_root,
     to_host_path,
     stream_file_range
@@ -61,16 +53,6 @@ from .file_utils import (
 # Video utilities
 from .video_utils import (
     get_video_from_minio,
-    get_video_fps_and_frames,
-    process_video_with_frame_extraction,
-    process_video_with_enhanced_detection
-)
-
-# Metadata utilities
-from .metadata_utils import (
-    FrameInfo,
-    create_frames_manifest,
-    extract_enhanced_video_metadata
 )
 
 __all__ = [
@@ -78,13 +60,10 @@ __all__ = [
     'video_utils',
     'config_utils', 
     'file_utils',
-    'metadata_utils',
     'common_utils',
     
     # Configuration functions
     'get_config',
-    'read_config', 
-    'clear_config_cache',
     
     # Common functions
     'sanitize_input',
@@ -92,22 +71,10 @@ __all__ = [
     'create_detector_instance',
     
     # File functions
-    'save_video_to_temp',
-    'create_temp_directory',
-    'cleanup_temp_directory', 
-    'save_metadata_at_temp',
     'resolve_under_ingest_root',
     'to_host_path',
     'stream_file_range',
     
     # Video functions
     'get_video_from_minio',
-    'get_video_fps_and_frames',
-    'process_video_with_frame_extraction',
-    'process_video_with_enhanced_detection',
-    
-    # Metadata functions and classes
-    'FrameInfo',
-    'create_frames_manifest',
-    'extract_enhanced_video_metadata'
 ]

@@ -1,0 +1,444 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+"""Typed HTTP client for the VSS Pipeline Manager REST API."""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import re
+import time
+from typing import Any, Awaitable, Callable
+
+import httpx
+from fastmcp.exceptions import ToolError
+
+logger = logging.getLogger(__name__)
+
+
+def _ms(started: float) -> float:
+    return (time.perf_counter() - started) * 1000
+
+
+async def _poll(
+    fetch: Callable[[], Awaitable[dict[str, Any] | None]],
+    is_done: Callable[[dict[str, Any]], bool],
+    wait_seconds: float,
+    interval_seconds: float,
+) -> tuple[dict[str, Any] | None, bool]:
+    """Call ``fetch`` until ``is_done`` holds or ``wait_seconds`` elapse.
+    Returns ``(last_result, completed)``."""
+
+    deadline = time.monotonic() + wait_seconds
+    while True:
+        result = await fetch()
+        if result and is_done(result):
+            return result, True
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return result, False
+        await asyncio.sleep(min(interval_seconds, remaining))
+
+#: A query image uploaded with ``POST /search/images``: its bare ``imageId``,
+#: or its ``imagePath`` (anything ending in ``search-images/<imageId>``).
+_IMAGE_ID = (
+    r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"
+    r"\.(?:jpg|png|webp)"
+)
+_IMAGE_ID_RE = re.compile(rf"^{_IMAGE_ID}$")
+_IMAGE_PATH_RE = re.compile(rf"(?:^|/)search-images/{_IMAGE_ID}$")
+
+_FAILURE_HINTS = {
+    404: "The item does not exist, or the feature is disabled in this deployment.",
+    408: "The upstream stage timed out. Retry, or check that the embedding service is up.",
+    422: "VSS rejected the input as unprocessable.",
+    502: "A dependency of VSS failed. Check the data-prep and embedding services.",
+}
+
+
+class VssError(ToolError):
+    """An error from the VSS backend, phrased for an agent to act on.
+
+    A :class:`ToolError`, so FastMCP returns it as an ``isError`` result with
+    the message intact -- even with error masking on -- and logs no traceback.
+
+    ``status_code`` is the HTTP status behind it, when there was one, so a
+    caller can recognise "not found" without matching on prose.
+    """
+
+    def __init__(self, message: str, *, status_code: int | None = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+
+
+#: An id as VSS issues them (UUIDs, hex). Ids come from the agent and go into
+#: URL paths, where ``?``, ``#`` or ``/`` would reach another route or query
+#: -- e.g. ``DELETE /streams/{id}?purge_media=true``. Escaping is not enough:
+#: nginx decodes ``%2F`` and resolves ``..`` before proxying to /manager.
+_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+
+
+def _id(value: str) -> str:
+    """Return ``value`` if it is safe as a URL path segment, else raise."""
+
+    if not _ID_RE.match(value):
+        raise VssError(
+            f"{value!r} is not a valid VSS id: ids are letters, digits, "
+            "'-' and '_'."
+        )
+    return value
+
+
+def is_image_reference(image: str) -> bool:
+    """Whether ``image`` is a claim-check reference to a query image already
+    uploaded directly to VSS (e.g. ``POST /search/images``).
+
+    That is an ``http(s)`` URL, or an ``imageId``/``imagePath`` returned by
+    that upload. A reference is forwarded to Pipeline Manager as
+    ``imageUrl``; Pipeline Manager loads the bytes from its own object store,
+    so this server never handles raw image data for a caller-supplied image.
+    """
+
+    if image.lower().startswith(("http://", "https://")):
+        return True
+    return bool(_IMAGE_ID_RE.match(image) or _IMAGE_PATH_RE.search(image))
+
+
+class VssClient:
+    """Async client for Pipeline Manager.
+
+    Args:
+        base_url: Pipeline Manager base URL, e.g. ``http://host:12345/manager``.
+        timeout_seconds: Per-request timeout.
+        client: Pre-built HTTP client, for tests.
+    """
+
+    def __init__(
+        self,
+        base_url: str,
+        *,
+        timeout_seconds: float = 60.0,
+        client: httpx.AsyncClient | None = None,
+    ) -> None:
+        self._base_url = base_url.rstrip("/")
+        self._timeout = timeout_seconds
+        self._client = client or httpx.AsyncClient(
+            base_url=self._base_url, timeout=timeout_seconds
+        )
+
+    async def _request(self, method: str, path: str, **kwargs: Any) -> Any:
+        """Issue a request and return the decoded JSON body, or ``None`` when
+        the body is empty (Pipeline Manager's answer for an unknown summary
+        state or search).
+
+        Raises:
+            VssError: On timeout, connection failure, a non-2xx status, or a
+                body that is not JSON.
+        """
+
+        started = time.perf_counter()
+        try:
+            response = await self._client.request(method, path, **kwargs)
+        except httpx.TimeoutException as exc:
+            logger.info("VSS %s %s timed out after %.0f ms", method, path, _ms(started))
+            raise VssError(
+                f"VSS did not respond within {self._timeout:.0f}s for "
+                f"{method} {path}. The service may be busy loading a model."
+            ) from exc
+        except httpx.RequestError as exc:
+            logger.info(
+                "VSS %s %s unreachable: %s", method, path, exc.__class__.__name__
+            )
+            raise VssError(
+                f"Could not reach VSS at {self._base_url} ({exc.__class__.__name__}). "
+                "Check that the deployment is running and VSS_IP is correct."
+            ) from exc
+
+        logger.info(
+            "VSS %s %s -> %d in %.0f ms",
+            method, path, response.status_code, _ms(started),
+        )
+        if response.status_code >= 400:
+            raise VssError(
+                self._describe_failure(response, method, path),
+                status_code=response.status_code,
+            )
+
+        if not response.content:
+            return None
+        try:
+            return response.json()
+        except ValueError as exc:
+            # No Pipeline Manager route answers 2xx with anything but JSON;
+            # this is a proxy page or the wrong service behind the URL.
+            raise VssError(
+                f"VSS returned a non-JSON response for {method} {path}. Check "
+                "that VSS_IP and APP_HOST_PORT point at the VSS gateway."
+            ) from exc
+
+    @staticmethod
+    def _describe_failure(response: httpx.Response, method: str, path: str) -> str:
+        """Turn an error response into a sentence that suggests a next step."""
+
+        detail = ""
+        try:
+            body = response.json()
+            if isinstance(body, dict):
+                detail = str(body.get("message") or body.get("detail") or "")
+        except ValueError:
+            detail = response.text[:200]
+
+        parts = [
+            f"VSS returned {response.status_code} for {method} {path}.",
+            detail,
+            _FAILURE_HINTS.get(response.status_code, ""),
+        ]
+        return " ".join(part for part in parts if part)
+
+    # -- Deployment ------------------------------------------------------
+
+    async def get_features(self) -> dict[str, Any]:
+        """Return the raw ``GET /app/features`` payload."""
+
+        return await self._request("GET", "/app/features")
+
+    async def get_app_config(self) -> dict[str, Any]:
+        """Return the system configuration, including sampling limits."""
+
+        return await self._request("GET", "/app/config")
+
+    async def list_videos(self) -> list[dict[str, Any]]:
+        """Return every video row known to VSS."""
+
+        return (await self._request("GET", "/videos"))["videos"]
+
+    async def list_tags(self) -> list[str]:
+        """Return the tag vocabulary: uploaded-video and live-camera tags.
+
+        Pipeline Manager registers live-camera tags as it polls the streams,
+        and keeps them after a camera is removed, since its footage stays
+        searchable.
+        """
+
+        # The tag table has no unique constraint.
+        tags = await self._request("GET", "/tags")
+        return list(dict.fromkeys(tag for tag in tags if tag.strip()))
+
+    async def get_video(self, video_id: str) -> dict[str, Any] | None:
+        """Return one video row, or ``None`` when it does not exist."""
+
+        try:
+            payload = await self._request("GET", f"/videos/{_id(video_id)}")
+        except VssError as exc:
+            if exc.status_code == 404:
+                return None
+            raise
+        return payload["video"]
+
+    async def create_search_embeddings(self, video_id: str) -> None:
+        """Generate frame embeddings for a video.
+
+        Blocking: the endpoint holds the connection until data-prep finishes.
+        Pipeline Manager answers 422 unless data-prep reports ``success``.
+        """
+
+        await self._request(
+            "POST", f"/videos/search-embeddings/{_id(video_id)}", json={}
+        )
+
+    # -- Summaries -------------------------------------------------------
+
+    async def create_summary(self, body: dict[str, Any]) -> str:
+        """Start a summary pipeline and return its state id."""
+
+        payload = await self._request("POST", "/summary", json=body)
+        return payload["summaryPipelineId"]
+
+    async def get_ui_state(self, state_id: str) -> dict[str, Any] | None:
+        """Return the pipeline state for ``state_id``, or ``None`` if unknown."""
+
+        return await self._request("GET", f"/summary/{_id(state_id)}")
+
+    async def get_state_created_at(self, state_id: str) -> str | None:
+        """Return when run ``state_id`` was created (ISO-8601), or ``None``.
+
+        Only the raw state carries ``createdAt``; the UI projection does not.
+        """
+
+        payload = await self._request("GET", f"/summary/{_id(state_id)}/raw")
+        return payload["createdAt"] if payload else None
+
+    async def list_ui_states(self) -> list[dict[str, Any]]:
+        """Return every pipeline state."""
+
+        return await self._request("GET", "/summary/ui")
+
+    async def poll_state(
+        self,
+        state_id: str,
+        is_done: Callable[[dict[str, Any]], bool],
+        *,
+        wait_seconds: float,
+        poll_interval_seconds: float,
+        on_state: Callable[[dict[str, Any]], Awaitable[None]] | None = None,
+    ) -> tuple[dict[str, Any] | None, bool]:
+        """Poll a pipeline state until ``is_done`` holds or the budget expires,
+        awaiting ``on_state`` with each state observed. Returns
+        ``(last_state, completed)``.
+
+        The budget is mandatory: Pipeline Manager has no failure terminal
+        state, so a crashed pipeline would otherwise be polled forever.
+        """
+
+        async def fetch() -> dict[str, Any] | None:
+            state = await self.get_ui_state(state_id)
+            if state and on_state:
+                await on_state(state)
+            return state
+
+        return await _poll(fetch, is_done, wait_seconds, poll_interval_seconds)
+
+    # -- Search ----------------------------------------------------------
+
+    async def create_search(
+        self,
+        query: str | None = None,
+        *,
+        image: str | None = None,
+        image_url: str | None = None,
+        tags: list[str] | None = None,
+        time_filter: dict[str, Any] | None = None,
+        min_peak_score: float | None = None,
+    ) -> dict[str, Any]:
+        """Create a persisted search (as the UI does); poll it with
+        :meth:`poll_search`. Searches by text, ``image`` (a data URL) or
+        ``image_url`` (an uploaded image); the backend rejects more than one,
+        so only one is sent.
+        """
+
+        body: dict[str, Any]
+        if image_url:
+            body = {"imageUrl": image_url}
+        elif image:
+            body = {"image": image}
+        else:
+            body = {"query": query}
+        if tags:
+            body["tags"] = ",".join(tags)
+        if time_filter:
+            body["timeFilter"] = time_filter
+        return await self._request("POST", "/search", json=body)
+
+    async def get_search(self, query_id: str) -> dict[str, Any] | None:
+        """Return a persisted search query, or ``None`` if unknown."""
+
+        return await self._request("GET", f"/search/{_id(query_id)}")
+
+    async def list_searches(self) -> list[dict[str, Any]]:
+        """Return every persisted search query."""
+
+        return await self._request("GET", "/search")
+
+    async def refetch_search(
+        self,
+        query_id: str,
+        time_filter: dict[str, Any] | None = None,
+        min_peak_score: float | None = None,
+    ) -> None:
+        """Re-run a persisted search query. Blocks until it has run.
+        ``min_peak_score`` replaces the query's saved threshold."""
+
+        body = {"timeFilter": time_filter} if time_filter else {}
+        await self._request("POST", f"/search/{_id(query_id)}/refetch", json=body)
+
+    async def set_search_watch(self, query_id: str, watch: bool) -> None:
+        """Watch or unwatch a persisted search query. An unknown id is a
+        silent no-op in Pipeline Manager, so callers resolve the search first."""
+
+        await self._request(
+            "PATCH", f"/search/{_id(query_id)}/watch", json={"watch": watch}
+        )
+
+    async def get_refresh_config(self) -> dict[str, Any]:
+        """Return how Pipeline Manager auto-refreshes watched queries."""
+
+        return await self._request("GET", "/search/refresh-config")
+
+    # -- Live streams ----------------------------------------------------
+
+    async def list_streams(
+        self, *, state: str | None = None, tags: list[str] | None = None
+    ) -> list[dict[str, Any]]:
+        """Return registered live streams, optionally filtered."""
+
+        params: list[tuple[str, str]] = []
+        if state:
+            params.append(("state", state))
+        params.extend(("tags", tag) for tag in tags or [])
+        return (await self._request("GET", "/streams", params=params))["streams"]
+
+    async def get_stream(self, stream_id: str) -> dict[str, Any] | None:
+        """Return one live stream, or ``None`` when it does not exist."""
+
+        try:
+            payload = await self._request("GET", f"/streams/{_id(stream_id)}")
+        except VssError as exc:
+            if exc.status_code == 404:
+                return None
+            raise
+        return payload["stream"]
+
+    async def create_stream(self, body: dict[str, Any]) -> dict[str, Any]:
+        """Register and start one RTSP stream; returns its record."""
+
+        return (await self._request("POST", "/streams", json=body))["stream"]
+
+    async def create_streams(self, items: list[dict[str, Any]]) -> dict[str, Any]:
+        """Register several RTSP streams; returns ``{accepted, rejected,
+        items}``, one item per request item, in order."""
+
+        return await self._request("POST", "/streams/batch", json={"items": items})
+
+    async def update_stream(
+        self, stream_id: str, body: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Pause, resume or reconfigure a stream; returns its new record."""
+
+        path = f"/streams/{_id(stream_id)}"
+        return (await self._request("PATCH", path, json=body))["stream"]
+
+    async def delete_streams(self, stream_ids: list[str]) -> dict[str, Any]:
+        """Stop and deregister streams, keeping their media and embeddings.
+        Returns ``{accepted, rejected, items}``, one item per id, in order;
+        an unknown id fails its own item, not the call."""
+
+        return await self._request(
+            "DELETE", "/streams", json={"stream_ids": stream_ids}
+        )
+
+    async def get_frame(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Fetch one stored frame as ``GET /frames?format=json`` returns it:
+        ``{mime, image_base64, frame}``.
+        """
+
+        return await self._request(
+            "GET", "/frames", params={**params, "format": "json"}
+        )
+
+    async def poll_search(
+        self,
+        query_id: str,
+        *,
+        wait_seconds: float,
+        poll_interval_seconds: float,
+    ) -> tuple[dict[str, Any] | None, bool]:
+        """Poll a search until it leaves ``running`` or the budget expires.
+        Returns ``(last_query, completed)``."""
+
+        return await _poll(
+            lambda: self.get_search(query_id),
+            lambda query: query.get("queryStatus") != "running",
+            wait_seconds,
+            poll_interval_seconds,
+        )

@@ -16,6 +16,8 @@ services:
             SEARCH_DATAPREP_ENDPOINT: http://${MM_DATAPREP_HOST:-multimodal-dataprep}:8000
             SEARCH_FEATURE: "FEATURE_ON"
             VS_INDEX_NAME: ${VS_INDEX_NAME}
+            # Default minimum peak score for searches (0-1, 0 = off)
+            SEARCH_MIN_PEAK_SCORE: ${SEARCH_MIN_PEAK_SCORE:-0}
 
     video-search:
         image: ${REGISTRY:-}video-search:${TAG:-latest}
@@ -62,6 +64,8 @@ services:
             AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS: ${AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS:-0}
             AGGREGATION_PREFER_FULL_FRAME_SEEK: ${AGGREGATION_PREFER_FULL_FRAME_SEEK:-true}
             AGGREGATION_FULL_FRAME_SEEK_BAND: ${AGGREGATION_FULL_FRAME_SEEK_BAND:-0.06}
+            # Default minimum peak score for direct callers (Pipeline Manager always sends one)
+            SEARCH_MIN_PEAK_SCORE: ${SEARCH_MIN_PEAK_SCORE:-0}
         restart: unless-stopped
         volumes:
             - '${VS_WATCHER_DIR:-/dev/null}:/tmp/watcher-dir'
@@ -120,6 +124,7 @@ services:
             MM_DATAPREP_DETECTION_WORKER_THREADS: ${SDK_DETECTION_WORKER_THREADS:-2}
             MM_DATAPREP_EMBED_WORKER_THREADS: ${SDK_EMBED_WORKER_THREADS:-2}
             MM_DATAPREP_PIPELINE_QUEUE_GET_TIMEOUT_S: ${SDK_PIPELINE_QUEUE_GET_TIMEOUT_S:-1.0}
+            MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S: ${MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S:-300}
             MM_DATAPREP_SAVE_RUNTIME_PIPELINE_STATS: ${SAVE_RUNTIME_PIPELINE_STATS:-false}
             MM_DATAPREP_ENABLE_TRACING: ${SDK_ENABLE_TRACING:-false}
             MM_DATAPREP_VIDEO_FRAME_DECODER_WORKERS: ${VIDEO_FRAME_DECODER_WORKERS:-2}
@@ -127,7 +132,7 @@ services:
 
             # Frame processing settings
             MM_DATAPREP_FRAME_INTERVAL: ${FRAME_INTERVAL:-15}
-            MM_DATAPREP_ENABLE_OBJECT_DETECTION: ${ENABLE_OBJECT_DETECTION:-true}
+            MM_DATAPREP_ENABLE_OBJECT_DETECTION: ${DATAPREP_ENABLE_OBJECT_DETECTION:-true}
             MM_DATAPREP_DETECTION_CONFIDENCE: ${DETECTION_CONFIDENCE:-0.85}
             MM_DATAPREP_FRAMES_TEMP_DIR: ${FRAMES_TEMP_DIR:-/tmp/dataprep}
 
@@ -136,8 +141,11 @@ services:
             # 0 (keep forever): a live stream writes continuously, so an
             # unbounded index is a guaranteed disk-exhaustion path in a demo
             # deployment. Set LIVE_RETENTION_HOURS=0 to keep everything.
+            # LIVE_STREAM_MAX_CONCURRENT caps simultaneously ingesting cameras;
+            # further registrations return 503.
             MM_DATAPREP_LIVE_STREAM_ENABLED: ${LIVE_STREAM_ENABLED:-true}
             MM_DATAPREP_LIVE_RETENTION_HOURS: ${LIVE_RETENTION_HOURS:-24}
+            MM_DATAPREP_LIVE_STREAM_MAX_CONCURRENT: ${LIVE_STREAM_MAX_CONCURRENT:-8}
 
             # Live-stream registry persistence (reuses the shared PostgreSQL
             # instance; the registry is a separate `live_streams` table).
@@ -147,9 +155,11 @@ services:
             MM_DATAPREP_LIVE_STREAM_DB_USER: ${POSTGRES_USER}
             MM_DATAPREP_LIVE_STREAM_DB_PASSWORD: ${POSTGRES_PASSWORD}
 
-            # YOLOX model volume configuration for object detection
-            MM_DATAPREP_DETECTION_MODEL_DIR: ${YOLOX_MODELS_MOUNT_PATH:-/app/models/yolox}
+            # Object detection (Hugging Face OpenVINO model, cached in a volume)
+            MM_DATAPREP_DETECTION_MODEL_DIR: ${DETECTION_MODELS_MOUNT_PATH:-/app/models/object-detection}
+            MM_DATAPREP_DETECTION_MODEL_NAME: ${DATAPREP_DETECTION_MODEL:-}
             MM_DATAPREP_DETECTION_DEVICE: ${DATAPREP_DETECTION_DEVICE:-CPU}
+            MM_DATAPREP_DETECTION_CLASSES: ${DATAPREP_DETECTION_CLASSES:-}
 
             # ROI consolidation settings
             # ROI_CONSOLIDATION_IOU_THRESHOLD: IoU threshold used to cluster ROIs (higher = stricter merging)
@@ -195,7 +205,7 @@ services:
             retries: 40
             start_period: 5s
         volumes:
-            - '${YOLOX_MODELS_VOLUME_NAME:-dataprep-yolox-models}:${YOLOX_MODELS_MOUNT_PATH:-/app/models/yolox}'
+            - '${DETECTION_MODELS_VOLUME_NAME:-dataprep-detection-models}:${DETECTION_MODELS_MOUNT_PATH:-/app/models/object-detection}'
             - data-prep:/tmp/dataprep
             - ov-models:/home/appuser/.cache/huggingface # Share embedding models for SDK mode
             - ov-models:${OV_MODELS_DIR:-/app/ov_models} # OpenVINO models directory for SDK mode
@@ -329,5 +339,5 @@ volumes:
         driver: local
     data-prep:
         driver: local
-    dataprep-yolox-models:
+    dataprep-detection-models:
         driver: local

@@ -14,6 +14,9 @@
 - **External media correlation contract:** every live embedding now records `sensor_id` (stable identity of the physical source, settable at registration and defaulting to the `stream_id`), `capture_time` with an explicit `capture_time_source`, and `media_owner`. These let media stored by another service be matched back to an embedding without changing the decode or embedding path. See [Stream Manager Integration Readiness](../integration/stream-manager-readiness.md).
 - **Camera-clock capture timestamps for live streams:** `capture_time` is derived from each frame's PTS anchored to the best available clock, rather than from the ingest instant. This removes per-frame pipeline jitter and lets an independent consumer of the same RTSP feed resolve the same frame. The source degrades through `rtcp_sender_report` → `stream_anchored` → `ingest_estimated`, reported in `capture_time_source`; implausible camera clocks are rejected rather than trusted. Segment bucketing is unchanged and still uses ingest time. **In practice expect `stream_anchored`:** validation against a Hikvision DS-2CD1023G0E-I found the camera emits no RTCP at all — a raw probe saw 4316 RTP packets and 0 RTCP packets over 45 s on TCP, and none on UDP — so no client can recover an NTP mapping. Always branch on `capture_time_source` rather than assuming camera-clock accuracy.
 - **Camera clock-skew warning:** starting a live stream probes the device's HTTP `Date` header and logs a warning when its clock disagrees with the host by more than `MM_DATAPREP_LIVE_CLOCK_SKEW_WARN_SECONDS` (default 2). The check is vendor-neutral, sends no credentials, runs off the ingestion path, and never alters a stored timestamp — it surfaces the otherwise-invisible condition that makes a camera unusable as a shared time reference when correlating with an external recorder. It distinguishes genuine drift from embedded web servers that stamp local time but label it `GMT`. Disable with `MM_DATAPREP_LIVE_CLOCK_CHECK_ENABLED=false`.
+- **Object detection with Hugging Face OpenVINO models:** set `MM_DATAPREP_DETECTION_MODEL_NAME` to any object-detection model in the [Hugging Face `OpenVINO` namespace](https://huggingface.co/OpenVINO) supported by OpenVINO Model API, for example `OpenVINO/yolox_s-int8-ov`. Input size, NMS and class labels come from the model's own metadata, and only the selected model is downloaded on first use into `MM_DATAPREP_DETECTION_MODEL_DIR`. Detection runs on CPU, GPU or NPU; `OpenVINO/yolox_s-int8-ov`, `OpenVINO/yolox_tiny-fp16-ov`, `OpenVINO/yolox_l-int8-ov` and `OpenVINO/YOLO11n-fp16-ov` are verified on all three.
+- **Detection class filter:** `MM_DATAPREP_DETECTION_CLASSES` (for example `person,car`) keeps only the listed classes. Names are checked against the model's labels at startup.
+- `GET /health` reports `detection_model`, `detection_device` and `detection_classes`.
 
 **Fixed**:
 
@@ -24,8 +27,11 @@
 - **Live sessions now appear in `GET /telemetry`.** Records were built with a `-1` "unknown" stream index that failed the non-negative schema constraint, so every live record was silently discarded; the counts were also reported as zero because the live pipeline does not surface totals at the top level of its result.
 - **Camera credentials no longer reach the service logs.** The decoder recorded the raw RTSP URL as the stream's source in the metadata it logs verbatim, disclosing any embedded `user:pass@`. That value is now redacted with the same helper used for API responses and vector metadata.
 - Live ingestion no longer stores embeddings under a placeholder identity (`RTSP_BUCKET` / `video_id=-1`), which made them impossible to list, filter, or delete.
+- **Ingestion no longer hangs on a stuck inference call.** If a detection or embedding inference never returned (for example after a GPU hang), the video job stayed `running` forever. A stall watchdog now fails the job when no pipeline stage makes progress for `MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S` seconds (default `300`, `0` disables it), with an error that names the stalled stage. See [Troubleshooting](troubleshooting.md).
 - **Ingestion no longer hangs when a decoder thread dies.** A frame larger than the shared-memory block size (for example 4K portrait video against the 1920x1080 default) killed the producer thread without signalling completion, leaving the request spinning forever and never returning. Decoder failures are now forwarded to the consumer and raised, and the request is rejected with `400 Bad Request` naming `MM_DATAPREP_VIDEO_SHM_BLOCK_SIZE` and the required byte count instead of an opaque `500`. The failure path also shuts down the shared-memory pools, which previously leaked on every failed request.
 - **Concurrent embedding requests no longer abort the worker.** Two overlapping inference calls could overwrite each other's async completion callback, writing a result into a wrong-sized buffer and terminating the process with SIGABRT. Inference submission is now serialized per model instance and callback exceptions are re-raised in the submitting thread.
+- **ROI consolidation metadata is no longer shared between requests.** `merged_boxes_count` and `context_expansion_applied` were held on the shared detector, so overlapping requests could attach another frame's values to a crop. They are now kept per thread.
+- **ROI consolidation honours `0`.** `MM_DATAPREP_ROI_CONSOLIDATION_IOU_THRESHOLD=0` or `MM_DATAPREP_ROI_CONSOLIDATION_CONTEXT_SCALE=0` was silently replaced with `0.2`.
 
 **Upgrade Notes**:
 
@@ -39,6 +45,24 @@
   service; in the VSS stack the registry reuses the shared PostgreSQL instance.
 - Live ingestion grows the vector index indefinitely unless
   `MM_DATAPREP_LIVE_RETENTION_HOURS` is set.
+- **Breaking:** `MM_DATAPREP_DETECTION_MODEL_NAME` has no default and is
+  required while object detection is enabled. It takes an `OpenVINO/<repo>`
+  Hugging Face id; GitHub YOLOX names such as `yolox_s` are rejected. Set
+  `MM_DATAPREP_ENABLE_OBJECT_DETECTION=false` to run without detection.
+- **Breaking:** `src/config.yaml` and `CONFIG_FILEPATH` have been removed; all
+  configuration is read from `MM_DATAPREP_*` environment variables.
+- **Breaking:** the `detection_confidence` request parameter has been removed
+  from the upload, process, image, batch, directory and live-stream APIs, and
+  live-stream responses no longer return it. The value was never applied per
+  request; the threshold is the service setting `MM_DATAPREP_DETECTION_CONFIDENCE`.
+  Requests that still send the field are accepted and the field is ignored.
+- `MM_DATAPREP_DETECTION_MODEL_DIR` now defaults to `/app/models/object-detection`
+  (was `/app/models/yolox`), and the Compose model volume is
+  `dataprep-detection-models` (`DETECTION_MODELS_VOLUME_NAME`,
+  `DETECTION_MODELS_MOUNT_PATH`). The old `dataprep-yolox-models` volume is no
+  longer used and can be removed.
+- Each detection model keeps its own license (for example YOLOX is Apache-2.0,
+  YOLO11 is AGPL-3.0); review the model card before use.
 
 ## Version 2026.2.0
 

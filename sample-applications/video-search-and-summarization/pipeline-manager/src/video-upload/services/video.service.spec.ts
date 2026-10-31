@@ -66,7 +66,8 @@ import { TagsService } from './tags.service';
 import { DataPrepShimService } from '../../data-prep/services/data-prep-shim.service';
 import { Video, VideoDTO } from '../models/video.model';
 import { NotFoundException, UnprocessableEntityException, Logger } from '@nestjs/common';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
+import { AxiosError } from 'axios';
 import { DataPrepMinioDTO } from '../../data-prep/models/data-prep.models';
 import * as fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
@@ -110,10 +111,12 @@ describe('VideoService', () => {
       read: jest.fn(),
       update: jest.fn(),
       remove: jest.fn(),
+      setEmbeddingFlags: jest.fn(),
     };
 
     const datastoreServiceMock = {
       uploadFile: jest.fn(),
+      copyObject: jest.fn(),
       deleteFile: jest.fn(),
       deleteObject: jest.fn(),
       getFile: jest.fn(),
@@ -132,6 +135,7 @@ describe('VideoService', () => {
 
     const dataPrepShimServiceMock = {
       createEmbeddings: jest.fn(),
+      createEmbeddingsBatch: jest.fn(),
       getBatchJobStatus: jest.fn(),
     };
 
@@ -399,6 +403,311 @@ describe('VideoService', () => {
     });
   });
 
+  describe('embedding status', () => {
+    const axiosResponse = (data: any) =>
+      ({ data, status: 201, statusText: 'Created', headers: {}, config: {} }) as any;
+
+    const jobStatus = (state: string, items: any[]) =>
+      axiosResponse({
+        job_id: 'job-1',
+        state,
+        total: items.length,
+        completed: items.filter((i) => i.status === 'success').length,
+        failed: items.filter((i) => i.status === 'error').length,
+        items,
+      });
+
+    const httpError = (status?: number, code?: string) =>
+      new AxiosError(
+        'request failed',
+        code,
+        undefined,
+        undefined,
+        status
+          ? ({ status, data: { message: 'boom' } } as any)
+          : undefined,
+      );
+
+    afterEach(() => {
+      service.onModuleDestroy();
+      jest.useRealTimers();
+    });
+
+    describe('createSearchEmbeddings', () => {
+      it('records searchEmbeddings=true and refreshes the cache on success', async () => {
+        const indexed = { ...mockVideo, searchEmbeddings: true };
+        videoDbService.read.mockResolvedValue(mockVideo);
+        videoDbService.setEmbeddingFlags.mockResolvedValue(indexed as any);
+        dataPrepShimService.createEmbeddings.mockReturnValue(
+          of(axiosResponse({ status: 'success', message: 'ok' })),
+        );
+
+        await service.createSearchEmbeddings(mockVideo.videoId);
+
+        expect(videoDbService.setEmbeddingFlags).toHaveBeenCalledWith(
+          mockVideo.videoId,
+          { searchEmbeddings: true },
+        );
+        expect(await service.getVideo(mockVideo.videoId)).toEqual(indexed);
+      });
+
+      it('records searchEmbeddings=false when data-prep reports a non-success status', async () => {
+        videoDbService.read.mockResolvedValue(mockVideo);
+        dataPrepShimService.createEmbeddings.mockReturnValue(
+          of(axiosResponse({ status: 'error', message: 'nope' })),
+        );
+
+        await service.createSearchEmbeddings(mockVideo.videoId);
+
+        expect(videoDbService.setEmbeddingFlags).toHaveBeenCalledWith(
+          mockVideo.videoId,
+          { searchEmbeddings: false },
+        );
+      });
+
+      it('records searchEmbeddings=false and rethrows when data-prep answers with an error', async () => {
+        const error = httpError(502);
+        videoDbService.read.mockResolvedValue(mockVideo);
+        dataPrepShimService.createEmbeddings.mockReturnValue(
+          throwError(() => error),
+        );
+
+        await expect(
+          service.createSearchEmbeddings(mockVideo.videoId),
+        ).rejects.toBe(error);
+        expect(videoDbService.setEmbeddingFlags).toHaveBeenCalledWith(
+          mockVideo.videoId,
+          { searchEmbeddings: false },
+        );
+      });
+
+      it('leaves the status unknown when the request times out', async () => {
+        const error = httpError(undefined, 'ECONNABORTED');
+        videoDbService.read.mockResolvedValue(mockVideo);
+        dataPrepShimService.createEmbeddings.mockReturnValue(
+          throwError(() => error),
+        );
+
+        await expect(
+          service.createSearchEmbeddings(mockVideo.videoId),
+        ).rejects.toBe(error);
+        expect(videoDbService.setEmbeddingFlags).not.toHaveBeenCalled();
+      });
+
+      it('never downgrades a video that is already indexed', async () => {
+        videoDbService.read.mockResolvedValue({
+          ...mockVideo,
+          searchEmbeddings: true,
+        });
+        dataPrepShimService.createEmbeddings.mockReturnValue(
+          throwError(() => httpError(500)),
+        );
+
+        await expect(
+          service.createSearchEmbeddings(mockVideo.videoId),
+        ).rejects.toBeDefined();
+        expect(videoDbService.setEmbeddingFlags).not.toHaveBeenCalled();
+      });
+
+      it('still returns the data-prep response when recording the status fails', async () => {
+        const warn = jest.spyOn(Logger, 'warn').mockImplementation();
+        videoDbService.read.mockResolvedValue(mockVideo);
+        videoDbService.setEmbeddingFlags.mockRejectedValue(new Error('db down'));
+        dataPrepShimService.createEmbeddings.mockReturnValue(
+          of(axiosResponse({ status: 'success', message: 'ok' })),
+        );
+
+        const result = await service.createSearchEmbeddings(mockVideo.videoId);
+
+        expect(result.data.status).toBe('success');
+        expect(warn).toHaveBeenCalled();
+        warn.mockRestore();
+      });
+    });
+
+    describe('onEmbeddingsStatus', () => {
+      it('records the reported kind once and skips repeats', async () => {
+        const indexed = { ...mockVideo, textEmbeddings: true };
+        videoDbService.read.mockResolvedValue(mockVideo);
+        videoDbService.setEmbeddingFlags.mockResolvedValue(indexed as any);
+
+        const event = {
+          videoId: mockVideo.videoId,
+          kind: 'textEmbeddings' as const,
+          created: true,
+        };
+        await service.onEmbeddingsStatus(event);
+        await service.onEmbeddingsStatus(event);
+
+        expect(videoDbService.setEmbeddingFlags).toHaveBeenCalledTimes(1);
+        expect(videoDbService.setEmbeddingFlags).toHaveBeenCalledWith(
+          mockVideo.videoId,
+          { textEmbeddings: true },
+        );
+      });
+
+      it('ignores videos that no longer exist', async () => {
+        videoDbService.read.mockResolvedValue(null);
+
+        await service.onEmbeddingsStatus({
+          videoId: 'gone',
+          kind: 'textEmbeddings',
+          created: true,
+        });
+
+        expect(videoDbService.setEmbeddingFlags).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('batch jobs', () => {
+      it('records each finished item when the job status is read', async () => {
+        videoDbService.read.mockImplementation(async (videoId: string) => ({
+          ...mockVideo,
+          videoId,
+        }));
+        dataPrepShimService.getBatchJobStatus.mockReturnValue(
+          of(
+            jobStatus('completed_with_errors', [
+              { identifier: 'a', video_id: 'vid-ok', status: 'success' },
+              {
+                identifier: 'b',
+                video_id: 'vid-bad',
+                status: 'error',
+                message: 'Embedding backend unavailable',
+              },
+              { identifier: 'c', video_id: 'vid-wait', status: 'pending' },
+            ]),
+          ),
+        );
+
+        await service.getSearchEmbeddingsJobStatus('job-1');
+
+        expect(videoDbService.setEmbeddingFlags).toHaveBeenCalledWith('vid-ok', {
+          searchEmbeddings: true,
+        });
+        expect(videoDbService.setEmbeddingFlags).toHaveBeenCalledWith('vid-bad', {
+          searchEmbeddings: false,
+        });
+        expect(videoDbService.setEmbeddingFlags).toHaveBeenCalledTimes(2);
+      });
+
+      it('does not record a status for items rejected as duplicate content', async () => {
+        videoDbService.read.mockResolvedValue(null);
+        dataPrepShimService.getBatchJobStatus.mockReturnValue(
+          of(
+            jobStatus('completed_with_errors', [
+              {
+                identifier: 'dup',
+                video_id: 'vid-dup',
+                status: 'error',
+                message: 'A video with identical content already exists',
+              },
+            ]),
+          ),
+        );
+
+        await service.getSearchEmbeddingsJobStatus('job-1');
+
+        expect(videoDbService.setEmbeddingFlags).not.toHaveBeenCalled();
+      });
+
+      it('follows a submitted job server-side until it reaches a terminal state', async () => {
+        jest.useFakeTimers();
+        videoDbService.read.mockResolvedValue(mockVideo);
+        dataPrepShimService.createEmbeddingsBatch.mockReturnValue(
+          of(axiosResponse({ job_id: 'job-1', accepted: 1 })),
+        );
+        dataPrepShimService.getBatchJobStatus
+          .mockReturnValueOnce(
+            of(
+              jobStatus('running', [
+                { identifier: 'a', video_id: mockVideo.videoId, status: 'running' },
+              ]),
+            ),
+          )
+          .mockReturnValue(
+            of(
+              jobStatus('completed', [
+                { identifier: 'a', video_id: mockVideo.videoId, status: 'success' },
+              ]),
+            ),
+          );
+
+        await service.createSearchEmbeddingsBatch([mockVideo.videoId]);
+        expect(dataPrepShimService.getBatchJobStatus).not.toHaveBeenCalled();
+
+        await jest.advanceTimersByTimeAsync(VideoService.BATCH_TRACK_INTERVAL_MS);
+        expect(videoDbService.setEmbeddingFlags).not.toHaveBeenCalled();
+
+        await jest.advanceTimersByTimeAsync(VideoService.BATCH_TRACK_INTERVAL_MS);
+        expect(videoDbService.setEmbeddingFlags).toHaveBeenCalledWith(
+          mockVideo.videoId,
+          { searchEmbeddings: true },
+        );
+
+        await jest.advanceTimersByTimeAsync(VideoService.BATCH_TRACK_INTERVAL_MS * 5);
+        expect(dataPrepShimService.getBatchJobStatus).toHaveBeenCalledTimes(2);
+      });
+
+      it('stops following a job data-prep no longer knows', async () => {
+        jest.useFakeTimers();
+        videoDbService.read.mockResolvedValue(mockVideo);
+        dataPrepShimService.createEmbeddingsBatch.mockReturnValue(
+          of(axiosResponse({ job_id: 'job-1', accepted: 1 })),
+        );
+        dataPrepShimService.getBatchJobStatus.mockReturnValue(
+          throwError(() => httpError(404)),
+        );
+
+        await service.createSearchEmbeddingsBatch([mockVideo.videoId]);
+        await jest.advanceTimersByTimeAsync(VideoService.BATCH_TRACK_INTERVAL_MS * 5);
+
+        expect(dataPrepShimService.getBatchJobStatus).toHaveBeenCalledTimes(1);
+      });
+
+      it('keeps following a job through transient poll failures', async () => {
+        jest.useFakeTimers();
+        const warn = jest.spyOn(Logger, 'warn').mockImplementation();
+        videoDbService.read.mockResolvedValue(mockVideo);
+        dataPrepShimService.createEmbeddingsBatch.mockReturnValue(
+          of(axiosResponse({ job_id: 'job-1', accepted: 1 })),
+        );
+        dataPrepShimService.getBatchJobStatus
+          .mockReturnValueOnce(throwError(() => httpError(503)))
+          .mockReturnValue(
+            of(
+              jobStatus('completed', [
+                { identifier: 'a', video_id: mockVideo.videoId, status: 'success' },
+              ]),
+            ),
+          );
+
+        await service.createSearchEmbeddingsBatch([mockVideo.videoId]);
+        await jest.advanceTimersByTimeAsync(VideoService.BATCH_TRACK_INTERVAL_MS * 2);
+
+        expect(videoDbService.setEmbeddingFlags).toHaveBeenCalledWith(
+          mockVideo.videoId,
+          { searchEmbeddings: true },
+        );
+        warn.mockRestore();
+      });
+
+      it('stops following jobs when the module is destroyed', async () => {
+        jest.useFakeTimers();
+        videoDbService.read.mockResolvedValue(mockVideo);
+        dataPrepShimService.createEmbeddingsBatch.mockReturnValue(
+          of(axiosResponse({ job_id: 'job-1', accepted: 1 })),
+        );
+
+        await service.createSearchEmbeddingsBatch([mockVideo.videoId]);
+        service.onModuleDestroy();
+        await jest.advanceTimersByTimeAsync(VideoService.BATCH_TRACK_INTERVAL_MS * 5);
+
+        expect(dataPrepShimService.getBatchJobStatus).not.toHaveBeenCalled();
+      });
+    });
+  });
+
   describe('uploadVideo', () => {
     const videoFilePath = '/tmp/test-video.mp4';
     const videoFileName = 'test-video.mp4';
@@ -551,6 +860,144 @@ describe('VideoService', () => {
       expect(tagsService.addTags).toHaveBeenCalledWith(['tag1', 'tag2']);
 
       logSpy.mockRestore();
+    });
+  });
+
+  describe('copyVideo', () => {
+    beforeEach(() => {
+      (uuidv4 as jest.Mock).mockReturnValue('copy-video-id');
+      videoDbService.read.mockResolvedValue(mockVideo);
+      datastoreService.getObjectName.mockReturnValue({
+        objectPath: 'copy-video-id/source.mp4',
+        fileExtn: 'mp4',
+      });
+      datastoreService.copyObject.mockResolvedValue({} as any);
+      videoDbService.create.mockImplementation(async (video: Video) => video);
+      tagsService.addTags.mockResolvedValue(undefined);
+    });
+
+    it('should copy the stored file to a new id and keep the same name', async () => {
+      const result = await service.copyVideo('test-video-id');
+
+      expect(result).toBe('copy-video-id');
+      expect(datastoreService.getObjectName).toHaveBeenCalledWith(
+        'copy-video-id',
+        'test-video.mp4',
+      );
+      expect(datastoreService.copyObject).toHaveBeenCalledWith(
+        'test-video-id/test-video.mp4',
+        'copy-video-id/source.mp4',
+      );
+      expect(videoDbService.create).toHaveBeenCalledWith({
+        name: 'test-video.mp4',
+        tags: ['tag1', 'tag2'],
+        dataStore: {
+          bucket: 'test-bucket',
+          fileName: 'test-video.mp4',
+          objectName: 'copy-video-id',
+        },
+        videoId: 'copy-video-id',
+        createdAt: expect.any(String),
+        updatedAt: expect.any(String),
+        url: 'copy-video-id/source.mp4',
+      });
+      expect(await service.getVideo('copy-video-id')).toEqual(
+        expect.objectContaining({ videoId: 'copy-video-id' }),
+      );
+    });
+
+    it('should not carry over embedding flags or summaries', async () => {
+      videoDbService.read.mockResolvedValue({
+        ...mockVideo,
+        searchEmbeddings: true,
+        textEmbeddings: true,
+        summaryId: 's1',
+      } as any);
+
+      await service.copyVideo('test-video-id');
+
+      const created = videoDbService.create.mock.calls[0][0];
+      expect(created).not.toHaveProperty('searchEmbeddings');
+      expect(created).not.toHaveProperty('textEmbeddings');
+      expect(created).not.toHaveProperty('summaryId');
+    });
+
+    it('should merge new tags into the source tags', async () => {
+      await service.copyVideo('test-video-id', ['tag2', ' tag3 ', '']);
+
+      expect(videoDbService.create).toHaveBeenCalledWith(
+        expect.objectContaining({ tags: ['tag1', 'tag2', 'tag3'] }),
+      );
+      expect(tagsService.addTags).toHaveBeenCalledWith([
+        'tag1',
+        'tag2',
+        'tag3',
+      ]);
+    });
+
+    it('should leave the source video untouched', async () => {
+      await service.copyVideo('test-video-id', ['tag3']);
+
+      expect(videoDbService.update).not.toHaveBeenCalled();
+      expect(datastoreService.deleteObject).not.toHaveBeenCalled();
+    });
+
+    it('should throw NotFoundException for an unknown video', async () => {
+      videoDbService.read.mockResolvedValue(null as any);
+
+      await expect(service.copyVideo('missing')).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(datastoreService.copyObject).not.toHaveBeenCalled();
+    });
+
+    it('should reject a video without a stored file', async () => {
+      videoDbService.read.mockResolvedValue({
+        ...mockVideo,
+        dataStore: undefined,
+      });
+
+      await expect(service.copyVideo('test-video-id')).rejects.toThrow(
+        UnprocessableEntityException,
+      );
+      expect(datastoreService.copyObject).not.toHaveBeenCalled();
+    });
+
+    it('should not create a record when the object copy fails', async () => {
+      const errorSpy = jest.spyOn(Logger, 'error').mockImplementation();
+      datastoreService.copyObject.mockRejectedValue(new Error('copy failed'));
+
+      await expect(service.copyVideo('test-video-id')).rejects.toThrow(
+        UnprocessableEntityException,
+      );
+      expect(videoDbService.create).not.toHaveBeenCalled();
+
+      errorSpy.mockRestore();
+    });
+
+    it('should remove the copied object when saving the record fails', async () => {
+      const errorSpy = jest.spyOn(Logger, 'error').mockImplementation();
+      videoDbService.create.mockRejectedValue(new Error('db down'));
+
+      await expect(service.copyVideo('test-video-id')).rejects.toThrow(
+        UnprocessableEntityException,
+      );
+      expect(datastoreService.deleteObject).toHaveBeenCalledWith(
+        'copy-video-id/source.mp4',
+      );
+
+      errorSpy.mockRestore();
+    });
+
+    it('should still return the copy when tag registration fails', async () => {
+      const warnSpy = jest.spyOn(Logger, 'warn').mockImplementation();
+      tagsService.addTags.mockRejectedValue(new Error('tags down'));
+
+      await expect(service.copyVideo('test-video-id')).resolves.toBe(
+        'copy-video-id',
+      );
+
+      warnSpy.mockRestore();
     });
   });
 

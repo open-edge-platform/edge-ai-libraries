@@ -103,10 +103,10 @@ Try using a larger, more capable VLM model by updating the `VLM_MODEL_NAME` envi
    source setup.sh --down
    ```
 
-2. Set a larger VLM model (e.g., upgrade from 4B to 8B parameters):
+2. Set a larger VLM model (e.g., upgrade from 4B to 9B parameters):
 
    ```bash
-   export VLM_MODEL_NAME="Qwen/Qwen3-VL-8B-Instruct"
+   export VLM_MODEL_NAME="OpenVINO/Qwen3.5-9B-int4-ov"
    ```
 
 3. Restart the application:
@@ -117,8 +117,8 @@ Try using a larger, more capable VLM model by updating the `VLM_MODEL_NAME` envi
 
 **Alternative Models to Try**:
 
-- For CPU: `Qwen/Qwen3-VL-8B-Instruct` (larger version)
-- For GPU: Consider other supported VLM models with higher parameter counts
+- For OVMS on CPU or GPU: `OpenVINO/Qwen3.5-9B-int4-ov` (larger version) or `OpenVINO/gemma-4-E4B-it-int8-ov`
+- For vLLM: `Qwen/Qwen3-VL-8B-Instruct` (larger version)
 
 > [!NOTE]
 > Larger models will require more system resources (RAM or VRAM) and may have longer inference times, but typically provide more accurate and coherent summaries.
@@ -188,25 +188,51 @@ Alternatively, switch to a model with a larger context window.
 
 ## VLM Workload Fails on NPU
 
-**Problem**: The VLM model fails to load or run when `VLM_TARGET_DEVICE` or `LLM_TARGET_DEVICE` is set to `NPU`.
+**Problem**: Chunk captioning fails, or OVMS fails to load or run the model, when `VLM_TARGET_DEVICE` is set to `NPU`.
 
-**Cause**: Not all VLM/LLM models are compatible with NPU execution. NPU support depends on the model architecture and the OpenVINO™ version installed.
+**Cause**: The VLM is not supported on NPU for VSS. NPU vision-language pipelines accept only one image per request, while VSS sends several frames per chunk. Only the final-summary LLM can run on NPU.
 
 **Symptoms**:
 
 - OVMS container crashes or fails to start when targeting NPU
 - Inference errors or unsupported-operation messages in OVMS logs
-- Model conversion succeeds but inference produces errors
+- Chunk captioning requests fail while the model is loaded
 
 **Solution**:
 
-1. Verify that your model is listed on the [OpenVINO™ Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page for NPU execution.
-2. If the model is not supported on NPU, switch to a supported model or fall back to CPU/GPU:
+1. Run the VLM on CPU or GPU:
 
    ```bash
-   export VLM_TARGET_DEVICE="CPU"
+   export VLM_TARGET_DEVICE="GPU"
    source setup.sh --summary
    ```
+
+2. To use the NPU, move only the final-summary LLM to it with a text-only `-cw-` model. See [Final Summary Fails or Is Cut Short with the LLM on NPU](#final-summary-fails-or-is-cut-short-with-the-llm-on-npu).
+
+## Final Summary Fails or Is Cut Short with the LLM on NPU
+
+**Problem**: With `LLM_TARGET_DEVICE=NPU`, setup stops with `LLM_TARGET_DEVICE=NPU needs a text-only LLM`, the final or audio summary fails, or the summary ends mid-sentence.
+
+**Cause**: An NPU LLM is compiled for a fixed prompt length (`OVMS_NPU_MAX_PROMPT_LEN`, default `8192` tokens) and response length (`OVMS_NPU_MIN_RESPONSE_LEN`, default `1024`). OVMS rejects longer prompts with `Input length exceeds the maximum allowed length` and cuts longer output without an error. Vision-language models on NPU cannot have their prompt limit raised, so they are rejected for the LLM role.
+
+**Solution**:
+
+1. Use a text-only LLM on NPU, for example `OVMS_LLM_MODEL_NAME=OpenVINO/Phi-3.5-mini-instruct-int4-cw-ov` or `OpenVINO/Qwen3-8B-int4-cw-ov`, or move the LLM to GPU/CPU.
+2. Leave `PM_LLM_MAX_CONTEXT_LENGTH` and `PM_SUMMARIZATION_MAX_COMPLETION_TOKENS` unset so the setup script sizes them to the NPU limits, or lower them below the values printed in the `NPU LLM limits` log line.
+3. For long, speech-heavy videos, raise the limit (for example `export OVMS_NPU_MAX_PROMPT_LEN=16384`, which needs about 20 GB of system memory for `Phi-3.5-mini-instruct`) or disable audio. On systems with 16 GB of memory or less, lower it to `4096` if OVMS fails to load the model on NPU. A single audio transcript longer than the prompt budget is sent in one request and fails on NPU.
+
+On Helm, set `ovms.env.OVMS_NPU_MAX_PROMPT_LEN` and `ovms.env.OVMS_NPU_MIN_RESPONSE_LEN`, then restart the OVMS pod.
+
+## OpenVINO Model Download Fails with `Failed to download llm model`
+
+**Problem**: Setup stops with `cannot be downloaded for NPU` or `is an NPU-optimized channel-wise repo`, or the model download fails with `ValueError: ('Failed to download llm model', 'OpenVINO/...')`.
+
+**Cause**: The model-download service pulls a pre-converted `OpenVINO/*` repo only when the repo matches the target device. NPU needs an NPU-optimized channel-wise repo whose name contains `-cw-`. CPU and GPU need a repo without `-cw-`. On a mismatch, the service tries to convert the repo instead, which fails for `OpenVINO/*` repos.
+
+**Solution**:
+
+1. On NPU, use a `-cw-` repo, for example `OpenVINO/Phi-3.5-mini-instruct-int4-cw-ov` instead of `OpenVINO/Phi-3.5-mini-instruct-int4-gq-ov`.
+2. On CPU or GPU, use the variant without `-cw-`, for example `OpenVINO/Phi-3.5-mini-instruct-int4-ov`.
 
 ## GPU Out-of-Resources When Loading Multiple Models
 
@@ -395,7 +421,7 @@ Increase the KV cache size by setting the `OVMS_CACHE_SIZE_GB` environment varia
 | Integrated GPU (iGPU) | 25 % of system RAM | [2, 6] GB |
 | Discrete GPU (dGPU) | 33 % of dedicated VRAM | [2, 16] GB |
 
-The setup script automatically detects the GPU type using the OpenVINO™ runtime. Setting `OVMS_CACHE_SIZE_GB` overrides the dynamic calculation for all device types.
+The setup script detects a discrete GPU by reading its dedicated VRAM from sysfs; if none is found, an Intel GPU at PCI address `0000:00:02.0` is treated as an iGPU. Setting `OVMS_CACHE_SIZE_GB` overrides the dynamic calculation for all device types.
 
 ```bash
 # Example: set KV cache to 8 GB
@@ -407,6 +433,27 @@ The updated cache size is applied to the existing model configuration on the nex
 
 > [!NOTE]
 > On integrated GPUs (iGPU), memory is shared with the system. Setting a very large cache size may leave insufficient memory for model weights and cause `CL_OUT_OF_RESOURCES` errors. Start with modest increases (e.g., 4 → 6 → 8 GB) and monitor both cache usage and GPU memory utilization.
+
+## OVMS Fails to Start with `reserved_la_bytes <= budget_in_bytes`
+
+**Problem**: `setup.sh` stops with `dependency failed to start: container ... ovms-service ... exited` (sometimes exit code `139`), or the OVMS logs show:
+
+```text
+Error during llm node initialization ... Check 'reserved_la_bytes <= budget_in_bytes' failed
+```
+
+**Cause**: Hybrid linear-attention models such as Qwen3.5 reserve a fixed recurrent state for every sequence OVMS may batch (`max_num_seqs` in `graph.pbtxt`), and this reservation comes out of the KV cache budget (`cache_size`). For example, Qwen3.5-4B needs about 25 MB per sequence, so `max_num_seqs: 256` (about 6.3 GB) does not fit the 6 GB integrated-GPU cache.
+
+**Solution**: `setup.sh` sets `max_num_seqs` to the larger of 16 and `PM_VLM_CONCURRENT + PM_LLM_CONCURRENT`. Pipeline Manager never sends more concurrent requests than that, and any extra requests queue. The value is written to newly downloaded models and patched into existing `graph.pbtxt` files on the next run, so no re-export is required. To override it:
+
+```bash
+export OVMS_MAX_NUM_SEQS=8
+source setup.sh --summary
+```
+
+Alternatively, increase `OVMS_CACHE_SIZE_GB` if the device has memory to spare.
+
+On Helm, the OVMS download init containers apply `ovms.env.OVMS_MAX_NUM_SEQS` (default `16`) and `ovms.env.OVMS_CACHE_SIZE_GB` the same way. Restart the OVMS pod after changing them.
 
 ## 4K/8K Video Ingestion Stalls with a Worker Timeout
 
@@ -459,6 +506,19 @@ The updated cache size is applied to the existing model configuration on the nex
 
 > [!NOTE]
 > Always size the block from the **largest** resolution you will ingest — an oversized block only wastes memory, while an undersized one triggers the failure above. For the full explanation, see the DataPrep [Get Started guide](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/visual-data-preparation-for-retrieval/multimodal-dataprep/docs/user-guide/get-started.md#advanced-tuning).
+
+## Video Embedding Fails with "Pipeline made no progress"
+
+**Problem**: Embedding a video in `--search` or `--dual` mode fails after a few minutes, and the `multimodal-dataprep` logs show `Pipeline made no progress for 300s while ... (MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S=300)`. The video's `searchEmbeddings` is `false`, unless an earlier run already succeeded.
+
+**Cause**: A detection or embedding inference call in DataPrep never returned, usually because of a GPU hang. A stall watchdog fails the ingestion when no pipeline stage makes progress for `MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S` seconds (default `300`), instead of leaving it in progress forever.
+
+**Solution**:
+
+1. Check the host for GPU hang or reset messages with `sudo dmesg | grep -i -E "hang|reset"`, and restart `multimodal-dataprep` to recover the device.
+2. If it recurs, run the affected stage on CPU: set `DATAPREP_DETECTION_DEVICE=CPU` or `DATAPREP_EMBEDDING_DEVICE=CPU` and redeploy.
+3. Raise `MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S` only if slow hardware legitimately needs longer between stages; `0` disables the watchdog. On Helm, set `multimodaldataprep.sdkPipeline.pipelineStallTimeoutS`.
+4. Retry with `POST /manager/videos/search-embeddings/{videoId}`.
 
 ## Accuracy of search results
 

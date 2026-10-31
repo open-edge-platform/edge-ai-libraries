@@ -3,12 +3,45 @@
 ## Common issues
 
 - **Startup fails with “model name must be provided”:** Set `EMBEDDING_MODEL_NAME` before launching Docker (required for both SDK and API modes).
-- **Object detection disabled unexpectedly:** Check logs for YOLOX download failures. Ensure the `YOLOX_MODELS_VOLUME_NAME` volume exists and the host has outbound network access during first run.
+- **Startup fails with "Object detection is enabled but no detection model is configured":** Set `MM_DATAPREP_DETECTION_MODEL_NAME` to a Hugging Face OpenVINO detection model repo (for example `OpenVINO/yolox_s-int8-ov`), or set `MM_DATAPREP_ENABLE_OBJECT_DETECTION=false`. A value outside the `OpenVINO/` namespace fails with "MM_DATAPREP_DETECTION_MODEL_NAME must be a Hugging Face model repo in the 'OpenVINO' namespace (OpenVINO/<repo>), got: ...".
+- **Object detection disabled unexpectedly (`detection_status: "not_loaded"` in `GET /v1/dataprep/health`):** The service keeps running without object crops when the detector cannot initialize; the logs explain why. Common causes:
+  - **Hugging Face download failed** – the selected model is downloaded on first use into `MM_DATAPREP_DETECTION_MODEL_DIR/<repo id>`. Ensure the host can reach `huggingface.co` (set `http_proxy`/`https_proxy`/`no_proxy` behind a proxy) and that the `DETECTION_MODELS_VOLUME_NAME` volume (default `dataprep-detection-models`) exists. For offline hosts, pre-populate the volume with the model's `*.xml`/`*.bin` files (or set `HF_HUB_OFFLINE=1` with a populated cache directory).
+  - **Unknown class in `MM_DATAPREP_DETECTION_CLASSES`** – every listed class must exist in the model's labels, otherwise the log reports "MM_DATAPREP_DETECTION_CLASSES contains classes not provided by <model>: ... Available classes: ...". Hugging Face OpenVINO models use underscores (for example `traffic_light`, `cell_phone`).
+  - **Not a detection model** – the repo must load as an OpenVINO Model API `DetectionModel`; otherwise the log reports "<model> is not an object detection model".
+  - **Unsupported device** – on NPU, check per-model support on the [OpenVINO Supported Models](https://docs.openvino.ai/nightly/documentation/compatibility-and-support/supported-models.html) page and test the model; some architectures return no detections on NPU.
 - **API mode returns 502:** Verify the multimodal embedding service is healthy at `MULTIMODAL_EMBEDDING_ENDPOINT` (see `docker compose -f docker/compose-with-embedding.yaml ps`).
 - **Uploads rejected:** Files larger than 500 MB are not accepted by the FastAPI upload endpoint. Stage the video directly in MinIO and use `/media/process` instead.
 - **GPU acceleration inactive:** Confirm `/dev/dri/*` is mapped into the container, set the relevant device variable (`MM_DATAPREP_EMBEDDING_DEVICE` or `MM_DATAPREP_DETECTION_DEVICE`) to `GPU`, and keep `MM_DATAPREP_USE_OPENVINO=true`.
 - **NPU acceleration inactive:** Confirm `/dev/accel/accel0` is available on the host and mapped into the container, set the relevant device variable (`MM_DATAPREP_EMBEDDING_DEVICE` or `MM_DATAPREP_DETECTION_DEVICE`) to `NPU`, and keep `MM_DATAPREP_USE_OPENVINO=true`. Verify the selected model supports NPU inference via the [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page.
 - **First NPU run is slow (one-time model compilation):** The first time a model runs on NPU, OpenVINO compiles it to an NPU-specific blob, which takes noticeably longer than CPU/GPU startup. This is expected and happens once per model/configuration. The compiled blob is cached on the `OV_MODELS_DIR` mount (default `/app/ov_models`), so subsequent runs reuse it and start quickly — persist this volume to retain the cache across container restarts.
+
+## Ingestion fails with "Pipeline made no progress"
+
+**Symptom.** A video ingestion request, or a batch job item, fails with an error such as:
+
+```text
+Pipeline made no progress for 300s while waiting for detection/embedding/storage
+to finish (MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S=300). A detection or embedding inference
+call is likely hung (for example a GPU hang); check device health or run
+detection/embedding on CPU.
+```
+
+**Why it happens.** A stall watchdog fails the job when no pipeline stage hands
+an item to the next one for `MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S` seconds
+(default `300`). This usually means a detection or embedding inference call
+never returned, for example after a GPU hang. Without the watchdog the job would
+stay `running` forever.
+
+**Fix.**
+
+- Check the accelerator: look for GPU hang or reset messages in `dmesg`, and
+  restart the container to recover the device.
+- If it keeps happening on one device, run the affected stage on CPU with
+  `MM_DATAPREP_DETECTION_DEVICE=CPU` or `MM_DATAPREP_EMBEDDING_DEVICE=CPU`.
+- If very slow hardware legitimately needs longer between stages, raise
+  `MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S`. `0` disables the watchdog.
+
+Retry the ingestion after the fix.
 
 ## 4K/8K frames overflow the shared-memory block (worker timeout)
 

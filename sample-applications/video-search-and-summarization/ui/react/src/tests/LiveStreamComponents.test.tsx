@@ -62,7 +62,6 @@ const makeStream = (overrides: Partial<LiveStream> = {}): LiveStream => ({
   state: LiveStreamState.RUNNING,
   frame_interval: 15,
   enable_object_detection: false,
-  detection_confidence: 0.5,
   tags: ['lobby'],
   stats: {
     frames_processed: 1234,
@@ -281,9 +280,9 @@ describe('StreamFormModal', () => {
   });
 
   // These must match multimodal-dataprep's FRAME_INTERVAL / ENABLE_OBJECT_DETECTION
-  // / DETECTION_CONFIDENCE defaults. The form always sends them, so a mismatch
-  // silently overrides the service's own configuration.
-  it('submits the service default frame interval and detection confidence', async () => {
+  // defaults. The form always sends them, so a mismatch silently overrides the
+  // service's own configuration. The detection threshold is a service setting.
+  it('submits the service default frame interval and no detection confidence', async () => {
     mockCreateStream.mockResolvedValue(makeStream());
 
     wrap(<StreamFormModal open onClose={vi.fn()} />);
@@ -296,7 +295,8 @@ describe('StreamFormModal', () => {
     await waitFor(() => expect(mockCreateStream).toHaveBeenCalled());
     const payload = mockCreateStream.mock.calls[0][0];
     expect(payload.frame_interval).toBe(15);
-    expect(payload.detection_confidence).toBe(0.85);
+    expect(payload.enable_object_detection).toBe(true);
+    expect('detection_confidence' in payload).toBe(false);
   });
 
   it('keeps the frame interval field blank when cleared instead of snapping to a default', () => {

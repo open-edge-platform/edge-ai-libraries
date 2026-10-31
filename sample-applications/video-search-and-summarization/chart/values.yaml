@@ -56,10 +56,10 @@ global:
   modelDownload:
     image:
       repository: intel/model-download
-      tag: "2026.2.0-ww30"
+      tag: "latest"
       pullPolicy: IfNotPresent
     # OVMS release tag whose export_model.py the openvino plugin uses.
-    ovmsReleaseTag: "v2026.1"
+    ovmsReleaseTag: "v2026.4.1"
 
   # Per-service device configuration
   # Each service independently configures its accelerator needs
@@ -81,7 +81,7 @@ global:
     # OVMS - per-model device selection (supports split-device configs)
     ovms:
       vlm:
-        device: CPU # CPU | GPU | NPU | HETERO:GPU,CPU
+        device: CPU # CPU | GPU | HETERO:GPU,CPU (NPU is not supported for the VLM)
         key: "" # K8s resource key for GPU/NPU
       llm:
         device: CPU # CPU | GPU | NPU | HETERO:GPU,CPU
@@ -177,12 +177,16 @@ pipelinemanager:
     VLM_CAPTIONING_API: ""
     VLM_CAPTIONING_DEVICE: "CPU"
     LLM_CONCURRENT: "2"
-    VLM_CONCURRENT: "4"
+    VLM_CONCURRENT: "6"
     TICK_INTERVAL_MS: "5000" # EVAM uses TICK
     FAST_TICK_INTERVAL_MS: "2000" # VLM/LLM uses FAST_TICK
-    SUMMARIZATION_MAX_COMPLETION_TOKENS: "4000"
+    # Final-summary max completion tokens. Empty = 4000, or OVMS_NPU_MIN_RESPONSE_LEN
+    # when the OVMS LLM runs on NPU.
+    SUMMARIZATION_MAX_COMPLETION_TOKENS: ""
     CAPTIONING_MAX_COMPLETION_TOKENS: "1024"
-    MAX_CONTEXT_LENGTH: "90000"
+    # LLM input budget in characters per summarization prompt. Empty = 90000, or
+    # (OVMS_NPU_MAX_PROMPT_LEN - 256) * 2 when the OVMS LLM runs on NPU.
+    MAX_CONTEXT_LENGTH: ""
     LLM_MODEL_API: "v1/config"
     VLM_MODEL_API: "v1/config"
     MULTI_FRAME_COUNT: "12"
@@ -194,9 +198,15 @@ pipelinemanager:
     SUMMARY_FEATURE: "FEATURE_OFF"
     SEARCH_FEATURE: "FEATURE_OFF"
     SEARCH_DATAPREP_TIMEOUT_MS: "600000"
+    # Externally reachable gateway URL (e.g. https://vss.example.com) used in
+    # links Pipeline Manager returns. Empty: derived from request headers.
+    PM_PUBLIC_BASE_URL: ""
     SEARCH_DATAPREP_POLL_MAX_RETRIES: "3"
     SEARCH_DATAPREP_POLL_TIMEOUT_MS: "10000"
     SEARCH_DATAPREP_POLL_RETRY_DELAY_MS: "500"
+    # Default minimum peak score for searches (0-1). 0 disables the filter;
+    # the UI and API can set a per-query value.
+    SEARCH_MIN_PEAK_SCORE: "0"
   nodeSelector: {}
   affinity: {}
   tolerations: []
@@ -231,6 +241,19 @@ ovms:
   env:
     LLM_TARGET_DEVICE: ""
     VLM_TARGET_DEVICE: ""
+    # OVMS graph.pbtxt tuning applied by the model-download init containers, both
+    # to new downloads and to models already on the volume. Same meaning as the
+    # setup.sh variables of the same name.
+    # max_num_seqs: empty = 16; keep >= pipelinemanager VLM_CONCURRENT + LLM_CONCURRENT.
+    OVMS_MAX_NUM_SEQS: ""
+    # KV cache size in GB: empty = model-download default (0, dynamic allocation).
+    OVMS_CACHE_SIZE_GB: ""
+    # NPU LLM static token limits written to graph.pbtxt plugin_config when the
+    # OVMS LLM device is NPU (OVMS defaults 1024/128). Empty = 8192 / 1024. The
+    # LLM on NPU must be a text-only model (a VLM-type model fails the init
+    # container). Same meaning as the setup.sh variables of the same name.
+    OVMS_NPU_MAX_PROMPT_LEN: ""
+    OVMS_NPU_MIN_RESPONSE_LEN: ""
 
 vllm:
   enabled: false
@@ -326,7 +349,7 @@ metricsmanager:
   coLocateWithDataPrep: true
   image:
     repository: intel/metrics-manager
-    tag: "2026.2.0-20260715-weekly"
+    tag: "2026.2.0"
     pullPolicy: IfNotPresent
 
 # VSS UI subchart alias conditions. Detailed defaults come from subchart/vss-ui/values.yaml.

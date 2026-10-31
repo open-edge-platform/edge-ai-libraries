@@ -28,6 +28,16 @@ data:
   #   MODEL_NAME    HuggingFace model id
   #   WEIGHT_FORMAT Compression precision, e.g. "int8" or "int4"
   #   DEVICE        Target device in lowercase, e.g. "cpu", "gpu" or "hetero:gpu,cpu"
+  #   MAX_NUM_SEQS  OVMS max_num_seqs for graph.pbtxt (positive integer)
+  #   CACHE_SIZE_GB OVMS KV cache size in GB for graph.pbtxt; empty keeps the
+  #                 model-download default
+  #   NPU_MAX_PROMPT_LEN / NPU_MIN_RESPONSE_LEN
+  #                 NPU LLM token limits written to graph.pbtxt plugin_config
+  #                 when DEVICE is "npu" and the model is text-only
+  #   SERVES_LLM    "true" when this model serves the final-summary LLM role; a
+  #                 vision-language model in that role on NPU fails the container
+  # These values are also patched into graph.pbtxt of an already-present model,
+  # so changing them only needs a pod restart, not a re-download.
   # ---------------------------------------------------------------------------
   download-ovms-model.sh: |-
     #!/bin/sh
@@ -40,16 +50,89 @@ data:
     # re.sub(r"[^A-Za-z0-9._-]+", "_", device)), e.g. hetero:gpu,cpu -> hetero_gpu_cpu.
     DEVICE_DIR=$(echo "${DEVICE}" | sed 's/[^A-Za-z0-9._-]\{1,\}/_/g')
     MODEL_DIR="/opt/models/ovms/openvino_models/${DEVICE_DIR}/${WEIGHT_FORMAT}/${MODEL_NAME}"
+    GRAPH="${MODEL_DIR}/graph.pbtxt"
+
+    # Rewrite max_num_seqs / cache_size in graph.pbtxt when they differ (mirrors
+    # setup.sh finalize_ovms_model).
+    patch_graph() {
+      [ -f "${GRAPH}" ] || return 0
+      if [ -n "${MAX_NUM_SEQS}" ] && grep -Eq 'max_num_seqs:[[:space:]]*[0-9]+' "${GRAPH}" \
+          && ! grep -Eq "max_num_seqs:[[:space:]]*${MAX_NUM_SEQS}([^0-9]|\$)" "${GRAPH}"; then
+        sed -i -E "s/max_num_seqs:[[:space:]]*[0-9]+/max_num_seqs: ${MAX_NUM_SEQS}/" "${GRAPH}"
+        echo "${LABEL}: set max_num_seqs to ${MAX_NUM_SEQS} in graph.pbtxt"
+      fi
+      if [ -n "${CACHE_SIZE_GB}" ] && grep -Eq 'cache_size:[[:space:]]*[0-9]+' "${GRAPH}" \
+          && ! grep -Eq "cache_size:[[:space:]]*${CACHE_SIZE_GB}([^0-9]|\$)" "${GRAPH}"; then
+        sed -i -E "s/cache_size:[[:space:]]*[0-9]+/cache_size: ${CACHE_SIZE_GB}/" "${GRAPH}"
+        echo "${LABEL}: set cache_size to ${CACHE_SIZE_GB} GB in graph.pbtxt"
+      fi
+      patch_npu_limits
+    }
+
+    # NPU stateful LLM servables compile a fixed prompt/response length (OVMS
+    # defaults 1024/128); OVMS reads only the top-level plugin_config keys.
+    # Raising them breaks NPU VLM servables, so a vision-language model cannot
+    # serve the LLM role on NPU. Mirrors setup.sh finalize_ovms_model.
+    patch_npu_limits() {
+      [ "${DEVICE}" = "npu" ] || return 0
+      if [ -f "${MODEL_DIR}/openvino_vision_embeddings_model.xml" ]; then
+        if [ "${SERVES_LLM}" = "true" ]; then
+          echo "ERROR: LLM device NPU needs a text-only LLM, but ${MODEL_NAME} is a vision-language model."
+          echo "Set global.llmName to a text-only model (an NPU-optimized OpenVINO/*-cw-* repo) or use a GPU/CPU LLM device."
+          exit 1
+        fi
+        return 0
+      fi
+      python3 - "${GRAPH}" "${NPU_MAX_PROMPT_LEN:-8192}" "${NPU_MIN_RESPONSE_LEN:-1024}" "${LABEL}" <<'PY'
+    import json, re, sys
+    path, label = sys.argv[1], sys.argv[4]
+    limits = {"MAX_PROMPT_LEN": int(sys.argv[2]), "MIN_RESPONSE_LEN": int(sys.argv[3])}
+    text = open(path).read()
+    match = re.search(r"plugin_config:\s*'([^']*)'", text)
+    if not match:
+        sys.exit(f"ERROR: plugin_config not found in {path}")
+    current = json.loads(match.group(1) or "{}")
+    updated = json.loads(json.dumps(current))
+    updated.update(limits)
+    npu_props = updated.get("DEVICE_PROPERTIES", {}).get("NPU")
+    if isinstance(npu_props, dict):
+        npu_props.update(limits)
+    if updated != current:
+        with open(path, "w") as f:
+            f.write(text[:match.start(1)] + json.dumps(updated, separators=(", ", ": ")) + text[match.end(1):])
+        print(f"{label}: set NPU MAX_PROMPT_LEN={limits['MAX_PROMPT_LEN']}, MIN_RESPONSE_LEN={limits['MIN_RESPONSE_LEN']} in graph.pbtxt")
+    PY
+    }
 
     # Skip if already converted (export_model.py places files directly at MODEL_DIR).
     # MediaPipe/GenAI graphs are not versioned — no /1/ subdirectory is needed.
     if [ -d "${MODEL_DIR}" ] && ls "${MODEL_DIR}"/*.xml >/dev/null 2>&1; then
-      echo "${LABEL} already converted at ${MODEL_DIR}, skipping."
+      echo "${LABEL} already converted at ${MODEL_DIR}, skipping download."
+      patch_graph
       exit 0
     fi
 
+    # model-download pulls an OpenVINO/* repo only when its "cw" marker (NPU channel-wise
+    # int4) matches the device; otherwise it falls back to a conversion that cannot
+    # re-export OpenVINO/* repos (mirrors setup.sh check_openvino_repo_device).
+    case "${MODEL_NAME}" in
+      OpenVINO/*)
+        SHORT_NAME=$(echo "${MODEL_NAME##*/}" | tr '[:upper:]' '[:lower:]')
+        DEVICE_CHECK=$(echo "${DEVICE}" | tr '[:lower:]' '[:upper:]')
+        case "${SHORT_NAME}" in *cw*) IS_CW=true ;; *) IS_CW=false ;; esac
+        if [ "${DEVICE_CHECK}" = "NPU" ] && [ "${IS_CW}" = false ]; then
+          echo "ERROR: ${MODEL_NAME} cannot be downloaded for NPU. For OpenVINO/* repos on NPU, model-download only pulls NPU-optimized channel-wise repos (name contains '-cw-')."
+          exit 1
+        fi
+        if [ "${DEVICE_CHECK}" != "NPU" ] && [ "${IS_CW}" = true ]; then
+          echo "ERROR: ${MODEL_NAME} is an NPU-optimized channel-wise repo and cannot be downloaded for ${DEVICE_CHECK}. Use the same model without '-cw-', or target NPU."
+          exit 1
+        fi
+        ;;
+    esac
+
     # Start the model-download service (openvino plugin handles download + conversion)
-    /opt/entrypoint.sh --plugins "huggingface,openvino" &
+    /opt/entrypoint.sh --plugins "openvino" &
     SVC_PID=$!
 
     echo "Waiting for model-download service..."
@@ -63,9 +146,13 @@ data:
 
     # Config expects precision (lowercase) and device (uppercase) in the nested config object.
     DEVICE_UPPER=$(echo "$DEVICE" | tr '[:lower:]' '[:upper:]')
+    EXTRA_CONFIG=""
+    [ -n "${MAX_NUM_SEQS}" ] && EXTRA_CONFIG="${EXTRA_CONFIG},\"max_num_seqs\":${MAX_NUM_SEQS}"
+    [ -n "${CACHE_SIZE_GB}" ] && EXTRA_CONFIG="${EXTRA_CONFIG},\"cache_size\":${CACHE_SIZE_GB}"
+    [ "${MODEL_TYPE}" = "vlm" ] && EXTRA_CONFIG="${EXTRA_CONFIG},\"pipeline_type\":\"VLM_CB\""
     RESP=$(curl -sf -X POST "${BASE_URL}/models/download?download_path=ovms" \
       -H "Content-Type: application/json" \
-      -d "{\"models\":[{\"name\":\"${MODEL_NAME}\",\"hub\":\"openvino\",\"type\":\"${MODEL_TYPE}\",\"is_ovms\":true,\"config\":{\"precision\":\"${WEIGHT_FORMAT}\",\"device\":\"${DEVICE_UPPER}\"}}]}")
+      -d "{\"models\":[{\"name\":\"${MODEL_NAME}\",\"hub\":\"openvino\",\"type\":\"${MODEL_TYPE}\",\"is_ovms\":true,\"config\":{\"precision\":\"${WEIGHT_FORMAT}\",\"device\":\"${DEVICE_UPPER}\"${EXTRA_CONFIG}}}]}")
     JOB_ID=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin)['job_ids'][0])")
     echo "Job: ${JOB_ID}"
 
@@ -85,13 +172,17 @@ data:
     kill "$SVC_PID" 2>/dev/null || true
     wait "$SVC_PID" 2>/dev/null || true
 
+    # Conversion maps max_num_seqs/cache_size to export flags; pull mode writes
+    # them from its template. Patch anyway so graph.pbtxt always matches.
+    patch_graph
+
   # ---------------------------------------------------------------------------
   # download-od-model.sh
 
   # Downloads an object-detection model via the ultralytics hub (no conversion).
   #
   # Required env vars (set by video-ingestion deployment init container):
-  #   MODEL_NAME    Ultralytics model id, e.g. "yolov8l"
+  #   MODEL_NAME    Ultralytics model id
   # ---------------------------------------------------------------------------
   download-od-model.sh: |-
     #!/bin/sh

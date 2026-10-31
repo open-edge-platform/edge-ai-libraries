@@ -16,7 +16,7 @@ export interface Video {
   updatedAt: string;
   summaries?: string[];
   textEmbeddings?: boolean;
-  videoEmbeddings?: boolean;
+  searchEmbeddings?: boolean;
   dataStore?: VideoDatastoreInfo;
 }
 
@@ -36,5 +36,9 @@ export interface SearchEmbeddingsDTO {
 
 export interface SearchEmbeddingsBatchDTO {
   videoIds: string[];
+  tags?: string;
+}
+
+export interface CopyVideoDTO {
   tags?: string;
 }

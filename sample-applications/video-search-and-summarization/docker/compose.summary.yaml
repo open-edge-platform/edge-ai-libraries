@@ -5,9 +5,6 @@
 services:
   pipeline-manager:
     depends_on:
-      ovms-service:
-        condition: service_healthy
-        required: false  # ignored when vllm profile is active (e.g. ENABLE_VLLM=true)
       video-ingestion:
         condition: service_healthy
       rabbitmq-service:
@@ -51,7 +48,7 @@ services:
       WORKERS: ${WORKERS:-1}
 
   ovms-service:
-    image: openvino/model_server:2026.1
+    image: openvino/model_server:2026.4.1
     profiles:
       - ovms
     environment:

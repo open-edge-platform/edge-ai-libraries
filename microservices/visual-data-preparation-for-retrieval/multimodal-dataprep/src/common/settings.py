@@ -89,9 +89,6 @@ class Settings(BaseSettings):
             return value
         return str(value).strip().lower()
 
-    METADATA_FILENAME: str = "metadata.json"
-    CONFIG_FILEPATH: Path = Path(__file__).resolve().parent.parent / "config.yaml"
-
     # When False, an upload whose byte content is identical to a previously
     # ingested video is rejected with 409 Conflict. When True (default), such
     # re-uploads are accepted (historical behavior). Read from env
@@ -403,6 +400,16 @@ class Settings(BaseSettings):
         gt=0,
         description="Queue get timeout in seconds for pipeline workers",
     )
+    PIPELINE_STALL_TIMEOUT_S: float = Field(
+        default=300.0,
+        ge=0,
+        description=(
+            "Fail a video pipeline when no stage hands an item to the next one for "
+            "this many seconds while the pipeline is waiting on them (e.g. a "
+            "detection or embedding inference wedged by a GPU hang). Without it the "
+            "job stays 'running' forever. 0 disables the watchdog."
+        ),
+    )
     VIDEO_SHM_ACQUIRE_TIMEOUT_S: float = Field(
         default=30.0,
         gt=0,
@@ -436,8 +443,16 @@ class Settings(BaseSettings):
     FRAME_INTERVAL: int = 15
     ENABLE_OBJECT_DETECTION: bool = True
     DETECTION_CONFIDENCE: float = 0.85
-    DETECTION_MODEL_DIR: str = "/app/models/yolox"  # Directory for object detection models
+    # Download/cache directory for object detection models
+    DETECTION_MODEL_DIR: str = "/app/models/object-detection"
+    # Hugging Face OpenVINO detection model repo (OpenVINO/<repo>).
+    # Required when object detection is enabled.
+    DETECTION_MODEL_NAME: str | None = None
+    # Optional comma-separated class names to keep (e.g. "person,car"); empty keeps all.
+    DETECTION_CLASSES: str | None = None
     FRAMES_TEMP_DIR: str = "/tmp/dataprep"  # Must match Docker volume mount for shared access
+    VIDEOS_TEMP_DIR: str = "/tmp/dataprep/videos"
+    METADATA_TEMP_DIR: str = "/tmp/dataprep/metadata"
     ROI_CONSOLIDATION_ENABLED: bool | None = None
     ROI_CONSOLIDATION_IOU_THRESHOLD: float | None = None
     ROI_CONSOLIDATION_CLASS_AWARE: bool | None = None
@@ -455,19 +470,6 @@ class Settings(BaseSettings):
         gt=0,
         description="Timeout for a single Metrics Manager publish attempt.",
     )
-
-    # Allow environment override for bucket name (useful for different deployments)
-    # If MM_DATAPREP_PM_MINIO_BUCKET is set (from sample app), use that; otherwise
-    # fall back to the MM_DATAPREP_DEFAULT_BUCKET_NAME / DEFAULT_BUCKET_NAME setting.
-    @property
-    def effective_bucket_name(self) -> str:
-        """Get the effective bucket name, checking environment variables first"""
-        import os
-
-        return os.getenv(
-            "MM_DATAPREP_PM_MINIO_BUCKET",
-            os.getenv("MM_DATAPREP_DEFAULT_BUCKET_NAME", self.DEFAULT_BUCKET_NAME),
-        )
 
     @field_validator("MAX_PARALLEL_WORKERS", mode="before")
     @classmethod
