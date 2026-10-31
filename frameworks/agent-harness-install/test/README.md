@@ -34,7 +34,8 @@ bash test/openshell-test.sh | tee openshell-offline.tap
 
 The command above retains the all-in-one local behavior. In CI, named steps
 run each suite once: the core suite uses `HARNESS_TEST_SKIP_NESTED=1` (70 direct
-cases), followed by managed inference (33), lifecycle/CLI (40), and model
+cases), followed by managed inference (33), lifecycle/CLI (40), telemetry (33),
+and model
 defaults (9 registered cases; two Hermes-runtime skips on the host). A separate
 TAP-reporting regression step validates the reporting helper itself.
 
@@ -58,6 +59,7 @@ reported separately and are not counted as test cases.
 | Managed inference | OpenShell Qwen3.5 default and snapshot exporter, native OVMS graph generation, host compatibility, explicit overrides, persisted selection, fresh-only provisioning, partial deployment refusal, managed OVMS readiness/network/publication, both proxy bypass variables |
 | Model lifecycle | Source/export option roundtrip, coordinated two-agent switch, original environment overridden after restart, token/history preservation, pending-switch retry and conflict rejection, legacy-image preflight, full/scoped uninstall and OpenShell package ownership safeguards |
 | Local-model defaults | Exact Qwen context/output/thinking/sampling/prompt settings, idempotence, explicit overrides and later edits, selection-only isolation, removal on model switch, non-Qwen preservation |
+| Telemetry (`metrics`) | Argument validation, Router `memory`/`file` switching that rewrites only the telemetry block and survives config regeneration, group-writable (not world-writable) telemetry file with rootless-Docker fallback, rotation and `--clean` without following symlinks, Hermes plugin install/enable/disable with marker-gated config, managed Jaeger lifecycle and kept-Jaeger handling, content-capture warnings, deployment-lock dispatch |
 | Interactive agent policy | Interactive policy differs from the base only by sandbox-local `/dev/ptmx` and `/dev/pts` write access; installer selects it for Hermes and Deep Agents Code, while OpenClaw uses the base policy |
 | CLI safety | Help, invalid runtime, missing option values rejected without hanging, host connect rejection, interactive connections without deployment locking, Docker-group reexecution before locking, explicit sandbox deletion consent and host-only deletion flags |
 | Cleanup safeguards | Deletion order, archived records, unowned-resource refusal, pending deletion retaining provider/identity, global runtime removal blocked by sandbox/provider resources across all workspaces and incomplete resource lists |

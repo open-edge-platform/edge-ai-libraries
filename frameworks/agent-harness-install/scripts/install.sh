@@ -11,7 +11,7 @@ set -euo pipefail
 
 # Repo root is one level up from this payload script.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)"
-for lib in colors verify state sudo shim gpu-intel docker-setup nodejs python-setup openvino inference-router agents harness-mcp openshell; do
+for lib in colors verify state sudo shim gpu-intel docker-setup nodejs python-setup openvino inference-router agents harness-mcp metrics openshell; do
   # shellcheck disable=SC1090
   . "${SCRIPT_DIR}/scripts/lib/${lib}.sh"
 done
@@ -30,6 +30,7 @@ usage() {
     ./install.sh models <list|remove> [name]     List or delete exported OpenVINO models
     ./install.sh mcp register <name> <url> [agent]  Register an arbitrary MCP endpoint URL
     ./install.sh skill <install|list|remove> [path|name]  Manage Hermes skills
+    ./install.sh metrics <enable|disable|show> [options]  Manage telemetry for the harness and the Inference Router
     ./install.sh status                          Show agent-harness-install/OVMS/agent health
     ./install.sh onboard                         Re-run onboarding only
     ./install.sh inference --model <model>        Provision shared inference without installing an agent
@@ -59,6 +60,19 @@ usage() {
     --model-precision <int4|int8|fp16|fp32>  Weight precision (default: int8; model-download, docker-pull and export-model-py exporters)
     --model-device <CPU|GPU|NPU|HETERO:…>    Conversion target device (model-download exporter; default: CPU)
     --help, -h                        Show this help message and exit
+
+  Metrics options (./install.sh metrics ...):
+    --target <harness|router|all>      Block to act on (default: all); accepted by enable, disable and show
+    --backend <sqlite|jaeger|otlp>     enable only; where the harness (Hermes + hermes-otel) sends telemetry. sqlite = local store
+                                       only (default); jaeger = managed loopback Jaeger container, or --endpoint; otlp needs --endpoint
+    --endpoint <url>                   enable only; OTLP/HTTP traces URL for jaeger/otlp, e.g. http://host:4318/v1/traces
+    --content <off|preview|full>       enable only; how much prompt/response text the plugin records (default: off)
+    --clean                            disable only; also delete the collected data (Router telemetry.jsonl, Hermes local store,
+                                       and the managed Jaeger with its traces)
+    --keep-jaeger                      disable only; keep the managed Jaeger container (and its traces) running
+    show prints a CLI summary (Router requests/tokens/latency per model; Hermes local-store span summary) and the Jaeger UI
+    URL when Jaeger is the backend; Jaeger gives the full trace view.
+    Router telemetry is persisted as a JSONL file and readable via /v1/metrics. Hermes only; not available in OpenShell sandboxes.
 
   Environment:
     HARNESS_AGENT               openclaw | deepagents-code | hermes (default: openclaw)
@@ -108,6 +122,11 @@ usage() {
     HARNESS_IR_PROVIDER_TYPE       LiteLLM provider-type prefix for the Router's provider entry (default: hosted_vllm)
     HARNESS_IR_ROUTING_POLICY      Balanced (default, only supported value today) | Intelligent — see Known limitations (Intelligent needs a classifier model this installer does not yet provision)
     HERMES_CONFIG                  Path to Hermes's config.yaml (default: ~/.hermes/config.yaml)
+    HARNESS_HERMES_OTEL_PLUGIN     Plugin reference for `hermes plugins install` (default: hermes_otel, the commit pinned in Hermes's plugin catalog)
+    HARNESS_HERMES_OTEL_REF        Pin the plugin install to this full 40-character commit SHA (`--ref`; default: unset)
+    HARNESS_IR_TELEMETRY_MAX_BYTES  Rotate the Router's telemetry.jsonl to telemetry.jsonl.1 at install/enable above this size (default: 20971520; 0 = never)
+    HARNESS_IR_TELEMETRY_FILE_MODE  664 (default; Router joins your primary group) | 666 (world-writable; for rootless Docker)
+    HARNESS_JAEGER_IMAGE, HARNESS_JAEGER_CONTAINER, HARNESS_JAEGER_UI_PORT, HARNESS_JAEGER_OTLP_PORT  Managed Jaeger for `metrics enable --backend jaeger` (default: jaegertracing/all-in-one:1.76.0, 16686, 4318; loopback only)
     HARNESS_MCP_REGISTER_CMD       Script to register an MCP endpoint with a non-Hermes agent
     HARNESS_ADVERTISED_HOST       Host/IP printed in endpoint URLs (default: 127.0.0.1)
     HARNESS_BIND_HOST             Address Docker binds published ports to (default: same as HARNESS_ADVERTISED_HOST)
@@ -455,12 +474,24 @@ main() {
   case "${positional[0]:-}" in
     # Interactive connections must not hold a deployment-wide lock for a chat.
     status | connect) run_installer_command "${positional[@]}" ;;
+    # Read-only: like status, it must work while a long install holds the lock.
+    metrics) if [[ "${positional[1]:-}" == show ]]; then
+        run_installer_command "${positional[@]}"
+      else
+        with_deployment_lock run_installer_command "${positional[@]}"
+      fi ;;
     *) with_deployment_lock run_installer_command "${positional[@]}" ;;
   esac
 }
 
 run_installer_command() {
   local -a positional=("$@")
+  # Handled before the OpenShell branch: the Router is shared host infrastructure
+  # and the harness check reports why a sandbox cannot be instrumented.
+  if [[ "${positional[0]:-}" == "metrics" ]]; then
+    run_metrics_command "${positional[@]:1}"
+    exit 0
+  fi
   if [[ "${HARNESS_RUNTIME:-host}" == "openshell" ]]; then
     case "${positional[0]:-}" in
       status) status_openshell_agent; exit 0 ;;

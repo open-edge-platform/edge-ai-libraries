@@ -286,7 +286,7 @@ complete_uninstall() {
   uninstall_fixture
   (main --runtime openshell --yes)
   [[ ! -e "$HARNESS_MODELS_DIR" && ! -e "$(harness_state_root)" ]]
-  cmp "$ACTIONS" <(printf 'sandboxes\nruntime\ncontainer %s\ncontainer %s\nnetwork\n' "$HARNESS_IR_CONTAINER" "$HARNESS_OVMS_CONTAINER")
+  cmp "$ACTIONS" <(printf 'sandboxes\nruntime\ncontainer %s\ncontainer %s\ncontainer %s\nnetwork\n' "$HARNESS_IR_CONTAINER" "$HARNESS_JAEGER_CONTAINER" "$HARNESS_OVMS_CONTAINER")
 }
 failed_uninstall() {
   uninstall_fixture

@@ -41,6 +41,7 @@ counts must not be added to the outer count as independent top-level results.
 | Startup, runtime, profiles, boundaries, removal and nested suites | `bash test/openshell-test.sh` | 73, including three nested-suite wrappers |
 | Model selection and managed inference | `bash test/managed-inference-test.sh` | 33 |
 | Model lifecycle, cleanup and CLI locking | `bash test/model-lifecycle-test.sh` | 40 |
+| Telemetry (`metrics enable\|disable\|show`) | `bash test/metrics-test.sh` | 33 |
 | Agent model defaults | `node --test test/model-defaults-test.mjs` | 9; two require the Hermes image runtime |
 
 The Bash runners execute their registered cases in order; they do not currently
@@ -62,7 +63,7 @@ Both relevant PRs and relevant pushes to `main` run the same offline coverage in
 the [quality-gates workflow](../../../.github/workflows/agent-harness-openshell.yml).
 CI separates the suites into named steps and TAP artifacts rather than invoking
 the nested wrappers: `HARNESS_TEST_SKIP_NESTED=1 bash test/openshell-test.sh`
-runs the 70 direct cases; the other three suites run once in their own steps.
+runs the 70 direct cases; the other four suites run once in their own steps.
 The all-in-one local command still runs 73 outer registrations as documented
 above. CI additionally runs the reporting-helper tests described below.
 CI triggers, syntax checks and prepared-runner instructions are described in
@@ -272,6 +273,50 @@ real sandbox operations.
 | `missing_option_values_fail_promptly` | Missing CLI values | Fail within the timeout with intended diagnostics rather than hang. |
 | `connect_works_while_deployment_is_locked` | Connections during mutation | Connect to different agent fixtures while another process holds the deployment lock. |
 | `group_refresh_precedes_deployment_lock` | Docker-group reexecution | Preserve arguments and refresh permissions before lock acquisition; verify the replacement mutation holds the lock. |
+
+## Telemetry (`metrics`)
+
+Source and execution: [metrics-test.sh](metrics-test.sh), `bash test/metrics-test.sh`.
+Docker and the Hermes CLI are replaced by shell functions and every case uses a
+temporary HOME, so nothing touches the host. These cases do not prove that a
+real Router container can write its telemetry file, that the Hermes plugin
+exports spans, or that Jaeger displays them; those need a live deployment.
+
+| Case reference | Test case | Objective / expected result |
+|---|---|---|
+| `parse_defaults` | Flag defaults and forms | Default to `--target all`, `sqlite` and content `off`; accept `--flag value` and `--flag=value`. |
+| `parse_rejections` | Invalid, unsafe and misplaced arguments | Reject bad targets, backends, content modes, endpoints with credentials or a query string, out-of-range ports, repeated and valueless flags. |
+| `router_toggle` | Router enable/disable | Rewrite only the telemetry block, create the JSONL file and restart the Router. |
+| `router_setting_survives_config_regeneration` | Config regeneration | Keep the chosen Router telemetry backend when the installer rewrites `config.yaml`. |
+| `router_without_config_defers` | No generated Router config yet | Record the choice and defer it to the next install without restarting anything. |
+| `router_rewrite_keeps_blocks_after_telemetry` | Blocks after `telemetry:` | Preserve configuration that follows the telemetry block. |
+| `harness_enable_disable` | Hermes plugin lifecycle | Install and enable the plugin, write the managed config and state, then disable and remove the config. |
+| `harness_managed_jaeger` | Managed Jaeger | Start, reuse and remove the loopback-only container when no `--endpoint` is given. |
+| `harness_refuses_foreign_config` | Unmanaged `hermes_otel.yaml` | Refuse to overwrite a file this installer did not write. |
+| `jaeger_port_mismatch_is_rejected` | Existing Jaeger with other ports | Fail instead of reusing a container that does not publish the configured ports. |
+| `plugin_source_is_validated` | Plugin reference | Accept a catalog name or `owner/repo[/plugin]`; reject anything else. |
+| `plugin_ref_pins_the_install` | Exact-commit pin | Accept only a full lowercase 40-character SHA and pass it to the plugin install as `--ref`. |
+| `router_file_is_not_world_writable` | Telemetry file mode | Use group-writable 664 (666 only when requested or running as root) and reject other modes. |
+| `router_enable_rejects_a_container_without_the_group` | Router created by an older installer | Fail before changing state when the container lacks the group needed to write the file. |
+| `all_target_fails_before_touching_the_harness` | `--target all` ordering | Check the Router first so a failure leaves the harness unchanged. |
+| `host_gid_ignores_a_switched_primary_group` | Group id source | Use the account's primary group, not the current effective group after a re-run under another group. |
+| `remapped_docker_warns_about_the_664_file` | Rootless or remapped Docker | Warn that the 664 file may not be writable; stay silent for 666 and normal Docker. |
+| `router_file_is_rotated_when_large` | Rotation and cleaning | Rotate once above the size limit, keep one generation at mode 600, treat leading zeros as decimal, reject oversize values, remove the rotated file on `--clean` and never follow a symlink. |
+| `sqlite_warns_about_exporter_env` | Stray exporter variables | Warn that exporter variables in the shell may export traces despite `--backend sqlite`. |
+| `router_state_reverts_when_rewrite_fails` | Failed config rewrite | Restore the previous saved state. |
+| `unsupported_harness_is_reported` | Non-Hermes agent or OpenShell | Skip the harness with a reason while still applying the Router for `--target all`. |
+| `dispatch` | Deployment locking | Skip the lock for `show`; take it for `enable` and `disable`, in any runtime. |
+| `enable_keeps_saved_harness_settings` | Re-running `enable` | Keep saved backend, endpoint and content unless named again. |
+| `foreign_config_fails_before_side_effects` | Foreign config ordering | Fail before starting Jaeger or touching the plugin. |
+| `managed_config_removal_is_marker_gated` | Config removal | Remove only a file that carries the installer's marker. |
+| `parse_disable_options` | `disable` options | Accept `--clean` and `--keep-jaeger`; reject misuse and conflicts. |
+| `router_disable_clean_is_opt_in` | Disable keeps data | Keep the JSONL unless `--clean`, restrict a kept file to mode 600, reopen it on enable and never follow a symlink. |
+| `harness_disable_clean_empties_store` | Hermes local store | Empty the SQLite store in place and summarise it, with control characters removed. Skipped without `python3`. |
+| `harness_keep_jaeger_on_disable` | `--keep-jaeger` | Leave the container running until a later disable. |
+| `kept_jaeger_survives_a_later_enable` | Kept Jaeger and a later enable | Not remove it unless the user switches away from Jaeger. |
+| `clean_failures_are_reported` | Failed `--clean` | Report the failure instead of claiming the data was cleaned. |
+| `content_capture_warns_for_remote_endpoints` | Content capture and endpoint | Warn only when prompt text would leave this machine. |
+| `router_summary_lists_providers` | `show` output | Print totals and a per provider/model breakdown with control characters removed. |
 
 ## Agent model defaults
 
