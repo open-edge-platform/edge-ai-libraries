@@ -1,0 +1,241 @@
+#
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# Combined Docker Compose for DL Streamer Pipeline Server 2.0 + Metrics Manager
+#
+# This compose file runs both dlsps2 and metrics-manager in a single orchestrated stack,
+# enabling real-time metrics collection and monitoring of the video pipeline service.
+#
+# Features:
+#   - DL Streamer Pipeline Server 2.0 (video analytics)
+#   - Metrics Manager (system + custom metrics collection)
+#   - MQTT broker (for pipeline publishers)
+#   - Shared network for inter-service communication
+#   - Prometheus-compatible metrics endpoint
+#   - Server-Sent Events streaming for real-time dashboards
+#
+# Usage:
+#   cd dlsps2/docker
+#   docker compose -f docker-compose-with-metrics.yml up -d
+#   docker compose -f docker-compose-with-metrics.yml logs -f
+#   docker compose -f docker-compose-with-metrics.yml down
+#
+# Environment Configuration:
+#   Copy .env to the current directory (or use existing .env)
+#   All settings from .env will be respected
+#
+# Access Points:
+#   - DL Streamer Pipeline API: http://localhost:8080
+#   - Metrics Manager API:       http://localhost:9090
+#   - Prometheus metrics:         http://localhost:9273/metrics
+#   - Metrics stream (SSE):       http://localhost:9090/metrics/stream
+#   - MQTT broker:                localhost:1883
+#
+
+name: ${PROJECT_NAME:-dlsps2-metrics-stack}
+
+services:
+
+  # ===========================================================================
+  # MQTT Broker (for DL Streamer publishers)
+  # ===========================================================================
+  broker:
+    image: eclipse-mosquitto:latest
+    hostname: mqtt
+    container_name: dlsps2-mqtt-broker
+    read_only: true
+    security_opt:
+      - no-new-privileges
+    volumes:
+      - ./mosquitto:/mosquitto/config:ro
+    ports:
+      - "${MQTT_PORT:-1883}:1883"
+    networks:
+      - app_network
+    restart: unless-stopped
+
+  # ===========================================================================
+  # Metrics Manager - System Metrics + Custom Metrics API
+  # ===========================================================================
+  metrics-manager:
+    image: ${REGISTRY:-}metrics-manager:${METRICS_MANAGER_TAG:-2026.2.0}
+    build:
+      context: ../../metrics-manager
+      dockerfile: Dockerfile
+      args:
+        VERSION: ${METRICS_MANAGER_TAG:-2026.2.0}
+        http_proxy: ${http_proxy:-}
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        https_proxy: ${https_proxy:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+        no_proxy: ${no_proxy:-}
+        NO_PROXY: ${NO_PROXY:-}
+        INSTALL_OPENVINO: ${INSTALL_OPENVINO:-false}
+    hostname: metrics-manager
+    container_name: dlsps2-metrics-manager
+    user: ${METRICS_MANAGER_USER:-0:0}
+
+    # Service configuration via environment
+    environment:
+      # Proxy settings
+      - no_proxy=localhost,127.0.0.1,mqtt,broker,dlstreamer-pipeline-server,${no_proxy:-}
+      - NO_PROXY=localhost,127.0.0.1,mqtt,broker,dlstreamer-pipeline-server,${NO_PROXY:-}
+      - http_proxy=${http_proxy:-}
+      - HTTP_PROXY=${HTTP_PROXY:-}
+      - https_proxy=${https_proxy:-}
+      - HTTPS_PROXY=${HTTPS_PROXY:-}
+
+      # Service endpoints (internal ports are fixed)
+      - METRICS_PORT=9090
+      - TELEGRAF_PORT=9273
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - CORS_ORIGINS=${CORS_ORIGINS:-*}
+
+      # Stable host label for Telegraf
+      - METRICS_MANAGER_HOSTNAME=${METRICS_MANAGER_HOSTNAME:-metrics-manager}
+
+      # Metrics storage configuration
+      - CUSTOM_METRICS_DIR=/app/custom-metrics
+      - TELEGRAF_CONFIG_PATH=/etc/telegraf/telegraf.conf
+      - METRICS_RETENTION_SECONDS=${METRICS_RETENTION_SECONDS:-300}
+      - MAX_METRICS_BATCH_SIZE=${MAX_METRICS_BATCH_SIZE:-1000}
+      - MAX_METRICS_IN_MEMORY=${MAX_METRICS_IN_MEMORY:-100000}
+
+      # Hardware telemetry
+      - HARDWARE_TELEMETRY_ENABLED=${HARDWARE_TELEMETRY_ENABLED:-true}
+
+    # Port mappings
+    ports:
+      - "${HOST_METRICS_PORT:-9090}:9090"         # Metrics API
+      - "${HOST_TELEGRAF_PORT:-9273}:9273"        # Prometheus metrics
+      - "${HOST_TELEGRAF_HTTP_PORT:-8186}:8186"   # Telegraf HTTP listener
+
+    # Hardware access
+    privileged: ${PRIVILEGED:-true}
+    group_add:
+      - ${GPU_RENDER_GID:-992}
+
+    security_opt:
+      - apparmor:unconfined
+
+    devices:
+      - "/dev/dri:/dev/dri"
+
+    # System metrics collection mounts
+    volumes:
+      - /sys:/sys:ro
+      - /run:/run:ro
+      # Optional: custom Telegraf configuration (comment out to use default)
+      # - ./telegraf.conf:/etc/telegraf/telegraf.conf:ro
+
+    networks:
+      - app_network
+
+    restart: unless-stopped
+
+  # ===========================================================================
+  # DL Streamer Pipeline Server 2.0 - Video Analytics Engine
+  # ===========================================================================
+  dlstreamer-pipeline-server:
+    image: ${DLSTREAMER_PIPELINE_SERVER_IMAGE:-dlsps2.0-7}
+    hostname: dlstreamer-pipeline-server
+    container_name: dlsps2-pipeline-server
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        BASE_IMAGE: ${BASE_IMAGE:-ubuntu:22.04}
+        UID: ${UID:-1000}
+        USER: ${PIPELINE_SERVER_USER:-pipeline-server}
+        no_proxy: ${no_proxy}
+        http_proxy: ${http_proxy}
+        https_proxy: ${https_proxy}
+
+    security_opt:
+      - no-new-privileges
+
+    privileged: ${PRIVILEGED:-false}
+
+    tty: true
+    entrypoint: ["./run.sh"]
+
+    ports:
+      - "${REST_SERVER_PORT:-8080}:8080"
+
+    networks:
+      - app_network
+
+    # DL Streamer configuration
+    environment:
+      - REST_SERVER_PORT=8080
+      - APP_LOG_LEVEL=${APP_LOG_LEVEL:-INFO}
+      - WEB_SERVER_LOG_LEVEL=${WEB_SERVER_LOG_LEVEL:-WARNING}
+      - GST_DEBUG=${GST_DEBUG:-1}
+      - ADDITIONAL_GST_PLUGIN_PATH=${ADDITIONAL_GST_PLUGIN_PATH}
+
+      # OpenTelemetry metrics export - send pipeline metrics to Metrics Manager
+      - ENABLE_OPEN_TELEMETRY=${ENABLE_OPEN_TELEMETRY:-true}
+      - SERVICE_NAME=${SERVICE_NAME:-dlstreamer-pipeline-server}
+      - OTEL_COLLECTOR_HOST=${OTEL_COLLECTOR_HOST:-metrics-manager}
+      - OTEL_COLLECTOR_PORT=${OTEL_COLLECTOR_PORT:-9090}
+      - OTEL_COLLECTOR_PATH=${OTEL_COLLECTOR_PATH:-/api/v1/metrics/otlp}
+      - OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:-http/json}
+      - OTEL_EXPORT_INTERVAL_MILLIS=${OTEL_EXPORT_INTERVAL_MILLIS:-10000}
+
+      # MQTT broker for publishers (point to local MQTT service)
+      - MQTT_HOST=${MQTT_HOST:-broker}
+      - MQTT_PORT=${MQTT_PORT:-1883}
+
+      # External services (configure as needed)
+      - OPCUA_SERVER_IP=${OPCUA_SERVER_IP}
+      - OPCUA_SERVER_PORT=${OPCUA_SERVER_PORT}
+      - OPCUA_SERVER_USERNAME=${OPCUA_SERVER_USERNAME}
+      - OPCUA_SERVER_PASSWORD=${OPCUA_SERVER_PASSWORD}
+      - INFLUXDB_HOST=${INFLUXDB_HOST}
+      - INFLUXDB_PORT=${INFLUXDB_PORT}
+      - INFLUXDB_USER=${INFLUXDB_USER}
+      - INFLUXDB_PASS=${INFLUXDB_PASS}
+      - S3_STORAGE_HOST=${S3_STORAGE_HOST}
+      - S3_STORAGE_PORT=${S3_STORAGE_PORT}
+      - S3_STORAGE_USER=${S3_STORAGE_USER}
+      - S3_STORAGE_PASS=${S3_STORAGE_PASS}
+
+      # Proxy configuration (add metrics-manager and mqtt to no_proxy)
+      - http_proxy=${http_proxy}
+      - https_proxy=${https_proxy}
+      - no_proxy=${no_proxy},mqtt,broker,metrics-manager,dlstreamer-pipeline-server
+
+      # NPU support
+      - ZE_ENABLE_ALT_DRIVERS=libze_intel_npu.so
+
+    # Volume mounts
+    volumes:
+      - ../resources:/home/pipeline-server/resources/
+      - /run/udev:/run/udev:ro
+      - /dev:/dev
+
+    # Writable scratch space
+    tmpfs:
+      - /tmp
+      - /var/tmp
+
+    group_add:
+      - "${RENDER_GID:-992}"
+
+    device_cgroup_rules:
+      - 'c 189:* rmw'
+      - 'c 209:* rmw'
+      - 'a 189:* rwm'
+
+    devices:
+      - "/dev:/dev"
+
+    restart: unless-stopped
+
+# ===========================================================================
+# Shared Network
+# ===========================================================================
+networks:
+  app_network:
+    driver: bridge
