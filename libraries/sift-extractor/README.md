@@ -12,6 +12,7 @@ This component is an early development snapshot, not a production release. The c
 - The extrema kernel has been changed to avoid assuming a fixed Intel GPU subgroup width.
 - An independent OpenCL runtime target enumerates platforms and reports device capabilities; no OpenCL SIFT kernels are implemented yet.
 - Context-owned OpenCL Gaussian blur, DoG, 2x downsample, and an incremental octave/scale Gaussian pyramid are covered against CPU references as initial scale-space building blocks.
+- A separate OpenCL 3D DoG extrema-candidate kernel has deterministic interior maximum/minimum and border-exclusion coverage; subpixel refinement and edge rejection are not implemented yet.
 - OpenCL SIFT kernels, matching/geometry API, stable context ownership, Python bindings, packaging, and primary-host SIFT benchmarking remain in progress.
 - Existing source-derived timings and reported CudaSift results are not performance claims for this component.
 

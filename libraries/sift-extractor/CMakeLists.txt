@@ -24,6 +24,7 @@ if(SIFT_ENABLE_OPENCL)
     src/opencl/opencl_device.cpp
     src/opencl/opencl_gaussian_blur.cpp
     src/opencl/opencl_gaussian_pyramid.cpp
+    src/opencl/opencl_extrema.cpp
   )
   target_compile_features(sift_opencl_runtime PUBLIC cxx_std_17)
   target_include_directories(sift_opencl_runtime
@@ -83,6 +84,13 @@ if(SIFT_ENABLE_OPENCL)
     )
     add_test(NAME sift_opencl_runtime.gaussian_pyramid
       COMMAND test_sift_opencl_gaussian_pyramid)
+
+    add_executable(test_sift_opencl_extrema tests/opencl/test_opencl_extrema.cpp)
+    target_include_directories(test_sift_opencl_extrema PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/opencl
+    )
+    target_link_libraries(test_sift_opencl_extrema PRIVATE sift_opencl_runtime)
+    add_test(NAME sift_opencl_runtime.extrema COMMAND test_sift_opencl_extrema)
   endif()
 endif()
 
