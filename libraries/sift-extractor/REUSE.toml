@@ -21,6 +21,10 @@ path = [
     "include/sift_extractor/opencl_device.hpp",
     "src/opencl/opencl_device.cpp",
     "tests/opencl/test_opencl_device.cpp",
+    "src/opencl/opencl_gaussian_blur.cpp",
+    "src/opencl/opencl_gaussian_blur.hpp",
+    "tests/opencl/test_opencl_gaussian_blur.cpp",
+    "tests/opencl/test_opencl_dog.cpp",
 ]
 SPDX-FileCopyrightText = "2026 Intel Corporation"
 SPDX-License-Identifier = "Apache-2.0"

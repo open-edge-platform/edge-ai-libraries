@@ -1,0 +1,395 @@
+#define CL_TARGET_OPENCL_VERSION 120
+
+#include "opencl_gaussian_blur.hpp"
+
+#include <CL/cl.h>
+#include <CL/cl_ext.h>
+
+#include <algorithm>
+#include <cmath>
+#include <limits>
+#include <stdexcept>
+#include <string>
+#include <utility>
+#include <vector>
+
+namespace sift_extractor::detail {
+namespace {
+
+constexpr const char *kernel_source = R"CLC(
+__kernel void gaussian_horizontal(__global const float *source,
+                                  __global float *temporary,
+                                  __global const float *weights,
+                                  const int width, const int height,
+                                  const int radius) {
+  const int x = (int)get_global_id(0);
+  const int y = (int)get_global_id(1);
+  if (x >= width || y >= height)
+    return;
+
+  float sum = 0.0f;
+  for (int offset = -radius; offset <= radius; ++offset) {
+    const int sample_x = clamp(x + offset, 0, width - 1);
+    sum += source[y * width + sample_x] * weights[offset + radius];
+  }
+  temporary[y * width + x] = sum;
+}
+
+__kernel void gaussian_vertical(__global const float *temporary,
+                                __global float *destination,
+                                __global const float *weights,
+                                const int width, const int height,
+                                const int radius) {
+  const int x = (int)get_global_id(0);
+  const int y = (int)get_global_id(1);
+  if (x >= width || y >= height)
+    return;
+
+  float sum = 0.0f;
+  for (int offset = -radius; offset <= radius; ++offset) {
+    const int sample_y = clamp(y + offset, 0, height - 1);
+    sum += temporary[sample_y * width + x] * weights[offset + radius];
+  }
+  destination[y * width + x] = sum;
+}
+
+__kernel void difference_of_gaussians(__global const float *first,
+                                      __global const float *second,
+                                      __global float *destination,
+                                      const int width, const int height) {
+  const int x = (int)get_global_id(0);
+  const int y = (int)get_global_id(1);
+  if (x >= width || y >= height)
+    return;
+  const int index = y * width + x;
+  destination[index] = first[index] - second[index];
+}
+)CLC";
+
+void check_opencl(cl_int status, const char *operation) {
+  if (status != CL_SUCCESS) {
+    throw std::runtime_error(std::string(operation) + " failed with OpenCL status " +
+                             std::to_string(status));
+  }
+}
+
+cl_device_id select_intel_gpu() {
+  cl_uint platform_count = 0;
+  const cl_int platform_status =
+      clGetPlatformIDs(0, nullptr, &platform_count);
+  if (platform_status == CL_PLATFORM_NOT_FOUND_KHR || platform_count == 0)
+    throw std::runtime_error("No OpenCL platforms are available");
+  check_opencl(platform_status, "clGetPlatformIDs(count)");
+
+  std::vector<cl_platform_id> platforms(platform_count);
+  check_opencl(clGetPlatformIDs(platform_count, platforms.data(), nullptr),
+               "clGetPlatformIDs(list)");
+
+  for (cl_platform_id platform : platforms) {
+    size_t vendor_size = 0;
+    if (clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, 0, nullptr,
+                          &vendor_size) != CL_SUCCESS)
+      continue;
+    std::vector<char> vendor(vendor_size);
+    if (clGetPlatformInfo(platform, CL_PLATFORM_VENDOR, vendor.size(),
+                          vendor.data(), nullptr) != CL_SUCCESS)
+      continue;
+    if (std::string(vendor.data()).find("Intel") == std::string::npos)
+      continue;
+
+    cl_uint device_count = 0;
+    const cl_int device_status = clGetDeviceIDs(
+        platform, CL_DEVICE_TYPE_GPU, 0, nullptr, &device_count);
+    if (device_status == CL_DEVICE_NOT_FOUND || device_count == 0)
+      continue;
+    check_opencl(device_status, "clGetDeviceIDs(count)");
+
+    std::vector<cl_device_id> devices(device_count);
+    check_opencl(clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, device_count,
+                                devices.data(), nullptr),
+                 "clGetDeviceIDs(list)");
+    return devices.front();
+  }
+
+  throw std::runtime_error("No Intel OpenCL GPU is available");
+}
+
+cl_mem create_buffer(cl_context context, cl_mem_flags flags, size_t bytes,
+                     void *host_ptr = nullptr) {
+  cl_int status = CL_SUCCESS;
+  cl_mem buffer = clCreateBuffer(context, flags, bytes, host_ptr, &status);
+  check_opencl(status, "clCreateBuffer");
+  return buffer;
+}
+
+} // namespace
+
+struct OpenCLGaussianBlur::Impl {
+  cl_device_id device = nullptr;
+  cl_context context = nullptr;
+  cl_command_queue queue = nullptr;
+  cl_program program = nullptr;
+  cl_kernel horizontal = nullptr;
+  cl_kernel vertical = nullptr;
+  cl_kernel dog = nullptr;
+
+  Impl() {
+    cl_int status = CL_SUCCESS;
+    device = select_intel_gpu();
+    context = clCreateContext(nullptr, 1, &device, nullptr, nullptr, &status);
+    check_opencl(status, "clCreateContext");
+
+    queue = clCreateCommandQueue(context, device, 0, &status);
+    if (status != CL_SUCCESS) {
+      clReleaseContext(context);
+      context = nullptr;
+      check_opencl(status, "clCreateCommandQueue");
+    }
+
+    const size_t source_length = std::char_traits<char>::length(kernel_source);
+    const char *source_pointer = kernel_source;
+    program = clCreateProgramWithSource(context, 1, &source_pointer,
+                                        &source_length, &status);
+    if (status != CL_SUCCESS) {
+      clReleaseCommandQueue(queue);
+      clReleaseContext(context);
+      queue = nullptr;
+      context = nullptr;
+      check_opencl(status, "clCreateProgramWithSource");
+    }
+
+    status = clBuildProgram(program, 1, &device, "-cl-std=CL1.2", nullptr,
+                            nullptr);
+    if (status != CL_SUCCESS) {
+      size_t log_size = 0;
+      clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, 0, nullptr,
+                            &log_size);
+      std::vector<char> log(log_size + 1, '\0');
+      clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, log_size,
+                            log.data(), nullptr);
+      clReleaseProgram(program);
+      clReleaseCommandQueue(queue);
+      clReleaseContext(context);
+      program = nullptr;
+      queue = nullptr;
+      context = nullptr;
+      throw std::runtime_error(std::string("OpenCL Gaussian kernel build failed: ") +
+                               log.data());
+    }
+
+    horizontal = clCreateKernel(program, "gaussian_horizontal", &status);
+    if (status != CL_SUCCESS) {
+      clReleaseProgram(program);
+      clReleaseCommandQueue(queue);
+      clReleaseContext(context);
+      program = nullptr;
+      queue = nullptr;
+      context = nullptr;
+      check_opencl(status, "clCreateKernel(gaussian_horizontal)");
+    }
+
+    vertical = clCreateKernel(program, "gaussian_vertical", &status);
+    if (status != CL_SUCCESS) {
+      clReleaseKernel(horizontal);
+      clReleaseProgram(program);
+      clReleaseCommandQueue(queue);
+      clReleaseContext(context);
+      horizontal = nullptr;
+      program = nullptr;
+      queue = nullptr;
+      context = nullptr;
+      check_opencl(status, "clCreateKernel(gaussian_vertical)");
+    }
+
+    dog = clCreateKernel(program, "difference_of_gaussians", &status);
+    if (status != CL_SUCCESS) {
+      clReleaseKernel(vertical);
+      clReleaseKernel(horizontal);
+      clReleaseProgram(program);
+      clReleaseCommandQueue(queue);
+      clReleaseContext(context);
+      vertical = nullptr;
+      horizontal = nullptr;
+      program = nullptr;
+      queue = nullptr;
+      context = nullptr;
+      check_opencl(status, "clCreateKernel(difference_of_gaussians)");
+    }
+  }
+
+  ~Impl() {
+    if (dog)
+      clReleaseKernel(dog);
+    if (vertical)
+      clReleaseKernel(vertical);
+    if (horizontal)
+      clReleaseKernel(horizontal);
+    if (program)
+      clReleaseProgram(program);
+    if (queue)
+      clReleaseCommandQueue(queue);
+    if (context)
+      clReleaseContext(context);
+  }
+};
+
+OpenCLGaussianBlur::OpenCLGaussianBlur() : impl_(new Impl()) {}
+
+OpenCLGaussianBlur::~OpenCLGaussianBlur() { delete impl_; }
+
+std::vector<float> OpenCLGaussianBlur::apply(const std::vector<float> &image,
+                                             int width, int height,
+                                             const std::vector<float> &kernel) {
+  if (width <= 0 || height <= 0 || kernel.empty() || (kernel.size() & 1u) == 0)
+    throw std::invalid_argument("Image dimensions and odd kernel size are required");
+  if (image.size() != static_cast<size_t>(width) * height)
+    throw std::invalid_argument("Image buffer size does not match dimensions");
+  for (float weight : kernel) {
+    if (!std::isfinite(weight))
+      throw std::invalid_argument("Gaussian weights must be finite");
+  }
+
+  const size_t bytes = image.size() * sizeof(float);
+  const size_t weight_bytes = kernel.size() * sizeof(float);
+  cl_mem source = create_buffer(impl_->context,
+                                CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, bytes,
+                                const_cast<float *>(image.data()));
+  cl_mem temporary = nullptr;
+  cl_mem destination = nullptr;
+  cl_mem weights = nullptr;
+  try {
+    temporary = create_buffer(impl_->context, CL_MEM_READ_WRITE, bytes);
+    destination = create_buffer(impl_->context, CL_MEM_WRITE_ONLY, bytes);
+    weights = create_buffer(impl_->context,
+                            CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                            weight_bytes, const_cast<float *>(kernel.data()));
+
+    const int radius = static_cast<int>(kernel.size() / 2);
+    check_opencl(clSetKernelArg(impl_->horizontal, 0, sizeof(source), &source),
+                 "clSetKernelArg(horizontal source)");
+    check_opencl(clSetKernelArg(impl_->horizontal, 1, sizeof(temporary),
+                                &temporary),
+                 "clSetKernelArg(horizontal temporary)");
+    check_opencl(clSetKernelArg(impl_->horizontal, 2, sizeof(weights), &weights),
+                 "clSetKernelArg(horizontal weights)");
+    check_opencl(clSetKernelArg(impl_->horizontal, 3, sizeof(width), &width),
+                 "clSetKernelArg(horizontal width)");
+    check_opencl(clSetKernelArg(impl_->horizontal, 4, sizeof(height), &height),
+                 "clSetKernelArg(horizontal height)");
+    check_opencl(clSetKernelArg(impl_->horizontal, 5, sizeof(radius), &radius),
+                 "clSetKernelArg(horizontal radius)");
+
+    const size_t global_size[2] = {static_cast<size_t>(width),
+                                   static_cast<size_t>(height)};
+    check_opencl(clEnqueueNDRangeKernel(impl_->queue, impl_->horizontal, 2,
+                                        nullptr, global_size, nullptr, 0, nullptr,
+                                        nullptr),
+                 "clEnqueueNDRangeKernel(horizontal)");
+
+    check_opencl(clSetKernelArg(impl_->vertical, 0, sizeof(temporary),
+                                &temporary),
+                 "clSetKernelArg(vertical temporary)");
+    check_opencl(clSetKernelArg(impl_->vertical, 1, sizeof(destination),
+                                &destination),
+                 "clSetKernelArg(vertical destination)");
+    check_opencl(clSetKernelArg(impl_->vertical, 2, sizeof(weights), &weights),
+                 "clSetKernelArg(vertical weights)");
+    check_opencl(clSetKernelArg(impl_->vertical, 3, sizeof(width), &width),
+                 "clSetKernelArg(vertical width)");
+    check_opencl(clSetKernelArg(impl_->vertical, 4, sizeof(height), &height),
+                 "clSetKernelArg(vertical height)");
+    check_opencl(clSetKernelArg(impl_->vertical, 5, sizeof(radius), &radius),
+                 "clSetKernelArg(vertical radius)");
+    check_opencl(clEnqueueNDRangeKernel(impl_->queue, impl_->vertical, 2,
+                                        nullptr, global_size, nullptr, 0, nullptr,
+                                        nullptr),
+                 "clEnqueueNDRangeKernel(vertical)");
+
+    std::vector<float> output(image.size());
+    check_opencl(clEnqueueReadBuffer(impl_->queue, destination, CL_TRUE, 0,
+                                     bytes, output.data(), 0, nullptr, nullptr),
+                 "clEnqueueReadBuffer(blurred image)");
+
+    clReleaseMemObject(weights);
+    clReleaseMemObject(destination);
+    clReleaseMemObject(temporary);
+    clReleaseMemObject(source);
+    return output;
+  } catch (...) {
+    if (weights)
+      clReleaseMemObject(weights);
+    if (destination)
+      clReleaseMemObject(destination);
+    if (temporary)
+      clReleaseMemObject(temporary);
+    clReleaseMemObject(source);
+    throw;
+  }
+}
+
+std::vector<float> OpenCLGaussianBlur::difference_of_gaussians(
+    const std::vector<float> &first, const std::vector<float> &second,
+    int width, int height) {
+  if (width <= 0 || height <= 0)
+    throw std::invalid_argument("Image dimensions must be positive");
+  const size_t element_count = static_cast<size_t>(width) * height;
+  if (first.size() != element_count || second.size() != element_count)
+    throw std::invalid_argument("DoG image buffers must match dimensions");
+  for (size_t i = 0; i < element_count; ++i) {
+    if (!std::isfinite(first[i]) || !std::isfinite(second[i]))
+      throw std::invalid_argument("DoG input values must be finite");
+  }
+
+  const size_t bytes = element_count * sizeof(float);
+  cl_mem first_buffer = create_buffer(
+      impl_->context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, bytes,
+      const_cast<float *>(first.data()));
+  cl_mem second_buffer = nullptr;
+  cl_mem destination = nullptr;
+  try {
+    second_buffer = create_buffer(
+        impl_->context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, bytes,
+        const_cast<float *>(second.data()));
+    destination = create_buffer(impl_->context, CL_MEM_WRITE_ONLY, bytes);
+
+    check_opencl(clSetKernelArg(impl_->dog, 0, sizeof(first_buffer),
+                                &first_buffer),
+                 "clSetKernelArg(DoG first)");
+    check_opencl(clSetKernelArg(impl_->dog, 1, sizeof(second_buffer),
+                                &second_buffer),
+                 "clSetKernelArg(DoG second)");
+    check_opencl(clSetKernelArg(impl_->dog, 2, sizeof(destination),
+                                &destination),
+                 "clSetKernelArg(DoG destination)");
+    check_opencl(clSetKernelArg(impl_->dog, 3, sizeof(width), &width),
+                 "clSetKernelArg(DoG width)");
+    check_opencl(clSetKernelArg(impl_->dog, 4, sizeof(height), &height),
+                 "clSetKernelArg(DoG height)");
+
+    const size_t global_size[2] = {static_cast<size_t>(width),
+                                   static_cast<size_t>(height)};
+    check_opencl(clEnqueueNDRangeKernel(impl_->queue, impl_->dog, 2, nullptr,
+                                        global_size, nullptr, 0, nullptr,
+                                        nullptr),
+                 "clEnqueueNDRangeKernel(DoG)");
+
+    std::vector<float> result(element_count);
+    check_opencl(clEnqueueReadBuffer(impl_->queue, destination, CL_TRUE, 0,
+                                     bytes, result.data(), 0, nullptr, nullptr),
+                 "clEnqueueReadBuffer(DoG)");
+
+    clReleaseMemObject(destination);
+    clReleaseMemObject(second_buffer);
+    clReleaseMemObject(first_buffer);
+    return result;
+  } catch (...) {
+    if (destination)
+      clReleaseMemObject(destination);
+    if (second_buffer)
+      clReleaseMemObject(second_buffer);
+    clReleaseMemObject(first_buffer);
+    throw;
+  }
+}
+
+} // namespace sift_extractor::detail

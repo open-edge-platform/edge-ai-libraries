@@ -22,6 +22,7 @@ if(SIFT_ENABLE_OPENCL)
 
   add_library(sift_opencl_runtime STATIC
     src/opencl/opencl_device.cpp
+    src/opencl/opencl_gaussian_blur.cpp
   )
   target_compile_features(sift_opencl_runtime PUBLIC cxx_std_17)
   target_include_directories(sift_opencl_runtime
@@ -30,6 +31,9 @@ if(SIFT_ENABLE_OPENCL)
       $<INSTALL_INTERFACE:include>
     PRIVATE ${SIFT_OPENCL_INCLUDE_DIR}
   )
+  target_include_directories(sift_opencl_runtime PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/opencl
+  )
   target_link_libraries(sift_opencl_runtime PUBLIC ${SIFT_OPENCL_LIBRARY})
 
   if(SIFT_BUILD_TESTS)
@@ -37,6 +41,25 @@ if(SIFT_ENABLE_OPENCL)
     target_link_libraries(test_sift_opencl_device PRIVATE sift_opencl_runtime)
     add_test(NAME sift_opencl_runtime.device_discovery
       COMMAND test_sift_opencl_device)
+
+    add_executable(test_sift_opencl_gaussian_blur
+      tests/opencl/test_opencl_gaussian_blur.cpp
+    )
+    target_include_directories(test_sift_opencl_gaussian_blur PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/opencl
+    )
+    target_link_libraries(test_sift_opencl_gaussian_blur PRIVATE
+      sift_opencl_runtime
+    )
+    add_test(NAME sift_opencl_runtime.gaussian_blur
+      COMMAND test_sift_opencl_gaussian_blur)
+
+    add_executable(test_sift_opencl_dog tests/opencl/test_opencl_dog.cpp)
+    target_include_directories(test_sift_opencl_dog PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/opencl
+    )
+    target_link_libraries(test_sift_opencl_dog PRIVATE sift_opencl_runtime)
+    add_test(NAME sift_opencl_runtime.dog COMMAND test_sift_opencl_dog)
   endif()
 endif()
 
