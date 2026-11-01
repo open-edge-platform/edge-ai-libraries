@@ -221,8 +221,9 @@ ENV DEBIAN_FRONTEND=noninteractive
 # - hwinfo: extended hardware information probing
 # - libva-utils: vainfo for VAAPI codec capability detection (INSTALL_OPENVINO=true only)
 # - linux-perf: perf stat on IMC free-running counters for DRAM bandwidth
-#   (scripts/dram_bw_reader.py). Opt-in via INSTALL_PERF=true; adds ~115 MB
-#   of image size and CVE surface, so it is off by default. Set INSTALL_PERF=true when ENABLE_DRAM_BW=auto.
+#   (scripts/dram_bw_reader.py). Opt-in via INSTALL_PERF=true; adds ~150 MB
+#   of image size and CVE surface, so it is off by default. Build with INSTALL_PERF=true
+#   when you set ENABLE_DRAM_BW=auto (without perf the drop-in is skipped).
 # Install supervisor via pip to avoid pulling Debian's python3.13 (CVE-2026-7210).
 # perl-base is not needed at runtime; purging it removes several known CVEs.
 ARG INSTALL_PERF=false

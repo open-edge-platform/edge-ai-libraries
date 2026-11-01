@@ -62,7 +62,34 @@ These variables configure the Telegraf locations for the application to use:
 |----------|---------|-------------|
 | `TELEGRAF_CONFIG_PATH` | `/etc/telegraf/telegraf.conf` | Path to Telegraf config inside the container (informational, not loaded by the app) |
 | `TELEGRAF_PORT` | `9273` | Telegraf Prometheus endpoint port (where SSE poller fetches system metrics) |
+| `TELEGRAF_HTTP_PORT` | `8186` | Port of Telegraf's HTTP listener (`:8186/write`). Set in the image and by `compose.yaml`; must match the port in `TELEGRAF_HTTP_ENDPOINT` |
 | `TELEGRAF_HTTP_ENDPOINT` | `http://localhost:8186/write` | Telegraf HTTP listener endpoint used to persist custom metrics in InfluxDB Line Protocol. Must be accessible from the app container |
+
+## Hardware Telemetry Collectors
+
+These variables are read by `entrypoint.sh` at container start. Each one decides whether a Telegraf drop-in from `telegraf.d/` is loaded. **Every collector is off by default**, so a default install, including one that mounts its own `telegraf.conf`, emits the same metrics as before these collectors existed. See [Hardware Telemetry Collectors](./hardware-telemetry.md) for what each one collects, hardware support and series counts.
+
+Accepted "on" values (case-insensitive): `true`, `1`, `yes`, `on`, `auto`.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ENABLE_RAPL_POWER` | `false` | Load `10-power.conf`: CPU package RAPL power, per-core frequency, temperature and C-state residency (`inputs.intel_powerstat`). Needs the privileged container. Adds per-core series |
+| `ENABLE_PSYS_POWER` | `false` | Load `90-rapl-psys.conf`: RAPL platform (`psys`) and package power via `rapl_reader.py`. Needs the privileged container |
+| `ENABLE_DRAM_BW` | `false` | Load `20-dram-bw.conf`: DRAM read/write bandwidth via `perf stat` on the IMC free-running counters. `auto` loads it only when `perf` is installed, which requires an image built with `INSTALL_PERF=true` |
+| `ENABLE_DISK_IO` | `false` | Load `30-disk.conf`: per-device I/O counters for whole physical disks (`nvme`, `sd`, `vd`, `mmcblk`) |
+| `ENABLE_NET_IO` | `false` | Load `40-net.conf`: `inputs.net` and `inputs.ethtool`. In the default bridge deployment it only sees the container's own interface. The `host-nic-telemetry` Compose profile sets it to `true` by default |
+| `ENABLE_INTERRUPTS` | `false` | Load `50-interrupts.conf`: one `interrupts_total` series per device IRQ |
+| `ENABLE_TEMP_STATS` | `false` | Load `70-temp-stats.conf`: 100 ms CPU package temperature sampling with per-second min/max/mean |
+| `ENABLE_GPU_THROTTLE` | `false` | Load `91-gpu-throttle.conf`: achieved GPU frequency and throttle reasons for the Intel `xe` driver |
+| `ENABLE_TURBOSTAT` | `false` | Load `60-turbostat.conf`: IPC, SMI and per-core diagnostics. Skipped with a warning when no usable turbostat binary is present or `/dev/cpu/0/msr` cannot be opened |
+| `TURBOSTAT_INTERVAL` | `5` | Turbostat sampling cadence in seconds |
+| `TURBOSTAT_BIN` | _(unset)_ | Compose only. Host path of a kernel-matched `turbostat` binary, bind-mounted to `/usr/local/bin/turbostat`. `make up` resolves it when `ENABLE_TURBOSTAT` is on. Only needed with `ENABLE_TURBOSTAT=true` |
+| `DRAM_BW_INTERVAL` | `1` | Sampling window in seconds for `dram_bw_reader.py` |
+
+Reader trace logs are written inside the container to `/app/rapl_reader_trace.log`, `/app/dram_bw_reader_trace.log` and `/app/gpu_throttle_reader_trace.log`. Set `RAPL_READER_LOG_FILE`, `DRAM_BW_READER_LOG_FILE` or `GPU_THROTTLE_READER_LOG_FILE` to write them elsewhere.
+
+> [!WARNING]
+> Changing any `ENABLE_*` variable requires recreating the container (`docker compose up -d`). There is no hot reload.
 
 ## SSE Poller Settings
 
@@ -80,7 +107,9 @@ These variables are used ONLY by `compose.yaml` and are NOT read by the applicat
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `TELEGRAF_CONFIG` | `./telegraf.conf` | Host path to Telegraf config file (mounted into container) |
-| `TELEGRAF_CONFIG_DIR` | `./telegraf.d` | Host path to additional Telegraf configs directory (mounted into container) |
+| `TELEGRAF_CONFIG_DIR` | `./telegraf.d` | Host path to the directory of shipped collector drop-ins (mounted read-only at `/etc/telegraf/telegraf.d`). The entrypoint copies only the drop-ins that have the shipped file names and are enabled with `ENABLE_*` into `/etc/telegraf/active.d`; **other files placed here are ignored**. To add your own inputs, use a custom `telegraf.conf` (`TELEGRAF_CONFIG`) |
+| `INSTALL_PERF` | `false` | Build argument (`INSTALL_PERF=true make build`). Installs `linux-perf` (GPL-2.0, about 150 MB) into the image, needed for `ENABLE_DRAM_BW` |
+| `TURBOSTAT_BIN` | _(unset)_ | See [Hardware Telemetry Collectors](#hardware-telemetry-collectors) |
 | `HOST_METRICS_PORT` | `9090` | Host port mapping for Metrics Manager API |
 | `HOST_TELEGRAF_PORT` | `9273` | Host port mapping for Telegraf Prometheus endpoint |
 | `HOST_TELEGRAF_HTTP_PORT` | `8186` | Host port mapping for Telegraf HTTP listener |
@@ -266,18 +295,11 @@ Or via environment:
 TELEGRAF_CONFIG=./my-telegraf.conf docker compose up
 ```
 
-### Additional Config Directory
+### Shipped Collector Drop-ins
 
-Drop additional `.conf` files in `telegraf.d/`:
+`telegraf.d/` holds the drop-ins for the [hardware telemetry collectors](./hardware-telemetry.md). Enable them with the `ENABLE_*` variables rather than by editing files. You can edit a shipped drop-in (for example the `devices` filter in `30-disk.conf`) and mount your copy with `TELEGRAF_CONFIG_DIR`, but a file with a new name is **not** loaded: only the drop-ins that the entrypoint knows about are copied into the directory Telegraf reads.
 
-```bash
-mkdir telegraf.d
-echo '[[inputs.exec]]
-  commands = ["my-custom-script.sh"]
-  interval = "10s"
-  data_format = "json"
-' > telegraf.d/custom-input.conf
-```
+To add your own Telegraf inputs, put them in your own `telegraf.conf` and mount it with `TELEGRAF_CONFIG`, or use [custom metrics scripts](./custom-metrics.md).
 
 ### Example: Disable GPU or NPU Metrics
 
@@ -335,6 +357,7 @@ Correlation IDs appear in all log entries for request tracing.
 - [Get Started Guide](../get-started.md)
 - [System Requirements](./system-requirements.md)
 - [Custom Metrics Scripts](./custom-metrics.md)
+- [Hardware Telemetry Collectors](./hardware-telemetry.md)
 - [Helm Deployment](./deploy-with-helm.md)
 - [Troubleshooting](../troubleshooting.md)
 

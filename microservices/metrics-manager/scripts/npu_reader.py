@@ -20,10 +20,10 @@ Long-running telegraf execd input plugin that reads NPU telemetry via PmtTelemet
 and emits InfluxDB line protocol metrics to stdout once per second.
 """
 
+import logging
 import os
 import sys
 import time
-import logging
 
 # Re-use the PmtTelemetry class from the npu-monitor-tool script.
 # The script is installed alongside this reader in /app.
@@ -41,6 +41,13 @@ INTERVAL_S = 1.0
 # keeps the Telegraf log quiet on hosts without an Intel NPU.
 IDLE_SLEEP_S = 3600
 DEBUG_LOG = os.environ.get("NPU_READER_LOG_FILE", "/app/npu_reader_trace.log")
+
+# PCI power state (D0 active .. D3cold deepest sleep) — the standard Linux
+# runtime-PM proxy for "is the NPU actually powered up right now". Exposed as the
+# string "D0"/"D3hot"/"D3cold" in the device's `power_state` sysfs attr. We map it
+# to a small integer so it graphs cleanly in Grafana:
+#   D0=0  D1=1  D2=2  D3hot=3  D3cold=4  (unknown/missing=-1)
+POWER_STATE_CODES = {"D0": 0, "D1": 1, "D2": 2, "D3hot": 3, "D3cold": 4}
 
 file_handler = logging.FileHandler(DEBUG_LOG)
 file_handler.setFormatter(
@@ -79,7 +86,7 @@ def find_npu_dev_path() -> str:
     return ""  # unreachable, keeps type checkers happy
 
 
-def main():
+def main() -> None:
     try:
         pu = PmtTelemetry()
     except SystemExit as e:
@@ -99,26 +106,20 @@ def main():
     mem_util_supported = (pu.cpu_gen is not None) and (pu.cpu_gen >= CpuGen.PTL)
     mem_util_path = os.path.join(dev_path, "npu_memory_utilization")
 
-    # PCI power state (D0 active .. D3cold deepest sleep) — the standard Linux
-    # runtime-PM proxy for "is the NPU actually powered up right now". Exposed
-    # as the string "D0"/"D3hot"/"D3cold" in the device's `power_state` sysfs
-    # attr. We map it to a small integer so it graphs cleanly in Grafana:
-    #   D0=0  D1=1  D2=2  D3hot=3  D3cold=4  (unknown/missing=-1)
     power_state_path = os.path.join(dev_path, "power_state")
-    _POWER_STATE_CODES = {"D0": 0, "D1": 1, "D2": 2, "D3hot": 3, "D3cold": 4}
 
-    def read_power_state():
+    def read_power_state() -> int:
         try:
-            with open(power_state_path, 'r', encoding='utf-8') as f:
-                return _POWER_STATE_CODES.get(f.read().strip(), -1)
+            with open(power_state_path, encoding='utf-8') as f:
+                return POWER_STATE_CODES.get(f.read().strip(), -1)
         except OSError:
             return -1
 
-    def read_busy_us():
+    def read_busy_us() -> int | None:
         if not npu_busy_supported:
             return None
         try:
-            with open(busy_path, 'r', encoding='utf-8') as f:
+            with open(busy_path, encoding='utf-8') as f:
                 return int(f.read().strip())
         except (OSError, ValueError) as e:
             logger.warning("Failed to read npu_busy_time_us: %s", e)
@@ -178,7 +179,7 @@ def main():
         mem_util_mb = -1.0
         if mem_util_supported and os.path.exists(mem_util_path):
             try:
-                with open(mem_util_path, 'r', encoding='utf-8') as f:
+                with open(mem_util_path, encoding='utf-8') as f:
                     mem_util_mb = int(f.read().strip()) / 1024 / 1024
             except (OSError, ValueError) as e:
                 logger.warning("Failed to read npu_memory_utilization: %s", e)

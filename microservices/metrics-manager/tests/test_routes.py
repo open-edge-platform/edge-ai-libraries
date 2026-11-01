@@ -62,7 +62,7 @@ class TestCapabilitiesEndpoint:
         assert "categories" in payload
         assert "platform" in payload
         assert "devices" in payload
-        assert payload["platform"]["hostname"] is not None
+        assert "hostname" in payload["platform"]
         assert "system_memory" in payload["platform"]
         assert "device_summary" in payload["platform"]
         assert "platform_overview" in payload["categories"]

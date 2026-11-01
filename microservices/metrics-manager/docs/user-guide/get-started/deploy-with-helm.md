@@ -100,6 +100,40 @@ helm install metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
   --set hardware.telemetry.enabled=true
 ```
 
+### Enable Hardware Telemetry Collectors
+
+The [hardware telemetry collectors](./hardware-telemetry.md) are controlled by `config.enable*` values. All of them default to `"false"`, so an upgrade adds no metrics unless you opt in. Most collectors read host sysfs and MSRs, so also set `hardware.telemetry.enabled=true`.
+
+```bash
+helm install metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
+  --version 2026.2.0-helm \
+  --set hardware.telemetry.enabled=true \
+  --set-string config.enableRaplPower=true \
+  --set-string config.enablePsysPower=true \
+  --set-string config.enableDiskIo=true \
+  --set-string config.enableInterrupts=true
+```
+
+| Value | Environment variable | Default |
+|-------|----------------------|---------|
+| `config.enableRaplPower` | `ENABLE_RAPL_POWER` | `"false"` |
+| `config.enablePsysPower` | `ENABLE_PSYS_POWER` | `"false"` |
+| `config.enableDramBw` | `ENABLE_DRAM_BW` | `"false"` |
+| `config.enableDiskIo` | `ENABLE_DISK_IO` | `"false"` |
+| `config.enableNetIo` | `ENABLE_NET_IO` | `"false"` |
+| `config.enableInterrupts` | `ENABLE_INTERRUPTS` | `"false"` |
+| `config.enableTempStats` | `ENABLE_TEMP_STATS` | `"false"` |
+| `config.enableGpuThrottle` | `ENABLE_GPU_THROTTLE` | `"false"` |
+| `config.enableTurbostat` | `ENABLE_TURBOSTAT` | `"false"` |
+| `config.turbostatInterval` | `TURBOSTAT_INTERVAL` | `"5"` |
+
+Notes for Kubernetes:
+
+- `config.enableDramBw` needs `perf`, which is not in the published image. Use an image built with `INSTALL_PERF=true`.
+- `config.enableTurbostat` needs a kernel-matched `turbostat` binary on the node, and the chart has no mount for it, so the collector is skipped with a warning. Use Docker Compose for turbostat.
+- `config.enableNetIo` reports the pod's interface unless `pod.hostNetwork=true`, which changes the pod's networking model. Review that before enabling it.
+- A change to any of these values restarts the pod.
+
 ### Stable Hostname Label Across Pod Restarts
 
 ```bash
@@ -297,6 +331,7 @@ helm install metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
 
 - [Get Started Guide](../get-started.md)
 - [Environment Variables](./environment-variables.md)
+- [Hardware Telemetry Collectors](./hardware-telemetry.md)
 - [System Requirements](./system-requirements.md)
 - [Troubleshooting](../troubleshooting.md)
 

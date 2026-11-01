@@ -1,5 +1,21 @@
 # Release Notes: Metrics Manager
 
+## Version 2026.3.0
+
+**Release Date:** TBD
+
+**New:**
+
+- **Hardware Telemetry Collectors (opt-in)**: Nine collectors, each enabled by its own `ENABLE_*` environment variable (or `config.enable*` Helm value), expose additional Intel hardware metrics through the existing Prometheus endpoint: CPU package power, per-core frequency, temperature and C-state residency (`ENABLE_RAPL_POWER`), platform (`psys`) power (`ENABLE_PSYS_POWER`), DRAM bandwidth (`ENABLE_DRAM_BW`), disk I/O (`ENABLE_DISK_IO`), network and NIC statistics (`ENABLE_NET_IO`), per-device interrupts (`ENABLE_INTERRUPTS`), high-frequency temperature statistics (`ENABLE_TEMP_STATS`), GPU throttle state (`ENABLE_GPU_THROTTLE`) and turbostat diagnostics (`ENABLE_TURBOSTAT`). **All are off by default**, so upgrading adds no metrics, including for deployments that mount their own `telegraf.conf`. See [Hardware Telemetry Collectors](./get-started/hardware-telemetry.md).
+- **NPU `power_state`**: `npu_reader.py` now also reports the NPU PCI power state as `npu_power_state` (D0=0, D1=1, D2=2, D3hot=3, D3cold=4, unknown=-1). This adds one field to the existing `npu` measurement.
+- **`host-nic-telemetry` Compose profile**: Opt-in `metrics-manager-host-nic` service that runs with host networking so the network collector reports the host's physical NICs. The default bridge deployment is unchanged.
+- **Optional `perf` build variant**: New `INSTALL_PERF` build argument installs `linux-perf` (GPL-2.0, about 150 MB), required only for DRAM bandwidth collection. It is off by default and not in the published image.
+
+**Improved:**
+
+- **Telegraf configuration directory**: Telegraf now also loads `/etc/telegraf/active.d`, which the entrypoint assembles at startup from the enabled drop-ins in `telegraf.d/`. With every toggle off the directory is empty.
+- **Safer optional collectors**: Turbostat is skipped with a warning when its binary or `/dev/cpu/0/msr` is not usable, and the DRAM bandwidth, RAPL and GPU throttle readers idle and log their reason instead of failing.
+
 ## Version 2026.2.0
 
 **Release Date:** September 9, 2026

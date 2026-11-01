@@ -45,11 +45,12 @@ quietly instead of restart-storming Telegraf — same contract as
 npu_reader.py / rapl_reader.py.
 """
 
-import os
-import sys
-import time
 import glob
 import logging
+import os
+import time
+
+from line_protocol import escape_tag_value
 
 HOSTNAME = os.environ.get("METRICS_MANAGER_HOSTNAME") or os.uname()[1]
 INTERVAL_S = 1.0
@@ -57,14 +58,15 @@ IDLE_SLEEP_S = 3600
 # Every GT frequency domain across all cards/tiles. freq0 is the only domain
 # the xe driver exposes today, but the glob keeps us forward-compatible.
 FREQ_GLOB = "/sys/class/drm/card*/device/tile*/gt*/freq0"
-DEBUG_LOG = "/app/gpu_throttle_reader_trace.log"
+DEBUG_LOG = os.environ.get("GPU_THROTTLE_READER_LOG_FILE", "/app/gpu_throttle_reader_trace.log")
+HOST_TAG = escape_tag_value(HOSTNAME)
 
 # Throttle reason files under freq0/throttle/. `status` is the OR of all
 # reasons; the individual reason_* files pinpoint why. We surface the ones that
 # matter for the TCMI envelopes (thermal is the headline; power-limit and
 # prochot are the common others) and skip the long tail of VR/RATL reasons to
 # keep the series count sane.
-THROTTLE_FIELDS = {
+THROTTLE_FIELDS: dict[str, str] = {
     "throttled": "status",
     "throttle_thermal": "reason_thermal",
     "throttle_pl1": "reason_pl1",
@@ -96,10 +98,10 @@ def idle_forever(reason: str) -> None:
         time.sleep(IDLE_SLEEP_S)
 
 
-def _read_int(path):
+def _read_int(path: str) -> int | None:
     """Read a sysfs attr as int, or None if missing/unreadable/non-numeric."""
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             return int(f.read().strip())
     except (OSError, ValueError):
         return None
@@ -108,7 +110,7 @@ def _read_int(path):
 class GpuFreqDomain:
     """One xe GT frequency domain: act/cur freq + throttle reasons."""
 
-    def __init__(self, freq_dir):
+    def __init__(self, freq_dir: str) -> None:
         self.dir = freq_dir
         # freq_dir looks like /sys/class/drm/card1/device/tile0/gt0/freq0.
         # Tag with the card and gt so multi-tile / multi-GPU stays separable.
@@ -120,18 +122,18 @@ class GpuFreqDomain:
         self.throttle_dir = os.path.join(freq_dir, "throttle")
 
     @property
-    def readable(self):
+    def readable(self) -> bool:
         # act_freq is the field we most care about; if it's gone the domain is
         # not usable. (cur_freq alone is already covered by qmassa.)
         return _read_int(self.act_path) is not None
 
-    def sample(self):
+    def sample(self) -> dict[str, int] | None:
         """Return a dict of field -> value for this GT, or None if it vanished."""
         act = _read_int(self.act_path)
         cur = _read_int(self.cur_path)
         if act is None and cur is None:
             return None
-        fields = {}
+        fields: dict[str, int] = {}
         if act is not None:
             fields["act_freq_mhz"] = act
         if cur is not None:
@@ -143,8 +145,8 @@ class GpuFreqDomain:
         return fields
 
 
-def discover_domains():
-    domains = []
+def discover_domains() -> list[GpuFreqDomain]:
+    domains: list[GpuFreqDomain] = []
     for d in sorted(glob.glob(FREQ_GLOB)):
         dom = GpuFreqDomain(d)
         if dom.readable:
@@ -155,14 +157,14 @@ def discover_domains():
     return domains
 
 
-def _fmt_field(key, val):
+def _fmt_field(key: str, val: int) -> str:
     """Freqs are floats; throttle flags are integer counters (`i` suffix)."""
     if key.endswith("_mhz"):
         return f"{key}={val}"
     return f"{key}={val}i"
 
 
-def main():
+def main() -> None:
     if not glob.glob(FREQ_GLOB):
         idle_forever(f"No xe GPU freq domains under {FREQ_GLOB} (Intel GPU / xe driver present?)")
 
@@ -179,7 +181,8 @@ def main():
                 continue
             field_str = ",".join(_fmt_field(k, v) for k, v in fields.items())
             print(
-                f"gpu_throttle,host={HOSTNAME},card={dom.card},gt={dom.gt} {field_str} {ts_ns}",
+                f"gpu_throttle,host={HOST_TAG},card={escape_tag_value(dom.card)},"
+                f"gt={escape_tag_value(dom.gt)} {field_str} {ts_ns}",
                 flush=True,
             )
             logger.debug("gpu_throttle %s/%s %s", dom.card, dom.gt, field_str)

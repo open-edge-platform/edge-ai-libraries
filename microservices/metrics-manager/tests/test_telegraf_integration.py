@@ -24,6 +24,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TELEGRAF_CONF = REPO_ROOT / "telegraf.conf"
@@ -236,7 +237,7 @@ class TestTcmiCollectorWiring:
     # ENABLE_TURBOSTAT / ENABLE_GPU_THROTTLE in entrypoint.sh, not by filename).
     ACTIVE_DROPINS = ["10-power", "20-dram-bw", "30-disk", "40-net",
                       "50-interrupts", "60-turbostat", "70-temp-stats",
-                      "90-tcmi-execd", "91-gpu-throttle"]
+                      "90-rapl-psys", "91-gpu-throttle"]
 
     def test_active_dropins_present(self):
         for base in self.ACTIVE_DROPINS:
@@ -273,9 +274,9 @@ class TestTcmiCollectorWiring:
         assert 'interval = "${TURBOSTAT_INTERVAL:-5}s"' in text
 
     @staticmethod
-    def _turbostat_gate_script(turbostat_path: str) -> str:
+    def _turbostat_gate_script(turbostat_path: str, msr_dev: str) -> str:
         """Extract is_enabled() and the turbostat gate from entrypoint.sh so the
-        real shell logic can be exercised against a fake binary path."""
+        real shell logic can be exercised against a fake binary and MSR device."""
         text = ENTRYPOINT.read_text(encoding="utf-8")
         is_enabled = re.search(r"^is_enabled\(\) \{.*?^\}\n", text, re.S | re.M)
         gate = re.search(
@@ -285,6 +286,9 @@ class TestTcmiCollectorWiring:
         gate_src = gate.group(0).replace(
             "TURBOSTAT_PATH=/usr/local/bin/turbostat",
             f"TURBOSTAT_PATH={shlex.quote(turbostat_path)}",
+        ).replace(
+            "TURBOSTAT_MSR_DEV=/dev/cpu/0/msr",
+            f"TURBOSTAT_MSR_DEV={shlex.quote(msr_dev)}",
         )
         return is_enabled.group(0) + gate_src + 'echo "RESULT=$ENABLE_TURBOSTAT"\n'
 
@@ -296,6 +300,7 @@ class TestTcmiCollectorWiring:
             ("empty", "false"),         # empty placeholder file
             ("not_executable", "false"),
             ("failing", "false"),       # e.g. distro wrapper w/o kernel tools
+            ("no_msr", "false"),        # runs, but /dev/cpu/0/msr is not openable
             ("working", "true"),
         ],
     )
@@ -310,18 +315,67 @@ class TestTcmiCollectorWiring:
         elif kind == "not_executable":
             target.write_text("#!/bin/sh\nexit 0\n")
             target.chmod(0o644)
-        elif kind in ("failing", "working"):
+        elif kind in ("failing", "working", "no_msr"):
             target.write_text(f"#!/bin/sh\nexit {2 if kind == 'failing' else 0}\n")
             target.chmod(0o755)
 
+        msr_dev = tmp_path / "msr"
+        if kind != "no_msr":
+            msr_dev.touch()  # stands in for a readable /dev/cpu/0/msr
+
         result = subprocess.run(
-            ["bash", "-c", self._turbostat_gate_script(str(target))],
+            ["bash", "-c", self._turbostat_gate_script(str(target), str(msr_dev))],
             env={"PATH": os.environ.get("PATH", ""), "ENABLE_TURBOSTAT": "true"},
             capture_output=True, text=True, timeout=30, check=True,
         )
         assert f"RESULT={expected}" in result.stdout
         if expected == "false":
             assert "[WARN]  60-turbostat" in result.stdout
+        if kind == "no_msr":
+            assert "not readable" in result.stdout
+
+    def test_entrypoint_defaults_every_collector_off(self):
+        """With no ENABLE_* set, nothing new may load: deployments that mount their
+        own telegraf.conf must see exactly the metrics they saw before."""
+        text = ENTRYPOINT.read_text(encoding="utf-8")
+        defaults = re.findall(r'enable_conf\s+"\$\{(ENABLE_\w+):-(\w+)\}"', text)
+        assert len(defaults) >= 7, "expected the ENABLE_* gates in entrypoint.sh"
+        assert {name: val for name, val in defaults if val != "false"} == {}
+        # DRAM_BW is normalised into a variable before its enable_conf() call.
+        assert 'ENABLE_DRAM_BW="${ENABLE_DRAM_BW:-false}"' in text
+
+    def test_compose_defaults_every_collector_off(self, compose_text: str):
+        toggles = re.findall(r"^\s+(ENABLE_\w+): \$\{\w+:-(\w+)\}", compose_text, re.M)
+        assert {n for n, _ in toggles} >= {
+            "ENABLE_RAPL_POWER", "ENABLE_DRAM_BW", "ENABLE_DISK_IO", "ENABLE_NET_IO",
+            "ENABLE_INTERRUPTS", "ENABLE_TEMP_STATS", "ENABLE_PSYS_POWER",
+            "ENABLE_GPU_THROTTLE", "ENABLE_TURBOSTAT",
+        }
+        # ENABLE_NET_IO is deliberately on in the opt-in host-nic-telemetry service
+        # only (it appears there as a second, service-level override).
+        assert {n: v for n, v in toggles if v != "false"} == {"ENABLE_NET_IO": "true"}
+        assert compose_text.count("ENABLE_NET_IO: ${ENABLE_NET_IO:-true}") == 1
+        assert "ENABLE_NET_IO: ${ENABLE_NET_IO:-false}" in compose_text
+
+    def test_helm_defaults_every_collector_off(self):
+        values = yaml.safe_load((REPO_ROOT / "helm/metrics-manager/values.yaml").read_text())
+        toggles = {k: v for k, v in values["config"].items() if k.startswith("enable")}
+        assert len(toggles) == 9
+        assert {k: v for k, v in toggles.items() if str(v).lower() != "false"} == {}
+
+    def test_interrupts_keeps_only_per_irq_total(self):
+        # Without fieldinclude the plugin emits one field per CPU per IRQ, which is
+        # ~16k lines (2 MB) per scrape on a 112-thread host.
+        text = (self.TELEGRAF_D / "50-interrupts.conf").read_text(encoding="utf-8")
+        assert re.search(r'^\s*fieldinclude\s*=\s*\["total"\]', text, re.M)
+        assert re.search(r'^\s*irq\s*=\s*\["\[0-9\]\*"\]', text, re.M)
+
+    def test_dropins_use_no_deprecated_field_filters(self):
+        for conf in self.TELEGRAF_D.glob("*.conf"):
+            text = conf.read_text(encoding="utf-8")
+            assert not re.search(r"^\s*#?\s*fieldpass\s*=", text, re.M), (
+                f"{conf.name}: fieldpass is deprecated, use fieldinclude"
+            )
 
     def test_disk_io_restricted_to_physical_devices(self):
         text = (self.TELEGRAF_D / "30-disk.conf").read_text(encoding="utf-8")

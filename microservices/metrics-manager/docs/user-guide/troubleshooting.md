@@ -220,6 +220,26 @@ docker exec metrics-manager supervisorctl -c /etc/supervisor/supervisord.conf st
 
 ---
 
+## Hardware Telemetry Collectors
+
+### An Opt-in Collector Produces No Data
+
+**Symptom**: You set an `ENABLE_*` variable but the matching metrics (`rapl_power_*`, `dram_bw_*`, `gpu_throttle_*`, `turbostat_*`, ...) are missing from `:9273/metrics`.
+
+**Check:**
+
+```bash
+# Was the collector loaded, or skipped with a warning?
+docker logs metrics-manager 2>&1 | grep -E "^\[(INFO|WARN)\]  "
+
+# Why is a reader idle?
+docker exec metrics-manager tail -n 20 /app/rapl_reader_trace.log
+```
+
+Changing an `ENABLE_*` variable only takes effect after the container is recreated (`docker compose up -d`). Some collectors also produce no data on certain hardware. See [Hardware Telemetry Collectors](./get-started/hardware-telemetry.md#supported-hardware-and-expected-series-count).
+
+---
+
 ## Telegraf Issues
 
 ### Telegraf Metrics Empty

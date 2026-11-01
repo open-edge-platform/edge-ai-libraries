@@ -33,7 +33,7 @@ fi
 # mutate the shipped drop-in directory (which is bind-mounted READ-ONLY from the
 # host via the compose TELEGRAF_CONFIG_DIR mount), we assemble the *active* set
 # into a separate writable directory and launch telegraf against that:
-#   source (read-only) : /etc/telegraf/telegraf.d       <name>.conf[.example]
+#   source (read-only) : /etc/telegraf/telegraf.d       <name>.conf
 #   active (writable)  : /etc/telegraf/active.d          only the enabled <name>.conf
 # "enabled" == copy the source drop-in into the active dir; "disabled" == don't.
 # This lets one image serve AMR / Industrial-Arm / headless profiles with no
@@ -54,8 +54,9 @@ rm -rf "$TELEGRAF_D"
 mkdir -p "$TELEGRAF_D"
 
 # is_enabled VALUE — treat true/1/yes/on/auto as enabled (case-insensitive).
-# `auto` counts as enabled: the reader itself probes the hardware and idles if
-# absent, so "auto" == "load it and let it self-detect".
+# `auto` counts as enabled here; for ENABLE_DRAM_BW it is resolved further down
+# (it only loads the reader when `perf` is installed), and the reader itself then
+# probes the hardware and idles if the counters are absent.
 is_enabled() {
     case "$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')" in
         true|1|yes|on|auto) return 0 ;;
@@ -79,7 +80,7 @@ enable_conf() {
     fi
 }
 
-echo "[INFO] Configuring hardware-telemetry collectors:"
+echo "[INFO] Configuring hardware-telemetry collectors (opt-in via ENABLE_*):"
 # DRAM bandwidth: `auto` means "enable only if perf is installed" (the default
 # image has no perf unless built with INSTALL_PERF=true).
 ENABLE_DRAM_BW="${ENABLE_DRAM_BW:-false}"
@@ -94,8 +95,10 @@ fi
 # usable. Covers: TURBOSTAT_BIN unset (compose mounts /dev/null), TURBOSTAT_BIN
 # pointing at a missing host path (Docker mounts an empty directory), and
 # binaries that exist but can't run here (e.g. Ubuntu's /usr/bin/turbostat
-# wrapper script, or a build for another kernel/libc).
+# wrapper script, or a build for another kernel/libc). It also needs MSR access,
+# so /dev/cpu/0/msr must be openable (msr module loaded, privileged container).
 TURBOSTAT_PATH=/usr/local/bin/turbostat
+TURBOSTAT_MSR_DEV=/dev/cpu/0/msr
 if is_enabled "${ENABLE_TURBOSTAT:-false}"; then
     if ! { [ -f "$TURBOSTAT_PATH" ] && [ -s "$TURBOSTAT_PATH" ] && [ -x "$TURBOSTAT_PATH" ]; }; then
         echo "[WARN]  60-turbostat: ENABLE_TURBOSTAT=true but $TURBOSTAT_PATH is missing or not an executable file (set TURBOSTAT_BIN to the host's kernel-matched turbostat) — skipping"
@@ -103,16 +106,21 @@ if is_enabled "${ENABLE_TURBOSTAT:-false}"; then
     elif ! timeout 5 "$TURBOSTAT_PATH" --version >/dev/null 2>&1; then
         echo "[WARN]  60-turbostat: ENABLE_TURBOSTAT=true but '$TURBOSTAT_PATH --version' failed (wrapper script or kernel/libc mismatch?) — skipping"
         ENABLE_TURBOSTAT=false
+    elif ! { : < "$TURBOSTAT_MSR_DEV"; } 2>/dev/null; then
+        # Without MSR access turbostat exits immediately and Telegraf restarts it
+        # every few seconds, logging an error each time. Skip it up front instead.
+        echo "[WARN]  60-turbostat: ENABLE_TURBOSTAT=true but $TURBOSTAT_MSR_DEV is not readable (msr module not loaded, or container not privileged?) — skipping"
+        ENABLE_TURBOSTAT=false
     fi
 fi
 
 enable_conf    "${ENABLE_RAPL_POWER:-false}"  "10-power"
 enable_conf    "$ENABLE_DRAM_BW"              "20-dram-bw"
-enable_conf    "${ENABLE_DISK_IO:-true}"      "30-disk"
+enable_conf    "${ENABLE_DISK_IO:-false}"     "30-disk"
 enable_conf    "${ENABLE_NET_IO:-false}"      "40-net"
 enable_conf    "${ENABLE_INTERRUPTS:-false}"  "50-interrupts"
 enable_conf    "${ENABLE_TEMP_STATS:-false}"  "70-temp-stats"
-enable_conf    "${ENABLE_PSYS_POWER:-false}"    "90-tcmi-execd"
+enable_conf    "${ENABLE_PSYS_POWER:-false}"    "90-rapl-psys"
 enable_conf    "${ENABLE_GPU_THROTTLE:-false}"  "91-gpu-throttle"
 # Opt-in engineering diagnostics (ship disabled; default off).
 enable_conf    "${ENABLE_TURBOSTAT:-false}"   "60-turbostat"

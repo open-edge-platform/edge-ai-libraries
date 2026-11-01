@@ -20,35 +20,38 @@ Long-running telegraf execd input plugin: DRAM read/write bandwidth (GB/s) from
 the Intel IMC uncore free-running counters, via `perf stat`.
 
 Fills TCMI's dram_read_gbps / dram_write_gbps gap without the external Intel PCM
-binary. Chosen over the native inputs.intel_pmu plugin because the PTL target
-reports a MASKED CPU model ("Genuine Intel(R) 0000", ES/QS silicon): intel_pmu
-resolves named events (UNC_M_CAS_COUNT.*) through a model-keyed perfmon JSON, so
-name lookup fails there. `perf stat` on RAW free-running event codes is
-model-independent and was verified counting on the target (116.6 / 7.4 MiB in 1s).
+binary. Chosen over the native inputs.intel_pmu plugin, which needs per-model
+perfmon event files, returns raw multiplexed cache-line counts rather than GB/s,
+and reads zero from the *_FREERUN events under load (its UNC_M_CAS_COUNT_RD/WR
+events do work: on Meteor Lake they matched this reader within a few percent).
+`perf stat` on the IMC free-running events gives GB/s directly and needs no
+per-model tables.
 
-Counters (probed on PTL, perf type = uncore_imc_free_running):
+Counters (perf type = uncore_imc_free_running):
   data_read / data_write — the sysfs event ALIASES the IMC free-running PMU
   publishes under events/ (raw encodings event=0xff,umask=0x20 / 0x30). Using
   the named aliases (not raw codes) is deliberate: perf then applies the driver's
   per.unit scale and reports the result already in MiB, and — crucially — the
-  aliases live in sysfs, NOT in the model-keyed perfmon JSON, so they resolve
-  even on the masked-model PTL silicon. We read the MiB totals over a fixed
-  window and divide by the window to get bandwidth.
+  aliases live in sysfs, NOT in a model-keyed perfmon JSON, so they resolve
+  regardless of CPU model. We read the MiB totals over a fixed window and divide
+  by the window to get bandwidth.
 
 Emits once per INTERVAL_S:
   dram_bw,host=<h> read_gbps=12.34,write_gbps=1.23,total_gbps=13.57 <ts>
 
-Requires: `perf` on PATH, perf_event_paranoid <= 0 (PTL is -1), and the IMC
+Requires: `perf` on PATH, perf_event_paranoid <= 0, and the IMC
 free-running PMU exposed. Runs fine in the --privileged container. If any of
 that is missing, the reader idles quietly instead of hot-looping under execd.
 """
 
+import logging
 import os
 import re
 import shutil
 import subprocess
 import time
-import logging
+
+from line_protocol import escape_tag_value
 
 HOSTNAME = os.environ.get("METRICS_MANAGER_HOSTNAME") or os.uname()[1]
 INTERVAL_S = float(os.environ.get("DRAM_BW_INTERVAL", "1"))
@@ -58,7 +61,8 @@ PMU = "uncore_imc_free_running"
 # equivalents are event=0xff,umask=0x20 (read) / 0x30 (write), 64 B/count.
 READ_EVENT = f"{PMU}/data_read/"
 WRITE_EVENT = f"{PMU}/data_write/"
-DEBUG_LOG = "/app/dram_bw_reader_trace.log"
+DEBUG_LOG = os.environ.get("DRAM_BW_READER_LOG_FILE", "/app/dram_bw_reader_trace.log")
+HOST_TAG = escape_tag_value(HOSTNAME)
 
 file_handler = logging.FileHandler(DEBUG_LOG)
 file_handler.setFormatter(
@@ -95,6 +99,9 @@ def _parse_perf_value(stderr_text: str, event: str) -> float:
 
     perf stat -x, prints one CSV line per event:
         <count>,<unit>,<event_name>,<run_time_ns>,<pct>,...
+    sample_once() runs perf with LC_ALL=C so the count uses a '.' decimal point;
+    a locale that uses ',' would split "116,6" across two columns, which is
+    repaired here as a second line of defence.
     The count for the IMC free-running events may already be in MiB (the driver's
     native unit); we detect the unit column and normalize to bytes.
 
@@ -112,6 +119,9 @@ def _parse_perf_value(stderr_text: str, event: str) -> float:
         if not line or token not in line:
             continue
         cols = line.split(",")
+        if len(cols) >= 4 and cols[0].lstrip("-").isdigit() and cols[1].isdigit():
+            # Decimal comma ("116,6,MiB,...") split into two columns: rejoin.
+            cols = [f"{cols[0]}.{cols[1]}", *cols[2:]]
         if len(cols) < 3:
             continue
         raw = cols[0].strip()
@@ -144,7 +154,12 @@ def sample_once() -> str:
     ]
     try:
         proc = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=INTERVAL_S + 10
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=INTERVAL_S + 10,
+            # Keep perf's CSV output locale-independent ('.' decimal point).
+            env={**os.environ, "LC_ALL": "C"},
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         logger.warning("perf stat failed: %s", exc)
@@ -164,13 +179,13 @@ def sample_once() -> str:
     total_gbps = read_gbps + write_gbps
     ts_ns = time.time_ns()
     return (
-        f"dram_bw,host={HOSTNAME} "
+        f"dram_bw,host={HOST_TAG} "
         f"read_gbps={read_gbps:.4f},write_gbps={write_gbps:.4f},"
         f"total_gbps={total_gbps:.4f} {ts_ns}"
     )
 
 
-def main():
+def main() -> None:
     if shutil.which("perf") is None:
         idle_forever("perf binary not found on PATH (install linux-tools)")
     if not _pmu_available():

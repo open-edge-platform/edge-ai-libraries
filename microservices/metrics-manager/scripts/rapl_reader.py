@@ -38,17 +38,19 @@ Metrics Manager container runs privileged, so this works there; as a non-root
 user it will find no readable zones and idle quietly.
 """
 
-import os
-import sys
-import time
 import glob
 import logging
+import os
+import time
+
+from line_protocol import escape_tag_value
 
 HOSTNAME = os.environ.get("METRICS_MANAGER_HOSTNAME") or os.uname()[1]
 INTERVAL_S = 1.0
 IDLE_SLEEP_S = 3600
 RAPL_GLOB = "/sys/class/powercap/intel-rapl:*"
-DEBUG_LOG = "/app/rapl_reader_trace.log"
+DEBUG_LOG = os.environ.get("RAPL_READER_LOG_FILE", "/app/rapl_reader_trace.log")
+HOST_TAG = escape_tag_value(HOSTNAME)
 
 file_handler = logging.FileHandler(DEBUG_LOG)
 file_handler.setFormatter(
@@ -74,17 +76,17 @@ def idle_forever(reason: str) -> None:
         time.sleep(IDLE_SLEEP_S)
 
 
-def _read_int(path):
+def _read_int(path: str) -> int | None:
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             return int(f.read().strip())
     except (OSError, ValueError):
         return None
 
 
-def _read_str(path):
+def _read_str(path: str) -> str | None:
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             return f.read().strip()
     except OSError:
         return None
@@ -93,7 +95,7 @@ def _read_str(path):
 class RaplZone:
     """One RAPL domain: name + energy counter with delta/wraparound handling."""
 
-    def __init__(self, sysfs_dir):
+    def __init__(self, sysfs_dir: str) -> None:
         self.dir = sysfs_dir
         self.name = _read_str(os.path.join(sysfs_dir, "name")) or os.path.basename(sysfs_dir)
         self.energy_path = os.path.join(sysfs_dir, "energy_uj")
@@ -103,10 +105,11 @@ class RaplZone:
         self._prev_ts = time.monotonic()
 
     @property
-    def readable(self):
+    def readable(self) -> bool:
         return self._prev_uj is not None
 
-    def power_w(self):
+    def power_w(self) -> float | None:
+        """Average power (W) since the previous call, or None if it can't be computed."""
         now_uj = _read_int(self.energy_path)
         now_ts = time.monotonic()
         if now_uj is None or self._prev_uj is None:
@@ -125,7 +128,7 @@ class RaplZone:
         return round(delta_uj / delta_s / 1_000_000, 3)
 
 
-def discover_zones():
+def discover_zones() -> list[RaplZone]:
     """Top-level RAPL zones only (intel-rapl:N), not sub-domains (intel-rapl:N:M).
 
     Sub-domains (core/uncore/dram) are covered by intel_powerstat; here we want
@@ -146,7 +149,7 @@ def discover_zones():
     return zones
 
 
-def main():
+def main() -> None:
     if not glob.glob(RAPL_GLOB):
         idle_forever(f"No RAPL zones under {RAPL_GLOB} (intel_rapl module loaded?)")
 
@@ -165,10 +168,9 @@ def main():
             p = z.power_w()
             if p is None:
                 continue
-            # domain is a string tag; escape spaces just in case.
-            domain = z.name.replace(" ", "\\ ")
             print(
-                f"rapl_power,host={HOSTNAME},domain={domain} power_w={p:.3f} {ts_ns}",
+                f"rapl_power,host={HOST_TAG},domain={escape_tag_value(z.name)} "
+                f"power_w={p:.3f} {ts_ns}",
                 flush=True,
             )
             logger.debug("rapl_power domain=%s power_w=%.3f", z.name, p)
