@@ -164,17 +164,17 @@ subcommand_bootstrap () {
     echo "  --validate             validate installation orders."
     echo "  --dry-run              dry run the bootstrapping process."
     echo
-    local profiles=($(cd "$mydir";find profile -name "$installer_family" | cut -f2 -d/))
+    local profiles=($(LC_ALL=C.UTF-8;cd "$mydir";find profile -name "$installer_family" | cut -f2 -d/))
     [ ${#profiles[*]} -eq 0 ] || (
       IFS=$'\n'
       echo "  list of bootstrap profiles:"
-      echo "${profiles[*]/#/    }" | sort
+      echo "${profiles[*]/#/    }" | LC_ALL=C.UTF-8 sort
     )
-    local modules=($(cd "$mydir";find module -name "$installer_family" | cut -f2 -d/) $(cd "$mydir";find package -ipath "package/${installer_family}/*" -type f -print | cut -f3 -d/))
+    local modules=($(LC_ALL=C.UTF-8;cd "$mydir";find module -name "$installer_family" | cut -f2 -d/) $(LC_ALL=C.UTF-8;cd "$mydir";find package -ipath "package/${installer_family}/*" -type f -print | cut -f3 -d/))
     [ ${#modules[*]} -eq 0 ] || (
       IFS=$'\n'
       echo "  list of bootstrap components:"
-      echo "${modules[*]/#/    }" | sort
+      echo "${modules[*]/#/    }" | LC_ALL=C.UTF-8 sort
     )
     [ "${#profiles[*]}${#modules[*]}" = "00" ] || echo
     return 0
@@ -215,7 +215,7 @@ subcommand_bootstrap () {
   done
 
   # scan for dependencies
-  [ ${#modules[*]} -gt 0 ] || modules+=($(cd "$mydir";find profile module -name "$installer_family" | cut -f2 -d/) $(cd "$mydir";find package -ipath "package/${installer_family}/*" -type f -print | cut -f3 -d/))
+  [ ${#modules[*]} -gt 0 ] || modules+=($(LC_ALL=C.UTF-8;cd "$mydir";find profile module -name "$installer_family" | cut -f2 -d/) $(LC_ALL=C.UTF-8;cd "$mydir";find package -ipath "package/${installer_family}/*" -type f -print | cut -f3 -d/))
   modules=(${modules[*]##*/})
   local -A scripts=() orders=() known=() depsof=()
   local i=0 script license_common=0
@@ -246,7 +246,7 @@ subcommand_bootstrap () {
         . "$script"
         for cmd in $(declare -F | grep " subcommand_" | cut -f2- -d_); do
           $profiler $cmd
-        done | sort -u
+        done | LC_ALL=C.UTF-8 sort -u
       ))
       depsof[$name]="${deps[*]}"
       modules+=(${deps[*]})
@@ -285,7 +285,7 @@ subcommand_bootstrap () {
     done
     for p in ${!known[*]}; do
       for d in ${depsof[$p]}; do [ "$d" = "$p" ] || echo "$d $p"; done
-    done | tsort > /dev/null || bad=1
+    done | LC_ALL=C.UTF-8 tsort > /dev/null || bad=1
     if [ $bad -eq 0 ]; then
       echo "OK"
       exit 0
@@ -312,7 +312,7 @@ subcommand_bootstrap () {
   fi
 
   local scripts_ordered
-  mapfile -t scripts_ordered < <(printf '%s\n' "${!scripts[@]}" | sort)
+  mapfile -t scripts_ordered < <(printf '%s\n' "${!scripts[@]}" | LC_ALL=C.UTF-8 sort)
   for script in "${scripts_ordered[@]}"; do
     echo "==== bootstrapping ${script#"$mydir/"} ===="
     sources+=("$script")
