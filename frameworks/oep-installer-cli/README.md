@@ -23,23 +23,21 @@ marketing segments. The table lists the profiles:
 
 | Profile | Description |
 | ------- | ------ |
-| `inferencing` | Core AI inferencing runtime |
 | `computer_vision` | Computer-vision pipelines, models, and runtimes | 
-| `metro_ai_suite` | City monitoring and traffic management |
+| `federal_and_aerospace_ai_suite_handheld` | Federal and Aerospace handheld platform, application, and deterministic threat detection |
+| `federal_and_aerospace_ai_suite_mission_decision_support` | Federal and Aerospace mission decision support blueprint and deterministic threat detection |
+| `federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle` | Federal and Aerospace uncrewed aerial vehicle platform, application, and deterministic threat detection |
+| `health_and_life_science_ai_suite` | Patient and vitals monitoring || `inferencing` | Core AI inferencing runtime |
 | `manufacturing_ai_suite` | Industrial inspection and defect detection |
+| `metro_ai_suite` | City monitoring and traffic management |
 | `retail_ai_suite` | Retail buying-process monitoring |
 | `robotics_ai_suite` | Robotics and Physical AI workflows |
-| `federal_and_aerospace_ai_suite_handheld` | Federal and Aerospace handheld platform, application, and deterministic threat detection |
-| `federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle` | Federal and Aerospace uncrewed aerial vehicle platform, application, and deterministic threat detection |
-| `federal_and_aerospace_ai_suite_mission_decision_support` | Federal and Aerospace mission decision support blueprint and deterministic threat detection |
-| `health_and_life_science_ai_suite` | Patient and vitals monitoring |
 
 > See [`modules`](module) or [`packages`](package) for the list of available modules.   
 
 ## Installation
 
-For simplicity, the OEP installer is presented as a single self-contained shell script (located at [`rendered/openedge-cli`](rendered/openedge-cli)) that can be 
-downloaded and then run in a shell environment. 
+For simplicity, the OEP installer is presented as a single self-contained shell script (located at [`rendered/openedge-cli`](rendered/openedge-cli)) that can be downloaded and then run in a shell environment. 
 
 - install components from a profile, or
 ```bash
