@@ -380,7 +380,7 @@ def _check_token_form(meta: Mapping[str, Any], k: int, num_classes: int) -> None
     if soft_ids is None or label_ids is None:
         raise RcvFormatError(
             "a soft version needs soft_token_ids and label_token_ids (token form); "
-            "re-pack it with tools/pack_rcv.py"
+            "re-pack it with python -m src.rsd.model_based.pack_rcv"
         )
     if len(soft_ids) != k:
         raise RcvFormatError(f"soft_token_ids must have k={k} entries, got {len(soft_ids)}")

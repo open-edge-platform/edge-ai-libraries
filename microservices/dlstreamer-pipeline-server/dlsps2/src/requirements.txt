@@ -18,3 +18,8 @@ numpy>=1.26.0          # s3sinkpy (frame buffer handling)
 
 # scenescape requirement
 ntplib==0.4.0
+
+# OpenTelemetry metrics export (ENABLE_OPEN_TELEMETRY=true)
+opentelemetry-api==1.30.0
+opentelemetry-sdk==1.30.0
+opentelemetry-exporter-otlp-proto-http==1.30.0

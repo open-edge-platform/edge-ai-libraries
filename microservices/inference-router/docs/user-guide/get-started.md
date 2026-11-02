@@ -154,6 +154,11 @@ Deploy:
 bash scripts/deploy_docker.sh
 ```
 
+With either option, if `workspace/policy.yaml` or `workspace/strategy.yaml` is
+missing, the deploy script copies the default from the router image, so the
+defaults match the router version being deployed. Existing workspace files are
+never overwritten.
+
 Check that the containers are running:
 
 ```bash
@@ -429,8 +434,10 @@ Notes:
   `/v1/providers` and can be managed there.
 - **Concurrency.** Requests to these endpoints count against `max-concurrency`,
   shared with `/v1/chat/completions` — when the limit is reached the router
-  returns `429`. Status and configuration endpoints
-  (`/health`, `/v1/models`, `/v1/config`) are never limited.
+  returns `429`. There is no limit by default; set
+  `GATEWAY_MAX_CONCURRENCY=<n>` (or pass `--max-concurrency <n>`) to enable
+  one. Status and configuration endpoints (`/health`, `/v1/models`,
+  `/v1/config`) are never limited.
 - **Dynamic control.** Because they are ordinary providers, you can enable,
   disable, update, or delete them at runtime through the `/v1/providers` API; the
   change takes effect immediately. Disabling or removing the provider makes its
@@ -509,6 +516,7 @@ plugins:
         compress_min_chars: 200
         timeout: 60.0
         enable_quantum_lock: false
+        metrics_keys: ["provider"]   # split this compressor's metrics by provider
     - name: "compressor_context"
       node: "compressor"
       enabled: false
@@ -585,6 +593,36 @@ include the default metrics you still want**:
 
 Unknown metric names are skipped with a warning in the router log. The
 cross-compressor `overall.*` fields are always recorded.
+
+#### Splitting metrics by provider
+
+To see a compressor's metrics per provider, set `settings.metrics_keys` on it:
+
+```yaml
+  postrouting:
+    - name: "compressor_harness"
+      node: "compressor"
+      enabled: true
+      settings:
+        type: "harness"
+        compress_server_url: "http://localhost:8001/compress"
+        metrics_keys: ["provider"]
+```
+
+Each key names a request attribute the router fills in for every request; the
+compressor's metrics are then also recorded per value of that key and reported
+under `metrics_by_keys` (see [Metrics by key](#metrics-by-key)). The only
+supported key is currently `provider`, the provider that served the request.
+
+- `metrics_keys` is optional. If omitted or empty, metrics are not split and
+  `metrics_by_keys` is `null` in the instance view.
+- `metrics_keys` is only allowed on `postrouting` compressors. A `prerouting`
+  compressor runs before the provider is chosen, so setting it there (or at any
+  other stage) is rejected at load time, as is an unsupported key.
+- `metrics_keys` only splits how metrics are reported; it does not change which
+  requests a compressor runs on. To run a compressor for some providers only,
+  [attach it to those providers](./plugin.md#attaching-plugins-to-providers).
+
 ### Metrics Checking
 
 After sending chat requests, choose the view that matches what you want to
@@ -611,8 +649,9 @@ This endpoint returns the `compressor` node view, including metrics aggregated
 by the shared `CompressionManager`:
 
 - `metrics`: numeric aggregates.
-- `metrics_by_keys`: the same aggregates split by key, currently only by
-  `provider`, the provider that served the request (see
+- `metrics_by_keys`: the same aggregates split by key for compressors that set
+  `settings.metrics_keys` (see
+  [Splitting metrics by provider](#splitting-metrics-by-provider) and
   [Metrics by key](#metrics-by-key)).
 - `cache_stats`: per-compressor cache usage.
 
@@ -676,18 +715,18 @@ whose values are provider names, for example:
 The example shows selected fields. Read per-provider metrics with the following
 in mind:
 
-- Only `postrouting` compressors are counted. A `prerouting` compressor runs
-  before the provider is chosen, so its fields never appear here, and the
-  per-provider `overall.*` fields cover `postrouting` compressors only. They
-  therefore do not add up to the global `overall.*` fields when a `prerouting`
-  compressor is configured.
+- Only compressors that set `metrics_keys: ["provider"]` are counted. Their
+  fields appear here, and the per-provider `overall.*` fields cover those
+  compressors only. They therefore do not add up to the global `overall.*`
+  fields when another compressor (for example a `prerouting` one, which cannot
+  be split by provider) is configured.
 - Token counts are `cl100k_base` estimates, not counts from each provider's own
   tokenizer.
 - The compression cache is shared across providers. A cache hit is fast no matter
   which provider it is recorded under, so durations are not comparable across
   providers; saved token counts are.
 - Sum fields (`total_input`, `total_output`, `call_count`, ...) add up across
-  providers to the corresponding global values for `postrouting` compressors.
+  providers to the corresponding global values for those compressors.
   Ratio and average fields (`compression_ratio`, `avg_*`) do not; recompute them
   from the summed totals.
 
@@ -705,12 +744,12 @@ runtime metrics:
 
 - `metrics`: only this compressor's fields, using the
   `<plugin_name>.*` names described above.
-- `metrics_by_keys`: for a `postrouting` compressor, the same per-instance
-  fields split by key (`provider`). The
+- `metrics_by_keys`: for a compressor that sets `settings.metrics_keys`, the
+  same per-instance fields split by key (`provider`). The
   [per-provider accounting notes](#metrics-by-key) also apply here.
-  An empty object (`{}`) means no request has been recorded yet. For a compressor
-  at any other stage, this field is `null` because metrics are not split by
-  key.
+  An empty object (`{}`) means no request has been recorded yet. For a
+  compressor without `metrics_keys`, this field is `null` because metrics are
+  not split by key.
 
 A configured-but-disabled instance that is not loaded returns its static
 configuration rather than live runtime metrics.

@@ -48,6 +48,12 @@ class ProviderConfig:
     fallback: bool = False
     metadata: Dict[str, Any] = field(default_factory=dict)
     settings: Dict[str, Any] = field(default_factory=dict)
+    # Names of postrouting/postresponse plugin instances attached to this
+    # provider. An attached plugin runs only for requests routed to the
+    # providers that list it; providers listing the same name share one
+    # instance. Unattached plugins run for every provider; prerouting plugins
+    # cannot be attached (the provider is not chosen yet).
+    plugins: List[str] = field(default_factory=list)
     # Generic passthrough mapping for integrations that are not part of the core provider contract
     extra: Dict[str, Any] = field(default_factory=dict)
 
@@ -76,7 +82,7 @@ class PluginConfig:
     name: str
     node: str  # plugin type key (a PluginBaseNode subclass); config name = instance
     enabled: bool = True
-    trigger: str = "prerouting"  # 'prerouting', 'postrouting', or 'postresponse'
+    trigger: str = "prerouting"  # 'prerouting', 'postrouting', 'postresponse', or 'standalone'
     settings: Dict[str, Any] = field(default_factory=dict)
 
 

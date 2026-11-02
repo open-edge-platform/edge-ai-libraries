@@ -85,7 +85,8 @@ initialization status and current concurrency counters.
   ```
 
   `max_concurrency` is the integer limit, or the string `"unlimited"` when no
-  limit is set.
+  limit is set. The default is unlimited; set the `GATEWAY_MAX_CONCURRENCY`
+  environment variable to a positive integer to enable a limit.
 
 - 503 Service Unavailable:
 
@@ -763,11 +764,15 @@ their existing placeholders unchanged.
   extra fields allowed).
 - `settings`: optional. Provider-specific settings such as `endpoint`, `timeout`,
   and `auth` (extra fields allowed).
+- `plugins`: optional. Names of `postrouting`/`postresponse` plugin instances
+  attached to this provider, replacing the existing list (`[]` detaches all). See
+  [Attaching Plugins to Providers](./plugin.md#attaching-plugins-to-providers).
 
 **Response:**
 
 - 200 OK: the resulting `ProviderResponse` (secrets redacted).
-- 400 Bad Request: creating a new provider without both `type` and `model`, or the
+- 400 Bad Request: creating a new provider without both `type` and `model`, a
+  `plugins` entry that names an unknown or `prerouting`/`standalone` plugin, or the
   rebuilt runtime failed to initialize (e.g. no enabled providers remain).
 - 500 Internal Server Error: failed to persist the configuration.
 - 503 Service Unavailable: router not initialized.

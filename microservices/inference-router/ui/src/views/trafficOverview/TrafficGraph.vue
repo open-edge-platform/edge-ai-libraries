@@ -94,6 +94,7 @@ import { Graph } from "@antv/g6";
 import type { GraphData } from "@antv/g6";
 import { nodeFlow, trafficLineWidth } from "./type";
 import type { TrafficMode, TrafficSnapshot } from "./type";
+import "./TokenBranchEdge";
 
 const props = defineProps<{
   snapshot: TrafficSnapshot;
@@ -115,9 +116,10 @@ let shouldFit = true;
 const fitZoomScale = (mode: TrafficMode) => (mode === "requests" ? 0.85 : 0.9);
 
 const compact = (value: number) =>
-  new Intl.NumberFormat(locale.value.replace("_", "-"), {
+  new Intl.NumberFormat("en-US", {
     notation: "compact",
-    maximumFractionDigits: 1,
+    minimumFractionDigits: Math.abs(value) >= 1000 ? 2 : 0,
+    maximumFractionDigits: 2,
   }).format(value);
 
 function buildData(): GraphData {
@@ -129,7 +131,8 @@ function buildData(): GraphData {
     snapshot.nodes.filter((node) => node.stage === stage),
   );
   const nodeById = new Map(snapshot.nodes.map((node) => [node.id, node]));
-  const nodeSize = (): [number, number] => [196, 100];
+  const nodeSize = (isCompressor: boolean): [number, number] =>
+    isCompressor ? [160, 80] : [196, 100];
   const rowCount = Math.max(1, ...groups.map((group) => group.length));
   const positions = new Map<string, { x: number; y: number }>();
   groups.forEach((group, stageIndex) =>
@@ -140,6 +143,16 @@ function buildData(): GraphData {
       });
     }),
   );
+  if (mode === "tokens") {
+    snapshot.nodes
+      .filter((node) => node.role === "token-compressor")
+      .forEach((node) => {
+        const output = snapshot.edges.find((edge) => edge.source === node.id);
+        const target = output && positions.get(output.target);
+        const position = positions.get(node.id);
+        if (target && position) position.y = target.y;
+      });
+  }
   const style = getComputedStyle(container.value!);
   const fill = style.backgroundColor;
   const text = style.color;
@@ -183,14 +196,22 @@ function buildData(): GraphData {
     themeColor("--color-multicolored-1"),
     themeColor("--color-multicolored-2"),
     themeColor("--color-multicolored-4"),
-    themeColor("--color-multicolored-5"),
     themeColor("--traffic-provider-accent"),
+    themeColor("--color-multicolored-5"),
   ];
   const createRouteColors = (kind: string, palette: string[]) =>
     new Map(
       snapshot.nodes
         .filter((node) => node.kind === kind)
-        .map((node, index) => [node.id, palette[index % palette.length]]),
+        .map((node, index) => {
+          const color = palette[index % palette.length];
+          const cycle = Math.floor(index / palette.length);
+          const shade =
+            kind === "provider"
+              ? (isDarkSurface ? 1 : -1) * (1 - 0.8 ** cycle)
+              : 0;
+          return [node.id, shade === 0 ? color : shadeColor(color, shade)];
+        }),
     );
   const sourceColors = createRouteColors("source", sourcePalette);
   const providerColors = createRouteColors("provider", providerPalette);
@@ -237,11 +258,23 @@ function buildData(): GraphData {
     return themeColor("--font-tip-color");
   };
   const maximum = Math.max(0, ...snapshot.edges.map((edge) => edge[mode]));
+  const branchColumn = Math.min(
+    ...snapshot.nodes
+      .filter(
+        (node) => node.kind === "provider" || node.role === "token-compressor",
+      )
+      .map(
+        (node) =>
+          positions.get(node.id)!.x -
+          nodeSize(node.role === "token-compressor")[0] / 2,
+      ),
+  );
   return {
     nodes: snapshot.nodes.map((node) => {
       const flow = nodeFlow(snapshot, node.id, mode);
       const color = nodeColor(node);
       const isRouter = node.kind === "router";
+      const isCompressor = mode === "tokens" && node.role === "token-compressor";
       const surfaceHighlight = mixColor(
         fill,
         "#ffffff",
@@ -269,15 +302,16 @@ function buildData(): GraphData {
         ? t(`router.traffic.${node.kind}`)
         : node.kind;
       const value = flow.hasIncoming ? flow.incoming : flow.outgoing;
-      const metric =
-        mode === "tokens" && node.role === "token-compressor"
-          ? `${compact(flow.incoming)} → ${compact(flow.outgoing)}`
-          : compact(value);
+      const metric = isCompressor
+        ? t("router.traffic.savedTokens", {
+            count: compact(flow.incoming - flow.outgoing),
+          })
+        : compact(value);
       return {
         id: node.id,
         style: {
           ...positions.get(node.id),
-          size: nodeSize(),
+          size: nodeSize(isCompressor),
           radius: 8,
           fill: materialFill,
           stroke: color,
@@ -296,7 +330,9 @@ function buildData(): GraphData {
           shadowBlur: isRouter ? 14 : 8,
           shadowOpacity: isRouter ? 0.2 : isDarkSurface ? 0.12 : 0.07,
           shadowOffsetY: isRouter ? 3 : 2,
-          labelText: node.label,
+          labelText: isCompressor
+            ? t("router.traffic.compressor")
+            : node.label,
           labelPlacement: "center",
           labelFill: isRouter ? themeColor("--color-white") : text,
           labelFontSize: node.role === "token-compressor" ? 12 : 14,
@@ -342,7 +378,7 @@ function buildData(): GraphData {
               backgroundShadowOffsetY: 1,
               fontSize: 11,
               fontWeight: 700,
-              padding: [3, 9],
+              padding: isCompressor ? [5, 9, 1, 9] : [3, 9],
             },
           ],
           port: true,
@@ -376,6 +412,10 @@ function buildData(): GraphData {
     edges: routeEdges.map((edge) => {
       const source = nodeById.get(edge.source)!;
       const target = nodeById.get(edge.target)!;
+      const isTokenBypass =
+        mode === "tokens" &&
+        source.kind === "router" &&
+        target.kind === "provider";
       const color =
         target.role === "token-compressor"
           ? nodeColor(target)
@@ -391,8 +431,9 @@ function buildData(): GraphData {
       const labelBorder = mixColor(fill, color, isDarkSurface ? 0.56 : 0.32);
       return {
         ...edge,
-        type: "cubic-horizontal",
+        type: isTokenBypass ? "token-branch" : "cubic-horizontal",
         style: {
+          ...(isTokenBypass ? { branchX: branchColumn } : {}),
           sourcePort: edge.id,
           targetPort: edge.id,
           stroke: raised
