@@ -554,14 +554,6 @@ def _experiment_run(
     )
 
 
-def _experiment_state(runs: Sequence[schemas.ExperimentRun]) -> str:
-    states = {run.state for run in runs}
-    for candidate in ("RUNNING", "FAILED", "COMPLETED"):
-        if candidate in states:
-            return candidate
-    return "UNKNOWN"
-
-
 # --------------------------------------------------------------------------- #
 # Portal-driven performance / density experiments
 # --------------------------------------------------------------------------- #

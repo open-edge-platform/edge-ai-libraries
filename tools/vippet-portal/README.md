@@ -1,8 +1,10 @@
 # ViPPET Portal
 
 Aggregates benchmark, performance and density results from **multiple ViPPET
-instances** into a single comparison view. It is read-only: it never triggers
-work on a machine, it only polls each instance's public API.
+instances** into a single comparison view. It polls each instance's public API
+and can also launch the same benchmark suite, performance test or density test
+on several machines at once (an *experiment*), then track their progress
+side by side.
 
 The UI reuses the ViPPET design system (Tailwind v4 tokens, shadcn/Radix
 component kit, Intel branding) so the portal looks and behaves like ViPPET
@@ -95,6 +97,12 @@ embedded raw telemetry series (megabytes per run) before being returned.
 | `GET /api/v1/benchmarks/compare?refs=…` | Aligned comparison matrix |
 | `GET /api/v1/tests/{performance\|density}` | All test jobs across all machines |
 | `GET /api/v1/tests/{kind}/compare?refs=…` | Aligned comparison matrix |
+| `GET /api/v1/benchmarks/suites` | Suites that can be launched, merged across machines |
+| `GET/POST /api/v1/experiments` | List / start a benchmark suite on several machines |
+| `DELETE /api/v1/experiments/{id}` | Forget a benchmark experiment (runs stay on the machines) |
+| `GET /api/v1/experiments/pipelines` | Pipelines and variants usable as a test workload |
+| `GET/POST /api/v1/experiments/tests/{kind}` | List / start a performance or density test on several machines |
+| `DELETE /api/v1/experiments/tests/{id}` | Forget a test experiment (jobs stay on the machines) |
 
 A *ref* is a stable portal-wide identifier:
 `"<instance_id>:<suite_slug>:<run_id>"` for benchmark runs and
@@ -102,8 +110,12 @@ A *ref* is a stable portal-wide identifier:
 
 ### Upstream ViPPET endpoints consumed
 
-`/api/v1/status`, `/api/v1/devices`, `/api/v1/benchmarks/runs`,
-`/api/v1/benchmarks/{slug}/run/{id}`, `/api/v1/jobs/tests/{kind}/status`,
+Read: `GET /api/v1/status`, `/api/v1/devices`, `/api/v1/benchmarks`,
+`/api/v1/benchmarks/runs`, `/api/v1/benchmarks/{slug}/run/{id}`,
+`/api/v1/pipelines`, `/api/v1/jobs/tests/{benchmark|performance|density}/status`,
 `/api/v1/jobs/tests/{kind}/{job_id}`.
+
+Launch (experiments only): `POST /api/v1/benchmarks/{slug}/run`,
+`POST /api/v1/tests/{performance|density}`.
 
 Older instances that do not report `version` in `/status` are handled gracefully.
