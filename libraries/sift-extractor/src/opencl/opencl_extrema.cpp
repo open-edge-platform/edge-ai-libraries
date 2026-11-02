@@ -432,6 +432,7 @@ struct OpenCLDoGExtrema::Impl {
   int cached_gradient_width = 0;
   int cached_gradient_height = 0;
   bool gradients_ready = false;
+  cl_mem cached_gradient_device = nullptr;
   std::unique_ptr<OpenCLGaussianPyramid> pyramid;
 
   cl_mem ensure_buffer(Buffer &buffer, cl_mem_flags flags, size_t bytes) {
@@ -463,10 +464,10 @@ struct OpenCLDoGExtrema::Impl {
     return *slot;
   }
 
-    void prepare_gradients(const GaussianLevel &level) {
-    const size_t image_bytes = level.pixels.size() * sizeof(float);
-    cl_mem image_buffer = ensure_buffer(feature_image, CL_MEM_READ_ONLY,
-                       image_bytes);
+    void prepare_gradients(const GaussianLevel &level, cl_mem device_image) {
+    const size_t image_bytes = static_cast<size_t>(level.width) * level.height * sizeof(float);
+    cl_mem image_buffer = device_image ? device_image :
+      ensure_buffer(feature_image, CL_MEM_READ_ONLY, image_bytes);
     cl_mem magnitude_buffer = ensure_buffer(gradient_magnitude,
       CL_MEM_READ_WRITE, image_bytes);
     cl_mem orientation_buffer = ensure_buffer(gradient_orientation,
@@ -476,7 +477,7 @@ struct OpenCLDoGExtrema::Impl {
       gradient_kernel = clCreateKernel(program, "sift_gradients", &status);
       check_opencl(status, "clCreateKernel(sift_gradients)");
     }
-    check_opencl(clEnqueueWriteBuffer(queue, image_buffer, CL_TRUE, 0,
+    if (!device_image) check_opencl(clEnqueueWriteBuffer(queue, image_buffer, CL_TRUE, 0,
       image_bytes, level.pixels.data(), 0, nullptr, nullptr),
       "clEnqueueWriteBuffer(gradient image)");
     check_opencl(clSetKernelArg(gradient_kernel, 0, sizeof(cl_mem),
@@ -495,6 +496,7 @@ struct OpenCLDoGExtrema::Impl {
       global_size, nullptr, 0, nullptr, nullptr),
       "clEnqueueNDRangeKernel(gradients)");
     cached_gradient_pixels = level.pixels;
+    cached_gradient_device = device_image;
     cached_gradient_width = level.width;
     cached_gradient_height = level.height;
     gradients_ready = true;
@@ -508,9 +510,9 @@ struct OpenCLDoGExtrema::Impl {
 
   std::vector<float> run_feature_kernel(const char *name,
       const GaussianLevel &level, const std::vector<float> &points,
-      size_t output_stride) {
+      size_t output_stride, cl_mem device_image = nullptr) {
     if (level.width < 3 || level.height < 3 ||
-        level.pixels.size() != static_cast<size_t>(level.width) * level.height)
+        (!device_image && level.pixels.size() != static_cast<size_t>(level.width) * level.height))
       throw std::invalid_argument("Invalid Gaussian image for feature sampling");
     for (float value : level.pixels) {
       if (!std::isfinite(value))
@@ -526,13 +528,15 @@ struct OpenCLDoGExtrema::Impl {
       std::string(name) == "sift_descriptors" && gradients_ready &&
       cached_gradient_width == level.width &&
       cached_gradient_height == level.height &&
-      cached_gradient_pixels == level.pixels;
+      cached_gradient_device == device_image &&
+      (device_image || cached_gradient_pixels == level.pixels);
     if (!reusable_gradients)
-      prepare_gradients(level);
+      prepare_gradients(level, device_image);
+    const size_t image_bytes = static_cast<size_t>(level.width) * level.height * sizeof(float);
     cl_mem magnitude_buffer = ensure_buffer(gradient_magnitude,
-      CL_MEM_READ_ONLY, level.pixels.size() * sizeof(float));
+      CL_MEM_READ_WRITE, image_bytes);
     cl_mem orientation_buffer = ensure_buffer(gradient_orientation,
-      CL_MEM_READ_ONLY, level.pixels.size() * sizeof(float));
+      CL_MEM_READ_WRITE, image_bytes);
     cl_mem points_buffer = ensure_buffer(feature_points, CL_MEM_READ_ONLY,
                         points.size() * sizeof(float));
     std::vector<float> output(count * output_stride);
@@ -560,7 +564,8 @@ struct OpenCLDoGExtrema::Impl {
   }
 
   std::vector<RefinedKeypoint> detect_refine(const DoGLevel *levels,
-      int scale_count, float threshold, float edge_limit) {
+      int scale_count, float threshold, float edge_limit,
+      const cl_mem *device_levels = nullptr) {
     const int width = levels[0].width;
     const int height = levels[0].height;
     if (width < 3 || height < 3 || scale_count < 3) return {};
@@ -571,7 +576,7 @@ struct OpenCLDoGExtrema::Impl {
       const auto &level = levels[scale];
       if (level.width != width || level.height != height ||
           level.octave != levels[0].octave || level.scale != scale ||
-          level.pixels.size() != plane_size)
+          (!device_levels && level.pixels.size() != plane_size))
         throw std::invalid_argument("DoG levels must form one contiguous octave");
     }
     if (!count_kernel) {
@@ -593,11 +598,18 @@ struct OpenCLDoGExtrema::Impl {
                                    block_count * sizeof(cl_uint));
     std::vector<cl_uint> host_offsets(block_count);
     try {
-      for (int scale = 0; scale < scale_count; ++scale)
-        check_opencl(clEnqueueWriteBuffer(queue, volume, CL_FALSE,
-            static_cast<size_t>(scale) * plane_size * sizeof(float),
-            plane_size * sizeof(float), levels[scale].pixels.data(), 0, nullptr,
-            nullptr), "clEnqueueWriteBuffer(combined DoG)");
+      for (int scale = 0; scale < scale_count; ++scale) {
+        const size_t bytes = plane_size * sizeof(float);
+        if (device_levels) {
+          check_opencl(clEnqueueCopyBuffer(queue, device_levels[scale], volume,
+              0, static_cast<size_t>(scale) * bytes, bytes, 0, nullptr, nullptr),
+              "clEnqueueCopyBuffer(resident DoG)");
+        } else {
+          check_opencl(clEnqueueWriteBuffer(queue, volume, CL_FALSE,
+              static_cast<size_t>(scale) * bytes, bytes, levels[scale].pixels.data(),
+              0, nullptr, nullptr), "clEnqueueWriteBuffer(combined DoG)");
+        }
+      }
       check_opencl(clSetKernelArg(kernel, 0, sizeof(volume), &volume), "combined extrema volume");
       check_opencl(clSetKernelArg(kernel, 1, sizeof(mask), &mask), "combined extrema mask");
       check_opencl(clSetKernelArg(kernel, 2, sizeof(width), &width), "combined extrema width");
@@ -988,6 +1000,14 @@ std::vector<RefinedKeypoint> OpenCLDoGExtrema::refine(
 std::vector<ScaleSpaceKeypoint> OpenCLDoGExtrema::detect_pyramid(
     const std::vector<DoGLevel> &dog_levels, int octave_count, int intervals,
     float base_sigma, float contrast_threshold, float edge_limit) {
+  return detect_pyramid_impl(dog_levels, octave_count, intervals, base_sigma,
+                contrast_threshold, edge_limit, nullptr);
+}
+
+std::vector<ScaleSpaceKeypoint> OpenCLDoGExtrema::detect_pyramid_impl(
+  const std::vector<DoGLevel> &dog_levels, int octave_count, int intervals,
+  float base_sigma, float contrast_threshold, float edge_limit,
+  const std::vector<_cl_mem *> *device_levels) {
   if (octave_count <= 0 || octave_count > 30 || intervals <= 0 ||
       intervals > std::numeric_limits<int>::max() - 2 ||
       !std::isfinite(base_sigma) || base_sigma <= 0.0f ||
@@ -999,12 +1019,15 @@ std::vector<ScaleSpaceKeypoint> OpenCLDoGExtrema::detect_pyramid(
       dog_levels.size() % levels_per_octave != 0)
     throw std::invalid_argument("DoG level count does not match detector configuration");
 
+  if (device_levels && device_levels->size() != dog_levels.size())
+    throw std::invalid_argument("Device DoG level count does not match pyramid");
   for (size_t index = 0; index < dog_levels.size(); ++index) {
     const auto &level = dog_levels[index];
     if (level.octave != static_cast<int>(index / levels_per_octave) ||
         level.scale != static_cast<int>(index % levels_per_octave) ||
         level.width <= 0 || level.height <= 0 ||
-        level.pixels.size() != static_cast<size_t>(level.width) * level.height)
+        (device_levels ? !(*device_levels)[index] :
+         level.pixels.size() != static_cast<size_t>(level.width) * level.height))
       throw std::invalid_argument("DoG pyramid layout is invalid");
   }
 
@@ -1013,7 +1036,8 @@ std::vector<ScaleSpaceKeypoint> OpenCLDoGExtrema::detect_pyramid(
     const auto begin = dog_levels.begin() +
                        static_cast<size_t>(octave) * levels_per_octave;
     const auto refined = impl_->detect_refine(&*begin,
-      static_cast<int>(levels_per_octave), contrast_threshold, edge_limit);
+      static_cast<int>(levels_per_octave), contrast_threshold, edge_limit,
+      device_levels ? device_levels->data() + octave * levels_per_octave : nullptr);
     const float image_factor = std::ldexp(1.0f, octave);
     for (const auto &point : refined) {
       const float octave_sigma =
@@ -1042,13 +1066,19 @@ std::vector<ScaleSpaceKeypoint> OpenCLDoGExtrema::detect_image(
   }
   auto &pyramid = impl_->get_pyramid();
   const auto levels = pyramid.build_with_differences(
-      image, width, height, octave_count, intervals, base_sigma);
-  return detect_pyramid(levels.differences, octave_count, intervals, base_sigma,
-                         contrast_threshold, edge_limit);
+      image, width, height, octave_count, intervals, base_sigma, true);
+    return detect_pyramid_impl(levels.differences, octave_count, intervals, base_sigma,
+               contrast_threshold, edge_limit, &levels.device_differences);
 }
 
 std::vector<OrientedKeypoint> OpenCLDoGExtrema::assign_orientations(
     const GaussianLevel &level, const std::vector<ScaleSpaceKeypoint> &points) {
+  return assign_orientations_impl(level, points, nullptr);
+}
+
+std::vector<OrientedKeypoint> OpenCLDoGExtrema::assign_orientations_impl(
+    const GaussianLevel &level, const std::vector<ScaleSpaceKeypoint> &points,
+    _cl_mem *device_image) {
   std::vector<float> packed;
   for (const auto &point : points) {
     if (point.octave != level.octave || !std::isfinite(point.local.x) ||
@@ -1059,7 +1089,7 @@ std::vector<OrientedKeypoint> OpenCLDoGExtrema::assign_orientations(
       throw std::invalid_argument("Invalid orientation sampling point");
     packed.insert(packed.end(), {point.local.x, point.local.y, point.octave_sigma, 0.0f});
   }
-  const auto angles = impl_->run_feature_kernel("sift_orientations", level, packed, 36);
+  const auto angles = impl_->run_feature_kernel("sift_orientations", level, packed, 36, device_image);
   std::vector<OrientedKeypoint> result;
   for (size_t index = 0; index < points.size(); ++index) {
     for (size_t bin = 0; bin < 36; ++bin) {
@@ -1072,6 +1102,12 @@ std::vector<OrientedKeypoint> OpenCLDoGExtrema::assign_orientations(
 
 std::vector<SiftFeature> OpenCLDoGExtrema::compute_descriptors(
     const GaussianLevel &level, const std::vector<OrientedKeypoint> &points) {
+  return compute_descriptors_impl(level, points, nullptr);
+}
+
+std::vector<SiftFeature> OpenCLDoGExtrema::compute_descriptors_impl(
+    const GaussianLevel &level, const std::vector<OrientedKeypoint> &points,
+    _cl_mem *device_image) {
   std::vector<float> packed;
   for (const auto &point : points) {
     const auto &keypoint = point.keypoint;
@@ -1086,7 +1122,7 @@ std::vector<SiftFeature> OpenCLDoGExtrema::compute_descriptors(
     packed.insert(packed.end(), {keypoint.local.x, keypoint.local.y,
                                  keypoint.octave_sigma, point.orientation_degrees});
   }
-  const auto values = impl_->run_feature_kernel("sift_descriptors", level, packed, 128);
+  const auto values = impl_->run_feature_kernel("sift_descriptors", level, packed, 128, device_image);
   std::vector<SiftFeature> result;
   for (size_t index = 0; index < points.size(); ++index) {
     SiftFeature feature;
@@ -1111,14 +1147,15 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
       throw std::invalid_argument("Extractor input must contain finite values");
   }
   const auto profile_start = std::chrono::steady_clock::now();
+  impl_->gradients_ready = false;
   auto &pyramid = impl_->get_pyramid();
   const auto levels = pyramid.build_with_differences(
-      image, width, height, octave_count, intervals, base_sigma);
+      image, width, height, octave_count, intervals, base_sigma, true);
   const auto &gaussian = levels.gaussian;
   const auto &differences = levels.differences;
   const auto difference_end = std::chrono::steady_clock::now();
-  auto keypoints = detect_pyramid(differences, octave_count, intervals,
-                                   base_sigma, contrast_threshold, edge_limit);
+  auto keypoints = detect_pyramid_impl(differences, octave_count, intervals,
+      base_sigma, contrast_threshold, edge_limit, &levels.device_differences);
   if (max_features > 0 && keypoints.size() > static_cast<size_t>(max_features)) {
     std::stable_sort(keypoints.begin(), keypoints.end(), [](const auto &first,
                                                            const auto &second) {
@@ -1140,9 +1177,11 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
   for (size_t group = 0; group < groups.size(); ++group) {
     if (groups[group].empty()) continue;
     const auto orientation_start = std::chrono::steady_clock::now();
-    const auto oriented = assign_orientations(gaussian[group], groups[group]);
+    const auto oriented = assign_orientations_impl(gaussian[group], groups[group],
+                             levels.device_gaussian[group]);
     const auto descriptor_start = std::chrono::steady_clock::now();
-    auto features = compute_descriptors(gaussian[group], oriented);
+    auto features = compute_descriptors_impl(gaussian[group], oriented,
+                          levels.device_gaussian[group]);
     const auto group_end = std::chrono::steady_clock::now();
     orientation_ms += std::chrono::duration<double, std::milli>(
         descriptor_start - orientation_start).count();

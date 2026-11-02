@@ -3,6 +3,7 @@
 #include <vector>
 
 struct _cl_command_queue;
+struct _cl_mem;
 
 namespace sift_extractor::detail {
 
@@ -36,7 +37,9 @@ private:
                      std::vector<GaussianLevel> &gaussian,
                      std::vector<DoGLevel> &differences,
                      const std::vector<std::vector<float>> &kernels,
-                     int intervals);
+                     int intervals,
+                     std::vector<_cl_mem *> *device_differences = nullptr,
+                     std::vector<_cl_mem *> *device_gaussian = nullptr);
   struct Impl;
   Impl *impl_;
 };

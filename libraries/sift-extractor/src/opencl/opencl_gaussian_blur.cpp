@@ -532,7 +532,9 @@ std::vector<float> OpenCLGaussianBlur::downsample_by_two(
 void OpenCLGaussianBlur::build_pyramid(
     const std::vector<float> &image, std::vector<GaussianLevel> &gaussian,
     std::vector<DoGLevel> &differences,
-    const std::vector<std::vector<float>> &kernels, int intervals) {
+  const std::vector<std::vector<float>> &kernels, int intervals,
+  std::vector<_cl_mem *> *device_differences,
+  std::vector<_cl_mem *> *device_gaussian) {
   const size_t image_bytes = image.size() * sizeof(float);
   cl_mem input = impl_->ensure_buffer(impl_->input, CL_MEM_READ_ONLY, image_bytes);
   cl_mem temporary = impl_->ensure_buffer(impl_->temporary, CL_MEM_READ_WRITE,
@@ -541,11 +543,14 @@ void OpenCLGaussianBlur::build_pyramid(
   impl_->dog_levels.resize(std::max(impl_->dog_levels.size(), differences.size()));
   impl_->pyramid_weights.resize(std::max(impl_->pyramid_weights.size(), kernels.size()));
   impl_->cached_kernels.resize(std::max(impl_->cached_kernels.size(), kernels.size()));
+  if (device_gaussian) device_gaussian->resize(gaussian.size());
   for (size_t index = 0; index < gaussian.size(); ++index) {
     auto &level = gaussian[index];
-    level.pixels.resize(static_cast<size_t>(level.width) * level.height);
-    impl_->ensure_buffer(impl_->gaussian_levels[index], CL_MEM_READ_WRITE,
-                         level.pixels.size() * sizeof(float));
+    const size_t count = static_cast<size_t>(level.width) * level.height;
+    if (!device_gaussian) level.pixels.resize(count);
+    cl_mem memory = impl_->ensure_buffer(impl_->gaussian_levels[index], CL_MEM_READ_WRITE,
+                                         count * sizeof(float));
+    if (device_gaussian) (*device_gaussian)[index] = memory;
     if (!kernels[index].empty() && kernels[index] != impl_->cached_kernels[index]) {
       const size_t bytes = kernels[index].size() * sizeof(float);
       std::vector<float> cached = kernels[index];
@@ -557,11 +562,14 @@ void OpenCLGaussianBlur::build_pyramid(
       impl_->cached_kernels[index] = std::move(cached);
     }
   }
+  if (device_differences) device_differences->resize(differences.size());
   for (size_t index = 0; index < differences.size(); ++index) {
     auto &level = differences[index];
-    level.pixels.resize(static_cast<size_t>(level.width) * level.height);
-    impl_->ensure_buffer(impl_->dog_levels[index], CL_MEM_READ_WRITE,
-                         level.pixels.size() * sizeof(float));
+    const size_t count = static_cast<size_t>(level.width) * level.height;
+    if (!device_differences) level.pixels.resize(count);
+    cl_mem memory = impl_->ensure_buffer(impl_->dog_levels[index], CL_MEM_READ_WRITE,
+                                         count * sizeof(float));
+    if (device_differences) (*device_differences)[index] = memory;
   }
 
   try {
@@ -588,7 +596,8 @@ void OpenCLGaussianBlur::build_pyramid(
             global_size, nullptr, 0, nullptr, nullptr), "pyramid downsample launch");
       } else if (kernels[index].empty()) {
         check_opencl(clEnqueueCopyBuffer(impl_->queue, source, destination, 0, 0,
-            level.pixels.size() * sizeof(float), 0, nullptr, nullptr), "pyramid level copy");
+          static_cast<size_t>(level.width) * level.height * sizeof(float),
+          0, nullptr, nullptr), "pyramid level copy");
       } else {
         cl_mem weights = impl_->pyramid_weights[index].memory;
         const int radius = static_cast<int>(kernels[index].size() / 2);
@@ -619,12 +628,14 @@ void OpenCLGaussianBlur::build_pyramid(
       }
     }
     for (size_t index = 0; index < gaussian.size(); ++index) {
+      if (device_gaussian) break;
       auto &pixels = gaussian[index].pixels;
       check_opencl(clEnqueueReadBuffer(impl_->queue, impl_->gaussian_levels[index].memory,
           CL_FALSE, 0, pixels.size() * sizeof(float), pixels.data(), 0, nullptr, nullptr),
           "clEnqueueReadBuffer(pyramid Gaussian)");
     }
     for (size_t index = 0; index < differences.size(); ++index) {
+      if (device_differences) break;
       auto &pixels = differences[index].pixels;
       check_opencl(clEnqueueReadBuffer(impl_->queue, impl_->dog_levels[index].memory,
           CL_FALSE, 0, pixels.size() * sizeof(float), pixels.data(), 0, nullptr, nullptr),

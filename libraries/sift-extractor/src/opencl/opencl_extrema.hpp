@@ -74,6 +74,16 @@ public:
             int max_features = 0);
 
 private:
+  std::vector<OrientedKeypoint> assign_orientations_impl(
+      const GaussianLevel &level, const std::vector<ScaleSpaceKeypoint> &points,
+      _cl_mem *device_image);
+  std::vector<SiftFeature> compute_descriptors_impl(
+      const GaussianLevel &level, const std::vector<OrientedKeypoint> &points,
+      _cl_mem *device_image);
+  std::vector<ScaleSpaceKeypoint> detect_pyramid_impl(
+      const std::vector<DoGLevel> &dog_levels, int octave_count, int intervals,
+      float base_sigma, float contrast_threshold, float edge_limit,
+      const std::vector<_cl_mem *> *device_levels);
   struct Impl;
   Impl *impl_;
 };

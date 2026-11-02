@@ -27,6 +27,8 @@ struct DoGLevel {
 struct GaussianDoGPyramid {
   std::vector<GaussianLevel> gaussian;
   std::vector<DoGLevel> differences;
+  std::vector<_cl_mem *> device_differences;
+  std::vector<_cl_mem *> device_gaussian;
 };
 
 class OpenCLGaussianPyramid {
@@ -46,7 +48,7 @@ public:
       int intervals);
     GaussianDoGPyramid build_with_differences(
       const std::vector<float> &image, int width, int height, int octave_count,
-      int intervals, float base_sigma);
+      int intervals, float base_sigma, bool keep_on_device = false);
 
 private:
   OpenCLGaussianBlur primitives_;

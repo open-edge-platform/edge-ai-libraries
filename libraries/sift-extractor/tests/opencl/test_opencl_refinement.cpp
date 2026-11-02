@@ -297,6 +297,36 @@ int main() {
     const auto image_features = detector.extract_image(texture, texture_width,
         texture_height, 2, 3, 1.6f, 0.1f, 12.1f);
     if (image_features.empty()) return 1;
+    sift_extractor::detail::OpenCLGaussianPyramid host_pyramid;
+    const auto host_levels = host_pyramid.build_with_differences(texture,
+        texture_width, texture_height, 2, 3, 1.6f);
+    const auto host_points = detector.detect_pyramid(host_levels.differences,
+        2, 3, 1.6f, 0.1f, 12.1f);
+    std::vector<std::vector<sift_extractor::detail::ScaleSpaceKeypoint>> host_groups(
+        host_levels.gaussian.size());
+    for (const auto &point : host_points) {
+      const int level = std::clamp(static_cast<int>(std::lround(point.local.scale)), 0, 5);
+      host_groups[static_cast<size_t>(point.octave) * 6 + level].push_back(point);
+    }
+    std::vector<sift_extractor::detail::SiftFeature> host_features;
+    for (size_t group = 0; group < host_groups.size(); ++group) {
+      if (host_groups[group].empty()) continue;
+      const auto oriented = detector.assign_orientations(host_levels.gaussian[group], host_groups[group]);
+      const auto features = detector.compute_descriptors(host_levels.gaussian[group], oriented);
+      host_features.insert(host_features.end(), features.begin(), features.end());
+    }
+    if (host_features.size() != image_features.size()) return 1;
+    for (size_t index = 0; index < image_features.size(); ++index) {
+      const auto &actual = image_features[index];
+      const auto &expected = host_features[index];
+      if (actual.point.keypoint.image_x != expected.point.keypoint.image_x ||
+          actual.point.keypoint.image_y != expected.point.keypoint.image_y ||
+          actual.point.keypoint.image_sigma != expected.point.keypoint.image_sigma ||
+          actual.point.keypoint.local.response != expected.point.keypoint.local.response ||
+          actual.point.orientation_degrees != expected.point.orientation_degrees ||
+          actual.descriptor != expected.descriptor) return 1;
+    }
+    std::printf("Resident pyramid feature records exactly match the host pipeline\n");
     const auto serial_features = serial_detector.extract_image(texture, texture_width,
         texture_height, 2, 3, 1.6f, 0.1f, 12.1f);
     if (serial_features.size() != image_features.size()) return 1;

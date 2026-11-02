@@ -240,6 +240,41 @@ runner `results/20261102/arc-opencl-milestone.sh`, local reports
 `~/.local/share/sift-extractor-staging/arc-compaction-d266f47fcec2f0d8`.
 Manifest SHA256: `d266f47fcec2f0d852662e08c6e4453a2c2e0c28f9975439e9480ca7b8f6603b`.
 
+### Resident Pyramid Consumption
+
+Image extraction now keeps both Gaussian and DoG images on-device. DoG levels are
+copied device-to-device into the retained contiguous detection/refinement volume;
+gradient kernels read Gaussian buffers directly. There are no Gaussian/DoG host
+allocations or image readbacks in this path, and no feature-image re-upload or
+host pixel scan. Block-prefix counts, keypoints, orientations and descriptors still
+cross the host boundary, so this is not an entirely device-only extractor.
+
+The internal pyramid's `keep_on_device` option returns borrowed buffer handles
+valid only until its next build or destruction. The extractor consumes them
+synchronously on the shared in-order queue. Gradient cache state is reset at each
+extraction; standalone host-vector APIs retain pixel validation and mutation
+detection. The default pyramid API still returns independent host vectors.
+Exact full-feature equivalence against an assembled host pipeline and all ten
+local tests pass. Arc regression and all 22 timing/profile cases passed against
+compaction milestone `e40d198ba`. All OpenCL quality report fields are identical
+across four A/B/B/A runs per configuration. True pooled medians (60 samples/build):
+
+| Size | Feature Budget | Before (ms) | Resident (ms) | Latency Reduction |
+| --- | --- | --- | --- | --- |
+| 640x480 | Unlimited | 38.207 | 28.470 | 25.5% |
+| 640x480 | 500 | 36.473 | 27.580 | 24.4% |
+| 1920x1080 | Unlimited | 96.990 | 61.400 | 36.7% |
+| 1920x1080 | 500 | 80.536 | 44.571 | 44.7% |
+
+CPU control times also shifted materially, so these are observed application-level
+gains rather than isolated GPU kernel speedups. Warm 1080p profiles show roughly
+11-14ms pyramid, 7-9ms extrema/refinement, 14-15ms orientation and 24-29ms descriptors.
+The reference throughput target remains unmet. Evidence: SIFT workspace
+`results/20261102/arc-resident-consumption-summary.json`; local reports
+`/tmp/sift-arc-resident-consumption-results.wE8Are/milestone-results`; remote stage
+`~/.local/share/sift-extractor-staging/arc-resident-consumption-017c74728b0106b3`.
+Manifest SHA256: `017c74728b0106b36fb43c0a8704b190da53cc7689530c00c730bef49d34a550`.
+
 Three warmup extractions per backend precede 1-100 measured repetitions. Backend
 order rotates across OpenCL, SYCL and the OpenCV CPU baseline. The reported
 median/min/max and raw samples include float
