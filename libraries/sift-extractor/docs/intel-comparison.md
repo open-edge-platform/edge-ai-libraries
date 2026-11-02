@@ -240,6 +240,45 @@ runner `results/20261102/arc-opencl-milestone.sh`, local reports
 `~/.local/share/sift-extractor-staging/arc-compaction-d266f47fcec2f0d8`.
 Manifest SHA256: `d266f47fcec2f0d852662e08c6e4453a2c2e0c28f9975439e9480ca7b8f6603b`.
 
+### Bin-Owned Descriptors
+
+The parallel descriptor kernel now assigns one lane to each of 128 bins. Each lane
+visits the bounding box of its rotated spatial bin with a conservative one-pixel
+guard, then applies the original support and interpolation predicates. Contributions
+remain in row-major order; no samples, octaves, orientations or descriptor bins are
+dropped. Normalization is still serial in bin order. Local storage falls from
+16.5 KiB to 512 bytes. The serial reference retains its original general `fmod`;
+the parallel path wraps the bounded angle range with exact subtractions.
+
+All 10 local tests and Arc regression plus 22 timing/profile cases passed. The
+687 deterministic descriptor cases cover fractional coordinates, angles, borders,
+small/large scales, repeatability and blank images. Observed Arc maximum bin error
+against the serial reference was zero. All matching-quality report fields remained
+identical across A/B/B/A. True pooled medians (60 samples/build), against `9f42d43a6`:
+
+| Size | Feature Budget | Before (ms) | Bin-Owned (ms) | Latency Reduction |
+| --- | --- | --- | --- | --- |
+| 640x480 | Unlimited | 28.247 | 26.788 | 5.2% |
+| 640x480 | 500 | 27.768 | 26.766 | 3.6% |
+| 1920x1080 | Unlimited | 62.106 | 48.659 | 21.7% |
+| 1920x1080 | 500 | 45.446 | 43.778 | 3.7% |
+
+The throughput target remains unmet. Single-fixture quality stability does not
+establish general quality parity. Direct local-memory accumulation showed only
+1-3% changes and was reverted; native exponential did not show a meaningful gain
+and was also reverted. No approximate native math is retained.
+
+Set `SIFT_OPENCL_PROFILE=1` before constructing the extractor to additionally enable
+OpenCL event timing. `OPENCL_FEATURE_PROFILE` separates device kernel time from
+host preparation and enqueue/readback wall time. Coarse stage timings remain wall
+clock; profiling runs are separate from acceptance timing runs.
+
+Evidence: SIFT workspace `results/20261102/arc-bin-owned-summary.json`; local reports
+`/tmp/sift-arc-bin-owned-results.ubuyPE/milestone-results`; remote stage
+`~/.local/share/sift-extractor-staging/arc-bin-owned-f9b7d63529044540`.
+Manifest SHA256: `f9b7d63529044540d8458d5517303f3a9ed149236f81954a764433b5d40dc4b3`.
+All five returned run manifests match the staged executable hashes.
+
 ### Resident Pyramid Consumption
 
 Image extraction now keeps both Gaussian and DoG images on-device. DoG levels are

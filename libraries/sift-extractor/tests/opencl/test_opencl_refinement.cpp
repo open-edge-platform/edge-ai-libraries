@@ -264,6 +264,13 @@ int main() {
         }
       }
     }
+    for (int index = 0; index < 512; ++index) {
+      auto point = sample;
+      point.local.x = point.image_x = static_cast<float>((index * 37) % (texture_width * 100)) / 100.0f;
+      point.local.y = point.image_y = static_cast<float>((index * 71) % (texture_height * 100)) / 100.0f;
+      point.octave_sigma = point.image_sigma = 0.1f + static_cast<float>((index * 79) % 997) / 29.0f;
+      descriptor_points.push_back({point, static_cast<float>((index * 137) % 36000) / 100.0f});
+    }
     const auto serial_descriptors = serial_detector.compute_descriptors(
         descriptor_image, descriptor_points);
     const auto parallel_descriptors = detector.compute_descriptors(
