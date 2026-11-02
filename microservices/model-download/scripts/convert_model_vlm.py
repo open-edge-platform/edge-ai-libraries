@@ -23,7 +23,7 @@ except ImportError:
     import openvino.runtime.opset13 as opset13
 
 from huggingface_hub import snapshot_download
-from transformers import AutoProcessor, AutoModelForCausalLM, AutoModel
+from transformers import AutoProcessor, AutoModelForCausalLM
 
 try:
     from transformers.modeling_utils import PreTrainedModel
@@ -214,7 +214,7 @@ class ModelConverter:
             self.download_model()
             
             # Load model
-            model = AutoModel.from_pretrained(self.orig_model_dir, trust_remote_code=True)
+            model = AutoModelForCausalLM.from_pretrained(self.orig_model_dir, trust_remote_code=True)
             model.eval()
             
             # Create example input
