@@ -187,32 +187,60 @@ Use the matching `--harness` value for your agent. Sandbox removal deletes its
 sandbox state; do not use this recreation path unless you have backed up data
 you need to keep.
 
-#### Dynamic update of a live sandbox
+#### Dynamic policy changes
 
-To apply a custom YAML policy to an existing sandbox without recreating it,
-make a copy of the appropriate starting policy, edit the copy, and use
-OpenShell's policy command. Run from the component directory; replace the
-example sandbox and gateway names with the values for your installation:
+Use OpenShell commands to change a running sandbox's network access. For
+example, the following grants only `curl` read-only access to the GitHub API;
+replace the sandbox name, gateway and binary with values for your setup:
 
 ```bash
-cp openshell/interactive-policy.yaml ./custom-policy.yaml
-# Edit ./custom-policy.yaml, then:
 SANDBOX_NAME=ahi-0123456789ab
 GATEWAY_NAME=openshell
-openshell sandbox list --gateway "$GATEWAY_NAME"
-openshell policy set --policy ./custom-policy.yaml "$SANDBOX_NAME" \
-  --gateway "$GATEWAY_NAME" --wait
+openshell policy update "$SANDBOX_NAME" \
+  --rule-name github_readonly \
+  --binary /usr/bin/curl \
+  --add-endpoint api.github.com:443:read-only:rest:enforce \
+  --wait --gateway "$GATEWAY_NAME"
 openshell policy get "$SANDBOX_NAME" --gateway "$GATEWAY_NAME" --full
 openshell policy list "$SANDBOX_NAME" --gateway "$GATEWAY_NAME"
 ```
 
-For OpenClaw, copy `openshell/policy.yaml` instead. `--wait` waits for the
-sandbox to load the policy; `policy get --full` displays the effective policy,
-and `policy list` shows its revisions. This example updates one sandbox only:
-do not add `--global` unless you intend to change policy for every sandbox on
-the gateway and have authorization to do so. `openshell policy update` is for
-incremental network endpoint/rule changes; use `openshell policy set` when
-replacing the complete YAML policy, including filesystem rules.
+`policy update` incrementally changes network endpoints/rules, and network
+rules take effect while the sandbox is running. `--wait` waits for the sandbox
+to report whether it loaded the new revision; `policy get --full` shows the
+effective policy and `policy list` shows revision status. Verify the intended
+request from inside the sandbox as well. This example changes one sandbox;
+do not use a gateway-global policy unless you intend to change all sandboxes.
+
+For complete policy YAML changes, first save the current base policy so the
+replacement retains paths and rules OpenShell already added:
+
+```bash
+openshell policy get "$SANDBOX_NAME" --gateway "$GATEWAY_NAME" \
+  --base --output json | jq -e '.policy' > ./custom-policy.json
+# Edit ./custom-policy.json, then:
+openshell policy set "$SANDBOX_NAME" --policy ./custom-policy.json \
+  --gateway "$GATEWAY_NAME" --wait
+```
+
+`policy set` replaces the complete base policy. Network sections take effect
+live, but `filesystem_policy`, Landlock and process settings take effect only
+when a sandbox starts. Adding filesystem paths does not grant access to an
+already-running workload; removed paths and other startup-only changes may be
+rejected. To apply filesystem changes, back up needed data, then recreate the
+sandbox using the static customization steps above. See NVIDIA OpenShell's
+[policy schema reference](https://docs.nvidia.com/openshell/v0.1.5/how-it-works/policies/schema),
+[policy management guide](https://docs.nvidia.com/openshell/v0.1.5/how-it-works/policies/manage-policies)
+and [live network policy tutorial](https://docs.nvidia.com/openshell/v0.1.5/tutorials/first-network-policy)
+for YAML semantics, lifecycle and additional examples. These links match the
+OpenShell 0.1.5 CLI pinned by this installer.
+
+The prepared-runner integration suite validates both workflows against a live
+sandbox: its static boundary case checks workspace read/write plus allowed and
+denied network requests; its dynamic-policy case checks that a live network
+rule changes the request result without breaking filesystem access, and that
+removing the rule restores network access. See the
+[live integration test catalogue](../../test/integration-tests.md#test-cases).
 
 ### Install a sandboxed agent
 

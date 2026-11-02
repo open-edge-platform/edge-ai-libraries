@@ -135,8 +135,8 @@ model_change_rejected() {
     timeout 60 bash "$SCRIPT_DIR/install.sh" --runtime openshell --harness "$1" \
       --non-interactive
 }
-sandbox_boundaries() {
-  local agent="$1" result rc home_config
+filesystem_boundaries() {
+  local agent="$1" home_config
   case "$agent" in
     openclaw) home_config="$HOME/.openclaw" ;;
     deepagents-code) home_config="$HOME/.deepagents" ;;
@@ -152,6 +152,10 @@ sandbox_boundaries() {
     fs.writeFileSync(file, token);
     if (fs.readFileSync(file, "utf8") !== token) throw Error("Workspace content mismatch");
   ' "$home_config" "$HOME/$HARNESS_STATE_DIRNAME/host-only-marker"
+}
+sandbox_boundaries() {
+  local agent="$1" result rc
+  filesystem_boundaries "$agent"
   # Confirm allowed connectivity first, so a broken exec/network cannot pass the denial case.
   exec_in "$agent" /usr/bin/curl --fail --silent --show-error --max-time 15 \
     "http://host.openshell.internal:${HARNESS_IR_PORT}/v1/models"
@@ -161,6 +165,43 @@ sandbox_boundaries() {
   rc=$?
   set -e
   [[ "$rc" == 7 ]] || { printf 'Expected denied connection (curl 7), got %s:\n%s\n' "$rc" "$result" >&2; return 1; }
+}
+dynamic_policy_change() {
+  local agent="$1" name rule response rc
+  name="$(profile_name "$agent")"
+  rule="agent_harness_ci_policy_validation"
+  timeout 45 openshell policy update "$name" --rule-name "$rule" --binary /usr/bin/curl \
+    --add-endpoint "host.openshell.internal:${HARNESS_IR_PORT}:read-write:rest:enforce" \
+    -g "$HARNESS_OPENSHELL_GATEWAY" --wait
+  timeout 45 openshell policy update "$name" --rule-name "$rule" --binary /usr/bin/curl \
+    --add-deny "host.openshell.internal:${HARNESS_IR_PORT}:GET:/v1/models" \
+    -g "$HARNESS_OPENSHELL_GATEWAY" --wait
+  timeout 30 openshell policy get "$name" --full --output json \
+    -g "$HARNESS_OPENSHELL_GATEWAY" | node -e '
+      let d=""; process.stdin.on("data",x=>d+=x).on("end",()=>{
+        const p=JSON.parse(d).policy, rule=p.network_policies.agent_harness_ci_policy_validation;
+        if (!rule || !rule.endpoints.some(e=>e.deny_rules?.some(r=>r.method==="GET"&&r.path==="/v1/models")))
+          process.exitCode=1;
+      });'
+  filesystem_boundaries "$agent"
+  set +e
+  response="$(exec_in "$agent" /usr/bin/curl --silent --show-error --max-time 15 \
+    -w '\n%{http_code}' "http://host.openshell.internal:${HARNESS_IR_PORT}/v1/models" 2>&1)"
+  rc=$?
+  set -e
+  [[ "$rc" == 0 && "$response" == *policy_denied* && "$response" == *403* ]] \
+    || { printf 'Expected OpenShell policy_denied (HTTP 403); got curl %s:\n%s\n' "$rc" "$response" >&2; return 1; }
+  timeout 45 openshell policy update "$name" --remove-rule "$rule" \
+    -g "$HARNESS_OPENSHELL_GATEWAY" --wait
+  timeout 30 openshell policy get "$name" --full --output json \
+    -g "$HARNESS_OPENSHELL_GATEWAY" | node -e '
+      let d=""; process.stdin.on("data",x=>d+=x).on("end",()=>{
+        const p=JSON.parse(d).policy;
+        if (p.network_policies.agent_harness_ci_policy_validation) process.exitCode=1;
+      });'
+  filesystem_boundaries "$agent"
+  exec_in "$agent" /usr/bin/curl --fail --silent --show-error --max-time 15 \
+    "http://host.openshell.internal:${HARNESS_IR_PORT}/v1/models"
 }
 persistence_hash() {
   local agent="$1"
@@ -255,7 +296,10 @@ for agent in openclaw deepagents-code hermes; do
   gate "$agent status dispatch" status_agent "$agent"
   gate "$agent repeated install preserves identity" idempotent_install "$agent"
   gate "$agent implicit model change rejected" model_change_rejected "$agent"
-  gate "$agent non-root workspace and network boundaries" sandbox_boundaries "$agent"
+  gate "$agent static installer policy filesystem and network boundaries" sandbox_boundaries "$agent"
+  if [[ "$agent" == openclaw ]]; then
+    gate 'OpenClaw dynamic network policy preserves filesystem access' dynamic_policy_change "$agent"
+  fi
   gate "$agent stop/start retains config, workspace and inference" restart_persistence "$agent"
 done
 gate 'built image applies Qwen defaults and Hermes request overrides offline' local_model_defaults
