@@ -21,6 +21,24 @@ This component is an early development snapshot, not a production release. The c
 
 The legacy reference backend uses a process-global SYCL queue and scratch buffers. Do not use concurrent extraction calls. Its API and numerical behavior are not yet a stable compatibility contract. The OpenCL correctness path uses host-visible vectors between stages and independent contexts for pyramid and feature processing; it is not an optimized device-resident pipeline. Feature sampling uses the nearest Gaussian level and local sigma derived from a DoG geometric-center convention; reference parity is outstanding. Refinement is single-step, not iterative relocation.
 
+## Hardware Target
+
+Intel Arc is the primary performance-optimization target. UHD Graphics 770 is
+used for quick correctness validation and a CPU-versus-GPU regression check, not
+as a tuning target or a requirement that constrains Arc-specific improvements.
+
+**Previous-generation Intel integrated GPUs, including UHD Graphics 770, are not
+recommended when a predictable SIFT performance boost is a requirement.** GPU
+offload can be slower than CPU SIFT for some sizes/settings because allocation,
+transfer and launch overhead can dominate. Measure against the CPU implementation
+on the same host, with recorded CPU thread count and comparable output quality;
+do not infer acceleration from GPU availability or advertised TOPS alone.
+
+An Arc optimization must preserve correctness on UHD 770. Older-GPU CPU/GPU
+slowdowns must be reported rather than hidden by unmatched settings or omitted
+overheads. Arc tuning proceeds even if an older GPU needs this performance caveat.
+No automatic CPU fallback or universal acceleration guarantee is currently provided.
+
 ## Build and Test
 
 A DPC++ compiler and SYCL runtime are required for SYCL, not the OpenCL-only build. The current GPU tests expect Intel hardware by default.

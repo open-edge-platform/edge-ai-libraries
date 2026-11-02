@@ -108,13 +108,37 @@ FeatureSet limit_features(FeatureSet features, int limit) {
 struct SyclStorage {
   SiftData data{};
   float *temporary = nullptr;
-  ~SyclStorage() {
+  int width = 0;
+  int height = 0;
+  int octaves = 0;
+  SyclStorage() = default;
+  SyclStorage(const SyclStorage &) = delete;
+  SyclStorage &operator=(const SyclStorage &) = delete;
+  void prepare(int image_width, int image_height, int octave_count) {
+    if (temporary) {
+      if (width != image_width || height != image_height || octaves != octave_count)
+        throw std::runtime_error("SYCL workspace shape or octave count changed");
+      return;
+    }
+    width = image_width;
+    height = image_height;
+    octaves = octave_count;
+    InitSiftData(data, 32768, true, true);
+    if (!data.h_data || !data.d_data)
+      throw std::runtime_error("SYCL feature allocation failed");
+    temporary = AllocSiftTempMemory(width, height, octaves, false);
+    if (!temporary) throw std::runtime_error("SYCL scratch allocation failed");
+  }
+  void release() {
     if (temporary) FreeSiftTempMemory(temporary);
+    temporary = nullptr;
     FreeSiftData(data);
   }
+  ~SyclStorage() { release(); }
 };
 
-FeatureSet extract_sycl(const cv::Mat &gray, const Configuration &config) {
+FeatureSet extract_sycl(const cv::Mat &gray, const Configuration &config,
+                        SyclStorage *workspace = nullptr) {
   const auto started = std::chrono::steady_clock::now();
   auto previous = started;
   std::vector<double> stages;
@@ -133,10 +157,9 @@ FeatureSet extract_sycl(const cv::Mat &gray, const Configuration &config) {
                  nullptr, pixels.ptr<float>());
   image.Download();
   mark();
-  SyclStorage storage;
-  InitSiftData(storage.data, 32768, true, true);
-  storage.temporary = AllocSiftTempMemory(gray.cols, gray.rows, config.octaves, false);
-  if (!storage.temporary) throw std::runtime_error("SYCL scratch allocation failed");
+  SyclStorage per_call_storage;
+  SyclStorage &storage = workspace ? *workspace : per_call_storage;
+  storage.prepare(gray.cols, gray.rows, config.octaves);
   mark();
   ExtractSift(storage.data, image, config.octaves, config.sycl_init_blur,
               static_cast<float>(config.sycl_contrast), 0.0f, false, storage.temporary);
@@ -262,7 +285,7 @@ double report_latency(cv::FileStorage &output, const char *name,
 
 int main(int argc, char **argv) {
   if (argc < 2 || argc > 6) {
-    std::cerr << "Usage: validate_sift_pair <image> [output.json [iterations [config.json [sycl-only]]]]\n";
+    std::cerr << "Usage: validate_sift_pair <image> [output.json [iterations [config.json [sycl-only|sycl-reuse]]]]\n";
     return 2;
   }
   try {
@@ -278,8 +301,9 @@ int main(int argc, char **argv) {
         throw std::runtime_error("Timing iterations must be an integer from 1 to 100");
 #endif
     }
-    if (argc == 6 && std::strcmp(argv[5], "sycl-only") != 0)
-      throw std::runtime_error("The only supported isolated mode is sycl-only");
+    if (argc == 6 && std::strcmp(argv[5], "sycl-only") != 0 &&
+        std::strcmp(argv[5], "sycl-reuse") != 0)
+      throw std::runtime_error("Isolated mode must be sycl-only or sycl-reuse");
     const auto config = load_configuration(argc >= 5 ? argv[4] : nullptr);
     cv::setNumThreads(config.cpu_threads);
     cv::ocl::setUseOpenCL(false);
@@ -306,11 +330,31 @@ int main(int argc, char **argv) {
     const auto first_sycl = extract_sycl(first, config);
     const auto second_sycl = extract_sycl(second, config);
     if (argc == 6) {
+      const bool reuse = std::strcmp(argv[5], "sycl-reuse") == 0;
+      SyclStorage workspace;
+      SyclStorage *retained = reuse ? &workspace : nullptr;
+      FeatureSet reused_first;
+      FeatureSet reused_second;
+      double first_workspace_frame_ms = 0.0;
+      if (reuse) {
+        const auto start = std::chrono::steady_clock::now();
+        reused_first = extract_sycl(first, config, retained);
+        first_workspace_frame_ms = std::chrono::duration<double, std::milli>(
+            std::chrono::steady_clock::now() - start).count();
+        reused_second = extract_sycl(second, config, retained);
+        const auto blank = extract_sycl(cv::Mat::zeros(first.size(), CV_8U), config, retained);
+        if (!blank.positions.empty())
+          throw std::runtime_error("Reused workspace retained features on a blank frame");
+        reused_first = extract_sycl(first, config, retained);
+        if (reused_first.positions.size() != first_sycl.positions.size() ||
+            reused_second.positions.size() != second_sycl.positions.size())
+          throw std::runtime_error("Workspace reuse changed feature counts");
+      }
       std::vector<double> samples;
       std::vector<std::vector<double>> stage_samples(6);
       for (int iteration = -3; iteration < timing_iterations; ++iteration) {
         const auto start = std::chrono::steady_clock::now();
-        const auto features = extract_sycl(first, config);
+        const auto features = extract_sycl(first, config, retained);
         const auto end = std::chrono::steady_clock::now();
         if (features.positions.size() != first_sycl.positions.size())
           throw std::runtime_error("Isolated SYCL feature count changed");
@@ -322,18 +366,29 @@ int main(int argc, char **argv) {
       }
       cv::FileStorage isolated(argv[2], cv::FileStorage::WRITE | cv::FileStorage::FORMAT_JSON);
       if (!isolated.isOpened()) throw std::runtime_error("Cannot open isolated report");
-      isolated << "diagnostic_only" << 1 << "mode" << "sycl-only"
+        const auto release_start = std::chrono::steady_clock::now();
+        workspace.release();
+        const double release_ms = std::chrono::duration<double, std::milli>(
+          std::chrono::steady_clock::now() - release_start).count();
+        isolated << "diagnostic_only" << 1 << "mode" << argv[5]
                << "device" << sycl_device.get_info<sycl::info::device::name>()
                << "width" << first.cols << "height" << first.rows
                << "iterations" << timing_iterations << "warmups" << 3
-               << "logging_included" << 1;
+               << "logging_included" << 1 << "workspace_reused" << static_cast<int>(reuse)
+               << "steady_state_excludes_workspace_setup_and_release" << static_cast<int>(reuse)
+               << "first_workspace_frame_ms" << first_workspace_frame_ms
+               << "workspace_release_ms" << release_ms
+               << "blank_then_textured_reuse_checked" << static_cast<int>(reuse)
+               << "first_workspace_frame_excludes_process_and_queue_initialization" << 1;
       report_latency(isolated, "end_to_end", samples);
       const char *names[] = {"float_conversion", "image_allocation_and_upload",
           "feature_and_scratch_allocation", "extract_and_wait",
           "host_descriptor_validation_and_selection", "cleanup"};
       for (size_t stage = 0; stage < stage_samples.size(); ++stage)
         report_latency(isolated, names[stage], stage_samples[stage]);
-      report(isolated, "quality", first_sycl, second_sycl, affine);
+            report(isolated, "quality", reuse ? reused_first : first_sycl,
+              reuse ? reused_second : second_sycl, affine);
+            if (reuse) report(isolated, "per_call_quality", first_sycl, second_sycl, affine);
       return 0;
     }
 #endif

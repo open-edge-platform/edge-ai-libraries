@@ -7,6 +7,14 @@ Compare OpenCL and SYCL on the non-NVIDIA Intel systems using the same binary,
 fixture, transform, OpenCV version, matching/scoring code and repetition protocol.
 CUDA is a supplemental algorithm reference, not the Intel performance target.
 
+Arc performance is the acceptance target. UHD 770 is a quick correctness and
+CPU/GPU regression-check platform only; do not spend tuning effort maximizing its
+performance or require Arc/UHD speed ratios to meet a theoretical scaling target.
+Preserve UHD correctness and report same-host CPU/GPU results. Where older-GPU
+offload is slower or quality is not comparable, retain the README warning rather
+than claiming acceleration. Previous-generation integrated GPUs are not recommended
+for users requiring a predictable SIFT speed boost. Arc-specific gains take priority.
+
 ## Run
 
 Configure with SIFT_ENABLE_SYCL=ON, SIFT_ENABLE_OPENCL=ON,
@@ -217,4 +225,76 @@ matrix baseline, maximum relative inlier
 change is below 0.5% and maximum absolute RMSE change is 0.0042 px. These are local
 short-run observations on resized copies of one image, not a held-out quality gate,
 cross-GPU validation, proven contention reduction or general speedup guarantee.
-Primary Arc validation and broader quality eligibility remain outstanding.
+The primary Arc outcome is recorded below; broader quality eligibility remains
+outstanding.
+
+## Primary Arc Validation
+
+The exact preserved baseline/candidate binaries were checksum-verified and tested
+on primary Arc with the same VGA/1080p profiles, three warmups and 30 measured
+frames per A/B/B/A run. All three SYCL smoke programs pass, including the 26 kernel
+assertions and low-pass centroid regression. The corrected image probe has about
+638-640 inliers/RMSE 0.885px, confirming the centering repair on this second GPU.
+
+| Arc Workload | Baseline Pooled Median | Banked Pooled Median | Latency Reduction |
+| --- | --- | --- | --- |
+| 640x480 | 7.2476 ms | 7.1755 ms | 0.99% |
+| 1920x1080 | 27.0342 ms | 26.7535 ms | 1.04% |
+
+This is only a small observed gain, not evidence of a robust portable improvement.
+Run-to-run drift and quality variation remain. The banked kernel remains an
+experimental candidate, with no stronger claim than the recorded local results.
+
+Unlike UHD 770, Arc outer feature/scratch allocation takes about 3.48ms at VGA and
+12.4-12.8ms at 1080p, versus extraction/wait around 3.3ms and 11.4-11.8ms. Phase
+medians are not additive, but this identifies allocation lifecycle as a meaningful
+primary-host optimization target. Next experiment: reuse per-extractor feature and
+scratch buffers across frames, report cold versus warm lifecycle separately, and
+verify unchanged quality before claiming a benefit. The CPU timing and broad SIFT
+quality gates remain separate requirements.
+
+## Workspace Lifecycle Experiment
+
+The optional `sycl-reuse` mode retains feature and scratch allocations for a fixed
+image shape and octave count, using the existing SYCL API's caller-owned buffers:
+
+```bash
+ONEAPI_DEVICE_SELECTOR=level_zero:gpu \
+  build/validate_sift_pair image.pgm reuse.json 30 profile.json sycl-reuse
+```
+
+`sycl-only` remains the per-call allocation baseline. Both modes use the same
+binary and kernel implementation. Reuse does not retain the image buffer or remove
+image upload, extraction, descriptor validation/copying or reference logging from
+steady-state timing. It excludes one-time feature/scratch setup and final release,
+which are reported separately. `first_workspace_frame_ms` includes the first
+allocation and frame but excludes process/queue initialization and follows the
+per-call correctness reference; it is NOT full application cold-start time.
+
+Reuse quality is scored against the per-call pair, and blank-then-textured frames
+are checked outside the timed interval for stale features. A workspace rejects a
+shape or octave-count change; create a new workspace for a different configuration.
+The owner is noncopyable. This is diagnostic lifecycle evidence, not a reentrant
+public application context; the legacy global queue/kernel state remains.
+
+Local UHD 770 correctness and all 10 tests pass. Primary Arc A/B/B/A validation
+completed with the same executable for both modes, three warmups and 30 measured
+frames per run:
+
+| Arc Input | Per-call Pooled Median | Reused Steady-state Median | Latency Reduction |
+| --- | --- | --- | --- |
+| 640x480 | 7.1624 ms | 3.6900 ms | 48.5% |
+| 1920x1080 | 25.9284 ms | 15.1097 ms | 41.7% |
+
+These are lifecycle improvements against per-frame GPU allocation, not kernel or
+CPU/GPU speedups. First-workspace-frame costs were 7.79-7.90ms at VGA and
+26.46-26.77ms at 1080p; final workspace release was about 0.011-0.013ms. One-time
+costs are not included in the steady-state medians. Process and queue startup
+were already warm and are not represented by first_workspace_frame_ms.
+
+Feature counts match (1366/1188 at VGA, 4939/4071 at 1080p), and blank-to-textured
+reuse checks pass. Within the reuse runs, VGA RMSE remains near 0.885px and 1080p
+near 0.905px; inlier variation versus same-run per-call quality is small. This is
+not a held-out noninferiority test or OpenCV equivalence. The verified benefit is
+on the primary Arc host; public context ownership, concurrency safety, full Arc
+CPU/OpenCL/SYCL matrix and broader image/configuration coverage remain outstanding.
