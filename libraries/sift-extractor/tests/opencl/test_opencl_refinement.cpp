@@ -201,9 +201,74 @@ int main() {
     std::printf("Orientation directions, secondary peaks, blank image, descriptor "
                 "normalization and rotation checks passed\n");
 
+    sift_extractor::detail::OpenCLDoGExtrema serial_detector(true);
+    sift_extractor::detail::GaussianLevel descriptor_image;
+    descriptor_image.width = texture_width;
+    descriptor_image.height = texture_height;
+    descriptor_image.pixels = texture;
+    std::vector<sift_extractor::detail::OrientedKeypoint> descriptor_points;
+    for (float sigma : {0.1f, 1.6f, 3.2f, 12.0f, 4096.0f}) {
+      for (float angle : {0.0f, 0.1f, 45.0f, 90.0f, 180.0f, 270.0f, 359.9f}) {
+        for (const auto position : {std::array<float, 2>{0.0f, 0.0f},
+                                    std::array<float, 2>{128.0f, 96.0f},
+                                    std::array<float, 2>{1.2f, 95.8f},
+                                    std::array<float, 2>{127.9f, 0.1f},
+                                    std::array<float, 2>{64.25f, 48.75f}}) {
+          auto point = sample;
+          point.local.x = point.image_x = position[0];
+          point.local.y = point.image_y = position[1];
+          point.octave_sigma = point.image_sigma = sigma;
+          descriptor_points.push_back({point, angle});
+        }
+      }
+    }
+    const auto serial_descriptors = serial_detector.compute_descriptors(
+        descriptor_image, descriptor_points);
+    const auto parallel_descriptors = detector.compute_descriptors(
+        descriptor_image, descriptor_points);
+    const auto repeated_descriptors = detector.compute_descriptors(
+        descriptor_image, descriptor_points);
+    if (parallel_descriptors.size() != descriptor_points.size() ||
+        serial_descriptors.size() != descriptor_points.size() ||
+        repeated_descriptors.size() != descriptor_points.size()) return 1;
+    float max_serial_error = 0.0f;
+    for (size_t index = 0; index < descriptor_points.size(); ++index) {
+      if (parallel_descriptors[index].descriptor != repeated_descriptors[index].descriptor)
+        return 1;
+      for (size_t bin = 0; bin < 128; ++bin) {
+        const float actual = parallel_descriptors[index].descriptor[bin];
+        if (!std::isfinite(actual) || actual < 0.0f) return 1;
+        max_serial_error = std::max(max_serial_error,
+            std::abs(actual - serial_descriptors[index].descriptor[bin]));
+      }
+    }
+    std::printf("Workgroup/serial descriptors: %zu points, max bin error %.8f\n",
+                descriptor_points.size(), max_serial_error);
+    if (max_serial_error > 2e-5f) return 1;
+    std::fill(descriptor_image.pixels.begin(), descriptor_image.pixels.end(), 0.0f);
+    const auto zero_descriptors = detector.compute_descriptors(descriptor_image, descriptor_points);
+    for (const auto &feature : zero_descriptors)
+      for (float value : feature.descriptor)
+        if (value != 0.0f) return 1;
+    if (!detector.compute_descriptors(descriptor_image, {}).empty()) return 1;
+
     const auto image_features = detector.extract_image(texture, texture_width,
         texture_height, 2, 3, 1.6f, 0.1f, 12.1f);
     if (image_features.empty()) return 1;
+    const auto serial_features = serial_detector.extract_image(texture, texture_width,
+        texture_height, 2, 3, 1.6f, 0.1f, 12.1f);
+    if (serial_features.size() != image_features.size()) return 1;
+    for (size_t index = 0; index < image_features.size(); ++index) {
+      const auto &actual = image_features[index];
+      const auto &expected = serial_features[index];
+      if (actual.point.keypoint.image_x != expected.point.keypoint.image_x ||
+          actual.point.keypoint.image_y != expected.point.keypoint.image_y ||
+          actual.point.orientation_degrees != expected.point.orientation_degrees)
+        return 1;
+      for (size_t bin = 0; bin < 128; ++bin)
+        if (std::abs(actual.descriptor[bin] - expected.descriptor[bin]) > 2e-5f)
+          return 1;
+    }
     for (const auto &feature : image_features) {
       double norm_squared = 0.0;
       for (float value : feature.descriptor) {

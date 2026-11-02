@@ -162,6 +162,52 @@ Manifest SHA256: `ca1ca46721173a283f88a615c6bef1711d4ed2aabb997b81e70fd658b4d465
 Raw reports were retrieved to
 `/tmp/sift-arc-resident-results.yKRZW0/resident-pyramid-results`.
 
+### Workgroup Descriptors
+
+Descriptors now assign one 32-lane workgroup to each oriented keypoint. Lanes
+partition the support-window columns, accumulate private 128-bin histograms,
+and reduce them in fixed lane order using 16.5 KiB of workgroup-local storage.
+Normalization, 0.2 clipping and renormalization retain the serial bin order.
+There are no floating-point atomics. Results are deterministic on repeated calls,
+but the changed accumulation order does not promise bitwise serial equivalence.
+
+The internal `OpenCLDoGExtrema(true)` constructor builds a one-lane serial reference
+for differential tests; the existing default constructor selects 32 lanes.
+Regression coverage compares 175 descriptors spanning fractional/border positions,
+seven orientations and five scales (0.1 through 4096), plus blank reset, empty input
+and end-to-end extraction. Maximum local observed bin error is 7.3e-7 against a
+2e-5 limit. All ten local tests pass. All four local portable smoke cases
+(VGA/1080p, unlimited/500 features) preserve every OpenCL quality report field.
+
+Arc validation completed on 2026-11-02 after an authorized SSH retry. The
+175-descriptor regression passed with the same 7.3e-7 maximum bin error. All 16
+A/B/B/A cases against `5d2d84fa6` and six separate profiling/configuration cases
+passed. Each timing run uses three warmups and 30 measured samples. True pooled
+medians of 60 raw samples per build/configuration are:
+
+| Size | Feature Budget | Serial (ms) | Workgroup (ms) | Latency Reduction |
+| --- | --- | --- | --- | --- |
+| 640x480 | Unlimited | 97.271 | 42.033 | 56.8% |
+| 640x480 | 500 | 95.445 | 39.931 | 58.2% |
+| 1920x1080 | Unlimited | 213.846 | 164.650 | 23.0% |
+| 1920x1080 | 500 | 207.925 | 146.554 | 29.5% |
+
+Every OpenCL quality report field is identical across all four runs for each
+configuration. This is measured matching-quality preservation on one resized
+fixture, not bitwise descriptor equivalence or general quality parity. CPU/SYCL
+control timings also varied between runs; these are observed end-to-end gains,
+not isolated kernel speedups. Separate warm original-image profiles put descriptors
+at about 10-12ms VGA and 31-39ms 1080p, including host overhead. At 1080p,
+extrema/refinement remains about 73-75ms and is now the largest measured stage.
+The complete-gpu-sift raw target of roughly 5.92/18.18ms is still unmet.
+
+Runner/summary in the SIFT workspace:
+`results/20261102/arc-opencl-workgroup-descriptors.sh` and
+`results/20261102/arc-opencl-workgroup-descriptors-summary.json`.
+Remote stage: `~/.local/share/sift-extractor-staging/arc-opencl-workgroup-83e7e7ba5ef026fa-retry1`.
+Manifest SHA256: `83e7e7ba5ef026fa673ef40dbe912d568ef3fc083dd46a76b0e78e3c8e89e38e`.
+Retrieved reports: `/tmp/sift-arc-workgroup-results.mi3yXv/workgroup-descriptor-results`.
+
 Three warmup extractions per backend precede 1-100 measured repetitions. Backend
 order rotates across OpenCL, SYCL and the OpenCV CPU baseline. The reported
 median/min/max and raw samples include float

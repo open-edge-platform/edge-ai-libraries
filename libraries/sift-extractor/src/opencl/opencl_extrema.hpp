@@ -44,6 +44,7 @@ struct SiftFeature {
 class OpenCLDoGExtrema {
 public:
   OpenCLDoGExtrema();
+  explicit OpenCLDoGExtrema(bool serial_descriptors);
   ~OpenCLDoGExtrema();
 
   OpenCLDoGExtrema(const OpenCLDoGExtrema &) = delete;

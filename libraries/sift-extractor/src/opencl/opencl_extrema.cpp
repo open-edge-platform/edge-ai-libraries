@@ -235,7 +235,8 @@ __kernel void sift_descriptors(__global const float *magnitude,
                                __global const float *points,
                                __global float *output,
                                const int width, const int height) {
-  const int index = (int)get_global_id(0);
+  const int lane = (int)get_local_id(0);
+  const int index = (int)get_group_id(0);
   const float cx = points[index * 4];
   const float cy = points[index * 4 + 1];
   const float bin_width = 3.0f * points[index * 4 + 2];
@@ -249,8 +250,8 @@ __kernel void sift_descriptors(__global const float *magnitude,
   for (int bin = 0; bin < 128; ++bin) hist[bin] = 0.0f;
   for (int dy = max(-radius, 1 - center_y);
        dy <= min(radius, height - 2 - center_y); ++dy) {
-    for (int dx = max(-radius, 1 - center_x);
-         dx <= min(radius, width - 2 - center_x); ++dx) {
+        for (int dx = max(-radius, 1 - center_x) + lane;
+          dx <= min(radius, width - 2 - center_x); dx += SIFT_DESCRIPTOR_LANES) {
       const int x = center_x + dx;
       const int y = center_y + dy;
       const float rx = (float)x - cx;
@@ -286,6 +287,22 @@ __kernel void sift_descriptors(__global const float *magnitude,
       }
     }
   }
+  #if SIFT_DESCRIPTOR_LANES > 1
+  __local float partials[128 * SIFT_DESCRIPTOR_LANES];
+  __local float combined[128];
+  for (int bin = 0; bin < 128; ++bin)
+    partials[bin * SIFT_DESCRIPTOR_LANES + lane] = hist[bin];
+  barrier(CLK_LOCAL_MEM_FENCE);
+  for (int bin = lane; bin < 128; bin += SIFT_DESCRIPTOR_LANES) {
+    float sum = 0.0f;
+    for (int source_lane = 0; source_lane < SIFT_DESCRIPTOR_LANES; ++source_lane)
+      sum += partials[bin * SIFT_DESCRIPTOR_LANES + source_lane];
+    combined[bin] = sum;
+  }
+  barrier(CLK_LOCAL_MEM_FENCE);
+  if (lane == 0) {
+    for (int bin = 0; bin < 128; ++bin) hist[bin] = combined[bin];
+  #endif
   float norm = 0.0f;
   for (int bin = 0; bin < 128; ++bin) norm += hist[bin] * hist[bin];
   const float inverse_norm = norm > 0.0f ? rsqrt(norm) : 0.0f;
@@ -297,6 +314,9 @@ __kernel void sift_descriptors(__global const float *magnitude,
   const float inverse_clipped_norm = norm > 0.0f ? rsqrt(norm) : 0.0f;
   for (int bin = 0; bin < 128; ++bin)
     output[index * 128 + bin] = hist[bin] * inverse_clipped_norm;
+  #if SIFT_DESCRIPTOR_LANES > 1
+  }
+  #endif
 }
 )CLC";
 
@@ -362,6 +382,7 @@ struct OpenCLDoGExtrema::Impl {
   cl_kernel gradient_kernel = nullptr;
   cl_kernel orientation_kernel = nullptr;
   cl_kernel descriptor_kernel = nullptr;
+  size_t descriptor_lanes = 32;
   Buffer feature_image;
   Buffer feature_points;
   Buffer feature_output;
@@ -486,8 +507,11 @@ struct OpenCLDoGExtrema::Impl {
     check_opencl(clSetKernelArg(feature_kernel, 3, sizeof(cl_mem), &output_buffer), "feature output arg");
     check_opencl(clSetKernelArg(feature_kernel, 4, sizeof(int), &level.width), "feature width arg");
     check_opencl(clSetKernelArg(feature_kernel, 5, sizeof(int), &level.height), "feature height arg");
+    const bool descriptors = std::string(name) == "sift_descriptors";
+    const size_t global_size = count * (descriptors ? descriptor_lanes : 1);
     check_opencl(clEnqueueNDRangeKernel(queue, feature_kernel, 1, nullptr,
-        &count, nullptr, 0, nullptr, nullptr), "feature kernel launch");
+      &global_size, descriptors ? &descriptor_lanes : nullptr, 0, nullptr,
+      nullptr), "feature kernel launch");
     check_opencl(clEnqueueReadBuffer(queue, output_buffer, CL_TRUE, 0,
         output.size() * sizeof(float), output.data(), 0, nullptr, nullptr), "feature readback");
     if (std::string(name) == "sift_descriptors")
@@ -495,7 +519,8 @@ struct OpenCLDoGExtrema::Impl {
     return output;
   }
 
-  Impl() {
+  explicit Impl(bool serial_descriptors) {
+    descriptor_lanes = serial_descriptors ? 1 : 32;
     cl_int status = CL_SUCCESS;
     const cl_device_id device = select_intel_gpu();
     context = clCreateContext(nullptr, 1, &device, nullptr, nullptr, &status);
@@ -519,7 +544,10 @@ struct OpenCLDoGExtrema::Impl {
       check_opencl(status, "clCreateProgramWithSource");
     }
 
-    status = clBuildProgram(program, 1, &device, "-cl-std=CL1.2", nullptr,
+    const char *build_options = serial_descriptors
+      ? "-cl-std=CL1.2 -DSIFT_DESCRIPTOR_LANES=1"
+      : "-cl-std=CL1.2 -DSIFT_DESCRIPTOR_LANES=32";
+    status = clBuildProgram(program, 1, &device, build_options, nullptr,
                             nullptr);
     if (status != CL_SUCCESS) {
       size_t log_size = 0;
@@ -593,7 +621,10 @@ struct OpenCLDoGExtrema::Impl {
   }
 };
 
-OpenCLDoGExtrema::OpenCLDoGExtrema() : impl_(new Impl()) {}
+OpenCLDoGExtrema::OpenCLDoGExtrema() : OpenCLDoGExtrema(false) {}
+
+OpenCLDoGExtrema::OpenCLDoGExtrema(bool serial_descriptors)
+  : impl_(new Impl(serial_descriptors)) {}
 OpenCLDoGExtrema::~OpenCLDoGExtrema() { delete impl_; }
 
 std::vector<ExtremaCandidate> OpenCLDoGExtrema::detect(
