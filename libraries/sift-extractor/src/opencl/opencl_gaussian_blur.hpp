@@ -2,11 +2,17 @@
 
 #include <vector>
 
+struct _cl_command_queue;
+
 namespace sift_extractor::detail {
+
+struct GaussianLevel;
+struct DoGLevel;
 
 class OpenCLGaussianBlur {
 public:
   OpenCLGaussianBlur();
+  explicit OpenCLGaussianBlur(_cl_command_queue *queue);
   ~OpenCLGaussianBlur();
 
   OpenCLGaussianBlur(const OpenCLGaussianBlur &) = delete;
@@ -25,6 +31,12 @@ public:
                                        int &output_height);
 
 private:
+  friend class OpenCLGaussianPyramid;
+  void build_pyramid(const std::vector<float> &image,
+                     std::vector<GaussianLevel> &gaussian,
+                     std::vector<DoGLevel> &differences,
+                     const std::vector<std::vector<float>> &kernels,
+                     int intervals);
   struct Impl;
   Impl *impl_;
 };

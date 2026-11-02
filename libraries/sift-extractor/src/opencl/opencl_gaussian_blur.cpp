@@ -1,6 +1,7 @@
 #define CL_TARGET_OPENCL_VERSION 120
 
 #include "opencl_gaussian_blur.hpp"
+#include "opencl_gaussian_pyramid.hpp"
 
 #include <CL/cl.h>
 #include <CL/cl_ext.h>
@@ -155,6 +156,10 @@ struct OpenCLGaussianBlur::Impl {
   Buffer temporary;
   Buffer output;
   Buffer weights;
+  std::vector<Buffer> gaussian_levels;
+  std::vector<Buffer> dog_levels;
+  std::vector<Buffer> pyramid_weights;
+  std::vector<std::vector<float>> cached_kernels;
 
   cl_mem ensure_buffer(Buffer &buffer, cl_mem_flags flags, size_t bytes) {
     if (buffer.memory && buffer.capacity >= bytes)
@@ -173,17 +178,35 @@ struct OpenCLGaussianBlur::Impl {
                                       0, nullptr, nullptr), operation);
   }
 
-  Impl() {
+  explicit Impl(cl_command_queue shared_queue = nullptr) {
     cl_int status = CL_SUCCESS;
-    device = select_intel_gpu();
-    context = clCreateContext(nullptr, 1, &device, nullptr, nullptr, &status);
-    check_opencl(status, "clCreateContext");
-
-    queue = clCreateCommandQueue(context, device, 0, &status);
-    if (status != CL_SUCCESS) {
-      clReleaseContext(context);
-      context = nullptr;
-      check_opencl(status, "clCreateCommandQueue");
+    if (shared_queue) {
+      cl_command_queue_properties properties = 0;
+      check_opencl(clGetCommandQueueInfo(shared_queue, CL_QUEUE_PROPERTIES,
+          sizeof(properties), &properties, nullptr), "clGetCommandQueueInfo(properties)");
+      if (properties & CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE)
+        throw std::invalid_argument("Gaussian stages require an in-order queue");
+      check_opencl(clGetCommandQueueInfo(shared_queue, CL_QUEUE_DEVICE,
+          sizeof(device), &device, nullptr), "clGetCommandQueueInfo(device)");
+      check_opencl(clGetCommandQueueInfo(shared_queue, CL_QUEUE_CONTEXT,
+          sizeof(context), &context, nullptr), "clGetCommandQueueInfo(context)");
+      check_opencl(clRetainContext(context), "clRetainContext");
+      status = clRetainCommandQueue(shared_queue);
+      if (status != CL_SUCCESS) {
+        clReleaseContext(context);
+        check_opencl(status, "clRetainCommandQueue");
+      }
+      queue = shared_queue;
+    } else {
+      device = select_intel_gpu();
+      context = clCreateContext(nullptr, 1, &device, nullptr, nullptr, &status);
+      check_opencl(status, "clCreateContext");
+      queue = clCreateCommandQueue(context, device, 0, &status);
+      if (status != CL_SUCCESS) {
+        clReleaseContext(context);
+        context = nullptr;
+        check_opencl(status, "clCreateCommandQueue");
+      }
     }
 
     const size_t source_length = std::char_traits<char>::length(kernel_source);
@@ -275,6 +298,12 @@ struct OpenCLGaussianBlur::Impl {
   }
 
   ~Impl() {
+    for (auto &buffer : pyramid_weights)
+      if (buffer.memory) clReleaseMemObject(buffer.memory);
+    for (auto &buffer : dog_levels)
+      if (buffer.memory) clReleaseMemObject(buffer.memory);
+    for (auto &buffer : gaussian_levels)
+      if (buffer.memory) clReleaseMemObject(buffer.memory);
     if (weights.memory)
       clReleaseMemObject(weights.memory);
     if (output.memory)
@@ -303,6 +332,9 @@ struct OpenCLGaussianBlur::Impl {
 };
 
 OpenCLGaussianBlur::OpenCLGaussianBlur() : impl_(new Impl()) {}
+
+OpenCLGaussianBlur::OpenCLGaussianBlur(_cl_command_queue *queue)
+  : impl_(new Impl(queue)) {}
 
 OpenCLGaussianBlur::~OpenCLGaussianBlur() { delete impl_; }
 
@@ -493,6 +525,114 @@ std::vector<float> OpenCLGaussianBlur::downsample_by_two(
                  "clEnqueueReadBuffer(downsample)");
     return result;
   } catch (...) {
+    throw;
+  }
+}
+
+void OpenCLGaussianBlur::build_pyramid(
+    const std::vector<float> &image, std::vector<GaussianLevel> &gaussian,
+    std::vector<DoGLevel> &differences,
+    const std::vector<std::vector<float>> &kernels, int intervals) {
+  const size_t image_bytes = image.size() * sizeof(float);
+  cl_mem input = impl_->ensure_buffer(impl_->input, CL_MEM_READ_ONLY, image_bytes);
+  cl_mem temporary = impl_->ensure_buffer(impl_->temporary, CL_MEM_READ_WRITE,
+                                         image_bytes);
+  impl_->gaussian_levels.resize(std::max(impl_->gaussian_levels.size(), gaussian.size()));
+  impl_->dog_levels.resize(std::max(impl_->dog_levels.size(), differences.size()));
+  impl_->pyramid_weights.resize(std::max(impl_->pyramid_weights.size(), kernels.size()));
+  impl_->cached_kernels.resize(std::max(impl_->cached_kernels.size(), kernels.size()));
+  for (size_t index = 0; index < gaussian.size(); ++index) {
+    auto &level = gaussian[index];
+    level.pixels.resize(static_cast<size_t>(level.width) * level.height);
+    impl_->ensure_buffer(impl_->gaussian_levels[index], CL_MEM_READ_WRITE,
+                         level.pixels.size() * sizeof(float));
+    if (!kernels[index].empty() && kernels[index] != impl_->cached_kernels[index]) {
+      const size_t bytes = kernels[index].size() * sizeof(float);
+      std::vector<float> cached = kernels[index];
+      cl_mem replacement = create_buffer(impl_->context,
+          CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, bytes, cached.data());
+      auto &buffer = impl_->pyramid_weights[index];
+      if (buffer.memory) clReleaseMemObject(buffer.memory);
+      buffer = {replacement, bytes};
+      impl_->cached_kernels[index] = std::move(cached);
+    }
+  }
+  for (size_t index = 0; index < differences.size(); ++index) {
+    auto &level = differences[index];
+    level.pixels.resize(static_cast<size_t>(level.width) * level.height);
+    impl_->ensure_buffer(impl_->dog_levels[index], CL_MEM_READ_WRITE,
+                         level.pixels.size() * sizeof(float));
+  }
+
+  try {
+    impl_->write_buffer(input, image.data(), image_bytes,
+                        "clEnqueueWriteBuffer(pyramid input)");
+    const size_t levels_per_octave = static_cast<size_t>(intervals + 3);
+    for (size_t index = 0; index < gaussian.size(); ++index) {
+      const auto &level = gaussian[index];
+      cl_mem destination = impl_->gaussian_levels[index].memory;
+      cl_mem source = index == 0 ? input : impl_->gaussian_levels[index - 1].memory;
+      const size_t global_size[2] = {static_cast<size_t>(level.width),
+                                    static_cast<size_t>(level.height)};
+      if (level.octave > 0 && level.scale == 0) {
+        const size_t source_index = index - levels_per_octave + intervals;
+        const auto &previous = gaussian[source_index];
+        source = impl_->gaussian_levels[source_index].memory;
+        check_opencl(clSetKernelArg(impl_->downsample, 0, sizeof(source), &source), "pyramid downsample source");
+        check_opencl(clSetKernelArg(impl_->downsample, 1, sizeof(destination), &destination), "pyramid downsample destination");
+        check_opencl(clSetKernelArg(impl_->downsample, 2, sizeof(int), &previous.width), "pyramid downsample width");
+        check_opencl(clSetKernelArg(impl_->downsample, 3, sizeof(int), &previous.height), "pyramid downsample height");
+        check_opencl(clSetKernelArg(impl_->downsample, 4, sizeof(int), &level.width), "pyramid downsample output width");
+        check_opencl(clSetKernelArg(impl_->downsample, 5, sizeof(int), &level.height), "pyramid downsample output height");
+        check_opencl(clEnqueueNDRangeKernel(impl_->queue, impl_->downsample, 2, nullptr,
+            global_size, nullptr, 0, nullptr, nullptr), "pyramid downsample launch");
+      } else if (kernels[index].empty()) {
+        check_opencl(clEnqueueCopyBuffer(impl_->queue, source, destination, 0, 0,
+            level.pixels.size() * sizeof(float), 0, nullptr, nullptr), "pyramid level copy");
+      } else {
+        cl_mem weights = impl_->pyramid_weights[index].memory;
+        const int radius = static_cast<int>(kernels[index].size() / 2);
+        for (cl_kernel kernel : {impl_->horizontal, impl_->vertical}) {
+          cl_mem pass_source = kernel == impl_->horizontal ? source : temporary;
+          cl_mem pass_destination = kernel == impl_->horizontal ? temporary : destination;
+          check_opencl(clSetKernelArg(kernel, 0, sizeof(cl_mem), &pass_source), "pyramid blur source");
+          check_opencl(clSetKernelArg(kernel, 1, sizeof(cl_mem), &pass_destination), "pyramid blur destination");
+          check_opencl(clSetKernelArg(kernel, 2, sizeof(weights), &weights), "pyramid blur weights");
+          check_opencl(clSetKernelArg(kernel, 3, sizeof(int), &level.width), "pyramid blur width");
+          check_opencl(clSetKernelArg(kernel, 4, sizeof(int), &level.height), "pyramid blur height");
+          check_opencl(clSetKernelArg(kernel, 5, sizeof(radius), &radius), "pyramid blur radius");
+          check_opencl(clEnqueueNDRangeKernel(impl_->queue, kernel, 2, nullptr,
+              global_size, nullptr, 0, nullptr, nullptr), "pyramid blur launch");
+        }
+      }
+      if (level.scale > 0) {
+        cl_mem lower = impl_->gaussian_levels[index - 1].memory;
+        const size_t dog_index = static_cast<size_t>(level.octave) * (intervals + 2) + level.scale - 1;
+        cl_mem difference = impl_->dog_levels[dog_index].memory;
+        check_opencl(clSetKernelArg(impl_->dog, 0, sizeof(destination), &destination), "pyramid DoG upper");
+        check_opencl(clSetKernelArg(impl_->dog, 1, sizeof(lower), &lower), "pyramid DoG lower");
+        check_opencl(clSetKernelArg(impl_->dog, 2, sizeof(difference), &difference), "pyramid DoG destination");
+        check_opencl(clSetKernelArg(impl_->dog, 3, sizeof(int), &level.width), "pyramid DoG width");
+        check_opencl(clSetKernelArg(impl_->dog, 4, sizeof(int), &level.height), "pyramid DoG height");
+        check_opencl(clEnqueueNDRangeKernel(impl_->queue, impl_->dog, 2, nullptr,
+            global_size, nullptr, 0, nullptr, nullptr), "pyramid DoG launch");
+      }
+    }
+    for (size_t index = 0; index < gaussian.size(); ++index) {
+      auto &pixels = gaussian[index].pixels;
+      check_opencl(clEnqueueReadBuffer(impl_->queue, impl_->gaussian_levels[index].memory,
+          CL_FALSE, 0, pixels.size() * sizeof(float), pixels.data(), 0, nullptr, nullptr),
+          "clEnqueueReadBuffer(pyramid Gaussian)");
+    }
+    for (size_t index = 0; index < differences.size(); ++index) {
+      auto &pixels = differences[index].pixels;
+      check_opencl(clEnqueueReadBuffer(impl_->queue, impl_->dog_levels[index].memory,
+          CL_FALSE, 0, pixels.size() * sizeof(float), pixels.data(), 0, nullptr, nullptr),
+          "clEnqueueReadBuffer(pyramid DoG)");
+    }
+    check_opencl(clFinish(impl_->queue), "clFinish(pyramid)");
+  } catch (...) {
+    clFinish(impl_->queue);
     throw;
   }
 }

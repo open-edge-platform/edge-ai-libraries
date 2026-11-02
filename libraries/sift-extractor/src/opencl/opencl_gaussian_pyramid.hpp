@@ -24,9 +24,15 @@ struct DoGLevel {
   std::vector<float> pixels;
 };
 
+struct GaussianDoGPyramid {
+  std::vector<GaussianLevel> gaussian;
+  std::vector<DoGLevel> differences;
+};
+
 class OpenCLGaussianPyramid {
 public:
   OpenCLGaussianPyramid() = default;
+  explicit OpenCLGaussianPyramid(_cl_command_queue *queue) : primitives_(queue) {}
   OpenCLGaussianPyramid(const OpenCLGaussianPyramid &) = delete;
   OpenCLGaussianPyramid &operator=(const OpenCLGaussianPyramid &) = delete;
   OpenCLGaussianPyramid(OpenCLGaussianPyramid &&) = delete;
@@ -38,6 +44,9 @@ public:
   std::vector<DoGLevel> difference_levels(
       const std::vector<GaussianLevel> &gaussian_levels, int octave_count,
       int intervals);
+    GaussianDoGPyramid build_with_differences(
+      const std::vector<float> &image, int width, int height, int octave_count,
+      int intervals, float base_sigma);
 
 private:
   OpenCLGaussianBlur primitives_;

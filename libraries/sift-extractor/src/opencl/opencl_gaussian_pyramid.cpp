@@ -131,4 +131,49 @@ std::vector<DoGLevel> OpenCLGaussianPyramid::difference_levels(
   return differences;
 }
 
+GaussianDoGPyramid OpenCLGaussianPyramid::build_with_differences(
+    const std::vector<float> &image, int width, int height, int octave_count,
+    int intervals, float base_sigma) {
+  if (width <= 0 || height <= 0 || octave_count <= 0 || octave_count > 30 ||
+      intervals <= 0 || intervals > 32 || !std::isfinite(base_sigma) ||
+      base_sigma < 0.1f || base_sigma > 16.0f)
+    throw std::invalid_argument("Invalid Gaussian pyramid parameters");
+  if (image.size() != static_cast<size_t>(width) * height)
+    throw std::invalid_argument("Image buffer size does not match dimensions");
+  for (float value : image) {
+    if (!std::isfinite(value))
+      throw std::invalid_argument("Pyramid input must contain finite values");
+  }
+
+  const int levels_per_octave = intervals + 3;
+  const float scale_step = std::pow(2.0f, 1.0f / intervals);
+  GaussianDoGPyramid result;
+  result.gaussian.reserve(static_cast<size_t>(octave_count) * levels_per_octave);
+  result.differences.reserve(static_cast<size_t>(octave_count) * (intervals + 2));
+  std::vector<std::vector<float>> kernels;
+  kernels.reserve(static_cast<size_t>(octave_count) * levels_per_octave);
+  for (int octave = 0; octave < octave_count; ++octave) {
+    float previous_sigma = octave == 0 ? 0.0f : base_sigma;
+    for (int scale = 0; scale < levels_per_octave; ++scale) {
+      const float sigma = base_sigma * std::pow(scale_step, static_cast<float>(scale));
+      const float variance = sigma * sigma - previous_sigma * previous_sigma;
+      if (variance < -1e-5f)
+        throw std::logic_error("Gaussian pyramid sigma decreased between levels");
+      kernels.push_back(variance > 1e-8f ? make_gaussian_kernel(std::sqrt(variance))
+                                         : std::vector<float>{});
+      result.gaussian.push_back({octave, scale, width, height, sigma, {}});
+      if (scale > 0) {
+        result.differences.push_back({octave, scale - 1, width, height,
+                                     std::sqrt(previous_sigma * sigma), {}});
+      }
+      previous_sigma = sigma;
+    }
+    width = width / 2 + width % 2;
+    height = height / 2 + height % 2;
+  }
+  primitives_.build_pyramid(image, result.gaussian, result.differences, kernels,
+                            intervals);
+  return result;
+}
+
 } // namespace sift_extractor::detail

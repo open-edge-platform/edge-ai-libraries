@@ -441,7 +441,7 @@ struct OpenCLDoGExtrema::Impl {
 
   OpenCLGaussianPyramid &get_pyramid() {
     if (!pyramid)
-      pyramid = std::make_unique<OpenCLGaussianPyramid>();
+      pyramid = std::make_unique<OpenCLGaussianPyramid>(queue);
     return *pyramid;
   }
 
@@ -855,11 +855,9 @@ std::vector<ScaleSpaceKeypoint> OpenCLDoGExtrema::detect_image(
       throw std::invalid_argument("Detector input must contain finite values");
   }
   auto &pyramid = impl_->get_pyramid();
-  const auto gaussian = pyramid.build(image, width, height, octave_count,
-                                       intervals, base_sigma);
-  const auto differences = pyramid.difference_levels(gaussian, octave_count,
-                                                     intervals);
-  return detect_pyramid(differences, octave_count, intervals, base_sigma,
+  const auto levels = pyramid.build_with_differences(
+      image, width, height, octave_count, intervals, base_sigma);
+  return detect_pyramid(levels.differences, octave_count, intervals, base_sigma,
                          contrast_threshold, edge_limit);
 }
 
@@ -928,10 +926,10 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
   }
   const auto profile_start = std::chrono::steady_clock::now();
   auto &pyramid = impl_->get_pyramid();
-  const auto gaussian = pyramid.build(image, width, height, octave_count,
-                                       intervals, base_sigma);
-  const auto gaussian_end = std::chrono::steady_clock::now();
-  const auto differences = pyramid.difference_levels(gaussian, octave_count, intervals);
+  const auto levels = pyramid.build_with_differences(
+      image, width, height, octave_count, intervals, base_sigma);
+  const auto &gaussian = levels.gaussian;
+  const auto &differences = levels.differences;
   const auto difference_end = std::chrono::steady_clock::now();
   auto keypoints = detect_pyramid(differences, octave_count, intervals,
                                    base_sigma, contrast_threshold, edge_limit);
@@ -981,13 +979,12 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
     };
     const auto profile_end = std::chrono::steady_clock::now();
     std::fprintf(stderr,
-                 "OPENCL_PROFILE gaussian_ms=%.3f dog_ms=%.3f "
+                 "OPENCL_PROFILE gaussian_dog_ms=%.3f "
                  "extrema_refine_ms=%.3f orientation_ms=%.3f "
                  "descriptor_ms=%.3f "
                  "total_ms=%.3f gaussian_levels=%zu dog_levels=%zu "
                  "keypoints=%zu features=%zu feature_groups=%zu\n",
-                 milliseconds(profile_start, gaussian_end),
-                 milliseconds(gaussian_end, difference_end),
+                 milliseconds(profile_start, difference_end),
                  milliseconds(difference_end, detector_end),
                  orientation_ms, descriptor_ms,
                  milliseconds(profile_start, profile_end), gaussian.size(),

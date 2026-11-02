@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <limits>
+#include <stdexcept>
 #include <vector>
 
 namespace {
@@ -51,6 +53,28 @@ std::vector<float> cpu_blur(const std::vector<float> &image, int width,
     }
   }
   return output;
+}
+
+bool check_resident(sift_extractor::detail::OpenCLGaussianPyramid &pyramid,
+                    const std::vector<float> &image, int width, int height,
+                    int octaves, int intervals, float sigma) {
+  const auto expected = pyramid.build(image, width, height, octaves, intervals, sigma);
+  const auto expected_dog = pyramid.difference_levels(expected, octaves, intervals);
+  const auto actual = pyramid.build_with_differences(image, width, height,
+                                                     octaves, intervals, sigma);
+  if (actual.gaussian.size() != expected.size() ||
+      actual.differences.size() != expected_dog.size())
+    return false;
+  const auto equal_level = [](const auto &first, const auto &second) {
+    return first.octave == second.octave && first.scale == second.scale &&
+           first.width == second.width && first.height == second.height &&
+           first.sigma == second.sigma && first.pixels == second.pixels;
+  };
+  for (size_t index = 0; index < expected.size(); ++index)
+    if (!equal_level(actual.gaussian[index], expected[index])) return false;
+  for (size_t index = 0; index < expected_dog.size(); ++index)
+    if (!equal_level(actual.differences[index], expected_dog[index])) return false;
+  return true;
 }
 
 } // namespace
@@ -121,6 +145,32 @@ int main() {
       }
     }
     passed &= max_dog_error == 0.0f;
+
+    passed &= check_resident(pyramid, image, width, height, octaves, intervals, base_sigma);
+    struct Configuration { int width, height, octaves, intervals; float sigma; };
+    for (const auto config : {Configuration{97, 65, 3, 5, 1.2f},
+                              Configuration{1, 1, 4, 1, 0.1f},
+                              Configuration{2, 3, 3, 2, 2.0f},
+                              Configuration{33, 19, 1, 3, 1.6f}}) {
+      std::vector<float> changed(static_cast<size_t>(config.width) * config.height);
+      for (size_t index = 0; index < changed.size(); ++index)
+        changed[index] = static_cast<float>((index * 37 + index / config.width) % 251);
+      passed &= check_resident(pyramid, changed, config.width, config.height,
+                                config.octaves, config.intervals, config.sigma);
+      std::fill(changed.begin(), changed.end(), 0.0f);
+      passed &= check_resident(pyramid, changed, config.width, config.height,
+                                config.octaves, config.intervals, config.sigma);
+    }
+    auto invalid = image;
+    invalid[0] = std::numeric_limits<float>::quiet_NaN();
+    bool rejected = false;
+    try {
+      pyramid.build_with_differences(invalid, width, height, octaves, intervals, base_sigma);
+    } catch (const std::invalid_argument &) {
+      rejected = true;
+    }
+    passed &= rejected;
+    passed &= check_resident(pyramid, image, width, height, octaves, intervals, base_sigma);
 
     std::printf("Gaussian pyramid: %zu levels, DoG levels %zu, "
                 "first-level max error %.8f, DoG max error %.8f\n",

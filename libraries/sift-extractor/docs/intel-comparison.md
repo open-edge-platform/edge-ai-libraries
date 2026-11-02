@@ -112,6 +112,56 @@ Next measure and remove remaining transfer/allocation overhead and optimize
 descriptor work as indicated by Arc stage timings. No OpenCL optimization ceiling
 or quality parity is claimed. Profile runner: `results/20261101/arc-opencl-stage-profile.sh`.
 
+### Device-Resident Pyramid Construction
+
+The OpenCL extractor now shares its retained in-order queue/context with Gaussian
+processing. A combined Gaussian/DoG builder uploads the image once, chains blur,
+downsample and difference kernels through reusable read-write device buffers, and
+downloads the completed levels in one terminal batch. Gaussian coefficients are
+cached by value. Buffer capacity grows as needed and is retained until owner
+destruction; peak device memory is higher because all pyramid levels coexist.
+Readbacks complete before returning, including when a later enqueue fails.
+
+This is device residency **within pyramid construction**, not a fully resident
+extractor. All Gaussian/DoG levels still return to host vectors, and detection,
+refinement and gradient preparation still upload their inputs. Existing standalone
+host primitives remain available as an independent comparison path. The pyramid
+regression requires exact pixel and metadata equality across odd/tiny dimensions,
+changed input, octave/layer/sigma changes, blank frames and subsequent reuse.
+The full local suite passes 10/10; UHD results are correctness evidence only.
+
+With `SIFT_OPENCL_PROFILE`, `gaussian_dog_ms` replaces the separate `gaussian_ms`
+and `dog_ms` fields because the kernels are interleaved. It includes construction,
+transfers, allocation and synchronization, not isolated kernel time.
+
+Arc validation completed on 2026-11-02 after an authorized SSH retry. Both
+regressions, all 16 A/B/B/A cases against `86121c724`, and six separate one-sample
+profiling/configuration cases passed. Each A/B run has three warmups and 30 measured
+samples. The table uses true pooled medians of the 60 raw samples per build and
+configuration, not means of run medians:
+
+| Size | Feature Budget | Before (ms) | Resident (ms) | Latency Reduction |
+| --- | --- | --- | --- | --- |
+| 640x480 | Unlimited | 117.819 | 97.769 | 17.0% |
+| 640x480 | 500 | 114.733 | 95.861 | 16.4% |
+| 1920x1080 | Unlimited | 246.537 | 215.063 | 12.8% |
+| 1920x1080 | 500 | 232.988 | 206.801 | 11.2% |
+
+Every OpenCL quality report field is identical across the four runs for each
+configuration, including feature counts, matches, inliers and residual metrics.
+Unlimited inliers/RMSE remain 263/0.358588px at VGA and 1300/0.429749px at 1080p;
+the 500-feature budget remains a separate quality tradeoff. This single-fixture
+experiment shows a gain, not general quality parity or attainment of the
+complete-gpu-sift target (roughly 5.92/18.18ms, with different algorithm/workload).
+
+Runner and computed summary: `results/20261102/arc-opencl-resident-pyramid.sh`
+and `results/20261102/arc-opencl-resident-pyramid-summary.json` in the SIFT workspace.
+Immutable remote stage:
+`~/.local/share/sift-extractor-staging/arc-opencl-resident-pyramid-ca1ca46721173a28-retry1`.
+Manifest SHA256: `ca1ca46721173a283f88a615c6bef1711d4ed2aabb997b81e70fd658b4d46527`.
+Raw reports were retrieved to
+`/tmp/sift-arc-resident-results.yKRZW0/resident-pyramid-results`.
+
 Three warmup extractions per backend precede 1-100 measured repetitions. Backend
 order rotates across OpenCL, SYCL and the OpenCV CPU baseline. The reported
 median/min/max and raw samples include float
