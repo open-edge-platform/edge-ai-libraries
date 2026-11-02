@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -328,6 +329,13 @@ struct OpenCLDoGExtrema::Impl {
   cl_program program = nullptr;
   cl_kernel kernel = nullptr;
   cl_kernel refine_kernel = nullptr;
+  std::unique_ptr<OpenCLGaussianPyramid> pyramid;
+
+  OpenCLGaussianPyramid &get_pyramid() {
+    if (!pyramid)
+      pyramid = std::make_unique<OpenCLGaussianPyramid>();
+    return *pyramid;
+  }
 
   std::vector<float> run_feature_kernel(const char *name,
       const GaussianLevel &level, const std::vector<float> &points,
@@ -723,7 +731,7 @@ std::vector<ScaleSpaceKeypoint> OpenCLDoGExtrema::detect_image(
     if (!std::isfinite(value))
       throw std::invalid_argument("Detector input must contain finite values");
   }
-  OpenCLGaussianPyramid pyramid;
+  auto &pyramid = impl_->get_pyramid();
   const auto gaussian = pyramid.build(image, width, height, octave_count,
                                        intervals, base_sigma);
   const auto differences = pyramid.difference_levels(gaussian, octave_count,
@@ -794,7 +802,7 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
     if (!std::isfinite(value))
       throw std::invalid_argument("Extractor input must contain finite values");
   }
-  OpenCLGaussianPyramid pyramid;
+  auto &pyramid = impl_->get_pyramid();
   const auto gaussian = pyramid.build(image, width, height, octave_count,
                                        intervals, base_sigma);
   const auto differences = pyramid.difference_levels(gaussian, octave_count, intervals);

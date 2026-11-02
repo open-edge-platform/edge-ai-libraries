@@ -199,6 +199,22 @@ int main() {
     }
     if (!detector.extract_image(blank, width, height, 2, 3, 1.6f, 1.0f,
                                  12.1f).empty()) return 1;
+    detector.extract_image(texture, texture_width, texture_height, 2, 4,
+                1.2f, 0.1f, 12.1f);
+    const auto repeated_features = detector.extract_image(texture, texture_width,
+      texture_height, 2, 3, 1.6f, 0.1f, 12.1f);
+    if (repeated_features.size() != image_features.size()) return 1;
+    for (size_t index = 0; index < image_features.size(); ++index) {
+      const auto &expected = image_features[index];
+      const auto &actual = repeated_features[index];
+      if (actual.point.keypoint.image_x != expected.point.keypoint.image_x ||
+        actual.point.keypoint.image_y != expected.point.keypoint.image_y ||
+        actual.point.keypoint.image_sigma != expected.point.keypoint.image_sigma ||
+        actual.point.orientation_degrees != expected.point.orientation_degrees ||
+        actual.descriptor != expected.descriptor) return 1;
+    }
+    std::printf("Reused pyramid preserves features after blank, resized and "
+          "reconfigured frames\n");
     std::printf("Image-to-feature pipeline: %zu oriented descriptors\n",
                 image_features.size());
   } catch (const std::exception &error) {

@@ -38,6 +38,24 @@ must be established before choosing a backend or interpreting speed as improveme
 
 ## Timing Scope
 
+### OpenCL Program Reuse Experiment
+
+The OpenCL detector now lazily retains its Gaussian-pyramid owner across image
+calls, avoiding repeated Gaussian program construction on a retained extractor.
+Pyramid pixels still round-trip through host storage; stage buffers and feature
+kernels still allocate per call. This is not a GPU-resident pipeline yet.
+Repeated textured/blank/resized/reconfigured frame tests preserve feature positions,
+scales, orientations and descriptors exactly. All ten local regression tests pass.
+An Arc same-settings A/B/B/A experiment is prepared, but authentication closed at
+the first SSH attempt. The retry completed on primary Arc with ten samples per
+case and all regression checks passing. A/B/B/A pooled medians were VGA
+134.395ms baseline vs 132.561ms retained (1.36% lower), and 1080p 263.891ms vs
+264.352ms (0.17% higher). Treat this as no demonstrated performance gain; the
+VGA difference is small and inconsistent across sizes. OpenCL quality was
+unchanged at 263 inliers/0.359px RMSE for VGA and 1300/0.430px for 1080p. Receipt
+and raw results: `results/20261101/arc-opencl-program-reuse.sh` and Arc stage
+`~/.local/share/sift-extractor-staging/arc-opencl-program-1a545c66495a1f37`.
+
 Three warmup extractions per backend precede 1-100 measured repetitions. Backend
 order rotates across OpenCL, SYCL and the OpenCV CPU baseline. The reported
 median/min/max and raw samples include float
