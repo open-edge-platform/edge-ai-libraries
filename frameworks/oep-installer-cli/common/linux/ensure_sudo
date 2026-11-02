@@ -7,10 +7,11 @@ ensure_sudo () {
   [ -z "$np" ] || proxy_args+=("no_proxy=$np" "NO_PROXY=$np")
 
   # background process to persist sudo cache
-  if [ -e /dev/tty ] && : < /dev/tty 2>/dev/null; then
-    local ppid=$$
-    local pid="$(ensure_prop get pids/sudo/pid$ppid)"
-    if [ -z "$pid" ] || ! kill -0 "$pid" 2> /dev/null; then
+  if [ -e /dev/tty ]; then
+    if : < /dev/tty 2>/dev/null; then
+      local ppid=$$
+      local pid="$(ensure_prop get pids/sudo/pid$ppid)"
+      if [ -z "$pid" ] || ! kill -0 "$pid" 2> /dev/null; then
       (
         set +e; trap - ERR EXIT INT TERM
         for fd in /proc/$BASHPID/fd/*; do
@@ -22,10 +23,11 @@ ensure_sudo () {
         done
         ensure_prop remove pids/sudo/pid$ppid
       ) < /dev/null > /dev/null 2>&1 &
-      pid=$!
-      ensure_prop create pids/sudo/pid$ppid
-      ensure_prop set pids/sudo/pid$ppid "$pid"
-      disown $pid
+        pid=$!
+        ensure_prop create pids/sudo/pid$ppid
+        ensure_prop set pids/sudo/pid$ppid "$pid"
+        disown $pid
+      fi
     fi
   fi
 

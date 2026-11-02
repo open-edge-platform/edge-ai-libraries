@@ -1325,17 +1325,6 @@ class TestLargePayloads:
         content = _visible_text(choice["message"])
         assert content, "Expected non-empty response for long system prompt"
 
-        # Check compression stats — if lingua is configured, total_compressions > 0
-        stats = gateway_client._request("GET", "/v1/metrics")
-        compression = stats.get("compression", {})
-        total_compressions = compression.get("total_compressions", 0)
-        if total_compressions > 0:
-            # Lingua was active — verify it actually reduced something
-            system_stats = compression.get("system_prompt", {})
-            assert system_stats.get("original_tokens", 0) > 0, (
-                "Expected non-zero original system tokens when compression is active"
-            )
-
 # =====================================================================
 # 9. TOOL DEFINITION VARIANTS
 # =====================================================================

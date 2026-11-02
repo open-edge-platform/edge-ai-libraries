@@ -94,11 +94,27 @@ curl -X POST http://localhost:8200/api/v1/models/list \
       "requires_token": false
     }
   ],
+  "count": 10,
   "total": 100,
   "limit": 10,
-  "offset": 0
+  "offset": 0,
+  "has_more": true,
+  "next_offset": 10
 }
 ```
+
+**Response Fields:**
+
+| Field         | Type        | Description                                                                                     |
+| ------------- | ----------- | ------------------------------------------------------------------------------------------------- |
+| `hub`         | string      | The hub the models were listed from                                                                |
+| `items`       | array       | Models returned for this page (see `ModelListItem`)                                                 |
+| `count`       | int         | Number of models returned in this response (size of `items`)                                       |
+| `total`       | int \| null | Total number of matching models, when the hub reports it                                           |
+| `limit`       | int         | Applied page size                                                                                   |
+| `offset`      | int         | Applied offset                                                                                      |
+| `has_more`    | bool \| null| Whether another page is available (derived from `total` when known, otherwise inferred)             |
+| `next_offset` | int \| null | Offset to use for the next page; only present when `has_more` is `true`                             |
 
 ---
 

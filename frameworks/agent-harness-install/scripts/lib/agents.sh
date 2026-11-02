@@ -328,23 +328,28 @@ transient-looking network/TLS blip…"
   export PATH="$HOME/.local/bin:$PATH"
 }
 
+# resolve_recorded_agent — the agent install_selected_agent last recorded as
+# actually installed (~/.agent-harness-install/installed-agent), falling back
+# to openclaw only if nothing was ever recorded.
+resolve_recorded_agent() {
+  local installed_agent
+  installed_agent="$(cat "$(harness_state_root)/installed-agent" 2>/dev/null || true)"
+  canonical_agent_name "${installed_agent:-openclaw}"
+}
+
 # resolve_installed_agent — the agent to operate on when the caller didn't
-# pin one explicitly via HARNESS_AGENT: whatever install_selected_agent last
-# recorded as actually installed (~/.agent-harness-install/installed-agent),
-# falling back to openclaw only if nothing was ever recorded. Without this,
+# pin one explicitly via HARNESS_AGENT. Without this,
 # run_agent_onboard/print_status defaulted straight to "openclaw" whenever
 # HARNESS_AGENT wasn't re-exported in the current shell -- silently
 # onboarding/reporting the wrong agent after e.g. `--harness hermes` in an
 # earlier session. Shared with uninstall.sh so all four read paths
 # (install/onboard/status/uninstall) agree on the same installed agent.
 resolve_installed_agent() {
-  local installed_agent
   if [[ -n "${HARNESS_AGENT:-}" ]]; then
     canonical_agent_name "$HARNESS_AGENT"
     return
   fi
-  installed_agent="$(cat "$(harness_state_root)/installed-agent" 2>/dev/null || true)"
-  canonical_agent_name "${installed_agent:-openclaw}"
+  resolve_recorded_agent
 }
 
 install_selected_agent() {

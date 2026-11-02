@@ -1,8 +1,3 @@
-<!--
-SPDX-FileCopyrightText: (C) 2026 Intel Corporation
-SPDX-License-Identifier: Apache-2.0
--->
-
 ### Introduction
 
 Profiles are virtual groups of installer components. The profile filenames use this pattern: `<profile-name>/<OS_LIKE>`, where `<OS_LIKE>` is the OS family identifier obtained from `/etc/os-release`, 
@@ -96,7 +91,7 @@ point. The schema is:
   ],
 
   // Optional. A profile-level install command (typically used with installAll).
-  // Omit it and the Web UI falls back to "install <module>" per module.
+  // Omit it and the Web UI falls back to "install <selected modules>".
   "install": { "text": "wget -qO- https://.../openedge-cli | bash -s -- install my_ai_suite" },
 
   // Optional. The "Get Started" link for this profile.
@@ -132,7 +127,13 @@ Shared URLs retain comma-separated flag names in `OPTIONS` (for example
 `OPTIONS=gpu,docker`, or `OPTIONS=none` for an explicitly configured empty
 choice). A URL must match a whole configured combination; reordered flags are
 canonicalized, while invalid, partial, or stale choices reset to the first entry.
-Changing modules preserves a combination only if the new module offers it.
+Changing modules preserves a combination only if the selected configurable
+modules all offer it. The Module category supports multiple selections from
+one profile. Shared combinations are intersected as complete flag sets, not
+individual flags; modules without options do not constrain them and receive
+no flags. When every selected module offers the shared combination, flags are
+global. Otherwise the UI scopes them to configurable modules. If no common
+combination exists, Install copying is disabled with an explanation.
 
 The OS values are `UBUNTU_24_04` for Ubuntu 24.04 and
 `UBUNTU_26_04` for Ubuntu 26.04. Omitted `supports.OP_SYSTEM` means both are
@@ -146,16 +147,32 @@ the module and disables command copying.
 Adding an OS to this selector does not certify every upstream component on that
 release; check component requirements before deploying.
 
-For modules with `startStop: true`, the generated command ends with, for example,
-`install my_service --gpu --docker start`. Install-only modules and install-all
-profiles do not automatically start. Standalone Start/Stop commands remain
-available for individual modules.
+For one selected module with `startStop: true`, the generated command ends with,
+for example, `install my_service --gpu --docker start`. Install-only modules,
+install-all profiles, and selections of multiple modules do not automatically
+start. Standalone Start/Stop commands remain available when at least one selected
+module supports them. For multiple selected modules, the commands show the
+`<module_name>` placeholder; run the command once for each eligible module.
 
 Set `remove: true` only after verifying that the module has a removal handler,
 or that the profile expands correctly for `remove`. This capability is
 independent of `startStop`: a module can offer Remove without Start/Stop.
-Install-all profiles with `remove: true` show `openedge-cli remove <profile>`;
+For multiple selected modules, the Remove command shows the `<module_name>`
+placeholder; run it once for each selected removable module. Install-all
+profiles with `remove: true` show a Remove command naming the selected profile;
 their read-only module list does not expose individual Start/Stop commands.
+
+Shared links serialize multiple module values with commas in `MODULE`, while
+`MODULE=` preserves an intentionally empty selection. Empty selections disable
+command copying. No modules are selected by default. Switching profiles clears
+the module selection; switching OS retains only compatible selected modules
+without selecting replacements. Explicit single-module and multi-module URLs
+remain supported. Install-all profiles still install the whole profile without
+individual module selection.
+
+Run selector regressions with `node --test scripts/test-selector.cjs` and
+JavaScript syntax validation with
+`node --check docs/oep-cli-installer-files/selector.js` from the component root.
 
 #### Add a new profile to the Web UI
 

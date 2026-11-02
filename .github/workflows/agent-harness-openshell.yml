@@ -1,0 +1,140 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+name: "[Agent Harness] OpenShell quality gates"
+
+on:
+  pull_request:
+    paths:
+      - frameworks/agent-harness-install/**
+      - .github/workflows/agent-harness-openshell.yml
+  push:
+    branches: [main]
+    paths:
+      - frameworks/agent-harness-install/**
+      - .github/workflows/agent-harness-openshell.yml
+  workflow_dispatch:
+    inputs:
+      live:
+        description: Run sandbox lifecycle tests on the prepared runner
+        type: boolean
+        default: false
+      model:
+        description: Exact model ID already served by the runner's IR (required for live tests)
+        type: string
+        default: ""
+
+permissions: {}
+
+jobs:
+  offline:
+    name: OpenShell offline gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: 24.21.0
+      - name: Shell syntax
+        id: syntax
+        working-directory: frameworks/agent-harness-install
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do
+            bash -n "$file"
+          done < <(find scripts openshell test -name '*.sh' -print0)
+          bash -n install.sh
+          bash -n uninstall.sh
+          mkdir -p "$RUNNER_TEMP/openshell-offline"
+      - name: OpenShell startup, runtime and boundaries
+        id: core
+        if: ${{ !cancelled() && steps.syntax.outcome == 'success' }}
+        working-directory: frameworks/agent-harness-install
+        run: |
+          set -euo pipefail
+          HARNESS_TEST_SKIP_NESTED=1 bash test/openshell-test.sh | tee "$RUNNER_TEMP/openshell-offline/core.tap"
+      - name: Managed inference regression
+        id: inference
+        if: ${{ !cancelled() && steps.syntax.outcome == 'success' }}
+        working-directory: frameworks/agent-harness-install
+        run: |
+          set -euo pipefail
+          bash test/managed-inference-test.sh | tee "$RUNNER_TEMP/openshell-offline/inference.tap"
+      - name: Model lifecycle and CLI regression
+        id: lifecycle
+        if: ${{ !cancelled() && steps.syntax.outcome == 'success' }}
+        working-directory: frameworks/agent-harness-install
+        run: |
+          set -euo pipefail
+          bash test/model-lifecycle-test.sh | tee "$RUNNER_TEMP/openshell-offline/lifecycle.tap"
+      - name: Agent model defaults
+        id: defaults
+        if: ${{ !cancelled() && steps.syntax.outcome == 'success' }}
+        working-directory: frameworks/agent-harness-install
+        run: |
+          set -euo pipefail
+          node --test --test-reporter=tap test/model-defaults-test.mjs | tee "$RUNNER_TEMP/openshell-offline/defaults.tap"
+      - name: TAP reporting regression
+        id: reporting
+        if: ${{ !cancelled() && steps.syntax.outcome == 'success' }}
+        working-directory: frameworks/agent-harness-install
+        run: |
+          set -euo pipefail
+          node --test --test-reporter=tap test/tap-summary-test.mjs test/validate-local-openshell-test.mjs | tee "$RUNNER_TEMP/openshell-offline/reporting.tap"
+      - name: Publish offline test summary
+        if: always()
+        working-directory: frameworks/agent-harness-install
+        env:
+          TEST_STEP_OUTCOMES: '{"core":"${{ steps.core.outcome }}","inference":"${{ steps.inference.outcome }}","lifecycle":"${{ steps.lifecycle.outcome }}","defaults":"${{ steps.defaults.outcome }}","reporting":"${{ steps.reporting.outcome }}"}'
+        run: node test/tap-summary.mjs "$RUNNER_TEMP/openshell-offline"
+      - name: Upload offline TAP reports
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: openshell-offline-results
+          path: ${{ runner.temp }}/openshell-offline/
+          if-no-files-found: warn
+          retention-days: 14
+
+  live:
+    name: OpenShell prepared-runner gate
+    if: github.event_name == 'workflow_dispatch' && inputs.live
+    needs: offline
+    # Never run arbitrary pull-request code automatically on a privileged runner.
+    environment: openshell-validation
+    runs-on: [self-hosted, linux, openshell-validation]
+    concurrency:
+      group: agent-harness-openshell-live
+      cancel-in-progress: false
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    env:
+      HARNESS_RUN_OPENSHELL_INTEGRATION: "1"
+      HARNESS_LLM_MODEL: ${{ inputs.model }}
+      HARNESS_IR_CONTAINER: ${{ vars.OPENSHELL_IR_CONTAINER || 'agent-harness-install-ir' }}
+      HARNESS_IR_PORT: ${{ vars.OPENSHELL_IR_PORT || '8010' }}
+      HARNESS_OPENSHELL_GATEWAY: ${{ vars.OPENSHELL_GATEWAY || 'openshell' }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Isolated sandbox lifecycle regression
+        working-directory: frameworks/agent-harness-install
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash test/openshell-integration-test.sh | tee "$RUNNER_TEMP/openshell-integration.tap"
+      - name: Upload integration TAP report
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: openshell-integration-results
+          path: ${{ runner.temp }}/openshell-integration.tap
+          if-no-files-found: warn
+          retention-days: 14

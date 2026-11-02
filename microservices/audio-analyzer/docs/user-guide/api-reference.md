@@ -269,8 +269,8 @@ Form fields:
 | `minio_bucket`        | If not uploading a file          | MinIO bucket containing the source video.                           |
 | `video_id`            | If not uploading a file          | Prefix/ID of the video object within the bucket.                    |
 | `video_name`          | If not uploading a file          | Name of the video object within the bucket.                         |
-| `device`              | No                               | Accepted for request-shape parity; currently informational only.    |
-| `model_name`          | No                               | Accepted for request-shape parity; currently informational only.    |
+| `device`              | No                               | `CPU`, `GPU`, or `NPU` — overrides `models.asr.device` for this request only. Validated against the configured ASR provider; an unsupported/incompatible value returns HTTP 400. |
+| `model_name`          | No                               | Must match the single configured ASR model (see `GET /models`) if supplied; a mismatched value returns HTTP 400. |
 | `include_timestamps`  | No                               | `true` (VSS default) uploads the transcript as **SRT**; `false` uploads plain text. |
 | `language`            | No (query param)                 | Language hint passed to the ASR backend.                            |
 
@@ -297,6 +297,10 @@ Response:
   "video_duration": 45.2
 }
 ```
+
+A failed transcription returns **HTTP 500** with `"status": "failed"` in the
+body (not HTTP 200) so that callers checking only the HTTP status code still
+detect the failure.
 
 Example (MinIO source):
 

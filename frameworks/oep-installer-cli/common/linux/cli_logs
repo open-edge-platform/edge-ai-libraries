@@ -1003,7 +1003,7 @@ _draw() {
     done
   fi
 
-  [[ -n $out ]] && printf '\033[?2026h%s\033[?2026l' "$out"
+  [[ -n $out ]] && printf '\0337\033[?2026h%s\033[?2026l\0338' "$out"
 
   FRAMES=$(( FRAMES + 1 ))
   DRAW_MS=$(( DRAW_MS + $(_now_ms) - t0 ))
@@ -1280,18 +1280,47 @@ act_panelled_logs_askpass () {
 #!/bin/bash
 if [ -n "$ASKPASS_ENV" ]; then
   printf '%s\n' "$ASKPASS_ENV"
-else
+elif [ -e /dev/tty ]; then
   exec 8<>/dev/tty 2>/dev/null || exit 1
-  # size and style
-  rows=$(stty size <&8 | cut -d' ' -f1)
+  rows=$(stty size <&8 | cut -d' ' -f1); rows=${rows:-1}
   saved=$(stty -g <&8) || exit 1
-  # restore screen
-  trap 'stty "$saved" <&8 2>/dev/null; printf "\033[%d;1H\033[K" "${rows:-1}" >&8' EXIT INT TERM HUP PIPE
+  # restore tty and clear the prompt row (cleanup only)
+  trap 'stty "$saved" <&8 2>/dev/null; printf "\033[%d;1H\033[K" "$rows" >&8' EXIT
+  # cancel: tell sudo (our parent) to abort instead of re-asking, then exit
+  cancel() { kill -INT "$PPID" 2>/dev/null; exit "$1"; }
+  trap 'cancel 130' INT
+  trap 'cancel 143' TERM
+  trap 'cancel 129' HUP
+  trap 'cancel 141' PIPE
   stty -echo <&8
-  # last row: _draw only ever writes rows 1..rows-1, so this is never repainted
-  printf '\033[%d;1H\033[K%s' "${rows:-1}" "$1" >&8
-  IFS= read -r pw <&8
-  printf '\033[%d;1H\033[K' "${rows:-1}" >&8
+  case ${LC_ALL:-${LC_CTYPE:-${LANG:-}}} in
+    *[Uu][Tt][Ff]*) caret='▏' mask='•' ;;
+    *)              caret='_' mask='*' ;;
+  esac
+  prompt=$1 pw="" on=1
+  draw() {
+    local c=" "
+    (( on )) && c=$'\033[1;36m'"$caret"$'\033[0m'
+    # last row: _draw only ever writes rows 1..rows-1, so this is never repainted
+    printf '\033[%d;1H\033[K%s%s%s' "$rows" "$prompt" "${pw//?/$mask}" "$c" >&8
+  }
+  while :; do
+    draw
+    if IFS= read -r -s -n1 -t 0.5 ch <&8; then
+      case $ch in
+        '')            break ;;            # Enter
+        $'\177'|$'\b') pw=${pw%?} ;;       # Backspace
+        $'\025')       pw="" ;;            # Ctrl-U
+        $'\003')       cancel 130 ;;       # Ctrl-C read as a byte
+        *)             pw+=$ch ;;
+      esac
+      on=1                                 # keep caret solid while typing
+    else
+      rc=$?
+      (( rc > 128 )) || exit 1             # EOF / tty gone
+      on=$(( !on ))                        # timeout -> blink
+    fi
+  done
   printf '%s\n' "$pw"
 fi
 EOF

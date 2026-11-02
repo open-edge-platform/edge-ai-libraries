@@ -46,7 +46,9 @@ Notes on what it does with Docker:
    (see [Model sources](#model-sources)). By default a Hugging Face id such
    as `org/name` is converted to OpenVINO IR via OVMS's own "-py" Docker image
    in `--pull` mode — unlike plain `optimum-cli`, that also generates the
-   MediaPipe graph OVMS's `/v3/chat/completions` endpoint needs. For gated
+   MediaPipe graph OVMS's `/v3/chat/completions` endpoint needs. Pre-converted
+   `OpenVINO/*` models are only downloaded, by the same OVMS image that serves
+   them. For gated
    Hugging Face models, export `HF_TOKEN` first. Set
    `HARNESS_OVMS_EXPORTER=export-model-py` or `=hf-snapshot` (a plain
    download, no conversion, for HF repos already published as ready-to-serve
