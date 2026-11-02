@@ -500,6 +500,16 @@ struct OpenCLDoGExtrema::Impl {
     }
   };
   std::vector<std::unique_ptr<FeatureScratch>> feature_scratch;
+  struct DetectionScratch {
+    Buffer volume, mask, offsets, candidates, refined;
+    std::vector<cl_uint> host_offsets;
+    std::vector<float> output;
+    ~DetectionScratch() {
+      for (auto *buffer : {&volume, &mask, &offsets, &candidates, &refined})
+        if (buffer->memory) clReleaseMemObject(buffer->memory);
+    }
+  };
+  std::vector<std::unique_ptr<DetectionScratch>> detection_scratch;
 
   cl_context context = nullptr;
   cl_command_queue queue = nullptr;
@@ -724,7 +734,12 @@ struct OpenCLDoGExtrema::Impl {
 
   std::vector<RefinedKeypoint> detect_refine(const DoGLevel *levels,
       int scale_count, float threshold, float edge_limit,
-      const cl_mem *device_levels = nullptr) {
+      const cl_mem *device_levels = nullptr, DetectionScratch *scratch = nullptr,
+      bool refine_phase = false) {
+    if (scratch && !refine_phase) {
+      scratch->host_offsets.clear();
+      scratch->output.clear();
+    }
     const int width = levels[0].width;
     const int height = levels[0].height;
     if (width < 3 || height < 3 || scale_count < 3) return {};
@@ -750,13 +765,18 @@ struct OpenCLDoGExtrema::Impl {
     }
     const int mask_count = (scale_count - 2) * (height - 2) * (width - 2);
     const size_t block_count = (static_cast<size_t>(mask_count) + 255) / 256;
-    cl_mem volume = ensure_buffer(dog_volume, CL_MEM_READ_ONLY,
+    cl_mem volume = ensure_buffer(scratch ? scratch->volume : dog_volume, CL_MEM_READ_ONLY,
                                   plane_size * scale_count * sizeof(float));
-    cl_mem mask = ensure_buffer(candidate_mask, CL_MEM_READ_WRITE, mask_count);
-    cl_mem offsets = ensure_buffer(block_offsets, CL_MEM_READ_WRITE,
+    cl_mem mask = ensure_buffer(scratch ? scratch->mask : candidate_mask, CL_MEM_READ_WRITE, mask_count);
+    cl_mem offsets = ensure_buffer(scratch ? scratch->offsets : block_offsets, CL_MEM_READ_WRITE,
                                    block_count * sizeof(cl_uint));
-    std::vector<cl_uint> host_offsets(block_count);
+    std::vector<cl_uint> local_offsets;
+    std::vector<float> local_output;
+    auto &host_offsets = scratch ? scratch->host_offsets : local_offsets;
+    auto &output = scratch ? scratch->output : local_output;
+    host_offsets.resize(block_count);
     try {
+      if (!refine_phase) {
       for (int scale = 0; scale < scale_count; ++scale) {
         const size_t bytes = plane_size * sizeof(float);
         if (device_levels) {
@@ -784,9 +804,11 @@ struct OpenCLDoGExtrema::Impl {
       check_opencl(clSetKernelArg(count_kernel, 2, sizeof(mask_count), &mask_count), "candidate mask count");
       check_opencl(clEnqueueNDRangeKernel(queue, count_kernel, 1, nullptr,
           &block_count, nullptr, 0, nullptr, nullptr), "candidate count launch");
-      check_opencl(clEnqueueReadBuffer(queue, offsets, CL_TRUE, 0,
+        check_opencl(clEnqueueReadBuffer(queue, offsets, scratch ? CL_FALSE : CL_TRUE, 0,
           block_count * sizeof(cl_uint), host_offsets.data(), 0, nullptr, nullptr),
           "candidate block counts readback");
+        if (scratch) return {};
+        }
       size_t candidate_count = 0;
       for (auto &offset : host_offsets) {
         const cl_uint count = offset;
@@ -797,11 +819,11 @@ struct OpenCLDoGExtrema::Impl {
       if (candidate_count > static_cast<size_t>(std::numeric_limits<int>::max()) / 6)
         throw std::overflow_error("Too many refined candidates");
       static_assert(sizeof(ExtremaCandidate) == sizeof(cl_int) * 3 + sizeof(cl_float));
-      cl_mem candidates = ensure_buffer(compact_candidates, CL_MEM_READ_WRITE,
+        cl_mem candidates = ensure_buffer(scratch ? scratch->candidates : compact_candidates, CL_MEM_READ_WRITE,
           candidate_count * sizeof(ExtremaCandidate));
-      cl_mem refined = ensure_buffer(refined_candidates, CL_MEM_WRITE_ONLY,
+        cl_mem refined = ensure_buffer(scratch ? scratch->refined : refined_candidates, CL_MEM_WRITE_ONLY,
           candidate_count * 6 * sizeof(float));
-      check_opencl(clEnqueueWriteBuffer(queue, offsets, CL_TRUE, 0,
+        check_opencl(clEnqueueWriteBuffer(queue, offsets, CL_FALSE, 0,
           block_count * sizeof(cl_uint), host_offsets.data(), 0, nullptr, nullptr),
           "candidate offsets upload");
       check_opencl(clSetKernelArg(compact_kernel, 0, sizeof(volume), &volume), "compact volume");
@@ -825,10 +847,11 @@ struct OpenCLDoGExtrema::Impl {
       check_opencl(clSetKernelArg(refine_kernel, 8, sizeof(edge_limit), &edge_limit), "combined refine edge");
       check_opencl(clEnqueueNDRangeKernel(queue, refine_kernel, 1, nullptr,
           &candidate_count, nullptr, 0, nullptr, nullptr), "combined refinement launch");
-      std::vector<float> output(candidate_count * 6);
-      check_opencl(clEnqueueReadBuffer(queue, refined, CL_TRUE, 0,
+        output.resize(candidate_count * 6);
+        check_opencl(clEnqueueReadBuffer(queue, refined, scratch ? CL_FALSE : CL_TRUE, 0,
           output.size() * sizeof(float), output.data(), 0, nullptr, nullptr),
           "combined refinement readback");
+        if (scratch) return {};
       std::vector<RefinedKeypoint> result;
       for (size_t index = 0; index < candidate_count; ++index) {
         const float *values = output.data() + index * 6;
@@ -1194,12 +1217,41 @@ std::vector<ScaleSpaceKeypoint> OpenCLDoGExtrema::detect_pyramid_impl(
   }
 
   std::vector<ScaleSpaceKeypoint> result;
+  if (device_levels) {
+    if (impl_->detection_scratch.size() < static_cast<size_t>(octave_count))
+      impl_->detection_scratch.resize(octave_count);
+    try {
+      for (int phase = 0; phase < 2; ++phase) {
+        for (int octave = 0; octave < octave_count; ++octave) {
+          auto &scratch = impl_->detection_scratch[octave];
+          if (!scratch) scratch = std::make_unique<Impl::DetectionScratch>();
+          const size_t offset = static_cast<size_t>(octave) * levels_per_octave;
+          impl_->detect_refine(dog_levels.data() + offset,
+            static_cast<int>(levels_per_octave), contrast_threshold, edge_limit,
+            device_levels->data() + offset, scratch.get(), phase == 1);
+        }
+        check_opencl(clFinish(impl_->queue), "batched detection phase completion");
+      }
+    } catch (...) {
+      clFinish(impl_->queue);
+      throw;
+    }
+  }
   for (int octave = 0; octave < octave_count; ++octave) {
     const auto begin = dog_levels.begin() +
                        static_cast<size_t>(octave) * levels_per_octave;
-    const auto refined = impl_->detect_refine(&*begin,
-      static_cast<int>(levels_per_octave), contrast_threshold, edge_limit,
-      device_levels ? device_levels->data() + octave * levels_per_octave : nullptr);
+    std::vector<RefinedKeypoint> refined;
+    if (device_levels) {
+      const auto &output = impl_->detection_scratch[octave]->output;
+      for (size_t index = 0; index < output.size(); index += 6) {
+        const float *values = output.data() + index;
+        if (values[5] != 0.0f)
+          refined.push_back({values[0], values[1], values[2], values[3], values[4]});
+      }
+    } else {
+      refined = impl_->detect_refine(&*begin, static_cast<int>(levels_per_octave),
+        contrast_threshold, edge_limit);
+    }
     const float image_factor = std::ldexp(1.0f, octave);
     for (const auto &point : refined) {
       const float octave_sigma =

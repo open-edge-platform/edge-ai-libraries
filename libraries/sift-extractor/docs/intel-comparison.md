@@ -240,6 +240,37 @@ runner `results/20261102/arc-opencl-milestone.sh`, local reports
 `~/.local/share/sift-extractor-staging/arc-compaction-d266f47fcec2f0d8`.
 Manifest SHA256: `d266f47fcec2f0d852662e08c6e4453a2c2e0c28f9975439e9480ca7b8f6603b`.
 
+### Batched Detection Phases
+
+Resident detection now retains scratch for each octave and performs two phases:
+enqueue all extrema/count operations and wait once, then enqueue all compaction/
+refinement operations and wait once. Counts, offsets and refined records use
+nonblocking transfers with protected host lifetimes. Stable block prefix sums and
+octave ordering are unchanged. The synchronous host detector remains the reference.
+Per-octave scratch increases retained detector memory relative to the former single
+reused octave allocation; capacity is released at extractor destruction.
+
+All 10 local tests and Arc regression plus 22 timing/profile cases passed. Added
+exact host-reference comparisons across octave counts 8, 4, 2, 1, 4 cover growing,
+shrinking and too-small octaves. Full feature equivalence and all quality fields
+remain unchanged. True pooled medians (60 samples/build), against `cbf55bb9e`:
+
+| Size | Feature Budget | Before (ms) | Batched (ms) | Latency Reduction |
+| --- | --- | --- | --- | --- |
+| 640x480 | Unlimited | 11.360 | 10.524 | 7.4% |
+| 640x480 | 500 | 11.480 | 10.572 | 7.9% |
+| 1920x1080 | Unlimited | 33.094 | 31.953 | 3.4% |
+| 1920x1080 | 500 | 26.682 | 25.630 | 3.9% |
+
+The paired comparison improved, but absolute 1080p timings are higher than the
+previous milestone's run. Do not treat cross-run timings as a controlled speedup.
+Reference throughput targets remain unmet. Evidence: SIFT workspace
+`results/20261102/arc-batched-detection-summary.json`; reports
+`/tmp/sift-arc-batched-detection-results.9VWurW/milestone-results`; remote stage
+`~/.local/share/sift-extractor-staging/arc-batched-detection-22d7032ee9255596`.
+Manifest SHA256: `22d7032ee92555961682626d1ede6be1f243d3efbda4fcb0364ea97dcdd1d33c`.
+All five returned manifest executable hashes matched the staged binaries.
+
 ### Merged Feature Launches
 
 Populated levels' gradients now occupy a checked, packed device volume. Per-point
