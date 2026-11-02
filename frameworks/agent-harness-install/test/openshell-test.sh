@@ -46,6 +46,7 @@ SH
   cat >"$fixture/bin/openclaw" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
+case ":$PATH:" in *:/home/node/.local/bin:*) ;; *) exit 1 ;; esac
 [[ "$*" == "gateway run" ]]
 node <<'JS'
 const assert = require("node:assert/strict");
@@ -117,7 +118,10 @@ startup_blocked_temp() {
   startup_fixture
   mkdir -p "$HOME/.openclaw/tmp"
   printf 'not a directory\n' >"$HOME/.openclaw/tmp/sqlite"
-  expect_failure 'mkdir.*sqlite' bash "$SCRIPT_DIR/openshell/agent-start.sh"
+  if bash "$SCRIPT_DIR/openshell/agent-start.sh" >/dev/null 2>&1; then
+    printf 'Expected startup to fail when the SQLite temp path is not a directory.\n' >&2
+    return 1
+  fi
   [[ ! -e "$HOME/.openclaw/openclaw.json" ]]
   [[ ! -e "$HOME/.openclaw/startup-test.sqlite" ]]
 }
@@ -164,9 +168,19 @@ const state = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 assert.equal(state.model, "test-model");
 assert.equal(state.applied, true);
 JS
+  "$REAL_NODE" "$HARNESS_MODEL_CONFIG_SCRIPT" deepagents-code \
+    Qwen3.5-9B-int8-ov "$HARNESS_SANDBOX_ENDPOINT" select
+  bash "$SCRIPT_DIR/openshell/agent-start.sh"
+  grep -Fq 'default = "openai:Qwen3.5-9B-int8-ov"' "$HOME/.deepagents/config.toml"
+  grep -Fq 'temperature = 0.2' "$HOME/.deepagents/config.toml"
+  grep -Fq 'max_tokens = 4096' "$HOME/.deepagents/config.toml"
+  grep -Fq 'extra_body = { chat_template_kwargs = { enable_thinking = false } }' \
+    "$HOME/.deepagents/config.toml"
   "$REAL_NODE" "$HARNESS_MODEL_CONFIG_SCRIPT" deepagents-code changed-model \
     "$HARNESS_SANDBOX_ENDPOINT" select
   bash "$SCRIPT_DIR/openshell/agent-start.sh"
+  ! grep -Fq 'max_tokens = 4096' "$HOME/.deepagents/config.toml"
+  ! grep -Fq 'enable_thinking = false' "$HOME/.deepagents/config.toml"
   grep -Fq 'default = "openai:changed-model"' "$HOME/.deepagents/config.toml"
   grep -Fq 'user_setting = "preserve me"' "$HOME/.deepagents/config.toml"
   "$REAL_NODE" - "$HOME/.harness-model.json" <<'JS'

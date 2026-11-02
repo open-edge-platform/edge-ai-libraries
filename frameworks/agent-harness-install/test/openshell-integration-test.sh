@@ -162,29 +162,45 @@ sandbox_boundaries() {
   set -e
   [[ "$rc" == 7 ]] || { printf 'Expected denied connection (curl 7), got %s:\n%s\n' "$rc" "$result" >&2; return 1; }
 }
-restart_persistence() {
-  local agent="$1" name before after
-  name="$(profile_name "$agent")"
-  before="$(exec_in "$agent" /usr/local/bin/node -e '
+persistence_hash() {
+  local agent="$1"
+  exec_in "$agent" /usr/local/bin/node -e '
     const fs=require("node:fs"),crypto=require("node:crypto");
     const config=process.env.HARNESS_AGENT === "hermes" ? "/home/node/.hermes/config.yaml"
       : process.env.HARNESS_AGENT === "deepagents-code" ? `${process.env.HOME}/.deepagents/config.toml`
       : `${process.env.HOME}/.openclaw/openclaw.json`;
     console.log(crypto.createHash("sha256").update(fs.readFileSync(config))
       .update(fs.readFileSync("/sandbox/harness-ci-exact-copy")).digest("hex"));
-  ')"
+  '
+}
+wait_stable_persistence_hash() {
+  local agent="$1" previous="" current stable=0 attempt
+  for attempt in {1..60}; do
+    current="$(persistence_hash "$agent")" || return 1
+    if [[ "$current" == "$previous" ]]; then
+      stable=$((stable + 1))
+      if [[ "$stable" -ge 3 ]]; then
+        printf '%s\n' "$current"
+        return 0
+      fi
+    else
+      stable=0
+    fi
+    previous="$current"
+    sleep 1
+  done
+  printf 'Sandbox %s persistence data did not stabilize within 60 seconds.\n' "$agent" >&2
+  return 1
+}
+restart_persistence() {
+  local agent="$1" name before after
+  name="$(profile_name "$agent")"
+  before="$(wait_stable_persistence_hash "$agent")"
   timeout 120 openshell sandbox stop "$name" -g "$HARNESS_OPENSHELL_GATEWAY" < /dev/null
   wait_phase "$name" Stopped
   timeout 120 openshell sandbox start "$name" -g "$HARNESS_OPENSHELL_GATEWAY" < /dev/null
   wait_phase "$name" Ready
-  after="$(exec_in "$agent" /usr/local/bin/node -e '
-    const fs=require("node:fs"),crypto=require("node:crypto");
-    const config=process.env.HARNESS_AGENT === "hermes" ? "/home/node/.hermes/config.yaml"
-      : process.env.HARNESS_AGENT === "deepagents-code" ? `${process.env.HOME}/.deepagents/config.toml`
-      : `${process.env.HOME}/.openclaw/openclaw.json`;
-    console.log(crypto.createHash("sha256").update(fs.readFileSync(config))
-      .update(fs.readFileSync("/sandbox/harness-ci-exact-copy")).digest("hex"));
-  ')"
+  after="$(wait_stable_persistence_hash "$agent")"
   [[ "$before" == "$after" ]]
   # Re-run each native agent's inference smoke check after restart, not just curl.
   timeout 240 bash "$SCRIPT_DIR/install.sh" onboard --runtime openshell --harness "$agent" < /dev/null

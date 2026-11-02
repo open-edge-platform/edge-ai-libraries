@@ -337,21 +337,23 @@ or backup/restore and never deletes/recreates a legacy sandbox to change its mod
 New OpenShell images generate a responsiveness-oriented baseline for the exact
 served model `Qwen3.5-9B-int8-ov`:
 
-| Setting | OpenClaw | Hermes |
-|---|---|---|
-| Context budget | `contextWindow: 65536` | `model.context_length: 65536` |
-| Reply cap | Catalog and model params `maxTokens: 512` | Custom-provider `extra_body.max_tokens: 512` |
-| Sampling | Model params `temperature: 0.2` | Custom-provider `extra_body.temperature: 0.2` |
-| Thinking | `thinkingDefault: off` and `chat_template_kwargs.enable_thinking: false` | Model reasoning override `none` and custom-provider `chat_template_kwargs.enable_thinking: false` |
-| Prompt/tool size | `localModelLean: true`, bootstrap limits 4000/12000 characters, `tools.profile: coding` | No unsupported OpenClaw prompt/tool settings are copied |
+| Setting | OpenClaw | Hermes | Deep Agents Code |
+|---|---|---|---|
+| Context budget | `contextWindow: 65536` | `model.context_length: 65536` | Agent default; no additional context override |
+| Reply cap | Catalog and model params `maxTokens: 4096` | Custom-provider `extra_body.max_tokens: 4096` | Managed provider `max_tokens: 4096` |
+| Sampling | Model params `temperature: 0.2` | Custom-provider `extra_body.temperature: 0.2` | Managed provider `temperature: 0.2` |
+| Thinking | `thinkingDefault: off` and `chat_template_kwargs.enable_thinking: false` | Model reasoning override `none` and custom-provider `chat_template_kwargs.enable_thinking: false` | Managed provider `chat_template_kwargs.enable_thinking: false` |
+| Prompt/tool size | `localModelLean: true`, bootstrap limits 4000/12000 characters, `tools.profile: coding` | No unsupported OpenClaw prompt/tool settings are copied | No agent-specific prompt/tool overrides |
 
 These are operational budgets, not model maximum capabilities or latency
-guarantees. The 512-token cap can truncate long answers or tool calls; increase
-the model-specific request cap (and OpenClaw catalog cap) when needed. Existing
+guarantees. The previous 512-token cap could truncate answers and tool calls;
+the default is now 4096 and can be tuned for the model and workload. Existing
 explicit settings, including catalog values in older configurations, take
 precedence; absent keys receive defaults. Startup preserves gateway tokens,
 history and workspace data. Hermes uses its bundled Python/YAML runtime and a
 dedicated `custom:harness-ovms-qwen` provider through the same IR endpoint.
+Deep Agents Code receives equivalent Qwen request tuning in its installer-managed
+OpenAI-compatible provider block.
 
 The sandbox's `.harness-local-defaults.json` tracks only installer-added values.
 Restarts preserve user edits. Switching models removes unchanged installer-added

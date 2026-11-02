@@ -281,7 +281,7 @@ helper against temporary files, not an LLM.
 
 | Registered test name | Objective / expected result |
 |---|---|
-| Qwen OpenClaw defaults cover catalog, request parameters and lean prompt | Verify 65536 context, 512 output cap, sampling/thinking/prompt settings, preservation of unrelated values and idempotence. |
+| Qwen OpenClaw defaults cover catalog, request parameters and lean prompt | Verify 65536 context, 4096 output cap, sampling/thinking/prompt settings, preservation of unrelated values and idempotence. |
 | explicit OpenClaw overrides survive initial application and restarts | Preserve explicit catalog, sampling, thinking, prompt and tool settings. |
 | user edits to generated defaults survive later restarts and model changes | Retain edits rather than overwrite them as managed defaults. |
 | switching away removes managed Qwen tuning and restores generic catalog defaults | Remove unchanged Qwen defaults, restore generic budgets and reapply Qwen defaults when selected again. |

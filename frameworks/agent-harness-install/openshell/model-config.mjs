@@ -119,7 +119,7 @@ if (agent === "openclaw" && mode === "apply") {
       }
     }
   }
-  const catalogDefaults = {contextWindow: qwen ? 65536 : 32768, maxTokens: qwen ? 512 : 4096};
+  const catalogDefaults = {contextWindow: qwen ? 65536 : 32768, maxTokens: 4096};
   for (const [key, value] of Object.entries(catalogDefaults))
     defaultAt(config, ["models", "providers", "ovms", "models", "0", key], value);
   if (qwen) {
@@ -164,7 +164,7 @@ if (agent === "hermes" && mode === "apply") {
     defaultAt(config, ["providers", provider, "base_url"], endpoint);
     defaultAt(config, ["providers", provider, "default_model"], model);
     defaultAt(config, ["providers", provider, "api_key"], "not-needed");
-    defaultAt(config, ["providers", provider, "extra_body", "max_tokens"], 512);
+    defaultAt(config, ["providers", provider, "extra_body", "max_tokens"], 4096);
     defaultAt(config, ["providers", provider, "extra_body", "temperature"], 0.2);
     defaultAt(config, ["providers", provider, "extra_body", "chat_template_kwargs", "enable_thinking"], false);
     config.model.provider = `custom:${provider}`;
