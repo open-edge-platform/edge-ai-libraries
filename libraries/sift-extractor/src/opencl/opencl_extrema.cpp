@@ -1291,10 +1291,6 @@ std::vector<ScaleSpaceKeypoint> OpenCLDoGExtrema::detect_image(
       !std::isfinite(contrast_threshold) || contrast_threshold < 0.0f ||
       !std::isfinite(edge_limit) || edge_limit <= 0.0f)
     throw std::invalid_argument("Invalid image detector configuration");
-  for (float value : image) {
-    if (!std::isfinite(value))
-      throw std::invalid_argument("Detector input must contain finite values");
-  }
   auto &pyramid = impl_->get_pyramid();
   const auto levels = pyramid.build_with_differences(
       image, width, height, octave_count, intervals, base_sigma, true);
@@ -1373,10 +1369,6 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
       !std::isfinite(contrast_threshold) || contrast_threshold < 0.0f ||
       !std::isfinite(edge_limit) || edge_limit <= 0.0f || max_features < 0)
     throw std::invalid_argument("Invalid image extractor configuration");
-  for (float value : image) {
-    if (!std::isfinite(value))
-      throw std::invalid_argument("Extractor input must contain finite values");
-  }
   const auto profile_start = std::chrono::steady_clock::now();
   impl_->gradients_ready = false;
   auto &pyramid = impl_->get_pyramid();

@@ -240,6 +240,37 @@ runner `results/20261102/arc-opencl-milestone.sh`, local reports
 `~/.local/share/sift-extractor-staging/arc-compaction-d266f47fcec2f0d8`.
 Manifest SHA256: `d266f47fcec2f0d852662e08c6e4453a2c2e0c28f9975439e9480ca7b8f6603b`.
 
+### Centralized Input Validation
+
+Detection/extraction now rely on the combined pyramid's finite-pixel validation,
+which runs before pyramid allocation/submission. Its boolean reduction replaces
+an early-exit scalar loop; redundant entry-point scans are removed. Non-finite
+inputs still throw `std::invalid_argument`, now with the pyramid's diagnostic.
+NaN and positive/negative infinity are checked at the start, middle and end of
+the input through both entry points, followed by valid-frame reuse.
+
+All 10 local tests and Arc's expanded regression/30 comparison cases pass.
+All matching-quality records remain identical. Paired pooled rotating medians
+against `ba025dde0` (60 samples/build):
+
+| Size | Feature Budget | Before (ms) | After (ms) | Latency Reduction |
+| --- | --- | --- | --- | --- |
+| 640x480 | Unlimited | 9.053 | 9.395 | -3.8% |
+| 640x480 | 500 | 8.565 | 8.455 | 1.3% |
+| 1920x1080 | Unlimited | 27.102 | 25.817 | 4.7% |
+| 1920x1080 | 500 | 20.223 | 18.651 | 7.8% |
+
+Isolated unlimited medians improve from 7.810 to 7.600ms at VGA (131.58 FPS),
+and 21.743 to 19.709ms at 1080p (50.74 FPS), also 60 samples/build. Rotating VGA
+unlimited regressed in this run; no uniform improvement across modes is claimed.
+Throughput targets remain unmet. Evidence: SIFT workspace
+`results/20261102/arc-finite-scan-summary.json` and
+`results/20261102/arc-finite-scan-isolated-summary.json`; reports
+`/tmp/sift-arc-finite-scan-results.K0Mrdk`; remote stage
+`~/.local/share/sift-extractor-staging/arc-finite-scan-46eed312f59387ef`.
+Manifest SHA256: `46eed312f59387ef334be51d1f3f1ff3e44ca2a3328a1d579ca146bcea1989a1`.
+All five returned executable hashes matched the staged binaries.
+
 ### Isolated Timing Diagnostic
 
 `validate_sift_pair IMAGE REPORT ITERATIONS CONFIG opencl-only` computes all

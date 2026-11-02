@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <limits>
+#include <stdexcept>
 #include <vector>
 
 namespace {
@@ -427,6 +429,30 @@ int main() {
     }
     std::printf("Reused pyramid preserves features after blank, resized and "
           "reconfigured frames\n");
+    for (float invalid_value : {std::numeric_limits<float>::quiet_NaN(),
+         std::numeric_limits<float>::infinity(), -std::numeric_limits<float>::infinity()}) {
+      for (size_t position : {size_t{0}, texture.size() / 2, texture.size() - 1}) {
+        auto invalid_image = texture;
+        invalid_image[position] = invalid_value;
+        bool detection_rejected = false;
+        bool extraction_rejected = false;
+        try {
+          detector.detect_image(invalid_image, texture_width, texture_height, 2, 3, 1.6f, 0.1f, 12.1f);
+        } catch (const std::invalid_argument &) {
+          detection_rejected = true;
+        }
+        try {
+          detector.extract_image(invalid_image, texture_width, texture_height, 2, 3, 1.6f, 0.1f, 12.1f);
+        } catch (const std::invalid_argument &) {
+          extraction_rejected = true;
+        }
+        if (!detection_rejected || !extraction_rejected) return 1;
+      }
+    }
+    const auto recovered_features = detector.extract_image(texture, texture_width,
+      texture_height, 2, 3, 1.6f, 0.1f, 12.1f);
+    if (recovered_features.size() != image_features.size()) return 1;
+    std::printf("Detection and extraction reject non-finite pixels at beginning, middle and end\n");
     std::printf("Image-to-feature pipeline: %zu oriented descriptors\n",
                 image_features.size());
   } catch (const std::exception &error) {

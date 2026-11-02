@@ -140,10 +140,10 @@ GaussianDoGPyramid OpenCLGaussianPyramid::build_with_differences(
     throw std::invalid_argument("Invalid Gaussian pyramid parameters");
   if (image.size() != static_cast<size_t>(width) * height)
     throw std::invalid_argument("Image buffer size does not match dimensions");
-  for (float value : image) {
-    if (!std::isfinite(value))
-      throw std::invalid_argument("Pyramid input must contain finite values");
-  }
+  bool finite_input = true;
+  for (float value : image) finite_input &= std::isfinite(value);
+  if (!finite_input)
+    throw std::invalid_argument("Pyramid input must contain finite values");
 
   const int levels_per_octave = intervals + 3;
   const float scale_step = std::pow(2.0f, 1.0f / intervals);
