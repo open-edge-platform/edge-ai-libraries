@@ -1,21 +1,21 @@
-"""B4.5 — HarnessCompressor + real lingua server integration tests.
+"""B4.5 — HarnessCompressor + real compress server integration tests.
 
-These tests hit a running lingua server. Default URL is read from env
-``LINGUA_INTEGRATION_URL`` (fallback ``http://localhost:8001/compress``);
+These tests hit a running compress server. Default URL is read from env
+``COMPRESS_SERVER_INTEGRATION_URL`` (fallback ``http://localhost:8001/compress``);
 all tests are skipped if the server is unreachable.
 
 Quick start (one of):
 
   # docker compose
-  cd deployment/lingua && docker-compose up -d --build
+  cd deployment/compress-server && docker-compose up -d --build
 
   # bare metal
-  python -m adaptive_token_compressor.model_servers.lingua.apply_patch
-    python -m adaptive_token_compressor.model_servers.lingua --backend pytorch --device xpu
+  python -m adaptive_token_compressor.model_servers.compress_server.apply_patch
+    python -m adaptive_token_compressor.model_servers.compress_server --backend pytorch --device xpu
 
 Then run:
 
-  pytest tests/harness/test_lingua_integration.py -v
+  pytest tests/harness/test_compress_server_integration.py -v
 
 Coverage matches plan §17.3 B4.5 gate:
   - end-to-end compress with real backend (basic + openclaw fixture)
@@ -40,16 +40,16 @@ from adaptive_token_compressor.core.metrics import CompressionScope
 from adaptive_token_compressor.harness.compressor import HarnessCompressor
 
 
-LINGUA_URL = os.environ.get(
-    "LINGUA_INTEGRATION_URL", "http://localhost:8001/compress"
+COMPRESS_SERVER_URL = os.environ.get(
+    "COMPRESS_SERVER_INTEGRATION_URL", "http://localhost:8001/compress"
 )
-LINGUA_HEALTH = LINGUA_URL.rsplit("/", 1)[0] + "/health"
+COMPRESS_SERVER_HEALTH = COMPRESS_SERVER_URL.rsplit("/", 1)[0] + "/health"
 
 
 def _server_reachable() -> bool:
-    """Probe the configured lingua server. Skip the whole module if down."""
+    """Probe the configured compress server. Skip the whole module if down."""
     try:
-        resp = requests.get(LINGUA_HEALTH, timeout=2)
+        resp = requests.get(COMPRESS_SERVER_HEALTH, timeout=2)
         return resp.status_code == 200
     except Exception:
         return False
@@ -58,9 +58,9 @@ def _server_reachable() -> bool:
 pytestmark = pytest.mark.skipif(
     not _server_reachable(),
     reason=(
-        f"Lingua server not reachable at {LINGUA_HEALTH}. "
-        "Start it via deployment/lingua/docker-compose.yaml or "
-        "`python -m adaptive_token_compressor.model_servers.lingua`."
+        f"Compress Server not reachable at {COMPRESS_SERVER_HEALTH}. "
+        "Start it via deployment/compress-server/docker-compose.yaml or "
+        "`python -m adaptive_token_compressor.model_servers.compress_server`."
     ),
 )
 
@@ -86,7 +86,7 @@ def _make_compressor(**overrides) -> HarnessCompressor:
     """Default integration compressor pointing at the running server."""
     kwargs = dict(
         profile="openclaw",
-        lingua_url=LINGUA_URL,
+        compress_server_url=COMPRESS_SERVER_URL,
         compress_rate=0.5,
         compress_min_chars=500,
         timeout=60.0,
@@ -160,7 +160,7 @@ class TestEndToEndCompression:
     def test_workspace_path_restored_in_output(self):
         """WorkspaceNormalizer must put the original workspace path back.
 
-        Requires the placeholder to survive lingua compression intact —
+        Requires the placeholder to survive compress-server compression intact —
         which works because ``HarnessCompressor`` passes
         ``force_tokens=normalizer.placeholders()`` to the backend so BERT's
         multilingual tokenizer keeps ``__AGENT_WORKSPACE__`` as a single
@@ -179,7 +179,7 @@ class TestEndToEndCompression:
         out = result.messages[0]["content"]
         # Restore must run — placeholder must not leak into output.
         assert "__AGENT_WORKSPACE__" not in out
-        # Original path retained (tokens around it may be dropped by lingua,
+        # Original path retained (tokens around it may be dropped by compress-server,
         # but the path itself is restored wherever a placeholder survived).
         assert "/home/alice/.openclaw/workspace_a" in out
 
@@ -228,7 +228,7 @@ class TestCacheHitPath:
         assert out1 == out2
 
     def test_repeated_compress_byte_identical_real_server(self):
-        """N=5 identical inputs through real lingua: outputs byte-identical.
+        """N=5 identical inputs through real compress-server: outputs byte-identical.
 
         Cache absorbs BERT's potential floating-point wobble: only the first
         call hits the server; subsequent calls return the cached compressed
@@ -314,7 +314,7 @@ class TestBackendErrorFallback:
         # Pick a port unlikely to be a server.
         comp = _make_compressor(
             profile="generic",
-            lingua_url="http://localhost:1/compress",
+            compress_server_url="http://localhost:1/compress",
             compress_min_chars=200,
             timeout=2.0,
         )
@@ -346,6 +346,6 @@ class TestHealthCheckForwarding:
         assert status.state is HealthState.HEALTHY
 
     def test_health_check_unhealthy_for_bogus_url(self):
-        comp = _make_compressor(lingua_url="http://localhost:1/compress", timeout=2.0)
+        comp = _make_compressor(compress_server_url="http://localhost:1/compress", timeout=2.0)
         status = comp.health_check(timeout=2.0)
         assert status.state is HealthState.UNHEALTHY

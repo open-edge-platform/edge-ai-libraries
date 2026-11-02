@@ -1,4 +1,4 @@
-"""Security regression tests for Lingua server error responses."""
+"""Security regression tests for Compress Server error responses."""
 from __future__ import annotations
 
 import argparse
@@ -7,7 +7,7 @@ import types
 
 from fastapi.testclient import TestClient
 
-from adaptive_token_compressor.model_servers.lingua.app import build_app
+from adaptive_token_compressor.model_servers.compress_server.app import build_app
 
 
 class _FakeModel:
@@ -30,7 +30,7 @@ def test_unexpected_error_response_is_generic(monkeypatch):
     )
     app = build_app(
         argparse.Namespace(
-            backend="pytorch",
+            runtime="pytorch",
             device="cpu",
             device_index=0,
             model_name_id="",

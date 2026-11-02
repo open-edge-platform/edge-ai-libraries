@@ -1,11 +1,11 @@
-# Lingua server — OpenVINO image. Does NOT install adaptive-token-compressor.
+# Compress Server — OpenVINO image. Does NOT install adaptive-token-compressor.
 # Container only carries the standalone server file (`app.py`) + LLMLingua patch.
-# Library clients reach the running container over HTTP via LinguaHTTPBackend.
+# Library clients reach the running container over HTTP via TokenPruneBackend.
 
-# Build context is the repo root (set in deployment/lingua/docker-compose.yaml
+# Build context is the repo root (set in deployment/compress-server/docker-compose.yaml
 # as `build.context: ../..`), so `COPY src/.../app.py` resolves correctly.
 #
-# Defaults: --backend ov, --device gpu, --port 8001 (ov devices: cpu/gpu).
+# Defaults: --runtime ov, --device gpu, --port 8001 (ov devices: cpu/gpu).
 
 FROM python:3.13-slim
 
@@ -14,7 +14,7 @@ WORKDIR /app
 # Intel GPU runtime (Level-Zero loader + neo .deb bundle).
 # Required for OpenVINO to access GPU devices. Harmless if container is run
 # without `/dev/dri` devices passed in (CPU users) — OpenVINO simply won't use XPU.
-# `patch` is required for the LLMLingua-2 source patch step below; python:slim
+# `patch` is required for the neighbor-protection patch step below; python:slim
 # images don't ship it by default.
 RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
         ca-certificates curl ocl-icd-libopencl1 libze1 patch \
@@ -46,59 +46,71 @@ WORKDIR /app
 # index to get the lean CPU-only build and avoid the heavy accelerator runtime
 # packages the default PyPI torch wheel pulls in on Linux (unused here, ~GBs).
 RUN pip install --no-cache-dir \
-        torch==2.8.0 \
+        torch==2.8.0+cpu \
         --index-url https://download.pytorch.org/whl/cpu
 
-# Lingua server's own runtime deps (NOT adaptive-token-compressor).
+# Compress Server's own runtime deps (NOT adaptive-token-compressor).
+# All versions are pinned to the validated image (see also the
+# adaptive-token-compressor[compress-server-ov] extras).
 RUN pip install --no-cache-dir \
-        "llmlingua>=0.2" \
-        "fastapi>=0.110" \
-        "uvicorn[standard]>=0.27" \
-        "huggingface-hub>=0.20" \
-        pydantic
+        llmlingua==0.2.2 \
+        huggingface_hub==1.21.0 \
+        fastapi==0.141.1 \
+        "uvicorn[standard]==0.52.4" \
+        pydantic==2.13.5
 
-# OpenVINO backend deps used by `--backend ov`.
+# OpenVINO runtime deps used by `--runtime ov`.
 RUN pip install --no-cache-dir \
-        "openvino>=2024.0" \
-        "optimum[openvino]>=1.24.0"
+        openvino==2026.3.1 \
+        openvino-tokenizers==2026.3.1.0 \
+        "optimum[openvino]==2.3.0" \
+        optimum-intel==2.1.0 \
+        nncf==3.3.0
 
-# Security: force-upgrade transitively-pulled packages flagged by trivy.
-RUN pip install --no-cache-dir --upgrade \
-        "setuptools>=78.1.1" \
-        "wheel>=0.46.2" \
-        "jaraco.context>=6.1.0" \
-        "msgpack>=1.2.1" \
-        "transformers>=5.5.0"
+# Pin the transformer stack. Must stay a separate step AFTER the OV stack:
+# optimum-intel 2.1.0 declares transformers<5.6, but trivy requires
+# transformers>=5.5.0 and 5.16.1 is the validated version, so we override it
+# here (pip warns about the optimum-intel requirement; runtime is unaffected).
+RUN pip install --no-cache-dir \
+        transformers==5.16.1 \
+        tokenizers==0.23.2
 
-# Apply LLMLingua-2 patch (digit_neighbor_radius). Same patch file used by
+# Security: pin transitively-pulled packages flagged by trivy to fixed versions.
+RUN pip install --no-cache-dir \
+        setuptools==84.0.0 \
+        wheel==0.48.0 \
+        jaraco.context==6.1.2 \
+        msgpack==1.2.2
+
+# Apply the neighbor-protection patch to LLMLingua-2 (digit_neighbor_radius). Same patch file used by
 # bare-metal `python -m ...apply_patch`. See plan §6.5.1.5.
-COPY src/adaptive_token_compressor/model_servers/lingua/patches/0001-digit-neighbor-radius.patch /tmp/
+COPY src/adaptive_token_compressor/model_servers/compress_server/patches/0001-digit-neighbor-radius.patch /tmp/
 RUN patch -d "$(python -c 'import llmlingua, os; print(os.path.dirname(llmlingua.__file__))')" -p1 \
         < /tmp/0001-digit-neighbor-radius.patch \
     && rm /tmp/0001-digit-neighbor-radius.patch
 
 # Server entry — copied as a renamed standalone script (plan §17.A:
-# app.py runs both `python -m ...lingua` and `python lingua_server.py`).
-COPY src/adaptive_token_compressor/model_servers/lingua/app.py /app/lingua_server.py
+# app.py runs both `python -m ...compress_server` and `python compress_server.py`).
+COPY src/adaptive_token_compressor/model_servers/compress_server/app.py /app/compress_server.py
 
 # HuggingFace model cache (mounted as a named volume in compose). Lives under
 # the non-root user's home so the mounted volume is writable without root.
 ENV HF_HOME=/home/user/.cache/huggingface
-RUN useradd -m -u 1000 user && mkdir -p ${HF_HOME} && chown -R user:user ${HF_HOME}
+RUN useradd -m -u 1000 user && mkdir -p ${HF_HOME} && chown -R user:user ${HF_HOME} /app
 USER user
 
-ENV LINGUA_PORT=8001
-ENV LINGUA_BACKEND=ov
+ENV COMPRESS_SERVER_PORT=8001
+ENV COMPRESS_SERVER_RUNTIME=ov
 # ov devices: cpu / gpu (lowercase). Default gpu; override at run time
-# (compose sets LINGUA_DEVICE). Must NOT be pytorch's "xpu" — ov rejects it.
-ENV LINGUA_DEVICE=gpu
-ENV LINGUA_MODE=llmlingua2
-ENV LINGUA_MODEL_NAME_ID=""
-ENV LINGUA_OV_CACHE_DIR=/home/user/.cache/huggingface/ov_ir
+# (compose sets COMPRESS_SERVER_DEVICE). Must NOT be pytorch's "xpu" — ov rejects it.
+ENV COMPRESS_SERVER_DEVICE=gpu
+ENV COMPRESS_SERVER_MODE=llmlingua2
+ENV COMPRESS_SERVER_MODEL_NAME_ID=""
+ENV COMPRESS_SERVER_OV_CACHE_DIR=/home/user/.cache/huggingface/ov_ir
 
 EXPOSE 8001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-        CMD curl --fail --silent http://127.0.0.1:${LINGUA_PORT}/health || exit 1
+        CMD curl --fail --silent http://127.0.0.1:${COMPRESS_SERVER_PORT}/health || exit 1
 
 # Shell form so env vars expand. --mode is always explicit; model_name_id remains optional.
-CMD python lingua_server.py --backend ${LINGUA_BACKEND} --device ${LINGUA_DEVICE} --port ${LINGUA_PORT} --host 0.0.0.0 --mode ${LINGUA_MODE} ${LINGUA_MODEL_NAME_ID:+--model_name_id $LINGUA_MODEL_NAME_ID}
+CMD python compress_server.py --runtime ${COMPRESS_SERVER_RUNTIME} --device ${COMPRESS_SERVER_DEVICE} --port ${COMPRESS_SERVER_PORT} --host 0.0.0.0 --mode ${COMPRESS_SERVER_MODE} ${COMPRESS_SERVER_MODEL_NAME_ID:+--model_name_id $COMPRESS_SERVER_MODEL_NAME_ID}
