@@ -5,6 +5,8 @@
 - For USB cameras: V4L2-compatible cameras visible as `/dev/video*`.
 - For ONVIF cameras: cameras on the same layer-2 network segment as the host, with UDP
   multicast (`239.255.255.250:3702`) allowed by the network and the host firewall.
+- For GigE Vision cameras: cameras on a subnet directly attached to a host interface, with UDP
+  port `3956` (GVCP) and the replies to it allowed by the host firewall.
 - For development: Python 3.12 and [uv](https://docs.astral.sh/uv/).
 - For building the image: network access to `github.com`. The image build installs the
   `dlstreamer.onvif` library from a pinned commit of the Deep Learning Streamer (DL Streamer)

@@ -352,6 +352,7 @@ class CameraType(str, Enum):
     ## Values
     - `USB` - USB camera connected directly to the system
     - `NETWORK` - Network camera accessible via IP protocols
+    - `GIGE` - GigE Vision machine vision camera
 
     ### Example
     ```json
@@ -361,6 +362,7 @@ class CameraType(str, Enum):
 
     USB = "USB"
     NETWORK = "NETWORK"
+    GIGE = "GIGE"
 
 
 class HealthResponse(BaseModel):
@@ -3268,18 +3270,59 @@ class NetworkCameraDetails(CameraDetails):
     best_profile: Optional["CameraProfileInfo"] = None
 
 
+class GigECapture(BaseModel):
+    """
+    **Capture configuration currently set on a GigE Vision camera.**
+
+    ## Attributes
+    - `pixel_format` - GenICam pixel format (e.g., "Mono8", "BayerRG8")
+    - `width` - Frame width in pixels
+    - `height` - Frame height in pixels
+    - `fps` - Acquisition frame rate
+    """
+
+    pixel_format: Optional[str] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    fps: Optional[float] = None
+
+
+class GigECameraDetails(CameraDetails):
+    """
+    **GigE Vision camera details.**
+
+    Identity fields may be missing when the camera could not be opened during
+    discovery (e.g. it is streaming to another application).
+
+    ## Attributes
+    - `ip` - IP address of the camera
+    - `vendor` - Camera vendor name (optional)
+    - `model` - Camera model name (optional)
+    - `serial` - Camera serial number (optional)
+    - `current_capture` - Capture configuration currently set on the camera (optional)
+    """
+
+    ip: str
+    vendor: Optional[str] = None
+    model: Optional[str] = None
+    serial: Optional[str] = None
+    current_capture: Optional[GigECapture] = None
+
+
 class Camera(BaseModel):
     """
-    **Camera device information supporting both USB and network cameras.**
+    **Camera device information supporting USB, network and GigE Vision cameras.**
 
     Common attributes apply to all camera types. Type-specific details are stored
-    in the details field which contains either USBCameraDetails or NetworkCameraDetails.
+    in the details field which contains USBCameraDetails, NetworkCameraDetails
+    or GigECameraDetails.
 
     ## Attributes
     - `device_id` - Unique identifier for the camera
     - `device_name` - Human-readable camera name
-    - `device_type` - Type of camera (USB or NETWORK)
-    - `details` - Type-specific camera details (USBCameraDetails for USB, NetworkCameraDetails for NETWORK)
+    - `device_type` - Type of camera (USB, NETWORK or GIGE)
+    - `details` - Type-specific camera details (USBCameraDetails for USB,
+      NetworkCameraDetails for NETWORK, GigECameraDetails for GIGE)
 
     ### Example (USB Camera)
     ```json
@@ -3329,12 +3372,33 @@ class Camera(BaseModel):
       }
     }
     ```
+
+    ### Example (GigE Vision Camera)
+    ```json
+    {
+      "device_id": "gige-camera-basler-12345678",
+      "device_name": "Basler acA1920-25gc",
+      "device_type": "GIGE",
+      "details": {
+        "ip": "192.168.1.50",
+        "vendor": "Basler",
+        "model": "acA1920-25gc",
+        "serial": "12345678",
+        "current_capture": {
+          "pixel_format": "BayerRG8",
+          "width": 1920,
+          "height": 1080,
+          "fps": 25.0
+        }
+      }
+    }
+    ```
     """
 
     device_id: str
     device_name: str
     device_type: CameraType
-    details: Union[USBCameraDetails, NetworkCameraDetails]
+    details: Union[USBCameraDetails, NetworkCameraDetails, GigECameraDetails]
 
 
 class CameraProfilesRequest(BaseModel):
