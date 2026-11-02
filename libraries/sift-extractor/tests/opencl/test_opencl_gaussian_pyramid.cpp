@@ -156,6 +156,9 @@ int main() {
                               Configuration{3, 2, 2, 32, 0.1f},
                               Configuration{1, 1, 4, 1, 0.1f},
                               Configuration{2, 3, 3, 2, 2.0f},
+                              Configuration{17, 15, 2, 3, 4.0f},
+                              Configuration{17, 15, 2, 3, 4.1f},
+                              Configuration{1, 1, 2, 3, 4.0f},
                               Configuration{33, 19, 1, 3, 1.6f}}) {
       std::vector<float> changed(static_cast<size_t>(config.width) * config.height);
       for (size_t index = 0; index < changed.size(); ++index)

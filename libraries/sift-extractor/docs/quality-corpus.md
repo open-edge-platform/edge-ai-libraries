@@ -10,6 +10,67 @@ its correspondence count. This requirement is not yet demonstrated. OpenCV remai
 a diagnostic reference. complete-gpu-sift is excluded from further acceptance work
 and will not be repaired; its results below are historical evidence only.
 
+## Profiled Optimization Probes
+
+Checkpoint 48 retains tests and diagnostic evidence only. Both performance probes
+below were rejected and fully removed; production extraction source is unchanged
+from checkpoint 47 (and the algorithm remains checkpoint 45). No settings, feature
+limits, matching rules or quality acceptance thresholds changed.
+
+Fresh Arc profiling of the current speed fixture at 1080p attributes roughly
+6.9-7.0 ms to the Gaussian/DoG phase, 3.8-3.9 ms to detection/refinement, and
+6.0-6.2 ms to the descriptor/host-output phase. Device descriptor kernel time is
+about 2.58 ms, orientation 1.23 ms and detection kernels about 1.61 ms total.
+Host-phase times are queue-boundary accounting, not isolated kernel times or
+an additive hardware bottleneck breakdown. Profiling forces Gaussian completion
+and changes synchronization; these samples are diagnostic, not acceptance FPS.
+
+Two small candidates were tested independently against the exact checkpoint-47
+binary on Arc. Unprofiled A/B/B/A uses two fresh processes per build and resolution,
+three warmups and 30 measured extractions per process (60 pooled samples/build).
+The existing 1280x960 input and resized VGA/1080p configurations are unchanged.
+
+| Probe | VGA Before -> After (ms) | 1080p Before -> After (ms) | Decision |
+| --- | --- | --- | --- |
+| Cooperative input tile in fused Gaussian | 5.943037 -> 6.267255 | 18.207181 -> 20.274420 | Reject: latency +5.46% / +11.35%. |
+| Parallel descriptor clipping and stores, original norm summation order | 5.912551 -> 5.955020 | 18.219835 -> 18.377184 | Reject: no useful gain; pooled latency +0.72% / +0.86%. |
+
+All reported OpenCL quality fields are identical between each candidate and its
+baseline at each resolution. This checks aggregate diagnostics, not byte equality
+of every feature export. The Gaussian exact-pyramid and extraction tests pass
+locally and on Arc for their respective probes. The restored implementation passes
+the expanded tests. Neither experiment establishes a new speedup or quality result;
+the previous current-extractor benchmark remains applicable.
+
+The retained pyramid tests add the radius-12 fused boundary, the adjacent radius-13
+fallback and a one-pixel image with a full halo. Every Gaussian/DoG level is compared
+exactly to the separate-pass implementation, for textured and blank inputs and both
+host completion flags. Existing odd-size, buffer-reuse and large-radius cases remain.
+
+Final local full build and all 11 CTest cases pass. The restored-code pyramid,
+refinement and all-backend scorer/export suites pass on Arc. The final production
+validator is byte-identical to the checkpoint-47 baseline executable; no new FPS
+claim is made. Final retained-test stage `probes-final-43931c8221da24d9`, manifest
+`43931c8221da24d9ab5ce4a1fb712abedad330f3a4d19e46540f087c91d8a640`.
+
+Input tiling can add local-memory traffic, indexing, barriers and occupancy costs;
+these runs do not isolate which cost caused its regression. Similarly, parallelizing
+small descriptor operations did not justify its added synchronization. Do not retry
+these exact candidates as assumed improvements. Next structural work should target
+cross-scale reuse or the host-visible detection/grouping boundary with new profiles
+and exact ordering, lossless capacity handling and quality checks. Detection already
+reads back only its total count plus refined records; there is no redundant full
+count-array readback in the resident path to simply delete.
+
+Workspace evidence: `results/20261102/opencl-profiled-probes/` contains fresh profile
+logs, both rejected patches, raw timing/quality reports and summaries. Gaussian Arc
+stage `tiled-gaussian-dd79c077272fd997`, manifest
+`dd79c077272fd997cba89abc2da26c4edf013e4790b138c1744064276e501cc9`;
+descriptor stage `descriptor-stores-0c6857aa1fd74ff2`, manifest
+`0c6857aa1fd74ff21de66dbcdd4ed69cb2dc05c882946e69d3c1ca9097a46327`.
+Raw evidence archive and `opencl-profiled-probes-receipts.sha256` are alongside it.
+No CudaSift rerun, held-out acquisition, backend selection or Python work occurred.
+
 ## Independent-image Exports and Viewpoint Smoke
 
 Checkpoint 47 adds independent-image exports using the existing extraction adapters;
