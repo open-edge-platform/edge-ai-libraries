@@ -122,7 +122,10 @@ providers:
 #        compress_min_chars: 200
 #        timeout: 60.0
 #        enable_quantum_lock: false
+<<<<<<< HEAD
 #        metrics_keys: ["provider"]   # optional: split metrics by provider (postrouting only)
+=======
+>>>>>>> upstream/main
 #    # The context compressor is experimental and is disabled by default.
 #    - name: "compressor_context"
 #      node: "compressor"

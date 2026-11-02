@@ -4475,12 +4475,12 @@ ensure_sbom_format ()
     local key=$1;
     shift;
     case "$key" in 
-        pkg-list | apt-pref | yum-repo-conf | kernel-cmdline | module-list)
+        pkg-list | apt-pref | yum-repo-conf | kernel-cmdline | module-list | install-cmdline)
             local IFS='|';
             local pkg_str="$*";
             echo "\"$key\": [\"${pkg_str//'|'/\",\"}\"]"
         ;;
-        component | repo-name | gpg-key | gpg-key-fingerprint | key-file | apt-source | apt-src-source | apt-list-file | apt-pref-file | apt-repository | yum-repo-file)
+        component | repo-name | gpg-key | gpg-key-fingerprint | key-file | apt-source | apt-src-source | apt-list-file | apt-pref-file | apt-repository | yum-repo-file | schema-version | cli-version | cli-url)
             echo "\"$key\": \"$*\""
         ;;
         *)
@@ -4794,54 +4794,46 @@ subcommand_list ()
 { 
     local all_list=" ${_act_cache_names[*]:-${_act_cache_modules[*]}} ";
     local module_region_list=" ${_act_cache_modules[*]/#/--} ";
-    local k v args=() mods=() os_release="" cli_url="" sbom=0 margs=0;
+    local k v args=() mods=() cli_version="" sbom=0 margs=0;
     for v in "$@";
     do
         case "$v" in 
             --help)
                 echo "list options:";
-                echo "  --os-release=<file> [deprecated] import an os-release file";
-                echo "  --sbom [<cli-url>]  show component SBOM items";
+                echo "  --cli-version <v>  save cli version in the SBOM header";
+                echo "  --sbom             show component SBOM items";
                 echo;
                 return 0
-            ;;
-            --os-release=*)
-                os_release="${v#*=}"
-            ;;
-            --sbom=*)
-                sbom=1;
-                cli_url="${v#*=}"
             ;;
             --sbom)
                 sbom=1
             ;;
-            --os-release)
+            --cli-version=*)
+                cli_version="${v#*=}"
+            ;;
+            --cli-version)
 
             ;;
             *)
                 if [ $margs -eq 1 ]; then
                     args+=("$v");
                 else
-                    if [ "$last_v" = "--os-release" ]; then
-                        os_release="$v";
+                    if [[ "$last_v" = "--cli-version" && "$all_list" != *" $v "* && "$v" != -* ]]; then
+                        cli_version="$v";
                     else
-                        if [[ "$last_v" = "--sbom" && ( "$v" = "http://"* || "$v" = "https://"* ) ]]; then
-                            cli_url="$v";
+                        if [[ "$module_region_list" = *" $v "* ]]; then
+                            args+=("$v");
+                            margs=1;
                         else
-                            if [[ "$module_region_list" = *" $v "* ]]; then
+                            if [[ "$all_list" = *" $v "* ]]; then
+                                mods+=("$v");
                                 args+=("$v");
-                                margs=1;
                             else
-                                if [[ "$all_list" = *" $v "* ]]; then
-                                    mods+=("$v");
+                                if [[ "$v" = "-"* ]]; then
                                     args+=("$v");
                                 else
-                                    if [[ "$v" = "-"* ]]; then
-                                        args+=("$v");
-                                    else
-                                        echo "Unknown option: $v" 1>&2;
-                                        return 3;
-                                    fi;
+                                    echo "Unknown option: $v" 1>&2;
+                                    return 3;
                                 fi;
                             fi;
                         fi;
@@ -4851,40 +4843,6 @@ subcommand_list ()
         esac;
         last_v="$v";
     done;
-    if [ -n "$os_release" ]; then
-        if [ -f "$os_release" ] && [ -r "$os_release" ]; then
-            local -A data=();
-            while read -r v; do
-                case "$v" in 
-                    PRETTY_NAME=* | NAME=* | VERSION_ID=* | VERSION=* | VERSION_CODENAME=* | ID=* | ID_LIKE=* | UBUNTU_CODENAME=*)
-                        k="${v%%=*}";
-                        v="${v#*=}";
-                        [[ "$v" = '"'*'"' ]] && { 
-                            v="${v#'"'}";
-                            v="${v%'"'}"
-                        };
-                        [[ "$v" = "'"*"'" ]] && { 
-                            v="${v#"'"}";
-                            v="${v%"'"}"
-                        };
-                        data["$k"]="$v"
-                    ;;
-                esac;
-            done < "$os_release";
-            PRETTY_NAME="${data["PRETTY_NAME"]:-"$PRETTY_NAME"}";
-            NAME="${data["NAME"]:-"$NAME"}";
-            VERSION_ID="${data["VERSION_ID"]:-"$VERSION_ID"}";
-            VERSION="${data["VERSION"]:-"$VERSION"}";
-            VERSION_CODENAME="${data["VERSION_CODENAME"]:-"$VERSION_CODENAME"}";
-            ID="${data["ID"]:-"$ID"}";
-            ID_LIKE="${data["ID_LIKE"]:-"$ID_LIKE"}";
-            UBUNTU_CODENAME="${data["UBUNTU_CODENAME"]:-"$UBUNTU_CODENAME"}";
-            installer_family="$(x="${ID_LIKE:-$ID}"; x="${x##* }"; echo "${x//[^a-zA-Z0-9]/}")";
-        else
-            echo "Invalid $os_release" 1>&2;
-            return 3;
-        fi;
-    fi;
     if [ ${#mods[*]} -eq 0 ]; then
         mods=($all_list);
         set -- $all_list "${args[@]}";
@@ -4897,13 +4855,19 @@ subcommand_list ()
             echo "No installable components from ${mods[*]}" 1>&2;
             return 3;
         fi;
-        local all_install_modules="${handles[*]#${installer_family}_*_install_}";
-        echo "\"schema-version\": \"1\"";
-        echo "\"cli-version\": \"main\"";
-        [ -z "$cli_url" ] || echo "\"cli-url\": \"$cli_url\"";
+        ensure_sbom_format schema-version 1;
+        if git rev-parse --is-inside-work-tree &> /dev/null && git remote get-url origin 2> /dev/null | grep -qE 'github\.com[:/]'; then
+            [ -n "$cli_version" ] || cli_version=$(git rev-parse HEAD);
+            ensure_sbom_format cli-version "$cli_version";
+            if [[ "/$0" = *"/rendered/"* ]]; then
+                local remote="$(git remote get-url origin | sed -E 's#(git@|https://)github.com[:/]##; s#\.git$##')";
+                ensure_sbom_format cli-url "https://raw.githubusercontent.com/$remote/$cli_version/${0/#*rendered/rendered}";
+            fi;
+        fi;
+        ensure_sbom_format install-cmdline $installer_name install "${args[@]}";
         ensure_sbom_format module-list "${mods[@]}";
         echo "---";
-        local handler sbomer;
+        local all_install_modules="${handles[*]#${installer_family}_*_install_}" handler sbomer;
         for handler in $(printf '%s\n' "${handles[@]}" | sort);
         do
             sbomer=${handler/_install_/_sbom_};
