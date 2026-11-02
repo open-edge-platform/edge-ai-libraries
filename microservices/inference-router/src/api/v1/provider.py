@@ -58,6 +58,7 @@ def _provider_to_response(provider: dict) -> ProviderResponse:
         fallback=provider.get("fallback", False),
         metadata=ProviderMetadataResponse(**redact_sensitive_values(provider.get("metadata", {}))),
         settings=ProviderSettingsResponse(**redact_sensitive_values(provider.get("settings", {}))),
+        plugins=list(provider.get("plugins") or []),
         extra=redact_sensitive_values(provider.get("extra", {})),
     )
 
@@ -112,6 +113,7 @@ def _iter_provider_configs(http_request: Request) -> list[dict]:
             "fallback": provider.fallback,
             "metadata": copy.deepcopy(provider.metadata),
             "settings": copy.deepcopy(provider.settings),
+            "plugins": list(provider.plugins),
             "extra": copy.deepcopy(provider.extra),
         }
         for provider in config.providers
@@ -189,6 +191,8 @@ def _updated_provider_payload(
         payload["metadata"] = update_req.metadata.model_dump(exclude_unset=True)
     if update_req.settings is not None:
         payload["settings"] = update_req.settings.model_dump(exclude_unset=True)
+    if update_req.plugins is not None:
+        payload["plugins"] = list(update_req.plugins)
     if update_req.extra is not None:
         payload["extra"] = update_req.extra
 
@@ -235,6 +239,7 @@ async def _persist_providers(http_request: Request, raw_providers: list[dict]) -
             "fallback": provider.fallback,
             "metadata": copy.deepcopy(provider.metadata),
             "settings": copy.deepcopy(provider.settings),
+            "plugins": list(provider.plugins),
             "extra": copy.deepcopy(provider.extra),
         }
         for provider in updated_config.providers

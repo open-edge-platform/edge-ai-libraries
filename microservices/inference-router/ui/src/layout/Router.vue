@@ -81,7 +81,6 @@ import {
   ClockCircleOutlined,
   CloudServerOutlined,
   DatabaseOutlined,
-  FileTextOutlined,
   FileProtectOutlined,
   FundOutlined,
   DeploymentUnitOutlined,
@@ -95,7 +94,6 @@ type RouterPageRouteName =
   | "TokenOverview"
   | "LatencyOverview"
   | "ProviderConfig"
-  | "PromptConfig"
   | "PluginsConfig"
   | "PolicyConfig"
   | "StrategyConfig"

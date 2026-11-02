@@ -42,6 +42,7 @@ services:
       - ROUTER_PORT=${ROUTER_PORT:-8000}
       - GATEWAY_VERBOSE=${GATEWAY_VERBOSE:-}
       - GATEWAY_VERBOSE_FULL=${GATEWAY_VERBOSE_FULL:-}
+      - GATEWAY_MAX_CONCURRENCY=${GATEWAY_MAX_CONCURRENCY:-0}
       - GATEWAY_CONFIG=/app/config.yaml
       - GATEWAY_LOG_DIR=${GATEWAY_LOG_DIR:-/app/logs}
       - IR_OV_MODEL=/models/ov-classifier
