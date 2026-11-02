@@ -228,6 +228,24 @@ int main() {
         actual.point.orientation_degrees != expected.point.orientation_degrees ||
         actual.descriptor != expected.descriptor) return 1;
     }
+    auto expected_capped = image_features;
+    std::stable_sort(expected_capped.begin(), expected_capped.end(),
+      [](const auto &first, const auto &second) {
+        return std::abs(first.point.keypoint.local.response) >
+           std::abs(second.point.keypoint.local.response);
+      });
+    expected_capped.resize(8);
+    const auto capped_features = detector.extract_image(texture, texture_width,
+      texture_height, 2, 3, 1.6f, 0.1f, 12.1f, 8);
+    if (capped_features.size() != expected_capped.size()) return 1;
+    for (size_t index = 0; index < capped_features.size(); ++index) {
+      const auto &expected = expected_capped[index];
+      const auto &actual = capped_features[index];
+      if (actual.point.keypoint.image_x != expected.point.keypoint.image_x ||
+        actual.point.keypoint.image_y != expected.point.keypoint.image_y ||
+        actual.point.orientation_degrees != expected.point.orientation_degrees ||
+        actual.descriptor != expected.descriptor) return 1;
+    }
     std::printf("Reused pyramid preserves features after blank, resized and "
           "reconfigured frames\n");
     std::printf("Image-to-feature pipeline: %zu oriented descriptors\n",

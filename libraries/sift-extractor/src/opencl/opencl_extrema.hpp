@@ -69,7 +69,8 @@ public:
         const GaussianLevel &level, const std::vector<OrientedKeypoint> &points);
         std::vector<SiftFeature> extract_image(
           const std::vector<float> &image, int width, int height, int octave_count,
-          int intervals, float base_sigma, float contrast_threshold, float edge_limit);
+            int intervals, float base_sigma, float contrast_threshold, float edge_limit,
+            int max_features = 0);
 
 private:
   struct Impl;

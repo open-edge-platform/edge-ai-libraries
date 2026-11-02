@@ -915,11 +915,12 @@ std::vector<SiftFeature> OpenCLDoGExtrema::compute_descriptors(
 
 std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
     const std::vector<float> &image, int width, int height, int octave_count,
-    int intervals, float base_sigma, float contrast_threshold, float edge_limit) {
+    int intervals, float base_sigma, float contrast_threshold, float edge_limit,
+    int max_features) {
   if (octave_count <= 0 || octave_count > 30 || intervals <= 0 || intervals > 32 ||
       !std::isfinite(base_sigma) || base_sigma < 0.1f || base_sigma > 16.0f ||
       !std::isfinite(contrast_threshold) || contrast_threshold < 0.0f ||
-      !std::isfinite(edge_limit) || edge_limit <= 0.0f)
+      !std::isfinite(edge_limit) || edge_limit <= 0.0f || max_features < 0)
     throw std::invalid_argument("Invalid image extractor configuration");
   for (float value : image) {
     if (!std::isfinite(value))
@@ -932,8 +933,15 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
   const auto gaussian_end = std::chrono::steady_clock::now();
   const auto differences = pyramid.difference_levels(gaussian, octave_count, intervals);
   const auto difference_end = std::chrono::steady_clock::now();
-  const auto keypoints = detect_pyramid(differences, octave_count, intervals,
-                                         base_sigma, contrast_threshold, edge_limit);
+  auto keypoints = detect_pyramid(differences, octave_count, intervals,
+                                   base_sigma, contrast_threshold, edge_limit);
+  if (max_features > 0 && keypoints.size() > static_cast<size_t>(max_features)) {
+    std::stable_sort(keypoints.begin(), keypoints.end(), [](const auto &first,
+                                                           const auto &second) {
+      return std::abs(first.local.response) > std::abs(second.local.response);
+    });
+    keypoints.resize(static_cast<size_t>(max_features));
+  }
   const auto detector_end = std::chrono::steady_clock::now();
   std::vector<std::vector<ScaleSpaceKeypoint>> groups(gaussian.size());
   for (const auto &point : keypoints) {
@@ -958,6 +966,14 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
         group_end - descriptor_start).count();
     ++feature_groups;
     result.insert(result.end(), features.begin(), features.end());
+  }
+  if (max_features > 0 && result.size() > static_cast<size_t>(max_features)) {
+    std::stable_sort(result.begin(), result.end(), [](const auto &first,
+                                                      const auto &second) {
+      return std::abs(first.point.keypoint.local.response) >
+             std::abs(second.point.keypoint.local.response);
+    });
+    result.resize(static_cast<size_t>(max_features));
   }
   if (std::getenv("SIFT_OPENCL_PROFILE")) {
     const auto milliseconds = [](auto start, auto end) {

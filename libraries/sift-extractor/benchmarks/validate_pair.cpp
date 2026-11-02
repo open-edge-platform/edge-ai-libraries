@@ -230,7 +230,8 @@ FeatureSet extract_opencl(sift_extractor::detail::OpenCLDoGExtrema &extractor,
   const auto features = extractor.extract_image(pixels, gray.cols, gray.rows,
                                   config.octaves, config.octave_layers, static_cast<float>(config.sigma),
                                   static_cast<float>(config.opencl_contrast),
-                                  static_cast<float>((config.edge + 1) * (config.edge + 1) / config.edge));
+                                  static_cast<float>((config.edge + 1) * (config.edge + 1) / config.edge),
+                                  config.nfeatures);
   FeatureSet result;
   result.descriptors.create(static_cast<int>(features.size()), 128, CV_32F);
   for (size_t index = 0; index < features.size(); ++index) {

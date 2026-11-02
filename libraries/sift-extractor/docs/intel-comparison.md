@@ -92,6 +92,22 @@ stage `~/.local/share/sift-extractor-staging/arc-opencl-gradients-8ae394c5795319
 Latency remains about 19.8x and 13.4x higher than complete-gpu-sift at VGA and
 1080p, and quality compatibility is not established.
 
+### OpenCL Feature Budget
+
+The comparison now passes `nfeatures` into OpenCL extraction and prunes the
+response-ranked scale-space list before orientation and descriptors, while
+preserving the adapter's final response-ranked output cap. The exact top-feature
+regression passes. On Arc, a 30-sample A/B/B/A at `nfeatures=500` versus the prior
+post-extraction cap measured pooled medians of VGA 114.335/113.946ms (0.3% lower)
+and 1080p 244.694/236.862ms (3.2% lower). This is a small observed gain, not a
+route to the reference rate. The cap itself changes quality relative to unlimited
+features: inliers/RMSE are 226/0.341px at VGA and 261/0.458px at 1080p, versus
+263/0.359px and 1300/0.430px. Metrics were unchanged between the old and new cap
+implementations. Treat feature budgets as an explicit quality/performance option,
+not equivalent extraction. Receipt and raw
+results: `results/20261101/arc-opencl-feature-cap.sh` and Arc stage
+`~/.local/share/sift-extractor-staging/arc-opencl-feature-cap-8144074012742c96-retry2`.
+
 Next measure and remove remaining transfer/allocation overhead and optimize
 descriptor work as indicated by Arc stage timings. No OpenCL optimization ceiling
 or quality parity is claimed. Profile runner: `results/20261101/arc-opencl-stage-profile.sh`.
