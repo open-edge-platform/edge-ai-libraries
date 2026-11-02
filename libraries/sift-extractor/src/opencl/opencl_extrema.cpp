@@ -715,12 +715,14 @@ struct OpenCLDoGExtrema::Impl {
     size_t descriptor_capacity = 0;
     cl_event event = nullptr;
     cl_event descriptor_event = nullptr;
+    cl_event gradient_event = nullptr;
     ~FeatureScratch() {
       for (auto *buffer : {&magnitude, &orientation, &points, &output, &layout, &gradient_layout,
                &counts, &descriptor_points, &descriptor_layout, &descriptors, &orientation_sources})
         if (buffer->memory) clReleaseMemObject(buffer->memory);
       if (event) clReleaseEvent(event);
       if (descriptor_event) clReleaseEvent(descriptor_event);
+      if (gradient_event) clReleaseEvent(gradient_event);
     }
   };
   std::vector<std::unique_ptr<FeatureScratch>> feature_scratch;
@@ -861,8 +863,9 @@ struct OpenCLDoGExtrema::Impl {
         scratch->gradient_layout.capacity + scratch->counts.capacity +
         scratch->descriptor_points.capacity + scratch->descriptor_layout.capacity + scratch->descriptors.capacity +
         scratch->orientation_sources.capacity;
-      auto &event = std::string(name) == "sift_descriptors" && scratch->descriptor_event
-        ? scratch->descriptor_event : scratch->event;
+      auto &event = std::string(name) == "sift_packed_gradients" ? scratch->gradient_event :
+        std::string(name) == "sift_descriptors" && scratch->descriptor_event
+          ? scratch->descriptor_event : scratch->event;
       if (!event) continue;
       cl_ulong start = 0, end = 0;
       check_opencl(clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START,
@@ -1893,8 +1896,13 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
       check_opencl(clSetKernelArg(kernel, 5, sizeof(pixel_count), &pixel_count), "packed gradient pixels");
       const size_t local_size = 256;
       const size_t global_size = (gradient_count + local_size - 1) / local_size * local_size;
+      if (scratch->gradient_event) {
+        clReleaseEvent(scratch->gradient_event);
+        scratch->gradient_event = nullptr;
+      }
       check_opencl(clEnqueueNDRangeKernel(impl_->queue, kernel, 1, nullptr, &global_size,
-        &local_size, 0, nullptr, nullptr), "packed gradient launch");
+        &local_size, 0, nullptr, impl_->profile_features ? &scratch->gradient_event : nullptr),
+        "packed gradient launch");
       impl_->gradients_ready = true;
     }
     for (size_t group = 0; group < groups.size(); ++group) {
@@ -1913,6 +1921,7 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
     const auto descriptor_start = std::chrono::steady_clock::now();
     orientation_ms = std::chrono::duration<double, std::milli>(descriptor_start - orientation_start).count();
     descriptors = impl_->resident_descriptors(*scratch, ordered_points.size(), orientation_sources);
+    impl_->report_feature_profile("sift_packed_gradients");
     impl_->report_feature_profile("sift_orientations");
     impl_->report_feature_profile("sift_descriptors");
     oriented.reserve(descriptors.size() / 128);

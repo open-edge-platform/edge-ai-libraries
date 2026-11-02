@@ -10,6 +10,83 @@ its correspondence count. This requirement is not yet demonstrated. OpenCV remai
 a diagnostic reference. complete-gpu-sift is excluded from further acceptance work
 and will not be repaired; its results below are historical evidence only.
 
+## Further OpenCL Parity Probes
+
+Checkpoint 50 evaluates representatives of all four remaining optimization areas,
+but does not complete or exhaust them. All five candidates below were rejected
+and reverted. Extraction arithmetic, defaults, feature selection and matching are
+restored to checkpoint 49. The only retained runtime change is opt-in packed-gradient
+event timing under `SIFT_OPENCL_PROFILE=1`, reported as
+`OPENCL_BATCH_FEATURE_PROFILE kernel=sift_packed_gradients`. Fresh Arc profiling
+measures roughly 0.16 ms VGA / 1.22 ms 1080p for this kernel; profiling changes
+synchronization and is not used for acceptance timing.
+
+| Probe | VGA Latency Change | 1080p Latency Change | Decision |
+| --- | --- | --- | --- |
+| Defer host-only scalar counts until the end of each batch | -1.35% | +0.69% | Reject inconclusive tradeoff. |
+| Conservative gradient-tile mask, default | +1.42% | -0.29% | Reject general dispatch; cap-500 1080p alone improves 4.59%. |
+| Fully subgroup-parallel normalization, clipping and output | +12.58% | +15.29% | Reject. |
+| Exact consecutive two-level Gaussian fusion | +3.70% | +12.53% | Reject. |
+| Exact GPU first-owner location deduplication | +4.27% | -0.71% | Reject standalone dispatch. |
+
+Positive means slower. Except for the mask, these are screening A/B/B/A runs with
+two fresh processes/build/size, three warmups and 30 samples/process (60 pooled).
+The mask uses six counterbalanced pairs/build across default, cap-500, contrast-0.1
+and sigma-1 at both sizes (180 samples/build/case). No screen is a release gate.
+All reported OpenCL quality fields are identical between each candidate and its
+baseline at each tested setting. All 12 full mask feature-export comparisons are
+byte-identical. Full parallel normalization deliberately changes summation order:
+its Arc serial-reference maximum bin difference is 0.00000009, within the existing
+0.00002 tolerance; no full-export byte-equality claim is made for that probe.
+
+The cross-scale probe preserves both intermediate Gaussian images, both DoG outputs,
+the sequential convolution order, clamped borders and original coefficients.
+It fuses levels with first radius <=12 and second radius <=6 using local intermediates;
+other levels retain the existing fallback. Every Gaussian/DoG pixel matches the
+separate-pass reference in local and Arc pyramid tests. Its slower result does not
+rule out other multi-scale designs or establish why it lost; added halo computation,
+local memory, indexing and occupancy remain possible costs, not isolated causes.
+
+GPU deduplication uses atomic minimum candidate-index ownership and a second stable
+filter pass. Exact host/reference ordering, real localization collisions, candidate
+growth/retry and reuse tests pass locally and on Arc. It retains the full refined
+record readback, CPU sigma mapping, stable capping and grouping: it is not the fully
+device-resident detection-to-description path. Further work must address that
+combined boundary rather than treating standalone GPU membership as completion.
+
+The final restored executable is then measured against retained-context SYCL with
+six fresh counterbalanced processes/backend/size, three warmups and 30 samples
+(180/backend/size). Profiling is off. Same historical 1280x960 input resized to
+640x480 and 1920x1080; the latter is upscaled/aspect-changed, not native camera data.
+Both isolated timing scopes include conversion/upload/extraction/owned host output,
+adapter and logging, excluding initial context/workspace setup, decode/resize and
+matching. Native algorithm settings remain different.
+
+| Size | OpenCL ms / FPS | SYCL ms / FPS | OpenCL Excess Latency |
+| --- | --- | --- | --- |
+| 640x480 | 5.882044 / 170.01 | 3.797873 / 263.31 | 54.88% |
+| 1920x1080 | 17.809774 / 56.15 | 15.589012 / 64.15 | 14.25% |
+
+Pooled p95 OpenCL/SYCL is 6.203/3.988 ms VGA and 18.301/15.909 ms 1080p. A
+10,000-draw fixed-seed bootstrap of six paired process-median excesses gives 95%
+intervals 52.92-58.39% VGA and 13.23-16.62% 1080p. These are exploratory within-host
+intervals, not release/held-out qualification. OpenCL has not matched SYCL, nor do
+these failed probes establish an inherent API limit. No backend is selected.
+
+OpenCL quality remains 401/1893 inliers, precision 94.799%/91.983%, own-inlier RMSE
+0.343096/0.439483 px, exact across final processes. SYCL varies again: 636-641 /
+2095-2106 inliers; feature counts remain 1366/1188 and 4939/4071. CudaSift-level
+quality and SYCL repeatability remain unresolved. Final local 11/11 and Arc exact
+pyramid/refinement suites pass. No held-out acquisition, CUDA rerun, Python or system
+changes. The earlier compact-handoff optimization remains retained.
+
+Evidence: workspace `results/20261102/opencl-parity-probes/`, with all successful
+probe patches/binaries, tests, raw reports, mask exports, reproducible comparison/
+analysis, archive and checksum receipts. Final stage `parity-final-acb1ea0055dd8264`,
+manifest `acb1ea0055dd826486dcfaa6d5feb86c68d9eee7fe205699e3f7cb6363dd5387`.
+Final executable SHA256
+`da541b010112c8d4b96d64e7e9b87caf964e54f0a240f20a9fba215b8f88d9c1`.
+
 ## Compact Orientation Handoff
 
 Checkpoint 49 changes host handoff and membership lookup, not SIFT arithmetic,
