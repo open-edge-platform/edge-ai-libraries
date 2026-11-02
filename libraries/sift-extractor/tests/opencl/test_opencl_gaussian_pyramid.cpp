@@ -60,20 +60,22 @@ bool check_resident(sift_extractor::detail::OpenCLGaussianPyramid &pyramid,
                     int octaves, int intervals, float sigma) {
   const auto expected = pyramid.build(image, width, height, octaves, intervals, sigma);
   const auto expected_dog = pyramid.difference_levels(expected, octaves, intervals);
-  const auto actual = pyramid.build_with_differences(image, width, height,
-                                                     octaves, intervals, sigma);
-  if (actual.gaussian.size() != expected.size() ||
-      actual.differences.size() != expected_dog.size())
-    return false;
   const auto equal_level = [](const auto &first, const auto &second) {
     return first.octave == second.octave && first.scale == second.scale &&
            first.width == second.width && first.height == second.height &&
            first.sigma == second.sigma && first.pixels == second.pixels;
   };
-  for (size_t index = 0; index < expected.size(); ++index)
-    if (!equal_level(actual.gaussian[index], expected[index])) return false;
-  for (size_t index = 0; index < expected_dog.size(); ++index)
-    if (!equal_level(actual.differences[index], expected_dog[index])) return false;
+  for (bool wait_for_completion : {true, false}) {
+    const auto actual = pyramid.build_with_differences(image, width, height,
+        octaves, intervals, sigma, false, wait_for_completion);
+    if (actual.gaussian.size() != expected.size() ||
+        actual.differences.size() != expected_dog.size())
+      return false;
+    for (size_t index = 0; index < expected.size(); ++index)
+      if (!equal_level(actual.gaussian[index], expected[index])) return false;
+    for (size_t index = 0; index < expected_dog.size(); ++index)
+      if (!equal_level(actual.differences[index], expected_dog[index])) return false;
+  }
   return true;
 }
 

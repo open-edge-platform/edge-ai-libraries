@@ -617,7 +617,7 @@ void OpenCLGaussianBlur::build_pyramid(
     std::vector<DoGLevel> &differences,
   const std::vector<std::vector<float>> &kernels, int intervals,
   std::vector<_cl_mem *> *device_differences,
-  std::vector<_cl_mem *> *device_gaussian) {
+  std::vector<_cl_mem *> *device_gaussian, bool wait_for_completion) {
   const size_t image_bytes = image.size() * sizeof(float);
   cl_mem input = impl_->ensure_buffer(impl_->pyramid_input,
     CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR, image_bytes);
@@ -870,7 +870,8 @@ void OpenCLGaussianBlur::build_pyramid(
           "clEnqueueReadBuffer(pyramid DoG)");
     }
     const auto submit_end = std::chrono::steady_clock::now();
-    check_opencl(clFinish(impl_->queue), "clFinish(pyramid)");
+    if (wait_for_completion || !device_gaussian || !device_differences || impl_->profiling)
+      check_opencl(clFinish(impl_->queue), "clFinish(pyramid)");
     const auto finish_end = std::chrono::steady_clock::now();
     if (impl_->profiling) {
       double horizontal_ms = 0.0, vertical_ms = 0.0, fused_ms = 0.0;

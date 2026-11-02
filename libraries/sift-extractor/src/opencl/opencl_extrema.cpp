@@ -19,6 +19,8 @@
 namespace sift_extractor::detail {
 namespace {
 
+constexpr size_t candidate_block_size = 64;
+
 constexpr const char *kernel_source = R"CLC(
 #ifdef cl_intel_subgroups
 #pragma OPENCL EXTENSION cl_intel_subgroups : enable
@@ -107,9 +109,9 @@ __kernel void compact_dog_candidates(__global const float *dog,
                                       const int mask_count,
                                       const int candidate_capacity) {
   const int block = (int)get_global_id(0);
-  const int begin = block * 64;
+  const int begin = block * SIFT_CANDIDATE_BLOCK_SIZE;
   uint destination = offsets[block];
-  for (int offset = 0; offset < min(64, mask_count - begin); ++offset) {
+  for (int offset = 0; offset < min(SIFT_CANDIDATE_BLOCK_SIZE, mask_count - begin); ++offset) {
     const int index = begin + offset;
     if (!mask[index]) continue;
     const int x = index % (width - 2) + 1;
@@ -245,9 +247,9 @@ __kernel void refine_compacted_candidates(__global const float *dog,
                                           const int scale_count, const int capacity,
                                           const float contrast_threshold, const float edge_limit,
                                           __global const uint *offsets, const int mask_count) {
-  const int begin = (int)get_global_id(0) * 64;
+  const int begin = (int)get_global_id(0) * SIFT_CANDIDATE_BLOCK_SIZE;
   uint destination = offsets[get_global_id(0)];
-  for (int position = 0; position < min(64, mask_count - begin); ++position) {
+  for (int position = 0; position < min(SIFT_CANDIDATE_BLOCK_SIZE, mask_count - begin); ++position) {
     const int index = begin + position;
     if (!mask[index]) continue;
     if (destination < (uint)capacity) {
@@ -1063,7 +1065,7 @@ struct OpenCLDoGExtrema::Impl {
       check_opencl(status, "clCreateKernel(compact_dog_candidates)");
     }
     const int mask_count = (scale_count - 2) * (height - 2) * (width - 2);
-    const size_t block_count = (static_cast<size_t>(mask_count) + 63) / 64;
+    const size_t block_count = (static_cast<size_t>(mask_count) + candidate_block_size - 1) / candidate_block_size;
     cl_mem shared_volume = nullptr;
     if (device_levels) {
       bool contiguous = true;
@@ -1112,7 +1114,7 @@ struct OpenCLDoGExtrema::Impl {
         check_opencl(clSetKernelArg(count_kernel, 4, sizeof(height), &height), "combined extrema height");
         check_opencl(clSetKernelArg(count_kernel, 5, sizeof(mask_count), &mask_count), "candidate mask count");
         check_opencl(clSetKernelArg(count_kernel, 6, sizeof(threshold), &threshold), "combined extrema threshold");
-        const size_t local_size = 64;
+        const size_t local_size = candidate_block_size;
         const size_t global_size = block_count * local_size;
       check_opencl(clEnqueueNDRangeKernel(queue, count_kernel, 1, nullptr,
           &global_size, &local_size, 0, nullptr, event_for(0)), "combined extrema count launch");
@@ -1216,6 +1218,7 @@ struct OpenCLDoGExtrema::Impl {
     std::string build_options = serial_descriptors
       ? "-cl-std=CL1.2 -DSIFT_DESCRIPTOR_LANES=1"
       : "-cl-std=CL1.2 -DSIFT_DESCRIPTOR_LANES=32";
+    build_options += " -DSIFT_CANDIDATE_BLOCK_SIZE=" + std::to_string(candidate_block_size);
     size_t subgroup_bytes = 0;
     if (!serial_descriptors && clGetDeviceInfo(device, CL_DEVICE_SUB_GROUP_SIZES_INTEL,
         0, nullptr, &subgroup_bytes) == CL_SUCCESS && subgroup_bytes > 0 &&
@@ -1741,7 +1744,7 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
   impl_->gradients_ready = false;
   auto &pyramid = impl_->get_pyramid();
   const auto levels = pyramid.build_with_differences(
-      image, width, height, octave_count, intervals, base_sigma, true);
+      image, width, height, octave_count, intervals, base_sigma, true, false);
   const auto &gaussian = levels.gaussian;
   const auto &differences = levels.differences;
   const auto difference_end = std::chrono::steady_clock::now();
@@ -1769,6 +1772,9 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
   std::vector<int> layout, gradient_layout, image_offsets(groups.size());
   std::vector<ScaleSpaceKeypoint> ordered_points;
   std::vector<OrientedKeypoint> oriented;
+  packed.reserve(keypoints.size() * 4);
+  layout.reserve(keypoints.size() * 3);
+  ordered_points.reserve(keypoints.size());
   size_t gradient_count = 0;
   for (size_t group = 0; group < groups.size(); ++group) {
     if (groups[group].empty()) continue;
@@ -1851,6 +1857,8 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
     descriptors = impl_->resident_descriptors(*scratch, ordered_points.size());
     impl_->report_feature_profile("sift_orientations");
     impl_->report_feature_profile("sift_descriptors");
+    oriented.reserve(descriptors.size() / 128);
+    result.reserve(descriptors.size() / 128);
     for (size_t index = 0; index < ordered_points.size(); ++index) {
       const auto &point = ordered_points[index];
       for (size_t bin = 0; bin < 36; ++bin) {

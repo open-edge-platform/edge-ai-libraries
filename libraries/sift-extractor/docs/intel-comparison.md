@@ -240,6 +240,66 @@ runner `results/20261102/arc-opencl-milestone.sh`, local reports
 `~/.local/share/sift-extractor-staging/arc-compaction-d266f47fcec2f0d8`.
 Manifest SHA256: `d266f47fcec2f0d852662e08c6e4453a2c2e0c28f9975439e9480ca7b8f6603b`.
 
+### Deferred Resident Completion and Host Reserves
+
+Resident extraction now submits the Gaussian/DoG pyramid without an immediate
+completion wait, then queues detection on the same retained in-order queue.
+The detector's completion wait covers both stages. The internal pyramid builder
+accepts `wait_for_completion=false` only for device-only results; defaults and
+host-pixel outputs remain synchronous. Borrowed device handles must be consumed
+on that queue or explicitly synchronized before use elsewhere, and remain valid
+only until the next build or owner destruction. Upload data is copied into owned
+storage before returning; enqueue failures still drain the queue. Profiling forces
+the original pyramid wait so convolution events are complete before querying them.
+Profiled stage timings therefore do not measure the deferred-completion gain.
+Host feature assembly also reserves its packed points, layout, ordered points,
+orientations and final features. All stages, feature counts and arithmetic remain
+unchanged. Candidate blocks remain 64 entries with one shared host/kernel constant.
+
+All 10 local tests, two profiled focused tests, both Arc regressions and the
+30-case Arc matrix pass. Host-output tests compare every Gaussian/DoG pixel with
+both completion flags. Existing exact resident/host feature, capacity-growth,
+blank/reconfigured reuse and serial descriptor regressions exercise the deferred
+extraction path. All paired matching records are identical. Against `f31094955`,
+60 pooled raw samples per build/configuration give:
+
+| Timing Mode | Size | Feature Budget | Before (ms) | After (ms) |
+| --- | --- | --- | --- | --- |
+| Isolated OpenCL | 640x480 | Unlimited | 5.972 | 5.638 |
+| Isolated OpenCL | 1920x1080 | Unlimited | 17.519 | 16.959 |
+| Rotated backends | 640x480 | Unlimited | 7.758 | 7.126 |
+| Rotated backends | 640x480 | 500 | 7.311 | 6.347 |
+| Rotated backends | 1920x1080 | Unlimited | 20.562 | 20.345 |
+| Rotated backends | 1920x1080 | 500 | 17.476 | 17.099 |
+
+An independent confirmation used six fresh processes per resolution, alternating
+VGA/1080p, with three warmups and 30 samples per process. Pooled 180-sample medians
+are VGA **5.6683095ms / 176.419 FPS** and 1080p **16.958033ms / 58.969 FPS**.
+Every process median exceeds the respective 168.875/54.995 FPS raw reference
+target. Both targets are confirmed for **isolated OpenCL**, not rotated timing,
+and not quality-equivalent to the simpler reference. Matching records also equal
+the full-run baseline. Broad corpus, reference quality adaptation, backend choice
+and production qualification remain open; the release performance gate stays off.
+
+The preceding reserve-only build crossed both targets in its full run
+(170.725/59.549 FPS), but independent VGA confirmation was only 168.522 FPS
+(1080p 58.358 FPS). That failed VGA confirmation is retained in
+`results/20261102/arc-target-confirmation-summary.json`; reserve-only results are
+in `arc-host-reserve-summary.json`. Direct rectangular descriptor readback and
+32-entry candidate blocks were both slower in subsequent probes and were reverted.
+Deferred pyramid completion was revisited because detection and the feature
+handoff had changed substantially since its earlier inconclusive experiment.
+
+Evidence: SIFT workspace `results/20261102/arc-deferred-resident-summary.json` and
+`results/20261102/arc-deferred-confirmation-summary.json`; reports
+`/tmp/sift-arc-deferred-resident-results.TtHAlb` and
+`/tmp/sift-arc-deferred-confirmation-results.VAjxF4`; payload
+`/tmp/sift-arc-deferred-resident.aXReki`; remote stage
+`~/.local/share/sift-extractor-staging/arc-deferred-resident-c125bdf4fd346eab`.
+Manifest SHA256: `c125bdf4fd346eabc16d9143d5681a615d3172547abcfe7b3d819515e2249631`.
+All five returned executable hashes match the staged binaries; the same manifest
+was verified again before the independent confirmation.
+
 ### Fused Refinement and Split Descriptor Bins
 
 Resident compaction now refines each candidate directly into its stable prefix

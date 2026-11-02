@@ -48,7 +48,8 @@ public:
       int intervals);
     GaussianDoGPyramid build_with_differences(
       const std::vector<float> &image, int width, int height, int octave_count,
-      int intervals, float base_sigma, bool keep_on_device = false);
+      int intervals, float base_sigma, bool keep_on_device = false,
+      bool wait_for_completion = true);
 
 private:
   OpenCLGaussianBlur primitives_;

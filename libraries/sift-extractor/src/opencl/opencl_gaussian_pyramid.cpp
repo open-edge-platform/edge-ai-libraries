@@ -133,7 +133,7 @@ std::vector<DoGLevel> OpenCLGaussianPyramid::difference_levels(
 
 GaussianDoGPyramid OpenCLGaussianPyramid::build_with_differences(
     const std::vector<float> &image, int width, int height, int octave_count,
-  int intervals, float base_sigma, bool keep_on_device) {
+  int intervals, float base_sigma, bool keep_on_device, bool wait_for_completion) {
   if (width <= 0 || height <= 0 || octave_count <= 0 || octave_count > 30 ||
       intervals <= 0 || intervals > 32 || !std::isfinite(base_sigma) ||
       base_sigma < 0.1f || base_sigma > 16.0f)
@@ -173,7 +173,7 @@ GaussianDoGPyramid OpenCLGaussianPyramid::build_with_differences(
   }
   primitives_.build_pyramid(image, result.gaussian, result.differences, kernels,
                 intervals, keep_on_device ? &result.device_differences : nullptr,
-                keep_on_device ? &result.device_gaussian : nullptr);
+                keep_on_device ? &result.device_gaussian : nullptr, wait_for_completion);
   return result;
 }
 

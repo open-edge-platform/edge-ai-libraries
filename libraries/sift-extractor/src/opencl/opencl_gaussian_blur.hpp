@@ -39,7 +39,8 @@ private:
                      const std::vector<std::vector<float>> &kernels,
                      int intervals,
                      std::vector<_cl_mem *> *device_differences = nullptr,
-                     std::vector<_cl_mem *> *device_gaussian = nullptr);
+                     std::vector<_cl_mem *> *device_gaussian = nullptr,
+                     bool wait_for_completion = true);
   struct Impl;
   Impl *impl_;
 };
