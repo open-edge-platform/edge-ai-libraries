@@ -637,6 +637,20 @@ policy_paths() {
   [[ "$(openshell_policy_path hermes)" == "$1/openshell/interactive-policy.yaml" ]]
 }
 run_case 'OpenClaw uses base policy and interactive agents use PTY policy' policy_paths "$SCRIPT_DIR"
+run_case 'sandbox policy docs cover static and live updates' bash -c '
+  doc="$1/docs/agentic-ai-security/agent-sandboxing.md"
+  grep -Fq "openshell/policy.yaml" "$doc"
+  grep -Fq "openshell/interactive-policy.yaml" "$doc"
+  grep -Fq "./install.sh --runtime openshell --harness hermes --non-interactive" "$doc"
+  grep -Fq "openshell policy set --policy ./custom-policy.yaml" "$doc"
+  grep -Fq -- "--gateway" "$doc"
+  grep -Fq -- "--wait" "$doc"
+  grep -Fq "openshell policy get" "$doc"
+  grep -Fq "openshell sandbox list" "$doc"
+  grep -Fq "openshell policy list" "$doc"
+  grep -Fq "openshell policy update" "$doc"
+  grep -Fq "does not replace an already-owned sandbox" "$doc"
+' _ "$SCRIPT_DIR"
 run_case 'Hermes config changes are staged and atomically published' hermes_config_staged
 run_case 'OpenClaw smoke checks disable thinking' bash -c '
   grep -Fq -- "--thinking off" "$1"

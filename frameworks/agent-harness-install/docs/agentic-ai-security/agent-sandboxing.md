@@ -152,6 +152,68 @@ model fallback. Default policies remain subject to the security limitations
 described above; a working inference connection is not a guarantee of tool-use
 correctness.
 
+### Customize a sandbox policy
+
+Start with the least privilege needed by your agent. The installer selects
+`openshell/policy.yaml` for OpenClaw and
+`openshell/interactive-policy.yaml` for Hermes and Deep Agents Code. The
+interactive policy adds sandbox-local PTY device access required by those
+agents. Keep inference-provider access separate from filesystem permissions;
+adding filesystem paths does not grant network access.
+
+#### Static customization before installation
+
+Edit the policy file in your checked-out `frameworks/agent-harness-install`
+directory before provisioning. Modify `openshell/policy.yaml` for OpenClaw or
+`openshell/interactive-policy.yaml` for Hermes and Deep Agents Code, then run
+the normal installer command for that agent. For example:
+
+```bash
+# Edit the policy file for the selected agent, then:
+./install.sh --runtime openshell --harness hermes --non-interactive
+```
+
+This changes the policy supplied when a sandbox is created. Re-running the
+installer does not replace an already-owned sandbox or update its policy. To
+recreate an existing sandbox from the edited file, first back up any workspace
+data you need, then remove only that agent's sandbox and install it again:
+
+```bash
+./uninstall.sh --runtime openshell --harness hermes --sandbox-only --yes
+./install.sh --runtime openshell --harness hermes --non-interactive
+```
+
+Use the matching `--harness` value for your agent. Sandbox removal deletes its
+sandbox state; do not use this recreation path unless you have backed up data
+you need to keep.
+
+#### Dynamic update of a live sandbox
+
+To apply a custom YAML policy to an existing sandbox without recreating it,
+make a copy of the appropriate starting policy, edit the copy, and use
+OpenShell's policy command. Run from the component directory; replace the
+example sandbox and gateway names with the values for your installation:
+
+```bash
+cp openshell/interactive-policy.yaml ./custom-policy.yaml
+# Edit ./custom-policy.yaml, then:
+SANDBOX_NAME=ahi-0123456789ab
+GATEWAY_NAME=openshell
+openshell sandbox list --gateway "$GATEWAY_NAME"
+openshell policy set --policy ./custom-policy.yaml "$SANDBOX_NAME" \
+  --gateway "$GATEWAY_NAME" --wait
+openshell policy get "$SANDBOX_NAME" --gateway "$GATEWAY_NAME" --full
+openshell policy list "$SANDBOX_NAME" --gateway "$GATEWAY_NAME"
+```
+
+For OpenClaw, copy `openshell/policy.yaml` instead. `--wait` waits for the
+sandbox to load the policy; `policy get --full` displays the effective policy,
+and `policy list` shows its revisions. This example updates one sandbox only:
+do not add `--global` unless you intend to change policy for every sandbox on
+the gateway and have authorization to do so. `openshell policy update` is for
+incremental network endpoint/rule changes; use `openshell policy set` when
+replacing the complete YAML policy, including filesystem rules.
+
 ### Install a sandboxed agent
 
 On a fresh host, one command provisions installer-owned OVMS and IR, downloads

@@ -172,6 +172,7 @@ expected outcomes are visible. These references are not CLI filter arguments.
 | live suite requires explicit opt-in | Live-test safety | Refuse live execution without the opt-in variable. |
 | interactive policy adds only sandbox-local PTY paths to the base policy | Policy structure | Verify the interactive policy differs only by `/dev/ptmx` and `/dev/pts`, ignoring comments/blank lines. |
 | `policy_paths` | Agent policy selection | Select the base policy for OpenClaw and the interactive policy for Hermes and Deep Agents Code. |
+| sandbox policy docs cover static and live updates | Policy customization documentation | Check the static installer and live `openshell policy set`/verification examples, and that repeat installation is documented as not changing an existing sandbox. |
 
 The remaining three outer registrations invoke entire suites:
 
