@@ -298,17 +298,10 @@ def build_plugin(plugin_config: PluginConfig) -> PluginBaseNode:
         )
 
     try:
-        kwargs: Dict[str, Any] = {}
-        if plugin_node == "compressor":
-            # Temporary adapter until router config supplies per-plugin metrics keys.
-            kwargs["metrics_keys"] = (
-                ["provider"] if plugin_config.trigger == "postrouting" else []
-            )
         plugin = plugin_cls(
             name=plugin_config.name,
             settings=plugin_config.settings,
             trigger=plugin_config.trigger,
-            **kwargs,
         )
     except PluginSchemaError as exc:
         raise ConfigurationError(str(exc)) from exc

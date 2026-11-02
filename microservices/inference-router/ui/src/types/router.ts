@@ -93,26 +93,6 @@ export interface RouterProviderPayload {
   settings: unknown;
 }
 
-export interface ConfigPromptRow {
-  idx?: number;
-  model?: string;
-  content?: string;
-  version?: string;
-  active?: boolean;
-}
-
-export type RouterPromptDialogType = "create" | "edit";
-
-export interface RouterPromptPayload {
-  model: string;
-  content: string;
-}
-
-export interface RouterPromptUpdatePayload extends RouterPromptPayload {
-  idx: number;
-  active: boolean;
-}
-
 export interface ConfigPluginRow {
   name: string;
   node: string;

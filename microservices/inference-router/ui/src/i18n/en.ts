@@ -197,27 +197,6 @@ export default {
     routerProviderDeleteConfirmTitle: "Delete provider",
     routerProviderDeleteConfirmContent:
       'Are you sure to delete "{name}"? It cannot be restored after deletion.',
-    routerPromptConfigTitle: "Prompt",
-    routerPromptConfigCaption: "Manage prompt models and content.",
-    routerPromptModel: "Model",
-    routerPromptLoadError:
-      "Unable to load prompts. Please check the backend API and retry.",
-    routerPromptVersion: "Version",
-    routerPromptContent: "Content",
-    routerPromptStatus: "Status",
-    routerPromptActive: "Activated",
-    routerPromptInactive: "Inactive",
-    routerPromptCreate: "Add prompt",
-    routerPromptCreateTitle: "Add prompt",
-    routerPromptEditTitle: "Edit prompt",
-    routerPromptDetailTitle: "Prompt details",
-    routerPromptModelPlaceholder: "Enter model name",
-    routerPromptContentPlaceholder: "Enter prompt content",
-    routerPromptModelRequired: "Please enter model",
-    routerPromptContentRequired: "Please enter prompt content",
-    routerPromptDeleteConfirmContent:
-      'Are you sure to delete the prompt for model "{model}"? It cannot be restored after deletion.',
-    routerNoPrompts: "No prompt configuration",
     routerPluginConfigTitle: "Plugins",
     routerPluginConfigCaption:
       "Manage configured plugin instances and inspect registered plugin nodes with their settings schemas.",
