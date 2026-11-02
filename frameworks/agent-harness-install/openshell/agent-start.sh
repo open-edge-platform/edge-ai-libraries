@@ -44,32 +44,35 @@ const block = config.slice(start, finish);
 const setting = "use_responses_api = false";
 if (block.split(setting).length !== 2)
   throw Error("Missing or duplicate Deep Agents Code provider options");
-const tuned = block.replace(setting, `${setting}\ntemperature = 0.2\nmax_tokens = 4096\nextra_body = { chat_template_kwargs = { enable_thinking = false } }`);
-fs.writeFileSync(file, config.slice(0, start) + tuned + config.slice(finish));
+const tuned = block.replace(setting, `${setting}\ntemperature = 0.2\nmax_tokens = 4096`);
+const modelOverrides = `\n[models.providers.openai.params."Qwen3.5-9B-int8-ov"]\nextra_body = { chat_template_kwargs = { enable_thinking = false } }`;
+fs.writeFileSync(file, config.slice(0, start) + tuned + modelOverrides + config.slice(finish));
 JS
 }
 
 configure_hermes_config() (
-  local hermes_home="$1" staged_home
-  local hermes_bin="${HARNESS_HERMES_BIN:-/home/node/.local/bin/hermes}"
+  local hermes_home="$1" staged_home state_dir
   mkdir -p "$hermes_home"
   staged_home="$(mktemp -d "${hermes_home}/.harness-config.XXXXXX")"
-  trap 'rm -rf -- "$staged_home"' EXIT
+  state_dir="$(mktemp -d "${HOME}/.harness-config-state.XXXXXX")"
+  trap 'rm -rf -- "$staged_home" "$state_dir"' EXIT
   if [[ -f "${hermes_home}/config.yaml" ]]; then
     cp -- "${hermes_home}/config.yaml" "${staged_home}/config.yaml"
   fi
-  export HERMES_HOME="$staged_home"
-  "$hermes_bin" config set model.provider custom
-  "$hermes_bin" config set model.base_url "$HARNESS_SANDBOX_ENDPOINT"
-  "$hermes_bin" config set model.default "$HARNESS_SANDBOX_MODEL"
+  export HERMES_HOME="$hermes_home"
+  export HARNESS_HERMES_CONFIG_FILE="${staged_home}/config.yaml"
+  export HARNESS_MODEL_CONFIG_STAGE_DIR="$state_dir"
   node "${HARNESS_MODEL_CONFIG_SCRIPT:-/opt/harness/model-config.mjs}" \
-    hermes "$HARNESS_SANDBOX_MODEL" "$HARNESS_SANDBOX_ENDPOINT"
+    hermes "$HARNESS_SANDBOX_MODEL" "$HARNESS_SANDBOX_ENDPOINT" stage
   [[ -s "${staged_home}/config.yaml" ]] \
     || { printf 'Hermes configuration was not created.\n' >&2; return 1; }
   chmod 600 "${staged_home}/config.yaml"
+  # Invalidate readiness first; publish config and defaults before marking it applied.
+  mv -f -- "${state_dir}/.harness-model.pending.json" "$HOME/.harness-model.json"
   mv -f -- "${staged_home}/config.yaml" "${hermes_home}/config.yaml"
+  mv -f -- "${state_dir}/.harness-local-defaults.json" "$HOME/.harness-local-defaults.json"
+  mv -f -- "${state_dir}/.harness-model.json" "$HOME/.harness-model.json"
 )
-
 case "${HARNESS_AGENT:?Missing agent}" in
   openclaw)
     # Preserve the gateway token and user configuration when the sandbox process restarts.

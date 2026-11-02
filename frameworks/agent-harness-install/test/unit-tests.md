@@ -109,7 +109,8 @@ expected outcomes are visible. These references are not CLI filter arguments.
 | `startup_model_switch` | Restart after model selection | Honor the durable new model despite the original sandbox environment. |
 | `startup_blocked_temp` | Temp-directory creation failure | Fail before Node starts rather than continue without usable temporary storage. |
 | `startup_permissions_failure` | Temp-directory permission failure | Fail before Node starts when private permissions cannot be established. |
-| `dcode_startup` | Deep Agents Code startup | Configure and persist its provider model. |
+| `dcode_startup` | Deep Agents Code startup | Configure and persist its provider model; verify Qwen request overrides are scoped to that model. |
+| Hermes config changes are staged and atomically published | Hermes startup | Keep the installed dependency home stable, publish staged YAML before defaults/readiness metadata, and preserve owner-only config permissions. |
 | `runtime_default` | Non-interactive runtime omitted | Keep host as the default. |
 | `runtime_supported host openclaw` | Explicit host runtime | Continue accepting the existing host deployment mode. |
 | `runtime_supported openshell openclaw` | OpenClaw sandbox support | Accept this runtime/agent combination. |

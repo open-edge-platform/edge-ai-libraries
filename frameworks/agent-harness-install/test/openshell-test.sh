@@ -116,6 +116,8 @@ JS
 }
 hermes_config_staged() {
   local fixture hermes_home
+  export REAL_NODE
+  REAL_NODE="$(command -v node)"
   fixture="$(mktemp -d "$TEST_ROOT/hermes-config.XXXXXX")"
   export HOME="$fixture/home"
   hermes_home="$HOME/.hermes"
@@ -127,23 +129,27 @@ hermes_config_staged() {
   export HERMES_HOME="$hermes_home"
   export HARNESS_HERMES_HOME="$hermes_home"
   export HARNESS_HERMES_BIN="$fixture/bin/hermes"
+  export HARNESS_HERMES_CALLS="$fixture/hermes-calls"
   export HARNESS_MODEL_CONFIG_SCRIPT="$fixture/configure-model.js"
   cat >"$HARNESS_HERMES_BIN" <<'SH'
 #!/usr/bin/env bash
-set -euo pipefail
-[[ "$*" == "config set "* ]]
-[[ "$HERMES_HOME" != "$HARNESS_HERMES_HOME" ]]
-[[ "$(cat "$HARNESS_HERMES_HOME/config.yaml")" == 'user_setting: keep' ]]
-printf '%s: %s\n' "$3" "$4" >>"$HERMES_HOME/config.yaml"
+printf 'unexpected Hermes CLI invocation\n' >>"$HARNESS_HERMES_CALLS"
+exit 91
 SH
   cat >"$HARNESS_MODEL_CONFIG_SCRIPT" <<'JS'
 const fs = require("node:fs");
 const path = require("node:path");
-if (process.argv[2] !== "hermes") throw Error("unexpected model-config agent");
-const file = path.join(process.env.HERMES_HOME, "config.yaml");
-fs.appendFileSync(file, "finalized: true\n");
+if (process.argv[2] !== "hermes" || process.argv[5] !== "stage") throw Error("unexpected model-config invocation");
+if (process.env.HERMES_HOME !== process.env.HARNESS_HERMES_HOME)
+  throw Error("Hermes dependency home changed during staging");
+const file = process.env.HARNESS_HERMES_CONFIG_FILE;
+fs.appendFileSync(file, "model.provider: custom\nmodel.base_url: http://host.openshell.internal:8010/v1\nmodel.default: test-model\nfinalized: true\n");
 if (fs.readFileSync(path.join(process.env.HARNESS_HERMES_HOME, "config.yaml"), "utf8") !== "user_setting: keep\n")
   throw Error("live Hermes config changed before staged config was ready");
+const state = process.env.HARNESS_MODEL_CONFIG_STAGE_DIR;
+fs.writeFileSync(path.join(state, ".harness-local-defaults.json"), JSON.stringify({agent: "hermes"}));
+fs.writeFileSync(path.join(state, ".harness-model.pending.json"), JSON.stringify({model: "test-model", applied: false}));
+fs.writeFileSync(path.join(state, ".harness-model.json"), JSON.stringify({model: "test-model", applied: true}));
 JS
   cat >"$fixture/bin/sleep" <<'SH'
 #!/usr/bin/env bash
@@ -158,7 +164,26 @@ SH
   grep -Fxq 'model.default: test-model' "$hermes_home/config.yaml"
   grep -Fxq 'finalized: true' "$hermes_home/config.yaml"
   [[ "$(stat -c %a "$hermes_home/config.yaml")" == 600 ]]
+  [[ ! -e "$HARNESS_HERMES_CALLS" ]]
+  "$REAL_NODE" - "$SCRIPT_DIR/openshell/agent-start.sh" <<'JS'
+const assert = require("node:assert/strict"), fs = require("node:fs");
+const source = fs.readFileSync(process.argv[2], "utf8");
+const steps = [
+  'mv -f -- "${state_dir}/.harness-model.pending.json" "$HOME/.harness-model.json"',
+  'mv -f -- "${staged_home}/config.yaml" "${hermes_home}/config.yaml"',
+  'mv -f -- "${state_dir}/.harness-local-defaults.json" "$HOME/.harness-local-defaults.json"',
+  'mv -f -- "${state_dir}/.harness-model.json" "$HOME/.harness-model.json"'
+].map(step => source.indexOf(step));
+assert.ok(steps.every(index => index >= 0), "all publication steps must be present");
+assert.deepEqual(steps, [...steps].sort((a, b) => a - b), "config and defaults must precede applied readiness");
+JS
+  "$REAL_NODE" - "$HOME/.harness-model.json" "$HOME/.harness-local-defaults.json" <<'JS'
+const assert = require("node:assert/strict"), fs = require("node:fs");
+assert.equal(JSON.parse(fs.readFileSync(process.argv[2], "utf8")).applied, true);
+assert.equal(JSON.parse(fs.readFileSync(process.argv[3], "utf8")).agent, "hermes");
+JS
   [[ -z "$(find "$hermes_home" -maxdepth 1 -name '.harness-config.*' -print -quit)" ]]
+  [[ -z "$(find "$HOME" -maxdepth 1 -name '.harness-config-state.*' -print -quit)" ]]
 }
 startup_blocked_temp() {
   startup_fixture
@@ -220,8 +245,15 @@ JS
   grep -Fq 'default = "openai:Qwen3.5-9B-int8-ov"' "$HOME/.deepagents/config.toml"
   grep -Fq 'temperature = 0.2' "$HOME/.deepagents/config.toml"
   grep -Fq 'max_tokens = 4096' "$HOME/.deepagents/config.toml"
-  grep -Fq 'extra_body = { chat_template_kwargs = { enable_thinking = false } }' \
-    "$HOME/.deepagents/config.toml"
+  "$REAL_NODE" - "$HOME/.deepagents/config.toml" <<'JS'
+const assert = require("node:assert/strict"), fs = require("node:fs");
+const config = fs.readFileSync(process.argv[2], "utf8");
+const provider = config.indexOf("[models.providers.openai.params]");
+const model = config.indexOf('[models.providers.openai.params."Qwen3.5-9B-int8-ov"]');
+assert.ok(provider >= 0 && model > provider, "Qwen model-specific params table missing");
+assert.ok(!config.slice(provider, model).includes("extra_body"), "extra_body must not be provider-wide");
+assert.match(config.slice(model), /extra_body = \{ chat_template_kwargs = \{ enable_thinking = false \} \}/);
+JS
   "$REAL_NODE" "$HARNESS_MODEL_CONFIG_SCRIPT" deepagents-code changed-model \
     "$HARNESS_SANDBOX_ENDPOINT" select
   bash "$SCRIPT_DIR/openshell/agent-start.sh"
