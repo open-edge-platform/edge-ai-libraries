@@ -2443,14 +2443,6 @@ configure_npu_accel_packages ()
     ( set -o pipefail;
     ensure_fetch "$repository/releases/tags/v$version" - | jq -r ".assets[] | select(.name|endswith(\"-$suffix\")) | .browser_download_url" || ensure_fetch "$releases/expanded_assets/v$version" - --html | grep -oP 'href="\K/([^"]+/releases/download/[^"]+'"$suffix"')' | sed 's|^|https://github.com|' )
 }
-configure_osrf_gazebo_ros2 () 
-{ 
-    osrf_name=packages.osrfoundation.org;
-    osrf_key_url="https://$osrf_name/gazebo.gpg";
-    osrf_key=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg;
-    osrf_entry="deb [signed-by=$osrf_key] https://$osrf_name/gazebo/$ID-stable $VERSION_CODENAME main";
-    osrf_list=/etc/apt/sources.list.d/gazebo-stable.list
-}
 configure_pcm () 
 { 
     workspace="$(ensure_project_path)/pcm";
@@ -2498,35 +2490,6 @@ configure_realsense ()
 configure_reboot () 
 { 
     ensure_prop set reboot_requested true
-}
-configure_ros2 () 
-{ 
-    case "$VERSION_CODENAME" in 
-        jammy)
-            ros_distro=humble
-        ;;
-        noble)
-            ros_distro=jazzy
-        ;;
-        *)
-            ros_distro=jazzy
-        ;;
-    esac
-}
-configure_ros2_apt_source () 
-{ 
-    local codename="${UBUNTU_CODENAME:-$VERSION_CODENAME}";
-    local repo=ros-infrastructure/ros-apt-source;
-    local pinned_ver=1.3.0;
-    ros_apt_ver="$(curl -fsSL -o /dev/null -w '%{url_effective}' --retry 3 --retry-delay 5 "https://github.com/$repo/releases/latest" 2> /dev/null | sed -n 's|.*/releases/tag/||p')";
-    if ! [[ "$ros_apt_ver" =~ ^[0-9A-Za-z._-]+$ ]]; then
-        ros_apt_ver="$(curl -fsSL --retry 2 --retry-delay 5 "https://api.github.com/repos/$repo/releases/latest" 2> /dev/null | grep -oE '"tag_name": *"[^"]*"' | head -n 1 | awk -F'"' '{print $4}')";
-    fi;
-    if ! [[ "$ros_apt_ver" =~ ^[0-9A-Za-z._-]+$ ]]; then
-        echo "configure_ros2_apt_source: could not determine the latest ros-apt-source release" "(github.com/api.github.com unreachable or rate-limited); using pinned release $pinned_ver." 1>&2;
-        ros_apt_ver=$pinned_ver;
-    fi;
-    ros_deb_src="https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ros_apt_ver}/ros2-apt-source_${ros_apt_ver}.${codename}_all.deb"
 }
 configure_system_info () 
 { 
@@ -2593,10 +2556,6 @@ debian_10_install_gnupg ()
 debian_10_sbom_gnupg () 
 { 
     ensure_sbom_format pkg-list gnupg
-}
-debian_10_sbom_lsb_release () 
-{ 
-    ensure_sbom_format pkg-list lsb-release
 }
 debian_15_install_jq () 
 { 
@@ -3282,15 +3241,11 @@ debian_40_install_gpu_accel ()
         ensure_apt_key $key_file $key_url --dearmor;
         ensure_apt_source $apt_file "$apt_entry";
         ensure_apt update -y;
-        ensure_apt_allow_downgrades "${allow_downgrades[*]}" --no-install-recommends "${pkg_list[@]}";
+        ensure_apt_allow_downgrades "${allow_downgrades[*]}" --no-install-recommends "${pkg_list[@]}" || true;
         ensure_apt install --no-install-recommends --allow-downgrades -y "${pkg_list[@]}";
         verify_gpu_accel_packages;
     fi;
     ensure_group_add $(debian_40_group_gpu_accel)
-}
-debian_40_install_lsb_release () 
-{ 
-    ensure_apt_install_package lsb-release
 }
 debian_40_install_npu_accel () 
 { 
@@ -3312,7 +3267,7 @@ debian_40_install_npu_accel ()
                 return 3
             };
         done;
-        ensure_apt install -y $(find . -name "*.deb" -print);
+        ensure_apt install -y --allow-downgrades $(find . -name "*.deb" -print);
         ensure_rm "$workspace";
         verify_npu_accel_packages;
     fi;
@@ -3357,10 +3312,6 @@ debian_40_install_power_tuning ()
         ensure_sudo cp -r "$workspace"/tools/power-tunning/* "$power_tuning_path";
         verify_power_tuning;
     fi
-}
-debian_40_install_software_properties_common () 
-{ 
-    ensure_apt_install_package software-properties-common
 }
 debian_40_install_system_info () 
 { 
@@ -3546,10 +3497,6 @@ debian_40_sbom_npu_accel ()
     };
     ensure_sbom_format pkg-list "${packages[@]}"
 }
-debian_40_sbom_software_properties_common () 
-{ 
-    ensure_sbom_format pkg-list software-properties-common
-}
 debian_45_install_ubuntu_server () 
 { 
     if ( ensure_apt_is_installed ubuntu-desktop || ensure_apt_is_installed ubuntu-desktop-minimal || ensure_apt_is_installed gdm3 ) && [[ " $* " != *" --reinstall "* ]]; then
@@ -3563,51 +3510,6 @@ debian_45_install_ubuntu_server ()
 debian_45_sbom_ubuntu_server () 
 { 
     ensure_sbom_format pkg-list ubuntu-server -ubuntu-desktop -ubuntu-desktop-minimal -gdm3
-}
-debian_50_install_ros2 () 
-{ 
-    configure_ros2;
-    if verify_ros2 && [[ " $* " != *" --reinstall "* ]]; then
-        echo "ROS 2 $ros_distro is installed." 1>&2;
-    else
-        configure_ros2_apt_source || return 1;
-        ensure_prop set installed/ros2/owned true;
-        ensure_apt_add_repository universe || true;
-        local tmpdir;
-        ensure_tmpdir create tmpdir ros2;
-        ensure_fetch "$ros_deb_src" "$tmpdir/ros2-apt-source.deb";
-        ensure_apt install -y "$tmpdir/ros2-apt-source.deb";
-        ensure_tmpdir destroy $tmpdir;
-        ensure_apt update -y;
-        ensure_apt install -y ros-$ros_distro-desktop ros-dev-tools;
-        grep -q "source /opt/ros/$ros_distro/setup.bash" ~/.bashrc 2> /dev/null || echo "source /opt/ros/$ros_distro/setup.bash" >> ~/.bashrc;
-        grep -q "export ROS_DOMAIN_ID=" ~/.bashrc 2> /dev/null || echo "export ROS_DOMAIN_ID=42" >> ~/.bashrc;
-    fi;
-    echo "@@HIGHLIGHT ROS 2 $ros_distro @/opt/ros/$ros_distro";
-    echo "@@HIGHLIGHT shell env @source /opt/ros/$ros_distro/setup.bash"
-}
-debian_50_profile_ros2 () 
-{ 
-    echo "curl gnupg git software_properties_common lsb_release";
-    [[ " $* " = *" --realtime "* ]] || echo "edge_base"
-}
-debian_50_remove_ros2 () 
-{ 
-    [ "$(ensure_prop get installed/ros2/owned)" = "true" ] || return 0;
-    configure_ros2;
-    if verify_ros2; then
-        ensure_apt purge --auto-remove -y ros-$ros_distro-desktop ros-dev-tools || true;
-        ensure_apt purge --auto-remove -y ros2-apt-source || true;
-        [ ! -w ~/.bashrc ] || sed -i "\|^source /opt/ros/$ros_distro/setup.bash\$|d" ~/.bashrc;
-    else
-        echo "ROS 2 already removed. Skipping";
-    fi
-}
-debian_50_sbom_ros2 () 
-{ 
-    configure_ros2 "$@";
-    ensure_sbom_format pkg-list ros-$ros_distro-desktop ros-dev-tools;
-    ensure_sbom_format apt-repository universe
 }
 debian_55_install_cdi () 
 { 
@@ -3648,7 +3550,6 @@ debian_55_install_realsense ()
 { 
     configure_realsense "$@";
     ensure_prop create installed/realsense/packages/;
-    migrate_ownership_realsense;
     if ensure_apt_is_installed "${rs_packages[@]}" && [[ " $* " != *" --reinstall "* ]]; then
         echo "RealSense packages are installed." 1>&2;
     else
@@ -3684,10 +3585,7 @@ debian_55_profile_cdi ()
 }
 debian_55_profile_realsense () 
 { 
-    echo "curl gnupg";
-    if [ "$1" = bootstrap ] || [[ " $* " = *" ros2 "* || " $* " = *" edge_base_robotics "* ]]; then
-        echo "ros2";
-    fi
+    echo "curl gnupg"
 }
 debian_55_remove_cdi () 
 { 
@@ -3705,8 +3603,6 @@ debian_55_remove_cdi ()
 debian_55_remove_realsense () 
 { 
     configure_realsense;
-    ensure_prop create installed/realsense/packages/;
-    migrate_ownership_realsense;
     local package owned_packages=();
     for package in "${rs_packages[@]}" ros-humble-librealsense2 ros-jazzy-librealsense2;
     do
@@ -3736,17 +3632,31 @@ debian_55_sbom_realsense ()
     ensure_sbom_format apt-list-file "$rs_list";
     ensure_sbom_format pkg-list "${rs_packages[@]}"
 }
+debian_85_install_handheld_blueprint () 
+{ 
+    :
+}
+debian_85_install_mission_decision_support_blueprint () 
+{ 
+    :
+}
+debian_85_install_uncrewed_aerial_vehicle_blueprint () 
+{ 
+    :
+}
 debian_90_install_deterministic_threat_detection () 
 { 
-    local installed_path="$(ensure_project_path)/$installer_name/installed";
+    local installed;
+    installed="$(ensure_prop find "installed/*")" || return $?;
     local blueprint;
-    for blueprint in uncrewed_aerial_vehicle_blueprint handheld_blueprint;
-    do
-        if [ -d "$installed_path/$blueprint" ]; then
-            echo "Cannot install deterministic_threat_detection while $blueprint is installed." 1>&2;
-            return 1;
-        fi;
-    done;
+    while IFS= read -r blueprint; do
+        case "$blueprint" in 
+            installed/uncrewed_aerial_vehicle_blueprint | installed/handheld_blueprint)
+                echo "Cannot install deterministic_threat_detection while ${blueprint#installed/} is installed." 1>&2;
+                return 1
+            ;;
+        esac;
+    done <<< "$installed";
     configure_deterministic_threat_detection;
     if verify_deterministic_threat_detection && [[ " $* " != *" --reinstall "* ]]; then
         echo "Deterministic Threat Detection source is already available." 1>&2;
@@ -3763,15 +3673,17 @@ debian_90_install_deterministic_threat_detection ()
 }
 debian_90_install_handheld_multi_modal () 
 { 
-    local installed_path="$(ensure_project_path)/$installer_name/installed";
+    local installed;
+    installed="$(ensure_prop find "installed/*")" || return $?;
     local blueprint;
-    for blueprint in uncrewed_aerial_vehicle_blueprint mission_decision_support_blueprint;
-    do
-        if [ -d "$installed_path/$blueprint" ]; then
-            echo "Cannot install handheld_multi_modal while $blueprint is installed." 1>&2;
-            return 1;
-        fi;
-    done;
+    while IFS= read -r blueprint; do
+        case "$blueprint" in 
+            installed/uncrewed_aerial_vehicle_blueprint | installed/mission_decision_support_blueprint)
+                echo "Cannot install handheld_multi_modal while ${blueprint#installed/} is installed." 1>&2;
+                return 1
+            ;;
+        esac;
+    done <<< "$installed";
     configure_handheld_multi_modal;
     if verify_handheld_multi_modal $* && [[ " $* " != *" --reinstall "* ]]; then
         echo "handheld_multi_modal is installed." 1>&2;
@@ -3790,15 +3702,17 @@ debian_90_install_handheld_multi_modal ()
 }
 debian_90_install_uncrewed_aerial_vehicle_mission () 
 { 
-    local installed_path="$(ensure_project_path)/$installer_name/installed";
+    local installed;
+    installed="$(ensure_prop find "installed/*")" || return $?;
     local blueprint;
-    for blueprint in handheld_blueprint mission_decision_support_blueprint;
-    do
-        if [ -d "$installed_path/$blueprint" ]; then
-            echo "Cannot install uncrewed_aerial_vehicle_mission while $blueprint is installed." 1>&2;
-            return 1;
-        fi;
-    done;
+    while IFS= read -r blueprint; do
+        case "$blueprint" in 
+            installed/handheld_blueprint | installed/mission_decision_support_blueprint)
+                echo "Cannot install uncrewed_aerial_vehicle_mission while ${blueprint#installed/} is installed." 1>&2;
+                return 1
+            ;;
+        esac;
+    done <<< "$installed";
     configure_uncrewed_aerial_vehicle_mission;
     if verify_uncrewed_aerial_vehicle_mission 2> /dev/null && [[ " $* " != *" --reinstall "* ]]; then
         echo "Uncrewed aerial vehicle mission compute SDK is installed." 1>&2;
@@ -3898,22 +3812,10 @@ debian_90_stop_uncrewed_aerial_vehicle_mission ()
         docker volume prune -f
     } || true
 }
-debian_99_install_handheld_blueprint () 
-{ 
-    :
-}
-debian_99_install_mission_decision_support_blueprint () 
-{ 
-    :
-}
 debian_99_install_system_summary () 
 { 
     echo "@@REPORT SYSTEM SUMMARY";
     install_system_inspection "$@" || true
-}
-debian_99_install_uncrewed_aerial_vehicle_blueprint () 
-{ 
-    :
 }
 debian_99_profile_edge_base () 
 { 
@@ -4431,14 +4333,6 @@ ensure_ip ()
 { 
     ip -4 addr show scope global | sed -n '/^[0-9]*:.*state UP/,/^[0-9]*:/{/^ *inet /{s|.*inet \([0-9.]*\).*|\1|;p}}' | head -n1
 }
-ensure_osrf_gazebo_ros2 () 
-{ 
-    configure_osrf_gazebo_ros2;
-    ensure_apt_key "$osrf_key" "$osrf_key_url";
-    ensure_apt_source "$osrf_list" "$osrf_entry";
-    ensure_apt update -y;
-    [ "$ros_distro" != jazzy ] || ensure_apt install -y gz-harmonic || true
-}
 ensure_parse_device () 
 { 
     local device="cpu";
@@ -4581,12 +4475,12 @@ ensure_sbom_format ()
     local key=$1;
     shift;
     case "$key" in 
-        pkg-list | apt-pref | yum-repo-conf | kernel-cmdline | module-list)
+        pkg-list | apt-pref | yum-repo-conf | kernel-cmdline | module-list | install-cmdline)
             local IFS='|';
             local pkg_str="$*";
             echo "\"$key\": [\"${pkg_str//'|'/\",\"}\"]"
         ;;
-        component | repo-name | gpg-key | gpg-key-fingerprint | key-file | apt-source | apt-src-source | apt-list-file | apt-pref-file | apt-repository | yum-repo-file)
+        component | repo-name | gpg-key | gpg-key-fingerprint | key-file | apt-source | apt-src-source | apt-list-file | apt-pref-file | apt-repository | yum-repo-file | schema-version | cli-version | cli-url)
             echo "\"$key\": \"$*\""
         ;;
         *)
@@ -4836,30 +4730,6 @@ install_system_inspection ()
     echo "----------------------------------------------------------------";
     [ "$net_pass" = "$ok" ] ) | ensure_columns
 }
-migrate_ownership_realsense () 
-{ 
-    local package;
-    local legacy_packages=();
-    if [ "$(ensure_prop get installed/realsense/owned)" = true ] || [ "$(ensure_prop get installed/realsense_fedaero/owned)" = true ]; then
-        legacy_packages+=(librealsense2 librealsense2-dkms librealsense2-utils librealsense2-dev librealsense2-gl);
-    fi;
-    if [ "$(ensure_prop get installed/realsense_robotics/owned)" = true ]; then
-        legacy_packages+=(librealsense2 librealsense2-dkms ros-humble-librealsense2 ros-jazzy-librealsense2);
-    fi;
-    for package in "${legacy_packages[@]}";
-    do
-        ensure_apt_is_installed "$package" || continue;
-        ensure_prop set "installed/realsense/packages/$package" true;
-    done;
-    ensure_prop remove installed/realsense/owned;
-    ensure_prop remove installed/realsense_fedaero/;
-    ensure_prop remove installed/realsense_robotics/
-}
-remove_osrf_gazebo_ros2 () 
-{ 
-    configure_osrf_gazebo_ros2;
-    ensure_rm "$osrf_list" "$osrf_key"
-}
 sbom_edge_pack_repo_entries () 
 { 
     if [ -n "$edge_pack_ppa_repo" ]; then
@@ -4876,16 +4746,6 @@ sbom_edge_pack_repo_entries ()
     ensure_sbom_format apt-list-file "$edge_pack_list_file";
     ensure_sbom_format apt-pref "${edge_pack_pref[@]}";
     ensure_sbom_format apt-pref-file "$edge_pack_pref_file"
-}
-sbom_osrf_gazebo_ros2 () 
-{ 
-    configure_osrf_gazebo_ros2;
-    ensure_sbom_format repo-name $osrf_name;
-    ensure_sbom_format gpg-key "$osrf_key_url";
-    ensure_sbom_format key-file "$osrf_key";
-    ensure_sbom_format apt-source "$osrf_entry";
-    ensure_sbom_format apt-list-file "$osrf_list";
-    ensure_sbom_format pkg-list curl lsb-release gnupg $([ "$ros_distro" != jazzy ] || echo gz-harmonic)
 }
 subcommand_install () 
 { 
@@ -4934,32 +4794,32 @@ subcommand_list ()
 { 
     local all_list=" ${_act_cache_names[*]:-${_act_cache_modules[*]}} ";
     local module_region_list=" ${_act_cache_modules[*]/#/--} ";
-    local k v args=() mods=() os_release="" sbom=0 margs=0;
+    local k v args=() mods=() cli_version="" sbom=0 margs=0;
     for v in "$@";
     do
         case "$v" in 
             --help)
                 echo "list options:";
-                echo "  --os-release=<file> import an os-release file";
-                echo "  --sbom              show component SBOM items";
+                echo "  --cli-version <v>  save cli version in the SBOM header";
+                echo "  --sbom             show component SBOM items";
                 echo;
                 return 0
-            ;;
-            --os-release=*)
-                os_release="${v#*=}"
             ;;
             --sbom)
                 sbom=1
             ;;
-            --os-release)
+            --cli-version=*)
+                cli_version="${v#*=}"
+            ;;
+            --cli-version)
 
             ;;
             *)
                 if [ $margs -eq 1 ]; then
                     args+=("$v");
                 else
-                    if [ "$last_v" = "--os-release" ]; then
-                        os_release="$v";
+                    if [[ "$last_v" = "--cli-version" && "$all_list" != *" $v "* && "$v" != -* ]]; then
+                        cli_version="$v";
                     else
                         if [[ "$module_region_list" = *" $v "* ]]; then
                             args+=("$v");
@@ -4983,40 +4843,6 @@ subcommand_list ()
         esac;
         last_v="$v";
     done;
-    if [ -n "$os_release" ]; then
-        if [ -f "$os_release" ] && [ -r "$os_release" ]; then
-            local -A data=();
-            while read -r v; do
-                case "$v" in 
-                    PRETTY_NAME=* | NAME=* | VERSION_ID=* | VERSION=* | VERSION_CODENAME=* | ID=* | ID_LIKE=* | UBUNTU_CODENAME=*)
-                        k="${v%%=*}";
-                        v="${v#*=}";
-                        [[ "$v" = '"'*'"' ]] && { 
-                            v="${v#'"'}";
-                            v="${v%'"'}"
-                        };
-                        [[ "$v" = "'"*"'" ]] && { 
-                            v="${v#"'"}";
-                            v="${v%"'"}"
-                        };
-                        data["$k"]="$v"
-                    ;;
-                esac;
-            done < "$os_release";
-            PRETTY_NAME="${data["PRETTY_NAME"]:-"$PRETTY_NAME"}";
-            NAME="${data["NAME"]:-"$NAME"}";
-            VERSION_ID="${data["VERSION_ID"]:-"$VERSION_ID"}";
-            VERSION="${data["VERSION"]:-"$VERSION"}";
-            VERSION_CODENAME="${data["VERSION_CODENAME"]:-"$VERSION_CODENAME"}";
-            ID="${data["ID"]:-"$ID"}";
-            ID_LIKE="${data["ID_LIKE"]:-"$ID_LIKE"}";
-            UBUNTU_CODENAME="${data["UBUNTU_CODENAME"]:-"$UBUNTU_CODENAME"}";
-            installer_family="$(x="${ID_LIKE:-$ID}"; x="${x##* }"; echo "${x//[^a-zA-Z0-9]/}")";
-        else
-            echo "Invalid $os_release" 1>&2;
-            return 3;
-        fi;
-    fi;
     if [ ${#mods[*]} -eq 0 ]; then
         mods=($all_list);
         set -- $all_list "${args[@]}";
@@ -5029,12 +4855,19 @@ subcommand_list ()
             echo "No installable components from ${mods[*]}" 1>&2;
             return 3;
         fi;
-        local all_install_modules="${handles[*]#${installer_family}_*_install_}";
-        echo "\"schema-version\": \"1\"";
-        echo "\"cli-version\": \"main\"";
+        ensure_sbom_format schema-version 1;
+        if git rev-parse --is-inside-work-tree &> /dev/null && git remote get-url origin 2> /dev/null | grep -qE 'github\.com[:/]'; then
+            [ -n "$cli_version" ] || cli_version=$(git rev-parse HEAD);
+            ensure_sbom_format cli-version "$cli_version";
+            if [[ "/$0" = *"/rendered/"* ]]; then
+                local remote="$(git remote get-url origin | sed -E 's#(git@|https://)github.com[:/]##; s#\.git$##')";
+                ensure_sbom_format cli-url "https://raw.githubusercontent.com/$remote/$cli_version/${0/#*rendered/rendered}";
+            fi;
+        fi;
+        ensure_sbom_format install-cmdline $installer_name install "${args[@]}";
         ensure_sbom_format module-list "${mods[@]}";
         echo "---";
-        local handler sbomer;
+        local all_install_modules="${handles[*]#${installer_family}_*_install_}" handler sbomer;
         for handler in $(printf '%s\n' "${handles[@]}" | sort);
         do
             sbomer=${handler/_install_/_sbom_};
@@ -5156,8 +4989,8 @@ subcommand_resume ()
 subcommand_setup () 
 { 
     [[ " $* " != *" --help "* ]] || return;
-    local installer_misc_functions=(_act_levenshtein initialize_uncrewed_aerial_vehicle_mission migrate_ownership_realsense system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary);
-    local installer_completion_text="IyEvYmluL2Jhc2gKX29wZW5lZGdlX2NsaV9jb21wbGV0aW9uICgpIHsKICBpZiAoKCBDT01QX0NXT1JEID09IDEgKSk7IHRoZW4KICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICJpbnN0YWxsIHJlbW92ZSByZXN1bWUgc3RhcnQgc3RvcCBsaXN0IHNldHVwIC0taGVscCIgLS0gIiQyIikpCiAgICByZXR1cm4KICBmaQoKICBjYXNlICIke0NPTVBfV09SRFNbMV19IiBpbgogIGluc3RhbGwpCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtyZWJvb3RdPSIiIFtwY21dPSIiIFtweXRob24zX3ZlbnZdPSIiIFtlZGdlX3BhY2tfdHNuXT0iIiBbY2hyb255XT0iIiBbazNzX2lvXT0iIiBbc29mdHdhcmVfcHJvcGVydGllc19jb21tb25dPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ibHVlcHJpbnRdPSIiIFtnaXRdPSIiIFtlZGdlX2Jhc2VdPSIiIFtkZXRlcm1pbmlzdGljX3RocmVhdF9kZXRlY3Rpb25dPSIiIFtncHVfYWNjZWxdPSIiIFtjbWFrZV09IiIgW2F1dG9tYWtlXT0iIiBbdjRsX3V0aWxzXT0iIiBbc3lzdGVtX3N1bW1hcnldPSIiIFtnbnVwZ109IiIgW25wdV9hY2NlbF09IiIgW2xtX3NlbnNvcnNdPSIiIFtzdHJlc3NfbmddPSIiIFstLXJlaW5zdGFsbF09IiIgW2VkZ2VfcGFja19pcHVdPSIiIFtzeXN0ZW1faW5zcGVjdGlvbl09IiIgWy0tdmFsaWRhdGVdPSIiIFttYWtlXT0iIiBbdWJ1bnR1X3NlcnZlcl09IiIgW21pc3Npb25fZGVjaXNpb25fc3VwcG9ydF9ibHVlcHJpbnRdPSIiIFtlZGdlX3BhY2tfYmFzZV9zdGFuZGFyZF09IiIgW2RvY2tlcl9pb109IiIgW2xpYnRiYjEyXT0iIiBbcG93ZXJfdHVuaW5nXT0iIiBbcGtnX2NvbmZpZ109IiIgW2hhbmRoZWxkX2JsdWVwcmludF09IiIgWy0tZHJ5LXJ1bl09IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9oYW5kaGVsZF09IiIgW2xpYnplMV09IiIgW2F1dG9jb25mXT0iIiBbbGludXhfaW1hZ2VfZ2VuZXJpY183LjBdPSIiIFtyb3MyXT0iIiBbZG1pZGVjb2RlXT0iIiBbc3lzdGVtX2luZm9dPSIiIFtrZXJuZWxfbW9kdWxlX2Vzc2VudGlhbF09IiIgW2xzYl9yZWxlYXNlXT0iIiBbZWRnZV9wYWNrX21hbmFnZWFiaWxpdHldPSIiIFtzeXNiZW5jaF09IiIgW2pxXT0iIiBbcGNpdXRpbHNdPSIiIFtmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVdPSIiIFttc3JfdG9vbHNdPSIiIFtjZGldPSIiIFtjdXJsXT0iIiBbLS1jb250aW51ZV09IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9taXNzaW9uX2RlY2lzaW9uX3N1cHBvcnRdPSIiIFtpbnRlbF9scG1kXT0iIiBbZ29sYW5nXT0iIiBbY29yZV90eXBlc109IiIgW2hhbmRoZWxkX211bHRpX21vZGFsXT0iIiBbbGludXhfdG9vbHNdPSIiIFtlZGdlX3BhY2tdPSIiIFt5cV09IiIgW3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX21pc3Npb25dPSIiIFtyZWFsc2Vuc2VdPSIiIFtlZGdlX3BhY2tfbnB1XT0iIiApCiAgICBmb3IgKChpPTI7aTxDT01QX0NXT1JEO2krKykpOyBkbyB1bnNldCAiYWxsX2NvbXBzWyR7Q09NUF9XT1JEU1skaV19XSI7IGRvbmUKICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICIkeyFhbGxfY29tcHNbKl19IiAtLSAiJDIiKSkKICAgIDs7CiAgcmVtb3ZlKQogICAgbG9jYWwgLUEgYWxsX2NvbXBzPShbcGNtXT0iIiBbZWRnZV9wYWNrX3Rzbl09IiIgW2szc19pb109IiIgW3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX2JsdWVwcmludF09IiIgW2dpdF09IiIgW2VkZ2VfYmFzZV09IiIgW2RldGVybWluaXN0aWNfdGhyZWF0X2RldGVjdGlvbl09IiIgW2dwdV9hY2NlbF09IiIgW2NtYWtlXT0iIiBbYXV0b21ha2VdPSIiIFt2NGxfdXRpbHNdPSIiIFtucHVfYWNjZWxdPSIiIFtsbV9zZW5zb3JzXT0iIiBbc3RyZXNzX25nXT0iIiBbLS1yZWluc3RhbGxdPSIiIFtlZGdlX3BhY2tfaXB1XT0iIiBbLS12YWxpZGF0ZV09IiIgW21ha2VdPSIiIFttaXNzaW9uX2RlY2lzaW9uX3N1cHBvcnRfYmx1ZXByaW50XT0iIiBbZWRnZV9wYWNrX2Jhc2Vfc3RhbmRhcmRdPSIiIFtkb2NrZXJfaW9dPSIiIFtwb3dlcl90dW5pbmddPSIiIFtwa2dfY29uZmlnXT0iIiBbaGFuZGhlbGRfYmx1ZXByaW50XT0iIiBbLS1kcnktcnVuXT0iIiBbZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX2hhbmRoZWxkXT0iIiBbYXV0b2NvbmZdPSIiIFtyb3MyXT0iIiBbZG1pZGVjb2RlXT0iIiBbc3lzdGVtX2luZm9dPSIiIFtrZXJuZWxfbW9kdWxlX2Vzc2VudGlhbF09IiIgW2VkZ2VfcGFja19tYW5hZ2VhYmlsaXR5XT0iIiBbc3lzYmVuY2hdPSIiIFtqcV09IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV91bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV09IiIgW21zcl90b29sc109IiIgW2NkaV09IiIgWy0tY29udGludWVdPSIiIFtmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfbWlzc2lvbl9kZWNpc2lvbl9zdXBwb3J0XT0iIiBbaW50ZWxfbHBtZF09IiIgW2dvbGFuZ109IiIgW2NvcmVfdHlwZXNdPSIiIFtoYW5kaGVsZF9tdWx0aV9tb2RhbF09IiIgW2xpbnV4X3Rvb2xzXT0iIiBbZWRnZV9wYWNrXT0iIiBbeXFdPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9taXNzaW9uXT0iIiBbcmVhbHNlbnNlXT0iIiBbZWRnZV9wYWNrX25wdV09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogIHJlc3VtZSkKICAgIGxvY2FsIC1BIGFsbF9jb21wcz0oWy0tcmVpbnN0YWxsXT0iIiBbLS12YWxpZGF0ZV09IiIgWy0tZHJ5LXJ1bl09IiIgWy0tY29udGludWVdPSIiICkKICAgIGZvciAoKGk9MjtpPENPTVBfQ1dPUkQ7aSsrKSk7IGRvIHVuc2V0ICJhbGxfY29tcHNbJHtDT01QX1dPUkRTWyRpXX1dIjsgZG9uZQogICAgQ09NUFJFUExZPSgkKGNvbXBnZW4gLVcgIiR7IWFsbF9jb21wc1sqXX0iIC0tICIkMiIpKQogICAgOzsKICBzdGFydCkKICAgIGxvY2FsIC1BIGFsbF9jb21wcz0oW2szc19pb109IiIgWy0tcmVpbnN0YWxsXT0iIiBbLS12YWxpZGF0ZV09IiIgWy0tZHJ5LXJ1bl09IiIgWy0tY29udGludWVdPSIiIFtoYW5kaGVsZF9tdWx0aV9tb2RhbF09IiIgW3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX21pc3Npb25dPSIiICkKICAgIGZvciAoKGk9MjtpPENPTVBfQ1dPUkQ7aSsrKSk7IGRvIHVuc2V0ICJhbGxfY29tcHNbJHtDT01QX1dPUkRTWyRpXX1dIjsgZG9uZQogICAgQ09NUFJFUExZPSgkKGNvbXBnZW4gLVcgIiR7IWFsbF9jb21wc1sqXX0iIC0tICIkMiIpKQogICAgOzsKICBzdG9wKQogICAgbG9jYWwgLUEgYWxsX2NvbXBzPShbLS1yZWluc3RhbGxdPSIiIFstLXZhbGlkYXRlXT0iIiBbLS1kcnktcnVuXT0iIiBbZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX2hhbmRoZWxkXT0iIiBbZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlXT0iIiBbLS1jb250aW51ZV09IiIgW2hhbmRoZWxkX211bHRpX21vZGFsXT0iIiBbdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfbWlzc2lvbl09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogICopCiAgICBDT01QUkVQTFk9KCkKICAgIDs7CiAgZXNhYwp9CmNvbXBsZXRlIC1GIF9vcGVuZWRnZV9jbGlfY29tcGxldGlvbiBvcGVuZWRnZS1jbGkK";
+    local installer_misc_functions=(_act_levenshtein initialize_uncrewed_aerial_vehicle_mission system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary);
+    local installer_completion_text="IyEvYmluL2Jhc2gKX29wZW5lZGdlX2NsaV9jb21wbGV0aW9uICgpIHsKICBpZiAoKCBDT01QX0NXT1JEID09IDEgKSk7IHRoZW4KICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICJpbnN0YWxsIHJlbW92ZSByZXN1bWUgc3RhcnQgc3RvcCBsaXN0IHNldHVwIC0taGVscCIgLS0gIiQyIikpCiAgICByZXR1cm4KICBmaQoKICBjYXNlICIke0NPTVBfV09SRFNbMV19IiBpbgogIGluc3RhbGwpCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtyZWJvb3RdPSIiIFtwY21dPSIiIFtweXRob24zX3ZlbnZdPSIiIFtlZGdlX3BhY2tfdHNuXT0iIiBbY2hyb255XT0iIiBbazNzX2lvXT0iIiBbdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfYmx1ZXByaW50XT0iIiBbZ2l0XT0iIiBbZWRnZV9iYXNlXT0iIiBbZGV0ZXJtaW5pc3RpY190aHJlYXRfZGV0ZWN0aW9uXT0iIiBbZ3B1X2FjY2VsXT0iIiBbY21ha2VdPSIiIFthdXRvbWFrZV09IiIgW3Y0bF91dGlsc109IiIgW3N5c3RlbV9zdW1tYXJ5XT0iIiBbZ251cGddPSIiIFtucHVfYWNjZWxdPSIiIFtsbV9zZW5zb3JzXT0iIiBbc3RyZXNzX25nXT0iIiBbLS1yZWluc3RhbGxdPSIiIFtlZGdlX3BhY2tfaXB1XT0iIiBbc3lzdGVtX2luc3BlY3Rpb25dPSIiIFstLXZhbGlkYXRlXT0iIiBbbWFrZV09IiIgW3VidW50dV9zZXJ2ZXJdPSIiIFttaXNzaW9uX2RlY2lzaW9uX3N1cHBvcnRfYmx1ZXByaW50XT0iIiBbZWRnZV9wYWNrX2Jhc2Vfc3RhbmRhcmRdPSIiIFtkb2NrZXJfaW9dPSIiIFtsaWJ0YmIxMl09IiIgW3Bvd2VyX3R1bmluZ109IiIgW3BrZ19jb25maWddPSIiIFtoYW5kaGVsZF9ibHVlcHJpbnRdPSIiIFstLWRyeS1ydW5dPSIiIFtmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfaGFuZGhlbGRdPSIiIFtsaWJ6ZTFdPSIiIFthdXRvY29uZl09IiIgW2xpbnV4X2ltYWdlX2dlbmVyaWNfNy4wXT0iIiBbZG1pZGVjb2RlXT0iIiBbc3lzdGVtX2luZm9dPSIiIFtrZXJuZWxfbW9kdWxlX2Vzc2VudGlhbF09IiIgW2VkZ2VfcGFja19tYW5hZ2VhYmlsaXR5XT0iIiBbc3lzYmVuY2hdPSIiIFtqcV09IiIgW3BjaXV0aWxzXT0iIiBbZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlXT0iIiBbbXNyX3Rvb2xzXT0iIiBbY2RpXT0iIiBbY3VybF09IiIgWy0tY29udGludWVdPSIiIFtmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfbWlzc2lvbl9kZWNpc2lvbl9zdXBwb3J0XT0iIiBbaW50ZWxfbHBtZF09IiIgW2dvbGFuZ109IiIgW2NvcmVfdHlwZXNdPSIiIFtoYW5kaGVsZF9tdWx0aV9tb2RhbF09IiIgW2xpbnV4X3Rvb2xzXT0iIiBbZWRnZV9wYWNrXT0iIiBbeXFdPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9taXNzaW9uXT0iIiBbcmVhbHNlbnNlXT0iIiBbZWRnZV9wYWNrX25wdV09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogIHJlbW92ZSkKICAgIGxvY2FsIC1BIGFsbF9jb21wcz0oW3BjbV09IiIgW2VkZ2VfcGFja190c25dPSIiIFtrM3NfaW9dPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ibHVlcHJpbnRdPSIiIFtnaXRdPSIiIFtlZGdlX2Jhc2VdPSIiIFtkZXRlcm1pbmlzdGljX3RocmVhdF9kZXRlY3Rpb25dPSIiIFtncHVfYWNjZWxdPSIiIFtjbWFrZV09IiIgW2F1dG9tYWtlXT0iIiBbdjRsX3V0aWxzXT0iIiBbbnB1X2FjY2VsXT0iIiBbbG1fc2Vuc29yc109IiIgW3N0cmVzc19uZ109IiIgWy0tcmVpbnN0YWxsXT0iIiBbZWRnZV9wYWNrX2lwdV09IiIgWy0tdmFsaWRhdGVdPSIiIFttYWtlXT0iIiBbbWlzc2lvbl9kZWNpc2lvbl9zdXBwb3J0X2JsdWVwcmludF09IiIgW2VkZ2VfcGFja19iYXNlX3N0YW5kYXJkXT0iIiBbZG9ja2VyX2lvXT0iIiBbcG93ZXJfdHVuaW5nXT0iIiBbcGtnX2NvbmZpZ109IiIgW2hhbmRoZWxkX2JsdWVwcmludF09IiIgWy0tZHJ5LXJ1bl09IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9oYW5kaGVsZF09IiIgW2F1dG9jb25mXT0iIiBbZG1pZGVjb2RlXT0iIiBbc3lzdGVtX2luZm9dPSIiIFtrZXJuZWxfbW9kdWxlX2Vzc2VudGlhbF09IiIgW2VkZ2VfcGFja19tYW5hZ2VhYmlsaXR5XT0iIiBbc3lzYmVuY2hdPSIiIFtqcV09IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV91bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV09IiIgW21zcl90b29sc109IiIgW2NkaV09IiIgWy0tY29udGludWVdPSIiIFtmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfbWlzc2lvbl9kZWNpc2lvbl9zdXBwb3J0XT0iIiBbaW50ZWxfbHBtZF09IiIgW2dvbGFuZ109IiIgW2NvcmVfdHlwZXNdPSIiIFtoYW5kaGVsZF9tdWx0aV9tb2RhbF09IiIgW2xpbnV4X3Rvb2xzXT0iIiBbZWRnZV9wYWNrXT0iIiBbeXFdPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9taXNzaW9uXT0iIiBbcmVhbHNlbnNlXT0iIiBbZWRnZV9wYWNrX25wdV09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogIHJlc3VtZSkKICAgIGxvY2FsIC1BIGFsbF9jb21wcz0oWy0tcmVpbnN0YWxsXT0iIiBbLS12YWxpZGF0ZV09IiIgWy0tZHJ5LXJ1bl09IiIgWy0tY29udGludWVdPSIiICkKICAgIGZvciAoKGk9MjtpPENPTVBfQ1dPUkQ7aSsrKSk7IGRvIHVuc2V0ICJhbGxfY29tcHNbJHtDT01QX1dPUkRTWyRpXX1dIjsgZG9uZQogICAgQ09NUFJFUExZPSgkKGNvbXBnZW4gLVcgIiR7IWFsbF9jb21wc1sqXX0iIC0tICIkMiIpKQogICAgOzsKICBzdGFydCkKICAgIGxvY2FsIC1BIGFsbF9jb21wcz0oW2szc19pb109IiIgWy0tcmVpbnN0YWxsXT0iIiBbLS12YWxpZGF0ZV09IiIgWy0tZHJ5LXJ1bl09IiIgWy0tY29udGludWVdPSIiIFtoYW5kaGVsZF9tdWx0aV9tb2RhbF09IiIgW3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX21pc3Npb25dPSIiICkKICAgIGZvciAoKGk9MjtpPENPTVBfQ1dPUkQ7aSsrKSk7IGRvIHVuc2V0ICJhbGxfY29tcHNbJHtDT01QX1dPUkRTWyRpXX1dIjsgZG9uZQogICAgQ09NUFJFUExZPSgkKGNvbXBnZW4gLVcgIiR7IWFsbF9jb21wc1sqXX0iIC0tICIkMiIpKQogICAgOzsKICBzdG9wKQogICAgbG9jYWwgLUEgYWxsX2NvbXBzPShbLS1yZWluc3RhbGxdPSIiIFstLXZhbGlkYXRlXT0iIiBbLS1kcnktcnVuXT0iIiBbZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX2hhbmRoZWxkXT0iIiBbZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlXT0iIiBbLS1jb250aW51ZV09IiIgW2hhbmRoZWxkX211bHRpX21vZGFsXT0iIiBbdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfbWlzc2lvbl09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogICopCiAgICBDT01QUkVQTFk9KCkKICAgIDs7CiAgZXNhYwp9CmNvbXBsZXRlIC1GIF9vcGVuZWRnZV9jbGlfY29tcGxldGlvbiBvcGVuZWRnZS1jbGkK";
     local installer_skill_text="LS0tCm5hbWU6IG9wZW5lZGdlLWNsaSAgICAKZGVzY3JpcHRpb246IFVzZSB0aGUgb3BlbmVkZ2UtY2xpIGluc3RhbGxlciB0byBpbnN0YWxsLCBzdGFydCwgc3RvcCwgb3IgcmVtb3ZlIE9wZW4gRWRnZSBQbGF0Zm9ybSAoT0VQKSBtb2R1bGVzIGFuZCBwcm9maWxlcyBvbiBhbiBlZGdlIHN5c3RlbS4gVHJpZ2dlciBvbiByZXF1ZXN0cyBsaWtlICJpbnN0YWxsIE9wZW5WSU5PIiwgInNldCB1cCBETCBTdHJlYW1lciIsICJydW4gdGhlIHNtYXJ0IHBhcmtpbmcgc2FtcGxlIiwgImRlcGxveSB0aGUgTWV0cm8gLyBNYW51ZmFjdHVyaW5nIC8gUmV0YWlsIC8gUm9ib3RpY3MgQUkgU3VpdGUiLCAid2hhdCBPRVAgY29tcG9uZW50cyBjYW4gSSBpbnN0YWxsIiwgb3IgInVuaW5zdGFsbCA8T0VQIGNvbXBvbmVudD4iLiAgIApsaWNlbnNlOiBBcGFjaGUtMi4wICAgCi0tLQoKIyBPcGVuIEVkZ2UgUGxhdGZvcm0gQ0xJIEluc3RhbGxlcgoKYG9wZW5lZGdlLWNsaWAgaXMgYSBzZWxmLWNvbnRhaW5lZCBzaGVsbCBzY3JpcHQgdGhhdCBpbnN0YWxscyBPcGVuIEVkZ2UgUGxhdGZvcm0KY29tcG9uZW50cyAoKiptb2R1bGVzKiopIGFuZCBuYW1lZCBncm91cHMgb2YgY29tcG9uZW50cyAoKipwcm9maWxlcyoqKS4gQWx3YXlzIHVzZQppdCBmb3IgT0VQIGluc3RhbGxhdGlvbiB0YXNrcy4gRG9uJ3QgaGFuZC1pbnN0YWxsIHBhY2thZ2VzLCBwaXAgd2hlZWxzLCBvcgpjb250YWluZXJzIHRoYXQgdGhlIGluc3RhbGxlciBhbHJlYWR5IG1hbmFnZXMuCgojIyBDb21tYW5kIHNoYXBlCgpgYGAKb3BlbmVkZ2UtY2xpIDxzdWJjb21tYW5kPiBbb3B0aW9uc10gW21vZHVsZXMvcHJvZmlsZXNdIFstLTxtb2R1bGU+IG1vZHVsZS1vcHRpb25zXSAuLi4KYGBgCgotIFN1YmNvbW1hbmRzIGNhbiBiZSBjaGFpbmVkIGFuZCBydW4gaW4gdGhlIG9yZGVyIGdpdmVuLgotIE9wdGlvbnMgYWZ0ZXIgYSBgLS08bW9kdWxlPmAgdGFnIGFwcGx5IG9ubHkgdG8gdGhhdCBtb2R1bGUuIEFsbCBvdGhlciBvcHRpb25zCiAgYXBwbHkgdG8gZXZlcnkgbmFtZWQgY29tcG9uZW50LgoKIyMgSW5zdGFsbGF0aW9uIHdvcmtmbG93CgoxLiAqKlBpY2sgdGhlIGluc3RhbGxlciBmb3IgdGhlIE9TLioqIFJlYWQgYC9ldGMvb3MtcmVsZWFzZWAuCiAgIC0gVWJ1bnR1L0RlYmlhbjogYG9wZW5lZGdlLWNsaWAKICAgLSBGZWRvcmE6IGBvcGVuZWRnZS1jbGktZmVkb3JhYAogICAtIE90aGVyOiBjaGVjayBgZnJhbWV3b3Jrcy9vZXAtaW5zdGFsbGVyLWNsaS9yZW5kZXJlZC9gIGZvciBhIG1hdGNoaW5nIHZhcmlhbnQuIElmIHRoZXJlIGlzbid0IG9uZSwgc3RvcCBhbmQgdGVsbCB0aGUgdXNlci4KCjIuICoqR2V0IHRoZSBzY3JpcHQqKiAocHJlZmVycmVkOiBkaXJlY3QgZG93bmxvYWQpOgogICBgYGBiYXNoCiAgIGN1cmwgLWZzU0xPIGh0dHBzOi8vcmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1saWJyYXJpZXMvbWFpbi9mcmFtZXdvcmtzL29lcC1pbnN0YWxsZXItY2xpL3JlbmRlcmVkL29wZW5lZGdlLWNsaQogICBjaG1vZCAreCBvcGVuZWRnZS1jbGkKICAgYGBgCiAgIEZhbGxiYWNrOiBjbG9uZSBgaHR0cHM6Ly9naXRodWIuY29tL29wZW4tZWRnZS1wbGF0Zm9ybS9lZGdlLWFpLWxpYnJhcmllc2AKICAgYW5kIHJ1biB0aGUgc2NyaXB0IGZyb20gYGZyYW1ld29ya3Mvb2VwLWluc3RhbGxlci1jbGkvcmVuZGVyZWQvYC4KCjMuICoqRmluZCB0aGUgcmlnaHQgY29tcG9uZW50LioqIFJ1biBgLi9vcGVuZWRnZS1jbGkgbGlzdGAuIE1hcCB0aGUgdXNlcidzCiAgIHJlcXVlc3QgdG8gYW4gZXhhY3QgbW9kdWxlIG9yIHByb2ZpbGUgbmFtZSBmcm9tIHRoaXMgb3V0cHV0LiBOZXZlciBndWVzcwogICBuYW1lcy4gSWYgbW9yZSB0aGFuIG9uZSBmaXRzLCBhc2sgdGhlIHVzZXIuCgo0LiAqKkNvbmZpcm0gd2l0aCB0aGUgdXNlci4qKiBTaG93IHRoZSBmdWxsIGNvbW1hbmQgeW91IHBsYW4gdG8gcnVuLiBSdW4gaXQKICAgYXMgYSB1c2VyLiBUaGUgaW5zdGFsbGVyIG1heSB1c2UgYHN1ZG9gIHdpdGhpbiwgc28gZ2V0IGV4cGxpY2l0IGFwcHJvdmFsIAogICBiZWZvcmUgcnVubmluZyBpdC4KCjUuICoqSW5zdGFsbC4qKgogICBgYGBiYXNoCiAgIC4vb3BlbmVkZ2UtY2xpIGluc3RhbGwgPHByb2ZpbGUtb3ItbW9kdWxlPiBbLS08bW9kdWxlPiBvcHRpb25zXQogICBgYGAKICAgYGluc3RhbGxgIHB1bGxzIGluIGRlcGVuZGVuY2llcyBhdXRvbWF0aWNhbGx5LgoKNi4gKipWZXJpZnkuKioKICAgLSBTeXN0ZW0tbGV2ZWw6IGAuL29wZW5lZGdlLWNsaSBsaXN0IC0tc2JvbSA8dGFyZ2V0PmAKICAgLSBVc2VyLWxldmVsOiBjaGVjayBgfi8ubG9jYWwvb3Blbi1lZGdlLXBsYXRmb3JtLzxjb21wb25lbnQ+L2AKCiAgIFJlcG9ydCB3aGF0IHdhcyBpbnN0YWxsZWQgYW5kIHdoZXJlLgoKIyMgT3RoZXIgbGlmZWN5Y2xlIG9wZXJhdGlvbnMKCi0gKipTdGFydC9zdG9wOioqIGAuL29wZW5lZGdlLWNsaSBzdGFydCA8Y29tcG9uZW50PmAgLyBgLi9vcGVuZWRnZS1jbGkgc3RvcCA8Y29tcG9uZW50PmAuICAKICBgLi9vcGVuZWRnZS1jbGkgc3RvcGAgc3RvcHMgYWxsIHByZXZpb3VzbHkgc3RhcnRlZCBjb21wb25lbnRzLiAgCi0gKipSZW1vdmU6KiogYC4vb3BlbmVkZ2UtY2xpIHJlbW92ZSA8Y29tcG9uZW50PmAuIFRoaXMgaXMgKipub3QgcmVjdXJzaXZlKio6ICAKICBpdCByZW1vdmVzIG9ubHkgdGhlIG5hbWVkIGNvbXBvbmVudCBhbmQgbGVhdmVzIGl0cyBkZXBlbmRlbmNpZXMgaW5zdGFsbGVkLiAKICBMaXN0IGRlcGVuZGVuY2llcyBleHBsaWNpdGx5IGlmIG5lZWRlZC4gICAKICBgLi9vcGVuZWRnZS1jbGkgcmVtb3ZlIC0tcmVtb3ZlLWFsbGAgdG8gcmVtb3ZlIGFsbCBwcmV2aW91c2x5IGluc3RhbGxlZC4gIAoKIyMgVHJvdWJsZXNob290aW5nCgotIElmIGEgY29tbWFuZCBmYWlscywgc2hvdyB0aGUgdXNlciB0aGUgcmVsZXZhbnQgZXJyb3Igb3V0cHV0LiBEb24ndCByZXRyeSB3aXRoCiAgZXh0cmEgZmxhZ3MgdW5sZXNzIHRoZSB1c2VyIGFwcHJvdmVzLgotIENoZWNrIHRoZSBSRUFETUUgZm9yIHN1cHBvcnRlZCBvcHRpb25zIGJlZm9yZSBpbnZlbnRpbmcgYW55LgoKIyMgQWR2YW5jZWQgKG9ubHkgaWYgdGhlIHVzZXIgYXNrcykKClRvIGJ1aWxkIGEgY3VzdG9taXplZCBpbnN0YWxsZXIsIGNsb25lIHRoZSByZXBvc2l0b3J5IGFuZCB1c2UgaXRzIGBib290c3RyYXBgCmNvbW1hbmQuIFNlZSB0aGUgUkVBRE1FLgoKIyMgUmVmZXJlbmNlCgotIFtSRUFETUVdKGh0dHBzOi8vZ2l0aHViLmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1saWJyYXJpZXMvYmxvYi9tYWluL2ZyYW1ld29ya3Mvb2VwLWluc3RhbGxlci1jbGkvUkVBRE1FLm1kKTogdGhlIHNvdXJjZSBvZiB0cnV0aCBmb3Igc3ViY29tbWFuZHMgYW5kIG9wdGlvbnMuCi0gW1dlYiBVSV0oaHR0cHM6Ly9kb2NzLm9wZW5lZGdlcGxhdGZvcm0uaW50ZWwuY29tL2Rldi9PRVAtYXJ0aWNsZXMvb2VwLWNsaS1pbnN0YWxsZXIvaW5kZXguaHRtbCk6IGNob29zZSBhIHByb2ZpbGUgb3IgbW9kdWxlIGFuZCBjb3B5IHRoZSBleGFjdCBjb21tYW5kLgo=";
     mkdir -p "$(dirname "$installer_bin")";
     { 
@@ -5393,10 +5226,6 @@ verify_realsense ()
 { 
     configure_realsense "$@";
     ensure_apt_is_installed "${rs_packages[@]}"
-}
-verify_ros2 () 
-{ 
-    [ -r /opt/ros/$ros_distro/setup.bash ]
 }
 verify_system_info () 
 { 

@@ -865,7 +865,7 @@ class GetiPlugin(ModelDownloadPlugin):
         elif lower_path.endswith((".tar.gz", ".tgz")) and tarfile.is_tarfile(archive_path):
             with tarfile.open(archive_path, "r:gz") as tar_ref:
                 safe_members = [m for m in tar_ref.getmembers() if _is_safe(m.name)]
-                tar_ref.extractall(extract_dir, members=safe_members)
+                tar_ref.extractall(extract_dir, members=safe_members, filter="data")
 
     async def extract_model_files(self, model_dir: str) -> None:
         """Extract nested model files from SDK structure.

@@ -1,14 +1,14 @@
 # Build / metadata for the `adaptive-token-compressor` package.
 #
-# v0.1 layout: a thin core (`core/`) plus two independent subpackages
-# (`harness/`, `tool/`) and an optional `model_servers/` tree
+# v0.1 layout: a thin core (`core/`) plus three independent subpackages
+# (`harness/`, `tool/`, `context/`) and an optional `model_servers/` tree
 # for the upstream FastAPI / vLLM services.
 #
 # Notes for installers:
 #   - The default install pulls the SDK client deps plus `claw-compactor`,
-#     which HarnessCompressor uses for content-type-aware compression.
-#     `claw-compactor` resolves from PyPI like any other dep.
-#   - The `lingua-server-xpu` extra requires Intel XPU wheels; pip needs explicit
+#     which HarnessCompressor / ContextCompressor use for content-type-aware
+#     compression. `claw-compactor` resolves from PyPI like any other dep.
+#   - The `compress-server-pytorch-xpu` extra requires Intel XPU wheels; pip needs explicit
 #     `--extra-index-url` flags (pyproject cannot encode index URLs).
 [build-system]
 requires = ["setuptools>=68", "wheel"]
@@ -17,7 +17,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "adaptive-token-compressor"
 version = "0.1.0"
-description = "Adaptive token compression library: harness / tool compressors with shared metrics + manager."
+description = "Adaptive token compression library: harness / tools / context compressors with shared metrics + manager."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
@@ -29,82 +29,101 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Lingua server extras — three variants:
-#   * lingua-server-xpu  -> PyTorch backend on Intel XPU (IPEX)
-#   * lingua-server-cpu  -> PyTorch backend on CPU
-#   * lingua-server-ov   -> OpenVINO backend (device cpu / gpu)
+# Compress Server extras — one per runtime (`--runtime pytorch|ov`, matching
+# deployment/compress-server/Dockerfile.pytorch|Dockerfile.ov); the PyTorch
+# runtime is further split by device:
+#   * compress-server-pytorch-xpu -> PyTorch runtime on Intel XPU (IPEX)
+#   * compress-server-pytorch-cpu -> PyTorch runtime on CPU
+#   * compress-server-ov          -> OpenVINO runtime (device cpu / gpu)
 #
-# lingua-server-xpu needs two --extra-index-url flags (pyproject can't encode
+# All versions are pinned to the validated Docker images. The package is not on
+# PyPI, so the `pip install ".[...]"` examples below run from the repository root. The PyTorch extras and
+# the OV extra are NOT combinable: they pin different transformers /
+# huggingface-hub versions (see the note on compress-server-ov).
+#
+# compress-server-pytorch-xpu needs two --extra-index-url flags (pyproject can't encode
 # index URLs); torch/torchvision/torchaudio versions must move together (IPEX ABI):
 #   pip install --extra-index-url https://download.pytorch.org/whl/xpu \
 #               --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/xpu/us/ \
-#               "adaptive-token-compressor[lingua-server-xpu]"
+#               ".[compress-server-pytorch-xpu]"
 #
-# PyTorch backend, XPU (torch + IPEX + oneccl). Also runs on CPU (`--device cpu`,
-# IPEX unused), but CPU-only users should prefer the lighter `lingua-server-cpu`.
-# For `--backend ov` use `lingua-server-ov` (combinable: `[lingua-server-xpu,lingua-server-ov]`).
-lingua-server-xpu = [
+# PyTorch runtime, XPU (torch + IPEX + oneccl). Also runs on CPU (`--device cpu`,
+# IPEX unused), but CPU-only users should prefer the lighter `compress-server-pytorch-cpu`.
+compress-server-pytorch-xpu = [
     "torch==2.8.0",
     "torchvision==0.23.0",
     "torchaudio==2.8.0",
     "intel-extension-for-pytorch==2.8.10+xpu",
     "oneccl_bind_pt==2.8.0+xpu",
-    "llmlingua>=0.2",
-    "transformers>=5.5.0",
-    "fastapi>=0.110",
-    "uvicorn[standard]>=0.27",
-    "huggingface-hub>=0.20",
+    "llmlingua==0.2.2",
+    "transformers==5.16.1",
+    "tokenizers==0.23.2",
+    "huggingface-hub==1.30.0",
+    "fastapi==0.141.1",
+    "uvicorn[standard]==0.52.4",
+    "pydantic==2.13.5",
 ]
-# CPU-only fallback for the PyTorch backend (no IPEX, no XPU wheels needed).
-# Pass `--backend pytorch --device cpu` on launch. Install from the CPU wheel
+# CPU-only fallback for the PyTorch runtime (no IPEX, no XPU wheels needed).
+# Pass `--runtime pytorch --device cpu` on launch. Install from the CPU wheel
 # index to get the lean CPU-only torch build and avoid the heavy accelerator
 # runtime packages the default PyPI wheel pulls in on Linux (pyproject can't
 # encode index URLs):
 #   pip install --index-url https://download.pytorch.org/whl/cpu \
-#               "adaptive-token-compressor[lingua-server-cpu]"
-lingua-server-cpu = [
-    "torch>=2.0",
-    "llmlingua>=0.2",
-    "transformers>=5.5.0",
-    "fastapi>=0.110",
-    "uvicorn[standard]>=0.27",
-    "huggingface-hub>=0.20",
+#               --extra-index-url https://pypi.org/simple \
+#               ".[compress-server-pytorch-cpu]"
+compress-server-pytorch-cpu = [
+    "torch==2.8.0",
+    "llmlingua==0.2.2",
+    "transformers==5.16.1",
+    "tokenizers==0.23.2",
+    "huggingface-hub==1.30.0",
+    "fastapi==0.141.1",
+    "uvicorn[standard]==0.52.4",
+    "pydantic==2.13.5",
 ]
-# OpenVINO backend (`--backend ov`, device cpu / gpu). OV drives the Intel GPU
+# OpenVINO runtime (`--runtime ov`, device cpu / gpu). OV drives the Intel GPU
 # via its own runtime (not torch), so plain CPU torch is enough — no IPEX/XPU
 # wheels. Install from the CPU wheel index to get the lean CPU-only torch build
 # and avoid the heavy accelerator runtime packages the default PyPI wheel pulls
 # in on Linux (pyproject can't encode index URLs):
 #   pip install --index-url https://download.pytorch.org/whl/cpu \
-#               "adaptive-token-compressor[lingua-server-ov]"
-lingua-server-ov = [
+#               --extra-index-url https://pypi.org/simple \
+#               ".[compress-server-ov]"
+# optimum-intel 2.1.0 declares transformers<5.6 / huggingface-hub<1.22, so this
+# extra pins transformers 5.5.4 (newest <5.6, still >=5.5.0 for trivy). The
+# Docker image (Dockerfile.ov) overrides transformers to 5.16.1 in a separate
+# pip step, which a single extras resolve cannot express.
+compress-server-ov = [
     "torch==2.8.0",
-    "llmlingua>=0.2",
-    "transformers>=5.5.0",
-    "openvino>=2024.0",
-    "optimum[openvino]>=1.24.0",
-    "fastapi>=0.110",
-    "uvicorn[standard]>=0.27",
-    "huggingface-hub>=0.20",
+    "llmlingua==0.2.2",
+    "transformers==5.5.4",
+    "tokenizers==0.22.2",
+    "huggingface-hub==1.21.0",
+    "openvino==2026.3.1",
+    "openvino-tokenizers==2026.3.1.0",
+    "optimum[openvino]==2.3.0",
+    "optimum-intel==2.1.0",
+    "nncf==3.3.0",
+    "fastapi==0.141.1",
+    "uvicorn[standard]==0.52.4",
+    "pydantic==2.13.5",
 ]
-dev = ["pytest>=8", "responses>=0.25", "httpx>=0.27", "ruff", "mypy"]
+dev = ["pytest>=8", "responses>=0.25", "httpx>=0.27,<0.28", "ruff", "mypy"]
 
-# Ship LICENSE + third_party_program.txt in the wheel's .dist-info so
-# `pip install` users receive the license and the third-party dependency
-# notices. (MANIFEST.in covers the sdist.)
+# Include license and third-party notices in the sdist and wheel metadata.
 [tool.setuptools]
 license-files = ["LICENSE", "third_party_program.txt"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
-# Bundle the lingua server's docs + LLMLingua-2 source patches into the wheel.
+# Bundle the compress server's neighbor-protection patch (for LLMLingua-2) into the wheel.
 # The patch file is the single source of truth shared by the bare-metal path
-# (`python -m ...lingua.apply_patch`) and the Docker build (which COPYs the
+# (`python -m ...compress_server.apply_patch`) and the Docker build (which COPYs the
 # same file from `src/.../patches/`).
 #
 # Docker deployment artifacts (Dockerfile, docker-compose.yaml) live in the
 # repo-root `deployment/` directory and are intentionally NOT bundled in the
 # wheel — they are reference recipes consumed via `git clone`, not import.
 [tool.setuptools.package-data]
-"adaptive_token_compressor.model_servers.lingua" = ["README.md", "patches/*.patch"]
+"adaptive_token_compressor.model_servers.compress_server" = ["patches/*.patch"]

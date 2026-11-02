@@ -58,7 +58,7 @@ debian_40_install_npu_accel () {
     done 
 
     # install the debs
-    ensure_apt install -y $(find . -name "*.deb" -print)
+    ensure_apt install -y --allow-downgrades $(find . -name "*.deb" -print)
     ensure_rm "$workspace"
     verify_npu_accel_packages
   fi

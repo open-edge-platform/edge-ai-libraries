@@ -1,26 +1,32 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""Rule-Strategy-Decision module exports."""
+"""Rule-Strategy-Decision module exports.
 
-from src.rsd.decision import RouteDecision, DecisionEngine
-from src.rsd.policy import DecisionPolicy
-from src.rsd.rule import (
+Importing this package also imports both rule families, which registers their
+rules into :data:`src.rsd.engine.rule.RULE_CLASS_REGISTRY`.
+"""
+
+from src.rsd.engine.decision import RouteDecision, DecisionEngine
+from src.rsd.engine.policy import DecisionPolicy
+from src.rsd.engine.rule import (
     Rule,
     ValueRule,
     MatchRule,
     ScoreRule,
     ZoneRule,
     RuleEngine,
+)
+from src.rsd.rule_based.rules import (
     MessageContentRule,
     ToolCallsRule,
     MetadataRule,
     QueryComplexityScoreRule,
     QueryComplexityZoneRule,
     ContextLengthRule,
-    IntelligentRule,
 )
-from src.rsd.strategy import (
+from src.rsd.model_based.rule import ModelBasedRule
+from src.rsd.engine.strategy import (
     RuleBinding,
     ProviderSelector,
     SortCriterion,
@@ -47,7 +53,7 @@ __all__ = [
     "QueryComplexityScoreRule",
     "QueryComplexityZoneRule",
     "ContextLengthRule",
-    "IntelligentRule",
+    "ModelBasedRule",
     # strategy
     "RuleBinding",
     "ProviderSelector",

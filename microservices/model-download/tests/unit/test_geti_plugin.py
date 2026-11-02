@@ -5,8 +5,11 @@
 Test script to verify model retrieval and download methods work with the reference implementation pattern.
 """
 import asyncio
+import io
 import os
 import sys
+import tarfile
+import pytest
 from unittest.mock import Mock, AsyncMock, MagicMock, patch
 from pathlib import Path
 
@@ -490,6 +493,28 @@ async def test_list_models_base_export_reports_ignored_extra_filters():
 
     print("✗ FAILED - Base listing did not complete\n")
     return False
+
+
+def test_geti_tar_extraction_rejects_symlink_traversal(tmp_path):
+    archive_path = tmp_path / "malicious.tar.gz"
+    extract_dir = tmp_path / "extracted"
+    extract_dir.mkdir()
+    payload = b"outside the extraction directory"
+
+    with tarfile.open(archive_path, "w:gz") as archive:
+        link = tarfile.TarInfo("link")
+        link.type = tarfile.SYMTYPE
+        link.linkname = "../outside.txt"
+        archive.addfile(link)
+
+        member = tarfile.TarInfo("link/outside.txt")
+        member.size = len(payload)
+        archive.addfile(member, io.BytesIO(payload))
+
+    with pytest.raises(tarfile.FilterError):
+        GetiPlugin()._safe_extract_archive(str(archive_path), str(extract_dir))
+
+    assert not (tmp_path / "outside.txt").exists()
 
 
 async def main():

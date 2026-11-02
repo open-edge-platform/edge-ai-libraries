@@ -48,14 +48,17 @@ debian_90_profile_uncrewed_aerial_vehicle_mission () {
 }
 
 debian_90_install_uncrewed_aerial_vehicle_mission () {
-  local installed_path="$(ensure_project_path)/$installer_name/installed"
+  local installed
+  installed="$(ensure_prop find "installed/*")" || return $?
   local blueprint
-  for blueprint in handheld_blueprint mission_decision_support_blueprint; do
-    if [ -d "$installed_path/$blueprint" ]; then
-      echo "Cannot install uncrewed_aerial_vehicle_mission while $blueprint is installed." >&2
+  while IFS= read -r blueprint; do
+    case "$blueprint" in
+    installed/handheld_blueprint|installed/mission_decision_support_blueprint)
+      echo "Cannot install uncrewed_aerial_vehicle_mission while ${blueprint#installed/} is installed." >&2
       return 1
-    fi
-  done
+      ;;
+    esac
+  done <<< "$installed"
 
   configure_uncrewed_aerial_vehicle_mission
   if verify_uncrewed_aerial_vehicle_mission 2>/dev/null && [[ " $* " != *" --reinstall "* ]]; then
