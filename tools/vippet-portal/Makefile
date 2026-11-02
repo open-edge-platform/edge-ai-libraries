@@ -9,7 +9,7 @@ help:
 	@echo "make install       Install backend and frontend dependencies"
 	@echo "make dev-server    Run the aggregation API on :$(PORT) with reload"
 	@echo "make dev-ui        Run the Vite dev server on :$(UI_PORT)"
-	@echo "make build         Build the UI into server/static"
+	@echo "make build         Build the UI into ui/dist"
 	@echo "make api-codegen   Regenerate UI API types/hooks from the backend OpenAPI schema"
 	@echo "make run           Build and run everything in Docker"
 	@echo "make stop          Stop the Docker stack"
@@ -41,10 +41,10 @@ api-codegen:
 
 run:
 	mkdir -p shared/db
-	PORTAL_UID=$$(id -u) PORTAL_GID=$$(id -g) docker compose up --build -d
+	PORTAL_UID=$$(id -u) PORTAL_GID=$$(id -g) docker compose up --build -d --remove-orphans
 
 stop:
-	docker compose down
+	docker compose down --remove-orphans
 
 clean:
-	rm -rf server/static ui/dist ui/node_modules $(VENV) shared/db
+	rm -rf ui/dist ui/node_modules $(VENV) shared/db

@@ -1,22 +1,14 @@
-FROM node:22-alpine AS ui-build
-WORKDIR /ui
-COPY ui/package.json ui/package-lock.json ./
-RUN npm ci
-COPY ui/ ./
-RUN npm run build -- --outDir dist --emptyOutDir
-
-FROM python:3.12-slim AS runtime
+FROM python:3.12-slim
 WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PORTAL_DB_PATH=/shared/db/app.db
 
-COPY server/requirements.txt ./requirements.txt
+COPY requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY server/app ./app
-COPY --from=ui-build /ui/dist ./static
+COPY app ./app
 
 RUN useradd --create-home --uid 10001 portal && mkdir -p /shared/db && chown -R portal /shared /app
 USER portal

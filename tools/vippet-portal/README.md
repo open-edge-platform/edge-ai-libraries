@@ -50,7 +50,7 @@ They are build-only settings and are not persisted in the runtime image.
 
 ```bash
 make install
-make dev-server   # API on :8765, also serves ui/ build if present
+make dev-server   # API on :8765
 make dev-ui       # Vite dev server on :5173, proxies /api to :8765
 ```
 
@@ -74,6 +74,10 @@ proxy cannot hijack requests to testbed machines on the local network.
 ui/      React 19 + TypeScript + Vite + Tailwind v4 (ViPPET component kit)
 server/  FastAPI aggregator + SQLite instance registry
 ```
+
+In Docker the stack runs as two containers: `vippet-portal-ui` (nginx) serves
+the built UI on `PORTAL_PORT` and reverse-proxies `/api/` to
+`vippet-portal-api` (uvicorn), which is not published on the host.
 
 The backend fans out to every enabled instance with `asyncio.gather`, isolating
 failures per instance — one offline machine degrades its card to “offline”

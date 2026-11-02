@@ -13,11 +13,6 @@ export default defineConfig(({ mode }) => {
         "@": path.resolve(import.meta.dirname, "./src"),
       },
     },
-    build: {
-      // Served directly by the portal backend in production.
-      outDir: "../server/static",
-      emptyOutDir: true,
-    },
     server: {
       proxy: {
         "/api": {

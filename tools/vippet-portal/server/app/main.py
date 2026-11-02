@@ -4,11 +4,8 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import APIRouter, FastAPI
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 
 from . import aggregator
 from .db import init_db
@@ -17,9 +14,6 @@ from .routers import benchmarks, experiments, instances, tests
 logging.basicConfig(level=logging.INFO)
 # One INFO line per upstream call drowns out real errors; failures still surface via WARNING.
 logging.getLogger("httpx").setLevel(logging.WARNING)
-
-UI_DIST = Path(__file__).resolve().parent.parent / "static"
-
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -48,13 +42,3 @@ async def get_health() -> dict[str, bool]:
 
 
 app.include_router(api)
-
-if UI_DIST.is_dir():
-    app.mount("/assets", StaticFiles(directory=UI_DIST / "assets"), name="assets")
-
-    @app.get("/{full_path:path}", include_in_schema=False)
-    async def serve_spa(full_path: str) -> FileResponse:
-        candidate = (UI_DIST / full_path).resolve()
-        if full_path and candidate.is_relative_to(UI_DIST) and candidate.is_file():
-            return FileResponse(candidate)
-        return FileResponse(UI_DIST / "index.html")
