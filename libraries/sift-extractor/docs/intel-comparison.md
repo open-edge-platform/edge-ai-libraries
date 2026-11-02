@@ -240,6 +240,32 @@ runner `results/20261102/arc-opencl-milestone.sh`, local reports
 `~/.local/share/sift-extractor-staging/arc-compaction-d266f47fcec2f0d8`.
 Manifest SHA256: `d266f47fcec2f0d852662e08c6e4453a2c2e0c28f9975439e9480ca7b8f6603b`.
 
+### Spatial-Bin Descriptors
+
+Descriptors now use 16 lanes, each owning the eight orientation bins of one
+spatial cell. Geometry and sample reads are shared across those bins; each bin
+still accumulates samples in row-major order. Support, interpolation, clipping
+and normalization are unchanged. The serial reference remains available.
+All 10 local tests and Arc's regression/22 comparison cases pass; 687 descriptor
+cases meet the existing 2e-5 bound (printed maximum error 0.00000000), and all
+matching-quality records remain identical.
+
+Paired pooled medians against `83f8276c1` (60 samples/build):
+
+| Size | Feature Budget | Before (ms) | Spatial (ms) | Latency Reduction |
+| --- | --- | --- | --- | --- |
+| 640x480 | Unlimited | 9.714 | 9.705 | 0.1% |
+| 640x480 | 500 | 9.562 | 9.432 | 1.4% |
+| 1920x1080 | Unlimited | 29.891 | 27.788 | 7.0% |
+| 1920x1080 | 500 | 23.588 | 22.315 | 5.4% |
+
+No meaningful VGA unlimited gain is established; throughput targets remain unmet.
+Evidence: SIFT workspace `results/20261102/arc-spatial-bins-summary.json`; reports
+`/tmp/sift-arc-spatial-bins-results.XbTTkn/milestone-results`; remote stage
+`~/.local/share/sift-extractor-staging/arc-spatial-bins-a6e243ad789a0413`.
+Manifest SHA256: `a6e243ad789a0413c24c126d68c32aa3fb072af5072a22f08ff3233ddbdea7a2`.
+All five returned executable hashes matched the staged binaries.
+
 ### Shared DoG Volumes
 
 Aligned DoG levels are sub-buffer views of one retained volume per octave.

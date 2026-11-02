@@ -330,12 +330,11 @@ __kernel void sift_descriptors(__global const float *magnitude,
   const int radius = min((int)ceil(3.53553390593f * bin_width), max(width, height));
   const int center_x = (int)floor(cx + 0.5f);
   const int center_y = (int)floor(cy + 0.5f);
-  #if SIFT_DESCRIPTOR_LANES == 128
+  #if SIFT_DESCRIPTOR_LANES == 16
   __local float hist[128];
   const float inverse_bin_width = 1.0f / bin_width;
-  const int row_bin = lane / 32;
-  const int column_bin = (lane / 8) % 4;
-  const int orientation_bin = lane % 8;
+  const int row_bin = lane / 4;
+  const int column_bin = lane % 4;
   const float column_center = (float)column_bin - 1.5f;
   const float row_center = (float)row_bin - 1.5f;
   const float sample_x = cx + bin_width * (cosine * column_center - sine * row_center);
@@ -349,7 +348,7 @@ __kernel void sift_descriptors(__global const float *magnitude,
     convert_int_sat_rtn(sample_y - extent - 1.0f));
   const int end_y = min(min(height - 2, center_y + radius),
     convert_int_sat_rtp(sample_y + extent + 1.0f));
-  float sum = 0.0f;
+  float sums[8] = {0.0f};
   for (int sample_y_index = begin_y; sample_y_index <= end_y; ++sample_y_index) {
     for (int sample_x_index = begin_x; sample_x_index <= end_x; ++sample_x_index) {
       const float rx = (float)sample_x_index - cx;
@@ -367,16 +366,17 @@ __kernel void sift_descriptors(__global const float *magnitude,
       ob += 16.0f;
       ob -= ob >= 16.0f ? 16.0f : (ob >= 8.0f ? 8.0f : 0.0f);
       const int oi = (int)floor(ob);
-      if (orientation_bin != oi && orientation_bin != (oi + 1) % 8) continue;
       const float rf = rb - (float)ri;
       const float cf = cb - (float)ci;
       const float of = ob - (float)oi;
       const float weighted_magnitude = magnitude[sample] * exp(-(row * row + column * column) / 8.0f);
-      sum += weighted_magnitude * (row_bin == ri ? 1.0f - rf : rf) *
-        (column_bin == ci ? 1.0f - cf : cf) * (orientation_bin == oi ? 1.0f - of : of);
+      const float spatial_weight = weighted_magnitude * (row_bin == ri ? 1.0f - rf : rf) *
+        (column_bin == ci ? 1.0f - cf : cf);
+      sums[oi % 8] += spatial_weight * (1.0f - of);
+      sums[(oi + 1) % 8] += spatial_weight * of;
     }
   }
-  hist[lane] = sum;
+  for (int bin = 0; bin < 8; ++bin) hist[lane * 8 + bin] = sums[bin];
   barrier(CLK_LOCAL_MEM_FENCE);
   #else
   float hist[128];
@@ -526,7 +526,7 @@ struct OpenCLDoGExtrema::Impl {
   cl_kernel gradient_kernel = nullptr;
   cl_kernel orientation_kernel = nullptr;
   cl_kernel descriptor_kernel = nullptr;
-  size_t descriptor_lanes = 128;
+  size_t descriptor_lanes = 16;
   size_t orientation_lanes = 64;
   bool profile_features = false;
   Buffer feature_image;
@@ -883,7 +883,7 @@ struct OpenCLDoGExtrema::Impl {
   }
 
   explicit Impl(bool serial_descriptors) {
-    descriptor_lanes = serial_descriptors ? 1 : 128;
+    descriptor_lanes = serial_descriptors ? 1 : 16;
     orientation_lanes = serial_descriptors ? 1 : 64;
     profile_features = std::getenv("SIFT_OPENCL_PROFILE") != nullptr;
     cl_int status = CL_SUCCESS;
@@ -912,7 +912,7 @@ struct OpenCLDoGExtrema::Impl {
 
     const char *build_options = serial_descriptors
       ? "-cl-std=CL1.2 -DSIFT_DESCRIPTOR_LANES=1"
-      : "-cl-std=CL1.2 -DSIFT_DESCRIPTOR_LANES=128";
+      : "-cl-std=CL1.2 -DSIFT_DESCRIPTOR_LANES=16";
     status = clBuildProgram(program, 1, &device, build_options, nullptr,
                             nullptr);
     if (status != CL_SUCCESS) {
