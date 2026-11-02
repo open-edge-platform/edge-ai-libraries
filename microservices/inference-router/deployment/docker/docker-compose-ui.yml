@@ -3,11 +3,12 @@
 
 # Full-stack deployment: the Inference Router plus its web UI.
 #
-# The router runs with network_mode: host, so the UI container (on the default
-# bridge network) cannot reach it via the service name. Instead the UI proxies
-# API traffic to the host's LAN IP, which scripts/deploy_docker.sh detects and
-# exports as SERVER_HOST (with the router bound to that same address via
-# IR_BIND_HOST). Deploy with:  bash scripts/deploy_docker.sh
+# Both the router and the UI run with network_mode: host. nginx (the UI) reverse-
+# proxies API traffic to the router over the shared host loopback, so the router
+# can stay bound to 127.0.0.1 (remote access refused) while the UI still listens
+# on every interface at ${UI_PORT} (reachable locally and remotely).
+# scripts/deploy_docker.sh sets SERVER_HOST to an address the router listens on.
+# Deploy with:  bash scripts/deploy_docker.sh
 
 services:
   # Inference Router service
@@ -75,17 +76,21 @@ services:
         http_proxy: ${http_proxy:-}
         https_proxy: ${https_proxy:-}
         no_proxy: ${no_proxy:-}
+    # Host networking (like the router) so nginx reverse-proxies to the router
+    # over loopback: the router can stay bound to 127.0.0.1 (remote-refused)
+    # while nginx itself listens on 0.0.0.0:${UI_PORT}. nginx binds ${UI_PORT}
+    # directly on the host, so there is no published-port mapping.
+    network_mode: host
     environment:
       no_proxy: ${no_proxy:-}
       http_proxy: ${http_proxy:-}
       https_proxy: ${https_proxy:-}
       UI_PORT: ${UI_PORT:-7010}
-      # Host LAN IP + router port that nginx reverse-proxies /v1 and /health to.
-      # Set by scripts/deploy_docker.sh; the router must bind to this address.
+      # Address nginx reverse-proxies /v1 and /health to. Set by
+      # scripts/deploy_docker.sh to an address the router listens on: loopback
+      # for the default / 0.0.0.0 binds, or the specific IR_BIND_HOST interface.
       SERVER_HOST: ${SERVER_HOST:-127.0.0.1}
       SERVER_PORT: ${ROUTER_PORT:-8000}
-    ports:
-      - "${UI_PORT:-7010}:${UI_PORT:-7010}"
     depends_on:
       - router
     restart: unless-stopped

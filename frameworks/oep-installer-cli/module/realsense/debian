@@ -1,3 +1,4 @@
+
 configure_realsense () {
   workspace="$(ensure_project_path)/realsense"
   eci_repo_name=eci.intel.com
@@ -29,10 +30,6 @@ configure_realsense () {
 
 debian_55_profile_realsense () {
   echo "curl gnupg"
-  if [ "$1" = bootstrap ] ||
-     [[ " $* " = *" ros2 "* || " $* " = *" edge_base_robotics "* ]]; then
-    echo "ros2"
-  fi
 }
 
 verify_realsense () {
@@ -40,30 +37,9 @@ verify_realsense () {
   ensure_apt_is_installed "${rs_packages[@]}"
 }
 
-migrate_ownership_realsense () {
-  local package
-  local legacy_packages=()
-  if [ "$(ensure_prop get installed/realsense/owned)" = true ] ||
-     [ "$(ensure_prop get installed/realsense_fedaero/owned)" = true ]; then
-    legacy_packages+=(librealsense2 librealsense2-dkms librealsense2-utils librealsense2-dev librealsense2-gl)
-  fi
-  if [ "$(ensure_prop get installed/realsense_robotics/owned)" = true ]; then
-    legacy_packages+=(librealsense2 librealsense2-dkms ros-humble-librealsense2 ros-jazzy-librealsense2)
-  fi
-  for package in "${legacy_packages[@]}"; do
-    ensure_apt_is_installed "$package" || continue
-    ensure_prop set "installed/realsense/packages/$package" true
-  done
-  ensure_prop remove installed/realsense/owned
-  # Retire legacy module records so they cannot block shared-module removal.
-  ensure_prop remove installed/realsense_fedaero/
-  ensure_prop remove installed/realsense_robotics/
-}
-
 debian_55_install_realsense () {
   configure_realsense "$@"
   ensure_prop create installed/realsense/packages/
-  migrate_ownership_realsense
   if ensure_apt_is_installed "${rs_packages[@]}" && [[ " $* " != *" --reinstall "* ]]; then
     echo "RealSense packages are installed." >&2
   else
@@ -96,8 +72,6 @@ debian_55_install_realsense () {
 
 debian_55_remove_realsense () {
   configure_realsense
-  ensure_prop create installed/realsense/packages/
-  migrate_ownership_realsense
   local package owned_packages=()
   for package in "${rs_packages[@]}" ros-humble-librealsense2 ros-jazzy-librealsense2; do
     if [ "$(ensure_prop get "installed/realsense/packages/$package")" = true ]; then

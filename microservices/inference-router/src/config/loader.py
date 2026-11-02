@@ -24,7 +24,10 @@ from src.exceptions import ConfigurationError
 logger = logging.getLogger(__name__)
 
 
-_PLUGIN_TRIGGERS = {"prerouting", "postrouting", "postresponse"}
+# ``standalone`` is a non-hook phase: such plugins are built (so their settings are
+# validated and their routes/instances are discoverable) but are never run in any
+# request/response chain. Use it for route-only plugins like ``provider_management``.
+_PLUGIN_TRIGGERS = {"prerouting", "postrouting", "postresponse", "standalone"}
 
 
 # Matches ``${VAR}`` or ``${VAR:-default}`` anywhere in a string. The default
@@ -46,7 +49,7 @@ def resolve_workspace_dir() -> Path:
     ``$GATEWAY_CONFIG`` (production points this at ``workspace/config.yaml``),
     else ``<cwd>/workspace``. This is where operators drop overriding
     ``policy.yaml`` / ``strategy.yaml`` files (see
-    :func:`src.rsd.policy.resolve_policy_file`).
+    :func:`src.rsd.engine.policy.resolve_policy_file`).
     """
     override = os.environ.get("GATEWAY_WORKSPACE")
     if override:
@@ -196,6 +199,11 @@ def _build_router_config(config_data: dict) -> RouterConfig:
         plugin = _build_plugin_config(plugin_data, trigger="postresponse")
         plugins.append(plugin)
 
+    # Parse standalone (non-hook) plugins: built and mounted, but not run in any chain.
+    for plugin_data in plugins_data.get("standalone") or []:
+        plugin = _build_plugin_config(plugin_data, trigger="standalone")
+        plugins.append(plugin)
+
     seen_plugins = set()
     for plugin in plugins:
         identity = (plugin.node, plugin.name)
@@ -259,6 +267,7 @@ def _build_provider_config(provider_data: dict) -> ProviderConfig:
         type=provider_type,
         model=model,
         enabled=provider_data.get("enabled", True),
+        fallback=bool(provider_data.get("fallback", False)),
         metadata=provider_data.get("metadata", {}),
         settings=provider_data.get("settings", {}),
         extra=provider_data.get("extra", {}),
@@ -270,15 +279,16 @@ def _build_plugin_config(plugin_data: dict, trigger: str = "prerouting") -> Plug
     
     Args:
         plugin_data: Plugin configuration dict
-        trigger: Plugin trigger phase - 'prerouting', 'postrouting', or 'postresponse'
-    
+        trigger: Plugin phase - 'prerouting', 'postrouting', 'postresponse', or
+            'standalone' (built but not run in any hook chain)
+
     Raises:
         ConfigurationError: If required fields missing or invalid
     """
     if trigger not in _PLUGIN_TRIGGERS:
+        allowed = ", ".join(f"'{t}'" for t in sorted(_PLUGIN_TRIGGERS))
         raise ConfigurationError(
-            "Invalid plugin trigger: "
-            f"{trigger}. Allowed values are 'prerouting', 'postrouting', and 'postresponse'"
+            f"Invalid plugin trigger: {trigger}. Allowed values are {allowed}"
         )
     
     name = plugin_data.get("name")

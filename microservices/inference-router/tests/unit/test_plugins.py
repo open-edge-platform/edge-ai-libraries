@@ -44,7 +44,9 @@ class SamplePlugin(PluginBaseNode):
     def settings_model(cls):
         return SamplePluginSettings
 
-    async def process_request(self, request: ChatCompletionRequest) -> ChatCompletionRequest:
+    async def process_request(
+        self, request: ChatCompletionRequest, **kwargs: Any
+    ) -> ChatCompletionRequest:
         if self.parsed_settings.annotate_extra_body:
             if request.extra_body is None:
                 request.extra_body = {}
@@ -258,3 +260,108 @@ def test_postresponse_plugins_are_loaded_and_executed():
 
     processed = asyncio.run(plugin_manager.process_postresponse_response(response))
     assert processed == response
+
+
+def test_standalone_plugins_built_but_not_in_any_hook_chain():
+    """A ``standalone`` plugin is built and discoverable, but never runs in a chain."""
+    plugin_manager = create_plugin_manager(
+        [
+            PluginConfig(
+                name="route-only",
+                node="test-plugin",
+                trigger="standalone",
+                settings={"enabled_tag": "standalone", "annotate_extra_body": True},
+            ),
+        ]
+    )
+
+    # Present in no hook bucket, so no request/response chain ever runs it...
+    assert plugin_manager.prerouting_plugins == []
+    assert plugin_manager.postrouting_plugins == []
+    assert plugin_manager.postresponse_plugins == []
+    assert [p.name for p in plugin_manager.standalone_plugins] == ["route-only"]
+    # ...but still discoverable (for route handlers to read its settings).
+    assert plugin_manager.get_plugin_by_name("route-only") is not None
+
+    request = ChatCompletionRequest(
+        model="test-model",
+        messages=[ChatCompletionMessage(role="user", content="hello")],
+    )
+    processed = asyncio.run(plugin_manager.process_request(request))
+    # The standalone plugin did not touch the request.
+    assert processed.extra_body is None
+
+
+def test_config_accepts_standalone_plugin_section():
+    """The loader parses a ``standalone`` plugins section and tags the trigger."""
+    config = _build_router_config(
+        {
+            "providers": [{"name": "provider", "type": "openai", "model": "model"}],
+            "plugins": {
+                "standalone": [
+                    {"name": "route-only", "node": "test-plugin", "settings": {}}
+                ]
+            },
+        }
+    )
+
+    assert [(p.name, p.trigger) for p in config.plugins] == [("route-only", "standalone")]
+
+
+class _RecordingPluginManager:
+    """Records the kwargs each plugin hook receives."""
+
+    def __init__(self):
+        self.calls = []
+
+    async def process_prerouting_request(self, request, **kwargs):
+        self.calls.append(("prerouting", kwargs))
+        return request
+
+    async def process_postrouting_request(self, request, **kwargs):
+        self.calls.append(("postrouting", kwargs))
+        return request
+
+
+def _orchestrator_with(plugin_manager):
+    """A RouterOrchestrator with one provider and a stub decision engine."""
+    from types import SimpleNamespace
+
+    from src.router import RouterOrchestrator
+
+    provider = SimpleNamespace(name="provider-a")
+
+    class _Engine:
+        async def route(self, request, providers):
+            return SimpleNamespace(provider=provider, reason="stub", metadata={})
+
+    orch = RouterOrchestrator.__new__(RouterOrchestrator)
+    orch.plugin_manager = plugin_manager
+    orch.decision_engine = _Engine()
+    orch.providers = [provider]
+    orch.provider_map = {"provider-a": provider}
+    orch.model_to_provider = {"model-a": provider}
+    return orch
+
+
+@pytest.mark.parametrize("model", ["model-a", "provider-a", "auto"])
+def test_orchestrator_passes_provider_name_to_postrouting_only(model):
+    """Direct (model/provider name) and auto paths pass provider_name to postrouting."""
+    pm = _RecordingPluginManager()
+    orch = _orchestrator_with(pm)
+    request = ChatCompletionRequest(
+        model=model,
+        messages=[ChatCompletionMessage(role="user", content="hello")],
+    )
+
+    provider, route_info, _ = asyncio.run(orch._select_provider(request))
+
+    assert provider.name == "provider-a"
+    assert route_info.is_direct is (model != "auto")
+    assert pm.calls == [
+        ("prerouting", {}),
+        (
+            "postrouting",
+            {"provider_name": "provider-a", "metrics_values": {"provider": "provider-a"}},
+        ),
+    ]

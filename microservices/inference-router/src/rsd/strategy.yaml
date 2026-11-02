@@ -15,6 +15,20 @@ strategies:
       capability:
         complexity: 0.7
 
+  - name: DataAnalysis
+    description: "Routes based on message content indicating tabular-data analysis intent."
+    rules:
+      - type: MessageContentRule
+        param:
+          pattern: '\b(csv|spreadsheet|dataframe|dataset|excel|pivot)\b'
+          use_regex: true
+          roles:
+            - user
+    provider_selector:
+      label: data-analysis
+      capability:
+        complexity: 0.6
+
   - name: ContextLengthQuality
     description: "Routes requests based on context length zones."
     rules:
@@ -39,11 +53,25 @@ strategies:
     provider_selector:
       cost: 0
 
-  - name: IntelligentRouting
+  - name: ModelBasedRouting
     description: "Routes with the intelligent model-based classifier (0 -> local, 1 -> cloud)."
     rules:
-      - type: IntelligentRule
+      - type: ModelBasedRule
     provider_selector:
       label:
         0: local
         1: cloud
+
+  - name: PerformanceBased
+    description: "Prefer the least-loaded backend by live in-flight request count."
+    provider_selector:
+      # Live load signals read from provider metadata under performance.<metric>,
+      # kept fresh by each provider's performance probe (see
+      # docs/user-guide/probe.md).
+      performance:
+        requests: 10      # skip a backend already running 10+ concurrent requests
+    sort:
+      # Among the eligible providers, route to the one with the fewest in-flight
+      # requests (ascending). A provider with no value sorts last.
+      - provider_attribute: performance.requests
+        descending: false

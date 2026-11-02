@@ -93,44 +93,6 @@ initialization status and current concurrency counters.
   {"detail": "Router not initialized"}
   ```
 
-## Detailed Health Check
-
-Endpoint:
-
-```bash
-GET /health/detailed
-```
-
-**Example:**
-
-```bash
-curl http://localhost:8000/health/detailed
-```
-
-**Description:**
-
-Runs a live health check against every provider and returns their individual
-status. Probes the backends, and therefore is more resource-intensive
-and takes longer to execute than the `GET /health` endpoint.
-
-**Response:**
-
-- 200 OK:
-
-  ```json
-  {
-      "status": "healthy",
-      "providers": {
-          "local": {"status": "healthy"},
-          "cloud": {"status": "healthy"}
-      }
-  }
-  ```
-
-  The keys in the providers map are the provider names configured in your setup.
-  The value structure for each key depends on the specific provider’s
-  health check structure.
-
 ## List Models
 
 Endpoint:
@@ -636,6 +598,12 @@ rebuilds the runtime. The policy must name an entry in `policy.yaml`; an unknown
 name is rejected and the previous policy stays in effect. Provider secrets in
 `config.yaml` (e.g. `${VAR}` placeholders) are left untouched.
 
+The new policy's `ModelBasedRule` classifiers are loaded before the switch.
+A classifier version that cannot be loaded degrades — the rule falls back to
+the packaged default, or to `-1` (no classifier guidance) if even that is
+unavailable; requests keep being served. `GET /v1/strategies/{name}` reports
+the resulting `status`.
+
 **Request Body:**
 
 ```json
@@ -823,6 +791,12 @@ curl -X DELETE http://localhost:8000/v1/providers/openai
 Removes a provider, persists the change to the on-disk configuration, and rebuilds the
 runtime.
 
+This edits configuration only. To stop a backend started via the
+`provider_management` plugin, also call its lifecycle endpoint
+`DELETE /v1/providers/manage?name=<name>` (see
+[Stop Provider](#stop-provider-lifecycle)), which tells the Local Provider
+Manager to tear the container down.
+
 **Response:**
 
 - 200 OK:
@@ -837,6 +811,220 @@ runtime.
 - 404 Not Found: no provider with that `name`.
 - 500 Internal Server Error: failed to delete the provider.
 - 503 Service Unavailable: router not initialized.
+
+## Start Provider (Lifecycle)
+
+Endpoint:
+
+```bash
+POST /v1/providers/manage
+```
+
+**Example:**
+
+```bash
+curl http://localhost:8000/v1/providers/manage \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "qwen3-local",
+    "image": "intel/llm-scaler-vllm:0.26.0-b2",
+    "entrypoint": "vllm",
+    "volumes": {"/path/to/Qwen3-8B": "/llm/models/Qwen3-8B"},
+    "docker_args": ["--device", "/dev/dri", "-p", "24680:24680"],
+    "command": ["serve", "/llm/models/Qwen3-8B", "--served-model-name", "qwen3",
+                "--port", "24680", "--host", "0.0.0.0"],
+    "health_endpoint": "http://localhost:24680/health"
+  }'
+```
+
+**Description:**
+
+Starts a serving backend (provider service) through an external **Local Provider
+Manager**. Provided by the `provider_management` plugin (see
+[Plugins](./plugin.md#provider_management-plugin)); the manager's base URL is
+configured on the plugin instance as `manager_url` (or passed per request).
+
+The docker parameters are forwarded to the manager verbatim; it runs
+`docker run -d` and records the result. With `health_endpoint` the router waits
+for the backend to answer 2xx before responding. The router config is **not**
+touched: to route to the service, add or enable its provider with
+[Create or Update Provider](#create-or-update-provider)
+(e.g. `POST /v1/providers/{name}` with `{"enabled": true}`).
+
+**Request Body:**
+
+- `name`: **required**. Service name (letters, digits, `.`, `-`, `_`); the
+  manager keys the container on it (`ir-provider-<name>`). It need not match a
+  provider in the router config, though using the same name keeps things clear.
+- `image`, `entrypoint`, `env`, `volumes`, `docker_args`, `command`: docker
+  parameters forwarded to the manager (see the Local Provider Manager's API).
+- `health_endpoint`: optional. URL, reachable from the router, polled until it
+  returns 2xx before the router responds (e.g.
+  `http://localhost:24680/health` for vLLM, `/v2/health/ready` for OVMS).
+- `manager_url`: optional. Overrides the plugin's configured manager base URL.
+- `management_timeout`: optional. Timeout in seconds for the manager call and for
+  the readiness wait (cold starts can take minutes).
+
+  `health_endpoint`, `manager_url` and `management_timeout` are consumed by the
+  router and stripped before the request is forwarded to the manager.
+
+**Response:**
+
+- 2xx: the manager's record is passed through with its status code:
+
+  ```json
+  {
+      "name": "qwen3-local",
+      "container_name": "ir-provider-qwen3-local",
+      "docker_command": "docker run -d --name ir-provider-qwen3-local --entrypoint vllm …",
+      "status": "started",
+      "container_id": "…",
+      "error": null,
+      "created_at": "2026-10-14T08:00:00+00:00",
+      "state": "running"
+  }
+  ```
+
+- 400 Bad Request: missing or invalid `name`, or no manager URL configured.
+  Nothing is launched.
+- 502 Bad Gateway: the container stopped before `health_endpoint` became ready
+  (it is removed; the body's `provider` holds the manager's record), or the
+  provider manager was unreachable.
+- 504 Gateway Timeout: `health_endpoint` did not become ready within
+  `management_timeout` (the container is removed), or the manager did not respond
+  in time.
+- other non-2xx (passed through): the manager rejected the start (e.g. 500 when
+  `docker run` fails, 409 when the name is already in use).
+
+## Stop Provider (Lifecycle)
+
+Endpoint:
+
+```bash
+DELETE /v1/providers/manage?name={name}
+```
+
+**Example:**
+
+```bash
+curl -X DELETE "http://localhost:8000/v1/providers/manage?name=qwen3-local"
+```
+
+**Description:**
+
+Stops and removes a provider service through the Local Provider Manager:
+forwards `DELETE {manager_url}/providers/{name}` (the manager base URL comes from
+the plugin's `manager_url` setting) and returns the manager's response. The router
+config is **not** touched — disable or delete the provider via
+[Create or Update Provider](#create-or-update-provider) /
+[Delete Provider](#delete-provider) so the router stops routing to it.
+
+**Query Parameters:**
+
+- `name`: **required**. The service to stop.
+
+**Response:**
+
+- 2xx: the manager's response is passed through with its status code.
+- 400 Bad Request: invalid `name`, or no manager URL configured.
+- other non-2xx (passed through): e.g. 404 when the manager has no such service.
+- 502 Bad Gateway / 504 Gateway Timeout: the provider manager was unreachable or
+  did not respond in time.
+
+## List Managed Providers (Lifecycle)
+
+Endpoint:
+
+```bash
+GET /v1/providers/manage
+```
+
+**Example:**
+
+```bash
+curl http://localhost:8000/v1/providers/manage                      # all
+curl "http://localhost:8000/v1/providers/manage?name=qwen3-local"   # one
+```
+
+**Description:**
+
+Read-only proxy of the Local Provider Manager's **live** view of started
+backends. Forwards `GET {manager_url}/providers` (or
+`GET {manager_url}/providers/{name}` with the `?name=` query) and returns the
+manager's response verbatim. Provided by the `provider_management` plugin; the
+manager base URL comes from the plugin's `manager_url` setting.
+
+This differs from [List Providers](#list-providers) (`GET /v1/providers`), which
+reports the router's own configuration: this endpoint reports what is actually
+running at the manager (the recorded `docker run` command and result, plus the
+live container state). It does not read or change router config.
+
+**Query Parameters:**
+
+- `name`: optional. Return the status of a single managed provider instead of the
+  full list.
+
+**Response:**
+
+- 2xx: the manager's response, passed through with its status code — a list of
+  manager records (or a single record when `name` is given).
+- 400 Bad Request: no manager URL configured (no `provider_management` plugin
+  with `manager_url`).
+- 404 Not Found: the manager has no provider with that `name` (passed through).
+- 502 Bad Gateway / 504 Gateway Timeout: the provider manager was unreachable or
+  did not respond in time.
+
+## Load / Unload LoRA Adapter (Lifecycle)
+
+Endpoints:
+
+```bash
+POST /v1/providers/manage/load_lora_adapter
+POST /v1/providers/manage/unload_lora_adapter
+```
+
+**Example:**
+
+```bash
+curl http://localhost:8000/v1/providers/manage/load_lora_adapter \
+  -H "Content-Type: application/json" \
+  -d '{"provider": "qwen3-local", "lora_name": "sql_adapter", "lora_path": "/path/to/sql-lora-adapter"}'
+
+curl http://localhost:8000/v1/providers/manage/unload_lora_adapter \
+  -H "Content-Type: application/json" \
+  -d '{"provider": "qwen3-local", "lora_name": "sql_adapter"}'
+```
+
+**Description:**
+
+Dynamically loads or unloads a LoRA adapter on a running vLLM provider. Provided
+by the `provider_management` plugin, but these calls bypass the Local Provider
+Manager: the plugin strips `provider` from the body and forwards the rest to
+`{endpoint}/v1/load_lora_adapter` (resp. `unload_lora_adapter`) on the provider's
+`settings.endpoint` (a trailing `/v1` is handled), applying the provider's
+configured `settings.auth`. Router config is not changed.
+
+The vLLM server must be started with `VLLM_ALLOW_RUNTIME_LORA_UPDATING=True`
+(e.g. `-e VLLM_ALLOW_RUNTIME_LORA_UPDATING=True` in the start request's
+`docker_args`) and LoRA enabled (`--enable-lora`). vLLM warns this feature is
+only for isolated, fully trusted environments.
+
+**Request Body:**
+
+- `provider`: **required**. Name of a registered `hosted_vllm` provider.
+- `lora_name`: **required**. Adapter name (the `model` to request it by).
+- `lora_path`: **required for load**. Adapter path as seen by the vLLM server.
+- Any other fields are forwarded to vLLM unchanged.
+
+**Response:**
+
+- 2xx: `{"provider": ..., "lora_name": ..., "message": "<vLLM's success text>"}`.
+- 4xx/5xx from vLLM: its error response, passed through with its status code.
+- 400 Bad Request: missing field, or the provider is not a `hosted_vllm` provider.
+- 404 Not Found: no provider with that name.
+- 503 Service Unavailable: the provider has no `settings.endpoint`.
+- 502 Bad Gateway / 504 Gateway Timeout: the vLLM backend was unreachable or did
+  not respond in time.
 
 ## List Plugins
 
@@ -1143,6 +1331,12 @@ A **policy** is a named, ordered list of strategies plus a `criterion` that
 decides how their results are combined during routing. Policies are stored in
 `policy.yaml`; each policy is addressed by its unique `name`.
 
+Classifier routing goes through a strategy whose rule is
+`ModelBasedRule`: without `param` it serves the packaged soft version of the
+default backbone, and switching routing behavior is a `POST` of the same
+strategy or policy with another classifier `version` (see
+[Strategies](#strategies)).
+
 All policy endpoints target `<workspace>/policy.yaml`, which **must already
 exist**: the API reads and edits an operator's workspace copy and never mutates
 the bundled defaults in the source tree. Any request against a missing workspace
@@ -1273,7 +1467,9 @@ response round-trips as a `POST` payload.
 
 **Response:**
 
-- 200 OK: the resulting policy object.
+- 200 OK: the resulting policy object. A classifier version the changed policy
+  needs that cannot be loaded degrades (packaged default, then `-1`) instead of
+  rejecting the change.
 - 400 Bad Request: the body is invalid — e.g. missing or empty `strategies`, an
   invalid `criterion`, an invalid `name`, or a strategy that does not exist in
   `strategy.yaml`; or the workspace `policy.yaml` does not exist.
@@ -1328,6 +1524,28 @@ whether the strategy matches a request, and its `provider_selector` (and
 optional `sort`) pick and rank the providers that can serve it. Strategies are
 stored in strategy.yaml, and policies reference them by name.
 
+`ModelBasedRule` turns a strategy into classifier routing: it scores the last
+user message with a small model and the `provider_selector` maps the returned
+index to providers.
+
+```yaml
+- name: ModelBasedRouting
+  rules:
+    - type: ModelBasedRule        # param optional: {model, version}
+  provider_selector:
+    label: {0: local, 1: cloud}
+```
+
+Without `param`, the rule serves the packaged soft version (`v1`, alias
+`default`) of the default backbone. A soft version's trained data lives in the
+backbone vocabulary -- soft vectors as the embedding rows of new soft tokens,
+class rows as lm_head rows (ids continuing the original vocabulary) -- so the
+router feeds plain token ids and reads the class logits by id. Versions are
+`.rcv` files under `artifacts/router/<model>/`; `POST`ing a strategy with
+another `version` switches to it after validation, and `GET` reports the
+serving version plus `status` (`ok` / `degraded` / `unverified`). Soft
+versions need an FP16/BF16 IR.
+
 All strategy endpoints target `<workspace>/strategy.yaml`, which **must already
 exist**: the API reads and edits an operator's workspace copy and never mutates
 the bundled defaults in the source tree. Any request against a missing workspace
@@ -1356,7 +1574,7 @@ A strategy object has the following structure:
 - `name`: unique identifier. Restricted to letters, digits, `.`, `-`, and `_`.
 - `description`: optional free-text description.
 - `rules`: optional list of `{type, param}` rule entries. `type` must be a
-  built-in rule (see [Built-in Rules](./policy-based-router.md#built-in-rules));
+  built-in rule (see [Built-in Rules](./routing.md#built-in-rules));
   `param` holds that rule's constructor arguments. A strategy with no rules
   always matches.
 - `provider_selector`: **required**. Criteria for selecting providers —
@@ -1385,7 +1603,8 @@ curl http://localhost:8000/v1/strategies
 
 **Description:**
 
-Lists all strategies defined in `strategy.yaml`.
+Lists all strategies defined in `strategy.yaml`. A `ModelBasedRule` carries a
+read-only `prompt_info` (see [Get Strategy](#get-strategy)).
 
 **Response:**
 
@@ -1427,6 +1646,61 @@ curl http://localhost:8000/v1/strategies/Planning
 **Description:**
 
 Returns a single strategy, identified by its unique `name`.
+
+A `ModelBasedRule` in the response carries a read-only `prompt_info` with its
+current classifier status. `prompt_info` is ignored on `POST`, so a `GET`
+result can be edited and posted back. The single-strategy endpoint also
+includes a top-level `classifier_options` catalog with the available models
+and versions; the strategy list omits this catalog to avoid repeating it for
+every strategy.
+
+```json
+{
+    "name": "Triage",
+    "rules": [{
+        "type": "ModelBasedRule",
+        "param": {"model": "qwen35-2b", "version": "v2"},
+        "prompt_info": {
+            "kind": "hard", "status": "ok", "effective": "v2", "reason": null
+        }
+    }],
+    "classifier_options": [{
+        "model": "qwen35-2b",
+        "versions": [
+            {"version": "v1", "kind": "soft"},
+            {
+                "version": "v2",
+                "kind": "hard",
+                "text": "Classify the request. local: simple tasks. cloud: hard tasks."
+            }
+        ]
+    }],
+    "provider_selector": {"label": {"0": "local", "1": "cloud"}},
+    "sort": [],
+    "require_healthy": false,
+    "limit": null
+}
+```
+
+- `kind: "prompt_file"` identifies a multi-class prompt-file rule; its path,
+  labels and threshold remain in the rule's `param`.
+- `status`:
+  - `ok`: the strategy is in the active policy and its version is serving.
+  - `degraded`: the version could not be loaded. `effective` is the version
+    serving in its place (the packaged default), or `null` when the rule
+    matches nothing; `reason` says why.
+  - `unverified`: the strategy is not in the active policy, so its version is
+    not loaded or fully checked yet.
+- `classifier_options`: returned by `GET /v1/strategies/{name}` only and
+  omitted when the strategy has no `ModelBasedRule`. Each model contains its
+  available versions. A hard version includes the original prompt `text`
+  extracted from its `.rcv`, without the answer format appended by the router;
+  a soft version has no `text`. An unreadable version includes `kind: null`
+  and an `error`.
+
+To edit a hard prompt, find the selected model/version's `text` in
+`classifier_options`, replace the rule's `param` with the edited `text`, and
+`POST` the strategy back (see [Create or Update Strategy](#create-or-update-strategy)).
 
 **Response:**
 
@@ -1484,17 +1758,91 @@ response round-trips as a `POST` payload.
 - `provider_selector`: **required**. See the object structure above.
 - `description`, `rules`, `sort`, `require_healthy`, `limit`: optional.
 
+**ModelBasedRule Classifier:**
+
+A strategy may contain at most one `ModelBasedRule`. Its `param` selects the
+classifier in one of these ways (`version`, `text` and `prompt_file` are
+mutually exclusive):
+
+| `param` | Classifier |
+| --- | --- |
+| none, or only `model` | The packaged default version of the backbone |
+| `version` | An existing version: `vN` or `default` |
+| `text` (+ optional `labels`, `threshold`, `note`) | A hard-prompt version packed from `text` |
+| `prompt_file` (+ optional `labels`, `threshold`) | A multi-class prompt file; not a version |
+
+With `text`, the router packs a hard classifier version from your prompt
+text, on the backbone selected by `model`, and stores it as
+`<IR_ARTIFACTS_DIR>/<model>/vN.rcv`. The same text, categories and threshold
+on the same backbone reuse the existing version instead of creating a new one.
+The categories follow the same rules as for `prompt_file`: `labels`, or else
+the values of `provider_selector.label`, which must then be keyed `0..N-1`.
+Describe each category by name; the router appends the answer format. The
+`threshold` defaults to `0.7`, and `note` is recorded in the version.
+`strategy.yaml` stores only `{model, version}`, never the text.
+
+```bash
+curl http://localhost:8000/v1/strategies/Triage \
+  -H "Content-Type: application/json" \
+  -d '{
+    "rules": [{"type": "ModelBasedRule", "param": {
+      "text": "Classify the request. local: simple tasks. cloud: hard tasks.",
+      "threshold": 0.7
+    }}],
+    "provider_selector": {"label": {"0": "local", "1": "cloud"}}
+  }'
+```
+
+The version is checked before anything is written. If the strategy is in the
+active policy, or a new version is packed, the router runs the full backbone
+compatibility check (L1/L2/L3) and a warmup. Otherwise the router checks the
+file format, L1 and L2 with the backbone's tokenizer alone, and runs the full
+check when a policy that uses the strategy is activated.
+
+The response then includes `prompt_result` and `reconcile`:
+
+```json
+{
+    "name": "Triage",
+    "rules": [{"type": "ModelBasedRule", "param": {"model": "qwen35-2b", "version": "v2"}}],
+    "provider_selector": {"label": {"0": "local", "1": "cloud"}},
+    "prompt_result": {
+        "model": "qwen35-2b", "version": "v2", "kind": "hard",
+        "created": true, "active": true, "previous": "v1",
+        "content_hash": "sha256:…",
+        "validation": {"format": "ok", "L1": "ok", "L2": "ok",
+                       "L3_min_cos": 0.99999, "hard_head_min_cos": 0.99999},
+        "warmup_ms": 70.0
+    },
+    "reconcile": {"loaded": ["qwen35-2b/v2"], "released": [], "elapsed_ms": 272.1}
+}
+```
+
+- `created`: whether a new version file was written; `false` when an existing
+  version was reused.
+- `active`: whether the strategy is in the active policy.
+- `previous`: the version the strategy used before, or `null`.
+- `validation` / `warmup_ms`: the check results; `warmup_ms` is `null` when the
+  full check did not run.
+- `reconcile`: classifier versions loaded and released by applying the change.
+
 **Response:**
 
 - 200 OK: the resulting strategy object.
 - 400 Bad Request: the body is invalid — e.g. a missing `provider_selector`, an
-  unknown rule `type`, invalid rule `param`, or an invalid `name`; or the
-  workspace `strategy.yaml` does not exist.
+  unknown rule `type`, invalid rule `param` (including conflicting
+  `ModelBasedRule` fields), or an invalid `name`; or the workspace
+  `strategy.yaml` does not exist.
 
   ```json
   {"detail": "Unknown rule class 'MessageContntRule'"}
   ```
 
+- 404 Not Found: the `ModelBasedRule` names an unknown `model` or a `version`
+  that does not exist.
+- 422 Unprocessable Entity: the classifier cannot be used. For example, no IR
+  is configured for the backbone, or the version fails a compatibility check.
+  Nothing is written.
 - 500 Internal Server Error: failed to persist `strategy.yaml`.
 
 ### Delete Strategy
