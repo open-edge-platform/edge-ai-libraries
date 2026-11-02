@@ -240,6 +240,38 @@ runner `results/20261102/arc-opencl-milestone.sh`, local reports
 `~/.local/share/sift-extractor-staging/arc-compaction-d266f47fcec2f0d8`.
 Manifest SHA256: `d266f47fcec2f0d852662e08c6e4453a2c2e0c28f9975439e9480ca7b8f6603b`.
 
+### Fused Refinement and Split Descriptor Bins
+
+Resident compaction now refines each candidate directly into its stable prefix
+slot, avoiding an intermediate candidate buffer and a separate launch. Detection
+blocks contain 64 mask entries; the prefix scan still uses 256 lanes. The same
+refinement helper and lossless capacity retry are retained. The host-reference
+path still compacts then refines separately. Resident detector profiles report
+zero separate compact time; `refine_device_ms` includes fused compaction.
+
+Descriptors use 32 lanes, two per spatial cell, with four ordered orientation
+bins per lane. Support bounds, sample order, interpolation and lane-zero ordered
+normalization are unchanged. The serial comparison still reports zero maximum
+descriptor-bin error on the 687-case test.
+
+All 10 local tests, profiled focused checks, and Arc's expanded regression and
+30 matrix cases pass, with identical paired quality records. Against `42b60c766`,
+60 pooled samples/build give isolated unlimited VGA 6.386 -> 5.956ms (167.90 FPS)
+and 1080p 18.006 -> 17.479ms (57.21 FPS). VGA remains 0.6% below its 168.875 FPS
+raw target; 1080p exceeds 54.995 FPS. Short probes crossing VGA were not confirmed
+by this longer run. Rotated medians improve for all four configurations:
+VGA unlimited 8.040 -> 7.967ms, VGA500 7.254 -> 7.187ms, 1080p unlimited
+21.162 -> 20.473ms, 1080p500 18.415 -> 17.460ms. Reference quality parity and
+broader-corpus qualification remain outstanding.
+
+Evidence: SIFT workspace `results/20261102/arc-fused-refinement-summary.json`;
+reports `/tmp/sift-arc-fused-refinement-results.RM8J37`; payload
+`/tmp/sift-arc-fused-refinement.2a1cB3`; remote stage
+`~/.local/share/sift-extractor-staging/arc-fused-refinement-b410f3b7012109fd`.
+Manifest SHA256: `b410f3b7012109fda2707b8c9f79de2ae83284d1104d898064be768ab7fa902e`.
+All five returned executable hashes matched the staged binaries. Feature-only
+and all-octave deferred readback probes were reverted after negligible gains.
+
 ### Resident Feature Handoff
 
 Orientation peaks now emit counts for a stable device prefix scan. A packing
