@@ -273,6 +273,19 @@ int main() {
     }
     const auto serial_descriptors = serial_detector.compute_descriptors(
         descriptor_image, descriptor_points);
+    std::vector<sift_extractor::detail::ScaleSpaceKeypoint> orientation_points;
+    for (const auto &point : descriptor_points) orientation_points.push_back(point.keypoint);
+    const auto serial_orientations = serial_detector.assign_orientations(descriptor_image, orientation_points);
+    const auto parallel_orientations = detector.assign_orientations(descriptor_image, orientation_points);
+    if (serial_orientations.size() != parallel_orientations.size()) return 1;
+    for (size_t index = 0; index < serial_orientations.size(); ++index) {
+      if (serial_orientations[index].keypoint.local.x != parallel_orientations[index].keypoint.local.x ||
+          serial_orientations[index].keypoint.local.y != parallel_orientations[index].keypoint.local.y ||
+          serial_orientations[index].orientation_degrees != parallel_orientations[index].orientation_degrees)
+        return 1;
+    }
+    std::printf("Workgroup/serial orientations: %zu inputs, %zu exact oriented records\n",
+                orientation_points.size(), serial_orientations.size());
     const auto parallel_descriptors = detector.compute_descriptors(
         descriptor_image, descriptor_points);
     const auto repeated_descriptors = detector.compute_descriptors(

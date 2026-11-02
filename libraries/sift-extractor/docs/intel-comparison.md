@@ -240,6 +240,47 @@ runner `results/20261102/arc-opencl-milestone.sh`, local reports
 `~/.local/share/sift-extractor-staging/arc-compaction-d266f47fcec2f0d8`.
 Manifest SHA256: `d266f47fcec2f0d852662e08c6e4453a2c2e0c28f9975439e9480ca7b8f6603b`.
 
+### Batched Feature Stages
+
+Extraction now queues all populated levels' orientations, waits once, then queues
+all descriptors and waits once. Per-level retained scratch preserves gradients
+across phases. Host point uploads and output reads are nonblocking inside each
+phase; buffers remain alive through completion, including an error-path queue
+drain. Standalone feature APIs remain synchronous. Output order and response caps
+are unchanged. Orientation uses one lane per bin in a 64-lane group, retaining
+the original accumulation, smoothing and peak-selection order.
+
+All 10 local tests and Arc regression plus 22 timing/profile cases passed.
+687 orientation inputs produced 1,351 exactly equal oriented records versus the
+serial path; descriptor comparisons and full host-path equivalence also passed.
+All matching-quality fields were identical across A/B/B/A. True pooled medians
+(60 samples/build), against `680434e62`:
+
+| Size | Feature Budget | Before (ms) | Batched (ms) | Latency Reduction |
+| --- | --- | --- | --- | --- |
+| 640x480 | Unlimited | 26.403 | 21.715 | 17.8% |
+| 640x480 | 500 | 27.201 | 20.089 | 26.1% |
+| 1920x1080 | Unlimited | 48.890 | 43.683 | 10.7% |
+| 1920x1080 | 500 | 43.393 | 34.749 | 19.9% |
+
+CPU control medians rose materially in the candidate runs (1080p approximately
+247-248ms to 293-294ms). These are observed end-to-end results, not isolated kernel
+speedups. Warm profile calls ranged approximately 37-47ms at 1080p. The reference
+throughput target remains unmet at both sizes.
+
+Memory tradeoff: feature scratch retained 67,806,192 bytes (64.7 MiB) for the
+1080p fixture, in addition to the pyramid and detector buffers. Scratch keeps its
+high-water capacity until extractor destruction. `OPENCL_BATCH_FEATURE_PROFILE`
+reports aggregate device-event time and scratch capacity after each phase completes.
+Standalone calls retain `OPENCL_FEATURE_PROFILE` reporting. These profiles are
+separate from acceptance timing runs; phase wall times include transfers and host work.
+
+Evidence: SIFT workspace `results/20261102/arc-batched-features-summary.json`;
+reports `/tmp/sift-arc-batched-features-results.Dzhul3/milestone-results`;
+remote `~/.local/share/sift-extractor-staging/arc-batched-features-7381155db578d71b`.
+Manifest SHA256: `7381155db578d71b7fe54108a88723a784255e36c1f320dda092c8fb86ad9d17`.
+All five returned manifest executable hashes matched the staged binaries.
+
 ### Bin-Owned Descriptors
 
 The parallel descriptor kernel now assigns one lane to each of 128 bins. Each lane

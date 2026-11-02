@@ -211,15 +211,48 @@ __kernel void sift_orientations(__global const float *magnitude,
                                 __global const float *points,
                                 __global float *output,
                                 const int width, const int height) {
+  #if SIFT_DESCRIPTOR_LANES > 1
+  const int index = (int)get_group_id(0);
+  const int lane = (int)get_local_id(0);
+  __local float hist[36];
+  #else
   const int index = (int)get_global_id(0);
+  const int lane = 0;
+  float hist[36];
+  #endif
   const float cx = points[index * 4];
   const float cy = points[index * 4 + 1];
   const float sigma = 1.5f * points[index * 4 + 2];
   const int radius = min((int)ceil(3.0f * sigma), max(width, height));
   const int center_x = (int)floor(cx + 0.5f);
   const int center_y = (int)floor(cy + 0.5f);
-  float hist[36];
   float smoothed[36];
+  #if SIFT_DESCRIPTOR_LANES > 1
+  if (lane < 36) {
+    float sum = 0.0f;
+    for (int dy = max(-radius, 1 - center_y);
+         dy <= min(radius, height - 2 - center_y); ++dy) {
+      for (int dx = max(-radius, 1 - center_x);
+           dx <= min(radius, width - 2 - center_x); ++dx) {
+        const int x = center_x + dx;
+        const int y = center_y + dy;
+        float angle = gradient_orientation[y * width + x] *
+          (18.0f / 3.14159265358979323846f);
+        if (angle < 0.0f) angle += 36.0f;
+        const int lower = (int)floor(angle);
+        if (lower % 36 != lane && (lower + 1) % 36 != lane) continue;
+        const float fraction = angle - (float)lower;
+        const float rx = (float)x - cx;
+        const float ry = (float)y - cy;
+        const float weight = exp(-(rx * rx + ry * ry) / (2.0f * sigma * sigma));
+        const float weighted_magnitude = magnitude[y * width + x] * weight;
+        sum += weighted_magnitude * (lower % 36 == lane ? 1.0f - fraction : fraction);
+      }
+    }
+    hist[lane] = sum;
+  }
+  barrier(CLK_LOCAL_MEM_FENCE);
+  #else
   for (int bin = 0; bin < 36; ++bin)
     hist[bin] = 0.0f;
   for (int dy = max(-radius, 1 - center_y);
@@ -241,6 +274,8 @@ __kernel void sift_orientations(__global const float *magnitude,
       hist[(lower + 1) % 36] += weighted_magnitude * fraction;
     }
   }
+  #endif
+  if (lane == 0) {
   for (int pass = 0; pass < 6; ++pass) {
     for (int bin = 0; bin < 36; ++bin)
       smoothed[bin] = (hist[(bin + 35) % 36] + hist[bin] +
@@ -260,6 +295,7 @@ __kernel void sift_orientations(__global const float *magnitude,
                             0.5f * (left - right) / denominator : 0.0f;
       output[index * 36 + bin] = fmod(((float)bin + offset + 36.0f) * 10.0f, 360.0f);
     }
+  }
   }
 }
 
@@ -438,6 +474,16 @@ struct OpenCLDoGExtrema::Impl {
     cl_mem memory = nullptr;
     size_t capacity = 0;
   };
+  struct FeatureScratch {
+    Buffer magnitude, orientation, points, output;
+    cl_event event = nullptr;
+    ~FeatureScratch() {
+      for (auto *buffer : {&magnitude, &orientation, &points, &output})
+        if (buffer->memory) clReleaseMemObject(buffer->memory);
+      if (event) clReleaseEvent(event);
+    }
+  };
+  std::vector<std::unique_ptr<FeatureScratch>> feature_scratch;
 
   cl_context context = nullptr;
   cl_command_queue queue = nullptr;
@@ -455,6 +501,7 @@ struct OpenCLDoGExtrema::Impl {
   cl_kernel orientation_kernel = nullptr;
   cl_kernel descriptor_kernel = nullptr;
   size_t descriptor_lanes = 128;
+  size_t orientation_lanes = 64;
   bool profile_features = false;
   Buffer feature_image;
   Buffer feature_points;
@@ -497,13 +544,14 @@ struct OpenCLDoGExtrema::Impl {
     return *slot;
   }
 
-    void prepare_gradients(const GaussianLevel &level, cl_mem device_image) {
+    void prepare_gradients(const GaussianLevel &level, cl_mem device_image,
+                 FeatureScratch *scratch = nullptr) {
     const size_t image_bytes = static_cast<size_t>(level.width) * level.height * sizeof(float);
     cl_mem image_buffer = device_image ? device_image :
       ensure_buffer(feature_image, CL_MEM_READ_ONLY, image_bytes);
-    cl_mem magnitude_buffer = ensure_buffer(gradient_magnitude,
+    cl_mem magnitude_buffer = ensure_buffer(scratch ? scratch->magnitude : gradient_magnitude,
       CL_MEM_READ_WRITE, image_bytes);
-    cl_mem orientation_buffer = ensure_buffer(gradient_orientation,
+    cl_mem orientation_buffer = ensure_buffer(scratch ? scratch->orientation : gradient_orientation,
       CL_MEM_READ_WRITE, image_bytes);
     if (!gradient_kernel) {
       cl_int status = CL_SUCCESS;
@@ -541,9 +589,33 @@ struct OpenCLDoGExtrema::Impl {
     return *pyramid;
   }
 
+  void report_feature_profile(const char *name) {
+    if (!profile_features) return;
+    double device_ms = 0.0;
+    size_t groups = 0, scratch_bytes = 0;
+    for (auto &scratch : feature_scratch) {
+      if (!scratch) continue;
+      scratch_bytes += scratch->magnitude.capacity + scratch->orientation.capacity +
+        scratch->points.capacity + scratch->output.capacity;
+      if (!scratch->event) continue;
+      cl_ulong start = 0, end = 0;
+      check_opencl(clGetEventProfilingInfo(scratch->event, CL_PROFILING_COMMAND_START,
+        sizeof(start), &start, nullptr), "profile batch start");
+      check_opencl(clGetEventProfilingInfo(scratch->event, CL_PROFILING_COMMAND_END,
+        sizeof(end), &end, nullptr), "profile batch end");
+      device_ms += static_cast<double>(end - start) * 1.0e-6;
+      ++groups;
+      clReleaseEvent(scratch->event);
+      scratch->event = nullptr;
+    }
+    std::fprintf(stderr, "OPENCL_BATCH_FEATURE_PROFILE kernel=%s groups=%zu device_ms=%.3f scratch_bytes=%zu\n",
+      name, groups, device_ms, scratch_bytes);
+  }
+
   std::vector<float> run_feature_kernel(const char *name,
       const GaussianLevel &level, const std::vector<float> &points,
-      size_t output_stride, cl_mem device_image = nullptr) {
+      size_t output_stride, cl_mem device_image = nullptr,
+      FeatureScratch *scratch = nullptr) {
     const auto feature_start = std::chrono::steady_clock::now();
     const bool profiling = profile_features;
     struct ProfileEvent {
@@ -563,25 +635,26 @@ struct OpenCLDoGExtrema::Impl {
       throw std::overflow_error("Too many feature points");
     cl_int status = CL_SUCCESS;
     cl_kernel feature_kernel = get_feature_kernel(name);
-    const bool reusable_gradients =
-      std::string(name) == "sift_descriptors" && gradients_ready &&
+    const bool reusable_gradients = std::string(name) == "sift_descriptors" &&
+      (scratch || (gradients_ready &&
       cached_gradient_width == level.width &&
       cached_gradient_height == level.height &&
       cached_gradient_device == device_image &&
-      (device_image || cached_gradient_pixels == level.pixels);
+      (device_image || cached_gradient_pixels == level.pixels)));
     if (!reusable_gradients)
-      prepare_gradients(level, device_image);
+      prepare_gradients(level, device_image, scratch);
     const size_t image_bytes = static_cast<size_t>(level.width) * level.height * sizeof(float);
-    cl_mem magnitude_buffer = ensure_buffer(gradient_magnitude,
+    cl_mem magnitude_buffer = ensure_buffer(scratch ? scratch->magnitude : gradient_magnitude,
       CL_MEM_READ_WRITE, image_bytes);
-    cl_mem orientation_buffer = ensure_buffer(gradient_orientation,
+    cl_mem orientation_buffer = ensure_buffer(scratch ? scratch->orientation : gradient_orientation,
       CL_MEM_READ_WRITE, image_bytes);
-    cl_mem points_buffer = ensure_buffer(feature_points, CL_MEM_READ_ONLY,
+    cl_mem points_buffer = ensure_buffer(scratch ? scratch->points : feature_points, CL_MEM_READ_ONLY,
                         points.size() * sizeof(float));
     std::vector<float> output(count * output_stride);
-    cl_mem output_buffer = ensure_buffer(feature_output, CL_MEM_WRITE_ONLY,
+    cl_mem output_buffer = ensure_buffer(scratch ? scratch->output : feature_output, CL_MEM_WRITE_ONLY,
                         output.size() * sizeof(float));
-    check_opencl(clEnqueueWriteBuffer(queue, points_buffer, CL_TRUE, 0,
+    try {
+    check_opencl(clEnqueueWriteBuffer(queue, points_buffer, CL_FALSE, 0,
       points.size() * sizeof(float), points.data(), 0, nullptr, nullptr),
       "clEnqueueWriteBuffer(feature points)");
     const auto points_ready = std::chrono::steady_clock::now();
@@ -592,13 +665,18 @@ struct OpenCLDoGExtrema::Impl {
     check_opencl(clSetKernelArg(feature_kernel, 4, sizeof(int), &level.width), "feature width arg");
     check_opencl(clSetKernelArg(feature_kernel, 5, sizeof(int), &level.height), "feature height arg");
     const bool descriptors = std::string(name) == "sift_descriptors";
-    const size_t global_size = count * (descriptors ? descriptor_lanes : 1);
+    const size_t local_size = descriptors ? descriptor_lanes : orientation_lanes;
+    const size_t global_size = count * local_size;
+    if (scratch && scratch->event) {
+      clReleaseEvent(scratch->event);
+      scratch->event = nullptr;
+    }
     check_opencl(clEnqueueNDRangeKernel(queue, feature_kernel, 1, nullptr,
-      &global_size, descriptors ? &descriptor_lanes : nullptr, 0, nullptr,
-      profiling ? &feature_event.value : nullptr), "feature kernel launch");
-    check_opencl(clEnqueueReadBuffer(queue, output_buffer, CL_TRUE, 0,
+      &global_size, &local_size, 0, nullptr,
+      profiling ? (scratch ? &scratch->event : &feature_event.value) : nullptr), "feature kernel launch");
+    check_opencl(clEnqueueReadBuffer(queue, output_buffer, scratch ? CL_FALSE : CL_TRUE, 0,
         output.size() * sizeof(float), output.data(), 0, nullptr, nullptr), "feature readback");
-    if (profiling) {
+    if (profiling && !scratch) {
       cl_ulong start = 0, end = 0;
       check_opencl(clGetEventProfilingInfo(feature_event.value, CL_PROFILING_COMMAND_START,
         sizeof(start), &start, nullptr), "profile feature start");
@@ -612,6 +690,10 @@ struct OpenCLDoGExtrema::Impl {
     if (std::string(name) == "sift_descriptors")
       gradients_ready = false;
     return output;
+    } catch (...) {
+      clFinish(queue);
+      throw;
+    }
   }
 
   std::vector<RefinedKeypoint> detect_refine(const DoGLevel *levels,
@@ -736,6 +818,7 @@ struct OpenCLDoGExtrema::Impl {
 
   explicit Impl(bool serial_descriptors) {
     descriptor_lanes = serial_descriptors ? 1 : 128;
+    orientation_lanes = serial_descriptors ? 1 : 64;
     profile_features = std::getenv("SIFT_OPENCL_PROFILE") != nullptr;
     cl_int status = CL_SUCCESS;
     const cl_device_id device = select_intel_gpu();
@@ -1227,22 +1310,60 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
   double orientation_ms = 0.0;
   double descriptor_ms = 0.0;
   size_t feature_groups = 0;
-  for (size_t group = 0; group < groups.size(); ++group) {
-    if (groups[group].empty()) continue;
-    const auto orientation_start = std::chrono::steady_clock::now();
-    const auto oriented = assign_orientations_impl(gaussian[group], groups[group],
-                             levels.device_gaussian[group]);
+  std::vector<std::vector<float>> packed(groups.size()), angles(groups.size()), descriptors(groups.size());
+  std::vector<std::vector<OrientedKeypoint>> oriented_groups(groups.size());
+  if (impl_->feature_scratch.size() < groups.size())
+    impl_->feature_scratch.resize(groups.size());
+  const auto orientation_start = std::chrono::steady_clock::now();
+  try {
+    for (size_t group = 0; group < groups.size(); ++group) {
+      if (groups[group].empty()) continue;
+      ++feature_groups;
+      if (!impl_->feature_scratch[group])
+        impl_->feature_scratch[group] = std::make_unique<Impl::FeatureScratch>();
+      for (const auto &point : groups[group])
+        packed[group].insert(packed[group].end(),
+          {point.local.x, point.local.y, point.octave_sigma, 0.0f});
+      angles[group] = impl_->run_feature_kernel("sift_orientations", gaussian[group],
+        packed[group], 36, levels.device_gaussian[group], impl_->feature_scratch[group].get());
+    }
+    check_opencl(clFinish(impl_->queue), "batched orientation completion");
+    impl_->report_feature_profile("sift_orientations");
     const auto descriptor_start = std::chrono::steady_clock::now();
-    auto features = compute_descriptors_impl(gaussian[group], oriented,
-                          levels.device_gaussian[group]);
-    const auto group_end = std::chrono::steady_clock::now();
-    orientation_ms += std::chrono::duration<double, std::milli>(
-        descriptor_start - orientation_start).count();
-    descriptor_ms += std::chrono::duration<double, std::milli>(
-        group_end - descriptor_start).count();
-    ++feature_groups;
-    result.insert(result.end(), features.begin(), features.end());
+    orientation_ms = std::chrono::duration<double, std::milli>(descriptor_start - orientation_start).count();
+    for (size_t group = 0; group < groups.size(); ++group) {
+      packed[group].clear();
+      for (size_t index = 0; index < groups[group].size(); ++index) {
+        const auto &point = groups[group][index];
+        for (size_t bin = 0; bin < 36; ++bin) {
+          const float angle = angles[group][index * 36 + bin];
+          if (!(angle >= 0.0f)) continue;
+          oriented_groups[group].push_back({point, angle});
+          packed[group].insert(packed[group].end(),
+            {point.local.x, point.local.y, point.octave_sigma, angle});
+        }
+      }
+      if (oriented_groups[group].empty()) continue;
+      descriptors[group] = impl_->run_feature_kernel("sift_descriptors", gaussian[group],
+        packed[group], 128, levels.device_gaussian[group], impl_->feature_scratch[group].get());
+    }
+    check_opencl(clFinish(impl_->queue), "batched descriptor completion");
+    impl_->report_feature_profile("sift_descriptors");
+    for (size_t group = 0; group < groups.size(); ++group) {
+      for (size_t index = 0; index < oriented_groups[group].size(); ++index) {
+        SiftFeature feature;
+        feature.point = oriented_groups[group][index];
+        std::copy_n(descriptors[group].begin() + index * 128, 128, feature.descriptor.begin());
+        result.push_back(feature);
+      }
+    }
+    descriptor_ms = std::chrono::duration<double, std::milli>(
+      std::chrono::steady_clock::now() - descriptor_start).count();
+  } catch (...) {
+    clFinish(impl_->queue);
+    throw;
   }
+  impl_->gradients_ready = false;
   if (max_features > 0 && result.size() > static_cast<size_t>(max_features)) {
     std::stable_sort(result.begin(), result.end(), [](const auto &first,
                                                       const auto &second) {
