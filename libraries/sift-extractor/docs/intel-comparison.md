@@ -240,6 +240,34 @@ runner `results/20261102/arc-opencl-milestone.sh`, local reports
 `~/.local/share/sift-extractor-staging/arc-compaction-d266f47fcec2f0d8`.
 Manifest SHA256: `d266f47fcec2f0d852662e08c6e4453a2c2e0c28f9975439e9480ca7b8f6603b`.
 
+### Mapped Pyramid Input
+
+Pyramid input now uses a dedicated retained `CL_MEM_ALLOC_HOST_PTR` buffer,
+mapped with write invalidation, filled on the host and unmapped before GPU use.
+Standalone primitives remain unchanged. Exact pyramid and feature regressions,
+all 10 local tests and Arc's 22 timing/profile cases pass; all matching-quality
+records are identical. Paired pooled medians (60 samples/build), against `fe1e9b7f1`:
+
+| Size | Feature Budget | Before (ms) | Mapped (ms) | Latency Reduction |
+| --- | --- | --- | --- | --- |
+| 640x480 | Unlimited | 10.632 | 10.510 | 1.2% |
+| 640x480 | 500 | 10.693 | 10.188 | 4.7% |
+| 1920x1080 | Unlimited | 32.909 | 30.717 | 6.7% |
+| 1920x1080 | 500 | 25.705 | 25.106 | 2.3% |
+
+Optional `OPENCL_PYRAMID_PROFILE` now reports convolution device-event totals and
+upload/submission/completion wall times. They overlap and must not be added as
+independent costs. Warm 1080p upload probes fell from roughly 1-2.3ms to 0.6-1ms.
+Fixed-radius Gaussian specialization showed no clear gain and was reverted.
+Arc's advertised extensions do not include `cl_khr_command_buffer`; no system or
+driver changes were made. Throughput targets remain unmet.
+
+Evidence: SIFT workspace `results/20261102/arc-mapped-input-summary.json`; reports
+`/tmp/sift-arc-mapped-input-results.hnp7qT/milestone-results`; remote stage
+`~/.local/share/sift-extractor-staging/arc-mapped-input-24708e44bd776bf0`.
+Manifest SHA256: `24708e44bd776bf05756c1f9c69de57e967a88d4e4c15e85089bfe93d99b94c9`.
+All five returned executable hashes matched the staged binaries.
+
 ### Batched Detection Phases
 
 Resident detection now retains scratch for each octave and performs two phases:

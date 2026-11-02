@@ -7,7 +7,9 @@
 #include <CL/cl_ext.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <cstdio>
 #include <limits>
 #include <stdexcept>
 #include <string>
@@ -166,6 +168,7 @@ struct OpenCLGaussianBlur::Impl {
   cl_device_id device = nullptr;
   cl_context context = nullptr;
   cl_command_queue queue = nullptr;
+  bool profiling = false;
   cl_program program = nullptr;
   cl_kernel horizontal = nullptr;
   cl_kernel vertical = nullptr;
@@ -173,6 +176,7 @@ struct OpenCLGaussianBlur::Impl {
   cl_kernel dog = nullptr;
   cl_kernel downsample = nullptr;
   Buffer input;
+  Buffer pyramid_input;
   Buffer second_input;
   Buffer temporary;
   Buffer output;
@@ -216,6 +220,7 @@ struct OpenCLGaussianBlur::Impl {
           sizeof(properties), &properties, nullptr), "clGetCommandQueueInfo(properties)");
       if (properties & CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE)
         throw std::invalid_argument("Gaussian stages require an in-order queue");
+      profiling = (properties & CL_QUEUE_PROFILING_ENABLE) != 0;
       check_opencl(clGetCommandQueueInfo(shared_queue, CL_QUEUE_DEVICE,
           sizeof(device), &device, nullptr), "clGetCommandQueueInfo(device)");
       check_opencl(clGetCommandQueueInfo(shared_queue, CL_QUEUE_CONTEXT,
@@ -344,6 +349,8 @@ struct OpenCLGaussianBlur::Impl {
       clReleaseMemObject(second_input.memory);
     if (input.memory)
       clReleaseMemObject(input.memory);
+    if (pyramid_input.memory)
+      clReleaseMemObject(pyramid_input.memory);
     if (downsample)
       clReleaseKernel(downsample);
     if (dog)
@@ -568,7 +575,8 @@ void OpenCLGaussianBlur::build_pyramid(
   std::vector<_cl_mem *> *device_differences,
   std::vector<_cl_mem *> *device_gaussian) {
   const size_t image_bytes = image.size() * sizeof(float);
-  cl_mem input = impl_->ensure_buffer(impl_->input, CL_MEM_READ_ONLY, image_bytes);
+  cl_mem input = impl_->ensure_buffer(impl_->pyramid_input,
+    CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR, image_bytes);
   cl_mem temporary = impl_->ensure_buffer(impl_->temporary, CL_MEM_READ_WRITE,
                                          image_bytes);
   impl_->gaussian_levels.resize(std::max(impl_->gaussian_levels.size(), gaussian.size()));
@@ -604,9 +612,25 @@ void OpenCLGaussianBlur::build_pyramid(
     if (device_differences) (*device_differences)[index] = memory;
   }
 
+  struct ConvolutionProfile {
+    std::vector<std::pair<int, cl_event>> events;
+    ~ConvolutionProfile() {
+      for (const auto &entry : events)
+        if (entry.second) clReleaseEvent(entry.second);
+    }
+  } profile;
+  void *mapped_input = nullptr;
   try {
-    impl_->write_buffer(input, image.data(), image_bytes,
-                        "clEnqueueWriteBuffer(pyramid input)");
+    const auto upload_start = std::chrono::steady_clock::now();
+    cl_int map_status = CL_SUCCESS;
+    mapped_input = clEnqueueMapBuffer(impl_->queue, input, CL_TRUE,
+      CL_MAP_WRITE_INVALIDATE_REGION, 0, image_bytes, 0, nullptr, nullptr, &map_status);
+    check_opencl(map_status, "clEnqueueMapBuffer(pyramid input)");
+    std::copy(image.begin(), image.end(), static_cast<float *>(mapped_input));
+    check_opencl(clEnqueueUnmapMemObject(impl_->queue, input, mapped_input,
+      0, nullptr, nullptr), "clEnqueueUnmapMemObject(pyramid input)");
+    mapped_input = nullptr;
+    const auto upload_end = std::chrono::steady_clock::now();
     const size_t levels_per_octave = static_cast<size_t>(intervals + 3);
     for (size_t index = 0; index < gaussian.size(); ++index) {
       const auto &level = gaussian[index];
@@ -654,8 +678,13 @@ void OpenCLGaussianBlur::build_pyramid(
           check_opencl(clSetKernelArg(kernel, 3, sizeof(int), &level.width), "pyramid blur width");
           check_opencl(clSetKernelArg(kernel, 4, sizeof(int), &level.height), "pyramid blur height");
           check_opencl(clSetKernelArg(kernel, 5, sizeof(radius), &radius), "pyramid blur radius");
+          cl_event *event = nullptr;
+          if (impl_->profiling) {
+            profile.events.emplace_back(pass, nullptr);
+            event = &profile.events.back().second;
+          }
           check_opencl(clEnqueueNDRangeKernel(impl_->queue, kernel, 2, nullptr,
-              global_size, nullptr, 0, nullptr, nullptr), "pyramid blur launch");
+              global_size, nullptr, 0, nullptr, event), "pyramid blur launch");
         }
       }
       if (level.scale > 0 && !fused_difference) {
@@ -685,8 +714,28 @@ void OpenCLGaussianBlur::build_pyramid(
           CL_FALSE, 0, pixels.size() * sizeof(float), pixels.data(), 0, nullptr, nullptr),
           "clEnqueueReadBuffer(pyramid DoG)");
     }
+    const auto submit_end = std::chrono::steady_clock::now();
     check_opencl(clFinish(impl_->queue), "clFinish(pyramid)");
+    const auto finish_end = std::chrono::steady_clock::now();
+    if (impl_->profiling) {
+      double horizontal_ms = 0.0, vertical_ms = 0.0;
+      for (const auto &entry : profile.events) {
+        cl_ulong start = 0, end = 0;
+        check_opencl(clGetEventProfilingInfo(entry.second, CL_PROFILING_COMMAND_START,
+          sizeof(start), &start, nullptr), "profile convolution start");
+        check_opencl(clGetEventProfilingInfo(entry.second, CL_PROFILING_COMMAND_END,
+          sizeof(end), &end, nullptr), "profile convolution end");
+        (entry.first == 0 ? horizontal_ms : vertical_ms) += static_cast<double>(end - start) * 1.0e-6;
+      }
+      std::fprintf(stderr, "OPENCL_PYRAMID_PROFILE convolutions=%zu horizontal_device_ms=%.3f vertical_device_ms=%.3f input_upload_ms=%.3f submit_ms=%.3f finish_ms=%.3f\n",
+        profile.events.size(), horizontal_ms, vertical_ms,
+        std::chrono::duration<double, std::milli>(upload_end - upload_start).count(),
+        std::chrono::duration<double, std::milli>(submit_end - upload_end).count(),
+        std::chrono::duration<double, std::milli>(finish_end - submit_end).count());
+    }
   } catch (...) {
+    if (mapped_input)
+      clEnqueueUnmapMemObject(impl_->queue, input, mapped_input, 0, nullptr, nullptr);
     clFinish(impl_->queue);
     throw;
   }
