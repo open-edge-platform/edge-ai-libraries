@@ -13,13 +13,12 @@ Every configurable key is declared once in :data:`SPECS`. The pytest
 :func:`resolve_settings`, so the two entry points cannot drift apart.
 
 The YAML layer can also be a result artefact (its JSON file or run
-directory): its recorded ``config.values`` are then replayed.
+directory): its recorded ``config.values`` are then used as that layer.
 
 This module has no import-time side effects and does not touch the network.
 """
 
 import difflib
-import hashlib
 import json
 import math
 import os
@@ -32,12 +31,7 @@ from urllib.parse import urlparse
 
 import yaml
 
-from .reporters import (
-    MAX_RESULT_JSON_BYTES,
-    ReportInputError,
-    resolve_result_json,
-    validate_result,
-)
+from .reporters import MAX_RESULT_JSON_BYTES, ReportInputError, resolve_result_json
 
 PERF_DIR: Path = Path(__file__).resolve().parents[1]
 CONFIG_DIR: Path = PERF_DIR / "config"
@@ -47,10 +41,9 @@ DEFAULT_PRESET: str = "default"
 # wins over PERF_CONFIG (a preset name or a path).
 ENV_CONFIG_FILE: str = "PERF_CONFIG_FILE"
 ENV_CONFIG: str = "PERF_CONFIG"
-# Set by the CLI for its pytest subprocess: JSON with the CLI's --config,
-# setting overrides and --allow-matrix-drift (see read_cli_layer).
+# Set by the CLI for its pytest subprocess: JSON with the CLI's --config and
+# setting overrides (see read_cli_layer).
 ENV_CLI_LAYER: str = "PERF_CLI_LAYER"
-ENV_ALLOW_MATRIX_DRIFT: str = "PERF_ALLOW_MATRIX_DRIFT"
 _MAX_CLI_LAYER_CHARS = 64 * 1024
 
 _PRESET_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
@@ -505,15 +498,6 @@ SPECS_BY_KEY: dict[str, SettingSpec] = {spec.key: spec for spec in SPECS}
 
 
 @dataclass(frozen=True)
-class Recording:
-    """The result artefact a replay was loaded from."""
-
-    benchmark_id: str
-    sha256: str
-    config: Mapping[str, Any]
-
-
-@dataclass(frozen=True)
 class ResolvedSettings:
     """Effective settings plus where each value came from."""
 
@@ -522,12 +506,23 @@ class ResolvedSettings:
     config_path: Path
     config_selector: str
     config_origin: str
-    config_sha256: str
-    recording: Recording | None
-    allow_matrix_drift: bool
 
     def __getitem__(self, key: str) -> Any:
         return self.values[key]
+
+    def to_nested(self) -> dict[str, Any]:
+        """Return values as a nested dict with the YAML file layout."""
+        nested: dict[str, Any] = {}
+        for key, value in self.values.items():
+            node = nested
+            *parents, leaf = key.split(".")
+            for part in parents:
+                node = node.setdefault(part, {})
+            node[leaf] = value
+        return nested
+
+    def to_yaml(self) -> str:
+        return yaml.safe_dump(self.to_nested(), sort_keys=False)
 
 
 def _available_presets() -> list[str]:
@@ -566,8 +561,8 @@ def resolve_config_path(
             return resolve_result_json(path)
         except ReportInputError as exc:
             raise SettingsError(
-                f"cannot replay {text} (given via {origin}): {exc}. To fix: pass "
-                "the result JSON or run directory of a benchmark run."
+                f"cannot use {text} as config (given via {origin}): {exc}. To fix: "
+                "pass the result JSON or run directory of a benchmark run."
             ) from exc
     if not path.is_file():
         raise SettingsError(
@@ -577,7 +572,7 @@ def resolve_config_path(
     return path
 
 
-def select_config_source(
+def select_config(
     config: str | os.PathLike[str] | None, env: Mapping[str, str]
 ) -> tuple[Path, str, str]:
     """Pick the config: explicit arg > PERF_CONFIG_FILE > PERF_CONFIG > default.
@@ -595,6 +590,13 @@ def select_config_source(
     return resolve_config_path(selector, origin), selector, origin
 
 
+def select_config_source(
+    config: str | os.PathLike[str] | None, env: Mapping[str, str]
+) -> Path:
+    """Like :func:`select_config`, returning only the path."""
+    return select_config(config, env)[0]
+
+
 def _flatten(data: Mapping[str, Any], prefix: str = "") -> dict[str, Any]:
     flat: dict[str, Any] = {}
     for name, value in data.items():
@@ -606,8 +608,8 @@ def _flatten(data: Mapping[str, Any], prefix: str = "") -> dict[str, Any]:
     return flat
 
 
-def _read_config(path: Path) -> tuple[bytes, str]:
-    """Read *path* once; return its bytes and their sha256."""
+def _read_config(path: Path) -> bytes:
+    """Read *path* once, within the size limit."""
     try:
         with path.open("rb") as handle:
             raw = handle.read(MAX_RESULT_JSON_BYTES + 1)
@@ -620,7 +622,7 @@ def _read_config(path: Path) -> tuple[bytes, str]:
             f"config {path} exceeds the {MAX_RESULT_JSON_BYTES}-byte size limit. "
             "To fix: pass a YAML config or a benchmark result JSON."
         )
-    return raw, hashlib.sha256(raw).hexdigest()
+    return raw
 
 
 def _parse_yaml(raw: bytes, path: Path) -> dict[str, Any]:
@@ -660,27 +662,37 @@ def _parse_yaml(raw: bytes, path: Path) -> dict[str, Any]:
     return flat
 
 
-def _parse_recording(raw: bytes, path: Path, sha256: str) -> Recording:
-    """Validate a result artefact for replay; its settings must match SPECS."""
+def _parse_result_values(raw: bytes, path: Path) -> dict[str, Any]:
+    """Return the ``config.values`` recorded in a result JSON.
+
+    The recorded keys must match :data:`SPECS` exactly, so a result written
+    by a different suite version is refused instead of half-applied.
+    """
     try:
         data = json.loads(raw)
-        validate_result(data, path)
-    except (UnicodeDecodeError, json.JSONDecodeError, ReportInputError) as exc:
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise SettingsError(
-            f"cannot replay {path}: {exc}. To fix: pass a result JSON written by "
-            "a benchmark run."
+            f"cannot read result {path}: {exc}. To fix: pass a result JSON "
+            "written by a benchmark run."
         ) from exc
-    recorded = set(data["config"]["values"])
-    missing = sorted(set(SPECS_BY_KEY) - recorded)
-    unknown = sorted(recorded - set(SPECS_BY_KEY))
+    config = data.get("config") if isinstance(data, dict) else None
+    values = config.get("values") if isinstance(config, dict) else None
+    if not isinstance(values, dict):
+        raise SettingsError(
+            f"result {path} has no config.values (results written before the "
+            "config block existed cannot be reused). To fix: pass a result "
+            "from a newer run, or a YAML config."
+        )
+    missing = sorted(set(SPECS_BY_KEY) - set(values))
+    unknown = sorted(set(values) - set(SPECS_BY_KEY))
     if missing or unknown:
         raise SettingsError(
-            f"cannot replay {path}: it was written by a different suite version "
-            f"(missing settings: {missing}, unknown settings: {unknown}). To fix: "
-            "replay it with the suite version that wrote it, or put its settings "
+            f"result {path} was written by a different suite version "
+            f"(missing settings: {missing}, unknown settings: {unknown}). To "
+            "fix: use the suite version that wrote it, or put its settings "
             "into a YAML config."
         )
-    return Recording(data["benchmark_id"], sha256, data["config"])
+    return values
 
 
 def read_cli_layer(env: Mapping[str, str]) -> dict[str, Any]:
@@ -694,28 +706,22 @@ def read_cli_layer(env: Mapping[str, str]) -> dict[str, Any]:
         layer = None
     if not (
         isinstance(layer, dict)
-        and set(layer) == {"config", "overrides", "allow_matrix_drift"}
+        and set(layer) == {"config", "overrides"}
         and isinstance(layer["config"], (str, type(None)))
         and isinstance(layer["overrides"], dict)
         and set(layer["overrides"]) <= set(SPECS_BY_KEY)
-        and isinstance(layer["allow_matrix_drift"], bool)
     ):
         raise SettingsError(
             f"env {ENV_CLI_LAYER} is not a valid CLI layer. To fix: unset it; "
             "perf_helpers.cli sets it for its own pytest run."
         )
-    return {
-        "config": layer["config"],
-        "cli_overrides": layer["overrides"],
-        "allow_matrix_drift": layer["allow_matrix_drift"],
-    }
+    return {"config": layer["config"], "cli_overrides": layer["overrides"]}
 
 
 def resolve_settings(
     config: str | os.PathLike[str] | None = None,
     env: Mapping[str, str] | None = None,
     cli_overrides: Mapping[str, Any] | None = None,
-    allow_matrix_drift: bool = False,
 ) -> ResolvedSettings:
     """Compose defaults -> YAML -> env -> CLI and validate every value.
 
@@ -726,12 +732,10 @@ def resolve_settings(
     env = os.environ if env is None else env
     cli_overrides = cli_overrides or {}
 
-    config_path, selector, config_origin = select_config_source(config, env)
-    raw, sha256 = _read_config(config_path)
-    recording = None
+    config_path, selector, config_origin = select_config(config, env)
+    raw = _read_config(config_path)
     if config_path.suffix.lower() == ".json":
-        recording = _parse_recording(raw, config_path, sha256)
-        yaml_values = dict(recording.config["values"])
+        yaml_values = _parse_result_values(raw, config_path)
     else:
         yaml_values = _parse_yaml(raw, config_path)
 
@@ -769,30 +773,12 @@ def resolve_settings(
 
     _derive_metrics_defaults_from_base_url(values, sources, config_path)
 
-    if not allow_matrix_drift and env.get(ENV_ALLOW_MATRIX_DRIFT):
-        try:
-            allow_matrix_drift = _as_bool(env[ENV_ALLOW_MATRIX_DRIFT])
-        except SettingsError as exc:
-            raise SettingsError(
-                f"invalid env {ENV_ALLOW_MATRIX_DRIFT}: {exc}. To fix: set it to "
-                "true or false, or unset it."
-            ) from exc
-    if allow_matrix_drift and recording is None:
-        raise SettingsError(
-            f"--allow-matrix-drift (env {ENV_ALLOW_MATRIX_DRIFT}) only applies to "
-            "a replay. To fix: pass a result JSON or run directory as the config, "
-            "or drop the flag."
-        )
-
     return ResolvedSettings(
         values=values,
         sources=sources,
         config_path=config_path,
         config_selector=selector,
         config_origin=config_origin,
-        config_sha256=sha256,
-        recording=recording,
-        allow_matrix_drift=allow_matrix_drift,
     )
 
 

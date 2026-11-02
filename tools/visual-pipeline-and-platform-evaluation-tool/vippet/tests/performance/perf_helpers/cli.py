@@ -11,11 +11,11 @@ Effective configuration precedence (later wins)::
 
     built-in defaults -> YAML (--config / PERF_CONFIG) -> env vars -> CLI flags
 
-A normal run passes ``--config``, the setting flags and
-``--allow-matrix-drift`` to a ``python -m pytest -m perf`` subprocess through
-``PERF_CLI_LAYER``; pytest resolves them again, so the result artefact
-records the same values and sources. ``--dry-run`` prints the resolved
-matrix with exclusion reasons and exits without submitting any job.
+A normal run passes ``--config`` and the setting flags to a
+``python -m pytest -m perf`` subprocess through ``PERF_CLI_LAYER``; pytest
+resolves them again, so the result artefact records the same values and
+sources. ``--dry-run`` prints the resolved matrix with exclusion reasons and
+exits without submitting any job.
 """
 
 import argparse
@@ -47,15 +47,7 @@ from .reporters import (
     load_result,
     resolve_result_json,
 )
-from .run_config import (
-    MATRIX_DRIFT_EXIT_CODE,
-    compare_with_recording,
-    describe_matrix_drift,
-    format_replay,
-    suite_revision,
-)
 from .settings import (
-    ENV_ALLOW_MATRIX_DRIFT,
     ENV_CLI_LAYER,
     PERF_DIR,
     SPECS,
@@ -102,17 +94,9 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="NAME_OR_PATH",
         help=(
             "Config preset name in config/ (default, quick, full), a YAML "
-            "path, or a result JSON / run directory to replay. Defaults to "
-            "$PERF_CONFIG_FILE, then $PERF_CONFIG, then 'default'."
-        ),
-    )
-    parser.add_argument(
-        "--allow-matrix-drift",
-        action="store_true",
-        help=(
-            "Replay only: run even if the matrix differs from the recorded "
-            f"one (exit {MATRIX_DRIFT_EXIT_CODE} otherwise). Applies to this "
-            f"run only and is never replayed. [env: {ENV_ALLOW_MATRIX_DRIFT}]"
+            "path, or a result JSON / run directory whose recorded settings "
+            "are reused. Defaults to $PERF_CONFIG_FILE, then $PERF_CONFIG, "
+            "then 'default'."
         ),
     )
     mode = parser.add_mutually_exclusive_group()
@@ -192,8 +176,18 @@ def cli_overrides(namespace: argparse.Namespace) -> dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- #
-# Environment handed to pytest
+# Environment handed to pytest / helpers
 # --------------------------------------------------------------------------- #
+
+
+def settings_env(settings: ResolvedSettings) -> dict[str, str]:
+    """Env vars that make downstream consumers see the resolved values.
+
+    Every exported variable is declared as ``env=`` on its spec, so values a
+    user already exported are part of the resolution (env layer) and direct
+    ``pytest`` runs see exactly the same values as CLI runs.
+    """
+    return {spec.env: str(settings[spec.key]) for spec in SPECS if spec.env}
 
 
 def _ensure_import_paths() -> None:
@@ -225,12 +219,12 @@ def _render(value: Any) -> str:
 
 
 def _default_discover(settings: ResolvedSettings) -> Matrix:
+    # helpers.config reads VIPPET_BASE_URL at import time; export first.
+    os.environ.update(settings_env(settings))
     _ensure_import_paths()
     from .discovery import discover_matrix
 
-    return discover_matrix(
-        MatrixFilters.from_settings(settings), base_url=settings["vippet.base_url"]
-    )
+    return discover_matrix(MatrixFilters.from_settings(settings))
 
 
 def _default_preflight(
@@ -293,13 +287,6 @@ def run_dry_run(
     )
     if not matrix.included:
         print(f"\nnote: {describe_no_cases(matrix)}", file=stdout)
-    if settings.recording is not None:
-        # No pytest selection here, so only the matrix itself is compared.
-        replay = compare_with_recording(settings, matrix, {"suite": suite_revision()})
-        print(f"\n{format_replay(replay)}", file=stdout)
-        if replay["matrix_drift"] and not settings.allow_matrix_drift:
-            print(f"error: {describe_matrix_drift(replay)}", file=stderr)
-            return MATRIX_DRIFT_EXIT_CODE
     return EXIT_OK
 
 
@@ -395,7 +382,12 @@ def run_pytest(
     base_env: Mapping[str, str] | None = None,
     runner: Callable[..., subprocess.CompletedProcess[Any]] = subprocess.run,
 ) -> int:
-    """Run pytest, which resolves the settings again from *cli_layer*."""
+    """Run pytest, which resolves the settings again from *cli_layer*.
+
+    The resolved values are deliberately not exported as env vars: pytest
+    would then report them as coming from the environment instead of from
+    the YAML file or CLI flag they really came from.
+    """
     env = dict(os.environ if base_env is None else base_env)
     env[ENV_CLI_LAYER] = json.dumps(cli_layer)
     completed = runner(build_pytest_command(pytest_args), env=env, check=False)
@@ -421,7 +413,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             config=namespace.config,
             env=os.environ,
             cli_overrides=overrides,
-            allow_matrix_drift=namespace.allow_matrix_drift,
         )
     except SettingsError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -431,14 +422,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return run_dry_run(settings)
     if namespace.report_only is not None:
         return run_report_only(settings, namespace.report_only, namespace.report_output)
-    return run_pytest(
-        {
-            "config": namespace.config,
-            "overrides": overrides,
-            "allow_matrix_drift": namespace.allow_matrix_drift,
-        },
-        pytest_args,
-    )
+    cli_layer = {"config": namespace.config, "overrides": overrides}
+    return run_pytest(cli_layer, pytest_args)
 
 
 if __name__ == "__main__":
