@@ -240,6 +240,40 @@ runner `results/20261102/arc-opencl-milestone.sh`, local reports
 `~/.local/share/sift-extractor-staging/arc-compaction-d266f47fcec2f0d8`.
 Manifest SHA256: `d266f47fcec2f0d852662e08c6e4453a2c2e0c28f9975439e9480ca7b8f6603b`.
 
+### Merged Feature Launches
+
+Populated levels' gradients now occupy a checked, packed device volume. Per-point
+metadata supplies image dimensions and gradient offsets, allowing one orientation
+launch and one descriptor launch per image, with one upload/readback per phase.
+Gradient preparation still launches per level. Stable level/keypoint/orientation
+ordering, serial references, response caps and synchronous return are unchanged.
+Offset accumulation rejects volumes exceeding signed kernel indexing. Metadata
+and result buffers remain alive through phase completion and error-path drains.
+
+All 10 local tests and Arc regression plus 22 timing/profile cases passed. Exact
+host-pipeline/reconfiguration comparisons, 1,351 exact oriented records and 687
+descriptor comparisons pass. All matching-quality fields were identical across
+A/B/B/A. True pooled medians (60 samples/build), against `2a9d9258f`:
+
+| Size | Feature Budget | Before (ms) | Merged (ms) | Latency Reduction |
+| --- | --- | --- | --- | --- |
+| 640x480 | Unlimited | 21.034 | 11.783 | 44.0% |
+| 640x480 | 500 | 18.691 | 11.363 | 39.2% |
+| 1920x1080 | Unlimited | 40.090 | 29.593 | 26.2% |
+| 1920x1080 | 500 | 32.193 | 26.958 | 16.3% |
+
+Unlimited throughput is approximately 84.9/33.8 FPS at VGA/1080p. The reference
+targets remain unmet. Scratch in the 1080p probe was 67,840,740 bytes, approximately
+64.7 MiB, retained at high-water capacity. Profile `groups=1` now means one merged
+feature launch, while coarse `feature_groups` still counts populated pyramid levels.
+Single-fixture quality stability does not establish broader quality parity.
+
+Evidence: SIFT workspace `results/20261102/arc-gradient-atlas-summary.json`; reports
+`/tmp/sift-arc-gradient-atlas-results.SCIif4/milestone-results`; remote stage
+`~/.local/share/sift-extractor-staging/arc-gradient-atlas-e8b606c7a1c6b441`.
+Manifest SHA256: `e8b606c7a1c6b441e3c6119b2711a42cf54598ca24c4e8c499b2b740298b2375`.
+All five returned manifest executable hashes matched the staged binaries.
+
 ### Fused Gaussian and DoG Output
 
 Combined pyramid construction now writes each DoG plane from the vertical Gaussian

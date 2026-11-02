@@ -189,12 +189,15 @@ __kernel void refine_dog_extrema(__global const float *dog,
 __kernel void sift_gradients(__global const float *image,
                              __global float *magnitude,
                              __global float *orientation,
-                             const int width, const int height) {
+                             const int width, const int height,
+                             const int image_offset) {
   const int x = (int)get_global_id(0);
   const int y = (int)get_global_id(1);
   if (x >= width || y >= height)
     return;
   const int index = y * width + x;
+  magnitude += image_offset;
+  orientation += image_offset;
   if (x == 0 || y == 0 || x >= width - 1 || y >= height - 1) {
     magnitude[index] = 0.0f;
     orientation[index] = 0.0f;
@@ -210,7 +213,8 @@ __kernel void sift_orientations(__global const float *magnitude,
                                 __global const float *gradient_orientation,
                                 __global const float *points,
                                 __global float *output,
-                                const int width, const int height) {
+                                const int fixed_width, const int fixed_height,
+                                __global const int *layout) {
   #if SIFT_DESCRIPTOR_LANES > 1
   const int index = (int)get_group_id(0);
   const int lane = (int)get_local_id(0);
@@ -220,6 +224,11 @@ __kernel void sift_orientations(__global const float *magnitude,
   const int lane = 0;
   float hist[36];
   #endif
+  const int width = fixed_width > 0 ? fixed_width : layout[index * 3];
+  const int height = fixed_width > 0 ? fixed_height : layout[index * 3 + 1];
+  const int image_offset = fixed_width > 0 ? 0 : layout[index * 3 + 2];
+  magnitude += image_offset;
+  gradient_orientation += image_offset;
   const float cx = points[index * 4];
   const float cy = points[index * 4 + 1];
   const float sigma = 1.5f * points[index * 4 + 2];
@@ -303,9 +312,15 @@ __kernel void sift_descriptors(__global const float *magnitude,
                                __global const float *gradient_orientation,
                                __global const float *points,
                                __global float *output,
-                               const int width, const int height) {
+                               const int fixed_width, const int fixed_height,
+                               __global const int *layout) {
   const int lane = (int)get_local_id(0);
   const int index = (int)get_group_id(0);
+  const int width = fixed_width > 0 ? fixed_width : layout[index * 3];
+  const int height = fixed_width > 0 ? fixed_height : layout[index * 3 + 1];
+  const int image_offset = fixed_width > 0 ? 0 : layout[index * 3 + 2];
+  magnitude += image_offset;
+  gradient_orientation += image_offset;
   const float cx = points[index * 4];
   const float cy = points[index * 4 + 1];
   const float bin_width = 3.0f * points[index * 4 + 2];
@@ -476,10 +491,10 @@ struct OpenCLDoGExtrema::Impl {
     size_t capacity = 0;
   };
   struct FeatureScratch {
-    Buffer magnitude, orientation, points, output;
+    Buffer magnitude, orientation, points, output, layout;
     cl_event event = nullptr;
     ~FeatureScratch() {
-      for (auto *buffer : {&magnitude, &orientation, &points, &output})
+      for (auto *buffer : {&magnitude, &orientation, &points, &output, &layout})
         if (buffer->memory) clReleaseMemObject(buffer->memory);
       if (event) clReleaseEvent(event);
     }
@@ -546,7 +561,7 @@ struct OpenCLDoGExtrema::Impl {
   }
 
     void prepare_gradients(const GaussianLevel &level, cl_mem device_image,
-                 FeatureScratch *scratch = nullptr) {
+                           FeatureScratch *scratch = nullptr, int image_offset = 0) {
     const size_t image_bytes = static_cast<size_t>(level.width) * level.height * sizeof(float);
     cl_mem image_buffer = device_image ? device_image :
       ensure_buffer(feature_image, CL_MEM_READ_ONLY, image_bytes);
@@ -572,6 +587,8 @@ struct OpenCLDoGExtrema::Impl {
       &level.width), "gradient width arg");
     check_opencl(clSetKernelArg(gradient_kernel, 4, sizeof(level.height),
       &level.height), "gradient height arg");
+    check_opencl(clSetKernelArg(gradient_kernel, 5, sizeof(image_offset),
+      &image_offset), "gradient image offset arg");
     const size_t global_size[2] = {static_cast<size_t>(level.width),
                      static_cast<size_t>(level.height)};
     check_opencl(clEnqueueNDRangeKernel(queue, gradient_kernel, 2, nullptr,
@@ -597,7 +614,7 @@ struct OpenCLDoGExtrema::Impl {
     for (auto &scratch : feature_scratch) {
       if (!scratch) continue;
       scratch_bytes += scratch->magnitude.capacity + scratch->orientation.capacity +
-        scratch->points.capacity + scratch->output.capacity;
+        scratch->points.capacity + scratch->output.capacity + scratch->layout.capacity;
       if (!scratch->event) continue;
       cl_ulong start = 0, end = 0;
       check_opencl(clGetEventProfilingInfo(scratch->event, CL_PROFILING_COMMAND_START,
@@ -616,7 +633,7 @@ struct OpenCLDoGExtrema::Impl {
   std::vector<float> run_feature_kernel(const char *name,
       const GaussianLevel &level, const std::vector<float> &points,
       size_t output_stride, cl_mem device_image = nullptr,
-      FeatureScratch *scratch = nullptr) {
+      FeatureScratch *scratch = nullptr, const std::vector<int> *layout = nullptr) {
     const auto feature_start = std::chrono::steady_clock::now();
     const bool profiling = profile_features;
     struct ProfileEvent {
@@ -634,6 +651,8 @@ struct OpenCLDoGExtrema::Impl {
     if (count == 0) return {};
     if (count > static_cast<size_t>(std::numeric_limits<int>::max()) / output_stride)
       throw std::overflow_error("Too many feature points");
+    if (layout && (!scratch || layout->size() != count * 3))
+      throw std::invalid_argument("Invalid packed feature layout");
     cl_int status = CL_SUCCESS;
     cl_kernel feature_kernel = get_feature_kernel(name);
     const bool reusable_gradients = std::string(name) == "sift_descriptors" &&
@@ -642,19 +661,23 @@ struct OpenCLDoGExtrema::Impl {
       cached_gradient_height == level.height &&
       cached_gradient_device == device_image &&
       (device_image || cached_gradient_pixels == level.pixels)));
-    if (!reusable_gradients)
+    if (!reusable_gradients && !layout)
       prepare_gradients(level, device_image, scratch);
     const size_t image_bytes = static_cast<size_t>(level.width) * level.height * sizeof(float);
-    cl_mem magnitude_buffer = ensure_buffer(scratch ? scratch->magnitude : gradient_magnitude,
+    cl_mem magnitude_buffer = layout ? scratch->magnitude.memory : ensure_buffer(scratch ? scratch->magnitude : gradient_magnitude,
       CL_MEM_READ_WRITE, image_bytes);
-    cl_mem orientation_buffer = ensure_buffer(scratch ? scratch->orientation : gradient_orientation,
+    cl_mem orientation_buffer = layout ? scratch->orientation.memory : ensure_buffer(scratch ? scratch->orientation : gradient_orientation,
       CL_MEM_READ_WRITE, image_bytes);
     cl_mem points_buffer = ensure_buffer(scratch ? scratch->points : feature_points, CL_MEM_READ_ONLY,
                         points.size() * sizeof(float));
     std::vector<float> output(count * output_stride);
     cl_mem output_buffer = ensure_buffer(scratch ? scratch->output : feature_output, CL_MEM_WRITE_ONLY,
                         output.size() * sizeof(float));
+    cl_mem layout_buffer = layout ? ensure_buffer(scratch->layout, CL_MEM_READ_ONLY,
+      layout->size() * sizeof(int)) : points_buffer;
     try {
+    if (layout) check_opencl(clEnqueueWriteBuffer(queue, layout_buffer, CL_FALSE, 0,
+      layout->size() * sizeof(int), layout->data(), 0, nullptr, nullptr), "feature layout upload");
     check_opencl(clEnqueueWriteBuffer(queue, points_buffer, CL_FALSE, 0,
       points.size() * sizeof(float), points.data(), 0, nullptr, nullptr),
       "clEnqueueWriteBuffer(feature points)");
@@ -663,8 +686,10 @@ struct OpenCLDoGExtrema::Impl {
     check_opencl(clSetKernelArg(feature_kernel, 1, sizeof(cl_mem), &orientation_buffer), "feature orientation arg");
     check_opencl(clSetKernelArg(feature_kernel, 2, sizeof(cl_mem), &points_buffer), "feature points arg");
     check_opencl(clSetKernelArg(feature_kernel, 3, sizeof(cl_mem), &output_buffer), "feature output arg");
-    check_opencl(clSetKernelArg(feature_kernel, 4, sizeof(int), &level.width), "feature width arg");
+    const int fixed_width = layout ? 0 : level.width;
+    check_opencl(clSetKernelArg(feature_kernel, 4, sizeof(int), &fixed_width), "feature width arg");
     check_opencl(clSetKernelArg(feature_kernel, 5, sizeof(int), &level.height), "feature height arg");
+    check_opencl(clSetKernelArg(feature_kernel, 6, sizeof(cl_mem), &layout_buffer), "feature layout arg");
     const bool descriptors = std::string(name) == "sift_descriptors";
     const size_t local_size = descriptors ? descriptor_lanes : orientation_lanes;
     const size_t global_size = count * local_size;
@@ -1311,52 +1336,67 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
   double orientation_ms = 0.0;
   double descriptor_ms = 0.0;
   size_t feature_groups = 0;
-  std::vector<std::vector<float>> packed(groups.size()), angles(groups.size()), descriptors(groups.size());
-  std::vector<std::vector<OrientedKeypoint>> oriented_groups(groups.size());
-  if (impl_->feature_scratch.size() < groups.size())
-    impl_->feature_scratch.resize(groups.size());
+  std::vector<float> packed, angles, descriptors;
+  std::vector<int> layout, image_offsets(groups.size());
+  std::vector<ScaleSpaceKeypoint> ordered_points;
+  std::vector<size_t> point_groups;
+  std::vector<OrientedKeypoint> oriented;
+  size_t gradient_count = 0;
+  for (size_t group = 0; group < groups.size(); ++group) {
+    if (groups[group].empty()) continue;
+    const size_t count = static_cast<size_t>(gaussian[group].width) * gaussian[group].height;
+    if (count > static_cast<size_t>(std::numeric_limits<int>::max()) - gradient_count)
+      throw std::overflow_error("Packed gradient volume exceeds kernel indexing range");
+    image_offsets[group] = static_cast<int>(gradient_count);
+    gradient_count += count;
+    ++feature_groups;
+  }
   const auto orientation_start = std::chrono::steady_clock::now();
-  try {
+  if (feature_groups > 0) try {
+    if (impl_->feature_scratch.empty())
+      impl_->feature_scratch.push_back(std::make_unique<Impl::FeatureScratch>());
+    auto *scratch = impl_->feature_scratch.front().get();
+    impl_->ensure_buffer(scratch->magnitude, CL_MEM_READ_WRITE, gradient_count * sizeof(float));
+    impl_->ensure_buffer(scratch->orientation, CL_MEM_READ_WRITE, gradient_count * sizeof(float));
     for (size_t group = 0; group < groups.size(); ++group) {
       if (groups[group].empty()) continue;
-      ++feature_groups;
-      if (!impl_->feature_scratch[group])
-        impl_->feature_scratch[group] = std::make_unique<Impl::FeatureScratch>();
-      for (const auto &point : groups[group])
-        packed[group].insert(packed[group].end(),
+      for (const auto &point : groups[group]) {
+        ordered_points.push_back(point);
+        point_groups.push_back(group);
+        packed.insert(packed.end(),
           {point.local.x, point.local.y, point.octave_sigma, 0.0f});
-      angles[group] = impl_->run_feature_kernel("sift_orientations", gaussian[group],
-        packed[group], 36, levels.device_gaussian[group], impl_->feature_scratch[group].get());
+        layout.insert(layout.end(), {gaussian[group].width, gaussian[group].height, image_offsets[group]});
+      }
+      impl_->prepare_gradients(gaussian[group], levels.device_gaussian[group], scratch, image_offsets[group]);
     }
+    angles = impl_->run_feature_kernel("sift_orientations", gaussian.front(), packed,
+      36, levels.device_gaussian.front(), scratch, &layout);
     check_opencl(clFinish(impl_->queue), "batched orientation completion");
     impl_->report_feature_profile("sift_orientations");
     const auto descriptor_start = std::chrono::steady_clock::now();
     orientation_ms = std::chrono::duration<double, std::milli>(descriptor_start - orientation_start).count();
-    for (size_t group = 0; group < groups.size(); ++group) {
-      packed[group].clear();
-      for (size_t index = 0; index < groups[group].size(); ++index) {
-        const auto &point = groups[group][index];
-        for (size_t bin = 0; bin < 36; ++bin) {
-          const float angle = angles[group][index * 36 + bin];
-          if (!(angle >= 0.0f)) continue;
-          oriented_groups[group].push_back({point, angle});
-          packed[group].insert(packed[group].end(),
-            {point.local.x, point.local.y, point.octave_sigma, angle});
-        }
+    packed.clear();
+    layout.clear();
+    for (size_t index = 0; index < ordered_points.size(); ++index) {
+      const auto &point = ordered_points[index];
+      const size_t group = point_groups[index];
+      for (size_t bin = 0; bin < 36; ++bin) {
+        const float angle = angles[index * 36 + bin];
+        if (!(angle >= 0.0f)) continue;
+        oriented.push_back({point, angle});
+        packed.insert(packed.end(), {point.local.x, point.local.y, point.octave_sigma, angle});
+        layout.insert(layout.end(), {gaussian[group].width, gaussian[group].height, image_offsets[group]});
       }
-      if (oriented_groups[group].empty()) continue;
-      descriptors[group] = impl_->run_feature_kernel("sift_descriptors", gaussian[group],
-        packed[group], 128, levels.device_gaussian[group], impl_->feature_scratch[group].get());
     }
+    descriptors = impl_->run_feature_kernel("sift_descriptors", gaussian.front(), packed,
+      128, levels.device_gaussian.front(), scratch, &layout);
     check_opencl(clFinish(impl_->queue), "batched descriptor completion");
     impl_->report_feature_profile("sift_descriptors");
-    for (size_t group = 0; group < groups.size(); ++group) {
-      for (size_t index = 0; index < oriented_groups[group].size(); ++index) {
-        SiftFeature feature;
-        feature.point = oriented_groups[group][index];
-        std::copy_n(descriptors[group].begin() + index * 128, 128, feature.descriptor.begin());
-        result.push_back(feature);
-      }
+    for (size_t index = 0; index < oriented.size(); ++index) {
+      SiftFeature feature;
+      feature.point = oriented[index];
+      std::copy_n(descriptors.begin() + index * 128, 128, feature.descriptor.begin());
+      result.push_back(feature);
     }
     descriptor_ms = std::chrono::duration<double, std::milli>(
       std::chrono::steady_clock::now() - descriptor_start).count();
