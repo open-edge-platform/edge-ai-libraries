@@ -18,7 +18,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
-from typing import Any, Dict, List, Literal, Optional, Type
+from typing import Any, Dict, List, Optional, Type
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -316,19 +316,6 @@ class CompressorPlugin(PluginBaseNode):
     ``overall.*`` metrics into ``describe_node()``. ``settings.metrics_keys``
     splits both by key under ``metrics_by_keys``.
     """
-
-    def __init__(
-        self,
-        name: str,
-        settings: Dict[str, Any],
-        trigger: Literal[
-            "prerouting", "postrouting", "postresponse", "standalone"
-        ] = "prerouting",
-        *,
-        metrics_keys: List[str] | None = None,
-    ):
-        self.metrics_keys = list(metrics_keys or [])
-        super().__init__(name=name, settings=settings, trigger=trigger)
 
     @classmethod
     def plugin_type(cls) -> str:
