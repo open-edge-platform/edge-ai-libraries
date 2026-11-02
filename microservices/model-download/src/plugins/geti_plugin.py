@@ -425,7 +425,8 @@ class GetiPlugin(ModelDownloadPlugin):
                         archive.extract(member, extract_dir)
         elif tarfile.is_tarfile(archive_path):
             with tarfile.open(archive_path, "r:gz") as archive:
-                archive.extractall(extract_dir, members=[item for item in archive.getmembers() if safe(item.name)])
+                archive.extractall(extract_dir, members=[item for item in archive.getmembers() if safe(item.name)],
+                                   filter="data")
 
     async def extract_model_files(self, model_dir: str) -> None:
         """Extract the downloaded archive and flatten a nested 'models' directory, if present."""

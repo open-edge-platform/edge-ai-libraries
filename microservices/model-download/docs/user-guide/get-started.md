@@ -225,6 +225,8 @@ An item in the listing response looks like this:
 
 Use the returned model `name` and `metadata` IDs/variants in the Geti download examples below.
 
+Each listing response includes pagination fields alongside `items`: `count` (items in this page), `total` (overall match count, when the hub reports it), `has_more` (whether another page is available), and `next_offset` (the `offset` to use for the next page, present only when `has_more` is `true`).
+
 Call `GET /api/v1/plugins` to see which plugins support listing and which `listing_filter_fields` each plugin accepts. Hugging Face supports `author`, `search`, and `tags`. The `author` filter is the repository namespace and accepts a user, owner, or organization name (for example, `microsoft` or `meta-llama`); `tags` filters by Hugging Face tags (library, language, task, license, and so on). Each returned Hugging Face item also includes `license`, `gated` (`false`, `"auto"`, or `"manual"`), and `requires_token` (true when the model is gated and needs an HF token to download). Ultralytics and Pipeline Zoo Models support `search`. Geti™ supports `project_id`, `project_name`, `model_name`, `precision`, `model_format`, `architecture`, and `variant_id`.
 
 > **Name format by hub (`models[].name`):**

@@ -26,6 +26,7 @@ class CompressionScope(str, Enum):
 
     HARNESS = "harness"
     TOOL = "tool"
+    CONTEXT = "context"
 
 
 @dataclass
@@ -70,8 +71,8 @@ def estimate_tokens(text: str) -> int:
 def _message_tokens(msg: dict) -> int:
     """content + (assistant only) sort_keys-serialized tool_calls.
 
-    sort_keys keeps tool_calls' byte form stable so token accounting is
-    deterministic across runs.
+    sort_keys keeps tool_calls' byte form stable so ContextCompressor's
+    `assistant_args_tokens_saved` invariant holds across runs.
     """
     text = MessageAccessor.text(msg.get("content", "")).strip()
     tokens = estimate_tokens(text)

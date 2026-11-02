@@ -1720,7 +1720,7 @@ export type ImageInfo = {
   /** Image height in pixels, or null if it could not be read. */
   height?: number | null;
 };
-export type CameraType = "USB" | "NETWORK";
+export type CameraType = "USB" | "NETWORK" | "GIGE";
 export type V4L2BestCapture = {
   fourcc: string;
   width: number;
@@ -1745,11 +1745,24 @@ export type NetworkCameraDetails = {
   profiles: CameraProfileInfo[];
   best_profile?: CameraProfileInfo | null;
 };
+export type GigECapture = {
+  pixel_format?: string | null;
+  width?: number | null;
+  height?: number | null;
+  fps?: number | null;
+};
+export type GigECameraDetails = {
+  ip: string;
+  vendor?: string | null;
+  model?: string | null;
+  serial?: string | null;
+  current_capture?: GigECapture | null;
+};
 export type Camera = {
   device_id: string;
   device_name: string;
   device_type: CameraType;
-  details: UsbCameraDetails | NetworkCameraDetails;
+  details: UsbCameraDetails | NetworkCameraDetails | GigECameraDetails;
 };
 export type CameraAuthResponse = {
   /** Camera object with populated ONVIF profiles after successful authentication. */

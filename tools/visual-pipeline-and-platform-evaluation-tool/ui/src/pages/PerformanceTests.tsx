@@ -71,8 +71,12 @@ const containsCameraInputInPipeline = (
   return nodes.some((node) => {
     if (node.type === "source") {
       const sourceType = node.data?.source || "";
-      // Check if it's a camera: /dev/video* or rtsp://
-      return sourceType.startsWith("/dev/") || sourceType.startsWith("rtsp://");
+      // Check if it's a camera: /dev/video*, rtsp:// or gige://
+      return (
+        sourceType.startsWith("/dev/") ||
+        sourceType.startsWith("rtsp://") ||
+        sourceType.startsWith("gige://")
+      );
     }
     return false;
   });
