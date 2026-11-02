@@ -6,7 +6,7 @@ ensure_rm () {
   local protected=" / /bin /boot /dev /etc /home /lib /lib64 /media /mnt /opt /proc /root /run /sbin /srv /sys /tmp /usr /var \
 /etc/apt /etc/apt/keyrings /etc/apt/preferences.d /etc/apt/sources.list.d /etc/systemd /etc/systemd/system \
 /usr/bin /usr/lib /usr/local /usr/share /usr/share/keyrings /var/lib \
-$HOME $HOME/.local $HOME/.local/bin $(ensure_project_path) "
+$HOME $HOME/.local $HOME/.local/bin "
 
   for p in "$@"; do
     [ -n "$p" ] || continue

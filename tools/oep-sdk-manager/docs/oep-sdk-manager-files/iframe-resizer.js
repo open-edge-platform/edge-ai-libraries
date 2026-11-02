@@ -1,6 +1,9 @@
+// SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
+
 let lastHeight = 0;
-const maxHeight = 1200; // Maximum allowed height
-const minHeight = 400;  // Minimum height
+const maxHeight = 2000; // Maximum allowed height
+const minHeight = 0;
 
 function resizeIframe() {
     const iframe = document.getElementById('installerFrame');
@@ -9,14 +12,12 @@ function resizeIframe() {
             const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
             if (iframeDoc) {
                 const body = iframeDoc.body;
-                const html = iframeDoc.documentElement;
-                let height = Math.max(
-                    body.scrollHeight,
-                    body.offsetHeight,
-                    html.clientHeight,
-                    html.scrollHeight,
-                    html.offsetHeight
-                );
+                // Measuring the iframe viewport creates a feedback loop that
+                // prevents it shrinking when content becomes shorter.
+                const content = iframeDoc.querySelector('main.app-wrap');
+                let height = content
+                    ? content.offsetTop + content.scrollHeight
+                    : Math.max(body.scrollHeight, body.offsetHeight);
                 
                 // Apply constraints
                 height = Math.max(minHeight, Math.min(maxHeight, height));
@@ -45,6 +46,22 @@ document.addEventListener('DOMContentLoaded', function() {
             setTimeout(resizeIframe, 500);
             // Only resize once more after a delay to handle late-loading content
             setTimeout(resizeIframe, 2000);
+
+            try {
+                const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                if (iframeDoc && iframeDoc.body) {
+                    if ('ResizeObserver' in window) {
+                        const observer = new ResizeObserver(resizeIframe);
+                        observer.observe(iframeDoc.body);
+                    }
+                    if ('MutationObserver' in window) {
+                        const observer = new MutationObserver(resizeIframe);
+                        observer.observe(iframeDoc.body, { childList: true, subtree: true, attributes: true });
+                    }
+                }
+            } catch (error) {
+                console.warn('Cannot observe iframe content; using load and window resize handlers:', error);
+            }
         });
     }
 });

@@ -48,10 +48,10 @@ debian_90_install_real_time_scene_understanding () {
     verify_real_time_scene_understanding
   fi
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   configure_real_time_scene_understanding_device "${device^^}"
 
-  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
   echo "@@HIGHLIGHT $installer_name install [--gpu|npu|cpu]"
   echo "@@HIGHLIGHT $installer_name start [--gpu|npu|cpu]"
   echo "@@HIGHLIGHT $installer_name remove"
@@ -61,7 +61,7 @@ debian_90_start_real_time_scene_understanding () {
   configure_real_time_scene_understanding
   ensure_ports_open start real_time_scene_understanding "${used_ports[@]}"
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_real_time_scene_understanding_device "${device^^}"
 
   cd "$workspace"/live-video-analysis/real-time-scene-understanding

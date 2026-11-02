@@ -6,7 +6,7 @@ separate license terms, including third party license terms and open source
 software license terms.
 
 Scope: this file lists the DIRECT dependencies declared in pyproject.toml
-(runtime + optional Lingua Server extras; development/test-only tools are
+(runtime + optional Compress Server extras; development/test-only tools are
 excluded) plus the one third-party source snippet included in this
 distribution (the LLMLingua-2 patch). Transitive dependencies are fetched by
 pip from their own origins at install time and are governed by their own
@@ -22,7 +22,7 @@ adaptive-token-compressor itself is licensed under Apache-2.0 (see LICENSE).
    Origin: https://github.com/microsoft/LLMLingua
 
    This distribution includes a source patch
-     src/adaptive_token_compressor/model_servers/lingua/patches/
+     src/adaptive_token_compressor/model_servers/compress_server/patches/
        0001-digit-neighbor-radius.patch
    that modifies LLMLingua's prompt_compressor.py. The patch is a derivative
    work of the above MIT-licensed software; the added modifications are

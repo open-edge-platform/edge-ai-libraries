@@ -1,12 +1,17 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Open Edge Platform (OEP) SDK Manager
 
 The SDK Manager is a comprehensive development tool that streamlines the process of discovering, installing, and managing multiple software development kits for edge AI applications.
 
 
 <!--hide_directive
-<script type="module" crossorigin src="../_static/installer/iframe-resizer.js"></script>
+<script type="module" crossorigin src="../../_static/oep-sdk-manager-files/iframe-resizer.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<iframe id="installerFrame" src="../../_static/oep-sdk-manager-files/selector.html" style="width: 100%; min-width: 350px; min-height:735px; border-radius: 8px; overflow-x: auto;" title="Download OEP SDK"></iframe>
+<iframe id="installerFrame" src="../../_static/oep-sdk-manager-files/selector.html" style="width: 100%; min-width: 350px; border: 0; overflow-x: auto;" title="Download Metro SDK"></iframe>
 hide_directive-->
 
 ## Overview
@@ -19,9 +24,9 @@ Built with developer productivity in mind, it handles cross-platform builds, mai
 :::{toctree}
 :hidden:
 
-OEP Vision AI SDK <oep-vision-ai-sdk/get-started>
-OEP Gen AI SDK <oep-gen-ai-sdk/get-started>
-Visual AI Demo Kit <visual-ai-demo-kit/get-started.md>
+Metro Vision AI SDK <metro-vision-ai-sdk/get-started>
+Metro Gen AI SDK <metro-gen-ai-sdk/get-started>
+Metro Visual AI Demo Kit <metro-visual-ai-demo-kit/get-started.md>
 UAV Mission Compute SDK <uav-mission-compute-sdk/get-started>
 release-notes
 

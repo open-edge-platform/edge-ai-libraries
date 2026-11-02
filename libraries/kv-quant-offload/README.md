@@ -20,9 +20,6 @@ memory pressure.
   optional standalone SYCL/DPC++ kernel for Intel XPUs.
 - Drop-in codec for LMCache's serde interface — stays
   transparent to vLLM's serving path.
-- Per-sub-state control over what gets quantized, so hybrid (Mamba /
-  linear-attention) models can keep selected states at full precision — see
-  [KV cache quantization](docs/configuration.md#kv-cache-quantization).
 
 
 ## Prerequisites
@@ -99,7 +96,7 @@ to set up a venv, install `kvweave`, and run `pytest ./tests`.
 
 `integration/lmcache/vllm/vllm-start.sh` launches a Docker container that
 clones LMCache v0.4.7, applies `integration/lmcache/patches/lmcache-mp-hybrid.patch`
-and `integration/lmcache/patches/lmcache-v0.4.7-mp-hybrid-to-kvweave.patch`
+and `integration/lmcache/patches/lmcache-v0.5.5-mp-hybrid-to-kvweave.patch`
 (which together add MP-hybrid support and the `kvweave` codec), builds
 `kvweave_quant` inside the container, starts an LMCache MP server, and then
 starts vLLM's OpenAI-compatible API server wired to it via `LMCacheMPConnector`.
@@ -112,12 +109,6 @@ See [docs/configuration.md](docs/configuration.md#deployment-environment-variabl
 for the full list of environment variables `vllm-start.sh` accepts (model
 path, ports, LMCache sizing, `FORCE_BUILD`, and Docker build/run passthroughs).
 
-KV cache quantization is enabled by default. See
-[KV cache quantization](docs/configuration.md#kv-cache-quantization) for the
-switches that control it — the master switch plus per-sub-state overrides for
-hybrid (Mamba / linear-attention) models — and for how to store the KV cache
-uncompressed.
-
 Then test the running server, setting `TOKENIZER_PATH` to a model path your
 host can load with `AutoTokenizer` (e.g. the same `${MODEL_PATH}/${MODEL}`
 passed to `vllm-start.sh` above):
@@ -128,7 +119,7 @@ cd /opt/kvweave/kvweave
 MODEL=model_name SERVE=model_name TOKENIZER_PATH=/models bash tests/vllm-bench-two-waves.sh
 ```
 
-If you meet error about memory after build iamge, use:
+If you meet error about memory after build image, use:
 
 ```
 echo 3 | sudo tee /proc/sys/vm/drop_caches

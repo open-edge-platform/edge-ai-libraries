@@ -1,6 +1,6 @@
 import time
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import ANY, patch, MagicMock
 
 from benchmark import BenchmarkResult
 from graph import Graph
@@ -20,9 +20,15 @@ from internal_types import (
     InternalTestJobState,
 )
 from managers.execution_coordinator import ExecutionCoordinator
-from managers.tests_manager import TestsManager
+from managers.tests_manager import (
+    MAX_PIPELINE_EVENT_PROMPT_CHARS,
+    MAX_PIPELINE_EVENT_TEXT_CHARS,
+    MAX_PIPELINE_EVENTS_PER_JOB,
+    PIPELINE_EVENT_TRUNCATION_SUFFIX,
+    TestsManager,
+)
 from managers.pipeline_manager import PipelineManager, PipelineCommand
-from pipeline_runner import PipelineRunner, PipelineResult
+from pipeline_runner import PipelineEvent, PipelineRunner, PipelineResult
 
 
 def create_simple_graph() -> Graph:
@@ -1449,7 +1455,96 @@ class TestExecutionConfigWithMaxRuntime(unittest.TestCase):
             max_runtime=120,
             enable_latency_metrics=False,
             job_id=job_id,
+            on_event=ANY,
         )
+
+
+class TestRecordPipelineEvent(unittest.TestCase):
+    """Live pipeline events are appended to the performance job (bounded)."""
+
+    def setUp(self):
+        TestsManager._instance = None
+
+    def test_events_are_appended_and_bounded(self):
+        manager = TestsManager()
+        job = InternalPerformanceJobStatus(
+            id="job-1",
+            request={},
+            start_time=0,
+            state=InternalTestJobState.RUNNING,
+        )
+        manager.jobs["job-1"] = job
+
+        for i in range(MAX_PIPELINE_EVENTS_PER_JOB + 5):
+            manager._record_pipeline_event(
+                "job-1",
+                PipelineEvent(timestamp_ms=i, source="vlm", text=f"answer {i}"),
+            )
+
+        self.assertEqual(len(job.events), MAX_PIPELINE_EVENTS_PER_JOB)
+        self.assertEqual(job.events[0].timestamp_ms, 5)
+        self.assertEqual(
+            job.events[-1].text, f"answer {MAX_PIPELINE_EVENTS_PER_JOB + 4}"
+        )
+
+    def test_unknown_job_is_ignored(self):
+        manager = TestsManager()
+        manager._record_pipeline_event(
+            "missing", PipelineEvent(timestamp_ms=0, source="vlm", text="x")
+        )
+
+    def test_oversized_text_and_prompt_are_truncated(self):
+        """Unbounded VLM output must be clamped to the per-field caps."""
+        manager = TestsManager()
+        job = InternalPerformanceJobStatus(
+            id="job-1",
+            request={},
+            start_time=0,
+            state=InternalTestJobState.RUNNING,
+        )
+        manager.jobs["job-1"] = job
+
+        manager._record_pipeline_event(
+            "job-1",
+            PipelineEvent(
+                timestamp_ms=0,
+                source="vlm",
+                text="a" * (MAX_PIPELINE_EVENT_TEXT_CHARS * 3),
+                prompt="b" * (MAX_PIPELINE_EVENT_PROMPT_CHARS * 3),
+            ),
+        )
+
+        recorded = job.events[0]
+        self.assertEqual(len(recorded.text), MAX_PIPELINE_EVENT_TEXT_CHARS)
+        self.assertTrue(recorded.text.endswith(PIPELINE_EVENT_TRUNCATION_SUFFIX))
+        assert recorded.prompt is not None
+        self.assertEqual(len(recorded.prompt), MAX_PIPELINE_EVENT_PROMPT_CHARS)
+        self.assertTrue(recorded.prompt.endswith(PIPELINE_EVENT_TRUNCATION_SUFFIX))
+
+    def test_fields_within_limits_are_untouched(self):
+        """Short events must not gain a truncation marker."""
+        manager = TestsManager()
+        job = InternalPerformanceJobStatus(
+            id="job-1",
+            request={},
+            start_time=0,
+            state=InternalTestJobState.RUNNING,
+        )
+        manager.jobs["job-1"] = job
+
+        manager._record_pipeline_event(
+            "job-1",
+            PipelineEvent(
+                timestamp_ms=0,
+                source="vlm",
+                text="a" * MAX_PIPELINE_EVENT_TEXT_CHARS,
+                prompt=None,
+            ),
+        )
+
+        recorded = job.events[0]
+        self.assertEqual(recorded.text, "a" * MAX_PIPELINE_EVENT_TEXT_CHARS)
+        self.assertIsNone(recorded.prompt)
 
 
 class TestInlineGraphSupport(unittest.TestCase):

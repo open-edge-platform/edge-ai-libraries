@@ -4,7 +4,7 @@ debian_80_profile_anomalib () {
 }
 
 debian_80_install_anomalib () {
-  configure_anomalib $*
+  configure_anomalib "$@"
   if verify_anomalib && [[ " $* " != *" --reinstall "* ]]; then
     echo "Anomalib is installed." >&2
   else
@@ -18,7 +18,7 @@ debian_80_install_anomalib () {
     pip install "anomalib[openvino,cpu]==${version}"
 
     echo "@@STEP Installing skills"
-    ensure_skills add tags/lib/v$version $repository "${skills[@]/#/.agents/skills/}"
+    ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}"
     verify_anomalib
   fi
 
@@ -29,7 +29,7 @@ debian_80_install_anomalib () {
 }
 
 debian_80_remove_anomalib () {
-  configure_anomalib $*
+  configure_anomalib "$@"
   ensure_rm "$workspace"
   ensure_skills remove "${skills[@]}"
 }

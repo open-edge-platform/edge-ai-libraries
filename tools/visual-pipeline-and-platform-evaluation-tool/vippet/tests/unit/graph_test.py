@@ -3718,6 +3718,42 @@ class TestGetRecommendedEncoderDevice(unittest.TestCase):
         # Should return CPU because iterating backwards finds node 3 first (no VAMemory)
         self.assertEqual(graph.get_recommended_encoder_device(), ENCODER_DEVICE_CPU)
 
+    def test_ignores_sysmem_caps_on_other_tee_branch(self):
+        """Caps on a non-main tee branch must not override the main output path."""
+        graph = Graph(
+            nodes=[
+                Node(id="0", type="filesrc", data={"location": "test.mp4"}),
+                Node(
+                    id="1",
+                    type="video/x-raw(memory:VAMemory)",
+                    data={"__node_kind": "caps"},
+                ),
+                Node(id="2", type="tee", data={"name": "t"}),
+                Node(id="3", type="queue", data={}),
+                Node(id="4", type="fakesink", data={"name": "default_output_sink"}),
+                Node(id="5", type="vapostproc", data={}),
+                Node(
+                    id="6",
+                    type="video/x-raw",
+                    data={"__node_kind": "caps", "width": "796"},
+                ),
+                Node(id="7", type="jpegenc", data={}),
+                Node(id="8", type="multifilesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                Edge(id="3", source="3", target="4"),
+                Edge(id="4", source="2", target="5"),
+                Edge(id="5", source="5", target="6"),
+                Edge(id="6", source="6", target="7"),
+                Edge(id="7", source="7", target="8"),
+            ],
+        )
+
+        self.assertEqual(graph.get_recommended_encoder_device(), ENCODER_DEVICE_GPU)
+
     def test_empty_graph(self):
         """Test that CPU encoder is recommended for an empty graph."""
         graph = Graph(nodes=[], edges=[])
@@ -5791,6 +5827,46 @@ class TestPrepareIntermediateOutputSinks(unittest.TestCase):
         result = graph.prepare_intermediate_output_sinks("/output/dir", 0)
 
         self.assertIs(result, graph)
+
+    def test_multifilesink_preserves_printf_int_specifier(self):
+        """printf-style %05d in multifilesink location must survive slugify."""
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesink",
+                    data={"location": "/images/output/vlm_frame_%05d.jpeg"},
+                ),
+            ],
+            edges=[],
+        )
+
+        result = graph.prepare_intermediate_output_sinks("/output/dir", 0)
+
+        self.assertEqual(
+            result.nodes[0].data["location"],
+            "/output/dir/intermediate_stream000_vlm_frame_%05d.jpeg",
+        )
+
+    def test_filesink_preserves_bare_percent_d_specifier(self):
+        """A bare %d specifier must survive slugify as well."""
+        graph = Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="multifilesink",
+                    data={"location": "/tmp/frame_%d.png"},
+                ),
+            ],
+            edges=[],
+        )
+
+        result = graph.prepare_intermediate_output_sinks("/output/dir", 3)
+
+        self.assertEqual(
+            result.nodes[0].data["location"],
+            "/output/dir/intermediate_stream003_frame_%d.png",
+        )
 
 
 class TestInjectMetadataFilePaths(unittest.TestCase):

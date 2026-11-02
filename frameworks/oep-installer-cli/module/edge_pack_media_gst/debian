@@ -22,12 +22,11 @@ debian_70_install_edge_pack_media_gst () {
 debian_70_remove_edge_pack_media_gst () {
   [ "$(ensure_prop get installed/edge_pack_media_gst/owned)" = "true" ] || return 0
   ensure_apt purge --auto-remove -y intel-edge-media-gst || true
-  debian_19_remove_edge_pack "$@" || true
 }
 
 debian_70_sbom_edge_pack_media_gst () {
   configure_edge_pack_media_gst "$@"
-  debian_19_sbom_edge_pack_repo_entries "$@"
+  sbom_edge_pack_repo_entries "$@"
   ensure_sbom_format pkg-list "intel-edge-media-gst=$version*"
 }
 

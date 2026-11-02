@@ -60,7 +60,7 @@ main () {
   local _i _rc=0
   for ((_i=0;_i<${#_cmds[*]};_i++)); do
     case "${_cmds[$_i]}" in
-    setup|list|bootstrap|sbom)
+    setup|list|bootstrap|sbom|resume)
       subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
       _rc=$?
       ;;
@@ -69,6 +69,9 @@ main () {
         subcommand_${_cmds[$_i]} ${_globals[*]} ${_args[$_i]}
         _rc=$?
       else
+        # save args for resume
+        ensure_prop set command "$*"
+
         # critical group permissions
         local -A _groups=()
 	local _j _dep _g _gf _deps _resolved _rest_args=() _restart=0 _m _carry=""
@@ -149,6 +152,31 @@ exec "$installer_bin" "$@"
 
 #### COLLECTION OF MODULES ####
 
+_act_levenshtein () 
+{ 
+    local a=$1 b=$2 la=${#1} lb=${#2} i j cost d ins sub;
+    local -a prev=() cur=();
+    for ((j=0; j<=lb; j++))
+    do
+        prev[j]=$j;
+    done;
+    for ((i=1; i<=la; i++))
+    do
+        cur=($i);
+        for ((j=1; j<=lb; j++))
+        do
+            [ "${a:i-1:1}" = "${b:j-1:1}" ] && cost=0 || cost=1;
+            d=$((prev[j]+1));
+            ins=$((cur[j-1]+1));
+            sub=$((prev[j-1]+cost));
+            ((ins < d)) && d=$ins;
+            ((sub < d)) && d=$sub;
+            cur[j]=$d;
+        done;
+        prev=("${cur[@]}");
+    done;
+    echo "${prev[lb]}"
+}
 act_expand_modules () 
 { 
     local act_name=${1%%,*};
@@ -220,10 +248,8 @@ act_find_parents ()
 { 
     local targets=" $1 ";
     shift;
-    local installed="$(ensure_project_path)/$installer_name/installed";
-    [ -d "$installed" ] || return 0;
     local p d;
-    for p in $(cd "$installed"; ls -1);
+    for p in $(ensure_prop find "installed/*" | cut -f2 -d/ | uniq);
     do
         [[ "$targets" != *" $p "* ]] || continue;
         for d in $(act_expand_modules install $p "$@");
@@ -273,7 +299,7 @@ act_helper ()
     local sort_options="$2";
     shift;
     shift;
-    local mods_file="$(ensure_project_path)/$installer_name/modules";
+    act_validate_modules $act_name "$@" || return 3;
     local explicit_mods="$(act_extract_modules $act_name "$@")";
     local remove_all=0;
     if [[ "$act_name" = "remove" && " $* " = *" --remove-all "* ]]; then
@@ -358,8 +384,6 @@ act_helper ()
         [ -z "$sp" ] || export https_proxy="$sp" HTTPS_PROXY="$sp";
         [ -z "$np" ] || export no_proxy="${np%%,}" NO_PROXY="${np%%,}";
         local rc=0 order=0;
-        local installer_state="";
-        ensure_tmpdir create installer_state states /dev/shm;
         export _INSTALLER_PANEL_ACTIVE=;
         [ -t 1 ] && export _INSTALLER_PANEL_ACTIVE=1;
         { 
@@ -378,16 +402,14 @@ act_helper ()
                     echo "Invoke $handler with $invoke_args";
                     echo "@@OK $name1";
                 else
-                    local started_path="$(ensure_project_path)/$installer_name/started/$name1";
-                    local installed_path="$(ensure_project_path)/$installer_name/installed/$name1";
-                    [ "$act_name" = "start" ] && mkdir -p "$started_path";
-                    [ "$act_name" = "install" ] && mkdir -p "$installed_path";
+                    [ "$act_name" = "start" ] && ensure_prop create started/$name1/;
+                    [ "$act_name" = "install" ] && ensure_prop create installed/$name1/;
                     echo "@@COMP $name1";
                     local rc1=0;
                     ( set -e;
                     $handler $invoke_args ) & wait $! || rc1=$?;
-                    [[ " stop remove " = *" $act_name "* ]] && rm -rf "$started_path";
-                    [ "$act_name" = "remove" ] && [ $rc1 -eq 0 ] && rm -rf "$installed_path" 2> /dev/null;
+                    [[ " stop remove " = *" $act_name "* ]] && ensure_prop remove started/$name1/;
+                    [ "$act_name" = "remove" ] && [ $rc1 -eq 0 ] && ensure_prop remove installed/$name1/;
                     if [ $rc1 -eq 0 ]; then
                         echo "@@OK $name1";
                     else
@@ -407,17 +429,13 @@ else
     tee -a "$LOG_FILE";
 fi) 2>&1;
         wait;
-        ensure_tmpdir destroy $installer_state;
-        if [[ " $* " != *" --dry-run "* && -n "${explicit_mods// }" ]]; then
-            mkdir -p "${mods_file%/*}";
-            echo "$explicit_mods" > "$mods_file";
-        fi;
-        [[ $remove_all -eq 1 && $rc -eq 0 && " $* " != *" --dry-run "* ]] && rm -f "$mods_file";
+        [[ " $* " != *" --dry-run "* && -n "${explicit_mods// }" ]] && ensure_prop set modules "$explicit_mods";
+        [[ $remove_all -eq 1 && $rc -eq 0 && " $* " != *" --dry-run "* ]] && ensure_prop remove modules;
         return $rc;
     else
         echo "Component not found" 1>&2;
-        [[ " $* " = *" --dry-run "* ]] || rm -f "$mods_file";
-        exit 3;
+        [[ " $* " = *" --dry-run "* ]] || ensure_prop remove modules;
+        return 3;
     fi
 }
 act_panelled_logs () 
@@ -436,6 +454,10 @@ act_panelled_logs ()
         BC_H='─';
         BC_V='│';
         BC_B='│';
+        BC_TL='┌';
+        BC_TR='┐';
+        BC_BL='└';
+        BC_BR='┘';
         G_OK='✔';
         G_FAIL='✘';
         G_RUN='◐';
@@ -446,6 +468,10 @@ act_panelled_logs ()
         BC_H='-';
         BC_V='|';
         BC_B='|';
+        BC_TL='+';
+        BC_TR='+';
+        BC_BL='+';
+        BC_BR='+';
         G_OK='+';
         G_FAIL='x';
         G_RUN='*';
@@ -454,7 +480,7 @@ act_panelled_logs ()
         G_DN='>>';
     fi;
     G_SEL='<<';
-    readonly BC_H BC_V BC_B G_OK G_FAIL G_RUN G_HL G_ELL G_DN G_SEL;
+    readonly BC_H BC_V BC_B BC_TL BC_TR BC_BL BC_BR G_OK G_FAIL G_RUN G_HL G_ELL G_DN G_SEL;
     readonly TAIL_LINES=2;
     readonly MAX_HL=12;
     readonly MAX_RBUF=2000;
@@ -528,6 +554,13 @@ act_panelled_logs ()
     PREV_FH=-1;
     FAIL_TITLE="";
     declare -a FAILROWS=();
+    declare -a AT_LINES=();
+    declare -A AT_SEG=();
+    AT_UNTIL=0;
+    AT_CD=-1;
+    AT_FMT="";
+    AT_SEC=-1;
+    AT_GUARD=0;
     function _open_tty () 
     { 
         if [[ -e /dev/tty ]] && { 
@@ -1251,6 +1284,26 @@ act_panelled_logs ()
         LDIRTY[$c]=1;
         LEFT_VALID=0
     };
+    function _attention_close () 
+    { 
+        AT_LINES=();
+        AT_UNTIL=0;
+        AT_CD=-1;
+        AT_FMT="";
+        AT_SEG=();
+        AT_GUARD=$(( ${EPOCHREALTIME%.*} + 10 ));
+        FULL_CLEAR=1;
+        LEFT_VALID=0
+    };
+    function _attention_active () 
+    { 
+        (( ${#AT_LINES[@]} )) || return 1;
+        if (( AT_UNTIL > 0 && ${EPOCHREALTIME%.*} >= AT_UNTIL )); then
+            _attention_close;
+            return 1;
+        fi;
+        return 0
+    };
     function _set_step () 
     { 
         STEP_TEXT=$1
@@ -1635,20 +1688,29 @@ act_panelled_logs ()
                 fi;
             fi;
         fi;
+        AT_SEG=();
+        _attention_active && _attention_build;
+        local now_s=${EPOCHREALTIME%.*} at_wipe=0;
+        if (( ${#AT_LINES[@]} || now_s < AT_GUARD )) && (( now_s != AT_SEC )); then
+            AT_SEC=$now_s;
+            FULL_CLEAR=1;
+            at_wipe=1;
+        fi;
         local out="" l r rowstr;
         if (( FULL_CLEAR )); then
             PREV=();
             FULL_CLEAR=0;
         fi;
+        (( at_wipe )) && printf -v out '\033[%d;1H\033[K' "$rows";
         _title_text "$REVIEW" "$TITLE_WORD";
         _title_row "$usable";
-        rowstr=$TITLEROW;
+        rowstr=$TITLEROW${AT_SEG[1]:-};
         if [[ ${PREV[0]:-__} != "$rowstr" ]]; then
             out+='[1;1H'"$rowstr"'[K';
             PREV[0]=$rowstr;
         fi;
         _hrule_v "$usable";
-        rowstr="${C_DIM}${HRULE}${C_RESET}";
+        rowstr="${C_DIM}${HRULE}${C_RESET}${AT_SEG[2]:-}";
         if [[ ${PREV[1]:-__} != "$rowstr" ]]; then
             out+='[2;1H'"$rowstr"'[K';
             PREV[1]=$rowstr;
@@ -1661,7 +1723,7 @@ act_panelled_logs ()
                 l=$FITTED;
             fi;
             r=${right[i]:-};
-            rowstr="${l} ${C_DIM}${BC_V}${C_RESET} ${r}";
+            rowstr="${l} ${C_DIM}${BC_V}${C_RESET} ${r}${AT_SEG[$(( i + 3 ))]:-}";
             j=$(( i + 2 ));
             if [[ ${PREV[j]:-__} != "$rowstr" ]]; then
                 printf -v out '%s\033[%d;1H%s\033[K' "$out" $(( i + 3 )) "$rowstr";
@@ -1680,6 +1742,7 @@ act_panelled_logs ()
                 else
                     rowstr=${FAILROWS[i-1]:-};
                 fi;
+                rowstr+=${AT_SEG[$(( body + i + 3 ))]:-};
                 j=$(( body + i + 2 ));
                 if [[ ${PREV[j]:-__} != "$rowstr" ]]; then
                     printf -v out '%s\033[%d;1H%s\033[K' "$out" $(( body + i + 3 )) "$rowstr";
@@ -1687,7 +1750,7 @@ act_panelled_logs ()
                 fi;
             done;
         fi;
-        [[ -n $out ]] && printf '%s' "$out";
+        [[ -n $out ]] && printf '\0337\033[?2026h%s\033[?2026l\0338' "$out";
         FRAMES=$(( FRAMES + 1 ));
         DRAW_MS=$(( DRAW_MS + $(_now_ms) - t0 ));
         DRAWING=0
@@ -1774,12 +1837,51 @@ act_panelled_logs ()
         _draw 1;
         _raise_fail_panel $(( rc != 0 ));
         printf '\033[?7h';
+        printf '\033[r';
         printf '\033[%d;1H\033[K' "$TTY_ROWS";
         printf '\033[?25h';
         (( TTY_FD >= 0 )) && { 
             stty echo <&"$TTY_FD" 2> /dev/null;
             exec {TTY_FD}>&-
         }
+    };
+    function _attention_build () 
+    { 
+        local cols=$TTY_COLS rows=$TTY_ROWS line w maxw=0 i pl pr;
+        local -a body=("${AT_LINES[@]}");
+        if (( AT_CD >= 0 )); then
+            local left=$(( AT_UNTIL - ${EPOCHREALTIME%.*} )) mmss;
+            (( left < 0 )) && left=0;
+            printf -v mmss '%d:%02d' $(( left / 60 )) $(( left % 60 ));
+            printf -v line -- "$AT_FMT" "$mmss" 2> /dev/null || line=$AT_FMT;
+            body[AT_CD]=$line;
+        fi;
+        for line in "${body[@]}";
+        do
+            _dwidth "$line";
+            (( REPLY > maxw )) && maxw=$REPLY;
+        done;
+        local bw=$(( maxw + 6 ));
+        (( bw > cols - 2 )) && bw=$(( cols - 2 ));
+        local bh=$(( ${#body[@]} + 2 ));
+        local top=$(( (rows - bh) / 2 + 1 )) lc=$(( (cols - bw) / 2 + 1 ));
+        _hrule_v $(( bw - 2 ));
+        printf -v "AT_SEG[$top]" '\033[%d;%dH%s%s%s%s%s' $top $lc "$C_RED" "$BC_TL" "$HRULE" "$BC_TR" "$C_RESET";
+        for ((i = 0; i < ${#body[@]}; i++ ))
+        do
+            line=${body[i]};
+            _dwidth "$line";
+            w=$REPLY;
+            if (( w > bw - 4 )); then
+                _fit_v $(( bw - 4 )) "$line" 1;
+                line=$FITTED;
+                w=$(( bw - 4 ));
+            fi;
+            pl=$(( (bw - 2 - w) / 2 ));
+            pr=$(( bw - 2 - w - pl ));
+            printf -v "AT_SEG[$(( top + i + 1 ))]" '\033[%d;%dH%s%s%s%*s%s%s%s%*s%s%s%s' $(( top + i + 1 )) $lc "$C_RED" "$BC_V" "$C_RESET" $pl '' "$C_BOLD$C_YELLOW" "$line" "$C_RESET" $pr '' "$C_RED" "$BC_V" "$C_RESET";
+        done;
+        printf -v "AT_SEG[$(( top + bh - 1 ))]" '\033[%d;%dH%s%s%s%s%s' $(( top + bh - 1 )) $lc "$C_RED" "$BC_BL" "$HRULE" "$BC_BR" "$C_RESET"
     };
     function _handle_line () 
     { 
@@ -1863,6 +1965,39 @@ act_panelled_logs ()
                 _draw 1;
                 return
             ;;
+            @@ATTENTION)
+                case $rest in 
+                    '')
+                        return
+                    ;;
+                    @@BR)
+                        AT_LINES+=("")
+                    ;;
+                    '@@UNTIL '*)
+                        local t=${rest#@@UNTIL } fmt;
+                        fmt=${t#* };
+                        t=${t%% *};
+                        [[ $fmt == "$t" ]] && fmt='Closing in %s';
+                        if [[ $t == ++([0-9]) ]]; then
+                            AT_UNTIL=$(( ${EPOCHREALTIME%.*} + ${t#+} ));
+                        else
+                            if [[ $t == +([0-9]) ]]; then
+                                AT_UNTIL=$t;
+                            else
+                                return;
+                            fi;
+                        fi;
+                        AT_FMT=$fmt;
+                        AT_CD=${#AT_LINES[@]};
+                        AT_LINES+=("")
+                    ;;
+                    *)
+                        AT_LINES+=("$rest")
+                    ;;
+                esac;
+                _draw 1;
+                return
+            ;;
             @@OK | @@FAIL)
                 target=${rest:-$CURRENT};
                 [[ -z $target ]] && return;
@@ -1923,7 +2058,11 @@ act_panelled_logs ()
         else
             rc=$?;
             if (( rc > 128 )); then
-                _timer_tick && _draw 1;
+                if (( ${#AT_LINES[@]} || ${EPOCHREALTIME%.*} < AT_GUARD )); then
+                    _draw 1;
+                else
+                    _timer_tick && _draw 1;
+                fi;
                 continue;
             fi;
             [[ -n $line ]] && _handle_line "$line";
@@ -1952,18 +2091,47 @@ act_panelled_logs_askpass ()
 #!/bin/bash
 if [ -n "$ASKPASS_ENV" ]; then
   printf '%s\n' "$ASKPASS_ENV"
-else
+elif [ -e /dev/tty ]; then
   exec 8<>/dev/tty 2>/dev/null || exit 1
-  # size and style
-  rows=$(stty size <&8 | cut -d' ' -f1)
+  rows=$(stty size <&8 | cut -d' ' -f1); rows=${rows:-1}
   saved=$(stty -g <&8) || exit 1
-  # restore screen
-  trap 'stty "$saved" <&8 2>/dev/null; printf "\033[%d;1H\033[K" "${rows:-1}" >&8' EXIT INT TERM HUP PIPE
+  # restore tty and clear the prompt row (cleanup only)
+  trap 'stty "$saved" <&8 2>/dev/null; printf "\033[%d;1H\033[K" "$rows" >&8' EXIT
+  # cancel: tell sudo (our parent) to abort instead of re-asking, then exit
+  cancel() { kill -INT "$PPID" 2>/dev/null; exit "$1"; }
+  trap 'cancel 130' INT
+  trap 'cancel 143' TERM
+  trap 'cancel 129' HUP
+  trap 'cancel 141' PIPE
   stty -echo <&8
-  # last row: _draw only ever writes rows 1..rows-1, so this is never repainted
-  printf '\033[%d;1H\033[K%s' "${rows:-1}" "$1" >&8
-  IFS= read -r pw <&8
-  printf '\033[%d;1H\033[K' "${rows:-1}" >&8
+  case ${LC_ALL:-${LC_CTYPE:-${LANG:-}}} in
+    *[Uu][Tt][Ff]*) caret='▏' mask='•' ;;
+    *)              caret='_' mask='*' ;;
+  esac
+  prompt=$1 pw="" on=1
+  draw() {
+    local c=" "
+    (( on )) && c=$'\033[1;36m'"$caret"$'\033[0m'
+    # last row: _draw only ever writes rows 1..rows-1, so this is never repainted
+    printf '\033[%d;1H\033[K%s%s%s' "$rows" "$prompt" "${pw//?/$mask}" "$c" >&8
+  }
+  while :; do
+    draw
+    if IFS= read -r -s -n1 -t 0.5 ch <&8; then
+      case $ch in
+        '')            break ;;            # Enter
+        $'\177'|$'\b') pw=${pw%?} ;;       # Backspace
+        $'\025')       pw="" ;;            # Ctrl-U
+        $'\003')       cancel 130 ;;       # Ctrl-C read as a byte
+        *)             pw+=$ch ;;
+      esac
+      on=1                                 # keep caret solid while typing
+    else
+      rc=$?
+      (( rc > 128 )) || exit 1             # EOF / tty gone
+      on=$(( !on ))                        # timeout -> blink
+    fi
+  done
   printf '%s\n' "$pw"
 fi
 EOF
@@ -1976,26 +2144,83 @@ act_resolve_args ()
     shift;
     local args=("$@") margs=(${*##-*});
     if [ "$act_name" = "stop" ] && [ ${#margs[@]} -eq 0 ]; then
-        local started_path="$(ensure_project_path)/$installer_name/started";
-        [ -d "$started_path" ] && args+=($(cd "$started_path"; ls -1));
+        args+=($(ensure_prop find "started/*" | cut -f2 -d/ | uniq));
     else
         if [ "$act_name" = "remove" ] && [[ " $* " = *" --remove-all "* ]] && [ -z "$(act_extract_modules $act_name "$@")" ]; then
-            local installed_path="$(ensure_project_path)/$installer_name/installed";
-            [ -d "$installed_path" ] && args+=($(cd "$installed_path"; ls -1));
+            args+=($(ensure_prop find "installed/*" | cut -f2 -d/ | uniq));
         else
             if [ "$act_name" != "stop" ] && [ -z "$(act_extract_modules $act_name "$@")" ]; then
-                local mods_file="$(ensure_project_path)/$installer_name/modules";
-                [ ! -r "$mods_file" ] || args=($(< "$mods_file") "${args[@]}");
+                args=($(ensure_prop get modules) "${args[@]}");
             fi;
         fi;
     fi;
     echo "${args[*]}"
+}
+act_suggest_modules () 
+{ 
+    local name=$1 m dist d2 max_pre max_full n=${#1} k;
+    local all_modules=(${_act_cache_names[*]:-${_act_cache_modules[*]}});
+    max_full=$(( n <= 6 ? 1 : 2 ));
+    for m in "${all_modules[@]}";
+    do
+        if [[ "$m" == "$name"* ]]; then
+            echo "0 0 $m";
+            continue;
+        fi;
+        if [[ "$m" == *"$name"* || "$name" == *"$m"* ]]; then
+            echo "1 0 $m";
+            continue;
+        fi;
+        for ((k=0; k<n && k<${#m}; k++))
+        do
+            [ "${name:k:1}" = "${m:k:1}" ] || break;
+        done;
+        max_pre=$(( (n - k) / 2 ));
+        ((max_pre < 1)) && max_pre=1;
+        ((max_pre > 3)) && max_pre=3;
+        if ((${#m} > n)); then
+            dist=$(_act_levenshtein "$name" "${m:0:n}");
+            d2=$(_act_levenshtein "$name" "${m:0:n+1}");
+            ((d2 < dist)) && dist=$d2;
+            if ((dist <= max_pre)); then
+                echo "2 $dist $m";
+                continue;
+            fi;
+        fi;
+        dist=$(_act_levenshtein "$name" "$m");
+        ((dist <= max_full)) && echo "3 $dist $m";
+    done | sort -k1,1n -k2,2n -k3,3 | awk 'NR==1{t=$1; d=$2} $1==t && $2==d' | head -n 3 | cut -d' ' -f3
+}
+act_validate_modules () 
+{ 
+    local act_name=${1%%,*};
+    shift;
+    local all_modules=(${_act_cache_names[*]:-${_act_cache_modules[*]}});
+    local all_module_args=" ${all_modules[*]/#/--} ";
+    local v s bad=0;
+    for v in "$@";
+    do
+        [[ "$all_module_args" != *" $v "* ]] || break;
+        [[ "$v" == -* ]] && continue;
+        [[ "$all_module_args" == *" --$v "* ]] && continue;
+        bad=1;
+        s=$(act_suggest_modules "$v" | paste -sd, - | sed 's/,/, /g');
+        if [ -n "$s" ]; then
+            echo -e "${red}Unknown component '$v'.${reset}" 1>&2;
+            echo "Did you mean: $s?" 1>&2;
+        else
+            echo -e "${red}Unknown component '$v'.${reset}" 1>&2;
+        fi;
+    done;
+    [ $bad -eq 0 ] || return 3
 }
 configure_anomalib () 
 { 
     workspace="$(ensure_project_path)/anomalib";
     version=2.7.0;
     repository=https://github.com/open-edge-platform/anomalib.git;
+    version_skills=release-2026.2.0;
+    repository_skills=https://github.com/open-edge-platform/anomalib.git;
     skills=(anomalib-adding-a-datamodule anomalib-adding-a-model anomalib-tiled-ensemble anomalib-training anomalib-benchmarking)
 }
 configure_dlstreamer () 
@@ -2005,13 +2230,14 @@ configure_dlstreamer ()
     yum_repo_conf=("[DLStreamer]" "name=Intel(R) DLStreamer" "baseurl=https://$repo_name/edgeai/dlstreamer" "enabled=1" "gpgcheck=1" "repo_gpgcheck=1" "gpgkey=$key_url");
     yum_repo_file="/etc/yum.repos.d/intel-dlstreamer.repo";
     workspace="$(ensure_project_path)/dlstreamer";
-    version=2026.2.0;
+    version="$(ensure_parse_value_option version --version=2026.2.0 "$@")";
     od_model=yolov5m-640_INT8/FP16-INT8/yolov5m-640_INT8;
     od_model_proc=yolov5m-640_INT8/yolo-v5;
     oc_model=efficientnet-b0_INT8/FP16-INT8/efficientnet-b0;
     model_repo=https://raw.githubusercontent.com/dlstreamer/pipeline-zoo-models/ee73878abc6fb6d864e59a5cd80016de4fc1d194;
-    version_skills=tags/v2026.2.0;
-    repository_skills=https://github.com/open-edge-platform/dlstreamer.git
+    version_skills="release-${version%-rc*}";
+    repository_skills=https://github.com/open-edge-platform/skills.git;
+    skills=(dlstreamer-coding-agent)
 }
 configure_docker_ce () 
 { 
@@ -2070,8 +2296,11 @@ EOF
 configure_geti () 
 { 
     workspace="$(ensure_project_path)/geti";
+    version_skills=release-2026.2.0;
+    repository_skills=https://github.com/open-edge-platform/skills.git;
+    skills=(geti-using-the-pipeline getitune-discovering-models getitune-exporting-a-model getitune-optimizing-a-model getitune-preparing-datasets getitune-running-inference getitune-training-a-model);
     image_name=ghcr.io/open-edge-platform/geti-xpu;
-    port=8080
+    used_ports=(8080)
 }
 configure_kernel_module_essential () 
 { 
@@ -2194,7 +2423,7 @@ configure_openvino ()
     key_url="https://$repo_name/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB";
     yum_repo_conf=("[OpenVINO]" "name=Intel(R) Distribution of OpenVINO" "baseurl=https://$repo_name/openvino" "enabled=1" "gpgcheck=1" "repo_gpgcheck=1" "gpgkey=$key_url");
     yum_repo_file="/etc/yum.repos.d/intel-openvino.repo";
-    version=$([[ " $* " = *" dlstreamer "* ]] && echo 2026.2.0 || echo 2026.4.1);
+    version="$(ensure_parse_value_option version --version=$([[ " $* " = *" dlstreamer "* ]] && echo 2026.2.0 || echo 2026.4.1) "$@")";
     workspace="$(ensure_project_path)/openvino";
     model="https://github.com/onnx/models/raw/4c46cd00fbdb7cd30b6c1c17ab54f2e1f4f7b177/validated/vision/classification/squeezenet/model/squeezenet1.0-12.onnx"
 }
@@ -2209,7 +2438,7 @@ configure_podman_docker ()
 }
 configure_reboot () 
 { 
-    touch "${installer_state?}"/reboot_required
+    ensure_prop set reboot_requested true
 }
 configure_uv () 
 { 
@@ -2499,6 +2728,42 @@ ensure_ip ()
 { 
     ip -4 addr show scope global | sed -n '/^[0-9]*:.*state UP/,/^[0-9]*:/{/^ *inet /{s|.*inet \([0-9.]*\).*|\1|;p}}' | head -n1
 }
+ensure_parse_device () 
+{ 
+    local device="cpu";
+    local args_uc=" ${*^^} ";
+    [ ! -e /dev/accel/accel0 ] || device="npu";
+    [ ! -e /dev/dri/renderD128 ] || device="gpu";
+    [[ "$args_uc" != *" --CPU "* ]] || device="cpu";
+    [[ "$args_uc" != *" --NPU "* ]] || [ ! -e /dev/accel/accel0 ] || device="npu";
+    [[ "$args_uc" != *" --GPU "* ]] || [ ! -e /dev/dri/renderD128 ] || device="gpu";
+    echo $device
+}
+ensure_parse_value_option () 
+{ 
+    local key="$1";
+    shift;
+    local v v1 value="";
+    for v in $*;
+    do
+        case "$v" in 
+            "--$key="*)
+                value="${v#*=}"
+            ;;
+            "--$key")
+
+            ;;
+            *)
+                if [ "$v1" = "--$key" ]; then
+                    value="$v";
+                    v="";
+                fi
+            ;;
+        esac;
+        v1="$v";
+    done;
+    echo "$value"
+}
 ensure_ports_open () 
 { 
     local act_name="${1:?}";
@@ -2513,7 +2778,7 @@ ensure_ports_open ()
         do
             out="$(ss -Hltunp "sport = :$port")";
             [ -n "$out" ] || continue;
-            printf "${red}port %s is occupied${reset}\n" "$port" 1>&2;
+            printf "${red}Port %s is occupied${reset}\n" "$port" 1>&2;
             for mname in $(ensure_prop find "started/*/ports" | cut -f2 -d/);
             do
                 [[ " $(ensure_prop get started/$mname/ports) " = *" $port "* ]] || continue;
@@ -2525,7 +2790,7 @@ ensure_ports_open ()
             done;
             out="$(ss -Hltunp "sport = :$port")";
             [ -n "$out" ] || continue;
-            printf "${red}port %s is occupied${reset}\n%s\n" "$port" "$out" 1>&2;
+            printf "${red}Port %s is occupied${reset}\n%s\n" "$port" "$out" 1>&2;
             return 3;
         done;
     else
@@ -2543,7 +2808,8 @@ ensure_prop ()
     local key_base="$(ensure_project_path)/${installer_name:?}";
     case "$op" in 
         set)
-            printf '%s' "$value" > "$key_base/$key_path"
+            ( umask 077;
+            printf '%s' "$value" > "$key_base/$key_path" )
         ;;
         get)
             [ -r "$key_base/$key_path" ] && cat "$key_base/$key_path" || printf '%s' "$value"
@@ -2552,10 +2818,16 @@ ensure_prop ()
             ( cd "$key_base" && find . -ipath "./$key_path" -print 2> /dev/null | cut -f2- -d/ )
         ;;
         create)
-            mkdir -p "$key_base/${key_path%/*}"
+            mkdir -m 700 -p "$key_base/${key_path%/*}"
         ;;
-        destroy)
-            [ ! -r "$key_base/$key_path" ] || rm -f "$key_base/$key_path"
+        remove)
+            if [ -f "$key_base/$key_path" ]; then
+                rm -f "$key_base/$key_path";
+            else
+                if [[ "$key_path" = */ && -d "$key_base/${key_path%/}" ]]; then
+                    rm -rf "$key_base/${key_path%/}";
+                fi;
+            fi
         ;;
     esac
 }
@@ -2579,7 +2851,7 @@ ensure_ram_size ()
 ensure_rm () 
 { 
     local p norm rc=0;
-    local protected=" / /bin /boot /dev /etc /home /lib /lib64 /media /mnt /opt /proc /root /run /sbin /srv /sys /tmp /usr /var /etc/apt /etc/apt/keyrings /etc/apt/preferences.d /etc/apt/sources.list.d /etc/systemd /etc/systemd/system /usr/bin /usr/lib /usr/local /usr/share /usr/share/keyrings /var/lib $HOME $HOME/.local $HOME/.local/bin $(ensure_project_path) ";
+    local protected=" / /bin /boot /dev /etc /home /lib /lib64 /media /mnt /opt /proc /root /run /sbin /srv /sys /tmp /usr /var /etc/apt /etc/apt/keyrings /etc/apt/preferences.d /etc/apt/sources.list.d /etc/systemd /etc/systemd/system /usr/bin /usr/lib /usr/local /usr/share /usr/share/keyrings /var/lib $HOME $HOME/.local $HOME/.local/bin ";
     for p in "$@";
     do
         [ -n "$p" ] || continue;
@@ -2598,30 +2870,19 @@ ensure_sbom_format ()
     local key=$1;
     shift;
     case "$key" in 
-        pkg-list | apt-pref | yum-repo-conf)
+        pkg-list | apt-pref | yum-repo-conf | kernel-cmdline | module-list | install-cmdline)
             local IFS='|';
             local pkg_str="$*";
             echo "\"$key\": [\"${pkg_str//'|'/\",\"}\"]"
         ;;
-        name | gpg-key | key-file | apt-source | apt-src-source | apt-list-file | apt-pref-file | apt-repository | yum-repo-file)
+        component | repo-name | gpg-key | gpg-key-fingerprint | key-file | apt-source | apt-src-source | apt-list-file | apt-pref-file | apt-repository | yum-repo-file | schema-version | cli-version | cli-url)
             echo "\"$key\": \"$*\""
         ;;
         *)
             echo "Unsupported SBOM key: $key" 1>&2;
-            exit 3
+            return 3
         ;;
     esac
-}
-ensure_select_device () 
-{ 
-    local device="cpu";
-    local args_uc=" ${*^^} ";
-    [ ! -e /dev/accel/accel0 ] || device="npu";
-    [ ! -e /dev/dri/renderD128 ] || device="gpu";
-    [[ "$args_uc" != *" --CPU "* ]] || device="cpu";
-    [[ "$args_uc" != *" --NPU "* ]] || [ ! -e /dev/accel/accel0 ] || device="npu";
-    [[ "$args_uc" != *" --GPU "* ]] || [ ! -e /dev/dri/renderD128 ] || device="gpu";
-    echo $device
 }
 ensure_skills () 
 { 
@@ -2637,22 +2898,15 @@ ensure_skills ()
             mkdir -p "$HOME"/.agents/skills;
             for p in "$@";
             do
-                name="${p##*/}";
-                if [[ -e "$HOME/.agents/skills/$name" || -L "$HOME/.agents/skills/$name" ]]; then
-                    ensure_rm "$HOME/.agents/skills/$name";
-                fi;
+                ensure_rm "$HOME/.agents/skills/${p##*/}";
                 cp -r "$tmpdir/$p" "$HOME"/.agents/skills;
             done;
             ensure_tmpdir destroy "$tmpdir"
         ;;
         remove)
-            local name agent;
-            for name in "${@##*/}";
-            do
-                if [[ -e "$HOME/.agents/skills/$name" || -L "$HOME/.agents/skills/$name" ]]; then
-                    ensure_rm "$HOME/.agents/skills/$name";
-                fi;
-            done
+            local names=("${@##*/}");
+            local spath="$HOME/.agents/skills/";
+            ensure_rm "${names[@]/#/"$spath"}"
         ;;
     esac
 }
@@ -2662,25 +2916,27 @@ ensure_sudo ()
     [ -z "$hp" ] || proxy_args+=("http_proxy=$hp" "HTTP_PROXY=$hp");
     [ -z "$sp" ] || proxy_args+=("https_proxy=$sp" "HTTPS_PROXY=$sp");
     [ -z "$np" ] || proxy_args+=("no_proxy=$np" "NO_PROXY=$np");
-    if [ -e /dev/tty ] && : < /dev/tty 2> /dev/null; then
-        local ppid=$$;
-        local pid="$(ensure_prop get pids/sudo/pid$ppid)";
-        if [ -z "$pid" ] || ! kill -0 "$pid" 2> /dev/null; then
-            ( set +e;
-            trap - ERR EXIT INT TERM;
-            for fd in /proc/$BASHPID/fd/*;
-            do
-                fd=${fd##*/};
-                (( fd > 2 )) && eval "exec $fd>&-";
-            done 2> /dev/null;
-            while kill -0 $ppid 2> /dev/null; do
-                sleep 60;
-                sudo -n -v 2> /dev/null || break;
-            done;
-            ensure_prop destroy pids/sudo/pid$ppid ) < /dev/null > /dev/null 2>&1 & pid=$!;
-            ensure_prop create pids/sudo/pid$ppid;
-            ensure_prop set pids/sudo/pid$ppid "$pid";
-            disown $pid;
+    if [ -e /dev/tty ]; then
+        if : < /dev/tty 2> /dev/null; then
+            local ppid=$$;
+            local pid="$(ensure_prop get pids/sudo/pid$ppid)";
+            if [ -z "$pid" ] || ! kill -0 "$pid" 2> /dev/null; then
+                ( set +e;
+                trap - ERR EXIT INT TERM;
+                for fd in /proc/$BASHPID/fd/*;
+                do
+                    fd=${fd##*/};
+                    (( fd > 2 )) && eval "exec $fd>&-";
+                done 2> /dev/null;
+                while kill -0 $ppid 2> /dev/null; do
+                    sudo -n -v < /dev/null > /dev/null 2>&1 || sudo -n true < /dev/null > /dev/null 2>&1 || break;
+                    sleep 60;
+                done;
+                ensure_prop remove pids/sudo/pid$ppid ) < /dev/null > /dev/null 2>&1 & pid=$!;
+                ensure_prop create pids/sudo/pid$ppid;
+                ensure_prop set pids/sudo/pid$ppid "$pid";
+                disown $pid;
+            fi;
         fi;
     fi;
     if sudo -n true 2> /dev/null; then
@@ -2843,11 +3099,7 @@ fedora_15_sbom_unzip ()
 }
 fedora_29_install_reboot () 
 { 
-    [ -e "${installer_state?}"/reboot_required ] || return;
-    local delay=2;
-    ensure_sudo shutdown -r +$delay "$installer_name scheduled a reboot in $delay minutes. Rerun $* after system is back.";
-    rm -f "${installer_state?}"/reboot_required;
-    sleep infinity
+    install_reboot "$@"
 }
 fedora_30_group_docker_ce () 
 { 
@@ -3066,7 +3318,7 @@ fedora_30_sbom_cmake ()
 fedora_30_sbom_docker_ce () 
 { 
     configure_docker_ce "$@";
-    ensure_sbom_format name $repo_name;
+    ensure_sbom_format repo-name $repo_name;
     ensure_sbom_format gpg-key "$key_url";
     ensure_sbom_format yum-repo-conf "${yum_repo_conf[@]}";
     ensure_sbom_format yum-repo-file "$yum_repo_file";
@@ -3204,7 +3456,7 @@ fedora_70_sbom_nodejs ()
 fedora_70_sbom_openvino () 
 { 
     configure_openvino "$@";
-    ensure_sbom_format name "$repo_name";
+    ensure_sbom_format repo-name "$repo_name";
     ensure_sbom_format gpg-key "$key_url";
     ensure_sbom_format yum-repo-conf "${yum_repo_conf[@]}";
     ensure_sbom_format yum-repo-file "$yum_repo_file";
@@ -3212,7 +3464,7 @@ fedora_70_sbom_openvino ()
 }
 fedora_75_install_dlstreamer () 
 { 
-    configure_dlstreamer;
+    configure_dlstreamer "$@";
     if verify_dlstreamer && [[ " $* " != *" --reinstall "* ]]; then
         echo "dlstreamer-${version} is installed." 1>&2;
     else
@@ -3220,11 +3472,11 @@ fedora_75_install_dlstreamer ()
         ensure_prop set installed/dlstreamer/owned true;
         echo "@@STEP Removing intel-dlstreamer";
         fedora_75_remove_dlstreamer "$@";
-        printf "%s\n" "${yum_repo_conf[@]}" | ensure_sudo tee "$yum_repo_file";
         echo "@@STEP Installing intel-dlstreamer=$version";
+        printf "%s\n" "${yum_repo_conf[@]}" | ensure_sudo tee "$yum_repo_file";
         ensure_dnf install -y intel-dlstreamer=$version;
         echo "@@STEP Installing skills";
-        ensure_skills add "$version_skills" "$repository_skills" .github/skills/dlstreamer-coding-agent;
+        ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}";
         verify_dlstreamer;
         echo "intel-dlstreamer=$version installed successfully.";
     fi;
@@ -3239,15 +3491,16 @@ fedora_75_profile_dlstreamer ()
 }
 fedora_75_remove_dlstreamer () 
 { 
-    configure_dlstreamer;
+    configure_dlstreamer "$@";
     [ "$(ensure_prop get installed/dlstreamer/owned)" = "true" ] || return 0;
     ensure_dnf autoremove -y $(dnf list --installed | grep openvino | awk '{print$1}') || true;
-    ensure_rm "$workspace"
+    ensure_rm "$workspace" || true;
+    ensure_skills remove "${skills[@]}"
 }
 fedora_75_sbom_dlstreamer () 
 { 
-    configure_dlstreamer;
-    ensure_sbom_format name "$repo_name";
+    configure_dlstreamer "$@";
+    ensure_sbom_format repo-name "$repo_name";
     ensure_sbom_format gpg-key "$key_url";
     ensure_sbom_format yum-repo-conf "${yum_repo_conf[@]}";
     ensure_sbom_format yum-repo-file "$yum_repo_file";
@@ -3255,7 +3508,7 @@ fedora_75_sbom_dlstreamer ()
 }
 fedora_80_install_anomalib () 
 { 
-    configure_anomalib $*;
+    configure_anomalib "$@";
     if verify_anomalib && [[ " $* " != *" --reinstall "* ]]; then
         echo "Anomalib is installed." 1>&2;
     else
@@ -3267,7 +3520,7 @@ fedora_80_install_anomalib ()
         . .venv/bin/activate;
         pip install "anomalib[openvino,cpu]==${version}";
         echo "@@STEP Installing skills";
-        ensure_skills add tags/lib/v$version $repository "${skills[@]/#/.agents/skills/}";
+        ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}";
         verify_anomalib;
     fi;
     test_anomalib "$@";
@@ -3279,8 +3532,8 @@ fedora_80_profile_anomalib ()
 }
 fedora_80_remove_anomalib () 
 { 
-    configure_anomalib $*;
-    ensure_rm "$workspace";
+    configure_anomalib "$@";
+    ensure_rm "$workspace" || true;
     ensure_skills remove "${skills[@]}"
 }
 fedora_90_install_geti () 
@@ -3306,7 +3559,7 @@ fedora_90_stop_geti ()
 fedora_99_install_system_summary () 
 { 
     echo "@@REPORT SYSTEM SUMMARY";
-    install_system_inspection "$@"
+    install_system_inspection "$@" || true
 }
 fedora_99_profile_edge_base () 
 { 
@@ -3336,9 +3589,37 @@ install_geti ()
         echo "Geti is installed." 1>&2;
     else
         ensure_disk_size 20000;
-        ensure_ports_open install geti "$port";
+        ensure_ram_size 16777216;
+        ensure_ports_open install geti "${used_ports[@]}";
+        echo "@@STEP Pulling image";
         docker pull $image_name;
+        echo "@@STEP Installing skills";
+        ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}";
     fi
+}
+install_reboot () 
+{ 
+    [ "$(ensure_prop get reboot_requested)" = "true" ] || return 0;
+    ensure_prop remove reboot_requested;
+    subcommand_setup;
+    [ -x "$installer_bin" ] || { 
+        echo "Failed to find $installer_cli" 1>&2;
+        return 3
+    };
+    [ -n "$(ensure_prop get command)" ] || { 
+        echo "Nothing to resume? Reboot deferred!" 1>&2;
+        return 3
+    };
+    local delay=2;
+    echo "@@ATTENTION @@BR";
+    echo "@@ATTENTION SYSTEM REBOOT REQUIRED";
+    echo "@@ATTENTION @@BR";
+    echo "@@ATTENTION RERUN '$installer_name resume' AFTER SYSTEM IS BACK.";
+    echo "@@ATTENTION @@BR";
+    echo "@@ATTENTION @@UNTIL +$(( delay * 60 )) Rebooting in %s (cancel: sudo shutdown -c)";
+    echo "@@ATTENTION @@BR";
+    echo "@@HIGHLIGHT RERUN $installer_name resume";
+    ensure_sudo shutdown -r +$delay && sleep infinity
 }
 install_system_inspection () 
 { 
@@ -3410,16 +3691,18 @@ remove_geti ()
 { 
     stop_geti "$@";
     docker image rm -f $image_name || true;
-    ensure_rm "$workspace"
+    ensure_rm "$workspace";
+    ensure_skills remove "${skills[@]}"
 }
 start_geti () 
 { 
     configure_geti "$@";
-    ensure_ports_open start geti "$port";
+    ensure_ports_open start geti "${used_ports[@]}";
     mkdir -p "$workspace"/geti-data;
-    docker run --rm --name geti-app -d -v "$workspace"/geti-data:/application/data:rw -e HOST=0.0.0.0 -e PORT=$port -p $port:$port -e http_proxy -e https_proxy -e no_proxy -e HTTP_PROXY -e HTTPS_PROXY -e NO_PROXY $([ ! -d /dev/dri ] || echo "--device /dev/dri:/dev/dri") --group-add $(getent group render | cut -d: -f3 || echo 992) --group-add $(id -g) --shm-size 8g $image_name;
-    echo "@@HIGHLIGHT URL: http://$(ensure_ip):$port";
-    echo "@@HIGHLIGHT workspace: $workspace/geti-data"
+    docker run --rm --name geti-app -d -v "$workspace"/geti-data:/application/data:rw -e HOST=0.0.0.0 -e PORT=${used_ports[0]} -p ${used_ports[0]}:${used_ports[0]} -e http_proxy -e https_proxy -e no_proxy -e HTTP_PROXY -e HTTPS_PROXY -e NO_PROXY $([ ! -d /dev/dri ] || echo "--device /dev/dri:/dev/dri") --group-add $(getent group render | cut -d: -f3 || echo 992) --group-add $(id -g) --shm-size 8g $image_name;
+    echo "@@HIGHLIGHT URL: http://$(ensure_ip):${used_ports[0]}";
+    echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}/geti-data";
+    echo "@@HIGHLIGHT $installer_name stop|remove"
 }
 stop_geti () 
 { 
@@ -3465,110 +3748,168 @@ subcommand_install ()
             return 3;
         fi;
         [ $hit -eq 1 ] && out+=("${bind[@]}");
-        set -- "${out[*]}";
+        set -- "${out[@]}";
     fi;
     act_helper "install,Installation,Installing,Installed" "" "$@"
 }
 subcommand_list () 
 { 
-    case " $* " in 
-        *" --help "*)
-            echo "list options:";
-            echo "  --sbom          show component SBOM items";
-            echo
-        ;;
-        *" --sbom "*)
-            if [ ${#*} -eq 1 ]; then
-                act_get prefix profile_;
-                local all_profiles=(${_act_reply[*]});
-                local all_modules=(${_act_cache_modules[*]});
-                set -- ${all_modules[*]} ${all_profiles[*]#*_*_*_};
-            fi;
-            local handles=($(act_find_deps install $(act_resolve_args install "$@")));
-            local all_install_modules="${handles[*]#${installer_family}_*_install_}";
-            local handler sbomer;
-            for handler in $(printf '%s\n' "${handles[@]}" | sort);
-            do
-                sbomer=${handler/_install_/_sbom_};
-                declare -F $sbomer > /dev/null 2>&1 || continue;
-                $sbomer $(act_extract_args sbom ${handler#*_*_*_} "$all_install_modules" "$@");
-                echo "---";
-            done
-        ;;
-        *)
-            local all_cmds=(${_act_cache_cmds[*]});
-            act_get prefix profile_;
-            local all_profiles=(${_act_reply[*]});
-            local all_modules=(${_act_cache_modules[*]});
-            local profile_lines=() module_lines=();
-            local -A module_act_cache=();
-            if [ ${#all_modules[@]} -gt 0 ]; then
-                local module_name;
-                for module_name in "${all_modules[@]}";
-                do
-                    [ ${#*} -eq 0 ] || [[ " $* " = *" $module_name "* ]] || continue;
-                    local module_cmds=() mname cmd;
-                    for cmd in ${all_cmds[*]};
-                    do
-                        for mname in $(act_expand_modules $cmd $module_name "$@");
-                        do
-                            if [[ -v _act_cache_functions[${cmd}_${mname}] ]]; then
-                                module_cmds+=($cmd);
-                                break;
-                            fi;
-                        done;
-                    done;
-                    module_act_cache[$module_name]="${module_cmds[*]}";
-                    module_lines+=("|$module_name|[${module_act_cache[$module_name]}]");
-                done;
-            fi;
-            if [ ${#all_profiles[@]} -gt 0 ]; then
-                local profiler;
-                for profiler in "${all_profiles[@]}";
-                do
-                    local profile_name=${profiler#*_*_*_};
-                    [ ${#*} -eq 0 ] || [[ " $* " = *" $profile_name "* ]] || continue;
-                    [[ " ${all_modules[*]} " != *" $profile_name "* ]] || continue;
-                    local profile_cmds=() mname1 mname2 cmd found;
-                    for cmd in ${all_cmds[*]};
-                    do
-                        for mname1 in $($profiler $cmd "$@");
-                        do
-                            if [[ " ${module_act_cache[$mname1]:-} " = *" $cmd "* ]]; then
-                                profile_cmds+=($cmd);
-                                break;
-                            fi;
-                            found=0;
-                            for mname2 in $(act_expand_modules $cmd $mname1 "$@");
-                            do
-                                if [[ -v _act_cache_functions[${cmd}_${mname2}] ]]; then
-                                    found=1;
-                                    break;
+    local all_list=" ${_act_cache_names[*]:-${_act_cache_modules[*]}} ";
+    local module_region_list=" ${_act_cache_modules[*]/#/--} ";
+    local k v args=() mods=() cli_version="" sbom=0 margs=0;
+    for v in "$@";
+    do
+        case "$v" in 
+            --help)
+                echo "list options:";
+                echo "  --cli-version <v>  save cli version in the SBOM header";
+                echo "  --sbom             show component SBOM items";
+                echo;
+                return 0
+            ;;
+            --sbom)
+                sbom=1
+            ;;
+            --cli-version=*)
+                cli_version="${v#*=}"
+            ;;
+            --cli-version)
+
+            ;;
+            *)
+                if [ $margs -eq 1 ]; then
+                    args+=("$v");
+                else
+                    if [[ "$last_v" = "--cli-version" && "$all_list" != *" $v "* && "$v" != -* ]]; then
+                        cli_version="$v";
+                    else
+                        if [[ "$module_region_list" = *" $v "* ]]; then
+                            args+=("$v");
+                            margs=1;
+                        else
+                            if [[ "$all_list" = *" $v "* ]]; then
+                                mods+=("$v");
+                                args+=("$v");
+                            else
+                                if [[ "$v" = "-"* ]]; then
+                                    args+=("$v");
+                                else
+                                    echo "Unknown option: $v" 1>&2;
+                                    return 3;
                                 fi;
-                            done;
-                            if [ $found -eq 1 ]; then
-                                profile_cmds+=($cmd);
+                            fi;
+                        fi;
+                    fi;
+                fi
+            ;;
+        esac;
+        last_v="$v";
+    done;
+    if [ ${#mods[*]} -eq 0 ]; then
+        mods=($all_list);
+        set -- $all_list "${args[@]}";
+    else
+        set -- "${args[@]}";
+    fi;
+    if [ $sbom -eq 1 ]; then
+        local handles=($(act_find_deps install "$@"));
+        if [ ${#handles[*]} -eq 0 ]; then
+            echo "No installable components from ${mods[*]}" 1>&2;
+            return 3;
+        fi;
+        ensure_sbom_format schema-version 1;
+        if git rev-parse --is-inside-work-tree &> /dev/null && git remote get-url origin 2> /dev/null | grep -qE 'github\.com[:/]'; then
+            [ -n "$cli_version" ] || cli_version=$(git rev-parse HEAD);
+            ensure_sbom_format cli-version "$cli_version";
+            if [[ "/$0" = *"/rendered/"* ]]; then
+                local remote="$(git remote get-url origin | sed -E 's#(git@|https://)github.com[:/]##; s#\.git$##')";
+                ensure_sbom_format cli-url "https://raw.githubusercontent.com/$remote/$cli_version/${0/#*rendered/rendered}";
+            fi;
+        fi;
+        ensure_sbom_format install-cmdline $installer_name install "${args[@]}";
+        ensure_sbom_format module-list "${mods[@]}";
+        echo "---";
+        local all_install_modules="${handles[*]#${installer_family}_*_install_}" handler sbomer;
+        for handler in $(printf '%s\n' "${handles[@]}" | sort);
+        do
+            sbomer=${handler/_install_/_sbom_};
+            declare -F $sbomer > /dev/null 2>&1 || continue;
+            $sbomer $(act_extract_args sbom ${handler#*_*_*_} "$all_install_modules" "$@");
+            echo "---";
+        done;
+    else
+        local all_cmds=(${_act_cache_cmds[*]});
+        local profile_lines=() module_lines=();
+        local -A module_act_cache=();
+        local all_modules=(${_act_cache_modules[*]});
+        if [ ${#all_modules[@]} -gt 0 ]; then
+            local module_name;
+            for module_name in "${all_modules[@]}";
+            do
+                [ ${#*} -eq 0 ] || [[ " $* " = *" $module_name "* ]] || continue;
+                local module_cmds=() mname cmd;
+                for cmd in ${all_cmds[*]};
+                do
+                    for mname in $(act_expand_modules $cmd $module_name "$@");
+                    do
+                        if [[ -v _act_cache_functions[${cmd}_${mname}] ]]; then
+                            module_cmds+=($cmd);
+                            break;
+                        fi;
+                    done;
+                done;
+                module_act_cache[$module_name]="${module_cmds[*]}";
+                module_lines+=("|$module_name|[${module_act_cache[$module_name]}]");
+            done;
+        fi;
+        act_get prefix profile_;
+        local all_profiles=(${_act_reply[*]});
+        if [ ${#all_profiles[@]} -gt 0 ]; then
+            local profiler;
+            for profiler in "${all_profiles[@]}";
+            do
+                local profile_name=${profiler#*_*_*_};
+                [ ${#*} -eq 0 ] || [[ " $* " = *" $profile_name "* ]] || continue;
+                [[ " ${all_modules[*]} " != *" $profile_name "* ]] || continue;
+                local profile_cmds=() mname1 mname2 cmd found;
+                for cmd in ${all_cmds[*]};
+                do
+                    for mname1 in $($profiler $cmd "$@");
+                    do
+                        if [[ " ${module_act_cache[$mname1]:-} " = *" $cmd "* ]]; then
+                            profile_cmds+=($cmd);
+                            break;
+                        fi;
+                        found=0;
+                        for mname2 in $(act_expand_modules $cmd $mname1 "$@");
+                        do
+                            if [[ -v _act_cache_functions[${cmd}_${mname2}] ]]; then
+                                found=1;
                                 break;
                             fi;
                         done;
+                        if [ $found -eq 1 ]; then
+                            profile_cmds+=($cmd);
+                            break;
+                        fi;
                     done;
-                    profile_lines+=("|$profile_name|[${profile_cmds[*]}]");
                 done;
+                profile_lines+=("|$profile_name|[${profile_cmds[*]}]");
+            done;
+        fi;
+        { 
+            if [ ${#profile_lines[@]} -gt 0 ]; then
+                printf "List of Profiles:\n";
+                printf "%s\n" "${profile_lines[@]}" | sort;
+                printf "\n";
             fi;
-            { 
-                if [ ${#profile_lines[@]} -gt 0 ]; then
-                    printf "List of Profiles:\n";
-                    printf "%s\n" "${profile_lines[@]}" | sort;
-                    printf "\n";
-                fi;
-                if [ ${#module_lines[@]} -gt 0 ]; then
-                    printf "List of Components:\n";
-                    printf "%s\n" "${module_lines[@]}" | sort;
-                    printf "\n";
-                fi
-            } | ensure_columns
-        ;;
-    esac
+            if [ ${#module_lines[@]} -gt 0 ]; then
+                printf "List of Components:\n";
+                printf "%s\n" "${module_lines[@]}" | sort;
+                printf "\n";
+            fi
+        } | ensure_columns;
+    fi
 }
 subcommand_remove () 
 { 
@@ -3577,90 +3918,71 @@ subcommand_remove ()
         echo "  --dry-run       dry-run operations";
         echo "  --continue      ignore errors and proceed to the end";
         echo "  --remove-all    remove all previously installed components";
+        echo "  --remove-me     remove $installer_name";
         echo;
         return 0;
     fi;
-    act_helper "remove,Removal,Removing,Removed" "-r" "$@"
+    local rc=0;
+    act_helper "remove,Removal,Removing,Removed" "-r" "$@" || rc=$?;
+    if [[ " $* " = *" --remove-me "* ]]; then
+        ensure_rm "$HOME/.local/bin/$installer_name" "$HOME/.local/share/bash-completion/completions/$installer_name" "$HOME/.agents/skills/$installer_name" && echo "$installer_name removed";
+        if [[ " $* " = *" --remove-all "* ]]; then
+            ensure_rm "$(ensure_project_path)";
+            echo "$installer_name logs removed";
+        else
+            echo "$(ensure_project_path) left unchanged";
+        fi;
+    fi;
+    return $rc
+}
+subcommand_resume () 
+{ 
+    local args=($(ensure_prop get command));
+    [[ ${#args[*]} -gt 0 ]] || { 
+        echo "Nothing to resume" 1>&2;
+        return 0
+    };
+    [ -x "$installer_bin" ] || subcommand_setup || { 
+        echo "Failed to find $installer_name" 1>&2;
+        return 3
+    };
+    exec "$installer_bin" "${args[@]}"
 }
 subcommand_setup () 
 { 
     [[ " $* " != *" --help "* ]] || return;
-    local installer_misc_functions=(system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary test_anomalib test_dlstreamer_pipeline test_openvino);
-    local installer_skill_text="Ci0tLQpuYW1lOiBvcGVuZWRnZS1jbGkgICAgCmRlc2NyaXB0aW9uOiBVc2UgdGhlIG9wZW5lZGdlLWNsaSBpbnN0YWxsZXIgdG8gaW5zdGFsbCwgc3RhcnQsIHN0b3AsIG9yIHJlbW92ZSBPcGVuIEVkZ2UgUGxhdGZvcm0gKE9FUCkgbW9kdWxlcyBhbmQgcHJvZmlsZXMgb24gYW4gZWRnZSBzeXN0ZW0uIFRyaWdnZXIgb24gcmVxdWVzdHMgbGlrZSAiaW5zdGFsbCBPcGVuVklOTyIsICJzZXQgdXAgREwgU3RyZWFtZXIiLCAicnVuIHRoZSBzbWFydCBwYXJraW5nIHNhbXBsZSIsICJkZXBsb3kgdGhlIE1ldHJvIC8gTWFudWZhY3R1cmluZyAvIFJldGFpbCAvIFJvYm90aWNzIEFJIFN1aXRlIiwgIndoYXQgT0VQIGNvbXBvbmVudHMgY2FuIEkgaW5zdGFsbCIsIG9yICJ1bmluc3RhbGwgPE9FUCBjb21wb25lbnQ+Ii4gICAKbGljZW5zZTogQXBhY2hlLTIuMCAgIAotLS0KCiMgT3BlbiBFZGdlIFBsYXRmb3JtIENMSSBJbnN0YWxsZXIKCmBvcGVuZWRnZS1jbGlgIGlzIGEgc2VsZi1jb250YWluZWQgc2hlbGwgc2NyaXB0IHRoYXQgaW5zdGFsbHMgT3BlbiBFZGdlIFBsYXRmb3JtCmNvbXBvbmVudHMgKCoqbW9kdWxlcyoqKSBhbmQgbmFtZWQgZ3JvdXBzIG9mIGNvbXBvbmVudHMgKCoqcHJvZmlsZXMqKikuIEFsd2F5cyB1c2UKaXQgZm9yIE9FUCBpbnN0YWxsYXRpb24gdGFza3MuIERvbid0IGhhbmQtaW5zdGFsbCBwYWNrYWdlcywgcGlwIHdoZWVscywgb3IKY29udGFpbmVycyB0aGF0IHRoZSBpbnN0YWxsZXIgYWxyZWFkeSBtYW5hZ2VzLgoKIyMgQ29tbWFuZCBzaGFwZQoKYGBgCm9wZW5lZGdlLWNsaSA8c3ViY29tbWFuZD4gW29wdGlvbnNdIFttb2R1bGVzL3Byb2ZpbGVzXSBbLS08bW9kdWxlPiBtb2R1bGUtb3B0aW9uc10gLi4uCmBgYAoKLSBTdWJjb21tYW5kcyBjYW4gYmUgY2hhaW5lZCBhbmQgcnVuIGluIHRoZSBvcmRlciBnaXZlbi4KLSBPcHRpb25zIGFmdGVyIGEgYC0tPG1vZHVsZT5gIHRhZyBhcHBseSBvbmx5IHRvIHRoYXQgbW9kdWxlLiBBbGwgb3RoZXIgb3B0aW9ucwogIGFwcGx5IHRvIGV2ZXJ5IG5hbWVkIGNvbXBvbmVudC4KCiMjIEluc3RhbGxhdGlvbiB3b3JrZmxvdwoKMS4gKipQaWNrIHRoZSBpbnN0YWxsZXIgZm9yIHRoZSBPUy4qKiBSZWFkIGAvZXRjL29zLXJlbGVhc2VgLgogICAtIFVidW50dS9EZWJpYW46IGBvcGVuZWRnZS1jbGlgCiAgIC0gRmVkb3JhOiBgb3BlbmVkZ2UtY2xpLWZlZG9yYWAKICAgLSBPdGhlcjogY2hlY2sgYGZyYW1ld29ya3Mvb2VwLWluc3RhbGxlci1jbGkvcmVuZGVyZWQvYCBmb3IgYSBtYXRjaGluZyB2YXJpYW50LiBJZiB0aGVyZSBpc24ndCBvbmUsIHN0b3AgYW5kIHRlbGwgdGhlIHVzZXIuCgoyLiAqKkdldCB0aGUgc2NyaXB0KiogKHByZWZlcnJlZDogZGlyZWN0IGRvd25sb2FkKToKICAgYGBgYmFzaAogICBjdXJsIC1mc1NMTyBodHRwczovL3Jhdy5naXRodWJ1c2VyY29udGVudC5jb20vb3Blbi1lZGdlLXBsYXRmb3JtL2VkZ2UtYWktbGlicmFyaWVzL21haW4vZnJhbWV3b3Jrcy9vZXAtaW5zdGFsbGVyLWNsaS9yZW5kZXJlZC9vcGVuZWRnZS1jbGkKICAgY2htb2QgK3ggb3BlbmVkZ2UtY2xpCiAgIGBgYAogICBGYWxsYmFjazogY2xvbmUgYGh0dHBzOi8vZ2l0aHViLmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1saWJyYXJpZXNgCiAgIGFuZCBydW4gdGhlIHNjcmlwdCBmcm9tIGBmcmFtZXdvcmtzL29lcC1pbnN0YWxsZXItY2xpL3JlbmRlcmVkL2AuCgozLiAqKkZpbmQgdGhlIHJpZ2h0IGNvbXBvbmVudC4qKiBSdW4gYC4vb3BlbmVkZ2UtY2xpIGxpc3RgLiBNYXAgdGhlIHVzZXIncwogICByZXF1ZXN0IHRvIGFuIGV4YWN0IG1vZHVsZSBvciBwcm9maWxlIG5hbWUgZnJvbSB0aGlzIG91dHB1dC4gTmV2ZXIgZ3Vlc3MKICAgbmFtZXMuIElmIG1vcmUgdGhhbiBvbmUgZml0cywgYXNrIHRoZSB1c2VyLgoKNC4gKipDb25maXJtIHdpdGggdGhlIHVzZXIuKiogU2hvdyB0aGUgZnVsbCBjb21tYW5kIHlvdSBwbGFuIHRvIHJ1bi4gUnVuIGl0CiAgIGFzIGEgdXNlci4gVGhlIGluc3RhbGxlciBtYXkgdXNlIGBzdWRvYCB3aXRoaW4sIHNvIGdldCBleHBsaWNpdCBhcHByb3ZhbCAKICAgYmVmb3JlIHJ1bm5pbmcgaXQuCgo1LiAqKkluc3RhbGwuKioKICAgYGBgYmFzaAogICAuL29wZW5lZGdlLWNsaSBpbnN0YWxsIDxwcm9maWxlLW9yLW1vZHVsZT4gWy0tPG1vZHVsZT4gb3B0aW9uc10KICAgYGBgCiAgIGBpbnN0YWxsYCBwdWxscyBpbiBkZXBlbmRlbmNpZXMgYXV0b21hdGljYWxseS4KCjYuICoqVmVyaWZ5LioqCiAgIC0gU3lzdGVtLWxldmVsOiBgLi9vcGVuZWRnZS1jbGkgbGlzdCAtLXNib20gPHRhcmdldD5gCiAgIC0gVXNlci1sZXZlbDogY2hlY2sgYH4vLmxvY2FsL29wZW4tZWRnZS1wbGF0Zm9ybS88Y29tcG9uZW50Pi9gCgogICBSZXBvcnQgd2hhdCB3YXMgaW5zdGFsbGVkIGFuZCB3aGVyZS4KCiMjIE90aGVyIGxpZmVjeWNsZSBvcGVyYXRpb25zCgotICoqU3RhcnQvc3RvcDoqKiBgLi9vcGVuZWRnZS1jbGkgc3RhcnQgPGNvbXBvbmVudD5gIC8gYC4vb3BlbmVkZ2UtY2xpIHN0b3AgPGNvbXBvbmVudD5gLiAgCiAgYC4vb3BlbmVkZ2UtY2xpIHN0b3BgIHN0b3BzIGFsbCBwcmV2aW91c2x5IHN0YXJ0ZWQgY29tcG9uZW50cy4gIAotICoqUmVtb3ZlOioqIGAuL29wZW5lZGdlLWNsaSByZW1vdmUgPGNvbXBvbmVudD5gLiBUaGlzIGlzICoqbm90IHJlY3Vyc2l2ZSoqOiAgCiAgaXQgcmVtb3ZlcyBvbmx5IHRoZSBuYW1lZCBjb21wb25lbnQgYW5kIGxlYXZlcyBpdHMgZGVwZW5kZW5jaWVzIGluc3RhbGxlZC4gCiAgTGlzdCBkZXBlbmRlbmNpZXMgZXhwbGljaXRseSBpZiBuZWVkZWQuICAgCiAgYC4vb3BlbmVkZ2UtY2xpIHJlbW92ZSAtLXJlbW92ZS1hbGxgIHRvIHJlbW92ZSBhbGwgcHJldmlvdXNseSBpbnN0YWxsZWQuICAKCiMjIFRyb3VibGVzaG9vdGluZwoKLSBJZiBhIGNvbW1hbmQgZmFpbHMsIHNob3cgdGhlIHVzZXIgdGhlIHJlbGV2YW50IGVycm9yIG91dHB1dC4gRG9uJ3QgcmV0cnkgd2l0aAogIGV4dHJhIGZsYWdzIHVubGVzcyB0aGUgdXNlciBhcHByb3Zlcy4KLSBDaGVjayB0aGUgUkVBRE1FIGZvciBzdXBwb3J0ZWQgb3B0aW9ucyBiZWZvcmUgaW52ZW50aW5nIGFueS4KCiMjIEFkdmFuY2VkIChvbmx5IGlmIHRoZSB1c2VyIGFza3MpCgpUbyBidWlsZCBhIGN1c3RvbWl6ZWQgaW5zdGFsbGVyLCBjbG9uZSB0aGUgcmVwb3NpdG9yeSBhbmQgdXNlIGl0cyBgYm9vdHN0cmFwYApjb21tYW5kLiBTZWUgdGhlIFJFQURNRS4KCiMjIFJlZmVyZW5jZQoKLSBbUkVBRE1FXShodHRwczovL2dpdGh1Yi5jb20vb3Blbi1lZGdlLXBsYXRmb3JtL2VkZ2UtYWktbGlicmFyaWVzL2Jsb2IvbWFpbi9mcmFtZXdvcmtzL29lcC1pbnN0YWxsZXItY2xpL1JFQURNRS5tZCk6IHRoZSBzb3VyY2Ugb2YgdHJ1dGggZm9yIHN1YmNvbW1hbmRzIGFuZCBvcHRpb25zLgotIFtXZWIgVUldKGh0dHBzOi8vZG9jcy5vcGVuZWRnZXBsYXRmb3JtLmludGVsLmNvbS9kZXYvT0VQLWFydGljbGVzL29lcC1jbGktaW5zdGFsbGVyL2luZGV4Lmh0bWwpOiBjaG9vc2UgYSBwcm9maWxlIG9yIG1vZHVsZSBhbmQgY29weSB0aGUgZXhhY3QgY29tbWFuZC4K";
+    local installer_misc_functions=(_act_levenshtein system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary test_anomalib test_dlstreamer_pipeline test_openvino);
+    local installer_completion_text="IyEvYmluL2Jhc2gKX29wZW5lZGdlX2NsaV9jb21wbGV0aW9uICgpIHsKICBpZiAoKCBDT01QX0NXT1JEID09IDEgKSk7IHRoZW4KICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICJpbnN0YWxsIHJlbW92ZSByZXN1bWUgc3RhcnQgc3RvcCBsaXN0IHNldHVwIC0taGVscCIgLS0gIiQyIikpCiAgICByZXR1cm4KICBmaQoKICBjYXNlICIke0NPTVBfV09SRFNbMV19IiBpbgogIGluc3RhbGwpCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtyZWJvb3RdPSIiIFtjaHJvbnldPSIiIFtnZXRpXT0iIiBbcnN5bmNdPSIiIFtnaXRdPSIiIFtlZGdlX2Jhc2VdPSIiIFtwY3JlMl9kZXZlbF09IiIgW2NtYWtlXT0iIiBbc3lzdGVtX3N1bW1hcnldPSIiIFtzdHJlc3NfbmddPSIiIFtub2RlanNdPSIiIFtkb2NrZXJfY2VdPSIiIFstLXJlaW5zdGFsbF09IiIgW3N5c3RlbV9pbnNwZWN0aW9uXT0iIiBbcGlweF09IiIgWy0tdmFsaWRhdGVdPSIiIFtvcGVudmlub109IiIgW21ha2VdPSIiIFt1dl09IiIgW3B5dGhvbjNfcGlwXT0iIiBbLS1kcnktcnVuXT0iIiBbZ2F3a109IiIgW3VuemlwXT0iIiBbZGxzdHJlYW1lcl09IiIgW3dnZXRdPSIiIFtnbnVwZzJdPSIiIFtkbWlkZWNvZGVdPSIiIFtrZXJuZWxfbW9kdWxlX2Vzc2VudGlhbF09IiIgW2pxXT0iIiBbcGNpdXRpbHNdPSIiIFthbm9tYWxpYl09IiIgW3BvZG1hbl9kb2NrZXJdPSIiIFtjdXJsXT0iIiBbLS1jb250aW51ZV09IiIgW2djY109IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogIHJlbW92ZSkKICAgIGxvY2FsIC1BIGFsbF9jb21wcz0oW3JzeW5jXT0iIiBbZ2V0aV09IiIgW2dpdF09IiIgW2NtYWtlXT0iIiBbc3RyZXNzX25nXT0iIiBbbm9kZWpzXT0iIiBbZG9ja2VyX2NlXT0iIiBbLS1yZWluc3RhbGxdPSIiIFtwaXB4XT0iIiBbLS12YWxpZGF0ZV09IiIgW29wZW52aW5vXT0iIiBbbWFrZV09IiIgW3V2XT0iIiBbLS1kcnktcnVuXT0iIiBbdW56aXBdPSIiIFtkbHN0cmVhbWVyXT0iIiBbZG1pZGVjb2RlXT0iIiBba2VybmVsX21vZHVsZV9lc3NlbnRpYWxdPSIiIFtqcV09IiIgW2Fub21hbGliXT0iIiBbcG9kbWFuX2RvY2tlcl09IiIgWy0tY29udGludWVdPSIiIFtnY2NdPSIiICkKICAgIGZvciAoKGk9MjtpPENPTVBfQ1dPUkQ7aSsrKSk7IGRvIHVuc2V0ICJhbGxfY29tcHNbJHtDT01QX1dPUkRTWyRpXX1dIjsgZG9uZQogICAgQ09NUFJFUExZPSgkKGNvbXBnZW4gLVcgIiR7IWFsbF9jb21wc1sqXX0iIC0tICIkMiIpKQogICAgOzsKICByZXN1bWUpCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFstLXJlaW5zdGFsbF09IiIgWy0tdmFsaWRhdGVdPSIiIFstLWRyeS1ydW5dPSIiIFstLWNvbnRpbnVlXT0iIiApCiAgICBmb3IgKChpPTI7aTxDT01QX0NXT1JEO2krKykpOyBkbyB1bnNldCAiYWxsX2NvbXBzWyR7Q09NUF9XT1JEU1skaV19XSI7IGRvbmUKICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICIkeyFhbGxfY29tcHNbKl19IiAtLSAiJDIiKSkKICAgIDs7CiAgc3RhcnQpCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtnZXRpXT0iIiBbLS1yZWluc3RhbGxdPSIiIFstLXZhbGlkYXRlXT0iIiBbLS1kcnktcnVuXT0iIiBbLS1jb250aW51ZV09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogIHN0b3ApCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtnZXRpXT0iIiBbLS1yZWluc3RhbGxdPSIiIFstLXZhbGlkYXRlXT0iIiBbLS1kcnktcnVuXT0iIiBbLS1jb250aW51ZV09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogICopCiAgICBDT01QUkVQTFk9KCkKICAgIDs7CiAgZXNhYwp9CmNvbXBsZXRlIC1GIF9vcGVuZWRnZV9jbGlfY29tcGxldGlvbiBvcGVuZWRnZS1jbGkK";
+    local installer_skill_text="LS0tCm5hbWU6IG9wZW5lZGdlLWNsaSAgICAKZGVzY3JpcHRpb246IFVzZSB0aGUgb3BlbmVkZ2UtY2xpIGluc3RhbGxlciB0byBpbnN0YWxsLCBzdGFydCwgc3RvcCwgb3IgcmVtb3ZlIE9wZW4gRWRnZSBQbGF0Zm9ybSAoT0VQKSBtb2R1bGVzIGFuZCBwcm9maWxlcyBvbiBhbiBlZGdlIHN5c3RlbS4gVHJpZ2dlciBvbiByZXF1ZXN0cyBsaWtlICJpbnN0YWxsIE9wZW5WSU5PIiwgInNldCB1cCBETCBTdHJlYW1lciIsICJydW4gdGhlIHNtYXJ0IHBhcmtpbmcgc2FtcGxlIiwgImRlcGxveSB0aGUgTWV0cm8gLyBNYW51ZmFjdHVyaW5nIC8gUmV0YWlsIC8gUm9ib3RpY3MgQUkgU3VpdGUiLCAid2hhdCBPRVAgY29tcG9uZW50cyBjYW4gSSBpbnN0YWxsIiwgb3IgInVuaW5zdGFsbCA8T0VQIGNvbXBvbmVudD4iLiAgIApsaWNlbnNlOiBBcGFjaGUtMi4wICAgCi0tLQoKIyBPcGVuIEVkZ2UgUGxhdGZvcm0gQ0xJIEluc3RhbGxlcgoKYG9wZW5lZGdlLWNsaWAgaXMgYSBzZWxmLWNvbnRhaW5lZCBzaGVsbCBzY3JpcHQgdGhhdCBpbnN0YWxscyBPcGVuIEVkZ2UgUGxhdGZvcm0KY29tcG9uZW50cyAoKiptb2R1bGVzKiopIGFuZCBuYW1lZCBncm91cHMgb2YgY29tcG9uZW50cyAoKipwcm9maWxlcyoqKS4gQWx3YXlzIHVzZQppdCBmb3IgT0VQIGluc3RhbGxhdGlvbiB0YXNrcy4gRG9uJ3QgaGFuZC1pbnN0YWxsIHBhY2thZ2VzLCBwaXAgd2hlZWxzLCBvcgpjb250YWluZXJzIHRoYXQgdGhlIGluc3RhbGxlciBhbHJlYWR5IG1hbmFnZXMuCgojIyBDb21tYW5kIHNoYXBlCgpgYGAKb3BlbmVkZ2UtY2xpIDxzdWJjb21tYW5kPiBbb3B0aW9uc10gW21vZHVsZXMvcHJvZmlsZXNdIFstLTxtb2R1bGU+IG1vZHVsZS1vcHRpb25zXSAuLi4KYGBgCgotIFN1YmNvbW1hbmRzIGNhbiBiZSBjaGFpbmVkIGFuZCBydW4gaW4gdGhlIG9yZGVyIGdpdmVuLgotIE9wdGlvbnMgYWZ0ZXIgYSBgLS08bW9kdWxlPmAgdGFnIGFwcGx5IG9ubHkgdG8gdGhhdCBtb2R1bGUuIEFsbCBvdGhlciBvcHRpb25zCiAgYXBwbHkgdG8gZXZlcnkgbmFtZWQgY29tcG9uZW50LgoKIyMgSW5zdGFsbGF0aW9uIHdvcmtmbG93CgoxLiAqKlBpY2sgdGhlIGluc3RhbGxlciBmb3IgdGhlIE9TLioqIFJlYWQgYC9ldGMvb3MtcmVsZWFzZWAuCiAgIC0gVWJ1bnR1L0RlYmlhbjogYG9wZW5lZGdlLWNsaWAKICAgLSBGZWRvcmE6IGBvcGVuZWRnZS1jbGktZmVkb3JhYAogICAtIE90aGVyOiBjaGVjayBgZnJhbWV3b3Jrcy9vZXAtaW5zdGFsbGVyLWNsaS9yZW5kZXJlZC9gIGZvciBhIG1hdGNoaW5nIHZhcmlhbnQuIElmIHRoZXJlIGlzbid0IG9uZSwgc3RvcCBhbmQgdGVsbCB0aGUgdXNlci4KCjIuICoqR2V0IHRoZSBzY3JpcHQqKiAocHJlZmVycmVkOiBkaXJlY3QgZG93bmxvYWQpOgogICBgYGBiYXNoCiAgIGN1cmwgLWZzU0xPIGh0dHBzOi8vcmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1saWJyYXJpZXMvbWFpbi9mcmFtZXdvcmtzL29lcC1pbnN0YWxsZXItY2xpL3JlbmRlcmVkL29wZW5lZGdlLWNsaQogICBjaG1vZCAreCBvcGVuZWRnZS1jbGkKICAgYGBgCiAgIEZhbGxiYWNrOiBjbG9uZSBgaHR0cHM6Ly9naXRodWIuY29tL29wZW4tZWRnZS1wbGF0Zm9ybS9lZGdlLWFpLWxpYnJhcmllc2AKICAgYW5kIHJ1biB0aGUgc2NyaXB0IGZyb20gYGZyYW1ld29ya3Mvb2VwLWluc3RhbGxlci1jbGkvcmVuZGVyZWQvYC4KCjMuICoqRmluZCB0aGUgcmlnaHQgY29tcG9uZW50LioqIFJ1biBgLi9vcGVuZWRnZS1jbGkgbGlzdGAuIE1hcCB0aGUgdXNlcidzCiAgIHJlcXVlc3QgdG8gYW4gZXhhY3QgbW9kdWxlIG9yIHByb2ZpbGUgbmFtZSBmcm9tIHRoaXMgb3V0cHV0LiBOZXZlciBndWVzcwogICBuYW1lcy4gSWYgbW9yZSB0aGFuIG9uZSBmaXRzLCBhc2sgdGhlIHVzZXIuCgo0LiAqKkNvbmZpcm0gd2l0aCB0aGUgdXNlci4qKiBTaG93IHRoZSBmdWxsIGNvbW1hbmQgeW91IHBsYW4gdG8gcnVuLiBSdW4gaXQKICAgYXMgYSB1c2VyLiBUaGUgaW5zdGFsbGVyIG1heSB1c2UgYHN1ZG9gIHdpdGhpbiwgc28gZ2V0IGV4cGxpY2l0IGFwcHJvdmFsIAogICBiZWZvcmUgcnVubmluZyBpdC4KCjUuICoqSW5zdGFsbC4qKgogICBgYGBiYXNoCiAgIC4vb3BlbmVkZ2UtY2xpIGluc3RhbGwgPHByb2ZpbGUtb3ItbW9kdWxlPiBbLS08bW9kdWxlPiBvcHRpb25zXQogICBgYGAKICAgYGluc3RhbGxgIHB1bGxzIGluIGRlcGVuZGVuY2llcyBhdXRvbWF0aWNhbGx5LgoKNi4gKipWZXJpZnkuKioKICAgLSBTeXN0ZW0tbGV2ZWw6IGAuL29wZW5lZGdlLWNsaSBsaXN0IC0tc2JvbSA8dGFyZ2V0PmAKICAgLSBVc2VyLWxldmVsOiBjaGVjayBgfi8ubG9jYWwvb3Blbi1lZGdlLXBsYXRmb3JtLzxjb21wb25lbnQ+L2AKCiAgIFJlcG9ydCB3aGF0IHdhcyBpbnN0YWxsZWQgYW5kIHdoZXJlLgoKIyMgT3RoZXIgbGlmZWN5Y2xlIG9wZXJhdGlvbnMKCi0gKipTdGFydC9zdG9wOioqIGAuL29wZW5lZGdlLWNsaSBzdGFydCA8Y29tcG9uZW50PmAgLyBgLi9vcGVuZWRnZS1jbGkgc3RvcCA8Y29tcG9uZW50PmAuICAKICBgLi9vcGVuZWRnZS1jbGkgc3RvcGAgc3RvcHMgYWxsIHByZXZpb3VzbHkgc3RhcnRlZCBjb21wb25lbnRzLiAgCi0gKipSZW1vdmU6KiogYC4vb3BlbmVkZ2UtY2xpIHJlbW92ZSA8Y29tcG9uZW50PmAuIFRoaXMgaXMgKipub3QgcmVjdXJzaXZlKio6ICAKICBpdCByZW1vdmVzIG9ubHkgdGhlIG5hbWVkIGNvbXBvbmVudCBhbmQgbGVhdmVzIGl0cyBkZXBlbmRlbmNpZXMgaW5zdGFsbGVkLiAKICBMaXN0IGRlcGVuZGVuY2llcyBleHBsaWNpdGx5IGlmIG5lZWRlZC4gICAKICBgLi9vcGVuZWRnZS1jbGkgcmVtb3ZlIC0tcmVtb3ZlLWFsbGAgdG8gcmVtb3ZlIGFsbCBwcmV2aW91c2x5IGluc3RhbGxlZC4gIAoKIyMgVHJvdWJsZXNob290aW5nCgotIElmIGEgY29tbWFuZCBmYWlscywgc2hvdyB0aGUgdXNlciB0aGUgcmVsZXZhbnQgZXJyb3Igb3V0cHV0LiBEb24ndCByZXRyeSB3aXRoCiAgZXh0cmEgZmxhZ3MgdW5sZXNzIHRoZSB1c2VyIGFwcHJvdmVzLgotIENoZWNrIHRoZSBSRUFETUUgZm9yIHN1cHBvcnRlZCBvcHRpb25zIGJlZm9yZSBpbnZlbnRpbmcgYW55LgoKIyMgQWR2YW5jZWQgKG9ubHkgaWYgdGhlIHVzZXIgYXNrcykKClRvIGJ1aWxkIGEgY3VzdG9taXplZCBpbnN0YWxsZXIsIGNsb25lIHRoZSByZXBvc2l0b3J5IGFuZCB1c2UgaXRzIGBib290c3RyYXBgCmNvbW1hbmQuIFNlZSB0aGUgUkVBRE1FLgoKIyMgUmVmZXJlbmNlCgotIFtSRUFETUVdKGh0dHBzOi8vZ2l0aHViLmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1saWJyYXJpZXMvYmxvYi9tYWluL2ZyYW1ld29ya3Mvb2VwLWluc3RhbGxlci1jbGkvUkVBRE1FLm1kKTogdGhlIHNvdXJjZSBvZiB0cnV0aCBmb3Igc3ViY29tbWFuZHMgYW5kIG9wdGlvbnMuCi0gW1dlYiBVSV0oaHR0cHM6Ly9kb2NzLm9wZW5lZGdlcGxhdGZvcm0uaW50ZWwuY29tL2Rldi9PRVAtYXJ0aWNsZXMvb2VwLWNsaS1pbnN0YWxsZXIvaW5kZXguaHRtbCk6IGNob29zZSBhIHByb2ZpbGUgb3IgbW9kdWxlIGFuZCBjb3B5IHRoZSBleGFjdCBjb21tYW5kLgo=";
     mkdir -p "$(dirname "$installer_bin")";
-    cat > "$installer_bin" <<EOF
+    { 
+        cat > "$installer_bin" <<EOF
 #!/bin/bash
 $(declare -f ${installer_misc_functions[*]})
 $(declare -f $(declare -F | grep -v '^declare -fx' | grep -E " (${installer_family}_[0-9]+_|ensure_|act_|verify_|configure_|install_|start_|stop_|remove_|profile_|license_|sbom_|subcommand_|main$)" | cut -f3 -d' ' | tr '\n' ' '))
 main "\$@"
 EOF
 
+    } || { 
+        echo "Failed to write to $installer_bin" 1>&2;
+        return 1
+    };
     chmod a+rx "$installer_bin";
-    echo "Installer reconstructed at $installer_bin";
+    echo "Installer reconstructed at ${installer_bin/#"$HOME"/"~"}";
     local completion_script="$HOME/.local/share/bash-completion/completions/$installer_name";
     mkdir -p "$(dirname "$completion_script")";
-    local all_cmds=(${_act_cache_cmds[*]});
-    cat > "$completion_script" <<EOF
-#!/bin/bash
-_${installer_name//-/_}_completion () {
-  if (( COMP_CWORD == 1 )); then
-    COMPREPLY=(\$(compgen -W "${all_cmds[*]} list setup --help" -- "\$2"))
-    return
-  fi
-
-  case "\${COMP_WORDS[1]}" in
-$(  
-    # snapshot profiles ONCE; do not rely on _act_reply surviving a second act_get
-    act_get prefix profile_
-    local all_profilers=(${_act_reply[*]})
-    local cmd dcmd profiler pname mname found
-    local -A all_comps
-    for cmd in ${all_cmds[*]}; do
-      all_comps=()
-      all_comps["--continue"]=""
-      all_comps["--dry-run"]=""
-      all_comps["--reinstall"]=""
-      all_comps["--validate"]=""
-      # sbom handlers are sparse; resolve its dependency graph as if it were install
-      dcmd=$cmd; [ "$cmd" != sbom ] || dcmd=install
-      act_get prefix ${dcmd}_
-      local all_modules=(${_act_reply[*]#*_*_*_})
-      for profiler in ${all_profilers[*]}; do
-        pname=${profiler#*_*_*_}
-        [[ " ${all_modules[*]} " != *" $pname "* ]] || continue
-        found=0
-        for mname in $(act_expand_modules $dcmd $pname); do
-          if [[ -v _act_cache_functions[${dcmd}_${mname}] ]]; then
-            found=1
-            break
-          fi
-        done
-        [ $found -eq 0 ] || all_comps[$pname]=""
-      done
-      for mname in ${all_modules[*]}; do
-        all_comps[$mname]=""
-      done
-      echo "  $cmd)"
-      echo "    $(declare -p all_comps | sed 's|declare -A |local -A |')"
-      echo "    for ((i=2;i<COMP_CWORD;i++)); do unset \"all_comps[\${COMP_WORDS[\$i]}]\"; done"
-      echo "    COMPREPLY=(\$(compgen -W \"\${!all_comps[*]}\" -- \"\$2\"))"
-      echo "    ;;"
-    done
-    :
-)
-  *)
-    COMPREPLY=()
-    ;;
-  esac
-}
-complete -F _${installer_name//-/_}_completion $installer_name
-EOF
-
-    echo "bash completion created at $completion_script";
+    base64 -d > "$completion_script" <<< "$installer_completion_text" || { 
+        echo "Failed to write to $completion_script" 1>&2;
+        return 1
+    };
+    echo "bash completion created at ${completion_script/#"$HOME"/"~"}";
     local skill_file="$HOME"/.agents/skills/$installer_name/SKILL.md;
     mkdir -p "${skill_file%/*}";
-    base64 -d > "$skill_file" <<< "$installer_skill_text";
-    echo "skill written to $skill_file"
+    base64 -d > "$skill_file" <<< "$installer_skill_text" || { 
+        echo "Failed to write to $skill_file" 1>&2;
+        return 1
+    };
+    echo "skill written to ${skill_file/#"$HOME"/"~"}"
 }
 subcommand_start () 
 { 

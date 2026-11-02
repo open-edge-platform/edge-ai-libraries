@@ -1,0 +1,35 @@
+
+# 7.0.0-38
+ensure_grub_set_default_entry () {
+  local kver="$1"
+  ensure_sudo sed -i -e '/^GRUB_TOP_LEVEL=/d' -e 's/^GRUB_DEFAULT=.*/GRUB_DEFAULT=0/' /etc/default/grub
+  echo "GRUB_TOP_LEVEL=/boot/vmlinuz-$kver" | ensure_sudo tee -a /etc/default/grub > /dev/null
+  ensure_sudo update-grub
+
+  ensure_sudo grep -m1 -E '^\s*linux\s' /boot/grub/grub.cfg | grep -q "vmlinuz-$KVER" || { 
+    # fallback
+    ensure_sudo sed -i 's/^GRUB_DEFAULT=.*/GRUB_DEFAULT=saved/' /etc/default/grub
+    ensure_sudo update-grub
+
+    local SUBMENU="$(ensure_sudo grep -rn GRUB_DISABLE_SUBMENU=y /etc/default/grub /etc/default/grub.d/ 2>/dev/null)"
+    local SUB="$(ensure_sudo grep -om1 "gnulinux-advanced-[^']*" /boot/grub/grub.cfg)"
+    local ENTRY="$(ensure_sudo grep -om1 "gnulinux-$kver-advanced-[^']*" /boot/grub/grub.cfg)"
+    if [ -n "$SUBMENU" ]; then
+      ensure_sudo grub-set-default "$ENTRY"
+    else
+      ensure_sudo grub-set-default "$SUB>$ENTRY"
+    fi
+  }
+}
+
+# GRUB_CMDLINE_LINUX xe.max_vfs=7 xe.force_probe=* modprobe.blacklist=i915 udmabuf.list_limit=8192
+ensure_grub_set_kernel_args () {
+  local k="$1"; shift
+  local line="$(. /etc/default/grub;printf "%s" "${!k}")" o
+  for o in "$@"; do
+    [[ " $line " == *" $o "* ]] || line="$line $o"
+  done
+  ensure_sudo sed -i "s|^$k=.*|$k=\"$line\"|" /etc/default/grub
+  ensure_sudo update-grub
+}
+

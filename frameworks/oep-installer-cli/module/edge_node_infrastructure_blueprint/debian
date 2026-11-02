@@ -84,7 +84,7 @@ debian_60_install_edge_node_infrastructure_blueprint () {
     verify_edge_node_infrastructure_blueprint
   fi
   echo "@@HIGHLIGHT deployment model: $deployment"
-  echo "@@HIGHLIGHT workspace: $workspace"
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
 }
 
 debian_60_remove_edge_node_infrastructure_blueprint () {

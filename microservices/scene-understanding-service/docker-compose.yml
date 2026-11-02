@@ -56,8 +56,8 @@ services:
     networks:
       # The service must resolve the broker and REST hostnames in the same
       # Docker network as the Scenescape deployment, or the values must be
-      # overridden via env / config. Use the existing network name or set
-      # SCENESCAPE_NETWORK_NAME to the correct shared network.
+      # overridden via env / config. Set SCENESCAPE_NETWORK_NAME to the shared
+      # network name (see `docker network ls`).
       - scenescape
     healthcheck:
       test: ["CMD", "python3", "-c",
@@ -69,6 +69,9 @@ services:
     restart: unless-stopped
 
 networks:
+  # By default Compose creates this network if it does not exist yet, and joins
+  # it if a Scenescape deployment already created it. Set
+  # SCENESCAPE_NETWORK_EXTERNAL=true to require a pre-existing network instead.
   scenescape:
     name: ${SCENESCAPE_NETWORK_NAME:-scenescape_scenescape}
-    external: true
+    external: ${SCENESCAPE_NETWORK_EXTERNAL:-false}

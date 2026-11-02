@@ -55,14 +55,27 @@ Available tools:
 # single-turn main-agent calls dropping the one tool actually invoked).
 # Validated on pinchbench gt coverage (95.5% → 100%) and ecrag invoked
 # coverage (main agent 80% → 100%); ~+30 ms (+3%) mean predictor latency.
-_DYNAMIC_RULES_TAIL: str = (
+_DYNAMIC_RULES_HEAD: str = (
     '\nOutput JSON only: {"toolname": score, ...}\n'
     "\nRules:\n"
     "- Score 5: Core tools directly required\n"
     "- Score 4: Very likely supporting tools\n"
     "- Score 3: Alternative or auxiliary tools\n"
     "- Score 2: Fallback tools (e.g. exec for PDF, read for editing)\n"
-    "- You MUST include 5-7 tools (3-4 core + 1-3 fallback)\n"
+)
+# Tool-count rule presets, selected via ToolCompressor(tool_count_level=...).
+# "small" is the validated default; medium/high widen the floor for recall.
+TOOL_COUNT_RULES: dict[str, str] = {
+    "small": "- You MUST include 5-7 tools (3-4 core + 1-3 fallback)\n",
+    "medium": "- You MUST include 5-10 tools (3-5 core + 2-4 fallback)\n",
+    "high": "- You MUST include 7-15 tools (4-6 core + 3-9 fallback)\n",
+}
+# Replaces the tool-count rule when the JSON schema requires every tool key;
+# a 5-7 cap would contradict the grammar. Kept neutral: "give 1 to tools that
+# are not needed" made gemma-3-1b rate all 22 tools 1 on 20/112 cmp25 requests
+# (→ nothing passes the threshold → uncompressed fallback); this wording: 0/112.
+_SCORE_ALL_RULE: str = "- Score every available tool from 1 to 5\n"
+_DYNAMIC_RULES_BODY: str = (
     "- If editing/modifying a file, MUST also include read\n"
     "- If the task says the agent is running as a subagent, include sessions_yield when completing the assigned task, when results auto-announce, or when control must be returned to the requester/main agent\n"
     "- If the task requires spawning or coordinating a subagent, include sessions_spawn; if that flow then waits for descendant results or hands control back, also include sessions_yield\n"
@@ -95,11 +108,15 @@ def build_dynamic_prediction_prompt(
     skills: list[tuple[str, str]] | None = None,
     call_history: list[dict] | None = None,
     skill_content: str | None = None,
+    score_all: bool = False,
+    tool_count_level: str = "small",
 ) -> str:
     """Fill the template + append dynamic context sections + rules tail.
 
     Order: tool_descriptions → SKILL.md excerpt (if skill_content)
     OR skills list (if skills) → call_history → rules tail.
+    `tool_count_level` picks the TOOL_COUNT_RULES preset;
+    `score_all` swaps it for "score every tool".
     """
     head = template.format(tool_descriptions=tool_descriptions)
 
@@ -156,4 +173,8 @@ def build_dynamic_prediction_prompt(
             "for the NEXT step (not tools already used, unless reuse is likely)."
         )
 
-    return head + skills_section + history_section + "\n" + _DYNAMIC_RULES_TAIL
+    count_rule = (
+        _SCORE_ALL_RULE if score_all else TOOL_COUNT_RULES[tool_count_level]
+    )
+    rules_tail = _DYNAMIC_RULES_HEAD + count_rule + _DYNAMIC_RULES_BODY
+    return head + skills_section + history_section + "\n" + rules_tail

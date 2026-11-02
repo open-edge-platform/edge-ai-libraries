@@ -1,8 +1,14 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""Shared fixtures for VIPPET performance benchmark tests."""
+"""Shared fixtures for VIPPET performance benchmark tests.
 
+Console output of a normal run, in order: ViPPET readiness -> discovered
+hardware -> benchmark matrix -> per-test status -> pytest summary ->
+benchmark artefacts.
+"""
+
+import contextlib
 import dataclasses
 import logging
 import httpx
@@ -10,18 +16,21 @@ import os
 import sys
 import time
 import pytest
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from dataclasses import dataclass
-from helpers.pipeline_case_helpers import SUPPORTED_DEVICE_FAMILIES, PipelineCase
+from dataclasses import dataclass, field
+from helpers.pipeline_case_helpers import PipelineCase
 from perf_helpers.hw_monitor import HardwareMonitor
+from perf_helpers.job_outcome import describe_missing_hw_samples
 from perf_helpers.preflight import (
+    describe_discovery_error,
     fetch_capabilities,
     fetch_discovered_devices,
     fetch_vippet_version,
+    format_discovered_hardware,
     run_preflight_or_exit,
 )
 from perf_helpers.reporters import ResultExporter, generate_html_report
@@ -36,18 +45,15 @@ try:
         METRICS_URL,
         ON_UNKNOWN_FILTER_ID,
         PERF_RESULTS_DIR,
-        PIPELINE_FILTER,
         POLL_INTERVAL,
         POLL_TIMEOUT,
         READINESS_TIMEOUT_SECONDS,
         REQUEST_TIMEOUT,
         RESULT_FORMATS,
+        SAVE_LOG,
         SKIP_MISSING_MODELS,
-        SKIP_PIPELINES,
-        SKIP_VARIANTS,
         SETTINGS,
         STREAM_COUNTS,
-        VARIANT_FILTER,
     )
 except SettingsError as exc:
     # Same message and exit code (2) as the CLI instead of a traceback.
@@ -69,15 +75,20 @@ os.environ.setdefault("VIPPET_JOB_POLL_INTERVAL", str(POLL_INTERVAL))
 
 from helpers.pipeline_case_helpers import wrap_cases_for_pytest  # noqa: E402
 from perf_helpers.discovery import discover_matrix  # noqa: E402
-from perf_helpers.matrix import MatrixFilters  # noqa: E402
-from perf_helpers.system_info import collect_system_info
+from perf_helpers.matrix import (  # noqa: E402
+    Matrix,
+    MatrixFilters,
+    describe_no_cases,
+    describe_unknown_filter_ids,
+    find_unknown_filter_ids,
+    format_matrix,
+)
+from perf_helpers.system_info import collect_system_info  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
-_NO_CASES_REASON = (
-    "No pipeline/variant test cases were discovered from VIPPET API. "
-    "Ensure API reachability and at least one supported device (CPU/GPU/NPU)."
-)
+# Exit code for invalid filter ids (pytest's "usage error").
+_INVALID_FILTER_EXIT_CODE = 4
 
 # Snapshot of GET /devices, GET /api/v1/capabilities and GET /status captured
 # once at pre-flight time (see pytest_sessionstart below). Populated
@@ -87,9 +98,225 @@ _DISCOVERED_DEVICES: list[dict[str, Any]] = []
 _CAPABILITIES: dict[str, Any] = {}
 _VIPPET_VERSION: str = "Unknown"
 
+# Filled by the results_collector finalizer and printed by
+# pytest_terminal_summary: written report files, why they could not be
+# written, and a warning when no hardware metrics were sampled.
+_ARTEFACTS: list[tuple[str, Path]] = []
+_ARTEFACT_ERROR: str | None = None
+_HW_WARNING: str | None = None
+
+# One id per run, fixed when pytest starts: it names the run directory and
+# every file in it (reports and log), and the JSON "timestamp" is the same
+# start time, so all artefacts of one benchmark are recognisably together.
+_RUN_STARTED: datetime = datetime.now()
+_BENCHMARK_ID: str = f"bench_{_RUN_STARTED:%Y%m%d_%H%M%S}"
+_RUN_DIR: Path = Path(PERF_RESULTS_DIR) / _BENCHMARK_ID
+_LOG_FILE: Path = _RUN_DIR / f"{_BENCHMARK_ID}.log"
+
+# False for --collect-only / --help: such runs create no directory and
+# leave ``latest`` alone.
+_RUN_ACTIVE: bool = False
+# Why the run directory (and so the log file) could not be created.
+_RUN_DIR_WARNING: str | None = None
+# Outcome of pointing <results-dir>/latest at _RUN_DIR (done once, at the end).
+_LATEST_LINK_ATTEMPTED: bool = False
+_LATEST_LINK: Path | None = None
+_LATEST_LINK_ERROR: str | None = None
+
+# Unknown filter ids found while parametrizing: (explanation, is_fatal).
+# Reported after the matrix; a fatal one then ends the session from
+# pytest_collection_finish, because pytest turns an Exit raised inside
+# pytest_generate_tests into a collection error with a traceback.
+_FILTER_PROBLEM: tuple[str, bool] | None = None
+
 
 _QUICK_STREAM_COUNTS: set[int] = {1, 3}
 _QUICK_VARIANTS: set[str] = {"CPU", "GPU"}
+
+# Loggers whose per-request lines ("HTTP Request: GET ...") would split the
+# console sections. They are kept out of the console (live log and the
+# "Captured log" of failed tests) but still written to the log file, where
+# e.g. response codes and metrics-manager samples are useful for debugging.
+_NOISY_LOGGERS: frozenset[str] = frozenset({"httpx", "httpcore"})
+
+
+class _ConsoleNoiseFilter(logging.Filter):
+    """Drop HTTP client records below WARNING from console-facing handlers."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return (
+            record.levelno >= logging.WARNING
+            or record.name.split(".", 1)[0] not in _NOISY_LOGGERS
+        )
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """Create the run directory and send pytest's file log into it.
+
+    Runs before pytest's logging plugin is set up (that hook is ``trylast``),
+    so setting ``config.option.log_file`` here is picked up by it. A
+    ``--log-file`` or ``log_file`` given by the user is left untouched.
+    """
+    global _RUN_ACTIVE, _RUN_DIR_WARNING
+    if config.getoption("collectonly", False) or config.getoption("help", False):
+        return
+    _RUN_ACTIVE = True
+    user_log_file = config.getoption("log_file", None) or config.getini("log_file")
+    if not SAVE_LOG or user_log_file:
+        return
+    try:
+        _RUN_DIR.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        _RUN_DIR_WARNING = (
+            f"Cannot create the run directory {_RUN_DIR} "
+            f"({type(exc).__name__}: {exc}), so this run's log is not saved "
+            "and its reports cannot be written there either. To fix: point "
+            "--results-dir / PERF_RESULTS_DIR at a writable directory, then rerun."
+        )
+        return
+    config.option.log_file = str(_LOG_FILE.absolute())
+
+
+def _keep_http_client_logs_out_of_console(config: pytest.Config) -> None:
+    """Filter HTTP client INFO lines out of the console only.
+
+    Relies on the logging plugin's handler attributes; if they are not there
+    (e.g. a future pytest renamed them), the loggers are silenced below
+    WARNING instead, which also keeps those lines out of the log file.
+    """
+    plugin = config.pluginmanager.get_plugin("logging-plugin")
+    handlers = [
+        getattr(plugin, name, None) for name in ("log_cli_handler", "report_handler")
+    ]
+    if plugin is None or not all(isinstance(h, logging.Handler) for h in handlers):
+        for name in _NOISY_LOGGERS:
+            logging.getLogger(name).setLevel(logging.WARNING)
+        return
+    for handler in handlers:
+        assert isinstance(handler, logging.Handler)
+        if not any(isinstance(f, _ConsoleNoiseFilter) for f in handler.filters):
+            handler.addFilter(_ConsoleNoiseFilter())
+
+
+def _log_file_path(config: pytest.Config) -> Path | None:
+    """Return the file pytest writes the log to, or ``None`` if there is none."""
+    plugin = config.pluginmanager.get_plugin("logging-plugin")
+    filename = getattr(getattr(plugin, "log_file_handler", None), "baseFilename", None)
+    if not filename or filename == os.path.abspath(os.devnull):
+        return None
+    path = Path(filename)
+    # Show our own log file the same way as the reports next to it.
+    return _LOG_FILE if path == _LOG_FILE.absolute() else path
+
+
+def _update_latest_link() -> None:
+    """Point ``<results-dir>/latest`` at this run's directory, once.
+
+    Done at the end of every run that created its directory, whether it
+    passed, failed or was aborted. The link is swapped in atomically, so
+    ``latest`` never disappears and a non-link ``latest`` is never removed.
+    """
+    global _LATEST_LINK_ATTEMPTED, _LATEST_LINK, _LATEST_LINK_ERROR
+    if (
+        _LATEST_LINK_ATTEMPTED
+        or not _RUN_ACTIVE
+        or not CREATE_LATEST_LINK
+        or not _RUN_DIR.is_dir()
+    ):
+        return
+    _LATEST_LINK_ATTEMPTED = True
+    latest_link = _RUN_DIR.parent / "latest"
+    staging_link = _RUN_DIR.parent / f".latest.{os.getpid()}"
+    try:
+        staging_link.unlink(missing_ok=True)
+        staging_link.symlink_to(_RUN_DIR.name)
+        os.replace(staging_link, latest_link)
+    except OSError as exc:
+        with contextlib.suppress(OSError):
+            staging_link.unlink(missing_ok=True)
+        _LATEST_LINK_ERROR = (
+            f"Pointing {latest_link} at {_RUN_DIR.name} failed "
+            f"({type(exc).__name__}: {exc}). This run's files are still in "
+            f"{_RUN_DIR}. To fix: remove or rename {latest_link} (it must be a "
+            "symlink or absent), or pass --no-latest-link if the file system "
+            "has no symlinks, then rerun."
+        )
+        return
+    _LATEST_LINK = latest_link
+    logger.info("Latest results symlink: %s -> %s", latest_link, _RUN_DIR.name)
+
+
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    """Update ``latest`` after the reports are written, before the summary."""
+    _update_latest_link()
+    if _LATEST_LINK_ERROR and session.exitstatus == pytest.ExitCode.OK:
+        session.exitstatus = pytest.ExitCode.TESTS_FAILED
+
+
+def pytest_unconfigure(config: pytest.Config) -> None:
+    """Update ``latest`` for runs aborted before pytest_sessionfinish.
+
+    pytest skips pytest_sessionfinish when the session ends inside
+    pytest_sessionstart (e.g. ViPPET is not ready), so the link is set here
+    instead and a failure is reported on stderr.
+    """
+    if _LATEST_LINK_ATTEMPTED:
+        return
+    _update_latest_link()
+    if _LATEST_LINK_ERROR:
+        print(f"warning: {_LATEST_LINK_ERROR}", file=sys.stderr, flush=True)
+
+
+def pytest_report_header(config: pytest.Config) -> list[str]:
+    """Show where the log goes up front, so it is known even if the run aborts."""
+    lines = []
+    log_path = _log_file_path(config)
+    if log_path is not None:
+        lines.append(f"benchmark log: {log_path}")
+    if _RUN_DIR_WARNING:
+        lines.append(f"warning: {_RUN_DIR_WARNING}")
+    return lines
+
+
+# --------------------------------------------------------------------------- #
+# Console output
+# --------------------------------------------------------------------------- #
+
+
+def _uncaptured(config: pytest.Config) -> contextlib.AbstractContextManager[Any]:
+    capman = config.pluginmanager.get_plugin("capturemanager")
+    return capman.global_and_fixture_disabled() if capman else contextlib.nullcontext()
+
+
+def _console(config: pytest.Config, **markup: bool) -> Callable[[str], None]:
+    """Return a writer that reaches the terminal even while pytest captures
+    output (e.g. during collection). Multi-line text is written line by line."""
+    terminal = config.pluginmanager.get_plugin("terminalreporter")
+
+    def write(text: str) -> None:
+        with _uncaptured(config):
+            for line in text.splitlines() or [""]:
+                if terminal is not None:
+                    terminal.write_line(line, **markup)
+                else:
+                    stream = sys.stderr if markup else sys.stdout
+                    print(line, file=stream, flush=True)
+
+    return write
+
+
+def _error_console(config: pytest.Config) -> Callable[[str], None]:
+    write = _console(config, red=True, bold=True)
+    return lambda message: write(f"error: {message}")
+
+
+def _section(config: pytest.Config, title: str) -> None:
+    terminal = config.pluginmanager.get_plugin("terminalreporter")
+    with _uncaptured(config):
+        if terminal is not None:
+            terminal.write_sep("-", title)
+        else:
+            print(f"--- {title} ---", flush=True)
 
 
 @dataclass
@@ -102,11 +329,16 @@ class _DiscoveredCases:
     * ``known_pipeline_ids`` - every pipeline id the API reports to
       exist, *before* any ``pipelines``/``skip_pipelines`` filtering.
       Used to validate user-supplied filter ids.
+    * ``matrix`` - the matrix printed after collection; ``None`` when
+      discovery failed, in which case ``error`` explains why.
     """
 
     params: list[PipelineCase | object]
     case_ids: list[str]
     known_pipeline_ids: list[str]
+    matrix: Matrix | None = None
+    error: str | None = None
+    validated: bool = field(default=False)
 
 
 _DISCOVERED_CASES: _DiscoveredCases | None = None
@@ -127,83 +359,61 @@ def _unwrap_case(
 
 
 def _validate_filter_ids(
-    known_pipeline_ids: list[str],
+    config: pytest.Config, known_pipeline_ids: list[str]
 ) -> list[PipelineCase | object]:
     """Diff configured filter ids against discovered ids.
 
     Returns synthetic skipped entries for unknown ids when
-    ``ON_UNKNOWN_FILTER_ID == "warn"``. Aborts the session via
-    ``pytest.exit`` when it is ``"fail"`` (the default), naming every
-    bad id and its valid alternatives.
+    ``ON_UNKNOWN_FILTER_ID == "warn"``. When it is ``"fail"`` (the default)
+    no cases are added and the session is aborted once collection has
+    finished (see ``pytest_collection_finish``). Either way the explanation
+    is kept in ``_FILTER_PROBLEM`` and printed after the matrix.
     """
-    valid_pipeline_ids = sorted(set(known_pipeline_ids))
-    valid_pipeline_ids_lower = {p.lower() for p in valid_pipeline_ids}
-
-    issues: list[tuple[str, str, list[str]]] = []
-
-    if PIPELINE_FILTER != "*":
-        requested = (
-            PIPELINE_FILTER if isinstance(PIPELINE_FILTER, list) else [PIPELINE_FILTER]
-        )
-        for pid in requested:
-            if pid not in valid_pipeline_ids:
-                issues.append(("benchmark.pipelines", pid, valid_pipeline_ids))
-
-    for pid in SKIP_PIPELINES:
-        if pid.lower() not in valid_pipeline_ids_lower:
-            issues.append(("benchmark.filters.skip_pipelines", pid, valid_pipeline_ids))
-
-    for variant in SKIP_VARIANTS:
-        if variant.upper() not in SUPPORTED_DEVICE_FAMILIES:
-            issues.append(
-                (
-                    "benchmark.filters.skip_variants",
-                    variant,
-                    sorted(SUPPORTED_DEVICE_FAMILIES),
-                )
-            )
-
-    for variant in VARIANT_FILTER:
-        if variant.upper() not in SUPPORTED_DEVICE_FAMILIES:
-            issues.append(
-                ("benchmark.variants", variant, sorted(SUPPORTED_DEVICE_FAMILIES))
-            )
-
+    global _FILTER_PROBLEM
+    issues = find_unknown_filter_ids(
+        MatrixFilters.from_settings(SETTINGS), known_pipeline_ids
+    )
     if not issues:
         return []
 
-    lines = [
-        f"Unknown id {bad_id!r} in {field}. Valid ids: {valid}"
-        for field, bad_id, valid in issues
-    ]
-    message = "Invalid performance filter configuration:\n" + "\n".join(lines)
-
+    message = describe_unknown_filter_ids(issues, SETTINGS.config_path)
+    _FILTER_PROBLEM = (message, ON_UNKNOWN_FILTER_ID == "fail")
     if ON_UNKNOWN_FILTER_ID == "fail":
-        pytest.exit(message, returncode=4)
+        return []
 
-    logger.warning(message)
     synthetic: list[PipelineCase | object] = []
-    for field, bad_id, _valid in issues:
-        reason = f"Unknown id {bad_id!r} in {field}; see log for valid ids."
+    for issue in issues:
+        reason = (
+            f"{issue.describe()}. To fix: correct or remove it in "
+            f"{SETTINGS.config_path} or {issue.flag}."
+        )
         bad_case = PipelineCase(
-            case_id=f"invalid_{field.rsplit('.', 1)[-1]}_{bad_id}",
-            pipeline_id=bad_id,
+            case_id=f"invalid_{issue.key.rsplit('.', 1)[-1]}_{issue.value}",
+            pipeline_id=issue.value,
             variant_id="",
             device_family="UNKNOWN",
-            pipeline_name=bad_id,
+            pipeline_name=issue.value,
         )
         synthetic.append(pytest.param(bad_case, marks=pytest.mark.skip(reason=reason)))
     return synthetic
 
 
-@pytest.hookimpl(tryfirst=True)
-def pytest_sessionstart() -> None:
+@pytest.hookimpl(wrapper=True)
+def pytest_sessionstart(session: pytest.Session) -> Generator[None, None, None]:
     """Verify ViPPET readiness and capture its hardware/platform snapshot once.
 
-    Fixtures (e.g. ``http_client``) aren't available yet at this point in the
-    pytest lifecycle, so the pre-flight phase opens and owns its own client.
+    Runs after pytest has printed its own header. Fixtures (e.g.
+    ``http_client``) aren't available yet at this point in the pytest
+    lifecycle, so the pre-flight phase opens and owns its own client.
     """
     global _DISCOVERED_DEVICES, _CAPABILITIES, _VIPPET_VERSION
+    # The logging plugin exists from here on; filter before anything logs.
+    _keep_http_client_logs_out_of_console(session.config)
+    result = yield
+    config = session.config
+    write = _console(config)
+
+    _section(config, "ViPPET readiness")
     with httpx.Client(headers={"Accept": "application/json"}) as client:
         run_preflight_or_exit(
             BASE_URL,
@@ -211,14 +421,23 @@ def pytest_sessionstart() -> None:
             POLL_INTERVAL,
             REQUEST_TIMEOUT,
             client=client,
+            report=write,
+            report_error=_error_console(config),
         )
         _DISCOVERED_DEVICES = fetch_discovered_devices(
-            BASE_URL, REQUEST_TIMEOUT, client=client
+            BASE_URL, REQUEST_TIMEOUT, client=client, report=write
         )
         _CAPABILITIES = fetch_capabilities(
-            CAPABILITIES_URL, REQUEST_TIMEOUT, client=client
+            CAPABILITIES_URL, REQUEST_TIMEOUT, client=client, report=write
         )
-        _VIPPET_VERSION = fetch_vippet_version(BASE_URL, REQUEST_TIMEOUT, client=client)
+        _VIPPET_VERSION = fetch_vippet_version(
+            BASE_URL, REQUEST_TIMEOUT, client=client, report=write
+        )
+
+    _section(config, "Discovered hardware")
+    for line in format_discovered_hardware(_DISCOVERED_DEVICES, _VIPPET_VERSION):
+        write(line)
+    return result
 
 
 def _discover_case_params() -> _DiscoveredCases:
@@ -230,32 +449,21 @@ def _discover_case_params() -> _DiscoveredCases:
     """
     try:
         matrix = discover_matrix(MatrixFilters.from_settings(SETTINGS))
-    except Exception:
-        logger.exception("Failed to collect pipeline cases from VIPPET API")
-        skip = pytest.mark.skip(reason=_NO_CASES_REASON)
-        return _DiscoveredCases([pytest.param(None, marks=skip)], ["no-cases"], [])
-
-    logger.info("Available device families: %s", matrix.available_families)
-    for excl in matrix.excluded:
-        logger.info(
-            "Excluded pipeline=%s variant=%s reason=%s (%s)",
-            excl.pipeline_id,
-            excl.variant,
-            excl.reason.value,
-            excl.detail,
+    except Exception as exc:
+        reason = describe_discovery_error(exc, BASE_URL)
+        logger.debug("Inventory discovery failed", exc_info=True)
+        skip = pytest.mark.skip(reason=reason)
+        return _DiscoveredCases(
+            [pytest.param(None, marks=skip)], ["no-cases"], [], error=reason
         )
 
     if not matrix.included:
-        reason = (
-            f"All {len(matrix.excluded)} discovered pipeline/variant case(s) "
-            "were excluded by config or host capabilities. Run the CLI with "
-            "--dry-run to see why."
-            if matrix.excluded
-            else _NO_CASES_REASON
-        )
-        skip = pytest.mark.skip(reason=reason)
+        skip = pytest.mark.skip(reason=describe_no_cases(matrix))
         return _DiscoveredCases(
-            [pytest.param(None, marks=skip)], ["no-cases"], matrix.known_pipeline_ids
+            [pytest.param(None, marks=skip)],
+            ["no-cases"],
+            matrix.known_pipeline_ids,
+            matrix=matrix,
         )
 
     cases = [PipelineCase(**dataclasses.asdict(case)) for case in matrix.included]
@@ -263,7 +471,7 @@ def _discover_case_params() -> _DiscoveredCases:
     params, ids = wrap_cases_for_pytest(
         cases, missing, skip_missing_models=SKIP_MISSING_MODELS
     )
-    return _DiscoveredCases(params, ids, matrix.known_pipeline_ids)
+    return _DiscoveredCases(params, ids, matrix.known_pipeline_ids, matrix=matrix)
 
 
 def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
@@ -279,12 +487,18 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     if _DISCOVERED_CASES is None:
         _DISCOVERED_CASES = _discover_case_params()
 
-    for invalid_param in _validate_filter_ids(_DISCOVERED_CASES.known_pipeline_ids):
-        invalid_case, _, _ = _unwrap_case(invalid_param)
-        if invalid_case is None:
-            continue
-        _DISCOVERED_CASES.params.append(invalid_param)
-        _DISCOVERED_CASES.case_ids.append(invalid_case.case_id)
+    # Without a discovered inventory every id would look unknown, so only
+    # validate filter ids against a real matrix, and only once.
+    if _DISCOVERED_CASES.matrix is not None and not _DISCOVERED_CASES.validated:
+        _DISCOVERED_CASES.validated = True
+        for invalid_param in _validate_filter_ids(
+            metafunc.config, _DISCOVERED_CASES.known_pipeline_ids
+        ):
+            invalid_case, _, _ = _unwrap_case(invalid_param)
+            if invalid_case is None:
+                continue
+            _DISCOVERED_CASES.params.append(invalid_param)
+            _DISCOVERED_CASES.case_ids.append(invalid_case.case_id)
 
     params = []
     ids = []
@@ -313,6 +527,90 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
             ids.append(f"{case_id}_x{streams}")
 
     metafunc.parametrize(["pipeline_case", "stream_count"], params, ids=ids)
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_collection_finish(session: pytest.Session) -> None:
+    """End the session cleanly when parametrization found invalid filter ids.
+
+    ``trylast`` so the matrix (printed by the terminal reporter's own
+    collection-finish hook) comes first and the error is the last thing shown.
+    """
+    if _FILTER_PROBLEM is not None and _FILTER_PROBLEM[1]:
+        _error_console(session.config)(_FILTER_PROBLEM[0])
+        pytest.exit(
+            "Invalid benchmark filter ids (see the error above)",
+            returncode=_INVALID_FILTER_EXIT_CODE,
+        )
+
+
+def pytest_report_collectionfinish(
+    config: pytest.Config, start_path: Path, items: list[pytest.Item]
+) -> list[str]:
+    """Print the benchmark matrix (or why there is none) right after collection."""
+    if _DISCOVERED_CASES is None:
+        return []
+    _section(config, "Benchmark matrix")
+    if _DISCOVERED_CASES.matrix is None:
+        _error_console(config)(_DISCOVERED_CASES.error or "matrix not available")
+        return []
+    write = _console(config)
+    write(
+        format_matrix(_DISCOVERED_CASES.matrix, skip_missing_models=SKIP_MISSING_MODELS)
+    )
+    if not _DISCOVERED_CASES.matrix.included:
+        _console(config, yellow=True)(
+            f"note: {describe_no_cases(_DISCOVERED_CASES.matrix)}"
+        )
+    if _FILTER_PROBLEM is not None and not _FILTER_PROBLEM[1]:
+        _console(config, yellow=True)(f"warning: {_FILTER_PROBLEM[0]}")
+    return []
+
+
+def pytest_terminal_summary(
+    terminalreporter: Any, exitstatus: int, config: pytest.Config
+) -> None:
+    """List this run's directory, reports, log and ``latest`` link.
+
+    Also explains why no reports were written, and shows report/link errors.
+    """
+    if not _RUN_ACTIVE or _DISCOVERED_CASES is None:
+        return
+    rows: list[tuple[str, Path]] = []
+    if _RUN_DIR.is_dir():
+        rows.append(("Directory", _RUN_DIR))
+    rows.extend(_ARTEFACTS)
+    log_path = _log_file_path(config)
+    if log_path is not None:
+        rows.append(("Log", log_path))
+    if _LATEST_LINK is not None:
+        rows.append(("Latest link", _LATEST_LINK))
+    errors = [error for error in (_ARTEFACT_ERROR, _LATEST_LINK_ERROR) if error]
+    # Only after a run that got to its tests; otherwise the reason (abort,
+    # nothing collected) is already shown above.
+    explain_no_reports = not (_ARTEFACTS or _ARTEFACT_ERROR) and exitstatus in (
+        pytest.ExitCode.OK,
+        pytest.ExitCode.TESTS_FAILED,
+    )
+    if not (rows or errors or _HW_WARNING or explain_no_reports):
+        return
+    tr = terminalreporter
+    tr.section("Benchmark artefacts", sep="-")
+    if _HW_WARNING:
+        tr.write_line(f"warning: {_HW_WARNING}", yellow=True)
+    if rows:
+        width = max(len(label) for label, _ in rows)
+        for label, path in rows:
+            tr.write_line(f"{label:<{width}}  {path}")
+    for error in errors:
+        tr.write_line(f"error: {error}", red=True, bold=True)
+    if explain_no_reports:
+        tr.write_line(
+            "No reports were written because no benchmark result records "
+            "were produced (see the failures, skips or deselections above"
+            + (", and the log" if log_path is not None else "")
+            + ")."
+        )
 
 
 @pytest.fixture(scope="session")
@@ -346,12 +644,13 @@ def results_collector(
     start_time = time.time()
 
     def _finalize() -> None:
+        global _ARTEFACT_ERROR, _HW_WARNING
         if not results:
             return
+        _HW_WARNING = describe_missing_hw_samples(results, METRICS_URL)
         total_duration = time.time() - start_time
-        benchmark_id = f"bench_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        output_dir = Path(PERF_RESULTS_DIR) / benchmark_id
-        exporter = ResultExporter(output_dir, formats=RESULT_FORMATS)
+        benchmark_id = _BENCHMARK_ID
+        output_dir = _RUN_DIR
 
         system_info = collect_system_info(
             _DISCOVERED_DEVICES, _CAPABILITIES, _VIPPET_VERSION
@@ -373,7 +672,7 @@ def results_collector(
         n_skipped = sum(1 for r in results if r["status"] == "skipped")
         result_dict: dict[str, Any] = {
             "benchmark_id": benchmark_id,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": _RUN_STARTED.isoformat(),
             "duration_seconds": total_duration,
             "test_cases": results,
             "summary": {
@@ -385,17 +684,31 @@ def results_collector(
             "hardware": hw_families,
             "system_info": system_info,
         }
-        exporter.export(result_dict)
-        html_content = generate_html_report([result_dict])
-        html_path = output_dir / f"{benchmark_id}.html"
-        html_path.write_text(html_content)
-        logger.info("Performance report: %s", html_path)
-
-        if CREATE_LATEST_LINK:
-            latest_link = Path(PERF_RESULTS_DIR) / "latest"
-            latest_link.unlink(missing_ok=True)
-            latest_link.symlink_to(output_dir.name)
-            logger.info("Latest results symlink: %s", latest_link)
+        try:
+            exporter = ResultExporter(output_dir, formats=RESULT_FORMATS)
+            exporter.export(result_dict)
+            _ARTEFACTS.extend(
+                (fmt.upper(), output_dir / f"{benchmark_id}.{fmt}")
+                for fmt in RESULT_FORMATS
+            )
+            html_content = generate_html_report([result_dict])
+            html_path = output_dir / f"{benchmark_id}.html"
+            html_path.write_text(html_content, encoding="utf-8")
+            _ARTEFACTS.append(("HTML report", html_path))
+            logger.info("Performance report: %s", html_path)
+        except OSError as exc:
+            written = (
+                " The files listed above were written before the failure."
+                if _ARTEFACTS
+                else ""
+            )
+            _ARTEFACT_ERROR = (
+                f"Writing the benchmark reports to {output_dir} failed "
+                f"({type(exc).__name__}: {exc}).{written} To fix: point "
+                "--results-dir / PERF_RESULTS_DIR at a writable directory, "
+                "then rerun."
+            )
+            raise
 
     request.addfinalizer(_finalize)
     return results

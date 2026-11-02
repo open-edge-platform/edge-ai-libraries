@@ -7,14 +7,15 @@ configure_dlstreamer () {
   list_file=/etc/apt/sources.list.d/intel-dlstreamer.list
   repository=https://github.com/open-edge-platform/dlstreamer
   workspace="$(ensure_project_path)/dlstreamer"
-  version=2026.2.0
+  version="$(ensure_parse_value_option version --version=2026.2.0 "$@")"
   od_model=yolov5m-640_INT8/FP16-INT8/yolov5m-640_INT8
   od_model_proc=yolov5m-640_INT8/yolo-v5
   oc_model=efficientnet-b0_INT8/FP16-INT8/efficientnet-b0
   model_repo=https://raw.githubusercontent.com/dlstreamer/pipeline-zoo-models/ee73878abc6fb6d864e59a5cd80016de4fc1d194
   allow_downgrades=(libgbm1 libva-wayland2 libwayland-bin mesa-libgallium)
-  version_skills=tags/v2026.2.0
-  repository_skills=https://github.com/open-edge-platform/dlstreamer.git
+  version_skills="release-${version%-rc*}"
+  repository_skills=https://github.com/open-edge-platform/skills.git
+  skills=(dlstreamer-coding-agent)
 }
 
 debian_75_profile_dlstreamer () {
@@ -26,7 +27,7 @@ verify_dlstreamer () {
 }
 
 debian_75_install_dlstreamer () {
-  configure_dlstreamer
+  configure_dlstreamer "$@"
   
   if verify_dlstreamer && [[ " $* " != *" --reinstall "* ]]; then
     echo "dlstreamer-${version} is installed." >&2
@@ -52,7 +53,7 @@ debian_75_install_dlstreamer () {
 
     # install skills
     echo "@@STEP Installing skills"
-    ensure_skills add "$version_skills" "$repository_skills" .github/skills/dlstreamer-coding-agent
+    ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}"
 
     verify_dlstreamer
     echo "intel-dlstreamer=$version installed successfully."
@@ -68,16 +69,16 @@ debian_75_install_dlstreamer () {
 }
 
 debian_75_remove_dlstreamer () {
-  configure_dlstreamer
+  configure_dlstreamer "$@"
   [ "$(ensure_prop get installed/dlstreamer/owned)" = "true" ] || return 0
   ensure_apt purge --auto-remove -y $(dpkg-query -l | awk '/^ii/&&/dlstreamer/{print$2}') || true
-  ensure_rm "$workspace"
-  ensure_skills remove dlstreamer-coding-agent
+  ensure_rm "$workspace" || true
+  ensure_skills remove "${skills[@]}"
 }
 
 debian_75_sbom_dlstreamer () {
-  configure_dlstreamer
-  ensure_sbom_format name "$repo_name"
+  configure_dlstreamer "$@"
+  ensure_sbom_format repo-name "$repo_name"
   ensure_sbom_format apt-source "$deb_entry"
   ensure_sbom_format apt-list-file "$list_file"
   ensure_sbom_format gpg-key "$key_url"

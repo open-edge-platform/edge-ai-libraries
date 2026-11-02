@@ -545,6 +545,22 @@ class InternalLatencyMetrics:
 
 
 @dataclass
+class InternalPipelineEvent:
+    """
+    Live event observed during a performance run (mirrors
+    ``pipeline_runner.PipelineEvent``), e.g. a proximity trigger firing
+    or a VLM (``gvagenai``) answer.
+    """
+
+    timestamp_ms: int
+    source: str
+    text: str
+    element: str | None = None
+    pts_seconds: float | None = None
+    prompt: str | None = None
+
+
+@dataclass
 class InternalExecutionConfig:
     """
     Internal representation of execution configuration.
@@ -641,6 +657,7 @@ class InternalPerformanceJobStatus:
             not started at all); an empty dict means the tracer was
             active but no samples were produced (e.g. the pipeline
             exited before the first interval).
+        events: Most recent live pipeline events (oldest first), bounded.
     """
 
     id: str
@@ -657,6 +674,7 @@ class InternalPerformanceJobStatus:
     live_stream_urls: dict[str, str] | None = None
     metadata_stream_urls: dict[str, list[str]] | None = None
     latency_tracer_metrics: dict[str, InternalLatencyMetrics] | None = None
+    events: list[InternalPipelineEvent] = field(default_factory=list)
 
 
 @dataclass

@@ -8,7 +8,7 @@ debian_30_install_rustup () {
 }
 
 debian_30_remove_rustup () {
-  "$HOME"/.cargo/bin/rustup self uninstall || true
+  yes | "$HOME"/.cargo/bin/rustup self uninstall || true
 }
 
 debian_30_sbom_rustup () {

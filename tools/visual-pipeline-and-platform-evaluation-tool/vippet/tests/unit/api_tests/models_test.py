@@ -1,6 +1,8 @@
 import asyncio
 import io
 import unittest
+
+import httpx
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -15,7 +17,13 @@ from internal_types import (
     InternalModelVariant,
     InternalSupportedModel,
 )
-from managers.model_manager import ModelManager as ConcreteModelManager
+from managers.model_manager import (
+    MODEL_DOWNLOAD_API_PREFIX,
+    MODEL_DOWNLOAD_URL,
+    ModelManager as ConcreteModelManager,
+)
+
+HUB_LIST_URL = f"{MODEL_DOWNLOAD_URL}{MODEL_DOWNLOAD_API_PREFIX}/models/list"
 
 
 class TestModelsAPI(unittest.TestCase):
@@ -325,9 +333,151 @@ class TestModelHubListAPI(unittest.TestCase):
             result = asyncio.run(ConcreteModelManager.list_hub_models(request_body))
 
         self.assertEqual(result, catalog)
-        mock_client.post.assert_awaited_once_with(
-            "http://model-download:8000/api/v1/models/list", json=request_body
+        mock_client.post.assert_awaited_once_with(HUB_LIST_URL, json=request_body)
+
+    def test_list_hub_models_applies_defaults_and_drops_none_fields(self):
+        catalog = {"hub": "huggingface", "items": [], "limit": 50, "offset": 0}
+        with patch("api.routes.models.ModelManager") as manager_cls:
+            manager = MagicMock()
+            manager.list_hub_models = AsyncMock(return_value=catalog)
+            manager_cls.return_value = manager
+
+            response = self.client.post("/models/list", json={"hub": "huggingface"})
+
+        self.assertEqual(response.status_code, 200)
+        manager.list_hub_models.assert_awaited_once_with(
+            {"hub": "huggingface", "filters": {}, "limit": 50, "offset": 0}
         )
+
+    def test_list_hub_models_forwards_override_credentials(self):
+        request_body = {
+            "hub": "huggingface",
+            "override_credentials": {"token": "dG9rZW4="},
+        }
+        catalog = {"hub": "huggingface", "items": [], "limit": 50, "offset": 0}
+        with patch("api.routes.models.ModelManager") as manager_cls:
+            manager = MagicMock()
+            manager.list_hub_models = AsyncMock(return_value=catalog)
+            manager_cls.return_value = manager
+
+            response = self.client.post("/models/list", json=request_body)
+
+        self.assertEqual(response.status_code, 200)
+        forwarded = manager.list_hub_models.await_args.args[0]
+        self.assertEqual(
+            forwarded["override_credentials"], request_body["override_credentials"]
+        )
+
+    def test_list_hub_models_rejects_invalid_body(self):
+        invalid_bodies = {
+            "missing hub": {},
+            "limit zero": {"hub": "huggingface", "limit": 0},
+            "limit too large": {"hub": "huggingface", "limit": 201},
+            "negative offset": {"hub": "huggingface", "offset": -1},
+        }
+        with patch("api.routes.models.ModelManager") as manager_cls:
+            manager = MagicMock()
+            manager.list_hub_models = AsyncMock()
+            manager_cls.return_value = manager
+
+            for label, body in invalid_bodies.items():
+                with self.subTest(label):
+                    response = self.client.post("/models/list", json=body)
+                    self.assertEqual(response.status_code, 422)
+
+        manager.list_hub_models.assert_not_awaited()
+
+    def test_list_hub_models_mirrors_upstream_http_error_json(self):
+        for status_code in (400, 401, 422, 501):
+            with self.subTest(status_code=status_code):
+                upstream = httpx.Response(
+                    status_code,
+                    json={"detail": "upstream says no"},
+                    request=httpx.Request("POST", HUB_LIST_URL),
+                )
+                error = httpx.HTTPStatusError(
+                    "error", request=upstream.request, response=upstream
+                )
+                with patch("api.routes.models.ModelManager") as manager_cls:
+                    manager = MagicMock()
+                    manager.list_hub_models = AsyncMock(side_effect=error)
+                    manager_cls.return_value = manager
+
+                    response = self.client.post(
+                        "/models/list", json={"hub": "huggingface"}
+                    )
+
+                self.assertEqual(response.status_code, status_code)
+                self.assertEqual(response.json(), {"detail": "upstream says no"})
+
+    def test_list_hub_models_wraps_non_json_upstream_error(self):
+        upstream = httpx.Response(
+            400,
+            text="plain text failure",
+            request=httpx.Request("POST", HUB_LIST_URL),
+        )
+        error = httpx.HTTPStatusError(
+            "error", request=upstream.request, response=upstream
+        )
+        with patch("api.routes.models.ModelManager") as manager_cls:
+            manager = MagicMock()
+            manager.list_hub_models = AsyncMock(side_effect=error)
+            manager_cls.return_value = manager
+
+            response = self.client.post("/models/list", json={"hub": "huggingface"})
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(), {"detail": "plain text failure"})
+
+    def test_list_hub_models_returns_502_on_connection_error(self):
+        for exc in (httpx.ConnectError("refused"), ValueError("bad json")):
+            with self.subTest(exc=type(exc).__name__):
+                with patch("api.routes.models.ModelManager") as manager_cls:
+                    manager = MagicMock()
+                    manager.list_hub_models = AsyncMock(side_effect=exc)
+                    manager_cls.return_value = manager
+
+                    response = self.client.post(
+                        "/models/list", json={"hub": "huggingface"}
+                    )
+
+                self.assertEqual(response.status_code, 502)
+                self.assertEqual(
+                    response.json(),
+                    {"detail": "Upstream model catalog request failed"},
+                )
+
+    def test_list_hub_models_returns_500_on_unexpected_error(self):
+        with patch("api.routes.models.ModelManager") as manager_cls:
+            manager = MagicMock()
+            manager.list_hub_models = AsyncMock(side_effect=RuntimeError("boom"))
+            manager_cls.return_value = manager
+
+            response = self.client.post("/models/list", json={"hub": "huggingface"})
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(
+            response.json(),
+            {"detail": "Unexpected error while listing hub models"},
+        )
+
+    def test_model_manager_propagates_upstream_http_error(self):
+        upstream_response = MagicMock()
+        upstream_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "error", request=MagicMock(), response=MagicMock()
+        )
+        mock_client = MagicMock()
+        mock_client.post = AsyncMock(return_value=upstream_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch(
+            "managers.model_manager.httpx.AsyncClient", return_value=mock_client
+        ):
+            with self.assertRaises(httpx.HTTPStatusError):
+                asyncio.run(
+                    ConcreteModelManager.list_hub_models({"hub": "huggingface"})
+                )
 
 
 class TestModelsUploadAPI(unittest.TestCase):

@@ -36,6 +36,8 @@ This directory contains common functions for coding OEP installer components.
 |[`ensure_apt_install_package`](debian/ensure_apt_package)<br>[`ensure_apt_remove_package`](debian/ensure_apt_package)|Glue functions for installing/removing apt packages.|
 |[`ensure_apt_preference`](debian/ensure_apt_preference)|Create an apt preference file.|
 |[`ensure_apt_source`](debian/ensure_apt_source)<br>[`ensure_apt_source_remove`](debian/ensure_apt_source)|Create/remove an apt source file.|
+|[`ensure_grub_set_default_entry`](debian/ensure_grub)|Set the default boot entry.|
+|[`ensure_grub_set_kernel_args`](debian/ensure_grub)|Set kernel arguments.|
 
 ### Fedora Functions
 

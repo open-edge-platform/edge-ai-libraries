@@ -12,6 +12,7 @@
 #   5. Markdown headings structure (has H1, no orphan anchors)
 #   6. Code blocks are properly fenced
 #   7. No broken internal cross-references
+#   8. Non-root container examples and host-owned workspace output
 
 set -euo pipefail
 
@@ -63,9 +64,9 @@ if [[ ! -f "${INDEX_FILE}" ]]; then
 else
   pass "index.md exists"
 
-  # Extract toctree references (e.g., "oep-vision-ai-sdk/get-started")
+  # Extract toctree references (e.g., "metro-vision-ai-sdk/get-started")
   while IFS= read -r line; do
-    # Match lines like: "OEP Vision AI SDK <oep-vision-ai-sdk/get-started>"
+    # Match lines like: "Metro Vision AI SDK <metro-vision-ai-sdk/get-started>"
     if [[ "${line}" =~ \<([^>]+)\> ]]; then
       ref="${BASH_REMATCH[1]}"
       # Remove .md extension if present, then add it back
@@ -86,7 +87,7 @@ echo ""
 # ───────────────────────────────────────────
 echo -e "${CYAN}[2] SDK get-started.md files${NC}"
 
-EXPECTED_SDKS=("oep-vision-ai-sdk" "oep-gen-ai-sdk" "visual-ai-demo-kit" "uav-mission-compute-sdk")
+EXPECTED_SDKS=("metro-vision-ai-sdk" "metro-gen-ai-sdk" "metro-visual-ai-demo-kit" "uav-mission-compute-sdk")
 
 for sdk in "${EXPECTED_SDKS[@]}"; do
   sdk_dir="${USER_GUIDE}/${sdk}"
@@ -278,6 +279,135 @@ for sdk in "${EXPECTED_SDKS[@]}"; do
     done < <(sed -n '/:::{toctree}/,/:::/p' "${gs_file}")
   fi
 done
+echo ""
+
+# ───────────────────────────────────────────
+# 8. Non-root container examples
+# ───────────────────────────────────────────
+echo -e "${CYAN}[8] Non-root container examples${NC}"
+
+shell_commands() {
+  awk '
+    /^```(bash|sh|shell)$/ { in_shell = 1; next }
+    /^```/ { in_shell = 0 }
+    in_shell {
+      if (sub(/\\[[:space:]]*$/, "")) {
+        command = command $0 " "
+      } else {
+        print command $0
+        command = ""
+      }
+    }
+  ' "$1"
+}
+
+root_user_pattern="(^|[[:space:]])(--user([[:space:]]*=[[:space:]]*|[[:space:]]+)|-u[[:space:]=]*)[\"']?(root|0+)(:[^[:space:]\"']*)?[\"']?([[:space:]]|$)"
+root_package_setup_pattern='^[[:space:]]*docker exec --user root metro-openvino-gpu apt-get (update([[:space:]]+&&)?|install -y --no-install-recommends([[:space:]]+/gpu-debs/[[:alnum:]_.+~-]+[.]deb)+)[[:space:]]*$'
+
+while IFS= read -r md_file; do
+  md_name="${md_file#"${REPO_ROOT}/"}"
+  root_runtime_found=false
+  while IFS= read -r command; do
+    # Permit only direct APT setup in the named GPU container, not root inference.
+    if [[ "${md_file}" == "${USER_GUIDE}/metro-vision-ai-sdk/tutorial-1.md" ]] &&
+       [[ "${command}" =~ ${root_package_setup_pattern} ]]; then
+      continue
+    fi
+    root_runtime_found=true
+  done < <(shell_commands "${md_file}" | grep -E -- "${root_user_pattern}" || true)
+  if [[ "${root_runtime_found}" == "true" ]]; then
+    fail "${md_name}: Root runtime user flag in a shell example"
+  else
+    pass "${md_name}: No root runtime user flags"
+  fi
+done < <(find "${DOCS_DIR}" -name '*.md' -type f | sort)
+
+OWNERSHIP_TUTORIALS=(
+  "metro-vision-ai-sdk/get-started.md"
+  "metro-vision-ai-sdk/tutorial-1.md"
+  "metro-vision-ai-sdk/tutorial-3.md"
+  "metro-vision-ai-sdk/tutorial-4.md"
+  "metro-vision-ai-sdk/tutorial-5.md"
+  "metro-visual-ai-demo-kit/tutorial-1.md"
+)
+
+for tutorial in "${OWNERSHIP_TUTORIALS[@]}"; do
+  md_file="${USER_GUIDE}/${tutorial}"
+  if [[ ! -f "${md_file}" ]]; then
+    fail "${tutorial}: Missing ownership-sensitive tutorial"
+    continue
+  fi
+
+  run_count=0
+  while IFS= read -r command; do
+    run_count=$((run_count + 1))
+    if [[ "${command}" == *'--user "$(id -u):$(id -g)"'* ]]; then
+      pass "${tutorial}: Container ${run_count} uses the host UID:GID"
+    else
+      fail "${tutorial}: Container ${run_count} must use the host UID:GID"
+    fi
+  done < <(shell_commands "${md_file}" | grep -E '^[[:space:]]*docker run ' || true)
+
+  if [[ "${run_count}" -eq 0 ]]; then
+    fail "${tutorial}: No container runtime examples found"
+  fi
+  if shell_commands "${md_file}" | grep -E '(/root/\.Xauthority|HOME=/root([[:space:]]|$)|sudo[[:space:]]+\./metro_vision_pipeline\.sh)' >/dev/null; then
+    fail "${tutorial}: Root home or sudo wrapper conflicts with non-root execution"
+  else
+    pass "${tutorial}: No root home or sudo wrapper assumptions"
+  fi
+done
+echo ""
+
+# ───────────────────────────────────────────
+# 9. Selector installer and tutorial targets
+# ───────────────────────────────────────────
+echo -e "${CYAN}[9] Selector targets${NC}"
+CONFIG_JS="${DOCS_DIR}/oep-sdk-manager-files/config.js"
+INSTALL_BASE="https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/oep-sdk-manager/scripts/"
+EXPECTED_INSTALLERS=(
+  "metro-gen-ai-sdk.sh"
+  "metro-vision-ai-sdk.sh"
+  "metro-visual-ai-demo-kit.sh"
+  "uav-mission-compute-sdk.sh"
+)
+
+if [[ ! -f "${CONFIG_JS}" ]]; then
+  fail "Selector configuration is missing"
+else
+  for installer in "${EXPECTED_INSTALLERS[@]}"; do
+    if grep -qF "${INSTALL_BASE}${installer}" "${CONFIG_JS}" && [[ -f "${REPO_ROOT}/scripts/${installer}" ]]; then
+      pass "Selector points to main installer: ${installer}"
+    else
+      fail "Selector installer missing or invalid: ${installer}"
+    fi
+  done
+
+  install_count=0
+  while IFS= read -r url; do
+    install_count=$((install_count + 1))
+    installer="${url##*/}"
+    if [[ "${url}" == "${INSTALL_BASE}${installer}" ]] && [[ -f "${REPO_ROOT}/scripts/${installer}" ]]; then
+      pass "Installer URL resolves locally: ${installer}"
+    elif [[ "${url}" =~ ^https://raw\.githubusercontent\.com/open-edge-platform/edge-ai-suites/refs/heads/release-2026\.[12]\.0/metro-ai-suite/metro-sdk-manager/scripts/(oep-vision-ai-sdk|oep-gen-ai-sdk|visual-ai-demo-kit|uav-mission-compute-sdk)\.sh$ ]]; then
+      pass "Versioned installer URL uses its original release path: ${installer}"
+    else
+      fail "Installer URL must use a current main installer or an original 2026.1/2026.2 release path: ${url}"
+    fi
+  done < <(grep -oE 'https://raw\.githubusercontent\.com/[^`" ]+\.sh' "${CONFIG_JS}" || true)
+  if [[ "${install_count}" -ne 11 ]]; then
+    fail "Expected 11 selector installer rules, found ${install_count}"
+  fi
+
+  while IFS= read -r target; do
+    sdk="${target%/get-started.html}"
+    if [[ -f "${USER_GUIDE}/${sdk}/get-started.md" ]]; then
+      pass "Selector tutorial resolves locally: ${sdk}"
+    else
+      fail "Selector tutorial is missing: ${sdk}"
+    fi
+  done < <(grep -oE '[a-z-]+/get-started\.html' "${CONFIG_JS}" || true)
+fi
 echo ""
 
 # --- Summary ---

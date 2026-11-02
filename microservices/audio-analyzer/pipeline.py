@@ -6,6 +6,7 @@ from typing import Iterator
 
 from components.asr_component import ASRComponent
 from components.ffmpeg.audio_preprocessing import chunk_by_silence
+from utils.asr_pool_config import POOL_FINAL, POOL_PREVIEW, resolve_pool_config
 from utils.config_loader import config
 from utils.openvino_runtime_validation import resolve_asr_device
 from utils.app_paths import get_session_dir
@@ -19,30 +20,51 @@ DELETE_CHUNK_AFTER_USE = getattr(config.pipeline, "delete_chunks_after_use", Tru
 SESSION_STATE_FILENAME = "session_state.json"
 
 class Pipeline:
-    def __init__(
-        self,
-        session_id=None,
-        temperature=None,
-        append_to_session: bool = False,
-        speaker_scope_id=None,
-        device: str | None = None,
-    ):
+    #: Valid values for the ``pool`` argument. ``"final"`` is the persisted,
+    #: caller-facing path; ``"preview"`` is the non-destructive realtime
+    #: snapshot path. The two keep separate ASR model instances.
+    POOL_FINAL = POOL_FINAL
+    POOL_PREVIEW = POOL_PREVIEW
+
+    def __init__(self, session_id=None, temperature=None, append_to_session: bool = False, speaker_scope_id=None,
+                 diarization: bool | None = None, device: str | None = None, pool: str = POOL_FINAL):
+        """Build a transcription pipeline.
+
+        Args:
+            session_id: Existing session to attach to; generated when omitted.
+            temperature: ASR sampling temperature; falls back to config.
+            append_to_session: Accumulate this call's output into the session's
+                persisted ``session_state.json``. Controls persistence ONLY.
+            speaker_scope_id: Stable scope key for speaker enrollment.
+            diarization: Per-request narrowing override for diarization.
+            device: Per-request ASR device override (final pool only).
+            pool: Which ASR model pool to run on, ``"final"`` or ``"preview"``.
+                Chosen explicitly by the caller — never inferred from
+                ``append_to_session``, since a brand-new session's first
+                persisted call also has ``append_to_session=False`` and must
+                still run on the final model.
+        """
         logger.info("pipeline initialized")
         self.session_id = session_id or generate_session_id()
         self.append_to_session = append_to_session
+        self.pool = pool
         self.temperature = config.models.asr.temperature if temperature is None else temperature
-        resolved_device = resolve_asr_device(
-            config.models.asr.provider,
-            config.models.asr.name,
-            device or config.models.asr.device,
-        )
+        # The preview pool may use a different model/device than the final
+        # pool; every key falls back to the main asr config when unset, so
+        # existing single-model deployments are unaffected. The per-request
+        # `device` override applies to the final pool only -- the preview pool
+        # is an internal latency optimisation, not a caller-selectable path.
+        pool_cfg = resolve_pool_config(pool, device_override=device)
+        self.asr_model_name = pool_cfg.name
         self.asr_component = ASRComponent(
             self.session_id,
-            provider=config.models.asr.provider,
-            model_name=config.models.asr.name,
-            device=resolved_device,
+            provider=pool_cfg.provider,
+            model_name=pool_cfg.name,
+            device=resolve_asr_device(pool_cfg.provider, pool_cfg.name, pool_cfg.device),
             temperature=self.temperature,
             speaker_scope_id=speaker_scope_id,
+            diarization=diarization,
+            pool=pool,
         )
         self.sentiment_component = None
         if SENTIMENT_ENABLED:
@@ -58,7 +80,16 @@ class Pipeline:
             return self.sentiment_component.analyze(chunk_path)
         return {}
 
-    def _cleanup_chunk(self, chunk_path: str | None) -> None:
+    def _cleanup_chunk(self, chunk: dict | None) -> None:
+        """Delete a temporary chunk file produced by the chunker.
+
+        Skipped for ``passthrough`` chunks: those are not ffmpeg-derived
+        temporaries but the caller's own saved upload, which the storage
+        layer owns and other endpoints may still read.
+        """
+        if not chunk or chunk.get("passthrough"):
+            return
+        chunk_path = chunk.get("chunk_path")
         if DELETE_CHUNK_AFTER_USE and chunk_path and os.path.exists(chunk_path):
             os.remove(chunk_path)
 
@@ -153,7 +184,7 @@ class Pipeline:
 
         if not SENTIMENT_ENABLED:
             for chunk in self.asr_component.process(chunk_generator, language=language):
-                self._cleanup_chunk(chunk.get("chunk_path"))
+                self._cleanup_chunk(chunk)
                 yield chunk, {}
             return
 
@@ -163,7 +194,7 @@ class Pipeline:
                 chunk_path = chunk_transcription.get("chunk_path")
                 fut = pool.submit(self._run_sentiment, chunk_path)
                 sentiment = fut.result()
-                self._cleanup_chunk(chunk_path)
+                self._cleanup_chunk(chunk_transcription)
                 yield chunk_transcription, sentiment
 
     def _build_verbose_segment(self, segment_id: int, segment: dict, include_speaker: bool = False) -> dict:
@@ -259,7 +290,14 @@ class Pipeline:
                 recency_weight=getattr(config.sentiment, "recency_weight", 0.7),
                 peak_label=getattr(config.sentiment, "peak_label", "angry"),
             )
-        self._persist_session_outputs(detected_language, duration, final_text, all_segments, chunk_sentiments)
+        # Preview-pool calls are non-destructive scratch decodes and must never
+        # mutate the persisted session_state.json — otherwise the next REAL
+        # commit's _load_session_state() picks up the scratch call's
+        # non-cumulative duration/segments, corrupting its offset math. Final-pool
+        # calls always persist, including the first call of a brand-new session
+        # (append_to_session=False), which still owns the session's state file.
+        if self.pool != self.POOL_PREVIEW:
+            self._persist_session_outputs(detected_language, duration, final_text, all_segments, chunk_sentiments)
         yield final_event
 
     def transcribe(self, input, language: str | None = None) -> dict:
@@ -307,6 +345,10 @@ class Pipeline:
                 peak_label=getattr(config.sentiment, "peak_label", "angry"),
             )
 
-        self._persist_session_outputs(detected_language, duration, full_text, segments, chunk_sentiments)
+        # Same guard as stream_transcribe() -- see comment there. A preview-pool
+        # call must be a pure read: it must not persist its own
+        # duration/segments over the real session's state.
+        if self.pool != self.POOL_PREVIEW:
+            self._persist_session_outputs(detected_language, duration, full_text, segments, chunk_sentiments)
 
         return result

@@ -18,7 +18,10 @@ debian_85_install_esq () {
   else
     ensure_disk_size 25000
 
+    echo "@@STEP Cloning repository"
     ensure_git_clone "$workspace" "$version" "$repository" 
+
+    echo "@@STEP Installing ESQ"
     cd "$workspace"
     uv tool install --force .
   fi

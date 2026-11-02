@@ -1,4 +1,3 @@
-
 debian_99_profile_edge_base () {
   case "$1" in
   bootstrap) # all components
@@ -6,7 +5,7 @@ debian_99_profile_edge_base () {
     ;;
   *)
     echo "core_types system_inspection system_summary"
-    if [[ " $* " = *" --edgepack "* ]] && [[ "$(uname -r)" = "7."* ]]; then
+    if [[ " $* " = *" --edgepack "* ]]; then
       echo "edge_pack_base_standard edge_pack_npu"
     else
       echo "gpu_accel npu_accel"
@@ -14,4 +13,3 @@ debian_99_profile_edge_base () {
     ;;
   esac
 }
-

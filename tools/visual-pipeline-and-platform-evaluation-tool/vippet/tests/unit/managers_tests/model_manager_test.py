@@ -680,6 +680,119 @@ class TestScanHuggingfaceVariant(unittest.TestCase):
         )
 
 
+class _ModelsPathTestCase(unittest.TestCase):
+    """Redirect ``MODELS_PATH`` to a temp dir for filesystem scan helpers."""
+
+    def setUp(self) -> None:
+        self._tmpdir = tempfile.mkdtemp(prefix="vippet-mm-scan-")
+        self._orig_models_path = mm_module.MODELS_PATH
+        mm_module.MODELS_PATH = self._tmpdir
+
+    def tearDown(self) -> None:
+        mm_module.MODELS_PATH = self._orig_models_path
+        shutil.rmtree(self._tmpdir, ignore_errors=True)
+
+    def _touch(self, *parts: str) -> str:
+        path = os.path.join(self._tmpdir, *parts)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        open(path, "w").close()
+        return path
+
+
+class TestScanUltralyticsVariants(_ModelsPathTestCase):
+    def test_returns_empty_when_model_dir_missing(self) -> None:
+        self.assertEqual(mm_module.scan_ultralytics_variants("yolo11n"), [])
+
+    def test_returns_sorted_precisions_with_relative_paths(self) -> None:
+        self._touch("ultralytics", "public", "yolo11n", "INT8", "yolo11n.xml")
+        self._touch("ultralytics", "public", "yolo11n", "FP16", "yolo11n.xml")
+
+        self.assertEqual(
+            mm_module.scan_ultralytics_variants("yolo11n"),
+            [
+                ("FP16", "ultralytics/public/yolo11n/FP16/yolo11n.xml"),
+                ("INT8", "ultralytics/public/yolo11n/INT8/yolo11n.xml"),
+            ],
+        )
+
+    def test_ignores_non_precision_dirs_and_dirs_without_xml(self) -> None:
+        self._touch("ultralytics", "public", "yolo11n", "FP32", "yolo11n.xml")
+        self._touch("ultralytics", "public", "yolo11n", "notes", "yolo11n.xml")
+        self._touch("ultralytics", "public", "yolo11n", "INT8", "yolo11n.bin")
+        self._touch("ultralytics", "public", "yolo11n", "stray.txt")
+
+        self.assertEqual(
+            mm_module.scan_ultralytics_variants("yolo11n"),
+            [("FP32", "ultralytics/public/yolo11n/FP32/yolo11n.xml")],
+        )
+
+    def test_falls_back_to_first_xml_when_named_xml_missing(self) -> None:
+        self._touch("ultralytics", "public", "yolo11n", "FP16", "b.xml")
+        self._touch("ultralytics", "public", "yolo11n", "FP16", "a.xml")
+
+        self.assertEqual(
+            mm_module.scan_ultralytics_variants("yolo11n"),
+            [("FP16", "ultralytics/public/yolo11n/FP16/a.xml")],
+        )
+
+
+class TestGenaiAndXmlLookup(_ModelsPathTestCase):
+    def test_find_genai_model_dir_in_root(self) -> None:
+        self._touch("m", mm_module.GENAI_SENTINEL_FILE)
+        root = os.path.join(self._tmpdir, "m")
+        self.assertEqual(mm_module._find_genai_model_dir(root), root)
+
+    def test_find_genai_model_dir_in_child(self) -> None:
+        self._touch("m", "child", mm_module.GENAI_SENTINEL_FILE)
+        root = os.path.join(self._tmpdir, "m")
+        self.assertEqual(
+            mm_module._find_genai_model_dir(root), os.path.join(root, "child")
+        )
+
+    def test_find_genai_model_dir_returns_none_when_absent(self) -> None:
+        self.assertIsNone(
+            mm_module._find_genai_model_dir(os.path.join(self._tmpdir, "missing"))
+        )
+        self._touch("m", "config.json")
+        self.assertIsNone(
+            mm_module._find_genai_model_dir(os.path.join(self._tmpdir, "m"))
+        )
+
+    def test_find_first_xml_skips_tokenizer_and_recurses(self) -> None:
+        self._touch("m", "openvino_tokenizer.xml")
+        nested = self._touch("m", "sub", "model.xml")
+        self.assertEqual(
+            mm_module._find_first_xml(os.path.join(self._tmpdir, "m")), nested
+        )
+
+    def test_find_first_xml_returns_none_without_xml(self) -> None:
+        self._touch("m", "model.bin")
+        self.assertIsNone(mm_module._find_first_xml(os.path.join(self._tmpdir, "m")))
+
+
+class TestPrecisionIsComplete(_ModelsPathTestCase):
+    def test_vlm_requires_sentinel_file(self) -> None:
+        model_dir = os.path.join(self._tmpdir, "vlm")
+        os.makedirs(model_dir)
+        self.assertFalse(
+            mm_module._precision_is_complete("vision_language_models", model_dir)
+        )
+        self._touch("vlm", mm_module.GENAI_SENTINEL_FILE)
+        self.assertTrue(
+            mm_module._precision_is_complete("vision_language_models", model_dir)
+        )
+
+    def test_other_categories_only_need_path_to_exist(self) -> None:
+        xml = self._touch("det", "model.xml")
+        self.assertTrue(mm_module._precision_is_complete("object_detection", xml))
+        self.assertTrue(mm_module._precision_is_complete(None, xml))
+        self.assertFalse(
+            mm_module._precision_is_complete(
+                "object_detection", os.path.join(self._tmpdir, "nope.xml")
+            )
+        )
+
+
 class TestStartDownloadFromHub(_AsyncDBTestCase):
     async def asyncSetUp(self) -> None:
         await super().asyncSetUp()

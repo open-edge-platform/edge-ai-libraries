@@ -1,4 +1,7 @@
-
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
 <!doctype html>
 <html lang="en" data-theme="light">
   <head>
@@ -7,11 +10,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="stylesheet" href="style.css" />
     <style>
+      html, body,
+      .app-wrap.st-responsive-container {
+        background: transparent;
+      }
+
       /* Responsive layout that works well in iframes */
       .app-wrap { 
         max-width: 100%; 
         width: 100%;
-        margin: 1rem auto; 
+        margin: 0 auto;
         padding: 0 1rem; 
         box-sizing: border-box;
       }
@@ -47,6 +55,24 @@
         z-index: 1; /* Ensure button stays on top */
       }
       .subtitle { opacity:.8; }
+      .source-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        margin-top: .5rem;
+        padding: .25rem .65rem;
+        border: 1px solid var(--spark-color-theme-light-gray400);
+        border-radius: 999px;
+        background: var(--spark-color-theme-light-gray200);
+        color: inherit;
+        font-size: .8rem;
+        text-decoration: none;
+      }
+      .source-badge:hover,
+      .source-badge:focus-visible {
+        border-color: #007acc;
+        color: #007acc;
+      }
       #installText {
         font-family: monospace, monospace;
         font-size: 0.875rem;
@@ -102,6 +128,17 @@
               <pre class="st-code-snippet-content" id="installText">Select options to see a command…</pre>
             </div>
           </div>
+          <div class="st-section-content-row">
+            <a class="source-badge"
+               href="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/tools/oep-sdk-manager"
+               target="_blank" rel="noopener noreferrer"
+               title="Metro SDK Manager on GitHub">
+              <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
+                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+              </svg>
+              <span>Open source: review the installer on GitHub</span>
+            </a>
+          </div>
         </div>
       </section>
 
@@ -133,4 +170,3 @@
     <script src="config.js"></script>
   </body>
 </html>
-

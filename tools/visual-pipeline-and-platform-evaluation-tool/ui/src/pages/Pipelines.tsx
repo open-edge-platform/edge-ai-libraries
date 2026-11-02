@@ -257,13 +257,14 @@ export const Pipelines = () => {
 
   // Default Metadata JSON ON for the VLM pipeline (its only output is metadata
   // JSON lines); OFF for other pipelines.
+  const isVlmPipeline =
+    data?.variants
+      .find((v) => v.id === variant)
+      ?.pipeline_graph.nodes.some((n) => n.type === "gvagenai") ?? false;
+
   useEffect(() => {
-    const variantData = data?.variants.find((v) => v.id === variant);
-    const isVlmPipeline =
-      variantData?.pipeline_graph.nodes.some((n) => n.type === "gvagenai") ??
-      false;
     setMetadataEnabled(isVlmPipeline);
-  }, [variant, data]);
+  }, [isVlmPipeline]);
 
   const handleViewportChange = (viewport: Viewport) => {
     setCurrentViewport(viewport);
@@ -986,10 +987,12 @@ export const Pipelines = () => {
                       videoOutputEnabled={videoOutputEnabled}
                       enableLatencyMetrics={latencyMetricsEnabled}
                       enableMetadata={metadataEnabled && pipelineHasMetadata}
+                      isVlmPipeline={isVlmPipeline}
                       liveStreamUrl={
                         Object.values(jobStatus?.live_stream_urls ?? {})[0] ??
                         null
                       }
+                      events={jobStatus?.events}
                       resultOverrides={
                         jobStatus
                           ? {

@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # AGENTS.md — OEP SDK Manager
 
 You are an AI assistant working on the OEP SDK Manager project. This document provides instructions, patterns, and boundaries for making changes to this codebase.
@@ -13,12 +18,17 @@ OEP SDK Manager is a comprehensive development tool that streamlines discovering
 
 | SDK | Install Script | Tutorials | Description |
 |:----|:---------------|:----------|:------------|
-| OEP Vision AI SDK | `scripts/oep-vision-ai-sdk.sh` | `docs/user-guide/oep-vision-ai-sdk/` | DL Streamer, OpenVINO, Pipeline Server, Scenescape — visual AI inference & spatial analytics |
-| OEP Gen AI SDK | `scripts/oep-gen-ai-sdk.sh` | `docs/user-guide/oep-gen-ai-sdk/` | Audio Analyzer, VLM serving, embedding, document ingestion |
-| Visual AI Demo Kit | `scripts/visual-ai-demo-kit.sh` | `docs/user-guide/visual-ai-demo-kit/` | DL Streamer Pipeline Server, Node-RED, Grafana, MQTT, MediaMTX |
+| Metro Vision AI SDK | `scripts/metro-vision-ai-sdk.sh` | `docs/user-guide/metro-vision-ai-sdk/` | DL Streamer, OpenVINO, Pipeline Server, Scenescape — visual AI inference & spatial analytics |
+| Metro Gen AI SDK | `scripts/metro-gen-ai-sdk.sh` | `docs/user-guide/metro-gen-ai-sdk/` | Audio Analyzer, VLM serving, embedding, document ingestion |
+| Metro Visual AI Demo Kit | `scripts/metro-visual-ai-demo-kit.sh` | `docs/user-guide/metro-visual-ai-demo-kit/` | DL Streamer Pipeline Server, Node-RED, Grafana, MQTT, MediaMTX |
 | UAV Mission Compute SDK | `scripts/uav-mission-compute-sdk.sh` | `docs/user-guide/uav-mission-compute-sdk/` |  |
 
-Each SDK installs Docker container images and clones GitHub repositories (`edge-ai-libraries`, `edge-ai-suites`).
+The Metro SDKs install Docker container images and clone `metro-ai-suite` plus their library dependencies.
+The UAV SDK clones `federal-and-aerospace-ai-suite`.
+Current source clones and the selector's `latest` installer commands use `main`.
+The 2026.1 and 2026.2 selections retain the original `edge-ai-suites` release URLs and installer filenames.
+The selector does not offer 2026.0.
+Supported hosts are Ubuntu 24.04 LTS and Ubuntu 26.04 LTS; container image OS tags are independent of the host version.
 
 ## Repository Structure
 
@@ -33,14 +43,14 @@ tools/oep-sdk-manager/
 │   └── user-guide/
 │       ├── index.md                   # Landing page (embeds installer iframe)
 │       ├── release-notes.md
-│       ├── oep-vision-ai-sdk/       # Vision SDK tutorials (get-started + tutorials 1-6)
-│       ├── oep-gen-ai-sdk/          # Gen AI SDK tutorials (get-started)
-│       ├── visual-ai-demo-kit/        # Demo Kit tutorials (get-started + tutorials 1-3)
+│       ├── metro-vision-ai-sdk/       # Vision SDK tutorials (get-started + tutorials 1-6)
+│       ├── metro-gen-ai-sdk/          # Gen AI SDK tutorials (get-started)
+│       ├── metro-visual-ai-demo-kit/        # Demo Kit tutorials (get-started + tutorials 1-3)
 │       └── uav-mission-compute-sdk/  # UAV Mission Compute SDK tutorials (get-started)
 ├── scripts/
-│   ├── oep-vision-ai-sdk.sh         # Vision SDK installer
-│   ├── oep-gen-ai-sdk.sh            # Gen AI SDK installer
-│   ├── visual-ai-demo-kit.sh          # Visual AI Demo Kit installer
+│   ├── metro-vision-ai-sdk.sh         # Vision SDK installer
+│   ├── metro-gen-ai-sdk.sh            # Gen AI SDK installer
+│   ├── metro-visual-ai-demo-kit.sh          # Metro Visual AI Demo Kit installer
 │   └── uav-mission-compute-sdk.sh   # UAV Mission Compute SDK installer
 ├── .gitignore
 ├── README.md
@@ -56,8 +66,8 @@ tools/oep-sdk-manager/
 - **Installer UI**: Vanilla HTML/CSS/JS (embedded via iframe in Sphinx output)
 - **Install Scripts**: Bash (strict mode: `set -euo pipefail`)
 - **Docker Images**: Each SDK defines its images array in the install script
-- **Source Repos**: GitHub repos (edge-ai-libraries, edge-ai-suites) cloned at specific release branches
-- **Current Release Branch**: `release-2026.1.0` (latest available release branch) — Docker images are pinned to the latest available stable tags where possible
+- **Source Repos**: GitHub repos (edge-ai-libraries, metro-ai-suite) cloned from `main`
+- **Source Branch**: `main` — Docker images are pinned to the latest available stable tags where possible
 - **Linting**: ShellCheck, markdownlint, doc8, pylint, black, yamllint, reuse (license), Trivy
 - **Build System**: GNU Make with Python virtualenv (provided by CI; `Makefile` and `requirements.txt` are gitignored)
 
@@ -72,15 +82,15 @@ tools/oep-sdk-manager/
 
 ```bash
 # Install a specific SDK
-bash scripts/oep-vision-ai-sdk.sh
-bash scripts/oep-gen-ai-sdk.sh
-bash scripts/visual-ai-demo-kit.sh
+bash scripts/metro-vision-ai-sdk.sh
+bash scripts/metro-gen-ai-sdk.sh
+bash scripts/metro-visual-ai-demo-kit.sh
 
 # Skip specific steps
-bash scripts/oep-vision-ai-sdk.sh --skip-system-check --skip-docker --skip-images --skip-git-clone
+bash scripts/metro-vision-ai-sdk.sh --skip-system-check --skip-docker --skip-images --skip-git-clone
 
 # Show help for any script
-bash scripts/oep-vision-ai-sdk.sh --help
+bash scripts/metro-vision-ai-sdk.sh --help
 ```
 
 ### Local Linting (standalone tools)
