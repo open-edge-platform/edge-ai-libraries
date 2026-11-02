@@ -16,6 +16,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstring>
+#include <filesystem>
 #include <iostream>
 #include <numeric>
 #include <stdexcept>
@@ -36,6 +37,11 @@ struct Configuration {
   double opencl_contrast = 1.0;
   double sycl_contrast = 3.0;
   double sycl_init_blur = 1.0;
+  double rotation = 30.0;
+  double scale = 0.85;
+  double gain = 1.0;
+  double bias = 0.0;
+  double blur_sigma = 0.0;
 };
 
 Configuration load_configuration(const char *path) {
@@ -46,7 +52,8 @@ Configuration load_configuration(const char *path) {
     throw std::runtime_error("Configuration must be a readable JSON object");
   const std::vector<std::string> keys = {"width", "height", "nfeatures",
       "nOctaveLayers", "contrastThreshold", "edgeThreshold", "sigma", "cpuThreads",
-      "octaves", "openclContrast", "syclContrast", "syclInitBlur"};
+      "octaves", "openclContrast", "syclContrast", "syclInitBlur",
+      "rotationDegrees", "scaleFactor", "gain", "bias", "blurSigma"};
   for (const auto &node : input.root()) {
     if (std::find(keys.begin(), keys.end(), node.name()) == keys.end())
       throw std::runtime_error("Unknown configuration key: " + node.name());
@@ -77,6 +84,11 @@ Configuration load_configuration(const char *path) {
   config.opencl_contrast = number("openclContrast", 1.0, 0.01, 20.0);
   config.sycl_contrast = number("syclContrast", 3.0, 0.01, 20.0);
   config.sycl_init_blur = number("syclInitBlur", 1.0, 0.2, 3.0);
+  config.rotation = number("rotationDegrees", 30.0, -180.0, 180.0);
+  config.scale = number("scaleFactor", 0.85, 0.25, 2.0);
+  config.gain = number("gain", 1.0, 0.25, 2.0);
+  config.bias = number("bias", 0.0, -64.0, 64.0);
+  config.blur_sigma = number("blurSigma", 0.0, 0.0, 4.0);
   return config;
 }
 
@@ -309,14 +321,73 @@ double report_latency(cv::FileStorage &output, const char *name,
 }
 #endif
 
+FeatureSet read_external(const char *path, int width, int height) {
+  if (std::filesystem::file_size(path) > 256 * 1024 * 1024)
+    throw std::runtime_error("External feature file exceeds 256 MiB");
+  cv::FileStorage input(path, cv::FileStorage::READ);
+  if (!input.isOpened() || static_cast<int>(input["width"]) != width ||
+      static_cast<int>(input["height"]) != height)
+    throw std::runtime_error("External feature image dimensions do not match pair");
+  const auto point_node = input["positions"];
+  const auto descriptor_node = input["descriptors"];
+  const int count = static_cast<int>(point_node["rows"]);
+  if (count < 0 || count > 32768 || static_cast<int>(point_node["cols"]) != 2 ||
+      static_cast<int>(descriptor_node["rows"]) != count ||
+      static_cast<int>(descriptor_node["cols"]) != 128)
+    throw std::runtime_error("Invalid external feature matrix dimensions");
+  cv::Mat positions;
+  FeatureSet result;
+  point_node >> positions;
+  descriptor_node >> result.descriptors;
+  if (count == 0) return result;
+  if (positions.type() != CV_32F || result.descriptors.type() != CV_32F ||
+      !cv::checkRange(positions) || !cv::checkRange(result.descriptors))
+    throw std::runtime_error("External features must contain finite float32 values");
+  for (int index = 0; index < count; ++index) {
+    const float horizontal = positions.at<float>(index, 0);
+    const float vertical = positions.at<float>(index, 1);
+    if (horizontal < 0 || horizontal >= width || vertical < 0 || vertical >= height ||
+        cv::norm(result.descriptors.row(index), cv::NORM_L2) <= 0.0)
+      throw std::runtime_error("External feature is out of bounds or has a zero descriptor");
+    result.positions.emplace_back(horizontal, vertical);
+  }
+  return result;
+}
+
+int score_external(char **argv) {
+  cv::FileStorage pair(argv[4], cv::FileStorage::READ);
+  if (!pair.isOpened()) throw std::runtime_error("Cannot read pair report");
+  const int width = static_cast<int>(pair["width"]);
+  const int height = static_cast<int>(pair["height"]);
+  if (width <= 0 || width > 3840 || height <= 0 || height > 2160)
+    throw std::runtime_error("Invalid pair dimensions");
+  cv::Mat affine;
+  pair["affine"] >> affine;
+  if (affine.rows != 2 || affine.cols != 3 || affine.type() != CV_64F || !cv::checkRange(affine))
+    throw std::runtime_error("Invalid pair affine transform");
+  const auto first = read_external(argv[2], width, height);
+  const auto second = read_external(argv[3], width, height);
+  cv::FileStorage output(argv[5], cv::FileStorage::WRITE | cv::FileStorage::FORMAT_JSON);
+  if (!output.isOpened()) throw std::runtime_error("Cannot write external quality report");
+  output << "diagnostic_only" << 1 << "parameters_equivalent" << 0
+         << "pair_report" << argv[4] << "first_features_file" << argv[2]
+         << "second_features_file" << argv[3] << "ratio_threshold" << 0.8
+         << "inlier_threshold_px" << 3.0;
+  report(output, "quality", first, second, affine);
+  return 0;
+}
+
 } // namespace
 
 int main(int argc, char **argv) {
   if (argc < 2 || argc > 6) {
-    std::cerr << "Usage: validate_sift_pair <image> [output.json [iterations [config.json [sycl-only|sycl-reuse|sycl-context|all-context|opencl-only]]]]\n";
+    std::cerr << "Usage: validate_sift_pair <image> [output.json [iterations [config.json [sycl-only|sycl-reuse|sycl-context|all-context|opencl-only|quality-export]]]]\n";
     return 2;
   }
   try {
+    if (argc == 6 && std::strcmp(argv[1], "--score-external") == 0)
+      return score_external(argv);
+    const bool quality_export = argc == 6 && std::strcmp(argv[5], "quality-export") == 0;
     int timing_iterations = 0;
     if (argc >= 4) {
 #ifndef SIFT_VALIDATE_SYCL
@@ -325,13 +396,13 @@ int main(int argc, char **argv) {
       const auto parsed = std::from_chars(argv[3], argv[3] + std::strlen(argv[3]),
                                            timing_iterations);
       if (parsed.ec != std::errc{} || *parsed.ptr != '\0' ||
-          timing_iterations < 1 || timing_iterations > 100)
-        throw std::runtime_error("Timing iterations must be an integer from 1 to 100");
+          (quality_export ? timing_iterations != 0 : timing_iterations < 1 || timing_iterations > 100))
+        throw std::runtime_error("Iterations must be 0 for quality-export, otherwise 1 to 100");
 #endif
     }
     if (argc == 6 && std::strcmp(argv[5], "sycl-only") != 0 &&
         std::strcmp(argv[5], "sycl-reuse") != 0 && std::strcmp(argv[5], "sycl-context") != 0 &&
-        std::strcmp(argv[5], "all-context") != 0 && std::strcmp(argv[5], "opencl-only") != 0)
+        std::strcmp(argv[5], "all-context") != 0 && std::strcmp(argv[5], "opencl-only") != 0 && !quality_export)
       throw std::runtime_error("Unsupported comparison mode");
     const bool opencl_only = argc == 6 && std::strcmp(argv[5], "opencl-only") == 0;
     const auto config = load_configuration(argc >= 5 ? argv[4] : nullptr);
@@ -347,17 +418,26 @@ int main(int argc, char **argv) {
       cv::resize(first, first, cv::Size(), factor, factor, cv::INTER_AREA);
     }
     const cv::Mat affine = cv::getRotationMatrix2D(
-        cv::Point2f((first.cols - 1) * 0.5f, (first.rows - 1) * 0.5f), 30.0, 0.85);
+      cv::Point2f((first.cols - 1) * 0.5f, (first.rows - 1) * 0.5f), config.rotation, config.scale);
     cv::Mat second;
     cv::warpAffine(first, second, affine, first.size(), cv::INTER_LINEAR,
                      cv::BORDER_CONSTANT);
+    if (config.blur_sigma > 0.0)
+      cv::GaussianBlur(second, second, cv::Size(), config.blur_sigma);
+    if (config.gain != 1.0 || config.bias != 0.0)
+      second.convertTo(second, CV_8U, config.gain, config.bias);
+    if (quality_export) {
+      if (!cv::imwrite(std::string(argv[2]) + ".first.pgm", first) ||
+          !cv::imwrite(std::string(argv[2]) + ".second.pgm", second))
+        throw std::runtime_error("Cannot export quality image pair");
+    }
 #ifdef SIFT_VALIDATE_SYCL
     InitSycl(0);
     const auto sycl_device = GetSyclQueue().get_device();
     if (!sycl_device.is_gpu() ||
         sycl_device.get_info<sycl::info::device::vendor_id>() != 0x8086)
       throw std::runtime_error("Comparison requires an Intel GPU, not CPU fallback");
-    const bool all_context = argc == 6 && std::strcmp(argv[5], "all-context") == 0;
+    const bool all_context = quality_export || (argc == 6 && std::strcmp(argv[5], "all-context") == 0);
     std::unique_ptr<sift_extractor::experimental::SyclExtractor> comparison_context;
     double context_setup_ms = 0.0;
     if (all_context) {
@@ -498,13 +578,15 @@ int main(int argc, char **argv) {
       (argc == 2 ? cv::FileStorage::MEMORY : 0) | cv::FileStorage::FORMAT_JSON);
     if (!output.isOpened()) throw std::runtime_error("Cannot open JSON report");
     output << "diagnostic_only" << 1 << "cuda_reference_available" << 0
-          << "timing_mode" << (opencl_only ? "opencl_only" : "rotating_all")
+          << "timing_mode" << (quality_export ? "quality_only" : (opencl_only ? "opencl_only" : "rotating_all"))
            << "performance_measured" << (timing_iterations ? 1 : 0)
            << "release_performance_gate" << 0 << "parameters_equivalent" << 0
            << "input" << argv[1] << "width" << first.cols << "height" << first.rows
            << "original_width" << original_size.width << "original_height" << original_size.height
            << "resized_workload" << static_cast<int>(first.size() != original_size)
-          << "rotation_degrees" << 30.0 << "scale_factor" << 0.85
+          << "rotation_degrees" << config.rotation << "scale_factor" << config.scale
+          << "gain" << config.gain << "bias" << config.bias << "blur_sigma" << config.blur_sigma
+          << "affine" << affine
           << "prototype_octaves" << config.octaves << "prototype_intervals" << config.octave_layers
           << "prototype_base_sigma" << config.sigma << "prototype_contrast" << config.opencl_contrast
           << "prototype_hessian_ratio_limit" << (config.edge + 1) * (config.edge + 1) / config.edge

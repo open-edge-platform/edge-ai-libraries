@@ -45,6 +45,22 @@ if(SIFT_ENABLE_OPENCL)
     target_include_directories(validate_sift_pair PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR}/src/opencl ${OpenCV_INCLUDE_DIRS})
     target_link_libraries(validate_sift_pair PRIVATE sift_opencl_runtime ${OpenCV_LIBS})
+    if(SIFT_BUILD_TESTS)
+      find_program(SIFT_JQ_EXECUTABLE jq)
+      if(SIFT_JQ_EXECUTABLE)
+        add_test(NAME sift_validation.quality_scoring
+          COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_quality_scoring.sh $<TARGET_FILE:validate_sift_pair>)
+      endif()
+    endif()
+    set(SIFT_COMPLETE_REFERENCE_SOURCE "" CACHE FILEPATH "External complete-gpu-sift source for quality export")
+    if(SIFT_COMPLETE_REFERENCE_SOURCE)
+      add_executable(export_complete_sift benchmarks/export_reference.cpp)
+      target_compile_features(export_complete_sift PRIVATE cxx_std_17)
+      target_compile_definitions(export_complete_sift PRIVATE
+        SIFT_COMPLETE_REFERENCE_SOURCE="${SIFT_COMPLETE_REFERENCE_SOURCE}")
+      target_include_directories(export_complete_sift PRIVATE ${OpenCV_INCLUDE_DIRS} ${SIFT_OPENCL_INCLUDE_DIR})
+      target_link_libraries(export_complete_sift PRIVATE ${OpenCV_LIBS} ${SIFT_OPENCL_LIBRARY})
+    endif()
   endif()
 
   if(SIFT_BUILD_TESTS)

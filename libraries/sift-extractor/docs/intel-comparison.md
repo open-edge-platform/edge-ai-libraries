@@ -3,6 +3,10 @@
 
 # Intel GPU Comparison
 
+Latest broader diagnostic: [64-case quality corpus](quality-corpus.md), covering
+OpenCV, OpenCL, SYCL and complete-gpu-sift. CUDA common scoring remains pending;
+quality-equivalent speedups and backend selection are not established.
+
 Compare OpenCL and SYCL on the non-NVIDIA Intel systems using the same binary,
 fixture, transform, OpenCV version, matching/scoring code and repetition protocol.
 CUDA is a supplemental algorithm reference, not the Intel performance target.
