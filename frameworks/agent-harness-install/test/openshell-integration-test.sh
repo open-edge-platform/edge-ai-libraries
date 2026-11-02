@@ -170,6 +170,7 @@ dynamic_policy_change() {
   local agent="$1" name rule response rc
   name="$(profile_name "$agent")"
   rule="agent_harness_ci_policy_validation"
+  # OpenShell 0.1.5 requires endpoint and deny changes in separate updates.
   timeout 45 openshell policy update "$name" --rule-name "$rule" --binary /usr/bin/curl \
     --add-endpoint "host.openshell.internal:${HARNESS_IR_PORT}:read-write:rest:enforce" \
     -g "$HARNESS_OPENSHELL_GATEWAY" --wait
