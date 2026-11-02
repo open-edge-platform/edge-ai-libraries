@@ -280,11 +280,11 @@ config also prints a one-line error and exits with `2`.
 
 ### Reproducing a run
 
-Every result JSON has a `config` block with the effective configuration of the run
-(see [Reports](#reports)). Pass the JSON, or its run directory, as the config to run
-the same benchmark again. Run these from the project root
-(`tools/visual-pipeline-and-platform-evaluation-tool`), because paths are resolved
-against the current working directory:
+Each benchmark run saves a result JSON (`results.formats` must include `json`). 
+Its `config` block records the settings the run used (see [Reports](#reports)). 
+Pass the JSON, or its run directory, as the config to run the same benchmark again. 
+Run these from the project root (`tools/visual-pipeline-and-platform-evaluation-tool`), 
+because paths are resolved against the current working directory:
 
 ```bash
 # via make (sets PYTHONPATH for you)
