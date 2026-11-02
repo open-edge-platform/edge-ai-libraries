@@ -66,6 +66,18 @@ the tool is not a CUDA comparison, quality acceptance test or benchmark. Initial
 `left.pgm` diagnostics yielded 263 prototype inliers versus 875 OpenCV-default
 inliers, so a substantial quality/coverage gap remains. Do not claim parity.
 
+When both backends are enabled, this tool also evaluates SYCL on an Intel GPU and
+rejects CPU fallback. Write JSON to a file because the reference prints console
+logs. An optional iteration count adds diagnostic end-to-end extraction timing:
+
+```bash
+ONEAPI_DEVICE_SELECTOR=level_zero:gpu \
+  build/validate_sift_pair /path/to/image.pgm report.json 10
+```
+
+See [Intel comparison protocol](docs/intel-comparison.md) for timing scope,
+portable deployment and hardware-normalization requirements.
+
 ## Source and License Provenance
 
 The reference SYCL files under `src/sycl_reference/` and `tests/sycl_reference/test_sycl_kernels.cpp` were copied from CudaSift worktree commit `7bbfacf84108aebd2300f449d3bc28ece11738a7`. The source's MIT license is retained in `LICENSES/MIT.txt`. New component files follow the Edge AI Libraries Apache-2.0 contribution policy. Review provenance and file-level licensing before redistributing derivative kernels.

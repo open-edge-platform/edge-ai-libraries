@@ -136,6 +136,11 @@ if(SIFT_ENABLE_SYCL)
   target_link_options(sift_sycl_reference PUBLIC -fsycl -fsycl-targets=spir64)
   set_target_properties(sift_sycl_reference PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+  if(TARGET validate_sift_pair)
+    target_compile_definitions(validate_sift_pair PRIVATE SIFT_VALIDATE_SYCL)
+    target_link_libraries(validate_sift_pair PRIVATE sift_sycl_reference)
+  endif()
+
   if(SIFT_BUILD_TESTS)
     add_executable(test_sift_sycl_kernels
       tests/sycl_reference/test_sycl_kernels.cpp

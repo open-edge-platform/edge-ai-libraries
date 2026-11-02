@@ -33,6 +33,11 @@ if [[ "$remote" == -* || "$remote" == *[[:space:]]* ]]; then
 fi
 component_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+if [[ -n "${SIFT_STAGE_PAIR_IMAGE:-}" && -z "${SIFT_STAGE_SYCL_BUILD:-}" ]]; then
+  printf 'SIFT_STAGE_PAIR_IMAGE requires SIFT_STAGE_SYCL_BUILD\n' >&2
+  exit 2
+fi
+
 for header in cl.h cl_ext.h cl_platform.h cl_version.h; do
   if [[ ! -r "$opencl_include_root/CL/$header" ]]; then
     printf 'Missing OpenCL header: %s\n' "$opencl_include_root/CL/$header" >&2
@@ -74,7 +79,20 @@ if [[ -n "${SIFT_STAGE_SYCL_BUILD:-}" ]]; then
   for test_name in test_sift_sycl_kernels test_sift_sycl_extract test_sift_sycl_match; do
     cp "$SIFT_STAGE_SYCL_BUILD/$test_name" "$stage_root/sycl-runtime/bin/"
   done
-  ldd "${runtime_seeds[@]}" "$level_zero_loader" "$level_zero_tracing" "$SIFT_STAGE_SYCL_BUILD/test_sift_sycl_extract" \
+  runtime_executables=("$SIFT_STAGE_SYCL_BUILD/test_sift_sycl_extract")
+  if [[ -n "${SIFT_STAGE_PAIR_IMAGE:-}" ]]; then
+    if [[ ! -r "$SIFT_STAGE_PAIR_IMAGE" || -z "${SIFT_STAGE_OPENCV_PREFIX:-}" ||
+          ! -d "$SIFT_STAGE_OPENCV_PREFIX/share/licenses/opencv4" ]]; then
+      printf 'Comparison requires a readable fixture and SIFT_STAGE_OPENCV_PREFIX with license notices\n' >&2
+      exit 1
+    fi
+    cp "$SIFT_STAGE_SYCL_BUILD/validate_sift_pair" "$stage_root/sycl-runtime/bin/"
+    cp "$SIFT_STAGE_PAIR_IMAGE" "$stage_root/comparison-input.pgm"
+    cp -a "$SIFT_STAGE_OPENCV_PREFIX/share/licenses/opencv4" \
+      "$stage_root/sycl-runtime/notices/opencv"
+    runtime_executables+=("$SIFT_STAGE_SYCL_BUILD/validate_sift_pair")
+  fi
+  ldd "${runtime_seeds[@]}" "$level_zero_loader" "$level_zero_tracing" "${runtime_executables[@]}" \
     > "$stage_root/sycl-runtime/linked-libraries.txt"
   if grep -q 'not found' "$stage_root/sycl-runtime/linked-libraries.txt"; then
     printf 'Unresolved local runtime dependencies; source oneAPI setvars first\n' >&2
@@ -90,6 +108,13 @@ if [[ -n "${SIFT_STAGE_SYCL_BUILD:-}" ]]; then
     cp -L "$library" "$stage_root/sycl-runtime/lib/"
   done < <(awk '$2 == "=>" && $3 ~ /^\/opt\/intel\/oneapi\// && $3 !~ /libOpenCL/ {print $3}' \
     "$stage_root/sycl-runtime/linked-libraries.txt" | sort -u)
+  if [[ -n "${SIFT_STAGE_PAIR_IMAGE:-}" ]]; then
+    while IFS= read -r library; do
+      cp -L "$library" "$stage_root/sycl-runtime/lib/"
+    done < <(awk -v prefix="$SIFT_STAGE_OPENCV_PREFIX/" \
+      '$2 == "=>" && index($3, prefix) == 1 {print $3}' \
+      "$stage_root/sycl-runtime/linked-libraries.txt" | sort -u)
+  fi
   cp "$compiler_root"/lib/libsycl-*.spv "$stage_root/sycl-runtime/lib/"
   cp -a "$compiler_root/share/doc/compiler/licensing" \
     "$stage_root/sycl-runtime/notices/compiler-licensing"
@@ -119,6 +144,9 @@ if [[ "$run_tests" -eq 1 ]]; then
   remote_command+='; cmake -S "$dest/libraries/sift-extractor" -B "$dest/build-opencl" -DCMAKE_BUILD_TYPE=Release -DSIFT_ENABLE_SYCL=OFF -DSIFT_ENABLE_OPENCL=ON -DSIFT_BUILD_TESTS=ON -DSIFT_OPENCL_INCLUDE_DIR="$dest"; cmake --build "$dest/build-opencl" --parallel 4; clinfo -l; ctest --test-dir "$dest/build-opencl" --verbose --output-on-failure'
   if [[ -n "${SIFT_STAGE_SYCL_BUILD:-}" ]]; then
     remote_command+='; export LD_LIBRARY_PATH="$dest/sycl-runtime/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"; export ONEAPI_DEVICE_SELECTOR=level_zero:gpu; for test in test_sift_sycl_kernels test_sift_sycl_extract test_sift_sycl_match; do printf "Running %s\n" "$test"; "$dest/sycl-runtime/bin/$test"; done'
+    if [[ -n "${SIFT_STAGE_PAIR_IMAGE:-}" ]]; then
+      remote_command+='; "$dest/sycl-runtime/bin/validate_sift_pair" "$dest/comparison-input.pgm" "$dest/intel-comparison.json" 10; printf "Intel comparison report: %s\n" "$dest/intel-comparison.json"; cat "$dest/intel-comparison.json"'
+    fi
   fi
 fi
 tar -czf - -C "$stage_root" . | ssh -o StrictHostKeyChecking=yes "$remote" "$remote_command"
