@@ -6,6 +6,7 @@ include(CTest)
 option(SIFT_ENABLE_SYCL "Build the SYCL reference backend" ON)
 option(SIFT_ENABLE_OPENCL "Build the OpenCL device discovery backend" OFF)
 option(SIFT_BUILD_TESTS "Build SIFT component tests" ${BUILD_TESTING})
+option(SIFT_ENABLE_OPENCV_VALIDATION "Build optional real-pair diagnostic tools" OFF)
 
 if(SIFT_ENABLE_OPENCL)
   find_path(SIFT_OPENCL_INCLUDE_DIR CL/cl.h
@@ -37,6 +38,14 @@ if(SIFT_ENABLE_OPENCL)
     ${CMAKE_CURRENT_SOURCE_DIR}/src/opencl
   )
   target_link_libraries(sift_opencl_runtime PUBLIC ${SIFT_OPENCL_LIBRARY})
+
+  if(SIFT_ENABLE_OPENCV_VALIDATION)
+    find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs features2d)
+    add_executable(validate_sift_pair benchmarks/validate_pair.cpp)
+    target_include_directories(validate_sift_pair PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/opencl ${OpenCV_INCLUDE_DIRS})
+    target_link_libraries(validate_sift_pair PRIVATE sift_opencl_runtime ${OpenCV_LIBS})
+  endif()
 
   if(SIFT_BUILD_TESTS)
     add_executable(test_sift_opencl_device tests/opencl/test_opencl_device.cpp)

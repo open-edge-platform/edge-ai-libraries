@@ -32,9 +32,8 @@ path = [
     "src/opencl/opencl_extrema.hpp",
     "src/opencl/opencl_extrema.cpp",
     "tests/opencl/test_opencl_extrema.cpp",
-    "src/opencl/opencl_extrema.hpp",
-    "src/opencl/opencl_extrema.cpp",
     "tests/opencl/test_opencl_refinement.cpp",
+    "benchmarks/validate_pair.cpp",
 ]
 SPDX-FileCopyrightText = "2026 Intel Corporation"
 SPDX-License-Identifier = "Apache-2.0"

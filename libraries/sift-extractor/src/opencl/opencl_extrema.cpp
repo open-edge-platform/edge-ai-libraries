@@ -5,7 +5,9 @@
 #include <CL/cl.h>
 #include <CL/cl_ext.h>
 
+#include <algorithm>
 #include <cmath>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -146,6 +148,130 @@ __kernel void refine_dog_extrema(__global const float *dog,
   refined[output + 4] = trace * trace / spatial_determinant;
   refined[output + 5] = 1.0f;
 }
+
+__kernel void sift_orientations(__global const float *image,
+                                __global const float *points,
+                                __global float *output,
+                                const int width, const int height) {
+  const int index = (int)get_global_id(0);
+  const float cx = points[index * 4];
+  const float cy = points[index * 4 + 1];
+  const float sigma = 1.5f * points[index * 4 + 2];
+  const int radius = min((int)ceil(3.0f * sigma), max(width, height));
+  const int center_x = (int)floor(cx + 0.5f);
+  const int center_y = (int)floor(cy + 0.5f);
+  float hist[36];
+  float smoothed[36];
+  for (int bin = 0; bin < 36; ++bin)
+    hist[bin] = 0.0f;
+  for (int dy = max(-radius, 1 - center_y);
+       dy <= min(radius, height - 2 - center_y); ++dy) {
+    for (int dx = max(-radius, 1 - center_x);
+         dx <= min(radius, width - 2 - center_x); ++dx) {
+      const int x = center_x + dx;
+      const int y = center_y + dy;
+      const float gx = image[y * width + x + 1] - image[y * width + x - 1];
+      const float gy = image[(y + 1) * width + x] - image[(y - 1) * width + x];
+      const float rx = (float)x - cx;
+      const float ry = (float)y - cy;
+      const float weight = exp(-(rx * rx + ry * ry) / (2.0f * sigma * sigma));
+      float angle = atan2(gy, gx) * (18.0f / 3.14159265358979323846f);
+      if (angle < 0.0f) angle += 36.0f;
+      const int lower = (int)floor(angle);
+      const float fraction = angle - (float)lower;
+      const float magnitude = hypot(gx, gy) * weight;
+      hist[lower % 36] += magnitude * (1.0f - fraction);
+      hist[(lower + 1) % 36] += magnitude * fraction;
+    }
+  }
+  for (int pass = 0; pass < 6; ++pass) {
+    for (int bin = 0; bin < 36; ++bin)
+      smoothed[bin] = (hist[(bin + 35) % 36] + hist[bin] +
+                       hist[(bin + 1) % 36]) / 3.0f;
+    for (int bin = 0; bin < 36; ++bin) hist[bin] = smoothed[bin];
+  }
+  float peak = 0.0f;
+  for (int bin = 0; bin < 36; ++bin) peak = fmax(peak, hist[bin]);
+  for (int bin = 0; bin < 36; ++bin) {
+    output[index * 36 + bin] = -1.0f;
+    const float left = hist[(bin + 35) % 36];
+    const float right = hist[(bin + 1) % 36];
+    if (peak > 0.0f && hist[bin] >= 0.8f * peak &&
+        hist[bin] > left && hist[bin] >= right) {
+      const float denominator = left - 2.0f * hist[bin] + right;
+      const float offset = fabs(denominator) > 1e-20f ?
+                            0.5f * (left - right) / denominator : 0.0f;
+      output[index * 36 + bin] = fmod(((float)bin + offset + 36.0f) * 10.0f, 360.0f);
+    }
+  }
+}
+
+__kernel void sift_descriptors(__global const float *image,
+                               __global const float *points,
+                               __global float *output,
+                               const int width, const int height) {
+  const int index = (int)get_global_id(0);
+  const float cx = points[index * 4];
+  const float cy = points[index * 4 + 1];
+  const float bin_width = 3.0f * points[index * 4 + 2];
+  const float angle = points[index * 4 + 3] * (3.14159265358979323846f / 180.0f);
+  const float cosine = cos(angle);
+  const float sine = sin(angle);
+  const int radius = min((int)ceil(3.53553390593f * bin_width), max(width, height));
+  const int center_x = (int)floor(cx + 0.5f);
+  const int center_y = (int)floor(cy + 0.5f);
+  float hist[128];
+  for (int bin = 0; bin < 128; ++bin) hist[bin] = 0.0f;
+  for (int dy = max(-radius, 1 - center_y);
+       dy <= min(radius, height - 2 - center_y); ++dy) {
+    for (int dx = max(-radius, 1 - center_x);
+         dx <= min(radius, width - 2 - center_x); ++dx) {
+      const int x = center_x + dx;
+      const int y = center_y + dy;
+      const float rx = (float)x - cx;
+      const float ry = (float)y - cy;
+      const float column = (cosine * rx + sine * ry) / bin_width;
+      const float row = (-sine * rx + cosine * ry) / bin_width;
+      const float rb = row + 1.5f;
+      const float cb = column + 1.5f;
+      if (rb <= -1.0f || rb >= 4.0f || cb <= -1.0f || cb >= 4.0f) continue;
+      const float gx = image[y * width + x + 1] - image[y * width + x - 1];
+      const float gy = image[(y + 1) * width + x] - image[(y - 1) * width + x];
+      float ob = (atan2(gy, gx) - angle) * (4.0f / 3.14159265358979323846f);
+      ob = fmod(ob + 16.0f, 8.0f);
+      const float magnitude = hypot(gx, gy) * exp(-(row * row + column * column) / 8.0f);
+      const int ri = (int)floor(rb);
+      const int ci = (int)floor(cb);
+      const int oi = (int)floor(ob);
+      const float rf = rb - (float)ri;
+      const float cf = cb - (float)ci;
+      const float of = ob - (float)oi;
+      for (int rr = 0; rr <= 1; ++rr) {
+        const int row_bin = ri + rr;
+        if (row_bin < 0 || row_bin >= 4) continue;
+        for (int cc = 0; cc <= 1; ++cc) {
+          const int column_bin = ci + cc;
+          if (column_bin < 0 || column_bin >= 4) continue;
+          for (int oo = 0; oo <= 1; ++oo)
+            hist[(row_bin * 4 + column_bin) * 8 + (oi + oo) % 8] +=
+                magnitude * (rr ? rf : 1.0f - rf) *
+                (cc ? cf : 1.0f - cf) * (oo ? of : 1.0f - of);
+        }
+      }
+    }
+  }
+  float norm = 0.0f;
+  for (int bin = 0; bin < 128; ++bin) norm += hist[bin] * hist[bin];
+  const float inverse_norm = norm > 0.0f ? rsqrt(norm) : 0.0f;
+  norm = 0.0f;
+  for (int bin = 0; bin < 128; ++bin) {
+    hist[bin] = fmin(hist[bin] * inverse_norm, 0.2f);
+    norm += hist[bin] * hist[bin];
+  }
+  const float inverse_clipped_norm = norm > 0.0f ? rsqrt(norm) : 0.0f;
+  for (int bin = 0; bin < 128; ++bin)
+    output[index * 128 + bin] = hist[bin] * inverse_clipped_norm;
+}
 )CLC";
 
 void check_opencl(cl_int status, const char *operation) {
@@ -202,6 +328,57 @@ struct OpenCLDoGExtrema::Impl {
   cl_program program = nullptr;
   cl_kernel kernel = nullptr;
   cl_kernel refine_kernel = nullptr;
+
+  std::vector<float> run_feature_kernel(const char *name,
+      const GaussianLevel &level, const std::vector<float> &points,
+      size_t output_stride) {
+    if (level.width < 3 || level.height < 3 ||
+        level.pixels.size() != static_cast<size_t>(level.width) * level.height)
+      throw std::invalid_argument("Invalid Gaussian image for feature sampling");
+    for (float value : level.pixels) {
+      if (!std::isfinite(value))
+        throw std::invalid_argument("Gaussian image must contain finite values");
+    }
+    const size_t count = points.size() / 4;
+    if (count == 0) return {};
+    if (count > static_cast<size_t>(std::numeric_limits<int>::max()) / output_stride)
+      throw std::overflow_error("Too many feature points");
+    struct Resources {
+      cl_kernel kernel = nullptr;
+      cl_mem image = nullptr;
+      cl_mem points = nullptr;
+      cl_mem output = nullptr;
+      ~Resources() {
+        if (output) clReleaseMemObject(output);
+        if (points) clReleaseMemObject(points);
+        if (image) clReleaseMemObject(image);
+        if (kernel) clReleaseKernel(kernel);
+      }
+    } resources;
+    cl_int status = CL_SUCCESS;
+    resources.kernel = clCreateKernel(program, name, &status);
+    check_opencl(status, "clCreateKernel(feature)");
+    resources.image = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+        level.pixels.size() * sizeof(float), const_cast<float *>(level.pixels.data()), &status);
+    check_opencl(status, "clCreateBuffer(feature image)");
+    resources.points = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+        points.size() * sizeof(float), const_cast<float *>(points.data()), &status);
+    check_opencl(status, "clCreateBuffer(feature points)");
+    std::vector<float> output(count * output_stride);
+    resources.output = clCreateBuffer(context, CL_MEM_WRITE_ONLY,
+        output.size() * sizeof(float), nullptr, &status);
+    check_opencl(status, "clCreateBuffer(feature output)");
+    check_opencl(clSetKernelArg(resources.kernel, 0, sizeof(cl_mem), &resources.image), "feature image arg");
+    check_opencl(clSetKernelArg(resources.kernel, 1, sizeof(cl_mem), &resources.points), "feature points arg");
+    check_opencl(clSetKernelArg(resources.kernel, 2, sizeof(cl_mem), &resources.output), "feature output arg");
+    check_opencl(clSetKernelArg(resources.kernel, 3, sizeof(int), &level.width), "feature width arg");
+    check_opencl(clSetKernelArg(resources.kernel, 4, sizeof(int), &level.height), "feature height arg");
+    check_opencl(clEnqueueNDRangeKernel(queue, resources.kernel, 1, nullptr,
+        &count, nullptr, 0, nullptr, nullptr), "feature kernel launch");
+    check_opencl(clEnqueueReadBuffer(queue, resources.output, CL_TRUE, 0,
+        output.size() * sizeof(float), output.data(), 0, nullptr, nullptr), "feature readback");
+    return output;
+  }
 
   Impl() {
     cl_int status = CL_SUCCESS;
@@ -487,6 +664,156 @@ std::vector<RefinedKeypoint> OpenCLDoGExtrema::refine(
     clReleaseMemObject(dog_buffer);
     throw;
   }
+}
+
+std::vector<ScaleSpaceKeypoint> OpenCLDoGExtrema::detect_pyramid(
+    const std::vector<DoGLevel> &dog_levels, int octave_count, int intervals,
+    float base_sigma, float contrast_threshold, float edge_limit) {
+  if (octave_count <= 0 || octave_count > 30 || intervals <= 0 ||
+      intervals > std::numeric_limits<int>::max() - 2 ||
+      !std::isfinite(base_sigma) || base_sigma <= 0.0f ||
+      !std::isfinite(contrast_threshold) || contrast_threshold < 0.0f ||
+      !std::isfinite(edge_limit) || edge_limit <= 0.0f)
+    throw std::invalid_argument("Invalid scale-space detector configuration");
+  const size_t levels_per_octave = static_cast<size_t>(intervals) + 2;
+  if (dog_levels.size() / levels_per_octave != static_cast<size_t>(octave_count) ||
+      dog_levels.size() % levels_per_octave != 0)
+    throw std::invalid_argument("DoG level count does not match detector configuration");
+
+  for (size_t index = 0; index < dog_levels.size(); ++index) {
+    const auto &level = dog_levels[index];
+    if (level.octave != static_cast<int>(index / levels_per_octave) ||
+        level.scale != static_cast<int>(index % levels_per_octave) ||
+        level.width <= 0 || level.height <= 0 ||
+        level.pixels.size() != static_cast<size_t>(level.width) * level.height)
+      throw std::invalid_argument("DoG pyramid layout is invalid");
+  }
+
+  std::vector<ScaleSpaceKeypoint> result;
+  for (int octave = 0; octave < octave_count; ++octave) {
+    const auto begin = dog_levels.begin() +
+                       static_cast<size_t>(octave) * levels_per_octave;
+    const std::vector<DoGLevel> octave_levels(begin, begin + levels_per_octave);
+    const auto candidates = detect(octave_levels, contrast_threshold);
+    const auto refined = refine(octave_levels, candidates, contrast_threshold,
+                                 edge_limit);
+    const float image_factor = std::ldexp(1.0f, octave);
+    for (const auto &point : refined) {
+      const float octave_sigma =
+          base_sigma * std::exp2((point.scale + 0.5f) / intervals);
+      const float image_sigma = octave_sigma * image_factor;
+      if (!std::isfinite(image_sigma))
+        throw std::overflow_error("Scale-space keypoint sigma overflow");
+      result.push_back({point, octave, point.x * image_factor,
+                        point.y * image_factor, octave_sigma, image_sigma});
+    }
+  }
+  return result;
+}
+
+std::vector<ScaleSpaceKeypoint> OpenCLDoGExtrema::detect_image(
+    const std::vector<float> &image, int width, int height, int octave_count,
+    int intervals, float base_sigma, float contrast_threshold, float edge_limit) {
+  if (octave_count <= 0 || octave_count > 30 || intervals <= 0 || intervals > 32 ||
+      !std::isfinite(base_sigma) || base_sigma < 0.1f || base_sigma > 16.0f ||
+      !std::isfinite(contrast_threshold) || contrast_threshold < 0.0f ||
+      !std::isfinite(edge_limit) || edge_limit <= 0.0f)
+    throw std::invalid_argument("Invalid image detector configuration");
+  for (float value : image) {
+    if (!std::isfinite(value))
+      throw std::invalid_argument("Detector input must contain finite values");
+  }
+  OpenCLGaussianPyramid pyramid;
+  const auto gaussian = pyramid.build(image, width, height, octave_count,
+                                       intervals, base_sigma);
+  const auto differences = pyramid.difference_levels(gaussian, octave_count,
+                                                     intervals);
+  return detect_pyramid(differences, octave_count, intervals, base_sigma,
+                         contrast_threshold, edge_limit);
+}
+
+std::vector<OrientedKeypoint> OpenCLDoGExtrema::assign_orientations(
+    const GaussianLevel &level, const std::vector<ScaleSpaceKeypoint> &points) {
+  std::vector<float> packed;
+  for (const auto &point : points) {
+    if (point.octave != level.octave || !std::isfinite(point.local.x) ||
+        !std::isfinite(point.local.y) || point.local.x < 0.0f ||
+        point.local.y < 0.0f || point.local.x >= level.width ||
+        point.local.y >= level.height || !std::isfinite(point.octave_sigma) ||
+        point.octave_sigma < 0.1f || point.octave_sigma > 4096.0f)
+      throw std::invalid_argument("Invalid orientation sampling point");
+    packed.insert(packed.end(), {point.local.x, point.local.y, point.octave_sigma, 0.0f});
+  }
+  const auto angles = impl_->run_feature_kernel("sift_orientations", level, packed, 36);
+  std::vector<OrientedKeypoint> result;
+  for (size_t index = 0; index < points.size(); ++index) {
+    for (size_t bin = 0; bin < 36; ++bin) {
+      const float angle = angles[index * 36 + bin];
+      if (angle >= 0.0f) result.push_back({points[index], angle});
+    }
+  }
+  return result;
+}
+
+std::vector<SiftFeature> OpenCLDoGExtrema::compute_descriptors(
+    const GaussianLevel &level, const std::vector<OrientedKeypoint> &points) {
+  std::vector<float> packed;
+  for (const auto &point : points) {
+    const auto &keypoint = point.keypoint;
+    if (keypoint.octave != level.octave || !std::isfinite(keypoint.local.x) ||
+        !std::isfinite(keypoint.local.y) || keypoint.local.x < 0.0f ||
+        keypoint.local.y < 0.0f || keypoint.local.x >= level.width ||
+        keypoint.local.y >= level.height || !std::isfinite(keypoint.octave_sigma) ||
+        keypoint.octave_sigma < 0.1f || keypoint.octave_sigma > 4096.0f ||
+        !std::isfinite(point.orientation_degrees) || point.orientation_degrees < 0.0f ||
+        point.orientation_degrees >= 360.0f)
+      throw std::invalid_argument("Invalid descriptor sampling point");
+    packed.insert(packed.end(), {keypoint.local.x, keypoint.local.y,
+                                 keypoint.octave_sigma, point.orientation_degrees});
+  }
+  const auto values = impl_->run_feature_kernel("sift_descriptors", level, packed, 128);
+  std::vector<SiftFeature> result;
+  for (size_t index = 0; index < points.size(); ++index) {
+    SiftFeature feature;
+    feature.point = points[index];
+    std::copy_n(values.begin() + index * 128, 128, feature.descriptor.begin());
+    result.push_back(feature);
+  }
+  return result;
+}
+
+std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
+    const std::vector<float> &image, int width, int height, int octave_count,
+    int intervals, float base_sigma, float contrast_threshold, float edge_limit) {
+  if (octave_count <= 0 || octave_count > 30 || intervals <= 0 || intervals > 32 ||
+      !std::isfinite(base_sigma) || base_sigma < 0.1f || base_sigma > 16.0f ||
+      !std::isfinite(contrast_threshold) || contrast_threshold < 0.0f ||
+      !std::isfinite(edge_limit) || edge_limit <= 0.0f)
+    throw std::invalid_argument("Invalid image extractor configuration");
+  for (float value : image) {
+    if (!std::isfinite(value))
+      throw std::invalid_argument("Extractor input must contain finite values");
+  }
+  OpenCLGaussianPyramid pyramid;
+  const auto gaussian = pyramid.build(image, width, height, octave_count,
+                                       intervals, base_sigma);
+  const auto differences = pyramid.difference_levels(gaussian, octave_count, intervals);
+  const auto keypoints = detect_pyramid(differences, octave_count, intervals,
+                                         base_sigma, contrast_threshold, edge_limit);
+  std::vector<std::vector<ScaleSpaceKeypoint>> groups(gaussian.size());
+  for (const auto &point : keypoints) {
+    const int level = std::clamp(static_cast<int>(std::lround(point.local.scale)),
+                                  0, intervals + 2);
+    groups[static_cast<size_t>(point.octave) * (intervals + 3) + level].push_back(point);
+  }
+  std::vector<SiftFeature> result;
+  for (size_t group = 0; group < groups.size(); ++group) {
+    if (groups[group].empty()) continue;
+    const auto oriented = assign_orientations(gaussian[group], groups[group]);
+    auto features = compute_descriptors(gaussian[group], oriented);
+    result.insert(result.end(), features.begin(), features.end());
+  }
+  return result;
 }
 
 } // namespace sift_extractor::detail

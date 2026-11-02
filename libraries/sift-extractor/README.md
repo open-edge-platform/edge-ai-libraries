@@ -10,18 +10,20 @@ This component is an early development snapshot, not a production release. The c
 - A tiled SYCL descriptor matcher is included with deterministic basis-vector matching coverage.
 - A small synthetic-image extraction test checks feature bounds and finite, nonzero descriptors.
 - The extrema kernel has been changed to avoid assuming a fixed Intel GPU subgroup width.
-- An independent OpenCL runtime target enumerates platforms and reports device capabilities; no OpenCL SIFT kernels are implemented yet.
+- An independent OpenCL runtime target enumerates platforms and reports device capabilities.
 - Context-owned OpenCL Gaussian blur, DoG, 2x downsample, and an incremental octave/scale Gaussian pyramid are covered against CPU references as initial scale-space building blocks.
 - A separate OpenCL 3D DoG extrema-candidate kernel has deterministic interior maximum/minimum and border-exclusion coverage.
-- Subpixel Taylor refinement and Hessian edge rejection are covered with a synthetic quadratic CPU reference; descriptor/orientation generation remains outstanding.
-- OpenCL SIFT kernels, matching/geometry API, stable context ownership, Python bindings, packaging, and primary-host SIFT benchmarking remain in progress.
+- Subpixel Taylor refinement and Hessian edge rejection are covered with a synthetic quadratic reference.
+- An experimental image-to-feature path connects the pyramid and detector, retains octave/image-coordinate/sigma metadata, assigns primary/secondary orientations, and computes rotated 128-D trilinear descriptors with clipping and renormalization.
+- Synthetic tests cover known directions, multiple orientation peaks, blank inputs, descriptor norms and a 90-degree ramp rotation. These are mechanics checks, not SIFT equivalence certification.
+- OpenCL matching/geometry API, stable context ownership, Python bindings, release packaging, and primary-host SIFT benchmarking remain in progress.
 - Existing source-derived timings and reported CudaSift results are not performance claims for this component.
 
-The legacy reference backend uses a process-global SYCL queue and scratch buffers. Do not use concurrent extraction calls. Its API and numerical behavior are not yet a stable compatibility contract.
+The legacy reference backend uses a process-global SYCL queue and scratch buffers. Do not use concurrent extraction calls. Its API and numerical behavior are not yet a stable compatibility contract. The OpenCL correctness path uses host-visible vectors between stages and independent contexts for pyramid and feature processing; it is not an optimized device-resident pipeline. Feature sampling uses the nearest Gaussian level and local sigma derived from a DoG geometric-center convention; reference parity is outstanding. Refinement is single-step, not iterative relocation.
 
 ## Build and Test
 
-A DPC++ compiler and SYCL runtime are required. The current smoke tests expect an Intel GPU by default.
+A DPC++ compiler and SYCL runtime are required for SYCL, not the OpenCL-only build. The current GPU tests expect Intel hardware by default.
 
 ```bash
 source /opt/intel/oneapi/setvars.sh
@@ -42,6 +44,28 @@ ONEAPI_DEVICE_SELECTOR=opencl:cpu ctest --test-dir build-sycl --output-on-failur
 
 The CPU selector is a diagnostic only; it does not count as GPU validation. To identify which extraction stage fails on a device, set `SIFT_SYCL_SYNC_EACH_STAGE=1` when running the extraction test. This adds synchronization and must not be used for performance measurements.
 
+Current-source extraction on the local CPU returned zero features and failed the
+nonempty-output check; the exact same binary returned 1009 features on UHD 770.
+CPU support is not validated.
+
+## Real-Image Diagnostic
+
+An optional validation adapter uses OpenCV for image loading, reference features,
+matching and known-transform geometry. It does not add OpenCV to the core library.
+
+```bash
+cmake -S . -B build-opencl -DSIFT_ENABLE_SYCL=OFF -DSIFT_ENABLE_OPENCL=ON \
+  -DSIFT_ENABLE_OPENCV_VALIDATION=ON -DCMAKE_BUILD_TYPE=Release
+cmake --build build-opencl --target validate_sift_pair
+build-opencl/validate_sift_pair /path/to/image.pgm
+```
+
+The JSON report compares a 30-degree rotation/0.85 scale against ground truth at
+3 pixels. The prototype and OpenCV-default parameters are explicitly not equivalent;
+the tool is not a CUDA comparison, quality acceptance test or benchmark. Initial
+`left.pgm` diagnostics yielded 263 prototype inliers versus 875 OpenCV-default
+inliers, so a substantial quality/coverage gap remains. Do not claim parity.
+
 ## Source and License Provenance
 
 The reference SYCL files under `src/sycl_reference/` and `tests/sycl_reference/test_sycl_kernels.cpp` were copied from CudaSift worktree commit `7bbfacf84108aebd2300f449d3bc28ece11738a7`. The source's MIT license is retained in `LICENSES/MIT.txt`. New component files follow the Edge AI Libraries Apache-2.0 contribution policy. Review provenance and file-level licensing before redistributing derivative kernels.
@@ -57,3 +81,43 @@ SHA-256 manifest, and refuses to overwrite an existing content-addressed stage.
 It does not install system packages or configure SSH credentials. SSH
 host-key checking remains enabled; enter authentication directly in the
 terminal.
+
+Append `--test` to build and execute the whole OpenCL test slice in the same
+connection. For portable, locally compiled SYCL tests without a remote compiler:
+
+```bash
+source /opt/intel/oneapi/setvars.sh
+SIFT_STAGE_SYCL_BUILD=/tmp/sift-extractor-both \
+  bash scripts/stage_opencl_host.sh user@host --test
+```
+
+This optionally stages three SYCL test binaries, runtime dependencies, and
+compiler/UMF/TCM/Level Zero licenses and third-party notices (~79 MiB locally).
+The bundle includes both `libze_loader.so.1` and its matching
+`libze_tracing_layer.so.1`: these are loaded dynamically, so `ldd` alone does not
+discover them. Mixing loader/tracing-layer releases can fail device enumeration
+before any SIFT kernel runs. The staging guard checks the loader exports
+`zeDeviceGetRootDevice`, but that alone does not establish runtime compatibility.
+
+By default the pair comes from the local system loader directory, with Ubuntu's
+`/usr/share/doc/libze1/copyright` notice. To use a private build, build both
+`ze_loader` and `ze_tracing_layer` targets from the same Level Zero source release:
+
+```bash
+SIFT_STAGE_SYCL_BUILD=/tmp/sift-extractor-both \
+SIFT_STAGE_LEVEL_ZERO_LOADER=/path/to/level-zero/build/lib/libze_loader.so.1 \
+SIFT_STAGE_LEVEL_ZERO_NOTICE=/path/to/level-zero/LICENSES \
+  bash scripts/stage_opencl_host.sh user@host --test
+```
+
+The tracing layer is resolved next to the loader; override
+`SIFT_STAGE_LEVEL_ZERO_TRACING` only with a matching library. Notices may be a
+file or directory. A privately built v1.22.4 pair passes all three portable SYCL
+tests locally and on the primary Arc host. Arc stage `ed49b723994d9567` passed
+24 kernel assertions, extraction (1009 features), synthetic matching, and all
+7 OpenCL tests. The original enumeration segfault is resolved with this bundle;
+this is smoke coverage, not quality parity, concurrency or performance acceptance.
+The bundle relies on
+the target GPU driver and compatible system C++/C libraries, not a copied compiler
+or driver. It is an internal smoke-test deployment, not a general release package.
+Other target GPUs still require their own runtime validation.
