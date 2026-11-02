@@ -248,11 +248,21 @@ static void test_lowpass() {
 
   // Sum of output should be approximately 1 (energy conservation)
   float total = 0.0f;
-  for (int y = 0; y < H; y++)
-    for (int x = 0; x < W; x++)
+  double moment_x = 0.0;
+  double moment_y = 0.0;
+  for (int y = 0; y < H; y++) {
+    for (int x = 0; x < W; x++) {
       total += h_dst[y * P + x];
+      moment_x += x * h_dst[y * P + x];
+      moment_y += y * h_dst[y * P + x];
+    }
+  }
   check(std::abs(total - 1.0f) < 0.01f,
         "LowPass energy conservation (sum ≈ 1)");
+  check(total > 0.0f && std::abs(moment_x / total - W / 2) < 0.01,
+        "LowPass preserves the impulse X coordinate");
+  check(total > 0.0f && std::abs(moment_y / total - H / 2) < 0.01,
+        "LowPass preserves the impulse Y coordinate");
 
   sycl::free(d_src, q);
   sycl::free(d_dst, q);

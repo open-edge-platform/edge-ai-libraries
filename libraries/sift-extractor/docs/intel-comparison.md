@@ -92,3 +92,129 @@ notices to the SHA256 manifest. With --test it runs the Intel GPU smoke tests,
 then writes intel-comparison.json with ten measured repetitions. Use the already
 verified matching private Level Zero loader/tracing pair for the target runtime.
 No system compiler, OpenCV installation, driver or power-setting changes are needed.
+
+## CPU/GPU Configuration Matrix
+
+The diagnostic accepts a fifth argument naming a JSON profile:
+
+```bash
+ONEAPI_DEVICE_SELECTOR=level_zero:gpu \
+  build/validate_sift_pair image.pgm report.json 10 profile.json
+python3 scripts/run_comparison_matrix.py build/validate_sift_pair image.pgm results \
+  --sizes 640x480 1280x720 1920x1080 --iterations 10
+```
+
+Python 3.11+ is required for the matrix runner. The output directory must not
+exist. Each case retains its JSON configuration, report and console log; a manifest
+records executable/fixture hashes and a CSV summarizes timing and quality. Failed
+cases remain visible and make the runner exit nonzero. Resized copies of one
+fixture are synthetic workloads, not independent images or newly acquired detail.
+
+| Setting | CPU | OpenCL | SYCL |
+| --- | --- | --- | --- |
+| nfeatures | OpenCV constructor setting | Response-ranked output cap | Response-ranked output cap |
+| nOctaveLayers | Direct | Pyramid intervals | Fixed at 5; not applied |
+| contrastThreshold | Direct | Separate openclContrast | Separate syclContrast |
+| edgeThreshold | Direct | Hessian ratio `(edge+1)^2/edge` | Not applied |
+| sigma | Direct | Base pyramid sigma | Not applied; syclInitBlur is distinct |
+| octaves | OpenCV chooses automatically | Direct | Direct |
+| cpuThreads | OpenCV worker count | Host conversion may use it | Host conversion may use it |
+
+GPU feature caps happen AFTER extraction and do not limit extraction computation.
+Contrast thresholds and scale-space conventions are not equivalent. Profiles vary
+one requested control at a time; contrast_low varies separately recorded native
+thresholds, not an asserted conversion between them. CPU threads default to 1;
+the cpu4 profile measures four workers. Earlier reports used the process default
+24 threads and must not be mixed with these single-thread results.
+
+Validated ranges: paired width/height 32-3840/32-2160, nfeatures 0-16000,
+nOctaveLayers 1-6, contrastThreshold 0.00001-0.2, edgeThreshold 1-30, sigma 0.5-3,
+cpuThreads 1-128, octaves 1-6, native contrast values 0.01-20, syclInitBlur 0.2-3.
+Omitting dimensions retains the 640x480 cap; setting both resizes to that exact
+shape. Unknown keys, fractional integer settings and out-of-range values fail.
+
+## Centering Repair and Profiling Status
+
+The initial results above precede a SYCL low-pass coordinate repair. The direct
+nine-tap horizontal filter read around x-4 but wrote to x, shifting the filtered
+image. Correcting its center removed the signed geometry bias on the diagnostic
+fixture: mean residual changed from approximately (0.982, 1.580) pixels to
+(-0.017, -0.004); inliers increased from about 593 to 639 and RMSE fell from
+2.03 to 0.886 pixels. Impulse X/Y centroid assertions now cover this defect;
+26 kernel assertions and all 10 registered tests pass on UHD 770.
+
+Corrected single-thread CPU baseline, three warmups and three samples:
+
+| Input Size | CPU Median | SYCL Median | CPU/SYCL Ratio |
+| --- | --- | --- | --- |
+| 640x480 | 54.91 ms | 12.91 ms | 4.25x |
+| 1280x720 | 182.69 ms | 25.24 ms | 7.24x |
+| 1920x1080 | 377.86 ms | 45.23 ms | 8.35x |
+| 3840x2160 | 1447.48 ms | 136.34 ms | 10.62x |
+
+The 21 size/profile cases plus 4K baseline passed locally. These short-run ratios
+are NOT quality-qualified: SYCL still has fewer verified inliers and higher RMSE
+than OpenCV. The corrected implementation has not yet been rerun on primary Arc.
+
+Local VTune captures were initially permission-blocked. The user temporarily
+enabled perf/ptrace access, allowing GPU-offload and software-hotspot captures with
+VTune 2025.8. The original security controls were subsequently restored and verified.
+No sampling driver, persistent capability or security configuration was installed.
+
+In the mixed 640x480 diagnostic, ten SYCL extractions produced 70.626 ms aggregate
+GPU compute time. Descriptor extraction accounted for 39.664 ms (56.2%), orientation
+12.295 ms, extrema 8.174 ms, Laplacian 5.848 ms, low-pass 3.128 ms and downsampling
+1.517 ms. These are instrumented task totals, not unprofiled latency estimates.
+Descriptor extraction is the strongest measured SYCL kernel optimization target.
+
+The OpenCL path dominated the mixed capture's host costs: clEnqueueReadBuffer
+1.795 s over 760 calls, clBuildProgram 0.788 s over 11 calls, and clCreateBuffer
+0.173 s over 2420 calls. API durations include waits and can overlap other work;
+do not sum them as exclusive costs. The host samples are not sufficient to blame
+SYCL allocations specifically. Isolate that workload before changing allocation
+or synchronization strategy. No GPU hardware counters were collected and several
+dependencies lacked debug symbols, so no TOPS utilization or stall diagnosis is
+supported. The centering change remains a correctness repair, not a performance
+optimization. The subsequent local descriptor experiment is recorded below.
+
+## Isolated SYCL Experiment
+
+The optional sixth argument `sycl-only` skips OpenCL and CPU extraction/scoring:
+
+```bash
+ONEAPI_DEVICE_SELECTOR=level_zero:gpu \
+  build/validate_sift_pair image.pgm isolated.json 30 profile.json sycl-only
+```
+
+The report includes raw end-to-end samples, quality on the transformed pair, and
+conversion, image-allocation/upload, feature/scratch-allocation, extract/wait,
+host-descriptor and cleanup timings. Stages are wall-clock measurements, not GPU
+event timings, and medians are not additive. Internal allocations/prefiltering/
+copies inside ExtractSift remain in extract_and_wait; cleanup excludes later
+destruction of the returned feature vectors. Reference logging remains included.
+
+On the local UHD 770, a 15-sample baseline measured 13.36 ms end to end and
+12.90 ms extract/wait; outer feature/scratch allocation was 0.034 ms. This does
+not support outer allocation reuse as the first target, nor rule out internal
+allocation overhead.
+
+The descriptor experiment uses four local histogram banks, assigning each set of
+32 work-items a bank, then merges before unchanged normalization. This increases
+local histogram storage from 512 to 2048 bytes and adds merge barriers. Reduced
+atomic contention is the hypothesis; hardware counters were not collected.
+
+Sequential A/B/B/A runs with three warmups and 30 measured frames per run:
+
+| UHD 770 Workload | Baseline Pooled Median | Banked Pooled Median | Latency Reduction |
+| --- | --- | --- | --- |
+| 640x480 | 13.20 ms | 12.56 ms | 4.8% |
+| 1920x1080 | 46.14 ms | 45.06 ms | 2.3% |
+
+Both rounds at each size favor the candidate. VGA quality matches; 1080p shows
+small variation also present between baseline rounds. All 10 tests and 21 matrix
+executions plus the additional 4K baseline pass. Against the corrected 21-case
+matrix baseline, maximum relative inlier
+change is below 0.5% and maximum absolute RMSE change is 0.0042 px. These are local
+short-run observations on resized copies of one image, not a held-out quality gate,
+cross-GPU validation, proven contention reduction or general speedup guarantee.
+Primary Arc validation and broader quality eligibility remain outstanding.

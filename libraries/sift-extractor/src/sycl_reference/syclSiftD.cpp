@@ -205,7 +205,7 @@ void LaunchLowPassBlock(sycl::queue &q, float *d_Image, float *d_Result,
           int ty = (int)item.get_local_id(0);
           int xp = (int)item.get_group(1) * LOWPASS_W + tx;
           int yp = (int)item.get_group(0) * LOWPASS_H + ty;
-          int xl = sycl::max(sycl::min(xp - LOWPASS_R, width - 1), 0);
+          int xl = sycl::max(sycl::min(xp, width - 1), 0);
 
           // Load columns [-8, -4) relative to yp+LOWPASS_H into shared xrows
           for (int l = -8; l < 4; l += 4) {
@@ -745,7 +745,7 @@ void LaunchExtractSiftDescriptors(sycl::queue &q, SiftPoint *d_Sift,
 
   q.submit([&](sycl::handler &cgh) {
     sycl::local_accessor<float, 1> gauss(16, cgh);
-    sycl::local_accessor<float, 1> buffer(128, cgh);
+    sycl::local_accessor<float, 1> buffer(4 * 128, cgh);
     sycl::local_accessor<float, 1> sums(4, cgh);
 
     cgh.parallel_for(
@@ -769,7 +769,8 @@ void LaunchExtractSiftDescriptors(sycl::queue &q, SiftPoint *d_Sift,
 
           for (int bx = (int)item.get_group(0) + fstPts; bx < totPts;
                bx += NBLOCKS) {
-            buffer[idx] = 0.0f;
+            for (int bank = 0; bank < 4; ++bank)
+              buffer[bank * 128 + idx] = 0.0f;
             item.barrier(sycl::access::fence_space::local_space);
 
             float theta =
@@ -818,7 +819,7 @@ void LaunchExtractSiftDescriptors(sycl::queue &q, SiftPoint *d_Sift,
                     float, sycl::memory_order::relaxed,
                     sycl::memory_scope::work_group,
                     sycl::access::address_space::local_space>
-                    ref(buffer[pos]);
+                    ref(buffer[(idx / 32) * 128 + pos]);
                 ref.fetch_add(val);
               };
 
@@ -849,6 +850,12 @@ void LaunchExtractSiftDescriptors(sycl::queue &q, SiftPoint *d_Sift,
                 }
               }
             }
+            item.barrier(sycl::access::fence_space::local_space);
+
+            const float combined = buffer[idx] + buffer[128 + idx] +
+                                   buffer[256 + idx] + buffer[384 + idx];
+            item.barrier(sycl::access::fence_space::local_space);
+            buffer[idx] = combined;
             item.barrier(sycl::access::fence_space::local_space);
 
             // Normalize twice, suppress peaks first time
