@@ -16,12 +16,15 @@ The Qwen embedding matrices reserve more rows than the tokenizer uses; the
 free rows continue the original vocabulary without resizing the matrix, so the
 new ids never collide with real tokens. (A backbone without free rows --
 llama3-1b -- gets its constants resized by the patch instead; see
-:data:`LAYOUTS`.) The shipped (unregistered) tokenizer
-cannot produce these ids -- a query containing a token string only tokenizes
-to ordinary text. Registering the strings changes that deliberately
-(:mod:`tools.register_vocab_tokens`): afterwards such a query tokenizes to the
-token's id. The id assignment is a backbone constant: soft tokens first,
-class tokens right after them::
+:data:`LAYOUTS`.) The router never needs these ids as text: it
+prepends the soft ids itself and reads the class logits by id, so the shipped
+tokenizer is used unchanged -- and since it cannot produce these ids, a query
+containing a token string only tokenizes to ordinary text. (The strings below
+can be registered in a tokenizer offline for consumers outside the router;
+a query would then tokenize such a string to the token's id.)
+
+The id assignment is a backbone constant: soft tokens first, class tokens
+right after them::
 
     | original vocabulary | soft tokens (k) | class tokens (C) |
                           ^ first_free_id
@@ -84,9 +87,9 @@ def layout_for_backbone(backbone: str) -> VocabTokenLayout:
 
 
 # Token strings, in canonical order (soft first, classes right after them).
-# These are what :mod:`tools.register_vocab_tokens` adds to a tokenizer so the
-# rows are addressable by string; the router itself addresses them by id and
-# works with registered and unregistered tokenizers alike.
+# The strings a tokenizer can be registered with (offline, for consumers
+# outside the router) so the rows are addressable by string; the router itself
+# addresses them by id and works with registered and unregistered tokenizers alike.
 SOFT_TOKEN_FORMAT = "<|sp_{i}|>"
 CLASS_TOKEN_FORMAT = "<|cls_{i}|>"
 
@@ -241,7 +244,7 @@ def token_patch(bundle: ClassifierBundle) -> Optional[VocabTokenPatch]:
 def add_token_ids(bundle: ClassifierBundle) -> ClassifierBundle:
     """A copy of a freshly assembled soft ``bundle`` with the canonical token ids added.
 
-    How :mod:`tools.pack_rcv` gives a version its token form: slots and
+    How :mod:`.pack_rcv` gives a version its token form: slots and
     metadata are unchanged (the slot data is what gets written into the graph),
     only ``soft_token_ids`` / ``label_token_ids`` are added to the metadata.
     """

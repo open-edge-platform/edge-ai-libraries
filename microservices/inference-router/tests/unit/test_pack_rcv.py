@@ -1,21 +1,16 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""tools/pack_rcv.py: flat soft-prompt artifacts -> one .rcv version (fingerprint stubbed)."""
+"""pack_rcv: flat soft-prompt artifacts -> one .rcv version (fingerprint stubbed)."""
 
-import importlib.util
 import json
 from pathlib import Path
 
 import numpy as np
 import pytest
 
+from src.rsd.model_based import pack_rcv
 from src.rsd.model_based.format import read_rcv, write_rcv
-
-_TOOL = Path(__file__).resolve().parents[2] / "tools" / "pack_rcv.py"
-_spec = importlib.util.spec_from_file_location("pack_rcv", _TOOL)
-pack_rcv = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(pack_rcv)
 
 HIDDEN = 16
 

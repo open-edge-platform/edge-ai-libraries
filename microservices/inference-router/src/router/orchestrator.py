@@ -76,7 +76,9 @@ class RouterOrchestrator:
         # separate from the chat maps so they are never routing candidates.
         # First-match wins when two providers claim the same service.
         self.passthrough_map: dict[str, PassthroughProvider] = {}
-        self.plugin_manager = create_plugin_manager(self.config.plugins)
+        self.plugin_manager = create_plugin_manager(
+            self.config.plugins, self.config.providers
+        )
 
     async def initialize(self) -> None:
         """
@@ -196,7 +198,8 @@ class RouterOrchestrator:
         - otherwise → raise :class:`RoutingError`.
 
         Postrouting plugins receive the chosen provider as the
-        ``provider_name`` keyword argument (prerouting runs before it is known).
+        ``provider_name`` keyword argument (prerouting runs before it is known);
+        only the postrouting plugins attached to that provider (or to none) run.
 
         Returns ``(provider, route_info, request)``. The request is returned
         because the prerouting/postrouting plugins may have replaced it.
@@ -258,7 +261,11 @@ class RouterOrchestrator:
         provider, route_info, request = await self._select_provider(request)
         response = await provider.chat(request)
 
-        response = await self.plugin_manager.process_postresponse_response(response)
+        response = await self.plugin_manager.process_postresponse_response(
+            response,
+            provider_name=route_info.provider_name,
+            metrics_values={"provider": route_info.provider_name},
+        )
 
         if self.telemetry:
             await self._record_chat_event(request, response, route_info.provider_name)

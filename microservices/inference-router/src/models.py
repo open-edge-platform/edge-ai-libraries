@@ -264,6 +264,10 @@ class ProviderResponse(BaseModel):
     )
     metadata: ProviderMetadataResponse = Field(default_factory=ProviderMetadataResponse)
     settings: ProviderSettingsResponse = Field(default_factory=ProviderSettingsResponse)
+    plugins: List[str] = Field(
+        default_factory=list,
+        description="Postrouting/postresponse plugin instances attached to this provider",
+    )
     extra: Dict[str, Any] = Field(
         default_factory=dict,
         description="Generic passthrough config (e.g. extra.manager_url set by provider_management)",
@@ -299,6 +303,8 @@ class ProviderConfigUpdateRequest(BaseModel):
     fallback: Optional[bool] = None
     metadata: Optional[ProviderMetadataResponse] = None
     settings: Optional[ProviderSettingsResponse] = None
+    # Replaced wholesale (like ``settings``/``metadata``) when present.
+    plugins: Optional[List[str]] = None
     # Replaced wholesale (like ``settings``/``metadata``) when present.
     extra: Optional[Dict[str, Any]] = None
 
