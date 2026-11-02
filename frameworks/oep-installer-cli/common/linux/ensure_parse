@@ -3,7 +3,7 @@
 ensure_parse_value_option () {
   local key="$1"; shift
   local v v1 value=""
-  for v in $*; do
+  for v in "$@"; do
     case "$v" in
     "--$key="*)
       value="${v#*=}"
