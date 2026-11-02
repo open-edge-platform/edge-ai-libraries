@@ -240,6 +240,33 @@ runner `results/20261102/arc-opencl-milestone.sh`, local reports
 `~/.local/share/sift-extractor-staging/arc-compaction-d266f47fcec2f0d8`.
 Manifest SHA256: `d266f47fcec2f0d852662e08c6e4453a2c2e0c28f9975439e9480ca7b8f6603b`.
 
+### Shared DoG Volumes
+
+Aligned DoG levels are sub-buffer views of one retained volume per octave.
+Detection verifies their parent and offsets before consuming that volume directly,
+avoiding packing copies. Unaligned planes retain the individual-buffer path.
+Configuration changes invalidate the views before rebuilding them; views are
+released before their owning volumes. This retains synchronous borrowed-buffer
+semantics, not a new concurrency or device-recovery guarantee.
+
+All 10 local tests and Arc's expanded aligned/unaligned reuse regression pass.
+All matching-quality records remain identical. Paired pooled medians against
+`5cdacee9f` (60 samples/build):
+
+| Size | Feature Budget | Before (ms) | Shared (ms) | Latency Reduction |
+| --- | --- | --- | --- | --- |
+| 640x480 | Unlimited | 10.564 | 9.761 | 7.6% |
+| 640x480 | 500 | 10.267 | 9.680 | 5.7% |
+| 1920x1080 | Unlimited | 30.639 | 29.772 | 2.8% |
+| 1920x1080 | 500 | 24.798 | 21.500 | 13.3% |
+
+Targets remain unmet. Evidence: SIFT workspace
+`results/20261102/arc-shared-dog-summary.json`; reports
+`/tmp/sift-arc-shared-dog-results.4bPG3l/milestone-results`; remote stage
+`~/.local/share/sift-extractor-staging/arc-shared-dog-fbb49a49fe288bd4`.
+Manifest SHA256: `fbb49a49fe288bd4b0dc75b47e208a8d7265ed37cc2b0cd547a653664c9ce9be`.
+All five returned executable hashes matched the staged binaries.
+
 ### Mapped Pyramid Input
 
 Pyramid input now uses a dedicated retained `CL_MEM_ALLOC_HOST_PTR` buffer,

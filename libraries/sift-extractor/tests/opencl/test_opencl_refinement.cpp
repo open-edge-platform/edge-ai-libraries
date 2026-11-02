@@ -347,24 +347,28 @@ int main() {
           actual.descriptor != expected.descriptor) return 1;
     }
     std::printf("Resident pyramid feature records exactly match the host pipeline\n");
-    for (int octave_count : {8, 4, 2, 1, 4}) {
-      const auto reference_levels = host_pyramid.build_with_differences(texture,
-        texture_width, texture_height, octave_count, 3, 1.6f);
-      const auto reference_points = detector.detect_pyramid(reference_levels.differences,
-        octave_count, 3, 1.6f, 0.1f, 12.1f);
-      const auto resident_points = detector.detect_image(texture, texture_width,
-        texture_height, octave_count, 3, 1.6f, 0.1f, 12.1f);
-      if (reference_points.size() != resident_points.size()) return 1;
-      for (size_t index = 0; index < reference_points.size(); ++index) {
-        const auto &expected = reference_points[index];
-        const auto &actual = resident_points[index];
-        if (actual.octave != expected.octave || actual.image_x != expected.image_x ||
-            actual.image_y != expected.image_y || actual.image_sigma != expected.image_sigma ||
-            actual.local.scale != expected.local.scale || actual.local.response != expected.local.response)
-          return 1;
+    for (int detector_width : {texture_width, texture_width - 1}) {
+      const std::vector<float> detector_image(texture.begin(),
+        texture.begin() + static_cast<size_t>(detector_width) * texture_height);
+      for (int octave_count : {8, 4, 2, 1, 4}) {
+        const auto reference_levels = host_pyramid.build_with_differences(detector_image,
+          detector_width, texture_height, octave_count, 3, 1.6f);
+        const auto reference_points = detector.detect_pyramid(reference_levels.differences,
+          octave_count, 3, 1.6f, 0.1f, 12.1f);
+        const auto resident_points = detector.detect_image(detector_image, detector_width,
+          texture_height, octave_count, 3, 1.6f, 0.1f, 12.1f);
+        if (reference_points.size() != resident_points.size()) return 1;
+        for (size_t index = 0; index < reference_points.size(); ++index) {
+          const auto &expected = reference_points[index];
+          const auto &actual = resident_points[index];
+          if (actual.octave != expected.octave || actual.image_x != expected.image_x ||
+              actual.image_y != expected.image_y || actual.image_sigma != expected.image_sigma ||
+              actual.local.scale != expected.local.scale || actual.local.response != expected.local.response)
+            return 1;
+        }
       }
     }
-    std::printf("Batched detection matches synchronous reference after octave grow/shrink reuse\n");
+    std::printf("Batched detection matches synchronous reference after aligned/unaligned octave reuse\n");
     const auto serial_features = serial_detector.extract_image(texture, texture_width,
         texture_height, 2, 3, 1.6f, 0.1f, 12.1f);
     if (serial_features.size() != image_features.size()) return 1;

@@ -765,8 +765,24 @@ struct OpenCLDoGExtrema::Impl {
     }
     const int mask_count = (scale_count - 2) * (height - 2) * (width - 2);
     const size_t block_count = (static_cast<size_t>(mask_count) + 255) / 256;
-    cl_mem volume = ensure_buffer(scratch ? scratch->volume : dog_volume, CL_MEM_READ_ONLY,
-                                  plane_size * scale_count * sizeof(float));
+    cl_mem shared_volume = nullptr;
+    if (device_levels) {
+      bool contiguous = true;
+      for (int scale = 0; scale < scale_count; ++scale) {
+        cl_mem parent = nullptr;
+        size_t offset = 0;
+        check_opencl(clGetMemObjectInfo(device_levels[scale], CL_MEM_ASSOCIATED_MEMOBJECT,
+          sizeof(parent), &parent, nullptr), "DoG parent buffer");
+        check_opencl(clGetMemObjectInfo(device_levels[scale], CL_MEM_OFFSET,
+          sizeof(offset), &offset, nullptr), "DoG level offset");
+        if (scale == 0) shared_volume = parent;
+        if (!parent || parent != shared_volume || offset != static_cast<size_t>(scale) * plane_size * sizeof(float))
+          contiguous = false;
+      }
+      if (!contiguous) shared_volume = nullptr;
+    }
+    cl_mem volume = shared_volume ? shared_volume : ensure_buffer(scratch ? scratch->volume : dog_volume,
+      CL_MEM_READ_ONLY, plane_size * scale_count * sizeof(float));
     cl_mem mask = ensure_buffer(scratch ? scratch->mask : candidate_mask, CL_MEM_READ_WRITE, mask_count);
     cl_mem offsets = ensure_buffer(scratch ? scratch->offsets : block_offsets, CL_MEM_READ_WRITE,
                                    block_count * sizeof(cl_uint));
@@ -778,6 +794,7 @@ struct OpenCLDoGExtrema::Impl {
     try {
       if (!refine_phase) {
       for (int scale = 0; scale < scale_count; ++scale) {
+        if (shared_volume) break;
         const size_t bytes = plane_size * sizeof(float);
         if (device_levels) {
           check_opencl(clEnqueueCopyBuffer(queue, device_levels[scale], volume,

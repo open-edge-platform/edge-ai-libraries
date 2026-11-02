@@ -183,6 +183,9 @@ struct OpenCLGaussianBlur::Impl {
   Buffer weights;
   std::vector<Buffer> gaussian_levels;
   std::vector<Buffer> dog_levels;
+  std::vector<Buffer> dog_volumes;
+  std::vector<size_t> dog_plane_bytes;
+  int dog_intervals = 0;
   std::vector<Buffer> pyramid_weights;
   std::vector<std::vector<float>> cached_kernels;
 
@@ -336,6 +339,8 @@ struct OpenCLGaussianBlur::Impl {
     for (auto &buffer : pyramid_weights)
       if (buffer.memory) clReleaseMemObject(buffer.memory);
     for (auto &buffer : dog_levels)
+      if (buffer.memory) clReleaseMemObject(buffer.memory);
+    for (auto &buffer : dog_volumes)
       if (buffer.memory) clReleaseMemObject(buffer.memory);
     for (auto &buffer : gaussian_levels)
       if (buffer.memory) clReleaseMemObject(buffer.memory);
@@ -603,6 +608,51 @@ void OpenCLGaussianBlur::build_pyramid(
     }
   }
   if (device_differences) device_differences->resize(differences.size());
+  const size_t dog_scales = static_cast<size_t>(intervals + 2);
+  const size_t dog_octaves = differences.size() / dog_scales;
+  if (impl_->dog_intervals != intervals) {
+    for (auto &buffer : impl_->dog_levels) {
+      if (buffer.memory) clReleaseMemObject(buffer.memory);
+      buffer = {};
+    }
+    std::fill(impl_->dog_plane_bytes.begin(), impl_->dog_plane_bytes.end(), 0);
+    impl_->dog_intervals = intervals;
+  }
+  impl_->dog_volumes.resize(std::max(impl_->dog_volumes.size(), dog_octaves));
+  impl_->dog_plane_bytes.resize(std::max(impl_->dog_plane_bytes.size(), dog_octaves));
+  cl_uint alignment_bits = 0;
+  check_opencl(clGetDeviceInfo(impl_->device, CL_DEVICE_MEM_BASE_ADDR_ALIGN,
+    sizeof(alignment_bits), &alignment_bits, nullptr), "DoG buffer alignment");
+  const size_t alignment_bytes = std::max<size_t>(1, (static_cast<size_t>(alignment_bits) + 7) / 8);
+  for (size_t octave = 0; octave < dog_octaves; ++octave) {
+    const auto &level = differences[octave * dog_scales];
+    const size_t bytes = static_cast<size_t>(level.width) * level.height * sizeof(float);
+    if (impl_->dog_plane_bytes[octave] == bytes) continue;
+    impl_->dog_plane_bytes[octave] = 0;
+    for (size_t scale = 0; scale < dog_scales; ++scale) {
+      auto &buffer = impl_->dog_levels[octave * dog_scales + scale];
+      if (buffer.memory) clReleaseMemObject(buffer.memory);
+      buffer = {};
+    }
+    const bool aligned = bytes % alignment_bytes == 0 &&
+      bytes <= std::numeric_limits<size_t>::max() / dog_scales;
+    cl_mem volume = aligned ? impl_->ensure_buffer(impl_->dog_volumes[octave],
+      CL_MEM_READ_WRITE, bytes * dog_scales) : nullptr;
+    for (size_t scale = 0; scale < dog_scales; ++scale) {
+      auto &buffer = impl_->dog_levels[octave * dog_scales + scale];
+      if (volume) {
+        cl_buffer_region region{scale * bytes, bytes};
+        cl_int status = CL_SUCCESS;
+        buffer.memory = clCreateSubBuffer(volume, CL_MEM_READ_WRITE,
+          CL_BUFFER_CREATE_TYPE_REGION, &region, &status);
+        check_opencl(status, "clCreateSubBuffer(DoG level)");
+        buffer.capacity = bytes;
+      } else {
+        impl_->ensure_buffer(buffer, CL_MEM_READ_WRITE, bytes);
+      }
+    }
+    impl_->dog_plane_bytes[octave] = bytes;
+  }
   for (size_t index = 0; index < differences.size(); ++index) {
     auto &level = differences[index];
     const size_t count = static_cast<size_t>(level.width) * level.height;
