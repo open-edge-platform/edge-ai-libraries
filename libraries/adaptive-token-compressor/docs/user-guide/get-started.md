@@ -150,6 +150,7 @@ print([t["function"]["name"] for t in result.tools])
 
 #### Using ContextCompressor (for history and current-turn messages)
 
+> [!CAUTION]
 > **Experimental:** ContextCompressor is under active development. Its API,
 > defaults, and compression behavior may change in future releases.
 
@@ -351,6 +352,7 @@ general type or URL validator.
 
 ### ContextCompressor Configuration
 
+> [!CAUTION]
 > **Experimental:** Configuration options and defaults may change in future releases.
 
 
@@ -453,6 +455,7 @@ trade off token savings against prefix-cache hit rate.
 
 ### ContextCompressor
 
+> [!CAUTION]
 > **Experimental:** Validate compression quality on your workload before adopting
 > ContextCompressor in production.
 
@@ -769,6 +772,7 @@ manager.snapshot_by_keys()
 All of these also accept `source="s"` to cover only compressor `s`.
 
 > [!NOTE]
+>
 > - Only metrics are split. Compressors, caches, and session state are shared
 >   by all buckets.
 > - Within one key, sum metrics (`Total*`, `CallCount`) add up across values;

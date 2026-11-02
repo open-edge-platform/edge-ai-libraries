@@ -80,7 +80,7 @@ http://<your-host>:<your-port>/v1/rerank
 
 The compressor sends one request per turn that scores every tool:
 
-```json
+```
 {"model": "Qwen/Qwen3-Reranker-0.6B", "query": "<task and agent context>", "documents": ["<tool 1>", "..."], "top_n": <number of tools>}
 ```
 
