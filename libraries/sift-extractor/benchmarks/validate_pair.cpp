@@ -313,7 +313,7 @@ double report_latency(cv::FileStorage &output, const char *name,
 
 int main(int argc, char **argv) {
   if (argc < 2 || argc > 6) {
-    std::cerr << "Usage: validate_sift_pair <image> [output.json [iterations [config.json [sycl-only|sycl-reuse|sycl-context|all-context]]]]\n";
+    std::cerr << "Usage: validate_sift_pair <image> [output.json [iterations [config.json [sycl-only|sycl-reuse|sycl-context|all-context|opencl-only]]]]\n";
     return 2;
   }
   try {
@@ -331,8 +331,9 @@ int main(int argc, char **argv) {
     }
     if (argc == 6 && std::strcmp(argv[5], "sycl-only") != 0 &&
         std::strcmp(argv[5], "sycl-reuse") != 0 && std::strcmp(argv[5], "sycl-context") != 0 &&
-        std::strcmp(argv[5], "all-context") != 0)
+        std::strcmp(argv[5], "all-context") != 0 && std::strcmp(argv[5], "opencl-only") != 0)
       throw std::runtime_error("Unsupported comparison mode");
+    const bool opencl_only = argc == 6 && std::strcmp(argv[5], "opencl-only") == 0;
     const auto config = load_configuration(argc >= 5 ? argv[4] : nullptr);
     cv::setNumThreads(config.cpu_threads);
     cv::ocl::setUseOpenCL(false);
@@ -374,7 +375,7 @@ int main(int argc, char **argv) {
     };
     const auto first_sycl = comparison_sycl(first);
     const auto second_sycl = comparison_sycl(second);
-    if (argc == 6 && !all_context) {
+    if (argc == 6 && !all_context && !opencl_only) {
       const bool context_mode = std::strcmp(argv[5], "sycl-context") == 0;
       const bool reuse = std::strcmp(argv[5], "sycl-reuse") == 0 || context_mode;
       SyclStorage workspace;
@@ -475,14 +476,16 @@ int main(int argc, char **argv) {
       };
       for (int iteration = -3; iteration < timing_iterations; ++iteration) {
         double samples[3]{};
-        for (int offset = 0; offset < 3; ++offset) {
-          const int backend = (iteration + 3 + offset) % 3;
+        for (int offset = 0; offset < (opencl_only ? 1 : 3); ++offset) {
+          const int backend = opencl_only ? 0 : (iteration + 3 + offset) % 3;
           samples[backend] = measure(backend);
         }
         if (iteration >= 0) {
           opencl_samples.push_back(samples[0]);
-          sycl_samples.push_back(samples[1]);
-          cpu_samples.push_back(samples[2]);
+          if (!opencl_only) {
+            sycl_samples.push_back(samples[1]);
+            cpu_samples.push_back(samples[2]);
+          }
         }
       }
     }
@@ -495,6 +498,7 @@ int main(int argc, char **argv) {
       (argc == 2 ? cv::FileStorage::MEMORY : 0) | cv::FileStorage::FORMAT_JSON);
     if (!output.isOpened()) throw std::runtime_error("Cannot open JSON report");
     output << "diagnostic_only" << 1 << "cuda_reference_available" << 0
+          << "timing_mode" << (opencl_only ? "opencl_only" : "rotating_all")
            << "performance_measured" << (timing_iterations ? 1 : 0)
            << "release_performance_gate" << 0 << "parameters_equivalent" << 0
            << "input" << argv[1] << "width" << first.cols << "height" << first.rows
@@ -532,18 +536,20 @@ int main(int argc, char **argv) {
     report(output, "sycl_reference", first_sycl, second_sycl, affine);
     if (timing_iterations) {
       output << "timing" << "{" << "iterations" << timing_iterations
-              << "warmups_per_backend" << 3 << "rotating_backend_order" << 1
+              << "warmups_per_backend" << 3 << "rotating_backend_order" << static_cast<int>(!opencl_only)
              << "scope" << (all_context ?
             "single_image_conversion_context_input_validation_upload_extract_owned_features_adapter_and_logging" :
             "single_image_conversion_allocation_per_call_setup_transfers_extract_host_descriptors_and_logging")
                   << "excludes" << "image_io_transform_matching_and_initial_gpu_detector_construction"
              << "tops_normalization" << "not_applied_precision_and_bandwidth_unverified";
                 const double opencl_ms = report_latency(output, "opencl", opencl_samples);
+                if (!opencl_only) {
                 const double sycl_ms = report_latency(output, "sycl", sycl_samples);
                 const double cpu_ms = report_latency(output, "opencv_cpu", cpu_samples);
                 output << "cpu_over_opencl_latency_ratio" << cpu_ms / opencl_ms
-                  << "cpu_over_sycl_latency_ratio" << cpu_ms / sycl_ms
-                  << "speedup_quality_qualified" << 0;
+                  << "cpu_over_sycl_latency_ratio" << cpu_ms / sycl_ms;
+                }
+                output << "speedup_quality_qualified" << 0;
       output << "}";
     }
   #endif

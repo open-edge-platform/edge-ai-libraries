@@ -240,6 +240,33 @@ runner `results/20261102/arc-opencl-milestone.sh`, local reports
 `~/.local/share/sift-extractor-staging/arc-compaction-d266f47fcec2f0d8`.
 Manifest SHA256: `d266f47fcec2f0d852662e08c6e4453a2c2e0c28f9975439e9480ca7b8f6603b`.
 
+### Isolated Timing Diagnostic
+
+`validate_sift_pair IMAGE REPORT ITERATIONS CONFIG opencl-only` computes all
+three backend quality reports but times repeated OpenCL extraction without
+interleaved CPU/SYCL extractions. The default rotating comparison is unchanged.
+Reports identify `timing_mode=opencl_only`, set `rotating_backend_order=0`, and
+omit unmeasured CPU/SYCL latencies and ratios. Input conversion, transfers and
+host feature results remain timed; initial construction remains excluded.
+
+A same-binary rotating/isolated/isolated/rotating Arc diagnostic (60 samples/mode)
+measured VGA 9.179ms rotating versus 7.940ms isolated (125.95 FPS), and 1080p
+26.240ms versus 21.325ms (46.89 FPS). Quality records are exactly identical.
+This is a measurement-workload effect, not another implementation speedup or a
+verified clock/power explanation. Neither isolated result reaches the measured
+reference targets of 168.875 and 54.995 FPS. Reference workload/quality differences
+also remain unresolved; these results do not establish quality parity.
+
+Evidence: SIFT workspace `results/20261102/arc-timing-isolation-summary.json`;
+reports `/tmp/sift-arc-timing-isolation-results.8Ry98S`; remote stage
+`~/.local/share/sift-extractor-staging/timing-isolation.AoCkFz`.
+Verified executable SHA256:
+`38a124ea488d59c9dccac6423b7c2ff5d02319a946079a949014d88fa4f3bf7d`.
+
+Subsequent grouped-orientation probes (four lanes/nine bins and 12 active
+lanes/three bins) were slower on Arc and reverted. Explicit padded 32x8 extrema
+workgroups showed no clear gain and were also reverted.
+
 ### Fused Gaussian Passes
 
 For radii up to 12, the combined pyramid uses a 16x16 tile with horizontal
