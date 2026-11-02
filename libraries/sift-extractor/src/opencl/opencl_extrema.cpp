@@ -20,6 +20,13 @@ namespace sift_extractor::detail {
 namespace {
 
 constexpr const char *kernel_source = R"CLC(
+#ifdef cl_intel_subgroups
+#pragma OPENCL EXTENSION cl_intel_subgroups : enable
+#endif
+#ifdef cl_intel_required_subgroup_size
+#pragma OPENCL EXTENSION cl_intel_required_subgroup_size : enable
+#endif
+
 inline uchar dog_extremum(__global const float *dog, const int x,
               const int y, const int scale, const int width,
               const int height, const float threshold) {
@@ -306,6 +313,9 @@ __kernel void sift_packed_gradients(__global const float *image,
   orientation[index] = atan2(gradient_y, gradient_x);
 }
 
+#if defined(cl_intel_subgroups) && defined(cl_intel_required_subgroup_size) && defined(SIFT_ORIENTATION_SUBGROUP32)
+__attribute__((intel_reqd_sub_group_size(32)))
+#endif
 __kernel void sift_orientations(__global const float *magnitude,
                                 __global const float *gradient_orientation,
                                 __global const float *points,
@@ -334,8 +344,41 @@ __kernel void sift_orientations(__global const float *magnitude,
   const int center_y = (int)floor(cy + 0.5f);
   float smoothed[36];
   #if SIFT_DESCRIPTOR_LANES > 1
+  float sum = 0.0f;
+  #ifdef cl_intel_subgroups
+  const int subgroup_lane = (int)get_sub_group_local_id();
+  const int subgroup_size = (int)get_sub_group_size();
+  const int begin_x = max(1, center_x - radius);
+  const int end_x = min(width - 2, center_x + radius);
+  for (int sample_y = max(1, center_y - radius);
+       sample_y <= min(height - 2, center_y + radius); ++sample_y) {
+    for (int begin = begin_x; begin <= end_x; begin += subgroup_size) {
+      const int sample_x = begin + subgroup_lane;
+      int lower_bin = 0;
+      float sample_fraction = 0.0f;
+      float sample_magnitude = 0.0f;
+      if (sample_x <= end_x) {
+        float sample_angle = gradient_orientation[sample_y * width + sample_x] *
+          (18.0f / 3.14159265358979323846f);
+        if (sample_angle < 0.0f) sample_angle += 36.0f;
+        lower_bin = (int)floor(sample_angle);
+        sample_fraction = sample_angle - (float)lower_bin;
+        const float rx = (float)sample_x - cx;
+        const float ry = (float)sample_y - cy;
+        const float weight = exp(-(rx * rx + ry * ry) / (2.0f * sigma * sigma));
+        sample_magnitude = magnitude[sample_y * width + sample_x] * weight;
+      }
+      for (int source_lane = 0; source_lane < min(subgroup_size, end_x - begin + 1); ++source_lane) {
+        const int lower = intel_sub_group_shuffle(lower_bin, (uint)source_lane);
+        const float fraction = intel_sub_group_shuffle(sample_fraction, (uint)source_lane);
+        const float weighted_magnitude = intel_sub_group_shuffle(sample_magnitude, (uint)source_lane);
+        if (lower % 36 == lane || (lower + 1) % 36 == lane)
+          sum += weighted_magnitude * (lower % 36 == lane ? 1.0f - fraction : fraction);
+      }
+    }
+  }
+  #else
   if (lane < 36) {
-    float sum = 0.0f;
     for (int dy = max(-radius, 1 - center_y);
          dy <= min(radius, height - 2 - center_y); ++dy) {
       for (int dx = max(-radius, 1 - center_x);
@@ -355,8 +398,9 @@ __kernel void sift_orientations(__global const float *magnitude,
         sum += weighted_magnitude * (lower % 36 == lane ? 1.0f - fraction : fraction);
       }
     }
-    hist[lane] = sum;
   }
+  #endif
+  if (lane < 36) hist[lane] = sum;
   barrier(CLK_LOCAL_MEM_FENCE);
   #else
   for (int bin = 0; bin < 36; ++bin)
@@ -1030,6 +1074,19 @@ struct OpenCLDoGExtrema::Impl {
     profile_features = std::getenv("SIFT_OPENCL_PROFILE") != nullptr;
     cl_int status = CL_SUCCESS;
     const cl_device_id device = select_intel_gpu();
+    std::string build_options = serial_descriptors
+      ? "-cl-std=CL1.2 -DSIFT_DESCRIPTOR_LANES=1"
+      : "-cl-std=CL1.2 -DSIFT_DESCRIPTOR_LANES=16";
+    size_t subgroup_bytes = 0;
+    if (!serial_descriptors && clGetDeviceInfo(device, CL_DEVICE_SUB_GROUP_SIZES_INTEL,
+        0, nullptr, &subgroup_bytes) == CL_SUCCESS && subgroup_bytes > 0 &&
+        subgroup_bytes % sizeof(size_t) == 0) {
+      std::vector<size_t> subgroup_sizes(subgroup_bytes / sizeof(size_t));
+      if (clGetDeviceInfo(device, CL_DEVICE_SUB_GROUP_SIZES_INTEL, subgroup_bytes,
+          subgroup_sizes.data(), nullptr) == CL_SUCCESS &&
+          std::find(subgroup_sizes.begin(), subgroup_sizes.end(), size_t{32}) != subgroup_sizes.end())
+        build_options += " -DSIFT_ORIENTATION_SUBGROUP32=1";
+    }
     context = clCreateContext(nullptr, 1, &device, nullptr, nullptr, &status);
     check_opencl(status, "clCreateContext");
     queue = clCreateCommandQueue(context, device,
@@ -1052,10 +1109,7 @@ struct OpenCLDoGExtrema::Impl {
       check_opencl(status, "clCreateProgramWithSource");
     }
 
-    const char *build_options = serial_descriptors
-      ? "-cl-std=CL1.2 -DSIFT_DESCRIPTOR_LANES=1"
-      : "-cl-std=CL1.2 -DSIFT_DESCRIPTOR_LANES=16";
-    status = clBuildProgram(program, 1, &device, build_options, nullptr,
+    status = clBuildProgram(program, 1, &device, build_options.c_str(), nullptr,
                             nullptr);
     if (status != CL_SUCCESS) {
       size_t log_size = 0;

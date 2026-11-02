@@ -240,6 +240,35 @@ runner `results/20261102/arc-opencl-milestone.sh`, local reports
 `~/.local/share/sift-extractor-staging/arc-compaction-d266f47fcec2f0d8`.
 Manifest SHA256: `d266f47fcec2f0d852662e08c6e4453a2c2e0c28f9975439e9480ca7b8f6603b`.
 
+### Subgroup Orientation Sampling
+
+When `cl_intel_subgroups` is available, lanes prepare successive orientation
+samples and broadcast their contributions within each subgroup. Every bin still
+accumulates in row-major order; support, exponential weights and smoothing are
+unchanged. A 32-lane subgroup is requested only when the device advertises that
+size and the required-subgroup-size extension is available. Other subgroup sizes
+use the same dynamic loop; devices without the extension retain the previous
+bin-owned path. The serial reference remains unchanged.
+
+All 10 local tests, profiled refinement checks, and Arc's expanded regression and
+30 matrix cases pass. The 687 orientation inputs still produce 1,351 exactly
+equal records, and paired matching-quality records are identical. Against
+`a06af7e2d`, 60 pooled samples/build give isolated unlimited VGA 7.042 -> 6.678ms
+(149.74 FPS) and 1080p 18.739 -> 18.642ms (53.64 FPS). The 1080p gain is only 0.5%.
+Rotated medians are VGA unlimited 8.283 -> 8.702ms (5.1% regression), VGA500
+7.703 -> 7.632ms, 1080p unlimited 25.612 -> 24.650ms, and 1080p500
+17.955 -> 18.574ms (3.4% regression). Both reference targets remain unmet.
+Unsupported-device fallback paths are retained but not hardware-qualified by
+these two Intel machines. This is not broad quality or performance parity.
+
+Evidence: SIFT workspace `results/20261102/arc-subgroup-orientation-summary.json`;
+reports `/tmp/sift-arc-subgroup-orientation-results.DciDDi`; payload
+`/tmp/sift-arc-subgroup-orientation.2VHPo1`; remote stage
+`~/.local/share/sift-extractor-staging/arc-subgroup-orientation-8817d210b3459d56`.
+Manifest SHA256: `8817d210b3459d56ac09c4a0bd2e039d5147c2a8b0cffd2546b18e6a14e536a2`.
+All five returned executable hashes matched the staged binaries. Separate parallel
+smoothing and 8x32 Gaussian tile probes were reverted after mixed short-run results.
+
 ### Device Candidate Scan
 
 Resident detection now fuses extrema testing and integer block counting, scans
