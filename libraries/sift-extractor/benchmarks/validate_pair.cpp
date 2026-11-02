@@ -404,6 +404,73 @@ FeatureSet read_external(const char *path, int width, int height) {
   return result;
 }
 
+int export_features(char **argv) {
+  const std::string backend = argv[5];
+  if (backend != "opencl" && backend != "opencv" && backend != "sycl")
+    throw std::runtime_error("Feature export backend must be opencl, opencv or sycl");
+#ifndef SIFT_VALIDATE_SYCL
+  if (backend == "sycl") throw std::runtime_error("SYCL export is not enabled");
+#endif
+  const auto config = load_configuration(argv[4]);
+  if (config.width || config.height)
+    throw std::runtime_error("Feature export does not resize; preprocess images and geometry explicitly");
+  cv::setNumThreads(config.cpu_threads);
+  cv::ocl::setUseOpenCL(false);
+  const cv::Mat image = cv::imread(argv[2], cv::IMREAD_GRAYSCALE);
+  if (image.empty() || image.cols > 3840 || image.rows > 2160)
+    throw std::runtime_error("Export image must be readable and at most 3840x2160");
+  FeatureSet features;
+  if (backend == "opencl") {
+    sift_extractor::detail::OpenCLDoGExtrema extractor;
+    features = extract_opencl(extractor, image, config);
+  } else if (backend == "opencv") {
+    features = extract_opencv(image, config);
+  }
+#ifdef SIFT_VALIDATE_SYCL
+  else {
+    sift_extractor::experimental::SyclExtractorOptions options;
+    options.octaves = config.octaves;
+    options.initial_blur = config.sycl_init_blur;
+    options.contrast_threshold = static_cast<float>(config.sycl_contrast);
+    sift_extractor::experimental::SyclExtractor context(image.cols, image.rows, options);
+    features = extract_context(image, config, context);
+  }
+#endif
+  if (features.positions.size() > 32768)
+    throw std::runtime_error("Feature export exceeds scorer capacity; no records were truncated");
+  cv::Mat positions(static_cast<int>(features.positions.size()), 2, CV_32F);
+  for (size_t index = 0; index < features.positions.size(); ++index) {
+    positions.at<float>(static_cast<int>(index), 0) = features.positions[index].x;
+    positions.at<float>(static_cast<int>(index), 1) = features.positions[index].y;
+  }
+  if (features.positions.empty()) features.descriptors = cv::Mat(0, 128, CV_32F);
+  if (features.descriptors.rows != positions.rows || features.descriptors.cols != 128 ||
+      features.descriptors.type() != CV_32F)
+    throw std::runtime_error("Invalid exported descriptor matrix");
+  for (int index = 0; index < positions.rows; ++index) {
+    const auto &point = features.positions[static_cast<size_t>(index)];
+    if (!std::isfinite(point.x) || !std::isfinite(point.y) || point.x < 0 ||
+        point.x >= image.cols || point.y < 0 || point.y >= image.rows ||
+        !cv::checkRange(features.descriptors.row(index)) ||
+        cv::norm(features.descriptors.row(index), cv::NORM_L2) <= 0.0)
+      throw std::runtime_error("Invalid exported feature position or descriptor");
+  }
+  cv::FileStorage output(argv[3], cv::FileStorage::WRITE | cv::FileStorage::FORMAT_JSON);
+  if (!output.isOpened()) throw std::runtime_error("Cannot write feature export");
+  output << "diagnostic_only" << 1 << "backend" << backend << "input" << argv[2]
+         << "configuration_file" << argv[4] << "width" << image.cols << "height" << image.rows
+         << "resized" << 0 << "feature_limit" << config.nfeatures
+         << "parameters_equivalent" << 0 << "capacity" << 32768
+         << "octaves_automatic" << static_cast<int>(backend == "opencv")
+         << "sycl_layers_fixed" << 5 << "sycl_scale_up" << 0
+         << "octaves" << config.octaves << "intervals" << config.octave_layers
+         << "sigma" << config.sigma << "opencl_contrast" << config.opencl_contrast
+         << "sycl_initial_blur" << config.sycl_init_blur << "sycl_contrast" << config.sycl_contrast
+         << "opencv_contrast" << config.contrast << "edge_threshold" << config.edge
+         << "positions" << positions << "descriptors" << features.descriptors;
+  return 0;
+}
+
 int score_external(char **argv) {
   if (std::filesystem::file_size(argv[4]) > 1024 * 1024)
     throw std::runtime_error("Pair report exceeds 1 MiB");
@@ -457,10 +524,14 @@ int score_external(char **argv) {
 
 int main(int argc, char **argv) {
   if (argc < 2 || argc > 6) {
-    std::cerr << "Usage: validate_sift_pair <image> [output.json [iterations [config.json [sycl-only|sycl-reuse|sycl-context|all-context|opencl-only|quality-export]]]]\n";
+    std::cerr << "Usage: validate_sift_pair <image> [output.json [iterations [config.json [sycl-only|sycl-reuse|sycl-context|all-context|opencl-only|quality-export]]]]\n"
+          << "  --export-features IMAGE OUTPUT CONFIG opencl|sycl|opencv\n"
+          << "  --score-external FIRST SECOND GEOMETRY OUTPUT\n";
     return 2;
   }
   try {
+    if (argc == 6 && std::strcmp(argv[1], "--export-features") == 0)
+      return export_features(argv);
     if (argc == 6 && std::strcmp(argv[1], "--score-external") == 0)
       return score_external(argv);
     const bool quality_export = argc == 6 && std::strcmp(argv[5], "quality-export") == 0;

@@ -10,6 +10,96 @@ its correspondence count. This requirement is not yet demonstrated. OpenCV remai
 a diagnostic reference. complete-gpu-sift is excluded from further acceptance work
 and will not be repaired; its results below are historical evidence only.
 
+## Independent-image Exports and Viewpoint Smoke
+
+Checkpoint 47 adds independent-image exports using the existing extraction adapters;
+it changes no extraction kernel, default or matching threshold:
+
+```bash
+validate_sift_pair --export-features first.pgm first-features.json config.json opencl
+validate_sift_pair --export-features second.pgm second-features.json config.json opencl
+validate_sift_pair --score-external first-features.json second-features.json \
+  geometry.json scored.json
+```
+
+Use `opencv` or, when compiled, `sycl` in place of `opencl`. `config.json` can be
+`{}` for unchanged defaults. The exporter never resizes; configuration `width` and
+`height` are rejected. Preprocess both images explicitly, preserve their hashes,
+and express known geometry in the exported pixel coordinates. Both images must
+have the same dimensions for the existing external scorer. This is separate from
+`quality-export`, which still generates an affine-transformed second image.
+
+Files contain float32 Nx2 `positions` and Nx128 `descriptors`, including valid
+zero-row matrices for empty images. Exported positions must be finite and in-image;
+descriptors must be finite and nonzero. Images must decode successfully and be at
+most 3840x2160. Exports above 32768 records fail rather than being truncated by
+the exporter. Metadata `capacity:32768` is this export/scorer ceiling, not an
+intrinsic OpenCV feature cap. The existing SYCL extractor separately has a fixed
+32768-feature allocation. `feature_limit` records the requested `nfeatures` (zero
+means no requested limit); backend cap/selection semantics are not equivalent.
+
+Metadata intentionally sets `parameters_equivalent:0`. Algorithm-control fields
+record configuration values, not a claim that every backend implements them:
+
+| Backend | Effective controls | Controls not shared |
+| --- | --- | --- |
+| OpenCL | `octaves`, `intervals`, `sigma`, `opencl_contrast`, `edge_threshold`, feature limit | Edge rejection uses `(edge+1)^2/edge`; default 12.1. |
+| SYCL | `octaves`, `sycl_initial_blur`, `sycl_contrast`, feature limit | Fixed five layers, no scale-up; shared `intervals`, `sigma` and `edge_threshold` do not configure this implementation. |
+| OpenCV CPU | `intervals`, `sigma`, `opencv_contrast`, `edge_threshold`, feature limit | Automatic octave count (`octaves_automatic:1`); requested `octaves` is not applied. |
+
+`sycl_layers_fixed:5` and `sycl_scale_up:0` describe SYCL only, even when present
+in another backend's file. Synthetic transform, photometric and blur options do
+not alter independent input images. OpenCV acceleration is disabled and the
+configured CPU thread count is used. No backend equivalence or timing qualification
+is implied by a successful export.
+
+All 11 local tests pass. The scorer/export suite also passes on Arc for all three
+enabled backends, including textured identity with positive inliers, precision 1
+and RMSE 0; empty output; metadata/matrix contracts; rejected resize settings,
+unsupported backend, unreadable image and oversized dimensions. Security review
+of the modified code path found no additional artifact fix. This remains an offline
+diagnostic for vetted images/configuration, not an untrusted upload API: OpenCV
+decodes before the dimension check and extraction precedes the output-count check;
+these limits do not bound decoder, parser or extraction peak resource consumption.
+Protect exported image features and file paths according to the source data policy.
+
+The first real-viewpoint plumbing check uses OpenCV's native 800x640 `graf1.png`
+and `graf3.png`, with `H1to3p.xml` (`H13`), associated by its AKAZE sample.
+OpenCV source commit: `e7c8ba4dfd2c8ada9562ca95a50afff077c4307e`.
+Both images were canonicalized with ImageMagick grayscale/depth 8, without resizing,
+then hashed with configuration and geometry before extraction. OpenCL, SYCL and
+OpenCV ran on Arc; pinned unmodified CudaSift
+`ed5ef54c67354959e3d5fa829d30de5b278b4d62` ran on RTX 5060 with the same four-octave,
+initial-blur-1, contrast-3, no-scale-up reference settings. All outputs were scored
+by the common ratio-0.8 / known-homography-3-pixel evaluator, without RANSAC.
+
+| Backend | Inliers / ratio matches | Precision | Inlier RMSE (px) | Distinct inlier source / target positions |
+| --- | --- | --- | --- | --- |
+| OpenCL | 229 / 332 | 68.98% | 1.345735 | 208 / 203 |
+| SYCL | 302 / 489 | 61.76% | 1.412982 | 290 / 271 |
+| OpenCV | 388 / 668 | 58.08% | 1.196355 | 364 / 358 |
+| CudaSift | 308 / 521 | 59.12% | 1.400583 | 295 / 281 |
+
+These are different accepted correspondence sets, not common-match localization
+errors. No overlap mask, spatial clustering or one-to-one assignment was added.
+Graf influenced prior tuning, so this is explicitly **not held-out** and cannot
+establish general application quality. No throughput claim follows from these runs.
+The CudaSift quality floor is still unmet; backend selection and Python remain blocked.
+The official Oxford wall archive acquisition failed TLS certificate verification;
+no certificate checks or trust settings were weakened and no dataset was accepted.
+Next: acquire verified, separate held-out known-homography pairs before evaluating
+without further tuning; investigate the existing quality and SYCL repeatability gaps.
+
+Durable workspace evidence: `results/20261102/viewpoint-smoke-summary.json`,
+`viewpoint-smoke/INPUTS.sha256`, the raw `viewpoint-smoke` archive and
+`viewpoint-smoke-receipts.sha256`. Arc extraction stage
+`independent-export-8d339ce711a8dd9f`, manifest
+`8d339ce711a8dd9f6bfea5091dfc32cca1396476492fb1e3f6c719dbcccb35eb`;
+final guard stage `export-guards-4cd4566d95ac4a6d`, manifest
+`4cd4566d95ac4a6dc496d70a61c6708e835d316c38149843b43813c8a2b0e18b`.
+CUDA stage `graf-viewpoint-3aa531a897965409`; local raw copies
+`/tmp/sift-independent-export-results.cmyCJO` and `/tmp/sift-graf-cuda.XtrKpe`.
+
 ## Projective Scoring and Rejected Scale Probe
 
 Checkpoint 46 retains diagnostic/scorer changes only. Extraction remains exactly
@@ -102,11 +192,8 @@ payload `/tmp/sift-homography-final.BXfEJd`, test/repeatability reports
 affine compatibility run; the final follow-up only added a projective normalization
 guard and a numerical-singularity test.
 
-Next: acquire and freeze separate real-viewpoint pairs with known homographies and
-record preprocessing, then provide Intel feature exports for independent first/second
-images and evaluate them with the same frozen CUDA settings. The existing
-`quality-export` mode still generates affine pairs; this change adds projective
-scoring, not a held-out dataset or a completed real-viewpoint evaluation. CudaSift-level
+Checkpoint 47 subsequently adds independent-image exports and a development-only
+viewpoint check, as documented above. A separate held-out dataset, CudaSift-level
 quality, backend selection, lifecycle/recovery qualification and Python remain open.
 
 ## Spatial Support and Exact Duplicates

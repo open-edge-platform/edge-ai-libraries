@@ -3,6 +3,9 @@
 # SPDX-License-Identifier: Apache-2.0
 set -euo pipefail
 validator="$1"
+shift
+backends=("$@")
+if [[ ${#backends[@]} == 0 ]]; then backends=(opencv); fi
 directory="$(mktemp -d)"
 trap 'rm -rf "$directory"' EXIT
 jq -n '{width:640,height:480,affine:{type_id:"opencv-matrix",rows:2,cols:3,dt:"d",data:[1,0,10,0,1,20]}}' > "$directory/pair.json"
@@ -116,4 +119,47 @@ jq -e '.quality | .ratio_matches==0 and .ground_truth_inliers_3px==0 and .inlier
   .first_distinct_positions==0 and .second_distinct_positions==0 and
   .first_duplicate_records==0 and .second_duplicate_records==0 and
   .inlier_distinct_first_positions==0 and .inlier_distinct_second_positions==0' "$directory/empty-score.json" >/dev/null
-printf 'Affine/projective scoring, spatial support, horizon handling and malformed-input checks passed\n'
+printf 'P2\n129 97\n255\n' > "$directory/texture.pgm"
+jq -nr '[range(0;97) as $row|range(0;129)|(. * 37 + $row * 61 + . * $row)%256]|join(" ")' >> "$directory/texture.pgm"
+printf 'P2\n129 97\n255\n' > "$directory/blank.pgm"
+jq -nr '[range(0;12513)|0]|join(" ")' >> "$directory/blank.pgm"
+printf '{}\n' > "$directory/config.json"
+jq -n '{width:129,height:97,affine:{type_id:"opencv-matrix",rows:2,cols:3,dt:"d",data:[1,0,0,0,1,0]}}' > "$directory/identity.json"
+for backend in "${backends[@]}"; do
+  for image in texture blank; do
+    "$validator" --export-features "$directory/$image.pgm" "$directory/$image-features.json" "$directory/config.json" "$backend"
+    jq -e --arg backend "$backend" '.backend==$backend and .diagnostic_only==1 and
+      .parameters_equivalent==0 and .resized==0 and .width==129 and .height==97 and
+      .capacity==32768 and .feature_limit==0 and .sycl_layers_fixed==5 and .sycl_scale_up==0 and
+      .octaves_automatic==(if $backend=="opencv" then 1 else 0 end) and
+      .positions.cols==2 and .descriptors.cols==128 and .positions.rows==.descriptors.rows' \
+      "$directory/$image-features.json" >/dev/null
+    "$validator" --score-external "$directory/$image-features.json" "$directory/$image-features.json" \
+      "$directory/identity.json" "$directory/$image-identity.json"
+  done
+  jq -e '.quality | .ground_truth_inliers_3px>0 and .inlier_fraction==1 and .inlier_rmse_px==0' "$directory/texture-identity.json" >/dev/null
+  jq -e '.quality | .first_features==0 and .second_features==0' "$directory/blank-identity.json" >/dev/null
+done
+for backend in unknown; do
+  if "$validator" --export-features "$directory/texture.pgm" "$directory/rejected.json" \
+      "$directory/config.json" "$backend" > "$directory/error.log" 2>&1; then
+    printf 'Accepted unsupported export backend\n' >&2
+    exit 1
+  fi
+done
+printf '{"width":640,"height":480}\n' > "$directory/resize.json"
+if "$validator" --export-features "$directory/texture.pgm" "$directory/rejected.json" \
+    "$directory/resize.json" opencv > "$directory/error.log" 2>&1; then
+  printf 'Accepted hidden export resize\n' >&2
+  exit 1
+fi
+printf 'P2\n3841 1\n255\n' > "$directory/oversized.pgm"
+jq -nr '[range(0;3841)|0]|join(" ")' >> "$directory/oversized.pgm"
+for image in missing oversized; do
+  if "$validator" --export-features "$directory/$image.pgm" "$directory/rejected.json" \
+      "$directory/config.json" opencv > "$directory/error.log" 2>&1; then
+    printf 'Accepted invalid export image: %s\n' "$image" >&2
+    exit 1
+  fi
+done
+printf 'Affine/projective scoring and independent-image export checks passed\n'
