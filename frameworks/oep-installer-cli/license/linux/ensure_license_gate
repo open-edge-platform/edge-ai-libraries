@@ -10,10 +10,10 @@
 #   @@LICENSE-COMPONENT  a, b, c       comma list                (optional)
 #
 # Options:
-#   --accept-license[=ID,...]   non-interactive; bare form accepts everything,
-#                               list form fails if the bundle contains an id
-#                               that was not listed
-#   --reset-license             ignore recorded history; show everything again
+#   --accept-agreement[=ID,...]  non-interactive; bare form accepts everything,
+#                                list form fails if the bundle contains an id
+#                                that was not listed
+#   --reset-agreement            ignore recorded history; show everything again
 #
 # Exit codes: 0 accepted, 1 declined, 2 error / no terminal.
 #
@@ -113,7 +113,7 @@ def parse_bundle(data):
         while lic.src and not lic.src[-1].strip():
             lic.src.pop()
         if not lic.src:
-            die("license %r has no @@LICENSE-TEXT body" % lic.lid)
+            die("agreement %r has no @@LICENSE-TEXT body" % lic.lid)
         blob = ("\n".join(lic.src)).encode("utf-8", "replace")
         lic.sha = hashlib.sha256(blob).hexdigest()
         lic.heads = detect_headings(lic.src)
@@ -500,7 +500,7 @@ class Gate(object):
     def draw_toc(self, y0, x0, h, w):
         active = (self.focus == "toc")
         self.rect(y0, x0, h, w, dim=not active)
-        self.put(y0, x0 + 2, " Licenses ",
+        self.put(y0, x0 + 2, " Agreements ",
                  curses.A_BOLD | (self.cattr(1) if active else 0))
 
         view = h - 2
@@ -593,7 +593,7 @@ class Gate(object):
 
     def draw_actions(self, y, x0, bw):
         ok = self.all_read()
-        acc = "  Accept all %d license%s  " % (self.n, "" if self.n == 1 else "s")
+        acc = "  Accept all %d agreement%s  " % (self.n, "" if self.n == 1 else "s")
         dec = "  Decline and exit  "
         focus_bar = (self.focus == "actions")
         self.btn_hit = []
@@ -691,7 +691,7 @@ class Gate(object):
         x0, y0 = (w - bw) // 2, (h - bh) // 2
         self.rect(y0, x0, bh, bw, dim=False)
         self.put(y0, x0 + 3, " Confirm acceptance ", curses.A_BOLD | self.cattr(1))
-        self.put(y0 + 2, x0 + 3, "You are accepting %d license(s):" % self.n,
+        self.put(y0 + 2, x0 + 3, "You are accepting %d agreement(s):" % self.n,
                  curses.A_BOLD)
         row = y0 + 3
         for i, l in enumerate(self.lic):
@@ -715,7 +715,7 @@ class Gate(object):
         x0, y0 = (w - bw) // 2, (h - bh) // 2
         self.rect(y0, x0, bh, bw, dim=False)
         self.put(y0, x0 + 3, " Decline ", curses.A_BOLD | self.cattr(5))
-        self.put(y0 + 2, x0 + 3, "Decline the licenses and exit without installing?",
+        self.put(y0 + 2, x0 + 3, "Decline the agreements and exit without installing?",
                  curses.A_BOLD)
         self.put(y0 + 4, x0 + 3, "y = decline and exit     n / ESC = go back",
                  curses.A_DIM)
@@ -731,7 +731,7 @@ class Gate(object):
     def draw_main_quiet(self):
         y0, x0, bh, bw = self.box()
         self.rect(y0, x0, bh, bw, dim=True)
-        self.put(y0, x0 + 3, " License Agreement ", curses.A_DIM)
+        self.put(y0, x0 + 3, " Agreement ", curses.A_DIM)
 
     # ---- search
 
@@ -772,7 +772,7 @@ class Gate(object):
             self.prev_view = None
             self.tsel = unread[0]
             self.focus = "reader"
-            self.status = "license %d unread" % (unread[0] + 1)
+            self.status = "agreement %d unread" % (unread[0] + 1)
 
     # ---- loop
 
@@ -1008,9 +1008,9 @@ class Gate(object):
 
 def main():
     ap = argparse.ArgumentParser(prog="license-gate", add_help=True)
-    ap.add_argument("--accept-license", nargs="?", const="*", default=None)
+    ap.add_argument("--accept-agreement", nargs="?", const="*", default=None)
     ap.add_argument("--no-scroll-gate", action="store_true")
-    ap.add_argument("--reset-license", "--reset-license", dest="relicense", action="store_true")
+    ap.add_argument("--reset-agreement", "--reset-agreement", dest="relicense", action="store_true")
     args, _ = ap.parse_known_args()
 
     data = sys.stdin.read()
@@ -1026,24 +1026,24 @@ def main():
     store = history_dir()
 
     if not pending:
-        sys.stdout.write("All %d license(s) already accepted. Skipping.\n"
+        sys.stdout.write("All %d agreement(s) already accepted. Skipping.\n"
                          % len(skipped))
         return EXIT_OK
     lics = pending
 
-    if args.accept_license is not None:
+    if args.accept_agreement is not None:
         need = [l.lid for l in lics]
-        if args.accept_license != "*":
-            given = set(x.strip() for x in args.accept_license.split(",") if x.strip())
+        if args.accept_agreement != "*":
+            given = set(x.strip() for x in args.accept_agreement.split(",") if x.strip())
             missing = [i for i in need if i not in given]
             if missing:
-                die("--accept-license does not cover: %s" % ", ".join(missing))
+                die("--accept-agreement does not cover: %s" % ", ".join(missing))
         record_accepted(lics, store)
-        sys.stdout.write("Accepted licenses: %s\n" % ", ".join(need))
+        sys.stdout.write("Accepted agreements: %s\n" % ", ".join(need))
         return EXIT_OK
 
     if not bind_tty():
-        sys.stderr.write("license-gate: no terminal; re-run with --accept-license "
+        sys.stderr.write("license-gate: no terminal; re-run with --accept-agreement "
                          "to accept:\n%s\n" %
                          "\n".join("  %s (%s)" % (l.lid, l.display()) for l in lics))
         return EXIT_ERROR
