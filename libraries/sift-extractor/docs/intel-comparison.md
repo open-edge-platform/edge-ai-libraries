@@ -240,6 +240,32 @@ runner `results/20261102/arc-opencl-milestone.sh`, local reports
 `~/.local/share/sift-extractor-staging/arc-compaction-d266f47fcec2f0d8`.
 Manifest SHA256: `d266f47fcec2f0d852662e08c6e4453a2c2e0c28f9975439e9480ca7b8f6603b`.
 
+### Fused Gaussian Passes
+
+For radii up to 12, the combined pyramid uses a 16x16 tile with horizontal
+halo rows in local memory, followed by vertical convolution and optional DoG
+output. Tap order and clamped borders match the standalone two-pass reference
+exactly in tests. Larger radii retain that reference path. Default convolution
+launches fall from 42 to 21; profiling reports fused device time separately.
+
+All 10 local tests, Arc pyramid/refinement regressions and 22 comparison cases
+pass. Matching-quality records remain identical. Paired pooled medians against
+`36d80bc80` (60 samples/build):
+
+| Size | Feature Budget | Before (ms) | Fused (ms) | Latency Reduction |
+| --- | --- | --- | --- | --- |
+| 640x480 | Unlimited | 9.486 | 9.336 | 1.6% |
+| 640x480 | 500 | 9.289 | 8.455 | 9.0% |
+| 1920x1080 | Unlimited | 27.790 | 26.765 | 3.7% |
+| 1920x1080 | 500 | 22.665 | 19.070 | 15.9% |
+
+Targets remain unmet. Evidence: SIFT workspace
+`results/20261102/arc-fused-passes-summary.json`; reports
+`/tmp/sift-arc-fused-passes-results.0NZz7Z/milestone-results`; remote stage
+`~/.local/share/sift-extractor-staging/arc-fused-passes-4dc3835b83b1d26b`.
+Manifest SHA256: `4dc3835b83b1d26bc61c3ae89d6a4aca9815d1847d4765eaff75edc077b743eb`.
+All five returned executable hashes matched the staged binaries.
+
 ### Spatial-Bin Descriptors
 
 Descriptors now use 16 lanes, each owning the eight orientation bins of one

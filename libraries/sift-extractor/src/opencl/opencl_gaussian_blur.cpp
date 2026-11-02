@@ -76,6 +76,38 @@ __kernel void gaussian_vertical_dog(__global const float *temporary,
   difference[index] = sum - lower[index];
 }
 
+__kernel void gaussian_fused(__global const float *source,
+                             __global float *destination,
+                             __global const float *weights,
+                             const int width, const int height,
+                             const int radius,
+                             __global const float *lower,
+                             __global float *difference,
+                             const int write_difference) {
+  __local float horizontal_tile[16 * 40];
+  const int local_x = (int)get_local_id(0);
+  const int local_y = (int)get_local_id(1);
+  const int pixel_x = (int)get_global_id(0);
+  const int pixel_y = (int)get_global_id(1);
+  for (int tile_y = local_y; tile_y < 16 + 2 * radius; tile_y += 16) {
+    const int sample_y = clamp((int)get_group_id(1) * 16 + tile_y - radius, 0, height - 1);
+    float sum = 0.0f;
+    for (int offset = -radius; offset <= radius; ++offset) {
+      const int sample_x = clamp(pixel_x + offset, 0, width - 1);
+      sum += source[sample_y * width + sample_x] * weights[offset + radius];
+    }
+    horizontal_tile[tile_y * 16 + local_x] = sum;
+  }
+  barrier(CLK_LOCAL_MEM_FENCE);
+  if (pixel_x >= width || pixel_y >= height) return;
+  float sum = 0.0f;
+  for (int offset = -radius; offset <= radius; ++offset)
+    sum += horizontal_tile[(local_y + radius + offset) * 16 + local_x] * weights[offset + radius];
+  const int index = pixel_y * width + pixel_x;
+  destination[index] = sum;
+  if (write_difference) difference[index] = sum - lower[index];
+}
+
 __kernel void difference_of_gaussians(__global const float *first,
                                       __global const float *second,
                                       __global float *destination,
@@ -173,6 +205,7 @@ struct OpenCLGaussianBlur::Impl {
   cl_kernel horizontal = nullptr;
   cl_kernel vertical = nullptr;
   cl_kernel vertical_dog = nullptr;
+  cl_kernel fused_gaussian = nullptr;
   cl_kernel dog = nullptr;
   cl_kernel downsample = nullptr;
   Buffer input;
@@ -364,6 +397,8 @@ struct OpenCLGaussianBlur::Impl {
       clReleaseKernel(vertical);
     if (vertical_dog)
       clReleaseKernel(vertical_dog);
+    if (fused_gaussian)
+      clReleaseKernel(fused_gaussian);
     if (horizontal)
       clReleaseKernel(horizontal);
     if (program)
@@ -708,9 +743,22 @@ void OpenCLGaussianBlur::build_pyramid(
       } else {
         cl_mem weights = impl_->pyramid_weights[index].memory;
         const int radius = static_cast<int>(kernels[index].size() / 2);
+        const bool fused_passes = radius <= 12;
         cl_kernel vertical = impl_->vertical;
+        if (fused_passes) {
+          if (!impl_->fused_gaussian) {
+            cl_int status = CL_SUCCESS;
+            impl_->fused_gaussian = clCreateKernel(impl_->program, "gaussian_fused", &status);
+            check_opencl(status, "clCreateKernel(fused Gaussian passes)");
+          }
+          vertical = impl_->fused_gaussian;
+          const int write_difference = level.scale > 0;
+          check_opencl(clSetKernelArg(vertical, 6, sizeof(source), &source), "fused default lower");
+          check_opencl(clSetKernelArg(vertical, 7, sizeof(destination), &destination), "fused default difference");
+          check_opencl(clSetKernelArg(vertical, 8, sizeof(write_difference), &write_difference), "fused difference flag");
+        }
         if (level.scale > 0) {
-          vertical = impl_->fused_vertical_kernel();
+          if (!fused_passes) vertical = impl_->fused_vertical_kernel();
           cl_mem lower = impl_->gaussian_levels[index - 1].memory;
           const size_t dog_index = static_cast<size_t>(level.octave) * (intervals + 2) + level.scale - 1;
           cl_mem difference = impl_->dog_levels[dog_index].memory;
@@ -718,10 +766,10 @@ void OpenCLGaussianBlur::build_pyramid(
           check_opencl(clSetKernelArg(vertical, 7, sizeof(difference), &difference), "fused DoG output");
           fused_difference = true;
         }
-        for (int pass = 0; pass < 2; ++pass) {
-          cl_kernel kernel = pass == 0 ? impl_->horizontal : vertical;
+        for (int pass = 0; pass < (fused_passes ? 1 : 2); ++pass) {
+          cl_kernel kernel = fused_passes ? vertical : (pass == 0 ? impl_->horizontal : vertical);
           cl_mem pass_source = pass == 0 ? source : temporary;
-          cl_mem pass_destination = pass == 0 ? temporary : destination;
+          cl_mem pass_destination = fused_passes ? destination : (pass == 0 ? temporary : destination);
           check_opencl(clSetKernelArg(kernel, 0, sizeof(cl_mem), &pass_source), "pyramid blur source");
           check_opencl(clSetKernelArg(kernel, 1, sizeof(cl_mem), &pass_destination), "pyramid blur destination");
           check_opencl(clSetKernelArg(kernel, 2, sizeof(weights), &weights), "pyramid blur weights");
@@ -730,11 +778,15 @@ void OpenCLGaussianBlur::build_pyramid(
           check_opencl(clSetKernelArg(kernel, 5, sizeof(radius), &radius), "pyramid blur radius");
           cl_event *event = nullptr;
           if (impl_->profiling) {
-            profile.events.emplace_back(pass, nullptr);
+            profile.events.emplace_back(fused_passes ? 2 : pass, nullptr);
             event = &profile.events.back().second;
           }
+          const size_t local_size[2] = {16, 16};
+          const size_t fused_size[2] = {(global_size[0] + 15) / 16 * 16,
+                                        (global_size[1] + 15) / 16 * 16};
           check_opencl(clEnqueueNDRangeKernel(impl_->queue, kernel, 2, nullptr,
-              global_size, nullptr, 0, nullptr, event), "pyramid blur launch");
+              fused_passes ? fused_size : global_size, fused_passes ? local_size : nullptr,
+              0, nullptr, event), "pyramid blur launch");
         }
       }
       if (level.scale > 0 && !fused_difference) {
@@ -768,17 +820,18 @@ void OpenCLGaussianBlur::build_pyramid(
     check_opencl(clFinish(impl_->queue), "clFinish(pyramid)");
     const auto finish_end = std::chrono::steady_clock::now();
     if (impl_->profiling) {
-      double horizontal_ms = 0.0, vertical_ms = 0.0;
+      double horizontal_ms = 0.0, vertical_ms = 0.0, fused_ms = 0.0;
       for (const auto &entry : profile.events) {
         cl_ulong start = 0, end = 0;
         check_opencl(clGetEventProfilingInfo(entry.second, CL_PROFILING_COMMAND_START,
           sizeof(start), &start, nullptr), "profile convolution start");
         check_opencl(clGetEventProfilingInfo(entry.second, CL_PROFILING_COMMAND_END,
           sizeof(end), &end, nullptr), "profile convolution end");
-        (entry.first == 0 ? horizontal_ms : vertical_ms) += static_cast<double>(end - start) * 1.0e-6;
+        (entry.first == 2 ? fused_ms : (entry.first == 0 ? horizontal_ms : vertical_ms)) +=
+          static_cast<double>(end - start) * 1.0e-6;
       }
-      std::fprintf(stderr, "OPENCL_PYRAMID_PROFILE convolutions=%zu horizontal_device_ms=%.3f vertical_device_ms=%.3f input_upload_ms=%.3f submit_ms=%.3f finish_ms=%.3f\n",
-        profile.events.size(), horizontal_ms, vertical_ms,
+      std::fprintf(stderr, "OPENCL_PYRAMID_PROFILE convolutions=%zu horizontal_device_ms=%.3f vertical_device_ms=%.3f fused_device_ms=%.3f input_upload_ms=%.3f submit_ms=%.3f finish_ms=%.3f\n",
+        profile.events.size(), horizontal_ms, vertical_ms, fused_ms,
         std::chrono::duration<double, std::milli>(upload_end - upload_start).count(),
         std::chrono::duration<double, std::milli>(submit_end - upload_end).count(),
         std::chrono::duration<double, std::milli>(finish_end - submit_end).count());
