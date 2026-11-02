@@ -80,6 +80,52 @@ int main() {
       return 1;
     }
 
+    auto relocation_dog = dog;
+    for (int scale = 0; scale < scale_count; ++scale) {
+      for (int row = 0; row < height; ++row) {
+        for (int column = 0; column < width; ++column) {
+          const float horizontal = column - 8.6f;
+          const float vertical = row - 7.25f;
+          const float layer = scale - 2.1f;
+          relocation_dog[scale].pixels[static_cast<size_t>(row) * width + column] =
+              10.0f - (horizontal * horizontal + vertical * vertical -
+                       1.6f * horizontal * vertical + layer * layer);
+        }
+      }
+    }
+    const auto relocation_candidates = detector.detect(relocation_dog, 1.0f);
+    const auto relocated = detector.refine(relocation_dog, relocation_candidates, 1.0f, 12.1f);
+    if (relocation_candidates.size() != 1 || relocation_candidates[0].x != 8 ||
+        relocation_candidates[0].y != 7 || relocated.size() != 1 ||
+        std::abs(relocated[0].x - 8.6f) > 1e-3f ||
+        std::abs(relocated[0].y - 7.25f) > 1e-3f ||
+        std::abs(relocated[0].scale - 2.1f) > 1e-3f ||
+        std::abs(relocated[0].response - 10.0f) > 1e-3f) {
+      std::fprintf(stderr, "Valid coupled extremum was lost instead of relocated\n");
+      return 1;
+    }
+    auto distant_seed = relocation_candidates;
+    distant_seed[0].x = 3;
+    if (!detector.refine(relocation_dog, distant_seed, 1.0f, 12.1f).empty() ||
+        !detector.refine(relocation_dog, relocation_candidates, 11.0f, 12.1f).empty() ||
+        !detector.refine(relocation_dog, relocation_candidates, 1.0f, 10.0f).empty()) {
+      std::fprintf(stderr, "Relocation bypassed iteration, contrast or edge rejection\n");
+      return 1;
+    }
+    auto boundary_dog = dog;
+    for (int scale = 0; scale < scale_count; ++scale)
+      for (int row = 0; row < height; ++row)
+        for (int column = 0; column < width; ++column)
+          boundary_dog[scale].pixels[static_cast<size_t>(row) * width + column] =
+              quadratic(10.0f, column, row, scale, -0.6f, 7.15f, 2.1f, 2.0f, 2.0f, 2.0f);
+    auto boundary_seed = relocation_candidates;
+    boundary_seed[0].x = 1;
+    if (!detector.refine(boundary_dog, boundary_seed, 1.0f, 12.1f).empty()) {
+      std::fprintf(stderr, "Relocation accepted a peak outside the image interior\n");
+      return 1;
+    }
+    std::printf("Bounded relocation recovers coupled extrema and preserves rejection filters\n");
+
     auto two_octaves = dog;
     for (auto level : dog) {
       level.octave = 1;

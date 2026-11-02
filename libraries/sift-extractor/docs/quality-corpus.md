@@ -5,6 +5,91 @@
 
 ## Status
 
+The product quality requirement is **at least as good as CudaSift**, not 95% of
+its correspondence count. This requirement is not yet demonstrated. OpenCV remains
+a diagnostic reference. complete-gpu-sift is excluded from further acceptance work
+and will not be repaired; its results below are historical evidence only.
+
+## Bounded Refinement Follow-up
+
+Checkpoint 44 retains five-fit neighboring-sample relocation in OpenCL refinement.
+The former one-fit implementation discarded a detected coupled quadratic maximum
+at (8, 7) whose continuous peak is (8.6, 7.25, 2.1). Relocation recovers that peak
+without changing contrast, spatial-edge, finite-value or interior-bound checks.
+Each unsuccessful fit moves at most one sample per axis; boundary escape or five
+unsuccessful fits reject the candidate. Both host and resident refinement use the
+same helper. Defaults remain sigma 1.6 and three scale intervals.
+
+All 11 local tests pass, including analytic recovery, iteration exhaustion, boundary
+escape and preserved contrast/edge rejection. The expanded refinement test also
+passes on Arc. Existing resident/host, orientation, descriptor and capacity tests
+remain enabled. This intentionally changes feature counts, not merely throughput.
+
+Two configurations completed all 64 cases on Arc: current defaults with relocation,
+and an experimental sigma-1.0/five-interval configuration. Every generated first
+and second PGM was compared byte-for-byte to the frozen corpus. CudaSift records
+and scoring rules were unchanged. A nine-case sigma-1.0/three-interval probe
+preceded the dense configuration. Neither experiment changes product defaults.
+The validator's shared sigma/interval settings also change its OpenCV diagnostic;
+comparisons here use the original frozen reference records, not that changed output.
+
+Each entry is median inlier count / pooled inlier RMSE in pixels:
+
+| Profile | Previous OpenCL | Relocation, defaults | Relocation, dense | Frozen CudaSift |
+| --- | --- | --- | --- | --- |
+| Identity | 704.5 / 0 | 828 / 0 | 4484.5 / 0 | 617 / 0 |
+| Rotation 30 | 357.5 / 0.310 | 495 / 0.320 | 2450 / 0.445 | 329.5 / 0.846 |
+| Rotation 90 | 476.5 / 0.154 | 589 / 0.194 | 3127.5 / 0.263 | 304.5 / 0.672 |
+| Scale 0.5 | 95.5 / 0.258 | 129.5 / 0.277 | 977.5 / 0.389 | 119 / 0.718 |
+| Scale 1.5 | 185 / 0.394 | 263.5 / 0.426 | 1304.5 / 0.573 | 175 / 1.197 |
+| Illumination | 614.5 / 0.075 | 723 / 0.074 | 3072 / 0.094 | 107 / 0.273 |
+| Blur | 272.5 / 0.724 | 352.5 / 0.803 | 591 / 0.800 | 114 / 0.893 |
+| Rotation + scale | 254 / 0.374 | 363 / 0.398 | 2006.5 / 0.482 | 247.5 / 0.928 |
+
+Defaults gain inliers in all 64 cases versus previous OpenCL, but precision is lower
+in 7 cases and RMSE higher in 41. These are different accepted correspondence sets;
+the result is not a universal improvement in localization. Against CudaSift, defaults
+still have 25 count deficits, 3 precision deficits and 5 RMSE deficits. Dense has
+1 count deficit (blurred graf: 669 versus 691), 9 precision deficits and 4 RMSE
+deficits. These deficit counts overlap. Dense blur pooled precision is 81.54% versus
+CudaSift's 84.14%. Higher feature density alone does not establish quality parity.
+No numerical acceptance tolerance or exception has been approved.
+
+Unprofiled Arc A/B/B/A timing used two fresh processes per build/configuration and
+30 samples per process, pooled to 60 samples. Baseline is checkpoint 43. The timed
+operation is the validator's isolated OpenCL extraction on the first image, not
+two extractions plus matching or end-to-end application latency.
+
+| Fixture | Defaults before -> after (ms) | Dense before -> after (ms) |
+| --- | --- | --- |
+| Box | 4.527 -> 4.613 | 5.004 -> 5.251 |
+| Building | 5.664 -> 5.866 | 7.474 -> 8.081 |
+| Graf | 6.049 -> 6.254 | 7.366 -> 8.004 |
+
+Default latency increased about 2-4% on these fixtures. This is diagnostic timing,
+not the release sampling gate, a new full-resolution throughput claim, or evidence
+of superiority to complete-gpu-sift. The denser configuration increases latency
+and output volume further and remains experimental.
+
+Evidence: payload `/tmp/sift-cuda-quality-floor.fz2w8I`; Arc stage
+`~/.local/share/sift-extractor-staging/cuda-quality-floor-9b6a01f6165d86b2`;
+manifest `9b6a01f6165d86b2621234ed2f8079830004b31a2ce43369d6c02e1341c5c431`;
+downloaded reports `/tmp/sift-cuda-quality-floor-results.wuoXTe`;
+SIFT workspace receipts `results/20261102/cuda-quality-floor-cases.json`,
+`cuda-quality-floor-summary.json` and `cuda-quality-floor-timing.json`.
+The final source differs from the measured snapshot only by loop indentation,
+verified with `diff -w`; focused compilation/runtime validation was repeated.
+
+Next: investigate precision/localization on the failing blur and scale cases,
+including correspondence duplication and scale-space differences, without changing
+the frozen CUDA baseline or silently weakening the matcher. Add unique spatial
+coverage and independently known real-viewpoint/occlusion geometry before declaring
+application quality eligibility. This development corpus has now influenced tuning;
+a separate held-out corpus is required. Backend selection and Python remain blocked
+on quality and the existing lifecycle/concurrency/recovery gates.
+
+## Historical Five-way Baseline
+
 2026-11-02: all 64 cases completed for **all five implementations**. OpenCV CPU,
 OpenCL, SYCL and complete-gpu-sift ran on the Arc host; pinned CudaSift ran on the
 RTX 5060 after SSH authentication was restored. All 128 CUDA input images and
@@ -94,7 +179,7 @@ The shared ratio test correctly rejects ambiguous equal-distance neighbors.
 Thus our implementations outperform this particular reference build on these
 tested transformations, but its throughput is not a quality-equivalent target.
 
-## Reproduction
+## Historical Baseline Reproduction
 
 Build with the existing Intel/OpenCV comparison configuration and optionally set
 `SIFT_COMPLETE_REFERENCE_SOURCE` to the benchmark copy of complete-gpu-sift's C++

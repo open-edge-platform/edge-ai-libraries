@@ -157,75 +157,84 @@ inline void refine_dog_candidate(__global const float *dog,
                                   const int scale_count,
                                   const float contrast_threshold,
                                   const float edge_limit) {
-  const int x = candidate.x;
-  const int y = candidate.y;
-  const int scale = candidate.scale;
+  int x = candidate.x;
+  int y = candidate.y;
+  int scale = candidate.scale;
   const int output = index * 6;
   const int plane_size = width * height;
-  if (x < 1 || x >= width - 1 || y < 1 || y >= height - 1 ||
-      scale < 1 || scale >= scale_count - 1) {
-    refined[output + 5] = 0.0f;
+  for (int iteration = 0; iteration < 5; ++iteration) {
+    if (x < 1 || x >= width - 1 || y < 1 || y >= height - 1 ||
+        scale < 1 || scale >= scale_count - 1) {
+      refined[output + 5] = 0.0f;
+      return;
+    }
+
+    const int center = scale * plane_size + y * width + x;
+    const float value = dog[center];
+    const float gx = 0.5f * (dog[center + 1] - dog[center - 1]);
+    const float gy = 0.5f * (dog[center + width] - dog[center - width]);
+    const float gs = 0.5f * (dog[center + plane_size] - dog[center - plane_size]);
+    const float dxx = dog[center + 1] + dog[center - 1] - 2.0f * value;
+    const float dyy = dog[center + width] + dog[center - width] - 2.0f * value;
+    const float dss = dog[center + plane_size] + dog[center - plane_size] - 2.0f * value;
+    const float dxy = 0.25f * (dog[center + width + 1] - dog[center + width - 1] -
+                               dog[center - width + 1] + dog[center - width - 1]);
+    const float dxs = 0.25f * (dog[center + plane_size + 1] -
+                               dog[center + plane_size - 1] -
+                               dog[center - plane_size + 1] +
+                               dog[center - plane_size - 1]);
+    const float dys = 0.25f * (dog[center + plane_size + width] -
+                               dog[center + plane_size - width] -
+                               dog[center - plane_size + width] +
+                               dog[center - plane_size - width]);
+
+    const float a11 = dyy * dss - dys * dys;
+    const float a12 = dxs * dys - dxy * dss;
+    const float a13 = dxy * dys - dyy * dxs;
+    const float a22 = dxx * dss - dxs * dxs;
+    const float a23 = dxy * dxs - dxx * dys;
+    const float a33 = dxx * dyy - dxy * dxy;
+    const float determinant = dxx * a11 + dxy * a12 + dxs * a13;
+    if (!isfinite(determinant) || fabs(determinant) < 1e-10f) {
+      refined[output + 5] = 0.0f;
+      return;
+    }
+
+    const float offset_x = -(a11 * gx + a12 * gy + a13 * gs) / determinant;
+    const float offset_y = -(a12 * gx + a22 * gy + a23 * gs) / determinant;
+    const float offset_s = -(a13 * gx + a23 * gy + a33 * gs) / determinant;
+    if (!isfinite(offset_x) || !isfinite(offset_y) || !isfinite(offset_s)) {
+      refined[output + 5] = 0.0f;
+      return;
+    }
+    if (fabs(offset_x) > 0.5f || fabs(offset_y) > 0.5f || fabs(offset_s) > 0.5f) {
+      refined[output + 5] = 0.0f;
+      x += (offset_x > 0.5f) - (offset_x < -0.5f);
+      y += (offset_y > 0.5f) - (offset_y < -0.5f);
+      scale += (offset_s > 0.5f) - (offset_s < -0.5f);
+      continue;
+    }
+
+    const float interpolated_response =
+        value + 0.5f * (gx * offset_x + gy * offset_y + gs * offset_s);
+    const float spatial_determinant = dxx * dyy - dxy * dxy;
+    const float trace = dxx + dyy;
+    if (!isfinite(interpolated_response) ||
+        fabs(interpolated_response) < contrast_threshold ||
+        spatial_determinant <= 0.0f ||
+        trace * trace / spatial_determinant >= edge_limit) {
+      refined[output + 5] = 0.0f;
+      return;
+    }
+
+    refined[output + 0] = (float)x + offset_x;
+    refined[output + 1] = (float)y + offset_y;
+    refined[output + 2] = (float)scale + offset_s;
+    refined[output + 3] = interpolated_response;
+    refined[output + 4] = trace * trace / spatial_determinant;
+    refined[output + 5] = 1.0f;
     return;
   }
-
-  const int center = scale * plane_size + y * width + x;
-  const float value = dog[center];
-  const float gx = 0.5f * (dog[center + 1] - dog[center - 1]);
-  const float gy = 0.5f * (dog[center + width] - dog[center - width]);
-  const float gs = 0.5f * (dog[center + plane_size] - dog[center - plane_size]);
-  const float dxx = dog[center + 1] + dog[center - 1] - 2.0f * value;
-  const float dyy = dog[center + width] + dog[center - width] - 2.0f * value;
-  const float dss = dog[center + plane_size] + dog[center - plane_size] - 2.0f * value;
-  const float dxy = 0.25f * (dog[center + width + 1] - dog[center + width - 1] -
-                             dog[center - width + 1] + dog[center - width - 1]);
-  const float dxs = 0.25f * (dog[center + plane_size + 1] -
-                             dog[center + plane_size - 1] -
-                             dog[center - plane_size + 1] +
-                             dog[center - plane_size - 1]);
-  const float dys = 0.25f * (dog[center + plane_size + width] -
-                             dog[center + plane_size - width] -
-                             dog[center - plane_size + width] +
-                             dog[center - plane_size - width]);
-
-  const float a11 = dyy * dss - dys * dys;
-  const float a12 = dxs * dys - dxy * dss;
-  const float a13 = dxy * dys - dyy * dxs;
-  const float a22 = dxx * dss - dxs * dxs;
-  const float a23 = dxy * dxs - dxx * dys;
-  const float a33 = dxx * dyy - dxy * dxy;
-  const float determinant = dxx * a11 + dxy * a12 + dxs * a13;
-  if (!isfinite(determinant) || fabs(determinant) < 1e-10f) {
-    refined[output + 5] = 0.0f;
-    return;
-  }
-
-  const float offset_x = -(a11 * gx + a12 * gy + a13 * gs) / determinant;
-  const float offset_y = -(a12 * gx + a22 * gy + a23 * gs) / determinant;
-  const float offset_s = -(a13 * gx + a23 * gy + a33 * gs) / determinant;
-  if (!isfinite(offset_x) || !isfinite(offset_y) || !isfinite(offset_s) ||
-      fabs(offset_x) > 0.5f || fabs(offset_y) > 0.5f || fabs(offset_s) > 0.5f) {
-    refined[output + 5] = 0.0f;
-    return;
-  }
-
-  const float interpolated_response =
-      value + 0.5f * (gx * offset_x + gy * offset_y + gs * offset_s);
-  const float spatial_determinant = dxx * dyy - dxy * dxy;
-  const float trace = dxx + dyy;
-  if (!isfinite(interpolated_response) ||
-      fabs(interpolated_response) < contrast_threshold ||
-      spatial_determinant <= 0.0f ||
-      trace * trace / spatial_determinant >= edge_limit) {
-    refined[output + 5] = 0.0f;
-    return;
-  }
-
-  refined[output + 0] = (float)x + offset_x;
-  refined[output + 1] = (float)y + offset_y;
-  refined[output + 2] = (float)scale + offset_s;
-  refined[output + 3] = interpolated_response;
-  refined[output + 4] = trace * trace / spatial_determinant;
-  refined[output + 5] = 1.0f;
 }
 
 __kernel void refine_dog_extrema(__global const float *dog,
