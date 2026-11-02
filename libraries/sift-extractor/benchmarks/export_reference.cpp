@@ -79,6 +79,16 @@ int main(int argc, char **argv) {
            << "width" << gray.cols << "height" << gray.rows
            << "capacity" << capacity << "capacity_reached" << static_cast<int>(positions.rows >= capacity)
            << "parameters_equivalent" << 0 << "positions" << positions << "descriptors" << descriptors;
+#ifdef SIFT_VALIDATE_CUDA
+    cudaDeviceProp properties{};
+    int driver_version = 0;
+    if (cudaGetDeviceProperties(&properties, 0) != cudaSuccess ||
+        cudaDriverGetVersion(&driver_version) != cudaSuccess)
+      throw std::runtime_error("Cannot query CUDA reference device metadata");
+    output << "device" << properties.name << "cuda_driver_api_version" << driver_version
+           << "cuda_compile_version" << CUDART_VERSION << "octaves" << 4
+           << "initial_blur" << 1.0 << "contrast" << 3.0 << "scale_up" << 0;
+#endif
   } catch (const std::exception &error) {
     std::cerr << "Reference export failed: " << error.what() << '\n';
     return 1;

@@ -5,11 +5,13 @@
 
 ## Status
 
-2026-11-02: 64/64 Arc cases completed for OpenCV CPU, OpenCL, SYCL and
-complete-gpu-sift. CudaSift is **pending**, not a zero result: batch-mode access to
-the NVIDIA host failed authentication. Its export adapter branch is prepared but
-has not yet been compiled or run. No five-way quality qualification or backend
-selection is claimed. This work changes diagnostic tools, not extraction kernels.
+2026-11-02: all 64 cases completed for **all five implementations**. OpenCV CPU,
+OpenCL, SYCL and complete-gpu-sift ran on the Arc host; pinned CudaSift ran on the
+RTX 5060 after SSH authentication was restored. All 128 CUDA input images and
+64 pair reports are byte-identical to the saved Arc inputs. CUDA features were
+returned to the same local evaluator for matching and ground-truth scoring.
+This completes a five-way diagnostic, not production quality qualification or
+backend selection. This work changes diagnostic tools, not extraction kernels.
 
 ## Protocol
 
@@ -41,7 +43,12 @@ Settings are frozen before the run, **not equivalent**: OpenCV 4.10 uses three
 octave layers, contrast 0.04, edge 10, sigma 1.6; OpenCL uses four octaves, three
 intervals, contrast 1.0, sigma 1.6 and Hessian ratio limit 12.1; SYCL uses four
 octaves, its fixed five layers, initial blur 1.0, contrast 3.0 and no scale-up.
-All three request unlimited features; SYCL capacity is 32768. The unchanged
+All three request unlimited features; SYCL capacity is 32768. CudaSift commit
+`ed5ef54c67354959e3d5fa829d30de5b278b4d62` uses four octaves, initial blur 1.0,
+contrast 3.0, no scale-up and capacity 32768. It was built with CUDA 13.2.51,
+GCC 15.2, `sm_120` and its original `--use_fast_math -O3 -lineinfo` flags, against
+OpenCV 4.10. The RTX 5060 driver is 595.99.02; no CUDA export reached capacity.
+The unchanged
 complete-gpu-sift algorithm has its native 10000-point cap and settings. No case
 reached that cap. No quality-dependent threshold tuning or algorithm repairs were
 performed. These are sample-image stress tests, not an independent held-out
@@ -53,25 +60,29 @@ Each cell is **median inlier count / pooled inlier RMSE in pixels** across eight
 images. Medians average the two central values. Pooled RMSE weights squared errors
 by each case's inlier count, and must be read alongside counts and match precision.
 
-| Transform | OpenCV | OpenCL | SYCL | complete-gpu-sift |
-| --- | --- | --- | --- | --- |
-| Identity | 1735.5 / 0 | 704.5 / 0 | 624.5 / 0 | Median 0; six cases have no inliers |
-| Rotation 30 | 951 / 0.301 | 357.5 / 0.310 | 325 / 0.846 | 0 / undefined |
-| Rotation 90 | 1368 / 0.513 | 476.5 / 0.154 | 306.5 / 0.675 | 0 / undefined |
-| Scale 0.5 | 325.5 / 0.303 | 95.5 / 0.258 | 120 / 0.702 | 0 / undefined |
-| Scale 1.5 | 545 / 0.424 | 185 / 0.394 | 171.5 / 1.190 | 0 / undefined |
-| Illumination | 604 / 0.059 | 614.5 / 0.075 | 108 / 0.269 | 0 / undefined |
-| Blur | 152 / 0.805 | 272.5 / 0.724 | 116 / 0.897 | 0 / undefined |
-| Rotation + scale | 827.5 / 0.316 | 254 / 0.374 | 247 / 0.927 | 0 / undefined |
+| Transform | OpenCV | OpenCL | SYCL | CudaSift | complete-gpu-sift |
+| --- | --- | --- | --- | --- | --- |
+| Identity | 1735.5 / 0 | 704.5 / 0 | 624.5 / 0 | 617 / 0 | Median 0; six cases have no inliers |
+| Rotation 30 | 951 / 0.301 | 357.5 / 0.310 | 325 / 0.846 | 329.5 / 0.846 | 0 / undefined |
+| Rotation 90 | 1368 / 0.513 | 476.5 / 0.154 | 306.5 / 0.675 | 304.5 / 0.672 | 0 / undefined |
+| Scale 0.5 | 325.5 / 0.303 | 95.5 / 0.258 | 120 / 0.702 | 119 / 0.718 | 0 / undefined |
+| Scale 1.5 | 545 / 0.424 | 185 / 0.394 | 171.5 / 1.190 | 175 / 1.197 | 0 / undefined |
+| Illumination | 604 / 0.059 | 614.5 / 0.075 | 108 / 0.269 | 107 / 0.273 | 0 / undefined |
+| Blur | 152 / 0.805 | 272.5 / 0.724 | 116 / 0.897 | 114 / 0.893 | 0 / undefined |
+| Rotation + scale | 827.5 / 0.316 | 254 / 0.374 | 247 / 0.927 | 247.5 / 0.928 | 0 / undefined |
 
 All eight identity cases have precision 1 and zero localization error for OpenCV,
-OpenCL and SYCL. All three produce inliers in all 64 cases. For rotation + scale,
-pooled match precision is OpenCV 90.52%, OpenCL 86.93%, SYCL 88.60%.
+OpenCL, SYCL and CudaSift. All four produce inliers in all 64 cases. For combined
+rotation and scale, pooled match precision is OpenCV 90.52%, OpenCL 86.93%, SYCL 88.60%,
+CudaSift 87.96%.
 
 OpenCL has substantial correspondence-count gaps versus OpenCV on geometric
 transformations, but more median inliers under this blur and illumination test.
-SYCL has higher pooled localization error than OpenCL on every non-identity
-profile. These observations do not establish parameter-matched algorithm rankings.
+SYCL and CudaSift have higher pooled localization error than OpenCL on every
+non-identity profile. Their aggregated quality metrics are close, but not identical;
+this is not bitwise parity. OpenCL's half-scale median inlier count is lower than
+both, so there is no universal winner. These observations do not establish
+parameter-matched algorithm rankings or quality-qualified speedups.
 
 complete-gpu-sift has zero inliers in all 56 non-identity cases and six of eight
 identity cases. On the Arc box-image identity case, 774 features contain only five
@@ -109,11 +120,21 @@ without initializing GPUs. Export matrices are float32 Nx2 positions and Nx128
 descriptors, accompanied by image dimensions and capacity metadata. The importer
 rejects invalid shapes, nonfinite data, zero descriptors and out-of-image points.
 The CUDA exporter branch is selected with `SIFT_VALIDATE_CUDA` and linked against
-the pinned CudaSift reference; runtime validation remains pending authentication.
+the pinned CudaSift reference. The existing SIFT workspace build recipe
+`results/20261101/cuda-reference-build/CMakeLists.txt` accepts
+`SIFT_QUALITY_EXPORT_SOURCE` pointing to `benchmarks/export_reference.cpp` and builds
+`export_cuda_sift`. A fresh source extraction from the verified pinned archive was
+used, leaving the prior reference build untouched. Run the exporter separately on
+each saved PGM, then use `--score-external` for each pair. The exporter records
+device, CUDA compile/driver API versions, extraction settings and capacity status.
 
 All 11 local tests pass, including known-transform scorer checks, empty outputs
 and five malformed-input cases. The scorer tests also pass on Arc. The legacy
 default-transform OpenCL quality record is unchanged.
+The fresh CUDA build passes all three native extraction/matching/homography tests.
+Its independent box-image identity smoke exports yield 624 accepted matches,
+all inliers with zero reprojection error. All 128 full-corpus exports pass the
+shared importer's finite/nonzero/shape/bounds validation and all 64 pairs score.
 
 ## Evidence
 
@@ -128,8 +149,17 @@ default-transform OpenCL quality record is unchanged.
   cases. Canonical and original image hashes and reference source snapshot are kept.
 - The post-run aggregate-writing addition to the runner was validated separately
   on an identity smoke run; the full matrix used the same extraction/scoring code.
+- CUDA payload and returned exports: `/tmp/sift-cuda-quality.kLne8P`.
+- NVIDIA stage: `~/.local/share/sift-extractor-staging/sift-cuda-quality.kLne8P`.
+- CUDA pair manifest SHA256: `52b9c5c0a96dfcbc7cbfe24cc8d7fd3bebdcee9b6dd095791539893d359bccfd`.
+- Exporter/source receipt SHA256: `f42d9a4f1956c0822c067a831e8da140c35486d0cd70a01528cd31d74de3654b`.
+- Returned export manifest SHA256: `977015dfe6715b08f05f4e8f6fad04f2a6d1269e2c1435e83d92df3f71f6bca7`.
+- Five-way receipts in the SIFT workspace: `results/20261102/quality-cuda-cases.json`,
+  `quality-fiveway-cases.json` and `quality-fiveway-summary.json`. Cases are joined
+  by exact image/profile, rejecting missing or duplicate CUDA cases; all 40
+  backend/profile aggregates have eight cases. The older four-way receipts remain.
 
-Next: authenticate the NVIDIA host, build and test its adapter, process the saved
-128 images with the pinned CudaSift build, and score them locally with the same
-validator. Then expand to real viewpoint/occlusion pairs with independently known
-geometry and establish quality eligibility before selecting the product backend.
+Next: expand to real viewpoint/occlusion pairs with independently known geometry,
+compare parameter and feature-density effects, and establish quality eligibility
+before selecting the product backend. No production recovery/concurrency, held-out
+corpus or cross-device qualification gate is implied by these results.
