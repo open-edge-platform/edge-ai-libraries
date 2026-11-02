@@ -240,6 +240,31 @@ runner `results/20261102/arc-opencl-milestone.sh`, local reports
 `~/.local/share/sift-extractor-staging/arc-compaction-d266f47fcec2f0d8`.
 Manifest SHA256: `d266f47fcec2f0d852662e08c6e4453a2c2e0c28f9975439e9480ca7b8f6603b`.
 
+### Packed Gradient Launch
+
+Gaussian levels now use aligned views of a retained backing buffer when its
+size fits device-allocation and signed-index limits. Oversized layouts retain
+individual buffers and per-level gradient launches. Populated gradient planes
+are aligned to 256-element workgroups, allowing one launch with workgroup-uniform
+level lookup. Borders, hypot/atan2 and feature calculations are unchanged.
+Views are invalidated on layout changes and released before their parent.
+
+All 10 local tests and Arc's expanded regression/30 cases pass, with exactly
+identical matching-quality records. Paired rotating medians against `620b413ef`
+(60 samples/build): VGA unlimited 9.208 -> 9.389ms, VGA500 8.422 -> 8.226ms,
+1080p unlimited 26.061 -> 25.699ms, 1080p500 18.562 -> 18.806ms. These are mixed
+small changes, not a uniform speedup. Isolated unlimited medians improve from
+7.620 -> 7.291ms at VGA (137.16 FPS) and 19.591 -> 19.407ms at 1080p (51.53 FPS).
+Targets remain unmet. A separate deferred-pyramid-completion probe gave no clear
+1080p gain and was reverted; synchronous completion semantics remain unchanged.
+
+Evidence: SIFT workspace `results/20261102/arc-packed-gradients-summary.json`
+and `results/20261102/arc-packed-gradients-isolated-summary.json`; reports
+`/tmp/sift-arc-packed-gradients-results.5Pycte`; remote stage
+`~/.local/share/sift-extractor-staging/arc-packed-gradients-42a2b62249e06e3f`.
+Manifest SHA256: `42a2b62249e06e3fbe85a1fc3c3737cde4ad9d4a20f1e7dc0e546a5b137836e3`.
+All five returned executable hashes matched the staged binaries.
+
 ### Centralized Input Validation
 
 Detection/extraction now rely on the combined pyramid's finite-pixel validation,

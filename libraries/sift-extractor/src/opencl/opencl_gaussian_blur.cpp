@@ -215,6 +215,9 @@ struct OpenCLGaussianBlur::Impl {
   Buffer output;
   Buffer weights;
   std::vector<Buffer> gaussian_levels;
+  Buffer gaussian_volume;
+  std::vector<size_t> gaussian_plane_bytes;
+  bool gaussian_packed = false;
   std::vector<Buffer> dog_levels;
   std::vector<Buffer> dog_volumes;
   std::vector<size_t> dog_plane_bytes;
@@ -377,6 +380,7 @@ struct OpenCLGaussianBlur::Impl {
       if (buffer.memory) clReleaseMemObject(buffer.memory);
     for (auto &buffer : gaussian_levels)
       if (buffer.memory) clReleaseMemObject(buffer.memory);
+    if (gaussian_volume.memory) clReleaseMemObject(gaussian_volume.memory);
     if (weights.memory)
       clReleaseMemObject(weights.memory);
     if (output.memory)
@@ -623,6 +627,59 @@ void OpenCLGaussianBlur::build_pyramid(
   impl_->dog_levels.resize(std::max(impl_->dog_levels.size(), differences.size()));
   impl_->pyramid_weights.resize(std::max(impl_->pyramid_weights.size(), kernels.size()));
   impl_->cached_kernels.resize(std::max(impl_->cached_kernels.size(), kernels.size()));
+  cl_uint alignment_bits = 0;
+  check_opencl(clGetDeviceInfo(impl_->device, CL_DEVICE_MEM_BASE_ADDR_ALIGN,
+    sizeof(alignment_bits), &alignment_bits, nullptr), "Pyramid buffer alignment");
+  const size_t alignment_bytes = std::max<size_t>(1, (static_cast<size_t>(alignment_bits) + 7) / 8);
+  cl_ulong maximum_allocation = 0;
+  check_opencl(clGetDeviceInfo(impl_->device, CL_DEVICE_MAX_MEM_ALLOC_SIZE,
+    sizeof(maximum_allocation), &maximum_allocation, nullptr), "Pyramid allocation limit");
+  const size_t packed_limit = static_cast<size_t>(std::min<cl_ulong>(maximum_allocation,
+    static_cast<size_t>(std::numeric_limits<int>::max()) * sizeof(float)));
+  std::vector<size_t> plane_bytes, plane_offsets;
+  size_t packed_bytes = 0;
+  bool packed_gaussian = true;
+  for (const auto &level : gaussian) {
+    const size_t bytes = static_cast<size_t>(level.width) * level.height * sizeof(float);
+    plane_bytes.push_back(bytes);
+    plane_offsets.push_back(packed_bytes);
+    if (!packed_gaussian || bytes > packed_limit - packed_bytes) {
+      packed_gaussian = false;
+      continue;
+    }
+    packed_bytes += bytes;
+    const size_t padding = (alignment_bytes - packed_bytes % alignment_bytes) % alignment_bytes;
+    if (padding > packed_limit - packed_bytes) packed_gaussian = false;
+    else packed_bytes += padding;
+  }
+  if (impl_->gaussian_plane_bytes != plane_bytes || impl_->gaussian_packed != packed_gaussian) {
+    impl_->gaussian_plane_bytes.clear();
+    for (auto &buffer : impl_->gaussian_levels) {
+      if (buffer.memory) clReleaseMemObject(buffer.memory);
+      buffer = {};
+    }
+    cl_mem volume = packed_gaussian ? impl_->ensure_buffer(impl_->gaussian_volume,
+      CL_MEM_READ_WRITE, packed_bytes) : nullptr;
+    if (!packed_gaussian && impl_->gaussian_volume.memory) {
+      clReleaseMemObject(impl_->gaussian_volume.memory);
+      impl_->gaussian_volume = {};
+    }
+    for (size_t index = 0; index < gaussian.size(); ++index) {
+      auto &buffer = impl_->gaussian_levels[index];
+      if (volume) {
+        cl_buffer_region region{plane_offsets[index], plane_bytes[index]};
+        cl_int status = CL_SUCCESS;
+        buffer.memory = clCreateSubBuffer(volume, CL_MEM_READ_WRITE,
+          CL_BUFFER_CREATE_TYPE_REGION, &region, &status);
+        check_opencl(status, "clCreateSubBuffer(Gaussian level)");
+        buffer.capacity = plane_bytes[index];
+      } else {
+        impl_->ensure_buffer(buffer, CL_MEM_READ_WRITE, plane_bytes[index]);
+      }
+    }
+    impl_->gaussian_plane_bytes = std::move(plane_bytes);
+    impl_->gaussian_packed = packed_gaussian;
+  }
   if (device_gaussian) device_gaussian->resize(gaussian.size());
   for (size_t index = 0; index < gaussian.size(); ++index) {
     auto &level = gaussian[index];
@@ -655,10 +712,6 @@ void OpenCLGaussianBlur::build_pyramid(
   }
   impl_->dog_volumes.resize(std::max(impl_->dog_volumes.size(), dog_octaves));
   impl_->dog_plane_bytes.resize(std::max(impl_->dog_plane_bytes.size(), dog_octaves));
-  cl_uint alignment_bits = 0;
-  check_opencl(clGetDeviceInfo(impl_->device, CL_DEVICE_MEM_BASE_ADDR_ALIGN,
-    sizeof(alignment_bits), &alignment_bits, nullptr), "DoG buffer alignment");
-  const size_t alignment_bytes = std::max<size_t>(1, (static_cast<size_t>(alignment_bits) + 7) / 8);
   for (size_t octave = 0; octave < dog_octaves; ++octave) {
     const auto &level = differences[octave * dog_scales];
     const size_t bytes = static_cast<size_t>(level.width) * level.height * sizeof(float);
