@@ -9,6 +9,7 @@ import httpx
 
 from internal_types import (
     InternalCameraType,
+    InternalGigECameraDetails,
     InternalNetworkCameraDetails,
     InternalUSBCameraDetails,
 )
@@ -51,6 +52,36 @@ NET_CAMERA_WITH_PROFILES = {
         **NET_CAMERA["details"],
         "profiles": [MAIN_PROFILE],
         "best_profile": MAIN_PROFILE,
+    },
+}
+GIGE_CAMERA = {
+    "device_id": "gige-camera-basler-12345678",
+    "device_name": "Basler acA1920-25gc",
+    "device_type": "GIGE",
+    "details": {
+        "ip": "192.168.1.50",
+        "vendor": "Basler",
+        "model": "acA1920-25gc",
+        "serial": "12345678",
+        "current_capture": {
+            "pixel_format": "BayerRG8",
+            "width": 1920,
+            "height": 1080,
+            "fps": 25.0,
+        },
+    },
+}
+# Identity is unknown when the camera could not be opened during discovery.
+GIGE_CAMERA_UNKNOWN = {
+    "device_id": "gige-camera-aravis-fake",
+    "device_name": "GigE Camera 192.168.1.51",
+    "device_type": "GIGE",
+    "details": {
+        "ip": "192.168.1.51",
+        "vendor": None,
+        "model": None,
+        "serial": None,
+        "current_capture": None,
     },
 }
 
@@ -99,6 +130,45 @@ class TestCameraManager(unittest.TestCase):
         self.assertEqual(usb.best_capture.fourcc, "MJPG")
         net = cast(InternalNetworkCameraDetails, cameras[1].details)
         self.assertEqual((net.ip, net.port, net.profiles), ("192.168.1.100", 80, []))
+
+    def test_discover_all_cameras_parses_gige_cameras(self):
+        self.sensors = [USB_CAMERA, GIGE_CAMERA, GIGE_CAMERA_UNKNOWN]
+
+        cameras = self.manager.discover_all_cameras()
+
+        self.assertEqual(
+            [c.device_type for c in cameras],
+            [InternalCameraType.USB, InternalCameraType.GIGE, InternalCameraType.GIGE],
+        )
+        gige = cast(InternalGigECameraDetails, cameras[1].details)
+        self.assertEqual(
+            (gige.ip, gige.vendor, gige.model, gige.serial),
+            ("192.168.1.50", "Basler", "acA1920-25gc", "12345678"),
+        )
+        assert gige.current_capture is not None
+        self.assertEqual(gige.current_capture.pixel_format, "BayerRG8")
+        self.assertEqual(
+            (gige.current_capture.width, gige.current_capture.height), (1920, 1080)
+        )
+        self.assertEqual(gige.current_capture.fps, 25.0)
+        unknown = cast(InternalGigECameraDetails, cameras[2].details)
+        self.assertEqual(unknown.ip, "192.168.1.51")
+        self.assertIsNone(unknown.serial)
+        self.assertIsNone(unknown.current_capture)
+
+    def test_get_gige_camera_details_by_ip(self):
+        self.sensors = [GIGE_CAMERA, GIGE_CAMERA_UNKNOWN]
+        self.manager.discover_all_cameras()
+
+        known = self.manager.get_gige_camera_details_by_ip("192.168.1.50")
+        unknown = self.manager.get_gige_camera_details_by_ip("192.168.1.51")
+
+        assert known is not None
+        self.assertEqual(known.serial, "12345678")
+        assert unknown is not None
+        self.assertIsNone(unknown.serial)
+        self.assertIsNone(self.manager.get_gige_camera_details_by_ip("12345678"))
+        self.assertIsNone(self.manager.get_gige_camera_details_by_ip(""))
 
     def test_discover_all_cameras_returns_cache_when_service_unavailable(self):
         self.manager.discover_all_cameras()
