@@ -1,3 +1,4 @@
+import importlib
 import io
 import json
 import os
@@ -6,6 +7,7 @@ import tempfile
 import unittest
 from types import ModuleType
 from types import MethodType
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from pipeline import Pipeline
@@ -514,6 +516,60 @@ class WhisperCppQuantizationTests(unittest.TestCase):
                 asr = WhisperCpp(model_name="whisper-small", device="CPU")
 
         self.assertEqual(asr.n_threads, 22)
+
+
+class OpenVINOGenAIWhisperTests(unittest.TestCase):
+    """The NPU Whisper pipeline runs without timestamps; CPU and GPU keep them."""
+
+    def _transcribe(self, device):
+        generate_calls = []
+
+        class FakeChunk:
+            def __init__(self, start_ts, end_ts, text):
+                self.start_ts = start_ts
+                self.end_ts = end_ts
+                self.text = text
+
+        class FakeWhisperPipeline:
+            def __init__(self, model_path, device):
+                del model_path, device
+
+            def generate(self, audio, **kwargs):
+                del audio
+                generate_calls.append(kwargs)
+                chunks = [FakeChunk(0.2, 0.8, " hello")] if kwargs.get("return_timestamps") else None
+                return SimpleNamespace(texts=[" hello"], chunks=chunks)
+
+        fake_ov_genai = ModuleType("openvino_genai")
+        fake_ov_genai.WhisperPipeline = FakeWhisperPipeline
+        one_second = ([0.0] * 16000, 16000)
+
+        # Import a fresh copy of the backend against the fake openvino_genai.
+        # Other test modules replace backend modules in sys.modules with
+        # stubs; patch.dict restores sys.modules afterwards.
+        with patch.dict(sys.modules, {"openvino_genai": fake_ov_genai}):
+            sys.modules.pop("components.asr.openvino_genai.whisper", None)
+            ov_genai_whisper = importlib.import_module("components.asr.openvino_genai.whisper")
+            with patch.object(ov_genai_whisper, "get_asr_model_path", return_value="/tmp/models"), patch.object(
+                ov_genai_whisper.Whisper, "_load_wav_mono_16k", return_value=one_second
+            ):
+                asr = ov_genai_whisper.Whisper(model_name="whisper-small", device=device)
+                result = asr.transcribe("/tmp/audio.wav")
+
+        return generate_calls[0], result
+
+    def test_return_timestamps_is_off_on_npu_only(self):
+        for device, expected in (("CPU", True), ("GPU", True), ("GPU.0", True),
+                                 ("NPU", False), ("npu", False), ("NPU.0", False)):
+            with self.subTest(device=device):
+                generate_kwargs, _ = self._transcribe(device)
+                self.assertIs(generate_kwargs["return_timestamps"], expected)
+
+    def test_npu_result_is_one_segment_for_the_clip(self):
+        _, result = self._transcribe("NPU")
+
+        self.assertEqual(result["text"], " hello")
+        self.assertEqual(result["segments"], [{"start": 0.0, "end": 1.0, "text": " hello"}])
 
 
 class OpenAIWhisperConfigTests(unittest.TestCase):
