@@ -10,6 +10,72 @@ its correspondence count. This requirement is not yet demonstrated. OpenCV remai
 a diagnostic reference. complete-gpu-sift is excluded from further acceptance work
 and will not be repaired; its results below are historical evidence only.
 
+## Compact Orientation Handoff
+
+Checkpoint 49 changes host handoff and membership lookup, not SIFT arithmetic,
+settings or matching. Resident extraction no longer copies the dense 36-bin angle
+grid to the CPU. The existing stable GPU orientation packer writes compact source
+indices and angles beside the descriptor inputs; the CPU consumes these records
+in the same order. Lossless descriptor-capacity growth/retry remains unchanged.
+Exact localized-point deduplication uses a reserved hash set for membership only,
+never for output iteration, preserving first occurrence and float equality.
+Decoded host refinement records also reserve their known upper bound.
+
+An independent ordered-set test reconstructs raw detect/refine output across four
+interval/sigma configurations, exercising 25 actual localization collisions on Arc.
+Existing exact host/resident features, secondary orientations, capacity growth,
+shrink/blank reuse and reconfiguration tests pass. All 11 local CTest cases pass.
+Twelve complete independent-image exports are byte-identical to the baseline:
+three shared images (1280x960 speed input and native 800x640 graf views), each with
+default, cap-500, contrast-0.1 and sigma-1 settings. This includes positions,
+descriptors and export metadata, not just aggregate scores. Every reported OpenCL
+quality field is also identical across all 120 measured processes.
+
+Unprofiled Arc runs use alternating before/after and after/before fresh-process
+pairs, three warmups and 30 samples/process. Default cases have 12 pairs and 360
+samples/build; controls have six pairs and 180 samples/build. Inputs, resizing,
+timing scope and development-only quality rules match the previous speed fixture.
+The immutable baseline is checkpoint 48 (its validator is identical to 47).
+
+| Configuration | Size | Before (ms) | After (ms) | Latency Reduction |
+| --- | --- | --- | --- | --- |
+| Default | 640x480 | 5.942807 | 5.863901 | 1.33% |
+| Default | 1920x1080 | 18.440068 | 17.677267 | 4.14% |
+| Cap 500 | 640x480 | 5.980800 | 5.877607 | 1.73% |
+| Cap 500 | 1920x1080 | 15.448220 | 14.976697 | 3.05% |
+| Contrast 0.1 | 640x480 | 6.118731 | 5.971379 | 2.41% |
+| Contrast 0.1 | 1920x1080 | 20.076443 | 19.402758 | 3.36% |
+| Sigma 1 | 640x480 | 5.851041 | 5.652655 | 3.39% |
+| Sigma 1 | 1920x1080 | 21.767458 | 19.849405 | 8.81% |
+
+These are pooled median latencies, not release-qualified performance. Default
+throughput becomes 170.53/56.57 FPS. A 10,000-draw paired fresh-process bootstrap
+of median paired latency reductions gives 95% intervals of 0.92-1.78% for default
+VGA, 3.84-4.32% for default 1080p, and 8.51-9.10% for sigma-1 1080p. These are
+within-host exploratory intervals, not a held-out or multi-host release gate.
+The default gain remains below the 5% meaningful backend-selection threshold.
+
+The initial six default VGA pairs had p95 6.225 -> 6.555 ms (+5.29%), triggering
+six additional default pairs. Preserve both results: combined p95 is 6.442 ->
+6.507 ms (+1.00%); follow-up-only p95 is 6.574 -> 6.334 ms. The initial tail increase
+did not persist, but this sequential investigation is not an independent release
+qualification. All measured case medians improve; no measured final p95 regresses
+more than 5%. SYCL performance was not remeasured or modified in this checkpoint.
+
+`SIFT_OPENCL_PROFILE=1` additionally emits `OPENCL_HOST_DETECTION_PROFILE` with
+`parse_dedup_map_ms` and localized keypoint count, only for resident detection.
+This times host decoding/deduplication/mapping after GPU completion, not the
+detection kernels. Profiling forces other waits and is kept out of acceptance
+timings; short screening profiles are not isolated causal speed measurements.
+
+Evidence: workspace `results/20261102/compact-orientation-handoff/`, including
+both preliminary screens, exact binaries/patches, full exports, initial and
+follow-up timing reports, reproducible analysis, raw archive and checksum receipts.
+Arc stage `compact-final-431c8b0f83a0429f`, payload manifest
+`431c8b0f83a0429fb327441195cf2c5e81904ac2e21d58c7a3614419dcf7697e`.
+Quality remains below the required demonstrated CudaSift floor; no reference
+changed, CUDA rerun, held-out acquisition, backend selection or Python work occurred.
+
 ## Profiled Optimization Probes
 
 Checkpoint 48 retains tests and diagnostic evidence only. Both performance probes

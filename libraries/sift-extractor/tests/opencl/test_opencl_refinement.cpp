@@ -181,6 +181,7 @@ int main() {
     std::vector<float> noise(noise_width * noise_height);
     for (auto &value : noise) value = static_cast<float>(generator() & 255);
     sift_extractor::detail::OpenCLGaussianPyramid collision_pyramid;
+    size_t localized_collisions = 0;
     for (const int intervals : {3, 5}) {
       for (const float sigma : {1.0f, 1.6f}) {
         const auto points = detector.detect_image(noise, noise_width,
@@ -190,6 +191,31 @@ int main() {
         const auto host_points = detector.detect_pyramid(host_levels.differences,
             3, intervals, sigma, 0.1f, 12.1f);
         if (points.empty() || points.size() != host_points.size()) return 1;
+        size_t expected_index = 0;
+        for (int octave = 0; octave < 3; ++octave) {
+          const auto begin = host_levels.differences.begin() + octave * (intervals + 2);
+          const std::vector<sift_extractor::detail::DoGLevel> octave_levels(
+              begin, begin + intervals + 2);
+          const auto candidates = detector.detect(octave_levels, 0.1f);
+          const auto raw_points = detector.refine(octave_levels, candidates, 0.1f, 12.1f);
+          std::set<std::array<float, 3>> first_locations;
+          for (const auto &expected : raw_points) {
+            if (!first_locations.insert({expected.x, expected.y, expected.scale}).second) {
+              ++localized_collisions;
+              continue;
+            }
+            if (expected_index >= host_points.size()) return 1;
+            const auto &actual = host_points[expected_index++];
+            if (actual.octave != octave || actual.local.x != expected.x ||
+                actual.local.y != expected.y || actual.local.scale != expected.scale ||
+                actual.local.response != expected.response ||
+                actual.local.edge_response != expected.edge_response) {
+              std::fprintf(stderr, "Deduplication changed first-occurrence point ordering\n");
+              return 1;
+            }
+          }
+        }
+        if (expected_index != host_points.size()) return 1;
         for (size_t index = 0; index < points.size(); ++index) {
           const auto &actual = points[index];
           const auto &expected = host_points[index];
@@ -215,6 +241,9 @@ int main() {
         }
       }
     }
+    if (localized_collisions == 0) return 1;
+    std::printf("Independent ordered-set reference preserved first occurrences across %zu collisions\n",
+                localized_collisions);
 
     size_t compacted_checks = 0;
     for (const auto shape : {std::array<int, 3>{3, 3, 3},

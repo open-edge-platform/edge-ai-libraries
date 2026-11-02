@@ -10,17 +10,27 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <functional>
 #include <limits>
 #include <memory>
-#include <set>
 #include <stdexcept>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 namespace sift_extractor::detail {
 namespace {
 
 constexpr size_t candidate_block_size = 64;
+
+struct LocationHash {
+  size_t operator()(const std::array<float, 3> &location) const noexcept {
+    size_t result = 0;
+    for (float coordinate : location)
+      result ^= std::hash<float>{}(coordinate) + 0x9e3779b9U + (result << 6) + (result >> 2);
+    return result;
+  }
+};
 
 constexpr const char *kernel_source = R"CLC(
 #ifdef cl_intel_subgroups
@@ -607,13 +617,19 @@ __kernel void sift_descriptors(__global const float *magnitude,
   }
 }
 
+typedef struct {
+  uint point;
+  float angle;
+} OrientationSourceData;
+
 __kernel void pack_orientations(__global const float *points,
                                  __global const float *angles,
                                  __global const int *layout,
                                  __global const uint *offsets,
                                  __global float *packed,
                                  __global int *packed_layout,
-                                 const int point_count, const int capacity) {
+                                 const int point_count, const int capacity,
+                                 __global OrientationSourceData *sources) {
   const int index = (int)get_global_id(0);
   if (index >= point_count) return;
   uint destination = offsets[index];
@@ -626,6 +642,8 @@ __kernel void pack_orientations(__global const float *points,
         packed_layout[destination * 3 + coordinate] = layout[index * 3 + coordinate];
       }
       packed[destination * 4 + 3] = angle;
+      sources[destination].point = (uint)index;
+      sources[destination].angle = angle;
     }
     ++destination;
   }
@@ -681,6 +699,11 @@ cl_device_id select_intel_gpu() {
 } // namespace
 
 struct OpenCLDoGExtrema::Impl {
+  struct OrientationSource {
+    cl_uint point;
+    cl_float angle;
+  };
+  static_assert(sizeof(OrientationSource) == sizeof(cl_uint) + sizeof(cl_float));
   struct Buffer {
     cl_mem memory = nullptr;
     size_t capacity = 0;
@@ -688,13 +711,13 @@ struct OpenCLDoGExtrema::Impl {
   struct FeatureScratch {
     Buffer magnitude, orientation, points, output, layout;
     Buffer gradient_layout;
-    Buffer counts, descriptor_points, descriptor_layout, descriptors;
+    Buffer counts, descriptor_points, descriptor_layout, descriptors, orientation_sources;
     size_t descriptor_capacity = 0;
     cl_event event = nullptr;
     cl_event descriptor_event = nullptr;
     ~FeatureScratch() {
       for (auto *buffer : {&magnitude, &orientation, &points, &output, &layout, &gradient_layout,
-               &counts, &descriptor_points, &descriptor_layout, &descriptors})
+               &counts, &descriptor_points, &descriptor_layout, &descriptors, &orientation_sources})
         if (buffer->memory) clReleaseMemObject(buffer->memory);
       if (event) clReleaseEvent(event);
       if (descriptor_event) clReleaseEvent(descriptor_event);
@@ -836,7 +859,8 @@ struct OpenCLDoGExtrema::Impl {
       scratch_bytes += scratch->magnitude.capacity + scratch->orientation.capacity +
         scratch->points.capacity + scratch->output.capacity + scratch->layout.capacity +
         scratch->gradient_layout.capacity + scratch->counts.capacity +
-        scratch->descriptor_points.capacity + scratch->descriptor_layout.capacity + scratch->descriptors.capacity;
+        scratch->descriptor_points.capacity + scratch->descriptor_layout.capacity + scratch->descriptors.capacity +
+        scratch->orientation_sources.capacity;
       auto &event = std::string(name) == "sift_descriptors" && scratch->descriptor_event
         ? scratch->descriptor_event : scratch->event;
       if (!event) continue;
@@ -857,7 +881,8 @@ struct OpenCLDoGExtrema::Impl {
   std::vector<float> run_feature_kernel(const char *name,
       const GaussianLevel &level, const std::vector<float> &points,
       size_t output_stride, cl_mem device_image = nullptr,
-      FeatureScratch *scratch = nullptr, const std::vector<int> *layout = nullptr) {
+      FeatureScratch *scratch = nullptr, const std::vector<int> *layout = nullptr,
+      bool read_output = true) {
     const auto feature_start = std::chrono::steady_clock::now();
     const bool profiling = profile_features;
     struct ProfileEvent {
@@ -894,9 +919,9 @@ struct OpenCLDoGExtrema::Impl {
       CL_MEM_READ_WRITE, image_bytes);
     cl_mem points_buffer = ensure_buffer(scratch ? scratch->points : feature_points, CL_MEM_READ_ONLY,
                         points.size() * sizeof(float));
-    std::vector<float> output(count * output_stride);
+    std::vector<float> output(read_output ? count * output_stride : 0);
     cl_mem output_buffer = ensure_buffer(scratch ? scratch->output : feature_output, CL_MEM_READ_WRITE,
-                        output.size() * sizeof(float));
+              count * output_stride * sizeof(float));
     cl_mem layout_buffer = layout ? ensure_buffer(scratch->layout, CL_MEM_READ_ONLY,
       layout->size() * sizeof(int)) : points_buffer;
     try {
@@ -931,7 +956,7 @@ struct OpenCLDoGExtrema::Impl {
     check_opencl(clEnqueueNDRangeKernel(queue, feature_kernel, 1, nullptr,
       &global_size, &local_size, 0, nullptr,
       profiling ? (scratch ? &scratch->event : &feature_event.value) : nullptr), "feature kernel launch");
-    check_opencl(clEnqueueReadBuffer(queue, output_buffer, scratch ? CL_FALSE : CL_TRUE, 0,
+    if (read_output) check_opencl(clEnqueueReadBuffer(queue, output_buffer, scratch ? CL_FALSE : CL_TRUE, 0,
         output.size() * sizeof(float), output.data(), 0, nullptr, nullptr), "feature readback");
     if (profiling && !scratch) {
       cl_ulong start = 0, end = 0;
@@ -953,7 +978,8 @@ struct OpenCLDoGExtrema::Impl {
     }
   }
 
-  std::vector<float> resident_descriptors(FeatureScratch &scratch, size_t point_count) {
+  std::vector<float> resident_descriptors(FeatureScratch &scratch, size_t point_count,
+      std::vector<OrientationSource> &sources) {
     const size_t limit = static_cast<size_t>(std::numeric_limits<int>::max()) / 128;
     if (point_count > static_cast<size_t>(std::numeric_limits<int>::max()) / 36)
       throw std::overflow_error("Too many resident orientation points");
@@ -985,6 +1011,8 @@ struct OpenCLDoGExtrema::Impl {
           scratch.descriptor_capacity * 3 * sizeof(int));
         cl_mem descriptors = ensure_buffer(scratch.descriptors, CL_MEM_WRITE_ONLY,
           scratch.descriptor_capacity * 128 * sizeof(float));
+        cl_mem source_records = ensure_buffer(scratch.orientation_sources, CL_MEM_WRITE_ONLY,
+          scratch.descriptor_capacity * sizeof(OrientationSource));
         const cl_mem memories[] = {scratch.points.memory, scratch.output.memory, scratch.layout.memory,
                                   counts, points, layout};
         for (cl_uint argument = 0; argument < 6; ++argument)
@@ -992,6 +1020,8 @@ struct OpenCLDoGExtrema::Impl {
             &memories[argument]), "orientation packing memory");
         check_opencl(clSetKernelArg(orientation_pack_kernel, 6, sizeof(count), &count), "orientation packing count");
         check_opencl(clSetKernelArg(orientation_pack_kernel, 7, sizeof(capacity), &capacity), "orientation packing capacity");
+        check_opencl(clSetKernelArg(orientation_pack_kernel, 8, sizeof(source_records), &source_records),
+          "orientation source records");
         check_opencl(clEnqueueNDRangeKernel(queue, orientation_pack_kernel, 1, nullptr,
           &point_count, nullptr, 0, nullptr, nullptr), "orientation packing launch");
         cl_kernel descriptor = get_feature_kernel("sift_descriptors");
@@ -1014,10 +1044,15 @@ struct OpenCLDoGExtrema::Impl {
           &descriptor_lanes, 0, nullptr, profile_features ? &scratch.descriptor_event : nullptr),
           "resident descriptor launch");
         output.resize(scratch.descriptor_capacity * 128);
+        sources.resize(scratch.descriptor_capacity);
+        check_opencl(clEnqueueReadBuffer(queue, source_records, CL_FALSE, 0,
+          sources.size() * sizeof(OrientationSource), sources.data(), 0, nullptr, nullptr),
+          "orientation source readback");
         check_opencl(clEnqueueReadBuffer(queue, descriptors, CL_FALSE, 0,
           output.size() * sizeof(float), output.data(), 0, nullptr, nullptr), "resident descriptor readback");
         check_opencl(clFinish(queue), "resident feature completion");
         if (total <= scratch.descriptor_capacity) {
+          sources.resize(static_cast<size_t>(total));
           output.resize(static_cast<size_t>(total) * 128);
           return output;
         }
@@ -1635,12 +1670,15 @@ std::vector<ScaleSpaceKeypoint> OpenCLDoGExtrema::detect_pyramid_impl(
       throw;
     }
   }
+  const auto host_start = impl_->profile_features && device_levels ? std::chrono::steady_clock::now() :
+      std::chrono::steady_clock::time_point{};
   for (int octave = 0; octave < octave_count; ++octave) {
     const auto begin = dog_levels.begin() +
                        static_cast<size_t>(octave) * levels_per_octave;
     std::vector<RefinedKeypoint> refined;
     if (device_levels) {
       const auto &output = impl_->detection_scratch[octave]->output;
+      refined.reserve(output.size() / 6);
       for (size_t index = 0; index < output.size(); index += 6) {
         const float *values = output.data() + index;
         if (values[5] != 0.0f)
@@ -1651,7 +1689,8 @@ std::vector<ScaleSpaceKeypoint> OpenCLDoGExtrema::detect_pyramid_impl(
         contrast_threshold, edge_limit);
     }
     const float image_factor = std::ldexp(1.0f, octave);
-    std::set<std::array<float, 3>> locations;
+    std::unordered_set<std::array<float, 3>, LocationHash> locations;
+    locations.reserve(refined.size());
     for (const auto &point : refined) {
       if (!locations.insert({point.x, point.y, point.scale}).second) continue;
       const float octave_sigma =
@@ -1662,6 +1701,12 @@ std::vector<ScaleSpaceKeypoint> OpenCLDoGExtrema::detect_pyramid_impl(
       result.push_back({point, octave, point.x * image_factor,
                         point.y * image_factor, octave_sigma, image_sigma});
     }
+  }
+  if (impl_->profile_features && device_levels) {
+    const double host_ms = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - host_start).count();
+    std::fprintf(stderr, "OPENCL_HOST_DETECTION_PROFILE parse_dedup_map_ms=%.3f keypoints=%zu resident=%d\n",
+        host_ms, result.size(), static_cast<int>(device_levels != nullptr));
   }
   return result;
 }
@@ -1780,7 +1825,8 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
   double orientation_ms = 0.0;
   double descriptor_ms = 0.0;
   size_t feature_groups = 0;
-  std::vector<float> packed, angles, descriptors;
+  std::vector<float> packed, descriptors;
+  std::vector<Impl::OrientationSource> orientation_sources;
   std::vector<int> layout, gradient_layout, image_offsets(groups.size());
   std::vector<ScaleSpaceKeypoint> ordered_points;
   std::vector<OrientedKeypoint> oriented;
@@ -1862,22 +1908,19 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
       if (!packed_gradients)
         impl_->prepare_gradients(gaussian[group], levels.device_gaussian[group], scratch, image_offsets[group]);
     }
-    angles = impl_->run_feature_kernel("sift_orientations", gaussian.front(), packed,
-      36, levels.device_gaussian.front(), scratch, &layout);
+    impl_->run_feature_kernel("sift_orientations", gaussian.front(), packed,
+      36, levels.device_gaussian.front(), scratch, &layout, false);
     const auto descriptor_start = std::chrono::steady_clock::now();
     orientation_ms = std::chrono::duration<double, std::milli>(descriptor_start - orientation_start).count();
-    descriptors = impl_->resident_descriptors(*scratch, ordered_points.size());
+    descriptors = impl_->resident_descriptors(*scratch, ordered_points.size(), orientation_sources);
     impl_->report_feature_profile("sift_orientations");
     impl_->report_feature_profile("sift_descriptors");
     oriented.reserve(descriptors.size() / 128);
     result.reserve(descriptors.size() / 128);
-    for (size_t index = 0; index < ordered_points.size(); ++index) {
-      const auto &point = ordered_points[index];
-      for (size_t bin = 0; bin < 36; ++bin) {
-        const float angle = angles[index * 36 + bin];
-        if (!(angle >= 0.0f)) continue;
-        oriented.push_back({point, angle});
-      }
+    for (const auto &source : orientation_sources) {
+      if (source.point >= ordered_points.size() || !(source.angle >= 0.0f))
+        throw std::logic_error("Invalid resident orientation source");
+      oriented.push_back({ordered_points[source.point], source.angle});
     }
     if (descriptors.size() != oriented.size() * 128)
       throw std::logic_error("Resident descriptor count does not match orientations");
