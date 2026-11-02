@@ -99,23 +99,25 @@ export const Instances = () => {
         </CardContent>
       </Card>
 
-      <Table className="border rounded-lg">
+      <Table className="min-w-[70rem] table-fixed border rounded-lg">
         <TableHeader className="bg-muted">
           <TableRow>
-            <TableHead>Name</TableHead>
+            <TableHead className="w-56">Name</TableHead>
             <TableHead>URL</TableHead>
-            <TableHead>Platform</TableHead>
-            <TableHead>Version</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead className="text-center">Included</TableHead>
-            <TableHead className="w-[3.5rem]" />
+            <TableHead className="w-80">Platform</TableHead>
+            <TableHead className="w-28">Version</TableHead>
+            <TableHead className="w-28">Status</TableHead>
+            <TableHead className="w-24 text-center">Included</TableHead>
+            <TableHead className="w-14" />
           </TableRow>
         </TableHeader>
         <TableBody>
           {instances?.map(instance => (
             <TableRow key={instance.id}>
-              <TableCell className="font-medium">{instance.name}</TableCell>
-              <TableCell>
+              <TableCell className="truncate font-medium" title={instance.name}>
+                {instance.name}
+              </TableCell>
+              <TableCell className="truncate">
                 <a
                   href={instance.url}
                   target="_blank"
@@ -125,7 +127,7 @@ export const Instances = () => {
                   {instance.url}
                 </a>
               </TableCell>
-              <TableCell className="max-w-[20rem]">
+              <TableCell>
                 <div className="truncate font-medium">
                   {cpuGeneration(instance.cpu) || "–"}
                 </div>
@@ -133,7 +135,12 @@ export const Instances = () => {
                   {formatDeviceName(instance.cpu) || "–"}
                 </div>
               </TableCell>
-              <TableCell>{instance.version ?? "–"}</TableCell>
+              <TableCell
+                className="truncate"
+                title={instance.version ?? undefined}
+              >
+                {instance.version ?? "–"}
+              </TableCell>
               <TableCell>
                 {instance.reachable ? (
                   <Badge variant="success">

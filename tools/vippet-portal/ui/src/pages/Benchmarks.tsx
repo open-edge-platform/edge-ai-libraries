@@ -31,6 +31,7 @@ import {
 import { CONTENT_CONTAINER_CLASS } from "@/lib/utils";
 import { EMPTY_DATE_RANGE, isWithinDateRange } from "@/lib/dateRange";
 import { formatTimestamp } from "@/lib/timeUtils";
+import { COLUMN_WIDTH } from "@/lib/tableColumns";
 import { formatDuration, formatMetric } from "@/lib/format";
 import { Label } from "@/components/ui/label";
 
@@ -154,20 +155,30 @@ export const Benchmarks = () => {
       {isLoading ? (
         <Skeleton className="h-64 w-full" />
       ) : (
-        <Table className="border rounded-lg">
+        <Table className="min-w-[79rem] table-fixed border rounded-lg">
           <TableHeader className="bg-muted">
             <TableRow>
-              <TableHead className="w-[3rem]" />
-              <TableHead>Machine</TableHead>
+              <TableHead className={COLUMN_WIDTH.select} />
+              <TableHead className={COLUMN_WIDTH.machine}>Machine</TableHead>
               <TableHead>Suite</TableHead>
-              <TableHead>Run</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead className="text-right">Duration</TableHead>
-              <TableHead className="text-right">Overall</TableHead>
-              <TableHead className="text-right">Perf</TableHead>
-              <TableHead className="text-right">Efficiency</TableHead>
-              <TableHead className="text-right">Pass rate</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead className={COLUMN_WIDTH.run}>Run</TableHead>
+              <TableHead className={COLUMN_WIDTH.date}>Date</TableHead>
+              <TableHead className={`${COLUMN_WIDTH.duration} text-right`}>
+                Duration
+              </TableHead>
+              <TableHead className={`${COLUMN_WIDTH.score} text-right`}>
+                Overall
+              </TableHead>
+              <TableHead className={`${COLUMN_WIDTH.score} text-right`}>
+                Perf
+              </TableHead>
+              <TableHead className={`${COLUMN_WIDTH.score} text-right`}>
+                Efficiency
+              </TableHead>
+              <TableHead className={`${COLUMN_WIDTH.score} text-right`}>
+                Pass rate
+              </TableHead>
+              <TableHead className={COLUMN_WIDTH.state}>Status</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -193,10 +204,18 @@ export const Benchmarks = () => {
                       aria-label={`Select run ${run.ref}`}
                     />
                   </TableCell>
-                  <TableCell className="font-medium">
+                  <TableCell
+                    className="truncate font-medium"
+                    title={run.instance_name}
+                  >
                     {run.instance_name}
                   </TableCell>
-                  <TableCell>{run.suite_name ?? run.suite_slug}</TableCell>
+                  <TableCell
+                    className="truncate"
+                    title={run.suite_name ?? run.suite_slug}
+                  >
+                    {run.suite_name ?? run.suite_slug}
+                  </TableCell>
                   <TableCell className="font-mono text-xs">#{run.id}</TableCell>
                   <TableCell>{formatTimestamp(run.start_time)}</TableCell>
                   <TableCell className="text-right tabular-nums">

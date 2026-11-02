@@ -19,6 +19,7 @@ import {
 } from "@/api/portalApi";
 import { formatDuration, formatMetric } from "@/lib/format";
 import { formatTimestamp } from "@/lib/timeUtils";
+import { COLUMN_WIDTH } from "@/lib/tableColumns";
 
 const compareHref = (experiment: TestExperiment) => {
   const refs = experiment.runs
@@ -51,14 +52,20 @@ export const TestExperimentsTable = ({
   if (isLoading) return <Skeleton className="h-40 w-full" />;
 
   return (
-    <Table className="border rounded-lg">
+    <Table className="min-w-[67rem] table-fixed border rounded-lg">
       <TableHeader className="bg-muted">
         <TableRow>
           <TableHead>Machine</TableHead>
-          <TableHead className="text-right">Duration</TableHead>
-          <TableHead className="text-right">{metricHeader}</TableHead>
-          <TableHead className="text-right">Per-stream FPS</TableHead>
-          <TableHead>State</TableHead>
+          <TableHead className={`${COLUMN_WIDTH.duration} text-right`}>
+            Duration
+          </TableHead>
+          <TableHead className={`${COLUMN_WIDTH.metric} text-right`}>
+            {metricHeader}
+          </TableHead>
+          <TableHead className={`${COLUMN_WIDTH.metric} text-right`}>
+            Per-stream FPS
+          </TableHead>
+          <TableHead className={COLUMN_WIDTH.state}>State</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -112,7 +119,10 @@ export const TestExperimentsTable = ({
               <TableRow
                 key={`test-experiment-${experiment.id}-${run.instance_id}`}
               >
-                <TableCell className="pl-8 font-medium">
+                <TableCell
+                  className="truncate pl-8 font-medium"
+                  title={run.error ?? run.instance_name}
+                >
                   {run.instance_name}
                   {run.error ? (
                     <span className="ml-2 text-sm font-normal text-destructive">

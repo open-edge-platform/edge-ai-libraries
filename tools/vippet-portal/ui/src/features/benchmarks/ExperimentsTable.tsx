@@ -19,6 +19,7 @@ import {
 } from "@/api/portalApi";
 import { formatMetric } from "@/lib/format";
 import { formatElapsedTimeMillis, formatTimestamp } from "@/lib/timeUtils";
+import { COLUMN_WIDTH } from "@/lib/tableColumns";
 
 const compareHref = (experiment: Experiment) => {
   const refs = experiment.runs
@@ -39,16 +40,24 @@ export const ExperimentsTable = () => {
   if (isLoading) return <Skeleton className="h-40 w-full" />;
 
   return (
-    <Table className="border rounded-lg">
+    <Table className="min-w-[58rem] table-fixed border rounded-lg">
       <TableHeader className="bg-muted">
         <TableRow>
           <TableHead>Machine</TableHead>
-          <TableHead className="w-[14rem]">Progress</TableHead>
-          <TableHead className="text-right">Duration</TableHead>
-          <TableHead className="text-right">Overall</TableHead>
-          <TableHead className="text-right">Perf</TableHead>
-          <TableHead className="text-right">Efficiency</TableHead>
-          <TableHead>State</TableHead>
+          <TableHead className={COLUMN_WIDTH.progress}>Progress</TableHead>
+          <TableHead className={`${COLUMN_WIDTH.duration} text-right`}>
+            Duration
+          </TableHead>
+          <TableHead className={`${COLUMN_WIDTH.score} text-right`}>
+            Overall
+          </TableHead>
+          <TableHead className={`${COLUMN_WIDTH.score} text-right`}>
+            Perf
+          </TableHead>
+          <TableHead className={`${COLUMN_WIDTH.score} text-right`}>
+            Efficiency
+          </TableHead>
+          <TableHead className={COLUMN_WIDTH.state}>State</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -108,12 +117,18 @@ export const ExperimentsTable = () => {
                 <TableRow
                   key={`experiment-${experiment.id}-${run.instance_id}`}
                 >
-                  <TableCell className="pl-8 font-medium">
+                  <TableCell
+                    className="truncate pl-8 font-medium"
+                    title={run.instance_name}
+                  >
                     {run.instance_name}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="truncate">
                     {run.error ? (
-                      <span className="text-sm text-destructive">
+                      <span
+                        className="text-sm text-destructive"
+                        title={run.error}
+                      >
                         {run.error}
                       </span>
                     ) : total ? (

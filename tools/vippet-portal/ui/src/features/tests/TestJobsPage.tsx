@@ -38,6 +38,7 @@ import {
 import { CONTENT_CONTAINER_CLASS } from "@/lib/utils";
 import { EMPTY_DATE_RANGE, isWithinDateRange } from "@/lib/dateRange";
 import { formatTimestamp } from "@/lib/timeUtils";
+import { COLUMN_WIDTH } from "@/lib/tableColumns";
 import { formatDuration, formatMetric } from "@/lib/format";
 
 const ALL = "__all__";
@@ -172,17 +173,23 @@ export const TestJobsPage = ({ kind }: { kind: TestKind }) => {
       {isLoading ? (
         <Skeleton className="h-64 w-full" />
       ) : (
-        <Table className="border rounded-lg">
+        <Table className="min-w-[67rem] table-fixed border rounded-lg">
           <TableHeader className="bg-muted">
             <TableRow>
-              <TableHead className="w-[3rem]" />
-              <TableHead>Machine</TableHead>
+              <TableHead className={COLUMN_WIDTH.select} />
+              <TableHead className={COLUMN_WIDTH.machine}>Machine</TableHead>
               <TableHead>Workload</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead className="text-right">Duration</TableHead>
-              <TableHead className="text-right">{copy.metricHeader}</TableHead>
-              <TableHead className="text-right">Per-stream FPS</TableHead>
-              <TableHead>State</TableHead>
+              <TableHead className={COLUMN_WIDTH.date}>Date</TableHead>
+              <TableHead className={`${COLUMN_WIDTH.duration} text-right`}>
+                Duration
+              </TableHead>
+              <TableHead className={`${COLUMN_WIDTH.metric} text-right`}>
+                {copy.metricHeader}
+              </TableHead>
+              <TableHead className={`${COLUMN_WIDTH.metric} text-right`}>
+                Per-stream FPS
+              </TableHead>
+              <TableHead className={COLUMN_WIDTH.state}>State</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -208,10 +215,13 @@ export const TestJobsPage = ({ kind }: { kind: TestKind }) => {
                       aria-label={`Select job ${job.id}`}
                     />
                   </TableCell>
-                  <TableCell className="font-medium">
+                  <TableCell
+                    className="truncate font-medium"
+                    title={job.instance_name}
+                  >
                     {job.instance_name}
                   </TableCell>
-                  <TableCell className="max-w-[24rem] truncate">
+                  <TableCell className="truncate">
                     {job.workload ? (
                       <Tooltip>
                         <TooltipTrigger asChild>
