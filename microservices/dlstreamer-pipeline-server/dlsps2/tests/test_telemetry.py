@@ -145,7 +145,8 @@ class TestCollect:
         inst = _instance(start_time=100.0, first_frame_time=None)
         metrics = _by_name(PipelineMetrics(_FakeManager([inst]), 30.0).collect())
 
-        assert set(metrics) == {"pipeline_start_timestamp_seconds"}
+        assert set(metrics) == {"pipeline_running", "pipeline_start_timestamp_seconds"}
+        assert metrics["pipeline_running"][0] == 1.0
 
     def test_pipeline_id_is_the_only_attribute(self):
         named = _instance("n", avg_fps=1.0, name="user_defined_pipelines", version="pdd")
@@ -190,12 +191,17 @@ class TestFinishedRetention:
         clock.now = 30.0
         assert metrics.collect() == []
 
-    def test_finished_instance_without_values_is_not_retained(self):
+    def test_finished_instance_without_values_reports_only_that_it_stopped(self):
         clock = _Clock()
         metrics = PipelineMetrics(_FakeManager(), retention_seconds=30.0, clock=clock)
+        inst = _instance()
+        inst.state = PipelineState.ERROR
 
-        metrics.on_finished(_instance())
+        metrics.on_finished(inst)
 
+        # pipeline_running drops to 0, so a backend does not keep the last 1 for a stopped pipeline.
+        assert metrics.collect() == [("pipeline_running", 0.0, {"pipeline_id": "a"})]
+        clock.now = 30.0
         assert metrics.collect() == []
 
     def test_restarted_instance_is_not_reported_twice(self):
@@ -211,7 +217,10 @@ class TestFinishedRetention:
 
         observations = metrics.collect()
 
-        assert [(name, value) for name, value, _ in observations] == [("fps_per_pipeline", 26.0)]
+        assert [(name, value) for name, value, _ in observations] == [
+            ("pipeline_running", 1.0),
+            ("fps_per_pipeline", 26.0),
+        ]
 
 
 class TestLifecycle:
