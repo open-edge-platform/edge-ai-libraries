@@ -1,7 +1,12 @@
 #include "syclSift.h"
+#include "sift_extractor/sycl_extractor.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <future>
+#include <limits>
+#include <stdexcept>
 #include <vector>
 
 namespace {
@@ -9,6 +14,85 @@ namespace {
 bool Check(bool condition, const char *message) {
   std::printf("%s: %s\n", condition ? "PASS" : "FAIL", message);
   return condition;
+}
+
+bool TestContext(const std::vector<float> &pixels, int width, int height, int expected) {
+  using sift_extractor::experimental::SyclExtractor;
+  using sift_extractor::experimental::SyclExtractorOptions;
+  bool passed = true;
+  const auto rejects = [](auto action) {
+    try { action(); } catch (const std::invalid_argument &) { return true; }
+    return false;
+  };
+  passed &= Check(rejects([&] { SyclExtractor invalid(0, height); }),
+                  "context rejects invalid dimensions");
+  SyclExtractorOptions options;
+  options.octaves = 3;
+  options.capacity = 8192;
+  auto invalid_options = options;
+  invalid_options.octaves = 0;
+  passed &= Check(rejects([&] { SyclExtractor invalid(width, height, invalid_options); }),
+                  "context rejects invalid octave options");
+  invalid_options = options;
+  invalid_options.capacity = 0;
+  passed &= Check(rejects([&] { SyclExtractor invalid(width, height, invalid_options); }),
+                  "context rejects invalid capacity");
+  std::vector<sift_extractor::experimental::SiftFeature> owned;
+  {
+    SyclExtractor first(width, height, options);
+    owned = first.extract(pixels.data(), pixels.size());
+    passed &= Check(static_cast<int>(owned.size()) == expected,
+                    "context matches raw extractor feature count");
+    std::vector<float> blank(pixels.size(), 0.0f);
+    passed &= Check(first.extract(blank.data(), blank.size()).empty(),
+                    "context clears detections on a blank frame");
+    passed &= Check(first.extract(pixels.data(), pixels.size()).size() == owned.size(),
+                    "context recovers textured detections after blank frame");
+    const std::size_t stride = static_cast<std::size_t>(width) + 7;
+    std::vector<float> padded(stride * height, 0.0f);
+    for (int row = 0; row < height; ++row)
+      std::copy_n(pixels.data() + static_cast<std::size_t>(row) * width, width,
+                  padded.data() + static_cast<std::size_t>(row) * stride);
+    passed &= Check(first.extract(padded.data(), padded.size(), stride).size() == owned.size(),
+                    "context accepts padded input rows");
+    passed &= Check(rejects([&] { first.extract(nullptr, pixels.size()); }),
+                    "context rejects null input");
+    passed &= Check(rejects([&] { first.extract(pixels.data(), pixels.size() - 1); }),
+                    "context rejects short input");
+    passed &= Check(rejects([&] { first.extract(pixels.data(), pixels.size(), width - 1); }),
+                    "context rejects short row stride");
+    passed &= Check(rejects([&] {
+      first.extract(pixels.data(), pixels.size(), std::numeric_limits<std::size_t>::max());
+    }), "context rejects overflowing row stride");
+    blank[0] = std::numeric_limits<float>::quiet_NaN();
+    passed &= Check(rejects([&] { first.extract(blank.data(), blank.size()); }),
+                    "context rejects nonfinite input");
+    options.initial_blur = 1.2;
+    SyclExtractor second(width, height, options);
+    const auto second_count = second.extract(pixels.data(), pixels.size()).size();
+    passed &= Check(first.extract(pixels.data(), pixels.size()).size() == owned.size(),
+                    "interleaved contexts preserve their configuration");
+    auto first_call = std::async(std::launch::async, [&] {
+      return first.extract(pixels.data(), pixels.size()).size();
+    });
+    auto second_call = std::async(std::launch::async, [&] {
+      return second.extract(pixels.data(), pixels.size()).size();
+    });
+    passed &= Check(first_call.get() == owned.size() && second_call.get() == second_count,
+                    "context calls from two host threads are serialized safely");
+  }
+  passed &= Check(!owned.empty() && std::isfinite(owned.front().descriptor[0]),
+                  "context results own their storage after destruction");
+  options.capacity = 1;
+  SyclExtractor limited(width, height, options);
+  bool saturation_reported = false;
+  try {
+    limited.extract(pixels.data(), pixels.size());
+  } catch (const std::runtime_error &) {
+    saturation_reported = true;
+  }
+  passed &= Check(saturation_reported, "context reports capacity saturation");
+  return passed;
 }
 
 } // namespace
@@ -71,7 +155,14 @@ int main() {
   passed &= Check(nonzero_descriptors, "descriptors are nonzero");
 
   std::printf("Detected features: %d\n", data.numPts);
+  const int expected = data.numPts;
   FreeSiftTempMemory(temporary);
   FreeSiftData(data);
+  try {
+    passed &= TestContext(pixels, width, height, expected);
+  } catch (const std::exception &error) {
+    std::fprintf(stderr, "Context validation failed: %s\n", error.what());
+    passed = false;
+  }
   return passed ? 0 : 1;
 }

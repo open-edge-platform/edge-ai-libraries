@@ -136,9 +136,16 @@ if(SIFT_ENABLE_SYCL)
   target_link_options(sift_sycl_reference PUBLIC -fsycl -fsycl-targets=spir64)
   set_target_properties(sift_sycl_reference PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+  add_library(sift_sycl_extractor STATIC src/sycl_context.cpp)
+  target_compile_features(sift_sycl_extractor PUBLIC cxx_std_17)
+  target_include_directories(sift_sycl_extractor PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>)
+  target_link_libraries(sift_sycl_extractor PUBLIC sift_sycl_reference)
+
   if(TARGET validate_sift_pair)
     target_compile_definitions(validate_sift_pair PRIVATE SIFT_VALIDATE_SYCL)
-    target_link_libraries(validate_sift_pair PRIVATE sift_sycl_reference)
+    target_link_libraries(validate_sift_pair PRIVATE sift_sycl_extractor)
   endif()
 
   if(SIFT_BUILD_TESTS)
@@ -151,7 +158,7 @@ if(SIFT_ENABLE_SYCL)
     add_executable(test_sift_sycl_extract
       tests/sycl_reference/test_sift_extract.cpp
     )
-    target_link_libraries(test_sift_sycl_extract PRIVATE sift_sycl_reference)
+    target_link_libraries(test_sift_sycl_extract PRIVATE sift_sycl_extractor)
     add_test(NAME sift_sycl_reference.extract COMMAND test_sift_sycl_extract)
 
     add_executable(test_sift_sycl_match
@@ -170,9 +177,10 @@ if(SIFT_ENABLE_OPENCL)
 endif()
 
 if(SIFT_ENABLE_SYCL)
-  install(TARGETS sift_sycl_reference EXPORT sift_extractorTargets
+  install(TARGETS sift_sycl_reference sift_sycl_extractor EXPORT sift_extractorTargets
     ARCHIVE DESTINATION lib
   )
+  install(FILES include/sift_extractor/sycl_extractor.hpp DESTINATION include/sift_extractor)
   install(FILES
     src/sycl_reference/syclImage.h
     src/sycl_reference/syclSift.h

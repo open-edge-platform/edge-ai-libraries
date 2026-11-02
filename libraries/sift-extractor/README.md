@@ -39,6 +39,13 @@ slowdowns must be reported rather than hidden by unmatched settings or omitted
 overheads. Arc tuning proceeds even if an older GPU needs this performance caveat.
 No automatic CPU fallback or universal acceleration guarantee is currently provided.
 
+## Experimental Context
+
+An [OpenCV-free SYCL context](docs/sycl-context.md) now owns reusable image,
+feature and scratch buffers. Its fixed-shape input contract, installed CMake target
+and serialized legacy-state limitations are explicit. This is not yet a final
+backend-neutral API or a production concurrency guarantee.
+
 ## Build and Test
 
 A DPC++ compiler and SYCL runtime are required for SYCL, not the OpenCL-only build. The current GPU tests expect Intel hardware by default.

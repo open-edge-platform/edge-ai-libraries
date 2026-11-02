@@ -49,6 +49,8 @@ def main():
     parser.add_argument("--profiles", nargs="+", choices=PROFILES, default=list(PROFILES))
     parser.add_argument("--iterations", type=int, choices=range(1, 101), default=10,
                         metavar="1..100")
+    parser.add_argument("--sycl-context", action="store_true",
+                        help="Time the library context steady state; setup/release are reported separately")
     args = parser.parse_args()
     binary = args.binary.resolve(strict=True)
     image = args.image.resolve(strict=True)
@@ -63,6 +65,7 @@ def main():
         "platform": platform.platform(), "python": platform.python_version(),
         "sizes": args.sizes, "profiles": {name: PROFILES[name] for name in args.profiles},
         "iterations": args.iterations, "warmups": 3,
+        "sycl_lifecycle": "library_context_steady_state" if args.sycl_context else "per_call",
         "parameters_equivalent": False, "speedup_quality_qualified": False,
         "resizing_is_synthetic_workload_not_new_image_detail": True,
     }
@@ -88,6 +91,8 @@ def main():
                 try:
                     command = [str(binary), str(image), str(report_path),
                                str(args.iterations), str(config_path)]
+                    if args.sycl_context:
+                        command.append("all-context")
                     with (args.output / f"{case}.log").open("x") as log:
                         subprocess.run(command, env=environment, stdout=log,
                                        stderr=subprocess.STDOUT, check=True, timeout=300)

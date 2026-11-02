@@ -2,6 +2,7 @@
 
 #ifdef SIFT_VALIDATE_SYCL
 #include "syclSift.h"
+#include "sift_extractor/sycl_extractor.hpp"
 #endif
 
 #include <opencv2/core.hpp>
@@ -190,6 +191,32 @@ FeatureSet extract_sycl(const cv::Mat &gray, const Configuration &config,
   result.stage_ms = std::move(stages);
   return result;
 }
+
+FeatureSet extract_context(const cv::Mat &gray, const Configuration &config,
+    sift_extractor::experimental::SyclExtractor &context) {
+  const auto start = std::chrono::steady_clock::now();
+  cv::Mat pixels;
+  gray.convertTo(pixels, CV_32F);
+  const auto converted = std::chrono::steady_clock::now();
+  const auto features = context.extract(pixels.ptr<float>(), pixels.total());
+  const auto extracted = std::chrono::steady_clock::now();
+  FeatureSet result;
+  result.descriptors.create(static_cast<int>(features.size()), 128, CV_32F);
+  for (std::size_t index = 0; index < features.size(); ++index) {
+    const auto &point = features[index];
+    result.positions.emplace_back(point.x, point.y);
+    result.responses.push_back(std::abs(point.response));
+    std::copy(point.descriptor.begin(), point.descriptor.end(),
+              result.descriptors.ptr<float>(static_cast<int>(index)));
+  }
+  result = limit_features(std::move(result), config.nfeatures);
+  const auto selected = std::chrono::steady_clock::now();
+  result.stage_ms = {
+      std::chrono::duration<double, std::milli>(converted - start).count(),
+      std::chrono::duration<double, std::milli>(extracted - converted).count(),
+      std::chrono::duration<double, std::milli>(selected - extracted).count()};
+  return result;
+}
 #endif
 
 FeatureSet extract_opencl(sift_extractor::detail::OpenCLDoGExtrema &extractor,
@@ -285,7 +312,7 @@ double report_latency(cv::FileStorage &output, const char *name,
 
 int main(int argc, char **argv) {
   if (argc < 2 || argc > 6) {
-    std::cerr << "Usage: validate_sift_pair <image> [output.json [iterations [config.json [sycl-only|sycl-reuse]]]]\n";
+    std::cerr << "Usage: validate_sift_pair <image> [output.json [iterations [config.json [sycl-only|sycl-reuse|sycl-context|all-context]]]]\n";
     return 2;
   }
   try {
@@ -302,8 +329,9 @@ int main(int argc, char **argv) {
 #endif
     }
     if (argc == 6 && std::strcmp(argv[5], "sycl-only") != 0 &&
-        std::strcmp(argv[5], "sycl-reuse") != 0)
-      throw std::runtime_error("Isolated mode must be sycl-only or sycl-reuse");
+        std::strcmp(argv[5], "sycl-reuse") != 0 && std::strcmp(argv[5], "sycl-context") != 0 &&
+        std::strcmp(argv[5], "all-context") != 0)
+      throw std::runtime_error("Unsupported comparison mode");
     const auto config = load_configuration(argc >= 5 ? argv[4] : nullptr);
     cv::setNumThreads(config.cpu_threads);
     cv::ocl::setUseOpenCL(false);
@@ -327,34 +355,62 @@ int main(int argc, char **argv) {
     if (!sycl_device.is_gpu() ||
         sycl_device.get_info<sycl::info::device::vendor_id>() != 0x8086)
       throw std::runtime_error("Comparison requires an Intel GPU, not CPU fallback");
-    const auto first_sycl = extract_sycl(first, config);
-    const auto second_sycl = extract_sycl(second, config);
-    if (argc == 6) {
-      const bool reuse = std::strcmp(argv[5], "sycl-reuse") == 0;
+    const bool all_context = argc == 6 && std::strcmp(argv[5], "all-context") == 0;
+    std::unique_ptr<sift_extractor::experimental::SyclExtractor> comparison_context;
+    double context_setup_ms = 0.0;
+    if (all_context) {
+      const auto start = std::chrono::steady_clock::now();
+      sift_extractor::experimental::SyclExtractorOptions options;
+      options.octaves = config.octaves;
+      options.initial_blur = config.sycl_init_blur;
+      options.contrast_threshold = static_cast<float>(config.sycl_contrast);
+      comparison_context = std::make_unique<sift_extractor::experimental::SyclExtractor>(first.cols, first.rows, options);
+      context_setup_ms = std::chrono::duration<double, std::milli>(
+          std::chrono::steady_clock::now() - start).count();
+    }
+    const auto comparison_sycl = [&](const cv::Mat &gray) {
+      return comparison_context ? extract_context(gray, config, *comparison_context) : extract_sycl(gray, config);
+    };
+    const auto first_sycl = comparison_sycl(first);
+    const auto second_sycl = comparison_sycl(second);
+    if (argc == 6 && !all_context) {
+      const bool context_mode = std::strcmp(argv[5], "sycl-context") == 0;
+      const bool reuse = std::strcmp(argv[5], "sycl-reuse") == 0 || context_mode;
       SyclStorage workspace;
       SyclStorage *retained = reuse ? &workspace : nullptr;
+      std::unique_ptr<sift_extractor::experimental::SyclExtractor> context;
+      const auto selected_extract = [&](const cv::Mat &gray) {
+        return context ? extract_context(gray, config, *context) : extract_sycl(gray, config, retained);
+      };
       FeatureSet reused_first;
       FeatureSet reused_second;
       double first_workspace_frame_ms = 0.0;
       if (reuse) {
         const auto start = std::chrono::steady_clock::now();
-        reused_first = extract_sycl(first, config, retained);
+        if (context_mode) {
+          sift_extractor::experimental::SyclExtractorOptions options;
+          options.octaves = config.octaves;
+          options.initial_blur = config.sycl_init_blur;
+          options.contrast_threshold = static_cast<float>(config.sycl_contrast);
+          context = std::make_unique<sift_extractor::experimental::SyclExtractor>(first.cols, first.rows, options);
+        }
+        reused_first = selected_extract(first);
         first_workspace_frame_ms = std::chrono::duration<double, std::milli>(
             std::chrono::steady_clock::now() - start).count();
-        reused_second = extract_sycl(second, config, retained);
-        const auto blank = extract_sycl(cv::Mat::zeros(first.size(), CV_8U), config, retained);
+        reused_second = selected_extract(second);
+        const auto blank = selected_extract(cv::Mat::zeros(first.size(), CV_8U));
         if (!blank.positions.empty())
           throw std::runtime_error("Reused workspace retained features on a blank frame");
-        reused_first = extract_sycl(first, config, retained);
+        reused_first = selected_extract(first);
         if (reused_first.positions.size() != first_sycl.positions.size() ||
             reused_second.positions.size() != second_sycl.positions.size())
           throw std::runtime_error("Workspace reuse changed feature counts");
       }
       std::vector<double> samples;
-      std::vector<std::vector<double>> stage_samples(6);
+      std::vector<std::vector<double>> stage_samples(context_mode ? 3 : 6);
       for (int iteration = -3; iteration < timing_iterations; ++iteration) {
         const auto start = std::chrono::steady_clock::now();
-        const auto features = extract_sycl(first, config, retained);
+        const auto features = selected_extract(first);
         const auto end = std::chrono::steady_clock::now();
         if (features.positions.size() != first_sycl.positions.size())
           throw std::runtime_error("Isolated SYCL feature count changed");
@@ -368,6 +424,7 @@ int main(int argc, char **argv) {
       if (!isolated.isOpened()) throw std::runtime_error("Cannot open isolated report");
         const auto release_start = std::chrono::steady_clock::now();
         workspace.release();
+        context.reset();
         const double release_ms = std::chrono::duration<double, std::milli>(
           std::chrono::steady_clock::now() - release_start).count();
         isolated << "diagnostic_only" << 1 << "mode" << argv[5]
@@ -384,8 +441,10 @@ int main(int argc, char **argv) {
       const char *names[] = {"float_conversion", "image_allocation_and_upload",
           "feature_and_scratch_allocation", "extract_and_wait",
           "host_descriptor_validation_and_selection", "cleanup"};
+      const char *context_names[] = {"float_conversion", "context_extract_and_host_output",
+                                     "feature_selection_and_adapter"};
       for (size_t stage = 0; stage < stage_samples.size(); ++stage)
-        report_latency(isolated, names[stage], stage_samples[stage]);
+        report_latency(isolated, context_mode ? context_names[stage] : names[stage], stage_samples[stage]);
             report(isolated, "quality", reuse ? reused_first : first_sycl,
               reuse ? reused_second : second_sycl, affine);
             if (reuse) report(isolated, "per_call_quality", first_sycl, second_sycl, affine);
@@ -405,7 +464,7 @@ int main(int argc, char **argv) {
       const auto measure = [&](int backend) {
         const auto start = std::chrono::steady_clock::now();
         const auto features = backend == 0 ? extract_opencl(extractor, first, config) :
-          backend == 1 ? extract_sycl(first, config) : extract_opencv(first, config);
+          backend == 1 ? comparison_sycl(first) : extract_opencv(first, config);
         const auto end = std::chrono::steady_clock::now();
         const auto expected = backend == 0 ? first_opencl.positions.size() :
             backend == 1 ? first_sycl.positions.size() : first_opencv.positions.size();
@@ -426,6 +485,10 @@ int main(int argc, char **argv) {
         }
       }
     }
+    const auto context_release_start = std::chrono::steady_clock::now();
+    comparison_context.reset();
+    const double context_release_ms = std::chrono::duration<double, std::milli>(
+      std::chrono::steady_clock::now() - context_release_start).count();
 #endif
     cv::FileStorage output(argc >= 3 ? argv[2] : ".json", cv::FileStorage::WRITE |
       (argc == 2 ? cv::FileStorage::MEMORY : 0) | cv::FileStorage::FORMAT_JSON);
@@ -453,7 +516,10 @@ int main(int argc, char **argv) {
               << "contrast_thresholds_equivalent" << 0;
     report(output, "opencl_prototype", first_opencl, second_opencl, affine);
   #ifdef SIFT_VALIDATE_SYCL
-    output << "sycl_device" << sycl_device.get_info<sycl::info::device::name>()
+    output << "sycl_lifecycle" << (all_context ? "library_context_steady_state" : "per_call")
+           << "sycl_context_setup_ms" << context_setup_ms
+           << "sycl_context_release_ms" << context_release_ms
+           << "sycl_device" << sycl_device.get_info<sycl::info::device::name>()
          << "sycl_driver" << sycl_device.get_info<sycl::info::device::driver_version>()
            << "sycl_compute_units" << static_cast<int>(sycl_device.get_info<sycl::info::device::max_compute_units>())
            << "sycl_max_clock_mhz" << static_cast<int>(sycl_device.get_info<sycl::info::device::max_clock_frequency>())
@@ -466,7 +532,9 @@ int main(int argc, char **argv) {
     if (timing_iterations) {
       output << "timing" << "{" << "iterations" << timing_iterations
               << "warmups_per_backend" << 3 << "rotating_backend_order" << 1
-             << "scope" << "single_image_conversion_allocation_per_call_setup_transfers_extract_host_descriptors_and_logging"
+             << "scope" << (all_context ?
+            "single_image_conversion_context_input_validation_upload_extract_owned_features_adapter_and_logging" :
+            "single_image_conversion_allocation_per_call_setup_transfers_extract_host_descriptors_and_logging")
                   << "excludes" << "image_io_transform_matching_and_initial_gpu_detector_construction"
              << "tops_normalization" << "not_applied_precision_and_bandwidth_unverified";
                 const double opencl_ms = report_latency(output, "opencl", opencl_samples);

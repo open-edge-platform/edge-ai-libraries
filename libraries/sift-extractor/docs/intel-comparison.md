@@ -101,6 +101,14 @@ then writes intel-comparison.json with ten measured repetitions. Use the already
 verified matching private Level Zero loader/tracing pair for the target runtime.
 No system compiler, OpenCV installation, driver or power-setting changes are needed.
 
+The experimental library context is described in [sycl-context.md](sycl-context.md).
+Use the matrix runner's `--sycl-context` option to exercise it across all three
+backends; `sycl_lifecycle` labels steady-state timing and context setup/release
+are reported separately. The isolated `sycl-context` diagnostic mode omits CPU and
+OpenCL and reports only phases exposed by its adapter. Earlier `sycl-reuse`
+measurements use the benchmark-local owner and are not automatically results for
+the library wrapper.
+
 ## CPU/GPU Configuration Matrix
 
 The diagnostic accepts a fifth argument naming a JSON profile:
