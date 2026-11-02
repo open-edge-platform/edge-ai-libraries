@@ -46,13 +46,17 @@ int main() {
     }
   }
 
-  const std::vector<sift_extractor::detail::ExtremaCandidate> candidates = {
-      {8, 7, 2, 9.0f},
-      {21, 14, 2, 5.0f},
-  };
-
   try {
     sift_extractor::detail::OpenCLDoGExtrema detector;
+    const auto candidates = detector.detect(dog, 1.0f);
+    const bool candidates_match =
+        candidates.size() == 2 && candidates[0].x == 8 && candidates[0].y == 7 &&
+        candidates[0].scale == 2 && candidates[1].x == 21 &&
+        candidates[1].y == 14 && candidates[1].scale == 2;
+    if (!candidates_match) {
+      std::fprintf(stderr, "3D extrema candidates did not match the quadratic fixture\n");
+      return 1;
+    }
     const auto refined = detector.refine(dog, candidates, 1.0f, 12.1f);
     const bool passed =
         refined.size() == 1 && std::abs(refined[0].x - 8.2f) < 1e-3f &&
