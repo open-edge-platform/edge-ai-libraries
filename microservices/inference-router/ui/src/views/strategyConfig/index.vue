@@ -86,6 +86,10 @@
             <dt>{{ t("router.routerStrategyLimit") }}</dt>
             <dd>{{ formatDisplayValue(strategy.limit) }}</dd>
           </div>
+          <div class="router-config-info-item">
+            <dt>{{ t("router.routerStrategyRuleType") }}</dt>
+            <dd>{{ formatRuleTypes(strategy.rules) }}</dd>
+          </div>
         </dl>
         <div class="router-config-card-actions">
           <a-button type="primary" size="small" @click="handleView(strategy)">
@@ -178,6 +182,26 @@ const queryStrategyList = async () => {
   } finally {
     loading.value = false;
   }
+};
+
+const formatRuleTypes = (rules: unknown) => {
+  if (!Array.isArray(rules)) return "--";
+
+  const ruleTypes = [
+    ...new Set(
+      rules.flatMap((rule: unknown) =>
+        rule &&
+        typeof rule === "object" &&
+        "type" in rule &&
+        typeof rule.type === "string" &&
+        rule.type.trim()
+          ? [rule.type]
+          : [],
+      ),
+    ),
+  ];
+
+  return ruleTypes.length ? ruleTypes.join(" | ") : "--";
 };
 
 const queryStrategyDetail = async (strategy: StrategyConfigRow) => {

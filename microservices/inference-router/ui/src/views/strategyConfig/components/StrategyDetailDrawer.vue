@@ -57,6 +57,11 @@
         <pre>{{ formatJsonBlock(strategy.rules) }}</pre>
       </section>
 
+      <PromptDetail
+        v-if="strategy.classifier_options !== undefined"
+        :options="strategy.classifier_options"
+        :rules="strategy.rules"
+      />
       <section class="router-strategy-detail-section">
         <div class="router-strategy-detail-heading">
           {{ t("router.routerStrategySort") }}
@@ -72,6 +77,7 @@ import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { formatBooleanText, formatJsonText } from "@/utils/common";
 import type { StrategyConfigRow } from "@/types/router";
+import PromptDetail from "./PromptDetail.vue";
 
 const props = withDefaults(
   defineProps<{

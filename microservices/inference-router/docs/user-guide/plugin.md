@@ -35,6 +35,72 @@ Within a stage, instances run **sequentially in the order they appear** in
 `config.yaml`; each one receives the output of the previous. `standalone` plugins
 are exempt — they do not run in any stage.
 
+### Attaching Plugins to Providers
+
+By default a `postrouting` or `postresponse` instance runs for every request. To
+run it only for some providers, list its `name` under those providers' `plugins`:
+
+```yaml
+providers:
+  - name: "local"
+    # ...
+    plugins: ["compressor_harness"]
+  - name: "cloud"
+    # ...
+    plugins: ["compressor_harness", "audit_logger"]
+  - name: "edge"        # no `plugins`: runs only unattached plugins
+    # ...
+plugins:
+  postrouting:
+    - name: "compressor_harness"
+      node: "compressor"
+      # ...
+```
+
+- An instance listed by **at least one** provider runs only for requests routed
+  to those providers. An instance listed by no provider runs for every provider.
+- Providers listing the same name share **one** instance (and its state, such as
+  compressor caches and metrics).
+- The stage order in `config.yaml` still decides the run order; a provider's
+  `plugins` list only filters it.
+- Only `postrouting` and `postresponse` instances can be attached. `prerouting`
+  instances always run for every request, because the provider is not chosen
+  yet; attaching one (or a `standalone` one) is rejected at load time, as is an
+  unknown name. A disabled instance may be listed; it simply does not run.
+- A provider stays attached to its plugins while disabled, so disabling it does
+  not make those plugins run for every provider.
+- The [providers API](./api-reference.md#create-or-update-provider) reads and
+  replaces the list through the `plugins` field. A plugin that a provider lists
+  cannot be deleted or moved to `prerouting` until it is removed from that list.
+
+To attach plugins at runtime, post a provider's `plugins` list to the providers
+API. The list replaces the provider's existing one; the other provider fields are
+left unchanged, and the change is written to `config.yaml`:
+
+```bash
+# attach compressor_harness to "local" and "cloud" (they share one instance)
+curl -s -XPOST localhost:8000/v1/providers/local -H 'Content-Type: application/json' \
+  -d '{"plugins": ["compressor_harness"]}'
+curl -s -XPOST localhost:8000/v1/providers/cloud -H 'Content-Type: application/json' \
+  -d '{"plugins": ["compressor_harness", "audit_logger"]}'
+
+# check what a provider has attached
+curl -s localhost:8000/v1/providers/local | jq .plugins
+# ["compressor_harness"]
+
+# detach everything from "cloud"
+curl -s -XPOST localhost:8000/v1/providers/cloud -H 'Content-Type: application/json' \
+  -d '{"plugins": []}'
+```
+
+A bad name is rejected with `400 Bad Request` and nothing changes:
+
+```bash
+curl -s -XPOST localhost:8000/v1/providers/local -H 'Content-Type: application/json' \
+  -d '{"plugins": ["compressor_tool"]}'    # a prerouting plugin
+# {"detail":"Provider 'local' cannot attach plugin 'compressor_tool' (trigger: prerouting); only postresponse, postrouting plugins can be attached to a provider"}
+```
+
 ## The Plugin Contract
 
 The plugin subclass `PluginBaseNode` in [src/plugins/base.py](../../src/plugins/base.py)
@@ -57,6 +123,8 @@ required; everything else has a safe default, so you override only what you need
   `postrouting` stage the router passes `provider_name` (the provider chosen for
   the request) and `metrics_values={"provider": provider_name}`.
 - `process_response(response, **kwargs)` — acts on the response (passthrough).
+  At the `postresponse` stage the router passes the same `provider_name` and
+  `metrics_values` keyword arguments.
 - `describe()` — the `GET /v1/plugins/{node}/{name}` payload; folds in
   per-instance runtime info, typically `{**super().describe(), "metrics": {...}}`
   (instance metadata).
@@ -108,9 +176,18 @@ How it works:
 - On any compression error, the request is returned **unmodified** — a failing
   compressor degrades gracefully rather than dropping the request.
 - Metrics: `describe()` returns instance metrics; `describe_node()` also includes
-  `overall.*` totals across compressors. Postrouting metrics are additionally
-  grouped by provider under `metrics_by_keys`. Instance responses never include
+  `overall.*` totals across compressors. Instance responses never include
   `overall.*`. See [Metrics Checking](./get-started.md#metrics-checking) for details.
+- `settings.metrics_keys: ["provider"]` additionally splits a `postrouting`
+  compressor's metrics by the provider that served the request, reported under
+  `metrics_by_keys`. `provider` is the only supported key, and the setting is
+  rejected at any other stage (at `prerouting` the provider is not chosen yet). See
+  [Splitting metrics by provider](./get-started.md#splitting-metrics-by-provider).
+- A `postrouting` compressor can be
+  [attached to providers](#attaching-plugins-to-providers), so it compresses
+  only requests routed to them. Providers that list the same compressor share
+  one instance; with `metrics_keys: ["provider"]`, its `metrics_by_keys.provider`
+  splits the numbers per provider.
 
 Configuration example — a `tool` compressor at the `prerouting` stage, and
 `harness` and `context` compressors at the `postrouting` stage.
@@ -142,6 +219,7 @@ plugins:
         compress_min_chars: 200
         timeout: 60.0
         enable_quantum_lock: false
+        metrics_keys: ["provider"]   # split this compressor's metrics by provider
     - name: "compressor_context"
       node: "compressor"
       enabled: false
