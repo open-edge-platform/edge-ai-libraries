@@ -240,6 +240,44 @@ runner `results/20261102/arc-opencl-milestone.sh`, local reports
 `~/.local/share/sift-extractor-staging/arc-compaction-d266f47fcec2f0d8`.
 Manifest SHA256: `d266f47fcec2f0d852662e08c6e4453a2c2e0c28f9975439e9480ca7b8f6603b`.
 
+### Fused Gaussian and DoG Output
+
+Combined pyramid construction now writes each DoG plane from the vertical Gaussian
+pass, eliminating a separate subtraction launch and upper-image reread. Standalone
+blur and subtraction remain unchanged reference paths. Exact level comparisons
+include odd 257x129 images, sigma 16 with one interval, and 32 intervals on tiny
+images, plus blank/reconfigured reuse. An earlier tiled-loading experiment showed
+no useful Arc gain and was reverted.
+
+The parallel descriptor kernel also hoists support scaling into one standard
+reciprocal per keypoint. This is not a native/fast-math substitution; nevertheless,
+reciprocal multiplication can differ from division in floating-point rounding.
+The unchanged serial division reference remains covered by the 2e-5 bin-error
+gate. Arc's 687-case test printed zero maximum error to eight decimal places.
+All 1,351 oriented records still matched exactly.
+
+All 10 local tests, expanded Arc pyramid/refinement regressions, and 22 timing/
+profile cases passed. All matching-quality fields were identical across A/B/B/A.
+True pooled medians (60 samples/build), against `5a5e42b6c`:
+
+| Size | Feature Budget | Before (ms) | Fused (ms) | Latency Reduction |
+| --- | --- | --- | --- | --- |
+| 640x480 | Unlimited | 22.045 | 20.817 | 5.6% |
+| 640x480 | 500 | 20.306 | 18.714 | 7.8% |
+| 1920x1080 | Unlimited | 43.458 | 40.862 | 6.0% |
+| 1920x1080 | 500 | 34.725 | 32.230 | 7.2% |
+
+Unlimited throughput is approximately 48.0 FPS at VGA and 24.5 FPS at 1080p,
+still below the measured reference's 168.875 and 54.995 FPS. No algorithmic stages
+were removed. Single-fixture matching stability is not a general quality guarantee,
+and the simpler reference still lacks common-validator quality measurements.
+
+Evidence: SIFT workspace `results/20261102/arc-fused-pyramid-summary.json`; reports
+`/tmp/sift-arc-fused-pyramid-results.nySDwX/milestone-results`; remote stage
+`~/.local/share/sift-extractor-staging/arc-fused-pyramid-ba2aaf7beefadecb`.
+Manifest SHA256: `ba2aaf7beefadecb1b858a8c2806b00589e7d8af70666d5ccfbfd58ca3a4576e`.
+All five returned manifest executable hashes matched the staged binaries.
+
 ### Batched Feature Stages
 
 Extraction now queues all populated levels' orientations, waits once, then queues

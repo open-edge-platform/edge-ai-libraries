@@ -317,6 +317,7 @@ __kernel void sift_descriptors(__global const float *magnitude,
   const int center_y = (int)floor(cy + 0.5f);
   #if SIFT_DESCRIPTOR_LANES == 128
   __local float hist[128];
+  const float inverse_bin_width = 1.0f / bin_width;
   const int row_bin = lane / 32;
   const int column_bin = (lane / 8) % 4;
   const int orientation_bin = lane % 8;
@@ -338,8 +339,8 @@ __kernel void sift_descriptors(__global const float *magnitude,
     for (int sample_x_index = begin_x; sample_x_index <= end_x; ++sample_x_index) {
       const float rx = (float)sample_x_index - cx;
       const float ry = (float)sample_y_index - cy;
-      const float column = (cosine * rx + sine * ry) / bin_width;
-      const float row = (-sine * rx + cosine * ry) / bin_width;
+      const float column = (cosine * rx + sine * ry) * inverse_bin_width;
+      const float row = (-sine * rx + cosine * ry) * inverse_bin_width;
       const float rb = row + 1.5f;
       const float cb = column + 1.5f;
       if (rb <= -1.0f || rb >= 4.0f || cb <= -1.0f || cb >= 4.0f) continue;

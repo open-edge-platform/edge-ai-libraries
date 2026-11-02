@@ -54,6 +54,26 @@ __kernel void gaussian_vertical(__global const float *temporary,
   destination[y * width + x] = sum;
 }
 
+__kernel void gaussian_vertical_dog(__global const float *temporary,
+                                    __global float *destination,
+                                    __global const float *weights,
+                                    const int width, const int height,
+                                    const int radius,
+                                    __global const float *lower,
+                                    __global float *difference) {
+  const int x = (int)get_global_id(0);
+  const int y = (int)get_global_id(1);
+  if (x >= width || y >= height) return;
+  float sum = 0.0f;
+  for (int offset = -radius; offset <= radius; ++offset) {
+    const int sample_y = clamp(y + offset, 0, height - 1);
+    sum += temporary[sample_y * width + x] * weights[offset + radius];
+  }
+  const int index = y * width + x;
+  destination[index] = sum;
+  difference[index] = sum - lower[index];
+}
+
 __kernel void difference_of_gaussians(__global const float *first,
                                       __global const float *second,
                                       __global float *destination,
@@ -149,6 +169,7 @@ struct OpenCLGaussianBlur::Impl {
   cl_program program = nullptr;
   cl_kernel horizontal = nullptr;
   cl_kernel vertical = nullptr;
+  cl_kernel vertical_dog = nullptr;
   cl_kernel dog = nullptr;
   cl_kernel downsample = nullptr;
   Buffer input;
@@ -160,6 +181,15 @@ struct OpenCLGaussianBlur::Impl {
   std::vector<Buffer> dog_levels;
   std::vector<Buffer> pyramid_weights;
   std::vector<std::vector<float>> cached_kernels;
+
+  cl_kernel fused_vertical_kernel() {
+    if (!vertical_dog) {
+      cl_int status = CL_SUCCESS;
+      vertical_dog = clCreateKernel(program, "gaussian_vertical_dog", &status);
+      check_opencl(status, "clCreateKernel(fused Gaussian DoG)");
+    }
+    return vertical_dog;
+  }
 
   cl_mem ensure_buffer(Buffer &buffer, cl_mem_flags flags, size_t bytes) {
     if (buffer.memory && buffer.capacity >= bytes)
@@ -320,6 +350,8 @@ struct OpenCLGaussianBlur::Impl {
       clReleaseKernel(dog);
     if (vertical)
       clReleaseKernel(vertical);
+    if (vertical_dog)
+      clReleaseKernel(vertical_dog);
     if (horizontal)
       clReleaseKernel(horizontal);
     if (program)
@@ -582,6 +614,7 @@ void OpenCLGaussianBlur::build_pyramid(
       cl_mem source = index == 0 ? input : impl_->gaussian_levels[index - 1].memory;
       const size_t global_size[2] = {static_cast<size_t>(level.width),
                                     static_cast<size_t>(level.height)};
+      bool fused_difference = false;
       if (level.octave > 0 && level.scale == 0) {
         const size_t source_index = index - levels_per_octave + intervals;
         const auto &previous = gaussian[source_index];
@@ -601,9 +634,20 @@ void OpenCLGaussianBlur::build_pyramid(
       } else {
         cl_mem weights = impl_->pyramid_weights[index].memory;
         const int radius = static_cast<int>(kernels[index].size() / 2);
-        for (cl_kernel kernel : {impl_->horizontal, impl_->vertical}) {
-          cl_mem pass_source = kernel == impl_->horizontal ? source : temporary;
-          cl_mem pass_destination = kernel == impl_->horizontal ? temporary : destination;
+        cl_kernel vertical = impl_->vertical;
+        if (level.scale > 0) {
+          vertical = impl_->fused_vertical_kernel();
+          cl_mem lower = impl_->gaussian_levels[index - 1].memory;
+          const size_t dog_index = static_cast<size_t>(level.octave) * (intervals + 2) + level.scale - 1;
+          cl_mem difference = impl_->dog_levels[dog_index].memory;
+          check_opencl(clSetKernelArg(vertical, 6, sizeof(lower), &lower), "fused DoG lower");
+          check_opencl(clSetKernelArg(vertical, 7, sizeof(difference), &difference), "fused DoG output");
+          fused_difference = true;
+        }
+        for (int pass = 0; pass < 2; ++pass) {
+          cl_kernel kernel = pass == 0 ? impl_->horizontal : vertical;
+          cl_mem pass_source = pass == 0 ? source : temporary;
+          cl_mem pass_destination = pass == 0 ? temporary : destination;
           check_opencl(clSetKernelArg(kernel, 0, sizeof(cl_mem), &pass_source), "pyramid blur source");
           check_opencl(clSetKernelArg(kernel, 1, sizeof(cl_mem), &pass_destination), "pyramid blur destination");
           check_opencl(clSetKernelArg(kernel, 2, sizeof(weights), &weights), "pyramid blur weights");
@@ -614,7 +658,7 @@ void OpenCLGaussianBlur::build_pyramid(
               global_size, nullptr, 0, nullptr, nullptr), "pyramid blur launch");
         }
       }
-      if (level.scale > 0) {
+      if (level.scale > 0 && !fused_difference) {
         cl_mem lower = impl_->gaussian_levels[index - 1].memory;
         const size_t dog_index = static_cast<size_t>(level.octave) * (intervals + 2) + level.scale - 1;
         cl_mem difference = impl_->dog_levels[dog_index].memory;

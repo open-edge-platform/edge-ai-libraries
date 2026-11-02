@@ -149,6 +149,9 @@ int main() {
     passed &= check_resident(pyramid, image, width, height, octaves, intervals, base_sigma);
     struct Configuration { int width, height, octaves, intervals; float sigma; };
     for (const auto config : {Configuration{97, 65, 3, 5, 1.2f},
+                              Configuration{257, 129, 4, 3, 1.6f},
+                              Configuration{65, 33, 2, 1, 16.0f},
+                              Configuration{3, 2, 2, 32, 0.1f},
                               Configuration{1, 1, 4, 1, 0.1f},
                               Configuration{2, 3, 3, 2, 2.0f},
                               Configuration{33, 19, 1, 3, 1.6f}}) {
