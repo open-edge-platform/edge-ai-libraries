@@ -114,6 +114,52 @@ assert.equal(c.gateway.auth.token, process.argv[3]);
 JS
   [[ "$(cat "$HOME/.openclaw/history-marker")" == 'preserved history' ]]
 }
+hermes_config_staged() {
+  local fixture hermes_home
+  fixture="$(mktemp -d "$TEST_ROOT/hermes-config.XXXXXX")"
+  export HOME="$fixture/home"
+  hermes_home="$HOME/.hermes"
+  mkdir -p "$hermes_home" "$fixture/bin"
+  printf 'user_setting: keep\n' >"$hermes_home/config.yaml"
+  export HARNESS_AGENT=hermes
+  export HARNESS_SANDBOX_ENDPOINT=http://host.openshell.internal:8010/v1
+  export HARNESS_SANDBOX_MODEL=test-model
+  export HERMES_HOME="$hermes_home"
+  export HARNESS_HERMES_HOME="$hermes_home"
+  export HARNESS_HERMES_BIN="$fixture/bin/hermes"
+  export HARNESS_MODEL_CONFIG_SCRIPT="$fixture/configure-model.js"
+  cat >"$HARNESS_HERMES_BIN" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ "$*" == "config set "* ]]
+[[ "$HERMES_HOME" != "$HARNESS_HERMES_HOME" ]]
+[[ "$(cat "$HARNESS_HERMES_HOME/config.yaml")" == 'user_setting: keep' ]]
+printf '%s: %s\n' "$3" "$4" >>"$HERMES_HOME/config.yaml"
+SH
+  cat >"$HARNESS_MODEL_CONFIG_SCRIPT" <<'JS'
+const fs = require("node:fs");
+const path = require("node:path");
+if (process.argv[2] !== "hermes") throw Error("unexpected model-config agent");
+const file = path.join(process.env.HERMES_HOME, "config.yaml");
+fs.appendFileSync(file, "finalized: true\n");
+if (fs.readFileSync(path.join(process.env.HARNESS_HERMES_HOME, "config.yaml"), "utf8") !== "user_setting: keep\n")
+  throw Error("live Hermes config changed before staged config was ready");
+JS
+  cat >"$fixture/bin/sleep" <<'SH'
+#!/usr/bin/env bash
+[[ "$*" == infinity ]]
+SH
+  chmod 700 "$HARNESS_HERMES_BIN" "$fixture/bin/sleep"
+  export PATH="$fixture/bin:$PATH"
+  bash "$SCRIPT_DIR/openshell/agent-start.sh"
+  grep -Fxq 'user_setting: keep' "$hermes_home/config.yaml"
+  grep -Fxq 'model.provider: custom' "$hermes_home/config.yaml"
+  grep -Fxq 'model.base_url: http://host.openshell.internal:8010/v1' "$hermes_home/config.yaml"
+  grep -Fxq 'model.default: test-model' "$hermes_home/config.yaml"
+  grep -Fxq 'finalized: true' "$hermes_home/config.yaml"
+  [[ "$(stat -c %a "$hermes_home/config.yaml")" == 600 ]]
+  [[ -z "$(find "$hermes_home" -maxdepth 1 -name '.harness-config.*' -print -quit)" ]]
+}
 startup_blocked_temp() {
   startup_fixture
   mkdir -p "$HOME/.openclaw/tmp"
@@ -591,4 +637,9 @@ policy_paths() {
   [[ "$(openshell_policy_path hermes)" == "$1/openshell/interactive-policy.yaml" ]]
 }
 run_case 'OpenClaw uses base policy and interactive agents use PTY policy' policy_paths "$SCRIPT_DIR"
+run_case 'Hermes config changes are staged and atomically published' hermes_config_staged
+run_case 'OpenClaw smoke checks disable thinking' bash -c '
+  grep -Fq -- "--thinking off" "$1"
+  grep -Fq -- "--thinking off" "$2"
+' _ "$SCRIPT_DIR/scripts/lib/agents.sh" "$SCRIPT_DIR/scripts/lib/openshell.sh"
 finish_tests

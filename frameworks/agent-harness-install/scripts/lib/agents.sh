@@ -573,7 +573,7 @@ Check HARNESS_AGENT, or re-install with --harness <name>."
         # The CLI can exit 0 with no output when the upstream call fails
         # after the HTTP 200 (e.g. a streaming error), so require output too.
         local openclaw_out=""
-        if openclaw_out="$("$cli_bin" infer model run --prompt "Say hello." --model "ovms/${model_hint}" --json 2>/dev/null)" \
+        if openclaw_out="$("$cli_bin" infer model run --prompt "Say hello." --model "ovms/${model_hint}" --thinking off --json 2>/dev/null)" \
           && [[ -n "${openclaw_out//[[:space:]]/}" ]]; then
           ok "OpenClaw smoke test passed"
         else

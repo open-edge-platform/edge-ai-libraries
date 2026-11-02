@@ -49,6 +49,27 @@ fs.writeFileSync(file, config.slice(0, start) + tuned + config.slice(finish));
 JS
 }
 
+configure_hermes_config() (
+  local hermes_home="$1" staged_home
+  local hermes_bin="${HARNESS_HERMES_BIN:-/home/node/.local/bin/hermes}"
+  mkdir -p "$hermes_home"
+  staged_home="$(mktemp -d "${hermes_home}/.harness-config.XXXXXX")"
+  trap 'rm -rf -- "$staged_home"' EXIT
+  if [[ -f "${hermes_home}/config.yaml" ]]; then
+    cp -- "${hermes_home}/config.yaml" "${staged_home}/config.yaml"
+  fi
+  export HERMES_HOME="$staged_home"
+  "$hermes_bin" config set model.provider custom
+  "$hermes_bin" config set model.base_url "$HARNESS_SANDBOX_ENDPOINT"
+  "$hermes_bin" config set model.default "$HARNESS_SANDBOX_MODEL"
+  node "${HARNESS_MODEL_CONFIG_SCRIPT:-/opt/harness/model-config.mjs}" \
+    hermes "$HARNESS_SANDBOX_MODEL" "$HARNESS_SANDBOX_ENDPOINT"
+  [[ -s "${staged_home}/config.yaml" ]] \
+    || { printf 'Hermes configuration was not created.\n' >&2; return 1; }
+  chmod 600 "${staged_home}/config.yaml"
+  mv -f -- "${staged_home}/config.yaml" "${hermes_home}/config.yaml"
+)
+
 case "${HARNESS_AGENT:?Missing agent}" in
   openclaw)
     # Preserve the gateway token and user configuration when the sandbox process restarts.
@@ -80,12 +101,8 @@ JS
     ;;
   hermes)
     # OpenShell sets HOME independently; Hermes must still find its image-installed environment.
-    export HERMES_HOME=/home/node/.hermes
-    /home/node/.local/bin/hermes config set model.provider custom
-    /home/node/.local/bin/hermes config set model.base_url "$HARNESS_SANDBOX_ENDPOINT"
-    /home/node/.local/bin/hermes config set model.default "$HARNESS_SANDBOX_MODEL"
-    node "${HARNESS_MODEL_CONFIG_SCRIPT:-/opt/harness/model-config.mjs}" \
-      hermes "$HARNESS_SANDBOX_MODEL" "$HARNESS_SANDBOX_ENDPOINT"
+    export HERMES_HOME="${HERMES_HOME:-/home/node/.hermes}"
+    configure_hermes_config "$HERMES_HOME"
     # Hermes is launched interactively by the connect command; no messaging service is enabled.
     exec sleep infinity
     ;;

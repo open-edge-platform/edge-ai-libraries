@@ -678,7 +678,7 @@ onboard_openshell_agent() {
   if [[ "$(canonical_agent_name "${HARNESS_AGENT:-openclaw}")" == openclaw ]]; then
     local response
     response="$(openshell_agent_exec /home/node/.local/bin/openclaw infer model run \
-      --prompt "Say hello." --model "ovms/${OPENSHELL_MODEL}" --json)" \
+      --prompt "Say hello." --model "ovms/${OPENSHELL_MODEL}" --thinking off --json)" \
       || error "Sandboxed OpenClaw inference failed."
     node -e '
       const fs = require("node:fs");
