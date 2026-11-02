@@ -16,11 +16,7 @@ sycl::queue &GetSyclQueue() {
         sycl::default_selector_v,
         [](sycl::exception_list el) {
           for (auto &e : el) {
-            try {
-              std::rethrow_exception(e);
-            } catch (sycl::exception &ex) {
-              fprintf(stderr, "SYCL async error: %s\n", ex.what());
-            }
+            std::rethrow_exception(e);
           }
         },
         sycl::property::queue::in_order{});

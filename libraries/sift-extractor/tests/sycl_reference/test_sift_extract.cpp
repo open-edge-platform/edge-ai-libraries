@@ -95,6 +95,23 @@ bool TestContext(const std::vector<float> &pixels, int width, int height, int ex
   return passed;
 }
 
+bool TestAsyncErrorPropagation() {
+  auto &queue = GetSyclQueue();
+  queue.submit([](sycl::handler &handler) {
+    handler.host_task([] {
+      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                            "injected asynchronous regression failure");
+    });
+  });
+  bool propagated = false;
+  try {
+    queue.wait_and_throw();
+  } catch (const sycl::exception &) {
+    propagated = true;
+  }
+  return Check(propagated, "asynchronous SYCL errors reach the waiting caller");
+}
+
 } // namespace
 
 int main() {
@@ -160,6 +177,7 @@ int main() {
   FreeSiftData(data);
   try {
     passed &= TestContext(pixels, width, height, expected);
+    passed &= TestAsyncErrorPropagation();
   } catch (const std::exception &error) {
     std::fprintf(stderr, "Context validation failed: %s\n", error.what());
     passed = false;

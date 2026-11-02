@@ -68,9 +68,12 @@ SiftData/GetSyclQueue APIs concurrently with wrapper operations; those APIs bypa
 the mutex. Caller code must still protect object lifetime during concurrent calls.
 
 Only Intel GPU execution is accepted; no automatic CPU fallback is provided.
-Legacy asynchronous error handling, queue lifetime and global buffer teardown
-remain outstanding hardening work. No concurrency-performance, arbitrary-device
-recovery or production-readiness guarantee is made.
+Asynchronous SYCL failures now propagate through explicit wait_and_throw boundaries
+instead of being logged and swallowed. A controlled host-task failure regression
+checks this behavior without invalid device access. Queue lifetime, global buffer
+teardown and recovery after device loss remain outstanding hardening work. No
+concurrency-performance, arbitrary-device recovery or production-readiness
+guarantee is made.
 
 ## Validation Status
 
