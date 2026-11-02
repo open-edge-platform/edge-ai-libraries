@@ -56,6 +56,33 @@ unchanged at 263 inliers/0.359px RMSE for VGA and 1300/0.430px for 1080p. Receip
 and raw results: `results/20261101/arc-opencl-program-reuse.sh` and Arc stage
 `~/.local/share/sift-extractor-staging/arc-opencl-program-1a545c66495a1f37`.
 
+### complete-gpu-sift Arc Baseline
+
+On primary Arc, the requested reference measured median detection-only throughput
+of 168.875 FPS (5.92ms/image) at VGA and 54.995 FPS (18.18ms/image) at 1080p,
+across ten independent process runs. This does not reproduce the README's 1,461
+FPS claim. The temporary benchmark copy only changes Intel GPU platform selection,
+skips untimed visualization output, and permits skipping matching; the original and
+benchmark source snapshots and hashes are preserved in Arc stage
+`~/.local/share/sift-extractor-staging/complete-gpu-baseline-2a52c9ece8727c38-run2`.
+
+This is a raw throughput target, not quality-equivalent SIFT. The reference uses
+three full-resolution Gaussian images and one DoG plane; it does not perform a
+multi-octave pyramid, subpixel refinement or dominant orientation assignment.
+Its descriptor path and fixed keypoint cap also differ. The current diagnostic
+starts from grayscale input while the reference uploads color and converts it on
+device. Current OpenCL baseline medians were 127.325ms VGA and 303.539ms 1080p
+(21.5x and 16.7x slower than the reference). Retained stage-buffer experiment
+measured 139.565ms VGA and 235.434ms 1080p (23.6x slower at VGA, 12.9x at 1080p);
+inlier counts/RMSE were unchanged. Buffer reuse improves 1080p by 22.4% but
+regresses VGA by 9.6%; neither case meets the measured raw throughput target.
+
+The next gate is Arc profiling for Gaussian, DoG, extrema/refinement, orientation
+and descriptor costs, followed by removal of measured transfer/allocation overhead.
+Local coarse timing suggests descriptor computation dominates, but the refined Arc
+profile could not be transferred because SSH closed. No OpenCL optimization ceiling
+or quality parity is claimed. Profile runner: `results/20261101/arc-opencl-stage-profile.sh`.
+
 Three warmup extractions per backend precede 1-100 measured repetitions. Backend
 order rotates across OpenCL, SYCL and the OpenCV CPU baseline. The reported
 median/min/max and raw samples include float

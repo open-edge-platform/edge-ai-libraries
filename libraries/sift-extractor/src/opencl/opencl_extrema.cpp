@@ -6,7 +6,10 @@
 #include <CL/cl_ext.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <limits>
 #include <memory>
 #include <stdexcept>
@@ -802,12 +805,16 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
     if (!std::isfinite(value))
       throw std::invalid_argument("Extractor input must contain finite values");
   }
+  const auto profile_start = std::chrono::steady_clock::now();
   auto &pyramid = impl_->get_pyramid();
   const auto gaussian = pyramid.build(image, width, height, octave_count,
                                        intervals, base_sigma);
+  const auto gaussian_end = std::chrono::steady_clock::now();
   const auto differences = pyramid.difference_levels(gaussian, octave_count, intervals);
+  const auto difference_end = std::chrono::steady_clock::now();
   const auto keypoints = detect_pyramid(differences, octave_count, intervals,
                                          base_sigma, contrast_threshold, edge_limit);
+  const auto detector_end = std::chrono::steady_clock::now();
   std::vector<std::vector<ScaleSpaceKeypoint>> groups(gaussian.size());
   for (const auto &point : keypoints) {
     const int level = std::clamp(static_cast<int>(std::lround(point.local.scale)),
@@ -815,11 +822,41 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
     groups[static_cast<size_t>(point.octave) * (intervals + 3) + level].push_back(point);
   }
   std::vector<SiftFeature> result;
+  double orientation_ms = 0.0;
+  double descriptor_ms = 0.0;
+  size_t feature_groups = 0;
   for (size_t group = 0; group < groups.size(); ++group) {
     if (groups[group].empty()) continue;
+    const auto orientation_start = std::chrono::steady_clock::now();
     const auto oriented = assign_orientations(gaussian[group], groups[group]);
+    const auto descriptor_start = std::chrono::steady_clock::now();
     auto features = compute_descriptors(gaussian[group], oriented);
+    const auto group_end = std::chrono::steady_clock::now();
+    orientation_ms += std::chrono::duration<double, std::milli>(
+        descriptor_start - orientation_start).count();
+    descriptor_ms += std::chrono::duration<double, std::milli>(
+        group_end - descriptor_start).count();
+    ++feature_groups;
     result.insert(result.end(), features.begin(), features.end());
+  }
+  if (std::getenv("SIFT_OPENCL_PROFILE")) {
+    const auto milliseconds = [](auto start, auto end) {
+      return std::chrono::duration<double, std::milli>(end - start).count();
+    };
+    const auto profile_end = std::chrono::steady_clock::now();
+    std::fprintf(stderr,
+                 "OPENCL_PROFILE gaussian_ms=%.3f dog_ms=%.3f "
+                 "extrema_refine_ms=%.3f orientation_ms=%.3f "
+                 "descriptor_ms=%.3f "
+                 "total_ms=%.3f gaussian_levels=%zu dog_levels=%zu "
+                 "keypoints=%zu features=%zu feature_groups=%zu\n",
+                 milliseconds(profile_start, gaussian_end),
+                 milliseconds(gaussian_end, difference_end),
+                 milliseconds(difference_end, detector_end),
+                 orientation_ms, descriptor_ms,
+                 milliseconds(profile_start, profile_end), gaussian.size(),
+                 differences.size(), keypoints.size(), result.size(),
+                 feature_groups);
   }
   return result;
 }

@@ -137,6 +137,11 @@ cl_mem create_buffer(cl_context context, cl_mem_flags flags, size_t bytes,
 } // namespace
 
 struct OpenCLGaussianBlur::Impl {
+  struct Buffer {
+    cl_mem memory = nullptr;
+    size_t capacity = 0;
+  };
+
   cl_device_id device = nullptr;
   cl_context context = nullptr;
   cl_command_queue queue = nullptr;
@@ -145,6 +150,28 @@ struct OpenCLGaussianBlur::Impl {
   cl_kernel vertical = nullptr;
   cl_kernel dog = nullptr;
   cl_kernel downsample = nullptr;
+  Buffer input;
+  Buffer second_input;
+  Buffer temporary;
+  Buffer output;
+  Buffer weights;
+
+  cl_mem ensure_buffer(Buffer &buffer, cl_mem_flags flags, size_t bytes) {
+    if (buffer.memory && buffer.capacity >= bytes)
+      return buffer.memory;
+    cl_mem replacement = create_buffer(context, flags, bytes);
+    if (buffer.memory)
+      clReleaseMemObject(buffer.memory);
+    buffer.memory = replacement;
+    buffer.capacity = bytes;
+    return buffer.memory;
+  }
+
+  void write_buffer(cl_mem buffer, const void *source, size_t bytes,
+                    const char *operation) {
+    check_opencl(clEnqueueWriteBuffer(queue, buffer, CL_TRUE, 0, bytes, source,
+                                      0, nullptr, nullptr), operation);
+  }
 
   Impl() {
     cl_int status = CL_SUCCESS;
@@ -248,6 +275,16 @@ struct OpenCLGaussianBlur::Impl {
   }
 
   ~Impl() {
+    if (weights.memory)
+      clReleaseMemObject(weights.memory);
+    if (output.memory)
+      clReleaseMemObject(output.memory);
+    if (temporary.memory)
+      clReleaseMemObject(temporary.memory);
+    if (second_input.memory)
+      clReleaseMemObject(second_input.memory);
+    if (input.memory)
+      clReleaseMemObject(input.memory);
     if (downsample)
       clReleaseKernel(downsample);
     if (dog)
@@ -283,19 +320,19 @@ std::vector<float> OpenCLGaussianBlur::apply(const std::vector<float> &image,
 
   const size_t bytes = image.size() * sizeof(float);
   const size_t weight_bytes = kernel.size() * sizeof(float);
-  cl_mem source = create_buffer(impl_->context,
-                                CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, bytes,
-                                const_cast<float *>(image.data()));
-  cl_mem temporary = nullptr;
-  cl_mem destination = nullptr;
-  cl_mem weights = nullptr;
-  try {
-    temporary = create_buffer(impl_->context, CL_MEM_READ_WRITE, bytes);
-    destination = create_buffer(impl_->context, CL_MEM_WRITE_ONLY, bytes);
-    weights = create_buffer(impl_->context,
-                            CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                            weight_bytes, const_cast<float *>(kernel.data()));
+  cl_mem source = impl_->ensure_buffer(impl_->input, CL_MEM_READ_ONLY, bytes);
+  cl_mem temporary = impl_->ensure_buffer(impl_->temporary, CL_MEM_READ_WRITE,
+                                           bytes);
+  cl_mem destination = impl_->ensure_buffer(impl_->output, CL_MEM_WRITE_ONLY,
+                                             bytes);
+  cl_mem weights = impl_->ensure_buffer(impl_->weights, CL_MEM_READ_ONLY,
+                                         weight_bytes);
+  impl_->write_buffer(source, image.data(), bytes,
+                      "clEnqueueWriteBuffer(blur source)");
+  impl_->write_buffer(weights, kernel.data(), weight_bytes,
+                      "clEnqueueWriteBuffer(blur weights)");
 
+  try {
     const int radius = static_cast<int>(kernel.size() / 2);
     check_opencl(clSetKernelArg(impl_->horizontal, 0, sizeof(source), &source),
                  "clSetKernelArg(horizontal source)");
@@ -342,19 +379,8 @@ std::vector<float> OpenCLGaussianBlur::apply(const std::vector<float> &image,
                                      bytes, output.data(), 0, nullptr, nullptr),
                  "clEnqueueReadBuffer(blurred image)");
 
-    clReleaseMemObject(weights);
-    clReleaseMemObject(destination);
-    clReleaseMemObject(temporary);
-    clReleaseMemObject(source);
     return output;
   } catch (...) {
-    if (weights)
-      clReleaseMemObject(weights);
-    if (destination)
-      clReleaseMemObject(destination);
-    if (temporary)
-      clReleaseMemObject(temporary);
-    clReleaseMemObject(source);
     throw;
   }
 }
@@ -373,17 +399,18 @@ std::vector<float> OpenCLGaussianBlur::difference_of_gaussians(
   }
 
   const size_t bytes = element_count * sizeof(float);
-  cl_mem first_buffer = create_buffer(
-      impl_->context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, bytes,
-      const_cast<float *>(first.data()));
-  cl_mem second_buffer = nullptr;
-  cl_mem destination = nullptr;
-  try {
-    second_buffer = create_buffer(
-        impl_->context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, bytes,
-        const_cast<float *>(second.data()));
-    destination = create_buffer(impl_->context, CL_MEM_WRITE_ONLY, bytes);
+  cl_mem first_buffer = impl_->ensure_buffer(impl_->input, CL_MEM_READ_ONLY,
+                                              bytes);
+  cl_mem second_buffer = impl_->ensure_buffer(impl_->second_input,
+                                               CL_MEM_READ_ONLY, bytes);
+  cl_mem destination = impl_->ensure_buffer(impl_->output, CL_MEM_WRITE_ONLY,
+                                             bytes);
+  impl_->write_buffer(first_buffer, first.data(), bytes,
+                      "clEnqueueWriteBuffer(DoG first)");
+  impl_->write_buffer(second_buffer, second.data(), bytes,
+                      "clEnqueueWriteBuffer(DoG second)");
 
+  try {
     check_opencl(clSetKernelArg(impl_->dog, 0, sizeof(first_buffer),
                                 &first_buffer),
                  "clSetKernelArg(DoG first)");
@@ -410,16 +437,8 @@ std::vector<float> OpenCLGaussianBlur::difference_of_gaussians(
                                      bytes, result.data(), 0, nullptr, nullptr),
                  "clEnqueueReadBuffer(DoG)");
 
-    clReleaseMemObject(destination);
-    clReleaseMemObject(second_buffer);
-    clReleaseMemObject(first_buffer);
     return result;
   } catch (...) {
-    if (destination)
-      clReleaseMemObject(destination);
-    if (second_buffer)
-      clReleaseMemObject(second_buffer);
-    clReleaseMemObject(first_buffer);
     throw;
   }
 }
@@ -437,13 +456,13 @@ std::vector<float> OpenCLGaussianBlur::downsample_by_two(
   const size_t output_count =
       static_cast<size_t>(output_width) * output_height;
   const size_t output_bytes = output_count * sizeof(float);
-  cl_mem source = create_buffer(impl_->context,
-                                CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                                input_bytes,
-                                const_cast<float *>(image.data()));
-  cl_mem destination = nullptr;
+  cl_mem source = impl_->ensure_buffer(impl_->input, CL_MEM_READ_ONLY,
+                                        input_bytes);
+  cl_mem destination = impl_->ensure_buffer(impl_->output, CL_MEM_WRITE_ONLY,
+                                             output_bytes);
+  impl_->write_buffer(source, image.data(), input_bytes,
+                      "clEnqueueWriteBuffer(downsample source)");
   try {
-    destination = create_buffer(impl_->context, CL_MEM_WRITE_ONLY, output_bytes);
     check_opencl(clSetKernelArg(impl_->downsample, 0, sizeof(source), &source),
                  "clSetKernelArg(downsample source)");
     check_opencl(clSetKernelArg(impl_->downsample, 1, sizeof(destination),
@@ -472,13 +491,8 @@ std::vector<float> OpenCLGaussianBlur::downsample_by_two(
                                      output_bytes, result.data(), 0, nullptr,
                                      nullptr),
                  "clEnqueueReadBuffer(downsample)");
-    clReleaseMemObject(destination);
-    clReleaseMemObject(source);
     return result;
   } catch (...) {
-    if (destination)
-      clReleaseMemObject(destination);
-    clReleaseMemObject(source);
     throw;
   }
 }
