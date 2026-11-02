@@ -79,6 +79,7 @@ class TestParser(unittest.TestCase):
             "--pipelines",
             "a,b",
             "--no-skip-missing-models",
+            "--no-save-log",
         )
         self.assertEqual(
             cli.cli_overrides(ns),
@@ -87,6 +88,7 @@ class TestParser(unittest.TestCase):
                 "benchmark.stream_counts": [1, 5],
                 "benchmark.pipelines": ["a", "b"],
                 "benchmark.filters.skip_missing_models": False,
+                "results.save_log": False,
             },
         )
 
@@ -163,6 +165,29 @@ class TestDryRun(unittest.TestCase):
         self.assertIn("LPR Net", text)
         self.assertIn("benchmark.filters.skip_pipelines", text)
 
+    def test_dry_run_counts_missing_model_runs_when_not_skipped(self) -> None:
+        settings = resolve_settings(
+            "default",
+            env={},
+            cli_overrides={
+                "benchmark.filters.skip_pipelines": ["sp"],
+                "benchmark.filters.skip_missing_models": False,
+            },
+        )
+        out = io.StringIO()
+        rc = cli.run_dry_run(
+            settings,
+            discover=self._discover,
+            preflight=Mock(),
+            stdout=out,
+            stderr=io.StringIO(),
+        )
+        self.assertEqual(rc, 0)
+        text = out.getvalue()
+        self.assertIn("Matrix: 4 run(s)", text)
+        self.assertIn("Missing models, will run anyway: 2 run(s)", text)
+        self.assertNotIn("Skipped at run time", text)
+
     def test_main_dry_run_does_not_submit_jobs(self) -> None:
         runner = Mock()
         with (
@@ -186,14 +211,43 @@ class TestDryRun(unittest.TestCase):
         self.assertIn("down", err.getvalue())
 
     def test_discovery_failure_exits_2(self) -> None:
+        err = io.StringIO()
         rc = cli.run_dry_run(
             self.settings,
             discover=Mock(side_effect=RuntimeError("boom")),
             preflight=Mock(),
             stdout=io.StringIO(),
-            stderr=io.StringIO(),
+            stderr=err,
         )
         self.assertEqual(rc, 2)
+        self.assertIn(
+            "ViPPET reported ready, but reading its inventory", err.getvalue()
+        )
+        self.assertIn("RuntimeError: boom", err.getvalue())
+        self.assertIn("To fix:", err.getvalue())
+
+    def test_all_excluded_explains_what_to_change(self) -> None:
+        out = io.StringIO()
+        rc = cli.run_dry_run(
+            self.settings,
+            discover=lambda settings: build_matrix(
+                _PIPELINES,
+                [{"device_family": "GPU"}],
+                {},
+                MatrixFilters.from_settings(settings),
+            ),
+            preflight=Mock(),
+            stdout=out,
+            stderr=io.StringIO(),
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("note: All 4 discovered pipeline/variant(s)", out.getvalue())
+        self.assertIn("To fix: widen --pipelines / --variants", out.getvalue())
+
+    def test_matrix_renderer_is_shared_with_pytest(self) -> None:
+        from tests.performance.perf_helpers import matrix
+
+        self.assertIs(cli.format_matrix, matrix.format_matrix)
 
 
 _RESULT: dict[str, Any] = {

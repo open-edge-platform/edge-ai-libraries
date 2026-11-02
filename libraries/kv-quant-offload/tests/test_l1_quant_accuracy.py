@@ -11,18 +11,29 @@ The input tensor size must be blocks_num * block_size * head_num * head_dim.
 """
 from __future__ import annotations
 
+import struct
+
 import pytest
 import torch
 
 from kvweave import kvweave_quant
 from conftest import (
     PROD_BLOCK_SIZE,
+    PROD_CHUNK_TOKENS,
+    PROD_HEAD_DIM,
+    PROD_NUM_KV_HEADS,
     build_quant_cfg,
     generate_chunk,
+    generate_preconditioning,
     quant_dequant_roundtrip,
     quant_dequant_roundtrip_xpu,
     requires_xpu,
 )
+
+try:
+    from kvweave import kvweave_quant_xpu
+except ImportError:
+    kvweave_quant_xpu = None
 
 # Regression thresholds (intentionally loose — the printed values are what matters)
 _THRESHOLDS = {
@@ -277,13 +288,7 @@ class TestL1ScaleLifecycle:
 
 @requires_xpu
 class TestL1QuantRoundtripXPU:
-    """XPU (SYCL) quantize -> dequantize roundtrip accuracy.
-
-    Mirrors TestL1QuantRoundtrip above, but through kvweave_quant_xpu, which
-    has no scale_id table (see TestL1ScaleLifecycle) and no num_threads knob
-    to sweep (see TestL1QuantThreadSweep in test_l1_quant_perf.py) — both
-    CPU-only concepts that don't apply to the GPU kernel.
-    """
+    """XPU (SYCL) roundtrip accuracy, mirroring TestL1QuantRoundtrip via kvweave_quant_xpu (no scale_id table or thread sweep)."""
 
     @pytest.mark.parametrize("qbit", [4], ids=["4bit"])
     @pytest.mark.parametrize("scaling_method", ["per_tensor", "per_token", "per_channel"])
@@ -378,3 +383,148 @@ class TestL1QuantRoundtripXPU:
             f"max_err={max_err:.6f} mean_err={mean_err:.6f}"
         )
         assert max_err < _THRESHOLDS[4]["max_err"]
+
+
+def _parse_scale_entries(blob: bytes) -> torch.Tensor:
+    """One count-prefixed scale segment -> [count, 2] (scale, zp)."""
+    (count,) = struct.unpack_from("<I", blob, 0)
+    out = torch.empty(count, 2, dtype=torch.float32)
+    for k in range(count):
+        idx, scale, zp = struct.unpack_from("<Iff", blob, 4 + 12 * k)
+        assert idx < count
+        out[idx, 0], out[idx, 1] = scale, zp
+    return out
+
+
+class TestL1FusedDirectQuant:
+    """kvweave_serialize_fused_chunk_direct vs per-(layer, head) quantize_kvcache.
+
+    Production geometry: each unit's tokens x head_dim slice of the fused
+    [layers, tokens, 2*kv_heads*head_dim] tensor must quantize exactly as the
+    single-plane kernel does on that slice.
+    """
+
+    _LAYERS = 2
+    _HEAD_NUM = 2 * PROD_NUM_KV_HEADS
+
+    @staticmethod
+    def _quant_unit(device, unit_src, qbit, scaling_method, rh, signs, perm):
+        tokens = unit_src.shape[0]
+        if device == "cpu":
+            scale_id = 0x7F00
+            q = kvweave_quant.quantize_kvcache(
+                unit_src.reshape(-1), scale_id=scale_id, qbit=qbit,
+                blocks_num=1, block_size=tokens, head_num=1, head_dim=PROD_HEAD_DIM,
+                rh=rh, asym=True, scaling_method=scaling_method,
+                signs=signs, perm=perm, num_threads=0,
+            )
+            scales = kvweave_quant.get_scales_for_id(scale_id)
+            kvweave_quant.clear_scales_for_id(scale_id)
+            return q.view(torch.uint8).reshape(-1), scales
+        q, scales = kvweave_quant_xpu.quantize_kvcache(
+            unit_src.reshape(-1).to("xpu"), qbit, 1, tokens, 1, PROD_HEAD_DIM,
+            rh, True, scaling_method, signs, perm,
+        )
+        return q.cpu().view(torch.uint8).reshape(-1), scales
+
+    @pytest.mark.parametrize("device", ["cpu", pytest.param("xpu", marks=requires_xpu)])
+    @pytest.mark.parametrize("qbit", [4, 8], ids=["4bit", "8bit"])
+    @pytest.mark.parametrize("scaling_method", ["per_token", "per_channel"])
+    @pytest.mark.parametrize("rh", [False, True], ids=["no_rh", "rh"])
+    def test_direct_matches_per_unit_quantize(self, device, qbit, scaling_method, rh):
+        native = kvweave_quant if device == "cpu" else kvweave_quant_xpu
+        tokens = PROD_CHUNK_TOKENS
+        hidden = self._HEAD_NUM * PROD_HEAD_DIM
+        g = torch.Generator().manual_seed(11)
+        x = (torch.randn(self._LAYERS, tokens, hidden, generator=g) * 0.05).to(torch.float16)
+        signs = perm = None
+        if rh:
+            n = tokens if scaling_method == "per_channel" else PROD_HEAD_DIM
+            signs, perm = generate_preconditioning(n)
+
+        header = b"L1FD"
+        payload = bytes(native.kvweave_serialize_fused_chunk_direct(
+            x, header, qbit, self._HEAD_NUM, PROD_HEAD_DIM,
+            rh=rh, asym=True, scaling_method=scaling_method,
+            signs=signs, perm=perm, num_threads=0,
+        ))
+        off = len(header)
+        (scale_len,) = struct.unpack_from(">I", payload, off)
+        off += 4
+        blob, q_all = payload[off:off + scale_len], payload[off + scale_len:]
+        q_all = torch.frombuffer(bytearray(q_all), dtype=torch.uint8)
+
+        units = self._LAYERS * self._HEAD_NUM
+        unit_q = q_all.numel() // units
+        seg = len(blob) // units
+        split = x.reshape(self._LAYERS, tokens, self._HEAD_NUM, PROD_HEAD_DIM).permute(0, 2, 1, 3)
+        worst_mismatch = 0.0
+        for u in range(units):
+            ref_q, ref_scales = self._quant_unit(
+                device, split[u // self._HEAD_NUM, u % self._HEAD_NUM].contiguous(),
+                qbit, scaling_method, rh, signs, perm,
+            )
+            assert ref_q.numel() == unit_q
+            # ~1 ulp drift allowed: default builds use a fast fp-model.
+            torch.testing.assert_close(
+                _parse_scale_entries(blob[u * seg:(u + 1) * seg]),
+                _parse_scale_entries(ref_scales), rtol=1e-5, atol=1e-6)
+            got = q_all[u * unit_q:(u + 1) * unit_q]
+            worst_mismatch = max(worst_mismatch, (got != ref_q).float().mean().item())
+        print(f"ACC | fused_direct device={device} qbit={qbit} scaling={scaling_method} "
+              f"rh={rh} | worst_q_mismatch={worst_mismatch:.6f}")
+        assert worst_mismatch < 1e-2
+
+    @pytest.mark.parametrize("device", ["cpu", pytest.param("xpu", marks=requires_xpu)])
+    @pytest.mark.parametrize("qbit", [4, 8], ids=["4bit", "8bit"])
+    @pytest.mark.parametrize("scaling_method", ["per_token", "per_channel"])
+    @pytest.mark.parametrize("rh", [False, True], ids=["no_rh", "rh"])
+    def test_direct_dequant_matches_per_unit_dequant(self, device, qbit, scaling_method, rh):
+        """kvweave_dequantize_fused_chunk_direct vs per-unit dequant + head merge,
+        at production geometry."""
+        native = kvweave_quant if device == "cpu" else kvweave_quant_xpu
+        tokens = PROD_CHUNK_TOKENS
+        hidden = self._HEAD_NUM * PROD_HEAD_DIM
+        g = torch.Generator().manual_seed(12)
+        x = (torch.randn(self._LAYERS, tokens, hidden, generator=g) * 0.05).to(torch.float16)
+        signs = perm = None
+        if rh:
+            signs, perm = generate_preconditioning(
+                tokens if scaling_method == "per_channel" else PROD_HEAD_DIM)
+
+        header = b"L1FD"
+        payload = bytes(native.kvweave_serialize_fused_chunk_direct(
+            x, header, qbit, self._HEAD_NUM, PROD_HEAD_DIM,
+            rh=rh, asym=True, scaling_method=scaling_method,
+            signs=signs, perm=perm, num_threads=0,
+        ))
+        off = len(header)
+        (scale_len,) = struct.unpack_from(">I", payload, off)
+        off += 4
+        blob = payload[off:off + scale_len]
+        q = torch.frombuffer(bytearray(payload[off + scale_len:]), dtype=torch.int8)
+
+        units = self._LAYERS * self._HEAD_NUM
+        restored = native.kvweave_dequantize_chunk_state(
+            q, blob, units, tokens, PROD_HEAD_DIM, qbit=qbit, blocks_num=1,
+            block_size=tokens, head_num=self._HEAD_NUM, head_dim=PROD_HEAD_DIM,
+            rh=rh, asym=True, scaling_method=scaling_method,
+            output_dtype=torch.float16, signs=signs, perm=perm, num_threads=0,
+        )
+        expected = (
+            restored.view(self._LAYERS, self._HEAD_NUM, tokens, PROD_HEAD_DIM)
+            .permute(0, 2, 1, 3)
+            .reshape_as(x)
+        )
+        dst = torch.empty_like(x)
+        native.kvweave_dequantize_fused_chunk_direct(
+            q, blob, dst, self._LAYERS, tokens, self._HEAD_NUM, PROD_HEAD_DIM, qbit,
+            rh=rh, asym=True, scaling_method=scaling_method,
+            signs=signs, perm=perm, num_threads=0,
+        )
+        assert torch.equal(dst, expected)
+        diff = (dst.float() - x.float()).abs()
+        print(f"ACC | fused_direct_dequant device={device} qbit={qbit} scaling={scaling_method} "
+              f"rh={rh} | max_err={diff.max().item():.6f} mean_err={diff.mean().item():.6f}")
+        assert diff.max().item() < _THRESHOLDS[qbit]["max_err"]
+        assert diff.mean().item() < _THRESHOLDS[qbit]["mean_err"]

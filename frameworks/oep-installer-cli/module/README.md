@@ -21,7 +21,7 @@ A component can be defined in optional shell functions: `<OS_FAMILY>_<order>_<pr
 - `<start|stop|install|group|remove|profile|license|sbom>`: The `profile` function works similarly to a profile, which specifies the component dependencies, and the `install/group/remove/start/stop` functions perform their corresponding functions. At least one of thoses functions must be defined for the component. Others are optional.
 
   - For simple system-level packages, for example, `curl`, it is ok to define only an installation function without an uninstaller. The assumption is that `curl` can reside on the system for future use, while uninstalling it everytime is a bit overkill and may cause potentially unintended consequence. For other non-system components, there usually should define both an `install` function and a corresponding `remove` function.
-  - The function arguments are as follows: `[global-options] <complete list of component names> -- <this component specific arguments>`, with exception of the `profile` function, where `<subcommand>` such as `install`, `start`, `stop`, and `remove` are inserted as the very first argument. The list of installed components is useful to resolve any dependency issues. For example, `openvino` can use a newer version when installed standalone but a different version when installed together with `dlstreamer`. The arguments of this component can be used for component specific configurations, for example, selecting accelerator devices ([`ensure_select_device`](../common/linux/ensure_select_device)).   
+  - The function arguments are as follows: `[global-options] <complete list of component names> -- <this component specific arguments>`, with exception of the `profile` function, where `<subcommand>` such as `install`, `start`, `stop`, and `remove` are inserted as the very first argument. The list of installed components is useful to resolve any dependency issues. For example, `openvino` can use a newer version when installed standalone but a different version when installed together with `dlstreamer`. The arguments of this component can be used for component specific configurations, for example, selecting accelerator devices ([`ensure_parse_device`](../common/linux/ensure_parse)).   
   - All component shell scripts run with `set -e` to terminate early on any errors.
   - It is highly recommended to reuse common functions defined under the [`debian`](../common/debian), [`linux`](../common/linux), or [`windows`](../common/windows) folders. Do not reinvent the wheels. 
 
@@ -38,7 +38,7 @@ A component can be defined in optional shell functions: `<OS_FAMILY>_<order>_<pr
   - Use `$(ensure_project_path)/<component_name>` as the default installation path.  
   - The `install` function should cover the following conditions: (1) The component is not yet installed. (2) The component is previously installed but misconfigured. (3) The component of an older version is installed. After installation, it is assumed that the component is fully configured and ready to be launched (`start`).
   - If the component (of the same version) is already installed, the `install` function should skip the installation unless the `--reinstall` option is specified, in which case, the `install` function should reinstall the component cleanly.    
-  - For components that support multiple device accelerations, the `install` function must use the [`ensure_select_device`](../common/linux/ensure_select_device) function to take user input and configure the component accordingly. 
+  - For components that support multiple device accelerations, the `install` function must use the [`ensure_parse_device`](../common/linux/ensure_parse) function to take user input and configure the component accordingly. 
   - For components that require certain memory size or disk space, use the [`ensure_disk_size`](../common/linux/ensure_disk_size) and [`ensure_ram_size`](../common/linux/ensure_ram_size) functions to enforce the requirements and exit early.
   - For components that need to download AI models from huggingface, use the [`ensure_hf_token`](../common/linux/ensure_hf_token) function to set `HF_TOKEN`. The `ensure_hf_token` function can be used to check model access permissions for gated models.   
   - For components that download any dataset, video files, AI models, implement a check that the download files actually exist, to ensure there is no silent failure during installation/setup. The check can be part of the `verify_<component>` helper, which checks if a previous installation/setup is complete.   
@@ -117,7 +117,7 @@ debian_85_install_my_component () {
   fi
 
   # additional configurations such as configuring acceleration device
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   ...
 
   # For a SDK, application or service, highlight what's next after installation
@@ -237,7 +237,7 @@ debian_90_install_my_component () {
   fi
 
   # configure device (default GPU)
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   configure_my_component_device "${device^^}"
   ...
   echo "@@HIGHLIGHTS $installer_name install [--gpu|npu|cpu]"
@@ -248,7 +248,7 @@ debian_90_install_my_component () {
 debian_90_start_my_component () {
   ...
   # Reconfigure only if a device option is specified
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_my_component_device "${device^^}"
   ...
   echo "@@HIGHLIGHTS $installer_name start [--gpu|npu|cpu]"

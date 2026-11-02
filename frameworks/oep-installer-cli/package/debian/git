@@ -1,4 +1,3 @@
-
 debian_30_install_git () {
   ensure_apt_install_package git ca-certificates
 }

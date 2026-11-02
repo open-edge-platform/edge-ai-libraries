@@ -1,4 +1,3 @@
-
 configure_edge_pack_base_realtime () {
   configure_edge_pack "$@"
   version="1.0"
@@ -70,4 +69,3 @@ debian_40_sbom_edge_pack_base_realtime () {
     ensure_sbom_format pkg-list "intel-edge-base-realtime=$version*"
   fi
 }
-

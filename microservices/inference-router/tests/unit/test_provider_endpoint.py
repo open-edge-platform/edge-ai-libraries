@@ -43,6 +43,7 @@ def _provider(
     *,
     model: str = "model-alpha",
     enabled: bool = True,
+    fallback: bool = False,
     api_key: str | None = None,
 ) -> ProviderConfig:
     return ProviderConfig(
@@ -50,6 +51,7 @@ def _provider(
         type="openai",
         model=model,
         enabled=enabled,
+        fallback=fallback,
         metadata={"labels": [name], "cost": 0},
         settings={
             "endpoint": f"https://{name}.invalid/v1",
@@ -120,6 +122,44 @@ def test_get_provider_found_and_missing(tmp_path: Path) -> None:
     missing = client.get("/v1/providers/nope")
     assert missing.status_code == 404
     assert missing.json()["detail"] == "Provider 'nope' not found"
+
+
+def test_get_provider_reflects_live_probe_metadata(tmp_path: Path) -> None:
+    """GET surfaces the live provider-instance metadata (what routing reads).
+
+    A probe mutates the running provider's ``ProviderMetadata`` in memory; the
+    read API overlays that live view so e.g. ``performance.num_requests_waiting``
+    is visible — without the value ever being written to ``config.yaml``.
+    """
+    from src.providers.base import ProviderMetadata
+    from ._api_contract_support import RouterStub
+
+    config_path = tmp_path / "config.yaml"
+    config = _build_config(providers=[_provider("provider-alpha")])
+    _write_config(config_path, config)
+
+    class _LiveProvider:
+        def __init__(self) -> None:
+            # Config carries ttft; the probe added num_requests_waiting live.
+            self.metadata = ProviderMetadata(
+                labels=["provider-alpha"],
+                cost=0,
+                performance={"ttft_ms": 300, "num_requests_waiting": 4.0},
+            )
+
+    router = RouterStub()
+    router.provider_map = {"provider-alpha": _LiveProvider()}
+
+    before = config_path.read_text(encoding="utf-8")
+    client = make_test_client(router=router, config=config, config_path=config_path)
+
+    body = client.get("/v1/providers/provider-alpha").json()
+    assert body["metadata"]["performance"]["num_requests_waiting"] == 4.0
+    assert body["metadata"]["performance"]["ttft_ms"] == 300
+
+    # Reflection is read-only: the on-disk config is untouched by the GET.
+    assert config_path.read_text(encoding="utf-8") == before
+    assert "num_requests_waiting" not in before
 
 
 def test_create_provider_persists_and_updates_runtime(
@@ -210,6 +250,121 @@ def test_update_provider_toggles_enabled_and_replaces_settings(
     assert updated["settings"] == {"endpoint": "https://new.invalid/v1"}
     # The other provider is untouched.
     assert [p["name"] for p in persisted["providers"]] == ["provider-alpha", "keep-me"]
+
+
+def test_provider_fallback_defaults_to_false(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(_config_runtime, "RouterOrchestrator", FakeOrchestrator)
+    config_path = tmp_path / "config.yaml"
+    config = _build_config()
+    _write_config(config_path, config)
+    client = make_test_client(config=config, config_path=config_path)
+
+    created = client.post("/v1/providers/cloud", json={"type": "openai", "model": "gpt-4o"})
+
+    assert created.status_code == 200
+    assert created.json()["fallback"] is False
+    assert client.get("/v1/providers/provider-alpha").json()["fallback"] is False
+
+
+def test_setting_fallback_demotes_previous_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(_config_runtime, "RouterOrchestrator", FakeOrchestrator)
+    config_path = tmp_path / "config.yaml"
+    config = _build_config(
+        providers=[
+            _provider("provider-alpha", fallback=True),
+            _provider("provider-beta", model="model-beta"),
+            _provider("provider-gamma", model="model-gamma"),
+        ]
+    )
+    _write_config(config_path, config)
+    client = make_test_client(config=config, config_path=config_path)
+
+    response = client.post("/v1/providers/provider-beta", json={"fallback": True})
+
+    assert response.status_code == 200
+    assert response.json()["fallback"] is True
+
+    # GET reflects the demotion of the previous fallback.
+    assert client.get("/v1/providers/provider-alpha").json()["fallback"] is False
+    listed = {p["name"]: p["fallback"] for p in client.get("/v1/providers").json()["data"]}
+    assert listed == {"provider-alpha": False, "provider-beta": True, "provider-gamma": False}
+
+    # Runtime state agrees.
+    runtime = {p.name: p.fallback for p in client.app.state.config.providers}
+    assert runtime == listed
+
+    # And so does config.yaml.
+    persisted = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    on_disk = {p["name"]: p.get("fallback", False) for p in persisted["providers"]}
+    assert on_disk == listed
+
+
+def test_creating_provider_as_fallback_demotes_previous_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(_config_runtime, "RouterOrchestrator", FakeOrchestrator)
+    config_path = tmp_path / "config.yaml"
+    config = _build_config(providers=[_provider("provider-alpha", fallback=True)])
+    _write_config(config_path, config)
+    client = make_test_client(config=config, config_path=config_path)
+
+    response = client.post(
+        "/v1/providers/cloud", json={"type": "openai", "model": "gpt-4o", "fallback": True}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["fallback"] is True
+    assert client.get("/v1/providers/provider-alpha").json()["fallback"] is False
+    persisted = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    assert {p["name"]: p["fallback"] for p in persisted["providers"]} == {
+        "provider-alpha": False,
+        "cloud": True,
+    }
+
+
+def test_unsetting_fallback_does_not_promote_another_provider(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(_config_runtime, "RouterOrchestrator", FakeOrchestrator)
+    config_path = tmp_path / "config.yaml"
+    config = _build_config(
+        providers=[
+            _provider("provider-alpha", fallback=True),
+            _provider("provider-beta", model="model-beta"),
+        ]
+    )
+    _write_config(config_path, config)
+    client = make_test_client(config=config, config_path=config_path)
+
+    response = client.post("/v1/providers/provider-alpha", json={"fallback": False})
+
+    assert response.status_code == 200
+    listed = {p["name"]: p["fallback"] for p in client.get("/v1/providers").json()["data"]}
+    assert listed == {"provider-alpha": False, "provider-beta": False}
+
+
+def test_routing_update_preserves_provider_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(_config_runtime, "RouterOrchestrator", FakeOrchestrator)
+    config_path = tmp_path / "config.yaml"
+    config = _build_config(
+        providers=[
+            _provider("provider-alpha"),
+            _provider("provider-beta", model="model-beta", fallback=True),
+        ]
+    )
+    _write_config(config_path, config)
+    client = make_test_client(config=config, config_path=config_path)
+
+    response = client.post("/v1/routing", json={"policy": "Balanced"})
+
+    assert response.status_code == 200
+    assert client.get("/v1/providers/provider-beta").json()["fallback"] is True
 
 
 def test_delete_provider_removes_from_config(

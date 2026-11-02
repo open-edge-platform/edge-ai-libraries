@@ -96,8 +96,28 @@
           }
         },
         {
-          "label": "Federal and Aerospace",
-          "value": "federal_and_aerospace_ai_suite",
+          "label": "Federal and Aerospace (Handheld)",
+          "value": "federal_and_aerospace_ai_suite_handheld",
+          "supports": {
+            "OP_SYSTEM": [
+              "UBUNTU_24_04",
+              "UBUNTU_26_04"
+            ]
+          }
+        },
+        {
+          "label": "Federal and Aerospace (Uncrewed Aerial Vehicle)",
+          "value": "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle",
+          "supports": {
+            "OP_SYSTEM": [
+              "UBUNTU_24_04",
+              "UBUNTU_26_04"
+            ]
+          }
+        },
+        {
+          "label": "Federal and Aerospace (Mission Decision Support)",
+          "value": "federal_and_aerospace_ai_suite_mission_decision_support",
           "supports": {
             "OP_SYSTEM": [
               "UBUNTU_24_04",
@@ -119,8 +139,8 @@
     },
     {
       "key": "MODULE",
-      "label": "Module",
-      "type": "single",
+      "label": "Modules",
+      "type": "multiple",
       "options": [
         {
           "label": "DL Streamer",
@@ -512,6 +532,22 @@
           ]
         },
         {
+          "label": "Multi-Modal Patient Monitoring",
+          "value": "multi_modal_patient_monitoring",
+          "supports": {
+            "PROFILE": [
+              "health_and_life_sciences_ai_suite"
+            ]
+          },
+          "startStop": true,
+          "remove": true,
+          "options": [
+            "--gpu",
+            "--cpu",
+            "--npu"
+          ]
+        },
+        {
           "label": "NICU Warmer",
           "value": "nicu_warmer",
           "supports": {
@@ -528,47 +564,74 @@
           ]
         },
         {
-          "label": "Edge Node Infrastructure Blueprint",
-          "value": "edge_node_infrastructure_blueprint",
+          "label": "Surgical Instrument",
+          "value": "surgical_instrument",
           "supports": {
             "PROFILE": [
-              "federal_and_aerospace_ai_suite"
+              "health_and_life_sciences_ai_suite"
             ]
           },
-          "remove": true,
-          "options": [
-            "--docker",
-            "--k3s"
-          ]
+          "startStop": true,
+          "remove": true
+        },
+        {
+          "label": "Handheld Blueprint",
+          "value": "handheld_blueprint",
+          "supports": {
+            "PROFILE": [
+              "federal_and_aerospace_ai_suite_handheld"
+            ]
+          }
         },
         {
           "label": "Handheld Multi-Modal",
           "value": "handheld_multi_modal",
           "supports": {
             "PROFILE": [
-              "federal_and_aerospace_ai_suite"
+              "federal_and_aerospace_ai_suite_handheld"
             ]
           },
           "startStop": true,
-          "remove": true,
-          "options": [
-            "--docker"
-          ]
+          "remove": true
         },
         {
-          "label": "UAV Mission Compute SDK",
-          "value": "uav_mission_compute_sdk",
+          "label": "Uncrewed Aerial Vehicle Blueprint",
+          "value": "uncrewed_aerial_vehicle_blueprint",
           "supports": {
             "PROFILE": [
-              "federal_and_aerospace_ai_suite"
+              "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle"
+            ]
+          }
+        },
+        {
+          "label": "Uncrewed Aerial Vehicle Mission",
+          "value": "uncrewed_aerial_vehicle_mission",
+          "supports": {
+            "PROFILE": [
+              "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle"
             ]
           },
           "startStop": true,
-          "remove": true,
-          "options": [
-            "--docker",
-            "--k3s"
-          ]
+          "remove": true
+        },
+        {
+          "label": "Mission Decision Support Blueprint",
+          "value": "mission_decision_support_blueprint",
+          "supports": {
+            "PROFILE": [
+              "federal_and_aerospace_ai_suite_mission_decision_support"
+            ]
+          }
+        },
+        {
+          "label": "Deterministic Threat Detection",
+          "value": "deterministic_threat_detection",
+          "supports": {
+            "PROFILE": [
+              "federal_and_aerospace_ai_suite_mission_decision_support"
+            ]
+          },
+          "remove": true
         },
         {
           "label": "Autonomous Mobile Robot",
@@ -680,7 +743,7 @@
         "start": "openedge-cli start {{MODULE}}",
         "stop": "openedge-cli stop {{MODULE}}"
       },
-      "remove": "openedge-cli remove {{TARGET}}"
+      "remove": "openedge-cli remove {{MODULE}}"
     },
     {
       "id": "getstarted",
@@ -785,7 +848,7 @@
         },
         {
           "when": {
-            "PROFILE": "federal_and_aerospace_ai_suite",
+            "PROFILE": "federal_and_aerospace_ai_suite_handheld",
             "OP_SYSTEM": "UBUNTU_24_04"
           },
           "text": "Get Started",
@@ -793,7 +856,39 @@
         },
         {
           "when": {
-            "PROFILE": "federal_and_aerospace_ai_suite",
+            "PROFILE": "federal_and_aerospace_ai_suite_handheld",
+            "OP_SYSTEM": "UBUNTU_26_04"
+          },
+          "text": "Get Started",
+          "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-fed-aero.html"
+        },
+        {
+          "when": {
+            "PROFILE": "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle",
+            "OP_SYSTEM": "UBUNTU_24_04"
+          },
+          "text": "Get Started",
+          "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-fed-aero.html"
+        },
+        {
+          "when": {
+            "PROFILE": "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle",
+            "OP_SYSTEM": "UBUNTU_26_04"
+          },
+          "text": "Get Started",
+          "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-fed-aero.html"
+        },
+        {
+          "when": {
+            "PROFILE": "federal_and_aerospace_ai_suite_mission_decision_support",
+            "OP_SYSTEM": "UBUNTU_24_04"
+          },
+          "text": "Get Started",
+          "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-fed-aero.html"
+        },
+        {
+          "when": {
+            "PROFILE": "federal_and_aerospace_ai_suite_mission_decision_support",
             "OP_SYSTEM": "UBUNTU_26_04"
           },
           "text": "Get Started",
@@ -1117,8 +1212,16 @@
           },
           "links": [
             {
+              "text": "Multi-Modal Patient Monitoring",
+              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/multi-modal-patient-monitoring/index.html"
+            },
+            {
               "text": "NICU Warmer",
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/nicu-warmer/index.html"
+            },
+            {
+              "text": "Surgical Instrument",
+              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/surgical-instrument/index.html"
             }
           ]
         },
@@ -1129,48 +1232,88 @@
           },
           "links": [
             {
+              "text": "Multi-Modal Patient Monitoring",
+              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/multi-modal-patient-monitoring/index.html"
+            },
+            {
               "text": "NICU Warmer",
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/nicu-warmer/index.html"
+            },
+            {
+              "text": "Surgical Instrument",
+              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/surgical-instrument/index.html"
             }
           ]
         },
         {
           "when": {
-            "PROFILE": "federal_and_aerospace_ai_suite",
+            "PROFILE": "federal_and_aerospace_ai_suite_handheld",
             "OP_SYSTEM": "UBUNTU_24_04"
           },
           "links": [
             {
-              "text": "Edge Node Infrastructure Blueprint",
-              "url": "https://github.com/open-edge-platform/edge-node-infrastructure-blueprint"
-            },
+              "text": "Handheld Multi-Modal Application",
+              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/handheld-multi-modal-application/index.html"
+            }
+          ]
+        },
+        {
+          "when": {
+            "PROFILE": "federal_and_aerospace_ai_suite_handheld",
+            "OP_SYSTEM": "UBUNTU_26_04"
+          },
+          "links": [
             {
               "text": "Handheld Multi-Modal Application",
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/handheld-multi-modal-application/index.html"
-            },
+            }
+          ]
+        },
+        {
+          "when": {
+            "PROFILE": "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle",
+            "OP_SYSTEM": "UBUNTU_24_04"
+          },
+          "links": [
             {
-              "text": "UAV Mission Compute SDK",
+              "text": "Uncrewed Aerial Vehicle Mission",
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/uav-vision-analytics/index.html"
             }
           ]
         },
         {
           "when": {
-            "PROFILE": "federal_and_aerospace_ai_suite",
+            "PROFILE": "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle",
             "OP_SYSTEM": "UBUNTU_26_04"
           },
           "links": [
             {
-              "text": "Edge Node Infrastructure Blueprint",
-              "url": "https://github.com/open-edge-platform/edge-node-infrastructure-blueprint"
-            },
-            {
-              "text": "Handheld Multi-Modal Application",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/handheld-multi-modal-application/index.html"
-            },
-            {
-              "text": "UAV Mission Compute SDK",
+              "text": "Uncrewed Aerial Vehicle Mission",
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/uav-vision-analytics/index.html"
+            }
+          ]
+        },
+        {
+          "when": {
+            "PROFILE": "federal_and_aerospace_ai_suite_mission_decision_support",
+            "OP_SYSTEM": "UBUNTU_24_04"
+          },
+          "links": [
+            {
+              "text": "Deterministic Threat Detection",
+              "url": "https://github.com/open-edge-platform/federal-and-aerospace-ai-suite/tree/2026.3-20261027/deterministic-threat-detection"
+            }
+          ]
+        },
+        {
+          "when": {
+            "PROFILE": "federal_and_aerospace_ai_suite_mission_decision_support",
+            "OP_SYSTEM": "UBUNTU_26_04"
+          },
+          "links": [
+            {
+              "text": "Deterministic Threat Detection",
+              "url": "https://github.com/open-edge-platform/federal-and-aerospace-ai-suite/tree/2026.3-20261027/deterministic-threat-detection"
             }
           ]
         },

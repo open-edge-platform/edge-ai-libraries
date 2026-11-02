@@ -7,10 +7,6 @@ from utils.config_loader import config
 from utils.latency_store import asr_latency
 from utils.storage_manager import StorageManager
 from utils.app_paths import get_session_dir
-from components.asr.openai.whisper import Whisper as OA_Whisper
-from components.asr.openvino.whisper import Whisper as OV_Whisper
-from components.asr.openvino_genai.whisper import Whisper as OVGenAIWhisper
-from components.asr.whispercpp.whisper import WhisperCpp
 import logging
 import threading
 logger = logging.getLogger(__name__)
@@ -146,6 +142,17 @@ class ASRComponent(PipelineComponent):
 
     @staticmethod
     def _resolve_backend(provider: str, model_name: str, device: str):
+        # NOTE: backend classes are imported lazily, one provider at a time,
+        # rather than unconditionally at module load (as they were before).
+        # components/asr/openai/whisper.py and components/asr/openvino/whisper.py
+        # both import the `whisper` (openai-whisper) package at their own module
+        # level, so importing all four backends eagerly here forced openai-whisper
+        # (and its torch/transformers/tiktoken dependency chain) to be installed
+        # for every deployment, even ones that only ever use the openvino-genai
+        # provider. Deferring the import to the point of actual selection mirrors
+        # the existing lazy-import pattern already used for diarization/sentiment
+        # below, and allows a slim image to omit the openai/whispercpp provider
+        # dependencies entirely as long as they are never selected at runtime.
         normalized_provider = provider.lower()
         normalized_model_name = model_name.lower()
         requested_device = str(device)
@@ -158,14 +165,21 @@ class ASRComponent(PipelineComponent):
             requested_device = "CPU"
 
         if normalized_provider == "openai" and "whisper" in normalized_model_name:
+            from components.asr.openai.whisper import Whisper as OA_Whisper
             return OA_Whisper, (normalized_provider, normalized_model_name, requested_device.lower()), requested_device.lower()
 
         if normalized_provider == "openvino" and "whisper" in normalized_model_name:
             use_ov_genai = bool(getattr(getattr(config, "app", None), "use_ov_genai", False))
-            backend_cls = OVGenAIWhisper if use_ov_genai else OV_Whisper
+            if use_ov_genai:
+                from components.asr.openvino_genai.whisper import Whisper as OVGenAIWhisper
+                backend_cls = OVGenAIWhisper
+            else:
+                from components.asr.openvino.whisper import Whisper as OV_Whisper
+                backend_cls = OV_Whisper
             return backend_cls, (normalized_provider, normalized_model_name, requested_device.upper(), use_ov_genai), requested_device.upper()
 
         if normalized_provider == "whispercpp" and "whisper" in normalized_model_name:
+            from components.asr.whispercpp.whisper import WhisperCpp
             return WhisperCpp, (normalized_provider, normalized_model_name, requested_device.upper()), requested_device.upper()
 
         if normalized_provider == "funasr" and "paraformer" in normalized_model_name:
