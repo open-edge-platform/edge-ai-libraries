@@ -10,6 +10,90 @@ its correspondence count. This requirement is not yet demonstrated. OpenCV remai
 a diagnostic reference. complete-gpu-sift is excluded from further acceptance work
 and will not be repaired; its results below are historical evidence only.
 
+## Spatial Support and Exact Duplicates
+
+Checkpoint 45 removes exact duplicate localized extrema within each OpenCL octave,
+before the feature cap, orientation assignment and descriptor generation. Neighboring
+seeds can converge to identical x/y/scale records during iterative refinement.
+A first-occurrence set preserves output order; distinct scales, octaves and legitimate
+multiple orientations remain. No distance tolerance, response threshold or matcher
+rule changes. The raw candidate-refinement API retains its per-candidate behavior.
+
+A deterministic 1025x769 noise fixture reproduced two duplicates among 1695 points
+before the fix. Four sigma/interval configurations now verify unique localized
+points and exact host/resident ordering and response parity. Existing cross-octave,
+orientation, descriptor and capacity tests remain enabled. All 11 local tests pass;
+the expanded refinement and scoring suites also pass on Arc.
+
+The common scorer now adds these diagnostics without changing its matching rules:
+
+- `first_distinct_positions`, `second_distinct_positions`: distinct float x/y pairs.
+- `first_duplicate_records`, `second_duplicate_records`: records beyond the first
+  with equal x/y and all 128 equal descriptor values. Colocated but different
+  descriptors are not duplicate records.
+- `inlier_distinct_first_positions`, `inlier_distinct_second_positions`: distinct
+  source/target positions participating in accepted ground-truth inliers.
+
+These are exact numeric-equality counts, not spatial clustering, one-to-one matching,
+overlap-adjusted recall or unique physical landmark counts. Nearby detections may
+still represent the same scene point. Scorer tests cover identical queries, identical
+targets, different descriptors at the same position, many-to-one matches and empty
+outputs, alongside the existing malformed-input checks. Reporting runs outside the
+timed extraction. It allocates temporary sets proportional to feature count; existing
+external-input bounds and validation remain unchanged.
+
+Before extraction changes, both 64-case configurations were rerun with the new
+reporting: every existing OpenCL score remained exactly unchanged. All 64 frozen
+CUDA exports were rescored locally and their prior scores also remained unchanged.
+CUDA extraction/settings were not rerun or changed. Exact duplicate records appeared
+in all 64 OpenCL cases and 33 CUDA cases. Then both OpenCL configurations were rerun
+with deduplication on byte-identical frozen pairs. All OpenCL duplicate-record counts
+became zero. Distinct inlier source and target support never decreased in any case.
+
+| Diagnostic | Default configuration | Experimental dense configuration |
+| --- | --- | --- |
+| Cases with increased distinct source support | 55 / 64 | 64 / 64 |
+| Cases with lower raw inlier counts | 16 / 64 | 10 / 64 |
+| Cases with lower precision | 22 / 64 | 19 / 64 |
+| Remaining CUDA count / precision / RMSE deficits | 25 / 3 / 5 | 1 / 9 / 4 |
+| Remaining CUDA distinct source / target support deficits | 27 / 26 | 1 / 2 |
+
+Removing repeated queries can reduce raw counts, while removing identical target
+competitors makes additional ratio matches eligible, including outliers. This is
+not a universal precision gain. Dense blurred building has 524 distinct inlier
+target positions versus CUDA's 527; blurred graf has 550 versus 585 (source support
+584 versus 600). The stricter CudaSift quality requirement remains unmet. Default
+parameters remain unchanged; dense sigma 1.0/five intervals remains nondefault.
+
+Unprofiled Arc A/B/B/A timing, two fresh processes per build/configuration and
+30 measured samples per process, gives the following pooled median isolated
+first-image extraction times. Both binaries include the same reporting code.
+
+| Fixture | Defaults before -> after (ms) | Dense before -> after (ms) |
+| --- | --- | --- |
+| Box | 4.668 -> 4.625 | 5.164 -> 5.285 |
+| Building | 5.879 -> 5.959 | 8.091 -> 8.872 |
+| Graf | 6.257 -> 6.402 | 7.941 -> 8.594 |
+
+Default deltas range from about -1% to +2.3%; dense is about 2-10% slower. This is
+diagnostic sampling, not release performance qualification or application latency.
+The dense configuration's quality and latency tradeoffs prevent its promotion.
+
+Evidence in the SIFT workspace: `results/20261102/spatial-support-cases.json`,
+`dedup-cases.json`, `dedup-summary.json`, `dedup-timing.json`, and the corresponding
+raw-report archives and `dedup-receipts.sha256`. Baseline-reporting payload
+`/tmp/sift-spatial-support.2xzagy`, Arc stage `spatial-support-a178577778696fc5`,
+manifest `a178577778696fc59759d262ed47c1f26ea522592fb792c7634b27361fc59c6b`,
+reports `/tmp/sift-spatial-support-results.AotN5D`. Deduplication payload
+`/tmp/sift-dedup.SKozWg`, Arc stage `dedup-11e3ba0a8d748968`, manifest
+`11e3ba0a8d7489687930d644fc0114c5c870f0b34079dd481495ec58e003cd27`,
+reports `/tmp/sift-dedup-results.35arsX`. Both stages are under the existing
+user-space staging root. Frozen CUDA exports remain unmodified.
+
+Next: blur/scale localization and scale-space differences, then independent held-out
+real-viewpoint pairs with known geometry. The present affine scorer cannot establish
+general perspective homography accuracy. No backend selection or Python work yet.
+
 ## Bounded Refinement Follow-up
 
 Checkpoint 44 retains five-fit neighboring-sample relocation in OpenCL refinement.

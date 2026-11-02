@@ -12,6 +12,7 @@
 #include <cstdlib>
 #include <limits>
 #include <memory>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -1650,7 +1651,9 @@ std::vector<ScaleSpaceKeypoint> OpenCLDoGExtrema::detect_pyramid_impl(
         contrast_threshold, edge_limit);
     }
     const float image_factor = std::ldexp(1.0f, octave);
+    std::set<std::array<float, 3>> locations;
     for (const auto &point : refined) {
+      if (!locations.insert({point.x, point.y, point.scale}).second) continue;
       const float octave_sigma =
           base_sigma * std::exp2((point.scale + 0.5f) / intervals);
       const float image_sigma = octave_sigma * image_factor;

@@ -12,6 +12,7 @@
 #include <opencv2/imgproc.hpp>
 
 #include <algorithm>
+#include <array>
 #include <charconv>
 #include <chrono>
 #include <cmath>
@@ -19,6 +20,7 @@
 #include <filesystem>
 #include <iostream>
 #include <numeric>
+#include <set>
 #include <stdexcept>
 #include <vector>
 
@@ -273,6 +275,23 @@ void report(cv::FileStorage &output, const char *name, const FeatureSet &first,
   double squared_error_sum = 0.0;
   double error_x_sum = 0.0;
   double error_y_sum = 0.0;
+  std::set<std::array<float, 2>> inlier_first_positions, inlier_second_positions;
+  const auto support = [](const FeatureSet &features) {
+    std::set<std::array<float, 2>> positions;
+    std::set<std::array<float, 130>> records;
+    for (size_t index = 0; index < features.positions.size(); ++index) {
+      const auto &point = features.positions[index];
+      positions.insert({point.x, point.y});
+      std::array<float, 130> record{point.x, point.y};
+      std::copy_n(features.descriptors.ptr<float>(static_cast<int>(index)),
+                  128, record.begin() + 2);
+      records.insert(record);
+    }
+    return std::pair{static_cast<int>(positions.size()),
+                     static_cast<int>(features.positions.size() - records.size())};
+  };
+  const auto first_support = support(first);
+  const auto second_support = support(second);
   if (!first.descriptors.empty() && second.descriptors.rows >= 2) {
     std::vector<std::vector<cv::DMatch>> neighbors;
     cv::BFMatcher(cv::NORM_L2).knnMatch(first.descriptors, second.descriptors,
@@ -291,6 +310,8 @@ void report(cv::FileStorage &output, const char *name, const FeatureSet &first,
       const double squared_error = error_x * error_x + error_y * error_y;
       if (squared_error <= 9.0) {
         ++inliers;
+        inlier_first_positions.insert({source.x, source.y});
+        inlier_second_positions.insert({target.x, target.y});
         squared_error_sum += squared_error;
         error_x_sum += error_x;
         error_y_sum += error_y;
@@ -299,6 +320,12 @@ void report(cv::FileStorage &output, const char *name, const FeatureSet &first,
   }
   output << name << "{" << "first_features" << static_cast<int>(first.positions.size())
          << "second_features" << static_cast<int>(second.positions.size())
+      << "first_distinct_positions" << first_support.first
+      << "second_distinct_positions" << second_support.first
+      << "first_duplicate_records" << first_support.second
+      << "second_duplicate_records" << second_support.second
+      << "inlier_distinct_first_positions" << static_cast<int>(inlier_first_positions.size())
+      << "inlier_distinct_second_positions" << static_cast<int>(inlier_second_positions.size())
          << "ratio_matches" << accepted << "ground_truth_inliers_3px" << inliers
          << "inlier_fraction" << (accepted ? static_cast<double>(inliers) / accepted : 0.0)
          << "inlier_rmse_px" << (inliers ? std::sqrt(squared_error_sum / inliers) : -1.0)

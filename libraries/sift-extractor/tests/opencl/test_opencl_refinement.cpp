@@ -4,6 +4,8 @@
 #include <cmath>
 #include <cstdio>
 #include <limits>
+#include <random>
+#include <set>
 #include <stdexcept>
 #include <vector>
 
@@ -172,6 +174,47 @@ int main() {
     }
     std::printf("Mapped two analytic octaves; image detector found %zu points; "
                 "blank input found none\n", detected.size());
+
+    constexpr int noise_width = 1025;
+    constexpr int noise_height = 769;
+    std::mt19937 generator(47);
+    std::vector<float> noise(noise_width * noise_height);
+    for (auto &value : noise) value = static_cast<float>(generator() & 255);
+    sift_extractor::detail::OpenCLGaussianPyramid collision_pyramid;
+    for (const int intervals : {3, 5}) {
+      for (const float sigma : {1.0f, 1.6f}) {
+        const auto points = detector.detect_image(noise, noise_width,
+            noise_height, 3, intervals, sigma, 0.1f, 12.1f);
+        const auto host_levels = collision_pyramid.build_with_differences(
+            noise, noise_width, noise_height, 3, intervals, sigma);
+        const auto host_points = detector.detect_pyramid(host_levels.differences,
+            3, intervals, sigma, 0.1f, 12.1f);
+        if (points.empty() || points.size() != host_points.size()) return 1;
+        for (size_t index = 0; index < points.size(); ++index) {
+          const auto &actual = points[index];
+          const auto &expected = host_points[index];
+          if (actual.octave != expected.octave || actual.local.x != expected.local.x ||
+              actual.local.y != expected.local.y || actual.local.scale != expected.local.scale ||
+              actual.local.response != expected.local.response ||
+              actual.local.edge_response != expected.local.edge_response) {
+            std::fprintf(stderr, "Deduplicated host and resident point ordering differs\n");
+            return 1;
+          }
+        }
+        std::set<std::array<float, 4>> locations;
+        size_t duplicates = 0;
+        for (const auto &point : points)
+          if (!locations.insert({static_cast<float>(point.octave), point.local.x,
+                                 point.local.y, point.local.scale}).second)
+            ++duplicates;
+        std::printf("Localized points: intervals=%d sigma=%.1f total=%zu duplicates=%zu\n",
+                    intervals, sigma, points.size(), duplicates);
+        if (duplicates != 0) {
+          std::fprintf(stderr, "Distinct extrema seeds converged to duplicate localized points\n");
+          return 1;
+        }
+      }
+    }
 
     size_t compacted_checks = 0;
     for (const auto shape : {std::array<int, 3>{3, 3, 3},

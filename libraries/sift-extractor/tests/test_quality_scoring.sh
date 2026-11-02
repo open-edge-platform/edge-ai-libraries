@@ -15,7 +15,37 @@ for transformed in 0 1; do
     > "$directory/$transformed.json"
 done
 "$validator" --score-external "$directory/0.json" "$directory/1.json" "$directory/pair.json" "$directory/score.json"
-jq -e '.quality.ratio_matches==3 and .quality.ground_truth_inliers_3px==3 and .quality.inlier_rmse_px==0' "$directory/score.json" >/dev/null
+jq -e '.quality | .ratio_matches==3 and .ground_truth_inliers_3px==3 and .inlier_rmse_px==0 and
+  .first_distinct_positions==3 and .second_distinct_positions==3 and
+  .first_duplicate_records==0 and .second_duplicate_records==0 and
+  .inlier_distinct_first_positions==3 and .inlier_distinct_second_positions==3' "$directory/score.json" >/dev/null
+for transformed in 0 1; do
+  jq '.positions.rows+=1|.positions.data+=.positions.data[0:2]|
+    .descriptors.rows+=1|.descriptors.data+=.descriptors.data[0:128]' \
+    "$directory/$transformed.json" > "$directory/duplicate-$transformed.json"
+done
+"$validator" --score-external "$directory/duplicate-0.json" "$directory/1.json" "$directory/pair.json" "$directory/duplicate-query-score.json"
+jq -e '.quality | .ratio_matches==4 and .ground_truth_inliers_3px==4 and .inlier_rmse_px==0 and
+  .first_distinct_positions==3 and .first_duplicate_records==1 and .second_duplicate_records==0 and
+  .inlier_distinct_first_positions==3 and .inlier_distinct_second_positions==3' "$directory/duplicate-query-score.json" >/dev/null
+"$validator" --score-external "$directory/0.json" "$directory/duplicate-1.json" "$directory/pair.json" "$directory/duplicate-target-score.json"
+jq -e '.quality | .ratio_matches==2 and .ground_truth_inliers_3px==2 and .inlier_rmse_px==0 and
+  .second_distinct_positions==3 and .second_duplicate_records==1 and
+  .inlier_distinct_first_positions==2 and .inlier_distinct_second_positions==2' "$directory/duplicate-target-score.json" >/dev/null
+for transformed in 0 1; do
+  jq '.positions.data[2:4]=.positions.data[0:2]' "$directory/$transformed.json" \
+    > "$directory/colocated-$transformed.json"
+done
+"$validator" --score-external "$directory/colocated-0.json" "$directory/colocated-1.json" "$directory/pair.json" "$directory/colocated-score.json"
+jq -e '.quality | .ratio_matches==3 and .ground_truth_inliers_3px==3 and .inlier_rmse_px==0 and
+  .first_distinct_positions==2 and .second_distinct_positions==2 and
+  .first_duplicate_records==0 and .second_duplicate_records==0 and
+  .inlier_distinct_first_positions==2 and .inlier_distinct_second_positions==2' "$directory/colocated-score.json" >/dev/null
+jq '.positions.data[6]+=1' "$directory/duplicate-0.json" > "$directory/many-to-one.json"
+"$validator" --score-external "$directory/many-to-one.json" "$directory/1.json" "$directory/pair.json" "$directory/many-to-one-score.json"
+jq -e '.quality | .ratio_matches==4 and .ground_truth_inliers_3px==4 and .inlier_rmse_px==0.5 and
+  .first_distinct_positions==4 and .first_duplicate_records==0 and
+  .inlier_distinct_first_positions==4 and .inlier_distinct_second_positions==3' "$directory/many-to-one-score.json" >/dev/null
 for mutation in '.descriptors.cols=127' '.width=639' '.positions.data[0]=-1' \
     '.descriptors.data=([range(0;384)]|map(0))' '.positions.rows=32769'; do
   jq "$mutation" "$directory/0.json" > "$directory/invalid.json"
@@ -28,5 +58,8 @@ done
 jq '.positions.rows=0|.positions.data=[]|.descriptors.rows=0|.descriptors.data=[]' \
   "$directory/0.json" > "$directory/empty.json"
 "$validator" --score-external "$directory/empty.json" "$directory/empty.json" "$directory/pair.json" "$directory/empty-score.json"
-jq -e '.quality.ratio_matches==0 and .quality.ground_truth_inliers_3px==0 and .quality.inlier_rmse_px == -1' "$directory/empty-score.json" >/dev/null
-printf 'Known-transform scoring, empty results and five invalid feature cases passed\n'
+jq -e '.quality | .ratio_matches==0 and .ground_truth_inliers_3px==0 and .inlier_rmse_px == -1 and
+  .first_distinct_positions==0 and .second_distinct_positions==0 and
+  .first_duplicate_records==0 and .second_duplicate_records==0 and
+  .inlier_distinct_first_positions==0 and .inlier_distinct_second_positions==0' "$directory/empty-score.json" >/dev/null
+printf 'Known-transform scoring, spatial support, duplicate records, empty results and five invalid feature cases passed\n'
