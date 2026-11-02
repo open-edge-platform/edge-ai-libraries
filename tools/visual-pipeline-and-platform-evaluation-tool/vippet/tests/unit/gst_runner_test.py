@@ -5,6 +5,7 @@ These tests focus on the Python control flow and error handling, using
 mocking to avoid depending on real GStreamer behavior where possible.
 """
 
+import json
 import unittest
 from typing import Any, Tuple
 from unittest import mock
@@ -420,6 +421,93 @@ class TestPipelineRunner(unittest.TestCase):
             self.assertTrue(runner._state.max_runtime_triggered)
             self.assertEqual(runner._state.reason, "max_runtime")
 
+    def test_pipeline_runner_sigint_during_get_state_returns_early(self) -> None:
+        """SIGINT (KeyboardInterrupt) during the initial get_state() call should
+        skip the main loop entirely, clean up immediately, and report success.
+        """
+        fake_pipeline = mock.create_autospec(gst_runner.Gst.Pipeline)
+        fake_bus = mock.Mock()
+        fake_pipeline.get_bus.return_value = fake_bus
+        fake_bus.pop.return_value = None
+
+        # Simulate SIGINT interrupting the blocking get_state() call.
+        fake_pipeline.get_state.side_effect = KeyboardInterrupt
+
+        with mock.patch.object(gst_runner, "GLib") as mock_glib:
+            mock_loop = mock.Mock()
+            mock_glib.MainLoop.return_value = mock_loop
+
+            runner = gst_runner._PipelineRunner(
+                fake_pipeline, max_run_time_sec=0.1, mode="normal"
+            )
+            ok, reason = runner.run()
+
+        self.assertTrue(ok)
+        self.assertIsNone(reason)
+        # The main loop must never be entered.
+        mock_loop.run.assert_not_called()
+        # _cleanup() must still transition the pipeline to NULL.
+        fake_pipeline.set_state.assert_any_call(gst_runner.Gst.State.NULL)
+        self.assertTrue(runner._state.shutdown_in_progress)
+        self.assertEqual(runner._state.reason, "sigint")
+
+    def test_pipeline_runner_sigint_early_exit_still_detects_bus_error(self) -> None:
+        """The early-exit path (SIGINT during get_state()) must still observe
+        an ERROR posted on the bus while _cleanup() transitions the pipeline
+        to NULL, instead of unconditionally reporting success.
+        """
+        fake_pipeline = mock.create_autospec(gst_runner.Gst.Pipeline)
+        fake_bus = mock.Mock()
+        fake_pipeline.get_bus.return_value = fake_bus
+
+        fake_error_message = mock.Mock()
+        fake_error_message.type = gst_runner.Gst.MessageType.ERROR
+        fake_error = mock.Mock()
+        fake_error.message = "simulated-teardown-error"
+        fake_error_message.parse_error.return_value = (fake_error, "debug-info")
+
+        # One ERROR message is sitting on the bus when _finalize() drains it,
+        # simulating an error posted while set_state(NULL) ran in _cleanup().
+        fake_bus.pop.side_effect = [fake_error_message, None]
+
+        fake_pipeline.get_state.side_effect = KeyboardInterrupt
+
+        with mock.patch.object(gst_runner, "GLib") as mock_glib:
+            mock_loop = mock.Mock()
+            mock_glib.MainLoop.return_value = mock_loop
+
+            runner = gst_runner._PipelineRunner(
+                fake_pipeline, max_run_time_sec=0.1, mode="normal"
+            )
+            ok, reason = runner.run()
+
+        self.assertFalse(ok)
+        self.assertEqual(reason, "error")
+        mock_loop.run.assert_not_called()
+
+    def test_finalize_reports_error_drained_from_bus(self) -> None:
+        """_finalize should surface an ERROR message drained from the bus even
+        if no error had previously been recorded on _RunState.
+        """
+        fake_pipeline = mock.create_autospec(gst_runner.Gst.Pipeline)
+        fake_bus = mock.Mock()
+
+        fake_error_message = mock.Mock()
+        fake_error_message.type = gst_runner.Gst.MessageType.ERROR
+        fake_error = mock.Mock()
+        fake_error.message = "late-error"
+        fake_error_message.parse_error.return_value = (fake_error, "debug-info")
+        fake_bus.pop.side_effect = [fake_error_message, None]
+
+        runner = gst_runner._PipelineRunner(
+            fake_pipeline, max_run_time_sec=0.0, mode="normal"
+        )
+
+        ok, reason = runner._finalize(fake_bus)
+
+        self.assertFalse(ok)
+        self.assertEqual(reason, "error")
+
 
 class TestMain(unittest.TestCase):
     """Tests for the main CLI entry point using dependency injection.
@@ -624,6 +712,34 @@ class TestGstLogBridgeLatencyTracer(unittest.TestCase):
             user_data=None,
         )
 
+    def _invoke_bridge_with_obj(
+        self, text: str, level: int, obj_name: str | None
+    ) -> None:
+        """Call gst_log_bridge with a named GstObject-like `obj`.
+
+        When ``obj_name`` is ``None``, ``obj`` is passed as ``None`` to
+        mirror the tracer path. Otherwise ``obj`` is a mock exposing
+        ``get_name()`` returning ``obj_name``, mirroring the way
+        GStreamer forwards a ``GstObject`` reference to the log
+        function for element-scoped records.
+        """
+        fake_message = mock.MagicMock()
+        fake_message.get.return_value = text
+        fake_obj = None
+        if obj_name is not None:
+            fake_obj = mock.MagicMock()
+            fake_obj.get_name.return_value = obj_name
+        gst_runner.gst_log_bridge(
+            category=None,
+            level=level,
+            file=None,
+            function=None,
+            line=0,
+            obj=fake_obj,
+            message=fake_message,
+            user_data=None,
+        )
+
     def test_pipeline_interval_sample_is_promoted_to_info(self) -> None:
         """`latency_tracer_pipeline_interval,...` TRACE messages must be logged as INFO."""
         sample = (
@@ -659,6 +775,142 @@ class TestGstLogBridgeLatencyTracer(unittest.TestCase):
         with self.assertRaises(AssertionError):
             with self.assertLogs("gst_runner", level="INFO"):
                 self._invoke_bridge(per_frame, RealGst.DebugLevel.TRACE)
+
+    def test_element_name_prefixed_when_obj_is_named(self) -> None:
+        """`Added meta message:` INFO records from a named ``GstObject`` must be prefixed with ``<name>``.
+
+        Downstream parsers (currently the VLM-metrics parser in
+        ``pipeline_runner``) rely on this prefix to attribute a sample
+        to a specific stream in multi-stream runs, since after
+        ``unify_all_element_names`` the element name is unique per
+        stream (e.g. ``gvagenai_0_0``).
+        """
+        with self.assertLogs("gst_runner", level="INFO") as captured:
+            self._invoke_bridge_with_obj(
+                "Added meta message: {}",
+                RealGst.DebugLevel.INFO,
+                obj_name="gvagenai_0_0",
+            )
+
+        joined = "\n".join(captured.output)
+        self.assertIn("<gvagenai_0_0> Added meta message: {}", joined)
+
+    def test_non_marker_message_is_not_prefixed_even_with_named_obj(self) -> None:
+        """Only ``Added meta message:`` lines get the ``<name>`` prefix.
+
+        The prefixing behavior is scoped to the VLM-metrics marker so
+        that unrelated logs (errors, warnings, other INFOs) stay
+        byte-identical to the pre-change output — every existing
+        downstream parser sees exactly what it saw before.
+        """
+        with self.assertLogs("gst_runner", level="INFO") as captured:
+            self._invoke_bridge_with_obj(
+                "some unrelated info message",
+                RealGst.DebugLevel.INFO,
+                obj_name="gvagenai_0_0",
+            )
+
+        joined = "\n".join(captured.output)
+        self.assertNotIn("<gvagenai_0_0>", joined)
+        self.assertIn("some unrelated info message", joined)
+
+    def test_no_prefix_when_obj_is_none(self) -> None:
+        """A marker record without a source object must reach the logger unmodified."""
+        with self.assertLogs("gst_runner", level="INFO") as captured:
+            self._invoke_bridge_with_obj(
+                "Added meta message: {}",
+                RealGst.DebugLevel.INFO,
+                obj_name=None,
+            )
+
+        joined = "\n".join(captured.output)
+        self.assertNotIn("<", joined)
+        self.assertIn("Added meta message: {}", joined)
+
+    def test_no_prefix_when_named_obj_has_empty_name(self) -> None:
+        """An empty ``get_name()`` result must not produce a ``<>`` prefix."""
+        with self.assertLogs("gst_runner", level="INFO") as captured:
+            self._invoke_bridge_with_obj(
+                "Added meta message: {}",
+                RealGst.DebugLevel.INFO,
+                obj_name="",
+            )
+
+        joined = "\n".join(captured.output)
+        self.assertNotIn("<>", joined)
+        self.assertIn("Added meta message: {}", joined)
+
+    def test_tracer_line_is_not_prefixed_even_if_obj_is_named(self) -> None:
+        """The tracer promotion path must run BEFORE any marker-prefix logic."""
+        sample = (
+            "latency_tracer_pipeline_interval, pipeline_name=(string)pipeline0, "
+            "source_name=(string)filesrc0, sink_name=(string)sink0, "
+            "interval=(double)1000.0, avg=(double)5.0, min=(double)1.0, "
+            "max=(double)9.0, latency=(double)3.0, fps=(double)60.0"
+        )
+        with self.assertLogs("gst_runner", level="INFO") as captured:
+            self._invoke_bridge_with_obj(
+                sample, RealGst.DebugLevel.TRACE, obj_name="some_tracer"
+            )
+
+        joined = "\n".join(captured.output)
+        self.assertNotIn("<some_tracer>", joined)
+        self.assertIn("latency_tracer_pipeline_interval", joined)
+
+
+class TestAddPromptToMetaMessage(unittest.TestCase):
+    """``gvagenai`` meta JSON is enriched with the element's ``prompt``."""
+
+    def test_prompt_is_added_to_json(self) -> None:
+        obj = mock.MagicMock()
+        obj.get_property.return_value = "Are people riding? "
+        text = gst_runner._add_prompt_to_meta_message(
+            'Added meta message: {"result": "No"}', obj
+        )
+        self.assertTrue(text.startswith("Added meta message: "))
+        payload = json.loads(text[len("Added meta message: ") :])
+        self.assertEqual(payload, {"result": "No", "prompt": "Are people riding?"})
+
+    def test_text_unchanged_without_prompt_property(self) -> None:
+        obj = mock.MagicMock()
+        obj.get_property.side_effect = TypeError("no property")
+        text = 'Added meta message: {"result": "No"}'
+        self.assertEqual(gst_runner._add_prompt_to_meta_message(text, obj), text)
+
+    def test_text_unchanged_for_invalid_json(self) -> None:
+        obj = mock.MagicMock()
+        obj.get_property.return_value = "prompt"
+        text = "Added meta message: {not-json"
+        self.assertEqual(gst_runner._add_prompt_to_meta_message(text, obj), text)
+
+
+class TestLogPipelineEvent(unittest.TestCase):
+    """``vippet-event`` element messages are logged as one JSON line."""
+
+    def test_logs_structure_fields_and_element_name(self) -> None:
+        RealGst.init(None)
+        structure = RealGst.Structure.new_empty(gst_runner.PIPELINE_EVENT_STRUCTURE)
+        structure.set_value("source", "proximity-trigger")
+        structure.set_value("text", "person near bicycle")
+        structure.set_value("pts-seconds", 1.5)
+        src = mock.MagicMock()
+        src.get_name.return_value = "gvaproximitytrigger_py0"
+
+        with self.assertLogs("gst_runner", level="INFO") as captured:
+            gst_runner.log_pipeline_event(gst_runner.get_logger(), src, structure)
+
+        line = captured.records[0].getMessage()
+        self.assertTrue(line.startswith(gst_runner.PIPELINE_EVENT_MARKER))
+        payload = json.loads(line[len(gst_runner.PIPELINE_EVENT_MARKER) :])
+        self.assertEqual(
+            payload,
+            {
+                "source": "proximity-trigger",
+                "text": "person near bicycle",
+                "pts-seconds": 1.5,
+                "element": "gvaproximitytrigger_py0",
+            },
+        )
 
 
 if __name__ == "__main__":

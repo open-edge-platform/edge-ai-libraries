@@ -1,0 +1,29 @@
+---
+description: Multimodal Embedding Serving Cursor agent router — canonical instructions and workflow skills
+alwaysApply: true
+---
+
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
+## Canonical instructions
+
+Read [.github/copilot-instructions.md](../../.github/copilot-instructions.md)
+first. Do not duplicate policy here.
+
+## Skills
+
+Discover workflow skills by reading the `SKILL.md` files under
+[.github/skills/](../../.github/skills/); prefer
+[skill-catalog.json](../../.github/skills/skill-catalog.json) for routing and
+do not assume a fixed list.
+
+## Cursor workflow
+
+- Prefer the service's real interfaces: `source setup.sh` (requires
+  `EMBEDDING_MODEL_NAME`), `docker compose -f docker/compose.yaml`, the REST
+  API on port `9777`, or the Python SDK wheel.
+- Run commands yourself and relay results; keep changes minimal.
+- Commit or open PRs only when explicitly asked.

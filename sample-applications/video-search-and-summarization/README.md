@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Video Search and Summarization
 
 Use the Video Search and Summarization (VSS) sample application to search through your videos, summarize them, and more.
@@ -7,7 +12,7 @@ This foundational sample application provides four deployment modes:
 | Mode | Setup Command | Usage | Capability |
 |---|---|---|---|
 | 📝 Summary | `source setup.sh --summary` | Create concise summaries of long-form videos or live streams, automatically. | Combine insights from different data types using Generative AI Vision Language Models (VLMs), computer vision, and audio analysis. |
-| 🔍 Search | `source setup.sh --search` | Find specific content within large video datasets through natural language. | Extract and index visual, audio, and textual features from video frames using multimodal embedding models. Query using natural language. |
+| 🔍 Search | `source setup.sh --search` | Find specific content within large video datasets, or across live RTSP cameras, through natural language. | Extract and index visual, audio, and textual features from video frames using multimodal embedding models. Continuously index live RTSP camera streams. Query using natural language. |
 | 🔀 Dual UI | `source setup.sh --summary --search` | Run summarization and search side-by-side with separate UIs. | Both summary and search capabilities with independent UI instances. |
 | 🔗 Unified UI | `source setup.sh --summary-and-search` | Create summaries of videos and search for specific content in a single unified UI. | Search over video summary's text embeddings for more relevant results. |
 
@@ -33,6 +38,7 @@ The detailed documentation to help you get started, configure, and deploy the sa
 
 - **AI Agent Integration**
   - [MCP Server](./docs/user-guide/mcp-server.md): Connect AI agents to VSS Search using the Model Context Protocol (MCP).
+  - [Agent Skills](./AGENTS.md): Discover reusable VSS workflow skills for Codex, Copilot CLI, Claude Code, and other coding agents.
 
 - **API Reference**
   - [API Reference](./docs/user-guide/api-reference.md): Comprehensive reference for the available REST API endpoints.

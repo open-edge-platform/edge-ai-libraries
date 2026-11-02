@@ -38,12 +38,17 @@ import {
   handleAsyncJobError,
   isAsyncJobError,
 } from "@/lib/apiUtils";
-import { cn, formatErrorMessage } from "@/lib/utils.ts";
+import {
+  cn,
+  CONTENT_CONTAINER_CLASS,
+  formatErrorMessage,
+} from "@/lib/utils.ts";
 import {
   parsePipelineVariantReference,
   type PipelineVariantReference,
 } from "@/features/pipeline-tests/pipelineVariantReference";
 import type { Pipeline } from "@/api/api.generated";
+import { NavigationGuard } from "@/components/shared/NavigationGuard";
 
 interface PipelineSelection {
   pipelineId: string;
@@ -66,8 +71,12 @@ const containsCameraInputInPipeline = (
   return nodes.some((node) => {
     if (node.type === "source") {
       const sourceType = node.data?.source || "";
-      // Check if it's a camera: /dev/video* or rtsp://
-      return sourceType.startsWith("/dev/") || sourceType.startsWith("rtsp://");
+      // Check if it's a camera: /dev/video*, rtsp:// or gige://
+      return (
+        sourceType.startsWith("/dev/") ||
+        sourceType.startsWith("rtsp://") ||
+        sourceType.startsWith("gige://")
+      );
     }
     return false;
   });
@@ -103,6 +112,7 @@ export const PerformanceTests = () => {
   const {
     execute: runTest,
     isLoading: isRunning,
+    isPolling: isPollingJob,
     jobId,
     jobStatus,
   } = useAsyncJob({
@@ -288,7 +298,12 @@ export const PerformanceTests = () => {
 
   return (
     <>
-      <div className="container pl-16 mx-auto py-10">
+      <NavigationGuard
+        when={isPollingJob}
+        title="Performance test in progress"
+        description="This page is still polling the active performance test. Stop the test or wait for it to finish before leaving this page."
+      />
+      <div className={CONTENT_CONTAINER_CLASS}>
         <div className="mb-6">
           <h1 className="text-3xl font-bold">Performance Tests</h1>
           <p className="text-muted-foreground mt-2">
@@ -670,8 +685,8 @@ export const PerformanceTests = () => {
             {jobStatus.state === "RUNNING" && (
               <div className="mt-2">
                 <div className="animate-pulse flex items-center gap-2">
-                  <div className="h-2 w-2 bg-magenta-chart"></div>
-                  <span className="text-xs text-magenta-chart">
+                  <div className="h-2 w-2 bg-primary"></div>
+                  <span className="text-xs text-status-fg">
                     Running performance test...
                   </span>
                 </div>

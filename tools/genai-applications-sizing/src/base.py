@@ -61,7 +61,7 @@ class BasePerformanceProfiler(ABC):
         self.config = read_yaml_config(input_file)
         
         # Get global configuration
-        self.report_dir, self.perf_tool_repo, self.profile_path = get_global_details(self.config)
+        self.report_dir, self.metrics_collector, self.profile_path = get_global_details(self.config)
         
         # Will be set during execution
         self.log_dir = None
@@ -128,7 +128,7 @@ class BasePerformanceProfiler(ABC):
             tuple: Paths to log directory and compose file if started, (None, None) otherwise.
         """
         if self.collect_resource_metrics:
-            log_dir, compose_file = start_perf_tool(repo_url=self.perf_tool_repo, report_dir=report_dir)
+            log_dir, compose_file = start_perf_tool(repo_url=self.metrics_collector, report_dir=report_dir)
             return log_dir, compose_file
         return None, None   
     

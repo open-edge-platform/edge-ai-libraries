@@ -34,9 +34,6 @@ Guidance for Authors:
 **Acceptance Criteria**:
 1. At least two practical use cases demonstrating the microservice in action.
 -->
-## Example Use Case
-
-- **Use Case 1**: Refer to the [Chat Q&A](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/chat-question-and-answer/index.html) sample application where this microservice is used.
 
 
 <!--

@@ -21,7 +21,7 @@ class RestServer:
     """ REST Server.
     """
 
-    def __init__(self, pipeline_server_manager, model_registry_client=None):
+    def __init__(self, pipeline_server_manager):
         """Constructor
         """
         self.log = get_logger(f'{__name__}')
@@ -33,7 +33,6 @@ class RestServer:
         self.rest_request_max_body_size = 1024*1024 # 1 MB
         self.stop_ev = th.Event()
         self.pipeline_server_manager = pipeline_server_manager
-        self.model_registry_client = model_registry_client
 
     def start(self):
         """Start the server.
@@ -70,7 +69,6 @@ class RestServer:
                 asyncio.set_event_loop(loop)
 
                 Endpoints.pipeline_server_manager = self.pipeline_server_manager
-                Endpoints.model_registry_client = self.model_registry_client
                 app = connexion.App(__name__, port=self.port,
                                     specification_dir='./',
                                     server='tornado')

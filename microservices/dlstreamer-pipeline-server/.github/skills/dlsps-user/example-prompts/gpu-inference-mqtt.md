@@ -1,0 +1,12 @@
+Run GPU-accelerated object detection with MQTT metadata publishing using DL Streamer Pipeline Server:
+- Configure the service to use the GPU decode and inference pipeline config (sample_gpu_decode_and_inference)
+- Set the RENDER_GID environment variable to match the host GPU render device group
+- Configure an MQTT broker connection for publishing detection metadata
+- Start the pipeline server service using Docker Compose
+- Launch the pallet_defect_detection pipeline on the warehouse.avi video file
+- Use GPU for inference with VA-API hardware acceleration
+- Publish detection metadata including frames to MQTT topic "detections"
+- Output the annotated video stream via RTSP at path "gpu-det"
+- View the RTSP output stream at rtsp://localhost:8554/gpu-det
+- Verify detection messages are arriving on the MQTT topic
+- Stop the pipeline when processing is complete

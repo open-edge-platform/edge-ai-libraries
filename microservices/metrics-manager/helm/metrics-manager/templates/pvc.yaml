@@ -3,6 +3,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: {{ include "metrics-manager.fullname" . }}-custom-metrics
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "metrics-manager.labels" . | nindent 4 }}
 spec:

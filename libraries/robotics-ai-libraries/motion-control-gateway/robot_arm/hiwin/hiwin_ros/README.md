@@ -17,9 +17,10 @@ This package allows you to monitor and control HIWIN industrial robots within th
 
   `roslaunch hiwin_robot_moveit_config demo.launch manipulator_model:=<manipulator_model> gripper_model:=<gripper_model>`
 
-  Note: 
-     - substitute `<manipulator_model>` with the robot model (e.g. _ra605_710_gb_).
-     - substitute `<gripper_model>` with the gripper model (e.g. _xeg_16_).
+  > [!NOTE]
+  >
+  > - substitute `<manipulator_model>` with the robot model (e.g. _ra605_710_gb_).
+  > - substitute `<gripper_model>` with the gripper model (e.g. _xeg_16_).
 
 ## Run package to control a real Robot and Gripper
 If you already purchased a robotic arm and an electric gripper you can follow the following steps:
@@ -34,38 +35,42 @@ If you already purchased a robotic arm and an electric gripper you can follow th
 
     `roslaunch hiwin_driver hiwin_gripper_interface.launch gripper_model:=<gripper_model> gripper_com_port:=<gripper_com_port>`
 
-    Note: 
-     - substitute `<manipulator_ip>` with the IP address of the robotic arm.
-     - substitute `<gripper_model>` with the gripper model (e.g. _xeg_16_).
-     - substitute `<gripper_com_port>` with the gripper p (16 or 32).
-     
+   > [!NOTE]
+   >
+   > - substitute `<manipulator_ip>` with the IP address of the robotic arm.
+   > - substitute `<gripper_model>` with the gripper model (e.g. _xeg_16_).
+   > - substitute `<gripper_com_port>` with the gripper p (16 or 32).
+
 
 1. Load the model, run MoveIt! and (optional) run the RVIZ simulated environment
 
     `roslaunch hiwin_robot_moveit_config start_planning.launch manipulator_model:=<manipulator_model> gripper_model:=<gripper_model>`
 
-    Note: 
-     - substitute `<manipulator_model>` with the robot model (default is _ra605_710_gb_)
-     - substitute `<gripper_model>` with the gripper model (e.g. _xeg_16_).
-    
+    > [!NOTE]
+    >
+    > - substitute `<manipulator_model>` with the robot model (default is _ra605_710_gb_)
+    > - substitute `<gripper_model>` with the gripper model (e.g. _xeg_16_).
+
 ### Control the interface for HIWIN's electric gripper XEG series
 
 If you want to use HIWIN's gripper independently, you need to run the gripper interface to control the gripper via ROS.
 
 1. Connect the gripper controller as illustrated in the gripper manual.
 2. Before running your planner, run the gripper interface node.
-    
+
     `roslaunch hiwin_driver hiwin_gripper_interface.launch gripper_com_port:=<port> gripper_model:=<model> gripper_name:=<name>`
- 
-    Note:
-    - substitute`<port>` with the COM port the gripper is connected to.
-    - substitute `<model>` with the gripper model (e.g. _xeg_16_).
-    - The driver node will be listening for target positions on the action server `<name>/follow_joint_trajectory`.
-      Choose `<name>` accordingly to your planning groups and controllers definitions.
-    - If successfully run, this node will launch a test movement of the gripper. The test is necessary for the correct 
-      operation of the gripper.
+
+    > [!NOTE]
+    >
+    > - substitute`<port>` with the COM port the gripper is connected to.
+    > - substitute `<model>` with the gripper model (e.g. _xeg_16_).
+    > - The driver node will be listening for target positions on the action server `<name>/follow_joint_trajectory`.
+    >   Choose `<name>` accordingly to your planning groups and controllers definitions.
+    > - If successfully run, this node will launch a test movement of the gripper. The test is necessary for the correct
+    >   operation of the gripper.
+
 3. Run your planner or other commander nodes.
-    
+
     `roslaunch <some_package> <some_planning_execution_launch_file>`
 
 ### Licence

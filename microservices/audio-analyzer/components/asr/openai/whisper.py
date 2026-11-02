@@ -1,8 +1,19 @@
 from components.asr.base_asr import BaseASR
+import threading
 import whisper
 import logging
 from utils.config_loader import config
+from utils.ensure_model import get_asr_model_path
 from typing import Dict, Any, List
+
+# openai-whisper's PyTorch model is NOT thread-safe: concurrent calls to
+# model.transcribe() corrupt the model's internal KV cache, causing a
+# KeyError inside the attention layers and a non-200 response from the
+# service.  This lock serialises all transcribe() calls that share the same
+# model instance (the class-level singleton in ASRComponent), preventing
+# concurrent KV cache access.  Each call is typically 1-5 s on CPU, so the
+# serialisation overhead is negligible compared to the inference cost.
+_TRANSCRIBE_LOCK = threading.Lock()
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +40,11 @@ class Whisper(BaseASR):
         model_id = WHISPER_MODEL_MAP[model_name]
         logger.info(f"Loading Whisper model={model_id} on device={device}")
 
-        self.model = whisper.load_model(model_id, device=device)
+        # Load from the models volume so the file persisted by ensure_model()
+        # is used.  This prevents openai-whisper from attempting an outbound
+        # download at container startup when the network is unavailable.
+        download_root = get_asr_model_path()
+        self.model = whisper.load_model(model_id, device=device, download_root=download_root)
 
         # ---- Conservative thresholds (DO NOT overtune) ----
         self.NO_SPEECH_THRESHOLD = config.models.asr.no_speech_threshold
@@ -45,6 +60,9 @@ class Whisper(BaseASR):
         # null/None disables it.
         _hst = getattr(config.models.asr, "hallucination_silence_threshold", None)
         self.HALLUCINATION_SILENCE_THRESHOLD = float(_hst) if _hst is not None else None
+        # Word-level timestamps. Required by diarization to split a whisper
+        # segment that spans two speakers at the acoustic turn boundary.
+        self.WORD_TIMESTAMPS = bool(getattr(config.models.asr, "word_timestamps", False))
 
     def _is_silent_segment(self, seg: Dict[str, Any]) -> bool:
         """
@@ -99,6 +117,17 @@ class Whisper(BaseASR):
                 i += 1
         return " ".join(result)
 
+    def clean_text(self, text: str) -> str:
+        """Public hook so diarization-split sub-segments get repetition filtering.
+
+        Args:
+            text: text rebuilt from word-level timings.
+
+        Returns:
+            Text with consecutive repeated word sequences removed.
+        """
+        return self._remove_repeated_phrases(text)
+
     def _deduplicate_segments(self, segments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Drop segments whose text is identical to the immediately preceding
@@ -127,26 +156,30 @@ class Whisper(BaseASR):
         # Both layers read from the same config values so the behaviour is
         # consistent; the double-pass only affects segments whisper would have
         # kept but our stricter multi-signal check rejects.
-        result = self.model.transcribe(
-            audio_path,
-            temperature=temperature,
-            language=language,
-            condition_on_previous_text=False,
-            no_speech_threshold=self.NO_SPEECH_THRESHOLD,
-            logprob_threshold=self.LOGPROB_THRESHOLD,
+        with _TRANSCRIBE_LOCK:
+            result = self.model.transcribe(
+                audio_path,
+                temperature=temperature,
+                language=language,
+                condition_on_previous_text=False,
+                no_speech_threshold=self.NO_SPEECH_THRESHOLD,
+                logprob_threshold=self.LOGPROB_THRESHOLD,
 
-            # Repetition control (decoder level)
-            beam_size=self.BEAM_SIZE,
-            best_of=self.BEST_OF,
+                # Repetition control (decoder level)
+                beam_size=self.BEAM_SIZE,
+                best_of=self.BEST_OF,
 
-            # Hallucination guard
-            compression_ratio_threshold=2.4,
+                # Hallucination guard
+                compression_ratio_threshold=2.4,
 
-            # Skip generation over silent regions (mic noise fix)
-            hallucination_silence_threshold=self.HALLUCINATION_SILENCE_THRESHOLD,
+                # Skip generation over silent regions (mic noise fix)
+                hallucination_silence_threshold=self.HALLUCINATION_SILENCE_THRESHOLD,
 
-            verbose=False,
-        )
+                # Per-word timings (used by diarization to split mixed-speaker segments)
+                word_timestamps=self.WORD_TIMESTAMPS,
+
+                verbose=False,
+            )
 
         kept_segments: List[Dict[str, Any]] = []
         dropped = 0
@@ -163,6 +196,14 @@ class Whisper(BaseASR):
                 "avg_logprob": seg.get("avg_logprob"),
                 "compression_ratio": seg.get("compression_ratio"),
                 "no_speech_prob": seg.get("no_speech_prob"),
+                "words": [
+                    {
+                        "word": w.get("word", ""),
+                        "start": float(w.get("start", seg["start"])),
+                        "end": float(w.get("end", seg["end"])),
+                    }
+                    for w in (seg.get("words") or [])
+                ],
             })
 
         # Post-processing repetition removal (repetition_penalty > 1.0)

@@ -1,0 +1,36 @@
+---
+description: ChatQnA Cursor agent router - canonical instructions and workflow skills
+alwaysApply: true
+---
+
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
+# Chat Question-and-Answer Core (Cursor)
+
+## Canonical instructions
+
+For project-wide agent discovery, read
+[`copilot-instruction.md`](../../.github/copilot-instruction.md). Do not
+duplicate policy from that file or from skills. Keep Cursor rules as short
+router pointers.
+
+## Skills
+
+When the task touches ChatQnA build, deployment, testing, or API validation,
+discover and read the relevant `SKILL.md` under
+[`.github/skills/`](../../.github/skills/).
+Prefer [`skill-catolog.json`](../../.github/skills/skill-catolog.json) for
+routing, but do not assume a fixed list of skill files.
+
+## Cursor workflow
+
+- Prefer the repo's real interfaces: `scripts/setup_env.sh`, Docker Compose,
+	Helm chart values, pytest and vitest commands, and REST APIs under
+	`/v1/chatqna/...`.
+- Run commands in the real environment when possible and investigate failures
+	before giving up.
+- Create commits or pull requests only when the user explicitly asks.
+- Keep edits minimal and follow conventions in the touched area.

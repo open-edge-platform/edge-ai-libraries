@@ -1,0 +1,54 @@
+{
+  "skill_name": "vss-deploy-helm",
+  "notes": "These four benchmark prompts are self-contained and intentionally separate from example-prompts/. The runner does not access a Kubernetes cluster, so expectations grade stable Helm commands and values rather than live release output.",
+  "evals": [
+    {
+      "id": 1,
+      "eval_name": "summary-helm-plan",
+      "prompt": "Prepare an offline installation plan for VSS summary mode with OVMS in namespace `vss-deployment`. Show the Helm override order and the minimum model and service credentials that belong in `user_values_override.yaml`. Do not contact a cluster.",
+      "expected_output": "Provides the summary-mode Helm command and the required user override values without claiming a live installation.",
+      "files": [],
+      "expectations": [
+        "Provides a Helm install command for release `vss` using `summary_override.yaml` followed by `user_values_override.yaml` in namespace `vss-deployment`.",
+        "Sets `global.vlmName` and lists the PostgreSQL, MinIO, and RabbitMQ username/password keys under `global.env`.",
+        "Keeps the plan summary-only by omitting search and vLLM override files and does not claim that the release was installed."
+      ]
+    },
+    {
+      "id": 2,
+      "eval_name": "dual-mode-switch",
+      "prompt": "Document how to replace an existing unified VSS Helm release named `vss` with dual separate Summary and Search UIs in namespace `vss-deployment`. Include the commands, override files, embedding-model type, and routes.",
+      "expected_output": "Documents uninstalling the unified release and reinstalling dual mode with the correct overrides, model type, and UI routes.",
+      "files": [],
+      "expectations": [
+        "Provides `helm uninstall vss -n vss-deployment` before reinstalling because the enabled subcharts and routing change.",
+        "Provides a reinstall command with `summary_override.yaml`, `search_override.yaml`, and `user_values_override.yaml` in that order.",
+        "Uses a multimodal `global.embeddingModelName` and reports `/summary/` and `/search/` as the dual UI routes."
+      ]
+    },
+    {
+      "id": 3,
+      "eval_name": "ovms-gpu-npu-values",
+      "prompt": "Write an offline values example for VSS summary mode using OVMS with a VLM on an Intel GPU and a separate LLM on an Intel NPU. Also show how an operator should discover the cluster-specific device resource keys before filling them in.",
+      "expected_output": "Shows resource-key discovery and the exact OVMS VLM and LLM device-value structure.",
+      "files": [],
+      "expectations": [
+        "Shows a `kubectl get nodes -o json` resource-key discovery command that checks GPU/NPU-related allocatable keys.",
+        "Sets `global.devices.ovms.vlm.device` to `GPU` and `global.devices.ovms.llm.device` to `NPU`.",
+        "Provides separate `.key` values for the VLM and LLM resources and explains that non-CPU keys must match the cluster's discovered device-plugin resources."
+      ]
+    },
+    {
+      "id": 4,
+      "eval_name": "unified-vllm-plan",
+      "prompt": "Prepare a Helm command and user-values checklist for unified VSS with the Xeon vLLM backend. Use release `vss`, namespace `vss-deployment`, and explain which VLM and embedding model categories unified mode requires.",
+      "expected_output": "Provides the unified-vLLM override stack and the required model values without duplicating backend toggles.",
+      "files": [],
+      "expectations": [
+        "Provides a Helm install command using `unified_summary_search.yaml`, `xeon_vllm_values.yaml`, and `user_values_override.yaml` in that order.",
+        "Sets `global.vlmName` and uses a text model for `global.embeddingModelName` in unified mode.",
+        "Uses `xeon_vllm_values.yaml` to select the vLLM backend and keeps `user_values_override.yaml` last so user values take precedence."
+      ]
+    }
+  ]
+}

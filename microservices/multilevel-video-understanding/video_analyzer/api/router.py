@@ -3,7 +3,7 @@
 
 from fastapi import APIRouter
 
-from video_analyzer.api.endpoints import health, models, summarization
+from video_analyzer.api.endpoints import health, models, summarization, tasks
 from video_analyzer.utils.logger import logger
 
 api_router = APIRouter()
@@ -12,6 +12,7 @@ api_router = APIRouter()
 api_router.include_router(health.router)
 api_router.include_router(summarization.router)
 api_router.include_router(models.router)
+api_router.include_router(tasks.router)
 
 def available_routes():
     logger.info("Available routes are:")

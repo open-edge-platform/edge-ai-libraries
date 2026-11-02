@@ -13,7 +13,7 @@ functional suite runs):
 
 * The vippet stack is up and reachable through ``BASE_URL``.
 * ``shared/models/output`` is mounted into the vippet container; some
-  models from ``supported_models.yaml`` may already be installed.
+  models from the model catalog (``vippet/models/*.yaml``) may already be installed.
 
 The two reference models used here (``face-detection-retail-0004``
 and ``age-gender-recognition-retail-0013``) are intentionally tiny
@@ -49,7 +49,7 @@ logger = logging.getLogger(__name__)
 
 
 # Two small OMZ models that are listed in the canonical
-# ``supported_models.yaml`` shipped with the repository. The display
+# model catalog (``vippet/models/*.yaml``) shipped with the repository. The display
 # names are stable and used by the pipeline tests below.
 _REFERENCE_MODELS: tuple[str, ...] = (
     "face-detection-retail-0004",
@@ -202,7 +202,7 @@ def test_models_download_404_for_unknown_model(
     http_client: requests.Session,
 ) -> None:
     """Submitting a download for a name that is not in
-    ``supported_models.yaml`` must surface an error code (4xx).
+    the model catalog must surface an error code (4xx).
 
     The exact status depends on whether the backend validates the
     request as a whole (400) or per-item (207 with a 404 inside the

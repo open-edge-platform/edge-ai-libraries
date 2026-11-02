@@ -1,11 +1,13 @@
 import itertools
 import json
+import os
 import signal
 import subprocess
 import sys
 import unittest
 from unittest.mock import MagicMock, patch
 
+import pipeline_runner
 from pipeline_runner import (
     PipelineRunner,
     PipelineResult,
@@ -815,6 +817,100 @@ class TestPipelineRunnerLatencyMetrics(unittest.TestCase):
         env = runner._build_subprocess_env()
         self._assert_tracer_env_applied(env)
 
+    # --- Pure _build_subprocess_env unit tests: gvagenai branch ---------------
+
+    @patch.dict("os.environ", {}, clear=True)
+    def test_build_env_genai_only_sets_gvagenai_debug_no_tracers(self):
+        """With only the genai flag on, GST_DEBUG=gvagenai:4 and GST_TRACERS untouched."""
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=False)
+        runner._genai_metrics_enabled = True
+        env = runner._build_subprocess_env()
+        self.assertEqual(env["GST_DEBUG"], "gvagenai:4")
+        self.assertNotIn("GST_TRACERS", env)
+
+    @patch.dict("os.environ", {}, clear=True)
+    def test_build_env_genai_and_latency_combine_debug_categories(self):
+        """With both flags on, GST_DEBUG carries both categories and GST_TRACERS is set."""
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=True)
+        runner._genai_metrics_enabled = True
+        env = runner._build_subprocess_env()
+        self.assertEqual(env["GST_DEBUG"], "GST_TRACER:7,gvagenai:4")
+        self._assert_tracer_env_applied(env)
+
+    @patch.dict("os.environ", {"GST_DEBUG": "2,GST_ELEMENT_PADS:5"}, clear=True)
+    def test_build_env_genai_only_appends_to_existing_gst_debug(self):
+        """Existing GST_DEBUG must be preserved and gvagenai:4 appended."""
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=False)
+        runner._genai_metrics_enabled = True
+        env = runner._build_subprocess_env()
+        self.assertEqual(env["GST_DEBUG"], "2,GST_ELEMENT_PADS:5,gvagenai:4")
+        self.assertNotIn("GST_TRACERS", env)
+
+    @patch.dict("os.environ", {"GST_DEBUG": "2,GST_ELEMENT_PADS:5"}, clear=True)
+    def test_build_env_genai_and_latency_append_to_existing_gst_debug(self):
+        """Both categories must be appended in order after any pre-existing GST_DEBUG value."""
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=True)
+        runner._genai_metrics_enabled = True
+        env = runner._build_subprocess_env()
+        self.assertEqual(
+            env["GST_DEBUG"],
+            "2,GST_ELEMENT_PADS:5,GST_TRACER:7,gvagenai:4",
+        )
+        self._assert_tracer_env_applied(env)
+
+    # --- Pure _build_subprocess_env unit tests: bundled plugin path -----------
+
+    @staticmethod
+    def _bundled_plugins_dir() -> str:
+        """The ``gst_plugins/`` directory as resolved by the production code."""
+        return os.path.join(
+            os.path.dirname(os.path.abspath(pipeline_runner.__file__)),
+            "gst_plugins",
+        )
+
+    @patch("pipeline_runner.os.path.isdir", return_value=True)
+    @patch.dict("os.environ", {}, clear=True)
+    def test_build_env_sets_plugin_path_when_unset(self, _mock_isdir):
+        """With no GST_PLUGIN_PATH, the bundled plugin dir becomes the whole value."""
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=False)
+        env = runner._build_subprocess_env()
+        self.assertEqual(env["GST_PLUGIN_PATH"], self._bundled_plugins_dir())
+        self.assertEqual(env["GST_REGISTRY_FORK"], "no")
+
+    @patch("pipeline_runner.os.path.isdir", return_value=True)
+    @patch.dict(
+        "os.environ",
+        {"GST_PLUGIN_PATH": "/opt/vendor/plugins"},
+        clear=True,
+    )
+    def test_build_env_prepends_plugin_path_to_existing_value(self, _mock_isdir):
+        """An existing GST_PLUGIN_PATH must be preserved after the bundled dir."""
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=False)
+        env = runner._build_subprocess_env()
+        self.assertEqual(
+            env["GST_PLUGIN_PATH"],
+            f"{self._bundled_plugins_dir()}{os.pathsep}/opt/vendor/plugins",
+        )
+        self.assertEqual(env["GST_REGISTRY_FORK"], "no")
+
+    @patch("pipeline_runner.os.path.isdir", return_value=True)
+    @patch.dict("os.environ", {"GST_REGISTRY_FORK": "yes"}, clear=True)
+    def test_build_env_preserves_existing_registry_fork(self, _mock_isdir):
+        """An explicit GST_REGISTRY_FORK from the environment is not overridden."""
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=False)
+        env = runner._build_subprocess_env()
+        self.assertEqual(env["GST_REGISTRY_FORK"], "yes")
+        self.assertEqual(env["GST_PLUGIN_PATH"], self._bundled_plugins_dir())
+
+    @patch("pipeline_runner.os.path.isdir", return_value=False)
+    @patch.dict("os.environ", {}, clear=True)
+    def test_build_env_skips_plugin_vars_when_dir_missing(self, _mock_isdir):
+        """Without the bundled directory neither plugin-related var is introduced."""
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=False)
+        env = runner._build_subprocess_env()
+        self.assertNotIn("GST_PLUGIN_PATH", env)
+        self.assertNotIn("GST_REGISTRY_FORK", env)
+
     # --- Popen-level integration: normal mode ---------------------------------
 
     @patch("pipeline_runner.Popen")
@@ -854,6 +950,56 @@ class TestPipelineRunnerLatencyMetrics(unittest.TestCase):
         runner.run(pipeline_command=self.test_pipeline_command, total_streams=1)
 
         env = mock_popen.call_args.kwargs["env"]
+        self._assert_tracer_env_applied(env)
+
+    @patch("pipeline_runner.Popen")
+    @patch("pipeline_runner.ps")
+    @patch("pipeline_runner.select.select")
+    @patch.dict("os.environ", {}, clear=True)
+    def test_normal_mode_gvagenai_pipeline_adds_gvagenai_debug(
+        self, mock_select, mock_ps, mock_popen
+    ):
+        """A `gvagenai` element in the pipeline command must add `gvagenai:4` to GST_DEBUG."""
+        process_mock = _make_process_mock([])
+        mock_select.return_value = ([], [], [])
+        mock_popen.return_value = process_mock
+        mock_ps.Process.return_value.status.return_value = "zombie"
+
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=False)
+        runner.run(
+            pipeline_command=(
+                "videotestsrc ! gvagenai model=foo metrics=true ! fakesink"
+            ),
+            total_streams=1,
+        )
+
+        env = mock_popen.call_args.kwargs["env"]
+        self.assertEqual(env["GST_DEBUG"], "gvagenai:4")
+        self.assertNotIn("GST_TRACERS", env)
+
+    @patch("pipeline_runner.Popen")
+    @patch("pipeline_runner.ps")
+    @patch("pipeline_runner.select.select")
+    @patch.dict("os.environ", {}, clear=True)
+    def test_normal_mode_gvagenai_pipeline_with_latency_combines_categories(
+        self, mock_select, mock_ps, mock_popen
+    ):
+        """With both a gvagenai pipeline and the latency flag, both GST_DEBUG categories are set."""
+        process_mock = _make_process_mock([])
+        mock_select.return_value = ([], [], [])
+        mock_popen.return_value = process_mock
+        mock_ps.Process.return_value.status.return_value = "zombie"
+
+        runner = PipelineRunner(mode="normal", enable_latency_metrics=True)
+        runner.run(
+            pipeline_command=(
+                "videotestsrc ! gvagenai model=foo metrics=true ! fakesink"
+            ),
+            total_streams=1,
+        )
+
+        env = mock_popen.call_args.kwargs["env"]
+        self.assertEqual(env["GST_DEBUG"], "GST_TRACER:7,gvagenai:4")
         self._assert_tracer_env_applied(env)
 
     # --- Popen-level integration: validation mode -----------------------------
@@ -1484,6 +1630,187 @@ class TestLatencyMetricsPush(unittest.TestCase):
 
         batch_bodies = _extract_latency_payloads(mock_urlopen)
         self.assertEqual(batch_bodies, [])
+
+
+@_patch_sync_metrics_executor
+class TestVlmMetricsPush(unittest.TestCase):
+    """Tests for the ``gvagenai`` VLM-metrics parse + push path.
+
+    The parser reads the ``Added meta message: {...}`` JSON line
+    ``gvagenai`` logs (with `metrics=true`), extracts the
+    ``VLMPerfMetrics`` mean fields, and forwards them to
+    metrics-manager. Since these metrics originate from a specific
+    ``gvagenai_*`` element instance, the runner tags every push with
+    ``stream_id`` so multi-stream jobs can be partitioned on the
+    dashboard.
+
+    ``gst_runner.gst_log_bridge`` prepends the emitting element's
+    name in ``<name>`` form; when that prefix is absent (older
+    subprocess builds or logs from unnamed objects) the push omits
+    the ``stream_id`` tag rather than failing.
+    """
+
+    # Realistic gvagenai stdout line as it reaches `pipeline_runner`
+    # after `gst_log_bridge` promotion. The `<gvagenai_0_0>` prefix is
+    # the element-name marker the runner keys on for `stream_id`.
+    # The JSON uses the OpenVINO GenAI `VLMPerfMetrics` field names
+    # (`ttft_mean`, `tpot_mean`, `generate_duration_mean`) that the
+    # runner then maps onto its metrics-manager field names
+    # (`ttft_ms`, `tpot_ms`, `generate_duration_ms`) via
+    # `_GENAI_METRIC_FIELDS`.
+    SAMPLE_META_LINE = (
+        "gst_runner - INFO - <gvagenai_0_0> Added meta message: "
+        '{"metrics": {"ttft_mean": 12.5, "tpot_mean": 3.25, '
+        '"generate_duration_mean": 250.0}}'
+    )
+
+    SAMPLE_META_LINE_NO_ELEMENT = (
+        "gst_runner - INFO - Added meta message: "
+        '{"metrics": {"ttft_mean": 12.5, "tpot_mean": 3.25, '
+        '"generate_duration_mean": 250.0}}'
+    )
+
+    def _get_vlm_payload(self, mock_urlopen: MagicMock) -> dict:
+        """Return the single ``vlm_metrics`` batch payload sent to metrics-manager."""
+        for call in mock_urlopen.call_args_list:
+            req = call[0][0]
+            if not req.full_url.endswith("/api/v1/metrics"):
+                continue
+            body = json.loads(req.data.decode())
+            if body["metrics"][0]["name"] == "vlm_metrics":
+                return body
+        self.fail("No vlm_metrics batch push was made")
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_parser_pushes_element_name_as_stream_id(self, mock_urlopen):
+        """The ``<element>`` prefix must be forwarded as the ``stream_id`` tag."""
+        runner = PipelineRunner(mode="normal", job_id="job-42")
+
+        runner._parse_and_push_genai_sample(self.SAMPLE_META_LINE)
+
+        body = self._get_vlm_payload(mock_urlopen)
+        tags = body["metrics"][0]["tags"]
+        self.assertEqual(tags["stream_id"], "gvagenai_0_0")
+        self.assertEqual(tags["job_id"], "job-42")
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_parser_forwards_metric_fields(self, mock_urlopen):
+        """All three VLMPerfMetrics means must be mapped to metrics-manager field names."""
+        runner = PipelineRunner(mode="normal")
+
+        runner._parse_and_push_genai_sample(self.SAMPLE_META_LINE)
+
+        body = self._get_vlm_payload(mock_urlopen)
+        self.assertEqual(
+            body["metrics"][0]["fields"],
+            {"ttft_ms": 12.5, "tpot_ms": 3.25, "generate_duration_ms": 250.0},
+        )
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_parser_omits_stream_id_when_element_prefix_missing(self, mock_urlopen):
+        """Without the ``<element>`` prefix the push must still succeed, minus ``stream_id``."""
+        runner = PipelineRunner(mode="normal", job_id="job-42")
+
+        runner._parse_and_push_genai_sample(self.SAMPLE_META_LINE_NO_ELEMENT)
+
+        body = self._get_vlm_payload(mock_urlopen)
+        tags = body["metrics"][0]["tags"]
+        self.assertNotIn("stream_id", tags)
+        self.assertEqual(tags["job_id"], "job-42")
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_push_without_job_id_still_tags_stream_id(self, mock_urlopen):
+        """When only ``stream_id`` is known the payload must still carry a ``tags`` block."""
+        runner = PipelineRunner(mode="normal", job_id=None)
+
+        runner._parse_and_push_genai_sample(self.SAMPLE_META_LINE)
+
+        body = self._get_vlm_payload(mock_urlopen)
+        self.assertEqual(body["metrics"][0]["tags"], {"stream_id": "gvagenai_0_0"})
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_push_without_tags_omits_tags_field(self, mock_urlopen):
+        """No job_id and no element prefix must produce a payload without a ``tags`` field."""
+        runner = PipelineRunner(mode="normal", job_id=None)
+
+        runner._parse_and_push_genai_sample(self.SAMPLE_META_LINE_NO_ELEMENT)
+
+        body = self._get_vlm_payload(mock_urlopen)
+        self.assertNotIn("tags", body["metrics"][0])
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_parser_streams_are_pushed_separately_per_element(self, mock_urlopen):
+        """Two elements in the same run must produce two pushes with distinct ``stream_id`` tags."""
+        runner = PipelineRunner(mode="normal", job_id="job-42")
+
+        runner._parse_and_push_genai_sample(self.SAMPLE_META_LINE)
+        runner._parse_and_push_genai_sample(
+            self.SAMPLE_META_LINE.replace("<gvagenai_0_0>", "<gvagenai_0_1>")
+        )
+
+        stream_ids: list[str] = []
+        for call in mock_urlopen.call_args_list:
+            body = json.loads(call[0][0].data.decode())
+            if body["metrics"][0]["name"] == "vlm_metrics":
+                stream_ids.append(body["metrics"][0]["tags"]["stream_id"])
+        self.assertEqual(stream_ids, ["gvagenai_0_0", "gvagenai_0_1"])
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_parser_drops_malformed_json_silently(self, mock_urlopen):
+        """A ``<name>`` prefix is not enough — malformed JSON must still be dropped."""
+        runner = PipelineRunner(mode="normal", job_id="job-42")
+
+        runner._parse_and_push_genai_sample(
+            "gst_runner - INFO - <gvagenai_0_0> Added meta message: not-json"
+        )
+
+        mock_urlopen.assert_not_called()
+
+
+class TestPipelineEvents(unittest.TestCase):
+    """Live events forwarded to ``on_event``: VLM answers and ``vippet-event`` lines."""
+
+    @patch("pipeline_runner.urllib.request.urlopen")
+    def test_vlm_result_is_emitted_as_event(self, _mock_urlopen):
+        events = []
+        runner = PipelineRunner(mode="normal", on_event=events.append)
+
+        runner._parse_and_push_genai_sample(
+            "gst_runner - INFO - <gvagenai_0_0> Added meta message: "
+            '{"result": " Yes ", "timestamp_seconds": 9.97, "prompt": "Riding?"}'
+        )
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].source, "vlm")
+        self.assertEqual(events[0].text, "Yes")
+        self.assertEqual(events[0].prompt, "Riding?")
+        self.assertEqual(events[0].element, "gvagenai_0_0")
+        self.assertEqual(events[0].pts_seconds, 9.97)
+
+    def test_pipeline_event_line_is_emitted(self):
+        events = []
+        runner = PipelineRunner(mode="normal", on_event=events.append)
+
+        runner._parse_and_emit_pipeline_event(
+            "gst_runner - INFO - Pipeline event: "
+            '{"source": "proximity-trigger", "text": "person near bicycle", '
+            '"pts-seconds": 1.5, "element": "gvaproximitytrigger_py0"}'
+        )
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].source, "proximity-trigger")
+        self.assertEqual(events[0].text, "person near bicycle")
+        self.assertEqual(events[0].element, "gvaproximitytrigger_py0")
+        self.assertEqual(events[0].pts_seconds, 1.5)
+
+    def test_malformed_pipeline_event_is_dropped(self):
+        events = []
+        runner = PipelineRunner(mode="normal", on_event=events.append)
+
+        runner._parse_and_emit_pipeline_event("Pipeline event: not-json")
+        runner._parse_and_emit_pipeline_event('Pipeline event: {"source": "x"}')
+
+        self.assertEqual(events, [])
 
 
 class TestPipelineResultRepr(unittest.TestCase):

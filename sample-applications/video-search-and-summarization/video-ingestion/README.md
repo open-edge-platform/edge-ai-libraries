@@ -28,53 +28,26 @@ This project demonstrates video ingestion and processing using Deep Learning Str
     cd edge-ai-libraries/sample-applications/video-search-and-summarization/video-ingestion
     ```
 
-2. Download and Convert Models to OpenVINO IR format
+2. Download and convert the object detection model to OpenVINO IR format.
 
-This repository uses a custom script to download and convert models like [yoloworld](https://docs.ultralytics.com/models/yolo-world/) to the OpenVINO supported format.
-Ensure you have Python installed and run the following commands to execute the script.
+    The model is downloaded and converted in one shot by the [Model Download microservice](../../../microservices/model-download/README.md) running in **ephemeral mode**.
+    
+    ```bash
+    # Fetch the one-shot helper script (downloads the model-download image on first use)
+    curl -sSLO https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/microservices/model-download/scripts/get_model.sh
 
-2.1. Create a virtual environment.
+    # Download + convert the default object detection model (yolov8l) into ./ov_models
+    source ./get_model.sh \
+      --model-name yolov8l \
+      --hub ultralytics \
+      --plugins ultralytics \
+      --download-path object-detection \
+      --model-path ./ov_models
+    ```
 
-```sh
-python -m venv ov_env
-```
+    This produces the IR on the host at `./ov_models/object-detection/ultralytics/public/yolov8l/FP32/yolov8l.xml` (seen inside the container as `/home/pipeline-server/models/object-detection/ultralytics/public/yolov8l/FP32/yolov8l.xml`).
 
-2.2 Activate the virtual environment
-
-```sh
-source ov_env/bin/activate
-```
-2.3. Download and install dependencies
-
-```sh
-pip install -q "openvino>=2025.0.0" "nncf>=2.9.0"
-pip install -q "torch>=2.1" "torchvision>=0.16" "ultralytics==8.3.59" onnx tqdm opencv-python --extra-index-url https://download.pytorch.org/whl/cpu
-```
-2.4. Download the models
-
-Convert the default model (yolov8l-worldv2):
-```sh
-python resources/scripts/converter.py
-```
-
-**Advanced Usage**:
-
-The script accepts command-line arguments to customize the conversion:
-
-```sh
-python resources/scripts/converter.py --model-name yolov8l-worldv2 --model-type yolo_v8 --output-dir ov_models/yoloworld
-```
-
-Available arguments:
-- `--model-name`: Name of the model without extension (default: 'yolov8l-worldv2')
-- `--model-type`: Type of model (default: 'yolo_v8')
-- `--output-dir`: Directory to save the converted models (default: 'models/yoloworld')
-
-2.5. Deacticvate
-
-```sh
-deactivate
-```
+    > **_NOTE:_** To use a different detection model, replace `yolov8l` with any [Ultralytics hub id](https://docs.ultralytics.com/models/) (e.g. `yolov8s`, `yolov5su`) and update the `model` path in the pipeline request (see [Run the Sample Pipeline](#run-the-sample-pipeline)) accordingly.
 
 3. Set the credentials for **RabbitMQ** and **Minio** Service by running following commands. You can use any desired value instead of example values being set here:
 
@@ -85,7 +58,8 @@ deactivate
     export MINIO_ROOT_PASSWORD=minio_minio
     ```
 
-    > **IMPORTANT :** Please note that docker compose deployment will fail, if above-mentioned variables are not set.
+    > [!IMPORTANT]
+    > Please note that docker compose deployment will fail, if above-mentioned variables are not set.
 
 4. **_(Optional)_** Docker Compose builds the _Video Ingestion Service_ with a default image and tag name. If you want to use a different image and tag, export these variables:
 
@@ -122,28 +96,34 @@ This will start the following services:
 Upload the video to the MinIO server before running the pipeline. Follow these steps to upload the video and make the bucket public:
 
 1. **Access MinIO Console**:
-  Open your web browser and navigate to the MinIO console using the URL provided by following command:
-    ```bash
-    echo http://${host_ip}:${MINIO_CONSOLE_HOST_PORT}
-    ```
-  Log in using the `MINIO_ROOT_USER` and `MINIO_ROOT_PASSWORD` credentials.(As set in `generate_env.sh`)
+
+   Open your web browser and navigate to the MinIO console using the URL provided by following command:
+
+     ```bash
+     echo http://${host_ip}:${MINIO_CONSOLE_HOST_PORT}
+     ```
+
+   Log in using the `MINIO_ROOT_USER` and `MINIO_ROOT_PASSWORD` credentials.(As set in `generate_env.sh`)
 
 2. **Create a Bucket**:
-  In the MinIO console, create a new bucket with name : `videosummtest-1`
+
+   In the MinIO console, create a new bucket with name : `videosummtest-1`
 
 3. **Upload the Video**:
-  Upload video files to the newly created bucket. A sample video file `store-aisle-detection.mp4` can be found in `resources/videos` directory of the repo. We will use the same video for this example.
+
+   Upload video files to the newly created bucket. A sample video file `store-aisle-detection.mp4` can be found in `resources/videos` directory of the repo. We will use the same video for this example.
 
 4. **Make the Bucket Public**:
 
-  To make the bucket public, follow these steps:
+   To make the bucket public, follow these steps:
 
-  - Go to the bucket settings.
-  - Set the bucket policy to allow public read access.
+   - Go to the bucket settings.
+   - Set the bucket policy to allow public read access.
 
 To run a sample pipeline, use the following `curl` command.
 
-> **NOTE:** If you have uploaded a video other than mentioned in the example, replace the video name in `location` field of the request below, with the video of your choice.
+> [!NOTE]
+> If you have uploaded a video other than mentioned in the example, replace the video name in `location` field of the request below, with the video of your choice.
 
 ```bash
 curl http://${host_ip}:${EVAM_HOST_PORT}/pipelines/user_defined_pipelines/object_detection \
@@ -161,7 +141,7 @@ curl http://${host_ip}:${EVAM_HOST_PORT}/pipelines/user_defined_pipelines/object
       "chunk_duration": 10,
       "frame_width": 480,
       "detection-properties": {
-        "model": "/home/pipeline-server/models/yoloworld/FP32/yolov8l-worldv2.xml",
+        "model": "/home/pipeline-server/models/object-detection/ultralytics/public/yolov8l/FP32/yolov8l.xml",
         "device": "CPU"
       },
       "publish": {
@@ -173,9 +153,10 @@ curl http://${host_ip}:${EVAM_HOST_PORT}/pipelines/user_defined_pipelines/object
   }'
 ```
 
-> **_NOTE:_** You can tweak `frame`, `chunk_duration` and `frame_width` parameter in above curl request to get results with different accuracy. However, note that increasing the `frame` and `frame_width` will cause significant performance degradation.
-
-> Also note, these parameters have a minimum and maximum allowed value defined. For any invalid value outside the allowed limit, the pipeline will fail. Please refer to `resources\conf\config.json` file to verify the permitted values for these parameters in JSON Schema.
+> [!NOTE]
+> 
+> - You can tweak `frame`, `chunk_duration` and `frame_width` parameter in above curl request to get results with different accuracy. However, note that increasing the `frame` and `frame_width` will cause significant performance degradation.
+> - Also note, these parameters have a minimum and maximum allowed value defined. For any invalid value outside the allowed limit, the pipeline will fail. Please refer to `resources\conf\config.json` file to verify the permitted values for these parameters in JSON Schema.
 
 Once the pipeline starts, you will receive a UUID (ex: b729ce2ef34711ef99eb0242ac170004) that you can use to track the pipeline's statistics. The metadata generated during the pipeline execution will be sent to the RabbitMQ queue. Additionally, the processed video frames and a `metadata.json` file will be stored in the specified MinIO bucket.
 
@@ -187,7 +168,8 @@ To view the frames and metadata:
 
 This setup allows you to monitor and analyze the processed video data efficiently.
 
-> Note: Due to current limitations in EVAM, the `frame` and `interval` values need to be specified in two different sections of the pipeline configuration.
+> [!NOTE]
+> Due to current limitations in EVAM, the `frame` and `interval` values need to be specified in two different sections of the pipeline configuration.
 
 This command will start the Video ingestion object detection pipeline using the specified video file and model, and publish the results RabbitMQ queue to the specified topic.
 

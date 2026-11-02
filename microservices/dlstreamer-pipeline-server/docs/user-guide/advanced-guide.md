@@ -44,7 +44,6 @@
 
 ## How To Advanced
 
-- [Model Update](./advanced-guide/detailed_usage/how-to-advanced/model_update/dlstreamer_pipeline_server_model_update.md)
 - [Object tracking](./advanced-guide/detailed_usage/how-to-advanced/object_tracking/object_tracking.md)
 - [Enable HTTPS for DL Streamer Pipeline Server](./advanced-guide/detailed_usage/how-to-advanced/https/dlstreamer_pipeline_server_https.md)
 - [Performance Analysis](./advanced-guide/detailed_usage/how-to-advanced/performance/processing-latency.md)

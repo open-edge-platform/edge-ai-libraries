@@ -1,6 +1,6 @@
 import time
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import ANY, patch, MagicMock
 
 from benchmark import BenchmarkResult
 from graph import Graph
@@ -19,9 +19,16 @@ from internal_types import (
     InternalPerformanceTestSpec,
     InternalTestJobState,
 )
-from managers.tests_manager import TestsManager
+from managers.execution_coordinator import ExecutionCoordinator
+from managers.tests_manager import (
+    MAX_PIPELINE_EVENT_PROMPT_CHARS,
+    MAX_PIPELINE_EVENT_TEXT_CHARS,
+    MAX_PIPELINE_EVENTS_PER_JOB,
+    PIPELINE_EVENT_TRUNCATION_SUFFIX,
+    TestsManager,
+)
 from managers.pipeline_manager import PipelineManager, PipelineCommand
-from pipeline_runner import PipelineRunner, PipelineResult
+from pipeline_runner import PipelineEvent, PipelineRunner, PipelineResult
 
 
 def create_simple_graph() -> Graph:
@@ -43,6 +50,19 @@ def create_usb_camera_graph(device: str = "/dev/video0") -> Graph:
         {
             "nodes": [
                 {"id": "0", "type": "v4l2src", "data": {"device": device}},
+                {"id": "1", "type": "fakesink", "data": {}},
+            ],
+            "edges": [{"id": "0", "source": "0", "target": "1"}],
+        }
+    )
+
+
+def create_gige_camera_graph(camera_name: str) -> Graph:
+    """Helper to create a pipeline Graph object with GigE camera source (aravissrc)."""
+    return Graph.from_dict(
+        {
+            "nodes": [
+                {"id": "0", "type": "aravissrc", "data": {"camera-name": camera_name}},
                 {"id": "1", "type": "fakesink", "data": {}},
             ],
             "edges": [{"id": "0", "source": "0", "target": "1"}],
@@ -140,11 +160,15 @@ class TestTestsManager(unittest.TestCase):
         """Reset singleton state before each test."""
         TestsManager._instance = None
         PipelineManager._instance = None
+        # Workers are mocked out here, so they never release their execution
+        # lease; drop the coordinator to keep tests independent.
+        ExecutionCoordinator._instance = None
 
     def tearDown(self):
         """Reset singleton state after each test."""
         TestsManager._instance = None
         PipelineManager._instance = None
+        ExecutionCoordinator._instance = None
 
     @patch("managers.tests_manager.PipelineManager")
     def test_test_performance_calls_execute_performance_test_and_returns_job_id(
@@ -162,7 +186,8 @@ class TestTestsManager(unittest.TestCase):
             self.assertIsInstance(job_id, str)
             self.assertIn(job_id, manager.jobs)
             self.assertEqual(initial_count + 1, len(manager.jobs))
-            mock_execute.assert_called_once_with(job_id, internal_spec)
+            mock_execute.assert_called_once()
+            self.assertEqual(mock_execute.call_args[0][:2], (job_id, internal_spec))
 
     @patch("managers.tests_manager.PipelineManager")
     def test_test_performance_creates_job_with_running_state(
@@ -250,63 +275,77 @@ class TestTestsManager(unittest.TestCase):
             self.assertIsNone(job.end_time)
             self.assertEqual(job.details, [])
 
-            mock_execute.assert_called_once_with(job_id, internal_spec)
+            mock_execute.assert_called_once()
+            self.assertEqual(mock_execute.call_args[0][:2], (job_id, internal_spec))
 
     @patch("managers.tests_manager.PipelineManager")
     def test_get_job_statuses_by_type_returns_correct_statuses(
         self, mock_pipeline_manager_cls
     ):
+        """
+        get_job_statuses_by_type backs the two job listing endpoints, which read
+        from a single mixed jobs dict. It must return every job of the requested
+        type and no job of the other type, regardless of job state.
+        """
         mock_pipeline_manager_cls.return_value = MagicMock()
 
         manager = TestsManager()
 
-        # Create two jobs with different types
-        performance_spec = create_internal_performance_test_spec(
-            pipeline_specs=[
-                create_internal_performance_spec(
-                    pipeline_id="/pipelines/pipeline-perf123/variants/variant-perf",
-                )
-            ],
-        )
+        now = int(time.time() * 1000)
+        performance_request = {
+            "pipeline_performance_specs": [],
+            "execution_config": {},
+        }
+        density_request = {
+            "fps_floor": 30,
+            "pipeline_density_specs": [],
+            "execution_config": {},
+        }
 
-        density_spec = create_internal_density_test_spec(
-            pipeline_specs=[
-                create_internal_density_spec(
-                    pipeline_id="/pipelines/pipeline-dens456/variants/variant-dens",
-                )
-            ],
+        # Only one job runs at a time, but finished jobs stay in the dict, so a
+        # mixed history is the normal state. Registered directly because
+        # test_performance/test_density would be rejected by the execution guard.
+        finished_performance = InternalPerformanceJobStatus(
+            id="job-performance-done",
+            request=performance_request,
+            start_time=now - 2000,
+            end_time=now - 1000,
+            state=InternalTestJobState.COMPLETED,
         )
-
-        with (
-            patch.object(manager, "_execute_performance_test"),
-            patch.object(manager, "_execute_density_test"),
-        ):
-            job_id_performance = manager.test_performance(performance_spec)
-            job_id_density = manager.test_density(density_spec)
+        running_performance = InternalPerformanceJobStatus(
+            id="job-performance-running",
+            request=performance_request,
+            start_time=now,
+            state=InternalTestJobState.RUNNING,
+        )
+        finished_density = InternalDensityJobStatus(
+            id="job-density-done",
+            request=density_request,
+            start_time=now - 4000,
+            end_time=now - 3000,
+            state=InternalTestJobState.COMPLETED,
+        )
+        for job in (finished_performance, running_performance, finished_density):
+            manager.jobs[job.id] = job
 
         performance_statuses = manager.get_job_statuses_by_type(
             InternalPerformanceJobStatus
         )
-        self.assertEqual(len(performance_statuses), 1)
-
         density_statuses = manager.get_job_statuses_by_type(InternalDensityJobStatus)
-        self.assertEqual(len(density_statuses), 1)
 
-        status_performance = next(
-            (s for s in performance_statuses if s.id == job_id_performance), None
-        )
-        status_density = next(
-            (s for s in density_statuses if s.id == job_id_density), None
-        )
+        for status in performance_statuses:
+            self.assertIsInstance(status, InternalPerformanceJobStatus)
+        for status in density_statuses:
+            self.assertIsInstance(status, InternalDensityJobStatus)
 
-        self.assertIsNotNone(status_performance)
-        self.assertIsNotNone(status_density)
-        assert status_performance is not None
-        assert status_density is not None
-        self.assertIsInstance(status_performance, InternalPerformanceJobStatus)
-        self.assertIsInstance(status_density, InternalDensityJobStatus)
-        self.assertEqual(status_performance.state, InternalTestJobState.RUNNING)
-        self.assertEqual(status_density.state, InternalTestJobState.RUNNING)
+        self.assertEqual(
+            {status.id for status in performance_statuses},
+            {finished_performance.id, running_performance.id},
+        )
+        self.assertEqual(
+            {status.id for status in density_statuses},
+            {finished_density.id},
+        )
 
     @patch("managers.tests_manager.PipelineManager")
     def test_get_job_status_returns_none_for_nonexistent_job(
@@ -1204,7 +1243,8 @@ class TestUSBCameraValidation(unittest.TestCase):
             manager._validate_no_usb_camera_for_density([spec])
         error_msg = str(context.exception)
         self.assertIn(
-            "USB camera input sources are not supported in density tests", error_msg
+            "USB and GigE camera input sources are not supported in density tests",
+            error_msg,
         )
         self.assertIn("/dev/video0", error_msg)
         self.assertIn("USB Camera Pipeline", error_msg)
@@ -1231,12 +1271,64 @@ class TestUSBCameraValidation(unittest.TestCase):
             manager._validate_no_usb_camera_for_density([spec1, spec2])
         error_msg = str(context.exception)
         self.assertIn(
-            "USB camera input sources are not supported in density tests", error_msg
+            "USB and GigE camera input sources are not supported in density tests",
+            error_msg,
         )
         self.assertIn("/dev/video0", error_msg)
         self.assertIn("/dev/video1", error_msg)
         self.assertIn("USB Camera Pipeline 1", error_msg)
         self.assertIn("USB Camera Pipeline 2", error_msg)
+
+    @patch("managers.tests_manager.PipelineManager")
+    def test_density_with_gige_camera_raises_error(self, mock_pipeline_manager_cls):
+        mock_pipeline_manager_cls.return_value = MagicMock()
+        manager = TestsManager()
+        spec = InternalPipelineDensitySpec(
+            pipeline_id="/pipelines/gige-test/variants/v1",
+            pipeline_name="GigE Camera Pipeline",
+            pipeline_graph=create_gige_camera_graph("12345678"),
+            stream_rate=100,
+        )
+        with self.assertRaises(ValueError) as context:
+            manager._validate_no_usb_camera_for_density([spec])
+        error_msg = str(context.exception)
+        self.assertIn("gige://12345678", error_msg)
+        self.assertIn("GigE Camera Pipeline", error_msg)
+
+    @patch("managers.tests_manager.PipelineManager")
+    def test_performance_same_gige_camera_multiple_pipelines_raises_error(
+        self, mock_pipeline_manager_cls
+    ):
+        mock_pipeline_manager_cls.return_value = MagicMock()
+        manager = TestsManager()
+        specs = [
+            InternalPipelinePerformanceSpec(
+                pipeline_id=f"/pipelines/gige-test{i}/variants/v{i}",
+                pipeline_name=f"GigE Camera Pipeline {i}",
+                pipeline_graph=create_gige_camera_graph("12345678"),
+                streams=1,
+            )
+            for i in (1, 2)
+        ]
+        with self.assertRaises(ValueError) as context:
+            manager._validate_usb_camera_for_performance(specs)
+        error_msg = str(context.exception)
+        self.assertIn("gige://12345678", error_msg)
+        self.assertIn("can only be used in one pipeline with one stream", error_msg)
+
+    @patch("managers.tests_manager.PipelineManager")
+    def test_performance_single_gige_camera_single_stream_succeeds(
+        self, mock_pipeline_manager_cls
+    ):
+        mock_pipeline_manager_cls.return_value = MagicMock()
+        manager = TestsManager()
+        spec = InternalPipelinePerformanceSpec(
+            pipeline_id="/pipelines/gige-test/variants/v1",
+            pipeline_name="GigE Camera Pipeline",
+            pipeline_graph=create_gige_camera_graph("192.168.1.50"),
+            streams=1,
+        )
+        manager._validate_usb_camera_for_performance([spec])
 
     @patch("managers.tests_manager.PipelineManager")
     def test_density_without_usb_camera_succeeds(self, mock_pipeline_manager_cls):
@@ -1429,7 +1521,96 @@ class TestExecutionConfigWithMaxRuntime(unittest.TestCase):
             max_runtime=120,
             enable_latency_metrics=False,
             job_id=job_id,
+            on_event=ANY,
         )
+
+
+class TestRecordPipelineEvent(unittest.TestCase):
+    """Live pipeline events are appended to the performance job (bounded)."""
+
+    def setUp(self):
+        TestsManager._instance = None
+
+    def test_events_are_appended_and_bounded(self):
+        manager = TestsManager()
+        job = InternalPerformanceJobStatus(
+            id="job-1",
+            request={},
+            start_time=0,
+            state=InternalTestJobState.RUNNING,
+        )
+        manager.jobs["job-1"] = job
+
+        for i in range(MAX_PIPELINE_EVENTS_PER_JOB + 5):
+            manager._record_pipeline_event(
+                "job-1",
+                PipelineEvent(timestamp_ms=i, source="vlm", text=f"answer {i}"),
+            )
+
+        self.assertEqual(len(job.events), MAX_PIPELINE_EVENTS_PER_JOB)
+        self.assertEqual(job.events[0].timestamp_ms, 5)
+        self.assertEqual(
+            job.events[-1].text, f"answer {MAX_PIPELINE_EVENTS_PER_JOB + 4}"
+        )
+
+    def test_unknown_job_is_ignored(self):
+        manager = TestsManager()
+        manager._record_pipeline_event(
+            "missing", PipelineEvent(timestamp_ms=0, source="vlm", text="x")
+        )
+
+    def test_oversized_text_and_prompt_are_truncated(self):
+        """Unbounded VLM output must be clamped to the per-field caps."""
+        manager = TestsManager()
+        job = InternalPerformanceJobStatus(
+            id="job-1",
+            request={},
+            start_time=0,
+            state=InternalTestJobState.RUNNING,
+        )
+        manager.jobs["job-1"] = job
+
+        manager._record_pipeline_event(
+            "job-1",
+            PipelineEvent(
+                timestamp_ms=0,
+                source="vlm",
+                text="a" * (MAX_PIPELINE_EVENT_TEXT_CHARS * 3),
+                prompt="b" * (MAX_PIPELINE_EVENT_PROMPT_CHARS * 3),
+            ),
+        )
+
+        recorded = job.events[0]
+        self.assertEqual(len(recorded.text), MAX_PIPELINE_EVENT_TEXT_CHARS)
+        self.assertTrue(recorded.text.endswith(PIPELINE_EVENT_TRUNCATION_SUFFIX))
+        assert recorded.prompt is not None
+        self.assertEqual(len(recorded.prompt), MAX_PIPELINE_EVENT_PROMPT_CHARS)
+        self.assertTrue(recorded.prompt.endswith(PIPELINE_EVENT_TRUNCATION_SUFFIX))
+
+    def test_fields_within_limits_are_untouched(self):
+        """Short events must not gain a truncation marker."""
+        manager = TestsManager()
+        job = InternalPerformanceJobStatus(
+            id="job-1",
+            request={},
+            start_time=0,
+            state=InternalTestJobState.RUNNING,
+        )
+        manager.jobs["job-1"] = job
+
+        manager._record_pipeline_event(
+            "job-1",
+            PipelineEvent(
+                timestamp_ms=0,
+                source="vlm",
+                text="a" * MAX_PIPELINE_EVENT_TEXT_CHARS,
+                prompt=None,
+            ),
+        )
+
+        recorded = job.events[0]
+        self.assertEqual(recorded.text, "a" * MAX_PIPELINE_EVENT_TEXT_CHARS)
+        self.assertIsNone(recorded.prompt)
 
 
 class TestInlineGraphSupport(unittest.TestCase):
@@ -1438,10 +1619,14 @@ class TestInlineGraphSupport(unittest.TestCase):
     def setUp(self):
         TestsManager._instance = None
         PipelineManager._instance = None
+        # Workers are mocked out here, so they never release their execution
+        # lease; drop the coordinator to keep tests independent.
+        ExecutionCoordinator._instance = None
 
     def tearDown(self):
         TestsManager._instance = None
         PipelineManager._instance = None
+        ExecutionCoordinator._instance = None
 
     @patch("managers.tests_manager.PipelineManager")
     def test_performance_test_with_inline_graph(self, mock_pipeline_manager_cls):
@@ -1460,7 +1645,8 @@ class TestInlineGraphSupport(unittest.TestCase):
             job_id = manager.test_performance(internal_spec)
             self.assertIsInstance(job_id, str)
             self.assertIn(job_id, manager.jobs)
-            mock_execute.assert_called_once_with(job_id, internal_spec)
+            mock_execute.assert_called_once()
+            self.assertEqual(mock_execute.call_args[0][:2], (job_id, internal_spec))
 
     @patch("managers.tests_manager.PipelineManager")
     def test_density_test_with_inline_graph(self, mock_pipeline_manager_cls):
@@ -1479,7 +1665,8 @@ class TestInlineGraphSupport(unittest.TestCase):
             job_id = manager.test_density(internal_spec)
             self.assertIsInstance(job_id, str)
             self.assertIn(job_id, manager.jobs)
-            mock_execute.assert_called_once_with(job_id, internal_spec)
+            mock_execute.assert_called_once()
+            self.assertEqual(mock_execute.call_args[0][:2], (job_id, internal_spec))
 
     @patch("managers.tests_manager.PipelineManager")
     def test_performance_test_with_mixed_sources(self, mock_pipeline_manager_cls):

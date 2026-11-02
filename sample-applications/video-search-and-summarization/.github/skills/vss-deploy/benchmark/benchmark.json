@@ -1,0 +1,330 @@
+{
+  "metadata": {
+    "skill_name": "vss-deploy",
+    "skill_path": "/home/intel/krishna/oep-eal/sample-applications/video-search-and-summarization/.github/skills/vss-deploy",
+    "executor_model": "claude-sonnet-5",
+    "analyzer_model": "<model-name>",
+    "timestamp": "2026-08-25T06:48:21Z",
+    "evals_run": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 66.6,
+        "tokens": 427296,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Provides the VSS bootstrap plus config and external credentials setup using `vss-bootstrap.sh`, `gen-secrets.sh`, `vss.config`, and `$VSS_CREDENTIALS_FILE`.",
+          "passed": true,
+          "evidence": "response.md includes: `bash .github/skills/vss-deploy/scripts/vss-bootstrap.sh`, `./.github/skills/vss-deploy/scripts/gen-secrets.sh`, `source .github/skills/vss-deploy/vss.config`, and `source \"$VSS_CREDENTIALS_FILE\"`."
+        },
+        {
+          "text": "Provides `source setup.sh --stop` followed by `source setup.sh --summary` and does not claim that the deferred deployment completed.",
+          "passed": true,
+          "evidence": "Deploy block shows `source setup.sh --stop` before `source setup.sh --summary`; earlier it states: `Not run: setup.sh --summary (the actual deploy) \u2014 skipped intentionally because you asked not to start services during this review.`"
+        },
+        {
+          "text": "Provides the `/manager/health` check and the default UI URL on port 12345.",
+          "passed": true,
+          "evidence": "Health check loop uses `\"$VSS_BASE/manager/health\"`; URL table includes `UI (summary mode) | http://<HOST_IP>:12345/` and `Health | http://<HOST_IP>:12345/manager/health`."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 66.5,
+        "tokens": 621205,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Provides `source setup.sh --summary --search config` or `source setup.sh --dual config` and says that it renders configuration without starting containers.",
+          "passed": true,
+          "evidence": "outputs/response.md states `source setup.sh --summary --search config` and says it ran `config` \"instead of `up -d` (rendering the merged Compose config, no containers started)\" and \"No containers were started\"."
+        },
+        {
+          "text": "Names the core dual-mode overlays `compose.base.yaml`, `compose.summary.yaml`, `compose.search.yaml`, and `compose.ui.yaml`, plus profiles `ovms` and `dual_ui`.",
+          "passed": true,
+          "evidence": "outputs/response.md lists overlays `compose.base.yaml`, `compose.summary.yaml`, `compose.search.yaml`, `compose.ui.yaml` and profiles `ovms` and `dual_ui` in the resolved Compose invocation."
+        },
+        {
+          "text": "Reports `/summary/` and `/search/` through the nginx gateway on port 12345.",
+          "passed": true,
+          "evidence": "outputs/response.md reports gateway URLs `http://<host-ip>:12345/summary/` and `http://<host-ip>:12345/search/`."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 155.3,
+        "tokens": 643879,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Provides a unified deployment command using `APP_HOST_PORT=18080` with `source setup.sh --summary-and-search` or an equivalent unified alias.",
+          "passed": true,
+          "evidence": "response.md includes `APP_HOST_PORT=18080 source setup.sh --summary-and-search` and explains unified aliases: `--summary-and-search`, alias for `--unified`/`--all`."
+        },
+        {
+          "text": "Separately provides `APP_HOST_PORT=18080 source setup.sh --setenv` without a mode flag and explains why the user must source it in the interactive shell.",
+          "passed": true,
+          "evidence": "response.md provides a separate command block: `APP_HOST_PORT=18080 source setup.sh --setenv`, and explains it must be sourced in the user's interactive shell because a subshell cannot retain exported variables for later manual compose commands."
+        },
+        {
+          "text": "Explains that `--setenv` is mode-agnostic, notes that manual unified Compose work also needs mode-derived variables, and reports the UI on port 18080.",
+          "passed": true,
+          "evidence": "response.md states `--setenv` takes no mode flag and exports mode-agnostic vars only; it explicitly notes mode-derived vars like `VS_INDEX_NAME`/`EMBEDDING_MODEL_NAME` must be exported manually for unified compose parity; it reports UI at `http://<HOST_IP>:18080/` and echoes `UI: $VSS_BASE/` with `VSS_BASE` using port 18080."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 53.8,
+        "tokens": 414341,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Provides `source setup.sh --clean-data` and explains that it stops and removes the VSS stack before deleting user-data volumes.",
+          "passed": true,
+          "evidence": "response.md includes the command `source setup.sh --clean-data` and states: \"--clean-data first calls stop_containers ... Only if that succeeds does it proceed to remove_volumes\" and \"stops/removes all containers first, then removes user-data volumes\"."
+        },
+        {
+          "text": "Names `docker_pg_data`, `docker_minio_data`, and `docker_vdms-db` as removed volumes.",
+          "passed": true,
+          "evidence": "response.md explicitly lists removed volumes: \"docker_minio_data\", \"docker_pg_data\", and \"docker_vdms-db\" under \"Which volumes does it remove?\"."
+        },
+        {
+          "text": "States that model-cache volumes and the host-backed `ov_models/` directory are preserved.",
+          "passed": true,
+          "evidence": "response.md says \"--clean-data deliberately leaves the following alone\" and lists model-cache volumes (`docker_dataprep-yolox-models`, `docker_ov-models`, `docker_vllm_model_cache`) plus \"The host-backed `ov_models/` directory on disk\"."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.6666666667,
+        "passed": 2,
+        "failed": 1,
+        "total": 3,
+        "time_seconds": 61.3,
+        "tokens": 555580,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Provides the VSS bootstrap plus config and external credentials setup using `vss-bootstrap.sh`, `gen-secrets.sh`, `vss.config`, and `$VSS_CREDENTIALS_FILE`.",
+          "passed": false,
+          "evidence": "No mention of `vss-bootstrap.sh`, `gen-secrets.sh`, `vss.config`, or `$VSS_CREDENTIALS_FILE` appears in outputs/response.md; it instead uses `source setup.sh --setenv` / `source setup.sh --summary config` and generic env-var notes."
+        },
+        {
+          "text": "Provides `source setup.sh --stop` followed by `source setup.sh --summary` and does not claim that the deferred deployment completed.",
+          "passed": true,
+          "evidence": "outputs/response.md includes `source setup.sh --stop` then `source setup.sh --summary` (Deployment section), and explicitly states: \"Nothing below has been executed \u2014 this is just the reference for when you're ready.\""
+        },
+        {
+          "text": "Provides the `/manager/health` check and the default UI URL on port 12345.",
+          "passed": true,
+          "evidence": "outputs/response.md includes `curl -sf http://localhost:12345/manager/health` and UI URL `http://<HOST_IP>:12345/`."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 51.2,
+        "tokens": 409393,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Provides `source setup.sh --summary --search config` or `source setup.sh --dual config` and says that it renders configuration without starting containers.",
+          "passed": true,
+          "evidence": "outputs/response.md shows command `source setup.sh --dual config` and explains it \"run[s] docker compose ... config ... instead of ... up -d\" and \"no containers or downloads are triggered.\""
+        },
+        {
+          "text": "Names the core dual-mode overlays `compose.base.yaml`, `compose.summary.yaml`, `compose.search.yaml`, and `compose.ui.yaml`, plus profiles `ovms` and `dual_ui`.",
+          "passed": true,
+          "evidence": "outputs/response.md lists `-f docker/compose.base.yaml`, `-f docker/compose.summary.yaml`, `-f docker/compose.search.yaml`, `-f docker/compose.ui.yaml` and states default profiles `--profile ovms --profile dual_ui`."
+        },
+        {
+          "text": "Reports `/summary/` and `/search/` through the nginx gateway on port 12345.",
+          "passed": true,
+          "evidence": "outputs/response.md reports `http://${HOST_IP}:${APP_HOST_PORT}/summary/` and `/search/`, and explicitly notes `APP_HOST_PORT` default `12345` and that both are behind the same nginx gateway."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 3,
+        "failed": 0,
+        "total": 3,
+        "time_seconds": 60.4,
+        "tokens": 405426,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Provides a unified deployment command using `APP_HOST_PORT=18080` with `source setup.sh --summary-and-search` or an equivalent unified alias.",
+          "passed": true,
+          "evidence": "In outputs/response.md: `APP_HOST_PORT=18080 source setup.sh --unified` (the response also states unified aliases include `--summary-and-search` / `--all`)."
+        },
+        {
+          "text": "Separately provides `APP_HOST_PORT=18080 source setup.sh --setenv` without a mode flag and explains why the user must source it in the interactive shell.",
+          "passed": true,
+          "evidence": "In outputs/response.md: `APP_HOST_PORT=18080 source setup.sh --setenv` is given as a separate command, and it explains: \"Both commands must be **sourced** ... because they export variables into your current shell.\""
+        },
+        {
+          "text": "Explains that `--setenv` is mode-agnostic, notes that manual unified Compose work also needs mode-derived variables, and reports the UI on port 18080.",
+          "passed": true,
+          "evidence": "outputs/response.md explains `--setenv` \"exports all the base environment variables ... without ... starting any containers,\" describes manual compose usage with unified overlays and required unified variables (`TEXT_EMBEDDING_MODEL` etc.), and reports UI at `http://<HOST_IP>:18080/`."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 4,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.67,
+        "passed": 2,
+        "failed": 1,
+        "total": 3,
+        "time_seconds": 39.4,
+        "tokens": 331993,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Provides `source setup.sh --clean-data` and explains that it stops and removes the VSS stack before deleting user-data volumes.",
+          "passed": true,
+          "evidence": "response.md includes the command `source setup.sh --clean-data` and states: \"Yes. `--clean-data` first calls the same `stop_containers()` routine ... so the full stack ... is brought down before anything is deleted.\""
+        },
+        {
+          "text": "Names `docker_pg_data`, `docker_minio_data`, and `docker_vdms-db` as removed volumes.",
+          "passed": true,
+          "evidence": "response.md \"Volumes removed\" table explicitly lists `docker_pg_data`, `docker_minio_data`, and `docker_vdms-db`."
+        },
+        {
+          "text": "States that model-cache volumes and the host-backed `ov_models/` directory are preserved.",
+          "passed": false,
+          "evidence": "response.md states model-cache volumes are preserved (`docker_dataprep-yolox-models`, `docker_ov-models`, `docker_vllm_model_cache`) but does not explicitly mention preservation of the host-backed `ov_models/` directory."
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 85.55,
+        "stddev": 46.8868,
+        "min": 53.8,
+        "max": 155.3
+      },
+      "tokens": {
+        "mean": 526680.25,
+        "stddev": 122702.6373,
+        "min": 414341,
+        "max": 643879
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.8342,
+        "stddev": 0.1915,
+        "min": 0.6667,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 53.075,
+        "stddev": 10.1952,
+        "min": 39.4,
+        "max": 61.3
+      },
+      "tokens": {
+        "mean": 425598.0,
+        "stddev": 93678.0443,
+        "min": 331993,
+        "max": 555580
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.17",
+      "time_seconds": "+32.5",
+      "tokens": "+101082"
+    }
+  },
+  "notes": []
+}

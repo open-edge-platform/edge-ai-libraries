@@ -6,6 +6,7 @@ import {
   SearchQueryDTO,
   SearchQueryStatus,
   SearchQueryUI,
+  SearchRefreshConfig,
   SearchResult,
   SearchState,
   TimeFilterSelection,
@@ -20,6 +21,7 @@ const initialState: SearchState = {
   selectedQuery: null,
   triggerLoad: true,
   suggestedTags: [],
+  refreshConfig: null,
 };
 
 const defaultTopk = 4;
@@ -55,12 +57,15 @@ export const SearchSlice = createSlice({
       state.searchQueries = state.searchQueries.filter((query) => query.queryId !== action.payload.queryId);
     },
     updateSearchQuery: (state: SearchState, action) => {
-      console.log('searchState action.payload', action.payload);
       const index = state.searchQueries.findIndex((query) => query.queryId === action.payload.queryId);
       const currentTopK = index !== -1 ? state.searchQueries[index].topK : defaultTopk;
+      const currentShowVideoGroups = index !== -1 ? state.searchQueries[index].showVideoGroups : false;
+      // Snapshot before the list is rebuilt below, so change detection compares
+      // against the previous results rather than the freshly written ones.
+      const previousResults = index !== -1 ? JSON.stringify(state.searchQueries[index].results ?? []) : null;
       const merged = index !== -1
-        ? { ...state.searchQueries[index], ...action.payload, topK: currentTopK }
-        : { ...action.payload, topK: currentTopK };
+        ? { ...state.searchQueries[index], ...action.payload, topK: currentTopK, showVideoGroups: currentShowVideoGroups }
+        : { ...action.payload, topK: currentTopK, showVideoGroups: currentShowVideoGroups };
 
       // Normalize per-query time filter to avoid leaking values across queries.
       merged.timeFilter = normalizeTimeFilter(merged.timeFilter);
@@ -74,29 +79,34 @@ export const SearchSlice = createSlice({
             : merged.queryStatus,
       };
 
-      console.log('[searchSlice] upsert query', {
-        queryId: action.payload.queryId,
-        prevLength: index !== -1 ? state.searchQueries[index].results?.length : undefined,
-        nextLength: normalized.results?.length,
-        selectedQuery: state.selectedQuery,
-      });
+      if (index !== -1) {
+        // Update in place. Watched queries are re-run by the directory watcher on
+        // every new video, and moving the entry would reshuffle the sidebar each time.
+        state.searchQueries[index] = normalized;
+        // Deduplicate any stale copies that a previous append-based update left behind.
+        state.searchQueries = state.searchQueries.filter(
+          (query, at) => at === index || query.queryId !== action.payload.queryId,
+        );
+      } else {
+        state.searchQueries.push(normalized);
+      }
 
-      // Deduplicate: keep only one entry per queryId (latest wins) to avoid stale copies blocking render.
-      state.searchQueries = [
-        ...state.searchQueries.filter((query) => query.queryId !== action.payload.queryId),
-        normalized,
-      ];
+      // The backend only pushes an update when results actually changed, but the
+      // UI guards too: never mark the query the user is currently viewing as
+      // unread, and never steal the selection away from another query.
+      const isSelected = state.selectedQuery === action.payload.queryId;
+      const resultsChanged =
+        previousResults === null || previousResults !== JSON.stringify(normalized.results ?? []);
 
-      state.unreads.push(action.payload.queryId);
-      // If nothing is selected, auto-select the updated query so UI can render results from sockets
-      if (!state.selectedQuery || state.selectedQuery === action.payload.queryId) {
+      if (!isSelected && resultsChanged && !state.unreads.includes(action.payload.queryId)) {
+        state.unreads.push(action.payload.queryId);
+      }
+
+      // Only auto-select when nothing is selected yet, so a background refresh
+      // cannot pull the user away from the query they are reading.
+      if (!state.selectedQuery) {
         state.selectedQuery = action.payload.queryId;
       }
-      console.log('[searchSlice] state after update', {
-        selectedQuery: state.selectedQuery,
-        totalQueries: state.searchQueries.length,
-        selectedResults: state.searchQueries.find((q) => q.queryId === state.selectedQuery)?.results?.length,
-      });
     },
     syncSearch: (state: SearchState, action) => {
       const index = state.searchQueries.findIndex((query) => query.queryId === action.payload.queryId);
@@ -112,6 +122,12 @@ export const SearchSlice = createSlice({
     updateTopK: (state: SearchState, action: PayloadAction<{ queryId: string; topK: number }>) => {
       state.searchQueries[state.searchQueries.findIndex((query) => query.queryId === action.payload.queryId)].topK =
         action.payload.topK;
+    },
+    toggleGroupByTag: (state: SearchState, action: PayloadAction<{ queryId: string }>) => {
+      const index = state.searchQueries.findIndex((query) => query.queryId === action.payload.queryId);
+      if (index !== -1) {
+        state.searchQueries[index].showVideoGroups = !state.searchQueries[index].showVideoGroups;
+      }
     },
     updateTimeFilter: (
       state: SearchState,
@@ -134,6 +150,7 @@ export const SearchSlice = createSlice({
           state.searchQueries = action.payload.map((query) => ({
             ...query,
             topK: defaultTopk,
+            showVideoGroups: false,
             timeFilter: normalizeTimeFilter(query.timeFilter),
           }));
         }
@@ -152,6 +169,9 @@ export const SearchSlice = createSlice({
       })
       .addCase(LoadTags.fulfilled, (state, action) => {
         state.suggestedTags = action.payload;
+      })
+      .addCase(LoadRefreshConfig.fulfilled, (state, action) => {
+        state.refreshConfig = action.payload;
       })
       .addCase(SearchLoad.rejected, (state) => {
         state.triggerLoad = false;
@@ -184,11 +204,14 @@ export const SearchSlice = createSlice({
       .addCase(SearchAdd.fulfilled, (state, action) => {
         const existingIndex = state.searchQueries.findIndex((query) => query.queryId === action.payload.queryId);
         const existingTopK = existingIndex !== -1 ? state.searchQueries[existingIndex].topK : defaultTopk;
+        const existingShowVideoGroups =
+          existingIndex !== -1 ? state.searchQueries[existingIndex].showVideoGroups : false;
 
         const merged = {
           ...(existingIndex !== -1 ? state.searchQueries[existingIndex] : {}),
           ...action.payload,
           topK: existingTopK,
+          showVideoGroups: existingShowVideoGroups,
           timeFilter: normalizeTimeFilter(action.payload.timeFilter),
         };
 
@@ -214,6 +237,11 @@ export const SearchSlice = createSlice({
 
 export const LoadTags = createAsyncThunk('search/loadTags', async () => {
   const res = await axios.get<string[]>(`${APP_URL}/tags`);
+  return res.data;
+});
+
+export const LoadRefreshConfig = createAsyncThunk('search/loadRefreshConfig', async () => {
+  const res = await axios.get<SearchRefreshConfig>(`${APP_URL}/search/refresh-config`);
   return res.data;
 });
 
@@ -250,8 +278,19 @@ export const SearchWatch = createAsyncThunk(
 
 export const SearchAdd = createAsyncThunk(
   'search/add',
-  async ({ query, tags, timeFilter }: { query: string; tags: string[]; timeFilter?: TimeFilterSelection | null }) => {
-    const searchQuery: SearchQueryDTO = { query };
+  async ({
+    query,
+    image,
+    tags,
+    timeFilter,
+  }: {
+    query?: string;
+    image?: string;
+    tags: string[];
+    timeFilter?: TimeFilterSelection | null;
+  }) => {
+    // Image-based search sends `image` and omits the text query; otherwise `query`.
+    const searchQuery: SearchQueryDTO = image ? { image } : { query };
 
     if (tags && tags.length > 0) {
       searchQuery.tags = tags.join(',');
@@ -273,37 +312,39 @@ export const SearchLoad = createAsyncThunk('search/load', async () => {
 
 const selectSearchState = (state: RootState) => state.search;
 
-export const SearchSelector = createSelector([selectSearchState], (state) => ({
-  queries: state.searchQueries,
-  selectedQueryId: state.selectedQuery,
-  unreads: state.unreads,
-  triggerLoad: state.triggerLoad,
-  selectedQuery: state.searchQueries.find((el) => el.queryId == state.selectedQuery),
-  suggestedTags: state.suggestedTags,
-  queriesInProgress: state.searchQueries.filter((query) => query.queryStatus === SearchQueryStatus.RUNNING),
-  queriesWithErrors: state.searchQueries.filter((query) => query.queryStatus === SearchQueryStatus.ERROR),
-  isSelectedInProgress:
-    state.selectedQuery &&
-    state.searchQueries
-      .filter((query) => query.queryStatus === SearchQueryStatus.RUNNING)
-      .map((curr) => curr.queryId)
-      .includes(state.selectedQuery),
-  isSelectedHasError:
-    state.selectedQuery &&
-    state.searchQueries
-      .filter((query) => query.queryStatus === SearchQueryStatus.ERROR)
-      .map((curr) => curr.queryId)
-      .includes(state.selectedQuery),
-  selectedResults: state.searchQueries.reduce((acc: SearchResult[], curr: SearchQueryUI) => {
-    if (curr.queryId === state.selectedQuery) {
-      if (!curr || !curr.results || (curr.results && curr.results.length <= 0)) {
-        return [];
+export const SearchSelector = createSelector([selectSearchState], (state) => {
+  const selected = state.searchQueries.find((el) => el.queryId == state.selectedQuery);
+  const selectedIsRunning = Boolean(selected) && selected!.queryStatus === SearchQueryStatus.RUNNING;
+  const selectedHasResults = Boolean(selected?.results && selected!.results.length > 0);
+
+  return {
+    queries: state.searchQueries,
+    selectedQueryId: state.selectedQuery,
+    unreads: state.unreads,
+    triggerLoad: state.triggerLoad,
+    refreshConfig: state.refreshConfig,
+    selectedQuery: selected,
+    suggestedTags: state.suggestedTags,
+    queriesInProgress: state.searchQueries.filter((query) => query.queryStatus === SearchQueryStatus.RUNNING),
+    queriesWithErrors: state.searchQueries.filter((query) => query.queryStatus === SearchQueryStatus.ERROR),
+    isSelectedInProgress: Boolean(state.selectedQuery) && selectedIsRunning,
+    // First run of a query: nothing to preserve, so a skeleton is safe to show.
+    isSelectedInitialLoading: Boolean(state.selectedQuery) && selectedIsRunning && !selectedHasResults,
+    // Re-run of a query that already has results (watch/rerun/time-filter). Results must
+    // stay mounted so a fast-updating watched query does not flicker under the user.
+    isSelectedRefreshing: Boolean(state.selectedQuery) && selectedIsRunning && selectedHasResults,
+    isSelectedHasError: Boolean(state.selectedQuery) && Boolean(selected) && selected!.queryStatus === SearchQueryStatus.ERROR,
+    selectedResults: state.searchQueries.reduce((acc: SearchResult[], curr: SearchQueryUI) => {
+      if (curr.queryId === state.selectedQuery) {
+        if (!curr || !curr.results || (curr.results && curr.results.length <= 0)) {
+          return [];
+        }
+        acc = curr.results.slice(0, curr.topK);
       }
-      acc = curr.results.slice(0, curr.topK);
-    }
-    return acc;
-  }, [] as SearchResult[]),
-}));
+      return acc;
+    }, [] as SearchResult[]),
+  };
+});
 
 export const SearchActions = SearchSlice.actions;
 export const SearchReducers = SearchSlice.reducer;

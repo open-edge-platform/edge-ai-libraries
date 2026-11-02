@@ -1,5 +1,6 @@
 import {
   type Camera,
+  type GigECameraDetails,
   type NetworkCameraDetails,
   type UsbCameraDetails,
   useGetCamerasQuery,
@@ -18,6 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table.tsx";
 import { CameraAuthDialog } from "@/features/cameras/CameraAuthDialog.tsx";
+import { CONTENT_CONTAINER_CLASS } from "@/lib/utils";
 
 const getUsbDetails = (camera: Camera): UsbCameraDetails | null =>
   camera.device_type === "USB" ? (camera.details as UsbCameraDetails) : null;
@@ -27,11 +29,47 @@ const getNetworkDetails = (camera: Camera): NetworkCameraDetails | null =>
     ? (camera.details as NetworkCameraDetails)
     : null;
 
+const getGigEDetails = (camera: Camera): GigECameraDetails | null =>
+  camera.device_type === "GIGE" ? (camera.details as GigECameraDetails) : null;
+
+const formatCameraSource = (camera: Camera): string => {
+  if (camera.device_type === "NETWORK") {
+    const networkDetails = getNetworkDetails(camera);
+
+    return `${networkDetails?.ip ?? "-"}:${networkDetails?.port ?? "-"}`;
+  }
+
+  if (camera.device_type === "GIGE") {
+    const gigeDetails = getGigEDetails(camera);
+    const serial = gigeDetails?.serial;
+
+    return serial
+      ? `${gigeDetails?.ip ?? "-"} (S/N ${serial})`
+      : (gigeDetails?.ip ?? "-");
+  }
+
+  return getUsbDetails(camera)?.device_path ?? "-";
+};
+
 const formatCameraResolution = (camera: Camera): string => {
   if (camera.device_type === "NETWORK") {
     const networkDetails = getNetworkDetails(camera);
 
     return networkDetails?.best_profile?.resolution ?? "-";
+  }
+
+  if (camera.device_type === "GIGE") {
+    const capture = getGigEDetails(camera)?.current_capture;
+
+    if (capture?.width == null || capture?.height == null) {
+      return "-";
+    }
+
+    const resolution = `${capture.width}x${capture.height}`;
+
+    return capture.pixel_format
+      ? `${resolution} (${capture.pixel_format})`
+      : resolution;
   }
 
   const usbDetails = getUsbDetails(camera);
@@ -50,6 +88,12 @@ const formatCameraFramerate = (camera: Camera): string => {
     const framerate = networkDetails?.best_profile?.framerate;
 
     return framerate != null ? `${framerate} FPS` : "-";
+  }
+
+  if (camera.device_type === "GIGE") {
+    const fps = getGigEDetails(camera)?.current_capture?.fps;
+
+    return fps != null ? `${fps} FPS` : "-";
   }
 
   const usbDetails = getUsbDetails(camera);
@@ -77,7 +121,7 @@ export const Cameras = () => {
 
   if (resolvedIsSuccess && resolvedCameras.length > 0) {
     return (
-      <div className="container pl-16 mx-auto py-10">
+      <div className={CONTENT_CONTAINER_CLASS}>
         <div className="mb-6">
           <h1 className="text-3xl font-bold">Cameras</h1>
           <p className="text-muted-foreground mt-2">
@@ -99,7 +143,6 @@ export const Cameras = () => {
             {resolvedCameras.map((camera) => {
               const isNetworkCamera = camera.device_type === "NETWORK";
               const networkDetails = getNetworkDetails(camera);
-              const usbDetails = getUsbDetails(camera);
 
               return (
                 <TableRow key={camera.device_id}>
@@ -111,11 +154,7 @@ export const Cameras = () => {
                       {camera.device_type}
                     </Badge>
                   </TableCell>
-                  <TableCell>
-                    {isNetworkCamera
-                      ? `${networkDetails?.ip ?? "-"}:${networkDetails?.port ?? "-"}`
-                      : (usbDetails?.device_path ?? "-")}
-                  </TableCell>
+                  <TableCell>{formatCameraSource(camera)}</TableCell>
                   <TableCell>{formatCameraResolution(camera)}</TableCell>
                   <TableCell>{formatCameraFramerate(camera)}</TableCell>
                   <TableCell>
@@ -149,7 +188,7 @@ export const Cameras = () => {
   if (resolvedIsLoading) {
     return (
       <div className="h-full overflow-auto">
-        <div className="container mx-auto py-10 pl-16">Loading cameras...</div>
+        <div className={CONTENT_CONTAINER_CLASS}>Loading cameras...</div>
       </div>
     );
   }
@@ -157,7 +196,7 @@ export const Cameras = () => {
   if (resolvedIsError) {
     return (
       <div className="h-full overflow-auto">
-        <div className="container mx-auto py-10 pl-16 text-destructive">
+        <div className={`${CONTENT_CONTAINER_CLASS} text-destructive`}>
           Failed to load cameras.
         </div>
       </div>
@@ -166,7 +205,7 @@ export const Cameras = () => {
 
   return (
     <div className="h-full overflow-auto">
-      <div className="container mx-auto py-10 pl-16">
+      <div className={CONTENT_CONTAINER_CLASS}>
         <h1 className="text-3xl font-bold">Cameras</h1>
         <p className="text-muted-foreground mt-2">No cameras discovered.</p>
       </div>

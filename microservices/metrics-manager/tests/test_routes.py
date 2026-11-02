@@ -6,6 +6,8 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from app import capabilities
+
 
 class TestPrometheusMetricsEndpoint:
     def test_empty_store_returns_empty_body(self, client: TestClient):
@@ -47,6 +49,75 @@ class TestHealthEndpoints:
         data = response.json()
         assert data["status"] == "healthy"
         assert "metrics_store" in data
+
+
+class TestCapabilitiesEndpoint:
+    def test_capabilities_minimal_returns_categorized_high_level_data(self, client: TestClient):
+        response = client.get("/api/v1/capabilities")
+        assert response.status_code == 200
+
+        payload = response.json()
+        assert "generated_at" in payload
+        assert payload["profile"] == "minimal"
+        assert "categories" in payload
+        assert "platform" in payload
+        assert "devices" in payload
+        assert payload["platform"]["interface_channel"] == "rest"
+        assert "system_memory" in payload["platform"]
+        assert "device_summary" in payload["platform"]
+        assert "platform_overview" in payload["categories"]
+        assert "compute_device_overview" in payload["categories"]
+
+    def test_capabilities_minimal_includes_cpu_high_level_details(self, client: TestClient):
+        response = client.get("/api/v1/capabilities")
+        payload = response.json()
+        cpu_devices = [d for d in payload["devices"] if d["category"] == "cpu"]
+        assert len(cpu_devices) == 1
+        assert cpu_devices[0]["present"] is True
+        assert "commercial_reference" in cpu_devices[0]
+        assert "cores" in cpu_devices[0]["details"]
+
+    def test_capabilities_expanded_includes_technical_specs(self, client: TestClient):
+        response = client.get("/api/v1/capabilities?profile=expanded")
+        payload = response.json()
+        assert payload["profile"] == "expanded"
+        cpu_devices = [d for d in payload["devices"] if d["category"] == "cpu"]
+        assert len(cpu_devices) == 1
+        assert "specs" in cpu_devices[0]
+        assert "topology" in cpu_devices[0]["specs"]
+        assert "frequency" in cpu_devices[0]["specs"]
+        assert "cache" in cpu_devices[0]["specs"]
+
+    def test_capabilities_rejects_invalid_profile(self, client: TestClient):
+        response = client.get("/api/v1/capabilities?profile=full")
+        assert response.status_code == 422
+
+    def test_capabilities_does_not_expose_runtime_metric_names(self, client: TestClient):
+        response = client.get("/api/v1/capabilities")
+        payload = response.json()
+        flat_caps = [cap for device in payload["devices"] for cap in device.get("capabilities", [])]
+        assert "cpu_usage" not in flat_caps
+        assert "npu_power" not in flat_caps
+        assert "gpu_power" not in flat_caps
+
+    def test_capabilities_prefers_host_hostname_over_container_hostname(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.delenv("METRICS_MANAGER_HOSTNAME", raising=False)
+
+        def fake_read_text(path: str) -> str | None:
+            if path == "/proc/1/root/etc/hostname":
+                return "host-visible-name"
+            return capabilities._read_text(path)
+
+        monkeypatch.setattr(capabilities, "_read_text", fake_read_text)
+
+        response = client.get("/api/v1/capabilities")
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["platform"]["hostname"] == "host-visible-name"
+        assert payload["platform"]["system"]["hostname"] == "host-visible-name"
 
 
 class TestMetricsIngestion:

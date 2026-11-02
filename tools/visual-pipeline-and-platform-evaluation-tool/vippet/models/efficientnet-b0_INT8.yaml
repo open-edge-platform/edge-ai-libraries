@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: Apache-2.0
+name: efficientnet-b0_INT8
+display_name: EfficientNet B0
+description: "Lightweight EfficientNet-B0 image classifier that assigns a whole image to one of the 1000 ImageNet object categories with a strong accuracy-to-compute ratio."
+source: pipeline-zoo-models
+hub: pipeline-zoo-models
+type: image_classification
+precisions:
+  - precision: INT8
+    model_path: pipeline-zoo-models/efficientnet-b0_INT8/FP16-INT8/efficientnet-b0.xml
+    model_proc: pipeline-zoo-models/efficientnet-b0_INT8/efficientnet-b0.json
+extra_model_procs:
+  - /home/dlstreamer/dlstreamer/samples/gstreamer/model_proc/public/preproc-aspect-ratio.json
+unsupported_devices: ""
+download_request:
+  hub: pipeline-zoo-models
+  name: efficientnet-b0_INT8

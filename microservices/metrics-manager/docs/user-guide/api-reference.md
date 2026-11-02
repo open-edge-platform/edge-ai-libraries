@@ -1,6 +1,6 @@
 # API Reference
 
-**Version: 2026.1.0**
+**Version: 2026.2.0**
 
 This document describes all REST API endpoints, request/response formats, and examples.
 
@@ -17,7 +17,7 @@ curl http://localhost:9090/health
 ```json
 {
   "status": "healthy",
-  "version": "2026.1.0",
+  "version": "2026.2.0",
   "uptime_seconds": 3600.5,
   "checks": { "store": true }
 }
@@ -32,7 +32,7 @@ curl http://localhost:9090/api/health
 ```json
 {
   "status": "healthy",
-  "version": "2026.1.0",
+  "version": "2026.2.0",
   "uptime_seconds": 3600.5,
   "checks": { "store": true },
   "metrics_store": {
@@ -61,6 +61,66 @@ curl http://localhost:9090/api/v1/stats
   "uptime_seconds": 3600.5
 }
 ```
+
+---
+
+## Platform and Device Capabilities
+
+### Get Capabilities (Minimal Profile)
+
+```bash
+curl -s "http://localhost:9090/api/v1/capabilities?profile=minimal" | jq
+```
+
+Use `minimal` for a compact platform and device summary suitable for quick validation.
+
+### Get Capabilities (Expanded Profile)
+
+```bash
+curl -s "http://localhost:9090/api/v1/capabilities?profile=expanded" | jq
+```
+
+Use `expanded` for full technical inventory.
+
+### Endpoint and Query Parameter
+
+- Endpoint: `GET /api/v1/capabilities`
+- Query parameter: `profile`
+  - `minimal` (default)
+  - `expanded`
+
+### Example Response Shape
+
+```json
+{
+  "generated_at": 1782833792,
+  "profile": "minimal",
+  "categories": {},
+  "platform": {
+    "hostname": "example-host",
+    "system_memory": {
+      "installed_gib": 30.91,
+      "type": "DDR5"
+    },
+    "system_storage": {
+      "total_capacity_gib": 931.51,
+      "available_gib": 225.14
+    },
+    "device_summary": {
+      "cpu": 1,
+      "igpu": 1,
+      "dgpu": 1,
+      "npu": 0
+    }
+  },
+  "devices": []
+}
+```
+
+### Notes
+
+- Hardware-enriched values are best-effort and depend on host visibility of `/sys`, `/proc`, and `/dev/dri` (when GPU devices are present).
+- PCI branding/model naming uses `lspci` (`pciutils`) when available.
 
 ---
 
@@ -418,21 +478,21 @@ Filtered to `coretemp_package_id_*` (CPU package temperature). Tag: `sensor`.
 
 ### Intel NPU (`npu`) via `scripts/npu_reader.py`
 
-| Prometheus Name   | Field         | Description                                                                     |
-| ----------------- | ------------- | ------------------------------------------------------------------------------- |
-| `npu_power`       | `power`       | NPU power draw in watts (derived from `VPU_ENERGY` delta)                       |
-| `npu_frequency`   | `frequency`   | NPU display frequency in Hz                                                     |
-| `npu_temperature` | `temperature` | NPU SoC temperature in °C (integer)                                             |
-| `npu_bandwidth`   | `bandwidth`   | NoC memory bandwidth delta in MB/s                                              |
-| `npu_tile_config` | `tile_config` | Active tile configuration                                                       |
-| `npu_utilization` | `utilization` | % NPU utilization over the last interval (0–100)                                |
-| `npu_memory_mb`   | `memory_mb`   | NPU memory usage in MB (`-1` on platforms without the sysfs node, e.g. MTL/ARL) |
+| Prometheus Name   | Field         | Description                                                                                                                                                                  |
+|-------------------|---------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `npu_power`       | `power`       | NPU power draw in watts (derived from `VPU_ENERGY` delta)                                                                                                                    |
+| `npu_frequency`   | `frequency`   | NPU (DPU) clock frequency in Hz (decoded from `VPU_WORKPOINT`)                                                                                                               |
+| `npu_temperature` | `temperature` | NPU SoC temperature in °C (integer)                                                                                                                                          |
+| `npu_bandwidth`   | `bandwidth`   | NoC memory bandwidth rate in MB/s (counter delta over the actual elapsed sampling interval; a single wrap of the 32-bit counter between samples is corrected)                |
+| `npu_tile_config` | `tile_config` | Active tile configuration                                                                                                                                                    |
+| `npu_utilization` | `utilization` | % NPU utilization over the last interval (0–100). Omitted (not sent as `0`) when the `npu_busy_time_us` sysfs node isn't exposed or can't be read                            |
+| `npu_memory_mb`   | `memory_mb`   | NPU memory usage in MB. Omitted (not sent as `-1`) on pre-PTL platforms (MTL, ARL, LNL), and on PTL when the `npu_memory_utilization` sysfs node is missing or can't be read |
 
 **Requirements:**
 
 - Intel NPU present and the `intel_vpu` driver loaded (`ls /sys/bus/pci/drivers/intel_vpu/`)
 - `/sys/class/intel_pmt/` accessible inside the container (provided by `privileged: true` + `/sys:/sys:ro`)
-- Supported generations: Meteor Lake (MTL), Arrow Lake (ARL/ARL-H/ARL-S), Lunar Lake (LNL), Panther Lake (PTL). On pre-PTL platforms, `npu_memory_mb` reports `-1`
+- Supported generations: Meteor Lake (MTL), Arrow Lake (ARL/ARL-H/ARL-S), Lunar Lake (LNL), Panther Lake (PTL). On pre-PTL platforms, `npu_memory_mb` is **omitted** from the emitted sample entirely (rather than a sentinel value) — a consumer that needs to distinguish "not supported" from "zero" should treat a missing field as the former, not query for `-1`.
 
 ---
 

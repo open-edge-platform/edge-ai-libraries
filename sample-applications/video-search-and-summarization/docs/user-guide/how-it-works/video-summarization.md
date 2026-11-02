@@ -127,7 +127,7 @@ The key components of the Video Summarization mode are as follows:
 
     **Data-handling microservices**
 
-   - [VDMS-based data preparation](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/visual-data-preparation-for-retrieval/vdms/README.md)
+   - [Multimodal data preparation](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/visual-data-preparation-for-retrieval/multimodal-dataprep/README.md)
 
    See the respective documentation for details.
 

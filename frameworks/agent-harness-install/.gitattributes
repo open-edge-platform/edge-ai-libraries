@@ -1,0 +1,10 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# Force LF regardless of the checking-out platform/core.autocrlf setting --
+# a CRLF-corrupted shell script fails with confusing bash syntax errors
+# ("unexpected token `$'{\r''") only on Linux, not on the Windows dev
+# machine where it's easy to introduce and easy to miss.
+*.sh text eol=lf
+*.md text eol=lf
+.gitattributes text eol=lf

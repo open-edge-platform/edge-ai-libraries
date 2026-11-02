@@ -11,6 +11,7 @@ from src.utils.common import settings, logger
 from src.utils.utils import upload_videos_to_dataprep
 
 initial_upload_status = {"total": 0, "completed": 0, "pending": 0}
+status_lock = Lock()
 
 
 class DebouncedHandler(FileSystemEventHandler):
@@ -51,13 +52,16 @@ class DebouncedHandler(FileSystemEventHandler):
             global initial_upload_status
             try:
                 with self.lock:
-                    initial_upload_status["total"] += len(self.file_paths)
-                    initial_upload_status["pending"] += len(self.file_paths)
-                    self.action(self.file_paths)
-                    initial_upload_status["completed"] += len(self.file_paths)
-                    initial_upload_status["pending"] -= len(self.file_paths)
+                    paths = set(self.file_paths)
                     self.file_paths.clear()
                     self.first_event_time = None
+                with status_lock:
+                    initial_upload_status["total"] += len(paths)
+                    initial_upload_status["pending"] += len(paths)
+                successful_paths = self.action(paths)
+                with status_lock:
+                    initial_upload_status["completed"] += len(successful_paths)
+                    initial_upload_status["pending"] -= len(successful_paths)
             except Exception as e:
                 logger.error(f"Error in _process_files: {str(e)}")
             finally:
@@ -98,27 +102,24 @@ def upload_initial_videos(path):
         global initial_upload_status
         try:
             logger.debug(f"Uploading batch of {len(batch)} videos: {batch}")
-            success = upload_videos_to_dataprep(batch)
-            if success:
-                initial_upload_status["completed"] += len(batch)
-                initial_upload_status["pending"] -= len(batch)
+            successful_paths = upload_videos_to_dataprep(batch)
+            if successful_paths:
+                with status_lock:
+                    initial_upload_status["completed"] += len(successful_paths)
+                    initial_upload_status["pending"] -= len(successful_paths)
                 logger.debug(
                     f"Batch upload complete. Completed: {initial_upload_status['completed']}, Pending: {initial_upload_status['pending']}"
                 )
-                if settings.DELETE_PROCESSED_FILES:
-                    for file_path in batch:
-                        os.remove(file_path)
-                        logger.info(f"Deleted processed file {file_path}")
-            else:
+            if len(successful_paths) != len(batch):
                 logger.error(f"Batch upload failed for batch: {batch}")
         except Exception as e:
             logger.error(f"Error in upload_batch: {str(e)}")
 
-    for i in range(0, len(video_files), 10):
-        batch = video_files[i : i + 10]
+    for i in range(0, len(video_files), settings.WATCH_BATCH_SIZE):
+        batch = video_files[i : i + settings.WATCH_BATCH_SIZE]
         batch_thread = Thread(target=upload_batch, args=(batch,))
         batch_thread.start()
-        logger.debug(f"Started thread for batch {i//10 + 1}")
+        logger.debug(f"Started thread for batch {i//settings.WATCH_BATCH_SIZE + 1}")
 
 
 def start_watcher():

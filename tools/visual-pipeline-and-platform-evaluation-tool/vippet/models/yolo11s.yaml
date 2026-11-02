@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: Apache-2.0
+name: yolo11s
+display_name: YOLO 11s 640x640
+description: "YOLO11 small object detector offering higher accuracy than the nano variant while detecting the 80 COCO object categories in real time."
+source: public
+hub: ultralytics
+type: object_detection
+precisions:
+  - precision: INT8
+    model_path: ultralytics/public/yolo11s/INT8/yolo11s.xml
+    model_proc: ""
+  - precision: FP16
+    model_path: ultralytics/public/yolo11s/FP16/yolo11s.xml
+    model_proc: ""
+extra_model_procs: []
+unsupported_devices: ""
+download_request:
+  hub: ultralytics
+  name: yolo11s
+  config:
+    quantize: coco128

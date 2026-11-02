@@ -19,6 +19,7 @@ and format conversions required for embedding generation.
 """
 
 import base64
+import inspect
 import ipaddress
 import os
 import re
@@ -48,6 +49,43 @@ if settings.https_proxy:
     proxies["https://"] = settings.https_proxy
 # if settings.no_proxy_env:
 #     proxies["no_proxy"] = settings.no_proxy_env
+
+
+def _build_httpx_proxy_kwargs() -> dict:
+    """
+    Build proxy kwargs compatible with the installed httpx version.
+
+    httpx < 0.28 uses `proxies=...`, while newer releases use `proxy=...`
+    (or `mounts` for scheme-specific proxies).
+    """
+    if not proxies:
+        return {}
+
+    async_client_params = set(inspect.signature(httpx.AsyncClient.__init__).parameters)
+
+    if "proxies" in async_client_params:
+        return {"proxies": proxies}
+
+    if "proxy" in async_client_params:
+        http_proxy = proxies.get("http://")
+        https_proxy = proxies.get("https://")
+
+        if (
+            http_proxy
+            and https_proxy
+            and http_proxy != https_proxy
+            and "mounts" in async_client_params
+        ):
+            return {
+                "mounts": {
+                    "http://": httpx.AsyncHTTPTransport(proxy=http_proxy),
+                    "https://": httpx.AsyncHTTPTransport(proxy=https_proxy),
+                }
+            }
+
+        return {"proxy": https_proxy or http_proxy}
+
+    return {}
 
 
 class ParallelImagePreprocessor:
@@ -256,7 +294,7 @@ def _get_remote_media_client_kwargs(url: str) -> tuple[str, dict]:
         settings.no_proxy_env
         and should_bypass_proxy(validated_url, settings.no_proxy_env)
     ):
-        client_kwargs["proxies"] = proxies if proxies else None
+        client_kwargs.update(_build_httpx_proxy_kwargs())
     return validated_url, client_kwargs
 
 

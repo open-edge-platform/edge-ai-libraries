@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.milvus.service.name }}
+spec:
+  selector:
+    app: {{ .Values.milvus.service.name }}
+  ports:
+    - name: grpc
+      port: {{ .Values.milvus.service.port }}
+      targetPort: 19530
+    - name: metrics
+      port: {{ .Values.milvus.service.metricsPort }}
+      targetPort: 9091

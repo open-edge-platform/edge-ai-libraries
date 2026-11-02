@@ -1,0 +1,167 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
+# Get Started
+
+The Agent Quality Handler is a standalone, configuration-driven agent service. It reads detections from an external storage API and runs the built-in Policy, Analysis, Evidence, and Ticketing specialists by default. That default set is now configurable and extensible through `agent_registry` in `agents.yaml`.
+
+## Prerequisites
+
+- Docker 24.0 or later with Docker Compose 2.20 or later
+
+## Start
+
+### 1. Clone the Microservice
+Go to the target directory of your choice and clone the microservice. If you want to clone a specific release branch, replace main with the desired tag. To learn more on partial cloning, check the [Repository Cloning guide](https://docs.openedgeplatform.intel.com/dev/OEP-articles/contribution-guide.html#repository-cloning-partial-cloning).
+
+```bash
+git clone --filter=blob:none --sparse --branch main https://github.com/open-edge-platform/edge-ai-libraries.git
+cd edge-ai-libraries/
+git sparse-checkout set microservices/agent-quality-handler/
+cd microservices/agent-quality-handler/
+```
+
+### 2. Configure the deployment
+
+The [`start.sh`](../../start.sh) script is the deployment configuration and
+startup entry point. Update the defaults in its **Deployment configuration**
+section, particularly `STORAGE_SERVICE_URL`, before starting the application.
+
+## Start in LLM Mode
+
+`LLM_MODE` defaults to `llm`. Start the application:
+
+```bash
+./start.sh
+```
+
+Environment values can override the script defaults without editing the file.
+For example, credentials should be supplied only for the command that needs
+them:
+
+```bash
+MQTT_USERNAME="$AQH_MQTT_USERNAME" \
+MQTT_PASSWORD="$AQH_MQTT_PASSWORD" \
+HUGGINGFACEHUB_API_TOKEN="$AQH_HUGGINGFACE_TOKEN" \
+./start.sh
+```
+
+### Agent Orchestration Mode
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `AGENT_MODE` | `routing` classifies severity and runs only the specialist agents the route requires. `sequential` always runs every registered agent in dependency order (legacy chain). | `routing` |
+
+```bash
+AGENT_MODE=sequential ./start.sh
+```
+
+### LLM Model Settings
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `LLM_MODEL_NAME` | Model name passed to the model-download service | `Qwen/Qwen2.5-3B-Instruct` |
+| `LLM_MAX_TOKENS` | Maximum tokens per LLM response for all agents and the router (custom agents can override via `max_tokens` in `agents.yaml`) | `512` |
+| `LLM_DEVICE` | Target inference device (`GPU`, `CPU`) | `GPU` |
+| `LLM_PRECISION` | Model quantization precision (`int8`, `int4`, `fp16`, …) | `int8` |
+| `USE_CASE_MODELS_DIR` | Optional host directory shared by model-download and OVMS | `aqh_model_cache` volume |
+| `MODEL_DOWNLOAD_TIMEOUT_SECONDS` | Maximum wait for model provisioning. Increase this for larger models | `3600` |
+
+## Configure Batch Events
+
+The bundled broker is private and intended for container-network traffic. Configure a secured external broker with:
+
+| Variable | Purpose |
+|---|---|
+| `MQTT_HOST`, `MQTT_PORT` | Broker address |
+| `MQTT_USERNAME`, `MQTT_PASSWORD` | Optional authentication |
+| `MQTT_BATCH_TOPIC` | Batch-complete subscription; defaults to `apm/batch-complete` |
+| `MQTT_BATCH_CLIENT_ID` | Stable, unique subscriber identity |
+| `MQTT_QOS` | Subscription QoS (`0`, `1`, or `2`) |
+| `MQTT_KEEPALIVE`, `MQTT_MAX_PAYLOAD_BYTES` | Connection and input limits |
+
+Detection Service must persist a batch before publishing its terminal event.
+Completed events queue reasoning over `(start_id, end_id]`; error events are
+recorded without running agents.
+
+## Configure Agent Assets
+
+Agent assets are supplied by the downstream application. Set these values in
+the deployment configuration section of `start.sh`:
+
+```bash
+USE_CASE_CONFIGS_DIR=/absolute/path/to/config
+USE_CASE_PROMPTS_DIR=/absolute/path/to/prompts
+```
+
+The config directory must contain `agents.yaml` and `policy_fallback.json`. In LLM mode, the prompts directory must contain `<use_case_id>.txt`, where `use_case_id` comes from `agents.yaml`. Invalid URLs, modes, ports, credentials, certificates, or required assets cause startup to fail rather than running with a partial configuration.
+
+## Run the Pipeline
+
+```bash
+RUN_ID=$(curl -s -X POST http://localhost:5002/agents/run \
+  -H "Content-Type: application/json" \
+  -d '{"min_id": 100, "max_id": 250}' |
+  python3 -c "import json,sys; print(json.load(sys.stdin)['run_id'])")
+
+curl "http://localhost:5002/agents/status/$RUN_ID"
+curl "http://localhost:5002/agents/results/$RUN_ID"
+curl "http://localhost:5002/agents/outputs/analysis/$RUN_ID"
+```
+
+Terminal outputs are also retained as per-agent JSON files in the
+`aqh_agent_output` named volume. `OUTPUT_DIR` defaults to `/app/output` in
+Compose. See the [API Reference](./api-reference.md) for the file schema and
+all routes.
+
+## Validate Standalone with the Mock Storage Service
+
+The `dev` Compose profile starts a mock storage service with canned detection
+data, removing the need for a real storage backend.
+
+```bash
+COMPOSE_PROFILES=dev \
+STORAGE_SERVICE_URL=http://mock-storage:5001 \
+./start.sh --build
+```
+
+Verify all services are healthy:
+
+```bash
+docker ps 
+curl http://localhost:5001/detections
+```
+
+Then follow [Run the Pipeline](#run-the-pipeline) above to trigger and inspect
+a run against the mock data.
+
+### Run unit tests
+
+```bash
+uv run pytest
+```
+
+## Stop
+
+```bash
+./start.sh down
+```
+
+To also remove named volumes, including retained agent outputs and the named
+model cache, run:
+
+```bash
+./start.sh clean
+```
+
+The clean action preserves downloaded images.
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+
+get-started/system-requirements
+:::
+hide_directive-->

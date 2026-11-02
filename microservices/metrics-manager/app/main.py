@@ -177,6 +177,7 @@ async def root() -> ServiceInfoResponse:
                 "push_simple": "POST /api/v1/metrics/simple",
                 "push_influx": "POST /api/v1/metrics/influx",
                 "push_otlp": "POST /api/v1/metrics/otlp",
+                "capabilities": "GET /api/v1/capabilities?profile=minimal|expanded",
                 "get_metrics": "GET /api/v1/metrics",
                 "get_latest": "GET /api/v1/metrics/latest",
                 "get_names": "GET /api/v1/metrics/names",

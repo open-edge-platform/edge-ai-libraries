@@ -1,18 +1,32 @@
 {
-  "executionEnvironments": [
-    {
-      "root": "vippet"
-    },
-    {
-      "root": "video_generator"
-    }
+  "include": [
+    "vippet",
+    "video_generator",
+    "generate_openapi.py"
   ],
   "exclude": [
     ".venv",
     "**/.venv",
     "**/node_modules",
     "**/__pycache__",
+    "**/.pytest_cache",
+    "**/.ruff_cache",
+    "**/.mypy_cache",
     ".git",
-    "shared/"
+    "docs",
+    "shared",
+    "ui"
+  ],
+  "executionEnvironments": [
+    {
+      "root": "vippet/tests/performance",
+      "extraPaths": ["vippet/tests/functional"]
+    },
+    {
+      "root": "vippet"
+    },
+    {
+      "root": "video_generator"
+    }
   ]
 }

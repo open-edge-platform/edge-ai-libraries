@@ -18,6 +18,7 @@ class SpeechRequest(BaseModel):
     language: str | None = Field(default=None)
     instructions: str | None = Field(default=None)
     response_format: Literal["wav", "json"] = Field(default="wav")
+    device: Literal["CPU", "GPU", "NPU"] | None = Field(default=None)
 
     @field_validator("model", "input", mode="before")
     @classmethod
@@ -53,17 +54,42 @@ class SpeechRequest(BaseModel):
 
         if configured_model_normalized.startswith("qwen/") or "qwen3-tts" in configured_model_normalized:
             self._validate_for_qwen(model_variant)
+            return
 
-    def _validate_for_speecht5(self) -> None:
+        if "kokoro" in configured_model_normalized:
+            self._validate_for_kokoro()
+
+    def _validate_for_kokoro(self) -> None:
         default_language = config.models.tts.default_language.strip()
-        default_speaker = config.models.tts.default_speaker.strip()
 
         if self.language and self.language.lower() != default_language.lower():
             raise ValueError(f"Only {default_language} is currently supported for speech synthesis.")
 
-        if self.voice and self.voice.lower() != default_speaker.lower():
+        # No static voice allow-list here: main's KokoroTTSService discovers
+        # supported voices dynamically from the loaded model
+        # (_supported_voices()) and falls back to the configured default with
+        # a warning on an unknown voice at synthesis time, rather than
+        # failing the whole utterance -- see kokoro_tts.py's
+        # _resolve_kokoro_voice(). Duplicating that list here would require
+        # loading the model just to validate a DTO, which this layer must
+        # not do.
+
+        if self.instructions:
+            raise ValueError("Kokoro does not support free-form voice instructions.")
+
+
+    def _validate_for_speecht5(self) -> None:
+        from components.tts import speecht5_voices
+
+        default_language = config.models.tts.default_language.strip()
+
+        if self.language and self.language.lower() != default_language.lower():
+            raise ValueError(f"Only {default_language} is currently supported for speech synthesis.")
+
+        if self.voice and not speecht5_voices.is_supported(self.voice):
             raise ValueError(
-                f"SpeechT5 currently supports only the configured voice '{default_speaker}'."
+                f"Unsupported voice '{self.voice}'. "
+                f"Supported voices: {', '.join(speecht5_voices.supported_speakers())}."
             )
 
         if self.instructions:

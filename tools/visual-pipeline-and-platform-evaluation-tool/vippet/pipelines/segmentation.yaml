@@ -4,6 +4,7 @@ definition: >
 tags:
   - Retail
 thumbnail: images/instance-segmentation.png
+type: vision
 variants:
   - name: CPU
     pipeline_description: >-

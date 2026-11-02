@@ -44,13 +44,14 @@ Running semantics:
 
 import argparse
 import gc
+import json
 import logging
 import signal
 import sys
 import threading
 import time
 from dataclasses import dataclass
-from typing import Callable, List, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple
 
 import gi  # pyright: ignore[reportMissingImports]
 
@@ -109,6 +110,27 @@ def configure_root_logging(level: int) -> None:
 def get_logger() -> logging.Logger:
     """Get the module-level logger for this script."""
     return logging.getLogger("gst_runner")
+
+
+def _add_prompt_to_meta_message(text: str, obj: Any) -> str:
+    """Add the emitting element's ``prompt`` property to a ``gvagenai`` meta JSON."""
+    try:
+        prompt = obj.get_property("prompt") if obj is not None else None
+    except (AttributeError, TypeError):
+        return text
+    if not isinstance(prompt, str) or not prompt.strip():
+        return text
+    json_start = text.find("{")
+    if json_start == -1:
+        return text
+    try:
+        payload = json.loads(text[json_start:])
+    except ValueError:
+        return text
+    if not isinstance(payload, dict) or "prompt" in payload:
+        return text
+    payload["prompt"] = prompt.strip()
+    return text[:json_start] + json.dumps(payload)
 
 
 def gst_log_bridge(
@@ -173,6 +195,23 @@ def gst_log_bridge(
         logger.info("%s", text)
         return
 
+    # Prepend the emitting element's name in `<name>` form for the
+    # `gvagenai` metadata records so the VLM-metrics parser in
+    # `pipeline_runner.py` can tag `vlm_metrics` samples with the
+    # originating element (unique per stream after
+    # `unify_all_element_names`). Scoped strictly to the
+    # `Added meta message:` marker to keep every other log line
+    # (errors, warnings, other INFOs) byte-identical to the previous
+    # behaviour.
+    if text.startswith("Added meta message:"):
+        text = _add_prompt_to_meta_message(text, obj)
+        try:
+            obj_name = obj.get_name() if obj is not None else None
+        except (AttributeError, TypeError):
+            obj_name = None
+        if obj_name:
+            text = f"<{obj_name}> {text}"
+
     # Log only the message body, without any extra category/prefix.
     # Note: GStreamer debug levels use lower values for higher severity:
     # ERROR=1, WARNING=2, FIXME=3, INFO=4, DEBUG=5, LOG=6, TRACE=7
@@ -221,6 +260,27 @@ def initialize_gstreamer_logging() -> None:
 ###############################################################################
 # Bus processing utilities
 ###############################################################################
+
+# Element messages with this structure name (posted e.g. by the bundled
+# ``gvaproximitytrigger_py`` element) are forwarded to stdout as
+# ``Pipeline event: {json}`` lines, parsed by ``pipeline_runner.py``.
+PIPELINE_EVENT_STRUCTURE = "vippet-event"
+PIPELINE_EVENT_MARKER = "Pipeline event:"
+
+
+def log_pipeline_event(
+    logger: logging.Logger, src: Optional[Gst.Object], structure: Gst.Structure
+) -> None:
+    """Log a ``vippet-event`` element message as a single JSON line."""
+    payload: dict[str, Any] = {}
+    for i in range(structure.n_fields()):
+        name = structure.nth_field_name(i)
+        value = structure.get_value(name)
+        if isinstance(value, (str, int, float, bool)):
+            payload[name] = value
+    if src is not None:
+        payload["element"] = src.get_name()
+    logger.info("%s %s", PIPELINE_EVENT_MARKER, json.dumps(payload))
 
 
 def drain_bus_messages(
@@ -397,7 +457,12 @@ def parse_pipeline(pipeline_description: str) -> Tuple[Optional[Gst.Pipeline], b
 
 @dataclass
 class _RunState:
-    """Internal state tracked during a single pipeline run."""
+    """Internal state tracked during a single pipeline run.
+
+    Thread-safety note: field reads/writes rely on the GIL for atomicity.
+    If migrating to free-threaded Python (PEP 703 / --disable-gil),
+    protect these fields with a lock or use threading.Event.
+    """
 
     error_seen: bool = False
     eos_seen: bool = False
@@ -464,9 +529,9 @@ class _PipelineRunner:
             err, debug = message.parse_error()
             debug = debug.replace("\r", " ").replace("\n", " ")
 
-            # Ignore errors that occur during graceful shutdown after max-runtime.
-            # Elements like rtspclientsink may report errors when the pipeline
-            # is being stopped, which is expected behavior.
+            # Ignore errors that occur during graceful shutdown (max-runtime,
+            # SIGINT, etc.).  Elements like rtspclientsink may report errors
+            # when the pipeline is being stopped, which is expected behavior.
             if self._state.shutdown_in_progress:
                 self._logger.debug(
                     "Ignoring error during shutdown: %s (debug: %s)",
@@ -490,6 +555,14 @@ class _PipelineRunner:
             self._state.reason = self._state.reason or None
             loop.quit()
 
+        elif msg_type == Gst.MessageType.ELEMENT:
+            structure = message.get_structure()
+            if (
+                structure is not None
+                and structure.get_name() == PIPELINE_EVENT_STRUCTURE
+            ):
+                log_pipeline_event(self._logger, message.src, structure)
+
         return True
 
     def _initiate_shutdown(self, reason: str, loop: GLib.MainLoop) -> None:
@@ -497,8 +570,9 @@ class _PipelineRunner:
 
         This method is safe to call from any context (thread, signal handler,
         GLib callback). It sets the shutdown flags and quits the main loop.
-        The actual pipeline teardown (set_state(NULL)) is handled by the
-        ``run()`` method's ``finally`` block.
+        The actual pipeline teardown (set_state(NULL)) is handled by
+        ``_cleanup()``, called from ``run()``'s ``finally`` block or from
+        the early-exit path.
 
         If shutdown has already been initiated (by max-runtime, SIGINT, or
         a previous call), this method is a no-op.
@@ -528,7 +602,7 @@ class _PipelineRunner:
         After `max_run_time_sec` seconds, this thread initiates a graceful
         shutdown by calling _initiate_shutdown(), which quits the GLib main
         loop. The actual pipeline teardown (set_state(NULL)) is handled by
-        the ``run()`` method's ``finally`` block.
+        ``_cleanup()``, called from ``run()``'s ``finally`` block.
 
         The shutdown approach mimics what gst-launch-1.0 does when it
         receives SIGINT (Ctrl+C): transition directly to NULL without
@@ -559,6 +633,55 @@ class _PipelineRunner:
         self._initiate_shutdown("sigint", loop)
         return GLib.SOURCE_REMOVE
 
+    def _cleanup(
+        self,
+        bus: Gst.Bus,
+        handler_id: int,
+        original_sigint_handler: Any,
+    ) -> None:
+        """Restore the SIGINT handler, disconnect the bus, and set pipeline to NULL.
+
+        This is shared between the early-exit path (SIGINT during state
+        transition) and the normal finally block after the main loop.
+
+        Args:
+            bus: The pipeline's bus, previously obtained via get_bus().
+            handler_id: The connection id returned by bus.connect("message", ...).
+            original_sigint_handler: The SIGINT handler in effect before
+                run() installed its own, as returned by signal.getsignal().
+                Restored here so callers of run() get their handler back.
+        """
+        signal.signal(signal.SIGINT, original_sigint_handler)
+        try:
+            bus.disconnect(handler_id)
+        except Exception as exc:  # noqa: BLE001
+            self._logger.debug("Error disconnecting bus signal handler: %r", exc)
+        bus.remove_signal_watch()
+        try:
+            self._pipeline.set_state(Gst.State.NULL)
+        except Exception as exc:  # noqa: BLE001
+            self._logger.warning("Error while stopping pipeline: %r", exc)
+
+    def _finalize(self, bus: Gst.Bus) -> Tuple[bool, Optional[str]]:
+        """Drain any remaining bus messages and derive the final (ok, reason).
+
+        Must be called after ``_cleanup()`` so that any ERROR message
+        posted while transitioning the pipeline to NULL (e.g. during the
+        early-exit SIGINT path) is still observed instead of being left
+        undrained on the bus.
+        """
+        if drain_bus_messages(bus, self._logger):
+            if not self._state.error_seen:
+                self._state.error_seen = True
+                self._state.reason = self._state.reason or "error"
+
+        if self._state.error_seen:
+            return False, "error"
+        if self._state.max_runtime_triggered and not self._state.error_seen:
+            return True, "max_runtime"
+        # EOS, SIGINT, or normal stop without errors.
+        return True, None
+
     def run(self) -> Tuple[bool, Optional[str]]:
         """Run the pipeline and return (ok, reason).
 
@@ -566,26 +689,37 @@ class _PipelineRunner:
 
         1. Obtain the pipeline's bus and create a GLib.MainLoop.
         2. Attach a bus watch and connect _on_bus_message for ERROR/EOS.
-        3. Request PLAYING state on the pipeline.
-        4. Call get_state() with a configured wait time (for diagnostics only)
-           to log the initial state-change outcome.
-        5. If max-runtime > 0, start a background thread that will trigger when
+        3. Install a Python-level SIGINT handler that schedules a graceful
+           shutdown via GLib.idle_add().  Installed early so that SIGINT
+           during hardware initialization does not raise KeyboardInterrupt.
+        4. Request PLAYING state on the pipeline.
+        5. Call get_state() with a configured wait time (for diagnostics only)
+           to log the initial state-change outcome.  A KeyboardInterrupt
+           safety net catches platforms where the custom handler is bypassed.
+        6. If shutdown was requested during the state transition (e.g. SIGINT),
+           clean up immediately via _cleanup() and return via _finalize()
+           (steps 10-11 below), skipping the main loop entirely.
+        7. If max-runtime > 0, start a background thread that will trigger when
            max_run_time_sec elapses.
-        6. Install a Python-level SIGINT handler that schedules a graceful
-           shutdown via GLib.idle_add().
-        7. Run the GLib.MainLoop until:
+        8. Run the GLib.MainLoop until:
              - ERROR on the bus, OR
              - EOS on the bus, OR
              - the max-runtime enforcement thread calls loop.quit(), OR
              - SIGINT (Ctrl+C) triggers a graceful shutdown.
-        8. After the loop exits:
-             a. Restore the original SIGINT handler.
-             b. Disconnect the bus signal handler and remove the signal
+        9. After the loop exits, call _cleanup() which:
+             a. Restores the original SIGINT handler.
+             b. Disconnects the bus signal handler and removes the signal
                 watch to break reference cycles (needed for GObject
                 element finalization by Python's GC).
-             c. Transition the pipeline to NULL.
-             d. Drain any remaining bus messages for logging.
-        9. Derive the final result from _RunState.
+             c. Transitions the pipeline to NULL.
+        10. Call _finalize() to drain any remaining bus messages, so that
+            an ERROR posted while transitioning to NULL (step 9c) is still
+            observed rather than left undrained on the bus.
+        11. Derive the final result from _RunState.
+
+        Steps 10-11 are shared (via _finalize()) between the early-exit
+        path (step 6) and the normal post-main-loop path, so both report
+        errors consistently.
 
         Returns:
             (True, None)
@@ -604,31 +738,6 @@ class _PipelineRunner:
         bus.add_signal_watch()
         handler_id = bus.connect("message", self._on_bus_message, loop)
 
-        # Request PLAYING state.
-        ret = self._pipeline.set_state(Gst.State.PLAYING)
-        self._logger.debug("Requested pipeline state PLAYING, result: %s", ret)
-
-        # Wait for initial state change (for logging only).
-        state_change_ret, current_state, pending = self._pipeline.get_state(
-            5 * Gst.SECOND,
-        )
-
-        self._logger.debug(
-            "Initial state change result: %s, current: %s, pending: %s",
-            state_change_ret,
-            current_state,
-            pending,
-        )
-
-        # Start max-runtime enforcement thread only if max-runtime > 0.
-        if self._max_run_time_sec > 0:
-            max_runtime_thread = threading.Thread(
-                target=self._max_runtime_enforcement_thread,
-                args=(loop,),
-                daemon=True,
-            )
-            max_runtime_thread.start()
-
         # Install a Python-level SIGINT handler that schedules a graceful
         # shutdown on the GLib main loop via GLib.idle_add().
         #
@@ -640,12 +749,64 @@ class _PipelineRunner:
         # GLib.idle_add() is thread-safe and main-loop-safe, so calling it
         # from a Python signal handler (which runs in the main thread
         # between bytecode instructions) is correct.
+        #
+        # The handler is installed BEFORE set_state(PLAYING) and get_state()
+        # so that SIGINT arriving during hardware initialization
+        # (GPU/NPU model loading) does not raise KeyboardInterrupt.
         original_sigint_handler = signal.getsignal(signal.SIGINT)
 
-        def _sigint_handler(signum, frame):
+        def _sigint_handler(_signum, _frame):
             GLib.idle_add(self._on_sigint, loop)
 
         signal.signal(signal.SIGINT, _sigint_handler)
+
+        # Request PLAYING state.
+        ret = self._pipeline.set_state(Gst.State.PLAYING)
+        self._logger.debug("Requested pipeline state PLAYING, result: %s", ret)
+
+        # Wait for initial state change (for logging only).
+        # Wrapped in try/except as a safety net: on some platforms or GI
+        # binding versions, SIGINT can still raise KeyboardInterrupt from
+        # within blocking C calls even with a custom signal handler.
+        try:
+            state_change_ret, current_state, pending = self._pipeline.get_state(
+                5 * Gst.SECOND,
+            )
+        except KeyboardInterrupt:
+            # _sigint_handler may also have fired; _initiate_shutdown is
+            # idempotent so the pending idle_add callback is harmless.
+            self._logger.info("SIGINT received during pipeline state transition.")
+            self._state.shutdown_in_progress = True
+            self._state.reason = "sigint"
+            state_change_ret = Gst.StateChangeReturn.FAILURE
+            current_state = Gst.State.VOID_PENDING  # actual state is indeterminate
+            pending = Gst.State.VOID_PENDING
+
+        self._logger.debug(
+            "Initial state change result: %s, current: %s, pending: %s",
+            state_change_ret,
+            current_state,
+            pending,
+        )
+
+        # If shutdown was requested during state transition (via SIGINT),
+        # skip entering the main loop and proceed to cleanup.
+        if self._state.shutdown_in_progress:
+            self._logger.info(
+                "Shutdown requested before main loop (reason: %s), skipping run.",
+                self._state.reason,
+            )
+            self._cleanup(bus, handler_id, original_sigint_handler)
+            return self._finalize(bus)
+
+        # Start max-runtime enforcement thread only if max-runtime > 0.
+        if self._max_run_time_sec > 0:
+            max_runtime_thread = threading.Thread(
+                target=self._max_runtime_enforcement_thread,
+                args=(loop,),
+                daemon=True,
+            )
+            max_runtime_thread.start()
 
         # Run main loop until:
         #   - ERROR (bus handler quits loop),
@@ -655,39 +816,15 @@ class _PipelineRunner:
         try:
             loop.run()
         finally:
-            # Restore the original SIGINT handler.
-            signal.signal(signal.SIGINT, original_sigint_handler)
-
-            # Disconnect the bus signal handler and remove the signal watch
-            # BEFORE setting state to NULL. This breaks the reference cycle
+            # Restore SIGINT handler, disconnect bus, and transition to NULL.
+            # Bus disconnect BEFORE set_state(NULL) breaks the reference cycle
             # between the bus, the signal handler closure, and the pipeline,
             # which is essential for Python's GC to later destroy the
             # pipeline object and trigger C-level element finalizers.
-            try:
-                bus.disconnect(handler_id)
-            except Exception:  # noqa: BLE001
-                pass
-            bus.remove_signal_watch()
+            self._cleanup(bus, handler_id, original_sigint_handler)
 
-            # Transition to NULL. This stops all elements.
-            try:
-                self._pipeline.set_state(Gst.State.NULL)
-            except Exception as exc:  # noqa: BLE001
-                self._logger.warning("Error while stopping pipeline after run: %r", exc)
-
-        # Drain any remaining messages for logging purposes.
-        if drain_bus_messages(bus, self._logger):
-            if not self._state.error_seen:
-                self._state.error_seen = True
-                self._state.reason = self._state.reason or "error"
-
-        # Determine final outcome.
-        if self._state.error_seen:
-            return False, "error"
-        if self._state.max_runtime_triggered and not self._state.error_seen:
-            return True, "max_runtime"
-        # EOS, SIGINT, or normal stop without errors.
-        return True, None
+        # Drain any remaining messages and derive the final outcome.
+        return self._finalize(bus)
 
 
 def run_pipeline_for_duration(

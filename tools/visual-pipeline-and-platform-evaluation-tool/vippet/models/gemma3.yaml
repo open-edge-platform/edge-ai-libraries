@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: Apache-2.0
+name: gemma3
+display_name: Gemma 3
+description: "Google Gemma 3 vision-language model that understands images together with text prompts to generate captions, descriptive answers, and visual reasoning."
+source: huggingface
+hub: huggingface
+type: vision_language_models
+precisions:
+  - precision: INT4
+    model_path: openvino_models/cpu/int4/google/gemma-3-4b-it/
+    model_proc: ""
+extra_model_procs: []
+unsupported_devices: "NPU"
+download_request:
+  hub: openvino
+  name: google/gemma-3-4b-it
+  type: vlm
+  is_ovms: true
+  config:
+    precision: int4
+    device: CPU
+    cache_size: 10

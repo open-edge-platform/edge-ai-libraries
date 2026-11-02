@@ -10,8 +10,6 @@
 "pipeline": "v4l2src device=/dev/<DEVICE_VIDEO_NODE> name=source ! video/x-raw,format=YUY2 ! videoconvert ! video/x-raw,format=BGR ! appsink name=destination"
 ```
 
->**Note**:
-
 - In case you want to enable resizing with USB camera use the
   `videoscale` element and specify the `height` and `width`  parameter in the pipeline.
 
@@ -30,4 +28,9 @@
     "pipeline": "v4l2src device=/dev/video0 name=source ! video/x-raw,format=YUY2 ! videoconvert ! video/x-raw,format=BGR ! appsink name=destination"
     ```
 
-    **Note**: Typically a device node gets created when a USB device is connected to the system. When multiple USB cameras are connected then one needs to identify which device node is mapped to the camera and use that with the `device` property. Device nodes for the cameras usually gets created in sequence of video0, video1, video2 etc.
+    > [!NOTE]
+    > Typically a device node gets created when a USB device is connected to the
+    > system. When multiple USB cameras are connected then one needs to identify
+    > which device node is mapped to the camera and use that with the `device`
+    > property. Device nodes for the cameras usually gets created in sequence of
+    > video0, video1, video2 etc.

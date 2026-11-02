@@ -9,7 +9,7 @@ Warmup is handled internally by the Locust test file.
 
 from src.base import BasePerformanceProfiler
 from src.live_video_caption.utilities.config import is_live_caption_enabled
-from src.live_video_caption.utilities.utils import run_live_caption_hw_sizing
+from src.live_video_caption.utilities.utils import run_live_caption_hw_sizing, run_live_caption_rag_hw_sizing, run_live_caption_rag_warmup
 
 
 class LVCProfiler(BasePerformanceProfiler):
@@ -28,10 +28,29 @@ class LVCProfiler(BasePerformanceProfiler):
         """Return True if the live_caption API is enabled in config."""
         return is_live_caption_enabled(self.config)
 
+    def run_warmup(self, profile_path, input_file):
+        """Execute warmup requests for enabled video APIs."""
+        live_caption_enabled, live_caption_rag_enabled = self.get_enabled_apis()
+        
+        if live_caption_rag_enabled:
+            run_live_caption_rag_warmup(self.warmup_time, self.ip, profile_path, self.config)
+
+
     def run_profiling(self, report_dir: str) -> None:
         """Execute the hardware-sizing test if the API is enabled."""
-        if self.get_enabled_apis():
+        live_caption_enabled, live_caption_rag_enabled = self.get_enabled_apis()
+        if live_caption_enabled:
             run_live_caption_hw_sizing(
+                self.users,
+                self.total_requests,
+                self.ip,
+                self.profile_path,
+                report_dir,
+                self.warmup_time,
+                self.config,
+            )
+        if live_caption_rag_enabled:
+            run_live_caption_rag_hw_sizing(
                 self.users,
                 self.total_requests,
                 self.ip,

@@ -41,9 +41,3 @@
 [submodule "libraries/dlstreamer"]
 	path = libraries/dlstreamer
 	url = https://github.com/open-edge-platform/dlstreamer
-[submodule "libraries/dl-streamer/thirdparty/spdlog"]
-	path = libraries/dl-streamer/thirdparty/spdlog
-	url = https://github.com/gabime/spdlog.git
-[submodule "libraries/dl-streamer/thirdparty/googletest"]
-	path = libraries/dl-streamer/thirdparty/googletest
-	url = https://github.com/google/googletest.git

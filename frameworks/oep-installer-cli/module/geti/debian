@@ -1,0 +1,21 @@
+
+debian_90_profile_geti () {
+  echo "docker_io edge_base"
+}
+
+debian_90_install_geti () {
+  install_geti "$@"
+}
+
+debian_90_start_geti () {
+  start_geti "$@"
+}
+
+debian_90_stop_geti () {
+  stop_geti "$@"
+}
+
+debian_90_remove_geti () {
+  remove_geti "$@"
+}
+

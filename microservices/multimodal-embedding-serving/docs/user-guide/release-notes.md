@@ -2,30 +2,65 @@
 
 This microservice supports features based on the requirements of Video Search and Summarization sample application, which uses this microservice. Refer to Video Search and Summarization [release notes](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/video-search-and-summarization/release-notes.html) for release details of this microservice.
 
+## Version 2026.2.0
+
+**Release Date:** September 9, 2026
+
+**New:**
+
+- Added explicit NPU execution path for embeddings (`EMBEDDING_DEVICE=NPU`) with OpenVINO™ enablement through setup and compose orchestration.
+- Added compatibility updates for newer NPU runtime stacks (including updated NPU driver tooling and dependency alignment).
+- Added dev and user agent skills for AI coding assistants.
+
+**Improved:**
+
+- Hardened NPU driver installation in Docker images (retry-based package fetch and stricter install validation to avoid partial installs).
+- Improved OpenVINO™ static-shape batching behavior across image/text handlers (CLIP, SigLIP, MobileCLIP, CN-CLIP, BLIP2) to better support accelerator targets.
+- Model conversion now stages output in a temporary directory and surfaces conversion errors instead of leaving a partially written model on disk.
+- Refactored `CLIPHandler` error handling during OpenVINO™ conversion.
+- Bumped Intel® compute-runtime GPU driver to `26.31.39395` and NPU driver to `1.38.0` (with the matching Level Zero loader `1.32.0`); advanced OpenVINO™ to `2026.4.0` with the paired NNCF `3.4.0`, the `optimum-intel` pin, and `av` (17→18).
+- Refreshed dependency version constraints and lock files.
+- Updated API docs and reference material for current endpoints and payloads, including optional request-field behavior clarifications.
+- Improved outbound media/proxy handling compatibility for newer `httpx` versions.
+- Documentation formatting fixes; 2025 release notes split into a separate document.
+
+**Fixed:**
+
+- Fixed file-descriptor exhaustion (`[Errno 24] Too many open files`) that failed video embedding requests with HTTP 500 at large `VIDEO_FRAME_BATCH_SIZE`; shared-memory pool blocks no longer each hold two open descriptors, and the container raises `nofile` to 65536.
+- Fixed shared-memory segments leaking into `/dev/shm` when pool teardown hit an already-unlinked block; blocks are now unlinked independently.
+- Fixed GPU batch-size defaults in `setup.sh` never applying: values were assigned before the device was tested, so GPU deployments silently ran at CPU batch sizes. Defaults are now resolved per device, and explicit values still take precedence.
+- Fixed `QwenText/*` models failing to start on `EMBEDDING_DEVICE=NPU`. The exported IR is dynamic on both batch and sequence length, which the NPU compiler rejects (`expected exactly 1 dynamic output bound dimension, got 2`). The handler now reshapes the model to a static shape before compiling, chunks larger request batches at inference time, and caches the compiled blob per device/shape.
+- Fixed long text losing its tail on `QwenText/*` on NPU. Input beyond the compiled sequence length was truncated, and because the discarded remainder did not affect the vector at all, documents sharing a long prefix produced near-identical embeddings. Such text is now split into overlapping chunks that are embedded and combined into a single vector, weighted so each token counts exactly once. Set `EMBEDDING_CHUNK_LONG_TEXT=false` to restore truncation. CPU and GPU are unaffected.
+- `EMBEDDING_STATIC_SEQ_LEN` is now restricted to validated values (`128`–`8192`, powers of two), rounding other values up rather than compiling an arbitrary shape. See [QwenText Models on NPU](./qwentext-on-npu.md).
+
+**Upgrade Notes:**
+
+- GPU deployments now default to `INFER_BATCH_SIZE=32` and `VIDEO_FRAME_BATCH_SIZE=256` (previously `16`/`64` in practice), the fastest measured combination for CLIP ViT-B/32. Export either variable before sourcing `setup.sh` to keep the old values.
+
 ## Version 2026.1.0
 
-**June 17, 2026**
+**Release Date:** June 17, 2026
 
-**New**
+**New:**
 
 - **Batched sampled-frame video pipeline**: Video embedding requests (URL, base64, local file, RTSP) now process frames through a streaming batched-frame extraction path instead of extracting all frames upfront. Frame selection priority: `frame_indexes` > `extraction_fps` > `num_frames` > `frame_interval`. Set `num_frames: 0` to process all frames in a video.
 - **PyAV-based video decoder with shared memory transport**: Replaced `decord` with a custom `PyAV`-based decoder (`decoder.py`) featuring a shared memory pool (`SharedMemoryPool`) for zero-copy frame metadata transport between pipeline stages. Supports file, URL, bytes, and RTSP sources with keyframe and uniform sampling strategies.
 - **RTSP multi-stream ingestion**: Multiple parallel decoder instances for concurrent RTSP and file/bytes streams in a single request.
-- **Async OpenVINO inference with static shape compilation**: All model handlers now use `AsyncInferQueue`-based batched OV inference. GPU/iGPU models are compiled to a static batch shape at load time for higher hardware utilization; dynamic-size inputs are handled via padding or splitting.
+- **Async OpenVINO™ inference with static shape compilation**: All model handlers now use `AsyncInferQueue`-based batched OV inference. GPU/iGPU models are compiled to a static batch shape at load time for higher hardware utilization; dynamic-size inputs are handled via padding or splitting.
 - **Parallel image pre-processing**: New `ParallelImagePreprocessor` applies thread-pool-based preprocessing in parallel while preserving batch order, decoupling preprocessing latency from inference.
 - **Inference metrics reporting**: All model handlers expose an optional `metrics_out=True` mode on `encode_image()` that returns timing and throughput metrics for both OV and native PyTorch execution paths.
 - **Configurable embedding pipeline via environment variables**: The following variables are now exposed and seeded by `setup.sh`.
 
-**Improved**
+**Improved:**
 
-- **PyTorch fallback for all model handlers**: CLIP, SigLIP, MobileCLIP, BLIP2-Transformers, and CN-CLIP handlers transparently fall back to native PyTorch inference when OpenVINO is not configured, controlled via `EMBEDDING_USE_OV`.
+- **PyTorch fallback for all model handlers**: CLIP, SigLIP, MobileCLIP, BLIP2-Transformers, and CN-CLIP handlers transparently fall back to native PyTorch inference when OpenVINO™ is not configured, controlled via `EMBEDDING_USE_OV`.
 - Significant runtime memory reduction (up to 8–10×) and improved end-to-end throughput through the shared memory pipeline and async batched inference.
 - GPU deployment defaults are now automatically applied when `EMBEDDING_DEVICE=GPU`: `OV_PERFORMANCE_MODE=THROUGHPUT`, `INFER_BATCH_SIZE=64`, `VIDEO_FRAME_BATCH_SIZE=256`.
-- OpenVINO dependency bumped to `2026.1.0`; Intel GPU driver updated to `26.09.37435`.
+- OpenVINO™ dependency bumped to `2026.1.0`; Intel® GPU driver updated to `26.09.37435`.
 - Detailed logger format enriched with filename, function name, and line number for easier debugging.
 - `get-started.md` updated with full environment variable reference, preset configuration examples (GPU, high-throughput, memory-constrained, debug), and a performance tuning guide.
 
-**Upgrade Notes**
+**Upgrade Notes:**
 
 - `encode_image()` no longer accepts a pre-processed `torch.Tensor` as input; pass `PIL.Image` or `List[PIL.Image]` instead.*
 - `decord` has been removed as a dependency; replace any direct `decord` usage with `PyAV` (`av` package)..>*
@@ -38,18 +73,16 @@ This microservice supports features based on the requirements of Video Search an
 - *Intel® Xeon® 5 + Intel® Arc&trade; B580 GPU, Intel® Core™ Ultra Processors (Series 2 and 3)*
 - *Vanilla Kubernetes Cluster*
 
-
-
 ## Version 1.3.2
 
-**March 20, 2026**
+**Release Date:** March 20, 2026
 
-**New**
+**New:**
 
 - Support for Intel® Core™ Ultra Processors (Series 3)
 - Provided support for data and time based search queries
 
-*Validated configuration*
+*Validated configuration:*
 
 - *Intel® Xeon® 5 + Intel® Arc&trade; B580 GPU, Intel® Core™ Ultra Processors (Series 2 and 3)*
 - *Vanilla Kubernetes Cluster*

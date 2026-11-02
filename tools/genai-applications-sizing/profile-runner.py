@@ -1,6 +1,7 @@
 # Copyright (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+
 # Gevent monkey-patching must be done BEFORE any other imports
 # to avoid RecursionError with ssl module
 from gevent import monkey
@@ -127,7 +128,7 @@ def main():
                         help="Path to configuration YAML file (default: config.yaml)")
     parser.add_argument("--app", type=str, required=True,
                         choices=["chatqna", "chatqna_core", "video_summary_search", "live_caption"], 
-                        help="Application to profile: chatqna (modular), chatqna_core, video_summary_search, or live_caption")
+                        help="Application to profile: chatqna (modular), chatqna_core, video_summary_search, live_caption")
     parser.add_argument("--host_ip", type=str, required=True,
                         help="IP address of the machine where the application is deployed")
     parser.add_argument("--collect_resource_metrics", default="no", type=str, 
@@ -154,9 +155,7 @@ def main():
     elif args.app == "video_summary_search":
         vss_performance.vss_performance(users=1, request_count=args.request_count, ip=args.host_ip, input_file=args.input, collect_resource_metrics=collect_resource_metrics, warmup_time=args.warmup_time)
     elif args.app == "live_caption":
-        lvc_performance.lvc_performance(users=1, request_count=1, ip=args.host_ip, input_file=args.input, collect_resource_metrics=collect_resource_metrics, warmup_time=args.warmup_time)
-    # Note: No else branch needed - argparse choices validation ensures valid app names
-
+        lvc_performance.lvc_performance(users=1, request_count=args.request_count, ip=args.host_ip, input_file=args.input, collect_resource_metrics=collect_resource_metrics, warmup_time=args.warmup_time)
 
 if __name__ == "__main__":
     main()

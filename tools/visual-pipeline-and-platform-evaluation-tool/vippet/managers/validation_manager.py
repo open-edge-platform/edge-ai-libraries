@@ -1,4 +1,5 @@
 import logging
+import os
 import threading
 import time
 import uuid
@@ -10,9 +11,21 @@ from internal_types import (
     InternalValidationJobStatus,
     InternalValidationJobSummary,
 )
+from dlsps2_runner import Dlsps2PipelineRunner
+from managers.execution_coordinator import (
+    ExecutionCoordinator,
+    ExecutionLease,
+    PIPELINE_EXECUTION_GROUP,
+)
 from pipeline_runner import PipelineRunner
 
 logger = logging.getLogger("validation_manager")
+
+# Selects the pipeline execution backend: "local" (default) spawns
+# gst_runner.py as before; "dlsps2" delegates to a running DLSPS 2.0
+# instance via Dlsps2PipelineRunner (see dlsps2_runner.py for the exact
+# REST mapping and known gaps vs. the local runner).
+_EXECUTION_BACKEND = os.environ.get("VIPPET_EXECUTION_BACKEND", "local").strip().lower()
 
 
 class ValidationManager:
@@ -113,30 +126,48 @@ class ValidationManager:
         hard_timeout = max_runtime + 60
 
         job_id = self._generate_job_id()
-        job = InternalValidationJob(
-            id=job_id,
-            request=validation_request,
-            state=InternalValidationJobState.RUNNING,
-            start_time=int(time.time() * 1000),  # milliseconds
-            pipeline_description=pipeline_description,
+        execution_lease = ExecutionCoordinator().acquire(
+            job_id=job_id,
+            job_kind="validation",
+            groups=[PIPELINE_EXECUTION_GROUP],
         )
 
-        with self._jobs_lock:
-            self.jobs[job_id] = job
+        try:
+            job = InternalValidationJob(
+                id=job_id,
+                request=validation_request,
+                state=InternalValidationJobState.RUNNING,
+                start_time=int(time.time() * 1000),  # milliseconds
+                pipeline_description=pipeline_description,
+            )
 
-        self.logger.info(
-            "Validation started for job %s with max-runtime=%s, hard-timeout=%s",
-            job_id,
-            max_runtime,
-            hard_timeout,
-        )
+            with self._jobs_lock:
+                self.jobs[job_id] = job
 
-        thread = threading.Thread(
-            target=self._execute_validation,
-            args=(job_id, pipeline_description, max_runtime, hard_timeout),
-            daemon=True,
-        )
-        thread.start()
+            self.logger.info(
+                "Validation started for job %s with max-runtime=%s, hard-timeout=%s",
+                job_id,
+                max_runtime,
+                hard_timeout,
+            )
+
+            thread = threading.Thread(
+                target=self._execute_validation,
+                args=(
+                    job_id,
+                    pipeline_description,
+                    max_runtime,
+                    hard_timeout,
+                    execution_lease,
+                ),
+                daemon=True,
+            )
+            thread.start()
+        except Exception:
+            with self._jobs_lock:
+                self.jobs.pop(job_id, None)
+            ExecutionCoordinator().release(execution_lease)
+            raise
 
         return job_id
 
@@ -146,6 +177,7 @@ class ValidationManager:
         pipeline_description: str,
         max_runtime: int,
         hard_timeout: int,
+        execution_lease: ExecutionLease | None = None,
     ) -> None:
         """
         Execute the validation process in a background thread.
@@ -159,16 +191,30 @@ class ValidationManager:
         new entries for that state are appended.
         """
         try:
-            # Create PipelineRunner in validation mode.
-            # `job_id` is forwarded for API consistency with performance
-            # and density paths, even though validation mode never
-            # pushes FPS metrics (no gvafpscounter is attached).
-            runner = PipelineRunner(
-                mode="validation",
-                max_runtime=max_runtime,
-                hard_timeout=hard_timeout,
-                job_id=job_id,
-            )
+            # Create the pipeline runner in validation mode. `job_id` is
+            # forwarded for API consistency with performance and density
+            # paths, even though validation mode never pushes FPS metrics
+            # (no gvafpscounter is attached).
+            #
+            # When VIPPET_EXECUTION_BACKEND=dlsps2, delegate to a running
+            # DLSPS 2.0 instance instead of spawning gst_runner.py locally
+            # (see dlsps2_runner.py for the exact REST mapping). Validation
+            # mode has no known gaps against dlsps2, so this path is always
+            # safe to use when the flag is set.
+            if _EXECUTION_BACKEND == "dlsps2":
+                runner = Dlsps2PipelineRunner(
+                    mode="validation",
+                    max_runtime=max_runtime,
+                    hard_timeout=hard_timeout,
+                    job_id=job_id,
+                )
+            else:
+                runner = PipelineRunner(
+                    mode="validation",
+                    max_runtime=max_runtime,
+                    hard_timeout=hard_timeout,
+                    job_id=job_id,
+                )
 
             # Run pipeline validation
             result = runner.run(pipeline_description)
@@ -214,6 +260,9 @@ class ValidationManager:
         except Exception as e:
             # Any unexpected exception is treated as a FAILED state
             self._update_job_error(job_id, str(e))
+        finally:
+            if execution_lease is not None:
+                ExecutionCoordinator().release(execution_lease)
 
     def _update_job_error(self, job_id: str, error_message: str) -> None:
         """

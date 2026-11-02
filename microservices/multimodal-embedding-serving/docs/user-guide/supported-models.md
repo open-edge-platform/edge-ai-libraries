@@ -44,6 +44,7 @@ Lightweight CLIP models designed for mobile and edge deployment.
 | `SigLIP/siglip2-vit-b-16` | ViT-B-16 | 768 |
 | `SigLIP/siglip2-vit-l-16` | ViT-L-16 | 1024 |
 | `SigLIP/siglip2-so400m-patch16-384` | ViT-So400M | 1152 |
+| `MarketaJu/siglip2-person-description-reid` | SigLIP2 ViT-B-16, person retrieval fine-tune | 768 |
 
 CLIP models with sigmoid loss function.
 
@@ -51,7 +52,7 @@ CLIP models with sigmoid loss function.
 
 | Model ID | Architecture | Embedding Dimension | HuggingFace Model | Handler |
 |----------|--------------|---------------------|-------------------|---------|
-| `Blip2/blip2_transformers` | BLIP-2 + Q-Former | 256 | `Salesforce/blip2-itm-vit-g` | Transformers |
+| `Blip2/blip2` | BLIP-2 + Q-Former | 256 | `Salesforce/blip2-itm-vit-g` | Transformers |
 
 The BLIP-2 handler uses `Blip2ForImageTextRetrieval` from HuggingFace Transformers with projection layers (768D→256D) to generate compact embeddings.
 
@@ -71,6 +72,10 @@ The Qwen text embedding handler provides high-quality multilingual embeddings op
 - Require `trust_remote_code=true` (handled by the factory).
 - Support Intel GPU execution via OpenVINO.
 
+#### QwenText on NPU
+
+QwenText models also run on `EMBEDDING_DEVICE=NPU`, which requires static-shape compilation and caps the tokens read per pass (2048 by default; longer text is split into chunks automatically). See [QwenText Models on NPU](./qwentext-on-npu.md) for the configuration and measured performance.
+
 Use the `/model/capabilities` endpoint to inspect which modalities the currently loaded model supports.
 
 ## Model Configuration
@@ -79,7 +84,7 @@ Set your chosen model using environment variables:
 
 ```bash
 # Example: Using BLIP-2 (Transformers)
-export EMBEDDING_MODEL_NAME="Blip2/blip2_transformers"
+export EMBEDDING_MODEL_NAME="Blip2/blip2"
 
 # Example: Using CLIP
 export EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-16"

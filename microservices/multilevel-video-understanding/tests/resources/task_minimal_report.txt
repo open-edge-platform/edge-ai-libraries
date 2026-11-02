@@ -1,0 +1,19 @@
+# Minimal dynamic-task content: only the two REQUIRED anchors.
+# Demonstrates the forgiving registration path — MACRO_CHUNK_PROMPT and
+# T_MINUS_1_PROMPT are omitted and auto-filled from generic defaults, and the
+# missing {st_tm}/{end_tm} time placeholders are scaffolded in on registration.
+
+GLOBAL_PROMPT = '''
+##Task:
+Summarize the day's events into a short, human-readable report.
+User prompt: {question}
+
+##Content to Summarize:
+The following period summaries are separated by ">|<".
+'''
+
+
+LOCAL_PROMPT = '''
+##Task:
+Describe what happens in this short clip in one or two sentences.
+'''

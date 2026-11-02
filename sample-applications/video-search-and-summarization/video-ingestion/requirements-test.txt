@@ -1,6 +1,6 @@
-pytest
-numpy
-pytest-cov
-minio==7.2.20
-pillow==12.2.0
-paho-mqtt
+pytest>=9.1.1
+numpy>=2.5.1
+pytest-cov>=7.1.0
+minio>=7.2.20
+pillow>=12.3.0
+paho-mqtt>=2.1.0

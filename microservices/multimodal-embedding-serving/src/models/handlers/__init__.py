@@ -12,8 +12,8 @@ from .clip_handler import CLIPHandler
 from .cn_clip_handler import CNClipHandler
 from .mobileclip_handler import MobileCLIPHandler
 from .siglip_handler import SigLIPHandler
+from .siglip_transformers_handler import SigLIPTransformersHandler
 from .blip2_handler import BLIP2Handler
-from .blip2_transformers_handler import BLIP2TransformersHandler
 from .qwen_handler import QwenEmbeddingHandler
 
 __all__ = [
@@ -21,7 +21,7 @@ __all__ = [
     "CNClipHandler",
     "MobileCLIPHandler", 
     "SigLIPHandler",
+    "SigLIPTransformersHandler",
     "BLIP2Handler",
-    "BLIP2TransformersHandler",
     "QwenEmbeddingHandler",
 ]

@@ -7,18 +7,25 @@ import json
 import time
 from typing import Optional, List, Tuple, Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
-from langchain_vdms.vectorstores import VDMS
 
 from src.utils.common import logger, settings
-from src.utils.time_filters import build_vdms_time_filter
+from src.utils.retriever_delegate import retrieve_frames_via_service
+from src.utils.time_filters import parse_time_range
 from src.utils.directory_watcher import (
     get_initial_upload_status,
     get_last_updated,
     start_watcher,
 )
-from pydantic import BaseModel
+from pydantic import (
+    BaseModel,
+    Field,
+    AliasChoices,
+    ConfigDict,
+    model_validator,
+    ValidationError,
+)
 
 app = FastAPI()
 app.add_middleware(
@@ -45,48 +52,99 @@ class TimeRange(BaseModel):
 
 
 class QueryRequest(BaseModel):
-    query_id: str
-    query: str
-    tags: Optional[list[str]] = None
-    time_filter: Optional[TimeRange] = None
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+    query_id: str = Field(
+        validation_alias=AliasChoices("query_id", "queryId")
+    )
+    query: Optional[str] = None
+    image_base64: Optional[str] = None
+    tags: Optional[list[str] | str] = None
+    time_filter: Optional[TimeRange] = Field(
+        default=None,
+        validation_alias=AliasChoices("time_filter", "timeFilter"),
+    )
+
+    @model_validator(mode="after")
+    def _require_text_or_image(self) -> "QueryRequest":
+        has_text = bool(self.query and self.query.strip())
+        has_image = bool(self.image_base64 and self.image_base64.strip())
+        if has_text == has_image:
+            raise ValueError(
+                "Provide exactly one of 'query' (text) or 'image_base64' (image)."
+            )
+        return self
 
 
-def _build_explicit_time_filter(time_filter: Optional[TimeRange], property_name: str = "created_at") -> Optional[dict]:
-    """Convert explicit start/end into VDMS constraint dict."""
-    if not time_filter or not time_filter.start or not time_filter.end:
-        return None
-    return {property_name: [">=", time_filter.start, "<=", time_filter.end]}
-
-
-def _build_tag_filter(tags: Optional[list[str]]) -> Optional[dict]:
-    """Build VDMS tag filter using OR-array syntax for multiple tags."""
+def _normalize_tags(tags: Optional[list[str] | str]) -> list[str]:
+    """Normalize tags from list/string input and trim whitespace."""
     if not tags:
-        return None
-    cleaned = [t.strip() for t in tags if t and t.strip()]
-    if not cleaned:
-        return None
-    if len(cleaned) == 1:
-        return {"tags": ["==", cleaned[0]]}
+        return []
 
-    return {"tags": ["==", cleaned]}
+    raw_tags = tags.split(",") if isinstance(tags, str) else tags
+    return [tag.strip() for tag in raw_tags if isinstance(tag, str) and tag.strip()]
 
 
-def build_combined_vdms_filter(query_request: QueryRequest) -> Tuple[Optional[dict], Optional[dict]]:
-    """Return (vdms_filter, effective_time_filter) combining explicit + parsed time and tag filters."""
-    explicit_time_filter = _build_explicit_time_filter(query_request.time_filter)
-    parsed_time_filter = build_vdms_time_filter(query_request.query) if not explicit_time_filter else None
-    effective_time_filter = explicit_time_filter or parsed_time_filter
+def _raw_query_id(raw: Any) -> str | None:
+    """Best-effort extraction of a query id from an unvalidated raw item."""
+    if isinstance(raw, dict):
+        value = raw.get("query_id") or raw.get("queryId")
+        if isinstance(value, str) and value:
+            return value
+    return None
 
-    tag_filter = _build_tag_filter(query_request.tags)
 
-    if not effective_time_filter and not tag_filter:
-        return None, None
+def _validate_batch(
+    raw_requests: list[Any],
+) -> tuple[list["QueryRequest"], list[dict]]:
+    """Validate each item independently so one malformed query cannot reject the
+    whole batch.
 
-    if effective_time_filter and tag_filter:
-        merged_filter = {**effective_time_filter, **tag_filter}
-        return merged_filter, effective_time_filter
+    A batch is a set of independent queries; FastAPI's default list validation
+    is all-or-nothing, so a single invalid item (e.g. an image query that
+    arrives without its image, or empty text) would 422 the entire request and
+    silently freeze every other watched query. Validating per item keeps the
+    valid queries flowing and reports each bad one as an empty result block
+    keyed by its query_id, mirroring the vector-retriever's partial-success
+    batch contract.
+    """
+    valid: list[QueryRequest] = []
+    invalid_blocks: list[dict] = []
+    for raw in raw_requests:
+        try:
+            valid.append(QueryRequest.model_validate(raw))
+        except ValidationError as exc:
+            query_id = _raw_query_id(raw)
+            logger.warning(
+                f"Skipping invalid query in batch (query_id={query_id}): {exc.errors()}"
+            )
+            invalid_blocks.append(
+                {
+                    "query_id": query_id,
+                    "results": [],
+                    "error": "Query is invalid: it must contain either non-empty "
+                    "text or an image.",
+                }
+            )
+    return valid, invalid_blocks
 
-    return effective_time_filter or tag_filter, effective_time_filter
+
+def resolve_time_range(query_request: "QueryRequest") -> Optional[Tuple[str, str]]:
+    """Resolve an (start, end) ISO time range for the query, backend-agnostic.
+
+    Uses the explicit ``time_filter`` when provided, otherwise falls back to
+    natural-language time parsing of the query text. The range is pushed down to
+    the vector-retriever microservice, which applies it against the stored
+    ``created_at`` metadata.
+    """
+    explicit = query_request.time_filter
+    if explicit and explicit.start and explicit.end:
+        return explicit.start, explicit.end
+
+    start, end = parse_time_range(query_request.query)
+    if start and end:
+        return start.isoformat(), end.isoformat()
+    return None
 
 
 def format_aggregated_results(aggregated_videos: list[dict]) -> list[dict]:
@@ -152,45 +210,64 @@ def format_aggregated_results(aggregated_videos: list[dict]) -> list[dict]:
 
 
 @app.post("/query")
-async def query_endpoint(request: list[QueryRequest]):
+async def query_endpoint(request: list[Any] = Body(...)):
     try:
-        from src.vdms_retriever.retriever import (
-            get_vectordb,
-            aggregate_frame_results_to_videos,
-        )
+        from src.vdms_retriever.retriever import aggregate_frame_results_to_videos
 
         api_start = time.perf_counter()
         logger.info(f"=== SEARCH API CALLED ===")
         logger.info(
-            f"Received request: {json.dumps([req.dict() for req in request], indent=2)}"
+            f"Received request: {json.dumps(request, indent=2, default=str)}"
         )
 
-        db: VDMS = get_vectordb()
-        if not db:
+        # Validate each query independently so a single malformed item does not
+        # 422 the whole batch and freeze every other (valid) watched query.
+        valid_requests, invalid_result_blocks = _validate_batch(request)
+        if invalid_result_blocks:
+            logger.warning(
+                f"{len(invalid_result_blocks)} of {len(request)} queries were "
+                f"invalid and skipped; {len(valid_requests)} will be processed."
+            )
+
+        # All vector similarity search is delegated to the vector-retriever
+        # microservice (vector-DB agnostic: VDMS, Milvus, ...). This service owns
+        # only query orchestration and frame-to-video aggregation.
+        if not settings.RETRIEVER_ENDPOINT:
             logger.error(
-                "VectorDB could not be initialized. Please verify the connection."
+                "RETRIEVER_ENDPOINT is not configured; the vector-retriever "
+                "microservice is required for search."
             )
             raise HTTPException(
-                status_code=500, detail="Some error ocurred at the DataPrep Service."
+                status_code=500,
+                detail="Search backend is not configured (RETRIEVER_ENDPOINT missing).",
             )
+        logger.info(
+            f"Delegating similarity search to vector-retriever at {settings.RETRIEVER_ENDPOINT}"
+        )
 
         async def process_query(query_request):
             """Process a single query request with frame-to-video aggregation."""
 
             query_start = time.perf_counter()
-            logger.info(
-                f"Processing query: {query_request.query} (ID: {query_request.query_id})"
+            query_tags = _normalize_tags(query_request.tags)
+            query_tags_set = set(query_tags)
+            is_image_query = bool(
+                query_request.image_base64 and query_request.image_base64.strip()
             )
-            logger.debug(f"Query tags: {query_request.tags}")
+            query_desc = "<image>" if is_image_query else query_request.query
+            logger.info(
+                f"Processing query: {query_desc} (ID: {query_request.query_id})"
+            )
+            logger.debug(f"Query tags: {query_tags}")
 
-            # Build combined VDMS filter from explicit time_filter + tags, with fallback to NLP time parsing
-            vdms_filter, applied_time_filter = build_combined_vdms_filter(query_request)
-            if applied_time_filter:
-                logger.info(f"Applying time filter to VDMS query: {applied_time_filter}")
+            # Resolve an explicit/NLP-derived time range to push to the retriever.
+            time_range = resolve_time_range(query_request)
+            if time_range:
+                logger.info(f"Applying time filter to search: {time_range}")
             else:
                 logger.debug("No explicit or derived time filter applied")
-            if query_request.tags:
-                logger.info(f"Applying tag filter to VDMS query: {query_request.tags}")
+            if query_tags_set:
+                logger.info(f"Applying tag filter to search results: {query_tags}")
 
             # Get more initial results for aggregation (before filtering)
             initial_k = getattr(
@@ -198,35 +275,26 @@ async def query_endpoint(request: list[QueryRequest]):
             )  # Get more frame results before aggregation
             logger.debug(f"Searching with initial_k={initial_k}")
 
-            vdms_start = time.perf_counter()
-            vdms_attempt = 1
+            retrieval_start = time.perf_counter()
             try:
-                docs_with_score: List[Tuple[Any, float]] = db.similarity_search_with_score(
-                    query_request.query,
-                    k=initial_k,
-                    fetch_k=initial_k + 1,  # ensure fetch_k > k for langchain_vdms
-                    filter=vdms_filter,
-                    # normalize_distance=True
+                docs_with_score: List[Tuple[Any, float]] = (
+                    await retrieve_frames_via_service(
+                        query_request,
+                        initial_k=initial_k,
+                        time_range=time_range,
+                    )
                 )
-            except Exception as first_error:
-                first_attempt_duration_ms = (time.perf_counter() - vdms_start) * 1000
-                logger.warning(
-                    "VDMS similarity search failed on first attempt after %.2f ms; refreshing client and retrying once. Error: %s",
-                    first_attempt_duration_ms,
-                    first_error,
+            except Exception as retriever_error:
+                logger.error(
+                    f"vector-retriever delegation failed for query {query_request.query_id}: {retriever_error}"
                 )
-                refreshed_db: VDMS = get_vectordb()
-                vdms_attempt = 2
-                vdms_start = time.perf_counter()
-                docs_with_score = refreshed_db.similarity_search_with_score(
-                    query_request.query,
-                    k=initial_k,
-                    fetch_k=initial_k + 1,
-                    filter=vdms_filter,
+                raise HTTPException(
+                    status_code=502,
+                    detail="Failed to retrieve results from the vector-retriever service.",
                 )
-            vdms_duration_ms = (time.perf_counter() - vdms_start) * 1000
+            retrieval_duration_ms = (time.perf_counter() - retrieval_start) * 1000
             logger.info(
-                f"VDMS similarity search (attempt {vdms_attempt}, embedding + retrieval) completed in {vdms_duration_ms:.2f} ms with {len(docs_with_score)} results"
+                f"vector-retriever search (embedding + retrieval) completed in {retrieval_duration_ms:.2f} ms with {len(docs_with_score)} results"
             )
 
             logger.info(f"Raw search returned {len(docs_with_score)} results")
@@ -238,19 +306,13 @@ async def query_endpoint(request: list[QueryRequest]):
                 res.metadata["relevance_score"] = score
 
                 # Filter by tags if specified
-                if query_request.tags:
-                    result_tags: list = []
-                    if res.metadata.get("tags"):
-                        # construct a list of tags from the tag string in results metadata
-                        if isinstance(res.metadata["tags"], str):
-                            result_tags = res.metadata["tags"].split(",")
-                        else:
-                            result_tags = res.metadata["tags"]
+                if query_tags_set:
+                    result_tags = _normalize_tags(res.metadata.get("tags"))
 
-                    # check if any of the query tags are in the result tags
-                    if not set(query_request.tags).intersection(set(result_tags)):
+                    # Keep results when they match any requested tag (subset semantics).
+                    if not query_tags_set.intersection(set(result_tags)):
                         logger.debug(
-                            f"Filtering out result due to tags: query_tags={query_request.tags}, result_tags={result_tags}"
+                            f"Filtering out result due to tags: query_tags={query_tags}, result_tags={result_tags}"
                         )
                         continue
 
@@ -388,7 +450,11 @@ async def query_endpoint(request: list[QueryRequest]):
                 results.extend(batch_results)
             return results
 
-        results = await process_requests(request)
+        results = await process_requests(valid_requests)
+        # Re-attach the per-query error blocks for the invalid items so the
+        # caller gets one block per submitted query and can flag each failure
+        # individually instead of losing the whole batch.
+        results.extend(invalid_result_blocks)
 
         logger.info(f"=== FINAL API RESPONSE ===")
         logger.info(f"Total result groups: {len(results)}")
@@ -407,6 +473,9 @@ async def query_endpoint(request: list[QueryRequest]):
         )
 
         return final_response
+
+    except HTTPException:
+        raise
 
     except KeyError as e:
         if str(e) == "'entities'":

@@ -8,7 +8,7 @@ This guide provides step-by-step instructions to install and run Metrics Manager
 - **Docker Compose**: 2.20+ (`docker compose version`)
 - **Linux**: Kernel 5.4+ (for system metrics collection)
 - **RAM**: 512 MB free
-- **Disk**: 2 GB free (for build)
+- **Disk**: 2 GB free (for Docker image build)
 
 See [System Requirements](./get-started/system-requirements.md) for detailed hardware/software requirements.
 
@@ -19,12 +19,12 @@ See [System Requirements](./get-started/system-requirements.md) for detailed har
 Instead of building from source, you can pull the pre-built Docker image from the registry:
 
 ```bash
-docker pull intel/metrics-manager:2026.1.0
+docker pull intel/metrics-manager:2026.2.0
 ```
 
 The image is based on `python:3.12-slim` and includes:
 
-- Telegraf 1.37.3 (system metrics agent)
+- Telegraf 1.39.3 (system metrics agent)
 - qmassa 1.3.1 (Intel® GPU telemetry)
 - Intel® NPU reader (`npu_reader.py`)
 - Python 3.12 runtime with FastAPI
@@ -47,6 +47,8 @@ cd edge-ai-libraries/metrics-manager
 
 ### Step 2: Configure Environment
 
+Copy the example configuration file:
+
 ```bash
 cp .env.example .env
 ```
@@ -59,7 +61,10 @@ The defaults work out of the box. Edit `.env` only if needed.
 # Host ports (change if already in use)
 HOST_METRICS_PORT=9090          # Metrics Manager REST API + SSE
 HOST_TELEGRAF_PORT=9273         # Telegraf Prometheus endpoint
-HOST_TELEGRAF_HTTP_PORT=8186    # Telegraf HTTP listener
+HOST_TELEGRAF_HTTP_PORT=8186    # Telegraf HTTP listener (InfluxDB Line Protocol)
+
+# Logging
+LOG_LEVEL=INFO                  # DEBUG | INFO | WARNING | ERROR
 ```
 
 ### Step 3: (Optional) Set Proxy Variables
@@ -75,13 +80,15 @@ no_proxy=localhost,127.0.0.1
 NO_PROXY=localhost,127.0.0.1
 ```
 
+This passes proxy settings both to the Docker build and to the running container.
+
 ### Step 4: Build and Start
 
 ```bash
 docker compose up --build
 ```
 
-First build takes 3–10 minutes. Subsequent builds are cached and take <1 minute.
+First build takes 3–10 minutes (compiles qmassa and Telegraf, then installs Python packages). Subsequent builds are cached and take under a minute.
 
 To run in the background:
 
@@ -110,7 +117,7 @@ docker run --rm \
   -v /sys:/sys:ro \
   -v /run:/run:ro \
   --pid host \
-  intel/metrics-manager:2026.1.0
+  intel/metrics-manager:2026.2.0
 ```
 
 Then verify:
@@ -132,7 +139,7 @@ docker run --rm \
   -v /sys:/sys:ro \
   -v /run:/run:ro \
   --pid host \
-  intel/metrics-manager:2026.1.0
+  intel/metrics-manager:2026.2.0
 ```
 
 Verify GPU metrics:
@@ -152,7 +159,7 @@ docker run --rm --privileged \
   -v /sys:/sys:ro \
   -v /run:/run:ro \
   --pid host \
-  intel/metrics-manager:2026.1.0
+  intel/metrics-manager:2026.2.0
 ```
 
 Verify NPU metrics:
@@ -171,7 +178,7 @@ docker run --rm --privileged \
   -v /sys:/sys:ro \
   -v /run:/run:ro \
   --pid host \
-  intel/metrics-manager:2026.1.0
+  intel/metrics-manager:2026.2.0
 ```
 
 ### With Custom Ports
@@ -185,7 +192,7 @@ docker run --rm \
   -v /sys:/sys:ro \
   -v /run:/run:ro \
   --pid host \
-  intel/metrics-manager:2026.1.0
+  intel/metrics-manager:2026.2.0
 ```
 
 Then access on the new ports:
@@ -208,7 +215,7 @@ docker run --rm \
   -v /sys:/sys:ro \
   -v /run:/run:ro \
   --pid host \
-  intel/metrics-manager:2026.1.0
+  intel/metrics-manager:2026.2.0
 ```
 
 See [Environment Variables](./get-started/environment-variables.md) for all available variables.
@@ -227,7 +234,7 @@ docker run --rm \
   -v /run:/run:ro \
   -v ./my-scripts:/app/custom-metrics \
   --pid host \
-  intel/metrics-manager:2026.1.0
+  intel/metrics-manager:2026.2.0
 ```
 
 Drop your scripts in `./my-scripts/` (they must be executable: `chmod +x script.sh`).
@@ -244,7 +251,7 @@ docker run -d \
   -v /sys:/sys:ro \
   -v /run:/run:ro \
   --pid host \
-  intel/metrics-manager:2026.1.0
+  intel/metrics-manager:2026.2.0
 ```
 
 Stop it:
@@ -262,7 +269,7 @@ docker logs -f metrics-manager
 
 ---
 
-## Verify Installation
+## Verify the Installation
 
 Run these checks after the container starts:
 
@@ -272,7 +279,7 @@ Run these checks after the container starts:
 curl http://localhost:9090/health
 ```
 
-Expected: `{"status": "healthy", ...}`
+Expected response: `{"status": "healthy", ...}`
 
 ### 2. System Metrics
 
@@ -290,7 +297,7 @@ curl -X POST http://localhost:9090/api/v1/metrics/simple \
   -d '{"name": "install_test", "value": 1.0}'
 ```
 
-Expected: `{"accepted": 1, ...}`
+Expected response: `{"accepted": 1, ...}`
 
 ### 4. Query the Metric
 
@@ -306,7 +313,7 @@ Should show your `install_test` metric.
 
 ### Custom Host Ports
 
-If ports 9090, 9273, or 8186 are in use:
+If ports 9090, 9273, or 8186 are in use, override them in `.env`:
 
 ```bash
 # .env
@@ -315,7 +322,7 @@ HOST_TELEGRAF_PORT=19273
 HOST_TELEGRAF_HTTP_PORT=18186
 ```
 
-Then access on the new ports:
+Then access the service on the new ports:
 
 ```bash
 curl http://localhost:19090/health
@@ -390,12 +397,12 @@ docker compose down --rmi local
 
 ## Troubleshooting Installation
 
-| Issue                 | Solution                                                 |
-| --------------------- | -------------------------------------------------------- |
-| Port already in use   | Change ports in `.env` (e.g., `HOST_METRICS_PORT=19090`) |
-| Build fails           | Run `docker builder prune` to clear cache                |
-| Container won't start | Check logs: `docker logs metrics-manager`                |
-| No GPU/NPU metrics    | Expected if hardware not present; other metrics continue |
+| Issue                    | Solution                                                 |
+| ------------------------ | -------------------------------------------------------- |
+| Port already in use      | Change ports in `.env` (e.g., `HOST_METRICS_PORT=19090`) |
+| Build fails              | Run `docker builder prune` to clear cache                |
+| Container will not start | Check logs: `docker logs metrics-manager`                |
+| No GPU/NPU metrics       | Expected if hardware not present; other metrics continue |
 
 See [Troubleshooting](./troubleshooting.md) for more issues.
 

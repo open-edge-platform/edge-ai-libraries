@@ -4,11 +4,11 @@ This page provides detailed hardware, software, and platform requirements to hel
 
 ## Supported Platforms
 
-**Operating Systems**
+**Operating Systems**:
 
 - Ubuntu 24.04.5 LTS
 
-**Hardware Platforms**
+**Hardware Platforms**:
 
 - Intel® Core™ processors (13th Gen, i7 recommended)
 - Intel® Arc™ A-Series Graphics (Intel® Arc™ A770 recommended)

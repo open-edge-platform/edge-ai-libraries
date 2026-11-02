@@ -48,4 +48,9 @@ export class VideoDbService {
 
     return this.videoRepo.save(existingVideo);
   }
+
+  async remove(videoId: string): Promise<boolean> {
+    const result = await this.videoRepo.delete({ videoId });
+    return (result.affected ?? 0) > 0;
+  }
 }

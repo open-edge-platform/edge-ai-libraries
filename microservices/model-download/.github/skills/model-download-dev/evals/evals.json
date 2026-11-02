@@ -1,0 +1,84 @@
+{
+  "skill_name": "model-download-dev",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I'm adding a new downloader plugin for an internal model hub called myhub. It needs to use a provider token when present, save into the standard hub-specific directory layout, and show up in /api/v1/plugins when I start the service with --plugins myhub. Walk me through the exact code changes.",
+      "expected_output": "A concrete implementation guide for a new downloader plugin that matches the current plugin loading, activation, and registration flow in the model-download microservice.",
+      "files": [],
+      "expectations": [
+        "References src/plugins/__init__.py and uses the current PLUGINS tuple mapping format.",
+        "Adds a new ModelHub enum value in src/api/models.py.",
+        "Explains that docker/entrypoint.sh needs the plugin added to AVAILABLE_PLUGINS so --plugins myhub works.",
+        "Distinguishes between ENABLED_PLUGINS load-time gating and ACTIVATED_PLUGINS runtime activation checks, including the role of /opt/activated_plugins.env.",
+        "Shows a plugin implementation with plugin_name, plugin_type, can_handle, and download.",
+        "Avoids blocking the event loop when the example uses synchronous SDK work."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Write unit tests for the HuggingFace plugin. I want coverage for snapshot_download success, a gated-model auth failure, and host-path replacement when /opt/models is mapped back to the host.",
+      "expected_output": "A pytest-oriented test plan or example suite that mirrors the repository's current mocking patterns for HuggingFace downloads.",
+      "files": [],
+      "expectations": [
+        "Patches src.plugins.huggingface_plugin.snapshot_download at the usage site.",
+        "Includes at least one success-path test and one failure-path test.",
+        "Checks model_name, source, success, and download_path in the returned dict.",
+        "Mentions or demonstrates path replacement for /opt/models/... via MODEL_PATH.",
+        "Uses tests/unit/test_huggingface_plugin.py as the expected location or naming pattern."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "A job has been stuck in downloading for 25 minutes for meta-llama/Llama-3.2-1B from HuggingFace. /api/v1/jobs shows status=downloading and I started the container with --plugins huggingface. Give me a practical debug sequence, not generic advice.",
+      "expected_output": "A step-by-step debug checklist that focuses on this service's logs, job state, plugin activation, and the HuggingFace downloader path.",
+      "files": [],
+      "expectations": [
+        "Includes commands to inspect job status and service logs.",
+        "Suggests checking /api/v1/plugins or equivalent plugin visibility.",
+        "Mentions swallowed exceptions, blocking sync work, or plugin dependency/import problems as likely causes.",
+        "Recommends isolating the plugin behavior outside the full REST flow when needed.",
+        "Does not jump straight to 'restart everything' as the first action."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "How does ModelManager actually process a download request in this repo? Trace it from POST /api/v1/models/download through plugin selection, async execution, and final job status updates.",
+      "expected_output": "A code-aware explanation of the request path and job lifecycle, grounded in the current FastAPI, PluginRegistry, and ModelManager implementation.",
+      "files": [],
+      "expectations": [
+        "Names src/api/main.py, src/core/model_manager.py, and src/core/plugin_registry.py.",
+        "Explains queued to downloading/converting to completed/failed status transitions.",
+        "Describes how find_plugin_for_model is used to choose a plugin.",
+        "Mentions that sync plugin download methods are run via asyncio.to_thread while coroutine methods are awaited directly.",
+        "Notes that jobs are stored in memory and are not persisted across restarts."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "I want reasoning_parser to be a first-class OpenVINO config field instead of relying on passthrough kwargs. Where do I need to update the schema and command builder so it is documented and mapped explicitly for text-generation models?",
+      "expected_output": "Guidance that points to the correct OpenVINO schema and parameter-mapping locations, with a clear explanation of how the new field reaches export_model.py.",
+      "files": [],
+      "expectations": [
+        "References src/api/models.py as the main place to add the documented field.",
+        "Mentions OPENVINO_EXPORT_PARAMS and EXPORT_TYPE_PARAMS.",
+        "Explains whether src/plugins/openvino_plugin.py needs changes beyond the mapping update.",
+        "Shows how the new field becomes a CLI flag for export_model.py.",
+        "Discusses validation or export-type scoping for the new parameter."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "I added a plugin and the service starts, but it never appears in /api/v1/plugins. I already created the plugin file. Give me a focused checklist for what usually breaks in this codebase.",
+      "expected_output": "A concise troubleshooting checklist specific to plugin discovery, activation, import failures, and plugin contract mismatches in this repository.",
+      "files": [],
+      "expectations": [
+        "Checks src/plugins/__init__.py registration first or near-first.",
+        "Checks docker/entrypoint.sh activation support and the --plugins value.",
+        "Mentions import failures caused by missing optional dependencies or wrong class names.",
+        "Verifies plugin_name matches the expected key and hub value.",
+        "Suggests reading service logs to catch silently skipped ImportError cases."
+      ]
+    }
+  ]
+}

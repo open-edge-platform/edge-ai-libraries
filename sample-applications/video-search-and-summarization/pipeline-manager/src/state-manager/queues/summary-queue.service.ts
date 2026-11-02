@@ -68,6 +68,12 @@ export class SummaryQueueService {
 
   @OnEvent(PipelineEvents.AUDIO_SUMMARY_TRIGGER)
   audioSummaryTrigger({ stateId }: PipelineDTOBase) {
+    const state = this.$state.fetch(stateId);
+
+    if (!state?.audio?.transcript.length) {
+      return;
+    }
+
     const alreadyQueued =
       this.waiting.some(
         (item) =>
@@ -276,7 +282,8 @@ export class SummaryQueueService {
   private shouldUseAudioTranscriptSummary(state: State): boolean {
     return Boolean(
       state.systemConfig.audioModel &&
-        state.systemConfig.audioUseFullTranscriptSummary,
+        state.systemConfig.audioUseFullTranscriptSummary &&
+        state.audio?.transcript.length,
     );
   }
 

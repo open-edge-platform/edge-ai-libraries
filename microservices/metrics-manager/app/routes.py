@@ -19,6 +19,7 @@ from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from fastapi.responses import PlainTextResponse
 from prometheus_client.parser import text_string_to_metric_families
 
+from .capabilities import get_capabilities_snapshot
 from .logging_config import get_logger
 from .metrics import get_service_metrics
 from .models import (
@@ -28,6 +29,7 @@ from .models import (
     SimpleMetric,
 )
 from .responses import (
+    CapabilitiesResponse,
     DetailedHealthResponse,
     HealthResponse,
     MetricData,
@@ -85,6 +87,22 @@ async def api_health_check() -> DetailedHealthResponse:
         checks={"store": True},
         metrics_store=store_stats,
     )
+
+
+@router.get("/api/v1/capabilities", response_model=CapabilitiesResponse)
+async def get_capabilities(
+    profile: str = Query(
+        default="minimal",
+        pattern="^(minimal|expanded)$",
+        description="Capability detail profile: minimal (high-level) or expanded (technical)",
+    ),
+) -> CapabilitiesResponse:
+    """Get a snapshot of platform and device capabilities.
+
+    - minimal: high-level commercial-oriented summary
+    - expanded: full technical inventory
+    """
+    return CapabilitiesResponse(**get_capabilities_snapshot(profile=profile))
 
 
 # ==============================================================================

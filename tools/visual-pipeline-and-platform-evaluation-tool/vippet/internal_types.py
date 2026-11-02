@@ -31,6 +31,19 @@ class InternalPipelineSource(str, Enum):
     TEMPLATE = "TEMPLATE"
 
 
+class InternalPipelineType(str, Enum):
+    """
+    Internal representation of pipeline type.
+
+    Values:
+        VISION: Pipeline processes video/image data using GStreamer and DLStreamer.
+        TIME_SERIES: Pipeline processes time-series data using the Time Series Analytics Microservice.
+    """
+
+    VISION = "vision"
+    TIME_SERIES = "time_series"
+
+
 class InternalAppStatus(str, Enum):
     """
     Internal representation of application status.
@@ -134,8 +147,7 @@ class InternalModelSource(str, Enum):
         HUGGINGFACE: HuggingFace Hub.
         ULTRALYTICS: Ultralytics model zoo.
         PIPELINE_ZOO_MODELS: OpenVINO Pipeline Zoo models.
-        OMZ: OpenVINO Open Model Zoo (handled locally by vippet-app
-            until the ``models`` container is removed).
+        OMZ: OpenVINO Open Model Zoo.
         CUSTOM: User-uploaded model.
     """
 
@@ -151,14 +163,24 @@ class InternalModelCategory(str, Enum):
     Internal representation of model category.
 
     Values:
-        CLASSIFICATION: Classification model.
-        DETECTION: Detection model.
-        GENAI: Generative AI model (e.g. VLM/LLM).
+        IMAGE_CLASSIFICATION: Image classification model.
+        OBJECT_DETECTION: Object detection model.
+        IMAGE_SEGMENTATION: Image segmentation model.
+        POSE_ESTIMATION: Pose estimation model.
+        VISION_LANGUAGE_MODELS: Vision-language model (e.g. VLM).
+        LARGE_LANGUAGE_MODELS: Large language model (text-only, e.g. LLM).
+        AUTOMATIC_SPEECH_RECOGNITION: Automatic speech recognition model.
+        TEXT_TO_SPEECH: Text-to-speech synthesis model.
     """
 
-    CLASSIFICATION = "classification"
-    DETECTION = "detection"
-    GENAI = "genai"
+    IMAGE_CLASSIFICATION = "image_classification"
+    OBJECT_DETECTION = "object_detection"
+    IMAGE_SEGMENTATION = "image_segmentation"
+    POSE_ESTIMATION = "pose_estimation"
+    VISION_LANGUAGE_MODELS = "vision_language_models"
+    LARGE_LANGUAGE_MODELS = "large_language_models"
+    AUTOMATIC_SPEECH_RECOGNITION = "automatic_speech_recognition"
+    TEXT_TO_SPEECH = "text_to_speech"
 
 
 class InternalModelDownloadJobState(str, Enum):
@@ -185,10 +207,12 @@ class InternalCameraType(str, Enum):
     Values:
         USB: USB camera connected directly to the system.
         NETWORK: Network camera accessible via IP protocols.
+        GIGE: GigE Vision machine vision camera.
     """
 
     USB = "USB"
     NETWORK = "NETWORK"
+    GIGE = "GIGE"
 
 
 class InternalOutputMode(str, Enum):
@@ -372,13 +396,22 @@ class InternalPipelineDensitySpec:
             For VariantReference: pipeline.name from stored pipeline.
             For GraphInline: same as pipeline_id.
         pipeline_graph: Resolved pipeline graph for execution as Graph object.
-        stream_rate: Relative share of total streams (percentage).
+        stream_rate: Relative share of total streams (percentage). Only used
+            in classic density mode (when ``streams`` is None on every spec).
+            Ignored in mixed-density mode.
+        streams: Fixed input stream count for this pipeline. When set on
+            exactly one of two specs, the benchmark switches to
+            mixed-density mode: this pipeline is pinned to ``streams`` and
+            the other pipeline is incremented by the benchmark algorithm.
+            ``None`` means the spec participates in classic density mode
+            (or, in mixed mode, is the pipeline that gets incremented).
     """
 
     pipeline_id: str
     pipeline_name: str
     pipeline_graph: Graph
     stream_rate: int
+    streams: int | None = None
 
 
 @dataclass
@@ -394,6 +427,7 @@ class InternalPipeline:
         name: Pipeline name.
         description: Human-readable description.
         source: Origin of the pipeline (PREDEFINED, USER_CREATED, TEMPLATE).
+        type: Pipeline type (vision or time_series).
         tags: List of tags for categorizing the pipeline.
         variants: List of InternalVariant objects.
         thumbnail: Base64-encoded image for pipeline preview (PREDEFINED only).
@@ -407,6 +441,7 @@ class InternalPipeline:
     name: str
     description: str
     source: InternalPipelineSource
+    type: InternalPipelineType
     tags: List[str]
     variants: List[InternalVariant]
     thumbnail: Optional[str] = field(repr=False)
@@ -426,6 +461,7 @@ class InternalPipelineDefinition:
         name: Non-empty pipeline name.
         description: Human-readable text describing what the pipeline does.
         source: Pipeline source (PREDEFINED, USER_CREATED, or TEMPLATE).
+        type: Pipeline type (vision or time_series).
         tags: List of tags for categorizing the pipeline.
         variants: List of InternalVariantCreate objects.
     """
@@ -433,6 +469,7 @@ class InternalPipelineDefinition:
     name: str
     description: str
     source: InternalPipelineSource
+    type: InternalPipelineType
     tags: List[str]
     variants: List[InternalVariantCreate]
 
@@ -510,6 +547,22 @@ class InternalLatencyMetrics:
 
 
 @dataclass
+class InternalPipelineEvent:
+    """
+    Live event observed during a performance run (mirrors
+    ``pipeline_runner.PipelineEvent``), e.g. a proximity trigger firing
+    or a VLM (``gvagenai``) answer.
+    """
+
+    timestamp_ms: int
+    source: str
+    text: str
+    element: str | None = None
+    pts_seconds: float | None = None
+    prompt: str | None = None
+
+
+@dataclass
 class InternalExecutionConfig:
     """
     Internal representation of execution configuration.
@@ -556,7 +609,10 @@ class InternalDensityTestSpec:
 
     Attributes:
         fps_floor: Minimum acceptable FPS per stream.
-        pipeline_density_specs: List of resolved pipeline specs with stream_rate ratios.
+        pipeline_density_specs: List of resolved pipeline specs. Each spec
+            carries both ``stream_rate`` (used in classic density mode) and
+            ``streams`` (set on one of two specs to switch into
+            mixed-density mode).
         execution_config: Execution configuration for output and runtime.
         original_request: Original API request as serialized dict for summary endpoint.
     """
@@ -603,6 +659,7 @@ class InternalPerformanceJobStatus:
             not started at all); an empty dict means the tracer was
             active but no samples were produced (e.g. the pipeline
             exited before the first interval).
+        events: Most recent live pipeline events (oldest first), bounded.
     """
 
     id: str
@@ -619,6 +676,7 @@ class InternalPerformanceJobStatus:
     live_stream_urls: dict[str, str] | None = None
     metadata_stream_urls: dict[str, list[str]] | None = None
     latency_tracer_metrics: dict[str, InternalLatencyMetrics] | None = None
+    events: list[InternalPipelineEvent] = field(default_factory=list)
 
 
 @dataclass
@@ -707,6 +765,57 @@ class InternalDensityJobSummary:
 
     id: str
     request: Dict[str, Any]
+
+
+@dataclass
+class InternalBenchmarkJobStatus:
+    """
+    Internal state of a benchmark-suite orchestration job.
+
+    A benchmark job executes all test cases from one benchmark suite
+    sequentially by invoking performance tests one-by-one.
+
+    Attributes:
+        id: Benchmark job identifier.
+        suite_slug: Benchmark suite slug.
+        suite_run_id: Primary key of BenchmarkSuiteRun row created for this job.
+        state: Current benchmark job state.
+        start_time: Job start time in milliseconds since epoch.
+        end_time: Job end time in milliseconds since epoch (None if running).
+        details: Human-readable details about current benchmark state.
+        total_test_cases: Number of planned test cases.
+        completed_test_cases: Number of finished test cases.
+        current_test_case_run_id: Active BenchmarkTestCaseRun row id, if any.
+        current_performance_job_id: Active underlying performance job id, if any.
+    """
+
+    id: str
+    suite_slug: str
+    suite_run_id: int
+    state: InternalTestJobState
+    start_time: int
+    end_time: int | None = None
+    details: list[str] = field(default_factory=list)
+    total_test_cases: int = 0
+    completed_test_cases: int = 0
+    current_test_case_run_id: int | None = None
+    current_performance_job_id: str | None = None
+
+
+@dataclass
+class InternalBenchmarkJobSummary:
+    """
+    Internal short summary of a benchmark orchestration job.
+
+    Attributes:
+        id: Benchmark job identifier.
+        suite_slug: Benchmark suite slug.
+        suite_run_id: Primary key of BenchmarkSuiteRun row.
+    """
+
+    id: str
+    suite_slug: str
+    suite_run_id: int
 
 
 @dataclass
@@ -960,21 +1069,63 @@ class InternalNetworkCameraDetails:
 
 
 @dataclass
+class InternalGigECapture:
+    """
+    Internal GigE Vision camera capture configuration (as currently set on the camera).
+
+    Attributes:
+        pixel_format: GenICam pixel format (e.g. "Mono8", "BayerRG8").
+        width: Frame width in pixels.
+        height: Frame height in pixels.
+        fps: Acquisition frame rate.
+    """
+
+    pixel_format: Optional[str] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    fps: Optional[float] = None
+
+
+@dataclass
+class InternalGigECameraDetails:
+    """
+    Internal GigE Vision camera details.
+
+    Attributes:
+        ip: IP address of the camera.
+        vendor: Camera vendor name.
+        model: Camera model name.
+        serial: Camera serial number.
+        current_capture: Capture configuration currently set on the camera.
+    """
+
+    ip: str
+    vendor: Optional[str] = None
+    model: Optional[str] = None
+    serial: Optional[str] = None
+    current_capture: Optional[InternalGigECapture] = None
+
+
+@dataclass
 class InternalCamera:
     """
-    Internal camera device information supporting both USB and network cameras.
+    Internal camera device information supporting USB, network and GigE cameras.
 
     Attributes:
         device_id: Unique identifier for the camera.
         device_name: Human-readable camera name.
-        device_type: Type of camera (USB or NETWORK).
+        device_type: Type of camera (USB, NETWORK or GIGE).
         details: Type-specific camera details.
     """
 
     device_id: str
     device_name: str
     device_type: InternalCameraType
-    details: Union[InternalUSBCameraDetails, InternalNetworkCameraDetails]
+    details: Union[
+        InternalUSBCameraDetails,
+        InternalNetworkCameraDetails,
+        InternalGigECameraDetails,
+    ]
 
 
 @dataclass
@@ -1024,8 +1175,9 @@ class InternalModelVariant:
 @dataclass
 class InternalSupportedModel:
     """
-    Internal representation of one entry in ``supported_models.yaml``
-    enriched with runtime state (install status, recommendation).
+    Internal representation of one model in the catalog
+    (``vippet/models/*.yaml``, seeded into the DB at startup) enriched
+    with runtime state (install status, recommendation).
 
     The route layer maps this into the API ``Model`` schema.
 
@@ -1044,14 +1196,16 @@ class InternalSupportedModel:
             installing / failed).
         used_by_pipelines: List of predefined-pipeline ids that reference
             this model. Empty list means the model is not recommended.
-        default: Whether this model is marked as a default choice in
-            ``supported_models.yaml`` (internal-only; not exposed via API).
+        default: Whether at least one predefined pipeline references this
+            model (mirrors ``used_by_pipelines``; internal-only, not exposed via API).
         unsupported_devices: Comma-separated string of devices on which
             the model cannot run (e.g. "NPU"). ``None`` when no
             restrictions exist.
         download_request: Body fragment (or full body) to POST to the
             model-download microservice in order to install this model.
             ``None`` when no automated download is wired up yet.
+        description: Human-readable explanation of what the model
+            detects/classifies. ``None`` when not provided in the YAML.
     """
 
     name: str
@@ -1065,6 +1219,7 @@ class InternalSupportedModel:
     default: bool = False
     unsupported_devices: str | None = None
     download_request: dict[str, Any] | None = None
+    description: str | None = None
 
 
 @dataclass
@@ -1085,12 +1240,15 @@ class InternalModelUploadSpec:
             model-download).
         original_filename: Original filename provided by the client,
             kept only for logging.
+        description: Optional human-readable explanation of what the
+            model detects/classifies. ``None`` when not provided.
     """
 
     model_name: str
     category: InternalModelCategory
     file_path: str
     original_filename: str
+    description: str | None = None
 
 
 @dataclass
@@ -1099,7 +1257,7 @@ class InternalModelDownloadRequest:
     Internal representation of a model download request.
 
     Attributes:
-        name: Supported model name (must exist in supported_models.yaml).
+        name: Supported model name (must exist in the model catalog).
     """
 
     name: str

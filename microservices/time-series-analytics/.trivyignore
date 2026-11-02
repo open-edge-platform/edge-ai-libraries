@@ -1,0 +1,4 @@
+# Trivy vulnerability suppressions for time-series-analytics-microservice
+# CVE-2026-42154: Kapacitor 1.8.7 includes Prometheus discovery/scrape libraries, but
+# its source contains no remote-read HTTP handler and this service exposes no Prometheus listener.
+CVE-2026-42154

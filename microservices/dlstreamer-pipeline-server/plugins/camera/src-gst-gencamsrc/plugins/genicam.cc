@@ -677,6 +677,33 @@ Genicam::Stop (void)
 }
 
 
+#ifdef GENCAMSRC_ENABLE_HW_TIMESTAMP_META
+void
+Genicam::addReferenceTimestampMeta (GstBuffer * buf, guint64 timestampNS)
+{
+  if (G_UNLIKELY (gst_debug_category_get_threshold (GST_CAT_DEFAULT)
+          >= GST_LEVEL_DEBUG)) {
+    /* nanoseconds to microseconds */
+    GstDateTime *dt =
+        gst_date_time_new_from_unix_epoch_utc_usecs (timestampNS / 1000);
+    if (dt) {
+      gchar *dt_str = gst_date_time_to_iso8601_string (dt);
+      GST_DEBUG_OBJECT (gencamsrc,
+          "Hardware timestamp: %s (%" G_GUINT64_FORMAT " ns)",
+          dt_str, timestampNS);
+      g_free (dt_str);
+      gst_date_time_unref (dt);
+    }
+  }
+
+  GstCaps *ref_caps = gst_caps_new_empty_simple ("timestamp/x-hardware");
+  gst_buffer_add_reference_timestamp_meta (buf, ref_caps, timestampNS,
+      GST_CLOCK_TIME_NONE);
+  gst_caps_unref (ref_caps);
+}
+#endif /* GENCAMSRC_ENABLE_HW_TIMESTAMP_META */
+
+
 bool Genicam::Create (GstBuffer ** buf, GstMapInfo * mapInfo)
 {
   /* Grab the buffer, copy and release, set framenum */
@@ -718,6 +745,11 @@ bool Genicam::Create (GstBuffer ** buf, GstMapInfo * mapInfo)
       return FALSE;
     }
     GST_BUFFER_PTS (*buf) = timestampNS;
+
+#ifdef GENCAMSRC_ENABLE_HW_TIMESTAMP_META
+    addReferenceTimestampMeta (*buf, timestampNS);
+#endif
+
     gst_buffer_map (*buf, mapInfo, GST_MAP_WRITE);
 
     memcpy (mapInfo->data, buffer->getGlobalBase (), mapInfo->size);

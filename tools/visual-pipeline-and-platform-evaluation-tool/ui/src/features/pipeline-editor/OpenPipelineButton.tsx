@@ -69,7 +69,7 @@ const OpenPipelineButton = ({ onImport }: OpenPipelineButtonProps) => {
         title="Open Pipeline"
         icon={<FolderOpen className="w-5 h-5" />}
         label={<span>Open</span>}
-        variant="primary"
+        variant="default"
         className="rounded-lg"
       />
     </>

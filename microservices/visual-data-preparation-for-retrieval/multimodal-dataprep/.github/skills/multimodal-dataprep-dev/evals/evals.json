@@ -1,0 +1,50 @@
+{
+  "SPDX-FileCopyrightText": "(C) 2026 Intel Corporation",
+  "SPDX-License-Identifier": "Apache-2.0",
+  "skill_name": "multimodal-dataprep-dev",
+  "evals": [
+    {
+      "id": 1,
+      "name": "run-tests-with-coverage",
+      "prompt": "I'm in microservices/visual-data-preparation-for-retrieval/multimodal-dataprep. Give me the project-supported commands to install dev dependencies, run tests with coverage, and report collection failures honestly.",
+      "expected_output": "Uses Poetry, invokes pytest through python -m or coverage -m, reports coverage without inventing a threshold, and distinguishes collection errors from executed-test failures.",
+      "expectations": [
+        "Provides poetry install --with dev and Poetry-managed python -m pytest or coverage run -m pytest commands",
+        "Reports coverage with coverage report -m without inventing a fail-under threshold",
+        "Reports collection errors separately rather than claiming the entire suite executed cleanly"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "build-context",
+      "prompt": "Running docker build -f docker/Dockerfile . from the multimodal-dataprep directory fails while copying multimodal-embedding-serving. What is wrong and what command should I use?",
+      "expected_output": "Explains that the build context is wrong because the Dockerfile copies both sibling microservices from the microservices-level context, then uses ./build.sh or source setup.sh --build.",
+      "expectations": [
+        "Identifies the build context rather than the Dockerfile path as the problem",
+        "Prescribes ./build.sh or source setup.sh --build"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "trace-current-pipeline",
+      "prompt": "Where should I make a change that affects uploaded video embedding, persistence, and telemetry? Name the current files and trace the request flow.",
+      "expected_output": "Traces the request from the media upload endpoint through embedding_orchestrator.py, embedding_helper.py/client.py, the vector-store and storage factories, telemetry recorder, and optional Metrics Manager publisher.",
+      "expectations": [
+        "Names upload_and_process_video.py, embedding_orchestrator.py, embedding_helper.py, and client.py",
+        "Uses src/core/vectorstores and src/core/storage abstractions for persistence",
+        "Uses only files that exist in the current source tree"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "add-vector-backend",
+      "prompt": "I need to add another vector database backend without coupling endpoints to it. Describe the implementation and test surface.",
+      "expected_output": "Implements BaseVectorStore, registers the backend in a new store module, ensures lazy loading through the factory, adds settings/deployment wiring and focused factory/metadata/add/delete/health/index tests.",
+      "expectations": [
+        "Uses BaseVectorStore and the registry/factory pattern",
+        "Keeps endpoint and embedding orchestration code backend-neutral",
+        "Covers add, delete, metadata adaptation, health, and update_index behavior"
+      ]
+    }
+  ]
+}

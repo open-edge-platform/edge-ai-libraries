@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     service_name: str = Field(default="metrics-manager", description="Service name for logging")
     # Default mirrors the value in ./VERSION (single source of truth used by
     # the build / Makefile). Override at runtime via SERVICE_VERSION env var.
-    service_version: str = Field(default="2026.1.0", description="Service version")
+    service_version: str = Field(default="2026.2.0", description="Service version")
     environment: Literal["development", "staging", "production"] = Field(
         default="production", description="Deployment environment"
     )

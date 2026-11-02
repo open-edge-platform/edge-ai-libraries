@@ -1,0 +1,54 @@
+{
+  "skill_name": "vss-summarize-video",
+  "notes": "These four benchmark prompts are self-contained and intentionally separate from example-prompts/. The runner cannot reach VSS, so expectations grade valid Pipeline Manager requests, identifier carry-over, and completion conditions rather than invented summary output.",
+  "evals": [
+    {
+      "id": 1,
+      "eval_name": "basic-summary-request",
+      "prompt": "Prepare an offline API sequence to summarize an already ingested VSS video with id `video-104`. Use a simple valid request, then show how to wait for completion and retrieve the final text. Do not claim the calls ran.",
+      "expected_output": "Provides a valid summary request and the correct state-id polling and retrieval sequence.",
+      "files": [],
+      "expectations": [
+        "Provides `POST /manager/summary` for `video-104` with a title, valid sampling fields, `evam.evamPipeline`, and `produceFinalSummary: true`.",
+        "Uses sampling values that satisfy `multiFrame == frameOverlap + samplingFrame`.",
+        "Carries `summaryPipelineId` into `GET /manager/summary/{stateId}`, waits for `videoSummaryStatus == \"complete\"`, and then reads `.summary`."
+      ]
+    },
+    {
+      "id": 2,
+      "eval_name": "custom-summary-window",
+      "prompt": "Build the summary request for video id `warehouse-88`: title it `Warehouse morning review`, use 30-second chunks, sample 8 frames with a 2-frame overlap, and process only seconds 60 through 660. Include the later completion check.",
+      "expected_output": "Provides the exact custom sampling values, derived multi-frame value, time window, and completion flow.",
+      "files": [],
+      "expectations": [
+        "Uses title `Warehouse morning review`, `videoId` `warehouse-88`, `chunkDuration: 30`, `samplingFrame: 8`, and `frameOverlap: 2`.",
+        "Sets `multiFrame: 10`, `videoStart: 60`, `videoEnd: 660`, and includes a documented `evamPipeline` value.",
+        "Shows how `summaryPipelineId` becomes the state id, then provides a polling command for `videoSummaryStatus == \"complete\"` before the `.summary` retrieval command."
+      ]
+    },
+    {
+      "id": 3,
+      "eval_name": "per-chunk-caption-flow",
+      "prompt": "For VSS video id `yard-cam-17`, document a summary request that skips the final blended summary and instead returns each chunk caption. Show the correct completion condition and response field.",
+      "expected_output": "Provides the per-chunk caption workflow for produceFinalSummary false.",
+      "files": [],
+      "expectations": [
+        "Provides a valid `POST /manager/summary` request for `yard-cam-17` with `produceFinalSummary: false`.",
+        "Waits until `frameSummaryStatus.inProgress == 0` rather than waiting for final `videoSummaryStatus` completion.",
+        "Reads captions from `.frameSummaries[]` using `frameKey` and `summary`, not from `.chunks[]`."
+      ]
+    },
+    {
+      "id": 4,
+      "eval_name": "resolve-existing-video",
+      "prompt": "Explain the offline Pipeline Manager sequence for summarizing an already uploaded file named `east-entrance.mp4`. Show how to find its real video id without uploading it again, then give the standard summary completion flow.",
+      "expected_output": "Provides filename lookup followed by a valid summary request, polling condition, and retrieval step.",
+      "files": [],
+      "expectations": [
+        "Uses the wrapped `GET /manager/videos` response and matches `east-entrance.mp4` through `.dataStore.fileName` to obtain `videoId` without re-uploading it.",
+        "Uses the resolved `videoId` in a valid `POST /manager/summary` body with required title, sampling, and `evamPipeline` fields.",
+        "Carries `summaryPipelineId` forward, waits for `videoSummaryStatus == \"complete\"`, and only then reads `.summary`."
+      ]
+    }
+  ]
+}

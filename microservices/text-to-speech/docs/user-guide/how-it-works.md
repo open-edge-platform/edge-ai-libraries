@@ -44,7 +44,7 @@ flowchart LR
     end
 
     Models[("Model Cache<br/>models/")]
-    Device{{"Inference Device<br/>CPU / GPU / NPU"}}
+    Device{{"Inference Device<br/>CPU / GPU"}}
 
     Client -- "POST /v1/audio/speech<br/>GET /v1/audio/voices" --> API
     API --> Pipeline
@@ -93,7 +93,7 @@ flowchart LR
    voices.
 3. **Model load / warmup** — On first use, the configured TTS model is
    loaded according to `models.tts.runtime` (`openvino` or `pytorch`) on the
-   configured `device` (`CPU`, `GPU`, or `NPU`) and `dtype`. Subsequent
+   configured `device` (`CPU` or `GPU`) and `dtype`. Subsequent
    requests reuse the warmed-up pipeline.
 4. **Synthesis** — The pipeline generates a WAV waveform from the input
    text using the chosen model and speaker embedding.

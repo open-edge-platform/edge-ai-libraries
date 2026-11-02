@@ -1,20 +1,23 @@
 import { useAppSelector, useAppDispatch } from "@/store/hooks";
 import { selectModels } from "@/store/reducers/models";
-import { MultiFileUploader } from "@/features/upload/MultiFileUploader.tsx";
 import {
   PRE_UPLOAD_MESSAGES,
   type PreUploadMessage as PRE_UPLOAD_MESSAGES_TYPE,
 } from "@/features/upload/uploaderMessages";
-import { ENDPOINTS } from "@/api/apiEndpoints";
-import { api } from "@/api/api.generated.ts";
+import { api, type ModelCategory } from "@/api/api.generated.ts";
 import JSZip from "jszip";
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useMemo } from "react";
 import { toast } from "sonner";
+import { Download, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button.tsx";
 import { useBackgroundJobs } from "@/contexts/useBackgroundJobs";
 import { ModelsTable } from "@/features/models/ModelsTable.tsx";
+import { AddModelDialog } from "@/features/models/AddModelDialog.tsx";
+import { useModelInstall } from "@/features/models/useModelInstall";
+import { CATEGORY_INFO } from "@/features/models/categoryInfo.ts";
+import { CONTENT_CONTAINER_CLASS } from "@/lib/utils";
 
 const REQUIRED_MODEL_FILES = ["model.bin", "model.xml"];
-const ALLOWED_CATEGORIES = ["classification", "detection", "genai"] as const;
 
 const validateModelArchive = async (
   file: File,
@@ -42,6 +45,45 @@ export const Models = () => {
   const dispatch = useAppDispatch();
   const { registerJobGroup, unregisterJobGroup, updateJobs } =
     useBackgroundJobs();
+
+  const presentCategories = useMemo(() => {
+    const present = new Set(models.map((m) => m.category ?? null));
+    const ordered: (ModelCategory | null)[] = (
+      Object.keys(CATEGORY_INFO) as ModelCategory[]
+    ).filter((c) => present.has(c));
+    if (present.has(null)) ordered.push(null);
+    return ordered;
+  }, [models]);
+
+  const { pendingDownloads, installModels: runModelInstall } =
+    useModelInstall();
+
+  const requiredUninstalledModels = useMemo(
+    () =>
+      models.filter(
+        (model) =>
+          (model.used_by_pipelines?.length ?? 0) > 0 &&
+          (model.install_status === "not_installed" ||
+            model.install_status === "failed"),
+      ),
+    [models],
+  );
+
+  const installSelectedModels = useCallback(
+    async (names: readonly string[]) => {
+      if (names.length === 0) return;
+      await runModelInstall(names);
+    },
+    [runModelInstall],
+  );
+
+  const handleInstallRequiredModels = useCallback(
+    () =>
+      installSelectedModels(
+        requiredUninstalledModels.map((model) => model.name),
+      ),
+    [requiredUninstalledModels, installSelectedModels],
+  );
 
   useEffect(() => {
     registerJobGroup("models", "Model Uploads", ["/models"]);
@@ -97,7 +139,7 @@ export const Models = () => {
 
   if (models.length > 0) {
     return (
-      <div className="container pl-16 mx-auto py-10">
+      <div className={CONTENT_CONTAINER_CLASS}>
         <div className="mb-6">
           <h1 className="text-3xl font-bold">Models</h1>
           <p className="text-muted-foreground mt-2">
@@ -105,38 +147,58 @@ export const Models = () => {
           </p>
         </div>
 
-        <MultiFileUploader
-          accept=".zip,application/zip"
-          uploadEndpoint={ENDPOINTS.UPLOAD_MODEL}
-          multiple={false}
-          maxSize={500 * 1024 * 1024} // 500 MB
-          preUpload={handlePreUpload}
-          preUploadImmediate
-          onUploadProgress={handleUploadProgress}
-          onUploadComplete={handleUploadComplete}
-          formFields={[
-            {
-              name: "model_name",
-              label: "Model name",
-              placeholder: "Enter model name",
-              required: true,
-              regex: /^[a-zA-Z0-9_\s-]+$/,
-              regexMessage:
-                "Only alphanumeric characters, spaces, underscores, and hyphens are allowed.",
-            },
-            {
-              name: "category",
-              label: "Category",
-              placeholder: "Select a category",
-              required: true,
-              type: "combobox" as const,
-              options: [...ALLOWED_CATEGORIES],
-            },
-          ]}
-          className="mb-8"
-        />
+        <div className="sticky top-0 z-10 mb-3 flex items-center justify-end gap-3 border-b bg-background py-3">
+          <Button
+            size="sm"
+            disabled={
+              requiredUninstalledModels.length === 0 ||
+              requiredUninstalledModels.some((model) =>
+                pendingDownloads.has(model.name),
+              )
+            }
+            onClick={handleInstallRequiredModels}
+          >
+            {requiredUninstalledModels.some((model) =>
+              pendingDownloads.has(model.name),
+            ) ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Download className="size-4" />
+            )}
+            Install required models
+            {requiredUninstalledModels.length > 0
+              ? ` (${requiredUninstalledModels.length})`
+              : ""}
+          </Button>
+          <AddModelDialog
+            onPreUpload={handlePreUpload}
+            onUploadProgress={handleUploadProgress}
+            onUploadComplete={handleUploadComplete}
+          />
+        </div>
 
-        <ModelsTable />
+        <div className="columns-1 gap-8 lg:columns-2">
+          {presentCategories.map((category) => (
+            <div
+              key={category ?? "uncategorized"}
+              className="mb-10 break-inside-avoid"
+            >
+              <h2 className="mb-1 text-xl font-semibold">
+                {category ? CATEGORY_INFO[category].label : "Uncategorized"}
+              </h2>
+              {category && (
+                <p className="mb-3 text-sm text-muted-foreground">
+                  {CATEGORY_INFO[category].description}
+                </p>
+              )}
+              <ModelsTable
+                category={category}
+                pendingDownloads={pendingDownloads}
+                onInstallOne={(name) => installSelectedModels([name])}
+              />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }

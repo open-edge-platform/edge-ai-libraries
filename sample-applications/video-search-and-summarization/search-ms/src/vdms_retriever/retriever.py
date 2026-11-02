@@ -4,12 +4,42 @@
 import math
 import time
 from typing import List, Dict, Any, Tuple, Optional
-from langchain_vdms.vectorstores import VDMS, VDMS_Client
 
 from src.utils.common import settings, logger
-from src.vdms_retriever.embedding_wrapper import EmbeddingAPI
 
 DEBUG = False
+
+
+def _derive_media_path(video_url: Optional[str], video_id: str) -> Optional[str]:
+    """Return the object sub-path inside ``video_id`` from a media URL.
+
+    Live frames point ``video_url`` at their covering segment object, e.g.
+    ``/live-streams/<stream_id>/segments/1790655530.mp4``. The frame-fetch
+    endpoint (``GET /media/frame``) addresses that object with a ``media_path``
+    relative to ``video_id`` (here ``segments/1790655530.mp4``). Uploaded videos
+    have a single object directly under ``video_id`` and need no media_path, so
+    this returns None for them.
+
+    Args:
+        video_url: Stored media URL/path (``video_url`` or ``video_rel_url``).
+        video_id: The media identifier that prefixes the object path.
+
+    Returns:
+        The path after ``<video_id>/`` when it is nested (e.g. a live segment),
+        otherwise None.
+    """
+    if not video_url or not video_id:
+        return None
+    parts = [p for p in str(video_url).split("/") if p]
+    if video_id not in parts:
+        return None
+    tail = parts[parts.index(video_id) + 1:]
+    # A single trailing component is the video's own file (upload case); only a
+    # nested path (e.g. segments/<ts>.mp4) is a real media_path.
+    if len(tail) <= 1:
+        return None
+    return "/".join(tail)
+
 
 
 # Frame-to-Video Aggregation Configuration
@@ -17,7 +47,7 @@ def get_aggregation_config():
     """Get aggregation configuration from settings with fallback defaults."""
     return {
         "strategy": "temporal_segment_clustering",
-        "segment_duration_seconds": getattr(settings, 'AGGREGATION_SEGMENT_DURATION', 8),
+        "segment_duration_seconds": getattr(settings, 'AGGREGATION_SEGMENT_DURATION', 10),
         "min_temporal_gap_seconds": getattr(settings, 'AGGREGATION_MIN_GAP', 0),
         "final_max_results": getattr(settings, 'AGGREGATION_MAX_RESULTS', 20),
         # Baseline duration is retained for metadata fallbacks only (no length bonus applied)
@@ -39,6 +69,12 @@ def get_aggregation_config():
             "context_seek_offset_seconds": getattr(
                 settings, 'AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS', 0.0
             ),
+            "prefer_full_frame_seek": getattr(
+                settings, 'AGGREGATION_PREFER_FULL_FRAME_SEEK', True
+            ),
+            "full_frame_seek_band": getattr(
+                settings, 'AGGREGATION_FULL_FRAME_SEEK_BAND', 0.06
+            ),
         },
         "filtering": {
             "overlap_filter_enabled": True,
@@ -49,7 +85,7 @@ def get_aggregation_config():
 
 def create_temporal_segments(
     frame_matches: List[Dict],
-    segment_duration: int = 8,
+    segment_duration: int = 10,
     aggregation_config: Optional[Dict[str, Any]] = None,
 ) -> List[Dict]:
     """
@@ -96,22 +132,60 @@ def create_temporal_segments(
                 raw_duration = None
         if raw_duration is None or raw_duration <= 0:
             raw_duration = baseline_duration
-        
-        segment_id = int(timestamp // segment_duration)
-        key = f"{video_id}_seg_{segment_id}"
-        segment_start = segment_id * segment_duration
-        segment_end = (segment_id + 1) * segment_duration
-        
+
+        # Live-stream results need a different grouping key. For an uploaded
+        # video, `video_id` is unique per file and `timestamp` is a position in
+        # that whole file, so `timestamp // segment_duration` yields many
+        # distinct temporal buckets. For a live stream, every embedding shares
+        # one `video_id` (the stream id) and `timestamp` is the offset *within*
+        # its ~10s recorded segment (each a distinct playable file / video_url).
+        # Bucketing that by `timestamp // 8` collapses an entire stream into just
+        # the [0,8) and [8,16) buckets -> only two result tiles per stream that
+        # never grow. Group live results by the recorded segment itself instead,
+        # so each matched segment is its own tile and the count grows with the
+        # stream.
+        is_live = str(metadata.get("is_live", "")).strip().lower() in ("true", "1")
+        if is_live:
+            live_segment_key = (
+                metadata.get("segment_id")
+                or metadata.get("segment_start_time")
+                or metadata.get("video_url")
+                or timestamp
+            )
+            key = f"{video_id}_live_{live_segment_key}"
+            # The tile represents one recorded segment; the per-frame timestamp
+            # (in-segment offset) still drives seeking. Start/end are refined to
+            # the matched frames' span below.
+            segment_start = timestamp
+            segment_end = timestamp
+        else:
+            segment_id = int(timestamp // segment_duration)
+            key = f"{video_id}_seg_{segment_id}"
+            segment_start = segment_id * segment_duration
+            segment_end = (segment_id + 1) * segment_duration
+
         logger.debug(f"Frame at {timestamp}s (score={relevance_score:.4f}) → Segment [{segment_start}-{segment_end}s] in video {video_id[:8]}...")
         
         if key not in segments:
             segments[key] = {
                 "video_id": video_id,
+                # Overlap de-duplication identity. For an uploaded video this is
+                # the video itself, so temporally close matches in one file
+                # collapse. For a live stream every segment shares one video_id
+                # but is a distinct playable file, so the segment key is used --
+                # otherwise the overlap filter, seeing identical in-segment
+                # offsets across different segments, would discard all but one.
+                "dedup_id": key if is_live else video_id,
                 "segment_start": segment_start,
                 "segment_end": segment_end,
                 "frames": [],
                 "video_duration": raw_duration,
             }
+        elif is_live:
+            # Widen the live tile's displayed range to cover all matched frames
+            # in this segment.
+            segments[key]["segment_start"] = min(segments[key]["segment_start"], segment_start)
+            segments[key]["segment_end"] = max(segments[key]["segment_end"], segment_end)
         
         segments[key]["frames"].append(frame)
     
@@ -241,7 +315,79 @@ def calculate_segment_score(
     }
 
 
-def determine_seek_point(segment: Dict, context_offset: float = 1.5) -> Dict:
+def _frame_meta(frame: Any) -> Dict[str, Any]:
+    """Return a frame's metadata dict whether it is a Document-like object or a raw dict."""
+    meta = frame.metadata if hasattr(frame, 'metadata') else frame
+    return meta if isinstance(meta, dict) else {}
+
+
+def _is_full_frame(metadata: Dict[str, Any]) -> bool:
+    """True when a frame is a full frame rather than a YOLOX object crop."""
+    if not isinstance(metadata, dict):
+        return False
+    is_crop = metadata.get("is_detected_crop")
+    if is_crop is not None:
+        return not bool(is_crop)
+    return str(metadata.get("frame_type", "")).upper() == "FULL_FRAME"
+
+
+def select_anchor_frame(
+    frames: List[Any],
+    prefer_full_frame: bool = False,
+    full_frame_band: float = 0.0,
+) -> Optional[Any]:
+    """Pick the representative frame of a segment (drives seek point + displayed frame).
+
+    Default behavior returns the highest-relevance frame. When ``prefer_full_frame`` is
+    enabled and a full frame exists whose relevance is within ``full_frame_band`` (a
+    fraction of the segment peak score), the full frame *nearest in time* to the peak is
+    returned instead (tie-broken by higher score), so the UI anchors on a fully-visible
+    frame rather than an object crop. Segment ranking/scoring are unaffected.
+    """
+    if not frames:
+        return None
+
+    peak = max(frames, key=lambda f: _frame_meta(f).get('relevance_score', 0.0) or 0.0)
+    if not prefer_full_frame or full_frame_band <= 0:
+        return peak
+
+    peak_meta = _frame_meta(peak)
+    peak_score = float(peak_meta.get('relevance_score', 0.0) or 0.0)
+    # Already a full frame, or no usable score to band against -> nothing to swap.
+    if peak_score <= 0 or _is_full_frame(peak_meta):
+        return peak
+
+    threshold = peak_score * (1.0 - full_frame_band)
+    peak_ts = peak_meta.get('timestamp')
+
+    candidates = [
+        frame
+        for frame in frames
+        if _is_full_frame(_frame_meta(frame))
+        and float(_frame_meta(frame).get('relevance_score', 0.0) or 0.0) >= threshold
+    ]
+    if not candidates:
+        return peak
+
+    def _key(frame: Any):
+        meta = _frame_meta(frame)
+        ts = meta.get('timestamp')
+        time_gap = (
+            abs(float(ts) - float(peak_ts))
+            if ts is not None and peak_ts is not None
+            else float('inf')
+        )
+        return (time_gap, -(float(meta.get('relevance_score', 0.0) or 0.0)))
+
+    return min(candidates, key=_key)
+
+
+def determine_seek_point(
+    segment: Dict,
+    context_offset: float = 1.5,
+    prefer_full_frame: bool = False,
+    full_frame_band: float = 0.0,
+) -> Dict:
     """
     Determine optimal video seek point for UI playback.
     
@@ -250,23 +396,16 @@ def determine_seek_point(segment: Dict, context_offset: float = 1.5) -> Dict:
     Args:
         segment: Segment dictionary with frames
         context_offset: Seconds to seek before best frame for context
+        prefer_full_frame: Prefer a full frame over a near-equal crop as the anchor
+        full_frame_band: Fractional score band within the segment peak for that swap
         
     Returns:
         Dictionary with seek point information
     """
     frames = segment["frames"]
-    
-    # Find highest scoring frame
-    best_frame = None
-    best_score = -1
-    
-    for frame in frames:
-        frame_metadata = frame.metadata if hasattr(frame, 'metadata') else frame
-        score = frame_metadata.get('relevance_score', 0)
-        if score > best_score:
-            best_score = score
-            best_frame = frame
-    
+
+    best_frame = select_anchor_frame(frames, prefer_full_frame, full_frame_band)
+
     if not best_frame:
         best_frame = frames[0] if frames else None
     
@@ -313,7 +452,9 @@ def apply_temporal_overlap_filtering(segments: List[Dict], min_gap_seconds: int 
         should_keep = True
 
         for kept_segment in filtered_segments:
-            if segment["video_id"] != kept_segment["video_id"]:
+            if segment.get("dedup_id", segment["video_id"]) != kept_segment.get(
+                "dedup_id", kept_segment["video_id"]
+            ):
                 continue
 
             segment_start = segment["segment_start"]
@@ -359,6 +500,9 @@ def aggregate_frame_results_to_videos(frame_results: List[Any], max_results: int
             "segments_created": 0,
             "segments_after_filtering": 0,
             "final_results": 0,
+            "raw_score_min": None,
+            "raw_score_max": None,
+            "global_max_frame_score": None,
             "processing_time_ms": 0.0,
             "segmentation_time_ms": 0.0,
             "scoring_time_ms": 0.0,
@@ -423,6 +567,8 @@ def aggregate_frame_results_to_videos(frame_results: List[Any], max_results: int
     scoring_start = time.perf_counter()
     scored_segments = []
     seek_offset = float(config["scoring"].get("context_seek_offset_seconds", 0.0))
+    prefer_full_frame_seek = bool(config["scoring"].get("prefer_full_frame_seek", False))
+    full_frame_seek_band = float(config["scoring"].get("full_frame_seek_band", 0.0) or 0.0)
 
     logger.debug(f"=== SCORING DEBUG: Scoring {len(segments)} segments ===")
     
@@ -441,18 +587,19 @@ def aggregate_frame_results_to_videos(frame_results: List[Any], max_results: int
             global_best_frame_metadata,
             config,
         )
-        seek_data = determine_seek_point(segment, context_offset=seek_offset)
-        
-        # Get best frame for metadata
-        best_frame = None
-        best_score = -1
-        for frame in segment["frames"]:
-            frame_metadata = frame.metadata if hasattr(frame, 'metadata') else frame
-            score = frame_metadata.get('relevance_score', 0)
-            if score > best_score:
-                best_score = score
-                best_frame = frame
-        
+        seek_data = determine_seek_point(
+            segment,
+            context_offset=seek_offset,
+            prefer_full_frame=prefer_full_frame_seek,
+            full_frame_band=full_frame_seek_band,
+        )
+
+        # Use the same anchor frame for the displayed metadata so the shown frame
+        # (frame_type, detected_label, ...) matches the seek/thumbnail timestamp.
+        best_frame = select_anchor_frame(
+            segment["frames"], prefer_full_frame_seek, full_frame_seek_band
+        )
+
         best_frame_metadata = best_frame.metadata if (best_frame and hasattr(best_frame, 'metadata')) else best_frame
         if not best_frame_metadata:
             best_frame_metadata = {}
@@ -496,17 +643,25 @@ def aggregate_frame_results_to_videos(frame_results: List[Any], max_results: int
     logger.debug(f"Scored {len(scored_segments)} segments")
     
     # Step 2.5: Normalize scores to [0, 1] range
+    raw_score_min: Optional[float] = None
+    raw_score_max: Optional[float] = None
     if scored_segments:
         raw_scores = [seg["final_score"] for seg in scored_segments]
         min_score = min(raw_scores)
         max_score = max(raw_scores)
         score_range = max_score - min_score
-        
+        raw_score_min = min_score
+        raw_score_max = max_score
+
+        # The raw range is query-local: it is what makes an individual raw score
+        # interpretable in the UI, so it is attached to every breakdown.
         if score_range > 0:
             for seg in scored_segments:
                 raw_score = seg["final_score"]
                 normalized_score = (raw_score - min_score) / score_range
                 seg["score_breakdown"]["raw_score"] = raw_score
+                seg["score_breakdown"]["raw_score_min"] = min_score
+                seg["score_breakdown"]["raw_score_max"] = max_score
                 seg["score_breakdown"]["score"] = normalized_score
                 seg["final_score"] = normalized_score
             logger.debug(f"Normalized scores: range [{min_score:.4f}, {max_score:.4f}] → [0.0, 1.0]")
@@ -514,6 +669,8 @@ def aggregate_frame_results_to_videos(frame_results: List[Any], max_results: int
             # All scores identical, set to 1.0
             for seg in scored_segments:
                 seg["score_breakdown"]["raw_score"] = seg["final_score"]
+                seg["score_breakdown"]["raw_score_min"] = min_score
+                seg["score_breakdown"]["raw_score_max"] = max_score
                 seg["score_breakdown"]["score"] = 1.0
                 seg["final_score"] = 1.0
             logger.debug(f"All scores identical ({max_score:.4f}), normalized to 1.0")
@@ -573,6 +730,16 @@ def aggregate_frame_results_to_videos(frame_results: List[Any], max_results: int
             # VDMS can store datetime as an object with the actual value in _date
             created_at = best_frame_meta.get("date_time", {}).get("_date", "")
 
+        # Tags may be a native list (Milvus / multimodal-dataprep) or a legacy
+        # comma-separated string (older VDMS metadata); normalize both.
+        raw_tags = best_frame_meta.get("tags")
+        if isinstance(raw_tags, str):
+            tags_list = [t.strip() for t in raw_tags.split(",") if t.strip()]
+        elif isinstance(raw_tags, (list, tuple)):
+            tags_list = [str(t).strip() for t in raw_tags if str(t).strip()]
+        else:
+            tags_list = []
+
         formatted_result = {
             "video_id": result["video_id"],
             "video_url": video_url,
@@ -584,16 +751,33 @@ def aggregate_frame_results_to_videos(frame_results: List[Any], max_results: int
             "relevance_score": result["final_score"],
             "score_breakdown": result["score_breakdown"],
             "best_frame_info": {
+                # The exact scored (peak/anchor) frame. Use THIS timestamp to
+                # fetch the frame from dataprep's GET /media/frame; do NOT use
+                # the segment-level seek_timestamp, which is offset earlier for
+                # playback context. Timestamp is seconds from the start of the
+                # addressed media (within-file for uploads, within-segment for
+                # live). All fields below are what /media/frame needs.
+                "video_id": result["video_id"],
+                "bucket_name": best_frame_meta.get("bucket_name", ""),
                 "timestamp": result["seek_info"]["best_frame_timestamp"],
                 "frame_number": best_frame_meta.get("frame_number", 0),
                 "frame_type": best_frame_meta.get("frame_type", "full_frame"),
                 "detection_confidence": best_frame_meta.get("detection_confidence"),
-                "detected_label": best_frame_meta.get("detected_label")
+                "detected_label": best_frame_meta.get("detected_label"),
+                # Detected-crop addressing: pass crop_bbox with variant=crop to
+                # get just the detected region; omit for the full frame.
+                "is_detected_crop": bool(best_frame_meta.get("is_detected_crop", False)),
+                "crop_index": best_frame_meta.get("crop_index"),
+                "crop_bbox": best_frame_meta.get("crop_bbox"),
+                # Live frames live in a per-stream segment object; media_path
+                # addresses it and is REQUIRED when is_live is true.
+                "is_live": bool(best_frame_meta.get("is_live", False)),
+                "media_path": _derive_media_path(video_url or video_rel_url, result["video_id"]),
             },
             "video_metadata": {
                 "duration": result["video_duration"],
                 "fps": best_frame_meta.get("fps", 30),
-                "tags": best_frame_meta.get("tags", "").split(",") if best_frame_meta.get("tags") else [],
+                "tags": tags_list,
                 "created_at": created_at,
                 "upload_timestamp": best_frame_meta.get("date_time", {}).get("_date", ""),
                 "bucket_name": best_frame_meta.get("bucket_name", "")
@@ -621,42 +805,12 @@ def aggregate_frame_results_to_videos(frame_results: List[Any], max_results: int
         "segments_created": len(segments),
         "segments_after_filtering": len(filtered_segments),
         "final_results": len(final_results),
+        "raw_score_min": raw_score_min,
+        "raw_score_max": raw_score_max,
+        "global_max_frame_score": global_max_score,
         "processing_time_ms": processing_time,
         "segmentation_time_ms": segmentation_time_ms,
         "scoring_time_ms": scoring_time_ms,
         "filtering_time_ms": filtering_time_ms,
         "formatting_time_ms": formatting_time_ms,
     }
-
-
-def get_vectordb() -> VDMS:
-    """
-    Initializes and returns a vector database based on the specified configuration.
-    Depending on the configuration, it uses either CLIP embeddings, a HuggingFace endpoint for embeddings,
-    or a default HuggingFace BGE embeddings model.
-    Returns:
-        tuple: The vector database instance
-    """
-
-    try:
-        embeddings = EmbeddingAPI(
-            api_url=settings.EMBEDDINGS_ENDPOINT,
-            model_name=settings.EMBEDDINGS_MODEL_NAME,
-        )
-
-        vector_dimensions = embeddings.get_embedding_length()
-        client = VDMS_Client(settings.VDMS_VDB_HOST, settings.VDMS_VDB_PORT)
-
-        vector_db = VDMS(
-            client=client,
-            embedding=embeddings,
-            collection_name=settings.INDEX_NAME,
-            distance_strategy=settings.DISTANCE_STRATEGY,
-            embedding_dimensions=vector_dimensions,
-            engine=settings.SEARCH_ENGINE,
-        )
-
-        return vector_db
-    except Exception as exc:
-        logger.error(f"Failed to initialize VDMS vector DB client: {exc}")
-        raise

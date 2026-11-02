@@ -27,28 +27,46 @@ export DEFAULT_CLIP_DURATION=-1  # -1 means take the video till end
 export DEFAULT_NUM_FRAMES=64
 
 # OpenVINO configuration
-export EMBEDDING_USE_OV=${EMBEDDING_USE_OV:-false}
+export EMBEDDING_USE_OV=${EMBEDDING_USE_OV:-true}
 export EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-CPU}
 export OV_PERFORMANCE_MODE=${OV_PERFORMANCE_MODE:-LATENCY}
 
+case "$EMBEDDING_DEVICE" in
+    GPU*)
+        _DEFAULT_INFER_BATCH_SIZE=32
+        _DEFAULT_VIDEO_FRAME_BATCH_SIZE=256
+        ;;
+    *)
+        _DEFAULT_INFER_BATCH_SIZE=16
+        _DEFAULT_VIDEO_FRAME_BATCH_SIZE=64
+        ;;
+esac
+
 # Inference configuration defaults
-export INFER_BATCH_SIZE=${INFER_BATCH_SIZE:-16}
+export INFER_BATCH_SIZE=${INFER_BATCH_SIZE:-$_DEFAULT_INFER_BATCH_SIZE}
 export PREPROCESS_WORKERS=${PREPROCESS_WORKERS:-8}
 
 # Video frame extraction configuration defaults
-export VIDEO_FRAME_BATCH_SIZE=${VIDEO_FRAME_BATCH_SIZE:-64}
+export VIDEO_FRAME_BATCH_SIZE=${VIDEO_FRAME_BATCH_SIZE:-$_DEFAULT_VIDEO_FRAME_BATCH_SIZE}
 export VIDEO_FRAME_DECODER_WORKERS=${VIDEO_FRAME_DECODER_WORKERS:-8}
 export VIDEO_FRAME_QUEUE_SIZE=${VIDEO_FRAME_QUEUE_SIZE:-32}
 export VIDEO_FRAME_SHM_POOL_BLOCK_SIZE=${VIDEO_FRAME_SHM_POOL_BLOCK_SIZE:-$((1920*1080*3))}  # 1080p RGB: 6,220,800 bytes
 export VIDEO_FRAME_SHM_POOL_BLOCKS_MULTIPLIER=${VIDEO_FRAME_SHM_POOL_BLOCKS_MULTIPLIER:-2}
 export VIDEO_FRAME_LOG_LEVEL=${VIDEO_FRAME_LOG_LEVEL:-INFO}
 
-# If EMBEDDING_DEVICE is GPU, set EMBEDDING_USE_OV to true
-if [ "$EMBEDDING_DEVICE" = "GPU" ]; then
+unset _DEFAULT_INFER_BATCH_SIZE _DEFAULT_VIDEO_FRAME_BATCH_SIZE
+
+# Force OpenVINO on GPU, including indexed devices such as GPU.0
+case "$EMBEDDING_DEVICE" in
+    GPU*)
+        export EMBEDDING_USE_OV=true
+        export OV_PERFORMANCE_MODE=THROUGHPUT
+        ;;
+esac
+
+# If EMBEDDING_DEVICE is NPU, set EMBEDDING_USE_OV to true
+if [ "$EMBEDDING_DEVICE" = "NPU" ]; then
     export EMBEDDING_USE_OV=true
-    export OV_PERFORMANCE_MODE=THROUGHPUT
-    export INFER_BATCH_SIZE=${INFER_BATCH_SIZE:-64}
-    export VIDEO_FRAME_BATCH_SIZE=${VIDEO_FRAME_BATCH_SIZE:-256}
 fi
 
 export EMBEDDING_SERVER_PORT=9777
@@ -79,11 +97,21 @@ case "$EMBEDDING_MODEL_NAME" in
     "SigLIP/siglip2-vit-b-16"|"SigLIP/siglip2-vit-l-16"|"SigLIP/siglip2-so400m-patch16-384")
         echo "Using SigLIP model: $EMBEDDING_MODEL_NAME"
         ;;
+    "MarketaJu/siglip2-person-description-reid"|"SigLIP/siglip2-person-description-reid")
+        echo "Using Hugging Face SigLIP model: $EMBEDDING_MODEL_NAME"
+        ;;
     "MobileCLIP/mobileclip_s0"|"MobileCLIP/mobileclip_s1"|"MobileCLIP/mobileclip_s2"|"MobileCLIP/mobileclip_b"|"MobileCLIP/mobileclip_blt")
         echo "Using MobileCLIP model: $EMBEDDING_MODEL_NAME"
         ;;
-    "Blip2/blip2_transformers")
+    "Blip2/blip2")
         echo "Using BLIP2 model: $EMBEDDING_MODEL_NAME"
+        ;;
+    "QwenText/qwen3-embedding-0.6b"|"QwenText/qwen3-embedding-4b"|"QwenText/qwen3-embedding-8b")
+        echo "Using Qwen text embedding model: $EMBEDDING_MODEL_NAME (text-only)"
+        if [ "$EMBEDDING_DEVICE" = "NPU" ]; then
+            echo "NPU: this model is compiled with static shapes; the first startup for a given"
+            echo "     shape takes longer. See docs/user-guide/qwentext-on-npu.md for tuning."
+        fi
         ;;
     *)
         echo -e "WARNING: Model '$EMBEDDING_MODEL_NAME' may not be supported."
@@ -96,6 +124,20 @@ VIDEO_GROUP_ID=$(getent group video | awk -F: '{print $3}')
 RENDER_GROUP_ID=$(getent group render | awk -F: '{print $3}')
 export USER_ID=$(id -u)
 export USER_GROUP_ID=$(id -g)
+
+# Set DRI_MOUNT_PATH based on whether /dev/dri exists and is not empty
+if [ -d /dev/dri ] && [ "$(ls -A /dev/dri)" ]; then
+    export DRI_MOUNT_PATH="/dev/dri"
+else
+    export DRI_MOUNT_PATH="/dev/null"
+fi
+
+# Set ACCEL_MOUNT_PATH based on whether /dev/accel/accel0 exists
+if [ -e /dev/accel/accel0 ]; then
+    export ACCEL_MOUNT_PATH="/dev/accel/accel0"
+else
+    export ACCEL_MOUNT_PATH="/dev/null"
+fi
 
 docker volume create data-prep
 docker volume create ov-models
@@ -113,3 +155,5 @@ echo "EMBEDDING_MODEL_NAME set to: ${EMBEDDING_MODEL_NAME}"
 echo "EMBEDDING_DEVICE set to: ${EMBEDDING_DEVICE}"
 echo "EMBEDDING_USE_OV set to: ${EMBEDDING_USE_OV}"
 echo "OV_PERFORMANCE_MODE set to: ${OV_PERFORMANCE_MODE}"
+echo "DRI_MOUNT_PATH set to: ${DRI_MOUNT_PATH}"
+echo "ACCEL_MOUNT_PATH set to: ${ACCEL_MOUNT_PATH}"

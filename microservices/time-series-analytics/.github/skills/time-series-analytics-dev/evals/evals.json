@@ -1,0 +1,32 @@
+{
+  "skill_name": "time-series-analytics-dev",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "In the Time Series Analytics microservice (microservices/time-series-analytics), add a new GET /udfs endpoint that lists the UDF deployment packages currently extracted under /tmp/, so operators can see what's deployed without shelling into the container. Return each package's name and whether its udfs/, tick_scripts/, and models/ subfolders are present. Add unit test coverage for the new route.\n\nValidate using the existing unit test suite (it should still pass, including your new test), and a manual check after bringing the service up with Docker Compose: curl -s http://localhost:5000/udfs should return the currently-deployed package(s).",
+      "expected_output": "A new GET /udfs route in src/main.py, a passing test in tests/test_main.py, and a working manual curl check against a running container, with no existing tests broken.",
+      "files": [],
+      "expectations": [
+        "A new GET /udfs route exists in src/main.py",
+        "The route's response includes each deployed package's name and the presence/absence of its udfs/, tick_scripts/, and models/ subfolders",
+        "A new test covering the /udfs route was added to tests/test_main.py",
+        "The full unit test suite passes, including the new test, with no existing test broken",
+        "After building and running the container from the modified source, curl to /udfs returns a real response reflecting actual deployed packages, not a stub or hardcoded response",
+        "New/modified files follow the file's existing SPDX header convention"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "In the Time Series Analytics microservice (microservices/time-series-analytics): a UDF deployment package was uploaded and POST /config returned 200, but the container logs show no sign of the task running, and data sent to POST /input isn't producing any flagged output. Figure out why and fix it.\n\nFirst reproduce the problem yourself: deploy a UDF package where the tick script's measurement name doesn't match the topic used in POST /input (a deliberately introduced mismatch), and confirm POST /input produces no visible effect. Then diagnose and fix or clearly explain the root cause, and confirm the fix works (points now reach the UDF and get flagged as expected).",
+      "expected_output": "A correct diagnosis (measurement/topic name mismatch, not a service bug) with supporting evidence, and a demonstrated working fix.",
+      "files": [],
+      "expectations": [
+        "The agent successfully reproduced the bug (measurement/topic mismatch) and confirmed POST /input had no visible effect before attempting a fix",
+        "The agent correctly diagnosed the root cause as a measurement-name/topic mismatch, not a fabricated or incorrect diagnosis",
+        "The diagnosis is backed by specific cited evidence (log lines, file/config comparison), not just an assertion of the cause",
+        "The agent verified the fix by re-testing and confirming points now reach the UDF and get flagged as expected",
+        "The agent did not misdiagnose this as requiring a source code bug fix in main.py/classifier_startup.py, since the root cause is a config/tick-script authoring mistake, not a service defect"
+      ]
+    }
+  ]
+}

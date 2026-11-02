@@ -1,0 +1,43 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+"""Tests for pipeline-case pytest parameter wrapping."""
+
+import unittest
+
+from _pytest.mark.structures import ParameterSet
+
+from helpers.pipeline_case_helpers import PipelineCase, wrap_cases_for_pytest
+
+
+class TestWrapCasesForPytest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.case = PipelineCase(
+            case_id="sample_cpu",
+            pipeline_id="pipeline-1",
+            variant_id="variant-1",
+            device_family="CPU",
+            pipeline_name="Sample",
+        )
+        self.missing_models = {"pipeline-1": {"Missing Model"}}
+
+    def test_skip_missing_models_skips_case_with_reason(self) -> None:
+        params, ids = wrap_cases_for_pytest(
+            [self.case], self.missing_models, skip_missing_models=True
+        )
+
+        self.assertEqual(ids, ["sample_cpu"])
+        param = params[0]
+        assert isinstance(param, ParameterSet)
+        self.assertEqual(param.values, (self.case,))
+        skip_marks = [mark for mark in param.marks if mark.name == "skip"]
+        self.assertEqual(len(skip_marks), 1)
+        self.assertIn("Missing Model", str(skip_marks[0].kwargs["reason"]))
+
+    def test_not_skipping_missing_models_schedules_case(self) -> None:
+        params, ids = wrap_cases_for_pytest(
+            [self.case], self.missing_models, skip_missing_models=False
+        )
+
+        self.assertEqual(ids, ["sample_cpu"])
+        self.assertIs(params[0], self.case)

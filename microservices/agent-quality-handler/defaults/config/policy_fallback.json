@@ -1,0 +1,15 @@
+{
+  "min_conf_global": 0.4,
+  "per_class_thresholds": {
+    "Deformation": 0.4,
+    "Obstacle": 0.5,
+    "Rupture": 0.8,
+    "Disconnect": 0.8,
+    "Misalignment": 0.4,
+    "Deposition": 0.4
+  },
+  "bbox_min_size": {
+    "width": 40,
+    "height": 40
+  }
+}

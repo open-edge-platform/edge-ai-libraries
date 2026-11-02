@@ -12,6 +12,73 @@ import main
 from utils.audio_util import save_audio_file
 
 
+class ClearStorageOnStartupTests(unittest.TestCase):
+    def test_does_not_clear_storage_when_disabled(self):
+        with tempfile.TemporaryDirectory() as storage_root:
+            session_dir = os.path.join(storage_root, "session-1")
+            os.makedirs(session_dir)
+            with patch("utils.app_paths.STORAGE_ROOT", storage_root), patch(
+                "utils.config_loader.config",
+                SimpleNamespace(app=SimpleNamespace(clear_storage_on_startup=False)),
+            ), patch("main.logger.warning") as warning:
+                main._clear_storage_on_startup()
+
+            self.assertTrue(os.path.isdir(session_dir))
+            warning.assert_not_called()
+
+    def test_clears_storage_when_enabled(self):
+        with tempfile.TemporaryDirectory() as storage_root:
+            session_dir = os.path.join(storage_root, "session-1")
+            os.makedirs(session_dir)
+            with patch("utils.app_paths.STORAGE_ROOT", storage_root), patch(
+                "utils.config_loader.config",
+                SimpleNamespace(app=SimpleNamespace(clear_storage_on_startup=True)),
+            ), patch("main.logger.warning") as warning:
+                main._clear_storage_on_startup()
+
+            self.assertFalse(os.path.isdir(session_dir))
+            warning.assert_called_once()
+
+    def test_defaults_to_disabled_when_setting_missing(self):
+        with tempfile.TemporaryDirectory() as storage_root:
+            session_dir = os.path.join(storage_root, "session-1")
+            os.makedirs(session_dir)
+            with patch("utils.app_paths.STORAGE_ROOT", storage_root), patch(
+                "utils.config_loader.config", SimpleNamespace(app=SimpleNamespace())
+            ), patch("main.logger.warning") as warning:
+                main._clear_storage_on_startup()
+
+            self.assertTrue(os.path.isdir(session_dir))
+            warning.assert_not_called()
+
+
+class StartupModelTests(unittest.TestCase):
+    def test_startup_fails_when_model_preparation_fails(self):
+        error = FileNotFoundError("missing model")
+        with patch("main._clear_storage_on_startup"), patch(
+            "main.validate_runtime_configuration"
+        ), patch("main.ensure_model", side_effect=error), patch(
+            "main.preload_models"
+        ) as preload_models, patch("main.logger.warning") as warning:
+            with self.assertRaisesRegex(FileNotFoundError, "missing model"):
+                main.startup_event()
+
+        preload_models.assert_not_called()
+        self.assertIn("ASR model is unavailable", warning.call_args.args[0])
+
+    def test_startup_fails_when_model_preload_fails(self):
+        error = RuntimeError("invalid model")
+        with patch("main._clear_storage_on_startup"), patch(
+            "main.validate_runtime_configuration"
+        ), patch("main.ensure_model"), patch(
+            "main.preload_models", side_effect=error
+        ), patch("main.logger.warning") as warning:
+            with self.assertRaisesRegex(RuntimeError, "invalid model"):
+                main.startup_event()
+
+        self.assertIn("ASR model is unavailable", warning.call_args.args[0])
+
+
 class ApiHardeningTests(unittest.TestCase):
     @staticmethod
     def _openai_error(message, error_type, *, param=None, code=None):
@@ -111,6 +178,8 @@ class ApiHardeningTests(unittest.TestCase):
             "api.openai_endpoints.save_audio_file", return_value=("clip.wav", "/tmp/clip.wav")
         ), patch("api.openai_endpoints.os.path.isfile", return_value=True), patch(
             "api.openai_endpoints.resolve_requested_session_id", return_value=("session-id", False)
+        ), patch(
+            "api.openai_endpoints.resolve_asr_device", return_value="GPU"
         ), patch("api.openai_endpoints.Pipeline") as pipeline_cls:
             pipeline = pipeline_cls.return_value
             pipeline.session_id = "session-id"
@@ -132,6 +201,72 @@ class ApiHardeningTests(unittest.TestCase):
         args, kwargs = pipeline.transcribe.call_args
         self.assertIsInstance(args[0], SimpleNamespace)
         self.assertEqual(kwargs["language"], "en")
+
+    def test_openai_transcription_passes_requested_device_to_pipeline(self):
+        with patch("main.ensure_model"), patch("main.preload_models"), patch(
+            "api.openai_endpoints.save_audio_file", return_value=("clip.wav", "/tmp/clip.wav")
+        ), patch("api.openai_endpoints.os.path.isfile", return_value=True), patch(
+            "api.openai_endpoints.resolve_requested_session_id", return_value=("session-id", False)
+        ), patch("api.openai_endpoints.Pipeline") as pipeline_cls:
+            pipeline = pipeline_cls.return_value
+            pipeline.session_id = "session-id"
+            pipeline.transcribe.return_value = {"text": "hello", "segments": []}
+
+            with TestClient(main.app) as client:
+                response = client.post(
+                    "/v1/audio/transcriptions",
+                    data={
+                        "model": "whisper-1",
+                        "device": "GPU",
+                        "temperature": "0.0",
+                        "response_format": "json",
+                    },
+                    files={"file": ("clip.wav", b"fake-audio", "audio/wav")},
+                )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(pipeline_cls.call_args.kwargs["device"], "GPU")
+
+    def test_openai_transcription_rejects_unavailable_device_before_saving_upload(self):
+        with patch("main.ensure_model"), patch("main.preload_models"), patch(
+            "api.openai_endpoints.resolve_requested_session_id", return_value=("session-id", False)
+        ), patch(
+            "api.openai_endpoints.save_audio_file", return_value=("clip.wav", "/tmp/clip.wav")
+        ) as save_audio, patch(
+            "api.openai_endpoints.os.path.isfile", return_value=True
+        ), patch(
+            "api.openai_endpoints.resolve_asr_device", side_effect=RuntimeError("GPU unavailable")
+        ), patch("api.openai_endpoints.Pipeline") as pipeline_cls:
+            with TestClient(main.app) as client:
+                response = client.post(
+                    "/v1/audio/transcriptions",
+                    data={"device": "GPU"},
+                    files={"file": ("clip.wav", b"fake-audio", "audio/wav")},
+                )
+
+        self.assertEqual(response.status_code, 400)
+        save_audio.assert_not_called()
+        pipeline_cls.assert_not_called()
+
+    def test_openai_transcription_rejects_unknown_device(self):
+        with patch("main.ensure_model"), patch("main.preload_models"), patch(
+            "api.openai_endpoints.resolve_requested_session_id", return_value=("session-id", False)
+        ), patch(
+            "api.openai_endpoints.resolve_asr_device", side_effect=RuntimeError("Unknown device")
+        ) as resolve_device, patch(
+            "api.openai_endpoints.save_audio_file"
+        ) as save_audio, patch("api.openai_endpoints.Pipeline") as pipeline_cls:
+            with TestClient(main.app) as client:
+                response = client.post(
+                    "/v1/audio/transcriptions",
+                    data={"device": "AUTO"},
+                    files={"file": ("clip.wav", b"fake-audio", "audio/wav")},
+                )
+
+                self.assertEqual(response.status_code, 400)
+                resolve_device.assert_called_once()
+                save_audio.assert_not_called()
+        pipeline_cls.assert_not_called()
 
 
 class AudioUploadValidationTests(unittest.TestCase):

@@ -1,4 +1,5 @@
 import time
+import re
 
 from components.base_component import PipelineComponent
 import os
@@ -6,24 +7,152 @@ from utils.config_loader import config
 from utils.latency_store import asr_latency
 from utils.storage_manager import StorageManager
 from utils.app_paths import get_session_dir
-from components.asr.openai.whisper import Whisper as OA_Whisper
-from components.asr.openvino.whisper import Whisper as OV_Whisper
-from components.asr.openvino_genai.whisper import Whisper as OVGenAIWhisper
-from components.asr.whispercpp.whisper import WhisperCpp
 import logging
+import threading
 logger = logging.getLogger(__name__)
 
 ENABLE_DIARIZATION = config.models.asr.diarization
 DELETE_CHUNK_AFTER_USE = config.pipeline.delete_chunks_after_use
 
+# Whisper (every backend, including OpenVINO GenAI) hallucinates common subtitle
+# phrases such as "Thank you" on silence / non-speech audio — typically the
+# trailing silence captured after the speaker stops talking. Segments whose
+# entire text matches one of these is dropped. Used when the config does not
+# supply models.asr.hallucination_phrases.
+_DEFAULT_HALLUCINATION_PHRASES = [
+    "thank you",
+    "thank you very much",
+    "thanks for watching",
+    "thank you for watching",
+    "please subscribe",
+    "subscribe",
+    "you",
+    "bye",
+]
+
+_NORMALIZE_RE = re.compile(r"[^\w\s]", re.UNICODE)
+
+
+def _normalize_transcript_text(text: str) -> str:
+    """Lowercase, drop punctuation, and collapse whitespace for phrase matching."""
+    return " ".join(_NORMALIZE_RE.sub(" ", text.lower()).split())
+
+
+def _collapse_repeated_phrases(text: str) -> str:
+    """Fold consecutive repeated word sequences (window 1-8 words) down to one.
+
+    Whisper — notably the OpenVINO GenAI backend, which has no decoder-level
+    repetition guard — can emit the same phrase multiple times back to back
+    ("What are ions? What are ions?"). Applied to a fixpoint so runs of three
+    or more (not just doubles) are fully collapsed.
+    """
+    if len(text.split()) < 2:
+        return text
+
+    def _one_pass(words: list[str]) -> list[str]:
+        result: list[str] = []
+        i = 0
+        while i < len(words):
+            found = False
+            max_window = min(8, (len(words) - i) // 2)
+            for w in range(max_window, 0, -1):
+                if words[i:i + w] == words[i + w:i + 2 * w]:
+                    result.extend(words[i:i + w])
+                    i += 2 * w
+                    found = True
+                    break
+            if not found:
+                result.append(words[i])
+                i += 1
+        return result
+
+    current = text.split()
+    for _ in range(8):  # bounded fixpoint — collapses triples/quadruples too
+        collapsed = _one_pass(current)
+        if collapsed == current:
+            break
+        current = collapsed
+    return " ".join(current)
+
+_diar_cfg = getattr(config.models, "diarization", None)
+_identity_cfg = getattr(_diar_cfg, "identity", None)
+IDENTITY_ENABLED = bool(getattr(_identity_cfg, "enabled", True))
+IDENTITY_SIMILARITY_THRESHOLD = float(getattr(_identity_cfg, "similarity_threshold", 0.75))
+IDENTITY_LOCK_MIN_DURATION_SEC = float(getattr(_identity_cfg, "lock_min_duration_sec", 0.75))
+IDENTITY_SESSION_TTL_SECONDS = float(getattr(_identity_cfg, "session_ttl_seconds", 1800.0))
+
+
+def _is_diarization_auth_error(exc: Exception) -> bool:
+    text = str(exc).lower()
+    markers = (
+        "401",
+        "403",
+        "unauthorized",
+        "forbidden",
+        "invalid token",
+        "token",
+        "huggingface",
+        "gated",
+        "access",
+        "permission",
+    )
+    return any(marker in text for marker in markers)
+
 
 class ASRComponent(PipelineComponent):
 
-    _model = None
-    _config = None
+    # Model instances cached per (pool, model_config_key), not one shared
+    # singleton and not one slot per pool.
+    #
+    # Two pools: a dedicated "preview" ASR (rolling realtime preview ticks,
+    # called repeatedly on a growing buffer) and a separate "final" ASR
+    # (persisted commits and the file-based endpoint). Some OpenVINO GenAI
+    # WhisperPipeline backends (confirmed with distil-whisper/distil-small.en
+    # on NPU) corrupt internal generation state when ONE shared instance
+    # processes calls of very different audio lengths back-to-back, so the two
+    # kinds of call never share a pipeline instance.
+    #
+    # Within a pool the cache is keyed by the resolved model config, because
+    # the per-request `device` override means two concurrent callers can ask
+    # the same pool for different models/devices. A single slot per pool would
+    # make them evict each other and rebuild a WhisperPipeline (seconds) on
+    # every alternation.
+    #
+    # The cache is intentionally unbounded and never evicts. Its size is capped
+    # by configuration, not by traffic: entries are keyed by
+    # (pool, provider, model, device, ...), and only `device` is caller-
+    # supplied -- restricted by validation to CPU/GPU/NPU. The practical
+    # ceiling is therefore 2 pools x 3 devices, with at most 2 distinct models
+    # (final + preview). Loaded models are kept for the process lifetime
+    # because rebuilding one costs seconds on the request path, which is what
+    # this cache exists to avoid. If a future change lets callers select the
+    # model name as well, this must become a bounded LRU -- at that point the
+    # key space stops being enumerable from config.
+    _models: dict[tuple, object] = {}
+    _models_lock = threading.Lock()
+    # Shared across all ASRComponent instances/sessions — keyed by session_id
+    # internally — so primary-speaker identity persists across chunk calls
+    # for the same session regardless of which ASRComponent instance handles
+    # a given chunk.
+    _speaker_identity_store = None
+    # Shared diarizer singleton — pyannote pipeline weights load once and
+    # per-session enrolled embeddings persist across chunked HTTP requests.
+    _pyannote_diarizer = None
+    _pyannote_diarizer_key = None
 
     @staticmethod
     def _resolve_backend(provider: str, model_name: str, device: str):
+        # NOTE: backend classes are imported lazily, one provider at a time,
+        # rather than unconditionally at module load (as they were before).
+        # components/asr/openai/whisper.py and components/asr/openvino/whisper.py
+        # both import the `whisper` (openai-whisper) package at their own module
+        # level, so importing all four backends eagerly here forced openai-whisper
+        # (and its torch/transformers/tiktoken dependency chain) to be installed
+        # for every deployment, even ones that only ever use the openvino-genai
+        # provider. Deferring the import to the point of actual selection mirrors
+        # the existing lazy-import pattern already used for diarization/sentiment
+        # below, and allows a slim image to omit the openai/whispercpp provider
+        # dependencies entirely as long as they are never selected at runtime.
         normalized_provider = provider.lower()
         normalized_model_name = model_name.lower()
         requested_device = str(device)
@@ -36,42 +165,176 @@ class ASRComponent(PipelineComponent):
             requested_device = "CPU"
 
         if normalized_provider == "openai" and "whisper" in normalized_model_name:
+            from components.asr.openai.whisper import Whisper as OA_Whisper
             return OA_Whisper, (normalized_provider, normalized_model_name, requested_device.lower()), requested_device.lower()
 
         if normalized_provider == "openvino" and "whisper" in normalized_model_name:
             use_ov_genai = bool(getattr(getattr(config, "app", None), "use_ov_genai", False))
-            backend_cls = OVGenAIWhisper if use_ov_genai else OV_Whisper
+            if use_ov_genai:
+                from components.asr.openvino_genai.whisper import Whisper as OVGenAIWhisper
+                backend_cls = OVGenAIWhisper
+            else:
+                from components.asr.openvino.whisper import Whisper as OV_Whisper
+                backend_cls = OV_Whisper
             return backend_cls, (normalized_provider, normalized_model_name, requested_device.upper(), use_ov_genai), requested_device.upper()
 
         if normalized_provider == "whispercpp" and "whisper" in normalized_model_name:
+            from components.asr.whispercpp.whisper import WhisperCpp
             return WhisperCpp, (normalized_provider, normalized_model_name, requested_device.upper()), requested_device.upper()
+
+        if normalized_provider == "funasr" and "paraformer" in normalized_model_name:
+            # Optional Chinese/English provider. Imported lazily so funasr stays
+            # an opt-in dependency (requirements-cjk.txt) — the default image and
+            # existing Whisper/OpenVINO consumers never import it.
+            from components.asr.funasr.paraformer import Paraformer
+
+            return Paraformer, (normalized_provider, normalized_model_name, requested_device.lower()), requested_device.lower()
 
         raise ValueError(f"Unsupported ASR provider/model: {normalized_provider}/{normalized_model_name}")
 
-    def __init__(self, session_id, provider="openai", model_name="whisper-small", device="CPU", temperature=0.0):
+    def __init__(self, session_id, provider="openai", model_name="whisper-small", device="CPU", temperature=0.0,
+                 speaker_scope_id=None, diarization: bool | None = None, pool: str = "final"):
 
         self.session_id = session_id
+        # Which model-instance pool this component's calls use (see the
+        # _models docstring above). Passed down explicitly from Pipeline;
+        # never inferred from append_to_session.
+        self.pool_key = pool
+        # Scope key for speaker enrollment. Stays stable for a whole
+        # conversation, whereas session_id is regenerated for every utterance —
+        # enrolling per utterance would re-derive the reference voice from the
+        # very audio being judged.
+        self.speaker_scope_id = speaker_scope_id or session_id
         self.temperature = temperature
         self.provider = provider
         self.model_name = model_name
-        self.enable_diarization = ENABLE_DIARIZATION
+        # Per-request override, narrowing only: a caller may switch diarization
+        # OFF for a chunk it does not need speaker labels for (e.g. kiosk-core's
+        # intermediate "preview" chunks, where only the final chunk is
+        # diarized), but may not switch it ON when the service is not
+        # configured for it — the models would not be loaded.
+        self.enable_diarization = (
+            ENABLE_DIARIZATION if diarization is None else (ENABLE_DIARIZATION and bool(diarization))
+        )
         self.all_segments = []
 
+        # Backend-agnostic hallucination-phrase filter. Runs on the final text
+        # of every provider, so it also covers the OpenVINO GenAI backend which
+        # exposes no per-segment confidence signals for the openai-style filter.
+        _asr_cfg = getattr(config.models, "asr", None)
+        self.hallucination_phrase_filter = bool(getattr(_asr_cfg, "hallucination_phrase_filter", True))
+        _configured_phrases = getattr(_asr_cfg, "hallucination_phrases", None) or _DEFAULT_HALLUCINATION_PHRASES
+        self._hallucination_phrases = {
+            _normalize_transcript_text(p) for p in _configured_phrases if p and str(p).strip()
+        }
+        # Repetition control shared by every backend. The openai backend also
+        # applies this in its own decoder path; the OpenVINO GenAI backend has
+        # no repetition guard at all, so this component-level pass is what stops
+        # duplicated phrases ("What are ions? What are ions?") on that backend.
+        # >1.0 enables filtering, matching the openai backend's semantics.
+        self.repetition_penalty = float(getattr(_asr_cfg, "repetition_penalty", 1.0) or 1.0)
+
         backend_cls, model_config_key, resolved_device = self._resolve_backend(provider, model_name, device)
+        cache_key = (self.pool_key, model_config_key)
 
-        if ASRComponent._model is None or ASRComponent._config != model_config_key:
-            ASRComponent._model = backend_cls(model_name.lower(), resolved_device, None)
-            ASRComponent._config = model_config_key
+        with ASRComponent._models_lock:
+            if cache_key not in ASRComponent._models:
+                # Pass the CONFIGURED name, not model_config_key's lower-cased
+                # form. Backends derive their on-disk model directory from this
+                # string (OVGenAIWhisper -> get_asr_model_path(model_name)), and
+                # ensure_model exported that directory under the configured
+                # spelling. Lower-casing here would look for e.g.
+                # "nvidia_canary-180m-flash" when the export created
+                # "nvidia_Canary-180M-Flash". Case is normalized for the cache
+                # KEY only, where it just de-duplicates equivalent configs.
+                ASRComponent._models[cache_key] = backend_cls(model_name, resolved_device, None)
 
-        self.asr = ASRComponent._model
+        self.asr = ASRComponent._models[cache_key]
 
         self.pyannote_diarizer = None
         if self.enable_diarization:
-            from components.asr.diarization.pyannote_diarizer import PyannoteDiarizer
+            try:
+                from components.asr.diarization.pyannote_diarizer import PyannoteDiarizer
+                from utils.ensure_model import _resolve_hf_token
+                from utils.openvino_runtime_validation import resolve_diarization_torch_device
 
-            self.pyannote_diarizer = PyannoteDiarizer(
-                hf_token=config.models.asr.hf_token
-            )
+                _diar_cfg_local = getattr(config.models, "diarization", None)
+                _config_diar_device = str(getattr(_diar_cfg_local, "device", "CPU") if _diar_cfg_local else "CPU")
+                diar_device = resolve_diarization_torch_device(_config_diar_device)
+
+                # Reuse a single shared diarizer across all requests so the
+                # pyannote pipeline (weights + embedding model) is loaded once
+                # and per-session enrolled speaker embeddings persist across
+                # the many chunked HTTP requests of one kiosk conversation.
+                diarizer_key = (diar_device,)
+                if (
+                    ASRComponent._pyannote_diarizer is None
+                    or ASRComponent._pyannote_diarizer_key != diarizer_key
+                ):
+                    hf_token = _resolve_hf_token()
+                    if diar_device.upper() in ("GPU", "NPU"):
+                        # OpenVINO-backed diarization: segmentation model runs on
+                        # the requested OV device; embedding + clustering on CPU.
+                        from components.asr.diarization.ov_pyannote_diarizer import (
+                            OVBackedPyannoteDiarizer,
+                        )
+                        from utils.ensure_model import get_diarization_model_path
+
+                        ASRComponent._pyannote_diarizer = OVBackedPyannoteDiarizer(
+                            ov_device=diar_device.upper(),
+                            hf_token=hf_token,
+                            model_dir=get_diarization_model_path(),
+                        )
+                    else:
+                        # CPU path: existing PyannoteDiarizer (PyTorch CPU).
+                        ASRComponent._pyannote_diarizer = PyannoteDiarizer(
+                            device="cpu",
+                            hf_token=hf_token,
+                        )
+                    ASRComponent._pyannote_diarizer_key = diarizer_key
+                    logger.info(
+                        "[DIARIZATION] Diarizer loaded on device=%s",
+                        diar_device,
+                    )
+                self.pyannote_diarizer = ASRComponent._pyannote_diarizer
+
+                if IDENTITY_ENABLED and ASRComponent._speaker_identity_store is None:
+                    from components.asr.diarization.speaker_identity import SpeakerIdentityStore
+
+                    ASRComponent._speaker_identity_store = SpeakerIdentityStore(
+                        similarity_threshold=IDENTITY_SIMILARITY_THRESHOLD,
+                        lock_min_duration_sec=IDENTITY_LOCK_MIN_DURATION_SEC,
+                        session_ttl_seconds=IDENTITY_SESSION_TTL_SECONDS,
+                    )
+            except Exception as exc:
+                # models.asr.diarization=true — never silently disable diarization.
+                # Any failure here is fatal; the service must not start with
+                # diarization requested but non-functional.
+                if _is_diarization_auth_error(exc):
+                    raise RuntimeError(
+                        "Speaker diarization initialization failed due to HF token/access error. "
+                        "Startup aborted: models.asr.diarization=true requires valid credentials. "
+                        "If this is a 403 error, accept the model at "
+                        "https://huggingface.co/pyannote/speaker-diarization-community-1 "
+                        "and restart the container."
+                    ) from exc
+                raise RuntimeError(
+                    "Speaker diarization initialization failed. "
+                    "Startup aborted: models.asr.diarization=true requires successful diarization "
+                    f"initialization. Cause: {exc}"
+                ) from exc
+
+    def _is_hallucination_phrase(self, text: str) -> bool:
+        """True when the whole segment text is a known Whisper silence hallucination."""
+        if not self.hallucination_phrase_filter or not self._hallucination_phrases:
+            return False
+        return _normalize_transcript_text(text) in self._hallucination_phrases
+
+    def _clean_segment_text(self, text: str) -> str:
+        """Collapse repeated phrases within one segment when filtering is enabled."""
+        if self.repetition_penalty <= 1.0:
+            return text
+        return _collapse_repeated_phrases(text)
 
     def process(self, input_generator, language: str | None = None):
 
@@ -97,21 +360,116 @@ class ASRComponent(PipelineComponent):
                 transcribed_text = ""
 
                 if self.enable_diarization and transcription.get("segments"):
-                    speaker_turns = self.pyannote_diarizer.diarize(chunk_path)
+                    # Prefer per-whisper-segment enrollment labeling when
+                    # voice enrollment is enabled. Pyannote's clustering can
+                    # merge two co-located voices into a single turn on
+                    # single-mic kiosk audio; whisper's temporal segmentation
+                    # is typically sharper, so embedding each whisper segment
+                    # independently and comparing to the enrolled primary
+                    # reliably surfaces the secondary voice as SPEAKER_01.
+                    use_per_segment_enrollment = bool(
+                        self.pyannote_diarizer
+                        and getattr(self.pyannote_diarizer, "voice_enrollment_enabled", False)
+                    )
+
+                    speaker_turns: list[dict] = []
+                    label_embeddings: dict = {}
+                    primary_map: dict[str, bool] = {}
+                    source_segments: list[dict] = transcription["segments"]
+
+                    if use_per_segment_enrollment:
+                        labelled_segments = self.pyannote_diarizer.split_and_label_segments(
+                            chunk_path,
+                            transcription["segments"],
+                            session_id=self.speaker_scope_id,
+                        )
+                        # Sub-segments rebuilt from word timings bypassed the
+                        # provider's repetition filter — re-apply it.
+                        for seg in labelled_segments:
+                            if seg.get("text_rebuilt"):
+                                seg["text"] = self.asr.clean_text(seg.get("text", ""))
+                        source_segments = labelled_segments
+                        logger.info(
+                            "[DIARIZATION] session=%s scope=%s chunk=%s | acoustic split produced %d labelled segment(s): %s",
+                            self.session_id,
+                            self.speaker_scope_id,
+                            os.path.basename(chunk_path),
+                            len(labelled_segments),
+                            ", ".join(
+                                f"{lbl.get('speaker','?')}[{lbl.get('start',0):.2f}s-{lbl.get('end',0):.2f}s]"
+                                for lbl in labelled_segments
+                            ) or "none",
+                        )
+                    else:
+                        speaker_turns, label_embeddings = self.pyannote_diarizer.diarize(
+                            chunk_path, session_id=self.session_id
+                        )
+                        logger.info(
+                            "[DIARIZATION] session=%s chunk=%s | pyannote detected %d speaker turn(s): %s",
+                            self.session_id,
+                            os.path.basename(chunk_path),
+                            len(speaker_turns),
+                            ", ".join(
+                                f"{t['speaker']}[{t['start']:.2f}s-{t['end']:.2f}s]"
+                                for t in speaker_turns
+                            ) or "none",
+                        )
+                        if ASRComponent._speaker_identity_store is not None:
+                            primary_map = ASRComponent._speaker_identity_store.resolve(
+                                self.session_id, label_embeddings, speaker_turns,
+                            )
+
                     transcribed_lines = []
+                    prev_norm = None
+                    logger.info(
+                        "[DIARIZATION] session=%s | whisper produced %d segment(s)",
+                        self.session_id,
+                        len(transcription["segments"]),
+                    )
 
-                    for sent in transcription["segments"]:
-                        text = sent["text"].strip()
-                        if not text:
+                    for idx, sent in enumerate(source_segments):
+                        text = self._clean_segment_text(sent["text"].strip())
+                        if not text or self._is_hallucination_phrase(text):
                             continue
+                        norm = _normalize_transcript_text(text)
+                        if self.repetition_penalty > 1.0 and norm and norm == prev_norm:
+                            continue
+                        prev_norm = norm
 
-                        mid = (sent["start"] + sent["end"]) / 2.0
+                        if use_per_segment_enrollment:
+                            speaker = sent.get("speaker")
+                            # In the enrollment model SPEAKER_00 is always the enrolled primary
+                            is_primary = (speaker == "SPEAKER_00")
+                            logger.info(
+                                "[DIARIZATION] segment [%.2fs-%.2fs] acoustic-split -> speaker=%s is_primary=%s (%s) | text=%r",
+                                sent["start"], sent["end"],
+                                speaker if speaker else "UNKNOWN",
+                                is_primary,
+                                "PRIMARY - picked" if is_primary else "SECONDARY - will be dropped downstream",
+                                text[:80],
+                            )
+                        else:
+                            # Assign the speaker turn with the greatest time overlap
+                            # (strictly more correct than a midpoint lookup, which
+                            # breaks when a segment spans two speaker turns or
+                            # falls in a gap between turns).
+                            speaker = None
+                            best_overlap = 0.0
+                            for turn in speaker_turns:
+                                overlap = min(sent["end"], turn["end"]) - max(sent["start"], turn["start"])
+                                if overlap > best_overlap:
+                                    best_overlap = overlap
+                                    speaker = turn["speaker"]
 
-                        speaker = None
-                        for turn in speaker_turns:
-                            if turn["start"] <= mid <= turn["end"]:
-                                speaker = turn["speaker"]
-                                break
+                            is_primary = primary_map.get(speaker, False) if speaker is not None else False
+                            logger.info(
+                                "[DIARIZATION] segment [%.2fs-%.2fs] max-overlap=%.2fs -> speaker=%s is_primary=%s (%s) | text=%r",
+                                sent["start"], sent["end"], best_overlap,
+                                speaker if speaker else "UNKNOWN",
+                                is_primary,
+                                "PRIMARY - picked" if is_primary else "SECONDARY - will be dropped downstream",
+                                text[:80],
+                            )
 
                         chunk_offset = float(chunk_data.get("start_time", 0.0))
                         start = float(sent["start"]) + chunk_offset
@@ -127,6 +485,11 @@ class ASRComponent(PipelineComponent):
                                 segment[key] = sent[key]
                         if speaker is not None:
                             segment["speaker"] = speaker
+                            # Stable, cross-chunk primary-speaker signal — resolved
+                            # here in audio-analyzer via speaker embeddings, so
+                            # downstream consumers (kiosk-core) don't need their
+                            # own model or lock-on logic.
+                            segment["is_primary"] = is_primary
 
                         ui_segments.append(segment)
                         self.all_segments.append(segment)
@@ -134,13 +497,37 @@ class ASRComponent(PipelineComponent):
 
                     transcribed_text = "\n".join(transcribed_lines) + "\n"
 
+                    primary_count = sum(1 for seg in ui_segments if seg.get("is_primary"))
+                    secondary_count = sum(
+                        1 for seg in ui_segments if "speaker" in seg and not seg.get("is_primary")
+                    )
+                    logger.info(
+                        "[DIARIZATION] session=%s chunk=%s | speaker resolution summary: "
+                        "%d primary segment(s), %d secondary segment(s)",
+                        self.session_id,
+                        os.path.basename(chunk_path),
+                        primary_count,
+                        secondary_count,
+                    )
+                    logger.info(
+                        "[DIARIZATION] session=%s chunk=%s | full transcript (all speakers): %r",
+                        self.session_id,
+                        os.path.basename(chunk_path),
+                        transcribed_text.strip()[:200],
+                    )
+
                 else:
                     if transcription.get("segments"):
                         transcribed_lines = []
+                        prev_norm = None
                         for sent in transcription["segments"]:
-                            text = sent["text"].strip()
-                            if not text:
+                            text = self._clean_segment_text(sent["text"].strip())
+                            if not text or self._is_hallucination_phrase(text):
                                 continue
+                            norm = _normalize_transcript_text(text)
+                            if self.repetition_penalty > 1.0 and norm and norm == prev_norm:
+                                continue
+                            prev_norm = norm
 
                             start = float(sent["start"]) + float(chunk_data.get("start_time", 0.0))
                             end = float(sent["end"]) + float(chunk_data.get("start_time", 0.0))

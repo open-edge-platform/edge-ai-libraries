@@ -5,6 +5,7 @@ definition: >
 tags:
   - Retail
 thumbnail: images/age-and-gender-recognition.png
+type: vision
 variants:
   - name: CPU
     pipeline_description: >-

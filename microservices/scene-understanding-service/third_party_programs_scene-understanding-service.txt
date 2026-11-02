@@ -1,0 +1,424 @@
+Third Party Programs File
+
+This file contains the list of third party software ("third party programs")
+contained in the Intel software and their required notices and/or license terms.
+The third party programs and their corresponding required notices and/or license
+terms are listed below.
+
+Image: edge-ai-libraries/microservices/scene-understanding-service/Dockerfile
+Base image (python:3.11-slim) is pulled from Docker Hub and is NOT redistributed.
+
+-------------------------------------------------------------
+1. Software released under the Apache License 2.0
+
+aiohttp 3.13.5
+Copyright (c) 2013-2023 aiohttp contributors
+https://github.com/aio-libs/aiohttp
+
+aiosignal 1.4.0
+Copyright (c) 2019 Andrew Svetlov and aio-libs contributors
+https://github.com/aio-libs/aiosignal
+
+fastapi 0.136.1
+Copyright (c) 2018 Sebastián Ramírez
+https://github.com/fastapi/fastapi
+
+frozenlist 1.8.0
+Copyright (c) 2013-2022 Nikolay Kim and Andrew Svetlov
+https://github.com/aio-libs/frozenlist
+
+importlib-metadata 8.7.1
+Copyright (c) 2019 Jason R. Coombs, Barry Warsaw
+https://github.com/python/importlib_metadata
+
+minio 7.2.20
+Copyright (c) 2015-2023 MinIO, Inc.
+https://github.com/minio/minio-py
+
+multidict 6.7.1
+Copyright (c) 2016-2022 aiohttp contributors
+https://github.com/aio-libs/multidict
+
+packaging 26.0 / 26.2
+Copyright (c) 2014 Donald Stufft and individual contributors
+https://github.com/pypa/packaging
+
+propcache 0.5.2
+Copyright (c) 2019 Andrew Svetlov and aio-libs contributors
+https://github.com/aio-libs/propcache
+
+pytest-asyncio 1.3.0
+Copyright (c) 2015 Tin Tvrtković
+https://github.com/pytest-dev/pytest-asyncio
+
+yarl 1.23.0
+Copyright (c) 2016-2022 Andrew Svetlov and aio-libs contributors
+https://github.com/aio-libs/yarl
+
+git 1:2.47.3-0+deb13u1 / git-man (Debian package; Apache-2.0 selected)
+libcom-err2 1.47.2-3+b10 (Debian package)
+libp11-kit0 0.25.5-3 (Debian package)
+Various copyright holders; see upstream Debian package metadata.
+
+Apache License
+Version 2.0, January 2004
+http://www.apache.org/licenses/
+
+TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+1. Definitions.
+
+"License" shall mean the terms and conditions for use, reproduction, and
+distribution as defined by Sections 1 through 9 of this document.
+
+"Licensor" shall mean the copyright owner or entity authorized by the
+copyright owner that is granting the License.
+
+"Legal Entity" shall mean the union of the acting entity and all other entities
+that control, are controlled by, or are under common control with that entity.
+
+"You" (or "Your") shall mean an individual or Legal Entity exercising
+permissions granted by this License.
+
+"Source" form shall mean the preferred form for making modifications.
+
+"Object" form shall mean any form resulting from mechanical transformation or
+translation of a Source form.
+
+"Work" shall mean the work of authorship made available under the License.
+
+"Derivative Works" shall mean any work based on (or derived from) the Work for
+which modifications represent an original work of authorship.
+
+"Contribution" shall mean any work of authorship submitted to the Licensor for
+inclusion in the Work.
+
+"Contributor" shall mean Licensor and any Legal Entity on behalf of whom a
+Contribution has been received and incorporated within the Work.
+
+2. Grant of Copyright License. Each Contributor grants a perpetual, worldwide,
+non-exclusive, no-charge, royalty-free, irrevocable copyright license to
+reproduce, prepare Derivative Works, publicly display, publicly perform,
+sublicense, and distribute the Work and Derivative Works in Source or Object form.
+
+3. Grant of Patent License. Each Contributor grants a perpetual, worldwide,
+non-exclusive, no-charge, royalty-free, irrevocable patent license to make,
+have made, use, offer to sell, sell, import, and otherwise transfer the Work.
+
+4. Redistribution. You may reproduce and distribute copies of the Work or
+Derivative Works in any medium, with or without modifications, provided that
+You meet the following conditions: (a) provide a copy of this License;
+(b) cause modified files to carry prominent notices; (c) retain all notices
+from the Source form.
+
+5. Submission of Contributions shall be under the terms of this License.
+
+6. Trademarks. This License does not grant permission to use trade names or
+trademarks of the Licensor.
+
+7. Disclaimer of Warranty. Work provided on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND.
+
+8. Limitation of Liability. No Contributor shall be liable for damages.
+
+9. Accepting Warranty or Additional Liability per conditions stated herein.
+
+END OF TERMS AND CONDITIONS
+
+-------------------------------------------------------------
+2. Software released under the MIT License
+
+aiohappyeyeballs 2.6.1
+Copyright (c) 2024 J. Nick Koston and contributors
+https://github.com/aio-libs/aiohappyeyeballs
+
+annotated-doc 0.0.4
+Copyright (c) 2022 annotated-doc contributors
+https://pypi.org/project/annotated-doc/
+
+anyio 4.13.0
+Copyright (c) 2018 Alex Grönholm
+https://github.com/agronholm/anyio
+
+argon2-cffi 25.1.0
+Copyright (c) 2015-2021 Hynek Schlawack and contributors
+https://github.com/hynek/argon2-cffi
+
+argon2-cffi-bindings 25.1.0
+Copyright (c) 2021 Hynek Schlawack and contributors
+https://github.com/hynek/argon2-cffi-bindings
+
+attrs 26.1.0
+Copyright (c) 2015 Hynek Schlawack and contributors
+https://github.com/python-attrs/attrs
+
+cffi 2.0.0
+Copyright (c) 2012-2018 Armin Rigo, Maciej Fijalkowski and contributors
+https://github.com/cffi/cffi
+
+click 8.3.3
+Copyright (c) 2014 Pallets
+https://github.com/pallets/click
+
+h11 0.16.0
+Copyright (c) 2016 Nathaniel J. Smith and other contributors
+https://github.com/python-hyper/h11
+
+httptools 0.7.1
+Copyright (c) 2017-present MagicStack Inc. and contributors
+https://github.com/MagicStack/httptools
+
+iniconfig 2.3.0
+Copyright (c) 2010 Holger Krekel and Ronny Pfannschmidt
+https://github.com/pytest-dev/iniconfig
+
+jaraco-context 6.1.0 / jaraco-functools 4.4.0 / jaraco-text 4.0.0
+Copyright (c) Jason R. Coombs
+https://github.com/jaraco/jaraco.context
+
+libbrotli1 1.1.0-2+b7 (Debian package)
+Copyright (c) 2009, 2010, 2013-2016 by the Brotli Authors
+
+libexpat1 2.7.1-2 (Debian package)
+Copyright (c) 1998-2000 Thai Open Source Software Center Ltd and Clark Cooper.
+Copyright (c) 2001-2022 Expat maintainers.
+
+libnghttp3-9 1.8.0-1 (Debian package; MIT selected)
+libngtcp2-16 / libngtcp2-crypto-gnutls8 1.11.0-1+deb13u1 (Debian package; MIT selected)
+libpsl5t64 0.21.2-1.1+b1 (Debian package)
+libperl5.40 5.40.1-6 (Debian package; BSD-3-clause; see section 3)
+
+more-itertools 10.8.0
+Copyright (c) 2012 Erik Rose and contributors
+https://github.com/more-itertools/more-itertools
+
+pillow 12.2.0
+Copyright (c) 1997-2011 by Secret Labs AB
+Copyright (c) 1995-2011 by Fredrik Lundh and contributors
+https://github.com/python-pillow/Pillow
+
+platformdirs 4.4.0
+Copyright (c) 2010-2023 ActiveState Software Inc. and contributors
+https://github.com/platformdirs/platformdirs
+
+pluggy 1.6.0
+Copyright (c) 2015 holger krekel (bitbucket/hpk42)
+https://github.com/pytest-dev/pluggy
+
+pydantic 2.13.4
+Copyright (c) 2017 Samuel Colvin and other contributors
+https://github.com/pydantic/pydantic
+
+pydantic-core 2.46.4
+Copyright (c) 2022 Samuel Colvin and other contributors
+https://github.com/pydantic/pydantic-core
+
+pytest 9.0.3
+Copyright (c) 2004 Holger Krekel and others
+https://github.com/pytest-dev/pytest
+
+python-dotenv 1.2.2
+Copyright (c) 2014 Saurabh Kumar and others
+https://github.com/theskumar/python-dotenv
+
+pyyaml 6.0.3
+Copyright (c) 2017-2021 Ingy döt Net
+Copyright (c) 2006-2016 Kirill Simonov
+https://github.com/yaml/pyyaml
+
+setuptools 82.0.1
+Copyright (c) 2004 Jason R. Coombs. All rights reserved.
+https://github.com/pypa/setuptools
+
+structlog 25.5.0
+Copyright (c) 2013 Hynek Schlawack and contributors
+https://github.com/hynek/structlog
+
+tomli 2.4.0
+Copyright (c) 2021 Taneli Hukkinen and contributors
+https://github.com/hukkin/tomli
+
+typing-inspection 0.4.2
+Copyright (c) 2024 typing-inspection contributors
+https://github.com/pydantic/typing-inspection
+
+urllib3 2.7.0
+Copyright (c) 2008-2020 Andrey Petrov and contributors
+https://github.com/urllib3/urllib3
+
+uvloop 0.22.1
+Copyright (c) 2015-2021 MagicStack Inc. and contributors
+https://github.com/MagicStack/uvloop
+
+watchfiles 1.1.1
+Copyright (c) 2019 Samuel Colvin
+https://github.com/samuelcolvin/watchfiles
+
+wheel 0.46.3
+Copyright (c) 2012-2014 Daniel Holth <dholth@fastmail.fm> and contributors
+https://github.com/pypa/wheel
+
+zipp 3.23.0
+Copyright (c) 2019 Jason R. Coombs
+https://github.com/jaraco/zipp
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+-------------------------------------------------------------
+3. Software released under the BSD 3-Clause "New" or "Revised" License
+
+curl 8.14.1-2+deb13u2 (Debian package; BSD-3-Clause selected)
+Copyright (c) 1996-2026 Daniel Stenberg, <daniel@haxx.se> and contributors
+
+httpcore 1.0.9
+Copyright (c) 2019 Tom Christie
+https://github.com/encode/httpcore
+
+httpx 0.28.1
+Copyright (c) 2019 Tom Christie
+https://github.com/encode/httpx
+
+idna 3.13
+Copyright (c) 2013-2024 Kim Davies and contributors
+https://github.com/kjd/idna
+
+libcurl3t64-gnutls / libcurl4t64 8.14.1-2+deb13u2 (Debian package; BSD-3-Clause selected)
+Copyright (c) 1996-2026 Daniel Stenberg, <daniel@haxx.se> and contributors
+
+libldap2 2.6.10+dfsg-1 (Debian package; BSD-3-Clause selected)
+Copyright (c) 1998-2024 The OpenLDAP Foundation. All rights reserved.
+
+libnghttp2-14 1.64.0-1.1 (Debian package; BSD-3-Clause selected)
+Copyright (c) 2012, 2014, 2015, 2016 Tatsuhiko Miyagawa and contributors.
+
+paho-mqtt 1.6.1
+Copyright (c) 2013-2024 Eclipse Foundation
+https://github.com/eclipse-paho/paho.mqtt.python
+
+perl 5.40.1-6 / perl-modules-5.40 / libperl5.40 (Debian package; BSD-3-clause selected)
+Copyright (c) 1993 and later, by Larry Wall and others.
+
+pycparser 3.0
+Copyright (c) 2008-2022 Eli Bendersky. All rights reserved.
+https://github.com/eliben/pycparser
+
+pycryptodome 3.23.0
+Copyright (c) 2013-2023 Legrandin <helderijs@gmail.com> and contributors
+https://github.com/Legrandin/pycryptodome
+
+starlette 1.0.0
+Copyright (c) 2018 Tom Christie
+https://github.com/encode/starlette
+
+uvicorn 0.46.0
+Copyright (c) 2017 Tom Christie
+https://github.com/encode/uvicorn
+
+websockets 16.0
+Copyright (c) 2013 Aymeric Augustin and contributors
+https://github.com/python-websockets/websockets
+
+BSD 3-Clause License
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice,
+   this list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its contributors
+   may be used to endorse or promote products derived from this software
+   without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+-------------------------------------------------------------
+4. Software released under the Mozilla Public License 2.0 (MPL-2.0)
+
+certifi 2026.4.22
+Copyright (c) 2011 Kenneth Reitz. All rights reserved.
+https://github.com/certifi/python-certifi
+
+NOTE (MPL-2.0 obligation): The source code of MPL-licensed components is
+available from their respective upstream repositories listed above. Intel does
+not modify these components.
+
+Mozilla Public License Version 2.0 is available at:
+https://www.mozilla.org/en-US/MPL/2.0/
+
+-------------------------------------------------------------
+5. Software released under the Eclipse Public License 2.0 / Eclipse
+   Distribution License 1.0 (EPL-2.0 / EDL-1.0)
+
+paho-mqtt 1.6.1 (dual-licensed EPL-2.0 / EDL-1.0)
+Copyright (c) 2013, 2016, 2018 Eclipse Foundation
+https://github.com/eclipse-paho/paho.mqtt.python
+
+Eclipse Public License 2.0 is available at:
+https://www.eclipse.org/legal/epl-2.0/
+
+Eclipse Distribution License 1.0 is available at:
+https://www.eclipse.org/org/documents/edl-v10.php
+
+-------------------------------------------------------------
+6. Software released under the GNU General Public License version 2 (GPL-2)
+   (dynamically linked, unmodified system libraries only)
+
+libgdbm-compat4t64 1.24-2 (Debian package)
+libgssapi-krb5-2 / libk5crypto3 / libkrb5-3 / libkrb5support0 1.21.3-5 (Debian package)
+libkeyutils1 1.6.3-6 (Debian package; GPL-2 selected)
+librtmp1 2.4+20151223.gitfa8646d.1-2+b5 (Debian package; GPL-2 selected)
+liberror-perl 0.17030-1 (Debian package; MIT selected)
+
+These components are unmodified Debian system libraries dynamically linked
+inside the container. GPL-2 source code is available from the Debian project
+(https://www.debian.org/). Intel does not distribute modified versions of
+these libraries.
+
+GNU General Public License version 2 is available at:
+https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+
+-------------------------------------------------------------
+7. Software released under the Python Software Foundation License version 2
+   (PSF-2.0)
+
+aiohappyeyeballs 2.6.1
+Copyright (c) 2001 Python Software Foundation; All Rights Reserved.
+
+typing-extensions 4.15.0
+Copyright (c) 2001 Python Software Foundation; All Rights Reserved.
+https://github.com/python/typing_extensions
+
+Python Software Foundation License version 2 is available at:
+https://docs.python.org/3/license.html

@@ -187,7 +187,7 @@ MODEL_TESTS = [
     ("CLIP/clip-vit-b-16", "A beautiful sunset over the ocean"),
     ("MobileCLIP/mobileclip_s0", "A red car on a mountain road"),
     ("SigLIP/siglip2-vit-b-16", "A modern cityscape at night"),
-    ("Blip2/blip2_transformers", "A peaceful forest with tall trees"),
+    ("Blip2/blip2", "A peaceful forest with tall trees"),
     ("QwenText/qwen3-embedding-0.6b", "Explain gravity in simple words"),
 ]
 
@@ -568,7 +568,7 @@ def example_cross_project_integration():
         traceback.print_exc()
 
 
-def example_blip2_transformers():
+def example_blip2():
     """Example: BLIP2 with Transformers (resolves vocabulary mismatch)"""
     print("=" * 50)
     print("BLIP2 Transformers Example (Vocab Fix)")
@@ -577,7 +577,7 @@ def example_blip2_transformers():
     try:
         # Use the new Transformers-based BLIP2 implementation
         print("Using BLIP2 Transformers implementation...")
-        handler = get_model_handler("Blip2/blip2_transformers")
+        handler = get_model_handler("Blip2/blip2")
         print(f"Model: {handler.model_config['model_name']}")
         print(f"Handler: {handler.__class__.__name__}")
 
@@ -644,7 +644,7 @@ def example_blip2_transformers():
         return False
 
 
-def example_blip2_transformers_openvino():
+def example_blip2_openvino():
     """Example: BLIP2 Transformers with OpenVINO acceleration"""
     print("=" * 50)
     print("BLIP2 Transformers + OpenVINO Example")
@@ -655,11 +655,11 @@ def example_blip2_transformers_openvino():
         print("Using BLIP2 Transformers with OpenVINO acceleration...")
         
         # Setup OpenVINO models directory
-        ov_dir = OV_BASE_DIR / "blip2_transformers"
+        ov_dir = OV_BASE_DIR / "blip2"
         ov_dir.mkdir(parents=True, exist_ok=True)
         
         handler = get_model_handler(
-            "Blip2/blip2_transformers", 
+            "Blip2/blip2", 
             use_openvino=True,
             device="CPU",
             ov_models_dir=str(ov_dir)
@@ -755,8 +755,8 @@ def main():
         # Run existing examples
         example_list_available_models()
         example_qwen_text_embedding()
-        example_blip2_transformers()
-        example_blip2_transformers_openvino()
+        example_blip2()
+        example_blip2_openvino()
         example_all_models_native_and_openvino()
         
         # Run cross-project integration example
@@ -773,7 +773,7 @@ def main():
         print("   4. Initialize once and reuse the embedding client")
         print("   5. Consider using OpenVINO for production performance")
         print("   6. Handle exceptions gracefully in your application")
-        print("   7. Use Blip2/blip2_transformers to avoid vocabulary issues")
+        print("   7. Use Blip2/blip2 to avoid vocabulary issues")
         
     except Exception as e:
         print(f"Error running examples: {e}")

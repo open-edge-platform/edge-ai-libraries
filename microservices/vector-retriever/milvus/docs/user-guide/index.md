@@ -8,12 +8,15 @@
 </div>
 hide_directive-->
 
-Retrieve relevant visual data from a vector database using text or image queries
+Retrieve relevant visual data from a vector database using text or image queries.
 
 ## Overview
-The Vector Retriever microservice is designed to search visual data efficiently by querying embeddings stored in a vector database. It uses the CLIP model's text and image encoders to transform user queries into embeddings and perform similarity search for accurate retrieval.
 
-### Key Features:
+The Vector Retriever microservice is designed to search visual data efficiently by querying
+embeddings stored in a vector database. It uses the CLIP model's text and image encoders to
+transform user queries into embeddings and perform similarity search for accurate retrieval.
+
+### Key Features
 
 - Text-to-Image Retrieval:
 
@@ -41,7 +44,8 @@ The Vector Retriever microservice is designed to search visual data efficiently 
 
 ## How It Works
 
-The Vector Retriever microservice provides efficient semantic retrieval over visual datasets by searching embedding vectors stored in Milvus.
+The Vector Retriever microservice provides efficient semantic retrieval over visual datasets
+by searching embedding vectors stored in Milvus.
 
 - Query Encoding:
 
@@ -83,7 +87,7 @@ The Vector Retriever microservice provides efficient semantic retrieval over vis
 
 get-started
 api-reference
-release-notes
+Release Notes <./release-notes.md>
 
 :::
 hide_directive-->

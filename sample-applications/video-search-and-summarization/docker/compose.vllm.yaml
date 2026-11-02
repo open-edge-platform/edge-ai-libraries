@@ -6,22 +6,18 @@ services:
   vllm-cpu-service:
     profiles:
       - vllm
-    image: ${VLLM_IMAGE:-public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.17.1}
+    image: ${VLLM_IMAGE:-vllm/vllm-openai-cpu:v0.31.0}
     hostname: vllm-cpu-service
     ports:
       - "${VLLM_HOST_PORT:-8200}:8000"
     ipc: "host"
     environment:
-      no_proxy: ${no_proxy},${MINIO_HOST},localhost
+      no_proxy: ${no_proxy},minio-service,localhost
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       HUGGING_FACE_HUB_TOKEN: ${HUGGINGFACE_TOKEN:-}
       HF_HOME: /cache
       VLLM_CPU_KVCACHE_SPACE: ${VLLM_CPU_KVCACHE_SPACE:-48}
-      VLLM_RPC_TIMEOUT: ${VLLM_RPC_TIMEOUT:-100000}
-      VLLM_ALLOW_LONG_MAX_MODEL_LEN: ${VLLM_ALLOW_LONG_MAX_MODEL_LEN:-1}
-      VLLM_ENGINE_ITERATION_TIMEOUT_S: ${VLLM_ENGINE_ITERATION_TIMEOUT_S:-120}
-      VLLM_CPU_NUM_OF_RESERVED_CPU: ${VLLM_CPU_NUM_OF_RESERVED_CPU:-0}
       VLLM_LOGGING_LEVEL: ${VLLM_LOGGING_LEVEL:-INFO}
     command:
       - "--model"
@@ -65,9 +61,9 @@ services:
       vllm-cpu-service:
         condition: service_healthy
     environment:
-      no_proxy: ${no_proxy},${EVAM_HOST},${VLM_HOST},${AUDIO_HOST},${RABBITMQ_HOST},${MINIO_HOST},${POSTGRES_HOST},${OVMS_HOST},${VDMS_DATAPREP_HOST},${VS_HOST},${VLLM_HOST},localhost
-      LLM_SUMMARIZATION_API: ${VLLM_ENDPOINT}
-      VLM_CAPTIONING_API: ${VLLM_ENDPOINT}
+      no_proxy: ${no_proxy},${EVAM_HOST:-video-ingestion},${VLM_HOST:-ovms-service},${AUDIO_HOST:-audio-analyzer},${RABBITMQ_HOST:-rabbitmq-service},${MINIO_HOST:-minio-service},${POSTGRES_HOST:-postgres-service},${OVMS_HOST:-ovms-service},${MM_DATAPREP_HOST:-multimodal-dataprep},${VS_HOST:-video-search},${VLLM_HOST:-vllm-cpu-service},localhost
+      LLM_SUMMARIZATION_API: ${VLLM_ENDPOINT:-http://vllm-cpu-service:8000/v1}
+      VLM_CAPTIONING_API: ${VLLM_ENDPOINT:-http://vllm-cpu-service:8000/v1}
       USE_VLLM: "CONFIG_ON"
 
 volumes:

@@ -99,7 +99,15 @@ This ensures consistent score ranges across queries while preserving relative or
 | `contextual_weight` | Gaussian weight in $[0,1]$ describing proximity to the global best frame. |
 | `contextual_boost_factor` | The configured `boost_strength`. |
 | `raw_score` | Pre-normalization score $s_{\text{raw}}$ before min-max scaling. |
+| `raw_score_min` | Lowest raw score across all segments scored for this query. |
+| `raw_score_max` | Highest raw score across all segments scored for this query. |
 | `score` | Final normalized value $s_{\text{final}} \in [0,1]$ used for ranking. |
+
+> `raw_score_min` / `raw_score_max` describe the query-local range used for
+> normalization. They make an individual `raw_score` interpretable — the UI uses
+> them to show where a result sits within the spread of the current query.
+> Because both `raw_score` and `score` are query-relative, `max_frame_score` is
+> the only near-absolute signal of whether a clip genuinely matches.
 
 ---
 
@@ -111,7 +119,7 @@ All knobs are surfaced as environment variables (and mirrored in `config.yaml`).
 | --- | --- | --- | --- |
 | `AGGREGATION_ENABLED` | `true` | Master switch for aggregation. When `false`, we return raw frame hits. | Disable only for debugging or when aggregation latency must be zero. |
 | `AGGREGATION_INITIAL_K` | `1000` | Size of the frame pool fetched from VDMS before aggregation. | Increase for long videos or very diverse scenes; decrease to reduce VDMS load. |
-| `AGGREGATION_SEGMENT_DURATION` | `8` | Segment length (seconds). | Shorten for fast action scenes; lengthen for slow-moving footage. |
+| `AGGREGATION_SEGMENT_DURATION` | `10` | Segment length (seconds). | Shorten for fast action scenes; lengthen for slow-moving footage. |
 | `AGGREGATION_MIN_GAP` | `0` | Minimum allowed gap between winning segments from the same video. | Raise to suppress near-duplicates; keep at `0` for continuous coverage. |
 | `AGGREGATION_MAX_RESULTS` | `20` | Final number of video segments returned. | Trim for snappier UX or expand for investigative tooling. |
 | `AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS` | `0.0` | How far to rewind from the best frame when choosing the seek timestamp. | Add 1–2 s to give viewers extra context before the key moment. |

@@ -5,6 +5,7 @@
 #
 
 import os
+import faulthandler
 import json
 import signal
 import sys
@@ -16,7 +17,6 @@ from src.manager import PipelineServerManager
 from src.config import PipelineServerConfig
 from src.common.log import get_logger
 from src.rest_api.server import RestServer
-from src.model_updater import ModelRegistryClient
 from src.opentelemetry.opentelemetryexport import OpenTelemetryExporter
 
 VERSION = "2025.2.0"
@@ -53,6 +53,9 @@ def sig_cleanup_handler(sig, *args):
 signal.signal(signal.SIGINT, sig_cleanup_handler)
 signal.signal(signal.SIGTERM, sig_cleanup_handler)
 signal.signal(signal.SIGABRT, sig_cleanup_handler)
+# "kill -USR1 <pid>" prints the stack of every Python thread to stderr (the container log): shows where a hung
+# server (for example an RTSP server that stopped answering) is blocked, without needing ptrace.
+faulthandler.register(signal.SIGUSR1, all_threads=True)
 
 
 def watch_file_cbfunc():
@@ -102,14 +105,6 @@ def main(cfg: PipelineServerConfig):
     app_cfg = cfg.get_app_config()
     log.info(json.dumps(app_cfg,indent=4))
 
-    model_registry_client = ModelRegistryClient()
-    if model_registry_client.is_ready:
-        model_registry_client.start_download_models(pipelines_cfg=cfg.get_pipelines_config())
-        model_path_dict = model_registry_client.get_model_path(cfg.get_pipelines_config())
-        log.info("Model Path Dict: %s", model_path_dict)
-        if model_path_dict:
-            cfg.update_pipeline_config(model_path_dict)
-
     # define pipeline server and pipelines
     pipeline_server_mgr = PipelineServerManager(cfg,pipeline_root="/var/cache/pipeline_root")
 
@@ -118,7 +113,7 @@ def main(cfg: PipelineServerConfig):
 
     # start rest api server
     try:
-        rest_server = RestServer(pipeline_server_mgr, model_registry_client)
+        rest_server = RestServer(pipeline_server_mgr)
         rest_server.start()
     except Exception as e:
         log.error('Exception in starting REST server: {}'.format(e))

@@ -1,6 +1,7 @@
 """Functional test covering pipeline optimization flows."""
 
 import logging
+import re
 
 import pytest
 import requests
@@ -55,13 +56,16 @@ OPTIMIZATION_CASES = [
 
 
 def _required_families_for_variant(variant_id: str) -> set[str]:
-    """Return device families a variant id encodes (e.g. ``gpu_npu`` -> {GPU, NPU}).
+    """Return device families a variant id encodes (e.g. ``gpu-npu`` -> {GPU, NPU}).
+
+    Variant identifiers may use either ``_`` or ``-`` as separators
+    (e.g. ``gpu_npu`` or ``gpu-npu``); both are accepted.
 
     Only families listed in :data:`SUPPORTED_DEVICE_FAMILIES` are
     returned; unknown tokens are ignored so the function never asks for
     something the host could not advertise.
     """
-    tokens = {part.upper() for part in variant_id.split("_") if part}
+    tokens = {part.upper() for part in re.split(r"[-_]", variant_id) if part}
     return tokens & SUPPORTED_DEVICE_FAMILIES
 
 

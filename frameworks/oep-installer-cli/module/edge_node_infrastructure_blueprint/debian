@@ -1,0 +1,94 @@
+
+configure_edge_node_infrastructure_blueprint () {
+  workspace="$(ensure_project_path)/edge_node_infrastructure_blueprint"
+  version=enib-packages-installer
+  repository=https://github.com/open-edge-platform/edge-node-infrastructure-blueprint.git
+  # deployment model: --docker/--k3s may be global, scoped to this component, or scoped to
+  # any component that depends on it (e.g. --handheld_multi_modal --k3s). --docker is
+  # detected anywhere. Without a selection, keep the installed model, or default to docker.
+  installed_deployment="$(cat "$workspace"/.oep-deployment 2>/dev/null || true)"
+  local k3s=0 m scoped
+  [[ " $* " != *" --k3s "* ]] || k3s=1
+  for m in ${_act_cache_names[*]:-}; do
+    [[ "$m" != edge_node_infrastructure_blueprint && " ${_act_args:-} " = *" --$m "* ]] || continue
+    [[ " $(act_expand_modules install "$m" ${_act_args:-}) " = *" edge_node_infrastructure_blueprint "* ]] || continue
+    scoped="$(act_extract_args install "$m" "" ${_act_args:-})"
+    [[ " ${scoped#* -- } " != *" --k3s "* ]] || k3s=1
+  done
+  deployment_conflict=0
+  if [[ " ${_act_args:-} " = *" --docker "* ]]; then
+    deployment=docker
+    [ $k3s -eq 0 ] || deployment_conflict=1
+  elif [ $k3s -eq 1 ]; then
+    deployment=k3s
+  else
+    deployment=${installed_deployment:-docker}
+  fi
+}
+
+# Tear down the K3s runtime installed by this blueprint (the upstream K3s installer places its
+# binaries, data and systemd service outside the workspace). Only runs when the blueprint
+# recorded a k3s installation; shared components such as Docker and Helm are left intact.
+uninstall_k3s_edge_node_infrastructure_blueprint () {
+  [ "$installed_deployment" = k3s ] || return 0
+  local script found=0 kubeconfig=0
+  # the blueprint copies the K3s kubeconfig to ~/.kube/config; drop it only if unchanged
+  [ ! -f "$HOME"/.kube/config ] || ! ensure_sudo cmp -s /etc/rancher/k3s/k3s.yaml "$HOME"/.kube/config || kubeconfig=1
+  for script in /usr/local/bin/k3s-uninstall.sh /usr/local/bin/k3s-agent-uninstall.sh; do
+    [ -x "$script" ] || continue
+    found=1
+    echo "Removing the K3s runtime ($script)..."
+    ensure_sudo "$script"
+  done
+  [ $found -eq 1 ] || echo "K3s uninstall script not found; assuming K3s was already removed."
+  [ $kubeconfig -eq 0 ] || rm -f "$HOME"/.kube/config
+  rm -f "$workspace"/.oep-deployment
+  installed_deployment=
+}
+
+verify_edge_node_infrastructure_blueprint () {
+  [ "$installed_deployment" = "$deployment" ]
+}
+
+debian_60_profile_edge_node_infrastructure_blueprint () {
+  echo "git make curl docker_io"
+}
+
+debian_60_install_edge_node_infrastructure_blueprint () {
+  configure_edge_node_infrastructure_blueprint $*
+  if [ $deployment_conflict -eq 1 ]; then
+    echo "Conflicting deployment models: select either --docker or --k3s." 1>&2
+    return 1
+  fi
+  # handheld_multi_modal publishes TCP 6443, which is also the K3s API server port
+  if [ "$deployment" = k3s ] && { [[ " $* " = *" handheld_multi_modal "* ]] || [ -d "$(ensure_project_path)/$installer_name/installed/handheld_multi_modal" ]; }; then
+    echo "The K3s deployment model is not yet supported with handheld_multi_modal (both use TCP port 6443)." 1>&2
+    echo "Use the Docker deployment model (to switch: openedge-cli install edge_node_infrastructure_blueprint --reinstall --docker)." 1>&2
+    return 1
+  fi
+  if [ -n "$installed_deployment" ] && [ "$installed_deployment" != "$deployment" ] && [[ " $* " != *" --reinstall "* ]]; then
+    echo "edge_node_infrastructure_blueprint is installed with $installed_deployment, but $deployment was requested." 1>&2
+    echo "To switch, run: openedge-cli install edge_node_infrastructure_blueprint --reinstall --$deployment" 1>&2
+    return 1
+  fi
+  if verify_edge_node_infrastructure_blueprint && [[ " $* " != *" --reinstall "* ]]; then
+    echo "edge_node_infrastructure_blueprint ($deployment) is installed." >&2
+  else
+    # switching away from k3s: stop and remove its runtime so it no longer holds TCP 6443
+    [ "$deployment" = k3s ] || uninstall_k3s_edge_node_infrastructure_blueprint
+    ensure_git_clone "$workspace" $version $repository
+    cd "$workspace"
+    ensure_sudo make $deployment
+    echo "$deployment" > "$workspace"/.oep-deployment
+    installed_deployment=$deployment
+    verify_edge_node_infrastructure_blueprint
+  fi
+  echo "@@HIGHLIGHT deployment model: $deployment"
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
+}
+
+debian_60_remove_edge_node_infrastructure_blueprint () {
+  configure_edge_node_infrastructure_blueprint $*
+  uninstall_k3s_edge_node_infrastructure_blueprint
+  ensure_rm "$workspace"
+}

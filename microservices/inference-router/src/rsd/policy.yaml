@@ -1,0 +1,26 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+policies:
+  - name: Balanced
+    criterion: FirstMatch
+    strategies:
+      - Planning
+      - DataAnalysis
+      - ContextLengthQuality
+
+  - name: CostFirst
+    criterion: FirstMatch
+    strategies:
+      - ZeroCost
+
+  - name: ModelBased
+    criterion: FirstMatch
+    strategies:
+      - ModelBasedRouting
+
+  - name: PerformanceFirst
+    criterion: FirstMatch
+    strategies:
+      - PerformanceBased
+      - ZeroCost          # fallback when no provider clears the perf thresholds

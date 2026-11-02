@@ -1,8 +1,12 @@
 multimodalembeddingms:
   enabled: true
-vdmsdataprep:
+multimodaldataprep:
   enabled: true
+  liveStream:
+    enabled: true
 vdmsvectordb:
+  enabled: true
+vectorretriever:
   enabled: true
 videosearch:
   enabled: true
@@ -10,9 +14,6 @@ videosearch:
 global:
   # vdmsIndexName is the DB Index or DB Collection name used by VDMS Vector DB.
   vdmsIndexName: "video_frame_embeddings"
-
-  # sharedPvcName is the PVC shared by VDMS Dataprep and Multimodel-Embedding-MS subcharts.
-  sharedPvcName: "vss-shared-pvc"
 
 pipelinemanager:
   env:
@@ -26,3 +27,4 @@ searchui:
     summary: "FEATURE_OFF"
     search: "FEATURE_ON"
     mux: "ATOMIC"
+    liveStreams: "FEATURE_ON"

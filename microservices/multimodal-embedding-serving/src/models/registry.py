@@ -26,8 +26,8 @@ from .handlers import (
     CNClipHandler,
     MobileCLIPHandler,
     SigLIPHandler,
+    SigLIPTransformersHandler,
     BLIP2Handler,
-    BLIP2TransformersHandler,
     QwenEmbeddingHandler,
 )
 from .config import get_model_config, list_available_models
@@ -40,8 +40,8 @@ MODEL_HANDLER_REGISTRY: Dict[str, Type[BaseEmbeddingModel]] = {
     "CNClipHandler": CNClipHandler,
     "MobileCLIPHandler": MobileCLIPHandler,
     "SigLIPHandler": SigLIPHandler,
+    "SigLIPTransformersHandler": SigLIPTransformersHandler,
     "BLIP2Handler": BLIP2Handler,
-    "BLIP2TransformersHandler": BLIP2TransformersHandler,
     "QwenEmbeddingHandler": QwenEmbeddingHandler,
 }
 

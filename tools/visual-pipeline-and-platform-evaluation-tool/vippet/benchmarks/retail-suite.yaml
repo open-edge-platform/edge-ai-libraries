@@ -1,0 +1,33 @@
+name: Retail Suite
+description: Retail benchmark suite covering retail analytics pipelines.
+workloads:
+  - pipeline_id: age-gender-recognition
+    variants:
+      - name: cpu
+        number_of_streams: [1, 4, 8, 12]
+      - name: gpu
+        number_of_streams: [1, 4, 8, 12]
+      - name: npu
+        number_of_streams: [1, 4, 8, 12]
+  - pipeline_id: goods-detection
+    variants:
+      - name: cpu
+        number_of_streams: [1, 4, 8, 12]
+      - name: gpu
+        number_of_streams: [1, 4, 8, 12]
+      - name: npu
+        number_of_streams: [1, 4, 8, 12]
+  - pipeline_id: goods-detection-classification
+    variants:
+      - name: cpu
+        number_of_streams: [1, 4, 8, 12]
+      - name: gpu
+        number_of_streams: [1, 4, 8, 12]
+      - name: npu
+        number_of_streams: [1, 4, 8, 12]
+  - pipeline_id: segmentation
+    variants:
+      - name: cpu
+        number_of_streams: [1, 4, 8, 12]
+      - name: gpu
+        number_of_streams: [1, 4, 8, 12]

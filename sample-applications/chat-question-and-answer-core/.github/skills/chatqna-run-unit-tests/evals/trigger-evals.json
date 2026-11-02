@@ -1,0 +1,50 @@
+[
+    {
+        "query": "I changed backend API handlers. Run unit tests for chatqna.",
+        "should_trigger": true
+    },
+    {
+        "query": "I updated UI components and redux slices. Please run UI unit tests.",
+        "should_trigger": true
+    },
+    {
+        "query": "Run backend tests with pytest for openvino runtime.",
+        "should_trigger": true
+    },
+    {
+        "query": "Run all unit tests with coverage for backend and frontend.",
+        "should_trigger": true
+    },
+    {
+        "query": "Execute vitest tests for the ui project and show failures.",
+        "should_trigger": true
+    },
+    {
+        "query": "Run pytest for tests/test_server.py only with ollama runtime.",
+        "should_trigger": true
+    },
+    {
+        "query": "I made code changes in app/ and ui/, validate with unit tests.",
+        "should_trigger": true
+    },
+    {
+        "query": "I changed backend code but do not run tests.",
+        "should_trigger": false
+    },
+    {
+        "query": "Skip unit tests for this change; just patch the code.",
+        "should_trigger": false
+    },
+    {
+        "query": "Deploy chatqna with docker compose and verify health endpoint.",
+        "should_trigger": false
+    },
+    {
+        "query": "Deploy chatqna to kubernetes using helm values overrides.",
+        "should_trigger": false
+    },
+    {
+        "query": "Build chatqna backend and ui images from source.",
+        "should_trigger": false
+    }
+]

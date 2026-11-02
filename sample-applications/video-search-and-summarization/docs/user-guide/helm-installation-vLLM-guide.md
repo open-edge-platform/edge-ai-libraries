@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide covers deploying the Video Search and Summarization (VSS) application on Kubernetes using **vLLM** as the LLM inference backend. vLLM provides an OpenAI-compatible API for efficient CPU-based inference on Intel Xeon systems - no GPU required.
+This guide covers deploying the Video Search and Summarization (VSS) application on Kubernetes using **vLLM** as the LLM inference backend. vLLM provides an OpenAI-compatible API for efficient CPU-based inference on Intel Xeon systems - no GPU required. It can also run on an Intel® Arc™ GPU; see [Deploying on an Intel Arc GPU (XPU)](#deploying-on-an-intel-arc-gpu-xpu).
 
 This is one of several supported deployment configurations. For an overview of all configurations (including OVMS, VLM Microservice, and GPU-based deployment), see [Deploy with Helm](./deploy-with-helm.md). For a conceptual overview of how VSS works, see [How It Works](./how-it-works.md).
 
@@ -20,6 +20,8 @@ For best performance, **Intel® Xeon® 6 Processors** are recommended.
 | RAM Memory | Minimum 256GB total system memory |
 | Disk Space | Minimum 500GB (SSD recommended for optimal performance) |
 | Storage | Dynamic storage provisioning capability (NFS or local storage) |
+
+For GPU-accelerated deployment, an Intel® Arc™ or Arc™ Pro GPU with 16 GB or more of memory is recommended. Cards with less memory need the additional tuning described in [Deploying on an Intel Arc GPU (XPU)](#deploying-on-an-intel-arc-gpu-xpu).
 
 ### Software Requirements
 
@@ -65,7 +67,7 @@ nano user_values_override.yaml
 | --- | --- | --- |
 | `global.sharedPvcName` | Name of the shared PVC for all components | `vss-shared-pvc` |
 | `global.huggingfaceToken` | Hugging Face API token for model access | `hf_xxxxxxxxxxxxxxxxxxxx` |
-| `global.vlmName` | Vision Language Model used for video analysis | `Qwen/Qwen2.5-VL-3B-Instruct` |
+| `global.vlmName` | Vision Language Model used for video analysis | `Qwen/Qwen3-VL-4B-Instruct` |
 | `global.env.POSTGRES_USER` | PostgreSQL username | `vsadmin` |
 | `global.env.POSTGRES_PASSWORD` | PostgreSQL password | `<secure-password>` |
 | `global.env.MINIO_ROOT_USER` | MinIO username (min 3 chars) | `minioadmin` |
@@ -96,7 +98,6 @@ The `xeon_vllm_values.yaml` override file (included in the chart) pre-configures
 | `vllm.modelCachePath` | Model cache mount path in the pod | `/cache/vllm` | Uses shared PVC |
 
 > **Model selection**: `vllm.enabled: true` (set by `xeon_vllm_values.yaml`) automatically disables the VLM Inference Microservice (`vlminference.enabled: false`). vLLM uses the model specified in `global.vlmName`; ensure it is compatible with vLLM and available on Hugging Face.
-
 
 ## Step 3: Build Helm Dependencies
 
@@ -130,6 +131,7 @@ kubectl create namespace ${NAMESPACE}
 Choose the deployment mode that fits your use case. In both cases, `xeon_vllm_values.yaml` enables vLLM and configures resource allocations for Intel Xeon CPUs.
 
 > **Switching modes**: Always uninstall the current release before switching to a different mode:
+>
 > ```bash
 > helm uninstall vss -n ${NAMESPACE}
 > ```
@@ -158,7 +160,7 @@ helm install vss . \
   -n ${NAMESPACE}
 ```
 
-> **Requirement:** The chart will raise an error if `global.embeddingModelName` is not set. Review the supported model list in [supported-models](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
+> **Requirement:** The chart will raise an error if `global.embeddingModelName` is not set. Review the supported model list in [supported-models](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/supported-models.html) before choosing model IDs.
 
 **Understanding the override files:**
 
@@ -167,7 +169,54 @@ helm install vss . \
 | `summary_override.yaml` | Enables the summarization pipeline |
 | `unified_summary_search.yaml` | Enables combined search and summarization |
 | `xeon_vllm_values.yaml` | Enables vLLM, disables VLM Microservice, sets Xeon-optimized resource allocations |
+| `arc_vllm_values.yaml` | Same, but targets an Intel Arc GPU instead of the CPU (see [Deploying on an Intel Arc GPU (XPU)](#deploying-on-an-intel-arc-gpu-xpu)) |
 | `user_values_override.yaml` | Your credentials, model selections, and environment-specific overrides |
+
+---
+
+## Deploying on an Intel Arc GPU (XPU)
+
+vLLM can run on an Intel® Arc™ or Arc™ Pro GPU instead of the CPU. Use `arc_vllm_values.yaml` everywhere this guide uses `xeon_vllm_values.yaml`:
+
+```bash
+helm install vss . \
+  -f summary_override.yaml \
+  -f arc_vllm_values.yaml \
+  -f user_values_override.yaml \
+  -n ${NAMESPACE}
+```
+
+### Additional prerequisites
+
+| Requirement | How to check |
+| --- | --- |
+| [Intel GPU device plugin](https://github.com/intel/intel-device-plugins-for-kubernetes) installed, advertising the GPU as a schedulable resource | `kubectl get nodes -o jsonpath='{.items[*].status.allocatable}'` — look for `gpu.intel.com/i915` (i915 kernels) or `gpu.intel.com/xe` (newer Xe kernels) |
+| `/dev/dri` present on the GPU node | `ls -l /dev/dri` |
+| `global.accelGroupIds` matches the host group IDs owning `/dev/dri` | `ls -ln /dev/dri` |
+
+`global.accelGroupIds` is added to the pod's `supplementalGroups` so the container user can open the device. This mirrors `group_add` in the Compose deployment. The chart default is `992`.
+
+### XPU-specific parameters
+
+| Key | Description | Default |
+| --- | --- | --- |
+| `vllm.device` | Selects the vLLM backend. `XPU` switches to the Intel GPU image and arguments. | `CPU` |
+| `vllm.gpu.key` | Device plugin resource key. **Required** when `device` is `XPU`; rendering fails if it is empty. | `gpu.intel.com/i915` |
+| `vllm.gpu.devicePath` | Host path to the GPU device nodes, mounted into the pod. | `/dev/dri` |
+| `vllm.model.gpuMemoryUtilization` | Fraction of GPU memory vLLM may reserve for weights, activations, and KV cache. | `0.8` |
+| `vllm.model.mmMaxPixels` | Maximum pixels per frame. Caps frame resolution, not frame count. | `16777216` |
+| `vllm.model.enforceEager` | Skips graph capture. Required on the XPU backend. | `true` |
+
+If your device plugin advertises a different resource key, override it:
+
+```yaml
+vllm:
+  gpu:
+    key: "gpu.intel.com/xe"
+```
+
+> [!IMPORTANT]
+> **GPUs with less than 16 GB (for example Intel Arc B580, 12 GB):** the defaults above fail to start with `No available memory for the cache blocks`. Use the FP8 checkpoint together with the reduced settings commented at the bottom of `arc_vllm_values.yaml`; all of them are required together. See [Troubleshooting](./troubleshooting.md#vllm-xpu-fails-to-start-with-no-available-memory-for-the-cache-blocks) for the sizing formula and how to derive values for other cards.
 
 ---
 
@@ -198,7 +247,6 @@ echo "http://${NGINX_HOST}:${NGINX_PORT}"
 Open the URL in your browser to access the VSS dashboard.
 
 ---
-
 
 ## Managing the Deployment
 
@@ -233,4 +281,5 @@ helm uninstall vss -n ${NAMESPACE}
 kubectl delete namespace ${NAMESPACE}
 ```
 
+> [!NOTE]
 > By default, PVCs are deleted with the Helm release. If you set `global.keepPvc: true`, PVCs are retained and reusable in future deployments to avoid re-downloading models.

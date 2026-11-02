@@ -1,9 +1,11 @@
 {{- $mmDevice := default "CPU" .Values.global.devices.multimodalEmbedding.device -}}
 {{- $mmKey := .Values.global.devices.multimodalEmbedding.key -}}
 {{- $mmUsesGpu := eq $mmDevice "GPU" -}}
-{{- /* Validate: key required when device is GPU */ -}}
-{{- if and $mmUsesGpu (not $mmKey) -}}
-{{- fail "global.devices.multimodalEmbedding.key is required when device is GPU" -}}
+{{- $mmUsesNpu := eq $mmDevice "NPU" -}}
+{{- $mmUsesAccelerator := or $mmUsesGpu $mmUsesNpu -}}
+{{- /* Validate: key required when device is GPU/NPU */ -}}
+{{- if and $mmUsesAccelerator (not $mmKey) -}}
+{{- fail "global.devices.multimodalEmbedding.key is required when device is GPU or NPU" -}}
 {{- end -}}
 apiVersion: apps/v1
 kind: Deployment
@@ -41,10 +43,16 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
+        {{- if $mmUsesAccelerator }}
+        supplementalGroups:
+          {{- range .Values.global.accelGroupIds }}
+          - {{ . }}
+          {{- end }}
+        {{- end }}
       containers:
         - name: {{ .Chart.Name }}
-          image: "{{ ternary .Values.image.gpu.repository .Values.image.cpu.repository $mmUsesGpu }}:{{ ternary .Values.image.tag .Values.global.commonTag (empty .Values.global.commonTag) | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          image: "{{ include "vss.image" (dict "registry" .Values.global.registry "repository" (ternary .Values.image.gpu.repository .Values.image.cpu.repository $mmUsesGpu) "tag" (.Values.global.tag | default (ternary .Values.image.tag .Values.global.commonTag (empty .Values.global.commonTag) | default .Chart.AppVersion))) }}"
+          imagePullPolicy: {{ .Values.global.pullPolicy | default .Values.image.pullPolicy }}
           securityContext:
             privileged: false
           ports:
@@ -60,7 +68,7 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ include "multimodal-embedding-ms.fullname" . }}-config
-      {{- if $mmUsesGpu }}
+      {{- if $mmUsesAccelerator }}
           resources:
             requests:
               {{ $mmKey }}: 1
@@ -88,6 +96,14 @@ spec:
             - name: volume-data
               mountPath: /tmp/dataprep
               subPath: tmpvideos
+      {{- if $mmUsesGpu }}
+            - name: dri-device
+              mountPath: /dev/dri
+      {{- end }}
+      {{- if $mmUsesNpu }}
+            - name: accel-device
+              mountPath: /dev/accel
+      {{- end }}
       volumes:
         - name: tmp
           emptyDir: {}
@@ -96,9 +112,12 @@ spec:
           hostPath:
             path: /dev/dri
             type: Directory
-        - name: workspace
-          persistentVolumeClaim:
-            claimName: {{ include "multimodal-embedding-ms.fullname" . }}-gpu-pvc
+      {{- end }}
+      {{- if $mmUsesNpu }}
+        - name: accel-device
+          hostPath:
+            path: /dev/accel
+            type: Directory
       {{- end }}
       {{- if .Values.modelPvc.enabled }}
         - name: models-data
@@ -119,7 +138,7 @@ spec:
         - name: volume-data
           {{- if .Values.global.usePvc }}
           persistentVolumeClaim:
-            claimName: {{ .Values.global.sharedPvcName | default "vss-pvc" }}
+            claimName: {{ include "multimodal-embedding-ms.fullname" . }}-data-pvc
           {{- else if .Values.global.volumeHostPath }}
           hostPath:
             path: {{ .Values.global.volumeHostPath }}

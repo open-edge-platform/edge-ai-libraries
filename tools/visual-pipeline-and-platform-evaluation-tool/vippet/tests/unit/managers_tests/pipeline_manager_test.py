@@ -11,6 +11,7 @@ from internal_types import (
     InternalPipelineDefinition,
     InternalPipelinePerformanceSpec,
     InternalPipelineSource,
+    InternalPipelineType,
     InternalVariantCreate,
 )
 from managers.pipeline_manager import PipelineManager, METADATA_DIR
@@ -155,6 +156,7 @@ def create_pipeline_definition(
         name=name,
         description=description,
         source=InternalPipelineSource.USER_CREATED,
+        type=InternalPipelineType.VISION,
         tags=tags,
         variants=variants,
     )
@@ -335,10 +337,10 @@ class TestPipelineManager(unittest.TestCase):
         self.assertIsInstance(pipelines, list)
         self.assertGreaterEqual(len(pipelines), 1)
 
-        # Check that predefined pipelines have variants
+        # Variants unsupported on the current platform are filtered out on load,
+        # so a predefined pipeline may legitimately expose no variants here.
         for pipeline in pipelines:
             if pipeline.source == InternalPipelineSource.PREDEFINED:
-                self.assertGreater(len(pipeline.variants), 0)
                 for variant in pipeline.variants:
                     self.assertIsNotNone(variant.id)
                     self.assertIsNotNone(variant.name)
@@ -347,6 +349,23 @@ class TestPipelineManager(unittest.TestCase):
                     self.assertTrue(variant.read_only)
                     self.assertIsInstance(variant.created_at, datetime)
                     self.assertIsInstance(variant.modified_at, datetime)
+
+    def test_get_pipeline_names_by_id_returns_lightweight_mapping(self):
+        manager = PipelineManager()
+        new_pipeline = InternalPipelineDefinition(
+            name="Name Map Test Pipeline",
+            description="Test pipeline for id-name mapping",
+            source=InternalPipelineSource.USER_CREATED,
+            type=InternalPipelineType.VISION,
+            tags=[],
+            variants=[create_variant_create()],
+        )
+
+        added_pipeline = manager.add_pipeline(new_pipeline)
+
+        pipeline_names_by_id = manager.get_pipeline_names_by_id()
+
+        self.assertEqual(pipeline_names_by_id[added_pipeline.id], added_pipeline.name)
 
     def test_build_pipeline_command_single_pipeline_single_stream(self):
         manager = PipelineManager()
@@ -1949,9 +1968,8 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
         self.assertIn(pipeline_id, pipeline_cmd.metadata_file_paths)
         self.assertEqual(len(pipeline_cmd.metadata_file_paths[pipeline_id]), 2)
 
-    def test_metadata_mode_file_only_injects_paths_for_first_stream(self):
-        """Metadata paths must be returned as a single list regardless of stream count
-        (injection happens only for stream_index 0)."""
+    def test_metadata_mode_file_injects_unique_paths_for_all_streams(self):
+        """Each stream must have a distinct metadata file for every publisher."""
         pipeline_id = "/pipelines/with-publish/variants/cpu"
         specs = [
             InternalPipelinePerformanceSpec(
@@ -1969,9 +1987,12 @@ class TestBuildPipelineCommandExecutionConfig(unittest.TestCase):
             specs, execution_config, self.job_id
         )
 
-        # Paths list length equals number of gvametapublish nodes, NOT stream count
         self.assertIn(pipeline_id, pipeline_cmd.metadata_file_paths)
-        self.assertEqual(len(pipeline_cmd.metadata_file_paths[pipeline_id]), 1)
+        paths = pipeline_cmd.metadata_file_paths[pipeline_id]
+        self.assertEqual(len(paths), 3)
+        self.assertEqual(len(paths), len(set(paths)))
+        for path in paths:
+            self.assertIn(path, pipeline_cmd.command)
 
     def test_metadata_mode_file_multiple_pipelines_get_independent_paths(self):
         """Each pipeline in a multi-pipeline spec gets its own entry in metadata_file_paths."""
@@ -2244,7 +2265,10 @@ class TestPredefinedPipelinesStructure(unittest.TestCase):
         self.assertEqual(predefined_count, len(MOCK_PIPELINE_CONFIGS))
 
     @patch("managers.pipeline_manager.PipelineLoader")
-    def test_predefined_pipelines_have_multiple_variants(self, mock_loader_cls):
+    @patch("managers.pipeline_manager.is_variant_supported", return_value=True)
+    def test_predefined_pipelines_have_multiple_variants(
+        self, _mock_variant_supported, mock_loader_cls
+    ):
         """Verify predefined pipelines have multiple variants (CPU/GPU/NPU)."""
         mock_loader_cls.list.return_value = mock_pipeline_loader_list()
         mock_loader_cls.config.side_effect = mock_pipeline_loader_config

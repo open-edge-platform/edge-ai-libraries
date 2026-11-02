@@ -63,14 +63,45 @@ configured to match evaluation needs.
 **Visualization & Analysis**: Real-time performance metrics are displayed on the dashboard to enable comparison of
 configurations and optimization of settings.
 
+## Experimental Time Series setup
+
+The tool also includes an experimental Time Series deployment for testing pipeline variants that are separate from the
+standard application stack. This setup is managed through the Makefile targets shown below:
+
+```make
+build-experimental: env-setup ## Build core images for experimental timeseries setup
+
+run-experimental: env-setup ## Run the docker compose services with experimental timeseries features
+
+stop-experimental: ## Stop experimental docker compose services
+
+clean-experimental: ## Clean experimental setup artifacts
+```
+
+Use this flow when you want to build and start the experimental Time Series environment without affecting the main
+compose stack:
+
+1. Build the experimental images with `make build-experimental`.
+1. Start the services with `make run-experimental`.
+1. Stop them with `make stop-experimental` when testing is complete.
+1. Remove the generated containers and volumes with `make clean-experimental`.
+
+This keeps the experimental Time Series pipeline isolated behind the `compose.experimental.yml` override,
+layered on top of the standard `compose.yml` stack while still reusing the same hardware-specific profile
+selection from `setup_env.sh` and `.env`.
+
 ## Learn More
 
-- [System Requirements](docs/user-guide/get-started/system-requirements.md)
-- [Get Started](docs/user-guide/get-started.md)
-- [How to Build Source](docs/user-guide/get-started/build-from-source.md)
-- [How to Use ViPPET](docs/user-guide/use-vippet.md)
-- [How to Use Video Generator](docs/user-guide/how-to-guides/use-video-generator.md)
-- [Release Notes](docs/user-guide/release-notes.md)
+The following resources provide comprehensive guidance on installation, usage, and development of the Visual
+Pipeline and Platform Evaluation Tool:
+
+- [System Requirements](./docs/user-guide/get-started/installation/system-requirements.md)
+- [Installation](./docs/user-guide/get-started/installation.md)
+- [Quickstart Guide](./docs/user-guide/get-started/quickstart.md)
+- [Input Management](./docs/user-guide/user-guide/input-management.md)
+- [Architecture](./docs/user-guide/developer-guide/architecture.md)
+- [Troubleshooting](./docs/user-guide/troubleshooting.md)
+- [Release Notes](./docs/user-guide/release-notes.md)
 
 ## Contribution Rules
 

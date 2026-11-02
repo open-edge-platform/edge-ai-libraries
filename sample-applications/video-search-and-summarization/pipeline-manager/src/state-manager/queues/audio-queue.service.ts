@@ -24,6 +24,15 @@ export class AudioQueueService {
     private $config: ConfigService,
   ) {}
 
+  private getStorageObjectFileName(
+    objectPath: string,
+    fallbackFileName: string,
+  ): string {
+    // audio-analyzer resolves objects from video_id + video_name; this must match the stored object key.
+    const fileName = objectPath.split('/').pop()?.trim();
+    return fileName || fallbackFileName;
+  }
+
   @OnEvent(PipelineEvents.AUDIO_COMPLETE)
   async audioComplete({
     stateId,
@@ -39,7 +48,11 @@ export class AudioQueueService {
       try {
         const transcripts = await this.$audio.parseTranscript(minioPath);
         this.$state.audioComplete(stateId, { transcriptPath, transcripts });
-        if (state.systemConfig.audioUseFullTranscriptSummary && state.systemConfig.produceFinalSummary !== false) {
+        if (
+          transcripts.length > 0 &&
+          state.systemConfig.audioUseFullTranscriptSummary &&
+          state.systemConfig.produceFinalSummary !== false
+        ) {
           this.$emitter.emit(PipelineEvents.AUDIO_SUMMARY_TRIGGER, {
             stateId,
           });
@@ -47,6 +60,9 @@ export class AudioQueueService {
         this.$emitter.emit(PipelineEvents.CHECK_QUEUE_STATUS, [stateId]);
       } catch (error) {
         console.log('TRANSCRIPT ERROR', error);
+        this.$state.audioError(stateId);
+        this.$emitter.emit(PipelineEvents.AUDIO_ERROR, stateId);
+        this.$emitter.emit(PipelineEvents.CHECK_QUEUE_STATUS, [stateId]);
       }
     }
   }
@@ -67,6 +83,10 @@ export class AudioQueueService {
       const minio_bucket = this.$config.get<string>('datastore.bucketName')!;
 
       const model_name = state.systemConfig.audioModel;
+      const storageFileName = this.getStorageObjectFileName(
+        state.video.url,
+        state.video.dataStore.fileName,
+      );
 
       const transcriptDTO: AudioTranscriptDTO = {
         device,
@@ -74,7 +94,7 @@ export class AudioQueueService {
         minio_bucket,
         model_name,
         video_id: state.video.dataStore.objectName,
-        video_name: state.video.dataStore.fileName,
+        video_name: storageFileName,
       };
 
       console.log('AUDIO CALL', transcriptDTO);
@@ -95,6 +115,7 @@ export class AudioQueueService {
         error: (err) => {
           console.log('AUDIO ERROR', err.data);
           this.audioProcessing.delete(stateId);
+          this.$state.audioError(stateId);
           this.$emitter.emit(PipelineEvents.AUDIO_ERROR, stateId);
           this.$emitter.emit(PipelineEvents.CHECK_QUEUE_STATUS, [stateId]);
         },

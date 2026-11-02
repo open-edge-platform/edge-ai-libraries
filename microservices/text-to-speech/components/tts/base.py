@@ -64,6 +64,20 @@ class BaseTTSService(PipelineComponent, ABC):
     def get_model_info(self) -> dict:
         raise NotImplementedError
 
+    def synthesize_stream(
+        self,
+        text: str,
+        language: str | None = None,
+        speaker: str | None = None,
+        instructions: str | None = None,
+    ):
+        """Yield synthesized audio in chunks. Default is a single full chunk.
+
+        Backends that decode incrementally (e.g. Kokoro) override this to emit
+        one chunk per phrase for lower time-to-first-audio.
+        """
+        yield self.synthesize(text, language, speaker, instructions)
+
     def _build_result(
         self,
         audio: np.ndarray,

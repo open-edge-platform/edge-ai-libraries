@@ -4,7 +4,7 @@ This microservice can be run as an ephemeral (one-shot) container that downloads
 
 ## Prerequisites
 
-- Docker installed and running. Installation guide [here](https://docs.docker.com/engine/install/ubuntu/)
+- Docker installed and running. Follow [the installation guide](https://docs.docker.com/engine/install/ubuntu/)
 - `curl` and `python3` available on the host
 
 ---
@@ -68,12 +68,12 @@ curl -sSLO https://raw.githubusercontent.com/open-edge-platform/edge-ai-librarie
 | Argument | Description | Required |
 |----------|-------------|----------|
 | `--model-name <name>` | Model identifier (e.g. `meta-llama/Llama-3.2-1B`) | Yes |
-| `--hub <hub>` | Source hub: `huggingface`, `ultralytics`, `ollama`, `openvino`, `geti`, `hls` | Yes |
+| `--hub <hub>` | Source hub: `huggingface`, `ultralytics`, `pipeline-zoo-models`, `remote-url`, `omz`, `ollama`, `openvino`, `geti`, `hls` | Yes |
 | `--type <type>` | Model type: `llm`, `vlm`, `embeddings`, `rerank`, `vision`, `3d-pose`, `rppg`, `ai-ecg` | No |
 | `--revision <rev>` | Branch, tag, or commit hash | No |
 | `--is-ovms` | Convert to OpenVINO format after downloading | No |
 | `--precision <prec>` | Weight precision: `int4`, `int8`, `fp16`, `fp32` (default: `int8`) | No |
-| `--device <dev>` | Target device: `CPU`, `GPU`, `NPU` (default: `CPU`) | No |
+| `--device <dev>` | Target device: `CPU`, `GPU`, `NPU`, or `HETERO:<dev>[,<dev>...]` for heterogeneous execution, e.g. `HETERO:GPU,CPU` (default: `CPU`) | No |
 | `--cache-size <gb>` | KV cache size in GB (for LLM/VLM conversion) | No |
 | `--download-path <path>` | Sub-directory under models dir for downloads | No |
 | `--config-json <json>`  | Additional config as inline JSON string which needed like `quantize`,`extra_quantization_params` etc | No |
@@ -112,7 +112,7 @@ The log path is printed at the end of a failed run.
 
 The log file contains structured sections:
 
-```
+```text
 ===== Model Download Ephemeral Mode - Error Log =====
 Timestamp: 2026-05-22T12:46:17+05:30
 Command: source ./get_model.sh --model-name ... --hub ...
@@ -132,31 +132,40 @@ Plugins: huggingface,openvino
 ### Common issues
 
 **Plugin not activated**
-```
+
+```text
 Plugin 'openvino' was not activated during container startup. Active plugins: huggingface
 ```
+
 Fix: Add the required plugin to `--plugins` (e.g., `--plugins huggingface,openvino`).
 
 **Gated model access denied**
-```
+
+```text
 Access to Gated or private models is restricted. You must be authenticated.
 ```
+
 Fix: Set `HF_TOKEN` with a token that has access to the model:
+
 ```bash
 export HF_TOKEN="hf_..."
 source ./get_model.sh --model-name meta-llama/Llama-2-7b-hf --hub huggingface
 ```
 
 **Container failed to start**
-```
+
+```text
 ERROR: Failed to get mapped port for container.
 ```
+
 Fix: Check that the Docker image exists (`docker images | grep model-download`) and rebuild if needed.
 
 **Service health timeout**
-```
+
+```text
 ERROR: Service failed to start within 180s.
 ```
+
 Fix: Check the container logs in the error log file. Common causes: missing dependencies, network issues during plugin setup.
 
 ### Cleanup stale containers

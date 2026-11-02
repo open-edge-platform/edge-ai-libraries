@@ -11,6 +11,8 @@
 
 The service uses Linux-specific paths (`/sys`, `/proc`, `/dev/dri`) mounted into the container. It cannot collect system metrics on Windows or macOS hosts, but the REST API and SSE streaming work on any platform.
 
+The capabilities endpoint (`GET /api/v1/capabilities`) is available wherever the service runs, but hardware-enriched values depend on Linux host visibility (`/sys`, `/proc`, and optionally `/dev/dri`).
+
 **Hardware Platforms**
 
 - Any x86-64 processor (Intel or AMD)
@@ -57,6 +59,12 @@ The service uses Linux-specific paths (`/sys`, `/proc`, `/dev/dri`) mounted into
 - GPU frequency
 - GPU power consumption
 
+**Capabilities output note:**
+
+- GPU entries are also exposed in capabilities JSON (`minimal` and `expanded` profiles).
+- PCI branding/model naming uses `lspci` (`pciutils`) when available.
+- `lspci` does not require `sudo` for read-only inventory.
+
 If GPU is absent, qmassa logs `No DRM devices found` and exits gracefully. Other metrics continue normally.
 
 ### Intel NPU (Optional, for NPU telemetry)
@@ -76,6 +84,17 @@ If GPU is absent, qmassa logs `No DRM devices found` and exits gracefully. Other
 - Memory usage (MB) — reports `-1` on MTL/ARL (sysfs node does not exist)
 
 If NPU is absent or driver is not loaded, the NPU reader logs a warning and enters idle mode. Other metrics continue normally.
+
+## Capabilities API Quick Check
+
+After deployment, verify platform/device capabilities with:
+
+```bash
+curl -s http://localhost:9090/api/v1/capabilities?profile=minimal | jq
+curl -s http://localhost:9090/api/v1/capabilities?profile=expanded | jq
+```
+
+Use `minimal` for a compact platform/device summary and `expanded` for full technical inventory.
 
 ## Validation Checklist
 

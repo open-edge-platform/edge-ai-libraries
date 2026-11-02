@@ -1,0 +1,13 @@
+
+fedora_05_install_dmidecode () {
+  ensure_dnf_install_package dmidecode
+}
+
+fedora_05_remove_dmidecode () {
+  ensure_dnf_remove_package dmidecode
+}
+
+fedora_05_sbom_dmidecode () {
+  ensure_sbom_format pkg-list dmidecode
+}
+

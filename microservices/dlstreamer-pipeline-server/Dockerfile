@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=intel/dlstreamer:2026.0.0-ubuntu24
+ARG BASE_IMAGE=intel/dlstreamer:2026.2.0-ubuntu24
 FROM ${BASE_IMAGE} AS gstudfloader-builder
 
 USER root
@@ -36,7 +36,7 @@ RUN \
 
 RUN \
     python3 -m venv /python3venv && \
-    /python3venv/bin/pip3 install --no-cache-dir --upgrade pip && \
+    /python3venv/bin/pip3 install --no-cache-dir --upgrade pip==26.1.2 && \
     /python3venv/bin/pip3 install --no-cache-dir --no-dependencies PyGObject==3.50.0 setuptools==82.0.1 numpy==2.2.0 tqdm==4.67.1 opencv-python==4.11.0.86
 
 ENV VIRTUAL_ENV=/python3venv
@@ -72,10 +72,13 @@ COPY ./plugins/gst-udf-loader/ /home/pipeline-server/gst-udf-loader
 
 RUN apt-get install -y --no-install-recommends python3-dev
 
-# Build UDF loader lib
+# Build UDF loader lib (Cython 0.29.x imports cgi, removed in Python 3.13)
 RUN /bin/bash -c "echo $PATH && \
-                  pip3 install --no-cache-dir numpy==1.26.4 && \
-                  pip3 install --no-cache-dir Cython==0.29.34 && \
+                  if python3 -c 'import sys; sys.exit(sys.version_info < (3, 13))'; then \
+                     pip3 install --no-cache-dir numpy==2.2.0 Cython==3.1.4 ; \
+                  else \
+                     pip3 install --no-cache-dir numpy==1.26.4 Cython==0.29.34 ; \
+                  fi && \
                   cd /home/pipeline-server/UDFLoader && \
                   rm -rf build && \
                   mkdir build && \
@@ -125,7 +128,22 @@ ARG WORKDIR=/home/pipeline-server
 WORKDIR ${WORKDIR}
 
 RUN . /etc/os-release && \
-    if [ "$VERSION_ID" = "24.04" ]; then \
+    if [ "$VERSION_ID" = "26.04" ]; then \
+        export no_proxy= && \
+        apt-get update --allow-releaseinfo-change && apt-get install -y --no-install-recommends \
+        cpuid \
+        util-linux \
+        python3-venv \
+        libglib2.0-0t64 \
+        libusb-1.0-0 \
+        libtool \
+        zlib1g \
+        libopencv-core410 \
+        libopencv-imgcodecs410 \
+        libcjson1 \
+        libxtst6 && \
+        ln -sf /usr/lib/x86_64-linux-gnu/libpython3.14.so.1.0 /usr/lib/x86_64-linux-gnu/libpython3.14.so; \
+    elif [ "$VERSION_ID" = "24.04" ]; then \
         export no_proxy= && \
         apt-get update --allow-releaseinfo-change && apt-get install -y --no-install-recommends \
         cpuid \
@@ -153,6 +171,7 @@ RUN . /etc/os-release && \
         libopencv-core4.5d \
         libopencv-imgcodecs4.5d \
         libcjson1 \
+        libssl3=3.0.2-0ubuntu1.29 \
         libxtst6 && \
         ln -sf /usr/lib/x86_64-linux-gnu/libpython3.10.so.1.0 /usr/lib/x86_64-linux-gnu/libpython3.10.so; \
     fi && \
@@ -165,7 +184,7 @@ RUN \
 
 RUN \
     python3 -m venv --system-site-packages /python3venv && \
-    /python3venv/bin/pip3 install --no-cache-dir --upgrade pip
+    /python3venv/bin/pip3 install --no-cache-dir --upgrade pip==26.1.2
 
 ENV DLSTREAMER_DIR=/opt/intel/dlstreamer
 ENV VIRTUAL_ENV=/python3venv
@@ -229,8 +248,8 @@ RUN pip3 install --no-cache-dir wheel==0.46.2 setuptools==82.0.1 packaging==25.0
 
 USER ${USER}
 
-# Disable OpenVINO Telemetry
-RUN opt_in_out --opt_out
+# Disable OpenVINO Telemetry (opt_in_out ships with openvino-telemetry; skip if the base image doesn't provide it)
+RUN command -v opt_in_out >/dev/null 2>&1 && opt_in_out --opt_out || echo "opt_in_out not found, skipping OpenVINO telemetry opt-out"
 
 # Create Models directory
 RUN mkdir -p /home/pipeline-server/models
@@ -319,8 +338,8 @@ RUN apt update && \
     fi && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
-    
-RUN pip3 install --no-cache-dir --upgrade openvino==2026.0.0 openvino-telemetry==2025.2.0
+
+RUN pip3 install --no-cache-dir --upgrade openvino==2026.0.0 openvino-telemetry==2025.2.0 cryptography==50.0.0
 
 RUN . /etc/os-release && \
     if [ "$VERSION_ID" = "22.04" ]; then \

@@ -13,6 +13,11 @@ from internal_types import (
     InternalPipelineRequestOptimize,
     InternalVariant,
 )
+from managers.execution_coordinator import (
+    ExecutionCoordinator,
+    ExecutionLease,
+    PIPELINE_EXECUTION_GROUP,
+)
 
 DEFAULT_SEARCH_DURATION = 300  # seconds
 DEFAULT_SAMPLE_DURATION = 10  # seconds
@@ -135,9 +140,12 @@ class OptimizationRunner:
             f"allowed_devices={allowed_devices}"
         )
 
-        optimized_pipeline, total_fps = opt.optimize_for_fps(
+        optimized_pipeline, metrics = opt.optimize_for_fps(
             pipeline_description, search_duration=search_duration
         )
+
+        # DLStreamer optimizer may return a metrics dict or a bare float.
+        total_fps = metrics["fps"] if isinstance(metrics, dict) else metrics
 
         return PipelineOptimizationResult(
             optimized_pipeline_description=optimized_pipeline, total_fps=total_fps
@@ -251,34 +259,51 @@ class OptimizationManager:
             str: Unique job identifier for tracking the optimization.
         """
         job_id = self._generate_job_id()
-
-        # Get pipeline description from the variant's advanced graph
-        pipeline_description = variant.pipeline_graph.to_pipeline_description()
-
-        # Create job record with Graph objects from the variant
-        job = InternalOptimizationJobStatus(
-            id=job_id,
-            original_pipeline_graph=variant.pipeline_graph,
-            original_pipeline_graph_simple=variant.pipeline_graph_simple,
-            original_pipeline_description=pipeline_description,
-            request=optimization_request,
-            state=InternalOptimizationJobState.RUNNING,
-            start_time=int(time.time() * 1000),  # milliseconds
-            type=optimization_request.type,
+        execution_lease = ExecutionCoordinator().acquire(
+            job_id=job_id,
+            job_kind="optimization",
+            groups=[PIPELINE_EXECUTION_GROUP],
         )
 
-        with self._jobs_lock:
-            self.jobs[job_id] = job
+        try:
+            # Get pipeline description from the variant's advanced graph
+            pipeline_description = variant.pipeline_graph.to_pipeline_description()
 
-        # Start execution in background thread. The variant name is passed
-        # down so _execute_optimization can map it to an allowed device list
-        # for the optimizer (only relevant for full OPTIMIZE jobs).
-        thread = threading.Thread(
-            target=self._execute_optimization,
-            args=(job_id, pipeline_description, optimization_request, variant.name),
-            daemon=True,
-        )
-        thread.start()
+            # Create job record with Graph objects from the variant
+            job = InternalOptimizationJobStatus(
+                id=job_id,
+                original_pipeline_graph=variant.pipeline_graph,
+                original_pipeline_graph_simple=variant.pipeline_graph_simple,
+                original_pipeline_description=pipeline_description,
+                request=optimization_request,
+                state=InternalOptimizationJobState.RUNNING,
+                start_time=int(time.time() * 1000),  # milliseconds
+                type=optimization_request.type,
+            )
+
+            with self._jobs_lock:
+                self.jobs[job_id] = job
+
+            # Start execution in background thread. The variant name is passed
+            # down so _execute_optimization can map it to an allowed device list
+            # for the optimizer (only relevant for full OPTIMIZE jobs).
+            thread = threading.Thread(
+                target=self._execute_optimization,
+                args=(
+                    job_id,
+                    pipeline_description,
+                    optimization_request,
+                    variant.name,
+                    execution_lease,
+                ),
+                daemon=True,
+            )
+            thread.start()
+        except Exception:
+            with self._jobs_lock:
+                self.jobs.pop(job_id, None)
+            ExecutionCoordinator().release(execution_lease)
+            raise
 
         return job_id
 
@@ -354,6 +379,7 @@ class OptimizationManager:
         pipeline_description: str,
         optimization_request: InternalPipelineRequestOptimize,
         variant_name: str = "",
+        execution_lease: ExecutionLease | None = None,
     ) -> None:
         """
         Execute the optimization process in a background thread.
@@ -507,3 +533,6 @@ class OptimizationManager:
             with self._jobs_lock:
                 self.runners.pop(job_id, None)
             self._update_job_error(job_id, str(e))
+        finally:
+            if execution_lease is not None:
+                ExecutionCoordinator().release(execution_lease)

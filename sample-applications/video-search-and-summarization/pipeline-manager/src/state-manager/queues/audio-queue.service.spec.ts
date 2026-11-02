@@ -1,5 +1,9 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
+jest.mock('uuid', () => ({
+  v4: jest.fn(() => 'mock-uuid'),
+}));
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { AudioQueueService } from './audio-queue.service';
 import { StateService } from '../services/state.service';
@@ -26,6 +30,7 @@ describe('AudioQueueService', () => {
       audioModel: 'whisper-large-v3',
     },
     video: {
+      url: 'test-state-id/source.mp4',
       dataStore: {
         objectName: 'test-state-id',
         fileName: 'test-video.mp4',
@@ -54,6 +59,7 @@ describe('AudioQueueService', () => {
       fetch: jest.fn(),
       audioTrigger: jest.fn(),
       audioComplete: jest.fn(),
+      audioError: jest.fn(),
     };
 
     const audioServiceMock = {
@@ -147,7 +153,7 @@ describe('AudioQueueService', () => {
         minio_bucket: 'test-bucket',
         model_name: 'whisper-large-v3',
         video_id: stateId,
-        video_name: 'test-video.mp4',
+        video_name: 'source.mp4',
       };
 
       service.startAudioProcessing(stateId);
@@ -158,6 +164,31 @@ describe('AudioQueueService', () => {
       );
       expect(audioService.generateTranscript).toHaveBeenCalledWith(
         expectedTranscriptDTO,
+      );
+    });
+
+    it('should fallback to display filename when object path is missing', () => {
+      const stateId = 'test-state-id';
+      stateService.fetch.mockReturnValue({
+        ...mockState,
+        video: {
+          ...mockState.video,
+          url: '',
+        },
+      });
+      audioService.generateTranscript.mockReturnValue(
+        of({
+          status: 200,
+          data: { transcript_path: 'test/transcript.srt' },
+        } as any),
+      );
+
+      service.startAudioProcessing(stateId);
+
+      expect(audioService.generateTranscript).toHaveBeenCalledWith(
+        expect.objectContaining({
+          video_name: 'test-video.mp4',
+        }),
       );
     });
 
@@ -202,6 +233,7 @@ describe('AudioQueueService', () => {
         PipelineEvents.AUDIO_ERROR,
         stateId,
       );
+      expect(stateService.audioError).toHaveBeenCalledWith(stateId);
       expect(service.audioProcessing.has(stateId)).toBeFalsy();
     });
   });
@@ -250,6 +282,80 @@ describe('AudioQueueService', () => {
       await service.audioComplete({ stateId, transcriptPath });
 
       expect(audioService.parseTranscript).toHaveBeenCalledWith(minioPath);
+    });
+
+    it('should skip audio summarization when no transcript is found', async () => {
+      stateService.fetch.mockReturnValue({
+        ...mockState,
+        systemConfig: {
+          ...mockState.systemConfig,
+          audioUseFullTranscriptSummary: true,
+        },
+      });
+      audioService.parseTranscript.mockResolvedValue([]);
+
+      await service.audioComplete({
+        stateId: 'test-state-id',
+        transcriptPath: 'test/transcript.srt',
+      });
+
+      expect(stateService.audioComplete).toHaveBeenCalledWith('test-state-id', {
+        transcriptPath: 'test/transcript.srt',
+        transcripts: [],
+      });
+      expect(eventEmitter.emit).not.toHaveBeenCalledWith(
+        PipelineEvents.AUDIO_SUMMARY_TRIGGER,
+        expect.anything(),
+      );
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        PipelineEvents.CHECK_QUEUE_STATUS,
+        ['test-state-id'],
+      );
+    });
+
+    it('should trigger audio summarization when a transcript is found', async () => {
+      stateService.fetch.mockReturnValue({
+        ...mockState,
+        systemConfig: {
+          ...mockState.systemConfig,
+          audioUseFullTranscriptSummary: true,
+        },
+      });
+      audioService.parseTranscript.mockResolvedValue(mockTranscripts);
+
+      await service.audioComplete({
+        stateId: 'test-state-id',
+        transcriptPath: 'test/transcript.srt',
+      });
+
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        PipelineEvents.AUDIO_SUMMARY_TRIGGER,
+        { stateId: 'test-state-id' },
+      );
+    });
+
+    it('should mark audio unavailable when transcript parsing fails', async () => {
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+      stateService.fetch.mockReturnValue(mockState);
+      audioService.parseTranscript.mockRejectedValue(
+        new Error('Transcript not found'),
+      );
+
+      await service.audioComplete({
+        stateId: 'test-state-id',
+        transcriptPath: 'test/transcript.srt',
+      });
+
+      expect(stateService.audioError).toHaveBeenCalledWith('test-state-id');
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        PipelineEvents.AUDIO_ERROR,
+        'test-state-id',
+      );
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        PipelineEvents.CHECK_QUEUE_STATUS,
+        ['test-state-id'],
+      );
+      consoleSpy.mockRestore();
     });
   });
 
@@ -302,6 +408,7 @@ describe('AudioQueueService', () => {
     it('should handle empty transcript path', async () => {
       const stateId = 'test-state-id';
       stateService.fetch.mockReturnValue(mockState);
+      audioService.parseTranscript.mockResolvedValue([]);
 
       await service.audioComplete({ stateId, transcriptPath: '' });
 

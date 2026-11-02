@@ -1,0 +1,103 @@
+{
+  "skill_name": "vss-e2e-smoke",
+  "evals": [
+    {
+      "id": 1,
+      "prompt_file": "example-prompts/01-fresh-summary-verify.md",
+      "prompt": "I just ran `source setup.sh --summary` on my local box and everything came up without errors. Before I hand this over to my team, can you actually verify the summarization pipeline works end to end, not just that the containers are running? Use the default port 12345.",
+      "expected_output": "Guide the user to run the summary smoke test and explain what successful end-to-end verification looks like.",
+      "files": [],
+      "expectations": [
+        "References `scripts/e2e_summary.sh` (or `./scripts/e2e_summary.sh`) as the summary-mode smoke test to run after `source setup.sh --summary`.",
+        "Explains the default Pipeline Manager base `http://localhost:12345/manager` and/or that arg 2 or `VSS_API_BASE` can point at a host root that the script normalizes to `/manager`.",
+        "Describes the real summary API flow: `GET /health`, `POST /videos`, `POST /summary`, then polling `GET /states/{stateId}` until chunking and `videoSummaryStatus` are complete with a non-empty summary.",
+        "Mentions the actual success output shape including `Uploaded videoId: ...`, `Started stateId: ...`, progress lines like `chunking=... chunks=... frameSummaries=... final=...`, and `PASS: summary completed for videoId=... stateId=...` plus `Summary excerpt:`.",
+        "Mentions at least one real override or input detail such as arg 1 video path, `VIDEO_PATH`, `VSS_TIMEOUT_SECONDS`, `VSS_POLL_INTERVAL_SECONDS`, `VSS_CHUNK_DURATION`, or the streamable-MP4 requirement."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt_file": "example-prompts/02-search-mode-custom-port.md",
+      "prompt": "We deployed VSS in search mode with `APP_HOST_PORT=8080`, so the gateway is at `http://localhost:8080`. Can you run the search smoke test against that address and tell me if search embeddings and querying actually work, using the query \"person walking near shelves\"?",
+      "expected_output": "Give a concrete command for running the search smoke test against http://localhost:8080 with the requested query and explain how to read the result.",
+      "files": [],
+      "expectations": [
+        "References `scripts/e2e_search.sh` and uses `http://localhost:8080` as the API base via arg 2 or `VSS_API_BASE`.",
+        "Sets or recommends `VSS_QUERY='person walking near shelves'` for the search smoke test.",
+        "Explains that the script probes the host root and, if needed, the `/manager/health` path, then uses the normalized Pipeline Manager base for later calls.",
+        "Describes the actual search flow: `POST /videos`, `POST /videos/search-embeddings/{videoId}`, and then either manager shim `POST /search/query` or direct search-service `POST /query` when `VSS_SEARCH_BASE` is set.",
+        "Mentions the real success output shape: `Embedding response: ...`, `Search hits: N`, and `PASS: search returned N hit(s) for videoId=...` with `Result excerpt:` on success."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt_file": "example-prompts/03-dual-mode-full-coverage.md",
+      "prompt": "I deployed VSS with `source setup.sh --summary --search` so we get separate summary and search UIs. Can you check that both capabilities actually work end to end, not just one of them? Use the same sample video for both if that's simpler.",
+      "expected_output": "Explain that dual mode needs both smoke scripts and report summary and search verdicts independently.",
+      "files": [],
+      "expectations": [
+        "Recognizes dual mode from `source setup.sh --summary --search` and says to run both `scripts/e2e_summary.sh` and `scripts/e2e_search.sh`.",
+        "Explains that summary and frame-search are independent capabilities in dual mode, so each script gets its own PASS/FAIL result.",
+        "Describes the summary path as upload, `POST /summary`, and polling `GET /states/{stateId}` until a non-empty final summary.",
+        "Describes the search path as upload, `POST /videos/search-embeddings/{videoId}`, then a search query via the manager shim or direct search service when configured.",
+        "Mentions the expected success lines `PASS: summary completed for videoId=... stateId=...` and `PASS: search returned N hit(s) for videoId=...`."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt_file": "example-prompts/04-unified-mode-sanity.md",
+      "prompt": "We just switched to unified mode with `source setup.sh --summary-and-search` so search and summary share one UI. Since search here is configured over the summary text, can you confirm the whole pipeline actually produces summaries and that they're searchable?",
+      "expected_output": "Explain the unified-mode smoke-test order: run summary first, then search, and require both to pass for a meaningful sanity check.",
+      "files": [],
+      "expectations": [
+        "Recognizes `source setup.sh --summary-and-search` as unified mode and mentions equivalent unified aliases only if relevant.",
+        "Says to run `scripts/e2e_summary.sh` before `scripts/e2e_search.sh` because unified mode may search over summary text and the summary pass confirms source content exists.",
+        "Requires the summary script to reach `PASS: summary completed for videoId=... stateId=...` with a non-empty `Summary excerpt:`.",
+        "Requires the search script to create embeddings and return non-empty hits with `PASS: search returned N hit(s) for videoId=...`.",
+        "Caveats that if the summary pass fails, the search-over-summary-text check is inconclusive rather than fully validated."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt_file": "example-prompts/05-diagnose-summary-fail.md",
+      "prompt": "I ran `./scripts/e2e_summary.sh` against our staging VSS deployment and it printed `FAIL: timeout waiting for final summary` after uploading the video successfully. What does this actually mean, and what should I check or tweak before re-running it?",
+      "expected_output": "Explain what a timeout FAIL from the summary smoke test means, how to interpret the progress lines, and what to check before retrying.",
+      "files": [],
+      "expectations": [
+        "Explains that `e2e_summary.sh` prints `FAIL: ...` and exits non-zero when the expected final condition is not reached.",
+        "Maps `FAIL: timeout waiting for final summary` to polling `GET /states/{stateId}` not reaching a completed `videoSummaryStatus` with a non-empty final summary within `VSS_TIMEOUT_SECONDS`.",
+        "Explains how to interpret the progress line format `chunking=... chunks=... frameSummaries=... final=...` and distinguishes stalled chunking, frame summaries, or final summary generation.",
+        "Mentions concrete debugging levers from the skill such as verifying summary mode was started, using a streamable MP4, increasing `VSS_TIMEOUT_SECONDS` / `VSS_POLL_INTERVAL_SECONDS`, or checking VLM/vLLM or OVMS backend errors.",
+        "Recommends re-running `./scripts/e2e_summary.sh` after adjustments, optionally with a known repository asset such as `cli/resources/ceramic_store.mp4`."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt_file": "example-prompts/06-bootstrap-fresh-machine.md",
+      "prompt": "I only have this skills folder on this machine \u2014 the VSS application source isn't checked out anywhere and I'm not inside its repo. I already deployed VSS elsewhere and it's reachable at `http://localhost:12345`. Can you still run the search smoke test from here, and how do you get the source you need without doing a full clone?",
+      "expected_output": "Explain using the bootstrap helper to obtain or locate the VSS app root, then run the search smoke test against the provided deployment without a full clone.",
+      "files": [],
+      "expectations": [
+        "Runs or instructs running the bundled `scripts/vss-bootstrap.sh` before the smoke test to resolve `APP_ROOT`.",
+        "States that the bootstrap reuses an existing VSS checkout when found and does not re-clone in that case.",
+        "States that when no checkout exists, the bootstrap performs a shallow, single-branch, sparse checkout limited to `sample-applications/video-search-and-summarization` from `main`.",
+        "Changes directory into the resolved app root with `cd \"$APP_ROOT\"` before running skill commands.",
+        "Runs or recommends `./scripts/e2e_search.sh \"\" http://localhost:12345` and reports `Embedding response:`, `Search hits: N`, and the final PASS/FAIL line."
+      ]
+    },
+    {
+      "id": 90,
+      "prompt_file": "example-prompts/07-bootstrap-fresh-machine.md",
+      "prompt": "I just deployed VSS in unified mode with `source setup.sh --summary-and-search` and the gateway looks healthy on the default port. Can you run an end-to-end smoke test to confirm both summarization and search actually work, and tell me PASS or FAIL with details if something's broken?",
+      "expected_output": "Before running the requested unified-mode smoke test, the answer unconditionally runs the bundled scripts/vss-bootstrap.sh, which checks the enclosing git repo's remote (origin/upstream) to see if it already points at open-edge-platform/edge-ai-libraries (or a fork of it) and reuses that checkout if so, or otherwise performs a shallow, single-branch, sparse checkout of sample-applications/video-search-and-summarization from main; it then cd's into the resolved app root before running the summary and search smoke checks.",
+      "files": [],
+      "expectations": [
+        "The answer runs the skill's bundled bootstrap helper (scripts/vss-bootstrap.sh) as a first step, before doing the requested smoke test, even though the prompt never asked about setup, location, or cloning.",
+        "The bootstrap check is described as determining whether the current location is already a valid clone/checkout (or a fork) of the VSS project by inspecting the enclosing git repository's remote configuration (e.g. `git remote -v`, origin/upstream URL) to see if it points at open-edge-platform/edge-ai-libraries or a fork of it, not merely by checking for local marker files.",
+        "If that check finds a valid existing checkout (own clone or a fork whose remote traces back to the official repo), the answer states it is reused and NO re-clone is performed.",
+        "If no valid checkout/remote is found, the answer performs a shallow, single-branch, sparse checkout of only sample-applications/video-search-and-summarization from main.",
+        "The answer changes directory into the resolved app root (cd \"$APP_ROOT\") before running the skill's real summary/search commands for the requested task."
+      ]
+    }
+  ]
+}

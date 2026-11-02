@@ -1,0 +1,25 @@
+{
+  "profile": {
+    "label": "Robotics AI Suite",
+    "value": "robotics_ai_suite",
+    "supports": { "OP_SYSTEM": ["UBUNTU_24_04", "UBUNTU_26_04"] }
+  },
+  "modules": [
+    { "label": "Autonomous Mobile Robot", "value": "autonomous_mobile_robot", "remove": true },
+    { "label": "Stationary Robot Vision", "value": "stationary_robot_vision", "remove": true },
+    { "label": "Humanoid Imitation Learning", "value": "humanoid_imitation_learning", "remove": true },
+    { "label": "Physical AI Framework", "value": "physical_ai_framework", "remove": true },
+    { "label": "Physical AI Studio", "value": "physical_ai_studio", "startStop": true, "remove": true }
+  ],
+  "getStarted": {
+    "text": "Get Started",
+    "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-robotics.html"
+  },
+  "resources": [
+    { "text": "Autonomous Mobile Robot", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/robotics/index.html" },
+    { "text": "Stationary Robot Vision", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/rvc/index.html" },
+    { "text": "Humanoid Imitation Learning", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/embodied/sample_pipelines/imitation_learning_act.html" },
+    { "text": "Physical AI Framework", "url": "https://github.com/open-edge-platform/physical-ai-studio/tree/main/library" },
+    { "text": "Physical AI Studio", "url": "https://github.com/open-edge-platform/physical-ai-studio" }
+  ]
+}

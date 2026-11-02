@@ -1,0 +1,1254 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+"""
+Video Frame Extraction Utility for data preparation
+Provides efficient, batched video frame extraction from various sources (files, RTSP streams, bytes) using PyAV.
+"""
+
+from __future__ import annotations
+
+import io
+import logging
+import os
+import queue
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import asdict, dataclass, field, fields
+from enum import Enum
+from fractions import Fraction
+from multiprocessing import shared_memory
+from typing import Any, Dict, Generator, List, Optional, Protocol, Tuple, Union, runtime_checkable
+
+import av
+import numpy as np
+from PIL import Image
+
+from src.common import Tracer, now_us
+from src.core.embedding.capture_clock import CaptureClock
+from src.core.live.urls import redact_stream_url
+
+INTERRUPT = object()  # interrupt signal (unique, non-colliding)
+DONE = object()  # consumer → main completion signal
+FAILED = object()  # producer → consumer fatal-error signal
+
+
+class FrameTooLargeForPoolError(ValueError):
+    """Raised when a decoded frame cannot fit in a shared-memory block.
+
+    Subclasses ``ValueError`` so the API layer reports the actionable message
+    (which resolution was rejected and the block size needed) as a 400 instead
+    of collapsing it into an opaque 500.
+    """
+
+
+def _get_video_config():
+    """Lazy load video configuration to avoid circular imports."""
+    try:
+        from src.common import settings
+
+        return settings
+    except ImportError:
+
+        class FallbackSettings:
+            VIDEO_FRAME_LOG_LEVEL = os.getenv("MM_DATAPREP_VIDEO_FRAME_LOG_LEVEL", "INFO")
+            VIDEO_FRAME_TRANSPORT = os.getenv("MM_DATAPREP_VIDEO_FRAME_TRANSPORT", "shm")
+            VIDEO_FRAME_DECODER_WORKERS = int(
+                os.getenv("MM_DATAPREP_VIDEO_FRAME_DECODER_WORKERS", "6")
+            )
+            VIDEO_EXTRACTION_BATCH_SIZE = int(
+                os.getenv("MM_DATAPREP_VIDEO_EXTRACTION_BATCH_SIZE", "256")
+            )
+            PIPELINE_QUEUE_MAXSIZE = int(os.getenv("MM_DATAPREP_PIPELINE_QUEUE_MAXSIZE", "16"))
+            VIDEO_SHM_MAX_BLOCKS = int(os.getenv("MM_DATAPREP_VIDEO_SHM_MAX_BLOCKS", "512"))
+            VIDEO_SHM_BLOCK_SIZE = int(
+                os.getenv("MM_DATAPREP_VIDEO_SHM_BLOCK_SIZE", str(1920 * 1080 * 3))
+            )
+            VIDEO_SHM_ACQUIRE_TIMEOUT_S = float(
+                os.getenv("MM_DATAPREP_VIDEO_SHM_ACQUIRE_TIMEOUT_S", "30.0")
+            )
+            ENABLE_TRACING = os.getenv("MM_DATAPREP_ENABLE_TRACING", "False").lower() in (
+                "true",
+                "1",
+                "yes",
+            )
+
+        return FallbackSettings()
+
+
+def _get_log_level(level_str: str) -> int:
+    """Convert log level string to logging constant."""
+    level_map = {
+        "DEBUG": logging.DEBUG,
+        "INFO": logging.INFO,
+        "WARNING": logging.WARNING,
+        "ERROR": logging.ERROR,
+        "CRITICAL": logging.CRITICAL,
+    }
+    return level_map.get(level_str.upper(), logging.INFO)
+
+
+_video_config = _get_video_config()
+
+logging.basicConfig(
+    level=_get_log_level(_video_config.VIDEO_FRAME_LOG_LEVEL),
+    format="%(asctime)s [%(levelname)s] %(filename)s:%(funcName)s:%(lineno)d - %(message)s",
+)
+logger = logging.getLogger(__name__)
+
+
+class SharedMemoryPoolExhausted(RuntimeError):
+    """Raised when no shared memory block becomes available within the configured timeout."""
+
+
+class SharedMemoryPool:
+    def __init__(self, max_blocks, block_size):
+        self.max_blocks = max_blocks
+        self.block_size = block_size
+        self.free = queue.SimpleQueue()
+        self.blocks = []
+        self.in_use = set()
+        self._lock = threading.Lock()
+        self._closed = False
+
+        # An open handle costs 2 fds for the pool's lifetime. This pipeline
+        # builds two pools (frames plus twice as many crops), which would pin
+        # ~3000 fds. The segment lives until unlink() and is attached by name.
+        for _ in range(max_blocks):
+            shm = shared_memory.SharedMemory(create=True, size=block_size)
+            shm.close()
+            self.blocks.append(shm)
+            self.free.put(shm.name)
+
+    def acquire(self, timeout=None):
+        """Acquire a free block name.
+
+        A bounded wait is used by default so that a producer stage can never block
+        forever on a pool whose blocks are only released by a downstream stage.
+        """
+        if timeout is None:
+            timeout = _video_config.VIDEO_SHM_ACQUIRE_TIMEOUT_S
+
+        try:
+            name = self.free.get(timeout=timeout)
+        except queue.Empty as exc:
+            raise SharedMemoryPoolExhausted(
+                f"No shared memory block available after {timeout}s "
+                f"(pool stats: {self.stats()})"
+            ) from exc
+
+        with self._lock:
+            self.in_use.add(name)
+        return name
+
+    def release(self, name):
+        with self._lock:
+            if name not in self.in_use:
+                return
+            self.in_use.remove(name)
+        self.free.put(name)
+
+    def total_blocks(self):
+        return self.max_blocks
+
+    def used_blocks(self):
+        return len(self.in_use)
+
+    def free_blocks(self):
+        return self.max_blocks - len(self.in_use)
+
+    def is_full(self):
+        return self.used_blocks() == self.max_blocks
+
+    def is_empty(self):
+        return self.used_blocks() == 0
+
+    def stats(self):
+        return {
+            "total": self.total_blocks(),
+            "used": self.used_blocks(),
+            "free": self.free_blocks(),
+            "block_size": self.block_size,
+        }
+
+    def close(self):
+        for shm in self.blocks:
+            shm.close()
+
+    def unlink(self):
+        # Unlink per block so one missing segment cannot leak the rest.
+        for shm in self.blocks:
+            try:
+                shm.unlink()
+            except FileNotFoundError:
+                logger.debug(f"Shared memory {shm.name} already unlinked")
+
+    def shutdown(self):
+        """Release every block. Safe to call more than once.
+
+        The pipeline shuts the pool down explicitly, and ``__del__`` calls this
+        again when the pool is collected. Without the guard the second pass
+        re-unlinks every already-released segment, logging one spurious
+        "already unlinked" line per block on every successful run.
+        """
+        with self._lock:
+            if self._closed:
+                return
+            self._closed = True
+
+        self.close()
+        self.unlink()
+
+    def __del__(self):
+        try:
+            self.shutdown()
+        except Exception:
+            pass
+
+
+@dataclass(frozen=True)
+class VideoStreamMetadata:
+    """Metadata about the video stream for traceability."""
+
+    source_type: VideoSourceType
+    video_index: int
+    stream_name: str | None
+    stream_source: str | None
+    total_frames: int | None
+    fps: float | None
+    video_duration_seconds: float | None
+    stream_id: int | None
+    time_base: str | None
+    average_rate: str | None
+    base_rate: str | None
+    guessed_rate: str | None
+    width: int | None
+    height: int | None
+    pixel_format: str | None
+    aspect_ratio: str | None
+    display_aspect_ratio: str | None
+    duration: float | None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class FrameMetadata:
+    """Metadata for individual video frames."""
+
+    stream_id: int
+    frame_id: int
+    shm: str
+    shape: str
+    dtype: str
+    #: Best available capture time of this frame, epoch seconds. ``None`` for
+    #: non-live sources, where capture time is not a meaningful concept.
+    capture_epoch: Optional[float] = None
+    #: Which tier ``capture_epoch`` came from; see ``capture_clock``.
+    capture_time_source: Optional[str] = None
+    #: Host wall-clock epoch when this frame was sampled from the stream. Unlike
+    #: ``capture_epoch`` (which may ride the camera/RTCP clock, and can be skewed
+    #: from this host), this is always ``time.time()`` on the ingesting host, so
+    #: it is directly comparable to the recorder's segment boundaries. It lets a
+    #: batched frame be mapped to the segment that actually covers it even when
+    #: the batch spans several segments. ``None`` for non-live sources.
+    ingest_epoch: Optional[float] = None
+    #: Presentation timestamp of this frame in seconds (``frame.pts * time_base``),
+    #: derived from the *same* demux that feeds the segment recorder. Live
+    #: playback seek is computed as ``media_pts - segment_first_pts`` so the
+    #: embedding and its recorded segment share one clock and cannot drift (the
+    #: two previously used independent RTSP connections / wall clocks). ``None``
+    #: for non-live sources and when PTS is unavailable.
+    media_pts: Optional[float] = None
+    #: Heap transport only (``VIDEO_FRAME_TRANSPORT=heap``): the decoded RGB
+    #: frame carried by reference through the in-process queues instead of a
+    #: shared-memory block. ``None`` for the shm transport, where ``shm`` names
+    #: the block instead. The consumer (`_map_shared_frame`) prefers this field
+    #: when present and pops it before the metadata is persisted.
+    array: Optional["np.ndarray"] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        # Deliberately NOT ``asdict``: asdict deep-copies every field, which for
+        # the heap transport would copy the full frame ndarray on every batch
+        # (defeating the point of heap transport). A shallow field copy keeps the
+        # array a reference, matching the zero-copy queue handoff.
+        return {f.name: getattr(self, f.name) for f in fields(self)}
+
+
+@dataclass(frozen=True)
+class BatchFrameMetadata:
+    """Metadata for a batch of video frames."""
+
+    stream_id: int = -1
+    batch_id: int = -1
+    batch_size: int = 0
+    enqueue_ts: int = 0
+    frames: List[FrameMetadata] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "stream_id": self.stream_id,
+            "batch_id": self.batch_id,
+            "batch_size": len(self.frames),
+            "enqueue_ts": self.enqueue_ts,
+            "frames": [frame.to_dict() for frame in self.frames],
+        }
+
+
+class VideoSourceType(Enum):
+    """Supported video input source types."""
+
+    FILE = "file"
+    RTSP = "rtsp"
+    BYTES = "bytes"
+
+
+@dataclass(frozen=True)
+class VideoInput:
+    """Represents a video input source with its type."""
+
+    source: Union[str, bytes]
+    source_type: VideoSourceType
+
+    @classmethod
+    def from_file(cls, path: str) -> VideoInput:
+        """Create input from a file path."""
+        return cls(path, VideoSourceType.FILE)
+
+    @classmethod
+    def from_rtsp(cls, url: str) -> VideoInput:
+        """Create input from an RTSP stream URL."""
+        return cls(url, VideoSourceType.RTSP)
+
+    @classmethod
+    def from_bytes(cls, data: bytes) -> VideoInput:
+        """Create input from bytes in memory."""
+        return cls(data, VideoSourceType.BYTES)
+
+    @classmethod
+    def auto_detect(cls, source: Union[str, bytes]) -> VideoInput:
+        """Auto-detect source type from the input."""
+        if isinstance(source, bytes):
+            return cls.from_bytes(source)
+        elif isinstance(source, str):
+            if source.startswith("rtsp://") or source.startswith("rtsps://"):
+                return cls.from_rtsp(source)
+            else:
+                return cls.from_file(source)
+        else:
+            raise TypeError(f"Unsupported source type: {type(source)}")
+
+
+def is_live_source(source: Union[str, bytes, list]) -> bool:
+    """Return True if any input is an endless (RTSP) source.
+
+    Endless sources never reach end-of-stream, so batching and drain behaviour
+    must be time-bounded rather than relying on EOF.
+    """
+    candidates = source if isinstance(source, list) else [source]
+    for item in candidates:
+        if isinstance(item, VideoInput):
+            if item.source_type is VideoSourceType.RTSP:
+                return True
+        elif isinstance(item, str) and VideoInput.auto_detect(item).source_type is (
+            VideoSourceType.RTSP
+        ):
+            return True
+    return False
+
+
+def _redact_source_for_metadata(video_input: "VideoInput") -> str:
+    """Return a log/metadata-safe rendering of a decoded source.
+
+    RTSP URLs routinely embed ``user:pass@`` userinfo, and the metadata built
+    here is logged verbatim and attached to frames, so the raw URL must never
+    be used. Redaction reuses the single canonical implementation in
+    ``core.live.urls`` rather than re-deriving the rules here.
+    """
+    if video_input.source_type is VideoSourceType.RTSP:
+        return redact_stream_url(video_input.source)
+    if video_input.source_type is VideoSourceType.FILE:
+        return video_input.source
+    return "BYTES_SOURCE"
+
+
+@dataclass(frozen=True)
+class VideoFrameConfig:
+    """Configuration for video frame extraction."""
+
+    batch_size: int = 1
+    num_workers: int | None = None
+    queue_size: int = field(default_factory=lambda: _video_config.PIPELINE_QUEUE_MAXSIZE)
+    frame_interval: int = 1
+    keyframes_only: bool = False
+    # Flush a partially filled batch once its oldest frame reaches this age, in
+    # seconds. Endless sources (RTSP) would otherwise stall until `batch_size`
+    # sampled frames accumulate, which at a low sampling rate can take minutes and
+    # pins that many shared-memory blocks in the meantime. 0 disables the timer,
+    # which is the right behaviour for finite files that drain at EOF.
+    max_batch_age_seconds: float = 0.0
+
+    def __post_init__(self):
+        if self.batch_size < 1:
+            raise ValueError("batch_size must be >= 1")
+        if self.queue_size < 1:
+            raise ValueError("queue_size must be >= 1")
+        if self.frame_interval < 1:
+            raise ValueError("frame_interval must be >= 1")
+        if self.max_batch_age_seconds < 0:
+            raise ValueError("max_batch_age_seconds must be >= 0")
+        if self.keyframes_only and self.frame_interval != 1:
+            raise ValueError("`frame_interval` must be 1 when `keyframes_only` is True")
+        if self.keyframes_only and self.frame_interval != 1:
+            raise ValueError("`frame_interval` must be 1 when `keyframes_only` is True")
+
+    @property
+    def effective_workers(self) -> int:
+        """Return worker count, auto-detecting if not specified."""
+        if self.num_workers is not None:
+            return self.num_workers
+        return min(8, (os.cpu_count() or 4) * 2)
+
+
+def convert_and_store_frame(
+    stream_id: int,
+    frame_id: int,
+    frame: tuple[int, av.video.frame.VideoFrame],
+    shm_pool: Optional[SharedMemoryPool],
+    capture_epoch: Optional[float] = None,
+    capture_time_source: Optional[str] = None,
+    ingest_epoch: Optional[float] = None,
+    media_pts: Optional[float] = None,
+):
+    rgb = frame.to_ndarray(format="rgb24")
+
+    # Heap transport: carry the decoded frame by reference through the in-process
+    # queues. No shared-memory block is acquired, so the fixed-capacity pool can
+    # never exhaust and nothing is written to /dev/shm. Valid because the whole
+    # decode -> detect -> embed path runs in one process; the embedding SDK is an
+    # in-process call, not a cross-process boundary.
+    if shm_pool is None:
+        return FrameMetadata(
+            stream_id=stream_id,
+            frame_id=frame_id,
+            shm="",
+            shape=str(rgb.shape),
+            dtype=rgb.dtype.name,
+            capture_epoch=capture_epoch,
+            capture_time_source=capture_time_source,
+            ingest_epoch=ingest_epoch,
+            media_pts=media_pts,
+            array=rgb,
+        )
+
+    required_bytes = rgb.nbytes
+    if required_bytes > shm_pool.block_size:
+        height, width = rgb.shape[0], rgb.shape[1]
+        raise FrameTooLargeForPoolError(
+            f"Frame {frame_id} of stream {stream_id} is {width}x{height} and needs "
+            f"{required_bytes} bytes, but each shared-memory block is only "
+            f"{shm_pool.block_size} bytes. Increase MM_DATAPREP_VIDEO_SHM_BLOCK_SIZE to at "
+            f"least {required_bytes} (width * height * 3) to ingest this resolution."
+        )
+
+    shm_name = shm_pool.acquire()
+    shm = shared_memory.SharedMemory(name=shm_name)
+
+    arr = np.ndarray(rgb.shape, dtype=rgb.dtype, buffer=shm.buf)
+    arr[:] = rgb
+
+    shm.close()
+
+    return FrameMetadata(
+        stream_id=stream_id,
+        frame_id=frame_id,
+        shm=shm_name,
+        shape=str(rgb.shape),  # Store shape as string for metadata
+        dtype=rgb.dtype.name,
+        capture_epoch=capture_epoch,
+        capture_time_source=capture_time_source,
+        ingest_epoch=ingest_epoch,
+        media_pts=media_pts,
+    )
+
+
+@runtime_checkable
+class PacketSink(Protocol):
+    """A consumer of raw demuxed packets, teed off the live decode loop.
+
+    The live RTSP path uses a single RTSP connection for both embedding and
+    segment recording: ``decode_stream_and_batch_generator`` hands every demuxed
+    packet to a sink (the segment muxer) *after* it has decoded the packet for
+    embedding, so the sink may take ownership (muxing rebinds ``packet.stream``).
+    ``submit`` must be non-blocking so a slow storage write never stalls decode.
+    """
+
+    def submit(
+        self, packet: "av.packet.Packet", pts_seconds: "Optional[float]" = None
+    ) -> None:  # pragma: no cover - protocol
+        ...
+
+
+def decode_stream_and_batch_generator(
+    container: av.container.Container,
+    stream_id: int,
+    stream_config: VideoFrameConfig,
+    shm_pool: SharedMemoryPool,
+    batch_size: int | None = None,
+    shutdown_event: threading.Event | None = None,
+    tracer: Optional[Tracer] = None,
+    packet_sink: Optional["PacketSink"] = None,
+) -> Generator[Union[Dict[str, Any], Tuple[object, int]], None, None]:
+
+    if batch_size is None:
+        batch_size = _video_config.VIDEO_EXTRACTION_BATCH_SIZE
+
+    batch_size = _clamp_batch_size_to_pool(batch_size, shm_pool)
+
+    logger.info(f"Stream {stream_id} started decoding with config: {stream_config}")
+
+    if tracer is not None:
+        tid = threading.get_ident()
+        tracer.set_thread_name(tid=tid, name=f"decode_stream_sid_{stream_id}")
+
+    def flush_batch(batch, batch_id):
+        frames_meta = list(
+            thread_pool.map(
+                lambda item: convert_and_store_frame(
+                    stream_id,
+                    item[0],
+                    item[1],
+                    shm_pool,
+                    capture_epoch=item[2] if len(item) > 2 else None,
+                    capture_time_source=item[3] if len(item) > 3 else None,
+                    ingest_epoch=item[4] if len(item) > 4 else None,
+                    media_pts=item[5] if len(item) > 5 else None,
+                ),
+                batch,
+            )
+        )
+        return BatchFrameMetadata(
+            stream_id=stream_id,
+            batch_id=batch_id,
+            frames=frames_meta,
+        ).to_dict()
+
+    batch: list[tuple[int, av.VideoFrame]] = []
+    batch_id = 0
+    global_frame_idx = 0
+    start_time = now_us()
+    # Wall-clock age of the oldest frame currently held in `batch`, used to force a
+    # partial flush on endless sources. Set when a frame lands in an empty batch.
+    batch_opened_at: float | None = None
+    max_batch_age = stream_config.max_batch_age_seconds
+
+    def batch_is_stale() -> bool:
+        return (
+            max_batch_age > 0
+            and batch_opened_at is not None
+            and (time.monotonic() - batch_opened_at) >= max_batch_age
+        )
+
+    tid = threading.get_ident()
+
+    if tracer is not None and tracer.should_trace():
+        tracer.set_thread_name(tid=tid, name=f"decode_stream_sid_{stream_id}")
+
+    with container, ThreadPoolExecutor(
+        max_workers=_video_config.VIDEO_FRAME_DECODER_WORKERS,
+        thread_name_prefix=f"decode_stream_sid_{stream_id}",
+    ) as thread_pool:
+        stream = container.streams.video[0]
+        stream.thread_type = "AUTO"
+
+        if stream_config.keyframes_only:
+            stream.skip_frame = "NONKEY"
+
+        # Live sources get capture times derived from the camera clock so that
+        # media recorded elsewhere can be correlated frame-for-frame.
+        capture_clock = CaptureClock(container=container, stream=stream, stream_id=stream_id)
+
+        try:
+            for packet in container.demux(stream):
+
+                if shutdown_event and shutdown_event.is_set():
+                    end_time = now_us()
+                    logger.debug(f"Stream {stream_id} stopped by shutdown event during decoding")
+                    yield (
+                        INTERRUPT,
+                        stream_id,
+                        (start_time, end_time, (end_time - start_time) / 1_000_000),
+                    )
+                    break
+
+                if packet.dts is None:
+                    continue
+
+                try:
+                    frames = packet.decode()
+                except av.AVError:
+                    # RTSP transient decode failure — keep the packet for the
+                    # segment muxer (it remuxes without decoding) but produce no
+                    # frames to embed from it.
+                    frames = []
+
+                # Presentation time of this packet in seconds, shared with the
+                # segment muxer so playback seek never drifts (both derive from
+                # this one demux). ``None`` if the source omits PTS.
+                packet_pts = (
+                    float(packet.pts * stream.time_base)
+                    if packet.pts is not None and stream.time_base is not None
+                    else None
+                )
+
+                batch_start_time = now_us()
+                for frame in frames:
+                    if shutdown_event and shutdown_event.is_set():
+                        end_time = now_us()
+                        logger.debug(
+                            f"Stream {stream_id} stopped by shutdown event during decoding"
+                        )
+                        yield (
+                            INTERRUPT,
+                            stream_id,
+                            (start_time, end_time, (end_time - start_time) / 1_000_000),
+                        )
+                        break
+
+                    if global_frame_idx % stream_config.frame_interval != 0:
+                        global_frame_idx += 1
+                        continue
+
+                    capture_epoch, capture_source = capture_clock.capture_epoch(frame)
+                    # Host wall-clock at the instant this frame is sampled. Kept
+                    # for retention/age filtering and external correlation; the
+                    # segment playback seek now rides ``media_pts`` instead (see
+                    # FrameMetadata.media_pts), so it no longer depends on two
+                    # connections agreeing on a wall clock.
+                    ingest_epoch = time.time()
+                    frame_pts = (
+                        float(frame.pts * stream.time_base)
+                        if frame.pts is not None and stream.time_base is not None
+                        else packet_pts
+                    )
+                    if not batch:
+                        batch_opened_at = time.monotonic()
+                    batch.append(
+                        (
+                            global_frame_idx,
+                            frame,
+                            capture_epoch,
+                            capture_source,
+                            ingest_epoch,
+                            frame_pts,
+                        )
+                    )
+                    global_frame_idx += 1
+
+                    if len(batch) >= batch_size or batch_is_stale():
+
+                        if tracer is not None and tracer.should_trace():
+                            ts1 = now_us()
+
+                            flow_id = f"s{stream_id}_b{batch_id}"
+
+                            tracer.emit_complete(
+                                "decode",
+                                batch_start_time,
+                                ts1,
+                                tid,
+                                args={
+                                    "batch_id": batch_id,
+                                    "stream_id": stream_id,
+                                    "batch_size": len(batch),
+                                },
+                            )
+
+                            # start flow → leaving decode
+                            tracer.flow_start(flow_id, tid=tid, ts=ts1)
+
+                        yield flush_batch(batch, batch_id), (
+                            batch_start_time,
+                            now_us(),
+                            (now_us() - batch_start_time) / 1_000_000,
+                        )
+                        batch_start_time = now_us()
+                        batch.clear()
+                        batch_opened_at = None
+                        batch_id += 1
+
+                # Hand the fully-decoded packet to the segment muxer. Done after
+                # decoding so the sink may take ownership (muxing rebinds
+                # packet.stream). A sink error must never disturb embedding.
+                if packet_sink is not None:
+                    try:
+                        packet_sink.submit(packet, packet_pts)
+                    except Exception:  # noqa: BLE001 - recording must never stop embedding
+                        logger.debug(
+                            "Segment sink rejected a packet for stream %s",
+                            stream_id,
+                            exc_info=True,
+                        )
+
+            # Final drain (only on shutdown or true EOS)
+            if batch:
+                if tracer is not None and tracer.should_trace():
+                    ts1 = now_us()
+
+                    flow_id = f"s{stream_id}_b{batch_id}"
+
+                    tracer.emit_complete(
+                        "decode",
+                        batch_start_time,
+                        ts1,
+                        tid,
+                        args={
+                            "batch_id": batch_id,
+                            "stream_id": stream_id,
+                            "batch_size": len(batch),
+                        },
+                    )
+
+                    # start flow → leaving decode
+                    tracer.flow_start(flow_id, tid=tid, ts=ts1)
+
+                yield flush_batch(batch, batch_id), (
+                    batch_start_time,
+                    now_us(),
+                    (now_us() - batch_start_time) / 1_000_000,
+                )
+                batch_start_time = now_us()
+                batch.clear()
+
+            yield (
+                DONE,
+                stream_id,
+                (start_time, now_us(), (now_us() - start_time) / 1_000_000),
+            )
+
+        finally:
+            if shutdown_event and shutdown_event.is_set():
+                logger.info(f"Stream {stream_id} stopped by shutdown event")
+            else:
+                logger.info(f"Stream {stream_id} ended")
+
+
+def _clamp_batch_size_to_pool(batch_size: int, shm_pool: Optional[SharedMemoryPool]) -> int:
+    """Clamp a decode batch size to the shared memory pool capacity.
+
+    Blocks belonging to a batch are only released once the whole batch has been
+    consumed downstream, so a batch larger than the pool can never be satisfied.
+    """
+    if shm_pool is None or batch_size <= shm_pool.max_blocks:
+        return batch_size
+
+    logger.warning(
+        "Frame extraction batch size (%d) exceeds shared memory pool capacity (%d); "
+        "clamping to %d to keep the decode stage deadlock-free.",
+        batch_size,
+        shm_pool.max_blocks,
+        shm_pool.max_blocks,
+    )
+    return shm_pool.max_blocks
+
+
+def decode_and_batch_generator(
+    container: av.container.Container,
+    stream_id: int,
+    stream_config: VideoFrameConfig,
+    shm_pool: SharedMemoryPool,
+    batch_size: int | None = None,
+    shutdown_event: threading.Event = None,
+    tracer: Optional[Tracer] = None,
+) -> Generator[Union[Dict[str, Any], Tuple[object, int]], None, None]:
+
+    if batch_size is None:
+        batch_size = _video_config.VIDEO_EXTRACTION_BATCH_SIZE
+
+    batch_size = _clamp_batch_size_to_pool(batch_size, shm_pool)
+
+    batch = []
+    batch_id = 0
+    logger.info(f"Stream {stream_id} shutdown_event ID: {id(shutdown_event)}")
+    start_time = now_us()
+
+    tid = threading.get_ident()
+
+    if tracer is not None and tracer.should_trace():
+        tracer.set_thread_name(tid=tid, name=f"decode_sid_{stream_id}")
+
+    with container, ThreadPoolExecutor(
+        max_workers=_video_config.VIDEO_FRAME_DECODER_WORKERS,
+        thread_name_prefix=f"decode_stream_sid_{stream_id}",
+    ) as _thread_pool:
+        stream = container.streams.video[0]
+        stream.thread_type = "AUTO"
+
+        if stream_config.keyframes_only:
+            stream.skip_frame = "NONKEY"
+
+        batch_start_time = now_us()
+        for frame_id, frame in enumerate(container.decode(video=0)):
+
+            if shutdown_event and shutdown_event.is_set():
+                logger.debug(f"Stream {stream_id} stopped by shutdown event during decoding")
+                end_time = now_us()
+                yield (
+                    INTERRUPT,
+                    stream_id,
+                    (start_time, end_time, (end_time - start_time) / 1_000_000),
+                )
+                break
+
+            if frame_id % stream_config.frame_interval != 0:
+                continue
+
+            batch.append((frame_id, frame))
+            # logger.debug(f"[DECODER] Stream {stream_id} decoded frame {frame_id}, batch size {len(batch)}")
+            if len(batch) >= batch_size:
+                frames_meta = list(
+                    _thread_pool.map(
+                        lambda f: convert_and_store_frame(stream_id, f[0], f[1], shm_pool), batch
+                    )
+                )
+                logger.debug(
+                    f"[Decoder] Stream {stream_id} batch {batch_id} with {len(frames_meta)} frames"
+                )
+
+                ts1 = now_us()
+                if tracer is not None and tracer.should_trace():
+
+                    flow_id = f"s{stream_id}_b{batch_id}"
+                    tracer.emit_complete(
+                        "decode",
+                        batch_start_time,
+                        ts1,
+                        tid,
+                        args={
+                            "batch_id": batch_id,
+                            "stream_id": stream_id,
+                            "batch_size": len(frames_meta),
+                        },
+                    )
+
+                    # start flow → leaving decode
+                    tracer.flow_start(flow_id, tid=tid, ts=ts1)
+
+                yield BatchFrameMetadata(
+                    stream_id=stream_id, batch_id=batch_id, frames=frames_meta, enqueue_ts=ts1
+                ).to_dict(), (
+                    batch_start_time,
+                    now_us(),
+                    (now_us() - batch_start_time) / 1_000_000,
+                )
+
+                batch = []
+                batch_start_time = now_us()
+                batch_id += 1
+
+        if len(batch) > 0:
+            frames_meta = list(
+                _thread_pool.map(
+                    lambda f: convert_and_store_frame(stream_id, f[0], f[1], shm_pool), batch
+                )
+            )
+            logger.debug(f"[Decoder] Stream {stream_id} final batch with {len(frames_meta)} frames")
+
+            ts1 = now_us()
+            if tracer is not None and tracer.should_trace():
+
+                flow_id = f"s{stream_id}_b{batch_id}"
+
+                tracer.emit_complete(
+                    "decode",
+                    batch_start_time,
+                    ts1,
+                    tid,
+                    args={
+                        "batch_id": batch_id,
+                        "stream_id": stream_id,
+                        "batch_size": len(batch),
+                    },
+                )
+
+                # start flow → leaving decode
+                tracer.flow_start(flow_id, tid=tid, ts=ts1)
+
+            yield BatchFrameMetadata(
+                stream_id=stream_id, batch_id=batch_id, frames=frames_meta, enqueue_ts=ts1
+            ).to_dict(), (
+                batch_start_time,
+                now_us(),
+                (now_us() - batch_start_time) / 1_000_000,
+            )
+            batch_start_time = now_us()
+
+        end_time = now_us()
+        logger.info(f"[Decoder] Stream {stream_id} ended")
+        yield (
+            DONE,
+            stream_id,
+            (start_time, end_time, (end_time - start_time) / 1_000_000),
+        )
+
+
+def generator_to_queue(gen, result_queue, stream_id=None):
+    """Drain ``gen`` into ``result_queue``.
+
+    A failure in the generator must not silently kill this thread: the consumer
+    waits for a DONE sentinel per stream, so a dead producer would leave it
+    blocked forever. Any exception is therefore forwarded as a FAILED sentinel
+    and re-raised by the consumer.
+    """
+    try:
+        for item in gen:
+            result_queue.put(item)
+            if isinstance(item, tuple) and item[0] is INTERRUPT:
+                break
+    except BaseException as exc:  # noqa: BLE001 - forwarded to the consumer
+        logger.error(
+            f"[DECODER] Stream {stream_id} producer failed: {exc}",
+            exc_info=True,
+        )
+        result_queue.put((FAILED, stream_id, exc))
+
+
+class VideoFrameExtractor:
+    """
+    Extracts and converts video frames to numpy arrays efficiently.
+
+    Uses a producer-consumer pattern with multiprocessing support for
+    parallel decoding of multiple video sources.
+    """
+
+    def __init__(
+        self,
+        video_input: VideoInput | str | bytes | list[VideoInput | str | bytes],
+        configs: VideoFrameConfig | list[VideoFrameConfig] | None = None,
+        shm_pool: SharedMemoryPool | None = None,
+        shutdown_event: threading.Event | None = None,
+        tracer: Tracer | None = None,
+        packet_sink: Optional[PacketSink] = None,
+    ):
+        self.configs = configs
+
+        if configs is None:
+            self.configs = (
+                [VideoFrameConfig()] * len(video_input)
+                if isinstance(video_input, list)
+                else [VideoFrameConfig()]
+            )
+
+        elif isinstance(configs, VideoFrameConfig):
+            self.configs = (
+                [configs] * len(video_input) if isinstance(video_input, list) else [configs]
+            )
+
+        elif isinstance(configs, list):
+            if isinstance(video_input, list) and len(configs) != len(video_input):
+                raise ValueError("Length of configs list must match number of video inputs")
+            self.configs = configs
+
+        self.shm_pool = shm_pool
+        self.tracer = tracer
+        #: Optional per-session packet sink (live RTSP only) that receives every
+        #: demuxed packet for segment recording off the single decode connection.
+        self.packet_sink = packet_sink
+        # Use external shutdown_event if provided, else create internal one
+        self._shutdown = shutdown_event
+
+        self.finished_set = set()
+        if isinstance(video_input, list):
+            self.video_inputs = [VideoInput.auto_detect(vi) for vi in video_input]
+        else:
+            self.video_inputs = [VideoInput.auto_detect(video_input)]
+
+        self.metadata_list = []
+
+        if len(self.video_inputs) > 0:
+            for video_index, video_input in enumerate(self.video_inputs):
+                with self._open_video_source(video_input) as container:
+                    stream = container.streams.video[0]
+
+                    self.metadata_list.append(
+                        VideoStreamMetadata(
+                            video_index=video_index,
+                            stream_id=stream.index,
+                            stream_name=stream.name,
+                            stream_source=(_redact_source_for_metadata(video_input)),
+                            time_base=str(stream.time_base),
+                            source_type=str(video_input.source_type),
+                            total_frames=stream.frames,
+                            fps=float(stream.average_rate) if stream.average_rate else None,
+                            average_rate=str(stream.average_rate) if stream.average_rate else None,
+                            base_rate=str(stream.base_rate) if stream.base_rate else None,
+                            guessed_rate=str(stream.guessed_rate) if stream.guessed_rate else None,
+                            width=stream.width,
+                            height=stream.height,
+                            pixel_format=stream.format.name if stream.format else None,
+                            aspect_ratio=(
+                                str(stream.sample_aspect_ratio)
+                                if stream.sample_aspect_ratio
+                                else None
+                            ),
+                            display_aspect_ratio=(
+                                str(stream.display_aspect_ratio)
+                                if stream.display_aspect_ratio
+                                else None
+                            ),
+                            video_duration_seconds=(
+                                float(stream.duration * Fraction(str(stream.time_base)))
+                                if stream.duration and stream.time_base
+                                else None
+                            ),
+                            duration=stream.duration,
+                        ).to_dict()
+                    )
+
+    def get_metadata(self) -> list[Dict[str, Any]]:
+        """Return metadata for all video streams."""
+        return self.metadata_list
+
+    def stop(self):
+        """
+        Request graceful shutdown of frame extraction.
+
+        Call this from any thread to stop the decode_frames() loop.
+        The generator will yield INTERRUPT and exit cleanly.
+        """
+        logger.info("Stop requested, setting shutdown event...")
+        self._shutdown.set()
+
+    @property
+    def shutdown_event(self) -> threading.Event:
+        """Return the shutdown event for external monitoring/control."""
+        return self._shutdown
+
+    def _open_video_source(self, video_input: VideoInput) -> av.container.Container:
+        """Open video source based on type."""
+        if video_input.source_type == VideoSourceType.FILE:
+            return av.open(video_input.source)
+        elif video_input.source_type == VideoSourceType.RTSP:
+            return av.open(
+                video_input.source,
+                options={
+                    "rtsp_transport": "tcp",
+                    "rtsp_flags": "prefer_tcp",
+                    "stimeout": "10000000",
+                    "max_delay": "500000",
+                    "analyzeduration": "10000000",
+                    "probesize": "10000000",
+                },
+            )
+        elif video_input.source_type == VideoSourceType.BYTES:
+            bytes_io = io.BytesIO(video_input.source)
+            return av.open(bytes_io)
+        else:
+            raise ValueError(f"Unsupported source type: {video_input.source_type}")
+
+    def decode_frames(self) -> Generator[List[Dict[str, Any]], None, None]:
+        """
+        Extract frames from single or multiple video sources in parallel.
+
+        Yields:
+            List of dictionaries containing frame metadata and frame data for each batch from all sources.
+        """
+        inputs = [
+            inp if isinstance(inp, VideoInput) else VideoInput.auto_detect(inp)
+            for inp in self.video_inputs
+        ]
+
+        queue_size = _video_config.PIPELINE_QUEUE_MAXSIZE
+        for config in self.configs:
+            queue_size += max(config.queue_size, queue_size)
+        result_queue: queue.Queue = queue.Queue(maxsize=queue_size)
+        finished_set = set()
+
+        threads = []
+        for video_index, video_input in enumerate(inputs):
+            container = self._open_video_source(video_input)
+
+            if video_input.source_type == VideoSourceType.RTSP:
+                # For streaming sources, we can start decoding immediately
+                stream_gen = decode_stream_and_batch_generator(
+                    container=container,
+                    stream_id=video_index,
+                    stream_config=self.configs[video_index],
+                    shm_pool=self.shm_pool,
+                    batch_size=self.configs[video_index].batch_size,
+                    shutdown_event=self._shutdown,
+                    tracer=self.tracer,
+                    packet_sink=self.packet_sink,
+                )
+            else:
+                stream_gen = decode_and_batch_generator(
+                    container=container,
+                    stream_id=video_index,
+                    stream_config=self.configs[video_index],
+                    shm_pool=self.shm_pool,
+                    batch_size=self.configs[video_index].batch_size,
+                    shutdown_event=self._shutdown,
+                    tracer=self.tracer,
+                )
+
+            t = threading.Thread(
+                target=generator_to_queue,
+                args=(stream_gen, result_queue, video_index),
+                daemon=True,
+            )
+            t.start()
+            threads.append(t)
+
+        try:
+            while len(finished_set) < len(inputs):
+                try:
+                    batch = result_queue.get(timeout=0.1)
+
+                except queue.Empty:
+                    if self._shutdown.is_set():
+                        logger.debug("[DECODER MAIN] Shutdown event set, stopping frame extraction")
+                        break
+                    if not any(t.is_alive() for t in threads):
+                        # Every producer is gone without reporting completion,
+                        # so no further item can ever arrive. Fail loudly rather
+                        # than spinning on an empty queue forever.
+                        self._shutdown.set()
+                        raise RuntimeError(
+                            "[DECODER MAIN] All decoder threads exited before signalling "
+                            f"completion ({len(finished_set)}/{len(inputs)} streams finished); "
+                            "aborting frame extraction."
+                        )
+                    continue
+
+                # Handle DONE, INTERRUPT and FAILED sentinels
+                if isinstance(batch, tuple):
+
+                    if batch[0] is FAILED:
+                        _, stream_id, exc = batch
+                        self._shutdown.set()
+                        logger.error(
+                            f"[DECODER MAIN] Stream {stream_id} failed during decoding: {exc}"
+                        )
+                        raise exc
+
+                    if batch[0] is INTERRUPT:
+                        logger.debug(
+                            f"[DECODER MAIN] Interrupt signal received for stream {batch[1]}, shutting down..."
+                        )
+                        logger.debug(
+                            f"[DECODER MAIN] Timing info: start_time={batch[2][0]}, end_time={batch[2][1]}, duration={batch[2][2]}"
+                        )
+                        break
+
+                    if batch[0] is DONE:
+                        _, stream_id, timing_info = batch
+                        logger.info(
+                            f"[DECODER MAIN] Stream {stream_id} completed. Timing info: start_time={timing_info[0]}, end_time={timing_info[1]}, duration={timing_info[2]}"
+                        )
+                        finished_set.add(stream_id)
+
+                        t = threads[stream_id]
+                        if t.is_alive():
+                            t.join(timeout=1.0)
+
+                        continue
+
+                yield batch
+
+        except Exception as e:
+            self._shutdown.set()
+            # The full traceback is logged once at the origin (generator_to_queue
+            # for producer failures); avoid re-printing it at every re-raise.
+            logger.error(f"[DECODER MAIN] Error during frame extraction: {e}")
+            raise
+
+        finally:
+            logger.info("[DECODER MAIN] Frame extraction finished")
+
+
+def extract_batched_frames(
+    video_inputs: VideoInput | str | bytes | list[VideoInput | str | bytes],
+    frame_interval: int = 1,
+    batch_size: int | None = None,
+    keyframes_only: bool = False,
+    shm_pool: SharedMemoryPool | None = None,
+) -> Generator[List[Image.Image], None, None]:
+    """
+    Convenience function to extract frames from multiple video sources using threading.
+
+    Uses threading.Thread instead of multiprocessing for simpler implementation.
+    May have GIL limitations but avoids shared memory complexity.
+
+    Args:
+        video_inputs: List of VideoInput objects, file paths, RTSP URLs, or bytes.
+        frame_interval: Extract every Nth frame.
+        batch_size: Number of frames per batch.
+        keyframes_only: Whether to extract only keyframes.
+
+    Yields:
+        Batches of PIL.Image frames from all sources.
+    """
+    if batch_size is None:
+        batch_size = _video_config.VIDEO_EXTRACTION_BATCH_SIZE
+
+    config = VideoFrameConfig(
+        frame_interval=frame_interval,
+        batch_size=batch_size,
+        keyframes_only=keyframes_only,
+    )
+    if shm_pool is None:
+        # Create a default shared memory pool if not provided
+        shm_pool = SharedMemoryPool(
+            max_blocks=_video_config.VIDEO_SHM_MAX_BLOCKS,
+            block_size=_video_config.VIDEO_SHM_BLOCK_SIZE,
+        )  # Assuming max 1080p RGB frames
+
+    extractor = VideoFrameExtractor(video_inputs, config, shm_pool=shm_pool)
+    print(f"extractor metadata: {extractor.metadata_list}")
+    try:
+        for batch in extractor.decode_frames():
+
+            if isinstance(batch, tuple) and (batch[0] is INTERRUPT or batch[0] is DONE):
+                logger.info(
+                    f"Received signal {batch[0]} for stream {batch[1]}, stopping extraction."
+                )
+                break
+
+            batch_dict, _ = batch
+
+            batch_frame_pil = []
+
+            frames_metadata = (
+                batch_dict["frames"]
+                if isinstance(batch_dict, dict) and "frames" in batch_dict
+                else []
+            )
+
+            for frame_meta in frames_metadata:
+                shm = shared_memory.SharedMemory(name=frame_meta["shm"])
+                arr = Image.fromarray(
+                    np.ndarray(
+                        eval(frame_meta["shape"]),
+                        dtype=frame_meta["dtype"],
+                        buffer=shm.buf,
+                    ),
+                    mode="RGB",
+                )
+                logger.info(
+                    f"(frame_meta['stream_id']: {frame_meta['stream_id']}, frame_meta['frame_id']: {frame_meta['frame_id']}, arr.size: {arr.size}, arr.mode: {arr.mode})"
+                )
+                batch_frame_pil.append(arr)
+
+            yield batch_frame_pil
+
+            batch_frame_pil.clear()
+
+            for frame_meta in frames_metadata:
+                logger.info(
+                    f"Releasing shared memory {frame_meta['shm']} for frame {frame_meta['frame_id']} of stream {frame_meta['stream_id']}"
+                )
+                shm_pool.release(frame_meta["shm"])
+    finally:
+        shm_pool.shutdown()

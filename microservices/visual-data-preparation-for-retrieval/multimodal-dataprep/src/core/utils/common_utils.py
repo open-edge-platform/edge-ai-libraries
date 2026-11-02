@@ -1,0 +1,146 @@
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+"""Common utility functions extracted from util.py
+
+This module contains general-purpose utility functions that are used across
+the Multimodal DataPrep microservice.
+"""
+
+import logging
+from typing import NamedTuple, Optional, Tuple
+
+from src.common import DataPrepException, logger, sanitize_for_log, settings
+from src.core.object_detection.detector import YOLOXDetector
+from src.core.storage import BaseStorage, get_storage
+from .config_utils import get_config
+
+
+# Frame extraction data structures
+class FrameInfo(NamedTuple):
+    """Information about an extracted frame."""
+
+    frame_number: int
+    timestamp: float
+    image_path: str
+    frame_type: str  # "full_frame" or "detected_crop"
+    crop_index: Optional[int] = None
+    detection_confidence: Optional[float] = None
+    crop_bbox: Optional[Tuple[int, int, int, int]] = None
+    detected_label: Optional[str] = None
+    merged_boxes_count: Optional[int] = None
+    context_expansion_applied: Optional[bool] = None
+
+
+def sanitize_input(input: str) -> str | None:
+    """Takes an string input and strips whitespaces. Returns None if
+    string is empty else returns the string.
+    
+    Args:
+        input: Input string to sanitize
+        
+    Returns:
+        Sanitized string or None if empty
+    """
+    input = str.strip(input)
+    if len(input) == 0:
+        return None
+
+    return input
+
+
+def get_minio_client() -> BaseStorage:
+    """Return the active storage backend.
+
+    Retained as a backward-compatible shim: it now delegates to the pluggable
+    storage factory (``STORAGE_BACKEND``) and returns a :class:`BaseStorage`
+    implementation (MinIO or local filesystem). The returned object exposes the
+    same method surface previously provided by ``MinioClient``.
+
+    Returns:
+        BaseStorage: The configured storage backend.
+
+    Raises:
+        Exception: If the configured storage backend cannot be initialized.
+    """
+    return get_storage()
+
+
+def create_detector_instance(config: Optional[dict] = None, enable_object_detection: Optional[bool] = None, detection_confidence: Optional[float] = None):
+    """
+    Create a detector instance based on configuration with API parameter override.
+    
+    Args:
+        config: Configuration dictionary. If None, loads from effective config.
+        enable_object_detection: Override for object detection enabled state from API
+        detection_confidence: Override for detection confidence from API
+        
+    Returns:
+        YOLOXDetector instance or None if detection is disabled or unavailable
+    """
+    try:
+        # Import detector here to avoid circular imports and handle missing dependencies
+        from src.core.object_detection import create_detector
+        
+        logger.info("Attempting to create detector instance...")
+        logger.debug(f"Detector config passed: {config}")
+        logger.debug(
+            "API overrides: enable_object_detection=%s, detection_confidence=%s",
+            sanitize_for_log(enable_object_detection, max_length=64),
+            sanitize_for_log(detection_confidence, max_length=64),
+        )
+        
+        # Get effective config to check object detection settings
+        effective_config = get_config()
+        detection_config = effective_config.get('object_detection', {}).copy()
+        
+        # Override with API parameters if provided
+        if enable_object_detection is not None:
+            detection_config['enabled'] = enable_object_detection
+            logger.info(
+                "Overriding object detection enabled with API value: %s",
+                sanitize_for_log(enable_object_detection, max_length=64),
+            )
+        
+        if detection_confidence is not None:
+            detection_config['confidence_threshold'] = detection_confidence
+            logger.info(
+                "Overriding detection confidence with API value: %s",
+                sanitize_for_log(detection_confidence, max_length=64),
+            )
+        
+        logger.info(
+            "Using configured object detection device: %s",
+            detection_config.get('device', 'CPU'),
+        )
+        
+        logger.info(
+            "Object detection configuration: enabled=%s, device=%s, confidence_threshold=%s",
+            sanitize_for_log(detection_config.get('enabled', False), max_length=64),
+            sanitize_for_log(detection_config.get('device', 'CPU'), max_length=64),
+            sanitize_for_log(detection_config.get('confidence_threshold', 0.85), max_length=64),
+        )
+        
+        # Create custom config with overrides
+        detector_config = {
+            'object_detection': detection_config
+        }
+        
+        detector = create_detector(detector_config)
+        
+        if detector is None:
+            logger.error("create_detector returned None - object detection is likely disabled in configuration")
+            return None
+            
+        logger.info("Detector instance created successfully")
+        return detector
+        
+    except ImportError as e:
+        logger.error(f"Detector module not available - ImportError: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Failed to create detector instance: {e}")
+        logger.error(f"Exception type: {type(e).__name__}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return None

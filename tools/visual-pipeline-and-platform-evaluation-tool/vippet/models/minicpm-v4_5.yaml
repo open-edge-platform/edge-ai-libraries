@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: Apache-2.0
+name: minicpm-v4_5
+display_name: MiniCPM-V 4.5 8B
+description: "MiniCPM-V 4.5 (8B) vision-language model for high-quality image understanding, visual question answering, and detailed scene description."
+source: huggingface
+hub: huggingface
+type: vision_language_models
+precisions:
+  - precision: INT4
+    model_path: openvino_models/cpu/int4/openbmb/MiniCPM-V-4_5/
+    model_proc: ""
+extra_model_procs: []
+unsupported_devices: "NPU"
+download_request:
+  hub: openvino
+  name: openbmb/MiniCPM-V-4_5
+  type: vlm
+  is_ovms: true
+  config:
+    precision: int4
+    device: CPU
+    cache_size: 10

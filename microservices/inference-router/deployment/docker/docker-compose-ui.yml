@@ -1,0 +1,97 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# Full-stack deployment: the Inference Router plus its web UI.
+#
+# Both the router and the UI run with network_mode: host. nginx (the UI) reverse-
+# proxies API traffic to the router over the shared host loopback, so the router
+# can stay bound to 127.0.0.1 (remote access refused) while the UI still listens
+# on every interface at ${UI_PORT} (reachable locally and remotely).
+# scripts/deploy_docker.sh sets SERVER_HOST to an address the router listens on.
+# Deploy with:  bash scripts/deploy_docker.sh
+
+services:
+  # Inference Router service
+  router:
+    image: ${REGISTRY:-}inference-router:${TAG:-latest}
+    container_name: inference-router
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+      args:
+        http_proxy: ${http_proxy:-}
+        https_proxy: ${https_proxy:-}
+        no_proxy: ${no_proxy:-}
+    network_mode: host
+    devices:
+      - ${IR_RENDER_DEVICE:-/dev/null}:${IR_RENDER_DEVICE:-/dev/null}
+    group_add:
+      - "${RENDER_GROUP_ID:-993}"
+    volumes:
+      - ../../workspace:/app
+      - ${IR_OV_MODEL}:/models/ov-classifier
+    # Bind host defaults to loopback (local-only). Export IR_BIND_HOST=0.0.0.0
+    # to expose the router to other machines. Compose interpolates these from
+    # the host environment (set by scripts/deploy_docker.sh) at parse time.
+    command: ["sh", "-c", "uvicorn src.main:app --host ${IR_BIND_HOST:-127.0.0.1} --port ${ROUTER_PORT:-8000}"]
+    env_file:
+      - path: ../../workspace/.env
+        required: false
+    environment:
+      - IR_BIND_HOST=${IR_BIND_HOST:-127.0.0.1}
+      - ROUTER_PORT=${ROUTER_PORT:-8000}
+      - GATEWAY_VERBOSE=${GATEWAY_VERBOSE:-}
+      - GATEWAY_VERBOSE_FULL=${GATEWAY_VERBOSE_FULL:-}
+      - GATEWAY_MAX_CONCURRENCY=${GATEWAY_MAX_CONCURRENCY:-0}
+      - GATEWAY_CONFIG=/app/config.yaml
+      - GATEWAY_LOG_DIR=${GATEWAY_LOG_DIR:-/app/logs}
+      - IR_OV_MODEL=/models/ov-classifier
+      - IR_DEVICE=${IR_DEVICE:-GPU}
+      - HF_ENDPOINT=${HF_ENDPOINT:-}
+      - http_proxy=${http_proxy:-}
+      - https_proxy=${https_proxy:-}
+      - no_proxy=${no_proxy:-}
+    restart: unless-stopped
+    healthcheck:
+      # Probe the address the router actually binds to (IR_BIND_HOST). In UI
+      # mode deploy_docker.sh binds it to the host LAN IP so the UI can reach it.
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://${IR_BIND_HOST:-127.0.0.1}:${ROUTER_PORT:-8000}/health')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Inference Router web UI (nginx serving the built Vue app + API reverse proxy)
+  inference-router-ui:
+    image: ${REGISTRY:-}inference-router-ui:${TAG:-latest}
+    container_name: inference-router-ui
+    build:
+      context: ../..
+      dockerfile: ./ui/docker/Dockerfile.ui
+      args:
+        http_proxy: ${http_proxy:-}
+        https_proxy: ${https_proxy:-}
+        no_proxy: ${no_proxy:-}
+    # Host networking (like the router) so nginx reverse-proxies to the router
+    # over loopback: the router can stay bound to 127.0.0.1 (remote-refused)
+    # while nginx itself listens on 0.0.0.0:${UI_PORT}. nginx binds ${UI_PORT}
+    # directly on the host, so there is no published-port mapping.
+    network_mode: host
+    environment:
+      no_proxy: ${no_proxy:-}
+      http_proxy: ${http_proxy:-}
+      https_proxy: ${https_proxy:-}
+      UI_PORT: ${UI_PORT:-7010}
+      # Address nginx reverse-proxies /v1 and /health to. Set by
+      # scripts/deploy_docker.sh to an address the router listens on: loopback
+      # for the default / 0.0.0.0 binds, or the specific IR_BIND_HOST interface.
+      SERVER_HOST: ${SERVER_HOST:-127.0.0.1}
+      SERVER_PORT: ${ROUTER_PORT:-8000}
+    depends_on:
+      - router
+    restart: unless-stopped

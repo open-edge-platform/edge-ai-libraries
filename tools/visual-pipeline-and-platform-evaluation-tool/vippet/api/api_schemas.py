@@ -1,8 +1,23 @@
+import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union, Literal
 
 from enum import Enum
 from pydantic import BaseModel, Field, model_validator
+
+_HUB_MODEL_NAME_SEGMENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+
+
+def _is_valid_hub_model_name(name: str) -> bool:
+    """Allow a plain model name or an ``owner/name`` hub repo id.
+
+    Each segment must start with an alphanumeric character, which also
+    rejects path-traversal segments (``.``, ``..``) and empty segments.
+    """
+    segments = name.split("/")
+    return len(segments) <= 2 and all(
+        _HUB_MODEL_NAME_SEGMENT_RE.match(segment) for segment in segments
+    )
 
 
 # # Enums based on OpenAPI schema
@@ -24,6 +39,24 @@ class PipelineSource(str, Enum):
     PREDEFINED = "PREDEFINED"
     USER_CREATED = "USER_CREATED"
     TEMPLATE = "TEMPLATE"
+
+
+class PipelineType(str, Enum):
+    """
+    **Type of a pipeline definition.**
+
+    ## Values
+    - `vision` - Pipeline processes video/image data using GStreamer and DLStreamer
+    - `time_series` - Pipeline processes time-series data using the Time Series Analytics Microservice
+
+    ### Example
+    ```json
+    "vision"
+    ```
+    """
+
+    VISION = "vision"
+    TIME_SERIES = "time_series"
 
 
 class AppStatus(str, Enum):
@@ -66,6 +99,17 @@ class TestJobState(str, Enum):
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
+
+
+class BenchmarkTestCaseRunStatus(str, Enum):
+    """Status of a benchmark test-case run."""
+
+    CREATED = "created"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    SKIPPED = "skipped"
 
 
 class OptimizationJobState(str, Enum):
@@ -148,22 +192,32 @@ class DeviceFamily(str, Enum):
 
 class ModelCategory(str, Enum):
     """
-    **Model category for classification, detection, or GenAI tasks.**
+    **Model category for classification, detection, and other supported tasks.**
 
     ## Values
-    - `CLASSIFICATION` - Classification model
-    - `DETECTION` - Detection model
-    - `GENAI` - Generative AI model (for example VLM)
+    - `IMAGE_CLASSIFICATION` - Image classification model
+    - `OBJECT_DETECTION` - Object detection model
+    - `IMAGE_SEGMENTATION` - Image segmentation model
+    - `POSE_ESTIMATION` - Pose estimation model
+    - `VISION_LANGUAGE_MODELS` - Vision-language model (for example VLM)
+    - `LARGE_LANGUAGE_MODELS` - Large language model (text-only, for example LLM)
+    - `AUTOMATIC_SPEECH_RECOGNITION` - Automatic speech recognition model
+    - `TEXT_TO_SPEECH` - Text-to-speech synthesis model
 
     ### Example
     ```json
-    "detection"
+    "object_detection"
     ```
     """
 
-    CLASSIFICATION = "classification"
-    DETECTION = "detection"
-    GENAI = "genai"
+    IMAGE_CLASSIFICATION = "image_classification"
+    OBJECT_DETECTION = "object_detection"
+    IMAGE_SEGMENTATION = "image_segmentation"
+    POSE_ESTIMATION = "pose_estimation"
+    VISION_LANGUAGE_MODELS = "vision_language_models"
+    LARGE_LANGUAGE_MODELS = "large_language_models"
+    AUTOMATIC_SPEECH_RECOGNITION = "automatic_speech_recognition"
+    TEXT_TO_SPEECH = "text_to_speech"
 
 
 class OptimizationType(str, Enum):
@@ -298,6 +352,7 @@ class CameraType(str, Enum):
     ## Values
     - `USB` - USB camera connected directly to the system
     - `NETWORK` - Network camera accessible via IP protocols
+    - `GIGE` - GigE Vision machine vision camera
 
     ### Example
     ```json
@@ -307,6 +362,7 @@ class CameraType(str, Enum):
 
     USB = "USB"
     NETWORK = "NETWORK"
+    GIGE = "GIGE"
 
 
 class HealthResponse(BaseModel):
@@ -341,13 +397,17 @@ class StatusResponse(BaseModel):
     - `status` - Current application status (STARTING, INITIALIZING, READY, or SHUTDOWN)
     - `message` - Optional message describing current activity or initialization progress
     - `ready` - True if application is ready to serve API requests
+    - `version` - Build version (image tag / release string) of the running application
+    - `revision` - Git commit hash of the source tree the running image was built from, suffixed with "-dirty" if the working tree had uncommitted changes at build time (e.g. "a1b2c3d" or "a1b2c3d-dirty"); "unknown" if unavailable
 
     ### Example
     ```json
     {
       "status": "ready",
       "message": null,
-      "ready": true
+      "ready": true,
+      "version": "2026.2.0-rc2",
+      "revision": "a1b2c3d"
     }
     ```
     """
@@ -355,6 +415,8 @@ class StatusResponse(BaseModel):
     status: AppStatus
     message: Optional[str]
     ready: bool
+    version: str
+    revision: str
 
 
 class Node(BaseModel):
@@ -931,14 +993,30 @@ class PipelineDensitySpec(BaseModel):
     - `variant` - Reference to an existing pipeline variant by pipeline_id and variant_id
     - `graph` - Inline pipeline graph provided directly
 
-    Used in DensityTestSpec to describe how total streams are split between
-    pipelines based on relative ratios.
+    Used in DensityTestSpec to describe how streams are assigned to each
+    pipeline. The schema supports two modes, selected automatically based
+    on whether the optional `streams` field is provided:
+
+    ## Modes
+
+    ### Classic density (default)
+    All specs omit `streams`. The benchmark searches for the maximum
+    total stream count that still meets ``fps_floor`` and splits it
+    between pipelines using ``stream_rate`` ratios (must sum to 100).
+
+    ### Mixed density
+    Exactly one of two specs sets `streams` to a fixed value. The
+    pipeline with `streams` is pinned to that count; the other pipeline
+    is the one the benchmark increments (using the same exponential +
+    bisection search as classic density). ``stream_rate`` is ignored in
+    this mode.
 
     ## Attributes
     - `pipeline` - Graph source (either a reference to existing variant or inline graph; discriminated by 'source' field: \"variant\" or \"graph\")
-    - `stream_rate` - Relative share of total streams for this pipeline expressed as percentage (all stream_rate values in the request must sum to 100)
+    - `stream_rate` - Relative share of total streams for this pipeline expressed as percentage (classic mode only; all stream_rate values must sum to 100)
+    - `streams` - Fixed input stream count for this pipeline (mixed-density mode). When set on one of exactly two specs, the other spec is incremented by the benchmark algorithm.
 
-    ### Example (Variant reference)
+    ### Example (Variant reference, classic mode)
     ```json
     {
       "pipeline": {
@@ -950,7 +1028,7 @@ class PipelineDensitySpec(BaseModel):
     }
     ```
 
-    ### Example (Inline graph)
+    ### Example (Inline graph, classic mode)
     ```json
     {
       "pipeline": {
@@ -963,6 +1041,18 @@ class PipelineDensitySpec(BaseModel):
       "stream_rate": 50
     }
     ```
+
+    ### Example (Mixed density - this spec is the fixed pipeline)
+    ```json
+    {
+      "pipeline": {
+        "source": "variant",
+        "pipeline_id": "pipeline-a3f5d9e1",
+        "variant_id": "variant-abc123"
+      },
+      "streams": 4
+    }
+    ```
     """
 
     pipeline: GraphSource = Field(
@@ -973,8 +1063,24 @@ class PipelineDensitySpec(BaseModel):
     stream_rate: int = Field(
         default=100,
         ge=0,
-        description="Relative share of total streams for this pipeline (percentage).",
+        description=(
+            "Relative share of total streams for this pipeline (percentage). "
+            "Used only in classic density mode (when no spec sets 'streams'). "
+            "Ignored in mixed-density mode."
+        ),
         examples=[50],
+    )
+    streams: int | None = Field(
+        default=None,
+        ge=1,
+        description=(
+            "Fixed input stream count for this pipeline. When set on exactly "
+            "one of two specs, the request switches to mixed-density mode: "
+            "this pipeline is pinned to 'streams' and the other pipeline is "
+            "incremented by the benchmark algorithm. Leave unset for classic "
+            "density mode."
+        ),
+        examples=[4],
     )
 
 
@@ -1023,6 +1129,10 @@ class Pipeline(BaseModel):
     name: str
     description: str
     source: PipelineSource
+    type: PipelineType = Field(
+        default=PipelineType.VISION,
+        description="Pipeline type: 'vision' for video/image pipelines, 'time_series' for time-series analytics pipelines.",
+    )
     tags: List[str] = Field(
         default=[],
         description="List of tags for categorizing the pipeline.",
@@ -1082,6 +1192,10 @@ class PipelineDefinition(BaseModel):
         description="Non-empty human-readable text describing what the pipeline does.",
     )
     source: PipelineSource = PipelineSource.USER_CREATED
+    type: PipelineType = Field(
+        default=PipelineType.VISION,
+        description="Pipeline type: 'vision' for video/image pipelines, 'time_series' for time-series analytics pipelines.",
+    )
     tags: List[str] = Field(
         default=[],
         description="List of tags for categorizing the pipeline.",
@@ -1261,8 +1375,8 @@ class ExecutionConfig(BaseModel):
     """
     **Configuration for pipeline execution behavior.**
 
-    This configuration controls output generation, runtime limits, and
-    metadata publishing for test pipelines.
+    This configuration controls output generation, runtime limits,
+    and metadata publishing for test pipelines.
 
     ## Attributes
     - `output_mode` - Mode for pipeline output generation:
@@ -1309,6 +1423,7 @@ class ExecutionConfig(BaseModel):
       "metadata_mode": "file"
     }
     ```
+
     """
 
     output_mode: OutputMode = Field(
@@ -1396,12 +1511,23 @@ class DensityTestSpec(BaseModel):
     """
     **Request body for starting a density test.**
 
+    Supports two modes, selected automatically from the request shape
+    (see ``PipelineDensitySpec`` for details):
+
+    - **Classic density** — no spec sets ``streams``; the benchmark
+      searches the total stream count and splits it across pipelines
+      using ``stream_rate`` ratios (must sum to 100).
+    - **Mixed density** — exactly two specs, exactly one with
+      ``streams`` set; that pipeline is pinned to ``streams`` and the
+      other pipeline is incremented by the same algorithm as classic
+      density.
+
     ## Attributes
     - `fps_floor` - Minimum acceptable FPS per stream
-    - `pipeline_density_specs` - List of pipelines with relative stream_rate ratios
+    - `pipeline_density_specs` - List of pipelines. Carries `stream_rate` (classic mode) or `streams` (mixed mode) per spec.
     - `execution_config` - Configuration for output generation, metadata publishing and runtime limits
 
-    ### Example
+    ### Example (classic mode)
     ```json
     {
       "fps_floor": 30,
@@ -1430,6 +1556,35 @@ class DensityTestSpec(BaseModel):
       }
     }
     ```
+
+    ### Example (mixed mode - pipeline 1 fixed at 4 streams, pipeline 2 incremented)
+    ```json
+    {
+      "fps_floor": 30,
+      "pipeline_density_specs": [
+        {
+          "pipeline": {
+            "source": "variant",
+            "pipeline_id": "pipeline-a3f5d9e1",
+            "variant_id": "variant-abc123"
+          },
+          "streams": 4
+        },
+        {
+          "pipeline": {
+            "source": "variant",
+            "pipeline_id": "pipeline-b4c6e2f8",
+            "variant_id": "variant-def456"
+          }
+        }
+      ],
+      "execution_config": {
+        "output_mode": "disabled",
+        "max_runtime": 0,
+        "metadata_mode": "disabled"
+      }
+    }
+    ```
     """
 
     fps_floor: int = Field(
@@ -1439,7 +1594,12 @@ class DensityTestSpec(BaseModel):
     )
     pipeline_density_specs: list[PipelineDensitySpec] = Field(
         ...,
-        description="List of pipelines with relative stream_rate percentages that must sum to 100.",
+        description=(
+            "List of pipelines. In classic density mode every spec carries "
+            "`stream_rate` and the values must sum to 100. In mixed-density "
+            "mode the list must contain exactly two specs and exactly one of "
+            "them must set `streams` (the fixed pipeline)."
+        ),
         examples=[
             [
                 {
@@ -1492,6 +1652,165 @@ class TestJobResponse(BaseModel):
         description="Identifier of the created test job.",
         examples=["job123"],
     )
+
+
+class BenchmarkJobResponse(BaseModel):
+    """Simple envelope with a new benchmark job identifier."""
+
+    job_id: str = Field(
+        ...,
+        description="Identifier of the created benchmark job.",
+        examples=["benchmark-job-123"],
+    )
+
+
+class BenchmarkJobStatus(BaseModel):
+    """Status of a benchmark-suite orchestration job."""
+
+    id: str
+    suite_slug: str
+    suite_run_id: int
+    start_time: int
+    elapsed_time: int
+    state: TestJobState
+    details: list[str]
+    total_test_cases: int
+    completed_test_cases: int
+    current_test_case_run_id: int | None
+    current_performance_job_id: str | None
+
+
+class BenchmarkJobSummary(BaseModel):
+    """Short summary for a benchmark-suite orchestration job."""
+
+    id: str
+    suite_slug: str
+    suite_run_id: int
+
+
+class BenchmarkTestCase(BaseModel):
+    """Concrete stream-count test case belonging to a workload."""
+
+    id: int
+    variant_id: str
+    streams: int
+
+
+class BenchmarkWorkload(BaseModel):
+    """Pipeline workload definition belonging to a benchmark suite."""
+
+    id: int
+    pipeline_id: str
+    variants: str
+    test_cases: list[BenchmarkTestCase]
+
+
+class BenchmarkSuite(BaseModel):
+    """Benchmark suite with nested workloads and test cases."""
+
+    id: int
+    slug: str
+    name: str
+    description: str
+    created_at: datetime
+    last_run_at: datetime
+    workloads: list[BenchmarkWorkload]
+
+
+class BenchmarkTestCaseRun(BaseModel):
+    """Historical run record for one benchmark test case."""
+
+    id: int
+    test_case_id: int
+    variant_id: str
+    streams: int
+    workload_run_id: int
+    start_time: int | None
+    execution_time: int | None
+    total_fps: float | None
+    per_stream_fps: float | None
+    cpu_usage: float | None
+    gpu_usage: float | None
+    npu_usage: float | None
+    media_usage: float | None
+    memory_usage: float | None
+    power_usage: float | None
+    latency_avg_ms: float | None
+    latency_avg_stddev_ms: float | None
+    latency_max_ms: float | None
+    latency_max_stddev_ms: float | None
+    latency_min_ms: float | None
+    latency_min_stddev_ms: float | None
+    score_total: float | None
+    score_performance: float | None
+    score_efficiency: float | None
+    metrics: str | None
+    job_id: str
+    status: BenchmarkTestCaseRunStatus
+
+
+class BenchmarkWorkloadRun(BaseModel):
+    """Historical run record for one workload within a suite run."""
+
+    id: int
+    workload_id: int
+    pipeline_id: str
+    suite_run_id: int
+    status: BenchmarkTestCaseRunStatus
+    score_total: float | None
+    score_performance: float | None
+    score_efficiency: float | None
+    start_time: int | None
+    execution_time: int | None
+    test_case_runs: list[BenchmarkTestCaseRun]
+    total_test_cases: int
+    passed_test_cases: int
+    failed_test_cases: int
+    pass_rate: float
+
+
+class BenchmarkSuiteRun(BaseModel):
+    """Historical run record for one benchmark suite execution."""
+
+    id: int
+    suite_id: int
+    suite_slug: str
+    suite_name: str
+    suite_description: str
+    status: BenchmarkTestCaseRunStatus
+    score_total: float | None
+    score_performance: float | None
+    score_efficiency: float | None
+    start_time: int
+    execution_time: int | None
+    job_id: str
+    total_test_cases: int
+    passed_test_cases: int
+
+
+class BenchmarkSuiteRunDetails(BenchmarkSuiteRun):
+    """Detailed benchmark suite run with nested workload and test-case runs."""
+
+    workload_runs: list[BenchmarkWorkloadRun]
+
+
+class BenchmarkSuiteRef(BaseModel):
+    """Compact benchmark suite reference for nested responses."""
+
+    id: int
+    slug: str
+    name: str
+    description: str
+
+
+class BenchmarkTestCaseRunDetails(BenchmarkTestCaseRun):
+    """Detailed benchmark test-case run with resolved foreign-key metadata."""
+
+    suite_run_id: int
+    workload_id: int
+    pipeline_id: str
+    test_case: BenchmarkTestCase
+    suite: BenchmarkSuiteRef
 
 
 class LatencyMetrics(BaseModel):
@@ -1555,6 +1874,27 @@ class LatencyMetrics(BaseModel):
     )
 
 
+class PipelineEvent(BaseModel):
+    """
+    **Live event observed while a performance test pipeline is running.**
+
+    ## Attributes
+    - `timestamp_ms` - Wall-clock time the event was observed, in ms since epoch
+    - `source` - Event origin, e.g. `proximity-trigger` or `vlm`
+    - `text` - Human-readable description of the event (or the VLM answer). Truncated to 4096 characters, with `... [truncated]` appended when the original was longer
+    - `element` - Name of the emitting GStreamer element, when known
+    - `pts_seconds` - Stream position the event refers to, in seconds, when known
+    - `prompt` - Prompt that produced a VLM answer (`source` = `vlm`), when known. Truncated to 1024 characters, with `... [truncated]` appended when the original was longer
+    """
+
+    timestamp_ms: int
+    source: str
+    text: str
+    element: Optional[str] = None
+    pts_seconds: Optional[float] = None
+    prompt: Optional[str] = None
+
+
 class TestsJobStatus(BaseModel):
     """
     **Base status fields shared by performance and density jobs.**
@@ -1604,16 +1944,25 @@ class PerformanceJobStatus(TestsJobStatus):
     **Status of a performance test job.**
 
     Inherits all fields from TestsJobStatus and adds live_stream_urls and
-    metadata_stream_urls for live-streaming output mode support.
+    metadata_stream_urls for live-streaming output mode support, plus events
+    carrying recent live pipeline events.
 
     ## Attributes
     - *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, total_streams, streams_per_pipeline, video_output_paths
     - `live_stream_urls` - Mapping from pipeline id to live stream URL when using live_stream output mode (keys use the same id format as streams_per_pipeline entries; only available for performance tests)
     - `metadata_stream_urls` - Mapping from pipeline id to list of SSE endpoint URLs for streaming live metadata records, one URL per gvametapublish file (null when the pipeline does not include a gvametapublish element writing to a file; URL index corresponds to file_index path parameter)
+    - `events` - Most recent live pipeline events (oldest first), e.g. a proximity trigger firing or a VLM answer
     """
 
     live_stream_urls: Optional[Dict[str, str]]
     metadata_stream_urls: Optional[Dict[str, list[str]]]
+    events: list[PipelineEvent] = Field(
+        default_factory=list,
+        description=(
+            "Most recent live pipeline events (oldest first, bounded), e.g. "
+            "a `gvaproximitytrigger_py` trigger firing or a `gvagenai` answer."
+        ),
+    )
 
 
 class DensityJobStatus(TestsJobStatus):
@@ -1874,7 +2223,7 @@ class ModelSource(str, Enum):
     - `HUGGINGFACE` - HuggingFace Hub
     - `ULTRALYTICS` - Ultralytics model zoo
     - `PIPELINE_ZOO_MODELS` - OpenVINO Pipeline Zoo models
-    - `OMZ` - OpenVINO Open Model Zoo (handled locally by vippet-app)
+    - `OMZ` - OpenVINO Open Model Zoo
     - `CUSTOM` - User-uploaded model
 
     ### Example
@@ -1959,8 +2308,8 @@ class Model(BaseModel):
     """
     **Description of a single supported model exposed by the models API.**
 
-    Lists every model known to vippet-app: both entries from
-    `supported_models.yaml` (regardless of whether they are installed) and
+    Lists every model known to vippet-app: both entries from the model
+    catalog (`vippet/models/*.yaml`, seeded into the DB at startup) and
     user-uploaded models. Use `install_status` to know if the model is
     ready to use, and `used_by_pipelines` to know whether installing it is
     recommended (non-empty list means at least one predefined pipeline
@@ -1974,12 +2323,12 @@ class Model(BaseModel):
     ## Attributes
     - `name` - Internal model identifier used by the backend
     - `display_name` - Human-readable model name suitable for UI
-    - `category` - Logical model category (`classification`, `detection`, `genai`) or null when unknown
+    - `category` - Logical model category (`image_classification`, `object_detection`, `image_segmentation`, `pose_estimation`, `vision_language_models`, `large_language_models`, `automatic_speech_recognition`, `text_to_speech`) or null when unknown
     - `source` - Upstream hub the model comes from (`huggingface`, `ultralytics`, `pipeline-zoo-models`, `omz`, `custom`)
     - `install_status` - Current install status (`installed`, `not_installed`, `installing`, `failed`)
     - `variants` - Selectable variants of this model (one per precision and optional model-proc)
     - `used_by_pipelines` - List of predefined-pipeline ids that reference this model. Non-empty list means the model is recommended for installation
-    - `default` - Whether the model is marked as a default install candidate in `supported_models.yaml`. Used by the Models page to pre-select recommended models in the bulk-install UI.
+    - `default` - Whether at least one predefined pipeline references this model (`used_by_pipelines` is non-empty). Used by the Models page to pre-select recommended models in the bulk-install UI.
     - `unsupported_devices` - Comma-separated string of devices that cannot run this model (or null)
 
     ### Example
@@ -1987,7 +2336,7 @@ class Model(BaseModel):
     {
       "name": "yolo11n",
       "display_name": "YOLO 11n 640x640",
-      "category": "detection",
+      "category": "object_detection",
       "source": "ultralytics",
       "install_status": "installed",
       "variants": [
@@ -2002,6 +2351,14 @@ class Model(BaseModel):
 
     name: str = Field(..., description="Internal model identifier.")
     display_name: str = Field(..., description="Human-readable model name.")
+    description: Optional[str] = Field(
+        default=None,
+        max_length=200,
+        description=(
+            "Human-readable explanation of what the model "
+            "detects or classifies, or null when not provided."
+        ),
+    )
     category: Optional[ModelCategory] = Field(
         default=None,
         description="Logical model category, or null when unknown.",
@@ -2028,10 +2385,9 @@ class Model(BaseModel):
     default: bool = Field(
         default=False,
         description=(
-            "Whether the model is marked as a default install "
-            "candidate in supported_models.yaml. The Models page uses "
-            "this flag to pre-select recommended models in the bulk-"
-            "install UI."
+            "Whether at least one predefined pipeline references this "
+            "model. The Models page uses this flag to pre-select "
+            "recommended models in the bulk-install UI."
         ),
     )
     unsupported_devices: Optional[str] = Field(
@@ -2059,7 +2415,7 @@ class ModelUploadResponse(BaseModel):
       "model": {
         "name": "my-custom-detector",
         "display_name": "My Custom Detector",
-        "category": "detection",
+        "category": "object_detection",
         "source": "custom",
         "install_status": "installed",
         "variants": [{"name": "my-custom-detector", "display_name": "My Custom Detector (FP32)", "precision": "FP32"}],
@@ -2077,7 +2433,7 @@ class ModelDownloadRequest(BaseModel):
     """
     **Request body for starting a batch of model download jobs.**
 
-    Each name must match an entry in `supported_models.yaml`. Names are
+    Each name must match an entry in the model catalog (`vippet/models/*.yaml`) unless `hub` is set. Names are
     validated as a unique set: duplicates are rejected with 422 so the
     per-name map returned by the endpoint stays unambiguous. An empty
     list is also rejected (`min_length=1`).
@@ -2086,8 +2442,18 @@ class ModelDownloadRequest(BaseModel):
     name — and the per-model status is returned in
     `ModelDownloadJobResponse.jobs[name]`.
 
+    When `hub` is set, names not found in the catalog are downloaded from
+    that hub (names as returned by `POST /models/list`) and registered in
+    the catalog together with every installed precision. Supported hubs:
+    `ultralytics` (category derived from the name suffix) and
+    `huggingface` (category must be provided via `category`, since
+    HuggingFace repo ids have no fixed naming convention to derive it
+    from).
+
     ## Attributes
     - `names` - List of supported-model names to install. Must be non-empty and unique.
+    - `hub` - Optional upstream hub for names not in the catalog.
+    - `category` - Required when `hub` is `huggingface`; ignored otherwise.
 
     ### Example
     ```json
@@ -2105,6 +2471,18 @@ class ModelDownloadRequest(BaseModel):
         ),
         examples=[["yolo11n", "yolov8n"]],
     )
+    hub: ModelSource | None = Field(
+        default=None,
+        description="Upstream hub used for names not found in the model catalog.",
+        examples=["ultralytics"],
+    )
+    category: ModelCategory | None = Field(
+        default=None,
+        description=(
+            "Model category, required when `hub` is `huggingface` (ignored "
+            "for other hubs)."
+        ),
+    )
 
     @model_validator(mode="after")
     def _validate_unique_names(self) -> "ModelDownloadRequest":
@@ -2114,6 +2492,9 @@ class ModelDownloadRequest(BaseModel):
         for name in self.names:
             if not name:
                 raise ValueError("Model names must be non-empty strings.")
+            # Hub names become filesystem path segments.
+            if self.hub is not None and not _is_valid_hub_model_name(name):
+                raise ValueError(f"Invalid hub model name: {name!r}")
             if name in seen:
                 duplicates.append(name)
             seen.add(name)
@@ -2122,6 +2503,49 @@ class ModelDownloadRequest(BaseModel):
                 f"Duplicate model names are not allowed: {sorted(set(duplicates))}"
             )
         return self
+
+
+class ModelHubListRequest(BaseModel):
+    """Request body for searching models in an upstream model hub."""
+
+    hub: str = Field(..., description="Model hub to search, such as huggingface.")
+    filters: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Hub-specific listing filters, such as author, search, or tags.",
+    )
+    limit: int = Field(default=50, ge=1, le=200)
+    offset: int = Field(default=0, ge=0)
+    override_credentials: dict[str, str] | None = Field(
+        default=None,
+        description="Optional Base64-encoded connection overrides for this request.",
+    )
+
+
+class ModelHubListResponse(BaseModel):
+    """Paginated results returned by an upstream model hub.
+
+    Some hubs (for example HuggingFace) cannot report a `total` count
+    cheaply; callers must then paginate using `has_more`/`next_offset`
+    instead of computing a page count from `total`.
+    """
+
+    hub: str
+    items: list[dict[str, Any]]
+    count: int | None = Field(
+        default=None, description="Number of items returned in this response."
+    )
+    total: int | None = Field(
+        default=None,
+        description="Total number of items available, when the hub reports it.",
+    )
+    limit: int
+    offset: int
+    has_more: bool | None = Field(
+        default=None, description="Whether another page is available."
+    )
+    next_offset: int | None = Field(
+        default=None, description="Offset to request the next page, when available."
+    )
 
 
 class ModelDownloadJobItem(BaseModel):
@@ -2283,6 +2707,104 @@ class ModelDownloadJobSummary(BaseModel):
     id: str
     model_name: str
     source: ModelSource
+
+
+class ModelCheckStatusRequest(BaseModel):
+    """
+    **Request body for checking installation status of multiple models by display name.**
+
+    Pass a list of model display names to check their installation status.
+    The endpoint will return information for all matching models.
+
+    ## Attributes
+    - `display_names` - List of model display names to check
+
+    ### Example
+    ```json
+    {
+      "display_names": ["YOLO 11n 640x640", "MobileNet V2 PyTorch"]
+    }
+    ```
+    """
+
+    display_names: list[str] = Field(
+        ...,
+        min_length=1,
+        description="Non-empty list of model display names to check.",
+    )
+
+    @model_validator(mode="after")
+    def validate_no_empty_names(self) -> "ModelCheckStatusRequest":
+        """Reject empty or whitespace-only display names."""
+        for name in self.display_names:
+            if not name or not name.strip():
+                raise ValueError("Model display names must be non-empty strings.")
+        return self
+
+
+class ModelStatusItem(BaseModel):
+    """
+    **Single model status item returned by check-status endpoint.**
+
+    Contains the essential identification and status fields for a model.
+
+    ## Attributes
+    - `name` - Internal model identifier used by the backend
+    - `display_name` - Human-readable model name
+    - `install_status` - Current install status (`installed`, `not_installed`, `installing`, `failed`)
+
+    ### Example
+    ```json
+    {
+      "name": "yolo11n",
+      "display_name": "YOLO 11n 640x640",
+      "install_status": "installed"
+    }
+    ```
+    """
+
+    name: str = Field(..., description="Internal model identifier.")
+    display_name: str = Field(..., description="Human-readable model name.")
+    install_status: ModelInstallStatus = Field(
+        ...,
+        description="Current install status of the model.",
+    )
+
+
+class ModelCheckStatusResponse(BaseModel):
+    """
+    **Response body from POST /models/check-status.**
+
+    Returns a list of models matching the requested display names,
+    with their installation status. If a display name is not found,
+    it is omitted from the response.
+
+    ## Attributes
+    - `models` - List of model status items
+
+    ### Example
+    ```json
+    {
+      "models": [
+        {
+          "name": "yolo11n",
+          "display_name": "YOLO 11n 640x640",
+          "install_status": "installed"
+        },
+        {
+          "name": "mobilenet-v2-pytorch",
+          "display_name": "MobileNet V2 PyTorch",
+          "install_status": "not_installed"
+        }
+      ]
+    }
+    ```
+    """
+
+    models: list[ModelStatusItem] = Field(
+        default_factory=list,
+        description="List of model status items for requested display names.",
+    )
 
 
 class MetricSample(BaseModel):
@@ -2748,18 +3270,59 @@ class NetworkCameraDetails(CameraDetails):
     best_profile: Optional["CameraProfileInfo"] = None
 
 
+class GigECapture(BaseModel):
+    """
+    **Capture configuration currently set on a GigE Vision camera.**
+
+    ## Attributes
+    - `pixel_format` - GenICam pixel format (e.g., "Mono8", "BayerRG8")
+    - `width` - Frame width in pixels
+    - `height` - Frame height in pixels
+    - `fps` - Acquisition frame rate
+    """
+
+    pixel_format: Optional[str] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    fps: Optional[float] = None
+
+
+class GigECameraDetails(CameraDetails):
+    """
+    **GigE Vision camera details.**
+
+    Identity fields may be missing when the camera could not be opened during
+    discovery (e.g. it is streaming to another application).
+
+    ## Attributes
+    - `ip` - IP address of the camera
+    - `vendor` - Camera vendor name (optional)
+    - `model` - Camera model name (optional)
+    - `serial` - Camera serial number (optional)
+    - `current_capture` - Capture configuration currently set on the camera (optional)
+    """
+
+    ip: str
+    vendor: Optional[str] = None
+    model: Optional[str] = None
+    serial: Optional[str] = None
+    current_capture: Optional[GigECapture] = None
+
+
 class Camera(BaseModel):
     """
-    **Camera device information supporting both USB and network cameras.**
+    **Camera device information supporting USB, network and GigE Vision cameras.**
 
     Common attributes apply to all camera types. Type-specific details are stored
-    in the details field which contains either USBCameraDetails or NetworkCameraDetails.
+    in the details field which contains USBCameraDetails, NetworkCameraDetails
+    or GigECameraDetails.
 
     ## Attributes
     - `device_id` - Unique identifier for the camera
     - `device_name` - Human-readable camera name
-    - `device_type` - Type of camera (USB or NETWORK)
-    - `details` - Type-specific camera details (USBCameraDetails for USB, NetworkCameraDetails for NETWORK)
+    - `device_type` - Type of camera (USB, NETWORK or GIGE)
+    - `details` - Type-specific camera details (USBCameraDetails for USB,
+      NetworkCameraDetails for NETWORK, GigECameraDetails for GIGE)
 
     ### Example (USB Camera)
     ```json
@@ -2809,12 +3372,33 @@ class Camera(BaseModel):
       }
     }
     ```
+
+    ### Example (GigE Vision Camera)
+    ```json
+    {
+      "device_id": "gige-camera-basler-12345678",
+      "device_name": "Basler acA1920-25gc",
+      "device_type": "GIGE",
+      "details": {
+        "ip": "192.168.1.50",
+        "vendor": "Basler",
+        "model": "acA1920-25gc",
+        "serial": "12345678",
+        "current_capture": {
+          "pixel_format": "BayerRG8",
+          "width": 1920,
+          "height": 1080,
+          "fps": 25.0
+        }
+      }
+    }
+    ```
     """
 
     device_id: str
     device_name: str
     device_type: CameraType
-    details: Union[USBCameraDetails, NetworkCameraDetails]
+    details: Union[USBCameraDetails, NetworkCameraDetails, GigECameraDetails]
 
 
 class CameraProfilesRequest(BaseModel):

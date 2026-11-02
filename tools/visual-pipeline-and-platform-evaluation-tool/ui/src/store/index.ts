@@ -1,12 +1,24 @@
 import { configureStore } from "@reduxjs/toolkit";
 import { persistStore, persistReducer } from "redux-persist";
-import storage from "redux-persist/lib/storage";
 import { api } from "@/api/api.generated.ts";
 import metricsReducer from "./reducers/metrics.ts";
 import pipelinesReducer from "./reducers/pipelines.ts";
 import modelsReducer from "./reducers/models.ts";
 import devicesReducer from "./reducers/devices.ts";
 import uiConfigReducer from "./reducers/uiConfig.ts";
+
+// wrapper for redux-persist
+const storage = {
+  getItem: (key: string) => Promise.resolve(window.localStorage.getItem(key)),
+  setItem: (key: string, value: string) => {
+    window.localStorage.setItem(key, value);
+    return Promise.resolve(value);
+  },
+  removeItem: (key: string) => {
+    window.localStorage.removeItem(key);
+    return Promise.resolve();
+  },
+};
 
 const persistUiConfig = {
   key: "uiConfig",

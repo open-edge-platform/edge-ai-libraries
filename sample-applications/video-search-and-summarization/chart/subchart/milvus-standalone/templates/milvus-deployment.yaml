@@ -1,0 +1,69 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.milvus.service.name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Values.milvus.service.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.milvus.service.name }}
+    spec:
+      containers:
+        - name: milvus
+          image: "{{ .Values.milvus.image.repository }}:{{ .Values.milvus.image.tag }}"
+          imagePullPolicy: {{ .Values.milvus.image.pullPolicy }}
+          command: ["milvus", "run", "standalone"]
+          env:
+            - name: ETCD_ENDPOINTS
+              value: "{{ .Values.etcd.service.name }}:{{ .Values.etcd.service.port }}"
+            - name: COMMON_STORAGETYPE
+              value: "local"
+          ports:
+            - containerPort: 19530
+            - containerPort: 9091
+          volumeMounts:
+            - name: milvus-data
+              mountPath: /var/lib/milvus
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 9091
+            periodSeconds: 30
+            timeoutSeconds: 2
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 9091
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: 9091
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 24
+          {{- with .Values.milvus.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: milvus-data
+          {{- if and .Values.persistence.enabled .Values.global.usePvc }}
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-milvus-data
+          {{- else if and .Values.persistence.enabled .Values.global.volumeHostPath }}
+          hostPath:
+            path: {{ .Values.global.volumeHostPath }}/milvus
+            type: DirectoryOrCreate
+          {{- else }}
+          emptyDir: {}
+          {{- end }}

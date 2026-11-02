@@ -1,0 +1,52 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+services:
+  vector-retriever:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        RETRIEVER_BACKEND: ${RETRIEVER_BACKEND:-vdms}
+    image: ${REGISTRY}vector-retriever-${RETRIEVER_BACKEND:-vdms}:${TAG:-latest}
+    environment:
+      no_proxy: ${no_proxy:-},${MULTIMODAL_EMBEDDING_HOST:-multimodal-embedding-serving},vdms-vector-db,milvus-standalone,pgvector-db,localhost
+      NO_PROXY: ${no_proxy:-},${MULTIMODAL_EMBEDDING_HOST:-multimodal-embedding-serving},vdms-vector-db,milvus-standalone,pgvector-db,localhost
+      http_proxy: ${http_proxy:-}
+      https_proxy: ${https_proxy:-}
+      RETRIEVER_BACKEND: ${RETRIEVER_BACKEND:-vdms}
+      LOG_LEVEL: ${VECTOR_RETRIEVER_LOG_LEVEL:-INFO}
+      VDMS_VDB_HOST: ${VDMS_VDB_HOST:-vdms-vector-db}
+      VDMS_VDB_PORT: ${VDMS_VDB_PORT:-55555}
+      INDEX_NAME: ${VS_INDEX_NAME:-video_frame_embeddings}
+      SEARCH_ENGINE: ${SEARCH_ENGINE:-FaissFlat}
+      DISTANCE_STRATEGY: ${DISTANCE_STRATEGY:-IP}
+      EMBEDDINGS_ENDPOINT: ${EMBEDDINGS_ENDPOINT:-}
+      EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME:-}
+      DEFAULT_TOP_K: ${DEFAULT_TOP_K:-20}
+      MAX_TOP_K: ${MAX_TOP_K:-1000}
+      REQUEST_TIMEOUT_SECONDS: ${REQUEST_TIMEOUT_SECONDS:-30}
+      BATCH_MAX_CONCURRENCY: ${BATCH_MAX_CONCURRENCY:-10}
+      MILVUS_URI: ${MILVUS_URI:-http://milvus-server:19530}
+      MILVUS_TOKEN: ${MILVUS_TOKEN:-}
+      MILVUS_DB_NAME: ${MILVUS_DB_NAME:-}
+      MILVUS_INDEX_TYPE: ${MILVUS_INDEX_TYPE:-FLAT}
+      MILVUS_METRIC_TYPE: ${MILVUS_METRIC_TYPE:-L2}
+      MILVUS_TEXT_FIELD: ${MILVUS_TEXT_FIELD:-text}
+      MILVUS_METADATA_FIELD: ${MILVUS_METADATA_FIELD:-}
+      PGVECTOR_CONNECTION_STRING: ${PGVECTOR_CONNECTION_STRING:-}
+      FAISS_INDEX_PATH: ${FAISS_INDEX_PATH:-}
+    ports:
+      - '${VECTOR_RETRIEVER_HOST_PORT:-6008}:8000'
+    healthcheck:
+      test: ['CMD-SHELL', "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/ready')\""]
+      interval: 60s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
+    networks:
+      - vr_network
+
+networks:
+  vr_network:
+    driver: bridge

@@ -1,0 +1,104 @@
+# VIPPET Benchmark Suite - Default Configuration
+
+vippet:
+  # VIPPET API base URL (via nginx reverse proxy; override with VIPPET_BASE_URL env var)
+  base_url: "http://localhost/api/v1"
+
+  # Connection timeout in seconds
+  timeout: 600
+
+  # Maximum time to wait for ViPPET to become ready before discovery
+  readiness_timeout_seconds: 60
+
+  # Job status polling interval in seconds
+  poll_interval: 2
+
+  # Maximum time to wait for job completion (seconds)
+  max_job_duration: 600
+
+benchmark:
+  # Pipeline selection
+  # Use "*" for all pipelines, or list specific pipeline IDs:
+  # pipelines: ["license-plate-recognition", "object-detection"]
+  pipelines: "*"
+
+  # Device variants to test
+  # Automatically filtered by available hardware
+  variants:
+    - cpu
+    - gpu
+    - npu
+
+  # Stream counts for scalability testing
+  stream_counts:
+    - 1
+    - 3
+
+  # Execution parameters
+  execution:
+    # Maximum retries for failed jobs
+    max_retries: 2
+
+    # Delay between retries (seconds)
+    retry_delay_seconds: 5
+
+    # Output mode: disabled, file, live_stream
+    # Note: density tests don't support live_stream
+    output_mode: "disabled"
+
+    # How long each pipeline run should last (seconds).
+    # 0 = run until video ends (EOS); >0 = loop input and stop after this duration.
+    # Longer durations give more stable FPS and hardware utilization measurements.
+    max_runtime: 30
+
+  # Filters
+  filters:
+    # Skip these pipelines even if discovered
+    skip_pipelines: []
+
+    # Skip these variants
+    skip_variants: []
+
+    # Skip pipelines with missing models; set false to expose runtime failures.
+    skip_missing_models: true
+
+    # How to react when pipelines/skip_pipelines/skip_variants/variants above
+    # reference an id that doesn't exist (e.g. a typo):
+    # "fail" (default) aborts the run naming the bad id and valid ids.
+    # "warn" logs a warning and reports each bad id as an explicit skipped case.
+    on_unknown_id: "fail"
+
+# Hardware metrics collection
+metrics:
+  # Metrics endpoint via nginx proxy; defaults to the same host/port as
+  # vippet.base_url. Override with VIPPET_METRICS_URL env var, or uncomment
+  # and set this explicitly for non-standard topologies.
+  # metrics_url: "http://localhost/metrics/stream"
+
+  # Sampling interval in seconds while a job runs
+  sample_interval_seconds: 2.0
+
+  # Fraction of time-ordered HW samples trimmed from each end before
+  # averaging, to discard warm-up/wind-down outliers (same as VIPPET's
+  # built-in benchmark). 0.1 = trim 10% off each end.
+  trim_fraction: 0.1
+
+  # metrics-manager capabilities endpoint (direct, not nginx-proxied);
+  # defaults to vippet.base_url's host on port 9090. Override with
+  # VIPPET_CAPABILITIES_URL env var, or uncomment and set this explicitly
+  # for non-standard topologies.
+  # capabilities_url: "http://localhost:9090/api/v1/capabilities"
+
+# Results configuration
+results:
+  # Export formats
+  formats:
+    - json
+    - csv
+
+  # Point results/latest at the most recent run directory (updated at the
+  # end of every run, including failed or aborted ones)
+  create_latest_link: true
+
+  # Write the run's full INFO log to bench_<timestamp>/bench_<timestamp>.log next to the reports.
+  save_log: true

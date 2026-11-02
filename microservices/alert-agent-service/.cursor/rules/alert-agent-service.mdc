@@ -1,0 +1,20 @@
+---
+description: Alert Agent Service Cursor agent router — canonical instructions
+alwaysApply: true
+---
+
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
+## Canonical instructions
+
+Read [.github/copilot-instructions.md](../../.github/copilot-instructions.md)
+first. Do not duplicate policy here.
+
+## Cursor workflow
+
+- Prefer the service's real interfaces: REST API via FastAPI.
+- Run commands yourself and relay results; keep changes minimal.
+- Commit or open PRs only when explicitly asked.

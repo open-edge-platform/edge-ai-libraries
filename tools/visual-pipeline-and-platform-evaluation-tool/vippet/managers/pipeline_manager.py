@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Optional, List
 
 from graph import Graph, OUTPUT_PLACEHOLDER, graph_is_metadata_only
+from device import is_variant_supported
 from internal_types import (
     InternalExecutionConfig,
     InternalOutputMode,
@@ -14,6 +15,7 @@ from internal_types import (
     InternalPipelineDefinition,
     InternalPipelinePerformanceSpec,
     InternalPipelineSource,
+    InternalPipelineType,
     InternalStreamInfo,
     InternalVariant,
 )
@@ -24,6 +26,7 @@ from utils import (
     load_thumbnail_as_base64,
     make_output_dir,
 )
+from video_decoder import split_device_target
 from video_encoder import VideoEncoder
 from videos import OUTPUT_VIDEO_DIR
 from managers.metadata_manager import METADATA_DIR
@@ -196,6 +199,7 @@ class PipelineManager:
                 name=new_pipeline.name,
                 description=new_pipeline.description,
                 source=new_pipeline.source,
+                type=new_pipeline.type,
                 tags=new_pipeline.tags,
                 variants=variants_with_timestamps,
                 thumbnail=None,  # User-created pipelines do not have thumbnails
@@ -211,6 +215,11 @@ class PipelineManager:
         with self._pipelines_lock:
             return [deepcopy(p) for p in self.pipelines]
 
+    def get_pipeline_names_by_id(self) -> dict[str, str]:
+        """Return a lightweight mapping of pipeline id to pipeline name."""
+        with self._pipelines_lock:
+            return {pipeline.id: pipeline.name for pipeline in self.pipelines}
+
     def get_model_display_names_used_by_pipelines(self) -> dict[str, list[str]]:
         """
         Return a mapping from model display name to the list of pipeline
@@ -223,7 +232,7 @@ class PipelineManager:
         filesystem paths because pipeline ingest replaces paths with
         display names (see ``_model_path_to_display_name`` in
         ``graph.py``); callers that need the canonical model ``name``
-        from ``supported_models.yaml`` must resolve the display name via
+        from the model catalog must resolve the display name via
         ``SupportedModelsManager``.
 
         Returns:
@@ -450,6 +459,14 @@ class PipelineManager:
                         f"Variant name cannot be empty in pipeline '{pipeline_name}'"
                     )
 
+                if not is_variant_supported(variant_name):
+                    self.logger.info(
+                        "Skipping variant '%s' of pipeline '%s': not supported on this platform",
+                        variant_name,
+                        pipeline_name,
+                    )
+                    continue
+
                 variant_pipeline_desc = variant_config.get(
                     "pipeline_description", ""
                 ).strip()
@@ -485,6 +502,18 @@ class PipelineManager:
             if not isinstance(tags, list):
                 tags = []
 
+            # Read type from config, default to vision
+            pipeline_type_str = config.get("type", InternalPipelineType.VISION.value)
+            try:
+                pipeline_type = InternalPipelineType(pipeline_type_str)
+            except ValueError:
+                self.logger.warning(
+                    "Unknown pipeline type '%s' in pipeline '%s', defaulting to 'vision'",
+                    pipeline_type_str,
+                    pipeline_name,
+                )
+                pipeline_type = InternalPipelineType.VISION
+
             # Load thumbnail if specified, using pipelines directory as base path
             thumbnail_path = config.get("thumbnail", "")
             thumbnail_base64 = load_thumbnail_as_base64(
@@ -503,6 +532,7 @@ class PipelineManager:
                     name=pipeline_name,
                     description=pipeline_description,
                     source=InternalPipelineSource.PREDEFINED,
+                    type=pipeline_type,
                     tags=tags,
                     variants=variants_list,
                     thumbnail=thumbnail_base64,
@@ -608,6 +638,9 @@ class PipelineManager:
             # Validate camera sources (rtspsrc, v4l2src), if present, are followed by decodebin3
             base_graph.validate_camera_sources_followed_by_decodebin3()
 
+            # Validate all VA-accelerated inference elements share one GPU render node
+            base_graph.validate_inference_devices_share_va_display()
+
             # Validate pipeline has gvametapublish when metadata publishing is enabled
             if (
                 execution_config.metadata_mode != InternalMetadataMode.DISABLED
@@ -633,6 +666,7 @@ class PipelineManager:
             # video-centric templates (parsebin, avdec_h264, container muxers, ...)
             # have to be adapted to the raw-video stream produced by the dedicated
             # image decoder; ``apply_decodebin3_replacement`` handles both cases.
+            _, target_gpu_index = split_device_target(base_graph.get_target_device())
             if base_graph.has_decodebin3() or base_graph.has_image_set_source():
                 codec = base_graph.determine_input_codec()
                 target_device = base_graph.get_target_device()
@@ -654,12 +688,12 @@ class PipelineManager:
                 # Create output subpipeline based on output mode (file or live stream)
                 if output_mode == InternalOutputMode.FILE:
                     output_subpipeline = video_encoder.create_video_output_subpipeline(
-                        video_pipeline_dir, encoder_device
+                        video_pipeline_dir, encoder_device, target_gpu_index
                     )
                 elif output_mode == InternalOutputMode.LIVE_STREAM:
                     output_subpipeline, stream_url = (
                         video_encoder.create_live_stream_output_subpipeline(
-                            pipeline_id, encoder_device, job_id
+                            pipeline_id, encoder_device, job_id, target_gpu_index
                         )
                     )
                     live_stream_urls[pipeline_id] = stream_url
@@ -677,18 +711,28 @@ class PipelineManager:
                     # Create a placeholder node for the main output sink to be replaced later
                     graph_instance = graph_instance.prepare_main_output_placeholder()
 
-                # Inject metadata file paths into gvametapublish elements for metadata streaming
-                if (
-                    execution_config.metadata_mode == InternalMetadataMode.FILE
-                    and stream_index == 0
-                ):
+                # Each duplicated stream needs distinct gvametapublish files so
+                # metadata from every input is available to the API/UI.
+                if execution_config.metadata_mode == InternalMetadataMode.FILE:
                     paths = graph_instance.inject_metadata_file_paths(
-                        metadata_pipeline_dir
+                        metadata_pipeline_dir, stream_index
                     )
                     if paths:
-                        metadata_file_paths[pipeline_id] = paths
+                        metadata_file_paths.setdefault(pipeline_id, []).extend(paths)
 
-                # Remove gvawatermark nodes when all sinks are fakesink (no real video output)
+                # Drop gvawatermark elements when the pipeline has no real
+                # video output to render onto. This is decided per stream
+                # by Graph.strip_watermark_if_all_sinks_are_fake():
+                #   * output_mode=disabled and the pipeline only has
+                #     fakesink terminals -> gvawatermark is stripped to
+                #     save the overlay rendering cost.
+                #   * output_mode=file or live_stream installs an
+                #     OUTPUT_PLACEHOLDER above, so the call is a no-op and
+                #     the overlay is kept (the user will see it).
+                #   * Pipelines with intermediate non-fakesink terminals
+                #     (e.g. splitmuxsink in NVR-style pipelines) keep
+                #     gvawatermark, because the recorded file is itself a
+                #     visible output for the user.
                 graph_instance = graph_instance.strip_watermark_if_all_sinks_are_fake()
 
                 # Assign explicit, unique element names to the main-branch

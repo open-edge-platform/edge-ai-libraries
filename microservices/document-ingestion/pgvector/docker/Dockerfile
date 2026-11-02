@@ -9,7 +9,7 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=off \
     PIP_DISABLE_PIP_VERSION_CHECK=on \
     PIP_DEFAULT_TIMEOUT=100 \
-    POETRY_VERSION=1.8.3 \
+    POETRY_VERSION=2.4.1 \
     # Poetry installation location
     POETRY_HOME="/opt/poetry" \
     # Create the virtual environment dir .venv in the project's root
@@ -24,8 +24,10 @@ ENV PYTHONUNBUFFERED=1 \
 # Add poetry and venv to path
 ENV PATH="$POETRY_HOME/bin:$VENV_PATH/bin:$PATH"
 
-# Upgrade pip and setuptools to the latest version to fix vuln
-RUN /usr/local/bin/pip install --upgrade pip setuptools wheel
+RUN apt-get update && apt-get upgrade -y && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Upgrade pip setuptools and wheel to fix vulns
+RUN /usr/local/bin/pip install --upgrade --no-cache-dir pip==26.1.2 setuptools wheel
 
 # Create a non-root user
 RUN groupadd -g 1001 intelgai && \
@@ -43,8 +45,8 @@ RUN curl -sSL https://install.python-poetry.org | python -
 WORKDIR $SETUP_PATH
 COPY poetry.lock pyproject.toml ./
 # Install runtime (prod) deps. Uses $POETRY_VIRTUALENVS_IN_PROJECT to create venv.
-RUN poetry install --no-dev && \
-    rm -rf ~/.cache/pypoetry/* ~/.cache/pip/*
+RUN poetry install --no-root --without dev && \
+    poetry run pip install --no-cache-dir --upgrade pip==26.1.2
 
 
 # `dev` image is used during development / testing
@@ -58,7 +60,7 @@ COPY --from=builder-base $POETRY_HOME $POETRY_HOME
 COPY --from=builder-base $SETUP_PATH $SETUP_PATH
 
 # Install dev dependencies. Prod dependencies are already installed.
-RUN poetry install --with dev
+RUN poetry install --no-root --with dev
 
 # Source code will be mounted here
 WORKDIR /app

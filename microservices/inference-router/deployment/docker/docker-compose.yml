@@ -1,0 +1,56 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+services:
+  # Inference Router service
+  router:
+    image: ${REGISTRY:-}inference-router:${TAG:-latest}
+    container_name: inference-router
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+      args:
+        http_proxy: ${http_proxy:-}
+        https_proxy: ${https_proxy:-}
+        no_proxy: ${no_proxy:-}
+    network_mode: host
+    devices:
+      - ${IR_RENDER_DEVICE:-/dev/null}:${IR_RENDER_DEVICE:-/dev/null}
+    group_add:
+      - "${RENDER_GROUP_ID:-993}"
+    volumes:
+      - ../../workspace:/app
+      - ${IR_OV_MODEL}:/models/ov-classifier
+    # Bind host defaults to loopback (local-only). Export IR_BIND_HOST=0.0.0.0
+    # to expose the router to other machines. Compose interpolates these from
+    # the host environment (set by scripts/deploy_docker.sh) at parse time.
+    command: ["sh", "-c", "uvicorn src.main:app --host ${IR_BIND_HOST:-127.0.0.1} --port ${ROUTER_PORT:-8000}"]
+    env_file:
+      - path: ../../workspace/.env
+        required: false
+    environment:
+      - IR_BIND_HOST=${IR_BIND_HOST:-127.0.0.1}
+      - ROUTER_PORT=${ROUTER_PORT:-8000}
+      - GATEWAY_VERBOSE=${GATEWAY_VERBOSE:-}
+      - GATEWAY_VERBOSE_FULL=${GATEWAY_VERBOSE_FULL:-}
+      - GATEWAY_MAX_CONCURRENCY=${GATEWAY_MAX_CONCURRENCY:-0}
+      - GATEWAY_CONFIG=/app/config.yaml
+      - GATEWAY_LOG_DIR=${GATEWAY_LOG_DIR:-/app/logs}
+      - IR_OV_MODEL=/models/ov-classifier
+      - IR_DEVICE=${IR_DEVICE:-GPU}
+      - HF_ENDPOINT=${HF_ENDPOINT:-}
+      - http_proxy=${http_proxy:-}
+      - https_proxy=${https_proxy:-}
+      - no_proxy=${no_proxy:-}
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:${ROUTER_PORT:-8000}/health')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5

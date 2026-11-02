@@ -1,0 +1,257 @@
+---
+name: model-download-dev
+description: >
+  Extend, test, debug, or integrate the Model Download microservice codebase.
+  Use this skill when a developer wants to: add a new plugin to the microservice;
+  write tests for a plugin (including mocking subprocess calls, async methods,
+  or the Ollama server); debug a job stuck in "downloading" or "converting";
+  understand the plugin interface or registration mechanism; trace how a request
+  flows through ModelManager; extend the OpenVINO conversion parameters; add a
+  new ModelHub value; or embed model-download into an app, Docker Compose stack,
+  Helm deployment, CI/CD flow, or startup path. Trigger on phrases like
+  "add plugin", "write test", "stuck job", "extend microservice",
+  "plugin not working", "how does model_manager work", "mock subprocess",
+  "register new hub", "integrate model-download", "call the model-download API",
+  "poll model job", "mount downloaded models", or "MCP tool
+  for model-download".
+argument-hint: >
+  Describe what you want to build or debug (e.g. "add a new downloader plugin
+  for an internal model hub" or "wire model-download into our compose stack")
+---
+
+# Model Download Developer Skill
+
+Help developers extend, test, debug, and integrate the Model Download microservice.
+
+> Codebase root: `microservices/model-download/`
+
+## When to Use
+
+- Adding a new download or conversion plugin
+- Writing unit tests for a plugin (subprocess mocking, async fixtures)
+- Debugging a job stuck in `downloading` or `converting`
+- Understanding how `ModelManager`, `PluginRegistry`, or `PluginVenv` work
+- Extending the `ModelHub` enum or `Config` schema
+- Tracing plugin activation and `ACTIVATED_PLUGINS` env flow
+- Integrating model-download into a backend, gateway, Compose stack, Helm deployment, or CI/CD path
+- Designing app-side download/conversion workflows around `/models/download` and `/jobs/{job_id}`
+- Wiring model storage, health checks, plugin activation, and failure handling into a wider system
+- Adding or modifying MCP tools/resources/prompts in `src/mcp/`
+
+## Reference Lookup
+
+| Reference | When to read |
+|-----------|-------------|
+| [plugin-architecture.md](./references/plugin-architecture.md) | Plugin interface contract, PluginRegistry, ModelManager, PluginVenv |
+| [testing-patterns.md](./references/testing-patterns.md) | Subprocess mocking, async fixtures, conftest patterns, parametrize |
+| [integration-patterns.md](./references/integration-patterns.md) | App-side architecture, request flow, polling, error handling, storage wiring |
+| [../../../docs/user-guide/get-started/using-mcp-server.md](../../../docs/user-guide/get-started/using-mcp-server.md) | MCP transports, client config (Claude Desktop, Copilot), tool/resource list |
+
+## Example Prompts
+
+| File | Covers |
+|------|--------|
+| [examples-prompts/plugin-blueprint.md](./examples-prompts/plugin-blueprint.md) | Reusable skeleton for new downloader and converter plugins |
+| [examples-prompts/new-downloader-plugin.md](./examples-prompts/new-downloader-plugin.md) | Wire a new downloader plugin end-to-end |
+| [examples-prompts/writing-tests.md](./examples-prompts/writing-tests.md) | Unit test patterns for plugins with subprocess and async mocks |
+
+---
+
+## Plugin Architecture Summary
+
+```
+src/
+├── api/
+│   ├── main.py          ← FastAPI app, endpoints, job dispatch
+│   └── models.py        ← Pydantic models, ModelHub enum, ModelType, Config
+├── core/
+│   ├── interfaces.py    ← ModelDownloadPlugin ABC (plugin_name, plugin_type, can_handle, download)
+│   ├── model_manager.py ← Job lifecycle, ThreadPoolExecutor, status tracking
+│   ├── plugin_registry.py ← Auto-discovery, activation check, find_plugin_for_model
+│   └── plugin_venv.py   ← Per-plugin venv management
+├── mcp/
+│   ├── server.py        ← FastMCP app: tools (health_check, download_model, ...),
+│   │                      resources (models://jobs, ...); reuses the same
+│   │                      PluginRegistry/ModelManager as the REST API
+│   ├── __main__.py      ← `python -m src.mcp` entrypoint (stdio/http transports)
+│   └── prompts.py       ← Registers MCP prompts by reading the
+│                           model-download-user skill's SKILL.md hub table and
+│                           example-prompts/*.md at runtime
+└── plugins/
+    ├── __init__.py      ← PLUGINS tuple mapping — register module path + class name here
+    ├── huggingface_plugin.py
+    ├── ollama_plugin.py
+    ├── openvino_plugin.py
+    ├── ultralytics_plugin.py
+    ├── geti_plugin.py
+    ├── hls_plugin.py
+    └── pipeline_zoo_models_plugin.py
+```
+
+---
+
+## Procedure: Adding a New Plugin
+
+Read [plugin-architecture.md](./references/plugin-architecture.md) first, then use the
+example prompts in this order:
+
+1. [examples-prompts/plugin-blueprint.md](./examples-prompts/plugin-blueprint.md) for the reusable class skeleton
+2. [examples-prompts/new-downloader-plugin.md](./examples-prompts/new-downloader-plugin.md) for the end-to-end wiring
+3. [examples-prompts/writing-tests.md](./examples-prompts/writing-tests.md) for the unit-test shape
+
+The minimum set of surfaces that must stay aligned is:
+
+1. `plugin_name` in the class
+2. the key in `src/plugins/__init__.py`
+3. the `ModelHub` enum value in `src/api/models.py`
+4. the optional dependency extra in `pyproject.toml`
+5. activation support in `docker/entrypoint.sh`
+
+Use the current tuple-based plugin registration format:
+
+```python
+PLUGINS = {
+    # ... existing entries ...
+    "myhub": ("src.plugins.myhub_plugin", "MyHubPlugin"),
+}
+```
+
+> [!IMPORTANT]
+>
+> - `ENABLED_PLUGINS` controls which modules are imported by `src/plugins/__init__.py`
+> - `ACTIVATED_PLUGINS` in `/opt/activated_plugins.env` is what `PluginRegistry` checks later
+>
+> If the plugin is implemented but does not appear in `/api/v1/plugins`, assume one of those
+> registration or activation surfaces is out of sync before you assume the core plugin logic is wrong.
+
+---
+
+## Procedure: Integrating into an Application or Platform
+
+Read [integration-patterns.md](./references/integration-patterns.md) first when the user is
+embedding model-download into another service or deployment stack.
+
+Start by identifying the integration role:
+
+- **Provisioning service**: pre-download models during deployment or CI/CD
+- **Runtime dependency**: app calls model-download on demand when a model is missing
+- **Ops/admin service**: internal tooling triggers downloads and exposes status to operators
+
+Prefer the public REST API as the integration boundary:
+
+1. Check readiness with `GET /api/v1/health`
+2. Submit work with `POST /api/v1/models/download?download_path=<subdir>`
+3. Store the returned `job_id`
+4. Poll `GET /api/v1/jobs/{job_id}` until `completed` or `failed`
+5. Use the reported `download_path` or `conversion_path`
+
+Before proposing code or deployment changes, capture these decisions:
+
+| Concern | Decide |
+|---------|--------|
+| Trigger point | deploy time, app startup, first request, or admin action |
+| Model source | huggingface, ollama, ultralytics, openvino, geti, pipeline-zoo-models, hls |
+| Needed plugins | minimal `--plugins` list |
+| Persistence | where `MODEL_PATH` lives and which services mount it |
+| Completion model | synchronous wait in caller, async background job, or external orchestrator |
+| Failure behavior | retry, fail startup, partial availability, or operator intervention |
+
+Expected integration outputs include one or more of:
+
+- an application architecture recommendation
+- Docker Compose or Helm changes
+- app-side client code for submit + poll + result handling
+- env var, plugin, and storage/mount checklists
+- a failure-handling and retry strategy
+
+Ground recommendations in the current API, deployment scripts, and plugin activation flow.
+
+---
+
+## Procedure: Working with the MCP Server
+
+`src/mcp/server.py` is a FastMCP app mounted at `/mcp` in `src/api/main.py`
+(`mcp.http_app(path="/mcp", ...)` mounted onto the FastAPI app). It shares the
+same module-level `PluginRegistry` and `ModelManager` as the REST API — there
+is no separate job store or plugin state to keep in sync.
+
+Key points when changing MCP behavior:
+
+- **Adding/changing a tool**: add a `@mcp.tool` function in `server.py`. Mirror
+  the equivalent REST endpoint's behavior (reuse `submit_models`,
+  `model_manager`, `plugin_registry` — don't duplicate business logic).
+- **Adding/changing a resource**: add a `@mcp.resource("models://...")`
+  function; return JSON strings (`json.dumps(..., default=str)`).
+- **Prompts are dynamic, not hard-coded**: `src/mcp/prompts.py` reads
+  `.github/skills/model-download-user/example-prompts/*.md` and the
+  `## Supported Hubs at a Glance` section of that skill's `SKILL.md` at
+  server startup to register MCP prompts. If you rename that heading, rename
+  or remove an example-prompt file, or move the skill directory, prompt
+  registration breaks or silently drops prompts — check
+  `register_skill_prompts()` after touching those files.
+- **Standalone vs mounted runtime**: `python -m src.mcp` builds its own
+  `PluginRegistry`/`ModelManager` at import time (module-level globals in
+  `server.py`). When mounted inside the FastAPI app, `main.py` calls
+  `configure_runtime(...)` to swap in the app's shared instances instead —
+  keep any new global runtime state wired through `configure_runtime` so both
+  modes stay consistent.
+- **Testing**: `tests/test_mcp_server.py` patches `src.mcp.server.plugin_registry`
+  and `src.mcp.server.model_manager` with `MagicMock`s via an autouse fixture,
+  then imports and calls the tool functions directly (not through an MCP
+  client). Follow that pattern for new tools. See
+  [testing-patterns.md](./references/testing-patterns.md) for the full example.
+
+---
+
+## Procedure: Debugging a Stuck Job
+
+Read [plugin-architecture.md](./references/plugin-architecture.md) → "Job Lifecycle" section.
+
+**Quick diagnosis checklist:**
+
+```bash
+# 1. Check service logs for exceptions
+docker logs model-download 2>&1 | tail -100
+
+# 2. Inspect the job status
+curl -s http://localhost:8200/api/v1/jobs/<job-id>
+
+# 3. Verify the plugin was activated and discovered
+curl -s http://localhost:8200/api/v1/plugins
+# Or via MCP: call the `list_plugins` tool / read the `models://plugins` resource
+
+# 4. Test the plugin in isolation
+python3 -c "
+import asyncio
+from src.plugins.myhub_plugin import MyHubPlugin
+p = MyHubPlugin()
+result = asyncio.run(p.download('my-model', '/tmp/test'))
+print(result)
+"
+```
+
+Common causes of stuck jobs:
+- Plugin raised an exception that was swallowed — check logs
+- Plugin is blocking the event loop (use `asyncio.to_thread` for sync I/O)
+- Lock held by a crashed previous job (Ollama `_ollama_download_lock`) — restart container
+- Plugin was implemented but not activated — verify `docker/entrypoint.sh`, `ENABLED_PLUGINS`, and `ACTIVATED_PLUGINS`
+- Job submitted via MCP behaves like REST (same `ModelManager`) — if only the MCP path is stuck, check that `main.py` called `configure_runtime(...)` so `src/mcp/server.py` isn't using its own separate module-level instances
+
+---
+
+## Procedure: Bumping the Baked-In Ollama Binary
+
+`docker/Dockerfile` pins `OLLAMA_VERSION`/`OLLAMA_SHA256` ARGs and downloads
+`bin/ollama` once at build time (verified via `sha256sum -c`) instead of at
+container startup, so restarts don't re-download it. Dependabot cannot track
+this pin (it's an ARG/curl, not a `FROM` image), so bump it manually:
+
+1. Pick the new release tag from the [Ollama releases page](https://github.com/ollama/ollama/releases).
+2. Get the digest for `ollama-linux-amd64.tar.zst` from that release's
+   `sha256sum.txt` asset, or:
+   `curl -s https://api.github.com/repos/ollama/ollama/releases/tags/<tag> | grep -A1 ollama-linux-amd64.tar.zst`
+3. Update both `OLLAMA_VERSION` and `OLLAMA_SHA256` in `docker/Dockerfile`.
+4. Rebuild and confirm `/opt/bin/ollama --version` in the container logs
+   (`docker/entrypoint.sh` already logs this on startup).
+5. Verify an actual model pull completes (not just `--version`) before
+   merging the bump.

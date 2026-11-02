@@ -8,7 +8,6 @@ import styled from 'styled-components';
 import { useAppDispatch, useAppSelector } from '../../redux/store';
 import { SearchSidebarItem } from './SearchSidebarItem';
 import { SearchActions, SearchLoad, SearchSelector } from '../../redux/search/searchSlice';
-import { SearchQueryStatus } from '../../redux/search/search';
 
 const SidebarContainer = styled.aside<{ disabled: boolean }>`
   display: flex;
@@ -55,8 +54,10 @@ export const SearchSidebar: FC = () => {
     dispatch(SearchActions.selectQuery(queryId));
   };
 
-  const filteredQueries = queries.filter((query) =>query.queryStatus !== SearchQueryStatus.ERROR && query.results && query.results.length > 0);
-  const sidebarList = filteredQueries.map((curr) => (
+  // Every query is listed, including ones that are still running, errored, or came
+  // back empty. A freshly created query has no results yet, and hiding it left the
+  // user with a selected-but-invisible entry.
+  const sidebarList = queries.map((curr) => (
     <SearchSidebarItem
       item={curr}
       selected={selectedQueryId === curr.queryId}

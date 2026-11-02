@@ -1,0 +1,138 @@
+# Build from Source
+
+Build the Visual Pipeline and Platform Evaluation Tool from source to customize, debug, or extend its
+functionality. In this guide, the following tasks are covered:
+
+- Setting up the development environment.
+- Compiling the source code and resolving dependencies.
+- Generating a runnable build for local testing or deployment.
+
+This guide is intended for developers working directly with the source code.
+
+## Prerequisites
+
+Before starting, ensure the following:
+
+- **System requirements**: The system meets the [minimum requirements](./system-requirements.md).
+- **Internet access**: The host has outbound internet connectivity. Base images, apt and Python packages, npm
+  dependencies, sample videos, and models are downloaded during the build and on first start. Offline or
+  air-gapped installation is not supported. See
+  [Network Requirements](./system-requirements.md#network-requirements).
+- **Docker platform**: **Docker Engine** is installed. On Linux, install it from the Docker apt repository, see
+  [Install Docker Engine on Ubuntu](https://docs.docker.com/engine/install/ubuntu/), then complete the
+  [post-installation steps](https://docs.docker.com/engine/install/linux-postinstall/) to run Docker as a non-root user.
+
+  > [!NOTE]
+   > Do not use Docker Desktop on Linux. It runs the Docker daemon inside a virtual machine that is not forwarding GPU
+   > device on Linux (yet).
+
+- **Dependencies installed**:
+  - **Git**: [Install Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git).
+  - **Make**: Standard build tool, typically provided by the `build-essential` (or equivalent) package on Linux.
+
+For GPU and/or NPU usage, appropriate drivers must be installed. The recommended method is to use the DLS installation
+script, which detects available devices and installs the required drivers. Follow the `Prerequisites` section in
+[Install Guide Ubuntu](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/install/install_guide_ubuntu.html#prerequisites).
+
+> [!NOTE]
+> The same steps apply to Ubuntu 24.04 running under WSL 2 on Windows - run all commands
+> inside the WSL distribution. On WSL, only the CPU and GPU (WSL) variants are supported. See
+> [System Requirements](./system-requirements.md#windows-subsystem-for-linux-wsl).
+
+This guide assumes basic familiarity with Git commands and terminal usage. For more information, see
+[Git Documentation](https://git-scm.com/doc).
+
+Before building, review the [Pre-Installation Steps](./pre-installation-steps.md) for optional
+configuration such as the Hugging Face access token used to download models from the
+Hugging Face Hub.
+
+## Steps to Build
+
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b main
+   cd edge-ai-libraries/tools/visual-pipeline-and-platform-evaluation-tool
+   ```
+
+1. Build and start the application:
+
+   ```bash
+   make build run
+   ```
+
+   Both `make build` and `make run` automatically invoke `setup_env.sh`, which detects the
+   available hardware (CPU/GPU/NPU) and writes the appropriate `.env` file. They also create
+   the required directories under `shared/`.
+
+   The images are tagged with the version of the checked-out sources (for example `2026.3.0-dev`), or with
+   `DOCKER_TAG` if it is set in the environment. `make run` does not rebuild images: after changing the
+   sources, run `make build` again. To run published images instead, see
+   [Use Pre-Built Docker Images](./docker-compose.md).
+
+1. Verify that the application is running:
+
+   ```bash
+   docker compose ps
+   ```
+
+1. Access the application:
+
+   Open a browser and navigate to `http://localhost` (or `http://<HOST-IP>`) to access
+   the Visual Pipeline and Platform Evaluation Tool UI.
+
+1. Access the application API documentation:
+
+   Open a browser and navigate to `http://localhost/api/v1/docs` (or `http://<HOST-IP>/api/v1/docs`)
+   to access the Swagger UI.
+
+## Optional: run pipelines on DL Streamer Pipeline Server 2.0 (experimental)
+
+By default, pipelines run inside the `vippet` container. To run them on a separate
+[DL Streamer Pipeline Server 2.0](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/dlstreamer-pipeline-server/dlsps2/README.md)
+container instead, add `DLSPS2=1`:
+
+```bash
+make build run DLSPS2=1
+make stop DLSPS2=1
+```
+
+This builds the server image from `microservices/dlstreamer-pipeline-server/dlsps2` in the
+same repository, gives it the same devices as `vippet`, and sets
+`VIPPET_EXECUTION_BACKEND=dlsps2`. Current limitations:
+
+- Only pipeline validation and single-stream performance tests run on the server. Density
+  tests, multi-stream performance tests and tests with latency metrics still run inside
+  `vippet`.
+- A pipeline that finishes in less than about one second reports 0 FPS.
+
+The server is not part of `compose.yml`, so `docker compose logs` does not show it. Use
+`docker logs -f dlstreamer-pipeline-server` to follow its log, or `make shell-dlsps` to
+open a shell in it.
+
+## Optional: stream from GigE Vision cameras
+
+To use GigE Vision cameras as pipeline input, run the `vippet` container with host networking
+by adding `GIGE=1`:
+
+```bash
+make build run GIGE=1
+```
+
+See [GigE Vision Cameras](../../user-guide/input-management/cameras.md#gige-vision-cameras)
+for details.
+
+## Stop the application
+
+Stop and remove all running containers:
+
+```bash
+make stop
+```
+
+Downloaded models and videos under `shared/` are preserved. To also remove
+those artifacts, run:
+
+```bash
+make clean
+```

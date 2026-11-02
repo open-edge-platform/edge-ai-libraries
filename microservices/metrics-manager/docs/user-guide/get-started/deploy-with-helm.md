@@ -1,13 +1,13 @@
 # Helm Deployment
 
-The `metrics-manager` Helm chart deploys the same container image onto a Kubernetes cluster with host-level access required to scrape CPU / GPU / NPU telemetry from the node.
+The `metrics-manager` Helm chart deploys the same container image onto a Kubernetes cluster. The secure default profile runs non-root without host-level access; enable the hardware telemetry profile when CPU / GPU / NPU telemetry from the node is required.
 
 The chart is published to the **same OCI repository as the container image**.
 
 | Artifact      | OCI Reference                                                                |
 |---------------|------------------------------------------------------------------------------|
-| Image         | `registry-1.docker.io/intel/metrics-manager:2026.1.0`                        |
-| Helm chart    | `oci://registry-1.docker.io/intel/metrics-manager:2026.1.0-helm`             |
+| Image         | `registry-1.docker.io/intel/metrics-manager:2026.2.0`                        |
+| Helm chart    | `oci://registry-1.docker.io/intel/metrics-manager:2026.2.0-helm`             |
 
 ## Prerequisites
 
@@ -17,11 +17,23 @@ The chart is published to the **same OCI repository as the container image**.
 | Kubernetes | 1.25    | Older clusters use the legacy AppArmor pod annotation. The chart auto-detects. 1.30+ uses the native `appArmorProfile` field. |
 | kubectl    | matching K8s | For cluster interaction                                                      |
 
-**Security Requirements:**
+**Secure default profile:**
 
-The pod runs **privileged** with `hostPID: true`, mounts host paths (`/sys`, `/run`, `/dev/dri`), and disables AppArmor / seccomp confinement so it can read GPU/NPU sysfs nodes.
+The default pod runs as non-root with `hostPID: false`, `privileged: false`, a read-only root filesystem, dropped capabilities and `RuntimeDefault` AppArmor/seccomp profiles. It does not mount host paths and is intended for the restricted application profile.
 
-**PodSecurityAdmission must allow the `privileged` profile** in the target namespace:
+**Hardware telemetry profile:**
+
+To collect host CPU/GPU/NPU telemetry, enable the profile explicitly. It requires `hostPID: true`, `privileged: true`, host paths (`/sys`, `/run`, `/dev/dri`) and the GPU render group when GPU telemetry is enabled:
+
+```bash
+helm install metrics-manager \
+  oci://registry-1.docker.io/intel/metrics-manager \
+  --version 2026.2.0-helm \
+  --namespace observability --create-namespace \
+  --set hardware.telemetry.enabled=true
+```
+
+**PodSecurityAdmission must allow the `privileged` profile** in the target namespace when using the hardware telemetry profile:
 
 ```bash
 kubectl label namespace observability \
@@ -39,7 +51,7 @@ The chart uses the native `appArmorProfile` field. On older clusters either upgr
 ```bash
 helm install metrics-manager \
   oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.1.0-helm \
+  --version 2026.2.0-helm \
   --namespace observability --create-namespace
 ```
 
@@ -48,22 +60,22 @@ helm install metrics-manager \
 ```bash
 helm template metrics-manager \
   oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.1.0-helm
+  --version 2026.2.0-helm
 ```
 
 ### Pull for Offline / Air-Gapped Deployments
 
 ```bash
 helm pull oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.1.0-helm
-# -> metrics-manager-2026.1.0-helm.tgz
+  --version 2026.2.0-helm
+# -> metrics-manager-2026.2.0-helm.tgz
 ```
 
 ### Show Default Values
 
 ```bash
 helm show values oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.1.0-helm
+  --version 2026.2.0-helm
 ```
 
 ---
@@ -74,23 +86,25 @@ helm show values oci://registry-1.docker.io/intel/metrics-manager \
 
 ```bash
 helm install metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.1.0-helm \
-  --set controller.kind=DaemonSet
+  --version 2026.2.0-helm \
+  --set controller.kind=DaemonSet \
+  --set hardware.telemetry.enabled=true
 ```
 
 ### CPU / NPU only host (no GPU)
 
 ```bash
 helm install metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.1.0-helm \
-  --set hardware.gpu.enabled=false
+  --version 2026.2.0-helm \
+  --set hardware.gpu.enabled=false \
+  --set hardware.telemetry.enabled=true
 ```
 
 ### Stable Hostname Label Across Pod Restarts
 
 ```bash
 helm install metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.1.0-helm \
+  --version 2026.2.0-helm \
   --set config.hostnameOverride=lab-node-42
 ```
 
@@ -98,7 +112,7 @@ helm install metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
 
 ```bash
 helm install metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.1.0-helm \
+  --version 2026.2.0-helm \
   --set customMetrics.storage=pvc \
   --set customMetrics.size=1Gi \
   --set customMetrics.storageClassName=standard
@@ -108,7 +122,7 @@ helm install metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
 
 ```bash
 helm install metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.1.0-helm \
+  --version 2026.2.0-helm \
   --set-file telegraf.config=./my-telegraf.conf
 ```
 
@@ -116,7 +130,7 @@ helm install metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
 
 ```bash
 helm install metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.1.0-helm \
+  --version 2026.2.0-helm \
   --set serviceMonitor.enabled=true \
   --set serviceMonitor.labels.release=prometheus
 ```
@@ -131,7 +145,7 @@ This creates a `ServiceMonitor` that Prometheus Operator can scrape via the `:92
 
 ```bash
 helm upgrade metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.1.0-helm \
+  --version 2026.2.0-helm \
   --reuse-values
 ```
 
@@ -275,7 +289,7 @@ Install with custom values:
 
 ```bash
 helm install metrics-manager oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.1.0-helm \
+  --version 2026.2.0-helm \
   -f my-values.yaml
 ```
 

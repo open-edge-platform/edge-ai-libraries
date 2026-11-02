@@ -1,0 +1,5 @@
+
+debian_29_install_reboot () {
+  install_reboot "$@"
+}
+

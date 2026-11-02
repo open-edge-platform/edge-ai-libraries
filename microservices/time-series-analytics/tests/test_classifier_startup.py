@@ -40,6 +40,18 @@ def kapacitor_classifier():
     logger = DummyLogger()
     return cs.KapacitorClassifier(logger)
 
+def test_secure_temp_path_rejects_directory_traversal(monkeypatch, tmp_path):
+    monkeypatch.setattr(cs, "SECURE_TEMP_DIR", str(tmp_path))
+
+    with pytest.raises(ValueError, match="must remain within"):
+        cs.secure_temp_path("../outside")
+
+def test_secure_temp_path_resolves_package_path(monkeypatch, tmp_path):
+    monkeypatch.setattr(cs, "SECURE_TEMP_DIR", str(tmp_path))
+
+    assert cs.secure_temp_path("package", "udfs", "model.py") == str(
+        tmp_path / "package" / "udfs" / "model.py")
+
 def test_write_cert_creates_file_and_sets_permissions(tmp_path, kapacitor_classifier):
     src_file = tmp_path / "src_cert"
     dst_file = tmp_path / "dst_cert"
@@ -217,68 +229,70 @@ def test_classifier_startup(monkeypatch):
 def test_enable_classifier_task_success(monkeypatch, kapacitor_classifier):
     # Simulate kapacitor_port_open returns True immediately
     monkeypatch.setattr(kapacitor_classifier, "kapacitor_port_open", lambda host: True)
-    # Simulate subprocess.check_call returns SUCCESS for both define and enable
+    # check_call returns None on success
     calls = []
     def fake_check_call(cmd):
         calls.append(list(cmd))
-        return cs.SUCCESS
     monkeypatch.setattr(cs.subprocess, "check_call", fake_check_call)
     # Patch time.sleep to avoid delays
     monkeypatch.setattr(cs.time, "sleep", lambda x: None)
-    kapacitor_classifier.enable_classifier_task(
+    result = kapacitor_classifier.enable_classifier_task(
         host_name="localhost",
         tick_script="myudf.tick",
         dir_name="myudf",
         task_name="myudf"
     )
     # Should call define and enable
+    assert result is True
     assert any("define" in c for c in calls)
     assert any("enable" in c for c in calls)
     assert any("Kapacitor Tasks Enabled Successfully" in m[1] for m in kapacitor_classifier.logger.messages if m[0] == "info")
 
 def test_enable_classifier_task_define_fails(monkeypatch, kapacitor_classifier):
     monkeypatch.setattr(kapacitor_classifier, "kapacitor_port_open", lambda host: True)
-    # Simulate subprocess.check_call returns FAILURE for define
+    # Simulate check_call raising when define fails
     calls = []
     def fake_check_call(cmd):
         calls.append(list(cmd))
-        return cs.FAILURE
+        raise cs.subprocess.CalledProcessError(1, cmd)
     monkeypatch.setattr(cs.subprocess, "check_call", fake_check_call)
     monkeypatch.setattr(cs.time, "sleep", lambda x: None)
-    kapacitor_classifier.enable_classifier_task(
+    result = kapacitor_classifier.enable_classifier_task(
         host_name="localhost",
         tick_script="fail.tick",
         dir_name="faildir",
         task_name="failtask"
     )
     # Should retry 5 times
+    assert result is False
     assert sum("define" in c for c in calls) == 5
-    assert any("ERROR:Cannot Communicate to Kapacitor." in m[1] for m in kapacitor_classifier.logger.messages if m[0] == "info")
+    assert any("ERROR:Cannot Communicate to Kapacitor:" in m[1] for m in kapacitor_classifier.logger.messages if m[0] == "info")
     assert any("Retrying Kapacitor Connection" in m[1] for m in kapacitor_classifier.logger.messages if m[0] == "info")
 
 def test_enable_classifier_task_enable_fails(monkeypatch, kapacitor_classifier):
     monkeypatch.setattr(kapacitor_classifier, "kapacitor_port_open", lambda host: True)
-    # Simulate subprocess.check_call returns SUCCESS for define, FAILURE for enable
+    # Simulate define success and enable failure via check_call behavior
     calls = []
     def fake_check_call(cmd):
         calls.append(list(cmd))
         if "define" in cmd:
-            return cs.SUCCESS
+            return None
         if "enable" in cmd:
-            return cs.FAILURE
-        return cs.FAILURE
+            raise cs.subprocess.CalledProcessError(1, cmd)
+        raise AssertionError("Unexpected Kapacitor command")
     monkeypatch.setattr(cs.subprocess, "check_call", fake_check_call)
     monkeypatch.setattr(cs.time, "sleep", lambda x: None)
-    kapacitor_classifier.enable_classifier_task(
+    result = kapacitor_classifier.enable_classifier_task(
         host_name="localhost",
         tick_script="failenable.tick",
         dir_name="failenable",
         task_name="failenable"
     )
     # Should retry 5 times
+    assert result is False
     assert sum("define" in c for c in calls) == 5
     assert sum("enable" in c for c in calls) == 5
-    assert any("ERROR:Cannot Communicate to Kapacitor." in m[1] for m in kapacitor_classifier.logger.messages if m[0] == "info")
+    assert any("ERROR:Cannot Communicate to Kapacitor:" in m[1] for m in kapacitor_classifier.logger.messages if m[0] == "info")
     assert any("Retrying Kapacitor Connection" in m[1] for m in kapacitor_classifier.logger.messages if m[0] == "info")
 
 def test_enable_classifier_task_port_never_opens(monkeypatch, kapacitor_classifier):

@@ -13,7 +13,8 @@ export interface TimeFilterSelection {
 }
 
 export interface SearchQueryDTO {
-  query: string;
+  query?: string;
+  image?: string;
   tags?: string;
   timeFilter?: TimeFilterSelection | null;
 }
@@ -29,6 +30,24 @@ export interface SearchResultRO {
 export interface SearchResultBody {
   query_id: string;
   results: SearchResult[];
+}
+
+export interface ScoreBreakdown {
+  score: number;
+  raw_score?: number;
+  raw_score_min?: number;
+  raw_score_max?: number;
+  max_frame_score?: number;
+  top_n_avg_score?: number;
+  top_n_frame_count?: number;
+  avg_frame_score?: number;
+  quality_score?: number;
+  frame_count?: number;
+  contextual_weight?: number;
+  contextual_boost_factor?: number;
+  contextual_sigma_seconds?: number;
+  segment_best_timestamp?: number | null;
+  global_peak_timestamp?: number | null;
 }
 
 export interface SearchResult {
@@ -59,6 +78,7 @@ export interface SearchResult {
     video_url: string;
     year: number;
     relevance_score: number;
+    score_breakdown?: ScoreBreakdown;
   };
   page_content: string;
   type: string;
@@ -75,6 +95,8 @@ export interface SearchQuery {
   dbId?: number;
   queryId: string;
   query: string;
+  // Query image (base64/data URL) for image-based searches; empty for text queries.
+  image?: string | null;
   watch: boolean;
   results: SearchResult[];
   queryStatus: SearchQueryStatus;
@@ -83,10 +105,31 @@ export interface SearchQuery {
   createdAt: string;
   updatedAt: string;
   errorMessage?: string;
+  lastRefreshedAt?: string | null;
 }
 
 export interface SearchQueryUI extends SearchQuery {
   topK: number;
+  /**
+   * Per-query "group results by tag" view toggle. Must not leak across queries.
+   * Optional on construction; the slice defaults it to `false` in every
+   * query-creation path, and all reads coerce with `Boolean(...)`.
+   */
+  showVideoGroups?: boolean;
+}
+
+/**
+ * Auto-refresh settings for watched ("checked") queries, as resolved by the
+ * pipeline manager. Watched queries are refreshed on this cadence only when new
+ * embeddings have been indexed since the previous refresh.
+ */
+export interface SearchRefreshConfig {
+  enabled: boolean;
+  intervalMs: number;
+  quietPeriodMs: number;
+  batchSize: number;
+  minQueryIntervalMs: number;
+  maxQueriesPerTick: number;
 }
 
 export interface SearchState {
@@ -95,4 +138,5 @@ export interface SearchState {
   unreads: string[];
   selectedQuery: string | null;
   triggerLoad: boolean;
+  refreshConfig?: SearchRefreshConfig | null;
 }

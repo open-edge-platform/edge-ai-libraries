@@ -40,22 +40,31 @@ class LLM:
         logger.debug(f"Remove thinking: {'Enabled' if self.remove_thinking else 'Disabled'}")
 
         # Concurrency settings
-        self.timeout = settings.REQUEST_TIMEOUT
-        self.max_retries = settings.MAX_RETRIES
+        self.timeout = settings.MODEL_REQUEST_TIMEOUT
+        self.max_retries = settings.MODEL_MAX_RETRIES
         self.temperature = settings.DEFAULT_TEMPERATURE
+        self.max_tokens = settings.DEFAULT_MAX_TOKENS
+        self.enable_thinking = settings.ENABLE_THINKING
         
         # Use remote inference
         self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
         self.async_client = AsyncOpenAI(api_key=self.api_key, base_url=self.base_url)
-        
-        logger.debug(f"Using remote inference serving with model: {model_name} from endpoint: {self.base_url}")
+
+        # Token usage tracking (累加每次 vllm-ipex-serving 调用)
+        self.total_prompt_tokens = 0  # Text tokens from vllm-ipex-serving (accumulated)
+        self.total_completion_tokens = 0  # Completion tokens (accumulated)
+        self.total_image_tokens = 0  # Image tokens calculated internally (accumulated)
+
+        logger.debug("Configured remote inference serving")
     
-    def infer(self, prompt: str) -> str:
+    def infer(self, content: str|List[Dict[str, Any]]) -> str:
         """
         Run inference on a text prompt, in sync mode
 
         Args:
-            prompt: Text prompt to process
+            content: 
+                Option1. Text prompt to process
+                Option2. List of contents with user's prompts to process
 
         Returns:
             Model's response
@@ -64,9 +73,8 @@ class LLM:
         # Construct messages for the API
         msgs = [
             {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": prompt}
+            {"role": "user", "content": content}
         ]
-        
         response = self._remote_infer(msgs)
         
         if self.remove_thinking:
@@ -74,12 +82,14 @@ class LLM:
             
         return response
     
-    async def async_infer(self, prompt: str) -> str:
+    async def async_infer(self, content: str|List[Dict[str, Any]]) -> str:
         """
         Run inference on a text prompt, in async mode
 
         Args:
-            prompt: Text prompt to process
+            content: 
+                Option1. Text prompt to process
+                Option2. List of contents with user's prompts to process
 
         Returns:
             Model's response
@@ -88,7 +98,7 @@ class LLM:
         # Construct messages for the API
         msgs = [
             {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": prompt}
+            {"role": "user", "content": content}
         ]
         
         response = await self._async_remote_infer(msgs)
@@ -121,18 +131,32 @@ class LLM:
                     messages=messages,
                     temperature=self.temperature,
                     timeout=self.timeout,
+                    max_tokens=self.max_tokens,
+                    extra_body={
+                        "chat_template_kwargs": {
+                            "enable_thinking": self.enable_thinking
+                        }
+                    },
                 )
+                logger.debug("API call successful")
+
+                # Extract and accumulate token usage from vllm-ipex-serving
+                if hasattr(response, 'usage') and response.usage:
+                    self.total_prompt_tokens += response.usage.prompt_tokens
+                    self.total_completion_tokens += response.usage.completion_tokens
+                    logger.debug(f"Token usage this call: {response.usage.prompt_tokens} input, "
+                                f"{response.usage.completion_tokens} output")
 
                 content = response.choices[0].message.content.strip()
                 logger.debug(f"Successfully received response from remote LLM")
                 return content
 
             except Exception as e:
-                logger.error(f"ERROR in API call(URL: {self.base_url}) (attempt {retry_count+1}): {str(e)}")
+                logger.warning("API call failed (attempt %s)", retry_count + 1)
                 retry_count += 1
                 if retry_count >= self.max_retries:
-                    error_msg = f"Error: API call(URL: {self.base_url}) failed after {self.max_retries} attempts. Last error: {str(e)}"
-                    logger.error(error_msg)
+                    error_msg = "Error: API call failed after configured retries."
+                    logger.error("API call failed after configured retries")
                     return error_msg
                 
     async def _async_remote_infer(self, messages: List[Dict[str, Any]]) -> str:
@@ -149,7 +173,7 @@ class LLM:
 
         while retry_count < self.max_retries:
             try:
-                logger.debug(f"Sending async request to remote LLM: {self.model_name} (attempt {retry_count+1}/{self.max_retries})")
+                logger.debug("Sending async request to remote LLM")
 
                 # Call the API
                 response = await self.async_client.chat.completions.create(
@@ -157,18 +181,31 @@ class LLM:
                     messages=messages,
                     temperature=self.temperature,
                     timeout=self.timeout,
+                    max_tokens=self.max_tokens,
+                    extra_body={
+                        "chat_template_kwargs": {
+                            "enable_thinking": self.enable_thinking
+                        }
+                    },
                 )
+                logger.debug("API call successful")
+
+                # Extract and accumulate token usage from vllm-ipex-serving
+                if hasattr(response, 'usage') and response.usage:
+                    self.total_prompt_tokens += response.usage.prompt_tokens
+                    self.total_completion_tokens += response.usage.completion_tokens
+                    logger.debug("Recorded token usage for async request")
 
                 content = response.choices[0].message.content.strip()
-                logger.debug(f"Successfully received async response from remote LLM")
+                logger.debug("Successfully received async response from remote LLM")
                 return content
 
-            except Exception as e:
-                logger.error(f"ERROR in async API call (attempt {retry_count+1}): {str(e)}")
+            except Exception:
+                logger.warning("Async API call failed (attempt %s)", retry_count + 1)
                 retry_count += 1
                 if retry_count >= self.max_retries:
-                    error_msg = f"Error: API call failed after {self.max_retries} attempts. Last error: {str(e)}"
-                    logger.error(error_msg)
+                    error_msg = "Error: API call failed after configured retries."
+                    logger.error("Async API call failed after configured retries")
                     return error_msg
                 # Wait before retrying
                 await asyncio.sleep(1)
@@ -180,3 +217,19 @@ class LLM:
             response = response[index:]
             response = response.replace("</think>\n\n", "").replace("</think>", "")
         return response
+
+    def get_token_usage(self) -> Dict[str, int]:
+        """返回累计的 token 使用统计 (所有 vllm-ipex-serving 调用的总和 + image tokens)"""
+        total = self.total_prompt_tokens + self.total_image_tokens + self.total_completion_tokens
+        return {
+            "prompt_tokens": self.total_prompt_tokens,  # Text prompt tokens only
+            "image_tokens": self.total_image_tokens,
+            "completion_tokens": self.total_completion_tokens,
+            "total_tokens": total,  # Sum of all tokens
+        }
+
+    def reset_token_usage(self):
+        """重置 token 计数器 (用于处理新请求时)"""
+        self.total_prompt_tokens = 0
+        self.total_completion_tokens = 0
+        self.total_image_tokens = 0

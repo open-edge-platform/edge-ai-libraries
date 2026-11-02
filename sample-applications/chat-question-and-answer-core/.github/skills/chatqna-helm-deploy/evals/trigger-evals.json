@@ -1,0 +1,30 @@
+[
+    {
+        "query": "Deploy chatqna core to kubernetes with helm in namespace ai.",
+        "should_trigger": true
+    },
+    {
+        "query": "Helm install chatqna-core using openvino gpu profile.",
+        "should_trigger": true
+    },
+    {
+        "query": "Translate my docker compose setup_env.sh vars into helm values-override.yaml and deploy ollama.",
+        "should_trigger": true
+    },
+    {
+        "query": "Use oci://registry-1.docker.io/intel/chat-question-and-answer-core and deploy openvino cpu to namespace rag.",
+        "should_trigger": true
+    },
+    {
+        "query": "Configure values.yaml for chatqna core and run helm upgrade --install.",
+        "should_trigger": true
+    },
+    {
+        "query": "Uninstall chatqna-core helm release from namespace ai.",
+        "should_trigger": true
+    },
+    {
+        "query": "Deploy OpenVINO GPU profile with Helm and verify health endpoint returns HTTP_STATUS:200.",
+        "should_trigger": true
+    }
+]

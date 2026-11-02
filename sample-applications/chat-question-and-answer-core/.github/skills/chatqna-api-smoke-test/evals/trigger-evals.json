@@ -1,0 +1,50 @@
+[
+    {
+        "query": "Smoke test ChatQnA APIs and verify /health and /model endpoints.",
+        "should_trigger": true
+    },
+    {
+        "query": "Validate /v1/chatqna/docs and /v1/chatqna/openapi.json for a running deployment.",
+        "should_trigger": true
+    },
+    {
+        "query": "Check /chat endpoint response with stream=false and show HTTP status.",
+        "should_trigger": true
+    },
+    {
+        "query": "Run OpenVINO runtime API smoke tests including /devices and /devices/CPU.",
+        "should_trigger": true
+    },
+    {
+        "query": "Run Ollama API checks for /ollama-models and /ollama-model?model_id=llama2.",
+        "should_trigger": true
+    },
+    {
+        "query": "Do a non-destructive API validation for chatqna endpoints only.",
+        "should_trigger": true
+    },
+    {
+        "query": "If service is not running, start docker compose and then execute API smoke test.",
+        "should_trigger": true
+    },
+    {
+        "query": "Deploy chatqna to kubernetes using helm values overrides.",
+        "should_trigger": false
+    },
+    {
+        "query": "Build chatqna backend and ui images from source.",
+        "should_trigger": false
+    },
+    {
+        "query": "Run unit tests for backend and frontend using pytest and vitest.",
+        "should_trigger": false
+    },
+    {
+        "query": "Fix a failing Python unit test in tests/test_server.py.",
+        "should_trigger": false
+    },
+    {
+        "query": "Configure nginx ingress TLS for Kubernetes workloads.",
+        "should_trigger": false
+    }
+]

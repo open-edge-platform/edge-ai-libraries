@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "MCP (Model Context Protocol) server configuration for Alert Agent Service",
+  "servers": [
+    {
+      "name": "prometheus",
+      "enabled": true,
+      "transport": "http",
+      "url": "<mcp_server_url>/mcp",
+      "description": "Prometheus MCP Server — query metrics, get alerts, analyse system performance",
+      "timeout": 30.0,
+      "tool_defaults": {
+        "_note": "Default arguments for each tool. Supports {{variable}} template placeholders rendered from alert context (source_id, alert_name, severity, answer, reason, consecutive_count, escalated, snapshot_path). Tools not listed here are called with no arguments.",
+        "health_check": {},
+        "execute_query": {
+          "query": "up"
+        },
+        "execute_range_query": {
+          "query": "up",
+          "start": "1h",
+          "end": "now",
+          "step": "15s"
+        },
+        "list_metrics": {},
+        "get_metric_metadata": {},
+        "get_targets": {}
+      }
+    }
+  ]
+}

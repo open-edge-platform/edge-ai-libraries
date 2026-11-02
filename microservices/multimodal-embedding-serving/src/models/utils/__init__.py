@@ -18,10 +18,16 @@ The utilities ensure efficient model deployment by providing seamless conversion
 from research models to production-optimized formats suitable for inference.
 """
 
-from .openvino_utils import check_and_convert_openvino_models, load_openvino_models, AsyncBatchInference
+from .openvino_utils import (
+    AsyncBatchInference,
+    check_and_convert_openvino_models,
+    infer_with_batch_support,
+    load_openvino_models,
+)
 
 __all__ = [
     "check_and_convert_openvino_models",
     "load_openvino_models",
+    "infer_with_batch_support",
     "AsyncBatchInference",
 ]

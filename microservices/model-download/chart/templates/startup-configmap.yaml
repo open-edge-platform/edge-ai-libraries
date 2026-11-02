@@ -1,0 +1,14 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+{{- if .Values.modeldownload.startupConfig.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ printf "%s-startup-models" .Values.modeldownload.name | trunc 63 | trimSuffix "-" }}
+  labels:
+    app: {{ .Chart.Name }}
+data:
+  startup-models.yaml: |
+{{ toYaml .Values.modeldownload.startupConfig.config | nindent 4 }}
+{{- end }}

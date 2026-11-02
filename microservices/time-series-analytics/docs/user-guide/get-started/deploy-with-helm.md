@@ -6,11 +6,11 @@
 - K8s installation on single or multi node must be done as pre-requisite to continue
   the following deployment. Note: The kubernetes cluster is set up with `kubeadm`,
   `kubectl` and `kubelet` packages on single and multi nodes with `v1.30.2`.
-  Refer to tutorials such as <https://adamtheautomator.com/installing-kubernetes-on-ubuntu> and many other
-  online tutorials to setup kubernetes cluster on the web with host OS as ubuntu 22.04.
-- For helm installation, refer to [helm website](https://helm.sh/docs/intro/install/)
+  Refer to tutorials such as <https://dev.to/korakrit/installing-kubernetes-single-node-setup-on-ubuntu-2404-4f47> and many other
+  online tutorials to set up Kubernetes cluster on the web with host OS as Ubuntu 24.04.
+- For Helm installation, refer to [Helm website](https://helm.sh/docs/intro/install/)
 
-> **Note**
+> [!NOTE]
 > If Ubuntu Desktop is not installed on the target system, follow the instructions from Ubuntu to [install Ubuntu desktop](https://ubuntu.com/tutorials/install-ubuntu-desktop).
 
 ## Access to the helm charts - use one of the below options
@@ -21,26 +21,26 @@
 
     Follow this procedure on the target system to install the package.
 
-    1. Download helm chart with the following command
+    1. Download the Helm chart with the following command
 
-        `helm pull oci://registry-1.docker.io/intel/ia-time-series-analytics-microservice --version 2026.1.0-rc1-helm`
+       Replace `<date>` with the actual patch version date (e.g., `20260120` for January 20th, 2026).
 
-    2. unzip the package using the following command
+        `helm pull oci://registry-1.docker.io/intel/ia-time-series-analytics-microservice --version 2026.3.0-<date>-weekly-helm`
 
-        `tar -xvzf ia-time-series-analytics-microservice-2026.1.0-rc1-helm.tgz`
+    2. Extract the package using the following command
 
-    - Get into the helm directory
+        `tar -xvzf ia-time-series-analytics-microservice-2026.3.0-<date>-weekly-helm.tgz`
+
+    3. Get into the Helm directory
 
         `cd ia-time-series-analytics-microservice`
 
-## Install helm charts
-
-> **Note:**
->
-> - Uninstall the helm charts if already installed.
-> - If the worker nodes are running behind proxy server, then please additionally
->   set `env.HTTP_PROXY` and `env.HTTPS_PROXY` env like the way `env.TELEGRAF_INPUT_PLUGIN`
->   is being set as follows with helm install command
+> [!NOTE]
+> 
+> - Uninstall the Helm charts if already installed.
+> - If the worker nodes are running behind proxy server, additionally
+>   set `env.HTTP_PROXY` and `env.HTTPS_PROXY` env the same way `env.TELEGRAF_INPUT_PLUGIN`
+>   is being set as with the following Helm install command
 
 ```bash
 cd edge-ai-libraries/microservices/time-series-analytics/helm # path relative to git clone folder
@@ -48,7 +48,7 @@ cd edge-ai-libraries/microservices/time-series-analytics/helm # path relative to
 helm install time-series-analytics-microservice . -n apps --create-namespace
 ```
 
-Use the following command to verify if all the application resources got installed w/ their status:
+Use the following command to verify if all the application resources got installed with their status:
 
 ```bash
    kubectl get all -n apps
@@ -95,7 +95,7 @@ python3 simulator/temperature_input.py --port 30002
 
 Run following commands to see the filtered temperature results:
 
-``` bash
+```bash
 POD_NAME=$(kubectl get pods -n apps -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | grep deployment-time-series-analytics-microservice | head -n 1)
 kubectl logs -f $POD_NAME -n apps
 ```

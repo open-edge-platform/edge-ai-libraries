@@ -21,8 +21,34 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from subprocess import PIPE, Popen
+from typing import Callable
 
 import psutil as ps
+
+
+@dataclass
+class PipelineEvent:
+    """
+    Live, human-readable event observed while a pipeline is running.
+
+    Runner-local for the same reason as :class:`LatencyTracerSample`;
+    mirrored by :class:`internal_types.InternalPipelineEvent`.
+
+    Attributes:
+        timestamp_ms: Wall-clock time the event was parsed, in ms since epoch.
+        source: Event origin, e.g. ``"proximity-trigger"`` or ``"vlm"``.
+        text: Human-readable event description (or VLM answer).
+        element: Emitting element name, when known.
+        pts_seconds: Stream position the event refers to, when known.
+        prompt: Prompt that produced a VLM answer, when known.
+    """
+
+    timestamp_ms: int
+    source: str
+    text: str
+    element: str | None = None
+    pts_seconds: float | None = None
+    prompt: str | None = None
 
 
 @dataclass
@@ -151,8 +177,8 @@ class PipelineRunner:
     # Shared worker pool for fire-and-forget metric pushes.
     #
     # Every metric push (`_push_fps_metric`, `_push_latency_sample`,
-    # `_push_final_latency_metrics`) schedules work through
-    # `_post_metrics_async`. Creating a brand-new `threading.Thread`
+    # `_push_final_latency_metrics`, `_push_vlm_metrics_sample`)
+    # schedules work through `_post_metrics_async`. Creating a brand-new `threading.Thread`
     # per push scales poorly: with N streams the runner emits one FPS
     # push + one latency push per stream every second, plus N final
     # latency pushes at shutdown. Under load this would spawn
@@ -191,6 +217,47 @@ class PipelineRunner:
     # ------------------------------------------------------------------
     LATENCY_TRACER_GST_DEBUG = "GST_TRACER:7"
     LATENCY_TRACER_GST_TRACERS = "latency_tracer(flags=pipeline,interval=1000)"
+
+    # ------------------------------------------------------------------
+    # gvagenai metrics configuration
+    #
+    # `gvagenai` logs every JSON metadata message it attaches to a
+    # buffer at GStreamer INFO level for its own debug category. The
+    # message carries the `metrics` block when the element runs with
+    # `metrics=true`, so raising that single category to INFO is enough
+    # to observe VLM performance metrics on the subprocess stdout —
+    # without depending on `metadata_mode` (the metadata file is a UI
+    # feature and may be disabled) and without parsing the published
+    # JSON-Lines file.
+    #
+    # The category is only enabled for pipelines that actually contain a
+    # `gvagenai` element (see `run`), so non-GenAI pipelines keep their
+    # original log verbosity.
+    # ------------------------------------------------------------------
+    GENAI_METRICS_GST_DEBUG = "gvagenai:4"
+    GENAI_PIPELINE_ELEMENT = "gvagenai"
+    _GENAI_METRICS_MARKER = "Added meta message:"
+    # Extracts the emitting element name from a genai log line of the
+    # form ``... <element_name> Added meta message: {...}``. The
+    # ``<name>`` prefix is added by ``gst_runner.gst_log_bridge`` when
+    # the record carries a named ``GstObject`` — after
+    # ``unify_all_element_names`` the name is unique per stream (e.g.
+    # ``gvagenai_0_0``), so it is a natural ``stream_id`` for
+    # multi-stream runs. When the prefix is missing (older subprocesses
+    # or logs from non-object contexts) the match fails and the sample
+    # is pushed without a ``stream_id`` tag.
+    _GENAI_METRICS_ELEMENT_PATTERN = re.compile(
+        r"<(?P<element>[^>]+)>\s+Added meta message:"
+    )
+    # Maps OpenVINO™ GenAI VLMPerfMetrics keys -> metrics-manager field names.
+    _GENAI_METRIC_FIELDS = {
+        "ttft_ms": "ttft_mean",
+        "tpot_ms": "tpot_mean",
+        "generate_duration_ms": "generate_duration_mean",
+    }
+
+    # Must match ``gst_runner.PIPELINE_EVENT_MARKER``.
+    _PIPELINE_EVENT_MARKER = "Pipeline event:"
 
     # ------------------------------------------------------------------
     # latency_tracer output parser
@@ -263,6 +330,7 @@ class PipelineRunner:
         hard_timeout: int | None = None,
         enable_latency_metrics: bool = False,
         job_id: str | None = None,
+        on_event: Callable[[PipelineEvent], None] | None = None,
     ):
         """
         Initialize the PipelineRunner.
@@ -302,6 +370,10 @@ class PipelineRunner:
                 API, but validation mode never pushes metrics
                 (no ``gvafpscounter`` / tracer is attached), so the
                 value is effectively unused there.
+            on_event: Optional callback invoked (from the runner thread)
+                for every live :class:`PipelineEvent` parsed in normal
+                mode: ``vippet-event`` element messages (e.g. proximity
+                trigger fired) and ``gvagenai`` text results.
         """
         self.mode = mode
         self.max_runtime = max_runtime
@@ -330,6 +402,7 @@ class PipelineRunner:
         self._metrics_manager_batch_url = f"{self.metrics_manager_url}/api/v1/metrics"
         self.enable_latency_metrics = enable_latency_metrics
         self.job_id = job_id
+        self.on_event = on_event
         self.logger = logging.getLogger("PipelineRunner")
         self.logger_level = self._get_log_level()
         self.logger.setLevel(self.logger_level)
@@ -351,6 +424,10 @@ class PipelineRunner:
         # record. Populated per-run from `PipelineRunner.run()`. `None`
         # means "no filtering — keep every parsed sample".
         self._allowed_stream_ids: set[str] | None = None
+
+        # Whether the pipeline of the current run contains a `gvagenai`
+        # element. Set per-run from `PipelineRunner.run()`.
+        self._genai_metrics_enabled = False
 
         # Validate mode
         if self.mode not in ("normal", "validation"):
@@ -411,6 +488,8 @@ class PipelineRunner:
         # passed an empty set, which is a programmer error we do not
         # try to hide.
         self._allowed_stream_ids: set[str] | None = allowed_stream_ids
+
+        self._genai_metrics_enabled = self.GENAI_PIPELINE_ELEMENT in pipeline_command
 
         if self.mode == "validation":
             return self._run_validation(pipeline_command)
@@ -706,6 +785,28 @@ class PipelineRunner:
                             and self._LATENCY_TRACER_INTERVAL_MARKER in line_str
                         ):
                             self._parse_and_record_latency_sample(line_str)
+
+                        # ----------------------------------------------------------
+                        # gvagenai metrics parsing
+                        #
+                        # `gvagenai` logs one JSON metadata message per
+                        # completed inference. When the element runs
+                        # with `metrics=true`, that JSON carries the VLM
+                        # performance block, which is forwarded to
+                        # metrics-manager exactly like the tracer
+                        # samples above.
+                        # ----------------------------------------------------------
+                        if (
+                            self._genai_metrics_enabled
+                            and self._GENAI_METRICS_MARKER in line_str
+                        ):
+                            self._parse_and_push_genai_sample(line_str)
+
+                        if (
+                            self.on_event is not None
+                            and self._PIPELINE_EVENT_MARKER in line_str
+                        ):
+                            self._parse_and_emit_pipeline_event(line_str)
 
                     elif r == process.stderr:
                         process_stderr.append(line)
@@ -1147,6 +1248,163 @@ class PipelineRunner:
         for stream_id, sample in self.latency_tracer_metrics.items():
             self._push_latency_sample(stream_id, sample)
 
+    def _parse_and_push_genai_sample(self, line: str) -> None:
+        """
+        Parse a ``gvagenai`` JSON metadata line and forward its
+        ``metrics`` block to metrics-manager via
+        :meth:`_push_vlm_metrics_sample`.
+
+        Mirrors :meth:`_parse_and_record_latency_sample`: the hot-loop
+        caller pre-filters with the ``_GENAI_METRICS_MARKER`` substring
+        check; any parsing error (missing marker, malformed JSON,
+        missing ``metrics`` block, non-numeric fields) drops the sample
+        silently, so the runner stays resilient to metadata shape
+        changes.
+
+        The values are the OpenVINO™ GenAI ``VLMPerfMetrics`` means:
+        ``ttft_mean`` (time to first token), ``tpot_mean`` (time per
+        output token) and ``generate_duration_mean`` (total generation
+        time). The UI never reads these from ``gvagenai`` directly — it
+        consumes them from the metrics-manager SSE stream.
+
+        The emitting ``gvagenai_*`` element name (added by
+        ``gst_runner.gst_log_bridge`` as a ``<name>`` prefix) is
+        extracted and forwarded as ``stream_id`` so metrics-manager can
+        partition VLM samples per stream in multi-stream runs. When the
+        prefix is missing the sample is still pushed, but without the
+        ``stream_id`` tag.
+
+        Args:
+            line: Raw stdout line from the subprocess, including any
+                log prefix (e.g. ``"gst_runner - INFO - ..."``).
+        """
+        json_start = line.find("{", line.find(self._GENAI_METRICS_MARKER))
+        if json_start == -1:
+            return
+
+        try:
+            payload = json.loads(line[json_start:])
+        except ValueError:
+            return
+        if not isinstance(payload, dict):
+            return
+
+        element_match = self._GENAI_METRICS_ELEMENT_PATTERN.search(line)
+        stream_id = element_match.group("element") if element_match else None
+
+        result = payload.get("result")
+        if self.on_event is not None and isinstance(result, str) and result.strip():
+            pts_seconds = payload.get("timestamp_seconds")
+            prompt = payload.get("prompt")
+            self._emit_event(
+                source="vlm",
+                text=result.strip(),
+                element=stream_id,
+                pts_seconds=pts_seconds
+                if isinstance(pts_seconds, (int, float))
+                else None,
+                prompt=prompt if isinstance(prompt, str) else None,
+            )
+
+        try:
+            metrics = payload["metrics"]
+            fields = {
+                dst: float(metrics[src])
+                for dst, src in self._GENAI_METRIC_FIELDS.items()
+            }
+        except (KeyError, TypeError, ValueError):
+            return
+
+        self._push_vlm_metrics_sample(fields, stream_id=stream_id)
+        self.logger.debug(
+            "gvagenai metrics sample: stream=%s fields=%s", stream_id, fields
+        )
+
+    def _parse_and_emit_pipeline_event(self, line: str) -> None:
+        """
+        Parse a ``Pipeline event: {json}`` line logged by ``gst_runner``
+        and forward it to ``on_event``. Malformed lines are dropped.
+        """
+        json_start = line.find("{", line.find(self._PIPELINE_EVENT_MARKER))
+        if json_start == -1:
+            return
+        try:
+            payload = json.loads(line[json_start:])
+        except ValueError:
+            return
+        if not isinstance(payload, dict):
+            return
+        text = payload.get("text")
+        if not isinstance(text, str) or not text.strip():
+            return
+        source = payload.get("source")
+        element = payload.get("element")
+        pts_seconds = payload.get("pts-seconds")
+        self._emit_event(
+            source=source if isinstance(source, str) else "pipeline",
+            text=text.strip(),
+            element=element if isinstance(element, str) else None,
+            pts_seconds=pts_seconds if isinstance(pts_seconds, (int, float)) else None,
+        )
+
+    def _emit_event(
+        self,
+        source: str,
+        text: str,
+        element: str | None,
+        pts_seconds: float | None,
+        prompt: str | None = None,
+    ) -> None:
+        if self.on_event is None:
+            return
+        self.on_event(
+            PipelineEvent(
+                timestamp_ms=int(time.time() * 1000),
+                source=source,
+                text=text,
+                element=element,
+                pts_seconds=float(pts_seconds) if pts_seconds is not None else None,
+                prompt=prompt,
+            )
+        )
+
+    def _push_vlm_metrics_sample(
+        self, fields: dict[str, float], stream_id: str | None = None
+    ) -> None:
+        """
+        Push a single ``vlm_metrics`` sample to metrics-manager.
+
+        Uses the ``/api/v1/metrics`` batch endpoint so all VLM fields
+        travel in one request, mirroring ``_push_latency_sample``.
+
+        Tags: ``job_id`` (when set) and ``stream_id`` (when the
+        originating ``gvagenai_*`` element name was recovered from the
+        log line) so the dashboard can partition VLM samples per job
+        and per stream in multi-stream runs.
+
+        Args:
+            fields: Parsed VLM metric fields (``ttft_ms``, ``tpot_ms``,
+                ``generate_duration_ms``).
+            stream_id: Emitting ``gvagenai`` element name (unique per
+                stream after ``unify_all_element_names``), or ``None``
+                when it could not be recovered.
+        """
+        tags: dict[str, str] = {}
+        if self.job_id is not None:
+            tags["job_id"] = self.job_id
+        if stream_id is not None:
+            tags["stream_id"] = stream_id
+
+        entry: dict[str, object] = {"name": "vlm_metrics", "fields": fields}
+        if tags:
+            entry["tags"] = tags
+
+        self._post_metrics_async(
+            url=self._metrics_manager_batch_url,
+            payload={"metrics": [entry]},
+            description="vlm",
+        )
+
     def _parse_and_record_latency_sample(self, line: str) -> None:
         """
         Parse a single `latency_tracer_pipeline_interval` line and
@@ -1241,19 +1499,28 @@ class PipelineRunner:
         """
         Build the environment for the gst_runner.py subprocess.
 
-        Starts from a copy of the current process environment. When
-        ``enable_latency_metrics`` is True, augments the environment to
-        activate the DLStreamer ``latency_tracer`` in pipeline-only mode
-        with a 1000 ms interval:
+        Starts from a copy of the current process environment. Then:
 
-        - ``GST_DEBUG``: if already set, ``GST_TRACER:7`` is appended with a
-          comma separator so the existing debug categories are preserved.
-          If unset, it is created with the single value ``GST_TRACER:7``.
-        - ``GST_TRACERS``: set (and overwritten if previously present) to
-          ``latency_tracer(flags=pipeline,interval=1000)``.
+        - Prepends the bundled ``gst_plugins/`` directory to
+          ``GST_PLUGIN_PATH`` so custom Python elements shipped with ViPPET
+          (e.g. ``gvaproximitytrigger_py``) are discovered by GStreamer at
+          init time. Any ``.py`` file in ``gst_plugins/python/`` that defines
+          ``__gstelementfactory__`` becomes usable from any pipeline
+          description; unused ones are simply ignored.
+        - Adds the GStreamer debug categories required by the metrics the
+          runner parses off the subprocess stdout:
 
-        When ``enable_latency_metrics`` is False, the environment is passed
-        through unchanged so neither variable is created nor modified.
+          - ``enable_latency_metrics`` adds ``GST_TRACER:7`` and sets
+            ``GST_TRACERS`` to ``latency_tracer(flags=pipeline,interval=1000)``,
+            activating the DLStreamer tracer in pipeline-only mode.
+          - a pipeline containing ``gvagenai`` adds ``gvagenai:4`` so the
+            element logs its JSON metadata (including the VLM ``metrics``
+            block) at INFO level.
+
+        ``GST_DEBUG`` is never overwritten: any pre-existing categories are
+        preserved and the required ones are appended with a comma
+        separator. When no metric needs a category, the debug variables are
+        left untouched.
 
         Returns:
             A new dict suitable for passing as the ``env`` argument to
@@ -1261,17 +1528,42 @@ class PipelineRunner:
         """
         env = os.environ.copy()
 
-        if not self.enable_latency_metrics:
+        # Make bundled custom GStreamer plugins discoverable. The path is
+        # resolved relative to this file so it works regardless of the
+        # subprocess working directory.
+        custom_plugins_dir = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "gst_plugins"
+        )
+        if os.path.isdir(custom_plugins_dir):
+            existing_plugin_path = env.get("GST_PLUGIN_PATH", "")
+            if existing_plugin_path:
+                env["GST_PLUGIN_PATH"] = (
+                    f"{custom_plugins_dir}{os.pathsep}{existing_plugin_path}"
+                )
+            else:
+                env["GST_PLUGIN_PATH"] = custom_plugins_dir
+            # Python-based plugins can only be loaded in-process; disabling
+            # the registry-scan fork keeps GStreamer from silently skipping
+            # them during the first-time cache build.
+            env.setdefault("GST_REGISTRY_FORK", "no")
+
+        gst_debug_categories: list[str] = []
+
+        if self.enable_latency_metrics:
+            gst_debug_categories.append(self.LATENCY_TRACER_GST_DEBUG)
+            env["GST_TRACERS"] = self.LATENCY_TRACER_GST_TRACERS
+
+        if self._genai_metrics_enabled:
+            gst_debug_categories.append(self.GENAI_METRICS_GST_DEBUG)
+
+        if not gst_debug_categories:
             return env
 
         existing_gst_debug = env.get("GST_DEBUG")
         if existing_gst_debug:
-            # Preserve existing debug categories, append our tracer category.
-            env["GST_DEBUG"] = f"{existing_gst_debug},{self.LATENCY_TRACER_GST_DEBUG}"
-        else:
-            env["GST_DEBUG"] = self.LATENCY_TRACER_GST_DEBUG
+            gst_debug_categories.insert(0, existing_gst_debug)
+        env["GST_DEBUG"] = ",".join(gst_debug_categories)
 
-        env["GST_TRACERS"] = self.LATENCY_TRACER_GST_TRACERS
         return env
 
     def cancel(self):

@@ -24,3 +24,6 @@ feature:
   summary: ""
   search: ""
   mux: ""
+  # Live (RTSP) stream management UI. FEATURE_ON for search/dual modes where
+  # live video frames are embedded; FEATURE_OFF otherwise.
+  liveStreams: "FEATURE_OFF"

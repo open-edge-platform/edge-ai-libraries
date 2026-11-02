@@ -8,7 +8,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const notifyMock = vi.fn();
 const dispatchMock = vi.fn();
 const videosLoadMock = vi.fn();
+const loadTagsMock = vi.fn();
 const axiosPostMock = vi.fn();
+const axiosGetMock = vi.fn();
 let suggestedTagsMock = ['tag1', 'tag2'];
 
 let VideoEmbeddingFlow: React.ComponentType<{ onClose?: () => void }>;
@@ -94,6 +96,7 @@ vi.mock('../redux/video/videoSlice', () => ({
 
 vi.mock('../redux/search/searchSlice', () => ({
   SearchSelector: (state: any) => state.search,
+  LoadTags: (...args: unknown[]) => loadTagsMock(...args),
 }));
 
 vi.mock('../redux/store', () => ({
@@ -117,9 +120,11 @@ vi.mock('../config', () => ({
 vi.mock('axios', () => ({
   default: {
     post: (...args: any[]) => axiosPostMock(...args),
+    get: (...args: any[]) => axiosGetMock(...args),
     isAxiosError: (error: any) => Boolean(error?.isAxiosError),
   },
   post: (...args: any[]) => axiosPostMock(...args),
+  get: (...args: any[]) => axiosGetMock(...args),
   isAxiosError: (error: any) => Boolean(error?.isAxiosError),
 }));
 
@@ -138,10 +143,13 @@ describe('VideoEmbeddingFlow', () => {
     notifyMock.mockClear();
     dispatchMock.mockClear();
     videosLoadMock.mockReset();
+    loadTagsMock.mockReset();
     axiosPostMock.mockReset();
+    axiosGetMock.mockReset();
     createObjectURLSpy.mockClear();
     revokeObjectURLSpy.mockClear();
     videosLoadMock.mockReturnValue({ type: 'videos/load' });
+    loadTagsMock.mockReturnValue({ type: 'search/loadTags' });
     global.URL.createObjectURL = createObjectURLSpy as unknown as typeof URL.createObjectURL;
     global.URL.revokeObjectURL = revokeObjectURLSpy as unknown as typeof URL.revokeObjectURL;
     File.prototype.arrayBuffer = vi.fn(async function () {
@@ -221,11 +229,73 @@ describe('VideoEmbeddingFlow', () => {
       expect(axiosPostMock).toHaveBeenCalledTimes(2);
     });
 
-    expect(videosLoadMock).toHaveBeenCalledTimes(1);
+    expect(videosLoadMock).toHaveBeenCalled();
     expect(dispatchMock).toHaveBeenCalledWith({ type: 'videos/load' });
     expect(notifyMock).toHaveBeenCalledWith('CreatingEmbeddings success', notificationSeverity.SUCCESS);
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(revokeObjectURLSpy).toHaveBeenCalled();
+  });
+
+  it('uploads multiple selected files then embeds them via a single batch job', async () => {
+    const onClose = vi.fn();
+    const uploadedNames: string[] = [];
+    let batchSubmitBody: unknown = null;
+    axiosPostMock.mockImplementation((url: string, payload: unknown) => {
+      if (payload instanceof FormData) {
+        const uploaded = payload.get('video');
+        if (uploaded instanceof File) {
+          uploadedNames.push(uploaded.name);
+        }
+        return Promise.resolve({ data: { videoId: `vid-${uploadedNames.length}` } });
+      }
+      // Batch submit call (JSON body to search-embeddings-batch).
+      if (url.includes('search-embeddings-batch')) {
+        batchSubmitBody = payload;
+        return Promise.resolve({ data: { job_id: 'job-1', accepted: 2 } });
+      }
+      return Promise.resolve({ data: { status: 'success', message: 'done' } });
+    });
+    axiosGetMock.mockResolvedValue({
+      data: {
+        job_id: 'job-1',
+        state: 'completed',
+        total: 2,
+        completed: 2,
+        failed: 0,
+        items: [],
+      },
+    });
+
+    renderFlow({ onClose });
+
+    const fileA = new File(['a'], 'first.mp4', { type: 'video/mp4' });
+    const fileB = new File(['b'], 'second.mp4', { type: 'video/mp4' });
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(fileInput, { target: { files: [fileA, fileB] } });
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Next' })).not.toBeDisabled(),
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await userEvent.click(screen.getByRole('button', { name: 'CreateVideoEmbedding' }));
+
+    // Two files => two uploads + ONE batch submit (true batch, not per-file).
+    await waitFor(() => {
+      expect(axiosPostMock).toHaveBeenCalledTimes(3);
+    });
+    await waitFor(() => {
+      expect(axiosGetMock).toHaveBeenCalled();
+    });
+
+    expect(uploadedNames).toEqual(['first.mp4', 'second.mp4']);
+    expect(batchSubmitBody).toMatchObject({ videoIds: ['vid-1', 'vid-2'] });
+    expect(notifyMock).toHaveBeenCalledWith(
+      'CreatingEmbeddings success',
+      notificationSeverity.SUCCESS,
+    );
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it('notifies error when upload response lacks videoId', async () => {
@@ -270,7 +340,15 @@ describe('VideoEmbeddingFlow', () => {
       );
     });
 
-    expect(dispatchMock).not.toHaveBeenCalled();
+    // Upload failed, so embedding creation must not have been attempted and no
+    // success notification should be shown. (The list refresh via videosLoad on
+    // mount is expected and intentional.)
+    expect(axiosPostMock).toHaveBeenCalledTimes(1);
+    expect(loadTagsMock).not.toHaveBeenCalled();
+    expect(notifyMock).not.toHaveBeenCalledWith(
+      'CreatingEmbeddings success',
+      notificationSeverity.SUCCESS,
+    );
   });
 
   it('revokes object URLs on unmount', async () => {

@@ -1,0 +1,62 @@
+# Example dynamic-task content (full mode) for POST /v1/tasks.
+# Submit the whole file as content.text. Anchors: GLOBAL_PROMPT / MACRO_CHUNK_PROMPT
+# / LOCAL_PROMPT / T_MINUS_1_PROMPT. Recognized placeholders:
+# {question} {st_tm} {end_tm} {dur} {past_summary} {chunk_subtitle}.
+
+GLOBAL_PROMPT = '''
+##Task:
+You are a playground-safety assistant. Summarize the whole session into a short
+safety report for a caregiver, calling out any unsafe toddler behavior.
+User prompt: {question}
+
+##Please follow this template (drop sections that do not apply):
+Session Overview: <one or two sentences on what happened>
+Safety Events: <bullet list of unsafe moments, or "None observed">
+Advice: <one sentence of caregiver advice>
+
+##Content to Summarize:
+The following period summaries are separated by ">|<".
+'''
+
+
+MACRO_CHUNK_PROMPT = '''
+##Task:
+Summarize toddler activity and any safety concerns during this period in 2-3 sentences.
+Start time: {st_tm} seconds
+End time: {end_tm} seconds
+User prompt: {question}
+
+##Rules:
+- Merge duplicate observations.
+- Explicitly note falls, climbing, or contact with hazards.
+
+##Content to Summarize:
+The following sub-events are separated by ">|<".
+'''
+
+
+LOCAL_PROMPT = '''
+##Task:
+You are analyzing a short video clip from a playground camera. Describe what the
+toddler is doing and flag any unsafe behavior (climbing railings, running near
+hard edges, falling, putting objects in mouth).
+Start time: {st_tm} seconds
+End time: {end_tm} seconds
+User prompt: {question}
+##Subtitles:
+{chunk_subtitle}
+
+##Guidelines:
+- Keep it concise but concrete; this feeds downstream anomaly detection.
+- If nothing unsafe happens, describe the scene as-is.
+'''
+
+
+T_MINUS_1_PROMPT = '''
+##Previous Summary (reference only, do not copy):
+Start time: {st_tm} seconds
+End time: {end_tm} seconds
+Previous summary (last {dur} seconds): {past_summary}
+
+Note: keep continuity with the previous clip; do not repeat it verbatim.
+'''

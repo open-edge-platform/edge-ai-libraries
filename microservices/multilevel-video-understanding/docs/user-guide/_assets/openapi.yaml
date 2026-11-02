@@ -50,6 +50,15 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SummaryRequest'
+            example:
+              video: none
+              video_subtitles:
+                text: |-
+                  1
+                  00:00:00,000 --> 00:00:05,000
+                  A person opened the refrigerator.
+              task: summary
+              method: SIMPLE
       responses:
         '200':
           description: Summarization completed successfully
@@ -65,6 +74,140 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/tasks:
+    get:
+      summary: List Tasks
+      description: List all prompt tasks (built-in + dynamic).
+      operationId: listTasks
+      responses:
+        '200':
+          description: List of tasks
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskListResponse'
+    post:
+      summary: Register Task
+      description: Register a new dynamic prompt task (autogen or full mode).
+      operationId: registerTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterTaskRequest'
+            examples:
+              autogen:
+                summary: Draft a task from a natural-language description
+                value:
+                  task_name: scene_watch
+                  mode: autogen
+                  description: Detect unsafe playground behavior for toddlers.
+              full:
+                summary: Register a task from anchor content
+                value:
+                  task_name: restler_fuzz_task
+                  mode: full
+                  content:
+                    text: |-
+                      GLOBAL_PROMPT='''Summarize the events into a short report.'''
+
+                      LOCAL_PROMPT='''Describe what happens in this clip.'''
+      responses:
+        '201':
+          description: Task registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskDetailResponse'
+        '400':
+          description: Malformed content
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Name conflict (builtin_conflict / already_registered)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/tasks/{name}:
+    parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: Get Task
+      description: Get the four prompt sections for a task (built-in or dynamic).
+      operationId: getTask
+      responses:
+        '200':
+          description: Task detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskDetailResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      summary: Update Task
+      description: Rename, change description, or regenerate a dynamic task. Built-ins are immutable.
+      operationId: updateTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchTaskRequest'
+            example:
+              description: Updated by RESTler fuzz testing
+      responses:
+        '200':
+          description: Updated task detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskDetailResponse'
+        '403':
+          description: Built-in task is immutable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      summary: Delete Task
+      description: Delete a dynamic task. Built-ins cannot be deleted.
+      operationId: deleteTask
+      responses:
+        '204':
+          description: Deleted
+        '403':
+          description: Built-in task is immutable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
           content:
             application/json:
               schema:
@@ -148,7 +291,30 @@ components:
       properties:
         video:
           type: string
-          description: Path to the video file. Supports 'file://', 'http://', 'https://' and local path.
+          description: Path to the video file ('file://', 'http://', 'https://' or local path). Use the string "none" for caption-only mode (requires video_subtitles).
+        video_subtitles:
+          type: object
+          description: >-
+            Subtitles in SubRip (.srt) format. Provide exactly one of the keys below.
+            Required when video is "none"; optional otherwise (injected as per-chunk context).
+          additionalProperties:
+            type: string
+          properties:
+            url:
+              type: string
+              description: HTTPS URL to an .srt file (streamed with a size cap).
+            text:
+              type: string
+              description: Inline SRT text.
+            b64gzip:
+              type: string
+              description: Base64 of gzip-compressed SRT (recommended for long videos).
+        task:
+          type: string
+          description: >-
+            Prompt task flavor. Built-in: "summary" (English, default) and "summary_zh" (Chinese).
+            Any other value must be a dynamic task registered via /v1/tasks.
+          default: summary
         prompt:
           type: string
           description: User prompt to guide summarization details.
@@ -182,6 +348,133 @@ components:
         video_duration:
           type: number
           description: Duration of the video in seconds.
+        usage:
+          type: object
+          description: Token usage statistics (unified VLM+LLM).
+          additionalProperties:
+            type: integer
+
+    # --- Prompt Tasks API Schemas ---
+    PromptContent:
+      description: Exactly one of text or url.
+      oneOf:
+        - type: object
+          required:
+            - text
+          properties:
+            text:
+              type: string
+              description: Inline prompt text containing all four anchors.
+          additionalProperties: false
+        - type: object
+          required:
+            - url
+          properties:
+            url:
+              type: string
+              format: uri
+              description: HTTPS URL fetched by the service (Content-Length <= 256 KB).
+          additionalProperties: false
+
+    RegisterTaskRequest:
+      description: Register either an autogen task (description-only) or a full task (content-only).
+      oneOf:
+        - $ref: '#/components/schemas/AutogenTaskRequest'
+        - $ref: '#/components/schemas/FullTaskRequest'
+
+    AutogenTaskRequest:
+      type: object
+      required:
+        - task_name
+        - mode
+        - description
+      properties:
+        task_name:
+          type: string
+          pattern: '^[a-z][a-z0-9_]{1,63}$'
+          description: Lowercase ascii, 2-64 chars. Must not collide with a built-in task.
+        mode:
+          type: string
+          enum:
+            - autogen
+        description:
+          type: string
+          minLength: 1
+          description: Short natural-language description of the use case.
+      additionalProperties: false
+
+    FullTaskRequest:
+      type: object
+      required:
+        - task_name
+        - mode
+        - content
+      properties:
+        task_name:
+          type: string
+          pattern: '^[a-z][a-z0-9_]{1,63}$'
+          description: Lowercase ascii, 2-64 chars. Must not collide with a built-in task.
+        mode:
+          type: string
+          enum:
+            - full
+        content:
+          $ref: '#/components/schemas/PromptContent'
+      additionalProperties: false
+
+    PatchTaskRequest:
+      type: object
+      description: At least one field required.
+      properties:
+        new_task_name:
+          type: string
+          pattern: '^[a-z][a-z0-9_]{1,63}$'
+        mode:
+          type: string
+          enum:
+            - autogen
+            - full
+        description:
+          type: string
+        content:
+          $ref: '#/components/schemas/PromptContent'
+
+    TaskInfo:
+      type: object
+      properties:
+        name:
+          type: string
+        source:
+          type: string
+          enum:
+            - builtin
+            - dynamic
+        description:
+          type: string
+
+    TaskListResponse:
+      type: object
+      properties:
+        tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskInfo'
+
+    TaskDetailResponse:
+      type: object
+      properties:
+        name:
+          type: string
+        source:
+          type: string
+          enum:
+            - builtin
+            - dynamic
+        description:
+          type: string
+        content:
+          type: string
+          description: The four anchor sections as one round-trip-safe text block.
 
     ErrorResponse:
       type: object

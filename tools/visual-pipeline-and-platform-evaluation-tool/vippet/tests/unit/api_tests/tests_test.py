@@ -2203,6 +2203,274 @@ class TestTestsAPI(unittest.TestCase):
         self.assertTrue(spec.id.startswith("__description-"))
         self.assertEqual(spec.streams, 2)
 
+    # ------------------------------------------------------------------
+    # /tests/density - Mixed-density mode (new feature)
+    # ------------------------------------------------------------------
+
+    @patch("api.routes.tests.PipelineManager")
+    @patch("api.routes.tests.TestsManager")
+    def test_run_density_test_mixed_mode_returns_job_id(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
+        """
+        Mixed-density mode: exactly two specs, exactly one with `streams`
+        set, must be accepted and the `streams` value must flow through
+        to the internal spec untouched.
+        """
+        # Arrange
+        mock_pipeline_manager = MagicMock()
+
+        def get_pipeline_side_effect(pid):
+            return create_mock_pipeline(pid, f"Pipeline {pid}")
+
+        def get_variant_side_effect(pid, vid):
+            return create_mock_variant(vid)
+
+        mock_pipeline_manager.get_pipeline_by_id.side_effect = get_pipeline_side_effect
+        mock_pipeline_manager.get_variant_by_ids.side_effect = get_variant_side_effect
+        mock_pipeline_manager_cls.return_value = mock_pipeline_manager
+
+        mock_tests_manager = MagicMock()
+        mock_tests_manager.test_density.return_value = "density-mixed-mode-job"
+        mock_tests_manager_cls.return_value = mock_tests_manager
+
+        # Act: send mixed-density request - one fixed pipeline, one to increment
+        request_body = {
+            "fps_floor": 30,
+            "pipeline_density_specs": [
+                {
+                    "pipeline": {
+                        "source": "variant",
+                        "pipeline_id": "pipeline-fixed",
+                        "variant_id": "variant-cpu",
+                    },
+                    "streams": 4,
+                },
+                {
+                    "pipeline": {
+                        "source": "variant",
+                        "pipeline_id": "pipeline-incremented",
+                        "variant_id": "variant-gpu",
+                    },
+                },
+            ],
+            "execution_config": {"output_mode": "disabled", "max_runtime": 0},
+        }
+        response = self.client.post("/tests/density", json=request_body)
+
+        # Assert
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.json()["job_id"], "density-mixed-mode-job")
+
+        # Verify the internal spec carries `streams` for the fixed pipeline
+        # and leaves it as None for the incremented pipeline.
+        call_args = mock_tests_manager.test_density.call_args[0][0]
+        self.assertIsInstance(call_args, InternalDensityTestSpec)
+        self.assertEqual(len(call_args.pipeline_density_specs), 2)
+
+        fixed_spec = call_args.pipeline_density_specs[0]
+        incremented_spec = call_args.pipeline_density_specs[1]
+        self.assertEqual(fixed_spec.streams, 4)
+        self.assertIsNone(incremented_spec.streams)
+
+    @patch("api.routes.tests.PipelineManager")
+    @patch("api.routes.tests.TestsManager")
+    def test_run_density_test_mixed_mode_with_one_spec_returns_400(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
+        """
+        Mixed-density mode requires exactly two pipeline specs.
+        A single spec with `streams` set must be rejected.
+        """
+        mock_pipeline_manager_cls.return_value = MagicMock()
+        mock_tests_manager_cls.return_value = MagicMock()
+
+        request_body = {
+            "fps_floor": 30,
+            "pipeline_density_specs": [
+                {
+                    "pipeline": {
+                        "source": "variant",
+                        "pipeline_id": "pipeline-abc",
+                        "variant_id": "variant-cpu",
+                    },
+                    "streams": 4,
+                }
+            ],
+            "execution_config": {"output_mode": "disabled", "max_runtime": 0},
+        }
+        response = self.client.post("/tests/density", json=request_body)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("exactly two", response.json()["message"])
+
+    @patch("api.routes.tests.PipelineManager")
+    @patch("api.routes.tests.TestsManager")
+    def test_run_density_test_mixed_mode_with_three_specs_returns_400(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
+        """
+        Mixed-density mode requires exactly two pipeline specs.
+        Three specs (with one having `streams`) must be rejected.
+        """
+        mock_pipeline_manager_cls.return_value = MagicMock()
+        mock_tests_manager_cls.return_value = MagicMock()
+
+        request_body = {
+            "fps_floor": 30,
+            "pipeline_density_specs": [
+                {
+                    "pipeline": {
+                        "source": "variant",
+                        "pipeline_id": "pipeline-a",
+                        "variant_id": "variant-cpu",
+                    },
+                    "streams": 2,
+                },
+                {
+                    "pipeline": {
+                        "source": "variant",
+                        "pipeline_id": "pipeline-b",
+                        "variant_id": "variant-gpu",
+                    },
+                },
+                {
+                    "pipeline": {
+                        "source": "variant",
+                        "pipeline_id": "pipeline-c",
+                        "variant_id": "variant-npu",
+                    },
+                },
+            ],
+            "execution_config": {"output_mode": "disabled", "max_runtime": 0},
+        }
+        response = self.client.post("/tests/density", json=request_body)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("exactly two", response.json()["message"])
+
+    @patch("api.routes.tests.PipelineManager")
+    @patch("api.routes.tests.TestsManager")
+    def test_run_density_test_mixed_mode_both_specs_with_streams_returns_400(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
+        """
+        Mixed-density mode requires exactly one spec with `streams` set.
+        If both specs set `streams` there is no pipeline to increment.
+        """
+        mock_pipeline_manager_cls.return_value = MagicMock()
+        mock_tests_manager_cls.return_value = MagicMock()
+
+        request_body = {
+            "fps_floor": 30,
+            "pipeline_density_specs": [
+                {
+                    "pipeline": {
+                        "source": "variant",
+                        "pipeline_id": "pipeline-a",
+                        "variant_id": "variant-cpu",
+                    },
+                    "streams": 2,
+                },
+                {
+                    "pipeline": {
+                        "source": "variant",
+                        "pipeline_id": "pipeline-b",
+                        "variant_id": "variant-gpu",
+                    },
+                    "streams": 3,
+                },
+            ],
+            "execution_config": {"output_mode": "disabled", "max_runtime": 0},
+        }
+        response = self.client.post("/tests/density", json=request_body)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("exactly one spec", response.json()["message"])
+
+    @patch("api.routes.tests.PipelineManager")
+    @patch("api.routes.tests.TestsManager")
+    def test_run_density_test_classic_mode_unchanged_when_streams_unset(
+        self, mock_tests_manager_cls, mock_pipeline_manager_cls
+    ):
+        """
+        When no spec has `streams` set the request must keep the classic
+        behavior. `streams` must default to None on the internal spec
+        and `stream_rate` must still drive the split.
+        """
+        mock_pipeline_manager = MagicMock()
+        mock_pipeline_manager.get_pipeline_by_id.return_value = create_mock_pipeline(
+            "pipeline-classic", "Classic Pipeline"
+        )
+        mock_pipeline_manager.get_variant_by_ids.return_value = create_mock_variant(
+            "variant-cpu"
+        )
+        mock_pipeline_manager_cls.return_value = mock_pipeline_manager
+
+        mock_tests_manager = MagicMock()
+        mock_tests_manager.test_density.return_value = "density-classic-job"
+        mock_tests_manager_cls.return_value = mock_tests_manager
+
+        request_body = {
+            "fps_floor": 30,
+            "pipeline_density_specs": [
+                {
+                    "pipeline": {
+                        "source": "variant",
+                        "pipeline_id": "pipeline-classic",
+                        "variant_id": "variant-cpu",
+                    },
+                    "stream_rate": 100,
+                }
+            ],
+            "execution_config": {"output_mode": "disabled", "max_runtime": 0},
+        }
+        response = self.client.post("/tests/density", json=request_body)
+
+        self.assertEqual(response.status_code, 202)
+
+        call_args = mock_tests_manager.test_density.call_args[0][0]
+        internal_spec = call_args.pipeline_density_specs[0]
+        self.assertIsNone(internal_spec.streams)
+        self.assertEqual(internal_spec.stream_rate, 100)
+
+    # ------------------------------------------------------------------
+    # PipelineDensitySpec schema - `streams` field
+    # ------------------------------------------------------------------
+
+    def test_pipeline_density_spec_streams_field_defaults_to_none(self):
+        """
+        The new `streams` field on PipelineDensitySpec must default to
+        None so old API clients (that do not send it) stay in classic
+        density mode.
+        """
+        ref = schemas.VariantReference(
+            pipeline_id="pipeline-abc", variant_id="variant-123"
+        )
+        spec = schemas.PipelineDensitySpec(pipeline=ref)
+        self.assertIsNone(spec.streams)
+
+    def test_pipeline_density_spec_streams_field_accepts_positive_int(self):
+        """
+        PipelineDensitySpec must accept positive `streams` values for
+        the mixed-density mode.
+        """
+        ref = schemas.VariantReference(
+            pipeline_id="pipeline-abc", variant_id="variant-123"
+        )
+        spec = schemas.PipelineDensitySpec(pipeline=ref, streams=4)
+        self.assertEqual(spec.streams, 4)
+
+    def test_pipeline_density_spec_streams_field_rejects_zero(self):
+        """
+        `streams=0` must be rejected by the schema (ge=1 validator).
+        """
+        ref = schemas.VariantReference(
+            pipeline_id="pipeline-abc", variant_id="variant-123"
+        )
+        with self.assertRaises(Exception):
+            schemas.PipelineDensitySpec(pipeline=ref, streams=0)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,8 +1,8 @@
 global:
   report_dir: 'reports'
   input_profiles_path: 'profiles/profiles.yaml'  # Reference to external input profiles file
+  metrics_collector: 'intel/metrics-manager:2026.1.0'  # Metrics Manager image used as the resource-metrics collector
   jaeger_url: 'traces url' # https://<url or IP>/api/traces
-  perf_tool_repo: 'https://github.com/intel-retail/performance-tools.git'
 
 apis:
   stream_log:

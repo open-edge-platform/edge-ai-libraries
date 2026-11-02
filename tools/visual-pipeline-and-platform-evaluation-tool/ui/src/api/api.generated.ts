@@ -1,6 +1,7 @@
 import { apiSlice as api } from "./apiSlice";
 export const addTagTypes = [
   "health",
+  "benchmarks",
   "convert",
   "devices",
   "jobs",
@@ -8,6 +9,7 @@ export const addTagTypes = [
   "pipeline-templates",
   "pipelines",
   "tests",
+  "timeseries",
   "videos",
   "images",
   "cameras",
@@ -25,6 +27,72 @@ const injectedRtkApi = api
       getStatus: build.query<GetStatusApiResponse, GetStatusApiArg>({
         query: () => ({ url: `/status` }),
         providesTags: ["health"],
+      }),
+      getBenchmarks: build.query<GetBenchmarksApiResponse, GetBenchmarksApiArg>(
+        {
+          query: () => ({ url: `/benchmarks` }),
+          providesTags: ["benchmarks"],
+        },
+      ),
+      getAllBenchmarkRuns: build.query<
+        GetAllBenchmarkRunsApiResponse,
+        GetAllBenchmarkRunsApiArg
+      >({
+        query: () => ({ url: `/benchmarks/runs` }),
+        providesTags: ["benchmarks"],
+      }),
+      getBenchmarkSuiteBySlug: build.query<
+        GetBenchmarkSuiteBySlugApiResponse,
+        GetBenchmarkSuiteBySlugApiArg
+      >({
+        query: (queryArg) => ({ url: `/benchmarks/${queryArg.suiteSlug}` }),
+        providesTags: ["benchmarks"],
+      }),
+      runBenchmarkSuite: build.mutation<
+        RunBenchmarkSuiteApiResponse,
+        RunBenchmarkSuiteApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/benchmarks/${queryArg.suiteSlug}/run`,
+          method: "POST",
+        }),
+        invalidatesTags: ["benchmarks"],
+      }),
+      getBenchmarkSuiteRuns: build.query<
+        GetBenchmarkSuiteRunsApiResponse,
+        GetBenchmarkSuiteRunsApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/benchmarks/${queryArg.suiteSlug}/runs`,
+        }),
+        providesTags: ["benchmarks"],
+      }),
+      exportBenchmarkSuiteRunCsv: build.query<
+        ExportBenchmarkSuiteRunCsvApiResponse,
+        ExportBenchmarkSuiteRunCsvApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/benchmarks/${queryArg.suiteSlug}/run/${queryArg.runId}/csv`,
+        }),
+        providesTags: ["benchmarks"],
+      }),
+      getBenchmarkSuiteRunById: build.query<
+        GetBenchmarkSuiteRunByIdApiResponse,
+        GetBenchmarkSuiteRunByIdApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/benchmarks/${queryArg.suiteSlug}/run/${queryArg.runId}`,
+        }),
+        providesTags: ["benchmarks"],
+      }),
+      getBenchmarkTestRunById: build.query<
+        GetBenchmarkTestRunByIdApiResponse,
+        GetBenchmarkTestRunByIdApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/benchmarks/${queryArg.suiteSlug}/run/${queryArg.runId}/test/${queryArg.testRunId}`,
+        }),
+        providesTags: ["benchmarks"],
       }),
       toGraph: build.mutation<ToGraphApiResponse, ToGraphApiArg>({
         query: (queryArg) => ({
@@ -138,6 +206,41 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["jobs"],
       }),
+      getBenchmarkStatuses: build.query<
+        GetBenchmarkStatusesApiResponse,
+        GetBenchmarkStatusesApiArg
+      >({
+        query: () => ({ url: `/jobs/tests/benchmark/status` }),
+        providesTags: ["jobs"],
+      }),
+      getBenchmarkJobStatus: build.query<
+        GetBenchmarkJobStatusApiResponse,
+        GetBenchmarkJobStatusApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/jobs/tests/benchmark/${queryArg.jobId}/status`,
+        }),
+        providesTags: ["jobs"],
+      }),
+      getBenchmarkJobSummary: build.query<
+        GetBenchmarkJobSummaryApiResponse,
+        GetBenchmarkJobSummaryApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/jobs/tests/benchmark/${queryArg.jobId}`,
+        }),
+        providesTags: ["jobs"],
+      }),
+      stopBenchmarkJob: build.mutation<
+        StopBenchmarkJobApiResponse,
+        StopBenchmarkJobApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/jobs/tests/benchmark/${queryArg.jobId}`,
+          method: "DELETE",
+        }),
+        invalidatesTags: ["jobs"],
+      }),
       getOptimizationStatuses: build.query<
         GetOptimizationStatusesApiResponse,
         GetOptimizationStatusesApiArg
@@ -209,6 +312,17 @@ const injectedRtkApi = api
         query: () => ({ url: `/models` }),
         providesTags: ["models"],
       }),
+      listHubModels: build.mutation<
+        ListHubModelsApiResponse,
+        ListHubModelsApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/models/list`,
+          method: "POST",
+          body: queryArg.modelHubListRequest,
+        }),
+        invalidatesTags: ["models"],
+      }),
       uploadModel: build.mutation<UploadModelApiResponse, UploadModelApiArg>({
         query: (queryArg) => ({
           url: `/models/upload`,
@@ -225,6 +339,17 @@ const injectedRtkApi = api
           url: `/models/download`,
           method: "POST",
           body: queryArg.modelDownloadRequest,
+        }),
+        invalidatesTags: ["models"],
+      }),
+      checkModelsStatus: build.mutation<
+        CheckModelsStatusApiResponse,
+        CheckModelsStatusApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/models/check-status`,
+          method: "POST",
+          body: queryArg.modelCheckStatusRequest,
         }),
         invalidatesTags: ["models"],
       }),
@@ -382,6 +507,25 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["tests"],
       }),
+      getTimeseriesDataTimeseriesDataGet: build.query<
+        GetTimeseriesDataTimeseriesDataGetApiResponse,
+        GetTimeseriesDataTimeseriesDataGetApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/timeseries/data`,
+          params: {
+            limit: queryArg.limit,
+          },
+        }),
+        providesTags: ["timeseries"],
+      }),
+      streamIngestionTimeseriesIngestionStreamGet: build.query<
+        StreamIngestionTimeseriesIngestionStreamGetApiResponse,
+        StreamIngestionTimeseriesIngestionStreamGetApiArg
+      >({
+        query: () => ({ url: `/timeseries/ingestion/stream` }),
+        providesTags: ["timeseries"],
+      }),
       getVideos: build.query<GetVideosApiResponse, GetVideosApiArg>({
         query: () => ({ url: `/videos` }),
         providesTags: ["videos"],
@@ -469,6 +613,46 @@ export type GetHealthApiArg = void;
 export type GetStatusApiResponse =
   /** status 200 Successful Response */ StatusResponse;
 export type GetStatusApiArg = void;
+export type GetBenchmarksApiResponse =
+  /** status 200 List of benchmark suites with workloads and test cases */ BenchmarkSuite[];
+export type GetBenchmarksApiArg = void;
+export type GetAllBenchmarkRunsApiResponse =
+  /** status 200 List of all suite runs */ BenchmarkSuiteRun[];
+export type GetAllBenchmarkRunsApiArg = void;
+export type GetBenchmarkSuiteBySlugApiResponse =
+  /** status 200 Benchmark suite with workloads and test cases */ BenchmarkSuite;
+export type GetBenchmarkSuiteBySlugApiArg = {
+  suiteSlug: string;
+};
+export type RunBenchmarkSuiteApiResponse =
+  /** status 202 Benchmark suite job created */ BenchmarkJobResponse;
+export type RunBenchmarkSuiteApiArg = {
+  suiteSlug: string;
+};
+export type GetBenchmarkSuiteRunsApiResponse =
+  /** status 200 List of suite runs with nested workload and test case runs */ BenchmarkSuiteRun[];
+export type GetBenchmarkSuiteRunsApiArg = {
+  suiteSlug: string;
+};
+export type ExportBenchmarkSuiteRunCsvApiResponse =
+  /** status 200 CSV file containing workload and test case data */ any;
+export type ExportBenchmarkSuiteRunCsvApiArg = {
+  suiteSlug: string;
+  runId: number;
+};
+export type GetBenchmarkSuiteRunByIdApiResponse =
+  /** status 200 Detailed suite run with nested workload and test case runs */ BenchmarkSuiteRunDetails;
+export type GetBenchmarkSuiteRunByIdApiArg = {
+  suiteSlug: string;
+  runId: number;
+};
+export type GetBenchmarkTestRunByIdApiResponse =
+  /** status 200 Detailed test-case run with test case and suite metadata */ BenchmarkTestCaseRunDetails;
+export type GetBenchmarkTestRunByIdApiArg = {
+  suiteSlug: string;
+  runId: number;
+  testRunId: number;
+};
 export type ToGraphApiResponse =
   /** status 200 Conversion successful */ PipelineGraphResponse;
 export type ToGraphApiArg = {
@@ -533,6 +717,24 @@ export type StopDensityTestJobApiResponse =
 export type StopDensityTestJobApiArg = {
   jobId: string;
 };
+export type GetBenchmarkStatusesApiResponse =
+  /** status 200 Successful Response */ BenchmarkJobStatus[];
+export type GetBenchmarkStatusesApiArg = void;
+export type GetBenchmarkJobStatusApiResponse =
+  /** status 200 Successful Response */ BenchmarkJobStatus;
+export type GetBenchmarkJobStatusApiArg = {
+  jobId: string;
+};
+export type GetBenchmarkJobSummaryApiResponse =
+  /** status 200 Successful Response */ BenchmarkJobSummary;
+export type GetBenchmarkJobSummaryApiArg = {
+  jobId: string;
+};
+export type StopBenchmarkJobApiResponse =
+  /** status 200 Job stopped */ MessageResponse;
+export type StopBenchmarkJobApiArg = {
+  jobId: string;
+};
 export type GetOptimizationStatusesApiResponse =
   /** status 200 Successful Response */ OptimizationJobStatus[];
 export type GetOptimizationStatusesApiArg = void;
@@ -575,6 +777,11 @@ export type GetModelDownloadJobStatusApiArg = {
 export type GetModelsApiResponse =
   /** status 200 List of all installed and available models */ Model[];
 export type GetModelsApiArg = void;
+export type ListHubModelsApiResponse =
+  /** status 200 Successful Response */ ModelHubListResponse;
+export type ListHubModelsApiArg = {
+  modelHubListRequest: ModelHubListRequest;
+};
 export type UploadModelApiResponse = /** status 200 Successful Response */
   | any
   | /** status 201 Model uploaded successfully */ ModelUploadResponse;
@@ -588,6 +795,11 @@ export type StartModelDownloadApiResponse =
     | /** status 207 Multi-Status: some downloads accepted, some rejected. Inspect `jobs[<name>].status_code` for per-model outcome. */ ModelDownloadJobResponse;
 export type StartModelDownloadApiArg = {
   modelDownloadRequest: ModelDownloadRequest;
+};
+export type CheckModelsStatusApiResponse =
+  /** status 200 Model status check completed */ ModelCheckStatusResponse;
+export type CheckModelsStatusApiArg = {
+  modelCheckStatusRequest: ModelCheckStatusRequest;
 };
 export type GetPipelineTemplatesApiResponse =
   /** status 200 List of all available pipeline templates */ Pipeline[];
@@ -676,6 +888,14 @@ export type RunDensityTestApiResponse =
 export type RunDensityTestApiArg = {
   densityTestSpec: DensityTestSpec;
 };
+export type GetTimeseriesDataTimeseriesDataGetApiResponse =
+  /** status 200 Successful Response */ any;
+export type GetTimeseriesDataTimeseriesDataGetApiArg = {
+  limit?: number;
+};
+export type StreamIngestionTimeseriesIngestionStreamGetApiResponse =
+  /** status 200 Successful Response */ any;
+export type StreamIngestionTimeseriesIngestionStreamGetApiArg = void;
 export type GetVideosApiResponse =
   /** status 200 Successful Response */ Video[];
 export type GetVideosApiArg = void;
@@ -732,6 +952,172 @@ export type StatusResponse = {
   status: AppStatus;
   message: string | null;
   ready: boolean;
+  version: string;
+  revision: string;
+};
+export type BenchmarkTestCase = {
+  id: number;
+  variant_id: string;
+  streams: number;
+};
+export type BenchmarkWorkload = {
+  id: number;
+  pipeline_id: string;
+  variants: string;
+  test_cases: BenchmarkTestCase[];
+};
+export type BenchmarkSuite = {
+  id: number;
+  slug: string;
+  name: string;
+  description: string;
+  created_at: string;
+  last_run_at: string;
+  workloads: BenchmarkWorkload[];
+};
+export type MessageResponse = {
+  /** Human-readable error or status message. */
+  message: string;
+};
+export type BenchmarkTestCaseRunStatus =
+  | "created"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "skipped";
+export type BenchmarkSuiteRun = {
+  id: number;
+  suite_id: number;
+  suite_slug: string;
+  suite_name: string;
+  suite_description: string;
+  status: BenchmarkTestCaseRunStatus;
+  score_total: number | null;
+  score_performance: number | null;
+  score_efficiency: number | null;
+  start_time: number;
+  execution_time: number | null;
+  job_id: string;
+  total_test_cases: number;
+  passed_test_cases: number;
+};
+export type ValidationError = {
+  loc: (string | number)[];
+  msg: string;
+  type: string;
+  input?: any;
+  ctx?: object;
+};
+export type HttpValidationError = {
+  detail?: ValidationError[];
+};
+export type BenchmarkJobResponse = {
+  /** Identifier of the created benchmark job. */
+  job_id: string;
+};
+export type BenchmarkTestCaseRun = {
+  id: number;
+  test_case_id: number;
+  variant_id: string;
+  streams: number;
+  workload_run_id: number;
+  start_time: number | null;
+  execution_time: number | null;
+  total_fps: number | null;
+  per_stream_fps: number | null;
+  cpu_usage: number | null;
+  gpu_usage: number | null;
+  npu_usage: number | null;
+  media_usage: number | null;
+  memory_usage: number | null;
+  power_usage: number | null;
+  latency_avg_ms: number | null;
+  latency_avg_stddev_ms: number | null;
+  latency_max_ms: number | null;
+  latency_max_stddev_ms: number | null;
+  latency_min_ms: number | null;
+  latency_min_stddev_ms: number | null;
+  score_total: number | null;
+  score_performance: number | null;
+  score_efficiency: number | null;
+  metrics: string | null;
+  job_id: string;
+  status: BenchmarkTestCaseRunStatus;
+};
+export type BenchmarkWorkloadRun = {
+  id: number;
+  workload_id: number;
+  pipeline_id: string;
+  suite_run_id: number;
+  status: BenchmarkTestCaseRunStatus;
+  score_total: number | null;
+  score_performance: number | null;
+  score_efficiency: number | null;
+  start_time: number | null;
+  execution_time: number | null;
+  test_case_runs: BenchmarkTestCaseRun[];
+  total_test_cases: number;
+  passed_test_cases: number;
+  failed_test_cases: number;
+  pass_rate: number;
+};
+export type BenchmarkSuiteRunDetails = {
+  id: number;
+  suite_id: number;
+  suite_slug: string;
+  suite_name: string;
+  suite_description: string;
+  status: BenchmarkTestCaseRunStatus;
+  score_total: number | null;
+  score_performance: number | null;
+  score_efficiency: number | null;
+  start_time: number;
+  execution_time: number | null;
+  job_id: string;
+  total_test_cases: number;
+  passed_test_cases: number;
+  workload_runs: BenchmarkWorkloadRun[];
+};
+export type BenchmarkSuiteRef = {
+  id: number;
+  slug: string;
+  name: string;
+  description: string;
+};
+export type BenchmarkTestCaseRunDetails = {
+  id: number;
+  test_case_id: number;
+  variant_id: string;
+  streams: number;
+  workload_run_id: number;
+  start_time: number | null;
+  execution_time: number | null;
+  total_fps: number | null;
+  per_stream_fps: number | null;
+  cpu_usage: number | null;
+  gpu_usage: number | null;
+  npu_usage: number | null;
+  media_usage: number | null;
+  memory_usage: number | null;
+  power_usage: number | null;
+  latency_avg_ms: number | null;
+  latency_avg_stddev_ms: number | null;
+  latency_max_ms: number | null;
+  latency_max_stddev_ms: number | null;
+  latency_min_ms: number | null;
+  latency_min_stddev_ms: number | null;
+  score_total: number | null;
+  score_performance: number | null;
+  score_efficiency: number | null;
+  metrics: string | null;
+  job_id: string;
+  status: BenchmarkTestCaseRunStatus;
+  suite_run_id: number;
+  workload_id: number;
+  pipeline_id: string;
+  test_case: BenchmarkTestCase;
+  suite: BenchmarkSuiteRef;
 };
 export type Node = {
   id: string;
@@ -756,20 +1142,6 @@ export type PipelineGraphResponse = {
   pipeline_graph: PipelineGraph;
   /** Simplified graph view showing only sources, inference nodes, and sinks. */
   pipeline_graph_simple: PipelineGraph;
-};
-export type MessageResponse = {
-  /** Human-readable error or status message. */
-  message: string;
-};
-export type ValidationError = {
-  loc: (string | number)[];
-  msg: string;
-  type: string;
-  input?: any;
-  ctx?: object;
-};
-export type HttpValidationError = {
-  detail?: ValidationError[];
 };
 export type PipelineDescription = {
   /** GStreamer pipeline string with elements separated by '!'. */
@@ -805,6 +1177,14 @@ export type LatencyMetrics = {
   /** Current end-to-end latency reported by the tracer, in ms. */
   latency_ms: number;
 };
+export type PipelineEvent = {
+  timestamp_ms: number;
+  source: string;
+  text: string;
+  element?: string | null;
+  pts_seconds?: number | null;
+  prompt?: string | null;
+};
 export type PerformanceJobStatus = {
   id: string;
   start_time: number;
@@ -828,6 +1208,8 @@ export type PerformanceJobStatus = {
   metadata_stream_urls: {
     [key: string]: string[];
   } | null;
+  /** Most recent live pipeline events (oldest first, bounded), e.g. a `gvaproximitytrigger_py` trigger firing or a `gvagenai` answer. */
+  events?: PipelineEvent[];
 };
 export type PerformanceJobSummary = {
   id: string;
@@ -858,6 +1240,24 @@ export type DensityJobSummary = {
   request: {
     [key: string]: any;
   };
+};
+export type BenchmarkJobStatus = {
+  id: string;
+  suite_slug: string;
+  suite_run_id: number;
+  start_time: number;
+  elapsed_time: number;
+  state: TestJobState;
+  details: string[];
+  total_test_cases: number;
+  completed_test_cases: number;
+  current_test_case_run_id: number | null;
+  current_performance_job_id: string | null;
+};
+export type BenchmarkJobSummary = {
+  id: string;
+  suite_slug: string;
+  suite_run_id: number;
 };
 export type OptimizationType = "preprocess" | "optimize";
 export type OptimizationJobState = "RUNNING" | "COMPLETED" | "FAILED";
@@ -928,7 +1328,15 @@ export type ModelDownloadJobSummary = {
   model_name: string;
   source: ModelSource;
 };
-export type ModelCategory = "classification" | "detection" | "genai";
+export type ModelCategory =
+  | "image_classification"
+  | "object_detection"
+  | "image_segmentation"
+  | "pose_estimation"
+  | "vision_language_models"
+  | "large_language_models"
+  | "automatic_speech_recognition"
+  | "text_to_speech";
 export type ModelInstallStatus =
   | "installed"
   | "not_installed"
@@ -949,6 +1357,8 @@ export type Model = {
   name: string;
   /** Human-readable model name. */
   display_name: string;
+  /** Human-readable explanation of what the model detects or classifies, or null when not provided. */
+  description?: string | null;
   /** Logical model category, or null when unknown. */
   category?: ModelCategory | null;
   /** Upstream hub the model is downloaded from. */
@@ -959,10 +1369,40 @@ export type Model = {
   variants?: ModelVariant[];
   /** List of predefined-pipeline ids that reference this model. Non-empty means the model is recommended. */
   used_by_pipelines?: string[];
-  /** Whether the model is marked as a default install candidate in supported_models.yaml. The Models page uses this flag to pre-select recommended models in the bulk-install UI. */
+  /** Whether at least one predefined pipeline references this model. The Models page uses this flag to pre-select recommended models in the bulk-install UI. */
   default?: boolean;
   /** Comma-separated list of devices on which the model cannot run (e.g. 'NPU'), or null when no restrictions exist. */
   unsupported_devices?: string | null;
+};
+export type ModelHubListResponse = {
+  hub: string;
+  items: {
+    [key: string]: any;
+  }[];
+  /** Number of items returned in this response. */
+  count?: number | null;
+  /** Total number of items available, when the hub reports it. */
+  total?: number | null;
+  limit: number;
+  offset: number;
+  /** Whether another page is available. */
+  has_more?: boolean | null;
+  /** Offset to request the next page, when available. */
+  next_offset?: number | null;
+};
+export type ModelHubListRequest = {
+  /** Model hub to search, such as huggingface. */
+  hub: string;
+  /** Hub-specific listing filters, such as author, search, or tags. */
+  filters?: {
+    [key: string]: any;
+  };
+  limit?: number;
+  offset?: number;
+  /** Optional Base64-encoded connection overrides for this request. */
+  override_credentials?: {
+    [key: string]: string;
+  } | null;
 };
 export type ModelUploadResponse = {
   /** Newly registered model entry. */
@@ -972,6 +1412,7 @@ export type BodyUploadModel = {
   model_name: string;
   category: ModelCategory;
   file: string;
+  description?: string | null;
 };
 export type ModelDownloadJobItem = {
   /** Model name. */
@@ -992,8 +1433,29 @@ export type ModelDownloadJobResponse = {
 export type ModelDownloadRequest = {
   /** List of supported-model names to install. Must be non-empty and unique. */
   names: string[];
+  /** Upstream hub used for names not found in the model catalog. */
+  hub?: ModelSource | null;
+  /** Model category, required when `hub` is `huggingface` (ignored for other hubs). */
+  category?: ModelCategory | null;
+};
+export type ModelStatusItem = {
+  /** Internal model identifier. */
+  name: string;
+  /** Human-readable model name. */
+  display_name: string;
+  /** Current install status of the model. */
+  install_status: ModelInstallStatus;
+};
+export type ModelCheckStatusResponse = {
+  /** List of model status items for requested display names. */
+  models?: ModelStatusItem[];
+};
+export type ModelCheckStatusRequest = {
+  /** Non-empty list of model display names to check. */
+  display_names: string[];
 };
 export type PipelineSource = "PREDEFINED" | "USER_CREATED" | "TEMPLATE";
+export type PipelineType = "vision" | "time_series";
 export type Variant = {
   /** Unique variant identifier generated by the backend. */
   id: string;
@@ -1015,6 +1477,8 @@ export type Pipeline = {
   name: string;
   description: string;
   source: PipelineSource;
+  /** Pipeline type: 'vision' for video/image pipelines, 'time_series' for time-series analytics pipelines. */
+  type?: PipelineType;
   /** List of tags for categorizing the pipeline. */
   tags?: string[];
   /** List of pipeline variants for different hardware targets. */
@@ -1043,6 +1507,8 @@ export type PipelineDefinition = {
   /** Non-empty human-readable text describing what the pipeline does. */
   description: string;
   source?: PipelineSource;
+  /** Pipeline type: 'vision' for video/image pipelines, 'time_series' for time-series analytics pipelines. */
+  type?: PipelineType;
   /** List of tags for categorizing the pipeline. */
   tags?: string[];
   /** List of pipeline variants for different hardware targets. */
@@ -1139,13 +1605,15 @@ export type PipelineDensitySpec = {
     | ({
         source: "variant";
       } & VariantReference);
-  /** Relative share of total streams for this pipeline (percentage). */
+  /** Relative share of total streams for this pipeline (percentage). Used only in classic density mode (when no spec sets 'streams'). Ignored in mixed-density mode. */
   stream_rate?: number;
+  /** Fixed input stream count for this pipeline. When set on exactly one of two specs, the request switches to mixed-density mode: this pipeline is pinned to 'streams' and the other pipeline is incremented by the benchmark algorithm. Leave unset for classic density mode. */
+  streams?: number | null;
 };
 export type DensityTestSpec = {
   /** Minimum acceptable FPS per stream. */
   fps_floor: number;
-  /** List of pipelines with relative stream_rate percentages that must sum to 100. */
+  /** List of pipelines. In classic density mode every spec carries `stream_rate` and the values must sum to 100. In mixed-density mode the list must contain exactly two specs and exactly one of them must set `streams` (the fixed pipeline). */
   pipeline_density_specs: PipelineDensitySpec[];
   /** Execution configuration for output and runtime. */
   execution_config?: ExecutionConfig;
@@ -1252,7 +1720,7 @@ export type ImageInfo = {
   /** Image height in pixels, or null if it could not be read. */
   height?: number | null;
 };
-export type CameraType = "USB" | "NETWORK";
+export type CameraType = "USB" | "NETWORK" | "GIGE";
 export type V4L2BestCapture = {
   fourcc: string;
   width: number;
@@ -1277,11 +1745,24 @@ export type NetworkCameraDetails = {
   profiles: CameraProfileInfo[];
   best_profile?: CameraProfileInfo | null;
 };
+export type GigECapture = {
+  pixel_format?: string | null;
+  width?: number | null;
+  height?: number | null;
+  fps?: number | null;
+};
+export type GigECameraDetails = {
+  ip: string;
+  vendor?: string | null;
+  model?: string | null;
+  serial?: string | null;
+  current_capture?: GigECapture | null;
+};
 export type Camera = {
   device_id: string;
   device_name: string;
   device_type: CameraType;
-  details: UsbCameraDetails | NetworkCameraDetails;
+  details: UsbCameraDetails | NetworkCameraDetails | GigECameraDetails;
 };
 export type CameraAuthResponse = {
   /** Camera object with populated ONVIF profiles after successful authentication. */
@@ -1296,6 +1777,21 @@ export const {
   useLazyGetHealthQuery,
   useGetStatusQuery,
   useLazyGetStatusQuery,
+  useGetBenchmarksQuery,
+  useLazyGetBenchmarksQuery,
+  useGetAllBenchmarkRunsQuery,
+  useLazyGetAllBenchmarkRunsQuery,
+  useGetBenchmarkSuiteBySlugQuery,
+  useLazyGetBenchmarkSuiteBySlugQuery,
+  useRunBenchmarkSuiteMutation,
+  useGetBenchmarkSuiteRunsQuery,
+  useLazyGetBenchmarkSuiteRunsQuery,
+  useExportBenchmarkSuiteRunCsvQuery,
+  useLazyExportBenchmarkSuiteRunCsvQuery,
+  useGetBenchmarkSuiteRunByIdQuery,
+  useLazyGetBenchmarkSuiteRunByIdQuery,
+  useGetBenchmarkTestRunByIdQuery,
+  useLazyGetBenchmarkTestRunByIdQuery,
   useToGraphMutation,
   useToDescriptionMutation,
   useGetDevicesQuery,
@@ -1318,6 +1814,13 @@ export const {
   useGetDensityJobSummaryQuery,
   useLazyGetDensityJobSummaryQuery,
   useStopDensityTestJobMutation,
+  useGetBenchmarkStatusesQuery,
+  useLazyGetBenchmarkStatusesQuery,
+  useGetBenchmarkJobStatusQuery,
+  useLazyGetBenchmarkJobStatusQuery,
+  useGetBenchmarkJobSummaryQuery,
+  useLazyGetBenchmarkJobSummaryQuery,
+  useStopBenchmarkJobMutation,
   useGetOptimizationStatusesQuery,
   useLazyGetOptimizationStatusesQuery,
   useGetOptimizationJobSummaryQuery,
@@ -1338,8 +1841,10 @@ export const {
   useLazyGetModelDownloadJobStatusQuery,
   useGetModelsQuery,
   useLazyGetModelsQuery,
+  useListHubModelsMutation,
   useUploadModelMutation,
   useStartModelDownloadMutation,
+  useCheckModelsStatusMutation,
   useGetPipelineTemplatesQuery,
   useLazyGetPipelineTemplatesQuery,
   useGetPipelineTemplateQuery,
@@ -1360,6 +1865,10 @@ export const {
   useConvertSimpleToAdvancedMutation,
   useRunPerformanceTestMutation,
   useRunDensityTestMutation,
+  useGetTimeseriesDataTimeseriesDataGetQuery,
+  useLazyGetTimeseriesDataTimeseriesDataGetQuery,
+  useStreamIngestionTimeseriesIngestionStreamGetQuery,
+  useLazyStreamIngestionTimeseriesIngestionStreamGetQuery,
   useGetVideosQuery,
   useLazyGetVideosQuery,
   useCheckVideoInputExistsQuery,

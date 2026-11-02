@@ -1,8 +1,40 @@
-# Release Notes
+# Release Notes: Visual Pipeline and Platform Evaluation Tool
 
 Details about the changes, improvements, and known issues in this release of the application.
 
-## Current Release: [2026.1.0]
+## 2026.2.0
+
+**Release Date**: September 9, 2026
+
+**New**:
+
+- **New Predefined Pipelines**: Added two new predefined pipelines — People Detection and Tracking
+  (using DeepSORT) and a Wind Turbine time-series anomaly detection pipeline.
+- **In-app Performance Benchmarking**: Preconfigured benchmark suites (Retail, Metro, Manufacturing) let
+  users run repeatable benchmark packs instead of assembling one-off performance tests. Each suite maps
+  workloads to specific pipelines and test cases (CPU/GPU/NPU at 1, 4, 8, and 12 streams). Launching a
+  suite starts an asynchronous orchestration job that runs test cases sequentially, tracks live progress,
+  and prevents concurrent suite runs. Results are aggregated into workload-level and suite-level scores
+  with performance, efficiency, and overall components. Individual test runs expose time-series charts for
+  frame rate, memory, and CPU usage; finished runs can be exported as CSV and PDF.
+- **Performance Testing**: Added a pytest-based performance testing suite for automated benchmarking of
+  ViPPET pipelines against a live instance. Driven by YAML presets (`quick`, `default`, `full`) and
+  environment variables, invoked via `make test-performance` or `pytest` directly, emitting JSON, CSV,
+  and interactive HTML Chart.js reports with FPS, utilization, and power charts.
+- **New VLM Models**: Added support for InternVL2-2B INT4 and MiniCPM-v4.5-8B INT4. New Ultralytics
+  models are also supported.
+- **Machine Vision Camera Support**: Added proof-of-concept support for GigE/GenICam-compliant machine
+  vision cameras using `gencamsrc` (generic GenICam) and `pylonsrc` (Basler GStreamer element) sources.
+  This POC will be integrated into the upcoming Sensor Manager microservice in the 2026.3 timeframe.
+- **Extended Density Benchmarking**: Users can now fix the stream count for one pipeline and automatically
+  increase the stream count for a second pipeline class until the platform limit is reached, enabling
+  scenarios such as measuring how many secondary analytics streams can run alongside a baseline workload.
+- **Sizing Tool Selection Guide**: Added a comparison table between Edge AI Sizing Tool and ViPPET to help
+  users choose the right tool, and aligned both tools in terms of look and feel.
+
+---
+
+## 2026.1.0
 
 **Release Date**: [2026-06-17]
 
@@ -17,8 +49,8 @@ Details about the changes, improvements, and known issues in this release of the
   them as input for pipelines.
 - **Image-Set Upload Support**: Users can now upload image files and use them
   as input for pipelines.
-- **Custom Model Upload Support**: Users can now upload OpenVINO models,
-  including models trained using Intel Geti platform.
+- **Custom Model Upload Support**: Users can now upload OpenVINO™ models,
+  including models trained using Intel Geti™ platform.
 
 **Improved**:
 
@@ -155,11 +187,14 @@ Details about the changes, improvements, and known issues in this release of the
 
 ### New Features (v1.2)
 
-- **Feature 1**: Simple Video Structurization Pipeline: The Simple Video Structurization (D-T-C) pipeline is a versatile,
+- **Feature 1**: Simple Video Structurization Pipeline: The Simple Video Structurization (D-T-C)
+  pipeline is a versatile,
   use case-agnostic solution that supports license plate recognition, vehicle detection with attribute classification,
   and other object detection and classification tasks, adaptable based on the selected model.
-- **Feature 2**: Live pipeline output preview: The pipeline now supports live output, allowing users to view real-time results
-  directly in the UI. This feature enhances the user experience by providing immediate feedback on video processing tasks.
+- **Feature 2**: Live pipeline output preview: The pipeline now supports live output, allowing
+  users to view real-time results
+  directly in the UI. This feature enhances the user experience by providing immediate feedback
+  on video processing tasks.
 - **Feature 3**: New pre-trained models: The release includes new pre-trained models for object detection
   (`YOLO v8 License Plate Detector`) and classification (`PaddleOCR`, `Vehicle Attributes Recognition Barrier 0039`),
   expanding the range of supported use cases and improving accuracy for specific tasks.
@@ -205,3 +240,14 @@ Details about the changes, improvements, and known issues in this release of the
 - **Issue**: The Visual Pipeline and Platform Evaluation Tool container fails to start the analysis when the "Run"
   button is clicked in the UI, specifically for systems without GPU.
   - **Workaround**: Consider upgrading the hardware to meet the required specifications for optimal performance.
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+
+Release Notes 2026.1 <./release-notes/release-2026.1.md>
+Release Notes 2026.0 <./release-notes/release-2026.0.md>
+Release Notes 2025.2 <./release-notes/release-2025.2.md>
+
+:::
+hide_directive-->

@@ -18,7 +18,7 @@ pipelines.
 ## Overview
 
 DL Streamer Pipeline Server microservice is built on top of [GStreamer](https://gstreamer.freedesktop.org/documentation/)
-and [Deep Learning Streamer (DL Streamer)](https://github.com/open-edge-platform/dlstreamer/tree/main),
+and [Deep Learning Streamer (DL Streamer)](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/index.html),
 providing video ingestion and deep learning inferencing functionalities.
 
 Video analytics involves the conversion of video streams into valuable insights through the
@@ -62,9 +62,9 @@ Here is the high level description of functionality of DL Streamer Pipeline Serv
   metadata to a MQTT message broker. It also supports publishing metadata and frame over OPCUA.
   The frames can also be saved on S3 compliant storage.
 
-- **DL Streamer Pipeline Server Model Update**
+- **DL Streamer Pipeline Server Model Dwonload**
 
-  Supports integration with the Model Registry service - [Model Registry](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/model-registry/index.html) for model download, deployment and management.
+  Supports integration with the [Model Download service](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/model-download/index.html) for model download, deployment and management.
 
 - **Open Telemetry**
 
@@ -79,6 +79,7 @@ how-to-guides
 advanced-guide
 api-reference
 troubleshooting
-release-notes
+Release Notes <./release-notes.md>
+
 :::
 hide_directive-->

@@ -2,6 +2,49 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026.3] - December 2026
+
+### Added
+- Added `POST /stop_pipeline` and `GET /pipeline_status` APIs to stop a UDF task and check its status without shutting down Kapacitor. ([a1fba42](https://github.com/open-edge-platform/edge-ai-libraries/commit/a1fba423371cd78f4b834b34b116848ef4a9dd67))
+
+### Changed
+- Built Kapacitor 1.8.7 from source with a pinned Go toolchain and simplified GPU driver installation to reduce image size. (#3386, #3281, #3426)
+- Updated deployment images to 2026.3.0 and refreshed the Python base image. (#3207, #3228)
+- Updated Python runtime, test, and simulator dependencies. (#3161, #3277, #3332, #3399, #3462)
+- Added shell linting to CI and corrected ShellCheck findings in startup scripts. (#3226, #3310)
+
+### Fixed
+- Fixed the `/config` restart field to use a non-nullable boolean in the API and OpenAPI schema. (#3334)
+- Fixed CodeQL findings in classifier startup handling. (#3143)
+- Fixed the Swagger UI display of the optional restart parameter. (#3415)
+
+### Documentation
+- Updated release documentation and publishing links, standardized admonitions, and improved component documentation cross-links. (#2783, #2838, #3028, #3230, #3246)
+
+---
+
+## [2026.2] - September 2026
+
+### Changed
+- Bumped Intel GPU driver/compute-runtime version to 26.27.39122 and added corresponding install script logic. (#2722)
+- Updated Kapacitor version to 1.8.6. (#2417)
+- Bumped python-multipart and setuptools dependency versions. (#2427)
+- Updated image suffix and Helm chart version to 2026.2.0-rc1. (#2577)
+- Updated tag references to rc1. (#2720)
+
+### Removed
+- Removed leftover Model Registry references (MODEL_REGISTRY_URL environment variable and related config) from Docker Compose, Helm, and unit tests. (#2457)
+
+### Fixed
+- Fixed SDLe-reported path traversal vulnerability by adding sanitize_dir_name() validation before deriving UDF working directories from configuration/environment input. (#2671)
+
+### Documentation
+- Reviewed release notes and separated 2025 release notes into their own file. (#2580)
+- Updated release notes for Time Series Analytics. (#2372)
+- Added explicit branch checkout instructions. (#2354)
+
+---
+
 ## [2026.1] - June 2026
 
 ### Added
@@ -17,11 +60,15 @@ All notable changes to this project will be documented in this file.
 - Renamed Helm chart from `time-series-analytics-microservice` to `ia-time-series-analytics-microservice` to align with Docker Hub namespace. ([#1830])
 - Updated third-party programs file with latest dependency versions. ([#2046])
 - Bumped `requests` dependency version. ([#2062])
+- Updated version to `2026.1.0` across Helm chart, Docker Compose, and documentation. ([#2080])
+- Updated image suffix and Helm chart version to `rc1`. ([#2219])
+- Updated device value display to uppercase (`CPU`/`GPU`) in documentation and code messages; values remain case-insensitive. ([#2240])
 
 ### Fixed
 - Fixed security vulnerability by bumping `python-multipart`, `pytest`, `pytest-cov`, `pytest-asyncio`, and `pytest-html` dependency versions. ([#2151])
 - Fixed OPC UA alert sending failures by adding server hostname resolution, improved connection-state tracking, and more resilient re-initialization logic. ([#2124])
 - Fixed config update handler to remove the `alerts` key from in-memory configuration when the incoming payload omits alerts. ([#2099])
+- Fixed Trivy-reported vulnerabilities in Docker image by upgrading OS packages and suppressing unfixable upstream Kapacitor CVEs. ([#2241])
 
 ### Documentation
 - Reviewed and updated Time Series Analytics documentation. ([#2153])
@@ -30,9 +77,21 @@ All notable changes to this project will be documented in this file.
 - Updated release notes links and references. ([#1916])
 - Updated reference links across documentation (ref sweep). ([#2038])
 - Fixed documentation links and references (pass 2). ([#1971])
+- Updated `README-dockerhub.md` to document `2026.1.0` and `2026.0.0` versions with Docker Compose and Helm deployment links. ([#2254])
+- Fixed grammar, phrasing, and capitalization in user-guide documentation. ([#2291])
+- Fixed page layout in documentation. ([#2263])
+- Updated release links across documentation. ([#2236])
+- Removed "project" instances from GitHub navigation box directives in documentation index. ([#2075])
 
 ---
 
+[#2291]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2291
+[#2263]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2263
+[#2254]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2254
+[#2241]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2241
+[#2240]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2240
+[#2236]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2236
+[#2219]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2219
 [#2153]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2153
 [#2151]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2151
 [#2145]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2145
@@ -44,6 +103,8 @@ All notable changes to this project will be documented in this file.
 [#2099]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2099
 [#2098]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2098
 [#2087]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2087
+[#2080]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2080
+[#2075]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2075
 [#2067]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2067
 [#2062]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2062
 [#2046]: https://github.com/open-edge-platform/edge-ai-libraries/pull/2046

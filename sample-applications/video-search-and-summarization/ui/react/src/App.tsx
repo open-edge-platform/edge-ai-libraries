@@ -18,10 +18,12 @@ import {
 } from './redux/summary/summary.ts';
 import { VideoFramesAction } from './redux/summary/videoFrameSlice.ts';
 import { VideoChunkActions } from './redux/summary/videoChunkSlice.ts';
-import { FEATURE_MUX, FEATURE_SEARCH } from './config.ts';
+import { FEATURE_LIVE_STREAMS, FEATURE_MUX, FEATURE_SEARCH } from './config.ts';
 import { FEATURE_STATE, FeatureMux } from './utils/constant.ts';
 import { SearchActions } from './redux/search/searchSlice.ts';
 import { SearchQuery } from './redux/search/search.ts';
+import { LiveStream } from './redux/streams/streams.ts';
+import { StreamsActions } from './redux/streams/streamsSlice.ts';
 import { useDocumentTitle } from './hooks/useDocumentTitle.ts';
 
 const App: FC = () => {
@@ -135,6 +137,27 @@ const App: FC = () => {
       searchListenerAttachedRef.current = true;
     }
   }, [dispatch, summaryIds]);
+
+  useEffect(() => {
+    if (
+      FEATURE_SEARCH !== FEATURE_STATE.ON ||
+      FEATURE_LIVE_STREAMS !== FEATURE_STATE.ON
+    ) {
+      return;
+    }
+
+    // The server only emits while the live-streams room has members, so this
+    // listener is idle unless the management modal is open.
+    const handler = (payload: LiveStream[]) => {
+      dispatch(StreamsActions.streamsSync(payload ?? []));
+    };
+
+    socket.on('streams:sync', handler);
+
+    return () => {
+      socket.off('streams:sync', handler);
+    };
+  }, [dispatch]);
 
   return (
     <>

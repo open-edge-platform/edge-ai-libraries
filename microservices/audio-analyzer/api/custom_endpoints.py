@@ -1,25 +1,47 @@
 import json
+import logging
 import os
 import re
 import subprocess
+from pathlib import Path
 from types import SimpleNamespace
+from typing import Annotated
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from dto.audiosource import AudioSource
 from dto.transcription_dto import validate_transcription_options
+from dto.vss_dto import (
+    AvailableModelsResponse,
+    TranscriptionStatus,
+    VssTranscriptionForm,
+    VssTranscriptionResponse,
+    WhisperModelInfo,
+)
 from pipeline import Pipeline
+from utils.app_paths import get_session_dir
 from utils.audio_util import save_audio_file
 from utils.config_loader import config
 from utils.latency_store import asr_latency
-from utils.session_manager import resolve_requested_session_id
+from utils.minio_handler import MinioHandler
+from utils.openvino_runtime_validation import _SUPPORTED_ASR_DEVICES, _validate_asr_compatibility
+from utils.session_manager import generate_session_id, resolve_requested_session_id
+from utils.storage_manager import StorageManager
+from utils.subtitle_format import format_srt
 
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# VSS-compatible routes live on their own router so main.py can mount them both
+# unprefixed (legacy/local usage) and under /api/v1 (the prefix VSS's
+# pipeline-manager actually calls). See the VSS section below.
+vss_router = APIRouter()
 
-@router.get("/health")
+
+@vss_router.get("/health", tags=["Health API"])
 def health():
     return JSONResponse(content={"status": "ok"}, status_code=200)
 
@@ -72,6 +94,214 @@ def stream_transcribe_audio(
     response = StreamingResponse(iter_stream(), media_type="application/x-ndjson")
     response.headers["X-Session-ID"] = pipeline.session_id
     return response
+
+
+
+# ── VSS (Video Search & Summarization) compatibility ────────────────────────
+#
+# GET /models and POST /transcriptions match the contract exposed by the
+# previous Edge AI Libraries release, which is what VSS's pipeline-manager
+# (sample-applications/video-search-and-summarization) calls.
+#
+# IMPORTANT — path prefix: VSS builds its URLs as
+# `[AUDIO_HOST, 'api/v1', <endpoint>].join('/')` (see pipeline-manager
+# src/config/configuration.ts and src/audio/services/audio.service.ts), so it
+# calls /api/v1/models and /api/v1/transcriptions. The previous release mounted
+# its router with prefix="/api/v1" to match. These routes therefore live on
+# `vss_router`, which main.py mounts twice: unprefixed (backwards compatibility)
+# and under /api/v1 (the VSS contract).
+#
+# VSS always supplies a MinIO source (minio_bucket/video_id/video_name) rather
+# than a direct file upload, and reads the transcript back out of that same
+# MinIO bucket itself, so this service must push the transcript there too — see
+# utils/minio_handler.py.
+#
+# IMPORTANT — transcript format: VSS parses the stored transcript with
+# `srt-parser-2` (audio.service.ts parseTranscript), so when include_timestamps
+# is set (VSS always sends true) the object uploaded to MinIO must be valid
+# SubRip/SRT, matching the previous release which uploaded a .srt file. Plain
+# text yields zero parsed segments on the VSS side.
+#
+# NOTE: `device` and `model_name` are honored, not silently ignored:
+#   - `device` (CPU/GPU/NPU) overrides config.models.asr.device for this
+#     request only. Literal validity and provider/device compatibility are
+#     checked via _validate_asr_compatibility() before any source ingestion
+#     (MinIO download / file save) happens; runtime visibility (e.g. GPU
+#     actually present) is still checked later by resolve_asr_device(),
+#     inside Pipeline(). An unsupported or incompatible value is rejected
+#     with 400.
+#   - `model_name`, if supplied, must match the single configured ASR model
+#     (config.models.asr.name) — this service does not support a multi-model
+#     picker, so a mismatched value is rejected with 400 rather than
+#     silently substituted. Omit the field to use the configured model.
+
+@vss_router.get("/models", response_model=AvailableModelsResponse, tags=["VSS API"])
+def vss_available_models():
+    """List ASR model(s) available for VSS transcription requests."""
+    model_id = config.models.asr.name
+    return AvailableModelsResponse(
+        models=[
+            WhisperModelInfo(
+                model_id=model_id,
+                display_name=model_id,
+                description=f"{config.models.asr.provider} provider on {config.models.asr.device}",
+            )
+        ],
+        default_model=model_id,
+    )
+
+
+@vss_router.post("/transcriptions", response_model=VssTranscriptionResponse, tags=["VSS API"])
+async def vss_transcribe(
+    response: Response,
+    request: Annotated[VssTranscriptionForm, Depends()],
+    language: Annotated[str | None, Query(description="_(Optional)_ Language hint for transcription.")] = None,
+):
+    """VSS-compatible transcription endpoint.
+
+    Accepts either a direct file upload or a MinIO source
+    (minio_bucket/video_id/video_name), transcribes it, and returns a
+    transcript_path. When a MinIO source is used, the transcript is also
+    uploaded back into that bucket so VSS can read it directly, matching the
+    previous release's behavior.
+    """
+    has_file = request.file is not None and getattr(request.file, "filename", None)
+    has_minio_source = request.has_minio_source()
+
+    if has_file and has_minio_source:
+        raise HTTPException(status_code=400, detail="Provide either 'file' or MinIO parameters, not both")
+    if not has_file and not has_minio_source:
+        raise HTTPException(
+            status_code=400,
+            detail="Provide 'file' or all of 'minio_bucket', 'video_id' and 'video_name'",
+        )
+
+    # device: reject unsupported literal values outright, then reject
+    # literal-valid-but-provider-incompatible combinations (e.g. GPU with
+    # the openai provider) before any source ingestion happens below —
+    # resolve_asr_device()/Pipeline() would also catch this, but only after
+    # the MinIO download or file upload has already been performed, and its
+    # broad exception handling would turn a client input error into an
+    # HTTP 500. Hardware/runtime-visibility failures for an otherwise valid
+    # combination (e.g. GPU configured but no GPU present) are still only
+    # caught later, inside Pipeline(), since that requires actually probing
+    # the runtime.
+    requested_device = request.device.strip().upper() if request.device else None
+    if requested_device and requested_device not in _SUPPORTED_ASR_DEVICES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported device '{request.device}'. Supported values: {sorted(_SUPPORTED_ASR_DEVICES)}",
+        )
+    if requested_device:
+        # Normalize the same way resolve_asr_device()/ASRComponent do, so this
+        # early check agrees with them -- a raw, differently-cased config value
+        # (e.g. provider: OPENAI) must not be rejected as "unsupported" here
+        # while remaining valid everywhere else.
+        configured_provider = str(config.models.asr.provider).strip().lower()
+        try:
+            _validate_asr_compatibility(configured_provider, requested_device)
+        except RuntimeError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # model_name: this service exposes exactly one configured ASR model (see
+    # GET /models) — there is no multi-model picker to route to, so a
+    # mismatched value is rejected rather than silently substituted.
+    if request.model_name and request.model_name != config.models.asr.name:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported model_name '{request.model_name}'. This service only supports "
+            f"the configured model '{config.models.asr.name}' (see GET /models).",
+        )
+
+    job_id = generate_session_id()
+
+    if has_minio_source:
+        if not MinioHandler.is_configured():
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="MinIO source requested but MinIO is not configured on this service "
+                       "(minio.endpoint is empty) — coordinate with the VSS/infra team to "
+                       "provision MinIO connection details.",
+            )
+        safe_video_id = os.path.basename(request.video_id)
+        safe_video_name = os.path.basename(request.video_name)
+        if safe_video_id != request.video_id or safe_video_id in {"", ".", ".."}:
+            raise HTTPException(status_code=400, detail="Invalid video_id")
+        if safe_video_name != request.video_name or safe_video_name in {"", ".", ".."}:
+            raise HTTPException(status_code=400, detail="Invalid video_name")
+        video_path, error = await MinioHandler.get_video_from_minio(
+            request.minio_bucket, safe_video_id, safe_video_name
+        )
+        if error or not video_path:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Source video not found: {error}",
+            )
+        filename = request.video_name
+        filepath = str(video_path)
+    else:
+        filename, filepath = save_audio_file(request.file, session_id=job_id)
+        if not os.path.isfile(filepath):
+            logger.error("Uploaded file was not persisted at expected path: %s", filepath)
+            raise HTTPException(status_code=400, detail="Uploaded file could not be saved")
+
+    try:
+        pipeline = await run_in_threadpool(
+            Pipeline, session_id=job_id, append_to_session=False, device=requested_device
+        )
+        result = await run_in_threadpool(
+            pipeline.transcribe,
+            SimpleNamespace(audio_filename=filepath, source_type=AudioSource.AUDIO_FILE),
+            language=language,
+        )
+    except Exception:
+        logger.exception("VSS transcription failed for job %s", job_id)
+        response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+        return VssTranscriptionResponse(
+            status=TranscriptionStatus.FAILED,
+            message="Transcription failed",
+            job_id=job_id,
+            video_name=filename,
+        )
+
+    session_dir = get_session_dir(job_id)
+    transcript_path = os.path.join(session_dir, "transcription.txt")
+
+    # When timestamps are requested (VSS always sends include_timestamps=true),
+    # publish SubRip/SRT — VSS parses the stored object with srt-parser-2 and
+    # gets zero segments from plain text. This mirrors the previous release,
+    # which uploaded its .srt output whenever include_timestamps was set.
+    if request.include_timestamps:
+        transcript_path = os.path.join(session_dir, "transcription.srt")
+        StorageManager.save(transcript_path, format_srt(result.get("segments", [])), append=False)
+
+    if has_minio_source:
+        object_name = f"{safe_video_id}/{Path(filename).stem}{Path(transcript_path).suffix}"
+        uploaded, upload_error = await run_in_threadpool(
+            MinioHandler.save_transcript_to_minio,
+            Path(transcript_path),
+            request.minio_bucket,
+            object_name,
+        )
+        if not uploaded:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Transcription succeeded but failed to store transcript in MinIO: {upload_error}",
+            )
+        transcript_path = f"minio://{request.minio_bucket}/{object_name}"
+        try:
+            os.remove(filepath)
+        except OSError:
+            logger.warning("Failed to remove downloaded MinIO file %s", filepath, exc_info=True)
+
+    return VssTranscriptionResponse(
+        status=TranscriptionStatus.COMPLETED,
+        message="Transcription completed successfully",
+        job_id=job_id,
+        transcript_path=transcript_path,
+        video_name=filename,
+        video_duration=result.get("duration"),
+    )
 
 
 @router.get("/devices")

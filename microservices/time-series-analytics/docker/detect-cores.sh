@@ -42,8 +42,9 @@ initialize_core_tracking() {
     # Parse CPU data and build core ID list
     while IFS= read -r line; do
         if [[ "$line" =~ ^[[:space:]]*[0-9]+ ]]; then
-            local cpu_num=$(echo "$line" | awk '{print $1}')
-            local cache_topo=$(echo "$line" | awk '{print $5}')
+            local cpu_num cache_topo
+            cpu_num=$(echo "$line" | awk '{print $1}')
+            cache_topo=$(echo "$line" | awk '{print $5}')
             
             if [[ "$cpu_num" =~ ^[0-9]+$ && -n "$cache_topo" ]]; then
                 cpu_data+=("$cpu_num:$cache_topo")
@@ -80,7 +81,8 @@ remove_from_remaining() {
 
 # Check if system is multi-socket (Xeon)
 check_xeon() {
-    local socket_count=$(grep "physical id" /proc/cpuinfo 2>/dev/null | sort | uniq | wc -l)
+    local socket_count
+    socket_count=$(grep "physical id" /proc/cpuinfo 2>/dev/null | sort | uniq | wc -l)
     
     if [[ $socket_count -gt 1 ]]; then
         debug_print "DEBUG: Multi-socket Xeon detected ($socket_count sockets) - assigning all cores as P-cores"
@@ -116,7 +118,8 @@ check_cpuid() {
             fi
         done
         
-        local colon_count=$(echo "$cache_pattern" | tr -cd ':' | wc -c)
+        local colon_count
+        colon_count=$(echo "$cache_pattern" | tr -cd ':' | wc -c)
         
         # Check for LPE cores first
         if [[ $colon_count -eq 2 ]]; then
@@ -126,7 +129,8 @@ check_cpuid() {
         fi
         
         # Use cpuid for non-LPE cores
-        local core_type=$(taskset -c "$core_id" cpuid -1 -l 0x1a 2>/dev/null | grep "core type" | cut -d'=' -f2 | sed 's/^[[:space:]]*//')
+        local core_type
+        core_type=$(taskset -c "$core_id" cpuid -1 -l 0x1a 2>/dev/null | grep "core type" | cut -d'=' -f2 | sed 's/^[[:space:]]*//')
         
         if [[ -n "$core_type" ]]; then
             if [[ "$core_type" == "Intel Core" ]]; then
@@ -180,7 +184,8 @@ check_lscpu() {
     for entry in "${remaining_entries[@]}"; do
         local core_id="${entry%%:*}"
         local cache_pattern="${entry#*:}"
-        local colon_count=$(echo "$cache_pattern" | tr -cd ':' | wc -c)
+        local colon_count
+        colon_count=$(echo "$cache_pattern" | tr -cd ':' | wc -c)
         
         if [[ $colon_count -eq 2 ]]; then
             lpe_cores+=("$core_id")
@@ -197,7 +202,8 @@ check_lscpu() {
         
         for entry in "${non_lpe_entries[@]}"; do
             local cache_pattern="${entry#*:}"
-            local l1d=$(echo "$cache_pattern" | cut -d':' -f1)
+            local l1d
+            l1d=$(echo "$cache_pattern" | cut -d':' -f1)
 
             if [[ -n "$prev_l1d" && "$l1d" -lt "$prev_l1d" ]]; then
                 found_drop=true
@@ -213,7 +219,8 @@ check_lscpu() {
             for entry in "${non_lpe_entries[@]}"; do
                 local core_id="${entry%%:*}"
                 local cache_pattern="${entry#*:}"
-                local l1d=$(echo "$cache_pattern" | cut -d':' -f1)
+                local l1d
+                l1d=$(echo "$cache_pattern" | cut -d':' -f1)
 
                 if [[ -n "$prev_l1d" && "$l1d" -lt "$prev_l1d" ]]; then
                     found_drop=true
@@ -277,9 +284,11 @@ check_sysfs() {
         local assigned=false
         if [[ "$has_core_dir" == true ]]; then
             if [[ -f "/sys/devices/cpu_core/cpus" ]]; then
-                local core_cpus=$(cat "/sys/devices/cpu_core/cpus" 2>/dev/null || echo "")
+                local core_cpus
+                core_cpus=$(cat "/sys/devices/cpu_core/cpus" 2>/dev/null || echo "")
                 if [[ -n "$core_cpus" ]]; then
-                    local expanded_cores=$(echo "$core_cpus" | sed 's/,/ /g' | xargs -n1 | while read range; do
+                    local expanded_cores
+                    expanded_cores=$(echo "$core_cpus" | sed 's/,/ /g' | xargs -n1 | while read -r range; do
                         if [[ "$range" =~ ^([0-9]+)-([0-9]+)$ ]]; then
                             seq "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
                         else
@@ -297,9 +306,11 @@ check_sysfs() {
         fi
         if [[ "$assigned" == false && "$has_lowpower_dir" == true ]]; then
             if [[ -f "/sys/devices/cpu_lowpower/cpus" ]]; then
-                local lowpower_cpus=$(cat "/sys/devices/cpu_lowpower/cpus" 2>/dev/null || echo "")
+                local lowpower_cpus
+                lowpower_cpus=$(cat "/sys/devices/cpu_lowpower/cpus" 2>/dev/null || echo "")
                 if [[ -n "$lowpower_cpus" ]]; then
-                    local expanded_cores=$(echo "$lowpower_cpus" | sed 's/,/ /g' | xargs -n1 | while read range; do
+                    local expanded_cores
+                    expanded_cores=$(echo "$lowpower_cpus" | sed 's/,/ /g' | xargs -n1 | while read -r range; do
                         if [[ "$range" =~ ^([0-9]+)-([0-9]+)$ ]]; then
                             seq "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
                         else
@@ -317,9 +328,11 @@ check_sysfs() {
         fi
         if [[ "$assigned" == false && "$has_atom_dir" == true ]]; then
             if [[ -f "/sys/devices/cpu_atom/cpus" ]]; then
-                local atom_cpus=$(cat "/sys/devices/cpu_atom/cpus" 2>/dev/null || echo "")
+                local atom_cpus
+                atom_cpus=$(cat "/sys/devices/cpu_atom/cpus" 2>/dev/null || echo "")
                 if [[ -n "$atom_cpus" ]]; then
-                    local expanded_cores=$(echo "$atom_cpus" | sed 's/,/ /g' | xargs -n1 | while read range; do
+                    local expanded_cores
+                    expanded_cores=$(echo "$atom_cpus" | sed 's/,/ /g' | xargs -n1 | while read -r range; do
                         if [[ "$range" =~ ^([0-9]+)-([0-9]+)$ ]]; then
                             seq "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
                         else
@@ -360,7 +373,8 @@ check_sysfs() {
         for entry in "${atom_entries[@]}"; do
             local core_id="${entry%%:*}"
             local cache_pattern="${entry#*:}"
-            local colon_count=$(echo "$cache_pattern" | tr -cd ':' | wc -c)
+            local colon_count
+            colon_count=$(echo "$cache_pattern" | tr -cd ':' | wc -c)
             
             if [[ $colon_count -eq 2 ]]; then
                 lpe_cores+=("$core_id")

@@ -42,6 +42,11 @@ JSON body fields:
 | `instructions`    | No       | Optional speaking style guidance (where supported by the model).                    |
 | `response_format` | No       | `wav` (raw `audio/wav`) or `json` (metadata + base64-encoded WAV).                  |
 
+The optional `device` field accepts `CPU`, `GPU`, or `NPU` and defaults to the
+service configuration. The service validates it against the configured runtime,
+model, and devices visible inside its container. Unsupported or unavailable
+selections are rejected without falling back to CPU.
+
 Example — SpeechT5 (set `models.tts.name` to `microsoft/speecht5_tts` in
 `config.yaml`):
 
@@ -61,8 +66,12 @@ status=$(
 if [ "$status" = "200" ]; then echo "Success: saved audio to speech.wav"; else echo "Failure: HTTP $status"; cat speech.wav; rm -f speech.wav; fi
 ```
 
-> **Note:** SpeechT5 accepts only the configured `voice` and `language`. Passing
-> other values, or any `instructions`, returns an OpenAI-style error.
+> [!NOTE]
+> SpeechT5 supports seven bundled voices — `Ryan`, `Miles`, `Aaron`,
+> `Nora`, `Elena`, `Kabir`, `Angus` (the CMU Arctic ids `bdl`, `jmk`, `rms`,
+> `clb`, `slt`, `ksp`, `awb` are accepted as aliases). Omitting `voice` uses
+> `models.tts.default_speaker`. Only English is supported, and `instructions`
+> are rejected. Call `GET /v1/audio/voices` for the list with descriptions.
 
 Example — Qwen TTS (set `models.tts.name` to a Qwen model in `config.yaml`):
 
@@ -97,6 +106,6 @@ corresponding WAV and metadata are written under
 - Startup and deployment guides:
   - [Get Started](./get-started.md)
   - [Run with Docker](./get-started/run-container.md)
-  - [Run on the Host](./get-started/run-standalone.md)
+  - [Run on the Host](./how-to-guides/run-standalone.md)
 - Configuration of ASR and sentiment backends:
   - [Configuration Guide](./get-started/configuration.md)

@@ -63,7 +63,7 @@ class TestGStreamerWebRTCDestination:
         assert gstreamer_webrtc_destination._need_data is False
         assert gstreamer_webrtc_destination._last_timestamp == 500
         mock_pipeline.appsink_element.set_property.assert_called_once_with("sync", True)
-        gstreamer_webrtc_destination._webrtc_manager.add_stream.assert_called_once_with("peer1", mock_caps, gstreamer_webrtc_destination,True)
+        gstreamer_webrtc_destination._webrtc_manager.add_stream.assert_called_once_with("peer1", mock_caps, gstreamer_webrtc_destination,True, {})
 
     def test_on_need_data(self, gstreamer_webrtc_destination):
         gstreamer_webrtc_destination._on_need_data(None, None)

@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.etcd.service.name }}
+spec:
+  selector:
+    app: {{ .Values.etcd.service.name }}
+  ports:
+    - name: client
+      port: {{ .Values.etcd.service.port }}
+      targetPort: 2379
