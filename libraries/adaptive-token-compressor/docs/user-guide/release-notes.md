@@ -27,7 +27,6 @@ Adds an experimental third compressor type for conversation context, and support
 - `Avg*PerRequest` metrics now divide by the unique requests that went through the metric's own `sources`, instead of all requests seen by the `CompressionManager`. Requests that did not call any of the metric's compressors no longer lower its average, and `snapshot()` and `snapshot(source=...)` return the same value for the same metric. Values change only when some requests skip some compressors. Without `req_id` from the metric's sources, the `set_per_anchor()` call count is still the denominator.
 - `CompressionManager.snapshot(source=...)` now selects metrics by the compressor they track instead of by metric name: it returns the metrics registered with `sources` set to the given compressor's registered name, whatever the metric names are. Metrics named `<name>.<metric>` that track only that compressor are returned as before. Metrics that track several compressors, and `RequestCount` metrics, are no longer returned even if their names start with `<name>.`; read them with `snapshot()`.
 
-
 ## Version 2026.2
 
 **Release Date:** September 9, 2026
