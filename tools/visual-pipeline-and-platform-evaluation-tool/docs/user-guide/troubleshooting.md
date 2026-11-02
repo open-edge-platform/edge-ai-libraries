@@ -234,3 +234,100 @@ If you are able to discover network cameras but cannot authenticate to them, che
 - Ensure time synchronization between the ViPPET host and the cameras,
   as some ONVIF implementations require closely synchronized clocks for authentication.
 - Check for any specific ONVIF profiles or settings required by the cameras for authentication.
+
+---
+
+## 15. Pipelines fail on NPU with `ZE_RESULT_ERROR_INVALID_NATIVE_BINARY`
+
+Running any pipeline with `device=NPU` fails during element initialization with an error similar to:
+
+```text
+Pipeline runtime error: base_inference plugin initialization failed
+  ... Failed to construct OpenVINOImageInference
+  ... Compilation failed. Level0 pfnCreate2 result: ZE_RESULT_ERROR_INVALID_NATIVE_BINARY
+  ... ERROR! MAPPED_INFERENCE_VERSION is NOT compatible with the ELF
+      Expected: 6.1.0 vs received: 7.0.4
+```
+
+### Cause
+
+The NPU stack is split between the container and the host:
+
+- The **NPU user‑mode driver and compiler** (`intel-level-zero-npu`, `intel-driver-compiler-npu`)
+  ship inside the `vippet` image and generate the compiled NPU binary (ELF).
+- The **NPU kernel driver (`intel_vpu`) and firmware** live on the **host**. The kernel loads
+  firmware from the host filesystem, so the `intel-fw-npu` package inside the image is never used.
+
+If the host firmware is older than the in‑container compiler, the firmware rejects the generated
+ELF. `Expected` is the version the host firmware supports; `received` is the version the container
+compiler produced. Distribution `linux-firmware` packages often lag the NPU driver releases by a
+long time, which makes this the common failure mode on otherwise correctly configured systems.
+
+### Diagnosis
+
+Check the firmware version the host kernel driver actually loaded:
+
+```bash
+sudo dmesg | grep -i intel_vpu
+# intel_vpu 0000:00:0b.0: [drm] Firmware: intel/vpu/vpu_37xx_v1.bin, version: 20230726*...
+```
+
+Compare it with the NPU driver version bundled in the image:
+
+```bash
+docker exec -u root vippet dpkg -l | grep -E "intel-(fw-npu|level-zero-npu|driver-compiler-npu)"
+```
+
+A host firmware build date much older than the container driver version confirms the mismatch.
+
+### Resolution
+
+Install firmware matching the container's NPU driver into `/lib/firmware/updates/`, which takes
+precedence over the distribution‑provided firmware in `/lib/firmware/` and survives
+`linux-firmware` upgrades. The matching firmware is already in the image, so it can be copied out
+of the running container.
+
+Select the file for your NPU generation: `vpu_37xx_*` for Meteor Lake, `vpu_40xx_*` for Arrow Lake
+and Lunar Lake, `vpu_50xx_*` for Panther Lake. Confirm the generation with
+`lspci -nn | grep -i "Processing accelerators"`.
+
+```bash
+# Example for Meteor Lake (37xx); adjust the file name for other generations.
+sudo mkdir -p /lib/firmware/updates/intel/vpu
+sudo docker cp vippet:/lib/firmware/updates/intel/vpu/vpu_37xx_v1.bin /tmp/vpu_37xx.bin
+sudo install -m 644 /tmp/vpu_37xx.bin /lib/firmware/updates/intel/vpu/vpu_37xx_v1.bin
+# Older kernels request the v0.0 name, so install both.
+sudo install -m 644 /tmp/vpu_37xx.bin /lib/firmware/updates/intel/vpu/vpu_37xx_v0.0.bin
+sudo rm /tmp/vpu_37xx.bin
+
+# Reload the kernel driver so the new firmware is picked up (no reboot required).
+# Stop the containers first so they release /dev/accel/accel0.
+docker stop vippet metrics-manager
+sudo rmmod intel_vpu && sudo modprobe intel_vpu
+docker start vippet metrics-manager
+```
+
+Confirm that the new firmware is active:
+
+```bash
+sudo dmesg | grep -i intel_vpu | tail -3
+```
+
+The reported firmware version should now match the container driver's release. Rerun the pipeline
+on NPU to verify.
+
+> **Note:** A kernel upgrade does not revert this fix, because `/lib/firmware/updates/` is not owned
+> by the `linux-firmware` package. However, after upgrading the `vippet` image to a release with a
+> newer NPU driver, repeat the procedure so the host firmware stays aligned.
+
+### Related non‑fatal warning
+
+The following warning is unrelated to this failure and does not stop the pipeline:
+
+```text
+Model quantization runtime (2026.2.0-...) does not match current runtime (2026.4.0-...).
+Results may be inaccurate. Please re-quantize the model with the current runtime version.
+```
+
+It means an INT8 model was quantized with an older OpenVINO™ release than the runtime in the image.
+Inference still runs; only accuracy may differ slightly from the originally quantized model.
