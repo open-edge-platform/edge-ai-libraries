@@ -19,6 +19,7 @@
 #include <cstring>
 #include <filesystem>
 #include <iostream>
+#include <limits>
 #include <numeric>
 #include <set>
 #include <stdexcept>
@@ -269,9 +270,10 @@ FeatureSet extract_opencv(const cv::Mat &gray, const Configuration &config) {
 }
 
 void report(cv::FileStorage &output, const char *name, const FeatureSet &first,
-            const FeatureSet &second, const cv::Mat &affine) {
+            const FeatureSet &second, const cv::Mat &transform) {
   int accepted = 0;
   int inliers = 0;
+  int unprojectable = 0;
   double squared_error_sum = 0.0;
   double error_x_sum = 0.0;
   double error_y_sum = 0.0;
@@ -301,12 +303,32 @@ void report(cv::FileStorage &output, const char *name, const FeatureSet &first,
       ++accepted;
       const auto &source = first.positions[static_cast<size_t>(pair[0].queryIdx)];
       const auto &target = second.positions[static_cast<size_t>(pair[0].trainIdx)];
-      const double projected_x = affine.at<double>(0, 0) * source.x +
-                                  affine.at<double>(0, 1) * source.y + affine.at<double>(0, 2);
-      const double projected_y = affine.at<double>(1, 0) * source.x +
-                                  affine.at<double>(1, 1) * source.y + affine.at<double>(1, 2);
-      const double error_x = target.x - projected_x;
-      const double error_y = target.y - projected_y;
+      const double projected_x = transform.at<double>(0, 0) * source.x +
+                            transform.at<double>(0, 1) * source.y + transform.at<double>(0, 2);
+      const double projected_y = transform.at<double>(1, 0) * source.x +
+                            transform.at<double>(1, 1) * source.y + transform.at<double>(1, 2);
+      double error_x = target.x - projected_x;
+      double error_y = target.y - projected_y;
+      if (transform.rows == 3) {
+        const double horizontal = transform.at<double>(2, 0) * source.x;
+        const double vertical = transform.at<double>(2, 1) * source.y;
+        const double constant = transform.at<double>(2, 2);
+        const double divisor = horizontal + vertical + constant;
+        const double tolerance = 8.0 * std::numeric_limits<double>::epsilon() *
+            (std::abs(horizontal) + std::abs(vertical) + std::abs(constant));
+        if (std::abs(divisor) <= tolerance) {
+          ++unprojectable;
+          continue;
+        }
+        const double normalized_x = projected_x / divisor;
+        const double normalized_y = projected_y / divisor;
+        if (!std::isfinite(normalized_x) || !std::isfinite(normalized_y)) {
+          ++unprojectable;
+          continue;
+        }
+        error_x = target.x - normalized_x;
+        error_y = target.y - normalized_y;
+      }
       const double squared_error = error_x * error_x + error_y * error_y;
       if (squared_error <= 9.0) {
         ++inliers;
@@ -327,6 +349,7 @@ void report(cv::FileStorage &output, const char *name, const FeatureSet &first,
       << "inlier_distinct_first_positions" << static_cast<int>(inlier_first_positions.size())
       << "inlier_distinct_second_positions" << static_cast<int>(inlier_second_positions.size())
          << "ratio_matches" << accepted << "ground_truth_inliers_3px" << inliers
+         << "unprojectable_ratio_matches" << unprojectable
          << "inlier_fraction" << (accepted ? static_cast<double>(inliers) / accepted : 0.0)
          << "inlier_rmse_px" << (inliers ? std::sqrt(squared_error_sum / inliers) : -1.0)
          << "inlier_mean_dx_px" << (inliers ? error_x_sum / inliers : 0.0)
@@ -382,16 +405,41 @@ FeatureSet read_external(const char *path, int width, int height) {
 }
 
 int score_external(char **argv) {
+  if (std::filesystem::file_size(argv[4]) > 1024 * 1024)
+    throw std::runtime_error("Pair report exceeds 1 MiB");
   cv::FileStorage pair(argv[4], cv::FileStorage::READ);
   if (!pair.isOpened()) throw std::runtime_error("Cannot read pair report");
   const int width = static_cast<int>(pair["width"]);
   const int height = static_cast<int>(pair["height"]);
   if (width <= 0 || width > 3840 || height <= 0 || height > 2160)
     throw std::runtime_error("Invalid pair dimensions");
-  cv::Mat affine;
-  pair["affine"] >> affine;
-  if (affine.rows != 2 || affine.cols != 3 || affine.type() != CV_64F || !cv::checkRange(affine))
-    throw std::runtime_error("Invalid pair affine transform");
+  const bool projective = !pair["homography"].empty();
+  if (projective == !pair["affine"].empty())
+    throw std::runtime_error("Pair requires exactly one affine or homography transform");
+  const auto node = pair[projective ? "homography" : "affine"];
+  const int rows = projective ? 3 : 2;
+  if (!node.isMap() || !node["rows"].isInt() || !node["cols"].isInt() ||
+      static_cast<int>(node["rows"]) != rows || static_cast<int>(node["cols"]) != 3 ||
+      !node["dt"].isString() || static_cast<std::string>(node["dt"]) != "d" ||
+      !node["data"].isSeq() || node["data"].size() != static_cast<size_t>(rows * 3))
+    throw std::runtime_error("Invalid pair transform matrix shape or type");
+  cv::Mat transform;
+  node >> transform;
+  if (transform.rows != rows || transform.cols != 3 || transform.type() != CV_64F ||
+      !cv::checkRange(transform))
+    throw std::runtime_error("Pair transform must contain finite float64 values");
+  if (projective) {
+    const double coefficient_norm = cv::norm(transform, cv::NORM_INF);
+    if (coefficient_norm == 0.0) throw std::runtime_error("Zero homography");
+    transform /= coefficient_norm;
+    if (!cv::checkRange(transform))
+      throw std::runtime_error("Homography normalization exceeds numeric range");
+    cv::Mat singular_values;
+    cv::SVD::compute(transform, singular_values);
+    if (singular_values.at<double>(2) <=
+        3.0 * std::numeric_limits<double>::epsilon() * singular_values.at<double>(0))
+      throw std::runtime_error("Numerically singular homography");
+  }
   const auto first = read_external(argv[2], width, height);
   const auto second = read_external(argv[3], width, height);
   cv::FileStorage output(argv[5], cv::FileStorage::WRITE | cv::FileStorage::FORMAT_JSON);
@@ -399,8 +447,9 @@ int score_external(char **argv) {
   output << "diagnostic_only" << 1 << "parameters_equivalent" << 0
          << "pair_report" << argv[4] << "first_features_file" << argv[2]
          << "second_features_file" << argv[3] << "ratio_threshold" << 0.8
-         << "inlier_threshold_px" << 3.0;
-  report(output, "quality", first, second, affine);
+          << "inlier_threshold_px" << 3.0
+          << "geometry_model" << (projective ? "homography" : "affine");
+        report(output, "quality", first, second, transform);
   return 0;
 }
 

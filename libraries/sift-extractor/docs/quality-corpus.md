@@ -10,6 +10,105 @@ its correspondence count. This requirement is not yet demonstrated. OpenCV remai
 a diagnostic reference. complete-gpu-sift is excluded from further acceptance work
 and will not be repaired; its results below are historical evidence only.
 
+## Projective Scoring and Rejected Scale Probe
+
+Checkpoint 46 retains diagnostic/scorer changes only. Extraction remains exactly
+checkpoint 45, including its default parameters and quality deficits.
+
+A tested half-layer gradient-selection probe changed grouping from
+`round(local.scale)` to `round(local.scale + 0.5)`, consistent with the nearest
+Gaussian to the recorded midpoint DoG sigma. Independent sigma-based host
+reconstruction passed, but both complete 64-case Arc runs regressed on identical
+pairs. Distinct inlier source support decreased in 37 default and 44 dense cases;
+precision decreased in 35 and 43. Default CUDA count/precision/RMSE deficits became
+26/7/5, and dense 2/11/4. The probe and its proposed test contract were reverted;
+the restored refinement suite passes. Nearest-sigma selection is not evidence that
+the existing lower-Gaussian gradient convention is incorrect. No speed claim was
+made for this rejected candidate.
+
+The external scorer now accepts either the existing `affine` float64 2x3 matrix
+or a `homography` float64 3x3 matrix, never both. This allows independently known
+perspective geometry without estimating a transform from the tested matches:
+
+```json
+{
+  "width": 640,
+  "height": 480,
+  "homography": {
+    "type_id": "opencv-matrix", "rows": 3, "cols": 3, "dt": "d",
+    "data": [1.0, 0.0, 10.0, 0.0, 1.0, 20.0, 0.001, 0.0, 1.0]
+  }
+}
+```
+
+```bash
+validate_sift_pair --score-external first-features.json second-features.json \
+  geometry.json scored.json
+```
+
+Geometry maps exported first-image pixel coordinates to second-image coordinates.
+Both feature files must match the declared dimensions; adjust the matrix for any
+resize/crop before scoring. The existing dimension and feature-cap bounds remain.
+Use decimal/exponent notation for double coefficients: large bare integer literals
+failed homogeneous-scale tests with this OpenCV FileStorage reader, despite `dt:d`.
+Pair files are limited to 1 MiB; matrix shape/type/data length are checked before
+allocation. Projective matrices are normalized by their maximum coefficient magnitude,
+checked for finite normalized values, and rejected when numerically rank-deficient
+using SVD. No division by `H[2,2]` is assumed, so valid matrices with that entry zero
+are supported. The input coefficient scale is not a quality-tuning parameter.
+
+Scoring divides by the homogeneous coordinate. A zero or numerically cancelling
+denominator, or a nonfinite projected position, increments
+`unprojectable_ratio_matches`. These matches remain in `ratio_matches`, contribute
+no inlier, and therefore cannot inflate precision by disappearing. All reports now
+include this count (zero for ordinary affine scoring); external reports also include
+`geometry_model`. The ratio threshold stays 0.8 and inlier radius stays 3 pixels.
+No RANSAC, overlap mask, spatial clustering or one-to-one assignment was added.
+
+Tests cover analytic perspective, positive/negative homogeneous scaling including
+1e-100 and 1e100, affine-as-homography, valid zero-bottom-right matrices, the exact
+3-pixel boundary and a just-outside match, horizon points, malformed/ambiguous/missing
+matrices, singular/numerically singular matrices, oversized pair files, and all prior
+scorer cases. All 11 local tests and the final Arc scorer suite pass. Input review
+found no remaining issue in the modified bounded geometry path; pre-existing external
+feature limits remain in force.
+
+Compatibility checks rescored all 64 frozen CUDA exports and regenerated the 64
+default Arc cases. CUDA, OpenCL and OpenCV preserve all prior counts, spatial-support
+metrics and precision exactly. Residual arithmetic is not bit-identical: maximum
+absolute difference is 9.79e-15 pixels for CUDA, 6.26e-15 for OpenCL and 9.75e-15 for
+OpenCV. The separate 1e-12-pixel arithmetic compatibility check is not a tolerance
+for accepting lower product quality. Frozen reference scores were not overwritten.
+
+SYCL has non-roundoff differences in 33/64 comparisons. Repeating the previous
+unchanged binary on the combined baboon pair yields 330-331 inliers and 341-342
+ratio matches; the new binary shows the same ranges. OpenCL remains at 362 inliers
+through these repeats. This establishes pre-existing SYCL repeatability variability,
+not its root cause or general harmlessness. SYCL determinism/eligibility remains an
+open gate; exact all-backend compatibility is not claimed.
+
+Evidence in the SIFT workspace: `results/20261102/scale-association-{cases,summary}.json`,
+`homography-affine-compatibility.json`, `homography-arc-compatibility.json`, raw report
+archives and `homography-receipts.sha256`. Rejected probe payload
+`/tmp/sift-scale-association.iljTBm`, Arc stage `scale-association-09a6a5ffe564202e`,
+manifest `09a6a5ffe564202e4c361145d136103a31d3a2b0b144ff018cbe6a2b7530d50b`;
+reports `/tmp/sift-scale-association-results.R1gKX9`. Affine corpus stage
+`homography-efdd579c3b140aec`, reports `/tmp/sift-homography-results.sHHQJo`;
+CUDA rescores `/tmp/sift-homography-affine-compat.uhThkF`. Final guard/test stage
+`homography-final-31da384a6377bbf5`, manifest
+`31da384a6377bbf5d7fe3802b33e59077740efa3d9c3e82bc12369eb5be132eb`,
+payload `/tmp/sift-homography-final.BXfEJd`, test/repeatability reports
+`/tmp/sift-homography-repeatability.953u6r`. No extraction changes followed the
+affine compatibility run; the final follow-up only added a projective normalization
+guard and a numerical-singularity test.
+
+Next: acquire and freeze separate real-viewpoint pairs with known homographies and
+record preprocessing, then provide Intel feature exports for independent first/second
+images and evaluate them with the same frozen CUDA settings. The existing
+`quality-export` mode still generates affine pairs; this change adds projective
+scoring, not a held-out dataset or a completed real-viewpoint evaluation. CudaSift-level
+quality, backend selection, lifecycle/recovery qualification and Python remain open.
+
 ## Spatial Support and Exact Duplicates
 
 Checkpoint 45 removes exact duplicate localized extrema within each OpenCL octave,
