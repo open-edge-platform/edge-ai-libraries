@@ -208,6 +208,38 @@ Remote stage: `~/.local/share/sift-extractor-staging/arc-opencl-workgroup-83e7e7
 Manifest SHA256: `83e7e7ba5ef026fa673ef40dbe912d568ef3fc083dd46a76b0e78e3c8e89e38e`.
 Retrieved reports: `/tmp/sift-arc-workgroup-results.mi3yXv/workgroup-descriptor-results`.
 
+### Compacted Refinement
+
+Pyramid detection now uploads each octave once into retained device storage shared
+by detection and refinement. Candidate masks remain on-device. Counts for 256-entry
+blocks are downloaded for a host prefix sum; GPU scatter preserves the original
+scale/row/column candidate order. Only block counts and refined candidate records
+are read back, not the full mask. This removes repeated host octave copies,
+DoG packing and the second volume upload. It still uploads host DoG levels and
+does not yet connect the pyramid's device buffers directly to the detector.
+
+Twelve exact comparisons against the standalone host `detect`/`refine` path cover
+dense positive/negative extrema, textured and blank volumes, full/partial blocks,
+tiny dimensions and retained-buffer reuse. All ten local tests pass. Arc regression
+and all 22 timing/profile cases passed against `3002fcd6a`. No algorithmic quality
+approximation was introduced; every OpenCL quality field matches in all four runs.
+True pooled medians (60 raw samples/build/configuration):
+
+| Size | Feature Budget | Before (ms) | Compacted (ms) | Latency Reduction |
+| --- | --- | --- | --- | --- |
+| 640x480 | Unlimited | 41.798 | 38.336 | 8.3% |
+| 640x480 | 500 | 40.289 | 36.354 | 9.8% |
+| 1920x1080 | Unlimited | 166.652 | 97.144 | 41.7% |
+| 1920x1080 | 500 | 149.884 | 76.016 | 49.3% |
+
+Warm 1080p extrema/refinement profiles fell to about 8-10ms. Remaining major costs
+are pyramid construction and orientation/descriptor sampling; the raw reference
+target remains unmet. Evidence: SIFT workspace `results/20261102/arc-compaction-summary.json`,
+runner `results/20261102/arc-opencl-milestone.sh`, local reports
+`/tmp/sift-arc-compaction-results.Kwg4kg/milestone-results`, remote stage
+`~/.local/share/sift-extractor-staging/arc-compaction-d266f47fcec2f0d8`.
+Manifest SHA256: `d266f47fcec2f0d852662e08c6e4453a2c2e0c28f9975439e9480ca7b8f6603b`.
+
 Three warmup extractions per backend precede 1-100 measured repetitions. Backend
 order rotates across OpenCL, SYCL and the OpenCV CPU baseline. The reported
 median/min/max and raw samples include float

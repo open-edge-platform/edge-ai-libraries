@@ -125,6 +125,48 @@ int main() {
     std::printf("Mapped two analytic octaves; image detector found %zu points; "
                 "blank input found none\n", detected.size());
 
+    size_t compacted_checks = 0;
+    for (const auto shape : {std::array<int, 3>{3, 3, 3},
+                             std::array<int, 3>{18, 18, 3},
+                             std::array<int, 3>{71, 53, 5},
+                             std::array<int, 3>{19, 21, 7}}) {
+      std::vector<sift_extractor::detail::DoGLevel> levels(shape[2]);
+      for (int scale = 0; scale < shape[2]; ++scale) {
+        auto &level = levels[scale];
+        level.width = shape[0];
+        level.height = shape[1];
+        level.scale = scale;
+        level.pixels.resize(static_cast<size_t>(shape[0]) * shape[1]);
+        for (int row = 0; row < shape[1]; ++row)
+          for (int column = 0; column < shape[0]; ++column)
+            level.pixels[static_cast<size_t>(row) * shape[0] + column] =
+                scale == shape[2] / 2 && row % 4 == 1 && column % 4 == 1
+                    ? (column % 8 == 1 ? 10.0f : -10.0f) : 0.0f;
+      }
+      for (int pass = 0; pass < 3; ++pass) {
+        const auto reference_candidates = detector.detect(levels, 1.0f);
+        const auto reference = detector.refine(levels, reference_candidates, 1.0f, 12.1f);
+        const auto compacted = detector.detect_pyramid(levels, 1, shape[2] - 2,
+                                                        1.6f, 1.0f, 12.1f);
+        if (reference.size() != compacted.size() || (pass == 0 && reference.empty()))
+          return 1;
+        for (size_t index = 0; index < reference.size(); ++index) {
+          const auto &expected = reference[index];
+          const auto &actual = compacted[index].local;
+          if (actual.x != expected.x || actual.y != expected.y ||
+              actual.scale != expected.scale || actual.response != expected.response ||
+              actual.edge_response != expected.edge_response) return 1;
+        }
+        ++compacted_checks;
+        for (auto &level : levels)
+          for (size_t index = 0; index < level.pixels.size(); ++index)
+            level.pixels[index] = pass == 0
+                ? static_cast<float>((index * 37 + level.scale * 61) % 251) : 0.0f;
+      }
+    }
+    std::printf("Stable compacted refinement matches host reference in %zu cases\n",
+                compacted_checks);
+
     sift_extractor::detail::GaussianLevel ramp;
     ramp.width = 65;
     ramp.height = 65;
