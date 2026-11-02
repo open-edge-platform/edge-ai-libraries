@@ -34,18 +34,6 @@ coverage:
 	echo $@
 	@echo "---END MAKEFILE COVERAGE---"
 
-check-contract:
-	@# Help: Fails if contract.json is stale relative to src/server/schema.py
-	@echo "---MAKEFILE CHECK-CONTRACT---"
-	python3 utils/generate_contract.py --check
-	@echo "---END MAKEFILE CHECK-CONTRACT---"
-
-generate-contract:
-	@# Help: Regenerates contract.json from src/server/schema.py and document-versions.yaml
-	@echo "---MAKEFILE GENERATE-CONTRACT---"
-	python3 utils/generate_contract.py
-	@echo "---END MAKEFILE GENERATE-CONTRACT---"
-
 list:
 	@# Help: displays make targets
 	help
@@ -60,4 +48,4 @@ help:
         | xargs -I _ sh -c 'printf "%-20s " _; make _ -nB | (grep -i "^# Help:" || echo "") | tail -1 | sed "s/^# Help: //g"'
 
 
-.PHONY: build test coverage check-contract generate-contract
+.PHONY: build test coverage
