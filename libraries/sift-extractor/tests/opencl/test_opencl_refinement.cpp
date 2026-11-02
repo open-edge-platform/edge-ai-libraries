@@ -371,6 +371,34 @@ int main() {
       }
     }
     std::printf("Batched detection matches synchronous reference after aligned/unaligned octave reuse\n");
+    sift_extractor::detail::OpenCLDoGExtrema capacity_detector;
+    for (int repeats : {1, 4, 2, 0, 4}) {
+      const int capacity_width = texture_width * std::max(1, repeats);
+      const int capacity_height = texture_height * std::max(1, repeats);
+      std::vector<float> capacity_image(static_cast<size_t>(capacity_width) * capacity_height);
+      for (int row = 0; row < capacity_height; ++row)
+        for (int column = 0; column < capacity_width; ++column)
+          capacity_image[static_cast<size_t>(row) * capacity_width + column] = repeats == 0 ? 0.0f :
+            texture[static_cast<size_t>(row % texture_height) * texture_width + column % texture_width];
+      const auto reference_levels = host_pyramid.build_with_differences(capacity_image,
+        capacity_width, capacity_height, 2, 3, 1.6f);
+      const auto expected = detector.detect_pyramid(reference_levels.differences, 2, 3, 1.6f, 0.1f, 12.1f);
+      const auto actual = capacity_detector.detect_image(capacity_image, capacity_width,
+        capacity_height, 2, 3, 1.6f, 0.1f, 12.1f);
+      if (expected.size() != actual.size() || (repeats == 4 && expected.size() <= 64) ||
+          (repeats == 0 && !actual.empty())) return 1;
+      for (size_t index = 0; index < expected.size(); ++index) {
+        const auto &reference = expected[index];
+        const auto &point = actual[index];
+        if (reference.octave != point.octave || reference.image_x != point.image_x ||
+            reference.image_y != point.image_y || reference.image_sigma != point.image_sigma ||
+            reference.octave_sigma != point.octave_sigma || reference.local.x != point.local.x ||
+            reference.local.y != point.local.y || reference.local.scale != point.local.scale ||
+            reference.local.response != point.local.response ||
+            reference.local.edge_response != point.local.edge_response) return 1;
+      }
+    }
+    std::printf("Candidate capacity growth, shrink and blank reuse preserve every refined record\n");
     const auto serial_features = serial_detector.extract_image(texture, texture_width,
         texture_height, 2, 3, 1.6f, 0.1f, 12.1f);
     if (serial_features.size() != image_features.size()) return 1;

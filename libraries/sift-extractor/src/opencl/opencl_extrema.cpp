@@ -20,26 +20,15 @@ namespace sift_extractor::detail {
 namespace {
 
 constexpr const char *kernel_source = R"CLC(
-__kernel void find_dog_extrema(__global const float *dog,
-                               __global uchar *candidate_mask,
-                               const int width, const int height,
-                               const int scale_count,
-                               const float threshold) {
-  const int x = (int)get_global_id(0) + 1;
-  const int y = (int)get_global_id(1) + 1;
-  const int scale = (int)get_global_id(2) + 1;
-  const int inner_width = width - 2;
-  const int inner_height = height - 2;
-  const int scale_count_inner = scale_count - 2;
-  const int mask_index =
-      ((scale - 1) * inner_height + (y - 1)) * inner_width + (x - 1);
+inline uchar dog_extremum(__global const float *dog, const int x,
+              const int y, const int scale, const int width,
+              const int height, const float threshold) {
   const int plane_size = width * height;
   const int center_index = scale * plane_size + y * width + x;
   const float value = dog[center_index];
 
   if (fabs(value) < threshold) {
-    candidate_mask[mask_index] = (uchar)0;
-    return;
+    return (uchar)0;
   }
 
   const int is_max = value > 0.0f;
@@ -53,13 +42,47 @@ __kernel void find_dog_extrema(__global const float *dog,
           continue;
         const float neighbor = dog[row_base + x + x_offset];
         if ((is_max && value <= neighbor) || (!is_max && value >= neighbor)) {
-          candidate_mask[mask_index] = (uchar)0;
-          return;
+          return (uchar)0;
         }
       }
     }
   }
-  candidate_mask[mask_index] = (uchar)1;
+  return (uchar)1;
+}
+
+__kernel void find_dog_extrema(__global const float *dog,
+                               __global uchar *candidate_mask,
+                               const int width, const int height,
+                               const int scale_count,
+                               const float threshold) {
+  const int x = (int)get_global_id(0) + 1;
+  const int y = (int)get_global_id(1) + 1;
+  const int scale = (int)get_global_id(2) + 1;
+  const int mask_index = ((scale - 1) * (height - 2) + y - 1) * (width - 2) + x - 1;
+  candidate_mask[mask_index] = dog_extremum(dog, x, y, scale, width, height, threshold);
+}
+
+__kernel void find_and_count_dog_extrema(__global const float *dog,
+                                         __global uchar *mask,
+                                         __global uint *counts,
+                                         const int width, const int height,
+                                         const int mask_count,
+                                         const float threshold) {
+  __local uint count;
+  if (get_local_id(0) == 0) count = 0;
+  barrier(CLK_LOCAL_MEM_FENCE);
+  if (get_global_id(0) < (size_t)mask_count) {
+    const int index = (int)get_global_id(0);
+    const int x = index % (width - 2) + 1;
+    const int row = index / (width - 2);
+    const int y = row % (height - 2) + 1;
+    const int scale = row / (height - 2) + 1;
+    const uchar candidate = dog_extremum(dog, x, y, scale, width, height, threshold);
+    mask[index] = candidate;
+    if (candidate) atomic_inc(&count);
+  }
+  barrier(CLK_LOCAL_MEM_FENCE);
+  if (get_local_id(0) == 0) counts[get_group_id(0)] = count;
 }
 
 typedef struct {
@@ -69,23 +92,13 @@ typedef struct {
   float response;
 } ExtremaCandidateData;
 
-__kernel void count_dog_candidates(__global const uchar *mask,
-                                    __global uint *counts,
-                                    const int mask_count) {
-  const int block = (int)get_global_id(0);
-  const int begin = block * 256;
-  uint count = 0;
-  for (int offset = 0; offset < min(256, mask_count - begin); ++offset)
-    count += mask[begin + offset] != 0;
-  counts[block] = count;
-}
-
 __kernel void compact_dog_candidates(__global const float *dog,
                                       __global const uchar *mask,
                                       __global const uint *offsets,
                                       __global ExtremaCandidateData *candidates,
                                       const int width, const int height,
-                                      const int mask_count) {
+                                      const int mask_count,
+                                      const int candidate_capacity) {
   const int block = (int)get_global_id(0);
   const int begin = block * 256;
   uint destination = offsets[block];
@@ -98,23 +111,43 @@ __kernel void compact_dog_candidates(__global const float *dog,
     const int scale = row / (height - 2) + 1;
     ExtremaCandidateData candidate = {x, y, scale,
         dog[(scale * height + y) * width + x]};
-    candidates[destination++] = candidate;
+    if (destination < (uint)candidate_capacity) candidates[destination] = candidate;
+    ++destination;
   }
 }
 
-__kernel void refine_dog_extrema(__global const float *dog,
-                                 __global const ExtremaCandidateData *candidates,
-                                 __global float *refined,
-                                 const int width, const int height,
-                                 const int scale_count,
-                                 const int candidate_count,
-                                 const float contrast_threshold,
-                                 const float edge_limit) {
-  const int index = (int)get_global_id(0);
-  if (index >= candidate_count)
-    return;
+__kernel void scan_dog_counts(__global uint *offsets, const int block_count) {
+  __local uint totals[256];
+  const int lane = (int)get_local_id(0);
+  const int span = (block_count + 255) / 256;
+  const int begin = lane * span;
+  const int end = min(begin + span, block_count);
+  uint sum = 0;
+  for (int block = begin; block < end; ++block) sum += offsets[block];
+  totals[lane] = sum;
+  barrier(CLK_LOCAL_MEM_FENCE);
+  for (int stride = 1; stride < 256; stride *= 2) {
+    const uint previous = lane >= stride ? totals[lane - stride] : 0;
+    barrier(CLK_LOCAL_MEM_FENCE);
+    totals[lane] += previous;
+    barrier(CLK_LOCAL_MEM_FENCE);
+  }
+  uint prefix = lane > 0 ? totals[lane - 1] : 0;
+  for (int block = begin; block < end; ++block) {
+    const uint count = offsets[block];
+    offsets[block] = prefix;
+    prefix += count;
+  }
+  if (lane == 255) offsets[block_count] = totals[lane];
+}
 
-  const ExtremaCandidateData candidate = candidates[index];
+inline void refine_dog_candidate(__global const float *dog,
+                                  const ExtremaCandidateData candidate,
+                                  __global float *refined, const int index,
+                                  const int width, const int height,
+                                  const int scale_count,
+                                  const float contrast_threshold,
+                                  const float edge_limit) {
   const int x = candidate.x;
   const int y = candidate.y;
   const int scale = candidate.scale;
@@ -184,6 +217,35 @@ __kernel void refine_dog_extrema(__global const float *dog,
   refined[output + 3] = interpolated_response;
   refined[output + 4] = trace * trace / spatial_determinant;
   refined[output + 5] = 1.0f;
+}
+
+__kernel void refine_dog_extrema(__global const float *dog,
+                                 __global const ExtremaCandidateData *candidates,
+                                 __global float *refined,
+                                 const int width, const int height,
+                                 const int scale_count, const int candidate_count,
+                                 const float contrast_threshold, const float edge_limit) {
+  const int index = (int)get_global_id(0);
+  if (index >= candidate_count) return;
+  refine_dog_candidate(dog, candidates[index], refined, index, width, height,
+    scale_count, contrast_threshold, edge_limit);
+}
+
+__kernel void refine_dog_extrema_bounded(__global const float *dog,
+                                         __global const ExtremaCandidateData *candidates,
+                                         __global float *refined,
+                                         const int width, const int height,
+                                         const int scale_count, const int capacity,
+                                         const float contrast_threshold, const float edge_limit,
+                                         __global const uint *counts, const int count_offset) {
+  const int index = (int)get_global_id(0);
+  if (index >= capacity) return;
+  if ((uint)index >= counts[count_offset]) {
+    refined[index * 6 + 5] = 0.0f;
+    return;
+  }
+  refine_dog_candidate(dog, candidates[index], refined, index, width, height,
+    scale_count, contrast_threshold, edge_limit);
 }
 
 __kernel void sift_gradients(__global const float *image,
@@ -540,9 +602,14 @@ struct OpenCLDoGExtrema::Impl {
     Buffer volume, mask, offsets, candidates, refined;
     std::vector<cl_uint> host_offsets;
     std::vector<float> output;
+    cl_event events[4]{};
+    cl_uint candidate_count = 0;
+    size_t candidate_capacity = 8;
     ~DetectionScratch() {
       for (auto *buffer : {&volume, &mask, &offsets, &candidates, &refined})
         if (buffer->memory) clReleaseMemObject(buffer->memory);
+      for (auto event : events)
+        if (event) clReleaseEvent(event);
     }
   };
   std::vector<std::unique_ptr<DetectionScratch>> detection_scratch;
@@ -554,6 +621,8 @@ struct OpenCLDoGExtrema::Impl {
   cl_kernel refine_kernel = nullptr;
   cl_kernel count_kernel = nullptr;
   cl_kernel compact_kernel = nullptr;
+  cl_kernel scan_kernel = nullptr;
+  cl_kernel bounded_refine_kernel = nullptr;
   Buffer dog_volume;
   Buffer candidate_mask;
   Buffer block_offsets;
@@ -777,7 +846,19 @@ struct OpenCLDoGExtrema::Impl {
     if (scratch && !refine_phase) {
       scratch->host_offsets.clear();
       scratch->output.clear();
+      scratch->candidate_count = 0;
+      for (auto &event : scratch->events) {
+        if (event) clReleaseEvent(event);
+        event = nullptr;
+      }
     }
+    const auto event_for = [&](size_t stage) -> cl_event * {
+      if (profile_features && scratch && scratch->events[stage]) {
+        clReleaseEvent(scratch->events[stage]);
+        scratch->events[stage] = nullptr;
+      }
+      return profile_features && scratch ? &scratch->events[stage] : nullptr;
+    };
     const int width = levels[0].width;
     const int height = levels[0].height;
     if (width < 3 || height < 3 || scale_count < 3) return {};
@@ -793,8 +874,8 @@ struct OpenCLDoGExtrema::Impl {
     }
     if (!count_kernel) {
       cl_int status = CL_SUCCESS;
-      count_kernel = clCreateKernel(program, "count_dog_candidates", &status);
-      check_opencl(status, "clCreateKernel(count_dog_candidates)");
+      count_kernel = clCreateKernel(program, "find_and_count_dog_extrema", &status);
+      check_opencl(status, "clCreateKernel(find_and_count_dog_extrema)");
     }
     if (!compact_kernel) {
       cl_int status = CL_SUCCESS;
@@ -823,12 +904,12 @@ struct OpenCLDoGExtrema::Impl {
       CL_MEM_READ_ONLY, plane_size * scale_count * sizeof(float));
     cl_mem mask = ensure_buffer(scratch ? scratch->mask : candidate_mask, CL_MEM_READ_WRITE, mask_count);
     cl_mem offsets = ensure_buffer(scratch ? scratch->offsets : block_offsets, CL_MEM_READ_WRITE,
-                                   block_count * sizeof(cl_uint));
+                                   (block_count + 1) * sizeof(cl_uint));
     std::vector<cl_uint> local_offsets;
     std::vector<float> local_output;
     auto &host_offsets = scratch ? scratch->host_offsets : local_offsets;
     auto &output = scratch ? scratch->output : local_output;
-    host_offsets.resize(block_count);
+    if (!scratch) host_offsets.resize(block_count);
     try {
       if (!refine_phase) {
       for (int scale = 0; scale < scale_count; ++scale) {
@@ -844,27 +925,38 @@ struct OpenCLDoGExtrema::Impl {
               0, nullptr, nullptr), "clEnqueueWriteBuffer(combined DoG)");
         }
       }
-      check_opencl(clSetKernelArg(kernel, 0, sizeof(volume), &volume), "combined extrema volume");
-      check_opencl(clSetKernelArg(kernel, 1, sizeof(mask), &mask), "combined extrema mask");
-      check_opencl(clSetKernelArg(kernel, 2, sizeof(width), &width), "combined extrema width");
-      check_opencl(clSetKernelArg(kernel, 3, sizeof(height), &height), "combined extrema height");
-      check_opencl(clSetKernelArg(kernel, 4, sizeof(scale_count), &scale_count), "combined extrema scales");
-      check_opencl(clSetKernelArg(kernel, 5, sizeof(threshold), &threshold), "combined extrema threshold");
-      const size_t dimensions[3] = {static_cast<size_t>(width - 2),
-          static_cast<size_t>(height - 2), static_cast<size_t>(scale_count - 2)};
-      check_opencl(clEnqueueNDRangeKernel(queue, kernel, 3, nullptr, dimensions,
-          nullptr, 0, nullptr, nullptr), "combined extrema launch");
-      check_opencl(clSetKernelArg(count_kernel, 0, sizeof(mask), &mask), "candidate count mask");
-      check_opencl(clSetKernelArg(count_kernel, 1, sizeof(offsets), &offsets), "candidate count output");
-      check_opencl(clSetKernelArg(count_kernel, 2, sizeof(mask_count), &mask_count), "candidate mask count");
+        check_opencl(clSetKernelArg(count_kernel, 0, sizeof(volume), &volume), "combined extrema volume");
+        check_opencl(clSetKernelArg(count_kernel, 1, sizeof(mask), &mask), "combined extrema mask");
+        check_opencl(clSetKernelArg(count_kernel, 2, sizeof(offsets), &offsets), "candidate count output");
+        check_opencl(clSetKernelArg(count_kernel, 3, sizeof(width), &width), "combined extrema width");
+        check_opencl(clSetKernelArg(count_kernel, 4, sizeof(height), &height), "combined extrema height");
+        check_opencl(clSetKernelArg(count_kernel, 5, sizeof(mask_count), &mask_count), "candidate mask count");
+        check_opencl(clSetKernelArg(count_kernel, 6, sizeof(threshold), &threshold), "combined extrema threshold");
+        const size_t local_size = 256;
+        const size_t global_size = block_count * local_size;
       check_opencl(clEnqueueNDRangeKernel(queue, count_kernel, 1, nullptr,
-          &block_count, nullptr, 0, nullptr, nullptr), "candidate count launch");
-        check_opencl(clEnqueueReadBuffer(queue, offsets, scratch ? CL_FALSE : CL_TRUE, 0,
-          block_count * sizeof(cl_uint), host_offsets.data(), 0, nullptr, nullptr),
-          "candidate block counts readback");
-        if (scratch) return {};
+          &global_size, &local_size, 0, nullptr, event_for(0)), "combined extrema count launch");
+        if (scratch) {
+          if (!scan_kernel) {
+            cl_int status = CL_SUCCESS;
+            scan_kernel = clCreateKernel(program, "scan_dog_counts", &status);
+            check_opencl(status, "clCreateKernel(scan_dog_counts)");
+          }
+          const int count = static_cast<int>(block_count);
+          check_opencl(clSetKernelArg(scan_kernel, 0, sizeof(offsets), &offsets), "scan offsets");
+          check_opencl(clSetKernelArg(scan_kernel, 1, sizeof(count), &count), "scan block count");
+          check_opencl(clEnqueueNDRangeKernel(queue, scan_kernel, 1, nullptr, &local_size,
+            &local_size, 0, nullptr, event_for(1)), "candidate scan launch");
+          check_opencl(clEnqueueReadBuffer(queue, offsets, CL_FALSE, block_count * sizeof(cl_uint),
+            sizeof(scratch->candidate_count), &scratch->candidate_count, 0, nullptr, nullptr),
+            "candidate total readback");
+        } else {
+          check_opencl(clEnqueueReadBuffer(queue, offsets, CL_TRUE, 0,
+            block_count * sizeof(cl_uint), host_offsets.data(), 0, nullptr, nullptr),
+            "candidate block counts readback");
         }
-      size_t candidate_count = 0;
+        }
+      size_t candidate_count = scratch ? scratch->candidate_capacity : 0;
       for (auto &offset : host_offsets) {
         const cl_uint count = offset;
         offset = static_cast<cl_uint>(candidate_count);
@@ -878,7 +970,7 @@ struct OpenCLDoGExtrema::Impl {
           candidate_count * sizeof(ExtremaCandidate));
         cl_mem refined = ensure_buffer(scratch ? scratch->refined : refined_candidates, CL_MEM_WRITE_ONLY,
           candidate_count * 6 * sizeof(float));
-        check_opencl(clEnqueueWriteBuffer(queue, offsets, CL_FALSE, 0,
+        if (!scratch) check_opencl(clEnqueueWriteBuffer(queue, offsets, CL_FALSE, 0,
           block_count * sizeof(cl_uint), host_offsets.data(), 0, nullptr, nullptr),
           "candidate offsets upload");
       check_opencl(clSetKernelArg(compact_kernel, 0, sizeof(volume), &volume), "compact volume");
@@ -888,20 +980,32 @@ struct OpenCLDoGExtrema::Impl {
       check_opencl(clSetKernelArg(compact_kernel, 4, sizeof(width), &width), "compact width");
       check_opencl(clSetKernelArg(compact_kernel, 5, sizeof(height), &height), "compact height");
       check_opencl(clSetKernelArg(compact_kernel, 6, sizeof(mask_count), &mask_count), "compact mask count");
-      check_opencl(clEnqueueNDRangeKernel(queue, compact_kernel, 1, nullptr,
-          &block_count, nullptr, 0, nullptr, nullptr), "compact candidates launch");
       const int count = static_cast<int>(candidate_count);
-      check_opencl(clSetKernelArg(refine_kernel, 0, sizeof(volume), &volume), "combined refine volume");
-      check_opencl(clSetKernelArg(refine_kernel, 1, sizeof(candidates), &candidates), "combined refine candidates");
-      check_opencl(clSetKernelArg(refine_kernel, 2, sizeof(refined), &refined), "combined refine output");
-      check_opencl(clSetKernelArg(refine_kernel, 3, sizeof(width), &width), "combined refine width");
-      check_opencl(clSetKernelArg(refine_kernel, 4, sizeof(height), &height), "combined refine height");
-      check_opencl(clSetKernelArg(refine_kernel, 5, sizeof(scale_count), &scale_count), "combined refine scales");
-      check_opencl(clSetKernelArg(refine_kernel, 6, sizeof(count), &count), "combined refine count");
-      check_opencl(clSetKernelArg(refine_kernel, 7, sizeof(threshold), &threshold), "combined refine threshold");
-      check_opencl(clSetKernelArg(refine_kernel, 8, sizeof(edge_limit), &edge_limit), "combined refine edge");
-      check_opencl(clEnqueueNDRangeKernel(queue, refine_kernel, 1, nullptr,
-          &candidate_count, nullptr, 0, nullptr, nullptr), "combined refinement launch");
+      check_opencl(clSetKernelArg(compact_kernel, 7, sizeof(count), &count), "compact capacity");
+      check_opencl(clEnqueueNDRangeKernel(queue, compact_kernel, 1, nullptr,
+          &block_count, nullptr, 0, nullptr, event_for(2)), "compact candidates launch");
+      if (scratch && !bounded_refine_kernel) {
+        cl_int status = CL_SUCCESS;
+        bounded_refine_kernel = clCreateKernel(program, "refine_dog_extrema_bounded", &status);
+        check_opencl(status, "clCreateKernel(refine_dog_extrema_bounded)");
+      }
+      cl_kernel refinement = scratch ? bounded_refine_kernel : refine_kernel;
+      check_opencl(clSetKernelArg(refinement, 0, sizeof(volume), &volume), "combined refine volume");
+      check_opencl(clSetKernelArg(refinement, 1, sizeof(candidates), &candidates), "combined refine candidates");
+      check_opencl(clSetKernelArg(refinement, 2, sizeof(refined), &refined), "combined refine output");
+      check_opencl(clSetKernelArg(refinement, 3, sizeof(width), &width), "combined refine width");
+      check_opencl(clSetKernelArg(refinement, 4, sizeof(height), &height), "combined refine height");
+      check_opencl(clSetKernelArg(refinement, 5, sizeof(scale_count), &scale_count), "combined refine scales");
+      check_opencl(clSetKernelArg(refinement, 6, sizeof(count), &count), "combined refine count");
+      check_opencl(clSetKernelArg(refinement, 7, sizeof(threshold), &threshold), "combined refine threshold");
+      check_opencl(clSetKernelArg(refinement, 8, sizeof(edge_limit), &edge_limit), "combined refine edge");
+      if (scratch) {
+        const int count_offset = static_cast<int>(block_count);
+        check_opencl(clSetKernelArg(refinement, 9, sizeof(offsets), &offsets), "bounded refine counts");
+        check_opencl(clSetKernelArg(refinement, 10, sizeof(count_offset), &count_offset), "bounded refine count offset");
+      }
+      check_opencl(clEnqueueNDRangeKernel(queue, refinement, 1, nullptr,
+          &candidate_count, nullptr, 0, nullptr, event_for(3)), "combined refinement launch");
         output.resize(candidate_count * 6);
         check_opencl(clEnqueueReadBuffer(queue, refined, scratch ? CL_FALSE : CL_TRUE, 0,
           output.size() * sizeof(float), output.data(), 0, nullptr, nullptr),
@@ -996,6 +1100,8 @@ struct OpenCLDoGExtrema::Impl {
   }
 
   ~Impl() {
+    if (scan_kernel) clReleaseKernel(scan_kernel);
+    if (bounded_refine_kernel) clReleaseKernel(bounded_refine_kernel);
     if (packed_gradient_kernel) clReleaseKernel(packed_gradient_kernel);
     for (auto *buffer : {&dog_volume, &candidate_mask, &block_offsets,
                          &compact_candidates, &refined_candidates})
@@ -1278,15 +1384,44 @@ std::vector<ScaleSpaceKeypoint> OpenCLDoGExtrema::detect_pyramid_impl(
       impl_->detection_scratch.resize(octave_count);
     try {
       for (int phase = 0; phase < 2; ++phase) {
+        bool submitted = false;
         for (int octave = 0; octave < octave_count; ++octave) {
           auto &scratch = impl_->detection_scratch[octave];
           if (!scratch) scratch = std::make_unique<Impl::DetectionScratch>();
+          if (phase == 1) {
+            if (scratch->candidate_count <= scratch->candidate_capacity) continue;
+            if (scratch->candidate_count > static_cast<size_t>(std::numeric_limits<int>::max()) / 6)
+              throw std::overflow_error("Too many refined candidates");
+            scratch->candidate_capacity = scratch->candidate_count;
+          }
           const size_t offset = static_cast<size_t>(octave) * levels_per_octave;
           impl_->detect_refine(dog_levels.data() + offset,
             static_cast<int>(levels_per_octave), contrast_threshold, edge_limit,
             device_levels->data() + offset, scratch.get(), phase == 1);
+          submitted = true;
         }
-        check_opencl(clFinish(impl_->queue), "batched detection phase completion");
+        if (submitted) check_opencl(clFinish(impl_->queue), "batched detection phase completion");
+      }
+      for (int octave = 0; octave < octave_count; ++octave) {
+        auto &scratch = impl_->detection_scratch[octave];
+        scratch->output.resize(static_cast<size_t>(scratch->candidate_count) * 6);
+      }
+      if (impl_->profile_features) {
+        double stage_ms[4]{};
+        for (int octave = 0; octave < octave_count; ++octave) {
+          for (int stage = 0; stage < 4; ++stage) {
+            const auto event = impl_->detection_scratch[static_cast<size_t>(octave)]->events[stage];
+            if (!event) continue;
+            cl_ulong start = 0, end = 0;
+            check_opencl(clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START,
+              sizeof(start), &start, nullptr), "profile detection start");
+            check_opencl(clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END,
+              sizeof(end), &end, nullptr), "profile detection end");
+            stage_ms[stage] += static_cast<double>(end - start) * 1.0e-6;
+          }
+        }
+        std::fprintf(stderr, "OPENCL_DETECTION_PROFILE extrema_count_device_ms=%.3f scan_device_ms=%.3f compact_device_ms=%.3f refine_device_ms=%.3f\n",
+          stage_ms[0], stage_ms[1], stage_ms[2], stage_ms[3]);
       }
     } catch (...) {
       clFinish(impl_->queue);

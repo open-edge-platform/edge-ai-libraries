@@ -240,6 +240,38 @@ runner `results/20261102/arc-opencl-milestone.sh`, local reports
 `~/.local/share/sift-extractor-staging/arc-compaction-d266f47fcec2f0d8`.
 Manifest SHA256: `d266f47fcec2f0d852662e08c6e4453a2c2e0c28f9975439e9480ca7b8f6603b`.
 
+### Device Candidate Scan
+
+Resident detection now fuses extrema testing and integer block counting, scans
+counts on-device in stable mask order, and uses retained candidate capacity.
+Compaction and refinement are bounded by that capacity. The actual count is read
+with the output; overflow grows capacity and reruns compaction/refinement before
+returning any records. No candidates are silently dropped. Normal retained calls
+need one detector completion wait, while growth can need a second. Host-reference
+detection remains synchronous, and refinement arithmetic is shared unchanged.
+
+`SIFT_OPENCL_PROFILE=1` additionally emits `OPENCL_DETECTION_PROFILE` with fused
+extrema/count, scan, compact and refine device-event times. On growth calls,
+compact/refine fields describe the final attempts, not the discarded bounded
+attempts. Wall timing includes all attempts. Profiling adds no events or waits
+when disabled. Device-event and wall times overlap and must not be added.
+
+All 10 local tests, the profiled detector/refinement tests, and Arc's expanded
+capacity grow/shrink/blank regression and 30 matrix cases pass. Matching-quality
+records are exactly identical for each paired configuration. Against `c0907703b`,
+60 pooled samples/build give isolated unlimited VGA 7.453 -> 6.969ms (143.48 FPS)
+and 1080p 19.486 -> 19.294ms (51.83 FPS). Rotated medians are VGA unlimited
+8.700 -> 8.461ms, VGA500 8.158 -> 7.667ms, 1080p unlimited 25.216 -> 25.943ms
+(2.9% regression), and 1080p500 18.917 -> 18.384ms. The gain is primarily VGA;
+this is not a uniform speedup. Both raw reference targets remain unmet, and one
+fixture does not establish broad quality parity.
+
+Evidence: SIFT workspace `results/20261102/arc-device-scan-summary.json`; reports
+`/tmp/sift-arc-device-scan-results.MII3BN`; payload `/tmp/sift-arc-device-scan.eTiKhb`;
+remote stage `~/.local/share/sift-extractor-staging/arc-device-scan-f6e82b29d9fbbf99`.
+Manifest SHA256: `f6e82b29d9fbbf992436a1f6af8af25cbb34c3e0e75c54b6a00354b2889cde69`.
+All five returned executable hashes matched the staged binaries.
+
 ### Packed Gradient Launch
 
 Gaussian levels now use aligned views of a retained backing buffer when its
