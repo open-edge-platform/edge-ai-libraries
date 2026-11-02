@@ -17,6 +17,12 @@ providers:
     # whenever the routing policy fails to match any provider. If no provider
     # sets this, a request that matches no provider is rejected with an error.
     fallback: true
+    # Optional. Names of postrouting/postresponse plugin instances (defined
+    # under `plugins` below) that run only for requests routed to this
+    # provider. Providers listing the same name share one instance. Plugins
+    # listed by no provider run for every provider; prerouting plugins cannot
+    # be listed (they always run for every request).
+    # plugins: ["compressor_harness"]
     metadata:
       labels:
         - "planning"
@@ -116,6 +122,7 @@ providers:
 #        compress_min_chars: 200
 #        timeout: 60.0
 #        enable_quantum_lock: false
+#        metrics_keys: ["provider"]   # optional: split metrics by provider (postrouting only)
 #    # The context compressor is experimental and is disabled by default.
 #    - name: "compressor_context"
 #      node: "compressor"

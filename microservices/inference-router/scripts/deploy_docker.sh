@@ -26,6 +26,9 @@
 #                  empty, i.e. use locally built images). Set e.g. REGISTRY=intel/
 #                  to pull prebuilt images from a remote registry instead.
 #   TAG            Image tag for both images (default: latest).
+#   GATEWAY_MAX_CONCURRENCY
+#                  Max concurrent in-flight requests; excess get HTTP 429.
+#                  Default: 0 (unlimited).
 #
 # With no REGISTRY set the deploy uses the local ${REGISTRY}inference-router:${TAG}
 # image (build it first with --build). When REGISTRY is set the image is pulled
@@ -180,17 +183,6 @@ if [ -z "${IR_OV_MODEL:-}" ]; then
     exit 1
 fi
 
-# Seed workspace with rsd policy/strategy defaults if the operator hasn't
-# provided overrides. The rsd module prefers workspace copies and falls back
-# to the bundled files under src/rsd, so this just surfaces them for editing.
-mkdir -p "$PROJECT_ROOT/workspace"
-for yaml_file in policy.yaml strategy.yaml; do
-    if [ ! -f "$PROJECT_ROOT/workspace/$yaml_file" ]; then
-        echo "workspace/$yaml_file not found; copying default from src/rsd"
-        cp "$PROJECT_ROOT/src/rsd/$yaml_file" "$PROJECT_ROOT/workspace/$yaml_file"
-    fi
-done
-
 mkdir -p "$PROJECT_ROOT/workspace/logs"
 
 # ---- Export environment for docker compose ----
@@ -199,6 +191,7 @@ export ROUTER_PORT
 export IR_BIND_HOST
 export GATEWAY_VERBOSE
 export GATEWAY_VERBOSE_FULL
+export GATEWAY_MAX_CONCURRENCY="${GATEWAY_MAX_CONCURRENCY:-0}"
 export IR_OV_MODEL
 # Image reference the compose file interpolates: ${REGISTRY}inference-router:${TAG}
 export REGISTRY
@@ -232,6 +225,11 @@ echo "  OV model:         $IR_OV_MODEL"
 echo "  OV device:        $IR_DEVICE"
 [ -n "$GATEWAY_VERBOSE" ]           && echo "  Verbose:          enabled"
 [ -n "$GATEWAY_VERBOSE_FULL" ]      && echo "  Verbose full:     enabled"
+if [ "$GATEWAY_MAX_CONCURRENCY" -gt 0 ] 2>/dev/null; then
+    echo "  Max concurrency:  $GATEWAY_MAX_CONCURRENCY"
+else
+    echo "  Max concurrency:  unlimited"
+fi
 if [ "$WITH_UI" = true ]; then
     echo "  UI image:         $UI_IMAGE_REF"
     echo "  UI port:          $UI_PORT (listens on all interfaces: local + remote)"
@@ -278,6 +276,34 @@ else
     fi
     echo "Using local image: $IMAGE_REF"
 fi
+
+# ---- Seed workspace policy/strategy defaults from the router image ----
+# The rsd module prefers workspace copies and falls back to the files bundled
+# in the image, so this just surfaces them for editing. Copying from the image
+# (not the local checkout) keeps the seeded defaults matched to the router
+# version being deployed, including pulled images. The image's /app is hidden
+# by the workspace mount at runtime, so read it from a created (never started)
+# container, which has no mounts.
+IMAGE_RSD_DIR="/app/src/rsd"
+seed_rsd_defaults() {
+    local missing=() yaml_file cid
+    for yaml_file in policy.yaml strategy.yaml; do
+        [ -f "$PROJECT_ROOT/workspace/$yaml_file" ] || missing+=("$yaml_file")
+    done
+    [ ${#missing[@]} -eq 0 ] && return 0
+
+    cid="$(docker create "$IMAGE_REF")"
+    for yaml_file in "${missing[@]}"; do
+        echo "workspace/$yaml_file not found; copying default from image $IMAGE_REF"
+        if ! docker cp "$cid:$IMAGE_RSD_DIR/$yaml_file" "$PROJECT_ROOT/workspace/$yaml_file"; then
+            docker rm "$cid" >/dev/null
+            echo "Error: failed to copy $IMAGE_RSD_DIR/$yaml_file from $IMAGE_REF"
+            exit 1
+        fi
+    done
+    docker rm "$cid" >/dev/null
+}
+seed_rsd_defaults
 
 # ---- Obtain the UI image: same policy as the router image ----
 if [ "$WITH_UI" = true ]; then

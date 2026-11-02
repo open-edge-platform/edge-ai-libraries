@@ -9,7 +9,8 @@ compressor kinds. The kind is chosen per instance by ``settings.type``
 factory ``adaptive_token_compressor.create_compressor``. Every instance shares
 one process-wide ``CompressionManager`` for caching + metrics aggregation;
 per-instance metrics surface via ``describe()`` and cross-instance ``overall.*``
-metrics via ``describe_node()``.
+metrics via ``describe_node()``. ``settings.metrics_keys`` additionally splits
+an instance's metrics by request attributes (currently only ``provider``).
 """
 
 from __future__ import annotations
@@ -152,6 +153,14 @@ DEFAULT_PER_COMPRESSOR_METRICS = [
     "avg_duration_per_call",
 ]
 
+# Keys `settings.metrics_keys` may list. The router supplies each key's value per
+# request through the ``metrics_values`` keyword (see RouterOrchestrator).
+SUPPORTED_METRICS_KEYS = frozenset({"provider"})
+
+# Only postrouting compressors both run and know the provider, so only they can
+# be keyed (prerouting precedes routing; postresponse/standalone never compress).
+_KEYED_TRIGGER = "postrouting"
+
 # Prefix for cross-compressor metrics (registered by the group finalizer).
 _OVERALL_PREFIX = "overall"
 
@@ -268,7 +277,9 @@ def _log_metrics(plugin_name: str, ctype: str, result: Any) -> None:
 # ─────────────────────────────────────────────────────────────────────────
 
 # Settings keys that are router concerns, NOT library constructor params.
-_COMMON_KEYS = frozenset({"type", "cache_size", "metrics", "extra_config"})
+_COMMON_KEYS = frozenset(
+    {"type", "cache_size", "metrics", "metrics_keys", "extra_config"}
+)
 
 
 class _CompressorConfig(BaseModel):
@@ -281,6 +292,7 @@ class _CompressorConfig(BaseModel):
     type: str  # "harness" | "tool" | "context"
     cache_size: int = Field(default=4096, ge=0)
     metrics: List[str] = Field(default_factory=list)  # see SUPPORTED_METRICS
+    metrics_keys: List[str] = Field(default_factory=list)  # see SUPPORTED_METRICS_KEYS
 
 
 def _library_params(config: _CompressorConfig) -> Dict[str, Any]:
@@ -301,7 +313,8 @@ class CompressorPlugin(PluginBaseNode):
 
     ``node = "compressor"``; ``settings.type`` selects the kind (harness / tool /
     context). Per-instance metrics fold into ``describe()``; cross-instance
-    ``overall.*`` metrics into ``describe_node()``.
+    ``overall.*`` metrics into ``describe_node()``. ``settings.metrics_keys``
+    splits both by key under ``metrics_by_keys``.
     """
 
     def __init__(
@@ -362,6 +375,15 @@ class CompressorPlugin(PluginBaseNode):
         allowed = set(properties)
         provided_lib_keys = {k for k in settings if k not in _COMMON_KEYS}
 
+        metrics_keys = settings.get("metrics_keys") or []
+        if not isinstance(metrics_keys, list):
+            raise PluginSchemaError(
+                f"compressor: settings.metrics_keys must be a list, got {metrics_keys!r}"
+            )
+        unsupported_keys = sorted(
+            str(k) for k in metrics_keys if k not in SUPPORTED_METRICS_KEYS
+        )
+
         unknown = sorted(provided_lib_keys - allowed)
         missing = sorted(required - provided_lib_keys)
         bad_enum: List[str] = []
@@ -379,6 +401,11 @@ class CompressorPlugin(PluginBaseNode):
             errors.append(f"missing required params: {missing}")
         if bad_enum:
             errors.append("invalid enum values: " + "; ".join(bad_enum))
+        if unsupported_keys:
+            errors.append(
+                f"unsupported metrics_keys: {unsupported_keys} "
+                f"(supported: {sorted(SUPPORTED_METRICS_KEYS)})"
+            )
         if errors:
             raise PluginSchemaError(
                 f"Invalid settings for compressor type {ctype!r}: " + " | ".join(errors)
@@ -387,6 +414,7 @@ class CompressorPlugin(PluginBaseNode):
         # Inject constructor defaults surfaced by the library schema so
         # `_library_params` forwards explicit values to create_compressor.
         merged = dict(settings)
+        merged["metrics_keys"] = list(dict.fromkeys(metrics_keys))
         for key, fragment in properties.items():
             if key not in merged and "default" in fragment:
                 merged[key] = fragment["default"]
@@ -402,6 +430,14 @@ class CompressorPlugin(PluginBaseNode):
         """Build the library compressor for ``settings.type`` and register it."""
         s = self.parsed_settings
         self._ctype: str = s.type
+        self.metrics_keys: List[str] = list(s.metrics_keys)
+
+        if self.metrics_keys and self.trigger != _KEYED_TRIGGER:
+            raise PluginSchemaError(
+                f"compressor '{self.name}': settings.metrics_keys is not supported at "
+                f"trigger={self.trigger}; only {_KEYED_TRIGGER} compressors can split "
+                "metrics by key."
+            )
 
         # Compressors only act on requests; at postresponse they are a no-op.
         if self.trigger == "postresponse":
@@ -508,8 +544,7 @@ class CompressorPlugin(PluginBaseNode):
     def describe(self) -> Dict[str, Any]:
         """Instance view + this compressor's own (source-scoped) metrics.
 
-        ``metrics_by_keys`` is ``None`` unless the instance is postrouting
-        (only postrouting compressors are split by key).
+        ``metrics_by_keys`` is ``None`` unless ``settings.metrics_keys`` is set.
         """
         def instance_only(snapshot: Dict[str, float]) -> Dict[str, float]:
             return {
@@ -531,7 +566,7 @@ class CompressorPlugin(PluginBaseNode):
                         source=self.name
                     ).items()
                 }
-                if self.trigger == "postrouting"
+                if self.metrics_keys
                 else None
             ),
         }
@@ -540,7 +575,7 @@ class CompressorPlugin(PluginBaseNode):
     def describe_node(cls) -> Dict[str, Any]:
         """Node view + metrics across ALL compressor instances (incl. overall.*).
 
-        ``metrics_by_keys`` covers postrouting compressors only.
+        ``metrics_by_keys`` covers compressors with ``settings.metrics_keys`` only.
         """
         return {
             **cls.node_metadata(),

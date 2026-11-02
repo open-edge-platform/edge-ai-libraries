@@ -151,8 +151,20 @@ export interface PolicyConfigPayload {
   strategies: string[];
 }
 
+export interface StrategyClassifierVersion {
+  version: string;
+  kind?: string;
+  text?: string | null;
+}
+
+export interface StrategyClassifierOption {
+  model: string;
+  versions?: StrategyClassifierVersion[];
+}
+
 export interface StrategyConfigRow extends Record<string, unknown> {
   name: string;
+  classifier_options?: StrategyClassifierOption[];
 }
 
 export type StrategyConfigDialogType = "create" | "edit";

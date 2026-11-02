@@ -15,8 +15,9 @@ endpoint.
 - LiteLLM-backed provider support for local, hosted, and cloud inference backends.
 - Policy-based routing through strategies and policies in [src/rsd](src/rsd).
 - Pre-routing, post-routing and post-response plugin hooks.
-- Optional prompt-compression plugins (tool-schema filtering and system-prompt
-  compression) backed by [adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor).
+- Optional prompt-compression plugins (tool-schema filtering, system-prompt
+  compression, and experimental conversation-context compression) backed by
+  [adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor).
 - Per-provider telemetry for requests, tokens, latency, TTFT, and TPOT.
 - Environment variable expansion in configuration values.
 
@@ -134,13 +135,15 @@ By default the UI is available at `http://<SERVER_HOST>:7010`. Stop it with
 
 ## Optional Compression Plugins
 
-Optional compression plugins (`tool` and `harness`) can cut prompt tokens
-before requests reach the backend. They need a compress server and a tool
-predictor started separately, then enabled under `plugins` in your config. See
+Optional compression plugins (`tool`, `harness`, and experimental `context`) can cut prompt
+tokens before requests reach the backend.
+
+Deploy the tool predictor for `tool` and the compress server for `harness`
+separately, then enable the desired plugins under `plugins` in your config. See
 [Optional: Compression Plugins](docs/user-guide/get-started.md#optional-compression-plugins)
-for setup and the
+for plugin setup and the
 [adaptive-token-compressor](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/adaptive-token-compressor)
-repository for those services.
+repository for tool predictor and compress server setup.
 
 ## Learn More
 

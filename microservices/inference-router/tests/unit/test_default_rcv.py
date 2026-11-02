@@ -5,7 +5,7 @@
 
 Every known backbone ships one version with the code, ``v1``, which a strategy
 refers to as ``default``. It is packed from the trained flat artifacts by
-``tools/pack_rcv.py``. These tests pin what the files must say; the backbone
+``src/rsd/model_based/pack_rcv.py``. These tests pin what the files must say; the backbone
 fingerprint itself is checked against a real IR in
 ``tests/integration/test_default_rcv_fingerprint.py``.
 """

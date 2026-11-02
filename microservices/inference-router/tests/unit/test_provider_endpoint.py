@@ -535,3 +535,36 @@ def test_provider_write_is_atomic_and_leaves_no_temp_file(
     assert response.status_code == 200
     # No stray temp file survives a successful atomic rename.
     assert list(tmp_path.glob("*.tmp")) == []
+
+
+def test_provider_plugins_attach_persist_and_validate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from src.config import PluginConfig
+
+    monkeypatch.setattr(_config_runtime, "RouterOrchestrator", FakeOrchestrator)
+    config_path = tmp_path / "config.yaml"
+    config = _build_config()
+    config.plugins = [
+        PluginConfig(name="comp", node="dummy_logger", trigger="postrouting", settings={}),
+        PluginConfig(name="pre", node="dummy_logger", trigger="prerouting", settings={}),
+    ]
+    _write_config(config_path, config)
+    client = make_test_client(config=config, config_path=config_path)
+
+    attached = client.post("/v1/providers/provider-alpha", json={"plugins": ["comp"]})
+    unknown = client.post("/v1/providers/provider-alpha", json={"plugins": ["nope"]})
+    prerouting = client.post("/v1/providers/provider-alpha", json={"plugins": ["pre"]})
+
+    assert attached.status_code == 200
+    assert attached.json()["plugins"] == ["comp"]
+    assert client.get("/v1/providers/provider-alpha").json()["plugins"] == ["comp"]
+    assert unknown.status_code == 400
+    assert prerouting.status_code == 400
+    persisted = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    assert persisted["providers"][0]["plugins"] == ["comp"]
+
+    # Omitting `plugins` on update keeps the attachment.
+    client.post("/v1/providers/provider-alpha", json={"enabled": True})
+    persisted = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    assert persisted["providers"][0]["plugins"] == ["comp"]
