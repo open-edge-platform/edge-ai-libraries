@@ -337,7 +337,7 @@ int main() {
       const auto features = detector.compute_descriptors(host_levels.gaussian[group], oriented);
       host_features.insert(host_features.end(), features.begin(), features.end());
     }
-    if (host_features.size() != image_features.size()) return 1;
+    if (host_features.size() != image_features.size() || host_features.size() <= host_points.size()) return 1;
     for (size_t index = 0; index < image_features.size(); ++index) {
       const auto &actual = image_features[index];
       const auto &expected = host_features[index];
@@ -348,7 +348,7 @@ int main() {
           actual.point.orientation_degrees != expected.point.orientation_degrees ||
           actual.descriptor != expected.descriptor) return 1;
     }
-    std::printf("Resident pyramid feature records exactly match the host pipeline\n");
+    std::printf("Resident pyramid feature records exactly match the host pipeline after orientation-capacity growth\n");
     for (int detector_width : {texture_width, texture_width - 1}) {
       const std::vector<float> detector_image(texture.begin(),
         texture.begin() + static_cast<size_t>(detector_width) * texture_height);

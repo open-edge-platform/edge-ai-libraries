@@ -321,7 +321,8 @@ __kernel void sift_orientations(__global const float *magnitude,
                                 __global const float *points,
                                 __global float *output,
                                 const int fixed_width, const int fixed_height,
-                                __global const int *layout) {
+                                __global const int *layout,
+                                __global uint *counts) {
   #if SIFT_DESCRIPTOR_LANES > 1
   const int index = (int)get_group_id(0);
   const int lane = (int)get_local_id(0);
@@ -434,6 +435,7 @@ __kernel void sift_orientations(__global const float *magnitude,
   }
   float peak = 0.0f;
   for (int bin = 0; bin < 36; ++bin) peak = fmax(peak, hist[bin]);
+  uint orientation_count = 0;
   for (int bin = 0; bin < 36; ++bin) {
     output[index * 36 + bin] = -1.0f;
     const float left = hist[(bin + 35) % 36];
@@ -444,8 +446,10 @@ __kernel void sift_orientations(__global const float *magnitude,
       const float offset = fabs(denominator) > 1e-20f ?
                             0.5f * (left - right) / denominator : 0.0f;
       output[index * 36 + bin] = fmod(((float)bin + offset + 36.0f) * 10.0f, 360.0f);
+      ++orientation_count;
     }
   }
+  if (counts) counts[index] = orientation_count;
   }
 }
 
@@ -454,9 +458,11 @@ __kernel void sift_descriptors(__global const float *magnitude,
                                __global const float *points,
                                __global float *output,
                                const int fixed_width, const int fixed_height,
-                               __global const int *layout) {
+                               __global const int *layout,
+                               __global const uint *counts, const int count_offset) {
   const int lane = (int)get_local_id(0);
   const int index = (int)get_group_id(0);
+  if (counts && (uint)index >= counts[count_offset]) return;
   const int width = fixed_width > 0 ? fixed_width : layout[index * 3];
   const int height = fixed_width > 0 ? fixed_height : layout[index * 3 + 1];
   const int image_offset = fixed_width > 0 ? 0 : layout[index * 3 + 2];
@@ -576,6 +582,30 @@ __kernel void sift_descriptors(__global const float *magnitude,
     output[index * 128 + bin] = hist[bin] * inverse_clipped_norm;
   }
 }
+
+__kernel void pack_orientations(__global const float *points,
+                                 __global const float *angles,
+                                 __global const int *layout,
+                                 __global const uint *offsets,
+                                 __global float *packed,
+                                 __global int *packed_layout,
+                                 const int point_count, const int capacity) {
+  const int index = (int)get_global_id(0);
+  if (index >= point_count) return;
+  uint destination = offsets[index];
+  for (int bin = 0; bin < 36; ++bin) {
+    const float angle = angles[index * 36 + bin];
+    if (!(angle >= 0.0f)) continue;
+    if (destination < (uint)capacity) {
+      for (int coordinate = 0; coordinate < 3; ++coordinate) {
+        packed[destination * 4 + coordinate] = points[index * 4 + coordinate];
+        packed_layout[destination * 3 + coordinate] = layout[index * 3 + coordinate];
+      }
+      packed[destination * 4 + 3] = angle;
+    }
+    ++destination;
+  }
+}
 )CLC";
 
 void check_opencl(cl_int status, const char *operation) {
@@ -634,11 +664,16 @@ struct OpenCLDoGExtrema::Impl {
   struct FeatureScratch {
     Buffer magnitude, orientation, points, output, layout;
     Buffer gradient_layout;
+    Buffer counts, descriptor_points, descriptor_layout, descriptors;
+    size_t descriptor_capacity = 0;
     cl_event event = nullptr;
+    cl_event descriptor_event = nullptr;
     ~FeatureScratch() {
-      for (auto *buffer : {&magnitude, &orientation, &points, &output, &layout, &gradient_layout})
+      for (auto *buffer : {&magnitude, &orientation, &points, &output, &layout, &gradient_layout,
+               &counts, &descriptor_points, &descriptor_layout, &descriptors})
         if (buffer->memory) clReleaseMemObject(buffer->memory);
       if (event) clReleaseEvent(event);
+      if (descriptor_event) clReleaseEvent(descriptor_event);
     }
   };
   std::vector<std::unique_ptr<FeatureScratch>> feature_scratch;
@@ -676,6 +711,7 @@ struct OpenCLDoGExtrema::Impl {
   cl_kernel packed_gradient_kernel = nullptr;
   cl_kernel orientation_kernel = nullptr;
   cl_kernel descriptor_kernel = nullptr;
+  cl_kernel orientation_pack_kernel = nullptr;
   size_t descriptor_lanes = 16;
   size_t orientation_lanes = 64;
   bool profile_features = false;
@@ -775,17 +811,20 @@ struct OpenCLDoGExtrema::Impl {
       if (!scratch) continue;
       scratch_bytes += scratch->magnitude.capacity + scratch->orientation.capacity +
         scratch->points.capacity + scratch->output.capacity + scratch->layout.capacity +
-        scratch->gradient_layout.capacity;
-      if (!scratch->event) continue;
+        scratch->gradient_layout.capacity + scratch->counts.capacity +
+        scratch->descriptor_points.capacity + scratch->descriptor_layout.capacity + scratch->descriptors.capacity;
+      auto &event = std::string(name) == "sift_descriptors" && scratch->descriptor_event
+        ? scratch->descriptor_event : scratch->event;
+      if (!event) continue;
       cl_ulong start = 0, end = 0;
-      check_opencl(clGetEventProfilingInfo(scratch->event, CL_PROFILING_COMMAND_START,
+      check_opencl(clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START,
         sizeof(start), &start, nullptr), "profile batch start");
-      check_opencl(clGetEventProfilingInfo(scratch->event, CL_PROFILING_COMMAND_END,
+      check_opencl(clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END,
         sizeof(end), &end, nullptr), "profile batch end");
       device_ms += static_cast<double>(end - start) * 1.0e-6;
       ++groups;
-      clReleaseEvent(scratch->event);
-      scratch->event = nullptr;
+      clReleaseEvent(event);
+      event = nullptr;
     }
     std::fprintf(stderr, "OPENCL_BATCH_FEATURE_PROFILE kernel=%s groups=%zu device_ms=%.3f scratch_bytes=%zu\n",
       name, groups, device_ms, scratch_bytes);
@@ -832,7 +871,7 @@ struct OpenCLDoGExtrema::Impl {
     cl_mem points_buffer = ensure_buffer(scratch ? scratch->points : feature_points, CL_MEM_READ_ONLY,
                         points.size() * sizeof(float));
     std::vector<float> output(count * output_stride);
-    cl_mem output_buffer = ensure_buffer(scratch ? scratch->output : feature_output, CL_MEM_WRITE_ONLY,
+    cl_mem output_buffer = ensure_buffer(scratch ? scratch->output : feature_output, CL_MEM_READ_WRITE,
                         output.size() * sizeof(float));
     cl_mem layout_buffer = layout ? ensure_buffer(scratch->layout, CL_MEM_READ_ONLY,
       layout->size() * sizeof(int)) : points_buffer;
@@ -852,6 +891,13 @@ struct OpenCLDoGExtrema::Impl {
     check_opencl(clSetKernelArg(feature_kernel, 5, sizeof(int), &level.height), "feature height arg");
     check_opencl(clSetKernelArg(feature_kernel, 6, sizeof(cl_mem), &layout_buffer), "feature layout arg");
     const bool descriptors = std::string(name) == "sift_descriptors";
+    cl_mem counts = !descriptors && scratch ? ensure_buffer(scratch->counts, CL_MEM_READ_WRITE,
+      (count + 1) * sizeof(cl_uint)) : nullptr;
+    check_opencl(clSetKernelArg(feature_kernel, 7, sizeof(counts), &counts), "feature count buffer");
+    if (descriptors) {
+      const int count_offset = 0;
+      check_opencl(clSetKernelArg(feature_kernel, 8, sizeof(count_offset), &count_offset), "feature count offset");
+    }
     const size_t local_size = descriptors ? descriptor_lanes : orientation_lanes;
     const size_t global_size = count * local_size;
     if (scratch && scratch->event) {
@@ -877,6 +923,84 @@ struct OpenCLDoGExtrema::Impl {
     if (std::string(name) == "sift_descriptors")
       gradients_ready = false;
     return output;
+    } catch (...) {
+      clFinish(queue);
+      throw;
+    }
+  }
+
+  std::vector<float> resident_descriptors(FeatureScratch &scratch, size_t point_count) {
+    const size_t limit = static_cast<size_t>(std::numeric_limits<int>::max()) / 128;
+    if (point_count > static_cast<size_t>(std::numeric_limits<int>::max()) / 36)
+      throw std::overflow_error("Too many resident orientation points");
+    std::vector<float> output;
+    cl_uint total = 0;
+    try {
+      for (auto entry : {std::make_pair(&orientation_pack_kernel, "pack_orientations"),
+                         std::make_pair(&scan_kernel, "scan_dog_counts")}) {
+        if (*entry.first) continue;
+        cl_int status = CL_SUCCESS;
+        *entry.first = clCreateKernel(program, entry.second, &status);
+        check_opencl(status, "clCreateKernel(resident orientations)");
+      }
+      cl_mem counts = scratch.counts.memory;
+      const int count = static_cast<int>(point_count);
+      check_opencl(clSetKernelArg(scan_kernel, 0, sizeof(counts), &counts), "orientation scan buffer");
+      check_opencl(clSetKernelArg(scan_kernel, 1, sizeof(count), &count), "orientation scan points");
+      const size_t scan_size = 256;
+      check_opencl(clEnqueueNDRangeKernel(queue, scan_kernel, 1, nullptr,
+        &scan_size, &scan_size, 0, nullptr, nullptr), "orientation scan launch");
+      check_opencl(clEnqueueReadBuffer(queue, counts, CL_FALSE, point_count * sizeof(cl_uint),
+        sizeof(total), &total, 0, nullptr, nullptr), "oriented count readback");
+      scratch.descriptor_capacity = std::min(limit, std::max(scratch.descriptor_capacity, point_count));
+      for (int attempt = 0; attempt < 2; ++attempt) {
+        const int capacity = static_cast<int>(scratch.descriptor_capacity);
+        cl_mem points = ensure_buffer(scratch.descriptor_points, CL_MEM_READ_WRITE,
+          scratch.descriptor_capacity * 4 * sizeof(float));
+        cl_mem layout = ensure_buffer(scratch.descriptor_layout, CL_MEM_READ_WRITE,
+          scratch.descriptor_capacity * 3 * sizeof(int));
+        cl_mem descriptors = ensure_buffer(scratch.descriptors, CL_MEM_WRITE_ONLY,
+          scratch.descriptor_capacity * 128 * sizeof(float));
+        const cl_mem memories[] = {scratch.points.memory, scratch.output.memory, scratch.layout.memory,
+                                  counts, points, layout};
+        for (cl_uint argument = 0; argument < 6; ++argument)
+          check_opencl(clSetKernelArg(orientation_pack_kernel, argument, sizeof(cl_mem),
+            &memories[argument]), "orientation packing memory");
+        check_opencl(clSetKernelArg(orientation_pack_kernel, 6, sizeof(count), &count), "orientation packing count");
+        check_opencl(clSetKernelArg(orientation_pack_kernel, 7, sizeof(capacity), &capacity), "orientation packing capacity");
+        check_opencl(clEnqueueNDRangeKernel(queue, orientation_pack_kernel, 1, nullptr,
+          &point_count, nullptr, 0, nullptr, nullptr), "orientation packing launch");
+        cl_kernel descriptor = get_feature_kernel("sift_descriptors");
+        const cl_mem descriptor_memories[] = {scratch.magnitude.memory, scratch.orientation.memory, points, descriptors};
+        for (cl_uint argument = 0; argument < 4; ++argument)
+          check_opencl(clSetKernelArg(descriptor, argument, sizeof(cl_mem), &descriptor_memories[argument]),
+            "resident descriptor memory");
+        const int zero = 0;
+        check_opencl(clSetKernelArg(descriptor, 4, sizeof(zero), &zero), "resident descriptor width");
+        check_opencl(clSetKernelArg(descriptor, 5, sizeof(zero), &zero), "resident descriptor height");
+        check_opencl(clSetKernelArg(descriptor, 6, sizeof(layout), &layout), "resident descriptor layout");
+        check_opencl(clSetKernelArg(descriptor, 7, sizeof(counts), &counts), "resident descriptor counts");
+        check_opencl(clSetKernelArg(descriptor, 8, sizeof(count), &count), "resident descriptor count offset");
+        const size_t global_size = scratch.descriptor_capacity * descriptor_lanes;
+        if (scratch.descriptor_event) {
+          clReleaseEvent(scratch.descriptor_event);
+          scratch.descriptor_event = nullptr;
+        }
+        check_opencl(clEnqueueNDRangeKernel(queue, descriptor, 1, nullptr, &global_size,
+          &descriptor_lanes, 0, nullptr, profile_features ? &scratch.descriptor_event : nullptr),
+          "resident descriptor launch");
+        output.resize(scratch.descriptor_capacity * 128);
+        check_opencl(clEnqueueReadBuffer(queue, descriptors, CL_FALSE, 0,
+          output.size() * sizeof(float), output.data(), 0, nullptr, nullptr), "resident descriptor readback");
+        check_opencl(clFinish(queue), "resident feature completion");
+        if (total <= scratch.descriptor_capacity) {
+          output.resize(static_cast<size_t>(total) * 128);
+          return output;
+        }
+        if (total > limit) throw std::overflow_error("Too many resident descriptors");
+        scratch.descriptor_capacity = total;
+      }
+      throw std::logic_error("Resident descriptor capacity retry failed");
     } catch (...) {
       clFinish(queue);
       throw;
@@ -1154,6 +1278,7 @@ struct OpenCLDoGExtrema::Impl {
   }
 
   ~Impl() {
+    if (orientation_pack_kernel) clReleaseKernel(orientation_pack_kernel);
     if (scan_kernel) clReleaseKernel(scan_kernel);
     if (bounded_refine_kernel) clReleaseKernel(bounded_refine_kernel);
     if (packed_gradient_kernel) clReleaseKernel(packed_gradient_kernel);
@@ -1628,7 +1753,6 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
   std::vector<float> packed, angles, descriptors;
   std::vector<int> layout, gradient_layout, image_offsets(groups.size());
   std::vector<ScaleSpaceKeypoint> ordered_points;
-  std::vector<size_t> point_groups;
   std::vector<OrientedKeypoint> oriented;
   size_t gradient_count = 0;
   for (size_t group = 0; group < groups.size(); ++group) {
@@ -1698,7 +1822,6 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
       if (groups[group].empty()) continue;
       for (const auto &point : groups[group]) {
         ordered_points.push_back(point);
-        point_groups.push_back(group);
         packed.insert(packed.end(),
           {point.local.x, point.local.y, point.octave_sigma, 0.0f});
         layout.insert(layout.end(), {gaussian[group].width, gaussian[group].height, image_offsets[group]});
@@ -1708,27 +1831,21 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
     }
     angles = impl_->run_feature_kernel("sift_orientations", gaussian.front(), packed,
       36, levels.device_gaussian.front(), scratch, &layout);
-    check_opencl(clFinish(impl_->queue), "batched orientation completion");
-    impl_->report_feature_profile("sift_orientations");
     const auto descriptor_start = std::chrono::steady_clock::now();
     orientation_ms = std::chrono::duration<double, std::milli>(descriptor_start - orientation_start).count();
-    packed.clear();
-    layout.clear();
+    descriptors = impl_->resident_descriptors(*scratch, ordered_points.size());
+    impl_->report_feature_profile("sift_orientations");
+    impl_->report_feature_profile("sift_descriptors");
     for (size_t index = 0; index < ordered_points.size(); ++index) {
       const auto &point = ordered_points[index];
-      const size_t group = point_groups[index];
       for (size_t bin = 0; bin < 36; ++bin) {
         const float angle = angles[index * 36 + bin];
         if (!(angle >= 0.0f)) continue;
         oriented.push_back({point, angle});
-        packed.insert(packed.end(), {point.local.x, point.local.y, point.octave_sigma, angle});
-        layout.insert(layout.end(), {gaussian[group].width, gaussian[group].height, image_offsets[group]});
       }
     }
-    descriptors = impl_->run_feature_kernel("sift_descriptors", gaussian.front(), packed,
-      128, levels.device_gaussian.front(), scratch, &layout);
-    check_opencl(clFinish(impl_->queue), "batched descriptor completion");
-    impl_->report_feature_profile("sift_descriptors");
+    if (descriptors.size() != oriented.size() * 128)
+      throw std::logic_error("Resident descriptor count does not match orientations");
     for (size_t index = 0; index < oriented.size(); ++index) {
       SiftFeature feature;
       feature.point = oriented[index];
@@ -1759,6 +1876,7 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
                  "OPENCL_PROFILE gaussian_dog_ms=%.3f "
                  "extrema_refine_ms=%.3f orientation_ms=%.3f "
                  "descriptor_ms=%.3f "
+                 "resident_feature_handoff=1 "
                  "total_ms=%.3f gaussian_levels=%zu dog_levels=%zu "
                  "keypoints=%zu features=%zu feature_groups=%zu\n",
                  milliseconds(profile_start, difference_end),

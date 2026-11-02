@@ -240,6 +240,42 @@ runner `results/20261102/arc-opencl-milestone.sh`, local reports
 `~/.local/share/sift-extractor-staging/arc-compaction-d266f47fcec2f0d8`.
 Manifest SHA256: `d266f47fcec2f0d852662e08c6e4453a2c2e0c28f9975439e9480ca7b8f6603b`.
 
+### Resident Feature Handoff
+
+Orientation peaks now emit counts for a stable device prefix scan. A packing
+kernel builds descriptor points/layout directly from the resident orientation
+output. Descriptor workgroups guard against the actual count and retained
+capacity; insufficient capacity triggers a lossless pack/descriptor retry before
+return. Host angle readback remains for public feature records, but no host wait
+or point/layout re-upload separates orientation and descriptors. Standalone
+feature APIs and serial arithmetic remain references.
+
+The existing multi-orientation fixture now explicitly requires more orientations
+than input points, forcing initial capacity growth while checking exact feature
+records. All 10 local tests, profiled refinement checks, and Arc's expanded
+regression and 30 matrix cases pass. Paired quality records remain identical.
+Against `c6b83b8c5`, 60 pooled samples/build give isolated unlimited VGA
+6.672 -> 6.337ms (157.80 FPS) and 1080p 18.109 -> 17.889ms (55.90 FPS). The
+1080p median exceeds the measured 54.995 FPS raw reference target in this run;
+VGA remains below 168.875 FPS. This is not quality parity with that reference,
+and the narrow margin and run-to-run variation require caution. Rotated medians:
+VGA unlimited 8.526 -> 8.398ms, VGA500 7.402 -> 7.314ms, 1080p unlimited
+24.282 -> 23.410ms, 1080p500 17.623 -> 17.995ms (2.1% regression).
+
+Profiles mark `resident_feature_handoff=1`: `orientation_ms` is setup/submission
+wall time, while `descriptor_ms` includes the shared GPU completion wait and host
+decoding. Neither is an isolated kernel time. Batch event profiles retain separate
+orientation/descriptor device times; descriptor events describe the final attempt
+on growth frames, while total wall time includes retries. Scratch-byte totals
+include retained resident handoff buffers. No profiling events are added normally.
+
+Evidence: SIFT workspace `results/20261102/arc-resident-features-summary.json`;
+reports `/tmp/sift-arc-resident-features-results.EsZNXy`; payload
+`/tmp/sift-arc-resident-features.a6MJ8B`; remote stage
+`~/.local/share/sift-extractor-staging/arc-resident-features-ccbbe5a150f911df`.
+Manifest SHA256: `ccbbe5a150f911df371a9da9eea2ed71e9181c407a0eaf263aa274422f3849d7`.
+All five returned executable hashes matched the staged binaries.
+
 ### Subgroup Orientation Sampling
 
 When `cl_intel_subgroups` is available, lanes prepare successive orientation
