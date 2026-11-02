@@ -339,6 +339,12 @@ python -m perf_helpers.cli --config vippet/tests/performance/results/latest --dr
 - A result written by a suite version with different setting keys is refused
   (exit `2`); replay it with that suite version, or copy its settings into a YAML
   config.
+- A replay that ran with `--allow-matrix-drift` and had drift is **not** a faithful
+  reproduction: its result has `replay.reproduces_recording: false` and the HTML
+  report shows a warning. Its recorded matrix describes what that run actually
+  measured (for example with a model missing), so replaying it on a changed host
+  reports drift again, e.g. `model now available (was missing in the recording)`.
+  To reproduce the intended benchmark, replay the original run, not the drifted one.
 
 ### HW metric trimming
 

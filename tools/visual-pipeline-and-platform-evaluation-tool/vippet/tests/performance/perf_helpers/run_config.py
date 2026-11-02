@@ -16,7 +16,7 @@ from dataclasses import asdict
 from typing import Any
 
 from .matrix import Matrix
-from .reporters import CONFIG_SCHEMA_VERSION, REPLAY_SECTIONS
+from .reporters import REPLAY_SECTIONS
 from .settings import ENV_ALLOW_MATRIX_DRIFT, PERF_DIR, ResolvedSettings
 
 MATRIX_DRIFT_EXIT_CODE = 6
@@ -57,7 +57,6 @@ def build_config_block(
     replay: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
     return {
-        "schema_version": CONFIG_SCHEMA_VERSION,
         "selector": {
             "value": settings.config_selector,
             "origin": settings.config_origin,
@@ -119,7 +118,9 @@ def compare_with_recording(
 
     def missing(m: Mapping[str, Any]) -> set[str]:
         return {
-            f"{p}: {', '.join(models)}" for p, models in m["missing_models"].items()
+            f"{p}: {model}"
+            for p, models in m["missing_models"].items()
+            for model in models
         }
 
     def selected(items: Sequence[Mapping[str, Any]]) -> set[str]:
@@ -130,8 +131,19 @@ def compare_with_recording(
             f"{e['pipeline_id']}/{e['variant']} ({e['reason']})" for e in m["excluded"]
         }
 
-    matrix_drift = _diff("case", cases(was_matrix), cases(now_matrix)) + _diff(
-        "missing models", missing(was_matrix), missing(now_matrix)
+    was_missing, now_missing = missing(was_matrix), missing(now_matrix)
+    # Missing models are an observation of the host, not configuration, so say
+    # which side changed instead of a bare "removed"/"added".
+    matrix_drift = (
+        _diff("case", cases(was_matrix), cases(now_matrix))
+        + [
+            f"model now available (was missing in the recording): {item}"
+            for item in sorted(was_missing - now_missing)
+        ]
+        + [
+            f"model now missing (was available in the recording): {item}"
+            for item in sorted(now_missing - was_missing)
+        ]
     )
     if selection is not None:
         matrix_drift += _diff("test", selected(was["selection"]), selected(selection))
@@ -160,6 +172,9 @@ def compare_with_recording(
         "benchmark_id": recording.benchmark_id,
         "sha256": recording.sha256,
         "allow_matrix_drift": settings.allow_matrix_drift,
+        # False when the replay measures something other than the recording
+        # (drift was tolerated); such a result is not a faithful reproduction.
+        "reproduces_recording": not matrix_drift,
         "setting_changes": setting_changes,
         "revision_changes": revision_changes,
         "matrix_drift": matrix_drift,
@@ -169,6 +184,8 @@ def compare_with_recording(
 
 def format_replay(replay: Mapping[str, Any]) -> str:
     lines = [f"Replay of {replay['benchmark_id']} (sha256 {replay['sha256']})"]
+    if not replay["reproduces_recording"]:
+        lines.append("NOT a faithful reproduction of the recording (matrix drift).")
     for title, key in REPLAY_SECTIONS:
         items = replay[key]
         lines.append(f"{title}: {len(items) or '(none)'}")
@@ -180,6 +197,8 @@ def describe_matrix_drift(replay: Mapping[str, Any]) -> str:
     return (
         f"the replay would not benchmark the same cases as {replay['benchmark_id']} "
         "(see 'Matrix drift' above). To fix: restore the recorded pipelines, "
-        "devices and models, or pass --allow-matrix-drift "
+        "devices and models; or, if the recording was itself a replay that "
+        "tolerated drift (reproduces_recording: false), replay the original "
+        "run instead; or pass --allow-matrix-drift "
         f"({ENV_ALLOW_MATRIX_DRIFT}=true) to run anyway."
     )

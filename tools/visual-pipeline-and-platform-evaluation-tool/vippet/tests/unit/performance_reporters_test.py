@@ -308,10 +308,22 @@ class TestConfigBlock(unittest.TestCase):
         with self.assertRaisesRegex(ReportInputError, "To fix: rerun the benchmark"):
             self._load(result)
         for key, value in (
-            ("schema_version", 2),
+
             ("sources", {"vippet.timeout": 1}),
             ("selection", [{"pipeline_id": "od"}]),
             ("replay", {"benchmark_id": "b"}),
+            (
+                "replay",
+                {
+                    "benchmark_id": "b",
+                    "sha256": "f00",
+                    "allow_matrix_drift": False,
+                    "setting_changes": [],
+                    "revision_changes": [],
+                    "matrix_drift": [],
+                    "notes": [],
+                },
+            ),
         ):
             with self.subTest(key=key):
                 result = copy.deepcopy(_BASE_RESULT)
@@ -362,6 +374,7 @@ class TestConfigBlock(unittest.TestCase):
             "benchmark_id": "bench_a",
             "sha256": "f00",
             "allow_matrix_drift": False,
+            "reproduces_recording": True,
             "setting_changes": [payload],
             "revision_changes": [],
             "matrix_drift": [],
@@ -370,6 +383,45 @@ class TestConfigBlock(unittest.TestCase):
         html_out = generate_html_report([self._load(result)])
         self.assertNotIn(payload, html_out)
         self.assertIn("Replay of bench_a", html_out)
+
+    def _with_replay(self, reproduces: bool) -> str:
+        result = copy.deepcopy(_BASE_RESULT)
+        result["config"]["replay"] = {
+            "benchmark_id": "bench_a",
+            "sha256": "f00",
+            "allow_matrix_drift": not reproduces,
+            "reproduces_recording": reproduces,
+            "setting_changes": [],
+            "revision_changes": [],
+            "matrix_drift": [] if reproduces else ["case drift"],
+            "notes": [],
+        }
+        return generate_html_report([self._load(result)])
+
+    def test_unfaithful_replay_shows_warning_banner(self) -> None:
+        self.assertIn("Not a faithful reproduction", self._with_replay(False))
+        self.assertNotIn("Not a faithful reproduction", self._with_replay(True))
+
+    def test_configuration_is_last_section_in_its_own_sidebar_group(self) -> None:
+        html_out = generate_html_report([_BASE_RESULT])
+        sidebar = html_out[html_out.index('<nav class="sidebar">') :]
+        sidebar = sidebar[: sidebar.index("</nav>")]
+        self.assertLess(sidebar.index("Overview"), sidebar.index("Pipelines"))
+        self.assertLess(
+            sidebar.index("Pipelines</div>"),
+            sidebar.index(
+                '<div class="sidebar-section" style="margin-top:12px">Configuration'
+            ),
+        )
+        self.assertLess(
+            sidebar.index(">Configuration</div>"),
+            sidebar.index('href="#configuration"'),
+        )
+        self.assertGreater(
+            html_out.index('id="configuration"'),
+            html_out.index('id="object-detection"'),
+        )
+        self.assertLess(html_out.index('id="configuration"'), html_out.index("</main>"))
 
 
 if __name__ == "__main__":

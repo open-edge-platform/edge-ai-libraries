@@ -73,13 +73,18 @@ class TestCompareWithRecording(unittest.TestCase):
         self.assertEqual(replay["benchmark_id"], "bench_1")
         for key in ("setting_changes", "revision_changes", "matrix_drift", "notes"):
             self.assertEqual(replay[key], [], key)
+        self.assertTrue(replay["reproduces_recording"])
 
     def test_only_changes_to_what_runs_are_drift(self) -> None:
         extra = {"id": "new", "name": "New", "variants": [{"id": "3", "name": "NPU"}]}
         replay = self._compare(
             pipelines=[*_PIPELINES, extra], missing={"lpr": {"LPR Net"}}
         )
-        self.assertEqual(replay["matrix_drift"], ["added missing models: lpr: LPR Net"])
+        self.assertEqual(
+            replay["matrix_drift"],
+            ["model now missing (was available in the recording): lpr: LPR Net"],
+        )
+        self.assertFalse(replay["reproduces_recording"])
         self.assertIn("added exclusion: new/NPU (unsupported_family)", replay["notes"])
         self.assertIn("added pipeline id: new", replay["notes"])
 
@@ -110,6 +115,98 @@ class TestCompareWithRecording(unittest.TestCase):
         self.assertIn("Replay of bench_1", text)
         self.assertIn("Setting changes: (none)", text)
         self.assertIn("Matrix drift: 1\n  removed case: lpr/2 (CPU)", text)
+
+
+class TestReplayOfDriftedReplay(unittest.TestCase):
+    """A -> B (model missing, drift allowed) -> C (model restored, strict)."""
+
+    _MODEL = "lpr: LPR Net"
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+
+    def _write(
+        self, name: str, settings: ResolvedSettings, missing: set[str], replay: Any
+    ) -> Path:
+        config = run_config.build_config_block(
+            settings,
+            matrix=_matrix(settings, missing={"lpr": missing} if missing else None),
+            selection=_SELECTION,
+            revisions=_REVISIONS,
+            pytest_args=[],
+            filter_problem=None,
+            replay=replay,
+        )
+        path = self.tmp / f"{name}.json"
+        path.write_text(
+            json.dumps({"benchmark_id": name, "test_cases": [], "config": config}),
+            encoding="utf-8",
+        )
+        return path
+
+    def _replay(
+        self, path: Path, missing: set[str], allow: bool = False
+    ) -> dict[str, Any]:
+        settings = resolve_settings(path, env={}, allow_matrix_drift=allow)
+        return run_config.compare_with_recording(
+            settings,
+            _matrix(settings, missing={"lpr": missing} if missing else None),
+            _REVISIONS,
+            _SELECTION,
+        )
+
+    def test_restored_model_is_drift_against_a_drifted_recording(self) -> None:
+        a = self._write("A", resolve_settings("default", env={}), set(), None)
+
+        replay_b = self._replay(a, {"LPR Net"}, allow=True)
+        self.assertEqual(
+            replay_b["matrix_drift"],
+            ["model now missing (was available in the recording): " + self._MODEL],
+        )
+        self.assertTrue(replay_b["allow_matrix_drift"])
+        self.assertFalse(replay_b["reproduces_recording"])
+        b = self._write(
+            "B",
+            resolve_settings(a, env={}, allow_matrix_drift=True),
+            {"LPR Net"},
+            replay_b,
+        )
+
+        replay_c = self._replay(b, set())
+        self.assertEqual(
+            replay_c["matrix_drift"],
+            ["model now available (was missing in the recording): " + self._MODEL],
+        )
+        self.assertFalse(replay_c["reproduces_recording"])
+
+        # Replaying the original run again is a faithful reproduction.
+        replay_a = self._replay(a, set())
+        self.assertEqual(replay_a["matrix_drift"], [])
+        self.assertTrue(replay_a["reproduces_recording"])
+
+    def test_models_are_compared_one_by_one(self) -> None:
+        a = self._write("A", resolve_settings("default", env={}), {"M1", "M2"}, None)
+        replay = self._replay(a, {"M2", "M3"})
+        self.assertEqual(
+            replay["matrix_drift"],
+            [
+                "model now available (was missing in the recording): lpr: M1",
+                "model now missing (was available in the recording): lpr: M3",
+            ],
+        )
+
+    def test_messages_mention_the_drift_and_the_fix(self) -> None:
+        a = self._write("A", resolve_settings("default", env={}), set(), None)
+        replay = self._replay(a, {"LPR Net"}, allow=True)
+        self.assertIn("NOT a faithful reproduction", run_config.format_replay(replay))
+        self.assertIn(
+            "replay the original run", run_config.describe_matrix_drift(replay)
+        )
+        faithful = self._replay(a, set())
+        self.assertNotIn(
+            "NOT a faithful reproduction", run_config.format_replay(faithful)
+        )
 
 
 class TestSuiteRevision(unittest.TestCase):

@@ -226,8 +226,6 @@ MAX_RESULT_JSON_BYTES = 50 * 1024 * 1024
 # Keeps benchmark_id safe to use as a file name: no "..", "/" or "\".
 _BENCHMARK_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 
-# Layout version of a result's "config" block (see perf_helpers.run_config).
-CONFIG_SCHEMA_VERSION = 1
 # (title, key) of the lists in config.replay, shared by console and HTML.
 REPLAY_SECTIONS: tuple[tuple[str, str], ...] = (
     ("Setting changes", "setting_changes"),
@@ -337,10 +335,6 @@ def _check_config(config: Any, prefix: str) -> None:
             raise ReportInputError(f"{prefix}config.{what}")
 
     require(
-        config.get("schema_version") == CONFIG_SCHEMA_VERSION,
-        f"schema_version must be {CONFIG_SCHEMA_VERSION}",
-    )
-    require(
         _is_record(config.get("selector"), value=str, origin=str, path=str, sha256=str),
         "selector must have string value, origin, path and sha256",
     )
@@ -397,7 +391,13 @@ def _check_config(config: Any, prefix: str) -> None:
     require(
         replay is None
         or (
-            _is_record(replay, benchmark_id=str, sha256=str, allow_matrix_drift=bool)
+            _is_record(
+                replay,
+                benchmark_id=str,
+                sha256=str,
+                allow_matrix_drift=bool,
+                reproduces_recording=bool,
+            )
             and all(_is_str_list(replay.get(key)) for _, key in REPLAY_SECTIONS)
         ),
         "replay is malformed",
@@ -922,6 +922,13 @@ def _build_run_config(run: dict[str, Any]) -> str:
             f"<h4>Replay of {_esc(replay['benchmark_id'])} "
             f"(sha256 {_esc(replay['sha256'])})</h4>"
         )
+        if not replay["reproduces_recording"]:
+            parts.append(
+                '<p><span class="badge warn">Not a faithful reproduction</span> '
+                f"Matrix drift against {_esc(replay['benchmark_id'])} was "
+                "allowed, so this run measured something other than the "
+                "recording. Replay the original run to reproduce it.</p>"
+            )
         for title, key in REPLAY_SECTIONS:
             items = "".join(f"<li>{_esc(item)}</li>" for item in replay[key])
             parts.append(f"<h4>{_esc(title)}</h4><ul>{items or '<li>(none)</li>'}</ul>")
@@ -1303,9 +1310,10 @@ td.hi {{ color: var(--text); font-weight: 500; }}
   <nav class="sidebar">
     <div class="sidebar-section">Overview</div>
     <a href="#overview">Summary</a>
-    <a href="#configuration">Configuration</a>
     <div class="sidebar-section" style="margin-top:12px">Pipelines</div>
     {"".join(f'<a href="#{_slugify(p)}">{_esc(p)}</a>' for p in pipelines)}
+    <div class="sidebar-section" style="margin-top:12px">Configuration</div>
+    <a href="#configuration">Run configuration</a>
   </nav>
   <main class="main">
     <div id="overview">
@@ -1322,8 +1330,8 @@ td.hi {{ color: var(--text); font-weight: 500; }}
         {_build_run_cards(run_meta)}
       </div>
     </div>
-    {_build_config_section(runs)}
     {"".join(pipeline_sections_html)}
+    {_build_config_section(runs)}
   </main>
 </div>
 <script>
