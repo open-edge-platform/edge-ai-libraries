@@ -58,7 +58,7 @@ Codebase root: `sample-applications/chat-question-and-answer-core/`
 
 | File | Purpose |
 |---|---|
-| `docker/Dockerfile` | OpenVINO backend image (CPU by default; GPU via `USE_GPU=true`) |
+| `docker/Dockerfile` | OpenVINO backend image |
 | `docker/Dockerfile.ollama` | Ollama backend image |
 | `ui/Dockerfile` | Frontend UI image |
 | `docker/compose.yaml` | Canonical image names, build contexts, and build args |
@@ -99,8 +99,8 @@ export UI_TAG="latest"
 # 2) Build OpenVINO CPU backend image
 docker build -t ${REGISTRY}chatqna:${BACKEND_TAG} -f docker/Dockerfile .
 
-# 3) Build OpenVINO GPU backend image (same image name/tag, GPU variant)
-docker build --build-arg USE_GPU=true -t ${REGISTRY}chatqna:${BACKEND_TAG} -f docker/Dockerfile .
+# 3) Build OpenVINO GPU-capable backend image
+docker build -t ${REGISTRY}chatqna:${BACKEND_TAG} -f docker/Dockerfile .
 
 # 4) Build Ollama backend image
 docker build -t ${REGISTRY}chatqna:${BACKEND_TAG} -f docker/Dockerfile.ollama .
