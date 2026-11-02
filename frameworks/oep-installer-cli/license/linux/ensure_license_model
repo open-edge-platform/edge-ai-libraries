@@ -1,0 +1,10 @@
+
+ensure_license_use_model () {
+  local app="$1"
+  local name="$2"
+
+  echo "@@LICENSE-ID $name"
+  echo "@@LICENSE-TITLE Download $name"
+  echo "By accepting, you agree to download and use the $name model in ${app}."
+}
+
