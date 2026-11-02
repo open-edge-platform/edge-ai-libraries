@@ -138,6 +138,7 @@ int main() {
     sample.image_x = 32.0f;
     sample.image_y = 32.0f;
     std::array<float, 128> horizontal_descriptor{};
+    sift_extractor::detail::OrientedKeypoint horizontal_orientation;
     for (float degrees : {0.0f, 90.0f, 45.0f, 355.0f}) {
       const float radians = degrees * 3.14159265358979323846f / 180.0f;
       for (int row = 0; row < ramp.height; ++row) {
@@ -164,7 +165,10 @@ int main() {
         norm_squared += static_cast<double>(value) * value;
       }
       if (std::abs(std::sqrt(norm_squared) - 1.0) > 1e-5) return 1;
-      if (degrees == 0.0f) horizontal_descriptor = features[0].descriptor;
+      if (degrees == 0.0f) {
+        horizontal_descriptor = features[0].descriptor;
+        horizontal_orientation = oriented[0];
+      }
       if (degrees == 90.0f) {
         float max_rotation_error = 0.0f;
         for (size_t bin = 0; bin < 128; ++bin)
@@ -173,6 +177,17 @@ int main() {
         std::printf("90-degree ramp descriptor max error %.8f\n", max_rotation_error);
         if (max_rotation_error > 1e-4f) return 1;
       }
+    }
+    for (int row = 0; row < ramp.height; ++row) {
+      for (int column = 0; column < ramp.width; ++column)
+        ramp.pixels[static_cast<size_t>(row) * ramp.width + column] = row - 32;
+    }
+    const auto changed_image_feature =
+        detector.compute_descriptors(ramp, {horizontal_orientation});
+    if (changed_image_feature.size() != 1 ||
+        changed_image_feature[0].descriptor == horizontal_descriptor) {
+      std::fprintf(stderr, "Descriptor reused gradients from mutated image\n");
+      return 1;
     }
     for (int row = 0; row < ramp.height; ++row) {
       for (int column = 0; column < ramp.width; ++column)

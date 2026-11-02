@@ -77,10 +77,22 @@ measured 139.565ms VGA and 235.434ms 1080p (23.6x slower at VGA, 12.9x at 1080p)
 inlier counts/RMSE were unchanged. Buffer reuse improves 1080p by 22.4% but
 regresses VGA by 9.6%; neither case meets the measured raw throughput target.
 
-The next gate is Arc profiling for Gaussian, DoG, extrema/refinement, orientation
-and descriptor costs, followed by removal of measured transfer/allocation overhead.
-Local coarse timing suggests descriptor computation dominates, but the refined Arc
-profile could not be transferred because SSH closed. No OpenCL optimization ceiling
+### Shared Gradient Experiment
+
+Orientation and descriptor kernels now share a per-level magnitude/orientation
+precompute, avoiding repeated finite differences, `hypot`, and `atan2` for every
+keypoint's overlapping support window. Against the feature-kernel-cache build, a
+30-sample Arc A/B/B/A measured pooled medians of VGA 136.790ms before and
+117.330ms after; 1080p 264.045ms before and 242.311ms after. Pooled median latency
+improved 14.2% at VGA and 8.2% at 1080p with the cache-validity guard included. OpenCL
+quality remained 263 inliers/0.359px RMSE at VGA and 1300/0.430px at 1080p.
+Receipt and raw data: `results/20261101/arc-opencl-shared-gradients.sh` and Arc
+stage `~/.local/share/sift-extractor-staging/arc-opencl-gradients-761a33b416f189cd-retry`.
+Latency remains about 19.8x and 13.3x higher than complete-gpu-sift at VGA and
+1080p, and quality compatibility is not established.
+
+Next measure and remove remaining transfer/allocation overhead and optimize
+descriptor work as indicated by Arc stage timings. No OpenCL optimization ceiling
 or quality parity is claimed. Profile runner: `results/20261101/arc-opencl-stage-profile.sh`.
 
 Three warmup extractions per backend precede 1-100 measured repetitions. Backend

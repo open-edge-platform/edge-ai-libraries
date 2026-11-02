@@ -153,7 +153,28 @@ __kernel void refine_dog_extrema(__global const float *dog,
   refined[output + 5] = 1.0f;
 }
 
-__kernel void sift_orientations(__global const float *image,
+__kernel void sift_gradients(__global const float *image,
+                             __global float *magnitude,
+                             __global float *orientation,
+                             const int width, const int height) {
+  const int x = (int)get_global_id(0);
+  const int y = (int)get_global_id(1);
+  if (x >= width || y >= height)
+    return;
+  const int index = y * width + x;
+  if (x == 0 || y == 0 || x >= width - 1 || y >= height - 1) {
+    magnitude[index] = 0.0f;
+    orientation[index] = 0.0f;
+    return;
+  }
+  const float gx = image[index + 1] - image[index - 1];
+  const float gy = image[index + width] - image[index - width];
+  magnitude[index] = hypot(gx, gy);
+  orientation[index] = atan2(gy, gx);
+}
+
+__kernel void sift_orientations(__global const float *magnitude,
+                                __global const float *gradient_orientation,
                                 __global const float *points,
                                 __global float *output,
                                 const int width, const int height) {
@@ -174,18 +195,17 @@ __kernel void sift_orientations(__global const float *image,
          dx <= min(radius, width - 2 - center_x); ++dx) {
       const int x = center_x + dx;
       const int y = center_y + dy;
-      const float gx = image[y * width + x + 1] - image[y * width + x - 1];
-      const float gy = image[(y + 1) * width + x] - image[(y - 1) * width + x];
       const float rx = (float)x - cx;
       const float ry = (float)y - cy;
       const float weight = exp(-(rx * rx + ry * ry) / (2.0f * sigma * sigma));
-      float angle = atan2(gy, gx) * (18.0f / 3.14159265358979323846f);
+      float angle = gradient_orientation[y * width + x] *
+            (18.0f / 3.14159265358979323846f);
       if (angle < 0.0f) angle += 36.0f;
       const int lower = (int)floor(angle);
       const float fraction = angle - (float)lower;
-      const float magnitude = hypot(gx, gy) * weight;
-      hist[lower % 36] += magnitude * (1.0f - fraction);
-      hist[(lower + 1) % 36] += magnitude * fraction;
+      const float weighted_magnitude = magnitude[y * width + x] * weight;
+      hist[lower % 36] += weighted_magnitude * (1.0f - fraction);
+      hist[(lower + 1) % 36] += weighted_magnitude * fraction;
     }
   }
   for (int pass = 0; pass < 6; ++pass) {
@@ -210,7 +230,8 @@ __kernel void sift_orientations(__global const float *image,
   }
 }
 
-__kernel void sift_descriptors(__global const float *image,
+__kernel void sift_descriptors(__global const float *magnitude,
+                               __global const float *gradient_orientation,
                                __global const float *points,
                                __global float *output,
                                const int width, const int height) {
@@ -239,11 +260,12 @@ __kernel void sift_descriptors(__global const float *image,
       const float rb = row + 1.5f;
       const float cb = column + 1.5f;
       if (rb <= -1.0f || rb >= 4.0f || cb <= -1.0f || cb >= 4.0f) continue;
-      const float gx = image[y * width + x + 1] - image[y * width + x - 1];
-      const float gy = image[(y + 1) * width + x] - image[(y - 1) * width + x];
-      float ob = (atan2(gy, gx) - angle) * (4.0f / 3.14159265358979323846f);
+        const int sample = y * width + x;
+        float ob = (gradient_orientation[sample] - angle) *
+             (4.0f / 3.14159265358979323846f);
       ob = fmod(ob + 16.0f, 8.0f);
-      const float magnitude = hypot(gx, gy) * exp(-(row * row + column * column) / 8.0f);
+        const float weighted_magnitude = magnitude[sample] *
+          exp(-(row * row + column * column) / 8.0f);
       const int ri = (int)floor(rb);
       const int ci = (int)floor(cb);
       const int oi = (int)floor(ob);
@@ -258,7 +280,7 @@ __kernel void sift_descriptors(__global const float *image,
           if (column_bin < 0 || column_bin >= 4) continue;
           for (int oo = 0; oo <= 1; ++oo)
             hist[(row_bin * 4 + column_bin) * 8 + (oi + oo) % 8] +=
-                magnitude * (rr ? rf : 1.0f - rf) *
+              weighted_magnitude * (rr ? rf : 1.0f - rf) *
                 (cc ? cf : 1.0f - cf) * (oo ? of : 1.0f - of);
         }
       }
@@ -327,12 +349,95 @@ cl_device_id select_intel_gpu() {
 } // namespace
 
 struct OpenCLDoGExtrema::Impl {
+  struct Buffer {
+    cl_mem memory = nullptr;
+    size_t capacity = 0;
+  };
+
   cl_context context = nullptr;
   cl_command_queue queue = nullptr;
   cl_program program = nullptr;
   cl_kernel kernel = nullptr;
   cl_kernel refine_kernel = nullptr;
+  cl_kernel gradient_kernel = nullptr;
+  cl_kernel orientation_kernel = nullptr;
+  cl_kernel descriptor_kernel = nullptr;
+  Buffer feature_image;
+  Buffer feature_points;
+  Buffer feature_output;
+  Buffer gradient_magnitude;
+  Buffer gradient_orientation;
+  std::vector<float> cached_gradient_pixels;
+  int cached_gradient_width = 0;
+  int cached_gradient_height = 0;
+  bool gradients_ready = false;
   std::unique_ptr<OpenCLGaussianPyramid> pyramid;
+
+  cl_mem ensure_buffer(Buffer &buffer, cl_mem_flags flags, size_t bytes) {
+    if (buffer.memory && buffer.capacity >= bytes)
+      return buffer.memory;
+    cl_int status = CL_SUCCESS;
+    cl_mem replacement = clCreateBuffer(context, flags, bytes, nullptr, &status);
+    check_opencl(status, "clCreateBuffer(feature scratch)");
+    if (buffer.memory)
+      clReleaseMemObject(buffer.memory);
+    buffer.memory = replacement;
+    buffer.capacity = bytes;
+    return buffer.memory;
+  }
+
+  cl_kernel get_feature_kernel(const char *name) {
+    cl_kernel *slot = nullptr;
+    if (std::string(name) == "sift_orientations")
+      slot = &orientation_kernel;
+    else if (std::string(name) == "sift_descriptors")
+      slot = &descriptor_kernel;
+    else
+      throw std::invalid_argument("Unsupported feature kernel");
+    if (!*slot) {
+      cl_int status = CL_SUCCESS;
+      *slot = clCreateKernel(program, name, &status);
+      check_opencl(status, "clCreateKernel(feature)");
+    }
+    return *slot;
+  }
+
+    void prepare_gradients(const GaussianLevel &level) {
+    const size_t image_bytes = level.pixels.size() * sizeof(float);
+    cl_mem image_buffer = ensure_buffer(feature_image, CL_MEM_READ_ONLY,
+                       image_bytes);
+    cl_mem magnitude_buffer = ensure_buffer(gradient_magnitude,
+      CL_MEM_WRITE_ONLY, image_bytes);
+    cl_mem orientation_buffer = ensure_buffer(gradient_orientation,
+      CL_MEM_WRITE_ONLY, image_bytes);
+    if (!gradient_kernel) {
+      cl_int status = CL_SUCCESS;
+      gradient_kernel = clCreateKernel(program, "sift_gradients", &status);
+      check_opencl(status, "clCreateKernel(sift_gradients)");
+    }
+    check_opencl(clEnqueueWriteBuffer(queue, image_buffer, CL_TRUE, 0,
+      image_bytes, level.pixels.data(), 0, nullptr, nullptr),
+      "clEnqueueWriteBuffer(gradient image)");
+    check_opencl(clSetKernelArg(gradient_kernel, 0, sizeof(cl_mem),
+      &image_buffer), "gradient image arg");
+    check_opencl(clSetKernelArg(gradient_kernel, 1, sizeof(cl_mem),
+      &magnitude_buffer), "gradient magnitude arg");
+    check_opencl(clSetKernelArg(gradient_kernel, 2, sizeof(cl_mem),
+      &orientation_buffer), "gradient orientation arg");
+    check_opencl(clSetKernelArg(gradient_kernel, 3, sizeof(level.width),
+      &level.width), "gradient width arg");
+    check_opencl(clSetKernelArg(gradient_kernel, 4, sizeof(level.height),
+      &level.height), "gradient height arg");
+    const size_t global_size[2] = {static_cast<size_t>(level.width),
+                     static_cast<size_t>(level.height)};
+    check_opencl(clEnqueueNDRangeKernel(queue, gradient_kernel, 2, nullptr,
+      global_size, nullptr, 0, nullptr, nullptr),
+      "clEnqueueNDRangeKernel(gradients)");
+    cached_gradient_pixels = level.pixels;
+    cached_gradient_width = level.width;
+    cached_gradient_height = level.height;
+    gradients_ready = true;
+    }
 
   OpenCLGaussianPyramid &get_pyramid() {
     if (!pyramid)
@@ -354,40 +459,39 @@ struct OpenCLDoGExtrema::Impl {
     if (count == 0) return {};
     if (count > static_cast<size_t>(std::numeric_limits<int>::max()) / output_stride)
       throw std::overflow_error("Too many feature points");
-    struct Resources {
-      cl_kernel kernel = nullptr;
-      cl_mem image = nullptr;
-      cl_mem points = nullptr;
-      cl_mem output = nullptr;
-      ~Resources() {
-        if (output) clReleaseMemObject(output);
-        if (points) clReleaseMemObject(points);
-        if (image) clReleaseMemObject(image);
-        if (kernel) clReleaseKernel(kernel);
-      }
-    } resources;
     cl_int status = CL_SUCCESS;
-    resources.kernel = clCreateKernel(program, name, &status);
-    check_opencl(status, "clCreateKernel(feature)");
-    resources.image = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-        level.pixels.size() * sizeof(float), const_cast<float *>(level.pixels.data()), &status);
-    check_opencl(status, "clCreateBuffer(feature image)");
-    resources.points = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-        points.size() * sizeof(float), const_cast<float *>(points.data()), &status);
-    check_opencl(status, "clCreateBuffer(feature points)");
+    cl_kernel feature_kernel = get_feature_kernel(name);
+    const bool reusable_gradients =
+      std::string(name) == "sift_descriptors" && gradients_ready &&
+      cached_gradient_width == level.width &&
+      cached_gradient_height == level.height &&
+      cached_gradient_pixels == level.pixels;
+    if (!reusable_gradients)
+      prepare_gradients(level);
+    cl_mem magnitude_buffer = ensure_buffer(gradient_magnitude,
+      CL_MEM_READ_ONLY, level.pixels.size() * sizeof(float));
+    cl_mem orientation_buffer = ensure_buffer(gradient_orientation,
+      CL_MEM_READ_ONLY, level.pixels.size() * sizeof(float));
+    cl_mem points_buffer = ensure_buffer(feature_points, CL_MEM_READ_ONLY,
+                        points.size() * sizeof(float));
     std::vector<float> output(count * output_stride);
-    resources.output = clCreateBuffer(context, CL_MEM_WRITE_ONLY,
-        output.size() * sizeof(float), nullptr, &status);
-    check_opencl(status, "clCreateBuffer(feature output)");
-    check_opencl(clSetKernelArg(resources.kernel, 0, sizeof(cl_mem), &resources.image), "feature image arg");
-    check_opencl(clSetKernelArg(resources.kernel, 1, sizeof(cl_mem), &resources.points), "feature points arg");
-    check_opencl(clSetKernelArg(resources.kernel, 2, sizeof(cl_mem), &resources.output), "feature output arg");
-    check_opencl(clSetKernelArg(resources.kernel, 3, sizeof(int), &level.width), "feature width arg");
-    check_opencl(clSetKernelArg(resources.kernel, 4, sizeof(int), &level.height), "feature height arg");
-    check_opencl(clEnqueueNDRangeKernel(queue, resources.kernel, 1, nullptr,
+    cl_mem output_buffer = ensure_buffer(feature_output, CL_MEM_WRITE_ONLY,
+                        output.size() * sizeof(float));
+    check_opencl(clEnqueueWriteBuffer(queue, points_buffer, CL_TRUE, 0,
+      points.size() * sizeof(float), points.data(), 0, nullptr, nullptr),
+      "clEnqueueWriteBuffer(feature points)");
+    check_opencl(clSetKernelArg(feature_kernel, 0, sizeof(cl_mem), &magnitude_buffer), "feature magnitude arg");
+    check_opencl(clSetKernelArg(feature_kernel, 1, sizeof(cl_mem), &orientation_buffer), "feature orientation arg");
+    check_opencl(clSetKernelArg(feature_kernel, 2, sizeof(cl_mem), &points_buffer), "feature points arg");
+    check_opencl(clSetKernelArg(feature_kernel, 3, sizeof(cl_mem), &output_buffer), "feature output arg");
+    check_opencl(clSetKernelArg(feature_kernel, 4, sizeof(int), &level.width), "feature width arg");
+    check_opencl(clSetKernelArg(feature_kernel, 5, sizeof(int), &level.height), "feature height arg");
+    check_opencl(clEnqueueNDRangeKernel(queue, feature_kernel, 1, nullptr,
         &count, nullptr, 0, nullptr, nullptr), "feature kernel launch");
-    check_opencl(clEnqueueReadBuffer(queue, resources.output, CL_TRUE, 0,
+    check_opencl(clEnqueueReadBuffer(queue, output_buffer, CL_TRUE, 0,
         output.size() * sizeof(float), output.data(), 0, nullptr, nullptr), "feature readback");
+    if (std::string(name) == "sift_descriptors")
+      gradients_ready = false;
     return output;
   }
 
@@ -460,6 +564,22 @@ struct OpenCLDoGExtrema::Impl {
   }
 
   ~Impl() {
+    if (gradient_orientation.memory)
+      clReleaseMemObject(gradient_orientation.memory);
+    if (gradient_magnitude.memory)
+      clReleaseMemObject(gradient_magnitude.memory);
+    if (feature_output.memory)
+      clReleaseMemObject(feature_output.memory);
+    if (feature_points.memory)
+      clReleaseMemObject(feature_points.memory);
+    if (feature_image.memory)
+      clReleaseMemObject(feature_image.memory);
+    if (descriptor_kernel)
+      clReleaseKernel(descriptor_kernel);
+    if (orientation_kernel)
+      clReleaseKernel(orientation_kernel);
+    if (gradient_kernel)
+      clReleaseKernel(gradient_kernel);
     if (refine_kernel)
       clReleaseKernel(refine_kernel);
     if (kernel)
