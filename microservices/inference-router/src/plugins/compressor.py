@@ -575,11 +575,7 @@ class CompressorPlugin(PluginBaseNode):
     def describe_node(cls) -> Dict[str, Any]:
         """Node view + metrics across ALL compressor instances (incl. overall.*).
 
-<<<<<<< HEAD
         ``metrics_by_keys`` covers compressors with ``settings.metrics_keys`` only.
-=======
-        ``metrics_by_keys`` covers postrouting compressors only.
->>>>>>> upstream/main
         """
         return {
             **cls.node_metadata(),
