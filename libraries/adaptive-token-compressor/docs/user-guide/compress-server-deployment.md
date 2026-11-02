@@ -18,7 +18,7 @@ service; use `COMPRESS_SERVER_DEVICE` to choose the hardware.
 The deployment uses two runtime-specific Dockerfiles:
 
 - `Dockerfile.pytorch` for PyTorch / IPEX / XPU
-- `Dockerfile.ov` for OpenVINO
+- `Dockerfile.ov` for OpenVINO™
 
 These are alternative runtimes. Start only the server that matches your
 requirements; you do not need to run both services.
@@ -39,7 +39,7 @@ Default: `--device xpu`, `--port 8001`. The library client default
 (`TokenPruneBackend(compress_server_url="http://localhost:8001/compress")`)
 matches out of the box — no config change required.
 
-To start the OpenVINO service:
+To start the OpenVINO™ service:
 
 ```bash
 docker compose up -d --build compress-server-ov
@@ -57,7 +57,7 @@ inline on the command line:
 # CPU fallback
 COMPRESS_SERVER_DEVICE=cpu docker compose up -d --build compress-server-pytorch
 
-# OpenVINO runtime (devices: cpu / gpu, lowercase; default gpu)
+# OpenVINO™ runtime (devices: cpu / gpu, lowercase; default gpu)
 COMPRESS_SERVER_DEVICE=cpu docker compose up -d --build compress-server-ov
 
 # Select device index (PyTorch xpu:<index>; OpenVINO GPU.<index>). CPU takes no index.
@@ -108,14 +108,14 @@ curl -X POST http://localhost:8001/compress \
 # → {"compressed_prompt":"...","compression_time_ms":12.3,...}
 ```
 
-For the OpenVINO service use host port `8002` (or your `COMPRESS_SERVER_OV_PORT`)
-instead of `8001`. Its `/health` reports the OV device, e.g.
+For the OpenVINO™ service use host port `8002` (or your `COMPRESS_SERVER_OV_PORT`)
+instead of `8001`. Its `/health` reports the OpenVINO™ device, e.g.,
 `"device":"ov:GPU","execution_devices":"GPU (Intel(R) Arc(TM) B390 GPU (iGPU))"`.
 
-For OV runtime, the startup logs include explicit device mapping and resolved
+For OpenVINO™ runtime, the startup logs include explicit device mapping and resolved
 runtime info, e.g.:
 
-- `Runtime=ov  Requested device=GPU` (or `CPU`; ov normalizes to uppercase internally)
+- `Runtime=ov  Requested device=GPU` (or `CPU`; `ov` normalizes to uppercase internally)
 - `OpenVINO requested device=GPU mapped device=GPU.0` (or `GPU` fallback for index `0`)
 - `OV[GPU.0] name: Intel(R) ...` (device name may vary by runtime)
 - `OpenVINO execution devices (startup probe): GPU (Intel(R) ...)` (device name may vary by runtime)
@@ -165,7 +165,7 @@ pip install --index-url https://download.pytorch.org/whl/cpu \
             ".[compress-server-pytorch-cpu]"
 ```
 
-### Install (OpenVINO runtime — cpu / gpu)
+### Install (OpenVINO runtime — CPU or GPU)
 
 ```bash
 pip install --index-url https://download.pytorch.org/whl/cpu \
@@ -200,7 +200,7 @@ python -m adaptive_token_compressor.model_servers.compress_server --model_name_i
 ```
 
 The server binds `localhost` by default (`--host`). Every flag also reads the
-`COMPRESS_SERVER_*` variable of the same name (e.g. `COMPRESS_SERVER_DEVICE`,
+`COMPRESS_SERVER_*` variable of the same name (e.g., `COMPRESS_SERVER_DEVICE`,
 `COMPRESS_SERVER_PORT`, `COMPRESS_SERVER_MODEL_NAME_ID`); the `/health` and
 `/compress` checks in the [Verify](#verify) section above apply unchanged.
 
