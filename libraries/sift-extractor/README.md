@@ -121,3 +121,9 @@ The bundle relies on
 the target GPU driver and compatible system C++/C libraries, not a copied compiler
 or driver. It is an internal smoke-test deployment, not a general release package.
 Other target GPUs still require their own runtime validation.
+
+## CUDA Reference
+
+The separate [CUDA reference recipe](docs/cuda-reference.md) records the pinned
+CudaSift build and passing RTX 5060 tests. It does not add a CUDA dependency to
+this library or establish cross-backend quality or performance parity.
