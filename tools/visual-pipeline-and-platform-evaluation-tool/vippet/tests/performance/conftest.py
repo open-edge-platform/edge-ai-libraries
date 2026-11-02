@@ -65,13 +65,13 @@ except SettingsError as exc:
     raise SystemExit(2) from None
 
 # Propagate perf config to env vars consumed by functional helpers. This must
-# run BEFORE importing ``helpers.*``: helpers.config reads these env vars once
-# at import time. These keys are env-backed in perf_helpers.settings, so an
-# already-exported value is what BASE_URL/POLL_* resolved to; setdefault only
-# fills in YAML/default values.
-os.environ.setdefault("VIPPET_BASE_URL", BASE_URL)
-os.environ.setdefault("VIPPET_JOB_TIMEOUT_SECONDS", str(POLL_TIMEOUT))
-os.environ.setdefault("VIPPET_JOB_POLL_INTERVAL", str(POLL_INTERVAL))
+# run BEFORE importing ``helpers.*``: helpers.config parses these env vars once
+# at import time. The resolved values are assigned (not setdefault) so that an
+# invalid or differently formatted env value that a CLI flag or YAML value
+# overrides cannot reach the helpers' own parsing and raise ValueError.
+os.environ["VIPPET_BASE_URL"] = BASE_URL
+os.environ["VIPPET_JOB_TIMEOUT_SECONDS"] = str(POLL_TIMEOUT)
+os.environ["VIPPET_JOB_POLL_INTERVAL"] = str(POLL_INTERVAL)
 
 from helpers.pipeline_case_helpers import PipelineCase, wrap_cases_for_pytest  # noqa: E402
 from perf_helpers.discovery import discover_matrix  # noqa: E402
