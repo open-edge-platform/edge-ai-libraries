@@ -82,13 +82,14 @@ regresses VGA by 9.6%; neither case meets the measured raw throughput target.
 Orientation and descriptor kernels now share a per-level magnitude/orientation
 precompute, avoiding repeated finite differences, `hypot`, and `atan2` for every
 keypoint's overlapping support window. Against the feature-kernel-cache build, a
-30-sample Arc A/B/B/A measured pooled medians of VGA 136.790ms before and
-117.330ms after; 1080p 264.045ms before and 242.311ms after. Pooled median latency
-improved 14.2% at VGA and 8.2% at 1080p with the cache-validity guard included. OpenCL
+30-sample Arc A/B/B/A measured pooled medians of VGA 134.091ms before and
+117.443ms after; 1080p 265.677ms before and 243.370ms after. Pooled median latency
+improved 12.4% at VGA and 8.4% at 1080p with the cache-validity guard and corrected
+read-write gradient buffers included. OpenCL
 quality remained 263 inliers/0.359px RMSE at VGA and 1300/0.430px at 1080p.
 Receipt and raw data: `results/20261101/arc-opencl-shared-gradients.sh` and Arc
-stage `~/.local/share/sift-extractor-staging/arc-opencl-gradients-761a33b416f189cd-retry`.
-Latency remains about 19.8x and 13.3x higher than complete-gpu-sift at VGA and
+stage `~/.local/share/sift-extractor-staging/arc-opencl-gradients-8ae394c57953198b`.
+Latency remains about 19.8x and 13.4x higher than complete-gpu-sift at VGA and
 1080p, and quality compatibility is not established.
 
 Next measure and remove remaining transfer/allocation overhead and optimize

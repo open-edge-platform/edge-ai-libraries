@@ -407,9 +407,9 @@ struct OpenCLDoGExtrema::Impl {
     cl_mem image_buffer = ensure_buffer(feature_image, CL_MEM_READ_ONLY,
                        image_bytes);
     cl_mem magnitude_buffer = ensure_buffer(gradient_magnitude,
-      CL_MEM_WRITE_ONLY, image_bytes);
+      CL_MEM_READ_WRITE, image_bytes);
     cl_mem orientation_buffer = ensure_buffer(gradient_orientation,
-      CL_MEM_WRITE_ONLY, image_bytes);
+      CL_MEM_READ_WRITE, image_bytes);
     if (!gradient_kernel) {
       cl_int status = CL_SUCCESS;
       gradient_kernel = clCreateKernel(program, "sift_gradients", &status);
