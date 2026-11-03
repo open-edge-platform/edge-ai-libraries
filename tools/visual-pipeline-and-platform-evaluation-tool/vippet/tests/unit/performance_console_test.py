@@ -348,10 +348,14 @@ class TestConsoleOutputEndToEnd(unittest.TestCase):
             "  formats: [json]\n" + results_extra,
             encoding="utf-8",
         )
+        # The fake server is always on 127.0.0.1, so never send it through a
+        # proxy. httpx does not expand CIDR entries such as 127.0.0.0/8 in
+        # no_proxy, so an inherited http_proxy would route it to the proxy.
         env = {
             k: v
             for k, v in os.environ.items()
             if not k.startswith(("PERF_", "VIPPET_"))
+            and k.lower() not in ("http_proxy", "https_proxy", "all_proxy")
         }
         env.update(
             {
