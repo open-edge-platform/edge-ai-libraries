@@ -4080,6 +4080,10 @@ debian_30_install_python3_venv ()
 { 
     ensure_apt_install_package python3-venv
 }
+debian_30_install_python3_yaml () 
+{ 
+    ensure_apt_install_package python3-yaml
+}
 debian_30_install_rsync () 
 { 
     ensure_apt_install_package rsync
@@ -4317,6 +4321,10 @@ debian_30_sbom_python3_venv ()
 { 
     ensure_sbom_format pkg-list python3-venv
 }
+debian_30_sbom_python3_yaml () 
+{ 
+    ensure_sbom_format pkg-list python3-yaml
+}
 debian_30_sbom_rsync () 
 { 
     ensure_sbom_format pkg-list rsync
@@ -4345,90 +4353,45 @@ debian_30_sbom_xpu_smi ()
 debian_31_install_k3s_io () 
 { 
     configure_k3s_io "$@";
-    if verify_k3s_io && [[ " $* " != *" --reinstall "* ]]; then
-        echo "k3s_io is installed." 1>&2;
-    else
-        if [ -e "$HOME/.kube/config" ] && { 
-            [ ! -r /etc/rancher/k3s/k3s.yaml ] || ! cmp -s /etc/rancher/k3s/k3s.yaml "$HOME/.kube/config"
-        }; then
-            echo "Refusing to overwrite the existing $HOME/.kube/config." 1>&2;
-            echo "Back it up or move it before installing k3s_io." 1>&2;
+    lifecycle_k3s_io prepare;
+    echo "@@STEP Clone repository";
+    ensure_git_export "$workspace" "$version" "$repository" infrastructure/installation-scripts;
+    echo "@@STEP Disable docker download";
+    cd "$workspace"/infrastructure/installation-scripts;
+    sed -i '/^DOCKER_STATIC_URL/,/^success "docker-compose saved"/{d}' download-resources.sh;
+    echo "@@STEP Downloading k3s resources";
+    cd "$workspace"/infrastructure/installation-scripts;
+    mkdir -p resources/docker;
+    local k3s_binary="$PWD/resources/k3s/k3s";
+    ( local kubectl_wrapper_dir;
+    kubectl_wrapper_dir="$(mktemp -d "${TMPDIR:-/tmp}/oep-k3s-kubectl.XXXXXX")";
+    trap 'rm -rf -- "$kubectl_wrapper_dir"' EXIT;
+    printf '%s\n' '#!/bin/sh' 'exec "'"$k3s_binary"'" kubectl "$@"' > "$kubectl_wrapper_dir/kubectl";
+    chmod 755 "$kubectl_wrapper_dir/kubectl";
+    ensure_sudo env PATH="$kubectl_wrapper_dir:$PATH" K3S_INSTALL_SH_SHA256="$install_sh_sha256" ./download-resources.sh );
+    local manifest;
+    for manifest in nfd nfd-node-feature-rules gpu-plugin npu-plugin;
+    do
+        if [ ! -s "$workspace/infrastructure/installation-scripts/resources/intel-device-plugins/manifests/$manifest.yaml" ]; then
+            echo "Intel device-plugin manifest '$manifest.yaml' was not prepared; refusing to install K3s without the plugin resources." 1>&2;
             return 1;
         fi;
-        echo "@@STEP Clone repository";
-        ensure_git_export "$workspace" "$version" "$repository" infrastructure/installation-scripts;
-        echo "@@STEP Disable docker download";
-        cd "$workspace"/infrastructure/installation-scripts;
-        sed -i '/^DOCKER_STATIC_URL/,/^success "docker-compose saved"/{d}' download-resources.sh;
-        echo "@@STEP Downloading k3s resources";
-        cd "$workspace"/infrastructure/installation-scripts;
-        mkdir -p resources/docker;
-        local k3s_binary="$PWD/resources/k3s/k3s";
-        ( local kubectl_wrapper_dir;
-        kubectl_wrapper_dir="$(mktemp -d "${TMPDIR:-/tmp}/oep-k3s-kubectl.XXXXXX")";
-        trap 'rm -rf -- "$kubectl_wrapper_dir"' EXIT;
-        printf '%s\n' '#!/bin/sh' 'exec "'"$k3s_binary"'" kubectl "$@"' > "$kubectl_wrapper_dir/kubectl";
-        chmod 755 "$kubectl_wrapper_dir/kubectl";
-        ensure_sudo env PATH="$kubectl_wrapper_dir:$PATH" K3S_INSTALL_SH_SHA256="$install_sh_sha256" ./download-resources.sh );
-        local manifest;
-        for manifest in nfd nfd-node-feature-rules gpu-plugin npu-plugin;
-        do
-            if [ ! -s "$workspace/infrastructure/installation-scripts/resources/intel-device-plugins/manifests/$manifest.yaml" ]; then
-                echo "Intel device-plugin manifest '$manifest.yaml' was not prepared; refusing to install K3s without the plugin resources." 1>&2;
-                return 1;
-            fi;
-        done;
-        echo "@@STEP Installing k3s";
-        ensure_sudo ./install-k3s.sh;
-        verify_k3s_io || { 
-            echo "K3s installation completed without an active K3s service." 1>&2;
-            return 1
-        };
-        ensure_prop set installed/k3s_io/owned true;
-    fi
+    done;
+    echo "@@STEP Installing and provisioning K3s";
+    lifecycle_k3s_io install;
+    verify_k3s_io;
+    echo "@@HIGHLIGHT K3s, Helm and Intel device plugins are ready; no start command is required."
 }
 debian_31_profile_k3s_io () 
 { 
-    echo "git curl docker_io"
+    echo "git curl docker_io python3_yaml"
 }
 debian_31_remove_k3s_io () 
 { 
     configure_k3s_io;
-    [ "$(ensure_prop get installed/k3s_io/owned)" = "true" ] || return 0;
-    local script found=0 kubeconfig=0;
-    if [ -f "$HOME/.kube/config" ] && ! ensure_sudo cmp -s /etc/rancher/k3s/k3s.yaml "$HOME/.kube/config"; then
-        kubeconfig=1;
-    fi;
-    for script in /usr/local/bin/k3s-uninstall.sh /usr/local/bin/k3s-agent-uninstall.sh;
-    do
-        [ -x "$script" ] || continue;
-        found=1;
-        echo "Removing the K3s runtime ($script)...";
-        ensure_sudo "$script";
-    done;
-    if [ $found -eq 0 ] && { 
-        command -v k3s > /dev/null 2>&1 || systemctl is-active --quiet k3s
-    }; then
-        echo "K3s is still installed, but no K3s uninstall script was found." 1>&2;
-        return 1;
-    fi;
-    [ $kubeconfig -eq 1 ] || rm -f "$HOME/.kube/config";
-    if command -v k3s > /dev/null 2>&1 || systemctl is-active --quiet k3s; then
-        echo "K3s is still present after running its uninstall script." 1>&2;
-        return 1;
-    fi;
+    lifecycle_k3s_io remove;
     ensure_rm "$workspace";
     ensure_prop remove installed/k3s_io/owned
-}
-debian_31_start_k3s_io () 
-{ 
-    configure_k3s_io "$@";
-    [ "$(ensure_prop get installed/k3s_io/owned)" = "true" ] || return 0;
-    if kubectl status > /dev/null 2>&1; then
-        echo "k3s is started" 1>&2;
-    else
-        cd "$workspace"/infrastructure/installation-scripts && ensure_sudo ./kubernetes-provision.sh;
-    fi
 }
 debian_39_install_edge_pack () 
 { 
@@ -10196,6 +10159,707 @@ install_system_inspection ()
     echo "----------------------------------------------------------------";
     [ "$net_pass" = "$ok" ] ) | ensure_columns
 }
+lifecycle_k3s_io () 
+{ 
+    ensure_sudo /usr/bin/python3 - "$1" "$workspace" "$(id -u)" "$(ensure_prop get installed/k3s_io/owned)" "$install_sh_sha256" <<'PY'
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+import base64
+import copy
+import hashlib
+import json
+import os
+from pathlib import Path
+import pwd
+import shutil
+import subprocess
+import sys
+import tarfile
+import tempfile
+import time
+import uuid
+
+import yaml
+
+
+class Lifecycle:
+    def __init__(self, workspace, uid, legacy_owned, install_sha):
+        self.scripts = Path(workspace) / "infrastructure/installation-scripts"
+        self.user = pwd.getpwuid(int(uid))
+        self.home = Path(self.user.pw_dir)
+        self.directory = Path("/var/lib/openedge-cli/k3s_io") / str(self.user.pw_uid)
+        for directory in reversed([self.directory, *self.directory.parents][:-1]):
+            if directory.is_symlink():
+                raise RuntimeError(f"Refusing symlink in lifecycle state path: {directory}")
+            directory.mkdir(mode=0o700, exist_ok=True)
+            if directory.stat().st_uid != 0:
+                raise RuntimeError(f"Lifecycle state directory is not root-owned: {directory}")
+            if directory in (self.directory, self.directory.parent, self.directory.parent.parent):
+                directory.chmod(0o700)
+        self.path = self.directory / "state.json"
+        if self.path.is_symlink():
+            raise RuntimeError("Refusing symlink for lifecycle state")
+        self.state = json.loads(self.path.read_text()) if self.path.exists() else {}
+        self.legacy_owned = legacy_owned == "true"
+        self.install_sha = install_sha
+        self.env = dict(os.environ, KUBECONFIG="/etc/rancher/k3s/k3s.yaml")
+
+    def run(self, *args, data=None, check=True, env=None):
+        result = subprocess.run(
+            args, input=data, text=True, stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, env=self.env if env is None else env, check=False,
+        )
+        if check and result.returncode:
+            # Command output can contain proxy credentials or kubeconfig data.
+            raise RuntimeError(f"{args[0]} {args[1] if len(args) > 1 else ''} failed "
+                               f"(exit {result.returncode}); lifecycle state retained")
+        return result
+
+    def save(self):
+        fd, name = tempfile.mkstemp(dir=self.directory)
+        try:
+            with os.fdopen(fd, "w") as stream:
+                json.dump(self.state, stream)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(name, self.path)
+        finally:
+            if os.path.exists(name):
+                os.unlink(name)
+
+    def service(self, name):
+        load = self.run("systemctl", "show", "-p", "LoadState", "--value", name).stdout.strip()
+        active = self.run("systemctl", "is-active", "--quiet", name, check=False)
+        enabled = self.run("systemctl", "is-enabled", "--quiet", name, check=False)
+        if active.returncode not in (0, 3, 4) or enabled.returncode not in (0, 1, 4):
+            raise RuntimeError(f"Unable to determine original service state: {name}")
+        return {
+            "exists": load != "not-found",
+            "active": active.returncode == 0,
+            "enabled": enabled.returncode == 0,
+        }
+
+    def remember_file(self, path):
+        path = Path(path)
+        key = str(path)
+        files = self.state.setdefault("files", {})
+        if key in files:
+            return
+        if path.is_symlink() or any(parent.is_symlink() for parent in path.parents):
+            raise RuntimeError(f"Refusing to overwrite configuration through a symlink: {path}")
+        before = None
+        if path.exists():
+            if not path.is_file():
+                raise RuntimeError(f"Configuration is not a regular file: {path}")
+            stat = path.stat()
+            before = {
+                "data": base64.b64encode(path.read_bytes()).decode(),
+                "mode": stat.st_mode & 0o777, "uid": stat.st_uid, "gid": stat.st_gid,
+            }
+        files[key] = {"before": before, "after": None}
+        self.save()
+
+    @staticmethod
+    def open_file(path, flags, mode=0o600):
+        path = Path(path)
+        if not path.is_absolute() or ".." in path.parts:
+            raise RuntimeError("Configuration path must be absolute and canonical")
+        directory = os.open("/", os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            for part in path.parts[1:-1]:
+                child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                                dir_fd=directory)
+                os.close(directory)
+                directory = child
+            return os.open(path.name, flags | os.O_NOFOLLOW, mode, dir_fd=directory)
+        finally:
+            os.close(directory)
+
+    def record_file(self, path):
+        path = Path(path)
+        self.state["files"][str(path)]["after"] = hashlib.sha256(path.read_bytes()).hexdigest()
+        self.save()
+
+    def write_file(self, path, content, mode=0o600):
+        path = Path(path)
+        self.remember_file(path)
+        record = self.state["files"][str(path)]
+        expected = record["after"]
+        if expected is None and record["before"]:
+            expected = hashlib.sha256(base64.b64decode(record["before"]["data"])).hexdigest()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        flags = os.O_RDWR | os.O_CREAT | (os.O_EXCL if expected is None else 0)
+        fd = self.open_file(path, flags)
+        with os.fdopen(fd, "r+b") as stream:
+            current = stream.read()
+            if (expected is not None and hashlib.sha256(current).hexdigest() != expected
+                    or expected is None and current):
+                raise RuntimeError(f"Configuration changed outside OEP: {path}")
+            record["after"] = hashlib.sha256(content).hexdigest()
+            self.save()
+            stream.seek(0)
+            stream.truncate(0)
+            stream.write(content)
+            os.fchmod(stream.fileno(), mode)
+        self.record_file(path)
+
+    def cluster(self):
+        result = self.run("k3s", "kubectl", "get", "namespace", "kube-system", "-o", "json")
+        return json.loads(result.stdout)["metadata"]["uid"]
+
+    def check_cluster(self):
+        expected = self.state.get("cluster")
+        if expected and self.cluster() != expected:
+            raise RuntimeError("K3s cluster identity changed; refusing to provision or remove resources")
+
+    def wait_api(self):
+        for attempt in range(60):
+            result = self.run("k3s", "kubectl", "get", "nodes", "-o", "json",
+                              "--request-timeout=5s", check=False)
+            if result.returncode == 0 and json.loads(result.stdout).get("items"):
+                return
+            if attempt < 59:
+                time.sleep(5)
+        raise RuntimeError("K3s API/nodes did not become available; provisioning state retained")
+
+    def prepare(self):
+        if self.state:
+            return
+        present = shutil.which("k3s") is not None
+        if not present and not self.legacy_owned:
+            for path in (Path("/etc/rancher/k3s"), Path("/var/lib/rancher/k3s")):
+                if path.exists() and any(path.iterdir()):
+                    raise RuntimeError(f"K3s binary is missing but pre-existing data exists at {path}; "
+                                       "restore the original runtime before provisioning")
+        self.state = {
+            "owner": str(uuid.uuid4()), "runtime_owned": self.legacy_owned,
+            "runtime_present": present, "resources": [], "files": {},
+            "service": self.service("k3s"),
+        }
+        self.save()
+
+    @staticmethod
+    def configuration(obj, comparable=True):
+        obj = copy.deepcopy(obj)
+        obj.pop("status", None)
+        metadata = obj.setdefault("metadata", {})
+        for key in ("uid", "resourceVersion", "generation", "creationTimestamp",
+                    "managedFields", "deletionTimestamp", "deletionGracePeriodSeconds"):
+            metadata.pop(key, None)
+        if comparable:
+            for key in ("kubectl.kubernetes.io/last-applied-configuration",
+                        "deployment.kubernetes.io/revision",
+                        "deprecated.daemonset.template.generation"):
+                metadata.get("annotations", {}).pop(key, None)
+        return obj
+
+    def get(self, obj):
+        result = self.run("k3s", "kubectl", "get", "--ignore-not-found", "-f", "-",
+                          "-o", "json", data=json.dumps(obj))
+        return json.loads(result.stdout) if result.stdout.strip() else None
+
+    def apply(self, obj):
+        records = self.state["resources"]
+        identity = (obj["apiVersion"], obj["kind"], obj["metadata"].get("namespace"),
+                    obj["metadata"]["name"])
+        record = next((r for r in records if tuple(r["identity"]) == identity), None)
+        current = self.get(obj)
+        if record is None:
+            record = {"identity": identity, "object": obj,
+                      "before": self.configuration(current, comparable=False) if current else None,
+                      "uid": current["metadata"]["uid"] if current else None,
+                      "after": None}
+            records.append(record)
+            self.save()
+        elif record["uid"] and (not current or current["metadata"]["uid"] != record["uid"]):
+            raise RuntimeError(f"Resource identity changed: {identity}")
+        elif record["after"] and self.configuration(current) != record["after"]:
+            raise RuntimeError(f"Resource changed outside OEP: {identity}")
+        if current and record["before"] and not record["after"]:
+            owner = current["metadata"].get("annotations", {}).get(
+                "openedgeplatform.intel.com/k3s-owner")
+            if owner != self.state["owner"] and (
+                    self.configuration(current) != self.configuration(record["before"])):
+                raise RuntimeError(f"Resource changed during interrupted provisioning: {identity}")
+        desired = copy.deepcopy(obj)
+        desired.setdefault("metadata", {}).setdefault("annotations", {})[
+            "openedgeplatform.intel.com/k3s-owner"] = self.state["owner"]
+        if current:
+            if record["uid"] is None:
+                owner = current["metadata"].get("annotations", {}).get(
+                    "openedgeplatform.intel.com/k3s-owner")
+                if owner != self.state["owner"]:
+                    raise RuntimeError(f"Resource was concurrently created outside OEP: {identity}")
+            # resourceVersion makes concurrent writes fail instead of overwriting them.
+            desired = self.merge(current, desired)
+            desired.pop("status", None)
+            action = "replace"
+        else:
+            action = "create"
+        print(f"Provisioning {obj['kind']}/{obj['metadata']['name']}", flush=True)
+        result = self.run("k3s", "kubectl", action, "-f", "-", "-o", "json",
+                          data=json.dumps(desired))
+        installed = json.loads(result.stdout)
+        record["uid"] = installed["metadata"]["uid"]
+        record["after"] = self.configuration(installed)
+        if record["before"] is None:
+            uids = self.state.setdefault("created_uids", [])
+            if record["uid"] not in uids:
+                uids.append(record["uid"])
+        self.save()
+        if obj["kind"] == "CustomResourceDefinition":
+            self.run("k3s", "kubectl", "wait", "--for=condition=Established",
+                     "--timeout=120s", "crd/" + obj["metadata"]["name"])
+
+    @classmethod
+    def merge(cls, original, changes):
+        result = copy.deepcopy(original)
+        for key, value in changes.items():
+            if isinstance(value, dict) and isinstance(result.get(key), dict):
+                result[key] = cls.merge(result[key], value)
+            else:
+                result[key] = copy.deepcopy(value)
+        return result
+
+    def deploy(self):
+        resources = self.scripts / "resources/intel-device-plugins"
+        for archive in sorted((resources / "images").glob("*.tar")):
+            self.run("k3s", "ctr", "images", "import", str(archive))
+        for namespace in ("node-feature-discovery", "intel-device-plugins"):
+            self.apply({
+                "apiVersion": "v1", "kind": "Namespace",
+                "metadata": {"name": namespace, "labels": {
+                    "pod-security.kubernetes.io/enforce": "privileged",
+                    "pod-security.kubernetes.io/audit": "privileged",
+                    "pod-security.kubernetes.io/warn": "privileged",
+                }},
+            })
+        for name in ("nfd", "nfd-node-feature-rules", "gpu-plugin", "npu-plugin"):
+            manifest = resources / "manifests" / (name + ".yaml")
+            documents = list(yaml.safe_load_all(manifest.read_text()))
+            objects = []
+            for document in documents:
+                if document:
+                    objects.extend(document["items"] if document.get("kind") == "List" else [document])
+            if not objects:
+                raise RuntimeError(f"Empty device-plugin manifest: {name}")
+            for obj in objects:
+                if obj["kind"] not in ("Namespace", "CustomResourceDefinition",
+                                       "ClusterRole", "ClusterRoleBinding", "NodeFeatureRule"):
+                    obj.setdefault("metadata", {}).setdefault(
+                        "namespace", "intel-device-plugins" if name.endswith("plugin")
+                        else "node-feature-discovery")
+                self.apply(obj)
+            for obj in objects:
+                if obj["kind"] in ("Deployment", "DaemonSet"):
+                    self.run("k3s", "kubectl", "rollout", "status",
+                             obj["kind"].lower() + "/" + obj["metadata"]["name"],
+                             "-n", obj["metadata"]["namespace"], "--timeout=180s")
+
+    def proxy(self):
+        values = {name: os.environ.get(name) or os.environ.get(name.lower(), "")
+                  for name in ("HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY")}
+        if not (values["HTTP_PROXY"] or values["HTTPS_PROXY"]):
+            return
+        lines = ["[Service]"]
+        for name, value in values.items():
+            if any(char in value for char in "\r\n\0"):
+                raise RuntimeError("Invalid newline or NUL in proxy configuration")
+            escaped = value.replace("\\", "\\\\").replace('"', '\\"').replace("%", "%%")
+            for key in (name, "CONTAINERD_" + name):
+                lines.append(f'Environment="{key}={escaped}"')
+        path = Path("/etc/systemd/system/k3s.service.d/99-oep-proxy.conf")
+        self.write_file(path, ("\n".join(lines) + "\n").encode())
+        self.run("systemctl", "daemon-reload")
+        self.run("systemctl", "restart", "k3s")
+
+    def sriov(self):
+        config = Path("/etc/cloud/config-file")
+        if not config.exists():
+            return
+        enabled = any(line.strip().partition("=")[0] == "enable_sriov"
+                      and line.strip().partition("=")[2].strip().strip("'\"").lower() == "true"
+                      for line in config.read_text().splitlines())
+        if not enabled:
+            return
+        pf = Path("/sys/bus/pci/devices/0000:00:02.0")
+        count = pf / "sriov_numvfs"
+        if not count.exists():
+            raise RuntimeError("SR-IOV requested but Intel GPU VF controls are unavailable")
+        if "sriov" not in self.state:
+            before = int(count.read_text())
+            self.state["sriov"] = {"count": before, "values": {}, "after": {},
+                                   "service": self.service("intel-sriov-vf.service")}
+            self.save()
+        snapshot = self.state["sriov"]
+        if snapshot["count"]:
+            print("Preserving pre-existing SR-IOV VFs and boot configuration")
+            return
+        if snapshot.get("attempted"):
+            if int(count.read_text()) != snapshot.get("after_count", snapshot["count"]):
+                raise RuntimeError("SR-IOV VF count changed outside OEP")
+            for key, value in snapshot.get("after", {}).items():
+                if Path(key).read_text() != value:
+                    raise RuntimeError(f"SR-IOV tuning changed outside OEP: {key}")
+        cards = sorted((pf / "drm").glob("card[0-9]*"))
+        if not cards:
+            raise RuntimeError("SR-IOV requested but no Intel GPU DRM card is available")
+        driver = (pf / "driver").resolve().name
+        if driver not in ("xe", "i915"):
+            raise RuntimeError("SR-IOV requires the xe or i915 driver")
+        paths = [cards[0] / "prelim_iov/pf/auto_provisioning"]
+        if driver == "xe":
+            paths.extend(Path("/sys/kernel/debug/dri/0/gt0/pf") / name
+                         for name in ("ggtt_spare", "contexts_spare", "doorbells_spare"))
+        for path in paths:
+            if not path.is_file() or not os.access(path, os.R_OK | os.W_OK):
+                raise RuntimeError(f"Cannot safely snapshot/restore SR-IOV control: {path}")
+            snapshot["values"].setdefault(str(path), path.read_text())
+        self.save()
+        for name, source in (
+            ("container_setup_sriov.sh", self.scripts / "container_setup_sriov.sh"),
+            ("intel-sriov-vf.service", self.scripts / "systemd/intel-sriov-vf.service"),
+        ):
+            target = Path("/opt/edge/scripts") / name if name.endswith(".sh") else (
+                Path("/etc/systemd/system") / name)
+            self.write_file(target, source.read_bytes(), 0o755 if name.endswith(".sh") else 0o644)
+        self.state["sriov"]["attempted"] = True
+        self.save()
+        self.run("modprobe", "i2c-algo-bit")
+        self.run("modprobe", "video")
+        try:
+            self.run("bash", "-e", "-o", "pipefail",
+                     str(self.scripts / "container_setup_sriov.sh"))
+        finally:
+            snapshot["after"] = {str(path): path.read_text() for path in paths}
+            snapshot["after_count"] = int(count.read_text())
+            self.save()
+        actual = int(count.read_text())
+        if actual != int((pf / "sriov_totalvfs").read_text()):
+            raise RuntimeError("SR-IOV provisioning did not create the expected VF count")
+        expected = [1] + ([500 * 1024 * 1024, 9216, 32] if driver == "xe" else [])
+        if any(int(path.read_text()) != value for path, value in zip(paths, expected)):
+            raise RuntimeError("SR-IOV PF tuning was not applied successfully")
+        self.run("systemctl", "daemon-reload")
+        self.run("systemctl", "enable", "intel-sriov-vf.service")
+        # A display restart is disruptive but has no persistent setting to restore.
+        if self.service("display-manager.service")["active"]:
+            self.run("systemctl", "restart", "display-manager.service")
+
+    def install(self):
+        if not self.state:
+            raise RuntimeError("Missing preparation state")
+        if not shutil.which("k3s") or (
+                self.state["runtime_owned"] and self.state.get("runtime_installer_started") is False):
+            if self.state["runtime_present"] and not self.state["runtime_owned"]:
+                raise RuntimeError("Pre-existing K3s disappeared; refusing to claim its data")
+            if self.state.get("cluster"):
+                raise RuntimeError("Previously provisioned K3s is missing; remove its recorded state first")
+            # Record intent before the upstream installer can fail part-way.
+            self.state["runtime_owned"] = True
+            self.state.setdefault("runtime_installer_started", False)
+            self.save()
+            self.install_runtime()
+        self.run("systemctl", "enable", "--now", "k3s")
+        self.wait_api()
+        # Check identity before changing proxy files, resources, or host devices.
+        self.check_cluster()
+        self.state.setdefault("cluster", self.cluster())
+        self.save()
+        self.proxy()
+        self.wait_api()
+        self.run("k3s", "kubectl", "wait", "--for=condition=Ready", "nodes", "--all", "--timeout=300s")
+        self.check_cluster()
+        if not shutil.which("helm"):
+            target = Path("/usr/local/bin/helm")
+            if target.exists() or target.is_symlink():
+                raise RuntimeError("Refusing to replace an existing Helm file outside PATH")
+            self.remember_file(target)
+            self.prepare_helm(target)
+            try:
+                self.run("bash", str(self.scripts / "install-helm.sh"))
+            finally:
+                if target.exists():
+                    self.record_file(target)
+        self.run("helm", "version", "--short")
+        self.deploy()
+        self.sriov()
+        self.state["complete"] = True
+        self.save()
+
+    def prepare_helm(self, target):
+        arch = {"x86_64": "amd64", "aarch64": "arm64", "armv7l": "arm"}.get(os.uname().machine)
+        if arch is None:
+            raise RuntimeError("Unsupported Helm architecture")
+        archives = sorted((self.scripts / "resources/helm").glob(f"helm-*-linux-{arch}.tar.gz"))
+        if not archives:
+            raise RuntimeError("Helm archive is missing")
+        archive = archives[0]
+        checksums = Path(str(archive) + ".sha256sum").read_text().split()
+        if not checksums or hashlib.sha256(archive.read_bytes()).hexdigest() != checksums[0]:
+            raise RuntimeError("Helm archive checksum mismatch")
+        with tarfile.open(archive, "r:gz") as bundle:
+            member = bundle.getmember(f"linux-{arch}/helm")
+            if not member.isfile():
+                raise RuntimeError("Helm archive does not contain a regular binary")
+            with bundle.extractfile(member) as binary:
+                digest = hashlib.sha256(binary.read()).hexdigest()
+        self.state["files"][str(target)]["after"] = digest
+        self.save()
+
+    def install_runtime(self):
+        if os.environ.get("K3S_MODE", "server") != "server":
+            raise RuntimeError("k3s_io provisions a server; agent-only installation is not supported")
+        resources = self.scripts / "resources/k3s"
+        script = (resources / "install.sh").read_bytes()
+        if hashlib.sha256(script).hexdigest() != self.install_sha:
+            raise RuntimeError("K3s install script checksum mismatch")
+        archives = sorted(resources.glob("k3s-airgap-images-*.tar.*"))
+        if not archives:
+            raise RuntimeError("K3s airgap image archive is missing")
+        binary = Path("/usr/local/bin/k3s")
+        if (binary.exists() or binary.is_symlink()) and str(binary) not in self.state["files"]:
+            raise RuntimeError("Refusing to overwrite an existing K3s binary outside PATH")
+        images = Path("/var/lib/rancher/k3s/agent/images")
+        self.stage_file(resources / "k3s", binary, "755")
+        self.run("install", "-d", "-m", "700", "/etc/rancher/k3s")
+        self.run("install", "-d", "-m", "755", str(images))
+        for archive in archives:
+            target = images / archive.name
+            self.stage_file(archive, target, "644")
+        config = os.environ.get("K3S_CONFIG_FILE")
+        if config:
+            self.write_file(Path("/etc/rancher/k3s/config.yaml"), Path(config).read_bytes())
+        env = dict(self.env, INSTALL_K3S_SKIP_DOWNLOAD="true",
+                   INSTALL_K3S_BIN_DIR="/usr/local/bin")
+        # Execute precisely the verified bytes, without the first-boot wrapper's
+        # unconditional user-home overwrite or a second read of the script path.
+        self.state["runtime_installer_started"] = True
+        self.save()
+        self.run("bash", data=script.decode(), env=env)
+        source = Path("/etc/rancher/k3s/k3s.yaml")
+        target = self.home / ".kube/config"
+        if target.exists() or target.is_symlink():
+            print("Preserving existing user kubeconfig; using the K3s server kubeconfig for provisioning")
+            return
+        new_directory = not target.parent.exists()
+        self.write_file(target, source.read_bytes())
+        if new_directory:
+            fd = self.open_file(target.parent, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fchown(fd, self.user.pw_uid, self.user.pw_gid)
+            finally:
+                os.close(fd)
+        fd = self.open_file(target, os.O_RDONLY)
+        try:
+            os.fchown(fd, self.user.pw_uid, self.user.pw_gid)
+        finally:
+            os.close(fd)
+
+    def stage_file(self, source, target, mode):
+        if target.is_symlink():
+            raise RuntimeError(f"Refusing to stage through a symlink: {target}")
+        if target.exists():
+            expected = hashlib.sha256(source.read_bytes()).hexdigest()
+            if hashlib.sha256(target.read_bytes()).hexdigest() != expected:
+                raise RuntimeError(f"Staged file conflicts with existing content: {target}")
+            return
+        self.remember_file(target)
+        self.state["files"][str(target)]["after"] = hashlib.sha256(source.read_bytes()).hexdigest()
+        self.save()
+        self.run("install", "-m", mode, str(source), str(target))
+
+    def restore_files(self):
+        for key, record in list(self.state.get("files", {}).items())[::-1]:
+            path = Path(key)
+            if record["after"] is None:
+                # No successful write recorded: leave the original in place.
+                continue
+            if path.is_symlink() or any(parent.is_symlink() for parent in path.parents):
+                raise RuntimeError(f"Refusing to restore configuration through a symlink: {path}")
+            if path.exists() and hashlib.sha256(path.read_bytes()).hexdigest() != record["after"]:
+                raise RuntimeError(f"Configuration changed outside OEP; preserve and resolve before retry: {path}")
+            before = record["before"]
+            if before:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                existed = path.exists()
+                flags = os.O_RDWR | os.O_CREAT | (0 if existed else os.O_EXCL)
+                fd = self.open_file(path, flags)
+                with os.fdopen(fd, "r+b") as stream:
+                    current = stream.read()
+                    if existed and hashlib.sha256(current).hexdigest() != record["after"]:
+                        raise RuntimeError(f"Configuration changed during restoration: {path}")
+                    stream.seek(0)
+                    stream.truncate(0)
+                    stream.write(base64.b64decode(before["data"]))
+                    os.fchmod(stream.fileno(), before["mode"])
+                    os.fchown(stream.fileno(), before["uid"], before["gid"])
+            elif path.exists():
+                path.unlink()
+            del self.state["files"][key]
+            self.save()
+
+    def restore_sriov(self):
+        snapshot = self.state.get("sriov", {})
+        if not snapshot.get("attempted"):
+            return
+        count = Path("/sys/bus/pci/devices/0000:00:02.0/sriov_numvfs")
+        if not count.exists():
+            raise RuntimeError("SR-IOV hardware is unavailable; cannot safely restore its configuration")
+        if int(count.read_text()) not in (snapshot["count"], snapshot.get("after_count")):
+            raise RuntimeError("SR-IOV VF count changed outside OEP; refusing to reset it")
+        for key, value in snapshot.get("after", {}).items():
+            if Path(key).read_text() != value:
+                raise RuntimeError(f"SR-IOV tuning changed outside OEP: {key}")
+        self.run("systemctl", "disable", "--now", "intel-sriov-vf.service")
+        count.write_text(str(snapshot["count"]))
+        for key, value in snapshot["values"].items():
+            Path(key).write_text(value)
+        snapshot["attempted"] = False
+        snapshot["restore_service"] = True
+        self.save()
+
+    def has_foreign_contents(self, obj):
+        kind = obj["kind"]
+        if kind == "CustomResourceDefinition":
+            name = obj["metadata"]["name"]
+            items = json.loads(self.run("k3s", "kubectl", "get", name, "-A",
+                                        "-o", "json").stdout)["items"]
+            return bool(self.foreign_items(items))
+        if kind != "Namespace":
+            return False
+        name = obj["metadata"]["name"]
+        kinds = self.run("k3s", "kubectl", "api-resources", "--namespaced=true",
+                         "--verbs=list", "-o", "name").stdout.split()
+        items = []
+        for resource in kinds:
+            items.extend(json.loads(self.run("k3s", "kubectl", "get", resource, "-n", name,
+                                            "-o", "json").stdout)["items"])
+        return any((item["kind"], item["metadata"]["name"]) not in (
+            ("ServiceAccount", "default"), ("ConfigMap", "kube-root-ca.crt"),
+        ) and item["kind"] != "Event" for item in self.foreign_items(items))
+
+    def foreign_items(self, items):
+        # Controller-created ReplicaSets, Pods and NFD NodeFeatures inherit
+        # ownership. Retain parent UIDs after deletion while garbage collection runs.
+        owned = set(self.state.get("created_uids", []))
+        while True:
+            children = {item["metadata"]["uid"] for item in items
+                        if any(ref["uid"] in owned
+                               for ref in item["metadata"].get("ownerReferences", []))}
+            if children <= owned:
+                break
+            owned.update(children)
+        return [item for item in items if item["metadata"]["uid"] not in owned]
+
+    def restore_resources(self):
+        self.check_cluster()
+        for record in list(self.state["resources"])[::-1]:
+            current = self.get(record["object"])
+            if current:
+                uid = current["metadata"]["uid"]
+                if record["uid"] and uid != record["uid"]:
+                    raise RuntimeError(f"Resource replaced outside OEP: {record['identity']}")
+                if record["after"] and self.configuration(current) != record["after"]:
+                    raise RuntimeError(f"Resource modified outside OEP: {record['identity']}")
+                if record["before"] and not record["after"]:
+                    owner = current["metadata"].get("annotations", {}).get(
+                        "openedgeplatform.intel.com/k3s-owner")
+                    if owner != self.state["owner"] and (
+                            self.configuration(current) != self.configuration(record["before"])):
+                        raise RuntimeError(f"Resource changed during interrupted provisioning: {record['identity']}")
+                if record["before"]:
+                    restored = copy.deepcopy(record["before"])
+                    restored["metadata"]["resourceVersion"] = current["metadata"]["resourceVersion"]
+                    self.run("k3s", "kubectl", "replace", "-f", "-", data=json.dumps(restored))
+                else:
+                    owner = current["metadata"].get("annotations", {}).get(
+                        "openedgeplatform.intel.com/k3s-owner")
+                    if owner != self.state["owner"]:
+                        raise RuntimeError(f"Unowned resource encountered: {record['identity']}")
+                    if self.has_foreign_contents(current):
+                        raise RuntimeError(f"Resource contains foreign objects; preserve and resolve "
+                                           f"before retry: {record['identity']}")
+                    # DeleteOptions preconditions guard against replacement between get and delete.
+                    api = current["apiVersion"]
+                    prefix = "/api/" + api if "/" not in api else "/apis/" + api
+                    resources = json.loads(self.run("k3s", "kubectl", "get", "--raw",
+                                                    prefix).stdout)["resources"]
+                    resource = next(r["name"] for r in resources
+                                    if r["kind"] == current["kind"] and "/" not in r["name"])
+                    namespace = current["metadata"].get("namespace")
+                    url = prefix + ("/namespaces/" + namespace if namespace else "")
+                    url += "/" + resource + "/" + current["metadata"]["name"]
+                    self.run("k3s", "kubectl", "delete", "--raw", url, "-f", "-",
+                             data=json.dumps({"apiVersion": "v1", "kind": "DeleteOptions",
+                                              "propagationPolicy": "Foreground",
+                                              "preconditions": {
+                                                  "uid": uid,
+                                                  "resourceVersion": current["metadata"]["resourceVersion"],
+                                              }}))
+                    self.run("k3s", "kubectl", "wait", "--for=delete", "-f", "-",
+                             "--timeout=180s", data=json.dumps(record["object"]))
+            elif record["before"]:
+                raise RuntimeError(f"Original resource disappeared: {record['identity']}")
+            self.state["resources"].remove(record)
+            self.save()
+
+    def remove(self):
+        if not self.state:
+            if self.legacy_owned:
+                # Migration from the old module: no Helm/plugin ownership was recorded.
+                self.prepare()
+            else:
+                print("No OEP K3s provisioning state; leaving the cluster unchanged")
+                return
+        if self.state.get("cluster") and (shutil.which("k3s") or not self.state["runtime_owned"]):
+            self.check_cluster()
+        self.restore_sriov()
+        if self.state.get("cluster") and not self.state["runtime_owned"]:
+            self.restore_resources()
+        if self.state["runtime_owned"]:
+            script = Path("/usr/local/bin/k3s-uninstall.sh")
+            if script.is_file():
+                self.check_cluster()
+                self.run("bash", str(script))
+            elif shutil.which("k3s") and self.state.get("runtime_installer_started", True):
+                raise RuntimeError("Owned K3s is present but its uninstall script is missing")
+            elif self.state.get("runtime_installer_started") is False:
+                self.restore_files()
+            if shutil.which("k3s"):
+                raise RuntimeError("K3s is still present after uninstall")
+            self.state["resources"] = []
+            self.state.pop("cluster", None)
+            self.save()
+        self.restore_files()
+        self.run("systemctl", "daemon-reload")
+        sriov = self.state.get("sriov", {})
+        if sriov.get("restore_service"):
+            self.restore_service("intel-sriov-vf.service", sriov["service"])
+        if not self.state["runtime_owned"]:
+            self.restore_service("k3s", self.state["service"])
+        self.path.unlink()
+        self.directory.rmdir()
+
+    def restore_service(self, name, before):
+        if not before.get("exists", True):
+            return
+        self.run("systemctl", "enable" if before["enabled"] else "disable", name)
+        self.run("systemctl", "restart" if before["active"] else "stop", name)
+
+
+if __name__ == "__main__":
+    try:
+        lifecycle = Lifecycle(sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5])
+        getattr(lifecycle, sys.argv[1])()
+    except (RuntimeError, OSError, ValueError, KeyError, StopIteration,
+            tarfile.TarError, yaml.YAMLError) as error:
+        print(f"K3s lifecycle failed: {error}", file=sys.stderr)
+        sys.exit(1)
+PY
+
+}
 remove_geti () 
 { 
     stop_geti "$@";
@@ -10540,8 +11204,8 @@ subcommand_resume ()
 subcommand_setup () 
 { 
     [[ " $* " != *" --help "* ]] || return;
-    local installer_misc_functions=(_act_levenshtein system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary test_anomalib test_dlstreamer_pipeline test_openvino uninstall_k3s_edge_node_infrastructure_blueprint);
-    local installer_completion_text="IyEvYmluL2Jhc2gKX29wZW5lZGdlX2NsaV9jb21wbGV0aW9uICgpIHsKICBpZiAoKCBDT01QX0NXT1JEID09IDEgKSk7IHRoZW4KICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICJpbnN0YWxsIHJlbW92ZSByZXN1bWUgc3RhcnQgc3RvcCBsaXN0IHNldHVwIC0taGVscCIgLS0gIiQyIikpCiAgICByZXR1cm4KICBmaQoKICBjYXNlICIke0NPTVBfV09SRFNbMV19IiBpbgogIGluc3RhbGwpCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtyZWJvb3RdPSIiIFtsaXZlX3ZpZGVvX2NhcHRpb25pbmddPSIiIFt0YWtlX2F3YXldPSIiIFtlZGdlX3BhY2tfYmFzZV9yZWFsdGltZV09IiIgW3BjbV09IiIgW3RpbWVfY29uZmlnaHViXT0iIiBbYnVpbGRfZXNzZW50aWFsXT0iIiBbcHl0aG9uM192ZW52XT0iIiBbZWRnZV9wYWNrX3Rzbl09IiIgW2Nocm9ueV09IiIgW2szc19pb109IiIgW3NvZnR3YXJlX3Byb3BlcnRpZXNfY29tbW9uXT0iIiBbZWRnZV9wYWNrX2dyYXBoaWNzX2Rpc3BsYXldPSIiIFtyZWFsX3RpbWVfc2NlbmVfdW5kZXJzdGFuZGluZ109IiIgW2dldGldPSIiIFtyc3luY109IiIgW2xpbnV4X2ltYWdlXzYuMThfaW50ZWxdPSIiIFt2aXBwZXRdPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ibHVlcHJpbnRdPSIiIFtjbG91ZF9pbWFnZV91dGlsc109IiIgW2dpdF09IiIgW2VkZ2VfYmFzZV09IiIgW2xvc3NfcHJldmVudGlvbl09IiIgW2RldGVybWluaXN0aWNfdGhyZWF0X2RldGVjdGlvbl09IiIgW2dwdV9hY2NlbF09IiIgW3BjYl9hbm9tYWx5X2RldGVjdGlvbl09IiIgW2NtYWtlXT0iIiBbYXV0b21ha2VdPSIiIFttYW51ZmFjdHVyaW5nX2FpX3N1aXRlXT0iIiBbdjRsX3V0aWxzXT0iIiBbc3lzdGVtX3N1bW1hcnldPSIiIFtnbnVwZ109IiIgW292bWZdPSIiIFtucHVfYWNjZWxdPSIiIFtsbV9zZW5zb3JzXT0iIiBbbGliZ2wxXT0iIiBbc3RyZXNzX25nXT0iIiBbbm9kZWpzXT0iIiBbZG9ja2VyX2NlXT0iIiBbbWVtdGVzdGVyXT0iIiBbLS1yZWluc3RhbGxdPSIiIFthZ2VudGljX3ByZWRpY3RpdmVfbWFpbnRlbmFuY2VfcGlwZWxpbmVdPSIiIFtlZGdlX3BhY2tfaXB1XT0iIiBbaGVhbHRoX2FuZF9saWZlX3NjaWVuY2VfYWlfc3VpdGVdPSIiIFtzdGF0aW9uYXJ5X3JvYm90X3Zpc2lvbl09IiIgW3J0X3Rlc3RzXT0iIiBbc3lzdGVtX2luc3BlY3Rpb25dPSIiIFtjb21wdXRlcl92aXNpb25dPSIiIFtwaXB4XT0iIiBbbWVkaWFtdHhdPSIiIFtsb2l0ZXJpbmdfZGV0ZWN0aW9uXT0iIiBbZWRnZV9wYWNrX21lZGlhX2ZmbXBlZ109IiIgWy0tdmFsaWRhdGVdPSIiIFtvcGVudmlub109IiIgW21ha2VdPSIiIFtzbWFydF90cmFmZmljX2ludGVyc2VjdGlvbl9hZ2VudF09IiIgW3V2XT0iIiBbc2NlbmVzY2FwZV09IiIgW3VidW50dV9zZXJ2ZXJdPSIiIFttaXNzaW9uX2RlY2lzaW9uX3N1cHBvcnRfYmx1ZXByaW50XT0iIiBbZXNxXT0iIiBbYXV0b25vbW91c19tb2JpbGVfcm9ib3RdPSIiIFtsaXZlX3ZpZGVvX2FsZXJ0X2FnZW50XT0iIiBbZWRnZV9wYWNrX2Jhc2Vfc3RhbmRhcmRdPSIiIFt2aWRlb19wcm9jZXNzaW5nX2Zvcl9udnJdPSIiIFt2aWRlb19zZWFyY2hfYW5kX3N1bW1hcml6YXRpb25dPSIiIFtkaW5lX2luXT0iIiBbZG9ja2VyX2lvXT0iIiBbcGh5c2ljYWxfYWlfZnJhbWV3b3JrXT0iIiBbcnVzdHVwXT0iIiBbcm9zX29wZW52aW5vXT0iIiBbbGlidGJiMTJdPSIiIFtwYWxsZXRfZGVmZWN0X2RldGVjdGlvbl09IiIgW2xpdmVfdmlkZW9fc2VhcmNoXT0iIiBbcG93ZXJfdHVuaW5nXT0iIiBbcGtnX2NvbmZpZ109IiIgW2hhbmRoZWxkX2JsdWVwcmludF09IiIgW3NtYXJ0X252cl09IiIgW2VkZ2VfYmFzZV9yb2JvdGljc109IiIgWy0tZHJ5LXJ1bl09IiIgW3FlbXVfdXRpbHNdPSIiIFtlZGdlX3BhY2tfZ3JhcGhpY3NfY29yZV09IiIgW2xpYmNhcDJfYmluXT0iIiBbZ2F3a109IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9oYW5kaGVsZF09IiIgW211bHRpX21vZGFsX3BhdGllbnRfbW9uaXRvcmluZ109IiIgW2xpYnplMV09IiIgW2ZmbXBlZ109IiIgW3VuemlwXT0iIiBbcG9zdF9mdXNpb25dPSIiIFtkbHN0cmVhbWVyXT0iIiBbYXV0b2NvbmZdPSIiIFtyb2JvdGljc19haV9zdWl0ZV09IiIgW2VkZ2VfcGFja19tZWRpYV9nc3RdPSIiIFtsaW51eF9pbWFnZV9nZW5lcmljXzcuMF09IiIgW2xpYnBjcmUyX2Rldl09IiIgW3BoeXNpY2FsX2FpX3N0dWRpb109IiIgW3JvczJdPSIiIFtpbmZlcmVuY2luZ109IiIgW3dnZXRdPSIiIFttZXRyb19haV9zdWl0ZV09IiIgW2RtaWRlY29kZV09IiIgW25pY3Vfd2FybWVyXT0iIiBbc3lzdGVtX2luZm9dPSIiIFtodW1hbm9pZF9pbWl0YXRpb25fbGVhcm5pbmddPSIiIFtrZXJuZWxfbW9kdWxlX2Vzc2VudGlhbF09IiIgW3hwdV9zbWldPSIiIFtjcHVpZF09IiIgW2xzYl9yZWxlYXNlXT0iIiBbZWRnZV9wYWNrX21hbmFnZWFiaWxpdHldPSIiIFtzeXNiZW5jaF09IiIgW2FnZW50aWNfc21hcnRfY29tbXVuaXR5XT0iIiBbc3VyZ2ljYWxfaW5zdHJ1bWVudF09IiIgW2pxXT0iIiBbZGViY29uZl91dGlsc109IiIgW3BjaXV0aWxzXT0iIiBbaW1hZ2VfYmFzZWRfdmlkZW9fc2VhcmNoXT0iIiBbbGlieWFuZ109IiIgW2xpdmVfdmlkZW9fY2FwdGlvbmluZ19yYWddPSIiIFtmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVdPSIiIFttc3JfdG9vbHNdPSIiIFtjZGldPSIiIFthbm9tYWxpYl09IiIgW2N1cmxdPSIiIFstLWNvbnRpbnVlXT0iIiBbc21hcnRfa2lvc2tfYXNzaXN0YW50XT0iIiBbZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX21pc3Npb25fZGVjaXNpb25fc3VwcG9ydF09IiIgW2ludGVsX2xwbWRdPSIiIFttdWx0aW1vZGFsX3dlbGRfZGVmZWN0X2RldGVjdGlvbl09IiIgW2dvbGFuZ109IiIgW2NvcmVfdHlwZXNdPSIiIFtoYW5kaGVsZF9tdWx0aV9tb2RhbF09IiIgW3NtYXJ0X2ludGVyc2VjdGlvbl09IiIgW2xpbnV4X3Rvb2xzXT0iIiBbZWRnZV9wYWNrXT0iIiBbd2luZF90dXJiaW5lX2Fub21hbHlfZGV0ZWN0aW9uXT0iIiBbeXFdPSIiIFtzbWFydF9wYXJraW5nXT0iIiBbdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfbWlzc2lvbl09IiIgW3Zpc3VhbF9zZWFyY2hfcXVlc3Rpb25fYW5kX2Fuc3dlcmluZ109IiIgW3FlbXVfc3lzdGVtX3g4Nl09IiIgW3JldGFpbF9haV9zdWl0ZV09IiIgW3JlYWxzZW5zZV09IiIgW2VkZ2VfcGFja19tZWRpYV9jb3JlXT0iIiBbZWRnZV9ub2RlX2luZnJhc3RydWN0dXJlX2JsdWVwcmludF09IiIgW2VkZ2VfcGFja19ucHVdPSIiIFtlZGdlX3BhY2tfZ3JhcGhpY3Nfc3Jpb3ZdPSIiICkKICAgIGZvciAoKGk9MjtpPENPTVBfQ1dPUkQ7aSsrKSk7IGRvIHVuc2V0ICJhbGxfY29tcHNbJHtDT01QX1dPUkRTWyRpXX1dIjsgZG9uZQogICAgQ09NUFJFUExZPSgkKGNvbXBnZW4gLVcgIiR7IWFsbF9jb21wc1sqXX0iIC0tICIkMiIpKQogICAgOzsKICByZW1vdmUpCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtsaXZlX3ZpZGVvX2NhcHRpb25pbmddPSIiIFt0YWtlX2F3YXldPSIiIFtlZGdlX3BhY2tfYmFzZV9yZWFsdGltZV09IiIgW3BjbV09IiIgW3RpbWVfY29uZmlnaHViXT0iIiBbYnVpbGRfZXNzZW50aWFsXT0iIiBbZWRnZV9wYWNrX3Rzbl09IiIgW2szc19pb109IiIgW2VkZ2VfcGFja19ncmFwaGljc19kaXNwbGF5XT0iIiBbcmVhbF90aW1lX3NjZW5lX3VuZGVyc3RhbmRpbmddPSIiIFtyc3luY109IiIgW2dldGldPSIiIFt2aXBwZXRdPSIiIFtjbG91ZF9pbWFnZV91dGlsc109IiIgW3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX2JsdWVwcmludF09IiIgW2dpdF09IiIgW2VkZ2VfYmFzZV09IiIgW2xvc3NfcHJldmVudGlvbl09IiIgW2RldGVybWluaXN0aWNfdGhyZWF0X2RldGVjdGlvbl09IiIgW2dwdV9hY2NlbF09IiIgW3BjYl9hbm9tYWx5X2RldGVjdGlvbl09IiIgW2NtYWtlXT0iIiBbYXV0b21ha2VdPSIiIFttYW51ZmFjdHVyaW5nX2FpX3N1aXRlXT0iIiBbdjRsX3V0aWxzXT0iIiBbb3ZtZl09IiIgW25wdV9hY2NlbF09IiIgW2xtX3NlbnNvcnNdPSIiIFtzdHJlc3NfbmddPSIiIFtub2RlanNdPSIiIFtkb2NrZXJfY2VdPSIiIFttZW10ZXN0ZXJdPSIiIFstLXJlaW5zdGFsbF09IiIgW2FnZW50aWNfcHJlZGljdGl2ZV9tYWludGVuYW5jZV9waXBlbGluZV09IiIgW2VkZ2VfcGFja19pcHVdPSIiIFtoZWFsdGhfYW5kX2xpZmVfc2NpZW5jZV9haV9zdWl0ZV09IiIgW3N0YXRpb25hcnlfcm9ib3RfdmlzaW9uXT0iIiBbcnRfdGVzdHNdPSIiIFtjb21wdXRlcl92aXNpb25dPSIiIFtsb2l0ZXJpbmdfZGV0ZWN0aW9uXT0iIiBbbWVkaWFtdHhdPSIiIFtlZGdlX3BhY2tfbWVkaWFfZmZtcGVnXT0iIiBbLS12YWxpZGF0ZV09IiIgW29wZW52aW5vXT0iIiBbbWFrZV09IiIgW3NtYXJ0X3RyYWZmaWNfaW50ZXJzZWN0aW9uX2FnZW50XT0iIiBbdXZdPSIiIFtzY2VuZXNjYXBlXT0iIiBbbWlzc2lvbl9kZWNpc2lvbl9zdXBwb3J0X2JsdWVwcmludF09IiIgW2VzcV09IiIgW2F1dG9ub21vdXNfbW9iaWxlX3JvYm90XT0iIiBbbGl2ZV92aWRlb19hbGVydF9hZ2VudF09IiIgW2VkZ2VfcGFja19iYXNlX3N0YW5kYXJkXT0iIiBbdmlkZW9fcHJvY2Vzc2luZ19mb3JfbnZyXT0iIiBbZGluZV9pbl09IiIgW3ZpZGVvX3NlYXJjaF9hbmRfc3VtbWFyaXphdGlvbl09IiIgW2RvY2tlcl9pb109IiIgW3BoeXNpY2FsX2FpX2ZyYW1ld29ya109IiIgW3J1c3R1cF09IiIgW3Jvc19vcGVudmlub109IiIgW3BhbGxldF9kZWZlY3RfZGV0ZWN0aW9uXT0iIiBbbGl2ZV92aWRlb19zZWFyY2hdPSIiIFtwb3dlcl90dW5pbmddPSIiIFtwa2dfY29uZmlnXT0iIiBbaGFuZGhlbGRfYmx1ZXByaW50XT0iIiBbc21hcnRfbnZyXT0iIiBbZWRnZV9iYXNlX3JvYm90aWNzXT0iIiBbLS1kcnktcnVuXT0iIiBbZWRnZV9wYWNrX2dyYXBoaWNzX2NvcmVdPSIiIFtmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfaGFuZGhlbGRdPSIiIFttdWx0aV9tb2RhbF9wYXRpZW50X21vbml0b3JpbmddPSIiIFtmZm1wZWddPSIiIFt1bnppcF09IiIgW3Bvc3RfZnVzaW9uXT0iIiBbZGxzdHJlYW1lcl09IiIgW2F1dG9jb25mXT0iIiBbcm9ib3RpY3NfYWlfc3VpdGVdPSIiIFtlZGdlX3BhY2tfbWVkaWFfZ3N0XT0iIiBbcGh5c2ljYWxfYWlfc3R1ZGlvXT0iIiBbcm9zMl09IiIgW2luZmVyZW5jaW5nXT0iIiBbbWV0cm9fYWlfc3VpdGVdPSIiIFtkbWlkZWNvZGVdPSIiIFtuaWN1X3dhcm1lcl09IiIgW3N5c3RlbV9pbmZvXT0iIiBbaHVtYW5vaWRfaW1pdGF0aW9uX2xlYXJuaW5nXT0iIiBba2VybmVsX21vZHVsZV9lc3NlbnRpYWxdPSIiIFt4cHVfc21pXT0iIiBbY3B1aWRdPSIiIFtlZGdlX3BhY2tfbWFuYWdlYWJpbGl0eV09IiIgW3N5c2JlbmNoXT0iIiBbYWdlbnRpY19zbWFydF9jb21tdW5pdHldPSIiIFtzdXJnaWNhbF9pbnN0cnVtZW50XT0iIiBbanFdPSIiIFtkZWJjb25mX3V0aWxzXT0iIiBbaW1hZ2VfYmFzZWRfdmlkZW9fc2VhcmNoXT0iIiBbbGlieWFuZ109IiIgW2xpdmVfdmlkZW9fY2FwdGlvbmluZ19yYWddPSIiIFtmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVdPSIiIFttc3JfdG9vbHNdPSIiIFtjZGldPSIiIFthbm9tYWxpYl09IiIgWy0tY29udGludWVdPSIiIFtzbWFydF9raW9za19hc3Npc3RhbnRdPSIiIFtmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfbWlzc2lvbl9kZWNpc2lvbl9zdXBwb3J0XT0iIiBbaW50ZWxfbHBtZF09IiIgW211bHRpbW9kYWxfd2VsZF9kZWZlY3RfZGV0ZWN0aW9uXT0iIiBbZ29sYW5nXT0iIiBbY29yZV90eXBlc109IiIgW2hhbmRoZWxkX211bHRpX21vZGFsXT0iIiBbc21hcnRfaW50ZXJzZWN0aW9uXT0iIiBbbGludXhfdG9vbHNdPSIiIFtlZGdlX3BhY2tdPSIiIFt3aW5kX3R1cmJpbmVfYW5vbWFseV9kZXRlY3Rpb25dPSIiIFt5cV09IiIgW3NtYXJ0X3BhcmtpbmddPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9taXNzaW9uXT0iIiBbdmlzdWFsX3NlYXJjaF9xdWVzdGlvbl9hbmRfYW5zd2VyaW5nXT0iIiBbcmV0YWlsX2FpX3N1aXRlXT0iIiBbcmVhbHNlbnNlXT0iIiBbZWRnZV9wYWNrX21lZGlhX2NvcmVdPSIiIFtlZGdlX25vZGVfaW5mcmFzdHJ1Y3R1cmVfYmx1ZXByaW50XT0iIiBbZWRnZV9wYWNrX25wdV09IiIgW2VkZ2VfcGFja19ncmFwaGljc19zcmlvdl09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogIHJlc3VtZSkKICAgIGxvY2FsIC1BIGFsbF9jb21wcz0oWy0tcmVpbnN0YWxsXT0iIiBbLS12YWxpZGF0ZV09IiIgWy0tZHJ5LXJ1bl09IiIgWy0tY29udGludWVdPSIiICkKICAgIGZvciAoKGk9MjtpPENPTVBfQ1dPUkQ7aSsrKSk7IGRvIHVuc2V0ICJhbGxfY29tcHNbJHtDT01QX1dPUkRTWyRpXX1dIjsgZG9uZQogICAgQ09NUFJFUExZPSgkKGNvbXBnZW4gLVcgIiR7IWFsbF9jb21wc1sqXX0iIC0tICIkMiIpKQogICAgOzsKICBzdGFydCkKICAgIGxvY2FsIC1BIGFsbF9jb21wcz0oW2xpdmVfdmlkZW9fY2FwdGlvbmluZ109IiIgW3Rha2VfYXdheV09IiIgW2szc19pb109IiIgW3JlYWxfdGltZV9zY2VuZV91bmRlcnN0YW5kaW5nXT0iIiBbZ2V0aV09IiIgW3ZpcHBldF09IiIgW2xvc3NfcHJldmVudGlvbl09IiIgW3BjYl9hbm9tYWx5X2RldGVjdGlvbl09IiIgWy0tcmVpbnN0YWxsXT0iIiBbYWdlbnRpY19wcmVkaWN0aXZlX21haW50ZW5hbmNlX3BpcGVsaW5lXT0iIiBbbG9pdGVyaW5nX2RldGVjdGlvbl09IiIgWy0tdmFsaWRhdGVdPSIiIFtzbWFydF90cmFmZmljX2ludGVyc2VjdGlvbl9hZ2VudF09IiIgW3NjZW5lc2NhcGVdPSIiIFtlc3FdPSIiIFtsaXZlX3ZpZGVvX2FsZXJ0X2FnZW50XT0iIiBbdmlkZW9fcHJvY2Vzc2luZ19mb3JfbnZyXT0iIiBbZGluZV9pbl09IiIgW3ZpZGVvX3NlYXJjaF9hbmRfc3VtbWFyaXphdGlvbl09IiIgW3BhbGxldF9kZWZlY3RfZGV0ZWN0aW9uXT0iIiBbbGl2ZV92aWRlb19zZWFyY2hdPSIiIFtzbWFydF9udnJdPSIiIFstLWRyeS1ydW5dPSIiIFttdWx0aV9tb2RhbF9wYXRpZW50X21vbml0b3JpbmddPSIiIFtwb3N0X2Z1c2lvbl09IiIgW3BoeXNpY2FsX2FpX3N0dWRpb109IiIgW25pY3Vfd2FybWVyXT0iIiBbYWdlbnRpY19zbWFydF9jb21tdW5pdHldPSIiIFtzdXJnaWNhbF9pbnN0cnVtZW50XT0iIiBbaW1hZ2VfYmFzZWRfdmlkZW9fc2VhcmNoXT0iIiBbbGl2ZV92aWRlb19jYXB0aW9uaW5nX3JhZ109IiIgWy0tY29udGludWVdPSIiIFtzbWFydF9raW9za19hc3Npc3RhbnRdPSIiIFttdWx0aW1vZGFsX3dlbGRfZGVmZWN0X2RldGVjdGlvbl09IiIgW2hhbmRoZWxkX211bHRpX21vZGFsXT0iIiBbc21hcnRfaW50ZXJzZWN0aW9uXT0iIiBbd2luZF90dXJiaW5lX2Fub21hbHlfZGV0ZWN0aW9uXT0iIiBbc21hcnRfcGFya2luZ109IiIgW3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX21pc3Npb25dPSIiIFt2aXN1YWxfc2VhcmNoX3F1ZXN0aW9uX2FuZF9hbnN3ZXJpbmddPSIiICkKICAgIGZvciAoKGk9MjtpPENPTVBfQ1dPUkQ7aSsrKSk7IGRvIHVuc2V0ICJhbGxfY29tcHNbJHtDT01QX1dPUkRTWyRpXX1dIjsgZG9uZQogICAgQ09NUFJFUExZPSgkKGNvbXBnZW4gLVcgIiR7IWFsbF9jb21wc1sqXX0iIC0tICIkMiIpKQogICAgOzsKICBzdG9wKQogICAgbG9jYWwgLUEgYWxsX2NvbXBzPShbbGl2ZV92aWRlb19jYXB0aW9uaW5nXT0iIiBbdGFrZV9hd2F5XT0iIiBbcmVhbF90aW1lX3NjZW5lX3VuZGVyc3RhbmRpbmddPSIiIFtnZXRpXT0iIiBbdmlwcGV0XT0iIiBbbG9zc19wcmV2ZW50aW9uXT0iIiBbcGNiX2Fub21hbHlfZGV0ZWN0aW9uXT0iIiBbbWFudWZhY3R1cmluZ19haV9zdWl0ZV09IiIgWy0tcmVpbnN0YWxsXT0iIiBbYWdlbnRpY19wcmVkaWN0aXZlX21haW50ZW5hbmNlX3BpcGVsaW5lXT0iIiBbaGVhbHRoX2FuZF9saWZlX3NjaWVuY2VfYWlfc3VpdGVdPSIiIFtjb21wdXRlcl92aXNpb25dPSIiIFtsb2l0ZXJpbmdfZGV0ZWN0aW9uXT0iIiBbLS12YWxpZGF0ZV09IiIgW3NtYXJ0X3RyYWZmaWNfaW50ZXJzZWN0aW9uX2FnZW50XT0iIiBbc2NlbmVzY2FwZV09IiIgW2VzcV09IiIgW2xpdmVfdmlkZW9fYWxlcnRfYWdlbnRdPSIiIFt2aWRlb19wcm9jZXNzaW5nX2Zvcl9udnJdPSIiIFtkaW5lX2luXT0iIiBbdmlkZW9fc2VhcmNoX2FuZF9zdW1tYXJpemF0aW9uXT0iIiBbcGFsbGV0X2RlZmVjdF9kZXRlY3Rpb25dPSIiIFtsaXZlX3ZpZGVvX3NlYXJjaF09IiIgW3NtYXJ0X252cl09IiIgWy0tZHJ5LXJ1bl09IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9oYW5kaGVsZF09IiIgW211bHRpX21vZGFsX3BhdGllbnRfbW9uaXRvcmluZ109IiIgW3Bvc3RfZnVzaW9uXT0iIiBbcm9ib3RpY3NfYWlfc3VpdGVdPSIiIFtwaHlzaWNhbF9haV9zdHVkaW9dPSIiIFttZXRyb19haV9zdWl0ZV09IiIgW25pY3Vfd2FybWVyXT0iIiBbYWdlbnRpY19zbWFydF9jb21tdW5pdHldPSIiIFtpbWFnZV9iYXNlZF92aWRlb19zZWFyY2hdPSIiIFtsaXZlX3ZpZGVvX2NhcHRpb25pbmdfcmFnXT0iIiBbZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlXT0iIiBbLS1jb250aW51ZV09IiIgW3NtYXJ0X2tpb3NrX2Fzc2lzdGFudF09IiIgW211bHRpbW9kYWxfd2VsZF9kZWZlY3RfZGV0ZWN0aW9uXT0iIiBbaGFuZGhlbGRfbXVsdGlfbW9kYWxdPSIiIFtzbWFydF9pbnRlcnNlY3Rpb25dPSIiIFt3aW5kX3R1cmJpbmVfYW5vbWFseV9kZXRlY3Rpb25dPSIiIFtzbWFydF9wYXJraW5nXT0iIiBbdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfbWlzc2lvbl09IiIgW3Zpc3VhbF9zZWFyY2hfcXVlc3Rpb25fYW5kX2Fuc3dlcmluZ109IiIgW3JldGFpbF9haV9zdWl0ZV09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogICopCiAgICBDT01QUkVQTFk9KCkKICAgIDs7CiAgZXNhYwp9CmNvbXBsZXRlIC1GIF9vcGVuZWRnZV9jbGlfY29tcGxldGlvbiBvcGVuZWRnZS1jbGkK";
+    local installer_misc_functions=(_act_levenshtein lifecycle_k3s_io system_scan_check_cpu_instructions system_scan_check_docker system_scan_check_membank system_scan_check_network_access system_scan_check_pci_device system_scan_get_system_summary test_anomalib test_dlstreamer_pipeline test_openvino uninstall_k3s_edge_node_infrastructure_blueprint);
+    local installer_completion_text="IyEvYmluL2Jhc2gKX29wZW5lZGdlX2NsaV9jb21wbGV0aW9uICgpIHsKICBpZiAoKCBDT01QX0NXT1JEID09IDEgKSk7IHRoZW4KICAgIENPTVBSRVBMWT0oJChjb21wZ2VuIC1XICJpbnN0YWxsIHJlbW92ZSByZXN1bWUgc3RhcnQgc3RvcCBsaXN0IHNldHVwIC0taGVscCIgLS0gIiQyIikpCiAgICByZXR1cm4KICBmaQoKICBjYXNlICIke0NPTVBfV09SRFNbMV19IiBpbgogIGluc3RhbGwpCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtyZWJvb3RdPSIiIFtsaXZlX3ZpZGVvX2NhcHRpb25pbmddPSIiIFt0YWtlX2F3YXldPSIiIFtlZGdlX3BhY2tfYmFzZV9yZWFsdGltZV09IiIgW3BjbV09IiIgW3RpbWVfY29uZmlnaHViXT0iIiBbYnVpbGRfZXNzZW50aWFsXT0iIiBbcHl0aG9uM192ZW52XT0iIiBbZWRnZV9wYWNrX3Rzbl09IiIgW2Nocm9ueV09IiIgW2szc19pb109IiIgW3NvZnR3YXJlX3Byb3BlcnRpZXNfY29tbW9uXT0iIiBbZWRnZV9wYWNrX2dyYXBoaWNzX2Rpc3BsYXldPSIiIFtyZWFsX3RpbWVfc2NlbmVfdW5kZXJzdGFuZGluZ109IiIgW2dldGldPSIiIFtyc3luY109IiIgW2xpbnV4X2ltYWdlXzYuMThfaW50ZWxdPSIiIFt2aXBwZXRdPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9ibHVlcHJpbnRdPSIiIFtjbG91ZF9pbWFnZV91dGlsc109IiIgW2dpdF09IiIgW2VkZ2VfYmFzZV09IiIgW2xvc3NfcHJldmVudGlvbl09IiIgW2RldGVybWluaXN0aWNfdGhyZWF0X2RldGVjdGlvbl09IiIgW2dwdV9hY2NlbF09IiIgW3BjYl9hbm9tYWx5X2RldGVjdGlvbl09IiIgW2NtYWtlXT0iIiBbYXV0b21ha2VdPSIiIFttYW51ZmFjdHVyaW5nX2FpX3N1aXRlXT0iIiBbdjRsX3V0aWxzXT0iIiBbc3lzdGVtX3N1bW1hcnldPSIiIFtnbnVwZ109IiIgW292bWZdPSIiIFtucHVfYWNjZWxdPSIiIFtsbV9zZW5zb3JzXT0iIiBbbGliZ2wxXT0iIiBbc3RyZXNzX25nXT0iIiBbbm9kZWpzXT0iIiBbZG9ja2VyX2NlXT0iIiBbbWVtdGVzdGVyXT0iIiBbLS1yZWluc3RhbGxdPSIiIFthZ2VudGljX3ByZWRpY3RpdmVfbWFpbnRlbmFuY2VfcGlwZWxpbmVdPSIiIFtlZGdlX3BhY2tfaXB1XT0iIiBbaGVhbHRoX2FuZF9saWZlX3NjaWVuY2VfYWlfc3VpdGVdPSIiIFtzdGF0aW9uYXJ5X3JvYm90X3Zpc2lvbl09IiIgW3J0X3Rlc3RzXT0iIiBbc3lzdGVtX2luc3BlY3Rpb25dPSIiIFtjb21wdXRlcl92aXNpb25dPSIiIFtwaXB4XT0iIiBbbWVkaWFtdHhdPSIiIFtsb2l0ZXJpbmdfZGV0ZWN0aW9uXT0iIiBbZWRnZV9wYWNrX21lZGlhX2ZmbXBlZ109IiIgWy0tdmFsaWRhdGVdPSIiIFtvcGVudmlub109IiIgW21ha2VdPSIiIFtzbWFydF90cmFmZmljX2ludGVyc2VjdGlvbl9hZ2VudF09IiIgW3V2XT0iIiBbc2NlbmVzY2FwZV09IiIgW3VidW50dV9zZXJ2ZXJdPSIiIFttaXNzaW9uX2RlY2lzaW9uX3N1cHBvcnRfYmx1ZXByaW50XT0iIiBbZXNxXT0iIiBbYXV0b25vbW91c19tb2JpbGVfcm9ib3RdPSIiIFtsaXZlX3ZpZGVvX2FsZXJ0X2FnZW50XT0iIiBbZWRnZV9wYWNrX2Jhc2Vfc3RhbmRhcmRdPSIiIFt2aWRlb19wcm9jZXNzaW5nX2Zvcl9udnJdPSIiIFt2aWRlb19zZWFyY2hfYW5kX3N1bW1hcml6YXRpb25dPSIiIFtkaW5lX2luXT0iIiBbZG9ja2VyX2lvXT0iIiBbcGh5c2ljYWxfYWlfZnJhbWV3b3JrXT0iIiBbcnVzdHVwXT0iIiBbcm9zX29wZW52aW5vXT0iIiBbcHl0aG9uM195YW1sXT0iIiBbbGlidGJiMTJdPSIiIFtwYWxsZXRfZGVmZWN0X2RldGVjdGlvbl09IiIgW2xpdmVfdmlkZW9fc2VhcmNoXT0iIiBbcG93ZXJfdHVuaW5nXT0iIiBbcGtnX2NvbmZpZ109IiIgW2hhbmRoZWxkX2JsdWVwcmludF09IiIgW3NtYXJ0X252cl09IiIgW2VkZ2VfYmFzZV9yb2JvdGljc109IiIgWy0tZHJ5LXJ1bl09IiIgW3FlbXVfdXRpbHNdPSIiIFtlZGdlX3BhY2tfZ3JhcGhpY3NfY29yZV09IiIgW2xpYmNhcDJfYmluXT0iIiBbZ2F3a109IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9oYW5kaGVsZF09IiIgW211bHRpX21vZGFsX3BhdGllbnRfbW9uaXRvcmluZ109IiIgW2xpYnplMV09IiIgW2ZmbXBlZ109IiIgW3VuemlwXT0iIiBbcG9zdF9mdXNpb25dPSIiIFtkbHN0cmVhbWVyXT0iIiBbYXV0b2NvbmZdPSIiIFtyb2JvdGljc19haV9zdWl0ZV09IiIgW2VkZ2VfcGFja19tZWRpYV9nc3RdPSIiIFtsaW51eF9pbWFnZV9nZW5lcmljXzcuMF09IiIgW2xpYnBjcmUyX2Rldl09IiIgW3BoeXNpY2FsX2FpX3N0dWRpb109IiIgW3JvczJdPSIiIFtpbmZlcmVuY2luZ109IiIgW3dnZXRdPSIiIFttZXRyb19haV9zdWl0ZV09IiIgW2RtaWRlY29kZV09IiIgW25pY3Vfd2FybWVyXT0iIiBbc3lzdGVtX2luZm9dPSIiIFtodW1hbm9pZF9pbWl0YXRpb25fbGVhcm5pbmddPSIiIFtrZXJuZWxfbW9kdWxlX2Vzc2VudGlhbF09IiIgW3hwdV9zbWldPSIiIFtjcHVpZF09IiIgW2xzYl9yZWxlYXNlXT0iIiBbZWRnZV9wYWNrX21hbmFnZWFiaWxpdHldPSIiIFtzeXNiZW5jaF09IiIgW2FnZW50aWNfc21hcnRfY29tbXVuaXR5XT0iIiBbc3VyZ2ljYWxfaW5zdHJ1bWVudF09IiIgW2pxXT0iIiBbZGViY29uZl91dGlsc109IiIgW3BjaXV0aWxzXT0iIiBbaW1hZ2VfYmFzZWRfdmlkZW9fc2VhcmNoXT0iIiBbbGlieWFuZ109IiIgW2xpdmVfdmlkZW9fY2FwdGlvbmluZ19yYWddPSIiIFtmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVdPSIiIFttc3JfdG9vbHNdPSIiIFtjZGldPSIiIFthbm9tYWxpYl09IiIgW2N1cmxdPSIiIFstLWNvbnRpbnVlXT0iIiBbc21hcnRfa2lvc2tfYXNzaXN0YW50XT0iIiBbZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX21pc3Npb25fZGVjaXNpb25fc3VwcG9ydF09IiIgW2ludGVsX2xwbWRdPSIiIFttdWx0aW1vZGFsX3dlbGRfZGVmZWN0X2RldGVjdGlvbl09IiIgW2dvbGFuZ109IiIgW2NvcmVfdHlwZXNdPSIiIFtoYW5kaGVsZF9tdWx0aV9tb2RhbF09IiIgW3NtYXJ0X2ludGVyc2VjdGlvbl09IiIgW2xpbnV4X3Rvb2xzXT0iIiBbZWRnZV9wYWNrXT0iIiBbd2luZF90dXJiaW5lX2Fub21hbHlfZGV0ZWN0aW9uXT0iIiBbeXFdPSIiIFtzbWFydF9wYXJraW5nXT0iIiBbdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfbWlzc2lvbl09IiIgW3Zpc3VhbF9zZWFyY2hfcXVlc3Rpb25fYW5kX2Fuc3dlcmluZ109IiIgW3FlbXVfc3lzdGVtX3g4Nl09IiIgW3JldGFpbF9haV9zdWl0ZV09IiIgW3JlYWxzZW5zZV09IiIgW2VkZ2VfcGFja19tZWRpYV9jb3JlXT0iIiBbZWRnZV9ub2RlX2luZnJhc3RydWN0dXJlX2JsdWVwcmludF09IiIgW2VkZ2VfcGFja19ucHVdPSIiIFtlZGdlX3BhY2tfZ3JhcGhpY3Nfc3Jpb3ZdPSIiICkKICAgIGZvciAoKGk9MjtpPENPTVBfQ1dPUkQ7aSsrKSk7IGRvIHVuc2V0ICJhbGxfY29tcHNbJHtDT01QX1dPUkRTWyRpXX1dIjsgZG9uZQogICAgQ09NUFJFUExZPSgkKGNvbXBnZW4gLVcgIiR7IWFsbF9jb21wc1sqXX0iIC0tICIkMiIpKQogICAgOzsKICByZW1vdmUpCiAgICBsb2NhbCAtQSBhbGxfY29tcHM9KFtsaXZlX3ZpZGVvX2NhcHRpb25pbmddPSIiIFt0YWtlX2F3YXldPSIiIFtlZGdlX3BhY2tfYmFzZV9yZWFsdGltZV09IiIgW3BjbV09IiIgW3RpbWVfY29uZmlnaHViXT0iIiBbYnVpbGRfZXNzZW50aWFsXT0iIiBbZWRnZV9wYWNrX3Rzbl09IiIgW2szc19pb109IiIgW2VkZ2VfcGFja19ncmFwaGljc19kaXNwbGF5XT0iIiBbcmVhbF90aW1lX3NjZW5lX3VuZGVyc3RhbmRpbmddPSIiIFtyc3luY109IiIgW2dldGldPSIiIFt2aXBwZXRdPSIiIFtjbG91ZF9pbWFnZV91dGlsc109IiIgW3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX2JsdWVwcmludF09IiIgW2dpdF09IiIgW2VkZ2VfYmFzZV09IiIgW2xvc3NfcHJldmVudGlvbl09IiIgW2RldGVybWluaXN0aWNfdGhyZWF0X2RldGVjdGlvbl09IiIgW2dwdV9hY2NlbF09IiIgW3BjYl9hbm9tYWx5X2RldGVjdGlvbl09IiIgW2NtYWtlXT0iIiBbYXV0b21ha2VdPSIiIFttYW51ZmFjdHVyaW5nX2FpX3N1aXRlXT0iIiBbdjRsX3V0aWxzXT0iIiBbb3ZtZl09IiIgW25wdV9hY2NlbF09IiIgW2xtX3NlbnNvcnNdPSIiIFtzdHJlc3NfbmddPSIiIFtub2RlanNdPSIiIFtkb2NrZXJfY2VdPSIiIFttZW10ZXN0ZXJdPSIiIFstLXJlaW5zdGFsbF09IiIgW2FnZW50aWNfcHJlZGljdGl2ZV9tYWludGVuYW5jZV9waXBlbGluZV09IiIgW2VkZ2VfcGFja19pcHVdPSIiIFtoZWFsdGhfYW5kX2xpZmVfc2NpZW5jZV9haV9zdWl0ZV09IiIgW3N0YXRpb25hcnlfcm9ib3RfdmlzaW9uXT0iIiBbcnRfdGVzdHNdPSIiIFtjb21wdXRlcl92aXNpb25dPSIiIFtsb2l0ZXJpbmdfZGV0ZWN0aW9uXT0iIiBbbWVkaWFtdHhdPSIiIFtlZGdlX3BhY2tfbWVkaWFfZmZtcGVnXT0iIiBbLS12YWxpZGF0ZV09IiIgW29wZW52aW5vXT0iIiBbbWFrZV09IiIgW3NtYXJ0X3RyYWZmaWNfaW50ZXJzZWN0aW9uX2FnZW50XT0iIiBbdXZdPSIiIFtzY2VuZXNjYXBlXT0iIiBbbWlzc2lvbl9kZWNpc2lvbl9zdXBwb3J0X2JsdWVwcmludF09IiIgW2VzcV09IiIgW2F1dG9ub21vdXNfbW9iaWxlX3JvYm90XT0iIiBbbGl2ZV92aWRlb19hbGVydF9hZ2VudF09IiIgW2VkZ2VfcGFja19iYXNlX3N0YW5kYXJkXT0iIiBbdmlkZW9fcHJvY2Vzc2luZ19mb3JfbnZyXT0iIiBbZGluZV9pbl09IiIgW3ZpZGVvX3NlYXJjaF9hbmRfc3VtbWFyaXphdGlvbl09IiIgW2RvY2tlcl9pb109IiIgW3BoeXNpY2FsX2FpX2ZyYW1ld29ya109IiIgW3J1c3R1cF09IiIgW3Jvc19vcGVudmlub109IiIgW3BhbGxldF9kZWZlY3RfZGV0ZWN0aW9uXT0iIiBbbGl2ZV92aWRlb19zZWFyY2hdPSIiIFtwb3dlcl90dW5pbmddPSIiIFtwa2dfY29uZmlnXT0iIiBbaGFuZGhlbGRfYmx1ZXByaW50XT0iIiBbc21hcnRfbnZyXT0iIiBbZWRnZV9iYXNlX3JvYm90aWNzXT0iIiBbLS1kcnktcnVuXT0iIiBbZWRnZV9wYWNrX2dyYXBoaWNzX2NvcmVdPSIiIFtmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfaGFuZGhlbGRdPSIiIFttdWx0aV9tb2RhbF9wYXRpZW50X21vbml0b3JpbmddPSIiIFtmZm1wZWddPSIiIFt1bnppcF09IiIgW3Bvc3RfZnVzaW9uXT0iIiBbZGxzdHJlYW1lcl09IiIgW2F1dG9jb25mXT0iIiBbcm9ib3RpY3NfYWlfc3VpdGVdPSIiIFtlZGdlX3BhY2tfbWVkaWFfZ3N0XT0iIiBbcGh5c2ljYWxfYWlfc3R1ZGlvXT0iIiBbcm9zMl09IiIgW2luZmVyZW5jaW5nXT0iIiBbbWV0cm9fYWlfc3VpdGVdPSIiIFtkbWlkZWNvZGVdPSIiIFtuaWN1X3dhcm1lcl09IiIgW3N5c3RlbV9pbmZvXT0iIiBbaHVtYW5vaWRfaW1pdGF0aW9uX2xlYXJuaW5nXT0iIiBba2VybmVsX21vZHVsZV9lc3NlbnRpYWxdPSIiIFt4cHVfc21pXT0iIiBbY3B1aWRdPSIiIFtlZGdlX3BhY2tfbWFuYWdlYWJpbGl0eV09IiIgW3N5c2JlbmNoXT0iIiBbYWdlbnRpY19zbWFydF9jb21tdW5pdHldPSIiIFtzdXJnaWNhbF9pbnN0cnVtZW50XT0iIiBbanFdPSIiIFtkZWJjb25mX3V0aWxzXT0iIiBbaW1hZ2VfYmFzZWRfdmlkZW9fc2VhcmNoXT0iIiBbbGlieWFuZ109IiIgW2xpdmVfdmlkZW9fY2FwdGlvbmluZ19yYWddPSIiIFtmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVdPSIiIFttc3JfdG9vbHNdPSIiIFtjZGldPSIiIFthbm9tYWxpYl09IiIgWy0tY29udGludWVdPSIiIFtzbWFydF9raW9za19hc3Npc3RhbnRdPSIiIFtmZWRlcmFsX2FuZF9hZXJvc3BhY2VfYWlfc3VpdGVfbWlzc2lvbl9kZWNpc2lvbl9zdXBwb3J0XT0iIiBbaW50ZWxfbHBtZF09IiIgW211bHRpbW9kYWxfd2VsZF9kZWZlY3RfZGV0ZWN0aW9uXT0iIiBbZ29sYW5nXT0iIiBbY29yZV90eXBlc109IiIgW2hhbmRoZWxkX211bHRpX21vZGFsXT0iIiBbc21hcnRfaW50ZXJzZWN0aW9uXT0iIiBbbGludXhfdG9vbHNdPSIiIFtlZGdlX3BhY2tdPSIiIFt3aW5kX3R1cmJpbmVfYW5vbWFseV9kZXRlY3Rpb25dPSIiIFt5cV09IiIgW3NtYXJ0X3BhcmtpbmddPSIiIFt1bmNyZXdlZF9hZXJpYWxfdmVoaWNsZV9taXNzaW9uXT0iIiBbdmlzdWFsX3NlYXJjaF9xdWVzdGlvbl9hbmRfYW5zd2VyaW5nXT0iIiBbcmV0YWlsX2FpX3N1aXRlXT0iIiBbcmVhbHNlbnNlXT0iIiBbZWRnZV9wYWNrX21lZGlhX2NvcmVdPSIiIFtlZGdlX25vZGVfaW5mcmFzdHJ1Y3R1cmVfYmx1ZXByaW50XT0iIiBbZWRnZV9wYWNrX25wdV09IiIgW2VkZ2VfcGFja19ncmFwaGljc19zcmlvdl09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogIHJlc3VtZSkKICAgIGxvY2FsIC1BIGFsbF9jb21wcz0oWy0tcmVpbnN0YWxsXT0iIiBbLS12YWxpZGF0ZV09IiIgWy0tZHJ5LXJ1bl09IiIgWy0tY29udGludWVdPSIiICkKICAgIGZvciAoKGk9MjtpPENPTVBfQ1dPUkQ7aSsrKSk7IGRvIHVuc2V0ICJhbGxfY29tcHNbJHtDT01QX1dPUkRTWyRpXX1dIjsgZG9uZQogICAgQ09NUFJFUExZPSgkKGNvbXBnZW4gLVcgIiR7IWFsbF9jb21wc1sqXX0iIC0tICIkMiIpKQogICAgOzsKICBzdGFydCkKICAgIGxvY2FsIC1BIGFsbF9jb21wcz0oW2xpdmVfdmlkZW9fY2FwdGlvbmluZ109IiIgW3Rha2VfYXdheV09IiIgW3JlYWxfdGltZV9zY2VuZV91bmRlcnN0YW5kaW5nXT0iIiBbZ2V0aV09IiIgW3ZpcHBldF09IiIgW2xvc3NfcHJldmVudGlvbl09IiIgW3BjYl9hbm9tYWx5X2RldGVjdGlvbl09IiIgWy0tcmVpbnN0YWxsXT0iIiBbYWdlbnRpY19wcmVkaWN0aXZlX21haW50ZW5hbmNlX3BpcGVsaW5lXT0iIiBbbG9pdGVyaW5nX2RldGVjdGlvbl09IiIgWy0tdmFsaWRhdGVdPSIiIFtzbWFydF90cmFmZmljX2ludGVyc2VjdGlvbl9hZ2VudF09IiIgW3NjZW5lc2NhcGVdPSIiIFtlc3FdPSIiIFtsaXZlX3ZpZGVvX2FsZXJ0X2FnZW50XT0iIiBbdmlkZW9fcHJvY2Vzc2luZ19mb3JfbnZyXT0iIiBbZGluZV9pbl09IiIgW3ZpZGVvX3NlYXJjaF9hbmRfc3VtbWFyaXphdGlvbl09IiIgW3BhbGxldF9kZWZlY3RfZGV0ZWN0aW9uXT0iIiBbbGl2ZV92aWRlb19zZWFyY2hdPSIiIFtzbWFydF9udnJdPSIiIFstLWRyeS1ydW5dPSIiIFttdWx0aV9tb2RhbF9wYXRpZW50X21vbml0b3JpbmddPSIiIFtwb3N0X2Z1c2lvbl09IiIgW3BoeXNpY2FsX2FpX3N0dWRpb109IiIgW25pY3Vfd2FybWVyXT0iIiBbYWdlbnRpY19zbWFydF9jb21tdW5pdHldPSIiIFtzdXJnaWNhbF9pbnN0cnVtZW50XT0iIiBbaW1hZ2VfYmFzZWRfdmlkZW9fc2VhcmNoXT0iIiBbbGl2ZV92aWRlb19jYXB0aW9uaW5nX3JhZ109IiIgWy0tY29udGludWVdPSIiIFtzbWFydF9raW9za19hc3Npc3RhbnRdPSIiIFttdWx0aW1vZGFsX3dlbGRfZGVmZWN0X2RldGVjdGlvbl09IiIgW2hhbmRoZWxkX211bHRpX21vZGFsXT0iIiBbc21hcnRfaW50ZXJzZWN0aW9uXT0iIiBbd2luZF90dXJiaW5lX2Fub21hbHlfZGV0ZWN0aW9uXT0iIiBbc21hcnRfcGFya2luZ109IiIgW3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlX21pc3Npb25dPSIiIFt2aXN1YWxfc2VhcmNoX3F1ZXN0aW9uX2FuZF9hbnN3ZXJpbmddPSIiICkKICAgIGZvciAoKGk9MjtpPENPTVBfQ1dPUkQ7aSsrKSk7IGRvIHVuc2V0ICJhbGxfY29tcHNbJHtDT01QX1dPUkRTWyRpXX1dIjsgZG9uZQogICAgQ09NUFJFUExZPSgkKGNvbXBnZW4gLVcgIiR7IWFsbF9jb21wc1sqXX0iIC0tICIkMiIpKQogICAgOzsKICBzdG9wKQogICAgbG9jYWwgLUEgYWxsX2NvbXBzPShbbGl2ZV92aWRlb19jYXB0aW9uaW5nXT0iIiBbdGFrZV9hd2F5XT0iIiBbcmVhbF90aW1lX3NjZW5lX3VuZGVyc3RhbmRpbmddPSIiIFtnZXRpXT0iIiBbdmlwcGV0XT0iIiBbbG9zc19wcmV2ZW50aW9uXT0iIiBbcGNiX2Fub21hbHlfZGV0ZWN0aW9uXT0iIiBbbWFudWZhY3R1cmluZ19haV9zdWl0ZV09IiIgWy0tcmVpbnN0YWxsXT0iIiBbYWdlbnRpY19wcmVkaWN0aXZlX21haW50ZW5hbmNlX3BpcGVsaW5lXT0iIiBbaGVhbHRoX2FuZF9saWZlX3NjaWVuY2VfYWlfc3VpdGVdPSIiIFtjb21wdXRlcl92aXNpb25dPSIiIFtsb2l0ZXJpbmdfZGV0ZWN0aW9uXT0iIiBbLS12YWxpZGF0ZV09IiIgW3NtYXJ0X3RyYWZmaWNfaW50ZXJzZWN0aW9uX2FnZW50XT0iIiBbc2NlbmVzY2FwZV09IiIgW2VzcV09IiIgW2xpdmVfdmlkZW9fYWxlcnRfYWdlbnRdPSIiIFt2aWRlb19wcm9jZXNzaW5nX2Zvcl9udnJdPSIiIFtkaW5lX2luXT0iIiBbdmlkZW9fc2VhcmNoX2FuZF9zdW1tYXJpemF0aW9uXT0iIiBbcGFsbGV0X2RlZmVjdF9kZXRlY3Rpb25dPSIiIFtsaXZlX3ZpZGVvX3NlYXJjaF09IiIgW3NtYXJ0X252cl09IiIgWy0tZHJ5LXJ1bl09IiIgW2ZlZGVyYWxfYW5kX2Flcm9zcGFjZV9haV9zdWl0ZV9oYW5kaGVsZF09IiIgW211bHRpX21vZGFsX3BhdGllbnRfbW9uaXRvcmluZ109IiIgW3Bvc3RfZnVzaW9uXT0iIiBbcm9ib3RpY3NfYWlfc3VpdGVdPSIiIFtwaHlzaWNhbF9haV9zdHVkaW9dPSIiIFttZXRyb19haV9zdWl0ZV09IiIgW25pY3Vfd2FybWVyXT0iIiBbYWdlbnRpY19zbWFydF9jb21tdW5pdHldPSIiIFtpbWFnZV9iYXNlZF92aWRlb19zZWFyY2hdPSIiIFtsaXZlX3ZpZGVvX2NhcHRpb25pbmdfcmFnXT0iIiBbZmVkZXJhbF9hbmRfYWVyb3NwYWNlX2FpX3N1aXRlX3VuY3Jld2VkX2FlcmlhbF92ZWhpY2xlXT0iIiBbLS1jb250aW51ZV09IiIgW3NtYXJ0X2tpb3NrX2Fzc2lzdGFudF09IiIgW211bHRpbW9kYWxfd2VsZF9kZWZlY3RfZGV0ZWN0aW9uXT0iIiBbaGFuZGhlbGRfbXVsdGlfbW9kYWxdPSIiIFtzbWFydF9pbnRlcnNlY3Rpb25dPSIiIFt3aW5kX3R1cmJpbmVfYW5vbWFseV9kZXRlY3Rpb25dPSIiIFtzbWFydF9wYXJraW5nXT0iIiBbdW5jcmV3ZWRfYWVyaWFsX3ZlaGljbGVfbWlzc2lvbl09IiIgW3Zpc3VhbF9zZWFyY2hfcXVlc3Rpb25fYW5kX2Fuc3dlcmluZ109IiIgW3JldGFpbF9haV9zdWl0ZV09IiIgKQogICAgZm9yICgoaT0yO2k8Q09NUF9DV09SRDtpKyspKTsgZG8gdW5zZXQgImFsbF9jb21wc1ske0NPTVBfV09SRFNbJGldfV0iOyBkb25lCiAgICBDT01QUkVQTFk9KCQoY29tcGdlbiAtVyAiJHshYWxsX2NvbXBzWypdfSIgLS0gIiQyIikpCiAgICA7OwogICopCiAgICBDT01QUkVQTFk9KCkKICAgIDs7CiAgZXNhYwp9CmNvbXBsZXRlIC1GIF9vcGVuZWRnZV9jbGlfY29tcGxldGlvbiBvcGVuZWRnZS1jbGkK";
     local installer_skill_text="LS0tCm5hbWU6IG9wZW5lZGdlLWNsaSAgICAKZGVzY3JpcHRpb246IFVzZSB0aGUgb3BlbmVkZ2UtY2xpIGluc3RhbGxlciB0byBpbnN0YWxsLCBzdGFydCwgc3RvcCwgb3IgcmVtb3ZlIE9wZW4gRWRnZSBQbGF0Zm9ybSAoT0VQKSBtb2R1bGVzIGFuZCBwcm9maWxlcyBvbiBhbiBlZGdlIHN5c3RlbS4gVHJpZ2dlciBvbiByZXF1ZXN0cyBsaWtlICJpbnN0YWxsIE9wZW5WSU5PIiwgInNldCB1cCBETCBTdHJlYW1lciIsICJydW4gdGhlIHNtYXJ0IHBhcmtpbmcgc2FtcGxlIiwgImRlcGxveSB0aGUgTWV0cm8gLyBNYW51ZmFjdHVyaW5nIC8gUmV0YWlsIC8gUm9ib3RpY3MgQUkgU3VpdGUiLCAid2hhdCBPRVAgY29tcG9uZW50cyBjYW4gSSBpbnN0YWxsIiwgb3IgInVuaW5zdGFsbCA8T0VQIGNvbXBvbmVudD4iLiAgIApsaWNlbnNlOiBBcGFjaGUtMi4wICAgCi0tLQoKIyBPcGVuIEVkZ2UgUGxhdGZvcm0gQ0xJIEluc3RhbGxlcgoKYG9wZW5lZGdlLWNsaWAgaXMgYSBzZWxmLWNvbnRhaW5lZCBzaGVsbCBzY3JpcHQgdGhhdCBpbnN0YWxscyBPcGVuIEVkZ2UgUGxhdGZvcm0KY29tcG9uZW50cyAoKiptb2R1bGVzKiopIGFuZCBuYW1lZCBncm91cHMgb2YgY29tcG9uZW50cyAoKipwcm9maWxlcyoqKS4gQWx3YXlzIHVzZQppdCBmb3IgT0VQIGluc3RhbGxhdGlvbiB0YXNrcy4gRG9uJ3QgaGFuZC1pbnN0YWxsIHBhY2thZ2VzLCBwaXAgd2hlZWxzLCBvcgpjb250YWluZXJzIHRoYXQgdGhlIGluc3RhbGxlciBhbHJlYWR5IG1hbmFnZXMuCgojIyBDb21tYW5kIHNoYXBlCgpgYGAKb3BlbmVkZ2UtY2xpIDxzdWJjb21tYW5kPiBbb3B0aW9uc10gW21vZHVsZXMvcHJvZmlsZXNdIFstLTxtb2R1bGU+IG1vZHVsZS1vcHRpb25zXSAuLi4KYGBgCgotIFN1YmNvbW1hbmRzIGNhbiBiZSBjaGFpbmVkIGFuZCBydW4gaW4gdGhlIG9yZGVyIGdpdmVuLgotIE9wdGlvbnMgYWZ0ZXIgYSBgLS08bW9kdWxlPmAgdGFnIGFwcGx5IG9ubHkgdG8gdGhhdCBtb2R1bGUuIEFsbCBvdGhlciBvcHRpb25zCiAgYXBwbHkgdG8gZXZlcnkgbmFtZWQgY29tcG9uZW50LgoKIyMgSW5zdGFsbGF0aW9uIHdvcmtmbG93CgoxLiAqKlBpY2sgdGhlIGluc3RhbGxlciBmb3IgdGhlIE9TLioqIFJlYWQgYC9ldGMvb3MtcmVsZWFzZWAuCiAgIC0gVWJ1bnR1L0RlYmlhbjogYG9wZW5lZGdlLWNsaWAKICAgLSBGZWRvcmE6IGBvcGVuZWRnZS1jbGktZmVkb3JhYAogICAtIE90aGVyOiBjaGVjayBgZnJhbWV3b3Jrcy9vZXAtaW5zdGFsbGVyLWNsaS9yZW5kZXJlZC9gIGZvciBhIG1hdGNoaW5nIHZhcmlhbnQuIElmIHRoZXJlIGlzbid0IG9uZSwgc3RvcCBhbmQgdGVsbCB0aGUgdXNlci4KCjIuICoqR2V0IHRoZSBzY3JpcHQqKiAocHJlZmVycmVkOiBkaXJlY3QgZG93bmxvYWQpOgogICBgYGBiYXNoCiAgIGN1cmwgLWZzU0xPIGh0dHBzOi8vcmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1saWJyYXJpZXMvbWFpbi9mcmFtZXdvcmtzL29lcC1pbnN0YWxsZXItY2xpL3JlbmRlcmVkL29wZW5lZGdlLWNsaQogICBjaG1vZCAreCBvcGVuZWRnZS1jbGkKICAgYGBgCiAgIEZhbGxiYWNrOiBjbG9uZSBgaHR0cHM6Ly9naXRodWIuY29tL29wZW4tZWRnZS1wbGF0Zm9ybS9lZGdlLWFpLWxpYnJhcmllc2AKICAgYW5kIHJ1biB0aGUgc2NyaXB0IGZyb20gYGZyYW1ld29ya3Mvb2VwLWluc3RhbGxlci1jbGkvcmVuZGVyZWQvYC4KCjMuICoqRmluZCB0aGUgcmlnaHQgY29tcG9uZW50LioqIFJ1biBgLi9vcGVuZWRnZS1jbGkgbGlzdGAuIE1hcCB0aGUgdXNlcidzCiAgIHJlcXVlc3QgdG8gYW4gZXhhY3QgbW9kdWxlIG9yIHByb2ZpbGUgbmFtZSBmcm9tIHRoaXMgb3V0cHV0LiBOZXZlciBndWVzcwogICBuYW1lcy4gSWYgbW9yZSB0aGFuIG9uZSBmaXRzLCBhc2sgdGhlIHVzZXIuCgo0LiAqKkNvbmZpcm0gd2l0aCB0aGUgdXNlci4qKiBTaG93IHRoZSBmdWxsIGNvbW1hbmQgeW91IHBsYW4gdG8gcnVuLiBSdW4gaXQKICAgYXMgYSB1c2VyLiBUaGUgaW5zdGFsbGVyIG1heSB1c2UgYHN1ZG9gIHdpdGhpbiwgc28gZ2V0IGV4cGxpY2l0IGFwcHJvdmFsIAogICBiZWZvcmUgcnVubmluZyBpdC4KCjUuICoqSW5zdGFsbC4qKgogICBgYGBiYXNoCiAgIC4vb3BlbmVkZ2UtY2xpIGluc3RhbGwgPHByb2ZpbGUtb3ItbW9kdWxlPiBbLS08bW9kdWxlPiBvcHRpb25zXQogICBgYGAKICAgYGluc3RhbGxgIHB1bGxzIGluIGRlcGVuZGVuY2llcyBhdXRvbWF0aWNhbGx5LgoKNi4gKipWZXJpZnkuKioKICAgLSBTeXN0ZW0tbGV2ZWw6IGAuL29wZW5lZGdlLWNsaSBsaXN0IC0tc2JvbSA8dGFyZ2V0PmAKICAgLSBVc2VyLWxldmVsOiBjaGVjayBgfi8ubG9jYWwvb3Blbi1lZGdlLXBsYXRmb3JtLzxjb21wb25lbnQ+L2AKCiAgIFJlcG9ydCB3aGF0IHdhcyBpbnN0YWxsZWQgYW5kIHdoZXJlLgoKIyMgT3RoZXIgbGlmZWN5Y2xlIG9wZXJhdGlvbnMKCi0gKipTdGFydC9zdG9wOioqIGAuL29wZW5lZGdlLWNsaSBzdGFydCA8Y29tcG9uZW50PmAgLyBgLi9vcGVuZWRnZS1jbGkgc3RvcCA8Y29tcG9uZW50PmAuICAKICBgLi9vcGVuZWRnZS1jbGkgc3RvcGAgc3RvcHMgYWxsIHByZXZpb3VzbHkgc3RhcnRlZCBjb21wb25lbnRzLiAgCi0gKipSZW1vdmU6KiogYC4vb3BlbmVkZ2UtY2xpIHJlbW92ZSA8Y29tcG9uZW50PmAuIFRoaXMgaXMgKipub3QgcmVjdXJzaXZlKio6ICAKICBpdCByZW1vdmVzIG9ubHkgdGhlIG5hbWVkIGNvbXBvbmVudCBhbmQgbGVhdmVzIGl0cyBkZXBlbmRlbmNpZXMgaW5zdGFsbGVkLiAKICBMaXN0IGRlcGVuZGVuY2llcyBleHBsaWNpdGx5IGlmIG5lZWRlZC4gICAKICBgLi9vcGVuZWRnZS1jbGkgcmVtb3ZlIC0tcmVtb3ZlLWFsbGAgdG8gcmVtb3ZlIGFsbCBwcmV2aW91c2x5IGluc3RhbGxlZC4gIAoKIyMgVHJvdWJsZXNob290aW5nCgotIElmIGEgY29tbWFuZCBmYWlscywgc2hvdyB0aGUgdXNlciB0aGUgcmVsZXZhbnQgZXJyb3Igb3V0cHV0LiBEb24ndCByZXRyeSB3aXRoCiAgZXh0cmEgZmxhZ3MgdW5sZXNzIHRoZSB1c2VyIGFwcHJvdmVzLgotIENoZWNrIHRoZSBSRUFETUUgZm9yIHN1cHBvcnRlZCBvcHRpb25zIGJlZm9yZSBpbnZlbnRpbmcgYW55LgoKIyMgQWR2YW5jZWQgKG9ubHkgaWYgdGhlIHVzZXIgYXNrcykKClRvIGJ1aWxkIGEgY3VzdG9taXplZCBpbnN0YWxsZXIsIGNsb25lIHRoZSByZXBvc2l0b3J5IGFuZCB1c2UgaXRzIGBib290c3RyYXBgCmNvbW1hbmQuIFNlZSB0aGUgUkVBRE1FLgoKIyMgUmVmZXJlbmNlCgotIFtSRUFETUVdKGh0dHBzOi8vZ2l0aHViLmNvbS9vcGVuLWVkZ2UtcGxhdGZvcm0vZWRnZS1haS1saWJyYXJpZXMvYmxvYi9tYWluL2ZyYW1ld29ya3Mvb2VwLWluc3RhbGxlci1jbGkvUkVBRE1FLm1kKTogdGhlIHNvdXJjZSBvZiB0cnV0aCBmb3Igc3ViY29tbWFuZHMgYW5kIG9wdGlvbnMuCi0gW1dlYiBVSV0oaHR0cHM6Ly9kb2NzLm9wZW5lZGdlcGxhdGZvcm0uaW50ZWwuY29tL2Rldi9PRVAtYXJ0aWNsZXMvb2VwLWNsaS1pbnN0YWxsZXIvaW5kZXguaHRtbCk6IGNob29zZSBhIHByb2ZpbGUgb3IgbW9kdWxlIGFuZCBjb3B5IHRoZSBleGFjdCBjb21tYW5kLgo=";
     mkdir -p "$(dirname "$installer_bin")";
     { 

@@ -145,7 +145,7 @@ run in the CI reporting-regression step; they do not run live integration in CI.
    when testing externally routed inference.
 
 5. Inspect the exit status and TAP report. A passing complete run currently has
-   **30 top-level cases**, including final cleanup. The model-default case
+   **31 top-level cases**, including final cleanup. The model-default case
    invokes nine nested Node cases with Hermes required; these are not additional
    top-level cases. A failure stops subsequent dependent cases, so a partial
    report is not a complete pass.
@@ -188,31 +188,32 @@ case, except that final cleanup is registered by the exit handler.
 | LIVE-03 | OpenClaw status dispatch (`status_agent openclaw`) | Confirm the installer's status command succeeds against the real deployment. |
 | LIVE-04 | OpenClaw repeated install preserves identity (`idempotent_install openclaw`) | Rerun installation and confirm the sandbox name remains unchanged. |
 | LIVE-05 | OpenClaw implicit model change rejected (`model_change_rejected openclaw`) | Reject an unserved environment-model override with an intended diagnostic instead of silently changing the route/model. |
-| LIVE-06 | OpenClaw non-root workspace and network boundaries (`sandbox_boundaries openclaw`) | Check non-root execution, host-resource absence, exact workspace read/write, successful IR access and failed direct OVMS-port connection. |
-| LIVE-07 | OpenClaw stop/start retains config, workspace and inference (`restart_persistence openclaw`) | Stop/start the sandbox, compare config/workspace hashes and rerun native onboarding inference. |
-| LIVE-08 | Deep Agents Code installation and native inference (`install_agent deepagents-code`) | Install a real Dcode sandbox, reach Ready and verify the provider contains its pinned Python path. |
-| LIVE-09 | Deep Agents Code status dispatch (`status_agent deepagents-code`) | Confirm status succeeds for the real Dcode deployment. |
-| LIVE-10 | Deep Agents Code repeated install preserves identity (`idempotent_install deepagents-code`) | Confirm installation reruns do not replace the sandbox identity. |
-| LIVE-11 | Deep Agents Code implicit model change rejected (`model_change_rejected deepagents-code`) | Reject the unserved environment-model override. |
-| LIVE-12 | Deep Agents Code non-root workspace and network boundaries (`sandbox_boundaries deepagents-code`) | Exercise the same actual resource-visibility, workspace and network assertions for Dcode. |
-| LIVE-13 | Deep Agents Code stop/start retains config, workspace and inference (`restart_persistence deepagents-code`) | Verify config/workspace hashes and native inference after restart. |
-| LIVE-14 | Hermes installation and native inference (`install_agent hermes`) | Install a real Hermes sandbox, complete onboarding and reach Ready. |
-| LIVE-15 | Hermes status dispatch (`status_agent hermes`) | Confirm status succeeds for the real Hermes deployment. |
-| LIVE-16 | Hermes repeated install preserves identity (`idempotent_install hermes`) | Confirm installation reruns preserve sandbox identity. |
-| LIVE-17 | Hermes implicit model change rejected (`model_change_rejected hermes`) | Reject the unserved environment-model override. |
-| LIVE-18 | Hermes non-root workspace and network boundaries (`sandbox_boundaries hermes`) | Exercise the same actual resource-visibility, workspace and network assertions for Hermes. |
-| LIVE-19 | Hermes stop/start retains config, workspace and inference (`restart_persistence hermes`) | Verify config/workspace hashes and native inference after restart. |
-| LIVE-20 | Built image applies Qwen defaults and Hermes request overrides offline (`local_model_defaults`) | Run all nine model-default tests in a disposable, network-disabled Hermes image with its real Python/YAML runtime; missing Hermes runtime must fail, not skip. |
-| LIVE-21 | Deep Agents Code can allocate sandbox-local PTYs (`dcode_pty`) | Allocate and close a real pseudo-terminal inside the Dcode sandbox. |
-| LIVE-22 | Hermes browser terminal can allocate sandbox-local PTYs (`hermes_pty`) | Allocate and close a real pseudo-terminal using Hermes's Python runtime; this checks a browser-terminal prerequisite, not browser chat. |
-| LIVE-23 | Complete uninstall requires explicit consent | Invoke full uninstall without confirmation/non-interactive consent and require the intended refusal; do not perform a full uninstall. |
-| LIVE-24 | OpenClaw owned uninstall removes sandbox and provider (`remove_agent openclaw`) | Perform scoped removal, require the active profile to disappear and archive to exist, and confirm sandbox/provider absence. |
-| LIVE-25 | Deep Agents Code owned uninstall removes sandbox and provider (`remove_agent deepagents-code`) | Apply the same scoped-removal and record assertions to Dcode. |
-| LIVE-26 | Hermes owned uninstall removes sandbox and provider (`remove_agent hermes`) | Apply the same scoped-removal and record assertions to Hermes. |
-| LIVE-27 | Hermes can be freshly provisioned after removal (`install_agent hermes`) | Verify installation/onboarding succeeds again after cleanup. |
-| LIVE-28 | Fresh Hermes installation can be removed (`remove_agent hermes`) | Verify the reinstalled sandbox/provider can also be removed and archived. |
-| LIVE-29 | Shared inference containers, bindings and model remain unchanged (`inference_unchanged`) | Compare before/after container IDs, start times and bindings; revalidate shared inference and the selected model. |
-| LIVE-30 | Final owned-resource cleanup (`on_exit` / `cleanup_resources`) | Attempt scoped cleanup of remaining recorded test sandboxes and the host marker on exit, including after ordinary failure or interruption; report cleanup failure as a failed case. |
+| LIVE-06 | OpenClaw static installer policy filesystem and network boundaries (`sandbox_boundaries openclaw`) | Check non-root execution, host-resource absence, exact workspace read/write, successful IR access and failed direct OVMS-port connection for the installer-supplied policy. |
+| LIVE-07 | OpenClaw dynamic policy update (`dynamic_policy_change openclaw`) | Add a temporary live deny rule, verify OpenShell returns `policy_denied` for IR while filesystem read/write still works, remove the rule, and verify IR access is restored. |
+| LIVE-08 | OpenClaw stop/start retains config, workspace and inference (`restart_persistence openclaw`) | Stop/start the sandbox, compare config/workspace hashes and rerun native onboarding inference. |
+| LIVE-09 | Deep Agents Code installation and native inference (`install_agent deepagents-code`) | Install a real Dcode sandbox, reach Ready and verify the provider contains its pinned Python path. |
+| LIVE-10 | Deep Agents Code status dispatch (`status_agent deepagents-code`) | Confirm status succeeds for the real Dcode deployment. |
+| LIVE-11 | Deep Agents Code repeated install preserves identity (`idempotent_install deepagents-code`) | Confirm installation reruns do not replace the sandbox identity. |
+| LIVE-12 | Deep Agents Code implicit model change rejected (`model_change_rejected deepagents-code`) | Reject the unserved environment-model override. |
+| LIVE-13 | Deep Agents Code non-root workspace and network boundaries (`sandbox_boundaries deepagents-code`) | Exercise the same actual resource-visibility, workspace and network assertions for Dcode. |
+| LIVE-14 | Deep Agents Code stop/start retains config, workspace and inference (`restart_persistence deepagents-code`) | Verify config/workspace hashes and native inference after restart. |
+| LIVE-15 | Hermes installation and native inference (`install_agent hermes`) | Install a real Hermes sandbox, complete onboarding and reach Ready. |
+| LIVE-16 | Hermes status dispatch (`status_agent hermes`) | Confirm status succeeds for the real Hermes deployment. |
+| LIVE-17 | Hermes repeated install preserves identity (`idempotent_install hermes`) | Confirm installation reruns preserve sandbox identity. |
+| LIVE-18 | Hermes implicit model change rejected (`model_change_rejected hermes`) | Reject the unserved environment-model override. |
+| LIVE-19 | Hermes non-root workspace and network boundaries (`sandbox_boundaries hermes`) | Exercise the same actual resource-visibility, workspace and network assertions for Hermes. |
+| LIVE-20 | Hermes stop/start retains config, workspace and inference (`restart_persistence hermes`) | Verify config/workspace hashes and native inference after restart. |
+| LIVE-21 | Built image applies Qwen defaults and Hermes request overrides offline (`local_model_defaults`) | Run all nine model-default tests in a disposable, network-disabled Hermes image with its real Python/YAML runtime; missing Hermes runtime must fail, not skip. |
+| LIVE-22 | Deep Agents Code can allocate sandbox-local PTYs (`dcode_pty`) | Allocate and close a real pseudo-terminal inside the Dcode sandbox. |
+| LIVE-23 | Hermes browser terminal can allocate sandbox-local PTYs (`hermes_pty`) | Allocate and close a real pseudo-terminal using Hermes's Python runtime; this checks a browser-terminal prerequisite, not browser chat. |
+| LIVE-24 | Complete uninstall requires explicit consent | Invoke full uninstall without confirmation/non-interactive consent and require the intended refusal; do not perform a full uninstall. |
+| LIVE-25 | OpenClaw owned uninstall removes sandbox and provider (`remove_agent openclaw`) | Perform scoped removal, require the active profile to disappear and archive to exist, and confirm sandbox/provider absence. |
+| LIVE-26 | Deep Agents Code owned uninstall removes sandbox and provider (`remove_agent deepagents-code`) | Apply the same scoped-removal and record assertions to Dcode. |
+| LIVE-27 | Hermes owned uninstall removes sandbox and provider (`remove_agent hermes`) | Apply the same scoped-removal and record assertions to Hermes. |
+| LIVE-28 | Hermes can be freshly provisioned after removal (`install_agent hermes`) | Verify installation/onboarding succeeds again after cleanup. |
+| LIVE-29 | Fresh Hermes installation can be removed (`remove_agent hermes`) | Verify the reinstalled sandbox/provider can also be removed and archived. |
+| LIVE-30 | Shared inference containers, bindings and model remain unchanged (`inference_unchanged`) | Compare before/after container IDs, start times and bindings; revalidate shared inference and the selected model. |
+| LIVE-31 | Final owned-resource cleanup (`on_exit` / `cleanup_resources`) | Attempt scoped cleanup of remaining recorded test sandboxes and the host marker on exit, including after ordinary failure or interruption; report cleanup failure as a failed case. |
 
 ### What the boundary checks establish
 
