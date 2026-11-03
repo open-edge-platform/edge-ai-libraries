@@ -25,7 +25,8 @@ for validation, OpenAPI generation, and as the source of the typed RTK Query cli
 Inference workloads are executed by GStreamer pipelines that use DL Streamer elements (`gva*`) backed by
 OpenVINO™. Available hardware (CPU / GPU / NPU) is probed at startup through the OpenVINO™ Core in
 `vippet/device.py`, and exposed through the `/devices` endpoint so the UI can offer the right per-device
-pipeline variants.
+pipeline variants. The CPU entry also carries the core type (P, E, LPE) of every online logical CPU, read
+from Linux sysfs by `vippet/cpu_topology.py`.
 
 ### Subprocess Pipeline Runner
 
@@ -57,8 +58,9 @@ The Python package under `vippet/` is organized in clear layers:
 - `vippet/pipelines/` - built-in pipeline definitions (YAML) and the loader that turns them into runtime objects.
 - `vippet/graph.py`, `vippet/pipeline_runner.py`, `vippet/gst_runner.py` - pipeline graph model,
   subprocess orchestration, and the low-level GStreamer runner that is executed as a child process.
-- `vippet/device.py`, `vippet/video_encoder.py`, `vippet/video_decoder.py`, `vippet/camera.py`,
-  `vippet/images.py`, `vippet/videos.py` - hardware and media helpers used by managers and runners.
+- `vippet/device.py`, `vippet/cpu_topology.py`, `vippet/video_encoder.py`, `vippet/video_decoder.py`,
+  `vippet/camera.py`, `vippet/images.py`, `vippet/videos.py` - hardware and media helpers used by managers and
+  runners.
 
 ### Application Startup
 

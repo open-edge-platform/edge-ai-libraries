@@ -52,6 +52,7 @@ vippet/
 ├── video_encoder.py      # Encoding / live-streaming sub-pipelines
 ├── video_decoder.py      # Decoder selection / caps building
 ├── device.py             # OpenVINO device detection (CPU/GPU/NPU)
+├── cpu_topology.py       # CPU core types (P/E/LPE) from Linux sysfs
 ├── videos.py             # Input/output video management
 ├── images.py             # Image set management
 ├── models.py             # In-memory read cache of the models/model_variants DB tables
