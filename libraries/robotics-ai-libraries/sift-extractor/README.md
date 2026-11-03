@@ -9,8 +9,8 @@ a standalone `rclcpp` node. Use it from your ROS node or SIFT-capable SLAM by
 linking `sift_lze` and calling `extract()`.
 
 Suite tutorials:
-`edge-ai-suites/robotics-ai-suite/docs/.../perception/sift-extractor/`
-(especially **Integrate into a SIFT-capable SLAM**).
+`robotics-ai-suite/docs/user-guide/components/optimized_solutions/sift-extractor.md`
+(install, APIs, and **Integrate into a SIFT-capable SLAM**).
 
 ## Why a wrapper
 

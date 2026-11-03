@@ -2,8 +2,9 @@
 
 Thin robotics wrapper around the horizontal `sift_extractor` core.
 This package is a **library**, not a ROS topic node — link it from your node
-or SIFT-capable SLAM. See the suite doc **Integrate into a SIFT-capable SLAM**
-under `perception/sift-extractor/`.
+or SIFT-capable SLAM. See the suite guide
+`robotics-ai-suite/docs/user-guide/components/optimized_solutions/sift-extractor.md`
+(section **Integrate into a SIFT-capable SLAM**).
 
 ```bash
 sift_feature_extract --image=/path/to/gray_or_bgr.png --images=1 --backend=auto
