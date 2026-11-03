@@ -289,16 +289,17 @@ RUN . /etc/os-release && \
     fi
 
 # site packages path independent of Python version
-RUN apt-get update && \
+RUN . /etc/os-release && \
+    apt-get update && \
     apt-get install -y --no-install-recommends git && \
     MODEL_API_PATH=$(python3 -c "import site; print(site.getsitepackages()[0])")/model_api && \
-if [ "$VERSION_ID" = "26.04" ]; then \
-    MODEL_API_PATCH=/home/pipeline-server/model_api-0.4.7.patch; \
-else \
-    MODEL_API_PATCH=/home/pipeline-server/model_api.patch; \
-fi && \
-cd $MODEL_API_PATH && \
-git apply "$MODEL_API_PATCH" && \
+    if [ "$VERSION_ID" = "26.04" ]; then \
+        MODEL_API_PATCH=/home/pipeline-server/model_api-0.4.7.patch; \
+    else \
+        MODEL_API_PATCH=/home/pipeline-server/model_api.patch; \
+    fi && \
+    cd $MODEL_API_PATH && \
+    git apply "$MODEL_API_PATCH" && \
     apt-get remove -y git && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
