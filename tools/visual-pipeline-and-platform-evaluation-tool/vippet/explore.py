@@ -1,12 +1,23 @@
 import logging
+import os
 import subprocess
 import threading
 from typing import Optional
+
+import httpx
+
+from dlsps2_runner import DLSPS2_BASE_URL, DLSPS2_HTTP_TIMEOUT_S, DLSPS2_VERIFY_TLS
+
+_EXECUTION_BACKEND = os.environ.get("VIPPET_EXECUTION_BACKEND", "local").strip().lower()
 
 
 class GstInspector:
     """
     Thread-safe singleton class to inspect GStreamer elements using gst-inspect-1.0.
+
+    With ``VIPPET_EXECUTION_BACKEND=dlsps2`` the list comes from DLSPS 2.0's
+    ``GET /elements`` instead, since pipelines run there; local gst-inspect-1.0
+    is the fallback if that request fails.
 
     This class provides a method to retrieve the list of GStreamer elements
     and their descriptions. Implements singleton pattern using __new__ with
@@ -48,6 +59,13 @@ class GstInspector:
         self.elements = self._get_gst_elements()
 
     def _get_gst_elements(self):
+        if _EXECUTION_BACKEND == "dlsps2":
+            elements = self._get_dlsps2_elements()
+            if elements:
+                return elements
+            self.logger.warning(
+                "No elements from DLSPS 2.0; falling back to local gst-inspect-1.0"
+            )
         try:
             result = subprocess.run(
                 ["gst-inspect-1.0"],
@@ -71,6 +89,21 @@ class GstInspector:
 
         except Exception as e:
             self.logger.error(f"Error running gst-inspect-1.0: {e}")
+            return []
+
+    def _get_dlsps2_elements(self) -> list[tuple[str, str, str]]:
+        try:
+            response = httpx.get(
+                f"{DLSPS2_BASE_URL}/elements",
+                timeout=DLSPS2_HTTP_TIMEOUT_S,
+                verify=DLSPS2_VERIFY_TLS,
+            )
+            response.raise_for_status()
+            return sorted(
+                (e["plugin"], e["name"], e["description"]) for e in response.json()
+            )
+        except (httpx.HTTPError, ValueError, KeyError, TypeError) as e:
+            self.logger.error(f"Error reading elements from DLSPS 2.0: {e}")
             return []
 
     def get_elements(self):
