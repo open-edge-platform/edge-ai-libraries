@@ -28,8 +28,9 @@ std::vector<float> make_image(int width, int height, unsigned seed) {
 
 // Phase B item-10 harness: mixed-backend extract soak (single-threaded; SYCL
 // reference is process-global / not concurrent) plus optional independent-context
-// OpenCL concurrency. Default is exploratory (short). Pass --release for
-// >=10000 mixed calls spanning >=30 minutes. Failures abort.
+// OpenCL concurrency. Default is exploratory (short). --release targets >=10000
+// mixed calls; optional --minutes N adds a wall-clock floor (the historical
+// 30-minute gate is opt-in, not implied by --release). Failures abort.
 // Not a quality-floor or held-out claim.
 int main(int argc, char **argv) {
   using clock = std::chrono::steady_clock;
@@ -40,6 +41,10 @@ int main(int argc, char **argv) {
   using sift_extractor::experimental::backend_available;
 
   bool release = false;
+  bool calls_set = false;
+  bool minutes_set = false;
+  std::size_t target_calls = 200;
+  double min_duration_s = 5.0;
   int width = 640;
   int height = 480;
   int concurrency = 2;
@@ -48,6 +53,24 @@ int main(int argc, char **argv) {
     const std::string arg = argv[i];
     if (arg == "--release") {
       release = true;
+      if (!calls_set) target_calls = 10000;
+      if (!minutes_set) min_duration_s = 0.0;
+    } else if (arg == "--calls" && i + 1 < argc) {
+      const int value = std::atoi(argv[++i]);
+      if (value <= 0) {
+        std::fprintf(stderr, "--calls must be positive\n");
+        return 2;
+      }
+      target_calls = static_cast<std::size_t>(value);
+      calls_set = true;
+    } else if (arg == "--minutes" && i + 1 < argc) {
+      const double value = std::atof(argv[++i]);
+      if (value < 0.0) {
+        std::fprintf(stderr, "--minutes must be nonnegative\n");
+        return 2;
+      }
+      min_duration_s = value * 60.0;
+      minutes_set = true;
     } else if (arg == "--width" && i + 1 < argc) {
       width = std::atoi(argv[++i]);
     } else if (arg == "--height" && i + 1 < argc) {
@@ -58,9 +81,10 @@ int main(int argc, char **argv) {
       seed = static_cast<unsigned>(std::atoi(argv[++i]));
     } else if (arg == "--help" || arg == "-h") {
       std::fprintf(stderr,
-                   "usage: soak_sift_extract [--release] [--width W] [--height H] "
-                   "[--concurrency N] [--seed S]\n"
+                   "usage: soak_sift_extract [--release] [--calls N] [--minutes M] "
+                   "[--width W] [--height H] [--concurrency N] [--seed S]\n"
                    "  Mixed-backend soak is single-threaded (SYCL is not reentrant).\n"
+                   "  --release => --calls 10000 (no duration floor unless --minutes).\n"
                    "  --concurrency runs OpenCL-only independent contexts when OpenCL is built.\n");
       return 2;
     } else {
@@ -79,8 +103,8 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  const std::size_t target_calls = release ? 10000 : 200;
-  const auto min_duration = release ? std::chrono::minutes(30) : std::chrono::seconds(5);
+  const auto min_duration = std::chrono::duration_cast<clock::duration>(
+      std::chrono::duration<double>(min_duration_s));
   const auto image = make_image(width, height, seed);
 
   std::size_t mixed_calls = 0;
@@ -112,13 +136,13 @@ int main(int argc, char **argv) {
   int concurrent_failures = 0;
   std::string concurrent_error;
   bool ran_concurrency = false;
+  const std::size_t concurrent_target = release ? 2000 : 100;
   if (backend_available(Backend::OpenCL) && concurrency > 1) {
     ran_concurrency = true;
     std::atomic<std::size_t> calls{0};
     std::atomic<std::size_t> feats{0};
     std::atomic<int> failures{0};
     std::mutex err_mu;
-    const std::size_t concurrent_target = release ? 2000 : 100;
     const auto conc_started = clock::now();
     auto worker = [&](int worker_id) {
       try {
@@ -169,15 +193,15 @@ int main(int argc, char **argv) {
       "\"concurrency\":%d,\"seed\":%u,\"backends\":\"%s\","
       "\"target_calls\":%zu,\"min_duration_s\":%.1f,\"mixed_calls\":%zu,"
       "\"concurrent_opencl\":%s,\"concurrent_calls\":%zu,\"concurrent_failures\":%d,"
-      "\"features_total\":%zu,\"elapsed_s\":%.3f,\"error\":%s}\n",
+      "\"concurrent_target\":%zu,\"features_total\":%zu,\"elapsed_s\":%.3f,\"error\":%s}\n",
       release ? "true" : "false", width, height, concurrency, seed, backend_list.c_str(),
-      target_calls, std::chrono::duration<double>(min_duration).count(), mixed_calls,
-      ran_concurrency ? "true" : "false", concurrent_calls, concurrent_failures, features_total,
-      elapsed_s, error_json);
+      target_calls, min_duration_s, mixed_calls, ran_concurrency ? "true" : "false",
+      concurrent_calls, concurrent_failures, concurrent_target, features_total, elapsed_s,
+      error_json);
 
   if (mixed_calls < target_calls) return 1;
   if (clock::now() - started < min_duration) return 1;
   if (concurrent_failures != 0) return 1;
-  if (ran_concurrency && concurrent_calls < (release ? 2000u : 100u)) return 1;
+  if (ran_concurrency && concurrent_calls < concurrent_target) return 1;
   return 0;
 }

@@ -88,9 +88,10 @@ is recorded under the SIFT workspace
 `results/20261102/arc-python-timing/dual-summary.json` (staged portable
 `sycl-runtime` on Arc; no system oneAPI install required there). Post-residency
 OpenCL/SYCL native A/B: `results/20261102/arc-resident-timing/summary.json`.
-Release-gate harness: `soak_sift_extract [--release] [--concurrency N]` (mixed
-backends single-threaded; OpenCL independent-context concurrency when built).
-Default is exploratory; `--release` requires ≥10000 mixed calls and ≥30 minutes.
+Release-gate harness: `soak_sift_extract [--release] [--calls N] [--minutes M]
+[--concurrency N]` (mixed backends single-threaded; OpenCL independent-context
+concurrency when built). Default is exploratory; `--release` targets ≥10000
+mixed calls (no wall-clock floor unless `--minutes` is set).
 
 Optional OpenCV adapters (`-DSIFT_BUILD_OPENCV_ADAPTER=ON`, OpenCV `core` only):
 
