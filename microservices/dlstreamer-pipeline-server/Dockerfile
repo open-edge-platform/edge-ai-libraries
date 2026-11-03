@@ -304,28 +304,6 @@ RUN . /etc/os-release && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Ubuntu 22: Python 3.10 still often gets pre-built datumaro wheels, so Rust might be unused.
-# Ubuntu 24: Python 3.12 rarely has wheels for datumaro, so it falls back to source — Rust is required here (for building datumaro - needed for geti-sdk installation).
-# Detect Ubuntu version and install Rust only on Ubuntu 24
-RUN . /etc/os-release && \
-    if [ "$VERSION_ID" = "24.04" ]; then \
-        apt-get update && \
-        apt-get install -y --no-install-recommends python3-dev curl build-essential && \
-        curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.87.0 && \
-        echo 'source $HOME/.cargo/env' >> ~/.bashrc && \
-        export PATH="/root/.cargo/bin:$PATH" && \
-        pip3 install --no-cache-dir geti-sdk==2.13.1 && \
-        # clean up Rust installation files
-        rm -rf /root/.cargo /root/.rustup; \
-    else \
-        pip3 install --no-cache-dir geti-sdk==2.13.1; \
-    fi && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /root/.cache
-
-# Uninstall cuda-python installed by Geti SDK because of proprietary license causing OSPDT issue
-RUN pip3 uninstall --no-cache-dir -y cuda-python aiohappyeyeballs
-
 # Set environment variables up front to ensure locales work properly
 ENV LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8
