@@ -2772,13 +2772,8 @@ configure_libyang ()
 }
 configure_libze1 () 
 { 
-    if [[ " $* " = *" edge_pack_npu "* ]]; then
-        version=1.28.2;
-        libze1_deb="https://snapshot.ppa.launchpadcontent.net/kobuk-team/intel-graphics/ubuntu/20260606T100000Z/pool/main/l/level-zero-loader/libze1_1.28.2-1~${VERSION_ID}~ppa1_amd64.deb";
-    else
-        version=1.32.0;
-        libze1_deb="https://github.com/oneapi-src/level-zero/releases/download/v$version/libze1_$version+u${VERSION_ID}_amd64.deb";
-    fi
+    version=1.32.0;
+    libze1_deb="https://github.com/oneapi-src/level-zero/releases/download/v$version/libze1_$version+u${VERSION_ID}_amd64.deb"
 }
 configure_live_video_alert_agent () 
 { 
@@ -3735,17 +3730,21 @@ debian_15_install_libtbb12 ()
 debian_15_install_libze1 () 
 { 
     configure_libze1 "$@";
-    if ensure_apt_is_installed libze1=$version && [[ " $* " != *" --reinstall "* ]]; then
-        echo "libze1 is installed." 1>&2;
+    if [[ " $* " = *"edge_pack"* ]]; then
+        echo "Let edge pack handle libze1" 1>&2;
     else
-        local deb="/tmp/$(basename "$libze1_deb")";
-        ensure_fetch "$libze1_deb" "$deb" && { 
-            ensure_apt install -y "$deb" || { 
-                ensure_apt purge -y level-zero level-zero-devel libze1;
-                ensure_apt install -y --no-install-recommends "$deb"
-            }
-        };
-        rm -f "$deb";
+        if ensure_apt_is_installed libze1=$version && [[ " $* " != *" --reinstall "* ]]; then
+            echo "libze1 is installed." 1>&2;
+        else
+            local deb="/tmp/$(basename "$libze1_deb")";
+            ensure_fetch "$libze1_deb" "$deb" && { 
+                ensure_apt install -y "$deb" || { 
+                    ensure_apt purge -y level-zero level-zero-devel libze1;
+                    ensure_apt install -y --no-install-recommends "$deb"
+                }
+            };
+            ensure_rm "$deb";
+        fi;
     fi
 }
 debian_15_install_unzip () 
@@ -3806,6 +3805,7 @@ debian_15_sbom_libtbb12 ()
 }
 debian_15_sbom_libze1 () 
 { 
+    [[ " $* " != *"edge_pack"* ]] || return 0;
     configure_libze1 "$@";
     ensure_sbom_format pkg-list "$libze1_deb"
 }
@@ -4556,7 +4556,7 @@ debian_40_install_edge_pack_base_realtime ()
         ensure_prop set installed/edge_pack_base_realtime/owned true;
         ensure_apt purge --auto-remove -y intel-edge-base-realtime || true;
         ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*" || true;
-        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*" libigdgmm12="$(apt-cache show intel-edge-media-core | grep -m1 'Depends:.*libigdgmm12' | sed -E 's/.*libigdgmm12 \(= ([^)]+)\).*/\1/')";
+        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*" libigdgmm12="$(apt-cache show intel-edge-media-core | grep -m1 'Depends:.*libigdgmm12' | sed -E 's/.*libigdgmm12 \(= ([^)]+)\).*/\1/')" libze1="$(apt-cache show intel-edge-npu | grep -m1 'Depends:.*libze1' | sed -E 's/.*libze1 \(= ([^)]+)\).*/\1/')";
     fi;
     [ -c /dev/dri/renderD128 ];
     ensure_group_add $(debian_40_group_edge_pack_base_realtime)
@@ -4570,7 +4570,7 @@ debian_40_install_edge_pack_base_standard ()
         ensure_prop set installed/edge_pack_base_standard/owned true;
         ensure_apt purge --auto-remove -y intel-edge-base-standard || true;
         ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*" || true;
-        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*" libigdgmm12="$(apt-cache show intel-edge-media-core | grep -m1 'Depends:.*libigdgmm12' | sed -E 's/.*libigdgmm12 \(= ([^)]+)\).*/\1/')";
+        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*" libigdgmm12="$(apt-cache show intel-edge-media-core | grep -m1 'Depends:.*libigdgmm12' | sed -E 's/.*libigdgmm12 \(= ([^)]+)\).*/\1/')" libze1="$(apt-cache show intel-edge-npu | grep -m1 'Depends:.*libze1' | sed -E 's/.*libze1 \(= ([^)]+)\).*/\1/')";
     fi;
     [ -c /dev/dri/renderD128 ];
     ensure_group_add $(debian_40_group_edge_pack_base_standard)
@@ -4673,7 +4673,7 @@ debian_40_install_edge_pack_npu ()
         ensure_prop set installed/edge_pack_npu/owned true;
         ensure_apt purge --auto-remove -y intel-edge-npu || true;
         ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-npu=$version*" || true;
-        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-npu=$version*";
+        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-npu=$version*" libze1="$(apt-cache show intel-edge-npu | grep -m1 'Depends:.*libze1' | sed -E 's/.*libze1 \(= ([^)]+)\).*/\1/')";
     fi;
     [ -c /dev/accel/accel0 ];
     ensure_group_add $(debian_40_group_edge_pack_npu)
