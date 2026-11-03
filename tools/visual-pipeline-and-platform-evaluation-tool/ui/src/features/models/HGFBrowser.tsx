@@ -33,6 +33,7 @@ import { selectModels } from "@/store/reducers/models";
 import { useAsyncJob } from "@/hooks/useAsyncJob";
 import { formatElapsedTimeMillis } from "@/lib/timeUtils";
 import { ModelInstallStatusIndicator } from "@/features/models/ModelInstallStatusIndicator";
+import { LicenseAcknowledgementDialog } from "@/features/models/LicenseAcknowledgementDialog";
 import { asString } from "@/lib/utils";
 import {
   handleApiError,
@@ -94,6 +95,10 @@ export const HGFBrowser = ({ onInstalled }: HGFBrowserProps) => {
   const [listHubModels, { isLoading, error }] = useListHubModelsMutation();
 
   const [installingName, setInstallingName] = useState<string | null>(null);
+  const [gatedPrompt, setGatedPrompt] = useState<{
+    name: string;
+    task: string | null;
+  } | null>(null);
   const { execute: runInstall, jobStatus } = useAsyncJob({
     asyncJobHook: useStartModelDownloadMutation,
     statusCheckHook: useGetModelDownloadJobStatusQuery,
@@ -297,7 +302,11 @@ export const HGFBrowser = ({ onInstalled }: HGFBrowserProps) => {
                         size="sm"
                         variant="outline"
                         disabled={installingName !== null}
-                        onClick={() => handleInstall(name, task)}
+                        onClick={() =>
+                          model.gated !== false
+                            ? setGatedPrompt({ name, task })
+                            : handleInstall(name, task)
+                        }
                       >
                         <Download className="mr-2 h-4 w-4" />
                         Install
@@ -351,6 +360,23 @@ export const HGFBrowser = ({ onInstalled }: HGFBrowserProps) => {
           </Pagination>
         </div>
       )}
+
+      <LicenseAcknowledgementDialog
+        open={gatedPrompt !== null}
+        onOpenChange={(open) => {
+          if (!open) setGatedPrompt(null);
+        }}
+        modelUrl={
+          gatedPrompt ? `https://huggingface.co/${gatedPrompt.name}` : null
+        }
+        hubName="Hugging Face"
+        onConfirm={() => {
+          if (!gatedPrompt) return;
+          const { name, task } = gatedPrompt;
+          setGatedPrompt(null);
+          handleInstall(name, task);
+        }}
+      />
     </div>
   );
 };

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-name: gemma3
-display_name: Gemma 3
+name: gemma-3-4b-it
+display_name: Gemma 3 4b it
 description: "Google Gemma 3 vision-language model that understands images together with text prompts to generate captions, descriptive answers, and visual reasoning."
 source: huggingface
 hub: huggingface

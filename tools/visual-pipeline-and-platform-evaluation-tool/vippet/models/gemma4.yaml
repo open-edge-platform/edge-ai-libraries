@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-name: gemma4
-display_name: Gemma 4 E4B
+name: gemma-4-E4B-it
+display_name: Gemma 4 E4B it
 description: "Google Gemma multimodal vision-language model (E4B variant) that jointly processes images and text to produce natural-language descriptions and answers."
 source: huggingface
 hub: huggingface
