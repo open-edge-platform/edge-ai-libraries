@@ -22,7 +22,6 @@ from pathlib import Path
 from typing import Any
 
 from dataclasses import dataclass, field
-from helpers.pipeline_case_helpers import PipelineCase
 from perf_helpers.hw_monitor import HardwareMonitor
 from perf_helpers.job_outcome import describe_missing_hw_samples
 from perf_helpers.preflight import (
@@ -66,15 +65,15 @@ except SettingsError as exc:
     raise SystemExit(2) from None
 
 # Propagate perf config to env vars consumed by functional helpers. This must
-# run BEFORE importing ``helpers.*``: helpers.config reads these env vars once
-# at import time. These keys are env-backed in perf_helpers.settings, so an
-# already-exported value is what BASE_URL/POLL_* resolved to; setdefault only
-# fills in YAML/default values.
-os.environ.setdefault("VIPPET_BASE_URL", BASE_URL)
-os.environ.setdefault("VIPPET_JOB_TIMEOUT_SECONDS", str(POLL_TIMEOUT))
-os.environ.setdefault("VIPPET_JOB_POLL_INTERVAL", str(POLL_INTERVAL))
+# run BEFORE importing ``helpers.*``: helpers.config parses these env vars once
+# at import time. The resolved values are assigned (not setdefault) so that an
+# invalid or differently formatted env value that a CLI flag or YAML value
+# overrides cannot reach the helpers' own parsing and raise ValueError.
+os.environ["VIPPET_BASE_URL"] = BASE_URL
+os.environ["VIPPET_JOB_TIMEOUT_SECONDS"] = str(POLL_TIMEOUT)
+os.environ["VIPPET_JOB_POLL_INTERVAL"] = str(POLL_INTERVAL)
 
-from helpers.pipeline_case_helpers import wrap_cases_for_pytest  # noqa: E402
+from helpers.pipeline_case_helpers import PipelineCase, wrap_cases_for_pytest  # noqa: E402
 from perf_helpers.discovery import discover_matrix  # noqa: E402
 from perf_helpers.matrix import (  # noqa: E402
     Matrix,
@@ -84,6 +83,7 @@ from perf_helpers.matrix import (  # noqa: E402
     find_unknown_filter_ids,
     format_matrix,
 )
+from perf_helpers.run_config import build_config_block  # noqa: E402
 from perf_helpers.system_info import collect_system_info  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -684,6 +684,11 @@ def results_collector(
             },
             "hardware": hw_families,
             "system_info": system_info,
+            "config": build_config_block(
+                SETTINGS,
+                matrix=_DISCOVERED_CASES.matrix if _DISCOVERED_CASES else None,
+                vippet_version=_VIPPET_VERSION,
+            ),
         }
         try:
             exporter = ResultExporter(output_dir, formats=RESULT_FORMATS)

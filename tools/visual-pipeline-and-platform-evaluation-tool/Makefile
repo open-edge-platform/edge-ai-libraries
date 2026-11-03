@@ -225,7 +225,7 @@ test-full: $(VENV_SENTINEL) ## Run full functional tests
 	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\
 	python -m pytest --junit-xml=report.xml --html=report.html --self-contained-html --log-cli-level=INFO vippet/tests/functional/
 
-test-performance: $(VENV_SENTINEL) ## Run performance benchmarks (PERF_CONFIG=default|quick|full, PERF_ARGS="--dry-run ...")
+test-performance: $(VENV_SENTINEL) ## Run performance benchmarks (PERF_CONFIG=default|quick|full|<result JSON or run dir>, PERF_ARGS="--dry-run ...")
 	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\
 	PYTHONPATH=vippet/tests/performance PERF_CONFIG=$(or $(PERF_CONFIG),default) \
 		python -m perf_helpers.cli $(PERF_ARGS)
