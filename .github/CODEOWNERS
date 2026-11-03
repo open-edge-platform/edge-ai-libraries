@@ -45,6 +45,10 @@ README.md           @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 /microservices/audio-analyzer/docs/                    @bhardwaj-nakul @bharagha @krish918 @avinash-palleti @open-edge-platform/open-edge-platform-docs-write
 /microservices/audio-analyzer/README.md                @bhardwaj-nakul @bharagha @krish918 @avinash-palleti @open-edge-platform/open-edge-platform-docs-write
 
+/microservices/data-intelligence-engine/               @myqi @Yongbozzz @Johere @lijiunderstand
+/microservices/data-intelligence-engine/docs/          @myqi @Yongbozzz @Johere @lijiunderstand @open-edge-platform/open-edge-platform-docs-write
+/microservices/data-intelligence-engine/README.md      @myqi @Yongbozzz @Johere @lijiunderstand @open-edge-platform/open-edge-platform-docs-write
+
 /microservices/dlstreamer-pipeline-server/             @tbujewsk @OskarFiedot @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni @walidbarakat
 /microservices/dlstreamer-pipeline-server/docs/        @tbujewsk @OskarFiedot @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni @walidbarakat  @open-edge-platform/open-edge-platform-docs-write
 /microservices/dlstreamer-pipeline-server/README.md    @tbujewsk @OskarFiedot @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni @walidbarakat  @open-edge-platform/open-edge-platform-docs-write
