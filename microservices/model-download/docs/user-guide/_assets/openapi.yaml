@@ -526,6 +526,9 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ModelListItem"
+        count:
+          type: integer
+          description: Number of models returned in this response (size of `items`)
         total:
           type: integer
           nullable: true
@@ -536,6 +539,17 @@ components:
         offset:
           type: integer
           description: Number of items skipped for pagination
+        has_more:
+          type: boolean
+          nullable: true
+          description: >-
+            Whether another page is available. Computed from `total` when the
+            hub reports it; otherwise inferred from whether more raw results
+            were returned than `limit`.
+        next_offset:
+          type: integer
+          nullable: true
+          description: Offset to pass as `offset` to fetch the next page, present only when `has_more` is true
 
 paths:
   /health:

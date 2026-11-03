@@ -1,4 +1,3 @@
-
 debian_30_install_stress_ng () {
   ensure_apt_install_package stress-ng
 }
@@ -10,4 +9,3 @@ debian_30_remove_stress_ng () {
 debian_30_sbom_stress_ng () {
   ensure_sbom_format pkg-list stress-ng
 }
-

@@ -35,7 +35,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple
 
 from core.worker_pool import WorkerPool
 
@@ -77,6 +77,26 @@ class ValidationTicket:
     submitted_time: Optional[float] = None
 
 
+class FpsSample(NamedTuple):
+    """FPS values of one instance, replaced as a whole so a reader never sees a mix of events."""
+
+    avg_fps: float = 0.0
+    frame_fps: float = 0.0
+    frame_interval: float = 0.0  # Window in seconds that frame_fps was measured over
+
+
+class Lifecycle(NamedTuple):
+    """Unix epoch times of one run, replaced as a whole so a reader never mixes two runs."""
+
+    start_time: Optional[float] = None  # When the instance transitioned to RUNNING
+    first_frame_time: Optional[float] = None
+    stop_time: Optional[float] = None
+
+
+def _opt_float(value: Any) -> Optional[float]:
+    return None if value is None else float(value)
+
+
 @dataclass
 class PipelineInstance:
     """Represents a single running or completed pipeline instance."""
@@ -88,12 +108,8 @@ class PipelineInstance:
     error: Optional[str] = None
 
     # Metrics (updated live from the shared worker's status events)
-    avg_fps: float = 0.0
-    frame_fps: float = 0.0
-    frame_interval: float = 0.0  # Time window in seconds for last_fps calculation
-    start_time: Optional[float] = None
-    stop_time: Optional[float] = None
-    first_frame_time: Optional[float] = None  # Unix epoch time when first frame was received
+    fps_sample: FpsSample = FpsSample()
+    lifecycle: Lifecycle = Lifecycle()
 
     # Optional request metadata, populated when the instance was started via
     # the legacy named-pipeline API (POST /pipelines/{name}/{version}). Mirrors
@@ -114,25 +130,77 @@ class PipelineInstance:
     restart_attempts: int = 0  # Current restart attempt count
     restart_timer: Optional[Any] = None  # Scheduled restart GLib.timeout_source or thread timer
 
-    def elapsed_time(self) -> Optional[float]:
-        if self.start_time is None:
+    @property
+    def avg_fps(self) -> float:
+        return self.fps_sample.avg_fps
+
+    @property
+    def frame_fps(self) -> float:
+        return self.fps_sample.frame_fps
+
+    @property
+    def frame_interval(self) -> float:
+        return self.fps_sample.frame_interval
+
+    def update_fps(
+        self,
+        avg_fps: Optional[float] = None,
+        frame_fps: Optional[float] = None,
+        frame_interval: Optional[float] = None,
+    ) -> None:
+        """Apply one fps event; values it does not carry keep their previous value.
+
+        frame_fps and frame_interval describe the same window, so they only change together.
+        """
+        prev = self.fps_sample
+        window_complete = frame_fps is not None and frame_interval is not None
+        self.fps_sample = FpsSample(
+            prev.avg_fps if avg_fps is None else avg_fps,
+            frame_fps if window_complete else prev.frame_fps,
+            frame_interval if window_complete else prev.frame_interval,
+        )
+
+    @property
+    def start_time(self) -> Optional[float]:
+        return self.lifecycle.start_time
+
+    @property
+    def first_frame_time(self) -> Optional[float]:
+        return self.lifecycle.first_frame_time
+
+    @property
+    def stop_time(self) -> Optional[float]:
+        return self.lifecycle.stop_time
+
+    def set_lifecycle(self, **changes: Optional[float]) -> None:
+        """Change some of the run's times in one assignment; None clears a time."""
+        self.lifecycle = self.lifecycle._replace(**changes)
+
+    @staticmethod
+    def _elapsed(lifecycle: Lifecycle) -> Optional[float]:
+        if lifecycle.start_time is None:
             return None
-        end = self.stop_time if self.stop_time is not None else time.time()
-        return max(0.0, end - self.start_time)
+        end = lifecycle.stop_time if lifecycle.stop_time is not None else time.time()
+        return max(0.0, end - lifecycle.start_time)
+
+    def elapsed_time(self) -> Optional[float]:
+        return self._elapsed(self.lifecycle)
 
     def to_status_dict(self) -> dict:
         """Pure runtime-status view, matching legacy API GET /pipelines/{id}/status
         and GET /pipelines/status (no pipeline config/request data included).
         """
+        fps = self.fps_sample
+        lifecycle = self.lifecycle
         return {
             "id": self.instance_id,
             "state": self.state.value,
-            "avg_fps": self.avg_fps,
-            "frame_fps": self.frame_fps,
-            "frame_interval": self.frame_interval,
-            "start_time": self.start_time,
-            "first_frame_time": self.first_frame_time,
-            "elapsed_time": self.elapsed_time(),
+            "avg_fps": fps.avg_fps,
+            "frame_fps": fps.frame_fps,
+            "frame_interval": fps.frame_interval,
+            "start_time": lifecycle.start_time,
+            "first_frame_time": lifecycle.first_frame_time,
+            "elapsed_time": self._elapsed(lifecycle),
             "message": self.error or "",
         }
 
@@ -188,6 +256,7 @@ class PipelineManager:
         # Worker pool: manages multiple gst_worker subprocesses keyed by CPU affinity
         self._worker_pool = WorkerPool(event_handler=self._handle_event)
         self._shutting_down = threading.Event()
+        self._finished_listener: Optional[Callable[[PipelineInstance], None]] = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -341,6 +410,10 @@ class PipelineManager:
         self._shutting_down.set()
         self._worker_pool.shutdown()
 
+    def set_finished_listener(self, listener: Optional[Callable[[PipelineInstance], None]]) -> None:
+        """Register a callback invoked with an instance after its worker reports "stopped"."""
+        self._finished_listener = listener
+
     # ------------------------------------------------------------------
     # Validation (runs before a pipeline is ever submitted to the worker)
     # ------------------------------------------------------------------
@@ -359,7 +432,7 @@ class PipelineManager:
             with self._lock:
                 instance.state = PipelineState.ERROR
                 instance.error = f"validation failed: {reason}" if reason else "validation failed"
-                instance.stop_time = time.time()
+                instance.set_lifecycle(stop_time=time.time())
             logger.error("Pipeline %s failed validation: %s", instance.instance_id, reason)
             return
 
@@ -367,7 +440,7 @@ class PipelineManager:
             # Don't override a stop() that raced in while validation was running.
             if instance.state == PipelineState.QUEUED:
                 instance.state = PipelineState.RUNNING
-                instance.start_time = time.time()
+                instance.set_lifecycle(start_time=time.time())
 
         success = self._worker_pool.send_command(
             instance.instance_id,
@@ -391,7 +464,7 @@ class PipelineManager:
             with self._lock:
                 instance.state = PipelineState.ERROR
                 instance.error = "failed to submit to worker"
-                instance.stop_time = time.time()
+                instance.set_lifecycle(stop_time=time.time())
             logger.error("Pipeline %s failed to submit to worker", instance.instance_id)
 
     @staticmethod
@@ -479,19 +552,18 @@ class PipelineManager:
 
         if evt == "fps":
             with self._lock:
-                if event.get("avg_fps") is not None:
-                    instance.avg_fps = float(event["avg_fps"])
-                if event.get("last_fps") is not None:
-                    instance.frame_fps = float(event["last_fps"])
-                if event.get("frame_interval") is not None:
-                    instance.frame_interval = float(event["frame_interval"])
+                instance.update_fps(
+                    avg_fps=_opt_float(event.get("avg_fps")),
+                    frame_fps=_opt_float(event.get("last_fps")),
+                    frame_interval=_opt_float(event.get("frame_interval")),
+                )
         elif evt == "firstframe":
             # Reset restart attempts on first frame (restart was successful)
             with self._lock:
                 instance.restart_attempts = 0
                 first_frame_time = event.get("first_frame_time")
                 if first_frame_time is not None:
-                    instance.first_frame_time = first_frame_time
+                    instance.set_lifecycle(first_frame_time=first_frame_time)
             if instance.restart_attempts > 0:
                 logger.info("Pipeline %s received first frame at %.3f (after restart attempts)", instance_id, instance.first_frame_time)
             else:
@@ -521,16 +593,17 @@ class PipelineManager:
                     PipelineState.ABORTED, PipelineState.ERROR, PipelineState.COMPLETED,
                 ):
                     instance.state = PipelineState.ERROR
-                    instance.stop_time = time.time()
+                    instance.set_lifecycle(stop_time=time.time())
             logger.error("Pipeline %s error: %s", instance_id, reason)
             if event.get("debug"):
                 logger.error("Pipeline %s error debug: %s", instance_id, event["debug"])
             self._worker_pool.untrack_pipeline(instance_id, instance.cpu_cores)
+            self._notify_finished(instance)
             if instance.restart_config and instance.restart_config.get("enabled"):
                 self._attempt_restart(instance)
         elif evt == "stopped":
             with self._lock:
-                instance.stop_time = time.time()
+                instance.set_lifecycle(stop_time=time.time())
                 if instance.state != PipelineState.ABORTED:
                     instance.state = PipelineState.ERROR if instance.error else PipelineState.COMPLETED
             self._worker_pool.untrack_pipeline(instance_id, instance.cpu_cores)
@@ -540,8 +613,18 @@ class PipelineManager:
                 instance.state.value,
                 instance.avg_fps,
             )
+            self._notify_finished(instance)
         else:
             logger.debug("Unknown event for pipeline %s: %s", instance_id, event)
+
+    def _notify_finished(self, instance: PipelineInstance) -> None:
+        listener = self._finished_listener
+        if listener is None:
+            return
+        try:
+            listener(instance)
+        except Exception:  # noqa: BLE001
+            logger.exception("Finished-pipeline listener failed for %s", instance.instance_id)
 
     def _attempt_restart(self, instance: PipelineInstance) -> None:
         """Check if automatic restart should be triggered for a failed/stopped pipeline."""
@@ -597,11 +680,9 @@ class PipelineManager:
             if instance.state != PipelineState.RESTARTING:
                 logger.warning("Pipeline %s no longer in RESTARTING state; aborting restart", instance.instance_id)
                 return
-            instance.first_frame_time = None
+            instance.set_lifecycle(start_time=time.time(), first_frame_time=None, stop_time=None)
             instance.error = None
-            instance.stop_time = None
             instance.state = PipelineState.RUNNING
-            instance.start_time = time.time()
 
         success = self._worker_pool.send_command(
             instance.instance_id,
@@ -619,5 +700,5 @@ class PipelineManager:
             with self._lock:
                 instance.state = PipelineState.ERROR
                 instance.error = "restart failed to submit to worker"
-                instance.stop_time = time.time()
+                instance.set_lifecycle(stop_time=time.time())
             logger.error("Failed to submit restart for pipeline %s", instance.instance_id)

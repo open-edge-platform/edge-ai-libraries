@@ -326,6 +326,78 @@ class TestMetricsDerivationIntegration(_TmpConfigMixin):
         self.assertEqual(resolved.sources["metrics.metrics_url"], s.SOURCE_ENV)
         self.assertEqual(resolved.sources["metrics.capabilities_url"], s.SOURCE_ENV)
 
+    def test_presets_derive_metrics_url_from_base_url(self) -> None:
+        # No preset may pin metrics_url to localhost: that would stop remote
+        # runs (--base-url / VIPPET_BASE_URL) from sampling the target host.
+        for preset in ("default", "quick", "full"):
+            with self.subTest(preset=preset):
+                resolved = s.resolve_settings(
+                    preset, env={"VIPPET_BASE_URL": "http://board:8080/api/v1"}
+                )
+                self.assertEqual(
+                    resolved.sources["metrics.metrics_url"], s.SOURCE_DEFAULT
+                )
+                self.assertEqual(
+                    resolved["metrics.metrics_url"],
+                    "http://board:8080/metrics/stream",
+                )
+                self.assertEqual(
+                    resolved["metrics.capabilities_url"],
+                    "http://board:9090/api/v1/capabilities",
+                )
+
+    def test_cli_base_url_cascades_to_metrics_url_for_presets(self) -> None:
+        for preset in ("quick", "full"):
+            with self.subTest(preset=preset):
+                resolved = s.resolve_settings(
+                    preset,
+                    env={},
+                    cli_overrides={"vippet.base_url": "http://board/api/v1"},
+                )
+                self.assertEqual(
+                    resolved["metrics.metrics_url"], "http://board/metrics/stream"
+                )
+
+
+class TestTrimFractionBounds(_TmpConfigMixin):
+    """metrics.trim_fraction must satisfy 0 <= value < 0.5 from every source."""
+
+    _KEY = "metrics.trim_fraction"
+
+    def test_valid_values_accepted(self) -> None:
+        for value in (0, 0.0, "0", 0.1, "0.25", 0.49):
+            with self.subTest(value=value):
+                self.assertEqual(s.SPECS_BY_KEY[self._KEY].coerce(value), float(value))
+
+    def test_out_of_range_rejected_from_yaml(self) -> None:
+        for value in ("0.5", "1", "-0.1"):
+            with self.subTest(value=value):
+                path = self.write_config(f"metrics:\n  trim_fraction: {value}\n")
+                with self.assertRaisesRegex(s.SettingsError, self._KEY):
+                    s.resolve_settings(path, env={})
+
+    def test_out_of_range_rejected_from_env(self) -> None:
+        for value in ("0.5", "1", "-0.1"):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(
+                    s.SettingsError, "env PERF_METRICS_TRIM_FRACTION"
+                ):
+                    s.resolve_settings(
+                        "default", env={"PERF_METRICS_TRIM_FRACTION": value}
+                    )
+
+    def test_out_of_range_rejected_from_cli(self) -> None:
+        for value in (0.5, 1, 1.0, -0.1):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(s.SettingsError, "--metrics-trim-fraction"):
+                    s.resolve_settings(
+                        "default", env={}, cli_overrides={self._KEY: value}
+                    )
+
+    def test_upper_bound_message_is_explicit(self) -> None:
+        with self.assertRaisesRegex(s.SettingsError, "less than 0.5"):
+            s.SPECS_BY_KEY[self._KEY].coerce("0.5")
+
 
 class TestValidation(_TmpConfigMixin):
     def test_missing_preset_fails_loudly(self) -> None:

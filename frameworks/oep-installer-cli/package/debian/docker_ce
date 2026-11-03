@@ -127,7 +127,7 @@ debian_30_remove_docker_ce () {
 
 debian_30_sbom_docker_ce () {
   configure_docker_ce "$@"
-  ensure_sbom_format name $repo_name
+  ensure_sbom_format repo-name $repo_name
   ensure_sbom_format gpg-key "$key_url"
   ensure_sbom_format key-file "$key_file"
   ensure_sbom_format apt-source "$apt_entry"

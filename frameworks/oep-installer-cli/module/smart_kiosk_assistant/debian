@@ -1,7 +1,7 @@
 
 configure_smart_kiosk_assistant () {
   workspace="$(ensure_project_path)/smart-kiosk-assistant"
-  version=66728aeb875b382c3f342380513ea00170ff45fd
+  version="$(ensure_parse_value_option version --version=66728aeb875b382c3f342380513ea00170ff45fd "$@")"
   repository="https://github.com/intel-retail/voice-enabled-interactions.git"
   used_ports=(7860 7861 8012 8000 9000 8090 8020 8554 9001 8010 8011)
   used_models=(
@@ -53,7 +53,7 @@ debian_90_profile_smart_kiosk_assistant () {
 }
 
 debian_90_install_smart_kiosk_assistant () {
-  configure_smart_kiosk_assistant
+  configure_smart_kiosk_assistant "$@"
   if verify_smart_kiosk_assistant && [[ " $* " = *" --reinstall "* ]]; then
     echo "Smart Kiosk Assistant is installed." >&2
   else
@@ -83,7 +83,7 @@ debian_90_install_smart_kiosk_assistant () {
     docker compose pull --ignore-buildable
   fi
 
-  local device="$(ensure_select_device "$@")"
+  local device="$(ensure_parse_device "$@")"
   configure_smart_kiosk_assistant_device "${device^^}"
 
   echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
@@ -93,10 +93,10 @@ debian_90_install_smart_kiosk_assistant () {
 }
 
 debian_90_start_smart_kiosk_assistant () {
-  configure_smart_kiosk_assistant
+  configure_smart_kiosk_assistant "$@"
   ensure_ports_open start smart_kiosk_assistant "${used_ports[@]}"
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   [[ " ${*,,} " != *" --$device "* ]] || configure_smart_kiosk_assistant_device "${device^^}"
 
   cd "$workspace"/smart-kiosk-assistant
@@ -109,7 +109,7 @@ debian_90_start_smart_kiosk_assistant () {
 }
 
 debian_90_stop_smart_kiosk_assistant () {
-  configure_smart_kiosk_assistant
+  configure_smart_kiosk_assistant "$@"
   cd "$workspace"/smart-kiosk-assistant && {
     make down || true
     make clean || true
