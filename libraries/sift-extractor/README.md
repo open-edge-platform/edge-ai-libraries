@@ -25,9 +25,10 @@ This component is an early development snapshot, not a production release. The c
   (`.github/workflows/sift-extractor.yml`) configures the tree without GPU
   backends and **explicitly discloses that no Intel GPU runners are attached**;
   OpenCL/SYCL CTest, Arc timing, soak and quality scoring are private-lab gates.
-  Matching/geometry, release soak and CudaSift quality floor remain open. The
-  OpenCV adapters wrap the core Extractor with `cv::Mat`/`cv::KeyPoint` only—they
-  are not OpenCV features2d SIFT or Phase D upstream work.
+  Matching/geometry, full release soak (`soak_sift_extract --release`), held-out
+  corpus and CudaSift quality floor remain open. The OpenCV adapters wrap the
+  core Extractor with `cv::Mat`/`cv::KeyPoint` only—they are not OpenCV
+  features2d SIFT or Phase D upstream work.
 - Existing source-derived timings and reported CudaSift results are not performance claims for this component.
 
 The legacy reference backend uses a process-global SYCL queue and scratch buffers. Do not use concurrent extraction calls. Its API and numerical behavior are not yet a stable compatibility contract. The OpenCL correctness path uses host-visible vectors between stages and independent contexts for pyramid and feature processing; it is not an optimized device-resident pipeline. Feature sampling uses the nearest Gaussian level and local sigma derived from a DoG geometric-center convention; reference parity is outstanding. Refinement is single-step, not iterative relocation.
@@ -86,6 +87,9 @@ OpenCL+SYCL Python extract and native-vs-wrapper exploratory timing (2026-11-03)
 is recorded under the SIFT workspace
 `results/20261102/arc-python-timing/dual-summary.json` (staged portable
 `sycl-runtime` on Arc; no system oneAPI install required there).
+Release-gate harness: `soak_sift_extract [--release] [--concurrency N]` (mixed
+backends single-threaded; OpenCL independent-context concurrency when built).
+Default is exploratory; `--release` requires ≥10000 mixed calls and ≥30 minutes.
 
 Optional OpenCV adapters (`-DSIFT_BUILD_OPENCV_ADAPTER=ON`, OpenCV `core` only):
 
