@@ -1,0 +1,45 @@
+
+configure_edge_pack_kernel_image () {
+  cmdline=(xe.max_vfs=7 "xe.force_probe=*" modprobe.blacklist=i915 udmabuf.list_limit=8192)
+  case "$ID$VERSION_ID" in
+  ubuntu24.04)
+    version=7.0.0-31-generic
+    ;;
+  ubuntu26.04)
+    version=7.0.0-30-generic
+    ;;
+  *)
+    echo "$ID $VERSION_ID not supported" >&2
+    return 1
+    ;;
+  esac
+}
+
+debian_25_profile_edge_pack_kernel_image () {
+  echo "reboot"
+}
+
+debian_25_install_edge_pack_kernel_image () {
+  configure_edge_pack_kernel_image "$@"
+  if [[ "$(uname -r)" = "$version" ]]; then
+    echo "kernel $version is installed" >&2
+  else
+    echo "@@STEP Installing linux-image-$version" 
+    ensure_apt install linux-image-$version
+
+    # set grub default
+    local pkgver="$(apt policy linux-image-$version 2> /dev/null | grep -m1 Candidate: | cut -f2 -d: | cut -f1-3 -d. | tr -d ' ')-generic"
+    ensure_grub_set_default_entry $pkgver
+    ensure_grub_set_kernel_args GRUB_CMDLINE_LINUX "${cmdline[@]}"
+
+    # schedule reboot
+    configure_reboot
+  fi
+}
+
+debian_25_sbom_edge_pack_kernel_image () {
+  configure_edge_pack_kernel_image "$@"
+  ensure_sbom_format pkg-list linux-image-$version
+  ensure_sbom_format kernel-cmdline "${cmdline[@]}"
+}
+
