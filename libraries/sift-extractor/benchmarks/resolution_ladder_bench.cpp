@@ -327,32 +327,93 @@ void print_device() {
   }
 }
 
+void print_fps_cell(double ms) {
+  if (ms < 0.0) {
+    std::cout << "—";
+    return;
+  }
+  const double fps = ms > 0.0 ? 1000.0 / ms : 0.0;
+  std::cout << std::fixed << std::setprecision(0) << fps;
+}
+
 void print_resolution_table(const std::string &title,
                             const std::vector<Row> &rows) {
   std::cout << "\n### " << title << "\n\n";
-  std::cout << "| Resolution | Size | Features | Extract (ms) | Match (ms) | "
-               "Total (ms) | FPS |\n";
-  std::cout << "| --- | --- | ---: | ---: | ---: | ---: | ---: |\n";
+  // complete-gpu-sift style: Detection FPS / Matching FPS, plus Total FPS
+  std::cout << "| Resolution | Size | Features | Extract (ms) | Detect FPS | "
+               "Match (ms) | Match FPS | Total (ms) | Total FPS |\n";
+  std::cout
+      << "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n";
   for (const auto &row : rows) {
     char size[32];
     std::snprintf(size, sizeof(size), "%dx%d", row.width, row.height);
     if (!row.ok) {
       std::cout << "| " << row.label << " | " << size
-                << " | ERR | ERR | ERR | ERR | ERR |\n";
+                << " | ERR | ERR | ERR | ERR | ERR | ERR | ERR |\n";
       continue;
     }
     const double tot = total_ms(row);
-    const double fps = tot > 0.0 ? 1000.0 / tot : 0.0;
     std::cout << "| " << row.label << " | " << size << " | " << row.features
               << " | " << std::fixed << std::setprecision(2) << row.extract_ms
               << " | ";
+    print_fps_cell(row.extract_ms);
+    std::cout << " | ";
     if (row.match_ms < 0.0)
       std::cout << "—";
     else
       std::cout << std::setprecision(2) << row.match_ms;
-    std::cout << " | " << std::setprecision(2) << tot << " | "
-              << std::setprecision(0) << fps << " |\n";
+    std::cout << " | ";
+    print_fps_cell(row.match_ms);
+    std::cout << " | " << std::setprecision(2) << tot << " | ";
+    print_fps_cell(tot);
+    std::cout << " |\n";
   }
+}
+
+void print_pipeline_summary(const std::string &backend,
+                            const std::vector<Row> &rows, int width,
+                            int height) {
+  const Row *row = nullptr;
+  for (const auto &candidate : rows) {
+    if (candidate.width == width && candidate.height == height &&
+        candidate.ok) {
+      row = &candidate;
+      break;
+    }
+  }
+  if (!row)
+    return;
+  const double tot = total_ms(*row);
+  const double detect_fps =
+      row->extract_ms > 0.0 ? 1000.0 / row->extract_ms : 0.0;
+  const double match_fps =
+      row->match_ms > 0.0 ? 1000.0 / row->match_ms : -1.0;
+  const double total_fps = tot > 0.0 ? 1000.0 / tot : 0.0;
+  std::cout << "\n### Pipeline summary — " << backend << " (" << width << "x"
+            << height << ")\n\n";
+  std::cout << "```\n";
+  std::cout << "========================================\n";
+  std::cout << "    PERFORMANCE SUMMARY\n";
+  std::cout << "========================================\n";
+  std::cout << "Features/image:         " << row->features << "\n";
+  std::cout << "----------------------------------------\n";
+  std::cout << std::fixed << std::setprecision(2);
+  std::cout << "Detection time:         " << row->extract_ms << " ms\n";
+  if (row->match_ms >= 0.0)
+    std::cout << "Matching time:          " << row->match_ms << " ms\n";
+  else
+    std::cout << "Matching time:          N/A\n";
+  std::cout << "Total time:             " << tot << " ms\n";
+  std::cout << "----------------------------------------\n";
+  std::cout << std::setprecision(0);
+  std::cout << "FPS on detectAndCompute:" << detect_fps << "\n";
+  if (match_fps >= 0.0)
+    std::cout << "FPS on Match:           " << match_fps << "\n";
+  else
+    std::cout << "FPS on Match:           N/A\n";
+  std::cout << "FPS on Total:           " << total_fps << "\n";
+  std::cout << "========================================\n";
+  std::cout << "```\n";
 }
 
 void print_sweep_table(const std::string &title, const char *key_header,
@@ -464,27 +525,49 @@ int main(int argc, char **argv) {
   print_resolution_table("OpenCL extract (Match N/A)", opencl_rows);
   print_resolution_table("SYCL extract + MatchSiftData self-match", sycl_rows);
 
-  // Side-by-side extract summary at SXGA and 1080p
-  std::cout << "\n### Side-by-side extract (median ms)\n\n";
-  std::cout << "| Size | OpenCV features | OpenCV extract | OpenCL features | "
-               "OpenCL extract | SYCL features | SYCL extract |\n";
-  std::cout << "| --- | ---: | ---: | ---: | ---: | ---: | ---: |\n";
+  // complete-gpu-sift style pipeline summaries at 1080p
+  print_pipeline_summary("OpenCV", opencv_rows, 1920, 1080);
+  print_pipeline_summary("OpenCL", opencl_rows, 1920, 1080);
+  print_pipeline_summary("SYCL", sycl_rows, 1920, 1080);
+
+  // Side-by-side extract + FPS summary at SXGA and 1080p
+  std::cout << "\n### Side-by-side extract and FPS\n\n";
+  std::cout << "| Size | Backend | Features | Extract (ms) | Detect FPS | "
+               "Match (ms) | Match FPS | Total (ms) | Total FPS |\n";
+  std::cout
+      << "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n";
   auto find_row = [](const std::vector<Row> &rows, int w, int h) -> const Row * {
     for (const auto &row : rows)
       if (row.width == w && row.height == h)
         return &row;
     return nullptr;
   };
+  auto emit_side = [&](const char *backend, const Row *row, int w, int h) {
+    if (!row || !row->ok)
+      return;
+    const double tot = total_ms(*row);
+    std::cout << "| " << w << "x" << h << " | " << backend << " | "
+              << row->features << " | " << std::fixed << std::setprecision(2)
+              << row->extract_ms << " | ";
+    print_fps_cell(row->extract_ms);
+    std::cout << " | ";
+    if (row->match_ms < 0.0)
+      std::cout << "—";
+    else
+      std::cout << std::setprecision(2) << row->match_ms;
+    std::cout << " | ";
+    print_fps_cell(row->match_ms);
+    std::cout << " | " << std::setprecision(2) << tot << " | ";
+    print_fps_cell(tot);
+    std::cout << " |\n";
+  };
   for (auto size : {std::pair<int, int>{1280, 960}, {1920, 1080}}) {
-    const auto *a = find_row(opencv_rows, size.first, size.second);
-    const auto *b = find_row(opencl_rows, size.first, size.second);
-    const auto *c = find_row(sycl_rows, size.first, size.second);
-    if (!a || !b || !c)
-      continue;
-    std::cout << "| " << size.first << "x" << size.second << " | " << a->features
-              << " | " << std::fixed << std::setprecision(2) << a->extract_ms
-              << " | " << b->features << " | " << b->extract_ms << " | "
-              << c->features << " | " << c->extract_ms << " |\n";
+    emit_side("OpenCV", find_row(opencv_rows, size.first, size.second),
+              size.first, size.second);
+    emit_side("OpenCL", find_row(opencl_rows, size.first, size.second),
+              size.first, size.second);
+    emit_side("SYCL", find_row(sycl_rows, size.first, size.second), size.first,
+              size.second);
   }
 
   // Octave sweep @ 1080p

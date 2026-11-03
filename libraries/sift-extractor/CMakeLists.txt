@@ -198,6 +198,11 @@ if(SIFT_ENABLE_SYCL)
       ${OpenCV_INCLUDE_DIRS})
     target_link_libraries(resolution_ladder_bench PRIVATE
       sift_opencl_runtime sift_sycl_reference ${OpenCV_LIBS})
+    add_executable(match_opt_sweep benchmarks/match_opt_sweep.cpp)
+    target_include_directories(match_opt_sweep PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/sycl_reference
+      ${OpenCV_INCLUDE_DIRS})
+    target_link_libraries(match_opt_sweep PRIVATE sift_sycl_reference ${OpenCV_LIBS})
   endif()
 
   if(SIFT_BUILD_TESTS)
