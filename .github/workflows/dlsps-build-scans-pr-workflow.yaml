@@ -91,6 +91,7 @@ jobs:
         echo "BASE_IMAGE_UNIT_TESTS=${DLSTREAMER_PIPELINE_SERVER_IMAGE}" >> $GITHUB_ENV
 
     - name: Build dls-pipeline-server-img-extended
+      if: matrix.ubuntu_version == 'ubuntu22' || matrix.ubuntu_version == 'ubuntu24'
       run: |
         cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/docker
         export DLSTREAMER_PIPELINE_SERVER_IMAGE=intel/dlstreamer-pipeline-server:${{ github.sha }}-extended-${{ matrix.ubuntu_version }}
@@ -149,6 +150,7 @@ jobs:
       shell: bash
 
     - name: Scan Docker extended image with Trivy
+      if: matrix.ubuntu_version == 'ubuntu22' || matrix.ubuntu_version == 'ubuntu24'
       uses: open-edge-platform/orch-ci/.github/actions/security/trivy@dca07fa1cdf8ed3eaf8f318f3d905fd12cef3b41 #v0.74.0
       with:
         scan_target: "intel/dlstreamer-pipeline-server:${{ github.sha }}-extended-${{ matrix.ubuntu_version }}"
@@ -161,6 +163,7 @@ jobs:
         ignore_unfixed: true
 
     - name: Rename Trivy report for extended image
+      if: matrix.ubuntu_version == 'ubuntu22' || matrix.ubuntu_version == 'ubuntu24'
       run: |
         echo "📝 Renaming Trivy report for extended image..."
         if [ -d "security-results/trivy" ]; then
@@ -238,18 +241,22 @@ jobs:
         fi
         echo "" >> $GITHUB_STEP_SUMMARY
 
-        # Extended image results
-        echo "#### 📦 Extended Image: \`intel/dlstreamer-pipeline-server:${{ github.sha }}-extended-${{ matrix.ubuntu_version }}\`" >> $GITHUB_STEP_SUMMARY
-        if [ -f "$extended_file" ]; then
-          if [ "$extended_vulns" = "0" ] || [ -z "$extended_vulns" ]; then
-            echo "- ✅ **No HIGH vulnerabilities found**" >> $GITHUB_STEP_SUMMARY
+        # The extended image is built only for Ubuntu 22 and 24.
+        if [[ "${{ matrix.ubuntu_version }}" == "ubuntu22" || "${{ matrix.ubuntu_version }}" == "ubuntu24" ]]; then
+          echo "#### 📦 Extended Image: \`intel/dlstreamer-pipeline-server:${{ github.sha }}-extended-${{ matrix.ubuntu_version }}\`" >> $GITHUB_STEP_SUMMARY
+          if [ -f "$extended_file" ]; then
+            if [ "$extended_vulns" = "0" ] || [ -z "$extended_vulns" ]; then
+              echo "- ✅ **No HIGH vulnerabilities found**" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- ❌ **vulnerabilities found:** $extended_vulns" >> $GITHUB_STEP_SUMMARY
+            fi
           else
-            echo "- ❌ **vulnerabilities found:** $extended_vulns" >> $GITHUB_STEP_SUMMARY
+            echo "- ⚠️ **Report not found**" >> $GITHUB_STEP_SUMMARY
           fi
+          echo "" >> $GITHUB_STEP_SUMMARY
         else
-          echo "- ⚠️ **Report not found**" >> $GITHUB_STEP_SUMMARY
+          echo "#### 📦 Extended Image: not built for ${{ matrix.ubuntu_version }}" >> $GITHUB_STEP_SUMMARY
         fi
-        echo "" >> $GITHUB_STEP_SUMMARY
         echo "---" >> $GITHUB_STEP_SUMMARY
 
         echo "=== Vulnerability Summary ==="
@@ -268,7 +275,9 @@ jobs:
         echo "### DL Streamer Pipeline Server Docker image for ${{ matrix.ubuntu_version }}" >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
         echo "intel/dlstreamer-pipeline-server:${{ github.sha }}-${{ matrix.ubuntu_version }}">> $GITHUB_STEP_SUMMARY
-        echo "intel/dlstreamer-pipeline-server:${{ github.sha }}-extended-${{ matrix.ubuntu_version }}" >> $GITHUB_STEP_SUMMARY
+        if [[ "${{ matrix.ubuntu_version }}" == "ubuntu22" || "${{ matrix.ubuntu_version }}" == "ubuntu24" ]]; then
+          echo "intel/dlstreamer-pipeline-server:${{ github.sha }}-extended-${{ matrix.ubuntu_version }}" >> $GITHUB_STEP_SUMMARY
+        fi
         echo '```' >> $GITHUB_STEP_SUMMARY
         echo "Built on commit id: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
 
