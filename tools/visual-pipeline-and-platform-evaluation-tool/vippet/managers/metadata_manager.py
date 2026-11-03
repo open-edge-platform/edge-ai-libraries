@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """metadata_manager.py
 
 Thread-safe singleton that tails gvametapublish output files and exposes
@@ -14,6 +17,7 @@ import time
 from typing import AsyncIterator, Optional
 
 from utils import slugify_text
+from platform_paths import data_path
 
 # Seconds to wait for the metadata file to be created by gvametapublish
 FILE_CREATION_TIMEOUT = 30
@@ -36,7 +40,7 @@ _SSE_KEEPALIVE = ":" + " " * SSE_PADDING_BYTES + "\n\n"
 _SSE_PREAMBLE = ":" + " " * (SSE_PADDING_BYTES * 4) + "\n\n"
 
 # Default directory for metadata files
-_METADATA_DIR = "/metadata"
+_METADATA_DIR = data_path("metadata", "/metadata")
 
 # Read METADATA_DIR from environment variable, fallback to default if not set
 METADATA_DIR: str = os.path.normpath(os.getenv("METADATA_DIR", _METADATA_DIR))

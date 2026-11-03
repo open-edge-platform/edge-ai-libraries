@@ -1,3 +1,4 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -17,11 +18,11 @@ import re
 import httpx
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse, StreamingResponse
+from managers.metadata_manager import METADATA_DIR
 
 router = APIRouter()
 logger = logging.getLogger("api.routes.timeseries")
 
-METADATA_DIR = os.getenv("METADATA_DIR", "/metadata")
 INGESTION_FILE = os.path.join(METADATA_DIR, "timeseries-ingestion.jsonl")
 
 RE_INFERENCE = re.compile(r"Inference time:\s*([\d.]+)\s*milliseconds")

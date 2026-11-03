@@ -1,3 +1,6 @@
+<!-- SPDX-FileCopyrightText: (C) 2026 Intel Corporation -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Build from Source
 
 Build the Visual Pipeline and Platform Evaluation Tool from source to customize, debug, or extend its
@@ -85,6 +88,69 @@ Hugging Face Hub.
 
    Open a browser and navigate to `http://localhost/api/v1/docs` (or `http://<HOST-IP>/api/v1/docs`)
    to access the Swagger UI.
+
+## Native Windows path and resource foundations
+
+Portable filesystem handling is the first step toward native Windows execution.
+It does not yet provide Windows subprocess control or multimedia adaptation.
+The Docker and WSL instructions above remain the supported application startup flow.
+
+On Windows, data defaults to `%LOCALAPPDATA%\Vippet`. If `LOCALAPPDATA` is unset,
+the base directory is the user's `AppData\Local\Vippet`. Explicit environment-variable
+overrides take precedence. Linux defaults remain unchanged:
+
+- `MODELS_PATH`: `models/output` relative to the Windows base (Linux: `/models/output`).
+- `LABELS_PATH`: `labels` (Linux: `/home/dlstreamer/dlstreamer/samples/labels`).
+- `SCRIPTS_PATH`: `scripts` (Linux: `/scripts`).
+- `PUBLIC_MODEL_PROC_PATH`: `model-proc/public`
+  (Linux: `/home/dlstreamer/dlstreamer/samples/gstreamer/model_proc/public`).
+- `AUTO_VIDEO_DIR`: `videos/input/auto` (Linux: `/videos/input/auto`).
+- `UPLOADED_VIDEO_DIR`: `videos/input/uploaded` (Linux: `/videos/input/uploaded`).
+- `OUTPUT_VIDEO_DIR`: `videos/output` (Linux: `/videos/output`).
+- `UPLOADED_IMAGES_DIR`: `images/input/uploaded` (Linux: `/images/input/uploaded`).
+- `METADATA_DIR`: `metadata` (Linux: `/metadata`).
+- `DEFAULT_RECORDINGS_FILE`: `videos/default_recordings.yaml` (Linux: `/videos/default_recordings.yaml`).
+
+Provide resource files in the configured directories; this change does not install models,
+labels, scripts or public model-proc files. Configure model-download to write into the same
+model directory as the backend.
+
+On Windows, known `/models/output/...` and Linux public model-proc paths are resolved
+against `MODELS_PATH` and `PUBLIC_MODEL_PROC_PATH` when constructing runtime paths.
+Stored model references and the catalog YAML format are unchanged; no database migration
+or new model-proc reference syntax is introduced. Unrelated custom paths are preserved.
+Mapped paths must stay within the configured directory; traversal, drive/stream prefixes
+and symlink escapes are rejected.
+
+The default database remains in-memory on both platforms. `DATABASE_URL` can still
+select a persistent database explicitly.
+
+GStreamer property serialization preserves spaces, backslashes, quotes and `!`.
+This escaping is for GStreamer descriptions, not shell commands. Null metadata output
+uses the native null device. Video downloads use unique temporary files in `AUTO_VIDEO_DIR`,
+closed before moving to the target location; the existing 600-second network timeout remains.
+
+### Verify the portable foundations
+
+Run unit tests on Linux with the project's Python runtime and development dependencies
+installed, from `tools/visual-pipeline-and-platform-evaluation-tool/vippet`:
+
+```bash
+python -m pytest tests/unit/portable_paths_test.py tests/unit/models_test.py tests/unit/resources_test.py tests/unit/videos_test.py
+```
+
+The portability tests simulate Windows configuration selection on Linux; they do not
+replace checks on native Windows. Windows is the application runtime target, not a
+required unit-test development environment.
+
+On Windows, manually verify GStreamer description import/export in the Advanced editor:
+check paths containing spaces, backslashes and `!`, configured model and model-proc
+paths, and replacement of `/dev/null` with the native null device. Verify downloaded
+recordings in the configured input directory. Full pipeline execution and automatic
+TS conversion still require Windows subprocess support in a subsequent change.
+
+Keep the backend working directory set to `vippet`; changing pipeline-catalog discovery
+is not part of this step. These checks do not certify full native GStreamer execution.
 
 ## Optional: run pipelines on DL Streamer Pipeline Server 2.0 (experimental)
 
