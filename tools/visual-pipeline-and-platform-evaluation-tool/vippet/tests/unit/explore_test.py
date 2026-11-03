@@ -1,6 +1,8 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
+import httpx
+
 from explore import GstInspector
 
 
@@ -45,6 +47,63 @@ class TestGstInspector(unittest.TestCase):
 
         # Also check that the number of elements matches
         self.assertEqual(len(elements), len(expected))
+
+
+@patch("explore._EXECUTION_BACKEND", "dlsps2")
+class TestGstInspectorDlsps2(unittest.TestCase):
+    def setUp(self):
+        GstInspector._instance = None
+
+    def tearDown(self):
+        GstInspector._instance = None
+
+    @patch("explore.subprocess.run")
+    @patch("explore.httpx.get")
+    def test_elements_come_from_dlsps2(self, mock_get, mock_run):
+        mock_get.return_value = httpx.Response(
+            200,
+            json=[
+                {"name": "vah264dec", "plugin": "va", "description": "VA H.264"},
+                {"name": "gvadetect", "plugin": "gva", "description": "Detect"},
+            ],
+            request=httpx.Request("GET", "http://dlsps/elements"),
+        )
+
+        elements = GstInspector().get_elements()
+
+        self.assertEqual(
+            elements,
+            [("gva", "gvadetect", "Detect"), ("va", "vah264dec", "VA H.264")],
+        )
+        self.assertTrue(mock_get.call_args.args[0].endswith("/elements"))
+        mock_run.assert_not_called()
+
+    @patch("explore.subprocess.run")
+    @patch("explore.httpx.get")
+    def test_falls_back_to_local_gst_inspect(self, mock_get, mock_run):
+        mock_get.side_effect = httpx.ConnectError("refused")
+        mock_run.return_value = MagicMock(
+            stdout="va:  vah264dec: VA H.264\n", stderr="", returncode=0
+        )
+
+        with self.assertLogs("GstInspector", level="WARNING"):
+            elements = GstInspector().get_elements()
+
+        self.assertEqual(elements, [("va", "vah264dec", "VA H.264")])
+
+    @patch("explore.subprocess.run")
+    @patch("explore.httpx.get")
+    def test_empty_dlsps2_list_falls_back(self, mock_get, mock_run):
+        mock_get.return_value = httpx.Response(
+            200, json=[], request=httpx.Request("GET", "http://dlsps/elements")
+        )
+        mock_run.return_value = MagicMock(
+            stdout="va:  vah264dec: VA H.264\n", stderr="", returncode=0
+        )
+
+        elements = GstInspector().get_elements()
+
+        self.assertEqual(elements, [("va", "vah264dec", "VA H.264")])
 
 
 if __name__ == "__main__":

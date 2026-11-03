@@ -112,6 +112,10 @@ Current limitations:
 - Tests with latency metrics still run inside `vippet`.
 - The metrics of VLM pipelines (`gvagenai`) are not collected.
 
+`vippet` also reads the list of available GStreamer elements from the server, so the
+decoders and encoders it picks are those of the container that runs the pipelines. If
+the server returns no elements, `vippet` falls back to its own list.
+
 The server is not part of `compose.yml`, so `docker compose logs` does not show it. Use
 `docker logs -f dlstreamer-pipeline-server` to follow its log, or `make shell-dlsps` to
 open a shell in it.
