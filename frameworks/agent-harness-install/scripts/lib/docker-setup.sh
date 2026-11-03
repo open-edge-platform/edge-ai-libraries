@@ -71,6 +71,24 @@ to accept the risk and proceed without pinning)."
   rm -f "$docker_tmp"
 }
 
+# assert_proxy_env_well_formed -- a stray quote or whitespace in a proxy URL
+# (e.g. ALL_PROXY='http://host:1080"') is copied into the Docker daemon config
+# and every container, and makes agent HTTP clients refuse to start. Reports
+# only the variable name, since proxy URLs can embed credentials.
+assert_proxy_env_well_formed() {
+  local var value
+  for var in HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy; do
+    value="${!var:-}"
+    [[ -n "$value" ]] || continue
+    case "$value" in
+      *[[:space:][:cntrl:]\"\']*)
+        error "\$${var} contains a quote, whitespace or control character, so it is not a valid proxy URL.
+Fix it (for example export ${var}=\"http://host:port\" with matching quotes, or unset it) and re-run.
+/etc/environment, ~/.bashrc and any script you sourced are the usual places it comes from." ;;
+    esac
+  done
+}
+
 # ensure_docker_daemon_proxy -- docker_proxy_env_args_into (openvino.sh,
 # inference-router.sh) forwards HTTP_PROXY/
 # HTTPS_PROXY/NO_PROXY into *containers* at runtime, but the Docker
