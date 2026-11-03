@@ -6,6 +6,6 @@ includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
 Name: siftlze
 Description: Robotics thin wrapper for Intel SIFT extractor (float L2 descriptors)
 Version: @PROJECT_VERSION@
-Requires: sift_extractor
+Requires: opencv4
 Libs: -L${libdir} -lsift_lze
 Cflags: -I${includedir}

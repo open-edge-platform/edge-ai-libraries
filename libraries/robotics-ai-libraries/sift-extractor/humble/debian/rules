@@ -62,6 +62,24 @@ install: build-arch
 	install -d $(DEST)/$(optdir)/tests
 	find "$(WRAP_BUILD)" -maxdepth 3 -type f -executable -name 'test_sift_lze*' \
 		-exec install -m 0755 {} $(DEST)/$(optdir)/tests/ \;
+	# Third-party notices from the staged horizontal core (CudaSift MIT, etc.).
+	install -d $(DEST)/usr/share/doc/libsift-lze
+	CORE_SHARE="$(CORE_PREFIX)/usr/share/sift_extractor"; \
+	CORE_SRC_DIR="$(CURDIR)/../../sift-extractor"; \
+	if [ -f "$$CORE_SHARE/MIT.txt" ]; then \
+	  install -m 0644 "$$CORE_SHARE/MIT.txt" $(DEST)/usr/share/doc/libsift-lze/; \
+	elif [ -f "$$CORE_SRC_DIR/LICENSES/MIT.txt" ]; then \
+	  install -m 0644 "$$CORE_SRC_DIR/LICENSES/MIT.txt" $(DEST)/usr/share/doc/libsift-lze/; \
+	fi; \
+	if [ -f "$$CORE_SHARE/third_party_programs.txt" ]; then \
+	  install -m 0644 "$$CORE_SHARE/third_party_programs.txt" $(DEST)/usr/share/doc/libsift-lze/; \
+	elif [ -f "$$CORE_SRC_DIR/third_party_programs.txt" ]; then \
+	  install -m 0644 "$$CORE_SRC_DIR/third_party_programs.txt" $(DEST)/usr/share/doc/libsift-lze/; \
+	fi; \
+	if [ -f "$$CORE_SRC_DIR/LICENSES/Apache-2.0.txt" ]; then \
+	  install -m 0644 "$$CORE_SRC_DIR/LICENSES/Apache-2.0.txt" \
+	    $(DEST)/usr/share/doc/libsift-lze/Apache-2.0.txt; \
+	fi
 
 binary-indep:
 
@@ -70,12 +88,17 @@ binary-arch: install
 	rm -rf debian/libsift-lze
 	install -d debian/libsift-lze/DEBIAN
 	install -d debian/libsift-lze/usr/lib/$(DEB_HOST_MULTIARCH)
+	install -d debian/libsift-lze/usr/share/doc/libsift-lze
 	cp -a $(DEST)/usr/lib/$(DEB_HOST_MULTIARCH)/libsift_lze.so* \
 		debian/libsift-lze/usr/lib/$(DEB_HOST_MULTIARCH)/ 2>/dev/null || \
 	cp -a $(DEST)/usr/lib/libsift_lze.so* debian/libsift-lze/usr/lib/$(DEB_HOST_MULTIARCH)/
 	cp -a $(DEST)/usr/lib/$(DEB_HOST_MULTIARCH)/libsift_lze_ocvfree.so* \
 		debian/libsift-lze/usr/lib/$(DEB_HOST_MULTIARCH)/ 2>/dev/null || \
 	cp -a $(DEST)/usr/lib/libsift_lze_ocvfree.so* debian/libsift-lze/usr/lib/$(DEB_HOST_MULTIARCH)/
+	cp -a $(DEST)/usr/share/doc/libsift-lze/* debian/libsift-lze/usr/share/doc/libsift-lze/ 2>/dev/null || true
+	dpkg-shlibdeps -Tdebian/libsift-lze.substvars \
+		debian/libsift-lze/usr/lib/$(DEB_HOST_MULTIARCH)/libsift_lze.so* \
+		debian/libsift-lze/usr/lib/$(DEB_HOST_MULTIARCH)/libsift_lze_ocvfree.so*
 	dpkg-gencontrol -plibsift-lze -Pdebian/libsift-lze
 	dpkg-deb --build debian/libsift-lze ..
 
@@ -83,11 +106,12 @@ binary-arch: install
 	rm -rf debian/libsift-lze-dev
 	install -d debian/libsift-lze-dev/DEBIAN
 	install -d debian/libsift-lze-dev/usr/include
+	install -d debian/libsift-lze-dev/usr/bin
 	install -d debian/libsift-lze-dev/usr/lib/$(DEB_HOST_MULTIARCH)/cmake/siftlze
 	install -d debian/libsift-lze-dev/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig
 	install -d debian/libsift-lze-dev/$(optdir)/samples
 	cp -a $(DEST)/usr/include/sift_lze.h $(DEST)/usr/include/sift_type.h \
-		$(DEST)/usr/include/config.h debian/libsift-lze-dev/usr/include/
+		$(DEST)/usr/include/sift_lze_config.h debian/libsift-lze-dev/usr/include/
 	cp -a $(DEST)/usr/lib/$(DEB_HOST_MULTIARCH)/cmake/siftlze/* \
 		debian/libsift-lze-dev/usr/lib/$(DEB_HOST_MULTIARCH)/cmake/siftlze/ 2>/dev/null || \
 	cp -a $(DEST)/usr/lib/cmake/siftlze/* \
@@ -97,6 +121,11 @@ binary-arch: install
 	cp -a $(DEST)/usr/lib/pkgconfig/siftlze.pc \
 		debian/libsift-lze-dev/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig/
 	cp -a $(DEST)/$(optdir)/samples/* debian/libsift-lze-dev/$(optdir)/samples/
+	if [ -f "$(DEST)/usr/bin/sift_feature_extract" ]; then \
+	  install -m 0755 $(DEST)/usr/bin/sift_feature_extract debian/libsift-lze-dev/usr/bin/; \
+	  dpkg-shlibdeps -Tdebian/libsift-lze-dev.substvars \
+	    debian/libsift-lze-dev/usr/bin/sift_feature_extract; \
+	fi
 	dpkg-gencontrol -plibsift-lze-dev -Pdebian/libsift-lze-dev
 	dpkg-deb --build debian/libsift-lze-dev ..
 
@@ -105,6 +134,10 @@ binary-arch: install
 	install -d debian/sift-extractor-lze-test/DEBIAN
 	install -d debian/sift-extractor-lze-test/$(optdir)/tests
 	cp -a $(DEST)/$(optdir)/tests/* debian/sift-extractor-lze-test/$(optdir)/tests/ || true
+	if ls debian/sift-extractor-lze-test/$(optdir)/tests/test_sift_lze* >/dev/null 2>&1; then \
+	  dpkg-shlibdeps -Tdebian/sift-extractor-lze-test.substvars \
+	    debian/sift-extractor-lze-test/$(optdir)/tests/test_sift_lze*; \
+	fi
 	dpkg-gencontrol -plibsift-extractor-lze-test -Pdebian/sift-extractor-lze-test 2>/dev/null || \
 		dpkg-gencontrol -psift-extractor-lze-test -Pdebian/sift-extractor-lze-test
 	dpkg-deb --build debian/sift-extractor-lze-test ..

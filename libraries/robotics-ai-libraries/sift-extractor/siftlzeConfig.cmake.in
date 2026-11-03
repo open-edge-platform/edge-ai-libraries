@@ -4,10 +4,13 @@
 
 @PACKAGE_INIT@
 
-# Core is linked privately into libsift_lze*. OpenCV is required when linking
-# the OpenCV-facing library target.
+# Core is linked privately into libsift_lze*. OpenCV is required only when the
+# OpenCV-facing library was built.
 include(CMakeFindDependencyMacro)
-find_dependency(OpenCV REQUIRED COMPONENTS core imgproc)
+set(SIFTLZE_BUILT_WITH_OPENCV "@SIFTLZE_ENABLE_OPENCV@")
+if(SIFTLZE_BUILT_WITH_OPENCV)
+  find_dependency(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs)
+endif()
 
 set_and_check(siftlze_TARGETS "@PACKAGE_CONFIG_DIR_CONFIG@/siftlzeTargets.cmake")
 if(NOT siftlze_TARGETS_IMPORTED)

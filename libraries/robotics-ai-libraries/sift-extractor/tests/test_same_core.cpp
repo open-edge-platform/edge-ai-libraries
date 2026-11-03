@@ -15,9 +15,27 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <vector>
 
+namespace {
+
+float circular_angle_delta_deg(float a, float b) {
+  float d = std::fmod(a - b + 180.0f, 360.0f);
+  if (d < 0.0f) d += 360.0f;
+  return std::fabs(d - 180.0f);
+}
+
+} // namespace
+
 int main() {
+  // Isolate from ambient SIFT_BACKEND so Auto / explicit backends stay aligned.
+#if defined(_WIN32)
+  _putenv_s("SIFT_BACKEND", "");
+#else
+  unsetenv("SIFT_BACKEND");
+#endif
+
   cv::Mat image(240, 320, CV_8UC1, cv::Scalar(40));
   cv::rectangle(image, cv::Rect(32, 32, 120, 80), cv::Scalar(220), cv::FILLED);
   cv::circle(image, cv::Point(220, 140), 28, cv::Scalar(180), cv::FILLED);
@@ -61,24 +79,27 @@ int main() {
     return 1;
   }
 
-  // Match each wrap keypoint to the nearest core feature (GPU order may differ).
+  // Match wrap keypoints to core features by position, scale, and orientation.
   std::vector<char> used(core_features.size(), 0);
   for (std::size_t wi = 0; wi < keypts[0].size(); ++wi) {
     const auto &k = keypts[0][wi];
     std::size_t best = 0;
-    float best_d2 = 1e30f;
+    float best_cost = 1e30f;
     for (std::size_t ci = 0; ci < core_features.size(); ++ci) {
       if (used[ci]) continue;
-      const float dx = core_features[ci].x - k.pt.x;
-      const float dy = core_features[ci].y - k.pt.y;
-      const float d2 = dx * dx + dy * dy;
-      if (d2 < best_d2) {
-        best_d2 = d2;
+      const auto &cf = core_features[ci];
+      const float dx = cf.x - k.pt.x;
+      const float dy = cf.y - k.pt.y;
+      const float d_scale = (2.0f * cf.scale) - k.size;
+      const float d_angle = circular_angle_delta_deg(cf.orientation_degrees, k.angle);
+      const float cost = dx * dx + dy * dy + 0.25f * d_scale * d_scale + 0.01f * d_angle * d_angle;
+      if (cost < best_cost) {
+        best_cost = cost;
         best = ci;
       }
     }
-    if (best_d2 > 1e-4f) {
-      std::fprintf(stderr, "wrap keypoint %zu has no core match (d2=%g)\n", wi, best_d2);
+    if (best_cost > 1e-2f) {
+      std::fprintf(stderr, "wrap keypoint %zu has no core match (cost=%g)\n", wi, best_cost);
       return 1;
     }
     used[best] = 1;

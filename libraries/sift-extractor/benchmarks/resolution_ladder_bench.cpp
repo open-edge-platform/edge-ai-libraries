@@ -553,7 +553,8 @@ int main(int argc, char **argv) {
     if (!raw || !*raw) return fallback;
     char *end = nullptr;
     const float value = std::strtof(raw, &end);
-    if (end == raw || *end != '\0' || !(value > 0.0f)) return fallback;
+    if (end == raw || *end != '\0' || !(value > 0.0f) || !std::isfinite(value))
+      return fallback;
     return value;
   };
   const auto env_double = [](const char *name, double fallback) {
@@ -561,7 +562,8 @@ int main(int argc, char **argv) {
     if (!raw || !*raw) return fallback;
     char *end = nullptr;
     const double value = std::strtod(raw, &end);
-    if (end == raw || *end != '\0' || !(value > 0.0)) return fallback;
+    if (end == raw || *end != '\0' || !(value > 0.0) || !std::isfinite(value))
+      return fallback;
     return value;
   };
   const float sycl_contrast = env_float("SIFT_SYCL_CONTRAST", 3.0f);

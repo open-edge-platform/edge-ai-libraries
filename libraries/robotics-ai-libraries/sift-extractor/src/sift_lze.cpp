@@ -24,6 +24,11 @@ sift_extractor::Backend parse_backend(const std::string &name) {
   return sift_extractor::backend_from_name(effective);
 }
 
+bool stronger_response(const sift_extractor::SiftFeature &a,
+                       const sift_extractor::SiftFeature &b) {
+  return std::fabs(a.response) > std::fabs(b.response);
+}
+
 } // namespace
 
 sift_lze_impl::sift_lze_impl(unsigned int max_num_keypts, unsigned int num_octaves,
@@ -58,10 +63,12 @@ sift_extractor::ExtractorOptions sift_lze_impl::make_options() const {
 
 void sift_lze_impl::ensure_extractor(int width, int height) {
   if (extractor_ && width_ == width && height_ == height) return;
+  const auto requested = parse_backend(backend_name_);
+  auto next =
+      std::make_unique<sift_extractor::Extractor>(width, height, requested, make_options());
+  extractor_ = std::move(next);
   width_ = width;
   height_ = height;
-  const auto requested = parse_backend(backend_name_);
-  extractor_ = std::make_unique<sift_extractor::Extractor>(width, height, requested, make_options());
   resolved_ = extractor_->backend();
 }
 
@@ -132,9 +139,7 @@ void sift_lze_impl::extract(const std::vector<Mat2d> &in_image,
     auto features = extractor_->extract(gray.data(), gray.size());
     if (max_num_keypts_ > 0 && features.size() > max_num_keypts_) {
       std::partial_sort(features.begin(), features.begin() + max_num_keypts_, features.end(),
-                        [](const sift_extractor::SiftFeature &a, const sift_extractor::SiftFeature &b) {
-                          return a.response > b.response;
-                        });
+                        stronger_response);
       features.resize(max_num_keypts_);
     }
     auto &kps = keypts[cam];
@@ -142,13 +147,31 @@ void sift_lze_impl::extract(const std::vector<Mat2d> &in_image,
     DescMat2d desc(features.size(), 128);
     for (std::size_t i = 0; i < features.size(); ++i) {
       const auto &f = features[i];
-      kps[i] = KeyPoint(f.x, f.y, f.scale, f.orientation_degrees, f.response, 0);
+      // size is diameter (2 * sigma), matching the core OpenCV adapter.
+      kps[i] = KeyPoint(f.x, f.y, 2.0f * f.scale, f.orientation_degrees, f.response, 0);
       std::memcpy(desc.row(i), f.descriptor.data(), 128 * sizeof(float));
     }
     out_descriptors[cam] = std::move(desc);
   }
 }
 #else
+std::vector<float> sift_lze_impl::mat_to_float_gray(const cv::Mat &gray) const {
+  if (gray.empty() || gray.channels() != 1)
+    throw std::invalid_argument("sift_lze: grayscale image required");
+  if (gray.type() == CV_32FC1) {
+    cv::Mat contiguous = gray.isContinuous() ? gray : gray.clone();
+    return std::vector<float>(contiguous.ptr<float>(),
+                              contiguous.ptr<float>() +
+                                  static_cast<std::size_t>(contiguous.cols) * contiguous.rows);
+  }
+  if (gray.type() == CV_8UC1) {
+    cv::Mat contiguous = gray.isContinuous() ? gray : gray.clone();
+    return to_float_gray(contiguous.ptr<unsigned char>(), contiguous.cols, contiguous.rows,
+                         contiguous.step1());
+  }
+  throw std::invalid_argument("sift_lze: grayscale must be CV_8UC1 or CV_32FC1");
+}
+
 void sift_lze_impl::extract(const cv::_InputArray &in_image, const cv::_InputArray &in_image_mask,
                             std::vector<std::vector<cv::KeyPoint>> &keypts,
                             const cv::_OutputArray &out_descriptors) {
@@ -199,8 +222,7 @@ void sift_lze_impl::extract(const cv::_InputArray &in_image, const cv::_InputArr
       gray = images[cam];
     else
       cv::cvtColor(images[cam], gray, cv::COLOR_BGR2GRAY);
-    if (!gray.isContinuous()) gray = gray.clone();
-    auto pixels = to_float_gray(gray.ptr<unsigned char>(), width, height, gray.step1());
+    auto pixels = mat_to_float_gray(gray);
     apply_rect_masks(pixels, width, height);
     if (cam < masks.size() && !masks[cam].empty()) {
       cv::Mat mask = masks[cam];
@@ -213,9 +235,7 @@ void sift_lze_impl::extract(const cv::_InputArray &in_image, const cv::_InputArr
     auto features = extractor_->extract(pixels.data(), pixels.size());
     if (max_num_keypts_ > 0 && features.size() > max_num_keypts_) {
       std::partial_sort(features.begin(), features.begin() + max_num_keypts_, features.end(),
-                        [](const sift_extractor::SiftFeature &a, const sift_extractor::SiftFeature &b) {
-                          return a.response > b.response;
-                        });
+                        stronger_response);
       features.resize(max_num_keypts_);
     }
     auto &kps = keypts[cam];
@@ -223,12 +243,13 @@ void sift_lze_impl::extract(const cv::_InputArray &in_image, const cv::_InputArr
     cv::Mat desc(static_cast<int>(features.size()), 128, CV_32F);
     for (std::size_t i = 0; i < features.size(); ++i) {
       const auto &f = features[i];
-      kps[i] = cv::KeyPoint(f.x, f.y, f.scale, f.orientation_degrees, f.response, 0);
+      // size is diameter (2 * sigma), matching the core OpenCV adapter.
+      kps[i] = cv::KeyPoint(f.x, f.y, 2.0f * f.scale, f.orientation_degrees, f.response, 0);
       std::memcpy(desc.ptr<float>(static_cast<int>(i)), f.descriptor.data(), 128 * sizeof(float));
     }
     desc_mats[cam] = desc;
   }
-    if (desc_mats.size() == 1 && out_descriptors.isMat()) {
+  if (desc_mats.size() == 1 && out_descriptors.isMat()) {
     desc_mats[0].copyTo(out_descriptors);
   } else {
     out_descriptors.create(static_cast<int>(desc_mats.size()), 1, 0);

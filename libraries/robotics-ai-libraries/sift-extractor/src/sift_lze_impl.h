@@ -47,6 +47,7 @@ public:
   void extract(const std::vector<Mat2d> &in_image, const std::vector<Mat2d> &in_image_mask,
                std::vector<std::vector<KeyPoint>> &keypts, std::vector<DescMat2d> &out_descriptors);
 #else
+  std::vector<float> mat_to_float_gray(const cv::Mat &gray) const;
   void extract(const cv::_InputArray &in_image, const cv::_InputArray &in_image_mask,
                std::vector<std::vector<cv::KeyPoint>> &keypts, const cv::_OutputArray &out_descriptors);
 #endif

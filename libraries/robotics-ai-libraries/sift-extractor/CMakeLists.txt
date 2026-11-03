@@ -16,8 +16,8 @@ option(SIFTLZE_BUILD_SAMPLES "Build robotics SIFT samples" ON)
 option(SIFTLZE_BUILD_TESTS "Build robotics SIFT smoke tests" ON)
 
 # Prefer an installed/core build tree. Deb packaging stages core first.
-# Core OpenCL export currently expects OpenCL::OpenCL to exist in the consumer.
-find_package(OpenCL REQUIRED)
+# OpenCL is pulled transitively by sift_extractorConfig when the core was
+# built with OpenCL; do not hard-require it for SYCL-only cores.
 find_package(sift_extractor CONFIG REQUIRED)
 if(NOT SIFT_EXTRACTOR_HAS_OPENCL AND NOT SIFT_EXTRACTOR_HAS_SYCL)
   message(FATAL_ERROR "sift_extractor was built without OpenCL or SYCL")
@@ -34,15 +34,16 @@ set(SIFTLZE_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
 set(SIFTLZE_VERSION_MINOR ${PROJECT_VERSION_MINOR})
 set(SIFTLZE_VERSION_PATCH ${PROJECT_VERSION_PATCH})
 set(SIFTLZE_VERSION_STRING ${PROJECT_VERSION})
+set(SIFTLZE_ENABLE_OPENCV ${ENABLE_OPENCV})
 
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/config.h.in
-               ${CMAKE_CURRENT_BINARY_DIR}/include/config.h @ONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/sift_lze_config.h.in
+               ${CMAKE_CURRENT_BINARY_DIR}/include/sift_lze_config.h @ONLY)
 
 set(SIFTLZE_SOURCES src/sift_lze.cpp)
 set(SIFTLZE_PUBLIC_HEADERS
   include/sift_lze.h
   include/sift_type.h
-  ${CMAKE_CURRENT_BINARY_DIR}/include/config.h)
+  ${CMAKE_CURRENT_BINARY_DIR}/include/sift_lze_config.h)
 
 add_library(sift_lze_ocvfree SHARED ${SIFTLZE_SOURCES})
 target_compile_definitions(sift_lze_ocvfree PUBLIC OPENCV_FREE)
@@ -88,7 +89,7 @@ install(TARGETS ${SIFTLZE_INSTALL_TARGETS}
 
 install(FILES include/sift_lze.h include/sift_type.h
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/include/config.h
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/include/sift_lze_config.h
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/siftlze.pc.in

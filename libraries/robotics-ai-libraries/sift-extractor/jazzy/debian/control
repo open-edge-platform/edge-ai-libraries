@@ -17,6 +17,8 @@ Package: libsift-lze-dev
 Architecture: any
 Section: libdevel
 Depends: libsift-lze (= ${binary:Version}),
+         libopencv-dev (>= 4.2.0),
+         ${shlibs:Depends},
          ${misc:Depends}
 Description: Intel SIFT extractor robotics wrapper - development files
  Thin robotics wrapper around the horizontal sift_extractor core (OpenCL/SYCL).

@@ -10,7 +10,7 @@
 #ifndef SIFT_LZE_H_
 #define SIFT_LZE_H_
 
-#include "config.h"
+#include "sift_lze_config.h"
 #include "sift_type.h"
 
 #include <string>
