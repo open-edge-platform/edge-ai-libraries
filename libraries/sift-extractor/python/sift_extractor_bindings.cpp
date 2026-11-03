@@ -16,7 +16,7 @@ namespace py = pybind11;
 
 namespace {
 
-py::dict feature_to_dict(const sift_extractor::experimental::SiftFeature &feature) {
+py::dict feature_to_dict(const sift_extractor::SiftFeature &feature) {
   py::dict item;
   item["x"] = feature.x;
   item["y"] = feature.y;
@@ -29,8 +29,8 @@ py::dict feature_to_dict(const sift_extractor::experimental::SiftFeature &featur
   return item;
 }
 
-std::vector<sift_extractor::experimental::SiftFeature> extract_numpy(
-    sift_extractor::experimental::Extractor &extractor,
+std::vector<sift_extractor::SiftFeature> extract_numpy(
+    sift_extractor::Extractor &extractor,
     py::array_t<float, py::array::c_style | py::array::forcecast> image) {
   if (image.ndim() != 2)
     throw std::invalid_argument("image must be a 2-D float32 array (H, W)");
@@ -48,13 +48,13 @@ std::vector<sift_extractor::experimental::SiftFeature> extract_numpy(
 } // namespace
 
 PYBIND11_MODULE(sift_extractor, module) {
-  using sift_extractor::experimental::Backend;
-  using sift_extractor::experimental::Extractor;
-  using sift_extractor::experimental::ExtractorOptions;
-  using sift_extractor::experimental::available_backends;
-  using sift_extractor::experimental::backend_name;
-  using sift_extractor::experimental::backend_from_name;
-  using sift_extractor::experimental::resolve_backend;
+  using sift_extractor::Backend;
+  using sift_extractor::Extractor;
+  using sift_extractor::ExtractorOptions;
+  using sift_extractor::available_backends;
+  using sift_extractor::backend_name;
+  using sift_extractor::backend_from_name;
+  using sift_extractor::resolve_backend;
 
   module.doc() =
       "Intel SIFT extractor Python bindings (dual OpenCL/SYCL dispatch; "

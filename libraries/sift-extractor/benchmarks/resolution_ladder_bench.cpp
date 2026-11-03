@@ -185,8 +185,8 @@ Row bench_opencl(const cv::Mat &src, int width, int height, int octaves,
   try {
     cv::Mat f32 = resize_f32(src, width, height);
     auto pixels = mat_to_vector(f32);
-    sift_extractor::experimental::OpenCLExtractor extractor;
-    sift_extractor::experimental::OpenCLExtractorOptions options;
+    sift_extractor::OpenCLExtractor extractor;
+    sift_extractor::OpenCLExtractorOptions options;
     options.octaves = octaves;
     options.intervals = 3;
     options.base_sigma = 1.6f;
@@ -194,7 +194,7 @@ Row bench_opencl(const cv::Mat &src, int width, int height, int octaves,
     options.edge_limit = 10.0f;
     options.max_features = 0;
 
-    std::vector<sift_extractor::experimental::SiftFeature> features;
+    std::vector<sift_extractor::SiftFeature> features;
     for (int i = 0; i < warmup; ++i) {
       features = extractor.extract(pixels.data(), width, height, pixels.size(),
                                    options);

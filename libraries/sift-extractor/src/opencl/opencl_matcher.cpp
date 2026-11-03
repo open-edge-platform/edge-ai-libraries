@@ -14,7 +14,7 @@
 #include <string>
 #include <vector>
 
-namespace sift_extractor::experimental {
+namespace sift_extractor {
 namespace {
 
 void check_opencl(cl_int status, const char *operation) {
@@ -316,4 +316,4 @@ OpenCLMatcher::match(const std::vector<SiftFeature> &query,
   return results;
 }
 
-} // namespace sift_extractor::experimental
+} // namespace sift_extractor

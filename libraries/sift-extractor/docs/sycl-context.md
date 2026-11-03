@@ -1,12 +1,13 @@
 <!-- SPDX-FileCopyrightText: (C) 2026 Intel Corporation -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Experimental SYCL Context
+# SYCL Context
 
-`sift_extractor::experimental::SyclExtractor` is an OpenCV-free owning wrapper
-around the current SYCL reference extractor. It retains image, feature, scratch
-and upload buffers for repeated fixed-size frames. This is an experimental API,
-not the final backend-neutral interface or a backend-selection decision.
+`sift_extractor::SyclExtractor` is an OpenCV-free owning wrapper around the SYCL
+reference extractor. It retains image, feature, scratch, and upload buffers for
+repeated fixed-size frames. Prefer `Extractor` with `Backend::Sycl` or
+`Backend::Auto` when you want backend dispatch; use `SyclExtractor` when you
+need direct ownership of the SYCL path.
 
 ## Consume
 
@@ -22,12 +23,12 @@ target_link_libraries(my_application PRIVATE sift_extractor::sift_sycl_extractor
 #include <sift_extractor/sycl_extractor.hpp>
 #include <vector>
 
-sift_extractor::experimental::SyclExtractorOptions options;
+sift_extractor::SyclExtractorOptions options;
 options.octaves = 4;
 options.capacity = 32768;
 options.initial_blur = 1.0;
 options.contrast_threshold = 3.0f;
-sift_extractor::experimental::SyclExtractor extractor(1920, 1080, options);
+sift_extractor::SyclExtractor extractor(1920, 1080, options);
 std::vector<float> grayscale(1920 * 1080, 0.0f);
 auto features = extractor.extract(grayscale.data(), grayscale.size());
 ```

@@ -7,10 +7,10 @@
 #include <vector>
 
 int main(int argc, char **argv) {
-  using sift_extractor::experimental::Backend;
-  using sift_extractor::experimental::Extractor;
-  using sift_extractor::experimental::backend_from_name;
-  using sift_extractor::experimental::backend_name;
+  using sift_extractor::Backend;
+  using sift_extractor::Extractor;
+  using sift_extractor::backend_from_name;
+  using sift_extractor::backend_name;
 
   const int width = 64;
   const int height = 64;

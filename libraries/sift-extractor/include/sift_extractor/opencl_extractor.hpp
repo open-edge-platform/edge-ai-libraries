@@ -9,7 +9,7 @@
 #include <memory>
 #include <vector>
 
-namespace sift_extractor::experimental {
+namespace sift_extractor {
 
 // Public OpenCL owning extractor. Parameter defaults follow the diagnostic
 // validate_sift_pair OpenCL path and are NOT equivalent to SyclExtractorOptions.
@@ -48,4 +48,4 @@ private:
   std::unique_ptr<Impl> impl_;
 };
 
-} // namespace sift_extractor::experimental
+} // namespace sift_extractor

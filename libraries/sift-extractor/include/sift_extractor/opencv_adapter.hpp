@@ -9,7 +9,7 @@
 
 #include <vector>
 
-namespace sift_extractor::experimental::opencv {
+namespace sift_extractor::opencv {
 
 // Thin OpenCV type adapters around the OpenCV-free core Extractor.
 // This is not OpenCV features2d SIFT and not Phase D upstream work.
@@ -29,4 +29,4 @@ std::vector<SiftFeature> extract(Extractor &extractor, const cv::Mat &image);
 void detect_and_compute(Extractor &extractor, const cv::Mat &image,
                         std::vector<cv::KeyPoint> &keypoints, cv::Mat &descriptors);
 
-} // namespace sift_extractor::experimental::opencv
+} // namespace sift_extractor::opencv

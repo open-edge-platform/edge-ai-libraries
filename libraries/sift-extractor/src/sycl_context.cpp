@@ -9,7 +9,7 @@
 #include <mutex>
 #include <stdexcept>
 
-namespace sift_extractor::experimental {
+namespace sift_extractor {
 namespace {
 std::mutex &legacy_mutex() {
   static std::mutex mutex;
@@ -110,4 +110,4 @@ std::vector<SiftFeature> SyclExtractor::extract(const float *pixels,
   return output;
 }
 
-} // namespace sift_extractor::experimental
+} // namespace sift_extractor

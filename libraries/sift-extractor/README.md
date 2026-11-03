@@ -5,9 +5,10 @@ reconstruction, inspection, and retrieval. Dual OpenCL and SYCL backends with
 an explicit dispatch API; optional packaging, Python bindings, and thin OpenCV
 type adapters.
 
-This component is experimental. Public quality and performance comparisons use
-OpenCV, OpenCL, and SYCL—backends are **not** algorithm-equivalent. See
-[comparison](docs/comparison.md) and [quality](docs/quality.md).
+Public quality and performance comparisons use OpenCV, OpenCL, and SYCL—backends
+are **not** algorithm-equivalent (feature counts, thresholds, and timings are
+not interchangeable). See [comparison](docs/comparison.md) and
+[quality](docs/quality.md) before choosing a backend or reading ladder numbers.
 
 ## Features
 
@@ -114,10 +115,10 @@ Optional OpenCV adapters (`-DSIFT_BUILD_OPENCV_ADAPTER=ON`):
 ```cpp
 #include <sift_extractor/opencv_adapter.hpp>
 
-sift_extractor::experimental::Extractor extractor(w, h, backend);
+sift_extractor::Extractor extractor(w, h, backend);
 std::vector<cv::KeyPoint> keypoints;
 cv::Mat descriptors;
-sift_extractor::experimental::opencv::detect_and_compute(
+sift_extractor::opencv::detect_and_compute(
     extractor, gray_u8_or_f32, keypoints, descriptors);
 ```
 

@@ -4,7 +4,7 @@
 
 #include <stdexcept>
 
-namespace sift_extractor::experimental {
+namespace sift_extractor {
 
 struct Extractor::Impl {
   Backend backend = Backend::Auto;
@@ -73,4 +73,4 @@ std::vector<SiftFeature> Extractor::extract(const float *pixels, std::size_t ele
   throw std::runtime_error("Extractor backend is not available");
 }
 
-} // namespace sift_extractor::experimental
+} // namespace sift_extractor

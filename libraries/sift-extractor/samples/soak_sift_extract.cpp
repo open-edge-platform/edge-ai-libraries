@@ -34,11 +34,11 @@ std::vector<float> make_image(int width, int height, unsigned seed) {
 // Not a quality-floor or held-out claim.
 int main(int argc, char **argv) {
   using clock = std::chrono::steady_clock;
-  using sift_extractor::experimental::Backend;
-  using sift_extractor::experimental::Extractor;
-  using sift_extractor::experimental::backend_name;
-  using sift_extractor::experimental::available_backends;
-  using sift_extractor::experimental::backend_available;
+  using sift_extractor::Backend;
+  using sift_extractor::Extractor;
+  using sift_extractor::backend_name;
+  using sift_extractor::available_backends;
+  using sift_extractor::backend_available;
 
   bool release = false;
   bool calls_set = false;

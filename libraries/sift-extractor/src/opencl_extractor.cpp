@@ -9,7 +9,7 @@
 #include <limits>
 #include <stdexcept>
 
-namespace sift_extractor::experimental {
+namespace sift_extractor {
 
 struct OpenCLExtractor::Impl {
   detail::OpenCLDoGExtrema detector;
@@ -84,4 +84,4 @@ std::vector<SiftMatchResult> OpenCLExtractor::match_last_self() {
   return results;
 }
 
-} // namespace sift_extractor::experimental
+} // namespace sift_extractor

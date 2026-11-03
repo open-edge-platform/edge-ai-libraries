@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-namespace sift_extractor::experimental {
+namespace sift_extractor {
 
 // Dual backends with explicit dispatch. Neither OpenCL nor SYCL clears a
 // single-default selection bar on current Arc evidence versus OpenCV. SYCL is
@@ -74,4 +74,4 @@ inline Backend resolve_backend(Backend requested) {
   return requested;
 }
 
-} // namespace sift_extractor::experimental
+} // namespace sift_extractor

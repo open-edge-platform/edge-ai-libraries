@@ -8,7 +8,7 @@
 #include <memory>
 #include <vector>
 
-namespace sift_extractor::experimental {
+namespace sift_extractor {
 
 struct SyclExtractorOptions {
   int octaves = 4;
@@ -34,4 +34,4 @@ private:
   std::unique_ptr<Impl> impl_;
 };
 
-} // namespace sift_extractor::experimental
+} // namespace sift_extractor

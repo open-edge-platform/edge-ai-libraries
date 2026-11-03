@@ -4,7 +4,7 @@
 
 #include <stdexcept>
 
-namespace sift_extractor::experimental::opencv {
+namespace sift_extractor::opencv {
 
 cv::KeyPoint to_keypoint(const SiftFeature &feature) {
   cv::KeyPoint point;
@@ -61,4 +61,4 @@ void detect_and_compute(Extractor &extractor, const cv::Mat &image,
   to_opencv(extract(extractor, image), keypoints, descriptors);
 }
 
-} // namespace sift_extractor::experimental::opencv
+} // namespace sift_extractor::opencv

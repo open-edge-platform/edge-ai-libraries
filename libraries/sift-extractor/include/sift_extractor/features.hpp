@@ -4,7 +4,7 @@
 
 #include <array>
 
-namespace sift_extractor::experimental {
+namespace sift_extractor {
 
 struct SiftFeature {
   float x = 0.0f;
@@ -15,4 +15,4 @@ struct SiftFeature {
   std::array<float, 128> descriptor{};
 };
 
-} // namespace sift_extractor::experimental
+} // namespace sift_extractor

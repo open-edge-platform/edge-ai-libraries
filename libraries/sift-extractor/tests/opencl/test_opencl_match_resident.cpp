@@ -16,8 +16,8 @@ bool Check(bool condition, const char *message) {
 } // namespace
 
 int main() {
-  using sift_extractor::experimental::OpenCLExtractor;
-  using sift_extractor::experimental::OpenCLExtractorOptions;
+  using sift_extractor::OpenCLExtractor;
+  using sift_extractor::OpenCLExtractorOptions;
 
   // Synthetic textured field large enough for extract.
   constexpr int width = 128;

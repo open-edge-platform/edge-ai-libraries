@@ -13,9 +13,9 @@ bool Check(bool condition, const char *message) {
   return condition;
 }
 
-sift_extractor::experimental::SiftFeature Basis(int dimension, float x,
+sift_extractor::SiftFeature Basis(int dimension, float x,
                                                 float y) {
-  sift_extractor::experimental::SiftFeature feature;
+  sift_extractor::SiftFeature feature;
   feature.x = x;
   feature.y = y;
   feature.descriptor[static_cast<std::size_t>(dimension)] = 1.0f;
@@ -25,8 +25,8 @@ sift_extractor::experimental::SiftFeature Basis(int dimension, float x,
 } // namespace
 
 int main() {
-  using sift_extractor::experimental::OpenCLMatcher;
-  using sift_extractor::experimental::SiftFeature;
+  using sift_extractor::OpenCLMatcher;
+  using sift_extractor::SiftFeature;
 
   constexpr int count = 4;
   std::vector<SiftFeature> first;

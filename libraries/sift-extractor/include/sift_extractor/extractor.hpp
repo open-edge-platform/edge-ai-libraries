@@ -17,7 +17,7 @@
 #include <memory>
 #include <vector>
 
-namespace sift_extractor::experimental {
+namespace sift_extractor {
 
 // Dual-backend dispatch facade. OpenCL and SYCL retain distinct option contracts;
 // Auto resolution is speed-biased and not a quality-floor claim.
@@ -53,4 +53,4 @@ private:
   std::unique_ptr<Impl> impl_;
 };
 
-} // namespace sift_extractor::experimental
+} // namespace sift_extractor

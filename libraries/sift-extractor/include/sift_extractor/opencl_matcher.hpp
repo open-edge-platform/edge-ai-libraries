@@ -7,7 +7,7 @@
 #include <memory>
 #include <vector>
 
-namespace sift_extractor::experimental {
+namespace sift_extractor {
 
 // Best / second-best descriptor match for one query feature (Lowe ratio uses
 // ambiguity = second / (best + 1e-6)).
@@ -39,4 +39,4 @@ private:
   std::unique_ptr<Impl> impl_;
 };
 
-} // namespace sift_extractor::experimental
+} // namespace sift_extractor

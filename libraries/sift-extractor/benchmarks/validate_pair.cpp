@@ -210,7 +210,7 @@ FeatureSet extract_sycl(const cv::Mat &gray, const Configuration &config,
 }
 
 FeatureSet extract_context(const cv::Mat &gray, const Configuration &config,
-    sift_extractor::experimental::SyclExtractor &context) {
+    sift_extractor::SyclExtractor &context) {
   const auto start = std::chrono::steady_clock::now();
   cv::Mat pixels;
   gray.convertTo(pixels, CV_32F);
@@ -430,11 +430,11 @@ int export_features(char **argv) {
   }
 #ifdef SIFT_VALIDATE_SYCL
   else {
-    sift_extractor::experimental::SyclExtractorOptions options;
+    sift_extractor::SyclExtractorOptions options;
     options.octaves = config.octaves;
     options.initial_blur = config.sycl_init_blur;
     options.contrast_threshold = static_cast<float>(config.sycl_contrast);
-    sift_extractor::experimental::SyclExtractor context(image.cols, image.rows, options);
+    sift_extractor::SyclExtractor context(image.cols, image.rows, options);
     features = extract_context(image, config, context);
   }
 #endif
@@ -587,15 +587,15 @@ int main(int argc, char **argv) {
         sycl_device.get_info<sycl::info::device::vendor_id>() != 0x8086)
       throw std::runtime_error("Comparison requires an Intel GPU, not CPU fallback");
     const bool all_context = quality_export || (argc == 6 && std::strcmp(argv[5], "all-context") == 0);
-    std::unique_ptr<sift_extractor::experimental::SyclExtractor> comparison_context;
+    std::unique_ptr<sift_extractor::SyclExtractor> comparison_context;
     double context_setup_ms = 0.0;
     if (all_context) {
       const auto start = std::chrono::steady_clock::now();
-      sift_extractor::experimental::SyclExtractorOptions options;
+      sift_extractor::SyclExtractorOptions options;
       options.octaves = config.octaves;
       options.initial_blur = config.sycl_init_blur;
       options.contrast_threshold = static_cast<float>(config.sycl_contrast);
-      comparison_context = std::make_unique<sift_extractor::experimental::SyclExtractor>(first.cols, first.rows, options);
+      comparison_context = std::make_unique<sift_extractor::SyclExtractor>(first.cols, first.rows, options);
       context_setup_ms = std::chrono::duration<double, std::milli>(
           std::chrono::steady_clock::now() - start).count();
     }
@@ -609,7 +609,7 @@ int main(int argc, char **argv) {
       const bool reuse = std::strcmp(argv[5], "sycl-reuse") == 0 || context_mode;
       SyclStorage workspace;
       SyclStorage *retained = reuse ? &workspace : nullptr;
-      std::unique_ptr<sift_extractor::experimental::SyclExtractor> context;
+      std::unique_ptr<sift_extractor::SyclExtractor> context;
       const auto selected_extract = [&](const cv::Mat &gray) {
         return context ? extract_context(gray, config, *context) : extract_sycl(gray, config, retained);
       };
@@ -619,11 +619,11 @@ int main(int argc, char **argv) {
       if (reuse) {
         const auto start = std::chrono::steady_clock::now();
         if (context_mode) {
-          sift_extractor::experimental::SyclExtractorOptions options;
+          sift_extractor::SyclExtractorOptions options;
           options.octaves = config.octaves;
           options.initial_blur = config.sycl_init_blur;
           options.contrast_threshold = static_cast<float>(config.sycl_contrast);
-          context = std::make_unique<sift_extractor::experimental::SyclExtractor>(first.cols, first.rows, options);
+          context = std::make_unique<sift_extractor::SyclExtractor>(first.cols, first.rows, options);
         }
         reused_first = selected_extract(first);
         first_workspace_frame_ms = std::chrono::duration<double, std::milli>(

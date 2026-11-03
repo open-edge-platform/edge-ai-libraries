@@ -19,10 +19,10 @@ void require(bool condition, const char *message) {
 } // namespace
 
 int main() {
-  using sift_extractor::experimental::SiftFeature;
-  using sift_extractor::experimental::opencv::to_float_gray;
-  using sift_extractor::experimental::opencv::to_keypoint;
-  using sift_extractor::experimental::opencv::to_opencv;
+  using sift_extractor::SiftFeature;
+  using sift_extractor::opencv::to_float_gray;
+  using sift_extractor::opencv::to_keypoint;
+  using sift_extractor::opencv::to_opencv;
 
   SiftFeature feature;
   feature.x = 12.5f;

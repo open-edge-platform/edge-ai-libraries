@@ -53,10 +53,10 @@ double median_ms(std::vector<double> samples) {
 } // namespace
 
 int main(int argc, char **argv) {
-  using sift_extractor::experimental::Backend;
-  using sift_extractor::experimental::Extractor;
-  using sift_extractor::experimental::backend_from_name;
-  using sift_extractor::experimental::backend_name;
+  using sift_extractor::Backend;
+  using sift_extractor::Extractor;
+  using sift_extractor::backend_from_name;
+  using sift_extractor::backend_name;
 
   const char *backend_name_arg = argc > 1 ? argv[1] : "opencl";
   int width = argc > 2 ? std::atoi(argv[2]) : 640;

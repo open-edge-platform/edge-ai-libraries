@@ -19,8 +19,8 @@ bool Check(bool condition, const char *message) {
 }
 
 bool TestContext(const std::vector<float> &pixels, int width, int height, int expected) {
-  using sift_extractor::experimental::SyclExtractor;
-  using sift_extractor::experimental::SyclExtractorOptions;
+  using sift_extractor::SyclExtractor;
+  using sift_extractor::SyclExtractorOptions;
   bool passed = true;
   const auto rejects = [](auto action) {
     try { action(); } catch (const std::invalid_argument &) { return true; }
@@ -39,7 +39,7 @@ bool TestContext(const std::vector<float> &pixels, int width, int height, int ex
   invalid_options.capacity = 0;
   passed &= Check(rejects([&] { SyclExtractor invalid(width, height, invalid_options); }),
                   "context rejects invalid capacity");
-  std::vector<sift_extractor::experimental::SiftFeature> owned;
+  std::vector<sift_extractor::SiftFeature> owned;
   {
     SyclExtractor first(width, height, options);
     owned = first.extract(pixels.data(), pixels.size());
