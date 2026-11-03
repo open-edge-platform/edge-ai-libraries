@@ -1,0 +1,22 @@
+# Copyright (C) 2026 Intel Corporation
+#
+# SPDX-License-Identifier: Apache-2.0
+
+@PACKAGE_INIT@
+
+# Core is linked privately into libsift_lze*. OpenCV is required when linking
+# the OpenCV-facing library target.
+include(CMakeFindDependencyMacro)
+find_dependency(OpenCV REQUIRED COMPONENTS core imgproc)
+
+set_and_check(siftlze_TARGETS "@PACKAGE_CONFIG_DIR_CONFIG@/siftlzeTargets.cmake")
+if(NOT siftlze_TARGETS_IMPORTED)
+  set(siftlze_TARGETS_IMPORTED 1)
+  include(${siftlze_TARGETS})
+endif()
+
+set(siftlze_LIBS sift_lze)
+set(siftlzeocvfree_LIBS sift_lze_ocvfree)
+set(SIFTLZE_INCLUDE_DIR "@PACKAGE_INCLUDE_DIR_CONFIG@")
+set(SIFTLZE_LIB_DIR "@PACKAGE_LIB_DIR_CONFIG@")
+set(SIFTLZE_VERSION_STRING "@PROJECT_VERSION@")

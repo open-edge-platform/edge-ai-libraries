@@ -1,0 +1,11 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+exec_prefix=${prefix}
+libdir=${prefix}/@CMAKE_INSTALL_LIBDIR@
+includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
+
+Name: siftlze
+Description: Robotics thin wrapper for Intel SIFT extractor (float L2 descriptors)
+Version: @PROJECT_VERSION@
+Requires: sift_extractor
+Libs: -L${libdir} -lsift_lze
+Cflags: -I${includedir}

@@ -1,0 +1,112 @@
+#!/usr/bin/make -f
+# Self-contained rules (no dh sequencer) so packaging works without a full
+# system debhelper install. Docker/ORB-style builds still use this file.
+
+include /usr/share/dpkg/pkg-info.mk
+
+export DEB_HOST_MULTIARCH := $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
+
+CORE_SRC ?= $(CURDIR)/../../sift-extractor
+CORE_BUILD=$(CURDIR)/build-core
+CORE_PREFIX=$(CURDIR)/debian/tmp-core
+WRAP_BUILD=$(CURDIR)/build
+DEST=$(CURDIR)/debian/tmp
+optdir := opt/intel/sift_lze
+
+.PHONY: clean build binary binary-arch binary-indep install
+
+clean:
+	rm -rf $(CORE_BUILD) $(CORE_PREFIX) $(WRAP_BUILD) $(DEST) \
+		debian/libsift-lze debian/libsift-lze-dev debian/sift-extractor-lze-test \
+		debian/files debian/*.substvars debian/*.debhelper.log
+	rm -f debian/debhelper-build-stamp
+
+build: build-arch
+build-indep:
+build-arch:
+	if [ -f "/opt/intel/oneapi/setvars.sh" ]; then . "/opt/intel/oneapi/setvars.sh"; fi; \
+	test -d "$(CORE_SRC)"; \
+	cmake -S "$(CORE_SRC)" -B "$(CORE_BUILD)" \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_INSTALL_PREFIX="$(CORE_PREFIX)/usr" \
+		-DCMAKE_CXX_COMPILER=icpx \
+		-DSIFT_ENABLE_OPENCL=ON \
+		-DSIFT_ENABLE_SYCL=ON \
+		-DSIFT_BUILD_TESTS=OFF \
+		-DSIFT_BUILD_SAMPLES=OFF \
+		-DSIFT_BUILD_PYTHON=OFF \
+		-DSIFT_BUILD_OPENCV_ADAPTER=OFF \
+		-DSIFT_ENABLE_OPENCV_VALIDATION=OFF; \
+	cmake --build "$(CORE_BUILD)" --parallel $$(nproc); \
+	cmake --install "$(CORE_BUILD)"; \
+	cmake -S "$(CURDIR)" -B "$(WRAP_BUILD)" \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_CXX_COMPILER=icpx \
+		-DCMAKE_PREFIX_PATH="$(CORE_PREFIX)/usr" \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_INCLUDEDIR=include \
+		-DENABLE_OPENCV=ON \
+		-DSIFTLZE_BUILD_SAMPLES=ON \
+		-DSIFTLZE_BUILD_TESTS=ON; \
+	cmake --build "$(WRAP_BUILD)" --parallel $$(nproc)
+
+install: build-arch
+	rm -rf $(DEST)
+	if [ -f "/opt/intel/oneapi/setvars.sh" ]; then . "/opt/intel/oneapi/setvars.sh"; fi; \
+	DESTDIR=$(DEST) cmake --install "$(WRAP_BUILD)"
+	install -d $(DEST)/$(optdir)/samples
+	install -m 0644 $(CURDIR)/samples/main.cpp \
+		$(CURDIR)/samples/CMakeLists.txt \
+		$(CURDIR)/samples/tutorial.md \
+		$(DEST)/$(optdir)/samples/
+	install -d $(DEST)/$(optdir)/tests
+	find "$(WRAP_BUILD)" -maxdepth 3 -type f -executable -name 'test_sift_lze*' \
+		-exec install -m 0755 {} $(DEST)/$(optdir)/tests/ \;
+
+binary-indep:
+
+binary-arch: install
+	# libsift-lze
+	rm -rf debian/libsift-lze
+	install -d debian/libsift-lze/DEBIAN
+	install -d debian/libsift-lze/usr/lib/$(DEB_HOST_MULTIARCH)
+	cp -a $(DEST)/usr/lib/$(DEB_HOST_MULTIARCH)/libsift_lze.so* \
+		debian/libsift-lze/usr/lib/$(DEB_HOST_MULTIARCH)/ 2>/dev/null || \
+	cp -a $(DEST)/usr/lib/libsift_lze.so* debian/libsift-lze/usr/lib/$(DEB_HOST_MULTIARCH)/
+	cp -a $(DEST)/usr/lib/$(DEB_HOST_MULTIARCH)/libsift_lze_ocvfree.so* \
+		debian/libsift-lze/usr/lib/$(DEB_HOST_MULTIARCH)/ 2>/dev/null || \
+	cp -a $(DEST)/usr/lib/libsift_lze_ocvfree.so* debian/libsift-lze/usr/lib/$(DEB_HOST_MULTIARCH)/
+	dpkg-gencontrol -plibsift-lze -Pdebian/libsift-lze
+	dpkg-deb --build debian/libsift-lze ..
+
+	# libsift-lze-dev
+	rm -rf debian/libsift-lze-dev
+	install -d debian/libsift-lze-dev/DEBIAN
+	install -d debian/libsift-lze-dev/usr/include
+	install -d debian/libsift-lze-dev/usr/lib/$(DEB_HOST_MULTIARCH)/cmake/siftlze
+	install -d debian/libsift-lze-dev/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig
+	install -d debian/libsift-lze-dev/$(optdir)/samples
+	cp -a $(DEST)/usr/include/sift_lze.h $(DEST)/usr/include/sift_type.h \
+		$(DEST)/usr/include/config.h debian/libsift-lze-dev/usr/include/
+	cp -a $(DEST)/usr/lib/$(DEB_HOST_MULTIARCH)/cmake/siftlze/* \
+		debian/libsift-lze-dev/usr/lib/$(DEB_HOST_MULTIARCH)/cmake/siftlze/ 2>/dev/null || \
+	cp -a $(DEST)/usr/lib/cmake/siftlze/* \
+		debian/libsift-lze-dev/usr/lib/$(DEB_HOST_MULTIARCH)/cmake/siftlze/
+	cp -a $(DEST)/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig/siftlze.pc \
+		debian/libsift-lze-dev/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig/ 2>/dev/null || \
+	cp -a $(DEST)/usr/lib/pkgconfig/siftlze.pc \
+		debian/libsift-lze-dev/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig/
+	cp -a $(DEST)/$(optdir)/samples/* debian/libsift-lze-dev/$(optdir)/samples/
+	dpkg-gencontrol -plibsift-lze-dev -Pdebian/libsift-lze-dev
+	dpkg-deb --build debian/libsift-lze-dev ..
+
+	# sift-extractor-lze-test
+	rm -rf debian/sift-extractor-lze-test
+	install -d debian/sift-extractor-lze-test/DEBIAN
+	install -d debian/sift-extractor-lze-test/$(optdir)/tests
+	cp -a $(DEST)/$(optdir)/tests/* debian/sift-extractor-lze-test/$(optdir)/tests/ || true
+	dpkg-gencontrol -plibsift-extractor-lze-test -Pdebian/sift-extractor-lze-test 2>/dev/null || \
+		dpkg-gencontrol -psift-extractor-lze-test -Pdebian/sift-extractor-lze-test
+	dpkg-deb --build debian/sift-extractor-lze-test ..
+
+binary: binary-indep binary-arch

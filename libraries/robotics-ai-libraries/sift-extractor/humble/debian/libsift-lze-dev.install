@@ -1,0 +1,6 @@
+usr/include/sift_lze.h
+usr/include/sift_type.h
+usr/include/config.h
+usr/lib/*/cmake/siftlze/*
+usr/lib/*/pkgconfig/siftlze.pc
+opt/intel/sift_lze/samples/*

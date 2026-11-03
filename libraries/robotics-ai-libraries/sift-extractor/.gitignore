@@ -1,0 +1,9 @@
+# Local / container packaging outputs (debian/ is copied from humble|jazzy at build time)
+/debian/
+/build/
+/build-*/
+/*.deb
+/*.buildinfo
+/*.changes
+/CMakeCache.txt
+/CMakeFiles/

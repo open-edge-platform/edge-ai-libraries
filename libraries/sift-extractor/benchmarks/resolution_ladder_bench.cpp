@@ -514,8 +514,11 @@ int main(int argc, char **argv) {
   if (argc < 2) {
     std::fprintf(
         stderr,
-        "Usage: %s IMAGE [warmup] [runs] [json_out] [--sycl-only|--opencl-only]\n"
-        "  IMAGE: grayscale fixture (e.g. data/img1.png)\n",
+        "Usage: %s IMAGE [warmup] [runs] [json_out] [--sycl-only|--opencl-only] "
+        "[--sxga-1080]\n"
+        "  IMAGE: grayscale fixture (e.g. data/img1.png)\n"
+        "  Env overrides: SIFT_OPENCL_CONTRAST SIFT_SYCL_CONTRAST "
+        "SIFT_OPENCV_CONTRAST\n",
         argv[0]);
     return 2;
   }
@@ -525,11 +528,14 @@ int main(int argc, char **argv) {
   const char *json_out = nullptr;
   bool sycl_only = false;
   bool opencl_only = false;
+  bool sxga_1080_only = false;
   for (int i = 4; i < argc; ++i) {
     if (std::strcmp(argv[i], "--sycl-only") == 0)
       sycl_only = true;
     else if (std::strcmp(argv[i], "--opencl-only") == 0)
       opencl_only = true;
+    else if (std::strcmp(argv[i], "--sxga-1080") == 0)
+      sxga_1080_only = true;
     else if (!json_out && argv[i][0] != '-')
       json_out = argv[i];
   }
@@ -542,9 +548,26 @@ int main(int argc, char **argv) {
   const bool run_sycl = !opencl_only;
 
   const int octaves = 5;
-  const float sycl_contrast = 3.0f;
-  const float opencl_contrast = 1.0f; // OpenCL diagnostic scale (≠ SYCL thresh)
-  const double opencv_contrast = 0.04;
+  const auto env_float = [](const char *name, float fallback) {
+    const char *raw = std::getenv(name);
+    if (!raw || !*raw) return fallback;
+    char *end = nullptr;
+    const float value = std::strtof(raw, &end);
+    if (end == raw || *end != '\0' || !(value > 0.0f)) return fallback;
+    return value;
+  };
+  const auto env_double = [](const char *name, double fallback) {
+    const char *raw = std::getenv(name);
+    if (!raw || !*raw) return fallback;
+    char *end = nullptr;
+    const double value = std::strtod(raw, &end);
+    if (end == raw || *end != '\0' || !(value > 0.0)) return fallback;
+    return value;
+  };
+  const float sycl_contrast = env_float("SIFT_SYCL_CONTRAST", 3.0f);
+  const float opencl_contrast =
+      env_float("SIFT_OPENCL_CONTRAST", 1.0f); // OpenCL diagnostic scale (≠ SYCL)
+  const double opencv_contrast = env_double("SIFT_OPENCV_CONTRAST", 0.04);
   const double sycl_init_blur = 1.0;
 
   cv::Mat src = load_gray(image_path);
@@ -554,10 +577,14 @@ int main(int argc, char **argv) {
     int h;
     const char *name;
   };
-  const std::vector<Resolution> resolutions = {
-      {640, 480, "VGA"},      {1280, 720, "720p"},  {1280, 960, "SXGA"},
-      {1920, 1080, "1080p"},  {2560, 1440, "1440p"}, {3840, 2160, "4K UHD"},
-  };
+  const std::vector<Resolution> resolutions =
+      sxga_1080_only
+          ? std::vector<Resolution>{{1280, 960, "SXGA"}, {1920, 1080, "1080p"}}
+          : std::vector<Resolution>{
+                {640, 480, "VGA"},      {1280, 720, "720p"},
+                {1280, 960, "SXGA"},    {1920, 1080, "1080p"},
+                {2560, 1440, "1440p"},  {3840, 2160, "4K UHD"},
+            };
 
   if (sycl_only)
     std::cout << "# SYCL resolution-ladder comparison\n";
@@ -643,6 +670,35 @@ int main(int argc, char **argv) {
   if (!opencl_only && !sycl_only)
     print_side_by_side(opencv_rows, opencl_rows, sycl_rows, run_opencv,
                        run_opencl, run_sycl);
+
+  if (sxga_1080_only) {
+    if (json_out) {
+      std::ofstream out(json_out);
+      out << std::setprecision(9);
+      out << "{\n  \"fixture\":\"" << json_escape(image_path)
+          << "\",\n  \"warmup\":" << warmup << ",\"runs\":" << runs
+          << ",\"octaves\":" << octaves
+          << ",\"opencl_contrast\":" << opencl_contrast
+          << ",\"sycl_contrast\":" << sycl_contrast
+          << ",\"opencv_contrast\":" << opencv_contrast
+          << ",\n  \"rows\":[";
+      bool comma = false;
+      for (const auto &row : opencv_rows) {
+        append_row_json(out, row, comma);
+        comma = true;
+      }
+      for (const auto &row : opencl_rows) {
+        append_row_json(out, row, comma);
+        comma = true;
+      }
+      for (const auto &row : sycl_rows) {
+        append_row_json(out, row, comma);
+        comma = true;
+      }
+      out << "\n  ]\n}\n";
+    }
+    return 0;
+  }
 
   // Octave sweep @ 1080p (CudaSift-style Features / Extract)
   std::vector<std::pair<std::string, Row>> ocv_oct, ocl_oct, sy_oct;

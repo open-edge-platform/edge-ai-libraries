@@ -1,0 +1,48 @@
+Source: ros-humble-sift-extractor
+Maintainer: ECI Maintainer <eci.maintainer@intel.com>
+Section: libs
+Priority: optional
+Build-Depends: debhelper (>= 13),
+               pkg-config,
+               cmake,
+               libze-dev,
+               intel-opencl-icd,
+               opencl-headers,
+               libopencv-dev (>= 4.2.0),
+               libgtest-dev,
+               intel-oneapi-compiler-dpcpp-cpp-2025.3,
+               intel-oneapi-dpcpp-ct-2025.3
+
+Package: libsift-lze-dev
+Architecture: any
+Section: libdevel
+Depends: libsift-lze (= ${binary:Version}),
+         ${misc:Depends}
+Description: Intel SIFT extractor robotics wrapper - development files
+ Thin robotics wrapper around the horizontal sift_extractor core (OpenCL/SYCL).
+ Descriptors are 128-D float (L2), not ORB binary/Hamming.
+ .
+ This package contains development files (headers, CMake, samples).
+
+Package: libsift-lze
+Architecture: amd64
+Multi-Arch: same
+Depends: debconf (>= 1.5.71), bash (>= 4), ${shlibs:Depends}, ${misc:Depends},
+         libze1 | level-zero,
+         intel-opencl-icd (>= 24.31.30508.7),
+         intel-oneapi-runtime-dpcpp-cpp (>= 2025.0),
+         intel-oneapi-runtime-compilers (>= 2025.0)
+Suggests: ros-humble-robotics-sdk-license
+Description: Intel SIFT extractor robotics wrapper - shared libraries
+ Thin robotics wrapper around the horizontal sift_extractor core (OpenCL/SYCL).
+ Descriptors are 128-D float (L2), not ORB binary/Hamming.
+ .
+ This package contains the robotics shared libraries and the linked core.
+
+Package: sift-extractor-lze-test
+Architecture: amd64
+Section: science
+Depends: ${misc:Depends}, ${shlibs:Depends}, libsift-lze (= ${binary:Version})
+Multi-Arch: foreign
+Description: [internal] Intel SIFT extractor robotics wrapper tests
+ Smoke tests for mono/multi-camera extract and same-core parity.

@@ -1,0 +1,7 @@
+ros-humble-sift-extractor (0.1.0-1) UNRELEASED; urgency=low
+
+  * Initial robotics wrapper packaging for sift_extractor core
+  * OpenCL + SYCL dual backends via find_package(sift_extractor)
+  * OpenCV and OpenCV-free shared libraries
+
+ -- ECI Maintainer <eci.maintainer@intel.com>  Tue, 03 Nov 2026 18:00:00 +0000
