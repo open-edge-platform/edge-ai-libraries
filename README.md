@@ -234,6 +234,22 @@ building blocks for manufacturing and factory automation applications. 
   real-time sensor and industrial device data; supports both edge
   analytics and integration with operational systems.
      
+### Computer Vision Primitives
+
+Cross-use-case vision building blocks that are not tied to a single robotics
+or media pipeline. These components expose installable C++ (and optional
+Python) APIs for feature extraction and related primitives on Intel CPUs/GPUs.
+
+- [SIFT Extractor](./libraries/sift-extractor)
+
+  Experimental dual-backend (OpenCL + SYCL) SIFT feature extraction and
+  matching for Intel platforms. Early development snapshot: packaging and
+  optional Python/OpenCV type adapters are available; CudaSift quality floor,
+  held-out corpus, and release soak remain open. See the component README for
+  backend selection and hardware-target guidance. A future robotics wrapper
+  would live under Robotics Libraries and consume this core without copying
+  kernels.
+
 ### Robotics Libraries
 
 Optimized libraries for robotic perception, localization, mapping,
