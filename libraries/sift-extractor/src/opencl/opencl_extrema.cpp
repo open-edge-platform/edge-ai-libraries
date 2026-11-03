@@ -702,6 +702,21 @@ __kernel void scatter_feature_records(__global const float *refined,
   groups[destination] = octave * (intervals + 3) + level;
 }
 
+__kernel void gather_dispatch_points(__global const float *unique_records,
+                                      __global const int *source_indices,
+                                      __global const float *host_sigmas,
+                                      __global float *points,
+                                      const int count) {
+  const int index = (int)get_global_id(0);
+  if (index >= count) return;
+  const int source = source_indices[index];
+  __global const float *record = unique_records + source * 8;
+  points[index * 4 + 0] = record[0];
+  points[index * 4 + 1] = record[1];
+  points[index * 4 + 2] = host_sigmas[index];
+  points[index * 4 + 3] = 0.0f;
+}
+
 __kernel void pack_orientations(__global const float *points,
                                  __global const float *angles,
                                  __global const int *layout,
@@ -792,13 +807,17 @@ struct OpenCLDoGExtrema::Impl {
     Buffer magnitude, orientation, points, output, layout;
     Buffer gradient_layout;
     Buffer counts, descriptor_points, descriptor_layout, descriptors, orientation_sources;
+    Buffer unique_records, source_indices, host_sigmas;
     size_t descriptor_capacity = 0;
+    size_t unique_record_count = 0;
+    bool resident_orientation_points = false;
     cl_event event = nullptr;
     cl_event descriptor_event = nullptr;
     cl_event gradient_event = nullptr;
     ~FeatureScratch() {
       for (auto *buffer : {&magnitude, &orientation, &points, &output, &layout, &gradient_layout,
-               &counts, &descriptor_points, &descriptor_layout, &descriptors, &orientation_sources})
+               &counts, &descriptor_points, &descriptor_layout, &descriptors, &orientation_sources,
+               &unique_records, &source_indices, &host_sigmas})
         if (buffer->memory) clReleaseMemObject(buffer->memory);
       if (event) clReleaseEvent(event);
       if (descriptor_event) clReleaseEvent(descriptor_event);
@@ -825,8 +844,14 @@ struct OpenCLDoGExtrema::Impl {
     }
   };
   std::vector<std::unique_ptr<DetectionScratch>> detection_scratch;
+  struct IndexedKeypoint {
+    ScaleSpaceKeypoint point;
+    int source_index = -1;
+  };
   struct FeatureDispatch {
     std::vector<ScaleSpaceKeypoint> ordered_points;
+    std::vector<int> source_indices;
+    std::vector<float> host_sigmas;
     std::vector<float> packed;
     std::vector<int> layout;
     std::vector<int> image_offsets;
@@ -847,6 +872,7 @@ struct OpenCLDoGExtrema::Impl {
   cl_kernel claim_kernel = nullptr;
   cl_kernel mark_unique_kernel = nullptr;
   cl_kernel scatter_feature_kernel = nullptr;
+  cl_kernel gather_dispatch_kernel = nullptr;
   Buffer dog_volume;
   Buffer candidate_mask;
   Buffer block_offsets;
@@ -885,29 +911,31 @@ struct OpenCLDoGExtrema::Impl {
     return buffer.memory;
   }
 
-  static void apply_response_cap(std::vector<ScaleSpaceKeypoint> &keypoints, int max_features) {
+  static void apply_response_cap(std::vector<IndexedKeypoint> &keypoints, int max_features) {
     if (max_features <= 0 || keypoints.size() <= static_cast<size_t>(max_features)) return;
     std::stable_sort(keypoints.begin(), keypoints.end(), [](const auto &first, const auto &second) {
-      return std::abs(first.local.response) > std::abs(second.local.response);
+      return std::abs(first.point.local.response) > std::abs(second.point.local.response);
     });
     keypoints.resize(static_cast<size_t>(max_features));
   }
 
-  FeatureDispatch build_feature_dispatch(std::vector<ScaleSpaceKeypoint> keypoints,
+  FeatureDispatch build_feature_dispatch(std::vector<IndexedKeypoint> keypoints,
       const std::vector<GaussianLevel> &gaussian, int intervals, int max_features) {
     apply_response_cap(keypoints, max_features);
     FeatureDispatch dispatch;
     dispatch.image_offsets.assign(gaussian.size(), 0);
     dispatch.occupied.assign(gaussian.size(), 0);
-    std::vector<std::vector<ScaleSpaceKeypoint>> groups(gaussian.size());
-    for (const auto &point : keypoints) {
-      const int level = std::clamp(static_cast<int>(std::lround(point.local.scale)),
+    std::vector<std::vector<IndexedKeypoint>> groups(gaussian.size());
+    for (const auto &entry : keypoints) {
+      const int level = std::clamp(static_cast<int>(std::lround(entry.point.local.scale)),
                                     0, intervals + 2);
-      groups[static_cast<size_t>(point.octave) * (intervals + 3) + level].push_back(point);
+      groups[static_cast<size_t>(entry.point.octave) * (intervals + 3) + level].push_back(entry);
     }
     dispatch.packed.reserve(keypoints.size() * 4);
     dispatch.layout.reserve(keypoints.size() * 3);
     dispatch.ordered_points.reserve(keypoints.size());
+    dispatch.source_indices.reserve(keypoints.size());
+    dispatch.host_sigmas.reserve(keypoints.size());
     for (size_t group = 0; group < groups.size(); ++group) {
       if (groups[group].empty()) continue;
       const size_t count = static_cast<size_t>(gaussian[group].width) * gaussian[group].height;
@@ -920,10 +948,12 @@ struct OpenCLDoGExtrema::Impl {
       dispatch.gradient_count += padded_count;
       dispatch.occupied[group] = 1;
       ++dispatch.feature_groups;
-      for (const auto &point : groups[group]) {
-        dispatch.ordered_points.push_back(point);
+      for (const auto &entry : groups[group]) {
+        dispatch.ordered_points.push_back(entry.point);
+        dispatch.source_indices.push_back(entry.source_index);
+        dispatch.host_sigmas.push_back(entry.point.octave_sigma);
         dispatch.packed.insert(dispatch.packed.end(),
-          {point.local.x, point.local.y, point.octave_sigma, 0.0f});
+          {entry.point.local.x, entry.point.local.y, entry.point.octave_sigma, 0.0f});
         dispatch.layout.insert(dispatch.layout.end(),
           {gaussian[group].width, gaussian[group].height, dispatch.image_offsets[group]});
       }
@@ -1000,9 +1030,9 @@ struct OpenCLDoGExtrema::Impl {
     if (scratch.unique_count == 0) return;
     if (scratch.unique_count > static_cast<cl_uint>(std::numeric_limits<int>::max()) / 8)
       throw std::overflow_error("Too many unique feature records");
-    cl_mem records = ensure_buffer(scratch.records, CL_MEM_WRITE_ONLY,
+    cl_mem records = ensure_buffer(scratch.records, CL_MEM_READ_WRITE,
       scratch.unique_count * 8 * sizeof(float));
-    cl_mem groups = ensure_buffer(scratch.groups, CL_MEM_WRITE_ONLY,
+    cl_mem groups = ensure_buffer(scratch.groups, CL_MEM_READ_WRITE,
       scratch.unique_count * sizeof(cl_int));
     check_opencl(clSetKernelArg(scatter_feature_kernel, 0, sizeof(refined), &refined),
       "feature boundary scatter refined");
@@ -1034,12 +1064,13 @@ struct OpenCLDoGExtrema::Impl {
       "feature boundary groups readback");
   }
 
-  std::vector<ScaleSpaceKeypoint> keypoints_from_unique_records(
+  std::vector<IndexedKeypoint> keypoints_from_unique_records(
       const std::vector<DetectionScratch*> &octaves, int intervals, float base_sigma) {
     size_t total = 0;
     for (const auto *scratch : octaves) total += scratch ? scratch->unique_count : 0;
-    std::vector<ScaleSpaceKeypoint> keypoints;
+    std::vector<IndexedKeypoint> keypoints;
     keypoints.reserve(total);
+    int source_base = 0;
     for (size_t octave = 0; octave < octaves.size(); ++octave) {
       const auto *scratch = octaves[octave];
       if (!scratch || scratch->unique_count == 0) continue;
@@ -1057,12 +1088,85 @@ struct OpenCLDoGExtrema::Impl {
         if (scratch->unique_groups[index] !=
             static_cast<int>(octave) * (intervals + 3) + level)
           throw std::logic_error("Feature boundary group mapping mismatch");
-        keypoints.push_back({{values[0], values[1], values[2], values[3], values[4]},
-                             static_cast<int>(octave), values[0] * image_factor,
-                             values[1] * image_factor, octave_sigma, image_sigma});
+        keypoints.push_back({{{values[0], values[1], values[2], values[3], values[4]},
+                              static_cast<int>(octave), values[0] * image_factor,
+                              values[1] * image_factor, octave_sigma, image_sigma},
+                             source_base + static_cast<int>(index)});
       }
+      source_base += static_cast<int>(scratch->unique_count);
     }
     return keypoints;
+  }
+
+  void concatenate_unique_records(FeatureScratch &scratch,
+                                  const std::vector<DetectionScratch*> &octaves) {
+    size_t total = 0;
+    for (const auto *octave : octaves) total += octave ? octave->unique_count : 0;
+    scratch.unique_record_count = total;
+    if (total == 0) return;
+    cl_mem combined = ensure_buffer(scratch.unique_records, CL_MEM_READ_WRITE,
+                                    total * 8 * sizeof(float));
+    size_t destination = 0;
+    for (const auto *octave : octaves) {
+      if (!octave || octave->unique_count == 0) continue;
+      const size_t bytes = static_cast<size_t>(octave->unique_count) * 8 * sizeof(float);
+      check_opencl(clEnqueueCopyBuffer(queue, octave->records.memory, combined, 0,
+        destination * 8 * sizeof(float), bytes, 0, nullptr, nullptr),
+        "concatenate unique feature records");
+      destination += octave->unique_count;
+    }
+  }
+
+  void gather_resident_orientation_points(FeatureScratch &scratch, const FeatureDispatch &dispatch) {
+    scratch.resident_orientation_points = false;
+    if (dispatch.ordered_points.empty()) return;
+    if (dispatch.source_indices.size() != dispatch.ordered_points.size() ||
+        dispatch.host_sigmas.size() != dispatch.ordered_points.size() ||
+        dispatch.layout.size() != dispatch.ordered_points.size() * 3)
+      throw std::logic_error("Feature dispatch source mapping is incomplete");
+    if (scratch.unique_record_count == 0)
+      throw std::logic_error("Missing device-resident unique feature records");
+    for (auto entry : {std::make_pair(&gather_dispatch_kernel, "gather_dispatch_points")}) {
+      if (*entry.first) continue;
+      cl_int status = CL_SUCCESS;
+      *entry.first = clCreateKernel(program, entry.second, &status);
+      check_opencl(status, "clCreateKernel(gather dispatch points)");
+    }
+    const int count = static_cast<int>(dispatch.ordered_points.size());
+    cl_mem points = ensure_buffer(scratch.points, CL_MEM_READ_WRITE,
+                                  dispatch.ordered_points.size() * 4 * sizeof(float));
+    cl_mem layout = ensure_buffer(scratch.layout, CL_MEM_READ_ONLY,
+                                  dispatch.layout.size() * sizeof(int));
+    cl_mem sources = ensure_buffer(scratch.source_indices, CL_MEM_READ_ONLY,
+                                   dispatch.source_indices.size() * sizeof(int));
+    cl_mem sigmas = ensure_buffer(scratch.host_sigmas, CL_MEM_READ_ONLY,
+                                  dispatch.host_sigmas.size() * sizeof(float));
+    // Layout triples are host-derived (width/height/gradient offset). Point x/y
+    // are gathered from device unique records; sigma uses host std::exp2 values.
+    check_opencl(clEnqueueWriteBuffer(queue, sources, CL_FALSE, 0,
+      dispatch.source_indices.size() * sizeof(int), dispatch.source_indices.data(), 0, nullptr, nullptr),
+      "resident source index upload");
+    check_opencl(clEnqueueWriteBuffer(queue, sigmas, CL_FALSE, 0,
+      dispatch.host_sigmas.size() * sizeof(float), dispatch.host_sigmas.data(), 0, nullptr, nullptr),
+      "resident host sigma upload");
+    check_opencl(clEnqueueWriteBuffer(queue, layout, CL_FALSE, 0,
+      dispatch.layout.size() * sizeof(int), dispatch.layout.data(), 0, nullptr, nullptr),
+      "resident layout upload");
+    cl_mem records = scratch.unique_records.memory;
+    check_opencl(clSetKernelArg(gather_dispatch_kernel, 0, sizeof(records), &records),
+      "gather records");
+    check_opencl(clSetKernelArg(gather_dispatch_kernel, 1, sizeof(sources), &sources),
+      "gather sources");
+    check_opencl(clSetKernelArg(gather_dispatch_kernel, 2, sizeof(sigmas), &sigmas),
+      "gather sigmas");
+    check_opencl(clSetKernelArg(gather_dispatch_kernel, 3, sizeof(points), &points),
+      "gather points");
+    check_opencl(clSetKernelArg(gather_dispatch_kernel, 4, sizeof(count), &count),
+      "gather count");
+    const size_t global = static_cast<size_t>(count);
+    check_opencl(clEnqueueNDRangeKernel(queue, gather_dispatch_kernel, 1, nullptr, &global,
+      nullptr, 0, nullptr, nullptr), "gather dispatch launch");
+    scratch.resident_orientation_points = true;
   }
 
   cl_kernel get_feature_kernel(const char *name) {
@@ -1196,19 +1300,25 @@ struct OpenCLDoGExtrema::Impl {
       CL_MEM_READ_WRITE, image_bytes);
     cl_mem orientation_buffer = layout ? scratch->orientation.memory : ensure_buffer(scratch ? scratch->orientation : gradient_orientation,
       CL_MEM_READ_WRITE, image_bytes);
-    cl_mem points_buffer = ensure_buffer(scratch ? scratch->points : feature_points, CL_MEM_READ_ONLY,
+    const bool resident_points = scratch && scratch->resident_orientation_points && layout;
+    if (resident_points && (!scratch->points.memory || !scratch->layout.memory))
+      throw std::logic_error("Resident orientation points were not materialized");
+    cl_mem points_buffer = resident_points ? scratch->points.memory :
+      ensure_buffer(scratch ? scratch->points : feature_points, CL_MEM_READ_ONLY,
                         points.size() * sizeof(float));
     std::vector<float> output(read_output ? count * output_stride : 0);
     cl_mem output_buffer = ensure_buffer(scratch ? scratch->output : feature_output, CL_MEM_READ_WRITE,
               count * output_stride * sizeof(float));
-    cl_mem layout_buffer = layout ? ensure_buffer(scratch->layout, CL_MEM_READ_ONLY,
-      layout->size() * sizeof(int)) : points_buffer;
+    cl_mem layout_buffer = layout ? (resident_points ? scratch->layout.memory :
+      ensure_buffer(scratch->layout, CL_MEM_READ_ONLY, layout->size() * sizeof(int))) : points_buffer;
     try {
-    if (layout) check_opencl(clEnqueueWriteBuffer(queue, layout_buffer, CL_FALSE, 0,
-      layout->size() * sizeof(int), layout->data(), 0, nullptr, nullptr), "feature layout upload");
-    check_opencl(clEnqueueWriteBuffer(queue, points_buffer, CL_FALSE, 0,
-      points.size() * sizeof(float), points.data(), 0, nullptr, nullptr),
-      "clEnqueueWriteBuffer(feature points)");
+    if (layout && !resident_points)
+      check_opencl(clEnqueueWriteBuffer(queue, layout_buffer, CL_FALSE, 0,
+        layout->size() * sizeof(int), layout->data(), 0, nullptr, nullptr), "feature layout upload");
+    if (!resident_points)
+      check_opencl(clEnqueueWriteBuffer(queue, points_buffer, CL_FALSE, 0,
+        points.size() * sizeof(float), points.data(), 0, nullptr, nullptr),
+        "clEnqueueWriteBuffer(feature points)");
     const auto points_ready = std::chrono::steady_clock::now();
     check_opencl(clSetKernelArg(feature_kernel, 0, sizeof(cl_mem), &magnitude_buffer), "feature magnitude arg");
     check_opencl(clSetKernelArg(feature_kernel, 1, sizeof(cl_mem), &orientation_buffer), "feature orientation arg");
@@ -1628,6 +1738,7 @@ struct OpenCLDoGExtrema::Impl {
     if (claim_kernel) clReleaseKernel(claim_kernel);
     if (mark_unique_kernel) clReleaseKernel(mark_unique_kernel);
     if (scatter_feature_kernel) clReleaseKernel(scatter_feature_kernel);
+    if (gather_dispatch_kernel) clReleaseKernel(gather_dispatch_kernel);
     if (orientation_pack_kernel) clReleaseKernel(orientation_pack_kernel);
     if (scan_kernel) clReleaseKernel(scan_kernel);
     if (bounded_refine_kernel) clReleaseKernel(bounded_refine_kernel);
@@ -2093,8 +2204,9 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
   const auto &differences = levels.differences;
   const auto difference_end = std::chrono::steady_clock::now();
   // Extract path: keep refined records on-device, emit unique mapped records with
-  // sigma/group tags, then host-cap/group via build_feature_dispatch. detect_* APIs
-  // retain host hash membership and still consume the refined round trip.
+  // sigma/group tags, host-cap/group via build_feature_dispatch, then gather
+  // group-ordered orientation points from device unique records (no float4 points
+  // upload). detect_* APIs retain host hash membership and the refined round trip.
   const size_t levels_per_octave = static_cast<size_t>(intervals) + 2;
   if (differences.size() != static_cast<size_t>(octave_count) * levels_per_octave)
     throw std::invalid_argument("DoG pyramid does not match extractor configuration");
@@ -2152,6 +2264,8 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
     if (impl_->feature_scratch.empty())
       impl_->feature_scratch.push_back(std::make_unique<Impl::FeatureScratch>());
     auto *scratch = impl_->feature_scratch.front().get();
+    impl_->concatenate_unique_records(*scratch, octave_scratch);
+    impl_->gather_resident_orientation_points(*scratch, dispatch);
     impl_->ensure_buffer(scratch->magnitude, CL_MEM_READ_WRITE, gradient_count * sizeof(float));
     impl_->ensure_buffer(scratch->orientation, CL_MEM_READ_WRITE, gradient_count * sizeof(float));
     cl_mem shared_image = nullptr;
@@ -2215,6 +2329,7 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
     const auto descriptor_start = std::chrono::steady_clock::now();
     orientation_ms = std::chrono::duration<double, std::milli>(descriptor_start - orientation_start).count();
     descriptors = impl_->resident_descriptors(*scratch, ordered_points.size(), orientation_sources);
+    scratch->resident_orientation_points = false;
     impl_->report_feature_profile("sift_packed_gradients");
     impl_->report_feature_profile("sift_orientations");
     impl_->report_feature_profile("sift_descriptors");
@@ -2257,7 +2372,7 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
                  "OPENCL_PROFILE gaussian_dog_ms=%.3f "
                  "extrema_refine_ms=%.3f orientation_ms=%.3f "
                  "descriptor_ms=%.3f "
-                 "resident_feature_handoff=1 "
+                 "resident_feature_handoff=1 resident_orientation_points=1 "
                  "total_ms=%.3f gaussian_levels=%zu dog_levels=%zu "
                  "keypoints=%zu features=%zu feature_groups=%zu\n",
                  milliseconds(profile_start, difference_end),
