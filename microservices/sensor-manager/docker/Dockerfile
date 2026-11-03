@@ -9,7 +9,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends git && \
     rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir uv==0.9.10
+RUN pip install --no-cache-dir uv==0.13.7
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
