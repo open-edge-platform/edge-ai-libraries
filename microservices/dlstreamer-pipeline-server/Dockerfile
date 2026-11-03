@@ -280,9 +280,14 @@ USER root
 
 # Patch and install OpenVINO model api
 COPY ./docker/model_api.patch /home/pipeline-server/model_api.patch
-RUN pip3 install --no-cache-dir openvino-model-api==0.2.5
+RUN . /etc/os-release && \
+    if [ "$VERSION_ID" = "26.04" ]; then \
+        pip3 install --no-cache-dir openvino-model-api==0.4.7; \
+    else \
+        pip3 install --no-cache-dir openvino-model-api==0.2.5; \
+    fi
 
-# site packages path independent of Python version (Python 3.10 for Ubuntu 22.04 and Python 3.12 for Ubuntu 24.04)
+# site packages path independent of Python version
 RUN apt-get update && \
     apt-get install -y --no-install-recommends git && \
     MODEL_API_PATH=$(python3 -c "import site; print(site.getsitepackages()[0])")/model_api && \
