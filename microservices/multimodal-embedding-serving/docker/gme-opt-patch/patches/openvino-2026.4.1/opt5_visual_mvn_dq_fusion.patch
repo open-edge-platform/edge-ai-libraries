@@ -1,0 +1,428 @@
+diff --git a/src/plugins/intel_gpu/include/intel_gpu/primitives/dynamic_quantize.hpp b/src/plugins/intel_gpu/include/intel_gpu/primitives/dynamic_quantize.hpp
+index 3e7d9213ca..9393c02a17 100644
+--- a/src/plugins/intel_gpu/include/intel_gpu/primitives/dynamic_quantize.hpp
++++ b/src/plugins/intel_gpu/include/intel_gpu/primitives/dynamic_quantize.hpp
+@@ -50,11 +50,17 @@ struct dynamic_quantize : public primitive_base<dynamic_quantize> {
+     size_t innermost_size = 0;
+     bool fused_rms = false;
+     float rms_eps = 0.f;
++    bool fused_mvn = false;
++    float mvn_eps = 0.f;
++    bool mvn_eps_inside_sqrt = false;
+ 
+     size_t hash() const override {
+         size_t seed = primitive::hash();
+         seed = hash_combine(seed, fused_rms);
+         seed = hash_combine(seed, rms_eps);
++        seed = hash_combine(seed, fused_mvn);
++        seed = hash_combine(seed, mvn_eps);
++        seed = hash_combine(seed, mvn_eps_inside_sqrt);
+         seed = hash_range(seed, attrs.scales_zp_output_order.begin(), attrs.scales_zp_output_order.end());
+         seed = hash_range(seed, attrs.group_sizes.begin(), attrs.group_sizes.end());
+         seed = hash_combine(seed, attrs.quantization_type);
+@@ -87,6 +93,9 @@ struct dynamic_quantize : public primitive_base<dynamic_quantize> {
+                attrs.precomputed_reduction_dt == rhs_casted.attrs.precomputed_reduction_dt &&
+                fused_rms == rhs_casted.fused_rms &&
+                rms_eps == rhs_casted.rms_eps &&
++               fused_mvn == rhs_casted.fused_mvn &&
++               mvn_eps == rhs_casted.mvn_eps &&
++               mvn_eps_inside_sqrt == rhs_casted.mvn_eps_inside_sqrt &&
+                input_size == rhs_casted.input_size &&
+                innermost_size == rhs_casted.innermost_size;
+     }
+@@ -105,6 +114,9 @@ struct dynamic_quantize : public primitive_base<dynamic_quantize> {
+         ob << attrs.precomputed_reduction;
+         ob << fused_rms;
+         ob << rms_eps;
++        ob << fused_mvn;
++        ob << mvn_eps;
++        ob << mvn_eps_inside_sqrt;
+         ob << input_size;
+         ob << innermost_size;
+     }
+@@ -123,6 +135,9 @@ struct dynamic_quantize : public primitive_base<dynamic_quantize> {
+         ib >> attrs.precomputed_reduction;
+         ib >> fused_rms;
+         ib >> rms_eps;
++        ib >> fused_mvn;
++        ib >> mvn_eps;
++        ib >> mvn_eps_inside_sqrt;
+         ib >> input_size;
+         ib >> innermost_size;
+     }
+diff --git a/src/plugins/intel_gpu/src/graph/dynamic_quantize.cpp b/src/plugins/intel_gpu/src/graph/dynamic_quantize.cpp
+index 06315c6c0f..b49c4db11e 100644
+--- a/src/plugins/intel_gpu/src/graph/dynamic_quantize.cpp
++++ b/src/plugins/intel_gpu/src/graph/dynamic_quantize.cpp
+@@ -20,7 +20,7 @@ static bool should_skip_execution(const dynamic_quantize_node& node, const layou
+         return false; // Execute unconditionally for floating point types.
+     }
+ 
+-    if (node.get_primitive()->fused_rms)
++    if (node.get_primitive()->fused_rms || node.get_primitive()->fused_mvn)
+         return false;
+ 
+     if (!node.is_runtime_skippable()
+diff --git a/src/plugins/intel_gpu/src/graph/graph_optimizer/prepare_primitive_fusing.cpp b/src/plugins/intel_gpu/src/graph/graph_optimizer/prepare_primitive_fusing.cpp
+index d8a8bc8ea6..aa2d207a94 100644
+--- a/src/plugins/intel_gpu/src/graph/graph_optimizer/prepare_primitive_fusing.cpp
++++ b/src/plugins/intel_gpu/src/graph/graph_optimizer/prepare_primitive_fusing.cpp
+@@ -89,14 +89,15 @@ void prepare_primitive_fusing::run(program& p) {
+     fuse_simple_primitives(p);
+     fuse_constant_transposes(p);
+     optimize_fused_ops(p);
+-    fuse_rms_into_dynamic_quantize(p);
++    fuse_normalization_into_dynamic_quantize(p);
+ }
+ 
+-void prepare_primitive_fusing::fuse_rms_into_dynamic_quantize(program& p) {
++void prepare_primitive_fusing::fuse_normalization_into_dynamic_quantize(program& p) {
+     // A folded node cannot switch back to the f16 pass-through used below the runtime
+     // quantization threshold. Only fold when the caller has disabled that bypass.
+     if (p.get_config().get_dynamic_quantization_threshold() != 0)
+         return;
++    const bool supports_mvn_work_group = p.get_engine().get_device_info().max_work_group_size >= 256;
+ 
+     auto iterator = p.get_processing_order().begin();
+     while (iterator != p.get_processing_order().end()) {
+@@ -106,9 +107,95 @@ void prepare_primitive_fusing::fuse_rms_into_dynamic_quantize(program& p) {
+ 
+         auto& dq_node = node->as<dynamic_quantize>();
+         auto dq_primitive = std::const_pointer_cast<dynamic_quantize>(dq_node.get_primitive());
+-        if (dq_primitive->fused_rms || dq_node.has_fused_primitives() || dq_node.get_dependencies().size() != 1)
++        if (dq_primitive->fused_rms || dq_primitive->fused_mvn ||
++            dq_node.has_fused_primitives() || dq_node.get_dependencies().size() != 1)
+             continue;
+ 
++        auto& normalization_node = dq_node.get_dependency(0);
++        if (supports_mvn_work_group && normalization_node.is_type<mvn>()) {
++            auto& mvn_node = normalization_node.as<mvn>();
++            auto mvn_primitive = mvn_node.get_primitive();
++            const auto& fused_ops = mvn_node.get_fused_primitives();
++            if (mvn_node.is_output() || mvn_node.get_users().size() != 1 ||
++                mvn_node.get_dependencies().size() != 3 || fused_ops.size() != 2)
++                continue;
++
++            const auto& product = fused_ops[0];
++            const auto& sum = fused_ops[1];
++            if (!product.is_type<eltwise>() || !sum.is_type<eltwise>() ||
++                product.typed_desc<eltwise>()->mode != eltwise_mode::prod ||
++                sum.typed_desc<eltwise>()->mode != eltwise_mode::sum ||
++                product.inputs.size() != 2 || sum.inputs.size() != 2 ||
++                product.deps.size() != 1 || sum.deps.size() != 1 ||
++                product.outer_dep_start_idx != 1 || sum.outer_dep_start_idx != 2 ||
++                product.inputs[0].m_type != FusedInputType::ORIGINAL || product.inputs[0].m_idx != 0 ||
++                product.inputs[1].m_type != FusedInputType::EXTERNAL || product.inputs[1].m_idx != 1 ||
++                sum.inputs[0].m_type != FusedInputType::INTERNAL || sum.inputs[0].m_idx != 0 ||
++                sum.inputs[1].m_type != FusedInputType::EXTERNAL || sum.inputs[1].m_idx != 2)
++                continue;
++
++            auto& input_node = mvn_node.get_dependency(0);
++            auto& gamma_node = mvn_node.get_dependency(1);
++            auto& beta_node = mvn_node.get_dependency(2);
++            if (product.deps[0].first != gamma_node.id() || sum.deps[0].first != beta_node.id() ||
++                !gamma_node.is_constant() || !beta_node.is_constant())
++                continue;
++
++            const auto input_layout = mvn_node.get_input_layout(0);
++            const auto output_layout = mvn_node.get_output_layout();
++            const auto gamma_layout = gamma_node.get_output_layout();
++            const auto beta_layout = beta_node.get_output_layout();
++            const auto& input_shape = input_layout.get_partial_shape();
++            if (input_layout.data_type != data_types::f16 || output_layout.data_type != data_types::f16 ||
++                dq_node.get_input_layouts()[0].data_type != data_types::f16 ||
++                input_layout.format != format::bfyx || output_layout.format != format::bfyx ||
++                input_layout.data_padding || output_layout.data_padding ||
++                input_shape.rank().is_dynamic() || input_shape.size() != 3 || input_shape[2].is_dynamic() ||
++                input_shape[2].get_length() != 1280 || gamma_layout.is_dynamic() || beta_layout.is_dynamic() ||
++                gamma_layout.count() != 1280 || beta_layout.count() != 1280 ||
++                gamma_layout.data_type != data_types::f16 || beta_layout.data_type != data_types::f16 ||
++                gamma_layout.data_padding || beta_layout.data_padding)
++                continue;
++
++            if (!mvn_primitive->normalize_variance || mvn_primitive->reduction_axes.size() != 1)
++                continue;
++            auto reduction_axis = mvn_primitive->reduction_axes[0];
++            if (reduction_axis < 0)
++                reduction_axis += static_cast<int64_t>(input_shape.size());
++            if (reduction_axis != 2)
++                continue;
++
++            using QuantizationType = ov::op::internal::DynamicQuantize::QuantizationType;
++            const auto& attributes = dq_primitive->attrs;
++            if (attributes.group_sizes.empty())
++                continue;
++            if (attributes.quantization_type != QuantizationType::Symmetric ||
++                attributes.quantization_dt != data_types::i8 || attributes.precomputed_reduction ||
++                attributes.group_sizes.back() != UINT64_MAX ||
++                std::any_of(attributes.group_sizes.begin(), std::prev(attributes.group_sizes.end()),
++                            [](uint64_t group_size) { return group_size != 1; }))
++                continue;
++            bool identity_order = true;
++            for (size_t index = 0; index < attributes.scales_zp_output_order.size(); index++)
++                identity_order &= attributes.scales_zp_output_order[index] == index;
++            if (!identity_order)
++                continue;
++
++            dq_primitive->fused_mvn = true;
++            dq_primitive->mvn_eps = mvn_primitive->epsilon;
++            dq_primitive->mvn_eps_inside_sqrt = mvn_primitive->eps_inside_sqrt;
++            dq_primitive->input = {input_info(input_node.id()), input_info(gamma_node.id()), input_info(beta_node.id())};
++
++            p.remove_connection(mvn_node, dq_node);
++            p.add_connection(input_node, dq_node);
++            p.add_connection(gamma_node, dq_node);
++            p.add_connection(beta_node, dq_node);
++            if (p.remove_if_dangling(mvn_node))
++                p.add_optimized_primitive_info(mvn_primitive->id, {dq_primitive->id});
++            dq_node.recalc_output_layouts(false);
++            continue;
++        }
++
+         auto& rms_node = dq_node.get_dependency(0);
+         if (!rms_node.is_type<rms>() || rms_node.is_output() || rms_node.get_users().size() != 1)
+             continue;
+diff --git a/src/plugins/intel_gpu/src/graph/impls/ocl/dynamic_quantize.cpp b/src/plugins/intel_gpu/src/graph/impls/ocl/dynamic_quantize.cpp
+index 7c0b9fe086..7d4dc660df 100644
+--- a/src/plugins/intel_gpu/src/graph/impls/ocl/dynamic_quantize.cpp
++++ b/src/plugins/intel_gpu/src/graph/impls/ocl/dynamic_quantize.cpp
+@@ -56,11 +56,20 @@ struct dynamic_quantize_impl : typed_primitive_impl_ocl<dynamic_quantize> {
+         params.generate_precomputed_reduction = desc->attrs.precomputed_reduction;
+         params.fused_rms = desc->fused_rms;
+         params.rms_eps = desc->rms_eps;
++        params.fused_mvn = desc->fused_mvn;
++        params.mvn_eps = desc->mvn_eps;
++        params.mvn_eps_inside_sqrt = desc->mvn_eps_inside_sqrt;
+         if (desc->fused_rms) {
+             OPENVINO_ASSERT(impl_param.input_layouts.size() == 2,
+                             "[GPU] dynamic_quantize with fused RMSNorm must have exactly two inputs: ",
+                             impl_param.desc->id);
+             params.inputs.push_back(convert_data_tensor(impl_param.get_input_layout(1)));
++        } else if (desc->fused_mvn) {
++            OPENVINO_ASSERT(impl_param.input_layouts.size() == 3,
++                            "[GPU] dynamic_quantize with fused MVN must have exactly three inputs: ",
++                            impl_param.desc->id);
++            params.inputs.push_back(convert_data_tensor(impl_param.get_input_layout(1)));
++            params.inputs.push_back(convert_data_tensor(impl_param.get_input_layout(2)));
+         }
+ 
+         validate_f4e2m1_packed_output(impl_param.get_output_layout(0), "dynamic_quantize");
+diff --git a/src/plugins/intel_gpu/src/graph/include/pass_manager.h b/src/plugins/intel_gpu/src/graph/include/pass_manager.h
+index 3750d21465..a39e620838 100644
+--- a/src/plugins/intel_gpu/src/graph/include/pass_manager.h
++++ b/src/plugins/intel_gpu/src/graph/include/pass_manager.h
+@@ -161,7 +161,7 @@ private:
+     void fuse_constant_transposes(program& p);
+     void optimize_fused_ops(program& p);
+     void remove_redundant_reshape(program& p);
+-    void fuse_rms_into_dynamic_quantize(program& p);
++    void fuse_normalization_into_dynamic_quantize(program& p);
+ };
+ 
+ class pre_replace_deconv : public base_pass {
+diff --git a/src/plugins/intel_gpu/src/graph/primitive_inst.cpp b/src/plugins/intel_gpu/src/graph/primitive_inst.cpp
+index 5a713322ee..8ce504862a 100644
+--- a/src/plugins/intel_gpu/src/graph/primitive_inst.cpp
++++ b/src/plugins/intel_gpu/src/graph/primitive_inst.cpp
+@@ -546,8 +546,9 @@ void primitive_inst::update_shape() {
+         auto &layout = _impl_params->get_output_layout(0);
+         OPENVINO_ASSERT(one_of(layout.data_type, {data_types::f16, data_types::i8, data_types::u8, data_types::f4e2m1, data_types::f8e4m3, data_types::f8e5m2}),
+             "[GPU] Unsupported data type of dynamic_quantize: ", layout.data_type);
+-        const bool fused_rms = get_node().as<dynamic_quantize>().get_primitive()->fused_rms;
+-        if (layout.data_type == data_types::f16 && !fused_rms)
++        const auto dq_primitive = get_node().as<dynamic_quantize>().get_primitive();
++        const bool fused_normalization = dq_primitive->fused_rms || dq_primitive->fused_mvn;
++        if (layout.data_type == data_types::f16 && !fused_normalization)
+             set_can_be_optimized(true);
+         else
+             set_can_be_optimized(false);
+diff --git a/src/plugins/intel_gpu/src/kernel_selector/cl_kernels/dynamic_quantize_gpu_opt.cl b/src/plugins/intel_gpu/src/kernel_selector/cl_kernels/dynamic_quantize_gpu_opt.cl
+index c6f4e08f05..b773d57b77 100644
+--- a/src/plugins/intel_gpu/src/kernel_selector/cl_kernels/dynamic_quantize_gpu_opt.cl
++++ b/src/plugins/intel_gpu/src/kernel_selector/cl_kernels/dynamic_quantize_gpu_opt.cl
+@@ -359,13 +359,26 @@ KERNEL(dynamic_quantize_gpu_opt)(
+ #if FUSE_RMS && (ASYMMETRIC_QUANTIZATION != 0 || IS_F8 != 0 || IS_MXFP != 0)
+ #error "FUSE_RMS requires per-token symmetric int8 quantization"
+ #endif
++#if FUSE_MVN && (ASYMMETRIC_QUANTIZATION != 0 || IS_F8 != 0 || IS_MXFP != 0)
++#error "FUSE_MVN requires per-token symmetric int8 quantization"
++#endif
++#if FUSE_RMS && FUSE_MVN
++#error "Only one normalization can be fused into DynamicQuantize"
++#endif
+ 
++#if FUSE_MVN
++__attribute__((reqd_work_group_size(256, 1, 1)))
++#else
+ REQD_SUB_GROUP_SIZE(SIMD)
++#endif
+ KERNEL(dynamic_quantize_gpu_opt)(
+     OPTIONAL_SHAPE_INFO_ARG
+     const __global INPUT0_TYPE* input,
+-#if FUSE_RMS
++#if FUSE_RMS || FUSE_MVN
+     const __global INPUT1_TYPE* gamma,
++#endif
++#if FUSE_MVN
++    const __global INPUT2_TYPE* beta,
+ #endif
+     __global OUTPUT_TYPE* output,
+     __global OUTPUT1_TYPE* output_scale
+@@ -478,6 +491,59 @@ KERNEL(dynamic_quantize_gpu_opt)(
+         output_zp[bf] = convert_uchar_rte(zp);
+ #endif
+     }
++#elif FUSE_MVN
++    const uint bf = (uint)get_global_id(2);
++    const uint local_id = (uint)get_local_id(0);
++#if OUTPUT_DIMS == 2
++    const uint input_row_offset = bf * INPUT0_BATCH_PITCH;
++    const uint output_row_offset = bf * OUTPUT_BATCH_PITCH;
++#else
++    const uint input_row_offset = bf * INPUT0_FEATURE_PITCH;
++    const uint output_row_offset = bf * OUTPUT_FEATURE_PITCH;
++#endif
++
++    float mean = 0.0f;
++    unroll_for (uint item = 0; item < MVN_ITEMS_NUM; item++) {
++        const uint index = local_id + item * 256;
++        mean += convert_float(input[input_row_offset + index]);
++    }
++    mean = work_group_reduce_add(mean) / MVN_DATA_SIZE;
++
++    float variance = 0.0f;
++    unroll_for (uint item = 0; item < MVN_ITEMS_NUM; item++) {
++        const uint index = local_id + item * 256;
++        float value = convert_float(input[input_row_offset + index]);
++        value -= mean;
++        variance = fma(value, value, variance);
++    }
++    variance = work_group_reduce_add(variance);
++    if (local_id == 0) {
++#if MVN_EPS_INSIDE_SQRT
++        variance = native_powr(variance / MVN_DATA_SIZE + convert_float(MVN_EPSILON), -0.5f);
++#else
++        variance = native_powr(native_sqrt(variance / MVN_DATA_SIZE) + convert_float(MVN_EPSILON), -1.0f);
++#endif
++    }
++    variance = work_group_broadcast(variance, 0);
++
++    half shifted[MVN_ITEMS_NUM];
++    half local_max = ACT_MIN_VAL;
++    unroll_for (uint item = 0; item < MVN_ITEMS_NUM; item++) {
++        const uint index = local_id + item * 256;
++        half normalized = (convert_half(input[input_row_offset + index]) - convert_half(mean)) * convert_half(variance);
++        half scaled = convert_half(normalized * gamma[index]);
++        shifted[item] = convert_half(scaled + beta[index]);
++        local_max = fmax(local_max, fabs(shifted[item]));
++    }
++
++    half row_max = work_group_reduce_max(local_max);
++    SCALE_TYPE scale = TO_SCALE_TYPE(OUTPUT_VAL_MAX) / row_max;
++    unroll_for (uint item = 0; item < MVN_ITEMS_NUM; item++) {
++        const uint index = local_id + item * 256;
++        output[output_row_offset + index] = convert_char_rte(shifted[item] * scale);
++    }
++    if (local_id == 0)
++        output_scale[bf] = 1.0h / scale;
+ #else
+     const uint bf = (uint)get_global_id(2);
+     const uint sglid = get_sub_group_local_id();
+diff --git a/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_opt.cpp b/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_opt.cpp
+index ef922bac05..eb89dfe477 100644
+--- a/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_opt.cpp
++++ b/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_opt.cpp
+@@ -121,11 +121,17 @@ JitConstants DynamicQuantizeKernelOpt::GetJitConstants(const dynamic_quantize_pa
+     size_t block_num = params.fused_rms ? 16 : ((total_block_num > 32) ? 32 : total_block_num);
+     jit.AddConstant(MakeJitConstant("BLOCK_NUM", block_num));
+     jit.AddConstant(MakeJitConstant("FUSE_RMS", params.fused_rms));
++    jit.AddConstant(MakeJitConstant("FUSE_MVN", params.fused_mvn));
+     if (params.fused_rms) {
+         jit.AddConstant(MakeJitConstant("RMS_EPSILON", params.rms_eps));
+         jit.AddConstant(MakeJitConstant("RMS_DATA_SIZE", bf_size.second));
+         jit.AddConstant(MakeJitConstant("RMS_ITEMS_NUM", 6));
+         jit.AddConstant(MakeJitConstant("RMS_SUB_GROUP_NUM", 16));
++    } else if (params.fused_mvn) {
++        jit.AddConstant(MakeJitConstant("MVN_EPSILON", params.mvn_eps));
++        jit.AddConstant(MakeJitConstant("MVN_EPS_INSIDE_SQRT", params.mvn_eps_inside_sqrt));
++        jit.AddConstant(MakeJitConstant("MVN_DATA_SIZE", bf_size.second));
++        jit.AddConstant(MakeJitConstant("MVN_ITEMS_NUM", 5));
+     }
+ 
+     if (mode == DynQuanMode::PER_TOKEN)  {
+@@ -146,6 +152,12 @@ CommonDispatchData DynamicQuantizeKernelOpt::SetDefault(const dynamic_quantize_p
+         dispatchData.lws = {simd, 16, 1};
+         return dispatchData;
+     }
++    if (params.fused_mvn) {
++        auto bf_size = get_input_bf_size(params);
++        dispatchData.gws = {256, 1, bf_size.first};
++        dispatchData.lws = {256, 1, 1};
++        return dispatchData;
++    }
+ 
+     if (mode == DynQuanMode::SMALL_GS) {
+         auto bf_size = get_input_bf_size(params);
+@@ -291,6 +303,22 @@ bool DynamicQuantizeKernelOpt::Validate(const Params& params) const {
+             DO_NOT_USE_THIS_KERNEL(params.layerID);
+     }
+ 
++    if (dq_params.fused_mvn) {
++        if (dq_params.inputs.size() != 3 ||
++            get_dynamic_quantize_mode(dq_params) != DynQuanMode::PER_TOKEN ||
++            dq_params.use_asymmetric_quantization || dq_params.generate_precomputed_reduction ||
++            dq_params.outputs[0].GetDType() != Datatype::INT8 ||
++            params.engineInfo.maxWorkGroupSize < 256)
++            DO_NOT_USE_THIS_KERNEL(params.layerID);
++
++        auto vec_size = get_match_vector_size(dq_params);
++        auto bf = get_input_bf_size(dq_params);
++        if (vec_size != 8 || bf.second != 1280 ||
++            dq_params.inputs[1].LogicalSize() != bf.second ||
++            dq_params.inputs[2].LogicalSize() != bf.second)
++            DO_NOT_USE_THIS_KERNEL(params.layerID);
++    }
++
+     for (size_t i = 0; i < dq_params.group_sizes.size() - 1; i++) {
+         if (dq_params.group_sizes[i] != 1)
+             DO_NOT_USE_THIS_KERNEL(params.layerID);
+diff --git a/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_opt_kv_cache.cpp b/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_opt_kv_cache.cpp
+index 1731ed1098..d166e65161 100644
+--- a/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_opt_kv_cache.cpp
++++ b/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_opt_kv_cache.cpp
+@@ -269,7 +269,7 @@ bool DynamicQuantizeKernelKVCache::Validate(const Params& params) const {
+     if (dq_params.generate_precomputed_reduction)
+         DO_NOT_USE_THIS_KERNEL(params.layerID);
+ 
+-    if (dq_params.fused_rms)
++    if (dq_params.fused_rms || dq_params.fused_mvn)
+         DO_NOT_USE_THIS_KERNEL(params.layerID);
+ 
+     if (non_compressed_dims_number == group_sizes.size())
+diff --git a/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_ref.cpp b/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_ref.cpp
+index be6f3bf34f..bf7ed39ecc 100644
+--- a/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_ref.cpp
++++ b/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_ref.cpp
+@@ -169,7 +169,7 @@ bool DynamicQuantizeKernelRef::Validate(const Params& params) const {
+         DO_NOT_USE_THIS_KERNEL(params.layerID);
+     }
+ 
+-    if (dq_params.fused_rms)
++    if (dq_params.fused_rms || dq_params.fused_mvn)
+         DO_NOT_USE_THIS_KERNEL(params.layerID);
+ 
+     return true;
+diff --git a/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_ref.h b/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_ref.h
+index 32f6fce7e3..6dde11d3b5 100644
+--- a/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_ref.h
++++ b/src/plugins/intel_gpu/src/kernel_selector/kernels/dynamic_quantize/dynamic_quantize_kernel_ref.h
+@@ -24,6 +24,9 @@ struct dynamic_quantize_params : public base_params {
+     bool is_int4_compressed = false;
+     bool fused_rms = false;
+     float rms_eps = 0.f;
++    bool fused_mvn = false;
++    float mvn_eps = 0.f;
++    bool mvn_eps_inside_sqrt = false;
+ };
+ 
+ class DynamicQuantizeKernelRef : public KernelBaseOpenCL {
