@@ -111,6 +111,12 @@ Current limitations:
 
 - Tests with latency metrics still run inside `vippet`.
 - The metrics of VLM pipelines (`gvagenai`) are not collected.
+- Live pipeline events (proximity triggers, VLM answers) are not shown. The custom
+  elements in `vippet/gst_plugins/` are mounted into the server, so pipelines that
+  use them run.
+- The reported FPS is counted at one terminal sink of the pipeline. In a pipeline
+  whose branches run at different rates, such as CV-Triggered VLM, it can be the
+  rate of a side branch.
 
 `vippet` also reads the list of available GStreamer elements from the server, so the
 decoders and encoders it picks are those of the container that runs the pipelines. If

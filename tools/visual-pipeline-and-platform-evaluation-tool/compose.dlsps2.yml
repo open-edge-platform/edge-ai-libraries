@@ -53,6 +53,9 @@ services:
       APP_LOG_LEVEL: ${APP_LOG_LEVEL:-INFO}
       WEB_SERVER_LOG_LEVEL: ${WEB_SERVER_LOG_LEVEL:-WARNING}
       GST_DEBUG: "1"
+      # Custom Python elements shipped with VIPPET (vippet/gst_plugins/python/);
+      # the server's run.sh appends this to GST_PLUGIN_PATH.
+      ADDITIONAL_GST_PLUGIN_PATH: /opt/vippet/gst_plugins
       # The server's own per-instance metrics (OTLP/JSON into metrics-manager), off by
       # default. VIPPET does not read them; its live "fps" metric is pushed by vippet.
       ENABLE_OPEN_TELEMETRY: ${DLSPS2_OTEL:-false}
@@ -75,6 +78,7 @@ services:
       - ./shared/models/:/models
       - ./shared/images/:/images
       - ./shared/metadata/:/metadata
+      - ./vippet/gst_plugins/:/opt/vippet/gst_plugins:ro
 
   # Point VIPPET's pipeline execution at the dlstreamer-pipeline-server
   # service above instead of local gst_runner.py.
