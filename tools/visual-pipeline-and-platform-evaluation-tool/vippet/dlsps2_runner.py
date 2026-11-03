@@ -250,6 +250,8 @@ class Dlsps2PipelineRunner:
         pending: dict[str, str] = {}
         try:
             for command in dict.fromkeys(commands):
+                if self.cancelled:
+                    return
                 if command in self._validated:
                     continue
                 response = client.post(
@@ -490,7 +492,8 @@ class Dlsps2PipelineRunner:
         together. All instances go to the unpinned worker. The run lasts
         ``max_runtime`` seconds from the moment every stream reports a
         ``first_frame_time`` (``0``: until every instance ends on its own),
-        or until :meth:`cancel`. Every instance is stopped before returning.
+        or until :meth:`cancel`. Every instance is stopped before returning;
+        a cancel before or while the instances start starts no further one.
 
         DLSPS reports each stream's ``frame_fps`` over its last
         ``frame_interval`` seconds, and keeps both unchanged while no frames
@@ -516,8 +519,12 @@ class Dlsps2PipelineRunner:
 
         with self._client() as client:
             self._validate_new(client, list(stream_commands.values()))
+            if self.cancelled:
+                return PipelineResult(exit_code=0, cancelled=True, stderr=[])
             try:
                 for stream_id, command in stream_commands.items():
+                    if self.cancelled:
+                        break
                     try:
                         instances[stream_id] = self._start(
                             client, command, validate_pipeline=False
@@ -640,7 +647,7 @@ class Dlsps2PipelineRunner:
             details += f"; final avg_fps used for {fallback} stream(s)"
         return PipelineResult(
             total_fps=total_fps,
-            per_stream_fps=total_fps / len(instances),
+            per_stream_fps=total_fps / len(instances) if instances else 0.0,
             num_streams=len(instances),
             exit_code=0,
             cancelled=self.cancelled,

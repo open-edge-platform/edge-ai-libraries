@@ -77,7 +77,7 @@ class _FakeStreamSet:
         post_responses: list[httpx.Response | None] | None = None,
         delete_codes: dict[str, list[int]] | None = None,
         instance_states: dict[str, list[str]] | None = None,
-        validations: list[dict | httpx.Response] | None = None,
+        validations: list | None = None,
     ):
         self.polls = list(polls)
         self.post_responses = list(post_responses or [])
@@ -102,8 +102,11 @@ class _FakeStreamSet:
             return httpx.Response(200, json={"validation_id": f"val-{self.validated}"})
         if path.startswith("/validate/status/"):
             item = self._next(self.validations)
+            if callable(item):
+                item = item()
             if isinstance(item, httpx.Response):
                 return item
+            assert isinstance(item, dict)
             return httpx.Response(200, json={"validation_id": path[17:], **item})
         if request.method == "POST":
             response = self.post_responses.pop(0) if self.post_responses else None
@@ -515,6 +518,42 @@ class TestDlsps2RunnerNormal(Dlsps2RunnerTestBase):
         self.assertEqual(result.stream_fps, {"a": 19.0, "b": 18.0})
         self.assertEqual(len(fake.calls("DELETE")), 2)
 
+    def test_cancel_during_validation_starts_no_instance(self):
+        runner = self._runner()
+
+        def cancel_while_queued() -> dict:
+            runner.cancel()
+            return {"state": "QUEUED"}
+
+        fake = _FakeStreamSet([[_running(30.0)]], validations=[cancel_while_queued])
+
+        result = self._run_streams(runner, fake)
+
+        self.assertTrue(result.cancelled)
+        self.assertEqual(result.exit_code, 0)
+        self.assertEqual(fake.pipeline_requests, [])
+        self.assertEqual(self._pushed_values(), [])
+
+    def test_cancel_while_starting_starts_no_further_instance(self):
+        runner = self._runner()
+        fake = _FakeStreamSet([[_running(30.0), _running(30.0)]])
+        start = runner._start
+
+        def start_then_cancel(*args, **kwargs) -> str:
+            instance_id = start(*args, **kwargs)
+            runner.cancel()
+            return instance_id
+
+        with patch.object(runner, "_start", side_effect=start_then_cancel):
+            result = self._run_streams(runner, fake)
+
+        self.assertTrue(result.cancelled)
+        self.assertEqual(result.num_streams, 1)
+        self.assertEqual(len(fake.calls("POST")), 1)
+        self.assertEqual(
+            [r.url.path for r in fake.calls("DELETE")], ["/pipelines/inst-1"]
+        )
+
     def test_submit_error_stops_streams_already_started(self):
         fake = _FakeStreamSet(
             [[_running(30.0)]],
@@ -640,7 +679,6 @@ class TestDlsps2RunnerNormal(Dlsps2RunnerTestBase):
             delete_codes={"inst-1": [409, 200]},
             instance_states={"inst-1": ["QUEUED"]},
         )
-        runner.cancel()
 
         result = self._run(runner, fake)
 
@@ -661,9 +699,13 @@ class TestDlsps2RunnerNormal(Dlsps2RunnerTestBase):
 
     def test_instance_still_queued_after_stop_timeout_is_logged(self):
         runner = self._runner()
-        runner.cancel()
+
+        def cancel() -> list[dict]:
+            runner.cancel()
+            return [{"state": "QUEUED"}]
+
         fake = _FakeStreamSet(
-            [[{"state": "QUEUED"}]],
+            [cancel],
             delete_codes={"inst-1": [409]},
             instance_states={"inst-1": ["QUEUED"]},
         )
