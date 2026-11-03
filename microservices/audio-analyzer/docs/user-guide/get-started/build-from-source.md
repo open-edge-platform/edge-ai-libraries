@@ -55,7 +55,10 @@ docker build -f docker/Dockerfile -t audio-analyzer:full-cjk \
 
 This installs the extra dependencies listed in `requirements-cjk.txt`
 (`funasr`, `modelscope`, etc.) on top of whichever `IMAGE_VARIANT` is
-selected. See [`funasr` provider notes](./configuration.md#asr-provider-notes)
+selected. The CJK variant also retains `setuptools` to provide the
+`distutils.version` compatibility module required by FunASR on Python 3.12.
+The build verifies that Paraformer is registered before producing the image.
+See [`funasr` provider notes](./configuration.md#asr-provider-notes)
 for the corresponding `config.yaml` settings
 (`models.asr.provider: funasr`, `models.asr.name: paraformer-zh | paraformer-en | paraformer-online`).
 
