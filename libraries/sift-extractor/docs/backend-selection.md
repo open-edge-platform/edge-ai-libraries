@@ -6,8 +6,8 @@
 Recorded decision: keep **dual backends with explicit dispatch**
 (`Backend::OpenCL`, `Backend::Sycl`, `Backend::Auto`). This enables packaging and
 Python. It is **not** a claim that OpenCL and SYCL are algorithm-equivalent, and
-it is **not** a quality pass against OpenCV or the unoptimized/reference path.
-See [comparison.md](comparison.md) and [quality.md](quality.md).
+it is **not** a quality pass against OpenCV. See [comparison.md](comparison.md)
+and [quality.md](quality.md).
 
 ## Decision summary
 

@@ -11,10 +11,10 @@
 namespace sift_extractor::experimental {
 
 // Dual backends with explicit dispatch. Neither OpenCL nor SYCL clears a
-// single-default selection bar on current Arc evidence versus OpenCV or the
-// unoptimized/reference path. SYCL is faster on the development fixture but
-// less repeatable; OpenCL is more stable on that fixture. Auto prefers SYCL
-// when built (speed-biased), else OpenCL; this is NOT a quality endorsement.
+// single-default selection bar on current Arc evidence versus OpenCV. SYCL is
+// faster on the development fixture but less repeatable; OpenCL is more stable
+// on that fixture. Auto prefers SYCL when built (speed-biased), else OpenCL;
+// this is NOT a quality endorsement.
 enum class Backend {
   Auto = 0,
   OpenCL = 1,

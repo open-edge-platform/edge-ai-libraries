@@ -3,9 +3,8 @@
 
 # Quality Diagnostic Status
 
-Quality work for redistribution compares **OpenCV**, an **unoptimized/reference
-SIFT** baseline, **OpenCL**, and **SYCL** under a frozen matcher/geometry
-protocol. See [comparison.md](comparison.md).
+Quality work for redistribution compares **OpenCV**, **OpenCL**, and **SYCL**
+under a frozen matcher/geometry protocol. See [comparison.md](comparison.md).
 
 ## Current posture
 
@@ -17,8 +16,6 @@ protocol. See [comparison.md](comparison.md).
   identical processes. Neither backend is declared application-ready quality.
 - OpenCV `cv::SIFT` remains a diagnostic coverage/geometry reference, not a
   drop-in numerical twin of either GPU backend.
-- The unoptimized/reference path (host-visible correctness stages / CPU-thread
-  controls) anchors regression; it is not a performance target.
 - Held-out known-homography corpora and full REUSE publication gates remain
   open. Graf and other development views are not held-out acceptance.
 

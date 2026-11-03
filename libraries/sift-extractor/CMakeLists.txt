@@ -49,6 +49,7 @@ if(SIFT_ENABLE_OPENCL)
     src/opencl/opencl_gaussian_blur.cpp
     src/opencl/opencl_gaussian_pyramid.cpp
     src/opencl/opencl_extrema.cpp
+    src/opencl/opencl_matcher.cpp
     src/opencl_extractor.cpp
   )
   target_compile_features(sift_opencl_runtime PUBLIC cxx_std_17)
@@ -92,6 +93,10 @@ if(SIFT_ENABLE_OPENCL)
     target_link_libraries(test_sift_opencl_device PRIVATE sift_opencl_runtime)
     add_test(NAME sift_opencl_runtime.device_discovery
       COMMAND test_sift_opencl_device)
+
+    add_executable(test_sift_opencl_match tests/opencl/test_opencl_match.cpp)
+    target_link_libraries(test_sift_opencl_match PRIVATE sift_opencl_runtime)
+    add_test(NAME sift_opencl_runtime.match COMMAND test_sift_opencl_match)
 
     add_executable(test_sift_opencl_gaussian_blur
       tests/opencl/test_opencl_gaussian_blur.cpp
@@ -300,6 +305,7 @@ if(SIFT_ENABLE_OPENCL)
   install(FILES
     include/sift_extractor/opencl_device.hpp
     include/sift_extractor/opencl_extractor.hpp
+    include/sift_extractor/opencl_matcher.hpp
     DESTINATION include/sift_extractor)
 endif()
 if(SIFT_ENABLE_SYCL)

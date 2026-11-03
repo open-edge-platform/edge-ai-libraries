@@ -1,9 +1,9 @@
 <!-- SPDX-FileCopyrightText: (C) 2026 Intel Corporation -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Comparison Protocol (OpenCV / Unoptimized / OpenCL / SYCL)
+# Comparison Protocol (OpenCV / OpenCL / SYCL)
 
-Public quality and performance diagnostics for this component compare four arms.
+Public quality and performance diagnostics for this component compare three arms.
 They are **not** algorithm-equivalent; settings and numerical contracts differ.
 Do not treat raw speed as improvement until quality eligibility is established
 for the intended application.
@@ -11,9 +11,8 @@ for the intended application.
 | Arm | Role |
 | --- | --- |
 | **OpenCV** | `cv::SIFT` (features2d) diagnostic reference for coverage and geometry |
-| **Unoptimized SIFT** | Baseline/reference path: host-visible correctness prototype stages and/or CPU-thread controls used as a regression anchor—not a performance claim |
-| **OpenCL** | Intel OpenCL backend (device-resident extract work in progress) |
-| **SYCL** | SYCL backend (context-owned extract; process-global legacy reference is not concurrent) |
+| **OpenCL** | Intel OpenCL extract + `OpenCLMatcher` GPU matching |
+| **SYCL** | SYCL extract + `MatchSiftData` (context-owned extract; process-global legacy reference is not concurrent) |
 
 ## Run (Intel GPU hosts)
 

@@ -8,6 +8,7 @@
 // cross-backend detail view (no separate pipeline-summary block).
 
 #include "sift_extractor/opencl_extractor.hpp"
+#include "sift_extractor/opencl_matcher.hpp"
 #include "syclSift.h"
 
 #include <opencv2/core.hpp>
@@ -211,7 +212,23 @@ Row bench_opencl(const cv::Mat &src, int width, int height, int octaves,
     row.extract_ms = median(extract_times);
     row.features = static_cast<int>(features.size());
     row.upload_ms = 0.0; // included in extract (host→device inside extractor)
-    row.match_ms = -1.0; // no OpenCL GPU matcher
+
+    if (row.features > 10) {
+      sift_extractor::experimental::OpenCLMatcher matcher;
+      for (int i = 0; i < warmup; ++i)
+        (void)matcher.match(features, features);
+      std::vector<double> match_times;
+      for (int i = 0; i < runs; ++i) {
+        const auto start = std::chrono::steady_clock::now();
+        (void)matcher.match(features, features);
+        const auto end = std::chrono::steady_clock::now();
+        match_times.push_back(
+            std::chrono::duration<double, std::milli>(end - start).count());
+      }
+      row.match_ms = median(match_times);
+    } else {
+      row.match_ms = -1.0;
+    }
   } catch (const std::exception &error) {
     row.ok = false;
     row.error = error.what();
@@ -399,9 +416,39 @@ void print_resolution_table(const std::string &title,
     print_detail_row(row, /*with_backend=*/false);
 }
 
+// CudaSift README columns: Features / Extract / Match / Total / FPS
+void print_classic_ladder_table(const std::string &title,
+                                const std::vector<Row> &rows) {
+  std::cout << "\n### " << title << "\n\n";
+  std::cout << "| Resolution | Size | Features | Extract (ms) | Match (ms) | "
+               "Total (ms) | FPS |\n";
+  std::cout << "| --- | --- | ---: | ---: | ---: | ---: | ---: |\n";
+  for (const auto &row : rows) {
+    char size[32];
+    std::snprintf(size, sizeof(size), "%dx%d", row.width, row.height);
+    if (!row.ok) {
+      std::cout << "| " << row.label << " | " << size
+                << " | ERR | ERR | ERR | ERR | ERR |\n";
+      continue;
+    }
+    const double tot = total_ms(row);
+    const double fps = tot > 0.0 ? 1000.0 / tot : 0.0;
+    std::cout << "| " << row.label << " | " << size << " | " << row.features
+              << " | " << std::fixed << std::setprecision(2) << row.extract_ms
+              << " | ";
+    if (row.match_ms < 0.0)
+      std::cout << "—";
+    else
+      std::cout << std::setprecision(2) << row.match_ms;
+    std::cout << " | " << std::setprecision(2) << tot << " | "
+              << std::setprecision(0) << fps << " |\n";
+  }
+}
+
 void print_side_by_side(const std::vector<Row> &opencv_rows,
                         const std::vector<Row> &opencl_rows,
-                        const std::vector<Row> &sycl_rows, bool sycl_only) {
+                        const std::vector<Row> &sycl_rows, bool include_opencv,
+                        bool include_opencl, bool include_sycl) {
   std::cout << "\n### Side-by-side @ SXGA / 1080p\n\n";
   print_detail_header(/*with_backend=*/true);
   auto find_row = [](const std::vector<Row> &rows, int w,
@@ -412,14 +459,15 @@ void print_side_by_side(const std::vector<Row> &opencv_rows,
     return nullptr;
   };
   for (auto size : {std::pair<int, int>{1280, 960}, {1920, 1080}}) {
-    if (!sycl_only) {
+    if (include_opencv)
       if (const Row *row = find_row(opencv_rows, size.first, size.second))
         print_detail_row(*row, true, "OpenCV");
+    if (include_opencl)
       if (const Row *row = find_row(opencl_rows, size.first, size.second))
         print_detail_row(*row, true, "OpenCL");
-    }
-    if (const Row *row = find_row(sycl_rows, size.first, size.second))
-      print_detail_row(*row, true, "SYCL");
+    if (include_sycl)
+      if (const Row *row = find_row(sycl_rows, size.first, size.second))
+        print_detail_row(*row, true, "SYCL");
   }
 }
 
@@ -464,10 +512,11 @@ void append_row_json(std::ostream &out, const Row &row, bool comma) {
 
 int main(int argc, char **argv) {
   if (argc < 2) {
-    std::fprintf(stderr,
-                 "Usage: %s IMAGE [warmup] [runs] [json_out] [--sycl-only]\n"
-                 "  IMAGE: grayscale fixture (e.g. data/img1.png)\n",
-                 argv[0]);
+    std::fprintf(
+        stderr,
+        "Usage: %s IMAGE [warmup] [runs] [json_out] [--sycl-only|--opencl-only]\n"
+        "  IMAGE: grayscale fixture (e.g. data/img1.png)\n",
+        argv[0]);
     return 2;
   }
   const std::string image_path = argv[1];
@@ -475,12 +524,22 @@ int main(int argc, char **argv) {
   const int runs = argc > 3 ? std::atoi(argv[3]) : 50;
   const char *json_out = nullptr;
   bool sycl_only = false;
+  bool opencl_only = false;
   for (int i = 4; i < argc; ++i) {
     if (std::strcmp(argv[i], "--sycl-only") == 0)
       sycl_only = true;
+    else if (std::strcmp(argv[i], "--opencl-only") == 0)
+      opencl_only = true;
     else if (!json_out && argv[i][0] != '-')
       json_out = argv[i];
   }
+  if (sycl_only && opencl_only) {
+    std::fprintf(stderr, "Choose at most one of --sycl-only / --opencl-only\n");
+    return 2;
+  }
+  const bool run_opencv = !sycl_only && !opencl_only;
+  const bool run_opencl = !sycl_only;
+  const bool run_sycl = !opencl_only;
 
   const int octaves = 5;
   const float sycl_contrast = 3.0f;
@@ -502,26 +561,36 @@ int main(int argc, char **argv) {
 
   if (sycl_only)
     std::cout << "# SYCL resolution-ladder comparison\n";
+  else if (opencl_only)
+    std::cout << "# OpenCL resolution-ladder comparison\n";
   else
     std::cout << "# OpenCV / OpenCL / SYCL resolution-ladder comparison\n";
   std::cout << "\nFixture: `" << image_path << "` (resized per resolution)\n";
   std::cout << "Protocol: warmup=" << warmup << " runs=" << runs
-            << " (median). Octaves=" << octaves
-            << ". SYCL contrast=" << sycl_contrast
-            << " initBlur=" << sycl_init_blur;
-  if (!sycl_only) {
-    std::cout << ". OpenCL contrast=" << opencl_contrast
-              << ". OpenCV contrastThreshold=" << opencv_contrast;
-  }
+            << " (median). Octaves=" << octaves;
+  if (run_sycl)
+    std::cout << ". SYCL contrast=" << sycl_contrast
+              << " initBlur=" << sycl_init_blur;
+  if (run_opencl)
+    std::cout << ". OpenCL contrast=" << opencl_contrast;
+  if (run_opencv)
+    std::cout << ". OpenCV contrastThreshold=" << opencv_contrast;
   std::cout << ".\n";
-  std::cout
-      << "Columns: Features / Extract / Match / Total (CudaSift ladder) plus "
-         "Detect FPS / Match FPS / Total FPS (complete-gpu-sift). "
-         "Detect FPS=1000/Extract; Match FPS=1000/Match; "
-         "Total FPS=1000/(upload+extract[+match]).\n";
-  if (!sycl_only) {
-    std::cout << "OpenCL Match = N/A (no GPU matcher). Total for OpenCL is "
-                 "upload+extract only.\n";
+  if (opencl_only || sycl_only) {
+    std::cout << "Classic ladder columns: Features / Extract / Match / Total / "
+                 "FPS (Total FPS = 1000/(upload+extract[+match])).\n";
+  } else {
+    std::cout
+        << "Columns: Features / Extract / Match / Total (CudaSift ladder) plus "
+           "Detect FPS / Match FPS / Total FPS (complete-gpu-sift). "
+           "Detect FPS=1000/Extract; Match FPS=1000/Match; "
+           "Total FPS=1000/(upload+extract[+match]).\n";
+  }
+  if (run_opencl) {
+    std::cout << "OpenCL Match = OpenCLMatcher GPU self-match (upload host "
+                 "descriptors → tiled kernel → readback).\n";
+  }
+  if (run_opencv || (run_opencl && run_sycl)) {
     std::cout
         << "Parameters are **not** algorithm-equivalent across backends.\n";
   }
@@ -532,81 +601,101 @@ int main(int argc, char **argv) {
   for (const auto &res : resolutions) {
     std::cerr << "resolution " << res.name << " " << res.w << "x" << res.h
               << std::endl;
-    if (!sycl_only) {
+    if (run_opencv) {
       auto ocv = bench_opencv(src, res.w, res.h, octaves, opencv_contrast,
                               warmup, runs);
       ocv.label = res.name;
       opencv_rows.push_back(ocv);
-
+    }
+    if (run_opencl) {
       auto ocl = bench_opencl(src, res.w, res.h, octaves, opencl_contrast,
                               warmup, runs);
       ocl.label = res.name;
       opencl_rows.push_back(ocl);
     }
-
-    auto sy = bench_sycl(src, res.w, res.h, octaves, sycl_contrast,
-                         sycl_init_blur, warmup, runs);
-    sy.label = res.name;
-    sycl_rows.push_back(sy);
+    if (run_sycl) {
+      auto sy = bench_sycl(src, res.w, res.h, octaves, sycl_contrast,
+                           sycl_init_blur, warmup, runs);
+      sy.label = res.name;
+      sycl_rows.push_back(sy);
+    }
   }
 
-  if (!sycl_only) {
+  if (run_opencv)
     print_resolution_table(
         "OpenCV CPU SIFT (detectAndCompute + BFMatcher self-match)",
         opencv_rows);
-    print_resolution_table("OpenCL extract (Match N/A)", opencl_rows);
+  if (opencl_only) {
+    print_classic_ladder_table(
+        "OpenCL extract + OpenCLMatcher (5 octaves, contrast=1.0)", opencl_rows);
+  } else if (run_opencl) {
+    print_resolution_table("OpenCL extract + OpenCLMatcher self-match",
+                           opencl_rows);
   }
-  print_resolution_table(
-      "SYCL extract + MatchSiftData (5 octaves, threshold=3.0)", sycl_rows);
+  if (sycl_only) {
+    print_classic_ladder_table(
+        "SYCL extract + MatchSiftData (5 octaves, threshold=3.0)", sycl_rows);
+  } else if (run_sycl) {
+    print_resolution_table(
+        "SYCL extract + MatchSiftData (5 octaves, threshold=3.0)", sycl_rows);
+  }
 
-  print_side_by_side(opencv_rows, opencl_rows, sycl_rows, sycl_only);
+  if (!opencl_only && !sycl_only)
+    print_side_by_side(opencv_rows, opencl_rows, sycl_rows, run_opencv,
+                       run_opencl, run_sycl);
 
   // Octave sweep @ 1080p (CudaSift-style Features / Extract)
   std::vector<std::pair<std::string, Row>> ocv_oct, ocl_oct, sy_oct;
   for (int oct = 3; oct <= 6; ++oct) {
     std::cerr << "octave sweep " << oct << std::endl;
-    if (!sycl_only) {
+    if (run_opencv) {
       auto ocv =
           bench_opencv(src, 1920, 1080, oct, opencv_contrast, warmup, runs);
       ocv_oct.push_back({std::to_string(oct), ocv});
+    }
+    if (run_opencl) {
       auto ocl =
           bench_opencl(src, 1920, 1080, oct, opencl_contrast, warmup, runs);
       ocl_oct.push_back({std::to_string(oct), ocl});
     }
-    auto sy = bench_sycl(src, 1920, 1080, oct, sycl_contrast, sycl_init_blur,
-                         warmup, runs);
-    sy_oct.push_back({std::to_string(oct), sy});
+    if (run_sycl) {
+      auto sy = bench_sycl(src, 1920, 1080, oct, sycl_contrast, sycl_init_blur,
+                           warmup, runs);
+      sy_oct.push_back({std::to_string(oct), sy});
+    }
   }
-  if (!sycl_only) {
-    print_sweep_table("Octave comparison — OpenCL (1080p, contrast=1.0)",
+  if (run_opencl)
+    print_sweep_table("Octave Comparison — OpenCL (1080p, contrast=1.0)",
                       "Octaves", ocl_oct);
-  }
-  print_sweep_table("Octave Comparison — SYCL (1080p, threshold=3.0)", "Octaves",
-                    sy_oct);
-  if (!sycl_only) {
+  if (run_sycl)
+    print_sweep_table("Octave Comparison — SYCL (1080p, threshold=3.0)",
+                      "Octaves", sy_oct);
+  if (run_opencv)
     print_sweep_table(
         "Octave comparison — OpenCV (1080p; octave count automatic; "
         "column is unused request)",
         "Requested octaves", ocv_oct);
-  }
 
   // Threshold / contrast sweep @ 1080p, 5 octaves
   std::vector<std::pair<std::string, Row>> ocl_thr, sy_thr, ocv_thr;
   const float gpu_thresholds[] = {1.0f, 2.0f, 3.0f, 5.0f, 10.0f};
   for (float thr : gpu_thresholds) {
     std::cerr << "threshold sweep gpu " << thr << std::endl;
-    if (!sycl_only) {
+    if (run_opencl) {
       auto ocl = bench_opencl(src, 1920, 1080, 5, thr, warmup, runs);
       std::ostringstream key;
       key << std::fixed << std::setprecision(1) << thr;
       ocl_thr.push_back({key.str(), ocl});
     }
-    auto sy = bench_sycl(src, 1920, 1080, 5, thr, sycl_init_blur, warmup, runs);
-    std::ostringstream key;
-    key << std::fixed << std::setprecision(1) << thr;
-    sy_thr.push_back({key.str(), sy});
+    if (run_sycl) {
+      auto sy =
+          bench_sycl(src, 1920, 1080, 5, thr, sycl_init_blur, warmup, runs);
+      std::ostringstream key;
+      key << std::fixed << std::setprecision(1) << thr;
+      sy_thr.push_back({key.str(), sy});
+    }
   }
-  if (!sycl_only) {
+  if (run_opencv) {
     const double ocv_thresholds[] = {0.01, 0.02, 0.04, 0.06, 0.10};
     for (double thr : ocv_thresholds) {
       std::cerr << "threshold sweep opencv " << thr << std::endl;
@@ -615,16 +704,16 @@ int main(int argc, char **argv) {
       key << std::fixed << std::setprecision(2) << thr;
       ocv_thr.push_back({key.str(), ocv});
     }
-    print_sweep_table("Threshold comparison — OpenCL (1080p, 5 octaves; "
-                      "openclContrast)",
-                      "Contrast", ocl_thr);
   }
-  print_sweep_table("Threshold Comparison — SYCL (1080p, 5 octaves)",
-                    "Threshold", sy_thr);
-  if (!sycl_only) {
+  if (run_opencl)
+    print_sweep_table("Threshold Comparison — OpenCL (1080p, 5 octaves)",
+                      "Contrast", ocl_thr);
+  if (run_sycl)
+    print_sweep_table("Threshold Comparison — SYCL (1080p, 5 octaves)",
+                      "Threshold", sy_thr);
+  if (run_opencv)
     print_sweep_table("Threshold comparison — OpenCV (1080p; contrastThreshold)",
                       "contrastThreshold", ocv_thr);
-  }
 
   if (json_out) {
     std::ofstream out(json_out);
@@ -632,7 +721,8 @@ int main(int argc, char **argv) {
     out << "{\n  \"fixture\":\"" << json_escape(image_path) << "\",\n";
     out << "  \"warmup\":" << warmup << ",\"runs\":" << runs
         << ",\"octaves\":" << octaves << ",\"sycl_only\":"
-        << (sycl_only ? "true" : "false") << ",\n";
+        << (sycl_only ? "true" : "false") << ",\"opencl_only\":"
+        << (opencl_only ? "true" : "false") << ",\n";
     out << "  \"knobs\":{\"sycl_contrast\":" << sycl_contrast
         << ",\"opencl_contrast\":" << opencl_contrast
         << ",\"opencv_contrastThreshold\":" << opencv_contrast
