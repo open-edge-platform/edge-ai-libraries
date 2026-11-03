@@ -347,12 +347,22 @@ export const doConversation = (conversationRequest: ConversationRequest) => {
         ) {
           const e = await response.json();
           console.log(e);
-          throw Error(e.error.message);
+          // FastAPI errors carry `detail` (e.g. 413 when the question exceeds the NPU prompt limit).
+          const message =
+            (typeof e?.detail === 'string' && e.detail) ||
+            e?.error?.message ||
+            `Request failed with status ${response.status}`;
+          notify(message, NotificationSeverity.ERROR);
+          throw Error(message);
         } else {
           console.log('error', response);
         }
       },
       onmessage(msg) {
+        // Sent first when RETURN_SOURCES is on; not part of the answer text.
+        if (msg?.event === 'sources') {
+          return;
+        }
         if (msg?.data !== '[DONE]') {
           try {
             if (msg.data) {

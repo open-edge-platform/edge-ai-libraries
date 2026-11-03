@@ -2,8 +2,7 @@ image:
   registry: "intel/"
   pullPolicy: IfNotPresent
   tags:
-    openvinoCPU: "core_2026.2.0-rc2"
-    openvinoGPU: "core_gpu_2026.2.0-rc2"
+    openvino: "core_gpu_2026.2.0-rc2"
     ollama: "core_ollama_2026.2.0-rc2"
 
 configmap:
@@ -24,6 +23,13 @@ chatqna:
   service:
     type: ClusterIP
     port: 8888
+  # Extra supplemental group IDs for host video/render device access.
+  # Configure render-device group IDs for nodes that require supplemental groups to access /dev/dri.
+  supplementalGroups:
+  - 44   # video
+  - 109  # render (Ubuntu 20.04)
+  - 110  # render (Ubuntu 22.04)
+  - 992  # render (Ubuntu 24.04)
   readinessProbe:
     httpGet:
       path: /v1/chatqna/health
@@ -33,15 +39,11 @@ chatqna:
 
 gpu:
   enabled: false
-  devices: /dev/dri
-  # Extra supplemental group IDs for host video/render device access.
-  # Configure render-device group IDs for nodes that require supplemental groups to access /dev/dri.
-  supplementalGroups:
-  - 44   # video
-  - 109  # render (Ubuntu 20.04)
-  - 110  # render (Ubuntu 22.04)
-  - 992  # render (Ubuntu 24.04)
   key: #update as per the cluster node label key for GPU assigned by device Plugin
+
+npu:
+  enabled: false
+  key: "npu.intel.com/accel"
 
 uiService:
   name: chatqna-core-ui
