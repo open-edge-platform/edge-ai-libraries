@@ -46,6 +46,7 @@ jobs:
       with:
         repository: open-edge-platform/dlstreamer
         ref: ${{ inputs.dls-branch }}
+        submodules: recursive
         persist-credentials: false
         path: edge-ai-libraries-repo/libraries/dlstreamer
 
@@ -322,6 +323,7 @@ jobs:
       with:
         repository: open-edge-platform/dlstreamer
         ref: ${{ inputs.dls-branch }}
+        submodules: recursive
         persist-credentials: false
         path: edge-ai-libraries-repo/libraries/dlstreamer
 
