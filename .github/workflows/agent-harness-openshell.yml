@@ -62,6 +62,9 @@ jobs:
           for file in "${files[@]}"; do
             node --check "$file"
           done
+      - name: Suppressed-pattern runtime regressions (isolated fixtures)
+        working-directory: frameworks/agent-harness-install
+        run: bash test/shellcheck-runtime-test.sh
 
   offline:
     name: OpenShell offline gate
