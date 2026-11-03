@@ -1,0 +1,6 @@
+opt1_sdpa_gqa_broadcast_stateless.patch
+opt2_sdpa_output_transpose_fusion.patch
+opt3_int4_wide_fc_ncontiguous_weights.patch
+opt4_dq_reuse_rms_fusion.patch
+opt5_visual_mvn_dq_fusion.patch
+opt6_qkv_headfirst_permute.patch
