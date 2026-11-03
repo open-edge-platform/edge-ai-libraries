@@ -3824,7 +3824,7 @@ debian_25_install_edge_pack_kernel_image ()
         echo "kernel $version is installed" 1>&2;
     else
         echo "@@STEP Installing linux-image-$version";
-        ensure_apt install linux-image-$version;
+        ensure_apt install linux-image-$version linux-headers-$version;
         local pkgver="$(apt policy linux-image-$version 2> /dev/null | grep -m1 Candidate: | cut -f2 -d: | cut -f1-3 -d. | tr -d ' ')-generic";
         ensure_grub_set_default_entry $pkgver;
         ensure_grub_set_kernel_args GRUB_CMDLINE_LINUX "${cmdline[@]}";
@@ -3871,7 +3871,7 @@ debian_25_profile_linux_image_generic_7.0 ()
 debian_25_sbom_edge_pack_kernel_image () 
 { 
     configure_edge_pack_kernel_image "$@";
-    ensure_sbom_format pkg-list linux-image-$version;
+    ensure_sbom_format pkg-list linux-image-$version linux-headers-$version;
     ensure_sbom_format kernel-cmdline "${cmdline[@]}"
 }
 debian_25_sbom_linux_image_6.18_intel () 
@@ -4552,7 +4552,7 @@ debian_40_install_edge_pack_base_realtime ()
         ensure_prop set installed/edge_pack_base_realtime/owned true;
         ensure_apt purge --auto-remove -y intel-edge-base-realtime || true;
         ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*" || true;
-        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*";
+        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*" libigdgmm12="$(apt-cache show intel-edge-media-core | grep -m1 'Depends:.*libigdgmm12' | sed -E 's/.*libigdgmm12 \(= ([^)]+)\).*/\1/')";
     fi;
     [ -c /dev/dri/renderD128 ];
     ensure_group_add $(debian_40_group_edge_pack_base_realtime)
@@ -4566,7 +4566,7 @@ debian_40_install_edge_pack_base_standard ()
         ensure_prop set installed/edge_pack_base_standard/owned true;
         ensure_apt purge --auto-remove -y intel-edge-base-standard || true;
         ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*" || true;
-        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*";
+        ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*" libigdgmm12="$(apt-cache show intel-edge-media-core | grep -m1 'Depends:.*libigdgmm12' | sed -E 's/.*libigdgmm12 \(= ([^)]+)\).*/\1/')";
     fi;
     [ -c /dev/dri/renderD128 ];
     ensure_group_add $(debian_40_group_edge_pack_base_standard)
@@ -4657,7 +4657,7 @@ debian_40_install_edge_pack_media_core ()
     else
         ensure_prop set installed/edge_pack_media_core/owned true;
         ensure_apt purge --auto-remove -y intel-edge-media-core || true;
-        ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-core=$version*";
+        ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-core=$version*" libigdgmm12="$(apt-cache show intel-edge-media-core | grep -m1 'Depends:.*libigdgmm12' | sed -E 's/.*libigdgmm12 \(= ([^)]+)\).*/\1/')";
     fi
 }
 debian_40_install_edge_pack_npu () 
