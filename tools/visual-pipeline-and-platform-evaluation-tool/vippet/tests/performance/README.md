@@ -267,7 +267,7 @@ The id is also the `id` field of the pipeline in the `GET /pipelines` response.
 | Several of your pipelines                | `--pipelines vehicle-detection,my-other-pipeline`                  |
 | Your pipeline together with all defaults | no `--pipelines` (the default is `'*'`: everything ViPPET reports) |
 | Your pipeline with selected defaults     | `--pipelines vehicle-detection,object-detection`                   |
-| Everything except some pipelines         | `--pipelines '*' --skip-pipelines smart-parking`                   |
+| Everything except some pipelines         | `--skip-pipelines smart-parking`                                   |
 
 The same selection can be saved in a YAML file. Keys you leave out keep their defaults:
 
@@ -283,8 +283,8 @@ benchmark:
 python -m perf_helpers.cli --config ./my-config.yaml
 ```
 
-An id in `--pipelines` must match the pipeline id exactly. `--skip-pipelines` ignores
-case. An id that ViPPET does not know stops the run before any job starts, with exit
+Ids in `--pipelines` and `--skip-pipelines` are matched case-insensitively. An id that
+ViPPET does not know stops the run before any job starts, with exit
 code `4`, and the error lists the valid ids. With `--on-unknown-id warn`
 (`PERF_ON_UNKNOWN_ID=warn`) such an id is reported as a skipped case and the rest runs.
 
