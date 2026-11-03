@@ -10,7 +10,7 @@ configure_edge_pack () {
     "Pin-Priority: 1001"
   )
   edge_pack_pref_file=/etc/apt/preferences.d/intel-edge-pack.pref
-  edge_pack_incompatible_pref_files=(/etc/apt/preferences.d/priorities /etc/apt/preferences.d/edgepack.pref)
+  edge_pack_incompatible_pref_files=(/etc/apt/preferences.d/priorities /etc/apt/preferences.d/edgepack.pref /etc/apt/sources.list.d/intel-edge-pack.sources /etc/apt/sources.list.d/kobuk-ppa.sources)
   edge_pack_install_options=("--no-install-recommends")
   edge_pack_allow_downgrades=(libgbm1 libgstreamer-gl1.0-0 libva-wayland2 mesa-libgallium weston libegl-mesa0 libgbm-dev libgl1-mesa-dev libgl1-mesa-dri libglx-mesa0 mesa-common-dev mesa-vulkan-drivers mesa-opencl-icd)
 
