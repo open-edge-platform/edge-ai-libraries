@@ -4,7 +4,7 @@ An experimental, cross-use-case SIFT feature extraction and matching library for
 
 ## Status
 
-This component is an early development snapshot, not a production release. The current SYCL reference backend is derived from the MIT-licensed CudaSift SYCL port. It is included to establish a reproducible build and correctness baseline; it is not yet a reentrant application API.
+This component is an early development snapshot, not a production release. The current SYCL reference backend is derived from the CudaSift SYCL port. It is included to establish a reproducible build and correctness baseline; it is not yet a reentrant application API.
 
 - SYCL extraction kernels and the original kernel smoke test are present.
 - A tiled SYCL descriptor matcher is included with deterministic basis-vector matching coverage.
@@ -166,7 +166,7 @@ portable deployment and hardware-normalization requirements.
 
 ## Source and License Provenance
 
-The reference SYCL files under `src/sycl_reference/` and `tests/sycl_reference/test_sycl_kernels.cpp` were copied from CudaSift worktree commit `7bbfacf84108aebd2300f449d3bc28ece11738a7`. The source's MIT license is retained in `LICENSES/MIT.txt`. New component files follow the Edge AI Libraries Apache-2.0 contribution policy. Review provenance and file-level licensing before redistributing derivative kernels.
+The reference SYCL files under `src/sycl_reference/` and `tests/sycl_reference/test_sycl_kernels.cpp` were derived from CudaSift worktree commit `7bbfacf84108aebd2300f449d3bc28ece11738a7`. The component is licensed under Apache-2.0 (`LICENSES/Apache-2.0.txt`). Acknowledgment of the original SIFT method is in `third_party_programs.txt`.
 
 ## Hardware Inventory
 
