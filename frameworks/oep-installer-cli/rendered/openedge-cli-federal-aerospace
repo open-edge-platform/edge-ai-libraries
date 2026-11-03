@@ -3208,7 +3208,7 @@ debian_39_install_edge_pack ()
             ensure_apt_key "$edge_pack_ppa_key_file" "$edge_pack_ppa_key_url" --dearmor;
             reconfigured=1;
         fi;
-        if [ ! -e "$edge_pack_ppa_source_file" ] || [ $reinstall -eq 1 ]; then
+        if [ ! -e "$edge_pack_ppa_list_file" ] || [ $reinstall -eq 1 ]; then
             ensure_apt_source "$edge_pack_ppa_list_file" "$edge_pack_ppa_source";
             reconfigured=1;
         fi;
