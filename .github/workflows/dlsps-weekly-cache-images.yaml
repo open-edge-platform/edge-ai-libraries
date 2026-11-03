@@ -1,8 +1,9 @@
 name: "[DLSPS] [U22/U24/U26] Build weekly cache imgs"
 run-name: "[DLSPS] [U22/U24/U26] Build weekly cache imgs"
 on:
-  branches:
-    - nsz-dlsps-u26-fixes
+  push:
+    branches:
+      - 'nsz-dlsps-u26-fixes'
   schedule:
     - cron: '0 5 * * MON' # 5:00 UTC each Monday
   workflow_dispatch:
