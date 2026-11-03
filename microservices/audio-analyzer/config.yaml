@@ -1,7 +1,10 @@
 app:
   name: Audio Analyzer
   cleanup_on_exit: true
-  clear_storage_on_startup: true  # delete all session folders under storage/ at startup
+  # Opt-in: set true to delete all session folders under storage/ at startup.
+  # Default false preserves previously stored session data (and the contents
+  # of the storage/ named volume) across restarts.
+  clear_storage_on_startup: false
   use_ov_genai: True # True or False, applicable for provider: openvino
 
 models:

@@ -236,8 +236,12 @@ phase_00_prereqs() {
   # get local issuer certificate" -- a host prerequisite gap, not a product
   # bug -- so refresh it proactively rather than letting it surface later as
   # a confusing mid-install failure.
-  check "ca-certificates is installed and up to date" \
-    bash -c 'sudo apt-get update -qq && sudo apt-get install -y -qq --reinstall ca-certificates && sudo update-ca-certificates >/dev/null'
+  if sudo -n true 2>/dev/null; then
+    check "ca-certificates is installed and up to date" \
+      bash -c 'sudo apt-get update -qq && sudo apt-get install -y -qq --reinstall ca-certificates && sudo update-ca-certificates >/dev/null'
+  else
+    skip "ca-certificates is installed and up to date" "no passwordless sudo"
+  fi
 
   if ! command -v shellcheck >/dev/null 2>&1; then
     note "shellcheck not found; attempting apt install (informational phase only)"
@@ -387,6 +391,12 @@ phase_02_selfcheck() {
     bash -c "awk '/^ensure_openvino_model_server\\(\\)/,/^}/' '$REPO_ROOT/scripts/lib/openvino.sh' | grep -q 'group_add_args=\"\$(intel_gpu_docker_group_add_args)\"'"
   check "export_model_via_docker_pull passes --device/--group-add when targeting GPU (was missing --device entirely)" \
     bash -c "awk '/^export_model_via_docker_pull\\(\\)/,/^}/' '$REPO_ROOT/scripts/lib/openvino.sh' | grep -q 'gpu_args=\"\$(intel_gpu_docker_device_args)\"'"
+  check "startup.sh rejects a malformed proxy variable before installing anything" \
+    bash -c "grep -q '^  assert_proxy_env_well_formed\$' '$REPO_ROOT/startup.sh'"
+  check "install.sh announces the served model name after the endpoint is resolved" \
+    bash -c "grep -q '^  announce_served_model_name\$' '$REPO_ROOT/scripts/install.sh'"
+  check "install.sh's onboard command loads nvm before resolving the served model name" \
+    bash -c "grep -B8 '^    run_agent_onboard\$' '$REPO_ROOT/scripts/install.sh' | grep -q 'nvm use'"
 }
 
 phase_03_libunit() {
@@ -453,6 +463,30 @@ phase_03_libunit() {
   check_output_contains "model_dir_name: strips the org prefix" "Qwen2.5-0.5B-Instruct" lib_eval 'model_dir_name Qwen/Qwen2.5-0.5B-Instruct'
   check_output_contains "model_dir_name: makes an Ollama tag filesystem-safe" "llama3.2-3b" lib_eval 'model_dir_name llama3.2:3b'
 
+  check "assert_proxy_env_well_formed: accepts clean proxy values" \
+    lib_eval 'HTTP_PROXY=http://p:912 ALL_PROXY=http://p:1080 all_proxy=http://p:1080; assert_proxy_env_well_formed'
+  check "assert_proxy_env_well_formed: accepts no proxy at all" \
+    lib_eval 'unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy; assert_proxy_env_well_formed'
+  check_fail_output_contains "assert_proxy_env_well_formed: rejects a stray trailing quote and names the variable" "ALL_PROXY" \
+    lib_eval 'ALL_PROXY="http://p:1080\""; assert_proxy_env_well_formed'
+  check_fail "assert_proxy_env_well_formed: rejects whitespace in a proxy URL" \
+    lib_eval 'https_proxy="http://p:912 "; assert_proxy_env_well_formed'
+
+  check_output_contains "hermes_model_setting: reads model.default" "OpenVINO/X" \
+    lib_eval 'f="$(mktemp)"; printf "model:\n  default: OpenVINO/X\n  base_url: http://h:8010/v1\nkanban:\n  default: nope\n" >"$f"; HERMES_CONFIG="$f" hermes_model_setting default'
+  check_output_contains "hermes_model_setting: strips quotes and reads base_url" "http://h:8010/v1" \
+    lib_eval 'f="$(mktemp)"; printf "model:\n  base_url: \"http://h:8010/v1\"\n" >"$f"; HERMES_CONFIG="$f" hermes_model_setting base_url'
+  check_output_contains "warn_if_hermes_model_mismatch: flags the org-prefixed name against this Router" "hermes config set model.default Qwen3-ov" \
+    lib_eval 'f="$(mktemp)"; printf "model:\n  default: OpenVINO/Qwen3-ov\n  base_url: http://h:8010/v1\n" >"$f"; HERMES_CONFIG="$f" warn_if_hermes_model_mismatch http://h:8010/v1 Qwen3-ov'
+  check "warn_if_hermes_model_mismatch: silent when Hermes uses another endpoint" \
+    lib_eval 'f="$(mktemp)"; printf "model:\n  default: gpt-x\n  base_url: https://api.example.com/v1\n" >"$f"; out="$(HERMES_CONFIG="$f" warn_if_hermes_model_mismatch http://h:8010/v1 Qwen3-ov)"; [[ -z "$out" ]]'
+  check "warn_if_hermes_model_mismatch: silent when the served name is the unresolved 'default' fallback" \
+    lib_eval 'f="$(mktemp)"; printf "model:\n  default: Qwen3-ov\n  base_url: http://h:8010/v1\n" >"$f"; out="$(HERMES_CONFIG="$f" warn_if_hermes_model_mismatch http://h:8010/v1 default)"; [[ -z "$out" ]]'
+  check_output_contains "announce_served_model_name: explains the dropped org prefix" "exactly 'Qwen3-ov'" \
+    lib_eval 'HARNESS_HF_MODEL=OpenVINO/Qwen3-ov HARNESS_LLM_MODEL=Qwen3-ov; announce_served_model_name'
+  check "announce_served_model_name: silent when the names already match" \
+    lib_eval 'HARNESS_HF_MODEL=my-model HARNESS_LLM_MODEL=my-model; out="$(announce_served_model_name)"; [[ -z "$out" ]]'
+
   check "model_hub_unserved_reason: openvino may be served" lib_eval 'model_hub_unserved_reason openvino'
   check "model_hub_unserved_reason: remote-url may be served (if it has a graph.pbtxt)" lib_eval 'model_hub_unserved_reason remote-url'
   check_fail "model_hub_unserved_reason: ollama is not served (yet)" lib_eval 'model_hub_unserved_reason ollama'
@@ -496,6 +530,23 @@ phase_03_libunit() {
   check_fail "ovms_model_registered: does not match a different name" \
     lib_eval 'HARNESS_MODELS_DIR=$(mktemp -d); printf "%s" "{\"model_config_list\":[{\"config\":{\"name\":\"a\",\"base_path\":\"a\"}}]}" > "$HARNESS_MODELS_DIR/config.json"; ovms_model_registered b'
   check_fail "ovms_model_registered: false when there is no config.json" lib_eval 'HARNESS_MODELS_DIR=$(mktemp -d); ovms_model_registered a'
+
+  # ensure_chat_end_token_stops runs python3 on the host (or in the -py image).
+  check_output_contains "ovms_pull_image_for: a pre-converted OpenVINO/* model is pulled with the serving image" "serve:1" \
+    lib_eval 'HARNESS_OVMS_IMAGE=serve:1 HARNESS_OVMS_EXPORT_IMAGE=export:1; ovms_pull_image_for OpenVINO/Qwen3.5-9B-int4-ov'
+  check_output_contains "ovms_pull_image_for: any other model is converted with the -py image" "export:1" \
+    lib_eval 'HARNESS_OVMS_IMAGE=serve:1 HARNESS_OVMS_EXPORT_IMAGE=export:1; ovms_pull_image_for Qwen/Qwen3-8B'
+  local eos_cfg='d=$(mktemp -d); printf "%s" "{\"eos_token\":\"<|im_end|>\"}" > "$d/tokenizer_config.json"; printf "%s" "{\"added_tokens\":[{\"id\":7,\"content\":\"<|im_end|>\"}]}" > "$d/tokenizer.json"; '
+  if command -v python3 >/dev/null 2>&1; then
+    check_output_contains "ensure_chat_end_token_stops: adds the tokenizer eos_token id to a scalar eos_token_id" '[7,5]' \
+      lib_eval "$eos_cfg"'printf "%s" "{\"eos_token_id\":5}" > "$d/generation_config.json"; ensure_chat_end_token_stops "$d" >/dev/null; tr -d " \n" < "$d/generation_config.json"'
+    check_output_contains "ensure_chat_end_token_stops: leaves a config that already has the id unchanged" '[5,7]' \
+      lib_eval "$eos_cfg"'printf "%s" "{\"eos_token_id\":[5,7]}" > "$d/generation_config.json"; ensure_chat_end_token_stops "$d" >/dev/null; tr -d " \n" < "$d/generation_config.json"'
+    check_output_contains "ensure_chat_end_token_stops: is idempotent" '[7,5]' \
+      lib_eval "$eos_cfg"'printf "%s" "{\"eos_token_id\":5}" > "$d/generation_config.json"; ensure_chat_end_token_stops "$d" >/dev/null; ensure_chat_end_token_stops "$d" >/dev/null; tr -d " \n" < "$d/generation_config.json"'
+  else
+    skip "ensure_chat_end_token_stops checks" "python3 not installed"
+  fi
 
   # The model name onboarding wires an agent to.
   local hint_cfg='HARNESS_MODELS_DIR=$(mktemp -d); printf "%s" "{\"model_config_list\":[{\"config\":{\"name\":\"a\",\"base_path\":\"a\"}}]}" > "$HARNESS_MODELS_DIR/config.json"; '
@@ -792,8 +843,11 @@ phase_12_inference() {
       env NON_INTERACTIVE=1 bash "$REPO_ROOT/install.sh" --harness "$SMOKE_PRIMARY_AGENT" --non-interactive --skip-gpu-check --model "$SMOKE_HF_MODEL"
     local model_name="${SMOKE_HF_MODEL##*/}"
     check_output_contains "models list shows the exported model" "$model_name" bash "$REPO_ROOT/install.sh" models list
-    check_output_contains "OVMS readiness endpoint responds for the exported model" "" \
-      curl -sf "http://127.0.0.1:8000/v2/models/${model_name}/ready"
+    # Published ports bind to the advertised host, so 127.0.0.1 is not always reachable; OVMS may still be loading after the restart.
+    local probe_host
+    probe_host="$(lib_eval 'resolve_probe_host')"
+    check_with_retry "OVMS readiness endpoint responds for the exported model" 10 \
+      curl -sf "http://${probe_host}:8000/v2/models/${model_name}/ready"
     check "models remove cleans it up" bash "$REPO_ROOT/install.sh" models remove "$model_name"
 
     # --model-hub alone selects the Model Download exporter (no

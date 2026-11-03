@@ -12,6 +12,17 @@
   `scene-config.yaml` and `rules.yaml` from `/app/configs` (or `CONFIG_DIR`,
   or the `configs/` directory next to the source in standalone runs).
 
+- `network ... declared as external, but could not be found`: this happens
+  when `SCENESCAPE_NETWORK_EXTERNAL=true` and the network named by
+  `SCENESCAPE_NETWORK_NAME` does not exist. Start Scenescape first, set
+  `SCENESCAPE_NETWORK_NAME` to the network it created (`docker network ls`),
+  or unset `SCENESCAPE_NETWORK_EXTERNAL` so Compose creates the network.
+
+- `network ... was found but has incorrect label com.docker.compose.network`:
+  the existing network was created by another Compose project under a
+  different network key. Set `SCENESCAPE_NETWORK_EXTERNAL=true` to reuse it
+  as-is.
+
 ## No Sessions / No Alerts Appear
 
 This usually means the service is running but not receiving Scenescape events.

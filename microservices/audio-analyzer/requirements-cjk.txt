@@ -9,3 +9,5 @@
 # or build the image with: --build-arg INSTALL_CJK=true
 funasr==1.2.7
 modelscope>=1.15.0
+# FunASR imports distutils.version; Python 3.12 needs setuptools' compatibility shim.
+setuptools==80.9.0

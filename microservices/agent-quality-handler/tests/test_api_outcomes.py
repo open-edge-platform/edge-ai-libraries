@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 from src import main
 from src.batch_event_subscriber import BatchEvent
+from src.routing.agent_registry import AgentSpec, DEFAULT_REGISTRY
 from src.utility.output_store import AgentOutputStore
 from src.utility.output_store import OutputStoreError
 
@@ -45,8 +46,8 @@ def client():
     return TestClient(main.app)
 
 
-def _result(errors=None):
-    return {
+def _result(errors=None, extra_agents=None):
+    result = {
         "use_case_id": "case",
         "policy": {"policy": True},
         "analysis": {},
@@ -55,6 +56,21 @@ def _result(errors=None):
         "errors": errors or [],
         "error": errors[0]["message"] if errors else None,
     }
+    if extra_agents is not None:
+        result["extra_agents"] = extra_agents
+    return result
+
+
+def _custom_specs():
+    return [
+        *DEFAULT_REGISTRY,
+        AgentSpec(
+            name="correlation",
+            module="tests.fake_correlation_agent",
+            depends_on=("analysis",),
+            prompt_section="CORRELATION",
+        ),
+    ]
 
 
 def _event(**overrides):
@@ -270,7 +286,7 @@ def test_status_results_and_metrics_include_queue_state(client):
     assert "aqh_agent_runs_completed 1" in metrics
 
 
-def test_agent_output_endpoints_query_persisted_run(client):
+def test_agent_output_endpoints_query_persisted_run(monkeypatch, client):
     main._create_run(
         "persisted",
         source="mqtt",
@@ -278,11 +294,43 @@ def test_agent_output_endpoints_query_persisted_run(client):
         max_id=20,
         metadata={"device": "camera-west"},
     )
+    completed_at = 1784563200.0
+    monkeypatch.setattr(main, "_RUN_RETENTION_SECONDS", 10**12)
+    monkeypatch.setattr(main.time, "time", lambda: completed_at)
     main._store_result("persisted", "completed", _result())
 
-    response = client.get("/agents/outputs/policy")
-    assert response.status_code == 200
-    assert set(response.json()["runs"]) == {"persisted"}
+    expected_record = {
+        "run_id": "persisted",
+        "run_status": "completed",
+        "source": "mqtt",
+        "min_id": 10,
+        "max_id": 20,
+        "completed_at": completed_at,
+        "completed_at_iso": "2026-07-20T16:00:00+00:00",
+        "batch_metadata": {"device": "camera-west"},
+        "errors": [],
+        "run_errors": [],
+    }
+    expected_outputs = {
+        "policy": {"policy": True},
+        "analysis": {},
+        "evidence": {},
+        "ticket": {},
+    }
+
+    for agent, output in expected_outputs.items():
+        response = client.get(f"/agents/outputs/{agent}")
+        assert response.status_code == 200
+        assert response.json() == {
+            "schema_version": "1.0",
+            "agent": agent,
+            "runs": {
+                "persisted": {
+                    **expected_record,
+                    "output": output,
+                }
+            },
+        }
 
     record = client.get("/agents/outputs/policy/persisted").json()
     assert record["run_id"] == "persisted"
@@ -290,6 +338,44 @@ def test_agent_output_endpoints_query_persisted_run(client):
     assert record["batch_metadata"] == {"device": "camera-west"}
     assert client.get("/agents/outputs/unknown").status_code == 404
     assert client.get("/agents/outputs/policy/missing").status_code == 404
+
+
+def test_agent_output_endpoints_accept_configured_extra_agent(monkeypatch, client, tmp_path):
+    monkeypatch.setattr(
+        main,
+        "_output_store",
+        AgentOutputStore(tmp_path, specs=_custom_specs()),
+    )
+    main._create_run("extra-agent", source="http")
+    main._store_result(
+        "extra-agent",
+        "completed",
+        _result(extra_agents={"correlation": {"score": 0.91, "summary": "linked"}}),
+    )
+
+    response = client.get("/agents/outputs/correlation")
+    assert response.status_code == 200
+    assert set(response.json()["runs"]) == {"extra-agent"}
+
+    record = client.get("/agents/outputs/correlation/extra-agent").json()
+    assert record["run_id"] == "extra-agent"
+    assert record["output"] == {"score": 0.91, "summary": "linked"}
+
+
+def test_results_endpoint_passes_through_extra_agents_map(client):
+    main._create_run("extra-results", source="http")
+    main._store_result(
+        "extra-results",
+        "completed",
+        _result(extra_agents={"correlation": {"score": 0.91, "summary": "linked"}}),
+    )
+
+    response = client.get("/agents/results/extra-results")
+
+    assert response.status_code == 200
+    assert response.json()["extra_agents"] == {
+        "correlation": {"score": 0.91, "summary": "linked"}
+    }
 
 
 def test_output_persistence_failure_is_an_explicit_terminal_error(monkeypatch):

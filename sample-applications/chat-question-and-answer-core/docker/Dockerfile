@@ -2,28 +2,41 @@
 # SPDX-License-Identifier: Apache-2.0
 FROM python:3.11-slim AS python-base
 
-# Define a build-time variable to determine if GPU drivers should be installed
-ARG USE_GPU=false
-ARG INSTALL_DRIVER_VERSION="26.09.37435"
 ARG UID=1000
 ARG GID=1000
-
-RUN echo "USE_GPU is set to $USE_GPU"
 
 # Copy drivers and set execute permission on sh files
 COPY ./drivers/install_gpu_drivers.sh /tmp/drivers/install_gpu_drivers.sh
 RUN chmod +x /tmp/drivers/install_gpu_drivers.sh
 
-# Install GPU drivers if required
-RUN if [ "$USE_GPU" = "true" ]; then \
-    echo "Installing GPU drivers version $INSTALL_DRIVER_VERSION"; \
+# Install GPU drivers
+ARG INSTALL_DRIVER_VERSION="26.31.39395"
+
+RUN echo "Installing GPU drivers version $INSTALL_DRIVER_VERSION"; \
     apt-get update && apt-get install -y --no-install-recommends ca-certificates libxml2; \
     /tmp/drivers/install_gpu_drivers.sh; \
-    else \
-    echo "USE_GPU is set to false. No GPU drivers will be installed. Only CPU is supported."; \
     apt-get clean && \
-    rm -rf /tmp/drivers /var/lib/apt/lists/* /tmp/*; \
-    fi
+    rm -rf /tmp/drivers /var/lib/apt/lists/* /tmp/*
+
+# Install the Intel NPU user-space stack: the NPU
+# driver/compiler/firmware plus the oneAPI Level Zero loader (libze1). The
+# loader is mandatory — without libze_loader.so.1 the NPU plugin cannot
+# enumerate the device. The final test fails the build if it is missing.
+ARG NPU_DRIVER_VERSION="1.38.0"
+ARG NPU_DRIVER_BUILD="v1.38.0.20260910-34487311128-ubuntu2404"
+ARG LEVEL_ZERO_VERSION="1.32.0-1~24.04~ppa1"
+ARG LEVEL_ZERO_PPA_SNAPSHOT="20260830T100000Z"
+
+RUN mkdir -p /tmp/npu_deps && cd /tmp/npu_deps \
+    && echo "Installing Intel NPU driver version ${NPU_DRIVER_VERSION}" \
+    && apt-get update && apt-get install -y --no-install-recommends curl ca-certificates libtbb12 \
+    && curl -L --retry 5 --retry-delay 5 --retry-all-errors -O https://github.com/intel/linux-npu-driver/releases/download/v${NPU_DRIVER_VERSION}/linux-npu-driver-${NPU_DRIVER_BUILD}.tar.gz \
+    && tar -xf linux-npu-driver-${NPU_DRIVER_BUILD}.tar.gz \
+    && curl -L --retry 5 --retry-delay 5 --retry-all-errors -O https://snapshot.ppa.launchpadcontent.net/kobuk-team/intel-graphics/ubuntu/${LEVEL_ZERO_PPA_SNAPSHOT}/pool/main/l/level-zero-loader/libze1_${LEVEL_ZERO_VERSION}_amd64.deb \
+    && dpkg -i ./*.deb \
+    && ldconfig \
+    && test -e /usr/lib/x86_64-linux-gnu/libze_loader.so.1 \
+    && rm -rf /tmp/npu_deps /var/lib/apt/lists/*
 
 # Setting env vars for python and pip
 ENV PYTHONUNBUFFERED=1 \

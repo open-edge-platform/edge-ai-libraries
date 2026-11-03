@@ -1,5 +1,3 @@
-
-# ROS 2 distribution, auto-selected from the Ubuntu codename:
 #   Ubuntu 22.04 (jammy) -> ROS 2 Humble
 #   Ubuntu 24.04 (noble) -> ROS 2 Jazzy
 # https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/robotics/gsg_robot/index.html
@@ -60,7 +58,7 @@ remove_osrf_gazebo_ros2 () {
 
 sbom_osrf_gazebo_ros2 () {
   configure_osrf_gazebo_ros2
-  ensure_sbom_format name $osrf_name
+  ensure_sbom_format repo-name $osrf_name
   ensure_sbom_format gpg-key "$osrf_key_url"
   ensure_sbom_format key-file "$osrf_key"
   ensure_sbom_format apt-source "$osrf_entry"

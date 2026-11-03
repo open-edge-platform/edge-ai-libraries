@@ -206,8 +206,8 @@ audioanalyzer:
   name: audioanalyzer
   claimSize: "3Gi"
   service:
-    port: 8000
-    targetPort: 8000
+    port: 8010
+    targetPort: 8010
     type: ClusterIP
 
 videoingestion:

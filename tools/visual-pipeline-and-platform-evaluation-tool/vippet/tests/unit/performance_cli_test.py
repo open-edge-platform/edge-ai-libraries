@@ -7,7 +7,6 @@ import io
 import json
 import os
 import shutil
-import stat
 import subprocess
 import sys
 import tempfile
@@ -24,6 +23,7 @@ from tests.performance.perf_helpers.reporters import generate_html_report
 from tests.performance.perf_helpers.settings import (
     ENV_CONFIG_FILE,
     SPECS,
+    read_cli_layer,
     resolve_settings,
 )
 
@@ -79,6 +79,7 @@ class TestParser(unittest.TestCase):
             "--pipelines",
             "a,b",
             "--no-skip-missing-models",
+            "--no-save-log",
         )
         self.assertEqual(
             cli.cli_overrides(ns),
@@ -87,6 +88,7 @@ class TestParser(unittest.TestCase):
                 "benchmark.stream_counts": [1, 5],
                 "benchmark.pipelines": ["a", "b"],
                 "benchmark.filters.skip_missing_models": False,
+                "results.save_log": False,
             },
         )
 
@@ -98,6 +100,9 @@ class TestParser(unittest.TestCase):
             ["--streams", "0"],
             ["--base-url", "file:///etc/passwd"],
             ["--output-mode", "stdout"],
+            ["--metrics-trim-fraction", "0.5"],
+            ["--metrics-trim-fraction", "1"],
+            ["--metrics-trim-fraction", "-0.1"],
             ["--dry-run", "--report-only"],
             ["--dry-run", "--report-only", "x"],
         ):
@@ -163,6 +168,29 @@ class TestDryRun(unittest.TestCase):
         self.assertIn("LPR Net", text)
         self.assertIn("benchmark.filters.skip_pipelines", text)
 
+    def test_dry_run_counts_missing_model_runs_when_not_skipped(self) -> None:
+        settings = resolve_settings(
+            "default",
+            env={},
+            cli_overrides={
+                "benchmark.filters.skip_pipelines": ["sp"],
+                "benchmark.filters.skip_missing_models": False,
+            },
+        )
+        out = io.StringIO()
+        rc = cli.run_dry_run(
+            settings,
+            discover=self._discover,
+            preflight=Mock(),
+            stdout=out,
+            stderr=io.StringIO(),
+        )
+        self.assertEqual(rc, 0)
+        text = out.getvalue()
+        self.assertIn("Matrix: 4 run(s)", text)
+        self.assertIn("Missing models, will run anyway: 2 run(s)", text)
+        self.assertNotIn("Skipped at run time", text)
+
     def test_main_dry_run_does_not_submit_jobs(self) -> None:
         runner = Mock()
         with (
@@ -186,14 +214,43 @@ class TestDryRun(unittest.TestCase):
         self.assertIn("down", err.getvalue())
 
     def test_discovery_failure_exits_2(self) -> None:
+        err = io.StringIO()
         rc = cli.run_dry_run(
             self.settings,
             discover=Mock(side_effect=RuntimeError("boom")),
             preflight=Mock(),
             stdout=io.StringIO(),
-            stderr=io.StringIO(),
+            stderr=err,
         )
         self.assertEqual(rc, 2)
+        self.assertIn(
+            "ViPPET reported ready, but reading its inventory", err.getvalue()
+        )
+        self.assertIn("RuntimeError: boom", err.getvalue())
+        self.assertIn("To fix:", err.getvalue())
+
+    def test_all_excluded_explains_what_to_change(self) -> None:
+        out = io.StringIO()
+        rc = cli.run_dry_run(
+            self.settings,
+            discover=lambda settings: build_matrix(
+                _PIPELINES,
+                [{"device_family": "GPU"}],
+                {},
+                MatrixFilters.from_settings(settings),
+            ),
+            preflight=Mock(),
+            stdout=out,
+            stderr=io.StringIO(),
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("note: All 4 discovered pipeline/variant(s)", out.getvalue())
+        self.assertIn("To fix: widen --pipelines / --variants", out.getvalue())
+
+    def test_matrix_renderer_is_shared_with_pytest(self) -> None:
+        from tests.performance.perf_helpers import matrix
+
+        self.assertIs(cli.format_matrix, matrix.format_matrix)
 
 
 _RESULT: dict[str, Any] = {
@@ -499,38 +556,35 @@ class TestReportOnly(unittest.TestCase):
 
 
 class TestRunPytest(unittest.TestCase):
-    def test_passes_resolved_config_to_pytest(self) -> None:
-        settings = resolve_settings(
-            "quick",
-            env={},
-            cli_overrides={
-                "vippet.base_url": "http://cli:9/api/v1",
-                "benchmark.stream_counts": [7],
-            },
-        )
+    def test_passes_cli_layer_to_pytest(self) -> None:
+        overrides = {
+            "vippet.base_url": "http://cli:9/api/v1",
+            "benchmark.stream_counts": [7],
+        }
+        settings = resolve_settings("quick", env={}, cli_overrides=overrides)
+        cli_layer = {"config": "quick", "overrides": overrides}
         seen: dict[str, Any] = {}
 
         def runner(cmd: list[str], env: dict[str, str], check: bool) -> Any:
-            path = Path(env[ENV_CONFIG_FILE])
             seen["cmd"] = cmd
             seen["env"] = env
-            seen["path"] = path
-            seen["mode"] = stat.S_IMODE(os.stat(path).st_mode)
-            seen["reloaded"] = resolve_settings(env=env)
+            seen["reloaded"] = resolve_settings(env=env, **read_cli_layer(env))
             return subprocess.CompletedProcess(cmd, 5)
 
-        rc = cli.run_pytest(settings, ["-k", "x"], base_env={}, runner=runner)
+        rc = cli.run_pytest(cli_layer, ["-k", "x"], base_env={}, runner=runner)
 
         self.assertEqual(rc, 5)
         self.assertEqual(seen["cmd"][1:5], ["-m", "pytest", "-m", "perf"])
         self.assertEqual(seen["cmd"][-2:], ["-k", "x"])
         self.assertIn(str(cli.PERF_DIR), seen["cmd"])
-        self.assertEqual(seen["env"]["VIPPET_BASE_URL"], "http://cli:9/api/v1")
+        self.assertNotIn(ENV_CONFIG_FILE, seen["env"])
+        # Resolved values are not exported, or they would show up as "env".
+        self.assertNotIn("VIPPET_BASE_URL", seen["env"])
         self.assertEqual(seen["reloaded"]["benchmark.stream_counts"], [7])
         self.assertEqual(dict(seen["reloaded"].values), dict(settings.values))
-        if os.name == "posix":
-            self.assertEqual(seen["mode"], 0o600)
-        self.assertFalse(seen["path"].exists(), "temp config must be removed")
+        # Same sources as the CLI's own resolution, so the artefact is accurate.
+        self.assertEqual(dict(seen["reloaded"].sources), dict(settings.sources))
+        self.assertEqual(seen["reloaded"].sources["vippet.base_url"], "cli")
 
     def test_perf_dir_always_passed_before_passthrough(self) -> None:
         test_file = str(cli.PERF_DIR / "test_pipeline_performance.py")

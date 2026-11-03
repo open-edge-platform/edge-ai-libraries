@@ -9,6 +9,7 @@ from typing import List, Optional, Union
 class InternalCameraType(str, Enum):
     USB = "USB"
     NETWORK = "NETWORK"
+    GIGE = "GIGE"
 
 
 @dataclass
@@ -57,8 +58,27 @@ class InternalNetworkCameraDetails:
 
 
 @dataclass
+class InternalGigECapture:
+    pixel_format: Optional[str] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    fps: Optional[float] = None
+
+
+@dataclass
+class InternalGigECameraDetails:
+    ip: str
+    vendor: Optional[str] = None
+    model: Optional[str] = None
+    serial: Optional[str] = None
+    current_capture: Optional[InternalGigECapture] = None
+
+
+@dataclass
 class InternalCamera:
     device_id: str
     device_name: str
     device_type: InternalCameraType
-    details: Union[InternalUSBCameraDetails, InternalNetworkCameraDetails]
+    details: Union[
+        InternalUSBCameraDetails, InternalNetworkCameraDetails, InternalGigECameraDetails
+    ]

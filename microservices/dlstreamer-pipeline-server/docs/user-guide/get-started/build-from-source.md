@@ -1,8 +1,11 @@
 # Build from Source
 
 You can build either an optimized or an extended DL Streamer Pipeline Server image (for both
-Ubuntu22 and Ubuntu24) based on your use case. The extended image contains the Geti SDK, the
-OpenVINO™ Model API and ROS2 on top of the optimized image.
+Ubuntu22 and Ubuntu24) based on your use case. The extended image contains the OpenVINO™ Model
+API and ROS2 on top of the optimized image. The Geti SDK is not included. Its [upstream
+repository](https://github.com/open-edge-platform/geti-sdk) is archived and deprecated, is no
+longer maintained, supports Geti v2.x but not v3.0+, and reports known security issues. Therefore,
+Geti-specific model download and inference features are unavailable in these images.
 
 > [!NOTE]
 > Ensure to set the right values in the `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env`
