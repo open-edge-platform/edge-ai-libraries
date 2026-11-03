@@ -702,19 +702,34 @@ __kernel void scatter_feature_records(__global const float *refined,
   groups[destination] = octave * (intervals + 3) + level;
 }
 
-__kernel void gather_dispatch_points(__global const float *unique_records,
-                                      __global const int *source_indices,
-                                      __global const float *host_sigmas,
-                                      __global float *points,
-                                      const int count) {
+__kernel void gather_dispatch_features(__global const float *unique_records,
+                                        __global const int *unique_groups,
+                                        __global const int *source_indices,
+                                        __global const float *host_sigmas,
+                                        __global const int *level_meta,
+                                        __global float *points,
+                                        __global int *layout,
+                                        const int count,
+                                        const int level_count) {
   const int index = (int)get_global_id(0);
   if (index >= count) return;
   const int source = source_indices[index];
   __global const float *record = unique_records + source * 8;
   points[index * 4 + 0] = record[0];
   points[index * 4 + 1] = record[1];
+  // Host std::exp2 sigma: device exp2 can differ by 1 ULP.
   points[index * 4 + 2] = host_sigmas[index];
   points[index * 4 + 3] = 0.0f;
+  const int group = unique_groups[source];
+  if (group < 0 || group >= level_count) {
+    layout[index * 3 + 0] = 0;
+    layout[index * 3 + 1] = 0;
+    layout[index * 3 + 2] = 0;
+    return;
+  }
+  layout[index * 3 + 0] = level_meta[group * 3 + 0];
+  layout[index * 3 + 1] = level_meta[group * 3 + 1];
+  layout[index * 3 + 2] = level_meta[group * 3 + 2];
 }
 
 __kernel void pack_orientations(__global const float *points,
@@ -807,7 +822,7 @@ struct OpenCLDoGExtrema::Impl {
     Buffer magnitude, orientation, points, output, layout;
     Buffer gradient_layout;
     Buffer counts, descriptor_points, descriptor_layout, descriptors, orientation_sources;
-    Buffer unique_records, source_indices, host_sigmas;
+    Buffer unique_records, unique_groups, source_indices, host_sigmas, level_meta;
     size_t descriptor_capacity = 0;
     size_t unique_record_count = 0;
     bool resident_orientation_points = false;
@@ -817,7 +832,7 @@ struct OpenCLDoGExtrema::Impl {
     ~FeatureScratch() {
       for (auto *buffer : {&magnitude, &orientation, &points, &output, &layout, &gradient_layout,
                &counts, &descriptor_points, &descriptor_layout, &descriptors, &orientation_sources,
-               &unique_records, &source_indices, &host_sigmas})
+               &unique_records, &unique_groups, &source_indices, &host_sigmas, &level_meta})
         if (buffer->memory) clReleaseMemObject(buffer->memory);
       if (event) clReleaseEvent(event);
       if (descriptor_event) clReleaseEvent(descriptor_event);
@@ -854,6 +869,7 @@ struct OpenCLDoGExtrema::Impl {
     std::vector<float> host_sigmas;
     std::vector<float> packed;
     std::vector<int> layout;
+    std::vector<int> level_meta;
     std::vector<int> image_offsets;
     std::vector<char> occupied;
     size_t gradient_count = 0;
@@ -925,6 +941,7 @@ struct OpenCLDoGExtrema::Impl {
     FeatureDispatch dispatch;
     dispatch.image_offsets.assign(gaussian.size(), 0);
     dispatch.occupied.assign(gaussian.size(), 0);
+    dispatch.level_meta.assign(gaussian.size() * 3, 0);
     std::vector<std::vector<IndexedKeypoint>> groups(gaussian.size());
     for (const auto &entry : keypoints) {
       const int level = std::clamp(static_cast<int>(std::lround(entry.point.local.scale)),
@@ -948,12 +965,17 @@ struct OpenCLDoGExtrema::Impl {
       dispatch.gradient_count += padded_count;
       dispatch.occupied[group] = 1;
       ++dispatch.feature_groups;
+      dispatch.level_meta[group * 3 + 0] = gaussian[group].width;
+      dispatch.level_meta[group * 3 + 1] = gaussian[group].height;
+      dispatch.level_meta[group * 3 + 2] = dispatch.image_offsets[group];
       for (const auto &entry : groups[group]) {
         dispatch.ordered_points.push_back(entry.point);
         dispatch.source_indices.push_back(entry.source_index);
         dispatch.host_sigmas.push_back(entry.point.octave_sigma);
         dispatch.packed.insert(dispatch.packed.end(),
           {entry.point.local.x, entry.point.local.y, entry.point.octave_sigma, 0.0f});
+        // Host layout retained for size checks / non-resident paths; extract
+        // gathers the same triples on-device from level_meta[unique_groups].
         dispatch.layout.insert(dispatch.layout.end(),
           {gaussian[group].width, gaussian[group].height, dispatch.image_offsets[group]});
       }
@@ -1106,13 +1128,19 @@ struct OpenCLDoGExtrema::Impl {
     if (total == 0) return;
     cl_mem combined = ensure_buffer(scratch.unique_records, CL_MEM_READ_WRITE,
                                     total * 8 * sizeof(float));
+    cl_mem combined_groups = ensure_buffer(scratch.unique_groups, CL_MEM_READ_WRITE,
+                                           total * sizeof(int));
     size_t destination = 0;
     for (const auto *octave : octaves) {
       if (!octave || octave->unique_count == 0) continue;
-      const size_t bytes = static_cast<size_t>(octave->unique_count) * 8 * sizeof(float);
+      const size_t record_bytes = static_cast<size_t>(octave->unique_count) * 8 * sizeof(float);
+      const size_t group_bytes = static_cast<size_t>(octave->unique_count) * sizeof(int);
       check_opencl(clEnqueueCopyBuffer(queue, octave->records.memory, combined, 0,
-        destination * 8 * sizeof(float), bytes, 0, nullptr, nullptr),
+        destination * 8 * sizeof(float), record_bytes, 0, nullptr, nullptr),
         "concatenate unique feature records");
+      check_opencl(clEnqueueCopyBuffer(queue, octave->groups.memory, combined_groups, 0,
+        destination * sizeof(int), group_bytes, 0, nullptr, nullptr),
+        "concatenate unique feature groups");
       destination += octave->unique_count;
     }
   }
@@ -1122,47 +1150,62 @@ struct OpenCLDoGExtrema::Impl {
     if (dispatch.ordered_points.empty()) return;
     if (dispatch.source_indices.size() != dispatch.ordered_points.size() ||
         dispatch.host_sigmas.size() != dispatch.ordered_points.size() ||
-        dispatch.layout.size() != dispatch.ordered_points.size() * 3)
+        dispatch.layout.size() != dispatch.ordered_points.size() * 3 ||
+        dispatch.level_meta.size() % 3 != 0 || dispatch.level_meta.empty())
       throw std::logic_error("Feature dispatch source mapping is incomplete");
-    if (scratch.unique_record_count == 0)
+    if (scratch.unique_record_count == 0 || !scratch.unique_groups.memory)
       throw std::logic_error("Missing device-resident unique feature records");
-    for (auto entry : {std::make_pair(&gather_dispatch_kernel, "gather_dispatch_points")}) {
+    for (auto entry : {std::make_pair(&gather_dispatch_kernel, "gather_dispatch_features")}) {
       if (*entry.first) continue;
       cl_int status = CL_SUCCESS;
       *entry.first = clCreateKernel(program, entry.second, &status);
-      check_opencl(status, "clCreateKernel(gather dispatch points)");
+      check_opencl(status, "clCreateKernel(gather dispatch features)");
     }
     const int count = static_cast<int>(dispatch.ordered_points.size());
+    const int level_count = static_cast<int>(dispatch.level_meta.size() / 3);
     cl_mem points = ensure_buffer(scratch.points, CL_MEM_READ_WRITE,
                                   dispatch.ordered_points.size() * 4 * sizeof(float));
-    cl_mem layout = ensure_buffer(scratch.layout, CL_MEM_READ_ONLY,
+    // Layout is written on-device from level_meta[unique_groups[source]].
+    cl_mem layout = ensure_buffer(scratch.layout, CL_MEM_READ_WRITE,
                                   dispatch.layout.size() * sizeof(int));
     cl_mem sources = ensure_buffer(scratch.source_indices, CL_MEM_READ_ONLY,
                                    dispatch.source_indices.size() * sizeof(int));
     cl_mem sigmas = ensure_buffer(scratch.host_sigmas, CL_MEM_READ_ONLY,
                                   dispatch.host_sigmas.size() * sizeof(float));
-    // Layout triples are host-derived (width/height/gradient offset). Point x/y
-    // are gathered from device unique records; sigma uses host std::exp2 values.
+    cl_mem level_meta = ensure_buffer(scratch.level_meta, CL_MEM_READ_ONLY,
+                                      dispatch.level_meta.size() * sizeof(int));
+    // Uploads: ordered source indices + host std::exp2 sigmas + compact
+    // per-level {width,height,gradient_offset}. Per-point layout triples are
+    // no longer uploaded.
     check_opencl(clEnqueueWriteBuffer(queue, sources, CL_FALSE, 0,
       dispatch.source_indices.size() * sizeof(int), dispatch.source_indices.data(), 0, nullptr, nullptr),
       "resident source index upload");
     check_opencl(clEnqueueWriteBuffer(queue, sigmas, CL_FALSE, 0,
       dispatch.host_sigmas.size() * sizeof(float), dispatch.host_sigmas.data(), 0, nullptr, nullptr),
       "resident host sigma upload");
-    check_opencl(clEnqueueWriteBuffer(queue, layout, CL_FALSE, 0,
-      dispatch.layout.size() * sizeof(int), dispatch.layout.data(), 0, nullptr, nullptr),
-      "resident layout upload");
+    check_opencl(clEnqueueWriteBuffer(queue, level_meta, CL_FALSE, 0,
+      dispatch.level_meta.size() * sizeof(int), dispatch.level_meta.data(), 0, nullptr, nullptr),
+      "resident level meta upload");
     cl_mem records = scratch.unique_records.memory;
+    cl_mem groups = scratch.unique_groups.memory;
     check_opencl(clSetKernelArg(gather_dispatch_kernel, 0, sizeof(records), &records),
       "gather records");
-    check_opencl(clSetKernelArg(gather_dispatch_kernel, 1, sizeof(sources), &sources),
+    check_opencl(clSetKernelArg(gather_dispatch_kernel, 1, sizeof(groups), &groups),
+      "gather groups");
+    check_opencl(clSetKernelArg(gather_dispatch_kernel, 2, sizeof(sources), &sources),
       "gather sources");
-    check_opencl(clSetKernelArg(gather_dispatch_kernel, 2, sizeof(sigmas), &sigmas),
+    check_opencl(clSetKernelArg(gather_dispatch_kernel, 3, sizeof(sigmas), &sigmas),
       "gather sigmas");
-    check_opencl(clSetKernelArg(gather_dispatch_kernel, 3, sizeof(points), &points),
+    check_opencl(clSetKernelArg(gather_dispatch_kernel, 4, sizeof(level_meta), &level_meta),
+      "gather level meta");
+    check_opencl(clSetKernelArg(gather_dispatch_kernel, 5, sizeof(points), &points),
       "gather points");
-    check_opencl(clSetKernelArg(gather_dispatch_kernel, 4, sizeof(count), &count),
+    check_opencl(clSetKernelArg(gather_dispatch_kernel, 6, sizeof(layout), &layout),
+      "gather layout");
+    check_opencl(clSetKernelArg(gather_dispatch_kernel, 7, sizeof(count), &count),
       "gather count");
+    check_opencl(clSetKernelArg(gather_dispatch_kernel, 8, sizeof(level_count), &level_count),
+      "gather level count");
     const size_t global = static_cast<size_t>(count);
     check_opencl(clEnqueueNDRangeKernel(queue, gather_dispatch_kernel, 1, nullptr, &global,
       nullptr, 0, nullptr, nullptr), "gather dispatch launch");
@@ -2205,8 +2248,9 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
   const auto difference_end = std::chrono::steady_clock::now();
   // Extract path: keep refined records on-device, emit unique mapped records with
   // sigma/group tags, host-cap/group via build_feature_dispatch, then gather
-  // group-ordered orientation points from device unique records (no float4 points
-  // upload). detect_* APIs retain host hash membership and the refined round trip.
+  // group-ordered orientation points and layout from device unique records/groups
+  // (no float4 points upload; layout derived from compact level_meta). detect_*
+  // APIs retain host hash membership and the refined round trip.
   const size_t levels_per_octave = static_cast<size_t>(intervals) + 2;
   if (differences.size() != static_cast<size_t>(octave_count) * levels_per_octave)
     throw std::invalid_argument("DoG pyramid does not match extractor configuration");
@@ -2373,6 +2417,7 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
                  "extrema_refine_ms=%.3f orientation_ms=%.3f "
                  "descriptor_ms=%.3f "
                  "resident_feature_handoff=1 resident_orientation_points=1 "
+                 "resident_layout_gather=1 "
                  "total_ms=%.3f gaussian_levels=%zu dog_levels=%zu "
                  "keypoints=%zu features=%zu feature_groups=%zu\n",
                  milliseconds(profile_start, difference_end),
