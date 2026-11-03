@@ -19,8 +19,11 @@ This component is an early development snapshot, not a production release. The c
 - Dual-backend dispatch is the Phase B item-7 OPTION: keep OpenCL and SYCL with
   explicit selection (`Backend::Auto` prefers SYCL for Arc speed, not quality).
   See [backend selection](docs/backend-selection.md). Public packaging, pkg-config,
-  a native sample and optional Python bindings are available; matching/geometry,
-  release soak and CudaSift quality floor remain open.
+  a native sample, optional Python bindings, and optional thin OpenCV type adapters
+  (`SIFT_BUILD_OPENCV_ADAPTER`) are available; matching/geometry, release soak and
+  CudaSift quality floor remain open. The OpenCV adapters wrap the core Extractor
+  with `cv::Mat`/`cv::KeyPoint` only—they are not OpenCV features2d SIFT or Phase D
+  upstream work.
 - Existing source-derived timings and reported CudaSift results are not performance claims for this component.
 
 The legacy reference backend uses a process-global SYCL queue and scratch buffers. Do not use concurrent extraction calls. Its API and numerical behavior are not yet a stable compatibility contract. The OpenCL correctness path uses host-visible vectors between stages and independent contexts for pyramid and feature processing; it is not an optimized device-resident pipeline. Feature sampling uses the nearest Gaussian level and local sigma derived from a DoG geometric-center convention; reference parity is outstanding. Refinement is single-step, not iterative relocation.
@@ -73,6 +76,20 @@ features = ext.extract(np.zeros((64, 64), dtype=np.float32))
 ```
 
 Native sample: `extract_sift [auto|opencl|sycl]`.
+
+Optional OpenCV adapters (`-DSIFT_BUILD_OPENCV_ADAPTER=ON`, OpenCV `core` only):
+
+```cpp
+#include <sift_extractor/opencv_adapter.hpp>
+sift_extractor::experimental::Extractor extractor(w, h, backend);
+std::vector<cv::KeyPoint> keypoints;
+cv::Mat descriptors;
+sift_extractor::experimental::opencv::detect_and_compute(
+    extractor, gray_u8_or_f32, keypoints, descriptors);
+```
+
+Sample: `extract_sift_opencv [auto|opencl|sycl]`. `KeyPoint::size` is
+`2 * SiftFeature::scale` (diameter presentation). Core remains OpenCV-free.
 
 ## Build and Test
 

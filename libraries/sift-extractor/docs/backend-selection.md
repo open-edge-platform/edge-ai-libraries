@@ -36,6 +36,9 @@ current OpenCL contract matters more than raw Arc speed.
 
 ## Follow-ons enabled by this OPTION
 
-Packaging (CMake package + pkg-config + sample) and Python bindings may proceed
-with the dual-dispatch contract documented above. Release soak, held-out quality
-and REUSE gates remain open.
+Packaging (CMake package + pkg-config + sample), Python bindings, and optional
+thin OpenCV type adapters (`SIFT_BUILD_OPENCV_ADAPTER`) may proceed with the
+dual-dispatch contract documented above. The OpenCV adapters convert
+`cv::Mat`/`cv::KeyPoint` around the core Extractor only; they are not OpenCV
+features2d SIFT or Phase D upstream work. Release soak, held-out quality and
+REUSE gates remain open.

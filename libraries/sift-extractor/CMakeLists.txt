@@ -9,14 +9,20 @@ option(SIFT_BUILD_TESTS "Build SIFT component tests" ${BUILD_TESTING})
 option(SIFT_ENABLE_OPENCV_VALIDATION "Build optional real-pair diagnostic tools" OFF)
 option(SIFT_BUILD_SAMPLES "Build native SIFT sample applications" ON)
 option(SIFT_BUILD_PYTHON "Build Python bindings (requires pybind11)" OFF)
+option(SIFT_BUILD_OPENCV_ADAPTER
+  "Build thin OpenCV type adapters around the core Extractor" OFF)
 
 set(SIFT_EXTRACTOR_HAS_OPENCL 0)
 set(SIFT_EXTRACTOR_HAS_SYCL 0)
+set(SIFT_EXTRACTOR_HAS_OPENCV_ADAPTER 0)
 if(SIFT_ENABLE_OPENCL)
   set(SIFT_EXTRACTOR_HAS_OPENCL 1)
 endif()
 if(SIFT_ENABLE_SYCL)
   set(SIFT_EXTRACTOR_HAS_SYCL 1)
+endif()
+if(SIFT_BUILD_OPENCV_ADAPTER)
+  set(SIFT_EXTRACTOR_HAS_OPENCV_ADAPTER 1)
 endif()
 
 configure_file(
@@ -238,6 +244,28 @@ if(SIFT_ENABLE_OPENCL OR SIFT_ENABLE_SYCL)
     target_link_libraries(extract_sift PRIVATE sift_extractor)
   endif()
 
+  if(SIFT_BUILD_OPENCV_ADAPTER)
+    find_package(OpenCV REQUIRED COMPONENTS core)
+    add_library(sift_opencv_adapter STATIC src/opencv_adapter.cpp)
+    target_compile_features(sift_opencv_adapter PUBLIC cxx_std_17)
+    target_include_directories(sift_opencv_adapter PUBLIC
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+      $<BUILD_INTERFACE:${SIFT_GENERATED_INCLUDE_DIR}>
+      $<INSTALL_INTERFACE:include>
+      ${OpenCV_INCLUDE_DIRS})
+    target_link_libraries(sift_opencv_adapter PUBLIC sift_extractor ${OpenCV_LIBS})
+    set_target_properties(sift_opencv_adapter PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    if(SIFT_BUILD_SAMPLES)
+      add_executable(extract_sift_opencv samples/extract_sift_opencv.cpp)
+      target_link_libraries(extract_sift_opencv PRIVATE sift_opencv_adapter)
+    endif()
+    if(SIFT_BUILD_TESTS)
+      add_executable(test_opencv_adapter tests/test_opencv_adapter.cpp)
+      target_link_libraries(test_opencv_adapter PRIVATE sift_opencv_adapter)
+      add_test(NAME sift_opencv_adapter.conversion COMMAND test_opencv_adapter)
+    endif()
+  endif()
+
   if(SIFT_BUILD_PYTHON)
     include(FetchContent)
     FetchContent_Declare(
@@ -279,6 +307,12 @@ endif()
 if(TARGET extract_sift)
   list(APPEND SIFT_INSTALL_TARGETS extract_sift)
 endif()
+if(TARGET sift_opencv_adapter)
+  list(APPEND SIFT_INSTALL_TARGETS sift_opencv_adapter)
+endif()
+if(TARGET extract_sift_opencv)
+  list(APPEND SIFT_INSTALL_TARGETS extract_sift_opencv)
+endif()
 
 if(SIFT_INSTALL_TARGETS)
   install(TARGETS ${SIFT_INSTALL_TARGETS} EXPORT sift_extractorTargets
@@ -293,6 +327,10 @@ if(SIFT_INSTALL_TARGETS)
     ${CMAKE_CURRENT_BINARY_DIR}/include/sift_extractor/version.hpp
     DESTINATION include/sift_extractor
   )
+  if(TARGET sift_opencv_adapter)
+    install(FILES include/sift_extractor/opencv_adapter.hpp
+      DESTINATION include/sift_extractor)
+  endif()
   if(TARGET sift_extractor_py)
     install(TARGETS sift_extractor_py LIBRARY DESTINATION lib/python3/dist-packages)
   endif()
