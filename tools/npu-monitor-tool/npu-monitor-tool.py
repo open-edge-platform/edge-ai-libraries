@@ -114,6 +114,52 @@ class CpuGen(enum.IntEnum):
             return "Wildcat Lake"
         return ""
 
+# NPU PLL reference clock in Hz (kernel: PLL_REF_CLK_FREQ_MHZ = 50 in ivpu_hw_btrs.c).
+PLL_REF_CLK_FREQ_HZ = 50_000_000
+
+# Generations that use the MTL buttress (kernel: ivpu_hw_btrs_gen() in ivpu_drv.h
+# returns IVPU_HW_BTRS_MTL for PCI_DEVICE_ID_MTL and PCI_DEVICE_ID_ARL).
+# Everything else (LNL, PTL, WCL, NVL) uses the LNL buttress.
+MTL_BUTTRESS_GENS = frozenset({CpuGen.MTL, CpuGen.ARL})
+
+# Each VPU_MEMORY_BW register is a 32-bit counter (bits 31:0) that
+# PmtTelemetry.get_noc_bandwidth() scales by 1/1e3. One counter wrap therefore
+# shows up as a negative delta of this many (scaled) units.
+NOC_BW_COUNTER_WRAP_MB = (2 ** 32) / 1e3
+
+def pll_ratio_to_hz(cpu_gen: Optional[CpuGen], pll_ratio: int) -> float:
+    """Convert a VPU_WORKPOINT PLL ratio to the NPU (DPU) clock in Hz.
+
+    Same per-buttress formula as the kernel's ``pll_ratio_to_mhz_{mtl,lnl}()``:
+
+    - MTL buttress (MTL, ARL): ``ratio * 50 MHz * 2 / 3`` (e.g. 48 -> 1.6e9 Hz)
+    - LNL buttress (LNL, PTL, ...): ``ratio * 50 MHz / 2`` (e.g. 78 -> 1.95e9 Hz)
+    """
+    freq_hz = pll_ratio * PLL_REF_CLK_FREQ_HZ
+    if cpu_gen in MTL_BUTTRESS_GENS:
+        return freq_hz * 2 / 3
+    return freq_hz / 2
+
+def noc_bandwidth_rate_mbs(prev_mb: float, curr_mb: float, elapsed_s: float) -> float:
+    """Convert two consecutive ``get_noc_bandwidth()`` reads into an MB/s rate.
+
+    A negative delta means a 32-bit hardware counter wrapped; the full counter
+    range is added back once per wrap instead of clamping the rate to 0.
+
+    Raises:
+        ValueError: if ``elapsed_s`` is not strictly positive.
+    """
+    if elapsed_s <= 0:
+        raise ValueError('elapsed_s must be > 0')
+    delta_mb = curr_mb - prev_mb
+    while delta_mb < 0:
+        delta_mb += NOC_BW_COUNTER_WRAP_MB
+    return delta_mb / elapsed_s
+
+def csv_cell(value, fmt: str = '') -> str:
+    """Render one CSV cell; ``None`` (value not measurable on this platform) becomes empty."""
+    return '' if value is None else format(value, fmt)
+
 def run_command(command: str, timeout: Optional[float] = None) -> subprocess.CompletedProcess:
     """Execute a shell command safely without shell=True."""
     try:
@@ -216,17 +262,14 @@ class PmtTelemetry:
         except (FileNotFoundError, PermissionError, OSError) as e:
             LOG.error('Failed to read telemetry data: %s', e)
 
-    def get_freq(self) -> float:
-        """Get VPU frequency in MHz."""
-        raw = self.read(self.regs['VPU_WORKPOINT'], 7, 0) if 'VPU_WORKPOINT' in self.regs else 0
-        if self.cpu_gen == CpuGen.MTL:
-            return 2 * raw / 3 / 10
-        return 0.05 * raw
+    def get_freq_hz(self) -> float:
+        """Get NPU (DPU) clock frequency in Hz.
 
-    def get_display_freq_hz(self) -> float:
-        """Get display frequency in Hz (converts MHz to Hz with hardware-specific scaling)."""
-        freq_mhz = self.get_freq()
-        return (freq_mhz * 1000) / 2
+        Decodes the VPU_WORKPOINT PLL ratio (bits 7:0) with the kernel's
+        per-buttress formula, see :func:`pll_ratio_to_hz`.
+        """
+        raw = self.read(self.regs['VPU_WORKPOINT'], 7, 0) if 'VPU_WORKPOINT' in self.regs else 0
+        return pll_ratio_to_hz(self.cpu_gen, raw)
 
     def get_voltage(self) -> int:
         """Get VPU voltage reading."""
@@ -423,27 +466,31 @@ def main(): # pylint: disable=too-many-branches
                 subprocess.run([CLEAR_CMD], check=False) # nosec B603
 
             if prev_busy_time is None or curr_busy_time is None:
-                utilization = 0
-                LOG.warning('read_busy_time() returned None; setting utilization to 0.')
+                # npu_busy_time_us not exposed (or unreadable): report N/A, not a fake 0.
+                utilization = None
+                LOG.debug('read_busy_time() returned None; utilization is N/A.')
             else:
                 # delta is in microseconds, interval is in milliseconds
                 delta_us = curr_busy_time - prev_busy_time
                 interval_us = interval * 1000
                 if interval_us <= 0:
-                    utilization = 0
-                    LOG.warning('Interval is zero or negative; setting utilization to 0 to avoid division by zero.')
+                    utilization = None
+                    LOG.warning('Interval is zero or negative; utilization is N/A.')
                 else:
                     utilization = min(100, int(100 * delta_us / interval_us))
 
             mem_util_raw = npu_mon.read_mem_util()
-            # from bytes to MB
-            try:
-                mem_util_mb = float(int(mem_util_raw)) / KB / KB
-            except (TypeError, ValueError) as err:
-                LOG.warning('Failed to parse memory utilization: %s', err)
-                mem_util_mb = -1.0
+            mem_util_mb = None
+            if mem_util_raw is None:
+                LOG.debug('Memory utilization sysfs node not found.')
+            else:
+                # from bytes to MB
+                try:
+                    mem_util_mb = float(int(mem_util_raw)) / KB / KB
+                except (TypeError, ValueError) as err:
+                    LOG.warning('Failed to parse memory utilization: %s', err)
 
-            if mem_util_mb >= 0:
+            if mem_util_mb is not None:
                 if mem_util_mb > MB_TO_GB:
                     mem_util = mem_util_mb / MB_TO_GB
                     mem_util_unit = 'GB'
@@ -452,7 +499,6 @@ def main(): # pylint: disable=too-many-branches
                     mem_util_unit = 'MB'
                 mem_util_str = f'{mem_util:>31.2f} [{mem_util_unit}]'
             else:
-                LOG.debug('Memory utilization sysfs node not found.')
                 mem_util_str = f'{"N/A":>31} [--]'
 
             pu.update_buffer()
@@ -460,22 +506,20 @@ def main(): # pylint: disable=too-many-branches
             curr_energy = pu.get_npu_energy()
             power = (curr_energy - prev_energy) / (interval * 1e-3)
             prev_energy = curr_energy
-            freq_mhz = pu.get_freq()
-            freq_hz = pu.get_display_freq_hz()
+            freq_hz = pu.get_freq_hz()
             tile_config = pu.get_tile_config()
 
             temp = pu.get_npu_temperature()
 
             curr_bandwidth = pu.get_noc_bandwidth()
             curr_bandwidth_ts = time_module.monotonic()
-            bandwidth_delta = curr_bandwidth - prev_bandwidth
             dt_s = curr_bandwidth_ts - prev_bandwidth_ts
 
-            # Guard against clock quirks and counter resets/wrap.
+            # Rate over the actual elapsed time, with 32-bit counter wrap corrected.
             if dt_s <= 0:
                 bandwidth_mbps = 0.0
             else:
-                bandwidth_mbps = max(0.0, bandwidth_delta / dt_s)
+                bandwidth_mbps = noc_bandwidth_rate_mbs(prev_bandwidth, curr_bandwidth, dt_s)
 
             if bandwidth_mbps > MB_TO_GB:
                 bandwidth = bandwidth_mbps / MB_TO_GB
@@ -486,8 +530,11 @@ def main(): # pylint: disable=too-many-branches
 
             if csv_file:
                 timestamp = time_module.time()
-                csv_file.write(f'{timestamp},{power},{freq_hz},{bandwidth_delta},{tile_config},{temp},{utilization},{mem_util_mb},{pciid}\n')
+                # frequency in Hz, bandwidth in MB/s; unsupported values are left empty.
+                csv_file.write(f'{timestamp},{power},{freq_hz:.0f},{bandwidth_mbps},{tile_config},{temp},{csv_cell(utilization)},{csv_cell(mem_util_mb)},{pciid}\n')
                 csv_file.flush()
+
+            util_str = f'{"N/A":>27}' if utilization is None else f'{utilization:>26}%'
 
             print( '+-----------------------------------------------------------------------------------------------+')
             print(f'| INTEL NPU Device: {pciid:>6} | version: {driver_version:>57} |')
@@ -495,10 +542,10 @@ def main(): # pylint: disable=too-many-branches
             print(f'| {fw_version[75:]:<94}|')
             print( '+===============================================================================================+')
             print( '|       Power Usage        |      DPU Freq        | NPU DDR Average Bandwidth |    Tile Conf    |')
-            print(f'|{round(power, 3):>21} [W] |{round(freq_hz):>16} [Hz] | {round(bandwidth, 3):>18.2f} [{bw_unit}] | {tile_config:>15} |')
+            print(f'|{round(power, 3):>21} [W] |{round(freq_hz / 1e6):>15} [MHz] | {round(bandwidth, 3):>18.2f} [{bw_unit}] | {tile_config:>15} |')
             print( '+===============================================================================================+')
             print( '|       NPU Temperature    |       NPU Utilization       |      Memory Usage                    |')
-            print(f'| {temp:>19} [°C] | {utilization:>26}% | {mem_util_str} |')
+            print(f'| {temp:>19} [°C] | {util_str} | {mem_util_str} |')
             print( '+-----------------------------------------------------------------------------------------------+')
             prev_busy_time = curr_busy_time
             prev_bandwidth = curr_bandwidth

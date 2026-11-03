@@ -1,0 +1,172 @@
+/* Copyright (C) 2026 Intel Corporation; SPDX-License-Identifier: Apache-2.0 */
+/* Shared by the source-management form and the narrow canvas inspector. */
+.source-options {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  margin-top: 12px;
+  color: var(--text);
+  text-align: start;
+}
+
+.source-options *,
+.source-options *::before,
+.source-options *::after {
+  box-sizing: border-box;
+}
+
+.source-options [hidden] {
+  display: none !important;
+}
+
+.source-options .so-stack,
+.source-options .so-instructions {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.source-options .so-section {
+  display: grid;
+  gap: 10px;
+  min-inline-size: 0;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 10px);
+  background: var(--panel2);
+}
+
+.source-options .so-title {
+  max-width: 100%;
+  padding: 0 5px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: .35px;
+  overflow-wrap: anywhere;
+}
+
+.source-options .so-field {
+  min-width: 0;
+}
+
+.source-options .so-label {
+  display: block;
+  margin: 0 0 5px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.source-options .so-control {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.source-options textarea.so-control {
+  min-height: 88px;
+  resize: vertical;
+  overflow-wrap: anywhere;
+}
+
+.source-options .so-control::placeholder {
+  color: var(--muted);
+  opacity: .85;
+}
+
+.source-options .so-control:focus {
+  border-color: var(--accent);
+}
+
+.source-options .so-control:focus-visible,
+.source-options .so-advanced > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.source-options .so-control:disabled {
+  cursor: not-allowed;
+  opacity: .65;
+}
+
+.source-options .so-hint,
+.source-options .so-neutral {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.source-options .so-section > .so-hint {
+  margin-top: 0;
+}
+
+.source-options .so-neutral {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+}
+
+.source-options .so-advanced {
+  min-width: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.source-options .so-advanced > summary {
+  border-radius: 3px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.source-options .so-advanced > summary::marker {
+  color: var(--accent);
+}
+
+.source-options .so-advanced[open] > summary {
+  margin-bottom: 12px;
+}
+
+.source-options .so-alert,
+.source-options .so-error {
+  margin: 5px 0 0;
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.source-options .so-alert {
+  margin: 0;
+  padding: 9px 11px;
+  border: 1px solid var(--danger);
+  border-inline-start-width: 3px;
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.source-options .so-control[aria-invalid="true"] {
+  border-color: var(--danger);
+}

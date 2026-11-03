@@ -4349,7 +4349,7 @@ ensure_parse_value_option ()
     local key="$1";
     shift;
     local v v1 value="";
-    for v in $*;
+    for v in "$@";
     do
         case "$v" in 
             "--$key="*)
@@ -4412,13 +4412,6 @@ ensure_prop ()
     local op="$1" key_path="${2:?}" value="${3:-}";
     local key_base="$(ensure_project_path)/${installer_name:?}";
     case "$op" in 
-        set)
-            ( umask 077;
-            printf '%s' "$value" > "$key_base/$key_path" )
-        ;;
-        get)
-            [ -r "$key_base/$key_path" ] && cat "$key_base/$key_path" || printf '%s' "$value"
-        ;;
         find)
             ( cd "$key_base" && find . -ipath "./$key_path" -print 2> /dev/null | cut -f2- -d/ )
         ;;
@@ -4433,6 +4426,36 @@ ensure_prop ()
                     rm -rf "$key_base/${key_path%/}";
                 fi;
             fi
+        ;;
+        get)
+            [ ! -r "$key_base/$key_path" ] || value="$(< "$key_base/$key_path")";
+            if [[ " $* " = *" --boolean "* ]]; then
+                [[ " true yes t y a accept " = *" ${value,,} "* ]] && value="true" || value="false";
+            fi;
+            printf '%s' "$value"
+        ;;
+        set)
+            local prompt="$(ensure_parse_value_option prompt "$@")";
+            if [[ -n "$prompt" && -z "$value" ]]; then
+                local rundir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}";
+                [ -d "$rundir" ] && [ -w "$rundir" ] || rundir="$(ensure_project_path)/${installer_name:?}";
+                mkdir -p "$rundir" 2> /dev/null || return 1;
+                { 
+                    flock -w 300 -e 9 || { 
+                        echo "ensure_prop: timed out waiting for another installer" 1>&2;
+                        return 1
+                    };
+                    local askpass_helper="$rundir"/askpass-prop;
+                    export -n OEP_PROP_INPUT;
+                    act_panelled_logs_askpass "$askpass_helper" OEP_PROP_INPUT || { 
+                        echo "ensure_prop: failed to create askpass helper" 1>&2;
+                        return 1
+                    };
+                    value="$("$askpass_helper" "$prompt" | tr -d '\n')"
+                } 9< "$rundir";
+            fi;
+            ( umask 077;
+            printf '%s' "$value" > "$key_base/$key_path" )
         ;;
     esac
 }
