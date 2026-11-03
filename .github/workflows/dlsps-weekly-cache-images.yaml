@@ -1,6 +1,8 @@
 name: "[DLSPS] [U22/U24/U26] Build weekly cache imgs"
 run-name: "[DLSPS] [U22/U24/U26] Build weekly cache imgs"
 on:
+  branches:
+    - nsz-dlsps-u26-fixes
   schedule:
     - cron: '0 5 * * MON' # 5:00 UTC each Monday
   workflow_dispatch:
@@ -16,7 +18,7 @@ on:
         default: main
 permissions: {}
 env:
-  dlstreamer-version: "2026.0.0"
+  dlstreamer-version: "2026.3.0"
   DLS_REL_PATH: "./edge-ai-libraries-repo/libraries/dlstreamer"
 
 jobs:
