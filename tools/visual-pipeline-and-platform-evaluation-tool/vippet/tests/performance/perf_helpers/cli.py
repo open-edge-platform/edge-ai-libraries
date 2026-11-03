@@ -89,16 +89,6 @@ def build_parser() -> argparse.ArgumentParser:
             "to pytest unchanged."
         ),
     )
-    parser.add_argument(
-        "--config",
-        metavar="NAME_OR_PATH",
-        help=(
-            "Config preset name in config/ (default, quick, full), a YAML "
-            "path, or a result JSON / run directory whose recorded settings "
-            "are reused. Defaults to $PERF_CONFIG_FILE, then $PERF_CONFIG, "
-            "then 'default'."
-        ),
-    )
     mode = parser.add_mutually_exclusive_group()
 
     # Every option is collected first and registered sorted by flag, so
