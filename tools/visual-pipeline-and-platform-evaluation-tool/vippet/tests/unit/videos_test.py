@@ -1744,6 +1744,59 @@ class TestConvertToTs(unittest.TestCase):
         self.assertFalse(ok)
         self.assertTrue(any("Failed to convert" in m for m in cm.output))
 
+    def test_failed_conversion_removes_partial_output(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ts_path = os.path.join(tmp, "x.ts")
+            with open(ts_path, "wb") as f:
+                f.write(b"partial")
+            with patch("videos.PipelineRunner") as mock_runner_cls:
+                mock_runner_cls.return_value.run.side_effect = RuntimeError("boom")
+                with self.assertLogs("videos", level="ERROR"):
+                    ok = VideosManager._convert_to_ts(
+                        "/tmp/x.mp4", ts_path, "mp4", "h264"
+                    )
+            self.assertFalse(ok)
+            self.assertFalse(os.path.exists(ts_path))
+
+    def test_failed_conversion_without_output_file_is_still_reported(self):
+        with patch("videos.PipelineRunner") as mock_runner_cls:
+            mock_runner_cls.return_value.run.side_effect = RuntimeError("boom")
+            with self.assertLogs("videos", level="ERROR"):
+                ok = VideosManager._convert_to_ts(
+                    "/tmp/x.mp4", "/nonexistent-dir/x.ts", "mp4", "h264"
+                )
+        self.assertFalse(ok)
+
+    @patch("videos._EXECUTION_BACKEND", "dlsps2")
+    def test_dlsps2_backend_converts_on_dlsps_without_pre_check(self):
+        with (
+            patch("videos.Dlsps2PipelineRunner") as mock_dlsps,
+            patch("videos.PipelineRunner") as mock_local,
+        ):
+            ok = VideosManager._convert_to_ts(
+                "/videos/x.mp4", "/videos/x.ts", "mp4", "h264"
+            )
+
+        self.assertTrue(ok)
+        mock_local.assert_not_called()
+        mock_dlsps.assert_called_once_with(
+            mode="normal", max_runtime=0.0, validate_pipelines=False
+        )
+        cmd = mock_dlsps.return_value.run.call_args.args[0]
+        self.assertIn("filesrc location=/videos/x.mp4 ! qtdemux ! h264parse", cmd)
+        self.assertIn("mpegtsmux ! filesink location=/videos/x.ts", cmd)
+
+    @patch("videos._EXECUTION_BACKEND", "dlsps2")
+    def test_dlsps2_failure_returns_false(self):
+        with patch("videos.Dlsps2PipelineRunner") as mock_dlsps:
+            mock_dlsps.return_value.run.side_effect = RuntimeError("worker busy")
+            with self.assertLogs("videos", level="ERROR") as cm:
+                ok = VideosManager._convert_to_ts(
+                    "/videos/x.mp4", "/nonexistent-dir/x.ts", "mp4", "h264"
+                )
+        self.assertFalse(ok)
+        self.assertTrue(any("worker busy" in m for m in cm.output))
+
 
 class TestRegisterUploadedVideoFailures(unittest.TestCase):
     """Extra failure branches in VideosManager.register_uploaded_video."""

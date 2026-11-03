@@ -3,9 +3,10 @@
 
 # Optional overlay: runs a DLSPS 2.0 (dlstreamer-pipeline-server) instance
 # alongside VIPPET and points VIPPET's pipeline execution at it instead of the
-# local gst_runner.py subprocess: validation, and performance and density tests
-# (one DLSPS 2.0 instance per stream). Tests with latency metrics still use the
-# local runner. See vippet/dlsps2_runner.py for what is and is not supported.
+# local gst_runner.py subprocess: validation, performance and density tests
+# (one DLSPS 2.0 instance per stream) and the TS conversion of videos. Tests
+# with latency metrics still use the local runner. See vippet/dlsps2_runner.py
+# for what is and is not supported.
 #
 # Usage: make build run DLSPS2=1
 #   (or: docker compose -f compose.yml -f compose.$COMPOSE_PROFILES.yml -f compose.dlsps2.yml up -d)

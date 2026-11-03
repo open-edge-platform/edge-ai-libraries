@@ -599,6 +599,18 @@ class TestDlsps2RunnerNormal(Dlsps2RunnerTestBase):
         self.assertEqual(second.validate_posts(), [])
         self.assertEqual(len(second.calls("POST")), 3)
 
+    def test_pre_check_can_be_turned_off(self):
+        fake = _FakeStreamSet([[{"state": "COMPLETED", "avg_fps": 10.0}]])
+
+        result = self._run(self._runner(validate_pipelines=False), fake)
+
+        self.assertEqual(fake.validate_posts(), [])
+        self.assertEqual(
+            [json.loads(p.content) for p in fake.calls("POST")],
+            [{"pipeline": PIPELINE, "validate_pipeline": False}],
+        )
+        self.assertEqual(result.total_fps, 10.0)
+
     def test_invalid_launch_string_raises_before_any_instance_starts(self):
         fake = _FakeStreamSet(
             [[_running(30.0)]],

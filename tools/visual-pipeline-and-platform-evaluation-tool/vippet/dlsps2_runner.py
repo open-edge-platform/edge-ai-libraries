@@ -120,13 +120,17 @@ class Dlsps2PipelineRunner:
         enable_latency_metrics: bool = False,
         job_id: Optional[str] = None,
         base_url: Optional[str] = None,
+        validate_pipelines: bool = True,
     ):
         """Initialize the runner.
 
         Args mirror :class:`pipeline_runner.PipelineRunner.__init__` — see
-        that docstring for full semantics. ``base_url`` is adapter-specific:
-        the base URL of the DLSPS 2.0 instance to talk to (defaults to
-        ``DLSPS2_BASE_URL``).
+        that docstring for full semantics. ``base_url`` and
+        ``validate_pipelines`` are adapter-specific: the base URL of the
+        DLSPS 2.0 instance to talk to (defaults to ``DLSPS2_BASE_URL``), and
+        whether normal mode first checks each launch string with
+        ``POST /validate``. Turn the check off for a pipeline that writes a
+        file, since the check would run it once more before the real run.
 
         Raises:
             NotImplementedError: If ``enable_latency_metrics`` is True —
@@ -148,6 +152,7 @@ class Dlsps2PipelineRunner:
         self.enable_latency_metrics = enable_latency_metrics
         self.job_id = job_id
         self.base_url = (base_url or DLSPS2_BASE_URL).rstrip("/")
+        self.validate_pipelines = validate_pipelines
         self.cancelled = False
         self.logger = logger
         # Launch strings DLSPS 2.0 already accepted, reused across density iterations.
@@ -487,8 +492,8 @@ class Dlsps2PipelineRunner:
     def _run_streams(self, stream_commands: dict[str, str]) -> PipelineResult:
         """Run every stream as its own DLSPS 2.0 instance and measure each one.
 
-        Launch strings are validated first (see :meth:`_validate_new`), so
-        the instances skip DLSPS's own per-instance validation and start
+        Launch strings are validated first (see :meth:`_validate_new`, unless
+        ``validate_pipelines`` is off), so the instances skip DLSPS's own per-instance validation and start
         together. All instances go to the unpinned worker. The run lasts
         ``max_runtime`` seconds from the moment every stream reports a
         ``first_frame_time`` (``0``: until every instance ends on its own),
@@ -518,7 +523,8 @@ class Dlsps2PipelineRunner:
         statuses: dict[str, dict] = {}
 
         with self._client() as client:
-            self._validate_new(client, list(stream_commands.values()))
+            if self.validate_pipelines:
+                self._validate_new(client, list(stream_commands.values()))
             if self.cancelled:
                 return PipelineResult(exit_code=0, cancelled=True, stderr=[])
             try:
