@@ -9,7 +9,7 @@ configure_edge_pack_kernel_image () {
     version=7.0.0-30-generic
     ;;
   *)
-    echo "$ID $VERSION_ID not supported"
+    echo "$ID $VERSION_ID not supported" >&2
     return 1
     ;;
   esac
