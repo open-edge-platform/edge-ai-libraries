@@ -7,6 +7,23 @@
 
 namespace {
 
+void ClearMatchFields(sycl::queue &queue, SiftPoint *points, int count) {
+  if (!points || count <= 0)
+    return;
+  queue.submit([&](sycl::handler &command_group) {
+    command_group.parallel_for(sycl::range<1>(count), [=](sycl::id<1> id) {
+      SiftPoint &point = points[id[0]];
+      point.score = 0.0f;
+      point.ambiguity = 1.0f;
+      point.match = -1;
+      point.match_xpos = 0.0f;
+      point.match_ypos = 0.0f;
+      point.match_error = 0.0f;
+    });
+  });
+  queue.wait();
+}
+
 void MatchSiftDataSYCL(sycl::queue &queue, SiftPoint *first,
                        SiftPoint *second, int first_count,
                        int second_count) {
@@ -67,7 +84,12 @@ void MatchSiftDataSYCL(sycl::queue &queue, SiftPoint *first,
                 best_index >= 0 ? second[best_index].xpos : 0.0f;
             first[first_index].match_ypos =
                 best_index >= 0 ? second[best_index].ypos : 0.0f;
-            first[first_index].ambiguity = second_score / (best_score + 1e-6f);
+            // Without a second neighbor the Lowe ratio is undefined — treat as
+            // maximally ambiguous so callers reject the match.
+            first[first_index].ambiguity =
+                (second_score >= 0.0f)
+                    ? second_score / (best_score + 1e-6f)
+                    : 1.0f;
           }
         });
   });
@@ -77,11 +99,28 @@ void MatchSiftDataSYCL(sycl::queue &queue, SiftPoint *first,
 } // namespace
 
 double MatchSiftData(SiftData &first, SiftData &second) {
-  if (first.numPts == 0 || second.numPts == 0)
-    return 0.0;
-
   TimerGPU timer;
   auto &queue = GetSyclQueue();
+
+  if (first.numPts == 0) {
+    return 0.0;
+  }
+  if (second.numPts == 0) {
+    if (first.d_data)
+      ClearMatchFields(queue, first.d_data, first.numPts);
+    if (first.h_data) {
+      for (int index = 0; index < first.numPts; ++index) {
+        first.h_data[index].score = 0.0f;
+        first.h_data[index].ambiguity = 1.0f;
+        first.h_data[index].match = -1;
+        first.h_data[index].match_xpos = 0.0f;
+        first.h_data[index].match_ypos = 0.0f;
+        first.h_data[index].match_error = 0.0f;
+      }
+    }
+    return 0.0;
+  }
+
   MatchSiftDataSYCL(queue, first.d_data, second.d_data, first.numPts,
                     second.numPts);
 

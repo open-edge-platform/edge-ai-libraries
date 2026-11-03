@@ -22,6 +22,11 @@ public:
   SyclImage();
   ~SyclImage();
 
+  SyclImage(const SyclImage &) = delete;
+  SyclImage &operator=(const SyclImage &) = delete;
+  SyclImage(SyclImage &&other) noexcept;
+  SyclImage &operator=(SyclImage &&other) noexcept;
+
   void Allocate(int width, int height, int pitch, bool withHost,
                 float *devMem = nullptr, float *hostMem = nullptr);
   double Download();   // Copy h_data -> d_data

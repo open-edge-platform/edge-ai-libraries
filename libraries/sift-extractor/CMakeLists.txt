@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 cmake_minimum_required(VERSION 3.20)
 project(sift_extractor VERSION 0.1.0 LANGUAGES CXX)
 
@@ -40,10 +42,7 @@ if(SIFT_ENABLE_OPENCL)
       /opt/intel/oneapi/compiler/2025.3/include
     REQUIRED
   )
-  find_library(SIFT_OPENCL_LIBRARY
-    NAMES OpenCL libOpenCL.so.1
-    REQUIRED
-  )
+  find_package(OpenCL REQUIRED)
 
   add_library(sift_opencl_runtime STATIC
     src/opencl/opencl_device.cpp
@@ -63,7 +62,9 @@ if(SIFT_ENABLE_OPENCL)
   target_include_directories(sift_opencl_runtime PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/opencl
   )
-  target_link_libraries(sift_opencl_runtime PUBLIC ${SIFT_OPENCL_LIBRARY})
+  # Link the imported OpenCL target so install exports stay portable (no
+  # absolute host .so path embedded in the CMake interface).
+  target_link_libraries(sift_opencl_runtime PUBLIC OpenCL::OpenCL)
   set_target_properties(sift_opencl_runtime PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
   if(SIFT_ENABLE_OPENCV_VALIDATION)
@@ -188,6 +189,16 @@ if(SIFT_ENABLE_SYCL)
     target_compile_definitions(validate_sift_pair PRIVATE SIFT_VALIDATE_SYCL)
     target_link_libraries(validate_sift_pair PRIVATE sift_sycl_extractor)
   endif()
+  if(TARGET sift_opencl_runtime AND OpenCV_FOUND)
+    add_executable(resolution_ladder_bench benchmarks/resolution_ladder_bench.cpp)
+    target_include_directories(resolution_ladder_bench PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/include
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/sycl_reference
+      ${SIFT_GENERATED_INCLUDE_DIR}
+      ${OpenCV_INCLUDE_DIRS})
+    target_link_libraries(resolution_ladder_bench PRIVATE
+      sift_opencl_runtime sift_sycl_reference ${OpenCV_LIBS})
+  endif()
 
   if(SIFT_BUILD_TESTS)
     add_executable(test_sift_sycl_kernels
@@ -296,6 +307,11 @@ if(SIFT_ENABLE_SYCL)
     src/sycl_reference/syclSiftH.h
     src/sycl_reference/syclutils.h
     DESTINATION include/sift_extractor/sycl_reference
+  )
+  install(FILES
+    LICENSES/MIT.txt
+    third_party_programs.txt
+    DESTINATION share/sift_extractor
   )
 endif()
 if(TARGET sift_extractor)

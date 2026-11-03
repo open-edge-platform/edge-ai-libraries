@@ -52,8 +52,7 @@ void FreeSiftData(SiftData &data);
 void PrintSiftData(SiftData &data);
 
 double MatchSiftData(SiftData &data1, SiftData &data2);
-double FindHomography(SiftData &data, float *homography, int *numMatches,
-                      int numLoops = 1000, float minScore = 0.85f,
-                      float maxAmbiguity = 0.95f, float thresh = 5.0f);
+// FindHomography is intentionally not advertised until a linked
+// implementation ships with this component.
 
 #endif // SYCLSIFT_H

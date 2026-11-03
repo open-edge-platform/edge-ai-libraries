@@ -4,34 +4,25 @@ version = 1
 path = [
     "CMakeLists.txt",
     "cmake/sift_extractorConfig.cmake.in",
+    "cmake/sift_extractor.pc.in",
     "README.md",
     "REUSE.toml",
     "third_party_programs.txt",
-    "scripts/host_inventory.sh",
-    "scripts/stage_opencl_host.sh",
-    "src/sycl_reference/**",
-    "tests/sycl_reference/test_sycl_kernels.cpp",
-    "tests/sycl_reference/test_sift_extract.cpp",
-    "tests/sycl_reference/test_sift_match.cpp",
-    "include/sift_extractor/opencl_device.hpp",
-    "src/opencl/opencl_device.cpp",
-    "tests/opencl/test_opencl_device.cpp",
-    "src/opencl/opencl_gaussian_blur.cpp",
-    "src/opencl/opencl_gaussian_blur.hpp",
-    "tests/opencl/test_opencl_gaussian_blur.cpp",
-    "tests/opencl/test_opencl_dog.cpp",
-    "tests/opencl/test_opencl_downsample.cpp",
-    "src/opencl/opencl_gaussian_pyramid.hpp",
-    "src/opencl/opencl_gaussian_pyramid.cpp",
-    "tests/opencl/test_opencl_gaussian_pyramid.cpp",
-    "src/opencl/opencl_extrema.hpp",
-    "src/opencl/opencl_extrema.cpp",
-    "tests/opencl/test_opencl_extrema.cpp",
-    "tests/opencl/test_opencl_refinement.cpp",
-    "benchmarks/validate_pair.cpp",
-    "samples/soak_sift_extract.cpp",
-    "samples/time_sift_extract.cpp",
-    "samples/extract_sift.cpp",
+    "docs/**",
+    "scripts/**",
+    "python/**",
+    "include/sift_extractor/**",
+    "src/**",
+    "tests/**",
+    "benchmarks/**",
+    "samples/**",
 ]
 SPDX-FileCopyrightText = "2026 Intel Corporation"
 SPDX-License-Identifier = "Apache-2.0"
+
+# CudaSift-derived SYCL reference sources retain MIT terms in addition to the
+# Apache-2.0 packaging of this component; see third_party_programs.txt.
+[[annotations]]
+path = ["src/sycl_reference/**"]
+SPDX-FileCopyrightText = "2026 Intel Corporation"
+SPDX-License-Identifier = "Apache-2.0 AND MIT"

@@ -19,3 +19,12 @@ sift-extractor itself is licensed under Apache-2.0 (see LICENSES/Apache-2.0.txt)
    described in the work above. The algorithm is used for research and
    product evaluation; citation of the original publication is requested by
    the author.
+
+===========================================================
+
+2) CudaSift (SYCL reference mechanics baseline)
+   Upstream: https://github.com/Celebrandil/CudaSift
+   Commit: 7bbfacf (MIT License)
+
+   Portions of src/sycl_reference/ are derived from CudaSift and retain the
+   original MIT license terms. See LICENSES/MIT.txt for the full license text.

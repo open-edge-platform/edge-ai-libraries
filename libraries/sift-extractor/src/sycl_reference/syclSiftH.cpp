@@ -143,6 +143,17 @@ void ExtractSift(SiftData &siftData, SyclImage &img, int numOctaves,
   EnsureDeviceBuffers();
   auto &q = GetSyclQueue();
 
+  // Octave parameter is 1-based through ExtractSiftLoop (finest uses
+  // numOctaves). Counters need [2*numOctaves+1] and Laplace kernels need
+  // slots 1..numOctaves inside an 8*12*16 buffer — reject 8+.
+  if (numOctaves < 1 || numOctaves > 7) {
+    fprintf(stderr,
+            "ExtractSift: numOctaves=%d unsupported (valid range 1..7)\n",
+            numOctaves);
+    siftData.numPts = 0;
+    return;
+  }
+
   // Reset point counter and upload maxPts
   q.memset(g_d_PointCounter, 0, POINT_COUNTER_SIZE * sizeof(unsigned int))
       .wait();
@@ -185,7 +196,9 @@ void ExtractSift(SiftData &siftData, SyclImage &img, int numOctaves,
     q.memcpy(hostCounter, g_d_PointCounter,
               POINT_COUNTER_SIZE * sizeof(unsigned int))
         .wait();
-    siftData.numPts = hostCounter[2 * numOctaves];
+    // Orientations publish secondaries on [2*octave+1]; finest octave uses
+    // octave==numOctaves, so the inclusive count is at 2*numOctaves+1.
+    siftData.numPts = hostCounter[2 * numOctaves + 1];
     siftData.numPts =
         (siftData.numPts < siftData.maxPts ? siftData.numPts : siftData.maxPts);
     printf("SIFT extraction time =        %.2f ms %d\n", timer1.read(),
@@ -206,7 +219,7 @@ void ExtractSift(SiftData &siftData, SyclImage &img, int numOctaves,
     q.memcpy(hostCounter, g_d_PointCounter,
               POINT_COUNTER_SIZE * sizeof(unsigned int))
         .wait();
-    siftData.numPts = hostCounter[2 * numOctaves];
+    siftData.numPts = hostCounter[2 * numOctaves + 1];
     siftData.numPts =
         (siftData.numPts < siftData.maxPts ? siftData.numPts : siftData.maxPts);
     RescalePositions(siftData, 0.5f);

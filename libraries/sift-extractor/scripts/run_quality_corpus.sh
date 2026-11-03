@@ -45,6 +45,27 @@ for image in "${images[@]}"; do
     if "$validator" "$image" "$directory/pair.json" 0 "$directory/config.json" quality-export \
         > "$directory/pair.log" 2>&1; then
       status=ok
+      # Reject saturated / capacity-capped exports before scoring aggregates.
+      if [[ -f "$directory/pair.json" ]]; then
+        saturated="$(jq -r '
+          def capped($node; $cap):
+            (($node.first_features // 0) >= $cap)
+            or (($node.second_features // 0) >= $cap);
+          (.capacity // 32768) as $cap |
+          (.sycl_capacity // 32768) as $scap |
+          if (capped(.opencv_cpu_default; $cap)
+              or capped(.opencl_prototype; $cap)
+              or capped(.sycl_reference; $scap))
+            then "yes" else "no" end
+        ' "$directory/pair.json" 2>/dev/null || echo unknown)"
+        if [[ "$saturated" == "yes" ]]; then
+          status=export_saturated
+          failures=$((failures + 1))
+        elif [[ "$saturated" == "unknown" ]]; then
+          status=export_check_failed
+          failures=$((failures + 1))
+        fi
+      fi
     else
       status=pair_failed
       failures=$((failures + 1))

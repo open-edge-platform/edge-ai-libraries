@@ -54,7 +54,8 @@ void LaunchScaleDown(sycl::queue &q, float *d_Result, float *d_Data,
           xRead = (xRead < 0 ? 0 : xRead);
           xRead = (xRead >= width ? width - 1 : xRead);
 
-          int maxtx = sycl::min(dx2, width / 2 - xStart / 2);
+              int maxtx = sycl::min(dx2, width / 2 - xStart / 2);
+          const int out_h = height / 2;
 
           for (int dy = 0; dy < SCALEDOWN_H + 4; dy += 5) {
             {
@@ -65,11 +66,15 @@ void LaunchScaleDown(sycl::queue &q, float *d_Result, float *d_Data,
                     k0 * (inrow[2 * tx] + inrow[2 * tx + 4]) +
                     k1 * (inrow[2 * tx + 1] + inrow[2 * tx + 3]) +
                     k2 * inrow[2 * tx + 2];
-                if (dy >= 4 && !(dy & 1))
-                  d_Result[yWrite[dy + 0] + xWrite] =
-                      k2 * brow[tx + 2 * dx2] +
-                      k0 * (brow[tx + 0 * dx2] + brow[tx + 4 * dx2]) +
-                      k1 * (brow[tx + 1 * dx2] + brow[tx + 3 * dx2]);
+                {
+                  const int y_out = (yStart + dy + 0 - 4) / 2;
+                  if (dy >= 4 && !(dy & 1) && xWrite < width / 2 &&
+                      y_out >= 0 && y_out < out_h)
+                    d_Result[yWrite[dy + 0] + xWrite] =
+                        k2 * brow[tx + 2 * dx2] +
+                        k0 * (brow[tx + 0 * dx2] + brow[tx + 4 * dx2]) +
+                        k1 * (brow[tx + 1 * dx2] + brow[tx + 3 * dx2]);
+                }
               }
               item.barrier(sycl::access::fence_space::local_space);
             }
@@ -81,11 +86,15 @@ void LaunchScaleDown(sycl::queue &q, float *d_Result, float *d_Data,
                     k0 * (inrow[2 * tx] + inrow[2 * tx + 4]) +
                     k1 * (inrow[2 * tx + 1] + inrow[2 * tx + 3]) +
                     k2 * inrow[2 * tx + 2];
-                if (dy >= 3 && (dy & 1))
-                  d_Result[yWrite[dy + 1] + xWrite] =
-                      k2 * brow[tx + 3 * dx2] +
-                      k0 * (brow[tx + 1 * dx2] + brow[tx + 0 * dx2]) +
-                      k1 * (brow[tx + 2 * dx2] + brow[tx + 4 * dx2]);
+                {
+                  const int y_out = (yStart + dy + 1 - 4) / 2;
+                  if (dy >= 3 && (dy & 1) && xWrite < width / 2 &&
+                      y_out >= 0 && y_out < out_h)
+                    d_Result[yWrite[dy + 1] + xWrite] =
+                        k2 * brow[tx + 3 * dx2] +
+                        k0 * (brow[tx + 1 * dx2] + brow[tx + 0 * dx2]) +
+                        k1 * (brow[tx + 2 * dx2] + brow[tx + 4 * dx2]);
+                }
               }
               item.barrier(sycl::access::fence_space::local_space);
             }
@@ -97,11 +106,15 @@ void LaunchScaleDown(sycl::queue &q, float *d_Result, float *d_Data,
                     k0 * (inrow[2 * tx] + inrow[2 * tx + 4]) +
                     k1 * (inrow[2 * tx + 1] + inrow[2 * tx + 3]) +
                     k2 * inrow[2 * tx + 2];
-                if (dy >= 2 && !(dy & 1))
-                  d_Result[yWrite[dy + 2] + xWrite] =
-                      k2 * brow[tx + 4 * dx2] +
-                      k0 * (brow[tx + 2 * dx2] + brow[tx + 1 * dx2]) +
-                      k1 * (brow[tx + 3 * dx2] + brow[tx + 0 * dx2]);
+                {
+                  const int y_out = (yStart + dy + 2 - 4) / 2;
+                  if (dy >= 2 && !(dy & 1) && xWrite < width / 2 &&
+                      y_out >= 0 && y_out < out_h)
+                    d_Result[yWrite[dy + 2] + xWrite] =
+                        k2 * brow[tx + 4 * dx2] +
+                        k0 * (brow[tx + 2 * dx2] + brow[tx + 1 * dx2]) +
+                        k1 * (brow[tx + 3 * dx2] + brow[tx + 0 * dx2]);
+                }
               }
               item.barrier(sycl::access::fence_space::local_space);
             }
@@ -113,11 +126,15 @@ void LaunchScaleDown(sycl::queue &q, float *d_Result, float *d_Data,
                     k0 * (inrow[2 * tx] + inrow[2 * tx + 4]) +
                     k1 * (inrow[2 * tx + 1] + inrow[2 * tx + 3]) +
                     k2 * inrow[2 * tx + 2];
-                if (dy >= 1 && (dy & 1))
-                  d_Result[yWrite[dy + 3] + xWrite] =
-                      k2 * brow[tx + 0 * dx2] +
-                      k0 * (brow[tx + 3 * dx2] + brow[tx + 2 * dx2]) +
-                      k1 * (brow[tx + 4 * dx2] + brow[tx + 1 * dx2]);
+                {
+                  const int y_out = (yStart + dy + 3 - 4) / 2;
+                  if (dy >= 1 && (dy & 1) && xWrite < width / 2 &&
+                      y_out >= 0 && y_out < out_h)
+                    d_Result[yWrite[dy + 3] + xWrite] =
+                        k2 * brow[tx + 0 * dx2] +
+                        k0 * (brow[tx + 3 * dx2] + brow[tx + 2 * dx2]) +
+                        k1 * (brow[tx + 4 * dx2] + brow[tx + 1 * dx2]);
+                }
               }
               item.barrier(sycl::access::fence_space::local_space);
             }
@@ -129,11 +146,14 @@ void LaunchScaleDown(sycl::queue &q, float *d_Result, float *d_Data,
                     k0 * (inrow[2 * tx] + inrow[2 * tx + 4]) +
                     k1 * (inrow[2 * tx + 1] + inrow[2 * tx + 3]) +
                     k2 * inrow[2 * tx + 2];
-                if (!(dy & 1))
-                  d_Result[yWrite[dy + 4] + xWrite] =
-                      k2 * brow[tx + 1 * dx2] +
-                      k0 * (brow[tx + 4 * dx2] + brow[tx + 3 * dx2]) +
-                      k1 * (brow[tx + 0 * dx2] + brow[tx + 2 * dx2]);
+                {
+                  const int y_out = (yStart + dy + 4 - 4) / 2;
+                  if (!(dy & 1) && y_out >= 0 && y_out < out_h)
+                    d_Result[yWrite[dy + 4] + xWrite] =
+                        k2 * brow[tx + 1 * dx2] +
+                        k0 * (brow[tx + 4 * dx2] + brow[tx + 3 * dx2]) +
+                        k1 * (brow[tx + 0 * dx2] + brow[tx + 2 * dx2]);
+                }
               }
               item.barrier(sycl::access::fence_space::local_space);
             }
@@ -484,6 +504,9 @@ void LaunchFindPointsMultiNew(sycl::queue &q, float *d_Data0,
                 float nmin2 = sycl::fmin(
                   reductionScratch[tx > 0 ? tx - 1 : tx],
                   reductionScratch[tx + 1 < MEMWID ? tx + 1 : tx]);
+                // Separate min-neighbor reads from max writes on the same
+                // scratch slots so peers cannot observe a torn update.
+                item.barrier(sycl::access::fence_space::local_space);
                 reductionScratch[tx] = ymax2;
                 item.barrier(sycl::access::fence_space::local_space);
                 float nmax2 = sycl::fmax(
@@ -573,15 +596,15 @@ void LaunchFindPointsMultiNew(sycl::queue &q, float *d_Data0,
                               d_PointCounter[2 * octave - 1]);
                 unsigned int idx = atomicInc(&d_PointCounter[2 * octave + 0],
                                              0x7fffffff);
-                idx = (idx >= (unsigned int)d_MaxNumPoints
-                           ? (unsigned int)d_MaxNumPoints - 1
-                           : idx);
-                d_Sift[idx].xpos = xpos2 + pdx;
-                d_Sift[idx].ypos = ypos2 + pdy;
-                d_Sift[idx].scale = sc;
-                d_Sift[idx].sharpness = val + dval;
-                d_Sift[idx].edgeness = edge;
-                d_Sift[idx].subsampling = subsampling;
+                // Skip writes past capacity instead of clobbering the last slot.
+                if (idx < (unsigned int)d_MaxNumPoints) {
+                  d_Sift[idx].xpos = xpos2 + pdx;
+                  d_Sift[idx].ypos = ypos2 + pdy;
+                  d_Sift[idx].scale = sc;
+                  d_Sift[idx].sharpness = val + dval;
+                  d_Sift[idx].edgeness = edge;
+                  d_Sift[idx].subsampling = subsampling;
+                }
               }
             }
           }
@@ -741,6 +764,7 @@ void LaunchExtractSiftDescriptors(sycl::queue &q, SiftPoint *d_Sift,
     sycl::local_accessor<float, 1> gauss(16, cgh);
     sycl::local_accessor<float, 1> buffer(4 * 128, cgh);
     sycl::local_accessor<float, 1> sums(4, cgh);
+    sycl::local_accessor<float, 1> reduce_tmp(128, cgh);
 
     cgh.parallel_for(
         sycl::nd_range<2>(sycl::range<2>(NBLOCKS * TY, TX),
@@ -791,6 +815,10 @@ void LaunchExtractSiftDescriptors(sycl::queue &q, SiftPoint *d_Sift,
                   tex2D_bilinear(d_imgData, imgPitch, imgWidth, imgHeight,
                                   xpos + sina, ypos - cosa);
               float grad = gauss[y] * gauss[tx] * sycl::sqrt(dx * dx + dy * dy);
+              // Skip angle binning for vanishing gradients (FastAtan2 0/0).
+              if (grad <= 0.0f)
+                continue;
+
               float angf = 4.0f / 3.1415f * FastAtan2(dy, dx) + 4.0f;
 
               int hori = (tx + 2) / 4 - 1;
@@ -852,24 +880,31 @@ void LaunchExtractSiftDescriptors(sycl::queue &q, SiftPoint *d_Sift,
             buffer[idx] = combined;
             item.barrier(sycl::access::fence_space::local_space);
 
-            // Normalize twice, suppress peaks first time
-            // Use sub-group reduction within 32-thread groups
-            sycl::sub_group sg = item.get_sub_group();
-            float sum = buffer[idx] * buffer[idx];
-            for (int i = 16; i > 0; i >>= 1)
-              sum += sycl::shift_group_left(sg, sum, i);
+            // Normalize twice, suppress peaks first time. Use local-memory
+            // reduction within each 32-lane bank (subgroup-width independent).
+            reduce_tmp[idx] = buffer[idx] * buffer[idx];
+            item.barrier(sycl::access::fence_space::local_space);
+            for (int stride = 16; stride > 0; stride >>= 1) {
+              if ((idx & 31) < stride)
+                reduce_tmp[idx] += reduce_tmp[idx + stride];
+              item.barrier(sycl::access::fence_space::local_space);
+            }
             if ((idx & 31) == 0)
-              sums[idx / 32] = sum;
+              sums[idx / 32] = reduce_tmp[idx];
             item.barrier(sycl::access::fence_space::local_space);
 
             float tsum1 = sums[0] + sums[1] + sums[2] + sums[3];
             tsum1 = sycl::min(buffer[idx] * sycl::rsqrt(tsum1), 0.2f);
 
-            sum = tsum1 * tsum1;
-            for (int i = 16; i > 0; i >>= 1)
-              sum += sycl::shift_group_left(sg, sum, i);
+            reduce_tmp[idx] = tsum1 * tsum1;
+            item.barrier(sycl::access::fence_space::local_space);
+            for (int stride = 16; stride > 0; stride >>= 1) {
+              if ((idx & 31) < stride)
+                reduce_tmp[idx] += reduce_tmp[idx + stride];
+              item.barrier(sycl::access::fence_space::local_space);
+            }
             if ((idx & 31) == 0)
-              sums[idx / 32] = sum;
+              sums[idx / 32] = reduce_tmp[idx];
             item.barrier(sycl::access::fence_space::local_space);
 
             float tsum2 = sums[0] + sums[1] + sums[2] + sums[3];

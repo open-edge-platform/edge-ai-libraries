@@ -128,7 +128,10 @@ inline float tex2D_bilinear(const float *img, int pitch, int width, int height,
 inline float FastAtan2(float y, float x) {
   float absx = sycl::fabs(x);
   float absy = sycl::fabs(y);
-  float a = sycl::min(absx, absy) / sycl::max(absx, absy);
+  float maxv = sycl::max(absx, absy);
+  if (maxv == 0.0f)
+    return 0.0f;
+  float a = sycl::min(absx, absy) / maxv;
   float s = a * a;
   float r =
       ((-0.0464964749f * s + 0.15931422f) * s - 0.327622764f) * s * a + a;

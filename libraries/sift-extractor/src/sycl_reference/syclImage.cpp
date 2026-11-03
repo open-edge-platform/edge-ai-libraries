@@ -44,17 +44,66 @@ SyclImage::~SyclImage() {
     free(h_data);
   d_data = nullptr;
   h_data = nullptr;
+  d_internalAlloc = false;
+  h_internalAlloc = false;
+}
+
+SyclImage::SyclImage(SyclImage &&other) noexcept
+    : width(other.width), height(other.height), pitch(other.pitch),
+      h_data(other.h_data), d_data(other.d_data),
+      d_internalAlloc(other.d_internalAlloc),
+      h_internalAlloc(other.h_internalAlloc) {
+  other.width = other.height = other.pitch = 0;
+  other.h_data = nullptr;
+  other.d_data = nullptr;
+  other.d_internalAlloc = false;
+  other.h_internalAlloc = false;
+}
+
+SyclImage &SyclImage::operator=(SyclImage &&other) noexcept {
+  if (this != &other) {
+    auto &q = GetSyclQueue();
+    if (d_internalAlloc && d_data != nullptr)
+      sycl::free(d_data, q);
+    if (h_internalAlloc && h_data != nullptr)
+      free(h_data);
+    width = other.width;
+    height = other.height;
+    pitch = other.pitch;
+    h_data = other.h_data;
+    d_data = other.d_data;
+    d_internalAlloc = other.d_internalAlloc;
+    h_internalAlloc = other.h_internalAlloc;
+    other.width = other.height = other.pitch = 0;
+    other.h_data = nullptr;
+    other.d_data = nullptr;
+    other.d_internalAlloc = false;
+    other.h_internalAlloc = false;
+  }
+  return *this;
 }
 
 void SyclImage::Allocate(int w, int h, int p, bool withHost, float *devMem,
                          float *hostMem) {
+  auto &q = GetSyclQueue();
+  // Drop any previously owned allocations before rebinding the image.
+  if (d_internalAlloc && d_data != nullptr) {
+    sycl::free(d_data, q);
+    d_data = nullptr;
+    d_internalAlloc = false;
+  }
+  if (h_internalAlloc && h_data != nullptr) {
+    free(h_data);
+    h_data = nullptr;
+    h_internalAlloc = false;
+  }
+
   width = w;
   height = h;
   pitch = p;
   d_data = devMem;
   h_data = hostMem;
   if (!devMem) {
-    auto &q = GetSyclQueue();
     d_data = sycl::malloc_device<float>((size_t)pitch * height, q);
     if (!d_data)
       fprintf(stderr, "SyclImage: failed to allocate device memory (%d floats)\n",
