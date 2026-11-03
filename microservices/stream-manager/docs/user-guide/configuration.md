@@ -12,6 +12,10 @@ you want to change. Stream Manager uses its default value for any setting you le
 You can also start from the sample `config.json` file in the repository root. Copy it,
 then edit only the values you need.
 
+Stream Manager stops startup if the file contains invalid JSON or a value with the
+wrong type. If the file is missing or cannot be read, it logs a warning and uses
+the built-in defaults. It ignores unknown field names.
+
 This page lists each setting, its purpose, and its default value.
 
 ## config.json fields
@@ -20,9 +24,9 @@ This page lists each setting, its purpose, and its default value.
 | --- | --- | --- | --- | --- |
 | `HTTPAddr` | string | — | `:8080` | Address and port the HTTP server listens on. |
 | `BufferLength` | integer | seconds | `30` | Default rolling buffer length for a new stream. A request to `POST /streams` can override this per stream. Must be between 5 and 300. |
-| `StorageDir` | string | — | `~/.local/share/stream-manager` | Directory where the database and recordings are stored. |
-| `ConcurrentRecorders` | integer | count | `15` | Maximum number of recordings that can run at the same time. |
-| `RecordingStorageSize` | integer | gigabytes | `10` | Storage quota for recorded media and the frames and clips extracted from it. Must be between 5 and 102400. |
+| `StorageDir` | string | — | `~/.local/share/stream-manager` | Directory for the database and recordings. The service user must own the directory. Use mode `0700` to prevent group and other users from accessing it. |
+| `ConcurrentRecorders` | integer | count | `15` | Maximum number of recordings that can run at the same time. Must be between 1 and 1024. |
+| `RecordingStorageSize` | integer | GiB | `10` | Storage quota for recorded media and the frames and clips extracted from it. Must be between 5 and 102400 (5 GiB to 100 TiB). |
 
 ## Example
 
@@ -39,7 +43,7 @@ This page lists each setting, its purpose, and its default value.
 ### Where Stream Manager looks for config.json
 
 By default, Stream Manager reads `config.json` from the current directory.
-This can be changed using different options described in next sections.
+Use the options described in the following sections to select a different file.
 
 ## Host run options
 
@@ -47,15 +51,16 @@ When you build from source, use this option with `make run` or `make start`:
 
 | Option | Purpose |
 | --- | --- |
-| `CONFIG_FILE` | Select a custom configuration file instead of default `config.json`. |
+| `CONFIG_FILE` | Select a custom configuration file instead of the default `config.json`. |
 
 ```bash
 make run CONFIG_FILE=/path/to/config.json
 ```
 
-If you omit `CONFIG_FILE`, default configuration file is used.
+If you omit `CONFIG_FILE`, these Make targets use the default configuration file.
+
 See [Build From Source](build-from-source.md) for build instructions
-and running application on host.
+and instructions to run the application on the host.
 
 ## Container run options
 
@@ -87,17 +92,19 @@ container's port `8080` to a free host port and prints the access URLs.
 
 ### Container Default Settings
 
-Two settings are defined inside the published container image, and always have precedence
-over `config.json`:
+The published container image sets two environment variables. These values override
+the corresponding settings in `config.json`:
 
-| Setting | Fixed value |
+| Variable | Default value |
 | --- | --- |
-| `HTTPAddr` | `:8080` |
-| `StorageDir` | `/data` |
+| `SM_HTTP_ADDR` | `:8080` |
+| `SM_DATA_DIR` | `/data` |
 
 The Docker volume `stream-manager-data` or the selected host directory is mounted at `/data`
 inside the container. Do not try to change the listen port or storage path through a mounted
 `config.json` — it will have no effect.
+To change these values, use environment overrides with `docker run`.
+`make docker-run` does not provide options for these overrides.
 
 See [Get Started](get-started.md) and [Build From Source](build-from-source.md) for how
 to run Stream Manager with a custom `config.json`.

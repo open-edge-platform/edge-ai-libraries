@@ -30,7 +30,7 @@ set -o pipefail
 bash test/openshell-test.sh | tee openshell-offline.tap
 ```
 
-The outer suite currently reports 73 cases. Three are wrapper cases that run
+The outer suite currently reports 77 cases. Three are wrapper cases that run
 the managed-inference, lifecycle and model-default suites below. Their case
 counts must not be added to the outer count as independent top-level results.
 
@@ -38,7 +38,7 @@ counts must not be added to the outer count as independent top-level results.
 
 | Scope | Command | Current cases |
 |---|---|---|
-| Startup, runtime, profiles, boundaries, removal and nested suites | `bash test/openshell-test.sh` | 73, including three nested-suite wrappers |
+| Startup, runtime, profiles, boundaries, removal and nested suites | `bash test/openshell-test.sh` | 77, including three nested-suite wrappers |
 | Model selection and managed inference | `bash test/managed-inference-test.sh` | 33 |
 | Model lifecycle, cleanup and CLI locking | `bash test/model-lifecycle-test.sh` | 40 |
 | Agent model defaults | `node --test test/model-defaults-test.mjs` | 9; two require the Hermes image runtime |
@@ -62,8 +62,8 @@ Both relevant PRs and relevant pushes to `main` run the same offline coverage in
 the [quality-gates workflow](../../../.github/workflows/agent-harness-openshell.yml).
 CI separates the suites into named steps and TAP artifacts rather than invoking
 the nested wrappers: `HARNESS_TEST_SKIP_NESTED=1 bash test/openshell-test.sh`
-runs the 70 direct cases; the other three suites run once in their own steps.
-The all-in-one local command still runs 73 outer registrations as documented
+runs the 74 direct cases; the other three suites run once in their own steps.
+The all-in-one local command still runs 77 outer registrations as documented
 above. CI additionally runs the reporting-helper tests described below.
 CI triggers, syntax checks and prepared-runner instructions are described in
 the [test README](README.md).
@@ -109,7 +109,9 @@ expected outcomes are visible. These references are not CLI filter arguments.
 | `startup_model_switch` | Restart after model selection | Honor the durable new model despite the original sandbox environment. |
 | `startup_blocked_temp` | Temp-directory creation failure | Fail before Node starts rather than continue without usable temporary storage. |
 | `startup_permissions_failure` | Temp-directory permission failure | Fail before Node starts when private permissions cannot be established. |
-| `dcode_startup` | Deep Agents Code startup | Configure and persist its provider model. |
+| `dcode_startup` | Deep Agents Code startup | Configure and persist its provider model; verify Qwen request overrides are scoped to that model. |
+| `legacy_model_readiness` | Existing sandbox without model marker | Verify each agent can use its native persisted config as a readiness signal when upgrading an image created before `.harness-model.json`. |
+| Hermes config changes are staged and atomically published | Hermes startup | Keep the installed dependency home stable, publish staged YAML before defaults/readiness metadata, and preserve owner-only config permissions. |
 | `runtime_default` | Non-interactive runtime omitted | Keep host as the default. |
 | `runtime_supported host openclaw` | Explicit host runtime | Continue accepting the existing host deployment mode. |
 | `runtime_supported openshell openclaw` | OpenClaw sandbox support | Accept this runtime/agent combination. |
@@ -172,6 +174,7 @@ expected outcomes are visible. These references are not CLI filter arguments.
 | live suite requires explicit opt-in | Live-test safety | Refuse live execution without the opt-in variable. |
 | interactive policy adds only sandbox-local PTY paths to the base policy | Policy structure | Verify the interactive policy differs only by `/dev/ptmx` and `/dev/pts`, ignoring comments/blank lines. |
 | `policy_paths` | Agent policy selection | Select the base policy for OpenClaw and the interactive policy for Hermes and Deep Agents Code. |
+| sandbox policy docs cover static and live updates | Policy customization documentation | Check static installation, live network updates, full-policy replacement, startup-only filesystem semantics and upstream references. |
 
 The remaining three outer registrations invoke entire suites:
 
@@ -281,7 +284,7 @@ helper against temporary files, not an LLM.
 
 | Registered test name | Objective / expected result |
 |---|---|
-| Qwen OpenClaw defaults cover catalog, request parameters and lean prompt | Verify 65536 context, 512 output cap, sampling/thinking/prompt settings, preservation of unrelated values and idempotence. |
+| Qwen OpenClaw defaults cover catalog, request parameters and lean prompt | Verify 65536 context, 4096 output cap, sampling/thinking/prompt settings, preservation of unrelated values and idempotence. |
 | explicit OpenClaw overrides survive initial application and restarts | Preserve explicit catalog, sampling, thinking, prompt and tool settings. |
 | user edits to generated defaults survive later restarts and model changes | Retain edits rather than overwrite them as managed defaults. |
 | switching away removes managed Qwen tuning and restores generic catalog defaults | Remove unchanged Qwen defaults, restore generic budgets and reapply Qwen defaults when selected again. |
