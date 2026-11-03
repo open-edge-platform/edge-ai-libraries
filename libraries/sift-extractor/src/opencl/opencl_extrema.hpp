@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 #pragma once
 
 #include "opencl_gaussian_pyramid.hpp"
@@ -41,6 +43,14 @@ struct SiftFeature {
   std::array<float, 128> descriptor{};
 };
 
+struct SiftMatchResult {
+  int match = -1;
+  float score = 0.0f;
+  float ambiguity = 1.0f;
+  float match_x = 0.0f;
+  float match_y = 0.0f;
+};
+
 class OpenCLDoGExtrema {
 public:
   OpenCLDoGExtrema();
@@ -72,6 +82,10 @@ public:
           const std::vector<float> &image, int width, int height, int octave_count,
             int intervals, float base_sigma, float contrast_threshold, float edge_limit,
             int max_features = 0);
+  // Self-match using descriptors retained from the last extract_image (same
+  // OpenCL context/queue — no host descriptor re-upload when uncapped).
+  bool has_resident_match() const;
+  std::vector<SiftMatchResult> match_last_self();
 
 private:
   std::vector<OrientedKeypoint> assign_orientations_impl(

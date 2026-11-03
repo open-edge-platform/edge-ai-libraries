@@ -3,6 +3,7 @@
 #pragma once
 
 #include "sift_extractor/features.hpp"
+#include "sift_extractor/opencl_matcher.hpp"
 
 #include <cstddef>
 #include <memory>
@@ -36,6 +37,11 @@ public:
                                    std::size_t element_count,
                                    OpenCLExtractorOptions options = {},
                                    std::size_t row_stride = 0);
+
+  // Self-match on descriptors retained from the last extract (same OpenCL
+  // context/queue). Prefer this over OpenCLMatcher for extract→match timing.
+  bool has_resident_match() const;
+  std::vector<SiftMatchResult> match_last_self();
 
 private:
   struct Impl;

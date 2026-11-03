@@ -64,4 +64,24 @@ std::vector<SiftFeature> OpenCLExtractor::extract(const float *pixels, int width
   return features;
 }
 
+bool OpenCLExtractor::has_resident_match() const {
+  return impl_->detector.has_resident_match();
+}
+
+std::vector<SiftMatchResult> OpenCLExtractor::match_last_self() {
+  const auto native = impl_->detector.match_last_self();
+  std::vector<SiftMatchResult> results;
+  results.reserve(native.size());
+  for (const auto &entry : native) {
+    SiftMatchResult out;
+    out.match = entry.match;
+    out.score = entry.score;
+    out.ambiguity = entry.ambiguity;
+    out.match_x = entry.match_x;
+    out.match_y = entry.match_y;
+    results.push_back(out);
+  }
+  return results;
+}
+
 } // namespace sift_extractor::experimental

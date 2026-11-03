@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 #include "opencl_gaussian_blur.hpp"
 
 #include <cstdio>

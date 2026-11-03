@@ -98,6 +98,12 @@ if(SIFT_ENABLE_OPENCL)
     target_link_libraries(test_sift_opencl_match PRIVATE sift_opencl_runtime)
     add_test(NAME sift_opencl_runtime.match COMMAND test_sift_opencl_match)
 
+    add_executable(test_sift_opencl_match_resident
+      tests/opencl/test_opencl_match_resident.cpp)
+    target_link_libraries(test_sift_opencl_match_resident PRIVATE sift_opencl_runtime)
+    add_test(NAME sift_opencl_runtime.match_resident
+      COMMAND test_sift_opencl_match_resident)
+
     add_executable(test_sift_opencl_gaussian_blur
       tests/opencl/test_opencl_gaussian_blur.cpp
     )

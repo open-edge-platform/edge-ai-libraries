@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 #include "syclSift.h"
 #include "sift_extractor/sycl_extractor.hpp"
 

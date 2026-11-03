@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+// SPDX-FileCopyrightText: Copyright (c) 2017 Mårten Björkman
+// SPDX-License-Identifier: Apache-2.0 AND MIT
 //********************************************************//
 // Intel SYCL/DPC++ SIFT extractor                       //
 // Host-side SIFT orchestration                          //

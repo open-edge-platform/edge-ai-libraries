@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 //********************************************************//
 // Intel SYCL/DPC++ SIFT - standalone kernel unit test   //
 // Tests SYCL device, USM, and key kernels without OpenCV//

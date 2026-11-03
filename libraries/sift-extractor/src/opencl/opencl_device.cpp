@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 #define CL_TARGET_OPENCL_VERSION 120
 
 #include "sift_extractor/opencl_device.hpp"

@@ -213,14 +213,14 @@ Row bench_opencl(const cv::Mat &src, int width, int height, int octaves,
     row.features = static_cast<int>(features.size());
     row.upload_ms = 0.0; // included in extract (host→device inside extractor)
 
-    if (row.features > 10) {
-      sift_extractor::experimental::OpenCLMatcher matcher;
+    if (row.features > 10 && extractor.has_resident_match()) {
+      // Extract→match residency: same context/queue, no host descriptor re-upload.
       for (int i = 0; i < warmup; ++i)
-        (void)matcher.match(features, features);
+        (void)extractor.match_last_self();
       std::vector<double> match_times;
       for (int i = 0; i < runs; ++i) {
         const auto start = std::chrono::steady_clock::now();
-        (void)matcher.match(features, features);
+        (void)extractor.match_last_self();
         const auto end = std::chrono::steady_clock::now();
         match_times.push_back(
             std::chrono::duration<double, std::milli>(end - start).count());
@@ -587,8 +587,8 @@ int main(int argc, char **argv) {
            "Total FPS=1000/(upload+extract[+match]).\n";
   }
   if (run_opencl) {
-    std::cout << "OpenCL Match = OpenCLMatcher GPU self-match (upload host "
-                 "descriptors → tiled kernel → readback).\n";
+    std::cout << "OpenCL Match = extract→match residency (same context; no host "
+                 "descriptor re-upload → tiled kernel → readback).\n";
   }
   if (run_opencv || (run_opencl && run_sycl)) {
     std::cout

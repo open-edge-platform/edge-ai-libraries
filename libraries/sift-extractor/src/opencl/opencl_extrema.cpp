@@ -1,6 +1,9 @@
+// SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 #define CL_TARGET_OPENCL_VERSION 120
 
 #include "opencl_extrema.hpp"
+#include "opencl_match_kernel.hpp"
 
 #include <CL/cl.h>
 #include <CL/cl_ext.h>
@@ -732,6 +735,92 @@ __kernel void gather_dispatch_features(__global const float *unique_records,
   layout[index * 3 + 2] = level_meta[group * 3 + 2];
 }
 
+// After stable_group_reorder, source index == dispatch order index.
+__kernel void gather_identity_features(__global const float *unique_records,
+                                       __global const int *unique_groups,
+                                       __global const float *host_sigmas,
+                                       __global const int *level_meta,
+                                       __global float *points,
+                                       __global int *layout,
+                                       const int count,
+                                       const int level_count) {
+  const int index = (int)get_global_id(0);
+  if (index >= count) return;
+  __global const float *record = unique_records + index * 8;
+  points[index * 4 + 0] = record[0];
+  points[index * 4 + 1] = record[1];
+  points[index * 4 + 2] = host_sigmas[index];
+  points[index * 4 + 3] = 0.0f;
+  const int group = unique_groups[index];
+  if (group < 0 || group >= level_count) {
+    layout[index * 3 + 0] = 0;
+    layout[index * 3 + 1] = 0;
+    layout[index * 3 + 2] = 0;
+    return;
+  }
+  layout[index * 3 + 0] = level_meta[group * 3 + 0];
+  layout[index * 3 + 1] = level_meta[group * 3 + 1];
+  layout[index * 3 + 2] = level_meta[group * 3 + 2];
+}
+
+// Single-WI partial selection matching host stable_sort by |response| desc + resize.
+__kernel void stable_response_cap(__global float *records,
+                                  __global int *groups,
+                                  const int count,
+                                  const int max_features) {
+  if (get_global_id(0) != 0 || max_features <= 0 || count <= max_features) return;
+  for (int i = 0; i < max_features; ++i) {
+    int best = i;
+    float best_abs = fabs(records[i * 8 + 3]);
+    for (int j = i + 1; j < count; ++j) {
+      const float candidate_abs = fabs(records[j * 8 + 3]);
+      if (candidate_abs > best_abs) {
+        best = j;
+        best_abs = candidate_abs;
+      }
+    }
+    if (best == i) continue;
+    for (int k = 0; k < 8; ++k) {
+      const float tmp = records[i * 8 + k];
+      records[i * 8 + k] = records[best * 8 + k];
+      records[best * 8 + k] = tmp;
+    }
+    const int group_tmp = groups[i];
+    groups[i] = groups[best];
+    groups[best] = group_tmp;
+  }
+}
+
+// Stable group order: preserves concat index order within each group (host bucket order).
+__kernel void stable_group_reorder(__global const float *in_records,
+                                   __global const int *in_groups,
+                                   __global float *out_records,
+                                   __global int *out_groups,
+                                   __global uint *group_counts,
+                                   __global uint *group_cursors,
+                                   const int count,
+                                   const int level_count) {
+  if (get_global_id(0) != 0) return;
+  for (int group = 0; group < level_count; ++group) group_counts[group] = 0;
+  for (int index = 0; index < count; ++index) {
+    const int group = in_groups[index];
+    if (group >= 0 && group < level_count) group_counts[group]++;
+  }
+  uint running = 0;
+  for (int group = 0; group < level_count; ++group) {
+    group_cursors[group] = running;
+    running += group_counts[group];
+  }
+  for (int index = 0; index < count; ++index) {
+    const int group = in_groups[index];
+    if (group < 0 || group >= level_count) continue;
+    const uint destination = group_cursors[group]++;
+    for (int k = 0; k < 8; ++k)
+      out_records[destination * 8 + k] = in_records[index * 8 + k];
+    out_groups[destination] = group;
+  }
+}
+
 __kernel void pack_orientations(__global const float *points,
                                  __global const float *angles,
                                  __global const int *layout,
@@ -822,17 +911,20 @@ struct OpenCLDoGExtrema::Impl {
     Buffer magnitude, orientation, points, output, layout;
     Buffer gradient_layout;
     Buffer counts, descriptor_points, descriptor_layout, descriptors, orientation_sources;
-    Buffer unique_records, unique_groups, source_indices, host_sigmas, level_meta;
+    Buffer unique_records, unique_groups, unique_records_alt, unique_groups_alt;
+    Buffer group_counts, group_cursors, source_indices, host_sigmas, level_meta;
     size_t descriptor_capacity = 0;
     size_t unique_record_count = 0;
     bool resident_orientation_points = false;
+    bool identity_sources = false;
     cl_event event = nullptr;
     cl_event descriptor_event = nullptr;
     cl_event gradient_event = nullptr;
     ~FeatureScratch() {
       for (auto *buffer : {&magnitude, &orientation, &points, &output, &layout, &gradient_layout,
                &counts, &descriptor_points, &descriptor_layout, &descriptors, &orientation_sources,
-               &unique_records, &unique_groups, &source_indices, &host_sigmas, &level_meta})
+               &unique_records, &unique_groups, &unique_records_alt, &unique_groups_alt,
+               &group_counts, &group_cursors, &source_indices, &host_sigmas, &level_meta})
         if (buffer->memory) clReleaseMemObject(buffer->memory);
       if (event) clReleaseEvent(event);
       if (descriptor_event) clReleaseEvent(descriptor_event);
@@ -847,6 +939,9 @@ struct OpenCLDoGExtrema::Impl {
     std::vector<float> unique_records;
     std::vector<int> unique_groups;
     cl_event events[4]{};
+    cl_event count_event = nullptr;
+    cl_event refine_event = nullptr;
+    cl_event scatter_event = nullptr;
     cl_uint candidate_count = 0;
     cl_uint unique_count = 0;
     size_t candidate_capacity = 8;
@@ -856,6 +951,9 @@ struct OpenCLDoGExtrema::Impl {
         if (buffer->memory) clReleaseMemObject(buffer->memory);
       for (auto event : events)
         if (event) clReleaseEvent(event);
+      if (count_event) clReleaseEvent(count_event);
+      if (refine_event) clReleaseEvent(refine_event);
+      if (scatter_event) clReleaseEvent(scatter_event);
     }
   };
   std::vector<std::unique_ptr<DetectionScratch>> detection_scratch;
@@ -874,6 +972,7 @@ struct OpenCLDoGExtrema::Impl {
     std::vector<char> occupied;
     size_t gradient_count = 0;
     size_t feature_groups = 0;
+    bool identity_sources = false;
   };
 
   cl_context context = nullptr;
@@ -889,6 +988,19 @@ struct OpenCLDoGExtrema::Impl {
   cl_kernel mark_unique_kernel = nullptr;
   cl_kernel scatter_feature_kernel = nullptr;
   cl_kernel gather_dispatch_kernel = nullptr;
+  cl_kernel gather_identity_kernel = nullptr;
+  cl_kernel stable_response_cap_kernel = nullptr;
+  cl_kernel stable_group_reorder_kernel = nullptr;
+  cl_kernel match_kernel = nullptr;
+  Buffer match_descriptors;
+  Buffer match_xy;
+  Buffer match_index;
+  Buffer match_score;
+  Buffer match_ambiguity;
+  Buffer match_x;
+  Buffer match_y;
+  size_t resident_match_count = 0;
+  bool resident_match_uses_extract_descriptors = false;
   Buffer dog_volume;
   Buffer candidate_mask;
   Buffer block_offsets;
@@ -936,9 +1048,12 @@ struct OpenCLDoGExtrema::Impl {
   }
 
   FeatureDispatch build_feature_dispatch(std::vector<IndexedKeypoint> keypoints,
-      const std::vector<GaussianLevel> &gaussian, int intervals, int max_features) {
-    apply_response_cap(keypoints, max_features);
+      const std::vector<GaussianLevel> &gaussian, int intervals, int max_features,
+      bool already_capped_and_ordered = false) {
+    if (!already_capped_and_ordered)
+      apply_response_cap(keypoints, max_features);
     FeatureDispatch dispatch;
+    dispatch.identity_sources = already_capped_and_ordered;
     dispatch.image_offsets.assign(gaussian.size(), 0);
     dispatch.occupied.assign(gaussian.size(), 0);
     dispatch.level_meta.assign(gaussian.size() * 3, 0);
@@ -970,7 +1085,8 @@ struct OpenCLDoGExtrema::Impl {
       dispatch.level_meta[group * 3 + 2] = dispatch.image_offsets[group];
       for (const auto &entry : groups[group]) {
         dispatch.ordered_points.push_back(entry.point);
-        dispatch.source_indices.push_back(entry.source_index);
+        if (!dispatch.identity_sources)
+          dispatch.source_indices.push_back(entry.source_index);
         dispatch.host_sigmas.push_back(entry.point.octave_sigma);
         dispatch.packed.insert(dispatch.packed.end(),
           {entry.point.local.x, entry.point.local.y, entry.point.octave_sigma, 0.0f});
@@ -1045,10 +1161,11 @@ struct OpenCLDoGExtrema::Impl {
     const size_t scan_size = 256;
     check_opencl(clEnqueueNDRangeKernel(queue, scan_kernel, 1, nullptr, &scan_size, &scan_size,
       0, nullptr, nullptr), "feature boundary keep scan launch");
-    check_opencl(clEnqueueReadBuffer(queue, keep_offsets, CL_FALSE, candidate_count * sizeof(cl_uint),
+    // Blocking count read replaces clFinish; unique body stays on device and is
+    // concatenated once for a single host materialization in extract_image.
+    check_opencl(clEnqueueReadBuffer(queue, keep_offsets, CL_TRUE, candidate_count * sizeof(cl_uint),
       sizeof(scratch.unique_count), &scratch.unique_count, 0, nullptr, nullptr),
       "feature boundary unique count readback");
-    check_opencl(clFinish(queue), "feature boundary unique count completion");
     if (scratch.unique_count == 0) return;
     if (scratch.unique_count > static_cast<cl_uint>(std::numeric_limits<int>::max()) / 8)
       throw std::overflow_error("Too many unique feature records");
@@ -1074,50 +1191,138 @@ struct OpenCLDoGExtrema::Impl {
       "feature boundary scatter octave");
     check_opencl(clSetKernelArg(scatter_feature_kernel, 8, sizeof(base_sigma), &base_sigma),
       "feature boundary scatter sigma");
+    if (scratch.scatter_event) {
+      clReleaseEvent(scratch.scatter_event);
+      scratch.scatter_event = nullptr;
+    }
     check_opencl(clEnqueueNDRangeKernel(queue, scatter_feature_kernel, 1, nullptr, &candidate_count,
-      nullptr, 0, nullptr, nullptr), "feature boundary scatter launch");
-    scratch.unique_records.resize(static_cast<size_t>(scratch.unique_count) * 8);
-    scratch.unique_groups.resize(scratch.unique_count);
-    check_opencl(clEnqueueReadBuffer(queue, records, CL_FALSE, 0,
-      scratch.unique_records.size() * sizeof(float), scratch.unique_records.data(), 0, nullptr, nullptr),
-      "feature boundary records readback");
-    check_opencl(clEnqueueReadBuffer(queue, groups, CL_TRUE, 0,
-      scratch.unique_groups.size() * sizeof(int), scratch.unique_groups.data(), 0, nullptr, nullptr),
-      "feature boundary groups readback");
+      nullptr, 0, nullptr, &scratch.scatter_event), "feature boundary scatter launch");
+    scratch.unique_records.clear();
+    scratch.unique_groups.clear();
   }
 
-  std::vector<IndexedKeypoint> keypoints_from_unique_records(
-      const std::vector<DetectionScratch*> &octaves, int intervals, float base_sigma) {
-    size_t total = 0;
-    for (const auto *scratch : octaves) total += scratch ? scratch->unique_count : 0;
+  void materialize_concatenated_unique_host(FeatureScratch &scratch,
+                                            std::vector<float> &records,
+                                            std::vector<int> &groups) {
+    records.clear();
+    groups.clear();
+    if (scratch.unique_record_count == 0 || !scratch.unique_records.memory ||
+        !scratch.unique_groups.memory)
+      return;
+    records.resize(scratch.unique_record_count * 8);
+    groups.resize(scratch.unique_record_count);
+    check_opencl(clEnqueueReadBuffer(queue, scratch.unique_records.memory, CL_FALSE, 0,
+      records.size() * sizeof(float), records.data(), 0, nullptr, nullptr),
+      "concatenated unique records readback");
+    check_opencl(clEnqueueReadBuffer(queue, scratch.unique_groups.memory, CL_TRUE, 0,
+      groups.size() * sizeof(int), groups.data(), 0, nullptr, nullptr),
+      "concatenated unique groups readback");
+  }
+
+  std::vector<IndexedKeypoint> keypoints_from_concatenated_unique(
+      const std::vector<float> &records, const std::vector<int> &groups,
+      int intervals, float base_sigma, bool identity_sources) {
+    if (records.size() != groups.size() * 8)
+      throw std::logic_error("Concatenated unique host buffers are incomplete");
+    const size_t total = groups.size();
     std::vector<IndexedKeypoint> keypoints;
     keypoints.reserve(total);
-    int source_base = 0;
-    for (size_t octave = 0; octave < octaves.size(); ++octave) {
-      const auto *scratch = octaves[octave];
-      if (!scratch || scratch->unique_count == 0) continue;
-      const float image_factor = std::ldexp(1.0f, static_cast<int>(octave));
-      for (cl_uint index = 0; index < scratch->unique_count; ++index) {
-        const float *values = scratch->unique_records.data() + static_cast<size_t>(index) * 8;
-        // Recompute sigma on the host so extract matches detect_* / host-reference
-        // numerics. Device exp2 can differ by 1 ULP from std::exp2.
-        const float octave_sigma =
-            base_sigma * std::exp2((values[2] + 0.5f) / static_cast<float>(intervals));
-        const float image_sigma = octave_sigma * image_factor;
-        if (!std::isfinite(octave_sigma) || !std::isfinite(image_sigma))
-          throw std::overflow_error("Scale-space keypoint sigma overflow");
-        const int level = std::clamp(static_cast<int>(std::lround(values[2])), 0, intervals + 2);
-        if (scratch->unique_groups[index] !=
-            static_cast<int>(octave) * (intervals + 3) + level)
-          throw std::logic_error("Feature boundary group mapping mismatch");
-        keypoints.push_back({{{values[0], values[1], values[2], values[3], values[4]},
-                              static_cast<int>(octave), values[0] * image_factor,
-                              values[1] * image_factor, octave_sigma, image_sigma},
-                             source_base + static_cast<int>(index)});
-      }
-      source_base += static_cast<int>(scratch->unique_count);
+    for (size_t index = 0; index < total; ++index) {
+      const float *values = records.data() + index * 8;
+      const int group = groups[index];
+      const int levels_per_octave = intervals + 3;
+      if (levels_per_octave <= 0 || group < 0)
+        throw std::logic_error("Feature boundary group mapping mismatch");
+      const int octave = group / levels_per_octave;
+      const int level = group % levels_per_octave;
+      const float image_factor = std::ldexp(1.0f, octave);
+      // Recompute sigma on the host so extract matches detect_* / host-reference
+      // numerics. Device exp2 can differ by 1 ULP from std::exp2.
+      const float octave_sigma =
+          base_sigma * std::exp2((values[2] + 0.5f) / static_cast<float>(intervals));
+      const float image_sigma = octave_sigma * image_factor;
+      if (!std::isfinite(octave_sigma) || !std::isfinite(image_sigma))
+        throw std::overflow_error("Scale-space keypoint sigma overflow");
+      const int expected_level =
+          std::clamp(static_cast<int>(std::lround(values[2])), 0, intervals + 2);
+      if (level != expected_level)
+        throw std::logic_error("Feature boundary group mapping mismatch");
+      (void)identity_sources;
+      keypoints.push_back({{{values[0], values[1], values[2], values[3], values[4]},
+                            octave, values[0] * image_factor, values[1] * image_factor,
+                            octave_sigma, image_sigma},
+                           static_cast<int>(index)});
     }
     return keypoints;
+  }
+
+  void device_cap_and_group_order(FeatureScratch &scratch, int level_count,
+                                  int max_features) {
+    scratch.identity_sources = false;
+    if (scratch.unique_record_count == 0 || !scratch.unique_records.memory ||
+        !scratch.unique_groups.memory)
+      return;
+    for (auto entry :
+         {std::make_pair(&stable_response_cap_kernel, "stable_response_cap"),
+          std::make_pair(&stable_group_reorder_kernel, "stable_group_reorder")}) {
+      if (*entry.first) continue;
+      cl_int status = CL_SUCCESS;
+      *entry.first = clCreateKernel(program, entry.second, &status);
+      check_opencl(status, "clCreateKernel(device unique order)");
+    }
+    const int count = static_cast<int>(scratch.unique_record_count);
+    if (max_features > 0 && count > max_features) {
+      cl_mem records = scratch.unique_records.memory;
+      cl_mem groups = scratch.unique_groups.memory;
+      check_opencl(clSetKernelArg(stable_response_cap_kernel, 0, sizeof(records), &records),
+                   "response cap records");
+      check_opencl(clSetKernelArg(stable_response_cap_kernel, 1, sizeof(groups), &groups),
+                   "response cap groups");
+      check_opencl(clSetKernelArg(stable_response_cap_kernel, 2, sizeof(count), &count),
+                   "response cap count");
+      check_opencl(clSetKernelArg(stable_response_cap_kernel, 3, sizeof(max_features), &max_features),
+                   "response cap max");
+      const size_t one = 1;
+      check_opencl(clEnqueueNDRangeKernel(queue, stable_response_cap_kernel, 1, nullptr, &one,
+                                          nullptr, 0, nullptr, nullptr),
+                   "response cap launch");
+      scratch.unique_record_count = static_cast<size_t>(max_features);
+    }
+    const int ordered_count = static_cast<int>(scratch.unique_record_count);
+    if (ordered_count == 0) return;
+    cl_mem in_records = scratch.unique_records.memory;
+    cl_mem in_groups = scratch.unique_groups.memory;
+    cl_mem out_records = ensure_buffer(scratch.unique_records_alt, CL_MEM_READ_WRITE,
+                                       static_cast<size_t>(ordered_count) * 8 * sizeof(float));
+    cl_mem out_groups = ensure_buffer(scratch.unique_groups_alt, CL_MEM_READ_WRITE,
+                                      static_cast<size_t>(ordered_count) * sizeof(int));
+    cl_mem counts = ensure_buffer(scratch.group_counts, CL_MEM_READ_WRITE,
+                                  static_cast<size_t>(level_count) * sizeof(cl_uint));
+    cl_mem cursors = ensure_buffer(scratch.group_cursors, CL_MEM_READ_WRITE,
+                                   static_cast<size_t>(level_count) * sizeof(cl_uint));
+    check_opencl(clSetKernelArg(stable_group_reorder_kernel, 0, sizeof(in_records), &in_records),
+                 "group reorder in records");
+    check_opencl(clSetKernelArg(stable_group_reorder_kernel, 1, sizeof(in_groups), &in_groups),
+                 "group reorder in groups");
+    check_opencl(clSetKernelArg(stable_group_reorder_kernel, 2, sizeof(out_records), &out_records),
+                 "group reorder out records");
+    check_opencl(clSetKernelArg(stable_group_reorder_kernel, 3, sizeof(out_groups), &out_groups),
+                 "group reorder out groups");
+    check_opencl(clSetKernelArg(stable_group_reorder_kernel, 4, sizeof(counts), &counts),
+                 "group reorder counts");
+    check_opencl(clSetKernelArg(stable_group_reorder_kernel, 5, sizeof(cursors), &cursors),
+                 "group reorder cursors");
+    check_opencl(clSetKernelArg(stable_group_reorder_kernel, 6, sizeof(ordered_count), &ordered_count),
+                 "group reorder count");
+    check_opencl(clSetKernelArg(stable_group_reorder_kernel, 7, sizeof(level_count), &level_count),
+                 "group reorder levels");
+    const size_t one = 1;
+    check_opencl(clEnqueueNDRangeKernel(queue, stable_group_reorder_kernel, 1, nullptr, &one,
+                                        nullptr, 0, nullptr, nullptr),
+                 "group reorder launch");
+    std::swap(scratch.unique_records, scratch.unique_records_alt);
+    std::swap(scratch.unique_groups, scratch.unique_groups_alt);
+    scratch.identity_sources = true;
   }
 
   void concatenate_unique_records(FeatureScratch &scratch,
@@ -1125,12 +1330,14 @@ struct OpenCLDoGExtrema::Impl {
     size_t total = 0;
     for (const auto *octave : octaves) total += octave ? octave->unique_count : 0;
     scratch.unique_record_count = total;
+    scratch.identity_sources = false;
     if (total == 0) return;
     cl_mem combined = ensure_buffer(scratch.unique_records, CL_MEM_READ_WRITE,
                                     total * 8 * sizeof(float));
     cl_mem combined_groups = ensure_buffer(scratch.unique_groups, CL_MEM_READ_WRITE,
                                            total * sizeof(int));
     size_t destination = 0;
+    cl_event last_copy = nullptr;
     for (const auto *octave : octaves) {
       if (!octave || octave->unique_count == 0) continue;
       const size_t record_bytes = static_cast<size_t>(octave->unique_count) * 8 * sizeof(float);
@@ -1138,48 +1345,41 @@ struct OpenCLDoGExtrema::Impl {
       check_opencl(clEnqueueCopyBuffer(queue, octave->records.memory, combined, 0,
         destination * 8 * sizeof(float), record_bytes, 0, nullptr, nullptr),
         "concatenate unique feature records");
+      if (last_copy) clReleaseEvent(last_copy);
       check_opencl(clEnqueueCopyBuffer(queue, octave->groups.memory, combined_groups, 0,
-        destination * sizeof(int), group_bytes, 0, nullptr, nullptr),
+        destination * sizeof(int), group_bytes, 0, nullptr, &last_copy),
         "concatenate unique feature groups");
       destination += octave->unique_count;
+    }
+    // Device cap/reorder may follow immediately; wait for the last concat copy.
+    if (last_copy) {
+      check_opencl(clWaitForEvents(1, &last_copy), "concatenate unique completion");
+      clReleaseEvent(last_copy);
     }
   }
 
   void gather_resident_orientation_points(FeatureScratch &scratch, const FeatureDispatch &dispatch) {
     scratch.resident_orientation_points = false;
     if (dispatch.ordered_points.empty()) return;
-    if (dispatch.source_indices.size() != dispatch.ordered_points.size() ||
-        dispatch.host_sigmas.size() != dispatch.ordered_points.size() ||
+    if (dispatch.host_sigmas.size() != dispatch.ordered_points.size() ||
         dispatch.layout.size() != dispatch.ordered_points.size() * 3 ||
         dispatch.level_meta.size() % 3 != 0 || dispatch.level_meta.empty())
       throw std::logic_error("Feature dispatch source mapping is incomplete");
+    if (!dispatch.identity_sources &&
+        dispatch.source_indices.size() != dispatch.ordered_points.size())
+      throw std::logic_error("Feature dispatch source mapping is incomplete");
     if (scratch.unique_record_count == 0 || !scratch.unique_groups.memory)
       throw std::logic_error("Missing device-resident unique feature records");
-    for (auto entry : {std::make_pair(&gather_dispatch_kernel, "gather_dispatch_features")}) {
-      if (*entry.first) continue;
-      cl_int status = CL_SUCCESS;
-      *entry.first = clCreateKernel(program, entry.second, &status);
-      check_opencl(status, "clCreateKernel(gather dispatch features)");
-    }
     const int count = static_cast<int>(dispatch.ordered_points.size());
     const int level_count = static_cast<int>(dispatch.level_meta.size() / 3);
     cl_mem points = ensure_buffer(scratch.points, CL_MEM_READ_WRITE,
                                   dispatch.ordered_points.size() * 4 * sizeof(float));
-    // Layout is written on-device from level_meta[unique_groups[source]].
     cl_mem layout = ensure_buffer(scratch.layout, CL_MEM_READ_WRITE,
                                   dispatch.layout.size() * sizeof(int));
-    cl_mem sources = ensure_buffer(scratch.source_indices, CL_MEM_READ_ONLY,
-                                   dispatch.source_indices.size() * sizeof(int));
     cl_mem sigmas = ensure_buffer(scratch.host_sigmas, CL_MEM_READ_ONLY,
                                   dispatch.host_sigmas.size() * sizeof(float));
     cl_mem level_meta = ensure_buffer(scratch.level_meta, CL_MEM_READ_ONLY,
                                       dispatch.level_meta.size() * sizeof(int));
-    // Uploads: ordered source indices + host std::exp2 sigmas + compact
-    // per-level {width,height,gradient_offset}. Per-point layout triples are
-    // no longer uploaded.
-    check_opencl(clEnqueueWriteBuffer(queue, sources, CL_FALSE, 0,
-      dispatch.source_indices.size() * sizeof(int), dispatch.source_indices.data(), 0, nullptr, nullptr),
-      "resident source index upload");
     check_opencl(clEnqueueWriteBuffer(queue, sigmas, CL_FALSE, 0,
       dispatch.host_sigmas.size() * sizeof(float), dispatch.host_sigmas.data(), 0, nullptr, nullptr),
       "resident host sigma upload");
@@ -1188,27 +1388,63 @@ struct OpenCLDoGExtrema::Impl {
       "resident level meta upload");
     cl_mem records = scratch.unique_records.memory;
     cl_mem groups = scratch.unique_groups.memory;
-    check_opencl(clSetKernelArg(gather_dispatch_kernel, 0, sizeof(records), &records),
-      "gather records");
-    check_opencl(clSetKernelArg(gather_dispatch_kernel, 1, sizeof(groups), &groups),
-      "gather groups");
-    check_opencl(clSetKernelArg(gather_dispatch_kernel, 2, sizeof(sources), &sources),
-      "gather sources");
-    check_opencl(clSetKernelArg(gather_dispatch_kernel, 3, sizeof(sigmas), &sigmas),
-      "gather sigmas");
-    check_opencl(clSetKernelArg(gather_dispatch_kernel, 4, sizeof(level_meta), &level_meta),
-      "gather level meta");
-    check_opencl(clSetKernelArg(gather_dispatch_kernel, 5, sizeof(points), &points),
-      "gather points");
-    check_opencl(clSetKernelArg(gather_dispatch_kernel, 6, sizeof(layout), &layout),
-      "gather layout");
-    check_opencl(clSetKernelArg(gather_dispatch_kernel, 7, sizeof(count), &count),
-      "gather count");
-    check_opencl(clSetKernelArg(gather_dispatch_kernel, 8, sizeof(level_count), &level_count),
-      "gather level count");
     const size_t global = static_cast<size_t>(count);
-    check_opencl(clEnqueueNDRangeKernel(queue, gather_dispatch_kernel, 1, nullptr, &global,
-      nullptr, 0, nullptr, nullptr), "gather dispatch launch");
+    if (dispatch.identity_sources) {
+      if (!gather_identity_kernel) {
+        cl_int status = CL_SUCCESS;
+        gather_identity_kernel = clCreateKernel(program, "gather_identity_features", &status);
+        check_opencl(status, "clCreateKernel(gather identity features)");
+      }
+      check_opencl(clSetKernelArg(gather_identity_kernel, 0, sizeof(records), &records),
+        "identity gather records");
+      check_opencl(clSetKernelArg(gather_identity_kernel, 1, sizeof(groups), &groups),
+        "identity gather groups");
+      check_opencl(clSetKernelArg(gather_identity_kernel, 2, sizeof(sigmas), &sigmas),
+        "identity gather sigmas");
+      check_opencl(clSetKernelArg(gather_identity_kernel, 3, sizeof(level_meta), &level_meta),
+        "identity gather level meta");
+      check_opencl(clSetKernelArg(gather_identity_kernel, 4, sizeof(points), &points),
+        "identity gather points");
+      check_opencl(clSetKernelArg(gather_identity_kernel, 5, sizeof(layout), &layout),
+        "identity gather layout");
+      check_opencl(clSetKernelArg(gather_identity_kernel, 6, sizeof(count), &count),
+        "identity gather count");
+      check_opencl(clSetKernelArg(gather_identity_kernel, 7, sizeof(level_count), &level_count),
+        "identity gather level count");
+      check_opencl(clEnqueueNDRangeKernel(queue, gather_identity_kernel, 1, nullptr, &global,
+        nullptr, 0, nullptr, nullptr), "identity gather launch");
+    } else {
+      if (!gather_dispatch_kernel) {
+        cl_int status = CL_SUCCESS;
+        gather_dispatch_kernel = clCreateKernel(program, "gather_dispatch_features", &status);
+        check_opencl(status, "clCreateKernel(gather dispatch features)");
+      }
+      cl_mem sources = ensure_buffer(scratch.source_indices, CL_MEM_READ_ONLY,
+                                     dispatch.source_indices.size() * sizeof(int));
+      check_opencl(clEnqueueWriteBuffer(queue, sources, CL_FALSE, 0,
+        dispatch.source_indices.size() * sizeof(int), dispatch.source_indices.data(), 0, nullptr, nullptr),
+        "resident source index upload");
+      check_opencl(clSetKernelArg(gather_dispatch_kernel, 0, sizeof(records), &records),
+        "gather records");
+      check_opencl(clSetKernelArg(gather_dispatch_kernel, 1, sizeof(groups), &groups),
+        "gather groups");
+      check_opencl(clSetKernelArg(gather_dispatch_kernel, 2, sizeof(sources), &sources),
+        "gather sources");
+      check_opencl(clSetKernelArg(gather_dispatch_kernel, 3, sizeof(sigmas), &sigmas),
+        "gather sigmas");
+      check_opencl(clSetKernelArg(gather_dispatch_kernel, 4, sizeof(level_meta), &level_meta),
+        "gather level meta");
+      check_opencl(clSetKernelArg(gather_dispatch_kernel, 5, sizeof(points), &points),
+        "gather points");
+      check_opencl(clSetKernelArg(gather_dispatch_kernel, 6, sizeof(layout), &layout),
+        "gather layout");
+      check_opencl(clSetKernelArg(gather_dispatch_kernel, 7, sizeof(count), &count),
+        "gather count");
+      check_opencl(clSetKernelArg(gather_dispatch_kernel, 8, sizeof(level_count), &level_count),
+        "gather level count");
+      check_opencl(clEnqueueNDRangeKernel(queue, gather_dispatch_kernel, 1, nullptr, &global,
+        nullptr, 0, nullptr, nullptr), "gather dispatch launch");
+    }
     scratch.resident_orientation_points = true;
   }
 
@@ -1417,6 +1653,7 @@ struct OpenCLDoGExtrema::Impl {
       throw std::overflow_error("Too many resident orientation points");
     std::vector<float> output;
     cl_uint total = 0;
+    cl_event total_event = nullptr;
     try {
       for (auto entry : {std::make_pair(&orientation_pack_kernel, "pack_orientations"),
                          std::make_pair(&scan_kernel, "scan_dog_counts")}) {
@@ -1432,16 +1669,23 @@ struct OpenCLDoGExtrema::Impl {
       const size_t scan_size = 256;
       check_opencl(clEnqueueNDRangeKernel(queue, scan_kernel, 1, nullptr,
         &scan_size, &scan_size, 0, nullptr, nullptr), "orientation scan launch");
+      // Overlap pack/descriptor with the oriented-count read. If the first
+      // capacity guess is short, retry without downloading the undersized buffers.
       check_opencl(clEnqueueReadBuffer(queue, counts, CL_FALSE, point_count * sizeof(cl_uint),
-        sizeof(total), &total, 0, nullptr, nullptr), "oriented count readback");
-      scratch.descriptor_capacity = std::min(limit, std::max(scratch.descriptor_capacity, point_count));
+        sizeof(total), &total, 0, nullptr, &total_event), "oriented count readback");
+      // Seed above keypoint count: multi-orientation features are common, and a
+      // short first guess forces a full pack/descriptor relaunch.
+      const size_t guessed = point_count + point_count / 2 + 1;
+      scratch.descriptor_capacity =
+          std::min(limit, std::max(scratch.descriptor_capacity, guessed));
       for (int attempt = 0; attempt < 2; ++attempt) {
         const int capacity = static_cast<int>(scratch.descriptor_capacity);
         cl_mem points = ensure_buffer(scratch.descriptor_points, CL_MEM_READ_WRITE,
           scratch.descriptor_capacity * 4 * sizeof(float));
         cl_mem layout = ensure_buffer(scratch.descriptor_layout, CL_MEM_READ_WRITE,
           scratch.descriptor_capacity * 3 * sizeof(int));
-        cl_mem descriptors = ensure_buffer(scratch.descriptors, CL_MEM_WRITE_ONLY,
+        // READ_WRITE: retained for extract→match residency after host readback.
+        cl_mem descriptors = ensure_buffer(scratch.descriptors, CL_MEM_READ_WRITE,
           scratch.descriptor_capacity * 128 * sizeof(float));
         cl_mem source_records = ensure_buffer(scratch.orientation_sources, CL_MEM_WRITE_ONLY,
           scratch.descriptor_capacity * sizeof(OrientationSource));
@@ -1475,24 +1719,30 @@ struct OpenCLDoGExtrema::Impl {
         check_opencl(clEnqueueNDRangeKernel(queue, descriptor, 1, nullptr, &global_size,
           &descriptor_lanes, 0, nullptr, profile_features ? &scratch.descriptor_event : nullptr),
           "resident descriptor launch");
-        output.resize(scratch.descriptor_capacity * 128);
-        sources.resize(scratch.descriptor_capacity);
+        if (total_event) {
+          check_opencl(clWaitForEvents(1, &total_event), "oriented count completion");
+          clReleaseEvent(total_event);
+          total_event = nullptr;
+        }
+        if (total > scratch.descriptor_capacity) {
+          if (total > limit) throw std::overflow_error("Too many resident descriptors");
+          scratch.descriptor_capacity = total;
+          continue; // grow and relaunch; skip host download of truncated buffers
+        }
+        sources.resize(total);
+        output.resize(static_cast<size_t>(total) * 128);
+        if (total == 0) return output;
         check_opencl(clEnqueueReadBuffer(queue, source_records, CL_FALSE, 0,
           sources.size() * sizeof(OrientationSource), sources.data(), 0, nullptr, nullptr),
           "orientation source readback");
-        check_opencl(clEnqueueReadBuffer(queue, descriptors, CL_FALSE, 0,
-          output.size() * sizeof(float), output.data(), 0, nullptr, nullptr), "resident descriptor readback");
-        check_opencl(clFinish(queue), "resident feature completion");
-        if (total <= scratch.descriptor_capacity) {
-          sources.resize(static_cast<size_t>(total));
-          output.resize(static_cast<size_t>(total) * 128);
-          return output;
-        }
-        if (total > limit) throw std::overflow_error("Too many resident descriptors");
-        scratch.descriptor_capacity = total;
+        check_opencl(clEnqueueReadBuffer(queue, descriptors, CL_TRUE, 0,
+          output.size() * sizeof(float), output.data(), 0, nullptr, nullptr),
+          "resident descriptor readback");
+        return output;
       }
       throw std::logic_error("Resident descriptor capacity retry failed");
     } catch (...) {
+      if (total_event) clReleaseEvent(total_event);
       clFinish(queue);
       throw;
     }
@@ -1607,8 +1857,13 @@ struct OpenCLDoGExtrema::Impl {
           const size_t scan_size = 256;
           check_opencl(clEnqueueNDRangeKernel(queue, scan_kernel, 1, nullptr, &scan_size,
             &scan_size, 0, nullptr, event_for(1)), "candidate scan launch");
+          if (scratch->count_event) {
+            clReleaseEvent(scratch->count_event);
+            scratch->count_event = nullptr;
+          }
           check_opencl(clEnqueueReadBuffer(queue, offsets, CL_FALSE, block_count * sizeof(cl_uint),
-            sizeof(scratch->candidate_count), &scratch->candidate_count, 0, nullptr, nullptr),
+            sizeof(scratch->candidate_count), &scratch->candidate_count, 0, nullptr,
+            &scratch->count_event),
             "candidate total readback");
         } else {
           check_opencl(clEnqueueReadBuffer(queue, offsets, CL_TRUE, 0,
@@ -1667,8 +1922,16 @@ struct OpenCLDoGExtrema::Impl {
         check_opencl(clSetKernelArg(refinement, 10, sizeof(mask_count), &mask_count), "bounded refine mask count");
       }
       const size_t refinement_size = scratch ? block_count : candidate_count;
+      cl_event *refine_wait = event_for(3);
+      if (!refine_wait && scratch && !read_refined) {
+        if (scratch->refine_event) {
+          clReleaseEvent(scratch->refine_event);
+          scratch->refine_event = nullptr;
+        }
+        refine_wait = &scratch->refine_event;
+      }
       check_opencl(clEnqueueNDRangeKernel(queue, refinement, 1, nullptr,
-          &refinement_size, nullptr, 0, nullptr, event_for(3)), "combined refinement launch");
+          &refinement_size, nullptr, 0, nullptr, refine_wait), "combined refinement launch");
       if (!read_refined) {
         if (scratch) return {};
         throw std::logic_error("Skipping refinement readback requires detection scratch");
@@ -1721,10 +1984,11 @@ struct OpenCLDoGExtrema::Impl {
       check_opencl(status, "clCreateCommandQueue");
     }
 
-    const char *source_pointer = kernel_source;
-    const size_t source_length = std::char_traits<char>::length(kernel_source);
-    program = clCreateProgramWithSource(context, 1, &source_pointer,
-                                        &source_length, &status);
+    const char *sources[] = {kernel_source, kOpenCLSiftMatchKernelSource};
+    const size_t source_lengths[] = {
+        std::char_traits<char>::length(kernel_source),
+        std::char_traits<char>::length(kOpenCLSiftMatchKernelSource)};
+    program = clCreateProgramWithSource(context, 2, sources, source_lengths, &status);
     if (status != CL_SUCCESS) {
       clReleaseCommandQueue(queue);
       clReleaseContext(context);
@@ -1782,12 +2046,18 @@ struct OpenCLDoGExtrema::Impl {
     if (mark_unique_kernel) clReleaseKernel(mark_unique_kernel);
     if (scatter_feature_kernel) clReleaseKernel(scatter_feature_kernel);
     if (gather_dispatch_kernel) clReleaseKernel(gather_dispatch_kernel);
+    if (gather_identity_kernel) clReleaseKernel(gather_identity_kernel);
+    if (stable_response_cap_kernel) clReleaseKernel(stable_response_cap_kernel);
+    if (stable_group_reorder_kernel) clReleaseKernel(stable_group_reorder_kernel);
+    if (match_kernel) clReleaseKernel(match_kernel);
     if (orientation_pack_kernel) clReleaseKernel(orientation_pack_kernel);
     if (scan_kernel) clReleaseKernel(scan_kernel);
     if (bounded_refine_kernel) clReleaseKernel(bounded_refine_kernel);
     if (packed_gradient_kernel) clReleaseKernel(packed_gradient_kernel);
     for (auto *buffer : {&dog_volume, &candidate_mask, &block_offsets,
-                         &compact_candidates, &refined_candidates})
+                         &compact_candidates, &refined_candidates,
+                         &match_descriptors, &match_xy, &match_index, &match_score,
+                         &match_ambiguity, &match_x, &match_y})
       if (buffer->memory) clReleaseMemObject(buffer->memory);
     if (count_kernel) clReleaseKernel(count_kernel);
     if (compact_kernel) clReleaseKernel(compact_kernel);
@@ -1817,6 +2087,127 @@ struct OpenCLDoGExtrema::Impl {
       clReleaseCommandQueue(queue);
     if (context)
       clReleaseContext(context);
+  }
+
+  void clear_resident_match() {
+    resident_match_count = 0;
+    resident_match_uses_extract_descriptors = false;
+  }
+
+  void publish_resident_match(FeatureScratch *scratch,
+                              const std::vector<SiftFeature> &features,
+                              bool device_descriptors_aligned) {
+    clear_resident_match();
+    if (features.empty()) return;
+    std::vector<float> xy(features.size() * 2);
+    for (size_t i = 0; i < features.size(); ++i) {
+      xy[i * 2 + 0] = features[i].point.keypoint.image_x;
+      xy[i * 2 + 1] = features[i].point.keypoint.image_y;
+    }
+    ensure_buffer(match_xy, CL_MEM_READ_ONLY, xy.size() * sizeof(float));
+    check_opencl(clEnqueueWriteBuffer(queue, match_xy.memory, CL_TRUE, 0,
+      xy.size() * sizeof(float), xy.data(), 0, nullptr, nullptr),
+      "resident match xy upload");
+    if (device_descriptors_aligned && scratch && scratch->descriptors.memory &&
+        scratch->descriptor_capacity >= features.size()) {
+      resident_match_uses_extract_descriptors = true;
+    } else {
+      std::vector<float> descriptors(features.size() * 128);
+      for (size_t i = 0; i < features.size(); ++i)
+        std::copy(features[i].descriptor.begin(), features[i].descriptor.end(),
+                  descriptors.begin() + i * 128);
+      ensure_buffer(match_descriptors, CL_MEM_READ_ONLY,
+                    descriptors.size() * sizeof(float));
+      check_opencl(clEnqueueWriteBuffer(queue, match_descriptors.memory, CL_TRUE, 0,
+        descriptors.size() * sizeof(float), descriptors.data(), 0, nullptr, nullptr),
+        "resident match descriptor upload");
+      resident_match_uses_extract_descriptors = false;
+    }
+    resident_match_count = features.size();
+  }
+
+  std::vector<SiftMatchResult> run_resident_self_match() {
+    if (resident_match_count == 0)
+      return {};
+    if (!match_kernel) {
+      cl_int status = CL_SUCCESS;
+      match_kernel = clCreateKernel(program, "match_sift_descriptors", &status);
+      check_opencl(status, "clCreateKernel(match_sift_descriptors)");
+    }
+    cl_mem descriptors = nullptr;
+    if (resident_match_uses_extract_descriptors) {
+      if (feature_scratch.empty() || !feature_scratch.front()->descriptors.memory)
+        throw std::logic_error("Resident extract descriptors missing");
+      descriptors = feature_scratch.front()->descriptors.memory;
+    } else {
+      if (!match_descriptors.memory)
+        throw std::logic_error("Resident match descriptors missing");
+      descriptors = match_descriptors.memory;
+    }
+    if (!match_xy.memory)
+      throw std::logic_error("Resident match xy missing");
+    const int count = static_cast<int>(resident_match_count);
+    ensure_buffer(match_index, CL_MEM_WRITE_ONLY, resident_match_count * sizeof(cl_int));
+    ensure_buffer(match_score, CL_MEM_WRITE_ONLY, resident_match_count * sizeof(float));
+    ensure_buffer(match_ambiguity, CL_MEM_WRITE_ONLY, resident_match_count * sizeof(float));
+    ensure_buffer(match_x, CL_MEM_WRITE_ONLY, resident_match_count * sizeof(float));
+    ensure_buffer(match_y, CL_MEM_WRITE_ONLY, resident_match_count * sizeof(float));
+    check_opencl(clSetKernelArg(match_kernel, 0, sizeof(descriptors), &descriptors),
+                 "resident match query");
+    check_opencl(clSetKernelArg(match_kernel, 1, sizeof(descriptors), &descriptors),
+                 "resident match train");
+    check_opencl(clSetKernelArg(match_kernel, 2, sizeof(match_xy.memory), &match_xy.memory),
+                 "resident match xy");
+    check_opencl(clSetKernelArg(match_kernel, 3, sizeof(match_index.memory), &match_index.memory),
+                 "resident match index");
+    check_opencl(clSetKernelArg(match_kernel, 4, sizeof(match_score.memory), &match_score.memory),
+                 "resident match score");
+    check_opencl(clSetKernelArg(match_kernel, 5, sizeof(match_ambiguity.memory),
+                                &match_ambiguity.memory),
+                 "resident match ambiguity");
+    check_opencl(clSetKernelArg(match_kernel, 6, sizeof(match_x.memory), &match_x.memory),
+                 "resident match x");
+    check_opencl(clSetKernelArg(match_kernel, 7, sizeof(match_y.memory), &match_y.memory),
+                 "resident match y");
+    check_opencl(clSetKernelArg(match_kernel, 8, sizeof(count), &count),
+                 "resident match query count");
+    check_opencl(clSetKernelArg(match_kernel, 9, sizeof(count), &count),
+                 "resident match train count");
+    constexpr size_t tile = 16;
+    const size_t groups = (resident_match_count + tile - 1) / tile;
+    const size_t global = groups * tile;
+    check_opencl(clEnqueueNDRangeKernel(queue, match_kernel, 1, nullptr, &global, &tile,
+                                        0, nullptr, nullptr),
+                 "resident match launch");
+    std::vector<cl_int> indices(resident_match_count);
+    std::vector<float> scores(resident_match_count);
+    std::vector<float> amb(resident_match_count);
+    std::vector<float> mx(resident_match_count);
+    std::vector<float> my(resident_match_count);
+    check_opencl(clEnqueueReadBuffer(queue, match_index.memory, CL_FALSE, 0,
+      indices.size() * sizeof(cl_int), indices.data(), 0, nullptr, nullptr),
+      "resident match index read");
+    check_opencl(clEnqueueReadBuffer(queue, match_score.memory, CL_FALSE, 0,
+      scores.size() * sizeof(float), scores.data(), 0, nullptr, nullptr),
+      "resident match score read");
+    check_opencl(clEnqueueReadBuffer(queue, match_ambiguity.memory, CL_FALSE, 0,
+      amb.size() * sizeof(float), amb.data(), 0, nullptr, nullptr),
+      "resident match ambiguity read");
+    check_opencl(clEnqueueReadBuffer(queue, match_x.memory, CL_FALSE, 0,
+      mx.size() * sizeof(float), mx.data(), 0, nullptr, nullptr),
+      "resident match x read");
+    check_opencl(clEnqueueReadBuffer(queue, match_y.memory, CL_TRUE, 0,
+      my.size() * sizeof(float), my.data(), 0, nullptr, nullptr),
+      "resident match y read");
+    std::vector<SiftMatchResult> results(resident_match_count);
+    for (size_t i = 0; i < resident_match_count; ++i) {
+      results[i].match = static_cast<int>(indices[i]);
+      results[i].score = scores[i];
+      results[i].ambiguity = amb[i];
+      results[i].match_x = mx[i];
+      results[i].match_y = my[i];
+    }
+    return results;
   }
 };
 
@@ -2239,6 +2630,7 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
       !std::isfinite(edge_limit) || edge_limit <= 0.0f || max_features < 0)
     throw std::invalid_argument("Invalid image extractor configuration");
   const auto profile_start = std::chrono::steady_clock::now();
+  impl_->clear_resident_match();
   impl_->gradients_ready = false;
   auto &pyramid = impl_->get_pyramid();
   const auto levels = pyramid.build_with_differences(
@@ -2258,7 +2650,8 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
     impl_->detection_scratch.resize(octave_count);
   try {
     for (int phase = 0; phase < 2; ++phase) {
-      bool submitted = false;
+      std::vector<cl_event> waits;
+      waits.reserve(static_cast<size_t>(octave_count));
       for (int octave = 0; octave < octave_count; ++octave) {
         auto &scratch = impl_->detection_scratch[octave];
         if (!scratch) scratch = std::make_unique<Impl::DetectionScratch>();
@@ -2272,23 +2665,78 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
         impl_->detect_refine(differences.data() + offset,
           static_cast<int>(levels_per_octave), contrast_threshold, edge_limit,
           levels.device_differences.data() + offset, scratch.get(), phase == 1, false);
-        submitted = true;
+        if (phase == 0) {
+          if (scratch->count_event) waits.push_back(scratch->count_event);
+        } else {
+          if (scratch->refine_event) waits.push_back(scratch->refine_event);
+          else if (scratch->events[3]) waits.push_back(scratch->events[3]);
+        }
       }
-      if (submitted) check_opencl(clFinish(impl_->queue), "extract detection phase completion");
+      // Wait only on count/refine events instead of flushing the whole queue.
+      if (!waits.empty())
+        check_opencl(clWaitForEvents(static_cast<cl_uint>(waits.size()), waits.data()),
+                     "extract detection phase completion");
+    }
+    // Always wait for the last refine launch (phase 0 always refines; phase 1 may skip).
+    {
+      std::vector<cl_event> refine_waits;
+      refine_waits.reserve(static_cast<size_t>(octave_count));
+      for (int octave = 0; octave < octave_count; ++octave) {
+        auto *scratch = impl_->detection_scratch[octave].get();
+        if (!scratch) continue;
+        if (scratch->refine_event) refine_waits.push_back(scratch->refine_event);
+        else if (scratch->events[3]) refine_waits.push_back(scratch->events[3]);
+      }
+      if (!refine_waits.empty())
+        check_opencl(clWaitForEvents(static_cast<cl_uint>(refine_waits.size()), refine_waits.data()),
+                     "extract detection refine completion");
     }
     for (int octave = 0; octave < octave_count; ++octave)
       impl_->emit_unique_feature_records(*impl_->detection_scratch[octave], intervals, octave,
                                          base_sigma);
+    std::vector<cl_event> scatter_waits;
+    scatter_waits.reserve(static_cast<size_t>(octave_count));
+    for (int octave = 0; octave < octave_count; ++octave) {
+      auto *scratch = impl_->detection_scratch[octave].get();
+      if (scratch && scratch->scatter_event) scatter_waits.push_back(scratch->scatter_event);
+    }
+    if (!scatter_waits.empty())
+      check_opencl(clWaitForEvents(static_cast<cl_uint>(scatter_waits.size()), scatter_waits.data()),
+                   "extract unique scatter completion");
   } catch (...) {
     clFinish(impl_->queue);
     throw;
   }
   std::vector<Impl::DetectionScratch*> octave_scratch(static_cast<size_t>(octave_count));
-  for (int octave = 0; octave < octave_count; ++octave)
+  std::vector<cl_uint> octave_unique_counts(static_cast<size_t>(octave_count));
+  for (int octave = 0; octave < octave_count; ++octave) {
     octave_scratch[octave] = impl_->detection_scratch[octave].get();
-  auto keypoints = impl_->keypoints_from_unique_records(octave_scratch, intervals, base_sigma);
-  auto dispatch = impl_->build_feature_dispatch(std::move(keypoints), gaussian, intervals,
-                                                max_features);
+    octave_unique_counts[octave] = octave_scratch[octave]->unique_count;
+  }
+  if (impl_->feature_scratch.empty())
+    impl_->feature_scratch.push_back(std::make_unique<Impl::FeatureScratch>());
+  auto *feature_scratch = impl_->feature_scratch.front().get();
+  // Device-side concat, then one host materialization. Response cap + stable
+  // group reorder stay on-device only when max_features > 0 (identity gather).
+  // Uncapped ladder path skips the single-WI reorder — it was a net loss vs
+  // host bucket + source-index upload.
+  impl_->concatenate_unique_records(*feature_scratch, octave_scratch);
+  (void)octave_unique_counts;
+  const bool device_ordered = max_features > 0;
+  if (device_ordered) {
+    const int level_count = static_cast<int>(gaussian.size());
+    impl_->device_cap_and_group_order(*feature_scratch, level_count, max_features);
+  }
+  std::vector<float> concatenated_records;
+  std::vector<int> concatenated_groups;
+  impl_->materialize_concatenated_unique_host(*feature_scratch, concatenated_records,
+                                              concatenated_groups);
+  auto keypoints = impl_->keypoints_from_concatenated_unique(
+      concatenated_records, concatenated_groups, intervals, base_sigma,
+      feature_scratch->identity_sources);
+  auto dispatch = impl_->build_feature_dispatch(
+      std::move(keypoints), gaussian, intervals,
+      device_ordered ? 0 : max_features, feature_scratch->identity_sources);
   const auto detector_end = std::chrono::steady_clock::now();
   std::vector<SiftFeature> result;
   double orientation_ms = 0.0;
@@ -2305,10 +2753,7 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
   const size_t feature_groups = dispatch.feature_groups;
   const auto orientation_start = std::chrono::steady_clock::now();
   if (feature_groups > 0) try {
-    if (impl_->feature_scratch.empty())
-      impl_->feature_scratch.push_back(std::make_unique<Impl::FeatureScratch>());
-    auto *scratch = impl_->feature_scratch.front().get();
-    impl_->concatenate_unique_records(*scratch, octave_scratch);
+    auto *scratch = feature_scratch;
     impl_->gather_resident_orientation_points(*scratch, dispatch);
     impl_->ensure_buffer(scratch->magnitude, CL_MEM_READ_WRITE, gradient_count * sizeof(float));
     impl_->ensure_buffer(scratch->orientation, CL_MEM_READ_WRITE, gradient_count * sizeof(float));
@@ -2399,6 +2844,7 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
     throw;
   }
   impl_->gradients_ready = false;
+  const size_t uncapped_feature_count = result.size();
   if (max_features > 0 && result.size() > static_cast<size_t>(max_features)) {
     std::stable_sort(result.begin(), result.end(), [](const auto &first,
                                                       const auto &second) {
@@ -2406,6 +2852,16 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
              std::abs(second.point.keypoint.local.response);
     });
     result.resize(static_cast<size_t>(max_features));
+  }
+  // Retain descriptors on the extract queue for match_last_self(). Uncapped
+  // extracts reuse the device descriptor buffer; capped paths re-pack once.
+  {
+    Impl::FeatureScratch *scratch =
+        impl_->feature_scratch.empty() ? nullptr : impl_->feature_scratch.front().get();
+    const bool device_aligned =
+        max_features == 0 && result.size() == uncapped_feature_count && scratch &&
+        scratch->descriptors.memory;
+    impl_->publish_resident_match(scratch, result, device_aligned);
   }
   if (std::getenv("SIFT_OPENCL_PROFILE")) {
     const auto milliseconds = [](auto start, auto end) {
@@ -2428,6 +2884,14 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
                  feature_groups);
   }
   return result;
+}
+
+bool OpenCLDoGExtrema::has_resident_match() const {
+  return impl_->resident_match_count > 0;
+}
+
+std::vector<SiftMatchResult> OpenCLDoGExtrema::match_last_self() {
+  return impl_->run_resident_self_match();
 }
 
 } // namespace sift_extractor::detail
