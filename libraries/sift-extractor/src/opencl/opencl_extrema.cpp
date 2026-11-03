@@ -622,6 +622,86 @@ typedef struct {
   float angle;
 } OrientationSourceData;
 
+uint location_hash(__global const float *point) {
+  uint result = 2166136261U;
+  for (int coordinate = 0; coordinate < 3; ++coordinate)
+    result = (result ^ as_uint(point[coordinate] == 0.0f ? 0.0f : point[coordinate])) * 16777619U;
+  result = (result ^ (result >> 16)) * 0x7feb352dU;
+  result = (result ^ (result >> 15)) * 0x846ca68bU;
+  return result ^ (result >> 16);
+}
+
+int same_location(__global const float *first, __global const float *second) {
+  return first[0] == second[0] && first[1] == second[1] && first[2] == second[2];
+}
+
+__kernel void claim_locations(__global const float *refined,
+                               volatile __global uint *owners,
+                               const uint candidate_count, const uint table_mask) {
+  const uint index = (uint)get_global_id(0);
+  if (index >= candidate_count || refined[index * 6 + 5] == 0.0f) return;
+  __global const float *point = refined + index * 6;
+  uint slot = location_hash(point) & table_mask;
+  for (;;) {
+    const uint owner = atomic_cmpxchg(owners + slot, 0xffffffffU, index);
+    if (owner == 0xffffffffU) return;
+    if (same_location(point, refined + owner * 6)) {
+      atomic_min(owners + slot, index);
+      return;
+    }
+    slot = (slot + 1U) & table_mask;
+  }
+}
+
+__kernel void mark_unique_locations(__global const float *refined,
+                                     __global const uint *owners,
+                                     __global uint *keep,
+                                     const uint candidate_count, const uint table_mask) {
+  const uint index = (uint)get_global_id(0);
+  if (index >= candidate_count) return;
+  if (refined[index * 6 + 5] == 0.0f) {
+    keep[index] = 0;
+    return;
+  }
+  __global const float *point = refined + index * 6;
+  uint slot = location_hash(point) & table_mask;
+  for (;;) {
+    const uint owner = owners[slot];
+    if (same_location(point, refined + owner * 6)) {
+      keep[index] = owner == index ? 1U : 0U;
+      return;
+    }
+    slot = (slot + 1U) & table_mask;
+  }
+}
+
+__kernel void scatter_feature_records(__global const float *refined,
+                                       __global const uint *keep_offsets,
+                                       __global const uint *keep,
+                                       __global float *records,
+                                       __global int *groups,
+                                       const uint candidate_count,
+                                       const int intervals,
+                                       const int octave,
+                                       const float base_sigma) {
+  const uint index = (uint)get_global_id(0);
+  if (index >= candidate_count || keep[index] == 0U) return;
+  const uint destination = keep_offsets[index];
+  __global const float *point = refined + index * 6;
+  const float image_factor = ldexp(1.0f, octave);
+  const float octave_sigma = base_sigma * exp2((point[2] + 0.5f) / (float)intervals);
+  const int level = clamp((int)round(point[2]), 0, intervals + 2);
+  records[destination * 8 + 0] = point[0];
+  records[destination * 8 + 1] = point[1];
+  records[destination * 8 + 2] = point[2];
+  records[destination * 8 + 3] = point[3];
+  records[destination * 8 + 4] = point[4];
+  records[destination * 8 + 5] = octave_sigma;
+  records[destination * 8 + 6] = point[0] * image_factor;
+  records[destination * 8 + 7] = point[1] * image_factor;
+  groups[destination] = octave * (intervals + 3) + level;
+}
+
 __kernel void pack_orientations(__global const float *points,
                                  __global const float *angles,
                                  __global const int *layout,
@@ -727,20 +807,33 @@ struct OpenCLDoGExtrema::Impl {
   };
   std::vector<std::unique_ptr<FeatureScratch>> feature_scratch;
   struct DetectionScratch {
-    Buffer volume, mask, offsets, refined;
+    Buffer volume, mask, offsets, refined, owners, keep, keep_offsets, records, groups;
     std::vector<cl_uint> host_offsets;
     std::vector<float> output;
+    std::vector<float> unique_records;
+    std::vector<int> unique_groups;
     cl_event events[4]{};
     cl_uint candidate_count = 0;
+    cl_uint unique_count = 0;
     size_t candidate_capacity = 8;
     ~DetectionScratch() {
-      for (auto *buffer : {&volume, &mask, &offsets, &refined})
+      for (auto *buffer : {&volume, &mask, &offsets, &refined, &owners, &keep, &keep_offsets,
+               &records, &groups})
         if (buffer->memory) clReleaseMemObject(buffer->memory);
       for (auto event : events)
         if (event) clReleaseEvent(event);
     }
   };
   std::vector<std::unique_ptr<DetectionScratch>> detection_scratch;
+  struct FeatureDispatch {
+    std::vector<ScaleSpaceKeypoint> ordered_points;
+    std::vector<float> packed;
+    std::vector<int> layout;
+    std::vector<int> image_offsets;
+    std::vector<char> occupied;
+    size_t gradient_count = 0;
+    size_t feature_groups = 0;
+  };
 
   cl_context context = nullptr;
   cl_command_queue queue = nullptr;
@@ -751,6 +844,9 @@ struct OpenCLDoGExtrema::Impl {
   cl_kernel compact_kernel = nullptr;
   cl_kernel scan_kernel = nullptr;
   cl_kernel bounded_refine_kernel = nullptr;
+  cl_kernel claim_kernel = nullptr;
+  cl_kernel mark_unique_kernel = nullptr;
+  cl_kernel scatter_feature_kernel = nullptr;
   Buffer dog_volume;
   Buffer candidate_mask;
   Buffer block_offsets;
@@ -787,6 +883,186 @@ struct OpenCLDoGExtrema::Impl {
     buffer.memory = replacement;
     buffer.capacity = bytes;
     return buffer.memory;
+  }
+
+  static void apply_response_cap(std::vector<ScaleSpaceKeypoint> &keypoints, int max_features) {
+    if (max_features <= 0 || keypoints.size() <= static_cast<size_t>(max_features)) return;
+    std::stable_sort(keypoints.begin(), keypoints.end(), [](const auto &first, const auto &second) {
+      return std::abs(first.local.response) > std::abs(second.local.response);
+    });
+    keypoints.resize(static_cast<size_t>(max_features));
+  }
+
+  FeatureDispatch build_feature_dispatch(std::vector<ScaleSpaceKeypoint> keypoints,
+      const std::vector<GaussianLevel> &gaussian, int intervals, int max_features) {
+    apply_response_cap(keypoints, max_features);
+    FeatureDispatch dispatch;
+    dispatch.image_offsets.assign(gaussian.size(), 0);
+    dispatch.occupied.assign(gaussian.size(), 0);
+    std::vector<std::vector<ScaleSpaceKeypoint>> groups(gaussian.size());
+    for (const auto &point : keypoints) {
+      const int level = std::clamp(static_cast<int>(std::lround(point.local.scale)),
+                                    0, intervals + 2);
+      groups[static_cast<size_t>(point.octave) * (intervals + 3) + level].push_back(point);
+    }
+    dispatch.packed.reserve(keypoints.size() * 4);
+    dispatch.layout.reserve(keypoints.size() * 3);
+    dispatch.ordered_points.reserve(keypoints.size());
+    for (size_t group = 0; group < groups.size(); ++group) {
+      if (groups[group].empty()) continue;
+      const size_t count = static_cast<size_t>(gaussian[group].width) * gaussian[group].height;
+      if (count > static_cast<size_t>(std::numeric_limits<int>::max()) - dispatch.gradient_count)
+        throw std::overflow_error("Packed gradient volume exceeds kernel indexing range");
+      const size_t padded_count = (count + 255) / 256 * 256;
+      if (padded_count > static_cast<size_t>(std::numeric_limits<int>::max()) - dispatch.gradient_count)
+        throw std::overflow_error("Aligned gradient volume exceeds kernel indexing range");
+      dispatch.image_offsets[group] = static_cast<int>(dispatch.gradient_count);
+      dispatch.gradient_count += padded_count;
+      dispatch.occupied[group] = 1;
+      ++dispatch.feature_groups;
+      for (const auto &point : groups[group]) {
+        dispatch.ordered_points.push_back(point);
+        dispatch.packed.insert(dispatch.packed.end(),
+          {point.local.x, point.local.y, point.octave_sigma, 0.0f});
+        dispatch.layout.insert(dispatch.layout.end(),
+          {gaussian[group].width, gaussian[group].height, dispatch.image_offsets[group]});
+      }
+    }
+    return dispatch;
+  }
+
+  void emit_unique_feature_records(DetectionScratch &scratch, int intervals, int octave,
+                                   float base_sigma) {
+    scratch.unique_count = 0;
+    scratch.unique_records.clear();
+    scratch.unique_groups.clear();
+    if (scratch.candidate_count == 0) return;
+    for (auto entry : {std::make_pair(&claim_kernel, "claim_locations"),
+                       std::make_pair(&mark_unique_kernel, "mark_unique_locations"),
+                       std::make_pair(&scatter_feature_kernel, "scatter_feature_records")}) {
+      if (*entry.first) continue;
+      cl_int status = CL_SUCCESS;
+      *entry.first = clCreateKernel(program, entry.second, &status);
+      check_opencl(status, "clCreateKernel(feature boundary)");
+    }
+    if (!scan_kernel) {
+      cl_int status = CL_SUCCESS;
+      scan_kernel = clCreateKernel(program, "scan_dog_counts", &status);
+      check_opencl(status, "clCreateKernel(scan_dog_counts)");
+    }
+    size_t table_size = 1;
+    while (table_size < static_cast<size_t>(scratch.candidate_count) * 2) table_size *= 2;
+    if (table_size > std::numeric_limits<cl_uint>::max())
+      throw std::overflow_error("Location membership table exceeds kernel indexing range");
+    const size_t candidate_count = scratch.candidate_count;
+    const cl_uint candidate_count_u = static_cast<cl_uint>(candidate_count);
+    cl_mem refined = ensure_buffer(scratch.refined, CL_MEM_READ_WRITE,
+      scratch.candidate_capacity * 6 * sizeof(float));
+    cl_mem owners = ensure_buffer(scratch.owners, CL_MEM_READ_WRITE, table_size * sizeof(cl_uint));
+    cl_mem keep = ensure_buffer(scratch.keep, CL_MEM_READ_WRITE, candidate_count * sizeof(cl_uint));
+    cl_mem keep_offsets = ensure_buffer(scratch.keep_offsets, CL_MEM_READ_WRITE,
+      (candidate_count + 1) * sizeof(cl_uint));
+    const cl_uint empty = std::numeric_limits<cl_uint>::max();
+    check_opencl(clEnqueueFillBuffer(queue, owners, &empty, sizeof(empty), 0,
+      table_size * sizeof(cl_uint), 0, nullptr, nullptr), "feature boundary membership clear");
+    const cl_uint table_mask = static_cast<cl_uint>(table_size - 1);
+    check_opencl(clSetKernelArg(claim_kernel, 0, sizeof(refined), &refined), "feature boundary claim refined");
+    check_opencl(clSetKernelArg(claim_kernel, 1, sizeof(owners), &owners), "feature boundary claim owners");
+    check_opencl(clSetKernelArg(claim_kernel, 2, sizeof(candidate_count_u), &candidate_count_u),
+      "feature boundary claim count");
+    check_opencl(clSetKernelArg(claim_kernel, 3, sizeof(table_mask), &table_mask),
+      "feature boundary claim mask");
+    check_opencl(clEnqueueNDRangeKernel(queue, claim_kernel, 1, nullptr, &candidate_count,
+      nullptr, 0, nullptr, nullptr), "feature boundary claim launch");
+    check_opencl(clSetKernelArg(mark_unique_kernel, 0, sizeof(refined), &refined), "feature boundary mark refined");
+    check_opencl(clSetKernelArg(mark_unique_kernel, 1, sizeof(owners), &owners), "feature boundary mark owners");
+    check_opencl(clSetKernelArg(mark_unique_kernel, 2, sizeof(keep), &keep), "feature boundary mark keep");
+    check_opencl(clSetKernelArg(mark_unique_kernel, 3, sizeof(candidate_count_u), &candidate_count_u),
+      "feature boundary mark count");
+    check_opencl(clSetKernelArg(mark_unique_kernel, 4, sizeof(table_mask), &table_mask),
+      "feature boundary mark mask");
+    check_opencl(clEnqueueNDRangeKernel(queue, mark_unique_kernel, 1, nullptr, &candidate_count,
+      nullptr, 0, nullptr, nullptr), "feature boundary mark launch");
+    check_opencl(clEnqueueCopyBuffer(queue, keep, keep_offsets, 0, 0,
+      candidate_count * sizeof(cl_uint), 0, nullptr, nullptr), "feature boundary keep copy");
+    const int scan_count = static_cast<int>(candidate_count);
+    check_opencl(clSetKernelArg(scan_kernel, 0, sizeof(keep_offsets), &keep_offsets),
+      "feature boundary keep scan");
+    check_opencl(clSetKernelArg(scan_kernel, 1, sizeof(scan_count), &scan_count),
+      "feature boundary keep count");
+    const size_t scan_size = 256;
+    check_opencl(clEnqueueNDRangeKernel(queue, scan_kernel, 1, nullptr, &scan_size, &scan_size,
+      0, nullptr, nullptr), "feature boundary keep scan launch");
+    check_opencl(clEnqueueReadBuffer(queue, keep_offsets, CL_FALSE, candidate_count * sizeof(cl_uint),
+      sizeof(scratch.unique_count), &scratch.unique_count, 0, nullptr, nullptr),
+      "feature boundary unique count readback");
+    check_opencl(clFinish(queue), "feature boundary unique count completion");
+    if (scratch.unique_count == 0) return;
+    if (scratch.unique_count > static_cast<cl_uint>(std::numeric_limits<int>::max()) / 8)
+      throw std::overflow_error("Too many unique feature records");
+    cl_mem records = ensure_buffer(scratch.records, CL_MEM_WRITE_ONLY,
+      scratch.unique_count * 8 * sizeof(float));
+    cl_mem groups = ensure_buffer(scratch.groups, CL_MEM_WRITE_ONLY,
+      scratch.unique_count * sizeof(cl_int));
+    check_opencl(clSetKernelArg(scatter_feature_kernel, 0, sizeof(refined), &refined),
+      "feature boundary scatter refined");
+    check_opencl(clSetKernelArg(scatter_feature_kernel, 1, sizeof(keep_offsets), &keep_offsets),
+      "feature boundary scatter offsets");
+    check_opencl(clSetKernelArg(scatter_feature_kernel, 2, sizeof(keep), &keep),
+      "feature boundary scatter keep");
+    check_opencl(clSetKernelArg(scatter_feature_kernel, 3, sizeof(records), &records),
+      "feature boundary scatter records");
+    check_opencl(clSetKernelArg(scatter_feature_kernel, 4, sizeof(groups), &groups),
+      "feature boundary scatter groups");
+    check_opencl(clSetKernelArg(scatter_feature_kernel, 5, sizeof(candidate_count_u), &candidate_count_u),
+      "feature boundary scatter count");
+    check_opencl(clSetKernelArg(scatter_feature_kernel, 6, sizeof(intervals), &intervals),
+      "feature boundary scatter intervals");
+    check_opencl(clSetKernelArg(scatter_feature_kernel, 7, sizeof(octave), &octave),
+      "feature boundary scatter octave");
+    check_opencl(clSetKernelArg(scatter_feature_kernel, 8, sizeof(base_sigma), &base_sigma),
+      "feature boundary scatter sigma");
+    check_opencl(clEnqueueNDRangeKernel(queue, scatter_feature_kernel, 1, nullptr, &candidate_count,
+      nullptr, 0, nullptr, nullptr), "feature boundary scatter launch");
+    scratch.unique_records.resize(static_cast<size_t>(scratch.unique_count) * 8);
+    scratch.unique_groups.resize(scratch.unique_count);
+    check_opencl(clEnqueueReadBuffer(queue, records, CL_FALSE, 0,
+      scratch.unique_records.size() * sizeof(float), scratch.unique_records.data(), 0, nullptr, nullptr),
+      "feature boundary records readback");
+    check_opencl(clEnqueueReadBuffer(queue, groups, CL_TRUE, 0,
+      scratch.unique_groups.size() * sizeof(int), scratch.unique_groups.data(), 0, nullptr, nullptr),
+      "feature boundary groups readback");
+  }
+
+  std::vector<ScaleSpaceKeypoint> keypoints_from_unique_records(
+      const std::vector<DetectionScratch*> &octaves, int intervals, float base_sigma) {
+    size_t total = 0;
+    for (const auto *scratch : octaves) total += scratch ? scratch->unique_count : 0;
+    std::vector<ScaleSpaceKeypoint> keypoints;
+    keypoints.reserve(total);
+    for (size_t octave = 0; octave < octaves.size(); ++octave) {
+      const auto *scratch = octaves[octave];
+      if (!scratch || scratch->unique_count == 0) continue;
+      const float image_factor = std::ldexp(1.0f, static_cast<int>(octave));
+      for (cl_uint index = 0; index < scratch->unique_count; ++index) {
+        const float *values = scratch->unique_records.data() + static_cast<size_t>(index) * 8;
+        // Recompute sigma on the host so extract matches detect_* / host-reference
+        // numerics. Device exp2 can differ by 1 ULP from std::exp2.
+        const float octave_sigma =
+            base_sigma * std::exp2((values[2] + 0.5f) / static_cast<float>(intervals));
+        const float image_sigma = octave_sigma * image_factor;
+        if (!std::isfinite(octave_sigma) || !std::isfinite(image_sigma))
+          throw std::overflow_error("Scale-space keypoint sigma overflow");
+        const int level = std::clamp(static_cast<int>(std::lround(values[2])), 0, intervals + 2);
+        if (scratch->unique_groups[index] !=
+            static_cast<int>(octave) * (intervals + 3) + level)
+          throw std::logic_error("Feature boundary group mapping mismatch");
+        keypoints.push_back({{values[0], values[1], values[2], values[3], values[4]},
+                             static_cast<int>(octave), values[0] * image_factor,
+                             values[1] * image_factor, octave_sigma, image_sigma});
+      }
+    }
+    return keypoints;
   }
 
   cl_kernel get_feature_kernel(const char *name) {
@@ -1072,7 +1348,7 @@ struct OpenCLDoGExtrema::Impl {
   std::vector<RefinedKeypoint> detect_refine(const DoGLevel *levels,
       int scale_count, float threshold, float edge_limit,
       const cl_mem *device_levels = nullptr, DetectionScratch *scratch = nullptr,
-      bool refine_phase = false) {
+      bool refine_phase = false, bool read_refined = true) {
     if (scratch && !refine_phase) {
       scratch->host_offsets.clear();
       scratch->output.clear();
@@ -1199,7 +1475,8 @@ struct OpenCLDoGExtrema::Impl {
       static_assert(sizeof(ExtremaCandidate) == sizeof(cl_int) * 3 + sizeof(cl_float));
         cl_mem candidates = scratch ? mask : ensure_buffer(compact_candidates, CL_MEM_READ_WRITE,
           candidate_count * sizeof(ExtremaCandidate));
-        cl_mem refined = ensure_buffer(scratch ? scratch->refined : refined_candidates, CL_MEM_WRITE_ONLY,
+        cl_mem refined = ensure_buffer(scratch ? scratch->refined : refined_candidates,
+          scratch ? CL_MEM_READ_WRITE : CL_MEM_WRITE_ONLY,
           candidate_count * 6 * sizeof(float));
         if (!scratch) check_opencl(clEnqueueWriteBuffer(queue, offsets, CL_FALSE, 0,
           block_count * sizeof(cl_uint), host_offsets.data(), 0, nullptr, nullptr),
@@ -1239,6 +1516,10 @@ struct OpenCLDoGExtrema::Impl {
       const size_t refinement_size = scratch ? block_count : candidate_count;
       check_opencl(clEnqueueNDRangeKernel(queue, refinement, 1, nullptr,
           &refinement_size, nullptr, 0, nullptr, event_for(3)), "combined refinement launch");
+      if (!read_refined) {
+        if (scratch) return {};
+        throw std::logic_error("Skipping refinement readback requires detection scratch");
+      }
         output.resize(candidate_count * 6);
         check_opencl(clEnqueueReadBuffer(queue, refined, scratch ? CL_FALSE : CL_TRUE, 0,
           output.size() * sizeof(float), output.data(), 0, nullptr, nullptr),
@@ -1344,6 +1625,9 @@ struct OpenCLDoGExtrema::Impl {
   }
 
   ~Impl() {
+    if (claim_kernel) clReleaseKernel(claim_kernel);
+    if (mark_unique_kernel) clReleaseKernel(mark_unique_kernel);
+    if (scatter_feature_kernel) clReleaseKernel(scatter_feature_kernel);
     if (orientation_pack_kernel) clReleaseKernel(orientation_pack_kernel);
     if (scan_kernel) clReleaseKernel(scan_kernel);
     if (bounded_refine_kernel) clReleaseKernel(bounded_refine_kernel);
@@ -1808,47 +2092,61 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
   const auto &gaussian = levels.gaussian;
   const auto &differences = levels.differences;
   const auto difference_end = std::chrono::steady_clock::now();
-  auto keypoints = detect_pyramid_impl(differences, octave_count, intervals,
-      base_sigma, contrast_threshold, edge_limit, &levels.device_differences);
-  if (max_features > 0 && keypoints.size() > static_cast<size_t>(max_features)) {
-    std::stable_sort(keypoints.begin(), keypoints.end(), [](const auto &first,
-                                                           const auto &second) {
-      return std::abs(first.local.response) > std::abs(second.local.response);
-    });
-    keypoints.resize(static_cast<size_t>(max_features));
+  // Extract path: keep refined records on-device, emit unique mapped records with
+  // sigma/group tags, then host-cap/group via build_feature_dispatch. detect_* APIs
+  // retain host hash membership and still consume the refined round trip.
+  const size_t levels_per_octave = static_cast<size_t>(intervals) + 2;
+  if (differences.size() != static_cast<size_t>(octave_count) * levels_per_octave)
+    throw std::invalid_argument("DoG pyramid does not match extractor configuration");
+  if (impl_->detection_scratch.size() < static_cast<size_t>(octave_count))
+    impl_->detection_scratch.resize(octave_count);
+  try {
+    for (int phase = 0; phase < 2; ++phase) {
+      bool submitted = false;
+      for (int octave = 0; octave < octave_count; ++octave) {
+        auto &scratch = impl_->detection_scratch[octave];
+        if (!scratch) scratch = std::make_unique<Impl::DetectionScratch>();
+        if (phase == 1) {
+          if (scratch->candidate_count <= scratch->candidate_capacity) continue;
+          if (scratch->candidate_count > static_cast<size_t>(std::numeric_limits<int>::max()) / 6)
+            throw std::overflow_error("Too many refined candidates");
+          scratch->candidate_capacity = scratch->candidate_count;
+        }
+        const size_t offset = static_cast<size_t>(octave) * levels_per_octave;
+        impl_->detect_refine(differences.data() + offset,
+          static_cast<int>(levels_per_octave), contrast_threshold, edge_limit,
+          levels.device_differences.data() + offset, scratch.get(), phase == 1, false);
+        submitted = true;
+      }
+      if (submitted) check_opencl(clFinish(impl_->queue), "extract detection phase completion");
+    }
+    for (int octave = 0; octave < octave_count; ++octave)
+      impl_->emit_unique_feature_records(*impl_->detection_scratch[octave], intervals, octave,
+                                         base_sigma);
+  } catch (...) {
+    clFinish(impl_->queue);
+    throw;
   }
+  std::vector<Impl::DetectionScratch*> octave_scratch(static_cast<size_t>(octave_count));
+  for (int octave = 0; octave < octave_count; ++octave)
+    octave_scratch[octave] = impl_->detection_scratch[octave].get();
+  auto keypoints = impl_->keypoints_from_unique_records(octave_scratch, intervals, base_sigma);
+  auto dispatch = impl_->build_feature_dispatch(std::move(keypoints), gaussian, intervals,
+                                                max_features);
   const auto detector_end = std::chrono::steady_clock::now();
-  std::vector<std::vector<ScaleSpaceKeypoint>> groups(gaussian.size());
-  for (const auto &point : keypoints) {
-    const int level = std::clamp(static_cast<int>(std::lround(point.local.scale)),
-                                  0, intervals + 2);
-    groups[static_cast<size_t>(point.octave) * (intervals + 3) + level].push_back(point);
-  }
   std::vector<SiftFeature> result;
   double orientation_ms = 0.0;
   double descriptor_ms = 0.0;
-  size_t feature_groups = 0;
-  std::vector<float> packed, descriptors;
+  std::vector<float> descriptors;
   std::vector<Impl::OrientationSource> orientation_sources;
-  std::vector<int> layout, gradient_layout, image_offsets(groups.size());
-  std::vector<ScaleSpaceKeypoint> ordered_points;
+  std::vector<int> gradient_layout;
   std::vector<OrientedKeypoint> oriented;
-  packed.reserve(keypoints.size() * 4);
-  layout.reserve(keypoints.size() * 3);
-  ordered_points.reserve(keypoints.size());
-  size_t gradient_count = 0;
-  for (size_t group = 0; group < groups.size(); ++group) {
-    if (groups[group].empty()) continue;
-    const size_t count = static_cast<size_t>(gaussian[group].width) * gaussian[group].height;
-    if (count > static_cast<size_t>(std::numeric_limits<int>::max()) - gradient_count)
-      throw std::overflow_error("Packed gradient volume exceeds kernel indexing range");
-    const size_t padded_count = (count + 255) / 256 * 256;
-    if (padded_count > static_cast<size_t>(std::numeric_limits<int>::max()) - gradient_count)
-      throw std::overflow_error("Aligned gradient volume exceeds kernel indexing range");
-    image_offsets[group] = static_cast<int>(gradient_count);
-    gradient_count += padded_count;
-    ++feature_groups;
-  }
+  auto &ordered_points = dispatch.ordered_points;
+  auto &packed = dispatch.packed;
+  auto &layout = dispatch.layout;
+  auto &image_offsets = dispatch.image_offsets;
+  const size_t gradient_count = dispatch.gradient_count;
+  const size_t feature_groups = dispatch.feature_groups;
   const auto orientation_start = std::chrono::steady_clock::now();
   if (feature_groups > 0) try {
     if (impl_->feature_scratch.empty())
@@ -1858,8 +2156,8 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
     impl_->ensure_buffer(scratch->orientation, CL_MEM_READ_WRITE, gradient_count * sizeof(float));
     cl_mem shared_image = nullptr;
     bool packed_gradients = true;
-    for (size_t group = 0; group < groups.size(); ++group) {
-      if (groups[group].empty()) continue;
+    for (size_t group = 0; group < gaussian.size(); ++group) {
+      if (!dispatch.occupied[group]) continue;
       cl_mem parent = nullptr;
       size_t offset = 0;
       check_opencl(clGetMemObjectInfo(levels.device_gaussian[group], CL_MEM_ASSOCIATED_MEMOBJECT,
@@ -1905,16 +2203,12 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
         "packed gradient launch");
       impl_->gradients_ready = true;
     }
-    for (size_t group = 0; group < groups.size(); ++group) {
-      if (groups[group].empty()) continue;
-      for (const auto &point : groups[group]) {
-        ordered_points.push_back(point);
-        packed.insert(packed.end(),
-          {point.local.x, point.local.y, point.octave_sigma, 0.0f});
-        layout.insert(layout.end(), {gaussian[group].width, gaussian[group].height, image_offsets[group]});
+    if (!packed_gradients) {
+      for (size_t group = 0; group < gaussian.size(); ++group) {
+        if (!dispatch.occupied[group]) continue;
+        impl_->prepare_gradients(gaussian[group], levels.device_gaussian[group], scratch,
+          image_offsets[group]);
       }
-      if (!packed_gradients)
-        impl_->prepare_gradients(gaussian[group], levels.device_gaussian[group], scratch, image_offsets[group]);
     }
     impl_->run_feature_kernel("sift_orientations", gaussian.front(), packed,
       36, levels.device_gaussian.front(), scratch, &layout, false);
@@ -1970,7 +2264,7 @@ std::vector<SiftFeature> OpenCLDoGExtrema::extract_image(
                  milliseconds(difference_end, detector_end),
                  orientation_ms, descriptor_ms,
                  milliseconds(profile_start, profile_end), gaussian.size(),
-                 differences.size(), keypoints.size(), result.size(),
+                 differences.size(), ordered_points.size(), result.size(),
                  feature_groups);
   }
   return result;
