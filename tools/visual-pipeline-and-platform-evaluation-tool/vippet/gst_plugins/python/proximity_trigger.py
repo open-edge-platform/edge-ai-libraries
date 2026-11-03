@@ -95,7 +95,7 @@ class ProximityTrigger(GstBase.BaseTransform):
         blurb="Maximum center-to-center distance in pixels to trigger",
         minimum=1,
         maximum=10000,
-        default=1350,
+        default=600,
     )
     def distance(self):  # pyright: ignore[reportRedeclaration]
         return self._distance

@@ -57,6 +57,19 @@ def create_usb_camera_graph(device: str = "/dev/video0") -> Graph:
     )
 
 
+def create_gige_camera_graph(camera_name: str) -> Graph:
+    """Helper to create a pipeline Graph object with GigE camera source (aravissrc)."""
+    return Graph.from_dict(
+        {
+            "nodes": [
+                {"id": "0", "type": "aravissrc", "data": {"camera-name": camera_name}},
+                {"id": "1", "type": "fakesink", "data": {}},
+            ],
+            "edges": [{"id": "0", "source": "0", "target": "1"}],
+        }
+    )
+
+
 def create_internal_execution_config(
     output_mode: InternalOutputMode = InternalOutputMode.DISABLED,
     max_runtime: float = 0,
@@ -1230,7 +1243,8 @@ class TestUSBCameraValidation(unittest.TestCase):
             manager._validate_no_usb_camera_for_density([spec])
         error_msg = str(context.exception)
         self.assertIn(
-            "USB camera input sources are not supported in density tests", error_msg
+            "USB and GigE camera input sources are not supported in density tests",
+            error_msg,
         )
         self.assertIn("/dev/video0", error_msg)
         self.assertIn("USB Camera Pipeline", error_msg)
@@ -1257,12 +1271,64 @@ class TestUSBCameraValidation(unittest.TestCase):
             manager._validate_no_usb_camera_for_density([spec1, spec2])
         error_msg = str(context.exception)
         self.assertIn(
-            "USB camera input sources are not supported in density tests", error_msg
+            "USB and GigE camera input sources are not supported in density tests",
+            error_msg,
         )
         self.assertIn("/dev/video0", error_msg)
         self.assertIn("/dev/video1", error_msg)
         self.assertIn("USB Camera Pipeline 1", error_msg)
         self.assertIn("USB Camera Pipeline 2", error_msg)
+
+    @patch("managers.tests_manager.PipelineManager")
+    def test_density_with_gige_camera_raises_error(self, mock_pipeline_manager_cls):
+        mock_pipeline_manager_cls.return_value = MagicMock()
+        manager = TestsManager()
+        spec = InternalPipelineDensitySpec(
+            pipeline_id="/pipelines/gige-test/variants/v1",
+            pipeline_name="GigE Camera Pipeline",
+            pipeline_graph=create_gige_camera_graph("12345678"),
+            stream_rate=100,
+        )
+        with self.assertRaises(ValueError) as context:
+            manager._validate_no_usb_camera_for_density([spec])
+        error_msg = str(context.exception)
+        self.assertIn("gige://12345678", error_msg)
+        self.assertIn("GigE Camera Pipeline", error_msg)
+
+    @patch("managers.tests_manager.PipelineManager")
+    def test_performance_same_gige_camera_multiple_pipelines_raises_error(
+        self, mock_pipeline_manager_cls
+    ):
+        mock_pipeline_manager_cls.return_value = MagicMock()
+        manager = TestsManager()
+        specs = [
+            InternalPipelinePerformanceSpec(
+                pipeline_id=f"/pipelines/gige-test{i}/variants/v{i}",
+                pipeline_name=f"GigE Camera Pipeline {i}",
+                pipeline_graph=create_gige_camera_graph("12345678"),
+                streams=1,
+            )
+            for i in (1, 2)
+        ]
+        with self.assertRaises(ValueError) as context:
+            manager._validate_usb_camera_for_performance(specs)
+        error_msg = str(context.exception)
+        self.assertIn("gige://12345678", error_msg)
+        self.assertIn("can only be used in one pipeline with one stream", error_msg)
+
+    @patch("managers.tests_manager.PipelineManager")
+    def test_performance_single_gige_camera_single_stream_succeeds(
+        self, mock_pipeline_manager_cls
+    ):
+        mock_pipeline_manager_cls.return_value = MagicMock()
+        manager = TestsManager()
+        spec = InternalPipelinePerformanceSpec(
+            pipeline_id="/pipelines/gige-test/variants/v1",
+            pipeline_name="GigE Camera Pipeline",
+            pipeline_graph=create_gige_camera_graph("192.168.1.50"),
+            streams=1,
+        )
+        manager._validate_usb_camera_for_performance([spec])
 
     @patch("managers.tests_manager.PipelineManager")
     def test_density_without_usb_camera_succeeds(self, mock_pipeline_manager_cls):

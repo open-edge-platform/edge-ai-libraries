@@ -55,8 +55,14 @@ Operating-system packages inherited from the base container images are covered b
 shipped inside those images (see section 2) and are not repeated here. The only OS packages
 ViPPET itself installs on top of a base image are, in intel/vippet-app:
 
-  yq        - MIT License
-  v4l-utils - GPL-2.0-or-later (utilities) with LGPL-2.1-or-later libraries
+  yq              - MIT License
+  v4l-utils       - GPL-2.0-or-later (utilities) with LGPL-2.1-or-later libraries
+  libaravis-0.8-0 - LGPL-2.1-or-later (Aravis GenICam library and its aravissrc GStreamer
+                    plugin, used for GigE Vision cameras); a few source files are under the
+                    MIT License (src/arvrealtime.c) and LGPL-2.0-or-later (src/arvwakeup.c).
+                    Copyright (c) 2009-2020 Emmanuel Pacaud; GStreamer plugin also
+                    Copyright (c) 2006 Eric Jonas, (c) 2006 Antoine Tremblay,
+                    (c) 2010 United States Government, Joshua M. Doe.
 
 Source code for the GPL/LGPL-licensed components listed in this file is available from the
 respective upstream projects and from the distribution the base image is built on. Intel will
