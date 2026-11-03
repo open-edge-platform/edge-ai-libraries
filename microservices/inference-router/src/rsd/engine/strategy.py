@@ -48,15 +48,17 @@ class CapabilitySelector:
 class PerformanceSelector:
     """Provider performance selector criteria.
 
-    Maps a live latency metric (e.g. ``ttft_ms``, ``tpot_ms``) to the maximum
-    value a provider may report and still be eligible. All metrics are
-    lower-is-better latencies, so a provider matches when every configured
-    metric is ``<=`` its threshold (see :meth:`StrategyExecutor._matches_performance_selector`).
-    The values are read from provider metadata under ``performance.<metric>``,
-    kept fresh by the performance probe.
+    Maps a live metric (e.g. ``requests``, ``ttft_ms``) to an inclusive
+    ``(lower, upper)`` range the provider's value must fall in -- the same
+    ``lower <= value <= upper`` semantics as a :class:`ZoneRule` zone. ``None``
+    leaves that side unbounded, so ``(None, 10)`` is ``<= 10`` and ``(50, None)``
+    is ``>= 50``. A provider matches when every configured metric is in range
+    (see :meth:`StrategyExecutor._matches_performance_selector`). The values are
+    read from provider metadata under ``performance.<metric>``, kept fresh by
+    the performance probe.
     """
 
-    thresholds: Dict[str, float] = field(default_factory=dict)
+    bounds: Dict[str, Tuple[Optional[float], Optional[float]]] = field(default_factory=dict)
 
 
 @dataclass
@@ -299,24 +301,26 @@ class StrategyExecutor:
         provider_metadata: Dict[str, Any],
         provider_selector: ProviderSelector,
     ) -> bool:
-        """Return True when a provider clears every performance threshold.
+        """Return True when a provider's metrics all fall in their configured ranges.
 
-        Metrics are lower-is-better latencies read from provider metadata under
-        ``performance.<metric>`` (kept fresh by the performance probe). A missing
-        or non-numeric metric fails the filter — the same conservative stance the
-        cost selector takes for providers without a usable ``cost``.
+        Metrics are read from provider metadata under ``performance.<metric>``
+        (kept fresh by the performance probe). A missing or non-numeric metric
+        fails the filter whichever side is bounded — the same conservative stance
+        the cost selector takes for providers without a usable ``cost``.
         """
         performance = provider_selector.performance
         if performance is None:
             return True
 
-        for metric, threshold in performance.thresholds.items():
+        for metric, (lower, upper) in performance.bounds.items():
             provider_value = self._resolve_attribute(
                 provider_metadata, f"performance.{metric}"
             )
-            if not isinstance(provider_value, (int, float)):
+            if not _is_number(provider_value):
                 return False
-            if provider_value > threshold:
+            if lower is not None and provider_value < lower:
+                return False
+            if upper is not None and provider_value > upper:
                 return False
         return True
 
@@ -627,38 +631,74 @@ def build_performance_selector(
     performance_data: Any,
     strategy_name: str,
 ) -> Optional[PerformanceSelector]:
-    """Build a provider performance selector from a metric->threshold mapping.
+    """Build a provider performance selector from a metric->range mapping.
 
     Example YAML::
 
         performance:
-          ttft_ms: 500
-          tpot_ms: 50
+          requests: 10                 # shorthand for [null, 10]: <= 10
+          kv_cache_usage_perc: [null, 0.8]
+          tokens_per_s: [50, null]     # >= 50
+          ttft_ms: [0, 500]
 
-    Each value is the maximum latency (lower is better) a provider may report
-    for that metric and remain eligible.
+    Each value is either a number (the maximum, lower-is-better) or an inclusive
+    ``[lower, upper]`` range written like a zone in ``ContextLengthRule``, with
+    ``null`` leaving that side unbounded.
     """
     if performance_data is None:
         return None
     if not isinstance(performance_data, dict) or not performance_data:
         raise ConfigurationError(
             f"Strategy '{strategy_name}' provider_selector.performance must be a "
-            f"non-empty mapping of metric names to numeric thresholds"
+            f"non-empty mapping of metric names to numbers or [lower, upper] ranges"
         )
 
-    thresholds: Dict[str, float] = {}
-    for metric, threshold in performance_data.items():
+    bounds: Dict[str, Tuple[Optional[float], Optional[float]]] = {}
+    for metric, spec in performance_data.items():
         if not isinstance(metric, str) or not metric:
             raise ConfigurationError(
                 f"Strategy '{strategy_name}' provider_selector.performance keys must be metric names"
             )
-        if isinstance(threshold, bool) or not isinstance(threshold, (int, float)):
-            raise ConfigurationError(
-                f"Strategy '{strategy_name}' provider_selector.performance.{metric} must be a number"
-            )
-        thresholds[metric] = float(threshold)
+        bounds[metric] = _build_metric_range(metric, spec, strategy_name)
 
-    return PerformanceSelector(thresholds=thresholds)
+    return PerformanceSelector(bounds=bounds)
+
+
+def _build_metric_range(
+    metric: str,
+    spec: Any,
+    strategy_name: str,
+) -> Tuple[Optional[float], Optional[float]]:
+    """Parse one performance metric value into an inclusive ``(lower, upper)`` range."""
+    where = f"Strategy '{strategy_name}' provider_selector.performance.{metric}"
+    if _is_number(spec):
+        return (None, float(spec))
+    if not isinstance(spec, list) or len(spec) != 2:
+        raise ConfigurationError(
+            f"{where} must be a number or a [lower, upper] range"
+        )
+
+    lower, upper = spec
+    for bound in (lower, upper):
+        if bound is not None and not _is_number(bound):
+            raise ConfigurationError(
+                f"{where} range bounds must be numbers or null"
+            )
+    if lower is None and upper is None:
+        raise ConfigurationError(f"{where} range must bound at least one side")
+    if lower is not None and upper is not None and lower > upper:
+        raise ConfigurationError(
+            f"{where} range lower bound ({lower}) must be <= upper bound ({upper})"
+        )
+    return (
+        None if lower is None else float(lower),
+        None if upper is None else float(upper),
+    )
+
+
+def _is_number(value: Any) -> bool:
+    """Return True for int/float values, excluding bool."""
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
 def build_tool_calling_selector(

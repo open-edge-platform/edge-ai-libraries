@@ -67,9 +67,11 @@ strategies:
     provider_selector:
       # Live load signals read from provider metadata under performance.<metric>,
       # kept fresh by each provider's performance probe (see
-      # docs/user-guide/probe.md).
+      # docs/user-guide/probe.md). A number is an upper bound; use an inclusive
+      # [lower, upper] range (null = open side) for >= or two-sided bounds,
+      # e.g. tokens_per_s: [50, null].
       performance:
-        requests: 10      # skip a backend already running 10+ concurrent requests
+        requests: 10      # skip a backend running more than 10 concurrent requests
     sort:
       # Among the eligible providers, route to the one with the fewest in-flight
       # requests (ascending). A provider with no value sorts last.
