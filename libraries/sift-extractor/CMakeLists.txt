@@ -7,6 +7,24 @@ option(SIFT_ENABLE_SYCL "Build the SYCL reference backend" ON)
 option(SIFT_ENABLE_OPENCL "Build the OpenCL device discovery backend" OFF)
 option(SIFT_BUILD_TESTS "Build SIFT component tests" ${BUILD_TESTING})
 option(SIFT_ENABLE_OPENCV_VALIDATION "Build optional real-pair diagnostic tools" OFF)
+option(SIFT_BUILD_SAMPLES "Build native SIFT sample applications" ON)
+option(SIFT_BUILD_PYTHON "Build Python bindings (requires pybind11)" OFF)
+
+set(SIFT_EXTRACTOR_HAS_OPENCL 0)
+set(SIFT_EXTRACTOR_HAS_SYCL 0)
+if(SIFT_ENABLE_OPENCL)
+  set(SIFT_EXTRACTOR_HAS_OPENCL 1)
+endif()
+if(SIFT_ENABLE_SYCL)
+  set(SIFT_EXTRACTOR_HAS_SYCL 1)
+endif()
+
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/sift_extractor/version.hpp.in
+  ${CMAKE_CURRENT_BINARY_DIR}/include/sift_extractor/version.hpp
+  @ONLY
+)
+set(SIFT_GENERATED_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/include)
 
 if(SIFT_ENABLE_OPENCL)
   find_path(SIFT_OPENCL_INCLUDE_DIR CL/cl.h
@@ -26,11 +44,13 @@ if(SIFT_ENABLE_OPENCL)
     src/opencl/opencl_gaussian_blur.cpp
     src/opencl/opencl_gaussian_pyramid.cpp
     src/opencl/opencl_extrema.cpp
+    src/opencl_extractor.cpp
   )
   target_compile_features(sift_opencl_runtime PUBLIC cxx_std_17)
   target_include_directories(sift_opencl_runtime
     PUBLIC
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+      $<BUILD_INTERFACE:${SIFT_GENERATED_INCLUDE_DIR}>
       $<INSTALL_INTERFACE:include>
     PRIVATE ${SIFT_OPENCL_INCLUDE_DIR}
   )
@@ -38,6 +58,7 @@ if(SIFT_ENABLE_OPENCL)
     ${CMAKE_CURRENT_SOURCE_DIR}/src/opencl
   )
   target_link_libraries(sift_opencl_runtime PUBLIC ${SIFT_OPENCL_LIBRARY})
+  set_target_properties(sift_opencl_runtime PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
   if(SIFT_ENABLE_OPENCV_VALIDATION)
     find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs features2d)
@@ -161,8 +182,10 @@ if(SIFT_ENABLE_SYCL)
   target_compile_features(sift_sycl_extractor PUBLIC cxx_std_17)
   target_include_directories(sift_sycl_extractor PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${SIFT_GENERATED_INCLUDE_DIR}>
     $<INSTALL_INTERFACE:include>)
   target_link_libraries(sift_sycl_extractor PUBLIC sift_sycl_reference)
+  set_target_properties(sift_sycl_extractor PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
   if(TARGET validate_sift_pair)
     target_compile_definitions(validate_sift_pair PRIVATE SIFT_VALIDATE_SYCL)
@@ -190,17 +213,56 @@ if(SIFT_ENABLE_SYCL)
   endif()
 endif()
 
-if(SIFT_ENABLE_OPENCL)
-  install(TARGETS sift_opencl_runtime EXPORT sift_extractorTargets
-    ARCHIVE DESTINATION lib
-  )
-  install(FILES include/sift_extractor/opencl_device.hpp DESTINATION include/sift_extractor)
+if(SIFT_ENABLE_OPENCL OR SIFT_ENABLE_SYCL)
+  add_library(sift_extractor STATIC src/extractor.cpp)
+  target_compile_features(sift_extractor PUBLIC cxx_std_17)
+  target_include_directories(sift_extractor PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${SIFT_GENERATED_INCLUDE_DIR}>
+    $<INSTALL_INTERFACE:include>)
+  set_target_properties(sift_extractor PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  set(SIFT_PKGCONFIG_LIBS "-lsift_extractor")
+  set(SIFT_PKGCONFIG_CFLAGS "")
+  if(SIFT_ENABLE_OPENCL)
+    target_link_libraries(sift_extractor PUBLIC sift_opencl_runtime)
+    string(APPEND SIFT_PKGCONFIG_LIBS " -lsift_opencl_runtime -lOpenCL")
+  endif()
+  if(SIFT_ENABLE_SYCL)
+    target_link_libraries(sift_extractor PUBLIC sift_sycl_extractor)
+    string(APPEND SIFT_PKGCONFIG_LIBS " -lsift_sycl_extractor -lsift_sycl_reference")
+    string(APPEND SIFT_PKGCONFIG_CFLAGS " -fsycl -fsycl-targets=spir64")
+  endif()
+
+  if(SIFT_BUILD_SAMPLES)
+    add_executable(extract_sift samples/extract_sift.cpp)
+    target_link_libraries(extract_sift PRIVATE sift_extractor)
+  endif()
+
+  if(SIFT_BUILD_PYTHON)
+    include(FetchContent)
+    FetchContent_Declare(
+      pybind11
+      GIT_REPOSITORY https://github.com/pybind/pybind11.git
+      GIT_TAG v2.13.6
+    )
+    FetchContent_MakeAvailable(pybind11)
+    pybind11_add_module(sift_extractor_py MODULE python/sift_extractor_bindings.cpp)
+    set_target_properties(sift_extractor_py PROPERTIES OUTPUT_NAME sift_extractor)
+    target_link_libraries(sift_extractor_py PRIVATE sift_extractor)
+    target_include_directories(sift_extractor_py PRIVATE ${SIFT_GENERATED_INCLUDE_DIR})
+  endif()
 endif()
 
+set(SIFT_INSTALL_TARGETS)
+if(SIFT_ENABLE_OPENCL)
+  list(APPEND SIFT_INSTALL_TARGETS sift_opencl_runtime)
+  install(FILES
+    include/sift_extractor/opencl_device.hpp
+    include/sift_extractor/opencl_extractor.hpp
+    DESTINATION include/sift_extractor)
+endif()
 if(SIFT_ENABLE_SYCL)
-  install(TARGETS sift_sycl_reference sift_sycl_extractor EXPORT sift_extractorTargets
-    ARCHIVE DESTINATION lib
-  )
+  list(APPEND SIFT_INSTALL_TARGETS sift_sycl_reference sift_sycl_extractor)
   install(FILES include/sift_extractor/sycl_extractor.hpp DESTINATION include/sift_extractor)
   install(FILES
     src/sycl_reference/syclImage.h
@@ -211,14 +273,35 @@ if(SIFT_ENABLE_SYCL)
     DESTINATION include/sift_extractor/sycl_reference
   )
 endif()
+if(TARGET sift_extractor)
+  list(APPEND SIFT_INSTALL_TARGETS sift_extractor)
+endif()
+if(TARGET extract_sift)
+  list(APPEND SIFT_INSTALL_TARGETS extract_sift)
+endif()
 
-if(SIFT_ENABLE_SYCL OR SIFT_ENABLE_OPENCL)
+if(SIFT_INSTALL_TARGETS)
+  install(TARGETS ${SIFT_INSTALL_TARGETS} EXPORT sift_extractorTargets
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin
+  )
+  install(FILES
+    include/sift_extractor/features.hpp
+    include/sift_extractor/backend.hpp
+    include/sift_extractor/extractor.hpp
+    ${CMAKE_CURRENT_BINARY_DIR}/include/sift_extractor/version.hpp
+    DESTINATION include/sift_extractor
+  )
+  if(TARGET sift_extractor_py)
+    install(TARGETS sift_extractor_py LIBRARY DESTINATION lib/python3/dist-packages)
+  endif()
+
   include(CMakePackageConfigHelpers)
   install(EXPORT sift_extractorTargets
     NAMESPACE sift_extractor::
     DESTINATION lib/cmake/sift_extractor
   )
-
   configure_package_config_file(
     cmake/sift_extractorConfig.cmake.in
     ${CMAKE_CURRENT_BINARY_DIR}/sift_extractorConfig.cmake
@@ -234,4 +317,11 @@ if(SIFT_ENABLE_SYCL OR SIFT_ENABLE_OPENCL)
     ${CMAKE_CURRENT_BINARY_DIR}/sift_extractorConfigVersion.cmake
     DESTINATION lib/cmake/sift_extractor
   )
+  configure_file(
+    cmake/sift_extractor.pc.in
+    ${CMAKE_CURRENT_BINARY_DIR}/sift_extractor.pc
+    @ONLY
+  )
+  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/sift_extractor.pc
+    DESTINATION lib/pkgconfig)
 endif()

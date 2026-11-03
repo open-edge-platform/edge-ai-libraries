@@ -16,7 +16,11 @@ This component is an early development snapshot, not a production release. The c
 - Subpixel Taylor refinement and Hessian edge rejection are covered with a synthetic quadratic reference.
 - An experimental image-to-feature path connects the pyramid and detector, retains octave/image-coordinate/sigma metadata, assigns primary/secondary orientations, and computes rotated 128-D trilinear descriptors with clipping and renormalization.
 - Synthetic tests cover known directions, multiple orientation peaks, blank inputs, descriptor norms and a 90-degree ramp rotation. These are mechanics checks, not SIFT equivalence certification.
-- OpenCL matching/geometry API, stable context ownership, Python bindings, release packaging, and primary-host SIFT benchmarking remain in progress.
+- Dual-backend dispatch is the Phase B item-7 OPTION: keep OpenCL and SYCL with
+  explicit selection (`Backend::Auto` prefers SYCL for Arc speed, not quality).
+  See [backend selection](docs/backend-selection.md). Public packaging, pkg-config,
+  a native sample and optional Python bindings are available; matching/geometry,
+  release soak and CudaSift quality floor remain open.
 - Existing source-derived timings and reported CudaSift results are not performance claims for this component.
 
 The legacy reference backend uses a process-global SYCL queue and scratch buffers. Do not use concurrent extraction calls. Its API and numerical behavior are not yet a stable compatibility contract. The OpenCL correctness path uses host-visible vectors between stages and independent contexts for pyramid and feature processing; it is not an optimized device-resident pipeline. Feature sampling uses the nearest Gaussian level and local sigma derived from a DoG geometric-center convention; reference parity is outstanding. Refinement is single-step, not iterative relocation.
@@ -41,10 +45,34 @@ No automatic CPU fallback or universal acceleration guarantee is currently provi
 
 ## Experimental Context
 
-An [OpenCV-free SYCL context](docs/sycl-context.md) now owns reusable image,
-feature and scratch buffers. Its fixed-shape input contract, installed CMake target
-and serialized legacy-state limitations are explicit. This is not yet a final
-backend-neutral API or a production concurrency guarantee.
+An [OpenCV-free SYCL context](docs/sycl-context.md) owns reusable image, feature
+and scratch buffers. A matching OpenCL public wrapper and a dispatch
+`Extractor` select between backends. Parameter contracts are intentionally
+unequal; see [backend selection](docs/backend-selection.md).
+
+### Install / pkg-config / Python
+
+```bash
+cmake -S . -B build -DCMAKE_CXX_COMPILER=icpx -DCMAKE_BUILD_TYPE=Release \
+  -DSIFT_ENABLE_SYCL=ON -DSIFT_ENABLE_OPENCL=ON -DSIFT_BUILD_PYTHON=ON \
+  -DSIFT_OPENCL_INCLUDE_DIR=/opt/intel/oneapi/compiler/latest/include \
+  -DCMAKE_INSTALL_PREFIX=$PWD/install
+cmake --build build --parallel
+cmake --install build
+export PKG_CONFIG_PATH=$PWD/install/lib/pkgconfig:$PKG_CONFIG_PATH
+pkg-config --libs --cflags sift_extractor
+```
+
+Python (when `SIFT_BUILD_PYTHON=ON`):
+
+```python
+import numpy as np
+import sift_extractor
+ext = sift_extractor.Extractor(64, 64, backend="auto")
+features = ext.extract(np.zeros((64, 64), dtype=np.float32))
+```
+
+Native sample: `extract_sift [auto|opencl|sycl]`.
 
 ## Build and Test
 

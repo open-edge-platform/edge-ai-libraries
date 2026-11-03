@@ -1,4 +1,7 @@
 @PACKAGE_INIT@
 
+set(SIFT_EXTRACTOR_HAS_OPENCL @SIFT_EXTRACTOR_HAS_OPENCL@)
+set(SIFT_EXTRACTOR_HAS_SYCL @SIFT_EXTRACTOR_HAS_SYCL@)
+
 include("${CMAKE_CURRENT_LIST_DIR}/sift_extractorTargets.cmake")
 check_required_components(sift_extractor)

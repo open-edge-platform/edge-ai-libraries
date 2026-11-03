@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
-#include <array>
+#include "sift_extractor/features.hpp"
+
 #include <cstddef>
 #include <memory>
 #include <vector>
@@ -14,15 +15,6 @@ struct SyclExtractorOptions {
   int capacity = 32768;
   double initial_blur = 1.0;
   float contrast_threshold = 3.0f;
-};
-
-struct SiftFeature {
-  float x;
-  float y;
-  float scale;
-  float orientation_degrees;
-  float response;
-  std::array<float, 128> descriptor;
 };
 
 class SyclExtractor {
