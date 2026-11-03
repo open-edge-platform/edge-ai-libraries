@@ -22,7 +22,7 @@ configure_edge_pack () {
 }
 
 debian_39_profile_edge_pack () {
-  echo "curl gnupg linux_image_generic_7.0"
+  echo "curl gnupg edge_pack_kernel_image"
 }
 
 debian_39_install_edge_pack () {
