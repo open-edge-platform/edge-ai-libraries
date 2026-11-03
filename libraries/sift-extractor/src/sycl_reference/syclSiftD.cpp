@@ -1,7 +1,7 @@
 //********************************************************//
 // Intel SYCL/DPC++ SIFT extractor                       //
 // Device kernel implementations                         //
-// Ported from CUDA (cudaSiftD.cu) by Marten Bjorkman   //
+// SYCL reference backend (mechanics baseline).
 //********************************************************//
 
 #include "syclSiftD.h"
@@ -12,7 +12,6 @@
 
 // ============================================================
 // ScaleDown: 5-tap Gaussian downsample by factor 2
-// CUDA: ScaleDown<<<blocks, SCALEDOWN_W+4>>>
 // SYCL: 1D work-group of (SCALEDOWN_W+4) items
 // ============================================================
 void LaunchScaleDown(sycl::queue &q, float *d_Result, float *d_Data,
@@ -181,7 +180,6 @@ void LaunchScaleUp(sycl::queue &q, float *d_Result, float *d_Data, int width,
 
 // ============================================================
 // LowPassBlock: separable Gaussian low-pass filter
-// CUDA: dim3 threads(LOWPASS_W+2*LOWPASS_R, 4)
 // SYCL: 2D work-group
 // ============================================================
 void LaunchLowPassBlock(sycl::queue &q, float *d_Image, float *d_Result,
@@ -304,7 +302,6 @@ void LaunchLowPassBlock(sycl::queue &q, float *d_Image, float *d_Result,
 
 // ============================================================
 // LaplaceMultiMem: build DoG pyramid (multi-scale Laplacian)
-// CUDA: dim3 threads(LAPLACE_W + 2*LAPLACE_R), dim3 blocks(divUp(w, LAPLACE_W), h)
 // ============================================================
 void LaunchLaplaceMultiMem(sycl::queue &q, float *d_Image, float *d_Result,
                            int width, int pitch, int height, int octave,
@@ -378,7 +375,6 @@ void LaunchLaplaceMultiMem(sycl::queue &q, float *d_Image, float *d_Result,
 
 // ============================================================
 // FindPointsMultiNew: find local DoG extrema and fit subpixel
-// CUDA: dim3 blocks(divUp(w,MINMAX_W)*NUM_SCALES, divUp(h,MINMAX_H))
 //       dim3 threads(MINMAX_W + 2)
 // ============================================================
 void LaunchFindPointsMultiNew(sycl::queue &q, float *d_Data0,
@@ -595,7 +591,6 @@ void LaunchFindPointsMultiNew(sycl::queue &q, float *d_Data0,
 
 // ============================================================
 // ComputeOrientationsCONST: compute keypoint orientations
-// CUDA: dim3 blocks(512), dim3 threads(11*11=121)
 // SYCL: 1 work-group of 121 items per keypoint
 // ============================================================
 void LaunchComputeOrientations(sycl::queue &q, SiftPoint *d_Sift, int octave,
@@ -731,7 +726,6 @@ void LaunchComputeOrientations(sycl::queue &q, SiftPoint *d_Sift, int octave,
 
 // ============================================================
 // ExtractSiftDescriptorsCONSTNew: extract 128D SIFT descriptors
-// CUDA: dim3 blocks(512), dim3 threads(16, 8)
 // SYCL: work-group of (16, 8) = 128 items
 // ============================================================
 void LaunchExtractSiftDescriptors(sycl::queue &q, SiftPoint *d_Sift,

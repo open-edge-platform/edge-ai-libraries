@@ -1,6 +1,6 @@
 //********************************************************//
 // Intel SYCL/DPC++ SIFT extractor                       //
-// Port of CudaSift by Marten Bjorkman                   //
+// SYCL reference backend (mechanics baseline).
 //********************************************************//
 
 #ifndef SYCLUTILS_H
@@ -38,7 +38,7 @@ public:
 };
 
 // ---- SYCL atomic helpers (device-side) --------------------------------
-// Equivalent to CUDA atomicAdd on float shared memory
+// atomicAdd equivalent for float local/shared memory
 template <sycl::access::address_space AS = sycl::access::address_space::local_space>
 inline void atomicAddFloat(float *ptr, float val) {
   sycl::atomic_ref<float, sycl::memory_order::relaxed,
@@ -56,7 +56,7 @@ inline void atomicAddFloatGlobal(float *ptr, float val) {
   ref.fetch_add(val);
 }
 
-// Equivalent to CUDA atomicInc: increment, wrapping to 0 when > wrap
+// atomicInc equivalent: increment, wrapping to 0 when > wrap
 inline unsigned int atomicInc(unsigned int *ptr, unsigned int wrap) {
   sycl::atomic_ref<unsigned int, sycl::memory_order::acq_rel,
                    sycl::memory_scope::device,
@@ -71,7 +71,7 @@ inline unsigned int atomicInc(unsigned int *ptr, unsigned int wrap) {
   return old;
 }
 
-// Equivalent to CUDA atomicMax on unsigned int
+// atomicMax equivalent on unsigned int
 inline void atomicMaxUint(unsigned int *ptr, unsigned int val) {
   sycl::atomic_ref<unsigned int, sycl::memory_order::relaxed,
                    sycl::memory_scope::device,
@@ -80,7 +80,7 @@ inline void atomicMaxUint(unsigned int *ptr, unsigned int val) {
   ref.fetch_max(val);
 }
 
-// Equivalent to CUDA atomicMax on int
+// atomicMax equivalent on int
 inline void atomicMaxInt(int *ptr, int val) {
   sycl::atomic_ref<int, sycl::memory_order::relaxed,
                    sycl::memory_scope::device,
@@ -89,7 +89,7 @@ inline void atomicMaxInt(int *ptr, int val) {
   ref.fetch_max(val);
 }
 
-// Equivalent to CUDA atomicAdd on unsigned int (global)
+// atomicAdd equivalent on unsigned int (global)
 inline unsigned int atomicAddUint(unsigned int *ptr, unsigned int val) {
   sycl::atomic_ref<unsigned int, sycl::memory_order::relaxed,
                    sycl::memory_scope::device,
@@ -98,8 +98,8 @@ inline unsigned int atomicAddUint(unsigned int *ptr, unsigned int val) {
   return ref.fetch_add(val);
 }
 
-// ---- Bilinear texture sampling (replaces CUDA tex2D) ------------------
-// CUDA tex2D with linear filter, unnormalized coords, clamp mode:
+// ---- Bilinear texture sampling -----------------------------------------
+// Linear-filter, unnormalized coords, clamp-mode sampling:
 //   pixel center (i,j) is at coordinate (i+0.5, j+0.5)
 //   tex2D(tex, x, y) samples at pixel coordinate (x-0.5, y-0.5)
 inline float tex2D_bilinear(const float *img, int pitch, int width, int height,
@@ -124,7 +124,7 @@ inline float tex2D_bilinear(const float *img, int pitch, int width, int height,
          (1.0f - fx) * fy * v01 + fx * fy * v11;
 }
 
-// ---- Fast atan2 approximation (matches CUDA FastAtan2) ----------------
+// ---- Fast atan2 approximation ------------------------------------------
 inline float FastAtan2(float y, float x) {
   float absx = sycl::fabs(x);
   float absy = sycl::fabs(y);

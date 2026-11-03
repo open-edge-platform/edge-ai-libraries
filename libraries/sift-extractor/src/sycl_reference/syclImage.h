@@ -1,6 +1,7 @@
 //********************************************************//
 // Intel SYCL/DPC++ SIFT extractor                       //
 // SyclImage: GPU image class using SYCL USM memory      //
+// SYCL reference backend (mechanics baseline).
 //********************************************************//
 
 #ifndef SYCLIMAGE_H
@@ -27,7 +28,7 @@ public:
   double Readback();   // Copy d_data -> h_data
 };
 
-// Integer utility functions (mirrors cudaImage.h)
+// Integer utility functions
 int iDivUp(int a, int b);
 int iDivDown(int a, int b);
 int iAlignUp(int a, int b);

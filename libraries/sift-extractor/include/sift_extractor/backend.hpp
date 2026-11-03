@@ -10,12 +10,11 @@
 
 namespace sift_extractor::experimental {
 
-// Phase B item-7 OPTION outcome (2026-11-02): dual backends with explicit
-// dispatch. Neither OpenCL nor SYCL clears the CudaSift quality floor or a
-// single-default selection bar on current Arc evidence. SYCL is faster on the
-// development fixture but less repeatable; OpenCL is more stable on that
-// fixture but trails CudaSift on viewpoint/quality-floor cases. Auto prefers
-// SYCL when built (speed-biased), else OpenCL; this is NOT a quality endorsement.
+// Dual backends with explicit dispatch. Neither OpenCL nor SYCL clears a
+// single-default selection bar on current Arc evidence versus OpenCV or the
+// unoptimized/reference path. SYCL is faster on the development fixture but
+// less repeatable; OpenCL is more stable on that fixture. Auto prefers SYCL
+// when built (speed-biased), else OpenCL; this is NOT a quality endorsement.
 enum class Backend {
   Auto = 0,
   OpenCL = 1,

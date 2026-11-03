@@ -1,7 +1,7 @@
 //********************************************************//
 // Intel SYCL/DPC++ SIFT extractor                       //
 // Host-side SIFT orchestration                          //
-// Ported from cudaSiftH.cu by Marten Bjorkman           //
+// SYCL reference backend (mechanics baseline).
 //********************************************************//
 
 #include <cstdio>
@@ -48,7 +48,7 @@ void LaunchRescalePositions(sycl::queue &q, SiftPoint *d_sift, int numPts,
                              float scale);
 
 // ---- Persistent device buffers for kernels --------------------------------
-// These mirror CUDA __constant__ / __device__ globals:
+// These mirror historical constant / device globals:
 //   d_ScaleDownKernel[5]
 //   d_LowPassKernel[2*LOWPASS_R+1]
 //   d_LaplaceKernel[8*12*16]

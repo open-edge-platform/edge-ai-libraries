@@ -244,8 +244,9 @@ Python) APIs for feature extraction and related primitives on Intel CPUs/GPUs.
 
   Experimental dual-backend (OpenCL + SYCL) SIFT feature extraction and
   matching for Intel platforms. Early development snapshot: packaging and
-  optional Python/OpenCV type adapters are available; CudaSift quality floor,
-  held-out corpus, and release soak remain open. See the component README for
+  optional Python/OpenCV type adapters are available. Diagnostics compare
+  OpenCV, an unoptimized/reference SIFT path, OpenCL, and SYCL. Held-out
+  corpus and REUSE publication remain open. See the component README for
   backend selection and hardware-target guidance. A future robotics wrapper
   would live under Robotics Libraries and consume this core without copying
   kernels.

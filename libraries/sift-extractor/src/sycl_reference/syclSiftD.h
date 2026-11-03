@@ -1,6 +1,7 @@
 //********************************************************//
 // Intel SYCL/DPC++ SIFT extractor                       //
-// Device-side constants (mirrors cudaSiftD.h)           //
+// Device-side constants           //
+// SYCL reference backend (mechanics baseline).
 //********************************************************//
 
 #ifndef SYCLSIFTD_H

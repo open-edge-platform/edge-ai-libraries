@@ -58,7 +58,7 @@ PYBIND11_MODULE(sift_extractor, module) {
 
   module.doc() =
       "Intel SIFT extractor Python bindings (dual OpenCL/SYCL dispatch; "
-      "not a CudaSift quality-floor claim).";
+      "compare against OpenCV / unoptimized reference; not quality-certified).";
 
   module.attr("__version__") = SIFT_EXTRACTOR_VERSION_STRING;
 

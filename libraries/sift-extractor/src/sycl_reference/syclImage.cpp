@@ -1,6 +1,7 @@
 //********************************************************//
 // Intel SYCL/DPC++ SIFT extractor                       //
 // SyclImage implementation                              //
+// SYCL reference backend (mechanics baseline).
 //********************************************************//
 
 #include "syclImage.h"

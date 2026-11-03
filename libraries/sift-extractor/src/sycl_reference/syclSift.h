@@ -1,6 +1,7 @@
 //********************************************************//
 // Intel SYCL/DPC++ SIFT extractor                       //
-// Public API header (mirrors cudaSift.h)                //
+// Public API header                //
+// SYCL reference backend (mechanics baseline).
 //********************************************************//
 
 #ifndef SYCLSIFT_H
@@ -8,7 +9,7 @@
 
 #include "syclImage.h"
 
-// SiftPoint and SiftData are identical to the CUDA version for interoperability
+// SiftPoint and SiftData layout retained for reference-backend interoperability
 typedef struct {
   float xpos;
   float ypos;

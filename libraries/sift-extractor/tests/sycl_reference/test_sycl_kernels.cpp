@@ -378,7 +378,7 @@ static void test_laplace_multi() {
 // ---- Main -----------------------------------------------------------
 int main() {
   printf("=================================================\n");
-  printf("  CudaSift Intel SYCL Port - Kernel Unit Tests  \n");
+  printf("  Intel SYCL SIFT reference - Kernel Unit Tests  \n");
   printf("=================================================\n");
 
   try {

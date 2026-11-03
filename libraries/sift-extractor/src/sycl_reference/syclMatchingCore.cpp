@@ -1,3 +1,4 @@
+// SYCL reference backend (mechanics baseline).
 #include "syclSift.h"
 #include "syclutils.h"
 #include "syclSiftH.h"

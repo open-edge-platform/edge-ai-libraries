@@ -724,7 +724,7 @@ int main(int argc, char **argv) {
     cv::FileStorage output(argc >= 3 ? argv[2] : ".json", cv::FileStorage::WRITE |
       (argc == 2 ? cv::FileStorage::MEMORY : 0) | cv::FileStorage::FORMAT_JSON);
     if (!output.isOpened()) throw std::runtime_error("Cannot open JSON report");
-    output << "diagnostic_only" << 1 << "cuda_reference_available" << 0
+    output << "diagnostic_only" << 1 << "external_gpu_reference_available" << 0
           << "timing_mode" << (quality_export ? "quality_only" : (opencl_only ? "opencl_only" : "rotating_all"))
            << "performance_measured" << (timing_iterations ? 1 : 0)
            << "release_performance_gate" << 0 << "parameters_equivalent" << 0

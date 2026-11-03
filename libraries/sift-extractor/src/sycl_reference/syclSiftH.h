@@ -1,6 +1,7 @@
 //********************************************************//
 // Intel SYCL/DPC++ SIFT extractor                       //
-// Internal host-side API (mirrors cudaSiftH.h)          //
+// Internal host-side API          //
+// SYCL reference backend (mechanics baseline).
 //********************************************************//
 
 #ifndef SYCLSIFTH_H

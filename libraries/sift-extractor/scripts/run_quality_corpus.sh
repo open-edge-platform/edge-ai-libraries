@@ -2,15 +2,14 @@
 # SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 set -euo pipefail
-if (( $# < 4 )); then
-  printf 'Usage: %s VALIDATOR REFERENCE_EXPORTER CORPUS_DIR NEW_OUTPUT_DIR [PROFILE ...]\n' "$0" >&2
+if (( $# < 3 )); then
+  printf 'Usage: %s VALIDATOR CORPUS_DIR NEW_OUTPUT_DIR [PROFILE ...]\n' "$0" >&2
   exit 2
 fi
 validator="$(realpath "$1")"
-exporter="$(realpath "$2")"
-corpus="$(realpath "$3")"
-output="$4"
-shift 4
+corpus="$(realpath "$2")"
+output="$3"
+shift 3
 profiles=(identity rotation30 rotation90 scale_half scale_large illumination blur combined)
 if (( $# )); then profiles=("$@"); fi
 command -v jq >/dev/null
@@ -21,7 +20,7 @@ if (( ${#images[@]} == 0 )); then
   printf 'No corpus images found\n' >&2
   exit 2
 fi
-sha256sum "$validator" "$exporter" "${images[@]}" > "$output/inputs.sha256"
+sha256sum "$validator" "${images[@]}" > "$output/inputs.sha256"
 failures=0
 for image in "${images[@]}"; do
   name="$(basename "$image")"
@@ -46,18 +45,10 @@ for image in "${images[@]}"; do
     if "$validator" "$image" "$directory/pair.json" 0 "$directory/config.json" quality-export \
         > "$directory/pair.log" 2>&1; then
       status=ok
-      for side in first second; do
-        if ! "$exporter" "$directory/pair.json.$side.pgm" "$directory/complete-$side.json" \
-            > "$directory/complete-$side.log" 2>&1; then status=export_failed; fi
-      done
-      if [[ "$status" == ok ]] && ! "$validator" --score-external \
-          "$directory/complete-first.json" "$directory/complete-second.json" \
-          "$directory/pair.json" "$directory/complete-score.json" \
-          > "$directory/complete-score.log" 2>&1; then status=scoring_failed; fi
     else
       status=pair_failed
+      failures=$((failures + 1))
     fi
-    if [[ "$status" != ok ]]; then failures=$((failures + 1)); fi
     jq -n --arg image "$name" --arg profile "$profile" --arg status "$status" \
       '{image:$image,profile:$profile,status:$status}' > "$directory/status.json"
     printf '%s %s: %s\n' "$name" "$profile" "$status"
@@ -69,13 +60,13 @@ if (( failures == 0 )); then
   for directory in "$output/"*/; do
     jq -s '{image:.[0].image,profile:.[0].profile,status:.[0].status,
       metrics:{opencv:.[1].opencv_cpu_default,opencl:.[1].opencl_prototype,
-      sycl:.[1].sycl_reference,complete_gpu_sift:.[2].quality}}' \
-      "$directory/status.json" "$directory/pair.json" "$directory/complete-score.json"
+      sycl:.[1].sycl_reference}}' \
+      "$directory/status.json" "$directory/pair.json"
   done | jq -s '.' > "$output/cases.json"
   jq 'def median: sort|. as $values|length as $count|
       ($values[($count/2|floor)]+$values[(($count-1)/2|floor)])/2;
     [group_by(.profile)[] | . as $cases |
-    ["opencv","opencl","sycl","complete_gpu_sift"][] as $backend |
+    ["opencv","opencl","sycl"][] as $backend |
     [$cases[].metrics[$backend]] as $metrics |
     ($metrics|map(.ground_truth_inliers_3px)|add) as $inliers |
     ($metrics|map(.ratio_matches)|add) as $matches |

@@ -1,25 +1,23 @@
 <!-- SPDX-FileCopyrightText: (C) 2026 Intel Corporation -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Backend Selection OPTION (Phase B item 7)
+# Backend Selection (dual OpenCL + SYCL)
 
-Recorded 2026-11-02. This is the item-7 **OPTION** outcome that enables packaging
-and Python follow-ons. It is **not** a CudaSift quality-floor pass or a claim that
-OpenCL and SYCL are algorithm-equivalent.
+Recorded decision: keep **dual backends with explicit dispatch**
+(`Backend::OpenCL`, `Backend::Sycl`, `Backend::Auto`). This enables packaging and
+Python. It is **not** a claim that OpenCL and SYCL are algorithm-equivalent, and
+it is **not** a quality pass against OpenCV or the unoptimized/reference path.
+See [comparison.md](comparison.md) and [quality.md](quality.md).
 
-## Decision
-
-**Dual backends with explicit dispatch** (`Backend::OpenCL`, `Backend::Sycl`,
-`Backend::Auto`).
+## Decision summary
 
 Neither backend clears a single-default selection bar on current Arc evidence:
 
 | Evidence | OpenCL | SYCL |
 | --- | --- | --- |
-| Arc speed (ckpt50 restored, VGA/1080p) | 170 / 56 FPS | 263 / 64 FPS |
-| Affine fixture stability | Stable ~401 inliers | Varies ~636–641 |
-| Graf viewpoint vs CUDA (smoke, not held-out) | 229 inliers | 302 (CUDA 308) |
-| CudaSift quality floor | Unmet | Unmet |
+| Arc speed (exploratory VGA/1080p extract) | ~170 / ~56 FPS | ~263 / ~64 FPS |
+| Affine fixture stability | Stable inlier counts | Varies across repeats |
+| Viewpoint smoke vs OpenCV (dev fixtures) | Trails OpenCV coverage | Closer on some views; still unequal contracts |
 | Repeatability | Better on affine fixture | Unresolved variance |
 
 `Backend::Auto` resolves to SYCL when built, else OpenCL (speed-biased). This is
@@ -34,39 +32,25 @@ current OpenCL contract matters more than raw Arc speed.
 - `sift_extractor/extractor.hpp` — dispatch facade over both
 - Options remain **backend-specific** and intentionally unequal
 
-## Follow-ons enabled by this OPTION
+## Packaging and soak
 
-Packaging (CMake package + pkg-config + sample), Python bindings, and optional
-thin OpenCV type adapters (`SIFT_BUILD_OPENCV_ADAPTER`) may proceed with the
-dual-dispatch contract documented above. The OpenCV adapters convert
-`cv::Mat`/`cv::KeyPoint` around the core Extractor only; they are not OpenCV
-features2d SIFT or Phase D upstream work. Root README lists this component under
-Computer Vision Primitives. Scoped CI discloses absent GPU runners. Post-residency
-Arc OpenCL/SYCL native A/B (2026-11-03, `time_sift_extract`, stage
-`arc-resident-timing-20261103`): PGM 1280×960 mean-of-medians OpenCL 13.40ms /
-SYCL 10.71ms (~+25% OpenCL excess; features 1980/3826). Exploratory soak harness
-exists; full `--release` soak, held-out quality and REUSE gates remain open.
+CMake package, pkg-config, samples, optional Python, and optional OpenCV type
+adapters are available. Root README lists this component under Computer Vision
+Primitives. Scoped CI discloses absent GPU runners. Exploratory and `--release`
+(10k mixed calls) soak harnesses exist; held-out quality and REUSE publication
+gates remain open.
 
-## Arc Python extract + native vs wrapper (2026-11-03)
+## Arc Python extract + native vs wrapper (exploratory)
 
-Dual `icpx` OpenCL+SYCL+Python install staged to Arc (`labrat`) with the usual
-**portable `sycl-runtime`** payload. Arc does **not** ship a system
-`/opt/intel/oneapi`/`icpx` install; SYCL Arc work (including prior perf runs)
-uses that staged runtime + `ONEAPI_DEVICE_SELECTOR=level_zero:gpu`.
+Dual OpenCL+SYCL+Python on Arc (portable SYCL runtime when the host has no system
+oneAPI). Fixture 1280×960; 3 warmups / 30 samples; Auto→`sycl`.
 
-Fixture: historical `input.pgm` 1280×960. Protocol: 3 warmups / 30 samples,
-counterbalanced native↔Python order per backend. Module reports
-`available_backends=['opencl','sycl']`, Auto→`sycl`.
-
-| Path | OpenCL median ms (2 runs) | SYCL median ms (2 runs) |
+| Path | OpenCL median ms | SYCL median ms |
 | --- | --- | --- |
-| Native | 12.07 / 13.46 (mean 12.77) | 10.63 / 10.62 (mean 10.63) |
-| Python | 15.23 / 15.14 (mean 15.18) | 12.19 / 12.00 (mean 12.09) |
-| Wrapper overhead | ~+19.0% | ~+13.8% |
+| Native | ~12.8 | ~10.6 |
+| Python | ~15.2 | ~12.1 |
 | Features | 1980 | 3826 |
 
-Feature-count mismatch is expected under unequal backend contracts—not a
-quality-parity or CudaSift-floor claim. Python timing includes GIL-released
-extract plus list/dict/descriptor materialization. Exploratory within-host
-evidence only; not a release soak. Workspace summary:
-`results/20261102/arc-python-timing/dual-summary.json`.
+Feature-count mismatch is expected under unequal contracts—not OpenCV parity.
+Python timing includes GIL-released extract plus materialization. Exploratory
+only; not a release soak.

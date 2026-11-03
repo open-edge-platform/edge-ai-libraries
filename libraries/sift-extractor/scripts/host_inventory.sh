@@ -92,7 +92,7 @@ find_tool() {
 }
 
 section "Toolchains and runtimes"
-for tool_name in cmake ctest icpx sycl-ls clinfo nvcc nvidia-smi; do
+for tool_name in cmake ctest icpx sycl-ls clinfo; do
   tool_path="$(find_tool "$tool_name")"
   if [[ -z "$tool_path" ]]; then
     printf '%s: unavailable\n' "$tool_name"
@@ -108,9 +108,6 @@ for tool_name in cmake ctest icpx sycl-ls clinfo nvcc nvidia-smi; do
       ;;
     clinfo)
       "$tool_path" -l 2>&1 || true
-      ;;
-    nvidia-smi)
-      "$tool_path" --query-gpu=name,memory.total,driver_version --format=csv,noheader 2>&1 || true
       ;;
   esac
 done

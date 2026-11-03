@@ -4,7 +4,11 @@ An experimental, cross-use-case SIFT feature extraction and matching library for
 
 ## Status
 
-This component is an early development snapshot, not a production release. The current SYCL reference backend is derived from the CudaSift SYCL port. It is included to establish a reproducible build and correctness baseline; it is not yet a reentrant application API.
+This component is an early development snapshot, not a production release. The
+SYCL reference backend is a mechanics baseline (see provenance below); it is
+not yet a reentrant application API. Public quality and performance framing
+compares **OpenCV**, an **unoptimized/reference SIFT** baseline, **OpenCL**,
+and **SYCL**—see [comparison](docs/comparison.md) and [quality](docs/quality.md).
 
 - SYCL extraction kernels and the original kernel smoke test are present.
 - A tiled SYCL descriptor matcher is included with deterministic basis-vector matching coverage.
@@ -16,8 +20,8 @@ This component is an early development snapshot, not a production release. The c
 - Subpixel Taylor refinement and Hessian edge rejection are covered with a synthetic quadratic reference.
 - An experimental image-to-feature path connects the pyramid and detector, retains octave/image-coordinate/sigma metadata, assigns primary/secondary orientations, and computes rotated 128-D trilinear descriptors with clipping and renormalization.
 - Synthetic tests cover known directions, multiple orientation peaks, blank inputs, descriptor norms and a 90-degree ramp rotation. These are mechanics checks, not SIFT equivalence certification.
-- Dual-backend dispatch is the Phase B item-7 OPTION: keep OpenCL and SYCL with
-  explicit selection (`Backend::Auto` prefers SYCL for Arc speed, not quality).
+- Dual-backend dispatch keeps OpenCL and SYCL with explicit selection
+  (`Backend::Auto` prefers SYCL for Arc speed, not quality).
   See [backend selection](docs/backend-selection.md). Public packaging, pkg-config,
   a native sample, optional Python bindings, and optional thin OpenCV type adapters
   (`SIFT_BUILD_OPENCV_ADAPTER`) are available. Listed under root README **Computer
@@ -25,13 +29,12 @@ This component is an early development snapshot, not a production release. The c
   (`.github/workflows/sift-extractor.yml`) configures the tree without GPU
   backends and **explicitly discloses that no Intel GPU runners are attached**;
   OpenCL/SYCL CTest, Arc timing, soak and quality scoring are private-lab gates.
-  Matching/geometry, full release soak (`soak_sift_extract --release`), held-out
-  corpus and CudaSift quality floor remain open. The OpenCV adapters wrap the
-  core Extractor with `cv::Mat`/`cv::KeyPoint` only—they are not OpenCV
-  features2d SIFT or Phase D upstream work.
-- Existing source-derived timings and reported CudaSift results are not performance claims for this component.
+  Matching/geometry, held-out corpus and REUSE publication remain open. The OpenCV
+  adapters wrap the core Extractor with `cv::Mat`/`cv::KeyPoint` only—they are not
+  OpenCV features2d SIFT or upstream features2d work.
+- Source-derived timings are not performance claims for redistributed binaries.
 
-The legacy reference backend uses a process-global SYCL queue and scratch buffers. Do not use concurrent extraction calls. Its API and numerical behavior are not yet a stable compatibility contract. The OpenCL correctness path uses host-visible vectors between stages and independent contexts for pyramid and feature processing; it is not an optimized device-resident pipeline. Feature sampling uses the nearest Gaussian level and local sigma derived from a DoG geometric-center convention; reference parity is outstanding. Refinement is single-step, not iterative relocation.
+The legacy reference backend uses a process-global SYCL queue and scratch buffers. Do not use concurrent extraction calls. Its API and numerical behavior are not yet a stable compatibility contract. Early OpenCL correctness stages use host-visible vectors between pyramid and feature processing (the unoptimized/reference anchor); device-resident extract work is in progress. Feature sampling uses the nearest Gaussian level and local sigma derived from a DoG geometric-center convention; reference parity is outstanding. Refinement is single-step, not iterative relocation.
 
 ## Hardware Target
 
@@ -42,9 +45,10 @@ as a tuning target or a requirement that constrains Arc-specific improvements.
 **Previous-generation Intel integrated GPUs, including UHD Graphics 770, are not
 recommended when a predictable SIFT performance boost is a requirement.** GPU
 offload can be slower than CPU SIFT for some sizes/settings because allocation,
-transfer and launch overhead can dominate. Measure against the CPU implementation
-on the same host, with recorded CPU thread count and comparable output quality;
-do not infer acceleration from GPU availability or advertised TOPS alone.
+transfer and launch overhead can dominate. Measure against the CPU / unoptimized
+reference path on the same host, with recorded CPU thread count and comparable
+output quality; do not infer acceleration from GPU availability or advertised
+TOPS alone.
 
 An Arc optimization must preserve correctness on UHD 770. Older-GPU CPU/GPU
 slowdowns must be reported rather than hidden by unmatched settings or omitted
@@ -82,12 +86,7 @@ features = ext.extract(np.zeros((64, 64), dtype=np.float32))
 
 Native sample: `extract_sift [auto|opencl|sycl]`.
 Matched timing: `time_sift_extract` and `share/sift_extractor/time_sift_extract.py`
-(`[backend] [W] [H] [warmups] [samples] [seed] [image.pgm]`). Arc dual
-OpenCL+SYCL Python extract and native-vs-wrapper exploratory timing (2026-11-03)
-is recorded under the SIFT workspace
-`results/20261102/arc-python-timing/dual-summary.json` (staged portable
-`sycl-runtime` on Arc; no system oneAPI install required there). Post-residency
-OpenCL/SYCL native A/B: `results/20261102/arc-resident-timing/summary.json`.
+(`[backend] [W] [H] [warmups] [samples] [seed] [image.pgm]`).
 Release-gate harness: `soak_sift_extract [--release] [--calls N] [--minutes M]
 [--concurrency N]` (mixed backends single-threaded; OpenCL independent-context
 concurrency when built). Default is exploratory; `--release` targets ≥10000
@@ -147,10 +146,10 @@ build-opencl/validate_sift_pair /path/to/image.pgm
 ```
 
 The JSON report compares a 30-degree rotation/0.85 scale against ground truth at
-3 pixels. The prototype and OpenCV-default parameters are explicitly not equivalent;
-the tool is not a CUDA comparison, quality acceptance test or benchmark. Initial
-`left.pgm` diagnostics yielded 263 prototype inliers versus 875 OpenCV-default
-inliers, so a substantial quality/coverage gap remains. Do not claim parity.
+3 pixels. Prototype and OpenCV-default parameters are explicitly not equivalent;
+the tool is a diagnostic among OpenCV / OpenCL / SYCL (when enabled), not a
+quality acceptance test or benchmark. Initial `left.pgm` diagnostics showed a
+large coverage gap versus OpenCV-default SIFT. Do not claim parity.
 
 When both backends are enabled, this tool also evaluates SYCL on an Intel GPU and
 rejects CPU fallback. Write JSON to a file because the reference prints console
@@ -161,12 +160,16 @@ ONEAPI_DEVICE_SELECTOR=level_zero:gpu \
   build/validate_sift_pair /path/to/image.pgm report.json 10
 ```
 
-See [Intel comparison protocol](docs/intel-comparison.md) for timing scope,
-portable deployment and hardware-normalization requirements.
+See [comparison protocol](docs/comparison.md) for timing scope and
+hardware-normalization requirements.
 
 ## Source and License Provenance
 
-The reference SYCL files under `src/sycl_reference/` and `tests/sycl_reference/test_sycl_kernels.cpp` were derived from CudaSift worktree commit `7bbfacf84108aebd2300f449d3bc28ece11738a7`. The component is licensed under Apache-2.0 (`LICENSES/Apache-2.0.txt`). Acknowledgment of the original SIFT method is in `third_party_programs.txt`.
+The reference SYCL files under `src/sycl_reference/` and
+`tests/sycl_reference/test_sycl_kernels.cpp` were derived from CudaSift
+worktree commit `7bbfacf84108aebd2300f449d3bc28ece11738a7`. The component is
+licensed under Apache-2.0 (`LICENSES/Apache-2.0.txt`). Acknowledgment of the
+original SIFT method is in `third_party_programs.txt`.
 
 ## Hardware Inventory
 
@@ -210,18 +213,7 @@ SIFT_STAGE_LEVEL_ZERO_NOTICE=/path/to/level-zero/LICENSES \
 
 The tracing layer is resolved next to the loader; override
 `SIFT_STAGE_LEVEL_ZERO_TRACING` only with a matching library. Notices may be a
-file or directory. A privately built v1.22.4 pair passes all three portable SYCL
-tests locally and on the primary Arc host. Arc stage `ed49b723994d9567` passed
-24 kernel assertions, extraction (1009 features), synthetic matching, and all
-7 OpenCL tests. The original enumeration segfault is resolved with this bundle;
-this is smoke coverage, not quality parity, concurrency or performance acceptance.
-The bundle relies on
-the target GPU driver and compatible system C++/C libraries, not a copied compiler
-or driver. It is an internal smoke-test deployment, not a general release package.
-Other target GPUs still require their own runtime validation.
-
-## CUDA Reference
-
-The separate [CUDA reference recipe](docs/cuda-reference.md) records the pinned
-CudaSift build and passing RTX 5060 tests. It does not add a CUDA dependency to
-this library or establish cross-backend quality or performance parity.
+file or directory. The bundle relies on the target GPU driver and compatible
+system C++/C libraries, not a copied compiler or driver. It is an internal
+smoke-test deployment, not a general release package. Other target GPUs still
+require their own runtime validation.
