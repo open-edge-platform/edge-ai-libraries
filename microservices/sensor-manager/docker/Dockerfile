@@ -18,7 +18,7 @@ ENV UV_COMPILE_BYTECODE=1 \
 
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-install-project
+RUN ulimit -n "$(ulimit -Hn)" && uv sync --frozen --no-install-project
 
 # ---- Stage 2: runtime image ----
 FROM python:3.12.14-slim@sha256:2f17fc044b579bab302c2e8054d3a686e2cb9a83de48e70534b94cd8ebbe06a9
