@@ -22,6 +22,10 @@ debian_25_profile_edge_pack_kernel_image () {
 debian_25_install_edge_pack_kernel_image () {
   configure_edge_pack_kernel_image "$@"
   if [[ "$(uname -r)" = "$version" ]]; then
+    ensure_apt_is_installed linux-headers-$version || {
+      ensure_apt update
+      ensure_apt install -y --no-install-recommends linux-headers-$version
+    }
     echo "kernel $version is installed" >&2
   else
     echo "@@STEP Installing linux-image-$version" 
