@@ -1,0 +1,88 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "data-intelligence-engine"
+version = "26.3.dev0"
+description = "Asset library management, ingestion, retrieval, and database service"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.11"
+dependencies = [
+	"fastapi",
+	"uvicorn[standard]",
+	"pydantic>=2",
+	"httpx",
+	"llama-index-core",
+	"llama-index-vector-stores-milvus",
+	"llama-index-graph-stores-nebula==0.6.0",
+	"llama-index-retrievers-bm25",
+	"llama-index-readers-file",
+	"pymilvus>=2.4",
+	"nebula3-python",
+	"bm25s",
+	"PyStemmer",
+	"pypdfium2",
+	"pdfplumber",
+	"pytesseract",
+	"PyYAML",
+	"jieba",
+	"requests",
+	# Office/HTML documents: imported lazily, so a missing one surfaces only at
+	# ingest. docx2txt backs llama-index's DocxReader for picture-free .docx.
+	"python-docx",
+	"python-pptx",
+	"openpyxl",
+	"lxml",
+	"beautifulsoup4",
+	"docx2txt",
+	"matplotlib",
+	"llama-index-embeddings-openvino==0.7.0",
+	# The openai_compatible embedding provider (a remote /v1/embeddings endpoint).
+	"llama-index-embeddings-openai",
+	"llama-index-postprocessor-openvino-rerank==0.7.0",
+	"nncf==3.2.0",
+	"optimum==2.1.0",
+	"optimum-intel==1.27.0",
+	"openvino==2026.3.1",
+	"openvino-tokenizers==2026.3.1.0",
+	"openvino-genai==2026.3.1.0",
+	"openvino-telemetry==2025.2.0",
+	"torch==2.8.0+cpu",
+	"torchvision==0.23.0+cpu",
+	# Qwen3-VL processor support is required only for preprocessing; inference
+	# runs through the exported OpenVINO IR.
+	"transformers==4.57.6",
+	"qwen-vl-utils==0.0.14",
+	"huggingface-hub==0.36.2",
+	"sentence-transformers==5.6.1",
+	"tokenizers==0.22.2",
+	"opencv-python-headless==5.0.0.93",
+	"numpy==2.4.6",
+	"pillow==13.0.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8", "pypdf>=5", "python-docx>=1.1.2"]
+media-export = ["accelerate>=1"]
+
+[project.scripts]
+data-intelligence-engine = "main:run"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+py-modules = ["config", "jsonstore", "main", "schemas"]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["api*", "assetlib*", "console*", "core*", "databasehub*", "inference*"]
+namespaces = false
+
+[tool.setuptools.package-data]
+console = ["*.html", "*.css", "*.js"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "tools"]
+testpaths = ["tests"]

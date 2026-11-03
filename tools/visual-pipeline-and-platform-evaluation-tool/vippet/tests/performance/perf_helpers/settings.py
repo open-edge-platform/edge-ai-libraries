@@ -15,6 +15,7 @@ Every configurable key is declared once in :data:`SPECS`. The pytest
 This module has no import-time side effects and does not touch the network.
 """
 
+import difflib
 import math
 import os
 import re
@@ -109,6 +110,15 @@ def _check_min(value: float, minimum: float | None, exclusive: bool) -> None:
         raise SettingsError(f"must be at least {minimum:g}, got {value!r}")
 
 
+def _check_max(value: float, maximum: float | None, exclusive: bool) -> None:
+    if maximum is None:
+        return
+    if exclusive and value >= maximum:
+        raise SettingsError(f"must be less than {maximum:g}, got {value!r}")
+    if not exclusive and value > maximum:
+        raise SettingsError(f"must be at most {maximum:g}, got {value!r}")
+
+
 def _as_bool(value: Any) -> bool:
     if isinstance(value, bool):
         return value
@@ -163,6 +173,8 @@ class SettingSpec:
     env: str | None = None
     minimum: float | None = None
     exclusive_min: bool = False
+    maximum: float | None = None
+    exclusive_max: bool = False
     choices: tuple[str, ...] = field(default_factory=tuple)
     negative_flag: str | None = None
     """For booleans: the flag that sets the value to False."""
@@ -186,6 +198,7 @@ class SettingSpec:
         if kind in {"int", "float"}:
             number = _as_int(value) if kind == "int" else _as_number(value, float)
             _check_min(number, self.minimum, self.exclusive_min)
+            _check_max(number, self.maximum, self.exclusive_max)
             return number
         if kind == "pipelines":
             return _as_pipelines(value)
@@ -201,6 +214,7 @@ class SettingSpec:
             for item in raw:
                 number = _as_int(item)
                 _check_min(number, self.minimum, self.exclusive_min)
+                _check_max(number, self.maximum, self.exclusive_max)
                 if number not in numbers:
                     numbers.append(number)
             return numbers
@@ -409,6 +423,21 @@ SPECS: tuple[SettingSpec, ...] = (
         exclusive_min=True,
         metavar="SECONDS",
     ),
+    SettingSpec(
+        "metrics.trim_fraction",
+        "--metrics-trim-fraction",
+        "float",
+        0.1,
+        "Fraction of time-ordered HW samples trimmed from each end before "
+        "averaging, to discard warm-up/wind-down outliers (0 <= value < 0.5).",
+        env="PERF_METRICS_TRIM_FRACTION",
+        minimum=0,
+        # At 0.5 or more, _trim_edge_samples() would trim everything and
+        # silently fall back to the untrimmed samples; reject it instead.
+        maximum=0.5,
+        exclusive_max=True,
+        metavar="FRACTION",
+    ),
     # --- results ---
     SettingSpec(
         "results.output_dir",
@@ -439,6 +468,15 @@ SPECS: tuple[SettingSpec, ...] = (
         True,
         "Create/update the 'latest' symlink in the results directory.",
         negative_flag="--no-latest-link",
+    ),
+    SettingSpec(
+        "results.save_log",
+        "--save-log",
+        "bool",
+        True,
+        "Write the run's full INFO log next to its reports "
+        "(<results-dir>/bench_<timestamp>/bench_<timestamp>.log).",
+        negative_flag="--no-save-log",
     ),
 )
 
@@ -476,22 +514,41 @@ class ResolvedSettings:
         return yaml.safe_dump(self.to_nested(), sort_keys=False)
 
 
-def resolve_config_path(config: str | os.PathLike[str]) -> Path:
-    """Map a preset name (``quick``) or a file path to an existing YAML path."""
+def _available_presets() -> list[str]:
+    return sorted(p.stem for p in CONFIG_DIR.glob("*.yaml"))
+
+
+def resolve_config_path(
+    config: str | os.PathLike[str], origin: str = "--config"
+) -> Path:
+    """Map a preset name (``quick``) or a file path to an existing YAML path.
+
+    *origin* names where the value came from (``--config``, an env var, ...)
+    so error messages can tell the user what to change.
+    """
     text = os.fspath(config).strip()
     if not text:
-        raise SettingsError("config name/path must not be empty")
+        raise SettingsError(
+            f"the config name/path given via {origin} is empty. To fix: pass a "
+            f"preset name ({', '.join(_available_presets())}) or a path to a "
+            "YAML file."
+        )
     if _PRESET_NAME_RE.match(text) and not Path(text).is_file():
         path = CONFIG_DIR / f"{text}.yaml"
         if not path.is_file():
-            presets = sorted(p.stem for p in CONFIG_DIR.glob("*.yaml"))
+            presets = _available_presets()
             raise SettingsError(
-                f"unknown config preset {text!r}; available presets: {presets}"
+                f"unknown config preset {text!r} (given via {origin}); available "
+                f"presets: {presets}. To fix: use one of these presets, or pass "
+                "a path to a YAML file."
             )
         return path
     path = Path(text).expanduser()
     if not path.is_file():
-        raise SettingsError(f"config file not found: {path}")
+        raise SettingsError(
+            f"config file not found: {path} (given via {origin}). To fix: check "
+            f"the path, or use a preset ({', '.join(_available_presets())})."
+        )
     return path
 
 
@@ -500,10 +557,12 @@ def select_config_source(
 ) -> Path:
     """Pick the YAML file: explicit arg > PERF_CONFIG_FILE > PERF_CONFIG > default."""
     if config is not None:
-        return resolve_config_path(config)
+        return resolve_config_path(config, "--config")
     if env.get(ENV_CONFIG_FILE):
-        return resolve_config_path(env[ENV_CONFIG_FILE])
-    return resolve_config_path(env.get(ENV_CONFIG) or DEFAULT_PRESET)
+        return resolve_config_path(env[ENV_CONFIG_FILE], f"env {ENV_CONFIG_FILE}")
+    if env.get(ENV_CONFIG):
+        return resolve_config_path(env[ENV_CONFIG], f"env {ENV_CONFIG}")
+    return resolve_config_path(DEFAULT_PRESET, "the built-in default")
 
 
 def _flatten(data: Mapping[str, Any], prefix: str = "") -> dict[str, Any]:
@@ -526,15 +585,32 @@ def load_yaml_values(path: Path) -> dict[str, Any]:
         with path.open(encoding="utf-8") as handle:
             data = yaml.safe_load(handle)
     except (OSError, yaml.YAMLError) as exc:
-        raise SettingsError(f"cannot read config {path}: {exc}") from exc
+        raise SettingsError(
+            f"cannot read config {path}: {exc}. To fix: make sure the file is "
+            "readable and is valid YAML."
+        ) from exc
     if data is None:
         return {}
     if not isinstance(data, Mapping):
-        raise SettingsError(f"config {path} must be a mapping at the top level")
+        raise SettingsError(
+            f"config {path} must be a YAML mapping at the top level, got "
+            f"{type(data).__name__}. To fix: start the file with sections such "
+            f"as 'vippet:' and 'benchmark:' (see {CONFIG_DIR / 'default.yaml'})."
+        )
     flat = _flatten(data)
     unknown = sorted(set(flat) - set(SPECS_BY_KEY))
     if unknown:
-        raise SettingsError(f"config {path} has unknown key(s): {unknown}")
+        hints = []
+        for key in unknown:
+            close = difflib.get_close_matches(key, SPECS_BY_KEY, n=1)
+            if close:
+                hints.append(f"{key!r} -> {close[0]!r}")
+        did_you_mean = f" Did you mean: {', '.join(hints)}?" if hints else ""
+        raise SettingsError(
+            f"config {path} has unknown key(s): {unknown}.{did_you_mean} To fix: "
+            "rename or remove them; 'python -m perf_helpers.cli --help' lists "
+            "every valid key."
+        )
     return flat
 
 
@@ -569,13 +645,21 @@ def resolve_settings(
         try:
             values[spec.key] = spec.coerce(raw)
         except SettingsError as exc:
-            origin = {
-                SOURCE_DEFAULT: "built-in default",
-                SOURCE_YAML: str(config_path),
-                SOURCE_ENV: f"env {spec.env}",
-                SOURCE_CLI: spec.flag,
+            origin, fix = {
+                SOURCE_DEFAULT: (
+                    "built-in default",
+                    "this is a bug in the built-in defaults; please report it",
+                ),
+                SOURCE_YAML: (str(config_path), f"edit {spec.key} in {config_path}"),
+                SOURCE_ENV: (
+                    f"env {spec.env}",
+                    f"change or unset the {spec.env} environment variable",
+                ),
+                SOURCE_CLI: (spec.flag, f"correct the {spec.flag} flag"),
             }[source]
-            raise SettingsError(f"invalid {spec.key} from {origin}: {exc}") from exc
+            raise SettingsError(
+                f"invalid {spec.key} from {origin}: {exc}. To fix: {fix}."
+            ) from exc
         sources[spec.key] = source
 
     _derive_metrics_defaults_from_base_url(values, sources, config_path)

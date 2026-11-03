@@ -36,8 +36,6 @@ COPY --from=compressor-src /libs/adaptive-token-compressor/ /libs/adaptive-token
 RUN pip install --no-cache-dir ".[ov]" && \
     pip install --no-cache-dir "/libs/adaptive-token-compressor"
 
-RUN pip install --no-cache-dir --upgrade "transformers>=5.2"
-
 COPY scripts/install_gpu_runtime.sh /tmp/install_gpu_runtime.sh
 RUN bash /tmp/install_gpu_runtime.sh && rm /tmp/install_gpu_runtime.sh
 

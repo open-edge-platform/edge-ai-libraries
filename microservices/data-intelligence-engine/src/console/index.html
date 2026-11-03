@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<!-- Copyright (C) 2025 Intel Corporation; SPDX-License-Identifier: Apache-2.0 -->
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Data Intelligence Engine</title>
+<link rel="stylesheet" href="console.css" />
+<link rel="stylesheet" href="source-options.css" />
+<!-- Theme before first paint, so a light-mode user never sees a dark flash. -->
+<script>
+  document.documentElement.dataset.theme = localStorage.getItem("die.theme")
+    || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+</script>
+</head>
+<body>
+<header>
+  <h1>Data Intelligence Engine <span class="sub" data-i18n>Console</span></h1>
+  <div class="scope"><span data-i18n>Library</span> <select id="scope-library"></select></div>
+  <div class="badge"><span class="dot" id="health-dot"></span><span id="health-text"></span></div>
+  <button class="ghost mini" id="lang-toggle" title="Language / 语言">中文</button>
+  <button class="ghost mini" id="theme-toggle" data-i18n-title="Toggle light/dark theme" title="Toggle light/dark theme"></button>
+</header>
+<nav id="tabs">
+  <button data-tab="canvas" data-i18n>Canvas</button>
+  <button data-tab="library" data-i18n>Library</button>
+  <button data-tab="retrieve" data-i18n>Retrieve &amp; Chat</button>
+</nav>
+
+<!-- CANVAS: inventory | stage | inspector -->
+<div class="studio" data-panel="canvas">
+  <aside class="inventory">
+    <div class="inv-sec">
+      <h3 data-i18n>Create</h3>
+      <div class="inv-item tpl" draggable="true" data-kind="new-upload"><span class="glyph asset">⇪</span><span data-i18n>Upload assets</span></div>
+      <div class="inv-item tpl" draggable="true" data-kind="new-pool"><span class="glyph pool">◎</span><span data-i18n>New asset pool</span></div>
+      <div class="inv-item tpl" draggable="true" data-kind="new-source"><span class="glyph source">⛁</span><span data-i18n>New source</span></div>
+    </div>
+    <input id="inv-filter" class="inv-filter" data-i18n-ph="Filter inventory…" placeholder="Filter inventory…" />
+    <div class="inv-sec"><h3><span data-i18n>Assets</span> <span class="count" id="inv-assets-n"></span></h3><div id="inv-assets"></div></div>
+    <div class="inv-sec"><h3><span data-i18n>Asset pools</span> <span class="count" id="inv-pools-n"></span></h3><div id="inv-pools"></div></div>
+    <div class="inv-sec"><h3><span data-i18n>Sources</span> <span class="count" id="inv-sources-n"></span></h3><div id="inv-sources"></div></div>
+    <div class="hint inv-hint" data-i18n>Drag items onto the canvas. Drop an asset on a pool to add it; drop a source on a pool to attach it. Files and folders from your computer can be dropped too.</div>
+  </aside>
+
+  <section class="canvas-col">
+    <div class="cv-toolbar">
+      <button class="ghost mini" id="cv-zoom-out" title="−">−</button>
+      <span id="cv-zoom" class="mono">100%</span>
+      <button class="ghost mini" id="cv-zoom-in" title="+">+</button>
+      <button class="ghost mini" id="cv-fit" data-i18n>Fit</button>
+      <span class="sep"></span>
+      <button class="ghost mini" id="cv-place-all" data-i18n>Place all</button>
+      <button class="ghost mini" id="cv-layout" data-i18n>Auto layout</button>
+      <button class="ghost mini" id="cv-clear" data-i18n>Clear canvas</button>
+      <span class="legend">
+        <span><i class="glyph asset">▤</i><span data-i18n>asset</span></span>
+        <span><i class="glyph pool">◎</i><span data-i18n>pool</span></span>
+        <span><i class="glyph source">⛁</i><span data-i18n>source</span></span>
+      </span>
+    </div>
+    <div class="cv-wrap" id="cv-wrap">
+      <div class="cv-sizer" id="cv-sizer">
+        <div class="cv-stage" id="cv-stage">
+          <svg class="cv-edges" id="cv-edges"></svg>
+          <div id="cv-nodes"></div>
+        </div>
+      </div>
+      <div class="cv-empty" id="cv-empty"></div>
+      <div class="cv-dropmask" id="cv-dropmask"><span data-i18n>Drop to stage files for upload</span></div>
+    </div>
+  </section>
+
+  <aside class="inspector" id="insp"></aside>
+</div>
+
+<!-- LIBRARY: one tab for libraries, pools, sources, databases and models -->
+<div class="mgmt" data-panel="library">
+  <aside class="side-nav" id="lib-nav">
+    <button data-sec="libraries"><span class="glyph pool">▦</span><span data-i18n>Libraries</span><span class="count" id="nav-n-libraries"></span></button>
+    <button data-sec="assets"><span class="glyph asset">▤</span><span data-i18n>Assets</span><span class="count" id="nav-n-assets"></span></button>
+    <button data-sec="pools"><span class="glyph pool">◎</span><span data-i18n>Asset pools</span><span class="count" id="nav-n-pools"></span></button>
+    <button data-sec="sources"><span class="glyph source">⛁</span><span data-i18n>Sources</span><span class="count" id="nav-n-sources"></span></button>
+    <button data-sec="databases"><span class="glyph asset">⌸</span><span data-i18n>Databases</span><span class="count" id="nav-n-databases"></span></button>
+    <button data-sec="models"><span class="glyph asset">✦</span><span data-i18n>Models</span><span class="count" id="nav-n-models"></span></button>
+  </aside>
+  <div class="mgmt-body">
+<!-- LIBRARIES: create/list libraries, add new assets -->
+  <div class="wrap" data-section="libraries">
+  <div>
+    <div class="card">
+      <h2 data-i18n>Create asset library</h2>
+      <div class="body">
+        <label data-i18n>Name</label>
+        <input id="library-name" placeholder="my_library" />
+        <label data-i18n>Description</label>
+        <input id="library-desc" data-i18n-ph="optional" placeholder="optional" />
+        <button id="library-create" data-i18n>Create</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span data-i18n>Add assets</span> <span class="right chip" id="ing-scope"></span></h2>
+      <div class="body">
+        <label data-i18n>Index in asset pools</label>
+        <div class="checks" id="ing-pools"></div>
+        <div class="hint" data-i18n>None checked stores the assets without indexing them; add them to a pool later.</div>
+        <label data-i18n>Upload from this computer</label>
+        <div class="uploader" id="ing-uploader"></div>
+        <label data-i18n>Text</label>
+        <textarea id="ing-text" data-i18n-ph="Paste text to add…" placeholder="Paste text to add…"></textarea>
+        <label data-i18n>…or server file paths (comma-separated)</label>
+        <input id="ing-files" placeholder="/data/doc1.pdf, /data/notes.txt" />
+        <div class="hint" data-i18n>Paths must exist on the engine host.</div>
+        <button id="ing-run" data-i18n>Add assets</button>
+        <div id="ing-status"></div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="card">
+      <h2 data-i18n>Asset libraries</h2>
+      <div class="body">
+        <table id="library-table"><thead><tr>
+          <th data-i18n>Name</th><th data-i18n>Assets</th><th data-i18n>Docs</th><th data-i18n>Chunks</th><th data-i18n>Pools</th><th data-i18n>Sources</th><th></th>
+        </tr></thead><tbody></tbody></table>
+        <div class="empty" id="library-empty" hidden data-i18n>No asset libraries yet.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- POOLS: CRUD pools in the scoped library, their sources and assets -->
+  <div class="wrap single" data-section="assets">
+    <div class="card">
+      <h2><span data-i18n>Assets</span> <span class="chip" id="as-scope"></span>
+        <span class="right"><button class="ghost mini" id="as-refresh" data-i18n>Refresh</button></span></h2>
+      <div class="body">
+        <div class="as-bar">
+          <input id="as-filter" class="mini-input" data-i18n-ph="Filter assets…" placeholder="Filter assets…" />
+          <span class="hint" id="as-count"></span>
+          <button class="danger mini" id="as-delete" disabled></button>
+        </div>
+        <table id="as-table"><thead><tr>
+          <th style="width:28px"><input type="checkbox" id="as-all" /></th>
+          <th data-i18n>Asset</th><th data-i18n>Kind</th><th data-i18n>Pools</th><th data-i18n>Ingest</th><th></th>
+        </tr></thead><tbody></tbody></table>
+        <div class="empty" id="as-empty" hidden data-i18n>This library has no assets yet. Add some under Libraries.</div>
+        <div class="hint" data-i18n>Deleting an asset removes its stored content and everything indexed from it: its chunks in vector sources and, for an OKF bundle, its concepts in graph sources and their vectors (unless another bundle also defines them). Remaining concepts stop citing a deleted document's chunks.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap wide" data-section="pools">
+  <div>
+    <div class="card">
+      <h2><span data-i18n>Create asset pool</span> <span class="right chip" id="pool-scope"></span></h2>
+      <div class="body">
+        <div class="row">
+          <div><label data-i18n>ID</label><input id="pool-id" placeholder="docs" /></div>
+          <div><label data-i18n>Name</label><input id="pool-name" placeholder="Documents" /></div>
+        </div>
+        <label data-i18n>Sources</label>
+        <div class="checks" id="pool-sources"></div>
+        <div class="hint" data-i18n>The vector/graph collections this pool indexes into. Create them under Sources.</div>
+        <label data-i18n>Metadata (JSON, optional)</label>
+        <textarea class="code" id="pool-meta" placeholder='{"owner": "team-a"}'></textarea>
+        <button id="pool-create" data-i18n>Create pool</button>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="card">
+      <h2 data-i18n>Asset pools</h2>
+      <div class="body">
+        <table id="pool-table"><thead><tr>
+          <th data-i18n>Pool</th><th data-i18n>Assets</th><th data-i18n>Sources</th><th data-i18n>Rev</th><th></th>
+        </tr></thead><tbody></tbody></table>
+        <div class="empty" id="pool-empty" hidden data-i18n>No asset pools in this library.</div>
+      </div>
+    </div>
+
+    <div class="card" id="pm-card" hidden>
+      <h2><span data-i18n>Manage pool</span> <span class="chip" id="pm-title"></span>
+        <span class="right"><button class="ghost mini" id="pm-close" data-i18n>Close</button></span></h2>
+      <div class="body">
+        <label data-i18n>Sources in this pool</label>
+        <div class="checks" id="pm-sources"></div>
+        <div class="hint" data-i18n>Check to add a source, uncheck to remove it. A pool keeps at least one source.</div>
+        <button id="pm-sources-save" data-i18n>Save sources</button>
+
+        <label style="margin-top:20px" data-i18n>Library assets</label>
+        <div class="checks" id="pm-assets"></div>
+        <div class="hint" data-i18n>Assets already in the pool are greyed out. New members are indexed in the background.</div>
+        <button id="pm-assets-add" data-i18n>Add selected to pool</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SOURCES: CRUD sources in the scoped library -->
+  <div class="wrap wide" data-section="sources">
+  <div>
+    <div class="card">
+      <h2><span data-i18n>Create source</span> <span class="right chip" id="src-scope"></span></h2>
+      <div class="body">
+        <label data-i18n>Name</label>
+        <input id="src-name" placeholder="docs_vectors" aria-label="Source name" />
+        <label for="src-db" data-i18n>Database</label>
+        <select id="src-db"></select>
+        <div class="hint" data-i18n>The source's type (vector / graph / object…) follows from the database.</div>
+        <label for="src-collection" data-i18n>Collection name</label>
+        <input id="src-collection" placeholder="docs_vectors" />
+        <div id="src-options"></div>
+        <button id="src-create" data-i18n>Create source</button>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div class="card">
+      <h2 data-i18n>Sources</h2>
+      <div class="body">
+        <table id="src-table"><thead><tr>
+          <th data-i18n>Source</th><th data-i18n>Type</th><th data-i18n>Database / collection</th><th data-i18n>Pool / serving_state</th><th data-i18n>Validation</th><th></th>
+        </tr></thead><tbody></tbody></table>
+        <div class="empty" id="src-empty" hidden data-i18n>No sources in this library.</div>
+        <div class="hint" data-i18n>Model and parameters are fixed at creation.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DATABASES: CRUD registrations -->
+  <div class="wrap wide" data-section="databases">
+  <div>
+    <div class="card">
+      <h2><span id="db-form-title"></span></h2>
+      <div class="body">
+        <label data-i18n>ID</label>
+        <input id="db-id" placeholder="milvus_main" />
+        <div class="row">
+          <div><label data-i18n>Type</label><select id="db-type"></select></div>
+          <div><label data-i18n>Backend</label><select id="db-backend"></select></div>
+        </div>
+        <label data-i18n>Options (JSON)</label>
+        <textarea class="code" id="db-options" placeholder='{"uri": "http://localhost:19530"}'></textarea>
+        <div class="hint" data-i18n>Passed to the backend adapter verbatim. Masked credentials (***) are kept as-is when saving.</div>
+        <label data-i18n>Description</label>
+        <input id="db-desc" data-i18n-ph="optional" placeholder="optional" />
+        <div class="row" style="flex:0">
+          <button id="db-save"></button>
+          <button class="ghost" id="db-cancel" hidden data-i18n>Cancel edit</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div class="card">
+      <h2><span data-i18n>Databases</span> <span class="right"><button class="ghost mini" id="db-check-all" data-i18n>Check all</button></span></h2>
+      <div class="body">
+        <table id="db-table"><thead><tr>
+          <th data-i18n>Database</th><th data-i18n>Options</th><th data-i18n>In use by</th><th data-i18n>Status</th><th></th>
+        </tr></thead><tbody></tbody></table>
+        <div class="empty" id="db-empty" hidden data-i18n>No databases registered.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODELS: embedding + reranker availability -->
+  <div class="wrap" data-section="models">
+  <div><div class="card" id="model-embedding"><h2 data-i18n>Embedding model</h2><div class="body"><div class="empty">—</div></div></div></div>
+  <div><div class="card" id="model-reranker"><h2 data-i18n>Reranking model</h2><div class="body"><div class="empty">—</div></div></div></div>
+</div>
+  </div>
+</div>
+
+<!-- RETRIEVE: from one pool or all pools of a library -->
+<div class="wrap retrieve" data-panel="retrieve">
+  <div class="r-graph">
+    <div class="card" id="g-card">
+      <h2><span data-i18n>Concept graph</span>
+        <span class="right g-tools">
+          <select id="g-pool" class="mini-select"></select>
+          <button class="ghost mini" id="g-fit" data-i18n>Fit</button>
+          <button class="ghost mini" id="g-reload" data-i18n>Reload</button>
+        </span></h2>
+      <div class="body">
+        <div class="g-bar">
+          <input id="g-find" class="mini-input" data-i18n-ph="Find a concept…" placeholder="Find a concept…" />
+          <label class="g-only"><input type="checkbox" id="g-only" /> <span data-i18n>Traversed only</span></label>
+          <span class="g-legend" id="g-legend"></span>
+        </div>
+        <div class="g-stage" id="g-stage">
+          <canvas id="g-canvas"></canvas>
+          <div class="g-msg" id="g-msg"></div>
+          <div class="g-tip" id="g-tip"></div>
+        </div>
+        <div class="g-info" id="g-info"></div>
+      </div>
+    </div>
+  </div>
+  <div class="r-form">
+    <div class="card">
+      <h2 data-i18n>Retrieval &amp; reranking</h2>
+      <div class="body">
+        <div class="flow" id="q-flow"></div>
+        <div class="row">
+          <div><label data-i18n>Asset library</label><select id="q-library"></select></div>
+          <div><label data-i18n>Asset pool</label><select id="q-pool"></select></div>
+        </div>
+        <label data-i18n>Query</label>
+        <textarea id="q-text" data-i18n-ph="Ask something…" placeholder="Ask something…"></textarea>
+        <div class="row">
+          <div>
+            <label id="q-topk-label" data-i18n>Retrieve top-k (per pool)</label>
+            <div class="range"><input type="range" id="q-topk" min="1" max="100" value="5" />
+              <span class="val" id="q-topk-v">5</span></div>
+          </div>
+          <div>
+            <label data-i18n>Rerank top-n (final)</label>
+            <div class="range"><input type="range" id="q-topn" min="1" max="50" value="3" />
+              <span class="val" id="q-topn-v">3</span></div>
+          </div>
+        </div>
+        <div class="row">
+          <div><label data-i18n>Retrieval type</label>
+            <select id="q-type">
+              <option value="rrf" data-i18n>RRF (vector + BM25 + graph)</option>
+              <option value="vectorsimilarity" data-i18n>Vector similarity</option>
+              <option value="bm25" data-i18n>BM25</option>
+              <option value="graph" data-i18n>Graph</option>
+            </select></div>
+          <div><label data-i18n>Post-processing</label><select id="q-reranker"></select></div>
+        </div>
+        <label data-i18n>Search modalities</label>
+        <details class="asset-types-dropdown" id="q-modalities">
+          <summary><span class="asset-types-value" id="q-modalities-value"></span><span class="asset-types-arrow">▾</span></summary>
+          <div class="asset-types-menu">
+            <div class="asset-types-checks">
+              <label><input type="checkbox" value="document" checked /><span data-i18n>Document</span></label>
+              <label><input type="checkbox" value="video" /><span data-i18n>Video</span></label>
+              <label><input type="checkbox" value="image" /><span data-i18n>Image</span></label>
+              <label><input type="checkbox" value="audio" /><span data-i18n>Audio</span></label>
+            </div>
+          </div>
+        </details>
+        <div class="hint" id="q-type-hint"></div>
+        <details class="q-advanced" id="q-advanced"><summary data-i18n>Advanced</summary>
+          <label data-i18n>Rerank query (optional, defaults to the query)</label>
+          <input id="q-rerank-query" />
+          <div class="row">
+            <div><label data-i18n>Reranker backend</label><select id="q-rerank-backend"></select></div>
+            <div><label data-i18n>Reranker device</label><input id="q-rerank-device" placeholder="CPU / GPU" /></div>
+          </div>
+          <div class="row">
+            <div><label data-i18n>Reranker model ID</label><input id="q-rerank-model" data-i18n-ph="the picker's model" placeholder="the picker's model" /></div>
+            <div><label data-i18n>Reranker API base</label><input id="q-rerank-api" placeholder="http://host:port/v1" /></div>
+          </div>
+          <label data-i18n>Reranker model path</label><input id="q-rerank-path" placeholder="/workspace/models/..." />
+          <label data-i18n>Exclude chunk IDs</label>
+          <textarea id="q-exclude" rows="2" class="code" data-i18n-ph="One per line, or use a result's ⊘ button" placeholder="One per line, or use a result's ⊘ button"></textarea>
+        </details>
+        <button id="q-run" data-i18n>Retrieve</button>
+      </div>
+    </div>
+    <div class="card" id="chat-card">
+      <h2><span data-i18n>Chat</span>
+        <span class="right"><button class="ghost mini" id="chat-clear" data-i18n>Clear</button></span></h2>
+      <div class="body">
+        <div class="row">
+          <div><label data-i18n>Chat completion endpoint</label>
+            <input id="chat-endpoint" placeholder="http://localhost:8000/v1" autocomplete="url" /></div>
+          <div><label data-i18n>Model ID</label>
+            <div class="inline"><input id="chat-model" list="chat-models" placeholder="Qwen/Qwen3.5-122B-A10B" />
+              <button class="ghost mini" id="chat-models-load" data-i18n-title="Load the endpoint's models" title="Load the endpoint's models">⟳</button></div>
+            <datalist id="chat-models"></datalist></div>
+        </div>
+        <details class="chat-more"><summary data-i18n>API key (optional)</summary>
+          <input id="chat-key" type="password" autocomplete="off" />
+        </details>
+        <div class="chat-log" id="chat-log"></div>
+        <textarea id="chat-input" rows="2" data-i18n-ph="Ask about the library… (Enter to send, Shift+Enter for a new line)"
+          placeholder="Ask about the library… (Enter to send, Shift+Enter for a new line)"></textarea>
+        <button id="chat-send" data-i18n>Send</button>
+        <div class="hint" data-i18n>Each question is retrieved and reranked with the settings above; the results go to the chat model as context, straight from this browser.</div>
+      </div>
+    </div>
+
+  </div>
+  <div class="r-results">
+    <div class="card">
+      <h2><span data-i18n>Results</span> <span class="right chip" id="q-summary"></span></h2>
+      <div class="body"><div id="q-results"><div class="empty" data-i18n>Run a query.</div></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="i18n.js"></script>
+<script src="source-options.js"></script>
+<script src="source-status.js"></script>
+<script src="source-serving.js"></script>
+<script src="console.js"></script>
+<script src="chat.js"></script>
+<script src="graph.js"></script>
+<script src="canvas.js"></script>
+</body>
+</html>

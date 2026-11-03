@@ -37,6 +37,30 @@ REST route from 1.0 continue to work.
 
 See the [DLSPS 2.0 REST API Reference](docs/api-reference.md).
 
+## OpenTelemetry metrics
+
+Set `ENABLE_OPEN_TELEMETRY=true` to push per-pipeline metrics to an OTLP/HTTP
+collector at `http://${OTEL_COLLECTOR_HOST}:${OTEL_COLLECTOR_PORT}/v1/metrics`
+every `OTEL_EXPORT_INTERVAL_MILLIS` (default `10000`). Each metric carries a
+single attribute, `pipeline_id`.
+
+| Metric | Unit | Description |
+|--------|------|-------------|
+| `fps_per_pipeline` | - | `avg_fps` of the instance. Not reported until warmup completes. |
+| `frame_fps_per_pipeline` | - | `frame_fps` of the instance. |
+| `frame_fps_window_seconds` | s | `frame_interval`: the window `frame_fps_per_pipeline` was measured over. |
+| `pipeline_start_timestamp_seconds` | s | Unix time at which the instance started running (`start_time`). |
+| `pipeline_first_frame_timestamp_seconds` | s | Unix time of the first frame (`first_frame_time`). Not reported until a frame arrives. |
+| `pipeline_end_timestamp_seconds` | s | Unix time at which the instance stopped. Reported only after it stops, during the retention window below. |
+
+Durations are derived in the backend, for example the time to first frame is
+`pipeline_first_frame_timestamp_seconds - pipeline_start_timestamp_seconds`.
+
+Running instances are reported live. A finished instance is reported for
+`max(2 × export interval, 30 s)` after it stops, so the final values of short
+runs still reach the backend. CPU and memory metrics from DLSPS 1.0 are not
+ported, because pipelines run in worker subprocesses.
+
 ## Status
 
 Under active development and testing against real sample applications (see

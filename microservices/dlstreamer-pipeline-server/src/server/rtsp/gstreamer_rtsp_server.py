@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import os
 from threading import Thread
 from collections import namedtuple
 
@@ -16,6 +17,22 @@ from src.server.common.utils import logging
 from src.server.rtsp.gstreamer_rtsp_factory import GStreamerRtspFactory
 # pylint: enable=wrong-import-position
 
+# The RTSP server serves every client (and waits for every media to be prepared) on the threads of its thread pool,
+# and GStreamer's default is ONE thread. A stream whose media never gets prepared (for example a pipeline that stopped
+# feeding its appsrc) then blocks that thread for the whole prepare timeout (20 s) per request, and every other
+# client, including the other cameras' streams, waits behind it; clients that retry (a relay re-pulling a stream) keep
+# the thread blocked for good. More threads keep one bad stream from stopping the others.
+DEFAULT_RTSP_MAX_THREADS = 8
+
+
+def _max_threads():
+    try:
+        value = int(os.getenv("RTSP_SERVER_MAX_THREADS", str(DEFAULT_RTSP_MAX_THREADS)))
+    except ValueError:
+        value = DEFAULT_RTSP_MAX_THREADS
+    return value if value == -1 or value >= 1 else DEFAULT_RTSP_MAX_THREADS     # -1 = unlimited
+
+
 Stream = namedtuple('stream', ['source', 'caps', 'overlay', 'overlay_properties', 'encoding'])
 Stream.__new__.__defaults__ = (None, None, True, None, 'mjpeg')
 
@@ -27,6 +44,7 @@ class GStreamerRtspServer():
         self._port = port
         self._server = GstRtspServer.RTSPServer()
         self._server.set_service(str(port))
+        self._server.get_thread_pool().set_max_threads(_max_threads())
         self._context = None
         self._mainloop = None
         self._mount_points = self._server.get_mount_points()

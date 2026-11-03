@@ -3,7 +3,7 @@
 This page is the entry point for running the Behavioral Analysis Service.
 
 For a detailed overview of the service architecture, capabilities, and design, see
-[How It Works](./how-it-works).
+[How It Works](./how-it-works.md).
 
 ## Before You Begin
 
@@ -11,7 +11,7 @@ For a detailed overview of the service architecture, capabilities, and design, s
 - Ensure deployment-specific dependencies are reachable:
   - `seaweedfs+mqtt` mode: MQTT broker, SeaweedFS S3-compatible storage, and OVMS if VLM is enabled
   - `standalone+api` mode: REST API clients and OVMS if VLM is enabled
-- Obtain the **YOLO-Pose model** in OpenVINO IR format (`.xml` + `.bin`).
+- Obtain the **YOLO-Pose model** in OpenVINO™ IR format (`.xml` + `.bin`).
 - If VLM is enabled, download and place the VLM model files before startup (for Docker Compose, under `DOWNLOADED_MODEL_PATH/vlm_models`).
 - Review the [Configuration Guide](./get-started/configuration.md) before starting deployment.
 
@@ -20,10 +20,10 @@ For a detailed overview of the service architecture, capabilities, and design, s
 All runtime behavior is driven by **environment variables and one YAML pattern file**:
 
 > [!IMPORTANT]
-> 
+>
 > - Configuration is mandatory for all runs: quick start, Docker
 >   deployment, and host deployment.
-> 
+>
 > - The service may start with default values,
 >   but successful analysis requires deployment-specific configuration.
 

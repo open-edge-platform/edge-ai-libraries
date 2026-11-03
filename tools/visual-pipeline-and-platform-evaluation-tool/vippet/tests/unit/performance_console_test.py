@@ -1,0 +1,652 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+"""Unit tests for the performance suite's console output and error texts.
+
+Covers the pure message builders and, end to end, the order of the console
+sections of a real pytest run against an in-process fake ViPPET.
+"""
+
+import json
+import os
+import re
+import subprocess
+import sys
+import tempfile
+import threading
+import unittest
+from datetime import datetime
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from typing import Any
+
+from tests.performance.perf_helpers import job_outcome
+from tests.performance.perf_helpers.matrix import (
+    MatrixFilters,
+    build_matrix,
+    describe_no_cases,
+    describe_unknown_filter_ids,
+    find_unknown_filter_ids,
+    format_matrix,
+)
+from tests.performance.perf_helpers.preflight import format_discovered_hardware
+from tests.performance.perf_helpers.settings import PERF_DIR
+
+_PIPELINES = [
+    {"id": "od", "name": "Object Detection", "variants": [{"id": "1", "name": "CPU"}]},
+    {"id": "lpr", "name": "LPR", "variants": [{"id": "2", "name": "CPU"}]},
+]
+
+
+class TestMatrixMessages(unittest.TestCase):
+    def test_all_excluded_points_at_table_and_flags(self) -> None:
+        matrix = build_matrix(
+            _PIPELINES, [{"device_family": "GPU"}], {}, MatrixFilters()
+        )
+        message = describe_no_cases(matrix)
+        self.assertIn("All 2 discovered pipeline/variant(s) were excluded", message)
+        self.assertIn("'Excluded' table", message)
+        self.assertIn("To fix:", message)
+        self.assertIn("--variants", message)
+
+    def test_empty_inventory(self) -> None:
+        matrix = build_matrix([], [{"device_family": "CPU"}], {}, MatrixFilters())
+        message = describe_no_cases(matrix)
+        self.assertIn("no pipelines with variants", message)
+        self.assertIn("To fix:", message)
+
+    def _matrix_with_missing_models(self) -> Any:
+        return build_matrix(
+            _PIPELINES,
+            [{"device_family": "CPU"}],
+            {"lpr": ["LPR Net"]},
+            MatrixFilters(stream_counts=(1,)),
+        )
+
+    def test_missing_models_are_skipped_by_default(self) -> None:
+        text = format_matrix(self._matrix_with_missing_models())
+        self.assertIn("Matrix: 1 run(s)", text)
+        self.assertIn("Skipped at run time: missing_models: 1 run(s)", text)
+
+    def test_missing_models_counted_as_runs_when_not_skipped(self) -> None:
+        matrix = self._matrix_with_missing_models()
+        text = format_matrix(matrix, skip_missing_models=False)
+        self.assertIn("Matrix: 2 run(s)", text)
+        self.assertIn("lpr_cpu_x1", text.split("Excluded:")[0])
+        self.assertIn("Missing models, will run anyway: 1 run(s)", text)
+        self.assertNotIn("Skipped at run time", text)
+        # Display only: the matrix itself is unchanged.
+        self.assertEqual(matrix.missing_models, {"lpr": ["LPR Net"]})
+
+
+class TestUnknownFilterIds(unittest.TestCase):
+    def test_finds_every_kind_of_unknown_id(self) -> None:
+        filters = MatrixFilters(
+            pipelines=["od", "nope"],
+            variants=("cpu", "fpga"),
+            skip_pipelines=("LPR", "ghost"),
+            skip_variants=("tpu",),
+        )
+        issues = find_unknown_filter_ids(filters, ["od", "lpr"])
+        self.assertEqual(
+            [(i.key, i.value) for i in issues],
+            [
+                ("benchmark.pipelines", "nope"),
+                ("benchmark.filters.skip_pipelines", "ghost"),
+                ("benchmark.filters.skip_variants", "tpu"),
+                ("benchmark.variants", "fpga"),
+            ],
+        )
+
+    def test_wildcard_and_known_ids_are_accepted(self) -> None:
+        self.assertEqual(find_unknown_filter_ids(MatrixFilters(), ["od"]), [])
+
+    def test_message_names_flag_valid_values_and_fix(self) -> None:
+        issues = find_unknown_filter_ids(
+            MatrixFilters(pipelines=["nope"], variants=("fpga",)), ["od", "lpr"]
+        )
+        message = describe_unknown_filter_ids(issues, "/cfg/default.yaml")
+        self.assertTrue(message.startswith("2 benchmark filter id(s)"))
+        self.assertIn(
+            "'nope' in benchmark.pipelines (--pipelines) is not a known "
+            "pipeline id; valid values: lpr, od",
+            message,
+        )
+        self.assertIn("'fpga' in benchmark.variants (--variants)", message)
+        self.assertIn("device family; valid values: CPU, GPU, NPU", message)
+        self.assertIn(
+            "To fix: correct or remove these ids in /cfg/default.yaml", message
+        )
+        self.assertIn("PERF_ON_UNKNOWN_ID=warn", message)
+
+
+class TestHardwareLines(unittest.TestCase):
+    def test_groups_devices_by_family(self) -> None:
+        lines = format_discovered_hardware(
+            [
+                {"device_family": "GPU", "full_device_name": "Arc A770"},
+                {"device_family": "cpu", "full_device_name": "Core Ultra 7"},
+                {"device_family": "GPU", "full_device_name": "Arc A770"},
+                {"device_family": "FPGA", "full_device_name": "ignored"},
+            ],
+            "2026.1.0",
+        )
+        self.assertEqual(
+            lines,
+            ["ViPPET version: 2026.1.0", "CPU: Core Ultra 7", "GPU: Arc A770"],
+        )
+
+    def test_no_devices_is_explained(self) -> None:
+        lines = format_discovered_hardware([], "Unknown")
+        self.assertEqual(lines[0], "ViPPET version: Unknown")
+        self.assertIn("No CPU, GPU or NPU device was discovered", lines[1])
+        self.assertIn("To fix:", lines[1])
+
+
+class TestJobOutcomeMessages(unittest.TestCase):
+    LABEL = "pipeline_id=od variant_id=1 streams=3"
+    BASE = "http://h/api/v1"
+
+    def test_timeout_suggests_job_duration_flags(self) -> None:
+        message = job_outcome.describe_job_failure(
+            self.LABEL,
+            {"state": "TIMEOUT", "job_id": "j1", "error_message": "slow"},
+            2,
+            self.BASE,
+        )
+        self.assertIn(f"{self.LABEL} did not complete", message)
+        self.assertIn(
+            "attempt 2 of 2 ended in state TIMEOUT (job_id=j1): slow", message
+        )
+        self.assertIn("--max-job-duration", message)
+        self.assertIn("--max-runtime", message)
+        # Cancellation is best-effort: do not claim the job was stopped.
+        self.assertNotIn("was stopped", message)
+        self.assertIn("cancellation is best-effort", message)
+        self.assertIn("may still be running", message)
+        self.assertIn(
+            f"check the job state at {self.BASE}/jobs/tests/performance/j1/status",
+            message,
+        )
+
+    def test_timeout_without_job_id_points_at_ui(self) -> None:
+        message = job_outcome.describe_job_failure(
+            self.LABEL, {"state": "TIMEOUT"}, 1, self.BASE
+        )
+        self.assertIn("check the job state in the ViPPET UI", message)
+
+    def test_conflict_explains_single_job_slot(self) -> None:
+        message = job_outcome.describe_job_failure(
+            self.LABEL, {"state": "CONFLICT"}, 1, self.BASE
+        )
+        self.assertIn("one job at a time", message)
+        self.assertIn("ViPPET returned no error message", message)
+        self.assertIn("To fix: wait", message)
+
+    def test_failed_points_at_job_logs_and_status_url(self) -> None:
+        message = job_outcome.describe_job_failure(
+            self.LABEL,
+            {"state": "FAILED", "job_id": "j9", "error_message": "no model"},
+            1,
+            self.BASE,
+        )
+        self.assertIn("pipeline itself failed", message)
+        self.assertIn("ViPPET logs for job j9", message)
+        self.assertIn(f"{self.BASE}/jobs/tests/performance/j9/status", message)
+
+    def test_zero_fps(self) -> None:
+        message = job_outcome.describe_zero_fps(
+            self.LABEL,
+            {"job_id": "j1", "total_fps": 0, "per_stream_fps": 0},
+            self.BASE,
+        )
+        self.assertIn("processed no frames", message)
+        self.assertIn("To fix:", message)
+
+    def test_rejected_submission_client_and_server_errors(self) -> None:
+        client = job_outcome.describe_rejected_submission(
+            self.LABEL, 422, '{"detail":\n "bad variant"}'
+        )
+        self.assertIn('HTTP 422: {"detail": "bad variant"}', client)
+        self.assertIn("--dry-run", client)
+        server = job_outcome.describe_rejected_submission(self.LABEL, 500, "")
+        self.assertIn("HTTP 500: (empty response)", server)
+        self.assertIn("docker compose logs", server)
+        long = job_outcome.describe_rejected_submission(self.LABEL, 400, "x" * 1000)
+        self.assertNotIn("x" * 301, long)
+
+    def test_connection_lost(self) -> None:
+        message = job_outcome.describe_connection_lost(
+            self.LABEL, self.BASE, ConnectionError("reset")
+        )
+        self.assertIn(f"Lost contact with ViPPET at {self.BASE}", message)
+        self.assertIn("ConnectionError: reset", message)
+        self.assertIn("To fix:", message)
+
+    def test_missing_hw_samples(self) -> None:
+        results = [
+            {"status": "success", "hw_metrics": {"sample_count": 0}},
+            {"status": "failed", "hw_metrics": {"sample_count": 4}},
+            {"status": "skipped", "hw_metrics": {"sample_count": 0}},
+        ]
+        message = job_outcome.describe_missing_hw_samples(results, "http://m/metrics")
+        assert message is not None
+        self.assertIn("from http://m/metrics for 1 of 2 test(s)", message)
+        self.assertIn("--metrics-url", message)
+        self.assertIsNone(
+            job_outcome.describe_missing_hw_samples(results[1:], "http://m")
+        )
+
+
+# --------------------------------------------------------------------------- #
+# End to end: pytest run against a fake ViPPET
+# --------------------------------------------------------------------------- #
+
+
+class _FakeVippet(BaseHTTPRequestHandler):
+    job_state = "COMPLETED"
+    post_status = 200  # HTTP status for POST /tests/performance
+    status_polls = 0  # the first job status poll answers RUNNING
+
+    def log_message(self, format: str, *args: Any) -> None:  # noqa: A002 - quiet
+        pass
+
+    def _send(self, code: int, payload: Any) -> None:
+        body = json.dumps(payload).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self) -> None:  # noqa: N802 - http.server API
+        job_path = "/api/v1/jobs/tests/performance/j1/status"
+        if self.path == job_path:
+            type(self).status_polls += 1
+        state = "RUNNING" if type(self).status_polls <= 1 else self.job_state
+        routes: dict[str, Any] = {
+            "/api/v1/health": {"healthy": True},
+            "/api/v1/status": {"ready": True, "status": "ready", "version": "9.9"},
+            "/api/v1/devices": [
+                {
+                    "device_name": "CPU",
+                    "device_family": "CPU",
+                    "full_device_name": "Fake CPU",
+                }
+            ],
+            "/api/v1/pipelines": _PIPELINES,
+            "/api/v1/models": [
+                {
+                    "display_name": "LPR Net",
+                    "install_status": "not_installed",
+                    "used_by_pipelines": ["lpr"],
+                }
+            ],
+            "/api/v1/capabilities": {},
+            job_path: {
+                "job_id": "j1",
+                "state": state,
+                "total_fps": 30.0,
+                "per_stream_fps": 30.0,
+                "error_message": "decoder crashed"
+                if self.job_state == "FAILED"
+                else None,
+            },
+        }
+        if self.path in routes:
+            self._send(200, routes[self.path])
+        else:
+            self._send(404, {"detail": "not found"})
+
+    def do_POST(self) -> None:  # noqa: N802 - http.server API
+        self.rfile.read(int(self.headers.get("Content-Length") or 0))
+        if self.post_status != 200:
+            self._send(self.post_status, {"detail": "bad variant"})
+            return
+        self._send(200, {"job_id": "j1"})
+
+
+class TestConsoleOutputEndToEnd(unittest.TestCase):
+    def _run(
+        self,
+        job_state: str,
+        pipelines: str = '"*"',
+        extra_env: dict[str, str] | None = None,
+        post_status: int = 200,
+        skip_missing_models: bool = True,
+        prepare: Any = None,
+        pytest_args: tuple[str, ...] = (),
+        results_extra: str = "",
+        api_path: str = "/api/v1",
+    ) -> subprocess.CompletedProcess[str]:
+        handler = type(
+            "Handler",
+            (_FakeVippet,),
+            {"job_state": job_state, "post_status": post_status},
+        )
+        server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        base = f"http://127.0.0.1:{server.server_address[1]}{api_path}"
+
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__("shutil").rmtree(tmp, ignore_errors=True))
+        self.results_dir = tmp / "results"
+        if prepare is not None:
+            prepare(tmp / "results")
+        config = tmp / "perf.yaml"
+        config.write_text(
+            "vippet:\n  poll_interval: 0.1\n  readiness_timeout_seconds: 10\n"
+            f"benchmark:\n  pipelines: {pipelines}\n"
+            "  variants: [cpu]\n  stream_counts: [1]\n"
+            "  execution:\n    max_retries: 0\n"
+            "  filters:\n"
+            f"    skip_missing_models: {str(skip_missing_models).lower()}\n"
+            "metrics:\n  sample_interval_seconds: 0.1\n"
+            f"results:\n  output_dir: {json.dumps(str(tmp / 'results'))}\n"
+            "  formats: [json]\n" + results_extra,
+            encoding="utf-8",
+        )
+        env = {
+            k: v
+            for k, v in os.environ.items()
+            if not k.startswith(("PERF_", "VIPPET_"))
+        }
+        env.update(
+            {
+                "PERF_CONFIG_FILE": str(config),
+                "VIPPET_BASE_URL": base,
+                "VIPPET_CAPABILITIES_URL": f"{base}/capabilities",
+                **(extra_env or {}),
+            }
+        )
+        return subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                "-m",
+                "perf",
+                "-p",
+                "no:cacheprovider",
+                str(PERF_DIR),
+                *pytest_args,
+            ],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=180,
+            check=False,
+        )
+
+    def _assert_in_order(self, text: str, *needles: str) -> None:
+        positions = []
+        for needle in needles:
+            self.assertIn(needle, text)
+            positions.append(text.index(needle))
+        self.assertEqual(positions, sorted(positions), f"wrong order in:\n{text}")
+
+    def _run_dir(self) -> Path:
+        """Return the single bench_<timestamp> directory of the last run."""
+        run_dirs = [
+            p for p in self.results_dir.iterdir() if p.name.startswith("bench_")
+        ]
+        self.assertEqual(len(run_dirs), 1, run_dirs)
+        return run_dirs[0]
+
+    def test_normal_run_shows_every_section_in_order(self) -> None:
+        completed = self._run("COMPLETED")
+        out = completed.stdout
+        self.assertEqual(completed.returncode, 0, out + completed.stderr)
+        self._assert_in_order(
+            out,
+            "test session starts",
+            "benchmark log: ",
+            "ViPPET readiness",
+            "/status: READY",
+            "Discovered hardware",
+            "CPU: Fake CPU",
+            "Benchmark matrix",
+            "Matrix: 1 run(s)",
+            "Skipped at run time: missing_models: 1 run(s)",
+            "[object_detection_cpu_x1] PASSED",
+            "[lpr_cpu_x1] SKIPPED",
+            "Benchmark artefacts",
+            "No hardware metrics were sampled",
+            "\nDirectory ",
+            "\nJSON ",
+            "\nHTML report ",
+            "\nLog ",
+            "\nLatest link ",
+        )
+        self.assertNotIn("Traceback", out + completed.stderr)
+
+    def test_reports_and_full_log_share_one_run_id(self) -> None:
+        completed = self._run("COMPLETED", pipelines="[od]")
+        out = completed.stdout
+        self.assertEqual(completed.returncode, 0, out + completed.stderr)
+        run_dir = self._run_dir()
+        run_id = run_dir.name
+        self.assertEqual(
+            sorted(p.name for p in run_dir.iterdir()),
+            [f"{run_id}.html", f"{run_id}.json", f"{run_id}.log"],
+        )
+        report = json.loads((run_dir / f"{run_id}.json").read_text(encoding="utf-8"))
+        self.assertEqual(report["benchmark_id"], run_id)
+        started = datetime.fromisoformat(report["timestamp"])
+        self.assertEqual(f"bench_{started:%Y%m%d_%H%M%S}", run_id)
+        self.assertEqual(os.readlink(self.results_dir / "latest"), run_id)
+        self.assertIn(f"benchmark log: {run_dir / run_id}.log", out)
+
+        log = (run_dir / f"{run_id}.log").read_text(encoding="utf-8")
+        # Full INFO log: test and helper messages plus the per-request HTTP
+        # client lines (e.g. metrics-manager samples) the console hides.
+        for line in (
+            "INFO test_pipeline_performance: Running performance benchmark",
+            "INFO helpers.api_helpers: Performance job started: job_id=j1",
+            "INFO httpx: HTTP Request: GET",
+            "/metrics/stream",
+            "INFO conftest: Latest results symlink:",
+        ):
+            self.assertIn(line, log)
+        self.assertNotIn("HTTP Request:", out)
+        self.assertNotIn("Performance job started", out)
+
+    def test_live_logging_keeps_sections_without_http_client_noise(self) -> None:
+        completed = self._run(
+            "COMPLETED", pipelines="[od]", pytest_args=("--log-cli-level=INFO",)
+        )
+        out = completed.stdout
+        self.assertEqual(completed.returncode, 0, out + completed.stderr)
+        self._assert_in_order(
+            out,
+            "ViPPET readiness",
+            "/status: READY",
+            "Discovered hardware",
+            "Benchmark matrix",
+            "Matrix: 1 run(s)",
+            "Benchmark artefacts",
+            "HTML report",
+        )
+        # httpx/httpcore per-request INFO lines repeat the [pre-flight] lines.
+        self.assertNotIn("HTTP Request:", out)
+        self.assertNotIn("live log sessionstart", out)
+
+    def test_missing_model_runs_counted_when_not_skipped(self) -> None:
+        completed = self._run("COMPLETED", skip_missing_models=False)
+        out = completed.stdout
+        self._assert_in_order(
+            out,
+            "Matrix: 2 run(s)",
+            "lpr_cpu_x1",
+            "Missing models, will run anyway: 1 run(s)",
+            "[object_detection_cpu_x1] PASSED",
+            "[lpr_cpu_x1] ",
+        )
+        self.assertNotIn("Skipped at run time", out)
+        # Scheduled, not skipped (the run outcome itself is not under test).
+        self.assertNotIn("[lpr_cpu_x1] SKIPPED", out)
+
+    def test_failure_without_results_is_not_reported_as_not_run(self) -> None:
+        completed = self._run("COMPLETED", pipelines="[od]", post_status=422)
+        out = completed.stdout
+        self.assertEqual(completed.returncode, 1, out + completed.stderr)
+        self.assertIn("[object_detection_cpu_x1] FAILED", out)
+        self.assertIn("ViPPET rejected the performance job", out)
+        self._assert_in_order(
+            out,
+            "Benchmark artefacts",
+            "\nDirectory ",
+            "\nLog ",
+            "\nLatest link ",
+            "No reports were written because no benchmark result records were produced",
+            "and the log).",
+        )
+        self.assertNotIn("no benchmark test ran", out)
+        # The failed run still keeps its log and is the latest run.
+        run_dir = self._run_dir()
+        self.assertEqual([p.name for p in run_dir.iterdir()], [f"{run_dir.name}.log"])
+        self.assertEqual(os.readlink(self.results_dir / "latest"), run_dir.name)
+        log = (run_dir / f"{run_dir.name}.log").read_text(encoding="utf-8")
+        self.assertIn("POST", log)
+        self.assertIn("422", log)
+
+    def test_readiness_abort_keeps_log_and_updates_latest(self) -> None:
+        completed = self._run("COMPLETED", api_path="/not-vippet")
+        out = completed.stdout
+        self.assertEqual(completed.returncode, 2, out + completed.stderr)
+        self._assert_in_order(out, "benchmark log: ", "ViPPET readiness")
+        run_dir = self._run_dir()
+        self.assertEqual(os.readlink(self.results_dir / "latest"), run_dir.name)
+        log = (run_dir / f"{run_dir.name}.log").read_text(encoding="utf-8")
+        self.assertIn("HTTP Request: GET", log)
+        self.assertIn("/not-vippet/health", log)
+        self.assertNotIn("HTTP Request:", out)
+
+    def test_save_log_disabled_writes_no_log(self) -> None:
+        completed = self._run(
+            "COMPLETED", pipelines="[od]", results_extra="  save_log: false\n"
+        )
+        out = completed.stdout
+        self.assertEqual(completed.returncode, 0, out + completed.stderr)
+        self.assertNotIn("benchmark log:", out)
+        self.assertNotIn("\nLog ", out)
+        run_dir = self._run_dir()
+        self.assertFalse(list(run_dir.glob("*.log")))
+        self.assertEqual(os.readlink(self.results_dir / "latest"), run_dir.name)
+
+    def test_save_log_disabled_and_failed_run_leaves_latest_alone(self) -> None:
+        completed = self._run(
+            "COMPLETED",
+            pipelines="[od]",
+            post_status=422,
+            results_extra="  save_log: false\n",
+        )
+        self.assertEqual(completed.returncode, 1, completed.stdout + completed.stderr)
+        # Nothing to point at: no reports and no log, so no run directory.
+        self.assertFalse(self.results_dir.exists())
+
+    def test_user_log_file_and_no_latest_link_are_respected(self) -> None:
+        own_log = Path(tempfile.mkdtemp()) / "mine.log"
+        self.addCleanup(
+            lambda: __import__("shutil").rmtree(own_log.parent, ignore_errors=True)
+        )
+        completed = self._run(
+            "COMPLETED",
+            pipelines="[od]",
+            results_extra="  create_latest_link: false\n",
+            pytest_args=("--log-file", str(own_log)),
+        )
+        out = completed.stdout
+        self.assertEqual(completed.returncode, 0, out + completed.stderr)
+        self.assertIn(f"benchmark log: {own_log}", out)
+        section = out.rsplit("Benchmark artefacts", 1)[1]
+        self.assertRegex(section, rf"\nLog +{re.escape(str(own_log))}\n")
+        self.assertIn("Performance job started", own_log.read_text(encoding="utf-8"))
+        self.assertFalse(list(self._run_dir().glob("*.log")))
+        self.assertFalse((self.results_dir / "latest").exists())
+        self.assertNotIn("Latest link", out)
+
+    def test_collect_only_creates_no_run_directory(self) -> None:
+        completed = self._run("COMPLETED", pytest_args=("--collect-only",))
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        self.assertNotIn("benchmark log:", completed.stdout)
+        self.assertFalse(self.results_dir.exists())
+
+    def test_latest_link_error_keeps_reports_and_log_listed(self) -> None:
+        def block_latest_link(results: Path) -> None:
+            # A non-empty directory named "latest" cannot be replaced by the
+            # link, after the JSON and HTML reports have been written.
+            (results / "latest").mkdir(parents=True)
+            (results / "latest" / "keep").write_text("x", encoding="utf-8")
+
+        completed = self._run("COMPLETED", pipelines="[od]", prepare=block_latest_link)
+        out = completed.stdout
+        self.assertEqual(completed.returncode, 1, out + completed.stderr)
+        self.assertIn("Benchmark artefacts", out)
+        section = out.rsplit("Benchmark artefacts", 1)[1]
+        self._assert_in_order(
+            section,
+            "\nDirectory ",
+            "\nJSON ",
+            "\nHTML report ",
+            "\nLog ",
+            "\nerror: Pointing",
+            "This run's files are still in",
+            "To fix: remove or rename",
+            "--no-latest-link",
+        )
+        self.assertNotIn("Latest link", section)
+        self.assertNotIn("No reports were written", out)
+        # The blocking directory is left untouched and no staging link remains.
+        self.assertTrue((self.results_dir / "latest" / "keep").exists())
+        self.assertFalse(list(self.results_dir.glob(".latest.*")))
+
+    def test_failed_job_is_explained_without_traceback(self) -> None:
+        completed = self._run("FAILED")
+        out = completed.stdout
+        self.assertEqual(completed.returncode, 1, out + completed.stderr)
+        self.assertIn("ended in state FAILED (job_id=j1): decoder crashed", out)
+        self.assertIn("To fix: check the ViPPET logs for job j1", out)
+        self.assertNotIn("AssertionError", out)
+        self.assertNotIn("Traceback", out)
+
+    def test_unknown_filter_id_aborts_with_explanation(self) -> None:
+        completed = self._run("COMPLETED", pipelines="[od, nope]")
+        text = completed.stdout + completed.stderr
+        self.assertEqual(completed.returncode, 4, text)
+        self.assertIn("error: 1 benchmark filter id(s)", text)
+        self.assertIn("'nope' in benchmark.pipelines (--pipelines)", text)
+        self.assertIn("valid values: lpr, od", text)
+        self.assertIn("PERF_ON_UNKNOWN_ID=warn", text)
+        self.assertIn("Invalid benchmark filter ids (see the error above)", text)
+        self.assertNotIn("Traceback", text)
+        # The error comes after the matrix, on its own line.
+        self._assert_in_order(
+            completed.stdout,
+            "Benchmark matrix",
+            "Matrix: 1 run(s)",
+            "\nerror: 1 benchmark filter id(s)",
+        )
+
+    def test_unknown_filter_id_in_warn_mode_skips_it(self) -> None:
+        completed = self._run(
+            "COMPLETED",
+            pipelines="[od, nope]",
+            extra_env={"PERF_ON_UNKNOWN_ID": "warn"},
+        )
+        out = completed.stdout
+        self.assertEqual(completed.returncode, 0, out + completed.stderr)
+        self._assert_in_order(
+            out,
+            "Matrix: 1 run(s)",
+            "\nwarning: 1 benchmark filter id(s)",
+            "[object_detection_cpu_x1] PASSED",
+            "[invalid_pipelines_nope_x1] SKIPPED",
+        )
+        self.assertIn("To fix: correct or remove it in", out)
+
+
+if __name__ == "__main__":
+    unittest.main()

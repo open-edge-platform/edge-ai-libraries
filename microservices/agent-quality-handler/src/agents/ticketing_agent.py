@@ -9,18 +9,17 @@ import datetime
 from typing import Any
 
 from ..utility import llm_client, prompt_loader
+from .context import AgentContext
 
 log = logging.getLogger(__name__)
 
 
-def run(
-    use_case_id: str,
-    config: dict,
-    policy_result: dict,
-    analysis_result: dict,
-    prompts_dir: str | None = None,
-) -> dict[str, Any]:
+def run(context: AgentContext) -> dict[str, Any]:
     """Generate a maintenance ticket from policy + analysis outputs."""
+    use_case_id, config, prompts_dir = context.use_case_id, context.config, context.prompts_dir
+    policy_result = context.upstream("policy")
+    analysis_result = context.upstream("analysis")
+
     if llm_client.is_fallback_mode():
         return _fallback_ticket(policy_result, analysis_result)
 
@@ -38,7 +37,7 @@ def run(
         f"Analysis result:\n{json.dumps(analysis_result, indent=2)}"
     )
 
-    raw = llm_client.call_llm(system_prompt=system_prompt, user_message=user_message, max_tokens=300)
+    raw = llm_client.call_llm(system_prompt=system_prompt, user_message=user_message)
     log.info("Ticketing agent LLM response received (%d chars)", len(raw))
     return {"ticket": raw, "mode": "llm"}
 

@@ -1,7 +1,7 @@
 
 configure_visual_search_question_and_answering () {
   workspace="$(ensure_project_path)/visual-search-question-and-answering"
-  version=release-2026.2.0
+  version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")"
   repository="https://github.com/open-edge-platform/metro-ai-suite.git"
   used_ports=(17580 19530 9764 9990 6008 9777)
   demo_dataset="https://data.vision.ee.ethz.ch/csergi/share/davis/DAVIS-2017-test-dev-480p.zip"
@@ -14,7 +14,7 @@ configure_visual_search_question_and_answering () {
   export TAG=latest
 
   [ ! -r "$workspace"/.device_from_install ] || set -- "$@" "--$(< "$worksapce"/.device_from_install)"
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   export VLM_DEVICE=${device^^}
   export EMBEDDING_DEVICE=${device^^}
   #export DEVICE=${device^^}
@@ -63,7 +63,7 @@ debian_90_install_visual_search_question_and_answering () {
     verify_visual_search_question_and_answering
   fi
 
-  local device=$(ensure_select_device "$@")
+  local device=$(ensure_parse_device "$@")
   echo "$device" > "$workspace"/.device_from_input
 
   echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"

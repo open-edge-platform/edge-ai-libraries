@@ -1,0 +1,32 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# Optional overlay: runs the vippet service with host networking so pipelines
+# can stream from GigE Vision cameras (aravissrc). GigE Vision (GVSP) cameras
+# send video as UDP packets directly to the receiver's address, which a
+# container on a Docker bridge network cannot receive. Camera discovery works
+# without this overlay, because sensor-manager always uses host networking.
+#
+# Usage: make build run GIGE=1
+#   (or: docker compose -f compose.yml -f compose.$COMPOSE_PROFILES.yml -f compose.gige.yml up -d)
+#
+# Security note: with host networking the vippet API (port 7860) listens on
+# all host interfaces, the same as with the default published port.
+services:
+  vippet:
+    network_mode: host
+    ports: !reset []
+    extra_hosts: !reset []
+    environment:
+      # The compose network DNS is not available on the host network; use the
+      # ports published by the other services instead.
+      LIVE_STREAM_SERVER_HOST: ${LIVE_STREAM_SERVER_HOST:-localhost}
+      METRICS_MANAGER_URL: ${METRICS_MANAGER_URL:-http://localhost:9090}
+      MODEL_DOWNLOAD_URL: ${MODEL_DOWNLOAD_URL:-http://localhost:8000}
+      SENSOR_MANAGER_URL: ${SENSOR_MANAGER_URL:-http://localhost:${SENSOR_MANAGER_PORT:-8090}}
+      no_proxy: "${no_proxy:+${no_proxy},}localhost,127.0.0.1"
+
+  vippet-ui:
+    # nginx proxies the API to http://vippet:7860, which now runs on the host.
+    extra_hosts:
+      - "vippet:host-gateway"

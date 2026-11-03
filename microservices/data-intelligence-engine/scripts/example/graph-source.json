@@ -1,0 +1,8 @@
+{
+  "name": "graph",
+  "database_id": "local-nebula",
+  "collection_name": "docs_graph",
+  "operator_options": {
+    "asset_types": ["okf"]
+  }
+}

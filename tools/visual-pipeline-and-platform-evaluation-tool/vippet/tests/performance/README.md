@@ -19,9 +19,14 @@ make test-performance PERF_CONFIG=full   # all variants, 1/3/5/10 streams
 make test-performance PERF_ARGS="--dry-run"
 make test-performance PERF_CONFIG=quick PERF_ARGS="--streams 1,5 --pipelines object-detection"
 make test-performance PERF_ARGS="--report-only"   # rebuild HTML from results/latest
+
+# Verbose: stream INFO logs live (arguments after `--` go to pytest).
+# The full INFO log is always saved next to the reports; see "Reports" below.
+make test-performance PERF_ARGS="-- --log-cli-level=INFO"
 ```
 
-`make test-performance` delegates to the CLI below.
+`make test-performance` delegates to the CLI below and prints the same console output
+(see [Console output](#console-output)).
 
 ### CLI
 
@@ -68,7 +73,10 @@ exits with pytest's exit code. If the config or a flag is invalid, it exits with
   | `malformed`          | Pipeline/variant entry from the API has no id or name                   |
 
 - **Skipped at run time: missing_models**: runs that are in the matrix but that pytest
-  will skip because their models are not installed, with the model names
+  will skip because their models are not installed, with the model names. With
+  `--no-skip-missing-models` (`benchmark.filters.skip_missing_models: false`) these
+  runs are counted in the matrix and listed as **Missing models, will run anyway**
+  instead.
 
 ```text
 Matrix: 4 run(s) = pipeline x variant x streams [1, 3]
@@ -86,7 +94,8 @@ smart-parking     (all)    skip_pipelines      listed in benchmark.filters.skip_
 If ViPPET cannot be reached, `--dry-run` exits with `2`. It exits with `0` in every
 other case.
 
-`--collect-only` lists the collected tests, but it does not say why a case was left out.
+A normal run and direct `pytest --collect-only` print the same matrix after collection
+(see [Console output](#console-output)).
 
 #### Report only
 
@@ -130,11 +139,48 @@ CLI flags in this mode:
 python -m pytest --collect-only vippet/tests/performance/
 
 # Run a specific pipeline
-python -m pytest --log-cli-level=INFO -m perf -k "object_detection" vippet/tests/performance/
+python -m pytest -m perf -k "object_detection" vippet/tests/performance/
 
 # Generate JUnit XML for CI
 python -m pytest -m perf --junitxml=results/perf.xml vippet/tests/performance/
 ```
+
+### Console output
+
+Every run (CLI or direct pytest) prints these sections in order:
+
+1. **ViPPET readiness**: the `/health` and `/status` checks, then the `/devices`,
+   capabilities and version snapshots used for the report.
+1. **Discovered hardware**: the ViPPET version and the device names per CPU/GPU/NPU family.
+1. **Benchmark matrix**: the same tables as `--dry-run`, covering runs, exclusions
+   with reasons, and runs skipped for missing models.
+1. **Per-test status**: one `PASSED`/`FAILED`/`SKIPPED` line per run (`-v` is set in
+   `pytest.ini`; pass `-q` after `--` for dots).
+1. **Benchmark artefacts**: the run directory, the JSON/CSV/HTML reports, the log file
+   and the `latest` link, or why no reports were written. Also a warning if no
+   hardware metrics were sampled.
+1. pytest's short summary with every skip and failure reason.
+
+The path of the log file is also printed in pytest's header (`benchmark log: ...`), so
+it is known even when the run stops at the readiness check.
+
+Logs are not streamed to the console by default. Every run writes its full INFO log to
+`bench_<timestamp>.log` in its run directory (see [Reports](#reports)), and the INFO
+log of a failed test is also shown in its "Captured log" block. Passing
+`--log-cli-level=INFO` to pytest (after `--` for the CLI) streams logs live, which adds
+`live log ...` blocks between these sections and splits each per-test status line
+around the logs of its job. Per-request `httpx`/`httpcore` lines (e.g. job status polls
+and metrics-manager samples) are kept out of the console below WARNING, but they are
+written to the log file.
+
+Every error says what happened, why, and how to fix it ("To fix: ..."), naming the
+flag, env var or file to change. Errors that stop the run:
+
+| Exit code | Cause                                                                                                  |
+|-----------|--------------------------------------------------------------------------------------------------------|
+| `2`       | Invalid config, or ViPPET unreachable, not the ViPPET API, or not ready within `--readiness-timeout`   |
+| `4`       | A filter id in `pipelines`/`variants`/`skip_*` matches nothing and `PERF_ON_UNKNOWN_ID=fail` (default) |
+| `1`       | At least one benchmark failed (state, attempts, job id and the fix are shown per test)                 |
 
 ## Configuration
 
@@ -172,9 +218,11 @@ Every YAML key has a CLI flag:
 | `--metrics-url`              | `metrics.metrics_url`                     | `VIPPET_METRICS_URL`              |
 | `--capabilities-url`         | `metrics.capabilities_url`                | `VIPPET_CAPABILITIES_URL`         |
 | `--metrics-interval`         | `metrics.sample_interval_seconds`         | `PERF_METRICS_INTERVAL`           |
+| `--metrics-trim-fraction`    | `metrics.trim_fraction`                   | `PERF_METRICS_TRIM_FRACTION`      |
 | `--results-dir`              | `results.output_dir`                      | `PERF_RESULTS_DIR`                |
 | `--formats`                  | `results.formats`                         |                                   |
 | `--[no-]latest-link`         | `results.create_latest_link`              |                                   |
+| `--[no-]save-log`            | `results.save_log`                        |                                   |
 
 Notes:
 
@@ -214,12 +262,68 @@ Environment variable defaults:
 | `PERF_CONFIG_FILE`           | (unset)                                          | Explicit YAML path; wins over `PERF_CONFIG`                                                                                                                               |
 | `PERF_RESULTS_DIR`           | `vippet/tests/performance/results`               | Output directory for reports                                                                                                                                              |
 | `PERF_METRICS_INTERVAL`      | `2.0`                                            | HW sampling interval (seconds)                                                                                                                                            |
+| `PERF_METRICS_TRIM_FRACTION` | `0.1`                                            | Fraction of HW samples trimmed from each end before averaging (see [HW metric trimming](#hw-metric-trimming))                                                             |
 | `PERF_ON_UNKNOWN_ID`         | `fail`                                           | Unknown id in `pipelines` / `skip_pipelines` / `skip_variants` / `variants`: `fail` aborts the run, `warn` only logs a warning                                            |
 
 `VIPPET_JOB_POLL_INTERVAL` and `VIPPET_JOB_TIMEOUT_SECONDS` are also read by the
 functional-test helpers. The CLI and direct pytest both resolve them the same way.
 Numbers must be finite (`nan` and `inf` are rejected). With direct pytest, an invalid
 config also prints a one-line error and exits with `2`.
+
+### HW metric trimming
+
+`metrics.trim_fraction` (default `0.1`, override with `PERF_METRICS_TRIM_FRACTION`)
+trims that fraction of time-ordered hardware samples from **both ends** before
+computing each KPI's average — the same edge trimming VIPPET's own built-in
+benchmark applies (`managers.benchmark_metrics.TRIM_FRACTION`), so warm-up and
+wind-down samples don't drag the reported average down. `_min`/`_max` are
+always computed from the **untrimmed** samples, so a real transient peak
+still shows in the report.
+
+With the default 2s sampling interval and a 30s run (~16 samples), a 10% trim
+only drops one sample from each end — some startup idle may still be present
+in the average. This matches VIPPET's built-in benchmark behavior today.
+
+The value must satisfy `0 <= trim_fraction < 0.5` (`0` disables trimming).
+
+### Per-family KPI status (`ok` / `no_samples` / `idle`)
+
+For each device family requested by a test case (derived from
+`pipeline_case.device_family`, e.g. `GPU_NPU` → `GPU`, `NPU`), the HW monitor
+classifies that family's activity across the run:
+
+| Status       | Meaning                                                                                                                                                                                                                                           |
+|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ok`         | At least one activity KPI (e.g. `npu_utilization`, falling back to `npu_frequency_mhz`/`npu_power` for NPU) was nonzero somewhere in the run. `npu_frequency_mhz` is derived from the metrics-manager `npu_frequency` metric (Hz) divided by 1e6. |
+| `no_samples` | None of the family's KPI keys were ever reported by metrics-manager — the device is missing or the harness never got a successful poll.                                                                                                           |
+| `idle`       | Samples exist for the family, but every activity value was zero for the entire run (hardware present but never dispatched work).                                                                                                                  |
+
+A requested family that isn't `ok` triggers both a `logger.warning` and a
+`warnings.warn` (so it's visible in the pytest warnings summary), and shows up
+in the reports instead of a blank cell:
+
+- **CSV**: a `no_samples` family's `_avg`/`_max` cells show the literal
+  `NO_SAMPLES` marker instead of an empty string. An `idle` family keeps its
+  real (zero) numeric values — only the `kpi_warnings` column
+  (e.g. `NPU:idle` or `NPU:no_samples;GPU:idle`) flags it.
+- **HTML**: the per-pipeline table shows a small amber "no samples" / "idle"
+  warning badge next to the affected family's utilization cell.
+- **JSON**: numeric KPI values stay numeric; the status lives in
+  `hw_metrics.kpi_status` (per-family) and `hw_metrics.kpi_warnings`
+  (semicolon-joined summary string).
+
+### NPU settle sample
+
+The first metrics-manager poll of a test case can still carry NPU readings from
+the previous test case, because NPU telemetry is sampled over the preceding
+interval. When a run has at least 3 samples, the HW monitor drops only the NPU
+keys (`npu_utilization`, `npu_power`, `npu_frequency_mhz`, `npu_temperature`,
+`npu_memory_mb`, `npu_bandwidth`) from the first sample before it computes the NPU
+`_avg`/`_min`/`_max`, `kpi_status` and `npu_sample_count`. A first sample with NPU
+activity followed only by zeros is therefore reported as `NPU:idle`. CPU and GPU
+values of that sample are kept, and the edge trimming above is unchanged.
+`hw_metrics.npu_settle_samples_dropped` (`0` or `1`) records whether this happened;
+`sample_count` / `hw_sample_count` still counts every poll.
 
 ## Layout
 
@@ -231,9 +335,10 @@ perf_helpers/
 ├── cli.py                  # CLI entry point (python -m perf_helpers.cli)
 ├── config.py               # module constants derived from settings.py
 ├── discovery.py            # read-only ViPPET queries feeding matrix.py
-├── hw_monitor.py           # background HW metric sampler
-├── matrix.py               # pure pipeline x variant x streams builder with exclusion reasons
-├── preflight.py            # readiness checks + /devices, /capabilities, /status snapshots
+├── hw_monitor.py           # background HW metric sampler + per-family status
+├── job_outcome.py          # actionable messages for failed/rejected/empty jobs
+├── matrix.py               # pure matrix builder, exclusion reasons, matrix rendering, filter-id checks
+├── preflight.py            # readiness checks + /devices, /capabilities, /status snapshots, hardware lines
 ├── reporters.py            # JSON/CSV export + HTML report generation
 ├── settings.py             # setting specs + defaults -> YAML -> env -> CLI resolver
 └── system_info.py          # builds the report's System info block
@@ -245,10 +350,40 @@ config/
 
 ## Reports
 
-After a run, results are saved to `results/bench_YYYYMMDD_HHMMSS/`:
+Each run gets its own directory, `results/bench_YYYYMMDD_HHMMSS/`. The timestamp is the
+run's start time and every file in the directory uses it, so the reports and the log of
+one benchmark always belong together (the JSON `timestamp` is the same start time). The
+exact paths are listed in the run's **Benchmark artefacts** section:
 
 - `.json` — structured results (all test cases + HW metrics)
 - `.csv` — flat table for spreadsheet analysis
 - `.html` — interactive Chart.js report with FPS, utilization, and power charts
+- `.log` — the full INFO log of the run, including the per-request HTTP lines hidden from
+  the console (`results.save_log`, on by default)
+
+```text
+results/
+├── bench_20261020_154904/
+│   ├── bench_20261020_154904.json
+│   ├── bench_20261020_154904.html
+│   └── bench_20261020_154904.log
+└── latest -> bench_20261020_154904
+```
+
+At the end of every run, `latest` is pointed at the run directory, including runs that
+failed or stopped at the readiness check, because it is still the latest run. With
+`--no-save-log` a run that writes no reports creates no directory and leaves `latest`
+unchanged.
+
+Log options (arguments after `--` go to pytest):
+
+```bash
+# More detail in the log file
+python -m perf_helpers.cli -- --log-file-level=DEBUG
+# Write the log somewhere else (no log in the run directory then)
+python -m perf_helpers.cli -- --log-file=/tmp/perf.log
+# No log file
+python -m perf_helpers.cli --no-save-log
+```
 
 Rebuild the HTML later with `--report-only` (see [Report only](#report-only)).
