@@ -53,12 +53,20 @@ services:
       APP_LOG_LEVEL: ${APP_LOG_LEVEL:-INFO}
       WEB_SERVER_LOG_LEVEL: ${WEB_SERVER_LOG_LEVEL:-WARNING}
       GST_DEBUG: "1"
+      # The server's own per-instance metrics (OTLP/JSON into metrics-manager), off by
+      # default. VIPPET does not read them; its live "fps" metric is pushed by vippet.
+      ENABLE_OPEN_TELEMETRY: ${DLSPS2_OTEL:-false}
+      OTEL_COLLECTOR_HOST: metrics-manager
+      OTEL_COLLECTOR_PORT: "9090"
+      OTEL_COLLECTOR_PATH: /api/v1/metrics/otlp
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/json
+      OTEL_EXPORT_INTERVAL_MILLIS: ${DLSPS2_OTEL_INTERVAL_MS:-10000}
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
-      no_proxy: "${no_proxy:+${no_proxy},}localhost,127.0.0.1,vippet,mediamtx"
+      no_proxy: "${no_proxy:+${no_proxy},}localhost,127.0.0.1,vippet,mediamtx,metrics-manager"
       HTTP_PROXY: ${http_proxy}
       HTTPS_PROXY: ${https_proxy}
-      NO_PROXY: "${no_proxy:+${no_proxy},}localhost,127.0.0.1,vippet,mediamtx"
+      NO_PROXY: "${no_proxy:+${no_proxy},}localhost,127.0.0.1,vippet,mediamtx,metrics-manager"
     tmpfs:
       - /tmp
       - /var/tmp

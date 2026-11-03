@@ -116,6 +116,12 @@ Current limitations:
 decoders and encoders it picks are those of the container that runs the pipelines. If
 the server returns no elements, `vippet` falls back to its own list.
 
+To also export the server's own per-instance metrics (FPS and start, first-frame
+and stop times, labeled with the server's `pipeline_id`) to `metrics-manager`,
+add `DLSPS2_OTEL=true`; `DLSPS2_OTEL_INTERVAL_MS` sets the export interval
+(default `10000`). This needs a server build with OpenTelemetry support. The UI
+does not use these metrics: its live FPS chart still comes from `vippet`.
+
 The server is not part of `compose.yml`, so `docker compose logs` does not show it. Use
 `docker logs -f dlstreamer-pipeline-server` to follow its log, or `make shell-dlsps` to
 open a shell in it.
