@@ -19,7 +19,13 @@ _TRANSCRIBE_LOCK = threading.Lock()
 class Whisper(BaseASR):
    def __init__(self, model_name="whisper-small", device="CPU", revision=None):
         logger.info(f"Loading Model: model name={model_name}, device={device}")
-        self.model_path = get_asr_model_path()
+        # Must resolve the path for THIS instance's model_name, not the
+        # global config.models.asr.name -- get_asr_model_path() without
+        # arguments always resolves to the main/final config, which is wrong
+        # when this instance is the preview pool's model (see
+        # config.models.asr.preview / pipeline.py) and its name differs from
+        # the final pool's.
+        self.model_path = get_asr_model_path(model_name=model_name)
         self.model = ov_genai.WhisperPipeline( self.model_path, device=device)
  
    def transcribe(self, audio_path: str, temperature: float = 0.0, language: str | None = None) -> dict:

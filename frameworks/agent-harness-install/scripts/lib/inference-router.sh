@@ -268,7 +268,8 @@ ${HARNESS_IR_WORKSPACE_DIR}/config.yaml."
   # given key). Skipped when routing externally: there is no OVMS container,
   # and the external endpoint should follow the host's proxy settings.
   if [[ -z "${HARNESS_LLM_ROUTER_ENDPOINT:-}" ]]; then
-    no_proxy_combined="${NO_PROXY:-${no_proxy:-}}"
+    no_proxy_combined="${NO_PROXY:-}"
+    no_proxy_combined="${no_proxy_combined:+${no_proxy_combined},}${no_proxy:-}"
     no_proxy_combined="${no_proxy_combined:+${no_proxy_combined},}${HARNESS_OVMS_CONTAINER}"
     proxy_args+=(-e "NO_PROXY=${no_proxy_combined}" -e "no_proxy=${no_proxy_combined}")
   fi

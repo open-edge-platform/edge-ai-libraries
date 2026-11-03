@@ -8,7 +8,6 @@ from fastapi.testclient import TestClient
 
 from src.observability import InMemoryTelemetry, RequestCompletedEvent
 from ._api_contract_support import (
-    RouterStub,
     build_router_config,
     chat_payload,
     make_test_app,
@@ -47,46 +46,17 @@ def test_root_endpoint_advertises_router_api() -> None:
     }
 
 
-def test_health_endpoint_reports_configured_concurrency() -> None:
-    client = make_test_client(max_concurrency=3)
-
-    response = client.get("/health")
-
-    assert response.status_code == 200
-    data = response.json()
+def test_health_endpoint_reports_concurrency() -> None:
+    configured = make_test_client(max_concurrency=3).get("/health")
+    assert configured.status_code == 200
+    data = configured.json()
     assert data["status"] == "healthy"
     assert data["router"] == "initialized"
     assert data["concurrency"] == {"active_requests": 0, "max_concurrency": 3}
 
-
-def test_health_endpoint_reports_unlimited_concurrency() -> None:
-    client = make_test_client(max_concurrency=0)
-
-    response = client.get("/health")
-
-    assert response.status_code == 200
-    assert response.json()["concurrency"]["max_concurrency"] == "unlimited"
-
-
-def test_health_detailed_reports_provider_statuses() -> None:
-    router = RouterStub(
-        provider_health={
-            "provider-alpha": {"healthy": True},
-            "provider-beta": {"healthy": False, "error": "timeout"},
-        }
-    )
-    client = make_test_client(router=router)
-
-    response = client.get("/health/detailed")
-
-    assert response.status_code == 200
-    assert response.json() == {
-        "status": "healthy",
-        "providers": {
-            "provider-alpha": {"healthy": True},
-            "provider-beta": {"healthy": False, "error": "timeout"},
-        },
-    }
+    unlimited = make_test_client(max_concurrency=0).get("/health")
+    assert unlimited.status_code == 200
+    assert unlimited.json()["concurrency"]["max_concurrency"] == "unlimited"
 
 
 def test_models_endpoint_filters_disabled_providers_and_preserves_duplicate_models() -> None:

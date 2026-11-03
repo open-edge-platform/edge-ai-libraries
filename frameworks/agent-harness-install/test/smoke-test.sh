@@ -236,8 +236,12 @@ phase_00_prereqs() {
   # get local issuer certificate" -- a host prerequisite gap, not a product
   # bug -- so refresh it proactively rather than letting it surface later as
   # a confusing mid-install failure.
-  check "ca-certificates is installed and up to date" \
-    bash -c 'sudo apt-get update -qq && sudo apt-get install -y -qq --reinstall ca-certificates && sudo update-ca-certificates >/dev/null'
+  if sudo -n true 2>/dev/null; then
+    check "ca-certificates is installed and up to date" \
+      bash -c 'sudo apt-get update -qq && sudo apt-get install -y -qq --reinstall ca-certificates && sudo update-ca-certificates >/dev/null'
+  else
+    skip "ca-certificates is installed and up to date" "no passwordless sudo"
+  fi
 
   if ! command -v shellcheck >/dev/null 2>&1; then
     note "shellcheck not found; attempting apt install (informational phase only)"
@@ -496,6 +500,23 @@ phase_03_libunit() {
   check_fail "ovms_model_registered: does not match a different name" \
     lib_eval 'HARNESS_MODELS_DIR=$(mktemp -d); printf "%s" "{\"model_config_list\":[{\"config\":{\"name\":\"a\",\"base_path\":\"a\"}}]}" > "$HARNESS_MODELS_DIR/config.json"; ovms_model_registered b'
   check_fail "ovms_model_registered: false when there is no config.json" lib_eval 'HARNESS_MODELS_DIR=$(mktemp -d); ovms_model_registered a'
+
+  # ensure_chat_end_token_stops runs python3 on the host (or in the -py image).
+  check_output_contains "ovms_pull_image_for: a pre-converted OpenVINO/* model is pulled with the serving image" "serve:1" \
+    lib_eval 'HARNESS_OVMS_IMAGE=serve:1 HARNESS_OVMS_EXPORT_IMAGE=export:1; ovms_pull_image_for OpenVINO/Qwen3.5-9B-int4-ov'
+  check_output_contains "ovms_pull_image_for: any other model is converted with the -py image" "export:1" \
+    lib_eval 'HARNESS_OVMS_IMAGE=serve:1 HARNESS_OVMS_EXPORT_IMAGE=export:1; ovms_pull_image_for Qwen/Qwen3-8B'
+  local eos_cfg='d=$(mktemp -d); printf "%s" "{\"eos_token\":\"<|im_end|>\"}" > "$d/tokenizer_config.json"; printf "%s" "{\"added_tokens\":[{\"id\":7,\"content\":\"<|im_end|>\"}]}" > "$d/tokenizer.json"; '
+  if command -v python3 >/dev/null 2>&1; then
+    check_output_contains "ensure_chat_end_token_stops: adds the tokenizer eos_token id to a scalar eos_token_id" '[7,5]' \
+      lib_eval "$eos_cfg"'printf "%s" "{\"eos_token_id\":5}" > "$d/generation_config.json"; ensure_chat_end_token_stops "$d" >/dev/null; tr -d " \n" < "$d/generation_config.json"'
+    check_output_contains "ensure_chat_end_token_stops: leaves a config that already has the id unchanged" '[5,7]' \
+      lib_eval "$eos_cfg"'printf "%s" "{\"eos_token_id\":[5,7]}" > "$d/generation_config.json"; ensure_chat_end_token_stops "$d" >/dev/null; tr -d " \n" < "$d/generation_config.json"'
+    check_output_contains "ensure_chat_end_token_stops: is idempotent" '[7,5]' \
+      lib_eval "$eos_cfg"'printf "%s" "{\"eos_token_id\":5}" > "$d/generation_config.json"; ensure_chat_end_token_stops "$d" >/dev/null; ensure_chat_end_token_stops "$d" >/dev/null; tr -d " \n" < "$d/generation_config.json"'
+  else
+    skip "ensure_chat_end_token_stops checks" "python3 not installed"
+  fi
 
   # The model name onboarding wires an agent to.
   local hint_cfg='HARNESS_MODELS_DIR=$(mktemp -d); printf "%s" "{\"model_config_list\":[{\"config\":{\"name\":\"a\",\"base_path\":\"a\"}}]}" > "$HARNESS_MODELS_DIR/config.json"; '
@@ -792,8 +813,11 @@ phase_12_inference() {
       env NON_INTERACTIVE=1 bash "$REPO_ROOT/install.sh" --harness "$SMOKE_PRIMARY_AGENT" --non-interactive --skip-gpu-check --model "$SMOKE_HF_MODEL"
     local model_name="${SMOKE_HF_MODEL##*/}"
     check_output_contains "models list shows the exported model" "$model_name" bash "$REPO_ROOT/install.sh" models list
-    check_output_contains "OVMS readiness endpoint responds for the exported model" "" \
-      curl -sf "http://127.0.0.1:8000/v2/models/${model_name}/ready"
+    # Published ports bind to the advertised host, so 127.0.0.1 is not always reachable; OVMS may still be loading after the restart.
+    local probe_host
+    probe_host="$(lib_eval 'resolve_probe_host')"
+    check_with_retry "OVMS readiness endpoint responds for the exported model" 10 \
+      curl -sf "http://${probe_host}:8000/v2/models/${model_name}/ready"
     check "models remove cleans it up" bash "$REPO_ROOT/install.sh" models remove "$model_name"
 
     # --model-hub alone selects the Model Download exporter (no
