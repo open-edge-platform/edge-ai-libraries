@@ -539,6 +539,50 @@ resolve_onboarding_model_hint() {
   printf '%s' "$hint"
 }
 
+# announce_served_model_name -- the Router matches the requested model name
+# literally, and the served name drops the Hugging Face org prefix, so a client
+# configured with the --model value as typed gets "Unknown model".
+announce_served_model_name() {
+  local served
+  served="${HARNESS_LLM_MODEL:-$(resolve_onboarding_model_hint)}"
+  [[ -n "${HARNESS_HF_MODEL:-}" && "$served" != "$HARNESS_HF_MODEL" ]] || return 0
+  info "Served model name is '${served}' (not '${HARNESS_HF_MODEL}'). Configure every client
+with exactly '${served}'; the Inference Router rejects any other name."
+}
+
+# hermes_model_setting KEY -- value of KEY under the top-level 'model:' block of
+# Hermes's config.yaml (empty if absent). Read-only awk, no YAML library needed.
+hermes_model_setting() {
+  local config
+  config="$(hermes_config_path)"
+  [[ -f "$config" ]] || return 0
+  awk -v key="$1" '
+    /^model:/ { in_model = 1; next }
+    /^[^[:space:]#]/ { in_model = 0 }
+    in_model && $1 == (key ":") {
+      sub(/^[[:space:]]*[^:]+:[[:space:]]*/, "")
+      sub(/[[:space:]]+#.*$/, "")
+      gsub(/^["\047]|["\047]$/, "")
+      print
+      exit
+    }' "$config" 2>/dev/null || true
+}
+
+# warn_if_hermes_model_mismatch ENDPOINT MODEL -- Hermes already pointed at this
+# Router but with a different model name will fail every request.
+warn_if_hermes_model_mismatch() {
+  local endpoint="$1" model="$2" configured_model configured_url
+  # 'default' is the unresolved fallback of resolve_onboarding_model_hint, not a served name.
+  [[ "$model" != default ]] || return 0
+  configured_url="$(hermes_model_setting base_url)"
+  [[ "${configured_url%/}" == "${endpoint%/}" ]] || return 0
+  configured_model="$(hermes_model_setting default)"
+  [[ -n "$configured_model" && "$configured_model" != "$model" ]] || return 0
+  warn "Hermes is configured with model '${configured_model}', but the Router serves '${model}',
+so its requests will fail with 'Unknown model'. Fix it with:
+  hermes config set model.default ${model}"
+}
+
 # run_agent_onboard — wires the installed agent to HARNESS_LLM_ENDPOINT and
 # verifies it runs.
 run_agent_onboard() {
@@ -630,6 +674,7 @@ Point it at ${endpoint} with:
   hermes config set model.base_url ${endpoint}
   hermes config set model.default ${model_hint}
 or choose 'Custom endpoint' in 'hermes model'. See github.com/NousResearch/hermes-agent for details."
+      warn_if_hermes_model_mismatch "$endpoint" "$model_hint"
       ;;
     *) error "Unknown agent: $agent (expected openclaw, deepagents-code, or hermes)" ;;
   esac

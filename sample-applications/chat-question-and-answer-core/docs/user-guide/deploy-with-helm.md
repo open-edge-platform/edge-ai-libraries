@@ -80,8 +80,10 @@ For detailed information on supported and validated hardware platforms and confi
 
 - If `configmap.enabled` is set to false, the application will use its default internal configuration. You can view the default configuration template in the [Sample directory](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/sample-applications/chat-question-and-answer-core/model_config/sample).
 
-- If `gpu.enabled` is set to `false`, the parameters `global.EMBEDDING_DEVICE`, `global.RERANKER_DEVICE`, and `global.LLM_DEVICE` must not be set to `GPU`.
-A validation check is included and will throw an error if any of these parameters are incorrectly set to `GPU` while `GPU support is disabled`.
+- If `gpu.enabled` / `npu.enabled` is set to `false`, the parameters `global.EMBEDDING_DEVICE`, `global.RERANKER_DEVICE`, and `global.LLM_DEVICE` must not be set to `GPU` / `NPU`.
+A validation check is included and will throw an error if any of these parameters are incorrectly set to `GPU` or `NPU` while the respective support is disabled.
+
+- If both `gpu.enabled` and `npu.enabled` are set to `true`, the chart requests both device plugin resources (`gpu.key` and `npu.key`) in the same pod. Kubernetes will then schedule the pod only on nodes that advertise both resources.
 
 - When `gpu.enabled` is set to `true`, the default value for these device parameters is GPU. On systems with an integrated GPU, the device ID is always 0 (i.e., GPU.0), and GPU is treated as an alias for GPU.0.
 For systems with multiple GPUs (e.g., both integrated and discrete Intel GPUs), you can specify the desired devices using comma-separated IDs such as GPU.0, GPU.1 and etc.
