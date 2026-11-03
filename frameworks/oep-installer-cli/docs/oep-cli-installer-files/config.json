@@ -612,7 +612,11 @@
             ]
           },
           "startStop": true,
-          "remove": true
+          "remove": true,
+          "options": [
+            "--ground-station",
+            "--vision-analytics"
+          ]
         },
         {
           "label": "Mission Decision Support Blueprint",

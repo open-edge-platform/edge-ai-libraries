@@ -2,7 +2,7 @@
 debian_99_profile_handheld_blueprint () {
   case "$1" in
   bootstrap) # all components
-    echo "core_types system_inspection system_summary cdi realsense chrony edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn gpu_accel npu_accel power_tuning system_info docker_io k3s_io"
+    echo "core_types system_inspection system_summary cdi realsense chrony edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability gpu_accel npu_accel power_tuning system_info docker_io k3s_io"
     ;;
   *)
     local modules=(core_types system_inspection system_summary power_tuning system_info cdi realsense chrony)
