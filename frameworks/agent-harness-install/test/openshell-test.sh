@@ -252,8 +252,14 @@ const provider = config.indexOf("[models.providers.openai.params]");
 const model = config.indexOf('[models.providers.openai.params."Qwen3.5-9B-int8-ov"]');
 assert.ok(provider >= 0 && model > provider, "Qwen model-specific params table missing");
 assert.ok(!config.slice(provider, model).includes("extra_body"), "extra_body must not be provider-wide");
-assert.match(config.slice(model), /extra_body = \{ chat_template_kwargs = \{ enable_thinking = false \} \}/);
+assert.ok(config.slice(model).includes("extra_body = { chat_template_kwargs = { enable_thinking = false } }"));
 JS
+  python3 - "$HOME/.deepagents/config.toml" <<'PY'
+import sys, tomllib
+with open(sys.argv[1], "rb") as f:
+    data = tomllib.load(f)
+assert data["models"]["providers"]["openai"]["params"]["Qwen3.5-9B-int8-ov"]["extra_body"]["chat_template_kwargs"]["enable_thinking"] is False
+PY
   "$REAL_NODE" "$HARNESS_MODEL_CONFIG_SCRIPT" deepagents-code changed-model \
     "$HARNESS_SANDBOX_ENDPOINT" select
   bash "$SCRIPT_DIR/openshell/agent-start.sh"
@@ -267,6 +273,78 @@ const state = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 assert.equal(state.model, "changed-model");
 assert.equal(state.applied, true);
 JS
+  cat >"$HOME/.deepagents/config.toml" <<'TOML'
+[models]
+default = "openai:Qwen3.5-9B-int8-ov"
+# BEGIN agent-harness-install managed provider -- do not edit between markers
+[models.providers.openai]
+base_url = "http://host.openshell.internal:8010/v1"
+[models.providers.openai.params]
+use_responses_api = false
+# END agent-harness-install managed provider
+[models.providers.openai.params."Qwen3.5-9B-int8-ov"]
+extra_body = { chat_template_kwargs = { enable_thinking = true } }
+TOML
+  cp "$HOME/.deepagents/config.toml" "$fixture/user-config.toml"
+  rm -f "$HOME/.harness-model.json"
+  HARNESS_SANDBOX_MODEL=Qwen3.5-9B-int8-ov
+  if bash "$SCRIPT_DIR/openshell/agent-start.sh" >"$fixture/reject.log" 2>&1; then
+    printf 'Expected existing user-owned Qwen table to be rejected safely.\n' >&2
+    return 1
+  fi
+  grep -Fq 'already defines Qwen3.5-9B-int8-ov model-specific params' "$fixture/reject.log"
+  cmp "$fixture/user-config.toml" "$HOME/.deepagents/config.toml"
+  python3 - "$HOME/.deepagents/config.toml" <<'PY'
+import sys, tomllib
+with open(sys.argv[1], "rb") as f:
+    data = tomllib.load(f)
+assert data["models"]["providers"]["openai"]["params"]["Qwen3.5-9B-int8-ov"]["extra_body"]["chat_template_kwargs"]["enable_thinking"] is True
+PY
+}
+
+legacy_model_readiness() {
+  local agent fixture
+  fixture="$(mktemp -d "$TEST_ROOT/legacy-readiness.XXXXXX")"
+  export REAL_NODE
+  REAL_NODE="$(command -v node)"
+  export OPENSHELL_MODEL=test-model
+  export HARNESS_SANDBOX_ENDPOINT=http://host.openshell.internal:8010/v1
+  openshell_agent_exec() {
+    [[ "$1" == /usr/local/bin/node ]] || return 1
+    shift
+    "$REAL_NODE" "$@"
+  }
+  sleep() { :; }
+  for agent in openclaw hermes deepagents-code; do
+    export HARNESS_AGENT="$agent"
+    export HOME="$fixture/$agent"
+    mkdir -p "$HOME"
+    case "$agent" in
+      openclaw)
+        mkdir -p "$HOME/.openclaw"
+        "$REAL_NODE" - "$HOME/.openclaw/openclaw.json" <<'JS'
+const fs = require("node:fs");
+fs.writeFileSync(process.argv[2], JSON.stringify({
+  agents: {defaults: {model: {primary: "ovms/test-model"}}},
+  models: {providers: {ovms: {models: [{id: "test-model"}]}}}
+}));
+JS
+        ;;
+      hermes)
+        mkdir -p "$HOME/.hermes"
+        printf 'model:\n  default: test-model\n  base_url: %s\n' "$HARNESS_SANDBOX_ENDPOINT" >"$HOME/.hermes/config.yaml"
+        ;;
+      deepagents-code)
+        mkdir -p "$HOME/.deepagents"
+        printf '[models]\ndefault = "openai:test-model"\n[models.providers.openai]\nbase_url = "%s"\n' \
+          "$HARNESS_SANDBOX_ENDPOINT" >"$HOME/.deepagents/config.toml"
+        ;;
+    esac
+    rm -f "$HOME/.harness-model.json"
+    openshell_wait_agent_config
+    [[ ! -e "$HOME/.harness-model.json" ]]
+  done
+  unset -f openshell_agent_exec sleep
 }
 
 runtime_default() {
@@ -576,6 +654,7 @@ run_case 'OpenClaw model change survives startup with the original sandbox envir
 run_case 'OpenClaw startup fails before Node when SQLite temp creation fails' startup_blocked_temp
 run_case 'OpenClaw startup fails before Node when SQLite temp permissions cannot be secured' startup_permissions_failure
 run_case 'Deep Agents Code startup configures and persists its provider model' dcode_startup
+run_case 'legacy sandboxes use native config readiness without a model marker' legacy_model_readiness
 run_case 'runtime defaults to host noninteractively' runtime_default
 run_case 'host runtime remains supported' runtime_supported host openclaw
 run_case 'OpenClaw supports OpenShell' runtime_supported openshell openclaw

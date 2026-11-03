@@ -40,13 +40,16 @@ const start = config.indexOf(begin);
 const finish = config.indexOf(end, start + begin.length);
 if (start < 0 || finish < 0 || config.indexOf(begin, start + begin.length) >= 0)
   throw Error("Missing or invalid installer-managed Deep Agents Code provider block");
+const unmanagedConfig = config.slice(0, start) + config.slice(finish + end.length);
+const userQwenParams = /^[ \t]*\[models\.providers\.openai\.params\.(?:"Qwen3\.5-9B-int8-ov"|'Qwen3\.5-9B-int8-ov')\][ \t]*(?:#.*)?$/m;
+if (userQwenParams.test(unmanagedConfig))
+  throw Error("config.toml already defines Qwen3.5-9B-int8-ov model-specific params outside the installer-managed block; leaving it untouched to avoid a duplicate TOML table");
 const block = config.slice(start, finish);
 const setting = "use_responses_api = false";
 if (block.split(setting).length !== 2)
   throw Error("Missing or duplicate Deep Agents Code provider options");
-const tuned = block.replace(setting, `${setting}\ntemperature = 0.2\nmax_tokens = 4096`);
-const modelOverrides = `\n[models.providers.openai.params."Qwen3.5-9B-int8-ov"]\nextra_body = { chat_template_kwargs = { enable_thinking = false } }`;
-fs.writeFileSync(file, config.slice(0, start) + tuned + modelOverrides + config.slice(finish));
+const tuned = block.replace(setting, `${setting}\ntemperature = 0.2\nmax_tokens = 4096\n[models.providers.openai.params."Qwen3.5-9B-int8-ov"]\nextra_body = { chat_template_kwargs = { enable_thinking = false } }`);
+fs.writeFileSync(file, config.slice(0, start) + tuned + config.slice(finish));
 JS
 }
 

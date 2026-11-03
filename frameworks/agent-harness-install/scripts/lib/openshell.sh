@@ -651,12 +651,24 @@ openshell_wait_agent_config() {
     if openshell_agent_exec /usr/local/bin/node -e '
       const fs = require("node:fs");
       const model = process.argv[1];
-      const state = JSON.parse(fs.readFileSync(`${process.env.HOME}/.harness-model.json`, "utf8"));
-      if (state.model !== model || state.applied !== true) process.exit(1);
-      if (process.env.HARNESS_AGENT === "openclaw") {
-        const config = JSON.parse(fs.readFileSync(`${process.env.HOME}/.openclaw/openclaw.json`, "utf8"));
+      const agent = process.env.HARNESS_AGENT;
+      const home = process.env.HOME;
+      const stateFile = `${home}/.harness-model.json`;
+      const endpoint = process.env.HARNESS_SANDBOX_ENDPOINT;
+      const hasState = fs.existsSync(stateFile);
+      if (hasState) {
+        const state = JSON.parse(fs.readFileSync(stateFile, "utf8"));
+        if (state.model !== model || state.applied !== true) process.exit(1);
+      }
+      if (agent === "openclaw") {
+        const config = JSON.parse(fs.readFileSync(`${home}/.openclaw/openclaw.json`, "utf8"));
         if (config.agents?.defaults?.model?.primary !== `ovms/${model}` ||
             config.models?.providers?.ovms?.models?.[0]?.id !== model) process.exit(1);
+      } else if (!hasState) {
+        const configFile = agent === "hermes" ? `${home}/.hermes/config.yaml` : `${home}/.deepagents/config.toml`;
+        const config = fs.readFileSync(configFile, "utf8");
+        const legacyModel = agent === "hermes" ? model : `openai:${model}`;
+        if (!config.includes(legacyModel) || !config.includes(endpoint)) process.exit(1);
       }
     ' "$model" >/dev/null 2>&1; then
       return 0
