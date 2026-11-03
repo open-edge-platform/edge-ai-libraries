@@ -103,7 +103,9 @@ providers:
 
 The metadata sink writes each aggregate to `performance.<name>`, e.g.
 `performance.num_requests_waiting`. A `PerformanceBased` strategy can then filter
-and rank on it (values are treated as upper bounds — lower is better):
+and rank on it (a bare number is an upper bound; `[lower, upper]` is an inclusive
+range with `null` for an open side — see
+[Performance-Based Routing](routing.md#performance-based-routing)):
 
 ```yaml
 # strategy.yaml
@@ -112,7 +114,7 @@ strategies:
   provider_selector:
     performance:
       num_requests_waiting: 5      # drop providers with a longer queue
-      kv_cache_usage_perc: 0.9     # drop providers whose KV cache is saturated
+      kv_cache_usage_perc: [null, 0.9]  # drop providers whose KV cache is saturated
   sort:
   - { provider_attribute: performance.num_requests_waiting, descending: false }
 ```
