@@ -257,6 +257,7 @@ class PipelineManager:
         self._worker_pool = WorkerPool(event_handler=self._handle_event)
         self._shutting_down = threading.Event()
         self._finished_listener: Optional[Callable[[PipelineInstance], None]] = None
+        self._metric_listener: Optional[Callable[[PipelineInstance, dict], None]] = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -414,6 +415,13 @@ class PipelineManager:
         """Register a callback invoked with an instance after its worker reports "stopped"."""
         self._finished_listener = listener
 
+    def set_metric_listener(self, listener: Optional[Callable[[PipelineInstance, dict], None]]) -> None:
+        """Register a callback invoked with an instance and each "metric" event its worker reports.
+
+        Without a listener, metric events are dropped.
+        """
+        self._metric_listener = listener
+
     # ------------------------------------------------------------------
     # Validation (runs before a pipeline is ever submitted to the worker)
     # ------------------------------------------------------------------
@@ -550,7 +558,9 @@ class PipelineManager:
             logger.debug("Received event for unknown/finished instance %s: %s", instance_id, event)
             return
 
-        if evt == "fps":
+        if evt == "metric":
+            self._notify_metric(instance, event)
+        elif evt == "fps":
             with self._lock:
                 instance.update_fps(
                     avg_fps=_opt_float(event.get("avg_fps")),
@@ -616,6 +626,15 @@ class PipelineManager:
             self._notify_finished(instance)
         else:
             logger.debug("Unknown event for pipeline %s: %s", instance_id, event)
+
+    def _notify_metric(self, instance: PipelineInstance, event: dict) -> None:
+        listener = self._metric_listener
+        if listener is None:
+            return
+        try:
+            listener(instance, event)
+        except Exception:  # noqa: BLE001
+            logger.exception("Metric listener failed for %s", instance.instance_id)
 
     def _notify_finished(self, instance: PipelineInstance) -> None:
         listener = self._finished_listener

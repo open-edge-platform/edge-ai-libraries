@@ -17,7 +17,7 @@ make test-performance PERF_CONFIG=full   # all variants, 1/3/5/10 streams
 
 # Extra CLI flags via PERF_ARGS
 make test-performance PERF_ARGS="--dry-run"
-make test-performance PERF_CONFIG=quick PERF_ARGS="--streams 1,5 --pipelines object-detection"
+make test-performance PERF_CONFIG=quick PERF_ARGS="--streams 1,5 --pipelines goods-detection"
 make test-performance PERF_ARGS="--report-only"   # rebuild HTML from results/latest
 
 # Verbose: stream INFO logs live (arguments after `--` go to pytest).
@@ -41,7 +41,7 @@ python -m perf_helpers.cli --variants cpu,gpu --streams 1,3,5 --results-dir /tmp
 python -m perf_helpers.cli --config ./my-config.yaml
 
 # Arguments after `--` go to pytest unchanged
-python -m perf_helpers.cli --streams 1 -- -k object_detection --junitxml=results/perf.xml
+python -m perf_helpers.cli --streams 1 -- -k goods_detection --junitxml=results/perf.xml
 ```
 
 The CLI builds the effective configuration and runs `python -m pytest -m perf` in a
@@ -49,9 +49,10 @@ subprocess. It passes `vippet/tests/performance` as the test path, unless an arg
 after `--` already selects a `.py` file, directory or node id inside it. Option values
 such as `--junitxml results/perf.xml` never replace the test path.
 
-The resolved config is passed through a temporary YAML file that only the current
-user can read (`PERF_CONFIG_FILE`), and the file is deleted afterwards. The CLI
-exits with pytest's exit code. If the config or a flag is invalid, it exits with `2`.
+The CLI passes its `--config` and setting flags to pytest through the
+`PERF_CLI_LAYER` env var (set by the CLI; don't set it yourself). pytest resolves the
+settings again from them, so the result JSON records the same values and sources the
+CLI used. The CLI exits with pytest's exit code. If the config or a flag is invalid, it exits with `2`.
 
 #### Dry run
 
@@ -82,12 +83,12 @@ exits with pytest's exit code. If the config or a flag is invalid, it exits with
 Matrix: 4 run(s) = pipeline x variant x streams [1, 3]
 pipeline          variant  streams  test id
 ----------------  -------  -------  -----------------------
-object-detection  CPU      1        object_detection_cpu_x1
+goods-detection  CPU      1        goods_detection_cpu_x1
 ...
 Excluded: 2 pipeline/variant(s)
 pipeline          variant  reason              detail
 ----------------  -------  ------------------  ------------------------------------------
-object-detection  NPU      unsupported_family  host does not report ['NPU']
+goods-detection  NPU      unsupported_family  host does not report ['NPU']
 smart-parking     (all)    skip_pipelines      listed in benchmark.filters.skip_pipelines
 ```
 
@@ -123,7 +124,12 @@ python -m perf_helpers.cli --report-only results/bench_A results/bench_B --repor
   - several runs: `<results-dir>/report_YYYYMMDD_HHMMSS.html`;
   - `--report-output PATH` overrides both.
 - The JSON must have been saved by the run (`json` listed in
-  `results.formats` / `--formats`).
+  `results.formats` / `--formats`). Results written before the `config` block
+  existed still render, just without the **Configuration** section.
+- The report has a **Configuration** section: each setting with its value and
+  source, and per run the config name, code revisions, applied filters and excluded
+  pipeline variants. With several runs, settings that differ between them are listed
+  first and highlighted.
 - Exit codes: `0` on success; `2` for a missing, unreadable or invalid
   input; `2` for `--report-output` without `--report-only`. If the
   implicit default (`<results-dir>/latest`) is missing, the error
@@ -139,7 +145,7 @@ CLI flags in this mode:
 python -m pytest --collect-only vippet/tests/performance/
 
 # Run a specific pipeline
-python -m pytest -m perf -k "object_detection" vippet/tests/performance/
+python -m pytest -m perf -k "goods_detection" vippet/tests/performance/
 
 # Generate JUnit XML for CI
 python -m pytest -m perf --junitxml=results/perf.xml vippet/tests/performance/
@@ -193,13 +199,15 @@ built-in defaults -> YAML config -> environment variables -> CLI flags
 The YAML file is chosen in this order: `--config`, then `PERF_CONFIG_FILE` (a path),
 then `PERF_CONFIG` (a preset name in `config/` or a path), then `default`. An unknown
 preset, a missing file, an unknown YAML key or an invalid value stops the run with an
-error. Older versions silently fell back to `default.yaml` instead.
+error. Older versions silently fell back to `default.yaml` instead. `--config` (and
+`PERF_CONFIG`) can also name a result JSON or run directory, see
+[Reproducing a run](#reproducing-a-run).
 
 Every YAML key has a CLI flag:
 
 | Flag                         | YAML key                                  | Env var                           |
 |------------------------------|-------------------------------------------|-----------------------------------|
-| `--config`                   | (selects the YAML file)                   | `PERF_CONFIG_FILE`, `PERF_CONFIG` |
+| `--config`                   | (selects the YAML file or a result)       | `PERF_CONFIG_FILE`, `PERF_CONFIG` |
 | `--base-url`                 | `vippet.base_url`                         | `VIPPET_BASE_URL`                 |
 | `--timeout`                  | `vippet.timeout`                          |                                   |
 | `--readiness-timeout`        | `vippet.readiness_timeout_seconds`        |                                   |
@@ -270,6 +278,32 @@ functional-test helpers. The CLI and direct pytest both resolve them the same wa
 Numbers must be finite (`nan` and `inf` are rejected). With direct pytest, an invalid
 config also prints a one-line error and exits with `2`.
 
+### Reproducing a run
+
+Each benchmark run saves a result JSON (`results.formats` must include `json`).
+Its `config` block records the settings the run used (see [Reports](#reports)).
+Pass the JSON, or its run directory, as the config to run the same benchmark again.
+Run these from the project root (`tools/visual-pipeline-and-platform-evaluation-tool`),
+because paths are resolved against the current working directory:
+
+```bash
+# via make (sets PYTHONPATH for you)
+make test-performance PERF_CONFIG=vippet/tests/performance/results/bench_20261020_154904
+
+# via the CLI directly (venv active, PYTHONPATH set as in the "CLI" section)
+python -m perf_helpers.cli --config vippet/tests/performance/results/latest --dry-run
+```
+
+- The recorded `config.values` replace the YAML layer, so every setting shows source
+  `yaml`. Env vars and CLI flags still override them.
+- The recorded metrics URLs are reused as they are. When you change `--base-url`, also
+  pass `--metrics-url` and `--capabilities-url`.
+- What runs is decided by the current host as usual: cases whose models are missing
+  are skipped (`benchmark.filters.skip_missing_models`), and models installed since
+  the recording are used. The `config` block does not record the host's matrix.
+- A result written by a suite version with different setting keys is refused
+  (exit `2`); copy its settings into a YAML config instead.
+
 ### HW metric trimming
 
 `metrics.trim_fraction` (default `0.1`, override with `PERF_METRICS_TRIM_FRACTION`)
@@ -339,7 +373,8 @@ perf_helpers/
 ├── job_outcome.py          # actionable messages for failed/rejected/empty jobs
 ├── matrix.py               # pure matrix builder, exclusion reasons, matrix rendering, filter-id checks
 ├── preflight.py            # readiness checks + /devices, /capabilities, /status snapshots, hardware lines
-├── reporters.py            # JSON/CSV export + HTML report generation
+├── reporters.py            # JSON/CSV export + HTML report generation (incl. the Configuration section)
+├── run_config.py           # builds the result "config" block
 ├── settings.py             # setting specs + defaults -> YAML -> env -> CLI resolver
 └── system_info.py          # builds the report's System info block
 config/
@@ -355,7 +390,10 @@ run's start time and every file in the directory uses it, so the reports and the
 one benchmark always belong together (the JSON `timestamp` is the same start time). The
 exact paths are listed in the run's **Benchmark artefacts** section:
 
-- `.json` — structured results (all test cases + HW metrics)
+- `.json` — structured results (all test cases + HW metrics) and a `config` block:
+  the config name (`selector`), every resolved setting (`values`) with its `sources`
+  (`default`, `yaml`, `env` or `cli`), the applied `filters` with the excluded
+  pipeline variants, and the code `revisions` (suite git commit, ViPPET version)
 - `.csv` — flat table for spreadsheet analysis
 - `.html` — interactive Chart.js report with FPS, utilization, and power charts
 - `.log` — the full INFO log of the run, including the per-request HTTP lines hidden from

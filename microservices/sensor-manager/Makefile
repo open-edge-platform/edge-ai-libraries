@@ -6,7 +6,7 @@ SHELL := /bin/bash
 COMPOSE_FILE := docker/compose.yaml
 COMPOSE := docker compose --env-file .env -f $(COMPOSE_FILE)
 
-UV_VERSION := 0.9.10
+UV_VERSION := 0.13.7
 LOCAL_UV := .tools/uv/bin/uv
 UV := $(or $(shell command -v uv 2>/dev/null),$(LOCAL_UV))
 

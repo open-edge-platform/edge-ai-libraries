@@ -152,6 +152,96 @@ model fallback. Default policies remain subject to the security limitations
 described above; a working inference connection is not a guarantee of tool-use
 correctness.
 
+### Customize a sandbox policy
+
+Start with the least privilege needed by your agent. The installer selects
+`openshell/policy.yaml` for OpenClaw and
+`openshell/interactive-policy.yaml` for Hermes and Deep Agents Code. The
+interactive policy adds sandbox-local PTY device access required by those
+agents. Keep inference-provider access separate from filesystem permissions;
+adding filesystem paths does not grant network access.
+
+#### Static customization before installation
+
+Edit the policy file in your checked-out `frameworks/agent-harness-install`
+directory before provisioning. Modify `openshell/policy.yaml` for OpenClaw or
+`openshell/interactive-policy.yaml` for Hermes and Deep Agents Code, then run
+the normal installer command for that agent. For example:
+
+```bash
+# Edit the policy file for the selected agent, then:
+./install.sh --runtime openshell --harness hermes --non-interactive
+```
+
+This changes the policy supplied when a sandbox is created. Re-running the
+installer does not replace an already-owned sandbox or update its policy. To
+recreate an existing sandbox from the edited file, first back up any workspace
+data you need, then remove only that agent's sandbox and install it again:
+
+```bash
+./uninstall.sh --runtime openshell --harness hermes --sandbox-only --yes
+./install.sh --runtime openshell --harness hermes --non-interactive
+```
+
+Use the matching `--harness` value for your agent. Sandbox removal deletes its
+sandbox state; do not use this recreation path unless you have backed up data
+you need to keep.
+
+#### Dynamic policy changes
+
+Use OpenShell commands to change a running sandbox's network access. For
+example, the following grants only `curl` read-only access to the GitHub API;
+replace the sandbox name, gateway and binary with values for your setup:
+
+```bash
+SANDBOX_NAME=ahi-0123456789ab
+GATEWAY_NAME=openshell
+openshell policy update "$SANDBOX_NAME" \
+  --rule-name github_readonly \
+  --binary /usr/bin/curl \
+  --add-endpoint api.github.com:443:read-only:rest:enforce \
+  --wait --gateway "$GATEWAY_NAME"
+openshell policy get "$SANDBOX_NAME" --gateway "$GATEWAY_NAME" --full
+openshell policy list "$SANDBOX_NAME" --gateway "$GATEWAY_NAME"
+```
+
+`policy update` incrementally changes network endpoints/rules, and network
+rules take effect while the sandbox is running. `--wait` waits for the sandbox
+to report whether it loaded the new revision; `policy get --full` shows the
+effective policy and `policy list` shows revision status. Verify the intended
+request from inside the sandbox as well. This example changes one sandbox;
+do not use a gateway-global policy unless you intend to change all sandboxes.
+
+For complete policy YAML changes, first save the current base policy so the
+replacement retains paths and rules OpenShell already added:
+
+```bash
+openshell policy get "$SANDBOX_NAME" --gateway "$GATEWAY_NAME" \
+  --base --output json | jq -e '.policy' > ./custom-policy.json
+# Edit ./custom-policy.json, then:
+openshell policy set "$SANDBOX_NAME" --policy ./custom-policy.json \
+  --gateway "$GATEWAY_NAME" --wait
+```
+
+`policy set` replaces the complete base policy. Network sections take effect
+live, but `filesystem_policy`, Landlock and process settings take effect only
+when a sandbox starts. Adding filesystem paths does not grant access to an
+already-running workload; removed paths and other startup-only changes may be
+rejected. To apply filesystem changes, back up needed data, then recreate the
+sandbox using the static customization steps above. See NVIDIA OpenShell's
+[policy schema reference](https://docs.nvidia.com/openshell/v0.1.5/how-it-works/policies/schema),
+[policy management guide](https://docs.nvidia.com/openshell/v0.1.5/how-it-works/policies/manage-policies)
+and [live network policy tutorial](https://docs.nvidia.com/openshell/v0.1.5/tutorials/first-network-policy)
+for YAML semantics, lifecycle and additional examples. These links match the
+OpenShell 0.1.5 CLI pinned by this installer.
+
+The prepared-runner integration suite validates both workflows against a live
+sandbox: its static boundary case checks workspace read/write plus allowed and
+denied network requests; its dynamic-policy case checks that a live network
+rule changes the request result without breaking filesystem access, and that
+removing the rule restores network access. See the
+[live integration test catalogue](../../test/integration-tests.md#test-cases).
+
 ### Install a sandboxed agent
 
 On a fresh host, one command provisions installer-owned OVMS and IR, downloads
@@ -337,21 +427,23 @@ or backup/restore and never deletes/recreates a legacy sandbox to change its mod
 New OpenShell images generate a responsiveness-oriented baseline for the exact
 served model `Qwen3.5-9B-int8-ov`:
 
-| Setting | OpenClaw | Hermes |
-|---|---|---|
-| Context budget | `contextWindow: 65536` | `model.context_length: 65536` |
-| Reply cap | Catalog and model params `maxTokens: 512` | Custom-provider `extra_body.max_tokens: 512` |
-| Sampling | Model params `temperature: 0.2` | Custom-provider `extra_body.temperature: 0.2` |
-| Thinking | `thinkingDefault: off` and `chat_template_kwargs.enable_thinking: false` | Model reasoning override `none` and custom-provider `chat_template_kwargs.enable_thinking: false` |
-| Prompt/tool size | `localModelLean: true`, bootstrap limits 4000/12000 characters, `tools.profile: coding` | No unsupported OpenClaw prompt/tool settings are copied |
+| Setting | OpenClaw | Hermes | Deep Agents Code |
+|---|---|---|---|
+| Context budget | `contextWindow: 65536` | `model.context_length: 65536` | Agent default; no additional context override |
+| Reply cap | Catalog and model params `maxTokens: 4096` | Custom-provider `extra_body.max_tokens: 4096` | Managed provider `max_tokens: 4096` |
+| Sampling | Model params `temperature: 0.2` | Custom-provider `extra_body.temperature: 0.2` | Managed provider `temperature: 0.2` |
+| Thinking | `thinkingDefault: off` and `chat_template_kwargs.enable_thinking: false` | Model reasoning override `none` and custom-provider `chat_template_kwargs.enable_thinking: false` | Managed provider `chat_template_kwargs.enable_thinking: false` |
+| Prompt/tool size | `localModelLean: true`, bootstrap limits 4000/12000 characters, `tools.profile: coding` | No unsupported OpenClaw prompt/tool settings are copied | No agent-specific prompt/tool overrides |
 
 These are operational budgets, not model maximum capabilities or latency
-guarantees. The 512-token cap can truncate long answers or tool calls; increase
-the model-specific request cap (and OpenClaw catalog cap) when needed. Existing
+guarantees. The previous 512-token cap could truncate answers and tool calls;
+the default is now 4096 and can be tuned for the model and workload. Existing
 explicit settings, including catalog values in older configurations, take
 precedence; absent keys receive defaults. Startup preserves gateway tokens,
 history and workspace data. Hermes uses its bundled Python/YAML runtime and a
 dedicated `custom:harness-ovms-qwen` provider through the same IR endpoint.
+Deep Agents Code receives equivalent Qwen request tuning in its installer-managed
+OpenAI-compatible provider block.
 
 The sandbox's `.harness-local-defaults.json` tracks only installer-added values.
 Restarts preserve user edits. Switching models removes unchanged installer-added

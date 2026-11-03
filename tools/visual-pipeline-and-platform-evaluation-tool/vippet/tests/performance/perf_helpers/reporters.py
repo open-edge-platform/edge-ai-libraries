@@ -334,6 +334,50 @@ def _validate_result(data: Any, path: Path) -> None:
     if "system_info" in data and not isinstance(data["system_info"], dict):
         raise ReportInputError(f"{prefix}system_info must be an object")
 
+    if "config" in data:
+        _check_config(data["config"], prefix)
+
+
+def _check_config(config: Any, prefix: str) -> None:
+    """Structural check of the optional ``config`` block (older results have
+    none). Setting keys are not checked, so results written by other suite
+    versions can still be rendered."""
+
+    def fail(what: str) -> None:
+        raise ReportInputError(f"{prefix}config.{what}")
+
+    if not isinstance(config, dict):
+        fail("must be an object")
+    selector = config.get("selector")
+    if not (
+        isinstance(selector, dict)
+        and all(isinstance(selector.get(k), str) for k in ("value", "origin", "path"))
+    ):
+        fail("selector must have string value, origin and path")
+    if not isinstance(config.get("values"), dict):
+        fail("values must be an object")
+    for key in ("sources", "revisions"):
+        value = config.get(key)
+        if not (
+            isinstance(value, dict) and all(isinstance(v, str) for v in value.values())
+        ):
+            fail(f"{key} must map to strings")
+    filters = config.get("filters")
+    if not (
+        isinstance(filters, dict)
+        and isinstance(filters.get("applied"), dict)
+        and isinstance(filters.get("excluded"), list)
+        and all(
+            isinstance(e, dict)
+            and all(
+                isinstance(e.get(k), str)
+                for k in ("pipeline_id", "variant", "reason", "detail")
+            )
+            for e in filters["excluded"]
+        )
+    ):
+        fail("filters must have an applied object and an excluded list")
+
 
 # ---------------------------------------------------------------------------
 # HTML report generation (Chart.js)
@@ -712,6 +756,123 @@ def _build_run_cards(run_meta: list[dict[str, Any]]) -> str:
     return "".join(cards)
 
 
+_ABSENT = object()
+
+_CONFIG_NAV = (
+    '<div class="sidebar-section" style="margin-top:12px">Configuration</div>'
+    '<a href="#configuration">Run configuration</a>'
+)
+
+
+def _setting_text(value: Any) -> str:
+    if isinstance(value, list):
+        return ", ".join(map(str, value)) or "(none)"
+    return str(value)
+
+
+def _html_table(headers: tuple[str, ...], rows: list[tuple[Any, ...]]) -> str:
+    head = "".join(f"<th>{_esc(h)}</th>" for h in headers)
+    body = "".join(
+        "<tr>" + "".join(f"<td>{_esc(cell)}</td>" for cell in row) + "</tr>"
+        for row in rows
+    )
+    return (
+        f'<div class="table-wrap"><table><thead><tr>{head}</tr></thead>'
+        f"<tbody>{body}</tbody></table></div>"
+    )
+
+
+def _build_settings_tables(runs: list[dict[str, Any]]) -> str:
+    """One column per run; with several runs, differing rows come first."""
+    configs = [run["config"] for run in runs]
+    keys = list(dict.fromkeys(key for config in configs for key in config["values"]))
+
+    def differs(key: str) -> bool:
+        values = [config["values"].get(key, _ABSENT) for config in configs]
+        return any(value != values[0] for value in values[1:])
+
+    def table(row_keys: list[str], row_class: str = "") -> str:
+        head = "<th>Setting</th>" + "".join(
+            f"<th>{_esc(run['benchmark_id'])}</th>" for run in runs
+        )
+        rows = []
+        for key in row_keys:
+            cells = "".join(
+                f"<td>{_esc(_setting_text(config['values'][key]))} "
+                f'<span class="src">{_esc(config["sources"].get(key, ""))}</span></td>'
+                if key in config["values"]
+                else "<td>—</td>"
+                for config in configs
+            )
+            rows.append(f'<tr class="{row_class}"><td>{_esc(key)}</td>{cells}</tr>')
+        return (
+            f'<div class="table-wrap"><table><thead><tr>{head}</tr></thead>'
+            f"<tbody>{''.join(rows)}</tbody></table></div>"
+        )
+
+    different = [key for key in keys if differs(key)]
+    same = [key for key in keys if key not in different]
+    if len(runs) == 1:
+        return f"<details open><summary>Settings</summary>{table(same)}</details>"
+    parts = []
+    if different:
+        parts.append(
+            f"<h4>Different between runs ({len(different)})</h4>"
+            + table(different, "diff")
+        )
+    parts.append(
+        f"<details><summary>Same in all runs ({len(same)})</summary>"
+        f"{table(same)}</details>"
+    )
+    return "".join(parts)
+
+
+def _build_run_config(run: dict[str, Any]) -> str:
+    """Collapsible config selector, revisions and filters of one run."""
+    config = run["config"]
+    selector = config["selector"]
+    applied = config["filters"]["applied"]
+    facts = [
+        ("Config", f"{selector['value']} ({selector['origin']})"),
+        ("Config file", selector["path"]),
+        *((f"Revision: {name}", value) for name, value in config["revisions"].items()),
+        *((f"Filter: {name}", _setting_text(value)) for name, value in applied.items()),
+    ]
+    rows = "".join(
+        f'<div class="si-row"><dt>{_esc(k)}</dt><dd>{_esc(v)}</dd></div>'
+        for k, v in facts
+    )
+    excluded = config["filters"]["excluded"]
+    parts = [
+        f'<div class="sysinfo-card"><dl>{rows}</dl></div>',
+        f"<h4>Excluded pipeline variants ({len(excluded)})</h4>",
+        _html_table(
+            ("Pipeline", "Variant", "Reason", "Detail"),
+            [
+                (e["pipeline_id"], e["variant"], e["reason"], e["detail"])
+                for e in excluded
+            ],
+        ),
+    ]
+    return (
+        f"<details><summary>{_esc(run['benchmark_id'])}: filters and revisions"
+        f"</summary>{''.join(parts)}</details>"
+    )
+
+
+def _build_config_section(runs: list[dict[str, Any]]) -> str:
+    """The Configuration section; empty when no run recorded a config block."""
+    runs = [run for run in runs if "config" in run]
+    if not runs:
+        return ""
+    return f"""
+    <div class="section cfg" id="configuration">
+      <div class="section-header"><h2>Configuration</h2></div>
+      {_build_settings_tables(runs)}
+      {"".join(_build_run_config(run) for run in runs)}
+    </div>"""
+
+
 def generate_html_report(runs: list[dict[str, Any]]) -> str:
     """Generate a self-contained HTML benchmark report from one or more run dicts.
 
@@ -1019,6 +1180,11 @@ td.hi {{ color: var(--text); font-weight: 500; }}
 .chip.cpu {{ background: rgba(0,113,197,.12); color: #0550ae; }}
 .chip.gpu {{ background: rgba(26,127,55,.12); color: #1a7f37; }}
 .chip.npu {{ background: rgba(176,136,0,.12); color: #9a6700; }}
+.cfg details {{ margin-bottom: 16px; }}
+.cfg summary {{ cursor: pointer; font-weight: 600; color: var(--text-2); padding: 6px 0; }}
+.cfg h4 {{ font-size: 12px; font-weight: 600; color: var(--text-2); margin: 16px 0 8px; }}
+.cfg .src {{ font-size: 11px; color: var(--text-3); }}
+.cfg tr.diff td {{ background: #fff8c5; }}
 </style>
 </head>
 <body>
@@ -1038,6 +1204,7 @@ td.hi {{ color: var(--text); font-weight: 500; }}
     <a href="#overview">Summary</a>
     <div class="sidebar-section" style="margin-top:12px">Pipelines</div>
     {"".join(f'<a href="#{_slugify(p)}">{_esc(p)}</a>' for p in pipelines)}
+    {_CONFIG_NAV if any("config" in run for run in runs) else ""}
   </nav>
   <main class="main">
     <div id="overview">
@@ -1055,6 +1222,7 @@ td.hi {{ color: var(--text); font-weight: 500; }}
       </div>
     </div>
     {"".join(pipeline_sections_html)}
+    {_build_config_section(runs)}
   </main>
 </div>
 <script>

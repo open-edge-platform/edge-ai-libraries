@@ -7,7 +7,6 @@ import io
 import json
 import os
 import shutil
-import stat
 import subprocess
 import sys
 import tempfile
@@ -24,6 +23,7 @@ from tests.performance.perf_helpers.reporters import generate_html_report
 from tests.performance.perf_helpers.settings import (
     ENV_CONFIG_FILE,
     SPECS,
+    read_cli_layer,
     resolve_settings,
 )
 
@@ -556,38 +556,35 @@ class TestReportOnly(unittest.TestCase):
 
 
 class TestRunPytest(unittest.TestCase):
-    def test_passes_resolved_config_to_pytest(self) -> None:
-        settings = resolve_settings(
-            "quick",
-            env={},
-            cli_overrides={
-                "vippet.base_url": "http://cli:9/api/v1",
-                "benchmark.stream_counts": [7],
-            },
-        )
+    def test_passes_cli_layer_to_pytest(self) -> None:
+        overrides = {
+            "vippet.base_url": "http://cli:9/api/v1",
+            "benchmark.stream_counts": [7],
+        }
+        settings = resolve_settings("quick", env={}, cli_overrides=overrides)
+        cli_layer = {"config": "quick", "overrides": overrides}
         seen: dict[str, Any] = {}
 
         def runner(cmd: list[str], env: dict[str, str], check: bool) -> Any:
-            path = Path(env[ENV_CONFIG_FILE])
             seen["cmd"] = cmd
             seen["env"] = env
-            seen["path"] = path
-            seen["mode"] = stat.S_IMODE(os.stat(path).st_mode)
-            seen["reloaded"] = resolve_settings(env=env)
+            seen["reloaded"] = resolve_settings(env=env, **read_cli_layer(env))
             return subprocess.CompletedProcess(cmd, 5)
 
-        rc = cli.run_pytest(settings, ["-k", "x"], base_env={}, runner=runner)
+        rc = cli.run_pytest(cli_layer, ["-k", "x"], base_env={}, runner=runner)
 
         self.assertEqual(rc, 5)
         self.assertEqual(seen["cmd"][1:5], ["-m", "pytest", "-m", "perf"])
         self.assertEqual(seen["cmd"][-2:], ["-k", "x"])
         self.assertIn(str(cli.PERF_DIR), seen["cmd"])
-        self.assertEqual(seen["env"]["VIPPET_BASE_URL"], "http://cli:9/api/v1")
+        self.assertNotIn(ENV_CONFIG_FILE, seen["env"])
+        # Resolved values are not exported, or they would show up as "env".
+        self.assertNotIn("VIPPET_BASE_URL", seen["env"])
         self.assertEqual(seen["reloaded"]["benchmark.stream_counts"], [7])
         self.assertEqual(dict(seen["reloaded"].values), dict(settings.values))
-        if os.name == "posix":
-            self.assertEqual(seen["mode"], 0o600)
-        self.assertFalse(seen["path"].exists(), "temp config must be removed")
+        # Same sources as the CLI's own resolution, so the artefact is accurate.
+        self.assertEqual(dict(seen["reloaded"].sources), dict(settings.sources))
+        self.assertEqual(seen["reloaded"].sources["vippet.base_url"], "cli")
 
     def test_perf_dir_always_passed_before_passthrough(self) -> None:
         test_file = str(cli.PERF_DIR / "test_pipeline_performance.py")
