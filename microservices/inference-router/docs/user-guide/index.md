@@ -100,7 +100,6 @@ Key Features:
 
 ./get-started.md
 ./routing.md
-./probe.md
 ./plugin.md
 ./api-reference.md
 Release Notes <./release-notes.md>

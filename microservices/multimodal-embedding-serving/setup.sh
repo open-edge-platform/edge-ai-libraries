@@ -113,6 +113,30 @@ case "$EMBEDDING_MODEL_NAME" in
             echo "     shape takes longer. See docs/user-guide/qwentext-on-npu.md for tuning."
         fi
         ;;
+    "GME/gme-qwen2-vl-2b-instruct")
+        echo "Using GME model: $EMBEDDING_MODEL_NAME (text, image, video frames, fused image+text)"
+        if [ "$EMBEDDING_USE_OV" != "true" ]; then
+            echo "ERROR: GME runs only on OpenVINO; unset EMBEDDING_USE_OV or set it to true."
+            return 1
+        fi
+        if [ "$EMBEDDING_DEVICE" = "NPU" ]; then
+            echo "WARNING: GME has not been validated on NPU."
+        fi
+        _GME_PRECISION=$(echo "${GME_PRECISION:-int8}" | tr '[:upper:]' '[:lower:]')
+        case "$_GME_PRECISION" in
+            int8) _GME_PACKAGE=gme-qwen2-vl-2b-instruct-openvino ;;
+            int4|fp32) _GME_PACKAGE=gme-qwen2-vl-2b-instruct-openvino-$_GME_PRECISION ;;
+            *)
+                echo "ERROR: GME_PRECISION must be int8, int4 or fp32, got '$GME_PRECISION'."
+                unset _GME_PRECISION
+                return 1
+                ;;
+        esac
+        echo "GME precision: $_GME_PRECISION (GME_PRECISION). On first startup GME is downloaded and"
+        echo "exported to OpenVINO (several minutes; longer for int4) into"
+        echo "$EMBEDDING_OV_MODELS_DIR/$_GME_PACKAGE"
+        unset _GME_PRECISION _GME_PACKAGE
+        ;;
     *)
         echo -e "WARNING: Model '$EMBEDDING_MODEL_NAME' may not be supported."
         echo -e "See docs/user-guide/supported-models.md for the complete list of supported models."

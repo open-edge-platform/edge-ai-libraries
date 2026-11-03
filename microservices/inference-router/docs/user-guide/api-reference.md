@@ -1342,12 +1342,6 @@ default backbone, and switching routing behavior is a `POST` of the same
 strategy or policy with another classifier `version` (see
 [Strategies](#strategies)).
 
-All policy endpoints target `<workspace>/policy.yaml`, which **must already
-exist**: the API reads and edits an operator's workspace copy and never mutates
-the bundled defaults in the source tree. Any request against a missing workspace
-file returns `400`. Mutations are validated with the same rules applied at
-startup and, on success, written atomically and **applied immediately**.
-
 A policy object has the following structure:
 
 ```json
@@ -1472,9 +1466,7 @@ response round-trips as a `POST` payload.
 
 **Response:**
 
-- 200 OK: the resulting policy object. A classifier version the changed policy
-  needs that cannot be loaded degrades (packaged default, then `-1`) instead of
-  rejecting the change.
+- 200 OK: the resulting policy object.
 - 400 Bad Request: the body is invalid — e.g. missing or empty `strategies`, an
   invalid `criterion`, an invalid `name`, or a strategy that does not exist in
   `strategy.yaml`; or the workspace `policy.yaml` does not exist.
@@ -1529,27 +1521,18 @@ whether the strategy matches a request, and its `provider_selector` (and
 optional `sort`) pick and rank the providers that can serve it. Strategies are
 stored in strategy.yaml, and policies reference them by name.
 
-`ModelBasedRule` turns a strategy into classifier routing: it scores the last
-user message with a small model and the `provider_selector` maps the returned
+`ModelBasedRule` scores the last user message with a small model and the `provider_selector` maps the returned
 index to providers.
 
 ```yaml
 - name: ModelBasedRouting
   rules:
-    - type: ModelBasedRule        # param optional: {model, version}
+    - type: ModelBasedRule
   provider_selector:
     label: {0: local, 1: cloud}
 ```
 
-Without `param`, the rule serves the packaged soft version (`v1`, alias
-`default`) of the default backbone. A soft version's trained data lives in the
-backbone vocabulary -- soft vectors as the embedding rows of new soft tokens,
-class rows as lm_head rows (ids continuing the original vocabulary) -- so the
-router feeds plain token ids and reads the class logits by id. Versions are
-`.rcv` files under `artifacts/router/<model>/`; `POST`ing a strategy with
-another `version` switches to it after validation, and `GET` reports the
-serving version plus `status` (`ok` / `degraded` / `unverified`). Soft
-versions need an FP16/BF16 IR.
+Without `param`, the rule serves the packaged soft version of the default backbone.
 
 All strategy endpoints target `<workspace>/strategy.yaml`, which **must already
 exist**: the API reads and edits an operator's workspace copy and never mutates
@@ -1653,8 +1636,7 @@ curl http://localhost:8000/v1/strategies/Planning
 Returns a single strategy, identified by its unique `name`.
 
 A `ModelBasedRule` in the response carries a read-only `prompt_info` with its
-current classifier status. `prompt_info` is ignored on `POST`, so a `GET`
-result can be edited and posted back. The single-strategy endpoint also
+current classifier status. The single-strategy endpoint also
 includes a top-level `classifier_options` catalog with the available models
 and versions; the strategy list omits this catalog to avoid repeating it for
 every strategy.
@@ -1702,10 +1684,6 @@ every strategy.
   extracted from its `.rcv`, without the answer format appended by the router;
   a soft version has no `text`. An unreadable version includes `kind: null`
   and an `error`.
-
-To edit a hard prompt, find the selected model/version's `text` in
-`classifier_options`, replace the rule's `param` with the edited `text`, and
-`POST` the strategy back (see [Create or Update Strategy](#create-or-update-strategy)).
 
 **Response:**
 
@@ -1776,15 +1754,6 @@ mutually exclusive):
 | `text` (+ optional `labels`, `threshold`, `note`) | A hard-prompt version packed from `text` |
 | `prompt_file` (+ optional `labels`, `threshold`) | A multi-class prompt file; not a version |
 
-With `text`, the router packs a hard classifier version from your prompt
-text, on the backbone selected by `model`, and stores it as
-`<IR_ARTIFACTS_DIR>/<model>/vN.rcv`. The same text, categories and threshold
-on the same backbone reuse the existing version instead of creating a new one.
-The categories follow the same rules as for `prompt_file`: `labels`, or else
-the values of `provider_selector.label`, which must then be keyed `0..N-1`.
-Describe each category by name; the router appends the answer format. The
-`threshold` defaults to `0.7`, and `note` is recorded in the version.
-`strategy.yaml` stores only `{model, version}`, never the text.
 
 ```bash
 curl http://localhost:8000/v1/strategies/Triage \
@@ -1797,12 +1766,6 @@ curl http://localhost:8000/v1/strategies/Triage \
     "provider_selector": {"label": {"0": "local", "1": "cloud"}}
   }'
 ```
-
-The version is checked before anything is written. If the strategy is in the
-active policy, or a new version is packed, the router runs the full backbone
-compatibility check (L1/L2/L3) and a warmup. Otherwise the router checks the
-file format, L1 and L2 with the backbone's tokenizer alone, and runs the full
-check when a policy that uses the strategy is activated.
 
 The response then includes `prompt_result` and `reconcile`:
 

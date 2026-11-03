@@ -6,7 +6,7 @@
   },
   "modules": [
     { "label": "Uncrewed Aerial Vehicle Blueprint", "value": "uncrewed_aerial_vehicle_blueprint" },
-    { "label": "Uncrewed Aerial Vehicle Mission", "value": "uncrewed_aerial_vehicle_mission", "startStop": true, "remove": true }
+    { "label": "Uncrewed Aerial Vehicle Mission", "value": "uncrewed_aerial_vehicle_mission", "startStop": true, "remove": true, "options": ["--ground-station", "--vision-analytics"] }
   ],
   "getStarted": {
     "text": "Get Started",
