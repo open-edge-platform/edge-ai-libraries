@@ -175,7 +175,7 @@ main() {
     esac
   fi
 
-  printf "\n${C_YELLOW}${C_BOLD}agent-harness-install — Uninstall${C_RESET}\n\n"
+  printf '\n%s%sagent-harness-install — Uninstall%s\n\n' "$C_YELLOW" "$C_BOLD" "$C_RESET"
   confirm_uninstall "$agent_desc"
 
   remove_all_openshell_agents
@@ -212,20 +212,24 @@ endpoint; this installer never started one)."
   remove_state_dir
   ok "State directory removed"
 
-  printf "\n${C_GREEN}${C_BOLD}=== Uninstall complete ===${C_RESET}\n"
-  printf "  ${C_DIM}Docker, Node.js/nvm, and the Intel compute runtime were left installed.${C_RESET}\n\n"
+  printf '\n%s%s=== Uninstall complete ===%s\n' "$C_GREEN" "$C_BOLD" "$C_RESET"
+  printf '  %sDocker, Node.js/nvm, and the Intel compute runtime were left installed.%s\n\n' "$C_DIM" "$C_RESET"
 }
 
 remove_all_openshell_agents() {
   local agent HARNESS_AGENT
   # Validate every identity before deleting the first resource.
   for agent in openclaw deepagents-code hermes; do
+    # Read by the sourced OpenShell lifecycle helpers.
+    # shellcheck disable=SC2034
     HARNESS_AGENT="$agent"
     [[ -e "$(openshell_profile_dir)/profile.json" || -L "$(openshell_profile_dir)/profile.json" ]] || continue
     openshell_load_profile
     if openshell_resource_exists sandbox; then openshell_assert_owned; fi
   done
   for agent in openclaw deepagents-code hermes; do
+    # Read by the sourced OpenShell lifecycle helpers.
+    # shellcheck disable=SC2034
     HARNESS_AGENT="$agent"
     [[ -f "$(openshell_profile_dir)/profile.json" ]] || continue
     remove_openshell_agent

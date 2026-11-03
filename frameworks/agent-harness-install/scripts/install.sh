@@ -256,7 +256,7 @@ install just Node.js, then re-run ./install.sh."
 }
 
 print_done() {
-  printf "\n${C_GREEN}${C_BOLD}=== Installation complete ===${C_RESET}\n\n"
+  printf '\n%s%s=== Installation complete ===%s\n\n' "$C_GREEN" "$C_BOLD" "$C_RESET"
 }
 
 # print_status — combined health view: host/GPU, OVMS, the Inference Router,
@@ -264,7 +264,7 @@ print_done() {
 print_status() {
   local agent cli_bin
 
-  printf "\n${C_BOLD}Host${C_RESET}\n"
+  printf '\n%sHost%s\n' "$C_BOLD" "$C_RESET"
   if command_exists docker && docker info >/dev/null 2>&1; then
     ok "Docker is running"
   else
@@ -276,7 +276,7 @@ print_status() {
     info "No Intel GPU detected (CPU-only)"
   fi
 
-  printf "\n${C_BOLD}Inference backend${C_RESET}\n"
+  printf '\n%sInference backend%s\n' "$C_BOLD" "$C_RESET"
   if [[ -n "${HARNESS_LLM_ROUTER_ENDPOINT:-}" ]]; then
     ok "Upstream routed externally — ${HARNESS_LLM_ROUTER_ENDPOINT} (not managed by this installer)"
   fi
@@ -337,7 +337,7 @@ print_status() {
     fi
   fi
 
-  printf "\n${C_BOLD}Agent${C_RESET}\n"
+  printf '\n%sAgent%s\n' "$C_BOLD" "$C_RESET"
   local display
   agent="$(resolve_installed_agent)"
   # agent_cli_bin returns 1 on an unrecognized name -- status is read-only
@@ -414,7 +414,11 @@ main() {
         HARNESS_RUNTIME="$2"; shift ;;
       --model)
         [[ -n "${2:-}" ]] || { usage; error "--model requires a value (the model name as its hub names it, e.g. a Hugging Face id)."; }
-        HARNESS_HF_MODEL="$2"; HARNESS_LLM_MODEL=""; shift ;;
+        HARNESS_HF_MODEL="$2"
+        # Read by the sourced inference/model helpers.
+        # shellcheck disable=SC2034
+        HARNESS_LLM_MODEL=""
+        shift ;;
       --model-hub)
         [[ -n "${2:-}" ]] || { usage; error "--model-hub requires a value (e.g. openvino, huggingface, ollama)."; }
         HARNESS_MODEL_HUB="$2"; HARNESS_MODEL_HUB_WAS_SET=1; shift ;;
@@ -517,7 +521,7 @@ run_installer_command() {
       || error "OpenShell mode requires HARNESS_BIND_HOST=127.0.0.1; inference must not be LAN-published."
   fi
 
-  printf "\n${C_GREEN}${C_BOLD}agent-harness-install${C_RESET}\n\n"
+  printf '\n%s%sagent-harness-install%s\n\n' "$C_GREEN" "$C_BOLD" "$C_RESET"
 
   if [[ "${HARNESS_RUNTIME:-host}" == openshell ]]; then
     prepare_installer_host

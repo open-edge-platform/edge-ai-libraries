@@ -16,6 +16,38 @@ succeeded.
 
 ## Offline PR gate
 
+The workflow also runs an independent **Agent Harness static analysis** job on
+pull requests, pushes to `main`, and manual dispatch. It scans production shell
+and JavaScript files throughout this component, excluding `test/`, `tests/`,
+`node_modules/` and `.venv/`. Existing regression tests still run separately.
+
+- ShellCheck runs at `--severity=style` (all diagnostic levels). Any remaining
+  diagnostic fails the job; there is no baseline or allowed finding count.
+  Intentional patterns have local `shellcheck disable` directives with reasons.
+  Do not add blanket exclusions to make a new finding pass.
+- `node --check` parses each production `.js`, `.mjs` and `.cjs` file without
+  executing it. It catches malformed JavaScript before merge, but does not
+  validate runtime behavior, dependency availability or logic, nor JavaScript
+  embedded in shell strings or heredocs. Regression tests remain necessary.
+
+To reproduce the static gate on Ubuntu 24.04 with Node.js 24.21.0:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y --no-install-recommends shellcheck
+# From frameworks/agent-harness-install, using Bash:
+mapfile -d '' shell_files < <(find . -type d \( -name test -o -name tests -o -name node_modules -o -name .venv \) -prune -o -type f -name '*.sh' -print0)
+shellcheck --severity=style "${shell_files[@]}"
+mapfile -d '' js_files < <(find . -type d \( -name test -o -name tests -o -name node_modules -o -name .venv \) -prune -o -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.cjs' \) -print0)
+for file in "${js_files[@]}"; do
+  node --check "$file" || exit
+done
+```
+
+The workflow fails if either file list is empty. The static job must be selected
+as a required status check in repository branch protection/rulesets to prevent
+merging when it fails; adding the workflow alone does not configure that policy.
+
 See the [unit and offline regression test catalogue](unit-tests.md) for
 individual cases, objectives, execution commands and runtime-dependent skips.
 The catalogue separates fixture-based assertions from real local checks and

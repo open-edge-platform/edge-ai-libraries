@@ -132,6 +132,8 @@ openshell_ensure_shared_inference() {
 _openshell_ensure_shared_inference() {
   [[ "$(resolve_bind_host)" == 127.0.0.1 ]] \
     || error "OpenShell mode requires HARNESS_BIND_HOST=127.0.0.1; inference must not be LAN-published."
+  # Reject either a nonnumeric port or an out-of-range value.
+  # shellcheck disable=SC2015
   [[ "$HARNESS_IR_PORT" =~ ^[0-9]+$ ]] && (( HARNESS_IR_PORT > 0 && HARNESS_IR_PORT < 65536 )) \
     || error "HARNESS_IR_PORT must be between 1 and 65535."
   openshell_validate_recorded_ir_port
@@ -263,6 +265,8 @@ _openshell_sync_agent_model_locked() {
     openshell sandbox start "$OPENSHELL_NAME" -g "$OPENSHELL_GATEWAY" \
       || error "Could not restart ${agent}; model transition retained for retry."
     openshell_wait_phase Ready
+    # The template expressions are JavaScript, not shell.
+    # shellcheck disable=SC2016
     openshell_agent_exec /usr/local/bin/node -e '
       const fs = require("node:fs");
       const [agent, model] = process.argv.slice(1);
@@ -508,6 +512,8 @@ openshell_validate_shared_inference() {
   local endpoint model
   [[ "$(resolve_bind_host)" == "127.0.0.1" ]] \
     || error "OpenShell mode requires HARNESS_BIND_HOST=127.0.0.1; inference must not be LAN-published."
+  # Reject either a nonnumeric port or an out-of-range value.
+  # shellcheck disable=SC2015
   [[ "$HARNESS_IR_PORT" =~ ^[0-9]+$ ]] && (( HARNESS_IR_PORT > 0 && HARNESS_IR_PORT < 65536 )) \
     || error "HARNESS_IR_PORT must be between 1 and 65535."
   # Validate the existing container's publication, not just the requested bind setting.
@@ -648,6 +654,8 @@ openshell_wait_agent_config() {
   local model attempt
   model="${OPENSHELL_MODEL:-${HARNESS_LLM_MODEL:-$(resolve_onboarding_model_hint)}}"
   for attempt in {1..90}; do
+    # The template expressions are JavaScript, not shell.
+    # shellcheck disable=SC2016
     if openshell_agent_exec /usr/local/bin/node -e '
       const fs = require("node:fs");
       const model = process.argv[1];
@@ -718,6 +726,8 @@ onboard_openshell_agent() {
         /home/node/.local/bin/dcode -n "Say hello briefly. Do not use any tools." \
         --model "openai:${OPENSHELL_MODEL}" --no-interpreter)" \
         || error "Sandboxed Deep Agents Code inference failed."
+      # Empty output or an error response must both fail.
+      # shellcheck disable=SC2015
       [[ -n "${dcode_response//[[:space:]]/}" ]] \
         && ! grep -q '^\[ERROR\]' <<<"$dcode_response" \
         || error "Sandboxed Deep Agents Code returned no successful inference output."
@@ -762,6 +772,8 @@ _remove_openshell_agent_locked() {
       || error "Could not request sandbox removal; ownership record retained."
     # Deletion is asynchronous; keep its provider and ownership record until cleanup completes.
     local attempt
+    # Only the number of retries matters, not the counter value.
+    # shellcheck disable=SC2034
     for attempt in {1..30}; do
       openshell_resource_exists sandbox || break
       sleep 1

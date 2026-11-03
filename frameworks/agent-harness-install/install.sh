@@ -128,6 +128,7 @@ main() {
   clone_dir="$(mktemp -d)"
   # Expanded now: the EXIT trap runs after main returns, when locals are gone.
   printf -v cleanup_cmd 'rm -rf -- %q' "$clone_dir"
+  # shellcheck disable=SC2064
   trap "$cleanup_cmd" EXIT
   echo "Fetching agent-harness-install @ ${ref}…" >&2
   clone_installer_ref "$ref" "$clone_dir"

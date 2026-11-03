@@ -29,6 +29,8 @@ ensure_local_bin_in_profile() {
     return 0
   fi
   shell_name="$(basename "${SHELL:-bash}")"
+  # Preserve $PATH for expansion by the login shell.
+  # shellcheck disable=SC2016
   case "$shell_name" in
     fish) path_line="$(printf 'set -gx PATH "%s" $PATH' "$HARNESS_SHIM_DIR")" ;;
     csh | tcsh) path_line="$(printf 'setenv PATH "%s:$PATH"' "$HARNESS_SHIM_DIR")" ;;

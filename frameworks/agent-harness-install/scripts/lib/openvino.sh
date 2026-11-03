@@ -994,6 +994,8 @@ _add_model_config_entry_locked() {
   # `printf >file` happens to avoid this (its permissions come from umask,
   # typically 644), which is why only the *first* registration ever breaks.
   chmod 644 "$tmp"
+  # Clean up and fail if either generation or publication fails.
+  # shellcheck disable=SC2015
   node -e '
       const fs = require("node:fs");
       const [configFile, name, basePath] = process.argv.slice(1);
@@ -1040,6 +1042,8 @@ ensure_openvino_model_server() {
   # exact extra flag for GPU-targeted containers).
   group_add_args="$(intel_gpu_docker_group_add_args)"
   docker_proxy_env_args_into proxy_args
+  # Either resolution failure or an empty address must fail closed.
+  # shellcheck disable=SC2015
   bind_host="$(resolve_bind_host)" && [[ -n "$bind_host" ]] \
     || error "Could not resolve the address to publish OpenVINO Model Server on; refusing to publish on all interfaces."
   info "Starting OpenVINO Model Server on port ${HARNESS_OVMS_REST_PORT}…"
@@ -1352,6 +1356,8 @@ list_exported_models() {
   fi
   reg_file="$(unregistered_downloads_file)"
   if [[ -f "$reg_file" ]]; then
+    # The template expression is JavaScript, not shell.
+    # shellcheck disable=SC2016
     while IFS= read -r line; do
       [[ -n "$line" ]] || continue
       found=1
@@ -1469,6 +1475,8 @@ _remove_model_from_ovms_config_locked() {
   # mktemp-defaults-to-0600 vs. OVMS's fixed non-root container uid issue
   # applies here too.
   chmod 644 "$tmp"
+  # Clean up and fail if either generation or publication fails.
+  # shellcheck disable=SC2015
   node -e '
       const fs = require("node:fs");
       const [configFile, name] = process.argv.slice(1);

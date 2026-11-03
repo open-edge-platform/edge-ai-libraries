@@ -274,6 +274,8 @@ ${HARNESS_IR_WORKSPACE_DIR}/config.yaml."
     proxy_args+=(-e "NO_PROXY=${no_proxy_combined}" -e "no_proxy=${no_proxy_combined}")
   fi
   info "Starting Inference Router on port ${HARNESS_IR_PORT}…"
+  # Either resolution failure or an empty address must fail closed.
+  # shellcheck disable=SC2015
   bind_host="$(resolve_bind_host)" && [[ -n "$bind_host" ]] \
     || error "Could not resolve the address to publish the Inference Router on; refusing to publish on all interfaces."
   # shellcheck disable=SC2086
