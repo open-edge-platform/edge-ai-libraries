@@ -25,7 +25,7 @@ debian_25_install_edge_pack_kernel_image () {
     echo "kernel $version is installed" >&2
   else
     echo "@@STEP Installing linux-image-$version" 
-    ensure_apt install linux-image-$version
+    ensure_apt install linux-image-$version linux-headers-$version
 
     # set grub default
     local pkgver="$(apt policy linux-image-$version 2> /dev/null | grep -m1 Candidate: | cut -f2 -d: | cut -f1-3 -d. | tr -d ' ')-generic"
@@ -39,7 +39,7 @@ debian_25_install_edge_pack_kernel_image () {
 
 debian_25_sbom_edge_pack_kernel_image () {
   configure_edge_pack_kernel_image "$@"
-  ensure_sbom_format pkg-list linux-image-$version
+  ensure_sbom_format pkg-list linux-image-$version linux-headers-$version
   ensure_sbom_format kernel-cmdline "${cmdline[@]}"
 }
 

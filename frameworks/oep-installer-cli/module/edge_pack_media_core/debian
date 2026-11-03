@@ -15,7 +15,7 @@ debian_40_install_edge_pack_media_core () {
   else
     ensure_prop set installed/edge_pack_media_core/owned true
     ensure_apt purge --auto-remove -y intel-edge-media-core || true
-    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-core=$version*"
+    ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-core=$version*" libigdgmm12="$(apt-cache show intel-edge-media-core | grep -m1 'Depends:.*libigdgmm12' | sed -E 's/.*libigdgmm12 \(= ([^)]+)\).*/\1/')"
   fi
 }
 
