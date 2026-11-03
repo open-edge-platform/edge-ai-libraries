@@ -59,7 +59,7 @@ services:
     environment:
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
-      no_proxy: localhost,127.0.0.1,${no_proxy}, video-summary-accuracy-analyzer, video-summary-accuracy-analyzer-ui
+      no_proxy: localhost,127.0.0.1,${no_proxy},video-summary-accuracy-analyzer,video-summary-accuracy-analyzer-ui
       APP_BACKEND_URL: ${APP_BACKEND_URL}
     ports:
       - "127.0.0.1:5174:7860"
