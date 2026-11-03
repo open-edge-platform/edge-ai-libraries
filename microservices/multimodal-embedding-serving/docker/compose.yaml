@@ -23,6 +23,8 @@ services:
       EMBEDDING_OV_MODELS_DIR: ${EMBEDDING_OV_MODELS_DIR:-/app/ov_models}
       # GME precision: int8 (default when empty), int4 or fp32.
       GME_PRECISION: ${GME_PRECISION:-}
+      # GME query prompt instruction; the built-in default when empty.
+      GME_QUERY_INSTRUCTION: ${GME_QUERY_INSTRUCTION:-}
 
       # QwenText static-shape compilation (NPU). Passed through empty when
       # unset so the handler applies its own defaults; see

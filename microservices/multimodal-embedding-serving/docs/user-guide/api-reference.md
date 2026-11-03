@@ -153,6 +153,8 @@ Embed a single string or a batch of strings.
 | `type` | Yes      | `"text"`                              |
 | `text` | Yes      | A single string or a list of strings. |
 
+A single string is embedded as a query and a list as documents. For models that prompt the two sides differently, such as GME and Qwen text models, the same text gives different vectors on each side.
+
 #### Image URL (`type: "image_url"`)
 
 Download and embed an image from a URL.
@@ -471,7 +473,7 @@ OpenAI-compatible text embeddings. OpenAI-style clients can use the service as a
 | `dimensions`      | No       | Accepted only if it equals the model's dimension; there is no truncation. |
 | `user`            | No       | Ignored. |
 
-Every input is embedded as a document (`embed_documents`), because the OpenAI protocol does not distinguish queries from documents. For GME the query and document sides use the same prompt, so this gives the same vectors as `POST /embeddings`. Use `POST /embeddings` for image, video and fused inputs.
+Every input is embedded as a document (`embed_documents`), because the OpenAI protocol does not distinguish queries from documents. These are the vectors `POST /embeddings` returns for a list of strings; to embed a query, send a single string to `POST /embeddings`. Use `POST /embeddings` for image, video and fused inputs.
 
 **Response:**
 

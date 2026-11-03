@@ -20,6 +20,7 @@ This guide assumes basic familiarity with Docker commands and terminal usage.
 - **EMBEDDING_USE_OV** - Enable OpenVINO optimization (true/false, default: false; `setup.sh` sets it to `true` unless it is already set). GME models (`GME/*`) run only on OpenVINO and require `EMBEDDING_USE_OV=true` on every device; with `false`, the service fails to start.
 - **EMBEDDING_OV_MODELS_DIR** - OpenVINO model root. With `setup.sh` and Docker Compose, this is a **container path**, defaulting to `/app/ov_models`, not a host directory. See [Use a prepared GME OpenVINO model](#use-a-prepared-gme-openvino-model).
 - **GME_PRECISION** - Precision of GME models: `int8` (default), `int4` or `fp32`. Each precision is converted and stored separately; see [Use a prepared GME OpenVINO model](#use-a-prepared-gme-openvino-model).
+- **GME_QUERY_INSTRUCTION** - Task instruction in the prompt of GME queries (default: `Find an image or text that matches the given query.`). Documents are not affected.
 
 ### Model Handler Performance
 

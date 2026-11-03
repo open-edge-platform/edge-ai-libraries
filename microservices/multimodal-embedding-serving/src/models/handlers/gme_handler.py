@@ -16,7 +16,9 @@ reused afterwards. An existing package directory is loaded as-is, so a package
 exported elsewhere can be placed there instead. ``GME_PRECISION`` (``int8``
 default, ``int4``, ``fp32``) selects the precision and, through it, the package
 directory; embedding dim and processor limits are read from the package's
-``gme_openvino_config.json``.
+``gme_openvino_config.json``. Queries carry a task instruction in their prompt
+(``GME_QUERY_INSTRUCTION``, else the runtime default); documents, images and
+fused pairs use GME's default prompt.
 """
 
 from __future__ import annotations
@@ -66,6 +68,8 @@ class GMEHandler(BaseEmbeddingModel):
         self.use_openvino: bool = bool(model_config.get("use_openvino", False))
         self.batch_size: int = int(model_config.get("infer_batch_size") or 32)
         self.runtime: Optional[GmeOpenVINO] = None
+        # None selects the runtime's DEFAULT_QUERY_INSTRUCTION.
+        self.query_instruction: Optional[str] = os.getenv("GME_QUERY_INSTRUCTION") or None
         self._max_text_tokens: Optional[int] = None
         # One public call at a time: the runtime's request pools are locked, but
         # the Hugging Face processor in front of them is not known to be
@@ -211,9 +215,9 @@ class GMEHandler(BaseEmbeddingModel):
         with self._lock:
             embeddings = runtime.get_text_embeddings(
                 texts,
+                instruction=self.query_instruction,
                 is_query=is_query,
                 batch_size=self.batch_size,
-                show_progress_bar=False,
             )
         return self._to_tensor(embeddings)
 
@@ -243,7 +247,6 @@ class GMEHandler(BaseEmbeddingModel):
                 pil_images,
                 is_query=False,
                 batch_size=self.batch_size,
-                show_progress_bar=False,
             )
             elapsed = time.perf_counter() - start
         tensor = self._to_tensor(embeddings)
@@ -271,7 +274,6 @@ class GMEHandler(BaseEmbeddingModel):
                 pil_images,
                 is_query=False,
                 batch_size=self.batch_size,
-                show_progress_bar=False,
             )
         return self._to_tensor(embeddings)
 

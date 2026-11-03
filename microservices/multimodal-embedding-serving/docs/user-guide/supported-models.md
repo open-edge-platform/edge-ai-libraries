@@ -85,6 +85,7 @@ QwenText models also run on `EMBEDDING_DEVICE=NPU`, which requires static-shape 
 The GME handler is built on Qwen2-VL. It:
 
 - Encodes an image together with its text into one vector (fused input).
+- Prompts queries with a task instruction, `Find an image or text that matches the given query.` by default; set `GME_QUERY_INSTRUCTION` to use another one. Documents, images and fused inputs use GME's default prompt.
 - Runs on OpenVINO only (`EMBEDDING_USE_OV=true`).
 - Runs in the precision set by `GME_PRECISION`: `int8` (default), `int4` (faster, lower accuracy) or `fp32` (original accuracy, slowest).
 - Converts to OpenVINO on first use and stores the package under `<EMBEDDING_OV_MODELS_DIR>/gme-qwen2-vl-2b-instruct-openvino` for INT8, with a `-int4` or `-fp32` suffix for the other precisions. The INT4 conversion includes a short calibration pass and takes longer.
