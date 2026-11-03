@@ -171,7 +171,7 @@ RUN . /etc/os-release && \
         libopencv-core4.5d \
         libopencv-imgcodecs4.5d \
         libcjson1 \
-        libssl3=3.0.2-0ubuntu1.29 \
+        libssl3=3.0.2-0ubuntu1.30 \
         libxtst6 && \
         ln -sf /usr/lib/x86_64-linux-gnu/libpython3.10.so.1.0 /usr/lib/x86_64-linux-gnu/libpython3.10.so; \
     fi && \
@@ -280,39 +280,29 @@ USER root
 
 # Patch and install OpenVINO model api
 COPY ./docker/model_api.patch /home/pipeline-server/model_api.patch
-RUN pip3 install --no-cache-dir openvino-model-api==0.2.5
+COPY ./docker/model_api-0.4.7.patch /home/pipeline-server/model_api-0.4.7.patch
+RUN . /etc/os-release && \
+    if [ "$VERSION_ID" = "26.04" ]; then \
+        pip3 install --no-cache-dir openvino-model-api==0.4.7; \
+    else \
+        pip3 install --no-cache-dir openvino-model-api==0.2.5; \
+    fi
 
-# site packages path independent of Python version (Python 3.10 for Ubuntu 22.04 and Python 3.12 for Ubuntu 24.04)
-RUN apt-get update && \
+# site packages path independent of Python version
+RUN . /etc/os-release && \
+    apt-get update && \
     apt-get install -y --no-install-recommends git && \
     MODEL_API_PATH=$(python3 -c "import site; print(site.getsitepackages()[0])")/model_api && \
+    if [ "$VERSION_ID" = "26.04" ]; then \
+        MODEL_API_PATCH=/home/pipeline-server/model_api-0.4.7.patch; \
+    else \
+        MODEL_API_PATCH=/home/pipeline-server/model_api.patch; \
+    fi && \
     cd $MODEL_API_PATH && \
-    git apply /home/pipeline-server/model_api.patch && \
+    git apply "$MODEL_API_PATCH" && \
     apt-get remove -y git && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
-
-# Ubuntu 22: Python 3.10 still often gets pre-built datumaro wheels, so Rust might be unused.
-# Ubuntu 24: Python 3.12 rarely has wheels for datumaro, so it falls back to source — Rust is required here (for building datumaro - needed for geti-sdk installation).
-# Detect Ubuntu version and install Rust only on Ubuntu 24
-RUN . /etc/os-release && \
-    if [ "$VERSION_ID" = "24.04" ]; then \
-        apt-get update && \
-        apt-get install -y --no-install-recommends python3-dev curl build-essential && \
-        curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.87.0 && \
-        echo 'source $HOME/.cargo/env' >> ~/.bashrc && \
-        export PATH="/root/.cargo/bin:$PATH" && \
-        pip3 install --no-cache-dir geti-sdk==2.13.1 && \
-        # clean up Rust installation files
-        rm -rf /root/.cargo /root/.rustup; \
-    else \
-        pip3 install --no-cache-dir geti-sdk==2.13.1; \
-    fi && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /root/.cache
-
-# Uninstall cuda-python installed by Geti SDK because of proprietary license causing OSPDT issue
-RUN pip3 uninstall --no-cache-dir -y cuda-python aiohappyeyeballs
 
 # Set environment variables up front to ensure locales work properly
 ENV LANG=en_US.UTF-8 \

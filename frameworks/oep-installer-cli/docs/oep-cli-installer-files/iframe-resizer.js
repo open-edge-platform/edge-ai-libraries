@@ -1,97 +1,95 @@
 // SPDX-FileCopyrightText: (C) 2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-let lastHeight = 0;
-const maxHeight = 2000; // Maximum allowed height
 const minHeight = 0;    // No hard minimum: let the frame shrink to its content
 
-function resizeIframe() {
-    const iframe = document.getElementById('installerFrame');
-    if (iframe && iframe.contentWindow) {
-        try {
-            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-            if (iframeDoc) {
-                const body = iframeDoc.body;
+function initializeIframe(iframe) {
+    let lastHeight = 0;
+    let resizeObserver;
+    let mutationObserver;
 
-                // Measure the CONTENT height only. We deliberately avoid
-                // html.clientHeight / documentElement.* here: those track the
-                // iframe's own viewport height, so including them creates a
-                // positive feedback loop (measure >= current height -> grow ->
-                // observer fires -> measure taller -> grow again) that made the
-                // frame get taller and taller. Measuring the content wrapper
-                // instead converges to the real content height.
-                const content = iframeDoc.querySelector('main.app-wrap');
-                let height = content
-                    ? content.offsetTop + content.scrollHeight
-                    : Math.max(body.scrollHeight, body.offsetHeight);
-
-                // Apply constraints
-                height = Math.max(minHeight, Math.min(maxHeight, height));
-
-                // Only update if height has changed significantly
-                if (Math.abs(height - lastHeight) > 10) {
-                    iframe.style.height = (height + 20) + 'px';
-                    lastHeight = height;
-                }
-            }
-        } catch (e) {
-            // Cross-origin restrictions - use fixed height
-            console.log('Using fallback fixed height due to cross-origin restrictions');
-            if (iframe.style.height === '' || iframe.style.height === '600px') {
-                iframe.style.height = '800px';
-            }
-        }
-    }
-}
-
-// Resize when iframe loads
-document.addEventListener('DOMContentLoaded', function() {
-    const iframe = document.getElementById('installerFrame');
-    if (iframe) {
-        iframe.addEventListener('load', function() {
-            setTimeout(resizeIframe, 500);
-            // Only resize once more after a delay to handle late-loading content
-            setTimeout(resizeIframe, 2000);
-
-            // Continuously re-fit when the iframe content changes height (e.g. the
-            // user selects a module and Next Steps switches between a link and a
-            // taller command box). Same-origin (_static) so we can observe it.
+    function resizeIframe() {
+        if (iframe.contentWindow) {
             try {
                 const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-                if (iframeDoc && iframeDoc.body) {
-                    if ('ResizeObserver' in window) {
-                        const ro = new ResizeObserver(function() {
-                            resizeIframe();
-                        });
-                        ro.observe(iframeDoc.body);
-                    }
-                    if ('MutationObserver' in window) {
-                        const mo = new MutationObserver(function() {
-                            resizeIframe();
-                        });
-                        mo.observe(iframeDoc.body, { childList: true, subtree: true, attributes: true });
+                if (iframeDoc?.body) {
+                    // Measure content, not the iframe viewport, to avoid a resize feedback loop.
+                    const content = iframeDoc.querySelector('main.app-wrap');
+                    let height = content
+                        ? content.offsetTop + content.scrollHeight
+                        : Math.max(iframeDoc.body.scrollHeight, iframeDoc.body.offsetHeight);
+                    height = Math.max(minHeight, height);
+
+                    if (Math.abs(height - lastHeight) > 10) {
+                        iframe.style.height = (height + 20) + 'px';
+                        lastHeight = height;
                     }
                 }
             } catch (e) {
-                // Cross-origin or unsupported - fall back to load/resize handlers.
+                console.log('Using fallback fixed height due to cross-origin restrictions');
+                if (iframe.style.height === '' || iframe.style.height === '600px') {
+                    iframe.style.height = '800px';
+                }
             }
-        });
-
-        const source = new URL(iframe.src, document.baseURI);
-        const params = new URLSearchParams(window.location.search);
-        for (const key of ['OP_SYSTEM', 'PROFILE', 'MODULE', 'OPTIONS', 'ENABLE_ONE_PROFILE']) {
-            if (params.has(key)) {
-                source.searchParams.set(key, params.get(key));
-            }
-        }
-        if (source.href !== iframe.src) {
-            iframe.src = source.href;
         }
     }
-});
 
-// Resize on window resize (but not continuously)
-window.addEventListener('resize', function() {
-    clearTimeout(window.resizeTimeout);
-    window.resizeTimeout = setTimeout(resizeIframe, 250);
-});
+    function observeContent() {
+        resizeObserver?.disconnect();
+        mutationObserver?.disconnect();
+        resizeIframe();
+        setTimeout(resizeIframe, 500);
+        setTimeout(resizeIframe, 2000);
+
+        try {
+            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+            if (iframeDoc?.body) {
+                if ('ResizeObserver' in window) {
+                    resizeObserver = new ResizeObserver(resizeIframe);
+                    resizeObserver.observe(iframeDoc.body);
+                }
+                if ('MutationObserver' in window) {
+                    mutationObserver = new MutationObserver(resizeIframe);
+                    mutationObserver.observe(iframeDoc.body, { childList: true, subtree: true, attributes: true });
+                }
+            }
+        } catch (e) {
+            // Cross-origin frames use the fixed-height fallback in resizeIframe.
+        }
+    }
+
+    iframe.addEventListener('load', observeContent);
+    const source = new URL(iframe.src, document.baseURI);
+    const fixedProfile = source.searchParams.get('ENABLE_ONE_PROFILE') === 'true'
+        && source.searchParams.has('PROFILE');
+    const params = new URLSearchParams(window.location.search);
+    for (const key of ['OP_SYSTEM', 'PROFILE', 'MODULE', 'OPTIONS', 'ENABLE_ONE_PROFILE']) {
+        if (fixedProfile && (key === 'PROFILE' || key === 'ENABLE_ONE_PROFILE')) continue;
+        if (params.has(key)) {
+            source.searchParams.set(key, params.get(key));
+        }
+    }
+    if (source.href !== iframe.src) {
+        iframe.src = source.href;
+    }
+    observeContent();
+    return resizeIframe;
+}
+
+function initializeInstallerFrames() {
+    const resizeFrames = Array.from(
+        document.querySelectorAll('iframe.installer-frame, iframe#installerFrame'),
+        initializeIframe
+    );
+    let resizeTimeout;
+    window.addEventListener('resize', function() {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(() => resizeFrames.forEach((resize) => resize()), 250);
+    });
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeInstallerFrames);
+} else {
+    initializeInstallerFrames();
+}
