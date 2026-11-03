@@ -61,7 +61,8 @@ func Load() (Config, error) {
 	// proceed to read the config file if it exists
 	if data, errFile := os.ReadFile(configFile); errFile == nil {
 		if err := json.Unmarshal(data, &cfg); err != nil {
-			slog.Warn("Invalid config file. Continuing with default config value.", "path", configFile, "error", err)
+			slog.Error("Invalid config file. Shutting down application.", "path", configFile, "error", err)
+			return Config{}, err
 		} else {
 			if hasKey(data, "BufferLength") {
 				cfg.BufferLength *= time.Second
