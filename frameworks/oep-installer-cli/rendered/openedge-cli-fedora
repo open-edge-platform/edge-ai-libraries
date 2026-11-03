@@ -397,6 +397,11 @@ act_helper ()
                     [ "$order1" -ge "$order" ] || break;
                 fi;
                 local invoke_args="$(act_extract_args $act_name $name1 "${handles[*]#${installer_family}_*_${act_name}_}" "$@")";
+                if { 
+                    [[ "$act_name" = "stop" && -z "${explicit_mods// }" ]] || [ "$remove_all" -eq 1 ]
+                } && [ -n "$(ensure_prop find "installed/$name1/apps/*")" ]; then
+                    invoke_args+=" --all-apps";
+                fi;
                 if [[ " $* " = *" --dry-run "* ]]; then
                     echo "@@COMP $name1";
                     echo "Invoke $handler with $invoke_args";
@@ -408,8 +413,12 @@ act_helper ()
                     local rc1=0;
                     ( set -e;
                     $handler $invoke_args ) & wait $! || rc1=$?;
-                    [[ " stop remove " = *" $act_name "* ]] && ensure_prop remove started/$name1/;
-                    [ "$act_name" = "remove" ] && [ $rc1 -eq 0 ] && ensure_prop remove installed/$name1/;
+                    if [[ " stop remove " = *" $act_name "* ]] && [ -z "$(ensure_prop find "started/$name1/apps/*")" ]; then
+                        ensure_prop remove started/$name1/;
+                    fi;
+                    if [ "$act_name" = "remove" ] && [ $rc1 -eq 0 ] && [ -z "$(ensure_prop find "installed/$name1/apps/*")" ]; then
+                        ensure_prop remove installed/$name1/;
+                    fi;
                     if [ $rc1 -eq 0 ]; then
                         echo "@@OK $name1";
                     else
