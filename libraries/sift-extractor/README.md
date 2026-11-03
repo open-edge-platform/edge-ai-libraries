@@ -20,10 +20,14 @@ This component is an early development snapshot, not a production release. The c
   explicit selection (`Backend::Auto` prefers SYCL for Arc speed, not quality).
   See [backend selection](docs/backend-selection.md). Public packaging, pkg-config,
   a native sample, optional Python bindings, and optional thin OpenCV type adapters
-  (`SIFT_BUILD_OPENCV_ADAPTER`) are available; matching/geometry, release soak and
-  CudaSift quality floor remain open. The OpenCV adapters wrap the core Extractor
-  with `cv::Mat`/`cv::KeyPoint` only—they are not OpenCV features2d SIFT or Phase D
-  upstream work.
+  (`SIFT_BUILD_OPENCV_ADAPTER`) are available. Listed under root README **Computer
+  Vision Primitives**. Scoped GitHub Actions CI
+  (`.github/workflows/sift-extractor.yml`) configures the tree without GPU
+  backends and **explicitly discloses that no Intel GPU runners are attached**;
+  OpenCL/SYCL CTest, Arc timing, soak and quality scoring are private-lab gates.
+  Matching/geometry, release soak and CudaSift quality floor remain open. The
+  OpenCV adapters wrap the core Extractor with `cv::Mat`/`cv::KeyPoint` only—they
+  are not OpenCV features2d SIFT or Phase D upstream work.
 - Existing source-derived timings and reported CudaSift results are not performance claims for this component.
 
 The legacy reference backend uses a process-global SYCL queue and scratch buffers. Do not use concurrent extraction calls. Its API and numerical behavior are not yet a stable compatibility contract. The OpenCL correctness path uses host-visible vectors between stages and independent contexts for pyramid and feature processing; it is not an optimized device-resident pipeline. Feature sampling uses the nearest Gaussian level and local sigma derived from a DoG geometric-center convention; reference parity is outstanding. Refinement is single-step, not iterative relocation.
