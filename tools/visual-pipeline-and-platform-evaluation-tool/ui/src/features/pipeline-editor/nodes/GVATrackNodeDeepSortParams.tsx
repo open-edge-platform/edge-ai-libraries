@@ -35,7 +35,7 @@ const parseDeepSortCfg = (raw: unknown): Record<string, string> => {
 // Compose a `deepsort-trck-cfg` value from the UI param map. Declared params
 // come first in the canonical order, then any unknown keys preserved from
 // parse. Empty values are dropped (fall back to DLStreamer's defaults);
-// returns `""` when nothing is set, so the caller can drop the property.
+// returns decoded text without syntax quotes, or `""` to drop the property.
 const composeDeepSortCfg = (values: Record<string, string>): string => {
   const knownKeys = new Set(DEEP_SORT_PARAMS.map((p) => p.key));
   const orderedKeys = [
@@ -46,7 +46,7 @@ const composeDeepSortCfg = (values: Record<string, string>): string => {
     .map((k) => [k, values[k]?.trim() ?? ""] as const)
     .filter(([, v]) => v !== "")
     .map(([k, v]) => `${k}=${v}`);
-  return pairs.length ? `"${pairs.join(",")}"` : "";
+  return pairs.join(",");
 };
 
 type GVATrackNodeDeepSortParamsProps = {
@@ -121,3 +121,5 @@ const GVATrackNodeDeepSortParams = ({
 };
 
 export default GVATrackNodeDeepSortParams;
+// SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0

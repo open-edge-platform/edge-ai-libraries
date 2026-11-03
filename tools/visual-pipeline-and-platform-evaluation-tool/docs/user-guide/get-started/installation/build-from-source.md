@@ -119,16 +119,24 @@ On Windows, known `/models/output/...` and Linux public model-proc paths are res
 against `MODELS_PATH` and `PUBLIC_MODEL_PROC_PATH` when constructing runtime paths.
 Stored model references and the catalog YAML format are unchanged; no database migration
 or new model-proc reference syntax is introduced. Unrelated custom paths are preserved.
-Mapped paths must stay within the configured directory; traversal, drive/stream prefixes
+Mapped paths may have one trailing `/` for directory models and must stay within the
+configured directory; internal empty components, traversal, drive/stream prefixes
 and symlink escapes are rejected.
 
 The default database remains in-memory on both platforms. `DATABASE_URL` can still
 select a persistent database explicitly.
 
-GStreamer property serialization preserves spaces, backslashes, quotes and `!`.
+GStreamer property serialization preserves spaces, backslashes, quotes, commas and `!`.
+The Deep SORT editor stores decoded `deepsort-trck-cfg` values without surrounding
+syntax quotes; the backend quotes them for GStreamer and normalizes legacy
+prequoted tracker configurations on export. The `caps` property retains its
+serialized quoting.
 This escaping is for GStreamer descriptions, not shell commands. Null metadata output
 uses the native null device. Video downloads use unique temporary files in `AUTO_VIDEO_DIR`,
 closed before moving to the target location; the existing 600-second network timeout remains.
+On Linux, completed downloads are set to mode `0644` after moving so the UI's nginx
+user can serve previews; staging files remain private. Permission-setting failures
+are logged as warnings without failing the download, matching uploaded recordings.
 
 ### Verify the portable foundations
 

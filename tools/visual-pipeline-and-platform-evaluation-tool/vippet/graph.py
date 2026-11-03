@@ -4063,6 +4063,8 @@ def _add_property_to_last_node(nodes: list[Node], token: _Token) -> None:
     The property format is assumed to be "key=value" with optional spaces
     around the '='. No additional validation is done here; invalid properties
     should be filtered earlier during tokenization or caps parsing.
+    The caps property retains its serialized quoting because _build_chain
+    writes it verbatim; other properties are unquoted for in-memory use.
 
     Args:
         nodes: List of nodes (the last node will receive the property)
@@ -4084,7 +4086,7 @@ def _add_property_to_last_node(nodes: list[Node], token: _Token) -> None:
         return
 
     key, value = re.split(r"\s*=\s*", token.value, maxsplit=1)
-    nodes[-1].data[key] = unquote_property(value)
+    nodes[-1].data[key] = value if key == "caps" else unquote_property(value)
     logger.debug(f"Added property to node {nodes[-1].id}: {key}={value}")
 
 
@@ -4190,6 +4192,9 @@ def _build_chain(
                 output_key = spec.model_key if key == "model" else key
                 if output_key == "file-path" and value == "/dev/null":
                     value = os.devnull
+                if node.type == "gvatrack" and output_key == "deepsort-trck-cfg":
+                    # Older editors stored syntax quotes in the property value.
+                    value = unquote_property(value)
                 # Caps properties may already contain GStreamer quoting syntax.
                 serialized = (
                     str(value) if output_key == "caps" else quote_property(value)

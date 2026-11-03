@@ -4,6 +4,7 @@
 import json
 import os
 from pathlib import Path
+import stat
 import subprocess
 import sys
 import tempfile
@@ -130,6 +131,7 @@ class TestPortableProperties(unittest.TestCase):
             "C:\\video files\\",
             "",
             "/simple/clip.mp4",
+            "/video,format=RGB.mp4",
         ):
             with self.subTest(value=value):
                 self.assertEqual(unquote_property(quote_property(value)), value)
@@ -210,6 +212,25 @@ class TestLegacyResourceMapping(unittest.TestCase):
                                 value,
                             )
 
+    def test_mapping_allows_one_trailing_separator(self):
+        relative = "openvino_models/cpu/int4/google/gemma-3-4b-it"
+        with (
+            tempfile.TemporaryDirectory() as root,
+            patch.object(platform_paths, "IS_WINDOWS", True),
+        ):
+            for legacy_root in (
+                platform_paths.LEGACY_MODELS_PATH,
+                platform_paths.LEGACY_PUBLIC_MODEL_PROC,
+            ):
+                for suffix in ("", "/"):
+                    with self.subTest(legacy_root=legacy_root, suffix=suffix):
+                        self.assertEqual(
+                            platform_paths.resolve_legacy_path(
+                                f"{legacy_root}/{relative}{suffix}", legacy_root, root
+                            ),
+                            str(Path(root) / relative),
+                        )
+
     def test_mapping_rejects_traversal_and_windows_path_escapes(self):
         with patch.object(platform_paths, "IS_WINDOWS", True):
             for suffix in (
@@ -220,6 +241,16 @@ class TestLegacyResourceMapping(unittest.TestCase):
                 "C:secret.xml",
                 "file.xml:stream",
                 "file\0.xml",
+                "",
+                "/",
+                "model//child",
+                "model//child/",
+                "model//",
+                "model///",
+                "./",
+                "../",
+                "model/./",
+                "model/../",
             ):
                 with self.subTest(suffix=suffix), self.assertRaises(ValueError):
                     platform_paths.resolve_legacy_path(
@@ -300,6 +331,31 @@ class TestLegacyResourceMapping(unittest.TestCase):
             )
             self.assertEqual(absolute.model_path_full, model.model_path_full)
 
+    def test_genai_directory_model_lookup_accepts_trailing_separator(self):
+        relative = "openvino_models/cpu/int4/google/gemma-3-4b-it/"
+        legacy = platform_paths.LEGACY_MODELS_PATH + "/" + relative
+        with (
+            tempfile.TemporaryDirectory(prefix="model paths ") as root,
+            patch.object(platform_paths, "IS_WINDOWS", True),
+            patch("models.MODELS_PATH", root),
+            patch.object(SupportedModelsManager, "_instance", None),
+        ):
+            model = SupportedModel(
+                "gemma3", "Gemma 3", "huggingface", "vision_language_models", relative
+            )
+            manager = SupportedModelsManager()
+            manager._models = [model]
+            self.assertIs(
+                manager.find_model_by_model_and_proc_path(legacy, installed_only=False),
+                model,
+            )
+            graph = Graph.from_pipeline_description(f"gvagenai model-path={legacy}")
+            self.assertEqual(graph.nodes[0].data["model"], "Gemma 3")
+            absolute = SupportedModel(
+                "gemma3", "Gemma 3", "huggingface", "vision_language_models", legacy
+            )
+            self.assertEqual(absolute.model_path_full, model.model_path_full)
+
     def test_labels_and_scripts_resolve_under_configured_directories(self):
         from graph import (
             _labels_path_to_display_name,
@@ -356,6 +412,8 @@ class TestPortableDownloadStaging(unittest.TestCase):
                 self.assertTrue(staged[0].closed)
                 self.assertEqual(Path(source).parent, Path(root))
                 self.assertEqual(Path(source).read_bytes(), b"video")
+                if os.name == "posix":
+                    self.assertEqual(stat.S_IMODE(Path(source).stat().st_mode), 0o600)
                 os.replace(source, target)
                 return True
 
@@ -373,8 +431,38 @@ class TestPortableDownloadStaging(unittest.TestCase):
             self.assertEqual(result, str(Path(root) / "clip.mp4"))
             assert result is not None
             self.assertEqual(Path(result).read_bytes(), b"video")
+            if os.name == "posix":
+                self.assertEqual(stat.S_IMODE(Path(result).stat().st_mode), 0o644)
             self.assertEqual(list(Path(root).glob(".vippet-download-*")), [])
             self.assertEqual(urlopen.call_args.kwargs["timeout"], 600)
+
+    def test_download_permission_error_is_logged_and_non_fatal(self):
+        with tempfile.TemporaryDirectory() as root:
+            response = MagicMock()
+            response.__enter__.return_value = response
+            response.status = 200
+            response.read.side_effect = [b"video", b""]
+            manager = object.__new__(VideosManager)
+            target = str(Path(root) / "clip.mp4")
+            with (
+                patch("videos.AUTO_VIDEO_DIR", root),
+                patch("videos.urllib.request.urlopen", return_value=response),
+                patch(
+                    "videos.os.chmod", side_effect=PermissionError("denied")
+                ) as chmod,
+                self.assertLogs("videos", level="WARNING") as logs,
+            ):
+                result = manager._download_video(
+                    "https://example.invalid/video", "clip.mp4"
+                )
+
+            self.assertEqual(result, target)
+            self.assertEqual(Path(target).read_bytes(), b"video")
+            chmod.assert_called_once_with(target, 0o644)
+            self.assertTrue(
+                any("Could not set permissions" in entry for entry in logs.output)
+            )
+            self.assertEqual(list(Path(root).glob(".vippet-download-*")), [])
 
     def test_partial_download_and_failed_move_remove_temporary_file(self):
         with tempfile.TemporaryDirectory() as root:
@@ -393,6 +481,7 @@ class TestPortableDownloadStaging(unittest.TestCase):
                         patch("videos.AUTO_VIDEO_DIR", root),
                         patch("videos.urllib.request.urlopen", return_value=response),
                         patch.object(manager, "_move_file", return_value=False),
+                        patch("videos.os.chmod") as chmod,
                         patch("videos.logger") as logger,
                     ):
                         self.assertIsNone(
@@ -402,4 +491,5 @@ class TestPortableDownloadStaging(unittest.TestCase):
                         )
                         if fail_read:
                             logger.error.assert_called()
+                        chmod.assert_not_called()
                     self.assertEqual(list(Path(root).iterdir()), [])

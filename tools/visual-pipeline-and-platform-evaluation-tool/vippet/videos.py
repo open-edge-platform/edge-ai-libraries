@@ -429,6 +429,12 @@ class VideosManager:
             if not self._move_file(tmp_path, target_path):
                 return None
 
+            # Keep staging private, then allow nginx to read the completed recording.
+            try:
+                os.chmod(target_path, 0o644)
+            except OSError as exc:
+                logger.warning(f"Could not set permissions on '{target_path}': {exc}")
+
             t1 = time.perf_counter()
             file_size = (
                 os.path.getsize(target_path) if os.path.isfile(target_path) else 0

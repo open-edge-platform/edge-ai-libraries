@@ -25,7 +25,7 @@ def resolve_legacy_path(value: str, legacy_root: str, directory: str) -> str:
     prefix = legacy_root + "/"
     if not IS_WINDOWS or not value.startswith(prefix):
         return value
-    relative = value[len(prefix) :]
+    relative = value[len(prefix) :].removesuffix("/")
     parts = relative.split("/")
     if any(part in {"", ".", ".."} for part in parts) or any(
         char in relative for char in "\\:\0"
