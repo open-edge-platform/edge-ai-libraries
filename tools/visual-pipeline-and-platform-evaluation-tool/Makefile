@@ -23,6 +23,9 @@ EXPERIMENTAL_COMPOSE_FILE := compose.experimental.yml
 # Set DLSPS2=1 to run pipelines on a DLSPS 2.0 container (see compose.dlsps2.yml).
 DLSPS2 ?= 0
 DLSPS2_COMPOSE := $(if $(filter 1,$(DLSPS2)),-f compose.dlsps2.yml)
+# With DLSPS2_IMAGE set (e.g. a published intel/dlstreamer-pipeline-server:<tag>), that image
+# is used as is: `build` skips the server, so it never overwrites the tag; `run` pulls it.
+DLSPS2_BUILD_COMPOSE := $(if $(DLSPS2_IMAGE),,$(DLSPS2_COMPOSE))
 
 # Set GIGE=1 to run vippet with host networking for GigE Vision camera streaming (see compose.gige.yml).
 GIGE ?= 0
@@ -142,8 +145,8 @@ $(ENV_DIRS_SENTINEL): Makefile
 env-setup: $(ENV_DIRS_SENTINEL) ## Create shared/ dirs and (always) re-run setup_env.sh
 	./setup_env.sh
 
-build: env-setup ## Build core images (vippet-app, vippet-ui, sensor-manager); DLSPS2=1 adds DLSPS 2.0
-	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(DLSPS2_COMPOSE) $(GIGE_COMPOSE) build
+build: env-setup ## Build core images (vippet-app, vippet-ui, sensor-manager); DLSPS2=1 adds DLSPS 2.0 unless DLSPS2_IMAGE is set
+	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(DLSPS2_BUILD_COMPOSE) $(GIGE_COMPOSE) build
 
 build-dev: env-setup ## Build core dev images (vippet-app, vippet-ui, sensor-manager)
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) build

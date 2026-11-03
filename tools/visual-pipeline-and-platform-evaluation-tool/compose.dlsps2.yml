@@ -11,6 +11,11 @@
 # Usage: make build run DLSPS2=1
 #   (or: docker compose -f compose.yml -f compose.$COMPOSE_PROFILES.yml -f compose.dlsps2.yml up -d)
 #
+# By default the server image is built from source (dlsps2/ in this repository).
+# To use a published image instead, set DLSPS2_IMAGE, e.g.
+#   DLSPS2_IMAGE=intel/dlstreamer-pipeline-server:2026.3.0-20261027-weekly-ubuntu24-2.0
+# `make build` then skips the server and `make run` pulls the image.
+#
 # ./shared/videos and ./shared/models are mounted at the SAME container
 # paths as the vippet service (see compose.yml's AUTO_VIDEO_DIR/
 # UPLOADED_VIDEO_DIR/MODELS_PATH env vars), so pipeline strings built by

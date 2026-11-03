@@ -99,7 +99,18 @@ make stop DLSPS2=1
 
 This builds the server image from `microservices/dlstreamer-pipeline-server/dlsps2` in the
 same repository, gives it the same devices as `vippet`, and sets
-`VIPPET_EXECUTION_BACKEND=dlsps2`. The server then runs:
+`VIPPET_EXECUTION_BACKEND=dlsps2`.
+
+To use a published server image instead of building one, set `DLSPS2_IMAGE` to one of the
+`-2.0` tags on [Docker Hub](https://hub.docker.com/r/intel/dlstreamer-pipeline-server/tags).
+`make build` then skips the server, and `make run` pulls the image:
+
+```bash
+export DLSPS2_IMAGE=intel/dlstreamer-pipeline-server:2026.3.0-20261027-weekly-ubuntu24-2.0
+make build run DLSPS2=1
+```
+
+The server then runs:
 
 - pipeline validation;
 - performance and density tests, with every stream as its own server instance, so the job
