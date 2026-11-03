@@ -60,11 +60,11 @@ downloads or agent installation.
 | Early cleanup-trap expansion (SC2064) | Real standalone bootstrap with a local repository; temporary clone removed after `main` returns on both payload success and failure; failure status retained |
 | Deferred shell expansion (SC2016) | Generated Bash profile expands the new shell's PATH, not the writer's; repeated setup is idempotent |
 | Runtime sourcing (SC1091) | Real Bash sources a disposable nvm fixture; absent nvm is tolerated |
-| Fail-closed guards (SC2015) | Both IR/OVMS launch functions reject failed and empty address resolution before Docker launch and forward a valid loopback binding; both OpenShell guards reject nonnumeric/out-of-range ports |
-| Generation/publication cleanup (SC2015) | Real Node config generation plus injected generation and rename failures for add/remove; errors propagate, original config survives, temporary files are removed |
-| Optional npm query (SC2015) | Missing/failed version queries use the fallback; a valid version enables the required install flag; installation is a command double |
+| Explicit fail-closed guards (SC2015 suppressions removed) | Both IR/OVMS launch functions reject failed and empty address resolution before Docker launch and forward a valid loopback binding; both OpenShell guards reject nonnumeric/out-of-range ports |
+| Explicit generation/publication cleanup (SC2015 suppressions removed) | Real Node config generation plus injected generation and rename failures for add/remove; errors propagate, original config survives, temporary files are removed |
+| Explicit optional npm query (SC2015 suppression removed) | Missing/failed version queries use the fallback; a valid version enables the required install flag; installation is a command double |
 | Hermes child environment (SC2030/SC2031) | Actual startup script stages config in the child, preserves the parent's environment, removes staged files, and preserves live config on injected staging failure |
-| Cross-helper variables / retry counter (SC2034) | Existing model lifecycle/CLI tests exercise model selection and agent routing; existing OpenShell cleanup tests exercise successful and pending deletion |
+| Cross-helper variables (SC2034) / explicit arithmetic retry counter | Existing model lifecycle/CLI tests exercise model selection and agent routing; existing OpenShell cleanup tests exercise successful and pending deletion; the retry counter no longer needs suppression |
 | Embedded JavaScript / image libraries (SC2016/SC1091) | Existing startup, persisted-model readiness and lifecycle tests execute Node and source installer libraries using fixtures |
 
 These are behavior tests, not proof that every suppressed location is safe in

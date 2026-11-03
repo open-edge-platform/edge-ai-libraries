@@ -220,8 +220,6 @@ remove_all_openshell_agents() {
   local agent HARNESS_AGENT
   # Validate every identity before deleting the first resource.
   for agent in openclaw deepagents-code hermes; do
-    # Read by the sourced OpenShell lifecycle helpers.
-    # shellcheck disable=SC2034
     HARNESS_AGENT="$agent"
     [[ -e "$(openshell_profile_dir)/profile.json" || -L "$(openshell_profile_dir)/profile.json" ]] || continue
     openshell_load_profile

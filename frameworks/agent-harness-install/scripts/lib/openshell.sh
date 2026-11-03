@@ -132,10 +132,9 @@ openshell_ensure_shared_inference() {
 _openshell_ensure_shared_inference() {
   [[ "$(resolve_bind_host)" == 127.0.0.1 ]] \
     || error "OpenShell mode requires HARNESS_BIND_HOST=127.0.0.1; inference must not be LAN-published."
-  # Reject either a nonnumeric port or an out-of-range value.
-  # shellcheck disable=SC2015
-  [[ "$HARNESS_IR_PORT" =~ ^[0-9]+$ ]] && (( HARNESS_IR_PORT > 0 && HARNESS_IR_PORT < 65536 )) \
-    || error "HARNESS_IR_PORT must be between 1 and 65535."
+  if [[ ! "$HARNESS_IR_PORT" =~ ^[0-9]+$ ]] || (( HARNESS_IR_PORT <= 0 || HARNESS_IR_PORT >= 65536 )); then
+    error "HARNESS_IR_PORT must be between 1 and 65535."
+  fi
   openshell_validate_recorded_ir_port
   local containers pending source model
   pending="$(harness_state_root)/openshell-model-pending.json"
@@ -512,10 +511,9 @@ openshell_validate_shared_inference() {
   local endpoint model
   [[ "$(resolve_bind_host)" == "127.0.0.1" ]] \
     || error "OpenShell mode requires HARNESS_BIND_HOST=127.0.0.1; inference must not be LAN-published."
-  # Reject either a nonnumeric port or an out-of-range value.
-  # shellcheck disable=SC2015
-  [[ "$HARNESS_IR_PORT" =~ ^[0-9]+$ ]] && (( HARNESS_IR_PORT > 0 && HARNESS_IR_PORT < 65536 )) \
-    || error "HARNESS_IR_PORT must be between 1 and 65535."
+  if [[ ! "$HARNESS_IR_PORT" =~ ^[0-9]+$ ]] || (( HARNESS_IR_PORT <= 0 || HARNESS_IR_PORT >= 65536 )); then
+    error "HARNESS_IR_PORT must be between 1 and 65535."
+  fi
   # Validate the existing container's publication, not just the requested bind setting.
   local bindings
   bindings="$(docker inspect "$HARNESS_IR_CONTAINER" --format '{{json .HostConfig.PortBindings}}')" \
@@ -726,11 +724,9 @@ onboard_openshell_agent() {
         /home/node/.local/bin/dcode -n "Say hello briefly. Do not use any tools." \
         --model "openai:${OPENSHELL_MODEL}" --no-interpreter)" \
         || error "Sandboxed Deep Agents Code inference failed."
-      # Empty output or an error response must both fail.
-      # shellcheck disable=SC2015
-      [[ -n "${dcode_response//[[:space:]]/}" ]] \
-        && ! grep -q '^\[ERROR\]' <<<"$dcode_response" \
-        || error "Sandboxed Deep Agents Code returned no successful inference output."
+      if [[ -z "${dcode_response//[[:space:]]/}" ]] || grep -q '^\[ERROR\]' <<<"$dcode_response"; then
+        error "Sandboxed Deep Agents Code returned no successful inference output."
+      fi
       printf '%s\n' "$dcode_response"
       ok "Sandboxed Deep Agents Code inference returned output; verify task effects separately."
     fi
@@ -772,9 +768,7 @@ _remove_openshell_agent_locked() {
       || error "Could not request sandbox removal; ownership record retained."
     # Deletion is asynchronous; keep its provider and ownership record until cleanup completes.
     local attempt
-    # Only the number of retries matters, not the counter value.
-    # shellcheck disable=SC2034
-    for attempt in {1..30}; do
+    for ((attempt = 0; attempt < 30; attempt++)); do
       openshell_resource_exists sandbox || break
       sleep 1
     done
