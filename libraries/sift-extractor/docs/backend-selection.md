@@ -40,8 +40,12 @@ Packaging (CMake package + pkg-config + sample), Python bindings, and optional
 thin OpenCV type adapters (`SIFT_BUILD_OPENCV_ADAPTER`) may proceed with the
 dual-dispatch contract documented above. The OpenCV adapters convert
 `cv::Mat`/`cv::KeyPoint` around the core Extractor only; they are not OpenCV
-features2d SIFT or Phase D upstream work. Release soak, held-out quality and
-REUSE gates remain open.
+features2d SIFT or Phase D upstream work. Root README lists this component under
+Computer Vision Primitives. Scoped CI discloses absent GPU runners. Post-residency
+Arc OpenCL/SYCL native A/B (2026-11-03, `time_sift_extract`, stage
+`arc-resident-timing-20261103`): PGM 1280×960 mean-of-medians OpenCL 13.40ms /
+SYCL 10.71ms (~+25% OpenCL excess; features 1980/3826). Exploratory soak harness
+exists; full `--release` soak, held-out quality and REUSE gates remain open.
 
 ## Arc Python extract + native vs wrapper (2026-11-03)
 

@@ -86,7 +86,8 @@ Matched timing: `time_sift_extract` and `share/sift_extractor/time_sift_extract.
 OpenCL+SYCL Python extract and native-vs-wrapper exploratory timing (2026-11-03)
 is recorded under the SIFT workspace
 `results/20261102/arc-python-timing/dual-summary.json` (staged portable
-`sycl-runtime` on Arc; no system oneAPI install required there).
+`sycl-runtime` on Arc; no system oneAPI install required there). Post-residency
+OpenCL/SYCL native A/B: `results/20261102/arc-resident-timing/summary.json`.
 Release-gate harness: `soak_sift_extract [--release] [--concurrency N]` (mixed
 backends single-threaded; OpenCL independent-context concurrency when built).
 Default is exploratory; `--release` requires ≥10000 mixed calls and ≥30 minutes.
