@@ -8,10 +8,30 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
-for lib in colors verify state sudo shim gpu-intel docker-setup nodejs openvino inference-router agents openshell; do
-  # shellcheck disable=SC1090
-  . "${SCRIPT_DIR}/scripts/lib/${lib}.sh"
-done
+# shellcheck source=scripts/lib/colors.sh
+. "${SCRIPT_DIR}/scripts/lib/colors.sh"
+# shellcheck source=scripts/lib/verify.sh
+. "${SCRIPT_DIR}/scripts/lib/verify.sh"
+# shellcheck source=scripts/lib/state.sh
+. "${SCRIPT_DIR}/scripts/lib/state.sh"
+# shellcheck source=scripts/lib/sudo.sh
+. "${SCRIPT_DIR}/scripts/lib/sudo.sh"
+# shellcheck source=scripts/lib/shim.sh
+. "${SCRIPT_DIR}/scripts/lib/shim.sh"
+# shellcheck source=scripts/lib/gpu-intel.sh
+. "${SCRIPT_DIR}/scripts/lib/gpu-intel.sh"
+# shellcheck source=scripts/lib/docker-setup.sh
+. "${SCRIPT_DIR}/scripts/lib/docker-setup.sh"
+# shellcheck source=scripts/lib/nodejs.sh
+. "${SCRIPT_DIR}/scripts/lib/nodejs.sh"
+# shellcheck source=scripts/lib/openvino.sh
+. "${SCRIPT_DIR}/scripts/lib/openvino.sh"
+# shellcheck source=scripts/lib/inference-router.sh
+. "${SCRIPT_DIR}/scripts/lib/inference-router.sh"
+# shellcheck source=scripts/lib/agents.sh
+. "${SCRIPT_DIR}/scripts/lib/agents.sh"
+# shellcheck source=scripts/lib/openshell.sh
+. "${SCRIPT_DIR}/scripts/lib/openshell.sh"
 
 ASSUME_YES=""
 DELETE_MODELS=1
@@ -226,8 +246,6 @@ remove_all_openshell_agents() {
     if openshell_resource_exists sandbox; then openshell_assert_owned; fi
   done
   for agent in openclaw deepagents-code hermes; do
-    # Read by the sourced OpenShell lifecycle helpers.
-    # shellcheck disable=SC2034
     HARNESS_AGENT="$agent"
     [[ -f "$(openshell_profile_dir)/profile.json" ]] || continue
     remove_openshell_agent

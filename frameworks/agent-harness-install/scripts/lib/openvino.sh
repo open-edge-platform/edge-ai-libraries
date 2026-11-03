@@ -1360,21 +1360,20 @@ list_exported_models() {
   fi
   reg_file="$(unregistered_downloads_file)"
   if [[ -f "$reg_file" ]]; then
-    # The template expression is JavaScript, not shell.
-    # shellcheck disable=SC2016
     while IFS= read -r line; do
       [[ -n "$line" ]] || continue
       found=1
       printf '  %s\n' "$line"
-    done < <(node -e '
+    done < <(node - "$reg_file" <<'JS'
       try {
-        const data = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
+        const data = JSON.parse(require("node:fs").readFileSync(process.argv[2], "utf8"));
         for (const name of Object.keys(data)) {
           const hub = data[name]?.hub || "?";
           console.log(`${name}\t(hub: ${hub}, not served by OVMS)`);
         }
       } catch {}
-    ' "$reg_file")
+JS
+    )
   fi
   [[ "$found" -eq 1 ]] && return 0
   [[ -d "$dir" ]] || { info "No models exported yet (${dir})."; return 0; }

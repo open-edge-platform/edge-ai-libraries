@@ -11,10 +11,34 @@ set -euo pipefail
 
 # Repo root is one level up from this payload script.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)"
-for lib in colors verify state sudo shim gpu-intel docker-setup nodejs python-setup openvino inference-router agents harness-mcp openshell; do
-  # shellcheck disable=SC1090
-  . "${SCRIPT_DIR}/scripts/lib/${lib}.sh"
-done
+# shellcheck source=lib/colors.sh
+. "${SCRIPT_DIR}/scripts/lib/colors.sh"
+# shellcheck source=lib/verify.sh
+. "${SCRIPT_DIR}/scripts/lib/verify.sh"
+# shellcheck source=lib/state.sh
+. "${SCRIPT_DIR}/scripts/lib/state.sh"
+# shellcheck source=lib/sudo.sh
+. "${SCRIPT_DIR}/scripts/lib/sudo.sh"
+# shellcheck source=lib/shim.sh
+. "${SCRIPT_DIR}/scripts/lib/shim.sh"
+# shellcheck source=lib/gpu-intel.sh
+. "${SCRIPT_DIR}/scripts/lib/gpu-intel.sh"
+# shellcheck source=lib/docker-setup.sh
+. "${SCRIPT_DIR}/scripts/lib/docker-setup.sh"
+# shellcheck source=lib/nodejs.sh
+. "${SCRIPT_DIR}/scripts/lib/nodejs.sh"
+# shellcheck source=lib/python-setup.sh
+. "${SCRIPT_DIR}/scripts/lib/python-setup.sh"
+# shellcheck source=lib/openvino.sh
+. "${SCRIPT_DIR}/scripts/lib/openvino.sh"
+# shellcheck source=lib/inference-router.sh
+. "${SCRIPT_DIR}/scripts/lib/inference-router.sh"
+# shellcheck source=lib/agents.sh
+. "${SCRIPT_DIR}/scripts/lib/agents.sh"
+# shellcheck source=lib/harness-mcp.sh
+. "${SCRIPT_DIR}/scripts/lib/harness-mcp.sh"
+# shellcheck source=lib/openshell.sh
+. "${SCRIPT_DIR}/scripts/lib/openshell.sh"
 
 TOTAL_STEPS=3
 NON_INTERACTIVE="${NON_INTERACTIVE:-}"
@@ -415,8 +439,6 @@ main() {
       --model)
         [[ -n "${2:-}" ]] || { usage; error "--model requires a value (the model name as its hub names it, e.g. a Hugging Face id)."; }
         HARNESS_HF_MODEL="$2"
-        # Read by the sourced inference/model helpers.
-        # shellcheck disable=SC2034
         HARNESS_LLM_MODEL=""
         shift ;;
       --model-hub)

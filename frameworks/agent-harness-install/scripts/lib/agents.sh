@@ -320,10 +320,11 @@ to accept the risk and proceed without pinning)."
     : >"$hermes_log"
     # tee into hermes_log so the failure can be classified; spin still
     # shows/prints the output as before.
-    # These parameters and PIPESTATUS belong to the child Bash.
-    # shellcheck disable=SC2016
-    if spin "Installing Hermes" bash -c \
-      'bash "$1" "${@:3}" 2>&1 | tee "$2"; exit "${PIPESTATUS[0]}"' \
+    if spin "Installing Hermes" bash -c "$(cat <<'SH'
+bash "$1" "${@:3}" 2>&1 | tee "$2"
+exit "${PIPESTATUS[0]}"
+SH
+    )" \
       _ "$installer_tmp" "$hermes_log" "${installer_args[@]}"; then
       hermes_installed=1
       break

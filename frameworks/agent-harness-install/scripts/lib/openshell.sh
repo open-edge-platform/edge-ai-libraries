@@ -264,9 +264,7 @@ _openshell_sync_agent_model_locked() {
     openshell sandbox start "$OPENSHELL_NAME" -g "$OPENSHELL_GATEWAY" \
       || error "Could not restart ${agent}; model transition retained for retry."
     openshell_wait_phase Ready
-    # The template expressions are JavaScript, not shell.
-    # shellcheck disable=SC2016
-    openshell_agent_exec /usr/local/bin/node -e '
+    openshell_agent_exec /usr/local/bin/node -e "$(cat <<'JS'
       const fs = require("node:fs");
       const [agent, model] = process.argv.slice(1);
       (async () => {
@@ -286,7 +284,8 @@ _openshell_sync_agent_model_locked() {
         }
         throw Error("Agent startup did not apply the selected model within 180 seconds");
       })().catch(error => { console.error(error.message); process.exitCode = 1; });
-    ' "$agent" "$model" || error "Agent model did not survive restart; pending transition retained."
+JS
+    )" "$agent" "$model" || error "Agent model did not survive restart; pending transition retained."
   fi
   profile="$(node - "$dir/profile.json" "$model" <<'JS'
 const fs = require("node:fs");
@@ -652,9 +651,7 @@ openshell_wait_agent_config() {
   local model attempt
   model="${OPENSHELL_MODEL:-${HARNESS_LLM_MODEL:-$(resolve_onboarding_model_hint)}}"
   for attempt in {1..90}; do
-    # The template expressions are JavaScript, not shell.
-    # shellcheck disable=SC2016
-    if openshell_agent_exec /usr/local/bin/node -e '
+    if openshell_agent_exec /usr/local/bin/node -e "$(cat <<'JS'
       const fs = require("node:fs");
       const model = process.argv[1];
       const agent = process.env.HARNESS_AGENT;
@@ -676,7 +673,8 @@ openshell_wait_agent_config() {
         const legacyModel = agent === "hermes" ? model : `openai:${model}`;
         if (!config.includes(legacyModel) || !config.includes(endpoint)) process.exit(1);
       }
-    ' "$model" >/dev/null 2>&1; then
+JS
+    )" "$model" >/dev/null 2>&1; then
       return 0
     fi
     sleep 2

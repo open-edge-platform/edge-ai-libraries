@@ -10,16 +10,15 @@ if [[ "${HARNESS_AGENT:-}" == openclaw ]]; then
   chmod 700 "$SQLITE_TMPDIR"
 fi
 if [[ -f "$HOME/.harness-model.json" ]]; then
-  # The template expression is JavaScript, not shell.
-  # shellcheck disable=SC2016
-  selection="$(node -e '
+  selection="$(node <<'JS'
     const fs = require("node:fs");
     const s = JSON.parse(fs.readFileSync(`${process.env.HOME}/.harness-model.json`, "utf8"));
     if (typeof s.model !== "string" || !s.model || /[\x00-\x1f]/.test(s.model) ||
         typeof s.endpoint !== "string" || /[\x00-\x1f]/.test(s.endpoint))
       throw Error("Invalid persisted sandbox model");
     console.log(s.model); console.log(s.endpoint);
-  ')"
+JS
+  )"
   mapfile -t fields <<<"$selection"
   export HARNESS_SANDBOX_MODEL="${fields[0]}"
   export HARNESS_SANDBOX_ENDPOINT="${fields[1]}"
@@ -64,12 +63,10 @@ configure_hermes_config() (
   if [[ -f "${hermes_home}/config.yaml" ]]; then
     cp -- "${hermes_home}/config.yaml" "${staged_home}/config.yaml"
   fi
-  # This staged child intentionally has its own Hermes environment.
-  # shellcheck disable=SC2030
-  export HERMES_HOME="$hermes_home"
-  export HARNESS_HERMES_CONFIG_FILE="${staged_home}/config.yaml"
-  export HARNESS_MODEL_CONFIG_STAGE_DIR="$state_dir"
-  node "${HARNESS_MODEL_CONFIG_SCRIPT:-/opt/harness/model-config.mjs}" \
+  HERMES_HOME="$hermes_home" \
+    HARNESS_HERMES_CONFIG_FILE="${staged_home}/config.yaml" \
+    HARNESS_MODEL_CONFIG_STAGE_DIR="$state_dir" \
+    node "${HARNESS_MODEL_CONFIG_SCRIPT:-/opt/harness/model-config.mjs}" \
     hermes "$HARNESS_SANDBOX_MODEL" "$HARNESS_SANDBOX_ENDPOINT" stage
   [[ -s "${staged_home}/config.yaml" ]] \
     || { printf 'Hermes configuration was not created.\n' >&2; return 1; }
@@ -111,8 +108,6 @@ JS
     ;;
   hermes)
     # OpenShell sets HOME independently; Hermes must still find its image-installed environment.
-    # This parent value is independent of the staged child's export.
-    # shellcheck disable=SC2031
     export HERMES_HOME="${HERMES_HOME:-/home/node/.hermes}"
     configure_hermes_config "$HERMES_HOME"
     # Hermes is launched interactively by the connect command; no messaging service is enabled.
@@ -121,11 +116,10 @@ JS
   deepagents-code)
     agent_lib_dir="${HARNESS_AGENT_LIB_DIR:-/opt/harness/lib}"
     # Reuse the host installer’s provider writer so TOML escaping and user settings stay consistent.
-    # These libraries are copied into the runtime image.
-    # shellcheck disable=SC1090,SC1091
+    # Analyze the same repository libraries copied into the runtime image.
+    # shellcheck source=../scripts/lib/colors.sh
     source "$agent_lib_dir/colors.sh"
-    # These libraries are copied into the runtime image.
-    # shellcheck disable=SC1090,SC1091
+    # shellcheck source=../scripts/lib/agents.sh
     source "$agent_lib_dir/agents.sh"
     configure_dcode_provider "$HARNESS_SANDBOX_ENDPOINT" "$HARNESS_SANDBOX_MODEL"
     configure_dcode_qwen_defaults

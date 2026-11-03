@@ -37,7 +37,7 @@ sudo apt-get update
 sudo apt-get install -y --no-install-recommends shellcheck
 # From frameworks/agent-harness-install, using Bash:
 mapfile -d '' shell_files < <(find . -type d \( -name test -o -name tests -o -name node_modules -o -name .venv \) -prune -o -type f -name '*.sh' -print0)
-shellcheck --severity=style "${shell_files[@]}"
+shellcheck --source-path=SCRIPTDIR --severity=style "${shell_files[@]}"
 mapfile -d '' js_files < <(find . -type d \( -name test -o -name tests -o -name node_modules -o -name .venv \) -prune -o -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.cjs' \) -print0)
 for file in "${js_files[@]}"; do
   node --check "$file" || exit
@@ -50,22 +50,28 @@ merging when it fails; adding the workflow alone does not configure that policy.
 
 ### Runtime evidence for suppressed diagnostics
 
-The static job also runs `bash test/shellcheck-runtime-test.sh`. Its 24 cases
+The static job also runs `bash test/shellcheck-runtime-test.sh`. Its 26 cases
 execute production functions with disposable HOME/TMPDIR directories, a local
 Git fixture and command doubles. It never invokes real Docker, sudo, OpenShell,
 downloads or agent installation.
 
 | Suppressed pattern | Runtime evidence |
 |---|---|
-| Early cleanup-trap expansion (SC2064) | Real standalone bootstrap with a local repository; temporary clone removed after `main` returns on both payload success and failure; failure status retained |
-| Deferred shell expansion (SC2016) | Generated Bash profile expands the new shell's PATH, not the writer's; repeated setup is idempotent |
+| Subshell-scoped cleanup (SC2064 suppression removed) | Real standalone bootstrap with a local repository; temporary clone removed on payload success and failure; failure status retained |
+| Explicit deferred shell expansion (SC2016 suppression removed) | Generated Bash profile expands the new shell's PATH, not the writer's; repeated setup is idempotent |
 | Runtime sourcing (SC1091) | Real Bash sources a disposable nvm fixture; absent nvm is tolerated |
 | Explicit fail-closed guards (SC2015 suppressions removed) | Both IR/OVMS launch functions reject failed and empty address resolution before Docker launch and forward a valid loopback binding; both OpenShell guards reject nonnumeric/out-of-range ports |
 | Explicit generation/publication cleanup (SC2015 suppressions removed) | Real Node config generation plus injected generation and rename failures for add/remove; errors propagate, original config survives, temporary files are removed |
 | Explicit optional npm query (SC2015 suppression removed) | Missing/failed version queries use the fallback; a valid version enables the required install flag; installation is a command double |
-| Hermes child environment (SC2030/SC2031) | Actual startup script stages config in the child, preserves the parent's environment, removes staged files, and preserves live config on injected staging failure |
-| Cross-helper variables (SC2034) / explicit arithmetic retry counter | Existing model lifecycle/CLI tests exercise model selection and agent routing; existing OpenShell cleanup tests exercise successful and pending deletion; the retry counter no longer needs suppression |
-| Embedded JavaScript / image libraries (SC2016/SC1091) | Existing startup, persisted-model readiness and lifecycle tests execute Node and source installer libraries using fixtures |
+| Command-scoped Hermes environment (SC2030/SC2031 suppressions removed) | Actual startup script stages config in the child, preserves the parent's environment, removes staged files, and preserves live config on injected staging failure |
+| Statically visible helper variables / explicit arithmetic retry counter (SC2034 suppressions removed) | Existing model lifecycle/CLI tests exercise model selection and agent routing; existing OpenShell cleanup tests exercise successful and pending deletion |
+| Literal JavaScript heredocs / repository-backed image sources (SC2016 and image SC1091 suppressions removed) | Startup, persisted-model readiness and lifecycle tests execute Node and source installer libraries; registry listing verifies its script argument; a fixture installer exercises child Bash arguments, transient failure status and retry |
+
+Repository-owned sources have explicit `shellcheck source` paths, resolved using
+`--source-path=SCRIPTDIR` against the real production files passed to the scan.
+This exposes helper variable reads instead of disabling unused-variable checks.
+The remaining PR-added SC1091 directives cover external nvm and two reads of
+the target host's `/etc/os-release`; no empty analyzer stubs are substituted.
 
 These are behavior tests, not proof that every suppressed location is safe in
 every deployment. Fish/csh profile output, real distro metadata, the upstream nvm

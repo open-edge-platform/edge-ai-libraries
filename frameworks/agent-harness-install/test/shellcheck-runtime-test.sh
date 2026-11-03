@@ -222,6 +222,40 @@ SH
   [[ -z "$(find "$HOME" -name '.harness-config.*' -o -name '.harness-config-state.*')" ]]
 }
 
+hermes_child_retry() {
+  fixture
+  local installer="$HOME/installer.sh"
+  cat >"$installer" <<'SH'
+#!/usr/bin/env bash
+[[ "$1" == --skip-setup && "$2" == --non-interactive && "$3" == --commit && -n "$4" ]]
+if [[ ! -f "$HOME/retried" ]]; then
+  touch "$HOME/retried"
+  printf 'TLS connection reset\n'
+  exit 73
+fi
+printf 'fixture install completed\n'
+touch "$HOME/installed"
+SH
+  fetch_and_verify() { cp "$installer" "$2"; }
+  assert_shell_script() { :; }
+  sleep() { :; }
+  unset HERMES_INSTALL_URL HERMES_INSTALL_SHA256
+  install_hermes
+  [[ -f "$HOME/retried" && -f "$HOME/installed" ]]
+  [[ -z "$(find "$TMPDIR" -mindepth 1 -print -quit)" ]]
+}
+
+unregistered_model_listing() {
+  fixture
+  local registry="$HOME/registry.json"
+  mkdir -p "$HARNESS_MODELS_DIR"
+  printf '%s\n' '{"fixture-model":{"hub":"huggingface"}}' >"$registry"
+  unregistered_downloads_file() { printf '%s' "$registry"; }
+  local listing
+  listing="$(list_exported_models)"
+  [[ "$listing" == $'  fixture-model\t(hub: huggingface, not served by OVMS)' ]]
+}
+
 printf 'TAP version 13\n'
 run_case 'generated Bash PATH expands in the future shell and remains idempotent' profile_deferred_path
 run_case 'nvm sources a runtime fixture and tolerates its absence' nvm_runtime_source
@@ -245,4 +279,6 @@ for npm_mode in absent failed valid; do
 done
 run_case 'Hermes staging preserves parent environment and cleans staged files' hermes_stage no
 run_case 'Hermes staging failure preserves config and cleans staged files' hermes_stage yes
+run_case 'Hermes child Bash preserves installer arguments and retries a transient failure' hermes_child_retry
+run_case 'unregistered model listing executes its literal JavaScript with the registry argument' unregistered_model_listing
 finish_tests
