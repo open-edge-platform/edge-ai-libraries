@@ -58,19 +58,6 @@ make run CONFIG_FILE=/path/to/config.json
 ```
 
 If you omit `CONFIG_FILE`, these Make targets use the default configuration file.
-They do not use an inherited `SM_CONFIG_FILE` value.
-
-When you run the binary directly, use these environment variables:
-
-| Variable | Purpose |
-| --- | --- |
-| `SM_CONFIG_FILE` | Configuration file path. The default is `config.json` in the current directory. |
-| `SM_DATA_DIR` | Override `StorageDir`. |
-| `SM_HTTP_ADDR` | Override `HTTPAddr`. |
-
-Stream Manager applies settings in this order: built-in defaults, configuration
-file, then environment variables. Later values override earlier values.
-`SM_DATA_DIR` and `SM_HTTP_ADDR` also apply to host runs through Make.
 
 See [Build From Source](build-from-source.md) for build instructions
 and instructions to run the application on the host.
