@@ -42,3 +42,27 @@ dual-dispatch contract documented above. The OpenCV adapters convert
 `cv::Mat`/`cv::KeyPoint` around the core Extractor only; they are not OpenCV
 features2d SIFT or Phase D upstream work. Release soak, held-out quality and
 REUSE gates remain open.
+
+## Arc Python extract + native vs wrapper (2026-11-03)
+
+Dual `icpx` OpenCL+SYCL+Python install staged to Arc (`labrat`) with the usual
+**portable `sycl-runtime`** payload. Arc does **not** ship a system
+`/opt/intel/oneapi`/`icpx` install; SYCL Arc work (including prior perf runs)
+uses that staged runtime + `ONEAPI_DEVICE_SELECTOR=level_zero:gpu`.
+
+Fixture: historical `input.pgm` 1280×960. Protocol: 3 warmups / 30 samples,
+counterbalanced native↔Python order per backend. Module reports
+`available_backends=['opencl','sycl']`, Auto→`sycl`.
+
+| Path | OpenCL median ms (2 runs) | SYCL median ms (2 runs) |
+| --- | --- | --- |
+| Native | 12.07 / 13.46 (mean 12.77) | 10.63 / 10.62 (mean 10.63) |
+| Python | 15.23 / 15.14 (mean 15.18) | 12.19 / 12.00 (mean 12.09) |
+| Wrapper overhead | ~+19.0% | ~+13.8% |
+| Features | 1980 | 3826 |
+
+Feature-count mismatch is expected under unequal backend contracts—not a
+quality-parity or CudaSift-floor claim. Python timing includes GIL-released
+extract plus list/dict/descriptor materialization. Exploratory within-host
+evidence only; not a release soak. Workspace summary:
+`results/20261102/arc-python-timing/dual-summary.json`.

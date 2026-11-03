@@ -76,6 +76,12 @@ features = ext.extract(np.zeros((64, 64), dtype=np.float32))
 ```
 
 Native sample: `extract_sift [auto|opencl|sycl]`.
+Matched timing: `time_sift_extract` and `share/sift_extractor/time_sift_extract.py`
+(`[backend] [W] [H] [warmups] [samples] [seed] [image.pgm]`). Arc dual
+OpenCL+SYCL Python extract and native-vs-wrapper exploratory timing (2026-11-03)
+is recorded under the SIFT workspace
+`results/20261102/arc-python-timing/dual-summary.json` (staged portable
+`sycl-runtime` on Arc; no system oneAPI install required there).
 
 Optional OpenCV adapters (`-DSIFT_BUILD_OPENCV_ADAPTER=ON`, OpenCV `core` only):
 
