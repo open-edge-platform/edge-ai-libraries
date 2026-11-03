@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
+
 import { Input } from "@/components/ui/input";
 import {
   DEEP_SORT_PARAMS,
@@ -121,5 +124,3 @@ const GVATrackNodeDeepSortParams = ({
 };
 
 export default GVATrackNodeDeepSortParams;
-// SPDX-FileCopyrightText: (C) 2026 Intel Corporation
-// SPDX-License-Identifier: Apache-2.0
