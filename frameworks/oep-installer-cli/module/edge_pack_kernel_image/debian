@@ -32,7 +32,7 @@ debian_25_install_edge_pack_kernel_image () {
     ensure_grub_set_default_entry $pkgver
     ensure_grub_set_kernel_args GRUB_CMDLINE_LINUX "${cmdline[@]}"
 
-    # schedule reboot"
+    # schedule reboot
     configure_reboot
   fi
 }
