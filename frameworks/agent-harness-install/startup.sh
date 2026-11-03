@@ -110,6 +110,8 @@ main() {
 
   printf "\n${C_GREEN}${C_BOLD}agent-harness-install — Prerequisite Setup${C_RESET}\n\n"
 
+  assert_proxy_env_well_formed
+
   if [[ -z "$SKIP_BASE" ]]; then
     info "Checking base tools (curl, git)…"
     ensure_base_tools
