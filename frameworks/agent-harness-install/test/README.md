@@ -48,33 +48,33 @@ The workflow fails if either file list is empty. The static job must be selected
 as a required status check in repository branch protection/rulesets to prevent
 merging when it fails; adding the workflow alone does not configure that policy.
 
-### Runtime evidence for suppressed diagnostics
+### Installer runtime regression
 
-The static job also runs `bash test/shellcheck-runtime-test.sh`. Its 26 cases
+The offline job runs `bash test/installer-runtime-test.sh`. Its 26 cases
 execute production functions with disposable HOME/TMPDIR directories, a local
 Git fixture and command doubles. It never invokes real Docker, sudo, OpenShell,
 downloads or agent installation.
 
-| Suppressed pattern | Runtime evidence |
+| Behavior | Runtime evidence |
 |---|---|
-| Subshell-scoped cleanup (SC2064 suppression removed) | Real standalone bootstrap with a local repository; temporary clone removed on payload success and failure; failure status retained |
-| Explicit deferred shell expansion (SC2016 suppression removed) | Generated Bash profile expands the new shell's PATH, not the writer's; repeated setup is idempotent |
-| Runtime sourcing (SC1091) | Real Bash sources a disposable nvm fixture; absent nvm is tolerated |
-| Explicit fail-closed guards (SC2015 suppressions removed) | Both IR/OVMS launch functions reject failed and empty address resolution before Docker launch and forward a valid loopback binding; both OpenShell guards reject nonnumeric/out-of-range ports |
-| Explicit generation/publication cleanup (SC2015 suppressions removed) | Real Node config generation plus injected generation and rename failures for add/remove; errors propagate, original config survives, temporary files are removed |
-| Explicit optional npm query (SC2015 suppression removed) | Missing/failed version queries use the fallback; a valid version enables the required install flag; installation is a command double |
-| Command-scoped Hermes environment (SC2030/SC2031 suppressions removed) | Actual startup script stages config in the child, preserves the parent's environment, removes staged files, and preserves live config on injected staging failure |
-| Statically visible helper variables / explicit arithmetic retry counter (SC2034 suppressions removed) | Existing model lifecycle/CLI tests exercise model selection and agent routing; existing OpenShell cleanup tests exercise successful and pending deletion |
-| Literal JavaScript heredocs / repository-backed image sources (SC2016 and image SC1091 suppressions removed) | Startup, persisted-model readiness and lifecycle tests execute Node and source installer libraries; registry listing verifies its script argument; a fixture installer exercises child Bash arguments, transient failure status and retry |
+| Bootstrap cleanup | Real standalone bootstrap with a local repository; temporary clone removed on payload success and failure; failure status retained |
+| Deferred shell expansion | Generated Bash profile expands the new shell's PATH, not the writer's; repeated setup is idempotent |
+| Runtime sourcing | Real Bash sources a disposable nvm fixture; absent nvm is tolerated |
+| Fail-closed guards | Both IR/OVMS launch functions reject failed and empty address resolution before Docker launch and forward a valid loopback binding; both OpenShell guards reject nonnumeric/out-of-range ports |
+| Configuration publication | Real Node config generation plus injected generation and rename failures for add/remove; errors propagate, original config survives, temporary files are removed |
+| Optional npm query | Missing/failed version queries use the fallback; a valid version enables the required install flag; installation is a command double |
+| Hermes staging | Actual startup script stages config in the child, preserves the parent's environment, removes staged files, and preserves live config on injected staging failure |
+| Registry listing and installer retry | Registry listing verifies its JavaScript argument; a fixture installer exercises child Bash arguments, transient failure status and retry |
 
-Repository-owned sources have explicit `shellcheck source` paths, resolved using
-`--source-path=SCRIPTDIR` against the real production files passed to the scan.
-This exposes helper variable reads instead of disabling unused-variable checks.
-The remaining PR-added SC1091 directives cover external nvm and two reads of
-the target host's `/etc/os-release`; no empty analyzer stubs are substituted.
+These complement existing startup/lifecycle tests: Hermes staging cases here
+check parent-environment isolation and injected failure, whereas the startup
+suite checks publication order, permissions and native configuration preservation.
+No duplicate suite invocation is added to the all-in-one OpenShell command.
+CI records this suite in `runtime.tap` and includes its outcome and counts in
+the offline summary and uploaded reports.
 
-These are behavior tests, not proof that every suppressed location is safe in
-every deployment. Fish/csh profile output, real distro metadata, the upstream nvm
+These are fixture-based behavior tests, not live deployment acceptance.
+Fish/csh profile output, real distro metadata, the upstream nvm
 implementation, Hermes's real bundled Python/YAML runtime, network access and
 Docker/OpenShell lifecycle require their matching environment/integration checks.
 Do not treat fixture-based success as live deployment acceptance.

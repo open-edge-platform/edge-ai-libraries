@@ -33,6 +33,7 @@ export function parseTap(text) {
 }
 
 const suites = [
+  ["runtime", "Installer runtime regression"],
   ["core", "OpenShell startup, runtime and boundaries"],
   ["inference", "Managed inference"],
   ["lifecycle", "Model lifecycle and CLI"],

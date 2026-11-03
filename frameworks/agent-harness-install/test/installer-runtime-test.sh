@@ -259,7 +259,7 @@ unregistered_model_listing() {
 printf 'TAP version 13\n'
 run_case 'generated Bash PATH expands in the future shell and remains idempotent' profile_deferred_path
 run_case 'nvm sources a runtime fixture and tolerates its absence' nvm_runtime_source
-run_case 'bootstrap trap cleans after main returns successfully' bootstrap_cleanup 0
+run_case 'bootstrap subshell cleans temporary clone after successful payload' bootstrap_cleanup 0
 run_case 'bootstrap trap cleans and preserves payload failure' bootstrap_cleanup 17
 for component in ir ovms; do
   for resolution in failure empty valid; do

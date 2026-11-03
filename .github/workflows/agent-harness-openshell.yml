@@ -62,9 +62,6 @@ jobs:
           for file in "${files[@]}"; do
             node --check "$file"
           done
-      - name: Suppressed-pattern runtime regressions (isolated fixtures)
-        working-directory: frameworks/agent-harness-install
-        run: bash test/shellcheck-runtime-test.sh
 
   offline:
     name: OpenShell offline gate
@@ -91,6 +88,13 @@ jobs:
           bash -n install.sh
           bash -n uninstall.sh
           mkdir -p "$RUNNER_TEMP/openshell-offline"
+      - name: Installer runtime regression
+        id: runtime
+        if: ${{ !cancelled() && steps.syntax.outcome == 'success' }}
+        working-directory: frameworks/agent-harness-install
+        run: |
+          set -euo pipefail
+          bash test/installer-runtime-test.sh | tee "$RUNNER_TEMP/openshell-offline/runtime.tap"
       - name: OpenShell startup, runtime and boundaries
         id: core
         if: ${{ !cancelled() && steps.syntax.outcome == 'success' }}
@@ -130,7 +134,7 @@ jobs:
         if: always()
         working-directory: frameworks/agent-harness-install
         env:
-          TEST_STEP_OUTCOMES: '{"core":"${{ steps.core.outcome }}","inference":"${{ steps.inference.outcome }}","lifecycle":"${{ steps.lifecycle.outcome }}","defaults":"${{ steps.defaults.outcome }}","reporting":"${{ steps.reporting.outcome }}"}'
+          TEST_STEP_OUTCOMES: '{"runtime":"${{ steps.runtime.outcome }}","core":"${{ steps.core.outcome }}","inference":"${{ steps.inference.outcome }}","lifecycle":"${{ steps.lifecycle.outcome }}","defaults":"${{ steps.defaults.outcome }}","reporting":"${{ steps.reporting.outcome }}"}'
         run: node test/tap-summary.mjs "$RUNNER_TEMP/openshell-offline"
       - name: Upload offline TAP reports
         if: always()
