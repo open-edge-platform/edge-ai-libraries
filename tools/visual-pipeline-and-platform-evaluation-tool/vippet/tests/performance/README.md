@@ -43,7 +43,7 @@ make test-performance PERF_CONFIG=full   # all variants, 1/3/5/10 streams
 
 # Extra CLI flags via PERF_ARGS
 make test-performance PERF_ARGS="--dry-run"
-make test-performance PERF_CONFIG=quick PERF_ARGS="--streams 1,5 --pipelines object-detection"
+make test-performance PERF_CONFIG=quick PERF_ARGS="--streams 1,5 --pipelines goods-detection"
 make test-performance PERF_ARGS="--report-only"   # rebuild HTML from results/latest
 
 # Verbose: stream INFO logs live (arguments after `--` go to pytest).
@@ -69,7 +69,7 @@ python -m perf_helpers.cli --variants cpu,gpu --streams 1,3,5 --results-dir /tmp
 python -m perf_helpers.cli --config ./my-config.yaml
 
 # Arguments after `--` go to pytest unchanged
-python -m perf_helpers.cli --streams 1 -- -k object_detection --junitxml=results/perf.xml
+python -m perf_helpers.cli --streams 1 -- -k goods_detection --junitxml=results/perf.xml
 ```
 
 The CLI builds the effective configuration and runs `python -m pytest -m perf` in a
@@ -122,12 +122,12 @@ It prints:
 Matrix: 4 run(s) = pipeline x variant x streams [1, 3]
 pipeline          variant  streams  test id
 ----------------  -------  -------  -----------------------
-object-detection  CPU      1        object_detection_cpu_x1
+goods-detection  CPU      1        goods_detection_cpu_x1
 ...
 Excluded: 2 pipeline/variant(s)
 pipeline          variant  reason              detail
 ----------------  -------  ------------------  ------------------------------------------
-object-detection  NPU      unsupported_family  host does not report ['NPU']
+goods-detection  NPU      unsupported_family  host does not report ['NPU']
 smart-parking     (all)    skip_pipelines      listed in benchmark.filters.skip_pipelines
 ```
 
@@ -191,7 +191,7 @@ CLI flags in this mode:
 python -m pytest --collect-only vippet/tests/performance/
 
 # Run a specific pipeline
-python -m pytest -m perf -k "object_detection" vippet/tests/performance/
+python -m pytest -m perf -k "goods_detection" vippet/tests/performance/
 
 # Generate JUnit XML for CI
 python -m pytest -m perf --junitxml=results/perf.xml vippet/tests/performance/
@@ -480,11 +480,11 @@ config also prints a one-line error and exits with `2`.
 
 ### Reproducing a run
 
-Every result JSON has a `config` block with the effective configuration of the run
-(see [Reports](#reports)). Pass the JSON, or its run directory, as the config to run
-the same benchmark again. Run these from the project root
-(`tools/visual-pipeline-and-platform-evaluation-tool`), because paths are resolved
-against the current working directory:
+Each benchmark run saves a result JSON (`results.formats` must include `json`).
+Its `config` block records the settings the run used (see [Reports](#reports)).
+Pass the JSON, or its run directory, as the config to run the same benchmark again.
+Run these from the project root (`tools/visual-pipeline-and-platform-evaluation-tool`),
+because paths are resolved against the current working directory:
 
 ```bash
 # via make (sets PYTHONPATH for you)
