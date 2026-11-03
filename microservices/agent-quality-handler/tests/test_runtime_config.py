@@ -6,10 +6,10 @@ import pytest
 from src.utility.runtime_config import ConfigurationError, load_runtime_settings
 
 
-def test_defaults_are_standalone_fallback():
+def test_defaults_use_llm_mode():
     settings = load_runtime_settings()
 
-    assert settings.llm_mode == "fallback"
+    assert settings.llm_mode == "llm"
     assert settings.mqtt_enabled is True
     assert settings.mqtt_host == "mqtt-broker"
     assert settings.mqtt_qos == 1

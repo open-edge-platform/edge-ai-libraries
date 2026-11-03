@@ -8,6 +8,7 @@ import api.api_schemas as schemas
 from internal_types import (
     InternalCamera,
     InternalCameraProfileInfo,
+    InternalGigECameraDetails,
     InternalNetworkCameraDetails,
     InternalUSBCameraDetails,
 )
@@ -35,15 +36,16 @@ logger = logging.getLogger("api.routes.cameras")
 )
 def get_cameras():
     """
-    **Get all cameras (both USB and network) available to the system.**
+    **Get all cameras (USB, network and GigE Vision) available to the system.**
 
     ## Operation
-    Combines results from both USB and network camera discovery to provide
+    Combines results from USB, network and GigE Vision camera discovery to provide
     a comprehensive list of all available camera devices.
 
     1. Discover all USB cameras using v4l2-ctl or device scanning
     2. Discover all network cameras using various protocols
-    3. Combine and return the complete list
+    3. Discover all GigE Vision cameras using Aravis
+    4. Combine and return the complete list
 
     ## Parameters
     - **Path/Query parameters:** None
@@ -52,7 +54,7 @@ def get_cameras():
 
     | Code | Description |
     |------|-------------|
-    | 200 | JSON array of Camera objects (USB and network cameras) |
+    | 200 | JSON array of Camera objects (USB, network and GigE Vision cameras) |
     | 500 | `MessageResponse` - Unexpected error during discovery |
 
     ## Conditions
@@ -87,6 +89,23 @@ def get_cameras():
           "ip": "192.168.1.100",
           "port": 80,
           "profiles": []
+        }
+      },
+      {
+        "device_id": "gige-camera-basler-12345678",
+        "device_name": "Basler acA1920-25gc",
+        "device_type": "GIGE",
+        "details": {
+          "ip": "192.168.1.50",
+          "vendor": "Basler",
+          "model": "acA1920-25gc",
+          "serial": "12345678",
+          "current_capture": {
+            "pixel_format": "BayerRG8",
+            "width": 1920,
+            "height": 1080,
+            "fps": 25.0
+          }
         }
       }
     ]
@@ -358,7 +377,7 @@ def _internal_camera_to_api(camera: InternalCamera) -> schemas.Camera:
     """
     Convert InternalCamera to API Camera.
 
-    Converts internal camera details (USB or network) to the
+    Converts internal camera details (USB, network or GigE Vision) to the
     corresponding API detail type.
 
     Args:
@@ -367,6 +386,11 @@ def _internal_camera_to_api(camera: InternalCamera) -> schemas.Camera:
     Returns:
         Camera ready for API response.
     """
+    api_details: (
+        schemas.USBCameraDetails
+        | schemas.NetworkCameraDetails
+        | schemas.GigECameraDetails
+    )
     if isinstance(camera.details, InternalUSBCameraDetails):
         best_capture = None
         if camera.details.best_capture is not None:
@@ -376,11 +400,9 @@ def _internal_camera_to_api(camera: InternalCamera) -> schemas.Camera:
                 height=camera.details.best_capture.height,
                 fps=camera.details.best_capture.fps,
             )
-        api_details: schemas.USBCameraDetails | schemas.NetworkCameraDetails = (
-            schemas.USBCameraDetails(
-                device_path=camera.details.device_path,
-                best_capture=best_capture,
-            )
+        api_details = schemas.USBCameraDetails(
+            device_path=camera.details.device_path,
+            best_capture=best_capture,
         )
     elif isinstance(camera.details, InternalNetworkCameraDetails):
         api_profiles = [_internal_profile_to_api(p) for p in camera.details.profiles]
@@ -392,6 +414,22 @@ def _internal_camera_to_api(camera: InternalCamera) -> schemas.Camera:
             port=camera.details.port,
             profiles=api_profiles,
             best_profile=best_profile,
+        )
+    elif isinstance(camera.details, InternalGigECameraDetails):
+        capture = camera.details.current_capture
+        api_details = schemas.GigECameraDetails(
+            ip=camera.details.ip,
+            vendor=camera.details.vendor,
+            model=camera.details.model,
+            serial=camera.details.serial,
+            current_capture=schemas.GigECapture(
+                pixel_format=capture.pixel_format,
+                width=capture.width,
+                height=capture.height,
+                fps=capture.fps,
+            )
+            if capture is not None
+            else None,
         )
     else:
         raise ValueError(f"Unknown camera details type: {type(camera.details)}")

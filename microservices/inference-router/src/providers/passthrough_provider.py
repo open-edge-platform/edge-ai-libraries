@@ -34,6 +34,7 @@ from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse, Response
 
 from src.config.base import ProviderConfig
+from src.providers.probes import ProbeHost
 
 
 logger = logging.getLogger(__name__)
@@ -73,7 +74,7 @@ PASSTHROUGH_SERVICES: dict[str, PassthroughSpec] = {
 PASSTHROUGH_TYPES = frozenset(PASSTHROUGH_SERVICES)
 
 
-class PassthroughProvider:
+class PassthroughProvider(ProbeHost):
     """Forwards requests verbatim to a backing service.
 
     Built by ``create_provider`` for any provider whose ``type`` is in
@@ -105,6 +106,11 @@ class PassthroughProvider:
         self.auth_scheme = (auth.get("scheme") or "bearer").lower()
         self.api_key = None if self.auth_scheme == "none" else auth.get("api_key")
         self.custom_headers = dict(auth.get("custom_headers") or {})
+        # Raw probe specs (see ProbeHost); parsed lazily on start_probes(). A
+        # pass-through provider carries no routing metadata, so probes here
+        # publish to a file sink (a metadata sink is a no-op).
+        self.probe_specs = settings.get("probes") or []
+        self._probes = {}
 
     def _upstream_url(self) -> str:
         """Resolve the full upstream URL, appending the service subpath if absent."""

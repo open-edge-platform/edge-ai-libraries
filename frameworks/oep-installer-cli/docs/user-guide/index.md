@@ -44,8 +44,11 @@ Select a profile and one or more modules above to get their exact command.
 For example, selecting Smart Parking and Smart Intersection with GPU generates:
 
 ```bash
-curl -sSfL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install smart_intersection smart_parking --gpu start
+curl -sSfL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install smart_intersection smart_parking --gpu
 ```
+
+When multiple modules are selected, the generated install command does not
+append `start`; use the targeted Start command in Next Steps if desired.
 
 The **Computer Vision** and **Inferencing** profiles install every module in the
 profile at once, so they do not require a module selection. Their modules are
@@ -66,22 +69,20 @@ curl -fsS https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries
 
 ## Start and Stop
 
-After the automatic initial start, start or stop supported modules again:
+When exactly one start/stop-capable module is selected, installation starts it
+automatically. Multiple selected modules are installed without an automatic
+start. To start or stop selected modules from the Web UI, use the commands in
+Next Steps:
 
 ```bash
-openedge-cli start
-openedge-cli stop
+openedge-cli start <module_name>
+openedge-cli stop <module_name>
 ```
 
-The tool shows Start and Stop when at least one selected module supports them.
-These commands use the CLI's local state, not the browser selection:
-Start uses the saved module selection, while Stop stops all previously started
-modules, including those outside the current Web UI selection. Changing the
-selection in the browser does not update the CLI's saved selection.
-
-To target particular modules instead, specify their names explicitly, for
-example `openedge-cli stop smart_intersection smart_parking`. When a module
-starts, the installer prints any runtime details (such as a URL) on the terminal.
+The Web UI shows Start and Stop when at least one selected module supports them.
+For a multiple-module selection, run the command once per eligible module,
+replacing `<module_name>` with its name. When a module starts, the installer
+prints any runtime details (such as a URL) on the terminal.
 
 ## Remove
 
@@ -89,13 +90,13 @@ Next Steps also shows **Remove** for modules that support removal, independently
 of Start/Stop support:
 
 ```bash
-openedge-cli remove
+openedge-cli remove <module_name>
 ```
 
-Remove uses the CLI's saved module selection, which may differ from the current
-Web UI selection. It is not equivalent to `remove --remove-all`. To target
-particular modules or a profile, specify names explicitly, for example
-`openedge-cli remove smart_intersection smart_parking` or
+For a multiple-module selection, run the command once per selected removable
+module, replacing `<module_name>` with its name. It is not equivalent to
+`remove --remove-all`. For an install-all profile that supports removal, the
+command names the selected profile, for example
 `openedge-cli remove computer_vision`.
 
 The short Remove command is also shown for removable install-all profiles.

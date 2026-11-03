@@ -1,0 +1,19 @@
+# Keep the build context lean.
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+Dockerfile
+.dockerignore
+docker-compose.yml
+docker-compose.yaml
+workspace/
+# Local virtual environments: the image installs its own dependencies.
+.venv/
+venv/
+*.db
+*.md
+!README.md

@@ -1,29 +1,15 @@
-
-# Physical AI Studio - the end-to-end Physical AI application (the
-# `physicalai-studio` distribution): a FastAPI backend + web UI for
-# demonstration-data collection (RealSense / USB / GenICam cameras,
-# WebRTC streaming), dataset management, and orchestrating VLA policy
-# training/export on top of the Physical AI Framework. Installed as a uv
-# tool (isolated environment on PATH) with the PyTorch build matched to
-# the local accelerator (Intel XPU, NVIDIA CUDA, or CPU).
-# https://github.com/open-edge-platform/physical-ai-studio
 configure_physical_ai_studio () {
   pais_pkg="physicalai-studio"
   pais_version=0.2.0
   pais_bin="$HOME/.local/bin/physicalai-studio"
-  # runtime state for the long-running `serve` process (native, non-docker)
   pais_run_dir="$(ensure_project_path)/physical-ai-studio"
   pais_pid_file="$pais_run_dir/physicalai-studio.pid"
   pais_log_file="$pais_run_dir/physicalai-studio.logs"
   pais_device_file="$pais_run_dir/.device"
-  # the app binds to 127.0.0.1 by default
-  pais_port=7860
+  used_ports=(7860)
 }
 
-# select the PyTorch build (pais_extra) and wheel index (pais_index):
-#   --gpu -> Intel XPU   --cpu -> CPU   --npu -> XPU if a GPU is present, else CPU
-# NVIDIA CUDA is used when nvidia-smi is present and no device option is given.
-# Without a device option, a previously installed build is kept.
+# Reuse the saved PyTorch device build unless the user selects another device.
 configure_physical_ai_studio_device () {
   local args_uc=" ${*^^} "
   if [[ "$args_uc" != *" --GPU "* && "$args_uc" != *" --CPU "* && "$args_uc" != *" --NPU "* ]] && [ -r "$pais_device_file" ]; then
@@ -32,7 +18,7 @@ configure_physical_ai_studio_device () {
     pais_extra=cuda
   else
     pais_extra=cpu
-    [ "$(ensure_select_device "$@")" = cpu ] || [ ! -e /dev/dri/renderD128 ] || pais_extra=xpu
+    [ "$(ensure_parse_device "$@")" = cpu ] || [ ! -e /dev/dri/renderD128 ] || pais_extra=xpu
   fi
   case "$pais_extra" in
   cuda) pais_index="https://download.pytorch.org/whl/cu128" ;;
@@ -62,7 +48,7 @@ debian_90_install_physical_ai_studio () {
     echo "Physical AI Studio is installed." >&2
   else
     ensure_disk_size 20000
-    ensure_ports_open install physical_ai_studio "$pais_port"
+    ensure_ports_open install physical_ai_studio "${used_ports[@]}"
 
     debian_90_stop_physical_ai_studio "$@" || true
     ensure_rm "$pais_device_file"
@@ -88,8 +74,7 @@ debian_90_install_physical_ai_studio () {
 
 debian_90_start_physical_ai_studio () {
   configure_physical_ai_studio
-  # stop any instance already holding the port before starting a new one
-  ensure_ports_open start physical_ai_studio "$pais_port"
+  ensure_ports_open start physical_ai_studio "${used_ports[@]}"
 
   if [ ! -x "$pais_bin" ]; then
     echo "Physical AI Studio is not installed. Run 'install physical_ai_studio' first." 1>&2
@@ -105,12 +90,11 @@ debian_90_start_physical_ai_studio () {
     for fd in /proc/$BASHPID/fd/*; do
       fd=${fd##*/}; (( fd > 2 )) && eval "exec $fd>&-"
     done 2> /dev/null
-    exec setsid nohup "$pais_bin" serve --port "$pais_port" > "$pais_log_file" 2>&1 < /dev/null
+    exec setsid nohup "$pais_bin" serve --port "${used_ports[0]}" > "$pais_log_file" 2>&1 < /dev/null
   ) &
   echo $! > "$pais_pid_file"
   disown $! 2> /dev/null || true
 
-  # wait for the server to accept connections instead of a fixed delay
   local pid i ready=0
   pid="$(cat "$pais_pid_file")"
   for i in $(seq 1 60); do
@@ -119,15 +103,15 @@ debian_90_start_physical_ai_studio () {
       rm -f "$pais_pid_file"
       return 3
     fi
-    curl -s -o /dev/null --max-time 2 "http://127.0.0.1:$pais_port/" && { ready=1; break; }
+    curl -s -o /dev/null --max-time 2 "http://127.0.0.1:${used_ports[0]}/" && { ready=1; break; }
     sleep 2
   done
   if [ $ready -eq 0 ]; then
-    echo "Physical AI Studio did not respond on port $pais_port yet. See $pais_log_file" 1>&2
+    echo "Physical AI Studio did not respond on port ${used_ports[0]} yet. See $pais_log_file" 1>&2
   fi
 
   echo "@@HIGHLIGHT Physical AI Studio started (PID $(cat "$pais_pid_file"))"
-  echo "@@HIGHLIGHT URL: http://localhost:$pais_port"
+  echo "@@HIGHLIGHT URL: http://localhost:${used_ports[0]}"
   echo "@@HIGHLIGHT logs @$pais_log_file"
   echo "@@HIGHLIGHT $installer_name stop|remove"
 }

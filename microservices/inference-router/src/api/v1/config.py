@@ -20,8 +20,8 @@ from src.models import (
     ConfigResponse,
     RoutingConfigResponse,
     RoutingConfigUpdateRequest,
+    RoutingConfigUpdateResponse,
 )
-
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -53,10 +53,10 @@ async def get_routing(http_request: Request) -> RoutingConfigResponse:
     return RoutingConfigResponse(policy=config.routing.policy)
 
 
-@router.post("/routing", response_model=RoutingConfigResponse)
+@router.post("/routing", response_model=RoutingConfigUpdateResponse)
 async def update_routing(
     update_req: RoutingConfigUpdateRequest, http_request: Request
-) -> RoutingConfigResponse:
+) -> RoutingConfigUpdateResponse:
     """Update the routing policy, rebuild the runtime, and persist to disk.
 
     Only ``policy`` is managed here; an existing ``strategy`` value is preserved.
@@ -64,6 +64,10 @@ async def update_routing(
     ``policy.yaml``). The routing section carries no secrets, so — like the
     plugins API — it is overlaid onto the raw on-disk document, leaving provider
     ``${VAR}`` placeholders intact.
+
+    The new policy's ModelBasedRule classifiers are loaded with the switch; a
+    version that cannot be loaded degrades (the packaged default, else no
+    classifier) instead of failing the request.
     """
     try:
         async with http_request.app.state.config_lock:
@@ -90,7 +94,7 @@ async def update_routing(
                 config_path=resolve_config_path(http_request),
                 persist_overlay={"routing": routing},
             )
-        return RoutingConfigResponse(policy=updated_config.routing.policy)
+        return RoutingConfigUpdateResponse(policy=updated_config.routing.policy)
     except HTTPException:
         raise
     except Exception as e:

@@ -22,5 +22,6 @@ debian_25_install_linux_image_generic_7.0 () {
 
 debian_25_sbom_linux_image_generic_7.0 () {
   ensure_sbom_format pkg-list linux-image-generic-7.0
+  ensure_sbom_format kernel-cmdline xe.max_vfs=7 "xe.force_probe=*" modprobe.blacklist=i915 udmabuf.list_limit=8192
 }
 
