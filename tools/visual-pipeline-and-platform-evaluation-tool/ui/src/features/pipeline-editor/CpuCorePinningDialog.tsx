@@ -217,7 +217,8 @@ export const CpuCorePinningDialog = ({
                 <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
                 <span>
                   Only low-power efficient cores are selected. OpenVINO refuses
-                  to run inference when no P or E core is available.
+                  to run inference when no P or E core is available. Add at
+                  least one P or E core to continue.
                 </span>
               </div>
             )}
@@ -246,7 +247,10 @@ export const CpuCorePinningDialog = ({
           <Button variant="secondary" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleApply} disabled={!hasTopology}>
+          <Button
+            onClick={handleApply}
+            disabled={!hasTopology || isLpeOnlySelection}
+          >
             Apply
           </Button>
         </DialogFooter>

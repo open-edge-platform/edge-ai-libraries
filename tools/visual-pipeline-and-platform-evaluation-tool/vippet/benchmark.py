@@ -108,6 +108,7 @@ class Benchmark:
         max_runtime: float = 0,
         enable_latency_metrics: bool = False,
         job_id: str | None = None,
+        pinned_cpu_cores: list[int] | None = None,
     ):
         self.best_result = None
         # Initialize PipelineRunner in normal mode with optional max_runtime for each run.
@@ -120,6 +121,7 @@ class Benchmark:
             max_runtime=max_runtime,
             enable_latency_metrics=enable_latency_metrics,
             job_id=job_id,
+            pinned_cpu_cores=pinned_cpu_cores,
         )
         self.logger = logging.getLogger(__name__)
 

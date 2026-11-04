@@ -1599,6 +1599,8 @@ export type ExecutionConfig = {
   metadata_mode?: MetadataMode;
   /** When true, activates the DLStreamer `latency_tracer` in pipeline-only mode with a 1000 ms interval by setting `GST_DEBUG=GST_TRACER:7` (appended if already set) and `GST_TRACERS=latency_tracer(flags=pipeline,interval=1000)` on the GStreamer subprocess environment. When false (default), neither environment variable is modified. */
   enable_latency_metrics?: boolean;
+  /** Logical CPU ids the GStreamer subprocess is pinned to, as reported by `GET /devices` in `cpu_topology.cores[].cpu`. An empty list (default) disables pinning and lets the pipeline run on every CPU available to the service. Ids are de-duplicated and sorted; ids the service itself cannot run on are rejected. */
+  pinned_cpu_cores?: number[];
 };
 export type PerformanceTestSpec = {
   /** List of pipelines with number of streams for each. */
