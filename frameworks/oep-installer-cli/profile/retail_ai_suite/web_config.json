@@ -2,15 +2,14 @@
   "profile": {
     "label": "Retail AI Suite",
     "value": "retail_ai_suite",
-    "supports": { "OP_SYSTEM": ["UBUNTU_24_04", "UBUNTU_26_04"] }
+    "supports": { "OP_SYSTEM": ["UBUNTU_24_04"] }
   },
   "modules": [
     {
       "label": "Digital Signage",
       "value": "digital_signage",
       "startStop": true,
-      "remove": true,
-      "options": []
+      "remove": true
     },
     {
       "label": "Loss Prevention",
