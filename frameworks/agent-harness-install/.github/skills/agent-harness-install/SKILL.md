@@ -14,7 +14,7 @@ description: >
 license: Apache-2.0
 compatibility: Linux with bash, sudo or root for Docker setup, and network access to Docker Hub and the model hub. Intel GPU optional (CPU-only fallback).
 metadata:
-  author: Intel Open Edge Platform Team
+  author: Vinay G
   tags: "agents openvino inference-router installer intel-gpu"
 ---
 

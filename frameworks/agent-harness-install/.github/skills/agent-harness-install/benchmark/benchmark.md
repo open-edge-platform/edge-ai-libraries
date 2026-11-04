@@ -56,7 +56,7 @@ SPDX-License-Identifier: Apache-2.0
 
 ## Run notes
 
-- Single run per configuration, Copilot CLI only. Claude Code and Codex were not run because no account was available for them. Treat the numbers as one sample: a repeat of the same suite moved the with-skill score between 84% and 91%.
+- Single run per configuration, Copilot CLI only. Claude Code and Codex were not run. Treat the numbers as one sample: a repeat of the same suite moved the with-skill score between 84% and 91%.
 - The host was Windows, so the agent did not execute the installer. Responses are graded on the commands and guidance they gave.
 - The runner prepends skill-creator's SKILL.md to every prompt. That file exceeds the Windows command-line limit, so it was omitted from the prompt. Grading used skill-creator's grader.md unchanged.
 - The token totals in the summary table show 0 and are unreliable.
