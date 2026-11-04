@@ -48,7 +48,7 @@ model_settings:
   MAX_TOKENS: 1024
 
 device_settings:
-  # Specify the device for each model. Options: "CPU", "GPU"
+  # Specify the device for each model. Options: "CPU", "GPU", "NPU"
   EMBEDDING_DEVICE: "CPU"
   RERANKER_DEVICE: "CPU"
   LLM_DEVICE: "CPU"

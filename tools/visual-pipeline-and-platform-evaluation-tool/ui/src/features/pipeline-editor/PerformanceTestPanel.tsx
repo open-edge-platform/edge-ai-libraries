@@ -61,6 +61,7 @@ type PerformanceTestPanelProps = {
   enableLatencyMetrics?: boolean;
   enableMetadata?: boolean;
   isVlmPipeline?: boolean;
+  isAlertingVlmPipeline?: boolean;
   liveStreamUrl?: string | null;
   resultOverrides?: FrozenSnapshotOverrides | null;
   events?: PipelineEvent[];
@@ -75,6 +76,7 @@ const PerformanceTestPanel = ({
   enableLatencyMetrics = false,
   enableMetadata = true,
   isVlmPipeline = false,
+  isAlertingVlmPipeline = false,
   liveStreamUrl,
   resultOverrides,
   events,
@@ -406,8 +408,9 @@ const PerformanceTestPanel = ({
               <LivePipelineEvents
                 events={displayedEvents}
                 isRunning={isRunning}
-                title={isVlmPipeline ? "Video captions" : "Live events"}
+                title="Video captions"
                 showTriggeredCount={!isVlmPipeline}
+                highlightAlerts={isAlertingVlmPipeline}
               />
             )}
           </TabsContent>

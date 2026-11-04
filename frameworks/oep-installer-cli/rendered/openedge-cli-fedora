@@ -397,6 +397,11 @@ act_helper ()
                     [ "$order1" -ge "$order" ] || break;
                 fi;
                 local invoke_args="$(act_extract_args $act_name $name1 "${handles[*]#${installer_family}_*_${act_name}_}" "$@")";
+                if { 
+                    [[ "$act_name" = "stop" && -z "${explicit_mods// }" ]] || [ "$remove_all" -eq 1 ]
+                } && [ -n "$(ensure_prop find "installed/$name1/apps/*")" ]; then
+                    invoke_args+=" --all-apps";
+                fi;
                 if [[ " $* " = *" --dry-run "* ]]; then
                     echo "@@COMP $name1";
                     echo "Invoke $handler with $invoke_args";
@@ -408,8 +413,12 @@ act_helper ()
                     local rc1=0;
                     ( set -e;
                     $handler $invoke_args ) & wait $! || rc1=$?;
-                    [[ " stop remove " = *" $act_name "* ]] && ensure_prop remove started/$name1/;
-                    [ "$act_name" = "remove" ] && [ $rc1 -eq 0 ] && ensure_prop remove installed/$name1/;
+                    if [[ " stop remove " = *" $act_name "* ]] && [ -z "$(ensure_prop find "started/$name1/apps/*")" ]; then
+                        ensure_prop remove started/$name1/;
+                    fi;
+                    if [ "$act_name" = "remove" ] && [ $rc1 -eq 0 ] && [ -z "$(ensure_prop find "installed/$name1/apps/*")" ]; then
+                        ensure_prop remove installed/$name1/;
+                    fi;
                     if [ $rc1 -eq 0 ]; then
                         echo "@@OK $name1";
                     else
@@ -2230,12 +2239,12 @@ configure_dlstreamer ()
     yum_repo_conf=("[DLStreamer]" "name=Intel(R) DLStreamer" "baseurl=https://$repo_name/edgeai/dlstreamer" "enabled=1" "gpgcheck=1" "repo_gpgcheck=1" "gpgkey=$key_url");
     yum_repo_file="/etc/yum.repos.d/intel-dlstreamer.repo";
     workspace="$(ensure_project_path)/dlstreamer";
-    version=2026.2.0;
+    version="$(ensure_parse_value_option version --version=2026.2.0 "$@")";
     od_model=yolov5m-640_INT8/FP16-INT8/yolov5m-640_INT8;
     od_model_proc=yolov5m-640_INT8/yolo-v5;
     oc_model=efficientnet-b0_INT8/FP16-INT8/efficientnet-b0;
     model_repo=https://raw.githubusercontent.com/dlstreamer/pipeline-zoo-models/ee73878abc6fb6d864e59a5cd80016de4fc1d194;
-    version_skills=release-2026.2.0;
+    version_skills="release-${version%-rc*}";
     repository_skills=https://github.com/open-edge-platform/skills.git;
     skills=(dlstreamer-coding-agent)
 }
@@ -2423,7 +2432,7 @@ configure_openvino ()
     key_url="https://$repo_name/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB";
     yum_repo_conf=("[OpenVINO]" "name=Intel(R) Distribution of OpenVINO" "baseurl=https://$repo_name/openvino" "enabled=1" "gpgcheck=1" "repo_gpgcheck=1" "gpgkey=$key_url");
     yum_repo_file="/etc/yum.repos.d/intel-openvino.repo";
-    version=$([[ " $* " = *" dlstreamer "* ]] && echo 2026.2.0 || echo 2026.4.1);
+    version="$(ensure_parse_value_option version --version=$([[ " $* " = *" dlstreamer "* ]] && echo 2026.2.0 || echo 2026.4.1) "$@")";
     workspace="$(ensure_project_path)/openvino";
     model="https://github.com/onnx/models/raw/4c46cd00fbdb7cd30b6c1c17ab54f2e1f4f7b177/validated/vision/classification/squeezenet/model/squeezenet1.0-12.onnx"
 }
@@ -2744,7 +2753,7 @@ ensure_parse_value_option ()
     local key="$1";
     shift;
     local v v1 value="";
-    for v in $*;
+    for v in "$@";
     do
         case "$v" in 
             "--$key="*)
@@ -2807,13 +2816,6 @@ ensure_prop ()
     local op="$1" key_path="${2:?}" value="${3:-}";
     local key_base="$(ensure_project_path)/${installer_name:?}";
     case "$op" in 
-        set)
-            ( umask 077;
-            printf '%s' "$value" > "$key_base/$key_path" )
-        ;;
-        get)
-            [ -r "$key_base/$key_path" ] && cat "$key_base/$key_path" || printf '%s' "$value"
-        ;;
         find)
             ( cd "$key_base" && find . -ipath "./$key_path" -print 2> /dev/null | cut -f2- -d/ )
         ;;
@@ -2828,6 +2830,36 @@ ensure_prop ()
                     rm -rf "$key_base/${key_path%/}";
                 fi;
             fi
+        ;;
+        get)
+            [ ! -r "$key_base/$key_path" ] || value="$(< "$key_base/$key_path")";
+            if [[ " $* " = *" --boolean "* ]]; then
+                [[ " true yes t y a accept " = *" ${value,,} "* ]] && value="true" || value="false";
+            fi;
+            printf '%s' "$value"
+        ;;
+        set)
+            local prompt="$(ensure_parse_value_option prompt "$@")";
+            if [[ -n "$prompt" && -z "$value" ]]; then
+                local rundir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}";
+                [ -d "$rundir" ] && [ -w "$rundir" ] || rundir="$(ensure_project_path)/${installer_name:?}";
+                mkdir -p "$rundir" 2> /dev/null || return 1;
+                { 
+                    flock -w 300 -e 9 || { 
+                        echo "ensure_prop: timed out waiting for another installer" 1>&2;
+                        return 1
+                    };
+                    local askpass_helper="$rundir"/askpass-prop;
+                    export -n OEP_PROP_INPUT;
+                    act_panelled_logs_askpass "$askpass_helper" OEP_PROP_INPUT || { 
+                        echo "ensure_prop: failed to create askpass helper" 1>&2;
+                        return 1
+                    };
+                    value="$("$askpass_helper" "$prompt" | tr -d '\n')"
+                } 9< "$rundir";
+            fi;
+            ( umask 077;
+            printf '%s' "$value" > "$key_base/$key_path" )
         ;;
     esac
 }
@@ -2870,12 +2902,12 @@ ensure_sbom_format ()
     local key=$1;
     shift;
     case "$key" in 
-        pkg-list | apt-pref | yum-repo-conf | kernel-cmdline | module-list)
+        pkg-list | apt-pref | yum-repo-conf | kernel-cmdline | module-list | install-cmdline)
             local IFS='|';
             local pkg_str="$*";
             echo "\"$key\": [\"${pkg_str//'|'/\",\"}\"]"
         ;;
-        component | repo-name | gpg-key | gpg-key-fingerprint | key-file | apt-source | apt-src-source | apt-list-file | apt-pref-file | apt-repository | yum-repo-file)
+        component | repo-name | gpg-key | gpg-key-fingerprint | key-file | apt-source | apt-src-source | apt-list-file | apt-pref-file | apt-repository | yum-repo-file | schema-version | cli-version | cli-url)
             echo "\"$key\": \"$*\""
         ;;
         *)
@@ -3464,7 +3496,7 @@ fedora_70_sbom_openvino ()
 }
 fedora_75_install_dlstreamer () 
 { 
-    configure_dlstreamer;
+    configure_dlstreamer "$@";
     if verify_dlstreamer && [[ " $* " != *" --reinstall "* ]]; then
         echo "dlstreamer-${version} is installed." 1>&2;
     else
@@ -3491,7 +3523,7 @@ fedora_75_profile_dlstreamer ()
 }
 fedora_75_remove_dlstreamer () 
 { 
-    configure_dlstreamer;
+    configure_dlstreamer "$@";
     [ "$(ensure_prop get installed/dlstreamer/owned)" = "true" ] || return 0;
     ensure_dnf autoremove -y $(dnf list --installed | grep openvino | awk '{print$1}') || true;
     ensure_rm "$workspace" || true;
@@ -3499,7 +3531,7 @@ fedora_75_remove_dlstreamer ()
 }
 fedora_75_sbom_dlstreamer () 
 { 
-    configure_dlstreamer;
+    configure_dlstreamer "$@";
     ensure_sbom_format repo-name "$repo_name";
     ensure_sbom_format gpg-key "$key_url";
     ensure_sbom_format yum-repo-conf "${yum_repo_conf[@]}";
@@ -3508,7 +3540,7 @@ fedora_75_sbom_dlstreamer ()
 }
 fedora_80_install_anomalib () 
 { 
-    configure_anomalib $*;
+    configure_anomalib "$@";
     if verify_anomalib && [[ " $* " != *" --reinstall "* ]]; then
         echo "Anomalib is installed." 1>&2;
     else
@@ -3532,7 +3564,7 @@ fedora_80_profile_anomalib ()
 }
 fedora_80_remove_anomalib () 
 { 
-    configure_anomalib $*;
+    configure_anomalib "$@";
     ensure_rm "$workspace" || true;
     ensure_skills remove "${skills[@]}"
 }
@@ -3756,32 +3788,32 @@ subcommand_list ()
 { 
     local all_list=" ${_act_cache_names[*]:-${_act_cache_modules[*]}} ";
     local module_region_list=" ${_act_cache_modules[*]/#/--} ";
-    local k v args=() mods=() os_release="" sbom=0 margs=0;
+    local k v args=() mods=() cli_version="" sbom=0 margs=0;
     for v in "$@";
     do
         case "$v" in 
             --help)
                 echo "list options:";
-                echo "  --os-release=<file> import an os-release file";
-                echo "  --sbom              show component SBOM items";
+                echo "  --cli-version <v>  save cli version in the SBOM header";
+                echo "  --sbom             show component SBOM items";
                 echo;
                 return 0
-            ;;
-            --os-release=*)
-                os_release="${v#*=}"
             ;;
             --sbom)
                 sbom=1
             ;;
-            --os-release)
+            --cli-version=*)
+                cli_version="${v#*=}"
+            ;;
+            --cli-version)
 
             ;;
             *)
                 if [ $margs -eq 1 ]; then
                     args+=("$v");
                 else
-                    if [ "$last_v" = "--os-release" ]; then
-                        os_release="$v";
+                    if [[ "$last_v" = "--cli-version" && "$all_list" != *" $v "* && "$v" != -* ]]; then
+                        cli_version="$v";
                     else
                         if [[ "$module_region_list" = *" $v "* ]]; then
                             args+=("$v");
@@ -3805,40 +3837,6 @@ subcommand_list ()
         esac;
         last_v="$v";
     done;
-    if [ -n "$os_release" ]; then
-        if [ -f "$os_release" ] && [ -r "$os_release" ]; then
-            local -A data=();
-            while read -r v; do
-                case "$v" in 
-                    PRETTY_NAME=* | NAME=* | VERSION_ID=* | VERSION=* | VERSION_CODENAME=* | ID=* | ID_LIKE=* | UBUNTU_CODENAME=*)
-                        k="${v%%=*}";
-                        v="${v#*=}";
-                        [[ "$v" = '"'*'"' ]] && { 
-                            v="${v#'"'}";
-                            v="${v%'"'}"
-                        };
-                        [[ "$v" = "'"*"'" ]] && { 
-                            v="${v#"'"}";
-                            v="${v%"'"}"
-                        };
-                        data["$k"]="$v"
-                    ;;
-                esac;
-            done < "$os_release";
-            PRETTY_NAME="${data["PRETTY_NAME"]:-"$PRETTY_NAME"}";
-            NAME="${data["NAME"]:-"$NAME"}";
-            VERSION_ID="${data["VERSION_ID"]:-"$VERSION_ID"}";
-            VERSION="${data["VERSION"]:-"$VERSION"}";
-            VERSION_CODENAME="${data["VERSION_CODENAME"]:-"$VERSION_CODENAME"}";
-            ID="${data["ID"]:-"$ID"}";
-            ID_LIKE="${data["ID_LIKE"]:-"$ID_LIKE"}";
-            UBUNTU_CODENAME="${data["UBUNTU_CODENAME"]:-"$UBUNTU_CODENAME"}";
-            installer_family="$(x="${ID_LIKE:-$ID}"; x="${x##* }"; echo "${x//[^a-zA-Z0-9]/}")";
-        else
-            echo "Invalid $os_release" 1>&2;
-            return 3;
-        fi;
-    fi;
     if [ ${#mods[*]} -eq 0 ]; then
         mods=($all_list);
         set -- $all_list "${args[@]}";
@@ -3851,12 +3849,19 @@ subcommand_list ()
             echo "No installable components from ${mods[*]}" 1>&2;
             return 3;
         fi;
-        local all_install_modules="${handles[*]#${installer_family}_*_install_}";
-        echo "\"schema-version\": \"1\"";
-        echo "\"cli-version\": \"main\"";
+        ensure_sbom_format schema-version 1;
+        if git rev-parse --is-inside-work-tree &> /dev/null && git remote get-url origin 2> /dev/null | grep -qE 'github\.com[:/]'; then
+            [ -n "$cli_version" ] || cli_version=$(git rev-parse HEAD);
+            ensure_sbom_format cli-version "$cli_version";
+            if [[ "/$0" = *"/rendered/"* ]]; then
+                local remote="$(git remote get-url origin | sed -E 's#(git@|https://)github.com[:/]##; s#\.git$##')";
+                ensure_sbom_format cli-url "https://raw.githubusercontent.com/$remote/$cli_version/${0/#*rendered/rendered}";
+            fi;
+        fi;
+        ensure_sbom_format install-cmdline $installer_name install "${args[@]}";
         ensure_sbom_format module-list "${mods[@]}";
         echo "---";
-        local handler sbomer;
+        local all_install_modules="${handles[*]#${installer_family}_*_install_}" handler sbomer;
         for handler in $(printf '%s\n' "${handles[@]}" | sort);
         do
             sbomer=${handler/_install_/_sbom_};

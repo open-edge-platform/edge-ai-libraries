@@ -26,6 +26,11 @@ Notes on what it does with Docker:
   (`/etc/systemd/system/docker.service.d/http-proxy.conf`, root-only) so the
   daemon can pull images through the proxy, and restarts the daemon when that
   changes. This needs sudo; without it the step is skipped with a warning.
+- Before installing anything, it rejects an `HTTP_PROXY`, `HTTPS_PROXY` or
+  `ALL_PROXY` value (either case) that contains a quote, whitespace or a
+  control character, for example a stray trailing `"`. Such a value is
+  forwarded into the containers, and agent HTTP clients refuse to start with
+  it. The error names the variable, never its value.
 - If it just added your user to the `docker` group, it restarts itself under
   that group automatically, so no new terminal is needed. Only if that can't
   be done (`sg` and `sudo` both unavailable) does it exit with code `2` and
@@ -76,6 +81,9 @@ Notes on what it does with Docker:
      error, even when it exits 0.
    - **Hermes:** prints the endpoint and where to point a provider in its
      own config (`~/.hermes/config.yaml`); there is no automated smoke test.
+     If Hermes already points at this endpoint with a different model name
+     than the one served, it warns and prints the
+     `hermes config set model.default <name>` fix.
 
 Published ports (OVMS and the Router) bind to loopback
 (`127.0.0.1`) by default, so nothing is reachable from other machines unless
@@ -93,6 +101,12 @@ For example, with a small Hugging Face model (any supported model works):
 ```bash
 ./install.sh --harness openclaw --model Qwen/Qwen2.5-0.5B-Instruct
 ```
+
+The model is served under its name without the organisation prefix, so the
+command above serves `Qwen2.5-0.5B-Instruct`. The Inference Router matches
+model names exactly: a client that requests `Qwen/Qwen2.5-0.5B-Instruct` gets
+`Unknown model`. The installer prints the served name after the install, and
+`curl http://<host>:8010/v1/models` (default port) lists it.
 
 ```bash
 ./install.sh --harness deepagents-code --model <org/name> --non-interactive

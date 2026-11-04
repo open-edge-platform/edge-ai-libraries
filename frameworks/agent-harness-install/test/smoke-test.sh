@@ -391,6 +391,12 @@ phase_02_selfcheck() {
     bash -c "awk '/^ensure_openvino_model_server\\(\\)/,/^}/' '$REPO_ROOT/scripts/lib/openvino.sh' | grep -q 'group_add_args=\"\$(intel_gpu_docker_group_add_args)\"'"
   check "export_model_via_docker_pull passes --device/--group-add when targeting GPU (was missing --device entirely)" \
     bash -c "awk '/^export_model_via_docker_pull\\(\\)/,/^}/' '$REPO_ROOT/scripts/lib/openvino.sh' | grep -q 'gpu_args=\"\$(intel_gpu_docker_device_args)\"'"
+  check "startup.sh rejects a malformed proxy variable before installing anything" \
+    bash -c "grep -q '^  assert_proxy_env_well_formed\$' '$REPO_ROOT/startup.sh'"
+  check "install.sh announces the served model name after the endpoint is resolved" \
+    bash -c "grep -q '^  announce_served_model_name\$' '$REPO_ROOT/scripts/install.sh'"
+  check "install.sh's onboard command loads nvm before resolving the served model name" \
+    bash -c "grep -B8 '^    run_agent_onboard\$' '$REPO_ROOT/scripts/install.sh' | grep -q 'nvm use'"
 }
 
 phase_03_libunit() {
@@ -456,6 +462,30 @@ phase_03_libunit() {
 
   check_output_contains "model_dir_name: strips the org prefix" "Qwen2.5-0.5B-Instruct" lib_eval 'model_dir_name Qwen/Qwen2.5-0.5B-Instruct'
   check_output_contains "model_dir_name: makes an Ollama tag filesystem-safe" "llama3.2-3b" lib_eval 'model_dir_name llama3.2:3b'
+
+  check "assert_proxy_env_well_formed: accepts clean proxy values" \
+    lib_eval 'HTTP_PROXY=http://p:912 ALL_PROXY=http://p:1080 all_proxy=http://p:1080; assert_proxy_env_well_formed'
+  check "assert_proxy_env_well_formed: accepts no proxy at all" \
+    lib_eval 'unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy; assert_proxy_env_well_formed'
+  check_fail_output_contains "assert_proxy_env_well_formed: rejects a stray trailing quote and names the variable" "ALL_PROXY" \
+    lib_eval 'ALL_PROXY="http://p:1080\""; assert_proxy_env_well_formed'
+  check_fail "assert_proxy_env_well_formed: rejects whitespace in a proxy URL" \
+    lib_eval 'https_proxy="http://p:912 "; assert_proxy_env_well_formed'
+
+  check_output_contains "hermes_model_setting: reads model.default" "OpenVINO/X" \
+    lib_eval 'f="$(mktemp)"; printf "model:\n  default: OpenVINO/X\n  base_url: http://h:8010/v1\nkanban:\n  default: nope\n" >"$f"; HERMES_CONFIG="$f" hermes_model_setting default'
+  check_output_contains "hermes_model_setting: strips quotes and reads base_url" "http://h:8010/v1" \
+    lib_eval 'f="$(mktemp)"; printf "model:\n  base_url: \"http://h:8010/v1\"\n" >"$f"; HERMES_CONFIG="$f" hermes_model_setting base_url'
+  check_output_contains "warn_if_hermes_model_mismatch: flags the org-prefixed name against this Router" "hermes config set model.default Qwen3-ov" \
+    lib_eval 'f="$(mktemp)"; printf "model:\n  default: OpenVINO/Qwen3-ov\n  base_url: http://h:8010/v1\n" >"$f"; HERMES_CONFIG="$f" warn_if_hermes_model_mismatch http://h:8010/v1 Qwen3-ov'
+  check "warn_if_hermes_model_mismatch: silent when Hermes uses another endpoint" \
+    lib_eval 'f="$(mktemp)"; printf "model:\n  default: gpt-x\n  base_url: https://api.example.com/v1\n" >"$f"; out="$(HERMES_CONFIG="$f" warn_if_hermes_model_mismatch http://h:8010/v1 Qwen3-ov)"; [[ -z "$out" ]]'
+  check "warn_if_hermes_model_mismatch: silent when the served name is the unresolved 'default' fallback" \
+    lib_eval 'f="$(mktemp)"; printf "model:\n  default: Qwen3-ov\n  base_url: http://h:8010/v1\n" >"$f"; out="$(HERMES_CONFIG="$f" warn_if_hermes_model_mismatch http://h:8010/v1 default)"; [[ -z "$out" ]]'
+  check_output_contains "announce_served_model_name: explains the dropped org prefix" "exactly 'Qwen3-ov'" \
+    lib_eval 'HARNESS_HF_MODEL=OpenVINO/Qwen3-ov HARNESS_LLM_MODEL=Qwen3-ov; announce_served_model_name'
+  check "announce_served_model_name: silent when the names already match" \
+    lib_eval 'HARNESS_HF_MODEL=my-model HARNESS_LLM_MODEL=my-model; out="$(announce_served_model_name)"; [[ -z "$out" ]]'
 
   check "model_hub_unserved_reason: openvino may be served" lib_eval 'model_hub_unserved_reason openvino'
   check "model_hub_unserved_reason: remote-url may be served (if it has a graph.pbtxt)" lib_eval 'model_hub_unserved_reason remote-url'

@@ -1,7 +1,7 @@
 
 configure_scenescape () {
   workspace="$(ensure_project_path)/scenescape"
-  version=release-2026.2.0
+  version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")"
   repository=https://github.com/open-edge-platform/scenescape.git
   used_ports=(443)
 
@@ -19,7 +19,7 @@ debian_90_profile_scenescape () {
 }
 
 debian_90_install_scenescape () {
-  configure_scenescape
+  configure_scenescape "$@"
   if verify_scenescape && [[ " $* " != *" --reinstall "* ]]; then
     echo "Scenescape is installed." >&2
   else
@@ -41,7 +41,7 @@ debian_90_install_scenescape () {
 }
 
 debian_90_start_scenescape () {
-  configure_scenescape
+  configure_scenescape "$@"
   ensure_ports_open start scenescape "${used_ports[@]}"
 
   cd "$workspace"
@@ -55,7 +55,7 @@ debian_90_start_scenescape () {
 }
 
 debian_90_stop_scenescape () {
-  configure_scenescape
+  configure_scenescape "$@"
   cd "$workspace" && make demo-close || true
 }
 

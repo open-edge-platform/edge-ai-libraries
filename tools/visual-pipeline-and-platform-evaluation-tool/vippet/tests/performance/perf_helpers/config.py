@@ -4,16 +4,17 @@
 """Shared configuration constants for VIPPET performance tests.
 Values are resolved once at import time through
 :func:`perf_helpers.settings.resolve_settings` (defaults -> YAML -> env).
-The CLI (``python -m perf_helpers.cli``) layers CLI flags on top and hands
-the fully resolved YAML to pytest through ``PERF_CONFIG_FILE``, so direct
-``pytest`` runs and CLI runs read settings the same way.
+The CLI (``python -m perf_helpers.cli``) passes its ``--config`` and flags
+through ``PERF_CLI_LAYER``, so pytest resolves the same values with the
+same sources as the CLI did.
 """
 
 import os
-from .settings import ResolvedSettings, resolve_settings
+from .settings import ResolvedSettings, read_cli_layer, resolve_settings
 
-PERF_CONFIG: str = os.environ.get("PERF_CONFIG", "default")
-SETTINGS: ResolvedSettings = resolve_settings(env=os.environ)
+SETTINGS: ResolvedSettings = resolve_settings(
+    env=os.environ, **read_cli_layer(os.environ)
+)
 # --- vippet section (connection settings) ---
 BASE_URL: str = SETTINGS["vippet.base_url"]
 REQUEST_TIMEOUT: float = SETTINGS["vippet.timeout"]
@@ -25,6 +26,7 @@ POLL_TIMEOUT: int = SETTINGS["vippet.max_job_duration"]
 METRICS_URL: str = SETTINGS["metrics.metrics_url"]
 CAPABILITIES_URL: str = SETTINGS["metrics.capabilities_url"]
 METRICS_SAMPLE_INTERVAL: float = SETTINGS["metrics.sample_interval_seconds"]
+METRICS_TRIM_FRACTION: float = SETTINGS["metrics.trim_fraction"]
 
 # --- benchmark section ---
 PIPELINE_FILTER: str | list[str] = SETTINGS["benchmark.pipelines"]

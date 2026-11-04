@@ -1,7 +1,7 @@
 
 configure_nicu_warmer () {
   workspace="$(ensure_project_path)/nicu-warmer"
-  version=release-2026.2.0
+  version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")"
   repository="https://github.com/open-edge-platform/health-and-life-sciences-ai-suite.git"
   models=(
     "https://huggingface.co/Intel/patient-present/resolve/main/patient-detect-fp32.bin?download=true patient-detect-fp32.bin"
@@ -46,7 +46,7 @@ debian_90_profile_nicu_warmer () {
 }
 
 debian_90_install_nicu_warmer () {
-  configure_nicu_warmer $*
+  configure_nicu_warmer "$@"
   if verify_nicu_warmer && [[ " $* " != *" --reinstall "* ]]; then
     echo "NICU Warmer is installed." >&2
   else

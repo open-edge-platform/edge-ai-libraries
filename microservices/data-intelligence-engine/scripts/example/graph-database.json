@@ -1,0 +1,9 @@
+{
+  "id": "local-nebula",
+  "type": "graph",
+  "backend": "nebula",
+  "options": {
+    "url": "nebula://nebula-graphd:9669"
+  },
+  "description": "Local NebulaGraph for OKF concepts"
+}

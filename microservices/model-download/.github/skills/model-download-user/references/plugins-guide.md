@@ -380,13 +380,11 @@ curl -s -X POST \
 
 ## Geti
 
-Downloads trained models from an Intel Geti server (base or optimized OpenVINO variants).
+Downloads trained models from an Intel Geti (3.0) server using the unauthenticated Model REST API (pytorch, onnx, or OpenVINO-optimized variants).
 
 **Required environment variables before starting service:**
 ```bash
 export GETI_HOST=https://geti.example.com
-export GETI_TOKEN=<your-api-token>
-export GETI_WORKSPACE_ID=<workspace-id>
 ```
 
 ### Request Body
@@ -395,13 +393,13 @@ export GETI_WORKSPACE_ID=<workspace-id>
 {
   "models": [
     {
-      "name": "<project-name>",
+      "name": "<model-name>",
       "hub": "geti",
       "config": {
-        "export_type": "optimized",
-        "model_group_id": "<model-group-id>",
-        "optimized_model_id": "<optimized-model-id>",
-        "model_only": true
+        "precision": "FP16",
+        "model_format": "OpenVINO",
+        "project_id": "<project-id>",
+        "variant_id": "<variant-id>"
       }
     }
   ]
@@ -412,16 +410,60 @@ export GETI_WORKSPACE_ID=<workspace-id>
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `name` | string | Yes | Geti project name |
+| `name` | string | Yes | Geti model name (searched across all projects unless `config.project_id` is given) |
 | `hub` | string | Yes | Must be `"geti"` |
-| `config.export_type` | string | No | `"base"` or `"optimized"` (default: `"optimized"`) |
-| `config.model_group_id` | string | No | Model group ID from Geti |
-| `config.optimized_model_id` | string | No | Specific optimized model ID |
-| `config.model_only` | bool | No | Download model artifacts only (skip project data) |
+| `config.precision` | string | No | Target variant precision, e.g. `"FP16"`, `"fp32"` (default: `"FP16"`) |
+| `config.model_format` | string | No | Target variant format, e.g. `"OpenVINO"`, `"pytorch"`, `"onnx"` (default: `"OpenVINO"`) |
+| `config.project_id` | string | No | Geti project ID (skips project search when provided together with `config.model_id`) |
+| `config.model_id` | string | No | Geti model ID (skips model search when provided together with `config.project_id`) |
+| `config.variant_id` | string | No | Specific model variant ID to download (overrides format/precision selection) |
+
+Every trained Geti 3.0 model exposes multiple variants side by side (`pytorch`, `onnx`, `openvino`), each with its own `precision`. To download the raw/base weights instead of the OpenVINO-optimized variant, set `config.model_format` to `"pytorch"` and `config.precision` to `"fp32"` (pytorch variants are always fp32).
+
+Use the exact model `name` returned by `POST /api/v1/models/list`. Select the variant using one of these approaches:
+
+**Select by exact variant ID:**
+
+```json
+{
+  "name": "YOLOX-S (ff43ddac)",
+  "hub": "geti",
+  "config": {
+    "variant_id": "<variant-id>"
+  }
+}
+```
+
+**Select by format and precision:**
+
+```json
+{
+  "name": "YOLOX-S (ff43ddac)",
+  "hub": "geti",
+  "config": {
+    "model_format": "openvino",
+    "precision": "fp16"
+  }
+}
+```
+
+**Select using project and model IDs:** provide both IDs to skip project and model name lookup. A `variant_id` can be included to select a specific variant.
+
+```json
+{
+  "name": "YOLOX-S (ff43ddac)",
+  "hub": "geti",
+  "config": {
+    "project_id": "<project-id>",
+    "model_id": "<model-id>",
+    "variant_id": "<variant-id>"
+  }
+}
+```
 
 ### Output Path
 
-`<model-path>/<download_path>/geti/<project-id>/<model-id>/`
+`<model-path>/<download_path>/geti/<model-name>/<precision>/`
 
 ---
 
