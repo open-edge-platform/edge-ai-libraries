@@ -228,6 +228,51 @@ def with_genai_post_metrics(command: str) -> str:
     return _LAUNCH_ELEMENT.sub(_add, command)
 
 
+# A launch string token: whitespace-separated, double-quoted parts kept whole.
+_LAUNCH_TOKEN = re.compile(r'(?:[^\s"]|"[^"]*")+')
+
+
+def with_main_sink_last(command: str, stream_id: str) -> str:
+    """Move the chain that ends in the stream's main sink to the end of ``command``.
+
+    DLSPS 2.0 counts an instance's FPS at the first sink ``iterate_sinks()``
+    returns, which is the sink parsed last. In a pipeline whose branches run
+    at different rates (a VLM branch fed one frame per trigger), only the
+    main branch gives the stream's FPS. The main sink is named after the
+    second half of ``stream_id`` (``<source>__<sink>``). GStreamer resolves
+    ``t.`` references after parsing, so a branch may come before its tee.
+
+    The command is returned unchanged when it has no such sink, the sink's
+    chain is already last, it uses bins (``( ... )``) or a ``!`` without
+    spaces around it.
+    """
+    _, _, sink = stream_id.partition("__")
+    if not sink:
+        return command
+    chains: list[list[str]] = [[]]
+    after_link = True
+    for token in _LAUNCH_TOKEN.findall(command):
+        unquoted = re.sub(r'"[^"]*"', "", token)
+        if token != "!" and ("!" in unquoted or "(" in unquoted or ")" in unquoted):
+            # A link without spaces around it, or a bin: leave it as written.
+            return command
+        if token == "!":
+            after_link = True
+        elif not after_link and "=" not in token:
+            # An element or pad reference not linked to the previous one
+            # starts a new chain.
+            chains.append([])
+        else:
+            after_link = False
+        chains[-1].append(token)
+    names = {f"name={sink}", f'name="{sink}"'}
+    main = [i for i, chain in enumerate(chains) if names & set(chain)]
+    if len(main) != 1 or main[0] == len(chains) - 1:
+        return command
+    chains.append(chains.pop(main[0]))
+    return " ".join(" ".join(chain) for chain in chains)
+
+
 # States a dlsps2 pipeline instance can no longer leave on its own.
 _TERMINAL_STATES = frozenset({"COMPLETED", "ERROR", "ABORTED"})
 
@@ -1070,6 +1115,11 @@ class Dlsps2PipelineRunner:
         started_at = time.monotonic()
         metrics_polled_at = started_at
 
+        # FPS is counted at the main sink only if it is parsed last.
+        stream_commands = {
+            sid: with_main_sink_last(command, sid)
+            for sid, command in stream_commands.items()
+        }
         with self._client() as client, self._metrics_client() as metrics_client:
             if any(
                 wants_genai_post_metrics(c) for c in stream_commands.values()

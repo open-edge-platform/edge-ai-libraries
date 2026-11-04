@@ -1569,3 +1569,56 @@ class TestDlsps2RunnerEvents(unittest.TestCase):
         self.assertEqual(sent, self.STREAMS["s0"])
         self.assertEqual(os.listdir(self.tmp.name), [])
 
+
+class TestWithMainSinkLast(unittest.TestCase):
+    SID = "src_p0_s0__sink_p0_s0"
+    MAIN = (
+        "filesrc location=/v.ts ! tsdemux ! decodebin3 ! tee name=t ! queue ! "
+        "fakesink name=sink_p0_s0"
+    )
+    SIDE = 't. ! queue ! gvagenai prompt="Is it! safe?" ! fakesink name=vlm'
+
+    def test_main_chain_moves_after_the_side_branch(self):
+        self.assertEqual(
+            dlsps2_runner.with_main_sink_last(f"{self.MAIN} {self.SIDE}", self.SID),
+            f"{self.SIDE} {self.MAIN}",
+        )
+
+    def test_main_branch_of_a_tee_moves_last(self):
+        command = (
+            "videotestsrc ! tee name=t t. ! queue ! fakesink name=sink_p0_s0 "
+            "t. ! queue ! fakesink name=side"
+        )
+        self.assertEqual(
+            dlsps2_runner.with_main_sink_last(command, self.SID),
+            "videotestsrc ! tee name=t t. ! queue ! fakesink name=side "
+            "t. ! queue ! fakesink name=sink_p0_s0",
+        )
+
+    def test_unchanged_cases(self):
+        for command, stream_id in (
+            (f"{self.SIDE} {self.MAIN}", self.SID),  # already last
+            (f"{self.MAIN} {self.SIDE}", "stream"),  # no sink in the id
+            (f"{self.MAIN} {self.SIDE}", "src__other_sink"),  # sink not found
+            ("a ! ( b ! fakesink name=sink_p0_s0 ) c ! fakesink", self.SID),  # bin
+            ("a ! fakesink name=sink_p0_s0 c !fakesink", self.SID),  # odd link
+        ):
+            with self.subTest(command=command, stream_id=stream_id):
+                self.assertEqual(
+                    dlsps2_runner.with_main_sink_last(command, stream_id), command
+                )
+
+    def test_runs_start_with_the_main_sink_last(self):
+        fake = _FakeStreamSet([[{"state": "COMPLETED"}]])
+        runner = Dlsps2PipelineRunner(
+            mode="normal", base_url="http://dlsps:8080", max_runtime=0
+        )
+        with (
+            patch.object(runner, "_push_fps_metric"),
+            patch.object(runner, "_client", side_effect=fake.client),
+            patch.object(runner, "_metrics_client", side_effect=fake.client),
+        ):
+            runner.run(PIPELINE, stream_commands={self.SID: f"{self.MAIN} {self.SIDE}"})
+
+        sent = json.loads(fake.calls("POST")[0].content)["pipeline"]
+        self.assertEqual(sent, f"{self.SIDE} {self.MAIN}")
