@@ -206,7 +206,6 @@ Please refer [API documentation](./how-to-access-api.md).
 From the `edge-ai-libraries/microservices/time-series-analytics/docker` directory, stop and remove the containers and volumes:
 
 ```sh
-cd edge-ai-libraries/microservices/time-series-analytics/docker # path relative to git clone folder
 docker compose down -v
 ```
 
