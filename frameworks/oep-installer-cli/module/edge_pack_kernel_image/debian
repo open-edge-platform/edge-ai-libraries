@@ -22,6 +22,7 @@ configure_edge_pack_kernel_image () {
     return 1
     ;;
   esac
+  version="$(ensure_parse_value_option version --version="$version" "$@")"
 }
 
 debian_25_profile_edge_pack_kernel_image () {
