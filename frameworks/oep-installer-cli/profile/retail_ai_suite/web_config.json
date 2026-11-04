@@ -6,6 +6,13 @@
   },
   "modules": [
     {
+      "label": "Digital Signage",
+      "value": "digital_signage",
+      "startStop": true,
+      "remove": true,
+      "options": []
+    },
+    {
       "label": "Loss Prevention",
       "value": "loss_prevention",
       "startStop": true, 
@@ -39,6 +46,10 @@
     "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-retail.html"
   },
   "resources": [
+    {
+      "text": "Digital Signage",
+      "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-retail/digital-signage/index.html"
+    },
     {
       "text": "Loss Prevention",
       "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-retail/loss-prevention/index.html"
