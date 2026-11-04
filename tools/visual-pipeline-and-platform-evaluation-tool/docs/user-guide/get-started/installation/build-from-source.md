@@ -102,7 +102,9 @@ same repository, gives it the same devices as `vippet`, and sets
 `VIPPET_EXECUTION_BACKEND=dlsps2`. The server then runs:
 
 - pipeline validation;
-- performance and density tests, with every stream as its own server instance.
+- performance and density tests, with every stream as its own server instance, so the job
+  status also reports the slowest stream's FPS, and a density test counts a stream
+  count as passing only if its slowest stream reaches the FPS floor.
 
 Current limitations:
 
