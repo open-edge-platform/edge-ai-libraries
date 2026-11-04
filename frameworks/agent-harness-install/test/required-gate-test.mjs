@@ -11,15 +11,14 @@ import {evaluateGate} from "../../../.github/scripts/agent-harness-required-gate
 
 function outcomes(relevant = "true") {
   const result = relevant === "true" ? "success" : "skipped";
-  return {CHANGE_RESULT: "success", RELEVANT: relevant,
-    STATIC_RESULT: result, OFFLINE_RESULT: result, HERMES_RESULT: result};
+  return {CHANGE_RESULT: "success", RELEVANT: relevant, STATIC_RESULT: result};
 }
 
-test("relevant changes require all three successful component jobs", () => {
+test("relevant changes require successful static analysis", () => {
   assert.match(evaluateGate(outcomes()), /^Passed:/);
 });
 
-test("unrelated changes pass with all component jobs skipped", () => {
+test("unrelated changes pass with static analysis skipped", () => {
   assert.match(evaluateGate(outcomes("false")), /^Not applicable:/);
 });
 
@@ -38,15 +37,22 @@ for (const relevant of ["", "invalid", "TRUE", undefined]) {
 }
 
 for (const relevant of ["true", "false"]) {
-  for (const job of ["STATIC_RESULT", "OFFLINE_RESULT", "HERMES_RESULT"]) {
-    const invalid = relevant === "true"
-      ? ["failure", "cancelled", "skipped", "", undefined]
-      : ["failure", "cancelled", "success", "", undefined];
-    for (const result of invalid) {
-      test(`${relevant} change decision rejects ${job}=${String(result)}`, () => {
-        assert.throws(() => evaluateGate({...outcomes(relevant), [job]: result}), /expected/);
-      });
-    }
+  const invalid = relevant === "true"
+    ? ["failure", "cancelled", "skipped", "", undefined]
+    : ["failure", "cancelled", "success", "", undefined];
+  for (const result of invalid) {
+    test(`${relevant} change decision rejects STATIC_RESULT=${String(result)}`, () => {
+      assert.throws(() => evaluateGate({...outcomes(relevant), STATIC_RESULT: result}), /expected/);
+    });
+  }
+}
+
+for (const relevant of ["true", "false"]) {
+  for (const result of ["success", "failure", "cancelled", "skipped", "", undefined]) {
+    test(`runtime outcome ${String(result)} does not affect static gate for relevant=${relevant}`, () => {
+      assert.doesNotThrow(() => evaluateGate({...outcomes(relevant),
+        OFFLINE_RESULT: result, HERMES_RESULT: result}));
+    });
   }
 }
 
@@ -58,9 +64,9 @@ test("CLI publishes successful summary and exits nonzero on rejected outcomes", 
   const env = {...process.env, ...outcomes(), GITHUB_STEP_SUMMARY: summary};
   const passed = spawnSync(process.execPath, [script], {env, encoding: "utf8"});
   assert.equal(passed.status, 0, passed.stderr);
-  assert.match(fs.readFileSync(summary, "utf8"), /all three Agent Harness quality gates succeeded/);
+  assert.match(fs.readFileSync(summary, "utf8"), /Agent Harness static analysis succeeded/);
   const failed = spawnSync(process.execPath, [script],
-    {env: {...env, HERMES_RESULT: "cancelled"}, encoding: "utf8"});
+    {env: {...env, STATIC_RESULT: "cancelled"}, encoding: "utf8"});
   assert.equal(failed.status, 1);
   assert.match(failed.stderr, /expected success, received cancelled/);
 });

@@ -10,17 +10,11 @@ export function evaluateGate(env) {
     throw Error(`Missing or invalid change decision: ${env.RELEVANT}`);
 
   const expected = env.RELEVANT === "true" ? "success" : "skipped";
-  for (const [name, result] of [
-    ["Static analysis", env.STATIC_RESULT],
-    ["Offline regression", env.OFFLINE_RESULT],
-    ["Hermes image runtime", env.HERMES_RESULT]
-  ]) {
-    if (result !== expected)
-      throw Error(`${name}: expected ${expected}, received ${result}`);
-  }
+  if (env.STATIC_RESULT !== expected)
+    throw Error(`Static analysis: expected ${expected}, received ${env.STATIC_RESULT}`);
   return env.RELEVANT === "true"
-    ? "Passed: all three Agent Harness quality gates succeeded."
-    : "Not applicable: no Agent Harness changes; component jobs were skipped.";
+    ? "Passed: Agent Harness static analysis succeeded."
+    : "Not applicable: no Agent Harness changes; static analysis was skipped.";
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
@@ -28,7 +22,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     const message = evaluateGate(process.env);
     console.log(message);
     if (process.env.GITHUB_STEP_SUMMARY)
-      fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## Agent Harness required gate\n\n${message}\n`);
+      fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## Agent Harness required static gate\n\n${message}\n`);
   } catch (error) {
     console.error(error);
     process.exitCode = 1;

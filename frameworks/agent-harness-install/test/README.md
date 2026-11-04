@@ -28,13 +28,15 @@ run all component checks conservatively because the API cannot list more than
 3000 files. A failed filter never becomes a "no changes" result.
 
 Pushes to `main` retain these path filters, while manual dispatch always runs
-component checks. The final **Agent Harness required gate** runs with
-`always()` after change detection and all three component jobs:
+component checks. The final **Agent Harness required static gate** runs with
+`always()` after change detection and static analysis only. Offline regression
+and Hermes image runtime remain separate conditional checks; their results do
+not affect this static-analysis merge gate.
 
 | Decision | Required outcomes |
 |---|---|
-| Relevant changes | Static analysis, offline regression and Hermes image runtime must all succeed |
-| Unrelated changes | All three component jobs must be skipped |
+| Relevant changes | Static analysis must succeed (ShellCheck and production `node --check`) |
+| Unrelated changes | Static analysis must be skipped |
 | Failed/cancelled detection, missing/invalid decision, or unexpected job outcome | Fail the final gate |
 
 The final job also runs the required-gate decision tests, independently of
@@ -43,10 +45,10 @@ finishing; a cancelled or missing required check is not successful evidence.
 Live prepared-runner validation remains a separate manual opt-in, not part of
 this automatic merge gate.
 
-Administrators should require **only `Agent Harness required gate`** for this
+Administrators should require **only `Agent Harness required static gate`** for this
 component in the `main` ruleset/branch protection, retaining unrelated existing
 required checks. Do not separately require the three conditional component
-jobs or change detection: only the final gate represents their combined policy.
+jobs or change detection: only the final gate represents the selective static policy.
 The workflow does not modify repository rulesets or bypass permissions.
 
 The workflow also runs an independent **Agent Harness static analysis** job on
@@ -104,7 +106,7 @@ configuration, Docker socket, credentials or OpenShell gateway is mounted.
 The image's production model-config helper is tested, and TAP output is uploaded
 as `hermes-runtime-results`. See the [local commands](unit-tests.md#hermes-runtime-dependent-cases).
 This is real dependency/configuration coverage, not live inference or sandbox
-lifecycle acceptance. The final required gate propagates failures from this job.
+lifecycle acceptance. Its result is reported separately from the required static gate.
 
 ### Installer runtime regression
 

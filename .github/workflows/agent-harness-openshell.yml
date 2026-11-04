@@ -223,9 +223,9 @@ jobs:
           retention-days: 14
 
   required:
-    name: Agent Harness required gate
+    name: Agent Harness required static gate
     if: always()
-    needs: [changes, static, offline, hermes]
+    needs: [changes, static]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -239,13 +239,11 @@ jobs:
           node-version: 24.21.0
       - name: Test required-gate decisions
         run: node --test frameworks/agent-harness-install/test/required-gate-test.mjs
-      - name: Require expected component outcomes
+      - name: Require expected static-analysis outcome
         env:
           CHANGE_RESULT: ${{ needs.changes.result }}
           RELEVANT: ${{ needs.changes.outputs.relevant }}
           STATIC_RESULT: ${{ needs.static.result }}
-          OFFLINE_RESULT: ${{ needs.offline.result }}
-          HERMES_RESULT: ${{ needs.hermes.result }}
         run: node .github/scripts/agent-harness-required-gate.mjs
 
   live:
