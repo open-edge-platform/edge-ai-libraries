@@ -8,6 +8,9 @@
     { "label": "Mission Decision Support Blueprint", "value": "mission_decision_support_blueprint" },
     { "label": "Deterministic Threat Detection", "value": "deterministic_threat_detection", "remove": true }
   ],
+  "install": {
+    "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
+  },
   "getStarted": {
     "text": "Get Started",
     "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-fed-aero.html"
