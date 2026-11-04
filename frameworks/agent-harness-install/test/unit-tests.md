@@ -302,19 +302,31 @@ The final two cases skip when the pinned Hermes runtime is unavailable at
 `/home/node/.local/bin/hermes`. The normal offline host/CI run therefore
 executes seven cases and reports two skips, not nine passes.
 
-To require these cases rather than permit a missing-runtime skip, run inside
-the prepared Hermes image environment:
+The separate automatic **Hermes image runtime gate** builds the production
+image and requires all nine cases without skips. To reproduce it from the
+component directory (Docker and network access required for the build):
 
 ```bash
-HARNESS_TEST_REQUIRE_HERMES=1 node --test test/model-defaults-test.mjs
+set -euo pipefail
+docker build --build-arg HARNESS_AGENT=hermes -f openshell/Dockerfile -t harness-hermes-validation .
+docker run --rm --network none --read-only \
+  --cap-drop ALL --security-opt no-new-privileges \
+  --tmpfs /tmp:rw,nosuid,nodev,size=256m \
+  --mount "type=bind,source=$PWD/test/model-defaults-test.mjs,target=/opt/harness/model-defaults-test.mjs,readonly" \
+  --env HARNESS_TEST_REQUIRE_HERMES=1 \
+  --env HARNESS_TEST_MODEL_CONFIG=/opt/harness/model-config.mjs \
+  harness-hermes-validation \
+  node --test --test-reporter=tap /opt/harness/model-defaults-test.mjs \
+  | tee hermes-defaults.tap
+grep -Fxq '# skipped 0' hermes-defaults.tap
 ```
 
-The image must have Node, the pinned Hermes Python/YAML runtime, and the current
-test/helper files. `HARNESS_TEST_MODEL_CONFIG` can point to the current helper
-when it is mounted at a different location. See the
-[prepared-runner gate](README.md#opt-in-prepared-runner-gate) for the existing
-image-based execution path; do not run these as configuration changes in a
-user's active sandbox.
+The image supplies Node, the pinned Hermes Python/YAML runtime, real Hermes
+provider modules, and the current production helper. A host Python/PyYAML
+installation alone is not equivalent. Test configurations are temporary and no
+active sandbox is accessed. Build dependencies need network access; test
+execution does not. This does not replace the opt-in prepared-runner gate for
+live inference and lifecycle behavior.
 
 ## Interpretation and maintenance
 

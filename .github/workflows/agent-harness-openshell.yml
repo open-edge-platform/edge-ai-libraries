@@ -145,10 +145,46 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  hermes:
+    name: Hermes image runtime gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Build production Hermes image
+        working-directory: frameworks/agent-harness-install
+        run: docker build --build-arg HARNESS_AGENT=hermes -f openshell/Dockerfile -t harness-hermes-validation .
+      - name: Validate model defaults in the real Hermes runtime
+        working-directory: frameworks/agent-harness-install
+        run: |
+          set -euo pipefail
+          docker run --rm --network none --read-only \
+            --cap-drop ALL --security-opt no-new-privileges \
+            --tmpfs /tmp:rw,nosuid,nodev,size=256m \
+            --mount "type=bind,source=$PWD/test/model-defaults-test.mjs,target=/opt/harness/model-defaults-test.mjs,readonly" \
+            --env HARNESS_TEST_REQUIRE_HERMES=1 \
+            --env HARNESS_TEST_MODEL_CONFIG=/opt/harness/model-config.mjs \
+            harness-hermes-validation \
+            node --test --test-reporter=tap /opt/harness/model-defaults-test.mjs \
+            | tee "$RUNNER_TEMP/hermes-defaults.tap"
+          grep -Fxq '# skipped 0' "$RUNNER_TEMP/hermes-defaults.tap"
+      - name: Upload Hermes runtime TAP report
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: hermes-runtime-results
+          path: ${{ runner.temp }}/hermes-defaults.tap
+          if-no-files-found: warn
+          retention-days: 14
+
   live:
     name: OpenShell prepared-runner gate
     if: github.event_name == 'workflow_dispatch' && inputs.live
-    needs: [static, offline]
+    needs: [static, offline, hermes]
     # Never run arbitrary pull-request code automatically on a privileged runner.
     environment: openshell-validation
     runs-on: [self-hosted, linux, openshell-validation]

@@ -48,6 +48,30 @@ The workflow fails if either file list is empty. The static job must be selected
 as a required status check in repository branch protection/rulesets to prevent
 merging when it fails; adding the workflow alone does not configure that policy.
 
+### Hermes image runtime gate
+
+The independent **Hermes image runtime gate** runs on every relevant PR, push to
+`main`, and manual dispatch. It builds the existing production Dockerfile with
+`HARNESS_AGENT=hermes`, reusing the installer's pinned Hermes commit and installer
+checksum. Image construction downloads the real dependencies and requires Docker
+and external network access; it does not install Hermes on the host.
+
+The gate runs all nine model-default cases with `HARNESS_TEST_REQUIRE_HERMES=1`.
+Missing Hermes fails instead of skipping, and the gate rejects skipped tests.
+The two Hermes-specific cases exercise actual YAML serialization, provider
+normalization into request overrides, preservation of user overrides, and
+configuration changes on reapplication/model switching.
+
+Tests run as the image's unprivileged user in a disposable container with no
+network, a read-only root filesystem, a writable temporary filesystem, no Linux
+capabilities, and only the test file bind-mounted read-only. No host agent
+configuration, Docker socket, credentials or OpenShell gateway is mounted.
+The image's production model-config helper is tested, and TAP output is uploaded
+as `hermes-runtime-results`. See the [local commands](unit-tests.md#hermes-runtime-dependent-cases).
+This is real dependency/configuration coverage, not live inference or sandbox
+lifecycle acceptance. Administrators must make this check required in branch
+protection/rulesets; the workflow alone does not enforce merge protection.
+
 ### Installer runtime regression
 
 The offline job runs `bash test/installer-runtime-test.sh`. Its 27 cases
