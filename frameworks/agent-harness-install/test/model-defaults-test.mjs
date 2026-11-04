@@ -12,10 +12,11 @@ const helper = process.env.HARNESS_TEST_MODEL_CONFIG ??
   fileURLToPath(new URL("../openshell/model-config.mjs", import.meta.url));
 const model = "Qwen3.5-9B-int8-ov";
 const endpoint = "http://host.openshell.internal:8010/v1";
+const requireHermes = process.env.HARNESS_TEST_REQUIRE_HERMES === "1";
 const hermes = "/home/node/.local/bin/hermes";
-const python = fs.existsSync(hermes)
+const python = requireHermes && fs.existsSync(hermes)
   ? JSON.parse(execFileSync(hermes, ["--print-runtime-command"], {encoding: "utf8"}))[0] : null;
-if (process.env.HARNESS_TEST_REQUIRE_HERMES === "1" && python === null)
+if (requireHermes && python === null)
   throw Error("Hermes defaults validation requires the pinned Hermes image runtime");
 const bootstrap = 'import sys; sys.path.insert(0, "/home/node/.hermes/hermes-agent"); ' +
   "import hermes_bootstrap; import hermes_yaml as yaml; ";
@@ -152,8 +153,8 @@ test("pre-existing empty configuration sections retain their identity and orderi
   assert.deepEqual(switched.tools, {});
 });
 
-test("Hermes Qwen defaults normalize into actual custom-provider request overrides",
-  {skip: python === null ? "Requires the pinned Hermes image Python/YAML runtime" : false}, t => {
+if (requireHermes) {
+  test("Hermes Qwen defaults normalize into actual custom-provider request overrides", t => {
     const f = fixture(t, "hermes");
     const config = f.apply();
     assert.equal(config.model.context_length, 65536);
@@ -182,8 +183,7 @@ assert body == {"max_tokens": 4096, "temperature": 0.2, "chat_template_kwargs": 
     assert.equal(switched.userSetting, true);
   });
 
-test("Hermes explicit overrides survive restart and switching away",
-  {skip: python === null ? "Requires the pinned Hermes image Python/YAML runtime" : false}, t => {
+  test("Hermes explicit overrides survive restart and switching away", t => {
     const f = fixture(t, "hermes");
     const config = f.read();
     config.model.context_length = 16384;
@@ -204,3 +204,4 @@ test("Hermes explicit overrides survive restart and switching away",
     assert.deepEqual(switched.providers["harness-ovms-qwen"].extra_body,
       config.providers["harness-ovms-qwen"].extra_body);
   });
+}

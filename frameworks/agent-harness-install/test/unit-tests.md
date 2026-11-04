@@ -43,7 +43,7 @@ counts must not be added to the outer count as independent top-level results.
 | Startup, runtime, profiles, boundaries, removal and nested suites | `bash test/openshell-test.sh` | 77, including three nested-suite wrappers |
 | Model selection and managed inference | `bash test/managed-inference-test.sh` | 33 |
 | Model lifecycle, cleanup and CLI locking | `bash test/model-lifecycle-test.sh` | 40 |
-| Agent model defaults | `node --test test/model-defaults-test.mjs` | 9; two require the Hermes image runtime |
+| Agent model defaults | `node --test test/model-defaults-test.mjs` | 7 offline; 9 with `HARNESS_TEST_REQUIRE_HERMES=1` in the Hermes image |
 
 The Bash runners execute their registered cases in order; they do not currently
 accept a case-name filter. Use the focused suite to reproduce a Bash failure.
@@ -298,9 +298,10 @@ helper against temporary files, not an LLM.
 
 ### Hermes runtime-dependent cases
 
-The final two cases skip when the pinned Hermes runtime is unavailable at
-`/home/node/.local/bin/hermes`. The normal offline host/CI run therefore
-executes seven cases and reports two skips, not nine passes.
+The final two cases are registered only when `HARNESS_TEST_REQUIRE_HERMES=1`.
+The normal offline host/CI run executes seven cases with zero skips and does not
+probe or invoke Hermes, even if it is installed. Explicit Hermes mode requires
+the pinned runtime at `/home/node/.local/bin/hermes` and fails if it is missing.
 
 The separate automatic **Hermes image runtime gate** builds the production
 image and requires all nine cases without skips. To reproduce it from the
