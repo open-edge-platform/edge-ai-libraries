@@ -26,6 +26,9 @@ logger = logging.getLogger(__name__)
 SeedLoader = Callable[[], list[Any]]
 SeedApplier = Callable[[AsyncSession, list[Any]], Awaitable[None]]
 
+# Hugging Face gating modes accepted in model YAMLs.
+_VALID_GATED_VALUES = ("false", "auto", "manual")
+
 
 class SeedObjectSpec(TypedDict):
     """Registration for one database seed object type."""
@@ -83,6 +86,7 @@ class ModelCatalogSpec(TypedDict):
     category: str
     unsupported_devices: str | None
     link: str | None
+    gated: str | None
     precisions: list[ModelPrecisionSpec]
     extra_model_procs: list[str]
     download_request: dict[str, Any] | None
@@ -394,6 +398,23 @@ def _validate_model_catalog_spec(
     )
     link_raw = loaded.get("link")
     link = link_raw.strip() if isinstance(link_raw, str) and link_raw.strip() else None
+    gated_raw = loaded.get("gated")
+    # YAML parses an unquoted `false` as a bool.
+    if gated_raw is False:
+        gated = "false"
+    elif (
+        isinstance(gated_raw, str) and gated_raw.strip().lower() in _VALID_GATED_VALUES
+    ):
+        gated = gated_raw.strip().lower()
+    else:
+        if gated_raw is not None:
+            logger.warning(
+                "Ignoring invalid 'gated' value %r in %s (expected one of %s)",
+                gated_raw,
+                model_path,
+                ", ".join(_VALID_GATED_VALUES),
+            )
+        gated = None
     extra_model_procs_raw = loaded.get("extra_model_procs")
     extra_model_procs = (
         [p.strip() for p in extra_model_procs_raw if isinstance(p, str) and p.strip()]
@@ -414,6 +435,7 @@ def _validate_model_catalog_spec(
         category=category.strip(),
         unsupported_devices=unsupported_devices,
         link=link,
+        gated=gated,
         precisions=valid_precisions,
         extra_model_procs=extra_model_procs,
         download_request=download_request,
@@ -655,6 +677,7 @@ async def _seed_models(
             hub=spec["hub"],
             unsupported_devices=spec["unsupported_devices"],
             link=spec["link"],
+            gated=spec["gated"],
             is_custom=False,
             install_status="installed" if model_installed else "not_installed",
             installed_at=now if model_installed else None,

@@ -1342,6 +1342,7 @@ export type ModelInstallStatus =
   | "not_installed"
   | "installing"
   | "failed";
+export type ModelGated = "false" | "auto" | "manual";
 export type ModelVariant = {
   /** Stable variant identifier. */
   name: string;
@@ -1375,6 +1376,8 @@ export type Model = {
   unsupported_devices?: string | null;
   /** URL of the model page on its upstream hub (currently only Hugging Face), or null when not available. */
   link?: string | null;
+  /** Hugging Face gating mode, or null when unknown or not applicable (non-Hugging Face models). */
+  gated?: ModelGated | null;
 };
 export type ModelHubListResponse = {
   hub: string;
@@ -1439,6 +1442,8 @@ export type ModelDownloadRequest = {
   hub?: ModelSource | null;
   /** Model category, required when `hub` is `huggingface` (ignored for other hubs). */
   category?: ModelCategory | null;
+  /** Gating mode of the hub model, stored on the registered model (null when unknown). */
+  gated?: ModelGated | null;
 };
 export type ModelStatusItem = {
   /** Internal model identifier. */

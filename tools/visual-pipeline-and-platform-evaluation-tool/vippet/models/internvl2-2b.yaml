@@ -5,6 +5,7 @@ description: "InternVL2 2B vision-language model that combines image and text un
 source: huggingface
 hub: huggingface
 link: https://huggingface.co/OpenVINO/InternVL2-2B-int4-ov
+gated: false
 type: vision_language_models
 precisions:
   - precision: INT4

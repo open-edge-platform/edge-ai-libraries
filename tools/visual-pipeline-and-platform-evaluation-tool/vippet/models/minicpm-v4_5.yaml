@@ -5,6 +5,7 @@ description: "MiniCPM-V 4.5 (8B) vision-language model for high-quality image un
 source: huggingface
 hub: huggingface
 link: https://huggingface.co/OpenVINO/MiniCPM-V-4_5-int4-cw-ov
+gated: false
 type: vision_language_models
 precisions:
   - precision: INT4

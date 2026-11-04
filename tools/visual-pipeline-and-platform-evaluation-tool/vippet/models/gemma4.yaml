@@ -5,6 +5,7 @@ description: "Google Gemma multimodal vision-language model (E4B variant) that j
 source: huggingface
 hub: huggingface
 link: https://huggingface.co/OpenVINO/gemma-4-E4B-it-int4-ov
+gated: false
 type: vision_language_models
 precisions:
   - precision: INT4

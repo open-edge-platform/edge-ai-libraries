@@ -24,6 +24,7 @@ import {
   useStartModelDownloadMutation,
   type ModelCategory,
   type ModelDownloadJobResponse,
+  type ModelGated,
   type ModelHubListResponse,
 } from "@/api/api.generated";
 import { Loader2, AlertCircle, Download, ExternalLink } from "lucide-react";
@@ -66,6 +67,12 @@ type HGFBrowserProps = {
   onInstalled?: () => void;
 };
 
+// The hub reports `false` | "auto" | "manual"; the API expects strings.
+const toGated = (value: unknown): ModelGated | undefined => {
+  if (value === false) return "false";
+  return value === "auto" || value === "manual" ? value : undefined;
+};
+
 const getDownloads = (metadata: unknown): number | null => {
   if (typeof metadata !== "object" || metadata === null) return null;
   const downloads = (metadata as { downloads?: unknown }).downloads;
@@ -98,6 +105,7 @@ export const HGFBrowser = ({ onInstalled }: HGFBrowserProps) => {
   const [gatedPrompt, setGatedPrompt] = useState<{
     name: string;
     task: string | null;
+    gated: ModelGated | undefined;
   } | null>(null);
   const { execute: runInstall, jobStatus } = useAsyncJob({
     asyncJobHook: useStartModelDownloadMutation,
@@ -107,7 +115,11 @@ export const HGFBrowser = ({ onInstalled }: HGFBrowserProps) => {
       Object.values(response.jobs)[0]?.job_id,
   });
 
-  const handleInstall = async (name: string, task: string | null) => {
+  const handleInstall = async (
+    name: string,
+    task: string | null,
+    gated: ModelGated | undefined,
+  ) => {
     const category = matchCategory(task);
     if (!category) {
       toast.error("Cannot install model", {
@@ -121,7 +133,12 @@ export const HGFBrowser = ({ onInstalled }: HGFBrowserProps) => {
     setInstallingName(name);
     try {
       await runInstall({
-        modelDownloadRequest: { names: [name], hub: "huggingface", category },
+        modelDownloadRequest: {
+          names: [name],
+          hub: "huggingface",
+          category,
+          gated,
+        },
       });
       dispatch(api.util.invalidateTags(["models"]));
       toast.success(`Model "${name}" installed successfully.`);
@@ -251,6 +268,7 @@ export const HGFBrowser = ({ onInstalled }: HGFBrowserProps) => {
               const downloads = getDownloads(model.metadata);
               const name = asString(model.name);
               const task = asString(model.model_type);
+              const gated = toGated(model.gated);
               return (
                 <TableRow key={name ?? idx} className="odd:bg-muted/30">
                   <TableCell className="whitespace-normal break-words font-medium">
@@ -304,8 +322,8 @@ export const HGFBrowser = ({ onInstalled }: HGFBrowserProps) => {
                         disabled={installingName !== null}
                         onClick={() =>
                           model.gated !== false
-                            ? setGatedPrompt({ name, task })
-                            : handleInstall(name, task)
+                            ? setGatedPrompt({ name, task, gated })
+                            : handleInstall(name, task, gated)
                         }
                       >
                         <Download className="mr-2 h-4 w-4" />
@@ -372,9 +390,9 @@ export const HGFBrowser = ({ onInstalled }: HGFBrowserProps) => {
         hubName="Hugging Face"
         onConfirm={() => {
           if (!gatedPrompt) return;
-          const { name, task } = gatedPrompt;
+          const { name, task, gated } = gatedPrompt;
           setGatedPrompt(null);
-          handleInstall(name, task);
+          handleInstall(name, task, gated);
         }}
       />
     </div>
