@@ -67,7 +67,6 @@ type HGFBrowserProps = {
   onInstalled?: () => void;
 };
 
-// The hub reports `false` | "auto" | "manual"; the API expects strings.
 const toGated = (value: unknown): ModelGated | undefined => {
   if (value === false) return "false";
   return value === "auto" || value === "manual" ? value : undefined;
