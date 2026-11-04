@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu.tsx";
 import { ModelInstallStatusIndicator } from "@/features/models/ModelInstallStatusIndicator";
 import { LicenseAcknowledgementDialog } from "@/features/models/LicenseAcknowledgementDialog";
+import { isGatedModel } from "@/features/models/modelNames";
 import type { ModelCategory } from "@/api/api.generated.ts";
 
 type ModelsTableProps = {
@@ -112,7 +113,7 @@ export const ModelsTable = ({
                       <DropdownMenuItem
                         disabled={!canInstall || isPending}
                         onClick={() =>
-                          model.gated && model.gated !== "false"
+                          isGatedModel(model)
                             ? setGatedPrompt({
                                 name: model.name,
                                 link: model.link ?? null,
@@ -140,7 +141,9 @@ export const ModelsTable = ({
         onOpenChange={open => {
           if (!open) setGatedPrompt(null);
         }}
-        modelUrl={gatedPrompt?.link ?? null}
+        models={
+          gatedPrompt ? [{ name: gatedPrompt.name, url: gatedPrompt.link }] : []
+        }
         hubName="Hugging Face"
         onConfirm={() => {
           if (!gatedPrompt) return;

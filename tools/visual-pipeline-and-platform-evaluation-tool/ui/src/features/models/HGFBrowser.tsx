@@ -384,8 +384,15 @@ export const HGFBrowser = ({ onInstalled }: HGFBrowserProps) => {
         onOpenChange={(open) => {
           if (!open) setGatedPrompt(null);
         }}
-        modelUrl={
-          gatedPrompt ? `https://huggingface.co/${gatedPrompt.name}` : null
+        models={
+          gatedPrompt
+            ? [
+                {
+                  name: gatedPrompt.name,
+                  url: `https://huggingface.co/${gatedPrompt.name}`,
+                },
+              ]
+            : []
         }
         hubName="Hugging Face"
         onConfirm={() => {

@@ -10,6 +10,7 @@ import {
 import { ModelInstallStatusIndicator } from "@/features/models/ModelInstallStatusIndicator";
 import { ModelInstallButtonSlot } from "@/features/models/ModelInstallButtonSlot";
 import { LicenseAcknowledgementDialog } from "@/features/models/LicenseAcknowledgementDialog";
+import { isGatedModel } from "@/features/models/modelNames.ts";
 import { useModelInstall } from "@/features/models/useModelInstall.ts";
 import type { PipelineModelStatusItem } from "@/features/models/useRequiredModelsStatus.ts";
 import type { Model } from "@/api/api.generated.ts";
@@ -107,10 +108,7 @@ export const PipelineModelsRequiredDialog = ({
                             return;
                           }
 
-                          if (
-                            catalogModel.gated &&
-                            catalogModel.gated !== "false"
-                          ) {
+                          if (isGatedModel(catalogModel)) {
                             setGatedPrompt({
                               name: catalogModel.name,
                               link: catalogModel.link ?? null,
@@ -138,7 +136,9 @@ export const PipelineModelsRequiredDialog = ({
         onOpenChange={isOpen => {
           if (!isOpen) setGatedPrompt(null);
         }}
-        modelUrl={gatedPrompt?.link ?? null}
+        models={
+          gatedPrompt ? [{ name: gatedPrompt.name, url: gatedPrompt.link }] : []
+        }
         hubName="Hugging Face"
         onConfirm={() => {
           if (!gatedPrompt) return;
