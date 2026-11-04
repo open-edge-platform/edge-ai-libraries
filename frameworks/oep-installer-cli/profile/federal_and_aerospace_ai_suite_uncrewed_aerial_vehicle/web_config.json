@@ -6,13 +6,14 @@
   },
   "modules": [
     { "label": "Uncrewed Aerial Vehicle Blueprint", "value": "uncrewed_aerial_vehicle_blueprint" },
-    { "label": "Uncrewed Aerial Vehicle Mission", "value": "uncrewed_aerial_vehicle_mission", "startStop": true, "remove": true, "options": ["--ground-station", "--vision-analytics"] }
+    { "label": "Uncrewed Aerial Vehicle - Ground Station", "value": "uncrewed_aerial_vehicle_ground_station", "startStop": true, "remove": true },
+    { "label": "Uncrewed Aerial Vehicle - Vision Analytics", "value": "uncrewed_aerial_vehicle_vision_analytics", "startStop": true, "remove": true }
   ],
   "getStarted": {
     "text": "Get Started",
     "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-fed-aero.html"
   },
   "resources": [
-    { "text": "Uncrewed Aerial Vehicle Mission", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/uav-vision-analytics/index.html" }
+    { "text": "Uncrewed Aerial Vehicle - Vision Analytics", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/uav-vision-analytics/index.html" }
   ]
 }
