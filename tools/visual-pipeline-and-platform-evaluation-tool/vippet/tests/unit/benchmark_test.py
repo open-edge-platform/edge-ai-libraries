@@ -1148,13 +1148,13 @@ class TestBenchmarkSlowestStream(unittest.TestCase):
         self.assertEqual(result.min_stream_fps, 40.0)
 
     def test_dlsps2_runner_gets_latency_flag(self):
-        benchmark = Benchmark(use_dlsps2=True, enable_latency_metrics=True)
+        benchmark = Benchmark(enable_latency_metrics=True)
 
         self.assertIsInstance(benchmark.runner, Dlsps2PipelineRunner)
         self.assertEqual(benchmark.runner.latency_tracer_metrics, {})
 
     def test_dlsps2_runner_receives_per_stream_commands(self):
-        benchmark = Benchmark(use_dlsps2=True)
+        benchmark = Benchmark()
 
         self.assertIsInstance(benchmark.runner, Dlsps2PipelineRunner)
         result = self._run(benchmark)

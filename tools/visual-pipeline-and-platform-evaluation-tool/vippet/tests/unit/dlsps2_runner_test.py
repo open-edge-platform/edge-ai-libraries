@@ -1275,29 +1275,22 @@ class TestDlsps2LatencyConfigured(unittest.TestCase):
             self.assertFalse(dlsps2_runner.dlsps2_latency_configured())
 
     def test_on_with_complete_setup(self):
-        env = {
-            "DLSPS2_LATENCY": "true",
-            "DLSPS2_OTEL": "true",
-            "DLSPS2_GST_TRACERS": self.TRACERS,
-        }
+        env = {"DLSPS2_OTEL": "true", "DLSPS2_GST_TRACERS": self.TRACERS}
         with patch.dict(os.environ, env, clear=True):
             self.assertTrue(dlsps2_runner.dlsps2_latency_configured())
 
-    def test_incomplete_setup_is_warned_about_and_off(self):
+    def test_incomplete_setup_is_off(self):
         for env in (
-            {"DLSPS2_LATENCY": "true", "DLSPS2_GST_TRACERS": self.TRACERS},
-            {"DLSPS2_LATENCY": "true", "DLSPS2_OTEL": "true"},
+            {"DLSPS2_GST_TRACERS": self.TRACERS},
+            {"DLSPS2_OTEL": "false", "DLSPS2_GST_TRACERS": self.TRACERS},
+            {"DLSPS2_OTEL": "true"},
             {
-                "DLSPS2_LATENCY": "true",
                 "DLSPS2_OTEL": "true",
                 "DLSPS2_GST_TRACERS": "latency_tracer(flags=pipeline)",
             },
         ):
             with self.subTest(env=env):
-                with (
-                    patch.dict(os.environ, env, clear=True),
-                    self.assertLogs("dlsps2_runner", level="WARNING"),
-                ):
+                with patch.dict(os.environ, env, clear=True):
                     self.assertFalse(dlsps2_runner.dlsps2_latency_configured())
 
 

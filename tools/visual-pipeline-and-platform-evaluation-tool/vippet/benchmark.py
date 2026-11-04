@@ -17,7 +17,7 @@ from internal_types import (
     InternalPipelineStreamSpec,
 )
 from managers.pipeline_manager import PipelineManager
-from pipeline_runner import LatencyTracerSample, PipelineRunner
+from pipeline_runner import LatencyTracerSample
 
 
 @dataclass
@@ -79,7 +79,7 @@ class _BestConfig:
     search its contents are copied into :class:`BenchmarkResult`.
 
     ``latency_tracer_metrics`` is snapshotted by value (shallow copy of
-    the dict) because :class:`PipelineRunner` resets its internal
+    the dict) because the runner resets its internal
     ``latency_tracer_metrics`` map at the start of every run; without a
     snapshot, by the time the search finishes the runner would only
     hold samples from the LAST iteration.
@@ -93,7 +93,7 @@ class _BestConfig:
         video_output_paths: Output directory paths declared by the
             pipeline command of this configuration.
         latency_tracer_metrics: Shallow copy of
-            ``PipelineRunner.latency_tracer_metrics`` taken right after
+            ``Dlsps2PipelineRunner.latency_tracer_metrics`` taken right after
             this configuration's run completed. ``None`` when the
             tracer was disabled.
         min_stream_fps: FPS of the slowest stream of this configuration,
@@ -116,32 +116,19 @@ class Benchmark:
         max_runtime: float = 0,
         enable_latency_metrics: bool = False,
         job_id: str | None = None,
-        use_dlsps2: bool = False,
     ):
         self.best_result = None
-        # Initialize PipelineRunner in normal mode with optional max_runtime for each run.
-        # `enable_latency_metrics` is forwarded so that the GStreamer subprocess
-        # is launched with the DLStreamer latency_tracer active when requested.
+        # Every stream runs as its own DLSPS 2.0 instance, which reports
+        # per-stream FPS; with `enable_latency_metrics` the latency samples
+        # come from the DLSPS OpenTelemetry export to metrics-manager.
         # `job_id` is forwarded so FPS metrics pushed during each density
         # iteration are tagged with the owning job's id in metrics-manager.
-        # `use_dlsps2` runs every stream as its own DLSPS 2.0 instance instead,
-        # which reports per-stream FPS; its latency samples come from the DLSPS
-        # OpenTelemetry export to metrics-manager.
-        self.runner: PipelineRunner | Dlsps2PipelineRunner
-        if use_dlsps2:
-            self.runner = Dlsps2PipelineRunner(
-                mode="normal",
-                max_runtime=max_runtime,
-                enable_latency_metrics=enable_latency_metrics,
-                job_id=job_id,
-            )
-        else:
-            self.runner = PipelineRunner(
-                mode="normal",
-                max_runtime=max_runtime,
-                enable_latency_metrics=enable_latency_metrics,
-                job_id=job_id,
-            )
+        self.runner = Dlsps2PipelineRunner(
+            mode="normal",
+            max_runtime=max_runtime,
+            enable_latency_metrics=enable_latency_metrics,
+            job_id=job_id,
+        )
         self.logger = logging.getLogger(__name__)
 
     @staticmethod
@@ -351,19 +338,11 @@ class Benchmark:
             # parsing to the user-facing streams declared by this run
             # so the density job's `latency_tracer_metrics` never
             # reports internal sinks.
-            result = (
-                self.runner.run(
-                    pipeline_command,
-                    n_streams,
-                    allowed_stream_ids=set(pipeline_cmd.all_stream_ids),
-                    stream_commands=pipeline_cmd.stream_commands,
-                )
-                if isinstance(self.runner, Dlsps2PipelineRunner)
-                else self.runner.run(
-                    pipeline_command,
-                    n_streams,
-                    allowed_stream_ids=set(pipeline_cmd.all_stream_ids),
-                )
+            result = self.runner.run(
+                pipeline_command,
+                n_streams,
+                allowed_stream_ids=set(pipeline_cmd.all_stream_ids),
+                stream_commands=pipeline_cmd.stream_commands,
             )
 
             # Check for cancellation
@@ -504,7 +483,7 @@ class Benchmark:
         """
         Capture the just-completed iteration as the new best configuration.
 
-        The `PipelineRunner` resets its `latency_tracer_metrics` map at
+        The runner resets its `latency_tracer_metrics` map at
         the start of every run, so the snapshot must be taken
         immediately after the iteration finishes — otherwise the next
         iteration would overwrite it. A shallow copy of the map is

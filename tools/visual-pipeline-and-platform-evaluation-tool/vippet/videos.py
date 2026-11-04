@@ -14,11 +14,9 @@ import cv2
 import yaml
 
 from dlsps2_runner import Dlsps2PipelineRunner
-from pipeline_runner import PipelineRunner
 
-# With VIPPET_EXECUTION_BACKEND=dlsps2 the TS conversion runs on DLSPS 2.0.
-# Both containers mount the same video directories, so the output lands here.
-_EXECUTION_BACKEND = os.environ.get("VIPPET_EXECUTION_BACKEND", "local").strip().lower()
+# The TS conversion runs on DLSPS 2.0. Both containers mount the same video
+# directories, so the output lands here.
 
 # Allowed video file extensions (lowercase, without dot)
 VIDEO_EXTENSIONS = (
@@ -823,13 +821,9 @@ class VideosManager:
         )
 
         try:
-            runner: PipelineRunner | Dlsps2PipelineRunner
-            if _EXECUTION_BACKEND == "dlsps2":
-                runner = Dlsps2PipelineRunner(
-                    mode="normal", max_runtime=0.0, validate_pipelines=False
-                )
-            else:
-                runner = PipelineRunner(mode="normal", max_runtime=0.0)
+            runner = Dlsps2PipelineRunner(
+                mode="normal", max_runtime=0.0, validate_pipelines=False
+            )
             if demuxer:
                 pipeline_command = (
                     f"filesrc location={source_path} ! {demuxer} ! {parser} ! {caps} "

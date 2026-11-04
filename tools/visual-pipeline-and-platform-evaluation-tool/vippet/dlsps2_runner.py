@@ -44,8 +44,8 @@ aggregates every window or request of one export period
 (``DLSPS2_OTEL_INTERVAL_MS``). This needs the server started with
 OpenTelemetry export to metrics-manager and, for latency, with
 ``GST_TRACERS=latency_tracer(flags=pipeline,interval=1000,post-metrics=true)``
-(``DLSPS2_OTEL``, ``DLSPS2_GST_TRACERS`` and ``DLSPS2_LATENCY`` in
-``compose.dlsps2.yml``, see :func:`dlsps2_latency_configured`). ``gvagenai``
+(``DLSPS2_OTEL`` and ``DLSPS2_GST_TRACERS`` in ``compose.yml``, see
+:func:`dlsps2_latency_configured`). ``gvagenai``
 elements with ``metrics=true`` get ``post-metrics=true`` in the launch string
 only when the server's own ``gvagenai`` has that property, as reported by
 ``GET /elements/gvagenai``; otherwise the launch string is left as is and no
@@ -57,9 +57,8 @@ Deliberately NOT supported:
   :class:`NotImplementedError`: DLSPS 2.0 counts frames on the first sink
   of an instance only.
 
-Callers fall back to the local :class:`~pipeline_runner.PipelineRunner` for
-unsupported cases — see ``managers.validation_manager``,
-``managers.tests_manager`` and ``benchmark`` for the selection logic.
+Every caller (``managers.validation_manager``, ``managers.tests_manager``,
+``benchmark`` and ``videos``) passes one launch string per stream.
 """
 
 import json
@@ -127,7 +126,7 @@ DLSPS2_METRICS_HTTP_TIMEOUT_S: float = float(
 )
 
 # OpenTelemetry export interval of the DLSPS 2.0 server, milliseconds (passed to the
-# server as OTEL_EXPORT_INTERVAL_MILLIS by compose.dlsps2.yml).
+# server as OTEL_EXPORT_INTERVAL_MILLIS by compose.yml).
 DLSPS2_OTEL_INTERVAL_MS: float = float(
     os.environ.get("DLSPS2_OTEL_INTERVAL_MS", "10000")
 )
@@ -163,28 +162,19 @@ def _env_true(name: str) -> bool:
 
 
 def dlsps2_latency_configured() -> bool:
-    """Whether DLSPS 2.0 is set up to export latency, so latency tests can run on it.
+    """Whether DLSPS 2.0 is set up to export latency.
 
-    Requires ``DLSPS2_LATENCY=true`` in the ``vippet`` environment, together with
-    ``DLSPS2_OTEL=true`` and ``DLSPS2_GST_TRACERS`` running ``latency_tracer``
-    with ``post-metrics=true``, which ``compose.dlsps2.yml`` passes to the
-    server. Without ``DLSPS2_LATENCY`` latency tests keep running in ``vippet``;
-    an incomplete setup is logged and treated the same way.
+    Requires ``DLSPS2_OTEL=true`` and ``DLSPS2_GST_TRACERS`` running
+    ``latency_tracer`` with ``post-metrics=true``; ``compose.yml`` passes both
+    to the server and to ``vippet``. Tracers are process-wide in the server, so
+    this is a server setting, not a per-test one.
     """
-    if not _env_true("DLSPS2_LATENCY"):
-        return False
     tracers = os.environ.get("DLSPS2_GST_TRACERS", "").replace(" ", "")
-    if (
+    return (
         _env_true("DLSPS2_OTEL")
         and "latency_tracer" in tracers
         and "post-metrics=true" in tracers
-    ):
-        return True
-    logger.warning(
-        "DLSPS2_LATENCY=true needs DLSPS2_OTEL=true and DLSPS2_GST_TRACERS with "
-        "latency_tracer(...,post-metrics=true); latency tests keep running in vippet."
     )
-    return False
 
 
 # One element of a launch string: the text between "!" separators that are not

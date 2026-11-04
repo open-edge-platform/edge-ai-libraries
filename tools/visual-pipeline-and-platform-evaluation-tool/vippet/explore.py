@@ -1,35 +1,31 @@
 import logging
-import os
-import subprocess
 import threading
+import time
 from typing import Optional
 
 import httpx
 
 from dlsps2_runner import DLSPS2_BASE_URL, DLSPS2_HTTP_TIMEOUT_S, DLSPS2_VERIFY_TLS
 
-_EXECUTION_BACKEND = os.environ.get("VIPPET_EXECUTION_BACKEND", "local").strip().lower()
+# Attempts, and seconds between them, to read the element list when it is first needed.
+ELEMENTS_READ_ATTEMPTS = 5
+ELEMENTS_RETRY_DELAY_S = 2.0
 
 
 class GstInspector:
     """
-    Thread-safe singleton class to inspect GStreamer elements using gst-inspect-1.0.
+    Thread-safe singleton class listing the GStreamer elements of DLSPS 2.0.
 
-    With ``VIPPET_EXECUTION_BACKEND=dlsps2`` the list comes from DLSPS 2.0's
-    ``GET /elements`` instead, since pipelines run there; local gst-inspect-1.0
-    is the fallback if that request fails.
+    Pipelines run on DLSPS 2.0, so the elements that may be used in them are
+    those of the server: they are read from its ``GET /elements``, which
+    reports what ``gst-inspect-1.0`` lists in the server's runtime. If the
+    server cannot be read, the list stays empty, an error is logged, and the
+    next read of :attr:`elements` tries again.
 
-    This class provides a method to retrieve the list of GStreamer elements
-    and their descriptions. Implements singleton pattern using __new__ with
-    double-checked locking.
+    Implements singleton pattern using __new__ with double-checked locking.
 
-    Example output from gst-inspect-1.0:
-
-    videoanalytics:  gvaclassify: Object classification (requires GstVideoRegionOfInterestMeta on input)
-    videoanalytics:  gvadetect: Object detection (generates GstVideoRegionOfInterestMeta)
-    videoanalytics:  gvainference: Generic full-frame inference (generates GstGVATensorMeta)
-
-    Elements are returned as a list of tuples:
+    Elements are returned as a sorted list of ``(plugin, element, description)``
+    tuples:
 
     [
         ("videoanalytics", "gvaclassify", "<description>"),
@@ -56,40 +52,31 @@ class GstInspector:
         self._initialized = True
 
         self.logger = logging.getLogger("GstInspector")
-        self.elements = self._get_gst_elements()
+        self._elements_lock = threading.Lock()
+        self._elements = self._get_gst_elements(attempts=ELEMENTS_READ_ATTEMPTS)
 
-    def _get_gst_elements(self):
-        if _EXECUTION_BACKEND == "dlsps2":
+    @property
+    def elements(self) -> list[tuple[str, str, str]]:
+        """The server's elements, read again while the list is empty."""
+        if not self._elements:
+            with self._elements_lock:
+                if not self._elements:
+                    self._elements = self._get_gst_elements()
+        return self._elements
+
+    def _get_gst_elements(self, attempts: int = 1) -> list[tuple[str, str, str]]:
+        for attempt in range(attempts):
+            if attempt:
+                time.sleep(ELEMENTS_RETRY_DELAY_S)
             elements = self._get_dlsps2_elements()
             if elements:
                 return elements
-            self.logger.warning(
-                "No elements from DLSPS 2.0; falling back to local gst-inspect-1.0"
-            )
-        try:
-            result = subprocess.run(
-                ["gst-inspect-1.0"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                check=True,
-            )
-            lines = result.stdout.splitlines()
-            elements = []
-            for line in lines:
-                if ":  " in line:
-                    plugin, rest = line.split(":  ", 1)
-                    if ": " in rest:
-                        element, description = rest.split(": ", 1)
-                        elements.append(
-                            (plugin.strip(), element.strip(), description.strip())
-                        )
-
-            return sorted(elements)
-
-        except Exception as e:
-            self.logger.error(f"Error running gst-inspect-1.0: {e}")
-            return []
+        self.logger.error(
+            "No GStreamer elements from DLSPS 2.0 at %s; decoder and encoder "
+            "selection has no element list until the server answers.",
+            DLSPS2_BASE_URL,
+        )
+        return []
 
     def _get_dlsps2_elements(self) -> list[tuple[str, str, str]]:
         try:
@@ -106,5 +93,5 @@ class GstInspector:
             self.logger.error(f"Error reading elements from DLSPS 2.0: {e}")
             return []
 
-    def get_elements(self):
+    def get_elements(self) -> list[tuple[str, str, str]]:
         return self.elements
