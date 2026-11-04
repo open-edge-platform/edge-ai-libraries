@@ -257,8 +257,8 @@ class TestValidationManager(unittest.TestCase):
         mock_runner.run.return_value = PipelineResult(
             exit_code=1,
             stderr=[
-                "gst_runner - ERROR - no element foo",
-                "gst_runner - ERROR - some other error",
+                "no element foo",
+                "some other error",
             ],
             stdout=[],
         )

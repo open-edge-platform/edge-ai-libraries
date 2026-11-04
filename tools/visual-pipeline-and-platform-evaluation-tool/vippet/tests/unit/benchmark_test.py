@@ -712,7 +712,7 @@ class TestBenchmarkLatencyTracerMetrics(unittest.TestCase):
         call_index = {"i": 0}
 
         def fake_run(*args, **kwargs):
-            """Mimic PipelineRunner: set the tracer map, then return the result."""
+            """Mimic the runner: set the tracer map, then return the result."""
             i = call_index["i"]
             benchmark.runner.latency_tracer_metrics = per_iteration_samples[i]
             call_index["i"] = i + 1

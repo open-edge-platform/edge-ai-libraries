@@ -3,17 +3,13 @@
 
 """dlsps2_runner.py
 
-``Dlsps2PipelineRunner`` is a :class:`~pipeline_runner.PipelineRunner`-compatible
-adapter that executes a pipeline against a running DLSPS 2.0
-(``dlstreamer-pipeline-server``) instance's REST API instead of spawning a
-local ``gst_runner.py`` subprocess.
-
-Only a subset of :class:`~pipeline_runner.PipelineRunner`'s behaviour is
-supported today:
+``Dlsps2PipelineRunner`` executes ViPPET's pipelines on a running DLSPS 2.0
+(``dlstreamer-pipeline-server``) instance through its REST API. It has two
+modes:
 
 * ``mode="validation"`` — maps onto ``POST /pipelines`` followed by polling
-  ``GET /pipelines/{id}/status``. Like ``gst_runner.py --mode validation``,
-  the pipeline is valid if it stays ``RUNNING`` for ``max_runtime`` seconds or
+  ``GET /pipelines/{id}/status``. The pipeline is valid if it stays
+  ``RUNNING`` for ``max_runtime`` seconds or
   reaches ``COMPLETED`` sooner; ``ERROR``/``ABORTED`` is invalid. The
   instance is then torn down with ``DELETE /pipelines/{id}``.
 * ``mode="normal"`` (performance and density tests) — every launch string
@@ -39,8 +35,8 @@ window length and frame count, a throughput measure from which the deprecated
 frame period ``latency_ms`` is derived. The runner reads
 only these series, only for its own instances, and republishes every export
 period as ViPPET's own ``pipeline_latency`` and ``vlm_metrics`` samples with
-the job's tags, like the local runner. Unlike the local runner, a sample
-aggregates every window or request of one export period
+the job's tags. A sample aggregates every window or request of one export
+period
 (``DLSPS2_OTEL_INTERVAL_MS``). This needs the server started with
 OpenTelemetry export to metrics-manager and, for latency, with
 ``GST_TRACERS=latency_tracer(flags=pipeline,interval=1000,post-metrics=true)``
@@ -85,10 +81,8 @@ from pipeline_runner import LatencyTracerSample, PipelineEvent, PipelineResult
 logger = logging.getLogger("dlsps2_runner")
 
 # Base URL of metrics-manager, used to push a live "fps" metric while a
-# normal-mode run is in progress (mirrors pipeline_runner.PipelineRunner's
-# own metrics-manager pushes, so the UI's live FPS chart -- which polls
-# metrics-manager filtered by `job_id` -- works the same way regardless of
-# which runner backend executed the job).
+# normal-mode run is in progress, for the UI's live FPS chart, which polls
+# metrics-manager filtered by `job_id`.
 DEFAULT_METRICS_MANAGER_URL = "http://metrics-manager:9090"
 
 # ----------------------------------------------------------------------
@@ -241,11 +235,8 @@ _TERMINAL_STATES = frozenset({"COMPLETED", "ERROR", "ABORTED"})
 class Dlsps2PipelineRunner:
     """Executes pipelines via a running DLSPS 2.0 instance's REST API.
 
-    Mirrors the subset of :class:`~pipeline_runner.PipelineRunner`'s public
-    interface (constructor keyword args, ``run()``, ``cancel()``,
-    ``is_cancelled()``) that ``managers.validation_manager`` and
-    ``managers.tests_manager`` rely on, so it can be substituted in as a
-    drop-in for the supported cases (see module docstring).
+    The public interface is ``run()``, ``cancel()`` and ``is_cancelled()``;
+    see the module docstring for what each mode does.
     """
 
     def __init__(
@@ -263,13 +254,28 @@ class Dlsps2PipelineRunner:
     ):
         """Initialize the runner.
 
-        Args mirror :class:`pipeline_runner.PipelineRunner.__init__` — see
-        that docstring for full semantics. ``base_url`` and
-        ``validate_pipelines`` are adapter-specific: the base URL of the
-        DLSPS 2.0 instance to talk to (defaults to ``DLSPS2_BASE_URL``), and
-        whether normal mode first checks each launch string with
-        ``POST /validate``. Turn the check off for a pipeline that writes a
-        file, since the check would run it once more before the real run.
+        Args:
+            mode: ``"normal"`` (performance and density runs, TS conversion)
+                or ``"validation"``.
+            max_runtime: Seconds to run. In normal mode the time counts from
+                every stream's first frame, and ``0`` runs until every
+                instance ends on its own. In validation mode, how long the
+                pipeline must stay ``RUNNING`` to be valid.
+            poll_interval: Seconds between status polls (default
+                ``DLSPS2_POLL_INTERVAL_S``).
+            inactivity_timeout: Seconds without frames from a stream, or
+                without an answer from DLSPS, after which a normal run fails.
+            hard_timeout: Validation mode only: seconds to reach a verdict
+                (default ``max_runtime + 60``).
+            enable_latency_metrics: Read latency samples from metrics-manager.
+            job_id: Tag of the metrics pushed to metrics-manager.
+            base_url: Base URL of the DLSPS 2.0 instance (default
+                ``DLSPS2_BASE_URL``).
+            validate_pipelines: Whether normal mode first checks each launch
+                string with ``POST /validate``. Turn the check off for a
+                pipeline that writes a file, since the check would run it
+                once more before the real run.
+            on_event: Called with each live pipeline event of a normal run.
 
         With ``enable_latency_metrics`` the latency samples are read from
         metrics-manager; see the module docstring for the server setup and
@@ -295,7 +301,7 @@ class Dlsps2PipelineRunner:
         self.logger = logger
         # Launch strings DLSPS 2.0 already accepted, reused across density iterations.
         self._validated: set[str] = set()
-        # Same attribute as PipelineRunner: last latency sample per stream_id.
+        # Last latency sample per stream_id.
         self.latency_tracer_metrics: dict[str, LatencyTracerSample] | None = (
             {} if enable_latency_metrics else None
         )
@@ -341,8 +347,8 @@ class Dlsps2PipelineRunner:
                 only ``1`` is supported in normal mode; ignored in
                 validation mode.
             allowed_stream_ids: Latency samples of streams outside this set
-                (internal bin sinks, ``splitmuxsink``) are dropped, as in
-                ``PipelineRunner.run()``. ``None`` keeps every stream.
+                (internal bin sinks, ``splitmuxsink``) are dropped. ``None``
+                keeps every stream.
             stream_commands: Normal mode only. One launch string per stream,
                 keyed by ``stream_id`` (``PipelineCommand.stream_commands``);
                 each runs as its own DLSPS 2.0 instance.
@@ -355,8 +361,7 @@ class Dlsps2PipelineRunner:
             NotImplementedError: If ``mode == "normal"``, ``stream_commands``
                 is not given and ``total_streams != 1``.
             RuntimeError: If the run fails on DLSPS 2.0 without having been
-                cancelled (normal mode only, mirroring ``PipelineRunner``'s
-                contract).
+                cancelled (normal mode only).
         """
         if self.mode == "validation":
             return self._run_validation(pipeline_command)
@@ -563,13 +568,11 @@ class Dlsps2PipelineRunner:
     def _push_fps_metric(self, fps: float) -> None:
         """Fire-and-forget push of the current FPS value to metrics-manager.
 
-        Mirrors ``PipelineRunner._push_fps_metric``: same endpoint
-        (``/api/v1/metrics/simple``) and payload shape (``{"name": "fps",
-        "value": ..., "tags": {"job_id": ...}}``), so the UI's live FPS
-        chart -- which reads metrics-manager filtered by ``job_id`` -- works
-        identically whether a job ran via the local ``PipelineRunner`` or
-        this DLSPS 2.0 adapter. Runs the POST on a short-lived daemon thread
-        so a slow/unreachable metrics-manager never delays polling.
+        Posts to ``/api/v1/metrics/simple`` as ``{"name": "fps", "value":
+        ..., "tags": {"job_id": ...}}``, which the UI's live FPS chart reads
+        from metrics-manager filtered by ``job_id``. Runs the POST on a
+        short-lived daemon thread so a slow/unreachable metrics-manager never
+        delays polling.
         """
         payload: dict[str, object] = {"name": "fps", "value": fps}
         if self.job_id is not None:
@@ -770,7 +773,7 @@ class Dlsps2PipelineRunner:
                 # Merged over the export period: the mean frame latency and the
                 # extremes of its windows. window_ms / frames is the mean time
                 # between output frames (the deprecated latency_ms, a frame
-                # period, not a latency), as the local runner reports it.
+                # period, not a latency).
                 sample = LatencyTracerSample(
                     interval_ms=v["window_ms"],
                     avg_ms=v["avg_ms"],
@@ -876,8 +879,7 @@ class Dlsps2PipelineRunner:
     def _run_validation(self, pipeline_command: str) -> PipelineResult:
         """Run pipeline in validation mode against DLSPS 2.0.
 
-        Mirrors ``gst_runner.py --mode validation``: the pipeline is valid if
-        it stays ``RUNNING`` for ``max_runtime`` seconds without error, or
+        The pipeline is valid if it stays ``RUNNING`` for ``max_runtime`` seconds without error, or
         reaches ``COMPLETED`` (EOS) sooner. ``ERROR``/``ABORTED`` is invalid,
         and so is not reaching a verdict within ``hard_timeout``. The
         instance is always stopped afterwards regardless of outcome, since a
@@ -1157,7 +1159,7 @@ class Dlsps2PipelineRunner:
                                 frames[sid] += fps[sid] * interval
                                 seconds[sid] += interval
 
-                        # Mean per stream, as PipelineRunner pushes for the live chart.
+                        # Mean per stream for the live chart.
                         self._push_fps_metric(sum(fps.values()) / len(instances))
                         if (
                             read_metrics

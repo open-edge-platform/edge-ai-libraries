@@ -34,7 +34,6 @@ x-vippet: &vippet
   environment:
     GST_DEBUG: "1"
     APP_LOG_LEVEL: INFO
-    RUNNER_LOG_LEVEL: INFO
     WEB_SERVER_LOG_LEVEL: WARNING
     MODELS_PATH: /models/output
     # Image-set uploads. Image sets are extracted into per-set

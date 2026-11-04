@@ -1950,9 +1950,8 @@ class TestsJobStatus(BaseModel):
         default=None,
         description=(
             "FPS of the slowest stream. A density test passes a stream count "
-            "only if this reaches `fps_floor`. `null` when the run reports "
-            "total FPS only (local runner); `per_stream_fps` is then the "
-            "only measure."
+            "only if this reaches `fps_floor`. `null` when no per-stream FPS "
+            "was measured; `per_stream_fps` is then the only measure."
         ),
         examples=[27.5],
     )
