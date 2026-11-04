@@ -41,7 +41,7 @@ counts must not be added to the outer count as independent top-level results.
 | Startup, runtime, profiles, boundaries, removal and nested suites | `bash test/openshell-test.sh` | 73, including three nested-suite wrappers |
 | Model selection and managed inference | `bash test/managed-inference-test.sh` | 33 |
 | Model lifecycle, cleanup and CLI locking | `bash test/model-lifecycle-test.sh` | 40 |
-| Telemetry (`metrics enable\|disable\|show`) | `bash test/metrics-test.sh` | 33 |
+| Telemetry (`metrics enable\|disable\|show`) | `bash test/metrics-test.sh` | 42 |
 | Agent model defaults | `node --test test/model-defaults-test.mjs` | 9; two require the Hermes image runtime |
 
 The Bash runners execute their registered cases in order; they do not currently
@@ -282,6 +282,14 @@ temporary HOME, so nothing touches the host. These cases do not prove that a
 real Router container can write its telemetry file, that the Hermes plugin
 exports spans, or that Jaeger displays them; those need a live deployment.
 
+[metrics-cli-test.sh](metrics-cli-test.sh) (`bash test/metrics-cli-test.sh`, 8
+cases) additionally runs the real `./install.sh metrics ...` entry point as a
+subprocess against stateful fake `docker`, `hermes`, `flock` and `curl`
+executables: the enable/disable round trip, `--keep-jaeger`, a foreign Jaeger
+container, an unreachable Docker daemon, an already-disabled plugin, the
+`--target all` disable ordering and rejection of unsafe input. It checks exit
+codes and resulting state, not real containers.
+
 | Case reference | Test case | Objective / expected result |
 |---|---|---|
 | `parse_defaults` | Flag defaults and forms | Default to `--target all`, `sqlite` and content `off`; accept `--flag value` and `--flag=value`. |
@@ -293,10 +301,19 @@ exports spans, or that Jaeger displays them; those need a live deployment.
 | `harness_enable_disable` | Hermes plugin lifecycle | Install and enable the plugin, write the managed config and state, then disable and remove the config. |
 | `harness_managed_jaeger` | Managed Jaeger | Start, reuse and remove the loopback-only container when no `--endpoint` is given. |
 | `harness_refuses_foreign_config` | Unmanaged `hermes_otel.yaml` | Refuse to overwrite a file this installer did not write. |
-| `jaeger_port_mismatch_is_rejected` | Existing Jaeger with other ports | Fail instead of reusing a container that does not publish the configured ports. |
+| `jaeger_port_mismatch_is_rejected` | Existing Jaeger with other ports | Fail instead of reusing a container that is not published on exactly the two configured loopback ports (wildcard, IPv6-any, wrong or extra ports). |
+| `foreign_jaeger_is_never_reused_or_removed` | Jaeger ownership | Refuse to reuse, and leave in place on removal, a same-named container without the installer's label. |
+| `docker_query_failure_is_not_absence` | Docker query failure | Fail instead of treating a failed container query as an absent container. |
+| `rejected_endpoint_is_not_echoed` | Endpoint errors | Never print the rejected endpoint, which may carry credentials. |
+| `saved_settings_are_resolved_before_validation` | Saved harness settings | Let `--endpoint` or a repeated `--backend` reuse saved settings; reject only genuinely unusable combinations. |
+| `router_state_is_unchanged_when_file_preparation_fails` | Router prerequisites | Leave the saved Router state unchanged when the file settings or Docker query fail. |
+| `disable_fails_when_the_plugin_cannot_be_disabled` | Plugin disable failure | Fail and keep config and state when Hermes is missing or `plugins disable` fails, unless the plugin lists as already disabled. |
+| `wal_checkpoint_busy_is_reported` | `--clean` with a busy store | Report that the write-ahead log may still hold deleted text. Skipped without `python3`. |
+| `all_target_rolls_the_router_back_when_the_harness_fails` | `--target all` failure handling | Validate harness options before the Router changes, and revert a Router change made by the command when the harness fails. |
+| `all_target_disable_reaches_the_router_after_a_harness_failure` | `--target all` disable | Still disable the Router when the harness cannot be disabled, and exit non-zero with the harness left enabled for a retry. |
 | `plugin_source_is_validated` | Plugin reference | Accept a catalog name or `owner/repo[/plugin]`; reject anything else. |
 | `plugin_ref_pins_the_install` | Exact-commit pin | Accept only a full lowercase 40-character SHA and pass it to the plugin install as `--ref`. |
-| `router_file_is_not_world_writable` | Telemetry file mode | Use group-writable 664 (666 only when requested or running as root) and reject other modes. |
+| `router_file_is_not_world_writable` | Telemetry file mode | Use group-writable 664 (666 only when requested), refuse 664 when the primary group is root, and reject other modes. |
 | `router_enable_rejects_a_container_without_the_group` | Router created by an older installer | Fail before changing state when the container lacks the group needed to write the file. |
 | `all_target_fails_before_touching_the_harness` | `--target all` ordering | Check the Router first so a failure leaves the harness unchanged. |
 | `host_gid_ignores_a_switched_primary_group` | Group id source | Use the account's primary group, not the current effective group after a re-run under another group. |
@@ -312,8 +329,8 @@ exports spans, or that Jaeger displays them; those need a live deployment.
 | `parse_disable_options` | `disable` options | Accept `--clean` and `--keep-jaeger`; reject misuse and conflicts. |
 | `router_disable_clean_is_opt_in` | Disable keeps data | Keep the JSONL unless `--clean`, restrict a kept file to mode 600, reopen it on enable and never follow a symlink. |
 | `harness_disable_clean_empties_store` | Hermes local store | Empty the SQLite store in place and summarise it, with control characters removed. Skipped without `python3`. |
-| `harness_keep_jaeger_on_disable` | `--keep-jaeger` | Leave the container running until a later disable. |
-| `kept_jaeger_survives_a_later_enable` | Kept Jaeger and a later enable | Not remove it unless the user switches away from Jaeger. |
+| `harness_keep_jaeger_on_disable` | `--keep-jaeger` | Leave the container running (recorded as kept, not active) until a later disable. |
+| `kept_jaeger_survives_a_later_enable` | Kept Jaeger and a later enable | Not remove it unless the user switches away from Jaeger after reusing it. |
 | `clean_failures_are_reported` | Failed `--clean` | Report the failure instead of claiming the data was cleaned. |
 | `content_capture_warns_for_remote_endpoints` | Content capture and endpoint | Warn only when prompt text would leave this machine. |
 | `router_summary_lists_providers` | `show` output | Print totals and a per provider/model breakdown with control characters removed. |

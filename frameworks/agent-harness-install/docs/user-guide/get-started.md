@@ -145,12 +145,16 @@ and shows its state. Every verb takes arguments:
   The setting persists across model changes. The file is group-writable
   (mode 664): the router container runs as another uid, so the installer starts
   it with `--group-add <your primary group id>` instead of making the file
-  world-writable. It holds counters and latencies, not prompt text. Rootless
+  world-writable. It holds counters and latencies, not prompt text. When the
+  account's primary group is root (gid 0) there is no private group to share,
+  so `enable` fails instead of silently making the file world-writable; set
+  `HARNESS_IR_TELEMETRY_FILE_MODE=666` to accept that. Rootless
   Docker and user-namespace remapping do not map group ids that way (`metrics
   enable` warns when it detects them); set
   `HARNESS_IR_TELEMETRY_FILE_MODE=666` there. A router container created by an
   earlier installer version lacks that group: re-run `./install.sh` once to
-  recreate it before enabling.
+  recreate it before enabling. The choice is saved only after the file is
+  ready, so a failed `enable` leaves the previous setting in place.
 - `harness` (Hermes, host runtime): installs and enables the `hermes-otel`
   plugin and writes `$HERMES_HOME/hermes_otel.yaml`. `--backend sqlite` keeps
   records in the local store only; `jaeger` exports OTLP to a Jaeger
@@ -158,12 +162,27 @@ and shows its state. Every verb takes arguments:
   `--endpoint` when given; `otlp` requires `--endpoint`. `--content` controls
   prompt/response capture and defaults to `off`. Restart running Hermes
   sessions afterwards. `disable` disables the plugin, removes the managed
-  config and any managed Jaeger.
+  config and any managed Jaeger. If the plugin cannot be disabled (Hermes
+  missing from `PATH`, or `hermes plugins disable` fails), `disable` fails and
+  changes nothing, so the state never claims collection is off while it is on.
+- The managed Jaeger container carries the label
+  `io.agent-harness-install.managed-by=metrics-jaeger`. A container with the
+  same name but without that label is never reused or removed (`enable` and
+  `disable` refuse; uninstall leaves it with a warning), and an owned one is
+  reused only while it publishes exactly `127.0.0.1:<UI port>` and
+  `127.0.0.1:<OTLP port>`. A container created by an earlier unreleased build
+  has no label: remove it with `docker rm -f agent-harness-install-jaeger`
+  (or your `HARNESS_JAEGER_CONTAINER` name) first.
 - `--target all` (default) applies both; an unsupported harness is skipped
-  with a notice.
+  with a notice. Everything that can be checked in advance (Hermes CLI, Jaeger
+  ownership and ports, the Router file settings and container) is checked
+  before either target is changed, and if the harness still fails the Router
+  change made by that command is reverted.
 - Re-running `enable` keeps the saved harness `--backend`, `--endpoint` and
   `--content` unless you name them again, so `metrics enable --target all`
-  later does not reset a Jaeger setup to `sqlite`.
+  later does not reset a Jaeger setup to `sqlite`. Naming only `--endpoint`
+  keeps the saved backend; a saved endpoint is reused only for the backend it
+  was saved with.
 
 ### Cleaning collected data and keeping Jaeger
 
@@ -184,7 +203,10 @@ and shows its state. Every verb takes arguments:
   records until it is restarted. The plugin keeps at most 4000 rows per kind
   and, by default, drops rows older than 7 days by itself.
 - If a clean cannot run (no `python3`, a locked store, or a symlinked file),
-  the command says so and does not report the data as cleaned.
+  the command says so and does not report the data as cleaned. When another
+  process (a running Hermes) keeps the store open, the deleted rows may stay in
+  the write-ahead log; the command then reports that, and you should close
+  Hermes and run the clean again.
 - Traces already exported to your own `--endpoint` collector are not removed;
   clear them in that backend.
 - The Router restarts when it is disabled, which also resets its in-memory

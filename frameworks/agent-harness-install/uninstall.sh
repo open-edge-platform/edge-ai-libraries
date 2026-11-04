@@ -183,7 +183,7 @@ main() {
   info "Removing Inference Router…"
   remove_deployment_container "$HARNESS_IR_CONTAINER"
   ok "Inference Router removed"
-  remove_deployment_container "$HARNESS_JAEGER_CONTAINER"
+  metrics_remove_jaeger
   metrics_remove_managed_config
   if ovms_is_managed; then
     info "Removing OpenVINO Model Server…"

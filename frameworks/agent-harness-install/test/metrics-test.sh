@@ -35,24 +35,36 @@ fixture() {
         if [[ "${2:-}" == -f ]]; then
           case "$3" in
             *GroupAdd*) printf '%s\n' "${TEST_IR_GROUPADD-[\"$(id -g)\"]}" ;;
+            *Labels*) printf '%s\n' "${TEST_JAEGER_LABEL-metrics-jaeger}" ;;
+            *PortBindings*)
+              if [[ -n "${TEST_JAEGER_BINDINGS:-}" ]]; then
+                printf '%s\n' "$TEST_JAEGER_BINDINGS"
+              else
+                printf '{"16686/tcp":[{"HostIp":"127.0.0.1","HostPort":"%s"}],"4318/tcp":[{"HostIp":"127.0.0.1","HostPort":"%s"}]}\n' \
+                  "${TEST_JAEGER_UI_PUBLISHED:-$HARNESS_JAEGER_UI_PORT}" "$HARNESS_JAEGER_OTLP_PORT"
+              fi ;;
             *) printf 'true\n' ;;
           esac
         fi ;;
+      container)
+        [[ -z "${TEST_DOCKER_LS_FAILS:-}" ]] || return 1
+        printf '%s\n' "${TEST_CONTAINERS-$HARNESS_JAEGER_CONTAINER
+$HARNESS_IR_CONTAINER}" ;;
       info) printf '%s\n' "${TEST_DOCKER_SECOPTS-[name=apparmor name=seccomp,profile=builtin name=cgroupns]}" ;;
       restart | rm | start | run | pull) printf 'docker %s %s\n' "$1" "${*: -1}" >>"$ACTIONS" ;;
       image) return 0 ;;
-      port)
-        case "$3" in
-          16686/tcp) printf '127.0.0.1:%s\n' "${TEST_JAEGER_UI_PUBLISHED:-$HARNESS_JAEGER_UI_PORT}" ;;
-          4318/tcp) printf '127.0.0.1:%s\n' "$HARNESS_JAEGER_OTLP_PORT" ;;
-        esac ;;
     esac
   }
   hermes() {
     case "$1 ${2:-}" in
-      'plugins install') mkdir -p "$HERMES_HOME/plugins/hermes_otel"; printf 'hermes install %s%s\n' "$3" "${4:+ $4 $5}" >>"$ACTIONS" ;;
+      'plugins install')
+        [[ "${TEST_HERMES_FAILS:-}" != install ]] || return 1
+        mkdir -p "$HERMES_HOME/plugins/hermes_otel"; printf 'hermes install %s%s\n' "$3" "${4:+ $4 $5}" >>"$ACTIONS" ;;
       'plugins enable') printf 'hermes enable\n' >>"$ACTIONS" ;;
-      'plugins disable') printf 'hermes disable\n' >>"$ACTIONS" ;;
+      'plugins disable')
+        [[ "${TEST_HERMES_FAILS:-}" != disable ]] || return 1
+        printf 'hermes disable\n' >>"$ACTIONS" ;;
+      'plugins list') printf 'hermes_otel  %s\n' "${TEST_HERMES_PLUGIN_STATE:-enabled}" ;;
     esac
   }
 }
@@ -71,9 +83,8 @@ parse_rejections() {
   expect_failure '--target must be' metrics_parse_args show --target bogus
   expect_failure '--backend must be' metrics_parse_args enable --backend prometheus
   expect_failure '--content must be' metrics_parse_args enable --content all
-  expect_failure 'requires --endpoint' metrics_parse_args enable --backend otlp
   expect_failure 'cannot be combined with --backend sqlite' \
-    metrics_parse_args enable --endpoint http://h:4318/v1/traces
+    metrics_parse_args enable --backend sqlite --endpoint http://h:4318/v1/traces
   expect_failure 'plain http\(s\) URL' \
     metrics_parse_args enable --backend otlp --endpoint 'http://user:pw@h:4318/v1/traces'
   expect_failure 'plain http\(s\) URL' \
@@ -181,8 +192,82 @@ harness_managed_jaeger() {
 jaeger_port_mismatch_is_rejected() {
   fixture
   M_TARGET=harness M_BACKEND=jaeger M_ENDPOINT="" M_CONTENT=off
-  TEST_JAEGER_UI_PUBLISHED=1 expect_failure 'does not publish port' metrics_enable_harness
+  TEST_JAEGER_UI_PUBLISHED=1 expect_failure 'must publish exactly' metrics_enable_harness
   [[ ! -e "$HERMES_HOME/hermes_otel.yaml" ]]
+  # A wildcard or IPv6-any binding would expose the trace UI to the network.
+  TEST_JAEGER_BINDINGS='{"16686/tcp":[{"HostIp":"0.0.0.0","HostPort":"16686"}],"4318/tcp":[{"HostIp":"127.0.0.1","HostPort":"4318"}]}' \
+    expect_failure 'must publish exactly' metrics_enable_harness
+  TEST_JAEGER_BINDINGS='{"16686/tcp":[{"HostIp":"::","HostPort":"16686"}],"4318/tcp":[{"HostIp":"127.0.0.1","HostPort":"4318"}]}' \
+    expect_failure 'must publish exactly' metrics_enable_harness
+  # An extra published port is refused too.
+  TEST_JAEGER_BINDINGS='{"16686/tcp":[{"HostIp":"127.0.0.1","HostPort":"16686"}],"4318/tcp":[{"HostIp":"127.0.0.1","HostPort":"4318"}],"14250/tcp":[{"HostIp":"0.0.0.0","HostPort":"14250"}]}' \
+    expect_failure 'must publish exactly' metrics_enable_harness
+  [[ ! -d "$HERMES_HOME/plugins/hermes_otel" ]]
+}
+
+foreign_jaeger_is_never_reused_or_removed() {
+  fixture
+  M_TARGET=harness M_BACKEND=jaeger M_ENDPOINT="" M_CONTENT=off
+  TEST_JAEGER_LABEL='' expect_failure 'not created by this installer' metrics_enable_harness
+  [[ ! -s "$ACTIONS" && ! -d "$HERMES_HOME/plugins/hermes_otel" ]]
+  # Removal (also used by uninstall) leaves a same-named container that is not ours.
+  TEST_JAEGER_LABEL='' metrics_remove_jaeger
+  ! grep -q 'docker rm' "$ACTIONS"
+  metrics_remove_jaeger
+  grep -Fxq "docker rm $HARNESS_JAEGER_CONTAINER" "$ACTIONS"
+  # With no container at all, nothing is removed.
+  : >"$ACTIONS"
+  TEST_CONTAINERS='' metrics_remove_jaeger
+  [[ ! -s "$ACTIONS" ]]
+}
+
+docker_query_failure_is_not_absence() {
+  fixture
+  M_TARGET=harness M_BACKEND=jaeger M_ENDPOINT="" M_CONTENT=off
+  TEST_DOCKER_LS_FAILS=1 expect_failure 'Cannot inspect Docker containers' metrics_enable_harness
+  [[ ! -s "$ACTIONS" ]]
+  TEST_DOCKER_LS_FAILS=1 expect_failure 'Cannot inspect Docker containers' metrics_remove_jaeger
+  ! grep -q 'docker run' "$ACTIONS"
+}
+
+rejected_endpoint_is_not_echoed() {
+  fixture
+  local out
+  out="$( (metrics_parse_args enable --backend otlp --endpoint 'http://user:s3cr3t@h:4318/v1/traces?token=abc') 2>&1 || true)"
+  grep -Fq 'plain http(s) URL' <<<"$out"
+  ! grep -Fq 's3cr3t' <<<"$out"
+  out="$( (metrics_parse_args enable --backend otlp --endpoint 'http://h:99999/s3cr3t') 2>&1 || true)"
+  grep -Fq 'port must be between' <<<"$out"
+  ! grep -Fq 's3cr3t' <<<"$out"
+}
+
+saved_settings_are_resolved_before_validation() {
+  fixture
+  M_TARGET=harness M_BACKEND=otlp M_ENDPOINT=http://collector:4318/v1/traces M_CONTENT=preview
+  metrics_enable_harness
+  # Only the endpoint changes: the saved backend and content are kept.
+  metrics_parse_args enable --target harness --endpoint http://other:4318/v1/traces
+  metrics_enable_harness
+  [[ "$(metrics_state_get harness.backend)" == otlp && "$(metrics_state_get harness.content)" == preview ]]
+  [[ "$(metrics_state_get harness.endpoint)" == http://other:4318/v1/traces ]]
+  # Naming the same backend again, without an endpoint, keeps the saved one.
+  metrics_parse_args enable --target harness --backend otlp
+  metrics_enable_harness
+  [[ "$(metrics_state_get harness.endpoint)" == http://other:4318/v1/traces ]]
+  # A new backend never inherits an endpoint saved for another one.
+  metrics_parse_args enable --target harness --backend otlp --endpoint http://x:4318/v1/traces
+  metrics_enable_harness
+  metrics_parse_args enable --target harness --backend jaeger
+  metrics_enable_harness
+  [[ "$(metrics_state_get harness.managed_jaeger)" == true ]]
+  # Genuinely unusable combinations are still rejected.
+  expect_failure 'cannot be combined with --backend sqlite' \
+    metrics_parse_args enable --target harness --backend sqlite --endpoint http://h:4318/v1/traces
+  fixture
+  metrics_parse_args enable --target harness --endpoint http://h:4318/v1/traces
+  expect_failure 'needs an exporting backend' metrics_enable_harness
+  metrics_parse_args enable --target harness --backend otlp
+  expect_failure 'requires --endpoint' metrics_enable_harness
 }
 
 plugin_source_is_validated() {
@@ -207,20 +292,40 @@ plugin_ref_pins_the_install() {
 router_file_is_not_world_writable() {
   [[ "$(uname -s)" == Linux ]] || { echo "# skipped: needs GNU stat"; return 0; }
   fixture
-  local file="$HARNESS_IR_WORKSPACE_DIR/telemetry.jsonl" want=664
-  [[ "$(id -g)" != 0 ]] || want=666
-  metrics_router_apply true
-  [[ "$(stat -c '%a' "$file")" == "$want" ]]
-  [[ "$(metrics_router_file_group)" == "$([[ $want == 664 ]] && id -g || true)" ]]
+  local file="$HARNESS_IR_WORKSPACE_DIR/telemetry.jsonl"
+  if [[ "$(metrics_router_host_gid)" == 0 ]]; then
+    # Group 0 cannot be shared safely, so 664 must not silently become 666.
+    expect_failure 'HARNESS_IR_TELEMETRY_FILE_MODE=666' metrics_router_apply true
+    [[ "$(metrics_state_get router.enabled)" != true && ! -e "$file" ]]
+    [[ -z "$(metrics_router_file_group)" ]]
+    HARNESS_IR_TELEMETRY_FILE_MODE=666 metrics_router_apply true
+    [[ "$(stat -c '%a' "$file")" == 666 ]]
+  else
+    metrics_router_apply true
+    [[ "$(stat -c '%a' "$file")" == 664 ]]
+    [[ "$(metrics_router_file_group)" == "$(id -g)" ]]
+  fi
   HARNESS_IR_TELEMETRY_FILE_MODE=666 metrics_router_prepare_file
   [[ "$(stat -c '%a' "$file")" == 666 && -z "$(HARNESS_IR_TELEMETRY_FILE_MODE=666 metrics_router_file_group)" ]]
   HARNESS_IR_TELEMETRY_FILE_MODE=777 expect_failure 'must be 664 or 666' metrics_router_prepare_file
 }
 
+router_state_is_unchanged_when_file_preparation_fails() {
+  fixture
+  HARNESS_IR_TELEMETRY_FILE_MODE=666 HARNESS_IR_TELEMETRY_MAX_BYTES=big \
+    expect_failure 'must be a non-negative integer' metrics_router_apply true
+  [[ -z "$(metrics_state_get router.enabled)" && ! -e "$HARNESS_IR_WORKSPACE_DIR/telemetry.jsonl" ]]
+  ! grep -q restart "$ACTIONS"
+  if [[ "$(metrics_router_host_gid)" != 0 ]]; then
+    TEST_DOCKER_LS_FAILS=1 expect_failure 'Cannot inspect Docker containers' metrics_router_apply true
+    [[ -z "$(metrics_state_get router.enabled)" ]]
+  fi
+}
+
 router_enable_rejects_a_container_without_the_group() {
   [[ "$(metrics_router_host_gid)" != 0 ]] || { echo "# skipped: root has no private group"; return 0; }
   fixture
-  TEST_IR_GROUPADD='null' expect_failure 'without access to group' metrics_router_apply true
+  TEST_IR_GROUPADD='null' expect_failure 'cannot write the telemetry file' metrics_router_apply true
   [[ -z "$(metrics_state_get router.enabled)" && ! -e "$HARNESS_IR_WORKSPACE_DIR/telemetry.jsonl" ]]
   TEST_IR_GROUPADD='null' HARNESS_IR_TELEMETRY_FILE_MODE=666 metrics_router_apply true
   [[ "$(metrics_state_get router.enabled)" == true ]]
@@ -229,7 +334,7 @@ router_enable_rejects_a_container_without_the_group() {
 all_target_fails_before_touching_the_harness() {
   [[ "$(metrics_router_host_gid)" != 0 ]] || { echo "# skipped: root has no private group"; return 0; }
   fixture
-  TEST_IR_GROUPADD='null' expect_failure 'without access to group' run_metrics_command enable --target all
+  TEST_IR_GROUPADD='null' expect_failure 'cannot write the telemetry file' run_metrics_command enable --target all
   [[ ! -d "$HERMES_HOME/plugins/hermes_otel" && ! -e "$HERMES_HOME/hermes_otel.yaml" && -z "$(metrics_state_get harness.enabled)" ]]
 }
 
@@ -462,11 +567,13 @@ harness_keep_jaeger_on_disable() {
   M_KEEP_JAEGER=1
   metrics_disable_harness
   ! grep -Fxq "docker rm $HARNESS_JAEGER_CONTAINER" "$ACTIONS"
-  [[ "$(metrics_state_get harness.managed_jaeger)" == true && "$(metrics_state_get harness.enabled)" == false ]]
+  # The container is kept, but it is no longer the active backend.
+  [[ "$(metrics_state_get harness.kept_jaeger)" == true && "$(metrics_state_get harness.managed_jaeger)" == false ]]
+  [[ "$(metrics_state_get harness.enabled)" == false ]]
   M_KEEP_JAEGER=""
   metrics_disable_harness
   grep -Fxq "docker rm $HARNESS_JAEGER_CONTAINER" "$ACTIONS"
-  [[ "$(metrics_state_get harness.managed_jaeger)" == false ]]
+  [[ "$(metrics_state_get harness.kept_jaeger)" == false && "$(metrics_state_get harness.managed_jaeger)" == false ]]
 }
 
 kept_jaeger_survives_a_later_enable() {
@@ -479,14 +586,91 @@ kept_jaeger_survives_a_later_enable() {
   M_BACKEND=sqlite M_ENDPOINT="" M_BACKEND_GIVEN="" M_CONTENT_GIVEN=""
   metrics_enable_harness
   ! grep -Fxq "docker rm $HARNESS_JAEGER_CONTAINER" "$ACTIONS"
-  [[ "$(metrics_state_get harness.managed_jaeger)" == true ]]
-  # Actively switching away from a Jaeger that is in use still removes it.
+  [[ "$(metrics_state_get harness.kept_jaeger)" == true && "$(metrics_state_get harness.managed_jaeger)" == false ]]
+  # Actively switching to Jaeger uses the kept container again; switching away removes it.
   M_BACKEND=jaeger M_BACKEND_GIVEN=1
   metrics_enable_harness
+  [[ "$(metrics_state_get harness.managed_jaeger)" == true && "$(metrics_state_get harness.kept_jaeger)" == false ]]
   M_BACKEND=sqlite
   metrics_enable_harness
   grep -Fxq "docker rm $HARNESS_JAEGER_CONTAINER" "$ACTIONS"
-  [[ "$(metrics_state_get harness.managed_jaeger)" == false ]]
+  [[ "$(metrics_state_get harness.managed_jaeger)" == false && "$(metrics_state_get harness.kept_jaeger)" == false ]]
+}
+
+disable_fails_when_the_plugin_cannot_be_disabled() {
+  fixture
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
+  metrics_enable_harness
+  TEST_HERMES_FAILS=disable expect_failure "plugins disable hermes_otel' failed" metrics_disable_harness
+  # Neither the config nor the saved state claims the harness is off.
+  [[ -f "$HERMES_HOME/hermes_otel.yaml" && "$(metrics_state_get harness.enabled)" == true ]]
+  # Without the CLI the plugin cannot be disabled either.
+  local command_exists_def
+  command_exists_def="$(declare -f command_exists)"
+  command_exists() { [[ "$1" != hermes ]] && command -v "$1" >/dev/null 2>&1; }
+  expect_failure 'Hermes CLI not found' metrics_disable_harness
+  [[ -f "$HERMES_HOME/hermes_otel.yaml" && "$(metrics_state_get harness.enabled)" == true ]]
+  eval "$command_exists_def"
+  # A failing command is accepted when the plugin is already reported disabled.
+  TEST_HERMES_FAILS=disable TEST_HERMES_PLUGIN_STATE=disabled metrics_disable_harness
+  [[ ! -e "$HERMES_HOME/hermes_otel.yaml" && "$(metrics_state_get harness.enabled)" == false ]]
+}
+
+wal_checkpoint_busy_is_reported() {
+  command -v python3 >/dev/null || { echo "# skipped: python3 not found"; return 0; }
+  fixture
+  local db="$HERMES_HOME/hermes_otel_live.db" holder out
+  make_hermes_store
+  python3 - "$db" <<'PY'
+import sqlite3, sys
+con = sqlite3.connect(sys.argv[1])
+con.execute("PRAGMA journal_mode=WAL")
+con.commit()
+con.close()
+PY
+  # An open read transaction stops the checkpoint from truncating the WAL.
+  python3 - "$db" "$HOME/reader-ready" <<'PY' &
+import sqlite3, sys, time, pathlib
+con = sqlite3.connect(sys.argv[1], isolation_level=None)
+con.execute("BEGIN")
+con.execute("SELECT COUNT(*) FROM events").fetchone()
+pathlib.Path(sys.argv[2]).touch()
+time.sleep(20)
+PY
+  holder=$!
+  for _ in $(seq 1 50); do [[ -e "$HOME/reader-ready" ]] && break; sleep 0.1; done
+  out="$( (metrics_clean_harness_store "$HERMES_HOME") 2>&1 || true)"
+  kill "$holder" 2>/dev/null || true
+  wait "$holder" 2>/dev/null || true
+  grep -Fq 'may still contain their text' <<<"$out"
+  ! grep -Fq 'cleaned' <<<"$out"
+}
+
+all_target_rolls_the_router_back_when_the_harness_fails() {
+  fixture
+  local out
+  # A bad harness option is caught before the Router is changed at all.
+  HARNESS_HERMES_OTEL_REF=main expect_failure 'HARNESS_HERMES_OTEL_REF must be' run_metrics_command enable --target all
+  [[ -z "$(metrics_state_get router.enabled)" ]]
+  # A harness failure after the Router was changed reverts the Router.
+  TEST_HERMES_FAILS=install expect_failure . run_metrics_command enable --target all
+  [[ "$(metrics_state_get router.enabled)" == false ]]
+  grep -Fq 'backend: "memory"' "$HARNESS_IR_WORKSPACE_DIR/config.yaml"
+  # An already-enabled Router stays enabled.
+  metrics_router_apply true
+  TEST_HERMES_FAILS=install expect_failure . run_metrics_command enable --target all
+  [[ "$(metrics_state_get router.enabled)" == true ]]
+  out="$(run_metrics_command enable --target all 2>&1)"
+  grep -Fq 'Harness telemetry enabled' <<<"$out"
+}
+
+all_target_disable_reaches_the_router_after_a_harness_failure() {
+  fixture
+  M_TARGET=harness M_BACKEND=sqlite M_ENDPOINT="" M_CONTENT=off
+  metrics_enable_harness
+  metrics_router_apply true
+  TEST_HERMES_FAILS=disable expect_failure "plugins disable hermes_otel' failed" run_metrics_command disable --target all
+  [[ "$(metrics_state_get router.enabled)" == false && "$(metrics_state_get harness.enabled)" == true ]]
 }
 
 content_capture_warns_for_remote_endpoints() {
@@ -517,6 +701,7 @@ clean_failures_are_reported() {
   local file="$HARNESS_IR_WORKSPACE_DIR/telemetry.jsonl" out
   printf 'keep\n' >"$HOME/elsewhere"
   ln -s "$HOME/elsewhere" "$file"
+  [[ -L "$file" ]] || { echo "# skipped: symlinks unavailable"; return 0; }
   M_CLEAN=1
   out="$(metrics_disable_router 2>&1)"
   grep -Fq 'was not cleaned' <<<"$out"
@@ -559,7 +744,7 @@ run_case 'router rewrite keeps blocks that follow telemetry' router_rewrite_keep
 run_case 'harness enable/disable manages plugin, config and state' harness_enable_disable
 run_case 'harness jaeger without endpoint uses and cleans up the managed container' harness_managed_jaeger
 run_case 'harness refuses to overwrite an unmanaged hermes_otel.yaml' harness_refuses_foreign_config
-run_case 'existing Jaeger container with other ports is rejected' jaeger_port_mismatch_is_rejected
+run_case 'existing Jaeger container that is not loopback-only on exactly the two ports is rejected' jaeger_port_mismatch_is_rejected
 run_case 'plugin source reference is validated' plugin_source_is_validated
 run_case 'HARNESS_HERMES_OTEL_REF pins the plugin install to an exact commit' plugin_ref_pins_the_install
 run_case 'router telemetry file is group-writable, not world-writable, unless 666 is chosen' router_file_is_not_world_writable
@@ -583,4 +768,13 @@ run_case 'a kept Jaeger survives a later enable that does not use it' kept_jaege
 run_case 'a failed --clean is reported, not claimed as done' clean_failures_are_reported
 run_case 'content capture warns when the endpoint is not local' content_capture_warns_for_remote_endpoints
 run_case 'router summary lists providers and sanitises names' router_summary_lists_providers
+run_case 'a Jaeger container this installer did not create is never reused or removed' foreign_jaeger_is_never_reused_or_removed
+run_case 'a failed Docker query is an error, not an absent container' docker_query_failure_is_not_absence
+run_case 'a rejected endpoint is not echoed back' rejected_endpoint_is_not_echoed
+run_case 'saved harness settings are resolved before the arguments are validated' saved_settings_are_resolved_before_validation
+run_case 'router state is unchanged when file preparation fails' router_state_is_unchanged_when_file_preparation_fails
+run_case 'disable fails, keeping state, when the plugin cannot be disabled' disable_fails_when_the_plugin_cannot_be_disabled
+run_case 'a busy WAL checkpoint makes --clean report the leftover text' wal_checkpoint_busy_is_reported
+run_case '--target all validates up front and reverts the Router if the harness fails' all_target_rolls_the_router_back_when_the_harness_fails
+run_case '--target all disable still disables the Router when the harness cannot be disabled' all_target_disable_reaches_the_router_after_a_harness_failure
 finish_tests

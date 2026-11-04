@@ -125,7 +125,7 @@ usage() {
     HARNESS_HERMES_OTEL_PLUGIN     Plugin reference for `hermes plugins install` (default: hermes_otel, the commit pinned in Hermes's plugin catalog)
     HARNESS_HERMES_OTEL_REF        Pin the plugin install to this full 40-character commit SHA (`--ref`; default: unset)
     HARNESS_IR_TELEMETRY_MAX_BYTES  Rotate the Router's telemetry.jsonl to telemetry.jsonl.1 at install/enable above this size (default: 20971520; 0 = never)
-    HARNESS_IR_TELEMETRY_FILE_MODE  664 (default; Router joins your primary group) | 666 (world-writable; for rootless Docker)
+    HARNESS_IR_TELEMETRY_FILE_MODE  664 (default; Router joins your primary group) | 666 (world-writable; for rootless Docker or a Router created without your group)
     HARNESS_JAEGER_IMAGE, HARNESS_JAEGER_CONTAINER, HARNESS_JAEGER_UI_PORT, HARNESS_JAEGER_OTLP_PORT  Managed Jaeger for `metrics enable --backend jaeger` (default: jaegertracing/all-in-one:1.76.0, 16686, 4318; loopback only)
     HARNESS_MCP_REGISTER_CMD       Script to register an MCP endpoint with a non-Hermes agent
     HARNESS_ADVERTISED_HOST       Host/IP printed in endpoint URLs (default: 127.0.0.1)

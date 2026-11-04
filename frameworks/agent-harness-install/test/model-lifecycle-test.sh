@@ -255,6 +255,7 @@ uninstall_fixture() {
   remove_all_openshell_agents() { printf 'sandboxes\n' >>"$ACTIONS"; }
   openshell_remove_owned_runtime() { printf 'runtime\n' >>"$ACTIONS"; }
   remove_deployment_container() { printf 'container %s\n' "$1" >>"$ACTIONS"; }
+  metrics_remove_jaeger() { printf 'container %s\n' "$HARNESS_JAEGER_CONTAINER" >>"$ACTIONS"; }
   remove_deployment_network() { printf 'network\n' >>"$ACTIONS"; }
   ensure_nvm_loaded() { :; }
   remove_agent_package() { error "Unexpected host package removal"; }
