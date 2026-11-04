@@ -1064,6 +1064,28 @@ class TestDlsps2RunnerMetricsManager(Dlsps2RunnerTestBase):
             ],
         )
 
+    def test_genai_points_without_histogram_fields_are_skipped(self):
+        """A metrics-manager without histogram support stores them as value 0."""
+        streams = {"src_a__sink_a": "a ! gvagenai name=gvagenai_a metrics=true ! b"}
+        flattened = _genai_export("inst-1", 100, 900.0, 40.0, 1300.0)
+        for point in flattened:
+            point["fields"] = {"value": 0}
+            del point["tags"]["temporality"]
+        fake = _FakeStreamSet(
+            [[_running(1.0)]],
+            metrics=flattened + _finished("inst-1"),
+            gvagenai=GVAGENAI_WITH_POST_METRICS,
+        )
+        runner = self._runner()
+
+        with self.assertLogs("dlsps2_runner", level="WARNING") as logs:
+            self._run_with(runner, fake, streams)
+
+        self.assertEqual(self._pushed("vlm"), [])
+        self.assertTrue(any("histogram support" in m for m in logs.output))
+        # Answers read from event files now provide VLM metrics.
+        self.assertTrue(runner._vlm_from_answers)
+
     def test_metrics_manager_is_not_read_without_latency_or_vlm(self):
         fake = _FakeStreamSet(self.POLLS)
 
@@ -1546,3 +1568,4 @@ class TestDlsps2RunnerEvents(unittest.TestCase):
         sent = json.loads(fake.calls("POST")[0].content)["pipeline"]
         self.assertEqual(sent, self.STREAMS["s0"])
         self.assertEqual(os.listdir(self.tmp.name), [])
+

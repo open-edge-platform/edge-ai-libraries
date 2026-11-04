@@ -52,7 +52,7 @@ JSON Lines files the pipelines write into the shared metadata folder, see
 :mod:`pipeline_events`; only runs given an ``on_event`` callback collect
 them. The same VLM answers carry ``gvagenai``'s cumulative metric means,
 used for ``vlm_metrics`` when the server's ``gvagenai`` has no
-``post-metrics``.
+``post-metrics`` or metrics-manager cannot store its histograms.
 
 Deliberately NOT supported:
 
@@ -313,6 +313,8 @@ class Dlsps2PipelineRunner:
         self._metrics_read_failed = False
         # Whether the server's gvagenai has post-metrics; asked once per runner.
         self._genai_post_metrics: bool | None = None
+        # Whether VLM metrics come from the answers' cumulative means, set per run.
+        self._vlm_from_answers = False
         self._vlm_fallback_warned = False
 
         metrics_manager_url = os.environ.get(
@@ -647,13 +649,21 @@ class Dlsps2PipelineRunner:
         return float(value)
 
     def _read_points(
-        self, client: httpx.Client, name: str, instance_ids: set[str]
+        self,
+        client: httpx.Client,
+        name: str,
+        instance_ids: set[str],
+        histograms: bool = False,
     ) -> list[tuple[dict, int, float]]:
         """``(tags, timestamp, value)`` of the stored points of ``name`` for ``instance_ids``.
 
         Points of other instances, including ViPPET's own republished series
         (which carry no ``pipeline_id``), are left out. Points keep the order
-        metrics-manager stored them in.
+        metrics-manager stored them in. With ``histograms``, a point that
+        carries a plain ``value`` is left out too: a metrics-manager without
+        histogram support stores DLSPS's histograms that way, as ``0``. VLM
+        metrics then come from the answers instead (see
+        :meth:`_push_answer_metrics`).
         """
         response = client.get(
             f"{self._metrics_manager_url}/api/v1/metrics", params={"name": name}
@@ -663,6 +673,9 @@ class Dlsps2PipelineRunner:
         for metric in response.json().get("metrics", []):
             tags = metric.get("tags") or {}
             if tags.get("pipeline_id") not in instance_ids:
+                continue
+            if histograms and "value" in (metric.get("fields") or {}):
+                self._histograms_unsupported()
                 continue
             value = self._point_value(metric.get("fields") or {}, tags)
             if value is None:
@@ -693,8 +706,11 @@ class Dlsps2PipelineRunner:
         """
         fields = set(names.values())
         buckets: dict[tuple, dict[int, dict[str, list[float]]]] = {}
+        histograms = names is _GENAI_SERIES
         for name, field in names.items():
-            for tags, timestamp, value in self._read_points(client, name, instance_ids):
+            for tags, timestamp, value in self._read_points(
+                client, name, instance_ids, histograms
+            ):
                 series = (tags["pipeline_id"], *(tags.get(t) for t in key_tags))
                 by_field = buckets.setdefault(series, {}).setdefault(timestamp, {})
                 by_field.setdefault(field, []).append(value)
@@ -954,23 +970,43 @@ class Dlsps2PipelineRunner:
         Without ``post-metrics`` on the server's ``gvagenai`` (``genai`` false),
         VLM metrics fall back to the cumulative means in each answer's JSON.
         """
+        self._vlm_from_answers = not genai
         if self.on_event is None:
             return None
         return EventCapture.create(
             stream_commands,
             self.job_id,
             self.on_event,
-            on_vlm_metrics=None if genai else self._push_vlm_fallback,
+            on_vlm_metrics=self._push_answer_metrics,
         )
 
-    def _push_vlm_fallback(self, fields: dict[str, float], element: str | None) -> None:
-        """Push VLM metrics from the cumulative means in a ``gvagenai`` answer."""
+    def _histograms_unsupported(self) -> None:
+        """Switch VLM metrics to the answers once metrics-manager stores no histograms."""
+        if self._vlm_from_answers:
+            return
+        self._vlm_from_answers = True
+        self.logger.warning(
+            "metrics-manager stores the DLSPS 2.0 genai histograms without their "
+            "values (it needs histogram support), so they are skipped. VLM "
+            "metrics come only from gvagenai answers, read in performance tests."
+        )
+
+    def _push_answer_metrics(
+        self, fields: dict[str, float], element: str | None
+    ) -> None:
+        """Push VLM metrics from the cumulative means in a ``gvagenai`` answer.
+
+        Only when the server's own export cannot provide them: its
+        ``gvagenai`` has no ``post-metrics``, or metrics-manager cannot store
+        histograms. The means average every request since the element started.
+        """
+        if not self._vlm_from_answers:
+            return
         if not self._vlm_fallback_warned:
             self._vlm_fallback_warned = True
             self.logger.warning(
-                "DLSPS 2.0 gvagenai does not support post-metrics; VLM metrics "
-                "fall back to the means in its JSON metadata, which average every "
-                "request since the element started."
+                "VLM metrics come from the means in the gvagenai JSON metadata, "
+                "which average every request since the element started."
             )
         entry: dict[str, object] = {"name": "vlm_metrics", "fields": fields}
         tags = self._tags(element)
