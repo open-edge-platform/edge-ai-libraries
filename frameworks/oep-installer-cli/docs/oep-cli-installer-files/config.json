@@ -734,6 +734,48 @@
         },
         {
           "when": {
+            "PROFILE": "federal_and_aerospace_ai_suite_handheld",
+            "OP_SYSTEM": "UBUNTU_24_04"
+          },
+          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
+        },
+        {
+          "when": {
+            "PROFILE": "federal_and_aerospace_ai_suite_handheld",
+            "OP_SYSTEM": "UBUNTU_26_04"
+          },
+          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
+        },
+        {
+          "when": {
+            "PROFILE": "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle",
+            "OP_SYSTEM": "UBUNTU_24_04"
+          },
+          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
+        },
+        {
+          "when": {
+            "PROFILE": "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle",
+            "OP_SYSTEM": "UBUNTU_26_04"
+          },
+          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
+        },
+        {
+          "when": {
+            "PROFILE": "federal_and_aerospace_ai_suite_mission_decision_support",
+            "OP_SYSTEM": "UBUNTU_24_04"
+          },
+          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
+        },
+        {
+          "when": {
+            "PROFILE": "federal_and_aerospace_ai_suite_mission_decision_support",
+            "OP_SYSTEM": "UBUNTU_26_04"
+          },
+          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
+        },
+        {
+          "when": {
             "OP_SYSTEM": "UBUNTU_24_04"
           },
           "text": "curl -sSfL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install {{MODULE}}"
