@@ -27,10 +27,15 @@ class Whisper(BaseASR):
         # the final pool's.
         self.model_path = get_asr_model_path(model_name=model_name)
         self.model = ov_genai.WhisperPipeline( self.model_path, device=device)
- 
+        # On NPU, return_timestamps=True gives corrupted text (repeated short
+        # fragments) or fails with "KV-Cache is full". Seen with OpenVINO
+        # GenAI 2026.1 and 2026.3. Without timestamps the result has no
+        # chunks, and transcribe() below returns one segment for the clip.
+        self.return_timestamps = not str(device).strip().upper().startswith("NPU")
+
    def transcribe(self, audio_path: str, temperature: float = 0.0, language: str | None = None) -> dict:
         audio, sr = self._load_wav_mono_16k(audio_path)
-        gen_kwargs = {"return_timestamps": True}
+        gen_kwargs = {"return_timestamps": self.return_timestamps}
         if language:
             gen_kwargs["language"] = language if language.startswith("<|") else f"<|{language}|>"
         with _TRANSCRIBE_LOCK:
