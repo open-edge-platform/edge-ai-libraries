@@ -18,6 +18,11 @@ metadata:
   tags: "agents openvino inference-router installer intel-gpu"
 ---
 
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Agent Harness Install
 
 `./install.sh` prepares an Intel Linux host, starts an inference backend, installs one agent, and wires the agent to the backend. The agent only ever talks to the Inference Router (default `http://127.0.0.1:8010/v1`), never directly to the model server.
@@ -37,7 +42,7 @@ Do not use this skill to install Intel GPU drivers or the compute runtime (it on
 Ask for anything missing before running the installer:
 
 1. **Agent**: `openclaw` (default), `deepagents-code`, or `hermes`.
-2. **Model name** (required). There is no default, and the installer fails without one in a non-interactive run. A Hugging Face id such as `Qwen/Qwen2.5-0.5B-Instruct` works with the default hub.
+2. **Model name** (required). There is no default, and the installer fails without one in a non-interactive run. A Hugging Face id such as `Qwen/Qwen2.5-0.5B-Instruct` works with the default hub. For an external endpoint, ask for the exact id that endpoint serves, including any `org/` prefix.
 3. **Backend**: the local OVMS (default) or an external endpoint via `HARNESS_LLM_ROUTER_ENDPOINT`.
 4. **Exposure**: ports bind to `127.0.0.1` unless the user sets `HARNESS_ADVERTISED_HOST` or `HARNESS_BIND_HOST`. Neither service authenticates requests, so warn before widening access.
 
@@ -56,8 +61,11 @@ For an external endpoint, the Router is the only component that sees it, and OVM
 ```bash
 export HARNESS_LLM_ROUTER_ENDPOINT=http://<host>:<port>/v1
 export HARNESS_LLM_ROUTER_API_KEY=<token>   # only if the endpoint needs one
-./install.sh --harness openclaw --model <name-the-endpoint-serves>
+export HARNESS_LLM_MODEL=<exact-id-the-endpoint-serves>
+./install.sh --harness openclaw
 ```
+
+Do not pass `--model` here. It strips an `org/` prefix and clears `HARNESS_LLM_MODEL`, so `meta-llama/Llama-3.2-3B-Instruct` would be sent to the endpoint as `Llama-3.2-3B-Instruct`.
 
 `install.sh` runs `startup.sh` first (curl/git, Docker, Node.js via nvm, Python venv). Both are idempotent, so re-running after a failure is safe. If `startup.sh` exits with code `2`, the user was just added to the `docker` group: open a new terminal or run `newgrp docker`, then re-run.
 
@@ -87,12 +95,14 @@ See the [model sources table](https://github.com/open-edge-platform/edge-ai-libr
 ./install.sh onboard                               # re-run onboarding only
 ./install.sh models list                           # shows "not served by OVMS" entries
 ./install.sh models remove <name>
-./install.sh mcp register <name> <url> [agent]     # Hermes and OpenClaw built in; others need HARNESS_MCP_REGISTER_CMD
+./install.sh mcp register <name> <url> <agent>     # Hermes and OpenClaw built in; others need HARNESS_MCP_REGISTER_CMD
 ./install.sh skill <install|list|remove> [path|name]   # Hermes skills only
 ./uninstall.sh --yes --harness <agent> [--keep-models] [--keep-agent-data]
 ```
 
-Uninstall deletes the downloaded models unless `--keep-models` is passed, so ask whether the user wants them kept before running it with `--yes`. It leaves Docker, Node.js/nvm, the Intel compute runtime, the pulled images, the shell-profile PATH block and OpenClaw's `~/.openclaw` in place. Tell the user so they can remove those if wanted.
+Always pass the agent to `mcp register`. Without it the command uses `HARNESS_AGENT` and falls back to Hermes, not the agent that was installed, so it can edit the wrong agent's configuration.
+
+Uninstall deletes the downloaded models unless `--keep-models` is passed. For Hermes and `dcode` it also deletes the agent's data directory (`~/.hermes`, or `~/.deepagents` with config and sessions) unless `--keep-agent-data` is passed. `--yes` skips the confirmation, so ask whether the user wants the models and the agent data kept before running it. It leaves Docker, Node.js/nvm, the Intel compute runtime, the pulled images, the shell-profile PATH block and OpenClaw's `~/.openclaw` in place. Tell the user so they can remove those if wanted.
 
 ## Agent-specific behavior
 

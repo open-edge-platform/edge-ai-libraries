@@ -18,13 +18,13 @@
     {
       "id": 2,
       "prompt": "We already run vLLM at http://10.0.0.5:8000/v1 behind an API key. I want Hermes on this box to use it through the Intel router without starting any local model server. The model it serves is meta-llama/Llama-3.2-3B-Instruct.",
-      "expected_output": "Set HARNESS_LLM_ROUTER_ENDPOINT and HARNESS_LLM_ROUTER_API_KEY, then run install.sh with --harness hermes and --model naming the served model. States that OVMS is not started.",
+      "expected_output": "Set HARNESS_LLM_ROUTER_ENDPOINT, HARNESS_LLM_ROUTER_API_KEY and HARNESS_LLM_MODEL to the exact served id, then run install.sh with --harness hermes and without --model. States that OVMS is not started.",
       "should_trigger": true,
       "files": [],
       "expectations": [
         "Sets HARNESS_LLM_ROUTER_ENDPOINT to http://10.0.0.5:8000/v1",
         "Sets HARNESS_LLM_ROUTER_API_KEY rather than writing the key into a file or command history",
-        "Passes --harness hermes and --model meta-llama/Llama-3.2-3B-Instruct",
+        "Passes --harness hermes and sets HARNESS_LLM_MODEL=meta-llama/Llama-3.2-3B-Instruct without --model, because --model would strip the org/ prefix",
         "States that OVMS is not started and the installer does not health-check the external endpoint",
         "Notes that Hermes onboarding only prints the endpoint and the user must configure the provider in ~/.hermes/config.yaml"
       ]
