@@ -11,7 +11,7 @@ debian_99_profile_mission_decision_support_blueprint () {
     else
       modules+=(docker_io)
     fi
-    if [[ " $* " = *" --edgepack "* ]]; then
+    if [[ " $* " = *" --edgepack "* ]] && configure_edge_pack_kernel_image "$@"; then
       modules+=(edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn)
     else
       modules+=(gpu_accel npu_accel)

@@ -89,13 +89,18 @@ import {
   ExclamationCircleOutlined,
   ReloadOutlined,
 } from "@ant-design/icons-vue";
-import { getRouterTraffic } from "@/api/trafficOverview";
+import { getCompressorTraffic, getRouterTraffic } from "@/api/trafficOverview";
 import { formatRouterTraffic } from "./type";
-import type { TrafficMode } from "./type";
+import type {
+  CompressorTrafficMetrics,
+  RouterTrafficMetrics,
+  TrafficMode,
+} from "./type";
 import { RequestTraffic, TokenTraffic } from "./components";
 
 const { t, locale } = useI18n();
-const traffic = shallowRef<unknown>();
+const traffic = shallowRef<RouterTrafficMetrics>();
+const compressorTraffic = shallowRef<CompressorTrafficMetrics>();
 const mode = ref<TrafficMode>("tokens");
 const autoRefresh = ref(false);
 const loading = ref(false);
@@ -105,7 +110,11 @@ const collectedAtTimestamp = ref("");
 const snapshot = computed(() =>
   traffic.value
     ? {
-        ...formatRouterTraffic(traffic.value, mode.value),
+        ...formatRouterTraffic(
+          traffic.value,
+          mode.value,
+          compressorTraffic.value,
+        ),
         collected_at: collectedAtTimestamp.value,
       }
     : undefined,
@@ -122,7 +131,12 @@ async function loadTraffic() {
   loading.value = true;
   error.value = false;
   try {
-    traffic.value = await getRouterTraffic();
+    const [response, compressorResponse]: [
+      RouterTrafficMetrics,
+      CompressorTrafficMetrics,
+    ] = await Promise.all([getRouterTraffic(), getCompressorTraffic()]);
+    traffic.value = response;
+    compressorTraffic.value = compressorResponse;
     collectedAtTimestamp.value = new Date().toISOString();
   } catch {
     error.value = true;

@@ -46,6 +46,13 @@ For sandbox setup, architecture and lifecycle guidance, see
   availability depends on image libraries and upstream installer behavior;
   this integration does not enable or validate desktop/computer-use workflows.
 
+- The Inference Router matches the requested model name exactly against the
+  served name, and the served name drops the Hugging Face organisation
+  (`org/name` is served as `name`). A client configured with `org/name` gets
+  `Unknown model`. Streamed requests are still answered with HTTP 200 and carry
+  the error in the response body, so the failure is easy to miss in client
+  logs. Configure clients with the name `/v1/models` returns.
+
 - Host-mode OpenClaw onboarding registers the inference endpoint as a custom model
   provider (`openclaw config set models.providers.ovms ...`, OpenClaw's own
   documented `models.providers` mechanism — see

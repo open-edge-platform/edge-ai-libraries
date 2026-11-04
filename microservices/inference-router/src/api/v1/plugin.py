@@ -8,7 +8,11 @@ import logging
 
 from fastapi import APIRouter, HTTPException, Request
 
-from src.api.v1._config_runtime import apply_and_persist_config, resolve_config_path
+from src.api.v1._config_runtime import (
+    apply_and_persist_config,
+    resolve_config_path,
+    serialize_router_config,
+)
 from src.models import (
     PluginConfigUpdateRequest,
     PluginListResponse,
@@ -121,32 +125,10 @@ async def _persist_plugins(http_request: Request, plugins: list[dict]) -> list[d
     if config is None:
         raise HTTPException(status_code=503, detail="Router not initialized")
 
-    config_data = {
-        "log_level": config.log_level,
-        "providers": [
-            {
-                "name": provider.name,
-                "type": provider.type,
-                "model": provider.model,
-                "enabled": provider.enabled,
-                "fallback": provider.fallback,
-                "metadata": copy.deepcopy(provider.metadata),
-                "settings": copy.deepcopy(provider.settings),
-            }
-            for provider in config.providers
-        ],
-        "plugins": _group_plugins(plugins),
-        "routing": {
-            "policy": config.routing.policy,
-            "strategy": config.routing.strategy,
-        },
-        "telemetry": {
-            "backend": config.telemetry.backend.value,
-            "enabled": config.telemetry.enabled,
-            "file_path": config.telemetry.file_path,
-        },
-        "cors_origins": list(config.cors_origins),
-    }
+    # Provider attachments (``plugins``) are part of the provider section, so
+    # rebuild from the full runtime config and swap in only the plugins.
+    config_data = serialize_router_config(config)
+    config_data["plugins"] = _group_plugins(plugins)
 
     config_path = resolve_config_path(http_request)
     updated_config = await apply_and_persist_config(

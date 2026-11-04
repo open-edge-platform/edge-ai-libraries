@@ -38,6 +38,11 @@ _PLUGIN_TRIGGERS = {"prerouting", "postrouting", "postresponse", "standalone"}
 _ENV_VAR_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]{0,4096}))?\}")
 
 
+# Plugin phases that can be attached to individual providers (the provider is
+# known by then). Prerouting plugins always apply to every request.
+_PROVIDER_PLUGIN_TRIGGERS = {"postrouting", "postresponse"}
+
+
 # Allowed characters for user-defined ``name`` fields.
 _NAME_PATTERN = re.compile(r"^[A-Za-z0-9._-]+$")
 
@@ -213,6 +218,8 @@ def _build_router_config(config_data: dict) -> RouterConfig:
             )
         seen_plugins.add(identity)
 
+    _validate_provider_plugins(providers, plugins)
+
     # Parse routing
     routing_data = config_data.get("routing", {})
     routing = RoutingConfig(
@@ -262,6 +269,14 @@ def _build_provider_config(provider_data: dict) -> ProviderConfig:
     if not model:
         raise ConfigurationError(f"Provider '{name}' must have a 'model'")
 
+    plugin_names = provider_data.get("plugins") or []
+    if not isinstance(plugin_names, list) or not all(
+        isinstance(item, str) for item in plugin_names
+    ):
+        raise ConfigurationError(
+            f"Provider '{name}' 'plugins' must be a list of plugin names"
+        )
+
     return ProviderConfig(
         name=name,
         type=provider_type,
@@ -270,8 +285,39 @@ def _build_provider_config(provider_data: dict) -> ProviderConfig:
         fallback=bool(provider_data.get("fallback", False)),
         metadata=provider_data.get("metadata", {}),
         settings=provider_data.get("settings", {}),
+        plugins=list(dict.fromkeys(plugin_names)),
         extra=provider_data.get("extra", {}),
     )
+
+
+def _validate_provider_plugins(
+    providers: list[ProviderConfig], plugins: list[PluginConfig]
+) -> None:
+    """Check every provider ``plugins`` entry names a postrouting/postresponse plugin.
+
+    Disabled plugins may be referenced (they simply never run). Raises
+    :class:`ConfigurationError` on unknown names and on names that only match
+    prerouting/standalone plugins, which apply to every request.
+    """
+    triggers_by_name: dict[str, set[str]] = {}
+    for plugin in plugins:
+        triggers_by_name.setdefault(plugin.name, set()).add(plugin.trigger)
+
+    for provider in providers:
+        for plugin_name in provider.plugins:
+            triggers = triggers_by_name.get(plugin_name)
+            if triggers is None:
+                raise ConfigurationError(
+                    f"Provider '{provider.name}' references unknown plugin "
+                    f"'{plugin_name}'"
+                )
+            if not triggers & _PROVIDER_PLUGIN_TRIGGERS:
+                allowed = ", ".join(sorted(_PROVIDER_PLUGIN_TRIGGERS))
+                raise ConfigurationError(
+                    f"Provider '{provider.name}' cannot attach plugin "
+                    f"'{plugin_name}' (trigger: {', '.join(sorted(triggers))}); "
+                    f"only {allowed} plugins can be attached to a provider"
+                )
 
 
 def _build_plugin_config(plugin_data: dict, trigger: str = "prerouting") -> PluginConfig:

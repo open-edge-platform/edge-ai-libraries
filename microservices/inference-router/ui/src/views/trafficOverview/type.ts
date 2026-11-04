@@ -36,6 +36,18 @@ export interface RouterTrafficMetrics {
   };
 }
 
+export interface CompressorTrafficMetrics {
+  metrics_by_keys?: {
+    provider?: Record<
+      string,
+      {
+        "overall.total_input"?: number;
+        "overall.total_output"?: number;
+      }
+    >;
+  };
+}
+
 export interface TrafficNode {
   id: string;
   label: string;
@@ -69,41 +81,66 @@ const asNumber = (value: unknown) =>
 export function formatRouterTraffic(
   value: unknown,
   mode: TrafficMode,
+  compressorTraffic: CompressorTrafficMetrics = {},
 ): TrafficSnapshot {
   const raw = asRecord(value) as RouterTrafficMetrics;
   const routing = raw.routing_stats ?? {};
   const tokenMetrics = raw.token_metrics ?? {};
   const requestCounts = routing.by_provider ?? {};
   const providerMetrics = tokenMetrics.by_provider ?? {};
+  const compressorMetrics = compressorTraffic.metrics_by_keys?.provider ?? {};
   const providerNames = [
     ...new Set([
       ...Object.keys(requestCounts),
       ...Object.keys(providerMetrics),
     ]),
   ];
-  const providers = providerNames.map((name, index) => ({
-    id: `provider-${index}`,
-    name,
-    requests: asNumber(
-      requestCounts[name] ?? providerMetrics[name]?.request_count,
-    ),
-    tokens: asNumber(providerMetrics[name]?.input_tokens),
-  }));
-  const beforeTokens = asNumber(tokenMetrics.before_router?.overall_tokens);
+  const providers = providerNames.map((name, index) => {
+    const tokens = asNumber(providerMetrics[name]?.input_tokens);
+    const compression = compressorMetrics[name];
+    return {
+      id: `provider-${index}`,
+      name,
+      requests: asNumber(
+        requestCounts[name] ?? providerMetrics[name]?.request_count,
+      ),
+      tokens,
+      hasCompression: Object.prototype.hasOwnProperty.call(
+        compressorMetrics,
+        name,
+      ),
+      uncompressedTokens:
+        tokens +
+        asNumber(compression?.["overall.total_input"]) -
+        asNumber(compression?.["overall.total_output"]),
+    };
+  });
+  const beforeTokens =
+    mode === "tokens"
+      ? providers.reduce(
+          (total, provider) => total + provider.uncompressedTokens,
+          0,
+        )
+      : asNumber(tokenMetrics.before_router?.overall_tokens);
   const totalRequests =
     asNumber(routing.total_requests) ||
     providers.reduce((total, provider) => total + provider.requests, 0);
-  const compressorNode: TrafficNode = {
-    id: "token-compressor",
-    label: "Token Compressor",
-    kind: "plugin",
-    role: "token-compressor",
-    stage: 2,
-  };
   const nodes: TrafficNode[] = [
     { id: "input", label: "Input", kind: "source", stage: 0 },
     { id: "routing", label: "Routing", kind: "router", stage: 1 },
-    ...(mode === "tokens" ? [compressorNode] : []),
+    ...(mode === "tokens"
+      ? providers
+          .filter((provider) => provider.hasCompression)
+          .map(
+            (provider): TrafficNode => ({
+              id: `token-compressor-${provider.id}`,
+              label: "Token Compressor",
+              kind: "plugin",
+              role: "token-compressor",
+              stage: 2,
+            }),
+          )
+      : []),
     ...providers.map((provider) => ({
       id: provider.id,
       label: provider.name,
@@ -120,19 +157,21 @@ export function formatRouterTraffic(
       tokens: beforeTokens,
     },
   ];
-  if (mode === "tokens") {
-    edges.push({
-      id: "routing-compressor",
-      source: "routing",
-      target: "token-compressor",
-      requests: totalRequests,
-      tokens: beforeTokens,
-    });
-  }
   providers.forEach((provider) => {
+    const compressorId = `token-compressor-${provider.id}`;
+    const hasCompressor = mode === "tokens" && provider.hasCompression;
+    if (hasCompressor) {
+      edges.push({
+        id: `routing-compressor-${provider.id}`,
+        source: "routing",
+        target: compressorId,
+        requests: provider.requests,
+        tokens: provider.uncompressedTokens,
+      });
+    }
     edges.push({
-      id: `${mode === "tokens" ? "compressor" : "routing"}-${provider.id}`,
-      source: mode === "tokens" ? "token-compressor" : "routing",
+      id: `${hasCompressor ? "compressor" : "routing"}-${provider.id}`,
+      source: hasCompressor ? compressorId : "routing",
       target: provider.id,
       requests: provider.requests,
       tokens: provider.tokens,

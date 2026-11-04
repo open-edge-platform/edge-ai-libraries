@@ -61,12 +61,6 @@ export const routeList = [
             component: () => import("@/views/strategyConfig/index.vue"),
             meta: { title: "Strategies" },
           },
-          {
-            path: "prompts",
-            name: "PromptConfig",
-            component: () => import("@/views/promptConfig/index.vue"),
-            meta: { title: "Prompts" },
-          },
         ],
       },
     ],

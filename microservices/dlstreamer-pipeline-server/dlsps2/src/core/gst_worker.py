@@ -26,6 +26,13 @@ Status events are written to stdout, one JSON object per line::
     {"instance_id": "<id>", "event": "eos"}
     {"instance_id": "<id>", "event": "error", "reason": "..."}
     {"instance_id": "<id>", "event": "stopped"}
+    {"instance_id": "<id>", "event": "metric", "kind": "latency-window", "element": "<name>", "fields": {...}}
+
+``metric`` events forward the ``dlstreamer/*`` element messages that DL Streamer
+posts on the pipeline bus; see :mod:`core.metrics` for the kinds and fields. Bus
+messages are forwarded in the order they were posted, so the last latency window,
+which ``latency_tracer`` posts when EOS reaches a sink, precedes ``eos``, and
+``stopped`` follows both.
 """
 
 import json
@@ -50,6 +57,8 @@ gi.require_version("Gst", "1.0")
 gi.require_version("GObject", "2.0")
 from gi.repository import Gst, GLib  # noqa: E402 # pyright: ignore[reportMissingImports]
 
+from core.metrics import METRIC_MESSAGE_PREFIX, metric_event  # noqa: E402
+
 logger = logging.getLogger("gst_worker")
 
 # How often (seconds) each hosted pipeline's own frame counter is turned
@@ -57,9 +66,39 @@ logger = logging.getLogger("gst_worker")
 _FPS_POLL_INTERVAL_SECONDS = 1
 
 
+def _plain_value(value):
+    """Turn a Gst.ValueArray or Gst.ValueList, which JSON would only stringify, into a list."""
+    for type_name in ("ValueArray", "ValueList"):
+        gst_type = getattr(Gst, type_name, None)
+        if isinstance(gst_type, type) and isinstance(value, gst_type):
+            return [_plain_value(item) for item in value]
+    return value
+
+
+def _metric_event(instance_id: str, message) -> Optional[dict]:
+    """Convert a ``dlstreamer/*`` element message into a ``metric`` event, else None."""
+    structure = message.get_structure()
+    if structure is None:
+        return None
+    name = structure.get_name()
+    if not name.startswith(METRIC_MESSAGE_PREFIX):
+        return None
+    fields = {}
+    for index in range(structure.n_fields()):
+        field_name = structure.nth_field_name(index)
+        try:
+            fields[field_name] = _plain_value(structure.get_value(field_name))
+        except TypeError:
+            # A GType gi cannot convert (e.g. GstValueArray without the gst-python overrides) loses one field only.
+            logger.debug("Skipping field %s of %s: unsupported type", field_name, name)
+    element = message.src.get_name() if message.src else None
+    return metric_event(instance_id, element, name, fields)
+
+
 def _emit(payload: dict) -> None:
     """Write one JSON status line to stdout and flush immediately."""
-    sys.stdout.write(json.dumps(payload) + "\n")
+    # default=str: a forwarded bus-message field of a type JSON cannot encode must not break the event stream.
+    sys.stdout.write(json.dumps(payload, default=str) + "\n")
     sys.stdout.flush()
 
 
@@ -353,6 +392,10 @@ class GstWorker:
             elif mtype == Gst.MessageType.EOS:
                 _emit({"instance_id": instance_id, "event": "eos"})
                 self._teardown_async(instance_id)
+            elif mtype == Gst.MessageType.ELEMENT:
+                event = _metric_event(instance_id, message)
+                if event is not None:
+                    _emit(event)
             return True
 
         inst.bus_handler_id = bus.connect("message", _on_message)

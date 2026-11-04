@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+@PACKAGE_INIT@
+
+set(SIFT_EXTRACTOR_HAS_OPENCL @SIFT_EXTRACTOR_HAS_OPENCL@)
+set(SIFT_EXTRACTOR_HAS_SYCL @SIFT_EXTRACTOR_HAS_SYCL@)
+set(SIFT_EXTRACTOR_HAS_OPENCV_ADAPTER @SIFT_EXTRACTOR_HAS_OPENCV_ADAPTER@)
+
+if(SIFT_EXTRACTOR_HAS_OPENCV_ADAPTER)
+  include(CMakeFindDependencyMacro)
+  find_dependency(OpenCV REQUIRED COMPONENTS core)
+endif()
+
+include("${CMAKE_CURRENT_LIST_DIR}/sift_extractorTargets.cmake")
+check_required_components(sift_extractor)

@@ -1,132 +1,316 @@
 
 configure_uncrewed_aerial_vehicle_mission () {
+  local operation="$1"; shift
   workspace="$(ensure_project_path)/uav-mission-compute-sdk"
-  version="main"
   repository="https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git"
-  used_ports=(8086 3000 9090 9273)
-
-  version_skills="be9aa5e65f57c397bded94bae975469eb749eff7"
-  repository_skills="https://github.com/open-edge-platform/skills.git"
-  skills=(uav-mission-compute-sdk)
+  version="refs/pull/15/head"
+  local flag installed=()
+  uav_app=""
+  for flag in "$@"; do
+    case "$flag" in
+    --ground-station|--vision-analytics)
+      if [[ -n "$uav_app" && "$uav_app" != "${flag#--}" ]]; then
+        echo "Choose either --ground-station or --vision-analytics, not both." >&2
+        return 1
+      fi
+      uav_app="${flag#--}"
+      ;;
+    esac
+  done
+  if [ -d "$workspace/uav-mission-compute-sdk" ]; then
+    echo "Legacy UAV Mission Compute SDK found at $workspace. Stop it and move the legacy workspace aside before installing PR 15 apps; it will not be deleted automatically." >&2
+    return 1
+  fi
+  if [ -z "$uav_app" ]; then
+    if [ "$operation" = install ]; then
+      uav_app=ground-station
+    else
+      for flag in ground-station vision-analytics; do
+        [ -n "$(ensure_prop get "installed/uncrewed_aerial_vehicle_mission/apps/$flag")" ] || continue
+        installed+=("$flag")
+      done
+      if [ "${#installed[@]}" -ne 1 ]; then
+        echo "Select --ground-station or --vision-analytics: ${#installed[@]} UAV applications are installed." >&2
+        return 1
+      fi
+      uav_app="${installed[0]}"
+    fi
+  fi
+  uav_checkout="$workspace/$uav_app"
+  uav_dir="$uav_checkout/uav-$uav_app"
+  if [ "$uav_app" = ground-station ]; then
+    uav_compose=(-f docker-compose.yml -f docker-compose-mediamtx.yml)
+  else
+    uav_compose=(-f docker-compose-pymavlink.yml)
+  fi
 }
 
 verify_uncrewed_aerial_vehicle_mission () {
-  [ -r "$workspace/uav-mission-compute-sdk/docker-compose.yml" ] &&
-    docker image inspect \
-      uav-mission-compute-sdk/px4-gazebo:latest \
-      uav-mission-compute-sdk/companion-bridge:latest \
-      uav-mission-compute-sdk/camera-bridge:latest \
-      uav-mission-compute-sdk/usb-camera-bridge:latest \
-      uav-mission-compute-sdk/vision-processor-multicam:latest \
-      sample-apps-edge-ai-showcase:latest > /dev/null
+  verify_uncrewed_aerial_vehicle_mission_installed || return 1
+  if [ "$uav_app" = vision-analytics ]; then
+    verify_uncrewed_aerial_vehicle_mission_models
+  fi
 }
 
-initialize_uncrewed_aerial_vehicle_mission () {
-  local device shim_dir status
-  for device in /dev/video* /dev/media*; do
-    [[ -c "$device" ]] || continue
-    make init
-    return
-  done
+verify_uncrewed_aerial_vehicle_mission_installed () {
+  [ -r "$uav_dir/Makefile" ] && [ -r "$uav_dir/.env" ] &&
+    [ -n "$(ensure_prop get "installed/uncrewed_aerial_vehicle_mission/apps/$uav_app")" ]
+}
 
-  shim_dir="$(mktemp -d)"
-  printf '#!/bin/sh\nexit 0\n' > "$shim_dir/v4l2-ctl"
-  chmod 700 "$shim_dir/v4l2-ctl"
-  if PATH="$shim_dir:$PATH" make init; then
-    rm -f "$shim_dir/v4l2-ctl"
-    rmdir "$shim_dir"
-  else
-    status=$?
-    rm -f "$shim_dir/v4l2-ctl"
-    rmdir "$shim_dir"
-    return "$status"
-  fi
+verify_uncrewed_aerial_vehicle_mission_models () {
+  local detection="$uav_dir/resources/models/yolo11s/yolo11s_openvino_model/yolo11s"
+  local caption="$uav_dir/resources/ov_models/gpu/InternVL2-1B"
+  [[ -f "$detection.xml" && -f "$detection.bin" ]] &&
+    compgen -G "$caption/*.xml" >/dev/null && compgen -G "$caption/*.bin" >/dev/null
 }
 
 debian_90_profile_uncrewed_aerial_vehicle_mission () {
   echo "docker_io git curl make v4l_utils"
+  [[ " $* " != *" --vision-analytics "* ]] || echo "edge_base python3_venv"
+}
+
+debian_90_license_uncrewed_aerial_vehicle_mission () {
+  configure_uncrewed_aerial_vehicle_mission install "$@" || return $?
+  [ "$uav_app" = vision-analytics ] || return 0
+  ensure_license_use_model YOLO11s
+  echo "Model license: https://github.com/ultralytics/ultralytics/blob/main/LICENSE"
+  ensure_license_use_model InternVL2-1B
+  echo "Model terms: https://huggingface.co/OpenGVLab/InternVL2-1B"
+}
+
+configure_uncrewed_aerial_vehicle_mission_source () {
+  if [[ -e "$uav_checkout" || -L "$uav_checkout" ]]; then
+    if [[ -L "$uav_checkout" || ! -d "$uav_checkout/.git" ]]; then
+      echo "Refusing incompatible source destination: $uav_checkout" >&2
+      return 1
+    fi
+    local remote changes
+    remote="$(git -C "$uav_checkout" remote get-url origin)" || return $?
+    changes="$(git -C "$uav_checkout" status --porcelain --untracked-files=no)" || return $?
+    if [[ "$remote" != "$repository" || -n "$changes" ]]; then
+      echo "Refusing to overwrite a different repository or tracked local changes at $uav_checkout." >&2
+      return 1
+    fi
+    if [ -n "$(ensure_prop get "started/uncrewed_aerial_vehicle_mission/apps/$uav_app")" ]; then
+      echo "Stop $uav_app before updating its source." >&2
+      return 1
+    fi
+  else
+    mkdir -p "$workspace"
+    git clone --no-checkout --depth 1 "$repository" "$uav_checkout" || return $?
+  fi
+  git -C "$uav_checkout" fetch --depth 1 origin "$version" &&
+    git -C "$uav_checkout" checkout --detach FETCH_HEAD || return $?
+  echo "UAV source: $version, commit $(git -C "$uav_checkout" rev-parse HEAD)"
+}
+
+configure_uncrewed_aerial_vehicle_mission_models () {
+  local detection="$uav_dir/resources/models/yolo11s/yolo11s_openvino_model/yolo11s"
+  local caption="$uav_dir/resources/ov_models/gpu/InternVL2-1B"
+  if [[ ! -f "$detection.xml" || ! -f "$detection.bin" ]]; then
+    make model ACCEPT_LICENSE=y || return $?
+  fi
+  if ! compgen -G "$caption/*.xml" >/dev/null || ! compgen -G "$caption/*.bin" >/dev/null; then
+    make vlm-model VLM_DEVICE=GPU ACCEPT_LICENSE=y || return $?
+  fi
+  if ! verify_uncrewed_aerial_vehicle_mission_models; then
+    echo "Model setup did not produce the required YOLO11s and GPU InternVL2 XML/BIN artifacts." >&2
+    return 1
+  fi
 }
 
 debian_90_install_uncrewed_aerial_vehicle_mission () {
-  local installed
-  installed="$(ensure_prop find "installed/*")" || return $?
-  local blueprint
-  while IFS= read -r blueprint; do
-    case "$blueprint" in
-    installed/handheld_blueprint|installed/mission_decision_support_blueprint)
-      echo "Cannot install uncrewed_aerial_vehicle_mission while ${blueprint#installed/} is installed." >&2
-      return 1
-      ;;
-    esac
-  done <<< "$installed"
-
-  configure_uncrewed_aerial_vehicle_mission
-  if verify_uncrewed_aerial_vehicle_mission 2>/dev/null && [[ " $* " != *" --reinstall "* ]]; then
-    echo "Uncrewed aerial vehicle mission compute SDK is installed." >&2
-  else
-    ensure_ports_open install uncrewed_aerial_vehicle_mission "${used_ports[@]}"
-
-    echo "@@STEP Cloning repository"
-    ensure_git_export "$workspace" "$version" "$repository" uav-mission-compute-sdk
-
-    echo "@@STEP Building SDK"
-    cd "$workspace"/uav-mission-compute-sdk
-    initialize_uncrewed_aerial_vehicle_mission
-    sed -i "s|^HOST_IP=.*$|HOST_IP=$(ensure_ip)|" .env
-    COMPOSE_PROFILES=sim-camera,usb-camera,observability make build
-
-    if ! verify_uncrewed_aerial_vehicle_mission; then
-      echo "Uncrewed aerial vehicle SDK build completed, but required simulation, camera, or application images are missing." >&2
+  configure_uncrewed_aerial_vehicle_mission install "$@" || return $?
+  if verify_uncrewed_aerial_vehicle_mission && [[ " $* " != *" --reinstall "* ]]; then
+    echo "$uav_app is already installed."
+    return 0
+  fi
+  if [ "$uav_app" = vision-analytics ]; then
+    if ! compgen -G '/dev/accel/accel*' >/dev/null || ! compgen -G '/dev/dri/renderD*' >/dev/null; then
+      echo "Vision Analytics PR defaults require Intel NPU and GPU device nodes." >&2
       return 1
     fi
+    python3 -c 'import ensurepip' || return $?
   fi
-
-  if [ ! -r "$HOME/.agents/skills/uav-mission-compute-sdk/SKILL.md" ]; then
-    echo "@@STEP Installing skills"
-    ensure_skills add "$version_skills" "$repository_skills" "${skills[@]/#/.agents/skills/}"
+  echo "@@STEP Fetching PR 15 source for $uav_app"
+  configure_uncrewed_aerial_vehicle_mission_source || return $?
+  if [[ ! -f "$uav_dir/Makefile" || ! -f "$uav_dir/.env.example" ]]; then
+    echo "Required PR 15 application source is missing: $uav_dir" >&2
+    return 1
   fi
+  ensure_prop remove "installed/uncrewed_aerial_vehicle_mission/apps/$uav_app" || return $?
+  cd "$uav_dir" || return $?
+  echo "Review $uav_dir/.env and upstream LAN bindings before starting the application."
+  make init || return $?
+  if [ "$uav_app" = vision-analytics ]; then
+    configure_uncrewed_aerial_vehicle_mission_models || return $?
+    make _check_certs || return $?
+  fi
+  docker compose "${uav_compose[@]}" pull --ignore-buildable &&
+    docker compose "${uav_compose[@]}" build || return $?
+  if [ ! -f "$uav_dir/.env" ]; then
+    echo "Application initialization did not produce $uav_dir/.env." >&2
+    return 1
+  fi
+  ensure_prop create installed/uncrewed_aerial_vehicle_mission/apps/
+  ensure_prop set "installed/uncrewed_aerial_vehicle_mission/apps/$uav_app" \
+    "$(git -C "$uav_checkout" rev-parse HEAD)" || return $?
+  verify_uncrewed_aerial_vehicle_mission || return $?
+  echo "@@HIGHLIGHT workspace: $uav_dir"
+  echo "@@HIGHLIGHT $installer_name start uncrewed_aerial_vehicle_mission --$uav_app"
+}
 
-  local profile="sim-camera"
-  [[ " $* " != *" --sim "* ]] || profile="sim-camera"
-  [[ " $* " != *" --usb "* ]] || profile="usb-camera"
-  [[ " $* " != *" --realsense "* ]] || profile="realsense-camera"
-  cd "$workspace"/uav-mission-compute-sdk
-  sed -i '/^PROFILE=/{d}' "$workspace"/uav-mission-compute-sdk/.env
-  echo "PROFILE=$profile" >> "$workspace"/uav-mission-compute-sdk/.env
+verify_uncrewed_aerial_vehicle_mission_services () {
+  local expected running service
+  expected="$(docker compose "${uav_compose[@]}" config --services)" || return $?
+  running="$(docker compose "${uav_compose[@]}" ps --status running --services)" || return $?
+  [ -n "$expected" ] || return 1
+  while IFS= read -r service; do
+    grep -Fxq -- "$service" <<< "$running" || return 1
+  done <<< "$expected"
+  if [ "$uav_app" = ground-station ]; then
+    docker compose "${uav_compose[@]}" exec -T viz-backend python3 -c \
+      'from urllib.request import urlopen; urlopen("http://127.0.0.1:8080/api/runtime-config", timeout=5).close()'
+  else
+    docker exec dlstreamer-pipeline-server python3 -c \
+      'from urllib.request import urlopen; urlopen("http://127.0.0.1:8081/pipelines/status", timeout=5).close()'
+  fi
+}
 
-  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
-  echo "@@HIGHLIGHT $installer_name start|remove"
+verify_uncrewed_aerial_vehicle_mission_manager () {
+  docker exec dlstreamer-pipeline-server python3 -c '
+from pathlib import Path
+import sys
+expected = [b"python3", b"/home/pipeline-server/scripts/pipeline_manager.py", b"--start-now"]
+for path in Path("/proc").glob("[0-9]*/cmdline"):
+    try:
+        command = path.read_bytes().rstrip(b"\0").split(b"\0")
+    except (FileNotFoundError, ProcessLookupError, PermissionError):
+        continue
+    if command == expected:
+        sys.exit(0)
+sys.exit(1)
+'
+}
+
+verify_uncrewed_aerial_vehicle_mission_pipelines () {
+  verify_uncrewed_aerial_vehicle_mission_manager || return 1
+  local status
+  status="$(docker exec dlstreamer-pipeline-server python3 /home/pipeline-server/scripts/pipeline_manager.py --status)" || return $?
+  printf '%s\n' "$status" | awk '
+    NR > 1 { if (NF != 6 || $4 != "RUNNING" || $6 != "yes") failed = 1; count++ }
+    END { exit (failed || !count) }
+  '
+}
+
+start_uncrewed_aerial_vehicle_mission_wait () {
+  local check="$1" attempts="$2" attempt
+  for ((attempt=0; attempt<attempts; attempt++)); do
+    if "$check"; then return 0; fi
+    sleep 5
+  done
+  echo "$uav_app readiness timed out ($check). Inspect docker compose logs in $uav_dir." >&2
+  return 1
+}
+
+configure_uncrewed_aerial_vehicle_mission_ports () {
+  local config ports
+  config="$(docker compose "${uav_compose[@]}" config --format json)" || return $?
+  ports="$(python3 -c '
+import json, sys
+config = json.load(sys.stdin)
+print(" ".join(sorted({str(port["published"]) for service in config["services"].values()
+                       for port in service.get("ports", []) if "published" in port})))
+' <<< "$config")" || return $?
+  read -r -a uav_ports <<< "$ports"
+  ensure_ports_open install uncrewed_aerial_vehicle_mission "${uav_ports[@]}"
+}
+
+configure_uncrewed_aerial_vehicle_mission_started_ports () {
+  local app ports=""
+  for app in ground-station vision-analytics; do
+    ports+=" $(ensure_prop get "started/uncrewed_aerial_vehicle_mission/apps/$app")"
+  done
+  ensure_prop set started/uncrewed_aerial_vehicle_mission/ports "${ports# }"
 }
 
 debian_90_start_uncrewed_aerial_vehicle_mission () {
-  configure_uncrewed_aerial_vehicle_mission
-  ensure_ports_open start uncrewed_aerial_vehicle_mission "${used_ports[@]}"
+  configure_uncrewed_aerial_vehicle_mission start "$@" || return $?
+  verify_uncrewed_aerial_vehicle_mission || { echo "$uav_app installation is missing source, configuration, or models. Run install to repair it." >&2; return 1; }
+  cd "$uav_dir" || return $?
+  if [ -z "$(ensure_prop get "started/uncrewed_aerial_vehicle_mission/apps/$uav_app")" ]; then
+    configure_uncrewed_aerial_vehicle_mission_ports || return $?
+  else
+    read -r -a uav_ports <<< "$(ensure_prop get "started/uncrewed_aerial_vehicle_mission/apps/$uav_app")"
+  fi
+  if [ "$uav_app" = ground-station ]; then
+    make up || return $?
+  else
+    make pymav-up || return $?
+  fi
+  start_uncrewed_aerial_vehicle_mission_wait verify_uncrewed_aerial_vehicle_mission_services 24 || return $?
+  if [ "$uav_app" = vision-analytics ]; then
+    make check-cameras || return $?
+    if ! verify_uncrewed_aerial_vehicle_mission_manager; then
+      docker exec --detach dlstreamer-pipeline-server sh -c \
+        'exec python3 /home/pipeline-server/scripts/pipeline_manager.py --start-now >/tmp/oep-uav-manager.log 2>&1' || return $?
+    fi
+    start_uncrewed_aerial_vehicle_mission_wait verify_uncrewed_aerial_vehicle_mission_pipelines 240 || return $?
+    echo "@@HIGHLIGHT Status: cd $uav_dir && make cameras-status"
+  else
+    echo "@@HIGHLIGHT Dashboard: http://<VIZ_HOST_IP>:<VIZ_PORT> from $uav_dir/.env"
+  fi
+  ensure_prop create started/uncrewed_aerial_vehicle_mission/apps/
+  ensure_prop set "started/uncrewed_aerial_vehicle_mission/apps/$uav_app" "${uav_ports[*]:-none}" || return $?
+  configure_uncrewed_aerial_vehicle_mission_started_ports || return $?
+  echo "@@HIGHLIGHT $installer_name stop uncrewed_aerial_vehicle_mission --$uav_app"
+}
 
-  cd "$workspace"/uav-mission-compute-sdk
-  . .env
-  make up-$PROFILE
-
-  echo "@@HIGHLIGHT $installer_name remove"
+stop_uncrewed_aerial_vehicle_mission_app () {
+  cd "$uav_dir" || return $?
+  docker compose "${uav_compose[@]}" down "$@" || return $?
+  ensure_prop remove "started/uncrewed_aerial_vehicle_mission/apps/$uav_app"
+  if [ -d "$(ensure_project_path)/$installer_name/started/uncrewed_aerial_vehicle_mission" ]; then
+    configure_uncrewed_aerial_vehicle_mission_started_ports
+  fi
 }
 
 debian_90_stop_uncrewed_aerial_vehicle_mission () {
-  configure_uncrewed_aerial_vehicle_mission
-  cd "$workspace"/uav-mission-compute-sdk && {
-    make down || true
-    docker volume rm -f uav-mission-compute-sdk_grafana-data uav-mission-compute-sdk_influxdb-data || true
-    docker volume prune -f
-  } || true
+  local app
+  if [[ " $* " = *" --all-apps "* && " $* " != *" --ground-station "* && " $* " != *" --vision-analytics "* ]]; then
+    for app in ground-station vision-analytics; do
+      [ -n "$(ensure_prop get "installed/uncrewed_aerial_vehicle_mission/apps/$app")" ] || continue
+      configure_uncrewed_aerial_vehicle_mission stop "--$app" &&
+        stop_uncrewed_aerial_vehicle_mission_app || return $?
+    done
+  else
+    configure_uncrewed_aerial_vehicle_mission stop "$@" || return $?
+    verify_uncrewed_aerial_vehicle_mission_installed || { echo "$uav_app is not installed." >&2; return 1; }
+    stop_uncrewed_aerial_vehicle_mission_app
+  fi
+}
+
+remove_uncrewed_aerial_vehicle_mission_app () {
+  stop_uncrewed_aerial_vehicle_mission_app --volumes --remove-orphans || return $?
+  ensure_rm "$uav_checkout" || return $?
+  ensure_prop remove "installed/uncrewed_aerial_vehicle_mission/apps/$uav_app"
 }
 
 debian_90_remove_uncrewed_aerial_vehicle_mission () {
-  configure_uncrewed_aerial_vehicle_mission
-  local app_dir="$workspace"/uav-mission-compute-sdk
-  if [ -r "$app_dir/docker-compose.yml" ]; then
-    debian_90_stop_uncrewed_aerial_vehicle_mission "$@"
-    # drop the stack's containers, volumes and images (not a system-wide prune)
-    (cd "$app_dir" && docker compose -f docker-compose.yml --profile sim-camera --profile usb-camera --profile observability \
-      down --remove-orphans --volumes --rmi all) || true
+  local app found=false
+  if [[ " $* " != *" --ground-station "* && " $* " != *" --vision-analytics "* ]]; then
+    for app in ground-station vision-analytics; do
+      [ -n "$(ensure_prop get "installed/uncrewed_aerial_vehicle_mission/apps/$app")" ] || continue
+      found=true
+      configure_uncrewed_aerial_vehicle_mission remove "--$app" &&
+        remove_uncrewed_aerial_vehicle_mission_app || return $?
+    done
+    if [ "$found" = false ]; then
+      echo "No installed UAV applications found."
+    fi
+  else
+    configure_uncrewed_aerial_vehicle_mission remove "$@" || return $?
+    verify_uncrewed_aerial_vehicle_mission_installed || { echo "$uav_app is not installed." >&2; return 1; }
+    remove_uncrewed_aerial_vehicle_mission_app
   fi
-  ensure_rm "$workspace" || true
-  ensure_skills remove "${skills[@]}"
 }

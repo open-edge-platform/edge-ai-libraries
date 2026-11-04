@@ -131,6 +131,11 @@ def _cfg(name, ctype, trigger="prerouting", **settings):
     )
 
 
+def _keys_for(trigger):
+    """``metrics_keys`` settings for a trigger (prerouting cannot be keyed)."""
+    return {} if trigger == "prerouting" else {"metrics_keys": ["provider"]}
+
+
 def _request(messages=None, tools=None):
     return ChatCompletionRequest(
         model="test-model",
@@ -806,7 +811,9 @@ async def test_postrouting_metrics_split_by_provider(patch_factory):
     patch_factory()
     from src.plugins.compressor import CompressorPlugin
 
-    pm = create_plugin_manager([_cfg("compressor_post", "harness", trigger="postrouting")])
+    pm = create_plugin_manager(
+        [_cfg("compressor_post", "harness", trigger="postrouting", metrics_keys=["provider"])]
+    )
     set_request_id("req-1")
     await pm.process_postrouting_request(_request(), metrics_values={"provider": "prov-a"})
     set_request_id("req-2")
@@ -841,7 +848,7 @@ async def test_instance_view_excludes_overall_metrics(patch_factory, trigger):
     )
 
     patch_factory()
-    pm = create_plugin_manager([_cfg("only", "harness", trigger=trigger)])
+    pm = create_plugin_manager([_cfg("only", "harness", trigger=trigger, **_keys_for(trigger))])
     set_request_id("instance-only-1")
     await pm.process_request(_request(), metrics_values={"provider": "prov-a"})
     plugin = pm.get_plugin_by_name_and_node("only", "compressor")
@@ -872,7 +879,7 @@ async def test_prerouting_ignores_provider_name(patch_factory):
     pm = create_plugin_manager(
         [
             _cfg("compressor_pre", "tool", predictor_url="http://x/v1/chat/completions"),
-            _cfg("compressor_post", "harness", trigger="postrouting"),
+            _cfg("compressor_post", "harness", trigger="postrouting", metrics_keys=["provider"]),
         ]
     )
     set_request_id("req-1")
@@ -890,35 +897,74 @@ async def test_prerouting_ignores_provider_name(patch_factory):
 
 
 @pytest.mark.asyncio
-async def test_metrics_keys_declared_by_trigger(patch_factory):
-    """Postrouting registers with metrics_keys=["provider"]; prerouting with none."""
+async def test_metrics_keys_come_from_settings(patch_factory):
+    """Only compressors that set metrics_keys register keyed metrics."""
     patch_factory()
     from src.plugins import compressor as comp
 
-    create_plugin_manager(
+    pm = create_plugin_manager(
         [
             _cfg("compressor_pre", "tool", predictor_url="http://x/v1/chat/completions"),
-            _cfg("compressor_post", "harness", trigger="postrouting"),
+            _cfg("compressor_post", "harness", trigger="postrouting", metrics_keys=["provider"]),
+            _cfg("compressor_plain", "harness", trigger="postrouting"),
         ]
     )
     assert comp._MANAGER["compressor_post"]._metrics_keys == ("provider",)
     assert comp._MANAGER["compressor_pre"]._metrics_keys == ()
+    assert comp._MANAGER["compressor_plain"]._metrics_keys == ()
+    plain = pm.get_plugin_by_name_and_node("compressor_plain", "compressor")
+    assert plain.metrics_keys == []
+    assert plain.describe()["metrics_by_keys"] is None
 
 
-@pytest.mark.parametrize("keys", [[], ["provider"], ["provider", "user"]])
+def test_metrics_keys_not_forwarded_to_library(patch_factory):
+    capture: Dict[str, Any] = {}
+    patch_factory(capture=capture)
+    create_plugin_manager(
+        [_cfg("post", "harness", trigger="postrouting", metrics_keys=["provider"])]
+    )
+    assert "metrics_keys" not in capture
+
+
+@pytest.mark.parametrize(
+    "keys, match",
+    [
+        (["user"], "unsupported metrics_keys"),
+        ("provider", "must be a list"),
+    ],
+)
+def test_invalid_metrics_keys_rejected(patch_factory, keys, match):
+    patch_factory()
+    with pytest.raises(ConfigurationError, match=match):
+        create_plugin_manager(
+            [_cfg("post", "harness", trigger="postrouting", metrics_keys=keys)]
+        )
+
+
+@pytest.mark.parametrize("trigger", ["prerouting", "postresponse", "standalone"])
+def test_metrics_keys_rejected_outside_postrouting(patch_factory, trigger):
+    patch_factory()
+    with pytest.raises(ConfigurationError, match=f"not supported at trigger={trigger}"):
+        create_plugin_manager(
+            [_cfg("other", "harness", trigger=trigger, metrics_keys=["provider"])]
+        )
+
+
+@pytest.mark.parametrize("keys", [[], ["provider"]])
 @pytest.mark.asyncio
-async def test_compressor_uses_injected_metrics_keys(patch_factory, monkeypatch, keys):
+async def test_compressor_forwards_metrics_values_only_when_keyed(
+    patch_factory, monkeypatch, keys
+):
     from src.plugins import compressor as comp
 
     patch_factory()
     plugin = comp.CompressorPlugin(
-        name="injected",
-        settings={"type": "harness"},
+        name="keyed",
+        settings={"type": "harness", "metrics_keys": keys},
         trigger="postrouting",
-        metrics_keys=keys,
     )
     assert plugin.metrics_keys == keys
-    assert comp._MANAGER["injected"]._metrics_keys == tuple(keys)
+    assert comp._MANAGER["keyed"]._metrics_keys == tuple(keys)
     calls = []
     original = plugin._wrapper.compress
 
@@ -927,14 +973,13 @@ async def test_compressor_uses_injected_metrics_keys(patch_factory, monkeypatch,
         return original(ctx, **kwargs)
 
     monkeypatch.setattr(plugin._wrapper, "compress", record)
-    set_request_id("injected-1")
-    values = {"provider": "prov-a", "user": "user-a"}
-    supplied = {key: values[key] for key in keys}
+    set_request_id("keyed-1")
+    supplied = {"provider": "prov-a"}
     await plugin.process_request(
         _request(), metrics_values=supplied, provider_name="ignored"
     )
 
-    expected = {"req_id": "injected-1"}
+    expected = {"req_id": "keyed-1"}
     if keys:
         expected["metrics_values"] = supplied
     assert calls == [expected]
@@ -946,7 +991,9 @@ async def test_manager_forwards_external_metrics_values(patch_factory, values):
     from src.plugins.compressor import get_compression_metrics_by_keys
 
     patch_factory()
-    pm = create_plugin_manager([_cfg("post", "harness", trigger="postrouting")])
+    pm = create_plugin_manager(
+        [_cfg("post", "harness", trigger="postrouting", metrics_keys=["provider"])]
+    )
     set_request_id("external-values-1")
     await pm.process_postrouting_request(
         _request(), provider_name="ignored", metrics_values=values
@@ -965,7 +1012,9 @@ async def test_no_provider_name_records_global_only(patch_factory):
     patch_factory()
     from src.plugins.compressor import CompressorPlugin
 
-    pm = create_plugin_manager([_cfg("compressor_post", "harness", trigger="postrouting")])
+    pm = create_plugin_manager(
+        [_cfg("compressor_post", "harness", trigger="postrouting", metrics_keys=["provider"])]
+    )
     set_request_id("req-1")
     out = await pm.process_postrouting_request(_request())
 
@@ -1002,7 +1051,9 @@ async def test_old_library_without_keyed_metrics(patch_factory, monkeypatch):
 
     monkeypatch.setattr(atc, "CompressionManager", _OldManager)
 
-    pm = create_plugin_manager([_cfg("compressor_post", "harness", trigger="postrouting")])
+    pm = create_plugin_manager(
+        [_cfg("compressor_post", "harness", trigger="postrouting", metrics_keys=["provider"])]
+    )
     set_request_id("req-1")
     out = await pm.process_postrouting_request(
         _request(), metrics_values={"provider": "prov-a"}
@@ -1025,7 +1076,7 @@ async def test_metrics_fields_sorted_by_name(patch_factory):
     pm = create_plugin_manager(
         [
             _cfg("compressor_pre", "tool", predictor_url="http://x/v1/chat/completions"),
-            _cfg("compressor_post", "harness", trigger="postrouting"),
+            _cfg("compressor_post", "harness", trigger="postrouting", metrics_keys=["provider"]),
         ]
     )
     for i, provider in enumerate(["prov-b", "prov-a"]):
@@ -1051,8 +1102,8 @@ async def test_instance_reset_zeroes_its_provider_metrics(patch_factory):
 
     pm = create_plugin_manager(
         [
-            _cfg("compressor_a", "harness", trigger="postrouting"),
-            _cfg("compressor_b", "harness", trigger="postrouting"),
+            _cfg("compressor_a", "harness", trigger="postrouting", metrics_keys=["provider"]),
+            _cfg("compressor_b", "harness", trigger="postrouting", metrics_keys=["provider"]),
         ]
     )
     for i, provider in enumerate(["prov-a", "prov-b"]):
