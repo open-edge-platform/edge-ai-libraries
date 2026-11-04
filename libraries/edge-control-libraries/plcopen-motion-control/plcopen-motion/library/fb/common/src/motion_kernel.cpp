@@ -35,6 +35,10 @@ void MotionKernel::runCycle(const mcLREAL master_ref_pos,
     DEBUG_PRINT("MotionKernel::runCycle fb_queue_ is not empty %p.\n",
                 (void*)fb_front);
 
+    // Restore temporary entry targets or start deferred outgoing blends before
+    // checking completion against the node's current endpoint.
+    fb_front->applyBlendReplanIfDue(axis_ref_pos, axis_ref_vel, axis_ref_acc);
+
     // Check if the motion kernel mission is done
     if (fb_front->checkMissionDone(axis_ref_pos, axis_ref_vel) == mcTRUE)
       fb_front->onDone(state);
@@ -71,23 +75,11 @@ void MotionKernel::runCycle(const mcLREAL master_ref_pos,
       DEBUG_PRINT("Front node is active? %d, is enabled? %d.\n",
                   fb_front->isActive() == mcTRUE,
                   fb_front->getAxisNodeInstance()->isEnabled() == mcTRUE);
-      if (fb_front->isActive() == mcFALSE &&
-          fb_front->getAxisNodeInstance()->isEnabled() == mcTRUE)
+      if (fb_front->isActive() == mcFALSE)
       {
-        // Blending handoff was seeded from the previous FB's idealized end
-        // target (addFBToQueue), which can differ slightly from the actual
-        // axis position/velocity at the crossing cycle; re-seed from real
-        // axis feedback here to avoid a handoff velocity glitch. The gap
-        // between the idealized and actual state grows with cycle time (a
-        // larger dt means more overshoot before checkMissionDone's crossing
-        // check fires), so this matters more at lower cycle rates.
-        if (fb_front->getBufferMode() != mcAborting &&
-            fb_front->getPlannerType() != mcPoly5 &&
-            fb_front->getPlannerType() != mcLine)
-        {
-          fb_front->setStartPos(axis_ref_pos);
-          fb_front->setStartVel(axis_ref_vel);
-        }
+        // Align the accepted node with the measured boundary state. An
+        // overspeed entry is staged so it does not dip below cruise velocity.
+        fb_front->prepareBlendEntry(axis_ref_pos, axis_ref_vel, axis_ref_acc);
         fb_front->updateOverrideFactors(override_factors);
         fb_front->onActive(state);  // Activate the first node from queue
       }
@@ -218,7 +210,8 @@ void MotionKernel::addFBToQueue(ExecutionNode* node, mcLREAL current_pos,
   }
   else  // If queue is not empty, it's not possible to have a hold node
   {
-    ExecutionNode* fb_prev = fb_queue_.back();
+    ExecutionNode* fb_prev     = fb_queue_.back();
+    mcLREAL blend_end_velocity = fb_prev->getEndVel();
 
     // If not aborting, then set the end velocity of the previous FB
     switch (node->getBufferMode())
@@ -238,44 +231,57 @@ void MotionKernel::addFBToQueue(ExecutionNode* node, mcLREAL current_pos,
         setAllFBsAborted();
         break;
       case mcBlendingPrevious: {
-        fb_prev->setEndVel(fb_prev->getVelocity());
-        fb_prev->setReplan();
+        blend_end_velocity = fb_prev->getVelocity();
       }
       break;
       case mcBlendingNext: {
-        mcLREAL blend_vel = node->getVelocity();
-        // The planner rejects a target end-velocity that exceeds the node's
-        // own configured velocity limit (used as its max_velocity), so raise
-        // that limit to accommodate the blend instead of leaving it planted
-        // at move1's original (lower) velocity.
-        if (blend_vel > fb_prev->getVelocity())
-          fb_prev->setVelocity(blend_vel);
-        fb_prev->setEndVel(blend_vel);
-        fb_prev->setReplan();
+        blend_end_velocity = node->getVelocity();
       }
       break;
       case mcBlendingHigh: {
-        mcLREAL blend_vel = std::max(fb_prev->getVelocity(), node->getVelocity());
-        if (blend_vel > fb_prev->getVelocity())
-          fb_prev->setVelocity(blend_vel);
-        fb_prev->setEndVel(blend_vel);
-        fb_prev->setReplan();
+        blend_end_velocity =
+            std::max(fb_prev->getVelocity(), node->getVelocity());
       }
       break;
       case mcBlendingLow: {
-        fb_prev->setEndVel(
-            std::min(fb_prev->getVelocity(), node->getVelocity()));
-        fb_prev->setReplan();
+        blend_end_velocity =
+            std::min(fb_prev->getVelocity(), node->getVelocity());
       }
       break;
       default:
         break;
     }
 
+    if (node->getBufferMode() >= mcBlendingLow)
+    {
+      const mcLREAL velocity_delta =
+          fabs(blend_end_velocity) - fabs(current_vel);
+      if (fb_prev->isActive() == mcTRUE && velocity_delta > 0.0)
+      {
+        // Preserve the current cruise segment and accelerate only near the
+        // endpoint instead of replanning immediately when look-ahead arrives.
+        fb_prev->scheduleBlendReplan(current_pos, current_vel,
+                                     blend_end_velocity);
+      }
+      else
+      {
+        fb_prev->setEndVel(blend_end_velocity);
+        fb_prev->setVelocity(
+            std::max(fb_prev->getVelocity(), fabs(blend_end_velocity)));
+        if (fb_prev->isActive() == mcTRUE)
+        {
+          fb_prev->setStartPos(current_pos);
+          fb_prev->setStartVel(current_vel);
+          fb_prev->setStartAcc(current_acc);
+        }
+        fb_prev->setReplan();
+      }
+    }
+
     if (node->getBufferMode() != mcAborting)
     {
       node->setStartPos(fb_prev->getEndPos());
-      node->setStartVel(fb_prev->getEndVel());
+      node->setStartVel(blend_end_velocity);
       node->setStartAcc(0.0);
       node->setEndAcc(0.0);
       node->setTerminateCondition(fb_prev->getEndPos());
