@@ -2,7 +2,7 @@
   "profile": {
     "label": "Federal and Aerospace (Mission Decision Support)",
     "value": "federal_and_aerospace_ai_suite_mission_decision_support",
-    "supports": { "OP_SYSTEM": ["UBUNTU_24_04", "UBUNTU_26_04"] }
+    "supports": { "OP_SYSTEM": ["UBUNTU_24_04"] }
   },
   "modules": [
     { "label": "Mission Decision Support Blueprint", "value": "mission_decision_support_blueprint" },
