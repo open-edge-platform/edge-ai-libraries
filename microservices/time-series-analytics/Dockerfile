@@ -6,7 +6,7 @@
 
 ARG PYTHON_VERSION
 
-FROM quay.io/influxdb/cross-builder:go1.27.1-latest AS kapacitor-build
+FROM quay.io/influxdb/cross-builder:go1.27.3-latest AS kapacitor-build
 
 ARG KAPACITOR_VERSION
 RUN git clone --depth 1 --branch v${KAPACITOR_VERSION} \
@@ -14,6 +14,12 @@ RUN git clone --depth 1 --branch v${KAPACITOR_VERSION} \
     cd /tmp/kapacitor && \
     go get github.com/prometheus/client_golang@v1.11.1 && \
     go mod edit -replace=github.com/prometheus/common@v0.26.0=github.com/prometheus/common@v0.20.0 && \
+    go get \
+        golang.org/x/crypto@v0.58.0 \
+        golang.org/x/net@v0.62.0 \
+        github.com/go-jose/go-jose/v4@v4.1.6 \
+        github.com/klauspost/compress@v1.18.7 \
+        go.opentelemetry.io/otel/sdk@v1.45.0 && \
     go mod tidy && \
     python3 build.py --no-get --platform linux --arch amd64 \
         --version "${KAPACITOR_VERSION}" --outdir /tmp/kapacitor-bin && \
@@ -90,8 +96,8 @@ COPY ./requirements.txt .
 #     icx-lto.so, clbltfn*.rtl, libocl_svml_*, clang resource headers) -
 #     oneDAL/oneMKL GPU kernels ship precompiled; the real device compiler
 #     (intel-igc-*) is already installed system-wide.
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt && \
+RUN pip install --no-cache-dir --timeout 120 --retries 10 --upgrade pip && \
+    pip install --no-cache-dir --timeout 120 --retries 10 --resume-retries 10 -r requirements.txt && \
     find /usr/local/lib -maxdepth 1 \( \
         -name 'libintelocl.so*' -o \
         -name 'libomptarget.so*' -o -name 'libomptarget.sycl.wrap.so*' -o -name 'libpstloffload.so*' -o \
