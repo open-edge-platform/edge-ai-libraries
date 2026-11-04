@@ -285,12 +285,13 @@ temporary HOME, so nothing touches the host. These cases do not prove that a
 real Router container can write its telemetry file, that the Hermes plugin
 exports spans, or that Jaeger displays them; those need a live deployment.
 
-[metrics-cli-test.sh](metrics-cli-test.sh) (`bash test/metrics-cli-test.sh`, 8
+[metrics-cli-test.sh](metrics-cli-test.sh) (`bash test/metrics-cli-test.sh`, 9
 cases) additionally runs the real `./install.sh metrics ...` entry point as a
 subprocess against stateful fake `docker`, `hermes`, `flock` and `curl`
 executables: the enable/disable round trip, `--keep-jaeger`, a foreign Jaeger
 container, an unreachable Docker daemon, an already-disabled plugin, the
-`--target all` disable ordering and rejection of unsafe input. It checks exit
+`--target all` disable ordering, rejection of unsafe input, and `--help` running
+no command. It checks exit
 codes and resulting state, not real containers.
 
 | Case reference | Test case | Objective / expected result |

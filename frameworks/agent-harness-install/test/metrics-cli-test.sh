@@ -235,6 +235,15 @@ case_rejects_bad_input() {
   check 'router state untouched by a rejected mode' state_is router.enabled ''
 }
 
+# The help text is an unquoted heredoc, so a stray backtick would execute.
+case_help_runs_nothing() {
+  cli --help
+  check 'help exits 0' rc_is 0
+  check 'help lists the metrics command' out_has 'metrics <enable|disable|show>'
+  check 'no external command was run' test ! -s "$FAKE/hermes.log"
+  check 'no shell error in the help output' test "$(grep -c 'command not found' "$LOG")" = 0
+}
+
 run_case 'enable --target all then disable, end to end' case_enable_all_then_disable
 run_case '--keep-jaeger keeps the container until a later disable' case_keep_jaeger_then_remove
 run_case 'a foreign Jaeger container is refused and left alone' case_foreign_jaeger_is_refused
@@ -243,6 +252,7 @@ run_case 'an unreachable Docker daemon is an error' case_docker_down_is_an_error
 run_case 'disable accepts a plugin that is already disabled' case_disable_survives_an_already_disabled_plugin
 run_case '--target all disable still disables the Router when the harness fails' case_all_disable_still_reaches_router
 run_case 'bad input is rejected without side effects' case_rejects_bad_input
+run_case '--help prints the metrics options without running any command' case_help_runs_nothing
 
 printf '1..%d\n' "$N"
 exit "$FAILED"
