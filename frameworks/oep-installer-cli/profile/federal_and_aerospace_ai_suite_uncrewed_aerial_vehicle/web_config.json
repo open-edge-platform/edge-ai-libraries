@@ -9,6 +9,9 @@
     { "label": "Uncrewed Aerial Vehicle - Ground Station", "value": "uncrewed_aerial_vehicle_ground_station", "startStop": true, "remove": true },
     { "label": "Uncrewed Aerial Vehicle - Vision Analytics", "value": "uncrewed_aerial_vehicle_vision_analytics", "startStop": true, "remove": true }
   ],
+  "install": {
+    "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
+  },
   "getStarted": {
     "text": "Get Started",
     "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-fed-aero.html"
