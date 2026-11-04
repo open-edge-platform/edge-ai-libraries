@@ -33,6 +33,7 @@ import {
   useGetVideosQuery,
 } from "@/api/api.generated";
 import { filterOutTransportStreams } from "@/lib/videoUtils.ts";
+import { isTruthyPropertyValue } from "@/lib/pipelineUtils.ts";
 
 type SelectOptionConfig = string | readonly [string, string];
 
@@ -54,12 +55,78 @@ const getOptionValue = (option: SelectOptionConfig): string =>
 const getOptionLabel = (option: SelectOptionConfig): string =>
   Array.isArray(option) ? option[1] : (option as string);
 
-// Boolean element properties round-trip through the API as "true"/"false".
-const isTruthyProperty = (value: unknown): boolean =>
-  value === true || String(value ?? "").toLowerCase() === "true";
-
 type NodeConfig = {
   editableProperties: NodePropertyConfig[];
+};
+
+const getNodeConfig = (nodeType: string): NodeConfig | null => {
+  // TODO: change switch to associative array
+  switch (nodeType) {
+    case "gvametaconvert":
+      return gvaMetaConvertConfig;
+    case "gvametapublish":
+      return gvaMetaPublishConfig;
+    case "gvatrack":
+      return gvaTrackConfig;
+    case "gvaclassify":
+      return gvaClassifyConfig;
+    case "gvainference":
+      return gvaInferenceConfig;
+    case "gvadetect":
+      return gvaDetectConfig;
+    case "gvagenai":
+      return gvaGenAIConfig;
+    case "gvamotiondetect":
+      return gvaMotionDetectConfig;
+    case "source":
+      return sourceNodeConfig;
+    default:
+      return null;
+  }
+};
+
+const isPropertyVisible = (
+  prop: NodePropertyConfig,
+  properties: NodePropertyConfig[],
+  data: Record<string, unknown>,
+): boolean => {
+  if (!prop.visibleWhen) {
+    return true;
+  }
+  const controllingProp = properties.find(
+    (candidate) => candidate.key === prop.visibleWhen?.key,
+  );
+  const current = data[prop.visibleWhen.key] ?? controllingProp?.defaultValue;
+  return prop.visibleWhen.equals.includes(String(current ?? ""));
+};
+
+const isControllingProperty = (
+  key: string,
+  properties: NodePropertyConfig[],
+): boolean => properties.some((prop) => prop.visibleWhen?.key === key);
+
+// Properties are serialised verbatim onto the command line, so a hidden or
+// empty one would still be emitted as `key=` and read as a configured value.
+const syncConditionalProperties = (
+  properties: NodePropertyConfig[],
+  data: Record<string, unknown>,
+): Record<string, unknown> => {
+  const synced = { ...data };
+  for (const prop of properties) {
+    if (!prop.visibleWhen) {
+      continue;
+    }
+    const seeded = synced[prop.key] ?? prop.defaultValue;
+    if (
+      isPropertyVisible(prop, properties, data) &&
+      String(seeded ?? "") !== ""
+    ) {
+      synced[prop.key] = seeded;
+    } else {
+      delete synced[prop.key];
+    }
+  }
+  return synced;
 };
 
 type SelectOption = {
@@ -277,33 +344,18 @@ const NodeDataPanel = ({
     }
 
     const nextValue = key === "kind" ? normalizeKindValue(value) : value;
-    const updatedData = { ...editableData, [key]: nextValue };
+    let updatedData = { ...editableData, [key]: nextValue };
 
-    if (selectedNode.type === "gvametapublish") {
-      // An empty property would still be emitted as `key=` onto the command
-      // line, which the element reads as a configured empty value.
-      if (key !== "method" && String(nextValue ?? "") === "") {
+    const config = getNodeConfig(selectedNode.type ?? "");
+    if (config) {
+      const properties = config.editableProperties;
+      if (
+        String(nextValue ?? "") === "" &&
+        !isControllingProperty(key, properties)
+      ) {
         delete updatedData[key];
       }
-
-      if (key === "method") {
-        // Properties of the de-selected method would still be emitted, so swap
-        // them for the defaults of the chosen one.
-        for (const prop of gvaMetaPublishConfig.editableProperties) {
-          if (!prop.visibleWhen) {
-            continue;
-          }
-          const selected = prop.visibleWhen.equals.includes(
-            String(nextValue ?? ""),
-          );
-          const seeded = editableData[prop.key] ?? prop.defaultValue;
-          if (selected && String(seeded ?? "") !== "") {
-            updatedData[prop.key] = seeded;
-          } else {
-            delete updatedData[prop.key];
-          }
-        }
-      }
+      updatedData = syncConditionalProperties(properties, updatedData);
     }
 
     if (selectedNode.type === "source" && key === "kind") {
@@ -342,53 +394,19 @@ const NodeDataPanel = ({
     );
   }
 
-  const getNodeConfig = (nodeType: string): NodeConfig | null => {
-    // TODO: change switch to associative array
-    switch (nodeType) {
-      case "gvametaconvert":
-        return gvaMetaConvertConfig;
-      case "gvametapublish":
-        return gvaMetaPublishConfig;
-      case "gvatrack":
-        return gvaTrackConfig;
-      case "gvaclassify":
-        return gvaClassifyConfig;
-      case "gvainference":
-        return gvaInferenceConfig;
-      case "gvadetect":
-        return gvaDetectConfig;
-      case "gvagenai":
-        return gvaGenAIConfig;
-      case "gvamotiondetect":
-        return gvaMotionDetectConfig;
-      case "source":
-        return sourceNodeConfig;
-      default:
-        return null;
-    }
-  };
-
   const nodeConfig = getNodeConfig(selectedNode.type ?? "");
 
   const editableProperties = nodeConfig?.editableProperties ?? [];
 
-  const isPropertyVisible = (prop: NodePropertyConfig): boolean => {
-    if (!prop.visibleWhen) {
-      return true;
-    }
-    const controllingProp = editableProperties.find(
-      (candidate) => candidate.key === prop.visibleWhen?.key,
-    );
-    const current =
-      editableData[prop.visibleWhen.key] ?? controllingProp?.defaultValue;
-    return prop.visibleWhen.equals.includes(String(current ?? ""));
-  };
-
   // TODO: maybe it should only display defined fields
+  // Visibility only drives rendering here; hidden properties are removed from
+  // the node data in handleInputChange so they never reach the launch string.
   const dataEntries = nodeConfig
     ? editableProperties
         .filter((prop) => !prop.key.startsWith("__"))
-        .filter(isPropertyVisible)
+        .filter((prop) =>
+          isPropertyVisible(prop, editableProperties, editableData),
+        )
         .map((prop) => [prop.key, editableData[prop.key] ?? prop.defaultValue])
     : Object.entries(editableData ?? {}).filter(
         // Keys starting with '__' are internal/private properties and should not be displayed to users.
@@ -591,14 +609,14 @@ const NodeDataPanel = ({
                 ) : inputType === "boolean" ? (
                   <div className="flex items-center gap-2">
                     <Checkbox
-                      checked={isTruthyProperty(value)}
-                      onCheckedChange={(checked) =>
-                        // Node data is serialised as element properties, always strings.
-                        handleInputChange(keyStr, checked ? "true" : "false")
-                      }
-                    />
-                    <span className="text-xs">
-                      {isTruthyProperty(value) ? "True" : "False"}
+                        checked={isTruthyPropertyValue(value)}
+                        onCheckedChange={(checked) =>
+                          // Node data is serialised as element properties, always strings.
+                          handleInputChange(keyStr, checked ? "true" : "false")
+                        }
+                      />
+                      <span className="text-xs">
+                        {isTruthyPropertyValue(value) ? "True" : "False"}
                     </span>
                   </div>
                 ) : inputType === "number" ? (

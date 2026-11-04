@@ -1252,6 +1252,9 @@ completeness only.
   intel/model-download    - Intel component, distributed separately with its own notices.
   intel/metrics-manager   - Intel component, distributed separately with its own notices.
   bluenviron/mediamtx     - MIT License, distributed by its upstream project.
+  eclipse-mosquitto       - Eclipse Public License 2.0 and Eclipse Distribution License 1.0
+                            (dual-licensed), distributed by its upstream project. Optional;
+                            pulled only with the compose.mqtt.yml overlay (make run MQTT=1).
 
 The experimental time-series profile (compose.experimental.yml) is not part of the default
 deployment. It builds intel/ia-timeseries-ingestion from timeseries-ingestion/, which on top of

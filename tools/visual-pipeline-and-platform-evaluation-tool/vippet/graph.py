@@ -3480,7 +3480,7 @@ class Graph:
                     f"gvametapublish is set to method={method} but "
                     f"{' and '.join(missing)} "
                     f"{'is' if len(missing) == 1 else 'are'} empty. "
-                    f"Set the broker address (for example 'localhost:1883') and "
+                    f"Set the broker address (for example 'mqtt-broker:1883') and "
                     f"topic, or switch the element back to method=file."
                 )
 
