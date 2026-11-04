@@ -694,6 +694,48 @@ class PipelinePoolTests(unittest.TestCase):
             Pipeline(session_id="s", pool="bogus")
 
 
+class PipelinePrecomputedTests(unittest.TestCase):
+    """persist=False decodes without writing state; append_precomputed writes it later."""
+
+    def test_persist_false_skips_the_session_write(self):
+        pipeline = PipelinePoolTests._pipeline(self, Pipeline.POOL_FINAL, append_to_session=False)
+        pipeline.persist = False
+
+        pipeline.transcribe(object(), language=None)
+
+        self.assertEqual(self.persisted, [])
+
+    def test_append_precomputed_matches_a_normal_commit(self):
+        utterance = {
+            "task": "transcribe",
+            "language": "en",
+            "duration": 0.9,
+            "text": "two",
+            "segments": [{"id": 0, "seek": 0, "start": 0.1, "end": 0.9, "text": "two",
+                          "tokens": [], "temperature": 0.0}],
+        }
+        with tempfile.TemporaryDirectory() as storage_root, patch("utils.app_paths.STORAGE_ROOT", storage_root):
+            session_dir = app_paths.get_session_dir("precomputed")
+            os.makedirs(session_dir)
+            with open(os.path.join(session_dir, "session_state.json"), "w", encoding="utf-8") as handle:
+                json.dump({"language": "en", "duration": 2.0, "text": "one",
+                           "segments": [{"start": 0.0, "end": 1.5, "text": "one"}],
+                           "chunk_sentiments": []}, handle)
+
+            result = Pipeline.append_precomputed("precomputed", utterance, audio_duration=1.5)
+
+            with open(os.path.join(session_dir, "session_state.json"), encoding="utf-8") as handle:
+                state = json.load(handle)
+
+        self.assertEqual(result["text"], "one\ntwo")
+        self.assertEqual(result["duration"], 3.5)
+        self.assertEqual([(s["start"], s["end"]) for s in result["segments"]], [(0.0, 1.5), (2.1, 2.9)])
+        self.assertEqual([s["id"] for s in result["segments"]], [0, 1])
+        self.assertEqual(state["text"], "one\ntwo")
+        self.assertEqual(state["duration"], 3.5)
+        self.assertEqual(state["segments"][1]["start"], 2.1)
+
+
 class ASRPoolCacheTests(unittest.TestCase):
     """Model instances are cached per (pool, model config), not one slot per pool."""
 

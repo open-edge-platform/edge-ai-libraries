@@ -149,7 +149,7 @@ resampling is done in the socket layer — downstream ffmpeg/Whisper handle it.
 
 | Event | Payload |
 | ----- | ------- |
-| `session.update` | `{"session": {...}}` — set `sample_rate`, `input_audio_transcription.language`, `turn_detection`, `speaker_scope_id`, or `diarization`. |
+| `session.update` | `{"session": {...}}` — set `sample_rate`, `input_audio_transcription.language`, `turn_detection`, `speaker_scope_id`, `diarization`, or `low_latency`. |
 | `input_audio_buffer.append` | `{"audio": "<base64 pcm16>"}` |
 | `input_audio_buffer.commit` | Force-close the current utterance and transcribe it. |
 | `input_audio_buffer.preview` | Transcribe the trailing ~2 s of buffered audio **without** clearing the buffer or persisting anything. Best-effort progress signal only. |
@@ -218,6 +218,49 @@ speaker is still talking. It is deliberately cheap and deliberately lossy:
 * Previews can be routed to a different ASR model/device via
   `models.asr.preview` in `config.yaml` (by default they reuse the main ASR
   configuration).
+
+### Low-latency mode
+
+Low-latency mode lets a commit return without a second decode. It is off by
+default. A client turns it on per session:
+
+```json
+{"type": "session.update",
+ "session": {"low_latency": {"enabled": true}}}
+```
+
+With the mode on:
+
+* `input_audio_buffer.preview` with `"full": true` decodes the whole buffer
+  since the last commit, not the trailing ~2 s. Send it when your VAD sees
+  speech stop. The preview event carries `"full": true`.
+* `input_audio_buffer.commit` reuses the last full preview when it covers
+  the commit's clip (see below). A commit that arrives while that preview is
+  still decoding waits for it. Otherwise the commit decodes as usual.
+* Both events accept `"trailing_silence_ms"`: how much of the end of the
+  buffer your VAD judged to be silence. Trailing silence is trimmed only when
+  you send it. The clip then ends `trailing_silence_keep_ms` after the end of
+  speech. Without it, the whole buffer is decoded.
+* `low_latency.trailing_silence_keep_ms` (default 150, range 0 to 2000) sets
+  how much silence after the end of speech is kept.
+* A commit whose `trailing_silence_ms` covers the whole buffer is not decoded.
+* A preview is reused only for audio since the same commit or clear, and
+  only when it covers the commit's clip. That means the same clip end, or,
+  when both events carry `trailing_silence_ms`, the same end of speech with
+  some silence kept in the preview. In the second case the commit adds only
+  audio its own hint calls silence. This covers a preview sent on the first
+  silent frame, before `trailing_silence_keep_ms` of silence exists.
+* The commit appends to the persisted session transcript as with the mode
+  off. The session duration advances by the full buffer length, so later
+  segment offsets match the mode-off path.
+
+The mode applies only when diarization and sentiment are off and the preview
+pool runs the same model on the same device as the final pool. Otherwise
+every event behaves as with the mode off.
+
+`transcription_session.created` and `.updated` report the effective state in
+`low_latency.enabled`. It is `true` only when the mode is in use. A session
+that asked for the mode on a deployment where it cannot apply sees `false`.
 
 A complete, runnable client example is in the
 [Get Started guide](./get-started.md#verify-continuous-audio-streaming-websocket).
