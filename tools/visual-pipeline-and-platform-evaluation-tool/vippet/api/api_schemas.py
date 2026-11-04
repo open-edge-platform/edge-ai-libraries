@@ -2157,6 +2157,96 @@ class ValidationJobSummary(BaseModel):
     request: PipelineValidation
 
 
+class CpuCoreType(str, Enum):
+    """
+    **Type of a logical CPU on an Intel processor.**
+
+    ## Values
+    - `P` - Performance core on a hybrid processor
+    - `E` - Efficient core on a hybrid processor
+    - `LPE` - Low-power efficient core on a hybrid processor
+    - `UNIFORM` - Core of a non-hybrid processor, where all cores are the same type
+
+    ### Example
+    ```json
+    "P"
+    ```
+    """
+
+    P = "P"
+    E = "E"
+    LPE = "LPE"
+    UNIFORM = "UNIFORM"
+
+
+class CpuTopologySource(str, Enum):
+    """
+    **Method used to determine the CPU core types.**
+
+    ## Values
+    - `sysfs_pmu` - Hybrid PMU CPU lists in Linux sysfs (`cpu_core`, `cpu_atom`, `cpu_lowpower`)
+    - `sysfs_cache` - Cache topology in Linux sysfs, used when the hybrid PMU lists are missing
+    - `uniform` - Non-hybrid processor; every core is `UNIFORM`
+
+    ### Example
+    ```json
+    "sysfs_pmu"
+    ```
+    """
+
+    SYSFS_PMU = "sysfs_pmu"
+    SYSFS_CACHE = "sysfs_cache"
+    UNIFORM = "uniform"
+
+
+class CpuCore(BaseModel):
+    """
+    **One online logical CPU and its core type.**
+
+    ## Attributes
+    - `cpu` - Logical CPU id, as used for CPU affinity (for example `taskset -c`)
+    - `core_type` - Core type of this CPU
+    - `core_id` - Lowest logical CPU id among its SMT siblings; hyper-threads of one physical core share it
+
+    ### Example
+    ```json
+    {"cpu": 0, "core_type": "P", "core_id": 0}
+    ```
+    """
+
+    cpu: int
+    core_type: CpuCoreType
+    core_id: int
+
+
+class CpuTopology(BaseModel):
+    """
+    **Core types of all online logical CPUs of the host.**
+
+    ## Attributes
+    - `is_hybrid` - True when the CPUs are classified into `P`, `E` or `LPE` types
+    - `source` - Method used to determine the core types
+    - `cores` - Online logical CPUs sorted by id
+
+    ### Example
+    ```json
+    {
+      "is_hybrid": true,
+      "source": "sysfs_pmu",
+      "cores": [
+        {"cpu": 0, "core_type": "P", "core_id": 0},
+        {"cpu": 6, "core_type": "E", "core_id": 6},
+        {"cpu": 14, "core_type": "LPE", "core_id": 14}
+      ]
+    }
+    ```
+    """
+
+    is_hybrid: bool
+    source: CpuTopologySource
+    cores: list[CpuCore]
+
+
 class Device(BaseModel):
     """
     **Hardware device description used by multiple APIs.**
@@ -2170,6 +2260,8 @@ class Device(BaseModel):
     - `device_type` - High level device type (INTEGRATED or DISCRETE)
     - `device_family` - Hardware family (CPU, GPU, NPU)
     - `gpu_id` - Optional GPU index when applicable; null for non-GPU devices
+    - `cpu_topology` - Core types of the host CPUs for the CPU device; null for other devices
+      or when they cannot be determined
 
     ### Example
     ```json
@@ -2178,7 +2270,8 @@ class Device(BaseModel):
       "full_device_name": "Intel(R) Arc(TM) Graphics (iGPU) (GPU.0)",
       "device_type": "INTEGRATED",
       "device_family": "GPU",
-      "gpu_id": 0
+      "gpu_id": 0,
+      "cpu_topology": null
     }
     ```
     """
@@ -2188,6 +2281,7 @@ class Device(BaseModel):
     device_type: DeviceType
     device_family: DeviceFamily
     gpu_id: Optional[int]
+    cpu_topology: CpuTopology | None = None
 
 
 class ModelInstallStatus(str, Enum):

@@ -8,11 +8,12 @@ sample requests, `curl` commands, and sample responses drawn from the current im
 It complements the OpenAPI specification with necessary examples and finer details.
 
 > [!IMPORTANT]
-> The service configuration can be overridden using a `config.json` file placed in the application root.
-> A sample `config.json` file is already provided in the repo with default values.
+> To override the service configuration, place a `config.json` file in the current
+> working directory, or select a file with `SM_CONFIG_FILE`.
+> The repository provides a sample `config.json` file.
 > See [Configuration](../configuration.md) for all available settings.
 
-## Table of Content
+## Table of Contents
 
 - [Base URL and versioning](#base-url-and-versioning)
 - [Conventions](#conventions)
@@ -39,8 +40,8 @@ It complements the OpenAPI specification with necessary examples and finer detai
 
 ## Base URL and versioning
 
-All endpoints are mounted under the `/v1` prefix. The service listens on `8080` port by default
-(override this using the `config.json`). Examples in this document use:
+All endpoints are mounted under the `/v1` prefix. The service listens on port `8080` by default
+(override this using `config.json` or `SM_HTTP_ADDR`). Examples in this document use:
 
 ```
 http://localhost:8080/v1
@@ -112,7 +113,7 @@ status codes each endpoint can return.
   "stream_id": "str-1",
   "sensor_id": "cam-07",
   "state": "buffering",
-  "sync_confidence": "best_effort",
+  "sync_confidence": "ntp_synced",
   "buffer": {
     "capacity": 30,
     "held_bytes": 6000000,
@@ -143,8 +144,8 @@ One record is one recording of one sensor.
 | `sensor_id` | string | Recorded sensor. |
 | `stream_id` | string, nullable | The stream it was recorded from; `null` for an imported recording. |
 | `state` | string | One of `recording`, `finalizing`, `ready`, `failed`. Media can only be retrieved once `ready`. |
-| `start_ts` | string (date-time) | The timestamp of first moment covered in the recording, itself included. The recording starts at the keyframe at or before the requested start (`start_ts` minus `pre_event_duration`). Thus, this value can be earlier than the requested start. |
-| `end_ts` | string (date-time), nullable | The timestamp when the recording is requested to be stopped. Requested time is considered as **planned end time**. For a fixed-length recording, it is the **planned end time** (`start_ts` plus `duration`) while the state is `recording` or `finalizing`. For an open recording, it is `null` until the state is `ready`. When the state is `ready`, it is the end of the last stored video slice from the buffer. This value is equal to or later than the **planned end time**. It is earlier only if the storage quota stops the recording early. In that case, `error_detail` shows the cause. |
+| `start_ts` | string (date-time) | The timestamp of the first moment covered in the recording, itself included. The recording starts at the keyframe at or before the requested start (`start_ts` minus `pre_event_duration`). Thus, this value can be earlier than the requested start. |
+| `end_ts` | string (date-time), nullable | For a fixed-length recording, the service sets the planned end at creation: the request's `start_ts` plus `duration`. This is not calculated from the response's keyframe-aligned `start_ts`. For an open recording, `end_ts` stays `null` until the state is `ready`. When either type becomes `ready`, `end_ts` is the end of the last stored video slice. It can be later than the planned end or stop target. If the storage quota stops the recording early, it can be earlier, and `error_detail` shows the cause. |
 | `size_bytes` | integer, nullable | Size of the finished media; `null` until `ready`. |
 | `metadata` | object | Whatever metadata the caller supplied, or `{}` if none was. |
 | `creation_ts` | string (date-time) | Record creation time. |
@@ -181,7 +182,7 @@ media.
 | `start_ts` | string (date-time) | Actual time of the returned frame, or first frame of the clip. It can be earlier than `requested_start_ts` because clips start at a keyframe. |
 | `end_ts` | string (date-time), nullable | Exclusive end bound of the requested clip interval (`requested_start_ts` + duration); it is not the timestamp of the last frame. `null` for a single frame. |
 | `url` | string | Origin-relative path that serves the file via [`GET /media/{recording-id}/{file}`](#get-produced-media). |
-| `expiry_ts` | string (date-time) | Always `null`. Frames and clips do not expire. Deleting the recording removes them. |
+| `expiry_ts` | string (date-time), nullable | Always `null`. Frames and clips do not expire. Deleting the recording removes them. |
 
 ### Deletion
 
@@ -246,7 +247,7 @@ any history has built up.
 |---|---|---|---|
 | `sensor_id` | string | yes | Sensor identity; the name recordings will be filed under. One sensor can have many sources. |
 | `source_uri` | string | yes | Absolute URI of the source, no credentials, up to 2048 characters. |
-| `buffer_length` | integer | no | Seconds of history the buffer holds, 5-300. Default is 30. |
+| `buffer_length` | integer | no | Seconds of history the buffer holds, 5-300. If omitted, uses the configured `BufferLength` (built-in default: 30 seconds). |
 
 **Example — default buffer length**
 
@@ -325,7 +326,7 @@ Content-Type: application/json
       "stream_id": "str-1",
       "sensor_id": "cam-07",
       "state": "buffering",
-      "sync_confidence": "best_effort",
+      "sync_confidence": "ntp_synced",
       "buffer": {
         "capacity": 30,
         "held_bytes": 6000000,
@@ -340,7 +341,7 @@ Content-Type: application/json
 }
 ```
 
-No matches returns `200` with an empty `items` list, never `404`.
+If no items match, the service returns `200` with an empty `items` list, never `404`.
 
 | Status | Meaning |
 |---|---|
@@ -364,7 +365,7 @@ Content-Type: application/json
   "stream_id": "str-1",
   "sensor_id": "cam-07",
   "state": "buffering",
-  "sync_confidence": "best_effort",
+  "sync_confidence": "ntp_synced",
   "buffer": {
     "capacity": 30,
     "held_bytes": 6000000,
@@ -475,7 +476,7 @@ keyframes, and `ready` records report those actual bounds.
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `stream_id` | string | yes | The attached stream to record. |
-| `start_ts` | string (date-time) | yes | The moment the event happened (T). Cannot be later than the newest video frame from the source. |
+| `start_ts` | string (date-time) | yes | The moment the event happened (T), on the source's timeline. Must not be in the future according to the server clock. Keep the source and server clocks synchronized. |
 | `duration` | number | no | Positive seconds to record after T. Omit for an open recording ended later with `/records/stop`. |
 | `pre_event_duration` | number | no | Seconds of history before T to keep, 0-300, default 0. Must already be in the buffer. |
 | `metadata` | object | no | Arbitrary metadata to store with the record. |
@@ -567,7 +568,7 @@ Content-Type: application/json
 | Status | `error_code` | Meaning |
 |---|---|---|
 | 201 | — | Record accepted in the `recording` state. Acceptance does not mean the media is finished. |
-| 400 | `invalid_request` / `invalid_selector` / `invalid_timestamp` | Malformed body or missing `start_ts` (`invalid_request`); missing or malformed `stream_id` (`invalid_selector`); invalid `start_ts`, or `start_ts` later than the newest video frame (`invalid_timestamp`); invalid `duration` or `pre_event_duration` (`invalid_request`). |
+| 400 | `invalid_request` / `invalid_selector` / `invalid_timestamp` | Malformed body or missing `start_ts` (`invalid_request`); missing or malformed `stream_id` (`invalid_selector`); invalid `start_ts`, or `start_ts` in the future according to the server clock (`invalid_timestamp`); invalid `duration` or `pre_event_duration` (`invalid_request`). |
 | 404 | `stream_not_found` | Unknown stream. |
 | 409 | `history_unavailable` | Requested history unavailable, or the stream is not buffering with NTP-synced timestamps. |
 | 429 | `capacity_exhausted` | The number of active recordings is at the `ConcurrentRecorders` limit. The service does not create a record and does not queue the request. Send the request again when an active recording ends. |
@@ -656,7 +657,7 @@ Content-Type: application/json
 
 Returns a page of records. All query parameters are optional and AND-combined. When
 time bounds are supplied, a record must be fully contained within them. Both bounds
-are inclusive. A record without `end_ts` is open and does not match an `end_ts` bound.
+are inclusive. A record with `end_ts` set to `null` does not match an `end_ts` bound.
 
 | Parameter | In | Type | Description |
 |---|---|---|---|
@@ -712,7 +713,7 @@ Content-Type: application/json
 curl -i "http://localhost:8080/v1/records?limit=20&cursor=MTc4OTU0OTkyMzYwMDAwMDAwMApBQUVDQXdRRkJnY0lDUW9MREEwT0R3"
 ```
 
-No matches returns `200` with an empty `items` list, never `404`.
+If no items match, the service returns `200` with an empty `items` list, never `404`.
 
 | Status | `error_code` | Meaning |
 |---|---|---|
@@ -813,6 +814,8 @@ Extracts media from a `ready` record. Use the `Accept` header to select the resp
 | No acceptable supported type | `406 not_acceptable`. |
 
 When several supported types match, the service uses this order: JSON, JPEG, then PNG.
+Use media types without parameters. The service does not parse parameters such as
+`;q=1`, so entries with parameters do not match.
 Responses include `Vary: Accept`. Errors use JSON, including errors for binary requests.
 The `/media` endpoint serves the file referenced by a JSON response.
 
@@ -825,7 +828,10 @@ The `/media` endpoint serves the file referenced by a JSON response.
 | `recording-id` | path | string | yes | The recording, e.g. `rec-2`. |
 | `timestamp` | query | date-time | yes | Time wanted; must fall inside `[start_ts, end_ts)`. |
 | `format` | query | string | no | Optional image format: `jpeg` or `png`. JSON links default to JPEG. For binary responses, `Accept` selects the format when this parameter is absent. A conflict with an explicit format returns `406`. |
-| `match` | query | string | no | `nearest` (default, ties go to the earlier frame) or `exact` (404 if nothing sits exactly on that time). |
+| `match` | query | string | no | `nearest` (default, ties go to the earlier frame) or `exact` (404 if the nearest frame differs from the requested time by more than 1 ms). |
+
+For frames, `X-Exact-Match` is `true` when the returned frame differs from the
+requested time by no more than 1 ms. This applies to both match modes.
 
 **JSON reply (default `Accept: application/json`)**
 
@@ -847,7 +853,7 @@ Cache-Control: no-store
   "requested_end_ts": null,
   "start_ts": "2026-09-16T09:12:03.400000000Z",
   "end_ts": null,
-  "url": "/v1/media/rec-2/frame-3000000000.jpg",
+  "url": "/v1/media/rec-2/frame-3000000000.jpeg",
   "expiry_ts": null
 }
 ```
@@ -855,7 +861,7 @@ Cache-Control: no-store
 **Raw bytes reply with a `png` format and nearest match**
 
 ```bash
-curl -i "http://localhost:8080/v1/retrieve/rec-2/frame?timestamp=2026-09-16T09:12:03.700000000Z&format=png&match=nearest" \
+curl "http://localhost:8080/v1/retrieve/rec-2/frame?timestamp=2026-09-16T09:12:03.700000000Z&format=png&match=nearest" \
   -H 'Accept: image/png' \
   -o frame.png
 ```
@@ -883,10 +889,12 @@ X-Exact-Match: false
 
 `GET /retrieve/{recording-id}/clip`
 
-The whole requested span must be covered by the recording; If not covered, `404` is returned.
+The recording must cover the whole requested interval. If it does not, the service returns `404`.
 The clip starts at the keyframe at or before `start_ts`. So the returned
 `start_ts` can be earlier than the requested time. `end_ts` is the exclusive
-end bound (`start_ts` + `duration`), not the last frame timestamp.
+end bound (the request's `start_ts` + `duration`), not the last frame timestamp.
+For clips, `X-Exact-Match` is `true` only when the first keyframe time equals the
+requested `start_ts`.
 
 | Parameter | In | Type | Required | Description |
 |---|---|---|---|---|
@@ -902,8 +910,8 @@ curl -i "http://localhost:8080/v1/retrieve/rec-2/clip?start_ts=2026-09-16T09:12:
 ```http
 HTTP/1.1 200 OK
 Content-Type: application/json
-X-Frame-Timestamp: 2026-09-16T09:12:00Z
-X-Exact-Match: false
+X-Frame-Timestamp: 2026-09-16T09:12:00.400000000Z
+X-Exact-Match: true
 Cache-Control: no-store
 
 {
@@ -911,7 +919,7 @@ Cache-Control: no-store
   "sensor_id": "cam-07",
   "requested_start_ts": "2026-09-16T09:12:00.400000000Z",
   "requested_end_ts": "2026-09-16T09:12:05.400000000Z",
-  "start_ts": "2026-09-16T09:12:00Z",
+  "start_ts": "2026-09-16T09:12:00.400000000Z",
   "end_ts": "2026-09-16T09:12:05.400000000Z",
   "url": "/v1/media/rec-2/clip-0-5000000000.mp4",
   "expiry_ts": null
@@ -921,7 +929,7 @@ Cache-Control: no-store
 **Raw clip bytes in `mp4` format**
 
 ```bash
-curl -i "http://localhost:8080/v1/retrieve/rec-2/clip?start_ts=2026-09-16T09:12:00.400000000Z&duration=8&format=mp4" \
+curl "http://localhost:8080/v1/retrieve/rec-2/clip?start_ts=2026-09-16T09:12:00.400000000Z&duration=8&format=mp4" \
   -H 'Accept: video/mp4' \
   -o clip.mp4
 ```
@@ -931,7 +939,7 @@ curl -i "http://localhost:8080/v1/retrieve/rec-2/clip?start_ts=2026-09-16T09:12:
 | 200 | — | `MediaResult`, or video bytes when a video `Accept` header is used. |
 | 400 | `invalid_timestamp` | Missing or invalid `start_ts`. |
 | 400 | `invalid_request` | Missing or invalid `duration`, or unsupported `format`. |
-| 404 | `recording_not_found` / `clip_not_found` | Recording not found, the requested interval is not fully covered, or no clip available for the requested interval. |
+| 404 | `recording_not_found` / `clip_not_found` | Recording not found, the requested interval is not fully covered, or no clip is available for the requested interval. |
 | 406 | `not_acceptable` | Incompatible `Accept` header. |
 | 409 | `record_not_ready` | Record not ready. |
 | 429 | `capacity_exhausted` | Extraction capacity reached. |
@@ -947,10 +955,10 @@ Serves a derived frame or clip. Derived media does not expire. Recording expiry 
 | Parameter | In | Type | Required | Description |
 |---|---|---|---|---|
 | `recording-id` | path | string | yes | The recording, e.g. `rec-2`. |
-| `file` | path | string | yes | The file name from a `MediaResult`'s `url`, e.g. `frame-3000000000.jpg` or `clip-0-5000000000.mp4`. |
+| `file` | path | string | yes | The file name from a `MediaResult`'s `url`, e.g. `frame-3000000000.jpeg` or `clip-0-5000000000.mp4`. |
 
 ```bash
-curl -i "http://localhost:8080/v1/media/rec-2/frame-3000000000.jpg" -o frame.jpg
+curl "http://localhost:8080/v1/media/rec-2/frame-3000000000.jpeg" -o frame.jpeg
 ```
 
 ```http
@@ -973,10 +981,10 @@ X-Content-Type-Options: nosniff
 |---|---|---|
 | `invalid_request` | 400 | The request is malformed, or its fields contradict each other. |
 | `invalid_selector` | 400 | `stream_id` in `POST /records/start` is missing or malformed. |
-| `invalid_timestamp` | 400 | A timestamp is malformed or out of range. A `start_ts` in `POST /records/start` that is later than the newest video frame from the source also uses this code. A missing `start_ts` there returns `invalid_request`. |
+| `invalid_timestamp` | 400 | A timestamp is malformed or out of range. A `start_ts` in `POST /records/start` that is in the future according to the server clock also uses this code. A missing `start_ts` there returns `invalid_request`. |
 | `stream_not_found` | 404 | The stream is unknown or has been detached. |
 | `recording_not_found` | 404 | The recording is unknown or has been deleted. |
-| `frame_not_found` | 404 | The requested frame is not covered, no frame sits at the exact requested time (`match=exact`), no decodable frame is available for the requested time, or a frame file is missing. |
+| `frame_not_found` | 404 | The requested frame is not covered, no frame is within 1 ms of the requested time (`match=exact`), no decodable frame is available for the requested time, or a frame file is missing. |
 | `clip_not_found` | 404 | The requested clip interval is not covered, no clip is available for the requested interval, or a clip file is missing. |
 | `not_acceptable` | 406 | The `Accept` header cannot be satisfied. |
 | `stream_exists` | 409 | The same `source_uri` is already attached for that `sensor_id`; the existing `stream_id` is named in `error_detail`. |

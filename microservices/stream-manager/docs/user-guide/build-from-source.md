@@ -12,6 +12,7 @@ for your host, or a container image.
 - Docker 29.0 or later (for container builds).
 - `make`.
 - `git`.
+- Linux with `/dev/shm` mounted as tmpfs (to run the application on the host).
 
 ## Get the source code
 
@@ -31,6 +32,10 @@ cd microservices/stream-manager
 All other commands in this guide run from this `stream-manager` directory.
 
 ## Build and run on your host
+
+To run the application on the host, install `ffmpeg` and `ffprobe` and make sure
+both commands are on `PATH`. Container builds and runs do not require these tools
+on the host.
 
 Build the application binary:
 
@@ -67,7 +72,7 @@ Build the image:
 make docker-build
 ```
 
-The default image is `intel/stream-manager:latest`. To use a different image name or tag. For example:
+The default image is `intel/stream-manager:latest`. To use a different image name or tag, run:
 
 ```bash
 make docker-build IMAGE=<your_image_name>:<tag>
@@ -81,7 +86,7 @@ make docker-build IMAGE=<your_image_name>:<tag>
 
 > [!IMPORTANT]
 > The third-party source archives are provided in a separate source image.
-> See [Third-Party Sources](third-party-sources.md) for instructions to copy the
+> See [Third-Party Sources](third-party-sources.md) for instructions to copy
 > FFmpeg, its dependencies, and base image source files.
 
 Run the image you built, or a published image you already have:
@@ -93,7 +98,7 @@ make docker-run IMAGE=<your_image_name>:<tag>
 > [!NOTE]
 > `make docker-run` pulls the image if it is not present locally.
 > If you do not set `IMAGE`, it pulls and runs
-> the default image i.e. `intel/stream-manager:latest`.
+> the default image, `intel/stream-manager:latest`.
 
 `make docker-run` publishes the container's port `8080` to a random host port.
 It prints the assigned port and the application and API docs URLs after it starts.
