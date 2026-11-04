@@ -604,19 +604,26 @@
           }
         },
         {
-          "label": "Uncrewed Aerial Vehicle Mission",
-          "value": "uncrewed_aerial_vehicle_mission",
+          "label": "Uncrewed Aerial Vehicle - Ground Station",
+          "value": "uncrewed_aerial_vehicle_ground_station",
           "supports": {
             "PROFILE": [
               "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle"
             ]
           },
           "startStop": true,
-          "remove": true,
-          "options": [
-            "--ground-station",
-            "--vision-analytics"
-          ]
+          "remove": true
+        },
+        {
+          "label": "Uncrewed Aerial Vehicle - Vision Analytics",
+          "value": "uncrewed_aerial_vehicle_vision_analytics",
+          "supports": {
+            "PROFILE": [
+              "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle"
+            ]
+          },
+          "startStop": true,
+          "remove": true
         },
         {
           "label": "Mission Decision Support Blueprint",
@@ -1280,7 +1287,7 @@
           },
           "links": [
             {
-              "text": "Uncrewed Aerial Vehicle Mission",
+              "text": "Uncrewed Aerial Vehicle - Vision Analytics",
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/uav-vision-analytics/index.html"
             }
           ]
@@ -1292,7 +1299,7 @@
           },
           "links": [
             {
-              "text": "Uncrewed Aerial Vehicle Mission",
+              "text": "Uncrewed Aerial Vehicle - Vision Analytics",
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/uav-vision-analytics/index.html"
             }
           ]
