@@ -24,6 +24,26 @@
 # /models/output/... — resolve to the same files inside the
 # dlstreamer-pipeline-server container.
 services:
+  # One-shot: copies the custom GStreamer elements shipped in the vippet image
+  # (vippet/gst_plugins/) into ./shared/gst-plugins, which the server loads. The
+  # copy always matches the vippet image in use, also for published images, and
+  # replaces the folder's contents so removed elements do not linger. It uses
+  # the image vippet builds or `make run-prebuilt` pulls, so it is never pulled.
+  vippet-plugins:
+    image: docker.io/intel/vippet-app:${DOCKER_TAG}
+    pull_policy: never
+    container_name: vippet-plugins
+    restart: "no"
+    network_mode: none
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        find /plugins -mindepth 1 -delete &&
+        cp -R /home/dlstreamer/vippet/gst_plugins/. /plugins/ &&
+        find /plugins -name __pycache__ -type d -prune -exec rm -rf {} +
+    volumes:
+      - ./shared/gst-plugins/:/plugins
+
   dlstreamer-pipeline-server:
     # Same devices/groups/profile as vippet for the active device profile.
     extends:
@@ -59,8 +79,8 @@ services:
       APP_LOG_LEVEL: ${APP_LOG_LEVEL:-INFO}
       WEB_SERVER_LOG_LEVEL: ${WEB_SERVER_LOG_LEVEL:-WARNING}
       GST_DEBUG: "1"
-      # Custom Python elements shipped with VIPPET (vippet/gst_plugins/python/);
-      # the server's run.sh appends this to GST_PLUGIN_PATH.
+      # Custom Python elements shipped with VIPPET (vippet/gst_plugins/python/),
+      # copied by vippet-plugins; the server's run.sh appends this to GST_PLUGIN_PATH.
       ADDITIONAL_GST_PLUGIN_PATH: /opt/vippet/gst_plugins
       # The server's own per-instance metrics (OTLP/JSON into metrics-manager), off by
       # default. VIPPET reads the latency and VLM series of its own instances from
@@ -89,7 +109,10 @@ services:
       - ./shared/models/:/models
       - ./shared/images/:/images
       - ./shared/metadata/:/metadata
-      - ./vippet/gst_plugins/:/opt/vippet/gst_plugins:ro
+      - ./shared/gst-plugins/:/opt/vippet/gst_plugins:ro
+    depends_on:
+      vippet-plugins:
+        condition: service_completed_successfully
 
   # Point VIPPET's pipeline execution at the dlstreamer-pipeline-server
   # service above instead of local gst_runner.py.
