@@ -1,6 +1,6 @@
 import time
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import ANY, patch, MagicMock
 
 from benchmark import BenchmarkResult
 from dlsps2_runner import Dlsps2PipelineRunner
@@ -1523,6 +1523,7 @@ class TestExecutionConfigWithMaxRuntime(unittest.TestCase):
             max_runtime=120,
             enable_latency_metrics=False,
             job_id=job_id,
+            on_event=ANY,
         )
 
 

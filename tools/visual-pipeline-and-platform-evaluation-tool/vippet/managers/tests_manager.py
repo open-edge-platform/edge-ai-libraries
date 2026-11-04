@@ -786,6 +786,7 @@ class TestsManager:
                 max_runtime=internal_spec.execution_config.max_runtime,
                 enable_latency_metrics=enable_latency_metrics,
                 job_id=job_id,
+                on_event=lambda event: self._record_pipeline_event(job_id, event),
             )
 
             # Store runner for this job so it can be cancelled via stop_job()

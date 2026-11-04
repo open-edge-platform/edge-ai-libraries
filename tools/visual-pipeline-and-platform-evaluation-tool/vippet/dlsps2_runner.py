@@ -51,6 +51,13 @@ only when the server's own ``gvagenai`` has that property, as reported by
 ``GET /elements/gvagenai``; otherwise the launch string is left as is and no
 VLM metrics are collected (see :func:`with_genai_post_metrics`).
 
+Live pipeline events (proximity triggers and VLM answers) are read from
+JSON Lines files the pipelines write into the shared metadata folder, see
+:mod:`pipeline_events`; only runs given an ``on_event`` callback collect
+them. The same VLM answers carry ``gvagenai``'s cumulative metric means,
+used for ``vlm_metrics`` when the server's ``gvagenai`` has no
+``post-metrics``.
+
 Deliberately NOT supported:
 
 * A combined multi-stream launch string without per-stream commands raises
@@ -68,11 +75,12 @@ import re
 import threading
 import time
 import urllib.request
-from typing import Optional
+from typing import Callable, Optional
 
 import httpx
 
-from pipeline_runner import LatencyTracerSample, PipelineResult
+from pipeline_events import LAUNCH_ELEMENT, EventCapture
+from pipeline_runner import LatencyTracerSample, PipelineEvent, PipelineResult
 
 logger = logging.getLogger("dlsps2_runner")
 
@@ -177,9 +185,7 @@ def dlsps2_latency_configured() -> bool:
     )
 
 
-# One element of a launch string: the text between "!" separators that are not
-# inside double quotes (prompts may contain "!").
-_LAUNCH_ELEMENT = re.compile(r'(?:[^!"]|"[^"]*")+')
+_LAUNCH_ELEMENT = LAUNCH_ELEMENT
 _METRICS_ON = re.compile(r"(?:^|\s)metrics=(?:true|1|yes)(?:\s|$)", re.IGNORECASE)
 
 
@@ -253,6 +259,7 @@ class Dlsps2PipelineRunner:
         job_id: Optional[str] = None,
         base_url: Optional[str] = None,
         validate_pipelines: bool = True,
+        on_event: Optional[Callable[[PipelineEvent], None]] = None,
     ):
         """Initialize the runner.
 
@@ -267,6 +274,10 @@ class Dlsps2PipelineRunner:
         With ``enable_latency_metrics`` the latency samples are read from
         metrics-manager; see the module docstring for the server setup and
         :func:`dlsps2_latency_configured` for when callers use it.
+
+        With ``on_event``, normal mode collects live pipeline events
+        (proximity triggers and VLM answers) through event files, see
+        :mod:`pipeline_events`, and calls it for each one while the run lasts.
         """
         self.mode = mode
         self.max_runtime = max_runtime
@@ -279,6 +290,7 @@ class Dlsps2PipelineRunner:
         self.job_id = job_id
         self.base_url = (base_url or DLSPS2_BASE_URL).rstrip("/")
         self.validate_pipelines = validate_pipelines
+        self.on_event = on_event
         self.cancelled = False
         self.logger = logger
         # Launch strings DLSPS 2.0 already accepted, reused across density iterations.
@@ -295,6 +307,7 @@ class Dlsps2PipelineRunner:
         self._metrics_read_failed = False
         # Whether the server's gvagenai has post-metrics; asked once per runner.
         self._genai_post_metrics: bool | None = None
+        self._vlm_fallback_warned = False
 
         metrics_manager_url = os.environ.get(
             "METRICS_MANAGER_URL", DEFAULT_METRICS_MANAGER_URL
@@ -931,6 +944,38 @@ class Dlsps2PipelineRunner:
     # Normal (performance and density) mode
     # ------------------------------------------------------------------
 
+    def _capture_events(
+        self, stream_commands: dict[str, str], genai: bool
+    ) -> EventCapture | None:
+        """Event files for this run, or ``None`` without ``on_event`` or event elements.
+
+        Without ``post-metrics`` on the server's ``gvagenai`` (``genai`` false),
+        VLM metrics fall back to the cumulative means in each answer's JSON.
+        """
+        if self.on_event is None:
+            return None
+        return EventCapture.create(
+            stream_commands,
+            self.job_id,
+            self.on_event,
+            on_vlm_metrics=None if genai else self._push_vlm_fallback,
+        )
+
+    def _push_vlm_fallback(self, fields: dict[str, float], element: str | None) -> None:
+        """Push VLM metrics from the cumulative means in a ``gvagenai`` answer."""
+        if not self._vlm_fallback_warned:
+            self._vlm_fallback_warned = True
+            self.logger.warning(
+                "DLSPS 2.0 gvagenai does not support post-metrics; VLM metrics "
+                "fall back to the means in its JSON metadata, which average every "
+                "request since the element started."
+            )
+        entry: dict[str, object] = {"name": "vlm_metrics", "fields": fields}
+        tags = self._tags(element)
+        if tags:
+            entry["tags"] = tags
+        self._post_batch([entry], "vlm")
+
     def _warmup(self) -> float:
         """Warm-up before FPS samples count, never more than half the run."""
         if self.max_runtime > 0:
@@ -1000,133 +1045,148 @@ class Dlsps2PipelineRunner:
                 _POST_METRICS_ON.search(command) for command in stream_commands.values()
             )
             read_metrics = self.latency_tracer_metrics is not None or genai
-            if self.validate_pipelines:
-                self._validate_new(client, list(stream_commands.values()))
-            if self.cancelled:
-                return PipelineResult(exit_code=0, cancelled=True, stderr=[])
+            capture = self._capture_events(stream_commands, genai)
+            if capture is not None:
+                stream_commands = capture.commands
             try:
-                for stream_id, command in stream_commands.items():
-                    if self.cancelled:
-                        break
-                    try:
-                        instances[stream_id] = self._start(
-                            client, command, validate_pipeline=False
-                        )
-                    except httpx.HTTPError as exc:
-                        raise RuntimeError(
-                            f"Failed to submit stream {stream_id} to DLSPS 2.0: "
-                            f"{self._error_detail(exc)}"
-                        ) from exc
-
-                last_contact = time.monotonic()
-                last_frame = dict.fromkeys(instances, last_contact)
-                playing_since: float | None = None
-
-                while not self.cancelled:
-                    now = time.monotonic()
-                    if (
-                        playing_since is not None
-                        and self.max_runtime > 0
-                        and now - playing_since >= self.max_runtime
-                    ):
-                        break
-
-                    try:
-                        statuses = self._statuses(client, instances)
-                    except httpx.HTTPError as exc:
-                        if now - last_contact > self.inactivity_timeout:
+                if self.validate_pipelines:
+                    self._validate_new(client, list(stream_commands.values()))
+                if self.cancelled:
+                    return PipelineResult(exit_code=0, cancelled=True, stderr=[])
+                if capture is not None:
+                    capture.reset()
+                    capture.start()
+                try:
+                    for stream_id, command in stream_commands.items():
+                        if self.cancelled:
+                            break
+                        try:
+                            instances[stream_id] = self._start(
+                                client, command, validate_pipeline=False
+                            )
+                        except httpx.HTTPError as exc:
                             raise RuntimeError(
-                                "Lost contact with DLSPS 2.0 for over "
-                                f"{self.inactivity_timeout}s: {exc}"
+                                f"Failed to submit stream {stream_id} to DLSPS 2.0: "
+                                f"{self._error_detail(exc)}"
                             ) from exc
-                        time.sleep(self.poll_interval)
-                        continue
-                    last_contact = now
 
-                    states = {sid: s.get("state") for sid, s in statuses.items()}
-                    for sid, state in states.items():
-                        if state in ("ERROR", "ABORTED"):
-                            message = statuses[sid].get("message") or f"state={state}"
+                    last_contact = time.monotonic()
+                    last_frame = dict.fromkeys(instances, last_contact)
+                    playing_since: float | None = None
+
+                    while not self.cancelled:
+                        now = time.monotonic()
+                        if (
+                            playing_since is not None
+                            and self.max_runtime > 0
+                            and now - playing_since >= self.max_runtime
+                        ):
+                            break
+
+                        try:
+                            statuses = self._statuses(client, instances)
+                        except httpx.HTTPError as exc:
+                            if now - last_contact > self.inactivity_timeout:
+                                raise RuntimeError(
+                                    "Lost contact with DLSPS 2.0 for over "
+                                    f"{self.inactivity_timeout}s: {exc}"
+                                ) from exc
+                            time.sleep(self.poll_interval)
+                            continue
+                        last_contact = now
+
+                        states = {sid: s.get("state") for sid, s in statuses.items()}
+                        for sid, state in states.items():
+                            if state in ("ERROR", "ABORTED"):
+                                message = (
+                                    statuses[sid].get("message") or f"state={state}"
+                                )
+                                raise RuntimeError(
+                                    f"Stream {sid} failed on DLSPS 2.0: {message}"
+                                )
+                        if len(states) == len(instances) and all(
+                            state == "COMPLETED" for state in states.values()
+                        ):
+                            break
+
+                        fps = {
+                            sid: float(statuses[sid].get("frame_fps") or 0.0)
+                            if sid in statuses
+                            else 0.0
+                            for sid in instances
+                        }
+                        fresh: list[str] = []
+                        for sid, value in fps.items():
+                            window = (
+                                value,
+                                statuses.get(sid, {}).get("frame_interval"),
+                            )
+                            if value > 0 and window != windows.get(sid):
+                                windows[sid] = window
+                                last_frame[sid] = now
+                                fresh.append(sid)
+                        stalled = [
+                            sid
+                            for sid in instances
+                            if states.get(sid) != "COMPLETED"
+                            and now - last_frame[sid] > self.inactivity_timeout
+                        ]
+                        if stalled:
                             raise RuntimeError(
-                                f"Stream {sid} failed on DLSPS 2.0: {message}"
+                                f"No frames from stream(s) {', '.join(stalled)} on "
+                                f"DLSPS 2.0 for over {self.inactivity_timeout}s"
                             )
-                    if len(states) == len(instances) and all(
-                        state == "COMPLETED" for state in states.values()
-                    ):
-                        break
 
-                    fps = {
-                        sid: float(statuses[sid].get("frame_fps") or 0.0)
-                        if sid in statuses
-                        else 0.0
-                        for sid in instances
-                    }
-                    fresh: list[str] = []
-                    for sid, value in fps.items():
-                        window = (value, statuses.get(sid, {}).get("frame_interval"))
-                        if value > 0 and window != windows.get(sid):
-                            windows[sid] = window
-                            last_frame[sid] = now
-                            fresh.append(sid)
-                    stalled = [
-                        sid
-                        for sid in instances
-                        if states.get(sid) != "COMPLETED"
-                        and now - last_frame[sid] > self.inactivity_timeout
-                    ]
-                    if stalled:
-                        raise RuntimeError(
-                            f"No frames from stream(s) {', '.join(stalled)} on "
-                            f"DLSPS 2.0 for over {self.inactivity_timeout}s"
+                        all_playing = all(
+                            states.get(sid) == "RUNNING"
+                            and statuses[sid].get("first_frame_time") is not None
+                            for sid in instances
                         )
+                        if all_playing and playing_since is None:
+                            playing_since = now
+                        if (
+                            all_playing
+                            and playing_since is not None
+                            and now - playing_since >= self._warmup()
+                        ):
+                            for sid in fresh:
+                                interval = float(
+                                    statuses[sid].get("frame_interval")
+                                    or self.poll_interval
+                                )
+                                frames[sid] += fps[sid] * interval
+                                seconds[sid] += interval
 
-                    all_playing = all(
-                        states.get(sid) == "RUNNING"
-                        and statuses[sid].get("first_frame_time") is not None
-                        for sid in instances
-                    )
-                    if all_playing and playing_since is None:
-                        playing_since = now
-                    if (
-                        all_playing
-                        and playing_since is not None
-                        and now - playing_since >= self._warmup()
-                    ):
-                        for sid in fresh:
-                            interval = float(
-                                statuses[sid].get("frame_interval")
-                                or self.poll_interval
+                        # Mean per stream, as PipelineRunner pushes for the live chart.
+                        self._push_fps_metric(sum(fps.values()) / len(instances))
+                        if (
+                            read_metrics
+                            and now - metrics_polled_at >= DLSPS2_METRICS_POLL_S
+                        ):
+                            metrics_polled_at = now
+                            self._try_poll_metrics_manager(
+                                metrics_client, instances, allowed_stream_ids, genai
                             )
-                            frames[sid] += fps[sid] * interval
-                            seconds[sid] += interval
-
-                    # Mean per stream, as PipelineRunner pushes for the live chart.
-                    self._push_fps_metric(sum(fps.values()) / len(instances))
-                    if (
-                        read_metrics
-                        and now - metrics_polled_at >= DLSPS2_METRICS_POLL_S
-                    ):
-                        metrics_polled_at = now
-                        self._try_poll_metrics_manager(
-                            metrics_client, instances, allowed_stream_ids, genai
-                        )
-                    time.sleep(self.poll_interval)
+                        time.sleep(self.poll_interval)
+                finally:
+                    if instances:
+                        self._stop_all(client, list(instances.values()))
+                        try:
+                            statuses.update(self._statuses(client, instances))
+                        except httpx.HTTPError:
+                            pass
+                        self._push_fps_metric(0.0)
+                        if read_metrics:
+                            self._read_final_metrics(
+                                metrics_client,
+                                instances,
+                                allowed_stream_ids,
+                                genai,
+                                time.monotonic() - started_at,
+                            )
             finally:
-                if instances:
-                    self._stop_all(client, list(instances.values()))
-                    try:
-                        statuses.update(self._statuses(client, instances))
-                    except httpx.HTTPError:
-                        pass
-                    self._push_fps_metric(0.0)
-                    if read_metrics:
-                        self._read_final_metrics(
-                            metrics_client,
-                            instances,
-                            allowed_stream_ids,
-                            genai,
-                            time.monotonic() - started_at,
-                        )
+                if capture is not None:
+                    capture.close()
         if self.latency_tracer_metrics == {} and not self.cancelled:
             self.logger.warning(
                 "Latency metrics were enabled but no DLSPS latency samples reached "

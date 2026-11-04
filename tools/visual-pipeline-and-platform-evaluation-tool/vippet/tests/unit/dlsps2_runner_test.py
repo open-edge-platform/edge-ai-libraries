@@ -3,6 +3,7 @@
 
 import json
 import os
+import tempfile
 import unittest
 from collections.abc import Callable
 from unittest.mock import MagicMock, patch
@@ -90,7 +91,7 @@ class _FakeStreamSet:
         self.post_responses = list(post_responses or [])
         self.delete_codes = delete_codes or {}
         self.instance_states = instance_states or {}
-        self.validations = list(validations or [{"state": "VALID"}])
+        self.validations: list = list(validations or [{"state": "VALID"}])
         self.requests: list[httpx.Request] = []
         self.posted = 0
         self.validated = 0
@@ -1408,3 +1409,140 @@ class TestDlsps2RunnerGenaiPostMetrics(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestDlsps2RunnerEvents(unittest.TestCase):
+    """With ``on_event`` the run collects events from the files it adds."""
+
+    STREAMS = {
+        "s0": 'a ! gvaproximitytrigger_py name=t0 ! gvagenai name=g0 prompt="q" '
+        "metrics=true ! b"
+    }
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        patcher = patch("pipeline_events.EVENTS_DIR", self.tmp.name)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _run(self, fake: _FakeStreamSet, on_event, gvagenai_metrics=None):
+        runner = Dlsps2PipelineRunner(
+            mode="normal",
+            base_url="http://dlsps:8080",
+            max_runtime=0,
+            job_id="job-1",
+            on_event=on_event,
+        )
+        pushes: list[dict] = []
+        with (
+            patch.object(runner, "_push_fps_metric"),
+            patch.object(
+                runner, "_post_batch", side_effect=lambda m, _d: pushes.extend(m)
+            ),
+            patch.object(runner, "_client", side_effect=fake.client),
+            patch.object(runner, "_metrics_client", side_effect=fake.client),
+        ):
+            runner.run(PIPELINE, stream_commands=self.STREAMS)
+        return pushes
+
+    def _files(self, fake: _FakeStreamSet) -> tuple[str, str]:
+        sent = json.loads(fake.calls("POST")[0].content)["pipeline"]
+        trigger = sent.split("events-file=")[1].split()[0]
+        genai = sent.split("gvametapublish file-format=json-lines file-path=")[1]
+        return trigger, genai.split()[0]
+
+    def test_events_and_vlm_fallback_metrics_reach_the_job(self):
+        events: list = []
+        fake = _FakeStreamSet([[{"state": "COMPLETED"}]], metrics=_finished("inst-1"))
+
+        written: list[bool] = []
+
+        def _completed_after_writing() -> list[dict]:
+            if written:
+                return [{"state": "COMPLETED"}]
+            written.append(True)
+            trigger, genai = self._files(fake)
+            with open(trigger, "a", encoding="utf-8") as f:
+                f.write(json.dumps({"source": "proximity-trigger", "text": "hit"}))
+                f.write("\n")
+            with open(genai, "a", encoding="utf-8") as f:
+                f.write(
+                    json.dumps(
+                        {
+                            "result": "No.",
+                            "timestamp_seconds": 2.0,
+                            "metrics": {
+                                "ttft_mean": 1,
+                                "tpot_mean": 2,
+                                "generate_duration_mean": 3,
+                            },
+                        }
+                    )
+                    + "\n"
+                )
+            return [{"state": "COMPLETED"}]
+
+        fake.polls = [_completed_after_writing]
+
+        with self.assertLogs("dlsps2_runner", level="WARNING"):
+            pushes = self._run(fake, events.append)
+
+        self.assertEqual(
+            [(e.source, e.text, e.element, e.prompt) for e in events],
+            [("proximity-trigger", "hit", "t0", None), ("vlm", "No.", "g0", "q")],
+        )
+        self.assertEqual(
+            pushes,
+            [
+                {
+                    "name": "vlm_metrics",
+                    "fields": {
+                        "ttft_ms": 1.0,
+                        "tpot_ms": 2.0,
+                        "generate_duration_ms": 3.0,
+                    },
+                    "tags": {"job_id": "job-1", "stream_id": "g0"},
+                }
+            ],
+        )
+        # The validated and the started launch string are the rewritten one.
+        self.assertEqual(
+            fake.validate_posts()[0]["pipeline"],
+            json.loads(fake.calls("POST")[0].content)["pipeline"],
+        )
+        self.assertEqual(os.listdir(self.tmp.name), [])
+
+    def test_validation_records_are_dropped(self):
+        events: list = []
+        fake = _FakeStreamSet([[{"state": "COMPLETED"}]], metrics=_finished("inst-1"))
+        validations = fake.validations
+
+        def _valid_after_writing() -> dict:
+            body = fake.validate_posts()[0]["pipeline"]
+            trigger = body.split("events-file=")[1].split()[0]
+            with open(trigger, "a", encoding="utf-8") as f:
+                f.write(json.dumps({"text": "from validation"}) + "\n")
+            return validations[0]
+
+        fake.validations = [_valid_after_writing]
+
+        self._run(fake, events.append)
+
+        self.assertEqual(events, [])
+
+    def test_no_files_without_on_event(self):
+        fake = _FakeStreamSet([[{"state": "COMPLETED"}]], metrics=_finished("inst-1"))
+        runner = Dlsps2PipelineRunner(
+            mode="normal", base_url="http://dlsps:8080", max_runtime=0
+        )
+        with (
+            patch.object(runner, "_push_fps_metric"),
+            patch.object(runner, "_client", side_effect=fake.client),
+            patch.object(runner, "_metrics_client", side_effect=fake.client),
+        ):
+            runner.run(PIPELINE, stream_commands=self.STREAMS)
+
+        sent = json.loads(fake.calls("POST")[0].content)["pipeline"]
+        self.assertEqual(sent, self.STREAMS["s0"])
+        self.assertEqual(os.listdir(self.tmp.name), [])
