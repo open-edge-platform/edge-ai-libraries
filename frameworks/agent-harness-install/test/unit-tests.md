@@ -309,7 +309,7 @@ component directory (Docker and network access required for the build):
 ```bash
 set -euo pipefail
 docker build --build-arg HARNESS_AGENT=hermes -f openshell/Dockerfile -t harness-hermes-validation .
-docker run --rm --network none --read-only \
+docker run --rm --network none \
   --cap-drop ALL --security-opt no-new-privileges \
   --tmpfs /tmp:rw,nosuid,nodev,size=256m \
   --mount "type=bind,source=$PWD/test/model-defaults-test.mjs,target=/opt/harness/model-defaults-test.mjs,readonly" \

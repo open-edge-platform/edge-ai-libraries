@@ -63,8 +63,10 @@ normalization into request overrides, preservation of user overrides, and
 configuration changes on reapplication/model switching.
 
 Tests run as the image's unprivileged user in a disposable container with no
-network, a read-only root filesystem, a writable temporary filesystem, no Linux
-capabilities, and only the test file bind-mounted read-only. No host agent
+network, a writable temporary filesystem, no Linux capabilities, and only the
+test file bind-mounted read-only. Hermes writes its runtime locks in the
+container's disposable writable layer; a read-only root filesystem is not
+compatible with those locks. No host agent
 configuration, Docker socket, credentials or OpenShell gateway is mounted.
 The image's production model-config helper is tested, and TAP output is uploaded
 as `hermes-runtime-results`. See the [local commands](unit-tests.md#hermes-runtime-dependent-cases).
