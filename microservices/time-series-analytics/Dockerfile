@@ -96,8 +96,8 @@ COPY ./requirements.txt .
 #     icx-lto.so, clbltfn*.rtl, libocl_svml_*, clang resource headers) -
 #     oneDAL/oneMKL GPU kernels ship precompiled; the real device compiler
 #     (intel-igc-*) is already installed system-wide.
-RUN pip install --no-cache-dir --timeout 120 --retries 10 --upgrade pip && \
-    pip install --no-cache-dir --timeout 120 --retries 10 --resume-retries 10 -r requirements.txt && \
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt && \
     find /usr/local/lib -maxdepth 1 \( \
         -name 'libintelocl.so*' -o \
         -name 'libomptarget.so*' -o -name 'libomptarget.sycl.wrap.so*' -o -name 'libpstloffload.so*' -o \
