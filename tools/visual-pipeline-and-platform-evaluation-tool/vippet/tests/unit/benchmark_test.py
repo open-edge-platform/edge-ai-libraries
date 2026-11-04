@@ -1109,39 +1109,67 @@ class TestBenchmarkMixedDensity(unittest.TestCase):
         self.assertGreater(len(set(grow_streams_seen)), 1)
 
 
-class TestBenchmarkDlsps2(unittest.TestCase):
-    """With ``use_dlsps2``, every stream's own launch string goes to the runner."""
+class TestBenchmarkSlowestStream(unittest.TestCase):
+    """With per-stream FPS, the slowest stream decides pass or fail."""
 
     STREAM_COMMANDS = {"s0": "pipeline 0", "s1": "pipeline 1"}
 
-    def test_dlsps2_runner_receives_per_stream_commands(self):
-        benchmark = Benchmark(use_dlsps2=True)
-        self.assertIsInstance(benchmark.runner, Dlsps2PipelineRunner)
-        specs = [create_internal_density_spec("/pipelines/p/variants/v", "p")]
-        # The mean per stream decides: 40 passes a floor of 30, 25 does not.
-        results = [
+    def setUp(self):
+        self.specs = [create_internal_density_spec("/pipelines/p/variants/v", "p")]
+        # Mean 35 passes a floor of 30 at 2 streams; the slowest stream does not.
+        self.results = [
             PipelineResult(total_fps=40, per_stream_fps=40, stream_fps={"s0": 40.0}),
             PipelineResult(
-                total_fps=50, per_stream_fps=25, stream_fps={"s0": 30.0, "s1": 20.0}
+                total_fps=70, per_stream_fps=35, stream_fps={"s0": 45.0, "s1": 25.0}
             ),
         ] * 2
 
+    def _run(self, benchmark: Benchmark) -> BenchmarkResult:
         with patch("benchmark.PipelineManager") as mock_pipeline_manager_cls:
             mock_pipeline_manager_cls.return_value.build_pipeline_command.return_value = PipelineCommand(
                 command="pipeline 0 pipeline 1",
                 stream_commands=self.STREAM_COMMANDS,
             )
-            with patch.object(benchmark.runner, "run", side_effect=results) as run:
+            with patch.object(benchmark.runner, "run", side_effect=self.results) as run:
                 result = benchmark.run(
-                    specs,
+                    self.specs,
                     fps_floor=30,
                     execution_config=create_internal_execution_config(),
                     job_id="job-1",
                 )
+        self.run_calls = run.call_args_list
+        return result
+
+    def test_slowest_stream_below_floor_fails_the_iteration(self):
+        result = self._run(Benchmark())
 
         self.assertEqual(result.n_streams, 1)
-        for call in run.call_args_list:
+        self.assertEqual(result.per_stream_fps, 40)
+        self.assertEqual(result.min_stream_fps, 40.0)
+
+    def test_dlsps2_runner_receives_per_stream_commands(self):
+        benchmark = Benchmark(use_dlsps2=True)
+
+        self.assertIsInstance(benchmark.runner, Dlsps2PipelineRunner)
+        result = self._run(benchmark)
+
+        self.assertEqual(result.n_streams, 1)
+        for call in self.run_calls:
             self.assertEqual(call.kwargs["stream_commands"], self.STREAM_COMMANDS)
+
+    def test_without_per_stream_fps_the_mean_decides(self):
+        self.results = [
+            PipelineResult(total_fps=40, per_stream_fps=40),
+            PipelineResult(total_fps=70, per_stream_fps=35),
+            PipelineResult(total_fps=60, per_stream_fps=15),
+            PipelineResult(total_fps=90, per_stream_fps=30),
+            PipelineResult(total_fps=60, per_stream_fps=15),
+        ]
+
+        result = self._run(Benchmark())
+
+        self.assertEqual(result.n_streams, 3)
+        self.assertIsNone(result.min_stream_fps)
 
 
 if __name__ == "__main__":
