@@ -36,13 +36,13 @@ jobs:
           - ubuntu_version: ubuntu26
     steps:
     - name: Check out edge-ai-libraries repository
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         persist-credentials: false
         path: edge-ai-libraries-repo
 
     - name: Check out DL Streamer repository
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         repository: open-edge-platform/dlstreamer
         ref: ${{ inputs.dls-branch }}
@@ -51,10 +51,10 @@ jobs:
         path: edge-ai-libraries-repo/libraries/dlstreamer
 
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 #3.11.1
+      uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 #4.4.1
 
     - name: Log in to GitHub Container Registry
-      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef #3.6.0
+      uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 #4.7.0
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
@@ -118,13 +118,13 @@ jobs:
         echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
 
     - name: Upload unit test results to Github
-      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: DLSPS_Coverage-reports-${{ matrix.ubuntu_version }}
         path: /tmp/htmlcov
 
     - name: Scan Docker image with Trivy
-      uses: open-edge-platform/orch-ci/.github/actions/security/trivy@dca07fa1cdf8ed3eaf8f318f3d905fd12cef3b41 #v0.74.0
+      uses: open-edge-platform/orch-ci/.github/actions/security/trivy@ccda485c43504937be8c1680c643c0ee2858c568 #v0.74.0
       with:
         scan_target: "intel/dlstreamer-pipeline-server:${{ github.sha }}-${{ matrix.ubuntu_version }}"
         severity: "HIGH"
@@ -151,7 +151,7 @@ jobs:
 
     - name: Scan Docker extended image with Trivy
       if: matrix.ubuntu_version == 'ubuntu22' || matrix.ubuntu_version == 'ubuntu24'
-      uses: open-edge-platform/orch-ci/.github/actions/security/trivy@dca07fa1cdf8ed3eaf8f318f3d905fd12cef3b41 #v0.74.0
+      uses: open-edge-platform/orch-ci/.github/actions/security/trivy@ccda485c43504937be8c1680c643c0ee2858c568 #v0.74.0
       with:
         scan_target: "intel/dlstreamer-pipeline-server:${{ github.sha }}-extended-${{ matrix.ubuntu_version }}"
         severity: "HIGH"
@@ -179,7 +179,7 @@ jobs:
 
     - name: Upload Trivy image report as artifact
       if: always()
-      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: DLSPS_${{ matrix.ubuntu_version }}-trivy-image-reports
         path: |
@@ -201,7 +201,7 @@ jobs:
 
     - name: Upload Trivy Filesystem Reports
       if: always() && matrix.ubuntu_version == 'ubuntu22'
-      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: DLSPS_trivy-fs-reports
         path: reports/*
@@ -322,13 +322,13 @@ jobs:
           - ubuntu_version: ubuntu26
     steps:
     - name: Check out edge-ai-libraries repository
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         persist-credentials: false
         path: edge-ai-libraries-repo
 
     - name: Check out DL Streamer repository
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         repository: open-edge-platform/dlstreamer
         ref: ${{ inputs.dls-branch }}
@@ -337,10 +337,10 @@ jobs:
         path: edge-ai-libraries-repo/libraries/dlstreamer
 
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 #3.11.1
+      uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 #4.4.1
 
     - name: Log in to GitHub Container Registry
-      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef #3.6.0
+      uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 #4.7.0
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
@@ -374,7 +374,7 @@ jobs:
         docker compose build --no-cache
 
     - name: Scan Docker extended image with Trivy
-      uses: open-edge-platform/orch-ci/.github/actions/security/trivy@dca07fa1cdf8ed3eaf8f318f3d905fd12cef3b41 #v0.74.0
+      uses: open-edge-platform/orch-ci/.github/actions/security/trivy@ccda485c43504937be8c1680c643c0ee2858c568 #v0.74.0
       with:
         scan_target: "intel/dlstreamer-pipeline-server-2.0:${{ github.sha }}-${{ matrix.ubuntu_version }}"
         severity: "HIGH"
@@ -402,7 +402,7 @@ jobs:
 
     - name: Upload Trivy image report as artifact
       if: always()
-      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: DLSPS_${{ matrix.ubuntu_version }}-trivy-image-reports
         path: |
@@ -421,7 +421,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out edge-ai-libraries repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -439,7 +439,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Check out edge-ai-libraries repository
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         persist-credentials: false
         fetch-depth: 0
@@ -458,7 +458,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Check out edge-ai-libraries repository
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         persist-credentials: false
         path: edge-ai-libraries-repo
@@ -515,12 +515,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Check out edge-ai-libraries repository
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         persist-credentials: false
 
     - name: Run Bandit scan
-      uses: open-edge-platform/orch-ci/.github/actions/security/bandit@1871595c6bb5f5f29b957725e9cbb05ef8071ca1
+      uses: open-edge-platform/orch-ci/.github/actions/security/bandit@ccda485c43504937be8c1680c643c0ee2858c568
       with:
         scan-scope: "all"
         severity-level: "HIGH"
@@ -552,7 +552,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out edge-ai-libraries repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -574,7 +574,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out edge-ai-libraries repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
@@ -597,7 +597,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out edge-ai-libraries repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
