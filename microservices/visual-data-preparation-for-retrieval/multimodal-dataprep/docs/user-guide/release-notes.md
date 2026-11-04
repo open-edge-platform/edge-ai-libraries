@@ -1,8 +1,8 @@
 # Release Notes: Multimodal Data Preparation for Retrieval
 
-## Version 2026.3.0
+## Version 2026.3.0-rc1
 
-**Release Date**: TBD
+**Release Date**: November 6, 2026
 
 **New**:
 
@@ -17,6 +17,11 @@
 - **Object detection with Hugging Face OpenVINO models:** set `MM_DATAPREP_DETECTION_MODEL_NAME` to any object-detection model in the [Hugging Face `OpenVINO` namespace](https://huggingface.co/OpenVINO) supported by OpenVINO Model API, for example `OpenVINO/yolox_s-int8-ov`. Input size, NMS and class labels come from the model's own metadata, and only the selected model is downloaded on first use into `MM_DATAPREP_DETECTION_MODEL_DIR`. Detection runs on CPU, GPU or NPU; `OpenVINO/yolox_s-int8-ov`, `OpenVINO/yolox_tiny-fp16-ov`, `OpenVINO/yolox_l-int8-ov` and `OpenVINO/YOLO11n-fp16-ov` are verified on all three.
 - **Detection class filter:** `MM_DATAPREP_DETECTION_CLASSES` (for example `person,car`) keeps only the listed classes. Names are checked against the model's labels at startup.
 - `GET /health` reports `detection_model`, `detection_device` and `detection_classes`.
+
+**Improved**:
+
+- **GPU driver install fails loudly:** the Dockerfile installs the Intel® GPU compute runtime `26.35.39758.10` (IGC `2.41.5`) directly instead of through `install_ubuntu_gpu_drivers.sh`, retries downloads, and fails the build if the Level Zero GPU driver or OpenCL ICD is missing. Versions are build arguments (`GPU_COMPUTE_RUNTIME_VERSION`, `GPU_IGC_VERSION`, `GPU_IGC_BUILD`, `GPU_GMMLIB_VERSION`).
+- Refreshed Python dependencies within the existing constraints to clear fixable image vulnerabilities.
 
 **Fixed**:
 

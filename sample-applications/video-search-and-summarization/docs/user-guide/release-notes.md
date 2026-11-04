@@ -1,8 +1,17 @@
 # Release Notes: Video Search and Summarization Sample Application
 
-## Version 2026.3.0
+## Version 2026.3.0-rc1
+
+**Release Date:** November 6, 2026
+
+> **Note:** Helm Chart support will be deprecated in the next release. Limited validation has been performed on the Helm charts for this release.
 
 **New:**
+
+- **MCP server for AI agents:** The VSS MCP tool server now starts with every Docker Compose deployment (`docker/compose.mcp.yaml`) and stops with `setup.sh --stop`; the Helm chart does not deploy it. The OpenAPI proxy was replaced with hand-declared tools that cover video listing, upload and indexing, text and image search, saved searches (create, poll, list, refetch and watch), summaries that follow the UI defaults unless the caller overrides them, live camera management, single-frame retrieval, tags and deployment info.
+- **Image search by reference:** Upload a query image once with `POST /search/images` (remove it with `DELETE /search/images/{imageId}`) and pass the returned `imageUrl` to `POST /search` instead of inline base64. Hits returned by `GET /search/{queryId}` include a playable link to the matching video; set `PM_PUBLIC_BASE_URL` (Helm `pipelinemanager.env.PM_PUBLIC_BASE_URL`) when the gateway is reached through another host name.
+- **Tags on live cameras:** Tags set on a camera when it is added or updated are registered with Pipeline Manager, so they appear in `GET /tags` and in the search tag filters right away.
+- **Refresh cached images on deploy:** `setup.sh --pull-always` (or `PULL_ALWAYS=true`, `make deploy PULL_ALWAYS=true`) pulls newer images for moving tags such as `latest` instead of reusing a cached copy.
 
 - **Live RTSP stream ingestion:** Register RTSP cameras from the new **Live Streams** panel in the search UI and ingest them continuously into the search index. Cameras can be listed, filtered by state or tag, paused, resumed, reconfigured, and removed, with live frame and embedding counts refreshed over the existing websocket. Backed by new Pipeline Manager `/streams` endpoints that proxy the Multimodal DataPrep live-stream API. Available in `--search` and `--dual` (`--summary --search`) modes, but not in `--summary-and-search`/`--unified`, where the index holds text embeddings of summaries; enable or disable the UI with `UI_LIVE_STREAMS_FEATURE` and bound index growth with `LIVE_RETENTION_HOURS` (defaults to 24 hours). RTSP credentials are redacted from all API responses, logs, and search results.
 - **Minimum peak score filter:** Search can drop weak matches at retrieval: frames scoring below `minPeakScore` (0-1) are filtered in the Vector Retriever before aggregation, so every returned result's best frame scores at least that value. Set it per search in the UI (off by default; starts at 0.2 when turned on), on `POST /search`, `POST /search/query`, `POST /search/{queryId}/refetch` and `PATCH /search/{queryId}/watch`, or as the deployment default with `SEARCH_MIN_PEAK_SCORE` (default `0`, off). The value is saved with each query, so watched-query refreshes are gated by it. The MCP `vss_search_video`, `vss_get_search` and `vss_watch_search` tools accept it as `min_peak_score`.
@@ -18,12 +27,26 @@
 - **Live camera limit is configurable:** `LIVE_STREAM_MAX_CONCURRENT` (default `8`; Helm `multimodaldataprep.liveStream.maxConcurrent`) sets how many cameras ingest at once. Registering more returns `503`; pause or delete a camera to free a slot.
 - **Search filters panel:** The time range, number of results and minimum peak score filters share one panel. Edits are drafts until **Apply**, and sliders show their value while dragging.
 - **Result tags in every view:** Each search result shows its tags with **Group by** set to **None** as well, and each tag gets a stable colour derived from its name, dark enough for white text.
+- **OVMS 2026.4.1:** Docker Compose and Helm now use OpenVINO™ Model Server `2026.4.1`, and Pipeline Manager waits for a healthy OVMS whenever OVMS serves the VLM or LLM, so a deployment fails visibly instead of running without a model server. OVMS `max_num_seqs` is sized from the Pipeline Manager concurrency (at least 16; override with `OVMS_MAX_NUM_SEQS`), and `OVMS_CACHE_SIZE_GB` is passed through. Pre-converted `OpenVINO/*` models take their weight format from the repository name and are checked against the target device before download.
+- **NPU LLM prompt limits:** An LLM on NPU is compiled with `OVMS_NPU_MAX_PROMPT_LEN` (default `8192`) and `OVMS_NPU_MIN_RESPONSE_LEN` (default `1024`), and Pipeline Manager's context and completion budgets are derived from them, so long summary prompts are no longer rejected by the NPU. A vision-language model set as the NPU LLM is rejected at setup.
+- **Inference concurrency defaults:** With OVMS, `setup.sh` defaults to `PM_VLM_CONCURRENT=4` and `PM_LLM_CONCURRENT=2` on every device (Helm `pipelinemanager.env.VLM_CONCURRENT` `6`, `LLM_CONCURRENT` `2`); vLLM still uses `1`.
+- **Faster startup detection:** The Pipeline Manager container healthcheck polls every 5 seconds with a longer retry budget, so dependent services start sooner and a slow first start is not reported as unhealthy.
+- **Platform updates:** Video Ingestion uses the `intel/dlstreamer-pipeline-server:2026.3.0-20261027-weekly-ubuntu24` base image, the summarizer CLI requires Go 1.26, and the Multimodal Embedding Serving and DataPrep images install the Intel® GPU compute runtime directly in the Dockerfile and fail the build if a driver is missing. Python, Node.js and Go dependencies were refreshed to clear fixable image vulnerabilities in VSS-owned code; remaining findings come from base images.
+- The browser tab title no longer carries the "Intel EGAI" prefix.
 - **DataPrep object detection uses Hugging Face OpenVINO models:** Set `DATAPREP_DETECTION_MODEL` (Helm `multimodaldataprep.frameProcessing.detectionModelName`) to an `OpenVINO/<repo>` object-detection model, for example `OpenVINO/yolox_s-int8-ov`; `OpenVINO/yolox_tiny-fp16-ov`, `OpenVINO/yolox_l-int8-ov` and `OpenVINO/YOLO11n-fp16-ov` are also verified on CPU, GPU and NPU. It has no default and is required in `--search` and `--summary --search` mode unless `ENABLE_OBJECT_DETECTION=false`; `--summary-and-search` mode always runs without detection. The optional `DATAPREP_DETECTION_CLASSES` (Helm `detectionClasses`) keeps only the listed classes. Models are cached in the `docker_dataprep-detection-models` volume; the old `docker_dataprep-yolox-models` volume is no longer used and can be removed.
 
 **Fixed:**
 
 - **Video embedding status is recorded:** `GET /videos` and `GET /videos/{videoId}` always returned `searchEmbeddings` and `textEmbeddings` as `null`, so clients, including the MCP server, could not tell whether a video was indexed. Pipeline Manager now records them from single and batch frame-embedding requests and from summary caption embedding; a `true` flag is never downgraded. The unused `videoEmbeddings` field was removed. Live cameras have no video record and keep reporting progress through `GET /streams`.
 - **Stalled ingestion no longer hangs:** A DataPrep video ingestion whose detection or embedding inference never returns (for example after a GPU hang) now fails after `MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S` seconds without progress (default `300`, `0` disables it; Helm `multimodaldataprep.sdkPipeline.pipelineStallTimeoutS`), instead of staying in progress forever.
+- **Blank captions and summaries with reasoning models on OVMS:** Reasoning-capable models could spend the whole completion budget thinking and return empty content. Pipeline Manager now disables thinking (`chat_template_kwargs.enable_thinking=false`) on OVMS requests; models that do not use the flag are unaffected.
+- **`make push` skipped the MCP image:** `make push` now pushes `vss-mcp-server` with the same name `make build` uses.
+
+**Upgrade Notes:**
+
+- **Breaking:** In `--search` and `--summary --search` mode, `DATAPREP_DETECTION_MODEL` must be set (or `ENABLE_OBJECT_DETECTION=false`); GitHub YOLOX names such as `yolox_s` are no longer accepted. On Helm, set `multimodaldataprep.frameProcessing.detectionModelName`.
+- Each detection model keeps its own license (YOLOX is Apache-2.0, YOLO11 is AGPL-3.0); review the model card before use.
+- Building the summarizer CLI needs Go 1.26 or later.
 
 ---
 
