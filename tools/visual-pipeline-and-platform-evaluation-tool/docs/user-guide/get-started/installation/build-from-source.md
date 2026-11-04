@@ -86,96 +86,79 @@ Hugging Face Hub.
    Open a browser and navigate to `http://localhost/api/v1/docs` (or `http://<HOST-IP>/api/v1/docs`)
    to access the Swagger UI.
 
-## Optional: run pipelines on DL Streamer Pipeline Server 2.0 (experimental)
+## Pipeline execution on DL Streamer Pipeline Server 2.0
 
-By default, pipelines run inside the `vippet` container. To run them on a separate
+Every pipeline runs on a
 [DL Streamer Pipeline Server 2.0](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/dlstreamer-pipeline-server/dlsps2/README.md)
-container instead, add `DLSPS2=1`:
+container, the `dlstreamer-pipeline-server` service. The server runs:
 
-```bash
-make build run DLSPS2=1
-make stop DLSPS2=1
-```
+- pipeline validation;
+- performance and density tests and benchmarks, with every stream as its own server instance, so the job
+  status also reports the slowest stream's FPS, and a density test counts a stream count as passing only if
+  its slowest stream reaches the FPS floor;
+- the conversion of videos to `.ts` for looping.
 
-This builds the server image from `microservices/dlstreamer-pipeline-server/dlsps2` in the
-same repository, gives it the same devices as `vippet`, and sets
-`VIPPET_EXECUTION_BACKEND=dlsps2`.
+`make build` builds the server image from `microservices/dlstreamer-pipeline-server/dlsps2` in the same
+repository, on the same DL Streamer base image as `vippet` unless `DLSPS2_BASE_IMAGE` is set. The server gets
+the same devices as `vippet`. The
+one-shot `vippet-plugins` service copies the custom elements in `vippet/gst_plugins/` from the `vippet` image
+into `shared/gst-plugins/`, from where the server loads them. `vippet` reads the list of available GStreamer
+elements from the server, so the decoders and encoders it picks are those of the server.
 
 To use a published server image instead of building one, set `DLSPS2_IMAGE` to one of the
 `-2.0` tags on [Docker Hub](https://hub.docker.com/r/intel/dlstreamer-pipeline-server/tags).
 `make build` then skips the server, and `make run` pulls the image:
 
 ```bash
-export DLSPS2_IMAGE=intel/dlstreamer-pipeline-server:2026.3.0-20261027-weekly-ubuntu24-2.0
-make build run DLSPS2=1
+export DLSPS2_IMAGE=intel/dlstreamer-pipeline-server:2026.3.0-20261103-weekly-ubuntu24-2.0
+make build run
 ```
 
-The server then runs:
+`make run-prebuilt` also pulls the server image: `DLSPS2_IMAGE` if it is set, otherwise
+`PREBUILT_DLSPS2_IMAGE` from the `Makefile`.
 
-- pipeline validation;
-- performance and density tests, with every stream as its own server instance, so the job
-  status also reports the slowest stream's FPS, and a density test counts a stream
-  count as passing only if its slowest stream reaches the FPS floor;
-- the conversion of videos to `.ts` for looping.
+The server's REST API is published on host port `DLSPS2_REST_SERVER_PORT` (default `8081`). Use
+`docker logs -f dlstreamer-pipeline-server` to follow its log, or `make shell-dlsps` to open a shell in it.
 
-Current limitations:
+### Latency and VLM metrics
 
-- Latency and VLM (`gvagenai`) metrics are collected only with the server set up as
-  described below. Otherwise VLM metrics are missing from the results, and tests with
-  latency metrics run in `vippet`.
-- Live pipeline events (proximity triggers, VLM answers) are not shown. The custom
-  elements in `vippet/gst_plugins/` are mounted into the server, so pipelines that
-  use them run.
-- The reported FPS is counted at one terminal sink of the pipeline. In a pipeline
-  whose branches run at different rates, such as CV-Triggered VLM, it can be the
-  rate of a side branch.
+The server exports its own per-instance metrics over OpenTelemetry to `metrics-manager` (`DLSPS2_OTEL`,
+default `true`). `DLSPS2_OTEL_INTERVAL_MS` sets the export interval (default `10000`). `vippet` reads the
+latency and VLM series of its own instances from `metrics-manager` and republishes them under the job. Each
+republished sample aggregates one export period: the latency windows of that period, or the mean over its
+`gvagenai` requests. After a run, `vippet` waits for the server's final export, for at most
+`DLSPS2_OTEL_INTERVAL_MS` plus two seconds. The live FPS chart in the UI comes from `vippet`, not from
+these exports.
 
-`vippet` also reads the list of available GStreamer elements from the server, so the
-decoders and encoders it picks are those of the container that runs the pipelines. If
-the server returns no elements, `vippet` falls back to its own list.
+VLM metrics need `metrics=true` on `gvagenai`. `vippet` adds `post-metrics=true` to such an element when the
+server's `gvagenai` has that property, as reported by the server's `GET /elements/gvagenai`. Otherwise, or
+when `metrics-manager` cannot store histograms, a performance test reports the means over every request since
+the element started, read from the answers that `gvagenai` writes.
 
-To also export the server's own per-instance metrics (FPS and start, first-frame
-and stop times, labeled with the server's `pipeline_id`) to `metrics-manager`,
-add `DLSPS2_OTEL=true`; `DLSPS2_OTEL_INTERVAL_MS` sets the export interval
-(default `10000`). This needs a server build with OpenTelemetry support. The UI
-does not use these metrics: its live FPS chart still comes from `vippet`.
-
-Latency and VLM metrics of a run on DLSPS 2.0 travel the same way. DL Streamer
-posts them on the pipeline bus, the server exports them, and `vippet` reads the
-series of its own instances from `metrics-manager` and republishes them under the
-job. Each republished sample aggregates one export period: the latency windows of
-that period, or the mean over its `gvagenai` requests.
-
-VLM metrics need only `DLSPS2_OTEL=true` and `metrics=true` on `gvagenai`: `vippet`
-adds `post-metrics=true` to such an element when the server's `gvagenai` has that
-property, as reported by the server's `GET /elements/gvagenai`. Otherwise the pipeline
-runs unchanged, without VLM metrics.
-Tests with latency metrics run on the server only with `DLSPS2_LATENCY=true`, which
-also needs the tracer, enabled for the whole server:
+Latency metrics need the `latency_tracer`. Tracers apply to every pipeline the server runs, so it is off by
+default: with DL Streamer releases that predate the tracer fixes, it slows down every pipeline of a server
+worker that runs several. To enable it, keep `DLSPS2_OTEL=true` and set:
 
 ```bash
-export DLSPS2_OTEL=true
-export DLSPS2_LATENCY=true
 export DLSPS2_GST_TRACERS='latency_tracer(flags=pipeline,interval=1000,post-metrics=true)'
-make run DLSPS2=1
+make run
 ```
 
-Without `DLSPS2_LATENCY=true`, or if `DLSPS2_OTEL` or `DLSPS2_GST_TRACERS` is missing,
-these tests keep running in `vippet`. Both metrics need a DL Streamer whose
-`latency_tracer` and `gvagenai` support `post-metrics`. With an older one no samples
-arrive, and `vippet` logs a warning.
+Without this setting, a test that asks for latency metrics runs without them: `vippet` logs a warning and the
+job details say so. The tracer must support `post-metrics`; with an older DL Streamer no samples arrive, and
+`vippet` logs a warning.
 
-After a run, `vippet` waits for the server's final export, for at most
-`DLSPS2_OTEL_INTERVAL_MS` plus two seconds.
-
-The server is not part of `compose.yml`, so `docker compose logs` does not show it. Use
-`docker logs -f dlstreamer-pipeline-server` to follow its log, or `make shell-dlsps` to
-open a shell in it.
+See [Known limitations of pipeline execution on DL Streamer Pipeline Server 2.0](../../troubleshooting.md#16-known-limitations-of-pipeline-execution-on-dl-streamer-pipeline-server-20).
 
 ## Optional: stream from GigE Vision cameras
 
-To use GigE Vision cameras as pipeline input, run the `vippet` container with host networking
-by adding `GIGE=1`:
+> [!NOTE]
+> GigE Vision camera pipelines are not supported for now: the DL Streamer Pipeline Server 2.0 image does not
+> include the Aravis GStreamer plugin (`aravissrc`), so such pipelines fail validation. See
+> [Known limitations](../../troubleshooting.md#16-known-limitations-of-pipeline-execution-on-dl-streamer-pipeline-server-20).
+
+The `GIGE=1` flag runs the `dlstreamer-pipeline-server` container with host networking, which GigE Vision
+streaming needs:
 
 ```bash
 make build run GIGE=1

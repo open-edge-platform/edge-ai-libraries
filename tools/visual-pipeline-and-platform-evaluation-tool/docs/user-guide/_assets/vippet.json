@@ -2403,7 +2403,7 @@
           "pipelines"
         ],
         "summary": "Validate Pipeline",
-        "description": "**Start asynchronous validation job for a pipeline graph.**\n\n## Operation\n1. Convert PipelineGraph to GStreamer launch string\n2. Extract validation parameters (e.g., `max-runtime`)\n3. Create validation job and run `gst_runner.py` in background\n4. Return generated job ID\n\n## Request Body\n**`PipelineValidation`** with:\n- `pipeline_graph` *(required)* - Nodes and edges representation\n- `parameters` *(optional)* - Configuration dict, e.g., `{\"max-runtime\": 10}`\n  - **Note:** `max-runtime` must be > 0 for validation mode\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 202 | `ValidationJobResponse` with `job_id` |\n| 400 | `MessageResponse` - Invalid parameters (e.g., `max-runtime` < 1) |\n| 500 | `MessageResponse` - Unexpected error (e.g., graph conversion) |\n\n## Conditions\n\n### \u2705 Success\n- Graph converts to valid launch string\n- Parameters pass ValidationManager checks\n- Background validation job started\n\n### \u274c Failure\n- Parameter validation error \u2192 400\n- Unexpected exception \u2192 500\n\n## Examples\n\n### Request\n```json\n{\n  \"pipeline_graph\": {\n    \"nodes\": [\n      {\"id\": \"0\", \"type\": \"filesrc\", \"data\": {\"location\": \"/videos/input.mp4\"}},\n      {\"id\": \"1\", \"type\": \"decodebin\", \"data\": {}},\n      {\"id\": \"2\", \"type\": \"fakesink\", \"data\": {}}\n    ],\n    \"edges\": [\n      {\"id\": \"0\", \"source\": \"0\", \"target\": \"1\"},\n      {\"id\": \"1\", \"source\": \"1\", \"target\": \"2\"}\n    ]\n  },\n  \"parameters\": {\n    \"max-runtime\": 10\n  }\n}\n```\n\n### Success Response (202)\n```json\n{\n  \"job_id\": \"val001\"\n}\n```\n\n### Error Response (400)\n```json\n{\n  \"message\": \"Parameter 'max-runtime' must be greater than or equal to 1.\"\n}\n```",
+        "description": "**Start asynchronous validation job for a pipeline graph.**\n\n## Operation\n1. Convert PipelineGraph to GStreamer launch string\n2. Extract validation parameters (e.g., `max-runtime`)\n3. Create validation job and run the pipeline on DLSPS 2.0 in background\n4. Return generated job ID\n\n## Request Body\n**`PipelineValidation`** with:\n- `pipeline_graph` *(required)* - Nodes and edges representation\n- `parameters` *(optional)* - Configuration dict, e.g., `{\"max-runtime\": 10}`\n  - **Note:** `max-runtime` must be > 0 for validation mode\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 202 | `ValidationJobResponse` with `job_id` |\n| 400 | `MessageResponse` - Invalid parameters (e.g., `max-runtime` < 1) |\n| 500 | `MessageResponse` - Unexpected error (e.g., graph conversion) |\n\n## Conditions\n\n### \u2705 Success\n- Graph converts to valid launch string\n- Parameters pass ValidationManager checks\n- Background validation job started\n\n### \u274c Failure\n- Parameter validation error \u2192 400\n- Unexpected exception \u2192 500\n\n## Examples\n\n### Request\n```json\n{\n  \"pipeline_graph\": {\n    \"nodes\": [\n      {\"id\": \"0\", \"type\": \"filesrc\", \"data\": {\"location\": \"/videos/input.mp4\"}},\n      {\"id\": \"1\", \"type\": \"decodebin\", \"data\": {}},\n      {\"id\": \"2\", \"type\": \"fakesink\", \"data\": {}}\n    ],\n    \"edges\": [\n      {\"id\": \"0\", \"source\": \"0\", \"target\": \"1\"},\n      {\"id\": \"1\", \"source\": \"1\", \"target\": \"2\"}\n    ]\n  },\n  \"parameters\": {\n    \"max-runtime\": 10\n  }\n}\n```\n\n### Success Response (202)\n```json\n{\n  \"job_id\": \"val001\"\n}\n```\n\n### Error Response (400)\n```json\n{\n  \"message\": \"Parameter 'max-runtime' must be greater than or equal to 1.\"\n}\n```",
         "operationId": "validate_pipeline",
         "requestBody": {
           "content": {
@@ -5483,7 +5483,7 @@
               }
             ],
             "title": "Min Stream Fps",
-            "description": "FPS of the slowest stream. A density test passes a stream count only if this reaches `fps_floor`. `null` when the run reports total FPS only (local runner); `per_stream_fps` is then the only measure.",
+            "description": "FPS of the slowest stream. A density test passes a stream count only if this reaches `fps_floor`. `null` when no per-stream FPS was measured; `per_stream_fps` is then the only measure.",
             "examples": [
               27.5
             ]
@@ -7077,7 +7077,7 @@
               }
             ],
             "title": "Min Stream Fps",
-            "description": "FPS of the slowest stream. A density test passes a stream count only if this reaches `fps_floor`. `null` when the run reports total FPS only (local runner); `per_stream_fps` is then the only measure.",
+            "description": "FPS of the slowest stream. A density test passes a stream count only if this reaches `fps_floor`. `null` when no per-stream FPS was measured; `per_stream_fps` is then the only measure.",
             "examples": [
               27.5
             ]

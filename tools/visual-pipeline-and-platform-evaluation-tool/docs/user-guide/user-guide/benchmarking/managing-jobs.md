@@ -57,7 +57,7 @@ To stop a job that is currently running:
   from an incomplete search algorithm are not meaningful.
 
 > [!NOTE]
-> Stopping a job sends a cancellation signal to the underlying GStreamer subprocesses.
+> Stopping a job stops its pipeline instances on DL Streamer Pipeline Server 2.0.
 > The actual termination may take a few seconds while pipelines flush their buffers.
 
 ## API endpoints
