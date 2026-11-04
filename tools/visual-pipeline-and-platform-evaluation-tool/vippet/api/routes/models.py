@@ -54,6 +54,7 @@ def _internal_model_to_api(model: InternalSupportedModel) -> schemas.Model:
         used_by_pipelines=list(model.used_by_pipelines),
         default=model.default,
         unsupported_devices=model.unsupported_devices,
+        link=model.link,
     )
 
 

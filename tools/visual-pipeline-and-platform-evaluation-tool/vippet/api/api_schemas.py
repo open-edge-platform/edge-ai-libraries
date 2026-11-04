@@ -2330,6 +2330,7 @@ class Model(BaseModel):
     - `used_by_pipelines` - List of predefined-pipeline ids that reference this model. Non-empty list means the model is recommended for installation
     - `default` - Whether at least one predefined pipeline references this model (`used_by_pipelines` is non-empty). Used by the Models page to pre-select recommended models in the bulk-install UI.
     - `unsupported_devices` - Comma-separated string of devices that cannot run this model (or null)
+    - `link` - URL of the model page on its upstream hub (currently Hugging Face only), or null
 
     ### Example
     ```json
@@ -2344,7 +2345,8 @@ class Model(BaseModel):
         {"name": "yolo11n_FP16", "display_name": "YOLO 11n 640x640 (FP16)", "precision": "FP16"}
       ],
       "used_by_pipelines": ["smart-nvr", "goods-detection"],
-      "unsupported_devices": null
+      "unsupported_devices": null,
+      "link": null
     }
     ```
     """
@@ -2395,6 +2397,13 @@ class Model(BaseModel):
         description=(
             "Comma-separated list of devices on which the model "
             "cannot run (e.g. 'NPU'), or null when no restrictions exist."
+        ),
+    )
+    link: Optional[str] = Field(
+        default=None,
+        description=(
+            "URL of the model page on its upstream hub (currently only "
+            "Hugging Face), or null when not available."
         ),
     )
 

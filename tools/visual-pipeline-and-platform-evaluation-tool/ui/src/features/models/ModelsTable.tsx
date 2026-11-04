@@ -9,7 +9,7 @@ import {
 import { useAppSelector } from "@/store/hooks";
 import { selectModels } from "@/store/reducers/models";
 import { useMemo } from "react";
-import { Download, EllipsisVertical, Trash2 } from "lucide-react";
+import { Download, EllipsisVertical, ExternalLink, Trash2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -62,7 +62,22 @@ export const ModelsTable = ({
                   {model.display_name}
                 </div>
               </TableCell>
-              <TableCell>{model.source}</TableCell>
+              <TableCell>
+                {model.link ? (
+                  <a
+                    href={model.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-primary hover:underline"
+                    title={model.link}
+                  >
+                    {model.source}
+                    <ExternalLink className="size-3" />
+                  </a>
+                ) : (
+                  model.source
+                )}
+              </TableCell>
               <TableCell>
                 {Array.from(
                   new Set(

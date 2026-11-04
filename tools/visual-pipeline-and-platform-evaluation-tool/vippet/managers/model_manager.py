@@ -383,6 +383,7 @@ class ModelManager:
                         unsupported_devices=db_model.unsupported_devices,
                         download_request=db_model.download_request,
                         description=db_model.description,
+                        link=db_model.link,
                     )
                 )
 

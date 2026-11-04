@@ -82,6 +82,7 @@ class ModelCatalogSpec(TypedDict):
     hub: str
     category: str
     unsupported_devices: str | None
+    link: str | None
     precisions: list[ModelPrecisionSpec]
     extra_model_procs: list[str]
     download_request: dict[str, Any] | None
@@ -391,6 +392,8 @@ def _validate_model_catalog_spec(
         if isinstance(unsupported_devices_raw, str) and unsupported_devices_raw.strip()
         else None
     )
+    link_raw = loaded.get("link")
+    link = link_raw.strip() if isinstance(link_raw, str) and link_raw.strip() else None
     extra_model_procs_raw = loaded.get("extra_model_procs")
     extra_model_procs = (
         [p.strip() for p in extra_model_procs_raw if isinstance(p, str) and p.strip()]
@@ -410,6 +413,7 @@ def _validate_model_catalog_spec(
         hub=hub,
         category=category.strip(),
         unsupported_devices=unsupported_devices,
+        link=link,
         precisions=valid_precisions,
         extra_model_procs=extra_model_procs,
         download_request=download_request,
@@ -650,6 +654,7 @@ async def _seed_models(
             source=spec["source"],
             hub=spec["hub"],
             unsupported_devices=spec["unsupported_devices"],
+            link=spec["link"],
             is_custom=False,
             install_status="installed" if model_installed else "not_installed",
             installed_at=now if model_installed else None,

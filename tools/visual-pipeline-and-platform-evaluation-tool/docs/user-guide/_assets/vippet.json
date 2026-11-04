@@ -6148,6 +6148,18 @@
             ],
             "title": "Unsupported Devices",
             "description": "Comma-separated list of devices on which the model cannot run (e.g. 'NPU'), or null when no restrictions exist."
+          },
+          "link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link",
+            "description": "URL of the model page on its upstream hub (currently only Hugging Face), or null when not available."
           }
         },
         "type": "object",

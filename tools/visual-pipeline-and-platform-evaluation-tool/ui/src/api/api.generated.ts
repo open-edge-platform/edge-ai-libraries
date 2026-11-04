@@ -1373,6 +1373,8 @@ export type Model = {
   default?: boolean;
   /** Comma-separated list of devices on which the model cannot run (e.g. 'NPU'), or null when no restrictions exist. */
   unsupported_devices?: string | null;
+  /** URL of the model page on its upstream hub (currently only Hugging Face), or null when not available. */
+  link?: string | null;
 };
 export type ModelHubListResponse = {
   hub: string;
