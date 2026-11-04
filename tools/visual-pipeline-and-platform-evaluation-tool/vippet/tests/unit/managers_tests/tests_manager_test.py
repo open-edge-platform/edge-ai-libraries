@@ -3,6 +3,7 @@ import unittest
 from unittest.mock import ANY, patch, MagicMock
 
 from benchmark import BenchmarkResult
+from dlsps2_runner import Dlsps2PipelineRunner
 from graph import Graph
 from internal_types import (
     InternalDensityJobStatus,
@@ -2137,6 +2138,123 @@ class TestMetadataStreamUrlsInPerformanceJob(unittest.TestCase):
         mock_metadata_manager_instance.stop_tailing.assert_called_once_with(job_id)
         updated = manager.jobs[job_id]
         self.assertEqual(updated.state, InternalTestJobState.FAILED)
+
+
+@patch("managers.tests_manager._EXECUTION_BACKEND", "dlsps2")
+class TestDlsps2Backend(unittest.TestCase):
+    """VIPPET_EXECUTION_BACKEND=dlsps2 routes every stream to its own DLSPS instance."""
+
+    def setUp(self):
+        TestsManager._instance = None
+        PipelineManager._instance = None
+
+    def tearDown(self):
+        TestsManager._instance = None
+        PipelineManager._instance = None
+
+    def _performance_job(self, manager, enable_latency_metrics=False):
+        execution_config = create_internal_execution_config()
+        execution_config.enable_latency_metrics = enable_latency_metrics
+        internal_spec = create_internal_performance_test_spec(
+            pipeline_specs=[create_internal_performance_spec(streams=2)],
+            execution_config=execution_config,
+        )
+        job_id = "test-job-dlsps2"
+        manager.jobs[job_id] = InternalPerformanceJobStatus(
+            id=job_id,
+            request=internal_spec.original_request,
+            start_time=int(time.time() * 1000),
+            state=InternalTestJobState.RUNNING,
+        )
+        return job_id, internal_spec
+
+    @patch("managers.tests_manager.collect_video_outputs_from_dirs", return_value={})
+    @patch("managers.tests_manager.PipelineManager")
+    def test_multi_stream_performance_runs_per_stream_instances(
+        self, mock_pipeline_manager_cls, _mock_collect
+    ):
+        stream_commands = {"s0": "fakesrc ! fakesink", "s1": "fakesrc ! fakesink"}
+        mock_pipeline_manager_cls.return_value.build_pipeline_command.return_value = (
+            PipelineCommand(
+                command="fakesrc ! fakesink fakesrc ! fakesink",
+                stream_commands=stream_commands,
+            )
+        )
+        manager = TestsManager()
+        job_id, internal_spec = self._performance_job(manager)
+
+        with (
+            patch.object(
+                Dlsps2PipelineRunner,
+                "run",
+                return_value=PipelineResult(
+                    total_fps=50.0,
+                    per_stream_fps=25.0,
+                    num_streams=2,
+                    stream_fps={"s0": 30.0, "s1": 20.0},
+                ),
+            ) as mock_dlsps2_run,
+            patch.object(PipelineRunner, "run") as mock_local_run,
+        ):
+            manager._execute_performance_test(job_id, internal_spec)
+
+        mock_local_run.assert_not_called()
+        self.assertEqual(
+            mock_dlsps2_run.call_args.kwargs["stream_commands"], stream_commands
+        )
+        self.assertEqual(mock_dlsps2_run.call_args.kwargs["total_streams"], 2)
+        updated = manager.jobs[job_id]
+        self.assertEqual(updated.state, InternalTestJobState.COMPLETED)
+        self.assertEqual(updated.per_stream_fps, 25.0)
+
+    @patch("managers.tests_manager.collect_video_outputs_from_dirs", return_value={})
+    @patch("managers.tests_manager.PipelineManager")
+    def test_latency_metrics_keep_the_local_runner(
+        self, mock_pipeline_manager_cls, _mock_collect
+    ):
+        mock_pipeline_manager_cls.return_value.build_pipeline_command.return_value = (
+            PipelineCommand(command="fakesrc ! fakesink")
+        )
+        manager = TestsManager()
+        job_id, internal_spec = self._performance_job(
+            manager, enable_latency_metrics=True
+        )
+
+        with (
+            patch.object(Dlsps2PipelineRunner, "run") as mock_dlsps2_run,
+            patch.object(
+                PipelineRunner,
+                "run",
+                return_value=PipelineResult(total_fps=10.0, num_streams=2),
+            ) as mock_local_run,
+        ):
+            manager._execute_performance_test(job_id, internal_spec)
+
+        mock_dlsps2_run.assert_not_called()
+        mock_local_run.assert_called_once()
+
+    @patch("managers.tests_manager.Benchmark")
+    @patch("managers.tests_manager.PipelineManager")
+    def test_density_benchmark_uses_dlsps2(
+        self, _mock_pipeline_manager_cls, mock_benchmark_cls
+    ):
+        mock_benchmark_cls.return_value.runner.is_cancelled.return_value = False
+        manager = TestsManager()
+        internal_spec = create_internal_density_test_spec()
+        job_id = "test-density-dlsps2"
+        manager.jobs[job_id] = InternalDensityJobStatus(
+            id=job_id,
+            request=internal_spec.original_request,
+            start_time=int(time.time() * 1000),
+            state=InternalTestJobState.RUNNING,
+        )
+
+        with patch(
+            "managers.tests_manager.collect_video_outputs_from_dirs", return_value={}
+        ):
+            manager._execute_density_test(job_id, internal_spec)
+
+        self.assertTrue(mock_benchmark_cls.call_args.kwargs["use_dlsps2"])
 
 
 if __name__ == "__main__":

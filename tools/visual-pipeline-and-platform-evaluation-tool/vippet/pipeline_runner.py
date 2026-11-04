@@ -122,6 +122,9 @@ class PipelineResult:
             * Non-empty ``dict`` otherwise. Only the latest sample per
               stream is kept; earlier samples for the same stream are
               overwritten as new interval lines arrive.
+        stream_fps: Measured FPS per stream, keyed by ``stream_id``.
+            Empty when the runner cannot attribute FPS to individual
+            streams (the local runner reports totals only).
     """
 
     total_fps: float = 0.0
@@ -133,6 +136,12 @@ class PipelineResult:
     stderr: list[str] = field(default_factory=list)
     details: str | None = None
     latency_tracer_metrics: "dict[str, LatencyTracerSample] | None" = None
+    stream_fps: dict[str, float] = field(default_factory=dict)
+
+    @property
+    def min_stream_fps(self) -> float | None:
+        """FPS of the slowest stream, or ``None`` without per-stream data."""
+        return min(self.stream_fps.values()) if self.stream_fps else None
 
     def __repr__(self):
         # `latency_tracer_metrics` is reported by its cardinality only so

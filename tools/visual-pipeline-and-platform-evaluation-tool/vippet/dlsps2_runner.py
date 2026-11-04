@@ -16,30 +16,27 @@ supported today:
   the pipeline is valid if it stays ``RUNNING`` for ``max_runtime`` seconds or
   reaches ``COMPLETED`` sooner; ``ERROR``/``ABORTED`` is invalid. The
   instance is then torn down with ``DELETE /pipelines/{id}``.
-* ``mode="normal"`` with ``total_streams == 1`` (single-stream performance
-  tests) — maps onto ``POST /pipelines``, polling
-  ``GET /pipelines/{id}/status`` for ``avg_fps``, and
-  ``DELETE /pipelines/{id}`` once ``max_runtime`` elapses, the pipeline
-  reaches a terminal state, or the caller cancels the run.
+* ``mode="normal"`` (performance and density tests) — every stream runs as
+  its own instance (``POST /pipelines`` per stream, all in the unpinned
+  worker). ``GET /pipelines/status`` is polled for each stream's
+  ``frame_fps``; every instance is stopped with ``DELETE /pipelines/{id}``
+  once ``max_runtime`` elapses, all instances end, or the caller cancels.
+  The result carries the FPS of each stream, so callers can judge the
+  slowest one.
 
-Deliberately NOT supported — ``run()`` raises :class:`NotImplementedError`:
+Deliberately NOT supported:
 
-* ``enable_latency_metrics=True``: DLSPS 2.0 has no ``latency_tracer``
-  support at all — there is no REST-exposed way to read per-stream latency
-  samples from a running instance.
-* ``mode="normal"`` with ``total_streams != 1`` (density tests / multi-stream
-  performance tests): DLSPS 2.0's FPS probe attaches to a single sink
-  element and reports one ``avg_fps``/``frame_fps`` pair per instance. A
-  VIPPET density/multi-stream pipeline combines several *independent*
-  source/sink chains into one launch string, and dlsps2 cannot currently
-  report a correct per-stream FPS breakdown for that shape (see repo notes
-  on the pad-probe fix, which assumes multiple sinks are duplicates of one
-  stream via a ``tee``, not independent streams).
+* ``enable_latency_metrics=True`` raises :class:`NotImplementedError`:
+  DLSPS 2.0 has no ``latency_tracer`` support at all — there is no
+  REST-exposed way to read per-stream latency samples from a running
+  instance.
+* A combined multi-stream launch string without per-stream commands raises
+  :class:`NotImplementedError`: DLSPS 2.0 counts frames on the first sink
+  of an instance only.
 
-Callers should catch :class:`NotImplementedError` and fall back to the local
-:class:`~pipeline_runner.PipelineRunner` for unsupported cases — see
-``managers.validation_manager`` and ``managers.tests_manager`` for the
-selection logic.
+Callers fall back to the local :class:`~pipeline_runner.PipelineRunner` for
+unsupported cases — see ``managers.validation_manager``,
+``managers.tests_manager`` and ``benchmark`` for the selection logic.
 """
 
 import json
@@ -52,7 +49,7 @@ from typing import Optional
 
 import httpx
 
-from pipeline_runner import PipelineResult
+from pipeline_runner import LatencyTracerSample, PipelineResult
 
 logger = logging.getLogger("dlsps2_runner")
 
@@ -89,12 +86,18 @@ DLSPS2_HTTP_TIMEOUT_S: float = float(os.environ.get("DLSPS2_HTTP_TIMEOUT_S", "30
 # Default interval used to poll GET /pipelines/{id}/status, seconds.
 DLSPS2_POLL_INTERVAL_S: float = float(os.environ.get("DLSPS2_POLL_INTERVAL_S", "1"))
 
+# Seconds after every stream produces frames before FPS samples count.
+DLSPS2_WARMUP_S: float = float(os.environ.get("DLSPS2_WARMUP_S", "5"))
+
+# How long to retry DELETE on instances still in validation (capped at 30 s by DLSPS).
+DLSPS2_STOP_TIMEOUT_S: float = float(os.environ.get("DLSPS2_STOP_TIMEOUT_S", "40"))
+
 # States a dlsps2 pipeline instance can no longer leave on its own.
 _TERMINAL_STATES = frozenset({"COMPLETED", "ERROR", "ABORTED"})
 
 
 class Dlsps2PipelineRunner:
-    """Executes one pipeline via a running DLSPS 2.0 instance's REST API.
+    """Executes pipelines via a running DLSPS 2.0 instance's REST API.
 
     Mirrors the subset of :class:`~pipeline_runner.PipelineRunner`'s public
     interface (constructor keyword args, ``run()``, ``cancel()``,
@@ -143,6 +146,8 @@ class Dlsps2PipelineRunner:
         self.base_url = (base_url or DLSPS2_BASE_URL).rstrip("/")
         self.cancelled = False
         self.logger = logger
+        # Same attribute as PipelineRunner; DLSPS 2.0 has no latency tracer.
+        self.latency_tracer_metrics: dict[str, LatencyTracerSample] | None = None
 
         metrics_manager_url = os.environ.get(
             "METRICS_MANAGER_URL", DEFAULT_METRICS_MANAGER_URL
@@ -162,43 +167,46 @@ class Dlsps2PipelineRunner:
         pipeline_command: str,
         total_streams: int = 1,
         allowed_stream_ids: "set[str] | None" = None,
+        stream_commands: dict[str, str] | None = None,
     ) -> PipelineResult:
         """Run a pipeline against DLSPS 2.0 and return a `PipelineResult`.
 
         Args:
-            pipeline_command: Complete GStreamer pipeline description string
-                (VIPPET already builds one complete string per test via
-                ``PipelineManager.build_pipeline_command()``, so this maps
-                directly onto ``POST /pipelines``'s ``pipeline`` field).
-            total_streams: Expected stream count. Only ``1`` is supported in
-                normal mode (see module docstring); ignored in validation
-                mode.
+            pipeline_command: Complete GStreamer pipeline description string.
+                Validation mode submits it as is. Normal mode uses it only
+                when ``stream_commands`` is not given.
+            total_streams: Expected stream count. Without ``stream_commands``
+                only ``1`` is supported in normal mode; ignored in
+                validation mode.
             allowed_stream_ids: Unused — accepted only so this method has the
                 same signature as ``PipelineRunner.run()``. DLSPS 2.0 exposes
-                no latency_tracer / per-stream data to filter.
+                no latency_tracer data to filter.
+            stream_commands: Normal mode only. One launch string per stream,
+                keyed by ``stream_id`` (``PipelineCommand.stream_commands``);
+                each runs as its own DLSPS 2.0 instance.
 
         Returns:
             PipelineResult with ``exit_code``/``stderr`` (validation mode) or
-            ``total_fps``/``per_stream_fps``/``exit_code`` (normal mode).
+            ``total_fps``/``per_stream_fps``/``stream_fps`` (normal mode).
 
         Raises:
-            NotImplementedError: If ``mode == "normal"`` and
-                ``total_streams != 1``.
-            RuntimeError: If the pipeline fails on DLSPS 2.0 without having
-                been cancelled (normal mode only, mirroring
-                ``PipelineRunner``'s contract).
+            NotImplementedError: If ``mode == "normal"``, ``stream_commands``
+                is not given and ``total_streams != 1``.
+            RuntimeError: If the run fails on DLSPS 2.0 without having been
+                cancelled (normal mode only, mirroring ``PipelineRunner``'s
+                contract).
         """
         if self.mode == "validation":
             return self._run_validation(pipeline_command)
 
-        if total_streams != 1:
-            raise NotImplementedError(
-                "Dlsps2PipelineRunner only supports single-stream "
-                f"('normal', total_streams=1) performance runs; got "
-                f"total_streams={total_streams}. Multi-stream/density tests "
-                "still require the local PipelineRunner."
-            )
-        return self._run_normal(pipeline_command)
+        if stream_commands is None:
+            if total_streams != 1:
+                raise NotImplementedError(
+                    "Dlsps2PipelineRunner needs one launch string per stream "
+                    f"(stream_commands) to run total_streams={total_streams}."
+                )
+            stream_commands = {"stream": pipeline_command}
+        return self._run_streams(stream_commands)
 
     # ------------------------------------------------------------------
     # REST helpers
@@ -218,6 +226,22 @@ class Dlsps2PipelineRunner:
         response = client.get(f"{self.base_url}/pipelines/{instance_id}/status")
         response.raise_for_status()
         return response.json()
+
+    def _statuses(
+        self, client: httpx.Client, instances: dict[str, str]
+    ) -> dict[str, dict]:
+        """Status of each instance in ``{stream_id: instance_id}``, in one request.
+
+        Instances DLSPS no longer reports are left out.
+        """
+        response = client.get(f"{self.base_url}/pipelines/status")
+        response.raise_for_status()
+        by_id = {item.get("id"): item for item in response.json()}
+        return {
+            stream_id: by_id[instance_id]
+            for stream_id, instance_id in instances.items()
+            if instance_id in by_id
+        }
 
     @staticmethod
     def _error_detail(exc: httpx.HTTPError) -> str:
@@ -243,6 +267,42 @@ class Dlsps2PipelineRunner:
             self.logger.warning(
                 "Failed to stop DLSPS 2.0 instance %s: %s", instance_id, exc
             )
+
+    def _stop_all(self, client: httpx.Client, instance_ids: list[str]) -> None:
+        """Stop every instance. Never raises.
+
+        DLSPS 2.0 answers ``DELETE`` with 409 while an instance is still
+        ``QUEUED`` in validation, and starts it afterwards. Such instances are
+        retried until they leave ``QUEUED`` or ``DLSPS2_STOP_TIMEOUT_S``
+        passes.
+        """
+        pending = list(instance_ids)
+        deadline = time.monotonic() + DLSPS2_STOP_TIMEOUT_S
+        while True:
+            pending = [iid for iid in pending if not self._try_stop(client, iid)]
+            if not pending or time.monotonic() >= deadline:
+                break
+            time.sleep(self.poll_interval)
+        if pending:
+            self.logger.warning(
+                "DLSPS 2.0 instances still queued after %ss, not stopped: %s",
+                DLSPS2_STOP_TIMEOUT_S,
+                pending,
+            )
+
+    def _try_stop(self, client: httpx.Client, instance_id: str) -> bool:
+        """DELETE one instance; ``False`` only if it is still ``QUEUED``."""
+        try:
+            response = client.delete(f"{self.base_url}/pipelines/{instance_id}")
+            if response.status_code == 409:
+                return self._status(client, instance_id).get("state") != "QUEUED"
+            if response.status_code not in (200, 404):
+                response.raise_for_status()
+        except httpx.HTTPError as exc:
+            self.logger.warning(
+                "Failed to stop DLSPS 2.0 instance %s: %s", instance_id, exc
+            )
+        return True
 
     def _push_fps_metric(self, fps: float) -> None:
         """Fire-and-forget push of the current FPS value to metrics-manager.
@@ -346,105 +406,163 @@ class Dlsps2PipelineRunner:
                 self._stop(client, instance_id)
 
     # ------------------------------------------------------------------
-    # Normal (single-stream performance) mode
+    # Normal (performance and density) mode
     # ------------------------------------------------------------------
 
-    def _run_normal(self, pipeline_command: str) -> PipelineResult:
-        """Run a single-stream pipeline in normal mode against DLSPS 2.0.
+    def _warmup(self) -> float:
+        """Warm-up before FPS samples count, never more than half the run."""
+        if self.max_runtime > 0:
+            return min(DLSPS2_WARMUP_S, self.max_runtime / 2)
+        return DLSPS2_WARMUP_S
 
-        Polls ``GET /pipelines/{id}/status`` every ``poll_interval`` seconds
-        until ``max_runtime`` elapses (``0`` means run until the pipeline
-        reaches a terminal state on its own), the pipeline reaches a
-        terminal state, or the caller calls :meth:`cancel`. The instance is
-        always stopped via ``DELETE /pipelines/{id}`` before returning.
+    def _run_streams(self, stream_commands: dict[str, str]) -> PipelineResult:
+        """Run every stream as its own DLSPS 2.0 instance and measure each one.
+
+        All instances go to the unpinned worker. The run lasts
+        ``max_runtime`` seconds from the moment every stream produces frames
+        (``0``: until every instance ends on its own), or until
+        :meth:`cancel`. Every instance is stopped before returning.
+
+        A stream's FPS is the mean of its ``frame_fps`` samples taken while
+        all streams are running, after the warm-up. A stream without such
+        samples (a run too short, or one that ended early) falls back to its
+        final ``avg_fps``. This stands in for a DLSPS lifecycle timeline
+        (ITEP-97433).
+
+        Raises:
+            RuntimeError: If a submit fails, an instance ends in ``ERROR`` or
+                ``ABORTED``, a stream produces no frames for
+                ``inactivity_timeout`` seconds, or DLSPS stays unreachable for
+                that long. Not raised once the run is cancelled.
         """
+        instances: dict[str, str] = {}
+        samples: dict[str, list[float]] = {sid: [] for sid in stream_commands}
+        statuses: dict[str, dict] = {}
+
         with self._client() as client:
             try:
-                instance_id = self._start(client, pipeline_command)
-            except httpx.HTTPError as exc:
-                raise RuntimeError(
-                    f"Failed to submit pipeline to DLSPS 2.0: {self._error_detail(exc)}"
-                ) from exc
+                for stream_id, command in stream_commands.items():
+                    try:
+                        instances[stream_id] = self._start(client, command)
+                    except httpx.HTTPError as exc:
+                        raise RuntimeError(
+                            f"Failed to submit stream {stream_id} to DLSPS 2.0: "
+                            f"{self._error_detail(exc)}"
+                        ) from exc
 
-            start_time = time.monotonic()
-            last_activity_time = start_time
-            last_status: Optional[dict] = None
+                last_contact = time.monotonic()
+                last_frame = dict.fromkeys(instances, last_contact)
+                playing_since: float | None = None
 
-            try:
                 while not self.cancelled:
+                    now = time.monotonic()
                     if (
-                        self.max_runtime > 0
-                        and (time.monotonic() - start_time) >= self.max_runtime
+                        playing_since is not None
+                        and self.max_runtime > 0
+                        and now - playing_since >= self.max_runtime
                     ):
                         break
 
                     try:
-                        last_status = self._status(client, instance_id)
+                        statuses = self._statuses(client, instances)
                     except httpx.HTTPError as exc:
-                        if (
-                            time.monotonic() - last_activity_time
-                            > self.inactivity_timeout
-                        ):
+                        if now - last_contact > self.inactivity_timeout:
                             raise RuntimeError(
-                                f"Lost contact with DLSPS 2.0 instance {instance_id} "
-                                f"for over {self.inactivity_timeout}s: {exc}"
+                                "Lost contact with DLSPS 2.0 for over "
+                                f"{self.inactivity_timeout}s: {exc}"
                             ) from exc
                         time.sleep(self.poll_interval)
                         continue
+                    last_contact = now
 
-                    last_activity_time = time.monotonic()
-                    # Push the instantaneous ('last interval') fps, not the
-                    # cumulative avg_fps, so the UI's live chart reacts to
-                    # real fluctuations the same way it does for the local
-                    # PipelineRunner (which reports gvafpscounter's rolling
-                    # 1s-window average, not a since-start cumulative one).
-                    frame_fps = last_status.get("frame_fps")
-                    if frame_fps is not None:
-                        self._push_fps_metric(float(frame_fps))
-
-                    if last_status.get("state") in _TERMINAL_STATES:
+                    states = {sid: s.get("state") for sid, s in statuses.items()}
+                    for sid, state in states.items():
+                        if state in ("ERROR", "ABORTED"):
+                            message = statuses[sid].get("message") or f"state={state}"
+                            raise RuntimeError(
+                                f"Stream {sid} failed on DLSPS 2.0: {message}"
+                            )
+                    if len(states) == len(instances) and all(
+                        state == "COMPLETED" for state in states.values()
+                    ):
                         break
 
+                    fps = {
+                        sid: float(statuses[sid].get("frame_fps") or 0.0)
+                        if sid in statuses
+                        else 0.0
+                        for sid in instances
+                    }
+                    for sid, value in fps.items():
+                        if value > 0:
+                            last_frame[sid] = now
+                    stalled = [
+                        sid
+                        for sid in instances
+                        if states.get(sid) != "COMPLETED"
+                        and now - last_frame[sid] > self.inactivity_timeout
+                    ]
+                    if stalled:
+                        raise RuntimeError(
+                            f"No frames from stream(s) {', '.join(stalled)} on "
+                            f"DLSPS 2.0 for over {self.inactivity_timeout}s"
+                        )
+
+                    all_playing = all(
+                        states.get(sid) == "RUNNING" and fps[sid] > 0
+                        for sid in instances
+                    )
+                    if all_playing and playing_since is None:
+                        playing_since = now
+                    if (
+                        all_playing
+                        and playing_since is not None
+                        and now - playing_since >= self._warmup()
+                    ):
+                        for sid, value in fps.items():
+                            samples[sid].append(value)
+
+                    # Mean per stream, as PipelineRunner pushes for the live chart.
+                    self._push_fps_metric(sum(fps.values()) / len(instances))
                     time.sleep(self.poll_interval)
             finally:
-                self._stop(client, instance_id)
-                # One last poll after stopping, so the returned metrics
-                # reflect the instance's final reported state where possible.
-                try:
-                    last_status = self._status(client, instance_id) or last_status
-                except httpx.HTTPError:
-                    pass
-                # Signal to the UI's live chart that the pipeline is no
-                # longer running, mirroring PipelineRunner's own final
-                # `_push_fps_metric(0.0)` call at shutdown.
-                self._push_fps_metric(0.0)
+                if instances:
+                    self._stop_all(client, list(instances.values()))
+                    try:
+                        statuses.update(self._statuses(client, instances))
+                    except httpx.HTTPError:
+                        pass
+                    self._push_fps_metric(0.0)
 
-            if last_status is None:
-                raise RuntimeError(
-                    f"No status was ever received for DLSPS 2.0 instance {instance_id}"
-                )
+        stream_fps: dict[str, float] = {}
+        fallback = 0
+        for sid in instances:
+            if samples[sid]:
+                stream_fps[sid] = sum(samples[sid]) / len(samples[sid])
+            else:
+                stream_fps[sid] = float(statuses.get(sid, {}).get("avg_fps") or 0.0)
+                fallback += 1
 
-            state = last_status.get("state")
-            avg_fps = last_status.get("avg_fps") or 0.0
-            exit_code = 1 if state == "ERROR" and not self.cancelled else 0
-
-            if exit_code != 0:
-                # Mirror PipelineRunner's contract: a non-cancelled failure
-                # raises, it is not returned as a "failed" PipelineResult.
-                raise RuntimeError(
-                    "Pipeline execution failed on DLSPS 2.0: "
-                    f"{last_status.get('message') or f'state={state}'}"
-                )
-
-            message = last_status.get("message")
-            return PipelineResult(
-                total_fps=avg_fps,
-                per_stream_fps=avg_fps,
-                num_streams=1,
-                exit_code=0,
-                cancelled=self.cancelled,
-                stdout=[],
-                stderr=[str(message)] if message else [],
-                details=f"DLSPS 2.0 instance {instance_id} (state={state})",
-                latency_tracer_metrics=None,
-            )
+        total_fps = sum(stream_fps.values())
+        details = (
+            f"DLSPS 2.0: {len(instances)} instance(s) in the unpinned worker, "
+            "fps over the common window"
+        )
+        if fallback:
+            details += f"; final avg_fps used for {fallback} stream(s)"
+        return PipelineResult(
+            total_fps=total_fps,
+            per_stream_fps=total_fps / len(instances),
+            num_streams=len(instances),
+            exit_code=0,
+            cancelled=self.cancelled,
+            stdout=[],
+            stderr=[
+                f"{sid}: {status['message']}"
+                for sid, status in statuses.items()
+                if status.get("message")
+            ],
+            details=details,
+            latency_tracer_metrics=None,
+            stream_fps=stream_fps,
+        )

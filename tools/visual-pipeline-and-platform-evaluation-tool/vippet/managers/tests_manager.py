@@ -40,12 +40,11 @@ from utils import slugify_text
 
 logger = logging.getLogger("tests_manager")
 
-# Selects the pipeline execution backend for single-stream performance
-# tests: "local" (default) spawns gst_runner.py as before; "dlsps2"
-# delegates to a running DLSPS 2.0 instance via Dlsps2PipelineRunner.
-# Density tests and multi-stream performance tests always use the local
-# runner -- see dlsps2_runner.py for why (no per-stream FPS breakdown on
-# DLSPS 2.0 for independent concurrent streams).
+# Selects the pipeline execution backend for performance and density
+# tests: "local" (default) spawns gst_runner.py as before; "dlsps2" runs
+# every stream as its own DLSPS 2.0 instance via Dlsps2PipelineRunner.
+# Runs with latency metrics always use the local runner: DLSPS 2.0 has no
+# latency tracer.
 _EXECUTION_BACKEND = os.environ.get("VIPPET_EXECUTION_BACKEND", "local").strip().lower()
 
 METRICS_MANAGER_URL: str = os.environ.get(
@@ -756,17 +755,14 @@ class TestsManager:
             # from execution_config.
             #
             # Dlsps2PipelineRunner is only used when explicitly enabled via
-            # VIPPET_EXECUTION_BACKEND=dlsps2 AND the test is single-stream:
-            # DLSPS 2.0 cannot currently report a correct per-stream FPS
-            # breakdown for a launch string combining several independent
-            # streams (see dlsps2_runner.py), nor does it support
-            # latency_tracer metrics. Any other combination falls back to
-            # the local PipelineRunner.
+            # VIPPET_EXECUTION_BACKEND=dlsps2 and latency metrics are off:
+            # DLSPS 2.0 has no latency_tracer support. Each stream runs as
+            # its own DLSPS 2.0 instance.
             use_dlsps2 = (
                 _EXECUTION_BACKEND == "dlsps2"
-                and total_streams == 1
                 and not internal_spec.execution_config.enable_latency_metrics
             )
+            runner: PipelineRunner | Dlsps2PipelineRunner
             if use_dlsps2:
                 runner = Dlsps2PipelineRunner(
                     mode="normal",
@@ -793,10 +789,18 @@ class TestsManager:
             # intermediate `splitmuxsink` elements is dropped.
             # If exit_code != 0 and the run was not cancelled, PipelineRunner
             # raises RuntimeError which is handled in the except block below.
-            result = runner.run(
-                pipeline_command=pipeline_command,
-                total_streams=total_streams,
-                allowed_stream_ids=set(pipeline_cmd.all_stream_ids),
+            result = (
+                runner.run(
+                    pipeline_command=pipeline_command,
+                    total_streams=total_streams,
+                    stream_commands=pipeline_cmd.stream_commands,
+                )
+                if isinstance(runner, Dlsps2PipelineRunner)
+                else runner.run(
+                    pipeline_command=pipeline_command,
+                    total_streams=total_streams,
+                    allowed_stream_ids=set(pipeline_cmd.all_stream_ids),
+                )
             )
 
             # Collect actual video file lists from output directories after pipeline completes
@@ -987,10 +991,15 @@ class TestsManager:
             )
 
             # Initialize Benchmark
+            enable_latency_metrics = (
+                internal_spec.execution_config.enable_latency_metrics
+            )
             benchmark = Benchmark(
                 max_runtime=internal_spec.execution_config.max_runtime,
-                enable_latency_metrics=internal_spec.execution_config.enable_latency_metrics,
+                enable_latency_metrics=enable_latency_metrics,
                 job_id=job_id,
+                use_dlsps2=_EXECUTION_BACKEND == "dlsps2"
+                and not enable_latency_metrics,
             )
 
             # Store benchmark runner for this job so that a future extension could cancel it.

@@ -2,11 +2,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Optional overlay: runs a DLSPS 2.0 (dlstreamer-pipeline-server) instance
-# alongside VIPPET and points VIPPET's validation / single-stream
-# performance-test execution at it instead of the local gst_runner.py
-# subprocess. See vippet/dlsps2_runner.py for exactly what is and is not
-# supported (density / multi-stream tests and latency metrics still use the
-# local runner regardless of this overlay).
+# alongside VIPPET and points VIPPET's pipeline execution at it instead of the
+# local gst_runner.py subprocess: validation, and performance and density tests
+# (one DLSPS 2.0 instance per stream). Tests with latency metrics still use the
+# local runner. See vippet/dlsps2_runner.py for what is and is not supported.
 #
 # Usage: make build run DLSPS2=1
 #   (or: docker compose -f compose.yml -f compose.$COMPOSE_PROFILES.yml -f compose.dlsps2.yml up -d)
@@ -68,8 +67,8 @@ services:
       - ./shared/images/:/images
       - ./shared/metadata/:/metadata
 
-  # Point VIPPET's validation / single-stream performance test path at the
-  # dlstreamer-pipeline-server service above instead of local gst_runner.py.
+  # Point VIPPET's pipeline execution at the dlstreamer-pipeline-server
+  # service above instead of local gst_runner.py.
   vippet:
     depends_on:
       dlstreamer-pipeline-server:

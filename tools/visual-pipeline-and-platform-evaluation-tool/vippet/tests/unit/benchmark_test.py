@@ -8,6 +8,7 @@ from benchmark import (
     Benchmark,
     BenchmarkResult,
 )
+from dlsps2_runner import Dlsps2PipelineRunner
 from graph import Graph, Node, Edge
 from internal_types import (
     InternalExecutionConfig,
@@ -1106,6 +1107,41 @@ class TestBenchmarkMixedDensity(unittest.TestCase):
         # The incremented pipeline must actually change (otherwise the
         # search is broken).
         self.assertGreater(len(set(grow_streams_seen)), 1)
+
+
+class TestBenchmarkDlsps2(unittest.TestCase):
+    """With ``use_dlsps2``, every stream's own launch string goes to the runner."""
+
+    STREAM_COMMANDS = {"s0": "pipeline 0", "s1": "pipeline 1"}
+
+    def test_dlsps2_runner_receives_per_stream_commands(self):
+        benchmark = Benchmark(use_dlsps2=True)
+        self.assertIsInstance(benchmark.runner, Dlsps2PipelineRunner)
+        specs = [create_internal_density_spec("/pipelines/p/variants/v", "p")]
+        # The mean per stream decides: 40 passes a floor of 30, 25 does not.
+        results = [
+            PipelineResult(total_fps=40, per_stream_fps=40, stream_fps={"s0": 40.0}),
+            PipelineResult(
+                total_fps=50, per_stream_fps=25, stream_fps={"s0": 30.0, "s1": 20.0}
+            ),
+        ] * 2
+
+        with patch("benchmark.PipelineManager") as mock_pipeline_manager_cls:
+            mock_pipeline_manager_cls.return_value.build_pipeline_command.return_value = PipelineCommand(
+                command="pipeline 0 pipeline 1",
+                stream_commands=self.STREAM_COMMANDS,
+            )
+            with patch.object(benchmark.runner, "run", side_effect=results) as run:
+                result = benchmark.run(
+                    specs,
+                    fps_floor=30,
+                    execution_config=create_internal_execution_config(),
+                    job_id="job-1",
+                )
+
+        self.assertEqual(result.n_streams, 1)
+        for call in run.call_args_list:
+            self.assertEqual(call.kwargs["stream_commands"], self.STREAM_COMMANDS)
 
 
 if __name__ == "__main__":

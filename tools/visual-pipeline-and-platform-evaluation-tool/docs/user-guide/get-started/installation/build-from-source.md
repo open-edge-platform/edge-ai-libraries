@@ -99,12 +99,15 @@ make stop DLSPS2=1
 
 This builds the server image from `microservices/dlstreamer-pipeline-server/dlsps2` in the
 same repository, gives it the same devices as `vippet`, and sets
-`VIPPET_EXECUTION_BACKEND=dlsps2`. Current limitations:
+`VIPPET_EXECUTION_BACKEND=dlsps2`. The server then runs:
 
-- Only pipeline validation and single-stream performance tests run on the server. Density
-  tests, multi-stream performance tests and tests with latency metrics still run inside
-  `vippet`.
-- A pipeline that finishes in less than about one second reports 0 FPS.
+- pipeline validation;
+- performance and density tests, with every stream as its own server instance.
+
+Current limitations:
+
+- Tests with latency metrics still run inside `vippet`.
+- The metrics of VLM pipelines (`gvagenai`) are not collected.
 
 The server is not part of `compose.yml`, so `docker compose logs` does not show it. Use
 `docker logs -f dlstreamer-pipeline-server` to follow its log, or `make shell-dlsps` to

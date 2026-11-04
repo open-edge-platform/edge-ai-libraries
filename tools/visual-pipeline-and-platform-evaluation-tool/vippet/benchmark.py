@@ -8,6 +8,7 @@ import logging
 import math
 from dataclasses import dataclass, field
 
+from dlsps2_runner import Dlsps2PipelineRunner
 from internal_types import (
     InternalExecutionConfig,
     InternalOutputMode,
@@ -108,6 +109,7 @@ class Benchmark:
         max_runtime: float = 0,
         enable_latency_metrics: bool = False,
         job_id: str | None = None,
+        use_dlsps2: bool = False,
     ):
         self.best_result = None
         # Initialize PipelineRunner in normal mode with optional max_runtime for each run.
@@ -115,12 +117,20 @@ class Benchmark:
         # is launched with the DLStreamer latency_tracer active when requested.
         # `job_id` is forwarded so FPS metrics pushed during each density
         # iteration are tagged with the owning job's id in metrics-manager.
-        self.runner = PipelineRunner(
-            mode="normal",
-            max_runtime=max_runtime,
-            enable_latency_metrics=enable_latency_metrics,
-            job_id=job_id,
-        )
+        # `use_dlsps2` runs every stream as its own DLSPS 2.0 instance instead,
+        # which reports per-stream FPS; it has no latency tracer.
+        self.runner: PipelineRunner | Dlsps2PipelineRunner
+        if use_dlsps2:
+            self.runner = Dlsps2PipelineRunner(
+                mode="normal", max_runtime=max_runtime, job_id=job_id
+            )
+        else:
+            self.runner = PipelineRunner(
+                mode="normal",
+                max_runtime=max_runtime,
+                enable_latency_metrics=enable_latency_metrics,
+                job_id=job_id,
+            )
         self.logger = logging.getLogger(__name__)
 
     @staticmethod
@@ -328,10 +338,19 @@ class Benchmark:
             # parsing to the user-facing streams declared by this run
             # so the density job's `latency_tracer_metrics` never
             # reports internal sinks.
-            result = self.runner.run(
-                pipeline_command,
-                n_streams,
-                allowed_stream_ids=set(pipeline_cmd.all_stream_ids),
+            result = (
+                self.runner.run(
+                    pipeline_command,
+                    n_streams,
+                    allowed_stream_ids=set(pipeline_cmd.all_stream_ids),
+                    stream_commands=pipeline_cmd.stream_commands,
+                )
+                if isinstance(self.runner, Dlsps2PipelineRunner)
+                else self.runner.run(
+                    pipeline_command,
+                    n_streams,
+                    allowed_stream_ids=set(pipeline_cmd.all_stream_ids),
+                )
             )
 
             # Check for cancellation

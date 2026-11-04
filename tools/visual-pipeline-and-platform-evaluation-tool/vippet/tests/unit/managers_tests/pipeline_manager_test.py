@@ -525,6 +525,21 @@ class TestPipelineManager(unittest.TestCase):
         self.assertEqual(pipeline_cmd.command.count("fakesrc"), 2)
         self.assertEqual(pipeline_cmd.command.count("videotestsrc"), 3)
 
+        # One self-contained launch string per stream, keyed like all_stream_ids
+        self.assertEqual(
+            list(pipeline_cmd.stream_commands), pipeline_cmd.all_stream_ids
+        )
+        self.assertEqual(
+            " ".join(pipeline_cmd.stream_commands.values()), pipeline_cmd.command
+        )
+        for stream_id, command in pipeline_cmd.stream_commands.items():
+            source_name, sink_name = stream_id.split("__")
+            self.assertIn(f"name={source_name}", command)
+            self.assertIn(f"name={sink_name}", command)
+            for other_id in pipeline_cmd.stream_commands:
+                if other_id != stream_id:
+                    self.assertNotIn(f"name={other_id.split('__')[0]}", command)
+
     def test_update_pipeline_description_and_name(self):
         manager = PipelineManager()
         manager.pipelines = []
