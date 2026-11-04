@@ -203,6 +203,7 @@ for (const name of [".harness-local-defaults.json", ".harness-model.pending.json
 JS
   cat >"$bin/sleep" <<'SH'
 #!/usr/bin/env bash
+set -euo pipefail
 [[ "$*" == infinity ]]
 [[ "$HERMES_HOME" == "$HARNESS_STAGE_PARENT" ]]
 [[ -z "${HARNESS_HERMES_CONFIG_FILE:-}${HARNESS_MODEL_CONFIG_STAGE_DIR:-}" ]]
@@ -227,7 +228,8 @@ hermes_child_retry() {
   local installer="$HOME/installer.sh"
   cat >"$installer" <<'SH'
 #!/usr/bin/env bash
-[[ "$1" == --skip-setup && "$2" == --non-interactive && "$3" == --commit && -n "$4" ]]
+set -euo pipefail
+[[ "$#" == 4 && "$1" == --skip-setup && "$2" == --non-interactive && "$3" == --commit && -n "$4" ]] || exit 98
 if [[ ! -f "$HOME/retried" ]]; then
   touch "$HOME/retried"
   printf 'TLS connection reset\n'
@@ -266,7 +268,7 @@ for component in ir ovms; do
     run_case "$component binding guard handles $resolution resolution" bind_guard "$component" "$resolution"
   done
 done
-for port in invalid 0 65536; do
+for port in invalid 0 65536 08010; do
   run_case "both OpenShell port guards reject $port before Docker access" port_guard "$port"
 done
 for operation in add remove; do

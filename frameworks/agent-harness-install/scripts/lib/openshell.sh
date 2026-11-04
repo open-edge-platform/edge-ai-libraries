@@ -132,7 +132,7 @@ openshell_ensure_shared_inference() {
 _openshell_ensure_shared_inference() {
   [[ "$(resolve_bind_host)" == 127.0.0.1 ]] \
     || error "OpenShell mode requires HARNESS_BIND_HOST=127.0.0.1; inference must not be LAN-published."
-  if [[ ! "$HARNESS_IR_PORT" =~ ^[0-9]+$ ]] || (( HARNESS_IR_PORT <= 0 || HARNESS_IR_PORT >= 65536 )); then
+  if [[ ! "$HARNESS_IR_PORT" =~ ^[0-9]+$ ]] || ! (( HARNESS_IR_PORT > 0 && HARNESS_IR_PORT < 65536 )); then
     error "HARNESS_IR_PORT must be between 1 and 65535."
   fi
   openshell_validate_recorded_ir_port
@@ -510,7 +510,7 @@ openshell_validate_shared_inference() {
   local endpoint model
   [[ "$(resolve_bind_host)" == "127.0.0.1" ]] \
     || error "OpenShell mode requires HARNESS_BIND_HOST=127.0.0.1; inference must not be LAN-published."
-  if [[ ! "$HARNESS_IR_PORT" =~ ^[0-9]+$ ]] || (( HARNESS_IR_PORT <= 0 || HARNESS_IR_PORT >= 65536 )); then
+  if [[ ! "$HARNESS_IR_PORT" =~ ^[0-9]+$ ]] || ! (( HARNESS_IR_PORT > 0 && HARNESS_IR_PORT < 65536 )); then
     error "HARNESS_IR_PORT must be between 1 and 65535."
   fi
   # Validate the existing container's publication, not just the requested bind setting.

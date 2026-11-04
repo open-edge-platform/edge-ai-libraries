@@ -39,7 +39,7 @@ counts must not be added to the outer count as independent top-level results.
 
 | Scope | Command | Current cases |
 |---|---|---|
-| Installer bootstrap, profiles, failure guards, configuration publication and environment isolation | `bash test/installer-runtime-test.sh` | 26; see [runtime behavior coverage](README.md#installer-runtime-regression) |
+| Installer bootstrap, profiles, failure guards, configuration publication and environment isolation | `bash test/installer-runtime-test.sh` | 27; see [runtime behavior coverage](README.md#installer-runtime-regression) |
 | Startup, runtime, profiles, boundaries, removal and nested suites | `bash test/openshell-test.sh` | 77, including three nested-suite wrappers |
 | Model selection and managed inference | `bash test/managed-inference-test.sh` | 33 |
 | Model lifecycle, cleanup and CLI locking | `bash test/model-lifecycle-test.sh` | 40 |

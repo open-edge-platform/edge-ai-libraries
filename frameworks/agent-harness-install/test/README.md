@@ -50,7 +50,7 @@ merging when it fails; adding the workflow alone does not configure that policy.
 
 ### Installer runtime regression
 
-The offline job runs `bash test/installer-runtime-test.sh`. Its 26 cases
+The offline job runs `bash test/installer-runtime-test.sh`. Its 27 cases
 execute production functions with disposable HOME/TMPDIR directories, a local
 Git fixture and command doubles. It never invokes real Docker, sudo, OpenShell,
 downloads or agent installation.
