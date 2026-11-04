@@ -212,6 +212,13 @@ configure_dcode_provider() {
       !skip
     ' "$config_file" >"$tmp"
   fi
+  # A user-owned per-model table must not be duplicated by the Qwen defaults
+  # writer. Reject before replacing the config so the valid file stays intact.
+  if [[ "$model_name" == "Qwen3.5-9B-int8-ov" ]] && grep -qE "^[[:space:]]*\[models\.providers\.openai\.params\.(\"Qwen3\.5-9B-int8-ov\"|'Qwen3\.5-9B-int8-ov')\][[:space:]]*(#.*)?$" "$tmp"; then
+    rm -f "$tmp"
+    warn "${config_file} already defines Qwen3.5-9B-int8-ov model-specific params outside the installer-managed block; leaving it untouched to avoid a duplicate TOML table. Merge the OpenShell provider settings into this config manually."
+    return 1
+  fi
   # A second [models] (or provider) table would make the whole file invalid
   # TOML, so leave the operator's own tables alone and say what to add.
   if grep -qE '^[[:space:]]*\[models(\.providers\.openai(\.params)?)?\][[:space:]]*(#.*)?$' "$tmp"; then
@@ -617,7 +624,7 @@ Check HARNESS_AGENT, or re-install with --harness <name>."
         # The CLI can exit 0 with no output when the upstream call fails
         # after the HTTP 200 (e.g. a streaming error), so require output too.
         local openclaw_out=""
-        if openclaw_out="$("$cli_bin" infer model run --prompt "Say hello." --model "ovms/${model_hint}" --json 2>/dev/null)" \
+        if openclaw_out="$("$cli_bin" infer model run --prompt "Say hello." --model "ovms/${model_hint}" --thinking off --json 2>/dev/null)" \
           && [[ -n "${openclaw_out//[[:space:]]/}" ]]; then
           ok "OpenClaw smoke test passed"
         else

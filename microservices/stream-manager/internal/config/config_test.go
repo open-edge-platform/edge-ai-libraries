@@ -4,6 +4,8 @@
 package config
 
 import (
+	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -116,6 +118,60 @@ func TestLoadFromConfigFile(t *testing.T) {
 	}
 	if cfg != want {
 		t.Fatalf("config file load: got %+v, want %+v", cfg, want)
+	}
+}
+
+func TestLoadRejectsInvalidConfigFile(t *testing.T) {
+	t.Setenv("SM_CONFIG_FILE", "")
+	t.Setenv("SM_DATA_DIR", "")
+	t.Setenv("SM_HTTP_ADDR", "")
+
+	for _, tt := range []struct {
+		name  string
+		body  string
+		field string
+	}{
+		{
+			name: "malformed JSON",
+			body: `{"BufferLength": 30,`,
+		},
+		{
+			name:  "storage size has wrong type",
+			body:  `{"BufferLength": 30, "RecordingStorageSize": "big"}`,
+			field: "RecordingStorageSize",
+		},
+		{
+			name:  "buffer length has wrong type",
+			body:  `{"BufferLength": "30", "RecordingStorageSize": 10}`,
+			field: "BufferLength",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			chdir(t, dir)
+			if err := os.WriteFile(filepath.Join(dir, DefaultConfigFile), []byte(tt.body), 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			cfg, err := Load()
+			if tt.field == "" {
+				var syntaxError *json.SyntaxError
+				if !errors.As(err, &syntaxError) {
+					t.Fatalf("Load error = %v, want *json.SyntaxError", err)
+				}
+			} else {
+				var typeError *json.UnmarshalTypeError
+				if !errors.As(err, &typeError) {
+					t.Fatalf("Load error = %v, want *json.UnmarshalTypeError", err)
+				}
+				if typeError.Field != tt.field {
+					t.Fatalf("error field = %q, want %q", typeError.Field, tt.field)
+				}
+			}
+			if cfg != (Config{}) {
+				t.Fatalf("Load returned %+v after a decoding error, want an empty configuration", cfg)
+			}
+		})
 	}
 }
 

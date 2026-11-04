@@ -560,6 +560,427 @@ class RealtimePreviewTests(unittest.TestCase):
         self.assertEqual(captured["len"], window_bytes)
 
 
+class RealtimeLowLatencyTests(unittest.TestCase):
+    """Per-session low-latency mode: full previews, and commits that reuse them."""
+
+    SAMPLE_RATE = 16000
+    KEEP_BYTES = int(16000 * 150 / 1000) * 2  # default trailing_silence_keep_ms
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.storage_root = tmp.name
+        patches = [
+            patch("main.ensure_model"),
+            patch("main.preload_models"),
+            patch("utils.app_paths.STORAGE_ROOT", self.storage_root),
+            # Pin the gate inputs so the tests do not depend on config.yaml.
+            patch("api.realtime_endpoints.SENTIMENT_ENABLED", False),
+            patch("api.realtime_endpoints.preview_differs_from_final", return_value=False),
+            patch.object(realtime_endpoints.config.models.asr, "diarization", False),
+        ]
+        for active in patches:
+            active.start()
+            self.addCleanup(active.stop)
+        # One entry per decode: (pool, number of PCM bytes decoded).
+        self.decodes = []
+
+    def _fake_transcribe(self, session_id, pcm, *args):
+        pool = args[6]
+        self.decodes.append((pool, len(pcm)))
+        text = f"decode {len(self.decodes)}"
+        return {"text": text, "language": "en", "segments": [{"start": 0.0, "end": 0.5, "text": text}]}
+
+    def _connect(self, ws, enable=True):
+        """Read the created event, turn VAD off, then enable the mode in its own update."""
+        created = ws.receive_json()
+        ws.send_json({"type": "session.update", "session": {"turn_detection": None}})
+        ws.receive_json()
+        if not enable:
+            return created, None
+        ws.send_json({"type": "session.update", "session": {"low_latency": {"enabled": True}}})
+        return created, ws.receive_json()
+
+    @staticmethod
+    def _receive_until(ws, event_type, limit=6):
+        seen = []
+        for _ in range(limit):
+            message = ws.receive_json()
+            seen.append(message)
+            if message["type"] == event_type:
+                return message, seen
+        raise AssertionError(f"{event_type} not received; got {[m['type'] for m in seen]}")
+
+    def _state(self, session_id):
+        with open(os.path.join(self.storage_root, session_id, "session_state.json"), encoding="utf-8") as handle:
+            return json.load(handle)
+
+    def test_mode_is_off_by_default_and_enabled_by_session_update(self):
+        with TestClient(main.app) as client:
+            with client.websocket_connect("/v1/realtime?intent=transcription") as ws:
+                created, updated = self._connect(ws)
+
+        self.assertFalse(created["session"]["low_latency"]["enabled"])
+        self.assertEqual(updated["type"], "transcription_session.updated")
+        self.assertTrue(updated["session"]["low_latency"]["enabled"])
+        self.assertEqual(updated["session"]["low_latency"]["trailing_silence_keep_ms"], 150)
+
+    def test_echo_is_false_when_the_mode_cannot_apply(self):
+        gates = {
+            "diarization": patch.object(realtime_endpoints.config.models.asr, "diarization", True),
+            "sentiment": patch("api.realtime_endpoints.SENTIMENT_ENABLED", True),
+            "preview_model": patch("api.realtime_endpoints.preview_differs_from_final", return_value=True),
+        }
+        for name, gate in gates.items():
+            with self.subTest(gate=name), gate:
+                with TestClient(main.app) as client:
+                    with client.websocket_connect("/v1/realtime?intent=transcription") as ws:
+                        _, updated = self._connect(ws)
+                self.assertFalse(updated["session"]["low_latency"]["enabled"])
+
+    def test_session_diarization_off_lets_the_mode_apply(self):
+        with patch.object(realtime_endpoints.config.models.asr, "diarization", True):
+            with TestClient(main.app) as client:
+                with client.websocket_connect("/v1/realtime?intent=transcription") as ws:
+                    self._connect(ws, enable=False)
+                    ws.send_json({"type": "session.update",
+                                  "session": {"diarization": False, "low_latency": {"enabled": True}}})
+                    updated = ws.receive_json()
+
+        self.assertTrue(updated["session"]["low_latency"]["enabled"])
+
+    def test_rejects_out_of_range_keep_ms_without_enabling_the_mode(self):
+        with TestClient(main.app) as client:
+            with client.websocket_connect("/v1/realtime?intent=transcription") as ws:
+                self._connect(ws, enable=False)
+                ws.send_json({"type": "session.update", "session": {
+                    "low_latency": {"enabled": True, "trailing_silence_keep_ms": 5000}}})
+                error = ws.receive_json()
+                ws.send_json({"type": "session.update", "session": {}})
+                updated = ws.receive_json()
+
+        self.assertEqual(error["type"], "error")
+        self.assertFalse(updated["session"]["low_latency"]["enabled"])
+        self.assertEqual(updated["session"]["low_latency"]["trailing_silence_keep_ms"], 150)
+
+    def test_commit_reuses_the_full_preview_without_a_second_decode(self):
+        audio = _pcm16_tone(1.0) + _pcm16_silence(0.5)
+        with patch("api.realtime_endpoints._transcribe_pcm", side_effect=self._fake_transcribe):
+            with TestClient(main.app) as client:
+                with client.websocket_connect("/v1/realtime?intent=transcription&session_id=ll-reuse") as ws:
+                    self._connect(ws)
+                    ws.send_json({"type": "input_audio_buffer.append", "audio": _b64(audio)})
+                    ws.send_json({"type": "input_audio_buffer.preview", "full": True})
+                    preview, _ = self._receive_until(ws, "conversation.item.input_audio_transcription.preview")
+                    ws.send_json({"type": "input_audio_buffer.commit"})
+                    completed, _ = self._receive_until(
+                        ws, "conversation.item.input_audio_transcription.completed")
+
+        self.assertTrue(preview["full"])
+        self.assertEqual(preview["transcript"], "decode 1")
+        self.assertEqual(completed["transcript"], "decode 1")
+        # No trailing_silence_ms hint: the whole buffer is decoded, once.
+        self.assertEqual(self.decodes, [(Pipeline.POOL_PREVIEW, len(audio))])
+        # Persisted as a normal commit would, with the full buffer's duration.
+        state = self._state("ll-reuse")
+        self.assertEqual(state["text"], "decode 1")
+        self.assertAlmostEqual(state["duration"], 1.5, places=3)
+
+    def test_commit_decodes_again_when_speech_continued_after_the_preview(self):
+        with patch("api.realtime_endpoints._transcribe_pcm", side_effect=self._fake_transcribe):
+            with TestClient(main.app) as client:
+                with client.websocket_connect("/v1/realtime?intent=transcription") as ws:
+                    self._connect(ws)
+                    ws.send_json({"type": "input_audio_buffer.append",
+                                  "audio": _b64(_pcm16_tone(1.0) + _pcm16_silence(0.5))})
+                    ws.send_json({"type": "input_audio_buffer.preview", "full": True})
+                    self._receive_until(ws, "conversation.item.input_audio_transcription.preview")
+                    ws.send_json({"type": "input_audio_buffer.append",
+                                  "audio": _b64(_pcm16_tone(0.5) + _pcm16_silence(0.5))})
+                    ws.send_json({"type": "input_audio_buffer.commit"})
+                    completed, _ = self._receive_until(
+                        ws, "conversation.item.input_audio_transcription.completed")
+
+        self.assertEqual(completed["transcript"], "decode 2")
+        self.assertEqual([pool for pool, _ in self.decodes], [Pipeline.POOL_PREVIEW, Pipeline.POOL_FINAL])
+
+    def test_trailing_silence_hint_sets_the_trim_point(self):
+        tone = _pcm16_tone(1.0)
+        with patch("api.realtime_endpoints._transcribe_pcm", side_effect=self._fake_transcribe):
+            with TestClient(main.app) as client:
+                with client.websocket_connect("/v1/realtime?intent=transcription") as ws:
+                    self._connect(ws)
+                    ws.send_json({"type": "input_audio_buffer.append", "audio": _b64(tone + _pcm16_silence(0.5))})
+                    ws.send_json({"type": "input_audio_buffer.commit", "trailing_silence_ms": 500})
+                    self._receive_until(ws, "conversation.item.input_audio_transcription.completed")
+
+        self.assertEqual(self.decodes, [(Pipeline.POOL_FINAL, len(tone) + self.KEEP_BYTES)])
+
+    def test_commit_hinted_as_all_silence_skips_the_decode(self):
+        with patch("api.realtime_endpoints._transcribe_pcm", side_effect=self._fake_transcribe):
+            with TestClient(main.app) as client:
+                with client.websocket_connect("/v1/realtime?intent=transcription") as ws:
+                    self._connect(ws)
+                    ws.send_json({"type": "input_audio_buffer.append", "audio": _b64(_pcm16_silence(1.0))})
+                    ws.send_json({"type": "input_audio_buffer.commit", "trailing_silence_ms": 1000})
+                    committed = ws.receive_json()
+                    ws.send_json({"type": "input_audio_buffer.clear"})
+                    cleared = ws.receive_json()
+
+        self.assertEqual(committed["type"], "input_audio_buffer.committed")
+        self.assertEqual(cleared["type"], "input_audio_buffer.cleared")
+        self.assertEqual(self.decodes, [])
+
+    def test_full_preview_without_the_mode_is_a_normal_preview(self):
+        with patch("api.realtime_endpoints._transcribe_pcm", side_effect=self._fake_transcribe):
+            with TestClient(main.app) as client:
+                with client.websocket_connect("/v1/realtime?intent=transcription") as ws:
+                    self._connect(ws, enable=False)
+                    ws.send_json({"type": "input_audio_buffer.append", "audio": _b64(_pcm16_tone(6.0))})
+                    ws.send_json({"type": "input_audio_buffer.preview", "full": True})
+                    preview = ws.receive_json()
+
+        window_bytes = int(realtime_endpoints.PREVIEW_MAX_WINDOW_SECONDS * 16000) * 2
+        self.assertNotIn("full", preview)
+        self.assertEqual(self.decodes, [(Pipeline.POOL_PREVIEW, window_bytes)])
+
+    def test_clear_discards_the_cached_full_preview(self):
+        audio = _b64(_pcm16_tone(1.0) + _pcm16_silence(0.5))
+        with patch("api.realtime_endpoints._transcribe_pcm", side_effect=self._fake_transcribe):
+            with TestClient(main.app) as client:
+                with client.websocket_connect("/v1/realtime?intent=transcription") as ws:
+                    self._connect(ws)
+                    ws.send_json({"type": "input_audio_buffer.append", "audio": audio})
+                    ws.send_json({"type": "input_audio_buffer.preview", "full": True})
+                    self._receive_until(ws, "conversation.item.input_audio_transcription.preview")
+                    ws.send_json({"type": "input_audio_buffer.clear"})
+                    self._receive_until(ws, "input_audio_buffer.cleared")
+                    # Same length and speech end as before, but new audio.
+                    ws.send_json({"type": "input_audio_buffer.append", "audio": audio})
+                    ws.send_json({"type": "input_audio_buffer.commit"})
+                    completed, _ = self._receive_until(
+                        ws, "conversation.item.input_audio_transcription.completed")
+
+        self.assertEqual(completed["transcript"], "decode 2")
+        self.assertEqual(len(self.decodes), 2)
+
+    def _run_preview_then_commit(self, preview_fails=False, preview_hint=None, extra=b"", commit_hint=None):
+        """Start a full preview, send a commit while it decodes, then let the preview finish.
+
+        ``extra`` is appended after the preview starts and before the commit.
+        """
+        session = realtime_endpoints.RealtimeSession("ll-inflight", None)
+        session.low_latency = True
+        session.buffer.append(_pcm16_tone(1.0) + _pcm16_silence(0.5))
+        preview_started = threading.Event()
+        release_preview = threading.Event()
+
+        def _fake(session_id, pcm, *args):
+            if args[6] == Pipeline.POOL_PREVIEW:
+                preview_started.set()
+                release_preview.wait(timeout=10)
+                if preview_fails:
+                    self.decodes.append((args[6], len(pcm)))
+                    raise RuntimeError("preview decode failed")
+            return self._fake_transcribe(session_id, pcm, *args)
+
+        sent = []
+
+        async def _send(ws, payload, send_lock=None):
+            sent.append(payload)
+
+        async def _run():
+            preview = asyncio.create_task(realtime_endpoints._preview_full(object(), session, preview_hint))
+            while not preview_started.is_set():
+                await asyncio.sleep(0.01)
+            if extra:
+                session.buffer.append(extra)
+            commit = asyncio.create_task(realtime_endpoints._commit_utterance(
+                object(), session, "client_commit", trailing_silence_ms=commit_hint))
+            await asyncio.sleep(0.05)
+            self.assertFalse(commit.done())
+            release_preview.set()
+            await asyncio.gather(preview, commit)
+
+        with patch("api.realtime_endpoints._transcribe_pcm", side_effect=_fake), \
+             patch("api.realtime_endpoints._send", side_effect=_send):
+            asyncio.run(_run())
+        return [m for m in sent if m["type"] == "conversation.item.input_audio_transcription.completed"]
+
+    def test_commit_waits_for_an_in_flight_full_preview(self):
+        completed = self._run_preview_then_commit()
+
+        self.assertEqual([m["transcript"] for m in completed], ["decode 1"])
+        self.assertEqual([pool for pool, _ in self.decodes], [Pipeline.POOL_PREVIEW])
+
+    def test_commit_waits_for_an_in_flight_preview_sent_before_the_full_keep(self):
+        # The preview hint (100 ms) is shorter than the keep, so its clip ends
+        # at the buffer end. The commit has the same speech end and a longer
+        # clip, and its extra audio is all inside its own hinted silence.
+        speech_end = len(_pcm16_tone(1.0)) + int(16000 * 0.4) * 2
+        completed = self._run_preview_then_commit(
+            preview_hint=100, extra=_pcm16_silence(0.3), commit_hint=400)
+
+        self.assertEqual([m["transcript"] for m in completed], ["decode 1"])
+        self.assertEqual(self.decodes, [(Pipeline.POOL_PREVIEW, speech_end + int(16000 * 0.1) * 2)])
+
+    def test_commit_decodes_itself_when_the_in_flight_preview_fails(self):
+        completed = self._run_preview_then_commit(preview_fails=True)
+
+        self.assertEqual([m["transcript"] for m in completed], ["decode 2"])
+        self.assertEqual([pool for pool, _ in self.decodes], [Pipeline.POOL_PREVIEW, Pipeline.POOL_FINAL])
+
+    def _commit_once(self, audio, **commit_fields):
+        """Append ``audio``, commit it, and return the completed event (or None)."""
+        with patch("api.realtime_endpoints._transcribe_pcm", side_effect=self._fake_transcribe):
+            with TestClient(main.app) as client:
+                with client.websocket_connect("/v1/realtime?intent=transcription") as ws:
+                    self._connect(ws)
+                    ws.send_json({"type": "input_audio_buffer.append", "audio": _b64(audio)})
+                    ws.send_json({"type": "input_audio_buffer.commit", **commit_fields})
+                    committed = ws.receive_json()
+                    self.assertEqual(committed["type"], "input_audio_buffer.committed")
+                    ws.send_json({"type": "input_audio_buffer.clear"})
+                    following = ws.receive_json()
+                    if following["type"] == "conversation.item.input_audio_transcription.delta":
+                        return ws.receive_json()
+                    return None
+
+    def test_quiet_last_word_is_kept_without_a_hint(self):
+        # The quiet tone has an RMS of about 0.014, under the default energy
+        # threshold of 0.02.
+        audio = _pcm16_tone(1.0) + _pcm16_tone(0.3, amplitude=0.02) + _pcm16_silence(0.3)
+
+        completed = self._commit_once(audio)
+
+        self.assertEqual(completed["transcript"], "decode 1")
+        self.assertEqual(self.decodes, [(Pipeline.POOL_FINAL, len(audio))])
+
+    def test_quiet_utterance_without_a_hint_still_decodes(self):
+        audio = _pcm16_tone(1.0, amplitude=0.02)
+
+        completed = self._commit_once(audio)
+
+        self.assertEqual(completed["type"], "conversation.item.input_audio_transcription.completed")
+        self.assertEqual(self.decodes, [(Pipeline.POOL_FINAL, len(audio))])
+
+    def _preview_then_commit(self, first, preview_fields, more, commit_fields):
+        """Append ``first``, full preview, append ``more``, commit. Returns the completed event."""
+        with patch("api.realtime_endpoints._transcribe_pcm", side_effect=self._fake_transcribe):
+            with TestClient(main.app) as client:
+                with client.websocket_connect("/v1/realtime?intent=transcription") as ws:
+                    self._connect(ws)
+                    ws.send_json({"type": "input_audio_buffer.append", "audio": _b64(first)})
+                    ws.send_json({"type": "input_audio_buffer.preview", "full": True, **preview_fields})
+                    self._receive_until(ws, "conversation.item.input_audio_transcription.preview")
+                    ws.send_json({"type": "input_audio_buffer.append", "audio": _b64(more)})
+                    ws.send_json({"type": "input_audio_buffer.commit", **commit_fields})
+                    completed, _ = self._receive_until(
+                        ws, "conversation.item.input_audio_transcription.completed")
+        return completed
+
+    def test_preview_is_not_reused_for_a_longer_clip(self):
+        tone = _pcm16_tone(1.0)
+        cases = {
+            # No hint on the preview: its clip is the whole buffer, so only
+            # the exact same clip end is reused, even with the same speech end.
+            "preview_without_hint": ({}, _pcm16_silence(0.4), {"trailing_silence_ms": 500},
+                                     len(tone) + self.KEEP_BYTES),
+            # Speech continued after the preview: the commit's speech end moved.
+            "speech_continued": ({"trailing_silence_ms": 100}, _pcm16_tone(0.5) + _pcm16_silence(0.4),
+                                 {"trailing_silence_ms": 400}, len(tone) * 3 // 2 + int(16000 * 0.1) * 2
+                                 + self.KEEP_BYTES),
+        }
+        for name, (preview_fields, more, commit_fields, commit_bytes) in cases.items():
+            with self.subTest(case=name):
+                self.decodes = []
+                completed = self._preview_then_commit(
+                    tone + _pcm16_silence(0.1), preview_fields, more, commit_fields)
+
+                self.assertEqual(completed["transcript"], "decode 2")
+                self.assertEqual(self.decodes, [
+                    (Pipeline.POOL_PREVIEW, len(tone) + int(16000 * 0.1) * 2),
+                    (Pipeline.POOL_FINAL, commit_bytes),
+                ])
+
+    def test_hinted_commit_reuses_a_preview_sent_before_the_full_keep(self):
+        tone = _pcm16_tone(1.0)
+        # 100 ms of silence so far: the preview clip ends at the buffer end,
+        # before the 150 ms keep is reached. The commit has the same speech
+        # end; everything it adds is silence by its own hint.
+        completed = self._preview_then_commit(
+            tone + _pcm16_silence(0.1), {"trailing_silence_ms": 100},
+            _pcm16_silence(0.4), {"trailing_silence_ms": 500})
+
+        self.assertEqual(completed["transcript"], "decode 1")
+        self.assertEqual(self.decodes, [(Pipeline.POOL_PREVIEW, len(tone) + int(16000 * 0.1) * 2)])
+
+    def test_hinted_preview_without_kept_silence_is_not_reused(self):
+        tone = _pcm16_tone(1.0)
+        # A zero hint puts the speech end at the buffer end: the preview kept
+        # no silence, so a commit with the same speech end decodes its own clip.
+        completed = self._preview_then_commit(tone, {"trailing_silence_ms": 0},
+                                              _pcm16_silence(0.4), {"trailing_silence_ms": 400})
+
+        self.assertEqual(completed["transcript"], "decode 2")
+        self.assertEqual(self.decodes, [
+            (Pipeline.POOL_PREVIEW, len(tone)),
+            (Pipeline.POOL_FINAL, len(tone) + self.KEEP_BYTES),
+        ])
+
+    def test_hinted_commit_reuses_a_preview_of_the_same_clip(self):
+        tone = _pcm16_tone(1.0)
+        with patch("api.realtime_endpoints._transcribe_pcm", side_effect=self._fake_transcribe):
+            with TestClient(main.app) as client:
+                with client.websocket_connect("/v1/realtime?intent=transcription") as ws:
+                    self._connect(ws)
+                    ws.send_json({"type": "input_audio_buffer.append", "audio": _b64(tone + _pcm16_silence(0.5))})
+                    ws.send_json({"type": "input_audio_buffer.preview", "full": True, "trailing_silence_ms": 500})
+                    self._receive_until(ws, "conversation.item.input_audio_transcription.preview")
+                    ws.send_json({"type": "input_audio_buffer.append", "audio": _b64(_pcm16_silence(0.2))})
+                    ws.send_json({"type": "input_audio_buffer.commit", "trailing_silence_ms": 700})
+                    completed, _ = self._receive_until(
+                        ws, "conversation.item.input_audio_transcription.completed")
+
+        self.assertEqual(completed["transcript"], "decode 1")
+        self.assertEqual(self.decodes, [(Pipeline.POOL_PREVIEW, len(tone) + self.KEEP_BYTES)])
+
+    def test_keep_ms_alone_does_not_enable_the_mode(self):
+        with TestClient(main.app) as client:
+            with client.websocket_connect("/v1/realtime?intent=transcription") as ws:
+                self._connect(ws, enable=False)
+                ws.send_json({"type": "session.update",
+                              "session": {"low_latency": {"trailing_silence_keep_ms": 300}}})
+                updated = ws.receive_json()
+
+        self.assertFalse(updated["session"]["low_latency"]["enabled"])
+        self.assertEqual(updated["session"]["low_latency"]["trailing_silence_keep_ms"], 300)
+
+    def test_keep_ms_alone_leaves_an_enabled_mode_on(self):
+        with TestClient(main.app) as client:
+            with client.websocket_connect("/v1/realtime?intent=transcription") as ws:
+                self._connect(ws)
+                ws.send_json({"type": "session.update",
+                              "session": {"low_latency": {"trailing_silence_keep_ms": 300}}})
+                updated = ws.receive_json()
+
+        self.assertTrue(updated["session"]["low_latency"]["enabled"])
+        self.assertEqual(updated["session"]["low_latency"]["trailing_silence_keep_ms"], 300)
+
+    def test_echo_is_false_when_the_preview_pool_runs_on_another_device(self):
+        def _pool(pool, device_override=None):
+            device = "NPU" if pool == Pipeline.POOL_PREVIEW else "GPU"
+            return SimpleNamespace(pool=pool, provider="openvino", name="whisper-small",
+                                   weight_format="int8", device=device)
+
+        with patch("api.realtime_endpoints.resolve_pool_config", side_effect=_pool):
+            with TestClient(main.app) as client:
+                with client.websocket_connect("/v1/realtime?intent=transcription") as ws:
+                    _, updated = self._connect(ws)
+
+        self.assertFalse(updated["session"]["low_latency"]["enabled"])
+
+
 class RealtimeLanguageGatingTests(unittest.TestCase):
     """The language hint is dropped only for English-only checkpoints."""
 
