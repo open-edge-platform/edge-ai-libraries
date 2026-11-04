@@ -1,0 +1,3 @@
+Use the agent-harness-install skill.
+
+I want to install deepagents-code and use a model from the Ollama hub. Which `--model-hub` and `--model` values should I use, and will the agent be able to use that model? If not, what should I pick instead?
