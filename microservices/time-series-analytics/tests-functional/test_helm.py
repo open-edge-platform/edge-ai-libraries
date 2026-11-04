@@ -4,12 +4,13 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-import subprocess
+import subprocess  # nosec B404 # commands use argument lists with shell=False
 import os
 import pytest
 import time
 import shutil
 import rest_api_utils as utils
+from common_utils import assert_condition
 
 NAMESPACE = "apps"
 RELEASE_NAME = "time-series-analytics-microservice"
@@ -121,7 +122,7 @@ def test_timeseries_microservice_started_successfully():
         output = utils.run_command(command)
         output = output.stdout + output.stderr
         print(output)
-        assert "Kapacitor Initialized Successfully. Ready to Receive the Data..." in output
+        assert_condition("Kapacitor Initialized Successfully. Ready to Receive the Data..." in output)
     except Exception as e:
         pytest.fail(f"Time Series Analytics Microservice did not start: {e}")
 
@@ -200,7 +201,7 @@ def test_temperature_input():
     try:
         print("Starting temperature simulator...")
         # Run the simulator for 20 seconds, then terminate
-        subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        subprocess.Popen(command, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)  # nosec B603 # fixed simulator command, no shell
         time.sleep(10)
         print("Temperature simulator started successfully.")
         pod_names = get_pod_names(NAMESPACE)
@@ -212,6 +213,6 @@ def test_temperature_input():
         print("Checking Time Series Analytics Microservice logs for temperature data...")
         output = utils.run_command(command)
         output = output.stdout + output.stderr
-        assert "is outside the range 20-25." in output
+        assert_condition("is outside the range 20-25." in output)
     except RuntimeError as e:
         pytest.fail(f"Time Series Analytics Microservice failed for the temperature input data: {e}")
