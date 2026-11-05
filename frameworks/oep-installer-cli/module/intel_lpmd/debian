@@ -1,3 +1,4 @@
+
 configure_intel_lpmd () {
   workspace="$(ensure_project_path)/intel-lpmd"
   version=9bf8b8de3ed11c301817814fef79b3161e6294b6
@@ -23,6 +24,7 @@ debian_30_install_intel_lpmd () {
     echo "@@STEP Installing prerequisites"
     ensure_apt update
     ensure_apt install -y autoconf-archive libglib2.0-dev libdbus-1-dev libxml2-dev libnl-3-dev libnl-genl-3-dev libsystemd-dev systemd-dev gtk-doc-tools libupower-glib-dev
+    configure_kernel_module_essential_debian "$@" || return $?
 
     echo "@@STEP Building intel-lpmd"
     ensure_git_export "$workspace" "$version" "$repository"
