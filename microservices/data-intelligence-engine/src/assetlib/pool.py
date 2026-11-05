@@ -62,6 +62,10 @@ class SourceSyncStatus:
     # changes than covered means its generated bundle is out of date.
     extraction_changes: int = 0
     extraction_done: int = 0
+    # Internal watermark, persisted but not part of the public status response:
+    # latest pool revision that added work for this source, not its neighbours.
+    # A pass at an older revision cannot acknowledge that work when it finishes.
+    pending_revision: int = -1
 
     @property
     def extraction_outdated(self) -> bool:
@@ -76,8 +80,8 @@ class SourceSyncStatus:
         self.updated_at = _now()
 
     def mark_pending(self) -> None:
-        """There is new work. Keeps `error`: the last failure still explains it."""
-        self._touch("pending")
+        """Queue work without hiding an active write or the last failure."""
+        self._touch("indexing" if self.status == "indexing" else "pending")
 
     def mark_indexing(self) -> None:
         self._touch("indexing")
@@ -175,8 +179,12 @@ class AssetPool:
         self.projections = tuple(self.projections)
         self.refresh_serving()
 
-    def add_asset_ids(self, asset_ids: Iterable[str]) -> bool:
-        """Extend the set. True if anything was new, so the caller can skip a save."""
+    def add_asset_ids(
+        self,
+        asset_ids: Iterable[str],
+        source_ids: Optional[Collection[str]] = None,
+    ) -> bool:
+        """Extend the set, reopening only sources that accept the new assets."""
         known = set(self.asset_ids)
         added = [
             asset_id
@@ -186,15 +194,30 @@ class AssetPool:
         if not added:
             return False
         self.asset_ids.extend(added)
-        self.revision += 1
-        for status in self.source_statuses.values():
-            status.mark_pending()
+        self._advance_revision(source_ids)
         return True
+
+    def _advance_revision(self, source_ids: Optional[Collection[str]]) -> None:
+        previous = self.revision
+        self.revision += 1
+        for source_id, status in self.source_statuses.items():
+            if source_ids is None or source_id in source_ids:
+                status.pending_revision = self.revision
+                # With no usable projection this is still a failure, not a
+                # queued write that can run. Keep its diagnosis visible.
+                if source_id not in self.unavailable_sources:
+                    status.mark_pending()
+            elif status.status == "ready" and status.indexed_revision == previous:
+                # This revision changes nothing this source takes. Acknowledge
+                # it without reopening work or clearing another source's error.
+                status.indexed_revision = self.revision
 
     def mark_assets_changed(
         self,
         asset_ids: Collection[str],
         source_ids: Optional[Collection[str]] = None,
+        *,
+        source_asset_ids: Optional[Mapping[str, Collection[str]]] = None,
     ) -> bool:
         """Re-open assets already in the pool whose content has been replaced.
 
@@ -206,25 +229,29 @@ class AssetPool:
 
         `source_ids` narrows the stale marking to the sources whose records the
         change affects -- a caption landing changes nothing for the source that
-        embedded the clip. The others see the new revision, find nothing
-        missing, and settle at it without writing.
+        embedded the clip. `source_asset_ids` further limits each source to the
+        changed assets it accepts. Unaffected ready sources stay ready.
         """
         held = set(self.asset_ids)
         changed = [
             asset_id for asset_id in dict.fromkeys(asset_ids) if asset_id in held
         ]
-        affected = [
-            status
-            for source_id, status in self.source_statuses.items()
-            if source_ids is None or source_id in source_ids
-        ]
+        affected = {}
+        for source_id in self.source_statuses:
+            if source_ids is not None and source_id not in source_ids:
+                continue
+            accepted = (
+                set(source_asset_ids.get(source_id, ()))
+                if source_asset_ids is not None else set(changed)
+            )
+            selected = [asset_id for asset_id in changed if asset_id in accepted]
+            if selected:
+                affected[source_id] = selected
         if not changed or not affected:
             return False
-        self.revision += 1
-        for status in affected:
-            status.mark_stale(changed)
-        for status in self.source_statuses.values():
-            status.mark_pending()
+        for source_id, selected in affected.items():
+            self.source_statuses[source_id].mark_stale(selected)
+        self._advance_revision(affected)
         return True
 
     def forget_asset_ids(self, asset_ids: Collection[str]) -> bool:

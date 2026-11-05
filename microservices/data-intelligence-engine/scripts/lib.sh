@@ -5,6 +5,10 @@
 
 set -euo pipefail
 
+# The engine is usually reached through localhost; a proxy must not get those requests.
+export no_proxy="localhost,127.0.0.1${no_proxy:+,$no_proxy}"
+export NO_PROXY="localhost,127.0.0.1${NO_PROXY:+,$NO_PROXY}"
+
 ENGINE_URL="${ENGINE_URL:-http://localhost:${ENGINE_PORT:-16022}}"
 CURL_TIMEOUT="${CURL_TIMEOUT:-120}"
 ASSET_LOOKUP_PAGE_SIZE="${ASSET_LOOKUP_PAGE_SIZE:-1000000}"
