@@ -3408,7 +3408,7 @@ configure_uav_mission_compute_sdk ()
     source_path="$workspace/source";
     sdk_path="$source_path/uav-mission-compute-sdk";
     repository="https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git";
-    version="6bad4dffe2b8b9ddb8ab5d938d96cba576283be5";
+    version="main";
     used_ports=(1884 8080 8554 8888 8889 5002 3000 8086)
 }
 configure_uv () 
@@ -6616,13 +6616,15 @@ debian_90_install_uav_mission_compute_sdk ()
         ensure_disk_size 20000 || return $?;
         ensure_ram_size 16000000 || return $?;
         uav_mission_compute_sdk_checkout || return $?;
+        local source_commit;
+        source_commit="$(git -C "$source_path" rev-parse HEAD)" || return $?;
         cd "$sdk_path" || return $?;
         make init || return $?;
-        if [ ! -r "$sdk_path/Makefile" ] || [ ! -r "$sdk_path/.env" ] || [ "$(git -C "$source_path" rev-parse HEAD 2> /dev/null)" != "$version" ]; then
+        if [ ! -r "$sdk_path/Makefile" ] || [ ! -r "$sdk_path/.env" ] || [ "$(git -C "$source_path" rev-parse HEAD 2> /dev/null)" != "$source_commit" ]; then
             echo "Mission Compute SDK initialization did not produce the expected source and .env." 1>&2;
             return 1;
         fi;
-        ensure_prop set installed/uav_mission_compute_sdk "$version" || return $?;
+        ensure_prop set installed/uav_mission_compute_sdk "$source_commit" || return $?;
         verify_uav_mission_compute_sdk || return $?;
     fi;
     echo "@@HIGHLIGHT workspace: $sdk_path";
@@ -8158,10 +8160,10 @@ debian_99_profile_handheld_blueprint ()
 { 
     case "$1" in 
         bootstrap)
-            echo "core_types system_inspection system_summary cdi realsense chrony edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_media_ffmpeg edge_pack_media_gst gpu_accel npu_accel power_tuning system_info docker_io k3s_io"
+            echo "core_types system_inspection system_summary build_essential cdi realsense chrony edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_media_ffmpeg edge_pack_media_gst gpu_accel npu_accel power_tuning system_info docker_io k3s_io"
         ;;
         *)
-            local modules=(core_types system_inspection system_summary power_tuning system_info cdi realsense chrony);
+            local modules=(core_types system_inspection system_summary build_essential power_tuning system_info cdi realsense chrony);
             if [[ " $* " = *" --k3s "* ]]; then
                 modules+=(k3s_io);
             else
@@ -8203,10 +8205,10 @@ debian_99_profile_mission_decision_support_blueprint ()
 { 
     case "$1" in 
         bootstrap)
-            echo "core_types system_inspection system_summary cdi realsense chrony edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn edge_pack_media_ffmpeg edge_pack_media_gst gpu_accel npu_accel power_tuning system_info docker_io k3s_io"
+            echo "core_types system_inspection system_summary build_essential cdi realsense chrony edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn edge_pack_media_ffmpeg edge_pack_media_gst gpu_accel npu_accel power_tuning system_info docker_io k3s_io"
         ;;
         *)
-            local modules=(core_types system_inspection system_summary power_tuning system_info cdi realsense chrony);
+            local modules=(core_types system_inspection system_summary build_essential power_tuning system_info cdi realsense chrony);
             if [[ " $* " = *" --k3s "* ]]; then
                 modules+=(k3s_io);
             else
@@ -8238,10 +8240,10 @@ debian_99_profile_uncrewed_aerial_vehicle_blueprint ()
 { 
     case "$1" in 
         bootstrap)
-            echo "core_types system_inspection system_summary cdi realsense chrony edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn edge_pack_media_ffmpeg edge_pack_media_gst gpu_accel npu_accel power_tuning system_info docker_io k3s_io ubuntu_server"
+            echo "core_types system_inspection system_summary build_essential cdi realsense chrony edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn edge_pack_media_ffmpeg edge_pack_media_gst gpu_accel npu_accel power_tuning system_info docker_io k3s_io ubuntu_server"
         ;;
         *)
-            local modules=(core_types system_inspection system_summary power_tuning system_info cdi realsense chrony ubuntu_server);
+            local modules=(core_types system_inspection system_summary build_essential power_tuning system_info cdi realsense chrony ubuntu_server);
             if [[ " $* " = *" --k3s "* ]]; then
                 modules+=(k3s_io);
             else
@@ -10068,7 +10070,7 @@ ground_station_configure_uav_application ()
     uav_module="$1";
     uav_app="$2";
     uav_repository="https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git";
-    uav_commit="cebc4af2abda194c2c62055fb378c48ec4119783";
+    uav_commit="main";
     uav_workspace="$(ensure_project_path)/uav-mission-compute-sdk";
     uav_checkout="$uav_workspace/$uav_app";
     uav_dir="$uav_checkout/uav-$uav_app";
@@ -10149,7 +10151,7 @@ ground_station_install_uav_application ()
         fi;
         python3 -c 'import ensurepip' || return $?;
     fi;
-    echo "@@STEP Fetching UAV source commit $uav_commit for $uav_app";
+    echo "@@STEP Fetching UAV source ref $uav_commit for $uav_app";
     ground_station_configure_uav_application_source || return $?;
     if [[ ! -f "$uav_dir/Makefile" || ! -f "$uav_dir/.env.example" ]]; then
         echo "Required UAV application source is missing: $uav_dir" 1>&2;
@@ -12196,7 +12198,9 @@ verify_time_confighub ()
 }
 verify_uav_mission_compute_sdk () 
 { 
-    [ -r "$sdk_path/Makefile" ] && [ -r "$sdk_path/.env" ] && [ "$(git -C "$source_path" rev-parse HEAD 2> /dev/null)" = "$version" ] && [ "$(ensure_prop get installed/uav_mission_compute_sdk)" = "$version" ]
+    local installed_commit;
+    installed_commit="$(ensure_prop get installed/uav_mission_compute_sdk)" || return $?;
+    [ -r "$sdk_path/Makefile" ] && [ -r "$sdk_path/.env" ] && [ -n "$installed_commit" ] && [ "$(git -C "$source_path" rev-parse HEAD 2> /dev/null)" = "$installed_commit" ]
 }
 verify_uav_mission_compute_sdk_running () 
 { 
@@ -12255,7 +12259,7 @@ vision_analytics_configure_uav_application ()
     uav_module="$1";
     uav_app="$2";
     uav_repository="https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git";
-    uav_commit="cebc4af2abda194c2c62055fb378c48ec4119783";
+    uav_commit="main";
     uav_workspace="$(ensure_project_path)/uav-mission-compute-sdk";
     uav_checkout="$uav_workspace/$uav_app";
     uav_dir="$uav_checkout/uav-$uav_app";
@@ -12336,7 +12340,7 @@ vision_analytics_install_uav_application ()
         fi;
         python3 -c 'import ensurepip' || return $?;
     fi;
-    echo "@@STEP Fetching UAV source commit $uav_commit for $uav_app";
+    echo "@@STEP Fetching UAV source ref $uav_commit for $uav_app";
     vision_analytics_configure_uav_application_source || return $?;
     if [[ ! -f "$uav_dir/Makefile" || ! -f "$uav_dir/.env.example" ]]; then
         echo "Required UAV application source is missing: $uav_dir" 1>&2;
