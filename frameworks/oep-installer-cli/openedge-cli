@@ -164,13 +164,13 @@ subcommand_bootstrap () {
     echo "  --validate             validate installation orders."
     echo "  --dry-run              dry run the bootstrapping process."
     echo
-    local profiles=($(LC_ALL=C.UTF-8;cd "$mydir";find profile -name "$installer_family" | cut -f2 -d/))
+    local profiles=($(cd "$mydir";LC_ALL=C.UTF-8 find profile -name "$installer_family" | cut -f2 -d/))
     [ ${#profiles[*]} -eq 0 ] || (
       IFS=$'\n'
       echo "  list of bootstrap profiles:"
       echo "${profiles[*]/#/    }" | LC_ALL=C.UTF-8 sort
     )
-    local modules=($(LC_ALL=C.UTF-8;cd "$mydir";find module -name "$installer_family" | cut -f2 -d/) $(LC_ALL=C.UTF-8;cd "$mydir";find package -ipath "package/${installer_family}/*" -type f -print | cut -f3 -d/))
+    local modules=($(cd "$mydir";LC_ALL=C.UTF-8 find module -name "$installer_family" | cut -f2 -d/) $(cd "$mydir";LC_ALL=C.UTF-8 find package -ipath "package/${installer_family}/*" -type f -print | cut -f3 -d/))
     [ ${#modules[*]} -eq 0 ] || (
       IFS=$'\n'
       echo "  list of bootstrap components:"
@@ -215,7 +215,7 @@ subcommand_bootstrap () {
   done
 
   # scan for dependencies
-  [ ${#modules[*]} -gt 0 ] || modules+=($(LC_ALL=C.UTF-8;cd "$mydir";find profile module -name "$installer_family" | cut -f2 -d/) $(LC_ALL=C.UTF-8;cd "$mydir";find package -ipath "package/${installer_family}/*" -type f -print | cut -f3 -d/))
+  [ ${#modules[*]} -gt 0 ] || modules+=($(cd "$mydir";LC_ALL=C.UTF-8 find profile module -name "$installer_family" | cut -f2 -d/) $(cd "$mydir";LC_ALL=C.UTF-8 find package -ipath "package/${installer_family}/*" -type f -print | cut -f3 -d/))
   modules=(${modules[*]##*/})
   local -A scripts=() orders=() known=() depsof=()
   local i=0 script license_common=0
