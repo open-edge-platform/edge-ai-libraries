@@ -5,6 +5,7 @@ import { ApiProperty, ApiResponseProperty } from '@nestjs/swagger';
 export interface Features {
   summary: FEATURE_STATE;
   search: FEATURE_STATE;
+  imageSearchEnabled: boolean;
 }
 
 export class FeaturesRO implements Features {
@@ -14,6 +15,8 @@ export class FeaturesRO implements Features {
   summary: FEATURE_STATE;
   @ApiResponseProperty({ type: String })
   search: FEATURE_STATE;
+  @ApiResponseProperty({ type: Boolean })
+  imageSearchEnabled: boolean;
 }
 
 export enum CONFIG_STATE {

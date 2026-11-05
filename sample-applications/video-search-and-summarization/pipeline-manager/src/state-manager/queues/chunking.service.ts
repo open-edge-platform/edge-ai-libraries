@@ -7,6 +7,8 @@ import { AppEvents } from 'src/events/app.events';
 import {
   FrameCaptionEventDTO,
   PipelineEvents,
+  VideoEmbeddingsStatusEvent,
+  VideoEvents,
 } from 'src/events/Pipeline.events';
 import { StateService } from 'src/state-manager/services/state.service';
 import { VlmService } from '../../language-model/services/vlm.service';
@@ -415,6 +417,13 @@ export class ChunkingService {
             caption,
           );
           this.$state.searchEmbeddingsCreated(stateId, frameIds.join('#'));
+          // Only success is reported: a failed chunk does not make the video
+          // unsearchable when its other chunks were embedded.
+          this.$emitter.emit(VideoEvents.EMBEDDINGS_STATUS, {
+            videoId: state.video.videoId,
+            kind: 'textEmbeddings',
+            created: true,
+          } satisfies VideoEmbeddingsStatusEvent);
         },
         error: (error: any) => {
           Logger.error(
