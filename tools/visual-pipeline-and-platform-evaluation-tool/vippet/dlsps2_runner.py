@@ -19,8 +19,8 @@ modes:
   :func:`validation_launch_string`). Every stream then runs as its own
   instance (``POST /pipelines`` per stream with ``validate_pipeline=false``,
   all in the unpinned worker),
-  so the instances start together. ``GET /pipelines/status`` is polled for
-  each stream's ``frame_fps`` and ``frame_interval``; every instance is
+  so the instances start together. ``GET /pipelines/{id}/status`` is polled
+  for each stream's ``frame_fps`` and ``frame_interval``; every instance is
   stopped with
   ``DELETE /pipelines/{id}`` once ``max_runtime`` elapses, all instances end,
   or the caller cancels.
@@ -660,18 +660,23 @@ class Dlsps2PipelineRunner:
     def _statuses(
         self, client: httpx.Client, instances: dict[str, str]
     ) -> dict[str, dict]:
-        """Status of each instance in ``{stream_id: instance_id}``, in one request.
+        """Status of each instance in ``{stream_id: instance_id}``.
 
-        Instances DLSPS no longer reports are left out.
+        One ``GET /pipelines/{id}/status`` per instance, so the cost does not
+        grow with the instances the server keeps from earlier runs. Instances
+        DLSPS no longer knows (404) are left out.
+
+        Raises:
+            httpx.HTTPError: If a request fails for another reason.
         """
-        response = client.get(f"{self.base_url}/pipelines/status")
-        response.raise_for_status()
-        by_id = {item.get("id"): item for item in response.json()}
-        return {
-            stream_id: by_id[instance_id]
-            for stream_id, instance_id in instances.items()
-            if instance_id in by_id
-        }
+        statuses: dict[str, dict] = {}
+        for stream_id, instance_id in instances.items():
+            try:
+                statuses[stream_id] = self._status(client, instance_id)
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code != 404:
+                    raise
+        return statuses
 
     @staticmethod
     def _error_detail(exc: httpx.HTTPError) -> str:

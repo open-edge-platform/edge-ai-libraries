@@ -7,7 +7,7 @@ end-to-end latency and VLM generation metrics.
 
 Pipelines run on DL Streamer Pipeline Server 2.0 (DLSPS), one server instance per stream. The server counts the
 frames of each instance at one terminal sink and reports them as `frame_fps` over the last `frame_interval`
-seconds in `GET /pipelines/status`. `Dlsps2PipelineRunner` (`vippet/dlsps2_runner.py`) polls that endpoint every
+seconds in `GET /pipelines/{id}/status`. `Dlsps2PipelineRunner` (`vippet/dlsps2_runner.py`) polls it for each instance every
 `DLSPS2_POLL_INTERVAL_S` seconds (default `1`). After a warm-up of `DLSPS2_WARMUP_S` seconds (default `5`, at
 most half the run), counted from the moment every stream has reported its first frame, it sums each stream's
 frames and seconds over the new windows. A stream's FPS is its frames over its seconds, and the slowest stream

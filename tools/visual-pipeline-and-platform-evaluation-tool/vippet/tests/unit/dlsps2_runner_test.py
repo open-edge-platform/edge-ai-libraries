@@ -64,9 +64,13 @@ class _FakeDlsps2:
 class _FakeStreamSet:
     """In-process DLSPS 2.0 for normal mode: one instance per POST.
 
-    Each item of ``polls`` answers one ``GET /pipelines/status``: a list with
-    one status dict per instance in POST order, an ``httpx.Response``, or a
-    callable producing either. The last item repeats. Stopped instances are
+    Each item of ``polls`` answers one polling round, a
+    ``GET /pipelines/{id}/status`` per instance: a list with one status dict
+    per instance in POST order (an instance beyond the list gets 404), an
+    ``httpx.Response`` for every request of the round, or a callable producing
+    either. A round starts when an instance is asked for a second time. The
+    last item repeats. Once an instance was sent ``DELETE``, its status comes
+    from ``instance_states`` if given there. Stopped instances are
     reported as ``ABORTED``. Each item of ``validations`` answers one
     ``GET /validate/status/{id}`` the same way; the default is ``VALID``.
     A status with frames and no ``frame_interval`` gets a new one on every
@@ -97,6 +101,9 @@ class _FakeStreamSet:
         self.validated = 0
         self.status_polls = 0
         self.stopped: set[str] = set()
+        self.deleted: set[str] = set()
+        self._round: object = None
+        self._round_served: set[str] = set()
 
     @staticmethod
     def _next(items: list):
@@ -144,32 +151,44 @@ class _FakeStreamSet:
             return httpx.Response(200, json={"instance_id": f"inst-{self.posted}"})
         if request.method == "DELETE":
             instance_id = path.rsplit("/", 1)[-1]
+            self.deleted.add(instance_id)
             codes = self.delete_codes.get(instance_id)
             code = self._next(codes) if codes else 200
             if code == 200:
                 self.stopped.add(instance_id)
             return httpx.Response(code)
-        if path == "/pipelines/status":
+        instance_id = path.split("/")[2]
+        if instance_id in self.instance_states and instance_id in self.deleted:
+            states = self.instance_states[instance_id]
+            return httpx.Response(
+                200, json={"id": instance_id, "state": self._next(states)}
+            )
+        return self._polled_status(instance_id)
+
+    def _polled_status(self, instance_id: str) -> httpx.Response:
+        if self._round is None or instance_id in self._round_served:
             item = self._next(self.polls)
             if callable(item):
                 item = item()
-            if isinstance(item, httpx.Response):
-                return item
-            assert isinstance(item, list)
-            self.status_polls += 1
-            body = [{"id": f"inst-{i + 1}", **s} for i, s in enumerate(item)]
-            for status in body:
-                if status.get("frame_fps") and "frame_interval" not in status:
-                    # Dyadic, so fps-weighted sums of whole fps stay exact.
-                    status["frame_interval"] = 1.0 + self.status_polls / 1024
-                if status["id"] in self.stopped:
-                    status["state"] = "ABORTED"
-            return httpx.Response(200, json=body)
-        instance_id = path.split("/")[2]
-        states = self.instance_states.get(instance_id, ["RUNNING"])
-        return httpx.Response(
-            200, json={"id": instance_id, "state": self._next(states)}
-        )
+            self._round = item
+            self._round_served = set()
+            if isinstance(item, list):
+                self.status_polls += 1
+        self._round_served.add(instance_id)
+        item = self._round
+        if isinstance(item, httpx.Response):
+            return item
+        assert isinstance(item, list)
+        index = int(instance_id.rsplit("-", 1)[-1]) - 1
+        if index >= len(item):
+            return httpx.Response(404, json={"detail": "not found"})
+        status = {"id": instance_id, **item[index]}
+        if status.get("frame_fps") and "frame_interval" not in status:
+            # Dyadic, so fps-weighted sums of whole fps stay exact.
+            status["frame_interval"] = 1.0 + self.status_polls / 1024
+        if instance_id in self.stopped:
+            status["state"] = "ABORTED"
+        return httpx.Response(200, json=status)
 
     def client(self) -> httpx.Client:
         return httpx.Client(transport=httpx.MockTransport(self.handler))
@@ -1715,6 +1734,28 @@ class TestDlsps2RunnerLostInstance(unittest.TestCase):
         # instances are stopped.
         self.assertEqual(fake.status_polls, 2)
         self.assertEqual(len(fake.calls("DELETE")), 2)
+
+
+class TestDlsps2RunnerPerInstancePolling(unittest.TestCase):
+    def test_polls_each_instance_not_the_whole_registry(self):
+        streams = {"s0": "a ! fakesink name=s0", "s1": "a ! fakesink name=s1"}
+        fake = _FakeStreamSet(
+            [[_running(30.0), _running(20.0)], [{"state": "COMPLETED"}] * 2]
+        )
+        runner = Dlsps2PipelineRunner(
+            mode="normal", base_url="http://dlsps:8080", max_runtime=0
+        )
+        with (
+            patch.object(runner, "_push_fps_metric"),
+            patch.object(runner, "_client", side_effect=fake.client),
+            patch.object(runner, "_metrics_client", side_effect=fake.client),
+        ):
+            runner.run(PIPELINE, stream_commands=streams)
+
+        polled = [r.url.path for r in fake.calls("GET")]
+        self.assertNotIn("/pipelines/status", polled)
+        self.assertIn("/pipelines/inst-1/status", polled)
+        self.assertIn("/pipelines/inst-2/status", polled)
 
 
 class TestStopLeftoverInstances(unittest.TestCase):
