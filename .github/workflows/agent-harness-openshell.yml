@@ -72,6 +72,13 @@ jobs:
         run: |
           set -euo pipefail
           bash test/model-lifecycle-test.sh | tee "$RUNNER_TEMP/openshell-offline/lifecycle.tap"
+      - name: Telemetry (metrics) regression
+        id: metrics
+        if: ${{ !cancelled() && steps.syntax.outcome == 'success' }}
+        working-directory: frameworks/agent-harness-install
+        run: |
+          set -euo pipefail
+          bash test/metrics-test.sh | tee "$RUNNER_TEMP/openshell-offline/metrics.tap"
       - name: Agent model defaults
         id: defaults
         if: ${{ !cancelled() && steps.syntax.outcome == 'success' }}
@@ -90,7 +97,7 @@ jobs:
         if: always()
         working-directory: frameworks/agent-harness-install
         env:
-          TEST_STEP_OUTCOMES: '{"core":"${{ steps.core.outcome }}","inference":"${{ steps.inference.outcome }}","lifecycle":"${{ steps.lifecycle.outcome }}","defaults":"${{ steps.defaults.outcome }}","reporting":"${{ steps.reporting.outcome }}"}'
+          TEST_STEP_OUTCOMES: '{"core":"${{ steps.core.outcome }}","inference":"${{ steps.inference.outcome }}","lifecycle":"${{ steps.lifecycle.outcome }}","metrics":"${{ steps.metrics.outcome }}","defaults":"${{ steps.defaults.outcome }}","reporting":"${{ steps.reporting.outcome }}"}'
         run: node test/tap-summary.mjs "$RUNNER_TEMP/openshell-offline"
       - name: Upload offline TAP reports
         if: always()

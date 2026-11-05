@@ -150,6 +150,23 @@ write_inference_router_config() {
   with_state_lock inference-router-config _write_inference_router_config_locked "$@"
 }
 
+# inference_router_telemetry_block — the config.yaml `telemetry:` section.
+# In-memory by default; "file" (JSONL in the bind-mounted workspace, i.e.
+# /app/telemetry.jsonl inside the container) once `./install.sh metrics enable
+# --target router` has recorded it in metrics.json (see metrics.sh). Kept here
+# so every regeneration of config.yaml preserves that choice.
+inference_router_telemetry_block() {
+  local persisted=""
+  if declare -F metrics_state_get >/dev/null 2>&1; then
+    persisted="$(metrics_state_get router.enabled)"
+  fi
+  if [[ "$persisted" == true ]]; then
+    printf 'telemetry:\n  backend: "file"\n  file_path: "/app/telemetry.jsonl"\n  enabled: true'
+  else
+    printf 'telemetry:\n  backend: "memory"\n  enabled: true'
+  fi
+}
+
 _write_inference_router_config_locked() {
   local model_name="$1" workspace_dir config_file tmp ovms_url ovms_url_esc model_esc
   local provider_name="ovms" auth_scheme="none" auth_key_line=""
@@ -175,6 +192,11 @@ _write_inference_router_config_locked() {
     # ensure_backend_network in openvino.sh and this file's docker run below).
     ovms_url="$(ovms_internal_endpoint)" || return 1
   fi
+  # The file backend needs its JSONL file writable by the container's own uid.
+  if declare -F metrics_router_prepare_file >/dev/null 2>&1 \
+    && [[ "$(metrics_state_get router.enabled)" == true ]]; then
+    metrics_router_prepare_file
+  fi
   ovms_url_esc="$(printf '%s' "$ovms_url" | sed 's/\\/\\\\/g; s/"/\\"/g')"
   model_esc="$(printf '%s' "${model_name:-default}" | sed 's/\\/\\\\/g; s/"/\\"/g')"
   tmp="$(mktemp)"
@@ -199,9 +221,7 @@ plugins:
   postresponse: []
 routing:
   policy: "${HARNESS_IR_ROUTING_POLICY}"
-telemetry:
-  backend: "memory"
-  enabled: true
+$(inference_router_telemetry_block)
 EOF
   # mktemp creates its file mode 0600, owned by whichever host user runs
   # the installer -- but IR runs as its image's own fixed internal user
@@ -222,8 +242,13 @@ EOF
 # docker-setup.sh already provides (confirmed acceptable to run both on one
 # GPU).
 ensure_inference_router() {
-  local model_name="${1:-}" gpu_args group_add_args no_proxy_combined bind_host external_host=""
+  local model_name="${1:-}" gpu_args group_add_args no_proxy_combined bind_host external_host="" telemetry_group=""
   local -a proxy_args=() network_args=() external_args=()
+  # Lets the container's uid append to the group-writable telemetry file
+  # (see metrics_router_prepare_file) without a world-writable mode.
+  if declare -F metrics_router_file_group >/dev/null 2>&1; then
+    telemetry_group="$(metrics_router_file_group)"
+  fi
   ensure_inference_router_image
   if [[ -n "${HARNESS_LLM_ROUTER_ENDPOINT:-}" ]]; then
     external_host="${HARNESS_LLM_ROUTER_ENDPOINT#*://}"
@@ -280,6 +305,7 @@ ${HARNESS_IR_WORKSPACE_DIR}/config.yaml."
   docker run -d --name "$HARNESS_IR_CONTAINER" --restart unless-stopped \
     "${network_args[@]}" \
     -p "${bind_host}:${HARNESS_IR_PORT}:8000" $gpu_args $group_add_args \
+    ${telemetry_group:+--group-add "$telemetry_group"} \
     -v "$(inference_router_workspace_dir):/app" \
     -e "GATEWAY_CONFIG=/app/config.yaml" \
     -e "IR_DEVICE=$([[ -n "$gpu_args" ]] && printf GPU || printf CPU)" \

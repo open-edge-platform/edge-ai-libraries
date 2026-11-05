@@ -36,6 +36,7 @@ const suites = [
   ["core", "OpenShell startup, runtime and boundaries"],
   ["inference", "Managed inference"],
   ["lifecycle", "Model lifecycle and CLI"],
+  ["metrics", "Telemetry (metrics)"],
   ["defaults", "Agent model defaults"],
   ["reporting", "TAP reporting regression"]
 ];
