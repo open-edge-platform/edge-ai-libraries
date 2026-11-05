@@ -92,6 +92,26 @@ class TestParser(unittest.TestCase):
             },
         )
 
+    def test_options_are_registered_alphabetically(self) -> None:
+        flags = [
+            action.option_strings[0]
+            for action in cli.build_parser()._actions
+            if action.option_strings and action.option_strings[0] != "-h"
+        ]
+        self.assertEqual(flags, sorted(flags))
+
+    def test_help_lists_options_alphabetically(self) -> None:
+        parser = cli.build_parser()
+        flags = sorted(
+            action.option_strings[0]
+            for action in parser._actions
+            if action.option_strings and action.option_strings[0] != "-h"
+        )
+        help_text = parser.format_help()
+        # First occurrence after the usage block: "  --flag" starts a help entry.
+        positions = [help_text.index(f"\n  {flag}") for flag in flags]
+        self.assertEqual(positions, sorted(positions))
+
     def test_unset_flags_do_not_override(self) -> None:
         self.assertEqual(cli.cli_overrides(_parse()), {})
 
