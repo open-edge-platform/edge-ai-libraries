@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: internvl2-2b-int4-ov
+name: OpenVINO/internvl2-2b-int4-ov
 display_name: internvl2-2b-int4-ov
 description: "InternVL2 2B vision-language model that combines image and text understanding to caption images and answer visual questions."
 source: huggingface

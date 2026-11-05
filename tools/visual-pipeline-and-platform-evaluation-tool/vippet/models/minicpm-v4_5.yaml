@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: minicpm-v4_5-int4-cw-ov
+name: OpenVINO/minicpm-v4_5-int4-cw-ov
 display_name: minicpm-v4_5-int4-cw-ov
 description: "MiniCPM-V 4.5 (8B) vision-language model for high-quality image understanding, visual question answering, and detailed scene description."
 source: huggingface

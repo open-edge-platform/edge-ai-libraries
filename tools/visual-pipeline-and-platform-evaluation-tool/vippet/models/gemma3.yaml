@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: gemma-3-4b-it-int4-ov
+name: OpenVINO/gemma-3-4b-it-int4-ov
 display_name: gemma-3-4b-it-int4-ov
 description: "Google Gemma 3 vision-language model that understands images together with text prompts to generate captions, descriptive answers, and visual reasoning."
 source: huggingface

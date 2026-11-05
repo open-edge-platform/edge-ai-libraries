@@ -2352,6 +2352,7 @@ class ModelGated(str, Enum):
     AUTO = "auto"
     MANUAL = "manual"
 
+
 class ModelDownloadJobState(str, Enum):
     """
     **State of a model download job tracked by vippet-app.**
