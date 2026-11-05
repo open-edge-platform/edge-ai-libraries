@@ -42,7 +42,7 @@ export const LicenseAcknowledgementDialog = ({
           </DialogDescription>
         </DialogHeader>
         <ul className="space-y-2">
-          {models.map(model => (
+          {models.map((model) => (
             <li key={model.name} className="text-sm">
               {model.url ? (
                 <a

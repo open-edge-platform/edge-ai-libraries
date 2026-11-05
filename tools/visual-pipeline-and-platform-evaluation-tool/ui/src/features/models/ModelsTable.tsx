@@ -34,8 +34,8 @@ export const ModelsTable = ({
 }: ModelsTableProps) => {
   const allModels = useAppSelector(selectModels);
   const models = useMemo(
-    () => allModels.filter(m => (m.category ?? null) === category),
-    [allModels, category]
+    () => allModels.filter((m) => (m.category ?? null) === category),
+    [allModels, category],
   );
   const [gatedPrompt, setGatedPrompt] = useState<{
     name: string;
@@ -54,7 +54,7 @@ export const ModelsTable = ({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {models.map(model => {
+          {models.map((model) => {
             const isPending = pendingDownloads.has(model.name);
             const canInstall =
               model.install_status === "not_installed" ||
@@ -89,9 +89,9 @@ export const ModelsTable = ({
                   {Array.from(
                     new Set(
                       model.variants
-                        ?.map(v => v.precision)
-                        .filter((p): p is string => Boolean(p)) ?? []
-                    )
+                        ?.map((v) => v.precision)
+                        .filter((p): p is string => Boolean(p)) ?? [],
+                    ),
                   ).join(", ") || "-"}
                 </TableCell>
                 <TableCell>
@@ -138,7 +138,7 @@ export const ModelsTable = ({
       </Table>
       <LicenseAcknowledgementDialog
         open={gatedPrompt !== null}
-        onOpenChange={open => {
+        onOpenChange={(open) => {
           if (!open) setGatedPrompt(null);
         }}
         models={

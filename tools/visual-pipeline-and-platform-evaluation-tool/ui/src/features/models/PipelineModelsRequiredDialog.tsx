@@ -44,7 +44,7 @@ export const PipelineModelsRequiredDialog = ({
 
   const modelByDisplayName = useMemo(() => {
     const map = new Map<string, Model>();
-    availableModels.forEach(model => {
+    availableModels.forEach((model) => {
       map.set(model.display_name, model);
       map.set(model.name, model);
     });
@@ -72,7 +72,7 @@ export const PipelineModelsRequiredDialog = ({
 
           <div className="max-h-80 overflow-y-auto rounded border">
             <div className="divide-y">
-              {models.map(item => {
+              {models.map((item) => {
                 const isInstalled = item.installStatus === "installed";
                 const catalogModel = modelByDisplayName.get(item.model);
                 const installableModelName = catalogModel?.name;
@@ -133,7 +133,7 @@ export const PipelineModelsRequiredDialog = ({
       </Dialog>
       <LicenseAcknowledgementDialog
         open={gatedPrompt !== null}
-        onOpenChange={isOpen => {
+        onOpenChange={(isOpen) => {
           if (!isOpen) setGatedPrompt(null);
         }}
         models={
