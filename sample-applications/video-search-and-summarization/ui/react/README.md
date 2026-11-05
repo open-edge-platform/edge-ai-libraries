@@ -1,4 +1,4 @@
-# Intel EGAI Video Summary UI
+# Video Search and Summarization UI
 
 Welcome to the Video Summary UI project! This guide will help you set up and run the Video Summary UI application using `Docker` or `npm`. Follow the steps below to ensure a smooth deployment process.
 

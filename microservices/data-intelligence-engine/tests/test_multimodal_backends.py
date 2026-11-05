@@ -20,16 +20,18 @@ import pytest
 
 from core.file_asset_library import _is_multimodal
 from core.multimodal.embeddings import build_multimodal_embedding, normalize
+from tests.video_package import VIDEO_FAMILIES
 
-XCLIP_ID = "microsoft/xclip-base-patch16-zero-shot"
+VIDEO_ID = "viclip-b-fp16"
 GME_ID = "Alibaba-NLP/gme-Qwen2-VL-2B-Instruct"
 
 
 # --- which indexer a source gets -----------------------------------------------
 
 
-def test_a_source_is_multimodal_when_its_model_is():
-    assert _is_multimodal({"asset_types": ["video"], "embedding_model": XCLIP_ID})
+@pytest.mark.parametrize("family", VIDEO_FAMILIES)
+def test_a_source_is_multimodal_when_its_model_is(family):
+    assert _is_multimodal({"asset_types": ["video"], "embedding_model": f"{family}-fp16"})
     assert _is_multimodal({
         "asset_types": ["image"], "embedding_model": GME_ID, "embedding_backend": "openvino",
     })
@@ -56,8 +58,9 @@ def test_native_gme_media_uses_the_multimodal_pipeline(kind, backend):
 
 
 @pytest.mark.parametrize("backend", [None, "openvino", "native_openvino_gme"])
-def test_xclip_without_asset_scope_is_invalid_even_with_an_explicit_model(backend):
-    options = {"embedding_model": XCLIP_ID}
+@pytest.mark.parametrize("family", VIDEO_FAMILIES)
+def test_video_without_asset_scope_is_invalid_even_with_an_explicit_model(backend, family):
+    options = {"embedding_model": f"{family}-fp16"}
     if backend:
         options["embedding_backend"] = backend
     with pytest.raises(ValueError, match="asset_types"):
@@ -77,6 +80,17 @@ def test_an_ordinary_text_source_is_not():
 def test_a_record_naming_no_known_model_is_rejected():
     with pytest.raises(ValueError, match="Unknown multimodal model"):
         build_multimodal_embedding({"name": "clip-but-imaginary", "path": "/x"})
+
+
+@pytest.mark.parametrize("scope", [{}, {"asset_types": ["video"]}])
+def test_retired_xclip_is_not_accepted_as_a_source(scope):
+    with pytest.raises(ValueError, match="Unsupported production video model"):
+        _is_multimodal({"embedding_model": "microsoft/xclip-base-patch16-zero-shot", **scope})
+
+
+def test_a_retired_frozen_xclip_model_cannot_be_built():
+    with pytest.raises(ValueError, match="Unsupported production video model"):
+        build_multimodal_embedding({"name": "xclip", "path": "/not-read"})
 
 
 def test_a_missing_image_model_fails_at_construction_not_at_use():
@@ -118,7 +132,7 @@ def test_a_multimodal_source_without_a_recorded_model_must_be_recreated():
 
 @pytest.mark.parametrize("configuration", [
     {}, {"asset_types": None}, {"asset_types": []},
-    {"block_kinds": ["video"]}, {"embedding_model": XCLIP_ID},
+    {"block_kinds": ["video"]}, {"embedding_model": VIDEO_ID},
 ])
 def test_direct_multimodal_indexer_requires_asset_scope_on_the_source(configuration):
     from assetlib import Source

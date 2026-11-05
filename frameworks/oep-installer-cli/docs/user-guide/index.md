@@ -26,10 +26,10 @@ the tool above lists the modules it contains. Toggle one or more modules to
 generate their install command, lifecycle commands, and suite documentation
 links. Only modules from the selected profile can be selected together.
 
-The selector offers Ubuntu 24.04 and Ubuntu 26.04. Modules are shown according to
-their configured compatibility restrictions. Selecting an OS does not certify
-all upstream components on that release; consult the component requirements.
-When no compatible modules are available, no install command can be copied.
+The selector offers Ubuntu 24.04. Modules are shown according to their
+configured compatibility restrictions. Selecting an OS does not certify all
+upstream components on that release; consult the component requirements. When
+no compatible modules are available, no install command can be copied.
 
 The **Options** field offers complete, developer-defined flag combinations.
 For multiple modules, it shows only complete combinations shared by every

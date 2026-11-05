@@ -12,7 +12,7 @@ would add its adapter here too rather than duplicating the OV plumbing.
 What lives here today:
 
 - **openvino_genai** (`OpenVINOGenAIEmbedding`, `OpenVINOGenAIReranking`): thin
-  wrappers over `openvino_genai`'s text pipelines. Ported verbatim from
+  wrappers over `openvino_genai`'s text pipelines. Originally ported from
   edgecraftrag/components/ov_llamaindex_helper.py; used when EMBEDDING_BACKEND /
   RERANK_BACKEND == "openvino_genai" (requires the openvino-genai package).
 - **llamaindex_openvino embedding** (`serialized_openvino_embedding`): llama-index's
@@ -246,7 +246,11 @@ class OpenVINOGenAIReranking(BaseNodePostprocessor):
         )
 
         config = openvino_genai.TextRerankPipeline.Config()
-        config.top_n = top_n
+        # GenAI captures top_n at construction and truncates its ranked output.
+        # Return all candidates so a cached pipeline can serve any request's
+        # top_n without recompiling. The native field is a size_t; it only
+        # bounds sorting/truncation, not inference or buffer allocation.
+        config.top_n = np.iinfo(np.uintp).max
         if max_length:
             config.max_length = max_length
         config.pad_to_max_length = pad_to_max_length
@@ -281,14 +285,21 @@ class OpenVINOGenAIReranking(BaseNodePostprocessor):
             },
         ) as event:
             outputs = self._ov_pipe.rerank(query_bundle.query_str, nodes_text_list)
-            for node, score in zip(nodes, outputs):
+            ranked = []
+            # Output order is rank order; each index addresses the input list.
+            # Copy nodes so reranking cannot overwrite recall scores/metadata.
+            for index, score in outputs:
+                node = nodes[index].model_copy(deep=True)
                 if self.keep_retrieval_score:
                     node.node.metadata["retrieval_score"] = node.score
-                node.score = score[1]
-            event.on_end(payload={EventPayload.NODES: nodes})
+                node.score = float(score)
+                ranked.append(node)
+            ranked.sort(key=lambda node: node.score, reverse=True)
+            ranked = ranked[:self.top_n]
+            event.on_end(payload={EventPayload.NODES: ranked})
 
-        dispatcher.event(ReRankEndEvent(nodes=nodes))
-        return nodes
+        dispatcher.event(ReRankEndEvent(nodes=ranked))
+        return ranked
 
 
 from inference.multimodal.qwen3_vl_reranker_ov import OpenVINOVLReranking

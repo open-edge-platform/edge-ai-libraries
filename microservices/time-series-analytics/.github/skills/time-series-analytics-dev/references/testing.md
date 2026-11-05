@@ -6,7 +6,7 @@ SPDX-License-Identifier: Apache-2.0
 # Testing — Time Series Analytics
 
 Two independent suites: fast mocked unit tests, and slow end-to-end tests
-that actually stand up the service via Docker or Helm.
+that actually stand up the service via Docker.
 
 ## Unit tests (`tests/`)
 
@@ -63,14 +63,12 @@ pytest -q -vv --self-contained-html --html=./test_report/report.html .
 ```
 
 These actually build the Docker image, bring it up (`test_docker.py`,
-port 5000) or install the Helm chart (`test_helm.py`, release name
-`time-series-analytics-microservice`, namespace `apps`, port 30002), then
-exercise the REST API end-to-end via `rest_api_utils.py` helpers. Both
-modules `pytest.skip` if the expected `../` microservice directory isn't
+port 5000), then exercise the REST API end-to-end via `rest_api_utils.py`
+helpers. The module calls `pytest.skip` if the expected `../` microservice directory isn't
 found — they assume they're run from inside a checkout, not standalone.
-Expect these to be slow (image build + container/Helm bring-up); don't run
+Expect these to be slow (image build + container bring-up); don't run
 them for every small change, but do run the relevant one before a release
-or after touching `docker/`, `helm/`, or the REST routes.
+or after touching `docker/` or the REST routes.
 
 ## Adding a test for a new route or config field
 

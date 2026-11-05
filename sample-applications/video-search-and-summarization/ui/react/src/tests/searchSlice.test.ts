@@ -12,6 +12,8 @@ import {
   SearchWatch,
   SearchRemove,
   LoadRefreshConfig,
+  LoadSearchConfig,
+  RerunSearch,
 } from '../redux/search/searchSlice';
 import { SearchState, SearchQueryUI, SearchQuery, SearchResult, SearchQueryStatus } from '../redux/search/search';
 
@@ -45,6 +47,7 @@ describe('SearchSlice', () => {
     triggerLoad: true,
     suggestedTags: [],
     refreshConfig: null,
+    searchConfig: null,
   };
 
   beforeEach(() => {
@@ -303,6 +306,32 @@ describe('SearchSlice', () => {
       });
     });
 
+    describe('LoadSearchConfig', () => {
+      it('should fetch and store the search settings', async () => {
+        vi.mocked(axios.get).mockResolvedValueOnce({ data: { minPeakScoreDefault: 0.3 } });
+
+        await store.dispatch(LoadSearchConfig());
+
+        expect(axios.get).toHaveBeenCalledWith('http://localhost:3000/search/config');
+        expect(store.getState().search.searchConfig).toEqual({ minPeakScoreDefault: 0.3 });
+      });
+    });
+
+    describe('updateMinPeakScore', () => {
+      it('should set the score and mark the query running', () => {
+        store.dispatch({
+          type: SearchActions.updateSearchQuery.type,
+          payload: { queryId: 'q1', query: 'q', results: [], queryStatus: SearchQueryStatus.IDLE },
+        });
+
+        store.dispatch(SearchActions.updateMinPeakScore({ queryId: 'q1', minPeakScore: 0.25 }));
+
+        const query = store.getState().search.searchQueries[0];
+        expect(query.minPeakScore).toBe(0.25);
+        expect(query.queryStatus).toBe(SearchQueryStatus.RUNNING);
+      });
+    });
+
     describe('updateTopK', () => {
       it('should update topK for existing query', () => {
         const query1: SearchQueryUI = {
@@ -389,7 +418,7 @@ describe('SearchSlice', () => {
         const state = store.getState().search;
         // Note: SearchLoad.pending may not clear queries in current implementation
         expect(state.searchQueries).toEqual([
-          { queryId: 'existing', topK: 4, showVideoGroups: false, timeFilter: { unit: 'minutes', value: 0 } },
+          { queryId: 'existing', topK: 4, groupBy: 'none', sortBy: 'relevance', timeFilter: { unit: 'minutes', value: 0 } },
         ]);
       });
     });
@@ -416,6 +445,32 @@ describe('SearchSlice', () => {
         expect(state.searchQueries[0].query).toBe('new search query');
         expect(state.searchQueries[0].topK).toBe(4);
         expect(state.selectedQuery).toBe('new-query');
+      });
+
+      it('should send the minimum peak score', async () => {
+        vi.mocked(axios.post).mockResolvedValueOnce({ data: { queryId: 'q', results: [] } });
+
+        await store.dispatch(SearchAdd({ query: 'q', tags: [], minPeakScore: 0.2 }));
+
+        expect(axios.post).toHaveBeenCalledWith('http://localhost:3000/search', { query: 'q', minPeakScore: 0.2 });
+      });
+    });
+
+    describe('RerunSearch', () => {
+      it('should send a minimum peak score override', async () => {
+        vi.mocked(axios.post).mockResolvedValueOnce({ data: { queryId: 'q1', results: [] } });
+
+        await store.dispatch(RerunSearch({ queryId: 'q1', minPeakScore: 0 }));
+
+        expect(axios.post).toHaveBeenCalledWith('http://localhost:3000/search/q1/refetch', { minPeakScore: 0 });
+      });
+
+      it('should send no body when nothing is overridden', async () => {
+        vi.mocked(axios.post).mockResolvedValueOnce({ data: { queryId: 'q1', results: [] } });
+
+        await store.dispatch(RerunSearch({ queryId: 'q1' }));
+
+        expect(axios.post).toHaveBeenCalledWith('http://localhost:3000/search/q1/refetch', undefined);
       });
     });
 
@@ -461,6 +516,76 @@ describe('SearchSlice', () => {
         const state = store.getState().search;
         expect(state.triggerLoad).toBe(true);
       });
+    });
+  });
+
+  describe('Sort and group', () => {
+    const hit = (id: string, score: number, observedAt?: string): SearchResult =>
+      ({
+        id,
+        metadata: { relevance_score: score, video_id: 'video-1' } as any,
+        page_content: '',
+        type: 'video',
+        video: null as any,
+        observedAt,
+      }) as SearchResult;
+
+    const load = (results: SearchResult[]) => {
+      store.dispatch({
+        type: SearchLoad.fulfilled.type,
+        payload: [
+          {
+            queryId: 'q1',
+            query: 'q',
+            watch: false,
+            results,
+            tags: [],
+            createdAt: '',
+            updatedAt: '',
+            queryStatus: SearchQueryStatus.IDLE,
+          },
+        ],
+      });
+      store.dispatch(SearchActions.selectQuery('q1'));
+    };
+
+    it('defaults loaded queries to relevance order and no grouping', () => {
+      load([hit('a', 0.9)]);
+      const query = store.getState().search.searchQueries[0];
+      expect(query.sortBy).toBe('relevance');
+      expect(query.groupBy).toBe('none');
+    });
+
+    it('orders the shown top K by observedAt, newest or oldest first', () => {
+      load([
+        hit('a', 0.9, '2026-01-01T00:00:00Z'),
+        hit('b', 0.8, '2026-01-03T00:00:00Z'),
+        hit('c', 0.7),
+        hit('d', 0.6, '2026-01-02T00:00:00Z'),
+        hit('e', 0.5, '2026-01-09T00:00:00Z'),
+      ]);
+      store.dispatch(SearchActions.updateTopK({ queryId: 'q1', topK: 4 }));
+
+      const ids = () => SearchSelector(store.getState()).selectedResults.map((r) => r.id);
+      expect(ids()).toEqual(['a', 'b', 'c', 'd']);
+
+      store.dispatch(SearchActions.setSortBy({ queryId: 'q1', sortBy: 'newest' }));
+      // 'e' is outside the top 4 by relevance and stays out; undated 'c' goes last.
+      expect(ids()).toEqual(['b', 'd', 'a', 'c']);
+
+      store.dispatch(SearchActions.setSortBy({ queryId: 'q1', sortBy: 'oldest' }));
+      expect(ids()).toEqual(['a', 'd', 'b', 'c']);
+    });
+
+    it('keeps sort and group choices when results refresh', () => {
+      load([hit('a', 0.9)]);
+      store.dispatch(SearchActions.setSortBy({ queryId: 'q1', sortBy: 'newest' }));
+      store.dispatch(SearchActions.setGroupBy({ queryId: 'q1', groupBy: 'camera' }));
+      store.dispatch(SearchActions.updateSearchQuery({ queryId: 'q1', results: [hit('b', 0.5)] }));
+
+      const query = store.getState().search.searchQueries[0];
+      expect(query.sortBy).toBe('newest');
+      expect(query.groupBy).toBe('camera');
     });
   });
 

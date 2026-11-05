@@ -9,18 +9,17 @@ engine defaults pattern (`ENGINE_VIDEO_EMBEDDING_*`, `ENGINE_IMAGE_EMBEDDING_*`)
 The original asset scope and selected representation choose a compatible model
 at source creation. Explicit models are recognized here:
 
-- by the **directory**, when the path holds one (X-CLIP's `config.json` says
-    `model_type: xclip`, or its two IR towers are present; a GME package has
-    `gme_openvino_config.json`), so a model
-  under any name is still recognized;
-- else by the **id**'s prefix.
+- by exact video model **identity**, from its canonical or official model ID;
+- by the **directory** manifest (`video_embedding.json` for video,
+    `gme_openvino_config.json` for GME), including independently named packages;
+- else by a registered family's **id** prefix (GME).
 
 A model that is neither remains a document model unless media was requested;
 an incompatible model cannot silently turn a media source into a document one.
 
 Each entry also says what the model can embed (`supported_roles`, read off its
 class without loading it), which runtimes it runs on, which of its inputs are
-fixed by the model itself (X-CLIP's frames per clip). Missing models must be
+fixed by the model itself (eight frames per video clip). Missing models must be
 downloaded and exported outside the engine before they can be loaded.
 """
 
@@ -33,7 +32,7 @@ from typing import Any, Dict, FrozenSet, Iterable, Mapping, Optional, Sequence
 import config
 from core.content import AUDIO, IMAGE, ROLE_L2_TRANSCRIPT, ROLE_LONG_VIDEO, ROLE_to_KIND, VIDEO
 from core.multimodal.routing import (
-    ASSET_ROLES, asset_families, representation, validate_model_options, validate_options,
+    DEFAULT_ROLES, asset_families, representation, validate_model_options, validate_options,
 )
 
 VIDEO_CATEGORY = "video"
@@ -76,13 +75,9 @@ class MultimodalModel:
 
     @property
     def supported_asset_types(self) -> FrozenSet[str]:
-        """Asset families supported through at least one representation.
-
-        GME supports video *captions*, not raw video. Roles remain the precise
-        capability boundary; an asset family alone never promises raw input.
-        """
+        """Asset families supported through their default representation."""
         return frozenset(
-            kind for kind, roles in ASSET_ROLES.items()
+            kind for kind, roles in DEFAULT_ROLES.items()
             if roles & self.supported_roles
         )
 
@@ -121,61 +116,46 @@ class MultimodalModel:
         raise NotImplementedError
 
 
-class _XClip(MultimodalModel):
+class _Video(MultimodalModel):
     def implementation(self):
-        from inference.multimodal.xclip_openvino import XClipOpenVinoEmbedding
+        if self.name == "cosmos-224p":
+            from inference.multimodal.cosmos_openvino import CosmosOpenVINOEmbedding
 
-        return XClipOpenVinoEmbedding
+            return CosmosOpenVINOEmbedding
+        from inference.multimodal.viclip_openvino import ViClipOpenVINOEmbedding
 
-    @staticmethod
-    def _config(path: Path) -> dict:
-        try:
-            value = json.loads((path / "config.json").read_text())
-            return value if isinstance(value, dict) else {}
-        except (OSError, ValueError):
-            return {}
+        return ViClipOpenVINOEmbedding
+
+    def matches_id(self, model_id: Optional[str]) -> bool:
+        # Exact identities: each video model and precision selects its own space.
+        return (model_id in self.model_id_prefixes
+            or model_id in (f"{self.name}-fp16", f"{self.name}-fp32"))
 
     def matches_dir(self, path: Path) -> bool:
-        from inference.multimodal.xclip_openvino import find_ir_dir
-
-        model_type = self._config(path).get("model_type")
-        return model_type == "xclip" or (
-            not model_type and find_ir_dir(str(path)) is not None
-        )
+        try:
+            metadata = json.loads((path / "video_embedding.json").read_text(encoding="utf-8"))
+            return isinstance(metadata, dict) and metadata.get("name") == self.name
+        except (OSError, ValueError):
+            return False
 
     def is_ready(self, path: Path) -> bool:
         return not self.preparation_problem(path)
 
     def preparation_problem(self, path: Path) -> str:
-        from inference.multimodal.xclip_openvino import find_ir_dir
-
-        missing = []
-        metadata = self._config(path)
-        if metadata.get("model_type") != "xclip":
-            missing.append('config.json with model_type="xclip"')
-        vision = metadata.get("vision_config")
-        frames = vision.get("num_frames") if isinstance(vision, dict) else None
-        if not isinstance(frames, int) or isinstance(frames, bool) or frames <= 0:
-            missing.append("config.json vision_config.num_frames (positive integer)")
-        if not (path / "tokenizer_config.json").is_file():
-            missing.append("tokenizer_config.json")
-        if not (path / "tokenizer.json").is_file() and not all(
-            (path / name).is_file() for name in ("vocab.json", "merges.txt")
-        ):
-            missing.append("tokenizer.json (or vocab.json + merges.txt)")
-        if find_ir_dir(str(path)) is None:
-            missing.append("xclip_video.xml/.bin and xclip_text.xml/.bin")
-        return f"Missing or invalid X-CLIP package files: {', '.join(missing)}" if missing else ""
+        try:
+            self.implementation().package_metadata(path, expected_name=self.name)
+        except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
+            return f"Prepare a {self.name} package with matching video_embedding.json and artifacts: {error}"
+        return ""
 
     def fixed_params(self, path: Path) -> Dict[str, Any]:
-        frames = self._config(path).get("vision_config", {}).get("num_frames")
-        return {"frames_per_clip": int(frames)} if frames else {}
+        return {"frames_per_clip": 8}
 
     def build(self, path: Path, device: str, params: Mapping[str, Any]):
+        self.implementation().package_metadata(path, expected_name=self.name)
         return self.implementation()(
             model_path=str(path),
             device=device,
-            frames_per_clip=int(params["frames_per_clip"]),
         )
 
 
@@ -217,7 +197,15 @@ class _Gme(MultimodalModel):
 
 
 MODELS: Sequence[MultimodalModel] = (
-    _XClip("xclip", VIDEO_CATEGORY, ("microsoft/xclip-",)),
+    _Video("viclip-b", VIDEO_CATEGORY, (
+        "viclip-b", "OpenGVLab/ViCLIP-B-16-hf", "ViCLIP-B-16-hf",
+    )),
+    _Video("viclip-l", VIDEO_CATEGORY, (
+        "viclip-l", "OpenGVLab/ViCLIP-L-14-hf", "ViCLIP-L-14-hf",
+    )),
+    _Video("cosmos-224p", VIDEO_CATEGORY, (
+        "cosmos-224p", "nvidia/Cosmos-Embed1-224p", "Cosmos-Embed1-224p",
+    )),
     _Gme(
         "gme_qwen2vl", IMAGE_CATEGORY, ("Alibaba-NLP/gme-",),
         backends=frozenset({'llamaindex_openvino', 'native_openvino_gme'}),
@@ -255,14 +243,80 @@ def path_for_id(model_id: str) -> Path:
 # --- which model ----------------------------------------------------------------
 
 
+def _retired_video_id(model_id: Optional[str]) -> bool:
+    name = str(model_id or "").rstrip("/").rsplit("/", 1)[-1].lower()
+    return name.startswith(("xclip", "x-clip"))
+
+
+def _unsupported_video(detail: str) -> ValueError:
+    return ValueError(
+        f"Unsupported production video model {detail}. Select a prepared viclip-b-fp16, "
+        "viclip-l-fp16 or cosmos-224p-fp16 package and explicitly recreate/replace the source and reindex "
+        "into a new collection; existing profiles and vectors cannot be remapped. "
+        "Legacy video models are available only in offline evaluation scripts."
+    )
+
+
+def is_video_package(path: Path) -> bool:
+    """Recognize video-only directories, including unsupported/incomplete ones.
+
+    Discovery must not offer a retired video tower as a generic text embedding
+    model, nor descend into its exported precision subdirectories.
+    """
+    if (path / "video_embedding.json").exists():
+        return True
+    if _retired_video_id(path.name) or path.name.lower().startswith(("viclip", "cosmos")):
+        return True
+    try:
+        metadata = json.loads((path / "config.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        metadata = {}
+    if isinstance(metadata, dict):
+        identity = f"{metadata.get('model_type', '')} {metadata.get('architectures', [])}".lower()
+        if any(family in identity for family in ("xclip", "viclip", "cosmos")):
+            return True
+    return any(
+        (directory / name).is_file()
+        for directory in (path, path / "openvino", path / "openvino/fp16", path / "openvino/fp32")
+        for name in ("xclip_video.xml", "xclip_text.xml", "video_encoder.xml", "text_encoder.xml")
+    )
+
+
+def model_for_record(record: Mapping[str, Any]) -> MultimodalModel:
+    """Validate frozen identity without resolving it against today's defaults."""
+    name = record.get("name")
+    if _retired_video_id(name) or _retired_video_id(record.get("id")):
+        raise _unsupported_video(repr(name))
+    model = next((model for model in MODELS if model.name == name), None)
+    if model is None:
+        raise ValueError(f"Unknown multimodal model {name!r}; recreate/replace the source and reindex")
+    identified = next((candidate for candidate in MODELS if candidate.matches_id(record.get("id"))), None)
+    if identified is not None and identified.name != model.name:
+        raise ValueError(
+            f"Frozen model {name!r} conflicts with model ID {record.get('id')!r}; "
+            "existing profiles cannot be rebound to another embedding space"
+        )
+    return model
+
+
 def lookup(model_id: Optional[str], model_path: Optional[str]) -> Optional[MultimodalModel]:
     """The multimodal model these name, or None for a text model."""
+    if _retired_video_id(model_id):
+        raise _unsupported_video(repr(model_id))
+    # An explicit video identity wins over directory classification. Readiness
+    # later validates it; a model must never silently become another family.
+    expected = next((model for model in MODELS
+                     if isinstance(model, _Video) and model.matches_id(model_id)), None)
+    if expected is not None:
+        return expected
     if model_path or model_id:
         path = local_path(model_path) if model_path else path_for_id(model_id)
         if path.is_dir():
             for model in MODELS:
                 if model.matches_dir(path):
                     return model
+            if is_video_package(path):
+                raise _unsupported_video(repr(str(path)))
     for model in MODELS:
         if model.matches_id(model_id):
             return model
@@ -290,7 +344,7 @@ def default_for(asset_types: Iterable[str], block_roles=None) -> Optional[Multim
         return None
     _, roles = representation(options)
     # Long video is an intentionally uncovered member of the default video
-    # representation, not a promise that X-CLIP can encode long recordings.
+    # representation, not a promise that video models can encode long recordings.
     needed = roles - {ROLE_LONG_VIDEO}
     for category in (VIDEO_CATEGORY, IMAGE_CATEGORY):
         # A broken, unrelated category default must not prevent image/caption
@@ -400,9 +454,9 @@ def load(record: Mapping[str, Any], options: Mapping[str, Any]):
     default for that kind of model, as it is now.
     """
     validate_model_options(options)
-    model = next((m for m in MODELS if m.name == record.get("name")), None)
-    if model is None:
-        raise ValueError(f"Unknown multimodal model {record.get('name')!r}")
+    model = model_for_record(record)
+    if not record.get("path"):
+        raise ValueError(f"Frozen {model.name} profile has no model path; recreate/replace the source")
     path = local_path(str(record.get("path") or ""))
     if not model.is_ready(path):
         detail = model.preparation_problem(path)
@@ -412,6 +466,12 @@ def load(record: Mapping[str, Any], options: Mapping[str, Any]):
             "tokenizer, and OpenVINO weights before starting the engine; use "
             "ENGINE_MODEL_ROOT_PATH and select the package with embedding_model. "
             "The engine does not download or export models."
+        )
+    if isinstance(model, _Video):
+        suffix = str(record.get("id") or "").rsplit("-", 1)[-1]
+        model.implementation().package_metadata(
+            path, expected_name=model.name,
+            expected_precision=suffix if suffix in ("fp16", "fp32") else None,
         )
     params = {key: options[key] for key in MODEL_PARAMS if key in options}
     for key, value in model.fixed_params(path).items():
@@ -446,9 +506,11 @@ __all__ = [
     "classify_dir",
     "default_for",
     "default_model",
+    "is_video_package",
     "load",
     "local_path",
     "lookup",
+    "model_for_record",
     "resolve",
     "stored_path",
 ]
