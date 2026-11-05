@@ -1119,6 +1119,44 @@ class TestExecutionConfigValidation(unittest.TestCase):
             str(context.exception),
         )
 
+    @patch("managers.tests_manager.os.sched_getaffinity", return_value={0, 1, 2, 3})
+    @patch("managers.tests_manager.PipelineManager")
+    def test_validate_execution_config_rejects_unavailable_cpu_cores(
+        self, mock_pipeline_manager_cls, _mock_getaffinity
+    ):
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
+        manager = TestsManager()
+        execution_config = create_internal_execution_config(
+            output_mode=InternalOutputMode.DISABLED,
+            max_runtime=0,
+            metadata_mode=InternalMetadataMode.DISABLED,
+        )
+        execution_config.pinned_cpu_cores = [1, 9]
+
+        with self.assertRaises(ValueError) as context:
+            manager._validate_execution_config(execution_config, is_density_test=False)
+
+        self.assertIn("pinned_cpu_cores", str(context.exception))
+        self.assertIn("[9]", str(context.exception))
+
+    @patch("managers.tests_manager.os.sched_getaffinity", return_value={0, 1, 2, 3})
+    @patch("managers.tests_manager.PipelineManager")
+    def test_validate_execution_config_accepts_available_cpu_cores(
+        self, mock_pipeline_manager_cls, _mock_getaffinity
+    ):
+        mock_pipeline_manager_cls.return_value = MagicMock()
+
+        manager = TestsManager()
+        execution_config = create_internal_execution_config(
+            output_mode=InternalOutputMode.DISABLED,
+            max_runtime=0,
+            metadata_mode=InternalMetadataMode.DISABLED,
+        )
+        execution_config.pinned_cpu_cores = [0, 3]
+
+        manager._validate_execution_config(execution_config, is_density_test=False)
+
 
 class TestUSBCameraValidation(unittest.TestCase):
     """Test cases for USB camera validation in TestsManager."""
@@ -1522,6 +1560,7 @@ class TestExecutionConfigWithMaxRuntime(unittest.TestCase):
             enable_latency_metrics=False,
             job_id=job_id,
             on_event=ANY,
+            pinned_cpu_cores=[],
         )
 
 

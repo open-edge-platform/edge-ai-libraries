@@ -67,6 +67,8 @@ import {
   Timer,
   Undo2,
 } from "lucide-react";
+import { CpuPinIcon } from "@/components/icons/CpuPinIcon.tsx";
+import { CpuCorePinningDialog } from "@/features/pipeline-editor/CpuCorePinningDialog.tsx";
 import { PipelineName } from "@/features/pipelines/PipelineName.tsx";
 import { NavigationGuard } from "@/components/shared/NavigationGuard";
 import { PipelineModelsRequiredDialog } from "@/features/models/PipelineModelsRequiredDialog.tsx";
@@ -164,6 +166,8 @@ export const Pipelines = () => {
   const [streams, setStreams] = useState(1);
   const [streamsInput, setStreamsInput] = useState("1");
   const [isSimpleMode, setIsSimpleMode] = useState(true);
+  const [pinnedCpuCores, setPinnedCpuCores] = useState<number[]>([]);
+  const [cpuPinningDialogOpen, setCpuPinningDialogOpen] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [completedVideoPath, setCompletedVideoPath] = useState<string | null>(
     null,
@@ -256,6 +260,7 @@ export const Pipelines = () => {
     setSelectedNode(null);
     setShowDetailsPanel(false);
     setCompletedVideoPath(null);
+    setPinnedCpuCores([]);
     resetHistory();
   }, [variant, resetHistory, setCurrentNodes, setCurrentEdges]);
 
@@ -413,6 +418,7 @@ export const Pipelines = () => {
             max_runtime: maxRuntimeSeconds,
             metadata_mode: hasMetadata && metadataEnabled ? "file" : "disabled",
             enable_latency_metrics: latencyMetricsEnabled,
+            pinned_cpu_cores: isSimpleMode ? [] : pinnedCpuCores,
           },
         },
       });
@@ -628,6 +634,42 @@ export const Pipelines = () => {
                     : !canUndo
                       ? "No changes to save"
                       : "Save (Ctrl+S)"}
+                </p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                {/* aria-disabled instead of disabled so the tooltip still
+                    opens on hover and can explain why it is unavailable. */}
+                <Button
+                  onClick={() => !isSimpleMode && setCpuPinningDialogOpen(true)}
+                  aria-disabled={isSimpleMode}
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="CPU core pinning"
+                  className={
+                    isSimpleMode
+                      ? "cursor-not-allowed opacity-50 hover:bg-transparent"
+                      : undefined
+                  }
+                >
+                  <CpuPinIcon
+                    className={
+                      !isSimpleMode && pinnedCpuCores.length > 0
+                        ? "h-5 w-5 text-brand-accent"
+                        : "h-5 w-5"
+                    }
+                  />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>
+                  {isSimpleMode
+                    ? "CPU core pinning (available in advanced mode only)"
+                    : pinnedCpuCores.length > 0
+                      ? `CPU core pinning (${pinnedCpuCores.length} selected)`
+                      : "CPU core pinning (all cores)"}
                 </p>
               </TooltipContent>
             </Tooltip>
@@ -1065,6 +1107,14 @@ export const Pipelines = () => {
           models={pipelineModelStatuses}
           onModelsChanged={refreshRequiredModels}
         />
+        {!isSimpleMode && (
+          <CpuCorePinningDialog
+            open={cpuPinningDialogOpen}
+            onOpenChange={setCpuPinningDialogOpen}
+            selectedCores={pinnedCpuCores}
+            onApply={setPinnedCpuCores}
+          />
+        )}
       </div>
     );
   }

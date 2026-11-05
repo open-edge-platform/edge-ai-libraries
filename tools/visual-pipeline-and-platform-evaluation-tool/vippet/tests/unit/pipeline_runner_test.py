@@ -2044,5 +2044,43 @@ class TestRunNormalEdgeCases(unittest.TestCase):
         process_mock.wait.assert_called()
 
 
+class TestPipelineRunnerCpuPinning(unittest.TestCase):
+    """Tests for the `pinned_cpu_cores` subprocess affinity configuration."""
+
+    def test_cores_are_deduplicated_and_sorted(self):
+        runner = PipelineRunner(mode="normal", pinned_cpu_cores=[4, 0, 4, 2])
+        self.assertEqual(runner.pinned_cpu_cores, [0, 2, 4])
+
+    def test_default_is_no_pinning(self):
+        self.assertEqual(PipelineRunner(mode="normal").pinned_cpu_cores, [])
+
+    @patch("pipeline_runner.os.sched_setaffinity")
+    def test_pin_subprocess_is_noop_without_cores(self, mock_setaffinity):
+        runner = PipelineRunner(mode="normal")
+        runner._pin_subprocess(MagicMock(pid=123))
+        mock_setaffinity.assert_not_called()
+
+    @patch("pipeline_runner.os.sched_setaffinity")
+    def test_pin_subprocess_applies_mask_to_child_pid(self, mock_setaffinity):
+        runner = PipelineRunner(mode="normal", pinned_cpu_cores=[2, 0])
+        runner._pin_subprocess(MagicMock(pid=4242))
+        mock_setaffinity.assert_called_once_with(4242, [0, 2])
+
+    @patch.object(PipelineRunner, "_graceful_terminate")
+    @patch("pipeline_runner.os.sched_setaffinity", side_effect=OSError("EINVAL"))
+    def test_pin_subprocess_terminates_and_raises_on_failure(
+        self, _mock_setaffinity, mock_terminate
+    ):
+        """A failed pinning must never degrade into an unpinned run."""
+        runner = PipelineRunner(mode="normal", pinned_cpu_cores=[99])
+        proc = MagicMock(pid=4242)
+
+        with self.assertRaises(RuntimeError) as ctx:
+            runner._pin_subprocess(proc)
+
+        self.assertIn("Failed to pin pipeline subprocess", str(ctx.exception))
+        mock_terminate.assert_called_once_with(proc)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -574,12 +574,15 @@ class InternalExecutionConfig:
         enable_latency_metrics: When True, the GStreamer subprocess runs with
             the DLStreamer `latency_tracer` active in pipeline-only mode with
             a 1000 ms interval. Defaults to False (tracer disabled).
+        pinned_cpu_cores: Logical CPU ids the GStreamer subprocess is
+            restricted to. Empty (default) means no pinning.
     """
 
     output_mode: InternalOutputMode
     max_runtime: float
     metadata_mode: InternalMetadataMode
     enable_latency_metrics: bool = False
+    pinned_cpu_cores: List[int] = field(default_factory=list)
 
 
 @dataclass

@@ -331,6 +331,7 @@ class PipelineRunner:
         enable_latency_metrics: bool = False,
         job_id: str | None = None,
         on_event: Callable[[PipelineEvent], None] | None = None,
+        pinned_cpu_cores: list[int] | None = None,
     ):
         """
         Initialize the PipelineRunner.
@@ -374,6 +375,10 @@ class PipelineRunner:
                 for every live :class:`PipelineEvent` parsed in normal
                 mode: ``vippet-event`` element messages (e.g. proximity
                 trigger fired) and ``gvagenai`` text results.
+            pinned_cpu_cores: Logical CPU ids the gst_runner.py subprocess
+                is restricted to via ``sched_setaffinity``. ``None`` or an
+                empty list (default) leaves the subprocess free to run on
+                every CPU available to this service.
         """
         self.mode = mode
         self.max_runtime = max_runtime
@@ -403,6 +408,7 @@ class PipelineRunner:
         self.enable_latency_metrics = enable_latency_metrics
         self.job_id = job_id
         self.on_event = on_event
+        self.pinned_cpu_cores = sorted(set(pinned_cpu_cores or []))
         self.logger = logging.getLogger("PipelineRunner")
         self.logger_level = self._get_log_level()
         self.logger.setLevel(self.logger_level)
@@ -536,6 +542,8 @@ class PipelineRunner:
             text=True,
         )
 
+        self._pin_subprocess(proc)
+
         try:
             # Wait for completion up to the hard timeout
             stdout, stderr = proc.communicate(timeout=self.hard_timeout)
@@ -655,6 +663,8 @@ class PipelineRunner:
                 stderr=PIPE,
                 env=self._build_subprocess_env(),
             )
+
+            self._pin_subprocess(process)
 
             exit_code = None
             total_fps = None
@@ -1565,6 +1575,42 @@ class PipelineRunner:
         env["GST_DEBUG"] = ",".join(gst_debug_categories)
 
         return env
+
+    def _pin_subprocess(self, proc: subprocess.Popen) -> None:
+        """
+        Restrict a freshly spawned gst_runner.py subprocess to the configured
+        logical CPUs.
+
+        No-op when ``pinned_cpu_cores`` is empty. The mask is applied to the
+        child's main thread while it is still bootstrapping the Python
+        interpreter, so every GStreamer streaming thread created later
+        inherits it.
+
+        Args:
+            proc: The just-started subprocess.
+
+        Raises:
+            RuntimeError: If the affinity mask could not be applied. The
+                subprocess is terminated first so a failed pinning never
+                silently degrades into an unpinned benchmark run.
+        """
+        if not self.pinned_cpu_cores:
+            return
+
+        try:
+            os.sched_setaffinity(proc.pid, self.pinned_cpu_cores)
+        except (AttributeError, OSError) as exc:
+            self._graceful_terminate(proc)
+            raise RuntimeError(
+                f"Failed to pin pipeline subprocess to CPUs "
+                f"{self.pinned_cpu_cores}: {exc}"
+            ) from exc
+
+        self.logger.info(
+            "Pinned pipeline subprocess (pid=%s) to CPUs %s",
+            proc.pid,
+            self.pinned_cpu_cores,
+        )
 
     def cancel(self):
         """Cancel the currently running pipeline."""
