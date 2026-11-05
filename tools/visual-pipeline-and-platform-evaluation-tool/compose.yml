@@ -275,6 +275,8 @@ services:
       - ./shared/images/:/images
       - ./shared/metadata/:/metadata
       - ./shared/gst-plugins/:/opt/vippet/gst_plugins:ro
+      # gvapython modules (resources.py SCRIPTS_PATH), referenced by absolute path.
+      - ./shared/scripts/:/scripts:ro
       # USB cameras (v4l2src), with the same access as vippet had.
       - "/dev:/dev"
     device_cgroup_rules:
