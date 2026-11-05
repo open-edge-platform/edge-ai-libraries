@@ -1,6 +1,6 @@
 configure_intel_lpmd () {
   workspace="$(ensure_project_path)/intel-lpmd"
-  version=956df747e56aca1739b39bff8cff77e81758af9a
+  version=9bf8b8de3ed11c301817814fef79b3161e6294b6
   repository="https://github.com/intel/intel-lpmd.git"
 }
 

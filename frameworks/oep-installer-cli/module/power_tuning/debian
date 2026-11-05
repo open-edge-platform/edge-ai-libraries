@@ -1,7 +1,7 @@
 configure_power_tuning () {
   workspace="$(ensure_project_path)/power_tuning"
   repository="https://github.com/open-edge-platform/edge-node-infrastructure-blueprint.git"
-  version=8e6f01943286f0e838dad3bf46390119b7645ad2
+  version=6adeb8ad778d8700b2f9773cbd438e10a718bf79
   power_tuning_path="/opt/edge/developer/tools"
 }
 

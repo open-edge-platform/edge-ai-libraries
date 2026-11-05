@@ -2,11 +2,12 @@
   "profile": {
     "label": "Federal and Aerospace (Mission Decision Support)",
     "value": "federal_and_aerospace_ai_suite_mission_decision_support",
-    "supports": { "OP_SYSTEM": ["UBUNTU_24_04"] }
+    "supports": { "OP_SYSTEM": ["UBUNTU_24_04", "UBUNTU_26_04"] }
   },
   "modules": [
     { "label": "Mission Decision Support Blueprint", "value": "mission_decision_support_blueprint" },
-    { "label": "Deterministic Threat Detection", "value": "deterministic_threat_detection", "remove": true }
+    { "label": "Deterministic Threat Detection", "value": "deterministic_threat_detection", "remove": true },
+    { "label": "UAV Mission Compute SDK", "value": "uav_mission_compute_sdk", "startStop": true, "remove": true }
   ],
   "install": {
     "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
