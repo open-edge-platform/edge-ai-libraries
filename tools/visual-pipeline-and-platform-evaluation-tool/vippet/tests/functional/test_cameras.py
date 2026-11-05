@@ -12,7 +12,7 @@ from helpers.config import BASE_URL
 logger = logging.getLogger(__name__)
 
 REQUIRED_CAMERA_KEYS: set[str] = {"device_id", "device_name", "device_type", "details"}
-VALID_DEVICE_TYPES: set[str] = {"USB", "NETWORK"}
+VALID_DEVICE_TYPES: set[str] = {"USB", "NETWORK", "GIGE"}
 
 
 @pytest.mark.smoke

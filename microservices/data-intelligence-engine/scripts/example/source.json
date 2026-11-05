@@ -1,0 +1,6 @@
+{
+  "name": "primary",
+  "database_id": "local-milvus",
+  "collection_name": "docs",
+  "operator_options": {}
+}

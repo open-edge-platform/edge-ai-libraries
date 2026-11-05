@@ -64,6 +64,8 @@ services:
     - "110"
     # render group ID for ubuntu 24.04 host OS
     - "992"
+    # render group ID for ubuntu 26.04 host OS
+    - "990"
 
 networks:
   timeseries_network:

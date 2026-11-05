@@ -17,7 +17,6 @@ class Strings:
     video_id_not_found: str = "No video found for the specified video ID."
     embedding_success: str = "Embeddings for the video file(s) were created successfully."
     text_embedding_success: str = "Text embedding was created successfully."
-    config_error: str = "Some error ocurred while reading the config file."
     metadata_read_error: str = "Error ocurred while reading metadata file."
     db_conn_error: str = "Error ocurred while initializing connection with VDMS vector DB."
     embedding_error: str = "Error occurred while trying to create embeddings."

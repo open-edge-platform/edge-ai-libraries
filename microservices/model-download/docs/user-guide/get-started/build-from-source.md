@@ -40,8 +40,6 @@ This section shows how to build the Model Download microservice from source.
 
      ```bash
      export GETI_HOST=<GETI_HOST_ADDRESS>
-     export GETI_TOKEN=<GETI_ACCESS_TOKEN>
-     export GETI_SERVER_API_VERSION=v1
      export GETI_SERVER_SSL_VERIFY=False  #DEFAULT is FALSE
      ```
 

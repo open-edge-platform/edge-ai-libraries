@@ -35,7 +35,6 @@ def _make_stream(**overrides) -> LiveStream:
         "description": "lobby camera",
         "frame_interval": 15,
         "enable_object_detection": True,
-        "detection_confidence": 0.85,
         "bucket_name": "live-streams",
         "tags": ["lobby", "hd"],
         "start": True,
@@ -158,11 +157,21 @@ def test_row_round_trip_preserves_every_field():
     assert restored.tags == stream.tags
     assert restored.frame_interval == stream.frame_interval
     assert restored.enable_object_detection == stream.enable_object_detection
-    assert restored.detection_confidence == stream.detection_confidence
     assert restored.desired_state == stream.desired_state
     assert restored.stats.frames_processed == 42
     assert restored.stats.embeddings_created == 7
 
+
+
+def test_row_with_removed_detection_confidence_still_loads():
+    # Registrations persisted before the per-stream threshold was removed.
+    row = _make_stream().to_row()
+    row["detection_confidence"] = 0.5
+
+    restored = LiveStream.from_row(row)
+
+    assert restored.stream_id == row["stream_id"]
+    assert not hasattr(restored, "detection_confidence")
 
 def test_uptime_tracks_wallclock_while_running():
     stream = _make_stream()

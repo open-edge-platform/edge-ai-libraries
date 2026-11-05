@@ -20,6 +20,7 @@ type LivePipelineEventsProps = {
   isRunning: boolean;
   title: string;
   showTriggeredCount: boolean;
+  highlightAlerts?: boolean;
 };
 
 export const LivePipelineEvents = ({
@@ -27,6 +28,7 @@ export const LivePipelineEvents = ({
   isRunning,
   title,
   showTriggeredCount,
+  highlightAlerts: highlightAffirmativeVlmEvents = false,
 }: LivePipelineEventsProps) => {
   const newestFirst = [...events].reverse();
   const triggeredCount = events.filter(
@@ -49,32 +51,53 @@ export const LivePipelineEvents = ({
         </p>
       ) : (
         <ul className="max-h-56 overflow-y-auto divide-y">
-          {newestFirst.map((event, index) => (
-            <li
-              key={`${event.timestamp_ms}-${event.source}-${events.length - index}`}
-              className={`flex items-start gap-2 px-3 py-2 text-sm ${
-                index === 0 && isRunning ? "bg-primary/10" : ""
-              }`}
-            >
-              <span className="font-mono text-xs text-muted-foreground pt-0.5 shrink-0">
-                {formatPosition(event)}
-              </span>
-              <Badge
-                variant={event.source === "vlm" ? "default" : "secondary"}
-                className="w-16 shrink-0 justify-center"
+          {newestFirst.map((event, index) => {
+            const isAlert =
+              highlightAffirmativeVlmEvents &&
+              event.source === "vlm" &&
+              /^\s*(?:\*\*|__)?yes(?:\*\*|__)?(?:\b|$)/i.test(event.text);
+
+            return (
+              <li
+                key={`${event.timestamp_ms}-${event.source}-${events.length - index}`}
+                className={`flex items-start gap-2 px-3 py-2 text-sm ${
+                  isAlert
+                    ? "border-l-4 border-destructive bg-destructive/15"
+                    : index === 0 && isRunning
+                      ? "bg-primary/10"
+                      : ""
+                }`}
               >
-                {SOURCE_LABELS[event.source] ?? event.source}
-              </Badge>
-              <span className="min-w-0 whitespace-pre-wrap break-words leading-relaxed">
-                {event.prompt && (
-                  <span className="text-muted-foreground">
-                    {event.prompt} →{" "}
+                <span className="font-mono text-xs text-muted-foreground pt-0.5 shrink-0">
+                  {formatPosition(event)}
+                </span>
+                <Badge
+                  variant={
+                    isAlert
+                      ? "destructive"
+                      : event.source === "vlm"
+                        ? "default"
+                        : "secondary"
+                  }
+                  className="w-16 shrink-0 justify-center"
+                >
+                  {SOURCE_LABELS[event.source] ?? event.source}
+                </Badge>
+                <span className="min-w-0 whitespace-pre-wrap break-words leading-relaxed">
+                  {event.prompt && (
+                    <span className="text-muted-foreground">
+                      {event.prompt} →{" "}
+                    </span>
+                  )}
+                  <span
+                    className={`font-medium ${isAlert ? "text-destructive" : ""}`}
+                  >
+                    {event.text}
                   </span>
-                )}
-                <span className="font-medium">{event.text}</span>
-              </span>
-            </li>
-          ))}
+                </span>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

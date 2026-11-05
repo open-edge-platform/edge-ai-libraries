@@ -34,14 +34,14 @@ store and the object storage are each selected at startup behind a factory (see
 
 ### Processing Pipeline
 
-1. **Request validation & sanitation** – All payloads are validated using the Pydantic models in `src/common/schema.py`. Optional request overrides (`frame_interval`, `enable_object_detection`, `detection_confidence`, `tags`) are normalized at this stage. For base64/URL images, the decoded bytes are the trust boundary: the real format is sniffed to derive the stored extension (client-declared type is never trusted) and size is capped.
+1. **Request validation & sanitation** – All payloads are validated using the Pydantic models in `src/common/schema.py`. Optional request overrides (`frame_interval`, `enable_object_detection`, `tags`) are normalized at this stage. For base64/URL images, the decoded bytes are the trust boundary: the real format is sniffed to derive the stored extension (client-declared type is never trusted) and size is capped.
 2. **Deduplication (optional)** – When `MM_DATAPREP_ALLOW_DUPLICATE_UPLOADS=false`, a content SHA-256 is computed and matched against a per-bucket hash marker; identical content is rejected with `409 Conflict`.
 3. **Media-kind dispatch** – The media type is detected from the file. **Videos** go through frame extraction; **images** skip extraction and are embedded directly.
-   - **Video – frame extraction:** `src/core/utils/video_utils.py` reads the video via decord, sampling every Nth frame and saving crops when object detection is enabled.
+   - **Video – frame extraction:** `src/core/embedding/decoder.py` decodes the video with PyAV, keeps every Nth frame (`frame_interval`) in memory and passes the frames in batches to object detection.
    - **Image – direct embed:** the whole image is embedded once (`frame_type=full_frame`); when object detection is enabled, each detected crop is embedded separately — mirroring the per-frame crop contract used for video.
-4. **Object detection** – YOLOX models are loaded once per worker and reused. Detection can be toggled per request or globally via `MM_DATAPREP_ENABLE_OBJECT_DETECTION`, and applies to both video frames and images.
+4. **Object detection** – The configured Hugging Face OpenVINO detection model (`MM_DATAPREP_DETECTION_MODEL_NAME`, for example `OpenVINO/yolox_s-int8-ov`) is downloaded on first use, loaded once through OpenVINO Model API and reused; input size, NMS and labels come from the model metadata, and `MM_DATAPREP_DETECTION_CLASSES` optionally limits the kept classes. Detection can be toggled per request or globally via `MM_DATAPREP_ENABLE_OBJECT_DETECTION`, and applies to both video frames and images.
 5. **Embedding generation** – The service runs the in-process embedding pipeline, fans out work across multiple threads (`MM_DATAPREP_MAX_PARALLEL_WORKERS`), and stores embeddings in bulk. All embeddings are stamped with download URLs, timestamps, `content_type`, and detector metadata.
-6. **Metadata persistence** – `metadata_utils` writes manifests and per-record metadata, then hands them to the embedding client (`EmbeddingClient`) for storage via the selected vector-store backend.
+6. **Metadata persistence** – Per-record metadata is attached to each embedding, and the embedding client (`EmbeddingClient`) stores them via the selected vector-store backend.
 
 ### Outputs
 

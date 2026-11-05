@@ -23,23 +23,21 @@ marketing segments. The table lists the profiles:
 
 | Profile | Description |
 | ------- | ------ |
-| `inferencing` | Core AI inferencing runtime |
 | `computer_vision` | Computer-vision pipelines, models, and runtimes | 
-| `metro_ai_suite` | City monitoring and traffic management |
+| `federal_and_aerospace_ai_suite_handheld` | Federal and Aerospace handheld platform, application, and deterministic threat detection |
+| `federal_and_aerospace_ai_suite_mission_decision_support` | Federal and Aerospace mission decision support blueprint and deterministic threat detection |
+| `federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle` | Federal and Aerospace uncrewed aerial vehicle platform and applications |
+| `health_and_life_science_ai_suite` | Patient and vitals monitoring || `inferencing` | Core AI inferencing runtime |
 | `manufacturing_ai_suite` | Industrial inspection and defect detection |
+| `metro_ai_suite` | City monitoring and traffic management |
 | `retail_ai_suite` | Retail buying-process monitoring |
 | `robotics_ai_suite` | Robotics and Physical AI workflows |
-| `federal_and_aerospace_ai_suite_handheld` | Federal and Aerospace handheld platform, application, and deterministic threat detection |
-| `federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle` | Federal and Aerospace uncrewed aerial vehicle platform, application, and deterministic threat detection |
-| `federal_and_aerospace_ai_suite_mission_decision_support` | Federal and Aerospace mission decision support blueprint and deterministic threat detection |
-| `health_and_life_science_ai_suite` | Patient and vitals monitoring |
 
 > See [`modules`](module) or [`packages`](package) for the list of available modules.   
 
 ## Installation
 
-For simplicity, the OEP installer is presented as a single self-contained shell script (located at [`rendered/openedge-cli`](rendered/openedge-cli)) that can be 
-downloaded and then run in a shell environment. 
+For simplicity, the OEP installer is presented as a single self-contained shell script (located at [`rendered/openedge-cli`](rendered/openedge-cli)) that can be downloaded and then run in a shell environment. 
 
 - install components from a profile, or
 ```bash
@@ -142,23 +140,19 @@ openedge-cli install uncrewed_aerial_vehicle_blueprint
 openedge-cli install mission_decision_support_blueprint
 ```
 
+The UAV applications can be installed independently:
+
+```bash
+openedge-cli install uncrewed_aerial_vehicle_ground_station
+openedge-cli install uncrewed_aerial_vehicle_vision_analytics
+```
+
 For any of these blueprints, pass `--edgepack` to install the Intel Edge Pack
 components, including EP-IPU, EP-Manageability, and EP-TSN:
 
 ```bash
 openedge-cli install handheld_blueprint --edgepack
 ```
-
-To install the Edge Node Infrastructure Blueprint independently, choose its
-deployment model explicitly:
-
-```bash
-openedge-cli install edge_node_infrastructure_blueprint --k3s
-```
-
-Selecting both `--docker` and `--k3s` is rejected.
-
-> To switch an installed blueprint to the other deployment model, run `openedge-cli install edge_node_infrastructure_blueprint --reinstall --k3s` (or `--reinstall --docker`). Requesting a different model without `--reinstall` fails with this hint. Switching from K3s to Docker, or running `openedge-cli remove edge_node_infrastructure_blueprint` on a K3s installation, also removes the K3s runtime installed by the blueprint (using `k3s-uninstall.sh`) and its unmodified `~/.kube/config` copy; Docker, Helm and other shared components are kept.
 
 ### List Profiles and Components
 

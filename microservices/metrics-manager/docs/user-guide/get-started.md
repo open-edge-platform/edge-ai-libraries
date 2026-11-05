@@ -42,7 +42,7 @@ The image is based on `python:3.12-slim` and includes:
 
 ```bash
 git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b main
-cd edge-ai-libraries/metrics-manager
+cd edge-ai-libraries/microservices/metrics-manager
 ```
 
 ### Step 2: Configure Environment

@@ -8,6 +8,7 @@
  *
  */
 
+#include <string>
 #include <thread>
 #include "gtest/gtest.h"
 #include <fb/common/include/axis.hpp>
@@ -41,6 +42,37 @@
 
 using namespace RTmotion;
 
+template <typename MotionBlock>
+class ZeroJerkMotionBlock : public MotionBlock
+{
+public:
+  ZeroJerkMotionBlock()
+  {
+    this->setVelocity(100);
+    this->setAcceleration(100);
+    this->setDeceleration(100);
+    this->jerk_ = 0;
+  }
+};
+
+TEST(MotionLimitTest, RejectZeroJerkBeforeAxisAccess)
+{
+  ZeroJerkMotionBlock<FbStop> stop;
+  ZeroJerkMotionBlock<FbHalt> halt;
+  ZeroJerkMotionBlock<FbGearInPos> gear_in_pos;
+  ZeroJerkMotionBlock<FbJog> jog;
+  ZeroJerkMotionBlock<FbCamOut> cam_out;
+  ZeroJerkMotionBlock<FbGearOut> gear_out;
+
+  EXPECT_EQ(stop.onRisingEdgeExecution(), mcErrorCodeMotionLimitUnset);
+  EXPECT_EQ(halt.onRisingEdgeExecution(), mcErrorCodeMotionLimitUnset);
+  EXPECT_EQ(gear_in_pos.onRisingEdgeExecution(), mcErrorCodeMotionLimitError);
+  jog.setJogForwardSignal(mcTRUE);
+  EXPECT_EQ(jog.onExecution(), mcErrorCodeMotionLimitUnset);
+  EXPECT_EQ(cam_out.onRisingEdgeExecution(), mcErrorCodeMotionLimitUnset);
+  EXPECT_EQ(gear_out.onRisingEdgeExecution(), mcErrorCodeMotionLimitUnset);
+}
+
 class FunctionBlockTest : public ::testing::Test
 {
 protected:
@@ -71,11 +103,320 @@ protected:
     // Code here will be called immediately after each test (right
     // before the destructor).
   }
+
+  void runBlendingExample(MC_BUFFER_MODE buffer_mode,
+                          double second_acceleration,
+                          double expected_velocity_at_1000,
+                          double expected_velocity_at_2000,
+                          const std::string& plot_name)
+  {
+#ifdef PLOT
+    fb_profile_.reset();
+    axis_profile_.reset();
+#endif
+
+    AxisConfig config;
+    AXIS_REF axis = new Axis();
+    axis->setAxisId(1);
+    axis->setNodeQueueSize(3);
+    axis->setAxisConfig(&config);
+
+    Servo* servo = new Servo();
+    axis->setServo(servo);
+
+    FbPower fb_power;
+    fb_power.setAxis(axis);
+    fb_power.setEnable(mcTRUE);
+    fb_power.setEnablePositive(mcTRUE);
+    fb_power.setEnableNegative(mcTRUE);
+
+    FbSetPosition set_position;
+    set_position.setAxis(axis);
+    set_position.setMode(mcSetPositionModeAbsolute);
+    set_position.setPosition(0);
+    set_position.setEnable(mcFALSE);
+
+    FbMoveAbsolute move_1;
+    move_1.setAxis(axis);
+    move_1.setPosition(1000);
+    move_1.setVelocity(100);
+    move_1.setAcceleration(100);
+    move_1.setDeceleration(100);
+    move_1.setBufferMode(mcAborting);
+
+    FbMoveAbsolute move_2;
+    move_2.setAxis(axis);
+    move_2.setPosition(2000);
+    move_2.setVelocity(50);
+    move_2.setAcceleration(second_acceleration);
+    move_2.setDeceleration(second_acceleration);
+    move_2.setBufferMode(buffer_mode);
+
+    FbMoveAbsolute move_3;
+    move_3.setAxis(axis);
+    move_3.setPosition(3000);
+    move_3.setVelocity(100);
+    move_3.setAcceleration(100);
+    move_3.setDeceleration(100);
+    move_3.setBufferMode(buffer_mode);
+
+#ifdef PLOT
+    fb_profile_.addFB("move_1");
+    fb_profile_.addFB("move_2");
+    fb_profile_.addFB("move_3");
+    fb_profile_.addItemName("move_1.execute");
+    fb_profile_.addItemName("move_1.busy");
+    fb_profile_.addItemName("move_1.done");
+    fb_profile_.addItemName("move_1.command_aborted");
+    fb_profile_.addItemName("move_1.active");
+    fb_profile_.addItemName("move_2.execute");
+    fb_profile_.addItemName("move_2.busy");
+    fb_profile_.addItemName("move_2.done");
+    fb_profile_.addItemName("move_2.command_aborted");
+    fb_profile_.addItemName("move_2.active");
+    fb_profile_.addItemName("move_3.execute");
+    fb_profile_.addItemName("move_3.busy");
+    fb_profile_.addItemName("move_3.done");
+    fb_profile_.addItemName("move_3.command_aborted");
+    fb_profile_.addItemName("move_3.active");
+#endif
+
+    bool set_position_started                          = false;
+    bool move_1_started                                = false;
+    bool move_2_started                                = false;
+    bool move_3_started                                = false;
+    bool sampled_1000                                  = false;
+    bool sampled_2000                                  = false;
+    bool move_3_done                                   = false;
+    double move_1_start_time                           = -1;
+    double move_2_start_time                           = -1;
+    double move_3_start_time                           = -1;
+    double velocity_when_move_2_active                 = NAN;
+    double velocity_when_move_3_active                 = NAN;
+    double velocity_at_1000                            = 0;
+    double velocity_at_2000                            = 0;
+    double previous_velocity                           = 0;
+    double max_velocity_step                           = 0;
+    double max_velocity_step_time                      = 0;
+    double velocity_before_max_step                    = 0;
+    double velocity_after_max_step                     = 0;
+    double move_2_cruise_duration                      = 0;
+    double minimum_move_2_velocity                     = INFINITY;
+    double minimum_move_2_actual_velocity              = INFINITY;
+    double minimum_velocity_after_move_3_start         = INFINITY;
+    double high_velocity_before_move_3_active_duration = 0;
+    double time                                        = 0;
+
+    while (time < 70.0)
+    {
+      axis->runCycle();
+      fb_power.runCycle();
+      set_position.runCycle();
+      move_1.runCycle();
+      move_2.runCycle();
+      move_3.runCycle();
+
+      const double velocity_step = fabs(axis->toUserVel() - previous_velocity);
+      if (velocity_step > max_velocity_step)
+      {
+        max_velocity_step        = velocity_step;
+        max_velocity_step_time   = time;
+        velocity_before_max_step = previous_velocity;
+        velocity_after_max_step  = axis->toUserVel();
+      }
+      previous_velocity = axis->toUserVel();
+
+      if (!set_position_started && fb_power.getPowerStatus() == mcTRUE)
+      {
+        set_position.setEnable(mcTRUE);
+        set_position_started = true;
+      }
+
+      if (!move_1_started && set_position.isEnabled() == mcTRUE)
+      {
+        move_1.setExecute(mcTRUE);
+        move_1_started    = true;
+        move_1_start_time = time;
+      }
+      else if (move_1.isEnabled() == mcTRUE && time - move_1_start_time >= 0.5)
+      {
+        move_1.setExecute(mcFALSE);
+      }
+
+      if (!move_2_started && axis->toUserPos() >= 500)
+      {
+        move_2.setExecute(mcTRUE);
+        move_2_started    = true;
+        move_2_start_time = time;
+      }
+      else if (move_2.isEnabled() == mcTRUE && time - move_2_start_time >= 0.5)
+      {
+        move_2.setExecute(mcFALSE);
+      }
+
+      if (!move_3_started && axis->toUserPos() >= 1500 &&
+          move_2.isActive() == mcTRUE)
+      {
+        move_3.setExecute(mcTRUE);
+        move_3_started    = true;
+        move_3_start_time = time;
+      }
+      else if (move_3.isEnabled() == mcTRUE && time - move_3_start_time >= 0.5)
+      {
+        move_3.setExecute(mcFALSE);
+      }
+
+      if (isnan(velocity_when_move_2_active) && move_2.isActive() == mcTRUE)
+        velocity_when_move_2_active = axis->toUserVel();
+      if (move_2.isActive() == mcTRUE &&
+          fabs(axis->toUserVelCmd() - 50.0) <= 1.0)
+        move_2_cruise_duration += 0.001;
+      if (move_2.isActive() == mcTRUE)
+      {
+        // Guard both the planner command and the signal used by motion plots
+        // against an undershoot during the 100-to-50 blend entry.
+        minimum_move_2_velocity =
+            std::min(minimum_move_2_velocity, axis->toUserVelCmd());
+        minimum_move_2_actual_velocity =
+            std::min(minimum_move_2_actual_velocity, axis->toUserVel());
+      }
+      if (move_3_started && move_2.isActive() == mcTRUE)
+      {
+        // Early look-ahead must not erase FB2's 50-unit cruise segment.
+        minimum_velocity_after_move_3_start =
+            std::min(minimum_velocity_after_move_3_start, axis->toUserVelCmd());
+        if (axis->toUserVelCmd() >= expected_velocity_at_2000 - 1.0)
+          high_velocity_before_move_3_active_duration += 0.001;
+      }
+      if (isnan(velocity_when_move_3_active) && move_3.isActive() == mcTRUE)
+        velocity_when_move_3_active = axis->toUserVel();
+
+      if (!sampled_1000 && move_1.isDone() == mcTRUE)
+      {
+        velocity_at_1000 = axis->toUserVelCmd();
+        sampled_1000     = true;
+      }
+      else if (axis->toUserPos() >= 990 && axis->toUserPos() < 1000)
+      {
+        velocity_at_1000 = axis->toUserVel();
+        sampled_1000     = true;
+      }
+      if (!sampled_2000 && move_2.isDone() == mcTRUE)
+      {
+        velocity_at_2000 = axis->toUserVelCmd();
+        sampled_2000     = true;
+      }
+      else if (!sampled_2000 && move_3.isActive() == mcTRUE)
+      {
+        velocity_at_2000 = axis->toUserVelCmd();
+        sampled_2000     = true;
+      }
+      else if (axis->toUserPos() >= 1990 && axis->toUserPos() < 2000)
+      {
+        velocity_at_2000 = axis->toUserVel();
+        sampled_2000     = true;
+      }
+
+#ifdef PLOT
+      axis_profile_.addState(axis->toUserPos(), axis->toUserVel(),
+                             axis->toUserAccCmd(), time);
+      fb_profile_.addState("move_1.execute", move_1.isEnabled() == mcTRUE);
+      fb_profile_.addState("move_1.busy", move_1.isBusy() == mcTRUE);
+      fb_profile_.addState("move_1.done", move_1.isDone() == mcTRUE);
+      fb_profile_.addState("move_1.command_aborted",
+                           move_1.isAborted() == mcTRUE);
+      fb_profile_.addState("move_1.active", move_1.isActive() == mcTRUE);
+      fb_profile_.addState("move_2.execute", move_2.isEnabled() == mcTRUE);
+      fb_profile_.addState("move_2.busy", move_2.isBusy() == mcTRUE);
+      fb_profile_.addState("move_2.done", move_2.isDone() == mcTRUE);
+      fb_profile_.addState("move_2.command_aborted",
+                           move_2.isAborted() == mcTRUE);
+      fb_profile_.addState("move_2.active", move_2.isActive() == mcTRUE);
+      fb_profile_.addState("move_3.execute", move_3.isEnabled() == mcTRUE);
+      fb_profile_.addState("move_3.busy", move_3.isBusy() == mcTRUE);
+      fb_profile_.addState("move_3.done", move_3.isDone() == mcTRUE);
+      fb_profile_.addState("move_3.command_aborted",
+                           move_3.isAborted() == mcTRUE);
+      fb_profile_.addState("move_3.active", move_3.isActive() == mcTRUE);
+      fb_profile_.addTime(time);
+#endif
+
+      if (move_3.isDone() == mcTRUE)
+      {
+        move_3_done = true;
+        break;
+      }
+      time += 0.001;
+    }
+
+#ifdef PLOT
+    fb_profile_.plot(plot_name + "_signals.png", "Move", 1280, 2400);
+    axis_profile_.plot(plot_name + "_motion.png");
+#endif
+
+    EXPECT_TRUE(sampled_1000);
+    EXPECT_TRUE(sampled_2000);
+    EXPECT_TRUE(move_3_done);
+    EXPECT_NEAR(velocity_at_1000, expected_velocity_at_1000, 1.0);
+    EXPECT_NEAR(velocity_at_2000, expected_velocity_at_2000, 1.0);
+    EXPECT_NEAR(velocity_when_move_2_active, expected_velocity_at_1000, 1.0);
+    EXPECT_NEAR(velocity_when_move_3_active, expected_velocity_at_2000, 1.0);
+    EXPECT_GT(move_2_cruise_duration, 1.0);
+    EXPECT_GE(minimum_move_2_velocity, 49.999);
+    EXPECT_GE(minimum_move_2_actual_velocity, 49.999);
+    if (expected_velocity_at_2000 > move_2.getVelocity())
+    {
+      EXPECT_GE(minimum_velocity_after_move_3_start,
+                move_2.getVelocity() - 1.0);
+      EXPECT_LT(high_velocity_before_move_3_active_duration, 0.05);
+    }
+    EXPECT_LE(max_velocity_step,
+              std::max(second_acceleration, 100.0) * 0.001 + 0.01)
+        << "at t=" << max_velocity_step_time << ", velocity changed from "
+        << velocity_before_max_step << " to " << velocity_after_max_step;
+    EXPECT_NEAR(axis->toUserPos(), 3000, 0.01);
+    EXPECT_NEAR(axis->toUserVel(), 0, 0.01);
+    EXPECT_TRUE(move_1.isError() == mcFALSE) << move_1.getErrorID();
+    EXPECT_TRUE(move_2.isError() == mcFALSE) << move_2.getErrorID();
+    EXPECT_TRUE(move_3.isError() == mcFALSE) << move_3.getErrorID();
+    EXPECT_TRUE(move_1.isAborted() == mcFALSE);
+    EXPECT_TRUE(move_2.isAborted() == mcFALSE);
+    EXPECT_TRUE(move_3.isAborted() == mcFALSE);
+
+    delete servo;
+    delete axis;
+  }
+
 #ifdef PLOT
   AxisProfile axis_profile_;
   FBDigitalProfile fb_profile_;
 #endif
 };
+
+// PLCopen Part 1 Version 2.0, Appendix A, Examples 4-7.
+TEST_F(FunctionBlockTest, MC_BlendingLow)
+{
+  runBlendingExample(mcBlendingLow, 50, 50, 50,
+                     "plcopen_example4_blending_low");
+}
+
+TEST_F(FunctionBlockTest, MC_BlendingPrevious)
+{
+  runBlendingExample(mcBlendingPrevious, 200, 100, 50,
+                     "plcopen_example5_blending_previous");
+}
+
+TEST_F(FunctionBlockTest, MC_BlendingNext)
+{
+  runBlendingExample(mcBlendingNext, 50, 50, 100,
+                     "plcopen_example6_blending_next");
+}
+
+TEST_F(FunctionBlockTest, MC_BlendingHigh)
+{
+  runBlendingExample(mcBlendingHigh, 200, 100, 100,
+                     "plcopen_example7_blending_high");
+}
 
 // Test MC_MoveRelative
 TEST_F(FunctionBlockTest, DemoRelative)
