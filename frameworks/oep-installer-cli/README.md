@@ -154,17 +154,6 @@ components, including EP-IPU, EP-Manageability, and EP-TSN:
 openedge-cli install handheld_blueprint --edgepack
 ```
 
-To install the Edge Node Infrastructure Blueprint independently, choose its
-deployment model explicitly:
-
-```bash
-openedge-cli install edge_node_infrastructure_blueprint --k3s
-```
-
-Selecting both `--docker` and `--k3s` is rejected.
-
-> To switch an installed blueprint to the other deployment model, run `openedge-cli install edge_node_infrastructure_blueprint --reinstall --k3s` (or `--reinstall --docker`). Requesting a different model without `--reinstall` fails with this hint. Switching from K3s to Docker, or running `openedge-cli remove edge_node_infrastructure_blueprint` on a K3s installation, also removes the K3s runtime installed by the blueprint (using `k3s-uninstall.sh`) and its unmodified `~/.kube/config` copy; Docker, Helm and other shared components are kept.
-
 ### List Profiles and Components
 
 Use the `list` subcommand to list components and profiles properties:
