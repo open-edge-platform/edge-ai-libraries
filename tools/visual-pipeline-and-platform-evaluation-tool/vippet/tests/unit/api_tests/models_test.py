@@ -708,7 +708,7 @@ class TestModelsDownloadAPI(unittest.TestCase):
     def test_download_mixed_results_returns_207(self):
         """Some accepted + some rejected -> 207 Multi-Status."""
 
-        def fake_start(name: str, hub: str | None = None, category=None):
+        def fake_start(name: str, hub: str | None = None, category=None, gated=None):
             if name == "yolo11n":
                 return ("job-1", 202, "Download started")
             return (None, 409, f"Model '{name}' is already installed")
@@ -749,7 +749,7 @@ class TestModelsDownloadAPI(unittest.TestCase):
     def test_download_all_rejected_mixed_codes_picks_400(self):
         """Mixed rejected codes: precedence is 400 > 404 > 409."""
 
-        def fake_start(name: str, hub: str | None = None, category=None):
+        def fake_start(name: str, hub: str | None = None, category=None, gated=None):
             return {
                 "a": (None, 409, "x"),
                 "b": (None, 404, "y"),
