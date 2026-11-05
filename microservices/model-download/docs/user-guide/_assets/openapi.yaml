@@ -526,6 +526,9 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ModelListItem"
+        count:
+          type: integer
+          description: Number of models returned in this response (size of `items`)
         total:
           type: integer
           nullable: true
@@ -536,6 +539,17 @@ components:
         offset:
           type: integer
           description: Number of items skipped for pagination
+        has_more:
+          type: boolean
+          nullable: true
+          description: >-
+            Whether another page is available. Computed from `total` when the
+            hub reports it; otherwise inferred from whether more raw results
+            were returned than `limit`.
+        next_offset:
+          type: integer
+          nullable: true
+          description: Offset to pass as `offset` to fetch the next page, present only when `has_more` is true
 
 paths:
   /health:
@@ -566,14 +580,13 @@ paths:
         - `huggingface`: `author`, `search`, `tags`
         - `ultralytics`: `search`
         - `pipeline-zoo-models`: `search`
-        - `geti`: `project_id`, `project_name`, `model_group_id`, `model_group_name`, `model_name`, `export_type`, `precision`, `model_format`
+        - `geti`: `project_id`, `project_name`, `model_name`, `precision`, `model_format`, `architecture`, `variant_id`
 
         For `huggingface`, `author` is the repository namespace and accepts a
         user, owner, or organization name (for example, `microsoft` or
         `meta-llama`).
 
-        For `geti`, listing requires `GETI_HOST`, `GETI_TOKEN`, and
-        `GETI_WORKSPACE_ID` to be configured.
+        For `geti`, listing requires `GETI_HOST` to be configured.
 
         Use `GET /api/v1/plugins` to discover each plugin's `listing_filter_fields`.
 

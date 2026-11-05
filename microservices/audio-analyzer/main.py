@@ -47,7 +47,10 @@ def _clear_storage_on_startup() -> None:
         if os.path.isdir(entry_path):
             shutil.rmtree(entry_path, ignore_errors=True)
             count += 1
-    logger.info("Cleared %d session folder(s) from storage on startup", count)
+    logger.warning(
+        "clear_storage_on_startup is enabled — cleared %d session folder(s) from storage "
+        "on startup", count
+    )
 
 
 @app.on_event("startup")

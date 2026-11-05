@@ -21,9 +21,9 @@ example heavy foliage or rain), or workloads that require recognizing static obj
 ## Step 1. Navigate to the predefined pipeline
 
 1. Open the ViPPET UI and go to the **Pipelines** view from the left navigation.
-2. Locate the **Motion Detection** tile in the pipeline grid. It is identifiable by its
+1. Locate the **Motion Detection** tile in the pipeline grid. It is identifiable by its
    **Smart Cities** tag badge shown on the card.
-3. Click the tile (or one of its variant badges) to open it in the **Pipeline Builder**.
+1. Click the tile (or one of its variant badges) to open it in the **Pipeline Builder**.
 
 The pipeline ships with three variants - **CPU**, **GPU**, and **NPU** - all using the same YOLOv8n
 INT8 OpenVINO™ model. They differ only in the target inference device and in the pre-processing backend
@@ -69,8 +69,8 @@ short warm-up, and `gvawatermark` draws the boxes on the output video.
    the **Videos** view in the UI - any clip from a static CCTV camera (cars, people, bikes) will work
    well. Files uploaded through the UI land in `videos/input/uploaded/` and can then be selected as
    the source.
-2. Click **Run**. ViPPET launches the pipeline as a job; you can follow progress in the **Jobs** view.
-3. While the job runs, the selected device's utilization (CPU/GPU/NPU) should increase visibly in the
+1. Click **Run**. ViPPET launches the pipeline as a job; you can follow progress in the **Jobs** view.
+1. While the job runs, the selected device's utilization (CPU/GPU/NPU) should increase visibly in the
    **Dashboard**.
 
 ## Step 4. Interpret the results
@@ -101,12 +101,12 @@ downstream system), ViPPET exposes the metadata produced by `gvametapublish` as 
 Server-Sent Events (SSE) stream.
 
 1. Start the pipeline as a **performance test** so that the job is tracked by the Tests subsystem.
-2. Make sure the `gvametapublish` element writes to a real file path (see Step 4); SSE streaming is
+1. Make sure the `gvametapublish` element writes to a real file path (see Step 4); SSE streaming is
    not available when the pipeline writes to `/dev/null`.
-3. Poll the performance job status and read the `metadata_stream_urls` field of the response. It is
+1. Poll the performance job status and read the `metadata_stream_urls` field of the response. It is
    a mapping from pipeline id to a list of SSE URLs - one URL per `gvametapublish` file in the
    pipeline. The list is `null` when no streamable metadata file is present.
-4. Open the URL with any SSE-capable client. Each `data:` event carries one JSON Lines record
+1. Open the URL with any SSE-capable client. Each `data:` event carries one JSON Lines record
    produced by `gvametapublish`. The connection stays open while the pipeline runs, sends a
    `: keepalive` comment every 30 s, and closes automatically when the pipeline finishes.
 

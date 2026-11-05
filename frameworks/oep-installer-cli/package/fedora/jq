@@ -1,0 +1,12 @@
+
+fedora_15_install_jq () {
+  ensure_dnf_install_package jq
+}
+
+fedora_15_remove_jq () {
+  ensure_dnf_remove_package jq
+}
+
+fedora_15_sbom_jq () {
+  ensure_sbom_format pkg-list jq
+}

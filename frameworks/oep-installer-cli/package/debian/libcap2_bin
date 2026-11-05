@@ -1,0 +1,9 @@
+
+debian_45_install_libcap2_bin () {
+  ensure_apt_install_package libcap2-bin
+}
+
+debian_45_sbom_libcap2_bin () {
+  ensure_sbom_format pkg-list libcap2-bin
+}
+

@@ -75,6 +75,8 @@ nano user_values_override.yaml
 | `global.env.RABBITMQ_DEFAULT_USER` | RabbitMQ username | `guest` |
 | `global.env.RABBITMQ_DEFAULT_PASS` | RabbitMQ password | `<secure-password>` |
 | `global.embeddingModelName` | Multimodal embedding model | `CLIP/clip-vit-b-32` (search) or `QwenText/qwen3-embedding-0.6b` (unified) |
+| `multimodaldataprep.frameProcessing.detectionModelName` | Hugging Face OpenVINO model for DataPrep object detection (search mode; unified mode disables detection). No default | `OpenVINO/yolox_s-int8-ov` (any `OpenVINO/<repo>` detection model) |
+| `multimodaldataprep.frameProcessing.detectionClasses` | _(Optional)_ Comma-separated class filter for DataPrep object detection ([COCO classes](https://github.com/ultralytics/ultralytics/blob/main/ultralytics/cfg/datasets/coco.yaml)); empty keeps all classes | `person,car` |
 
 For the full parameter catalog across all deployment modes, see [Deploy with Helm](./deploy-with-helm.md).
 

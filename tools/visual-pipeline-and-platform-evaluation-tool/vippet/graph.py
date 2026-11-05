@@ -24,11 +24,39 @@ from images import ImagesManager
 OUTPUT_PLACEHOLDER: str = "{OUTPUT_PLACEHOLDER}"
 RTSP_URL_PREFIX = "rtsp://"
 USB_DEVICE_PREFIX = "/dev/video"
+# Followed by the Aravis camera name: IP address or full Aravis device ID (vendor-model-serial).
+GIGE_CAMERA_PREFIX = "gige://"
+
+CAMERA_SOURCE_TYPES = frozenset({"v4l2src", "rtspsrc", "aravissrc"})
 
 # Element types whose presence marks a pipeline as metadata-only (no video output).
 # Such pipelines are allowed to keep an unnamed fakesink as-is (used for metadata
 # delivery) instead of having it converted to OUTPUT_PLACEHOLDER.
 METADATA_ONLY_NODE_TYPES: frozenset[str] = frozenset({"gvagenai"})
+
+# Matches printf-style integer specifiers (e.g. %d, %05d, %-3d) as used by
+# GStreamer sinks like multifilesink for numbering the emitted files.
+_PRINTF_INT_SPEC_RE = re.compile(r"%[-+ #0]*\d*d")
+
+
+def _slugify_preserving_printf_int_spec(name: str) -> str:
+    """Slugify ``name`` while preserving printf-style integer specifiers.
+
+    The regular slugifier strips ``%`` (turning e.g. ``vlm_frame_%05d`` into
+    ``vlm_frame_-05d``), which breaks sinks that rely on the specifier to
+    number their output files.
+    """
+    if "%" not in name:
+        return slugify_text(name)
+    specs = _PRINTF_INT_SPEC_RE.findall(name)
+    chunks = _PRINTF_INT_SPEC_RE.split(name)
+    slugged = [slugify_text(chunk) if chunk else "" for chunk in chunks]
+    parts: list[str] = []
+    for i, chunk in enumerate(slugged):
+        parts.append(chunk)
+        if i < len(specs):
+            parts.append(specs[i])
+    return "".join(parts)
 
 
 def graph_is_metadata_only(nodes: list["Node"]) -> bool:
@@ -569,7 +597,7 @@ class Graph:
             Modified Graph object with looping support
 
         Raises:
-            ValueError: If live sources (v4l2src, rtspsrc) are detected in the pipeline
+            ValueError: If live sources (v4l2src, rtspsrc, aravissrc) are detected in the pipeline
             ValueError: If TS file cannot be created for any video source
 
         Note:
@@ -580,7 +608,7 @@ class Graph:
         modified_graph = copy.deepcopy(self)
 
         for node in modified_graph.nodes:
-            if node.type in {"v4l2src", "rtspsrc"}:
+            if node.type in CAMERA_SOURCE_TYPES:
                 raise ValueError(
                     f"Looping playback is not supported for live sources like {node.type}. "
                     f"Please disable looping, remove, or replace the {node.type} element in your pipeline."
@@ -820,7 +848,7 @@ class Graph:
                 continue
 
             path = Path(location)
-            file_name = slugify_text(Path(path.name).stem)
+            file_name = _slugify_preserving_printf_int_spec(Path(path.name).stem)
             ext = path.suffix if path.suffix else ".mp4"
             ext = slugify_text(ext)
 
@@ -1218,18 +1246,21 @@ class Graph:
 
         return modified_graph
 
-    def inject_metadata_file_paths(self, metadata_dir: str) -> list[str]:
+    def inject_metadata_file_paths(
+        self, metadata_dir: str, stream_index: int = 0
+    ) -> list[str]:
         """
         Assign output file paths to all file-publishing gvametapublish nodes.
 
-        Sets method=file, file-format=json-lines, and file-path on every
-        gvametapublish node found in the graph, overwriting any existing values.
+        Sets method=file, file-format=json-lines, and a stream-unique file-path on
+        every gvametapublish node found in the graph, overwriting existing values.
         Nodes explicitly configured to publish to a message broker (for example
         ``method=mqtt``) are left untouched so that a user-configured broker
         destination is not silently replaced by a file.
 
         Args:
             metadata_dir: Directory where metadata files will be written.
+            stream_index: Zero-based index of the pipeline stream.
 
         Returns:
             list[str]: Paths of the metadata files that were injected (one per
@@ -1241,9 +1272,10 @@ class Graph:
                 continue
             if node.data.get("method", "file") != "file":
                 continue
+            stream_suffix = f"_stream_{stream_index}" if stream_index > 0 else ""
             meta_path = os.path.join(
                 metadata_dir,
-                f"metadata_{node.id}.jsonl",
+                f"metadata_{node.id}{stream_suffix}.jsonl",
             )
             node.data["method"] = "file"
             node.data["file-format"] = "json-lines"
@@ -1294,8 +1326,10 @@ class Graph:
 
     def get_recommended_encoder_device(self) -> str:
         """
-        Iterate backwards through nodes to find the last video/x-raw node
-        and return the recommended encoder device based on memory type.
+        Find the video/x-raw caps feeding the main output sink (walking edges
+        backwards from it) and return the recommended encoder device based on
+        memory type. Falls back to the last video/x-raw node in the list when
+        the main output sink cannot be identified.
 
         Note: NPU variants are not considered because NPUs do not provide dedicated
         memory accessible for GStreamer pipeline buffering; they operate exclusively
@@ -1309,14 +1343,58 @@ class Graph:
         from video_encoder import ENCODER_DEVICE_CPU, ENCODER_DEVICE_GPU
         # TODO: temporary, to avoid circular import. In the near future, this file will be refactored to not depend on managers at all.
 
-        for node in reversed(self.nodes):
-            if not node.type.startswith("video/x-raw"):
-                continue
-            if "memory:VAMemory" in node.type:
+        def _device_for_caps(caps_type: str) -> str:
+            if "memory:VAMemory" in caps_type:
                 return ENCODER_DEVICE_GPU
             return ENCODER_DEVICE_CPU
 
+        # Prefer caps on the path feeding the main output sink; caps on other
+        # tee branches (e.g. a sysmem VLM branch) must not decide the encoder.
+        main_sink = self._find_main_output_sink()
+        if main_sink is not None:
+            nodes_by_id = {node.id: node for node in self.nodes}
+            sources_by_target: dict[str, list[str]] = defaultdict(list)
+            for edge in self.edges:
+                sources_by_target[edge.target].append(edge.source)
+
+            visited: set[str] = set()
+            pending = list(sources_by_target.get(main_sink.id, []))
+            while pending:
+                node_id = pending.pop(0)
+                if node_id in visited:
+                    continue
+                visited.add(node_id)
+                node = nodes_by_id.get(node_id)
+                if node is None:
+                    continue
+                if node.type.startswith("video/x-raw"):
+                    return _device_for_caps(node.type)
+                pending.extend(sources_by_target.get(node_id, []))
+            return ENCODER_DEVICE_CPU
+
+        for node in reversed(self.nodes):
+            if node.type.startswith("video/x-raw"):
+                return _device_for_caps(node.type)
+
         return ENCODER_DEVICE_CPU
+
+    def _find_main_output_sink(self) -> Optional[Node]:
+        """Return the sink that ``prepare_main_output_placeholder`` would replace, if unambiguous."""
+        for node in self.nodes:
+            if node.type == OUTPUT_PLACEHOLDER:
+                return node
+        named = [
+            node
+            for node in self.nodes
+            if node.type == "fakesink"
+            and node.data.get("name") == "default_output_sink"
+        ]
+        if len(named) == 1:
+            return named[0]
+        fakesinks = [node for node in self.nodes if node.type == "fakesink"]
+        if len(fakesinks) == 1:
+            return fakesinks[0]
+        return None
 
     def to_simple_view(self) -> "Graph":
         """
@@ -1327,7 +1405,7 @@ class Graph:
 
         This function creates a new graph that shows only "meaningful" elements (sources,
         inference, outputs) while hiding technical plumbing elements (queues, converters, etc.).
-        Additionally, specific source elements (filesrc, v4l2src, rtspsrc) are converted to
+        Additionally, specific source elements (filesrc, v4l2src, rtspsrc, aravissrc) are converted to
         a generic "source" type for better UI presentation.
 
         Algorithm:
@@ -1626,10 +1704,23 @@ class Graph:
                         logger.debug(
                             f"Mapping source node {node_id} to v4l2src with device={source}"
                         )
+                    elif source.startswith(GIGE_CAMERA_PREFIX):
+                        camera_name = source[len(GIGE_CAMERA_PREFIX) :].strip()
+                        if not camera_name:
+                            raise ValueError(
+                                f"GigE camera source '{source}' for node {node_id} must include "
+                                "the camera IP address or Aravis device ID."
+                            )
+                        target_type = "aravissrc"
+                        target_properties = {"camera-name": camera_name}
+                        logger.debug(
+                            f"Mapping source node {node_id} to aravissrc with camera-name={camera_name}"
+                        )
                     else:
                         raise ValueError(
                             f"Unsupported camera source '{source}' for node {node_id}. "
-                            f"Camera sources must start with '{RTSP_URL_PREFIX}' for network cameras or '{USB_DEVICE_PREFIX}' for USB cameras."
+                            f"Camera sources must start with '{RTSP_URL_PREFIX}' for network cameras, "
+                            f"'{USB_DEVICE_PREFIX}' for USB cameras or '{GIGE_CAMERA_PREFIX}' for GigE cameras."
                         )
 
                 elif kind == InputKind.IMAGE_SET:
@@ -1853,6 +1944,7 @@ class Graph:
         - filesrc: reads Video.codec from VideosManager based on the location property.
         - v4l2src: reads best_capture.fourcc from CameraManager for the device path.
         - rtspsrc: reads best_profile.encoding from CameraManager for the RTSP URL.
+        - aravissrc: reads current_capture.pixel_format from CameraManager for the camera IP.
 
         Returns:
             Codec string (e.g., "h264", "MJPG"), or None if codec cannot be determined.
@@ -1933,6 +2025,20 @@ class Graph:
                 encoding = CameraManager().get_encoding_for_rtsp_url(location)
                 if encoding:
                     return encoding
+                return None
+
+            elif node.type == "aravissrc":
+                camera_name = node.data.get("camera-name")
+                if not camera_name:
+                    continue
+                details = CameraManager().get_gige_camera_details_by_ip(camera_name)
+                capture = details.current_capture if details is not None else None
+                if capture is not None and capture.pixel_format:
+                    logger.debug(
+                        f"Determined codec '{capture.pixel_format}' from aravissrc camera '{camera_name}'"
+                    )
+                    return capture.pixel_format
+                logger.debug(f"No pixel format known for GigE camera '{camera_name}'")
                 return None
 
         logger.debug("No source node found in graph, cannot determine codec")
@@ -2019,19 +2125,21 @@ class Graph:
 
         # --- Phase 1: Determine replacements ---
 
-        decoder_element = video_decoder.select_decoder(codec, target_device)
-        is_raw = video_decoder.is_raw_format(codec)
-
-        if decoder_element is not None:
-            replacement_kind = "parsebin_decoder"
-        elif is_raw:
-            replacement_kind = "videoconvert"
+        if video_decoder.is_bayer_format(codec):
+            decoder_element = None
+            replacement_kind = "bayer"
         else:
-            replacement_kind = "keep"
-            logger.warning(
-                f"Cannot find decoder for codec '{codec}' on device '{target_device}', "
-                f"keeping decodebin3 as fallback"
-            )
+            decoder_element = video_decoder.select_decoder(codec, target_device)
+            if decoder_element is not None:
+                replacement_kind = "parsebin_decoder"
+            elif video_decoder.is_raw_format(codec):
+                replacement_kind = "videoconvert"
+            else:
+                replacement_kind = "keep"
+                logger.warning(
+                    f"Cannot find decoder for codec '{codec}' on device '{target_device}', "
+                    f"keeping decodebin3 as fallback"
+                )
 
         if replacement_kind == "keep":
             return modified_graph
@@ -2097,6 +2205,25 @@ class Graph:
                 else:
                     element_type = "videoconvert"
                 replacements.append((db_node_id, element_type, [], []))
+
+            elif replacement_kind == "bayer":
+                # decodebin3 is renamed to bayer2rgb, followed by a converter
+                converter_node_id = str(next_id)
+                next_id += 1
+                if device_family in {"GPU", "NPU"}:
+                    converter_element = video_decoder.select_postproc(target_device)
+                else:
+                    converter_element = "videoconvert"
+                converter_node = Node(
+                    id=converter_node_id, type=converter_element, data={}
+                )
+                edge_bayer_to_converter = Edge(
+                    id=str(next_id), source=db_node_id, target=converter_node_id
+                )
+                next_id += 1
+                replacements.append(
+                    (db_node_id, "bayer", [converter_node], [edge_bayer_to_converter])
+                )
 
             elif replacement_kind == "parsebin_decoder":
                 assert decoder_element is not None
@@ -2241,7 +2368,7 @@ class Graph:
             if db_node is None:
                 continue
 
-            if kind != "parsebin_decoder":
+            if kind not in {"parsebin_decoder", "bayer"}:
                 # ``kind`` is the replacement element itself: videoconvert,
                 # vapostproc or its render-node variant (varenderD129postproc).
                 db_node.type = kind
@@ -2251,15 +2378,13 @@ class Graph:
                 )
 
             else:
-                # Rename decodebin3 → parsebin
-                db_node.type = "parsebin"
+                db_node.type = "parsebin" if kind == "parsebin_decoder" else "bayer2rgb"
 
-                # Insert new nodes (decoder, caps) right after parsebin
+                # Insert new nodes right after the renamed decodebin3
                 for offset, new_node in enumerate(nodes_to_insert):
                     modified_graph.nodes.insert(db_index + 1 + offset, new_node)
 
-                # The last inserted node is the output caps node.
-                # Rewire the original outgoing edge: parsebin→X becomes caps→X
+                # Rewire the original outgoing edge to leave the last inserted node
                 last_inserted_id = nodes_to_insert[-1].id
 
                 for edge in modified_graph.edges:
@@ -2267,12 +2392,11 @@ class Graph:
                         edge.source = last_inserted_id
                         break
 
-                # Add internal edges (parsebin→decoder, decoder→caps)
                 modified_graph.edges.extend(edges_to_add)
 
                 logger.debug(
                     f"Replaced decodebin3 (node {db_node_id}) with "
-                    f"parsebin + {nodes_to_insert[0].type} + {nodes_to_insert[1].type}"
+                    + " + ".join([db_node.type] + [n.type for n in nodes_to_insert])
                 )
 
         return modified_graph
@@ -3402,12 +3526,12 @@ class Graph:
 
     def validate_camera_sources_followed_by_decodebin3(self) -> None:
         """
-        Validate that all camera sources (rtspsrc or v4l2src) are followed by decodebin3.
+        Validate that all camera sources (rtspsrc, v4l2src or aravissrc) are followed by decodebin3.
 
         This validation ensures that camera pipelines have the required decoder element
         after the source element to properly handle the incoming stream.
 
-        This function only validates direct camera source nodes (v4l2src, rtspsrc) which
+        This function only validates direct camera source nodes (v4l2src, rtspsrc, aravissrc) which
         appear in advanced view.
 
         Args:
@@ -3432,7 +3556,7 @@ class Graph:
             edges_from.setdefault(edge.source, []).append(edge.target)
 
         for node in self.nodes:
-            if node.type not in {"v4l2src", "rtspsrc"}:
+            if node.type not in CAMERA_SOURCE_TYPES:
                 continue
 
             next_nodes = edges_from.get(node.id, [])
@@ -4517,7 +4641,7 @@ def _prepare_generic_input(nodes: list[Node]) -> None:
     """
     Replace source elements with a generic 'source' element.
 
-    This function finds source elements (filesrc, multifilesrc, v4l2src, rtspsrc)
+    This function finds source elements (filesrc, multifilesrc, v4l2src, rtspsrc, aravissrc)
     and replaces them with a generic "source" type, preserving source information
     in standardized data attributes.
 
@@ -4533,12 +4657,12 @@ def _prepare_generic_input(nodes: list[Node]) -> None:
     Side effects:
         - Modifies node.type and node.data for source elements
         - Converts filesrc/multifilesrc to source with kind=InputKind.FILE
-        - Converts v4l2src/rtspsrc to source with kind=InputKind.CAMERA
+        - Converts v4l2src/rtspsrc/aravissrc to source with kind=InputKind.CAMERA
         - Adds "source" attribute with original location/device identifier
 
     The function adds two data attributes:
         - "kind": Type of source (InputKind.FILE | InputKind.CAMERA)
-        - "source": Filename or camera identifier (video.mp4, /dev/video0, or rtsp://...)
+        - "source": Filename or camera identifier (video.mp4, /dev/video0, rtsp://... or gige://...)
 
     Example:
         Input:  node.type = "filesrc", node.data["location"] = "video.mp4"
@@ -4592,6 +4716,16 @@ def _prepare_generic_input(nodes: list[Node]) -> None:
             node.data["kind"] = InputKind.CAMERA
             node.data["source"] = source_name
             logger.debug(f"Converted rtspsrc to generic source (camera): {source_name}")
+
+        elif node.type == "aravissrc":
+            source_name = f"{GIGE_CAMERA_PREFIX}{node.data.get('camera-name', '')}"
+            node.data.clear()
+            node.type = "source"
+            node.data["kind"] = InputKind.CAMERA
+            node.data["source"] = source_name
+            logger.debug(
+                f"Converted aravissrc to generic source (camera): {source_name}"
+            )
 
 
 def _labels_path_to_display_name(nodes: list[Node]) -> None:

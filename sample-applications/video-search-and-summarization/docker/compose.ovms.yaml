@@ -1,0 +1,13 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# OVMS backend overlay: added by setup.sh only when OVMS serves the VLM/LLM
+# (summary paths without ENABLE_VLLM / ENABLE_VLLM_GPU). Makes OVMS a hard
+# dependency so `docker compose up` fails if OVMS never becomes healthy,
+# mirroring how compose.vllm.yaml / compose.vllm.xpu.yaml gate their backend.
+services:
+  pipeline-manager:
+    depends_on:
+      ovms-service:
+        condition: service_healthy
+        required: true

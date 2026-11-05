@@ -3,7 +3,10 @@ export const GVA_METADATA_PUBLISH_METHODS = ["file", "mqtt"] as const;
 export type GVAMetaPublishMethodType =
   (typeof GVA_METADATA_PUBLISH_METHODS)[number];
 
-export const GVA_METADATA_PUBLISH_FILE_FORMATS = ["json", "json-lines"] as const;
+export const GVA_METADATA_PUBLISH_FILE_FORMATS = [
+  "json",
+  "json-lines",
+] as const;
 
 export const gvaMetaPublishConfig = {
   editableProperties: [
@@ -65,7 +68,8 @@ export const gvaMetaPublishConfig = {
       label: "Max Connect Attempts",
       type: "number" as const,
       defaultValue: "1",
-      description: "Failed connection attempts before the pipeline fails (1-10)",
+      description:
+        "Failed connection attempts before the pipeline fails (1-10)",
       visibleWhen: { key: "method", equals: ["mqtt"] },
     },
     {

@@ -10,6 +10,7 @@ debian_99_profile_metro_ai_suite () {
       agentic_smart_community
       smart_traffic_intersection_agent
       video_processing_for_nvr
+      image_based_video_search
     )
     echo "${modules[*]}"
   }

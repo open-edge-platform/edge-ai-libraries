@@ -12,6 +12,12 @@ DL Streamer Pipeline Server microservice's configuration is defined via environm
   - Example: `ENABLE_RTSP=false`
 - **RTSP_CAMERA_IP (String)** - IP address of RTSP camera. 
   - Example: `RTSP_CAMERA_IP=<ip-addr>`
+- **RTSP_SERVER_MAX_THREADS (Integer)** - Number of threads of the RTSP server's thread pool (default `8`, `-1` = unlimited).
+  The server answers its clients and waits for every stream's media to be prepared on these threads. With a single
+  thread (GStreamer's default) one stream that is not feeding its media (a client then waits up to 20 s for a `503`
+  and logs "can't prepare media") blocks the requests of every other client, including the other streams, for as long
+  as clients keep retrying it. Values below `1` other than `-1` fall back to the default.
+  - Example: `RTSP_SERVER_MAX_THREADS=8`
 
 ### Username and ID 
 - **PIPELINE_SERVER_USER (String)** - Name of the user inside the dlstreamer pipeline server container

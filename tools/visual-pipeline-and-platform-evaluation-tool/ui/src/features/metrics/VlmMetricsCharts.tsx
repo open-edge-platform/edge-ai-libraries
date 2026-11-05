@@ -43,31 +43,7 @@ export const VlmMetricsCharts = ({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 min-w-0">
-      <MetricChart
-        title="VLM TTFT Over Time"
-        data={data}
-        dataKeys={["ttft"]}
-        colors={["var(--color-orange-chart)"]}
-        unit=" ms"
-        yAxisDomain={[0, getVlmYAxisMax(data, "ttft")]}
-        showLegend={false}
-        labels={["TTFT"]}
-        maxDataPoints={CHART_MAX_DATA_POINTS}
-        isSummary={isSummary}
-      />
-      <MetricChart
-        title="VLM TPOT Over Time"
-        data={data}
-        dataKeys={["tpot"]}
-        colors={["var(--color-green-chart)"]}
-        unit=" ms"
-        yAxisDomain={[0, getVlmYAxisMax(data, "tpot")]}
-        showLegend={false}
-        labels={["TPOT"]}
-        maxDataPoints={CHART_MAX_DATA_POINTS}
-        isSummary={isSummary}
-      />
+    <div className="grid grid-cols-1 gap-4 min-w-0">
       <MetricChart
         title="VLM Total Latency Over Time"
         data={data}
@@ -76,7 +52,34 @@ export const VlmMetricsCharts = ({
         unit=" ms"
         yAxisDomain={[0, getVlmYAxisMax(data, "totalLatency")]}
         showLegend={false}
-        labels={["Generation"]}
+        labels={["VLM Total Latency"]}
+        titleTooltip={[
+          {
+            label: "VLM Total Latency",
+            description:
+              "Total time from the start of generation until the response is complete.",
+          },
+          {
+            label: "TTFT",
+            description:
+              "Time from the request starting until the first token is generated; indicates initial response latency.",
+          },
+          {
+            label: "TPOT",
+            description:
+              "Average time between generated tokens; indicates streaming generation speed.",
+          },
+        ]}
+        additionalTooltipMetrics={[
+          {
+            dataKey: "ttft",
+            label: "VLM TTFT",
+          },
+          {
+            dataKey: "tpot",
+            label: "VLM TPOT",
+          },
+        ]}
         maxDataPoints={CHART_MAX_DATA_POINTS}
         isSummary={isSummary}
       />

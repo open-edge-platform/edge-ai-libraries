@@ -17,7 +17,8 @@ Before starting, ensure the following:
   [post-installation steps](https://docs.docker.com/engine/install/linux-postinstall/) to run Docker as a non-root user.
 
   > [!NOTE]
-  > Do not use Docker Desktop on Linux. It runs the Docker daemon inside a virtual machine that is not forwarding GPU device on Linux (yet).
+   > Do not use Docker Desktop on Linux. It runs the Docker daemon inside a virtual machine that is not forwarding GPU
+   > device on Linux (yet).
 
 - **Dependencies installed**:
   - **Make**: Standard build tool, typically provided by the `build-essential` (or equivalent) package on Linux.
@@ -70,6 +71,9 @@ For alternative ways to set up the sample application, refer to
    On the `main` branch the images tagged `latest` are used; on a release branch, the images of that
    release. To run a different published tag, for example a weekly build listed on
    [Docker Hub](https://hub.docker.com/r/intel/vippet-app/tags), use `make run-prebuilt PREBUILT_TAG=<tag>`.
+
+   To stream from GigE Vision cameras, add `GIGE=1` (`make run-prebuilt GIGE=1`), see
+   [GigE Vision Cameras](../../user-guide/input-management/cameras.md#gige-vision-cameras).
 
    `make run-prebuilt` never builds images from source: if an image cannot be pulled, the command fails.
    `make run` is the build-from-source path, see [Build from Source](./build-from-source.md).

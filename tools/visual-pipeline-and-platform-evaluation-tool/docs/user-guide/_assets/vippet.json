@@ -673,7 +673,7 @@
           "devices"
         ],
         "summary": "List available inference devices",
-        "description": "**Return all devices discovered by the OpenVINO runtime.**\n\n## Operation\nDiscovers CPU, GPU, and NPU devices available in the system and exposes\nthem in a simplified, API-friendly format.\n\n1. Initialize OpenVINO Core\n2. Discover all available inference devices\n3. Extract device properties and metadata\n4. Return formatted device list\n\n## Parameters\n- **Path/Query parameters:** None\n\n## Response Format\n\n### 200 OK\nJSON array of Device objects.\n\n**Each device includes:**\n- `device_name` - Short identifier used by runtime (e.g., `\"CPU\"`, `\"GPU\"`, `\"GPU.0\"`, `\"NPU\"`)\n- `full_device_name` - Human-readable name (e.g., CPU/GPU marketing name)\n- `device_type` - `INTEGRATED` or `DISCRETE`\n- `device_family` - `CPU`, `GPU`, or `NPU`\n- `gpu_id` - Integer index for GPU devices (when applicable), otherwise `null`\n\n## Conditions\n\n### \u2705 Success\n- OpenVINO Core initializes correctly\n- At least zero devices are returned (empty list is valid)\n\n### \u274c Failure\n- Unhandled exception during device discovery \u2192 500\n- OpenVINO cannot be initialized \u2192 500\n\n## Example Response\n\n```json\n[\n  {\n    \"device_name\": \"CPU\",\n    \"full_device_name\": \"Intel(R) Core(TM) Ultra 7 155H\",\n    \"device_type\": \"INTEGRATED\",\n    \"device_family\": \"CPU\",\n    \"gpu_id\": null\n  },\n  {\n    \"device_name\": \"GPU.0\",\n    \"full_device_name\": \"Intel(R) Arc(TM) Graphics (iGPU) (GPU.0)\",\n    \"device_type\": \"INTEGRATED\",\n    \"device_family\": \"GPU\",\n    \"gpu_id\": 0\n  }\n]\n```",
+        "description": "**Return all devices discovered by the OpenVINO runtime.**\n\n## Operation\nDiscovers CPU, GPU, and NPU devices available in the system and exposes\nthem in a simplified, API-friendly format.\n\n1. Initialize OpenVINO Core\n2. Discover all available inference devices\n3. Extract device properties and metadata\n4. Attach the core type of every online logical CPU to the CPU device\n5. Return formatted device list\n\n## Parameters\n- **Path/Query parameters:** None\n\n## Response Format\n\n### 200 OK\nJSON array of Device objects.\n\n**Each device includes:**\n- `device_name` - Short identifier used by runtime (e.g., `\"CPU\"`, `\"GPU\"`, `\"GPU.0\"`, `\"NPU\"`)\n- `full_device_name` - Human-readable name (e.g., CPU/GPU marketing name)\n- `device_type` - `INTEGRATED` or `DISCRETE`\n- `device_family` - `CPU`, `GPU`, or `NPU`\n- `gpu_id` - Integer index for GPU devices (when applicable), otherwise `null`\n- `cpu_topology` - For the CPU device, the core type (`P`, `E`, `LPE` or `UNIFORM`)\n  of every online logical CPU, read from Linux sysfs. `null` for other devices, or\n  when the core types cannot be determined\n\n## Conditions\n\n### \u2705 Success\n- OpenVINO Core initializes correctly\n- At least zero devices are returned (empty list is valid)\n- A failure to read the CPU topology does not fail the request; `cpu_topology` is `null`\n\n### \u274c Failure\n- Unhandled exception during device discovery \u2192 500\n- OpenVINO cannot be initialized \u2192 500\n\n## Example Response\n\n```json\n[\n  {\n    \"device_name\": \"CPU\",\n    \"full_device_name\": \"Intel(R) Core(TM) Ultra 7 155H\",\n    \"device_type\": \"INTEGRATED\",\n    \"device_family\": \"CPU\",\n    \"gpu_id\": null,\n    \"cpu_topology\": {\n      \"is_hybrid\": true,\n      \"source\": \"sysfs_pmu\",\n      \"cores\": [\n        {\"cpu\": 0, \"core_type\": \"P\", \"core_id\": 0},\n        {\"cpu\": 6, \"core_type\": \"E\", \"core_id\": 6},\n        {\"cpu\": 14, \"core_type\": \"LPE\", \"core_id\": 14}\n      ]\n    }\n  },\n  {\n    \"device_name\": \"GPU.0\",\n    \"full_device_name\": \"Intel(R) Arc(TM) Graphics (iGPU) (GPU.0)\",\n    \"device_type\": \"INTEGRATED\",\n    \"device_family\": \"GPU\",\n    \"gpu_id\": 0,\n    \"cpu_topology\": null\n  }\n]\n```",
         "operationId": "get_devices",
         "responses": {
           "200": {
@@ -1913,6 +1913,53 @@
         }
       }
     },
+    "/models/list": {
+      "post": {
+        "tags": [
+          "models"
+        ],
+        "summary": "Search models in an upstream hub",
+        "description": "Search a model hub using its supported filters and pagination.",
+        "operationId": "list_hub_models",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelHubListRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelHubListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or unsupported hub"
+          },
+          "401": {
+            "description": "Hub authentication failed"
+          },
+          "422": {
+            "description": "Hub listing request validation failed"
+          },
+          "501": {
+            "description": "Hub does not support model listing"
+          },
+          "502": {
+            "description": "Upstream hub request failed"
+          }
+        }
+      }
+    },
     "/models/upload": {
       "post": {
         "tags": [
@@ -2019,7 +2066,7 @@
           "models"
         ],
         "summary": "Start one or more model download jobs",
-        "description": "# Start Model Downloads\n\nStart an asynchronous download job for each model in the request.\nEach entry of `names` is processed **independently** and produces\nits own per-model entry in the response map `jobs`. Names must be\ndeclared in the model catalog (`vippet/models/*.yaml`); all model\nsources are handled by the model-download microservice.\n\nEach accepted name spawns a background worker right away \u2014 the\nendpoint does **not** wait for any download to finish, so adding\nmore names does not delay the others.\n\n## Request Body\n\n- **`names`** *(required)* - Non-empty list of unique supported-model\n  names to install.\n\n## Response Body\n\nA `ModelDownloadJobResponse` whose `jobs` map is keyed by the\nrequested model name. Each value carries the per-model\n`job_id` / `status_code` / `message`.\n\n## Response Codes\n\nThe envelope HTTP status is derived from the per-model\n`status_code` values via `_aggregate_status`:\n\n| Code | When |\n|------|------|\n| 202  | Every requested model accepted (`status_code=202` for all entries) |\n| 207  | At least one accepted **and** at least one rejected (mixed) |\n| 400  | All requested models rejected, **at least one** was `400` (no `download_request`). Takes precedence over 404 / 409. |\n| 404  | All requested models rejected with `404` only (unknown). Takes precedence over 409. |\n| 409  | All requested models rejected with `409` only (already installed / in progress). |\n| 422  | Body validation failed (empty list, duplicate names, ...) |\n| 500  | Unexpected error |\n\nPer-model outcomes are always available in `jobs[<name>].status_code`\nregardless of the envelope status.",
+        "description": "# Start Model Downloads\n\nStart an asynchronous download job for each model in the request.\nEach entry of `names` is processed **independently** and produces\nits own per-model entry in the response map `jobs`. Names must be\ndeclared in the model catalog (`vippet/models/*.yaml`); all model\nsources are handled by the model-download microservice.\n\nEach accepted name spawns a background worker right away \u2014 the\nendpoint does **not** wait for any download to finish, so adding\nmore names does not delay the others.\n\n## Request Body\n\n- **`names`** *(required)* - Non-empty list of unique supported-model\n  names to install.\n- **`hub`** *(optional)* - Upstream hub (`ultralytics`, `huggingface`)\n  for names not in the catalog, as returned by `POST /models/list`.\n  - `ultralytics`: when the download completes,\n    `ultralytics/public/<name>/` is scanned for installed precisions\n    (`FP*`, `INT*`); category is derived from the name suffix: `-seg`\n    \u2192 `image_segmentation`, `-cls` \u2192 `image_classification`, `-pose`\n    \u2192 `pose_estimation`, `-obb` or no suffix \u2192 `object_detection`.\n  - `huggingface`: `category` is required (no naming convention to\n    derive it from); `huggingface/<name>/` is scanned for the\n    downloaded artefact.\n- **`category`** *(optional)* - Required when `hub` is `huggingface`.\n\n## Response Body\n\nA `ModelDownloadJobResponse` whose `jobs` map is keyed by the\nrequested model name. Each value carries the per-model\n`job_id` / `status_code` / `message`.\n\n## Response Codes\n\nThe envelope HTTP status is derived from the per-model\n`status_code` values via `_aggregate_status`:\n\n| Code | When |\n|------|------|\n| 202  | Every requested model accepted (`status_code=202` for all entries) |\n| 207  | At least one accepted **and** at least one rejected (mixed) |\n| 400  | All requested models rejected, **at least one** was `400` (no `download_request`). Takes precedence over 404 / 409. |\n| 404  | All requested models rejected with `404` only (unknown). Takes precedence over 409. |\n| 409  | All requested models rejected with `409` only (already installed / in progress). |\n| 422  | Body validation failed (empty list, duplicate names, ...) |\n| 500  | Unexpected error |\n\nPer-model outcomes are always available in `jobs[<name>].status_code`\nregardless of the envelope status.",
         "operationId": "start_model_download",
         "requestBody": {
           "content": {
@@ -3655,7 +3702,7 @@
           "cameras"
         ],
         "summary": "Get all cameras",
-        "description": "**Get all cameras (both USB and network) available to the system.**\n\n## Operation\nCombines results from both USB and network camera discovery to provide\na comprehensive list of all available camera devices.\n\n1. Discover all USB cameras using v4l2-ctl or device scanning\n2. Discover all network cameras using various protocols\n3. Combine and return the complete list\n\n## Parameters\n- **Path/Query parameters:** None\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 200 | JSON array of Camera objects (USB and network cameras) |\n| 500 | `MessageResponse` - Unexpected error during discovery |\n\n## Conditions\n\n### \u2705 Success\n- At least one discovery method succeeds\n- Results can be combined and returned\n- Empty list is returned if no cameras are found\n\n### \u274c Failure\n- Both USB and network discovery fail\n- System error during discovery process\n\n## Example Response\n\n```json\n[\n  {\n    \"device_id\": \"usb-camera-0\",\n    \"device_name\": \"Integrated Camera\",\n    \"device_type\": \"USB\",\n    \"details\": {\n      \"device_path\": \"/dev/video0\",\n      \"resolution\": \"1920x1080\"\n    }\n  },\n  {\n    \"device_id\": \"network-camera-192.168.1.100-80\",\n    \"device_name\": \"ONVIF Camera 192.168.1.100\",\n    \"device_type\": \"NETWORK\",\n    \"details\": {\n      \"ip\": \"192.168.1.100\",\n      \"port\": 80,\n      \"profiles\": []\n    }\n  }\n]\n```",
+        "description": "**Get all cameras (USB, network and GigE Vision) available to the system.**\n\n## Operation\nCombines results from USB, network and GigE Vision camera discovery to provide\na comprehensive list of all available camera devices.\n\n1. Discover all USB cameras using v4l2-ctl or device scanning\n2. Discover all network cameras using various protocols\n3. Discover all GigE Vision cameras using Aravis\n4. Combine and return the complete list\n\n## Parameters\n- **Path/Query parameters:** None\n\n## Response Codes\n\n| Code | Description |\n|------|-------------|\n| 200 | JSON array of Camera objects (USB, network and GigE Vision cameras) |\n| 500 | `MessageResponse` - Unexpected error during discovery |\n\n## Conditions\n\n### \u2705 Success\n- At least one discovery method succeeds\n- Results can be combined and returned\n- Empty list is returned if no cameras are found\n\n### \u274c Failure\n- Both USB and network discovery fail\n- System error during discovery process\n\n## Example Response\n\n```json\n[\n  {\n    \"device_id\": \"usb-camera-0\",\n    \"device_name\": \"Integrated Camera\",\n    \"device_type\": \"USB\",\n    \"details\": {\n      \"device_path\": \"/dev/video0\",\n      \"resolution\": \"1920x1080\"\n    }\n  },\n  {\n    \"device_id\": \"network-camera-192.168.1.100-80\",\n    \"device_name\": \"ONVIF Camera 192.168.1.100\",\n    \"device_type\": \"NETWORK\",\n    \"details\": {\n      \"ip\": \"192.168.1.100\",\n      \"port\": 80,\n      \"profiles\": []\n    }\n  },\n  {\n    \"device_id\": \"gige-camera-basler-12345678\",\n    \"device_name\": \"Basler acA1920-25gc\",\n    \"device_type\": \"GIGE\",\n    \"details\": {\n      \"ip\": \"192.168.1.50\",\n      \"vendor\": \"Basler\",\n      \"model\": \"acA1920-25gc\",\n      \"serial\": \"12345678\",\n      \"current_capture\": {\n        \"pixel_format\": \"BayerRG8\",\n        \"width\": 1920,\n        \"height\": 1080,\n        \"fps\": 25.0\n      }\n    }\n  }\n]\n```",
         "operationId": "get_cameras",
         "responses": {
           "200": {
@@ -5138,6 +5185,9 @@
               },
               {
                 "$ref": "#/components/schemas/NetworkCameraDetails"
+              },
+              {
+                "$ref": "#/components/schemas/GigECameraDetails"
               }
             ],
             "title": "Details"
@@ -5151,7 +5201,7 @@
           "details"
         ],
         "title": "Camera",
-        "description": "**Camera device information supporting both USB and network cameras.**\n\nCommon attributes apply to all camera types. Type-specific details are stored\nin the details field which contains either USBCameraDetails or NetworkCameraDetails.\n\n## Attributes\n- `device_id` - Unique identifier for the camera\n- `device_name` - Human-readable camera name\n- `device_type` - Type of camera (USB or NETWORK)\n- `details` - Type-specific camera details (USBCameraDetails for USB, NetworkCameraDetails for NETWORK)\n\n### Example (USB Camera)\n```json\n{\n  \"device_id\": \"usb-camera-0\",\n  \"device_name\": \"Integrated Camera\",\n  \"device_type\": \"USB\",\n  \"details\": {\n    \"device_path\": \"/dev/video0\",\n    \"best_capture\": {\n      \"fourcc\": \"YUYV\",\n      \"width\": 1920,\n      \"height\": 1080,\n      \"fps\": 30\n    }\n  }\n}\n```\n\n### Example (Network Camera)\n```json\n{\n  \"device_id\": \"network-camera-192.168.1.100-80\",\n  \"device_name\": \"ONVIF Camera 192.168.1.100\",\n  \"device_type\": \"NETWORK\",\n  \"details\": {\n    \"ip\": \"192.168.1.100\",\n    \"port\": 80,\n    \"profiles\": [\n      {\n        \"name\": \"Profile_1\",\n        \"rtsp_url\": \"rtsp://192.168.1.100:554/stream1\",\n        \"resolution\": \"1920x1080\",\n        \"encoding\": \"H264\",\n        \"framerate\": 30,\n        \"bitrate\": 4096\n      }\n    ],\n    \"best_profile\": {\n      \"name\": \"Profile_1\",\n      \"rtsp_url\": \"rtsp://192.168.1.100:554/stream1\",\n      \"resolution\": \"1920x1080\",\n      \"encoding\": \"H264\",\n      \"framerate\": 30,\n      \"bitrate\": 4096\n    }\n  }\n}\n```"
+        "description": "**Camera device information supporting USB, network and GigE Vision cameras.**\n\nCommon attributes apply to all camera types. Type-specific details are stored\nin the details field which contains USBCameraDetails, NetworkCameraDetails\nor GigECameraDetails.\n\n## Attributes\n- `device_id` - Unique identifier for the camera\n- `device_name` - Human-readable camera name\n- `device_type` - Type of camera (USB, NETWORK or GIGE)\n- `details` - Type-specific camera details (USBCameraDetails for USB,\n  NetworkCameraDetails for NETWORK, GigECameraDetails for GIGE)\n\n### Example (USB Camera)\n```json\n{\n  \"device_id\": \"usb-camera-0\",\n  \"device_name\": \"Integrated Camera\",\n  \"device_type\": \"USB\",\n  \"details\": {\n    \"device_path\": \"/dev/video0\",\n    \"best_capture\": {\n      \"fourcc\": \"YUYV\",\n      \"width\": 1920,\n      \"height\": 1080,\n      \"fps\": 30\n    }\n  }\n}\n```\n\n### Example (Network Camera)\n```json\n{\n  \"device_id\": \"network-camera-192.168.1.100-80\",\n  \"device_name\": \"ONVIF Camera 192.168.1.100\",\n  \"device_type\": \"NETWORK\",\n  \"details\": {\n    \"ip\": \"192.168.1.100\",\n    \"port\": 80,\n    \"profiles\": [\n      {\n        \"name\": \"Profile_1\",\n        \"rtsp_url\": \"rtsp://192.168.1.100:554/stream1\",\n        \"resolution\": \"1920x1080\",\n        \"encoding\": \"H264\",\n        \"framerate\": 30,\n        \"bitrate\": 4096\n      }\n    ],\n    \"best_profile\": {\n      \"name\": \"Profile_1\",\n      \"rtsp_url\": \"rtsp://192.168.1.100:554/stream1\",\n      \"resolution\": \"1920x1080\",\n      \"encoding\": \"H264\",\n      \"framerate\": 30,\n      \"bitrate\": 4096\n    }\n  }\n}\n```\n\n### Example (GigE Vision Camera)\n```json\n{\n  \"device_id\": \"gige-camera-basler-12345678\",\n  \"device_name\": \"Basler acA1920-25gc\",\n  \"device_type\": \"GIGE\",\n  \"details\": {\n    \"ip\": \"192.168.1.50\",\n    \"vendor\": \"Basler\",\n    \"model\": \"acA1920-25gc\",\n    \"serial\": \"12345678\",\n    \"current_capture\": {\n      \"pixel_format\": \"BayerRG8\",\n      \"width\": 1920,\n      \"height\": 1080,\n      \"fps\": 25.0\n    }\n  }\n}\n```"
       },
       "CameraAuthResponse": {
         "properties": {
@@ -5259,10 +5309,81 @@
         "type": "string",
         "enum": [
           "USB",
-          "NETWORK"
+          "NETWORK",
+          "GIGE"
         ],
         "title": "CameraType",
-        "description": "**Type of camera device.**\n\n## Values\n- `USB` - USB camera connected directly to the system\n- `NETWORK` - Network camera accessible via IP protocols\n\n### Example\n```json\n\"USB\"\n```"
+        "description": "**Type of camera device.**\n\n## Values\n- `USB` - USB camera connected directly to the system\n- `NETWORK` - Network camera accessible via IP protocols\n- `GIGE` - GigE Vision machine vision camera\n\n### Example\n```json\n\"USB\"\n```"
+      },
+      "CpuCore": {
+        "properties": {
+          "cpu": {
+            "type": "integer",
+            "title": "Cpu"
+          },
+          "core_type": {
+            "$ref": "#/components/schemas/CpuCoreType"
+          },
+          "core_id": {
+            "type": "integer",
+            "title": "Core Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cpu",
+          "core_type",
+          "core_id"
+        ],
+        "title": "CpuCore",
+        "description": "**One online logical CPU and its core type.**\n\n## Attributes\n- `cpu` - Logical CPU id, as used for CPU affinity (for example `taskset -c`)\n- `core_type` - Core type of this CPU\n- `core_id` - Lowest logical CPU id among its SMT siblings; hyper-threads of one physical core share it\n\n### Example\n```json\n{\"cpu\": 0, \"core_type\": \"P\", \"core_id\": 0}\n```"
+      },
+      "CpuCoreType": {
+        "type": "string",
+        "enum": [
+          "P",
+          "E",
+          "LPE",
+          "UNIFORM"
+        ],
+        "title": "CpuCoreType",
+        "description": "**Type of a logical CPU on an Intel processor.**\n\n## Values\n- `P` - Performance core on a hybrid processor\n- `E` - Efficient core on a hybrid processor\n- `LPE` - Low-power efficient core on a hybrid processor\n- `UNIFORM` - Core of a non-hybrid processor, where all cores are the same type\n\n### Example\n```json\n\"P\"\n```"
+      },
+      "CpuTopology": {
+        "properties": {
+          "is_hybrid": {
+            "type": "boolean",
+            "title": "Is Hybrid"
+          },
+          "source": {
+            "$ref": "#/components/schemas/CpuTopologySource"
+          },
+          "cores": {
+            "items": {
+              "$ref": "#/components/schemas/CpuCore"
+            },
+            "type": "array",
+            "title": "Cores"
+          }
+        },
+        "type": "object",
+        "required": [
+          "is_hybrid",
+          "source",
+          "cores"
+        ],
+        "title": "CpuTopology",
+        "description": "**Core types of all online logical CPUs of the host.**\n\n## Attributes\n- `is_hybrid` - True when the CPUs are classified into `P`, `E` or `LPE` types\n- `source` - Method used to determine the core types\n- `cores` - Online logical CPUs sorted by id\n\n### Example\n```json\n{\n  \"is_hybrid\": true,\n  \"source\": \"sysfs_pmu\",\n  \"cores\": [\n    {\"cpu\": 0, \"core_type\": \"P\", \"core_id\": 0},\n    {\"cpu\": 6, \"core_type\": \"E\", \"core_id\": 6},\n    {\"cpu\": 14, \"core_type\": \"LPE\", \"core_id\": 14}\n  ]\n}\n```"
+      },
+      "CpuTopologySource": {
+        "type": "string",
+        "enum": [
+          "sysfs_pmu",
+          "sysfs_cache",
+          "uniform"
+        ],
+        "title": "CpuTopologySource",
+        "description": "**Method used to determine the CPU core types.**\n\n## Values\n- `sysfs_pmu` - Hybrid PMU CPU lists in Linux sysfs (`cpu_core`, `cpu_atom`, `cpu_lowpower`)\n- `sysfs_cache` - Cache topology in Linux sysfs, used when the hybrid PMU lists are missing\n- `uniform` - Non-hybrid processor; every core is `UNIFORM`\n\n### Example\n```json\n\"sysfs_pmu\"\n```"
       },
       "DensityJobStatus": {
         "properties": {
@@ -5495,6 +5616,16 @@
               }
             ],
             "title": "Gpu Id"
+          },
+          "cpu_topology": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CpuTopology"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -5506,7 +5637,7 @@
           "gpu_id"
         ],
         "title": "Device",
-        "description": "**Hardware device description used by multiple APIs.**\n\nThis model is a simplified view of the device information returned\nby the runtime (e.g., OpenVINO) and is suitable for UI consumption.\n\n## Attributes\n- `device_name` - Short identifier used when selecting the device (e.g., \"CPU\", \"GPU\", \"GPU.0\", \"NPU\")\n- `full_device_name` - Human readable device name (CPU/GPU/NPU model)\n- `device_type` - High level device type (INTEGRATED or DISCRETE)\n- `device_family` - Hardware family (CPU, GPU, NPU)\n- `gpu_id` - Optional GPU index when applicable; null for non-GPU devices\n\n### Example\n```json\n{\n  \"device_name\": \"GPU.0\",\n  \"full_device_name\": \"Intel(R) Arc(TM) Graphics (iGPU) (GPU.0)\",\n  \"device_type\": \"INTEGRATED\",\n  \"device_family\": \"GPU\",\n  \"gpu_id\": 0\n}\n```"
+        "description": "**Hardware device description used by multiple APIs.**\n\nThis model is a simplified view of the device information returned\nby the runtime (e.g., OpenVINO) and is suitable for UI consumption.\n\n## Attributes\n- `device_name` - Short identifier used when selecting the device (e.g., \"CPU\", \"GPU\", \"GPU.0\", \"NPU\")\n- `full_device_name` - Human readable device name (CPU/GPU/NPU model)\n- `device_type` - High level device type (INTEGRATED or DISCRETE)\n- `device_family` - Hardware family (CPU, GPU, NPU)\n- `gpu_id` - Optional GPU index when applicable; null for non-GPU devices\n- `cpu_topology` - Core types of the host CPUs for the CPU device; null for other devices\n  or when they cannot be determined\n\n### Example\n```json\n{\n  \"device_name\": \"GPU.0\",\n  \"full_device_name\": \"Intel(R) Arc(TM) Graphics (iGPU) (GPU.0)\",\n  \"device_type\": \"INTEGRATED\",\n  \"device_family\": \"GPU\",\n  \"gpu_id\": 0,\n  \"cpu_topology\": null\n}\n```"
       },
       "DeviceFamily": {
         "type": "string",
@@ -5580,6 +5711,114 @@
         "type": "object",
         "title": "ExecutionConfig",
         "description": "**Configuration for pipeline execution behavior.**\n\nThis configuration controls output generation, runtime limits,\nand metadata publishing for test pipelines.\n\n## Attributes\n- `output_mode` - Mode for pipeline output generation:\n  - `disabled` - No output (fakesink remains, default)\n  - `file` - Save video to file (only allowed with max_runtime=0)\n  - `live_stream` - Stream output live to media server\n- `max_runtime` - Maximum runtime in seconds for the pipeline:\n  - 0: Run until natural completion (EOS), no time limit (default)\n  - >0: Stop pipeline after this duration, with looping if EOS comes early (only allowed with output_mode=disabled or output_mode=live_stream)\n  - <0: Not allowed (will be rejected)\n- `metadata_mode` - Mode for metadata publishing via `gvametapublish` elements present in the pipeline:\n  - `disabled` - No metadata file paths are injected; gvametapublish elements remain unchanged (default)\n  - `file` - gvametapublish elements write JSON-Lines metadata, available via SSE endpoints\n\n### Example (disabled output, no runtime limit)\n```json\n{\n  \"output_mode\": \"disabled\",\n  \"max_runtime\": 0\n}\n```\n\n### Example (save to file, run until EOS)\n```json\n{\n  \"output_mode\": \"file\",\n  \"max_runtime\": 0\n}\n```\n\n### Example (live streaming with 60 second limit)\n```json\n{\n  \"output_mode\": \"live_stream\",\n  \"max_runtime\": 60\n}\n```\n\n### Example (metadata publishing to file)\n```json\n{\n  \"output_mode\": \"disabled\",\n  \"max_runtime\": 0,\n  \"metadata_mode\": \"file\"\n}\n```"
+      },
+      "GigECameraDetails": {
+        "properties": {
+          "ip": {
+            "type": "string",
+            "title": "Ip"
+          },
+          "vendor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "serial": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Serial"
+          },
+          "current_capture": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GigECapture"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "ip"
+        ],
+        "title": "GigECameraDetails",
+        "description": "**GigE Vision camera details.**\n\nIdentity fields may be missing when the camera could not be opened during\ndiscovery (e.g. it is streaming to another application).\n\n## Attributes\n- `ip` - IP address of the camera\n- `vendor` - Camera vendor name (optional)\n- `model` - Camera model name (optional)\n- `serial` - Camera serial number (optional)\n- `current_capture` - Capture configuration currently set on the camera (optional)"
+      },
+      "GigECapture": {
+        "properties": {
+          "pixel_format": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pixel Format"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "fps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fps"
+          }
+        },
+        "type": "object",
+        "title": "GigECapture",
+        "description": "**Capture configuration currently set on a GigE Vision camera.**\n\n## Attributes\n- `pixel_format` - GenICam pixel format (e.g., \"Mono8\", \"BayerRG8\")\n- `width` - Frame width in pixels\n- `height` - Frame height in pixels\n- `fps` - Acquisition frame rate"
       },
       "GraphInline": {
         "properties": {
@@ -6229,6 +6468,31 @@
                 "yolov8n"
               ]
             ]
+          },
+          "hub": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelSource"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Upstream hub used for names not found in the model catalog.",
+            "examples": [
+              "ultralytics"
+            ]
+          },
+          "category": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelCategory"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Model category, required when `hub` is `huggingface` (ignored for other hubs)."
           }
         },
         "type": "object",
@@ -6236,7 +6500,137 @@
           "names"
         ],
         "title": "ModelDownloadRequest",
-        "description": "**Request body for starting a batch of model download jobs.**\n\nEach name must match an entry in the model catalog (`vippet/models/*.yaml`). Names are\nvalidated as a unique set: duplicates are rejected with 422 so the\nper-name map returned by the endpoint stays unambiguous. An empty\nlist is also rejected (`min_length=1`).\n\nEach name is processed independently \u2014 one model-download job per\nname \u2014 and the per-model status is returned in\n`ModelDownloadJobResponse.jobs[name]`.\n\n## Attributes\n- `names` - List of supported-model names to install. Must be non-empty and unique.\n\n### Example\n```json\n{\n  \"names\": [\"yolo11n\", \"yolov8n\"]\n}\n```"
+        "description": "**Request body for starting a batch of model download jobs.**\n\nEach name must match an entry in the model catalog (`vippet/models/*.yaml`) unless `hub` is set. Names are\nvalidated as a unique set: duplicates are rejected with 422 so the\nper-name map returned by the endpoint stays unambiguous. An empty\nlist is also rejected (`min_length=1`).\n\nEach name is processed independently \u2014 one model-download job per\nname \u2014 and the per-model status is returned in\n`ModelDownloadJobResponse.jobs[name]`.\n\nWhen `hub` is set, names not found in the catalog are downloaded from\nthat hub (names as returned by `POST /models/list`) and registered in\nthe catalog together with every installed precision. Supported hubs:\n`ultralytics` (category derived from the name suffix) and\n`huggingface` (category must be provided via `category`, since\nHuggingFace repo ids have no fixed naming convention to derive it\nfrom).\n\n## Attributes\n- `names` - List of supported-model names to install. Must be non-empty and unique.\n- `hub` - Optional upstream hub for names not in the catalog.\n- `category` - Required when `hub` is `huggingface`; ignored otherwise.\n\n### Example\n```json\n{\n  \"names\": [\"yolo11n\", \"yolov8n\"]\n}\n```"
+      },
+      "ModelHubListRequest": {
+        "properties": {
+          "hub": {
+            "type": "string",
+            "title": "Hub",
+            "description": "Model hub to search, such as huggingface."
+          },
+          "filters": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Filters",
+            "description": "Hub-specific listing filters, such as author, search, or tags."
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "default": 50
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Offset",
+            "default": 0
+          },
+          "override_credentials": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override Credentials",
+            "description": "Optional Base64-encoded connection overrides for this request."
+          }
+        },
+        "type": "object",
+        "required": [
+          "hub"
+        ],
+        "title": "ModelHubListRequest",
+        "description": "Request body for searching models in an upstream model hub."
+      },
+      "ModelHubListResponse": {
+        "properties": {
+          "hub": {
+            "type": "string",
+            "title": "Hub"
+          },
+          "items": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count",
+            "description": "Number of items returned in this response."
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total",
+            "description": "Total number of items available, when the hub reports it."
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          },
+          "has_more": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Has More",
+            "description": "Whether another page is available."
+          },
+          "next_offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Offset",
+            "description": "Offset to request the next page, when available."
+          }
+        },
+        "type": "object",
+        "required": [
+          "hub",
+          "items",
+          "limit",
+          "offset"
+        ],
+        "title": "ModelHubListResponse",
+        "description": "Paginated results returned by an upstream model hub.\n\nSome hubs (for example HuggingFace) cannot report a `total` count\ncheaply; callers must then paginate using `has_more`/`next_offset`\ninstead of computing a page count from `total`."
       },
       "ModelInstallStatus": {
         "type": "string",
@@ -6702,6 +7096,14 @@
               }
             ],
             "title": "Metadata Stream Urls"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/PipelineEvent"
+            },
+            "type": "array",
+            "title": "Events",
+            "description": "Most recent live pipeline events (oldest first, bounded), e.g. a `gvaproximitytrigger_py` trigger firing or a `gvagenai` answer."
           }
         },
         "type": "object",
@@ -6720,7 +7122,7 @@
           "metadata_stream_urls"
         ],
         "title": "PerformanceJobStatus",
-        "description": "**Status of a performance test job.**\n\nInherits all fields from TestsJobStatus and adds live_stream_urls and\nmetadata_stream_urls for live-streaming output mode support.\n\n## Attributes\n- *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, total_streams, streams_per_pipeline, video_output_paths\n- `live_stream_urls` - Mapping from pipeline id to live stream URL when using live_stream output mode (keys use the same id format as streams_per_pipeline entries; only available for performance tests)\n- `metadata_stream_urls` - Mapping from pipeline id to list of SSE endpoint URLs for streaming live metadata records, one URL per gvametapublish file (null when the pipeline does not include a gvametapublish element writing to a file; URL index corresponds to file_index path parameter)"
+        "description": "**Status of a performance test job.**\n\nInherits all fields from TestsJobStatus and adds live_stream_urls and\nmetadata_stream_urls for live-streaming output mode support, plus events\ncarrying recent live pipeline events.\n\n## Attributes\n- *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, total_streams, streams_per_pipeline, video_output_paths\n- `live_stream_urls` - Mapping from pipeline id to live stream URL when using live_stream output mode (keys use the same id format as streams_per_pipeline entries; only available for performance tests)\n- `metadata_stream_urls` - Mapping from pipeline id to list of SSE endpoint URLs for streaming live metadata records, one URL per gvametapublish file (null when the pipeline does not include a gvametapublish element writing to a file; URL index corresponds to file_index path parameter)\n- `events` - Most recent live pipeline events (oldest first), e.g. a proximity trigger firing or a VLM answer"
       },
       "PerformanceJobSummary": {
         "properties": {
@@ -7049,6 +7451,63 @@
         ],
         "title": "PipelineDescriptionSource",
         "description": "**Pipeline source from GStreamer pipeline description string.**\n\nUsed when specifying a pipeline for tests by providing a GStreamer\npipeline description string that will be parsed into a graph.\n\n## Attributes\n- `source` - Discriminator field, always \"description\" for this type\n- `pipeline_description` - GStreamer pipeline string with elements separated by '!' (must be non-empty)\n- `description_id` - Optional custom identifier for this pipeline description (if provided, used instead of generating a hash-based ID; must be URL-safe with only lowercase letters, numbers, and dashes; if not provided, synthetic ID generated from description content hash)\n\n### Example (without description_id - uses generated hash)\n```json\n{\n  \"source\": \"description\",\n  \"pipeline_description\": \"videotestsrc ! videoconvert ! fakesink\"\n}\n```\n\n### Example (with custom description_id)\n```json\n{\n  \"source\": \"description\",\n  \"description_id\": \"my-test-pipeline\",\n  \"pipeline_description\": \"videotestsrc ! videoconvert ! fakesink\"\n}\n```"
+      },
+      "PipelineEvent": {
+        "properties": {
+          "timestamp_ms": {
+            "type": "integer",
+            "title": "Timestamp Ms"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "element": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Element"
+          },
+          "pts_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pts Seconds"
+          },
+          "prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt"
+          }
+        },
+        "type": "object",
+        "required": [
+          "timestamp_ms",
+          "source",
+          "text"
+        ],
+        "title": "PipelineEvent",
+        "description": "**Live event observed while a performance test pipeline is running.**\n\n## Attributes\n- `timestamp_ms` - Wall-clock time the event was observed, in ms since epoch\n- `source` - Event origin, e.g. `proximity-trigger` or `vlm`\n- `text` - Human-readable description of the event (or the VLM answer). Truncated to 4096 characters, with `... [truncated]` appended when the original was longer\n- `element` - Name of the emitting GStreamer element, when known\n- `pts_seconds` - Stream position the event refers to, in seconds, when known\n- `prompt` - Prompt that produced a VLM answer (`source` = `vlm`), when known. Truncated to 1024 characters, with `... [truncated]` appended when the original was longer"
       },
       "PipelineGraph": {
         "properties": {

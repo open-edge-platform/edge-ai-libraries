@@ -1,0 +1,71 @@
+
+test_dlstreamer_pipeline () {
+  if [[ " $* " = *" --validate "* ]]; then
+    mkdir -p "$workspace"
+    cd "$workspace"
+
+    echo "@@STEP Downloading models"
+    { 
+      mkdir -p models/${od_model%/*}
+      [ -e models/$od_model.bin ] || ensure_fetch $model_repo/storage/$od_model.bin models/$od_model.bin || {
+        echo "Failed to download $models/$od_model.bin" >&2
+        return 3
+      }
+      [ -e models/$od_model.xml ] || ensure_fetch $model_repo/storage/$od_model.xml models/$od_model.xml || {
+        echo "Failed to download models/$od_model.xml" >&2
+        return 3
+      }
+      [ -e models/$od_model.json ] || ensure_fetch $model_repo/storage/${od_model_proc}.json models/$od_model.json || {
+        echo "Failed to download models/$od_model.json" >&2
+        return 3
+      }
+    }
+
+    {
+      mkdir -p models/${oc_model%/*}
+      [ -e models/$oc_model.bin ] || ensure_fetch $model_repo/storage/$oc_model.bin models/$oc_model.bin || {
+        echo "Failed to download models/$oc_model.bin" >&2
+        return 3
+      }
+      [ -e models/$oc_model.xml ] || ensure_fetch $model_repo/storage/$oc_model.xml models/$oc_model.xml || {
+        echo "Failed to download models/$oc_model.xml" >&2
+        return 3
+      }
+    }
+
+    . /opt/intel/dlstreamer/scripts/setup_dls_env.sh || return 3
+
+    local validated=()
+    local -A device_map=(
+      [CPU]=/proc/cpuinfo
+      [GPU]=/dev/dri/renderD128
+      [NPU]=/dev/accel/accel0
+    )
+    for device in ${!device_map[*]}; do
+      [ -e ${device_map[$device]} ] || continue
+      echo "@@STEP Validating on $device"
+      echo "Validating $od_model and $oc_model on device $device..."
+      (
+        set -o pipefail
+        gst-launch-1.0 videotestsrc num-buffers=150 ! 'video/x-raw,format=BGRx,width=640,height=640' ! \
+             gvadetect model=models/$od_model.xml model_proc=models/$od_model.json device=$device ! \
+             gvainference model=models/$oc_model.xml device=$device ! \
+             gvafpscounter ! fakesink sync=false | (
+          info=0
+          while IFS= read -r line; do
+            echo "$line"
+            case "$line" in
+            *"FpsCounter(last"*"sec): total="*)
+              info=1
+              ;;
+            esac
+          done
+          [ $info -eq 1 ] || exit 3
+        )
+      ) && validated+=("$device ok") || validated+=("$device failed")
+    done
+    echo "@@HIGHLIGHT Validation: ${validated[*]}"
+    [[ " ${validated[*]} " != *failed* ]] || return 3
+  fi
+}
+

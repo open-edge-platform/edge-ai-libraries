@@ -1,0 +1,128 @@
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+name: ${MILVUS_COMPOSE_PROJECT:-milvus}
+
+# Inter-container traffic (milvus↔etcd/minio, engine↔milvus) must bypass any
+# HTTP(S) proxy the Docker daemon injects — otherwise gRPC dials to the service
+# hostnames are routed through the proxy and time out. Referenced as a pure value
+# in each service's environment below.
+x-no-proxy: &no_proxy_hosts "${ENGINE_NO_PROXY:-localhost,127.0.0.1,etcd,minio,milvus-standalone,engine,nebula-metad0,nebula-storaged0,nebula-graphd,172.16.0.0/12,192.168.0.0/16}"
+x-minio-root-user: &minio_root_user "${MINIO_ROOT_USER:-minioadmin}"
+x-minio-root-password: &minio_root_password "${MINIO_ROOT_PASSWORD:-minioadmin}"
+x-healthcheck: &healthcheck
+  interval: ${MILVUS_HEALTHCHECK_INTERVAL:-30s}
+  timeout: ${MILVUS_HEALTHCHECK_TIMEOUT:-20s}
+  retries: ${MILVUS_HEALTHCHECK_RETRIES:-3}
+
+services:
+  etcd:
+    container_name: ${ETCD_CONTAINER_NAME:-milvus-etcd}
+    image: ${ETCD_IMAGE:-quay.io/coreos/etcd:v3.5.5}
+    environment:
+      ETCD_AUTO_COMPACTION_MODE: ${ETCD_AUTO_COMPACTION_MODE:-revision}
+      ETCD_AUTO_COMPACTION_RETENTION: "${ETCD_AUTO_COMPACTION_RETENTION:-1000}"
+      ETCD_QUOTA_BACKEND_BYTES: "${ETCD_QUOTA_BACKEND_BYTES:-4294967296}"
+      ETCD_SNAPSHOT_COUNT: "${ETCD_SNAPSHOT_COUNT:-50000}"
+      no_proxy: *no_proxy_hosts
+      NO_PROXY: *no_proxy_hosts
+    volumes:
+      - ${ENGINE_WORKSPACE_PATH:-../../workspace}/milvus/etcd:/etcd
+    command:
+      - etcd
+      - -advertise-client-urls=http://etcd:${ETCD_CLIENT_PORT:-2379}
+      - -listen-client-urls
+      - http://0.0.0.0:${ETCD_CLIENT_PORT:-2379}
+      - --data-dir
+      - /etcd
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "etcdctl", "--endpoints=http://localhost:${ETCD_CLIENT_PORT:-2379}", "endpoint", "health"]
+
+  # MinIO runs unprivileged, but its bind-mounted data directory belongs to
+  # whoever created it on the host -- or to root, when Docker creates it. This
+  # one-shot step hands it to MINIO_UID:MINIO_GID first, so MinIO can write it
+  # whatever the host user is, and whether or not that uid exists on the host,
+  # without making it world-writable. Only mismatched entries are touched, so a
+  # restart over an existing store is a stat walk, not a recursive chown. It
+  # reuses the Milvus image (Ubuntu-based, runs as root) to avoid another pull.
+  minio-init:
+    container_name: ${MINIO_INIT_CONTAINER_NAME:-milvus-minio-init}
+    image: ${MINIO_INIT_IMAGE:-${MILVUS_IMAGE:-milvusdb/milvus:v2.4.6}}
+    user: "0:0"
+    volumes:
+      - ${ENGINE_WORKSPACE_PATH:-../../workspace}/milvus/minio:/minio_data
+    entrypoint: ["sh", "-c"]
+    command:
+      - >-
+        find /minio_data \( ! -user ${MINIO_UID:-65532} -o ! -group ${MINIO_GID:-65532} \)
+        -exec chown -h ${MINIO_UID:-65532}:${MINIO_GID:-65532} {} +
+    restart: "no"
+
+  minio:
+    container_name: ${MINIO_CONTAINER_NAME:-milvus-minio}
+    image: ${MINIO_IMAGE:-chainguard/minio@sha256:cb84dfa704c648c4b14858aa288576bb1cf756a9b326112a0934db00e87d0bb8}
+    # The image's own unprivileged user by default; minio-init makes the data
+    # directory writable by whatever this is set to.
+    user: "${MINIO_UID:-65532}:${MINIO_GID:-65532}"
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      # Newer MinIO only reads MINIO_ROOT_USER/PASSWORD -- the legacy
+      # MINIO_ACCESS_KEY/SECRET_KEY are ignored. Both services use the same
+      # credentials below, including when the defaults are overridden.
+      MINIO_ROOT_USER: *minio_root_user
+      MINIO_ROOT_PASSWORD: *minio_root_password
+      # Points mc's `local` alias at the configured API port for the healthcheck.
+      # `mc ready` takes an alias, not a URL, and the image has no shell to
+      # build one, so the alias is defined through the environment instead.
+      MC_HOST_local: "http://localhost:${MINIO_API_PORT:-9000}"
+      no_proxy: *no_proxy_hosts
+      NO_PROXY: *no_proxy_hosts
+    volumes:
+      - ${ENGINE_WORKSPACE_PATH:-../../workspace}/milvus/minio:/minio_data
+    # Entrypoint is already /usr/bin/minio, so the command carries only its args.
+    command:
+      - server
+      - /minio_data
+      - --address
+      - ":${MINIO_API_PORT:-9000}"
+      - --console-address
+      - ":${MINIO_CONSOLE_PORT:-9001}"
+    healthcheck:
+      <<: *healthcheck
+      # Distroless image ships no curl/wget but includes mc. Its default config
+      # path is under /, which is not writable when MinIO uses the host uid.
+      test: ["CMD", "mc", "--config-dir", "/tmp/.mc", "ready", "local"]
+
+  milvus-standalone:
+    container_name: ${MILVUS_CONTAINER_NAME:-milvus-standalone}
+    image: ${MILVUS_IMAGE:-milvusdb/milvus:v2.4.6}
+    command: ["milvus", "run", "standalone"]
+    environment:
+      ETCD_ENDPOINTS: "${MILVUS_ETCD_ENDPOINTS:-etcd:${ETCD_CLIENT_PORT:-2379}}"
+      MINIO_ADDRESS: "${MILVUS_MINIO_ADDRESS:-minio:${MINIO_API_PORT:-9000}}"
+      MINIO_ACCESS_KEY_ID: *minio_root_user
+      MINIO_SECRET_ACCESS_KEY: *minio_root_password
+      no_proxy: *no_proxy_hosts
+      NO_PROXY: *no_proxy_hosts
+    volumes:
+      - ${ENGINE_WORKSPACE_PATH:-../../workspace}/milvus/db:/var/lib/milvus
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "curl", "-f", "${MILVUS_HEALTHCHECK_URL:-http://localhost:9091/healthz}"]
+      start_period: ${MILVUS_HEALTHCHECK_START_PERIOD:-90s}
+    ports:
+      - "${MILVUS_PORT:-19530}:19530"
+    depends_on:
+      etcd:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+
+networks:
+  default:
+    name: ${ENGINE_NETWORK:-data-intelligence-network}
+    external: true

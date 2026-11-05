@@ -4,13 +4,34 @@
 """Result reporters: JSON, CSV export and HTML report generation."""
 
 import csv
+import html
 import json
 import logging
+import math
+import os
+import re
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
+from .hw_monitor import FAMILY_KPI_KEYS
+
 logger = logging.getLogger(__name__)
+
+# Reverse index: base KPI key (no _avg/_max suffix) -> device family. Used to
+# decide which CSV cells belong to a family whose kpi_status is
+# "no_samples", so they can show "NO_SAMPLES" instead of a blank string.
+_KEY_TO_FAMILY: dict[str, str] = {
+    key: family for family, keys in FAMILY_KPI_KEYS.items() for key in keys
+}
+
+
+def _family_for_column(column: str) -> str | None:
+    """Map a CSV column like ``npu_utilization_avg`` back to its device family."""
+    for suffix in ("_avg", "_max"):
+        if column.endswith(suffix):
+            return _KEY_TO_FAMILY.get(column[: -len(suffix)])
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -78,8 +99,8 @@ class CSVReporter:
             "npu_utilization_max",
             "npu_power_avg",
             "npu_power_max",
-            "npu_frequency_avg",
-            "npu_frequency_max",
+            "npu_frequency_mhz_avg",
+            "npu_frequency_mhz_max",
             "npu_temperature_avg",
             "npu_temperature_max",
             "npu_memory_mb_avg",
@@ -87,6 +108,7 @@ class CSVReporter:
             "npu_bandwidth_avg",
             "npu_bandwidth_max",
             "hw_sample_count",
+            "kpi_warnings",
             "job_id",
             "error",
         ]
@@ -102,10 +124,20 @@ class CSVReporter:
                     "per_stream_fps"
                 )
                 hw = tc.get("hw_metrics", {}) or {}
+                kpi_status = hw.get("kpi_status", {}) or {}
 
                 def _f(key: str) -> str:
                     v = hw.get(key)
-                    return f"{v:.2f}" if v is not None else ""
+                    if v is not None:
+                        return f"{v:.2f}"
+                    # No numeric value: if this column belongs to a family
+                    # that never reported a single sample, say so explicitly
+                    # instead of leaving a blank cell that looks like a
+                    # formatting bug.
+                    family = _family_for_column(key)
+                    if family and kpi_status.get(family) == "no_samples":
+                        return "NO_SAMPLES"
+                    return ""
 
                 row = {
                     "pipeline_name": tc.get("pipeline_name", ""),
@@ -150,8 +182,8 @@ class CSVReporter:
                     "npu_utilization_max": _f("npu_utilization_max"),
                     "npu_power_avg": _f("npu_power_avg"),
                     "npu_power_max": _f("npu_power_max"),
-                    "npu_frequency_avg": _f("npu_frequency_avg"),
-                    "npu_frequency_max": _f("npu_frequency_max"),
+                    "npu_frequency_mhz_avg": _f("npu_frequency_mhz_avg"),
+                    "npu_frequency_mhz_max": _f("npu_frequency_mhz_max"),
                     "npu_temperature_avg": _f("npu_temperature_avg"),
                     "npu_temperature_max": _f("npu_temperature_max"),
                     "npu_memory_mb_avg": _f("npu_memory_mb_avg"),
@@ -159,6 +191,7 @@ class CSVReporter:
                     "npu_bandwidth_avg": _f("npu_bandwidth_avg"),
                     "npu_bandwidth_max": _f("npu_bandwidth_max"),
                     "hw_sample_count": hw.get("sample_count", ""),
+                    "kpi_warnings": hw.get("kpi_warnings", ""),
                     "job_id": tc.get("job_id", ""),
                     "error": tc.get("error", ""),
                 }
@@ -183,6 +216,167 @@ class ResultExporter:
                 JSONReporter.save(result, self.output_dir / f"{benchmark_id}.json")
             elif fmt == "csv":
                 CSVReporter.save(result, self.output_dir / f"{benchmark_id}.csv")
+
+
+# ---------------------------------------------------------------------------
+# Result loading (--report-only)
+# ---------------------------------------------------------------------------
+
+MAX_RESULT_JSON_BYTES = 50 * 1024 * 1024
+# Keeps benchmark_id safe to use as a file name: no "..", "/" or "\".
+_BENCHMARK_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+
+
+class ReportInputError(ValueError):
+    """Raised when a result file cannot be used to build a report."""
+
+
+def resolve_result_json(path: "str | os.PathLike[str]") -> Path:
+    """Resolve ``path`` (file, run directory or symlink) to a single result JSON."""
+    try:
+        resolved = Path(path).expanduser().resolve(strict=True)
+    except (FileNotFoundError, OSError) as exc:
+        raise ReportInputError(f"result path not found: {path}") from exc
+
+    if resolved.is_dir():
+        named = resolved / f"{resolved.name}.json"
+        if named.exists():
+            return named
+        matches = sorted(resolved.glob("*.json"))
+        if not matches:
+            raise ReportInputError(
+                f"no result JSON in {resolved}; results must be saved with "
+                "--formats json (results.formats)"
+            )
+        if len(matches) > 1:
+            names = [m.name for m in matches]
+            raise ReportInputError(
+                f"several result JSON files in {resolved}: {names}; "
+                "pass one file explicitly"
+            )
+        return matches[0]
+
+    if resolved.suffix.lower() != ".json":
+        raise ReportInputError(f"expected a .json result file, got {resolved}")
+    return resolved
+
+
+def load_result(path: Path) -> dict[str, Any]:
+    """Load and validate a single result JSON file."""
+    try:
+        if path.stat().st_size > MAX_RESULT_JSON_BYTES:
+            raise ReportInputError(
+                f"result {path} exceeds the {MAX_RESULT_JSON_BYTES}-byte size limit"
+            )
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ReportInputError(f"cannot read result {path}: {exc}") from exc
+
+    _validate_result(data, path)
+    return data
+
+
+def _check_test_case(tc: Any, index: int, path: Path) -> None:
+    prefix = f"invalid result {path}: "
+    if not isinstance(tc, dict):
+        raise ReportInputError(f"{prefix}test_cases[{index}] must be an object")
+    for key in ("pipeline_name", "variant_id", "variant_name", "status"):
+        if not isinstance(tc.get(key), str):
+            raise ReportInputError(
+                f"{prefix}test_cases[{index}].{key} must be a string"
+            )
+    streams = tc.get("streams")
+    if isinstance(streams, bool) or not isinstance(streams, int):
+        raise ReportInputError(
+            f"{prefix}test_cases[{index}].streams must be an integer"
+        )
+
+
+def _validate_result(data: Any, path: Path) -> None:
+    prefix = f"invalid result {path}: "
+    if not isinstance(data, dict):
+        raise ReportInputError(f"{prefix}top level must be an object")
+
+    benchmark_id = data.get("benchmark_id")
+    if not isinstance(benchmark_id, str) or not _BENCHMARK_ID_RE.match(benchmark_id):
+        raise ReportInputError(f"{prefix}benchmark_id must be a safe identifier string")
+
+    test_cases = data.get("test_cases")
+    if not isinstance(test_cases, list):
+        raise ReportInputError(f"{prefix}test_cases must be a list")
+    for index, tc in enumerate(test_cases):
+        _check_test_case(tc, index, path)
+
+    if "timestamp" in data and not isinstance(data["timestamp"], str):
+        raise ReportInputError(f"{prefix}timestamp must be a string")
+
+    if "duration_seconds" in data:
+        duration = data["duration_seconds"]
+        if (
+            isinstance(duration, bool)
+            or not isinstance(duration, (int, float))
+            or not math.isfinite(duration)
+        ):
+            raise ReportInputError(f"{prefix}duration_seconds must be a finite number")
+
+    if "summary" in data and not isinstance(data["summary"], dict):
+        raise ReportInputError(f"{prefix}summary must be an object")
+
+    if "hardware" in data:
+        hardware = data["hardware"]
+        if not isinstance(hardware, dict) or not all(
+            isinstance(v, list) and all(isinstance(item, str) for item in v)
+            for v in hardware.values()
+        ):
+            raise ReportInputError(f"{prefix}hardware must map to lists of strings")
+
+    if "system_info" in data and not isinstance(data["system_info"], dict):
+        raise ReportInputError(f"{prefix}system_info must be an object")
+
+    if "config" in data:
+        _check_config(data["config"], prefix)
+
+
+def _check_config(config: Any, prefix: str) -> None:
+    """Structural check of the optional ``config`` block (older results have
+    none). Setting keys are not checked, so results written by other suite
+    versions can still be rendered."""
+
+    def fail(what: str) -> None:
+        raise ReportInputError(f"{prefix}config.{what}")
+
+    if not isinstance(config, dict):
+        fail("must be an object")
+    selector = config.get("selector")
+    if not (
+        isinstance(selector, dict)
+        and all(isinstance(selector.get(k), str) for k in ("value", "origin", "path"))
+    ):
+        fail("selector must have string value, origin and path")
+    if not isinstance(config.get("values"), dict):
+        fail("values must be an object")
+    for key in ("sources", "revisions"):
+        value = config.get(key)
+        if not (
+            isinstance(value, dict) and all(isinstance(v, str) for v in value.values())
+        ):
+            fail(f"{key} must map to strings")
+    filters = config.get("filters")
+    if not (
+        isinstance(filters, dict)
+        and isinstance(filters.get("applied"), dict)
+        and isinstance(filters.get("excluded"), list)
+        and all(
+            isinstance(e, dict)
+            and all(
+                isinstance(e.get(k), str)
+                for k in ("pipeline_id", "variant", "reason", "detail")
+            )
+            for e in filters["excluded"]
+        )
+    ):
+        fail("filters must have an applied object and an excluded list")
 
 
 # ---------------------------------------------------------------------------
@@ -240,35 +434,102 @@ def _fmt(val: Any, suffix: str = "", fallback: str = "—") -> str:
     return f"{val}{suffix}"
 
 
-def _build_fps_charts(test_cases: list[dict[str, Any]]) -> dict[str, Any]:
-    data: dict[str, dict[str, dict[int, float | None]]] = defaultdict(
+def _esc(val: Any) -> str:
+    """HTML-escape ``val`` for safe interpolation into markup or attributes.
+
+    Result JSON is untrusted input (it may come from a hand-edited or
+    externally supplied file): string fields such as pipeline/variant names,
+    status, timestamps and system-info values should not be written into the
+    report verbatim, or they could inject markup/attributes into the
+    rendered HTML.
+    """
+    return html.escape(str(val), quote=True)
+
+
+_SLUG_RE = re.compile(r"[^A-Za-z0-9_-]+")
+
+
+def _slugify(text: str) -> str:
+    """Make a safe id/slug for HTML ``id``/``href``/canvas-id attributes.
+
+    Untrusted names (pipeline, variant) must not be used verbatim in
+    attribute contexts; this keeps only ASCII word characters and dashes.
+    """
+    slug = _SLUG_RE.sub("-", text.strip().lower()).strip("-")
+    return slug or "x"
+
+
+def _json_for_script(obj: Any) -> str:
+    """JSON-encode ``obj`` for embedding inside an HTML ``<script>`` block.
+
+    Escapes ``<``, ``>`` and ``&`` to ``\\uXXXX`` sequences so that a string
+    value containing e.g. ``</script>`` cannot terminate the script early or
+    be interpreted as markup. The escaped output is still valid JSON and
+    JavaScript decodes it to the exact same string.
+    """
+    return (
+        json.dumps(obj, default=str)
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+        .replace("&", "\\u0026")
+    )
+
+
+def _kpi_badge(status: str | None) -> str:
+    """Render a small warning badge for a non-"ok" per-family ``kpi_status``.
+
+    Returns "" for ``"ok"``/``None`` (nothing to flag). ``"no_samples"`` and
+    ``"idle"`` get a human-readable warning badge so the gap or lack of
+    device activity is visible in the report instead of silently producing
+    a blank/zero-looking cell.
+    """
+    if status == "no_samples":
+        return ' <span class="badge warn">no samples</span>'
+    if status == "idle":
+        return ' <span class="badge warn">idle</span>'
+    return ""
+
+
+def _build_fps_charts(
+    test_cases: list[dict[str, Any]], multi_run: bool = False
+) -> dict[str, Any]:
+    """Build one FPS chart per pipeline, with one dataset per (run, variant).
+
+    When ``multi_run`` is True, test cases from different runs that share
+    the same pipeline/variant/stream count are kept as separate datasets
+    (instead of one run's measurement silently overwriting another's), and
+    dataset labels are suffixed with the run id so the comparison stays
+    visible in the chart legend.
+    """
+    data: dict[str, dict[tuple[str, str], dict[int, float | None]]] = defaultdict(
         lambda: defaultdict(dict)
     )
-    variant_order: dict[str, dict[str, str]] = {}
+    variant_order: dict[str, dict[tuple[str, str], str]] = {}
 
     for tc in test_cases:
         if tc["status"] != "success":
             continue
         p = tc["pipeline_name"]
         v = tc["variant_id"]
+        run_id = tc.get("_run_id", "") if multi_run else ""
+        key = (run_id, v)
         s = tc["streams"]
         fps = _safe(tc.get("total_fps") or tc.get("result", {}).get("total_fps"), 2)
-        data[p][v][s] = fps
-        if p not in variant_order:
-            variant_order[p] = {}
-        variant_order[p][v] = tc["variant_name"]
+        data[p][key][s] = fps
+        variant_order.setdefault(p, {})[key] = tc["variant_name"]
 
     charts: dict[str, Any] = {}
     for pipeline, variants in data.items():
         all_streams = sorted({s for vdata in variants.values() for s in vdata})
         datasets = []
-        for vid, vname in sorted(variant_order[pipeline].items()):
-            vdata = variants.get(vid, {})
+        for (run_id, vid), vname in sorted(variant_order[pipeline].items()):
+            vdata = variants.get((run_id, vid), {})
             fps_values = [vdata.get(s) for s in all_streams]
             c = _variant_color(vid)
+            label = f"{vname} ({run_id})" if multi_run and run_id else vname
             datasets.append(
                 {
-                    "label": vname,
+                    "label": label,
                     "variant_id": vid,
                     "data": fps_values,
                     "backgroundColor": c["bg"],
@@ -286,7 +547,7 @@ def _build_fps_charts(test_cases: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def _build_kpi_chart(
-    test_cases: list[dict[str, Any]], pipeline_name: str
+    test_cases: list[dict[str, Any]], pipeline_name: str, multi_run: bool = False
 ) -> dict[str, Any] | None:
     kpi_keys = [
         ("gpu_render_util_pct_avg", "GPU Render %"),
@@ -297,16 +558,19 @@ def _build_kpi_chart(
         ("mem_used_percent_avg", "Memory %"),
     ]
 
-    variant_data: dict[str, dict[str, Any]] = {}
+    variant_data: dict[tuple[str, str], dict[str, Any]] = {}
     for tc in test_cases:
         if tc["pipeline_name"] != pipeline_name or tc["status"] != "success":
             continue
         vid = tc["variant_id"]
         vname = tc["variant_name"]
+        run_id = tc.get("_run_id", "") if multi_run else ""
+        key = (run_id, vid)
         streams = tc["streams"]
-        if vid not in variant_data or streams < variant_data[vid]["streams"]:
-            variant_data[vid] = {
+        if key not in variant_data or streams < variant_data[key]["streams"]:
+            variant_data[key] = {
                 "name": vname,
+                "run_id": run_id,
                 "streams": streams,
                 "hw": tc.get("hw_metrics") or {},
             }
@@ -314,12 +578,19 @@ def _build_kpi_chart(
     if not variant_data:
         return None
 
-    labels = [v["name"] for v in sorted(variant_data.values(), key=lambda x: x["name"])]
-    vid_order = list(sorted(variant_data.keys()))
+    def _label(entry: dict[str, Any]) -> str:
+        return (
+            f"{entry['name']} ({entry['run_id']})"
+            if multi_run and entry["run_id"]
+            else entry["name"]
+        )
+
+    ordered_keys = sorted(variant_data, key=lambda k: (_label(variant_data[k]), k))
+    labels = [_label(variant_data[k]) for k in ordered_keys]
 
     datasets = []
     for key, label in kpi_keys:
-        values = [_safe(variant_data[vid]["hw"].get(key)) for vid in vid_order]
+        values = [_safe(variant_data[k]["hw"].get(key)) for k in ordered_keys]
         if all(v is None or v == 0 for v in values):
             continue
         c = KPI_COLORS.get(label, DEFAULT_COLOR)
@@ -341,7 +612,7 @@ def _build_kpi_chart(
 
 
 def _build_power_chart(
-    test_cases: list[dict[str, Any]], pipeline_name: str
+    test_cases: list[dict[str, Any]], pipeline_name: str, multi_run: bool = False
 ) -> dict[str, Any] | None:
     power_keys = [
         ("gpu_power_w_avg", "GPU Power (W)"),
@@ -349,16 +620,19 @@ def _build_power_chart(
         ("npu_power_avg", "NPU Power (W)"),
     ]
 
-    variant_data: dict[str, dict[str, Any]] = {}
+    variant_data: dict[tuple[str, str], dict[str, Any]] = {}
     for tc in test_cases:
         if tc["pipeline_name"] != pipeline_name or tc["status"] != "success":
             continue
         vid = tc["variant_id"]
         vname = tc["variant_name"]
+        run_id = tc.get("_run_id", "") if multi_run else ""
+        key = (run_id, vid)
         streams = tc["streams"]
-        if vid not in variant_data or streams < variant_data[vid]["streams"]:
-            variant_data[vid] = {
+        if key not in variant_data or streams < variant_data[key]["streams"]:
+            variant_data[key] = {
                 "name": vname,
+                "run_id": run_id,
                 "streams": streams,
                 "hw": tc.get("hw_metrics") or {},
             }
@@ -366,12 +640,19 @@ def _build_power_chart(
     if not variant_data:
         return None
 
-    labels = [v["name"] for v in sorted(variant_data.values(), key=lambda x: x["name"])]
-    vid_order = list(sorted(variant_data.keys()))
+    def _label(entry: dict[str, Any]) -> str:
+        return (
+            f"{entry['name']} ({entry['run_id']})"
+            if multi_run and entry["run_id"]
+            else entry["name"]
+        )
+
+    ordered_keys = sorted(variant_data, key=lambda k: (_label(variant_data[k]), k))
+    labels = [_label(variant_data[k]) for k in ordered_keys]
 
     datasets = []
     for key, label in power_keys:
-        values = [_safe(variant_data[vid]["hw"].get(key), 3) for vid in vid_order]
+        values = [_safe(variant_data[k]["hw"].get(key), 3) for k in ordered_keys]
         if all(v is None or v == 0 for v in values):
             continue
         c = KPI_COLORS.get(label, DEFAULT_COLOR)
@@ -397,8 +678,10 @@ def _build_summary_rows(test_cases: list[dict[str, Any]]) -> list[dict[str, Any]
     for tc in test_cases:
         hw = tc.get("hw_metrics") or {}
         result_data = tc.get("result", {}) or {}
+        kpi_status = hw.get("kpi_status") or {}
         rows.append(
             {
+                "run_id": tc.get("_run_id", ""),
                 "pipeline": tc["pipeline_name"],
                 "variant": tc["variant_name"],
                 "variant_id": tc["variant_id"],
@@ -424,34 +707,170 @@ def _build_summary_rows(test_cases: list[dict[str, Any]]) -> list[dict[str, Any]
                 "gpu_power_max": _safe(hw.get("gpu_power_w_max"), 2),
                 "pkg_power": _safe(hw.get("pkg_power_w_avg"), 2),
                 "npu_util": _safe(hw.get("npu_utilization_avg"), 1),
+                "npu_freq": _safe(hw.get("npu_frequency_mhz_avg"), 0),
                 "npu_power": _safe(hw.get("npu_power_avg"), 2),
                 "cpu_util": _safe(hw.get("cpu_util_pct_avg"), 1),
                 "cpu_temp": _safe(hw.get("cpu_temperature_avg"), 1),
                 "cpu_temp_max": _safe(hw.get("cpu_temperature_max"), 1),
+                "cpu_status": kpi_status.get("CPU"),
+                "gpu_status": kpi_status.get("GPU"),
+                "npu_status": kpi_status.get("NPU"),
                 "error": tc.get("error"),
             }
         )
     return rows
 
 
-def _build_sysinfo_cards(system_info: dict[str, Any]) -> str:
-    if not system_info:
-        return ""
+def _build_run_cards(run_meta: list[dict[str, Any]]) -> str:
+    """Build one system/benchmark info card per run.
 
-    system = {k: v for k, v in system_info.get("system", {}).items() if v}
-
-    if not system:
-        return ""
-
-    rows = ""
-    for k, v in system.items():
-        rows += f'<div class="si-row"><dt>{k}</dt><dd>{v}</dd></div>\n'
-
-    return f"""
+    Each run may have been captured on a different machine, so its own
+    hardware/platform details (processor, GPU, NPU, memory, OS, ...) are
+    shown rather than assuming every compared run shares one system.
+    """
+    cards = []
+    for meta in run_meta:
+        title = _esc(meta["id"])
+        rows = [
+            f'<div class="si-row"><dt>Run ID</dt><dd>{_esc(meta["id"])}</dd></div>',
+            f'<div class="si-row"><dt>Timestamp</dt><dd>{_esc(meta["timestamp"])}</dd></div>',
+            f'<div class="si-row"><dt>Duration</dt><dd>{_esc(meta["duration"])}</dd></div>',
+        ]
+        if meta["hardware"]:
+            # Already HTML-escaped when it was built (see generate_html_report).
+            rows.append(
+                f'<div class="si-row"><dt>Devices</dt><dd>{meta["hardware"]}</dd></div>'
+            )
+        system = {k: v for k, v in meta["system_info"].get("system", {}).items() if v}
+        for k, v in system.items():
+            rows.append(
+                f'<div class="si-row"><dt>{_esc(k)}</dt><dd>{_esc(v)}</dd></div>'
+            )
+        cards.append(
+            f"""
         <div class="sysinfo-card">
-          <h3>System</h3>
-          <dl>{rows}</dl>
+          <h3>{title}</h3>
+          <dl>{"".join(rows)}</dl>
         </div>"""
+        )
+    return "".join(cards)
+
+
+_ABSENT = object()
+
+_CONFIG_NAV = (
+    '<div class="sidebar-section" style="margin-top:12px">Configuration</div>'
+    '<a href="#configuration">Run configuration</a>'
+)
+
+
+def _setting_text(value: Any) -> str:
+    if isinstance(value, list):
+        return ", ".join(map(str, value)) or "(none)"
+    return str(value)
+
+
+def _html_table(headers: tuple[str, ...], rows: list[tuple[Any, ...]]) -> str:
+    head = "".join(f"<th>{_esc(h)}</th>" for h in headers)
+    body = "".join(
+        "<tr>" + "".join(f"<td>{_esc(cell)}</td>" for cell in row) + "</tr>"
+        for row in rows
+    )
+    return (
+        f'<div class="table-wrap"><table><thead><tr>{head}</tr></thead>'
+        f"<tbody>{body}</tbody></table></div>"
+    )
+
+
+def _build_settings_tables(runs: list[dict[str, Any]]) -> str:
+    """One column per run; with several runs, differing rows come first."""
+    configs = [run["config"] for run in runs]
+    keys = list(dict.fromkeys(key for config in configs for key in config["values"]))
+
+    def differs(key: str) -> bool:
+        values = [config["values"].get(key, _ABSENT) for config in configs]
+        return any(value != values[0] for value in values[1:])
+
+    def table(row_keys: list[str], row_class: str = "") -> str:
+        head = "<th>Setting</th>" + "".join(
+            f"<th>{_esc(run['benchmark_id'])}</th>" for run in runs
+        )
+        rows = []
+        for key in row_keys:
+            cells = "".join(
+                f"<td>{_esc(_setting_text(config['values'][key]))} "
+                f'<span class="src">{_esc(config["sources"].get(key, ""))}</span></td>'
+                if key in config["values"]
+                else "<td>—</td>"
+                for config in configs
+            )
+            rows.append(f'<tr class="{row_class}"><td>{_esc(key)}</td>{cells}</tr>')
+        return (
+            f'<div class="table-wrap"><table><thead><tr>{head}</tr></thead>'
+            f"<tbody>{''.join(rows)}</tbody></table></div>"
+        )
+
+    different = [key for key in keys if differs(key)]
+    same = [key for key in keys if key not in different]
+    if len(runs) == 1:
+        return f"<details open><summary>Settings</summary>{table(same)}</details>"
+    parts = []
+    if different:
+        parts.append(
+            f"<h4>Different between runs ({len(different)})</h4>"
+            + table(different, "diff")
+        )
+    parts.append(
+        f"<details><summary>Same in all runs ({len(same)})</summary>"
+        f"{table(same)}</details>"
+    )
+    return "".join(parts)
+
+
+def _build_run_config(run: dict[str, Any]) -> str:
+    """Collapsible config selector, revisions and filters of one run."""
+    config = run["config"]
+    selector = config["selector"]
+    applied = config["filters"]["applied"]
+    facts = [
+        ("Config", f"{selector['value']} ({selector['origin']})"),
+        ("Config file", selector["path"]),
+        *((f"Revision: {name}", value) for name, value in config["revisions"].items()),
+        *((f"Filter: {name}", _setting_text(value)) for name, value in applied.items()),
+    ]
+    rows = "".join(
+        f'<div class="si-row"><dt>{_esc(k)}</dt><dd>{_esc(v)}</dd></div>'
+        for k, v in facts
+    )
+    excluded = config["filters"]["excluded"]
+    parts = [
+        f'<div class="sysinfo-card"><dl>{rows}</dl></div>',
+        f"<h4>Excluded pipeline variants ({len(excluded)})</h4>",
+        _html_table(
+            ("Pipeline", "Variant", "Reason", "Detail"),
+            [
+                (e["pipeline_id"], e["variant"], e["reason"], e["detail"])
+                for e in excluded
+            ],
+        ),
+    ]
+    return (
+        f"<details><summary>{_esc(run['benchmark_id'])}: filters and revisions"
+        f"</summary>{''.join(parts)}</details>"
+    )
+
+
+def _build_config_section(runs: list[dict[str, Any]]) -> str:
+    """The Configuration section; empty when no run recorded a config block."""
+    runs = [run for run in runs if "config" in run]
+    if not runs:
+        return ""
+    return f"""
+    <div class="section cfg" id="configuration">
+      <div class="section-header"><h2>Configuration</h2></div>
+      {_build_settings_tables(runs)}
+      {"".join(_build_run_config(run) for run in runs)}
+    </div>"""
 
 
 def generate_html_report(runs: list[dict[str, Any]]) -> str:
@@ -470,15 +889,21 @@ def generate_html_report(runs: list[dict[str, Any]]) -> str:
             tc_copy["_run_id"] = run.get("benchmark_id", "unknown")
             all_cases.append(tc_copy)
 
+    # With more than one run, pipeline/variant/stream-count keys can collide
+    # across runs; keep each run's data distinct in charts and tables instead
+    # of letting one run silently overwrite another's measurements.
+    multi_run = len(runs) > 1
+
     pipelines = list(dict.fromkeys(tc["pipeline_name"] for tc in all_cases))
-    fps_charts = _build_fps_charts(all_cases)
+    fps_charts = _build_fps_charts(all_cases, multi_run=multi_run)
     summary_rows = _build_summary_rows(all_cases)
 
     run_meta = []
-    system_info: dict[str, Any] = {}
     for run in runs:
         hw = run.get("hardware", {})
-        hw_str = ", ".join(f"{k}: {', '.join(v)}" for k, v in hw.items())
+        hw_str = ", ".join(
+            f"{_esc(k)}: {', '.join(_esc(x) for x in v)}" for k, v in hw.items()
+        )
         run_meta.append(
             {
                 "id": run.get("benchmark_id", "unknown"),
@@ -486,26 +911,26 @@ def generate_html_report(runs: list[dict[str, Any]]) -> str:
                 "duration": f"{run.get('duration_seconds', 0):.1f}s",
                 "hardware": hw_str,
                 "summary": run.get("summary", {}),
+                # each run may come from a different machine
+                "system_info": run.get("system_info", {}),
             }
         )
-        if not system_info:
-            system_info = run.get("system_info", {})
 
     pipeline_sections_html = []
     chart_data_js: dict[str, Any] = {}
 
     for pipeline in pipelines:
-        pipeline_id = pipeline.lower().replace(" ", "-")
+        pipeline_id = _slugify(pipeline)
 
         fps = fps_charts.get(pipeline)
         fps_chart_id = f"fps_{pipeline_id}"
         chart_data_js[fps_chart_id] = fps
 
-        kpi = _build_kpi_chart(all_cases, pipeline)
+        kpi = _build_kpi_chart(all_cases, pipeline, multi_run=multi_run)
         kpi_chart_id = f"kpi_{pipeline_id}"
         chart_data_js[kpi_chart_id] = kpi
 
-        pwr = _build_power_chart(all_cases, pipeline)
+        pwr = _build_power_chart(all_cases, pipeline, multi_run=multi_run)
         pwr_chart_id = f"pwr_{pipeline_id}"
         chart_data_js[pwr_chart_id] = pwr
 
@@ -514,27 +939,31 @@ def generate_html_report(runs: list[dict[str, Any]]) -> str:
         n_total = len(cases_for_pipeline)
         table_rows_html = []
         for r in cases_for_pipeline:
-            vid = r["variant"].lower()
+            variant_class = _slugify(r["variant"])
+            variant_label = _esc(r["variant"])
             status_badge = (
                 '<span class="badge pass">Pass</span>'
                 if r["status"] == "success"
                 else '<span class="badge fail">Fail</span>'
             )
+            run_cell = f"<td>{_esc(r['run_id'])}</td>" if multi_run else ""
             row = f"""<tr>
-                <td><span class="chip {vid}">{r["variant"]}</span></td>
+                {run_cell}
+                <td><span class="chip {variant_class}">{variant_label}</span></td>
                 <td class="r">{r["streams"]}</td>
                 <td>{status_badge}</td>
                 <td class="r hi">{_fmt(r["total_fps"])}</td>
                 <td class="r">{_fmt(r["per_stream_fps"])}</td>
                 <td class="r">{_fmt(r["duration_s"], "s")}</td>
-                <td class="r">{_fmt(r["gpu_util"], "%")}</td>
+                <td class="r">{_fmt(r["gpu_util"], "%")}{_kpi_badge(r.get("gpu_status"))}</td>
                 <td class="r">{_fmt(r["gpu_freq"], " MHz")}</td>
                 <td class="r">{_fmt(r["gpu_power"], " W")}</td>
                 <td class="r">{_fmt(r["gpu_power_max"], " W")}</td>
                 <td class="r">{_fmt(r["pkg_power"], " W")}</td>
-                <td class="r">{_fmt(r["npu_util"], "%")}</td>
+                <td class="r">{_fmt(r["npu_util"], "%")}{_kpi_badge(r.get("npu_status"))}</td>
+                <td class="r">{_fmt(r["npu_freq"], " MHz")}</td>
                 <td class="r">{_fmt(r["npu_power"], " W")}</td>
-                <td class="r">{_fmt(r["cpu_util"], "%")}</td>
+                <td class="r">{_fmt(r["cpu_util"], "%")}{_kpi_badge(r.get("cpu_status"))}</td>
                 <td class="r">{_fmt(r["cpu_temp"], "°C")}</td>
                 <td class="r">{_fmt(r["cpu_temp_max"], "°C")}</td>
             </tr>"""
@@ -559,10 +988,11 @@ def generate_html_report(runs: list[dict[str, Any]]) -> str:
             </div>"""
         )
 
+        run_header = "<th>Run</th>" if multi_run else ""
         section = f"""
         <div class="section" id="{pipeline_id}">
           <div class="section-header">
-            <h2>{pipeline}</h2>
+            <h2>{_esc(pipeline)}</h2>
             <span class="pill">{n_pass}/{n_total} passed</span>
           </div>
           <div class="chart-grid">
@@ -576,13 +1006,14 @@ def generate_html_report(runs: list[dict[str, Any]]) -> str:
           <div class="table-wrap">
             <table>
               <thead><tr>
+                {run_header}
                 <th>Variant</th><th style="text-align:right">Streams</th><th>Status</th>
                 <th style="text-align:right">Total FPS</th><th style="text-align:right">FPS / stream</th>
                 <th style="text-align:right">Duration</th>
                 <th style="text-align:right">GPU Util</th><th style="text-align:right">GPU Freq</th>
                 <th style="text-align:right">GPU Power</th><th style="text-align:right">GPU Peak</th>
                 <th style="text-align:right">Pkg Power</th>
-                <th style="text-align:right">NPU Util</th><th style="text-align:right">NPU Power</th>
+                <th style="text-align:right">NPU Util</th><th style="text-align:right">NPU Freq</th><th style="text-align:right">NPU Power</th>
                 <th style="text-align:right">CPU Util</th><th style="text-align:right">CPU Temp</th><th style="text-align:right">CPU Temp Peak</th>
               </tr></thead>
               <tbody>{"".join(table_rows_html)}</tbody>
@@ -603,10 +1034,10 @@ def generate_html_report(runs: list[dict[str, Any]]) -> str:
         is_kpi = cid.startswith("kpi_")
         is_pwr = cid.startswith("pwr_")
         is_variant_chart = is_kpi or is_pwr
-        x_labels = json.dumps(
+        x_labels = _json_for_script(
             cdata["labels"] if is_variant_chart else cdata["streams_x"]
         )
-        datasets_json = json.dumps(cdata["datasets"])
+        datasets_json = _json_for_script(cdata["datasets"])
         x_title = "Variant" if is_variant_chart else "Streams"
         if is_kpi:
             y_title = "Utilization %"
@@ -617,7 +1048,7 @@ def generate_html_report(runs: list[dict[str, Any]]) -> str:
         y_max = "max: 100," if is_kpi else ""
         chart_init_js.append(
             f"""
-  new Chart(document.getElementById({json.dumps(cid)}), {{
+  new Chart(document.getElementById({_json_for_script(cid)}), {{
     type: 'bar',
     data: {{ labels: {x_labels}, datasets: {datasets_json} }},
     options: {{
@@ -638,13 +1069,13 @@ def generate_html_report(runs: list[dict[str, Any]]) -> str:
       }},
       scales: {{
         x: {{
-          title: {{ display: true, text: {json.dumps(x_title)}, color: '#6e7781', font: {{ size: 11 }} }},
+          title: {{ display: true, text: {_json_for_script(x_title)}, color: '#6e7781', font: {{ size: 11 }} }},
           ticks: {{ color: '#4b5563', font: {{ size: 11 }} }},
           grid: {{ color: 'rgba(0,0,0,0.06)' }},
           border: {{ color: '#d1d9e0' }}
         }},
         y: {{
-          title: {{ display: true, text: {json.dumps(y_title)}, color: '#6e7781', font: {{ size: 11 }} }},
+          title: {{ display: true, text: {_json_for_script(y_title)}, color: '#6e7781', font: {{ size: 11 }} }},
           ticks: {{ color: '#4b5563', font: {{ size: 11 }} }},
           grid: {{ color: 'rgba(0,0,0,0.06)' }},
           border: {{ color: '#d1d9e0' }},
@@ -659,9 +1090,13 @@ def generate_html_report(runs: list[dict[str, Any]]) -> str:
     timestamp = run_meta[0]["timestamp"] if run_meta else ""
     pass_rate = f"{round(100 * passed / total)}%" if total else "—"
 
-    processor_name = system_info.get("system", {}).get("Processor", "")
+    processor_name = (
+        run_meta[0]["system_info"].get("system", {}).get("Processor", "")
+        if not multi_run and run_meta
+        else ""
+    )
     summary_title = (
-        f"Performance Summary — {processor_name}"
+        f"Performance Summary — {_esc(processor_name)}"
         if processor_name
         else "Performance Summary"
     )
@@ -686,6 +1121,7 @@ html {{ background: #ffffff; }}
   --text: #1b1b1b; --text-2: #4b5563; --text-3: #6e7781;
   --ok: #1a7f37; --ok-dim: rgba(26,127,55,.1);
   --fail: #cf222e; --fail-dim: rgba(207,34,46,.1);
+  --warn: #9a6700; --warn-dim: rgba(154,103,0,.12);
   --accent: #0071c5; --accent-hi: #0550ae;
   --radius: 10px; --radius-sm: 6px;
 }}
@@ -710,12 +1146,12 @@ body {{ background: var(--bg); color: var(--text); font-family: 'Inter', system-
 .kpi-card.c-fail .kval {{ color: var(--fail); }}
 .kpi-card.c-acc .kval {{ color: var(--accent-hi); }}
 .sysinfo-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 32px; align-items: start; }}
-.sysinfo-card, .run-info {{ background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; box-shadow: 0 2px 4px rgba(0,0,0,.08); }}
-.sysinfo-card h3, .run-info h3 {{ font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--text-3); margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border2); }}
-.sysinfo-card dl, .run-info dl {{ display: flex; flex-direction: column; gap: 6px; }}
+.sysinfo-card {{ background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; box-shadow: 0 2px 4px rgba(0,0,0,.08); max-width: 800px; }}
+.sysinfo-card h3 {{ font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--text-3); margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border2); }}
+.sysinfo-card dl {{ display: flex; flex-direction: column; gap: 6px; }}
 .si-row {{ display: flex; justify-content: space-between; gap: 12px; }}
-.sysinfo-card dt, .run-info dt {{ font-size: 12px; color: var(--text-3); white-space: nowrap; }}
-.sysinfo-card dd, .run-info dd {{ font-size: 12px; font-weight: 500; color: var(--text); text-align: right; word-break: break-word; }}
+.sysinfo-card dt {{ font-size: 12px; color: var(--text-3); white-space: nowrap; }}
+.sysinfo-card dd {{ font-size: 12px; font-weight: 500; color: var(--text); text-align: right; word-break: break-word; }}
 .section {{ margin-bottom: 52px; scroll-margin-top: 72px; }}
 .section-header {{ display: flex; align-items: baseline; gap: 12px; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid var(--border2); }}
 .section-header h2 {{ font-size: 17px; font-weight: 600; }}
@@ -738,10 +1174,17 @@ td.hi {{ color: var(--text); font-weight: 500; }}
 .badge.pass::before {{ background: var(--ok); }}
 .badge.fail {{ background: var(--fail-dim); color: var(--fail); }}
 .badge.fail::before {{ background: var(--fail); }}
+.badge.warn {{ background: var(--warn-dim); color: var(--warn); padding: 1px 6px; font-size: 10px; }}
+.badge.warn::before {{ background: var(--warn); }}
 .chip {{ display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 11px; font-weight: 600; letter-spacing: .2px; }}
 .chip.cpu {{ background: rgba(0,113,197,.12); color: #0550ae; }}
 .chip.gpu {{ background: rgba(26,127,55,.12); color: #1a7f37; }}
 .chip.npu {{ background: rgba(176,136,0,.12); color: #9a6700; }}
+.cfg details {{ margin-bottom: 16px; }}
+.cfg summary {{ cursor: pointer; font-weight: 600; color: var(--text-2); padding: 6px 0; }}
+.cfg h4 {{ font-size: 12px; font-weight: 600; color: var(--text-2); margin: 16px 0 8px; }}
+.cfg .src {{ font-size: 11px; color: var(--text-3); }}
+.cfg tr.diff td {{ background: #fff8c5; }}
 </style>
 </head>
 <body>
@@ -753,14 +1196,15 @@ td.hi {{ color: var(--text); font-weight: 500; }}
       <div class="topbar-sub">Visual Pipeline &amp; Platform Evaluation Tool</div>
     </div>
   </div>
-  <div class="topbar-right">{timestamp}</div>
+  <div class="topbar-right">{_esc(timestamp)}</div>
 </div>
 <div class="layout">
   <nav class="sidebar">
     <div class="sidebar-section">Overview</div>
     <a href="#overview">Summary</a>
     <div class="sidebar-section" style="margin-top:12px">Pipelines</div>
-    {"".join(f'<a href="#{p.lower().replace(" ", "-")}">{p}</a>' for p in pipelines)}
+    {"".join(f'<a href="#{_slugify(p)}">{_esc(p)}</a>' for p in pipelines)}
+    {_CONFIG_NAV if any("config" in run for run in runs) else ""}
   </nav>
   <main class="main">
     <div id="overview">
@@ -774,16 +1218,11 @@ td.hi {{ color: var(--text); font-weight: 500; }}
         <div class="kpi-card"><span class="kval">{pass_rate}</span><span class="klbl">Pass Rate</span></div>
       </div>
       <div class="sysinfo-grid">
-        {_build_sysinfo_cards(system_info)}
-        <div class="run-info">
-          <h3>Benchmark</h3>
-          <dl>
-            {"".join(f'<div class="si-row"><dt>Run ID</dt><dd>{m["id"]}</dd></div><div class="si-row"><dt>Timestamp</dt><dd>{m["timestamp"]}</dd></div><div class="si-row"><dt>Duration</dt><dd>{m["duration"]}</dd></div>' for m in run_meta)}
-          </dl>
-        </div>
+        {_build_run_cards(run_meta)}
       </div>
     </div>
     {"".join(pipeline_sections_html)}
+    {_build_config_section(runs)}
   </main>
 </div>
 <script>

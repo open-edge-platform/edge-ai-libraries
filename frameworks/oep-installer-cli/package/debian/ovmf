@@ -1,0 +1,13 @@
+
+debian_45_install_ovmf () {
+  ensure_apt_install_package ovmf
+}
+
+debian_45_remove_ovmf () {
+  ensure_apt_remove_package ovmf
+}
+
+debian_45_sbom_ovmf () {
+  ensure_sbom_format pkg-list ovmf
+}
+

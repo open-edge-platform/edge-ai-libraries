@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Node } from "@xyflow/react";
 import { gvaMetaConvertConfig } from "./nodes/GVAMetaConvertNode.config.ts";
-import { gvaMetaPublishConfig } from "./nodes/GVAMetaPublishNode.config.ts";
 import {
   DEEP_SORT_TRACKING_TYPE,
   GVA_TRACKING_TYPES,
@@ -13,7 +12,22 @@ import { gvaDetectConfig } from "@/features/pipeline-editor/nodes/GVADetectNode.
 import { gvaInferenceConfig } from "@/features/pipeline-editor/nodes/GVAInferenceNode.config.ts";
 import { gvaGenAIConfig } from "@/features/pipeline-editor/nodes/GVAGenAINode.config.ts";
 import { gvaMotionDetectConfig } from "@/features/pipeline-editor/nodes/GVAMotionDetectNode.config.ts";
+import { dataSrcConfig } from "@/features/pipeline-editor/nodes/DataSrcNode.config.ts";
+import { fakeSinkConfig } from "@/features/pipeline-editor/nodes/FakeSinkNode.config.ts";
+import { fileSinkConfig } from "@/features/pipeline-editor/nodes/FileSinkNode.config.ts";
+import { fileSrcConfig } from "@/features/pipeline-editor/nodes/FileSrcNode.config.ts";
+import { gvaFpsCounterConfig } from "@/features/pipeline-editor/nodes/GVAFpsCounterNode.config.ts";
+import { gvaMetaPublishConfig } from "@/features/pipeline-editor/nodes/GVAMetaPublishNode.config.ts";
+import { mp4MuxConfig } from "@/features/pipeline-editor/nodes/Mp4MuxNode.config.ts";
+import { multiFileSinkConfig } from "@/features/pipeline-editor/nodes/MultiFileSinkNode.config.ts";
+import { queueConfig } from "@/features/pipeline-editor/nodes/QueueNode.config.ts";
+import { splitMuxSinkConfig } from "@/features/pipeline-editor/nodes/SplitMuxSinkNode.config.ts";
+import { teeConfig } from "@/features/pipeline-editor/nodes/TeeNode.config.ts";
+import { tsamIngestionConfig } from "@/features/pipeline-editor/nodes/TsamIngestionNode.config.ts";
+import { tsamOutputConfig } from "@/features/pipeline-editor/nodes/TsamOutputNode.config.ts";
+import { tsamUdfConfig } from "@/features/pipeline-editor/nodes/TsamUdfNode.config.ts";
 import { sourceNodeConfig } from "./nodes/custom/SourceNode.config.ts";
+import { proximityTriggerConfig } from "./nodes/custom/ProximityTriggerNode.config.ts";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
@@ -80,6 +94,35 @@ const getNodeConfig = (nodeType: string): NodeConfig | null => {
       return gvaMotionDetectConfig;
     case "source":
       return sourceNodeConfig;
+    case "gvaproximitytrigger_py":
+      return proximityTriggerConfig;
+    case "multifilesink":
+      return multiFileSinkConfig;
+    case "filesink":
+      return fileSinkConfig;
+    case "fakesink":
+      return fakeSinkConfig;
+    case "filesrc":
+      return fileSrcConfig;
+    case "tee":
+      return teeConfig;
+    case "queue":
+    case "queue2":
+      return queueConfig;
+    case "mp4mux":
+      return mp4MuxConfig;
+    case "gvafpscounter":
+      return gvaFpsCounterConfig;
+    case "splitmuxsink":
+      return splitMuxSinkConfig;
+    case "datasrc":
+      return dataSrcConfig;
+    case "tsam-ingestion":
+      return tsamIngestionConfig;
+    case "tsam-udf":
+      return tsamUdfConfig;
+    case "tsam-output":
+      return tsamOutputConfig;
     default:
       return null;
   }
@@ -172,6 +215,12 @@ const NodeDataPanel = ({
               ? details["device_path"]
               : undefined;
           value = typeof devicePath === "string" ? devicePath : "";
+        } else if (camera.device_type === "GIGE") {
+          const ip =
+            details && typeof details === "object" && "ip" in details
+              ? details["ip"]
+              : undefined;
+          value = typeof ip === "string" && ip ? `gige://${ip}` : "";
         } else {
           // NETWORK camera
           const profiles =
@@ -259,6 +308,18 @@ const NodeDataPanel = ({
         nextData.source = currentSource;
         shouldSyncNodeData = true;
       }
+
+      if (normalizedKind === "video") {
+        const defaultSource = currentSource
+          ? ""
+          : getDefaultSourceValue(videoOptions);
+
+        if (defaultSource && defaultSource !== currentSource) {
+          nextData.source = defaultSource;
+          nextData.location = defaultSource;
+          shouldSyncNodeData = true;
+        }
+      }
     }
 
     if (selectedNode.type === "gvatrack") {
@@ -281,7 +342,13 @@ const NodeDataPanel = ({
     if (shouldSyncNodeData) {
       onNodeDataUpdate(selectedNode.id, nextData);
     }
-  }, [onNodeDataUpdate, selectedNode, trackingOptions]);
+  }, [
+    onNodeDataUpdate,
+    pipelineId,
+    selectedNode,
+    trackingOptions,
+    videoOptions,
+  ]);
 
   const getDefaultSourceValue = (options: SelectOption[]): string => {
     const firstAvailableOption = options.find(
@@ -609,14 +676,14 @@ const NodeDataPanel = ({
                 ) : inputType === "boolean" ? (
                   <div className="flex items-center gap-2">
                     <Checkbox
-                        checked={isTruthyPropertyValue(value)}
-                        onCheckedChange={(checked) =>
-                          // Node data is serialised as element properties, always strings.
-                          handleInputChange(keyStr, checked ? "true" : "false")
-                        }
-                      />
-                      <span className="text-xs">
-                        {isTruthyPropertyValue(value) ? "True" : "False"}
+                      checked={isTruthyPropertyValue(value)}
+                      onCheckedChange={(checked) =>
+                        // Node data is serialised as element properties, always strings.
+                        handleInputChange(keyStr, checked ? "true" : "false")
+                      }
+                    />
+                    <span className="text-xs">
+                      {isTruthyPropertyValue(value) ? "True" : "False"}
                     </span>
                   </div>
                 ) : inputType === "number" ? (

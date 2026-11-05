@@ -14,20 +14,12 @@ It is a powerful, flexible solution for real-time analysis of time series data. 
 ---
 For more details on deployment, refer to the [documentation](https://docs.openedgeplatform.intel.com/2026.1/edge-ai-libraries/time-series-analytics/get-started.html).
 
-#### Deploy on Kubernetes cluster using Helm Charts
----
-For more details on deployment, refer to the [documentation](https://docs.openedgeplatform.intel.com/2026.1/edge-ai-libraries/time-series-analytics/get-started/deploy-with-helm.html).
-
 
 ### [2026.0.0](https://docs.openedgeplatform.intel.com/2026.0/edge-ai-libraries/time-series-analytics/release-notes.html#version-2026-0)
 
 #### Deploy using Docker Compose
 ---
 For more details on deployment, refer to the [documentation](https://docs.openedgeplatform.intel.com/2026.0/edge-ai-libraries/time-series-analytics/get-started.html).
-
-#### Deploy on Kubernetes cluster using Helm Charts
----
-For more details on deployment, refer to the [documentation](https://docs.openedgeplatform.intel.com/2026.0/edge-ai-libraries/time-series-analytics/get-started/deploy-with-helm.html).
 
 ### [1.1.0](https://docs.openedgeplatform.intel.com/2025.2/edge-ai-libraries/time-series-analytics/release_notes/dec-2025.html)
 
@@ -39,10 +31,6 @@ For more details on deployment, refer to the [documentation](https://docs.opened
 ---
 For more details on deployment, refer to the [documentation](https://docs.openedgeplatform.intel.com/2025.2/edge-ai-libraries/time-series-analytics/get-started.html).
 
-#### Deploy on Kubernetes cluster using Helm Charts
----
-For more details on deployment, refer to the [documentation](https://docs.openedgeplatform.intel.com/2025.2/edge-ai-libraries/time-series-analytics/how-to-deploy-with-helm.html).
-
 
 ### [1.0.0](https://docs.openedgeplatform.intel.com/2025.1/edge-ai-libraries/time-series-analytics/release_notes/aug-2025.html)
 
@@ -53,10 +41,6 @@ For more details on deployment, refer to the [documentation](https://docs.opened
 #### Deploy using Docker Compose
 ---
 For more details on deployment, refer to the [documentation](https://docs.openedgeplatform.intel.com/2025.1/edge-ai-libraries/time-series-analytics/get-started.html).
-
-#### Deploy on Kubernetes cluster using Helm Charts
----
-For more details on deployment, refer to the [documentation](https://docs.openedgeplatform.intel.com/2025.1/edge-ai-libraries/time-series-analytics/how-to-deploy-with-helm.html).
 
 
 ## License Agreement

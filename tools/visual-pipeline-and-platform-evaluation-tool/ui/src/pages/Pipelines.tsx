@@ -90,8 +90,12 @@ const containsCameraInput = (nodes: ReactFlowNode[]): boolean => {
   return nodes.some((node) => {
     if (node.type === "source") {
       const sourceType = (node.data as { source?: string })?.source || "";
-      // Check if it's a camera: /dev/video* or rtsp://
-      return sourceType.startsWith("/dev/") || sourceType.startsWith("rtsp://");
+      // Check if it's a camera: /dev/video*, rtsp:// or gige://
+      return (
+        sourceType.startsWith("/dev/") ||
+        sourceType.startsWith("rtsp://") ||
+        sourceType.startsWith("gige://")
+      );
     }
     return false;
   });
@@ -265,13 +269,15 @@ export const Pipelines = () => {
 
   // Default Metadata JSON ON for the VLM pipeline (its only output is metadata
   // JSON lines); OFF for other pipelines.
+  const isVlmPipeline =
+    data?.variants
+      .find((v) => v.id === variant)
+      ?.pipeline_graph.nodes.some((n) => n.type === "gvagenai") ?? false;
+  const isAlertingVlmPipeline = data?.name === "Alerting VLM";
+
   useEffect(() => {
-    const variantData = data?.variants.find((v) => v.id === variant);
-    const isVlmPipeline =
-      variantData?.pipeline_graph.nodes.some((n) => n.type === "gvagenai") ??
-      false;
     setMetadataEnabled(isVlmPipeline);
-  }, [variant, data]);
+  }, [isVlmPipeline]);
 
   const handleViewportChange = (viewport: Viewport) => {
     setCurrentViewport(viewport);
@@ -997,10 +1003,13 @@ export const Pipelines = () => {
                       videoOutputEnabled={videoOutputEnabled}
                       enableLatencyMetrics={latencyMetricsEnabled}
                       enableMetadata={metadataEnabled && pipelineHasMetadata}
+                      isVlmPipeline={isVlmPipeline}
+                      isAlertingVlmPipeline={isAlertingVlmPipeline}
                       liveStreamUrl={
                         Object.values(jobStatus?.live_stream_urls ?? {})[0] ??
                         null
                       }
+                      events={jobStatus?.events}
                       resultOverrides={
                         jobStatus
                           ? {

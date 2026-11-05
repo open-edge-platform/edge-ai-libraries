@@ -25,11 +25,11 @@ store aisles, corridors, and public-area monitoring.
 The predefined variant contains this runtime sequence:
 
 1. `gvadetect` with `yolo11s` (`INT8`) on GPU (`threshold=0.5`) finds person regions of interest (ROIs).
-2. `gvainference` with `mars-small128` (`FP32`) on GPU computes person embeddings for Re-ID.
-3. `gvatrack` with `tracking-type=deep-sort` links detections across frames into stable tracks.
-4. `gvafpscounter` measures throughput after warm-up (`starting-frame=100`).
-5. `gvawatermark` draws boxes/labels when rendered output is enabled.
-6. `gvametaconvert` + `gvametapublish` can emit JSON-lines metadata.
+1. `gvainference` with `mars-small128` (`FP32`) on GPU computes person embeddings for Re-ID.
+1. `gvatrack` with `tracking-type=deep-sort` links detections across frames into stable tracks.
+1. `gvafpscounter` measures throughput after warm-up (`starting-frame=100`).
+1. `gvawatermark` draws boxes/labels when rendered output is enabled.
+1. `gvametaconvert` + `gvametapublish` can emit JSON-lines metadata.
 
 Deep SORT parameters used in the predefined variant:
 
@@ -67,28 +67,28 @@ For consistent behavior on your own content, prefer:
 Before benchmarking, confirm:
 
 1. The GPU profile is enabled when starting ViPPET (`COMPOSE_PROFILES` includes `gpu`).
-2. Both models are installed:
+1. Both models are installed:
    - `ultralytics/public/yolo11s/INT8/yolo11s.xml`
    - `ultralytics/public/mars-small128/mars_small128_fp32.xml`
-3. Input video source is fixed for all compared runs (same file, same resolution/FPS).
-4. Benchmark mode is fixed across runs (same stream count, runtime, output mode, metadata mode).
-5. No additional heavy workloads are running on the same host during measurements.
+1. Input video source is fixed for all compared runs (same file, same resolution/FPS).
+1. Benchmark mode is fixed across runs (same stream count, runtime, output mode, metadata mode).
+1. No additional heavy workloads are running on the same host during measurements.
 
 ## Step 1. Open the predefined pipeline
 
 1. Open the ViPPET UI and navigate to **Pipelines**.
-2. Select **People Detection and Tracking**.
-3. Open the **GPU** variant in Pipeline Builder.
+1. Select **People Detection and Tracking**.
+1. Open the **GPU** variant in Pipeline Builder.
 
 ## Step 2. Verify key configuration
 
 In Pipeline Builder, verify the following defaults for the predefined pipeline:
 
-| Node | Default | Description |
-|------|---------|-------------|
-| **Object Detection** (`gvadetect`) | `yolo11s INT8`, `device=GPU`, `threshold=0.5` | Detects person ROIs on the GPU and establishes the baseline detection sensitivity used by the pipeline. |
+| Node                                 | Default                                                                                | Description                                                                                                                                         |
+| ------------------------------------ | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Object Detection** (`gvadetect`)   | `yolo11s INT8`, `device=GPU`, `threshold=0.5`                                          | Detects person ROIs on the GPU and establishes the baseline detection sensitivity used by the pipeline.                                             |
 | **Re-ID Inference** (`gvainference`) | `mars-small128 FP32`, `device=GPU`, `inference-region=roi-list`, `object-class=person` | Computes person embeddings for re-identification on detected ROIs only, which helps preserve track identity across brief occlusions and re-entries. |
-| **Tracker** (`gvatrack`) | `tracking-type=deep-sort` | Links detections over time into stable person tracks using Deep SORT. |
+| **Tracker** (`gvatrack`)             | `tracking-type=deep-sort`                                                              | Links detections over time into stable person tracks using Deep SORT.                                                                               |
 
 For benchmark parity, keep these defaults unchanged and only vary one factor at a time
 (for example stream count or output mode).
@@ -98,10 +98,10 @@ For benchmark parity, keep these defaults unchanged and only vary one factor at 
 For benchmark runs, use **Performance Testing**:
 
 1. Go to **Performance**.
-2. Choose the **People Detection and Tracking (GPU)** variant.
-3. Set stream count and runtime.
-4. Select output and metadata modes (see next section).
-5. Start the run and monitor FPS plus hardware metrics.
+1. Choose the **People Detection and Tracking (GPU)** variant.
+1. Set stream count and runtime.
+1. Select output and metadata modes (see next section).
+1. Start the run and monitor FPS plus hardware metrics.
 
 ## Live output vs non-live output behavior
 
@@ -140,8 +140,8 @@ For real-time consumers during performance tests, use SSE metadata stream endpoi
 When analyzing results, interpret metrics in this order:
 
 1. **Per Stream FPS** for the primary throughput comparison.
-2. **Total FPS** for host-level capacity checks.
-3. **Latency metrics** (if enabled) for responsiveness and jitter.
-4. **Metadata quality checks** (track continuity, ID switches) on representative clips.
+1. **Total FPS** for host-level capacity checks.
+1. **Latency metrics** (if enabled) for responsiveness and jitter.
+1. **Metadata quality checks** (track continuity, ID switches) on representative clips.
 
 For stable conclusions, run at least 3 repetitions per configuration and compare median values.

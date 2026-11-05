@@ -1,6 +1,7 @@
 # Get Started
 
-Sensor Manager discovers USB and ONVIF network cameras and exposes them through a REST API.
+Sensor Manager discovers USB, ONVIF network and GigE Vision cameras and exposes them through a
+REST API.
 
 ## Prerequisites
 
@@ -34,8 +35,9 @@ Sensor Manager discovers USB and ONVIF network cameras and exposes them through 
      -d '{"username": "<user>", "password": "<password>"}'
    ```
 
-   Avoid putting real passwords in your shell history. For example, read them from a file or an
-   environment variable.
+   > [!CAUTION]
+   > Avoid putting real passwords in your shell history. For example, read them from a file or an
+   > environment variable.
 
 5. Stop the service:
 
@@ -45,14 +47,16 @@ Sensor Manager discovers USB and ONVIF network cameras and exposes them through 
 
 ## Configuration
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `SENSOR_MANAGER_HOST` | `0.0.0.0` | Bind address of the HTTP server |
-| `SENSOR_MANAGER_PORT` | `8090` | HTTP port |
-| `ONVIF_DISCOVERY_ENABLED` | `true` | Enable the periodic WS-Discovery sweep |
-| `ONVIF_DISCOVERY_INTERVAL_S` | `20` | Seconds between discovery sweeps (minimum 1) |
-| `LOG_LEVEL` | `INFO` | Python log level |
-| `VIDEO_GID` | `44` | Host GID of the `video` group (Docker Compose only) |
+| Variable                     | Default   | Description                                         |
+| ---------------------------- | --------- | --------------------------------------------------- |
+| `SENSOR_MANAGER_HOST`        | `0.0.0.0` | Bind address of the HTTP server                     |
+| `SENSOR_MANAGER_PORT`        | `8090`    | HTTP port                                           |
+| `ONVIF_DISCOVERY_ENABLED`    | `true`    | Enable the periodic WS-Discovery sweep              |
+| `ONVIF_DISCOVERY_INTERVAL_S` | `20`      | Seconds between discovery sweeps (minimum 1)        |
+| `GIGE_DISCOVERY_ENABLED`     | `true`    | Enable the periodic GigE Vision discovery sweep     |
+| `GIGE_DISCOVERY_INTERVAL_S`  | `20`      | Seconds between GigE sweeps (minimum 1)             |
+| `LOG_LEVEL`                  | `INFO`    | Python log level                                    |
+| `VIDEO_GID`                  | `44`      | Host GID of the `video` group (Docker Compose only) |
 
 ## Networking and Security Notes
 
@@ -61,6 +65,8 @@ Sensor Manager discovers USB and ONVIF network cameras and exposes them through 
   `network_mode: host`, so the API is reachable on all host interfaces on `SENSOR_MANAGER_PORT`.
   The API has no authentication: restrict access with a firewall, or set `SENSOR_MANAGER_HOST`
   to a specific address.
+- GigE Vision discovery broadcasts a GVCP discovery command to UDP port `3956` on all host
+  interfaces and also requires host networking.
 - Containers on a bridge network reach the service through the host gateway, for example with
   `extra_hosts: ["host.docker.internal:host-gateway"]` and
   `http://host.docker.internal:8090`.
@@ -78,9 +84,9 @@ Sensor Manager discovers USB and ONVIF network cameras and exposes them through 
 :::{toctree}
 :hidden:
 
-./get-started/system-requirements
-./get-started/build-from-source
-./get-started/deploy-with-helm-chart
+./get-started/system-requirements.md
+./get-started/build-from-source.md
+./get-started/deploy-with-helm-chart.md
 
 :::
 hide_directive-->

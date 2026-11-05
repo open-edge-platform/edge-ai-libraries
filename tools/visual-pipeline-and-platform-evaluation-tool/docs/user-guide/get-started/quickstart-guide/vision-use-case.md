@@ -24,8 +24,8 @@ Both are supplied with models to perform their respective tasks.
 ## Step 1. Navigate to the predefined pipeline
 
 1. Open the ViPPET UI and go to the **Pipelines** view from the left navigation.
-2. Locate the **License Plate Recognition** tile in the pipeline grid.
-3. Click the tile (or one of its variant badges) to open it in the **Pipeline Builder**.
+1. Locate the **License Plate Recognition** tile in the pipeline grid.
+1. Click the tile (or one of its variant badges) to open it in the **Pipeline Builder**.
 
 The pipeline ships with three variants — **CPU**, **GPU**, and **NPU** — all pre-configured with the same
 model. They differ only in the target inference device.
@@ -61,8 +61,8 @@ The **inference region** is set to `roi-list`.
 
 1. Confirm that the input video is available under the shared `videos/input/` directory (the default pipeline
    uses `license-plate-detection.mp4`).
-2. Click **Run**. ViPPET launches the pipeline as a job; you can follow progress in the **Jobs** view.
-3. While the job runs, the selected device's utilization (CPU/GPU/NPU) should increase visibly in the
+1. Click **Run**. ViPPET launches the pipeline as a job; you can follow progress in the **Jobs** view.
+1. While the job runs, the selected device's utilization (CPU/GPU/NPU) should increase visibly in the
    **Dashboard**.
 
 ## Step 4. Interpret the results

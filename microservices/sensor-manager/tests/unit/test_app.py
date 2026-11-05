@@ -14,6 +14,8 @@ def test_settings_defaults(monkeypatch):
         "LOG_LEVEL",
         "ONVIF_DISCOVERY_ENABLED",
         "ONVIF_DISCOVERY_INTERVAL_S",
+        "GIGE_DISCOVERY_ENABLED",
+        "GIGE_DISCOVERY_INTERVAL_S",
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -25,6 +27,8 @@ def test_settings_defaults(monkeypatch):
         log_level="INFO",
         onvif_discovery_enabled=True,
         onvif_discovery_interval_s=20.0,
+        gige_discovery_enabled=True,
+        gige_discovery_interval_s=20.0,
     )
 
 
@@ -34,12 +38,16 @@ def test_settings_from_env(monkeypatch):
     monkeypatch.setenv("LOG_LEVEL", "debug")
     monkeypatch.setenv("ONVIF_DISCOVERY_ENABLED", "false")
     monkeypatch.setenv("ONVIF_DISCOVERY_INTERVAL_S", "5")
+    monkeypatch.setenv("GIGE_DISCOVERY_ENABLED", "false")
+    monkeypatch.setenv("GIGE_DISCOVERY_INTERVAL_S", "7")
 
     settings = Settings.from_env()
 
     assert (settings.host, settings.port, settings.log_level) == ("127.0.0.1", 9100, "DEBUG")
     assert settings.onvif_discovery_enabled is False
     assert settings.onvif_discovery_interval_s == 5.0
+    assert settings.gige_discovery_enabled is False
+    assert settings.gige_discovery_interval_s == 7.0
 
 
 @pytest.mark.parametrize(
@@ -48,6 +56,7 @@ def test_settings_from_env(monkeypatch):
         ("SENSOR_MANAGER_PORT", "0"),
         ("SENSOR_MANAGER_PORT", "70000"),
         ("ONVIF_DISCOVERY_INTERVAL_S", "0"),
+        ("GIGE_DISCOVERY_INTERVAL_S", "0.5"),
     ],
 )
 def test_settings_rejects_invalid_values(monkeypatch, name, value):
@@ -68,6 +77,8 @@ def test_app_lifespan_creates_camera_manager(monkeypatch):
             log_level="INFO",
             onvif_discovery_enabled=False,
             onvif_discovery_interval_s=20.0,
+            gige_discovery_enabled=False,
+            gige_discovery_interval_s=20.0,
         ),
     )
     monkeypatch.setattr("src.core.usb.USBCameraDiscovery.discover_cameras", lambda self: [])
