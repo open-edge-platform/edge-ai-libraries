@@ -26,7 +26,7 @@ $ curl http://localhost:8000/metrics
 npu_monitor_temperature{dev_id="0xad1d"} 35.0
 # HELP npu_monitor_freq_hz DPU Frequency [Hz]
 # TYPE npu_monitor_freq_hz gauge
-npu_monitor_freq_hz{dev_id="0xad1d"} 1200.0000000000002
+npu_monitor_freq_hz{dev_id="0xad1d"} 1.2e+09
 # HELP npu_memory_util NPU Memory Utilization [MB]
 # TYPE npu_memory_util gauge
 npu_memory_util{dev_id="0xad1d"} 292.140625
@@ -43,6 +43,18 @@ npu_monitor_power{dev_id="0xad1d"} 1.6932698651519054
 # TYPE npu_tile_config gauge
 npu_tile_config{dev_id="0xad1d"} 2.0
 ```
+
+### Metric units
+
+| Metric                    | Unit | Notes                                                                                                                                                                       |
+|---------------------------|------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `npu_monitor_temperature` | °C   |                                                                                                                                                                             |
+| `npu_monitor_freq_hz`     | Hz   | NPU (DPU) clock decoded from `VPU_WORKPOINT` with the kernel's per-generation formula, e.g. `1.4e+09` for 1400 MHz. Grafana unit `rothz` scales it to MHz/GHz automatically |
+| `npu_memory_util`         | MB   | **Not exported** on platforms without the `npu_memory_utilization` sysfs node (e.g. MTL/ARL)                                                                                |
+| `npu_memory_bandwidth`    | MB/s | Rate over the actual scrape interval, 32-bit counter wrap corrected                                                                                                         |
+| `npu_util`                | %    | **Not exported** when the `npu_busy_time_us` sysfs node isn't available                                                                                                     |
+| `npu_monitor_power`       | W    |                                                                                                                                                                             |
+| `npu_tile_config`         | —    |                                                                                                                                                                             |
 
 # Prometheus
 ```bash

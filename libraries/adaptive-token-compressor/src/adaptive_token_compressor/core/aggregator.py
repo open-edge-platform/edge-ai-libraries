@@ -52,7 +52,7 @@ class _RatioRule:
 
 @dataclass(frozen=True)
 class _RequestRatioRule:
-    """snapshot() computes num/request_count(); returns 0.0 when denominator==0."""
+    """snapshot() computes num / unique requests seen by num's sources; 0.0 when denominator==0."""
     name: str
     num: str
 
@@ -198,6 +198,49 @@ class MetricsAggregator:
                 return True
         return self._anchor is not None and self._anchor in selected
 
+    def _metric_sources(self) -> dict[str, frozenset[str] | None]:
+        """Visible metric name → sources it aggregates (None = source-agnostic).
+
+        Ratio metrics resolve through their numerator/denominator buckets.
+        """
+        rules = list(self._rules)  # registration may append concurrently
+        buckets = {r.name: r.sources for r in rules if isinstance(r, (_SumRule, _CountRule))}
+        result: dict[str, frozenset[str] | None] = {}
+        for r in rules:
+            if isinstance(r, (_SumRule, _CountRule)):
+                if not r.hidden:
+                    result[r.name] = r.sources
+            elif isinstance(r, _RatioRule):
+                result[r.name] = buckets[r.num] | buckets[r.den]
+            elif isinstance(r, _RequestRatioRule):
+                result[r.name] = buckets[r.num]
+            elif isinstance(r, _RequestCountRule):
+                result[r.name] = None
+        return result
+
+    def _seen_sources(self) -> set[str]:
+        """Sources that have observed data since their last reset."""
+        with self._lock:
+            return set(self._states)
+
+    def _metric_request_count_nolock(self, sources: frozenset[str]) -> int:
+        """Unique requests that went through `sources` (Avg*PerRequest denominator).
+
+        Without req_ids from those sources, falls back to the anchor's call
+        count. Independent of the snapshot's `source` selection.
+        """
+        req_ids: set[str] = set()
+        for src in sources:
+            state = self._states.get(src)
+            if state is not None:
+                req_ids.update(state.seen_req_ids)
+        if req_ids:
+            return len(req_ids)
+        if self._anchor is not None:
+            anchor_state = self._states.get(self._anchor)
+            return 0 if anchor_state is None else anchor_state.observe_count
+        return 0
+
     def request_count(self, source: str | None = None) -> int:
         with self._lock:
             return self._request_count_nolock(self._selected_sources(source))
@@ -258,46 +301,54 @@ class MetricsAggregator:
                         self._global_buckets[r.name] += 1
 
     def snapshot(self, source: str | None = None) -> dict[str, float]:
+        """All metrics, or with `source` only the metrics aggregating exactly that source.
+
+        Source-agnostic (`RequestCount`) and cross-source metrics are returned
+        by the global snapshot only. Metric names are not interpreted.
+        """
         # Locked so a concurrent observe() can't be seen half-applied (e.g. a
         # ratio computed from a numerator that advanced but a denominator that
         # hasn't yet). Uses the nolock request_count since we already hold it.
         with self._lock:
             selected = self._selected_sources(source)
-            source_prefix = f"{source}." if source is not None else None
+            if selected is None:
+                rules = list(self._rules)
+            else:
+                owned = {
+                    name for name, srcs in self._metric_sources().items() if srcs == selected
+                }
+                rules = [r for r in self._rules if r.name in owned]
 
             # Per-request metrics need a denominator (a seen req_id or a
             # configured anchor). Checked here — not at registration — because
             # snapshot is the only point where req_id / anchor are fully known.
             has_per_request = any(
-                isinstance(r, (_RequestRatioRule, _RequestCountRule))
-                and (source_prefix is None or r.name.startswith(source_prefix))
-                for r in self._rules
+                isinstance(r, (_RequestRatioRule, _RequestCountRule)) for r in rules
             )
-            if has_per_request and not self._has_denominator_nolock(selected):
+            if has_per_request and not self._has_denominator_nolock(None):
                 raise RuntimeError(
                     "PerRequest metric requires a denominator. Either pass req_id "
                     "to wrapper.compress() or call mgr.set_per_anchor(<source>) first."
                 )
 
             result: dict[str, float] = {}
+            bucket_sources = {
+                r.name: r.sources for r in self._rules if isinstance(r, (_SumRule, _CountRule))
+            }
             # Copy non-hidden buckets
-            for r in self._rules:
-                if source_prefix is not None and not r.name.startswith(source_prefix):
-                    continue
+            for r in rules:
                 if isinstance(r, (_SumRule, _CountRule)) and not r.hidden:
                     result[r.name] = self._bucket_value_nolock(r.name, selected)
 
             # Compute derived ratios
-            for r in self._rules:
-                if source_prefix is not None and not r.name.startswith(source_prefix):
-                    continue
+            for r in rules:
                 if isinstance(r, _RatioRule):
                     num_val = self._bucket_value_nolock(r.num, selected)
                     den_val = self._bucket_value_nolock(r.den, selected)
                     result[r.name] = num_val / den_val if den_val != 0 else 0.0
                 elif isinstance(r, _RequestRatioRule):
                     num_val = self._bucket_value_nolock(r.num, selected)
-                    den_val = self._request_count_nolock(selected)
+                    den_val = self._metric_request_count_nolock(bucket_sources[r.num])
                     result[r.name] = num_val / den_val if den_val != 0 else 0.0
                 elif isinstance(r, _RequestCountRule):
                     result[r.name] = float(self._request_count_nolock(selected))

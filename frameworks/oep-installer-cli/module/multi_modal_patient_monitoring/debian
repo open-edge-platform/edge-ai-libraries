@@ -1,7 +1,7 @@
 
 configure_multi_modal_patient_monitoring () {
   workspace="$(ensure_project_path)/multi-modal-patient-monitoring"
-  version=4a9679b58090cd86d56d91e1e72cab462babfe31
+  version="$(ensure_parse_value_option version --version=4a9679b58090cd86d56d91e1e72cab462babfe31 "$@")"
   repository=https://github.com/open-edge-platform/health-and-life-sciences-ai-suite.git
 
   workspace_mdpnp="$workspace"/multi_modal_patient_monitoring/services/mdpnp/mdpnp
@@ -35,7 +35,7 @@ debian_90_profile_multi_modal_patient_monitoring () {
 }
 
 debian_90_install_multi_modal_patient_monitoring () {
-  configure_multi_modal_patient_monitoring
+  configure_multi_modal_patient_monitoring "$@"
   if verify_multi_modal_patient_monitoring && [[ " $* " != *" --reinstall "* ]]; then
     echo "Multi Modal Patient Monitoring is installed" >&2
   else
@@ -64,7 +64,7 @@ debian_90_install_multi_modal_patient_monitoring () {
     verify_multi_modal_patient_monitoring
   fi
 
-  local device="$(ensure_select_device "$@")"
+  local device="$(ensure_parse_device "$@")"
   echo "${device^^}" > "$workspace"/multi_modal_patient_monitoring/.device
 
   echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
@@ -74,12 +74,12 @@ debian_90_install_multi_modal_patient_monitoring () {
 }
 
 debian_90_start_multi_modal_patient_monitoring () {
-  configure_multi_modal_patient_monitoring
+  configure_multi_modal_patient_monitoring "$@"
   ensure_ports_open start multi_modal_patient_monitoring "${used_ports[@]}"
 
   cd "$workspace"/multi_modal_patient_monitoring
 
-  local device="$(ensure_select_device "$@")" d
+  local device="$(ensure_parse_device "$@")" d
   [[ " ${*,,} " != *" --$device "* ]] || echo "${device^^}" > .device
 
   device="$(< .device)"
@@ -95,7 +95,7 @@ debian_90_start_multi_modal_patient_monitoring () {
 }
 
 debian_90_stop_multi_modal_patient_monitoring () {
-  configure_multi_modal_patient_monitoring
+  configure_multi_modal_patient_monitoring "$@"
   cd "$workspace"/multi_modal_patient_monitoring && docker compose down -v --remove-orphans || true
 }
 

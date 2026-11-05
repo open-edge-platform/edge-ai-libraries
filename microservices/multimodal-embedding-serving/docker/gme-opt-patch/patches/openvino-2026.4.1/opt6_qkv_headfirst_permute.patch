@@ -1,0 +1,162 @@
+diff --git a/src/plugins/intel_gpu/src/kernel_selector/cl_kernels/permute_qkv_headfirst.cl b/src/plugins/intel_gpu/src/kernel_selector/cl_kernels/permute_qkv_headfirst.cl
+new file mode 100644
+index 0000000000000000000000000000000000000000..f05f51b895d006475d3dd7a55c173d5abb5e4403
+--- /dev/null
++++ b/src/plugins/intel_gpu/src/kernel_selector/cl_kernels/permute_qkv_headfirst.cl
+@@ -0,0 +1,28 @@
++// Copyright (C) 2018-2026 Intel Corporation
++// SPDX-License-Identifier: Apache-2.0
++//
++
++#define VEC_SIZE 8
++#define X_BLOCKS 10
++
++__attribute__((reqd_work_group_size(16, 1, 1)))
++KERNEL(permute_qkv_headfirst)(
++    OPTIONAL_SHAPE_INFO_ARG
++    const __global INPUT0_TYPE* input,
++    __global OUTPUT_TYPE* output)
++{
++    const uint x_block = (uint)get_global_id(0);
++    if (x_block >= X_BLOCKS)
++        return;
++
++    const uint out_y = (uint)get_global_id(1);
++    const uint out_bf = (uint)get_global_id(2);
++    const uint out_b = out_bf / OUTPUT_FEATURE_NUM;
++    const uint out_f = out_bf % OUTPUT_FEATURE_NUM;
++    const uint x = x_block * VEC_SIZE;
++
++    const uint input_offset = INPUT0_GET_INDEX(out_y, out_b, out_f, x);
++    const uint output_offset = OUTPUT_GET_INDEX(out_b, out_f, out_y, x);
++    const half8 value = vload8(0, input + input_offset);
++    vstore8(value, 0, output + output_offset);
++}
+diff --git a/src/plugins/intel_gpu/src/kernel_selector/kernels/permute/permute_kernel_qkv_headfirst.cpp b/src/plugins/intel_gpu/src/kernel_selector/kernels/permute/permute_kernel_qkv_headfirst.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..30817b970d7f6e441a25c3b3d5dd23cea6f9e013
+--- /dev/null
++++ b/src/plugins/intel_gpu/src/kernel_selector/kernels/permute/permute_kernel_qkv_headfirst.cpp
+@@ -0,0 +1,71 @@
++// Copyright (C) 2018-2026 Intel Corporation
++// SPDX-License-Identifier: Apache-2.0
++//
++
++#include "permute_kernel_qkv_headfirst.h"
++
++namespace kernel_selector {
++
++namespace {
++constexpr size_t kVectorSize = 8;
++constexpr size_t kHeadSize = 80;
++constexpr size_t kHeads = 16;
++constexpr size_t kQKV = 3;
++
++bool IsQKVHeadfirstOrder(const std::vector<uint16_t>& order) {
++    return order == std::vector<uint16_t>({1, 3, 2, 0});
++}
++}  // namespace
++
++ParamsKey PermuteKernelQKVHeadfirst::GetSupportedKey() const {
++    ParamsKey key;
++    key.EnableInputDataType(Datatype::F16);
++    key.EnableOutputDataType(Datatype::F16);
++    key.EnableInputLayout(DataLayout::bfyx);
++    key.EnableOutputLayout(DataLayout::bfyx);
++    key.EnableTensorOffset();
++    key.EnableTensorPitches();
++    key.EnableBatching();
++    key.EnableDynamicShapesSupport();
++    return key;
++}
++
++CommonDispatchData PermuteKernelQKVHeadfirst::SetDefault(const permute_params& params) const {
++    CommonDispatchData dispatch;
++    const auto sequence = params.outputs[0].Y().v;
++    dispatch.gws = {16, sequence, kQKV * kHeads};
++    dispatch.lws = {16, 1, 1};
++    return dispatch;
++}
++
++bool PermuteKernelQKVHeadfirst::Validate(const Params& params) const {
++    if (!Parent::Validate(params))
++        DO_NOT_USE_THIS_KERNEL(params.layerID);
++
++    const auto& permute_params = static_cast<const kernel_selector::permute_params&>(params);
++    const auto& input = permute_params.inputs[0];
++    const auto& output = permute_params.outputs[0];
++    if (!IsQKVHeadfirstOrder(permute_params.order) || !permute_params.fused_ops.empty())
++        DO_NOT_USE_THIS_KERNEL(params.layerID);
++    if (input.GetLayout() != DataLayout::bfyx || output.GetLayout() != DataLayout::bfyx ||
++        input.GetDType() != Datatype::F16 || output.GetDType() != Datatype::F16)
++        DO_NOT_USE_THIS_KERNEL(params.layerID);
++    if (input.PitchesDifferFromLogicalDims() || output.PitchesDifferFromLogicalDims() ||
++        input.GetPaddedVal() != 0 || output.GetPaddedVal() != 0)
++        DO_NOT_USE_THIS_KERNEL(params.layerID);
++    if (input.Feature().is_dynamic || input.Y().is_dynamic || input.X().is_dynamic ||
++        output.Batch().is_dynamic || output.Feature().is_dynamic || output.X().is_dynamic)
++        DO_NOT_USE_THIS_KERNEL(params.layerID);
++    if (input.Feature().v != kQKV || input.Y().v != kHeads || input.X().v != kHeadSize ||
++        output.Batch().v != kQKV || output.Feature().v != kHeads || output.X().v != kHeadSize ||
++        kHeadSize % kVectorSize != 0)
++        DO_NOT_USE_THIS_KERNEL(params.layerID);
++
++    return true;
++}
++
++KernelsPriority PermuteKernelQKVHeadfirst::GetKernelsPriority(const Params&) const {
++    return FORCE_PRIORITY_1;
++}
++
++}  // namespace kernel_selector
+diff --git a/src/plugins/intel_gpu/src/kernel_selector/kernels/permute/permute_kernel_qkv_headfirst.h b/src/plugins/intel_gpu/src/kernel_selector/kernels/permute/permute_kernel_qkv_headfirst.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..58b39bcbb9fa8ac5c60e9310cfda94800eb19ec8
+--- /dev/null
++++ b/src/plugins/intel_gpu/src/kernel_selector/kernels/permute/permute_kernel_qkv_headfirst.h
+@@ -0,0 +1,25 @@
++// Copyright (C) 2018-2026 Intel Corporation
++// SPDX-License-Identifier: Apache-2.0
++//
++
++#pragma once
++
++#include "permute_kernel_base.h"
++
++namespace kernel_selector {
++
++class PermuteKernelQKVHeadfirst : public PermuteKernelBase {
++public:
++    using Parent = PermuteKernelBase;
++
++    PermuteKernelQKVHeadfirst() : PermuteKernelBase("permute_qkv_headfirst") {}
++
++    ParamsKey GetSupportedKey() const override;
++    CommonDispatchData SetDefault(const permute_params& params) const override;
++    KernelsPriority GetKernelsPriority(const Params& params) const override;
++
++protected:
++    bool Validate(const Params& params) const override;
++};
++
++}  // namespace kernel_selector
+diff --git a/src/plugins/intel_gpu/src/kernel_selector/kernels/permute/permute_kernel_selector.cpp b/src/plugins/intel_gpu/src/kernel_selector/kernels/permute/permute_kernel_selector.cpp
+index 6e81864879ee59a57e84fd38cea0f354dd04db74..1a166629d03b7c3bcd8afb054e6c1bdbcb26ec20 100644
+--- a/src/plugins/intel_gpu/src/kernel_selector/kernels/permute/permute_kernel_selector.cpp
++++ b/src/plugins/intel_gpu/src/kernel_selector/kernels/permute/permute_kernel_selector.cpp
+@@ -9,6 +9,7 @@
+ #include "permute_kernel_bfzyx_to_bfyxz.h"
+ #include "permute_kernel_f_y_axes.h"
+ #include "permute_kernel_xy_swap.h"
++#include "permute_kernel_qkv_headfirst.h"
+ 
+ namespace kernel_selector {
+ 
+@@ -19,6 +20,7 @@ permute_kernel_selector::permute_kernel_selector() {
+     Attach<PermuteKernel_bfzyx_to_bfyxz>();
+     Attach<PermuteKernel_f_y_axes>();
+     Attach<PermuteKernel_xy_swap>();
++    Attach<PermuteKernelQKVHeadfirst>();
+ }
+ 
+ KernelsData permute_kernel_selector::GetBestKernels(const Params& params) const {

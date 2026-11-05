@@ -1,8 +1,3 @@
-<!--
-SPDX-FileCopyrightText: (C) 2026 Intel Corporation
-SPDX-License-Identifier: Apache-2.0
--->
-
 ### Introduction
 
 Profiles are virtual groups of installer components. The profile filenames use this pattern: `<profile-name>/<OS_LIKE>`, where `<OS_LIKE>` is the OS family identifier obtained from `/etc/os-release`, 
@@ -140,36 +135,30 @@ no flags. When every selected module offers the shared combination, flags are
 global. Otherwise the UI scopes them to configurable modules. If no common
 combination exists, Install copying is disabled with an explanation.
 
-The OS values are `UBUNTU_24_04` for Ubuntu 24.04 and
-`UBUNTU_26_04` for Ubuntu 26.04. Omitted `supports.OP_SYSTEM` means both are
-available. Set it on a module, or on a profile, to restrict availability.
-All existing profiles explicitly list both OS versions; remove a value from a
-`profile.supports.OP_SYSTEM` list when the profile only supports one. An
-install-all profile is unavailable if one of its modules is incompatible with
-the chosen OS. If a selection has no compatible modules, the selector clears
-the module and disables command copying.
+The Web UI currently offers `UBUNTU_24_04` for Ubuntu 24.04. Omitted
+`supports.OP_SYSTEM` means all OS versions configured in
+`docs/oep-cli-installer-files/config.base.json` are available. Set it on a
+module, or on a profile, to restrict availability. An install-all profile is
+unavailable if one of its modules is incompatible with the chosen OS. If a
+selection has no compatible modules, the selector clears the module and
+disables command copying.
 
 Adding an OS to this selector does not certify every upstream component on that
 release; check component requirements before deploying.
 
-For modules with `startStop: true`, the generated command ends with, for example,
-`install my_service --gpu --docker start`. Install-only modules and install-all
-profiles do not automatically start. Standalone Start/Stop commands remain
-available when at least one selected module supports them. When every selected module
-supports start, the generated install command ends with bare `start`, reusing
-the install selection. Mixed selections explicitly name only start-capable
-modules after `start`.
+For one selected module with `startStop: true`, the generated command ends with,
+for example, `install my_service --gpu --docker start`. Install-only modules,
+install-all profiles, and selections of multiple modules do not automatically
+start. Standalone Start/Stop commands remain available when at least one selected
+module supports them. For multiple selected modules, the commands show the
+`<module_name>` placeholder; run the command once for each eligible module.
 
 Set `remove: true` only after verifying that the module has a removal handler,
 or that the profile expands correctly for `remove`. This capability is
 independent of `startStop`: a module can offer Remove without Start/Stop.
-The UI shows `openedge-cli start`, `openedge-cli stop`, and `openedge-cli remove`
-without module names, with brief scope descriptions. Start and Remove use the
-CLI's saved module selection, not necessarily the current browser selection.
-Stop stops all previously started modules, including those outside the current
-selection. Capability flags control whether the corresponding command is shown;
-they do not restrict the short command's runtime targets.
-Install-all profiles with `remove: true` also show `openedge-cli remove`;
+For multiple selected modules, the Remove command shows the `<module_name>`
+placeholder; run it once for each selected removable module. Install-all
+profiles with `remove: true` show a Remove command naming the selected profile;
 their read-only module list does not expose individual Start/Stop commands.
 
 Shared links serialize multiple module values with commas in `MODULE`, while

@@ -72,6 +72,9 @@ For alternative ways to set up the sample application, refer to
    release. To run a different published tag, for example a weekly build listed on
    [Docker Hub](https://hub.docker.com/r/intel/vippet-app/tags), use `make run-prebuilt PREBUILT_TAG=<tag>`.
 
+   To stream from GigE Vision cameras, add `GIGE=1` (`make run-prebuilt GIGE=1`), see
+   [GigE Vision Cameras](../../user-guide/input-management/cameras.md#gige-vision-cameras).
+
    `make run-prebuilt` never builds images from source: if an image cannot be pulled, the command fails.
    `make run` is the build-from-source path, see [Build from Source](./build-from-source.md).
 

@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Unit tests for core.gst_worker module (FPS counting logic)."""
 
+import json
 import sys
 import threading
 import time
@@ -16,7 +17,7 @@ sys.modules['gi.repository.Gst'] = MagicMock()
 sys.modules['gi.repository.GLib'] = MagicMock()
 
 # Import after mocking
-from core.gst_worker import GstWorker, _Instance
+from core.gst_worker import GstWorker, _Instance, _emit, _metric_event
 from gi.repository import Gst, GLib
 
 
@@ -264,3 +265,110 @@ class TestTeardownFlushesFinalFps:
             worker._teardown("inst")
 
         fps_source.destroy.assert_called_once()
+
+
+class _FakeStructure:
+    def __init__(self, name, fields):
+        self._name = name
+        self._fields = fields
+
+    def get_name(self):
+        return self._name
+
+    def n_fields(self):
+        return len(self._fields)
+
+    def nth_field_name(self, index):
+        return list(self._fields)[index]
+
+    def get_value(self, field_name):
+        return self._fields[field_name]
+
+
+def _element_message(structure, src_name="sink"):
+    message = MagicMock()
+    message.get_structure.return_value = structure
+    message.src.get_name.return_value = src_name
+    return message
+
+
+class TestMetricEvent:
+    """dlstreamer/* element messages become "metric" events; anything else is ignored."""
+
+    def test_latency_window_message_is_forwarded(self):
+        fields = {"version": 1, "pipeline": "inst", "source": "src", "sink": "sink",
+                  "window_ms": 1000.5, "count": 30, "sum_ms": 90.0, "min_ms": 2.0, "max_ms": 4.0}
+        event = _metric_event("inst", _element_message(_FakeStructure("dlstreamer/latency-window", fields)))
+        assert event["event"] == "metric"
+        assert event["instance_id"] == "inst"
+        assert event["kind"] == "latency-window"
+        assert event["element"] == "sink"
+        assert event["fields"]["count"] == 30 and "version" not in event["fields"]
+
+    def test_foreign_element_message_is_ignored(self):
+        message = _element_message(_FakeStructure("level", {"rms": [0.1]}))
+        assert _metric_event("inst", message) is None
+
+    def test_message_without_structure_is_ignored(self):
+        assert _metric_event("inst", _element_message(None)) is None
+
+    def test_unsupported_schema_version_is_not_forwarded(self):
+        fields = {"version": 2, "count": 30}
+        assert _metric_event("inst", _element_message(_FakeStructure("dlstreamer/latency-window", fields))) is None
+
+    def test_field_json_cannot_encode_does_not_break_the_event(self, capsys):
+        class Opaque:
+            def __str__(self):
+                return "opaque"
+
+        _emit({"instance_id": "inst", "event": "metric", "fields": {"value": Opaque()}})
+        assert json.loads(capsys.readouterr().out) == {
+            "instance_id": "inst", "event": "metric", "fields": {"value": "opaque"},
+        }
+
+    def test_gst_value_arrays_are_forwarded_as_lists(self, monkeypatch, capsys):
+        from core import gst_worker
+
+        class FakeValueArray:
+            """Mimics gi.overrides.Gst.ValueArray: indexable, str() is "<1,2,0>"."""
+
+            def __init__(self, items):
+                self.array = list(items)
+
+            def __getitem__(self, index):
+                return self.array[index]
+
+            def __len__(self):
+                return len(self.array)
+
+            def __str__(self):
+                return "<" + ",".join(str(item) for item in self.array) + ">"
+
+        class FakeValueList(FakeValueArray):
+            pass
+
+        monkeypatch.setattr(gst_worker.Gst, "ValueArray", FakeValueArray, raising=False)
+        monkeypatch.setattr(gst_worker.Gst, "ValueList", FakeValueList, raising=False)
+        fields = {"version": 1, "source": "src", "sink": "sink", "window_ms": 1000.0, "count": 3,
+                  "sum_ms": 6.0, "min_ms": 1.0, "max_ms": 3.0, "sum_sq_ms": 14.0,
+                  "bucket_bounds_ms": FakeValueArray([1.0, 2.5]), "bucket_counts": FakeValueArray([1, 2, 0]),
+                  "nested": FakeValueList([FakeValueArray([1, 2])])}
+        event = _metric_event("inst", _element_message(_FakeStructure("dlstreamer/latency-window", fields)))
+        assert event["fields"]["bucket_bounds_ms"] == [1.0, 2.5]
+        assert event["fields"]["bucket_counts"] == [1, 2, 0]
+        assert event["fields"]["nested"] == [[1, 2]]
+
+        _emit(event)
+        emitted = json.loads(capsys.readouterr().out)["fields"]
+        assert emitted["bucket_counts"] == [1, 2, 0] and emitted["sum_sq_ms"] == 14.0
+
+    def test_field_gi_cannot_convert_is_dropped_not_fatal(self):
+        class Structure(_FakeStructure):
+            def get_value(self, field_name):
+                if field_name == "bucket_counts":
+                    raise TypeError("unknown type GstValueArray")
+                return super().get_value(field_name)
+
+        fields = {"version": 1, "count": 3, "bucket_counts": None}
+        event = _metric_event("inst", _element_message(Structure("dlstreamer/latency-window", fields)))
+        assert event["fields"] == {"count": 3}

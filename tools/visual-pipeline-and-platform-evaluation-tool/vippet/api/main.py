@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse
 from api.middleware import InitializationMiddleware
 from api.routes import health
 from app_version import VIPPET_VERSION
+from cpu_topology import get_cpu_topology
 from database import close_db, init_db
 from images import ImagesManager
 from internal_types import InternalAppStatus
@@ -65,6 +66,10 @@ def _initialize_in_background(app: FastAPI) -> None:
         app_state_manager.set_status(
             InternalAppStatus.INITIALIZING, "Downloading videos and loading metadata..."
         )
+
+        # Read the CPU core types once so they are logged at startup and
+        # cached for GET /devices.
+        get_cpu_topology()
 
         # Initialize VideosManager - downloads videos, scans files,
         # extracts metadata, and converts to TS format
