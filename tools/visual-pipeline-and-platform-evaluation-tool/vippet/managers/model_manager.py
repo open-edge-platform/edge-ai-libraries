@@ -842,7 +842,7 @@ class ModelManager:
         ``on_success`` replaces :meth:`_finalize_success` when given.
         """
         try:
-            download_path = self._resolve_download_path(download_request)
+            download_path = "."
             url = f"{MODEL_DOWNLOAD_URL}{MODEL_DOWNLOAD_API_PREFIX}/models/download"
             body = {"models": [download_request]}
 
@@ -925,22 +925,6 @@ class ModelManager:
                 exc_info=True,
             )
             self._fail_job(job_id, f"Unexpected error: {exc}")
-
-    @staticmethod
-    def _resolve_download_path(download_request: DownloadRequest) -> str:
-        """Pick the ``download_path`` query value passed to model-download.
-
-        Voice runtime artifacts are grouped below ``voice/`` because that is
-        the host directory mounted read-only by their consumers. Other models
-        use ``.`` (i.e. the MODELS_PATH root). The model-download
-        plugins themselves prepend their own ``<hub>/`` subdirectory to
-        ``output_dir`` (e.g. ``ultralytics/``, ``huggingface/``), and the
-        download scripts they invoke further nest the files under
-        ``<source>/<model_name>/<precision>/...``. Model catalog entries'
-        ``model_path`` entries must therefore include the full
-        ``<hub>/<source>/<model_name>/<precision>/<file>`` prefix.
-        """
-        return "voice" if download_request.get("target") else "."
 
     # ------------------------------------------------------------------
     # Job state transitions

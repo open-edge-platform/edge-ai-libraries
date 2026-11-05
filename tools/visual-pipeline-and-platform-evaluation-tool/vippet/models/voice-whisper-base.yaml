@@ -2,21 +2,17 @@
 # SPDX-License-Identifier: Apache-2.0
 name: voice-whisper-base
 display_name: Whisper Base
-description: "OpenVINO Whisper Base model used by Audio Analyzer for speech recognition."
+description: "Whisper Base checkpoint downloaded for the model catalog. Audio Analyzer manages its own runtime copy."
 source: huggingface
 hub: huggingface
 type: automatic_speech_recognition
 precisions:
-  - precision: INT8
-    model_path: voice/audio-analyzer/openvino/whisper-base/openvino_encoder_model.xml
+  - precision: FP32
+    model_path: huggingface/openai_whisper-base/pytorch_model.bin
     model_proc: ""
 extra_model_procs: []
 unsupported_devices: ""
 download_request:
-  hub: openvino
+  hub: huggingface
   name: openai/whisper-base
   type: speech2text
-  target: audio-analyzer
-  config:
-    precision: int8
-    device: CPU

@@ -200,7 +200,8 @@ services:
       AUDIO_ANALYZER__MODELS__ASR__PROVIDER: openvino
       AUDIO_ANALYZER__MODELS__ASR__NAME: whisper-base
       AUDIO_ANALYZER__MODELS__ASR__DEVICE: ${VOICE_ASR_DEVICE:-CPU}
-      AUDIO_ANALYZER__MODELS__ASR__MODELS_BASE_PATH: /models-output/voice/audio-analyzer
+      AUDIO_ANALYZER__MODELS__ASR__WEIGHT_FORMAT: int8
+      AUDIO_ANALYZER__MODELS__ASR__MODELS_BASE_PATH: /app/audio_analyzer/models
       AUDIO_ANALYZER__MODELS__ASR__DIARIZATION: "false"
       AUDIO_ANALYZER__MODELS__ASR__HALLUCINATION_PHRASE_FILTER: "false"
       AUDIO_ANALYZER__SENTIMENT__ENABLED: "false"
@@ -211,7 +212,7 @@ services:
       https_proxy: ${https_proxy:-}
       no_proxy: "${no_proxy:+${no_proxy},}localhost,127.0.0.1,vippet,audio-analyzer,text-to-speech"
     volumes:
-      - ./shared/models/output:/models-output:ro
+      - voice_asr_models:/app/audio_analyzer/models
       - voice_asr_cache:/app/audio_analyzer/.cache
       - voice_asr_chunks:/app/audio_analyzer/chunks
       - voice_asr_storage:/app/audio_analyzer/storage
@@ -236,7 +237,7 @@ services:
       TEXT_TO_SPEECH__MODELS__TTS__RUNTIME: openvino
       TEXT_TO_SPEECH__MODELS__TTS__DEVICE: CPU
       TEXT_TO_SPEECH__MODELS__TTS__DTYPE: fp16
-      TEXT_TO_SPEECH__MODELS__TTS__MODELS_BASE_PATH: /models-output/voice/text-to-speech
+      TEXT_TO_SPEECH__MODELS__TTS__MODELS_BASE_PATH: /app/text-to-speech/models
       TEXT_TO_SPEECH__MODELS__TTS__MODEL_VARIANT: default
       TEXT_TO_SPEECH__MODELS__TTS__DEFAULT_SPEAKER: Ryan
       TEXT_TO_SPEECH__MODELS__TTS__DEFAULT_LANGUAGE: English
@@ -246,7 +247,7 @@ services:
       https_proxy: ${https_proxy:-}
       no_proxy: "${no_proxy:+${no_proxy},}localhost,127.0.0.1,vippet,audio-analyzer,text-to-speech"
     volumes:
-      - ./shared/models/output:/models-output:ro
+      - voice_tts_models:/app/text-to-speech/models
       - voice_tts_cache:/app/text-to-speech/.cache
       - voice_tts_storage:/app/text-to-speech/storage
     healthcheck:
@@ -371,8 +372,10 @@ services:
       no_proxy: ${no_proxy}
 
 volumes:
+  voice_asr_models:
   voice_asr_cache:
   voice_asr_chunks:
   voice_asr_storage:
+  voice_tts_models:
   voice_tts_cache:
   voice_tts_storage:

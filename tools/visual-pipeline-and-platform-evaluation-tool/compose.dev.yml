@@ -18,6 +18,7 @@ services:
   audio-analyzer:
     build:
       context: ../../microservices/audio-analyzer
+      dockerfile: docker/Dockerfile
       args:
         http_proxy:
         https_proxy:

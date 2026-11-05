@@ -2,21 +2,17 @@
 # SPDX-License-Identifier: Apache-2.0
 name: voice-speecht5
 display_name: SpeechT5
-description: "OpenVINO SpeechT5 models used by Text to Speech for speech synthesis."
+description: "SpeechT5 checkpoint downloaded for the model catalog. Text to Speech manages its own runtime copy."
 source: huggingface
 hub: huggingface
 type: text_to_speech
 precisions:
-  - precision: FP16
-    model_path: voice/text-to-speech/openvino/microsoft_speecht5_tts__fp16/openvino_encoder_model.xml
+  - precision: FP32
+    model_path: huggingface/microsoft_speecht5_tts/pytorch_model.bin
     model_proc: ""
 extra_model_procs: []
 unsupported_devices: ""
 download_request:
-  hub: openvino
+  hub: huggingface
   name: microsoft/speecht5_tts
   type: text2speech
-  target: text-to-speech
-  config:
-    precision: fp16
-    device: CPU
