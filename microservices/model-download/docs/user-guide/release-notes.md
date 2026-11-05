@@ -5,22 +5,22 @@
 
 ## Version 2026.3.0
 
-**Release Date:** November 2026
+**Release Date:** TBD
 
-This release introduces **the Model Download MCP server** and **Geti 3.0 support**, improves Ollama image packaging, and includes security fixes and documentation improvements.
+This release adds the Model Download MCP server and Geti 3.0 support, optimizes Ollama image packaging, and delivers security and documentation improvements.
 
 **New**:
 
-- **MCP Server**: enables agents to download and convert models, manage jobs, and discover plugins and hub models through MCP.
+- **Model Download MCP Server**: enables agents to download and convert models, manage jobs, and discover plugins and hub models through the Model Context Protocol (MCP).
 
 **Improved**:
 
-- **Geti 3.0 Support**: migrates the Geti integration to the Geti 3.0 Model API; Geti 2.0 is no longer supported.
-- **Ollama Image**: bakes in only the Ollama binary, reducing image overhead and avoiding startup-time downloads.
+- **Geti 3.0 Support**: updates the Geti integration to use the Geti 3.0 Model API. Geti 2.0 is no longer supported.
+- **Ollama Image**: packages only the Ollama binary, reducing image size and removing the need to download it at startup.
 
 **Fixed**:
 
-- **Security**: updates dependencies to address vulnerabilities and applies safer filtering when extracting Geti archives.
+- **Security**: Updates dependencies to address vulnerabilities and strengthens filtering when extracting Geti archives.
 
 ---
 
