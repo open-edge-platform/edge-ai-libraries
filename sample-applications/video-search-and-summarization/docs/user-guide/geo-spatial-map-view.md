@@ -33,12 +33,14 @@ whose tags match no location are not pinned; a notice at the top of the map
 shows how many.
 
 VSS reloads the file automatically; changes appear on the map within two
-minutes. To use a file from another path, set `GEO_INTERSECTIONS_FILE` before
+minutes. Save the file in place (for example in VS Code or `nano`); if a tool
+replaces the file (for example `sed -i`), restart `pipeline-manager` to pick up
+the change. To use a file from another path, set `GEO_INTERSECTIONS_FILE` before
 starting. With Helm, add the locations under `pipelinemanager.geo.intersections`.
 
 > **Note:** If a sample application provides a locations API, export its URL
 > before starting VSS, for example
-> `export GEO_API_URL=http://<host>:<port>/api/v1/intersections`
+> `export GEO_API_URL=http://<host>:<port>/v1/intersections`
 > (with Helm, set `pipelinemanager.geo.apiUrl`). VSS then reads locations from
 > the API and falls back to the file while the API is unreachable.
 
