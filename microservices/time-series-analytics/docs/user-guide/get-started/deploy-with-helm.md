@@ -59,7 +59,7 @@ Use the following command to verify if all the application resources got install
 Run the following commands to package and upload the `temperature_classifier` UDF deployment package to the microservice:
 
 ```bash
-cd edge-ai-libraries/microservices/time-series-analytics/
+cd edge-ai-libraries/microservices/time-series-analytics/ # path relative to git clone folder
 rm -f temperature_classifier.tar
 tar cf temperature_classifier.tar udfs/ tick_scripts/
 curl -X POST http://localhost:30002/udfs/package \
@@ -71,7 +71,7 @@ curl -X POST http://localhost:30002/udfs/package \
 Run the following command to apply the configuration and activate the uploaded UDF:
 
 ```bash
-cd edge-ai-libraries/microservices/time-series-analytics/
+cd edge-ai-libraries/microservices/time-series-analytics/ # path relative to git clone folder
 
 curl -s -X POST http://localhost:30002/config \
   -H 'accept: application/json' \
