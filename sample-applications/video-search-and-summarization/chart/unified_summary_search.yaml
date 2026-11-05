@@ -4,6 +4,9 @@ multimodaldataprep:
   enabled: true
   liveStream:
     enabled: false
+  # Unified mode embeds summary text only; object crops are never used.
+  frameProcessing:
+    enableObjectDetection: false
 vdmsvectordb:
   enabled: true
 vectorretriever:

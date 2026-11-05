@@ -2,14 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 import { Button, IconButton, Modal, ModalBody, MultiSelect, TextArea } from '@carbon/react';
 import { Image as ImageIcon, Close } from '@carbon/icons-react';
-import { ChangeEvent, FC, KeyboardEvent, useRef, useState } from 'react';
+import { ChangeEvent, FC, KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppDispatch, useAppSelector } from '../../redux/store';
-import { SearchAdd, SearchSelector } from '../../redux/search/searchSlice';
+import { LoadSearchConfig, SearchAdd, SearchSelector } from '../../redux/search/searchSlice';
 import { UIActions } from '../../redux/ui/ui.slice';
 import { MuxFeatures } from '../../redux/ui/ui.model';
 import { TimeFilterSelection } from '../../redux/search/search';
 import TimeFilterControl from '../Search/TimeFilterControl';
+import MinPeakScoreControl, { minPeakScoreOnValue } from '../Search/MinPeakScoreControl';
 import {
   acceptedImageFormats,
   plainAcceptedImageFormats,
@@ -77,16 +78,28 @@ export const SearchModal: FC<SearchModalProps> = ({ showModal, closeModal }) => 
   const { t } = useTranslation();
   const dispatch = useAppDispatch();
 
-  const { suggestedTags } = useAppSelector(SearchSelector);
+  const { suggestedTags, searchConfig } = useAppSelector(SearchSelector);
 
   const [textInput, setTextInput] = useState<string>('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]); // Placeholder for selected tags if needed
   const [timeFilter, setTimeFilter] = useState<TimeFilterSelection | null>(null);
+  // Undefined until the user touches the filter: then the deployment default applies.
+  const [minPeakScore, setMinPeakScore] = useState<number | undefined>(undefined);
   const [imageData, setImageData] = useState<string | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
   const [emptyQueryError, setEmptyQueryError] = useState<boolean>(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
+
+  const minPeakScoreDefault = searchConfig?.minPeakScoreDefault ?? 0;
+  const effectiveMinPeakScore = minPeakScore ?? minPeakScoreDefault;
+
+  // The modal can open before the search view has loaded the settings.
+  useEffect(() => {
+    if (showModal && !searchConfig) {
+      dispatch(LoadSearchConfig());
+    }
+  }, [showModal, searchConfig, dispatch]);
 
   const resetInput = () => {
     setTextInput('');
@@ -140,9 +153,11 @@ export const SearchModal: FC<SearchModalProps> = ({ showModal, closeModal }) => 
 
     try {
       if (imageData) {
-        dispatch(SearchAdd({ image: imageData, tags: selectedTags, timeFilter }));
+        dispatch(
+          SearchAdd({ image: imageData, tags: selectedTags, timeFilter, minPeakScore: effectiveMinPeakScore }),
+        );
       } else {
-        dispatch(SearchAdd({ query, tags: selectedTags, timeFilter }));
+        dispatch(SearchAdd({ query, tags: selectedTags, timeFilter, minPeakScore: effectiveMinPeakScore }));
       }
       dispatch(UIActions.setMux(MuxFeatures.SEARCH));
       resetInput();
@@ -318,6 +333,18 @@ export const SearchModal: FC<SearchModalProps> = ({ showModal, closeModal }) => 
             size='sm'
             // Last field in a scrolling modal body: open upwards so the
             // tooltip is not clipped by the body's bottom edge.
+            tooltipAlign='top-start'
+          />
+        </div>
+
+        <div style={{ marginTop: '1.5rem' }}>
+          <MinPeakScoreControl
+            // Remount once the deployment default arrives so the toggle reflects it.
+            key={`modal-min-peak-score-${minPeakScoreDefault}`}
+            value={effectiveMinPeakScore}
+            onValue={minPeakScoreOnValue(minPeakScoreDefault)}
+            onChange={setMinPeakScore}
+            idPrefix='modal-min-peak-score'
             tooltipAlign='top-start'
           />
         </div>

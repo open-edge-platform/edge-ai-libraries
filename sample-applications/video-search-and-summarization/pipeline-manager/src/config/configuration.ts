@@ -17,6 +17,10 @@ export default () => ({
     bucketName: process.env.MINIO_BUCKET,
     maxFileSize: process.env.MAX_FILE_SIZE ?? 1_000_000_000,
   },
+  gateway: {
+    // Externally reachable nginx gateway base URL, e.g. http://<HOST_IP>:12345.
+    publicBaseUrl: process.env.PM_PUBLIC_BASE_URL,
+  },
   search: {
     endpoint: process.env.SEARCH_ENDPOINT,
     queryTimeoutMs: process.env.SEARCH_QUERY_TIMEOUT_MS
@@ -24,6 +28,8 @@ export default () => ({
       : 30000,
     dataPrep: process.env.SEARCH_DATAPREP_ENDPOINT,
     vsIndexName: process.env.VS_INDEX_NAME,
+    // Default minimum peak (frame) similarity a search keeps; 0 disables it.
+    minPeakScore: process.env.SEARCH_MIN_PEAK_SCORE,
     dataPrepTimeoutMs: process.env.SEARCH_DATAPREP_TIMEOUT_MS
       ? Number(process.env.SEARCH_DATAPREP_TIMEOUT_MS)
       : 30000,

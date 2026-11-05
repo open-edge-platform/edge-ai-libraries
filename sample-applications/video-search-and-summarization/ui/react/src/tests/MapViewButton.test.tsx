@@ -34,20 +34,20 @@ describe('Map View button', () => {
   it('is hidden when no locations are known', () => {
     renderQueryInfo(false);
     expect(screen.queryByRole('button', { name: 'MapView' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'GroupByTag' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'groupBy' })).toBeInTheDocument();
   });
 
-  it('sits before Group by Tag and toggles the map drawer without touching grouping', () => {
+  it('sits before the Group picker and toggles the map drawer without touching grouping', () => {
     const store = renderQueryInfo(true);
     const mapButton = screen.getByRole('button', { name: 'MapView' });
-    const groupButton = screen.getByRole('button', { name: 'GroupByTag' });
+    const groupButton = screen.getByRole('combobox', { name: 'groupBy' });
 
     expect(mapButton.compareDocumentPosition(groupButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(mapButton).toHaveAttribute('aria-pressed', 'false');
 
     fireEvent.click(mapButton);
     expect(store.getState().geo.mapDrawerOpen).toBe(true);
-    expect(store.getState().search.searchQueries[0].showVideoGroups).toBeFalsy();
+    expect(store.getState().search.searchQueries[0].groupBy ?? 'none').toBe('none');
 
     fireEvent.click(mapButton);
     expect(store.getState().geo.mapDrawerOpen).toBe(false);

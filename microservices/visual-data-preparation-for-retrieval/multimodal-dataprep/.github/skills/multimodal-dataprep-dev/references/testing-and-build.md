@@ -26,9 +26,10 @@ For focused work:
 poetry run python -m pytest tests/test_image_endpoints.py
 poetry run python -m pytest tests/test_vectorstores.py tests/test_storage_backends.py
 poetry run python -m pytest tests/test_metrics_manager.py
+poetry run python -m pytest tests/test_object_detector.py tests/test_config_utils_security.py
 ```
 
-The current tree contains 24 `test_*.py` modules plus `conftest.py`. Coverage
+The current tree contains 43 `test_*.py` modules plus `conftest.py`. Coverage
 tracks `src` and `tests`; no `fail_under` threshold is configured.
 
 Most tests mock external systems. `tests/test_milvus_integration.py` is skipped
@@ -76,6 +77,7 @@ Dockerfile copies this service and `multimodal-embedding-serving`. A direct
 export MINIO_ROOT_USER='<user>'
 export MINIO_ROOT_PASSWORD='<strong-password>'
 export EMBEDDING_MODEL_NAME='CLIP/clip-vit-b-32'
+export MM_DATAPREP_DETECTION_MODEL_NAME='OpenVINO/yolox_s-int8-ov'
 source ./setup.sh --nosetup
 
 source ./setup.sh --conf
