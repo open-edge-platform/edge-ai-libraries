@@ -98,7 +98,7 @@ def check_replacements(
                 f"Source {old!r} is being replaced and must stay in the pool's "
                 "source list until the replacement has caught up"
             )
-        if status.serving_state == binding.DEPRECATED:
+        if status.serving_state == binding.DEGRADE:
             raise SourceRuleError(f"Source {old!r} is already deprecated in this pool")
         if claimed.get(old) not in (None, new):
             raise SourceRuleError(

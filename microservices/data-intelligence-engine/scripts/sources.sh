@@ -17,7 +17,9 @@ Operations:
   delete <library-name-or-id> <source-name-or-id>
 
 Example: ./sources.sh create docs @example/source.json
-Disable (freeze, data kept): ./sources.sh update docs video-xclip-f8 '{"enabled":false}'
+Video: operator_options {"asset_types":["video"],"embedding_model":"viclip-b-fp16"}
+  Alternatives: viclip-l-fp16 or cosmos-224p-fp16; see prepare-models.sh --help.
+Disable (freeze, data kept): ./sources.sh update docs video-viclip-b '{"enabled":false}'
 EOF
 }
 

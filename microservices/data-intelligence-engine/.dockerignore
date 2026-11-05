@@ -6,6 +6,8 @@ __pycache__/
 *.egg-info/
 build/
 dist/
+**/node_modules/
+**/dist/
 Dockerfile
 .dockerignore
 docker-compose.yml

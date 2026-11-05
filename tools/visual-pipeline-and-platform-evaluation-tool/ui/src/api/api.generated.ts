@@ -1149,12 +1149,25 @@ export type PipelineDescription = {
 };
 export type DeviceType = "DISCRETE" | "INTEGRATED";
 export type DeviceFamily = "CPU" | "GPU" | "NPU";
+export type CpuTopologySource = "sysfs_pmu" | "sysfs_cache" | "uniform";
+export type CpuCoreType = "P" | "E" | "LPE" | "UNIFORM";
+export type CpuCore = {
+  cpu: number;
+  core_type: CpuCoreType;
+  core_id: number;
+};
+export type CpuTopology = {
+  is_hybrid: boolean;
+  source: CpuTopologySource;
+  cores: CpuCore[];
+};
 export type Device = {
   device_name: string;
   full_device_name: string;
   device_type: DeviceType;
   device_family: DeviceFamily;
   gpu_id: number | null;
+  cpu_topology?: CpuTopology | null;
 };
 export type TestJobState = "RUNNING" | "COMPLETED" | "FAILED";
 export type PipelineStreamSpec = {

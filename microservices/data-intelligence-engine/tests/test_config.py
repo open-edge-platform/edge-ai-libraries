@@ -113,7 +113,7 @@ def test_unset_or_empty_model_root_defaults_to_workspace(monkeypatch, tmp_path, 
     assert values["MODEL_DIR"] == str(model_root)
     for setting, name in (
         ("EMBEDDING_MODEL_PATH", "gme-Qwen2-VL-2B-Instruct-OV"),
-        ("VIDEO_EMBEDDING_MODEL_PATH", "xclip-base-patch16-zero-shot"),
+        ("VIDEO_EMBEDDING_MODEL_PATH", "viclip-b-fp16"),
         ("IMAGE_EMBEDDING_MODEL_PATH", "gme-Qwen2-VL-2B-Instruct-OV"),
         ("ASR_MODEL_PATH", "whisper-small"),
         ("RERANK_MODEL_PATH", "BAAI/bge-reranker-large"),
@@ -196,7 +196,8 @@ def test_model_root_is_used_by_resolution_registry_and_discovery(monkeypatch, tm
     assert registry.stored_path(model) == "dense"
     assert registry.path_for_id("example/video") == model_root / "video"
     assert models.workspace_models() == [
-        {"name": "dense", "path": str(model), "ready": True, "model_type": "embedding"},
+        {"name": "dense", "path": str(model), "ready": True, "model_type": "embedding",
+         "supported_kinds": ["text"], "supported_asset_types": ["document"], "supported_roles": []},
     ]
 
 

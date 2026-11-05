@@ -2,7 +2,7 @@
   "profile": {
     "label": "Metro AI Suite",
     "value": "metro_ai_suite",
-    "supports": { "OP_SYSTEM": ["UBUNTU_24_04", "UBUNTU_26_04"] }
+    "supports": { "OP_SYSTEM": ["UBUNTU_24_04"] }
   },
   "modules": [
     { "label": "Agentic Predictive Maintenance Pipeline", "value": "agentic_predictive_maintenance_pipeline", "startStop": true, "remove": true, "options": ["--gpu", "--cpu", "--npu"] },

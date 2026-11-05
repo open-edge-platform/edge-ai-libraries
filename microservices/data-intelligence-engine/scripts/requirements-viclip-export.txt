@@ -1,0 +1,10 @@
+# Install into an existing engine environment; torch/torchvision come from engine.
+# Pinned B/L export dependencies; no additional model downloads or precision tools.
+openvino==2026.3.1
+transformers==4.53.3
+einops==0.8.2
+timm==1.0.30
+ftfy==6.3.1
+regex==2026.9.29
+# ViCLIP imports pkg_resources, removed in setuptools 81; keep this pin <81.
+setuptools==80.9.0

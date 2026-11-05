@@ -163,8 +163,9 @@ def _is_okf(asset: Any) -> bool:
 
 
 def asset_format(asset: Any) -> str:
-    """The knowledge format an asset is: an OKF bundle, or a document."""
-    return OKF if _is_okf(asset) else DOCUMENT
+    """The knowledge format an asset is: an OKF bundle, a document, or a media
+    file (its `asset_kind`, which no graph takes)."""
+    return OKF if _is_okf(asset) else str(getattr(asset, "asset_kind", "") or DOCUMENT)
 
 
 class Knowledge:

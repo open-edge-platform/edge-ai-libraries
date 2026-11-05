@@ -16,7 +16,7 @@ README.md           @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 # Libraries
 # ============================================================================
 
-/libraries/edge-control-libraries/                     @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel
+/libraries/edge-control-libraries/                     @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @RoboticsYY @intelzhangw2
 /libraries/edge-control-libraries/**/*.md              @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel @open-edge-platform/open-edge-platform-docs-write
 
 /libraries/robotics-ai-libraries/                      @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22 @zschafft-intel

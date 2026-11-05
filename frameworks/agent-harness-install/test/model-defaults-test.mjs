@@ -54,14 +54,14 @@ test("Qwen OpenClaw defaults cover catalog, request parameters and lean prompt",
   const f = fixture(t);
   const config = f.apply();
   assert.equal(config.models.providers.ovms.models[0].contextWindow, 65536);
-  assert.equal(config.models.providers.ovms.models[0].maxTokens, 512);
+  assert.equal(config.models.providers.ovms.models[0].maxTokens, 4096);
   assert.equal(config.agents.defaults.experimental.localModelLean, true);
   assert.equal(config.agents.defaults.bootstrapMaxChars, 4000);
   assert.equal(config.agents.defaults.bootstrapTotalMaxChars, 12000);
   assert.equal(config.agents.defaults.thinkingDefault, "off");
   assert.equal(config.tools.profile, "coding");
   assert.deepEqual(config.agents.defaults.models[`ovms/${model}`].params, {
-    maxTokens: 512, temperature: 0.2, chat_template_kwargs: {enable_thinking: false}
+    maxTokens: 4096, temperature: 0.2, chat_template_kwargs: {enable_thinking: false}
   });
   assert.equal(config.gateway.auth.token, "preserved-token");
   assert.equal(config.userSetting, true);
@@ -114,7 +114,7 @@ test("switching away removes managed Qwen tuning and restores generic catalog de
   assert.equal(config.agents.defaults.experimental, undefined);
   assert.equal(config.agents.defaults.models, undefined);
   assert.equal(config.tools, undefined);
-  assert.equal(f.apply().models.providers.ovms.models[0].maxTokens, 512);
+  assert.equal(f.apply().models.providers.ovms.models[0].maxTokens, 4096);
 });
 
 test("non-Qwen models retain existing configuration", t => {
@@ -160,7 +160,7 @@ test("Hermes Qwen defaults normalize into actual custom-provider request overrid
     assert.equal(config.model.provider, "custom:harness-ovms-qwen");
     assert.equal(config.agent.reasoning_overrides[model], "none");
     const body = config.providers["harness-ovms-qwen"].extra_body;
-    assert.deepEqual(body, {max_tokens: 512, temperature: 0.2,
+    assert.deepEqual(body, {max_tokens: 4096, temperature: 0.2,
       chat_template_kwargs: {enable_thinking: false}});
     execFileSync(python, ["-I", "-c", bootstrap + `
 import json, sys
@@ -171,7 +171,7 @@ config = json.load(sys.stdin)
 entries = providers_dict_to_custom_providers(config["providers"])
 body = _custom_provider_extra_body_for_agent(provider=config["model"]["provider"],
     model=config["model"]["default"], base_url=config["model"]["base_url"], custom_providers=entries)
-assert body == {"max_tokens": 512, "temperature": 0.2, "chat_template_kwargs": {"enable_thinking": False}}, body
+assert body == {"max_tokens": 4096, "temperature": 0.2, "chat_template_kwargs": {"enable_thinking": False}}, body
 `], {input: JSON.stringify(config)});
     assert.deepEqual(f.apply(), config);
     const switched = f.apply("other-model");

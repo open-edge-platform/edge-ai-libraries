@@ -2,7 +2,7 @@
   "profile": {
     "label": "Robotics AI Suite",
     "value": "robotics_ai_suite",
-    "supports": { "OP_SYSTEM": ["UBUNTU_24_04", "UBUNTU_26_04"] }
+    "supports": { "OP_SYSTEM": ["UBUNTU_24_04"] }
   },
   "modules": [
     { "label": "Autonomous Mobile Robot", "value": "autonomous_mobile_robot", "remove": true },
