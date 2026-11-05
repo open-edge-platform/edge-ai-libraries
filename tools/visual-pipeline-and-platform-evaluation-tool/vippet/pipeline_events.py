@@ -303,9 +303,10 @@ class EventCapture:
     ) -> "EventCapture | None":
         """Rewrite the launch strings of a run, or ``None`` if nothing writes events.
 
-        The folder is created, writable by the DLSPS 2.0 user, only when some
-        element writes events. If it cannot be created, the run goes ahead
-        without events and a warning is logged.
+        The folder is created only when some element writes events. DLSPS 2.0
+        runs as the same user as ``vippet`` (uid 1000), so it can write there
+        with the default permissions. If the folder cannot be created, the run
+        goes ahead without events and a warning is logged.
         """
         directory = os.path.join(
             EVENTS_DIR, _safe(job_id or "run"), uuid.uuid4().hex[:12]
@@ -321,7 +322,6 @@ class EventCapture:
             return None
         try:
             os.makedirs(directory, exist_ok=True)
-            os.chmod(directory, 0o777)
         except OSError as exc:
             logger.warning(
                 "Cannot create %s; live pipeline events are not collected: %s",
