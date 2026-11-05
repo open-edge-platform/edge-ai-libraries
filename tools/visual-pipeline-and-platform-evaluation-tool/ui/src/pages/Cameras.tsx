@@ -1,5 +1,6 @@
 import {
   type Camera,
+  type GigECameraDetails,
   type NetworkCameraDetails,
   type UsbCameraDetails,
   useGetCamerasQuery,
@@ -28,11 +29,47 @@ const getNetworkDetails = (camera: Camera): NetworkCameraDetails | null =>
     ? (camera.details as NetworkCameraDetails)
     : null;
 
+const getGigEDetails = (camera: Camera): GigECameraDetails | null =>
+  camera.device_type === "GIGE" ? (camera.details as GigECameraDetails) : null;
+
+const formatCameraSource = (camera: Camera): string => {
+  if (camera.device_type === "NETWORK") {
+    const networkDetails = getNetworkDetails(camera);
+
+    return `${networkDetails?.ip ?? "-"}:${networkDetails?.port ?? "-"}`;
+  }
+
+  if (camera.device_type === "GIGE") {
+    const gigeDetails = getGigEDetails(camera);
+    const serial = gigeDetails?.serial;
+
+    return serial
+      ? `${gigeDetails?.ip ?? "-"} (S/N ${serial})`
+      : (gigeDetails?.ip ?? "-");
+  }
+
+  return getUsbDetails(camera)?.device_path ?? "-";
+};
+
 const formatCameraResolution = (camera: Camera): string => {
   if (camera.device_type === "NETWORK") {
     const networkDetails = getNetworkDetails(camera);
 
     return networkDetails?.best_profile?.resolution ?? "-";
+  }
+
+  if (camera.device_type === "GIGE") {
+    const capture = getGigEDetails(camera)?.current_capture;
+
+    if (capture?.width == null || capture?.height == null) {
+      return "-";
+    }
+
+    const resolution = `${capture.width}x${capture.height}`;
+
+    return capture.pixel_format
+      ? `${resolution} (${capture.pixel_format})`
+      : resolution;
   }
 
   const usbDetails = getUsbDetails(camera);
@@ -51,6 +88,12 @@ const formatCameraFramerate = (camera: Camera): string => {
     const framerate = networkDetails?.best_profile?.framerate;
 
     return framerate != null ? `${framerate} FPS` : "-";
+  }
+
+  if (camera.device_type === "GIGE") {
+    const fps = getGigEDetails(camera)?.current_capture?.fps;
+
+    return fps != null ? `${fps} FPS` : "-";
   }
 
   const usbDetails = getUsbDetails(camera);
@@ -100,7 +143,6 @@ export const Cameras = () => {
             {resolvedCameras.map((camera) => {
               const isNetworkCamera = camera.device_type === "NETWORK";
               const networkDetails = getNetworkDetails(camera);
-              const usbDetails = getUsbDetails(camera);
 
               return (
                 <TableRow key={camera.device_id}>
@@ -112,11 +154,7 @@ export const Cameras = () => {
                       {camera.device_type}
                     </Badge>
                   </TableCell>
-                  <TableCell>
-                    {isNetworkCamera
-                      ? `${networkDetails?.ip ?? "-"}:${networkDetails?.port ?? "-"}`
-                      : (usbDetails?.device_path ?? "-")}
-                  </TableCell>
+                  <TableCell>{formatCameraSource(camera)}</TableCell>
                   <TableCell>{formatCameraResolution(camera)}</TableCell>
                   <TableCell>{formatCameraFramerate(camera)}</TableCell>
                   <TableCell>

@@ -2,7 +2,7 @@
   "profile": {
     "label": "Manufacturing AI Suite",
     "value": "manufacturing_ai_suite",
-    "supports": { "OP_SYSTEM": ["UBUNTU_24_04", "UBUNTU_26_04"] }
+    "supports": { "OP_SYSTEM": ["UBUNTU_24_04"] }
   },
   "modules": [
     { "label": "Pallet Defect Detection", "value": "pallet_defect_detection", "startStop": true, "remove": true, "options": ["--gpu", "--cpu", "--npu"] },

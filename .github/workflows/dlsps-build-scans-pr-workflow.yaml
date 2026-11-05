@@ -2,7 +2,19 @@ name: "[DLSPS] Build, scan and test"
 run-name: "[DLSPS] Build, scan and test (by @${{ github.actor }} via ${{ github.event_name }})"
 on:
   workflow_call:
+    inputs:
+      dls-branch:
+        description: DL Streamer branch or ref to build
+        required: false
+        type: string
+        default: main
   workflow_dispatch:
+    inputs:
+      dls-branch:
+        description: DL Streamer branch or ref to build
+        required: false
+        type: string
+        default: main
 permissions: {}
 env:
   dlstreamer-version: "2026.1.0"
@@ -21,6 +33,7 @@ jobs:
         include:
           - ubuntu_version: ubuntu22
           - ubuntu_version: ubuntu24
+          - ubuntu_version: ubuntu26
     steps:
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -28,10 +41,14 @@ jobs:
         persist-credentials: false
         path: edge-ai-libraries-repo
 
-    - name: Init submodules
-      run: |
-        cd edge-ai-libraries-repo
-        git submodule update --init --recursive libraries/dlstreamer
+    - name: Check out DL Streamer repository
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        repository: open-edge-platform/dlstreamer
+        ref: ${{ inputs.dls-branch }}
+        submodules: recursive
+        persist-credentials: false
+        path: edge-ai-libraries-repo/libraries/dlstreamer
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 #3.11.1
@@ -74,6 +91,7 @@ jobs:
         echo "BASE_IMAGE_UNIT_TESTS=${DLSTREAMER_PIPELINE_SERVER_IMAGE}" >> $GITHUB_ENV
 
     - name: Build dls-pipeline-server-img-extended
+      if: matrix.ubuntu_version == 'ubuntu22' || matrix.ubuntu_version == 'ubuntu24'
       run: |
         cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/docker
         export DLSTREAMER_PIPELINE_SERVER_IMAGE=intel/dlstreamer-pipeline-server:${{ github.sha }}-extended-${{ matrix.ubuntu_version }}
@@ -132,6 +150,7 @@ jobs:
       shell: bash
 
     - name: Scan Docker extended image with Trivy
+      if: matrix.ubuntu_version == 'ubuntu22' || matrix.ubuntu_version == 'ubuntu24'
       uses: open-edge-platform/orch-ci/.github/actions/security/trivy@dca07fa1cdf8ed3eaf8f318f3d905fd12cef3b41 #v0.74.0
       with:
         scan_target: "intel/dlstreamer-pipeline-server:${{ github.sha }}-extended-${{ matrix.ubuntu_version }}"
@@ -144,6 +163,7 @@ jobs:
         ignore_unfixed: true
 
     - name: Rename Trivy report for extended image
+      if: matrix.ubuntu_version == 'ubuntu22' || matrix.ubuntu_version == 'ubuntu24'
       run: |
         echo "📝 Renaming Trivy report for extended image..."
         if [ -d "security-results/trivy" ]; then
@@ -221,18 +241,22 @@ jobs:
         fi
         echo "" >> $GITHUB_STEP_SUMMARY
 
-        # Extended image results
-        echo "#### 📦 Extended Image: \`intel/dlstreamer-pipeline-server:${{ github.sha }}-extended-${{ matrix.ubuntu_version }}\`" >> $GITHUB_STEP_SUMMARY
-        if [ -f "$extended_file" ]; then
-          if [ "$extended_vulns" = "0" ] || [ -z "$extended_vulns" ]; then
-            echo "- ✅ **No HIGH vulnerabilities found**" >> $GITHUB_STEP_SUMMARY
+        # The extended image is built only for Ubuntu 22 and 24.
+        if [[ "${{ matrix.ubuntu_version }}" == "ubuntu22" || "${{ matrix.ubuntu_version }}" == "ubuntu24" ]]; then
+          echo "#### 📦 Extended Image: \`intel/dlstreamer-pipeline-server:${{ github.sha }}-extended-${{ matrix.ubuntu_version }}\`" >> $GITHUB_STEP_SUMMARY
+          if [ -f "$extended_file" ]; then
+            if [ "$extended_vulns" = "0" ] || [ -z "$extended_vulns" ]; then
+              echo "- ✅ **No HIGH vulnerabilities found**" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- ❌ **vulnerabilities found:** $extended_vulns" >> $GITHUB_STEP_SUMMARY
+            fi
           else
-            echo "- ❌ **vulnerabilities found:** $extended_vulns" >> $GITHUB_STEP_SUMMARY
+            echo "- ⚠️ **Report not found**" >> $GITHUB_STEP_SUMMARY
           fi
+          echo "" >> $GITHUB_STEP_SUMMARY
         else
-          echo "- ⚠️ **Report not found**" >> $GITHUB_STEP_SUMMARY
+          echo "#### 📦 Extended Image: not built for ${{ matrix.ubuntu_version }}" >> $GITHUB_STEP_SUMMARY
         fi
-        echo "" >> $GITHUB_STEP_SUMMARY
         echo "---" >> $GITHUB_STEP_SUMMARY
 
         echo "=== Vulnerability Summary ==="
@@ -251,7 +275,9 @@ jobs:
         echo "### DL Streamer Pipeline Server Docker image for ${{ matrix.ubuntu_version }}" >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
         echo "intel/dlstreamer-pipeline-server:${{ github.sha }}-${{ matrix.ubuntu_version }}">> $GITHUB_STEP_SUMMARY
-        echo "intel/dlstreamer-pipeline-server:${{ github.sha }}-extended-${{ matrix.ubuntu_version }}" >> $GITHUB_STEP_SUMMARY
+        if [[ "${{ matrix.ubuntu_version }}" == "ubuntu22" || "${{ matrix.ubuntu_version }}" == "ubuntu24" ]]; then
+          echo "intel/dlstreamer-pipeline-server:${{ github.sha }}-extended-${{ matrix.ubuntu_version }}" >> $GITHUB_STEP_SUMMARY
+        fi
         echo '```' >> $GITHUB_STEP_SUMMARY
         echo "Built on commit id: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
 
@@ -281,6 +307,112 @@ jobs:
         sudo rm -rf /tmp/htmlcov reports/*
         docker rmi intel/dlstreamer-pipeline-server:3.1.0-${{ matrix.ubuntu_version }} || true
         docker rmi intel/dlstreamer-pipeline-server:3.1.0-extended-${{ matrix.ubuntu_version }} || true
+
+  build-dls-pipeline-server-image-2-0:
+    permissions:
+      contents: read
+      packages: read
+    name: "Build DLSPS-2.0 Pipeline Server Image"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ubuntu_version: ubuntu24
+          - ubuntu_version: ubuntu26
+    steps:
+    - name: Check out edge-ai-libraries repository
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        persist-credentials: false
+        path: edge-ai-libraries-repo
+
+    - name: Check out DL Streamer repository
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        repository: open-edge-platform/dlstreamer
+        ref: ${{ inputs.dls-branch }}
+        submodules: recursive
+        persist-credentials: false
+        path: edge-ai-libraries-repo/libraries/dlstreamer
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 #3.11.1
+
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef #3.6.0
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build DL Streamer deb-final-img
+      env:
+        deb_final_img: dlstreamer-base:${{ matrix.ubuntu_version }}-${{ github.sha }}
+        deb_final_img_cached: ghcr.io/${{ github.repository }}/deb-final-img-${{ matrix.ubuntu_version }}:buildcache
+      run: |
+        DLS_PATH="${{ env.DLS_REL_PATH }}"
+        docker buildx build \
+        --load \
+        --target dlstreamer \
+        --tag "${deb_final_img}" \
+        --cache-from="${deb_final_img_cached}" \
+        --build-arg DLSTREAMER_VERSION=${{ env.dlstreamer-version }} \
+        --build-arg DLSTREAMER_BUILD_NUMBER=deb-pkg-${{ matrix.ubuntu_version }} \
+        -f "${DLS_PATH}/docker/ubuntu/${{ matrix.ubuntu_version }}.Dockerfile" \
+        "${DLS_PATH}"
+        echo "BASE_IMAGE=${deb_final_img}" >> $GITHUB_ENV
+
+    - name: Switch back to default Docker builder
+      run: |
+        docker buildx use default
+
+    - name: Build dls-pipeline-server-img
+      run: |
+        cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/dlsps2/docker
+        export DLSTREAMER_PIPELINE_SERVER_IMAGE=intel/dlstreamer-pipeline-server-2.0:${{ github.sha }}-${{ matrix.ubuntu_version }}
+        docker compose build --no-cache
+
+    - name: Scan Docker extended image with Trivy
+      uses: open-edge-platform/orch-ci/.github/actions/security/trivy@dca07fa1cdf8ed3eaf8f318f3d905fd12cef3b41 #v0.74.0
+      with:
+        scan_target: "intel/dlstreamer-pipeline-server-2.0:${{ github.sha }}-${{ matrix.ubuntu_version }}"
+        severity: "HIGH"
+        scan_type: image
+        format: table
+        report_suffix: "-${{ matrix.ubuntu_version }}-dlsps-2.0-img"
+        scan-scope: all
+        timeout: 20m
+        ignore_unfixed: true
+
+    - name: Rename Trivy report for DLSPS 2.0 image
+      if: always()
+      run: |
+        report_dir="security-results/trivy"
+        if ! latest=$(ls -t "${report_dir}"/trivy-results-*.table 2>/dev/null | head -n 1); then
+          echo "No Trivy table report found in ${report_dir}" >&2
+          exit 1
+        fi
+        if [ -z "$latest" ]; then
+          echo "No Trivy table report found in ${report_dir}" >&2
+          exit 1
+        fi
+        mv "$latest" "${report_dir}/trivy-dlsps2-0-${{ matrix.ubuntu_version }}.table"
+      shell: bash
+
+    - name: Upload Trivy image report as artifact
+      if: always()
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      with:
+        name: DLSPS_${{ matrix.ubuntu_version }}-trivy-image-reports
+        path: |
+          security-results/trivy/trivy-dlsps2-0-${{ matrix.ubuntu_version }}.table
+
+    - name: Clean up
+      if: always()
+      run: |
+        sudo rm -rf edge-ai-libraries-repo
+        docker rmi intel/dlstreamer-pipeline-server-2.0:${{ github.sha }}-${{ matrix.ubuntu_version }} || true
 
   dlsps-code-style:
     permissions:

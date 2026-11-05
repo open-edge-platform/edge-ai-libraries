@@ -644,7 +644,45 @@ openshell_agent_exec() {
     -g "$OPENSHELL_GATEWAY" -- "$@"
 }
 
+openshell_wait_agent_config() {
+  local model attempt
+  model="${OPENSHELL_MODEL:-${HARNESS_LLM_MODEL:-$(resolve_onboarding_model_hint)}}"
+  for attempt in {1..90}; do
+    if openshell_agent_exec /usr/local/bin/node -e '
+      const fs = require("node:fs");
+      const model = process.argv[1];
+      const agent = process.env.HARNESS_AGENT;
+      const home = process.env.HOME;
+      const stateFile = `${home}/.harness-model.json`;
+      const endpoint = process.env.HARNESS_SANDBOX_ENDPOINT;
+      const hasState = fs.existsSync(stateFile);
+      if (hasState) {
+        const state = JSON.parse(fs.readFileSync(stateFile, "utf8"));
+        if (state.model !== model || state.applied !== true) process.exit(1);
+      }
+      if (agent === "openclaw") {
+        const config = JSON.parse(fs.readFileSync(`${home}/.openclaw/openclaw.json`, "utf8"));
+        if (config.agents?.defaults?.model?.primary !== `ovms/${model}` ||
+            config.models?.providers?.ovms?.models?.[0]?.id !== model) process.exit(1);
+      } else if (!hasState) {
+        const configFile = agent === "hermes" ? `${home}/.hermes/config.yaml` : `${home}/.deepagents/config.toml`;
+        const config = fs.readFileSync(configFile, "utf8");
+        const legacyModel = agent === "hermes" ? model : `openai:${model}`;
+        if (!config.includes(legacyModel) || !config.includes(endpoint)) process.exit(1);
+      }
+    ' "$model" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 2
+  done
+  error "Agent model configuration did not become ready for ${OPENSHELL_NAME}."
+}
+
 onboard_openshell_agent() {
+  openshell_load_profile
+  openshell_assert_owned
+  openshell_wait_phase Ready
+  openshell_wait_agent_config
   openshell_agent_exec /usr/bin/curl --fail --silent --show-error --max-time 20 \
     "http://host.openshell.internal:${HARNESS_IR_PORT}/v1/models" \
     || error "Sandbox cannot reach the shared Inference Router."
@@ -652,7 +690,7 @@ onboard_openshell_agent() {
   if [[ "$(canonical_agent_name "${HARNESS_AGENT:-openclaw}")" == openclaw ]]; then
     local response
     response="$(openshell_agent_exec /home/node/.local/bin/openclaw infer model run \
-      --prompt "Say hello." --model "ovms/${OPENSHELL_MODEL}" --json)" \
+      --prompt "Say hello." --model "ovms/${OPENSHELL_MODEL}" --thinking off --json)" \
       || error "Sandboxed OpenClaw inference failed."
     node -e '
       const fs = require("node:fs");
