@@ -276,8 +276,8 @@ class EventCapture:
     """The event files of one run: launch strings, folder and reader.
 
     Create it with :meth:`create`, run the rewritten :attr:`commands`, call
-    :meth:`reset` before the instances start (to drop what a validation run
-    wrote), :meth:`start`, and :meth:`close` once the instances stopped.
+    :meth:`start` once the instances are started and :meth:`close` once they
+    stopped. Validation runs use launch strings without event outputs.
     """
 
     def __init__(
@@ -331,14 +331,6 @@ class EventCapture:
             return None
         reader = EventFileReader(sources, on_event, on_vlm_metrics)
         return cls(directory, commands, sources, reader)
-
-    def reset(self) -> None:
-        """Delete the files written so far, e.g. by a validation run."""
-        for path in self.sources:
-            try:
-                os.remove(path)
-            except OSError:
-                pass
 
     def start(self) -> None:
         self.reader.start()

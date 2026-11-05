@@ -543,6 +543,15 @@ class TestPipelineManager(unittest.TestCase):
         self.assertEqual(
             list(pipeline_cmd.stream_commands), pipeline_cmd.all_stream_ids
         )
+        # Stream 0 of each pipeline stands for the pipeline in validation.
+        self.assertEqual(
+            pipeline_cmd.validation_stream_ids,
+            [
+                infos[0].stream_id
+                for infos in pipeline_cmd.streams_per_pipeline.values()
+            ],
+        )
+        self.assertEqual(len(pipeline_cmd.validation_stream_ids), 2)
         self.assertEqual(
             " ".join(pipeline_cmd.stream_commands.values()), pipeline_cmd.command
         )

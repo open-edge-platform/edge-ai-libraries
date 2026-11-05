@@ -101,6 +101,19 @@ class PipelineCommand:
             for info in infos
         ]
 
+    @property
+    def validation_stream_ids(self) -> list[str]:
+        """
+        Return the first ``stream_id`` of every pipeline.
+
+        Stream 0 carries the pipeline's main output; every other stream of
+        the pipeline repeats it without the output, so validating stream 0
+        validates them all.
+        """
+        return [
+            infos[0].stream_id for infos in self.streams_per_pipeline.values() if infos
+        ]
+
 
 class PipelineManager:
     """

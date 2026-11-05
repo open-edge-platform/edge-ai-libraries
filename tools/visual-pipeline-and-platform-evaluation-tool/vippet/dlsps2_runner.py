@@ -12,10 +12,13 @@ modes:
   ``RUNNING`` for ``max_runtime`` seconds or
   reaches ``COMPLETED`` sooner; ``ERROR``/``ABORTED`` is invalid. The
   instance is then torn down with ``DELETE /pipelines/{id}``.
-* ``mode="normal"`` (performance and density tests) — every launch string
-  not yet validated by this runner is checked first with ``POST /validate``,
-  all at once. Every stream then runs as its own instance (``POST /pipelines``
-  per stream with ``validate_pipeline=false``, all in the unpinned worker),
+* ``mode="normal"`` (performance and density tests) — one launch string per
+  pipeline, not yet validated by this runner, is checked first with
+  ``POST /validate``, all at once, with its writing sinks swapped for
+  ``fakesink`` so the check leaves no files or streams behind (see
+  :func:`validation_launch_string`). Every stream then runs as its own
+  instance (``POST /pipelines`` per stream with ``validate_pipeline=false``,
+  all in the unpinned worker),
   so the instances start together. ``GET /pipelines/status`` is polled for
   each stream's ``frame_fps`` and ``frame_interval``; every instance is
   stopped with
@@ -273,6 +276,67 @@ def with_main_sink_last(command: str, stream_id: str) -> str:
     return " ".join(" ".join(chain) for chain in chains)
 
 
+# Elements that write files or send data out of the pipeline. A validation run
+# gets a fakesink in their place (gvametapublish, a pass-through, an identity),
+# so it leaves no files, metadata or streams behind.
+_WRITING_SINKS = frozenset(
+    {
+        "filesink",
+        "multifilesink",
+        "splitmuxsink",
+        "rtspclientsink",
+        "whipclientsink",
+        "whipsink",
+        "hlssink",
+        "hlssink2",
+        "hlssink3",
+        "srtsink",
+        "udpsink",
+        "tcpclientsink",
+    }
+)
+_WRITING_PASSTHROUGHS = frozenset({"gvametapublish"})
+
+
+def validation_launch_string(command: str) -> str:
+    """``command`` with its writing elements swapped for side-effect-free ones.
+
+    Each sink in ``_WRITING_SINKS`` becomes a ``fakesink`` with the same
+    ``name`` (and ``sync``), and ``async=false``, so a branch that rarely gets
+    a buffer cannot hold the validation run in preroll. ``gvametapublish``
+    becomes an ``identity``. Everything upstream (sources, decoders,
+    inference, encoders, muxers) is kept, so validation still checks the
+    elements, models, devices and caps the real run uses. An element whose
+    pads are referenced by name elsewhere (``name.pad``) is left as it is.
+    """
+
+    def _swap(match: re.Match) -> str:
+        element = match.group(0)
+        tokens = _LAUNCH_TOKEN.findall(element)
+        if not tokens or tokens[0] not in _WRITING_SINKS | _WRITING_PASSTHROUGHS:
+            return element
+        end = 1
+        while end < len(tokens) and "=" in tokens[end]:
+            end += 1
+        properties = dict(token.split("=", 1) for token in tokens[1:end])
+        name = properties.get("name")
+        bare = (name or "").strip('"')
+        if bare and re.search(rf"(?:^|\s){re.escape(bare)}\.", command):
+            return element
+        swapped = ["fakesink", "async=false"]
+        if tokens[0] in _WRITING_PASSTHROUGHS:
+            swapped = ["identity"]
+        elif "sync" in properties:
+            swapped.append(f"sync={properties['sync']}")
+        if name is not None:
+            swapped.insert(1, f"name={name}")
+        leading = element[: len(element) - len(element.lstrip())]
+        trailing = element[len(element.rstrip()) :]
+        return leading + " ".join(swapped + tokens[end:]) + trailing
+
+    return _LAUNCH_ELEMENT.sub(_swap, command)
+
+
 # States in which a DLSPS 2.0 instance may still hold devices.
 _ACTIVE_STATES = frozenset({"QUEUED", "RUNNING", "RESTARTING"})
 
@@ -434,6 +498,7 @@ class Dlsps2PipelineRunner:
         total_streams: int = 1,
         allowed_stream_ids: "set[str] | None" = None,
         stream_commands: dict[str, str] | None = None,
+        validation_stream_ids: "set[str] | None" = None,
     ) -> PipelineResult:
         """Run a pipeline against DLSPS 2.0 and return a `PipelineResult`.
 
@@ -450,6 +515,10 @@ class Dlsps2PipelineRunner:
             stream_commands: Normal mode only. One launch string per stream,
                 keyed by ``stream_id`` (``PipelineCommand.stream_commands``);
                 each runs as its own DLSPS 2.0 instance.
+            validation_stream_ids: Normal mode only. Streams whose launch
+                string is validated before the run, one per pipeline
+                (``PipelineCommand.validation_stream_ids``); the other streams
+                of a pipeline repeat it. ``None`` validates every stream.
 
         Returns:
             PipelineResult with ``exit_code``/``stderr`` (validation mode) or
@@ -471,7 +540,9 @@ class Dlsps2PipelineRunner:
                     f"(stream_commands) to run total_streams={total_streams}."
                 )
             stream_commands = {"stream": pipeline_command}
-        return self._run_streams(stream_commands, allowed_stream_ids)
+        return self._run_streams(
+            stream_commands, allowed_stream_ids, validation_stream_ids
+        )
 
     # ------------------------------------------------------------------
     # REST helpers
@@ -1127,12 +1198,16 @@ class Dlsps2PipelineRunner:
         self,
         stream_commands: dict[str, str],
         allowed_stream_ids: "set[str] | None" = None,
+        validation_stream_ids: "set[str] | None" = None,
     ) -> PipelineResult:
         """Run every stream as its own DLSPS 2.0 instance and measure each one.
 
-        Launch strings are validated first (see :meth:`_validate_new`, unless
-        ``validate_pipelines`` is off), so the instances skip DLSPS's own per-instance validation and start
-        together. All instances go to the unpinned worker. The run lasts
+        Unless ``validate_pipelines`` is off, the launch strings of
+        ``validation_stream_ids`` (every stream if ``None``) are validated
+        first, with their writing elements swapped out (see
+        :func:`validation_launch_string` and :meth:`_validate_new`), so
+        validation writes no files and publishes nothing. The instances then
+        skip DLSPS's own per-instance validation and start together. All instances go to the unpinned worker. The run lasts
         ``max_runtime`` seconds from the moment every stream reports a
         ``first_frame_time`` (``0``: until every instance ends on its own),
         or until :meth:`cancel`. Every instance is stopped before returning;
@@ -1191,16 +1266,20 @@ class Dlsps2PipelineRunner:
                 _POST_METRICS_ON.search(command) for command in stream_commands.values()
             )
             read_metrics = self.latency_tracer_metrics is not None or genai
+            to_validate = [
+                validation_launch_string(command)
+                for sid, command in stream_commands.items()
+                if validation_stream_ids is None or sid in validation_stream_ids
+            ]
             capture = self._capture_events(stream_commands, genai)
             if capture is not None:
                 stream_commands = capture.commands
             try:
                 if self.validate_pipelines:
-                    self._validate_new(client, list(stream_commands.values()))
+                    self._validate_new(client, to_validate)
                 if self.cancelled:
                     return PipelineResult(exit_code=0, cancelled=True, stderr=[])
                 if capture is not None:
-                    capture.reset()
                     capture.start()
                 try:
                     for stream_id, command in stream_commands.items():

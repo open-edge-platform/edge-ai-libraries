@@ -247,10 +247,6 @@ class TestEventCapture(unittest.TestCase):
         (path,) = capture.sources
         self.assertIn(f"file-path={path}", capture.commands["s0"])
 
-        # A validation run wrote a record: dropped by reset().
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(json.dumps({"result": "from validation"}) + "\n")
-        capture.reset()
         capture.reader.poll_interval = 60
         capture.start()
         with open(path, "a", encoding="utf-8") as f:

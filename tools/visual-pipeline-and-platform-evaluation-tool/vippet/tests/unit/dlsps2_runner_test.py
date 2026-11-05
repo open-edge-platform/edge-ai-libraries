@@ -1528,30 +1528,12 @@ class TestDlsps2RunnerEvents(unittest.TestCase):
                 }
             ],
         )
-        # The validated and the started launch string are the rewritten one.
-        self.assertEqual(
-            fake.validate_posts()[0]["pipeline"],
-            json.loads(fake.calls("POST")[0].content)["pipeline"],
-        )
+        # Only the started launch string writes event files; the validated
+        # one has neither the events-file nor the injected publisher.
+        validated = fake.validate_posts()[0]["pipeline"]
+        self.assertNotIn("events-file", validated)
+        self.assertNotIn("gvametapublish", validated)
         self.assertEqual(os.listdir(self.tmp.name), [])
-
-    def test_validation_records_are_dropped(self):
-        events: list = []
-        fake = _FakeStreamSet([[{"state": "COMPLETED"}]], metrics=_finished("inst-1"))
-        validations = fake.validations
-
-        def _valid_after_writing() -> dict:
-            body = fake.validate_posts()[0]["pipeline"]
-            trigger = body.split("events-file=")[1].split()[0]
-            with open(trigger, "a", encoding="utf-8") as f:
-                f.write(json.dumps({"text": "from validation"}) + "\n")
-            return validations[0]
-
-        fake.validations = [_valid_after_writing]
-
-        self._run(fake, events.append)
-
-        self.assertEqual(events, [])
 
     def test_no_files_without_on_event(self):
         fake = _FakeStreamSet([[{"state": "COMPLETED"}]], metrics=_finished("inst-1"))
@@ -1622,6 +1604,92 @@ class TestWithMainSinkLast(unittest.TestCase):
 
         sent = json.loads(fake.calls("POST")[0].content)["pipeline"]
         self.assertEqual(sent, f"{self.SIDE} {self.MAIN}")
+
+
+class TestValidationLaunchString(unittest.TestCase):
+    def test_writing_sinks_become_fakesinks(self):
+        command = (
+            "filesrc location=/v.ts ! decodebin3 ! tee name=t ! queue ! "
+            "vah264enc ! h264parse ! mp4mux ! filesink location=/out/a.mp4 "
+            "name=sink_p0_s0 sync=false t. ! queue ! jpegenc ! "
+            "multifilesink location=/img/f_%05d.jpeg async=false "
+            "t. ! queue ! splitmuxsink location=/rec/%03d.mp4 max-size-time=1"
+        )
+
+        self.assertEqual(
+            dlsps2_runner.validation_launch_string(command),
+            "filesrc location=/v.ts ! decodebin3 ! tee name=t ! queue ! "
+            "vah264enc ! h264parse ! mp4mux ! fakesink name=sink_p0_s0 "
+            "async=false sync=false t. ! queue ! jpegenc ! fakesink async=false "
+            "t. ! queue ! fakesink async=false",
+        )
+
+    def test_live_stream_and_metadata_writers(self):
+        command = (
+            'a ! gvagenai prompt="Hit? Reply ! briefly" ! '
+            "gvametapublish file-format=json-lines file-path=/metadata/x.jsonl ! "
+            "vah264enc ! rtspclientsink location=rtsp://mediamtx:8554/s name=out"
+        )
+
+        self.assertEqual(
+            dlsps2_runner.validation_launch_string(command),
+            'a ! gvagenai prompt="Hit? Reply ! briefly" ! identity ! '
+            "vah264enc ! fakesink name=out async=false",
+        )
+
+    def test_unchanged_cases(self):
+        for command in (
+            "videotestsrc ! gvadetect ! fakesink name=default_output_sink",
+            # The sink's pads are referenced by name, so it must stay.
+            "a ! splitmuxsink name=mux location=/r.mp4 b ! queue ! mux.video",
+        ):
+            with self.subTest(command=command):
+                self.assertEqual(
+                    dlsps2_runner.validation_launch_string(command), command
+                )
+
+
+class TestDlsps2RunnerValidationStreams(unittest.TestCase):
+    STREAMS = {
+        "s0": "a ! vah264enc ! filesink location=/out/s0.mp4 name=s0",
+        "s1": "a ! fakesink name=s1",
+    }
+
+    def _run(self, fake, **kwargs):
+        runner = Dlsps2PipelineRunner(
+            mode="normal", base_url="http://dlsps:8080", max_runtime=0
+        )
+        with (
+            patch.object(runner, "_push_fps_metric"),
+            patch.object(runner, "_client", side_effect=fake.client),
+            patch.object(runner, "_metrics_client", side_effect=fake.client),
+        ):
+            return runner.run(PIPELINE, stream_commands=self.STREAMS, **kwargs)
+
+    def test_validates_only_the_given_streams_without_writers(self):
+        fake = _FakeStreamSet([[{"state": "COMPLETED"}, {"state": "COMPLETED"}]])
+
+        self._run(fake, validation_stream_ids={"s0"})
+
+        self.assertEqual(
+            [body["pipeline"] for body in fake.validate_posts()],
+            ["a ! vah264enc ! fakesink name=s0 async=false"],
+        )
+        started = sorted(json.loads(r.content)["pipeline"] for r in fake.calls("POST"))
+        self.assertEqual(started, sorted(self.STREAMS.values()))
+        self.assertTrue(
+            all(
+                json.loads(r.content)["validate_pipeline"] is False
+                for r in fake.calls("POST")
+            )
+        )
+
+    def test_without_ids_every_stream_is_validated(self):
+        fake = _FakeStreamSet([[{"state": "COMPLETED"}, {"state": "COMPLETED"}]])
+
+        self._run(fake)
+
+        self.assertEqual(len(fake.validate_posts()), 2)
 
 
 class TestDlsps2RunnerLostInstance(unittest.TestCase):
