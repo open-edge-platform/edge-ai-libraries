@@ -36,6 +36,7 @@ from core.indexer import GraphIndexer, MultimodalIndexer, VectorIndexer
 from core.knowledge import Knowledge
 from databasehub.models import GraphCollection, VectorCollection
 from schemas import RetrieveRequest
+from tests.video_package import video_package
 
 
 def _hit(node_id, score, **metadata):
@@ -119,7 +120,7 @@ def test_g4_okf_chooses_first_serving_text_projection_in_pool_order():
     first, second = FakeVector("z-first"), FakeVector("a-second")
     pool = _pool(
         media, preparing, deprecated, disabled, first, second,
-        states={"preparing": "PREPARING", "deprecated": "DEPRECATED"},
+        states={"preparing": "PREPARING", "deprecated": "DEGRADE"},
     )
     library = _library(pool)
 
@@ -227,7 +228,7 @@ def test_g8_three_sources_use_text_algorithm_and_plain_media_vectors(monkeypatch
     disabled = FakeMultimodal("disabled", 99, enabled=False)
     pool = _pool(
         xclip, text, gme, preparing, deprecated, disabled,
-        states={"preparing": "PREPARING", "deprecated": "DEPRECATED"},
+        states={"preparing": "PREPARING", "deprecated": "DEGRADE"},
     )
     # A failed excluded binding must not poison RRF construction either.
     pool.source_statuses["preparing"].mark_failed("not a serving source")
@@ -315,7 +316,7 @@ def test_g8_main_graph_flow_stays_text_only_and_trace_survives_wrapper(monkeypat
     text, xclip, gme = FakeVector("text", 0.4), FakeMultimodal("xclip", 0.2), FakeMultimodal("gme", 0.6)
     graph = SimpleNamespace(kind="graph", source=Source("graph", "graph", None))
     ignored_graph = SimpleNamespace(kind="graph", source=Source("old-graph", "graph", None))
-    pool = _pool(xclip, text, gme, ignored_graph, graph, states={"old-graph": "DEPRECATED"})
+    pool = _pool(xclip, text, gme, ignored_graph, graph, states={"old-graph": "DEGRADE"})
     pool.source_statuses["old-graph"].mark_failed("old graph must be ignored")
     library = _library(pool)
     graph_calls, bm25_calls = [], []
@@ -892,10 +893,12 @@ def test_g12_explicit_gme_text_model_inherits_native_default_without_registry(mo
     assert calls[0]["backend"] == "native_openvino_gme"
 
 
-def test_native_text_default_does_not_capture_explicit_media_only_model(monkeypatch):
+def test_native_text_default_does_not_capture_explicit_media_only_model(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "EMBEDDING_BACKEND", "native_openvino_gme")
+    monkeypatch.setattr(config, "MODEL_DIR", str(tmp_path))
+    package = video_package(tmp_path)
     options = {
-        "asset_types": ["video"], "embedding_model": "microsoft/xclip-base-patch16-zero-shot",
+        "asset_types": ["video"], "embedding_model": package.name,
     }
 
     profile = describe_vector_source(options)
@@ -907,11 +910,11 @@ def test_native_text_default_does_not_capture_explicit_media_only_model(monkeypa
         describe_vector_source({**options, "block_kinds": ["image"]})
 
 
-def test_native_text_default_does_not_make_model_only_xclip_a_valid_source(monkeypatch):
+def test_native_text_default_does_not_make_model_only_video_a_valid_source(monkeypatch):
     monkeypatch.setattr(config, "EMBEDDING_BACKEND", "native_openvino_gme")
 
     with pytest.raises(ValueError, match="asset_types"):
-        describe_vector_source({"embedding_model": "microsoft/xclip-base-patch16-zero-shot"})
+        describe_vector_source({"embedding_model": "viclip-b-fp16"})
 
 
 @pytest.mark.parametrize("kind", ["image", "audio"])
@@ -1053,7 +1056,12 @@ def test_projection_build_keeps_model_selection_and_two_argument_blob_reader(mon
     source = Source(
         "vector", "vector", VectorCollection("v", 4),
         configuration={"asset_types": ["video"]} if multimodal else {},
-        profile={"encoder_kind": "multimodal" if multimodal else "text"},
+        profile={
+            "encoder_kind": "multimodal" if multimodal else "text",
+            **({"backend": "llamaindex_openvino", "multimodal_model": {
+                "name": "viclip-b", "id": "viclip-b-fp16", "path": "viclip-b-fp16",
+            }} if multimodal else {}),
+        },
     )
 
     library.build_projection("projection", "pool", source)

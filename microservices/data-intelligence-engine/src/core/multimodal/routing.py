@@ -11,7 +11,7 @@ import mimetypes
 from typing import Any, Mapping
 
 from core.content import (
-    AUDIO, IMAGE, VIDEO, MM_ROLES, ROLE_to_KIND,
+    AUDIO, DOCUMENT, IMAGE, VIDEO, MM_ROLES, ROLE_to_KIND, asset_family,
     ROLE_IMAGE, ROLE_AUDIO, ROLE_SHORT_VIDEO, ROLE_LONG_VIDEO,
     ROLE_L1_SEGMENT, ROLE_L2_CAPTION, ROLE_L2_TRANSCRIPT, ROLE_L3_WIKI,
 )
@@ -40,17 +40,33 @@ def string_list(options: Mapping[str, Any], key: str) -> list[str]:
     return sorted({value.strip().lower().lstrip('.') for value in raw})
 
 
-def asset_family(selector: str) -> str:
-    selector = selector.strip().lower().lstrip('.')
-    if selector in MEDIA_TYPES:
-        return selector
-    mime = selector if '/' in selector else mimetypes.guess_type(f"asset.{selector}")[0]
-    family = (mime or '').split('/')[0]
-    return family if family in MEDIA_TYPES else "document"
-
-
 def asset_families(options: Mapping[str, Any]) -> set[str]:
     return {asset_family(value) for value in string_list(options, 'asset_types')}
+
+
+def validate_asset_types(options: Mapping[str, Any]) -> None:
+    """Refuse a vector source's `asset_types` entry that no asset can match.
+
+    Each entry is a family, an extension or a MIME type of something ingest
+    accepts. Anything else -- a typo, or ``okf``, which a vector source never
+    takes -- used to be read as a document type and quietly match no file.
+    """
+    from core.extractor import is_supported  # noqa: PLC0415 - loads the readers
+
+    unknown = []
+    for value in string_list(options, 'asset_types'):
+        if value == 'okf':
+            raise ValueError('asset_types "okf" is for a graph source; a vector source never takes OKF bundles')
+        extensions = mimetypes.guess_all_extensions(value) if '/' in value else [f".{value}"]
+        if value not in MEDIA_TYPES | {DOCUMENT} and not any(
+            is_supported(f"asset{extension}") for extension in extensions
+        ):
+            unknown.append(value)
+    if unknown:
+        raise ValueError(
+            f"Unknown asset_types {', '.join(unknown)}: use document, image, video, "
+            "audio, or the extension or MIME type of a supported file"
+        )
 
 
 def require_asset_types(options: Mapping[str, Any]) -> set[str]:
@@ -108,11 +124,24 @@ def representation(options: Mapping[str, Any]) -> tuple[dict, set[str]]:
 
 
 def effective_configuration(source: Any) -> dict:
-    """User options plus frozen defaults, without consulting today's defaults."""
-    return {
+    """User options plus frozen defaults, without consulting today's defaults.
+
+    A text vector source with no `asset_types` takes documents. That is a fixed
+    rule rather than a configurable default, so applying it here, to sources
+    created before it, cannot drift: unscoped, they used to take every file and
+    embed pictures and recordings as though they were text.
+    """
+    options = {
         **dict(getattr(source, 'configuration', {}) or {}),
         **dict((getattr(source, 'profile', {}) or {}).get('params') or {}),
     }
+    if (
+        getattr(source, 'source_type', None) == 'vector'
+        and (getattr(source, 'profile', None) or {}).get('encoder_kind') != 'multimodal'
+        and not options.get('asset_types')
+    ):
+        options['asset_types'] = [DOCUMENT]
+    return options
 
 
 def validate_model_options(options: Mapping[str, Any]) -> None:
@@ -141,6 +170,9 @@ def validate_source(source: Any) -> None:
     validate_model_options(options)
     profile = source.profile or {}
     if profile.get('encoder_kind') == 'multimodal':
+        from core.multimodal.registry import model_for_record
+
+        model_for_record(profile.get('multimodal_model') or {})
         require_asset_types(raw)
         representation(options)
         return

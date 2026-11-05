@@ -57,7 +57,7 @@ cd edge-ai-libraries/microservices/time-series-analytics/docker
 
 ## Build Docker Image
 
-Navigate to the application directory and build the Docker image:
+From the `edge-ai-libraries/microservices/time-series-analytics/docker` directory, build the Docker image:
 
 ```bash
 docker compose build
@@ -94,9 +94,9 @@ To push images to a Docker registry:
 **Time Series Analytics Microservice** uses the User Defined Function(UDF) deployment package(TICK Scripts, UDFs, Models) which is already built-in to the container image.
 By default, we have a simple UDF python script at `edge-ai-libraries/microservices/time-series-analytics/udfs/temperature_classifier.py` which does not use any model file for
 inferencing, it just does a simple check to filter the temperature points which are less than 20 OR greater than 25.
-The corresponding tick script is available at `edge-ai-libraries/microservices/time-series-analytics/temperature_classifier.tick`.
+The corresponding tick script is available at `edge-ai-libraries/microservices/time-series-analytics/tick_scripts/temperature_classifier.tick`.
 
-Directory (`edge-ai-libraries/microservices/time-series-analytics/`) details are as follows::
+The microservice directory (`edge-ai-libraries/microservices/time-series-analytics/`) contains the following:
 
 ### `config.json`
 
@@ -145,7 +145,7 @@ Mainly, has the details on execution of the UDF file and publishing of alerts.
 
 ## Deploy with Docker Compose
 
-Navigate to the application directory and run the Docker container:
+From the `edge-ai-libraries/microservices/time-series-analytics/docker` directory, start the Docker container:
 
 ```bash
 docker compose up -d
@@ -156,7 +156,7 @@ docker compose up -d
 Run the following commands to package and upload the `temperature_classifier` UDF deployment package to the microservice:
 
 ```bash
-cd edge-ai-libraries/microservices/time-series-analytics/
+cd edge-ai-libraries/microservices/time-series-analytics/ # path relative to git clone folder
 rm -f temperature_classifier.tar
 tar cf temperature_classifier.tar udfs/ tick_scripts/
 curl -X POST http://localhost:5000/udfs/package \
@@ -168,7 +168,7 @@ curl -X POST http://localhost:5000/udfs/package \
 Run the following command to apply the configuration and activate the uploaded UDF:
 
 ```bash
-cd edge-ai-libraries/microservices/time-series-analytics/
+cd edge-ai-libraries/microservices/time-series-analytics/ # path relative to git clone folder
 
 curl -s -X POST http://localhost:5000/config \
   -H 'accept: application/json' \
@@ -181,6 +181,7 @@ curl -s -X POST http://localhost:5000/config \
 Run the following script to ingest temperature data into the Time Series Analytics Microservice:
 
 ```bash
+cd edge-ai-libraries/microservices/time-series-analytics/ # path relative to git clone folder
 python3 -m venv venv
 source venv/bin/activate
 pip3 install -r simulator/requirements.txt
@@ -201,6 +202,8 @@ The Time Series Analytics Microservice provides an interactive Swagger UI at `ht
 Please refer [API documentation](./how-to-access-api.md).
 
 ## Bring down the microservice
+
+From the `edge-ai-libraries/microservices/time-series-analytics/docker` directory, stop and remove the containers and volumes:
 
 ```sh
 docker compose down -v

@@ -19,10 +19,6 @@
         {
           "label": "Ubuntu 24.04",
           "value": "UBUNTU_24_04"
-        },
-        {
-          "label": "Ubuntu 26.04",
-          "value": "UBUNTU_26_04"
         }
       ]
     },
@@ -38,8 +34,7 @@
           "remove": true,
           "supports": {
             "OP_SYSTEM": [
-              "UBUNTU_24_04",
-              "UBUNTU_26_04"
+              "UBUNTU_24_04"
             ]
           }
         },
@@ -50,8 +45,7 @@
           "remove": true,
           "supports": {
             "OP_SYSTEM": [
-              "UBUNTU_24_04",
-              "UBUNTU_26_04"
+              "UBUNTU_24_04"
             ]
           }
         },
@@ -60,8 +54,7 @@
           "value": "metro_ai_suite",
           "supports": {
             "OP_SYSTEM": [
-              "UBUNTU_24_04",
-              "UBUNTU_26_04"
+              "UBUNTU_24_04"
             ]
           }
         },
@@ -70,8 +63,7 @@
           "value": "manufacturing_ai_suite",
           "supports": {
             "OP_SYSTEM": [
-              "UBUNTU_24_04",
-              "UBUNTU_26_04"
+              "UBUNTU_24_04"
             ]
           }
         },
@@ -80,8 +72,16 @@
           "value": "retail_ai_suite",
           "supports": {
             "OP_SYSTEM": [
-              "UBUNTU_24_04",
-              "UBUNTU_26_04"
+              "UBUNTU_24_04"
+            ]
+          }
+        },
+        {
+          "label": "Interactive AI Smart Signage",
+          "value": "interactive_ai_smart_signage",
+          "supports": {
+            "OP_SYSTEM": [
+              "UBUNTU_24_04"
             ]
           }
         },
@@ -90,8 +90,7 @@
           "value": "health_and_life_sciences_ai_suite",
           "supports": {
             "OP_SYSTEM": [
-              "UBUNTU_24_04",
-              "UBUNTU_26_04"
+              "UBUNTU_24_04"
             ]
           }
         },
@@ -100,8 +99,7 @@
           "value": "federal_and_aerospace_ai_suite_handheld",
           "supports": {
             "OP_SYSTEM": [
-              "UBUNTU_24_04",
-              "UBUNTU_26_04"
+              "UBUNTU_24_04"
             ]
           }
         },
@@ -110,8 +108,7 @@
           "value": "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle",
           "supports": {
             "OP_SYSTEM": [
-              "UBUNTU_24_04",
-              "UBUNTU_26_04"
+              "UBUNTU_24_04"
             ]
           }
         },
@@ -120,8 +117,7 @@
           "value": "federal_and_aerospace_ai_suite_mission_decision_support",
           "supports": {
             "OP_SYSTEM": [
-              "UBUNTU_24_04",
-              "UBUNTU_26_04"
+              "UBUNTU_24_04"
             ]
           }
         },
@@ -130,8 +126,7 @@
           "value": "robotics_ai_suite",
           "supports": {
             "OP_SYSTEM": [
-              "UBUNTU_24_04",
-              "UBUNTU_26_04"
+              "UBUNTU_24_04"
             ]
           }
         }
@@ -468,6 +463,17 @@
           ]
         },
         {
+          "label": "Digital Signage",
+          "value": "digital_signage",
+          "supports": {
+            "PROFILE": [
+              "retail_ai_suite"
+            ]
+          },
+          "startStop": true,
+          "remove": true
+        },
+        {
           "label": "Loss Prevention",
           "value": "loss_prevention",
           "supports": {
@@ -530,6 +536,17 @@
             "--cpu",
             "--npu"
           ]
+        },
+        {
+          "label": "Digital Signage",
+          "value": "digital_signage",
+          "supports": {
+            "PROFILE": [
+              "interactive_ai_smart_signage"
+            ]
+          },
+          "startStop": true,
+          "remove": true
         },
         {
           "label": "Multi-Modal Patient Monitoring",
@@ -604,19 +621,26 @@
           }
         },
         {
-          "label": "Uncrewed Aerial Vehicle Mission",
-          "value": "uncrewed_aerial_vehicle_mission",
+          "label": "Uncrewed Aerial Vehicle - Ground Station",
+          "value": "uncrewed_aerial_vehicle_ground_station",
           "supports": {
             "PROFILE": [
               "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle"
             ]
           },
           "startStop": true,
-          "remove": true,
-          "options": [
-            "--ground-station",
-            "--vision-analytics"
-          ]
+          "remove": true
+        },
+        {
+          "label": "Uncrewed Aerial Vehicle - Vision Analytics",
+          "value": "uncrewed_aerial_vehicle_vision_analytics",
+          "supports": {
+            "PROFILE": [
+              "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle"
+            ]
+          },
+          "startStop": true,
+          "remove": true
         },
         {
           "label": "Mission Decision Support Blueprint",
@@ -706,13 +730,6 @@
         },
         {
           "when": {
-            "PROFILE": "computer_vision",
-            "OP_SYSTEM": "UBUNTU_26_04"
-          },
-          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install computer_vision"
-        },
-        {
-          "when": {
             "PROFILE": "inferencing",
             "OP_SYSTEM": "UBUNTU_24_04"
           },
@@ -720,20 +737,28 @@
         },
         {
           "when": {
-            "PROFILE": "inferencing",
-            "OP_SYSTEM": "UBUNTU_26_04"
+            "PROFILE": "federal_and_aerospace_ai_suite_handheld",
+            "OP_SYSTEM": "UBUNTU_24_04"
           },
-          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install inferencing"
+          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
+        },
+        {
+          "when": {
+            "PROFILE": "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle",
+            "OP_SYSTEM": "UBUNTU_24_04"
+          },
+          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
+        },
+        {
+          "when": {
+            "PROFILE": "federal_and_aerospace_ai_suite_mission_decision_support",
+            "OP_SYSTEM": "UBUNTU_24_04"
+          },
+          "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
         },
         {
           "when": {
             "OP_SYSTEM": "UBUNTU_24_04"
-          },
-          "text": "curl -sSfL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install {{MODULE}}"
-        },
-        {
-          "when": {
-            "OP_SYSTEM": "UBUNTU_26_04"
           },
           "text": "curl -sSfL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli | bash -s -- install {{MODULE}}"
         }
@@ -764,24 +789,8 @@
         },
         {
           "when": {
-            "PROFILE": "computer_vision",
-            "OP_SYSTEM": "UBUNTU_26_04"
-          },
-          "text": "Get Started",
-          "link": "https://docs.openedgeplatform.intel.com/dev/ai-libraries.html"
-        },
-        {
-          "when": {
             "PROFILE": "inferencing",
             "OP_SYSTEM": "UBUNTU_24_04"
-          },
-          "text": "Get Started",
-          "link": "https://docs.openvino.ai/2026/get-started.html"
-        },
-        {
-          "when": {
-            "PROFILE": "inferencing",
-            "OP_SYSTEM": "UBUNTU_26_04"
           },
           "text": "Get Started",
           "link": "https://docs.openvino.ai/2026/get-started.html"
@@ -796,24 +805,8 @@
         },
         {
           "when": {
-            "PROFILE": "metro_ai_suite",
-            "OP_SYSTEM": "UBUNTU_26_04"
-          },
-          "text": "Get Started",
-          "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-metro.html"
-        },
-        {
-          "when": {
             "PROFILE": "manufacturing_ai_suite",
             "OP_SYSTEM": "UBUNTU_24_04"
-          },
-          "text": "Get Started",
-          "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-manufacturing.html"
-        },
-        {
-          "when": {
-            "PROFILE": "manufacturing_ai_suite",
-            "OP_SYSTEM": "UBUNTU_26_04"
           },
           "text": "Get Started",
           "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-manufacturing.html"
@@ -828,8 +821,8 @@
         },
         {
           "when": {
-            "PROFILE": "retail_ai_suite",
-            "OP_SYSTEM": "UBUNTU_26_04"
+            "PROFILE": "interactive_ai_smart_signage",
+            "OP_SYSTEM": "UBUNTU_24_04"
           },
           "text": "Get Started",
           "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-retail.html"
@@ -844,24 +837,8 @@
         },
         {
           "when": {
-            "PROFILE": "health_and_life_sciences_ai_suite",
-            "OP_SYSTEM": "UBUNTU_26_04"
-          },
-          "text": "Get Started",
-          "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-health-and-life-sciences.html"
-        },
-        {
-          "when": {
             "PROFILE": "federal_and_aerospace_ai_suite_handheld",
             "OP_SYSTEM": "UBUNTU_24_04"
-          },
-          "text": "Get Started",
-          "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-fed-aero.html"
-        },
-        {
-          "when": {
-            "PROFILE": "federal_and_aerospace_ai_suite_handheld",
-            "OP_SYSTEM": "UBUNTU_26_04"
           },
           "text": "Get Started",
           "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-fed-aero.html"
@@ -876,14 +853,6 @@
         },
         {
           "when": {
-            "PROFILE": "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle",
-            "OP_SYSTEM": "UBUNTU_26_04"
-          },
-          "text": "Get Started",
-          "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-fed-aero.html"
-        },
-        {
-          "when": {
             "PROFILE": "federal_and_aerospace_ai_suite_mission_decision_support",
             "OP_SYSTEM": "UBUNTU_24_04"
           },
@@ -892,24 +861,8 @@
         },
         {
           "when": {
-            "PROFILE": "federal_and_aerospace_ai_suite_mission_decision_support",
-            "OP_SYSTEM": "UBUNTU_26_04"
-          },
-          "text": "Get Started",
-          "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-fed-aero.html"
-        },
-        {
-          "when": {
             "PROFILE": "robotics_ai_suite",
             "OP_SYSTEM": "UBUNTU_24_04"
-          },
-          "text": "Get Started",
-          "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-robotics.html"
-        },
-        {
-          "when": {
-            "PROFILE": "robotics_ai_suite",
-            "OP_SYSTEM": "UBUNTU_26_04"
           },
           "text": "Get Started",
           "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-robotics.html"
@@ -947,30 +900,6 @@
         },
         {
           "when": {
-            "PROFILE": "computer_vision",
-            "OP_SYSTEM": "UBUNTU_26_04"
-          },
-          "links": [
-            {
-              "text": "DL Streamer",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/dlstreamer/index.html"
-            },
-            {
-              "text": "Visual Pipeline and Platform Evaluation Tool (ViPPET)",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/index.html"
-            },
-            {
-              "text": "Intel Geti",
-              "url": "https://github.com/open-edge-platform/geti"
-            },
-            {
-              "text": "Anomalib",
-              "url": "https://github.com/open-edge-platform/anomalib"
-            }
-          ]
-        },
-        {
-          "when": {
             "PROFILE": "inferencing",
             "OP_SYSTEM": "UBUNTU_24_04"
           },
@@ -983,84 +912,8 @@
         },
         {
           "when": {
-            "PROFILE": "inferencing",
-            "OP_SYSTEM": "UBUNTU_26_04"
-          },
-          "links": [
-            {
-              "text": "OpenVINO",
-              "url": "https://docs.openvino.ai/2026/get-started.html"
-            }
-          ]
-        },
-        {
-          "when": {
             "PROFILE": "metro_ai_suite",
             "OP_SYSTEM": "UBUNTU_24_04"
-          },
-          "links": [
-            {
-              "text": "Agentic Predictive Maintenance Pipeline",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-metro/agentic-predictive-maintenance-pipeline/index.html"
-            },
-            {
-              "text": "Agentic Smart Community",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-metro/agentic-smart-community/index.html"
-            },
-            {
-              "text": "Image Based Video Search",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/image-based-video-search/index.html"
-            },
-            {
-              "text": "Live Video Captioning",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/live-video-captioning/index.html"
-            },
-            {
-              "text": "Live Video Captioning RAG",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/live-captioning-rag/index.html"
-            },
-            {
-              "text": "Live Video Search",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/live-video-search/index.html"
-            },
-            {
-              "text": "Live Video Alert Agent",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/live-video-alert-agent/index.html"
-            },
-            {
-              "text": "Loitering Detection",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/loitering-detection/index.html"
-            },
-            {
-              "text": "Smart Intersection",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-intersection/index.html"
-            },
-            {
-              "text": "Smart Parking",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/smart-parking/index.html"
-            },
-            {
-              "text": "Smart Traffic Intersection Agent",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/smart-traffic-intersection-agent/index.html"
-            },
-            {
-              "text": "Video Search and Summarization",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/video-search-and-summarization/index.html"
-            },
-            {
-              "text": "Video Processing for NVR",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/video-processing-for-nvr/index.html"
-            },
-            {
-              "text": "Visual Pipeline and Platform Evaluation Tool (ViPPET)",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/index.html"
-            }
-          ]
-        },
-        {
-          "when": {
-            "PROFILE": "metro_ai_suite",
-            "OP_SYSTEM": "UBUNTU_26_04"
           },
           "links": [
             {
@@ -1147,34 +1000,14 @@
         },
         {
           "when": {
-            "PROFILE": "manufacturing_ai_suite",
-            "OP_SYSTEM": "UBUNTU_26_04"
-          },
-          "links": [
-            {
-              "text": "Pallet Defect Detection",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-manufacturing/industrial-edge-insights-vision/index.html"
-            },
-            {
-              "text": "PCB Anomaly Detection",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-manufacturing/industrial-edge-insights-vision/index.html"
-            },
-            {
-              "text": "Wind Turbine Anormaly Detection",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-manufacturing/industrial-edge-insights-time-series/wind-turbine-anomaly-detection/index.html"
-            },
-            {
-              "text": "Multimodal Weld Defect Detection",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-manufacturing/industrial-edge-insights-multimodal/index.html"
-            }
-          ]
-        },
-        {
-          "when": {
             "PROFILE": "retail_ai_suite",
             "OP_SYSTEM": "UBUNTU_24_04"
           },
           "links": [
+            {
+              "text": "Digital Signage",
+              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-retail/digital-signage/index.html"
+            },
             {
               "text": "Loss Prevention",
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-retail/loss-prevention/index.html"
@@ -1191,21 +1024,13 @@
         },
         {
           "when": {
-            "PROFILE": "retail_ai_suite",
-            "OP_SYSTEM": "UBUNTU_26_04"
+            "PROFILE": "interactive_ai_smart_signage",
+            "OP_SYSTEM": "UBUNTU_24_04"
           },
           "links": [
             {
-              "text": "Loss Prevention",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-retail/loss-prevention/index.html"
-            },
-            {
-              "text": "Order Accuracy",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-retail/order-accuracy/index.html"
-            },
-            {
-              "text": "Voice Enabled Interactions",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-retail/voice-enabled-interactions/index.html"
+              "text": "Digital Signage",
+              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/ai-suite-retail/digital-signage/index.html"
             }
           ]
         },
@@ -1213,26 +1038,6 @@
           "when": {
             "PROFILE": "health_and_life_sciences_ai_suite",
             "OP_SYSTEM": "UBUNTU_24_04"
-          },
-          "links": [
-            {
-              "text": "Multi-Modal Patient Monitoring",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/multi-modal-patient-monitoring/index.html"
-            },
-            {
-              "text": "NICU Warmer",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/nicu-warmer/index.html"
-            },
-            {
-              "text": "Surgical Instrument",
-              "url": "https://docs.openedgeplatform.intel.com/2026.2/edge-ai-suites/surgical-instrument/index.html"
-            }
-          ]
-        },
-        {
-          "when": {
-            "PROFILE": "health_and_life_sciences_ai_suite",
-            "OP_SYSTEM": "UBUNTU_26_04"
           },
           "links": [
             {
@@ -1263,36 +1068,12 @@
         },
         {
           "when": {
-            "PROFILE": "federal_and_aerospace_ai_suite_handheld",
-            "OP_SYSTEM": "UBUNTU_26_04"
-          },
-          "links": [
-            {
-              "text": "Handheld Multi-Modal Application",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/handheld-multi-modal-application/index.html"
-            }
-          ]
-        },
-        {
-          "when": {
             "PROFILE": "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle",
             "OP_SYSTEM": "UBUNTU_24_04"
           },
           "links": [
             {
-              "text": "Uncrewed Aerial Vehicle Mission",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/uav-vision-analytics/index.html"
-            }
-          ]
-        },
-        {
-          "when": {
-            "PROFILE": "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle",
-            "OP_SYSTEM": "UBUNTU_26_04"
-          },
-          "links": [
-            {
-              "text": "Uncrewed Aerial Vehicle Mission",
+              "text": "Uncrewed Aerial Vehicle - Vision Analytics",
               "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/uav-vision-analytics/index.html"
             }
           ]
@@ -1311,48 +1092,8 @@
         },
         {
           "when": {
-            "PROFILE": "federal_and_aerospace_ai_suite_mission_decision_support",
-            "OP_SYSTEM": "UBUNTU_26_04"
-          },
-          "links": [
-            {
-              "text": "Deterministic Threat Detection",
-              "url": "https://github.com/open-edge-platform/federal-and-aerospace-ai-suite/tree/2026.3-20261027/deterministic-threat-detection"
-            }
-          ]
-        },
-        {
-          "when": {
             "PROFILE": "robotics_ai_suite",
             "OP_SYSTEM": "UBUNTU_24_04"
-          },
-          "links": [
-            {
-              "text": "Autonomous Mobile Robot",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/robotics/index.html"
-            },
-            {
-              "text": "Stationary Robot Vision",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/rvc/index.html"
-            },
-            {
-              "text": "Humanoid Imitation Learning",
-              "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/robotics-ai-suite/embodied/sample_pipelines/imitation_learning_act.html"
-            },
-            {
-              "text": "Physical AI Framework",
-              "url": "https://github.com/open-edge-platform/physical-ai-studio/tree/main/library"
-            },
-            {
-              "text": "Physical AI Studio",
-              "url": "https://github.com/open-edge-platform/physical-ai-studio"
-            }
-          ]
-        },
-        {
-          "when": {
-            "PROFILE": "robotics_ai_suite",
-            "OP_SYSTEM": "UBUNTU_26_04"
           },
           "links": [
             {

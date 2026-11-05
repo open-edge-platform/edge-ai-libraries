@@ -99,7 +99,8 @@ def test_a_preparing_source_does_not_count_as_covering():
 
     assert report["routes"]["text"][0]["effective_state"] == "PREPARING"
     assert "text" in report["uncovered"]
-    assert report["routes"]["image"][0]["via"] == "caption"
+    assert report["routes"]["doc_image"][0]["via"] == "caption"
+    assert report["routes"]["image"] == [], "an unscoped text source takes documents only"
 
 
 def test_block_kinds_audio_selects_a_recordings_transcript():

@@ -7,7 +7,7 @@ attach ──► PREPARING ──(first full pass ready)──► SERVING
                                                     │
                     a binding declaring replaces=<it> starts SERVING
                                                     ▼
-                                               DEPRECATED
+                                               DEGRADE
 ```
 
 The planning half is pure: `on_attach`, `on_sync_result` and `on_enabled` read a
@@ -17,7 +17,7 @@ so every rule here is testable without a projection, a model or a backend.
 freezes a binding, so a deprecated source loses its projection in the same step
 that deprecates it.
 
-Callers can stop/resume a pool binding (DEPRECATED / SERVING), declare "this
+Callers can stop/resume a pool binding (DEGRADE / SERVING), declare "this
 source replaces that one in this pool" (`replaces`, at attach), or switch a
 source off everywhere (`enabled`). Resuming a binding that fell behind passes
 through PREPARING; its readiness is still decided by sync progress.
@@ -27,7 +27,7 @@ from dataclasses import dataclass
 from typing import Collection, Dict, List, Mapping, Optional
 
 from assetlib.sources import binding
-from assetlib.sources.binding import DEPRECATED, PREPARING, SERVING
+from assetlib.sources.binding import DEGRADE, PREPARING, SERVING
 
 
 @dataclass(frozen=True)
@@ -86,7 +86,7 @@ def on_attach(
         transitions.append(Transition(source_id, state, reason))
         states[source_id] = state
     for source_id in redeclared:
-        if states.get(source_id) == DEPRECATED:
+        if states.get(source_id) == DEGRADE:
             transitions.append(
                 Transition(source_id, PREPARING, "re-attached to replace a source")
             )
@@ -127,9 +127,9 @@ def _settle(
         old = view.replaces
         if states[source_id] != SERVING or view.frozen or not old:
             continue
-        if old in states and states[old] != DEPRECATED:
-            transitions.append(Transition(old, DEPRECATED, f"replaced_by:{source_id}"))
-            states[old] = DEPRECATED
+        if old in states and states[old] != DEGRADE:
+            transitions.append(Transition(old, DEGRADE, f"replaced_by:{source_id}"))
+            states[old] = DEGRADE
         transitions.append(
             Transition(source_id, SERVING, f"replaced:{old}", clear_replaces=True)
         )
@@ -140,7 +140,7 @@ def apply(pool, transitions: List[Transition], sources: Mapping[str, object]) ->
     """Write `transitions` into `pool`. Returns the source ids that became frozen.
 
     Freezing happens here rather than in the caller so a binding can never be
-    `DEPRECATED` while it still holds a projection -- which would mean it was
+    `DEGRADE` while it still holds a projection -- which would mean it was
     still written to, and still loading its model.
     """
     frozen: List[str] = []

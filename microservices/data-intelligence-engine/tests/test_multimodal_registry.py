@@ -15,27 +15,10 @@ import pytest
 
 import config
 from core.multimodal import registry
+from tests.video_package import VIDEO_FAMILIES, video_package
 
-XCLIP_ID = "microsoft/xclip-base-patch16-zero-shot"
+VIDEO_ID = "viclip-b-fp16"
 GME_ID = "Alibaba-NLP/gme-Qwen2-VL-2B-Instruct"
-
-
-def _xclip_dir(root, name="xclip-base-patch16-zero-shot", frames=32, ir=True):
-    path = root / name
-    (path / "openvino").mkdir(parents=True)
-    (path / "config.json").write_text(
-        json.dumps({"model_type": "xclip", "vision_config": {"num_frames": frames}})
-    )
-    (path / "tokenizer_config.json").write_text('{}')
-    (path / "tokenizer.json").write_text('{}')
-    if ir:
-        from inference.multimodal.xclip_openvino import TEXT_IR, VIDEO_IR
-
-        for name in (VIDEO_IR, TEXT_IR):
-            artifact = path / "openvino" / name
-            artifact.write_text("<xml/>")
-            artifact.with_suffix(".bin").touch()
-    return path
 
 
 def _gme_dir(root, name="gme-Qwen2-VL-2B-Instruct-OV"):
@@ -48,16 +31,86 @@ def _gme_dir(root, name="gme-Qwen2-VL-2B-Instruct-OV"):
 # --- recognition ----------------------------------------------------------------
 
 
-def test_a_model_is_recognized_by_what_its_directory_holds(tmp_path):
+@pytest.mark.parametrize("family", VIDEO_FAMILIES)
+def test_a_model_is_recognized_by_what_its_directory_holds(tmp_path, family):
     """The directory can be named anything; the contents are what count."""
-    oddly_named = _xclip_dir(tmp_path, name="some-video-model")
-    assert registry.lookup(None, str(oddly_named)).name == "xclip"
+    oddly_named = video_package(tmp_path, name="some-video-model", family=family)
+    assert registry.lookup(None, str(oddly_named)).name == family
     assert registry.lookup(None, str(_gme_dir(tmp_path))).name == "gme_qwen2vl"
 
 
-def test_an_id_prefix_recognizes_a_model_that_is_not_on_disk():
-    assert registry.lookup(XCLIP_ID, None).name == "xclip"
+@pytest.mark.parametrize("family, model_id", [
+    (family, model_id)
+    for family, ids in (
+        ("viclip-b", ("viclip-b", "OpenGVLab/ViCLIP-B-16-hf", "ViCLIP-B-16-hf")),
+        ("viclip-l", ("viclip-l", "OpenGVLab/ViCLIP-L-14-hf", "ViCLIP-L-14-hf")),
+        ("cosmos-224p", ("cosmos-224p", "nvidia/Cosmos-Embed1-224p", "Cosmos-Embed1-224p")),
+    )
+    for model_id in (*ids, f"{family}-fp16", f"{family}-fp32")
+])
+def test_exact_video_identity_recognizes_a_model_that_is_not_on_disk(family, model_id):
+    assert registry.lookup(model_id, None).name == family
+
+
+def test_a_gme_id_prefix_recognizes_a_model_that_is_not_on_disk():
     assert registry.lookup(GME_ID, None).name == "gme_qwen2vl"
+
+
+@pytest.mark.parametrize("model_id", [
+    "viclip-b-custom", "viclip-l-int8", "cosmos-224p-custom",
+    "OpenGVLab/ViCLIP-B-16-hf-other", "nvidia/Cosmos-Embed1-224p-other",
+])
+def test_video_ids_are_exact_identities_not_family_prefixes(tmp_path, monkeypatch, model_id):
+    monkeypatch.setattr(config, "MODEL_DIR", str(tmp_path))
+    assert registry.lookup(model_id, None) is None
+    with pytest.raises(ValueError, match="embedding_model"):
+        registry.resolve({"asset_types": ["video"], "embedding_model": model_id})
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize("model_id", [
+    "microsoft/xclip-base-patch16-zero-shot", "xclip-base-patch16-zero-shot-fp16", "x-clip-custom",
+])
+def test_retired_xclip_ids_are_rejected_even_with_a_supported_package(tmp_path, model_id):
+    path = video_package(tmp_path)
+    with pytest.raises(ValueError, match="Unsupported production video model"):
+        registry.lookup(model_id, str(path))
+
+
+@pytest.mark.parametrize("record", [
+    {"name": "xclip"},
+    {"name": "viclip-b", "id": "microsoft/xclip-base-patch16-zero-shot"},
+    {"name": "x-clip-custom", "id": VIDEO_ID},
+])
+def test_retired_xclip_profiles_are_rejected_before_path_or_default_resolution(monkeypatch, record):
+    monkeypatch.setattr(registry, "local_path", lambda *args: pytest.fail("must reject frozen identity first"))
+    with pytest.raises(ValueError, match="Unsupported production video model"):
+        registry.load({**record, "path": "/not-read"}, {})
+
+
+@pytest.mark.parametrize("identity", ["directory", "config", "root-ir", "nested-ir"])
+def test_retired_local_video_packages_are_not_accepted_or_listed_as_text(tmp_path, monkeypatch, identity):
+    from inference import models
+
+    monkeypatch.setattr(config, "MODEL_DIR", str(tmp_path))
+    path = tmp_path / ("xclip-base-patch16-zero-shot" if identity == "directory" else "custom-video")
+    path.mkdir()
+    if identity == "config":
+        (path / "config.json").write_text('{"model_type":"xclip"}')
+    elif identity in ("root-ir", "nested-ir"):
+        ir = path if identity == "root-ir" else path / "openvino" / "fp16"
+        ir.mkdir(parents=True, exist_ok=True)
+        for tower in ("xclip_video", "xclip_text"):
+            (ir / f"{tower}.xml").write_text("<xml/>")
+            (ir / f"{tower}.bin").write_bytes(b"\x00")
+    before = sorted(path.rglob("*"))
+
+    with pytest.raises(ValueError, match="Unsupported production video model"):
+        registry.lookup(None, str(path))
+    with pytest.raises(ValueError, match="Unsupported production video model"):
+        registry.resolve({"asset_types": ["video"], "embedding_model": path.name})
+    assert models.workspace_models() == []
+    assert sorted(path.rglob("*")) == before
 
 
 def test_a_text_model_is_recognized_as_none_of_these(tmp_path):
@@ -69,21 +122,48 @@ def test_a_text_model_is_recognized_as_none_of_these(tmp_path):
 
 def test_recognized_models_state_their_roles_without_being_loaded():
     roles = {model.name: model.supported_roles for model in registry.MODELS}
-    assert roles["xclip"] == frozenset({"short_video", "l1_segment"})
+    for family in VIDEO_FAMILIES:
+        assert roles[family] == frozenset({"short_video", "l1_segment"})
     assert {"image", "doc_image", "l2_caption", "l2_transcript", "l3_wiki"} <= roles[
         "gme_qwen2vl"
     ]
     kinds = {model.name: model.supported_kinds for model in registry.MODELS}
-    assert kinds["xclip"] == frozenset({"video"})
-    # Audio through its transcripts: GME embeds them, X-CLIP does not.
+    for family in VIDEO_FAMILIES:
+        assert kinds[family] == frozenset({"video"})
+    # Audio through its transcripts: GME embeds them, video encoders do not.
     assert kinds["gme_qwen2vl"] == frozenset({"image", "text", "audio"})
+    assets = {model.name: model.supported_asset_types for model in registry.MODELS}
+    for family in VIDEO_FAMILIES:
+        assert assets[family] == frozenset({"video"})
+    # Catalog adds ordinary documents for text-capable models without mutating
+    # the registry's representation-based capabilities.
+    assert assets["gme_qwen2vl"] == frozenset({"audio", "image"})
+
+
+@pytest.mark.parametrize("roles, expected", [
+    ({"l2_caption", "l3_wiki"}, set()),
+    ({"l2_transcript"}, {"audio"}),
+    ({"image", "doc_image", "l2_caption"}, {"image"}),
+    ({"short_video", "l1_segment"}, {"video"}),
+    ({"image", "l2_transcript", "short_video"}, {"image", "audio", "video"}),
+])
+def test_asset_support_requires_default_representation_not_optional_captions(roles, expected):
+    class FutureModel(registry.MultimodalModel):
+        def implementation(self):
+            class Capabilities:
+                supported_roles = frozenset(roles)
+            return Capabilities
+
+    model = FutureModel("future-family", "future-category", ("future-package",))
+    assert model.supported_asset_types == frozenset(expected)
+    assert model.supported_roles == frozenset(roles)
 
 
 # --- the default an asset scope and representation imply ------------------------
 
 
 @pytest.mark.parametrize("selectors, name", [
-    (["video"], "xclip"), (["mp4"], "xclip"), (["video/mp4"], "xclip"),
+    (["video"], "viclip-b"), (["mp4"], "viclip-b"), (["video/mp4"], "viclip-b"),
     (["image"], "gme_qwen2vl"), (["jpg"], "gme_qwen2vl"),
     (["image/png"], "gme_qwen2vl"), (["audio"], "gme_qwen2vl"),
     (["wav"], "gme_qwen2vl"), (["audio/wav"], "gme_qwen2vl"),
@@ -110,19 +190,20 @@ def test_default_for_assets_no_single_model_embeds_is_an_error():
 
 def test_explicit_roles_select_the_representation_before_the_default_model():
     assert registry.default_for(["video"], ["l2_caption"]).name == "gme_qwen2vl"
-    assert registry.default_for(["video"], []).name == "xclip"
+    assert registry.default_for(["video"], []).name == "viclip-b"
 
 
 # --- resolving a source's options -------------------------------------------------
 
 
-def test_resolve_records_a_portable_path_for_a_model_in_the_model_dir(tmp_path, monkeypatch):
+@pytest.mark.parametrize("family", VIDEO_FAMILIES)
+def test_resolve_records_a_portable_path_for_a_model_in_the_model_dir(tmp_path, monkeypatch, family):
     monkeypatch.setattr(config, "MODEL_DIR", str(tmp_path))
-    path = _xclip_dir(tmp_path)
+    path = video_package(tmp_path, family=family)
     resolved = registry.resolve({"asset_types": ["video"], "embedding_model": path.name})
 
-    assert resolved.model.name == "xclip"
-    assert resolved.model_path == "xclip-base-patch16-zero-shot"
+    assert resolved.model.name == family
+    assert resolved.model_path == f"{family}-fp16"
 
 
 def test_frozen_profile_keeps_loading_an_absolute_path_outside_the_model_dir(tmp_path, monkeypatch):
@@ -137,12 +218,14 @@ def test_frozen_profile_keeps_loading_an_absolute_path_outside_the_model_dir(tmp
     assert built == [path]
 
 
-def test_resolve_by_id_with_asset_scope_derives_the_path_from_the_id():
-    resolved = registry.resolve({"asset_types": ["video"], "embedding_model": XCLIP_ID})
+@pytest.mark.parametrize("family", VIDEO_FAMILIES)
+def test_resolve_by_id_with_asset_scope_derives_the_path_from_the_id(family):
+    model_id = f"{family}-fp16"
+    resolved = registry.resolve({"asset_types": ["video"], "embedding_model": model_id})
 
-    assert resolved.model.name == "xclip"
-    assert resolved.model_id == XCLIP_ID
-    assert resolved.model_path == "xclip-base-patch16-zero-shot"
+    assert resolved.model.name == family
+    assert resolved.model_id == model_id
+    assert resolved.model_path == model_id
 
 
 def test_an_unrecognized_model_id_for_media_is_an_error_not_a_download(tmp_path, monkeypatch):
@@ -169,25 +252,25 @@ def test_an_unrecognized_model_id_for_text_is_just_a_text_source(tmp_path, monke
 def test_public_model_path_is_rejected_even_with_a_model_id(value, scope):
     with pytest.raises(ValueError, match="embedding_model_path.*embedding_model"):
         registry.resolve({
-            "embedding_model_path": value, "embedding_model": XCLIP_ID,
+            "embedding_model_path": value, "embedding_model": VIDEO_ID,
             "asset_types": scope,
         })
 
 
 def test_model_params_are_recorded_and_other_options_are_not():
     resolved = registry.resolve({
-        "asset_types": ["video"], "embedding_model": XCLIP_ID,
-        "frames_per_clip": 16, "embedding_device": "GPU",
+        "asset_types": ["video"], "embedding_model": VIDEO_ID,
+        "frames_per_clip": 8, "embedding_device": "GPU",
         "chunk_size": 128,
     })
     assert resolved.params == {
-        "frames_per_clip": 16, "asset_types": ["video"],
+        "frames_per_clip": 8, "asset_types": ["video"],
         "block_kinds": ["video"],
         "block_roles": ["l1_segment", "long_video", "short_video"],
     }
 
 
-@pytest.mark.parametrize("factory, scope", [(_xclip_dir, "video"), (_gme_dir, "image")])
+@pytest.mark.parametrize("factory, scope", [(video_package, "video"), (_gme_dir, "image")])
 def test_prepared_local_variant_is_selected_by_id_under_model_root(tmp_path, monkeypatch, factory, scope):
     monkeypatch.setattr(config, "MODEL_DIR", str(tmp_path))
     path = factory(tmp_path, name="custom-prepared-variant")
@@ -204,28 +287,28 @@ def test_source_precision_is_rejected_instead_of_ignored(value):
     with pytest.raises(ValueError, match="precision.*embedding_model"):
         registry.resolve({"asset_types": ["video"], "precision": value})
     with pytest.raises(ValueError, match="precision.*embedding_model"):
-        registry.load({"name": "xclip", "path": "not-read"}, {"precision": value})
+        registry.load({"name": "viclip-b", "path": "not-read"}, {"precision": value})
     assert "precision" not in registry.MODEL_PARAMS
 
 
 def test_the_env_default_fills_only_what_the_source_omits(monkeypatch):
     """Precedence: what the source says, else ENGINE_*_EMBEDDING_*, else the
     built-in default -- the same pattern a text source follows."""
-    monkeypatch.setattr(config, "VIDEO_EMBEDDING_MODEL_ID", "microsoft/xclip-custom")
+    monkeypatch.setattr(config, "VIDEO_EMBEDDING_MODEL_ID", "viclip-l-fp32")
 
     assert (
-        registry.resolve({"asset_types": ["video"]}).model_id == "microsoft/xclip-custom"
+        registry.resolve({"asset_types": ["video"]}).model_id == "viclip-l-fp32"
     )
     assert (
         registry.resolve(
-            {"asset_types": ["video"], "embedding_model": XCLIP_ID}
+            {"asset_types": ["video"], "embedding_model": VIDEO_ID}
         ).model_id
-        == XCLIP_ID
+        == VIDEO_ID
     )
 
 
 @pytest.mark.parametrize("asset_types, name, kinds, roles", [
-    (["video"], "xclip", ["video"], ["l1_segment", "long_video", "short_video"]),
+    (["video"], "viclip-b", ["video"], ["l1_segment", "long_video", "short_video"]),
     (["image"], "gme_qwen2vl", ["image"], ["image"]),
     (["audio"], "gme_qwen2vl", ["text"], ["l2_transcript"]),
     (["image", "audio"], "gme_qwen2vl", ["image", "text"], ["image", "l2_transcript"]),
@@ -267,7 +350,7 @@ def test_a_video_caption_source_uses_gme_and_text_not_video_blocks():
 def test_explicit_empty_block_filters_are_preserved(filters):
     resolved = registry.resolve({"asset_types": ["video"], **filters})
 
-    assert resolved.model.name == "xclip"
+    assert resolved.model.name == "viclip-b"
     for key, value in filters.items():
         assert resolved.params[key] == value
 
@@ -287,14 +370,14 @@ def test_document_prose_and_figure_filters_do_not_select_a_media_model():
     assert registry.resolve({'asset_types': ['pdf'], 'block_roles': ['doc_image']}) is None
 
 
-@pytest.mark.parametrize("model_id", [XCLIP_ID, GME_ID])
+@pytest.mark.parametrize("model_id", [*(f"{family}-fp16" for family in VIDEO_FAMILIES), GME_ID])
 @pytest.mark.parametrize("scope", [{}, {"asset_types": None}, {"asset_types": []}])
 def test_an_explicit_media_model_does_not_replace_required_asset_scope(model_id, scope):
     with pytest.raises(ValueError, match="asset_types"):
         registry.resolve({"embedding_model": model_id, **scope})
 
 
-@pytest.mark.parametrize("factory", [_xclip_dir, _gme_dir])
+@pytest.mark.parametrize("factory", [video_package, _gme_dir])
 def test_a_recognized_local_media_id_still_requires_asset_scope(tmp_path, monkeypatch, factory):
     monkeypatch.setattr(config, "MODEL_DIR", str(tmp_path))
     with pytest.raises(ValueError, match="asset_types"):
@@ -308,9 +391,9 @@ def test_invalid_or_mixed_document_media_scope_is_rejected(asset_types):
 
 
 @pytest.mark.parametrize("options, message", [
-    ({"asset_types": ["video"], "embedding_model": XCLIP_ID,
+        ({"asset_types": ["video"], "embedding_model": VIDEO_ID,
       "block_roles": ["l2_caption"]}, "block_roles"),
-    ({"asset_types": ["image"], "embedding_model": XCLIP_ID}, "block_roles"),
+        ({"asset_types": ["image"], "embedding_model": VIDEO_ID}, "block_roles"),
     ({"asset_types": ["video"], "embedding_model": GME_ID}, "block_roles"),
     ({"asset_types": ["video"], "embedding_model": "BAAI/bge-small-en-v1.5"}, "embedding_model"),
     ({"asset_types": ["video"], "block_roles": ["l2_caption"],
@@ -333,120 +416,218 @@ def test_explicit_gme_can_embed_video_captions_but_not_raw_video():
 # --- getting a model ready --------------------------------------------------------
 
 
-def test_hand_converted_ir_in_a_precision_folder_counts_as_ready(tmp_path):
-    path = _xclip_dir(tmp_path, ir=False)
-    from inference.multimodal.xclip_openvino import TEXT_IR, VIDEO_IR
+@pytest.mark.parametrize("family", VIDEO_FAMILIES)
+@pytest.mark.parametrize("precision", ["fp16", "fp32"])
+def test_complete_root_video_package_counts_as_ready(tmp_path, family, precision):
+    path = video_package(tmp_path, family=family, precision=precision)
+    model = registry.lookup(None, str(path))
 
-    ir = path / "openvino" / "fp16"
-    ir.mkdir(parents=True)
-    (ir / VIDEO_IR).write_text("<xml/>")
-    (ir / TEXT_IR).write_text("<xml/>")
-    (ir / VIDEO_IR).with_suffix(".bin").touch()
-    (ir / TEXT_IR).with_suffix(".bin").touch()
-
-    assert registry.lookup(XCLIP_ID, None).is_ready(path)
+    assert model.name == family
+    assert model.is_ready(path)
+    metadata = model.implementation().package_metadata(path, expected_name=family)
+    assert metadata["precision"] == precision
+    assert metadata["frames"] == 8
 
 
-def test_fp32_is_preferred_when_several_precisions_are_on_disk(tmp_path):
-    from inference.multimodal.xclip_openvino import TEXT_IR, VIDEO_IR, find_ir_dir
+@pytest.mark.parametrize("family", VIDEO_FAMILIES)
+@pytest.mark.parametrize("field, value", [
+    ("format", 2), ("frames", 16), ("image_size", 256), ("dimension", 1),
+    ("context_length", 1), ("preprocessing", "xclip"), ("tokenizer_type", "unknown"),
+    ("precision", "int8"), ("model_id", "wrong/model"),
+    ("parameter_count", None), ("parameter_count", 0), ("parameter_count", True),
+    ("artifacts", {}), ("artifacts", {"video_encoder": ["video_encoder.xml"]}),
+])
+def test_invalid_manifest_is_rejected_before_build(tmp_path, monkeypatch, family, field, value):
+    path = video_package(tmp_path, family=family)
+    manifest = path / "video_embedding.json"
+    metadata = json.loads(manifest.read_text())
+    metadata[field] = value
+    manifest.write_text(json.dumps(metadata))
+    model = registry.lookup(None, str(path))
+    monkeypatch.setattr(model.__class__, "build", lambda *args: pytest.fail("invalid package must not compile"))
 
-    path = _xclip_dir(tmp_path, ir=False)
+    assert not model.is_ready(path)
+    with pytest.raises(FileNotFoundError, match="Prepare"):
+        registry.load(_record(path, name=family), {})
+
+
+@pytest.mark.parametrize("family", VIDEO_FAMILIES)
+@pytest.mark.parametrize("mutation", ["empty", "symlink", "traversal"])
+def test_unsafe_or_empty_artifacts_are_rejected_before_build(tmp_path, monkeypatch, family, mutation):
+    path = video_package(tmp_path, family=family)
+    artifact = path / "text_encoder.bin"
+    if mutation == "empty":
+        artifact.write_bytes(b"")
+    else:
+        target = tmp_path / "outside.bin"
+        target.write_bytes(b"\x00")
+        if mutation == "symlink":
+            artifact.unlink()
+            artifact.symlink_to(target)
+        else:
+            manifest = path / "video_embedding.json"
+            metadata = json.loads(manifest.read_text())
+            metadata["artifacts"]["tokenizer"].append("../outside.bin")
+            manifest.write_text(json.dumps(metadata))
+    model = registry.lookup(None, str(path))
+    monkeypatch.setattr(model.__class__, "build", lambda *args: pytest.fail("unsafe package must not compile"))
+
+    assert not model.is_ready(path)
+    with pytest.raises(FileNotFoundError, match="unsafe package artifact"):
+        registry.load(_record(path, name=family), {})
+
+
+@pytest.mark.parametrize("family", VIDEO_FAMILIES)
+def test_manifest_precision_must_match_the_directory_suffix(tmp_path, family):
+    path = video_package(tmp_path, name=f"{family}-fp32", family=family, precision="fp16")
+    model = registry.lookup(None, str(path))
+
+    assert not model.is_ready(path)
+    with pytest.raises(FileNotFoundError, match="directory precision conflicts"):
+        registry.load(_record(path, name=family), {})
+
+
+@pytest.mark.parametrize("family", VIDEO_FAMILIES)
+def test_frozen_id_precision_cannot_override_a_valid_independent_package(tmp_path, monkeypatch, family):
+    path = video_package(tmp_path, name="custom-video-package", family=family, precision="fp32")
+    model = registry.lookup(None, str(path))
+    monkeypatch.setattr(model.__class__, "build", lambda *args: pytest.fail("precision conflict must not compile"))
+
+    assert model.is_ready(path)
+    with pytest.raises(ValueError, match="Selected model ID precision conflicts"):
+        registry.load(_record(path, model_id=f"{family}-fp16", name=family), {})
+
+
+@pytest.mark.parametrize("family, other", [("viclip-b", "viclip-l"), ("viclip-l", "cosmos-224p"),
+                                         ("cosmos-224p", "viclip-b")])
+def test_explicit_and_frozen_identity_cannot_silently_change_embedding_space(tmp_path, monkeypatch, family, other):
+    monkeypatch.setattr(config, "MODEL_DIR", str(tmp_path))
+    path = video_package(tmp_path, name=f"{family}-fp16", family=other)
+    model = registry.lookup(f"{family}-fp16", str(path))
+    monkeypatch.setattr(model.__class__, "build", lambda *args: pytest.fail("identity conflict must not compile"))
+
+    assert model.name == family
+    assert not model.is_ready(path)
+    with pytest.raises(FileNotFoundError, match="mismatched video package"):
+        registry.load(_record(path, name=family), {})
+    with pytest.raises(ValueError, match="Frozen model.*conflicts"):
+        registry.load(_record(path, model_id=f"{other}-fp16", name=family), {})
+
+
+@pytest.mark.parametrize("family", VIDEO_FAMILIES)
+def test_precision_variants_are_selected_by_id_not_by_directory_preference(tmp_path, monkeypatch, family):
+    monkeypatch.setattr(config, "MODEL_DIR", str(tmp_path))
     for precision in ("fp16", "fp32"):
-        ir = path / "openvino" / precision
-        ir.mkdir(parents=True)
-        (ir / VIDEO_IR).write_text("<xml/>")
-        (ir / TEXT_IR).write_text("<xml/>")
-        (ir / VIDEO_IR).with_suffix(".bin").touch()
-        (ir / TEXT_IR).with_suffix(".bin").touch()
+        path = video_package(tmp_path, family=family, precision=precision)
+        model = registry.lookup(None, str(path))
+        assert model.is_ready(path)
+    built = []
+    monkeypatch.setattr(model.__class__, "build", lambda self, p, device, params: built.append(p))
 
-    assert find_ir_dir(str(path)) == str(path / "openvino" / "fp32")
+    for precision in ("fp16", "fp32"):
+        model_id = f"{family}-{precision}"
+        resolved = registry.resolve({"asset_types": ["video"], "embedding_model": model_id})
+        registry.load(resolved.record(), resolved.params)
 
-
-def test_an_existing_bare_openvino_dir_counts_as_fp32(tmp_path):
-    """Legacy bare `openvino/` fp32 exports still load without conversion."""
-    from inference.multimodal.xclip_openvino import find_ir_dir
-
-    path = _xclip_dir(tmp_path)
-
-    assert find_ir_dir(str(path)) == str(path / "openvino")
+    assert built == [tmp_path / f"{family}-{precision}" for precision in ("fp16", "fp32")]
 
 
-def _root_xclip_ir(path):
-    from inference.multimodal.xclip_openvino import TEXT_IR, VIDEO_IR
+@pytest.mark.parametrize("family", VIDEO_FAMILIES)
+@pytest.mark.parametrize("directory", ["openvino", "openvino/fp16", "openvino/fp32"])
+def test_nested_ir_is_not_a_substitute_for_the_selected_root_package(tmp_path, family, directory):
+    path = video_package(tmp_path, family=family)
+    nested = path / directory
+    nested.mkdir(parents=True)
+    for filename in ("video_encoder.xml", "video_encoder.bin", "text_encoder.xml", "text_encoder.bin"):
+        (path / filename).rename(nested / filename)
+    model = registry.lookup(None, str(path))
 
-    path.mkdir(parents=True, exist_ok=True)
-    for name in (VIDEO_IR, TEXT_IR):
-        artifact = path / name
-        artifact.write_text('<xml/>')
-        artifact.with_suffix('.bin').touch()
+    assert not model.is_ready(path)
+    # Validation iterates a set: either missing tower may be reported first.
+    with pytest.raises(FileNotFoundError, match=r"package artifact: (video|text)_encoder\.(xml|bin)"):
+        registry.load(_record(path, name=family), {})
 
 
-def test_local_ir_only_variant_is_video_but_reports_missing_package_metadata(tmp_path, monkeypatch):
+@pytest.mark.parametrize("family", VIDEO_FAMILIES)
+def test_local_ir_only_variant_reports_missing_manifest_without_mutating_package(tmp_path, monkeypatch, family):
     from inference import models
 
-    monkeypatch.setattr(config, 'MODEL_DIR', str(tmp_path))
-    path = tmp_path / 'xclip-base-patch16-zero-shot-fp16'
-    _root_xclip_ir(path)
+    monkeypatch.setattr(config, "MODEL_DIR", str(tmp_path))
+    path = video_package(tmp_path, family=family)
+    (path / "video_embedding.json").unlink()
     before = sorted(path.iterdir())
-    resolved = registry.resolve({'asset_types': ['video'], 'embedding_model': path.name})
+    resolved = registry.resolve({"asset_types": ["video"], "embedding_model": path.name})
 
-    assert resolved.model.name == 'xclip'
+    assert resolved.model.name == family
     assert resolved.model_id == resolved.model_path == path.name
     assert not resolved.model.is_ready(path)
-    with pytest.raises(FileNotFoundError, match='config.json.*tokenizer_config.json.*tokenizer.json'):
+    with pytest.raises(FileNotFoundError, match="video_embedding.json"):
         registry.load(resolved.record(), resolved.params)
     assert models.workspace_models() == [{
-        'name': path.name, 'path': str(path), 'ready': False, 'model_type': models.MULTIMODAL,
+        "name": path.name, "path": str(path), "ready": False,
+        "model_type": models.EMBEDDING, "supported_kinds": ["video"],
+        "supported_asset_types": ["video"], "supported_roles": ["l1_segment", "short_video"],
     }]
     assert sorted(path.iterdir()) == before
 
 
-def test_complete_root_ir_package_with_any_local_id_loads_that_exact_package(tmp_path, monkeypatch):
-    from inference.multimodal.xclip_openvino import find_ir_dir
-
-    monkeypatch.setattr(config, 'MODEL_DIR', str(tmp_path))
-    path = _xclip_dir(tmp_path, name='my-prepared-video-variant', frames=16, ir=False)
-    _root_xclip_ir(path)
-    resolved = registry.resolve({'asset_types': ['video'], 'embedding_model': path.name})
+@pytest.mark.parametrize("family", VIDEO_FAMILIES)
+def test_complete_root_package_with_any_local_id_loads_that_exact_package(tmp_path, monkeypatch, family):
+    monkeypatch.setattr(config, "MODEL_DIR", str(tmp_path))
+    path = video_package(tmp_path, name="my-prepared-video-variant", family=family)
+    resolved = registry.resolve({"asset_types": ["video"], "embedding_model": path.name})
     model = resolved.model
     built = []
-    monkeypatch.setattr(model.__class__, 'build', lambda self, p, device, params: built.append((p, dict(params))))
+    monkeypatch.setattr(model.__class__, "build", lambda self, p, device, params: built.append((p, dict(params))))
 
     registry.load(resolved.record(), resolved.params)
 
     assert model.is_ready(path)
-    assert find_ir_dir(str(path)) == str(path)
-    assert built == [(path, {'frames_per_clip': 16})]
+    assert resolved.model.name == family
+    assert built == [(path, {"frames_per_clip": 8})]
 
 
-@pytest.mark.parametrize('missing', ['config.json', 'tokenizer_config.json', 'tokenizer.json'])
-def test_xclip_readiness_requires_package_metadata_before_build(tmp_path, monkeypatch, missing):
-    path = _xclip_dir(tmp_path)
+@pytest.mark.parametrize("family", VIDEO_FAMILIES)
+@pytest.mark.parametrize("missing", [
+    "video_embedding.json", "tokenizer_config.json", "special_tokens_map.json",
+    "video_encoder.xml", "video_encoder.bin", "text_encoder.xml", "text_encoder.bin",
+])
+def test_video_readiness_requires_package_artifacts_before_build(tmp_path, monkeypatch, family, missing):
+    path = video_package(tmp_path, family=family)
     (path / missing).unlink()
-    model = registry.lookup(None, str(path))
-    monkeypatch.setattr(model.__class__, 'build', lambda *args: pytest.fail('must validate before compiling'))
+    model = registry.lookup(f"{family}-fp16", str(path))
+    monkeypatch.setattr(model.__class__, "build", lambda *args: pytest.fail("must validate before compiling"))
 
     assert not model.is_ready(path)
     with pytest.raises(FileNotFoundError, match=missing):
-        registry.load(_record(path), {})
+        registry.load(_record(path, name=family), {})
 
 
-def test_xclip_accepts_local_vocab_and_merges_instead_of_tokenizer_json(tmp_path):
-    path = _xclip_dir(tmp_path)
-    (path / 'tokenizer.json').unlink()
-    (path / 'vocab.json').write_text('{}')
-    (path / 'merges.txt').write_text('')
+@pytest.mark.parametrize("family, missing", [
+    ("viclip-b", "vocab.json"), ("viclip-b", "merges.txt"),
+    ("viclip-l", "vocab.json"), ("viclip-l", "merges.txt"),
+    ("cosmos-224p", "vocab.txt"),
+])
+def test_family_tokenizer_files_cannot_be_replaced_by_tokenizer_json(tmp_path, family, missing):
+    path = video_package(tmp_path, family=family)
+    (path / missing).unlink()
+    (path / "tokenizer.json").write_text("{}")
+    model = registry.lookup(None, str(path))
 
-    assert registry.lookup(None, str(path)).is_ready(path)
+    assert not model.is_ready(path)
+    with pytest.raises(FileNotFoundError, match=missing):
+        registry.load(_record(path, name=family), {})
 
 
+@pytest.mark.parametrize("family", VIDEO_FAMILIES)
 @pytest.mark.parametrize("checkpoint", [False, True])
-def test_an_unprepared_xclip_is_refused_without_downloading_or_converting(tmp_path, checkpoint):
-    path = _xclip_dir(tmp_path, ir=False) if checkpoint else tmp_path / "missing"
+def test_an_unprepared_video_model_is_refused_without_downloading_or_converting(tmp_path, family, checkpoint):
+    path = video_package(tmp_path, family=family, ir=False) if checkpoint else tmp_path / "missing"
+    before = sorted(path.iterdir()) if path.exists() else []
 
     with pytest.raises(FileNotFoundError, match="[Pp]repare"):
-        registry.load(_record(path), {})
-    assert not path.exists() or list((path / "openvino").iterdir()) == []
+        registry.load(_record(path, name=family), {})
+    assert not path.exists() or sorted(path.iterdir()) == before
 
 
 def test_gme_requires_a_prepared_package(tmp_path):
@@ -457,12 +638,13 @@ def test_gme_requires_a_prepared_package(tmp_path):
 # --- building from a profile's record ----------------------------------------------
 
 
-def _record(path, model_id=XCLIP_ID, name="xclip"):
-    return {"name": name, "id": model_id, "path": str(path)}
+def _record(path, model_id=None, name="viclip-b"):
+    return {"name": name, "id": model_id or f"{name}-fp16", "path": str(path)}
 
 
-def test_load_builds_a_ready_model_without_preparing(tmp_path, monkeypatch):
-    path = _xclip_dir(tmp_path)
+@pytest.mark.parametrize("family", VIDEO_FAMILIES)
+def test_load_builds_a_ready_model_without_preparing(tmp_path, monkeypatch, family):
+    path = video_package(tmp_path, family=family)
     built = []
     model = registry.lookup(None, str(path))
     monkeypatch.setattr(
@@ -470,13 +652,14 @@ def test_load_builds_a_ready_model_without_preparing(tmp_path, monkeypatch):
         lambda self, p, device, params: built.append((p, device, dict(params))),
     )
 
-    registry.load(_record(path), {})
+    registry.load(_record(path, name=family), {})
 
-    assert built == [(path, "CPU", {"frames_per_clip": 32})]
+    assert built == [(path, "CPU", {"frames_per_clip": 8})]
 
 
-def test_a_fixed_input_the_source_restated_identically_is_accepted(tmp_path, monkeypatch):
-    path = _xclip_dir(tmp_path)
+@pytest.mark.parametrize("family", VIDEO_FAMILIES)
+def test_a_fixed_input_the_source_restated_identically_is_accepted(tmp_path, monkeypatch, family):
+    path = video_package(tmp_path, family=family)
     model = registry.lookup(None, str(path))
     built = []
     monkeypatch.setattr(
@@ -484,22 +667,24 @@ def test_a_fixed_input_the_source_restated_identically_is_accepted(tmp_path, mon
         lambda self, p, device, params: built.append(dict(params)),
     )
 
-    registry.load(_record(path), {"frames_per_clip": 32})
+    registry.load(_record(path, name=family), {"frames_per_clip": 8})
 
-    assert built == [{"frames_per_clip": 32}]
+    assert built == [{"frames_per_clip": 8}]
 
 
-def test_a_fixed_input_the_source_disagrees_with_fails_at_mount(tmp_path):
-    path = _xclip_dir(tmp_path)
+@pytest.mark.parametrize("family", VIDEO_FAMILIES)
+def test_a_fixed_input_the_source_disagrees_with_fails_at_mount(tmp_path, family):
+    path = video_package(tmp_path, family=family)
     with pytest.raises(ValueError, match="frames_per_clip=16 does not match"):
-        registry.load(_record(path), {"frames_per_clip": 16})
+        registry.load(_record(path, name=family), {"frames_per_clip": 16})
 
 
-def test_the_model_comes_from_the_record_not_todays_defaults(tmp_path, monkeypatch):
+@pytest.mark.parametrize("family", VIDEO_FAMILIES)
+def test_the_model_comes_from_the_record_not_todays_defaults(tmp_path, monkeypatch, family):
     """Changing ENGINE_VIDEO_EMBEDDING_* after creation must not retarget an
     existing source; the profile's record is what is loaded."""
-    path = _xclip_dir(tmp_path)
-    monkeypatch.setattr(config, "VIDEO_EMBEDDING_MODEL_ID", "microsoft/xclip-large")
+    path = video_package(tmp_path, family=family)
+    monkeypatch.setattr(config, "VIDEO_EMBEDDING_MODEL_ID", "viclip-l-fp32")
     monkeypatch.setattr(config, "VIDEO_EMBEDDING_MODEL_PATH", "/somewhere/else")
     model = registry.lookup(None, str(path))
     built = []
@@ -508,13 +693,14 @@ def test_the_model_comes_from_the_record_not_todays_defaults(tmp_path, monkeypat
         lambda self, p, device, params: built.append(str(p)),
     )
 
-    registry.load(_record(path), {})
+    registry.load(_record(path, name=family), {})
 
     assert built == [str(path)]
 
 
-def test_the_device_follows_todays_default_when_the_source_said_none(tmp_path, monkeypatch):
-    path = _xclip_dir(tmp_path)
+@pytest.mark.parametrize("family", VIDEO_FAMILIES)
+def test_the_device_follows_todays_default_when_the_source_said_none(tmp_path, monkeypatch, family):
+    path = video_package(tmp_path, family=family)
     monkeypatch.setattr(config, "VIDEO_EMBEDDING_DEVICE", "GPU")
     model = registry.lookup(None, str(path))
     built = []
@@ -523,8 +709,8 @@ def test_the_device_follows_todays_default_when_the_source_said_none(tmp_path, m
         lambda self, p, device, params: built.append(device),
     )
 
-    registry.load(_record(path), {})
-    registry.load(_record(path), {"embedding_device": "CPU"})
+    registry.load(_record(path, name=family), {})
+    registry.load(_record(path, name=family), {"embedding_device": "CPU"})
 
     assert built == ["GPU", "CPU"]
 
@@ -532,11 +718,12 @@ def test_the_device_follows_todays_default_when_the_source_said_none(tmp_path, m
 # --- the model list ------------------------------------------------------------------
 
 
-def test_workspace_models_classifies_multimodal_directories_apart(tmp_path, monkeypatch):
-    """GME serves both paths; X-CLIP and Whisper must not enter text pickers."""
+def test_workspace_models_classifies_media_as_embeddings_with_capabilities(tmp_path, monkeypatch):
+    """Embedding packages appear once; Whisper remains a separate capability."""
     from inference import models
 
-    _xclip_dir(tmp_path)
+    for family in VIDEO_FAMILIES:
+        video_package(tmp_path, family=family)
     _gme_dir(tmp_path)
     bge = tmp_path / "bge-small-en-v1.5"
     bge.mkdir()
@@ -553,12 +740,29 @@ def test_workspace_models_classifies_multimodal_directories_apart(tmp_path, monk
     for entry in models.workspace_models():
         by_type.setdefault(entry["model_type"], []).append(entry["name"])
 
-    assert sorted(by_type[models.MULTIMODAL]) == [
-        "gme-Qwen2-VL-2B-Instruct-OV",
-        "xclip-base-patch16-zero-shot",
-    ]
+    assert models.MULTIMODAL not in by_type
     assert by_type[models.EMBEDDING] == [
-        "bge-small-en-v1.5", "gme-Qwen2-VL-2B-Instruct-OV"
-    ], "X-CLIP and Whisper are not text models"
+        "bge-small-en-v1.5",
+        "cosmos-224p-fp16",
+        "gme-Qwen2-VL-2B-Instruct-OV",
+        "viclip-b-fp16",
+        "viclip-l-fp16",
+    ]
+    assert [entry["name"] for entry in models.workspace_models(models.MULTIMODAL)] == [
+        "cosmos-224p-fp16", "gme-Qwen2-VL-2B-Instruct-OV", "viclip-b-fp16", "viclip-l-fp16",
+    ]
+    assert {
+        entry["name"]: entry["supported_kinds"] for entry in models.workspace_models(models.EMBEDDING)
+    } == {
+        "bge-small-en-v1.5": ["text"],
+        "cosmos-224p-fp16": ["video"],
+        "gme-Qwen2-VL-2B-Instruct-OV": ["audio", "image", "text"],
+        "viclip-b-fp16": ["video"],
+        "viclip-l-fp16": ["video"],
+    }
     assert by_type[models.ASR] == ["whisper-small"]
     assert next(e for e in models.workspace_models(models.ASR))["ready"] is True
+    assert all(
+        entry["ready"] for entry in models.workspace_models(models.MULTIMODAL)
+        if entry["name"] != "gme-Qwen2-VL-2B-Instruct-OV"
+    )
