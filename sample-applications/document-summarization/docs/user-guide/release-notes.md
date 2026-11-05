@@ -1,10 +1,8 @@
 # Release Notes: Document Summarization Sample Application
 
-## Version 2026.3
+## Version 2026.3.0
 
 **November 2026**
-
-This release introduces **OpenVINO Model Server 2026.3**, a **new default LLM (Qwen3-4B-Instruct-2507)**, and **security vulnerability fixes**, along with various documentation improvements.
 
 **Improved**
 
