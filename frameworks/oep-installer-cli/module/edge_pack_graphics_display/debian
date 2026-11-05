@@ -9,7 +9,7 @@ debian_40_profile_edge_pack_graphics_display () {
 }
 
 debian_40_group_edge_pack_graphics_display () {
-  echo "render:992 video:"
+  echo "render:992 video:44"
 }
 
 debian_40_install_edge_pack_graphics_display () {

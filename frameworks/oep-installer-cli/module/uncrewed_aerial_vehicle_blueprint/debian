@@ -22,7 +22,7 @@ debian_99_profile_uncrewed_aerial_vehicle_blueprint () {
 }
 
 debian_85_group_uncrewed_aerial_vehicle_blueprint () {
-  echo "audio: video: render:992"
+  echo "audio:29 video:44 render:992"
 }
 
 debian_85_install_uncrewed_aerial_vehicle_blueprint () {
