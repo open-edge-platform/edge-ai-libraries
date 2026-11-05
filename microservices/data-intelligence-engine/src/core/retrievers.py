@@ -470,8 +470,9 @@ def graph_search_of(retriever):
     if isinstance(retriever, RRFRetriever):
         for arm in getattr(retriever, "_retrievers", ()):
             inner = getattr(arm, "_retriever", None)
-            if isinstance(inner, GraphSearchArmRetriever):
-                return inner._graph_search
+            search = graph_search_of(inner)
+            if search is not None:
+                return search
     return None
 
 

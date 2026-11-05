@@ -39,6 +39,9 @@ along with the required microservices are as follows.
   - [Build Visual AI Agents with VSS](./visual-ai-agents.md): Build a visual AI agent: install Hermes with a model on OpenVINO Model Server, and connect it to the VSS MCP server on one Intel host.
   - [MCP Server](./mcp-server.md): Connect AI agents and IDE extensions to VSS using the Model Context Protocol (MCP).
 
+- **Features**
+  - [Geo Spatial Map View](./geo-spatial-map-view.md): Show search results as pins on a map.
+
 - **API Reference**
   - [API Reference](./api-reference.md): Comprehensive reference for the available REST API endpoints.
 
@@ -59,6 +62,7 @@ api-reference
 agentic-video-analytics
 visual-ai-agents
 mcp-server
+geo-spatial-map-view
 troubleshooting
 Release Notes <./release-notes.md>
 

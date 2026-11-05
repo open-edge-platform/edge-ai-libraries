@@ -28,6 +28,8 @@ import { VideoTile } from '../../redux/search/VideoTile';
 import VideoGroupsView from '../VideoGroups/VideoGroupsView';
 import TelemetryAccordion from './TelemetryAccordion';
 import { imageSearchEnabled } from '../../utils/featureFlags';
+import { GeoActions, geoSelector } from '../../redux/geo/geoSlice';
+import MapDrawer from '../MapView/MapDrawer';
 
 // Keying by clip identity rather than array position keeps unchanged tiles mounted when a
 // watched query refreshes, so their <video> elements are not torn down and reloaded.
@@ -39,15 +41,49 @@ const searchResultKey = (result: SearchResult, index: number): string => {
   return `${videoId}-${timestamp}`;
 };
 
+// Column: query controls pinned on top at full width, results row below.
+const SearchContentLayout = styled.div`
+  display: flex;
+  flex-flow: column nowrap;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+`;
+
+// Query controls (settings, Map View / Sort / Group, interval). They stay at
+// full width when the map opens. max-height keeps an expanded settings panel
+// from taking the whole results area; the controls scroll on their own then.
+const QueryControls = styled.div`
+  flex: 0 0 auto;
+  width: 100%;
+  max-height: 50%;
+  overflow-x: hidden;
+  overflow-y: auto;
+`;
+
+// Row so the Map View drawer sits beside the results and squeezes only them
+// instead of overlapping.
+const ResultsRow = styled.div`
+  display: flex;
+  flex-flow: row nowrap;
+  flex: 1 1 0%;
+  width: 100%;
+  min-height: 0;
+  overflow: hidden;
+`;
+
 const QueryContentWrapper = styled.div`
   display: flex;
   flex-flow: column nowrap;
   align-items: flex-start;
   justify-content: flex-start;
-  /* The right content panel owns the single scrollbar: tiles + telemetry flow
+  flex: 1 1 auto;
+  min-width: 0;
+  /* The results panel owns the results scrollbar: tiles + telemetry flow
      naturally and this wrapper scrolls as one unit. min-height:0 lets it shrink
-     to the viewport-height grid cell so overflow actually scrolls instead of
-     pushing the layout past the viewport. */
+     to the results row so overflow actually scrolls instead of pushing the
+     layout past the viewport. */
   height: 100%;
   min-height: 0;
   overflow-x: hidden;
@@ -386,6 +422,7 @@ export const QuerySettings: FC = () => {
 export const QueryInfo: FC = () => {
   const { selectedQuery, isSelectedRefreshing } = useAppSelector(SearchSelector);
   const dispatch = useAppDispatch();
+  const { hasIntersections, mapDrawerOpen } = useAppSelector(geoSelector);
   const { t } = useTranslation();
   const [showImageModal, setShowImageModal] = useState(false);
 
@@ -450,6 +487,17 @@ export const QueryInfo: FC = () => {
           <InlineLoading status='active' description={t('searchUpdating')} />
         </span>
       )}
+      {hasIntersections && (
+        <Button
+          kind='ghost'
+          size='sm'
+          aria-pressed={mapDrawerOpen}
+          aria-controls='map-drawer'
+          onClick={() => dispatch(GeoActions.toggleMapDrawer())}
+        >
+          {t('MapView', 'Map View')}
+        </Button>
+      )}
       <ResultViewControls />
       <Button
         kind='ghost'
@@ -485,7 +533,7 @@ export const ResultViewControls: FC = () => {
     { id: 'oldest', label: t('sortOldest', 'Oldest first') },
   ];
   const groupItems: ViewOption<ResultGroupBy>[] = [
-    { id: 'none', label: t('groupNone', 'None') },
+    { id: 'none', label: t('groupNone', 'No grouping') },
     { id: 'tag', label: t('groupTag', 'Tag') },
     { id: 'camera', label: t('groupCamera', 'Camera / video') },
   ];
@@ -655,27 +703,31 @@ export const SearchContent: FC = () => {
   const groupBy = useAppSelector((state) => SearchSelector(state).selectedQuery?.groupBy ?? 'none');
 
   return (
-    <>
-      <QueryContentWrapper>
-        {!hasSelectedQuery && <NoQuerySelected />}
+    <SearchContentLayout>
+      {hasSelectedQuery && (
+        <QueryControls>
+          <QuerySettings />
+          <QueryInfo />
+          <IntervalDisplay />
+        </QueryControls>
+      )}
+      <ResultsRow>
+        <QueryContentWrapper>
+          {!hasSelectedQuery && <NoQuerySelected />}
 
-        {hasSelectedQuery && (
-          <>
-            <QuerySettings />
-            <QueryInfo />
-            <IntervalDisplay />
-            {groupBy !== 'none' ? (
+          {hasSelectedQuery &&
+            (groupBy !== 'none' ? (
               <VideoGroupsView groupBy={groupBy} />
             ) : isSelectedHasError ? (
               <ErrorMessage />
             ) : (
               <VideosContainer />
-            )}
-          </>
-        )}
-        <TelemetryAccordion />
-      </QueryContentWrapper>
-    </>
+            ))}
+          <TelemetryAccordion />
+        </QueryContentWrapper>
+        <MapDrawer />
+      </ResultsRow>
+    </SearchContentLayout>
   );
 };
 

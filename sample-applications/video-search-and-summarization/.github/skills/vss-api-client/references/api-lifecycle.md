@@ -433,3 +433,36 @@ curl -s -X DELETE "$HOST/manager/streams/$STREAM_ID?purge_embeddings=true&purge_
 UI clients additionally emit `streams:subscribe` on the websocket while a
 stream view is open and receive `streams:sync` snapshots; the server only polls
 DataPrep while at least one subscriber is present.
+
+## Map locations: `GET /geo/intersections`
+
+Locations for the search UI's Geo Spatial Map View. Through nginx, prefix the
+path with `/manager`. With nothing configured it returns `source: "none"` and
+no intersections.
+
+```bash
+curl -s http://localhost:12345/manager/geo/intersections | jq .
+```
+
+```json
+{
+  "source": "geo-api",
+  "stale": false,
+  "fetchedAt": "2026-11-05T08:30:00.000Z",
+  "intersections": {
+    "intersection_1": {
+      "label": "Intersection 1",
+      "lat": 37.5,
+      "lon": -122.2,
+      "cameras": {
+        "intersection_1-camera1": { "label": "intersection_1-south", "direction": "south" }
+      }
+    }
+  }
+}
+```
+
+- `source`: `geo-api` (from `GEO_API_URL`), `fallback` (the locations file) or `none`.
+- `stale`: `true` when `GEO_API_URL` is set but its last request failed, so the
+  last copy or the file is served.
+- `fetchedAt`: time of the last refresh; `null` when `source` is `none`.

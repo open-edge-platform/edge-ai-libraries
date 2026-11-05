@@ -9,7 +9,7 @@ accepts a name or an id.
 
 import hashlib
 import os
-from typing import List
+from typing import Dict, List, Optional
 
 import config
 from assetlib.sources.updates import SourceRuleError
@@ -690,7 +690,7 @@ async def set_source_serving_state(
 ):
     """Stop/resume one binding without changing the pool's attachments.
 
-    DEPRECATED stops reads and future writes, retaining indexed data. SERVING
+    DEGRADE stops reads and future writes, retaining indexed data. SERVING
     resumes this exact model, reporting PREPARING until caught up when needed.
     No other binding is replaced or deprecated.
     """
@@ -757,6 +757,12 @@ async def list_assets(
     for asset in page.assets:
         asset.materialization = materialize.materialization_phase(asset.id)
     return page
+
+
+@router.get("/{library}/assets/materialization", response_model=Dict[str, Optional[str]])
+async def get_assets_materialization(library: str, asset_ids: List[str] = Query(...)):
+    _require(library)
+    return {asset_id: materialize.materialization_phase(asset_id) for asset_id in asset_ids}
 
 
 @router.get(

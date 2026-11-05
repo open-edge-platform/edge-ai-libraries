@@ -207,6 +207,20 @@ pipelinemanager:
     # Default minimum peak score for searches (0-1). 0 disables the filter;
     # the UI and API can set a per-query value.
     SEARCH_MIN_PEAK_SCORE: "0"
+  # Locations for the search Geo Spatial Map View (docs/user-guide/geo-spatial-map-view.md).
+  # apiUrl: optional locations API, e.g. http://<host>:<port>/v1/intersections.
+  # intersections: locations used when apiUrl is unset or unreachable.
+  geo:
+    apiUrl: ""
+    refreshMs: "60000"
+    timeoutMs: "3000"
+    intersections: {}
+      # intersection_1:
+      #   label: "Intersection 1"
+      #   lat: 37.51358
+      #   lon: -122.25591
+      #   cameras:
+      #     intersection_1-camera1: { direction: south }
   nodeSelector: {}
   affinity: {}
   tolerations: []
