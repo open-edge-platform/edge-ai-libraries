@@ -1,8 +1,1 @@
-<!--
-SPDX-FileCopyrightText: (C) 2026 Intel Corporation
-SPDX-License-Identifier: Apache-2.0
--->
-
-Use the agent-harness-install skill.
-
 I already run an OpenAI-compatible server at http://<host>:<port>/v1 that needs a bearer token. Install Hermes and route it through the Inference Router to that server without starting a local model server. The model it serves is `<model-name>`.

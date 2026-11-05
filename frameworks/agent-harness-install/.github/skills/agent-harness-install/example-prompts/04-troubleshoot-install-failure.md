@@ -1,10 +1,3 @@
-<!--
-SPDX-FileCopyrightText: (C) 2026 Intel Corporation
-SPDX-License-Identifier: Apache-2.0
--->
-
-Use the agent-harness-install skill.
-
 `./install.sh` fails on my Linux server behind a corporate proxy. I copied the repo over from a Windows machine. Here is the output of the failed run:
 
 ```

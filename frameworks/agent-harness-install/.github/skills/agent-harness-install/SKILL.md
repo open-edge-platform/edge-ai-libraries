@@ -14,14 +14,9 @@ description: >
 license: Apache-2.0
 compatibility: Linux with bash, sudo or root for Docker setup, and network access to Docker Hub and the model hub. Intel GPU optional (CPU-only fallback).
 metadata:
-  author: Vinay G
+  author: open-edge-platform
   tags: "agents openvino inference-router installer intel-gpu"
 ---
-
-<!--
-SPDX-FileCopyrightText: (C) 2026 Intel Corporation
-SPDX-License-Identifier: Apache-2.0
--->
 
 # Agent Harness Install
 
@@ -33,7 +28,7 @@ SPDX-License-Identifier: Apache-2.0
 - The user wants to reuse an existing OpenAI-compatible server (Ollama, vLLM, an internal gateway) behind the Router.
 - The user needs to check health, re-run onboarding, list or remove models, register an MCP endpoint, or uninstall.
 
-Do not use this skill to install Intel GPU drivers or the compute runtime (it only detects them), or to configure the agents beyond the endpoint wiring. It covers the default `--runtime host`. For the OpenShell sandbox runtime, point the user to the [Agent Sandboxing guide](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/frameworks/agent-harness-install/docs/agentic-ai-security/agent-sandboxing.md).
+Do not use this skill to install Intel GPU drivers or the compute runtime (it only detects them), or to configure the agents beyond the endpoint wiring. Questions about writing tools, skills or prompts for an agent are out of scope. Do not answer them with installer commands, including `mcp register`. It covers the default `--runtime host`. For the OpenShell sandbox runtime, point the user to the [Agent Sandboxing guide](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/frameworks/agent-harness-install/docs/agentic-ai-security/agent-sandboxing.md).
 
 ## Instructions
 
@@ -73,7 +68,7 @@ Without a checkout, `install.sh` needs `HARNESS_INSTALL_REPO` and a pinned `HARN
 
 ### 3. Choose the model source
 
-`--model-hub` selects where `--model` is fetched from. The default `openvino` hub converts a Hugging Face id to OpenVINO IR and is the only common path that produces a model agents can use. Hubs other than `openvino` use the Model Download container automatically.
+`--model-hub` selects where `--model` is fetched from. When the user names a hub and a model, give them that exact command first (for example `./install.sh --harness deepagents-code --model-hub ollama --model qwen2.5:7b`), then say whether the model will be served. The default `openvino` hub converts a Hugging Face id to OpenVINO IR and is the only common path that produces a model agents can use. Hubs other than `openvino` use the Model Download container automatically.
 
 A model is served to agents only when the download contains an OVMS `graph.pbtxt`. The `openvino` hub always does; a pre-converted `huggingface` repo or a `remote-url` tarball may. Ollama, Ultralytics, Geti, the zoos and HLS are downloaded and tracked but never served, so tell the user plainly when they pick one. Only one model is served at a time.
 
