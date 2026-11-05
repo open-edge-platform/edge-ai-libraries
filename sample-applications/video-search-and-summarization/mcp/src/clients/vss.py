@@ -328,6 +328,8 @@ class VssClient:
             body["tags"] = ",".join(tags)
         if time_filter:
             body["timeFilter"] = time_filter
+        if min_peak_score is not None:
+            body["minPeakScore"] = min_peak_score
         return await self._request("POST", "/search", json=body)
 
     async def get_search(self, query_id: str) -> dict[str, Any] | None:
@@ -349,7 +351,9 @@ class VssClient:
         """Re-run a persisted search query. Blocks until it has run.
         ``min_peak_score`` replaces the query's saved threshold."""
 
-        body = {"timeFilter": time_filter} if time_filter else {}
+        body: dict[str, Any] = {"timeFilter": time_filter} if time_filter else {}
+        if min_peak_score is not None:
+            body["minPeakScore"] = min_peak_score
         await self._request("POST", f"/search/{_id(query_id)}/refetch", json=body)
 
     async def set_search_watch(self, query_id: str, watch: bool) -> None:

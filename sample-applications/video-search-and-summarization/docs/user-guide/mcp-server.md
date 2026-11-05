@@ -47,6 +47,9 @@ startup, so no MCP-specific configuration is needed per mode.
    |----------------|----------------------------------|------------------------------------|
    | MCP Server     | `http://<HOST_IP>:12345/mcp`     | Streamable HTTP MCP endpoint, proxied by the nginx gateway |
 
+   To install a local agent and model on Intel hardware and connect it to
+   VSS, see [Build Visual AI Agents with VSS](./visual-ai-agents.md).
+
 3. **Stop.** Stop the MCP server together with the rest of VSS:
 
    ```bash
@@ -79,11 +82,12 @@ the feature set behind the decision. **live** means search with a frame-embeddin
 | `vss_list_tags` | — | The tags videos and live cameras are labelled with |
 | `vss_resolve_video` | — | Turn "the warehouse clip" into a video id |
 | `vss_index_video` | search | Make a video searchable (call once per video) |
-| `vss_search_video` | search | Find moments across indexed videos and live cameras; the search is saved in VSS's search history. Optional `sort` (`relevance`, `newest`, `oldest`) orders the hits as a timeline by `observed_at` |
+| `vss_search_video` | search | Find moments across indexed videos and live cameras, by text, by image, or by an earlier hit (`from_hit`); the search is saved in VSS's search history. Optional `sort` (`relevance`, `newest`, `oldest`) orders the hits as a timeline by `observed_at` |
 | `vss_get_search` | search | A saved search and its latest results; `refresh=true` re-runs it first. Takes the same `sort` |
 | `vss_list_searches` | search | Saved searches, newest first |
-| `vss_watch_search` | search | Track a person or object live: start a watched search, poll it for new sightings, stop it (or let it expire after `duration_minutes`). Optional `min_peak_score` (0-1) keeps weak matches out of every refresh |
-| `vss_get_media_frame` | search | The image of a search hit's best-matching frame (or its detected object), from the hit's `frame` locator |
+| `vss_watch_search` | search | Track a person or object live: watch a saved search by its `query_id` and call again with the returned `cursor` for new sightings. The watch stops by itself after `duration_minutes` (default 30). A `min_peak_score` set on the search keeps weak matches out of every refresh |
+| `vss_stop_watch` | search | Stop watching a search; the search stays in history |
+| `vss_get_media_frame` | search | The image of a search hit's best-matching frame (or its detected object), from the hit's `frame` locator. Pass the `frame` object unchanged: live-camera hits also need `media_path` and `bucket_name` |
 | `vss_list_streams` | live | Registered RTSP cameras, with state and ingest stats |
 | `vss_get_stream` | live | One camera's state, stats and last error |
 | `vss_add_stream` | live | Add one or more RTSP cameras |

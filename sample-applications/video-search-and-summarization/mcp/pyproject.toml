@@ -6,9 +6,9 @@ readme = "README.md"
 authors = []
 requires-python = ">=3.10,<3.14"
 dependencies = [
-    "fastmcp>=4.0.10,<5.0.0",
+    "fastmcp>=4.1.6,<5.0.0",
     "httpx>=0.28.1,<1.0.0",
-    "pydantic>=2.13.4,<3.0.0",
+    "pydantic>=2.14.2,<3.0.0",
 ]
 
 [project.scripts]
@@ -16,14 +16,14 @@ mcp-app = "src.main:main"
 
 [dependency-groups]
 dev = [
-    "pytest>=9.0.3,<10.0.0",
+    "pytest>=9.2.0,<10.0.0",
 ]
 
 [tool.poetry]
 packages = [{include = "src"}]
 
 [build-system]
-requires = ["poetry-core>=2.0.0"]
+requires = ["poetry-core>=2.5.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]

@@ -5,8 +5,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from mcp.types import ToolAnnotations
@@ -23,7 +24,7 @@ READ_ONLY = ToolAnnotations(readOnlyHint=True, openWorldHint=False)
 STARTS_WORK = ToolAnnotations(
     readOnlyHint=False, destructiveHint=False, openWorldHint=False
 )
-IDEMPOTENT_WORK = STARTS_WORK.model_copy(update={"idempotentHint": True})
+IDEMPOTENT_WORK = STARTS_WORK.model_copy(update={"idempotent_hint": True})
 DESTRUCTIVE = ToolAnnotations(
     readOnlyHint=False,
     destructiveHint=True,
@@ -44,11 +45,8 @@ class Deps:
     client: VssClient
     settings: Settings
     features: Features = ALL_FEATURES
-
-
-#: Watch auto-refresh interval assumed when the config cannot be read;
-#: Pipeline Manager's own default.
-DEFAULT_REFRESH_SECONDS = 10.0
+    #: Pending auto-stop timers of watched searches, by query id.
+    watch_timers: dict[str, asyncio.Task[None]] = field(default_factory=dict)
 
 
 async def read_refresh_config(deps: Deps) -> tuple[bool, float] | None:

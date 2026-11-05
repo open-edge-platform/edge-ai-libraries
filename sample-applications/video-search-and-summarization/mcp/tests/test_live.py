@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """Tests for live cameras: stream tools, live hits, and tracking with
-vss_watch_search."""
+vss_watch_search and vss_stop_watch."""
 
 from __future__ import annotations
 
@@ -17,7 +17,13 @@ from src.features import ALL_FEATURES, Features
 from src.projections import slim_search_hit
 from src.tools import Deps
 from src.tools.discovery import get_deployment_info, list_tags
-from src.tools.search import decode_cursor, encode_cursor, search_video, watch_search
+from src.tools.search import (
+    decode_cursor,
+    encode_cursor,
+    search_video,
+    stop_watch,
+    watch_search,
+)
 from src.tools.streams import add_streams, list_streams, remove_streams, update_stream
 from tests.fakes import (
     DATASTORE_URL,
@@ -255,13 +261,11 @@ async def test_deployment_info_and_watch_agree_on_the_refresh_config(
     deps = _deps(fake)
 
     info = await get_deployment_info(deps)
-    watched = await watch_search(deps, query="person")
+    watched = await _watch(deps, "person")
 
     assert info["watch_refresh"] == expected
-    # With auto-refresh on, the next poll waits by itself.
-    assert watched["poll_after_seconds"] == (
-        0.0 if expected["enabled"] else expected["interval_seconds"]
-    )
+    # Without auto-refresh no new sighting can arrive, and the watch says so.
+    assert ("error" in watched) is (not expected["enabled"])
 
 
 async def test_deployment_info_omits_an_unreadable_refresh_config() -> None:
@@ -276,27 +280,58 @@ async def test_deployment_info_omits_an_unreadable_refresh_config() -> None:
 # Tracking
 
 
-async def test_starting_a_track_watches_a_rolling_window() -> None:
+async def _watch(deps: Deps, query: str, **kwargs) -> dict:
+    """Search, then watch that search -- the agent's two-step start."""
+
+    found = await search_video(deps, query)
+    return await watch_search(deps, found["query_id"], **kwargs)
+
+
+async def test_starting_a_watch_gives_its_search_a_rolling_window() -> None:
     fake = FakeVss(
         streams=[make_stream("cam1")], hits=[make_live_hit("cam1", 1.0, EPOCH)]
     )
 
-    result = await watch_search(
-        _deps(fake), query="man in red jacket", window_minutes=5, duration_minutes=10
-    )
+    result = await _watch(_deps(fake), "man in red jacket", duration_minutes=10)
 
-    (body,) = _posted(fake, "POST", "/search")
+    (body,) = _posted(fake, "POST", "/search/q1/refetch")
     assert body["timeFilter"] == {"value": 5, "unit": "minutes", "source": "relative"}
     assert _posted(fake, "PATCH", "/search/q1/watch") == [{"watch": True}]
-    assert result["watch"] is True and result["expired"] is False
+    assert result["watch"] is True
     assert result["window_minutes"] == 5
-    assert result["new_count"] == 1
+    assert len(result["sightings"]) == 1
     assert result["last_seen"][0]["video_id"] == "cam1"
-    assert result["poll_after_seconds"] == 0.0
     assert 590 <= result["remaining_seconds"] <= 600
-    newest, expires = decode_cursor(result["next_cursor"])
+    qid, newest, expires = decode_cursor(result["next_cursor"])
+    assert qid == "q1"
     assert newest == pytest.approx(EPOCH + 4.5)
     assert expires == pytest.approx(time.time() + 600, abs=5)
+
+
+async def test_a_watch_runs_thirty_minutes_by_default() -> None:
+    fake = FakeVss(hits=[make_live_hit("cam1", 1.0, EPOCH)])
+
+    result = await _watch(_deps(fake), "person")
+
+    assert 1790 <= result["remaining_seconds"] <= 1800
+
+
+async def test_a_search_started_elsewhere_keeps_its_own_window() -> None:
+    """A search from the VSS UI with "last 2 hours" is watched as it is."""
+
+    fake = FakeVss()
+    fake.searches["q1"] = {
+        "queryId": "q1",
+        "query": "person",
+        "watch": True,
+        "timeFilter": {"value": 2, "unit": "hours", "source": "relative"},
+        "results": [],
+    }
+
+    await watch_search(_deps(fake), "q1")
+
+    assert not _posted(fake, "POST", "/search/q1/refetch")
+    assert not _posted(fake, "PATCH", "/search/q1/watch")
 
 
 async def test_polling_returns_only_new_sightings() -> None:
@@ -305,7 +340,7 @@ async def test_polling_returns_only_new_sightings() -> None:
         hits=[make_live_hit("cam1", 1.0, EPOCH)],
     )
     deps = _deps(fake)
-    started = await watch_search(deps, query="person")
+    started = await _watch(deps, "person")
     fake.searches["q1"]["results"] = [
         make_live_hit("cam1", 1.0, EPOCH),
         make_live_hit("cam2", 0.9, EPOCH + 30),
@@ -315,84 +350,160 @@ async def test_polling_returns_only_new_sightings() -> None:
 
     assert [hit["video_id"] for hit in polled["sightings"]] == ["cam2"]
     assert [seen["video_id"] for seen in polled["last_seen"]] == ["cam2", "cam1"]
-    assert not _posted(fake, "POST", "/search/q1/refetch")
+    assert len(_posted(fake, "POST", "/search/q1/refetch")) == 1
 
 
-async def test_a_track_stops_itself_once_its_time_is_up() -> None:
+async def test_repeating_the_duration_on_a_poll_does_not_extend_the_watch() -> None:
     fake = FakeVss(hits=[make_live_hit("cam1", 1.0, EPOCH)])
     deps = _deps(fake)
-    await watch_search(deps, query="person")
+    started = await _watch(deps, "person", duration_minutes=10)
 
-    result = await watch_search(
-        deps, "q1", cursor=encode_cursor(EPOCH, time.time() - 1)
+    polled = await watch_search(
+        deps, "q1", cursor=started["next_cursor"], duration_minutes=60, wait_seconds=0
     )
 
-    assert result["expired"] is True
+    assert decode_cursor(polled["next_cursor"])[2] == decode_cursor(started["next_cursor"])[2]
+
+
+async def test_a_watch_stops_itself_once_its_time_is_up() -> None:
+    fake = FakeVss(hits=[make_live_hit("cam1", 1.0, EPOCH)])
+    deps = _deps(fake)
+    await _watch(deps, "person")
+
+    result = await watch_search(
+        deps, "q1", cursor=encode_cursor("q1", EPOCH, time.time() - 1)
+    )
+
     assert result["watch"] is False
     assert result["next_cursor"] is None
     assert _posted(fake, "PATCH", "/search/q1/watch")[-1] == {"watch": False}
     assert "q1" in fake.searches
+    assert "q1" not in deps.watch_timers
 
 
-async def test_stopping_keeps_the_search() -> None:
+async def test_a_watch_nobody_polls_still_stops_at_its_expiry() -> None:
+    """The agent may never call again; VSS must not refresh forever."""
+
+    fake = FakeVss(hits=[make_live_hit("cam1", 1.0, EPOCH)])
+    deps = _deps(fake)
+
+    await _watch(deps, "person", duration_minutes=0.001)  # 60 ms
+    assert fake.searches["q1"]["watch"] is True
+    await asyncio.sleep(0.2)
+
+    assert fake.searches["q1"]["watch"] is False
+    assert "q1" not in deps.watch_timers
+
+
+async def test_stopping_cancels_the_expiry_timer_and_keeps_the_search() -> None:
     fake = FakeVss()
     deps = _deps(fake)
-    await watch_search(deps, query="person")
+    await _watch(deps, "person")
+    timer = deps.watch_timers["q1"]
 
-    result = await watch_search(deps, "q1", watch=False)
+    result = await stop_watch(deps, "q1")
+    await asyncio.sleep(0)
 
     assert result["watch"] is False
     assert fake.searches["q1"]["watch"] is False
+    assert timer.cancelled()
 
 
-async def test_tracking_from_a_hit_searches_by_its_crop() -> None:
+async def test_a_poll_after_a_restart_sets_the_expiry_timer_again() -> None:
+    fake = FakeVss(hits=[make_live_hit("cam1", 1.0, EPOCH)])
+    deps = _deps(fake)
+    started = await _watch(deps, "person")
+    deps.watch_timers.pop("q1").cancel()  # what a restart loses
+
+    await watch_search(deps, "q1", cursor=started["next_cursor"], wait_seconds=0)
+
+    assert "q1" in deps.watch_timers
+
+
+async def test_watching_a_hit_searches_by_its_crop() -> None:
     fake = FakeVss(streams=[make_stream("cam1")])
     frame = slim_search_hit(make_live_hit("cam1", 1.0, EPOCH), DATASTORE_URL)["frame"]
+    deps = _deps(fake)
 
-    result = await watch_search(_deps(fake), from_hit=frame)
+    found = await search_video(deps, from_hit=frame)
+    result = await watch_search(deps, found["query_id"])
 
     (params,) = fake.frame_params
     assert params["variant"] == "crop"
     assert params["crop_bbox"] == "395,452,542,894"
     (body,) = _posted(fake, "POST", "/search")
     assert body["image"].startswith("data:image/jpeg;base64,")
-    assert result["image_search"] is True
+    assert result["watch"] is True
 
 
 @pytest.mark.parametrize(
     "kwargs",
     [
-        {},
-        {"query": "a", "image": "b"},
-        {"query": "a", "window_minutes": 0},
-        {"query": "a", "duration_minutes": -1},
-        {"query_id": "q1", "query": "a"},
+        {"query_id": "nope"},
         {"query_id": "q1", "cursor": "nonsense"},
-        {"query_id": "q1", "wait_seconds": -1},
-        {"query_id": "q1", "wait_seconds": 1000},
+        {"query_id": "q1", "cursor": encode_cursor("q2", EPOCH, time.time() + 60)},
     ],
 )
-async def test_bad_track_arguments_are_refused(kwargs: dict) -> None:
+async def test_bad_watch_arguments_are_refused(kwargs: dict) -> None:
     fake = FakeVss()
     fake.searches["q1"] = {"queryId": "q1", "watch": False, "results": []}
 
     with pytest.raises(VssError):
         await watch_search(_deps(fake), **kwargs)
+    assert not _posted(fake, "PATCH", "/search/q1/watch")
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        {"duration_minutes": 0},
+        {"duration_minutes": -1},
+        {"duration_minutes": 24 * 60 + 1},
+        {"wait_seconds": -1},
+        {"wait_seconds": 1000},
+    ],
+)
+async def test_out_of_range_watch_arguments_are_refused_by_the_schema(args: dict) -> None:
+    fake = FakeVss()
+    fake.searches["q1"] = {"queryId": "q1", "watch": False, "results": []}
+
+    async with Client(make_mcp(fake=fake)) as client:
+        result = await client.call_tool(
+            "vss_watch_search", {"query_id": "q1", **args}, raise_on_error=False
+        )
+
+    assert result.is_error
+    assert not _posted(fake, "PATCH", "/search/q1/watch")
+
+
+async def test_null_duration_and_wait_mean_the_defaults() -> None:
+    """MCP Inspector and some agents send null for an optional field left
+    empty; that must mean the default, not a validation error."""
+
+    fake = FakeVss(hits=[make_live_hit("cam1", 1.0, EPOCH)])
+    await search_video(_deps(fake), "person")
+
+    async with Client(make_mcp(fake=fake)) as client:
+        result = await client.call_tool(
+            "vss_watch_search",
+            {"query_id": "q1", "cursor": None, "stream_ids": None,
+             "duration_minutes": None, "wait_seconds": None},
+        )
+
+    assert 1790 <= result.structured_content["remaining_seconds"] <= 1800
 
 
 async def test_without_auto_refresh_a_poll_says_so_without_waiting() -> None:
     fake = FakeVss(hits=[make_live_hit("cam1", 1.0, EPOCH)])
     fake.refresh_config = {"enabled": False, "intervalMs": 10000}
     deps = _deps(fake)
-    started = await watch_search(deps, query="person")
+    started = await _watch(deps, "person")
 
     began = time.monotonic()
     result = await watch_search(deps, "q1", cursor=started["next_cursor"], wait_seconds=5)
 
     assert time.monotonic() - began < 0.05
-    assert not _posted(fake, "POST", "/search/q1/refetch")
     assert "auto-refresh is disabled" in result["error"]
-    assert result["poll_after_seconds"] == 10.0
 
 
 async def test_a_poll_waits_for_a_new_sighting() -> None:
@@ -405,7 +516,7 @@ async def test_a_poll_waits_for_a_new_sighting() -> None:
         settings=make_settings(default_wait_seconds=5, poll_interval_seconds=0.01),
         features=ALL_FEATURES,
     )
-    started = await watch_search(deps, query="person")
+    started = await _watch(deps, "person")
 
     async def refresh_later() -> None:
         await asyncio.sleep(0.05)
@@ -426,13 +537,13 @@ async def test_a_poll_waits_for_a_new_sighting() -> None:
 async def test_a_quiet_poll_returns_after_its_wait() -> None:
     fake = FakeVss(hits=[make_live_hit("cam1", 1.0, EPOCH)])
     deps = _deps(fake)
-    started = await watch_search(deps, query="person")
+    started = await _watch(deps, "person")
 
     began = time.monotonic()
     polled = await watch_search(deps, "q1", cursor=started["next_cursor"])
 
     assert time.monotonic() - began >= 0.05
-    assert polled["new_count"] == 0 and polled["watch"] is True
+    assert polled["sightings"] == [] and polled["watch"] is True
     assert [seen["video_id"] for seen in polled["last_seen"]] == ["cam1"]
 
 
@@ -443,15 +554,15 @@ async def test_a_poll_never_waits_past_the_expiry() -> None:
         settings=make_settings(default_wait_seconds=5, poll_interval_seconds=0.01),
         features=ALL_FEATURES,
     )
-    await watch_search(deps, query="person")
+    await _watch(deps, "person")
 
     began = time.monotonic()
     polled = await watch_search(
-        deps, "q1", cursor=encode_cursor(EPOCH + 10, time.time() + 0.1)
+        deps, "q1", cursor=encode_cursor("q1", EPOCH + 10, time.time() + 0.1)
     )
 
     assert time.monotonic() - began < 1
-    assert polled["new_count"] == 0
+    assert polled["sightings"] == []
 
 
 async def test_uploaded_videos_count_as_sightings_too() -> None:
@@ -461,7 +572,7 @@ async def test_uploaded_videos_count_as_sightings_too() -> None:
 
     fake = FakeVss(videos=[make_video("v1", "a.mp4")], hits=[make_hit("v1", 0.9, 0)])
 
-    result = await watch_search(_deps(fake), query="person")
+    result = await _watch(_deps(fake), "person")
 
     assert [hit["video_id"] for hit in result["sightings"]] == ["v1"]
 

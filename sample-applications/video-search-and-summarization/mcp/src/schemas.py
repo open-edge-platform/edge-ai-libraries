@@ -326,25 +326,25 @@ class WatchResult(TypedDict):
 
     sightings are the hits new since the cursor passed in (all current hits
     when none was), newest first. Pass next_cursor back unchanged on the
-    next call. expired is true once duration_minutes has passed; the search
-    is then no longer watched."""
+    next call. watch is false once the watch's duration has passed."""
 
     query_id: str
-    watch: bool
-    status: str | None
     query: NotRequired[str]
-    image_search: bool
+    watch: bool
+    remaining_seconds: int
     window_minutes: NotRequired[int]
     min_peak_score: NotRequired[float]
-    stream_ids: NotRequired[list[str]]
-    last_refreshed: NotRequired[str]
-    server_time_utc: str
-    expires_at: NotRequired[str]
-    remaining_seconds: NotRequired[int]
-    expired: bool
     error: NotRequired[str]
-    new_count: int
     sightings: list[Hit]
     last_seen: list[LastSeen]
     next_cursor: str | None
-    poll_after_seconds: float
+
+
+class StoppedWatch(TypedDict):
+    """A search no longer watched. was_watching is false when it already
+    was not; the search itself stays in history either way."""
+
+    query_id: str
+    watch: bool
+    was_watching: bool
+    query: NotRequired[str]

@@ -37,6 +37,8 @@ The detailed documentation to help you get started, configure, and deploy the sa
   - [How to Deploy with Helm](./docs/user-guide/deploy-with-helm.md): How to deploy using the Helm chart.
 
 - **AI Agent Integration**
+  - [Agentic Video Analytics](./docs/user-guide/agentic-video-analytics.md): Use AI agents such as Claude Code, OpenClaw, and Hermes Agent with the VSS MCP server to review incidents, find people, track them across cameras, and get customized summaries.
+  - [Build Visual AI Agents with VSS](./docs/user-guide/visual-ai-agents.md): Build a visual AI agent: install Hermes with a model on OpenVINO Model Server, and connect it to the VSS MCP server on one Intel host.
   - [MCP Server](./docs/user-guide/mcp-server.md): Connect AI agents to VSS Search using the Model Context Protocol (MCP).
   - [Agent Skills](./AGENTS.md): Discover reusable VSS workflow skills for Codex, Copilot CLI, Claude Code, and other coding agents.
 

@@ -58,15 +58,18 @@ In the VSS stack, `docker/compose.mcp.yaml` starts it only after
 | Tool | Needs |
 |---|---|
 | `vss_get_deployment_info`, `vss_list_videos`, `vss_list_tags`, `vss_resolve_video` | — |
-| `vss_index_video`, `vss_search_video`, `vss_get_search`, `vss_list_searches`, `vss_watch_search`, `vss_get_media_frame` | search |
+| `vss_index_video`, `vss_search_video`, `vss_get_search`, `vss_list_searches`, `vss_watch_search`, `vss_stop_watch`, `vss_get_media_frame` | search |
 | `vss_list_streams`, `vss_get_stream`, `vss_add_stream`, `vss_update_stream`, `vss_remove_stream` | live (search + `imageSearchEnabled`) |
 | `vss_summarize_video`, `vss_get_video_summary_timeline` | summary |
 
-`vss_watch_search` is also the live tracker: start (`query`/`image`/`from_hit`,
-`window_minutes`, `duration_minutes`), poll (`query_id` + `cursor`), stop
-(`watch=false`, or auto-expiry on the first poll after `duration_minutes`).
-`min_peak_score` (0-1) gates the watch at retrieval on every VSS refresh and is
-saved on the search; `min_raw_score` only filters the sightings one call reports.
+`vss_watch_search` is the live tracker. It takes an existing search's
+`query_id` (from `vss_search_video`, whose `from_hit` searches by a hit's crop,
+or from the VSS UI): the first call watches it, later calls pass `cursor` and
+long-poll for new sightings. `vss_stop_watch` stops it; otherwise it stops after
+`duration_minutes` (default 30) through a timer in the server process.
+Each refresh searches the search's rolling window (5 minutes if it had none)
+and is gated by its saved `min_peak_score`; change either by running a new
+search.
 `vss_remove_stream` is the only destructive tool and never purges footage.
 
 Resources: `vss://deployment`, `vss://videos`, `vss://tags`, plus

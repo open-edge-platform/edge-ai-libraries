@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Troubleshooting
 
 ## Containers have started but the application is not working
@@ -38,6 +43,16 @@ This should resolve OpenCV-related dependency issues and allow the summary stack
 1. Verify at least one video has been uploaded or a summary run completed after the model change.
 2. If you recently changed `MULTIMODAL_EMBEDDING_MODEL` or `TEXT_EMBEDDING_MODEL`, re-run ingestion so embeddings are recreated with the new dimensions. You can clean existing data with `source setup.sh --clean-data` and then bring the application back up with `source setup.sh --search`.
 3. Review the supported embedding models and their dimensions in [Supported Models for Multimodal Embedding Serving](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/multimodal-embedding-serving/supported-models.html) before switching models.
+
+## Model-download cache permission errors
+
+**Problem**: Setup stops before the model-download container becomes healthy, with `Failed to initialize cache` and `Permission denied` for `/opt/models/.model-download-cache/uv`.
+
+**Cause**: The container runs as a non-root user whose UID can differ from the host user. Adding the host group to the container does not grant write access to a host directory that is not group-writable.
+
+**Solution**: Use the updated `setup.sh`. It places the UV dependency cache in the container's `/tmp/model-download-cache/uv`, which is discarded when the transient container is removed. Downloaded models remain persistent in the host's `ov_models/` directory.
+
+Before starting model-download, setup assigns `ov_models/` to the host user's primary group and grants that group read, write, and traversal access. It stops with an error if this preparation fails. For an existing model tree owned by another user, have its owner or administrator grant the intended shared group access to the affected directories and files, then retry. Do not run model-download as root or make the model directory world-writable.
 
 ## VLM Microservice Model Loading Issues
 

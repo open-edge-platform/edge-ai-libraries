@@ -50,6 +50,7 @@ SEARCH_TOOLS = {
     "vss_get_search",
     "vss_list_searches",
     "vss_watch_search",
+    "vss_stop_watch",
     "vss_get_media_frame",
 }
 
@@ -80,6 +81,7 @@ WORK_TOOLS = {
     "vss_search_video",
     "vss_get_search",
     "vss_watch_search",
+    "vss_stop_watch",
     "vss_add_stream",
     "vss_update_stream",
     "vss_remove_stream",
@@ -184,6 +186,15 @@ async def test_annotations_tell_clients_which_tools_only_read() -> None:
         assert hints.read_only_hint is (tool.name not in WORK_TOOLS), tool.name
         assert hints.open_world_hint is False, tool.name
         assert bool(hints.destructive_hint) is (tool.name in DESTRUCTIVE_TOOLS), tool.name
+
+
+async def test_repeatable_tools_say_so() -> None:
+    """Watching, stopping and re-reading a search can be repeated safely; a
+    client may retry them without asking."""
+
+    hints = {tool.name: tool.annotations for tool in await make_mcp(ALL_FEATURES).list_tools()}
+    for name in ("vss_get_search", "vss_watch_search", "vss_stop_watch"):
+        assert hints[name].idempotent_hint is True, name
 
 
 @pytest.mark.parametrize(
@@ -431,7 +442,8 @@ async def test_a_waiting_watch_poll_reports_progress_to_the_client() -> None:
         updates.append(message)
 
     async with Client(_protocol_mcp(fake), progress_handler=on_progress) as client:
-        started = await client.call_tool("vss_watch_search", {"query": "person"})
+        await client.call_tool("vss_search_video", {"query": "person"})
+        started = await client.call_tool("vss_watch_search", {"query_id": "q1"})
         polled = await client.call_tool(
             "vss_watch_search",
             {
@@ -441,7 +453,7 @@ async def test_a_waiting_watch_poll_reports_progress_to_the_client() -> None:
             },
         )
 
-    assert polled.structured_content["new_count"] == 0
+    assert polled.structured_content["sightings"] == []
     assert updates and updates[0] == "Waiting for new sightings"
 
 
@@ -568,6 +580,7 @@ async def test_every_tool_result_fits_the_byte_budget(name: str, args: dict) -> 
         ("vss_list_searches", {}),
         ("vss_get_search", {"query_id": "q1", "refresh": True}),
         ("vss_watch_search", {"query_id": "q1"}),
+        ("vss_stop_watch", {"query_id": "q1"}),
     ],
 )
 async def test_every_tool_result_matches_its_output_schema(name: str, args: dict) -> None:

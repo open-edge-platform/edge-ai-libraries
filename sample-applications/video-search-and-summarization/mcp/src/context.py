@@ -237,8 +237,8 @@ def _register_live_prompts(mcp: FastMCP) -> None:
         name="track_object",
         description=(
             "Follow a specific object -- a person, vehicle, animal, bag or "
-            "other item -- across live cameras: start a watched search, poll "
-            "it for new sightings, verify each against the reference, and "
+            "other item -- across live cameras: search for it, watch that "
+            "search for new sightings, verify each against the reference, and "
             "stop at the user's time limit."
         ),
     )
@@ -266,26 +266,27 @@ def _register_live_prompts(mcp: FastMCP) -> None:
             "results: the detector crops people, vehicles, animals and "
             "common items, so a sighting is matched on the object rather "
             "than the whole scene.",
-            "Seed: if the user pointed at a search hit, pass that hit's "
-            "`frame` object unchanged as from_hit -- searching by the hit's "
-            "detected crop is the closest thing to that specific object. "
-            f"Otherwise pass query={target!r} rewritten as a short visual "
-            "description: the object's kind plus what sets it apart (colour, "
-            "clothing or markings, size, what it carries or is attached to). "
-            "Leave out names, plate numbers and text: embeddings cannot read "
-            "them.",
-            "Start: call vss_watch_search with the seed, window_minutes=5 so "
-            "each refresh ranks only recent footage"
+            "Search: if the user pointed at a search hit, call "
+            "vss_search_video with that hit's `frame` object unchanged as "
+            "from_hit -- searching by the hit's detected crop is the closest "
+            "thing to that specific object. "
+            f"Otherwise call it with query={target!r} rewritten as a short "
+            "visual description: the object's kind plus what sets it apart "
+            "(colour, clothing or markings, size, what it carries or is "
+            "attached to). Leave out names, plate numbers and text: "
+            "embeddings cannot read them. Keep its query_id.",
+            "Start: call vss_watch_search with the query_id"
             + (
-                f", and duration_minutes={duration} because the user asked for "
+                f" and duration_minutes={duration} because the user asked for "
                 f"{duration} minutes"
                 if duration
-                else "; add duration_minutes only if the user gives a time limit"
+                else " (it stops by itself after 30 minutes unless you pass "
+                "duration_minutes)"
             )
-            + ". Keep its query_id and next_cursor.",
-            "Poll: call vss_watch_search with query_id and "
-            "cursor=next_cursor (after poll_after_seconds, usually 0: the "
-            "call itself waits for new sightings). Repeat while watch is true. "
+            + ". It returns the current sightings and next_cursor.",
+            "Poll: call vss_watch_search with the same query_id and "
+            "cursor=next_cursor, straight away: the call itself waits for new "
+            "sightings. Repeat while watch is true. "
             "Report only new sightings: camera (video_name), observed_at, and "
             "the clip url exactly as returned. last_seen shows where the "
             "object was most recently seen on each camera.",
@@ -295,10 +296,10 @@ def _register_live_prompts(mcp: FastMCP) -> None:
             "and compare it to the seed. Look-alikes are common -- many white "
             "vans, many black backpacks -- and embedding similarity is not "
             "identity: say \"possible match\" when unsure, and ignore low "
-            "raw_score noise (min_raw_score can filter it).",
-            "Stop: when expired is true the watch has already stopped. If the "
-            "user says stop, call vss_watch_search with query_id and "
-            "watch=false. Summarise the route: sightings in time order, with "
+            "raw_score noise.",
+            "Stop: when watch is false the watch has already stopped. If the "
+            "user says stop, call vss_stop_watch with the query_id. "
+            "Summarise the route: sightings in time order, with "
             "the camera each was on.",
         ]
         return "\n".join([f"Track: {target}", ""] + _numbered(steps))

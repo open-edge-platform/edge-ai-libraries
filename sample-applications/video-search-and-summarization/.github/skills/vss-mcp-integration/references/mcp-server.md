@@ -42,23 +42,31 @@ it hands to an agent is one it has reached itself.
   returns `query_id` and `status`; `status: "running"` means fetch the hits
   later with `vss_get_search`, which with `refresh=true` (or `start`/`end`)
   re-runs it via `POST /search/{id}/refetch` first. `vss_list_searches` and
-  `vss_watch_search` wrap `GET /search` and `PATCH /search/{id}/watch`. A failed query (`queryStatus: "error"`) is
+  `vss_watch_search`/`vss_stop_watch` wrap `GET /search` and `PATCH /search/{id}/watch`. A failed query (`queryStatus: "error"`) is
   returned as a tool error.
-- **Watching is tracking.** `vss_watch_search` can create the search itself
-  (`query`, `image`, or `from_hit`, which fetches the hit's crop with
-  `GET /frames` and searches by it), with `window_minutes` as a relative
-  `timeFilter` that Pipeline Manager recomputes on every refresh. Polls read
-  `GET /search/{id}` and return hits newer than `cursor`
-  (`w1.<newest_ms>.<expiry_ms>`, opaque to the agent). A poll with a cursor
-  is a long poll: it re-reads the search until a new sighting arrives or
-  `wait_seconds` (default 30, max 120, capped by `DEFAULT_WAIT_SECONDS` and
-  the expiry) runs out, sending MCP progress notifications meanwhile, so
-  `poll_after_seconds` is `0`. When `GET /search/refresh-config` reports
+- **Watching is tracking.** `vss_watch_search` watches an existing search by
+  `query_id`; `vss_search_video` creates it (`query`, `image`, or `from_hit`,
+  which fetches the hit's crop with `GET /frames` and searches by it). A
+  search without a relative window first gets a 5-minute one through
+  `POST /search/{id}/refetch`, which Pipeline Manager slides forward on every
+  refresh; a search that already has one keeps it. An unwatched search is
+  then watched with `PATCH /search/{id}/watch`. Polling changes nothing on a
+  search already set up that way. Polls read `GET /search/{id}` and return
+  hits newer than `cursor` (`w2.<query_id>.<newest_ms>.<expiry_ms>`, opaque
+  to the agent; a cursor from another search is refused), at most 10 per
+  call. A poll with a cursor is a long poll: it re-reads the search until a
+  new sighting arrives or `wait_seconds` (default 30, max 120, capped by
+  `DEFAULT_WAIT_SECONDS` and the expiry) runs out, sending MCP progress
+  notifications meanwhile. When `GET /search/refresh-config` reports
   auto-refresh disabled, nothing new can arrive: the poll returns at once with
-  an `error` pointing at `vss_get_search refresh=true`, and
-  `poll_after_seconds` is the configured interval. Expiry
-  (`duration_minutes`) is applied on the next poll, which unwatches and
-  returns `expired: true`.
+  an `error` pointing at `vss_get_search refresh=true`. The argument ranges
+  are in the tool's input schema, so out-of-range values are refused before
+  the tool runs. Expiry (`duration_minutes`, default 30) is set only by a
+  call without `cursor`, so repeating it on polls does not extend the watch.
+  A per-process asyncio timer (`Deps.watch_timers`) unwatches the search at
+  the expiry even if the agent never polls again; a restart drops the timer,
+  and the next poll sets it again or, once expired, unwatches and returns
+  `watch: false`. `vss_stop_watch` cancels the timer and unwatches.
 - **Live cameras.** The stream tools wrap `/streams` (`GET`, `POST`,
   `POST /streams/batch`, `PATCH /{id}`, `DELETE /{id}` without purge) and are
   registered only with `imageSearchEnabled`. Every URL, name and error is
@@ -74,16 +82,13 @@ it hands to an agent is one it has reached itself.
   dated, from `media_path`. `sort` (`newest`/`oldest`) on `vss_search_video`
   and `vss_get_search` reorders the hits after the `limit` cap, undated hits
   last, and is echoed as `sort`.
-- **Minimum peak score.** `min_peak_score` (0-1) on `vss_search_video`,
-  `vss_get_search` and `vss_watch_search` is sent as `minPeakScore`; unlike
+- **Minimum peak score.** `min_peak_score` (0-1) on `vss_search_video` and
+  `vss_get_search` is sent as `minPeakScore`; unlike
   `stream_ids` it filters at retrieval, so the ranked hits are the best ones
   above it. Omitted means the search's saved value, or for a new search the
-  deployment default (`SEARCH_MIN_PEAK_SCORE`, 0 = off). A watch saves it on
-  the query, so every VSS refresh is gated by it: when starting, it goes on
-  `POST /search`; on an existing `query_id` a changed value goes with the
-  `PATCH /search/{id}/watch` toggle and VSS re-runs the search. The watch
-  result echoes it as `min_peak_score`. `min_raw_score` is different: a
-  client-side filter on the sightings one call reports.
+  deployment default (`SEARCH_MIN_PEAK_SCORE`, 0 = off). It is saved on
+  the query, so every refresh of a watched search is gated by it; the watch
+  result echoes it as `min_peak_score`.
 - **Hits locate their best frame.** A hit's `frame` is the search backend's
   `best_frame_info` cut down to what `GET /frames` takes (`video_id`,
   `timestamp`, `bucket_name`, `media_path` for live streams, `crop_bbox` for

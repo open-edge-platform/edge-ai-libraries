@@ -39,6 +39,7 @@ from src.tools.search import (
     list_searches,
     refetch_search,
     search_video,
+    stop_watch,
     watch_search,
 )
 from src.tools.summary import get_video_timeline, summarize_video
@@ -746,7 +747,7 @@ async def test_search_rejects_both_query_and_image() -> None:
     deps = Deps(client=fake.client(), settings=make_settings())
     reference = "3f0c1f1e-7c1b-4a8e-9a55-0d6f6c2b9e11.jpg"
 
-    with pytest.raises(VssError, match="not both"):
+    with pytest.raises(VssError, match="only one of query, image or from_hit"):
         await search_video(deps, "forklift", image=reference)
 
 
@@ -1277,63 +1278,29 @@ async def test_refetch_search_checks_the_id_first(fake: FakeVss, deps: Deps) -> 
     assert not any(path.endswith("/refetch") for path in request_paths(fake))
 
 
-async def test_watch_search_toggles_the_flag(fake: FakeVss, deps: Deps) -> None:
+async def test_watch_search_watches_and_stop_watch_unwatches(
+    fake: FakeVss, deps: Deps
+) -> None:
     seed_searches(fake, 1)
 
-    watched = await watch_search(deps, "q1", True)
-    unwatched = await watch_search(deps, "q1", False)
+    watched = await watch_search(deps, "q1")
+    stopped = await stop_watch(deps, "q1")
 
     assert watched["watch"] is True
-    assert unwatched["watch"] is False
-    assert posted_body(fake, "/search/q1/watch") == {"watch": True}
+    assert stopped["watch"] is False and stopped["was_watching"] is True
+    assert fake.searches["q1"]["watch"] is False
+    assert "q1" not in deps.watch_timers
 
 
-async def test_watch_search_starts_with_a_min_peak_score(
-    fake: FakeVss, deps: Deps
-) -> None:
-    result = await watch_search(deps, query="forklift", min_peak_score=0.3)
-
-    assert posted_body(fake, "/search")["minPeakScore"] == 0.3
-    assert posted_body(fake, "/search/q1/watch") == {"watch": True}
-    assert result["min_peak_score"] == 0.3
-
-
-async def test_watch_search_saves_a_changed_min_peak_score(
+async def test_stopping_an_unwatched_search_changes_nothing(
     fake: FakeVss, deps: Deps
 ) -> None:
     seed_searches(fake, 1)
-    fake.searches["q1"].update(watch=True, minPeakScore=0.2)
 
-    result = await watch_search(deps, "q1", min_peak_score=0.35)
+    stopped = await stop_watch(deps, "q1")
 
-    assert posted_body(fake, "/search/q1/watch") == {
-        "watch": True,
-        "minPeakScore": 0.35,
-    }
-    assert result["min_peak_score"] == 0.35
-    assert fake.searches["q1"]["minPeakScore"] == 0.35
-
-
-async def test_watch_search_skips_an_unchanged_min_peak_score(
-    fake: FakeVss, deps: Deps
-) -> None:
-    seed_searches(fake, 1)
-    fake.searches["q1"].update(watch=True, minPeakScore=0.2)
-
-    await watch_search(deps, "q1", min_peak_score=0.2)
-
+    assert stopped["was_watching"] is False
     assert "/search/q1/watch" not in request_paths(fake, "PATCH")
-
-
-async def test_watch_search_rejects_an_out_of_range_min_peak_score(
-    fake: FakeVss, deps: Deps
-) -> None:
-    seed_searches(fake, 1)
-
-    with pytest.raises(VssError, match="min_peak_score"):
-        await watch_search(deps, "q1", min_peak_score=1.5)
-
-    assert not request_paths(fake, "PATCH")
 
 
 # Summary options
@@ -1646,6 +1613,30 @@ async def test_get_media_frame_rejects_bad_arguments_before_calling_vss(
 async def test_get_media_frame_reports_a_missing_frame(fake: FakeVss, deps: Deps) -> None:
     with pytest.raises(VssError, match="404"):
         await get_media_frame(deps, "gone", 1.0)
+
+
+async def test_get_media_frame_404_without_a_segment_points_at_the_frame_object(
+    fake: FakeVss, deps: Deps
+) -> None:
+    with pytest.raises(VssError, match="pass `media_path` and `bucket_name`") as raised:
+        await get_media_frame(deps, "cam-1", 3.2)
+
+    assert raised.value.status_code == 404
+
+
+async def test_get_media_frame_404_with_a_segment_keeps_the_plain_error(
+    fake: FakeVss, deps: Deps
+) -> None:
+    with pytest.raises(VssError, match="404") as raised:
+        await get_media_frame(
+            deps,
+            "gone",
+            3.2,
+            media_path="segments/1790655530.mp4",
+            bucket_name="live-streams",
+        )
+
+    assert "pass `media_path`" not in str(raised.value)
 
 
 async def test_search_hits_carry_a_frame_locator_that_fetches_the_frame(
