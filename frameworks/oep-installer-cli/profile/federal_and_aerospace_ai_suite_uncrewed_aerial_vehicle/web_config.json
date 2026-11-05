@@ -2,17 +2,21 @@
   "profile": {
     "label": "Federal and Aerospace (Uncrewed Aerial Vehicle)",
     "value": "federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle",
-    "supports": { "OP_SYSTEM": ["UBUNTU_24_04", "UBUNTU_26_04"] }
+    "supports": { "OP_SYSTEM": ["UBUNTU_24_04"] }
   },
   "modules": [
     { "label": "Uncrewed Aerial Vehicle Blueprint", "value": "uncrewed_aerial_vehicle_blueprint" },
-    { "label": "Uncrewed Aerial Vehicle Mission", "value": "uncrewed_aerial_vehicle_mission", "startStop": true, "remove": true, "options": ["--ground-station", "--vision-analytics"] }
+    { "label": "Uncrewed Aerial Vehicle - Ground Station", "value": "uncrewed_aerial_vehicle_ground_station", "startStop": true, "remove": true },
+    { "label": "Uncrewed Aerial Vehicle - Vision Analytics", "value": "uncrewed_aerial_vehicle_vision_analytics", "startStop": true, "remove": true }
   ],
+  "install": {
+    "text": "curl -fsSL https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/frameworks/oep-installer-cli/rendered/openedge-cli-federal-aerospace | bash -s -- install {{MODULE}}"
+  },
   "getStarted": {
     "text": "Get Started",
     "link": "https://docs.openedgeplatform.intel.com/dev/ai-suite-fed-aero.html"
   },
   "resources": [
-    { "text": "Uncrewed Aerial Vehicle Mission", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/uav-vision-analytics/index.html" }
+    { "text": "Uncrewed Aerial Vehicle - Vision Analytics", "url": "https://docs.openedgeplatform.intel.com/dev/edge-ai-suites/ai-suite-federal-and-aerospace/uav-vision-analytics/index.html" }
   ]
 }

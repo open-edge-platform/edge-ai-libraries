@@ -166,11 +166,13 @@ def _emit_phase_signal(asset_id: str, phase: str) -> None:
 
     Two phases a client can act on: ``"text_ready"`` (path-1 text embedded and
     flushed, so the prose is retrievable) and ``"ready"`` (path-2 figures in too).
-    The phase is both logged and stored in the process-local tracker above, which
-    `GET /assets` reports as each asset's ``materialization``.
+    Both are logged; only ``"text_ready"`` is stored in the tracker above. A
+    two-phase run's ``"ready"`` covers its one projection, before the asset is
+    registered or its other sources synced, so `ingest` records ``"ready"`` itself.
     """
     logger.info("materialize phase %s: asset=%s", phase, asset_id)
-    _set_phase(asset_id, phase)
+    if phase != "ready":
+        _set_phase(asset_id, phase)
 
 
 def _embed_insert_batched(indexer: Any, items: Any, batch_size: int) -> int:
@@ -459,6 +461,7 @@ def _asset_sync_failed(pool: Any, asset: Any, sync_failed: bool) -> bool:
     """
     from assetlib.sources import binding
     from core.indexer import accepts_asset
+    from core.multimodal.routing import effective_configuration
 
     if pool is None:
         return sync_failed
@@ -481,7 +484,7 @@ def _asset_sync_failed(pool: Any, asset: Any, sync_failed: bool) -> bool:
     for source_id, source in unavailable.items():
         if source_id in frozen or binding.is_frozen(source, statuses.get(source_id)):
             continue
-        if accepts_asset(asset, source.configuration):
+        if accepts_asset(asset, effective_configuration(source)):
             # No projection means this target could not be synced, even if the
             # outer pool sync completed and did not raise an exception.
             return True

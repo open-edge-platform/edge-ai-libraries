@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """The planner alone: snapshots in, transitions out."""
 
-from assetlib.sources.binding import DEPRECATED, PREPARING, SERVING
+from assetlib.sources.binding import DEGRADE, PREPARING, SERVING
 from assetlib.sources.state_machine import BindingView, on_attach, on_enabled, on_sync_result
 
 
@@ -27,7 +27,7 @@ def test_catching_up_promotes_and_finishes_the_replacement():
     }
     transitions = on_sync_result(views)
     assert ("new", SERVING) in _states(transitions)
-    assert ("old", DEPRECATED) in _states(transitions)
+    assert ("old", DEGRADE) in _states(transitions)
     assert any(t.source_id == "new" and t.clear_replaces for t in transitions)
 
 
@@ -53,7 +53,7 @@ def test_a_frozen_binding_is_never_promoted():
 def test_redeclaring_a_deprecated_source_brings_it_back_through_preparing():
     views = {
         "f16": BindingView(state=SERVING, caught_up=True),
-        "f8": BindingView(state=DEPRECATED, caught_up=False, replaces="f16"),
+        "f8": BindingView(state=DEGRADE, caught_up=False, replaces="f16"),
     }
     assert _states(on_attach(views, newly_attached=[], redeclared=["f8"])) == [
         ("f8", PREPARING)

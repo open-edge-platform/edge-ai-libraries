@@ -12,7 +12,7 @@ from types import SimpleNamespace
 import pytest
 
 from assetlib.contracts import Source
-from assetlib.sources.binding import DEPRECATED, PREPARING, SERVING
+from assetlib.sources.binding import DEGRADE, PREPARING, SERVING
 from core.file_asset_library import FileAsset, FileAssetLibrary, file_origin
 from core.indexer import GraphIndexer, MultimodalIndexer, VectorIndexer
 from core.knowledge import Knowledge
@@ -280,14 +280,14 @@ def test_replacement_keeps_old_okf_dependency_until_final_settlement(library):
     assert len(library.graph_phases) == 2
     _assert_ready(pool, "later", "graph")
     assert pool.source_statuses["later"].replaces is None
-    assert pool.source_statuses["text"].serving_state == DEPRECATED
+    assert pool.source_statuses["text"].serving_state == DEGRADE
     assert "text" in pool.frozen_sources
     assert all(p.source.source_id != "text" for p in pool.projections)
     assert library.stores["graph"]["okf"][0].source_chunk_ids == ["text:one", "text:two"]
     assert not library.stores["later"]["concepts"], "replacement provenance migration is deferred"
 
 
-@pytest.mark.parametrize("state", [PREPARING, DEPRECATED, "disabled"])
+@pytest.mark.parametrize("state", [PREPARING, DEGRADE, "disabled"])
 def test_selector_still_excludes_nonserving_text_and_serving_multimodal(library, state):
     projections = _attach(library, "media", "text")
     pool = library.asset_pools["pool"]
@@ -302,14 +302,14 @@ def test_selector_still_excludes_nonserving_text_and_serving_multimodal(library,
     assert library._vector_projection(pool) is None
 
 
-@pytest.mark.parametrize("state", [DEPRECATED, "disabled"])
+@pytest.mark.parametrize("state", [DEGRADE, "disabled"])
 def test_frozen_text_keeps_no_writes_or_hooks(library, state):
     _attach(library, "graph", "text")
     pool = library.asset_pools["pool"]
     if state == "disabled":
         library.update_source("text", enabled=False)
     else:
-        pool.source_statuses["text"].serving_state = DEPRECATED
+        pool.source_statuses["text"].serving_state = DEGRADE
         pool.freeze("text", library.sources["text"])
     library.events.clear()
 
@@ -336,8 +336,9 @@ def test_older_revision_does_not_publish_a_preparing_text_source(library):
 
     pool = library.asset_pools["pool"]
     status = pool.source_statuses["text"]
-    assert status.status == "ready"
+    assert status.status == "pending"
     assert status.indexed_revision < pool.revision
+    assert status.pending_revision == pool.revision
     assert status.serving_state == PREPARING
     assert status.stale_asset_ids == ["one"]
     assert library._vector_projection(pool) is None

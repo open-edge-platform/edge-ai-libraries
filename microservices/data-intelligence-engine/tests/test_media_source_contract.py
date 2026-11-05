@@ -8,6 +8,8 @@ Only the API registry, database adapter and inference/tokenizer boundaries are f
 
 from copy import deepcopy
 from dataclasses import asdict
+import json
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -30,11 +32,34 @@ from core.multimodal import registry as model_registry
 from databasehub.adapters.vector import VectorAdapter
 
 
-XCLIP_ID = "microsoft/xclip-base-patch16-zero-shot"
+VICLIP_ID = "viclip-b-fp16"
 GME_ID = "Alibaba-NLP/gme-Qwen2-VL-2B-Instruct"
 DATABASE = "isolated-vectors"
 LIBRARY = "media-contract"
 SOURCES_URL = f"{source_api.LIBRARY_API_PREFIX}/{LIBRARY}/sources"
+
+
+def _video_package(path):
+    """File-only package: real metadata validation, no tokenizer/model loading."""
+    path.mkdir(parents=True)
+    tokenizer = ["vocab.json", "merges.txt", "tokenizer_config.json", "special_tokens_map.json"]
+    artifacts = {
+        "video_encoder": ["video_encoder.xml", "video_encoder.bin"],
+        "text_encoder": ["text_encoder.xml", "text_encoder.bin"],
+        "tokenizer": tokenizer,
+    }
+    for files in artifacts.values():
+        for name in files:
+            (path / name).write_text("{}" if name.endswith(".json") else "test artifact")
+    (path / "video_embedding.json").write_text(json.dumps({
+        "format": 1, "name": "viclip-b", "model_id": "OpenGVLab/ViCLIP-B-16-hf",
+        "preprocessing": "viclip", "dimension": 512, "context_length": 32,
+        "tokenizer_type": "clip_bpe", "frames": 8, "image_size": 224,
+        "precision": "fp16", "parameter_count": 1, "artifacts": artifacts,
+    }))
+    model = model_registry.lookup(path.name, str(path))
+    assert model.name == "viclip-b" and model.is_ready(path)
+    return path
 
 
 def _forbidden(*args, **kwargs):
@@ -83,9 +108,10 @@ def isolated_defaults(monkeypatch, tmp_path):
     root.mkdir()
     for key in ("MODEL_DIR", "LEGACY_MODEL_DIR", "SHARED_MODEL_DIR"):
         monkeypatch.setattr(config, key, str(root))
+    _video_package(root / VICLIP_ID)
     for prefix, backend, model_id, directory in (
         ("", "native_openvino_gme", "gme-Qwen2-VL-2B-Instruct-OV", "document-gme"),
-        ("VIDEO_", "llamaindex_openvino", XCLIP_ID, "xclip"),
+        ("VIDEO_", "llamaindex_openvino", VICLIP_ID, VICLIP_ID),
         ("IMAGE_", "llamaindex_openvino", GME_ID, "media-gme"),
     ):
         for suffix, value in (
@@ -129,7 +155,7 @@ def _post(context, name, options):
 
 
 @pytest.mark.parametrize("family, model, model_id, kinds, roles", [
-    ("video", "xclip", XCLIP_ID, ["video"], ["l1_segment", "long_video", "short_video"]),
+    ("video", "viclip-b", VICLIP_ID, ["video"], ["l1_segment", "long_video", "short_video"]),
     ("image", "gme_qwen2vl", GME_ID, ["image"], ["image"]),
     ("audio", "gme_qwen2vl", GME_ID, ["text"], ["l2_transcript"]),
 ])
@@ -170,7 +196,7 @@ def test_http_original_video_and_caption_have_distinct_sources_and_collections(h
     assert original["id"] != caption["id"]
     assert original["name"] != caption["name"]
     assert original["collection_name"] != caption["collection_name"]
-    assert original["profile"]["multimodal_model"]["name"] == "xclip"
+    assert original["profile"]["multimodal_model"]["name"] == "viclip-b"
     assert caption["profile"]["multimodal_model"]["name"] == "gme_qwen2vl"
     assert caption["profile"]["params"] == {
         "asset_types": ["video"], "block_roles": ["l2_caption"], "block_kinds": ["text"],
@@ -181,15 +207,8 @@ def test_http_original_video_and_caption_have_distinct_sources_and_collections(h
     assert http_library.registry.save.call_count == 2
 
 
-def test_http_explicit_local_xclip_ir_variant_keeps_its_identity(http_library):
-    from pathlib import Path
-    from inference.multimodal.xclip_openvino import TEXT_IR, VIDEO_IR
-
-    path = Path(config.MODEL_DIR) / 'xclip-base-patch16-zero-shot-fp16'
-    path.mkdir()
-    for name in (TEXT_IR, VIDEO_IR):
-        (path / name).write_text('<xml/>')
-        (path / name).with_suffix('.bin').touch()
+def test_http_explicit_local_viclip_ir_variant_keeps_its_identity(http_library):
+    path = _video_package(Path(config.MODEL_DIR) / 'my-viclip-variant-fp16')
     options = {'asset_types': ['video'], 'embedding_model': path.name}
 
     response = _post(http_library, 'my-video-variant', options)
@@ -198,8 +217,12 @@ def test_http_explicit_local_xclip_ir_variant_keeps_its_identity(http_library):
     output = response.json()
     assert output['operator_options'] == options
     assert output['profile']['multimodal_model'] == {
-        'name': 'xclip', 'category': 'video', 'id': path.name, 'path': path.name,
+        'name': 'viclip-b', 'category': 'video', 'id': path.name, 'path': path.name,
     }
+    assert model_registry.lookup(path.name, None).is_ready(path)
+    # Identity remains classifiable when a tokenizer artifact later disappears,
+    # but the package must no longer be loadable as a prepared model.
+    (path / 'merges.txt').unlink()
     assert not model_registry.lookup(path.name, None).is_ready(path)
 
 
@@ -207,7 +230,7 @@ def test_http_explicit_local_xclip_ir_variant_keeps_its_identity(http_library):
     pytest.param({"block_kinds": ["video"]}, id="legacy-video"),
     pytest.param({"block_kinds": ["image"]}, id="legacy-image"),
     pytest.param({"block_kinds": ["audio"]}, id="legacy-audio"),
-    pytest.param({"embedding_model": XCLIP_ID}, id="xclip-without-scope"),
+    pytest.param({"embedding_model": VICLIP_ID}, id="viclip-without-scope"),
     pytest.param({"embedding_backend": "native_openvino_gme", "embedding_model": GME_ID,
                   "block_kinds": ["video"]}, id="native-video-bypass"),
     pytest.param({"embedding_backend": "native_openvino_gme", "embedding_model": GME_ID,
@@ -226,7 +249,7 @@ def test_http_unscoped_media_is_400_and_does_not_register(http_library, options)
 ])
 def test_http_invalid_asset_types_with_media_declaration_is_400(http_library, asset_types):
     _assert_bad_source_is_atomic(http_library, {
-        "asset_types": asset_types, "embedding_model": XCLIP_ID, "block_kinds": ["video"],
+        "asset_types": asset_types, "embedding_model": VICLIP_ID, "block_kinds": ["video"],
     })
 
 
@@ -366,7 +389,7 @@ def test_restore_unscoped_frozen_media_reports_error_and_keeps_source_collection
     # Even a profile carrying valid frozen filters cannot repair a missing
     # operator declaration on an old standalone-media source.
     for source_record in (record["sources"][0], record["asset_pools"][0]["sources"][0]):
-        source_record["operator_options"] = {"embedding_model": XCLIP_ID, "block_kinds": ["video"]}
+        source_record["operator_options"] = {"embedding_model": VICLIP_ID, "block_kinds": ["video"]}
     frozen_record = deepcopy(record["sources"][0])
     guards = _forbid_rebinding(monkeypatch)
 
@@ -413,11 +436,11 @@ def test_restore_unscoped_frozen_media_reports_error_and_keeps_source_collection
         guard.assert_not_called()
 
 
-@pytest.mark.parametrize("caption", [False, True], ids=["xclip-original", "gme-caption"])
+@pytest.mark.parametrize("caption", [False, True], ids=["viclip-original", "gme-caption"])
 def test_restore_frozen_media_builds_from_profile_not_current_defaults(monkeypatch, caption):
     hub = _Hub()
     library = FileAssetLibrary(LIBRARY, databasehub=hub)
-    model_id = f"{GME_ID}-int4" if caption else f"{XCLIP_ID}-fp16"
+    model_id = f"{GME_ID}-int4" if caption else VICLIP_ID
     options = {"asset_types": [".MP4"], "embedding_model": model_id}
     if caption:
         options["block_roles"] = ["l2_caption"]
@@ -431,7 +454,8 @@ def test_restore_frozen_media_builds_from_profile_not_current_defaults(monkeypat
     # A tokenizer and embedding runtime are the only inference substitutes;
     # build_projection and both indexer constructors remain real.
     monkeypatch.setattr(llama_index.core, "global_tokenizer", lambda text: text.split())
-    runtime = SimpleNamespace(dimension=8, supported_roles=frozenset(frozen_profile["supported_roles"]))
+    dimension = 1536 if caption else 512
+    runtime = SimpleNamespace(dimension=dimension, supported_roles=frozenset(frozen_profile["supported_roles"]))
     loader = Mock(return_value=runtime)
     monkeypatch.setattr(multimodal, "build_multimodal_embedding", loader)
     hub.adapter.reconcile.side_effect = None
@@ -445,7 +469,7 @@ def test_restore_frozen_media_builds_from_profile_not_current_defaults(monkeypat
     assert isinstance(projection, MultimodalIndexer)
     assert projection.source.source_id == source.source_id
     assert projection.collection.name == source.location.name
-    assert projection.dimension == projection.collection.dimension == 8
+    assert projection.dimension == projection.collection.dimension == dimension
     loader.assert_called_once()
     model_record, runtime_options = loader.call_args.args
     assert model_record == frozen_profile["multimodal_model"]

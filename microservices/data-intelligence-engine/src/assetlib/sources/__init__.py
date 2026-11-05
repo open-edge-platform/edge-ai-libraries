@@ -10,7 +10,7 @@ of points (create, attach, sync, retrieve, delete); the rules live here.
 
 - `binding`        -- serving states, and the effective state a source's
                       `enabled` switch lays over them
-- `state_machine`  -- PREPARING → SERVING → DEPRECATED, planned purely, applied
+- `state_machine`  -- PREPARING → SERVING → DEGRADE, planned purely, applied
                       in one place
 - `updates`        -- what a caller may change, and the checks on `replaces`
 - `profile`        -- what produced a source's records, fixed at creation

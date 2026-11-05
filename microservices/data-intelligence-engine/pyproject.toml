@@ -58,6 +58,7 @@ dependencies = [
 	"huggingface-hub==0.36.2",
 	"sentence-transformers==5.6.1",
 	"tokenizers==0.22.2",
+	"ftfy==6.3.1",
 	"opencv-python-headless==5.0.0.93",
 	"numpy==2.4.6",
 	"pillow==13.0.0",
@@ -72,16 +73,13 @@ data-intelligence-engine = "main:run"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
-py-modules = ["config", "jsonstore", "main", "schemas"]
+py-modules = ["config", "console_ui", "jsonstore", "main", "schemas"]
 include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["api*", "assetlib*", "console*", "core*", "databasehub*", "inference*"]
+include = ["api*", "assetlib*", "core*", "databasehub*", "inference*"]
 namespaces = false
-
-[tool.setuptools.package-data]
-console = ["*.html", "*.css", "*.js"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "tools"]

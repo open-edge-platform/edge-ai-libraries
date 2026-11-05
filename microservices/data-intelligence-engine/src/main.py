@@ -16,7 +16,6 @@ Run: data-intelligence-engine
 """
 
 import logging
-import os
 from contextlib import asynccontextmanager
 
 import uvicorn
@@ -30,12 +29,12 @@ from api import (
 )
 from core.knowledge.extraction_jobs import ExtractionScheduler
 from core.manager import registry
+from console_ui import ConsoleStaticFiles, console_directory
 from databasehub import repository as database_repository
 from databasehub.manager import database_manager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
-from fastapi.staticfiles import StaticFiles
 
 
 def _configure_logging() -> None:
@@ -140,11 +139,13 @@ def root():
     return RedirectResponse(url="/console/")
 
 
-# Static console UI (asset-library management + retrieval/reranking). Mounted last, under an
-# explicit prefix so it never shadows /health or the /v1 API routes.
-_CONSOLE_DIR = os.path.join(os.path.dirname(__file__), "console")
-if os.path.isdir(_CONSOLE_DIR):
-    app.mount("/console", StaticFiles(directory=_CONSOLE_DIR, html=True), name="console")
+# Mount only build output, never the frontend sources or dependencies.
+_CONSOLE_DIR = console_directory()
+app.mount(
+    "/console",
+    ConsoleStaticFiles(directory=_CONSOLE_DIR, html=True, check_dir=False),
+    name="console",
+)
 
 
 def run():

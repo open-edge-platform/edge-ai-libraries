@@ -64,15 +64,14 @@ const RTSP_URL = /^rtsps?:\/\/\S+$/i;
 
 /**
  * Form defaults, mirroring the ingestion service's own defaults
- * (`FRAME_INTERVAL`, `ENABLE_OBJECT_DETECTION`, `DETECTION_CONFIDENCE` in
- * multimodal-dataprep settings). The form always sends these fields, so a
+ * (`FRAME_INTERVAL` and `ENABLE_OBJECT_DETECTION` in multimodal-dataprep
+ * settings). The form always sends these fields, so a
  * value that disagrees with the service silently overrides it - keep them in
  * step. A deployment that overrides the service defaults via environment
  * variables is not reflected here.
  */
 const DEFAULT_FRAME_INTERVAL = 15;
 const DEFAULT_ENABLE_DETECTION = true;
-const DEFAULT_DETECTION_CONFIDENCE = 0.85;
 
 export interface StreamFormModalProps {
   open: boolean;
@@ -89,7 +88,6 @@ interface FormState {
   sensorId: string;
   frameInterval: number | '';
   enableDetection: boolean;
-  detectionConfidence: number | '';
   startImmediately: boolean;
 }
 
@@ -101,7 +99,6 @@ const emptyForm: FormState = {
   sensorId: '',
   frameInterval: DEFAULT_FRAME_INTERVAL,
   enableDetection: DEFAULT_ENABLE_DETECTION,
-  detectionConfidence: DEFAULT_DETECTION_CONFIDENCE,
   startImmediately: true,
 };
 
@@ -115,7 +112,6 @@ const formStateFor = (stream: LiveStream | null): FormState =>
         sensorId: stream.sensor_id ?? '',
         frameInterval: stream.frame_interval ?? DEFAULT_FRAME_INTERVAL,
         enableDetection: stream.enable_object_detection ?? DEFAULT_ENABLE_DETECTION,
-        detectionConfidence: stream.detection_confidence ?? DEFAULT_DETECTION_CONFIDENCE,
         startImmediately: true,
       }
     : emptyForm;
@@ -191,19 +187,11 @@ const StreamFormModal: FC<StreamFormModalProps> = ({ open, onClose, stream = nul
   // the submit button is gated on these, so a bad value can never be sent.
   const frameIntervalInvalid =
     form.frameInterval === '' || form.frameInterval < 1 || form.frameInterval > 60;
-  const detectionConfidenceInvalid =
-    form.enableDetection &&
-    (form.detectionConfidence === '' ||
-      form.detectionConfidence < 0.1 ||
-      form.detectionConfidence > 1);
 
   // `stream_url` is the only field the ingestion API requires; everything else
   // has a server-side default (the name falls back to the redacted URL). The
-  // numeric fields must still be in range before the form can be submitted.
-  const canSubmit =
-    (isEdit || RTSP_URL.test(form.streamUrl.trim())) &&
-    !frameIntervalInvalid &&
-    !detectionConfidenceInvalid;
+  // frame interval must still be in range before the form can be submitted.
+  const canSubmit = (isEdit || RTSP_URL.test(form.streamUrl.trim())) && !frameIntervalInvalid;
 
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((previous) => ({ ...previous, [key]: value }));
@@ -221,7 +209,6 @@ const StreamFormModal: FC<StreamFormModalProps> = ({ open, onClose, stream = nul
           tags: parseTags(form.tags),
           frame_interval: Number(form.frameInterval),
           enable_object_detection: form.enableDetection,
-          detection_confidence: Number(form.detectionConfidence),
         };
         await dispatch(streamUpdate({ streamId: stream.stream_id, payload })).unwrap();
         notify(t('streamUpdateSuccess'), NotificationSeverity.SUCCESS);
@@ -231,7 +218,6 @@ const StreamFormModal: FC<StreamFormModalProps> = ({ open, onClose, stream = nul
           start: form.startImmediately,
           frame_interval: Number(form.frameInterval),
           enable_object_detection: form.enableDetection,
-          detection_confidence: Number(form.detectionConfidence),
           tags: parseTags(form.tags),
         };
         if (form.streamName.trim()) payload.stream_name = form.streamName.trim();
@@ -358,25 +344,6 @@ const StreamFormModal: FC<StreamFormModalProps> = ({ open, onClose, stream = nul
           onChange={(_event, { checked }) => update('enableDetection', checked)}
         />
       </Field>
-
-      {form.enableDetection && (
-        <Field>
-          <NumberInput
-            id='stream-detection-confidence'
-            label={fieldLabel(t('detectionConfidence'), t('detectionConfidenceInfo'), 'none')}
-            min={0.1}
-            max={1}
-            step={0.05}
-            allowEmpty
-            invalid={detectionConfidenceInvalid}
-            invalidText={t('detectionConfidenceInvalid')}
-            value={form.detectionConfidence}
-            onChange={(_event, { value }) =>
-              update('detectionConfidence', value === '' ? '' : Number(value))
-            }
-          />
-        </Field>
-      )}
 
       {!isEdit && (
         <Field>

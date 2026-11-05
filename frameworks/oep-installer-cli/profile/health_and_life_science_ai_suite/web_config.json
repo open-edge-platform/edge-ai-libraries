@@ -2,7 +2,7 @@
   "profile": {
     "label": "Health and Life Sciences AI Suite",
     "value": "health_and_life_sciences_ai_suite",
-    "supports": { "OP_SYSTEM": ["UBUNTU_24_04", "UBUNTU_26_04"] }
+    "supports": { "OP_SYSTEM": ["UBUNTU_24_04"] }
   },
   "modules": [
     { "label": "Multi-Modal Patient Monitoring", "value": "multi_modal_patient_monitoring", "startStop": true, "remove": true, "options": ["--gpu", "--cpu", "--npu"] },

@@ -25,6 +25,7 @@ and the difference between a report and a recording is which `kind` its blocks
 have.
 """
 
+import mimetypes
 import os
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
@@ -58,6 +59,25 @@ VIDEO = "video"
 #: Blocks whose payload is bytes in the object store rather than text in the
 #: record. A standalone media file is a stream of exactly one of these.
 BINARY_KINDS = frozenset({IMAGE, AUDIO, VIDEO})
+
+#: The family of a file that is not media: what a text source takes.
+DOCUMENT = "document"
+
+
+def asset_family(selector: str) -> str:
+    """The family a selector names: ``image``, ``video``, ``audio`` or ``document``.
+
+    `selector` is a family, an extension (``"png"``) or a MIME type
+    (``"image/png"``). A source's `asset_types` and an asset's `asset_kind` are
+    both classified here, so the two cannot disagree about a file; ingest asks
+    the same (`core.extractor.media_kind`), so whatever can be ingested has one.
+    """
+    selector = selector.strip().lower().lstrip('.')
+    if selector in BINARY_KINDS:
+        return selector
+    mime = selector if '/' in selector else mimetypes.guess_type(f"asset.{selector}")[0]
+    family = (mime or '').split('/')[0]
+    return family if family in BINARY_KINDS else DOCUMENT
 
 # `metadata.role`: where a block sits in the media-understanding scheme, and so
 # how it is processed. Set by the system, never by a user; `kind` stays the
