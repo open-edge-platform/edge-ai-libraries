@@ -1932,6 +1932,57 @@ parse_test_cases = [
             ],
         ),
     ),
+    # GigE Vision camera as source
+    ParseTestCase(
+        r"aravissrc camera-name=12345678 ! decodebin3 ! videoconvert ! video/x-raw ! openh264enc ! h264parse ! "
+        r"rtspclientsink protocols=tcp location=rtsp://mediamtx:8554/stream_pipeline-803f3975",
+        Graph(
+            nodes=[
+                Node(id="0", type="aravissrc", data={"camera-name": "12345678"}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(id="2", type="videoconvert", data={}),
+                Node(id="3", type="video/x-raw", data={}),
+                Node(id="4", type="openh264enc", data={}),
+                Node(id="5", type="h264parse", data={}),
+                Node(
+                    id="6",
+                    type="rtspclientsink",
+                    data={
+                        "protocols": "tcp",
+                        "location": "rtsp://mediamtx:8554/stream_pipeline-803f3975",
+                    },
+                ),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+                Edge(id="2", source="2", target="3"),
+                Edge(id="3", source="3", target="4"),
+                Edge(id="4", source="4", target="5"),
+                Edge(id="5", source="5", target="6"),
+            ],
+        ),
+        Graph(
+            nodes=[
+                Node(
+                    id="0",
+                    type="source",
+                    data={"kind": InputKind.CAMERA, "source": "gige://12345678"},
+                ),
+                Node(
+                    id="6",
+                    type="rtspclientsink",
+                    data={
+                        "protocols": "tcp",
+                        "location": "rtsp://mediamtx:8554/stream_pipeline-803f3975",
+                    },
+                ),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="6"),
+            ],
+        ),
+    ),
 ]
 
 
@@ -3488,6 +3539,7 @@ class TestNegativeCases(unittest.TestCase):
         test_cases = [
             ("v4l2src", {"device": "/dev/video0"}),
             ("rtspsrc", {"location": "rtsp://example.com/stream"}),
+            ("aravissrc", {"camera-name": "12345678"}),
         ]
 
         for source_type, source_data in test_cases:
@@ -7975,6 +8027,128 @@ class TestInternalMarkersStrippedFromPipelineDescription(unittest.TestCase):
         self.assertNotIn("__internal_marker", description)
         self.assertNotIn("should-not-leak", description)
         self.assertIn("num-buffers=10", description)
+
+
+class TestGigECameraSource(unittest.TestCase):
+    """GigE Vision cameras: ``gige://<camera-name>`` sources mapped to ``aravissrc``."""
+
+    @staticmethod
+    def _advanced_graph() -> Graph:
+        return Graph(
+            nodes=[
+                Node(id="0", type="v4l2src", data={"device": "/dev/video0"}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+    @staticmethod
+    def _aravissrc_graph() -> Graph:
+        return Graph(
+            nodes=[
+                Node(id="0", type="aravissrc", data={"camera-name": "192.168.1.50"}),
+                Node(id="1", type="decodebin3", data={}),
+                Node(id="2", type="fakesink", data={}),
+            ],
+            edges=[
+                Edge(id="0", source="0", target="1"),
+                Edge(id="1", source="1", target="2"),
+            ],
+        )
+
+    def _apply_source(self, source: str) -> Graph:
+        advanced = self._advanced_graph()
+        simple = advanced.to_simple_view()
+        modified = Graph.from_dict(simple.to_dict())
+        for node in modified.nodes:
+            if node.type == "source":
+                node.data["source"] = source
+        return Graph.apply_simple_view_changes(
+            modified_simple=modified,
+            original_simple=simple,
+            original_advanced=advanced,
+        )
+
+    def test_gige_source_maps_to_aravissrc(self):
+        for camera_name in ("192.168.1.50", "Basler-acA1920-25gc-12345678"):
+            with self.subTest(camera_name=camera_name):
+                result = self._apply_source(f"gige://{camera_name}")
+
+                self.assertEqual(result.nodes[0].type, "aravissrc")
+                self.assertEqual(result.nodes[0].data, {"camera-name": camera_name})
+                self.assertIn(
+                    f"aravissrc camera-name={camera_name} ! decodebin3",
+                    result.to_pipeline_description(),
+                )
+
+    def test_gige_source_without_camera_name_raises_error(self):
+        with self.assertRaises(ValueError) as cm:
+            self._apply_source("gige://")
+        self.assertIn("IP address or Aravis device ID", str(cm.exception))
+
+    def test_aravissrc_converted_to_generic_camera_source(self):
+        simple = self._aravissrc_graph().to_simple_view()
+
+        self.assertEqual(simple.nodes[0].type, "source")
+        self.assertEqual(
+            simple.nodes[0].data,
+            {"kind": InputKind.CAMERA, "source": "gige://192.168.1.50"},
+        )
+
+    @patch("graph.VideosManager")
+    def test_looping_not_supported_for_aravissrc(self, _mock_videos_cls):
+        with self.assertRaises(ValueError) as cm:
+            self._aravissrc_graph().apply_looping_modifications()
+        self.assertIn("aravissrc", str(cm.exception))
+
+    @patch("managers.camera_manager.CameraManager")
+    def test_determine_input_codec_returns_pixel_format(self, mock_manager_cls):
+        details = MagicMock()
+        details.current_capture.pixel_format = "BayerRG8"
+        mock_manager_cls.return_value.get_gige_camera_details_by_ip.return_value = (
+            details
+        )
+
+        codec = self._aravissrc_graph().determine_input_codec()
+
+        self.assertEqual(codec, "BayerRG8")
+        mock_manager_cls.return_value.get_gige_camera_details_by_ip.assert_called_once_with(
+            "192.168.1.50"
+        )
+
+    @patch("managers.camera_manager.CameraManager")
+    def test_determine_input_codec_unknown_camera_returns_none(self, mock_manager_cls):
+        mock_manager_cls.return_value.get_gige_camera_details_by_ip.return_value = None
+
+        self.assertIsNone(self._aravissrc_graph().determine_input_codec())
+
+    def test_bayer_format_replaces_decodebin3_with_bayer2rgb(self):
+        result = self._aravissrc_graph().apply_decodebin3_replacement(
+            codec="BayerRG8", target_device="CPU"
+        )
+
+        self.assertEqual(
+            [n.type for n in result.nodes],
+            ["aravissrc", "bayer2rgb", "videoconvert", "fakesink"],
+        )
+        self.assertIn(
+            "aravissrc camera-name=192.168.1.50 ! bayer2rgb ! videoconvert ! fakesink",
+            result.to_pipeline_description(),
+        )
+
+    def test_mono_format_replaces_decodebin3_with_videoconvert(self):
+        result = self._aravissrc_graph().apply_decodebin3_replacement(
+            codec="Mono8", target_device="CPU"
+        )
+
+        self.assertEqual(
+            [n.type for n in result.nodes],
+            ["aravissrc", "videoconvert", "fakesink"],
+        )
 
 
 if __name__ == "__main__":

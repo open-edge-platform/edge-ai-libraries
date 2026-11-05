@@ -35,12 +35,11 @@ agent-facing map.
   extracted.
 - GPU use mounts `/dev/dri` and requires the host's `render` group GID to be
   in `group_add` (values for Ubuntu 20.04/22.04/24.04 are pre-listed).
-- Helm chart under [`helm/`](../helm/) for Kubernetes deployment.
 - Unit tests: `./tests/run_tests.sh` (creates a venv, installs
   `requirements.txt` + `tests/requirements.txt`, runs Pytest with coverage).
 - Functional tests: `cd tests-functional && pip3 install -r
   requirements.txt && pytest -q -vv --self-contained-html
-  --html=./test_report/report.html .` (exercises the Docker and Helm
+  --html=./test_report/report.html .` (exercises the Docker
   deployments end-to-end).
 
 ## API Surface
@@ -69,10 +68,9 @@ and [`_assets/openapi.json`](../docs/user-guide/_assets/openapi.json).
 | `config.json` | Active UDF/alert configuration loaded at startup. |
 | `config/kapacitor*.conf` | Kapacitor daemon configuration (prod / devmode). |
 | `docker/` | `docker-compose.yml`, `.env`, `run.sh`, `detect-cores.sh`. |
-| `helm/` | Helm chart for Kubernetes deployment. |
 | `simulator/temperature_input.py` | Sample data generator posting to `/input`. |
 | `tests/` | Pytest unit suite (`run_tests.sh`, coverage via `.coveragerc`). |
-| `tests-functional/` | End-to-end Pytest suite against Docker/Helm deployments. |
+| `tests-functional/` | End-to-end Pytest suite against Docker deployments. |
 | `docs/user-guide/` | get-started, how-it-works, how-to-configure, how-to-access-api, api-reference. |
 
 ## Tech Stack
@@ -81,7 +79,7 @@ Python 3.13, FastAPI + Uvicorn, Kapacitor 1.8.6 (TICKscript engine; its
 Python UDF agent is vendored at image build time via a sparse git checkout
 of `influxdata/kapacitor`, not pip-installed), InfluxDB line protocol,
 `asyncua` for OPC UA, Intel® Extension for Scikit-learn* for UDF
-acceleration, Docker Compose / Helm for deployment.
+acceleration, Docker Compose for deployment.
 
 ## Conventions
 

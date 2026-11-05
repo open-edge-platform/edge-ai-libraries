@@ -18,7 +18,7 @@ FbHalt::FbHalt()
 
 MC_ERROR_CODE FbHalt::onRisingEdgeExecution()
 {
-  if (acceleration_ == 0)
+  if (acceleration_ == 0 || jerk_ == 0)
     return mcErrorCodeMotionLimitUnset;
   axis_->addFBToQueue(this, mcHaltMode);
   return mcErrorCodeGood;

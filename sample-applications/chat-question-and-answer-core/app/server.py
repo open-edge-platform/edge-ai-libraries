@@ -4,6 +4,7 @@ import uvicorn
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse, JSONResponse
 from http import HTTPStatus
 from pydantic import BaseModel
@@ -16,11 +17,20 @@ from .chain import (
     delete_embedding_from_vectordb,
     get_retriever,
     build_chain,
-    process_query
+    process_query,
+    answer_with_sources,
+    process_query_with_sources,
+    check_prompt_fits,
 )
 from .document import validate_document, save_document
+from .openvino_xpu import PromptTooLongError
 
 app = FastAPI(title="Chat Question and Answer Core", root_path="/v1/chatqna")
+
+
+@app.exception_handler(PromptTooLongError)
+async def prompt_too_long(request, exc: PromptTooLongError):
+    return JSONResponse(status_code=HTTPStatus.REQUEST_ENTITY_TOO_LARGE, content={"detail": str(exc)})
 
 app.add_middleware(
     CORSMiddleware,
@@ -269,6 +279,21 @@ async def query_chat(request: ChatRequest):
         )
 
     st = time.perf_counter()
+
+    # Streams start with HTTP 200, so a question that cannot fit must be rejected up front.
+    await run_in_threadpool(check_prompt_fits, request.input)
+
+    if config.RETURN_SOURCES:
+        if not request.stream:
+            answer, sources = await run_in_threadpool(answer_with_sources, request.input)
+            et = time.perf_counter()
+            logger.info(f"Time taken {et - st}")
+
+            return {"status": "Success", "metadata": answer, "sources": sources}
+
+        return StreamingResponse(
+            process_query_with_sources(request.input), media_type="text/event-stream"
+        )
 
     retriever = get_retriever()
 

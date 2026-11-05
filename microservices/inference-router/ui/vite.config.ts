@@ -45,7 +45,7 @@ const viteConfig = defineConfig(({ mode }) => {
       hmr: true,
       proxy: {
         "/v1/": {
-          target: "http://10.239.154.57:8000",
+          target: "http://localhost:8000",
           changeOrigin: true,
         },
       },

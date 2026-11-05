@@ -534,36 +534,38 @@ class TestsManager:
 
     def _get_usb_camera_devices(self, pipeline_graph: Graph) -> list[str]:
         """
-        Get list of USB camera device paths from a pipeline graph.
+        Get list of exclusive (USB and GigE) camera devices from a pipeline graph.
 
         Args:
             pipeline_graph: Graph object containing pipeline nodes.
 
         Returns:
-            list[str]: List of USB camera device paths (e.g., ['/dev/video0']).
-                      Empty list if no USB cameras are found.
+            list[str]: List of camera devices (e.g., ['/dev/video0', 'gige://12345678']).
+                      Empty list if no USB or GigE cameras are found.
         """
         devices = []
         for node in pipeline_graph.nodes:
             if node.type == "v4l2src":
                 device = node.data.get("device", "/dev/video0")
                 devices.append(device)
+            elif node.type == "aravissrc":
+                devices.append(f"gige://{node.data.get('camera-name', '')}")
         return devices
 
     def _validate_usb_camera_for_performance(
         self, pipeline_performance_specs: list[InternalPipelinePerformanceSpec]
     ) -> None:
         """
-        Validate USB camera usage in performance tests.
+        Validate USB and GigE camera usage in performance tests.
 
-        Each USB camera device can only be used in a single pipeline with a single stream
+        Each camera device can only be used in a single pipeline with a single stream
         because the underlying hardware device can only be opened by one process at a time.
 
         Args:
             pipeline_performance_specs: List of InternalPipelinePerformanceSpec objects.
 
         Raises:
-            ValueError: If any USB camera device is used with multiple streams or in multiple pipelines.
+            ValueError: If any camera device is used with multiple streams or in multiple pipelines.
         """
         device_usage = {}
 
@@ -574,7 +576,7 @@ class TestsManager:
                     device_usage[device] = []
                 device_usage[device].append((spec.pipeline_name, spec.streams))
 
-        # Validate each USB camera device is used only once with one stream
+        # Validate each camera device is used only once with one stream
         errors = []
         for device, usages in device_usage.items():
             total_streams = sum(streams for _, streams in usages)
@@ -583,7 +585,7 @@ class TestsManager:
             # Each device can only be in one pipeline with one stream
             if len(usages) > 1 or total_streams > 1:
                 errors.append(
-                    f"USB camera device '{device}' can only be used in one pipeline with one stream. "
+                    f"Camera device '{device}' can only be used in one pipeline with one stream. "
                     f"Found in {len(usages)} pipeline(s) with total {total_streams} stream(s): "
                     f"{', '.join(pipeline_names)}"
                 )
@@ -595,17 +597,17 @@ class TestsManager:
         self, pipeline_density_specs: list[InternalPipelineDensitySpec]
     ) -> None:
         """
-        Validate that no pipeline uses USB camera in density tests.
+        Validate that no pipeline uses a USB or GigE camera in density tests.
 
-        Density tests are not compatible with USB cameras because they require
-        spawning multiple pipeline instances, but USB camera devices can only
+        Density tests are not compatible with USB and GigE cameras because they require
+        spawning multiple pipeline instances, but these camera devices can only
         be opened by one process at a time.
 
         Args:
             pipeline_density_specs: List of InternalPipelineDensitySpec objects.
 
         Raises:
-            ValueError: If any pipeline uses a USB camera source.
+            ValueError: If any pipeline uses a USB or GigE camera source.
         """
         pipelines_with_usb = []
 
@@ -618,10 +620,10 @@ class TestsManager:
 
         if pipelines_with_usb:
             raise ValueError(
-                f"USB camera input sources are not supported in density tests. "
-                f"USB camera devices can only be opened by one process at a time, "
+                f"USB and GigE camera input sources are not supported in density tests. "
+                f"These camera devices can only be opened by one process at a time, "
                 f"which is incompatible with density testing that spawns multiple pipeline instances. "
-                f"Pipelines with USB camera: {'; '.join(pipelines_with_usb)}"
+                f"Pipelines with camera: {'; '.join(pipelines_with_usb)}"
             )
 
     def _execute_performance_test(

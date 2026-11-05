@@ -39,8 +39,21 @@ class ProviderConfig:
     type: str  # 'vllm', 'ollama', 'openai', etc.
     model: str  # Backend model identifier, e.g. "Qwen/Qwen3.5-9B"
     enabled: bool = True
+    # When True, this provider is the routing fallback: it is selected whenever
+    # the DecisionEngine's policy fails to match any provider (see
+    # ``DecisionEngine._fallback_decision``). At most one provider should set
+    # this — ``POST /providers/{name}`` with ``fallback: true`` clears it on
+    # all others; if a hand-edited config sets several, the earliest-configured
+    # one wins. With no provider marked, unmatched requests are rejected.
+    fallback: bool = False
     metadata: Dict[str, Any] = field(default_factory=dict)
     settings: Dict[str, Any] = field(default_factory=dict)
+    # Names of postrouting/postresponse plugin instances attached to this
+    # provider. An attached plugin runs only for requests routed to the
+    # providers that list it; providers listing the same name share one
+    # instance. Unattached plugins run for every provider; prerouting plugins
+    # cannot be attached (the provider is not chosen yet).
+    plugins: List[str] = field(default_factory=list)
     # Generic passthrough mapping for integrations that are not part of the core provider contract
     extra: Dict[str, Any] = field(default_factory=dict)
 
@@ -69,7 +82,7 @@ class PluginConfig:
     name: str
     node: str  # plugin type key (a PluginBaseNode subclass); config name = instance
     enabled: bool = True
-    trigger: str = "prerouting"  # 'prerouting', 'postrouting', or 'postresponse'
+    trigger: str = "prerouting"  # 'prerouting', 'postrouting', 'postresponse', or 'standalone'
     settings: Dict[str, Any] = field(default_factory=dict)
 
 

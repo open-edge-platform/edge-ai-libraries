@@ -1,0 +1,45 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# Optional task-based OKF service, on the same external network as the engine.
+# Set OKF_EXTRACTOR_LLM_BASE_URL to an OpenAI-compatible, tool-calling model.
+# Files are shared through ENGINE_UPLOAD_DIR; HTTP carries task/path metadata only.
+name: ${OKF_EXTRACTOR_COMPOSE_PROJECT:-data-intelligence}
+
+services:
+  okf-extractor:
+    build:
+      context: ../../tools/okf_extractor
+      dockerfile: Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: "1"
+      cache_from:
+        - ${OKF_EXTRACTOR_IMAGE:-data-intelligence-okf-extractor:latest}
+    image: ${OKF_EXTRACTOR_IMAGE:-data-intelligence-okf-extractor:latest}
+    container_name: ${EXTRACTOR_CONTAINER_NAME:-okf-extractor}
+    environment:
+      OKF_EXTRACTOR_HOST: ${OKF_EXTRACTOR_HOST:-0.0.0.0}
+      OKF_EXTRACTOR_PORT: ${OKF_EXTRACTOR_CONTAINER_PORT:-8080}
+      OKF_EXTRACTOR_API_KEY: ${OKF_EXTRACTOR_API_KEY:-}
+      OKF_EXTRACTOR_MAX_TASK_BYTES: ${OKF_EXTRACTOR_MAX_TASK_BYTES:-67108864}
+      ENGINE_UPLOAD_DIR: ${ENGINE_UPLOAD_DIR:-${ENGINE_WORKSPACE:-/workspace}/uploads}
+      OKF_EXTRACTOR_LLM_BASE_URL: ${OKF_EXTRACTOR_LLM_BASE_URL:-http://host.docker.internal:8000/v1}
+      OKF_EXTRACTOR_LLM_MODEL: ${OKF_EXTRACTOR_LLM_MODEL:-Qwen/Qwen3.5-122B-A10B}
+      OKF_EXTRACTOR_LLM_API_KEY: ${OKF_EXTRACTOR_LLM_API_KEY:-EMPTY}
+      no_proxy: ${ENGINE_NO_PROXY:-localhost,127.0.0.1,okf-extractor,host.docker.internal}
+      NO_PROXY: ${ENGINE_NO_PROXY:-localhost,127.0.0.1,okf-extractor,host.docker.internal}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${OKF_EXTRACTOR_PORT:-8080}:${OKF_EXTRACTOR_CONTAINER_PORT:-8080}"
+    # Default UID/GID matches the engine image's non-root `user`. Override only
+    # to match the actual shared directory/engine ownership, not to run as root.
+    user: "${OKF_EXTRACTOR_UID:-1000}:${OKF_EXTRACTOR_GID:-1000}"
+    volumes:
+      - ${ENGINE_UPLOAD_PATH:-${ENGINE_WORKSPACE_PATH:-../../workspace}/uploads}:${ENGINE_UPLOAD_DIR:-${ENGINE_WORKSPACE:-/workspace}/uploads}
+    restart: unless-stopped
+
+networks:
+  default:
+    name: ${ENGINE_NETWORK:-data-intelligence-network}
+    external: true

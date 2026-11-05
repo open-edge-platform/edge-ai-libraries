@@ -31,7 +31,7 @@ define base-compose
 endef
 
 define standard-compose
-	$(call base-compose,$(1),,$(if $(DLSPS2_COMPOSE),compose_files+=($(DLSPS2_COMPOSE))))
+	$(call base-compose,$(1),,$(if $(strip $(DLSPS2_COMPOSE) $(GIGE_COMPOSE)),compose_files+=($(DLSPS2_COMPOSE) $(GIGE_COMPOSE))))
 endef
 
 define experimental-compose
@@ -44,6 +44,10 @@ endef
 # Set DLSPS2=1 to run pipelines on a DLSPS 2.0 container (see compose.dlsps2.yml).
 DLSPS2 ?= 0
 DLSPS2_COMPOSE := $(if $(filter 1,$(DLSPS2)),-f compose.dlsps2.yml)
+
+# Set GIGE=1 to run vippet with host networking for GigE Vision camera streaming (see compose.gige.yml).
+GIGE ?= 0
+GIGE_COMPOSE := $(if $(filter 1,$(GIGE)),-f compose.gige.yml)
 
 # Speed up `docker compose build` by skipping provenance/SBOM attestations
 # (saves ~hundreds of ms per build on warm cache, more on cold).
@@ -161,7 +165,7 @@ $(ENV_DIRS_SENTINEL): Makefile
 env-setup: $(ENV_DIRS_SENTINEL) ## Create shared/ dirs and (always) re-run setup_env.sh
 	./setup_env.sh
 
-build: env-setup ## Build core, Voice, and sensor-manager images; DLSPS2=1 adds DLSPS 2.0
+build: env-setup ## Build core, Voice, and sensor-manager images; DLSPS2=1 adds DLSPS 2.0; GIGE=1 enables GigE camera streaming
 	$(call standard-compose,build)
 
 build-dev: env-setup ## Build core, Voice, and sensor-manager development images
@@ -177,19 +181,19 @@ build-onvif-discovery: build-sensor-manager ## Deprecated alias of build-sensor-
 
 docker-build: build build-videogenerator ## Build all images
 
-run: env-setup ## Run ViPPET core and Voice services; DLSPS2=1 uses DLSPS 2.0
+run: env-setup ## Run ViPPET core and Voice services; DLSPS2=1 uses DLSPS 2.0; GIGE=1 enables GigE camera streaming
 	$(call standard-compose,up -d)
 
-run-prebuilt: env-setup ## Pull and run the published images tagged PREBUILT_TAG (latest on main); never builds from source
+run-prebuilt: env-setup ## Pull and run the published images tagged PREBUILT_TAG (latest on main); never builds from source; GIGE=1 enables GigE camera streaming
 	. .env && export DOCKER_TAG="$$PREBUILT_TAG" && echo "Running published images tagged $$DOCKER_TAG" && \
-		docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml pull vippet vippet-ui sensor-manager && \
-		docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d --no-build
+		docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(GIGE_COMPOSE) pull vippet vippet-ui sensor-manager && \
+		docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml $(GIGE_COMPOSE) up -d --no-build
 
 run-videogenerator: env-setup build-videogenerator ## Run only the videogenerator service
 	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d videogenerator
 
-run-dev: env-setup ## Run the docker compose services for development
-	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) up -d
+run-dev: env-setup ## Run the docker compose services for development; GIGE=1 enables GigE camera streaming
+	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) $(GIGE_COMPOSE) up -d
 
 build-experimental: env-setup ## Build core images for experimental timeseries setup
 	$(call experimental-compose,build)
@@ -244,10 +248,10 @@ test-full: $(VENV_SENTINEL) ## Run full functional tests
 	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\
 	python -m pytest --junit-xml=report.xml --html=report.html --self-contained-html --log-cli-level=INFO vippet/tests/functional/
 
-test-performance: $(VENV_SENTINEL) ## Run performance benchmarks (PERF_CONFIG=default|quick|full, PERF_ARGS="--dry-run ...")
+test-performance: $(VENV_SENTINEL) ## Run performance benchmarks (PERF_CONFIG=default|quick|full|<result JSON or run dir>, PERF_ARGS="--dry-run ...")
 	set +u; . ./$(VENV_DIR)/bin/activate; set -u ;\
 	PYTHONPATH=vippet/tests/performance PERF_CONFIG=$(or $(PERF_CONFIG),default) \
-		python -m perf_helpers.cli $(PERF_ARGS) -- --log-cli-level=INFO
+		python -m perf_helpers.cli $(PERF_ARGS)
 
 # UI end-to-end setup — Playwright installs are slow, so both recipes are
 # sentinel-gated. Re-runs are a no-op unless package-lock.json changes or

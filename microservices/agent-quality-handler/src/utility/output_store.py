@@ -13,13 +13,56 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from src.routing.agent_registry import AgentSpec, DEFAULT_REGISTRY
 
-AGENT_RESULT_KEYS = {
-    "policy": ("policy", "policy"),
-    "analysis": ("analysis", "analysis"),
-    "evidence": ("evidence", "evidence"),
-    "ticket": ("ticket", "ticketing"),
+
+# The REST/storage surface exposes ``ticket`` while the built-in registry and
+# execution graph use the agent name ``ticketing``. Preserve that legacy file
+# name and API key for backward compatibility with existing on-disk history.
+_LEGACY_STORAGE_AGENT_NAMES = {"ticketing": "ticket"}
+_LEGACY_RESULT_KEYS = {
+    "policy": "policy",
+    "analysis": "analysis",
+    "evidence": "evidence",
+    "ticketing": "ticket",
 }
+
+
+def agent_result_keys(
+    specs: list[AgentSpec] | tuple[AgentSpec, ...] | None = None,
+) -> dict[str, tuple[str, str]]:
+    """Return output-store keys derived from the configured agent registry.
+
+    The mapping shape stays backward-compatible:
+
+    ``{storage_agent_name: (pipeline_result_key, execution_agent_name)}``
+
+    For the built-in ticketing agent this deliberately remains
+    ``{"ticket": ("ticket", "ticketing")}``, preserving the long-standing
+    ``ticket.json`` file and ``/agents/outputs/ticket`` API contract.
+    """
+    resolved_specs = DEFAULT_REGISTRY if specs is None else tuple(specs)
+    keys: dict[str, tuple[str, str]] = {}
+
+    for spec in resolved_specs:
+        storage_agent = _LEGACY_STORAGE_AGENT_NAMES.get(spec.name, spec.name)
+        result_key = _LEGACY_RESULT_KEYS.get(spec.name, spec.name)
+        if storage_agent in keys:
+            raise ValueError(
+                f"Duplicate output-store agent key '{storage_agent}' derived from registry"
+            )
+        keys[storage_agent] = (result_key, spec.name)
+    return keys
+
+
+def _agent_keys(
+    specs: list[AgentSpec] | tuple[AgentSpec, ...] | None = None,
+) -> tuple[str, ...]:
+    """Return the per-agent output document names derived from the registry."""
+    return tuple(agent_result_keys(specs))
+
+
+AGENT_RESULT_KEYS = agent_result_keys()
 
 
 class OutputStoreError(RuntimeError):
@@ -29,15 +72,21 @@ class OutputStoreError(RuntimeError):
 class AgentOutputStore:
     """Maintain one JSON history document per agent."""
 
-    def __init__(self, output_dir: str | Path):
+    def __init__(
+        self,
+        output_dir: str | Path,
+        *,
+        specs: list[AgentSpec] | tuple[AgentSpec, ...] | None = None,
+    ):
         self.output_dir = Path(output_dir)
+        self._agent_result_keys = agent_result_keys(specs)
         self._lock = threading.RLock()
 
     def ensure_files(self) -> None:
         with self._lock:
             try:
                 self.output_dir.mkdir(parents=True, exist_ok=True)
-                for agent in AGENT_RESULT_KEYS:
+                for agent in self._agent_result_keys:
                     path = self._path(agent)
                     if not path.exists():
                         self._write_unlocked(agent, self._empty_document(agent))
@@ -73,10 +122,11 @@ class AgentOutputStore:
         with self._lock:
             self.ensure_files()
             documents = {
-                agent: self._read_unlocked(agent) for agent in AGENT_RESULT_KEYS
+                agent: self._read_unlocked(agent)
+                for agent in self._agent_result_keys
             }
-            for agent, (result_key, error_agent) in AGENT_RESULT_KEYS.items():
-                output = result.get(result_key, {})
+            for agent, (result_key, error_agent) in self._agent_result_keys.items():
+                output = self._output_for_agent(result, result_key, error_agent)
                 errors = [
                     deepcopy(error)
                     for error in run_errors
@@ -116,7 +166,8 @@ class AgentOutputStore:
         with self._lock:
             self.ensure_files()
             documents = {
-                agent: self._read_unlocked(agent) for agent in AGENT_RESULT_KEYS
+                agent: self._read_unlocked(agent)
+                for agent in self._agent_result_keys
             }
             timestamps: dict[str, float] = {}
             for document in documents.values():
@@ -161,10 +212,19 @@ class AgentOutputStore:
     def _empty_document(agent: str) -> dict[str, Any]:
         return {"schema_version": "1.0", "agent": agent, "runs": {}}
 
-    @staticmethod
-    def _validate_agent(agent: str) -> None:
-        if agent not in AGENT_RESULT_KEYS:
+    def _validate_agent(self, agent: str) -> None:
+        if agent not in self._agent_result_keys:
             raise ValueError(f"Unknown agent: {agent}")
+
+    @staticmethod
+    def _output_for_agent(
+        result: dict[str, Any], result_key: str, execution_agent: str
+    ) -> Any:
+        if execution_agent not in _LEGACY_RESULT_KEYS:
+            extra_agents = result.get("extra_agents")
+            if isinstance(extra_agents, dict) and execution_agent in extra_agents:
+                return deepcopy(extra_agents[execution_agent])
+        return deepcopy(result.get(result_key, {}))
 
     def _read_unlocked(self, agent: str) -> dict[str, Any]:
         path = self._path(agent)

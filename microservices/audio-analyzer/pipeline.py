@@ -25,9 +25,12 @@ class Pipeline:
     #: snapshot path. The two keep separate ASR model instances.
     POOL_FINAL = POOL_FINAL
     POOL_PREVIEW = POOL_PREVIEW
+    #: Class default, so an instance made without __init__ still persists.
+    persist = True
 
     def __init__(self, session_id=None, temperature=None, append_to_session: bool = False, speaker_scope_id=None,
-                 diarization: bool | None = None, device: str | None = None, pool: str = POOL_FINAL):
+                 diarization: bool | None = None, device: str | None = None, pool: str = POOL_FINAL,
+                 persist: bool = True):
         """Build a transcription pipeline.
 
         Args:
@@ -43,11 +46,15 @@ class Pipeline:
                 ``append_to_session``, since a brand-new session's first
                 persisted call also has ``append_to_session=False`` and must
                 still run on the final model.
+            persist: Write the result to the session's state files. False makes
+                a final-pool call a pure decode, like a preview-pool call; the
+                caller then persists it with :meth:`append_precomputed`.
         """
         logger.info("pipeline initialized")
         self.session_id = session_id or generate_session_id()
         self.append_to_session = append_to_session
         self.pool = pool
+        self.persist = persist
         self.temperature = config.models.asr.temperature if temperature is None else temperature
         # The preview pool may use a different model/device than the final
         # pool; every key falls back to the main asr config when unset, so
@@ -296,9 +303,66 @@ class Pipeline:
         # non-cumulative duration/segments, corrupting its offset math. Final-pool
         # calls always persist, including the first call of a brand-new session
         # (append_to_session=False), which still owns the session's state file.
-        if self.pool != self.POOL_PREVIEW:
+        if self.pool != self.POOL_PREVIEW and self.persist:
             self._persist_session_outputs(detected_language, duration, final_text, all_segments, chunk_sentiments)
         yield final_event
+
+    @classmethod
+    def append_precomputed(cls, session_id: str, utterance: dict, audio_duration: float) -> dict:
+        """Persist an utterance that was already transcribed, as transcribe() would.
+
+        Used by the realtime low-latency mode: when a full-buffer preview
+        already decoded exactly the audio being committed, the commit reuses
+        that result instead of decoding the same audio again.
+
+        Args:
+            session_id: Session whose state the utterance is appended to.
+            utterance: A transcribe() result for this utterance alone (no
+                session state), segment times relative to the utterance start.
+            audio_duration: Length of the committed audio in seconds. The
+                session duration advances by this, so later utterances get the
+                same time offset they would get after a normal decode.
+
+        Returns:
+            The cumulative session result, same shape as transcribe().
+        """
+        # No ASR model is needed here, so skip __init__ (which builds an
+        # ASRComponent and probes OpenVINO devices) and set only what the
+        # session-state helpers read.
+        self = cls.__new__(cls)
+        self.session_id = session_id
+        self.append_to_session = True
+        self.pool = POOL_FINAL
+        self.persist = True
+        self.temperature = config.models.asr.temperature
+        self._session_state = self._load_session_state()
+
+        base_duration = float(self._session_state.get("duration", 0.0))
+        segments = [dict(segment) for segment in self._session_state.get("segments", [])]
+        text_parts = [self._session_state["text"]] if self._session_state.get("text") else []
+        language = self._session_state.get("language") or utterance.get("language")
+        chunk_sentiments = list(self._session_state.get("chunk_sentiments", []))
+
+        text = (utterance.get("text") or "").strip()
+        if text:
+            text_parts.append(text)
+        for segment in utterance.get("segments") or []:
+            raw = {k: v for k, v in segment.items() if k not in ("id", "seek", "tokens", "temperature")}
+            segments.append(self._offset_segment(raw, base_duration))
+        duration = base_duration + max(0.0, float(audio_duration))
+        for segment in segments:
+            duration = max(duration, float(segment.get("end", 0.0)))
+
+        full_text = "\n".join(part for part in text_parts if part).strip()
+        result = {
+            "task": "transcribe",
+            "language": language,
+            "duration": round(duration, 3),
+            "text": full_text,
+            "segments": [self._build_verbose_segment(i, seg, include_speaker=True) for i, seg in enumerate(segments)],
+        }
+        self._persist_session_outputs(language, duration, full_text, segments, chunk_sentiments)
+        return result
 
     def transcribe(self, input, language: str | None = None) -> dict:
         detected_language = language or self._session_state.get("language")
@@ -348,7 +412,7 @@ class Pipeline:
         # Same guard as stream_transcribe() -- see comment there. A preview-pool
         # call must be a pure read: it must not persist its own
         # duration/segments over the real session's state.
-        if self.pool != self.POOL_PREVIEW:
+        if self.pool != self.POOL_PREVIEW and self.persist:
             self._persist_session_outputs(detected_language, duration, full_text, segments, chunk_sentiments)
 
         return result

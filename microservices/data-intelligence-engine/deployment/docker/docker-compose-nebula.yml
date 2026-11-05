@@ -1,0 +1,143 @@
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+# Start the NebulaGraph services on the engine network:
+#
+#   cd data-intelligence-engine/deployment/docker
+#   docker network create data-intelligence-network        # once
+#   docker compose -f docker-compose-nebula.yml up -d
+
+name: ${NEBULA_COMPOSE_PROJECT:-nebula}
+
+x-no-proxy: &no_proxy_hosts "${ENGINE_NO_PROXY:-localhost,127.0.0.1,etcd,minio,milvus-standalone,engine,nebula-metad0,nebula-storaged0,nebula-graphd,172.16.0.0/12,192.168.0.0/16}"
+x-environment: &nebula_environment
+  USER: ${NEBULA_CONTAINER_USER:-root}
+  TZ: ${TZ:-Etc/UTC}
+  no_proxy: *no_proxy_hosts
+  NO_PROXY: *no_proxy_hosts
+x-healthcheck: &healthcheck
+  interval: ${NEBULA_HEALTHCHECK_INTERVAL:-30s}
+  timeout: ${NEBULA_HEALTHCHECK_TIMEOUT:-10s}
+  retries: ${NEBULA_HEALTHCHECK_RETRIES:-3}
+  start_period: ${NEBULA_HEALTHCHECK_START_PERIOD:-20s}
+x-ulimits: &ulimits
+  nofile:
+    soft: ${NEBULA_NOFILE_LIMIT:-65535}
+    hard: ${NEBULA_NOFILE_LIMIT:-65535}
+
+services:
+  nebula-metad0:
+    container_name: ${NEBULA_META_CONTAINER_NAME:-nebula-metad0}
+    image: ${NEBULA_IMAGE_REGISTRY:-docker.io/vesoft}/nebula-metad:${NEBULA_VERSION:-v3.6.0}
+    environment: *nebula_environment
+    command:
+      - --meta_server_addrs=nebula-metad0:${NEBULA_META_INTERNAL_PORT:-9559}
+      - --local_ip=nebula-metad0
+      - --ws_ip=nebula-metad0
+      - --port=${NEBULA_META_INTERNAL_PORT:-9559}
+      - --ws_http_port=${NEBULA_META_INTERNAL_HTTP_PORT:-19559}
+      - --data_path=/data/meta
+      - --log_dir=/logs
+      - --v=${NEBULA_LOG_VERBOSITY:-0}
+      - --minloglevel=${NEBULA_MIN_LOG_LEVEL:-0}
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "curl", "-sf", "http://nebula-metad0:${NEBULA_META_INTERNAL_HTTP_PORT:-19559}/status"]
+    ports:
+      - "${NEBULA_META_PORT:-9559}:${NEBULA_META_INTERNAL_PORT:-9559}"
+      - "${NEBULA_META_HTTP_PORT:-19559}:${NEBULA_META_INTERNAL_HTTP_PORT:-19559}"
+      - "${NEBULA_META_HTTP2_PORT:-19560}:19560"
+    volumes:
+      - ${ENGINE_WORKSPACE_PATH:-../../workspace}/nebula/data/meta0:/data/meta
+      - ${ENGINE_WORKSPACE_PATH:-../../workspace}/nebula/logs/meta0:/logs
+    ulimits: *ulimits
+    restart: on-failure
+    cap_add:
+      - SYS_PTRACE
+
+  nebula-storaged0:
+    container_name: ${NEBULA_STORAGE_CONTAINER_NAME:-nebula-storaged0}
+    image: ${NEBULA_IMAGE_REGISTRY:-docker.io/vesoft}/nebula-storaged:${NEBULA_VERSION:-v3.6.0}
+    environment: *nebula_environment
+    command:
+      - --meta_server_addrs=nebula-metad0:${NEBULA_META_INTERNAL_PORT:-9559}
+      - --local_ip=nebula-storaged0
+      - --ws_ip=nebula-storaged0
+      - --port=${NEBULA_STORAGE_INTERNAL_PORT:-9779}
+      - --ws_http_port=${NEBULA_STORAGE_INTERNAL_HTTP_PORT:-19779}
+      - --data_path=/data/storage
+      - --log_dir=/logs
+      - --v=${NEBULA_LOG_VERBOSITY:-0}
+      - --minloglevel=${NEBULA_MIN_LOG_LEVEL:-0}
+    depends_on:
+      nebula-metad0:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "curl", "-sf", "http://nebula-storaged0:${NEBULA_STORAGE_INTERNAL_HTTP_PORT:-19779}/status"]
+    ports:
+      - "${NEBULA_STORAGE_PORT:-9779}:${NEBULA_STORAGE_INTERNAL_PORT:-9779}"
+      - "${NEBULA_STORAGE_HTTP_PORT:-19779}:${NEBULA_STORAGE_INTERNAL_HTTP_PORT:-19779}"
+      - "${NEBULA_STORAGE_HTTP2_PORT:-19780}:19780"
+    volumes:
+      - ${ENGINE_WORKSPACE_PATH:-../../workspace}/nebula/data/storage0:/data/storage
+      - ${ENGINE_WORKSPACE_PATH:-../../workspace}/nebula/logs/storage0:/logs
+    ulimits: *ulimits
+    restart: on-failure
+    cap_add:
+      - SYS_PTRACE
+
+  nebula-graphd:
+    container_name: ${NEBULA_GRAPH_CONTAINER_NAME:-nebula-graphd}
+    image: ${NEBULA_IMAGE_REGISTRY:-docker.io/vesoft}/nebula-graphd:${NEBULA_VERSION:-v3.6.0}
+    environment: *nebula_environment
+    command:
+      - --meta_server_addrs=nebula-metad0:${NEBULA_META_INTERNAL_PORT:-9559}
+      - --port=${NEBULA_GRAPH_INTERNAL_PORT:-9669}
+      - --local_ip=nebula-graphd
+      - --ws_ip=nebula-graphd
+      - --ws_http_port=${NEBULA_GRAPH_INTERNAL_HTTP_PORT:-19669}
+      - --log_dir=/logs
+      - --v=${NEBULA_LOG_VERBOSITY:-0}
+      - --minloglevel=${NEBULA_MIN_LOG_LEVEL:-0}
+    depends_on:
+      nebula-metad0:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "curl", "-sf", "http://nebula-graphd:${NEBULA_GRAPH_INTERNAL_HTTP_PORT:-19669}/status"]
+    ports:
+      - "${NEBULA_GRAPH_PORT:-9669}:${NEBULA_GRAPH_INTERNAL_PORT:-9669}"
+      - "${NEBULA_GRAPH_HTTP_PORT:-19669}:${NEBULA_GRAPH_INTERNAL_HTTP_PORT:-19669}"
+      - "${NEBULA_GRAPH_HTTP2_PORT:-19670}:19670"
+    volumes:
+      - ${ENGINE_WORKSPACE_PATH:-../../workspace}/nebula/logs/graph:/logs
+    ulimits: *ulimits
+    restart: on-failure
+    cap_add:
+      - SYS_PTRACE
+
+  nebula-storage-init:
+    image: ${NEBULA_IMAGE_REGISTRY:-docker.io/vesoft}/nebula-console:${NEBULA_VERSION:-v3.6.0}
+    depends_on:
+      nebula-graphd:
+        condition: service_healthy
+      nebula-storaged0:
+        condition: service_started
+    command:
+      - -addr
+      - nebula-graphd
+      - -port
+      - "${NEBULA_GRAPH_INTERNAL_PORT:-9669}"
+      - -u
+      - ${NEBULA_USERNAME:-root}
+      - -p
+      - ${NEBULA_PASSWORD:-nebula}
+      - -e
+      - 'ADD HOSTS "nebula-storaged0":${NEBULA_STORAGE_INTERNAL_PORT:-9779}'
+    restart: "no"
+
+networks:
+  default:
+    name: ${ENGINE_NETWORK:-data-intelligence-network}
+    external: true

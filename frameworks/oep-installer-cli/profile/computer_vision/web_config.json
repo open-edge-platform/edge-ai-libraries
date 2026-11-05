@@ -4,7 +4,7 @@
     "value": "computer_vision",
     "installAll": true,
     "remove": true,
-    "supports": { "OP_SYSTEM": ["UBUNTU_24_04", "UBUNTU_26_04"] }
+    "supports": { "OP_SYSTEM": ["UBUNTU_24_04"] }
   },
   "modules": [
     { "label": "DL Streamer", "value": "dlstreamer", "remove": true },

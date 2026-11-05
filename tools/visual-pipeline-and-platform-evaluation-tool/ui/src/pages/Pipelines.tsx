@@ -82,8 +82,12 @@ const containsCameraInput = (nodes: ReactFlowNode[]): boolean => {
   return nodes.some((node) => {
     if (node.type === "source") {
       const sourceType = (node.data as { source?: string })?.source || "";
-      // Check if it's a camera: /dev/video* or rtsp://
-      return sourceType.startsWith("/dev/") || sourceType.startsWith("rtsp://");
+      // Check if it's a camera: /dev/video*, rtsp:// or gige://
+      return (
+        sourceType.startsWith("/dev/") ||
+        sourceType.startsWith("rtsp://") ||
+        sourceType.startsWith("gige://")
+      );
     }
     return false;
   });
@@ -261,6 +265,7 @@ export const Pipelines = () => {
     data?.variants
       .find((v) => v.id === variant)
       ?.pipeline_graph.nodes.some((n) => n.type === "gvagenai") ?? false;
+  const isAlertingVlmPipeline = data?.name === "Alerting VLM";
 
   useEffect(() => {
     setMetadataEnabled(isVlmPipeline);
@@ -988,6 +993,7 @@ export const Pipelines = () => {
                       enableLatencyMetrics={latencyMetricsEnabled}
                       enableMetadata={metadataEnabled && pipelineHasMetadata}
                       isVlmPipeline={isVlmPipeline}
+                      isAlertingVlmPipeline={isAlertingVlmPipeline}
                       liveStreamUrl={
                         Object.values(jobStatus?.live_stream_urls ?? {})[0] ??
                         null

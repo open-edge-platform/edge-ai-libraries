@@ -15,6 +15,7 @@ import numpy as np
 import json
 import os
 import tempfile
+from io import BytesIO
 from pathlib import Path
 from pydantic import ValidationError
 
@@ -63,8 +64,7 @@ class EmbeddingModel:
         Returns:
             List of embedding values
         """
-        prepared_text = self.handler.prepare_query(text)
-        embeddings = self.handler.encode_text([prepared_text])
+        embeddings = self.handler.encode_query(text)
         return embeddings[0].tolist()
     
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
@@ -77,8 +77,7 @@ class EmbeddingModel:
         Returns:
             List of embedding lists
         """
-        prepared_texts = self.handler.prepare_documents(texts)
-        embeddings = self.handler.encode_text(prepared_texts)
+        embeddings = self.handler.encode_documents(texts)
         return embeddings.tolist()
     
     def get_embedding_length(self) -> int:
@@ -131,7 +130,60 @@ class EmbeddingModel:
         except Exception as e:
             logger.error(f"Error getting image embedding from base64: {e}")
             raise RuntimeError(f"Failed to get image embedding from base64: {e}")
-    
+
+    @staticmethod
+    def _as_rgb_image(image: Union[Image.Image, np.ndarray, bytes, bytearray]) -> Image.Image:
+        """Decode one fused-input image to an RGB PIL image."""
+        if isinstance(image, (bytes, bytearray)):
+            image = Image.open(BytesIO(bytes(image)))
+        elif isinstance(image, np.ndarray):
+            image = Image.fromarray(image)
+        if not isinstance(image, Image.Image):
+            raise ValueError(
+                f"Fused images must be PIL images, numpy arrays or encoded image bytes, got {type(image).__name__}"
+            )
+        return image.convert("RGB")
+
+    def get_fused_embeddings(
+        self,
+        texts: List[str],
+        images: List[Union[Image.Image, np.ndarray, bytes, bytearray]],
+    ) -> List[List[float]]:
+        """
+        Embed (text, image) pairs, each pair jointly into one vector.
+
+        The model encodes the image together with its text (for example a figure
+        and its caption); this is not an average of separate text and image
+        vectors. Pairs are matched by position.
+
+        Args:
+            texts: One text per pair
+            images: One image per pair (PIL image, numpy array, or encoded image bytes)
+
+        Returns:
+            One embedding list per pair, in input order
+        """
+        if not self.supports_fused():
+            raise RuntimeError("Fused image+text embeddings are not supported by the active model")
+        texts = list(texts)
+        images = list(images)
+        if not texts:
+            raise ValueError("Fused input must contain at least one (text, image) pair")
+        if len(texts) != len(images):
+            raise ValueError(f"Got {len(texts)} texts for {len(images)} images; fused input is paired by position")
+        if not all(isinstance(text, str) for text in texts):
+            raise ValueError("Fused texts must be strings")
+        pil_images = [self._as_rgb_image(image) for image in images]
+        embeddings = self.handler.encode_fused(texts, pil_images)
+        logger.info(f"Fused embeddings extracted successfully - {len(texts)} pairs")
+        return embeddings.tolist()
+
+    def get_fused_embedding(
+        self, text: str, image: Union[Image.Image, np.ndarray, bytes, bytearray]
+    ) -> List[float]:
+        """Embed one (text, image) pair into one vector."""
+        return self.get_fused_embeddings([text], [image])[0]
+
     def get_video_embeddings(self, frames_batch: List[List[Union[Image.Image, np.ndarray]]]) -> List[List[float]]:
         """
         Get video embeddings from frame batches.
@@ -578,6 +630,9 @@ class EmbeddingModel:
 
     def supports_video(self) -> bool:
         return self.handler.supports_video()
+
+    def supports_fused(self) -> bool:
+        return self.handler.supports_fused()
 
     def get_max_text_tokens(self) -> Optional[int]:
         """

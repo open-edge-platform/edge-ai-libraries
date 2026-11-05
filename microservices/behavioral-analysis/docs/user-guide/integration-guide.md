@@ -55,7 +55,7 @@ Frames must be readable by the service under:
 ```
 
 > [!NOTE]
-> 
+>
 > - Bucket name is configurable via `SEAWEEDFS_BUCKET`.
 > - Filenames should preserve timestamp ordering because the service sorts by timestamp name.
 
