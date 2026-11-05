@@ -9,11 +9,11 @@ verify_power_tuning () {
   [ -x /usr/local/sbin/pcm ]
 }
 
-debian_40_profile_power_tuning () {
+debian_45_profile_power_tuning () {
   echo "intel_lpmd pcm sysbench msr_tools lm_sensors stress_ng linux_tools"
 }
 
-debian_40_install_power_tuning () {
+debian_45_install_power_tuning () {
   configure_power_tuning
   if verify_power_tuning && [[ " $* " != *" --reinstall "* ]]; then
     echo "power_tuning is installed." >&2
@@ -32,7 +32,7 @@ debian_40_install_power_tuning () {
   fi
 }
 
-debian_40_remove_power_tuning () {
+debian_45_remove_power_tuning () {
   configure_power_tuning
   [ "$(ensure_prop get installed/power_tuning/owned)" = "true" ] || return 0
 
