@@ -42,6 +42,11 @@ authoritative schema for the version you are running:
 | `POST` | [/validate](#post-validate) | Validate a pipeline without starting it. | Yes |
 | `GET` | [/validate/status](#get-validatestatus) | Return the status of all validation requests. | Yes |
 | `GET` | [/validate/status/{validation_id}](#get-validatestatusvalidation_id) | Return the status of a specific validation request. | Yes |
+| `POST` | [/optimize](#post-optimize) | Start an asynchronous pipeline optimization job. | Yes |
+| `GET` | [/optimize/status](#get-optimizestatus) | Return the status of all optimizer jobs. | Yes |
+| `GET` | [/optimize/status/{job_id}](#get-optimizestatusjob_id) | Return the progress of an optimizer job. | Yes |
+| `GET` | [/optimize/result/{job_id}](#get-optimizeresultjob_id) | Return the optimizer result (partial while running). | Yes |
+| `DELETE` | [/optimize/{job_id}](#delete-optimizejob_id) | Cancel a running optimizer job. | Yes |
 | `GET` | [/elements](#get-elements) | List available GStreamer elements. | Yes |
 | `GET` | [/elements/{element_name}](#get-elementselement_name) | Get details about a specific GStreamer element. | Yes |
 
@@ -735,6 +740,303 @@ curl http://localhost:8080/validate/status/3f1c0d2e-8a4b-4d6c-9e1f-2a3b4c5d6e7f
 ```
 
 ---
+
+---
+
+## Optimization
+
+**New in 2.0.** Searches for a faster version of a GStreamer pipeline by running
+DL Streamer's pipeline optimizer as an asynchronous job. Each job runs in its own
+worker subprocess, so candidate pipelines never run inside the API server process.
+
+Rules:
+
+- Only **one** optimizer job may run at a time. Submitting while a job is running returns `409 Conflict`.
+- **Do not run optimization while other pipelines are running.** Other pipelines use the same devices and skew the measured FPS, so the optimal pipeline may not be the best one on an idle system.
+- `search_duration` is the time budget for searching candidates. The worker stops starting new candidates after this time. The candidate being sampled when the budget ends is completed.
+- `sample_duration` is the time each candidate pipeline is measured.
+- **Partial results:** the optimizer reports each candidate as it is evaluated. While a job is `RUNNING`, `GET /optimize/result/{job_id}` returns the best pipeline found so far and the candidates evaluated so far, with `"final": false`.
+- **Cancel:** `DELETE /optimize/{job_id}` stops the job. The job ends in state `CANCELLED` and keeps the partial results found before cancellation.
+- Job state is kept in memory. Results are lost when the server restarts.
+
+## `POST` /optimize
+
+Starts an optimizer job and returns immediately. Poll `GET /optimize/status/{job_id}` for progress and `GET /optimize/result/{job_id}` for results.
+
+### Request Body: [OptimizeRequest](#optimizerequest)
+
+| Field | Type | Required | Default | Description |
+|-------|------|:--------:|---------|-------------|
+| `pipeline` | string | Yes | - | GStreamer launch string to optimize. Must not be empty or whitespace-only. Pipelines containing `tee` are rejected by the optimizer. |
+| `search_duration` | number | No | `300` | Seconds to search for a better pipeline. Must be greater than 0. |
+| `sample_duration` | number | No | `10` | Seconds each candidate pipeline is measured. Must be greater than 0. |
+| `allowed_devices` | array of string | No | all detected devices | Devices the optimizer may use, for example `["CPU", "GPU"]`. Must be a non-empty list of names when provided. |
+
+```json
+{
+  "pipeline": "filesrc location=/videos/sample.mp4 ! decodebin3 ! gvadetect model=/models/yolo.xml device=CPU ! gvafpscounter ! fakesink",
+  "search_duration": 300,
+  "sample_duration": 10,
+  "allowed_devices": ["CPU", "GPU"]
+}
+```
+
+### Responses
+
+#### `200 OK`: [OptimizeResponse](#optimizeresponse)
+
+```json
+{
+  "job_id": "7a9c2b1e-3d4f-4a5b-8c6d-9e0f1a2b3c4d"
+}
+```
+
+#### `400 Bad Request`
+
+```json
+{
+  "detail": "pipeline must not be empty"
+}
+```
+
+#### `409 Conflict`
+
+Another optimizer job is still running.
+
+```json
+{
+  "detail": "optimizer job 7a9c2b1e-3d4f-4a5b-8c6d-9e0f1a2b3c4d is still running"
+}
+```
+
+### Example
+
+```bash
+curl -X POST http://localhost:8080/optimize \
+  -H 'Content-Type: application/json' \
+  -d '{"pipeline": "videotestsrc ! videoconvert ! gvafpscounter ! fakesink", "search_duration": 120, "sample_duration": 5}'
+```
+
+---
+
+## `GET` /optimize/status
+
+Returns the status of all optimizer jobs.
+
+### Responses
+
+#### `200 OK`: array of [OptimizeStatusResponse](#optimizestatusresponse)
+
+```json
+[
+  {
+    "job_id": "7a9c2b1e-3d4f-4a5b-8c6d-9e0f1a2b3c4d",
+    "state": "COMPLETED",
+    "final": true,
+    "message": "",
+    "candidates_evaluated": 12,
+    "baseline_fps": 41.2,
+    "best_fps": 58.7,
+    "elapsed_time": 302.114
+  }
+]
+```
+
+### Example
+
+```bash
+curl http://localhost:8080/optimize/status
+```
+
+---
+
+## `GET` /optimize/status/{job_id}
+
+Returns the progress of a specific optimizer job.
+
+### Path Parameters
+
+| Name | Type | Required | Description |
+|------|------|:--------:|-------------|
+| `job_id` | string | Yes | Optimizer job identifier (UUID). |
+
+### Responses
+
+#### `200 OK`: [OptimizeStatusResponse](#optimizestatusresponse)
+
+```json
+{
+  "job_id": "7a9c2b1e-3d4f-4a5b-8c6d-9e0f1a2b3c4d",
+  "state": "RUNNING",
+  "final": false,
+  "message": "",
+  "candidates_evaluated": 4,
+  "baseline_fps": 41.2,
+  "best_fps": 49.9,
+  "elapsed_time": 61.5
+}
+```
+
+#### `404 Not Found`
+
+```json
+{
+  "detail": "Optimizer job 7a9c2b1e-3d4f-4a5b-8c6d-9e0f1a2b3c4d not found"
+}
+```
+
+### Example
+
+```bash
+curl http://localhost:8080/optimize/status/7a9c2b1e-3d4f-4a5b-8c6d-9e0f1a2b3c4d
+```
+
+---
+
+## `GET` /optimize/result/{job_id}
+
+Returns the optimizer result. While the job is running, the result is partial: `best` is the best pipeline found so far and `candidates` lists the candidates evaluated so far. Check `final` to know whether the result is complete.
+
+### Path Parameters
+
+| Name | Type | Required | Description |
+|------|------|:--------:|-------------|
+| `job_id` | string | Yes | Optimizer job identifier (UUID). |
+
+### Responses
+
+#### `200 OK`: [OptimizeResultResponse](#optimizeresultresponse)
+
+```json
+{
+  "job_id": "7a9c2b1e-3d4f-4a5b-8c6d-9e0f1a2b3c4d",
+  "state": "COMPLETED",
+  "final": true,
+  "message": "",
+  "baseline": {
+    "pipeline": "filesrc location=/videos/sample.mp4 ! decodebin3 ! gvadetect model=/models/yolo.xml device=CPU ! gvafpscounter ! fakesink",
+    "fps": 41.2,
+    "metrics": {"fps": 41.2, "detections": 1830, "power": null}
+  },
+  "best": {
+    "pipeline": "filesrc location=/videos/sample.mp4 ! decodebin3 ! gvadetect model=/models/yolo.xml device=GPU ! gvafpscounter ! fakesink",
+    "fps": 58.7,
+    "metrics": {"fps": 58.7, "detections": 1830, "power": null}
+  },
+  "candidates": [
+    {
+      "pipeline": "filesrc location=/videos/sample.mp4 ! decodebin3 ! gvadetect model=/models/yolo.xml device=GPU ! gvafpscounter ! fakesink",
+      "fps": 58.7,
+      "metrics": {"fps": 58.7, "detections": 1830, "power": null}
+    }
+  ]
+}
+```
+
+#### `404 Not Found`
+
+```json
+{
+  "detail": "Optimizer job 7a9c2b1e-3d4f-4a5b-8c6d-9e0f1a2b3c4d not found"
+}
+```
+
+### Example
+
+```bash
+curl http://localhost:8080/optimize/result/7a9c2b1e-3d4f-4a5b-8c6d-9e0f1a2b3c4d
+```
+
+---
+
+## `DELETE` /optimize/{job_id}
+
+Cancels a running optimizer job. The cancel is asynchronous: poll `GET /optimize/status/{job_id}` until `final` is `true`. Partial results remain available from `GET /optimize/result/{job_id}`.
+
+### Path Parameters
+
+| Name | Type | Required | Description |
+|------|------|:--------:|-------------|
+| `job_id` | string | Yes | Optimizer job identifier (UUID). |
+
+### Responses
+
+#### `200 OK`
+
+```json
+{
+  "job_id": "7a9c2b1e-3d4f-4a5b-8c6d-9e0f1a2b3c4d",
+  "message": "cancel requested"
+}
+```
+
+#### `404 Not Found`
+
+```json
+{
+  "detail": "Optimizer job 7a9c2b1e-3d4f-4a5b-8c6d-9e0f1a2b3c4d not found"
+}
+```
+
+#### `409 Conflict`
+
+The job is not running.
+
+```json
+{
+  "detail": "Optimizer job 7a9c2b1e-3d4f-4a5b-8c6d-9e0f1a2b3c4d is not running"
+}
+```
+
+### Example
+
+```bash
+curl -X DELETE http://localhost:8080/optimize/7a9c2b1e-3d4f-4a5b-8c6d-9e0f1a2b3c4d
+```
+
+---
+
+## Optimization Schemas
+
+### OptimizeRequest
+
+| Field | Type | Required | Default | Description |
+|-------|------|:--------:|---------|-------------|
+| `pipeline` | string | Yes | - | GStreamer launch string. |
+| `search_duration` | number | No | `300` | Search time budget in seconds. |
+| `sample_duration` | number | No | `10` | Seconds per candidate measurement. |
+| `allowed_devices` | array of string | No | all detected devices | Devices the optimizer may use. |
+
+### OptimizeResponse
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `job_id` | string | UUID of the optimizer job. |
+
+### OptimizeStatusResponse
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `job_id` | string | Optimizer job UUID. |
+| `state` | string | One of `RUNNING`, `COMPLETED`, `CANCELLED`, `ERROR`. |
+| `final` | boolean | `true` once the job has stopped. |
+| `message` | string | Reason for `CANCELLED` or `ERROR`. Otherwise empty string. |
+| `candidates_evaluated` | integer | Number of candidates evaluated so far. |
+| `baseline_fps` | number or null | FPS of the original pipeline. |
+| `best_fps` | number or null | FPS of the best pipeline found so far. |
+| `elapsed_time` | number | Seconds since the job started. |
+
+### OptimizeResultResponse
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `job_id` | string | Optimizer job UUID. |
+| `state` | string | One of `RUNNING`, `COMPLETED`, `CANCELLED`, `ERROR`. |
+| `final` | boolean | `false` while running (partial result). |
+| `message` | string | Reason for `CANCELLED` or `ERROR`. |
+| `baseline` | object or null | Original pipeline with `pipeline`, `fps`, and `metrics`. |
+| `best` | object or null | Best pipeline found so far with `pipeline`, `fps`, and `metrics`. |
+| `candidates` | array | Candidates evaluated so far, each with `pipeline`, `fps`, and `metrics`. |
 
 ## Validation Schemas
 

@@ -7,8 +7,9 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from api.routers import pipelines, validate, elements
+from api.routers import pipelines, validate, elements, optimize
 from config.loader import load_legacy_config
+from core.optimizer_manager import OptimizerManager
 from core.pipeline_manager import PipelineManager
 from core.telemetry import OpenTelemetryExporter, telemetry_enabled
 
@@ -49,6 +50,8 @@ async def lifespan(app: FastAPI):
     pipeline_manager = PipelineManager()
     pipelines.set_pipeline_manager(pipeline_manager)
     validate.set_pipeline_manager(pipeline_manager)
+    optimizer_manager = OptimizerManager()
+    optimize.set_optimizer_manager(optimizer_manager)
 
     otel_exporter = None
     if telemetry_enabled():
@@ -70,6 +73,7 @@ async def lifespan(app: FastAPI):
 
     yield
     logger.info("DL Streamer Pipeline Server (dlsps2) shutting down…")
+    optimizer_manager.shutdown()
     pipeline_manager.shutdown()
     if otel_exporter is not None:
         otel_exporter.shutdown()
@@ -88,4 +92,5 @@ app = FastAPI(
 
 app.include_router(pipelines.router)
 app.include_router(validate.router)
+app.include_router(optimize.router)
 app.include_router(elements.router)
