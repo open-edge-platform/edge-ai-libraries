@@ -14,7 +14,7 @@ import config
 from core import embedding, layout, postprocessor
 from core.multimodal import asr, registry
 from inference import ov_adapter
-from inference.multimodal import xclip_openvino
+from tests.video_package import VIDEO_FAMILIES, video_package
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -92,7 +92,7 @@ def test_prepared_reranker_disables_hub_access_and_export(tmp_path, monkeypatch)
     assert processor.model["model_kwargs"]["export"] is False
 
 
-@pytest.mark.parametrize("family", ["xclip", "gme_qwen2vl"])
+@pytest.mark.parametrize("family", [*VIDEO_FAMILIES, "gme_qwen2vl"])
 def test_missing_multimodal_model_is_never_prepared_by_the_registry(tmp_path, family):
     path = tmp_path / family
     with pytest.raises(FileNotFoundError, match="[Pp]repare"):
@@ -101,7 +101,7 @@ def test_missing_multimodal_model_is_never_prepared_by_the_registry(tmp_path, fa
 
 
 @pytest.mark.parametrize("asset_type, model_id", [
-    ("video", "microsoft/xclip-base-patch16-zero-shot"),
+    *(("video", f"{family}-fp16") for family in VIDEO_FAMILIES),
     ("image", "Alibaba-NLP/gme-Qwen2-VL-2B-Instruct"),
     ("audio", "Alibaba-NLP/gme-Qwen2-VL-2B-Instruct"),
 ])
@@ -131,17 +131,27 @@ def test_whisper_requires_preexported_ir_instead_of_downloading_or_exporting(tmp
     assert not (tmp_path / "openvino").exists()
 
 
-def test_asr_and_xclip_require_weights_as_well_as_xml(tmp_path):
+def test_asr_requires_weights_as_well_as_xml(tmp_path):
     ir_dir = tmp_path / "openvino"
     ir_dir.mkdir()
     for name in (
         "openvino_encoder_model.xml", "openvino_decoder_model.xml",
-        xclip_openvino.TEXT_IR, xclip_openvino.VIDEO_IR,
     ):
         (ir_dir / name).touch()
 
     assert asr.find_ir_dir(str(tmp_path)) is None
-    assert xclip_openvino.find_ir_dir(str(tmp_path)) is None
+
+
+@pytest.mark.parametrize("family", VIDEO_FAMILIES)
+@pytest.mark.parametrize("tower", ["video_encoder", "text_encoder"])
+def test_video_encoders_require_nonempty_weights_as_well_as_xml(tmp_path, family, tower):
+    path = video_package(tmp_path, family=family)
+    (path / f"{tower}.bin").unlink()
+    model = registry.lookup(None, str(path))
+
+    assert not model.is_ready(path)
+    with pytest.raises(FileNotFoundError, match=rf"{tower}\.bin"):
+        registry.load({"name": family, "path": str(path)}, {})
 
 
 def test_prepared_layout_is_reported_ready_without_export(tmp_path, monkeypatch):
@@ -153,7 +163,8 @@ def test_prepared_layout_is_reported_ready_without_export(tmp_path, monkeypatch)
     monkeypatch.setattr(models.config, "MODEL_DIR", str(tmp_path))
 
     assert models.workspace_models(models.LAYOUT) == [
-        {"name": model.name, "path": str(model), "ready": True, "model_type": models.LAYOUT}
+        {"name": model.name, "path": str(model), "ready": True, "model_type": models.LAYOUT,
+         "supported_kinds": ["image"], "supported_asset_types": ["document", "image"], "supported_roles": []}
     ]
 
 
@@ -194,21 +205,61 @@ def test_whisper_loaders_are_explicitly_local_only(tmp_path, monkeypatch):
     assert next(options for name, _, options in calls if name == "model")["export"] is False
 
 
-def test_xclip_tokenizer_is_loaded_only_from_the_prepared_local_directory(tmp_path, monkeypatch):
+@pytest.mark.parametrize("family", VIDEO_FAMILIES)
+@pytest.mark.parametrize("precision, hint", [("fp16", "f16"), ("fp32", "f32")])
+def test_video_adapter_uses_only_local_tokenizer_and_the_selected_package(
+    tmp_path, monkeypatch, family, precision, hint,
+):
+    path = video_package(tmp_path, family=family, precision=precision)
+    adapter = registry.lookup(None, str(path)).implementation()
+    metadata = adapter.package_metadata(path)
     calls = []
     module = ModuleType("transformers")
+    tokenizer = object()
     module.AutoTokenizer = SimpleNamespace(
-        from_pretrained=lambda path, **options: calls.append((path, options)) or object()
+        from_pretrained=lambda path, **options: calls.append((path, options)) or tokenizer
     )
     monkeypatch.setitem(sys.modules, "transformers", module)
-    model = object.__new__(xclip_openvino.XClipOpenVinoEmbedding)
-    model.model_path = str(tmp_path)
-    model._tokenizer = None
-    import threading
-    model._tokenizer_lock = threading.Lock()
+    # Stub the complete OV boundary: no real model construction or compilation.
+    compiled = []
+    core_instances = []
+    output = SimpleNamespace(get_partial_shape=lambda: [SimpleNamespace(
+        get_length=lambda: metadata["dimension"],
+    )])
 
-    assert model.tokenizer is model.tokenizer
-    assert calls == [(str(tmp_path), {"local_files_only": True})]
+    class Core:
+        def __init__(self):
+            core_instances.append(self)
+
+        def compile_model(self, filename, device, options):
+            compiled.append((filename, device, options))
+            names = ["input_ids"] if family.startswith("viclip-") else ["input_ids", "attention_mask"]
+            return SimpleNamespace(
+                input=lambda index: SimpleNamespace(shape=[1, 8, 3, 224, 224]),
+                inputs=[SimpleNamespace(get_any_name=lambda name=name: name) for name in names],
+                outputs=[output], output=lambda index: output,
+            )
+
+    openvino = ModuleType("openvino")
+    openvino.Core = Core
+    monkeypatch.setitem(sys.modules, "openvino", openvino)
+
+    model = adapter(str(path), device="GPU.0")
+
+    assert calls == [(str(path), {
+        "local_files_only": True, "use_fast": False, "trust_remote_code": False,
+    })]
+    assert len(core_instances) == 1
+    assert model.tokenizer is tokenizer
+    assert model.tokenizer_source == model.model_path == str(path)
+    assert model.dimension == metadata["dimension"]
+    assert model.context_length == metadata["context_length"]
+    assert model.frames_per_clip == 8
+    assert model.precision == precision and model.execution_precision == hint
+    assert compiled == [
+        (path / f"{tower}.xml", "GPU.0", {"INFERENCE_PRECISION_HINT": hint})
+        for tower in ("video_encoder", "text_encoder")
+    ]
 
 
 def test_sentence_splitting_never_initializes_the_nltk_downloader(monkeypatch):

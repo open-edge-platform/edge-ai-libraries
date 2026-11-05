@@ -37,10 +37,8 @@ import config
 from databasehub.adapters.filesystem import FilesystemObjectAdapter
 from databasehub.adapters.graph import GraphAdapter
 from databasehub.adapters.milvus import MilvusAdapter
-from databasehub.adapters.minio import MinioAdapter
 from databasehub.adapters.nebula import NebulaAdapter
 from databasehub.adapters.object import ObjectAdapter
-from databasehub.adapters.postgres import PostgresAdapter
 from databasehub.adapters.sql import SqlAdapter
 from databasehub.adapters.vector import VectorAdapter
 
@@ -51,9 +49,7 @@ DatabaseAdapter = VectorAdapter | SqlAdapter | GraphAdapter | ObjectAdapter
 BACKENDS: Dict[Tuple[str, str], Callable[[Mapping[str, object]], DatabaseAdapter]] = {
     ("vector", "milvus"): MilvusAdapter,
     ("graph", "nebula"): NebulaAdapter,
-    ("sql", "postgres"): PostgresAdapter,
     ("object", "filesystem"): FilesystemObjectAdapter,
-    ("object", "minio"): MinioAdapter,
 }
 
 #: Option keys never echoed back over the API. They are persisted -- a
