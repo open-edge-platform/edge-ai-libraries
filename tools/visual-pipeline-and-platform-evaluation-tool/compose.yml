@@ -210,10 +210,7 @@ services:
   dlstreamer-pipeline-server:
     # Runs every pipeline vippet builds: validation, performance and density
     # tests (one instance per stream), benchmarks and the TS conversion of videos.
-    # Same devices/groups/profile as vippet for the active device profile.
-    extends:
-      file: compose.${COMPOSE_PROFILES}.yml
-      service: vippet
+    # Devices and groups for the active device profile come from compose.<profile>.yml.
     image: ${DLSPS2_IMAGE:-dlstreamer-pipeline-server:2.0-local}
     hostname: dlstreamer-pipeline-server
     container_name: dlstreamer-pipeline-server
