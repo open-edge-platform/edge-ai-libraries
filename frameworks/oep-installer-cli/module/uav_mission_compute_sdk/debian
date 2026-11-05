@@ -4,15 +4,17 @@ configure_uav_mission_compute_sdk () {
   source_path="$workspace/source"
   sdk_path="$source_path/uav-mission-compute-sdk"
   repository="https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git"
-  version="6bad4dffe2b8b9ddb8ab5d938d96cba576283be5"
+  version="main"
   used_ports=(1884 8080 8554 8888 8889 5002 3000 8086)
 }
 
 verify_uav_mission_compute_sdk () {
+  local installed_commit
+  installed_commit="$(ensure_prop get installed/uav_mission_compute_sdk)" || return $?
   [ -r "$sdk_path/Makefile" ] &&
     [ -r "$sdk_path/.env" ] &&
-    [ "$(git -C "$source_path" rev-parse HEAD 2>/dev/null)" = "$version" ] &&
-    [ "$(ensure_prop get installed/uav_mission_compute_sdk)" = "$version" ]
+    [ -n "$installed_commit" ] &&
+    [ "$(git -C "$source_path" rev-parse HEAD 2>/dev/null)" = "$installed_commit" ]
 }
 
 verify_uav_mission_compute_sdk_running () {
@@ -73,14 +75,16 @@ debian_90_install_uav_mission_compute_sdk () {
     ensure_disk_size 20000 || return $?
     ensure_ram_size 16000000 || return $?
     uav_mission_compute_sdk_checkout || return $?
+    local source_commit
+    source_commit="$(git -C "$source_path" rev-parse HEAD)" || return $?
     cd "$sdk_path" || return $?
     make init || return $?
     if [ ! -r "$sdk_path/Makefile" ] || [ ! -r "$sdk_path/.env" ] ||
-      [ "$(git -C "$source_path" rev-parse HEAD 2>/dev/null)" != "$version" ]; then
+      [ "$(git -C "$source_path" rev-parse HEAD 2>/dev/null)" != "$source_commit" ]; then
       echo "Mission Compute SDK initialization did not produce the expected source and .env." >&2
       return 1
     fi
-    ensure_prop set installed/uav_mission_compute_sdk "$version" || return $?
+    ensure_prop set installed/uav_mission_compute_sdk "$source_commit" || return $?
     verify_uav_mission_compute_sdk || return $?
   fi
 
