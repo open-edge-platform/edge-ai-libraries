@@ -3147,7 +3147,7 @@ debian_39_remove_edge_pack ()
 }
 debian_40_group_edge_pack_base_standard () 
 { 
-    echo "render:992 video:"
+    echo "render:992 video:44"
 }
 debian_40_group_edge_pack_npu () 
 { 
@@ -3155,7 +3155,7 @@ debian_40_group_edge_pack_npu ()
 }
 debian_40_group_gpu_accel () 
 { 
-    echo "render:992 video:"
+    echo "render:992 video:44"
 }
 debian_40_group_npu_accel () 
 { 
@@ -3180,7 +3180,7 @@ debian_40_install_edge_pack_base_standard ()
         echo "intel-edge-base-standard is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_base_standard/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-base-standard || true;
+        ensure_apt purge --auto-remove -y intel-edge-base-standard onevpl-tools || true;
         ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*" || true;
         ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*" libigdgmm12="$(apt-cache show intel-edge-media-core | grep -m1 'Depends:.*libigdgmm12' | sed -E 's/.*libigdgmm12 \(= ([^)]+)\).*/\1/')" libze1="$(apt-cache show intel-edge-npu | grep -m1 'Depends:.*libze1' | sed -E 's/.*libze1 \(= ([^)]+)\).*/\1/')";
     fi;
@@ -3197,6 +3197,8 @@ debian_40_install_edge_pack_ipu ()
         ensure_apt purge --auto-remove -y intel-edge-ipu || true;
         ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-ipu=$version*" || true;
         ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-ipu=$version*";
+        ensure_sudo modprobe -r intel-ipu7 || true;
+        ensure_sudo modprobe intel-ipu7 || true;
     fi
 }
 debian_40_install_edge_pack_manageability () 
@@ -3654,7 +3656,7 @@ debian_70_install_edge_pack_media_ffmpeg ()
         echo "intel-edge-media-ffmpeg is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_media_ffmpeg/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-media-ffmpeg || true;
+        ensure_apt purge --auto-remove -y intel-edge-media-ffmpeg onevpl-tools || true;
         ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-ffmpeg=$version*";
     fi
 }
@@ -3665,7 +3667,7 @@ debian_70_install_edge_pack_media_gst ()
         echo "intel-edge-media-gst is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_media_gst/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-media-gst || true;
+        ensure_apt purge --auto-remove -y intel-edge-media-gst onevpl-tools || true;
         ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-gst=$version*";
     fi
 }
@@ -3701,15 +3703,15 @@ debian_70_sbom_edge_pack_media_gst ()
 }
 debian_85_group_handheld_blueprint () 
 { 
-    echo "audio: video: render:992"
+    echo "audio:29 video:44 render:992"
 }
 debian_85_group_mission_decision_support_blueprint () 
 { 
-    echo "audio: video: render:992"
+    echo "audio:29 video:44 render:992"
 }
 debian_85_group_uncrewed_aerial_vehicle_blueprint () 
 { 
-    echo "audio: video: render:992"
+    echo "audio:29 video:44 render:992"
 }
 debian_85_install_handheld_blueprint () 
 { 
