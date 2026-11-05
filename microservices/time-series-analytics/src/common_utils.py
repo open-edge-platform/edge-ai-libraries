@@ -10,7 +10,8 @@ from typing import Sequence
 
 def assert_condition(condition, message=""):
     """Fail a test when condition is false."""
-    assert condition, message  # nosec B101 # test assertion, not a security check
+    if not condition:
+        raise AssertionError(message)
 
 
 def exec_command(
