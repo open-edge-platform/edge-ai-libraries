@@ -270,6 +270,27 @@ curl -X POST http://localhost:9090/api/v1/metrics/otlp \
   }'
 ```
 
+How data points are stored:
+
+| OTLP type | Stored fields | `temporality` tag |
+|-----------|---------------|-------------------|
+| `gauge` | `value` (from `asDouble`, or `asInt` stored as an integer) | none |
+| `sum` | `value` (from `asDouble`, or `asInt` stored as an integer) | `delta` or `cumulative` |
+| `histogram` | `count`; `sum`, `min` and `max` when the point carries them and they are finite; `avg` (= `sum / count`) when it has a `sum` and `count` is above 0. Bucket counts are not stored. | `delta` or `cumulative` |
+
+Resource and data point attributes become tags. `stringValue`, `intValue`, `doubleValue`
+and `boolValue` attributes are stored as text; `arrayValue`, `kvlistValue` and
+`bytesValue` attributes are stored as an empty string.
+
+The `temporality` tag comes from the metric's `aggregationTemporality`, given either as
+the enum number (`1`, `2`) or its name (`AGGREGATION_TEMPORALITY_DELTA`). Delta points
+can be summed over time; cumulative points are running totals. The tag is left out
+when the temporality is unspecified.
+
+A data point with a malformed number, such as an `asInt` or histogram `count` that is
+not an integer, is skipped and logged as a warning; the other points in the request
+are still stored.
+
 ---
 
 ## Query Metrics

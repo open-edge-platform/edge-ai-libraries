@@ -135,14 +135,13 @@ no flags. When every selected module offers the shared combination, flags are
 global. Otherwise the UI scopes them to configurable modules. If no common
 combination exists, Install copying is disabled with an explanation.
 
-The OS values are `UBUNTU_24_04` for Ubuntu 24.04 and
-`UBUNTU_26_04` for Ubuntu 26.04. Omitted `supports.OP_SYSTEM` means both are
-available. Set it on a module, or on a profile, to restrict availability.
-All existing profiles explicitly list both OS versions; remove a value from a
-`profile.supports.OP_SYSTEM` list when the profile only supports one. An
-install-all profile is unavailable if one of its modules is incompatible with
-the chosen OS. If a selection has no compatible modules, the selector clears
-the module and disables command copying.
+The Web UI currently offers `UBUNTU_24_04` for Ubuntu 24.04. Omitted
+`supports.OP_SYSTEM` means all OS versions configured in
+`docs/oep-cli-installer-files/config.base.json` are available. Set it on a
+module, or on a profile, to restrict availability. An install-all profile is
+unavailable if one of its modules is incompatible with the chosen OS. If a
+selection has no compatible modules, the selector clears the module and
+disables command copying.
 
 Adding an OS to this selector does not certify every upstream component on that
 release; check component requirements before deploying.

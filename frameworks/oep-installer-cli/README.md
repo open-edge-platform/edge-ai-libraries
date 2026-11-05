@@ -26,7 +26,7 @@ marketing segments. The table lists the profiles:
 | `computer_vision` | Computer-vision pipelines, models, and runtimes | 
 | `federal_and_aerospace_ai_suite_handheld` | Federal and Aerospace handheld platform, application, and deterministic threat detection |
 | `federal_and_aerospace_ai_suite_mission_decision_support` | Federal and Aerospace mission decision support blueprint and deterministic threat detection |
-| `federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle` | Federal and Aerospace uncrewed aerial vehicle platform, application, and deterministic threat detection |
+| `federal_and_aerospace_ai_suite_uncrewed_aerial_vehicle` | Federal and Aerospace uncrewed aerial vehicle platform and applications |
 | `health_and_life_science_ai_suite` | Patient and vitals monitoring || `inferencing` | Core AI inferencing runtime |
 | `manufacturing_ai_suite` | Industrial inspection and defect detection |
 | `metro_ai_suite` | City monitoring and traffic management |
@@ -138,6 +138,13 @@ The platform blueprints can also be installed independently:
 openedge-cli install handheld_blueprint
 openedge-cli install uncrewed_aerial_vehicle_blueprint
 openedge-cli install mission_decision_support_blueprint
+```
+
+The UAV applications can be installed independently:
+
+```bash
+openedge-cli install uncrewed_aerial_vehicle_ground_station
+openedge-cli install uncrewed_aerial_vehicle_vision_analytics
 ```
 
 For any of these blueprints, pass `--edgepack` to install the Intel Edge Pack
