@@ -75,6 +75,12 @@ export default () => ({
       ? Number(process.env.STREAMS_POLL_INTERVAL_MS)
       : 5000,
   },
+  geo: {
+    apiUrl: process.env.GEO_API_URL,
+    fallbackFile: process.env.GEO_FALLBACK_FILE,
+    refreshMs: Number(process.env.GEO_REFRESH_MS ?? 60000),
+    timeoutMs: Number(process.env.GEO_TIMEOUT_MS ?? 3000),
+  },
   database: {    host: process.env.DB_HOST,
     port: process.env.DB_PORT,
     username: process.env.DB_USER,

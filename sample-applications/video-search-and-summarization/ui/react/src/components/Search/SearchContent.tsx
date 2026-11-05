@@ -25,6 +25,8 @@ import { VideoTile } from '../../redux/search/VideoTile';
 import VideoGroupsView from '../VideoGroups/VideoGroupsView';
 import TelemetryAccordion from './TelemetryAccordion';
 import { imageSearchEnabled } from '../../utils/featureFlags';
+import { GeoActions, geoSelector } from '../../redux/geo/geoSlice';
+import MapDrawer from '../MapView/MapDrawer';
 
 // Keying by clip identity rather than array position keeps unchanged tiles mounted when a
 // watched query refreshes, so their <video> elements are not torn down and reloaded.
@@ -35,11 +37,23 @@ const searchResultKey = (result: SearchResult, index: number): string => {
   return `${videoId}-${timestamp}`;
 };
 
+// Row so the Map View drawer sits beside the results and squeezes them instead of overlapping.
+const SearchContentRow = styled.div`
+  display: flex;
+  flex-flow: row nowrap;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+`;
+
 const QueryContentWrapper = styled.div`
   display: flex;
   flex-flow: column nowrap;
   align-items: flex-start;
   justify-content: flex-start;
+  flex: 1 1 auto;
+  min-width: 0;
   /* The right content panel owns the single scrollbar: tiles + telemetry flow
      naturally and this wrapper scrolls as one unit. min-height:0 lets it shrink
      to the viewport-height grid cell so overflow actually scrolls instead of
@@ -327,6 +341,7 @@ export const QuerySettings: FC = () => {
 export const QueryInfo: FC = () => {
   const { selectedQuery, isSelectedRefreshing } = useAppSelector(SearchSelector);
   const dispatch = useAppDispatch();
+  const { hasIntersections, mapDrawerOpen } = useAppSelector(geoSelector);
   const { t } = useTranslation();
   const [showImageModal, setShowImageModal] = useState(false);
 
@@ -390,6 +405,17 @@ export const QueryInfo: FC = () => {
         <span data-testid='search-refreshing-indicator' style={{ marginRight: '0.5rem' }}>
           <InlineLoading status='active' description={t('searchUpdating')} />
         </span>
+      )}
+      {hasIntersections && (
+        <Button
+          kind='ghost'
+          size='sm'
+          aria-pressed={mapDrawerOpen}
+          aria-controls='map-drawer'
+          onClick={() => dispatch(GeoActions.toggleMapDrawer())}
+        >
+          {t('MapView', 'Map View')}
+        </Button>
       )}
       <Button
         kind='ghost'
@@ -533,7 +559,7 @@ export const SearchContent: FC = () => {
   );
 
   return (
-    <>
+    <SearchContentRow>
       <QueryContentWrapper>
         {!hasSelectedQuery && <NoQuerySelected />}
 
@@ -547,7 +573,8 @@ export const SearchContent: FC = () => {
         )}
         <TelemetryAccordion />
       </QueryContentWrapper>
-    </>
+      <MapDrawer />
+    </SearchContentRow>
   );
 };
 

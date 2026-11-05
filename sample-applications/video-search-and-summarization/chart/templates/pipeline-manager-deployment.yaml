@@ -21,6 +21,8 @@ spec:
       app: {{ .Values.pipelinemanager.name }}
   template:
     metadata:
+      annotations:
+        checksum/geo-intersections: {{ include (print $.Template.BasePath "/pipeline-manager-geo-configmap.yaml") . | sha256sum }}
       labels:
         app: {{ .Values.pipelinemanager.name }}
     spec:
@@ -229,6 +231,26 @@ spec:
             {{- end }}
             - name: USE_VLLM
               value: "{{ .Values.pipelinemanager.env.USE_VLLM }}"
+            - name: GEO_API_URL
+              value: "{{ .Values.pipelinemanager.geo.apiUrl }}"
+            - name: GEO_FALLBACK_FILE
+              value: /app/config/geo-intersections.json
+            - name: GEO_REFRESH_MS
+              value: "{{ .Values.pipelinemanager.geo.refreshMs }}"
+            - name: GEO_TIMEOUT_MS
+              value: "{{ .Values.pipelinemanager.geo.timeoutMs }}"
+          volumeMounts:
+            - name: geo-intersections
+              mountPath: /app/config/geo-intersections.json
+              subPath: geo-intersections.json
+              readOnly: true
+      volumes:
+        - name: geo-intersections
+          configMap:
+            name: {{ include "pipelinemanager.fullname" . }}-geo-intersections
+            items:
+              - key: geo-intersections.json
+                path: geo-intersections.json
       nodeSelector:
         {{- toYaml .Values.pipelinemanager.nodeSelector | nindent 8 }}
       {{- with .Values.pipelinemanager.affinity }}
