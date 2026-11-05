@@ -104,7 +104,7 @@ def test_every_engine_environment_setting_is_forwarded_and_documented():
 
     # Both ways: a forwarded variable config.py no longer reads is a dead knob.
     assert settings == forwarded
-    guide = (ROOT / "docs/user-guide.md").read_text(encoding="utf-8")
+    guide = (ROOT / "docs/user-guide/user-guide.md").read_text(encoding="utf-8")
     assert all(f"`{setting}`" in guide for setting in settings)
 
 
@@ -333,7 +333,7 @@ def test_engine_and_extractor_share_the_same_writable_upload_directory(compose_c
 
 
 def test_user_guide_does_not_contain_developer_home_paths():
-    guide = (ROOT / "docs/user-guide.md").read_text(encoding="utf-8")
+    guide = (ROOT / "docs/user-guide/user-guide.md").read_text(encoding="utf-8")
 
     assert "/home/" not in guide
     assert "/Users/" not in guide
@@ -360,7 +360,7 @@ def test_shell_helpers_use_shared_environment_defaults():
     assert result.stdout.splitlines() == ["http://localhost:26022", "45", "5000"]
 
 
-@pytest.mark.parametrize("path", [ROOT / "README.md", ROOT / "docs/user-guide.md"])
+@pytest.mark.parametrize("path", [ROOT / "README.md", ROOT / "docs/user-guide/user-guide.md"])
 def test_documented_shell_examples_have_valid_syntax(path):
     document = path.read_text(encoding="utf-8")
     examples = re.findall(

@@ -4,8 +4,9 @@
 #
 # Download the engine's models from Hugging Face and convert them to OpenVINO
 # (or ONNX), each in a throwaway engine container. The steps are the ones in
-# data-intelligence-engine/docs/how-to-guides/how-to-prepare-models.md. A model whose output
-# is already in place is skipped, so the script can be rerun.
+# data-intelligence-engine/docs/user-guide/how-to-guides/how-to-prepare-models.md. A model whose output
+# is already in place is skipped, so the script can be rerun. Video packages
+# are validated before skipping; incomplete or incompatible output is rejected.
 
 set -euo pipefail
 
@@ -13,7 +14,7 @@ usage() {
   cat <<'EOF'
 Usage: prepare-models.sh [options] [MODEL...]
 
-Models (default: gme reranker):
+Models (default: gme reranker layout viclip-b whisper media-reranker-int8):
   gme             GME-Qwen2-VL-2B: documents, PDF figures, images, audio transcripts
   reranker        bge-reranker-large
   media-reranker  Qwen3-VL-Reranker-2B (FP16): unified video/image/audio-transcript reranking
@@ -21,14 +22,20 @@ Models (default: gme reranker):
                   INT8 weight-only variant of media-reranker, the package the
                   console serves by default (builds the FP16 export first if missing)
   layout          PP-DocLayoutV3: PDF figure detection and scanned PDFs
-  xclip           X-CLIP: short videos
+  viclip-b        ViCLIP-B-16: video embedding (default)
+  viclip-l        ViCLIP-L-14: video embedding
+  cosmos-224p     Cosmos-Embed1-224p: video embedding
   whisper         Whisper small: speech recognition
   bge             bge-small-en-v1.5: text-only alternative to GME
 
 Options:
   --all                    Prepare every model above
-  --gme-precision VALUE    int8 (default), int4 or fp32
+  --gme-precision VALUE     int8 (default), int4 or fp32
+  --video-precision VALUE   fp16 (default) or fp32 stored OpenVINO weights
   -h, --help               Show this help
+
+Video output: $OV_MODEL_DIR/<model>-<precision> (for example viclip-b-fp16).
+Video conversion executes checkpoint Python; use trusted sources only.
 
 Environment:
   HF_MODEL_DIR   Original models (default: data-intelligence-engine/workspace/hf_models)
@@ -46,22 +53,25 @@ OV_MODEL_DIR="${OV_MODEL_DIR:-$ENGINE_DIR/workspace/models}"
 # engine image pins 4.x for optimum-intel, so 5.x goes into the throwaway
 # container only. This is the version the GME export was validated with.
 TRANSFORMERS5="transformers==5.10.4"
-ALL_MODELS=(gme reranker media-reranker media-reranker-int8 layout xclip whisper bge)
+ALL_MODELS=(gme reranker media-reranker media-reranker-int8 layout viclip-b viclip-l cosmos-224p whisper bge)
 
 gme_precision=int8
+video_precision=fp16
 models=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --all) models=("${ALL_MODELS[@]}") ;;
     --gme-precision) gme_precision="${2:?--gme-precision needs a value}"; shift ;;
+    --video-precision) video_precision="${2:?--video-precision needs a value}"; shift ;;
     -h|--help) usage; exit 0 ;;
     -*) printf 'Unknown option: %s\n\n' "$1" >&2; usage >&2; exit 2 ;;
     *) models+=("$1") ;;
   esac
   shift
 done
-[[ ${#models[@]} -gt 0 ]] || models=(gme reranker)
+[[ ${#models[@]} -gt 0 ]] || models=(gme reranker layout viclip-b whisper media-reranker-int8)
 case "$gme_precision" in int8|int4|fp32) ;; *) echo "--gme-precision must be int8, int4 or fp32" >&2; exit 2 ;; esac
+case "$video_precision" in fp16|fp32) ;; *) echo "--video-precision must be fp16 or fp32" >&2; exit 2 ;; esac
 
 log() { printf '\n==> %s\n' "$*"; }
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
@@ -184,20 +194,116 @@ prepare_layout() {
   "
 }
 
-prepare_xclip() {
-  local name=xclip-base-patch16-zero-shot
-  skip_if_ready X-CLIP "$name/openvino/fp32/xclip_video.xml" "$name/openvino/fp32/xclip_text.xml" && return
-  download microsoft/xclip-base-patch16-zero-shot "$name" \
-    "*.json" "*.safetensors" "merges.txt"
-  log "Converting X-CLIP to OpenVINO"
-  # The engine also reads the checkpoint's config, preprocessor and tokenizer files.
-  run --entrypoint sh "$IMAGE" -c "
+# Validate using only the container's Python standard library: no model code,
+# dependency installation, compilation or inference is needed to check readiness.
+validate_video_package() {
+  local name="$1"
+  run -i --entrypoint python "$IMAGE" - "/ov/${name}-${video_precision}" "$name" "$video_precision" <<'PY'
+import json
+from pathlib import Path
+import sys
+
+root = Path(sys.argv[1])
+name, precision = sys.argv[2:]
+
+
+def require(condition, message):
+    if not condition:
+        raise ValueError(message)
+
+
+def validate():
+    metadata = json.loads((root / "video_embedding.json").read_text(encoding="utf-8"))
+    require(isinstance(metadata, dict), "readiness manifest must be an object")
+    model_id, dimension, context_length, preprocessing, tokenizer_type = {
+        "viclip-b": ("OpenGVLab/ViCLIP-B-16-hf", 512, 32, "viclip", "clip_bpe"),
+        "viclip-l": ("OpenGVLab/ViCLIP-L-14-hf", 768, 32, "viclip", "clip_bpe"),
+        "cosmos-224p": ("nvidia/Cosmos-Embed1-224p", 256, 128, "cosmos", "bert"),
+    }[name]
+    expected = {
+        "format": 1, "name": name, "model_id": model_id,
+        "frames": 8, "image_size": 224, "context_length": context_length,
+        "dimension": dimension, "preprocessing": preprocessing, "tokenizer_type": tokenizer_type,
+    }
+    for key, value in expected.items():
+        require(metadata.get(key) == value, f"expected {key}={value!r}, got {metadata.get(key)!r}")
+    actual_precision = metadata.get("precision")
+    require(actual_precision == precision,
+          f"existing precision {actual_precision!r} does not match "
+          f"package {root.name!r} precision {precision!r}")
+    artifacts = metadata.get("artifacts")
+    require(isinstance(artifacts, dict)
+            and set(artifacts) == {"video_encoder", "text_encoder", "tokenizer"},
+            "manifest must declare both IR pairs and tokenizer sidecars")
+    for stem in ("video_encoder", "text_encoder"):
+        require(artifacts[stem] == [f"{stem}.xml", f"{stem}.bin"],
+                f"expected the canonical {stem}.xml/.bin pair")
+    for group, files in artifacts.items():
+        require(isinstance(files, list) and files, f"empty or invalid {group} artifacts")
+        for file in files:
+            require(isinstance(file, str) and file not in ("", ".", "..")
+                    and Path(file).name == file, f"unsafe {group} artifact: {file!r}")
+            path = root / file
+            require(not path.is_symlink() and path.is_file() and path.stat().st_size > 0,
+                    f"missing, empty or symlinked artifact: {file}")
+        require(len(files) == len(set(files)), f"duplicate {group} artifacts")
+    tokenizer = set(artifacts["tokenizer"])
+    required = {"tokenizer_config.json", "special_tokens_map.json"}
+    required |= {"vocab.txt"} if tokenizer_type == "bert" else {"merges.txt", "vocab.json"}
+    require(required <= tokenizer <= required | {"added_tokens.json"},
+        f"expected standard {tokenizer_type} tokenizer sidecars")
+
+
+try:
+    validate()
+except (OSError, ValueError, TypeError) as error:
+    sys.exit(f"error: {root}: {error}; existing output left untouched")
+PY
+}
+
+prepare_video() {
+  local name="$1" repo exporter requirements out="$OV_MODEL_DIR/${1}-${video_precision}"
+  local patterns=("*.py" "*.json" "*.safetensors" "*.gz")
+  case "$name" in
+    viclip-b|viclip-l)
+      if [[ "$name" == viclip-b ]]; then repo=OpenGVLab/ViCLIP-B-16-hf; else repo=OpenGVLab/ViCLIP-L-14-hf; fi
+      exporter=export_viclip_ov.py
+      requirements=requirements-viclip-export.txt
+      ;;
+    cosmos-224p)
+      repo=nvidia/Cosmos-Embed1-224p
+      exporter=export_cosmos_ov.py
+      requirements=requirements-cosmos-export.txt
+      patterns=("*.py" "*.json" "*.safetensors" "*.bin" "*.txt")
+      ;;
+    *) die "unsupported video model '$name'" ;;
+  esac
+  [[ ! -L "$out" ]] || die "$out must not be a symlink; existing output left untouched"
+  if [[ -e "$out" ]]; then
+    [[ -d "$out" ]] || die "$out is not a directory; existing output left untouched"
+    if [[ -f "$out/video_embedding.json" ]]; then
+      validate_video_package "$name"
+      log "$out is already prepared ($video_precision), skipping"
+      return
+    fi
+    [[ -z "$(find "$out" -mindepth 1 -maxdepth 1 -print -quit)" ]] \
+      || die "$out is nonempty but has no readiness manifest; existing output left untouched"
+  fi
+  download "$repo" "$name" "${patterns[@]}"
+  log "WARNING: --trust-local-code executes checkpoint Python from /hf/$name; use only reviewed, trusted model source"
+  log "Converting $name to OpenVINO ($video_precision) at $out"
+  run -e VIDEO_MODEL_NAME="$name" -e VIDEO_EXPORT_PRECISION="$video_precision" \
+    -e VIDEO_EXPORT_SCRIPT="$exporter" -e VIDEO_EXPORT_REQUIREMENTS="$requirements" \
+    --entrypoint sh "$IMAGE" -c '
     set -e
-    mkdir -p /ov/$name
-    cp /hf/$name/*.json /hf/$name/merges.txt /ov/$name/
-    python /engine/scripts/xclip/convert.py --model /hf/$name \
-      --out /ov/$name/openvino/fp32 --precision fp32
-  "
+    pip install --user -q --no-warn-script-location -r "/engine/scripts/$VIDEO_EXPORT_REQUIREMENTS"
+    set --
+    case "$VIDEO_MODEL_NAME" in viclip-b|viclip-l) set -- --model "$VIDEO_MODEL_NAME" ;; esac
+    python "/engine/scripts/$VIDEO_EXPORT_SCRIPT" "$@" \
+      --checkpoint "/hf/$VIDEO_MODEL_NAME" --output-dir "/ov/${VIDEO_MODEL_NAME}-${VIDEO_EXPORT_PRECISION}" \
+      --precision "$VIDEO_EXPORT_PRECISION" --trust-local-code
+  '
+  validate_video_package "$name"
 }
 
 prepare_whisper() {
@@ -229,7 +335,10 @@ for dir in "$HF_MODEL_DIR" "$OV_MODEL_DIR"; do
 done
 
 for model in "${models[@]}"; do
-  "prepare_$model"
+  case "$model" in
+    viclip-b|viclip-l|cosmos-224p) prepare_video "$model" ;;
+    *) "prepare_$model" ;;
+  esac
 done
 
 log "Done. Models are in $OV_MODEL_DIR; $HF_MODEL_DIR can be deleted to free disk space."

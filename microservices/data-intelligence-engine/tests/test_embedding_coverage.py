@@ -155,7 +155,7 @@ def test_with_several_covering_sources_the_least_settled_one_is_reported():
 def test_a_source_that_failed_to_load_is_reported_as_failed_not_as_missing():
     """Saying "add a source" about a source that is already there misleads."""
     source = SimpleNamespace(
-        name="video-xclip-embedding",
+        name="video-viclip-embedding",
         configuration={"block_kinds": ["video"]},
         profile={"supported_roles": ["short_video", "l1_segment"]},
     )
@@ -169,7 +169,7 @@ def test_a_source_that_failed_to_load_is_reported_as_failed_not_as_missing():
     result = _coverage(_library(pool))
 
     assert result.status == coverage.FAILED
-    assert "video-xclip-embedding" in result.reason
+    assert "video-viclip-embedding" in result.reason
     assert "model directory not found" in result.reason
 
 
@@ -248,7 +248,7 @@ def test_fused_image_coverage_accepts_extension_mime_and_family(asset_type):
 
 
 @pytest.mark.parametrize("text", [False, True])
-@pytest.mark.parametrize("state", ["PREPARING", "DEPRECATED", "DISABLED"])
+@pytest.mark.parametrize("state", ["PREPARING", "DEGRADE", "DISABLED"])
 def test_non_serving_image_sources_never_report_ready(text, state):
     library, pool, projection, stream = _image_case(text=text, state=state)
     if state == "DISABLED":
@@ -311,7 +311,7 @@ def test_unavailable_image_source_counts_as_failure_even_beside_a_ready_source(t
 
 
 @pytest.mark.parametrize("options", [
-    {"enabled": False}, {"state": "DEPRECATED"},
+    {"enabled": False}, {"state": "DEGRADE"},
     {"configuration": {"asset_types": ["pdf"]}},
     {"configuration": {"block_kinds": ["video"]}},
     {"configuration": {"block_roles": ["doc_image"]}},
@@ -369,7 +369,7 @@ def _video_source(*, caption, configuration=None, params=None):
         "embedding_backend": "llamaindex_openvino",
         "embedding_model": (
             "Alibaba-NLP/gme-Qwen2-VL-2B-Instruct" if caption
-            else "microsoft/xclip-base-patch16-zero-shot"
+            else "viclip-b-fp16"
         ),
     }
     if caption:
@@ -378,7 +378,7 @@ def _video_source(*, caption, configuration=None, params=None):
     if params is not None:
         profile = {**profile, "params": {**profile["params"], **params}}
     return Source(
-        source_id="caption-gme" if caption else "original-xclip",
+        source_id="caption-gme" if caption else "original-viclip",
         name="video captions" if caption else "original clips",
         source_type="vector", database_id="vectors",
         location=VectorCollection("video_captions" if caption else "video_originals", 4),
@@ -435,7 +435,7 @@ def video_coverage_case(monkeypatch):
 
 def test_video_original_and_caption_defaults_select_distinct_models_and_collections(monkeypatch):
     for category, model in (
-        ("VIDEO", "microsoft/xclip-base-patch16-zero-shot"),
+        ("VIDEO", "viclip-b-fp16"),
         ("IMAGE", "Alibaba-NLP/gme-Qwen2-VL-2B-Instruct"),
     ):
         monkeypatch.setattr(config, f"{category}_EMBEDDING_MODEL_ID", model)
@@ -449,7 +449,7 @@ def test_video_original_and_caption_defaults_select_distinct_models_and_collecti
         "asset_types": ["video"], "block_roles": [ROLE_L2_CAPTION],
     })
 
-    assert original_profile["multimodal_model"]["name"] == "xclip"
+    assert original_profile["multimodal_model"]["name"] == "viclip-b"
     assert caption_profile["multimodal_model"]["name"] == "gme_qwen2vl"
     assert original_profile["params"]["block_kinds"] == [VIDEO]
     assert ROLE_L2_CAPTION not in original_profile["params"]["block_roles"]
@@ -588,7 +588,7 @@ def test_original_and_caption_sources_report_the_least_settled_consumer(
     original = pool.projections[0]
     status = pool.source_statuses[original.source.source_id]
     if original_state == "failed":
-        status.mark_failed("XCLIP collection unavailable")
+        status.mark_failed("ViCLIP collection unavailable")
     elif original_state == "pending":
         status.indexed_asset_ids = []
     if separate_pools:
@@ -603,12 +603,12 @@ def test_original_and_caption_sources_report_the_least_settled_consumer(
 
     assert result.status == expected
     if original_state == "failed":
-        assert result.reason == "XCLIP collection unavailable"
+        assert result.reason == "ViCLIP collection unavailable"
 
 
 @pytest.mark.parametrize("caption_status", [None, "pending", "skipped", "failed", "completed"])
 @pytest.mark.parametrize("explicit_empty_roles", [False, True], ids=["default-roles", "empty-roles"])
-def test_xclip_without_an_explicit_caption_role_never_waits_for_captioning(
+def test_viclip_without_an_explicit_caption_role_never_waits_for_captioning(
     video_coverage_case, caption_status, explicit_empty_roles
 ):
     params = {"block_roles": []} if explicit_empty_roles else None
@@ -718,7 +718,7 @@ def test_frozen_caption_source_does_not_make_original_video_wait(video_coverage_
     if state == "disabled":
         projection.source = replace(projection.source, enabled=False)
     elif state == "deprecated":
-        pool.source_statuses[projection.source.source_id].serving_state = "DEPRECATED"
+        pool.source_statuses[projection.source.source_id].serving_state = "DEGRADE"
     else:
         pool.freeze(projection.source.source_id, projection.source)
     pool.refresh_serving()

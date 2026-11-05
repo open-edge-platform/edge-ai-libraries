@@ -1,16 +1,17 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-"""Available embedding, rerank, and layout models.
+"""Available embedding, reranker, layout and ASR models.
 
 What the engine can actually run, so a caller (a UI's model pickers, for example)
 offers the models that are in the workspace rather than a typed-in name.
+Multimodal packages are embeddings; `multimodal` remains a compatibility alias.
 See data-intelligence-engine/src/inference/models.py for how they are found and classified.
 """
 
-from typing import List
+from typing import List, Union
 
 from inference import models
-from schemas import ModelOptions
+from schemas import EmbeddingModelOptions, ModelOptions
 from fastapi import APIRouter, HTTPException, status
 
 router = APIRouter(prefix="/v1/models", tags=["models"])
@@ -24,15 +25,15 @@ async def list_devices():
     return ov.Core().available_devices + ["AUTO"]
 
 
-@router.get("", response_model=dict[str, ModelOptions])
+@router.get("", response_model=dict[str, Union[ModelOptions, EmbeddingModelOptions]])
 async def list_models():
-    """Backend, device, and available models for every model capability."""
+    """Backend, device and models for embedding, reranker, layout and ASR."""
     return models.all_model_options()
 
 
-@router.get("/{model_type}", response_model=ModelOptions)
+@router.get("/{model_type}", response_model=Union[ModelOptions, EmbeddingModelOptions])
 async def list_models_of_type(model_type: str):
-    """One kind: `embedding`, `reranker`, or `layout`."""
+    """One type: `embedding`, `reranker`, `layout`, `asr`; `multimodal` aliases media embeddings."""
     try:
         return models.model_options(model_type)
     except ValueError as error:
@@ -41,6 +42,6 @@ async def list_models_of_type(model_type: str):
 
 @router.get("/{model_type}/names", response_model=List[str])
 async def list_model_names(model_type: str):
-    """Just the names, for a plain select."""
+    """Names for one type or the `multimodal` compatibility alias."""
     options = await list_models_of_type(model_type)
     return [model["name"] for model in options["models"]]

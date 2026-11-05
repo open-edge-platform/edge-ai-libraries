@@ -17,7 +17,7 @@ from PIL import Image
 
 import config
 from assetlib import AssetPool, Source
-from assetlib.sources.binding import DEPRECATED, PREPARING, SERVING
+from assetlib.sources.binding import DEGRADE, PREPARING, SERVING
 from core import materialize
 from core.content import (
     AUDIO,
@@ -634,7 +634,7 @@ def test_sync_keeps_hooks_batched_backfill_and_replacement_lifecycle():
         ("finish", "new", ["a", "b", "c", "d", "e"]),
     ]
     assert state(library, "pool", "new") == SERVING
-    assert state(library, "pool", "old") == DEPRECATED
+    assert state(library, "pool", "old") == DEGRADE
     assert serving_ids(library, "pool") == ["new"]
     assert "old" in library.asset_pools["pool"].frozen_sources
 
