@@ -5,6 +5,8 @@
 
 ## Version 2026.3.0-rc1
 
+**Release Date**: November, 2026
+
 This first release introduces **RTSP stream buffering**, **video recording**, and **time-based clip and frame retrieval**, with local storage using a simple REST API microservice.
 
 **New**
