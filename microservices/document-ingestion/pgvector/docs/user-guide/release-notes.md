@@ -1,10 +1,8 @@
 # Release Notes: Document Ingestion
 
-## Version 2026.3
+## Version 2026.3.0
 
 **November 2026**
-
-This release introduces a **hardened MinIO deployment**, **updated Python and dependency baselines**, and **tiktoken-based chunking**, along with various fixes and documentation improvements.
 
 **Improved**
 
