@@ -3930,40 +3930,6 @@ debian_30_install_golang ()
 { 
     ensure_apt_install_package golang
 }
-debian_30_install_intel_lpmd () 
-{ 
-    configure_intel_lpmd;
-    if verify_intel_lpmd && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Intel-lpmd is installed" 1>&2;
-    else
-        echo "@@STEP Installing prerequisites";
-        ensure_apt update;
-        ensure_apt install -y autoconf-archive libglib2.0-dev libdbus-1-dev libxml2-dev libnl-3-dev libnl-genl-3-dev libsystemd-dev systemd-dev gtk-doc-tools libupower-glib-dev;
-        configure_kernel_module_essential_debian "$@" || return $?;
-        echo "@@STEP Building intel-lpmd";
-        ensure_git_export "$workspace" "$version" "$repository";
-        cd "$workspace";
-        ./autogen.sh;
-        if [[ -z "$(pkg-config --variable=systemdsystemunitdir systemd 2> /dev/null)" ]]; then
-            echo "Failed to resolve systemd's systemdsystemunitdir (is the systemd-dev package installed?)." 1>&2;
-            return 3;
-        fi;
-        make;
-        ensure_sudo make install;
-        ensure_sudo mkdir -p /etc/systemd/system/intel_lpmd.service.d;
-        ensure_sudo tee /etc/systemd/system/intel_lpmd.service.d/override.conf > /dev/null <<-EOF
-[Unit]
-# Clear all Condition* directives from the upstream unit
-ConditionPathExists=
-ConditionVirtualization=
-EOF
-
-        ensure_sudo apt-get clean -y;
-        ensure_sudo systemctl daemon-reload;
-        ensure_sudo systemctl --root=/ enable intel_lpmd.service;
-        ensure_sudo systemctl start intel_lpmd.service;
-    fi
-}
 debian_30_install_kernel_module_essential () 
 { 
     configure_kernel_module_essential_debian;
@@ -4058,10 +4024,6 @@ debian_30_install_xpu_smi ()
 { 
     ensure_apt_install_package xpu-smi || printf "${red}xpu-smi not installed${reset}\n"
 }
-debian_30_profile_intel_lpmd () 
-{ 
-    echo "kernel_module_essential linux_tools pkg_config autoconf automake"
-}
 debian_30_remove_autoconf () 
 { 
     ensure_apt_remove_package autoconf
@@ -4108,17 +4070,6 @@ debian_30_remove_git ()
 debian_30_remove_golang () 
 { 
     ensure_apt_remove_package golang
-}
-debian_30_remove_intel_lpmd () 
-{ 
-    [ "$(ensure_prop get installed/intel_lpmd/owned)" = "true" ] || return 0;
-    cd "$workspace" && { 
-        make clean
-    } || true;
-    ensure_sudo systemctl stop intel_lpmd.service || true;
-    ensure_sudo systemctl disable intel_lpmd.service || true;
-    ensure_rm /etc/systemd/system/intel_lpmd.service.d;
-    ensure_sudo systemctl daemon-reload || true
 }
 debian_30_remove_kernel_module_essential () 
 { 
@@ -4220,10 +4171,6 @@ debian_30_sbom_git ()
 debian_30_sbom_golang () 
 { 
     ensure_sbom_format pkg-list golang
-}
-debian_30_sbom_intel_lpmd () 
-{ 
-    ensure_sbom_format pkg-list autoconf-archive libglib2.0-dev libdbus-1-dev libxml2-dev libnl-3-dev libnl-genl-3-dev libsystemd-dev systemd-dev gtk-doc-tools libupower-glib-dev
 }
 debian_30_sbom_kernel_module_essential () 
 { 
@@ -4329,6 +4276,59 @@ debian_31_remove_k3s_io ()
     lifecycle_k3s_io remove;
     ensure_rm "$workspace";
     ensure_prop remove installed/k3s_io/owned
+}
+debian_35_install_intel_lpmd () 
+{ 
+    configure_intel_lpmd;
+    if verify_intel_lpmd && [[ " $* " != *" --reinstall "* ]]; then
+        echo "Intel-lpmd is installed" 1>&2;
+    else
+        echo "@@STEP Installing prerequisites";
+        ensure_apt update;
+        ensure_apt install -y autoconf-archive libglib2.0-dev libdbus-1-dev libxml2-dev libnl-3-dev libnl-genl-3-dev libsystemd-dev systemd-dev gtk-doc-tools libupower-glib-dev;
+        configure_kernel_module_essential_debian "$@" || return $?;
+        echo "@@STEP Building intel-lpmd";
+        ensure_git_export "$workspace" "$version" "$repository";
+        cd "$workspace";
+        ./autogen.sh;
+        if [[ -z "$(pkg-config --variable=systemdsystemunitdir systemd 2> /dev/null)" ]]; then
+            echo "Failed to resolve systemd's systemdsystemunitdir (is the systemd-dev package installed?)." 1>&2;
+            return 3;
+        fi;
+        make;
+        ensure_sudo make install;
+        ensure_sudo mkdir -p /etc/systemd/system/intel_lpmd.service.d;
+        ensure_sudo tee /etc/systemd/system/intel_lpmd.service.d/override.conf > /dev/null <<-EOF
+[Unit]
+# Clear all Condition* directives from the upstream unit
+ConditionPathExists=
+ConditionVirtualization=
+EOF
+
+        ensure_sudo apt-get clean -y;
+        ensure_sudo systemctl daemon-reload;
+        ensure_sudo systemctl --root=/ enable intel_lpmd.service;
+        ensure_sudo systemctl start intel_lpmd.service;
+    fi
+}
+debian_35_profile_intel_lpmd () 
+{ 
+    echo "kernel_module_essential linux_tools pkg_config autoconf automake"
+}
+debian_35_remove_intel_lpmd () 
+{ 
+    [ "$(ensure_prop get installed/intel_lpmd/owned)" = "true" ] || return 0;
+    cd "$workspace" && { 
+        make clean
+    } || true;
+    ensure_sudo systemctl stop intel_lpmd.service || true;
+    ensure_sudo systemctl disable intel_lpmd.service || true;
+    ensure_rm /etc/systemd/system/intel_lpmd.service.d;
+    ensure_sudo systemctl daemon-reload || true
+}
+debian_35_sbom_intel_lpmd () 
+{ 
+    ensure_sbom_format pkg-list autoconf-archive libglib2.0-dev libdbus-1-dev libxml2-dev libnl-3-dev libnl-genl-3-dev libsystemd-dev systemd-dev gtk-doc-tools libupower-glib-dev
 }
 debian_39_install_edge_pack () 
 { 
