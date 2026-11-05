@@ -3315,21 +3315,6 @@ debian_40_install_pcm ()
         verify_pcm;
     fi
 }
-debian_40_install_power_tuning () 
-{ 
-    configure_power_tuning;
-    if verify_power_tuning && [[ " $* " != *" --reinstall "* ]]; then
-        echo "power_tuning is installed." 1>&2;
-    else
-        ensure_prop set installed/power_tuning/owned true;
-        echo "@@STEP Cloning repository";
-        ensure_git_export "$workspace" "$version" "$repository" tools/power-tuning;
-        ensure_sudo mkdir -p "$power_tuning_path";
-        sed -i -e "s|^MODEL_PATH=.*|MODEL_PATH=$workspace/models|" -e "s|^GNU_VENV_DIR=.*|GNU_VENV_DIR=$workspace/.venv|" tools/power-tuning/openvino_stress.sh;
-        ensure_sudo cp -r "$workspace"/tools/power-tunning/* "$power_tuning_path";
-        verify_power_tuning;
-    fi
-}
 debian_40_install_system_info () 
 { 
     configure_system_info;
@@ -3384,10 +3369,6 @@ debian_40_profile_npu_accel ()
 debian_40_profile_pcm () 
 { 
     echo "pkg_config git make cmake kernel_module_essential msr_tools"
-}
-debian_40_profile_power_tuning () 
-{ 
-    echo "intel_lpmd pcm sysbench msr_tools lm_sensors stress_ng linux_tools"
 }
 debian_40_profile_system_info () 
 { 
@@ -3450,12 +3431,6 @@ debian_40_remove_pcm ()
     [ "$(ensure_prop get installed/pcm/owned)" = "true" ] || return 0;
     ensure_rm "$workspace" /usr/local/share/pcm /usr/local/sbin/pcm /usr/local/sbin/pcm-* /usr/local/bin/pcm-* /usr/local/share/licenses/pcm /usr/local/share/doc/PCM /etc/modules-load.d/99-intel-pcm.conf
 }
-debian_40_remove_power_tuning () 
-{ 
-    configure_power_tuning;
-    [ "$(ensure_prop get installed/power_tuning/owned)" = "true" ] || return 0;
-    ensure_rm "$power_tuning_path"
-}
 debian_40_remove_system_info () 
 { 
     configure_system_info;
@@ -3514,6 +3489,21 @@ debian_40_sbom_npu_accel ()
     };
     ensure_sbom_format pkg-list "${packages[@]}"
 }
+debian_45_install_power_tuning () 
+{ 
+    configure_power_tuning;
+    if verify_power_tuning && [[ " $* " != *" --reinstall "* ]]; then
+        echo "power_tuning is installed." 1>&2;
+    else
+        ensure_prop set installed/power_tuning/owned true;
+        echo "@@STEP Cloning repository";
+        ensure_git_export "$workspace" "$version" "$repository" tools/power-tuning;
+        ensure_sudo mkdir -p "$power_tuning_path";
+        sed -i -e "s|^MODEL_PATH=.*|MODEL_PATH=$workspace/models|" -e "s|^GNU_VENV_DIR=.*|GNU_VENV_DIR=$workspace/.venv|" tools/power-tuning/openvino_stress.sh;
+        ensure_sudo cp -r "$workspace"/tools/power-tunning/* "$power_tuning_path";
+        verify_power_tuning;
+    fi
+}
 debian_45_install_ubuntu_server () 
 { 
     if ( ensure_apt_is_installed ubuntu-desktop || ensure_apt_is_installed ubuntu-desktop-minimal || ensure_apt_is_installed gdm3 ) && [[ " $* " != *" --reinstall "* ]]; then
@@ -3523,6 +3513,16 @@ debian_45_install_ubuntu_server ()
         ensure_apt install -y --no-install-recommends ubuntu-server;
         ensure_apt purge -y --auto-remove ubuntu-desktop ubuntu-desktop-minimal gdm3;
     fi
+}
+debian_45_profile_power_tuning () 
+{ 
+    echo "intel_lpmd pcm sysbench msr_tools lm_sensors stress_ng linux_tools"
+}
+debian_45_remove_power_tuning () 
+{ 
+    configure_power_tuning;
+    [ "$(ensure_prop get installed/power_tuning/owned)" = "true" ] || return 0;
+    ensure_rm "$power_tuning_path"
 }
 debian_45_sbom_ubuntu_server () 
 { 
