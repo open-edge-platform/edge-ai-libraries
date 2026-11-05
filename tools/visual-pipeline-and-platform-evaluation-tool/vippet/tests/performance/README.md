@@ -5,10 +5,36 @@ Collects hardware KPIs per job and produces JSON, CSV, and HTML bar-chart report
 
 ## Prerequisites
 
-- VIPPET running at `http://localhost:7860` with models downloaded
-- Python dev venv set up (`make` from project root creates `.venv` automatically)
+- ViPPET running and reachable (default API base URL: `http://localhost/api/v1`; change it
+  with `--base-url`) with the models of the pipelines you want to benchmark installed
+- Python 3 with `venv` (see [Setup](#setup))
+
+## Setup
+
+All commands in this document run from the project root,
+`tools/visual-pipeline-and-platform-evaluation-tool`.
+
+**Using `make` (recommended).** `make test-performance` creates the `.venv` virtual
+environment on first use, installs `vippet/requirements-dev.txt` into it, activates it
+and sets `PYTHONPATH`. Nothing else has to be prepared.
+
+**Running the CLI or pytest directly.** Create and activate the virtual environment
+yourself, then export `PYTHONPATH` in the same shell:
+
+```bash
+python3 -m venv .venv                              # once
+source .venv/bin/activate                          # in every new shell
+python -m pip install -r vippet/requirements-dev.txt   # once, or after requirements change
+export PYTHONPATH=vippet/tests/performance
+```
+
+Without the activated venv `python -m perf_helpers.cli` fails with `No module named ...`
+for the dependencies (`httpx`, `PyYAML`, `requests`, `pytest`), and without `PYTHONPATH`
+it fails with `No module named perf_helpers`.
 
 ## Usage
+
+To benchmark your own pipeline, see [Benchmark your own pipeline](#benchmark-your-own-pipeline).
 
 ```bash
 make test-performance                    # default: CPU+GPU+NPU, 1 and 3 streams
@@ -30,9 +56,11 @@ make test-performance PERF_ARGS="-- --log-cli-level=INFO"
 
 ### CLI
 
-Run from the project root. `PYTHONPATH` must include `vippet/tests/performance`:
+Run from the project root, in the shell where the virtual environment is activated and
+`PYTHONPATH` is set (see [Setup](#setup)):
 
 ```bash
+source .venv/bin/activate
 export PYTHONPATH=vippet/tests/performance
 
 python -m perf_helpers.cli --help
@@ -57,21 +85,32 @@ CLI used. The CLI exits with pytest's exit code. If the config or a flag is inva
 #### Dry run
 
 `--dry-run` checks that ViPPET is up and reads `/pipelines`, `/devices` and
-`/models`. It never submits a job. It prints:
+`/models`. It never submits a job. Combine it with any selection flag to preview
+exactly what a run would do:
+
+```bash
+python -m perf_helpers.cli --dry-run                                   # default preset
+python -m perf_helpers.cli --dry-run --config quick
+python -m perf_helpers.cli --dry-run --pipelines vehicle-detection --variants cpu,gpu --streams 1,2,4
+python -m perf_helpers.cli --dry-run --base-url http://10.0.0.5/api/v1
+make test-performance PERF_ARGS="--dry-run --pipelines vehicle-detection"   # same, via make
+```
+
+It prints:
 
 - the effective setting of every key and where each value came from (`default`,
   `yaml`, `env`, `cli`)
 - the **Matrix**: pipeline × variant × streams, with the pytest test id
 - **Excluded** pipelines/variants, with a reason:
 
-  | Reason               | Meaning                                                                 |
-  |----------------------|-------------------------------------------------------------------------|
-  | `pipeline_filter`    | Pipeline not listed in `benchmark.pipelines`                            |
-  | `skip_pipelines`     | Pipeline listed in `benchmark.filters.skip_pipelines`                   |
-  | `skip_variants`      | Variant listed in `benchmark.filters.skip_variants`                     |
-  | `variant_filter`     | Variant uses a device family not in `benchmark.variants`                |
-  | `unsupported_family` | Unknown device family, or a family the host does not report             |
-  | `malformed`          | Pipeline/variant entry from the API has no id or name                   |
+  | Reason               | Meaning                                                     |
+  |----------------------|-------------------------------------------------------------|
+  | `pipeline_filter`    | Pipeline not listed in `benchmark.pipelines`                |
+  | `skip_pipelines`     | Pipeline listed in `benchmark.filters.skip_pipelines`       |
+  | `skip_variants`      | Variant listed in `benchmark.filters.skip_variants`         |
+  | `variant_filter`     | Variant uses a device family not in `benchmark.variants`    |
+  | `unsupported_family` | Unknown device family, or a family the host does not report |
+  | `malformed`          | Pipeline/variant entry from the API has no id or name       |
 
 - **Skipped at run time: missing_models**: runs that are in the matrix but that pytest
   will skip because their models are not installed, with the model names. With
@@ -108,7 +147,14 @@ python -m perf_helpers.cli --report-only                     # defaults to <resu
 python -m perf_helpers.cli --report-only results/latest
 python -m perf_helpers.cli --report-only results/bench_A/bench_A.json
 python -m perf_helpers.cli --report-only results/bench_A results/bench_B --report-output /tmp/compare.html
+make test-performance PERF_ARGS="--report-only"              # same as the first line, via make
 ```
+
+The paths are relative to the current directory. A plain run stores its results in
+`vippet/tests/performance/results/` (see [Reports](#reports)), so from the project
+root use e.g. `vippet/tests/performance/results/latest`. Without a path,
+`--report-only` reads `<results-dir>/latest`, where `--results-dir` / `PERF_RESULTS_DIR`
+default to that same directory.
 
 - Accepted inputs: a result JSON file, a single run directory, or the
   `latest` symlink. The whole results folder is not accepted.
@@ -180,13 +226,191 @@ and metrics-manager samples) are kept out of the console below WARNING, but they
 written to the log file.
 
 Every error says what happened, why, and how to fix it ("To fix: ..."), naming the
-flag, env var or file to change. Errors that stop the run:
+flag, env var or file to change. The exit codes are listed in
+[Exit codes](#exit-codes).
 
-| Exit code | Cause                                                                                                  |
-|-----------|--------------------------------------------------------------------------------------------------------|
-| `2`       | Invalid config, or ViPPET unreachable, not the ViPPET API, or not ready within `--readiness-timeout`   |
-| `4`       | A filter id in `pipelines`/`variants`/`skip_*` matches nothing and `PERF_ON_UNKNOWN_ID=fail` (default) |
-| `1`       | At least one benchmark failed (state, attempts, job id and the fix are shown per test)                 |
+## Benchmark your own pipeline
+
+No source change and no harness configuration is needed to benchmark a pipeline you
+created yourself. At every run the suite asks ViPPET for its pipelines (`GET /pipelines`),
+so a pipeline created in ViPPET (in the UI, or with `POST /pipelines`) is discovered and
+benchmarked exactly like a predefined one: same variants, stream counts, retries, result
+export and reports.
+
+### 1. Prepare the pipeline in ViPPET
+
+- **Variant names decide what can run.** Name each variant after the device(s) it uses:
+  `CPU`, `GPU`, `NPU`, or a combination joined by `_` such as `GPU_NPU`. A variant with
+  any other name is excluded as `unsupported_family`.
+- **Install the models** the pipeline uses (ViPPET UI Models page, or `POST /models/download`).
+  Runs of a pipeline with missing models are skipped, with the model names shown.
+  `--no-skip-missing-models` runs them anyway, and they will most likely fail.
+
+### 2. Find the pipeline id
+
+Pipelines are selected by their **id**, which ViPPET derives from the pipeline name: a
+lowercase slug (`Vehicle Detection` becomes `vehicle-detection`), with a short hash
+appended if that id is already taken. The `pipeline` column of the dry-run matrix shows
+the ids of all discovered pipelines:
+
+```bash
+python -m perf_helpers.cli --dry-run
+```
+
+The id is also the `id` field of the pipeline in the `GET /pipelines` response.
+
+### 3. Select it
+
+| Goal                                     | Command                                                            |
+|------------------------------------------|--------------------------------------------------------------------|
+| Your pipeline only                       | `--pipelines vehicle-detection`                                    |
+| Several of your pipelines                | `--pipelines vehicle-detection,my-other-pipeline`                  |
+| Your pipeline together with all defaults | no `--pipelines` (the default is `'*'`: everything ViPPET reports) |
+| Your pipeline with selected defaults     | `--pipelines vehicle-detection,object-detection`                   |
+| Everything except some pipelines         | `--skip-pipelines smart-parking`                                   |
+
+The same selection can be saved in a YAML file. Keys you leave out keep their defaults:
+
+```yaml
+# my-config.yaml
+benchmark:
+  pipelines: ["vehicle-detection"]   # or "*" for customer plus predefined pipelines
+  variants: [cpu, gpu]
+  stream_counts: [1, 2, 4]
+```
+
+```bash
+python -m perf_helpers.cli --config ./my-config.yaml
+```
+
+Ids in `--pipelines` and `--skip-pipelines` are matched case-insensitively. An id that
+ViPPET does not know stops the run before any job starts, with exit
+code `4`, and the error lists the valid ids. With `--on-unknown-id warn`
+(`PERF_ON_UNKNOWN_ID=warn`) such an id is reported as a skipped case and the rest runs.
+
+### 4. Confirm with a dry run
+
+```bash
+python -m perf_helpers.cli --dry-run --pipelines vehicle-detection --variants cpu,gpu --streams 1,2
+```
+
+```text
+Host device families: CPU, GPU
+
+Matrix: 4 run(s) = pipeline x variant x streams [1, 2]
+pipeline           variant  streams  test id
+-----------------  -------  -------  ------------------------
+vehicle-detection  CPU      1        vehicle_detection_cpu_x1
+vehicle-detection  CPU      2        vehicle_detection_cpu_x2
+vehicle-detection  GPU      1        vehicle_detection_gpu_x1
+vehicle-detection  GPU      2        vehicle_detection_gpu_x2
+
+Excluded: 11 pipeline/variant(s)
+pipeline          variant  reason           detail
+----------------  -------  ---------------  -----------------------------------
+object-detection  (all)    pipeline_filter  not listed in benchmark.pipelines
+...
+```
+
+Your pipeline must appear in the **Matrix**. If it does not, look it up in **Excluded**:
+
+| What the dry run shows                               | Cause and fix                                                                                     |
+|------------------------------------------------------|---------------------------------------------------------------------------------------------------|
+| Pipeline in neither table                            | ViPPET does not report it. Check that it exists and that `--base-url` points to the right ViPPET. |
+| `pipeline_filter`                                    | Its id is not in `--pipelines`.                                                                   |
+| `skip_pipelines` / `skip_variants`                   | Remove it from `--skip-pipelines` / `--skip-variants`.                                            |
+| `variant_filter`                                     | The variant needs a device family that is missing in `--variants`. Add it.                        |
+| `unsupported_family`, "unknown device family"        | The variant name is not CPU, GPU, NPU or a combination of them. Rename the variant in ViPPET.     |
+| `unsupported_family`, "host does not report"         | The host has no such device. Nothing to fix; the variant cannot run here.                         |
+| In the Matrix and also under **Skipped at run time** | Models are missing. Install them in ViPPET.                                                       |
+
+### 5. Run it
+
+```bash
+python -m perf_helpers.cli --pipelines vehicle-detection --variants cpu,gpu --streams 1,2,4
+make test-performance PERF_ARGS="--pipelines vehicle-detection --streams 1,2,4"   # via make
+```
+
+The pipeline then appears in the console matrix and logs, and in the JSON, CSV and HTML
+results, under the name and id that ViPPET reports. Open the HTML report from the
+**Benchmark artefacts** section of the console output. To rebuild it later, see
+[Report only](#report-only).
+
+## CLI reference
+
+```text
+python -m perf_helpers.cli [OPTIONS] [-- PYTEST_ARGS]
+```
+
+`python -m perf_helpers.cli --help` lists the options in the same (alphabetical) order.
+Run it from the project root with the virtual environment active and `PYTHONPATH` set,
+see [Setup](#setup). `make test-performance PERF_CONFIG=<config> PERF_ARGS="<options>"`
+runs the same CLI.
+
+### Run modes and general options
+
+| Option                     | Description                                                                                                                                 |
+|----------------------------|---------------------------------------------------------------------------------------------------------------------------------------------|
+| `--config NAME_OR_PATH`    | Preset name in `config/` (`default`, `quick`, `full`), a YAML path, or a result JSON / run directory. See [Configuration](#configuration).  |
+| `--dry-run`                | Print the settings, the matrix and the exclusions, then exit without running jobs. See [Dry run](#dry-run). Exclusive with `--report-only`. |
+| `-h`, `--help`             | Show the option list and exit.                                                                                                              |
+| `--report-only [PATH ...]` | Rebuild the HTML report from saved result JSON, without contacting ViPPET. See [Report only](#report-only). Exclusive with `--dry-run`.     |
+| `--report-output PATH`     | HTML file to write with `--report-only`. Requires `--report-only`.                                                                          |
+| `-- PYTEST_ARGS`           | Everything after `--` goes to pytest unchanged, e.g. `-- -k vehicle_detection --log-cli-level=INFO`.                                        |
+
+Without `--dry-run` and `--report-only` the CLI runs the benchmark.
+
+### Settings
+
+Every setting has a CLI flag and a YAML key, and some have an environment variable. A
+flag overrides the environment variable, which overrides the YAML file, which overrides
+the built-in default. The defaults below are those of the `default` preset.
+
+| Flag                                                | Default                                           | YAML key                                  | Env var                      | Meaning                                                                     |
+|-----------------------------------------------------|---------------------------------------------------|-------------------------------------------|------------------------------|-----------------------------------------------------------------------------|
+| `--base-url URL`                                    | `http://localhost/api/v1`                         | `vippet.base_url`                         | `VIPPET_BASE_URL`            | ViPPET API base URL                                                         |
+| `--capabilities-url URL`                            | `http://<base-url host>:9090/api/v1/capabilities` | `metrics.capabilities_url`                | `VIPPET_CAPABILITIES_URL`    | metrics-manager capabilities endpoint (not behind the nginx proxy)          |
+| `--formats FORMATS`                                 | `json,csv`                                        | `results.formats`                         |                              | Export formats: `json`, `csv`. The HTML report is always written.           |
+| `--latest-link`, `--no-latest-link`                 | on                                                | `results.create_latest_link`              |                              | Point `<results-dir>/latest` at the newest run                              |
+| `--max-job-duration SECONDS`                        | `600`                                             | `vippet.max_job_duration`                 | `VIPPET_JOB_TIMEOUT_SECONDS` | Longest wait for one job, whole seconds                                     |
+| `--max-retries N`                                   | `2`                                               | `benchmark.execution.max_retries`         |                              | Retries for a job that does not complete                                    |
+| `--max-runtime SECONDS`                             | `30`                                              | `benchmark.execution.max_runtime`         |                              | How long each run lasts; `0` runs until the end of the video                |
+| `--metrics-interval SECONDS`                        | `2.0`                                             | `metrics.sample_interval_seconds`         | `PERF_METRICS_INTERVAL`      | Hardware metrics sampling interval                                          |
+| `--metrics-trim-fraction FRACTION`                  | `0.1`                                             | `metrics.trim_fraction`                   | `PERF_METRICS_TRIM_FRACTION` | Share of samples trimmed from each end before averaging, `0` to below `0.5` |
+| `--metrics-url URL`                                 | `http://<base-url host>/metrics/stream`           | `metrics.metrics_url`                     | `VIPPET_METRICS_URL`         | Hardware metrics endpoint                                                   |
+| `--on-unknown-id {fail,warn}`                       | `fail`                                            | `benchmark.filters.on_unknown_id`         | `PERF_ON_UNKNOWN_ID`         | Unknown id in a filter: abort the run, or warn and skip it                  |
+| `--output-mode {disabled,file,live_stream}`         | `disabled`                                        | `benchmark.execution.output_mode`         |                              | Pipeline output mode                                                        |
+| `--pipelines IDS`                                   | `*`                                               | `benchmark.pipelines`                     |                              | `*` for all pipelines, or comma-separated pipeline ids                      |
+| `--poll-interval SECONDS`                           | `2`                                               | `vippet.poll_interval`                    | `VIPPET_JOB_POLL_INTERVAL`   | Job status polling interval                                                 |
+| `--readiness-timeout SECONDS`                       | `60`                                              | `vippet.readiness_timeout_seconds`        |                              | Longest wait for ViPPET to become ready before the run starts               |
+| `--results-dir DIR`                                 | `vippet/tests/performance/results`                | `results.output_dir`                      | `PERF_RESULTS_DIR`           | Directory that receives the run directories                                 |
+| `--retry-delay SECONDS`                             | `5`                                               | `benchmark.execution.retry_delay_seconds` |                              | Pause between retries                                                       |
+| `--save-log`, `--no-save-log`                       | on                                                | `results.save_log`                        |                              | Write the run's INFO log next to its reports                                |
+| `--skip-missing-models`, `--no-skip-missing-models` | on                                                | `benchmark.filters.skip_missing_models`   |                              | Skip pipelines with missing models, or run them anyway                      |
+| `--skip-pipelines IDS`                              | none                                              | `benchmark.filters.skip_pipelines`        |                              | Comma-separated pipeline ids to leave out; `''` clears the list             |
+| `--skip-variants VARIANTS`                          | none                                              | `benchmark.filters.skip_variants`         |                              | Comma-separated variant names to leave out, e.g. `GPU_NPU`                  |
+| `--streams COUNTS`                                  | `1,3`                                             | `benchmark.stream_counts`                 |                              | Comma-separated stream counts                                               |
+| `--timeout SECONDS`                                 | `600`                                             | `vippet.timeout`                          |                              | HTTP request timeout                                                        |
+| `--variants FAMILIES`                               | `cpu,gpu,npu`                                     | `benchmark.variants`                      |                              | Allowed device families (see [Configuration](#configuration))               |
+
+### Presets
+
+| Preset    | Variants      | Streams     | `max_runtime`      | Formats   | Other differences                                              |
+|-----------|---------------|-------------|--------------------|-----------|----------------------------------------------------------------|
+| `default` | CPU, GPU, NPU | 1, 3        | 30 s               | JSON, CSV |                                                                |
+| `quick`   | CPU, GPU      | 1           | 10 s               | JSON      | `timeout` and `max_job_duration` 300, 1 retry, 3 s retry delay |
+| `full`    | CPU, GPU, NPU | 1, 3, 5, 10 | until end of video | JSON, CSV |                                                                |
+
+### Exit codes
+
+| Exit code | Cause                                                                                                                                                                                   |
+|-----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `0`       | All benchmarks passed, or `--dry-run` / `--report-only` succeeded                                                                                                                       |
+| `1`       | At least one benchmark failed (state, attempts, job id and the fix are shown per test)                                                                                                  |
+| `2`       | Invalid config or flag; ViPPET unreachable, not the ViPPET API, or not ready within `--readiness-timeout`; invalid input for `--report-only`; `--report-output` without `--report-only` |
+| `4`       | A filter id in `pipelines` / `variants` / `skip_*` matches nothing and `on_unknown_id` is `fail` (default)                                                                              |
+
+Other exit codes come from pytest itself, which the CLI passes through.
 
 ## Configuration
 
@@ -203,34 +427,10 @@ error. Older versions silently fell back to `default.yaml` instead. `--config` (
 `PERF_CONFIG`) can also name a result JSON or run directory, see
 [Reproducing a run](#reproducing-a-run).
 
-Every YAML key has a CLI flag:
-
-| Flag                         | YAML key                                  | Env var                           |
-|------------------------------|-------------------------------------------|-----------------------------------|
-| `--config`                   | (selects the YAML file or a result)       | `PERF_CONFIG_FILE`, `PERF_CONFIG` |
-| `--base-url`                 | `vippet.base_url`                         | `VIPPET_BASE_URL`                 |
-| `--timeout`                  | `vippet.timeout`                          |                                   |
-| `--readiness-timeout`        | `vippet.readiness_timeout_seconds`        |                                   |
-| `--poll-interval`            | `vippet.poll_interval`                    | `VIPPET_JOB_POLL_INTERVAL`        |
-| `--max-job-duration`         | `vippet.max_job_duration`                 | `VIPPET_JOB_TIMEOUT_SECONDS`      |
-| `--pipelines`                | `benchmark.pipelines`                     |                                   |
-| `--variants`                 | `benchmark.variants`                      |                                   |
-| `--streams`                  | `benchmark.stream_counts`                 |                                   |
-| `--max-retries`              | `benchmark.execution.max_retries`         |                                   |
-| `--retry-delay`              | `benchmark.execution.retry_delay_seconds` |                                   |
-| `--output-mode`              | `benchmark.execution.output_mode`         |                                   |
-| `--max-runtime`              | `benchmark.execution.max_runtime`         |                                   |
-| `--skip-pipelines`           | `benchmark.filters.skip_pipelines`        |                                   |
-| `--skip-variants`            | `benchmark.filters.skip_variants`         |                                   |
-| `--[no-]skip-missing-models` | `benchmark.filters.skip_missing_models`   |                                   |
-| `--metrics-url`              | `metrics.metrics_url`                     | `VIPPET_METRICS_URL`              |
-| `--capabilities-url`         | `metrics.capabilities_url`                | `VIPPET_CAPABILITIES_URL`         |
-| `--metrics-interval`         | `metrics.sample_interval_seconds`         | `PERF_METRICS_INTERVAL`           |
-| `--metrics-trim-fraction`    | `metrics.trim_fraction`                   | `PERF_METRICS_TRIM_FRACTION`      |
-| `--results-dir`              | `results.output_dir`                      | `PERF_RESULTS_DIR`                |
-| `--formats`                  | `results.formats`                         |                                   |
-| `--[no-]latest-link`         | `results.create_latest_link`              |                                   |
-| `--[no-]save-log`            | `results.save_log`                        |                                   |
+Every YAML key has a CLI flag. The [CLI reference](#cli-reference) lists all flags with their
+YAML keys, environment variables and defaults. `--config` is the only flag without a YAML
+key; the environment variables `PERF_CONFIG_FILE` and `PERF_CONFIG` select the YAML file the
+same way.
 
 Notes:
 
