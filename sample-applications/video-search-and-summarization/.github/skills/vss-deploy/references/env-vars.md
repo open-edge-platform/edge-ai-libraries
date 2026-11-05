@@ -176,6 +176,12 @@ written to `ov_models/model-download-*.log`.
 | `APP_FEATURE_MUX` | set by mode | `ATOMIC` for singleton summary/search; `SUMMARY_SEARCH` for Unified. |
 | `APP_SUMMARY_FEATURE` | set by mode | UI summary feature flag. |
 | `APP_SEARCH_FEATURE` | set by mode | UI search feature flag. |
+| `APP_MAP_FEATURE` | `FEATURE_OFF` | `FEATURE_ON` shows the Geo Spatial Map View in the search UI. |
+| `MAP_TILE_URL` | empty (OpenStreetMap) | Map tile URL template with `{z}`, `{x}`, `{y}`. |
+| `GEO_API_URL` | empty | Optional locations API; the locations file is used until it answers. |
+| `GEO_INTERSECTIONS_FILE` | `../config/geo-intersections.json` | Locations file mounted into Pipeline Manager. |
+| `GEO_REFRESH_MS` | `60000` | Locations refresh interval. |
+| `GEO_TIMEOUT_MS` | `3000` | Locations API request timeout. |
 | `ENABLE_METRICS_MANAGER` | `false` | Adds `compose.metrics-manager.yaml` in search-enabled modes when `true`. |
 | `METRICS_MANAGER_HOST_PORT` | `9090` | Metrics Manager REST/SSE API host port. |
 | `METRICS_MANAGER_PROMETHEUS_HOST_PORT` | `9273` | Metrics Manager Prometheus host port. |

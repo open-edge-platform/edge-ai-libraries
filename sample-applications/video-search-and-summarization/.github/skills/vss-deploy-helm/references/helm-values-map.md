@@ -17,6 +17,8 @@ This map is grounded in `chart/Chart.yaml`, `chart/values.yaml`, the override fi
 | `setup.sh --dual` | `summary_override.yaml` + `search_override.yaml`; both `summaryui.enabled` and `searchui.enabled` | Two UI services; nginx routes `/summary/` and `/search/` |
 | `NGINX_UI_CONFIG=dual_ui.conf` | No direct key; chart infers dual UI from `summaryui.enabled && searchui.enabled` in `templates/nginx-deployment.yaml` | Enables path-based routing to separate UIs |
 | `APP_SUMMARY_FEATURE`, `APP_SEARCH_FEATURE`, `APP_FEATURE_MUX` | `summaryui.feature.summary`, `summaryui.feature.search`, `summaryui.feature.mux`; `searchui.feature.*`; `pipelinemanager.env.SUMMARY_FEATURE`, `pipelinemanager.env.SEARCH_FEATURE` | Controls UI feature switches and backend feature switches |
+| `APP_MAP_FEATURE`, `MAP_TILE_URL` | `searchui.feature.map`, `searchui.mapTileUrl` | Geo Spatial Map View switch and tile URL |
+| `GEO_API_URL`, `GEO_REFRESH_MS`, `GEO_TIMEOUT_MS`, `GEO_INTERSECTIONS_FILE` | `pipelinemanager.geo.apiUrl`, `pipelinemanager.geo.refreshMs`, `pipelinemanager.geo.timeoutMs`, `pipelinemanager.geo.intersections` | Map locations; `intersections` is rendered into a ConfigMap that serves as the locations file |
 | `VLM_MODEL_NAME` | `global.vlmName` | Required for summary/unified; passed to OVMS init or vLLM `--model` |
 | `OVMS_LLM_MODEL_NAME` / split-model mode | `global.llmName` | Optional separate OVMS LLM for final summarization; empty reuses `global.vlmName` |
 | Compose model-download service | `global.modelDownload.image.repository/tag/pullPolicy`, `global.modelDownload.ovmsReleaseTag` | OVMS and video-ingestion init containers start the image as a local REST service, download/convert their model, then exit |
