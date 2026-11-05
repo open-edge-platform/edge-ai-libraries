@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 import pipeline_events
 from pipeline_events import (
     EventCapture,
+    remove_event_folders,
     EventFileReader,
     EventSource,
     add_event_outputs,
@@ -258,6 +259,20 @@ class TestEventCapture(unittest.TestCase):
 
         self.assertEqual([e.text for e in events], ["from the run"])
         self.assertEqual(os.listdir(self.tmp.name), [])
+
+    def test_remove_event_folders_deletes_leftovers(self):
+        capture = EventCapture.create(
+            {"s0": "videotestsrc ! gvagenai ! fakesink"}, "job-1", print
+        )
+        assert capture is not None
+        (path,) = capture.sources
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(json.dumps({"result": "left behind"}) + "\n")
+
+        remove_event_folders()
+
+        self.assertFalse(os.path.exists(self.tmp.name))
+        remove_event_folders()  # nothing left: no error
 
     def test_folder_that_cannot_be_created_disables_events(self):
         with (

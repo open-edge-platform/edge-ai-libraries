@@ -354,3 +354,12 @@ class EventCapture:
             os.rmdir(os.path.dirname(self.directory))
         except OSError:
             pass
+
+
+def remove_event_folders() -> None:
+    """Delete every run folder under ``EVENTS_DIR``.
+
+    Called when ``vippet`` starts and stops: no run is active then, and a
+    ``vippet`` process that ended mid-run leaves its folders behind.
+    """
+    shutil.rmtree(EVENTS_DIR, ignore_errors=True)

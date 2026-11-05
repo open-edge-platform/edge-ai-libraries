@@ -273,6 +273,57 @@ def with_main_sink_last(command: str, stream_id: str) -> str:
     return " ".join(" ".join(chain) for chain in chains)
 
 
+# States in which a DLSPS 2.0 instance may still hold devices.
+_ACTIVE_STATES = frozenset({"QUEUED", "RUNNING", "RESTARTING"})
+
+# Seconds for stopping leftover instances when vippet starts or stops.
+DLSPS2_CLEANUP_TIMEOUT_S: float = float(os.environ.get("DLSPS2_CLEANUP_TIMEOUT_S", "5"))
+
+
+def stop_leftover_instances(
+    timeout_s: float | None = None, base_url: Optional[str] = None
+) -> int:
+    """Stop every DLSPS 2.0 instance that is still active. Never raises.
+
+    ``vippet`` is the server's only client, so when ``vippet`` starts or
+    stops no instance should be running: one that is was started by a
+    ``vippet`` process that ended mid-run, and it would hold devices and skew
+    every later measurement.
+
+    Args:
+        timeout_s: Overall budget, default ``DLSPS2_CLEANUP_TIMEOUT_S``.
+        base_url: DLSPS 2.0 base URL, default ``DLSPS2_BASE_URL``.
+
+    Returns:
+        The number of instances asked to stop.
+    """
+    if timeout_s is None:
+        timeout_s = DLSPS2_CLEANUP_TIMEOUT_S
+    runner = Dlsps2PipelineRunner(base_url=base_url)
+    try:
+        with httpx.Client(
+            timeout=min(DLSPS2_HTTP_TIMEOUT_S, timeout_s), verify=DLSPS2_VERIFY_TLS
+        ) as client:
+            response = client.get(f"{runner.base_url}/pipelines/status")
+            response.raise_for_status()
+            active = [
+                item["id"]
+                for item in response.json()
+                if item.get("state") in _ACTIVE_STATES
+            ]
+            if active:
+                logger.warning(
+                    "Stopping %d DLSPS 2.0 instance(s) that no run tracks: %s",
+                    len(active),
+                    active,
+                )
+                runner._stop_all(client, active, timeout_s)
+            return len(active)
+    except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+        logger.warning("Could not stop leftover DLSPS 2.0 instances: %s", exc)
+        return 0
+
+
 # States a dlsps2 pipeline instance can no longer leave on its own.
 _TERMINAL_STATES = frozenset({"COMPLETED", "ERROR", "ABORTED"})
 
@@ -576,16 +627,23 @@ class Dlsps2PipelineRunner:
                 "Failed to stop DLSPS 2.0 instance %s: %s", instance_id, exc
             )
 
-    def _stop_all(self, client: httpx.Client, instance_ids: list[str]) -> None:
+    def _stop_all(
+        self,
+        client: httpx.Client,
+        instance_ids: list[str],
+        timeout_s: float | None = None,
+    ) -> None:
         """Stop every instance. Never raises.
 
         DLSPS 2.0 answers ``DELETE`` with 409 while an instance is still
         ``QUEUED`` in validation, and starts it afterwards. Such instances are
-        retried until they leave ``QUEUED`` or ``DLSPS2_STOP_TIMEOUT_S``
-        passes.
+        retried until they leave ``QUEUED`` or ``timeout_s`` (default
+        ``DLSPS2_STOP_TIMEOUT_S``) passes.
         """
+        if timeout_s is None:
+            timeout_s = DLSPS2_STOP_TIMEOUT_S
         pending = list(instance_ids)
-        deadline = time.monotonic() + DLSPS2_STOP_TIMEOUT_S
+        deadline = time.monotonic() + timeout_s
         while True:
             pending = [iid for iid in pending if not self._try_stop(client, iid)]
             if not pending or time.monotonic() >= deadline:
@@ -594,7 +652,7 @@ class Dlsps2PipelineRunner:
         if pending:
             self.logger.warning(
                 "DLSPS 2.0 instances still queued after %ss, not stopped: %s",
-                DLSPS2_STOP_TIMEOUT_S,
+                timeout_s,
                 pending,
             )
 
@@ -1182,6 +1240,14 @@ class Dlsps2PipelineRunner:
                             time.sleep(self.poll_interval)
                             continue
                         last_contact = now
+
+                        lost = [sid for sid in instances if sid not in statuses]
+                        if lost:
+                            raise RuntimeError(
+                                f"DLSPS 2.0 no longer reports stream(s) "
+                                f"{', '.join(lost)}; the server restarted or "
+                                "dropped them"
+                            )
 
                         states = {sid: s.get("state") for sid, s in statuses.items()}
                         for sid, state in states.items():

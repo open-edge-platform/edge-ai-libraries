@@ -1622,3 +1622,70 @@ class TestWithMainSinkLast(unittest.TestCase):
 
         sent = json.loads(fake.calls("POST")[0].content)["pipeline"]
         self.assertEqual(sent, f"{self.SIDE} {self.MAIN}")
+
+
+class TestDlsps2RunnerLostInstance(unittest.TestCase):
+    STREAMS = {"s0": "a ! fakesink name=s0", "s1": "a ! fakesink name=s1"}
+
+    def _run(self, fake):
+        runner = Dlsps2PipelineRunner(
+            mode="normal", base_url="http://dlsps:8080", max_runtime=0
+        )
+        with (
+            patch.object(runner, "_push_fps_metric"),
+            patch.object(runner, "_client", side_effect=fake.client),
+            patch.object(runner, "_metrics_client", side_effect=fake.client),
+        ):
+            return runner.run(PIPELINE, stream_commands=self.STREAMS)
+
+    def test_lost_instance_fails_the_run_at_once(self):
+        fake = _FakeStreamSet([[]])
+
+        with self.assertRaisesRegex(RuntimeError, "no longer reports stream"):
+            self._run(fake)
+        # The first poll fails the run; the second is the final read after the
+        # instances are stopped.
+        self.assertEqual(fake.status_polls, 2)
+        self.assertEqual(len(fake.calls("DELETE")), 2)
+
+
+class TestStopLeftoverInstances(unittest.TestCase):
+    def _client(self, handler):
+        real_client = httpx.Client
+        return patch(
+            "dlsps2_runner.httpx.Client",
+            side_effect=lambda **_: real_client(transport=httpx.MockTransport(handler)),
+        )
+
+    def test_stops_only_active_instances(self):
+        deleted = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.method == "DELETE":
+                deleted.append(request.url.path.rsplit("/", 1)[-1])
+                return httpx.Response(200)
+            return httpx.Response(
+                200,
+                json=[
+                    {"id": "run", "state": "RUNNING"},
+                    {"id": "queued", "state": "QUEUED"},
+                    {"id": "done", "state": "COMPLETED"},
+                    {"id": "gone", "state": "ABORTED"},
+                ],
+            )
+
+        with self._client(handler), self.assertLogs("dlsps2_runner", "WARNING"):
+            stopped = dlsps2_runner.stop_leftover_instances(base_url="http://d:8080")
+
+        self.assertEqual(stopped, 2)
+        self.assertEqual(sorted(deleted), ["queued", "run"])
+
+    def test_unreachable_server_is_logged(self):
+        def handler(request: httpx.Request) -> httpx.Response:
+            raise httpx.ConnectError("refused")
+
+        with self._client(handler), self.assertLogs("dlsps2_runner", "WARNING") as logs:
+            self.assertEqual(
+                dlsps2_runner.stop_leftover_instances(base_url="http://d:8080"), 0
+            )
+        self.assertTrue(any("leftover" in m for m in logs.output))

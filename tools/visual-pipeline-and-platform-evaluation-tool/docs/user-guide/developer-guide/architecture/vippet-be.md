@@ -34,6 +34,8 @@ The backend does not run pipelines in its own process. Every pipeline run (valid
 tests, benchmarks, and the conversion of videos to `.ts`) is sent over REST to DL Streamer Pipeline Server 2.0
 (the `dlstreamer-pipeline-server` service) by `Dlsps2PipelineRunner` in `vippet/dlsps2_runner.py`. Each stream
 runs as its own server instance; the runner polls the per-stream FPS and judges a run by its slowest stream.
+When the backend starts and when it stops, it stops every instance still
+active on the server and deletes the live-event folders, since it is the server's only client.
 Latency and VLM metrics come from the server's OpenTelemetry export to `metrics-manager`. Live pipeline events
 (proximity triggers, VLM answers) are written by the pipelines as JSON Lines files into the shared metadata
 folder and read back by `vippet/pipeline_events.py`. `vippet/pipeline_runner.py` holds the result types shared

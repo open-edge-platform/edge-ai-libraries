@@ -279,6 +279,8 @@ for the setup. The following limitations apply:
   DL Streamer base image.
 - **The pipeline optimizer runs in the `vippet` container, not on the server.** It does not see the custom
   elements in `vippet/gst_plugins/`.
+- **ViPPET is the server's only client.** When the `vippet` container starts or stops, it stops every pipeline
+  still running on the server, including pipelines started on the server by other means.
 - **Stopping a run can take a few seconds.** If a run is stopped while the server is still validating it, the
   server stops it only after the validation ends.
 - **Known issue: a VLM density test on CPU can make every later run fail.** The server runs all pipelines in
