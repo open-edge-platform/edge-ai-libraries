@@ -340,6 +340,7 @@ metrics-manager/
 | [System Requirements](./docs/user-guide/get-started/system-requirements.md)     | Supported platforms and hardware requirements                       |
 | [Build from Source](./docs/user-guide/get-started/build-from-source.md)         | Building the metrics manager from source code                       |
 | [Environment Variables](./docs/user-guide/get-started/environment-variables.md) | Configuration through environment variables and Telegraf config     |
+| [Hardware Telemetry](./docs/user-guide/get-started/hardware-telemetry.md)       | Opt-in power, DRAM bandwidth, disk, network and interrupt collectors |
 | [Custom Metrics](./docs/user-guide/get-started/custom-metrics.md)               | Using the REST API for custom metrics                               |
 | [Deploy with Helm](./docs/user-guide/get-started/deploy-with-helm.md)           | Kubernetes deployment via the published OCI Helm chart              |
 | [Testing](./docs/user-guide/get-started/testing.md)                             | Unit tests, smoke tests, development setup                          |

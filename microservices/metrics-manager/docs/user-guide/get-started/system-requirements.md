@@ -80,10 +80,23 @@ If GPU is absent, qmassa logs `No DRM devices found` and exits gracefully. Other
 - NPU temperature
 - NPU utilization (%)
 - NPU bandwidth
+- NPU PCI power state (`npu_power_state`: D0=0, D1=1, D2=2, D3hot=3, D3cold=4, unknown=-1)
 - Tile configuration
 - Memory usage (MB) — reports `-1` on MTL/ARL (sysfs node does not exist)
 
 If NPU is absent or driver is not loaded, the NPU reader logs a warning and enters idle mode. Other metrics continue normally.
+
+### Hardware Telemetry Collectors (Optional)
+
+The opt-in [hardware telemetry collectors](./hardware-telemetry.md) have extra host requirements. Each one idles without data when its requirement is missing; none of them affects the default metrics.
+
+| Collector                                     | Host requirements                                                                                          |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `ENABLE_RAPL_POWER`, `ENABLE_PSYS_POWER`      | Intel CPU; kernel modules `intel_rapl_common`, `msr`, `cpufreq`, `intel-uncore-frequency`; privileged container |
+| `ENABLE_DRAM_BW`                              | Image built with `INSTALL_PERF=true`; `perf_event_paranoid` of `0` or lower; IMC free-running PMU exposed   |
+| `ENABLE_GPU_THROTTLE`                         | Intel GPU on the `xe` driver                                                                               |
+| `ENABLE_TURBOSTAT`                            | Host `turbostat` binary matching the running kernel; `msr` module; privileged container                    |
+| `ENABLE_DISK_IO`, `ENABLE_NET_IO`, `ENABLE_INTERRUPTS`, `ENABLE_TEMP_STATS` | Linux `/proc` and `/sys` (privileged container for interrupts); host networking for host NICs |
 
 ## Capabilities API Quick Check
 

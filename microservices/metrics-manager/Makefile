@@ -10,6 +10,24 @@ VERSION := $(shell cat VERSION 2>/dev/null | tr -d '[:space:]')
 TAG     ?= $(VERSION)
 REGISTRY ?=
 INSTALL_OPENVINO ?= false
+INSTALL_PERF ?= false
+
+# turbostat is kernel-coupled: the binary must match the RUNNING kernel or it
+# exits with "turbostat not found for kernel ...". We resolve it dynamically so
+# it keeps working across `apt upgrade`s of the kernel — never pin a version.
+# Precedence matters: the kernel-matched binary FIRST, then $PATH as a fallback.
+# (A bare `command -v turbostat` would find the distro's generic
+# /usr/bin/turbostat, which refuses to run against a mismatched kernel.)
+# Only resolved (and exported) when ENABLE_TURBOSTAT is on, either in the
+# environment or in .env; otherwise compose keeps its /dev/null no-op mount and
+# `make up` doesn't bind-mount a host binary the collector won't use.
+# Exported so it overrides any stale TURBOSTAT_BIN in .env when you `make up`.
+ENABLE_TURBOSTAT ?= $(shell sed -n 's/^ENABLE_TURBOSTAT=//p' .env 2>/dev/null | tail -n 1)
+ifneq ($(filter true 1 yes on,$(shell echo '$(ENABLE_TURBOSTAT)' | tr '[:upper:]' '[:lower:]')),)
+KERNEL := $(shell uname -r)
+TURBOSTAT_BIN ?= $(shell [ -x /usr/lib/linux-tools/$(KERNEL)/turbostat ] && echo /usr/lib/linux-tools/$(KERNEL)/turbostat || command -v turbostat 2>/dev/null)
+export TURBOSTAT_BIN
+endif
 
 # Helm packaging configuration. Charts are pushed to the same OCI path as
 # the container image; the chart version carries a `-helm` suffix so the
@@ -23,6 +41,7 @@ HELM_PACKAGE_DIR   := dist/helm
 export TAG
 export REGISTRY
 export INSTALL_OPENVINO
+export INSTALL_PERF
 
 .PHONY: help version build build-test up down logs test clean bump \
         helm-lint helm-template helm-package helm-push generate-helm
@@ -32,6 +51,7 @@ help:
 	@echo "  make version            Print the version read from VERSION"
 	@echo "  make build              Build the slim metrics-manager image tagged $(REGISTRY)metrics-manager:$(TAG)"
 	@echo "  INSTALL_OPENVINO=true make build  Build the extended image with OpenVINO and Intel media VA drivers"
+	@echo "  INSTALL_PERF=true make build      Build the image with linux-perf (needed for ENABLE_DRAM_BW)"
 	@echo "  make build-test         Build the metrics-manager-test image"
 	@echo "  make up                 Start the stack (docker compose up -d)"
 	@echo "  make down               Stop the stack"
