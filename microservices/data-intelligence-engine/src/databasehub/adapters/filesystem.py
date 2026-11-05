@@ -6,8 +6,6 @@ The default object backend, and the first real implementation of
 `ObjectAdapter`. A bucket is a directory under `root`, a key is a path beneath
 it. No server, no credentials -- so the stack stores asset content end to end
 with nothing configured, the same reasoning as defaulting embeddings to `hash`.
-`MinioAdapter` implements the same contract for a deployment that needs shared
-or replicated storage; nothing above this layer changes when you switch.
 """
 
 import os

@@ -24,13 +24,13 @@ from typing import Any, Optional
 
 PREPARING = "PREPARING"
 SERVING = "SERVING"
-DEPRECATED = "DEPRECATED"
+DEGRADE = "DEGRADE"
 DISABLED = "DISABLED"
 
 #: The states a binding can be stored in.
-SERVING_STATES = (PREPARING, SERVING, DEPRECATED)
+SERVING_STATES = (PREPARING, SERVING, DEGRADE)
 #: Effective states in which a binding holds no projection and takes no writes.
-FROZEN_STATES = frozenset({DEPRECATED, DISABLED})
+FROZEN_STATES = frozenset({DEGRADE, DISABLED})
 
 
 def _now() -> str:
@@ -74,7 +74,7 @@ def pending_replacement(status: Any) -> Optional[str]:
 
 
 __all__ = [
-    "DEPRECATED",
+    "DEGRADE",
     "DISABLED",
     "FROZEN_STATES",
     "PREPARING",

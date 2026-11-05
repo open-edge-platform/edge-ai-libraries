@@ -318,10 +318,10 @@ BACKFILL_BATCH_SIZE = 32
 # reported as uncovered (core/multimodal/coverage.py).
 SHORT_VIDEO_MAX_SECONDS = 60.0
 
-# Video: X-CLIP, with its checkpoint and OpenVINO IR prepared beforehand.
+# Video: ViCLIP-B by default; ViCLIP-L and Cosmos are explicit alternatives.
 VIDEO_EMBEDDING_BACKEND = _backend("ENGINE_VIDEO_EMBEDDING_BACKEND")
 VIDEO_EMBEDDING_MODEL_ID = os.getenv(
-    "ENGINE_VIDEO_EMBEDDING_MODEL_ID", "microsoft/xclip-base-patch16-zero-shot"
+    "ENGINE_VIDEO_EMBEDDING_MODEL_ID", "viclip-b-fp16"
 )
 VIDEO_EMBEDDING_MODEL_PATH = os.path.join(
     MODEL_DIR, VIDEO_EMBEDDING_MODEL_ID.rsplit("/", 1)[-1]
