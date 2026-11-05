@@ -59,8 +59,8 @@ vllm:
 
     # --- Cards with less than 16 GB (for example Arc B580, 12 GB) ---
     # The defaults above fail to start with "No available memory for the cache
-    # blocks". Use the FP8 checkpoint and the settings below instead, and set
-    # global.vlmName=Qwen/Qwen3-VL-4B-Instruct-FP8. All four are required
+    # blocks". Use the settings below instead, and set global.vlmName to the
+    # FP8 checkpoint of your model. All four are required
     # together; see docs/user-guide/troubleshooting.md for the sizing formula.
     #
     # gpuMemoryUtilization: "0.95"

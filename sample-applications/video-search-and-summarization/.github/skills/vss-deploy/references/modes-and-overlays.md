@@ -1,6 +1,6 @@
 # VSS modes and Docker Compose overlays
 
-Sources: `setup.sh`, `docker/compose.base.yaml`, `docker/compose.summary.yaml`, `docker/compose.search.yaml`, `docker/compose.ui.yaml`, `docker/compose.vllm.yaml`, `docker/compose.gpu_ovms.yaml`, and `docker/compose.metrics-manager.yaml`.
+Sources: `setup.sh`, `docker/compose.base.yaml`, `docker/compose.summary.yaml`, `docker/compose.search.yaml`, `docker/compose.ui.yaml`, `docker/compose.ovms.yaml`, `docker/compose.vllm.yaml`, `docker/compose.gpu_ovms.yaml`, and `docker/compose.metrics-manager.yaml`.
 
 `setup.sh` always begins active app deployments with `-f docker/compose.base.yaml`, appends mode overlays, appends `-f docker/compose.ui.yaml`, then appends backend/metrics overlays as needed. The final command is:
 
@@ -21,9 +21,9 @@ For config-only inspection, `up -d` becomes `config`.
 
 | Variant | Applies to | Env toggle | Additional overlay | Profiles | Effect |
 |---|---|---|---|---|---|
-| OVMS CPU default | Summary, Dual UI, Unified UI | leave `ENABLE_VLLM` unset/false; default `VLM_TARGET_DEVICE=CPU`, `LLM_TARGET_DEVICE=CPU` | none beyond `compose.summary.yaml` | `ovms` | Starts `ovms-service` image `openvino/model_server:2026.1` on `${OVMS_HTTP_HOST_PORT}:80` and `${OVMS_GRPC_HOST_PORT}:81` (defaults `8300`, `9300`). |
-| OVMS GPU | Summary, Dual UI, Unified UI | `VLM_TARGET_DEVICE` or `LLM_TARGET_DEVICE` contains `GPU` | `compose.gpu_ovms.yaml` | `ovms` | Overrides `ovms-service` image to `openvino/model_server:2026.1-gpu` and mounts `${DRI_MOUNT_PATH:-/dev/null}:/dev/dri`. |
-| OVMS NPU | Summary, Dual UI, Unified UI | e.g. `LLM_TARGET_DEVICE=NPU` | none | `ovms` | `ovms-service` already passes `${ACCEL_MOUNT_PATH:-/dev/null}:/dev/accel/accel0`. No GPU overlay unless a target contains `GPU`. |
+| OVMS CPU default | Summary, Dual UI, Unified UI | leave `ENABLE_VLLM` unset/false; default `VLM_TARGET_DEVICE=CPU`, `LLM_TARGET_DEVICE=CPU` | `compose.ovms.yaml` | `ovms` | Starts `ovms-service` as a required, healthy dependency of `pipeline-manager` image `openvino/model_server:2026.4.1` on `${OVMS_HTTP_HOST_PORT}:80` and `${OVMS_GRPC_HOST_PORT}:81` (defaults `8300`, `9300`). |
+| OVMS GPU | Summary, Dual UI, Unified UI | `VLM_TARGET_DEVICE` or `LLM_TARGET_DEVICE` contains `GPU` | `compose.ovms.yaml`, `compose.gpu_ovms.yaml` | `ovms` | Overrides `ovms-service` image to `openvino/model_server:2026.4.1-gpu` and mounts `${DRI_MOUNT_PATH:-/dev/null}:/dev/dri`. |
+| OVMS NPU | Summary, Dual UI, Unified UI | e.g. `LLM_TARGET_DEVICE=NPU` | `compose.ovms.yaml` | `ovms` | `ovms-service` already passes `${ACCEL_MOUNT_PATH:-/dev/null}:/dev/accel/accel0`. No GPU overlay unless a target contains `GPU`. |
 | vLLM CPU | Summary, Dual UI, Unified UI | `ENABLE_VLLM=true` | `compose.vllm.yaml` | `vllm` plus UI profile | Starts `vllm-cpu-service` image `${VLLM_IMAGE:-vllm/vllm-openai-cpu:v0.31.0}` on `${VLLM_HOST_PORT:-8200}:8000`; setup uses the selected VLM for captioning and final summary. |
 | vLLM XPU/GPU (experimental) | Summary, Dual UI, Unified UI | `ENABLE_VLLM_GPU=true` | `compose.vllm.xpu.yaml` | `vllm-xpu` plus UI profile | Starts `vllm-xpu-service` and disables OVMS. Intended for supported Intel Arc Pro B-series hardware. |
 | Search embedding GPU | Search, Dual UI | `ENABLE_EMBEDDING_GPU=true` | none | unchanged | `setup.sh` sets `DATAPREP_EMBEDDING_DEVICE=GPU`; `multimodal-dataprep` and `multimodal-embedding-serving` mount `${DRI_MOUNT_PATH:-/dev/null}:/dev/dri`. Set `DATAPREP_DETECTION_DEVICE` independently. |
@@ -89,6 +89,10 @@ values are **forced**, not defaulted, because live ingestion cannot work there.
 `LIVE_RETENTION_HOURS` (default `24`) bounds how long live footage and its
 embeddings are kept. Set it to `0` to keep everything - a 24/7 camera then
 grows the index and object store without bound.
+
+`LIVE_STREAM_MAX_CONCURRENT` (default `8`, Helm
+`multimodaldataprep.liveStream.maxConcurrent`) caps how many cameras ingest at
+once; registering another returns `503` until one is paused or deleted.
 
 In Summary mode the Pipeline Manager `/streams` routes still exist but return
 `503` because `SEARCH_DATAPREP_ENDPOINT` is `""`. That is expected, not a fault.

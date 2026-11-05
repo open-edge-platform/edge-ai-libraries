@@ -452,6 +452,11 @@ components:
           - type: integer
           - type: 'null'
           title: Top K
+        min_score:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Min Score
         explain_filters:
           type: boolean
           title: Explain Filters
