@@ -79,6 +79,7 @@ debian_90_install_uav_mission_compute_sdk () {
     source_commit="$(git -C "$source_path" rev-parse HEAD)" || return $?
     cd "$sdk_path" || return $?
     make init || return $?
+    sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env || return $?
     if [ ! -r "$sdk_path/Makefile" ] || [ ! -r "$sdk_path/.env" ] ||
       [ "$(git -C "$source_path" rev-parse HEAD 2>/dev/null)" != "$source_commit" ]; then
       echo "Mission Compute SDK initialization did not produce the expected source and .env." >&2
@@ -99,6 +100,7 @@ debian_90_start_uav_mission_compute_sdk () {
     return 1
   }
   cd "$sdk_path" || return $?
+  sed -i "s|^HOST_IP=.*|HOST_IP=$(ensure_ip)|" .env || return $?
   if [ -z "$(ensure_prop get started/uav_mission_compute_sdk/ports)" ]; then
     ensure_ports_open install uav_mission_compute_sdk "${used_ports[@]}" || return $?
   fi
