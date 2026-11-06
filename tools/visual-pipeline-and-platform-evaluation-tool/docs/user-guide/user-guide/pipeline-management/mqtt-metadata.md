@@ -46,9 +46,9 @@ An external broker works too. It only has to be reachable from the `vippet` cont
 MQTT settings live on the `gvametapublish` element, which is only visible in the advanced view.
 
 1. Open a pipeline and switch to the advanced view.
-2. Select the **GVAMetaPublish** node to open the node panel.
-3. Set **Method** to `mqtt`. The file options are replaced by the broker options.
-4. Check **Broker Address** and **Topic**, then run the pipeline.
+1. Select the **GVAMetaPublish** node to open the node panel.
+1. Set **Method** to `mqtt`. The file options are replaced by the broker options.
+1. Check **Broker Address** and **Topic**, then run the pipeline.
 
 The defaults match the bundled broker, so no changes are needed when the pipeline runs with `MQTT=1`.
 
