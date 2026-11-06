@@ -245,7 +245,9 @@ Python) APIs for feature extraction and related primitives on Intel CPUs/GPUs.
   SIFT feature extraction and matching for Intel CPUs and GPUs, with OpenCL
   and SYCL backends, optional Python bindings, and OpenCV type adapters.
   Suited to image registration, localization, reconstruction, inspection,
-  and retrieval.
+  and retrieval. Robotics AI Suite packaging lives in
+  [robotics-ai-libraries/sift-extractor](./libraries/robotics-ai-libraries/sift-extractor)
+  and consumes this core without copying kernels.
 
 ### Robotics Libraries
 
@@ -265,6 +267,12 @@ advanced robotic workloads at the edge.
   Efficient ORB feature and descriptor extraction for visual
   SLAM, mapping, and tracking; designed for multicamera and GPU
   acceleration scenarios.
+
+- [SIFT Extractor (robotics wrapper)](./libraries/robotics-ai-libraries/sift-extractor)
+
+  ORB-aligned packaging of the horizontal SIFT core for Robotics AI Suite
+  consumers. Multi-camera extract API, OpenCV and OpenCV-free libraries,
+  Humble/Jammy and Jazzy/Noble debs. Descriptors are float L2 (not ORB Hamming).
 
 - [Point Cloud Library Optimized with Intel oneAPI DPC++](./libraries/robotics-ai-libraries/pcl)
 
