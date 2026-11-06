@@ -29,6 +29,7 @@ pillow==12.3.0
 # ultralytics drives YOLO inference; openvino is required because the default
 # model in configs/default.yaml is an INT8 OpenVINO model.
 ultralytics==8.4.41
+nncf==3.4.0
 openvino==2026.1.0
 torch==2.11.0
 torchvision==0.26.0
