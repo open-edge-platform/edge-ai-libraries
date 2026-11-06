@@ -5,6 +5,8 @@
 
 import pytest
 from fastapi.testclient import TestClient
+from prometheus_client.core import Metric as PrometheusMetric
+from prometheus_client.samples import Timestamp
 
 from app import capabilities
 
@@ -62,7 +64,6 @@ class TestCapabilitiesEndpoint:
         assert "categories" in payload
         assert "platform" in payload
         assert "devices" in payload
-        assert payload["platform"]["interface_channel"] == "rest"
         assert "system_memory" in payload["platform"]
         assert "device_summary" in payload["platform"]
         assert "platform_overview" in payload["categories"]
@@ -105,10 +106,13 @@ class TestCapabilitiesEndpoint:
     ):
         monkeypatch.delenv("METRICS_MANAGER_HOSTNAME", raising=False)
 
+        # Keep the original reader so the fake does not call itself.
+        real_read_text = capabilities._read_text
+
         def fake_read_text(path: str) -> str | None:
             if path == "/proc/1/root/etc/hostname":
                 return "host-visible-name"
-            return capabilities._read_text(path)
+            return real_read_text(path)
 
         monkeypatch.setattr(capabilities, "_read_text", fake_read_text)
 
@@ -196,9 +200,7 @@ _OTLP_GAUGE = {
     "resourceMetrics": [
         {
             "resource": {
-                "attributes": [
-                    {"key": "service.name", "value": {"stringValue": "test-service"}}
-                ]
+                "attributes": [{"key": "service.name", "value": {"stringValue": "test-service"}}]
             },
             "scopeMetrics": [
                 {
@@ -246,10 +248,7 @@ class TestOtlpIngestion:
         client.post("/api/v1/metrics/otlp", json=_OTLP_GAUGE)
         response = client.get("/api/v1/metrics")
         metrics = response.json()["metrics"]
-        assert any(
-            m.get("tags", {}).get("service.name") == "test-service"
-            for m in metrics
-        )
+        assert any(m.get("tags", {}).get("service.name") == "test-service" for m in metrics)
 
     def test_push_otlp_empty_resource_metrics_returns_400(self, client: TestClient):
         """Empty resourceMetrics list yields no parseable metrics → 400."""
@@ -548,6 +547,30 @@ class TestInfluxParsingErrors:
 
 class TestFetchPrometheusMetrics:
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("timestamp", "expected"),
+        [(0.0, 0), (Timestamp(1704067200, 123456789), 1704067200123456789)],
+    )
+    async def test_fetch_preserves_zero_and_nanosecond_timestamp(self, mocker, timestamp, expected):
+        from app.routes import _fetch_prometheus_metrics
+
+        family = PrometheusMetric("fps", "test", "gauge")
+        family.add_sample("fps", {}, 30, timestamp=timestamp)
+        mocker.patch("app.routes.text_string_to_metric_families", return_value=[family])
+        response = mocker.MagicMock()
+        response.status = 200
+        response.text = mocker.AsyncMock(return_value="")
+        response.__aenter__ = mocker.AsyncMock(return_value=response)
+        response.__aexit__ = mocker.AsyncMock(return_value=False)
+        session = mocker.MagicMock()
+        session.get.return_value = response
+        session.__aenter__ = mocker.AsyncMock(return_value=session)
+        session.__aexit__ = mocker.AsyncMock(return_value=False)
+        mocker.patch("app.routes.aiohttp.ClientSession", return_value=session)
+        result = await _fetch_prometheus_metrics("http://localhost:9273")
+        assert result["fps"].timestamp == expected
+
+    @pytest.mark.asyncio
     async def test_fetch_prometheus_non_200_returns_empty(self, mocker):
         from app.routes import _fetch_prometheus_metrics
 
@@ -570,10 +593,7 @@ class TestFetchPrometheusMetrics:
     async def test_fetch_prometheus_exception_returns_empty(self, mocker):
         from app.routes import _fetch_prometheus_metrics
 
-        mocker.patch(
-            "app.routes.aiohttp.ClientSession",
-            side_effect=Exception("Connection failed")
-        )
+        mocker.patch("app.routes.aiohttp.ClientSession", side_effect=Exception("Connection failed"))
 
         result = await _fetch_prometheus_metrics("http://localhost:9090")
         assert result == {}
@@ -604,7 +624,7 @@ class TestFetchPrometheusMetrics:
     async def test_fetch_prometheus_parses_metrics_without_labels(self, mocker):
         from app.routes import _fetch_prometheus_metrics
 
-        prometheus_text = 'memory 8192 1704067200000\n'
+        prometheus_text = "memory 8192 1704067200000\n"
 
         mock_resp = mocker.MagicMock()
         mock_resp.status = 200

@@ -39,5 +39,6 @@ def client() -> Generator[TestClient, None, None]:
 async def async_client() -> AsyncGenerator[AsyncClient, None]:
     """Create an asynchronous test client."""
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        yield ac
+    async with app.router.lifespan_context(app):
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            yield ac

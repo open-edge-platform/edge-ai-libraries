@@ -4,6 +4,12 @@
 
 This document describes all REST API endpoints, request/response formats, and examples.
 
+Custom metrics submitted through FastAPI are stored in memory and forwarded
+asynchronously to Telegraf. Acceptance is not a durable-delivery acknowledgement.
+Shutdown cancels pending debounce and HTTP push tasks before closing their
+shared session; it does not flush outstanding metrics. The store rejects new
+ingestion after shutdown begins.
+
 ---
 
 ## Health Checks

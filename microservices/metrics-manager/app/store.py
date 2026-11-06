@@ -41,7 +41,7 @@ class StoredMetric:
     retention_seconds: float
     expires_at: float = field(init=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.expires_at = time.time() + self.retention_seconds
 
     def is_expired(self) -> bool:
@@ -61,7 +61,7 @@ class MetricsStore:
     - Memory limit protection
     """
 
-    def __init__(self, metrics_dir: str | None = None, debounce_ms: int | None = None):
+    def __init__(self, metrics_dir: str | None = None, debounce_ms: int | None = None) -> None:
         settings = get_settings()
         self._metrics: dict[str, list[StoredMetric]] = defaultdict(list)
         self._lock = Lock()
@@ -69,13 +69,13 @@ class MetricsStore:
 
         # Debounce settings (allow override for testing)
         self._persist_debounce_ms = (
-            debounce_ms
-            if debounce_ms is not None
-            else settings.file_persist_debounce_ms
+            debounce_ms if debounce_ms is not None else settings.file_persist_debounce_ms
         )
         self._last_persist_time: float = 0.0  # monotonic epoch
         self._pending_persist: bool = False
         self._persist_task: asyncio.Task | None = None
+        self._push_tasks: set[asyncio.Task[None]] = set()
+        self._closed = False
 
         # Pending metrics not yet pushed to Telegraf
         self._pending_for_push: list[Metric] = []
@@ -99,6 +99,8 @@ class MetricsStore:
     async def add_metric(self, metric: Metric) -> None:
         """Add a single metric to the store."""
         async with self._lock:
+            if self._closed:
+                raise RuntimeError("Metrics store is closed")
             if self._total_metrics_count >= self._max_metrics:
                 await self._evict_n(1)
 
@@ -113,6 +115,8 @@ class MetricsStore:
     async def add_metrics(self, metrics: list[Metric]) -> int:
         """Add multiple metrics to the store. Returns count of added metrics."""
         async with self._lock:
+            if self._closed:
+                raise RuntimeError("Metrics store is closed")
             excess = (self._total_metrics_count + len(metrics)) - self._max_metrics
             if excess > 0:
                 await self._evict_n(min(excess, self._total_metrics_count))
@@ -150,7 +154,7 @@ class MetricsStore:
         async with self._lock:
             await self._cleanup_expired()
 
-            latest = {}
+            latest: dict[str, Metric] = {}
             for name, metrics_list in self._metrics.items():
                 valid = [sm for sm in metrics_list if not sm.is_expired()]
                 if valid:
@@ -289,6 +293,8 @@ class MetricsStore:
                 self._push_to_telegraf(influx_content, len(pending)),
                 name="push-to-telegraf",
             )
+            self._push_tasks.add(task)
+            task.add_done_callback(self._push_tasks.discard)
             task.add_done_callback(self._handle_push_task_result)
 
         except Exception as e:
@@ -307,17 +313,25 @@ class MetricsStore:
             logger.error("Background Telegraf push failed", extra={"error": str(exc)})
 
     async def close(self) -> None:
-        """Cancel pending persist task then close the HTTP session.
+        """Cancel debounce and HTTP push tasks before closing the session.
 
         Cancel order matters: _persist_task must be cancelled before the session
         is closed to prevent it from spawning a new ClientSession post-shutdown.
         """
+        self._closed = True
         if self._persist_task and not self._persist_task.done():
             self._persist_task.cancel()
             try:
                 await self._persist_task
             except asyncio.CancelledError:
                 pass
+
+        tasks = tuple(self._push_tasks)
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            # Task callbacks already log unexpected failures.
+            await asyncio.gather(*tasks, return_exceptions=True)
 
         if self._http_session is not None and not self._http_session.closed:
             await self._http_session.close()
@@ -332,6 +346,8 @@ class MetricsStore:
 
         try:
             async with self._session_lock:
+                if self._closed:
+                    raise RuntimeError("Metrics store is closed")
                 if self._http_session is None or self._http_session.closed:
                     self._http_session = aiohttp.ClientSession()
                 session = self._http_session

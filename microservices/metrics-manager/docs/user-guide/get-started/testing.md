@@ -248,10 +248,16 @@ uv sync --group test --group dev
 # Run with auto-reload
 uvicorn app.main:app --reload --port 9090
 
-# Run linting and formatting
-black app/
-ruff check app/
+# Check application formatting, linting and types
+.venv/bin/black --check app/
+.venv/bin/ruff check app/
+.venv/bin/mypy app/
 ```
+
+Async fixtures use function-scoped event loops and close their stores/clients.
+Resource leaks and unraisable exceptions fail the suite rather than being
+silenced. Lifecycle regressions cover queued/active HTTP pushes, debounce
+cancellation and cleanup when the application lifespan exits with an error.
 
 ---
 
