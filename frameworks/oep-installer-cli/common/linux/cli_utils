@@ -248,10 +248,12 @@ act_helper () {
     # wait for background processes
     wait
 
-    # pass on modules to subsequent command
-    ! ensure_parse_option --dry-run "$@" && [ -n "${explicit_mods// }" ] && ensure_prop set modules "$explicit_mods"
-    # everything is gone; drop the saved default
-    [[ $remove_all -eq 1 && $rc -eq 0 ]] && ! ensure_parse_option --dry-run "$@" && ensure_prop remove modules
+    ensure_parse_option --dry-run "$@" || {
+      # pass on modules to subsequent command
+      [ -n "${explicit_mods// }" ] && ensure_prop set modules "$explicit_mods"
+      # everything is gone; drop the saved default
+      [[ $remove_all -eq 1 && $rc -eq 0 ]] && ensure_prop remove modules
+    }
 
     return $rc
   else
