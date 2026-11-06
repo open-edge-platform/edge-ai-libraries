@@ -90,7 +90,7 @@ async def _run_startup_preloads() -> None:
     config = get_config()
     detection_config = config.get("object_detection", {})
     enable_detection = detection_config.get("enabled", True)
-    detection_confidence = detection_config.get("confidence_threshold", 0.85)
+    detection_confidence = detection_config.get("confidence_threshold")
 
     tasks: list[tuple[str, asyncio.Future]] = []
 
@@ -109,7 +109,6 @@ async def _run_startup_preloads() -> None:
                 asyncio.to_thread(
                     preload_object_detector,
                     enable_detection,
-                    detection_confidence,
                 )
             ),
         )
@@ -252,9 +251,10 @@ and response contracts apply regardless of how the deployment is configured:
 - **Vector database** - the deployment's configured vector store. Embeddings, search
   metadata, and delete semantics are identical across backends.
 
-Optional processing parameters (`frame_interval`, `enable_object_detection`,
-`detection_confidence`) have no fixed schema default. When omitted, the service applies
-its own configured value, so the effective default is deployment specific.
+Optional processing parameters (`frame_interval`, `enable_object_detection`) have no
+fixed schema default. When omitted, the service applies its own configured value, so
+the effective default is deployment specific. The object detection confidence threshold
+is a service setting (`MM_DATAPREP_DETECTION_CONFIDENCE`) and is not set per request.
 
 All failures - including validation, not-found, duplicate, upstream, and internal
 errors - are returned using the same response envelope.

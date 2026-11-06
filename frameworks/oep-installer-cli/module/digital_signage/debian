@@ -1,0 +1,89 @@
+
+configure_digital_signage () {
+  workspace="$(ensure_project_path)/digital-signage"
+  version="$(ensure_parse_value_option version --version=e7f233673950bc2ab8c5caf47efeb6067c15c836 "$@")"
+  repository="https://github.com/intel-retail/digital-signage.git"
+  used_ports=(5000 8000 3478)
+}
+
+verify_digital_signage () {
+  [ -e "$workspace"/configs/pid/models/object_detection/yolo11s ] || {
+    echo "Missing yolo11s" >&2
+    return 1
+  }
+  [ -e "$workspace"/aig/models/sdxl_turbo_ov/int8 ] || { 
+    echo "Missing sdxl_turbo_ov" >&2
+    return 1
+  }
+  [ -e "$workspace"/aig/models/all-MiniLM-L12-v2 ] || {
+    echo "Missing all-MiniLM-L12-v2" >&2
+    return 1
+  }
+  [ -e "$workspace"/aig/models/ltx_video_ov/int8 ] || {
+    echo "Missing ltx_video_ov" >&2
+    return 1
+  }
+}
+
+debian_90_profile_digital_signage () {
+  echo "edge_base docker_io git curl make"
+}
+
+debian_90_install_digital_signage () {
+  configure_digital_signage "$@"
+  if verify_digital_signage && [[ " $* " != *" --reinstall "* ]]; then
+    echo "Digital Signage is installed." >&2
+  else
+    ensure_disk_size 25000
+    echo "@@STEP Stopping conflict apps"
+    ensure_ports_open install digital_signage "${used_ports[@]}"
+
+    echo "@@STEP Cloning repository"
+    ensure_git_export "$workspace" "$version" "$repository"
+
+    echo "@@STEP Configuring sample"
+    cd "$workspace"
+    cat >> .env <<EOF
+HOST_IP=$(ensure_ip)
+MTX_WEBRTCICESERVERS2_0_USERNAME=$(cat /dev/random | tr -dc a-z | head -c 5)
+MTX_WEBRTCICESERVERS2_0_PASSWORD=$(cat /dev/random | tr -dc a-z | head -c 5)$(cat /dev/random | tr -dc 0-9 | head -c 5)
+UID=$(id -u)
+EOF
+
+    echo "@@STEP Building images"
+    make build
+
+    echo "@@STEP Download models"
+    make download_models
+    verify_diginal_signage
+  fi
+
+  echo "@@HIGHLIGHT workspace: ${workspace/#"$HOME"/"~"}"
+  echo "@@HIGHLIGHT $installer_name start|remove"
+  echo "@@HIGHLIGHT $installer_name remove"
+}
+
+debian_90_start_digital_signage () {
+  configure_digital_signage "$@"
+  ensure_ports_open start digital_signage "${used_ports[@]}"
+
+  cd "$workspace"
+  make up
+
+  echo "@@HIGHLIGHT UI: https://$(ensure_ip):${used_ports[0]}"
+  echo "@@HIGHLIGHT $installer_name start|remove"
+  echo "@@HIGHLIGHT $installer_name remove"
+}
+
+debian_90_stop_digital_signage () {
+  configure_digital_signage "$@"
+  cd "$workspace" && {
+    make down
+  } || true
+}
+
+debian_90_remove_digital_signage () {
+  debian_90_stop_digital_signage "$@"
+  ensure_rm "$workspace"
+}
+

@@ -13,11 +13,13 @@ Provides multiple endpoints for pushing custom metrics in various formats:
 
 import re
 import time
+from typing import Literal
 
 import aiohttp
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from fastapi.responses import PlainTextResponse
 from prometheus_client.parser import text_string_to_metric_families
+from prometheus_client.samples import Timestamp
 
 from .capabilities import get_capabilities_snapshot
 from .logging_config import get_logger
@@ -27,6 +29,7 @@ from .models import (
     MetricsBatch,
     OpenTelemetryMetric,
     SimpleMetric,
+    metric_series_key,
 )
 from .responses import (
     CapabilitiesResponse,
@@ -91,7 +94,7 @@ async def api_health_check() -> DetailedHealthResponse:
 
 @router.get("/api/v1/capabilities", response_model=CapabilitiesResponse)
 async def get_capabilities(
-    profile: str = Query(
+    profile: Literal["minimal", "expanded"] = Query(
         default="minimal",
         pattern="^(minimal|expanded)$",
         description="Capability detail profile: minimal (high-level) or expanded (technical)",
@@ -234,9 +237,7 @@ async def push_influx_metrics(
     # Track metrics
     get_service_metrics().record_metrics_received(count, source="influx")
 
-    logger.debug(
-        "Accepted metrics via InfluxDB Line Protocol", extra={"count": count}
-    )
+    logger.debug("Accepted metrics via InfluxDB Line Protocol", extra={"count": count})
     return MetricsAcceptedResponse(
         accepted=count, message=f"Accepted {count} metrics", errors=errors
     )
@@ -349,12 +350,13 @@ async def _fetch_prometheus_metrics(base_url: str) -> dict[str, MetricData]:
     for family in text_string_to_metric_families(text):
         for sample in family.samples:
             labels = dict(sample.labels)
-            if labels:
-                sorted_labels = ",".join(f"{k}={v}" for k, v in sorted(labels.items()))
-                key = f"{sample.name}{{{sorted_labels}}}"
+            key = metric_series_key(sample.name, labels)
+            if isinstance(sample.timestamp, Timestamp):
+                ts_ns = sample.timestamp.sec * 1_000_000_000 + sample.timestamp.nsec
+            elif sample.timestamp is not None:
+                ts_ns = int(sample.timestamp * 1e9)
             else:
-                key = sample.name
-            ts_ns = int(sample.timestamp * 1e9) if sample.timestamp else int(time.time() * 1e9)
+                ts_ns = time.time_ns()
             result[key] = MetricData(
                 name=sample.name,
                 tags=labels,
@@ -452,7 +454,8 @@ async def prometheus_metrics() -> str:
 
     lines: list[str] = []
     seen_metric_names: set = set()
-    for name, metric in latest.items():
+    for metric in latest.values():
+        name = metric.name
         escaped_tags = {
             k: _escape_prometheus_label_value(str(v)) for k, v in (metric.tags or {}).items()
         }

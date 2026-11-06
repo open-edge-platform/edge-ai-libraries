@@ -7,12 +7,19 @@ import { SearchDbService } from './search-db.service';
 import { VideoService } from 'src/video-upload/services/video.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SearchShimService } from './search-shim.service';
-import { SearchQueryStatus, SearchResultBody } from '../model/search.model';
+import {
+  SearchQueryStatus,
+  SearchResult,
+  SearchResultBody,
+} from '../model/search.model';
 import { SearchEntity } from '../model/search.entity';
 import { VideoEntity } from 'src/video-upload/models/video.entity';
 import { of, throwError } from 'rxjs';
 import { SearchEvents } from 'src/events/Pipeline.events';
 import { SocketEvent } from 'src/events/socket.events';
+import { DatastoreService } from 'src/datastore/services/datastore.service';
+import { ConfigService } from '@nestjs/config';
+import { SearchConfigService } from './search-config.service';
 
 jest.mock('uuid', () => ({
   v4: jest.fn(() => 'mock-query-id'),
@@ -51,6 +58,12 @@ describe('SearchStateService', () => {
       search: jest.fn(),
     };
 
+    const mockDatastoreService = {
+      getObjectRelativePath: jest
+        .fn()
+        .mockImplementation((objectName: string) => `/mock-bucket/${objectName}`),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SearchStateService,
@@ -69,6 +82,15 @@ describe('SearchStateService', () => {
         {
           provide: SearchShimService,
           useValue: mockSearchShimService,
+        },
+        {
+          provide: DatastoreService,
+          useValue: mockDatastoreService,
+        },
+        SearchConfigService,
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn().mockReturnValue(undefined) },
         },
       ],
     }).compile();
@@ -112,6 +134,39 @@ describe('SearchStateService', () => {
       });
 
       expect(result).toEqual({ selection: null, range: null });
+    });
+  });
+
+  describe('getQuery', () => {
+    it('should return the query with its hits joined to their videos', async () => {
+      const video = {
+        videoId: 'video-1',
+        url: 'video-1/source.mp4',
+        dataStore: { bucket: 'video-summary' },
+      } as VideoEntity;
+      searchDbService.read.mockResolvedValue({
+        queryId: 'query-1',
+        query: 'test query',
+        watch: false,
+        queryStatus: SearchQueryStatus.IDLE,
+        tags: [],
+        results: [{ id: 'r1', metadata: { video_id: 'video-1' } }],
+        createdAt: '2025-01-01T00:00:00.000Z',
+        updatedAt: '2025-01-01T00:00:00.000Z',
+      } as unknown as SearchEntity);
+      videoService.getVideos.mockResolvedValue([video]);
+
+      const result = await service.getQuery('query-1');
+
+      expect(searchDbService.read).toHaveBeenCalledWith('query-1');
+      expect(result?.results[0]?.video).toEqual(video);
+      expect(result?.results[0]?.videoPlaybackUrl).toBeDefined();
+    });
+
+    it('should return null for an unknown query', async () => {
+      searchDbService.read.mockResolvedValue(null);
+
+      expect(await service.getQuery('missing')).toBeNull();
     });
   });
 
@@ -219,6 +274,171 @@ describe('SearchStateService', () => {
     });
   });
 
+  describe('enrichResultsWithVideos', () => {
+    const baseMetadata = {
+      video_id: 'video-1',
+      bucket_name: 'test-bucket',
+      clip_duration: 30,
+      date: '2025-01-01',
+      date_time: '2025-01-01T00:00:00Z',
+      day: 1,
+      fps: 30,
+      frames_in_clip: 900,
+      hours: 0,
+      id: 'test-id',
+      interval_num: 1,
+      minutes: 0,
+      month: 1,
+      seconds: 0,
+      time: '00:00:00',
+      timestamp: 1640995200,
+      total_frames: 900,
+      video: 'test-video',
+      video_path: '/test/path',
+      video_rel_url: '/rel/path',
+      video_remote_path: '/remote/path',
+      video_url: 'http://test.com/video',
+      year: 2025,
+      relevance_score: 0.95,
+    };
+
+    it('attaches a gateway-relative playback URL for a video with object-store info', async () => {
+      videoService.getVideos.mockResolvedValue([
+        {
+          videoId: 'video-1',
+          name: 'test-video',
+          url: 'video-1/source.mp4',
+          tags: [],
+          createdAt: '2025-01-01T00:00:00.000Z',
+          updatedAt: '2025-01-01T00:00:00.000Z',
+          dataStore: {
+            bucket: 'test-bucket',
+            objectName: 'video-1',
+            fileName: 'clip.mp4',
+          },
+        } as VideoEntity,
+      ]);
+
+      const results = await service.enrichResultsWithVideos([
+        {
+          id: 'result-1',
+          page_content: 'test content',
+          type: 'test',
+          metadata: baseMetadata,
+        },
+      ]);
+
+      expect(results[0].video?.videoId).toBe('video-1');
+      expect(results[0].videoPlaybackUrl).toBe('/mock-bucket/video-1/source.mp4');
+    });
+
+    it('leaves a hit unenriched when its video is not found', async () => {
+      videoService.getVideos.mockResolvedValue([]);
+
+      const results = await service.enrichResultsWithVideos([
+        {
+          id: 'result-1',
+          page_content: 'test content',
+          type: 'test',
+          metadata: baseMetadata,
+        },
+      ]);
+
+      expect(results[0].video).toBeUndefined();
+      expect(results[0].videoPlaybackUrl).toBeUndefined();
+    });
+
+    it('does not set a playback URL when the video has no object-store info', async () => {
+      videoService.getVideos.mockResolvedValue([
+        {
+          videoId: 'video-1',
+          name: 'test-video',
+          url: '',
+          tags: [],
+          createdAt: '2025-01-01T00:00:00.000Z',
+          updatedAt: '2025-01-01T00:00:00.000Z',
+        } as VideoEntity,
+      ]);
+
+      const results = await service.enrichResultsWithVideos([
+        {
+          id: 'result-1',
+          page_content: 'test content',
+          type: 'test',
+          metadata: baseMetadata,
+        },
+      ]);
+
+      expect(results[0].video?.videoId).toBe('video-1');
+      expect(results[0].videoPlaybackUrl).toBeUndefined();
+    });
+
+    it('returns an empty array unchanged', async () => {
+      const results = await service.enrichResultsWithVideos([]);
+      expect(results).toEqual([]);
+      expect(videoService.getVideos).not.toHaveBeenCalled();
+    });
+
+    it('stamps an uploaded hit with upload time plus the frame offset', async () => {
+      videoService.getVideos.mockResolvedValue([
+        {
+          videoId: 'video-1',
+          name: 'test-video',
+          url: '',
+          tags: [],
+          createdAt: '2026-03-01T10:00:00.000Z',
+          updatedAt: '2026-03-01T10:00:00.000Z',
+        } as VideoEntity,
+      ]);
+
+      const results = await service.enrichResultsWithVideos([
+        {
+          id: 'result-1',
+          page_content: 'test content',
+          type: 'test',
+          metadata: {
+            ...baseMetadata,
+            best_frame_info: {
+              timestamp: 12.5,
+              is_live: false,
+            } as SearchResult['metadata']['best_frame_info'],
+          },
+        },
+      ]);
+
+      expect(results[0].observedAt).toBe('2026-03-01T10:00:12.500Z');
+      expect(results[0].timeSource).toBe('upload');
+      expect(results[0].streamId).toBeUndefined();
+    });
+
+    it('stamps a live hit with segment start time and its stream id', async () => {
+      videoService.getVideos.mockResolvedValue([]);
+
+      const results = await service.enrichResultsWithVideos([
+        {
+          id: 'result-1',
+          page_content: 'test content',
+          type: 'test',
+          metadata: {
+            ...baseMetadata,
+            video_id: 'cam-1',
+            best_frame_info: {
+              timestamp: 3,
+              is_live: true,
+              media_path: 'segments/1790655530.mp4',
+            } as SearchResult['metadata']['best_frame_info'],
+          },
+        },
+      ]);
+
+      expect(results[0].observedAt).toBe(
+        new Date((1790655530 + 3) * 1000).toISOString(),
+      );
+      expect(results[0].timeSource).toBe('live');
+      expect(results[0].streamId).toBe('cam-1');
+    });
+  });
+
   describe('newQuery', () => {
     it('should create a new query and emit RUN_QUERY event', async () => {
       const query = 'test query';
@@ -237,6 +457,7 @@ describe('SearchStateService', () => {
           results: [],
           tags,
           timeFilter: null,
+          minPeakScore: 0,
           queryStatus: SearchQueryStatus.RUNNING,
           createdAt: expect.any(String),
           updatedAt: expect.any(String),
@@ -247,6 +468,18 @@ describe('SearchStateService', () => {
         mockCreatedQuery.queryId,
       );
       expect(result).toEqual(expect.objectContaining(mockCreatedQuery));
+    });
+
+    it('should save the requested minimum peak score', async () => {
+      searchDbService.create.mockResolvedValue({
+        queryId: 'new-query-id',
+      } as SearchEntity);
+
+      await service.newQuery('test query', [], null, null, 0.3);
+
+      expect(searchDbService.create).toHaveBeenCalledWith(
+        expect.objectContaining({ minPeakScore: 0.3 }),
+      );
     });
 
     it('should create query with default empty tags', async () => {
@@ -284,6 +517,58 @@ describe('SearchStateService', () => {
       await service.removeFromWatch(queryId);
 
       expect(searchDbService.updateWatch).toHaveBeenCalledWith(queryId, false);
+    });
+  });
+
+  describe('watch minimum peak score', () => {
+    beforeEach(() => {
+      searchDbService.updateWatch.mockResolvedValue({} as SearchEntity);
+      searchDbService.read.mockResolvedValue({
+        queryId: 'q1',
+        minPeakScore: 0.25,
+      } as unknown as SearchEntity);
+    });
+
+    it('should leave the threshold alone when none is given', async () => {
+      const rerun = jest.spyOn(service, 'reRunQuery');
+
+      await service.addToWatch('q1');
+
+      expect(searchDbService.update).not.toHaveBeenCalled();
+      expect(rerun).not.toHaveBeenCalled();
+    });
+
+    it('should save a changed threshold and re-run the query', async () => {
+      const rerun = jest
+        .spyOn(service, 'reRunQuery')
+        .mockResolvedValue({} as any);
+
+      await service.addToWatch('q1', 0.4);
+
+      expect(searchDbService.update).toHaveBeenCalledWith('q1', {
+        minPeakScore: 0.4,
+      });
+      expect(rerun).toHaveBeenCalledWith('q1');
+      expect(searchDbService.updateWatch).toHaveBeenCalledWith('q1', true);
+    });
+
+    it('should not re-run when the threshold is unchanged', async () => {
+      const rerun = jest.spyOn(service, 'reRunQuery');
+
+      await service.removeFromWatch('q1', 0.25);
+
+      expect(searchDbService.update).not.toHaveBeenCalled();
+      expect(rerun).not.toHaveBeenCalled();
+      expect(searchDbService.updateWatch).toHaveBeenCalledWith('q1', false);
+    });
+
+    it('should 404 for an unknown query', async () => {
+      searchDbService.read.mockResolvedValue(null);
+
+      await expect(service.addToWatch('missing', 0.4)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      expect(searchDbService.updateWatch).not.toHaveBeenCalled();
     });
   });
 
@@ -354,6 +639,7 @@ describe('SearchStateService', () => {
           query: mockQuery.query,
           query_id: queryId,
           tags: mockQuery.tags,
+          min_peak_score: 0,
         },
       ]);
       expect(eventEmitter.emit).toHaveBeenCalledWith(
@@ -514,6 +800,50 @@ describe('SearchStateService', () => {
     });
   });
 
+  describe('reRunQuery minimum peak score', () => {
+    const arrange = (minPeakScore: number | null) => {
+      const entity = {
+        queryId: 'q1',
+        query: 'test query',
+        tags: [],
+        minPeakScore,
+      } as unknown as SearchEntity;
+      searchDbService.read.mockResolvedValue(entity);
+      searchDbService.updateQueryStatus.mockResolvedValue(entity);
+      searchShimService.search.mockReturnValue(
+        of({ data: { results: [] } } as any),
+      );
+      videoService.getVideos.mockResolvedValue([]);
+    };
+
+    it('should reuse the saved value when no override is given', async () => {
+      arrange(0.25);
+
+      await service.reRunQuery('q1');
+
+      expect(searchDbService.update).not.toHaveBeenCalledWith(
+        'q1',
+        expect.objectContaining({ minPeakScore: expect.anything() }),
+      );
+      expect(searchShimService.search).toHaveBeenCalledWith([
+        expect.objectContaining({ min_peak_score: 0.25 }),
+      ]);
+    });
+
+    it('should save and use an override', async () => {
+      arrange(0.25);
+
+      await service.reRunQuery('q1', undefined, 0);
+
+      expect(searchDbService.update).toHaveBeenCalledWith('q1', {
+        minPeakScore: 0,
+      });
+      expect(searchShimService.search).toHaveBeenCalledWith([
+        expect.objectContaining({ min_peak_score: 0 }),
+      ]);
+    });
+  });
+
   describe('runSearch', () => {
     it('should run search and return results', async () => {
       const queryId = 'test-query-id';
@@ -538,9 +868,22 @@ describe('SearchStateService', () => {
           query,
           query_id: queryId,
           tags,
+          min_peak_score: 0,
         },
       ]);
       expect(result).toEqual(mockResults);
+    });
+
+    it('should forward the minimum peak score to the search service', async () => {
+      searchShimService.search.mockReturnValue(
+        of({ data: { results: [] } } as any),
+      );
+
+      await service.runSearch('q', 'test query', [], null, null, null, 0.4);
+
+      expect(searchShimService.search).toHaveBeenCalledWith([
+        expect.objectContaining({ min_peak_score: 0.4 }),
+      ]);
     });
 
     it('should return default results when data is null', async () => {
@@ -675,6 +1018,26 @@ describe('SearchStateService', () => {
         expect.objectContaining({ query_id: 'query-2' }),
       ]);
       expect(summary.refreshed).toBe(2);
+    });
+
+    it('should refresh each query with its saved minimum peak score', async () => {
+      searchDbService.read.mockImplementation(async (queryId: string) =>
+        watchedEntity({
+          queryId,
+          query: `query for ${queryId}`,
+          minPeakScore: queryId === 'query-1' ? 0.3 : null,
+        }),
+      );
+      searchShimService.search.mockReturnValue(
+        of({ data: { results: [] } } as any),
+      );
+
+      await service.refreshQueries(['query-1', 'query-2']);
+
+      expect(searchShimService.search).toHaveBeenCalledWith([
+        expect.objectContaining({ query_id: 'query-1', min_peak_score: 0.3 }),
+        expect.objectContaining({ query_id: 'query-2', min_peak_score: 0 }),
+      ]);
     });
 
     it('should skip persistence and socket emission when results are unchanged', async () => {

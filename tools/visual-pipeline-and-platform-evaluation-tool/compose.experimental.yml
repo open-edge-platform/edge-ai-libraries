@@ -78,6 +78,7 @@ services:
       - "109"
       - "110"
       - "992"
+      - "990"
 
 volumes:
   vol_temp_time_series_analytics_microservice:

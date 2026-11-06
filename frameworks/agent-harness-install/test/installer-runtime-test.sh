@@ -114,6 +114,25 @@ port_guard() {
   expect_failure 'HARNESS_IR_PORT must be between' openshell_validate_shared_inference
   expect_failure 'HARNESS_IR_PORT must be between' _openshell_ensure_shared_inference
   [[ ! -s "$ACTIONS" ]]
+  local output target
+  for target in openshell_validate_shared_inference _openshell_ensure_shared_inference; do
+    output="$( ("$target") 2>&1)" || true
+    if grep -Eq 'value too great for base|syntax error.*arithmetic|expression recursion' <<<"$output"; then
+      return 1
+    fi
+  done
+}
+
+valid_port_guard() {
+  local port="$1"
+  fixture
+  HARNESS_IR_PORT="$port"
+  resolve_bind_host() { printf '127.0.0.1'; }
+  openshell_validate_recorded_ir_port() { :; }
+  docker() { printf '%s\n' "$HARNESS_IR_PORT" >>"$ACTIONS"; printf 'fixture reached Docker\n' >&2; return 98; }
+  expect_failure 'fixture reached Docker' openshell_validate_shared_inference
+  expect_failure 'fixture reached Docker' _openshell_ensure_shared_inference
+  [[ "$(cat "$ACTIONS")" == "$port"$'\n'"$port" ]]
 }
 
 config_publication() {
@@ -268,8 +287,11 @@ for component in ir ovms; do
     run_case "$component binding guard handles $resolution resolution" bind_guard "$component" "$resolution"
   done
 done
-for port in invalid 0 65536 08010; do
+for port in invalid 0 65536 08010 01000 00001 999999999999999999999999999999999999; do
   run_case "both OpenShell port guards reject $port before Docker access" port_guard "$port"
+done
+for port in 1 1000 8010 65535; do
+  run_case "both OpenShell port guards accept canonical decimal $port" valid_port_guard "$port"
 done
 for operation in add remove; do
   for failure in generation publication none; do

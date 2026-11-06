@@ -45,10 +45,10 @@ finishing; a cancelled or missing required check is not successful evidence.
 Live prepared-runner validation remains a separate manual opt-in, not part of
 this automatic merge gate.
 
-Administrators should require **only `Agent Harness required static gate`** for this
-component in the `main` ruleset/branch protection, retaining unrelated existing
-required checks. Do not separately require the three conditional component
-jobs or change detection: only the final gate represents the selective static policy.
+Administrators should require **only `Agent Harness required static gate`** for
+this component in the `main` ruleset/branch protection, retaining unrelated
+existing required checks. Do not separately require the conditional component
+jobs or change detection for this static-only policy.
 The workflow does not modify repository rulesets or bypass permissions.
 
 The workflow also runs an independent **Agent Harness static analysis** job on
@@ -58,6 +58,8 @@ and JavaScript files throughout this component, excluding `test/`, `tests/`,
 
 - ShellCheck runs at `--severity=style` (all diagnostic levels). Any remaining
   diagnostic fails the job; there is no baseline or allowed finding count.
+  CI downloads v0.11.0 and verifies its archive SHA-256 instead of depending on
+  the runner's changing APT package version.
   Intentional patterns have local `shellcheck disable` directives with reasons.
   Do not add blanket exclusions to make a new finding pass.
 - `node --check` parses each production `.js`, `.mjs` and `.cjs` file without
@@ -68,8 +70,7 @@ and JavaScript files throughout this component, excluding `test/`, `tests/`,
 To reproduce the static gate on Ubuntu 24.04 with Node.js 24.21.0:
 
 ```bash
-sudo apt-get update
-sudo apt-get install -y --no-install-recommends shellcheck
+# Install ShellCheck v0.11.0 using the checksum-verified workflow step.
 # From frameworks/agent-harness-install, using Bash:
 mapfile -d '' shell_files < <(find . -type d \( -name test -o -name tests -o -name node_modules -o -name .venv \) -prune -o -type f -name '*.sh' -print0)
 shellcheck --source-path=SCRIPTDIR --severity=style "${shell_files[@]}"
@@ -90,9 +91,15 @@ The independent **Hermes image runtime gate** runs on every relevant PR, push to
 `HARNESS_AGENT=hermes`, reusing the installer's pinned Hermes commit and installer
 checksum. Image construction downloads the real dependencies and requires Docker
 and external network access; it does not install Hermes on the host.
+The pinned Buildx/build-push actions import/export a GHA layer cache scoped to
+`agent-harness-hermes`. Cache misses still build and test the production image;
+the gate is not path-skipped or downgraded. This reduces repeated downloads but
+does not eliminate cold-build network or runner-disk requirements.
 
 The gate runs all nine model-default cases with `HARNESS_TEST_REQUIRE_HERMES=1`.
-Missing Hermes fails instead of skipping, and the gate rejects skipped tests.
+Missing Hermes fails instead of skipping. The shared TAP parser requires a
+complete, nonempty report with passing tests, zero failures and zero skips;
+empty/truncated reports and summary-only text cannot satisfy the gate.
 The two Hermes-specific cases exercise actual YAML serialization, provider
 normalization into request overrides, preservation of user overrides, and
 configuration changes on reapplication/model switching.
@@ -110,7 +117,7 @@ lifecycle acceptance. Its result is reported separately from the required static
 
 ### Installer runtime regression
 
-The offline job runs `bash test/installer-runtime-test.sh`. Its 27 cases
+The offline job runs `bash test/installer-runtime-test.sh`. Its 34 cases
 execute production functions with disposable HOME/TMPDIR directories, a local
 Git fixture and command doubles. It never invokes real Docker, sudo, OpenShell,
 downloads or agent installation.
@@ -120,7 +127,7 @@ downloads or agent installation.
 | Bootstrap cleanup | Real standalone bootstrap with a local repository; temporary clone removed on payload success and failure; failure status retained |
 | Deferred shell expansion | Generated Bash profile expands the new shell's PATH, not the writer's; repeated setup is idempotent |
 | Runtime sourcing | Real Bash sources a disposable nvm fixture; absent nvm is tolerated |
-| Fail-closed guards | Both IR/OVMS launch functions reject failed and empty address resolution before Docker launch and forward a valid loopback binding; both OpenShell guards reject nonnumeric/out-of-range ports |
+| Fail-closed guards | Both IR/OVMS launch functions reject failed and empty address resolution before Docker launch and forward a valid loopback binding; both OpenShell guards reject nonnumeric, leading-zero and out-of-range ports without arithmetic diagnostics and accept canonical decimal ports 1–65535 |
 | Configuration publication | Real Node config generation plus injected generation and rename failures for add/remove; errors propagate, original config survives, temporary files are removed |
 | Optional npm query | Missing/failed version queries use the fallback; a valid version enables the required install flag; installation is a command double |
 | Hermes staging | Actual startup script stages config in the child, preserves the parent's environment, removes staged files, and preserves live config on injected staging failure |
@@ -158,7 +165,7 @@ bash test/openshell-test.sh | tee openshell-offline.tap
 The command above retains the all-in-one local behavior. In CI, named steps
 run each suite once: the core suite uses `HARNESS_TEST_SKIP_NESTED=1` (74 direct
 cases), followed by managed inference (33), lifecycle/CLI (40), and model
-defaults (7 offline cases; the two Hermes cases run only in the image gate). A separate
+defaults (7 executed offline cases; two explicit Hermes image-required skips). A separate
 TAP-reporting regression step validates the reporting helper itself.
 
 Each step writes its own TAP file. Later suites still run after an earlier

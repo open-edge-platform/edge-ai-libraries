@@ -365,6 +365,28 @@ def test_media_model_defaults_are_independent_of_text(monkeypatch):
     assert seen == {"path": "/tmp/qwen-reranker-ov", "device": "CPU"}
 
 
+@pytest.mark.parametrize("device", ["CPU", "GPU", "GPU.0"])
+def test_media_reranker_device_override_reaches_scorer(monkeypatch, device):
+    from core.multimodal import reranking
+    from core import postprocessor
+    from inference import ov_adapter
+    from schemas import PostprocessOptions, RerankerModelIn
+
+    seen = {}
+
+    class Scorer:
+        def __init__(self, path, device):
+            seen.update(path=path, device=device)
+
+    monkeypatch.setattr(ov_adapter, "OpenVINOVLReranking", Scorer)
+    monkeypatch.setattr(postprocessor, "_VL_CACHE", {})
+    options = PostprocessOptions(reranker_model=RerankerModelIn(
+        backend="openvino_vl", device=device, model_path="/tmp/selected-qwen-vl",
+    ))
+    reranking.build_media_reranker(options, lambda index, node: {}, 1)
+    assert seen == {"path": "/tmp/selected-qwen-vl", "device": device}
+
+
 def test_image_reranker_reads_authorized_bytes_and_preserves_recall_hit(monkeypatch):
     from io import BytesIO
     from PIL import Image

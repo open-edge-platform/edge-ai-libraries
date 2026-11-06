@@ -78,7 +78,20 @@ export function summarize(directory, outcomes) {
   return {markdown: lines.join("\n"), success};
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+export function validateRuntimeTap(text) {
+  const result = parseTap(text);
+  if (!result.complete || result.passed === 0 || result.failed !== 0 || result.skipped.length !== 0)
+    throw Error("Runtime TAP must be complete and nonempty, with passing tests, zero failures and zero skips");
+  return result;
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href &&
+    process.argv[2] === "--require-no-skips") {
+  if (process.argv.length !== 4)
+    throw Error("Usage: node test/tap-summary.mjs --require-no-skips <report-file>");
+  const result = validateRuntimeTap(fs.readFileSync(process.argv[3], "utf8"));
+  console.log(`Runtime TAP verified: ${result.passed} passed, zero failed, zero skipped`);
+} else if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   if (!process.argv[2]) throw Error("Usage: node test/tap-summary.mjs <report-directory>");
   const {markdown, success} = summarize(process.argv[2],
     JSON.parse(process.env.TEST_STEP_OUTCOMES ?? "{}"));

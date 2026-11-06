@@ -47,6 +47,7 @@ from core.content import (
     TEXT,
     ContentBlock,
     ContentStream,
+    asset_family,
     role_of,
 )
 from core.knowledge import OKF, Knowledge, asset_format
@@ -156,21 +157,21 @@ def accepts_asset(asset: Any, configuration: Mapping[str, Any]) -> bool:
     content stream would cost about as much as indexing them.
 
     An entry matches an extension (`"pdf"`), a full MIME type
-    (`"application/pdf"`), or a MIME family (`"image"`).
+    (`"application/pdf"`), or the asset's kind (`"document"`, `"image"`, ...).
     """
     if not (hasattr(asset, "asset_id") and _has_content(asset)):
         return False
     wanted = configuration.get("asset_types")
     if not wanted:
         return True
+    extension = str(getattr(asset, "extension", "") or "")
     media_type = str(getattr(asset, "media_type", "") or "").lower()
     return bool(
         {str(entry).strip().lower().lstrip(".") for entry in wanted}
         & {
-            str(getattr(asset, "asset_kind", "document") or "document"),
-            str(getattr(asset, "extension", "") or ""),
+            str(getattr(asset, "asset_kind", "") or asset_family(extension)),
+            extension,
             media_type,
-            media_type.split("/")[0],
         }
     )
 
@@ -827,7 +828,7 @@ class MultimodalIndexer(VectorIndexer):
             suffix = os.path.splitext(stream.metadata.get("file_name") or "")[1] or ".mp4"
             with asset.media_path(block.media_key, suffix) as path:
                 sampled = frame_utils.sample_frames(
-                    path, getattr(self._embedding, "frames_per_clip", 32)
+                    path, getattr(self._embedding, "frames_per_clip", 8)
                 )
             return self._embedding.embed_video(sampled)
         # A role with no pipeline. `covers` normally keeps these out; reaching
