@@ -6228,6 +6228,29 @@
             ],
             "title": "Unsupported Devices",
             "description": "Comma-separated list of devices on which the model cannot run (e.g. 'NPU'), or null when no restrictions exist."
+          },
+          "link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link",
+            "description": "URL of the model page on its upstream hub (currently only Hugging Face), or null when not available."
+          },
+          "gated": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelGated"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Hugging Face gating mode, or null when unknown or not applicable (non-Hugging Face models)."
           }
         },
         "type": "object",
@@ -6493,6 +6516,17 @@
               }
             ],
             "description": "Model category, required when `hub` is `huggingface` (ignored for other hubs)."
+          },
+          "gated": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelGated"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Gating mode of the hub model, stored on the registered model (null when unknown)."
           }
         },
         "type": "object",
@@ -6500,7 +6534,17 @@
           "names"
         ],
         "title": "ModelDownloadRequest",
-        "description": "**Request body for starting a batch of model download jobs.**\n\nEach name must match an entry in the model catalog (`vippet/models/*.yaml`) unless `hub` is set. Names are\nvalidated as a unique set: duplicates are rejected with 422 so the\nper-name map returned by the endpoint stays unambiguous. An empty\nlist is also rejected (`min_length=1`).\n\nEach name is processed independently \u2014 one model-download job per\nname \u2014 and the per-model status is returned in\n`ModelDownloadJobResponse.jobs[name]`.\n\nWhen `hub` is set, names not found in the catalog are downloaded from\nthat hub (names as returned by `POST /models/list`) and registered in\nthe catalog together with every installed precision. Supported hubs:\n`ultralytics` (category derived from the name suffix) and\n`huggingface` (category must be provided via `category`, since\nHuggingFace repo ids have no fixed naming convention to derive it\nfrom).\n\n## Attributes\n- `names` - List of supported-model names to install. Must be non-empty and unique.\n- `hub` - Optional upstream hub for names not in the catalog.\n- `category` - Required when `hub` is `huggingface`; ignored otherwise.\n\n### Example\n```json\n{\n  \"names\": [\"yolo11n\", \"yolov8n\"]\n}\n```"
+        "description": "**Request body for starting a batch of model download jobs.**\n\nEach name must match an entry in the model catalog (`vippet/models/*.yaml`) unless `hub` is set. Names are\nvalidated as a unique set: duplicates are rejected with 422 so the\nper-name map returned by the endpoint stays unambiguous. An empty\nlist is also rejected (`min_length=1`).\n\nEach name is processed independently \u2014 one model-download job per\nname \u2014 and the per-model status is returned in\n`ModelDownloadJobResponse.jobs[name]`.\n\nWhen `hub` is set, names not found in the catalog are downloaded from\nthat hub (names as returned by `POST /models/list`) and registered in\nthe catalog together with every installed precision. Supported hubs:\n`ultralytics` (category derived from the name suffix) and\n`huggingface` (category must be provided via `category`, since\nHuggingFace repo ids have no fixed naming convention to derive it\nfrom).\n\n## Attributes\n- `names` - List of supported-model names to install. Must be non-empty and unique.\n- `hub` - Optional upstream hub for names not in the catalog.\n- `category` - Required when `hub` is `huggingface`; ignored otherwise.\n- `gated` - Optional Hugging Face gating mode reported by the hub listing; stored on the registered model. Ignored for names already in the catalog.\n\n### Example\n```json\n{\n  \"names\": [\"yolo11n\", \"yolov8n\"]\n}\n```"
+      },
+      "ModelGated": {
+        "type": "string",
+        "enum": [
+          "false",
+          "auto",
+          "manual"
+        ],
+        "title": "ModelGated",
+        "description": "**Hugging Face gating mode of a model.**\n\n## Values\n- `FALSE` - Not gated, anyone can download the model\n- `AUTO` - Gated, access is granted automatically after accepting the license\n- `MANUAL` - Gated, access must be approved manually by the model authors\n\n### Example\n```json\n\"auto\"\n```"
       },
       "ModelHubListRequest": {
         "properties": {

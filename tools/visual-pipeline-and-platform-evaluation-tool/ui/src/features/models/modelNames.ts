@@ -1,6 +1,9 @@
-import type { Node } from "@/api/api.generated.ts";
+import type { Model, Node } from "@/api/api.generated.ts";
 
 const MODEL_DETAILS_SUFFIX_PATTERN = /\s*\(.*/;
+
+export const isGatedModel = (model: Pick<Model, "gated">): boolean =>
+  Boolean(model.gated) && model.gated !== "false";
 
 export const normalizeModelDisplayName = (value: string): string =>
   value.replace(MODEL_DETAILS_SUFFIX_PATTERN, "").trim();
