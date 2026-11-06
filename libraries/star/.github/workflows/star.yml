@@ -1,0 +1,45 @@
+name: star-image
+# Disabled: automatic triggers removed, only manual runs via workflow_dispatch remain.
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build-and-test:
+    name: Build and Test 
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build image
+        run: |
+          make pull-model image
+      - name: Build tests image
+        run: make tests-image
+      - name: Run tests
+        run: make tests-run
+
+  release:
+    name: Publish release tag
+    needs: build-and-test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Create source tarball
+        run: |
+          git archive --format=tar.gz \
+            --prefix="star_image-${GITHUB_REF_NAME}/" \
+            -o "star_image-${GITHUB_REF_NAME}.tar.gz" \
+            "${GITHUB_REF_NAME}"
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            "star_image-${GITHUB_REF_NAME}.tar.gz" \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes
+ 
+ 
