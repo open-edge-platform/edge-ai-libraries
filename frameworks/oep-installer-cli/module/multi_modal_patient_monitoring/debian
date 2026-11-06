@@ -1,7 +1,7 @@
 
 configure_multi_modal_patient_monitoring () {
   workspace="$(ensure_project_path)/multi-modal-patient-monitoring"
-  version="$(ensure_parse_value_option version --version=4a9679b58090cd86d56d91e1e72cab462babfe31 "$@")"
+  version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")"
   repository=https://github.com/open-edge-platform/health-and-life-sciences-ai-suite.git
 
   workspace_mdpnp="$workspace"/multi_modal_patient_monitoring/services/mdpnp/mdpnp

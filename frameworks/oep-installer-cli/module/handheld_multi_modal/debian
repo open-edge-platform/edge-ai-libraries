@@ -1,7 +1,7 @@
 
 configure_handheld_multi_modal () {
   workspace="$(ensure_project_path)/handheld-multi-modal"
-  version=main
+  version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")"
   repository=https://github.com/open-edge-platform/federal-and-aerospace-ai-suite.git
   used_ports=(3478 8010 8011 8012 8080 8186 8189 8200 8443 8554 8888 9090 9273 9997)
 }
@@ -32,7 +32,7 @@ debian_90_install_handheld_multi_modal () {
     esac
   done <<< "$installed"
 
-  configure_handheld_multi_modal
+  configure_handheld_multi_modal "$@"
   if verify_handheld_multi_modal $* && [[ " $* " != *" --reinstall "* ]]; then
     echo "handheld_multi_modal is installed." >&2
   else
@@ -52,7 +52,7 @@ debian_90_install_handheld_multi_modal () {
 }
 
 debian_90_start_handheld_multi_modal () {
-  configure_handheld_multi_modal
+  configure_handheld_multi_modal "$@"
   ensure_ports_open start handheld_multi_modal "${used_ports[@]}"
   cd "$workspace"/handheld-multi-modal
   make up CONFIRM=yes
@@ -61,13 +61,13 @@ debian_90_start_handheld_multi_modal () {
 }
 
 debian_90_stop_handheld_multi_modal () {
-  configure_handheld_multi_modal
+  configure_handheld_multi_modal "$@"
   cd "$workspace"/handheld-multi-modal
   make stop
 }
 
 debian_90_remove_handheld_multi_modal () {
-  configure_handheld_multi_modal
+  configure_handheld_multi_modal "$@"
   local app_dir="$workspace"/handheld-multi-modal
   [ ! -d "$app_dir" ] || (cd "$app_dir" && make clean-all CONFIRM=yes)
   ensure_rm "$workspace"

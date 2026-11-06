@@ -1,7 +1,7 @@
 
 configure_loss_prevention () {
   workspace="$(ensure_project_path)/loss-prevention"
-  version=1e960e399a4f82feca32dcd65b023f7a46d3ebf1
+  version="$(ensure_parse_value_option version --version=1e960e399a4f82feca32dcd65b023f7a46d3ebf1 "$@")"
   repository="https://github.com/intel-retail/loss-prevention.git"
   used_ports=(4000 15672 5672 8002 4001)
 }
@@ -76,7 +76,7 @@ debian_90_profile_loss_prevention () {
 }
 
 debian_90_install_loss_prevention () {
-  configure_loss_prevention
+  configure_loss_prevention "$@"
 
   if verify_loss_prevention && [[ " $* " != *" --reinstall "* ]]; then
     echo "Loss prevention is installed." >&2
@@ -142,7 +142,7 @@ EOF
 }
 
 debian_90_start_loss_prevention () {
-  configure_loss_prevention
+  configure_loss_prevention "$@"
   ensure_ports_open start loss_prevention "${used_ports[@]}"
 
   cd "$workspace"
@@ -163,7 +163,7 @@ debian_90_start_loss_prevention () {
 }
 
 debian_90_stop_loss_prevention () {
-  configure_loss_prevention
+  configure_loss_prevention "$@"
   cd "$workspace" && {
     make down-lp || true
     cd src && docker compose down -v --remove-orphans || true
@@ -172,7 +172,7 @@ debian_90_stop_loss_prevention () {
 }
 
 debian_90_remove_loss_prevention () {
-  configure_loss_prevention
+  configure_loss_prevention "$@"
   debian_90_stop_loss_prevention "$@"
   ensure_rm "$workspace"
 }

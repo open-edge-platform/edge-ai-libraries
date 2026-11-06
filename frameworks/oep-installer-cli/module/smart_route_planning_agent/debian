@@ -1,7 +1,7 @@
 
 configure_smart_route_planning_agent () {
   workspace="$(ensure_project_path)/smart-route-planning-agent"
-  version="$(ensure_parse_value_option version --version=13c4deb6d933deecc79b801eb37dddac1bc78f6f "$@")"
+  version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")"
   repository="https://github.com/open-edge-platform/metro-ai-suite.git"
   used_ports=(7864 8765)
 
