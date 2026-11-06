@@ -1,9 +1,9 @@
 
 configure_smart_traffic_intersection_agent () {
   workspace="$(ensure_project_path)/smart-traffic-intersection-agent"
-  version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")"
+  version="$(ensure_parse_value_option version --version=13c4deb6d933deecc79b801eb37dddac1bc78f6f "$@")"
   repository="https://github.com/open-edge-platform/metro-ai-suite.git"
-  used_ports=(32776 32770 32771 32772 32773 32774 32775)
+  used_ports=(7860 8081 32776 32770 32771 32772 32773 32774 32775)
 
   export VLM_MODEL_NAME=OpenVINO/Phi-3.5-vision-instruct-int8-ov
   export REGISTRY=intel/
@@ -30,6 +30,8 @@ debian_90_install_smart_traffic_intersection_agent () {
     ensure_git_export "$workspace" "$version" "$repository" smart-traffic-intersection-agent
     
     cd "$workspace"/smart-traffic-intersection-agent
+    sed -i "s|\"agent_backend_port\":.*|\"agent_backend_port\": \"${used_ports[1]}\"|" src/config/deployment_instance.json
+    sed -i "s|\"agent_ui_port\":.*|\"agent_ui_port\": \"${used_ports[0]}\"|" src/config/deployment_instance.json
     . ./setup.sh --setenv
 
     touch docker/ri-compose.yaml
@@ -60,6 +62,7 @@ debian_90_start_smart_traffic_intersection_agent () {
   cd "$workspace"/smart-traffic-intersection-agent
   . ./setup.sh --run
 
+  echo "@@HIGHLIGHT UI: http://$(ensure_ip):${used_ports[0]}"
   echo "@@HIGHLIGHT start [--gpu|npu|cpu]"
   echo "@@HIGHLIGHT $installer_name remove"
 }
