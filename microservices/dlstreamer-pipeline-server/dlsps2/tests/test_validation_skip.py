@@ -42,10 +42,15 @@ def test_validation_enabled_with_invalid_pipeline(manager):
     
     # Start with validate=True (default, should validate)
     instance_id = manager.start(invalid_pipeline, validate=True)
-    
-    # Give the background thread time to run validation
-    time.sleep(1.0)
-    
+
+    # Validation runs in a subprocess; poll until it reports a result
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        instance = manager.get(instance_id)
+        if instance is not None and instance.state == PipelineState.ERROR:
+            break
+        time.sleep(0.1)
+
     instance = manager.get(instance_id)
     assert instance is not None
     # Validation should catch the invalid element and set ERROR state

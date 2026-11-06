@@ -49,6 +49,9 @@ class TestOnBufferProbe:
         mock_inst = MagicMock()
         mock_inst.frame_count = 0
         mock_inst.total_frame_count = 0
+        mock_inst.frames_after_warmup = 0
+        mock_inst.warmup_frames = 0
+        mock_inst.first_frame_sent = True
         mock_inst.frame_count_lock = threading.Lock()
 
         result = GstWorker._on_buffer_probe(None, None, mock_inst)
@@ -64,6 +67,9 @@ class TestOnBufferProbe:
         mock_inst = MagicMock()
         mock_inst.frame_count = 0
         mock_inst.total_frame_count = 0
+        mock_inst.frames_after_warmup = 0
+        mock_inst.warmup_frames = 0
+        mock_inst.first_frame_sent = True
         mock_inst.frame_count_lock = threading.Lock()
 
         for _ in range(10):
@@ -161,6 +167,8 @@ class TestPollFps:
             pipeline=MagicMock(),
             frame_count=frame_count,
             total_frame_count=total_frame_count,
+            frames_after_warmup=total_frame_count,
+            warmup_frame_time=now - total_elapsed,
             start_time=now - total_elapsed,
             last_poll_time=now - window_elapsed,
         )
@@ -238,6 +246,8 @@ class TestTeardownFlushesFinalFps:
             pipeline=MagicMock(),
             frame_count=5,
             total_frame_count=5,
+            frames_after_warmup=5,
+            warmup_frame_time=now - 0.2,
             start_time=now - 0.2,
             last_poll_time=now - 0.2,
         )

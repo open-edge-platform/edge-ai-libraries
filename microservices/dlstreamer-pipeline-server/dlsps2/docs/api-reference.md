@@ -65,8 +65,9 @@ authoritative schema for the version you are running:
 - 2.0 does not implement the following 1.0 endpoints:
   - `POST /pipelines/{name}/{version}/{instance_id}`: `image_ingestor` requests.
   - `POST /pipelines/{name}/{version}/{instance_id}/models`: model registry deployment.
-- `DELETE /pipelines/{instance_id}` now works on both `RUNNING` and `RESTARTING` instances.
-  It does not cancel `QUEUED` instances.
+- `DELETE /pipelines/{instance_id}` now works on `QUEUED`, `RUNNING`, and `RESTARTING` instances.
+  A `QUEUED` instance is cancelled and never starts.
+  An instance reaches `ABORTED` only after its pipeline is confirmed torn down.
 
 ## Pipeline Instance Lifecycle
 
@@ -78,9 +79,10 @@ stateDiagram-v2
     [*] --> QUEUED: POST /pipelines or POST /pipelines/{name}/{version}
     QUEUED --> RUNNING: validation passed, pipeline playing
     QUEUED --> ERROR: validation failed
+    QUEUED --> ABORTED: DELETE /pipelines/{instance_id}
     RUNNING --> COMPLETED: end of stream
     RUNNING --> ERROR: runtime error
-    RUNNING --> ABORTED: DELETE /pipelines/{instance_id}
+    RUNNING --> ABORTED: DELETE /pipelines/{instance_id}, after teardown
     RUNNING --> RESTARTING: error or EOS, restart enabled
     RESTARTING --> RUNNING: restart attempt submitted
     RESTARTING --> ERROR: max attempts reached
@@ -94,7 +96,7 @@ stateDiagram-v2
 | `RESTARTING` | The pipeline stopped or errored, and automatic restart is scheduled (waiting for backoff delay). |
 | `COMPLETED` | The pipeline reached end of stream. |
 | `ERROR` | Validation or execution failed. The `message` field contains the error. |
-| `ABORTED` | A client stopped the pipeline with `DELETE /pipelines/{instance_id}`. |
+| `ABORTED` | A client stopped the pipeline with `DELETE /pipelines/{instance_id}`. Reported only after the pipeline is confirmed torn down. |
 
 A malformed pipeline string still returns `200` with an `instance_id`. The
 instance then moves to `ERROR`. To detect failures, poll
@@ -114,7 +116,7 @@ Errors use the standard FastAPI format:
 |--------|---------|
 | `400 Bad Request` | The request is invalid, for example an empty `pipeline` string. |
 | `404 Not Found` | The pipeline instance or named pipeline does not exist. |
-| `409 Conflict` | The instance is not `RUNNING`, so it cannot be stopped. |
+| `409 Conflict` | The instance is not `QUEUED`, `RUNNING`, or `RESTARTING`, so it cannot be stopped. |
 | `422 Unprocessable Entity` | The request body failed schema validation, for example a missing required field or wrong type. |
 | `500 Internal Server Error` | A named pipeline request could not be converted into a pipeline. |
 | `503 Service Unavailable` | The pipeline manager is not initialized, or no `config.json` is loaded (named pipeline API only). |
@@ -181,6 +183,7 @@ string exactly as submitted.
 | `validate_pipeline` | boolean | No | `true` | Whether to validate the pipeline before starting. Set to `false` to skip validation. |
 | `cpu_cores` | array[int] | No | - | CPU core indices to pin this pipeline to (e.g., `[0, 1, 2]`). |
 | `warmup_frames` | integer | No | `0` | Number of initial frames excluded from `avg_fps`. `frame_fps` is still reported during warmup. |
+| `fps_element` | string | No | - | Name of the element whose input buffers are counted for `frame_fps` and `avg_fps` (e.g., `detect`). Defaults to the terminal sink. If the name is not in the pipeline, the instance moves to `ERROR`. |
 | `restart_config` | [RestartConfig](#restartconfig) | No | - | Configuration for automatic pipeline restart on error or EOS. |
 
 ```json
@@ -425,11 +428,12 @@ curl http://localhost:8080/pipelines/3f1c0d2e-8a4b-4d6c-9e1f-2a3b4c5d6e7f/status
 
 ## `DELETE` /pipelines/{instance_id}
 
-Requests a graceful stop of a running or restarting pipeline instance. The instance state
-changes to `ABORTED` immediately, and the shared worker then tears down the
-pipeline. Other running pipelines are not affected. If the pipeline is in `RESTARTING` state
-(waiting for the backoff delay before an automatic restart), this endpoint will cancel the
-pending restart.
+Requests a graceful stop of a queued, running, or restarting pipeline instance. A `QUEUED`
+instance is cancelled and never starts. For a `RUNNING` instance, the shared worker tears
+down the pipeline, and the state changes to `ABORTED` only after teardown is confirmed. Other
+running pipelines are not affected. A `RESTARTING`
+instance (waiting for the backoff delay before an automatic restart) is aborted at once, which cancels the
+pending restart. Until then, the instance keeps its `RUNNING` state, and `stop_time` is `null`.
 
 ### Path Parameters
 
@@ -457,7 +461,7 @@ pending restart.
 
 #### `409 Conflict`
 
-Returned when the instance is not `RUNNING` or `RESTARTING`, for example when it is `QUEUED`,
+Returned when the instance is not `QUEUED`, `RUNNING`, or `RESTARTING`, for example when it is
 `COMPLETED`, `ERROR`, or already `ABORTED`.
 
 ```json
@@ -609,6 +613,7 @@ curl http://localhost:8080/devices
 | `validate_pipeline` | boolean | No | `true` | Whether to validate the pipeline before starting. |
 | `cpu_cores` | array[int] | No | - | CPU core indices to pin this pipeline to. |
 | `warmup_frames` | integer | No | `0` | Number of initial frames excluded from `avg_fps`. `frame_fps` is still reported during warmup. |
+| `fps_element` | string | No | - | Name of the element whose input buffers are counted for FPS. Defaults to the terminal sink. |
 | `restart_config` | [RestartConfig](#restartconfig) | No | - | Configuration for automatic pipeline restart on error or EOS. |
 
 ### RestartConfig
@@ -643,6 +648,7 @@ curl http://localhost:8080/devices
 | `start_time` | number or null | Unix epoch start time in seconds. `null` until the instance is running. |
 | `first_frame_time` | number or null | Unix epoch time when the first frame was received. `null` until the first frame arrives. |
 | `elapsed_time` | number or null | Seconds the instance has been running, or ran in total if it has stopped. `null` until it starts. |
+| `stop_time` | number or null | Unix epoch time when the run ended. `null` while it is running. |
 | `message` | string | Error details when `state` is `ERROR`. Otherwise an empty string. |
 
 ### PipelineSummary

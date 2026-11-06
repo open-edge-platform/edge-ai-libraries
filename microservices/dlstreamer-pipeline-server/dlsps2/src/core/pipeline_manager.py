@@ -49,6 +49,9 @@ _GST_VALIDATOR = os.path.join(os.path.dirname(__file__), "gst_validator.py")
 # the pipeline reach PLAYING.
 _VALIDATION_SUBPROCESS_TIMEOUT_SECONDS = 30.0
 
+# Wait for a worker to confirm a stopped pipeline is torn down before logging a warning.
+_TEARDOWN_TIMEOUT_SECONDS = 30.0
+
 
 class PipelineState(str, Enum):
     QUEUED = "QUEUED"
@@ -124,11 +127,17 @@ class PipelineInstance:
     # CPU affinity: list of core indices to pin this pipeline to, or None for unpinned
     cpu_cores: Optional[List[int]] = None
     warmup_frames: Optional[int] = 0
+    fps_element: Optional[str] = None  # None counts frames at the terminal sink
 
     # Restart configuration and state
     restart_config: Optional[dict] = None  # {"enabled": bool, "max_attempts": int, "backoff_seconds": int}
     restart_attempts: int = 0  # Current restart attempt count
     restart_timer: Optional[Any] = None  # Scheduled restart GLib.timeout_source or thread timer
+
+    # Stop lifecycle: finalized once the run's final state (ABORTED/COMPLETED/ERROR) is reported
+    stop_requested: bool = False
+    finalized: bool = False
+    teardown_timer: Optional[threading.Timer] = None
 
     @property
     def avg_fps(self) -> float:
@@ -200,6 +209,7 @@ class PipelineInstance:
             "frame_interval": fps.frame_interval,
             "start_time": lifecycle.start_time,
             "first_frame_time": lifecycle.first_frame_time,
+            "stop_time": lifecycle.stop_time,
             "elapsed_time": self._elapsed(lifecycle),
             "message": self.error or "",
         }
@@ -274,6 +284,7 @@ class PipelineManager:
         cpu_cores: Optional[List[int]] = None,
         warmup_frames: Optional[int] = 0,
         restart_config: Optional[dict] = None,
+        fps_element: Optional[str] = None,
     ) -> str:
         """Validate and submit a new pipeline instance.
 
@@ -290,6 +301,7 @@ class PipelineManager:
                 if this instance was started via the named-pipeline API.
             cpu_cores: List of CPU core indices to pin this pipeline to (e.g., [0, 1, 2]),
                 or None for no affinity.
+            fps_element: Element whose input buffers are counted for FPS, or None for the terminal sink.
 
         Returns:
             instance_id (UUID string) assigned to this instance.
@@ -305,6 +317,7 @@ class PipelineManager:
             cpu_cores=cpu_cores,
             warmup_frames=warmup_frames,
             restart_config=restart_config,
+            fps_element=fps_element,
         )
 
         with self._lock:
@@ -323,28 +336,42 @@ class PipelineManager:
         return instance_id
 
     def stop(self, instance_id: str) -> bool:
-        """Request a graceful stop of one pipeline instance.
+        """Request a stop of one pipeline instance.
+
+        A QUEUED or RESTARTING instance has no live pipeline, so it is ABORTED at once.
+        A RUNNING instance is reported as ABORTED only after its worker confirms teardown.
 
         Returns:
-            True if the instance was running/restarting and the stop request was sent,
-            False if the instance was not found or not in RUNNING/RESTARTING state.
+            True if the stop was accepted, False if the instance was not found or cannot be stopped.
         """
         with self._lock:
             instance = self._instances.get(instance_id)
             if not instance:
                 return False
-            if instance.state not in (PipelineState.RUNNING, PipelineState.RESTARTING):
+            if instance.state in (PipelineState.QUEUED, PipelineState.RESTARTING):
+                instance.state = PipelineState.ABORTED
+                instance.stop_requested = True
+                instance.finalized = True
+                instance.set_lifecycle(stop_time=time.time())
+                logger.info("Cancelled pipeline instance %s in state %s", instance_id, PipelineState.QUEUED.value)
+                return True
+            if instance.state != PipelineState.RUNNING or instance.stop_requested:
                 return False
-            instance.state = PipelineState.ABORTED
+            instance.stop_requested = True
 
         success = self._worker_pool.send_command(
             instance_id,
             {"cmd": "stop"},
             cpu_cores=instance.cpu_cores,
         )
-        if success:
-            logger.info("Requested stop for pipeline instance %s", instance_id)
-        return success
+        with self._lock:
+            if not success:
+                instance.stop_requested = False
+                return False
+            if not instance.finalized:
+                instance.teardown_timer = self._start_teardown_timer(instance)
+        logger.info("Requested stop for pipeline instance %s", instance_id)
+        return True
 
     def get(self, instance_id: str) -> Optional[PipelineInstance]:
         """Return the instance for the given ID, or None if not found."""
@@ -436,19 +463,19 @@ class PipelineManager:
             logger.info("Skipping validation for pipeline %s before submission", instance.instance_id)
             ok, reason = True, None
 
-        if not ok:
-            with self._lock:
+        with self._lock:
+            # stop() finalizes a queued instance it cancels; never submit that one.
+            if instance.state != PipelineState.QUEUED:
+                logger.info("Pipeline %s was stopped while queued; not submitting", instance.instance_id)
+                return
+            if not ok:
                 instance.state = PipelineState.ERROR
                 instance.error = f"validation failed: {reason}" if reason else "validation failed"
                 instance.set_lifecycle(stop_time=time.time())
-            logger.error("Pipeline %s failed validation: %s", instance.instance_id, reason)
-            return
-
-        with self._lock:
-            # Don't override a stop() that raced in while validation was running.
-            if instance.state == PipelineState.QUEUED:
-                instance.state = PipelineState.RUNNING
-                instance.set_lifecycle(start_time=time.time())
+                logger.error("Pipeline %s failed validation: %s", instance.instance_id, reason)
+                return
+            instance.state = PipelineState.RUNNING
+            instance.set_lifecycle(start_time=time.time())
 
         success = self._worker_pool.send_command(
             instance.instance_id,
@@ -456,6 +483,7 @@ class PipelineManager:
                 "cmd": "start",
                 "pipeline": instance.pipeline_description,
                 "warmup_frames": instance.warmup_frames,
+                "fps_element": instance.fps_element,
             },
             cpu_cores=instance.cpu_cores,
         )
@@ -599,7 +627,7 @@ class PipelineManager:
                 # a "stopped" event does still arrive later (e.g. a bus
                 # ERROR message on an already-running pipeline), it will just
                 # confirm the same ERROR state and set the final stop_time.
-                if instance.state not in (
+                if not instance.stop_requested and instance.state not in (
                     PipelineState.ABORTED, PipelineState.ERROR, PipelineState.COMPLETED,
                 ):
                     instance.state = PipelineState.ERROR
@@ -613,10 +641,20 @@ class PipelineManager:
                 self._attempt_restart(instance)
         elif evt == "stopped":
             with self._lock:
-                instance.set_lifecycle(stop_time=time.time())
-                if instance.state != PipelineState.ABORTED:
-                    instance.state = PipelineState.ERROR if instance.error else PipelineState.COMPLETED
+                if instance.teardown_timer is not None:
+                    instance.teardown_timer.cancel()
+                already_finalized = instance.finalized
+                if not already_finalized:
+                    instance.finalized = True
+                    instance.set_lifecycle(stop_time=time.time())
+                    if instance.stop_requested:
+                        instance.state = PipelineState.ABORTED
+                    else:
+                        instance.state = PipelineState.ERROR if instance.error else PipelineState.COMPLETED
             self._worker_pool.untrack_pipeline(instance_id, instance.cpu_cores)
+            if already_finalized:
+                logger.info("Pipeline %s torn down after it was already reported as %s", instance_id, instance.state.value)
+                return
             logger.info(
                 "Pipeline %s finished (state=%s, avg_fps=%.2f)",
                 instance_id,
@@ -626,6 +664,23 @@ class PipelineManager:
             self._notify_finished(instance)
         else:
             logger.debug("Unknown event for pipeline %s: %s", instance_id, event)
+
+    def _start_teardown_timer(self, instance: PipelineInstance) -> threading.Timer:
+        timer = threading.Timer(_TEARDOWN_TIMEOUT_SECONDS, self._on_teardown_timeout, args=(instance,))
+        timer.daemon = True
+        timer.start()
+        return timer
+
+    def _on_teardown_timeout(self, instance: PipelineInstance) -> None:
+        """Log that a stop is still unconfirmed; the state stays until the worker reports "stopped"."""
+        with self._lock:
+            if instance.finalized:
+                return
+        logger.warning(
+            "Pipeline %s teardown not confirmed within %gs; still waiting",
+            instance.instance_id,
+            _TEARDOWN_TIMEOUT_SECONDS,
+        )
 
     def _notify_metric(self, instance: PipelineInstance, event: dict) -> None:
         listener = self._metric_listener
@@ -651,7 +706,7 @@ class PipelineManager:
             # Not enabled or already restarting/aborted
             if not instance.restart_config or not instance.restart_config.get("enabled"):
                 return
-            if instance.state in (PipelineState.RESTARTING, PipelineState.ABORTED):
+            if instance.state in (PipelineState.RESTARTING, PipelineState.ABORTED) or instance.stop_requested:
                 return
 
             max_attempts = instance.restart_config.get("max_attempts", 5)
@@ -700,6 +755,7 @@ class PipelineManager:
                 logger.warning("Pipeline %s no longer in RESTARTING state; aborting restart", instance.instance_id)
                 return
             instance.set_lifecycle(start_time=time.time(), first_frame_time=None, stop_time=None)
+            instance.finalized = False
             instance.error = None
             instance.state = PipelineState.RUNNING
 
@@ -709,6 +765,7 @@ class PipelineManager:
                 "cmd": "start",
                 "pipeline": instance.pipeline_description,
                 "warmup_frames": instance.warmup_frames,
+                "fps_element": instance.fps_element,
             },
             cpu_cores=instance.cpu_cores,
         )

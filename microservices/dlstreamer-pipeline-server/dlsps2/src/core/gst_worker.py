@@ -221,9 +221,24 @@ class GstWorker:
         logger.log(py_level, "%s", text)
 
     @staticmethod
-    def _attach_fps_probes(pipeline: Gst.Pipeline, inst: "_Instance") -> int:
+    def _fps_probe_pad(pipeline: Gst.Pipeline, element_name: str) -> Optional[Gst.Pad]:
+        """Return the named element's first sink pad, or its first src pad if it has none."""
+        elem = pipeline.get_by_name(element_name)
+        if elem is None:
+            return None
+        for iterate in (elem.iterate_sink_pads, elem.iterate_src_pads):
+            result, pad = iterate().next()
+            if result == Gst.IteratorResult.OK:
+                return pad
+        return None
+
+    @staticmethod
+    def _attach_fps_probes(pipeline: Gst.Pipeline, inst: "_Instance", fps_element: Optional[str] = None) -> int:
         """Attach a buffer-counting probe that counts exactly one frame per
         buffer flowing through the pipeline.
+
+        If ``fps_element`` is given, the probe goes on that element's pad
+        instead of the terminal sink.
 
         Uses ``iterate_sinks()`` (elements with no linked src pad, i.e. the
         actual terminal element(s) of the pipeline) but only attaches the
@@ -242,6 +257,12 @@ class GstWorker:
 
         Returns the number of probes attached (0 or 1).
         """
+        if fps_element:
+            pad = GstWorker._fps_probe_pad(pipeline, fps_element)
+            if pad is None:
+                return 0
+            pad.add_probe(Gst.PadProbeType.BUFFER, GstWorker._on_buffer_probe, inst)
+            return 1
         sinks_iter = pipeline.iterate_sinks()
         while True:
             result, elem = sinks_iter.next()
@@ -329,7 +350,7 @@ class GstWorker:
     # Pipeline lifecycle
     # ------------------------------------------------------------------
 
-    def start(self, instance_id: str, pipeline_description: str, warmup_frames: int = 0) -> None:
+    def start(self, instance_id: str, pipeline_description: str, warmup_frames: int = 0, fps_element: Optional[str] = None) -> None:
         """Parse and start a new pipeline hosted by this worker.
 
         Bus watches and the FPS-poll timer are attached to the shared
@@ -368,6 +389,10 @@ class GstWorker:
             _emit({"instance_id": instance_id, "event": "error", "reason": f"invalid instance_id as Gst name: {exc!r}"})
             return
 
+        if fps_element and GstWorker._fps_probe_pad(pipeline, fps_element) is None:
+            _emit({"instance_id": instance_id, "event": "error", "reason": f"fps_element {fps_element!r} not found in pipeline"})
+            return
+
         inst = _Instance(instance_id=instance_id, pipeline=pipeline, warmup_frames=warmup_frames)
 
         with self._lock:
@@ -404,7 +429,7 @@ class GstWorker:
         # sink element(s), then turn that into avg/last FPS values on a
         # timer attached to the shared default context. Frame counting is
         # still fully isolated per instance — no shared/native aggregation.
-        self._attach_fps_probes(pipeline, inst)
+        self._attach_fps_probes(pipeline, inst, fps_element)
         inst.start_time = time.monotonic()
         fps_source = GLib.timeout_source_new_seconds(_FPS_POLL_INTERVAL_SECONDS)
         fps_source.set_callback(self._poll_fps, inst)
@@ -507,6 +532,7 @@ class GstWorker:
                     command["instance_id"],
                     command["pipeline"],
                     warmup_frames=command.get("warmup_frames", 0),
+                    fps_element=command.get("fps_element"),
                 )
             elif cmd == "stop":
                 self.stop(command["instance_id"])
