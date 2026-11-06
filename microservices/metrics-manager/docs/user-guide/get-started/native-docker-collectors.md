@@ -202,7 +202,7 @@ Compose bridge network on this service.
 
 For example, set three distinct unused ports in `.env`:
 
-```dotenv
+```bash
 HOST_METRICS_PORT=19090
 HOST_TELEGRAF_PORT=19273
 HOST_TELEGRAF_HTTP_PORT=18186
