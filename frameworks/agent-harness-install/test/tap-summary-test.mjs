@@ -5,7 +5,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import {parseTap, summarize} from "./tap-summary.mjs";
+import {spawnSync} from "node:child_process";
+import {fileURLToPath} from "node:url";
+import {parseTap, summarize, validateRuntimeTap} from "./tap-summary.mjs";
 
 test("counts passing, failing and skipped cases without counting diagnostics", () => {
   const result = parseTap("TAP version 13\nok 1 - works\nnot ok 2 - fails\nok 3 - Hermes # SKIP Requires image\n# tests 3\n1..3\n");
@@ -32,6 +34,35 @@ test("ignores indented subtests and treats TODO as unfinished validation", () =>
 
 test("provides a reason for an unspecified skip", () => {
   assert.equal(parseTap("ok 1 - optional # SKIP\n1..1\n").skipped[0].reason, "No reason supplied");
+});
+
+test("runtime gate rejects empty, all-skipped, failed and incomplete reports", () => {
+  for (const text of ["", "1..0\n# skipped 0\n# fail 0\n# pass 0\n",
+    "ok 1 - optional # SKIP Requires image\n1..1\n",
+    "not ok 1 - failed\n1..1\n", "ok 1 - incomplete\n1..2\n",
+    "# skipped 0\n# fail 0\n# pass 9\n",
+    "ok 1 - one\nok 1 - duplicate\n1..2\n",
+    "ok 1 - one\n1..1\nBail out! broken\n"])
+    assert.throws(() => validateRuntimeTap(text), /Runtime TAP/);
+  assert.equal(validateRuntimeTap("ok 1 - verified\n1..1\n").passed, 1);
+});
+
+test("runtime TAP CLI fails closed and accepts a complete passing report", t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "runtime-tap-"));
+  t.after(() => fs.rmSync(dir, {recursive: true, force: true}));
+  const file = path.join(dir, "runtime.tap");
+  const script = fileURLToPath(new URL("./tap-summary.mjs", import.meta.url));
+  const run = () => spawnSync(process.execPath, [script, "--require-no-skips", file], {encoding: "utf8"});
+  assert.notEqual(run().status, 0);
+  for (const text of ["", "1..0\n# skipped 0\n", "ok 1 - Hermes # SKIP Requires image\n1..1\n",
+    "not ok 1 - broken\n1..1\n", "ok 1 - truncated\n"]) {
+    fs.writeFileSync(file, text);
+    assert.notEqual(run().status, 0, text);
+  }
+  fs.writeFileSync(file, "ok 1 - verified\n1..1\n");
+  const passing = run();
+  assert.equal(passing.status, 0, passing.stderr);
+  assert.match(passing.stdout, /1 passed, zero failed, zero skipped/);
 });
 
 test("summary reports skips, missing files and failed process outcomes", t => {

@@ -298,13 +298,14 @@ helper against temporary files, not an LLM.
 
 ### Hermes runtime-dependent cases
 
-The final two cases are registered only when `HARNESS_TEST_REQUIRE_HERMES=1`.
-The normal offline host/CI run executes seven cases with zero skips and does not
+The final two cases remain registered in every run with explicit skip reasons.
+The normal offline host/CI run executes seven cases and reports two image-required skips; it does not
 probe or invoke Hermes, even if it is installed. Explicit Hermes mode requires
 the pinned runtime at `/home/node/.local/bin/hermes` and fails if it is missing.
 
 The separate automatic **Hermes image runtime gate** builds the production
-image and requires all nine cases without skips. To reproduce it from the
+image and requires a complete, nonempty passing TAP report without failures or
+skips (currently nine cases). To reproduce it from the
 component directory (Docker and network access required for the build):
 
 ```bash
@@ -319,7 +320,7 @@ docker run --rm --network none \
   harness-hermes-validation \
   node --test --test-reporter=tap /opt/harness/model-defaults-test.mjs \
   | tee hermes-defaults.tap
-grep -Fxq '# skipped 0' hermes-defaults.tap
+node test/tap-summary.mjs --require-no-skips hermes-defaults.tap
 ```
 
 The image supplies Node, the pinned Hermes Python/YAML runtime, real Hermes
