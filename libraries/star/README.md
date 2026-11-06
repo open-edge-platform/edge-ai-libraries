@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # 📦 Semantic Compression Toolbox with Adaptive Rate (STAR): Image Pipeline
 
 **A dockerized computer vision pipeline for semantic compression of images**

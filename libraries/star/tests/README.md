@@ -1,7 +1,12 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Test / demo harness
 
 Exercises the REST side of the `encoder` / `decoder` roles (see the main
-README's "REST service mode" section) end-to-end: multiple sender clients,
+README) end-to-end: multiple sender clients,
 multiple receiver clients, a docker-compose stack, and a scaling benchmark.
 
 `--role encoder` / `--role decoder` (main.py) always run the legacy batch TCP

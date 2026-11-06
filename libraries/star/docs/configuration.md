@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Configuration
 
 This document explains all possible options, knobs and enviromental variables that could be configured in STAR.

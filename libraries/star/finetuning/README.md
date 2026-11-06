@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # YOLO Fine-Tuning Module
 
 A simple standalone repo for fine-tuning YOLOv8 models on custom datasets using the ultralytics library.
