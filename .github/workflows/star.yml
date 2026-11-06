@@ -6,7 +6,7 @@ on:
     paths:
       - 'libraries/star/**'
   workflow_dispatch:
-    
+
 permissions:
   contents: read
 
@@ -27,6 +27,9 @@ jobs:
       - name: Build tests image
         working-directory: libraries/star
         run: make tests-image
+      - name: Fetch sample images
+        working-directory: libraries/star
+        run: python3 tests/sample_data/fetch_sample_data.py --count 10 --source picsum --output-dir tests/fixtures/sample_images
       - name: Run tests
         working-directory: libraries/star
         run: make tests-run
