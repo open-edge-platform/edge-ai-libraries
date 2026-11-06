@@ -327,6 +327,60 @@ memory-bandwidth counters are accessible. Validate those collectors on the
 intended hardware with the documented device access and permissions. Likewise,
 an OpenVINO import or CPU device check does not validate GPU/NPU inference.
 
+## Isolated Debian package tests
+
+Build the package using `./native/build.sh`. From the component directory, run
+both scenarios in separate disposable Ubuntu containers:
+
+```bash
+(
+set -e
+for scenario in fresh upgrade; do
+  docker run --rm \
+    --cap-drop ALL \
+    --cap-add CHOWN --cap-add DAC_OVERRIDE --cap-add FOWNER \
+    --cap-add SETUID --cap-add SETGID \
+    --security-opt no-new-privileges \
+    --cpus 2 --memory 2g \
+    -e http_proxy -e https_proxy -e HTTP_PROXY -e HTTPS_PROXY \
+    -e no_proxy -e NO_PROXY \
+    -e DEBIAN_FRONTEND=noninteractive \
+    -e METRICS_MANAGER_PACKAGE_TEST=1 \
+    -v "$PWD/native/packaging/dist/metrics-manager_2026.3.0_amd64.deb:/packages/metrics-manager.deb:ro" \
+    -v "$PWD/native/tests/package-install-test.sh:/tests/package-install-test.sh:ro" \
+    ubuntu:24.04 \
+    bash /tests/package-install-test.sh /packages/metrics-manager.deb "$scenario"
+done
+)
+```
+
+The script requires root inside a disposable container, refuses an existing
+Metrics Manager installation or running systemd, and uses real `apt`/`dpkg`.
+Only the package and test script are mounted, read-only. No host system
+directories, devices, PID namespace or published ports are required.
+Network access is needed for distribution dependencies and `curl`.
+
+Both scenarios verify dependency resolution, account/file/FIFO ownership,
+binary versions, documentation and offline systemd unit validation. The
+installed Telegraf runs as the service user, exports an HTTP-ingested metric,
+and supplies the installed TUI. Removal must preserve operator configuration;
+purge must remove package configuration and the service account.
+
+The upgrade scenario derives a synthetic lower-version fixture from the current
+payload. It verifies that five modified conffiles survive, new defaults appear
+as `.dpkg-dist`, and operator drop-ins/scripts remain unchanged. This is not a
+test of an older release's binaries or automatic metric migration.
+
+Run the optional-collector configuration tests without changing host services:
+
+```bash
+bash native/tests/configure-metrics-test.sh
+```
+
+Actual systemd startup, service restart during upgrade, reboot and privileged
+hardware collection require an approved test host or disposable VM. Container
+tests do not validate systemd sandbox enforcement or boot behavior.
+
 ## Development Setup
 
 For local development with hot-reload:

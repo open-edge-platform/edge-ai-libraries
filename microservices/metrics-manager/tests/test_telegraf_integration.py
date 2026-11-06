@@ -14,6 +14,7 @@ removes the Prometheus output the SSE stream depends on) will fail in CI.
 End-to-end Docker-based tests are documented at the bottom of this file.
 """
 
+import configparser
 import tomllib
 from pathlib import Path
 
@@ -26,6 +27,7 @@ COMPOSE_YAML = REPO_ROOT / "compose.yaml"
 SUPERVISORD_CONF = REPO_ROOT / "supervisord.conf"
 DOCKERFILE = REPO_ROOT / "Dockerfile"
 ENTRYPOINT = REPO_ROOT / "entrypoint.sh"
+QMASSA_UNIT = REPO_ROOT / "native/packaging/systemd/metrics-manager-qmassa.service"
 
 
 @pytest.fixture(scope="module")
@@ -78,6 +80,19 @@ class TestDefaultTelegrafConfig:
         # built-in inputs (cpu/mem/temp) carry the same `host=` tag as the
         # native plugins.
         assert 'hostname = "${METRICS_MANAGER_HOSTNAME}"' in telegraf_text
+
+
+def test_qmassa_service_can_read_other_users_gpu_clients():
+    unit = configparser.ConfigParser(interpolation=None, strict=False)
+    assert unit.read(QMASSA_UNIT)
+    service = unit["Service"]
+    assert "ProtectProc" not in service
+    assert set(service["CapabilityBoundingSet"].split()) == {
+        "CAP_SYS_RAWIO",
+        "CAP_PERFMON",
+        "CAP_SYS_PTRACE",
+        "CAP_DAC_READ_SEARCH",
+    }
 
 
 class TestHostnameOverrideWiring:

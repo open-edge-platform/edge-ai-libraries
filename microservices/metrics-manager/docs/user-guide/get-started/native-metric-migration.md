@@ -7,7 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 
 The unreleased 2026.3.0 native collectors use bytes, bytes/second, Hz, W and
 degrees Celsius with explicit unit-bearing field names. This is a **breaking,
-one-time contract migration** for the native Docker image. Old names are not
+one-time contract migration** for the native Docker image and Debian package. Old names are not
 emitted as aliases. Upgrade collectors and dashboards together.
 
 Standard Telegraf inputs (including powerstat, Turbostat, CPU, memory, network
@@ -101,3 +101,12 @@ For retained custom chart configuration, replace the old DRAM chart IDs
 `memory.bandwidthGBps`, `memory.readGBps` and `memory.writeGBps`. Use `GB/s`
 as the display unit and convert any fixed MiB/s bounds by multiplying by
 `1048576 / 1e9`. Merge the current examples rather than discarding local settings.
+
+## Debian package upgrades
+
+Install the new package with `apt` so plugins and the dashboard are upgraded
+together. Locally modified configuration is preserved: compare any `.dpkg-dist`
+files with the active configuration, merge the needed changes, and restart
+`mm-tui`. In particular, retained chart files may still use the old DRAM IDs.
+Do not replace local settings wholesale or run old and new metric contracts
+through the same unconverted history.

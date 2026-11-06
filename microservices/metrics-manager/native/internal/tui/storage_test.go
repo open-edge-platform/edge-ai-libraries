@@ -353,7 +353,7 @@ func TestStorageFilteringIdentityAndBounds(t *testing.T) {
 	}
 }
 
-func TestStorageConfigDefaultsValidationAndExamples(t *testing.T) {
+func TestStorageConfigDefaultsValidationAndPackaging(t *testing.T) {
 	for _, input := range []string{
 		`{"storage":{"maxDevices":0}}`, `{"storage":{"maxFilesystems":33}}`,
 		`{"storage":{"maxSampleAge":"bad"}}`, `{"storage":{"maxSampleAge":"0s"}}`,
@@ -385,6 +385,19 @@ func TestStorageConfigDefaultsValidationAndExamples(t *testing.T) {
 	for _, text := range []string{"[[inputs.disk]]", "[[inputs.diskio]]", `device_tags = ["ID_MODEL"]`, `skip_serial_number = true`, `tagexclude = ["serial", "wwid"]`, `name = ["loop*", "ram*"]`, `precision = "1ns"`} {
 		wantContains(t, string(example), text)
 	}
+	main, err := os.ReadFile("../../packaging/etc/telegraf.conf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(main), "[[inputs.disk") {
+		t.Fatal("storage was enabled without opt-in")
+	}
+	manifest, err := os.ReadFile("../../packaging/nfpm.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantContains(t, string(manifest), "src: etc/telegraf-storage.conf.example")
+	wantContains(t, string(manifest), "dst: /usr/share/doc/metrics-manager/examples/telegraf-storage.conf")
 	if err := validateChartSpecs("details.metrics", make([]ChartSpec, 65)); err == nil {
 		t.Fatal("chart definitions are unbounded")
 	}

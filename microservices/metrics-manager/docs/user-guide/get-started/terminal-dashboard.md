@@ -13,6 +13,10 @@ disk. Use the native collectors and dashboard from the same release; see the
 
 ## Build and start
 
+This guide is also shipped with the Debian package. Repository links point to
+source/build assets that are not installed with it; package users can run
+`mm-tui` directly using the installed defaults.
+
 The Docker service image supplies telemetry, not the interactive dashboard.
 Build the standalone Linux binary from `microservices/metrics-manager` using
 Docker and the pinned Go toolchain; no host Go installation is required:
@@ -35,7 +39,7 @@ docker run --rm --cap-drop ALL --security-opt no-new-privileges \
 ./native/bin/mm-tui --help
 ```
 
-Start a telemetry backend using the [Docker guide](../get-started.md), then run:
+Start a telemetry backend using the [Docker guide](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/metrics-manager/docs/user-guide/get-started.md), then run:
 
 ```bash
 ./native/bin/mm-tui \
@@ -111,9 +115,9 @@ MB label in the Overview image.
 
 Two JSON files control the dashboard independently:
 
-- [tui-dashboard.json](../../../native/packaging/etc/tui-dashboard.json):
+- [tui-dashboard.json](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/metrics-manager/native/packaging/etc/tui-dashboard.json):
   process limits/sorting, thresholds, alerts, mouse, network and storage.
-- [tui-charts.json](../../../native/packaging/etc/tui-charts.json):
+- [tui-charts.json](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/metrics-manager/native/packaging/etc/tui-charts.json):
   history window, graph style, chart sizes, Trends and Details selections.
 
 Without explicit paths, the dashboard looks for these names under
@@ -186,7 +190,7 @@ throughput is not GPU-specific bandwidth. Unavailable data is distinct from zero
 ### Optional network and storage
 
 Enable the relevant collectors using the
-[native Docker collector guide](./native-docker-collectors.md). Configuration
+[native Docker collector guide](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/metrics-manager/docs/user-guide/get-started/native-docker-collectors.md). Configuration
 filters change the display, not collection or permissions:
 
 - `network.interfaces`, `maxInterfaces` (default 8), and `speedMbps` overrides

@@ -1,0 +1,80 @@
+# Copyright (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+[Unit]
+Description=Metrics Manager platform power and idle-state collector
+Documentation=file:///usr/share/doc/metrics-manager/README.md
+After=systemd-tmpfiles-setup.service metrics-manager-telegraf.service
+# The MSR device node only exists once the module is loaded, and without it the
+# package power and C-state readings are absent rather than reported as failed.
+After=systemd-modules-load.service
+
+[Service]
+Type=simple
+User=metrics-manager
+Group=metrics-manager
+# Defaults also cover upgrades retaining an older metrics-manager.env.
+Environment=TURBOSTAT_INTERVAL=5 TURBOSTAT_BIN=/usr/bin/turbostat
+EnvironmentFile=/etc/metrics-manager/metrics-manager.env
+
+ExecStart=/usr/libexec/metrics-manager/telegraf \
+    --config /etc/metrics-manager/telegraf-powerstat.conf \
+    --config-directory /etc/metrics-manager/powerstat.d
+
+Restart=on-failure
+RestartSec=5s
+
+# --- Why this needs capabilities but not root -------------------------------
+#
+# Two sources are involved and both are closed to an ordinary user:
+#
+#   /dev/cpu/*/msr                              root only, needs CAP_SYS_RAWIO
+#   /sys/class/powercap/intel-rapl:*/energy_uj  mode 0400, restricted after
+#                                               CVE-2020-8694
+#
+# Unlike qmassa, which refuses to read anything unless its effective uid is
+# zero, this collector was measured to work as an unprivileged user given the
+# two capabilities below. That is the whole reason it is a separate unit from
+# qmassa: the same readings, one privilege level lower.
+CapabilityBoundingSet=CAP_SYS_RAWIO CAP_DAC_READ_SEARCH
+AmbientCapabilities=CAP_SYS_RAWIO CAP_DAC_READ_SEARCH
+NoNewPrivileges=true
+
+# --- Filesystem -------------------------------------------------------------
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+# Connecting to the collector socket requires write access to the directory.
+ReadWritePaths=/run/metrics-manager
+
+# PrivateDevices would give this service a minimal private /dev without
+# /dev/cpu/*/msr, which is most of what it came for. The device policy is the
+# narrower alternative.
+#
+# The name has to match /proc/devices, which spells this "cpu/msr". A rule that
+# matches nothing is indistinguishable from no rule at all under a closed
+# policy, and the failure is silent.
+DevicePolicy=closed
+DeviceAllow=char-cpu/msr r
+
+# --- Kernel and namespaces --------------------------------------------------
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectProc=invisible
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+# The only output is a unix socket, so no network is needed at all.
+PrivateNetwork=true
+RestrictAddressFamilies=AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

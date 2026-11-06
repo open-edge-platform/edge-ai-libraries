@@ -18,6 +18,8 @@ failure. Run ``make sync-versions`` to fix a reported mismatch.
 import json
 import logging
 import re
+import shutil
+import subprocess
 import tomllib
 from pathlib import Path
 
@@ -77,6 +79,58 @@ class TestReleaseVersion:
         assert production.index("ARG VERSION=") < production.index("ENV SERVICE_VERSION=${VERSION}")
         assert 'org.opencontainers.image.version="${VERSION}"' in production
         assert "-X main.version=${VERSION}" in dockerfile_text
+
+    def test_native_package_runtime_dependencies(self):
+        package = yaml.safe_load(
+            (REPO_ROOT / "native/packaging/nfpm.yaml").read_text(encoding="utf-8")
+        )
+        assert {
+            "adduser",
+            "systemd",
+            "kmod",
+            "libudev1",
+            "libcap2",
+            "libgcc-s1",
+            "libc6 (>= 2.34)",
+        } <= set(package["depends"])
+
+    @pytest.mark.parametrize("suffix", [None, "-rc1"])
+    def test_package_rejects_mismatched_image_before_staging(
+        self, tmp_path, release_version, suffix
+    ):
+        native = tmp_path / "native"
+        stage = native / "packaging/dist"
+        stage.mkdir(parents=True)
+        marker = stage / "existing-output"
+        marker.write_text("keep")
+        shutil.copy2(REPO_ROOT / "native/build.sh", native / "build.sh")
+        for name in ("VERSION", "versions.env"):
+            shutil.copyfile(REPO_ROOT / name, tmp_path / name)
+        tools = tmp_path / "tools"
+        tools.mkdir()
+        docker = tools / "docker"
+        version = "" if suffix is None else release_version + suffix
+        docker.write_text("#!/bin/sh\nprintf '%s\\n' \"$TEST_IMAGE_VERSION\"\n")
+        docker.chmod(0o755)
+        result = subprocess.run(
+            ["sh", str(native / "build.sh")],
+            env={
+                "PATH": f"{tools}:/usr/bin:/bin",
+                "SKIP_IMAGE_BUILD": "1",
+                "IMAGE": "version-test",
+                "TEST_IMAGE_VERSION": version,
+            },
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        assert result.returncode != 0
+        assert f"rebuild with TAG={release_version} before packaging" in result.stderr
+        assert marker.read_text() == "keep"
+
+    def test_package_staging_is_excluded_from_docker_context(self):
+        assert "native/packaging/dist/" in (REPO_ROOT / ".dockerignore").read_text().splitlines()
 
     @pytest.mark.parametrize("endpoint", ["/", "/health", "/api/health"])
     @pytest.mark.parametrize("override", [None, "custom-build"])

@@ -12,4 +12,5 @@
 # container writes them through a bind mount they end up owned by root, which
 # then blocks a normal `rm` on the host.
 native/bin/
+native/packaging/dist/
 **/__pycache__/
