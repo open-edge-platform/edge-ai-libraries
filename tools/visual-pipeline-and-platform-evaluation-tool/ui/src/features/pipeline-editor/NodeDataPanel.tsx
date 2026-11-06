@@ -148,8 +148,6 @@ const isControllingProperty = (
   properties: NodePropertyConfig[],
 ): boolean => properties.some((prop) => prop.visibleWhen?.key === key);
 
-// Properties are serialised verbatim onto the command line, so a hidden or
-// empty one would still be emitted as `key=` and read as a configured value.
 const syncConditionalProperties = (
   properties: NodePropertyConfig[],
   data: Record<string, unknown>,
@@ -465,9 +463,6 @@ const NodeDataPanel = ({
 
   const editableProperties = nodeConfig?.editableProperties ?? [];
 
-  // TODO: maybe it should only display defined fields
-  // Visibility only drives rendering here; hidden properties are removed from
-  // the node data in handleInputChange so they never reach the launch string.
   const dataEntries = nodeConfig
     ? editableProperties
         .filter((prop) => !prop.key.startsWith("__"))

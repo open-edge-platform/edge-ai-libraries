@@ -19,7 +19,6 @@ export const isApiError = (error: unknown): error is RTKQueryError =>
 
 type ValidationErrorItem = { loc?: unknown[]; msg?: string };
 
-// FastAPI reports request-validation failures as `detail`, not `message`.
 const getValidationErrorMessage = (error: unknown): string | null => {
   if (typeof error !== "object" || error === null || !("data" in error)) {
     return null;

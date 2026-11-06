@@ -400,7 +400,6 @@ export const Pipelines = () => {
         }).unwrap();
       }
 
-      // Check the ADVANCED graph for gvametapublish (simple mode hides these nodes)
       const hasMetadata = hasFileMetadataPublisher(payloadGraphData.nodes);
 
       const status = await runPipeline({
@@ -518,7 +517,6 @@ export const Pipelines = () => {
           : 0;
     const currentVariantData = data.variants.find((v) => v.id === variant);
     const isReadOnly = currentVariantData?.read_only ?? false;
-    // The simple view hides publish nodes, so only trust live edits in advanced mode.
     const editedGraphNodes = toGraphNodes(currentNodes);
     const metadataPublisherNodes =
       !isSimpleMode && hasMetadataPublisher(editedGraphNodes)
