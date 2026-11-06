@@ -228,23 +228,6 @@ black app/
 ruff check app/
 ```
 
-## Building the Helm Chart
-
-If you are deploying to Kubernetes:
-
-```bash
-# Lint the Helm chart
-make helm-lint
-
-# Generate the chart package
-make helm-package
-
-# Push to OCI registry (requires authentication)
-make helm-push
-```
-
-See [Helm Deployment](./deploy-with-helm.md) for full Kubernetes instructions.
-
 ## Customization
 
 ### Modifying Telegraf Configuration
@@ -296,7 +279,6 @@ The script runs every 10 seconds and outputs InfluxDB Line Protocol.
 - [System Requirements](./system-requirements.md)
 - [Testing Guide](./testing.md)
 - [Environment Variables](./environment-variables.md)
-- [Helm Deployment](./deploy-with-helm.md)
 - [Troubleshooting](../troubleshooting.md)
 
 ## License

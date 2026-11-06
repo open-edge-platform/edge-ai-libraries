@@ -132,6 +132,24 @@ class TestReleaseVersion:
     def test_package_staging_is_excluded_from_docker_context(self):
         assert "native/packaging/dist/" in (REPO_ROOT / ".dockerignore").read_text().splitlines()
 
+    @pytest.mark.skipif(shutil.which("make") is None, reason="make CLI not installed")
+    def test_make_commands_work_with_only_container_build_metadata(self, tmp_path):
+        for name in ("Makefile", "VERSION", "versions.env"):
+            shutil.copyfile(REPO_ROOT / name, tmp_path / name)
+        result = subprocess.run(
+            ["make", "--dry-run", "help", "version", "build", "build-test", "clean"],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        assert result.returncode == 0, result.stderr
+        assert not result.stderr
+        assert "docker compose build" in result.stdout
+        assert "docker compose down --rmi local --volumes --remove-orphans" in result.stdout
+        assert "helm" not in result.stdout.lower()
+
     @pytest.mark.parametrize("endpoint", ["/", "/health", "/api/health"])
     @pytest.mark.parametrize("override", [None, "custom-build"])
     def test_api_reports_release(self, endpoint, override, client, release_version, monkeypatch):
@@ -155,7 +173,7 @@ class TestReleaseVersion:
     )
     def test_current_documentation_versions(self, path, release_version):
         text = (REPO_ROOT / path).read_text(encoding="utf-8")
-        references = re.findall(r"(?<![\d.])2026\.\d+\.\d+(?![\d.]|-helm)", text)
+        references = re.findall(r"(?<![\d.])2026\.\d+\.\d+(?![\d.])", text)
         assert references, f"No current version references found in {path}"
         assert set(references) == {release_version}
 

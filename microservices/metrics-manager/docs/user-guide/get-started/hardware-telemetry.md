@@ -7,7 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 
 > [!IMPORTANT]
 > This page documents the legacy Python-reader images and their configuration,
-> retained for users of the unchanged Helm chart. For the native Docker image
+> retained for users of older images. For the native Docker image
 > in 2026.3.0, use [Native Docker Collectors](./native-docker-collectors.md)
 > and the [metric migration guide](./native-metric-migration.md).
 > The legacy `ENABLE_*` switches below are not the native image's interface.
@@ -240,8 +240,7 @@ interrupts. The summary row carries `core="-"`, so filter per-core queries with
   opened. If either check fails, it logs `[WARN]  60-turbostat: ...` and skips the
   collector instead of letting turbostat restart in a loop.
 - `TURBOSTAT_INTERVAL` sets the sampling cadence in seconds (default `5`).
-- The Helm chart has no turbostat bind-mount. Turbostat is a Docker Compose feature
-  in this release.
+- Turbostat is a Docker Compose feature in this release.
 
 ### High-frequency temperature: `ENABLE_TEMP_STATS`
 
@@ -260,8 +259,7 @@ runs unchanged. Native images use the separate
 ## Querying the Metrics
 
 Metrics Manager exposes everything on `:9273` in Prometheus format; it does not ship
-dashboards. A scrape-job snippet is in `dashboards/prometheus-scrape-job.yml`. The Helm
-chart can create a `ServiceMonitor` (see [Helm Deployment](./deploy-with-helm.md)).
+dashboards. A scrape-job snippet is in `dashboards/prometheus-scrape-job.yml`.
 
 Prometheus appends the field name to the measurement name, so `rapl_power` with field
 `power_w` becomes `rapl_power_power_w`. Counters need `rate()`; gauges are queried directly.
@@ -322,7 +320,6 @@ total. See [Expected Series Count](#supported-hardware-and-expected-series-count
 
 - [Environment Variables](./environment-variables.md)
 - [How It Works](../how-it-works.md)
-- [Helm Deployment](./deploy-with-helm.md)
 - [System Requirements](./system-requirements.md)
 - [Troubleshooting](../troubleshooting.md)
 

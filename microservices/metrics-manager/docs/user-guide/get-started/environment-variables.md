@@ -384,7 +384,6 @@ Correlation IDs appear in all log entries for request tracing.
 - [Get Started Guide](../get-started.md)
 - [System Requirements](./system-requirements.md)
 - [Custom Metrics Scripts](./custom-metrics.md)
-- [Helm Deployment](./deploy-with-helm.md)
 - [Troubleshooting](../troubleshooting.md)
 
 ## License

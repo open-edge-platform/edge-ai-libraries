@@ -181,7 +181,6 @@ COPY tests ./tests
 COPY docs ./docs
 COPY README.md ./
 COPY native ./native
-COPY helm ./helm
 COPY pyproject.toml ./
 COPY VERSION ./
 COPY versions.env ./

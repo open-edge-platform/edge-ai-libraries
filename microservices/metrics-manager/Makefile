@@ -30,21 +30,11 @@ BUILD_ARGS := \
 	--build-arg GO_IMAGE=$(GO_IMAGE) \
 	--build-arg PYTHON_IMAGE=$(PYTHON_IMAGE)
 
-# Helm packaging configuration. Charts are pushed to the same OCI path as
-# the container image; the chart version carries a `-helm` suffix so the
-# two artefacts coexist under intel/metrics-manager:<X.Y.Z> (image) and
-# intel/metrics-manager:<X.Y.Z>-helm (chart). The chart is versioned independently.
-HELM_CHART_DIR     := helm/metrics-manager
-HELM_CHART_VERSION := $(shell sed -n 's/^version:[[:space:]]*//p' $(HELM_CHART_DIR)/Chart.yaml)
-HELM_OCI_REGISTRY  ?= oci://registry-1.docker.io/intel
-HELM_PACKAGE_DIR   := dist/helm
-
 export TAG
 export REGISTRY
 export INSTALL_OPENVINO
 
-.PHONY: help version versions sync-versions build build-test up down logs test clean bump \
-        helm-lint helm-template helm-package helm-push generate-helm
+.PHONY: help version versions sync-versions build build-test up down logs test clean bump
 
 help:
 	@echo "Metrics Manager - available targets:"
@@ -59,14 +49,7 @@ help:
 	@echo "  make logs               Tail container logs"
 	@echo "  make test               Run pytest inside the test image"
 	@echo "  make clean              Remove built images and stopped containers"
-	@echo "  make bump NEW=2026.3.0  Update legacy application mirrors (not Helm); see README"
-	@echo ""
-	@echo "Helm chart targets (require the 'helm' CLI):"
-	@echo "  make helm-lint          helm lint $(HELM_CHART_DIR)"
-	@echo "  make helm-template      Render the chart with default values"
-	@echo "  make helm-package       Package the chart into $(HELM_PACKAGE_DIR)/metrics-manager-$(HELM_CHART_VERSION).tgz"
-	@echo "  make generate-helm      Alias for helm-lint + helm-package"
-	@echo "  make helm-push          Push the packaged chart to $(HELM_OCI_REGISTRY)"
+	@echo "  make bump NEW=2026.3.0  Update legacy application mirrors; see README"
 	@echo ""
 	@echo "Override the tag for a one-off build:  make build TAG=dev"
 
@@ -121,32 +104,9 @@ test: build-test
 
 clean:
 	docker compose down --rmi local --volumes --remove-orphans
-	rm -rf $(HELM_PACKAGE_DIR)
-
-# -----------------------------------------------------------------------------
-# Helm chart targets
-# -----------------------------------------------------------------------------
-
-helm-lint:
-	@test -n "$(HELM_CHART_VERSION)" || (echo "ERROR: chart version is missing from $(HELM_CHART_DIR)/Chart.yaml" && exit 1)
-	helm lint $(HELM_CHART_DIR)
-
-helm-template:
-	helm template metrics-manager $(HELM_CHART_DIR)
-
-helm-package: helm-lint
-	@mkdir -p $(HELM_PACKAGE_DIR)
-	helm package $(HELM_CHART_DIR) --destination $(HELM_PACKAGE_DIR)
-	@echo "Packaged: $(HELM_PACKAGE_DIR)/metrics-manager-$(HELM_CHART_VERSION).tgz"
-
-# Alias used in docs - lints and packages the chart in one step.
-generate-helm: helm-package
-
-helm-push: helm-package
-	helm push $(HELM_PACKAGE_DIR)/metrics-manager-$(HELM_CHART_VERSION).tgz $(HELM_OCI_REGISTRY)
 
 # Update legacy application mirrors. Usage: make bump NEW=2026.3.0
-# Review the complete release checklist in README; Helm is versioned separately.
+# Review the complete release checklist in README.
 # Updates: VERSION, pyproject.toml, .env, .env.example, compose.yaml,
 #          app/settings.py, app/logging_config.py, docs/DOCKERHUB.md
 bump:

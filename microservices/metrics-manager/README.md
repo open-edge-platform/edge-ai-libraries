@@ -19,7 +19,6 @@ A unified metrics collection, ingestion, and relay service that combines Telegra
 - **Full Documentation:** [Documentation](docs/user-guide/index.md)
 - **Issues / feature requests:** [Edge AI Libraries Issues Page](https://github.com/open-edge-platform/edge-ai-libraries/issues) (use the `metrics-manager` label)
 - **Container image (Docker Hub):** [`intel/metrics-manager`](https://hub.docker.com/r/intel/metrics-manager) - tagged `intel/metrics-manager:<VERSION>` (e.g. `intel/metrics-manager:2026.3.0`)
-- **Helm chart (OCI):** `oci://registry-1.docker.io/intel/metrics-manager:<VERSION>-helm` (see [Helm Deployment Guide](./docs/user-guide/get-started/deploy-with-helm.md))
 
 ## Features
 
@@ -145,24 +144,6 @@ docker run -d \
   metrics-manager
 ```
 
-### On Kubernetes (Helm)
-
-The existing Helm chart is published at the same OCI repository, distinguished
-by the `-helm` tag suffix. The chart remains at its upstream version; the native
-Docker migration described here does not update its deployment configuration.
-
-```bash
-helm install metrics-manager \
-  oci://registry-1.docker.io/intel/metrics-manager \
-  --version 2026.2.0-helm \
-  --namespace observability --create-namespace
-```
-
-The chart exposes Telegraf and the REST/SSE API as a `Service`, supports
-`Deployment` or `DaemonSet` mode, and integrates with Prometheus Operator
-via an opt-in `ServiceMonitor`. See the [Helm Deployment Guide](./docs/user-guide/get-started/deploy-with-helm.md) for the
-complete reference.
-
 ## Building the Image
 
 The image version is the **single source of truth** in [`VERSION`](VERSION) (currently
@@ -180,13 +161,6 @@ make logs               # tail container logs
 make down               # stop & remove
 make test               # build test image and run pytest
 make clean              # remove built images, volumes, orphaned containers
-
-# Helm chart (requires the `helm` CLI)
-make helm-lint          # helm lint helm/metrics-manager
-make helm-template      # render the chart with default values
-make helm-package       # use the chart's own version from Chart.yaml
-make generate-helm      # alias: helm-lint + helm-package
-make helm-push          # push the packaged chart to oci://registry-1.docker.io/intel
 
 # Override the tag for a one-off local build (e.g. a feature branch image)
 make build TAG=dev      # → metrics-manager:dev
@@ -275,10 +249,9 @@ docker push intel/metrics-manager:2026.3.0-extended-rc1
    `app/settings.py`, `app/logging_config.py` and current documentation examples.
    Preserve historical release entries and third-party versions. Check your
    local `.env` for an intentional `TAG` override; it is not rewritten for you.
-   For 2026.3.0, Helm is outside this work's scope. Do not use the legacy
+   Do not use the legacy
    `make bump` target for this change: it references old documentation paths
-   and does not update every current mirror. Helm packaging reads its version
-   from `Chart.yaml`, independently of the application `VERSION`.
+   and does not update every current mirror.
 2. Review the change: `git diff`.
 3. `make build` — the image will be tagged `metrics-manager:2026.3.0` and the
    OCI label `org.opencontainers.image.version` will be stamped automatically
@@ -309,13 +282,12 @@ read at a different time:
 | `app/settings.py`                 | Pydantic default for `/health` `version` field                     | Runtime fallback when `SERVICE_VERSION` env var is unset |
 | `app/logging_config.py`           | Default `version` field in JSON log records                        | Runtime fallback                                         |
 | Current README and user guides   | Installation examples and API responses                            | Documentation                                            |
-| `helm/metrics-manager/Chart.yaml` | Helm chart `version` (`<X.Y.Z>-helm`) and `appVersion` (`<X.Y.Z>`) | Build time when packaging the chart                      |
 
-`tests/test_versions.py` guards the current non-Helm release mirrors and
+`tests/test_versions.py` guards the current release mirrors and
 third-party pins. Run it with the repository's Python test environment.
 `TAG` still overrides Compose image tags/build arguments, and `SERVICE_VERSION`
 still overrides the reported service version at runtime. Setting one does not
-automatically set the other. Helm metadata is unchanged in this work.
+automatically set the other.
 
 ### Verify
 
@@ -400,18 +372,10 @@ metrics-manager/
 │   │   ├── mm-plugin-gpu/   # Intel GPU, parsed from the qmassa named pipe
 │   │   └── mm-plugin-npu/   # Intel NPU, read via PMT sysfs
 │   └── internal/            # Shared parsing and line-protocol packages
-├── helm/                    # Helm chart published as oci://.../metrics-manager:<VERSION>-helm
-│   └── metrics-manager/
-│       ├── Chart.yaml       # Chart metadata (version, appVersion)
-│       ├── values.yaml      # Default values - all tunables
-│       ├── .helmignore
-│       └── templates/       # Deployment/DaemonSet, Service, ConfigMap,
-│                            # PVC, ServiceAccount, ServiceMonitor, NOTES.txt
 ├── docs/                    # Detailed documentation
 │   ├── API.md               # Full API reference
 │   ├── ARCHITECTURE.md      # Architecture and data flow
 │   ├── CONFIGURATION.md     # Environment variables and Telegraf config
-│   ├── HELM.md              # Kubernetes deployment via the Helm chart
 │   ├── INSTALLATION.md      # Step-by-step host setup
 │   ├── TESTING.md           # Testing guide and smoke tests
 │   └── TROUBLESHOOTING.md   # Common issues and solutions
@@ -434,7 +398,6 @@ metrics-manager/
 | [Build from Source](./docs/user-guide/get-started/build-from-source.md)         | Building the metrics manager from source code                       |
 | [Environment Variables](./docs/user-guide/get-started/environment-variables.md) | Configuration through environment variables and Telegraf config     |
 | [Custom Metrics](./docs/user-guide/get-started/custom-metrics.md)               | Using the REST API for custom metrics                               |
-| [Deploy with Helm](./docs/user-guide/get-started/deploy-with-helm.md)           | Kubernetes deployment via the published OCI Helm chart              |
 | [Testing](./docs/user-guide/get-started/testing.md)                             | Unit tests, smoke tests, development setup                          |
 | [How It Works](./docs/user-guide/how-it-works.md)                               | Architecture, data flow, and component relationships                |
 | [API Reference](./docs/user-guide/api-reference.md)                             | All endpoints, formats, examples, response models                   |

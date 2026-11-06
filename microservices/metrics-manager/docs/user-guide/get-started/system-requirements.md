@@ -45,9 +45,7 @@ The capabilities endpoint (`GET /api/v1/capabilities`) is available wherever the
 
 **Optional Software**
 
-- `make` — for convenience commands (e.g., `make helm-lint`)
-- `kubectl` — if deploying to Kubernetes
-- `helm` 3.8+ — if using the Helm chart for Kubernetes deployment
+- `make` — for convenience commands (e.g., `make build`)
 
 ## Hardware-Specific Notes
 

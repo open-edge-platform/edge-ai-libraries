@@ -11,7 +11,7 @@
 
 **New:**
 
-- **Hardware Telemetry Collectors (opt-in)**: Nine collectors, each enabled by its own `ENABLE_*` environment variable (or `config.enable*` Helm value), expose additional Intel hardware metrics through the existing Prometheus endpoint: CPU package power, per-core frequency, temperature and C-state residency (`ENABLE_RAPL_POWER`), platform (`psys`) power (`ENABLE_PSYS_POWER`), DRAM bandwidth (`ENABLE_DRAM_BW`), disk I/O (`ENABLE_DISK_IO`), network and NIC statistics (`ENABLE_NET_IO`), per-device interrupts (`ENABLE_INTERRUPTS`), high-frequency temperature statistics (`ENABLE_TEMP_STATS`), GPU throttle state (`ENABLE_GPU_THROTTLE`) and turbostat diagnostics (`ENABLE_TURBOSTAT`). **All are off by default**, so these optional collectors add no metrics unless enabled, including for deployments that mount their own `telegraf.conf`. The additional NPU `power_state` field and the NPU changes described above are independent of these toggles. See [Hardware Telemetry Collectors](./get-started/hardware-telemetry.md).
+- **Hardware Telemetry Collectors (opt-in)**: Nine collectors, each enabled by its own `ENABLE_*` environment variable, expose additional Intel hardware metrics through the existing Prometheus endpoint: CPU package power, per-core frequency, temperature and C-state residency (`ENABLE_RAPL_POWER`), platform (`psys`) power (`ENABLE_PSYS_POWER`), DRAM bandwidth (`ENABLE_DRAM_BW`), disk I/O (`ENABLE_DISK_IO`), network and NIC statistics (`ENABLE_NET_IO`), per-device interrupts (`ENABLE_INTERRUPTS`), high-frequency temperature statistics (`ENABLE_TEMP_STATS`), GPU throttle state (`ENABLE_GPU_THROTTLE`) and turbostat diagnostics (`ENABLE_TURBOSTAT`). **All are off by default**, so these optional collectors add no metrics unless enabled, including for deployments that mount their own `telegraf.conf`. The additional NPU `power_state` field and the NPU changes described above are independent of these toggles. See [Hardware Telemetry Collectors](./get-started/hardware-telemetry.md).
 - **NPU `power_state`**: `npu_reader.py` now also reports the NPU PCI power state as `npu_power_state` (D0=0, D1=1, D2=2, D3hot=3, D3cold=4, unknown=-1). This adds one field to the existing `npu` measurement.
 - **`host-nic-telemetry` Compose profile**: Opt-in `metrics-manager-host-nic` service that runs with host networking so the network collector reports the host's physical NICs. The default bridge deployment is unchanged.
 - **Optional `perf` build variant**: New `INSTALL_PERF` build argument installs `linux-perf` (GPL-2.0, about 150 MB), required only for DRAM bandwidth collection. It is off by default and not in the published image.
@@ -74,10 +74,9 @@
 - **Custom Metrics Scripts** — Drop executable scripts into `/app/custom-metrics/` (shell or Python). Telegraf runs them every 10 seconds and publishes metrics automatically
   - **Impact**: No REST API calls needed for custom metrics. Simplest way to add application-specific metrics
 
-- **Docker Compose & Kubernetes** — Production-ready `compose.yaml` and Helm chart included
+- **Docker Compose** — Production-ready `compose.yaml` included
   - Docker Compose for standalone deployments
-  - Helm chart published to OCI registry (`oci://registry-1.docker.io/intel/metrics-manager:2026.1.0-helm`)
-  - **Impact**: Deploy in 3 commands on Docker or Kubernetes
+  - **Impact**: Deploy in 3 commands on Docker
 
 - **Comprehensive API Reference** — Health checks, statistics, detailed endpoint documentation
   - Basic health (`GET /health`)
@@ -156,7 +155,6 @@ None at this release. See GitHub issues for feature requests and discussions.
 | Component    | Version | Support                                |
 | ------------ | ------- | -------------------------------------- |
 | Docker       | 24.0+   | Required                               |
-| Kubernetes   | 1.25+   | Via Helm chart                         |
 | Python       | 3.12    | Included in image                      |
 | Linux Kernel | 5.4+    | Required for system metrics collection |
 
@@ -174,7 +172,7 @@ No breaking changes. All existing endpoints remain compatible.
 **Migration steps:**
 
 1. Pull new image: `docker pull intel/metrics-manager:2026.1.0`
-2. Update `docker-compose.yaml` or Helm values if pinning version
+2. Update `docker-compose.yaml` if pinning version
 3. Restart: `docker compose up -d`
 4. No data migration needed (in-memory store)
 

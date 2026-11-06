@@ -18,7 +18,7 @@ hide_directive-->
 - **Multi-format Ingestion**: Accepts metrics from any source — JSON, InfluxDB Line Protocol, OpenTelemetry (OTLP), or simple single-metric endpoints
 - **Real-time Streaming**: Live SSE stream for dashboards without polling overhead; browser-friendly HTML UI included
 - **Hardware Telemetry**: Automatic collection from CPU, RAM, temperature sensors, Intel® Arc GPU (qmassa), and Intel® NPU (via PMT)
-- **Container-Ready**: Single Docker image with all dependencies; runs on Kubernetes via Helm chart
+- **Container-Ready**: Single Docker image with all dependencies; runs with Docker Compose
 - **Low Latency**: In-memory metrics with configurable retention; debounced persistence to avoid bottlenecks
 
 ## Features
@@ -32,7 +32,7 @@ hide_directive-->
 - **Health checks** — basic and detailed endpoints with service statistics
 - **Memory protection** — automatic eviction of oldest metrics when limit reached (default 100k metrics)
 - **Flexible configuration** — 30+ environment variables for tuning a wide range of aspects
-- **Docker Compose & Kubernetes** — production-ready `compose.yaml` and Helm chart included
+- **Deployment Options** — Docker Compose for the API and telemetry, or the native Debian package for telemetry and TUI
 
 ## Use Cases
 
@@ -89,7 +89,6 @@ For details, see [How It Works](./how-it-works.md).
 - [Terminal Dashboard](./get-started/terminal-dashboard.md)
 - [Bare-metal Package](./get-started/bare-metal-package.md)
 - [Custom Metrics Scripts](./get-started/custom-metrics.md)
-- [Helm Deployment](./get-started/deploy-with-helm.md)
 - [Building from Source](./get-started/build-from-source.md)
 - [Troubleshooting](./troubleshooting.md)
 - [Release Notes](./release-notes.md)

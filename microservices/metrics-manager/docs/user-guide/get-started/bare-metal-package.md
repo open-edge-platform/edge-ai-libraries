@@ -1523,7 +1523,7 @@ and container bind mounts can hide mounts or expose private equivalents.
 does not infer host filesystem failure from that mode. Verify that the expected
 paths are exported from the installed service. Do not broadly disable its
 sandbox or give the endpoint service root/privileged access. Monitoring protected
-mounts needs an operator-reviewed deployment configuration. Container/Helm host
+mounts needs an operator-reviewed deployment configuration. Container host
 storage visibility is a separate deployment concern; running this input in an
 ordinary container does not validate host filesystem coverage.
 Disk I/O counters come from procfs/sysfs. Device-name metadata may be unavailable
