@@ -3502,15 +3502,15 @@ debian_40_sbom_npu_accel ()
 }
 debian_45_install_power_tuning () 
 { 
-    configure_power_tuning;
+    configure_power_tuning "$@";
     if verify_power_tuning && [[ " $* " != *" --reinstall "* ]]; then
         echo "power_tuning is installed." 1>&2;
     else
         ensure_prop set installed/power_tuning/owned true;
         echo "@@STEP Cloning repository";
         ensure_git_export "$workspace" "$version" "$repository" tools/power-tuning;
+        sed -i -e 's|^MODEL_PATH=.*|MODEL_PATH=/tmp/openvino-stress/models|' -e 's|^GNU_VENV_DIR=.*|GNU_VENV_DIR=/tmp/openvino-stress/venv|' "$workspace"/tools/power-tuning/openvino_stress.sh;
         ensure_sudo mkdir -p "$power_tuning_path";
-        sed -i -e "s|^MODEL_PATH=.*|MODEL_PATH=$workspace/models|" -e "s|^GNU_VENV_DIR=.*|GNU_VENV_DIR=$workspace/.venv|" tools/power-tuning/openvino_stress.sh;
         ensure_sudo cp -r "$workspace"/tools/power-tunning/* "$power_tuning_path";
         verify_power_tuning;
     fi
@@ -3531,9 +3531,9 @@ debian_45_profile_power_tuning ()
 }
 debian_45_remove_power_tuning () 
 { 
-    configure_power_tuning;
+    configure_power_tuning "$@";
     [ "$(ensure_prop get installed/power_tuning/owned)" = "true" ] || return 0;
-    ensure_rm "$power_tuning_path"
+    ensure_rm "$power_tuning_path" /tmp/openvino-stress
 }
 debian_45_sbom_ubuntu_server () 
 { 
@@ -7429,7 +7429,7 @@ verify_pcm ()
 }
 verify_power_tuning () 
 { 
-    [ -x /usr/local/sbin/pcm ]
+    [ -e "$power_tuning_path"/openvino_stress.sh ]
 }
 verify_realsense () 
 { 
