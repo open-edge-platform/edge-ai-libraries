@@ -9,14 +9,18 @@
 - RHEL 9 or newer
 - Any Linux distribution with kernel 5.4+
 
-The service uses Linux-specific paths (`/sys`, `/proc`, `/dev/dri`) mounted into the container. It cannot collect system metrics on Windows or macOS hosts, but the REST API and SSE streaming work on any platform.
+The shipped Docker build targets **Linux/amd64**.
+Telemetry uses Linux-specific paths (`/sys`, `/proc`, `/dev/dri`). Running
+Docker inside a VM on another operating system exposes the VM's environment,
+not the physical host's Windows or macOS telemetry.
 
 The capabilities endpoint (`GET /api/v1/capabilities`) is available wherever the service runs, but hardware-enriched values depend on Linux host visibility (`/sys`, `/proc`, and optionally `/dev/dri`).
 
 **Hardware Platforms**
 
 - Any x86-64 processor (Intel or AMD)
-- Any ARM64 processor (with Docker installed)
+- ARM64 images/packages are not supplied by the current build: the Telegraf
+  archive and Debian package target are amd64.
 - Intel Arc GPU (optional, for GPU metrics via qmassa)
 - Intel NPU (MTL/ARL/LNL/PTL generations, optional, for NPU metrics)
 
@@ -47,11 +51,39 @@ The capabilities endpoint (`GET /api/v1/capabilities`) is available wherever the
 
 ## Hardware-Specific Notes
 
+### OpenVINO inference in the extended image
+
+The extended image supplies OpenVINO plus Intel OpenCL/Level Zero GPU and NPU
+userspace runtimes and compilers. The default image collects GPU/NPU telemetry
+without these inference dependencies.
+
+- GPU inference requires a supported Intel GPU, its host `i915`/`xe` driver,
+  and access to `/dev/dri/renderD*`.
+- NPU inference additionally requires compatible host `intel_vpu` and firmware,
+  and access to `/dev/accel/accel*`. PMT telemetry alone does not prove inference
+  access. The image does not install firmware or kernel modules.
+- The shipped privileged Compose profile exposes the devices. A restricted
+  deployment must explicitly grant the required device nodes and render-group
+  permissions; do not change host security settings merely to pass a test.
+- Official Intel vendor binaries target Ubuntu, but their pinned dependencies
+  are resolved against Debian 13 without adding Ubuntu repositories or replacing
+  the system C library. This is project-level compatibility validation, not an
+  upstream support statement for Debian.
+- Real CPU/GPU/NPU inference was validated on an Intel Core Ultra 5 225H with
+  Arrow Lake graphics/NPU and Linux 7.0.0-42. Other device, firmware and kernel
+  combinations require their own validation.
+
+See the [hardware smoke test](./testing.md#openvino-accelerator-smoke-test).
+Missing devices fail that test explicitly; it does not fall back to CPU.
+
 ### Intel Arc GPU (Recommended for GPU metrics)
 
 - Requires Intel Arc GPU to be installed on the system
-- No additional drivers needed in the container (GPU metrics read from sysfs)
-- The qmassa reader (`scripts/qmassa_reader.py`) automatically detects the GPU and publishes metrics
+- Requires a compatible host kernel driver (`i915` or `xe`) and DRM access.
+- qmassa collects device data; `mm-plugin-gpu` parses its FIFO stream into
+  telemetry. Power and temperature can additionally require perf/MSR access.
+- The optional extended image adds userspace OpenVINO/VAAPI components; it
+  does not install or replace the host kernel driver.
 
 **Collected metrics:**
 
@@ -76,27 +108,19 @@ If GPU is absent, qmassa logs `No DRM devices found` and exits gracefully. Other
 **Collected metrics:**
 
 - NPU power draw (watts)
-- NPU frequency
-- NPU temperature
-- NPU utilization (%)
-- NPU bandwidth
-- NPU PCI power state (`npu_power_state`: D0=0, D1=1, D2=2, D3hot=3, D3cold=4, unknown=-1)
+- NPU frequency (Hz)
+- NPU temperature (degrees Celsius)
+- NPU utilization (%), when supported
+- NPU bandwidth (bytes/second)
 - Tile configuration
-- Memory usage (MB) — reports `-1` on MTL/ARL (sysfs node does not exist)
+- Memory usage (bytes), when the required telemetry fields are present.
+  Unsupported readings are omitted; measured zero remains zero. The native
+  collector does not publish `-1` as a substitute for unavailable memory.
+
+See the [native metric migration guide](./native-metric-migration.md) for
+field names and display conversions.
 
 If NPU is absent or driver is not loaded, the NPU reader logs a warning and enters idle mode. Other metrics continue normally.
-
-### Hardware Telemetry Collectors (Optional)
-
-The opt-in [hardware telemetry collectors](./hardware-telemetry.md) have extra host requirements. Each one idles without data when its requirement is missing; none of them affects the default metrics.
-
-| Collector                                     | Host requirements                                                                                          |
-| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `ENABLE_RAPL_POWER`, `ENABLE_PSYS_POWER`      | Intel CPU; kernel modules `intel_rapl_common`, `msr`, `cpufreq`, `intel-uncore-frequency`; privileged container |
-| `ENABLE_DRAM_BW`                              | Image built with `INSTALL_PERF=true`; `perf_event_paranoid` of `0` or lower; IMC free-running PMU exposed   |
-| `ENABLE_GPU_THROTTLE`                         | Intel GPU on the `xe` driver                                                                               |
-| `ENABLE_TURBOSTAT`                            | Host `turbostat` binary matching the running kernel; `msr` module; privileged container                    |
-| `ENABLE_DISK_IO`, `ENABLE_NET_IO`, `ENABLE_INTERRUPTS`, `ENABLE_TEMP_STATS` | Linux `/proc` and `/sys` (privileged container for interrupts); host networking for host NICs |
 
 ## Capabilities API Quick Check
 

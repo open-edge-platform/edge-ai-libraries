@@ -13,7 +13,6 @@ from app.main import app
 from app.metrics import reset_service_metrics
 from app.rate_limit import reset_rate_limiter
 from app.store import reset_metrics_store
-from tests.reader_loader import load_reader  # noqa: F401  (fixture for reader tests)
 
 
 @pytest.fixture(autouse=True)
@@ -39,5 +38,6 @@ def client() -> Generator[TestClient, None, None]:
 async def async_client() -> AsyncGenerator[AsyncClient, None]:
     """Create an asynchronous test client."""
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        yield ac
+    async with app.router.lifespan_context(app):
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            yield ac

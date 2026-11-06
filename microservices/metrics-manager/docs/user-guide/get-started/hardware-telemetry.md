@@ -1,4 +1,16 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Hardware Telemetry Collectors
+
+> [!IMPORTANT]
+> This page documents the legacy Python-reader images and their configuration,
+> retained for users of the unchanged Helm chart. For the native Docker image
+> in 2026.3.0, use [Native Docker Collectors](./native-docker-collectors.md)
+> and the [metric migration guide](./native-metric-migration.md).
+> The legacy `ENABLE_*` switches below are not the native image's interface.
 
 Besides the default CPU, memory, temperature, GPU and NPU metrics, Metrics Manager can
 collect a set of additional Intel hardware metrics: package and platform power,
@@ -30,8 +42,8 @@ platforms. Each collector is a separate, opt-in switch, so you only pay for what
 
 The NPU `power_state` field (`npu_power_state`) is not behind a toggle; it is part of the
 existing NPU reader. Accepted "on" values are `true`, `1`, `yes`, `on` and `auto`
-(case-insensitive). See [Environment Variables](./environment-variables.md#hardware-telemetry-collectors)
-for the full variable reference.
+(case-insensitive). The table above lists the legacy collector variables;
+the [current variable reference](./environment-variables.md) describes native images.
 
 ## Quick Start: the TCMI Preset
 
@@ -242,7 +254,8 @@ cadence.
 You can still mount your own `telegraf.conf` with `TELEGRAF_CONFIG`. The container
 always starts Telegraf with `--config-directory /etc/telegraf/active.d`, which holds only
 the collectors you enabled. With every toggle off that directory is empty, so your config
-runs unchanged. See [How It Works](../how-it-works.md#hardware-telemetry-collectors) for details.
+runs unchanged. Native images use the separate
+[native collector selection](./native-docker-collectors.md) interface instead.
 
 ## Querying the Metrics
 
