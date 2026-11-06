@@ -233,7 +233,7 @@ cd edge-ai-libraries/microservices/model-download
 # Set env vars
 export HUGGINGFACEHUB_API_TOKEN=<your-hf-token>   # mapped into the container as HF_TOKEN
 export REGISTRY="intel/"
-export TAG=2026.3.0-rc1
+export TAG=latest
 
 # Start service (adjust --plugins to match what you need)
 source scripts/run_service.sh up --plugins <comma-separated-list> --model-path $PWD/models

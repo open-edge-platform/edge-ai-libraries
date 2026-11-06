@@ -45,7 +45,7 @@ cd microservices/model-download/
 
 ```bash
 export REGISTRY="intel/"
-export TAG=2026.3.0-rc1
+export TAG=latest
 export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
 ```
 
