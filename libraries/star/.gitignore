@@ -19,6 +19,7 @@ __pycache__/
 .vscode/
 evidence/
 log/
+datasets/**
 
 /README_MONO_AVIF_VARIANTS.md
 MONO_AVIF_QUALITY_VARIANTS.md
