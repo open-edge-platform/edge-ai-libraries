@@ -1,12 +1,12 @@
 
-# reinstall "$@"
+# --reinstall "$@"
 ensure_parse_boolean_option () {
   local option="$1"; shift
-  [[ " $* " = *" --$option "* ]]
+  [[ " $* " = *" $option "* ]]
 }
 
 ensure_parse_reinstall () {
-  ensure_parse_boolean_option reinstall "$@"
+  ensure_parse_boolean_option --reinstall "$@"
 }
 
 # version --version=2026.2.0 "$@"
