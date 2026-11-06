@@ -92,7 +92,7 @@ class AudioPipelineResponse(BaseModel):
 
 class AudioPipelineJobStartResponse(BaseModel):
     job_id: str
-    status: Literal["QUEUED", "RUNNING", "COMPLETED", "FAILED"]
+    status: Literal["RUNNING", "COMPLETED", "FAILED"]
 
 
 class AudioRecordingResponse(BaseModel):
@@ -488,7 +488,7 @@ async def _start_audio_pipeline_job(
     return AudioPipelineJobStartResponse(
         job_id=job.id,
         status=cast(
-            Literal["QUEUED", "RUNNING", "COMPLETED", "FAILED"],
+            Literal["RUNNING", "COMPLETED", "FAILED"],
             job.status.value,
         ),
     )

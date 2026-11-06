@@ -186,7 +186,7 @@ conversion uses a managed job polled through
 after completion.
 
 The Audio tab on the shared Jobs page polls oldest-first operational summaries.
-Its detail view polls until `COMPLETED`, `FAILED`, or `CANCELLED`, then displays
+Its detail view polls until `COMPLETED` or `FAILED`, then displays
 the transcript or managed WAV link when available. `VoiceConversion` publishes
 lifecycle notifications through the application-level Sonner toaster. These
 notifications complement, rather than replace, inline errors and result panels.
@@ -332,7 +332,7 @@ sequenceDiagram
     Web->>API: Stream multipart request without a separate size limit
     API->>Jobs: Stage random temporary file and start_job(pipeline, variant, input)
   end
-  Jobs-->>API: QUEUED job with UUID
+  Jobs-->>API: RUNNING job with UUID
   API-->>Web: 202 Accepted with job_id
   Web-->>Client: Forward start response
   Jobs->>Jobs: Set RUNNING in process-local state
@@ -345,7 +345,7 @@ sequenceDiagram
   Jobs->>ASR: POST /v1/audio/transcriptions with WAV, language and device
   ASR-->>Jobs: Transcription JSON
   Jobs->>Jobs: Store transcript and timing; set COMPLETED; delete staged input
-  loop Until COMPLETED, FAILED, or CANCELLED
+  loop Until COMPLETED or FAILED
     Client->>Web: GET /api/v1/jobs/audio/{job_id}/status
     Web->>API: Forward status request
     API->>Jobs: Read process-local job
@@ -377,7 +377,7 @@ sequenceDiagram
   Web->>API: Forward request
   API->>API: Validate 1-200 characters and supported voice
   API->>Jobs: start_job(pipeline, variant, input, voice)
-  Jobs-->>API: QUEUED job with UUID
+  Jobs-->>API: RUNNING job with UUID
   API-->>Web: 202 Accepted with job_id
   Web-->>Client: Forward start response
   Jobs->>Jobs: Set RUNNING
@@ -385,7 +385,7 @@ sequenceDiagram
   TTS-->>Jobs: WAV body
   Jobs->>Store: Write temporary file and atomically publish {job_id}.wav
   Jobs->>Jobs: Store artifact path and timing; set COMPLETED
-  loop Until COMPLETED, FAILED, or CANCELLED
+  loop Until COMPLETED or FAILED
     Client->>Web: GET /api/v1/jobs/audio/{job_id}/status
     Web->>API: Forward status request
     API-->>Web: Job JSON with artifact_url when complete
@@ -463,9 +463,9 @@ flowchart TD
     Start[Start independent conversion; clear its previous result and timings] --> Active{Outcome}
     Active -->|202 with valid job_id| Accepted[Own accepted job and show run started]
     Accepted --> Poll[Poll Audio job status]
+    Poll -->|COMPLETED without transcript or artifact| Cancelled[Show run cancelled notification]
     Poll -->|COMPLETED and still current| Apply[Apply transcript or download and apply TTS artifact]
     Apply --> Complete[Show run completed notification]
-    Poll -->|CANCELLED| Cancelled[Show run cancelled notification]
     Poll -->|FAILED or request failure| UIError[Display safe inline error and persistent failure notification]
     Active -->|Input validation or start failure| UIError
     Active -->|Local recording or capture error| LocalError[Display safe inline error; no job notification]
@@ -492,7 +492,8 @@ flowchart TD
 ```
 
 Stop on an accepted job cancels the managed backend task through
-`AudioPipelineJobManager.cancel_job`: the job moves to `CANCELLED`, the in-flight
+`AudioPipelineJobManager.cancel_job`: the job moves to `COMPLETED` without a
+result (or to `FAILED` when cancelling raises an error), the in-flight
 request to the upstream service is cancelled, and staged input and any
 uncommitted artifact are removed. It cannot guarantee that an already-started
 upstream inference stops. Navigating away does not cancel a managed job, which

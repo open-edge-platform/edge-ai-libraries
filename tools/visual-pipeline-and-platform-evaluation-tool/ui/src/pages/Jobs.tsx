@@ -115,9 +115,7 @@ export const Jobs = () => {
     if (!audioJobs) return;
 
     const activeIds = new Set(
-      audioJobs
-        .filter((job) => job.state === "QUEUED" || job.state === "RUNNING")
-        .map((job) => job.id),
+      audioJobs.filter((job) => job.state === "RUNNING").map((job) => job.id),
     );
 
     setStoppingAudioJobIds((prev) => {
@@ -552,8 +550,7 @@ export const Jobs = () => {
                     </TableHeader>
                     <TableBody>
                       {audioJobs.map((job) => {
-                        const active =
-                          job.state === "QUEUED" || job.state === "RUNNING";
+                        const active = job.state === "RUNNING";
                         const startedAt = Date.parse(job.created_at);
                         const endedAt = active
                           ? Date.now()

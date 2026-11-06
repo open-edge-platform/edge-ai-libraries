@@ -233,7 +233,7 @@ async def stop_audio_job(
     job_id: str,
     manager: AudioJobManagerDependency,
 ):
-    """Request cancellation of a QUEUED or RUNNING Speech to Text or Text to Speech job."""
+    """Request cancellation of a RUNNING Speech to Text or Text to Speech job."""
     try:
         await manager.cancel_job(job_id)
     except ValueError as exc:

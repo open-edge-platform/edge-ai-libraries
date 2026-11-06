@@ -776,7 +776,7 @@
           "jobs"
         ],
         "summary": "Stop a running audio job",
-        "description": "Request cancellation of a QUEUED or RUNNING Speech to Text or Text to Speech job.",
+        "description": "Request cancellation of a RUNNING Speech to Text or Text to Speech job.",
         "operationId": "stop_audio_job",
         "parameters": [
           {
@@ -4288,11 +4288,9 @@
       "AudioJobState": {
         "type": "string",
         "enum": [
-          "QUEUED",
           "RUNNING",
           "COMPLETED",
-          "FAILED",
-          "CANCELLED"
+          "FAILED"
         ],
         "title": "AudioJobState"
       },
@@ -4567,7 +4565,6 @@
           "status": {
             "type": "string",
             "enum": [
-              "QUEUED",
               "RUNNING",
               "COMPLETED",
               "FAILED"

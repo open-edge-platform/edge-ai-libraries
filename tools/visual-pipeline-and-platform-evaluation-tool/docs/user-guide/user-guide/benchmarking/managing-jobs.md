@@ -16,11 +16,9 @@ Each job transitions through the following states:
 
 | State         | Description                                                                  |
 | ------------- | ---------------------------------------------------------------------------- |
-| **QUEUED**    | The Audio job was accepted and is waiting to start.                          |
 | **RUNNING**   | The job is currently executing.                                              |
 | **COMPLETED** | The job finished successfully. Results are available in the job detail view. |
 | **FAILED**    | The job terminated with an error.                                            |
-| **CANCELLED** | The Audio job ended before completion.                                       |
 
 ## Job information
 
@@ -79,9 +77,10 @@ To stop a performance or density job that is currently running:
 > Stopping a job sends a cancellation signal to the underlying GStreamer subprocesses.
 > The actual termination may take a few seconds while pipelines flush their buffers.
 
-Audio jobs can be stopped while they are QUEUED or RUNNING. Click **Stop** in the
+Audio jobs can be stopped while they are RUNNING. Click **Stop** in the
 Audio job row, or **Stop** in the Audio pipeline workflow. The job ends as
-CANCELLED, and no transcript or WAV artifact is kept.
+COMPLETED without a transcript or WAV artifact, or as FAILED if stopping it
+raised an error.
 
 ## API endpoints
 

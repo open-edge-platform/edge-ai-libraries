@@ -379,7 +379,7 @@ class VoiceRoutesTests(unittest.TestCase):
         self.assertEqual(response.json(), [])
 
     def test_starts_custom_tts_pipeline_job(self) -> None:
-        job = SimpleNamespace(id="job-1", status=AudioPipelineJobStatus.QUEUED)
+        job = SimpleNamespace(id="job-1", status=AudioPipelineJobStatus.RUNNING)
         jobs = SimpleNamespace(start_job=AsyncMock(return_value=job))
         self.use_audio_jobs(jobs)
         response = self.client.post(
@@ -388,7 +388,7 @@ class VoiceRoutesTests(unittest.TestCase):
         )
 
         self.assertEqual(response.status_code, 202)
-        self.assertEqual(response.json(), {"job_id": "job-1", "status": "QUEUED"})
+        self.assertEqual(response.json(), {"job_id": "job-1", "status": "RUNNING"})
         jobs.start_job.assert_awaited_once_with(
             "text-to-speech",
             "gpu",
@@ -397,7 +397,7 @@ class VoiceRoutesTests(unittest.TestCase):
         )
 
     def test_starts_managed_stt_upload(self) -> None:
-        job = SimpleNamespace(id="job-1", status=AudioPipelineJobStatus.QUEUED)
+        job = SimpleNamespace(id="job-1", status=AudioPipelineJobStatus.RUNNING)
         observed: dict[str, object] = {}
 
         async def start_job(pipeline_id, variant_id, *, stt_input):
@@ -426,7 +426,7 @@ class VoiceRoutesTests(unittest.TestCase):
         )
 
         self.assertEqual(response.status_code, 202)
-        self.assertEqual(response.json(), {"job_id": "job-1", "status": "QUEUED"})
+        self.assertEqual(response.json(), {"job_id": "job-1", "status": "RUNNING"})
         self.assertEqual(observed["pipeline"], ("speech-to-text", "npu"))
         self.assertEqual(observed["content"], b"uploaded audio")
         self.assertEqual(
@@ -435,7 +435,7 @@ class VoiceRoutesTests(unittest.TestCase):
         )
 
     def test_normalizes_managed_stt_upload_media_type(self) -> None:
-        job = SimpleNamespace(id="job-1", status=AudioPipelineJobStatus.QUEUED)
+        job = SimpleNamespace(id="job-1", status=AudioPipelineJobStatus.RUNNING)
         observed: dict[str, object] = {}
 
         async def start_job(_pipeline_id, _variant_id, *, stt_input):
@@ -672,7 +672,7 @@ class VoiceRoutesTests(unittest.TestCase):
         assets.get_asset.assert_called_once_with("missing.wav")
 
     def test_starts_stt_job_with_registered_recording(self) -> None:
-        job = SimpleNamespace(id="job-1", status=AudioPipelineJobStatus.QUEUED)
+        job = SimpleNamespace(id="job-1", status=AudioPipelineJobStatus.RUNNING)
         jobs = SimpleNamespace(start_job=AsyncMock(return_value=job))
         self.use_audio_jobs(jobs)
 
@@ -682,7 +682,7 @@ class VoiceRoutesTests(unittest.TestCase):
         )
 
         self.assertEqual(response.status_code, 202)
-        self.assertEqual(response.json(), {"job_id": "job-1", "status": "QUEUED"})
+        self.assertEqual(response.json(), {"job_id": "job-1", "status": "RUNNING"})
         jobs.start_job.assert_awaited_once_with(
             "speech-to-text",
             "npu",
