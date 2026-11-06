@@ -16,6 +16,102 @@ succeeded.
 
 ## Offline PR gate
 
+The workflow also runs an independent **Agent Harness static analysis** job on
+pull requests, pushes to `main`, and manual dispatch. It scans production shell
+and JavaScript files throughout this component, excluding `test/`, `tests/`,
+`node_modules/` and `.venv/`. Existing regression tests still run separately.
+
+- ShellCheck runs at `--severity=style` (all diagnostic levels). Any remaining
+  diagnostic fails the job; there is no baseline or allowed finding count.
+  CI downloads v0.11.0 and verifies its archive SHA-256 instead of depending on
+  the runner's changing APT package version.
+  Intentional patterns have local `shellcheck disable` directives with reasons.
+  Do not add blanket exclusions to make a new finding pass.
+- `node --check` parses each production `.js`, `.mjs` and `.cjs` file without
+  executing it. It catches malformed JavaScript before merge, but does not
+  validate runtime behavior, dependency availability or logic, nor JavaScript
+  embedded in shell strings or heredocs. Regression tests remain necessary.
+
+To reproduce the static gate on Ubuntu 24.04 with Node.js 24.21.0:
+
+```bash
+# Install ShellCheck v0.11.0 using the checksum-verified workflow step.
+# From frameworks/agent-harness-install, using Bash:
+mapfile -d '' shell_files < <(find . -type d \( -name test -o -name tests -o -name node_modules -o -name .venv \) -prune -o -type f -name '*.sh' -print0)
+shellcheck --source-path=SCRIPTDIR --severity=style "${shell_files[@]}"
+mapfile -d '' js_files < <(find . -type d \( -name test -o -name tests -o -name node_modules -o -name .venv \) -prune -o -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.cjs' \) -print0)
+for file in "${js_files[@]}"; do
+  node --check "$file" || exit
+done
+```
+
+The workflow fails if either file list is empty. The static job must be selected
+as a required status check in repository branch protection/rulesets to prevent
+merging when it fails; adding the workflow alone does not configure that policy.
+
+### Hermes image runtime gate
+
+The independent **Hermes image runtime gate** runs on every relevant PR, push to
+`main`, and manual dispatch. It builds the existing production Dockerfile with
+`HARNESS_AGENT=hermes`, reusing the installer's pinned Hermes commit and installer
+checksum. Image construction downloads the real dependencies and requires Docker
+and external network access; it does not install Hermes on the host.
+The pinned Buildx/build-push actions import/export a GHA layer cache scoped to
+`agent-harness-hermes`. Cache misses still build and test the production image;
+the gate is not path-skipped or downgraded. This reduces repeated downloads but
+does not eliminate cold-build network or runner-disk requirements.
+
+The gate runs all nine model-default cases with `HARNESS_TEST_REQUIRE_HERMES=1`.
+Missing Hermes fails instead of skipping. The shared TAP parser requires a
+complete, nonempty report with passing tests, zero failures and zero skips;
+empty/truncated reports and summary-only text cannot satisfy the gate.
+The two Hermes-specific cases exercise actual YAML serialization, provider
+normalization into request overrides, preservation of user overrides, and
+configuration changes on reapplication/model switching.
+
+Tests run as the image's unprivileged user in a disposable container with no
+network, a writable temporary filesystem, no Linux capabilities, and only the
+test file bind-mounted read-only. Hermes writes its runtime locks in the
+container's disposable writable layer; a read-only root filesystem is not
+compatible with those locks. No host agent
+configuration, Docker socket, credentials or OpenShell gateway is mounted.
+The image's production model-config helper is tested, and TAP output is uploaded
+as `hermes-runtime-results`. See the [local commands](unit-tests.md#hermes-runtime-dependent-cases).
+This is real dependency/configuration coverage, not live inference or sandbox
+lifecycle acceptance. Administrators must make this check required in branch
+protection/rulesets; the workflow alone does not enforce merge protection.
+
+### Installer runtime regression
+
+The offline job runs `bash test/installer-runtime-test.sh`. Its 34 cases
+execute production functions with disposable HOME/TMPDIR directories, a local
+Git fixture and command doubles. It never invokes real Docker, sudo, OpenShell,
+downloads or agent installation.
+
+| Behavior | Runtime evidence |
+|---|---|
+| Bootstrap cleanup | Real standalone bootstrap with a local repository; temporary clone removed on payload success and failure; failure status retained |
+| Deferred shell expansion | Generated Bash profile expands the new shell's PATH, not the writer's; repeated setup is idempotent |
+| Runtime sourcing | Real Bash sources a disposable nvm fixture; absent nvm is tolerated |
+| Fail-closed guards | Both IR/OVMS launch functions reject failed and empty address resolution before Docker launch and forward a valid loopback binding; both OpenShell guards reject nonnumeric, leading-zero and out-of-range ports without arithmetic diagnostics and accept canonical decimal ports 1–65535 |
+| Configuration publication | Real Node config generation plus injected generation and rename failures for add/remove; errors propagate, original config survives, temporary files are removed |
+| Optional npm query | Missing/failed version queries use the fallback; a valid version enables the required install flag; installation is a command double |
+| Hermes staging | Actual startup script stages config in the child, preserves the parent's environment, removes staged files, and preserves live config on injected staging failure |
+| Registry listing and installer retry | Registry listing verifies its JavaScript argument; a fixture installer exercises child Bash arguments, transient failure status and retry |
+
+These complement existing startup/lifecycle tests: Hermes staging cases here
+check parent-environment isolation and injected failure, whereas the startup
+suite checks publication order, permissions and native configuration preservation.
+No duplicate suite invocation is added to the all-in-one OpenShell command.
+CI records this suite in `runtime.tap` and includes its outcome and counts in
+the offline summary and uploaded reports.
+
+These are fixture-based behavior tests, not live deployment acceptance.
+Fish/csh profile output, real distro metadata, the upstream nvm
+implementation, Hermes's real bundled Python/YAML runtime, network access and
+Docker/OpenShell lifecycle require their matching environment/integration checks.
+Do not treat fixture-based success as live deployment acceptance.
+
 See the [unit and offline regression test catalogue](unit-tests.md) for
 individual cases, objectives, execution commands and runtime-dependent skips.
 The catalogue separates fixture-based assertions from real local checks and
@@ -35,7 +131,7 @@ bash test/openshell-test.sh | tee openshell-offline.tap
 The command above retains the all-in-one local behavior. In CI, named steps
 run each suite once: the core suite uses `HARNESS_TEST_SKIP_NESTED=1` (74 direct
 cases), followed by managed inference (33), lifecycle/CLI (40), and model
-defaults (9 registered cases; two Hermes-runtime skips on the host). A separate
+defaults (7 executed offline cases; two explicit Hermes image-required skips). A separate
 TAP-reporting regression step validates the reporting helper itself.
 
 Each step writes its own TAP file. Later suites still run after an earlier
