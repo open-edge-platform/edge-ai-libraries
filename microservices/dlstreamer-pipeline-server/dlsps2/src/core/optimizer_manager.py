@@ -42,10 +42,7 @@ class OptimizerBusyError(RuntimeError):
 @dataclass
 class OptimizerJob:
     job_id: str
-    pipeline: str
-    search_duration: float
-    sample_duration: float
-    allowed_devices: Optional[List[str]]
+    settings: Dict[str, Any]  # validated OptimizeRequest fields, including pipeline
     state: OptimizerState = OptimizerState.RUNNING
     message: str = ""
     baseline: Optional[Dict[str, Any]] = None
@@ -60,6 +57,10 @@ class OptimizerJob:
     @property
     def final(self) -> bool:
         return self.state != OptimizerState.RUNNING
+
+    @property
+    def mode(self) -> str:
+        return self.settings.get("mode", "fps")
 
     def elapsed_time(self) -> float:
         return (self.end_time or time.time()) - self.start_time
@@ -76,6 +77,7 @@ class OptimizerJob:
             "state": self.state.value,
             "final": self.final,
             "message": self.message,
+            "mode": self.mode,
             "candidates_evaluated": self.candidates_evaluated,
             "baseline_fps": self._fps(self.baseline),
             "best_fps": self._fps(self.best),
@@ -88,6 +90,7 @@ class OptimizerJob:
             "state": self.state.value,
             "final": self.final,
             "message": self.message,
+            "mode": self.mode,
             "baseline": self._pipeline_result(self.baseline),
             "best": self._pipeline_result(self.best),
             "candidates": [self._pipeline_result(c) for c in self.candidates],
@@ -101,6 +104,7 @@ class OptimizerJob:
         return {
             "pipeline": result.get("pipeline"),
             "fps": metrics.get("fps") if metrics else None,
+            "power": metrics.get("power") if metrics else None,
             "metrics": metrics,
         }
 
@@ -124,26 +128,14 @@ class OptimizerManager:
     # Public API
     # ------------------------------------------------------------------
 
-    def submit(
-        self,
-        pipeline: str,
-        *,
-        search_duration: float,
-        sample_duration: float,
-        allowed_devices: Optional[List[str]],
-    ) -> str:
+    def submit(self, settings: Dict[str, Any]) -> str:
+        """Start a job with validated OptimizeRequest fields. Raises OptimizerBusyError if one is active."""
         with self._lock:
             if self._shutting_down.is_set():
                 raise RuntimeError("optimizer is shutting down")
             if self._active_job_id is not None:
                 raise OptimizerBusyError(f"optimizer job {self._active_job_id} is still running")
-            job = OptimizerJob(
-                job_id=str(uuid.uuid4()),
-                pipeline=pipeline,
-                search_duration=search_duration,
-                sample_duration=sample_duration,
-                allowed_devices=allowed_devices,
-            )
+            job = OptimizerJob(job_id=str(uuid.uuid4()), settings=dict(settings))
             self._jobs[job.job_id] = job
             self._active_job_id = job.job_id
 
@@ -161,14 +153,7 @@ class OptimizerManager:
             return job.job_id
 
         job.process = process
-        sent = self._send(job, {
-            "cmd": "start",
-            "job_id": job.job_id,
-            "pipeline": pipeline,
-            "search_duration": search_duration,
-            "sample_duration": sample_duration,
-            "allowed_devices": allowed_devices,
-        })
+        sent = self._send(job, {"cmd": "start", "job_id": job.job_id, **job.settings})
         if not sent:
             self._finish(job, OptimizerState.ERROR, "failed to send start command to optimizer worker")
             self._kill(job)
@@ -202,7 +187,7 @@ class OptimizerManager:
             job.cancel_requested = True
 
         self._send(job, {"cmd": "cancel", "job_id": job_id})
-        grace = max(_CANCEL_GRACE_MIN_SECONDS, 3 * job.sample_duration)
+        grace = max(_CANCEL_GRACE_MIN_SECONDS, 3 * float(job.settings["sample_duration"]))
         timer = threading.Timer(grace, self._kill_if_running, args=(job,))
         timer.daemon = True
         timer.start()

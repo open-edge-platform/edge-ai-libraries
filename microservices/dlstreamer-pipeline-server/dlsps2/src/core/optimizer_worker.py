@@ -14,7 +14,7 @@ Protocol
 --------
 Commands are read from stdin, one JSON object per line. The first line must be ``start``::
 
-    {"cmd": "start", "job_id": "<id>", "pipeline": "<gst-launch string>", "search_duration": 300, "sample_duration": 10, "allowed_devices": ["CPU"]}
+    {"cmd": "start", "job_id": "<id>", "pipeline": "<gst-launch string>", "mode": "fps", "optimization_profile": "default", "search_duration": 300, "sample_duration": 10, "detection_threshold": 0.95, "fps_limit": null, "power_limit": null, "power_metrics_endpoint": null, "enable_cross_stream_batching": false, "maximize_streams": false, "batch_sizes": null, "nireq_sizes": null, "allowed_devices": ["CPU"]}
     {"cmd": "cancel", "job_id": "<id>"}
 
 Events are written to stdout, one JSON object per line::
@@ -56,6 +56,44 @@ def _result(pipeline: str, metrics) -> dict:
     return {"pipeline": pipeline, "metrics": metrics}
 
 
+def _configure(optimizer, start: dict) -> float:
+    """Apply job settings to the optimizer. Returns the effective search duration in seconds.
+
+    The coarse and fine profiles override timing and batch/nireq values, matching
+    the DL Streamer optimizer CLI.
+    """
+    sample_duration = float(start["sample_duration"])
+    search_duration = float(start["search_duration"])
+    batch_sizes = start.get("batch_sizes")
+    nireq_sizes = start.get("nireq_sizes")
+
+    profile = start.get("optimization_profile", "default")
+    if profile == "coarse":
+        sample_duration, search_duration = 5.0, 15.0
+        batch_sizes, nireq_sizes = [], []
+    elif profile == "fine":
+        sample_duration, search_duration = 5.0, 50.0
+        batch_sizes, nireq_sizes = [1, 4, 8], [4, 8]
+
+    optimizer.set_sample_duration(sample_duration)
+    optimizer.set_detections_error_threshold(float(start["detection_threshold"]))
+    optimizer.enable_cross_stream_batching(bool(start["enable_cross_stream_batching"]))
+    optimizer.set_maximize_streams(bool(start["maximize_streams"]))
+    if start.get("fps_limit") is not None:
+        optimizer.set_fps_limit(float(start["fps_limit"]))
+    if start.get("power_limit") is not None:
+        optimizer.set_power_limit(float(start["power_limit"]))
+    if start.get("power_metrics_endpoint"):
+        optimizer.set_metrics_url(start["power_metrics_endpoint"])
+    if batch_sizes is not None:
+        optimizer.set_batch_sizes(batch_sizes)
+    if nireq_sizes is not None:
+        optimizer.set_nireq_sizes(nireq_sizes)
+    if start.get("allowed_devices"):
+        optimizer.set_allowed_devices(start["allowed_devices"])
+    return search_duration
+
+
 class OptimizerWorker:
     """Runs one optimization job and reports progress, partial results and the final result."""
 
@@ -93,17 +131,16 @@ class OptimizerWorker:
         from optimizer import DLSOptimizer  # pylint: disable=import-outside-toplevel,no-name-in-module
 
         optimizer = DLSOptimizer()
-        optimizer.set_sample_duration(float(start["sample_duration"]))
-        if start.get("allowed_devices"):
-            optimizer.set_allowed_devices(start["allowed_devices"])
-
-        search_duration = float(start["search_duration"])
+        search_duration = _configure(optimizer, start)
         started = time.monotonic()
         evaluated = 0
         baseline_sent = False
         cancelled = False
 
-        search = optimizer.iter_optimize_for_fps(start["pipeline"])
+        if start.get("mode", "fps") == "power":
+            search = optimizer.iter_optimize_for_power(start["pipeline"])
+        else:
+            search = optimizer.iter_optimize_for_fps(start["pipeline"])
         try:
             for pipeline, metrics in search:
                 if not baseline_sent:

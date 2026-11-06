@@ -47,12 +47,7 @@ async def start_optimization(request: OptimizeRequest):
     if not request.pipeline.strip():
         raise HTTPException(status_code=400, detail="pipeline must not be empty")
     try:
-        job_id = _get_manager().submit(
-            request.pipeline,
-            search_duration=request.search_duration,
-            sample_duration=request.sample_duration,
-            allowed_devices=request.allowed_devices,
-        )
+        job_id = _get_manager().submit(request.model_dump())
     except OptimizerBusyError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except RuntimeError as exc:
