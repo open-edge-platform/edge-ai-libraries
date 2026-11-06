@@ -33,7 +33,7 @@ import sys
 import threading
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple
 
@@ -56,7 +56,8 @@ _TEARDOWN_TIMEOUT_SECONDS = 30.0
 class PipelineState(str, Enum):
     QUEUED = "QUEUED"
     RUNNING = "RUNNING"
-    RESTARTING = "RESTARTING"  # Pipeline stopped/errored, attempting automatic restart
+    STOPPING = "STOPPING"  # Stop sent to the worker, teardown not yet confirmed
+    RESTARTING = "RESTARTING"  # Previous run fully torn down, automatic restart scheduled
     COMPLETED = "COMPLETED"
     ERROR = "ERROR"
     ABORTED = "ABORTED"
@@ -138,6 +139,8 @@ class PipelineInstance:
     stop_requested: bool = False
     finalized: bool = False
     teardown_timer: Optional[threading.Timer] = None
+    # Serialises start/restart/stop commands sent to the worker for this instance
+    command_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     @property
     def avg_fps(self) -> float:
@@ -339,37 +342,46 @@ class PipelineManager:
         """Request a stop of one pipeline instance.
 
         A QUEUED or RESTARTING instance has no live pipeline, so it is ABORTED at once.
-        A RUNNING instance is reported as ABORTED only after its worker confirms teardown.
+        A RUNNING instance moves to STOPPING and is reported as ABORTED only after its worker confirms teardown.
+        A STOPPING instance is already being stopped, so the request is accepted again.
 
         Returns:
-            True if the stop was accepted, False if the instance was not found or cannot be stopped.
+            True if the instance is stopping or stopped, False if it cannot be stopped.
         """
         with self._lock:
             instance = self._instances.get(instance_id)
-            if not instance:
-                return False
-            if instance.state in (PipelineState.QUEUED, PipelineState.RESTARTING):
-                instance.state = PipelineState.ABORTED
-                instance.stop_requested = True
-                instance.finalized = True
-                instance.set_lifecycle(stop_time=time.time())
-                logger.info("Cancelled pipeline instance %s in state %s", instance_id, PipelineState.QUEUED.value)
-                return True
-            if instance.state != PipelineState.RUNNING or instance.stop_requested:
-                return False
-            instance.stop_requested = True
+        if not instance:
+            return False
 
-        success = self._worker_pool.send_command(
-            instance_id,
-            {"cmd": "stop"},
-            cpu_cores=instance.cpu_cores,
-        )
-        with self._lock:
-            if not success:
-                instance.stop_requested = False
-                return False
-            if not instance.finalized:
-                instance.teardown_timer = self._start_teardown_timer(instance)
+        with instance.command_lock:
+            with self._lock:
+                if instance.state in (PipelineState.QUEUED, PipelineState.RESTARTING):
+                    previous_state = instance.state
+                    instance.state = PipelineState.ABORTED
+                    instance.stop_requested = True
+                    instance.finalized = True
+                    instance.set_lifecycle(stop_time=time.time())
+                    logger.info("Cancelled pipeline instance %s in state %s", instance_id, previous_state.value)
+                    return True
+                if instance.state == PipelineState.STOPPING:
+                    return True
+                if instance.state != PipelineState.RUNNING:
+                    return False
+                instance.state = PipelineState.STOPPING
+                instance.stop_requested = True
+
+            success = self._worker_pool.send_command(
+                instance_id,
+                {"cmd": "stop"},
+                cpu_cores=instance.cpu_cores,
+            )
+            with self._lock:
+                if not success:
+                    instance.state = PipelineState.RUNNING
+                    instance.stop_requested = False
+                    return False
+                if not instance.finalized:
+                    instance.teardown_timer = self._start_teardown_timer(instance)
         logger.info("Requested stop for pipeline instance %s", instance_id)
         return True
 
@@ -384,9 +396,9 @@ class PipelineManager:
             return list(self._instances.values())
 
     def list_running(self) -> list[PipelineInstance]:
-        """Return a snapshot of instances currently in RUNNING state."""
+        """Return a snapshot of instances that are RUNNING or STOPPING."""
         with self._lock:
-            return [i for i in self._instances.values() if i.state == PipelineState.RUNNING]
+            return [i for i in self._instances.values() if i.state in (PipelineState.RUNNING, PipelineState.STOPPING)]
 
     def validate(self, pipeline_description: str, timeout: int = 30) -> str:
         """Start validation of a pipeline in the background.
@@ -463,45 +475,46 @@ class PipelineManager:
             logger.info("Skipping validation for pipeline %s before submission", instance.instance_id)
             ok, reason = True, None
 
-        with self._lock:
-            # stop() finalizes a queued instance it cancels; never submit that one.
-            if instance.state != PipelineState.QUEUED:
-                logger.info("Pipeline %s was stopped while queued; not submitting", instance.instance_id)
-                return
-            if not ok:
-                instance.state = PipelineState.ERROR
-                instance.error = f"validation failed: {reason}" if reason else "validation failed"
-                instance.set_lifecycle(stop_time=time.time())
-                logger.error("Pipeline %s failed validation: %s", instance.instance_id, reason)
-                return
-            instance.state = PipelineState.RUNNING
-            instance.set_lifecycle(start_time=time.time())
-
-        success = self._worker_pool.send_command(
-            instance.instance_id,
-            {
-                "cmd": "start",
-                "pipeline": instance.pipeline_description,
-                "warmup_frames": instance.warmup_frames,
-                "fps_element": instance.fps_element,
-            },
-            cpu_cores=instance.cpu_cores,
-        )
-
-        if success:
-            validation_status = "passed validation" if instance.validate else "submitted (validation skipped)"
-            logger.info(
-                "Pipeline %s %s to gst_worker (affinity: %s)",
-                instance.instance_id,
-                validation_status,
-                instance.cpu_cores,
-            )
-        else:
+        with instance.command_lock:
             with self._lock:
-                instance.state = PipelineState.ERROR
-                instance.error = "failed to submit to worker"
-                instance.set_lifecycle(stop_time=time.time())
-            logger.error("Pipeline %s failed to submit to worker", instance.instance_id)
+                # stop() finalizes a queued instance it cancels; never submit that one.
+                if instance.state != PipelineState.QUEUED:
+                    logger.info("Pipeline %s was stopped while queued; not submitting", instance.instance_id)
+                    return
+                if not ok:
+                    instance.state = PipelineState.ERROR
+                    instance.error = f"validation failed: {reason}" if reason else "validation failed"
+                    instance.set_lifecycle(stop_time=time.time())
+                    logger.error("Pipeline %s failed validation: %s", instance.instance_id, reason)
+                    return
+                instance.state = PipelineState.RUNNING
+                instance.set_lifecycle(start_time=time.time())
+
+            success = self._worker_pool.send_command(
+                instance.instance_id,
+                {
+                    "cmd": "start",
+                    "pipeline": instance.pipeline_description,
+                    "warmup_frames": instance.warmup_frames,
+                    "fps_element": instance.fps_element,
+                },
+                cpu_cores=instance.cpu_cores,
+            )
+
+            if success:
+                validation_status = "passed validation" if instance.validate else "submitted (validation skipped)"
+                logger.info(
+                    "Pipeline %s %s to gst_worker (affinity: %s)",
+                    instance.instance_id,
+                    validation_status,
+                    instance.cpu_cores,
+                )
+            else:
+                with self._lock:
+                    instance.state = PipelineState.ERROR
+                    instance.error = "failed to submit to worker"
+                    instance.set_lifecycle(stop_time=time.time())
+                logger.error("Pipeline %s failed to submit to worker", instance.instance_id)
 
     @staticmethod
     def _validate(pipeline_description: str, timeout: int = 30) -> Tuple[bool, Optional[str]]:
@@ -609,9 +622,8 @@ class PipelineManager:
         elif evt == "started":
             logger.debug("Pipeline %s started", instance_id)
         elif evt == "eos":
+            # The worker tears the pipeline down after EOS and then reports "stopped", which decides any restart.
             logger.info("Pipeline %s reached EOS", instance_id)
-            if instance.restart_config and instance.restart_config.get("enabled"):
-                self._attempt_restart(instance)
         elif evt == "error":
             reason = event.get("reason")
             source = event.get("source")
@@ -619,38 +631,23 @@ class PipelineManager:
                 reason = f"{reason} (element: {source})"
             with self._lock:
                 instance.error = reason or instance.error
-                # Some failures (e.g. Gst.parse_launch() raising before the
-                # pipeline is ever registered with gst_worker) are terminal
-                # and never followed by a "stopped" event, since there is no
-                # Gst.Pipeline to tear down. Mark the instance ERROR right
-                # away so it doesn't stay stuck in RUNNING/QUEUED forever; if
-                # a "stopped" event does still arrive later (e.g. a bus
-                # ERROR message on an already-running pipeline), it will just
-                # confirm the same ERROR state and set the final stop_time.
-                if not instance.stop_requested and instance.state not in (
-                    PipelineState.ABORTED, PipelineState.ERROR, PipelineState.COMPLETED,
-                ):
-                    instance.state = PipelineState.ERROR
-                    instance.set_lifecycle(stop_time=time.time())
             logger.error("Pipeline %s error: %s", instance_id, reason)
             if event.get("debug"):
                 logger.error("Pipeline %s error debug: %s", instance_id, event["debug"])
-            self._worker_pool.untrack_pipeline(instance_id, instance.cpu_cores)
-            self._notify_finished(instance)
-            if instance.restart_config and instance.restart_config.get("enabled"):
-                self._attempt_restart(instance)
+            # The worker always follows an error with "stopped" (after teardown, or straight away if the pipeline was never registered), so the final state is decided there.
         elif evt == "stopped":
+            restart_claimed = False
             with self._lock:
                 if instance.teardown_timer is not None:
                     instance.teardown_timer.cancel()
                 already_finalized = instance.finalized
                 if not already_finalized:
-                    instance.finalized = True
-                    instance.set_lifecycle(stop_time=time.time())
                     if instance.stop_requested:
-                        instance.state = PipelineState.ABORTED
+                        self._finalize_locked(instance, PipelineState.ABORTED)
                     else:
-                        instance.state = PipelineState.ERROR if instance.error else PipelineState.COMPLETED
+                        restart_claimed = self._claim_restart_locked(instance)
+                        if not restart_claimed:
+                            self._finalize_locked(instance, PipelineState.ERROR if instance.error else PipelineState.COMPLETED)
             self._worker_pool.untrack_pipeline(instance_id, instance.cpu_cores)
             if already_finalized:
                 logger.info("Pipeline %s torn down after it was already reported as %s", instance_id, instance.state.value)
@@ -662,6 +659,8 @@ class PipelineManager:
                 instance.avg_fps,
             )
             self._notify_finished(instance)
+            if restart_claimed:
+                self._schedule_restart(instance)
         else:
             logger.debug("Unknown event for pipeline %s: %s", instance_id, event)
 
@@ -700,28 +699,32 @@ class PipelineManager:
         except Exception:  # noqa: BLE001
             logger.exception("Finished-pipeline listener failed for %s", instance.instance_id)
 
-    def _attempt_restart(self, instance: PipelineInstance) -> None:
-        """Check if automatic restart should be triggered for a failed/stopped pipeline."""
-        with self._lock:
-            # Not enabled or already restarting/aborted
-            if not instance.restart_config or not instance.restart_config.get("enabled"):
-                return
-            if instance.state in (PipelineState.RESTARTING, PipelineState.ABORTED) or instance.stop_requested:
-                return
+    def _finalize_locked(self, instance: PipelineInstance, state: PipelineState) -> None:
+        """Set the final state of a run. Caller must hold ``self._lock``."""
+        instance.state = state
+        instance.finalized = True
+        instance.set_lifecycle(stop_time=time.time())
 
-            max_attempts = instance.restart_config.get("max_attempts", 5)
-            # Check if we haven't exceeded max attempts yet
-            if instance.restart_attempts >= max_attempts:
-                logger.warning(
-                    "Pipeline %s reached max restart attempts (%d); giving up",
-                    instance.instance_id,
-                    max_attempts,
-                )
-                return
+    def _claim_restart_locked(self, instance: PipelineInstance) -> bool:
+        """Move a torn-down run to RESTARTING if automatic restart applies. Caller must hold ``self._lock``."""
+        if not instance.restart_config or not instance.restart_config.get("enabled"):
+            return False
 
-            instance.restart_attempts += 1
-            instance.state = PipelineState.RESTARTING
+        max_attempts = instance.restart_config.get("max_attempts", 5)
+        if instance.restart_attempts >= max_attempts:
+            logger.warning(
+                "Pipeline %s reached max restart attempts (%d); giving up",
+                instance.instance_id,
+                max_attempts,
+            )
+            return False
 
+        instance.restart_attempts += 1
+        instance.state = PipelineState.RESTARTING
+        return True
+
+    def _schedule_restart(self, instance: PipelineInstance) -> None:
+        """Schedule a restart on a background thread after the backoff delay."""
         backoff_seconds = instance.restart_config.get("backoff_seconds", 30)
         logger.info(
             "Pipeline %s scheduled for restart (attempt %d/%d, backoff %.0fs)",
@@ -731,7 +734,6 @@ class PipelineManager:
             backoff_seconds,
         )
 
-        # Schedule restart on a background thread after backoff
         thread = threading.Thread(
             target=self._restart_pipeline_delayed,
             args=(instance, backoff_seconds),
@@ -749,32 +751,32 @@ class PipelineManager:
         """Restart a failed pipeline: resubmit without revalidation."""
         logger.info("Restarting pipeline %s (attempt %d)", instance.instance_id, instance.restart_attempts)
 
-        # Reset metrics for this restart attempt
-        with self._lock:
-            if instance.state != PipelineState.RESTARTING:
-                logger.warning("Pipeline %s no longer in RESTARTING state; aborting restart", instance.instance_id)
-                return
-            instance.set_lifecycle(start_time=time.time(), first_frame_time=None, stop_time=None)
-            instance.finalized = False
-            instance.error = None
-            instance.state = PipelineState.RUNNING
-
-        success = self._worker_pool.send_command(
-            instance.instance_id,
-            {
-                "cmd": "start",
-                "pipeline": instance.pipeline_description,
-                "warmup_frames": instance.warmup_frames,
-                "fps_element": instance.fps_element,
-            },
-            cpu_cores=instance.cpu_cores,
-        )
-
-        if success:
-            logger.info("Restart submitted for pipeline %s (attempt %d)", instance.instance_id, instance.restart_attempts)
-        else:
+        with instance.command_lock:
+            # Reset metrics for this restart attempt
             with self._lock:
-                instance.state = PipelineState.ERROR
-                instance.error = "restart failed to submit to worker"
-                instance.set_lifecycle(stop_time=time.time())
-            logger.error("Failed to submit restart for pipeline %s", instance.instance_id)
+                if instance.state != PipelineState.RESTARTING:
+                    logger.warning("Pipeline %s no longer in RESTARTING state; aborting restart", instance.instance_id)
+                    return
+                instance.set_lifecycle(start_time=time.time(), first_frame_time=None, stop_time=None)
+                instance.finalized = False
+                instance.error = None
+                instance.state = PipelineState.RUNNING
+
+            success = self._worker_pool.send_command(
+                instance.instance_id,
+                {
+                    "cmd": "start",
+                    "pipeline": instance.pipeline_description,
+                    "warmup_frames": instance.warmup_frames,
+                    "fps_element": instance.fps_element,
+                },
+                cpu_cores=instance.cpu_cores,
+            )
+
+            if success:
+                logger.info("Restart submitted for pipeline %s (attempt %d)", instance.instance_id, instance.restart_attempts)
+            else:
+                with self._lock:
+                    self._finalize_locked(instance, PipelineState.ERROR)
+                    instance.error = "restart failed to submit to worker"
+                logger.error("Failed to submit restart for pipeline %s", instance.instance_id)

@@ -176,7 +176,7 @@ async def get_pipeline_status(instance_id: str = Path(..., description="Pipeline
 
 @router.delete("/{instance_id}", response_model=StopPipelineResponse)
 async def stop_pipeline(instance_id: str = Path(..., description="Pipeline instance identifier")):
-    """Stop a queued or running pipeline instance. ABORTED is reported once teardown completes."""
+    """Stop a queued, running, or restarting pipeline instance. ABORTED is reported once teardown completes."""
     manager = _get_manager()
     instance = manager.get(instance_id)
     if not instance:
@@ -185,7 +185,7 @@ async def stop_pipeline(instance_id: str = Path(..., description="Pipeline insta
     if not stopped:
         raise HTTPException(
             status_code=409,
-            detail=f"Instance {instance_id!r} is not running (state: {instance.state.value})",
+            detail=f"Instance {instance_id!r} cannot be stopped (state: {instance.state.value})",
         )
     return {"instance_id": instance_id}
 

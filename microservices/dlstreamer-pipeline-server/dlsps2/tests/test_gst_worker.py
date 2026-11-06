@@ -277,6 +277,31 @@ class TestTeardownFlushesFinalFps:
         fps_source.destroy.assert_called_once()
 
 
+class TestStopUnknownInstance:
+    """Stop for an instance that never registered must still report "stopped"."""
+
+    def test_emits_stopped_for_unknown_instance(self):
+        worker = GstWorker()
+        with patch("core.gst_worker._emit") as mock_emit:
+            worker.stop("never-started")
+
+        mock_emit.assert_called_once_with({"instance_id": "never-started", "event": "stopped"})
+
+
+class TestFailedStartReportsStopped:
+    """A start that fails before registering a pipeline must still end with "stopped"."""
+
+    def test_parse_failure_emits_error_then_stopped(self):
+        worker = GstWorker()
+        with patch("core.gst_worker.Gst.parse_launch", side_effect=RuntimeError("boom")), \
+                patch("core.gst_worker._emit") as mock_emit:
+            worker.start("bad-start", "fakesrc ! fakesink")
+
+        events = [call.args[0] for call in mock_emit.call_args_list]
+        assert [e["event"] for e in events] == ["error", "stopped"]
+        assert all(e["instance_id"] == "bad-start" for e in events)
+
+
 class _FakeStructure:
     def __init__(self, name, fields):
         self._name = name
