@@ -186,7 +186,7 @@ io:
   save_visualizations: true
   draw_bboxes: false                              # if true, overlay detected bounding boxes on saved reconstructed images
   print_runtime_logs: false                      # if false, keep structured logs only in JSON files
-  write_json_logs: true                          # if false, disable only enc_log.json/dec_log.json (root/app logger behavior unchanged)
+  write_json_logs: true                          # if false, disable only encoder_log.json/decoder_log.json (root/app logger behavior unchanged)
 
 # =========================
 # Image feeder

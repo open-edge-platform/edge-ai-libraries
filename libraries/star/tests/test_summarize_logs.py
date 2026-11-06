@@ -31,7 +31,7 @@ def test_parse_pixels_total_supports_common_shapes():
 
 
 def test_iter_summaries_parses_current_encoder_log_shape(tmp_path: Path):
-    log_path = tmp_path / "enc_log.json"
+    log_path = tmp_path / "encoder_log.json"
     _write_ndjson(
         log_path,
         [
@@ -83,7 +83,7 @@ def test_iter_summaries_parses_current_encoder_log_shape(tmp_path: Path):
 
 
 def test_iter_summaries_parses_organized_encoder_log_shape(tmp_path: Path):
-    log_path = tmp_path / "enc_log_organized.json"
+    log_path = tmp_path / "encoder_log_organized.json"
     _write_ndjson(
         log_path,
         [
@@ -154,7 +154,7 @@ def test_iter_summaries_parses_organized_encoder_log_shape(tmp_path: Path):
 
 
 def test_iter_summaries_backfills_aggregated_comp_rate_from_frame_sent_metrics(tmp_path: Path):
-    log_path = tmp_path / "enc_log_split_metrics.json"
+    log_path = tmp_path / "encoder_log_split_metrics.json"
     _write_ndjson(
         log_path,
         [
@@ -250,7 +250,7 @@ def test_collect_runtime_breakdown_series_skips_zero_yolo_runtime_values():
 
 
 def test_iter_summaries_parses_decoder_log_shape(tmp_path: Path):
-    log_path = tmp_path / "dec_log.json"
+    log_path = tmp_path / "decoder_log.json"
     _write_ndjson(log_path, [{"event": "frame_decoded", "decode_time_ms": 17.25}])
 
     rows = list(summarize_logs.iter_summaries(log_path))
@@ -286,7 +286,7 @@ def test_iter_summaries_raises_on_bad_json_in_strict_mode(tmp_path: Path):
 
 
 def test_iter_summaries_skips_invalid_encoder_rows(tmp_path: Path):
-    log_path = tmp_path / "enc_log.json"
+    log_path = tmp_path / "encoder_log.json"
     _write_ndjson(
         log_path,
         [
@@ -302,7 +302,7 @@ def test_iter_summaries_skips_invalid_encoder_rows(tmp_path: Path):
 def test_infer_plot_modes_prefers_row_content_over_filename():
     rows = [{"comp_rate": 4.0}, {"runtime_dec_total_ms": 10.0}]
 
-    assert summarize_logs._infer_plot_modes("dec_log.json", rows) == ["encoder", "decoder"]
+    assert summarize_logs._infer_plot_modes("decoder_log.json", rows) == ["encoder", "decoder"]
 
 
 def test_iter_summaries_parses_codec_index_fields(tmp_path: Path):
@@ -482,7 +482,7 @@ def test_iter_summaries_handles_missing_scaling_factor_field(tmp_path: Path):
 
 
 def test_main_prints_single_status_line_instead_of_summary_rows(tmp_path: Path, monkeypatch, capsys):
-    log_path = tmp_path / "enc_log.json"
+    log_path = tmp_path / "encoder_log.json"
     _write_ndjson(
         log_path,
         [

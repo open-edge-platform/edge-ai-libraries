@@ -28,9 +28,9 @@ The toolbox can be driven in **four different ways**:
    wires the bridge, including per-frame logging,
    compression-level selection, and level-0 JPEG passthrough.
 
-3. **HTTP-based service.** that implements `SematicCodecBridge` and exposes HTTP endpoints to user that allow to send and receive images using HTTP. See [configuration](docs/configuration.md#5-openapi-http-spec) for the HTTP API reference.
+3. **HTTP-based service.** that implements `SemanticCodecBridge` and exposes HTTP endpoints to user that allow to send and receive images using HTTP. See [configuration](docs/configuration.md#5-openapi-http-spec) for the HTTP API reference.
 
-3. **TCP-based service.** that implements `SematicCodecBridge` and exposes TCP socket to user that allow to send and receive images using TCP. Socket support multiple clients and can be used as reference. See [configuration](docs/configuration.md#1-cli-reference-python--m-semantic_img_compmain) for the HTTP API reference.
+4. **TCP-based service.** that implements `SemanticCodecBridge` and exposes TCP socket to user that allow to send and receive images using TCP. Socket support multiple clients and can be used as reference. See [configuration](docs/configuration.md#1-cli-reference-python--m-semantic_img_compmain) for the TCP API reference.
 
 All paths share the exact same encoder, decoder, configuration, adaptive pipeline manager, and
 log schema, so results obtained in direct-path mode carry over to a streamed deployment.
@@ -114,8 +114,8 @@ The manager applies its decisions with `apply_pipeline_config()` and always reve
 ```text
 output/
 ├── log/
-│   ├── enc_log.json
-│   └── dec_log.json
+│   ├── encoder_log.json
+│   └── decoder_log.json
 └── recon_images/
     ├── 1.jpeg
     └── ...
@@ -123,7 +123,7 @@ output/
 
 Notes:
 
-- `enc_log.json` and `dec_log.json` are NDJSON structured logs, one JSON object per line, consumed by
+- `encoder_log.json` and `decoder_log.json` are NDJSON structured logs, one JSON object per line, consumed by
   `summarize_logs` (disable with `io.write_json_logs: false`)
 - reconstructed decoder outputs are written under `output/recon_images/`, and **only when
   `io.save_visualizations: true`** — otherwise the pipeline runs normally but writes no images
@@ -208,7 +208,7 @@ semantic-img-comp/
     │   └── dlstreamer_client.py        # Impementation of client to offload 
     inference to DLStreamer
     ├── image_feeder/
-    │   └── semantic_image_manager.py   # Implementation of ImageFeeder for direct file transfer
+    │   └── feeder.py   # Implementation of ImageFeeder for direct file transfer
     ├── net/
     │   └── connection.py          # TCP framing / send / receive helpers
     └── utils/

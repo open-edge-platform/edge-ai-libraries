@@ -287,8 +287,8 @@ def test_tun_interface_smoke_roundtrip_writes_rehydrated_helicopter_frames() -> 
 
             recon_images = sorted((OUTPUT_DIR / "recon_images").glob("*.jpeg"))
             recon_masks = sorted((OUTPUT_DIR / "recon_masks").glob("*.jpeg"))
-            enc_log = OUTPUT_DIR / "log" / "enc_log.json"
-            dec_log = OUTPUT_DIR / "log" / "dec_log.json"
+            encoder_log = OUTPUT_DIR / "log" / "encoder_log.json"
+            decoder_log = OUTPUT_DIR / "log" / "decoder_log.json"
 
             assert len(written_paths) == len(frames)
             for path in written_paths:
@@ -300,9 +300,9 @@ def test_tun_interface_smoke_roundtrip_writes_rehydrated_helicopter_frames() -> 
             assert len(recon_images) == 0
             assert len(recon_masks) == len(frames)
             # Encoder metadata logging is best-effort; if the file exists, it must be non-empty.
-            if enc_log.exists():
-                assert enc_log.stat().st_size > 0
-            assert dec_log.exists() and dec_log.stat().st_size > 0
+            if encoder_log.exists():
+                assert encoder_log.stat().st_size > 0
+            assert decoder_log.exists() and decoder_log.stat().st_size > 0
 
             assert forward_tun.queues.outbound.qsize() == 0
             assert inverse_tun.queues.outbound.qsize() == 0

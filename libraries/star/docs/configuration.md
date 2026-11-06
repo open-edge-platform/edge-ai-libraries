@@ -131,7 +131,7 @@ settings you are most likely to change. CLI flags always win over YAML values.
 | --- | --- | --- |
 | `app.log_level` | `INFO` | Verbosity of the Python logger: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`, or `SILENT`. `SILENT` is a project-specific level set above `CRITICAL`, so it suppresses *all* logging **and** forces the progress bar and console output off, whatever the other flags say. |
 | `io.print_runtime_logs` | `false` | Whether log records also go to the console. When `false`, logs still reach the files — the terminal just stays quiet. Set to `true` when debugging interactively. |
-| `io.write_json_logs` | `true` | Controls **only** `enc_log.json` / `dec_log.json` (the structured NDJSON used by `summarize_logs`). Setting it to `false` does not affect `app_enc.log` / `app_dec.log`. |
+| `io.write_json_logs` | `true` | Controls **only** `encoder_log.json` / `decoder_log.json` (the structured NDJSON used by `summarize_logs`). Setting it to `false` does not affect `app_enc.log` / `app_dec.log`. |
 | `image_feeder.log_feeder_events` | `false` | Adds per-image `feeder_rate_limited` and `feeder_enqueued` events (including `queue_backlog`) to the encoder log. Useful for diagnosing rate limiting and backlog behaviour; noisy otherwise. |
 
 `app.log_level` and `io.print_runtime_logs` are independent: the level decides *what* is recorded,

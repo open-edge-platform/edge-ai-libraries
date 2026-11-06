@@ -64,7 +64,7 @@ class SemanticImageManager(ImageManager):
             return
 
         log_dir.mkdir(parents=True, exist_ok=True)
-        for log_name in ("enc_log.json", "dec_log.json"):
+        for log_name in ("encoder_log.json", "decoder_log.json"):
             with open(log_dir / log_name, "w", encoding="utf-8"):
                 pass
 
@@ -373,7 +373,7 @@ class SemanticImageManager(ImageManager):
             }
             if encode_ms is not None:
                 log_record["wall_encode_ms"] = round(encode_ms, 2)
-            self._append_jsonl(log_dir / "enc_log.json", log_record)
+            self._append_jsonl(log_dir / "encoder_log.json", log_record)
         except Exception as exc:
             LOGGER.warning("Failed to save encoding metadata: %s", exc)
 
@@ -393,7 +393,7 @@ class SemanticImageManager(ImageManager):
             log_dir.mkdir(parents=True, exist_ok=True)
 
             self._append_jsonl(
-                log_dir / "dec_log.json",
+                log_dir / "decoder_log.json",
                 {
                     "event": "frame_decoded",
                     "frame_number": self._decode_counter,

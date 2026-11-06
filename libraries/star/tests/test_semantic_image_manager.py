@@ -232,7 +232,7 @@ def test_semantic_image_manager_process_image_level_zero_bypasses_encode(tmp_pat
     frame_log_path = tmp_path / "log" / "frame_000001_enc.json"
     assert not frame_log_path.exists()
 
-    jsonl_path = tmp_path / "log" / "enc_log.json"
+    jsonl_path = tmp_path / "log" / "encoder_log.json"
     assert jsonl_path.exists()
     with open(jsonl_path, "r", encoding="utf-8") as f:
         records = [json.loads(line) for line in f if line.strip()]
@@ -347,7 +347,7 @@ def test_semantic_image_manager_saves_encoding_metadata(tmp_path):
     frame_log_path = tmp_path / "log" / "frame_000001_enc.json"
     assert not frame_log_path.exists()
 
-    jsonl_path = tmp_path / "log" / "enc_log.json"
+    jsonl_path = tmp_path / "log" / "encoder_log.json"
     assert jsonl_path.exists()
     with open(jsonl_path, "r", encoding="utf-8") as f:
         records = [json.loads(line) for line in f if line.strip()]
@@ -407,7 +407,7 @@ def test_semantic_image_manager_semantic_decode_skips_recon_image_save(tmp_path)
     img_path = tmp_path / "recon_images" / "frame_000007.jpeg"
     assert not img_path.exists()
 
-    dec_jsonl_path = tmp_path / "log" / "dec_log.json"
+    dec_jsonl_path = tmp_path / "log" / "decoder_log.json"
     assert dec_jsonl_path.exists()
     with open(dec_jsonl_path, "r", encoding="utf-8") as f:
         records = [json.loads(line) for line in f if line.strip()]
@@ -422,8 +422,8 @@ def test_semantic_image_manager_clears_previous_runtime_logs_on_startup(tmp_path
 
     log_dir = tmp_path / "log"
     log_dir.mkdir(parents=True, exist_ok=True)
-    (log_dir / "enc_log.json").write_text('{"event":"old_enc"}\n', encoding="utf-8")
-    (log_dir / "dec_log.json").write_text('{"event":"old_dec"}\n', encoding="utf-8")
+    (log_dir / "encoder_log.json").write_text('{"event":"old_enc"}\n', encoding="utf-8")
+    (log_dir / "decoder_log.json").write_text('{"event":"old_dec"}\n', encoding="utf-8")
 
     SemanticImageManager._INITIALIZED_LOG_DIRS.clear()
     manager = SemanticImageManager(cfg=_cfg(), service_name="test", output_dir=tmp_path)
@@ -443,9 +443,9 @@ def test_semantic_image_manager_clears_previous_runtime_logs_on_startup(tmp_path
     manager.process_image(_create_test_jpeg())
     manager.process_payload(_create_test_jpeg(color="yellow"), compression_level=0)
 
-    with open(log_dir / "enc_log.json", "r", encoding="utf-8") as f:
+    with open(log_dir / "encoder_log.json", "r", encoding="utf-8") as f:
         enc_records = [json.loads(line) for line in f if line.strip()]
-    with open(log_dir / "dec_log.json", "r", encoding="utf-8") as f:
+    with open(log_dir / "decoder_log.json", "r", encoding="utf-8") as f:
         dec_records = [json.loads(line) for line in f if line.strip()]
 
     assert enc_records and all(record.get("event") != "old_enc" for record in enc_records)
@@ -482,8 +482,8 @@ def test_semantic_image_manager_skips_json_logs_when_disabled(tmp_path):
     manager.process_image(_create_test_jpeg())
     manager.process_payload(b"semantic_payload", compression_level=1)
 
-    assert not (tmp_path / "log" / "enc_log.json").exists()
-    assert not (tmp_path / "log" / "dec_log.json").exists()
+    assert not (tmp_path / "log" / "encoder_log.json").exists()
+    assert not (tmp_path / "log" / "decoder_log.json").exists()
 
 
 def test_image_readiness_status_transitions():

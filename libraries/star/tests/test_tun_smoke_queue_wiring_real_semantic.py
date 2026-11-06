@@ -312,12 +312,12 @@ def test_tun_queue_wiring_uses_real_semantic_bridge_and_emits_semantic_payloads(
 
             manager_recon_images = sorted((OUTPUT_DIR / "recon_images").glob("frame_*.jpeg"))
             manager_recon_masks = sorted((OUTPUT_DIR / "recon_masks").glob("frame_*.jpeg"))
-            enc_log = OUTPUT_DIR / "log" / "enc_log.json"
-            dec_log = OUTPUT_DIR / "log" / "dec_log.json"
+            encoder_log = OUTPUT_DIR / "log" / "encoder_log.json"
+            decoder_log = OUTPUT_DIR / "log" / "decoder_log.json"
             assert len(manager_recon_images) == 0
             assert len(manager_recon_masks) == 0
-            assert not enc_log.exists()
-            assert not dec_log.exists()
+            assert not encoder_log.exists()
+            assert not decoder_log.exists()
 
             manifest = {
                 "frame_count": len(frames),
