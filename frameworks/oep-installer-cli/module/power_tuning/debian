@@ -26,7 +26,7 @@ debian_45_install_power_tuning () {
     sed -i -e 's|^MODEL_PATH=.*|MODEL_PATH=/tmp/openvino-stress/models|' -e 's|^GNU_VENV_DIR=.*|GNU_VENV_DIR=/tmp/openvino-stress/venv|' "$workspace"/tools/power-tuning/openvino_stress.sh
     
     ensure_sudo mkdir -p "$power_tuning_path"
-    ensure_sudo cp -r "$workspace"/tools/power-tunning/* "$power_tuning_path"
+    ensure_sudo cp -r "$workspace"/tools/power-tuning/* "$power_tuning_path"
     verify_power_tuning
   fi
 }
