@@ -56,7 +56,7 @@ debian_90_start_handheld_multi_modal () {
   ensure_ports_open start handheld_multi_modal "${used_ports[@]}"
   cd "$workspace"/handheld-multi-modal
   make up CONFIRM=yes
-  echo "@@HIGHLIGHT URL: https://localhost:8443/ (trust config/tls/server.crt)"
+  echo "@@HIGHLIGHT URL: https://$(ensure_ip):8443/ (trust config/tls/server.crt)"
   echo "@@HIGHLIGHT $installer_name stop|remove"
 }
 

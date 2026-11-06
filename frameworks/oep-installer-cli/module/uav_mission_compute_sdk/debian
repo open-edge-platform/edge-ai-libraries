@@ -124,7 +124,7 @@ debian_90_start_uav_mission_compute_sdk () {
   ensure_prop create started/uav_mission_compute_sdk/ports || return $?
   ensure_prop set started/uav_mission_compute_sdk/ports "${used_ports[*]}" || return $?
   echo "@@HIGHLIGHT Simulated UAV stack: PX4/Gazebo with three virtual cameras"
-  echo "@@HIGHLIGHT UAV REST API: http://localhost:8080"
+  echo "@@HIGHLIGHT UAV REST API: http://$(ensure_ip):8080"
   echo "@@HIGHLIGHT $installer_name stop uav_mission_compute_sdk"
 }
 
