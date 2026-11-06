@@ -2466,7 +2466,7 @@ configure_edge_pack_kernel_image ()
             if [[ "$kver" = "7.0.0-"* && " ${incompatibles[*]} " != *" $kver "* && -n "$(apt-cache search linux-headers-$kver)" ]]; then
                 version="$kver";
             else
-                version=7.0.0-42-generic;
+                version="$(set -o pipefail; apt-cache depends linux-image-generic-hwe-$VERSION_ID 2> /dev/null | sed -n '/.*Depends: *linux-image-/{s///;p;q}' || echo 7.0.0-42-generic)";
             fi
         ;;
         *)
@@ -3930,39 +3930,6 @@ debian_30_install_golang ()
 { 
     ensure_apt_install_package golang
 }
-debian_30_install_intel_lpmd () 
-{ 
-    configure_intel_lpmd;
-    if verify_intel_lpmd && [[ " $* " != *" --reinstall "* ]]; then
-        echo "Intel-lpmd is installed" 1>&2;
-    else
-        echo "@@STEP Installing prerequisites";
-        ensure_apt update;
-        ensure_apt install -y autoconf-archive libglib2.0-dev libdbus-1-dev libxml2-dev libnl-3-dev libnl-genl-3-dev libsystemd-dev systemd-dev gtk-doc-tools libupower-glib-dev;
-        echo "@@STEP Building intel-lpmd";
-        ensure_git_export "$workspace" "$version" "$repository";
-        cd "$workspace";
-        ./autogen.sh;
-        if [[ -z "$(pkg-config --variable=systemdsystemunitdir systemd 2> /dev/null)" ]]; then
-            echo "Failed to resolve systemd's systemdsystemunitdir (is the systemd-dev package installed?)." 1>&2;
-            return 3;
-        fi;
-        make;
-        ensure_sudo make install;
-        ensure_sudo mkdir -p /etc/systemd/system/intel_lpmd.service.d;
-        ensure_sudo tee /etc/systemd/system/intel_lpmd.service.d/override.conf > /dev/null <<-EOF
-[Unit]
-# Clear all Condition* directives from the upstream unit
-ConditionPathExists=
-ConditionVirtualization=
-EOF
-
-        ensure_sudo apt-get clean -y;
-        ensure_sudo systemctl daemon-reload;
-        ensure_sudo systemctl --root=/ enable intel_lpmd.service;
-        ensure_sudo systemctl start intel_lpmd.service;
-    fi
-}
 debian_30_install_kernel_module_essential () 
 { 
     configure_kernel_module_essential_debian;
@@ -4057,10 +4024,6 @@ debian_30_install_xpu_smi ()
 { 
     ensure_apt_install_package xpu-smi || printf "${red}xpu-smi not installed${reset}\n"
 }
-debian_30_profile_intel_lpmd () 
-{ 
-    echo "kernel_module_essential linux_tools pkg_config autoconf automake"
-}
 debian_30_remove_autoconf () 
 { 
     ensure_apt_remove_package autoconf
@@ -4107,17 +4070,6 @@ debian_30_remove_git ()
 debian_30_remove_golang () 
 { 
     ensure_apt_remove_package golang
-}
-debian_30_remove_intel_lpmd () 
-{ 
-    [ "$(ensure_prop get installed/intel_lpmd/owned)" = "true" ] || return 0;
-    cd "$workspace" && { 
-        make clean
-    } || true;
-    ensure_sudo systemctl stop intel_lpmd.service || true;
-    ensure_sudo systemctl disable intel_lpmd.service || true;
-    ensure_rm /etc/systemd/system/intel_lpmd.service.d;
-    ensure_sudo systemctl daemon-reload || true
 }
 debian_30_remove_kernel_module_essential () 
 { 
@@ -4219,10 +4171,6 @@ debian_30_sbom_git ()
 debian_30_sbom_golang () 
 { 
     ensure_sbom_format pkg-list golang
-}
-debian_30_sbom_intel_lpmd () 
-{ 
-    ensure_sbom_format pkg-list autoconf-archive libglib2.0-dev libdbus-1-dev libxml2-dev libnl-3-dev libnl-genl-3-dev libsystemd-dev systemd-dev gtk-doc-tools libupower-glib-dev
 }
 debian_30_sbom_kernel_module_essential () 
 { 
@@ -4329,6 +4277,59 @@ debian_31_remove_k3s_io ()
     ensure_rm "$workspace";
     ensure_prop remove installed/k3s_io/owned
 }
+debian_35_install_intel_lpmd () 
+{ 
+    configure_intel_lpmd;
+    if verify_intel_lpmd && [[ " $* " != *" --reinstall "* ]]; then
+        echo "Intel-lpmd is installed" 1>&2;
+    else
+        echo "@@STEP Installing prerequisites";
+        ensure_apt update;
+        ensure_apt install -y autoconf-archive libglib2.0-dev libdbus-1-dev libxml2-dev libnl-3-dev libnl-genl-3-dev libsystemd-dev systemd-dev gtk-doc-tools libupower-glib-dev;
+        configure_kernel_module_essential_debian "$@" || return $?;
+        echo "@@STEP Building intel-lpmd";
+        ensure_git_export "$workspace" "$version" "$repository";
+        cd "$workspace";
+        ./autogen.sh;
+        if [[ -z "$(pkg-config --variable=systemdsystemunitdir systemd 2> /dev/null)" ]]; then
+            echo "Failed to resolve systemd's systemdsystemunitdir (is the systemd-dev package installed?)." 1>&2;
+            return 3;
+        fi;
+        make;
+        ensure_sudo make install;
+        ensure_sudo mkdir -p /etc/systemd/system/intel_lpmd.service.d;
+        ensure_sudo tee /etc/systemd/system/intel_lpmd.service.d/override.conf > /dev/null <<-EOF
+[Unit]
+# Clear all Condition* directives from the upstream unit
+ConditionPathExists=
+ConditionVirtualization=
+EOF
+
+        ensure_sudo apt-get clean -y;
+        ensure_sudo systemctl daemon-reload;
+        ensure_sudo systemctl --root=/ enable intel_lpmd.service;
+        ensure_sudo systemctl start intel_lpmd.service;
+    fi
+}
+debian_35_profile_intel_lpmd () 
+{ 
+    echo "kernel_module_essential linux_tools pkg_config autoconf automake"
+}
+debian_35_remove_intel_lpmd () 
+{ 
+    [ "$(ensure_prop get installed/intel_lpmd/owned)" = "true" ] || return 0;
+    cd "$workspace" && { 
+        make clean
+    } || true;
+    ensure_sudo systemctl stop intel_lpmd.service || true;
+    ensure_sudo systemctl disable intel_lpmd.service || true;
+    ensure_rm /etc/systemd/system/intel_lpmd.service.d;
+    ensure_sudo systemctl daemon-reload || true
+}
+debian_35_sbom_intel_lpmd () 
+{ 
+    ensure_sbom_format pkg-list autoconf-archive libglib2.0-dev libdbus-1-dev libxml2-dev libnl-3-dev libnl-genl-3-dev libsystemd-dev systemd-dev gtk-doc-tools libupower-glib-dev
+}
 debian_39_install_edge_pack () 
 { 
     configure_edge_pack "$@";
@@ -4379,23 +4380,23 @@ debian_39_remove_edge_pack ()
 }
 debian_40_group_edge_pack_base_realtime () 
 { 
-    echo "render:992 video:"
+    echo "render:992 video:44"
 }
 debian_40_group_edge_pack_base_standard () 
 { 
-    echo "render:992 video:"
+    echo "render:992 video:44"
 }
 debian_40_group_edge_pack_graphics_core () 
 { 
-    echo "render:992 video:"
+    echo "render:992 video:44"
 }
 debian_40_group_edge_pack_graphics_display () 
 { 
-    echo "render:992 video:"
+    echo "render:992 video:44"
 }
 debian_40_group_edge_pack_graphics_sriov () 
 { 
-    echo "render:992 video:"
+    echo "render:992 video:44"
 }
 debian_40_group_edge_pack_npu () 
 { 
@@ -4403,7 +4404,7 @@ debian_40_group_edge_pack_npu ()
 }
 debian_40_group_gpu_accel () 
 { 
-    echo "render:992 video:"
+    echo "render:992 video:44"
 }
 debian_40_group_npu_accel () 
 { 
@@ -4443,7 +4444,7 @@ debian_40_install_edge_pack_base_realtime ()
         fi;
         ensure_prop remove installed/edge_pack_base_realtime/fallback;
         ensure_prop set installed/edge_pack_base_realtime/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-base-realtime || true;
+        ensure_apt purge --auto-remove -y intel-edge-base-realtime onevpl-tools || true;
         ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*" || true;
         ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-base-realtime=$version*" libigdgmm12="$(apt-cache show intel-edge-media-core | grep -m1 'Depends:.*libigdgmm12' | sed -E 's/.*libigdgmm12 \(= ([^)]+)\).*/\1/')" libze1="$(apt-cache show intel-edge-npu | grep -m1 'Depends:.*libze1' | sed -E 's/.*libze1 \(= ([^)]+)\).*/\1/')";
     fi;
@@ -4457,7 +4458,7 @@ debian_40_install_edge_pack_base_standard ()
         echo "intel-edge-base-standard is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_base_standard/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-base-standard || true;
+        ensure_apt purge --auto-remove -y intel-edge-base-standard onevpl-tools || true;
         ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*" || true;
         ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-base-standard=$version*" libigdgmm12="$(apt-cache show intel-edge-media-core | grep -m1 'Depends:.*libigdgmm12' | sed -E 's/.*libigdgmm12 \(= ([^)]+)\).*/\1/')" libze1="$(apt-cache show intel-edge-npu | grep -m1 'Depends:.*libze1' | sed -E 's/.*libze1 \(= ([^)]+)\).*/\1/')";
     fi;
@@ -4528,6 +4529,8 @@ debian_40_install_edge_pack_ipu ()
         ensure_apt purge --auto-remove -y intel-edge-ipu || true;
         ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-ipu=$version*" || true;
         ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-ipu=$version*";
+        ensure_sudo modprobe -r intel-ipu7 || true;
+        ensure_sudo modprobe intel-ipu7 || true;
     fi
 }
 debian_40_install_edge_pack_manageability () 
@@ -4549,7 +4552,7 @@ debian_40_install_edge_pack_media_core ()
         echo "intel-edge-media-core is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_media_core/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-media-core || true;
+        ensure_apt purge --auto-remove -y intel-edge-media-core onevpl-tools || true;
         ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-core=$version*" libigdgmm12="$(apt-cache show intel-edge-media-core | grep -m1 'Depends:.*libigdgmm12' | sed -E 's/.*libigdgmm12 \(= ([^)]+)\).*/\1/')";
     fi
 }
@@ -4676,21 +4679,6 @@ debian_40_install_pcm ()
         verify_pcm;
     fi
 }
-debian_40_install_power_tuning () 
-{ 
-    configure_power_tuning;
-    if verify_power_tuning && [[ " $* " != *" --reinstall "* ]]; then
-        echo "power_tuning is installed." 1>&2;
-    else
-        ensure_prop set installed/power_tuning/owned true;
-        echo "@@STEP Cloning repository";
-        ensure_git_export "$workspace" "$version" "$repository" tools/power-tuning;
-        ensure_sudo mkdir -p "$power_tuning_path";
-        sed -i -e "s|^MODEL_PATH=.*|MODEL_PATH=$workspace/models|" -e "s|^GNU_VENV_DIR=.*|GNU_VENV_DIR=$workspace/.venv|" tools/power-tuning/openvino_stress.sh;
-        ensure_sudo cp -r "$workspace"/tools/power-tunning/* "$power_tuning_path";
-        verify_power_tuning;
-    fi
-}
 debian_40_install_software_properties_common () 
 { 
     ensure_apt_install_package software-properties-common
@@ -4777,10 +4765,6 @@ debian_40_profile_npu_accel ()
 debian_40_profile_pcm () 
 { 
     echo "pkg_config git make cmake kernel_module_essential msr_tools"
-}
-debian_40_profile_power_tuning () 
-{ 
-    echo "intel_lpmd pcm sysbench msr_tools lm_sensors stress_ng linux_tools"
 }
 debian_40_profile_system_info () 
 { 
@@ -4883,12 +4867,6 @@ debian_40_remove_pcm ()
     configure_pcm;
     [ "$(ensure_prop get installed/pcm/owned)" = "true" ] || return 0;
     ensure_rm "$workspace" /usr/local/share/pcm /usr/local/sbin/pcm /usr/local/sbin/pcm-* /usr/local/bin/pcm-* /usr/local/share/licenses/pcm /usr/local/share/doc/PCM /etc/modules-load.d/99-intel-pcm.conf
-}
-debian_40_remove_power_tuning () 
-{ 
-    configure_power_tuning;
-    [ "$(ensure_prop get installed/power_tuning/owned)" = "true" ] || return 0;
-    ensure_rm "$power_tuning_path"
 }
 debian_40_remove_system_info () 
 { 
@@ -5012,6 +4990,21 @@ debian_45_install_pipx ()
 { 
     ensure_apt_install_package pipx
 }
+debian_45_install_power_tuning () 
+{ 
+    configure_power_tuning;
+    if verify_power_tuning && [[ " $* " != *" --reinstall "* ]]; then
+        echo "power_tuning is installed." 1>&2;
+    else
+        ensure_prop set installed/power_tuning/owned true;
+        echo "@@STEP Cloning repository";
+        ensure_git_export "$workspace" "$version" "$repository" tools/power-tuning;
+        ensure_sudo mkdir -p "$power_tuning_path";
+        sed -i -e "s|^MODEL_PATH=.*|MODEL_PATH=$workspace/models|" -e "s|^GNU_VENV_DIR=.*|GNU_VENV_DIR=$workspace/.venv|" tools/power-tuning/openvino_stress.sh;
+        ensure_sudo cp -r "$workspace"/tools/power-tunning/* "$power_tuning_path";
+        verify_power_tuning;
+    fi
+}
 debian_45_install_qemu_system_x86 () 
 { 
     ensure_apt_install_package qemu-system-x86
@@ -5038,6 +5031,10 @@ debian_45_profile_pipx ()
 { 
     echo "python3_venv"
 }
+debian_45_profile_power_tuning () 
+{ 
+    echo "intel_lpmd pcm sysbench msr_tools lm_sensors stress_ng linux_tools"
+}
 debian_45_remove_cloud_image_utils () 
 { 
     ensure_apt_remove_package cloud-image-utils
@@ -5049,6 +5046,12 @@ debian_45_remove_memtester ()
 debian_45_remove_ovmf () 
 { 
     ensure_apt_remove_package ovmf
+}
+debian_45_remove_power_tuning () 
+{ 
+    configure_power_tuning;
+    [ "$(ensure_prop get installed/power_tuning/owned)" = "true" ] || return 0;
+    ensure_rm "$power_tuning_path"
 }
 debian_45_remove_rt_tests () 
 { 
@@ -5350,7 +5353,7 @@ debian_70_install_edge_pack_media_ffmpeg ()
         echo "intel-edge-media-ffmpeg is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_media_ffmpeg/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-media-ffmpeg || true;
+        ensure_apt purge --auto-remove -y intel-edge-media-ffmpeg onevpl-tools || true;
         ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-ffmpeg=$version*";
     fi
 }
@@ -5361,7 +5364,7 @@ debian_70_install_edge_pack_media_gst ()
         echo "intel-edge-media-gst is installed." 1>&2;
     else
         ensure_prop set installed/edge_pack_media_gst/owned true;
-        ensure_apt purge --auto-remove -y intel-edge-media-gst || true;
+        ensure_apt purge --auto-remove -y intel-edge-media-gst onevpl-tools || true;
         ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-gst=$version*";
     fi
 }
@@ -5585,15 +5588,15 @@ debian_80_remove_anomalib ()
 }
 debian_85_group_handheld_blueprint () 
 { 
-    echo "audio: video: render:992"
+    echo "audio:29 video:44 render:992"
 }
 debian_85_group_mission_decision_support_blueprint () 
 { 
-    echo "audio: video: render:992"
+    echo "audio:29 video:44 render:992"
 }
 debian_85_group_uncrewed_aerial_vehicle_blueprint () 
 { 
-    echo "audio: video: render:992"
+    echo "audio:29 video:44 render:992"
 }
 debian_85_install_esq () 
 { 
@@ -8160,10 +8163,10 @@ debian_99_profile_handheld_blueprint ()
 { 
     case "$1" in 
         bootstrap)
-            echo "core_types system_inspection system_summary build_essential cdi realsense chrony edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_media_ffmpeg edge_pack_media_gst gpu_accel npu_accel power_tuning system_info docker_io k3s_io"
+            echo "core_types system_inspection system_summary cdi realsense chrony edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_media_ffmpeg edge_pack_media_gst gpu_accel npu_accel power_tuning system_info docker_io k3s_io"
         ;;
         *)
-            local modules=(core_types system_inspection system_summary build_essential power_tuning system_info cdi realsense chrony);
+            local modules=(core_types system_inspection system_summary power_tuning system_info cdi realsense chrony);
             if [[ " $* " = *" --k3s "* ]]; then
                 modules+=(k3s_io);
             else
@@ -8205,10 +8208,10 @@ debian_99_profile_mission_decision_support_blueprint ()
 { 
     case "$1" in 
         bootstrap)
-            echo "core_types system_inspection system_summary build_essential cdi realsense chrony edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn edge_pack_media_ffmpeg edge_pack_media_gst gpu_accel npu_accel power_tuning system_info docker_io k3s_io"
+            echo "core_types system_inspection system_summary cdi realsense chrony edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn edge_pack_media_ffmpeg edge_pack_media_gst gpu_accel npu_accel power_tuning system_info docker_io k3s_io"
         ;;
         *)
-            local modules=(core_types system_inspection system_summary build_essential power_tuning system_info cdi realsense chrony);
+            local modules=(core_types system_inspection system_summary power_tuning system_info cdi realsense chrony);
             if [[ " $* " = *" --k3s "* ]]; then
                 modules+=(k3s_io);
             else
@@ -8240,10 +8243,10 @@ debian_99_profile_uncrewed_aerial_vehicle_blueprint ()
 { 
     case "$1" in 
         bootstrap)
-            echo "core_types system_inspection system_summary build_essential cdi realsense chrony edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn edge_pack_media_ffmpeg edge_pack_media_gst gpu_accel npu_accel power_tuning system_info docker_io k3s_io ubuntu_server"
+            echo "core_types system_inspection system_summary cdi realsense chrony edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn edge_pack_media_ffmpeg edge_pack_media_gst gpu_accel npu_accel power_tuning system_info docker_io k3s_io ubuntu_server"
         ;;
         *)
-            local modules=(core_types system_inspection system_summary build_essential power_tuning system_info cdi realsense chrony ubuntu_server);
+            local modules=(core_types system_inspection system_summary power_tuning system_info cdi realsense chrony ubuntu_server);
             if [[ " $* " = *" --k3s "* ]]; then
                 modules+=(k3s_io);
             else

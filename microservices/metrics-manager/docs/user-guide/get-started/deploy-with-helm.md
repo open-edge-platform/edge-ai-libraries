@@ -1,8 +1,20 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Helm Deployment
 
 The `metrics-manager` Helm chart deploys the same container image onto a Kubernetes cluster. The secure default profile runs non-root without host-level access; enable the hardware telemetry profile when CPU / GPU / NPU telemetry from the node is required.
 
 The chart is published to the **same OCI repository as the container image**.
+
+The chart remains on its existing release while the native Docker image advances
+independently. `make helm-package` and `make helm-push` use the version recorded
+in `Chart.yaml`, not the application's `VERSION` file. Application version bumps
+do not change the chart. Its `version` and `appVersion` must be updated together
+only after validating compatibility with the new image; overriding the image tag
+alone does not migrate the legacy collector configuration.
 
 | Artifact      | OCI Reference                                                                |
 |---------------|------------------------------------------------------------------------------|

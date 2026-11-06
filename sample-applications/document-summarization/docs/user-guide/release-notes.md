@@ -1,5 +1,18 @@
 # Release Notes: Document Summarization Sample Application
 
+## Version 2026.3.0
+
+**November 2026**
+
+**Improved**
+
+- **OpenVINO Model Server Upgrade**: upgraded OpenVINO Model Server to 2026.3 across Docker Compose, Helm charts, setup scripts, and model export instructions.
+- **Default LLM Model**: changed the default LLM from microsoft/Phi-4 to Qwen/Qwen3-4B-Instruct-2507 in the Makefile, Helm values, and documentation.
+- **Security**: updated package versions and the container image to address known security vulnerabilities.
+- **Documentation**: standardized admonitions and updated references and branch checkout instructions in the user guide.
+
+---
+
 ## Version 2026.1.0
 
 **Release Date:** June 17, 2026

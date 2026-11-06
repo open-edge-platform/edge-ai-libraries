@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Troubleshooting
 
 This guide covers common issues and solutions.
@@ -78,6 +83,23 @@ curl -s "http://localhost:9090/api/v1/capabilities?profile=expanded" | jq .devic
 ---
 
 ## Metrics Not Appearing
+
+### Missing `/app/scripts` Readers
+
+The current image ships native collectors, not the old Python readers or CPU
+frequency script. If Telegraf reports a missing `/app/scripts/qmassa_reader.py`,
+check whether a bind mount overrides `/etc/telegraf/telegraf.conf` with an older
+configuration. Rebuilding the image does not replace a bind-mounted file.
+
+Use the bundled [Telegraf configuration](../../telegraf.conf), or migrate custom
+CPU, GPU and NPU inputs to `inputs.execd` with these commands, respectively:
+
+- `/usr/libexec/metrics-manager/mm-plugin-cpu`
+- `/usr/libexec/metrics-manager/mm-plugin-gpu`
+- `/usr/libexec/metrics-manager/mm-plugin-npu`
+
+Restart the container after updating its mounted configuration. GPU collection
+also requires `HARDWARE_TELEMETRY_ENABLED=true` to start qmassa.
 
 ### Custom Metric Not Appearing on `/api/v1/metrics`
 
@@ -201,8 +223,8 @@ ls /sys/class/intel_pmt/
 # Verify privileged mode
 docker inspect metrics-manager | grep Privileged
 
-# Check npu_reader logs
-docker exec metrics-manager cat /app/npu_reader_trace.log
+# Check the NPU plugin's diagnostics (it logs to stderr, which Telegraf relays)
+docker logs metrics-manager 2>&1 | grep mm-plugin-npu
 
 # View supervisord status
 docker exec metrics-manager supervisorctl -c /etc/supervisor/supervisord.conf status
@@ -215,28 +237,8 @@ docker exec metrics-manager supervisorctl -c /etc/supervisor/supervisord.conf st
 | `intel_vpu` driver not loaded | Load it: `sudo modprobe intel_vpu` (host)                                     |
 | Container not privileged      | Run with `privileged: true` (Docker) or `docker run --privileged`             |
 | `/sys` not accessible         | Mount with `--privileged` or `-v /sys:/sys:ro`                                |
-| Old hardware (pre-PTL)        | `npu_memory_mb` returns `-1` — expected on MTL/ARL                            |
+| Memory/utilization fields absent | Check whether the driver exposes readable sysfs attributes; unavailable readings are omitted, independently of generation. Utilization needs two successful counter samples. |
 | No NPU hardware               | Expected. Reader logs warning, then enters idle mode. Other metrics continue. |
-
----
-
-## Hardware Telemetry Collectors
-
-### An Opt-in Collector Produces No Data
-
-**Symptom**: You set an `ENABLE_*` variable but the matching metrics (`rapl_power_*`, `dram_bw_*`, `gpu_throttle_*`, `turbostat_*`, ...) are missing from `:9273/metrics`.
-
-**Check:**
-
-```bash
-# Was the collector loaded, or skipped with a warning?
-docker logs metrics-manager 2>&1 | grep -E "^\[(INFO|WARN)\]  "
-
-# Why is a reader idle?
-docker exec metrics-manager tail -n 20 /app/rapl_reader_trace.log
-```
-
-Changing an `ENABLE_*` variable only takes effect after the container is recreated (`docker compose up -d`). Some collectors also produce no data on certain hardware. See [Hardware Telemetry Collectors](./get-started/hardware-telemetry.md#supported-hardware-and-expected-series-count).
 
 ---
 

@@ -17,6 +17,10 @@ debian_40_install_edge_pack_ipu () {
     ensure_apt purge --auto-remove -y intel-edge-ipu || true
     ensure_apt_allow_downgrades "${edge_pack_allow_downgrades[*]}" "${edge_pack_install_options[@]}" "intel-edge-ipu=$version*" || true
     ensure_apt install --allow-downgrades "${edge_pack_install_options[@]}" "intel-edge-ipu=$version*"
+
+    # workaround: reload intel-ipu7
+    ensure_sudo modprobe -r intel-ipu7 || true
+    ensure_sudo modprobe intel-ipu7 || true
   fi
 }
 

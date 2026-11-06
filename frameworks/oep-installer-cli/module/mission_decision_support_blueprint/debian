@@ -2,10 +2,10 @@
 debian_99_profile_mission_decision_support_blueprint () {
   case "$1" in
   bootstrap)
-    echo "core_types system_inspection system_summary build_essential cdi realsense chrony edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn edge_pack_media_ffmpeg edge_pack_media_gst gpu_accel npu_accel power_tuning system_info docker_io k3s_io"
+    echo "core_types system_inspection system_summary cdi realsense chrony edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn edge_pack_media_ffmpeg edge_pack_media_gst gpu_accel npu_accel power_tuning system_info docker_io k3s_io"
     ;;
   *)
-    local modules=(core_types system_inspection system_summary build_essential power_tuning system_info cdi realsense chrony)
+    local modules=(core_types system_inspection system_summary power_tuning system_info cdi realsense chrony)
     if [[ " $* " = *" --k3s "* ]]; then
       modules+=(k3s_io)
     else
@@ -22,7 +22,7 @@ debian_99_profile_mission_decision_support_blueprint () {
 }
 
 debian_85_group_mission_decision_support_blueprint () {
-  echo "audio: video: render:992"
+  echo "audio:29 video:44 render:992"
 }
 
 debian_85_install_mission_decision_support_blueprint () {
