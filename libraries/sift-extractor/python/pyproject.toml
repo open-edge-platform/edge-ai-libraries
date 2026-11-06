@@ -1,5 +1,6 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+# setuptools>=70 keeps setuptools.command.bdist_wheel importable for setup.py.
+requires = ["setuptools>=70", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -31,4 +32,4 @@ packages = ["sift_extractor"]
 include-package-data = true
 
 [tool.setuptools.package-data]
-sift_extractor = ["*.so", "py.typed"]
+sift_extractor = ["*.so", "py.typed", "licenses/*"]

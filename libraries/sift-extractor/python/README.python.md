@@ -51,3 +51,7 @@ print(len(feats1), len(feats2), len(matches))
 ```
 
 If import fails with a missing `.so`, the host stack/loader path is incomplete — fix the driver/runtime, not pip.
+
+The wheel includes `sift_extractor/licenses/` (`Apache-2.0.txt`, `MIT.txt`,
+`third_party_programs.txt`) for notices covering the packaged native extension
+(including SYCL/CudaSift-derived code).

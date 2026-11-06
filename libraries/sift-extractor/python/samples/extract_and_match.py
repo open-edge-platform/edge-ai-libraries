@@ -42,10 +42,11 @@ def load_pgm(path: Path) -> np.ndarray:
         while i < len(data) and data[i] not in b" \t\r\n":
             i += 1
         values.append(int(data[start:i]))
-    while i < len(data) and data[i] in b" \t\r":
-        i += 1
-    if i < len(data) and data[i] in b"\n":
-        i += 1
+    # P5: exactly one whitespace after maxval; further bytes are raster (may be
+    # 0x20/0x09/0x0d and must not be treated as header separators).
+    if i >= len(data) or data[i] not in b" \t\r\n":
+        raise ValueError(f"PGM header missing whitespace before raster: {path}")
+    i += 1
     width, height, max_value = values
     if max_value <= 0 or max_value > 255:
         raise ValueError(f"unsupported PGM maxval: {max_value}")

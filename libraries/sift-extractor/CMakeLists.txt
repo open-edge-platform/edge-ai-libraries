@@ -43,6 +43,7 @@ if(SIFT_ENABLE_OPENCL)
     REQUIRED
   )
   find_package(OpenCL REQUIRED)
+  find_package(Threads REQUIRED)
 
   add_library(sift_opencl_runtime STATIC
     src/opencl/opencl_device.cpp
@@ -65,7 +66,7 @@ if(SIFT_ENABLE_OPENCL)
   )
   # Link the imported OpenCL target so install exports stay portable (no
   # absolute host .so path embedded in the CMake interface).
-  target_link_libraries(sift_opencl_runtime PUBLIC OpenCL::OpenCL)
+  target_link_libraries(sift_opencl_runtime PUBLIC OpenCL::OpenCL Threads::Threads)
   set_target_properties(sift_opencl_runtime PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
   if(SIFT_ENABLE_OPENCV_VALIDATION)

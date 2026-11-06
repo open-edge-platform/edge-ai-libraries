@@ -3,7 +3,11 @@
 """Setuptools entry for thin binary wheels (native ``_native*.so`` as package-data)."""
 
 from setuptools import setup
-from setuptools.command.bdist_wheel import bdist_wheel
+
+try:
+    from setuptools.command.bdist_wheel import bdist_wheel
+except ImportError:  # older setuptools / wheel-only layouts
+    from wheel.bdist_wheel import bdist_wheel
 
 
 class BinaryWheel(bdist_wheel):
