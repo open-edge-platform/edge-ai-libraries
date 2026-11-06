@@ -243,7 +243,7 @@ subcommand_bootstrap () {
       local deps=()
       [ -z "$profiler" ] || deps=($(
         for c in "$mydir"/common/linux/ensure_* "$mydir"/$installer_family/ensure_*; do
-          [ -f "$c" ] && . "$c"
+          [ -r "$c" ] && . "$c"
         done
         [ ! -r "$script_nos" ] || . "$script_nos"
         . "$script"
