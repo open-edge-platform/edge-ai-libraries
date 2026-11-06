@@ -266,7 +266,7 @@ class TestDockerfileMirrorsVersionsEnv:
 
     def test_runtime_refreshes_distribution_packages(self, dockerfile_text):
         production = dockerfile_text.split(" AS production\n", 1)[1]
-        assert "RUN set -eu;" in production
+        assert re.search(r"RUN(?: --mount=\S+)*\s+\\\n\s+set -eu;", production)
         assert "apt-get upgrade --yes --no-install-recommends;" in production
 
 

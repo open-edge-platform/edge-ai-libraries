@@ -186,17 +186,31 @@ COPY pyproject.toml ./
 COPY VERSION ./
 COPY versions.env ./
 COPY .env.example ./
+COPY .dockerignore Makefile ./
 COPY telegraf.conf ./
 COPY compose.yaml ./
 COPY supervisord.conf ./
 COPY entrypoint.sh ./
 COPY docker_collectors.py ./
+COPY docker_accelerators.py ./
 COPY Dockerfile ./
 
 CMD ["python", "-m", "pytest", "tests/", "-v", "--tb=short"]
 
 # -----------------------------------------------------------------------------
-# Stage 6: Final image
+# Stage 6: Optional accelerator userspace packages
+# -----------------------------------------------------------------------------
+FROM ${PYTHON_IMAGE} AS accelerator-builder
+
+ARG INSTALL_OPENVINO=false
+COPY versions.env docker_accelerators.py /build/
+RUN mkdir /runtime-debs && \
+    if [ "$INSTALL_OPENVINO" = "true" ]; then \
+        python /build/docker_accelerators.py --versions /build/versions.env --output /runtime-debs; \
+    fi
+
+# -----------------------------------------------------------------------------
+# Stage 7: Final image
 # -----------------------------------------------------------------------------
 FROM ${PYTHON_IMAGE} AS production
 
@@ -226,12 +240,13 @@ ENV DEBIAN_FRONTEND=noninteractive
 # - hwinfo: extended hardware information probing
 # Install supervisor via pip to avoid pulling Debian's python3.13 (CVE-2026-7210).
 # perl-base is not needed at runtime; purging it removes several known CVEs.
-RUN set -eu; \
+RUN --mount=type=bind,from=accelerator-builder,source=/runtime-debs,target=/runtime-debs \
+    set -eu; \
     apt-get update; \
     apt-get upgrade --yes --no-install-recommends; \
     packages="dmidecode pciutils util-linux hwinfo"; \
     if [ "$INSTALL_OPENVINO" = "true" ]; then \
-        packages="$packages vainfo intel-media-va-driver"; \
+        packages="$packages vainfo intel-media-va-driver ocl-icd-libopencl1 libze1 libtbb12 /runtime-debs/*.deb"; \
     fi; \
     apt-get install --yes --no-install-recommends $packages && \
     pip install --no-cache-dir pip==26.2.1 supervisor==4.3.0 && \

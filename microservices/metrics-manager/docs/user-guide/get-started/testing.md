@@ -120,6 +120,7 @@ pytest tests/test_models.py -v
 | `test_sse.py`                  | SSE endpoint `/metrics/stream`: streaming, parsing, errors                 |
 | `test_telegraf_integration.py` | Native collector wiring, Telegraf configuration and custom metrics        |
 | `test_docker_collectors.py`    | Optional collector selection, validation and mounted configuration        |
+| `test_docker_accelerators.py`  | Pinned GPU/NPU downloads, archive validation and extended-image wiring     |
 | `test_telemetry_selection.py`  | Real Telegraf filtering of storage, network and process fixtures           |
 | `test_compose_profiles.py`    | Default bridge and opt-in host-NIC profiles                                |
 | `test_env_example.py`         | Documented Docker configuration defaults                                  |
@@ -326,6 +327,34 @@ Unit tests and container smoke tests do not prove that host GPU, NPU, power or
 memory-bandwidth counters are accessible. Validate those collectors on the
 intended hardware with the documented device access and permissions. Likewise,
 an OpenVINO import or CPU device check does not validate GPU/NPU inference.
+
+## OpenVINO accelerator smoke test
+
+On an approved host with supported Intel GPU and NPU devices, run this from the
+component directory after building the extended image:
+
+```bash
+docker run --rm --network none --cap-drop ALL \
+  --security-opt no-new-privileges \
+  --device /dev/dri --device /dev/accel \
+  --memory 3g --cpus 4 --pids-limit 256 \
+  --mount "type=bind,source=$PWD/tests/openvino_runtime_smoke.py,target=/validation/smoke.py,readonly" \
+  --entrypoint /opt/venv/bin/python \
+  intel/metrics-manager:2026.3.0-extended-rc1 /validation/smoke.py
+```
+
+This runs a small synthetic graph for five seconds on each of CPU, GPU and NPU,
+checks changing inputs against expected numerical outputs, and verifies the
+actual execution device. It does not use `AUTO` or CPU fallback. Missing devices,
+compilation failures and incorrect results produce a nonzero exit status.
+This is an explicit hardware test, not part of the ordinary pytest suite and
+not a performance benchmark or validation of every model/platform.
+
+The command grants only the device nodes needed for inference, not host PID,
+the Docker socket or privileged mode. The broader telemetry matrix additionally
+tests PMT/perf/MSR access using the separately approved telemetry deployment.
+Host kernel drivers and NPU firmware must already be compatible; this test
+does not install or modify them.
 
 ## Isolated Debian package tests
 

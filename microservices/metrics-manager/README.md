@@ -230,9 +230,18 @@ two variants with distinct tags so that one does not overwrite the other:
 # Default: telemetry collectors and API, without OpenVINO or media VA drivers
 make build REGISTRY=intel/ TAG=2026.3.0-rc1 INSTALL_OPENVINO=false
 
-# Extended: the same collectors/API plus OpenVINO, vainfo and Intel media VA drivers
+# Extended: the same collectors/API plus OpenVINO GPU/NPU runtimes and VAAPI tools
 make build REGISTRY=intel/ TAG=2026.3.0-extended-rc1 INSTALL_OPENVINO=true
 ```
+
+The extended image includes checksum-pinned Intel OpenCL/Level Zero GPU and NPU
+userspace packages, including the graphics and NPU compilers. These are official
+Ubuntu-targeted vendor binaries compatibility-tested inside Debian 13; this is
+not a claim of upstream Debian certification. System dependencies still come
+from Debian repositories. No host kernel drivers or NPU firmware are installed.
+The default image and bare-metal package do not acquire these dependencies.
+See [accelerator requirements](./docs/user-guide/get-started/system-requirements.md#openvino-inference-in-the-extended-image)
+and the [explicit hardware smoke test](./docs/user-guide/get-started/testing.md#openvino-accelerator-smoke-test).
 
 The tag alone does not select the variant: always pass `INSTALL_OPENVINO`
 explicitly. Both commands build locally and do not push anything. The image's

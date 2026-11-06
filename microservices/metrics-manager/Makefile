@@ -52,7 +52,7 @@ help:
 	@echo "  make versions           Print the third-party pins read from versions.env"
 	@echo "  make sync-versions      Mirror versions.env into the Dockerfile ARG defaults"
 	@echo "  make build              Build the slim metrics-manager image tagged $(REGISTRY)metrics-manager:$(TAG)"
-	@echo "  INSTALL_OPENVINO=true make build  Build the extended image with OpenVINO and Intel media VA drivers"
+	@echo "  INSTALL_OPENVINO=true make build  Build extended with OpenVINO GPU/NPU runtimes and Intel media VA drivers"
 	@echo "  make build-test         Build the metrics-manager-test image"
 	@echo "  make up                 Start the stack (docker compose up -d)"
 	@echo "  make down               Stop the stack"
@@ -81,6 +81,10 @@ versions:
 	@echo "RUST_IMAGE       = $(RUST_IMAGE)"
 	@echo "GO_IMAGE         = $(GO_IMAGE)"
 	@echo "PYTHON_IMAGE     = $(PYTHON_IMAGE)"
+	@echo "INTEL_COMPUTE_RUNTIME_VERSION = $(INTEL_COMPUTE_RUNTIME_VERSION)"
+	@echo "INTEL_IGC_VERSION = $(INTEL_IGC_VERSION)"
+	@echo "INTEL_GMMLIB_VERSION = $(INTEL_GMMLIB_VERSION)"
+	@echo "INTEL_NPU_DRIVER_VERSION = $(INTEL_NPU_DRIVER_VERSION)"
 
 # Mirror versions.env into the Dockerfile ARG defaults. Run this after editing
 # versions.env; tests/test_versions.py fails if the two drift apart.

@@ -51,6 +51,31 @@ The capabilities endpoint (`GET /api/v1/capabilities`) is available wherever the
 
 ## Hardware-Specific Notes
 
+### OpenVINO inference in the extended image
+
+The extended image supplies OpenVINO plus Intel OpenCL/Level Zero GPU and NPU
+userspace runtimes and compilers. The default image collects GPU/NPU telemetry
+without these inference dependencies.
+
+- GPU inference requires a supported Intel GPU, its host `i915`/`xe` driver,
+  and access to `/dev/dri/renderD*`.
+- NPU inference additionally requires compatible host `intel_vpu` and firmware,
+  and access to `/dev/accel/accel*`. PMT telemetry alone does not prove inference
+  access. The image does not install firmware or kernel modules.
+- The shipped privileged Compose profile exposes the devices. A restricted
+  deployment must explicitly grant the required device nodes and render-group
+  permissions; do not change host security settings merely to pass a test.
+- Official Intel vendor binaries target Ubuntu, but their pinned dependencies
+  are resolved against Debian 13 without adding Ubuntu repositories or replacing
+  the system C library. This is project-level compatibility validation, not an
+  upstream support statement for Debian.
+- Real CPU/GPU/NPU inference was validated on an Intel Core Ultra 5 225H with
+  Arrow Lake graphics/NPU and Linux 7.0.0-42. Other device, firmware and kernel
+  combinations require their own validation.
+
+See the [hardware smoke test](./testing.md#openvino-accelerator-smoke-test).
+Missing devices fail that test explicitly; it does not fall back to CPU.
+
 ### Intel Arc GPU (Recommended for GPU metrics)
 
 - Requires Intel Arc GPU to be installed on the system
