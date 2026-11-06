@@ -77,15 +77,16 @@ enableStorage: ENABLE_STORAGE
 {{- end }}
 
 {{- define "metrics-manager.validate" -}}
+{{/* Reused legacy values can omit nested defaults introduced by this chart. */}}
+{{- range $key := list "enableRaplPower" "enableDramBw" "enableDiskIo" "enableNetIo" "enableTempStats" "enablePsysPower" "enableGpuThrottle" "hardwareTelemetryEnabled" -}}
+  {{- if hasKey $.Values.config $key -}}
+    {{- fail (printf "config.%s was removed in 2026.3.0; migrate your values using the Helm deployment guide (do not use --reuse-values)" $key) -}}
+  {{- end -}}
+{{- end -}}
 {{- $booleans := dict "hardware.telemetry.enabled" .Values.hardware.telemetry.enabled "hardware.gpu.enabled" .Values.hardware.gpu.enabled "hardware.npu.enabled" .Values.hardware.npu.enabled "hardware.msr.enabled" .Values.hardware.msr.enabled "pod.hostPID" .Values.pod.hostPID "pod.hostNetwork" .Values.pod.hostNetwork "customMetrics.enabled" .Values.customMetrics.enabled "serviceMonitor.enabled" .Values.serviceMonitor.enabled "securityContext.privileged" .Values.securityContext.privileged "securityContext.allowPrivilegeEscalation" .Values.securityContext.allowPrivilegeEscalation "securityContext.runAsNonRoot" .Values.securityContext.runAsNonRoot "securityContext.readOnlyRootFilesystem" .Values.securityContext.readOnlyRootFilesystem "securityContext.appArmorProfileForce" .Values.securityContext.appArmorProfileForce -}}
 {{- range $key, $value := $booleans -}}
   {{- if not (kindIs "bool" $value) -}}
     {{- fail (printf "%s must be a YAML boolean, not a string" $key) -}}
-  {{- end -}}
-{{- end -}}
-{{- range $key := list "enableRaplPower" "enableDramBw" "enableDiskIo" "enableNetIo" "enableTempStats" "enablePsysPower" "enableGpuThrottle" "hardwareTelemetryEnabled" -}}
-  {{- if hasKey $.Values.config $key -}}
-    {{- fail (printf "config.%s was removed in 2026.3.0; migrate your values using the Helm deployment guide (do not use --reuse-values)" $key) -}}
   {{- end -}}
 {{- end -}}
 {{- if not (has .Values.controller.kind (list "Deployment" "DaemonSet")) -}}

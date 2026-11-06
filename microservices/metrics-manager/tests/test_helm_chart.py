@@ -295,6 +295,22 @@ def test_removed_values_are_not_silently_ignored(render, key, enabled):
     assert "--reuse-values" in message
 
 
+def test_reused_legacy_defaults_report_migration_before_new_fields(render, tmp_path):
+    chart_dir = tmp_path / "legacy-defaults-chart"
+    shutil.copytree(CHART_DIR, chart_dir)
+    values_path = chart_dir / "values.yaml"
+    values = yaml.safe_load(values_path.read_text(encoding="utf-8"))
+    for key in ("npu", "msr", "turbostat"):
+        del values["hardware"][key]
+    values["config"]["enableRaplPower"] = False
+    values_path.write_text(yaml.safe_dump(values), encoding="utf-8")
+
+    message = render(chart_path=chart_dir, succeeds=False)
+    assert "config.enableRaplPower was removed in 2026.3.0" in message
+    assert "--reuse-values" in message
+    assert "nil pointer" not in message
+
+
 @pytest.mark.parametrize("kube_version", ["1.25.0", "1.29.0", "1.30.0", "1.34.0"])
 @pytest.mark.parametrize("hardware", [False, True])
 def test_effective_apparmor_profiles(render, kube_version, hardware):

@@ -341,6 +341,23 @@ Container checks do not exercise Kubernetes admission, scheduling, PVC binding,
 Service routing or an actual Helm upgrade. Validate those on an approved cluster,
 including old-values migration and the explicit hardware profile on supported
 nodes. Do not modify a shared cluster or its security policy solely to run tests.
+
+For the upgrade scenario, install the actual 2026.2.0 chart and image with a PVC,
+then write a marker into the custom-metrics directory. Confirm that an upgrade
+with `--reuse-values` reports the removed-option migration error even when the
+stored defaults lack new hardware fields. Upgrade with `--reset-values` and
+migrated overrides, then verify the PVC UID, marker contents and native metrics.
+Also test a restricted DaemonSet and custom main configuration. After uninstall,
+wait for dependent pods to disappear before checking resource cleanup; Helm
+returning successfully does not by itself prove garbage collection is complete.
+
+Restricted runtime tests require AppArmor support in the node's container
+runtime, not just on the physical host. Containerized Kind nodes may lack that
+support. Use a suitable cluster or an isolated VM with its own kernel rather than
+disabling AppArmor to pass the tests. Verify the running application has an
+enforced AppArmor profile, seccomp filtering, no effective capabilities,
+`NoNewPrivs`, UID 10001 and a read-only root filesystem.
+
 See the [Helm deployment guide](./deploy-with-helm.md).
 
 ## Release validation scope
