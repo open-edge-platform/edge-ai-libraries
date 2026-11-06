@@ -1,12 +1,6 @@
 
 configure_realsense () {
   workspace="$(ensure_project_path)/realsense"
-  eci_repo_name=eci.intel.com
-  eci_key_url="https://$eci_repo_name/repos/gpg-keys/GPG-PUB-KEY-INTEL-ECI.gpg"
-  eci_key_file=/etc/apt/keyrings/intel-eci.gpg
-  eci_repo_list="deb [signed-by=$eci_key_file] https://$eci_repo_name/repos/$VERSION_CODENAME isar main"
-  eci_repo_list_file=/etc/apt/sources.list.d/intel-eci.list
-
   rs_repo_name="librealsense.realsenseai.com"
   rs_key_url="https://$rs_repo_name/Debian/librealsenseai.asc"
   rs_key_file=/etc/apt/keyrings/librealsenseai.gpg
@@ -53,13 +47,11 @@ debian_55_install_realsense () {
     echo "@@STEP Configuring Apt"
     local repo_file
     ensure_prop create installed/realsense/repositories/
-    for repo_file in "$eci_key_file" "$eci_repo_list_file" "$rs_key_file" "$rs_list"; do
+    for repo_file in "$rs_key_file" "$rs_list"; do
       if [ ! -e "$repo_file" ] && [ ! -L "$repo_file" ]; then
         ensure_prop set "installed/realsense/repositories/${repo_file##*/}" true
       fi
     done
-    ensure_apt_key "$eci_key_file" "$eci_key_url" --dearmor
-    ensure_apt_source "$eci_repo_list_file" "$eci_repo_list"
     ensure_apt_key "$rs_key_file" "$rs_key_url" --dearmor
     ensure_apt_source "$rs_list" "$rs_deb_entry"
     ensure_apt update -y
@@ -82,7 +74,8 @@ debian_55_remove_realsense () {
     ensure_apt purge -y "${owned_packages[@]}" || return $?
   fi
   local repo_file
-  for repo_file in "$eci_repo_list_file" "$rs_list" "$eci_key_file" "$rs_key_file"; do
+  # Retain ownership-guarded cleanup of ECI files created by older installers.
+  for repo_file in /etc/apt/sources.list.d/intel-eci.list "$rs_list" /etc/apt/keyrings/intel-eci.gpg "$rs_key_file"; do
     if [ "$(ensure_prop get "installed/realsense/repositories/${repo_file##*/}")" = true ]; then
       ensure_rm "$repo_file" || return $?
       ensure_prop remove "installed/realsense/repositories/${repo_file##*/}"
