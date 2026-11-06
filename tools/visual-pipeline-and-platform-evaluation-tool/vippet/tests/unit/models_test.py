@@ -42,12 +42,14 @@ class TestVoiceModelCatalog(unittest.TestCase):
         self.assertEqual(speecht5["category"], "text_to_speech")
         self.assertEqual(
             [precision["precision"] for precision in speecht5["precisions"]],
-            ["FP16"],
+            ["FP32"],
         )
         speecht5_download_request = speecht5["download_request"]
         self.assertIsInstance(speecht5_download_request, dict)
         assert speecht5_download_request is not None
-        self.assertEqual(speecht5_download_request["config"]["precision"], "fp16")
+        self.assertEqual(speecht5_download_request["hub"], "huggingface")
+        self.assertNotIn("target", speecht5_download_request)
+        self.assertNotIn("config", speecht5_download_request)
 
 
 class TestSupportedModelPathsAndExists(unittest.TestCase):

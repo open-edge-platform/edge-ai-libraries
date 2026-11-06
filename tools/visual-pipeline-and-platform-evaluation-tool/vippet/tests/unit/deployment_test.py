@@ -190,7 +190,10 @@ class ComposeProfileTest(unittest.TestCase):
                     tts["environment"]["TEXT_TO_SPEECH__MODELS__TTS__DTYPE"],
                     "fp16",
                 )
-                for service in (asr, tts):
+                for service, model_path, volume in (
+                    (asr, "/app/audio_analyzer/models", "voice_asr_models"),
+                    (tts, "/app/text-to-speech/models", "voice_tts_models"),
+                ):
                     if mode == "dev":
                         self.assertIn("build", service)
                     else:
@@ -201,16 +204,18 @@ class ComposeProfileTest(unittest.TestCase):
                     model_mount = next(
                         mount
                         for mount in service["volumes"]
-                        if mount["target"] == "/models-output"
+                        if mount["target"] == model_path
                     )
-                    self.assertTrue(model_mount["read_only"])
+                    self.assertFalse(model_mount.get("read_only", False))
+                    self.assertEqual(model_mount["type"], "volume")
+                    self.assertEqual(model_mount["source"], volume)
                 self.assertEqual(
                     asr["environment"]["AUDIO_ANALYZER__MODELS__ASR__MODELS_BASE_PATH"],
-                    "/models-output/voice/audio-analyzer",
+                    "/app/audio_analyzer/models",
                 )
                 self.assertEqual(
                     tts["environment"]["TEXT_TO_SPEECH__MODELS__TTS__MODELS_BASE_PATH"],
-                    "/models-output/voice/text-to-speech",
+                    "/app/text-to-speech/models",
                 )
                 for service in (asr, tts):
                     self.assertEqual(service["user"], "1000:1000")

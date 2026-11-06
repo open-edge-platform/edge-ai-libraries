@@ -1016,12 +1016,12 @@ class TestExecuteRemoteDownload(unittest.TestCase):
         self.assertEqual(self.mgr._jobs["job-1"].external_job_id, "ext-1")
         fin.assert_called_once_with("job-1", "yolo11n")
 
-    def test_submits_speecht5_fp16_request_to_voice_path(self) -> None:
+    def test_submits_speecht5_checkpoint_request_to_catalog_path(self) -> None:
         self._seed_job()
         request = {
             "name": "microsoft/speecht5_tts",
-            "target": "text-to-speech",
-            "config": {"precision": "fp16"},
+            "hub": "huggingface",
+            "type": "text2speech",
         }
         client = _FakeHttpxClient(
             post_response=_FakeResponse(json_body={"job_ids": ["ext-1"]}),
@@ -1034,7 +1034,7 @@ class TestExecuteRemoteDownload(unittest.TestCase):
             self.mgr._execute_remote_download("job-1", "voice-speecht5", request)
 
         self.assertEqual(client.posts[0][1]["json"], {"models": [request]})
-        self.assertEqual(client.posts[0][1]["params"], {"download_path": "voice"})
+        self.assertEqual(client.posts[0][1]["params"], {"download_path": "."})
         self.assertEqual(
             client.gets,
             [f"{mm_module.MODEL_DOWNLOAD_URL}/api/v1/jobs/ext-1"],
