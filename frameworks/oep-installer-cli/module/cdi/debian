@@ -20,7 +20,7 @@ debian_55_profile_cdi () {
 
 debian_55_install_cdi () {
   configure_cdi
-  if verify_cdi && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_cdi && ! ensure_parse_reinstall "$@"; then
     echo "CDI scripts are installed" >&2
   else
     ensure_sudo mkdir -p "$cdi_path"

@@ -15,7 +15,7 @@ debian_45_profile_power_tuning () {
 
 debian_45_install_power_tuning () {
   configure_power_tuning "$@"
-  if verify_power_tuning && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_power_tuning && ! ensure_parse_reinstall "$@"; then
     echo "power_tuning is installed." >&2
   else
     ensure_prop set installed/power_tuning/owned true

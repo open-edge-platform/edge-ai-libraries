@@ -20,7 +20,7 @@ verify_surgical_instrument () {
 debian_90_install_surgical_instrument () {
   configure_surgical_instrument "$@"
 
-  if verify_surgical_instrument && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_surgical_instrument && ! ensure_parse_reinstall "$@"; then
     echo "Surgical Instrument is installed" >&2
   else
     ensure_disk_size 70000

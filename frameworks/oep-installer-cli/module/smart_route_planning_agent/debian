@@ -20,7 +20,7 @@ debian_95_profile_smart_route_planning_agent () {
 debian_95_install_smart_route_planning_agent () {
   configure_smart_route_planning_agent "$@"
 
-  if verify_smart_route_planning_agent && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_smart_route_planning_agent && ! ensure_parse_reinstall "$@"; then
     echo "Smart Route Planning Agent is installed." >&2
   else
     ensure_disk_size 10000

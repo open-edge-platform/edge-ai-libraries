@@ -20,7 +20,7 @@ debian_90_profile_smart_traffic_intersection_agent () {
 debian_90_install_smart_traffic_intersection_agent () {
   configure_smart_traffic_intersection_agent "$@"
 
-  if verify_smart_traffic_intersection_agent && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_smart_traffic_intersection_agent && ! ensure_parse_reinstall "$@"; then
     echo "Smart Traffic Intersection Agent is installed." >&2
   else
     ensure_disk_size 16000

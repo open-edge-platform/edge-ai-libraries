@@ -63,7 +63,7 @@ debian_55_install_realsense () {
     fi
   fi
   ensure_prop create installed/realsense/packages/
-  if ensure_apt_is_installed "${rs_packages[@]}" && [[ " $* " != *" --reinstall "* ]]; then
+  if ensure_apt_is_installed "${rs_packages[@]}" && ! ensure_parse_reinstall "$@"; then
     echo "RealSense packages are installed." >&2
   else
     local package

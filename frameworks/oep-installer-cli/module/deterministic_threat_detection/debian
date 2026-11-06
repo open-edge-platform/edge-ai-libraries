@@ -30,7 +30,7 @@ debian_90_install_deterministic_threat_detection () {
   done <<< "$installed"
 
   configure_deterministic_threat_detection
-  if verify_deterministic_threat_detection && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_deterministic_threat_detection && ! ensure_parse_reinstall "$@"; then
     echo "Deterministic Threat Detection source is already available." >&2
   else
     echo "@@STEP Downloading Deterministic Threat Detection"

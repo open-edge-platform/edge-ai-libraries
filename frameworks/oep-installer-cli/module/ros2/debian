@@ -81,7 +81,7 @@ verify_ros2 () {
 debian_50_install_ros2 () {
   configure_ros2
 
-  if verify_ros2 && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_ros2 && ! ensure_parse_reinstall "$@"; then
     echo "ROS 2 $ros_distro is installed." >&2
   else
     configure_ros2_apt_source || return 1

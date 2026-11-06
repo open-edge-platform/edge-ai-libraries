@@ -24,7 +24,7 @@ verify_openvino () {
 debian_70_install_openvino () {
   configure_openvino "$@"
   
-  if verify_openvino && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_openvino && ! ensure_parse_reinstall "$@"; then
     echo "openvino-${version} is installed." >&2
   else
     ensure_disk_size 1500

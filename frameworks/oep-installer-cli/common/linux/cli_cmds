@@ -12,7 +12,7 @@ subcommand_install () {
   fi
 
   # bind --reinstall to explicitly listed modules
-  if [[ " $* " = *" --reinstall "* ]]; then
+  if ensure_parse_reinstall "$@"; then
     local all=" ${_act_cache_names[*]:-${_act_cache_modules[*]}} " scoped=0 hit=0 a out=() bind=()
     for a in "$@"; do
       if [[ "$a" = --* && "$all" = *" ${a#--} "* ]]; then

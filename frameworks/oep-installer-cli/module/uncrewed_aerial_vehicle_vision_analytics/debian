@@ -105,7 +105,7 @@ vision_analytics_configure_uav_application_models () {
 
 vision_analytics_install_uav_application () {
   vision_analytics_configure_uav_application "$1" "$2" || return $?
-  if vision_analytics_verify_uav_application && [[ " $* " != *" --reinstall "* ]]; then
+  if vision_analytics_verify_uav_application && ! ensure_parse_reinstall "$@"; then
     echo "$uav_app is already installed."
     return 0
   fi

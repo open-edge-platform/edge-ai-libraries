@@ -31,11 +31,11 @@ verify_humanoid_imitation_learning () {
 debian_90_install_humanoid_imitation_learning () {
   configure_humanoid_imitation_learning "$@"
 
-  if verify_humanoid_imitation_learning "$@" && [[ " $* " != *" --reinstall "* ]]; then
+  if verify_humanoid_imitation_learning "$@" && ! ensure_parse_reinstall "$@"; then
     echo "Humanoid - Imitation Learning is installed." >&2
   else
     ensure_disk_size 25000
-    if ! verify_humanoid_imitation_learning_workspace || [[ " $* " = *" --reinstall "* ]]; then
+    if ! verify_humanoid_imitation_learning_workspace || ensure_parse_reinstall "$@"; then
       ensure_git_clone "$workspace" "$version" "$repository" samples/robotics/robotics-ai-suite-containers
       docker image rm -f "$humanoid_base_image" > /dev/null 2>&1 || true
     fi
