@@ -35,6 +35,10 @@ README.md           @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 /libraries/kv-quant-offload/                           @wzq112358 @jilongW @zhangcong2019 @myqi @xwu2intel
 /libraries/kv-quant-offload/README.md                  @wzq112358 @jilongW @zhangcong2019 @myqi @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 
+/libraries/star/                                       @pperycz @ikyrycho @osemiari
+/libraries/star/README.md                              @pperycz @ikyrycho @osemiari @open-edge-platform/open-edge-platform-docs-write
+/libraries/star/docs                                   @pperycz @ikyrycho @osemiari @open-edge-platform/open-edge-platform-docs-write
+
 # ============================================================================
 # microservices
 # ============================================================================
