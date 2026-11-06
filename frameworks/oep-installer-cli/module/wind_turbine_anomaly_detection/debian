@@ -1,7 +1,7 @@
 
 configure_wind_turbine_anomaly_detection () {
   workspace="$(ensure_project_path)/wind-turbine-anomaly-detection"
-  version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")"
+  version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")"
   repository="https://github.com/open-edge-platform/manufacturing-ai-suite.git"
   nstreams=20
   npoints=500

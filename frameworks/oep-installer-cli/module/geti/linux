@@ -1,7 +1,7 @@
 
 configure_geti () {
   workspace="$(ensure_project_path)/geti"
-  version_skills=release-2026.2.0
+  version_skills=release-2026.3.0
   repository_skills=https://github.com/open-edge-platform/skills.git
   skills=(geti-using-the-pipeline getitune-discovering-models getitune-exporting-a-model getitune-optimizing-a-model getitune-preparing-datasets getitune-running-inference getitune-training-a-model)
   image_name=ghcr.io/open-edge-platform/geti-xpu

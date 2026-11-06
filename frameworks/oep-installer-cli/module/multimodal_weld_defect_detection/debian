@@ -1,7 +1,7 @@
 
 configure_multimodal_weld_defect_detection () {
   workspace="$(ensure_project_path)/multimodal-weld-defect-detection"
-  version="$(ensure_parse_value_option version --version=release-2026.2.0 "$@")"
+  version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")"
   repository="https://github.com/open-edge-platform/manufacturing-ai-suite.git"
   tsam_config="configs/time-series-analytics-microservice/config.json"
   pipeline_config="configs/dlstreamer-pipeline-server/config.json"

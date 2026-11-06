@@ -1,10 +1,10 @@
 
 configure_video_search_and_summarization () {
   workspace="$(ensure_project_path)/video-search-and-summarization"
-  version="$(ensure_parse_value_option version --version=1c5fdc1f440e685c8f82322ec09b60b7320ea404 "$@")"
+  version="$(ensure_parse_value_option version --version=release-2026.3.0 "$@")"
   repository="https://github.com/open-edge-platform/edge-ai-libraries.git"
 
-  version_skills=release-2026.2.0
+  version_skills=release-2026.3.0
   repository_skills="https://github.com/open-edge-platform/skills.git"
   skills=(vss-search-index vss-summarize-video)
 
