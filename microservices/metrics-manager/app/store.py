@@ -27,7 +27,7 @@ except ImportError:
     aiohttp = None  # type: ignore
 
 from .logging_config import get_logger
-from .models import Metric
+from .models import Metric, metric_series_key
 from .settings import get_settings
 
 logger = get_logger("store")
@@ -150,16 +150,26 @@ class MetricsStore:
             return result
 
     async def get_latest_metrics(self) -> dict[str, Metric]:
-        """Get the latest metric for each metric name."""
+        """Get the latest data point of every distinct metric series.
+
+        A series is identified by its name *and* its tags, so metrics that
+        share a name but describe different subjects -- two GPU tiles, two
+        pipelines -- are returned side by side instead of overwriting each
+        other. Keys use the same ``name{tag=value,...}`` form as the metrics
+        scraped from Telegraf, so both sources can be merged by the caller.
+        """
         async with self._lock:
             await self._cleanup_expired()
 
             latest: dict[str, Metric] = {}
-            for name, metrics_list in self._metrics.items():
-                valid = [sm for sm in metrics_list if not sm.is_expired()]
-                if valid:
-                    # Get most recent by timestamp
-                    latest[name] = max(valid, key=lambda sm: sm.metric.timestamp or 0).metric
+            for metrics_list in self._metrics.values():
+                for stored in metrics_list:
+                    if stored.is_expired():
+                        continue
+                    key = metric_series_key(stored.metric.name, stored.metric.tags)
+                    current = latest.get(key)
+                    if current is None or (stored.metric.timestamp or 0) > (current.timestamp or 0):
+                        latest[key] = stored.metric
             return latest
 
     async def get_metric_names(self) -> list[str]:

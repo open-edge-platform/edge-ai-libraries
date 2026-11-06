@@ -22,6 +22,19 @@ from .settings import get_settings
 
 _logger = get_logger("models")
 
+_SERIES_KEY_ESCAPES = str.maketrans({"\\": "\\\\", ",": "\\,", "=": "\\="})
+
+
+def metric_series_key(name: str, tags: dict[str, str] | None) -> str:
+    """Identify a series without confusing label content with key separators."""
+    if not tags:
+        return name
+    labels = ",".join(
+        f"{key.translate(_SERIES_KEY_ESCAPES)}={value.translate(_SERIES_KEY_ESCAPES)}"
+        for key, value in sorted(tags.items())
+    )
+    return f"{name}{{{labels}}}"
+
 
 class MetricType(StrEnum):
     """Metric type enumeration."""

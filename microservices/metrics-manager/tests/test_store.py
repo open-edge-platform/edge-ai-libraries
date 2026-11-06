@@ -70,6 +70,62 @@ class TestMetricsStore:
         assert latest["test"].fields["value"] == 2  # Last one
 
     @pytest.mark.asyncio
+    async def test_get_latest_metrics_keeps_series_with_distinct_tags(self, store):
+        """Series sharing a name but differing in tags must not overwrite each other."""
+        for tile, value in (("gt0", 800), ("gt1", 100)):
+            await store.add_metric(
+                Metric(
+                    name="gpu_frequency",
+                    tags={"tile": tile, "gpu_id": "0"},
+                    fields={"value": value},
+                    timestamp=int(1704067200 * 1e9),
+                )
+            )
+
+        latest = await store.get_latest_metrics()
+
+        assert latest["gpu_frequency{gpu_id=0,tile=gt0}"].fields["value"] == 800
+        assert latest["gpu_frequency{gpu_id=0,tile=gt1}"].fields["value"] == 100
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "first,second",
+        [
+            ({"x": "a,y=b"}, {"x": "a", "y": "b"}),
+            ({"x=y": "z"}, {"x": "y=z"}),
+            ({"x": r"a\,y=b"}, {"x": "a\\", "y": "b"}),
+        ],
+    )
+    async def test_get_latest_metrics_preserves_label_separators(self, store, first, second):
+        await store.add_metrics(
+            [
+                Metric(name="fps", fields={"value": 10}, tags=first),
+                Metric(name="fps", fields={"value": 20}, tags=second),
+            ]
+        )
+        latest = await store.get_latest_metrics()
+        assert len(latest) == 2
+        assert {metric.fields["value"] for metric in latest.values()} == {10, 20}
+
+    @pytest.mark.asyncio
+    async def test_get_latest_metrics_picks_newest_within_a_series(self, store):
+        """Within one series the most recent sample still wins."""
+        for i in range(3):
+            await store.add_metric(
+                Metric(
+                    name="gpu_frequency",
+                    tags={"tile": "gt0"},
+                    fields={"value": i},
+                    timestamp=int((1704067200 + i) * 1e9),
+                )
+            )
+
+        latest = await store.get_latest_metrics()
+
+        assert len(latest) == 1
+        assert latest["gpu_frequency{tile=gt0}"].fields["value"] == 2
+
+    @pytest.mark.asyncio
     async def test_get_metric_names(self, store):
         """Test getting list of metric names."""
         await store.add_metric(Metric(name="cpu", fields={"v": 1}))

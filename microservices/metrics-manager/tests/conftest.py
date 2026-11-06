@@ -13,7 +13,6 @@ from app.main import app
 from app.metrics import reset_service_metrics
 from app.rate_limit import reset_rate_limiter
 from app.store import reset_metrics_store
-from tests.reader_loader import load_reader  # noqa: F401  (fixture for reader tests)
 
 
 @pytest.fixture(autouse=True)

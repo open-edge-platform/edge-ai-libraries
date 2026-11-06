@@ -29,6 +29,7 @@ from .models import (
     MetricsBatch,
     OpenTelemetryMetric,
     SimpleMetric,
+    metric_series_key,
 )
 from .responses import (
     CapabilitiesResponse,
@@ -349,11 +350,7 @@ async def _fetch_prometheus_metrics(base_url: str) -> dict[str, MetricData]:
     for family in text_string_to_metric_families(text):
         for sample in family.samples:
             labels = dict(sample.labels)
-            if labels:
-                sorted_labels = ",".join(f"{k}={v}" for k, v in sorted(labels.items()))
-                key = f"{sample.name}{{{sorted_labels}}}"
-            else:
-                key = sample.name
+            key = metric_series_key(sample.name, labels)
             if isinstance(sample.timestamp, Timestamp):
                 ts_ns = sample.timestamp.sec * 1_000_000_000 + sample.timestamp.nsec
             elif sample.timestamp is not None:
@@ -457,7 +454,8 @@ async def prometheus_metrics() -> str:
 
     lines: list[str] = []
     seen_metric_names: set = set()
-    for name, metric in latest.items():
+    for metric in latest.values():
+        name = metric.name
         escaped_tags = {
             k: _escape_prometheus_label_value(str(v)) for k, v in (metric.tags or {}).items()
         }

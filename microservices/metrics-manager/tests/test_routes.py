@@ -6,12 +6,37 @@
 import pytest
 from fastapi.testclient import TestClient
 from prometheus_client.core import Metric as PrometheusMetric
+from prometheus_client.parser import text_string_to_metric_families
 from prometheus_client.samples import Timestamp
 
 from app import capabilities
 
 
 class TestPrometheusMetricsEndpoint:
+    def test_tagged_series_keep_valid_metric_names(self, client: TestClient):
+        response = client.post(
+            "/api/v1/metrics",
+            json={
+                "metrics": [
+                    {"name": "fps", "fields": {"value": 10}, "tags": {"pipeline": "a"}},
+                    {"name": "fps", "fields": {"value": 20}, "tags": {"pipeline": "b"}},
+                ]
+            },
+        )
+        assert response.status_code == 202
+        response = client.get("/metrics")
+        assert response.status_code == 200
+        samples = [
+            sample
+            for family in text_string_to_metric_families(response.text)
+            for sample in family.samples
+            if sample.name == "fps"
+        ]
+        assert {(sample.labels["pipeline"], sample.value) for sample in samples} == {
+            ("a", 10),
+            ("b", 20),
+        }
+
     def test_empty_store_returns_empty_body(self, client: TestClient):
         response = client.get("/metrics")
         assert response.status_code == 200
@@ -556,6 +581,8 @@ class TestFetchPrometheusMetrics:
 
         family = PrometheusMetric("fps", "test", "gauge")
         family.add_sample("fps", {}, 30, timestamp=timestamp)
+        family.add_sample("fps", {"x": "a,y=b"}, 10, timestamp=timestamp)
+        family.add_sample("fps", {"x": "a", "y": "b"}, 20, timestamp=timestamp)
         mocker.patch("app.routes.text_string_to_metric_families", return_value=[family])
         response = mocker.MagicMock()
         response.status = 200
@@ -568,6 +595,7 @@ class TestFetchPrometheusMetrics:
         session.__aexit__ = mocker.AsyncMock(return_value=False)
         mocker.patch("app.routes.aiohttp.ClientSession", return_value=session)
         result = await _fetch_prometheus_metrics("http://localhost:9273")
+        assert len(result) == 3
         assert result["fps"].timestamp == expected
 
     @pytest.mark.asyncio

@@ -29,7 +29,8 @@ docker compose build
 docker compose --profile test run --rm metrics-manager-test
 ```
 
-Expected output: `179 passed in ~2s`
+All collected tests should pass; optional checks report their missing prerequisites
+as skips.
 
 ### Run with Coverage Report
 
@@ -77,11 +78,14 @@ docker compose --profile test run --rm metrics-manager-test \
    PROMETHEUS_TELEGRAF_ENDPOINT=http://localhost:9273
    ```
 
-4. **Start Telegraf on host:**
+4. **For manual smoke tests, start the Docker telemetry backend:**
 
    ```bash
-   telegraf --config telegraf.conf
+   docker compose up -d metrics-manager
    ```
+
+   The root Telegraf configuration uses paths and native collectors installed in
+   the image; it is not a standalone host configuration.
 
 ### Run Tests
 
@@ -114,9 +118,12 @@ pytest tests/test_models.py -v
 | `test_metrics.py`              | Internal service metrics counters and uptime                               |
 | `test_rate_limit.py`           | IP-based rate limiting middleware                                          |
 | `test_sse.py`                  | SSE endpoint `/metrics/stream`: streaming, parsing, errors                 |
-| `test_npu_monitor_tool.py`     | NPU bit slicing, register maps, value decoding                             |
-| `test_npu_reader.py`           | `npu_reader.py` syntax, Telegraf wiring, InfluxDB fields                   |
-| `test_telegraf_integration.py` | Telegraf configuration mounting and custom-metrics (integration)           |
+| `test_telegraf_integration.py` | Native collector wiring, Telegraf configuration and custom metrics        |
+| `test_docker_collectors.py`    | Optional collector selection, validation and mounted configuration        |
+| `test_telemetry_selection.py`  | Real Telegraf filtering of storage, network and process fixtures           |
+| `test_compose_profiles.py`    | Default bridge and opt-in host-NIC profiles                                |
+| `test_env_example.py`         | Documented Docker configuration defaults                                  |
+| `test_versions.py`            | Version mirrors, pinned dependencies and Docker build structure            |
 
 ---
 
@@ -234,10 +241,17 @@ tests/test_routes.py::...                PASSED
 tests/test_metrics.py::...               PASSED
 tests/test_rate_limit.py::...            PASSED
 tests/test_sse.py::...                   PASSED
-tests/test_npu_monitor_tool.py::...      PASSED
-tests/test_npu_reader.py::...            PASSED
-tests/test_telegraf_integration.py::...  SKIPPED (requires Docker)
-========================= 179 passed, 1 skipped in 1.70s ==============
+tests/test_telegraf_integration.py::...  PASSED
+tests/test_docker_collectors.py::...     PASSED
+tests/test_telemetry_selection.py::...   PASSED
+```
+
+The real Telegraf selection checks require the binary pinned in `versions.env`.
+Set its absolute path explicitly; otherwise those checks are skipped:
+
+```bash
+TELEGRAF_TEST_BINARY=/absolute/path/to/telegraf \
+  .venv/bin/pytest tests/test_telemetry_selection.py -v
 ```
 
 ---
@@ -282,6 +296,20 @@ Unit tests use synthetic kernel files, qmassa fixtures and mocked performance
 counters; they do not require GPU/NPU devices or privileged hardware access.
 Passing these tests does not replace real-hardware validation of each collector.
 
+## Release validation scope
+
+Build both image variants with explicit `INSTALL_OPENVINO` values and distinct
+tags, as described in the [build guide](./build-from-source.md). For each image,
+check startup, the reported version, tagged metric ingestion through the API
+to Telegraf's Prometheus endpoint, core CPU/memory/process series, and graceful
+shutdown. Allow time for at least two collection intervals before checking
+rate-based metrics.
+
+Unit tests and container smoke tests do not prove that host GPU, NPU, power or
+memory-bandwidth counters are accessible. Validate those collectors on the
+intended hardware with the documented device access and permissions. Likewise,
+an OpenVINO import or CPU device check does not validate GPU/NPU inference.
+
 ## Development Setup
 
 For local development with hot-reload:
@@ -311,9 +339,9 @@ cancellation and cleanup when the application lifespan exits with an error.
 | Issue                          | Solution                                                          |
 | ------------------------------ | ----------------------------------------------------------------- |
 | `Module not found: app`        | Ensure you are in `metrics-manager/` directory and ran `uv sync`  |
-| `Connection refused on :9090`  | Telegraf not running. Start it: `telegraf --config telegraf.conf` |
+| `Connection refused on :9090`  | The API is not running. Start the service with `docker compose up -d` |
 | `Test fixtures failed`         | Clear cache: `pytest --cache-clear`                               |
-| `telegraf_integration skipped` | Expected if not in Docker. Other tests still pass                 |
+| `telemetry_selection skipped` | Set `TELEGRAF_TEST_BINARY` to the pinned Telegraf binary           |
 
 ## Supporting Resources
 

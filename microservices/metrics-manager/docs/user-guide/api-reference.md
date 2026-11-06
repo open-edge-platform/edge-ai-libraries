@@ -1,6 +1,6 @@
 # API Reference
 
-**Version: 2026.2.0**
+**Version: 2026.3.0**
 
 This document describes all REST API endpoints, request/response formats, and examples.
 
@@ -9,6 +9,10 @@ asynchronously to Telegraf. Acceptance is not a durable-delivery acknowledgement
 Shutdown cancels pending debounce and HTTP push tasks before closing their
 shared session; it does not flush outstanding metrics. The store rejects new
 ingestion after shutdown begins.
+
+Latest-value export retains one point per metric name and tag set. Distinct
+pipelines or devices with the same metric name remain separate labeled series;
+the newest timestamp wins only within the same series.
 
 ---
 
@@ -23,7 +27,7 @@ curl http://localhost:9090/health
 ```json
 {
   "status": "healthy",
-  "version": "2026.2.0",
+  "version": "2026.3.0",
   "uptime_seconds": 3600.5,
   "checks": { "store": true }
 }
@@ -38,7 +42,7 @@ curl http://localhost:9090/api/health
 ```json
 {
   "status": "healthy",
-  "version": "2026.2.0",
+  "version": "2026.3.0",
   "uptime_seconds": 3600.5,
   "checks": { "store": true },
   "metrics_store": {
