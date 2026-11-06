@@ -314,6 +314,35 @@ terminal across single-, two- and three-column layouts. Verify that the terminal
 is restored after quitting or interrupting the process. A one-frame rendering
 does not test keyboard interaction or accumulated history.
 
+## Helm migration tests
+
+The Helm regressions use the real Helm CLI and parse the rendered Kubernetes
+objects. With Helm and Make on `PATH` in the project test environment, run:
+
+```bash
+pytest -q tests/test_helm_chart.py tests/test_versions.py
+helm lint ./helm/metrics-manager --strict
+```
+
+Coverage includes restricted/native configuration, collector environment
+compatibility, rejection of removed values, Deployment/DaemonSet rendering,
+AppArmor before/after Kubernetes 1.30, host device opt-ins, custom ports and
+forwarding URLs, read-only ConfigMaps, rollout checksums, ServiceMonitor namespace
+selection, and rendering the packaged chart. Helm-dependent tests are skipped
+when the CLI is unavailable; skipped checks are not validation evidence.
+
+Before cluster installation, run the chosen RC image with the rendered restricted
+configuration, UID/GID 10001, a read-only root filesystem, dropped capabilities
+and writable `/tmp` and custom-metrics volumes. Check API health, native CPU/memory
+metrics, tagged API-to-Telegraf-to-Prometheus forwarding, changed ports, read-only
+drop-ins and graceful shutdown.
+
+Container checks do not exercise Kubernetes admission, scheduling, PVC binding,
+Service routing or an actual Helm upgrade. Validate those on an approved cluster,
+including old-values migration and the explicit hardware profile on supported
+nodes. Do not modify a shared cluster or its security policy solely to run tests.
+See the [Helm deployment guide](./deploy-with-helm.md).
+
 ## Release validation scope
 
 Build both image variants with explicit `INSTALL_OPENVINO` values and distinct

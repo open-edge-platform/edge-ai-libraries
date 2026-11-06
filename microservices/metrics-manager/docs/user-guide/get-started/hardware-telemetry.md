@@ -7,7 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 
 > [!IMPORTANT]
 > This page documents the legacy Python-reader images and their configuration,
-> retained for users of the unchanged Helm chart. For the native Docker image
+> retained for users of older images and charts. For the native Docker image
 > in 2026.3.0, use [Native Docker Collectors](./native-docker-collectors.md)
 > and the [metric migration guide](./native-metric-migration.md).
 > The legacy `ENABLE_*` switches below are not the native image's interface.
