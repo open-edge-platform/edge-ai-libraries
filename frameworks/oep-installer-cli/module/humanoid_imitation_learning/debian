@@ -4,8 +4,7 @@ configure_humanoid_imitation_learning () {
   repository="https://github.com/open-edge-platform/edge-developer-kit-reference-scripts.git"
   container_dir="$workspace/samples/robotics/robotics-ai-suite-containers"
   humanoid_samples=(act-sample pi05-rtc-ov)
-  humanoid_sample=act-sample
-  [[ " $* " != *" pi05-rtc-ov "* && " $* " != *" --pi05-rtc-ov "* ]] || humanoid_sample=pi05-rtc-ov
+  ( ensure_parse_option pi05-rtc-ov "$@" || ensure_parse_option --pi05-rtc-ov "$@" ) && humanoid_sample=pi05-rtc-ov || humanoid_sample=act-sample
   humanoid_base_image=robotics-ai-suite:humanoid-imitation-learning-base
   humanoid_sample_image=robotics-ai-suite:humanoid-imitation-learning-$humanoid_sample
 }

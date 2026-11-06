@@ -179,7 +179,7 @@ subcommand_list () {
     if [ ${#all_modules[@]} -gt 0 ]; then
       local module_name
       for module_name in "${all_modules[@]}"; do
-        [ ${#*} -eq 0 ] || [[ " $* " = *" $module_name "* ]] || continue
+        [ ${#*} -eq 0 ] || ensure_parse_option "$module_name" "$@" || continue
         local module_cmds=() mname cmd
         for cmd in ${all_cmds[*]}; do
           for mname in $(act_expand_modules $cmd $module_name "$@"); do
@@ -199,7 +199,7 @@ subcommand_list () {
       local profiler
       for profiler in "${all_profiles[@]}"; do
         local profile_name=${profiler#*_*_*_}
-        [ ${#*} -eq 0 ] || [[ " $* " = *" $profile_name "* ]] || continue
+        [ ${#*} -eq 0 ] || ensure_parse_option "$profile_name" "$@" || continue
         [[ " ${all_modules[*]} " != *" $profile_name "* ]] || continue
         local profile_cmds=() mname1 mname2 cmd found
         for cmd in ${all_cmds[*]}; do

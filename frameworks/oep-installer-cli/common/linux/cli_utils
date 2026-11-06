@@ -249,9 +249,9 @@ act_helper () {
     wait
 
     # pass on modules to subsequent command
-    [[ " $* " != *" --dry-run "* && -n "${explicit_mods// }" ]] && ensure_prop set modules "$explicit_mods"
+    ! ensure_parse_option --dry-run "$@" && [ -n "${explicit_mods// }" ] && ensure_prop set modules "$explicit_mods"
     # everything is gone; drop the saved default
-    [[ $remove_all -eq 1 && $rc -eq 0 && " $* " != *" --dry-run "* ]] && ensure_prop remove modules
+    [[ $remove_all -eq 1 && $rc -eq 0 ]] && ! ensure_parse_option --dry-run "$@" && ensure_prop remove modules
 
     return $rc
   else
