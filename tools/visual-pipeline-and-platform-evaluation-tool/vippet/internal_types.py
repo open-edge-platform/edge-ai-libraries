@@ -530,13 +530,15 @@ class InternalLatencyMetrics:
     Attributes:
         interval_ms: Length of the measurement window reported by the
             tracer (``interval`` field, milliseconds).
-        avg_ms: Average frame latency over the window (``avg``, ms).
+        avg_ms: Mean frame latency over the window (``avg``, ms): from
+            the source element's output to the push into the sink.
         min_ms: Minimum frame latency observed in the window
             (``min``, ms).
         max_ms: Maximum frame latency observed in the window
             (``max``, ms).
-        latency_ms: Current end-to-end latency reported by the tracer
-            (``latency``, ms).
+        latency_ms: Deprecated. The tracer's ``latency`` field: the mean
+            time between output frames (``1000 / fps``, ms), not a frame
+            latency. Use ``avg_ms`` and ``max_ms`` instead.
     """
 
     interval_ms: float
@@ -648,6 +650,8 @@ class InternalPerformanceJobStatus:
         details: List of human-readable messages for the current state. Cleared on state transition.
         total_fps: Total FPS across all streams.
         per_stream_fps: Average FPS per stream.
+        min_stream_fps: FPS of the slowest stream, or None when the
+            runner reports totals only.
         total_streams: Number of active streams.
         streams_per_pipeline: List of InternalPipelineStreamSpec with pipeline IDs and stream counts.
         video_output_paths: Mapping from pipeline ID to output file paths.
@@ -670,6 +674,7 @@ class InternalPerformanceJobStatus:
     details: list[str] = field(default_factory=list)
     total_fps: float | None = None
     per_stream_fps: float | None = None
+    min_stream_fps: float | None = None
     total_streams: int | None = None
     streams_per_pipeline: list[InternalPipelineStreamSpec] | None = None
     video_output_paths: dict[str, list[str]] | None = None
@@ -707,6 +712,8 @@ class InternalDensityJobStatus:
         details: List of human-readable messages for the current state. Cleared on state transition.
         total_fps: Total FPS across all streams.
         per_stream_fps: Average FPS per stream.
+        min_stream_fps: FPS of the slowest stream in the reported run, or
+            None when the runner reports totals only.
         total_streams: Number of active streams.
         streams_per_pipeline: List of InternalPipelineStreamSpec with pipeline IDs and stream counts.
         video_output_paths: Mapping from pipeline ID to output file paths.
@@ -725,6 +732,7 @@ class InternalDensityJobStatus:
     details: list[str] = field(default_factory=list)
     total_fps: float | None = None
     per_stream_fps: float | None = None
+    min_stream_fps: float | None = None
     total_streams: int | None = None
     streams_per_pipeline: list[InternalPipelineStreamSpec] | None = None
     video_output_paths: dict[str, list[str]] | None = None

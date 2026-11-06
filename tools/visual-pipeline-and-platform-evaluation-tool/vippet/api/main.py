@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import threading
@@ -13,6 +14,7 @@ from api.routes import health
 from app_version import VIPPET_VERSION
 from cpu_topology import get_cpu_topology
 from database import close_db, init_db
+from dlsps2_runner import stop_leftover_instances
 from images import ImagesManager
 from internal_types import InternalAppStatus
 from managers.app_state_manager import AppStateManager
@@ -20,6 +22,7 @@ from managers.model_manager import ModelManager
 from managers.pipeline_manager import PipelineManager
 from managers.pipeline_template_manager import PipelineTemplateManager
 from models import SupportedModelsManager
+from pipeline_events import remove_event_folders
 from videos import VideosManager
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -53,6 +56,16 @@ for _noisy in ("httpx", "httpcore"):
     )
 
 
+def _release_pipeline_execution() -> None:
+    """Stop leftover DLSPS 2.0 instances and delete live-event folders.
+
+    Runs when vippet starts and when it stops, so a vippet process that ended
+    mid-run leaves no pipeline holding devices and no event files behind.
+    """
+    stop_leftover_instances()
+    remove_event_folders()
+
+
 def _initialize_in_background(app: FastAPI) -> None:
     """
     Initialize application resources in background thread.
@@ -70,6 +83,9 @@ def _initialize_in_background(app: FastAPI) -> None:
         # Read the CPU core types once so they are logged at startup and
         # cached for GET /devices.
         get_cpu_topology()
+
+        # Before the TS conversion below starts pipelines on DLSPS 2.0.
+        _release_pipeline_execution()
 
         # Initialize VideosManager - downloads videos, scans files,
         # extracts metadata, and converts to TS format
@@ -180,6 +196,7 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("Application shutting down...")
+    await asyncio.to_thread(_release_pipeline_execution)
     await close_db()
     app_state_manager.set_status(InternalAppStatus.SHUTDOWN)
 

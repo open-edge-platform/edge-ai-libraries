@@ -1442,12 +1442,13 @@ class ExecutionConfig(BaseModel):
     enable_latency_metrics: bool = Field(
         default=False,
         description=(
-            "When true, activates the DLStreamer `latency_tracer` in "
-            "pipeline-only mode with a 1000 ms interval by setting "
-            "`GST_DEBUG=GST_TRACER:7` (appended if already set) and "
-            "`GST_TRACERS=latency_tracer(flags=pipeline,interval=1000)` on "
-            "the GStreamer subprocess environment. When false (default), "
-            "neither environment variable is modified."
+            "When true, runs the DLStreamer `latency_tracer` in "
+            "pipeline-only mode with a 1000 ms interval and reports one "
+            "latency sample per stream and interval. The tracer posts each "
+            "interval as a `dlstreamer/latency-window` bus message; with a "
+            "DLStreamer that predates these messages, ViPPET falls back to "
+            "parsing the tracer's log records. When false (default), the "
+            "tracer is not started."
         ),
     )
 
@@ -1817,11 +1818,9 @@ class LatencyMetrics(BaseModel):
     """
     **Last observed DLStreamer `latency_tracer` sample for a single stream.**
 
-    Each value is extracted from a single
-    `latency_tracer_pipeline_interval` line emitted by the
-    `latency_tracer` (one such line per stream per interval ~1000 ms).
-    Only the most recent sample per stream is kept; history is not
-    reported here.
+    Each value describes one `latency_tracer` interval (~1000 ms) of
+    one stream. Only the most recent sample per stream is kept; history
+    is not reported here.
 
     All timing fields are in milliseconds. `fps` reported by the tracer
     is intentionally **not** included because FPS is already exposed on
@@ -1830,10 +1829,14 @@ class LatencyMetrics(BaseModel):
 
     ## Attributes
     - `interval_ms` - Length of the measurement window, in milliseconds
-    - `avg_ms` - Average frame latency over the window, in milliseconds
+    - `avg_ms` - Mean frame latency over the window, in milliseconds
     - `min_ms` - Minimum frame latency observed in the window, in milliseconds
     - `max_ms` - Maximum frame latency observed in the window, in milliseconds
-    - `latency_ms` - Current end-to-end latency reported by the tracer, in milliseconds
+    - `latency_ms` - **Deprecated.** Mean time between output frames in the window, in milliseconds (frame period, `1000 / fps`). It is **not** a frame latency; use `avg_ms` (mean) and `max_ms`
+
+    A frame's latency is the time from the moment the source element
+    outputs the frame to the moment the frame is pushed into the sink;
+    the sink's own work is excluded.
 
     ### Example
     ```json
@@ -1854,23 +1857,40 @@ class LatencyMetrics(BaseModel):
     )
     avg_ms: float = Field(
         ...,
-        description="Average frame latency over the window, in ms.",
+        description=(
+            "Mean per-frame latency over the window, in ms: the time from "
+            "the source element's output to the push into the sink (the "
+            "sink's own work excluded)."
+        ),
         examples=[364.31],
     )
     min_ms: float = Field(
         ...,
-        description="Minimum frame latency observed in the window, in ms.",
+        description=(
+            "Minimum per-frame latency in the window, in ms: the time from "
+            "the source element's output to the push into the sink (the "
+            "sink's own work excluded)."
+        ),
         examples=[0.004],
     )
     max_ms: float = Field(
         ...,
-        description="Maximum frame latency observed in the window, in ms.",
+        description=(
+            "Maximum per-frame latency in the window, in ms: the time from "
+            "the source element's output to the push into the sink (the "
+            "sink's own work excluded)."
+        ),
         examples=[529.26],
     )
     latency_ms: float = Field(
         ...,
-        description="Current end-to-end latency reported by the tracer, in ms.",
+        description=(
+            "Deprecated: mean time between output frames in the window, "
+            "in ms (frame period, = 1000 / fps). It is NOT a frame "
+            "latency - use `avg_ms` (mean) and `max_ms`."
+        ),
         examples=[21.28],
+        deprecated=True,
     )
 
 
@@ -1907,6 +1927,7 @@ class TestsJobStatus(BaseModel):
     - `details` - List of human-readable messages explaining why the job reached its current state. Cleared when the job transitions to a new state, then new entries are appended. Examples: ["Pipeline completed successfully"], ["Cancelled by user"], ["Cancelled by user", "Pipeline exited with non-zero exit code: 1"], ["Pipeline runtime error: ..."]
     - `total_fps` - Total FPS across all streams (may be null)
     - `per_stream_fps` - Average FPS per stream (may be null)
+    - `min_stream_fps` - FPS of the slowest stream (null when per-stream FPS is not available)
     - `total_streams` - Number of active streams (may be null)
     - `streams_per_pipeline` - List of pipeline IDs with stream counts (each entry contains: id (pipeline identifier: variant path or synthetic graph ID) and streams (number of streams for this pipeline))
     - `video_output_paths` - Mapping from pipeline id to list of output file paths (keys use the same id format as streams_per_pipeline entries)
@@ -1925,6 +1946,15 @@ class TestsJobStatus(BaseModel):
     total_streams: int | None
     streams_per_pipeline: list[PipelineStreamSpec] | None
     video_output_paths: dict[str, list[str]] | None
+    min_stream_fps: float | None = Field(
+        default=None,
+        description=(
+            "FPS of the slowest stream. A density test passes a stream count "
+            "only if this reaches `fps_floor`. `null` when no per-stream FPS "
+            "was measured; `per_stream_fps` is then the only measure."
+        ),
+        examples=[27.5],
+    )
     latency_tracer_metrics: dict[str, LatencyMetrics] | None = Field(
         default=None,
         description=(
@@ -1948,7 +1978,7 @@ class PerformanceJobStatus(TestsJobStatus):
     carrying recent live pipeline events.
 
     ## Attributes
-    - *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, total_streams, streams_per_pipeline, video_output_paths
+    - *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, min_stream_fps, total_streams, streams_per_pipeline, video_output_paths
     - `live_stream_urls` - Mapping from pipeline id to live stream URL when using live_stream output mode (keys use the same id format as streams_per_pipeline entries; only available for performance tests)
     - `metadata_stream_urls` - Mapping from pipeline id to list of SSE endpoint URLs for streaming live metadata records, one URL per gvametapublish file (null when the pipeline does not include a gvametapublish element writing to a file; URL index corresponds to file_index path parameter)
     - `events` - Most recent live pipeline events (oldest first), e.g. a proximity trigger firing or a VLM answer
@@ -1974,7 +2004,7 @@ class DensityJobStatus(TestsJobStatus):
     live-streaming output mode (only disabled or file modes are allowed).
 
     ## Attributes
-    - *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, total_streams, streams_per_pipeline, video_output_paths
+    - *Inherited from TestsJobStatus* - id, start_time, elapsed_time, state, details, total_fps, per_stream_fps, min_stream_fps, total_streams, streams_per_pipeline, video_output_paths
     """
 
     pass

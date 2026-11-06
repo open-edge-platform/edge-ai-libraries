@@ -74,9 +74,17 @@ configuration; change it with the camera vendor's tools if needed.
 
 ### Streaming from GigE Vision cameras
 
+> [!NOTE]
+> Streaming from GigE Vision cameras is not supported for now. Pipelines run on DL Streamer Pipeline
+> Server 2.0, and its image does not include the Aravis GStreamer plugin yet, so a pipeline with a
+> GigE Vision camera (`aravissrc`) fails validation with an unknown element. Camera discovery is not
+> affected. See
+> [Known limitations](../../troubleshooting.md#16-known-limitations-of-pipeline-execution-on-dl-streamer-pipeline-server-20).
+
 GigE Vision cameras send video as UDP packets directly to the receiving host. The default ViPPET
 deployment runs on a Docker bridge network, which cannot receive these packets, so streaming from
-GigE Vision cameras requires running the ViPPET backend with host networking:
+GigE Vision cameras requires running the pipeline server (the `dlstreamer-pipeline-server`
+container) with host networking:
 
 ```bash
 make build run GIGE=1
@@ -84,9 +92,6 @@ make build run GIGE=1
 
 This applies the `compose.gige.yml` overlay. `GIGE=1` is also supported by `make run-prebuilt`
 and `make run-dev`. Use `make stop` to stop the services as usual.
-
-> [!NOTE]
-> The `GIGE=1` overlay is not supported together with `DLSPS2=1`.
 
 Frames in uncompressed pixel formats such as `Mono8`, `RGB8`, `BGR8`, or `YUV422_8` are converted
 with `videoconvert`, and frames in 8-bit Bayer formats (`BayerRG8`, `BayerBG8`, `BayerGR8`,

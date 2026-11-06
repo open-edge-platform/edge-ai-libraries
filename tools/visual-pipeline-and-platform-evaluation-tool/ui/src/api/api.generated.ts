@@ -1181,13 +1181,13 @@ export type PipelineStreamSpec = {
 export type LatencyMetrics = {
   /** Length of the measurement window reported by the tracer, in ms. */
   interval_ms: number;
-  /** Average frame latency over the window, in ms. */
+  /** Mean per-frame latency over the window, in ms: the time from the source element's output to the push into the sink (the sink's own work excluded). */
   avg_ms: number;
-  /** Minimum frame latency observed in the window, in ms. */
+  /** Minimum per-frame latency in the window, in ms: the time from the source element's output to the push into the sink (the sink's own work excluded). */
   min_ms: number;
-  /** Maximum frame latency observed in the window, in ms. */
+  /** Maximum per-frame latency in the window, in ms: the time from the source element's output to the push into the sink (the sink's own work excluded). */
   max_ms: number;
-  /** Current end-to-end latency reported by the tracer, in ms. */
+  /** Deprecated: mean time between output frames in the window, in ms (frame period, = 1000 / fps). It is NOT a frame latency - use `avg_ms` (mean) and `max_ms`. */
   latency_ms: number;
 };
 export type PipelineEvent = {
@@ -1211,6 +1211,8 @@ export type PerformanceJobStatus = {
   video_output_paths: {
     [key: string]: string[];
   } | null;
+  /** FPS of the slowest stream. A density test passes a stream count only if this reaches `fps_floor`. `null` when no per-stream FPS was measured; `per_stream_fps` is then the only measure. */
+  min_stream_fps?: number | null;
   /** Last observed DLStreamer `latency_tracer` sample per stream, keyed by `stream_id` (`{source_name}__{sink_name}`). `null` when the job was executed with `execution_config.enable_latency_metrics=false` (the tracer was not started at all). An empty object `{}` means the tracer was active but produced no samples — for example when the pipeline exited before the first 1000 ms interval closed. */
   latency_tracer_metrics?: {
     [key: string]: LatencyMetrics;
@@ -1243,6 +1245,8 @@ export type DensityJobStatus = {
   video_output_paths: {
     [key: string]: string[];
   } | null;
+  /** FPS of the slowest stream. A density test passes a stream count only if this reaches `fps_floor`. `null` when no per-stream FPS was measured; `per_stream_fps` is then the only measure. */
+  min_stream_fps?: number | null;
   /** Last observed DLStreamer `latency_tracer` sample per stream, keyed by `stream_id` (`{source_name}__{sink_name}`). `null` when the job was executed with `execution_config.enable_latency_metrics=false` (the tracer was not started at all). An empty object `{}` means the tracer was active but produced no samples — for example when the pipeline exited before the first 1000 ms interval closed. */
   latency_tracer_metrics?: {
     [key: string]: LatencyMetrics;
@@ -1597,7 +1601,7 @@ export type ExecutionConfig = {
   max_runtime?: number;
   /** Metadata publishing mode. 'disabled' (default): no metadata produced. 'file': gvametapublish elements write JSON-Lines metadata, available via SSE endpoints. */
   metadata_mode?: MetadataMode;
-  /** When true, activates the DLStreamer `latency_tracer` in pipeline-only mode with a 1000 ms interval by setting `GST_DEBUG=GST_TRACER:7` (appended if already set) and `GST_TRACERS=latency_tracer(flags=pipeline,interval=1000)` on the GStreamer subprocess environment. When false (default), neither environment variable is modified. */
+  /** When true, runs the DLStreamer `latency_tracer` in pipeline-only mode with a 1000 ms interval and reports one latency sample per stream and interval. The tracer posts each interval as a `dlstreamer/latency-window` bus message; with a DLStreamer that predates these messages, ViPPET falls back to parsing the tracer's log records. When false (default), the tracer is not started. */
   enable_latency_metrics?: boolean;
 };
 export type PerformanceTestSpec = {
