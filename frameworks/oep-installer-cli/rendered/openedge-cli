@@ -5194,7 +5194,7 @@ debian_50_sbom_ros2 ()
 debian_55_install_cdi () 
 { 
     configure_cdi;
-    if verify_cdi && [[ " $* " = *" --reinstall "* ]]; then
+    if verify_cdi && [[ " $* " != *" --reinstall "* ]]; then
         echo "CDI scripts are installed" 1>&2;
     else
         ensure_sudo mkdir -p "$cdi_path";
@@ -6506,7 +6506,7 @@ debian_90_install_smart_intersection ()
 debian_90_install_smart_kiosk_assistant () 
 { 
     configure_smart_kiosk_assistant "$@";
-    if verify_smart_kiosk_assistant && [[ " $* " = *" --reinstall "* ]]; then
+    if verify_smart_kiosk_assistant && [[ " $* " != *" --reinstall "* ]]; then
         echo "Smart Kiosk Assistant is installed." 1>&2;
     else
         ensure_disk_size 300;
@@ -6624,7 +6624,7 @@ debian_90_install_stationary_robot_vision ()
 debian_90_install_surgical_instrument () 
 { 
     configure_surgical_instrument "$@";
-    if verify_surgical_instrument && [[ " $* " = *" --reinstall "* ]]; then
+    if verify_surgical_instrument && [[ " $* " != *" --reinstall "* ]]; then
         echo "Surgical Instrument is installed" 1>&2;
     else
         ensure_disk_size 70000;
