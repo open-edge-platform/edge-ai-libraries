@@ -57,7 +57,7 @@ debian_90_install_physical_ai_framework () {
     }
     echo "$paif_extra" > "$paif_device_file"
 
-    if [[ " $* " = *" --validate "* ]]; then
+    if ensure_parse_option --validate "$@"; then
       "$paif_venv/bin/physicalai" --help > /dev/null
       "$paif_venv/bin/python" - "$paif_extra" <<'EOF'
 import sys

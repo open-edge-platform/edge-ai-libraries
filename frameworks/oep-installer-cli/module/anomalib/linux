@@ -15,7 +15,7 @@ verify_anomalib () {
 }
 
 test_anomalib () {
-  if [[ " $* " = *" --validate "* ]]; then
+  if ensure_parse_option --validate "$@"; then
     . "$workspace"/.venv/bin/activate
     ensure_rm "$workspace"/test
     mkdir -p "$workspace"/test

@@ -6,12 +6,12 @@ debian_99_profile_uncrewed_aerial_vehicle_blueprint () {
     ;;
   *)
     local modules=(core_types system_inspection system_summary power_tuning system_info cdi realsense chrony ubuntu_server)
-    if [[ " $* " = *" --k3s "* ]]; then
+    if ensure_parse_option --k3s "$@"; then
       modules+=(k3s_io)
     else
       modules+=(docker_io)
     fi
-    if [[ " $* " = *" --edgepack "* ]] && configure_edge_pack_kernel_image "$@"; then
+    if ensure_parse_option --edgepack "$@" && configure_edge_pack_kernel_image "$@"; then
       modules+=(edge_pack_base_standard edge_pack_npu edge_pack_ipu edge_pack_manageability edge_pack_tsn edge_pack_media_ffmpeg edge_pack_media_gst)
     else
       modules+=(gpu_accel npu_accel)

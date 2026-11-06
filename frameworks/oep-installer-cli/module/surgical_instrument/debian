@@ -39,7 +39,7 @@ debian_90_install_surgical_instrument () {
     
   # train models
   cd "$workspace"/surgical-instrument
-  if [ ! -e "$polyp_model" ] && [[ " $* " = *" --train "* ]]; then
+  if [ ! -e "$polyp_model" ] && ensure_parse_option --train "$@"; then
     make download-dataset
     make prepare-dataset MAX_POS_PER_VIDEO=800
     make backend-bootstrap
