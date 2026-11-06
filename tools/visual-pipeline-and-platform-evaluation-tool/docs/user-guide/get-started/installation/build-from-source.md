@@ -135,16 +135,21 @@ server's `gvagenai` has that property, as reported by the server's `GET /element
 when `metrics-manager` cannot store histograms, a performance test reports the means over every request since
 the element started, read from the answers that `gvagenai` writes.
 
-Latency metrics need the `latency_tracer`. Tracers apply to every pipeline the server runs, so it is off by
-default: with DL Streamer releases that predate the tracer fixes, it slows down every pipeline of a server
-worker that runs several. To enable it, keep `DLSPS2_OTEL=true` and set:
+Latency metrics need the `latency_tracer`, which is on by default with `DLSPS2_OTEL=true` and:
 
 ```bash
-export DLSPS2_GST_TRACERS='latency_tracer(flags=pipeline,interval=1000,post-metrics=true)'
+DLSPS2_GST_TRACERS='latency_tracer(flags=pipeline,interval=1000,post-metrics=true)'
+```
+
+Tracers apply to every pipeline the server runs, so the tracer also runs for tests that do not ask for latency
+metrics. To run without it, for example for FPS measurements, set it empty:
+
+```bash
+export DLSPS2_GST_TRACERS=
 make run
 ```
 
-Without this setting, a test that asks for latency metrics runs without them: `vippet` logs a warning and the
+Without the tracer, a test that asks for latency metrics runs without them: `vippet` logs a warning and the
 job details say so. The tracer must support `post-metrics`; with an older DL Streamer no samples arrive, and
 `vippet` logs a warning.
 

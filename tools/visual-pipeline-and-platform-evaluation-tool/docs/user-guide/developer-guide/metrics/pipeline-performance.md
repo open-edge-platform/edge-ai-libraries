@@ -21,15 +21,15 @@ pipeline, from the source element to the sink element.
 
 ### How latency_tracer is activated
 
-GStreamer tracers are set per process, so the tracer runs in the server for every pipeline the server runs. It is
-off by default and enabled with environment variables of the `vippet` and `dlstreamer-pipeline-server` services
-in `compose.yml`:
+GStreamer tracers are set per process, so the tracer runs in the server for every pipeline the server runs,
+including tests that do not ask for latency metrics. It is on by default and set with environment variables of
+the `vippet` and `dlstreamer-pipeline-server` services in `compose.yml`:
 
-| Environment variable      | Value                                                            | Purpose                                                          |
-| ------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `DLSPS2_GST_TRACERS`      | `latency_tracer(flags=pipeline,interval=1000,post-metrics=true)` | Passed to the server as `GST_TRACERS`; empty by default          |
-| `DLSPS2_OTEL`             | `true` (default)                                                 | Server exports its metrics over OpenTelemetry to metrics-manager |
-| `DLSPS2_OTEL_INTERVAL_MS` | `10000` (default)                                                | Export interval of the server, in milliseconds                   |
+| Environment variable      | Value                                                            | Purpose                                                                |
+| ------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `DLSPS2_GST_TRACERS`      | `latency_tracer(flags=pipeline,interval=1000,post-metrics=true)` | Passed to the server as `GST_TRACERS` (default); empty turns it off    |
+| `DLSPS2_OTEL`             | `true` (default)                                                 | Server exports its metrics over OpenTelemetry to metrics-manager       |
+| `DLSPS2_OTEL_INTERVAL_MS` | `10000` (default)                                                | Export interval of the server, in milliseconds                         |
 
 - **`flags=pipeline`** — measures the total source-to-sink latency (as opposed to per-element latency).
 - **`interval=1000`** — the tracer reports statistics accumulated during each 1 000 ms window.

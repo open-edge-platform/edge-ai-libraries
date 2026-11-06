@@ -270,9 +270,10 @@ for the setup. The following limitations apply:
 - **Error details of a failed run are short.** A failed run reports only the server's one-line status message
   and the failing element. For the full GStreamer log, run `docker logs dlstreamer-pipeline-server`, or open a
   shell in the server with `make shell-dlsps`.
-- **Latency metrics are off by default.** They need the `latency_tracer` enabled on the whole server, with
-  `DLSPS2_GST_TRACERS` and `DLSPS2_OTEL=true`. Without it, a test that asks for latency metrics runs without
-  them, and the job details say so.
+- **The latency tracer runs for every pipeline.** Tracers are process-wide, so the `latency_tracer` that
+  collects latency metrics also runs for tests that do not ask for them, and can lower their FPS. For FPS
+  measurements without the tracer, set `DLSPS2_GST_TRACERS=` (empty) before `make run`; tests that ask for
+  latency metrics then run without them, and the job details say so.
 - **The device list comes from the `vippet` container.** Available devices are detected by the OpenVINO™
   runtime of the `vippet` container, not by the server. The list is correct as long as both containers have
   the same devices, which the default deployment provides, and, for a server built from source, the same

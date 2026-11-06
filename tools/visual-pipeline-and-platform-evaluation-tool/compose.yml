@@ -71,7 +71,7 @@ x-vippet: &vippet
     # vippet checks these to know whether the server exports latency, and waits
     # up to one export interval for the server's final export after a run.
     DLSPS2_OTEL: ${DLSPS2_OTEL:-true}
-    DLSPS2_GST_TRACERS: ${DLSPS2_GST_TRACERS:-}
+    DLSPS2_GST_TRACERS: ${DLSPS2_GST_TRACERS-latency_tracer(flags=pipeline,interval=1000,post-metrics=true)}
     DLSPS2_OTEL_INTERVAL_MS: ${DLSPS2_OTEL_INTERVAL_MS:-10000}
     # Collect DLStreamer latency tracer samples for benchmark test cases.
     # Set to "false" to run benchmark suites without the tracer.
@@ -248,10 +248,10 @@ services:
       # reads the latency and VLM series of its own instances from metrics-manager;
       # its live "fps" metric is pushed by vippet.
       ENABLE_OPEN_TELEMETRY: ${DLSPS2_OTEL:-true}
-      # Tracers are process-wide, so once set, latency is measured for every pipeline
-      # the server runs. Off by default; latency metrics need
-      # DLSPS2_GST_TRACERS=latency_tracer(flags=pipeline,interval=1000,post-metrics=true)
-      GST_TRACERS: ${DLSPS2_GST_TRACERS:-}
+      # latency_tracer for latency metrics. Tracers are process-wide, so latency is
+      # measured for every pipeline the server runs, including tests that do not ask
+      # for it. Set DLSPS2_GST_TRACERS= (empty) to run without the tracer.
+      GST_TRACERS: ${DLSPS2_GST_TRACERS-latency_tracer(flags=pipeline,interval=1000,post-metrics=true)}
       OTEL_COLLECTOR_HOST: metrics-manager
       OTEL_COLLECTOR_PORT: "9090"
       OTEL_COLLECTOR_PATH: /api/v1/metrics/otlp

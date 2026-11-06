@@ -198,7 +198,7 @@ Hardware profiles (`COMPOSE_PROFILES`): `cpu`, `gpu`, `npu` — set automaticall
 | `DLSPS2_VERIFY_TLS`                | Verify the server's TLS certificate (https base URL)         | `false`                                                    |
 | `DLSPS2_OTEL`                      | Server exports its metrics to metrics-manager (OTLP)         | `true`                                                     |
 | `DLSPS2_OTEL_INTERVAL_MS`          | Server metrics export interval in milliseconds               | `10000`                                                    |
-| `DLSPS2_GST_TRACERS`               | Server `GST_TRACERS`; `latency_tracer` for latency metrics   | empty (latency metrics off)                                |
+| `DLSPS2_GST_TRACERS`               | Server `GST_TRACERS`; `latency_tracer` for latency metrics   | `latency_tracer(...,post-metrics=true)`; empty disables    |
 | `COMPOSE_PROFILES`                 | Hardware profile (cpu/gpu/npu)                               | Auto-detected                                              |
 | `PYTHONPATH`                       | Python module search path                                    | `/app`                                                     |
 
