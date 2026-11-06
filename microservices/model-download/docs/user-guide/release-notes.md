@@ -1,4 +1,28 @@
+<!-- SPDX-FileCopyrightText: (C) 2026 Intel Corporation -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Release Notes: Model Download
+
+## Version 2026.3.0
+
+**Release Date:** TBD
+
+This release adds the Model Download MCP server and Geti 3.0 support, optimizes Ollama image packaging, and delivers security and documentation improvements.
+
+**New**:
+
+- **Model Download MCP Server**: enables agents to download and convert models, manage jobs, and discover plugins and hub models through the Model Context Protocol (MCP).
+
+**Improved**:
+
+- **Geti 3.0 Support**: updates the Geti integration to use the Geti 3.0 Model API. Geti 2.0 is no longer supported.
+- **Ollama Image**: packages only the Ollama binary, reducing image size and removing the need to download it at startup.
+
+**Fixed**:
+
+- **Security**: Updates dependencies to address vulnerabilities and strengthens filtering when extracting Geti archives.
+
+---
 
 ## Version 2026.2.0
 
