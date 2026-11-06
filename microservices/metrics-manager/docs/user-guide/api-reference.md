@@ -1,8 +1,18 @@
 # API Reference
 
-**Version: 2026.2.0**
+**Version: 2026.3.0**
 
 This document describes all REST API endpoints, request/response formats, and examples.
+
+Custom metrics submitted through FastAPI are stored in memory and forwarded
+asynchronously to Telegraf. Acceptance is not a durable-delivery acknowledgement.
+Shutdown cancels pending debounce and HTTP push tasks before closing their
+shared session; it does not flush outstanding metrics. The store rejects new
+ingestion after shutdown begins.
+
+Latest-value export retains one point per metric name and tag set. Distinct
+pipelines or devices with the same metric name remain separate labeled series;
+the newest timestamp wins only within the same series.
 
 ---
 
@@ -17,7 +27,7 @@ curl http://localhost:9090/health
 ```json
 {
   "status": "healthy",
-  "version": "2026.2.0",
+  "version": "2026.3.0",
   "uptime_seconds": 3600.5,
   "checks": { "store": true }
 }
@@ -32,7 +42,7 @@ curl http://localhost:9090/api/health
 ```json
 {
   "status": "healthy",
-  "version": "2026.2.0",
+  "version": "2026.3.0",
   "uptime_seconds": 3600.5,
   "checks": { "store": true },
   "metrics_store": {
@@ -269,6 +279,27 @@ curl -X POST http://localhost:9090/api/v1/metrics/otlp \
     }]
   }'
 ```
+
+How data points are stored:
+
+| OTLP type | Stored fields | `temporality` tag |
+|-----------|---------------|-------------------|
+| `gauge` | `value` (from `asDouble`, or `asInt` stored as an integer) | none |
+| `sum` | `value` (from `asDouble`, or `asInt` stored as an integer) | `delta` or `cumulative` |
+| `histogram` | `count`; `sum`, `min` and `max` when the point carries them and they are finite; `avg` (= `sum / count`) when it has a `sum` and `count` is above 0. Bucket counts are not stored. | `delta` or `cumulative` |
+
+Resource and data point attributes become tags. `stringValue`, `intValue`, `doubleValue`
+and `boolValue` attributes are stored as text; `arrayValue`, `kvlistValue` and
+`bytesValue` attributes are stored as an empty string.
+
+The `temporality` tag comes from the metric's `aggregationTemporality`, given either as
+the enum number (`1`, `2`) or its name (`AGGREGATION_TEMPORALITY_DELTA`). Delta points
+can be summed over time; cumulative points are running totals. The tag is left out
+when the temporality is unspecified.
+
+A data point with a malformed number, such as an `asInt` or histogram `count` that is
+not an integer, is skipped and logged as a warning; the other points in the request
+are still stored.
 
 ---
 

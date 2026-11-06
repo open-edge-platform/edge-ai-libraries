@@ -11,6 +11,7 @@ from tests.performance.perf_helpers.matrix import (
     ExclusionReason,
     MatrixFilters,
     build_matrix,
+    find_unknown_filter_ids,
 )
 
 R = ExclusionReason
@@ -135,6 +136,23 @@ class TestBuildMatrix(unittest.TestCase):
         self.assertEqual(
             [(c.case_id, n) for c, n in matrix.rows()],
             [("smart_parking_cpu", 1), ("smart_parking_cpu", 5)],
+        )
+
+    def test_pipelines_filter_is_case_insensitive(self) -> None:
+        filters = MatrixFilters(pipelines=["Smart-Parking"])
+        matrix = build_matrix(PIPELINES, DEVICES, {}, filters)
+        self.assertEqual({c.pipeline_id for c in matrix.included}, {"smart-parking"})
+        self.assertEqual(_reasons(matrix)[("lpr", ALL_VARIANTS)], R.PIPELINE_FILTER)
+
+    def test_unknown_filter_ids_are_case_insensitive(self) -> None:
+        known = ["object-detection", "smart-parking"]
+        filters = MatrixFilters(
+            pipelines=["Object-Detection", "nope"],
+            skip_pipelines=["SMART-PARKING"],
+        )
+        issues = find_unknown_filter_ids(filters, known)
+        self.assertEqual(
+            [(i.key, i.value) for i in issues], [("benchmark.pipelines", "nope")]
         )
 
     def test_no_devices_excludes_everything(self) -> None:

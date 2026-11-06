@@ -14,7 +14,7 @@ debian_70_install_edge_pack_media_gst () {
     echo "intel-edge-media-gst is installed." >&2
   else
     ensure_prop set installed/edge_pack_media_gst/owned true
-    ensure_apt purge --auto-remove -y intel-edge-media-gst || true
+    ensure_apt purge --auto-remove -y intel-edge-media-gst onevpl-tools || true
     ensure_apt install "${edge_pack_install_options[@]}" "intel-edge-media-gst=$version*"
   fi
 }

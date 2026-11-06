@@ -22,7 +22,7 @@ import config
 from assetlib import Source
 from assetlib.content import asset_key
 from assetlib.pool import AssetPool, SourceSyncStatus
-from assetlib.sources.binding import DEPRECATED, PREPARING, SERVING
+from assetlib.sources.binding import DEGRADE, PREPARING, SERVING
 from core.content import (
     AUDIO,
     ROLE_L2_CAPTION,
@@ -154,7 +154,7 @@ def _stored(library, asset):
 def test_a_description_becomes_a_text_block_pointing_back_at_the_clip(monkeypatch):
     library, asset, client = _setup()
     library.asset_pools = {
-        "p": pool_with("a1", xclip={ROLE_SHORT_VIDEO}, gme={ROLE_L2_CAPTION})
+        "p": pool_with("a1", viclip={ROLE_SHORT_VIDEO}, gme={ROLE_L2_CAPTION})
     }
 
     status = captioning.caption_asset(library, "a1", client)
@@ -173,7 +173,7 @@ def test_a_description_becomes_a_text_block_pointing_back_at_the_clip(monkeypatc
 def test_a_description_no_source_takes_is_stored_without_re_embedding_the_clip():
     """Marking the asset changed would re-encode the clip for the same vector."""
     library, asset, client = _setup()
-    library.asset_pools = {"p": pool_with("a1", xclip={ROLE_SHORT_VIDEO})}
+    library.asset_pools = {"p": pool_with("a1", viclip={ROLE_SHORT_VIDEO})}
 
     status = captioning.caption_asset(library, "a1", client)
 
@@ -218,7 +218,7 @@ def test_frozen_derived_source_keeps_stale_and_catches_up_on_enable_or_rollback(
             "pool", [{"source_id": "old"}, {"source_id": "new", "replaces": "old"}]
         )
         library.sync_asset_pool("pool")
-        assert pool.source_statuses["old"].serving_state == DEPRECATED
+        assert pool.source_statuses["old"].serving_state == DEGRADE
     assert "old" in pool.frozen_sources
     status = pool.source_statuses["old"]
     revision = pool.revision
@@ -262,7 +262,7 @@ def test_frozen_derived_source_keeps_stale_and_catches_up_on_enable_or_rollback(
     assert status.indexed_revision == pool.revision
     assert status.serving_state == SERVING
     if frozen_state == "deprecated":
-        assert pool.source_statuses["new"].serving_state == DEPRECATED
+        assert pool.source_statuses["new"].serving_state == DEGRADE
 
 
 @pytest.mark.parametrize("role, kind", [(ROLE_L2_CAPTION, TEXT), (ROLE_L2_TRANSCRIPT, AUDIO)])
@@ -460,7 +460,7 @@ def _scoped_source(*, caption=True, configuration=None, params=None):
         "embedding_backend": "llamaindex_openvino",
         "embedding_model": (
             "Alibaba-NLP/gme-Qwen2-VL-2B-Instruct" if caption
-            else "microsoft/xclip-base-patch16-zero-shot"
+            else "viclip-b-fp16"
         ),
     }
     if caption:
@@ -469,7 +469,7 @@ def _scoped_source(*, caption=True, configuration=None, params=None):
     if params is not None:
         profile = {**profile, "params": {**profile["params"], **params}}
     return Source(
-        source_id="caption-gme" if caption else "original-xclip",
+        source_id="caption-gme" if caption else "original-viclip",
         source_type="vector", database_id="vectors",
         name="captions" if caption else "original video",
         location=VectorCollection("video_captions" if caption else "video_originals", 4),
@@ -503,7 +503,7 @@ def scoped_caption_case():
         status = SourceSyncStatus(
             source.source_id, status="ready", indexed_revision=3,
             indexed_asset_ids=[asset.asset_id],
-            serving_state=DEPRECATED if lifecycle == "deprecated" else SERVING,
+            serving_state=DEGRADE if lifecycle == "deprecated" else SERVING,
         )
         pool = AssetPool("videos", "videos", (projection,), [asset.asset_id], revision=3,
                          source_statuses={source.source_id: status})
@@ -640,7 +640,7 @@ def test_active_caption_consumer_honors_accepts_veto_even_when_file_and_block_ma
 
 
 @pytest.mark.parametrize("lifecycle", ["active", "disabled", "deprecated", "unavailable"])
-def test_caption_completion_reopens_only_gme_not_the_original_xclip_collection(
+def test_caption_completion_reopens_only_gme_not_the_original_viclip_collection(
     scoped_caption_case, monkeypatch, lifecycle
 ):
     library, asset, pool, caption, _ = scoped_caption_case(
@@ -666,7 +666,7 @@ def test_caption_completion_reopens_only_gme_not_the_original_xclip_collection(
 
     assert original.source.source_id != caption.source.source_id
     assert original.collection.name != caption.collection.name
-    assert original.source.profile["multimodal_model"]["name"] == "xclip"
+    assert original.source.profile["multimodal_model"]["name"] == "viclip-b"
     assert caption.source.profile["multimodal_model"]["name"] == "gme_qwen2vl"
     assert library.changed_sources == [caption.source.source_id]
     assert pool.source_statuses[caption.source.source_id].stale_asset_ids == ["a1"]

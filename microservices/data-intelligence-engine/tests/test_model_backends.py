@@ -25,7 +25,7 @@ def test_legacy_model_backend_names_are_normalized(legacy, canonical):
     assert config.normalize_model_backend(legacy) == canonical
 
 
-def test_embedding_and_reranker_report_one_shared_backend_list(monkeypatch):
+def test_reranker_reports_vl_backend_and_media_defaults(monkeypatch):
     def no_workspace_models(model_type=None):
         del model_type
         return []
@@ -36,7 +36,30 @@ def test_embedding_and_reranker_report_one_shared_backend_list(monkeypatch):
     reranker = models.model_options(models.RERANKER)
 
     assert embedding["backends"] == list(config.MODEL_BACKENDS)
-    assert reranker["backends"] == list(config.MODEL_BACKENDS)
+    assert reranker["backends"] == [*config.MODEL_BACKENDS, "openvino_vl"]
+    assert "openvino_vl" not in embedding["backends"]
+    from schemas import ModelOptions
+    response = ModelOptions(**reranker).model_dump()
+    expected_models = [] if config.RERANK_BACKEND in config.LOCAL_MODEL_BACKENDS else [{
+        "name": config.RERANK_MODEL_ID, "path": config.RERANK_API_BASE,
+        "ready": True, "model_type": models.RERANKER,
+    }]
+    assert reranker == {
+        "model_type": models.RERANKER,
+        "backend": config.RERANK_BACKEND,
+        "backends": [*config.MODEL_BACKENDS, "openvino_vl"],
+        "device": config.RERANK_DEVICE,
+        "model_id": config.RERANK_MODEL_ID,
+        "media_model_id": config.MEDIA_RERANK_MODEL_ID,
+        "media_backend": config.MEDIA_RERANK_BACKEND,
+        "media_device": config.MEDIA_RERANK_DEVICE,
+        "api_base": config.RERANK_API_BASE,
+        "workspace": config.MODEL_DIR,
+        "models": expected_models,
+    }
+    assert response == {
+        **reranker, "models": [{**model, "backend": None} for model in expected_models],
+    }
 
 
 def test_layout_reports_its_own_backend_list(monkeypatch):
@@ -62,6 +85,54 @@ def test_workspace_scan_separates_layout_and_ocr_from_embeddings(tmp_path):
     assert found == {
         "tesseract-ocr": models.OCR,
         "detector": models.LAYOUT,
+    }
+
+
+@pytest.mark.parametrize("nested", (False, True))
+@pytest.mark.parametrize("name, kind, kinds, asset_types", (
+    ("unrecognized-package", models.EMBEDDING, ["text"], ["document"]),
+    ("unrecognized-reranker", models.RERANKER, ["text"], ["audio", "document"]),
+    ("unrecognized-layout", models.LAYOUT, ["image"], ["document", "image"]),
+    ("unrecognized-ocr", models.OCR, [], []),
+))
+def test_unprepared_scan_retains_only_type_capabilities(
+    tmp_path, nested, name, kind, kinds, asset_types,
+):
+    directory = tmp_path / "vendor" / name if nested else tmp_path / name
+    directory.mkdir(parents=True)
+
+    assert models._scan(str(tmp_path)) == [{
+        "name": f"vendor/{name}" if nested else name,
+        "path": str(directory), "ready": False, "model_type": kind,
+        "supported_kinds": kinds, "supported_asset_types": asset_types, "supported_roles": [],
+    }]
+
+
+@pytest.mark.parametrize("artifacts, vl_ready", (
+    ((), False), (("reranker_text.xml",), False),
+    (("reranker_text.xml", "reranker_text.bin"), True),
+))
+def test_vl_capabilities_require_recognized_ir_not_a_model_id(tmp_path, artifacts, vl_ready):
+    directory = tmp_path / "independent-reranker"
+    directory.mkdir()
+    for artifact in artifacts:
+        (directory / artifact).touch()
+    expected = {
+        "name": directory.name, "path": str(directory), "ready": vl_ready,
+        "model_type": models.RERANKER,
+        "supported_kinds": ["image", "text", "video"] if vl_ready else ["text"],
+        "supported_asset_types": ["audio", "document", "image", "video"] if vl_ready else ["audio", "document"],
+        "supported_roles": [],
+    }
+    if vl_ready:
+        expected["backend"] = "openvino_vl"
+
+    assert models._scan(str(tmp_path)) == [expected]
+
+
+def test_unknown_capability_type_does_not_invent_support():
+    assert models._capabilities("future", backend="openvino_vl") == {
+        "supported_kinds": [], "supported_asset_types": [], "supported_roles": [],
     }
 
 
@@ -98,9 +169,11 @@ def test_workspace_scan_reports_complete_gme_package_ready(tmp_path, monkeypatch
             "name": "gme-Qwen2-VL-2B-Instruct-OV",
             "path": str(model_dir),
             "ready": True,
-            "model_type": kind,
+            "model_type": models.EMBEDDING,
+            "supported_kinds": ["audio", "image", "text"],
+            "supported_asset_types": ["audio", "document", "image"],
+            "supported_roles": ["doc_image", "image", "l2_caption", "l2_transcript", "l3_wiki"],
         }
-        for kind in (models.EMBEDDING, models.MULTIMODAL)
     ]
 
 

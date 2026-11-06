@@ -118,7 +118,7 @@ def test_speech_becomes_timed_transcript_blocks_pointing_back_at_the_recording()
 
 def test_a_transcript_no_source_takes_re_opens_nothing():
     library, asset = _setup()
-    library.asset_pools = {"p": pool_with("a1", xclip={"short_video"})}
+    library.asset_pools = {"p": pool_with("a1", viclip={"short_video"})}
 
     transcription.transcribe_asset(library, "a1", FakeTranscriber())
 
@@ -319,7 +319,7 @@ def test_audio_asset_scope_resolves_to_gme_with_transcript_routing():
 def test_audio_asset_scope_with_a_model_that_cannot_embed_transcripts_is_refused():
     with pytest.raises(ValueError, match="l2_transcript"):
         registry.resolve({
-            "embedding_model": "microsoft/xclip-base-patch16-zero-shot",
+            "embedding_model": "viclip-b-fp16",
             "asset_types": ["audio"],
         })
 

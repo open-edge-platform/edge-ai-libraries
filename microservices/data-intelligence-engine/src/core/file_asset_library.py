@@ -67,6 +67,7 @@ from core.knowledge.extraction_jobs import ExtractionJob, ExtractionJobs
 from core.content import (
     AUDIO,
     BINARY_KINDS,
+    DOCUMENT,
     IMAGE,
     MM_ROLES,
     ROLE_AUDIO,
@@ -83,6 +84,7 @@ from core.content import (
     MM_DERIVED_ROLES,
     ContentBlock,
     ContentStream,
+    asset_family,
     file_uri,
     file_uri_path,
     is_file_uri,
@@ -155,8 +157,8 @@ def describe_vector_source(configuration: Mapping[str, Any]) -> dict:
     # This backend is main's document/fused path, even if its model directory
     # also identifies a registry model. It must keep the text indexer contract.
     # An explicit text-capable model ID also inherits the text backend. Keep
-    # media-only models (e.g. X-CLIP) on their registry runtime when no backend
-    # was requested, just like bare video/image/audio category defaults.
+    # media-only models (ViCLIP) on their registry runtime when no
+    # backend was requested, just like bare video/image/audio category defaults.
     native_text = not media_scope and backend == "native_openvino_gme" and bool(
         configuration.get("embedding_backend")
     )
@@ -245,8 +247,10 @@ class FileAsset:
     origin: str = ""
     content_source_id: str = ""
     content_key: str = ""
-    #: "document" for a normal file, "okf" for a concept bundle (provenance-only).
-    asset_kind: str = "document"
+    #: What the file is, in the words a source's `asset_types` selects by: "okf"
+    #: for a concept bundle (provenance-only), else its family -- "document",
+    #: "image", "video" or "audio". Only "okf" is kept as given; see `__post_init__`.
+    asset_kind: str = DOCUMENT
     # Neither is persisted: `loader` is bound by the library, `cached` is the
     # stream once read (or the one it was created with).
     loader: Optional[Callable[[], ContentStream]] = field(
@@ -259,6 +263,10 @@ class FileAsset:
     blob_reader: Optional[Callable[[str], bytes]] = field(
         default=None, repr=False, compare=False
     )
+
+    def __post_init__(self) -> None:
+        if self.asset_kind != "okf":
+            self.asset_kind = asset_family(self.extension)
 
     def bind(self, loader: Callable[[], ContentStream]) -> None:
         self.loader = loader
@@ -501,14 +509,19 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
                       register=True, **options):
         """As the base class, but a graph source's knowledge settings are checked
         first: its formats (`asset_types`) and, for ``document``, the external
-        extractor's access parameters. A bad source is refused here rather than
+        extractor's access parameters; a vector source's `asset_types` must each
+        match something ingest accepts. A bad source is refused here rather than
         failing at its first sync. Other keywords (`enabled`, `labels`...) pass
         through unchanged."""
+        from core.multimodal.routing import validate_asset_types
+
         source = super().create_source(
             name, database_id, collection_name, configuration, register=False, **options
         )
         if source.source_type == "graph":
             Knowledge(source.configuration)
+        elif source.source_type == "vector":
+            validate_asset_types(source.configuration)
         return self.add_source(source) if register else source
 
     def describe_source(self, source: Source) -> dict:
@@ -542,6 +555,13 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
         except (ValueError, FileNotFoundError) as error:
             return str(error)
         return ''
+
+    def _source_accepts_asset(self, source: Source, asset: FileAsset) -> bool:
+        from core.multimodal.routing import effective_configuration
+
+        if source.source_type == "vector" and asset.asset_kind == "okf":
+            return False
+        return accepts_asset(asset, effective_configuration(source))
 
     def build_projection(
         self, projection_id: str, name: str, source: Source
@@ -1203,6 +1223,8 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
             possible = set().union(*(ASSET_ROLES[family] for family in families))
             if kind not in possible:
                 return None
+        elif families == {DOCUMENT} and kind not in ("text", ROLE_DOC_IMAGE):
+            return None
         if kind == ROLE_AUDIO and source.source_type == "vector":
             # No model embeds the sound; a recording is covered by whoever
             # embeds its transcript.
@@ -1647,13 +1669,14 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
                 )
             content_records.append((source, asset.content_key))
 
+        # A vector source loses every deleted asset, not only those its filter
+        # takes now: an unscoped text source used to take pictures and
+        # recordings too. Removing an id a collection does not hold is a no-op.
         materializations_removed = 0
         for projection in projections.values():
             if isinstance(projection, GraphIndexer):
                 continue
-            accepted_ids = [
-                asset.asset_id for asset in assets if projection.accepts(asset)
-            ]
+            accepted_ids = [asset.asset_id for asset in assets]
             if accepted_ids:
                 materializations_removed += int(projection.remove(accepted_ids) or 0)
         for plan in graph_plans:
@@ -1667,7 +1690,7 @@ class FileAssetLibrary(AssetLibrary[FileAsset]):
             accepted_ids = [
                 asset.asset_id
                 for asset in assets
-                if accepts_asset(asset, source.configuration)
+                if source.source_type == "vector" or accepts_asset(asset, source.configuration)
             ]
             materializations_removed += sum(
                 frozen_bindings.delete_assets(

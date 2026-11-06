@@ -1,245 +1,141 @@
 # Data Intelligence Engine
 
-- [Description](#description)
-- [Quick Start](#quick-start)
-  - [Docker](#docker)
-    - [When attaching a source fails](#when-attaching-a-source-fails)
-  - [Local Development](#local-development)
+A FastAPI service that ingests documents, images, videos, audio and OKF
+knowledge bundles, embeds them with OpenVINO™ models, and serves retrieval and
+reranking over them through one HTTP API. Vectors go to Milvus and concept
+graphs to NebulaGraph; database connections are registered at runtime rather
+than fixed in configuration. The engine listens on port `16022` by default and
+ships a web console.
 
-## Description
-
-Data Intelligence Engine is a standalone FastAPI service for asset-library
-management, content ingestion, retrieval, reranking, and runtime database
-management. It listens on port `16022` by default.
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue)]()
+[![License](https://img.shields.io/badge/license-Apache--2.0-green)]()
 
 ```text
 ingest:   files/text -> normalized content blocks -> vector or graph projections
 retrieve: query -> document fusion or media search -> optional reranking -> chunks
 ```
 
-An asset library owns assets, storage sources, and the pools that materialize
-selected assets into those sources. Database connections are registered through
-the API and persisted in the engine workspace rather than fixed in environment
-configuration.
+## Features
 
-The Python project is rooted here and uses a flat `src/` layout:
-
-```text
-data-intelligence-engine/
-|-- pyproject.toml
-|-- src/
-|   |-- api/
-|   |-- assetlib/
-|   |-- core/
-|   |-- databasehub/
-|   |-- console/
-|   `-- main.py
-|-- deployment/
-|-- scripts/
-|-- tests/
-`-- workspace/
-```
-
-Documentation:
-
-- [Get started](docs/get-start.md)
-- [API reference](docs/api.md)
-- [User guide](docs/user-guide.md)
-- [Text-to-media retrieval and media reranking](docs/text-to-media-retrieval.md)
-- [API script examples](scripts/README.md)
+- Asset libraries: a library holds assets, the sources they are materialized
+  into, and the pools that bind assets to sources, so one corpus can be indexed
+  by several models side by side.
+- Multimodal ingestion: PDFs and Office/HTML documents (text chunks plus
+  embedded figures, scanned pages through OCR), images, video segments, audio
+  (transcribed, then embedded) and OKF concept bundles.
+- Non-blocking ingest: requests return `202` at once, and each asset reports its
+  progress; a digital PDF's text is searchable before its figures are done.
+- Local OpenVINO models on CPU or Intel GPU: GME for documents, images and
+  transcripts, ViCLIP for video, Whisper for speech, PP-DocLayoutV3 for figure
+  detection. A remote OpenAI-compatible embedding service also works.
+- Retrieval: vector, BM25 and concept-graph arms fused with RRF for documents,
+  text-to-media search, and optional reranking with bge-reranker or the
+  Qwen3-VL media reranker.
+- Runtime database registry: Milvus, NebulaGraph and a filesystem content store,
+  registered over the API and persisted in the workspace.
+- Web console at `/console/` for libraries, ingest progress, retrieval and the
+  concept graph.
 
 ## Quick Start
 
-### Docker
+This is the minimal path to a running engine and a first retrieval; the
+[Get Started guide](docs/user-guide/get-start.md) walks through the same with a sample
+file. To ingest more kinds of files, follow
+[How to ingest multimodal data](docs/user-guide/how-to-guides/how-to-ingest-mm-data.md).
 
-From the repository root, start the bundled Milvus stack and the engine;
-NebulaGraph is needed only for OKF concept graphs. All services use the existing
-shared `data-intelligence-network` so other services on it can reach them.
-
-Prepare model artifacts before starting the engine: it never downloads models
-or exports checkpoints at runtime. Place the prepared files under
-`data-intelligence-engine/workspace/models` (mounted as `/workspace/models`), or the configured
-`ENGINE_MODEL_ROOT_PATH`. See the
-[model preparation guide](docs/how-to-guides/how-to-prepare-models.md)
-for embedding, reranking, video, speech, and layout preparation. Missing or
-incomplete models produce an explicit error when their capability is used.
-
-The engine runs embedding and reranking on the GPU by default, which needs the
-container user to be in the groups that own `/dev/dri`. Every Compose setting
-has a default, so `deployment/docker/.env` only needs the values that differ per
-host: on a first deployment, write the group IDs and MinIO data owner from the
-current host. Keep an existing `.env` when upgrading; it is git-ignored and may
-contain credentials.
+If you are cloning from the larger monorepo and only need this service, you
+can use sparse checkout:
 
 ```bash
-cd data-intelligence-engine/deployment/docker
-if [ ! -f .env ]; then
-  cat > .env <<EOF
-VIDEOGROUPID=$(getent group video | cut -d: -f3)
-RENDERGROUPID=$(getent group render | cut -d: -f3)
-MINIO_UID=$(id -u)
-MINIO_GID=$(id -g)
-EOF
-fi
-mkdir -p ../../workspace/milvus/{etcd,minio,db}
+git clone --filter=blob:none --sparse https://github.com/open-edge-platform/edge-ai-libraries.git
+cd edge-ai-libraries
+git sparse-checkout set microservices/data-intelligence-engine
+cd microservices/data-intelligence-engine
 ```
 
-Set a non-default `MINIO_ROOT_USER` and `MINIO_ROOT_PASSWORD` in `.env` before
-production use. Compose passes the same credentials to MinIO and Milvus; changing
-only one service's environment would break storage access. A one-shot
-`minio-init` service hands the MinIO data directory to `MINIO_UID:MINIO_GID`
-before MinIO starts, so the stack comes up whoever owns that directory and
-whether or not the UID exists on the host. Setting the IDs to your own keeps
-the data deletable without `sudo`. On hosts without a
-usable GPU, set both `ENGINE_DOC_EMBEDDING_DEVICE` and `ENGINE_RERANK_DEVICE` to `CPU`.
+### Prerequisites
 
-Then bring the required stacks up (NebulaGraph is optional, for OKF only).
-Building the engine image fetches apt and PyPI packages, so behind a corporate
-proxy the build must be told about it. `up` cannot pass build args, so build the
-image first with the host's proxy forwarded, then start everything (the
-`--build-arg NAME` form with no value passes the value from the current
-environment; harmless when the variables are unset):
+- Docker with Docker Compose v2 ([Installation Guide](https://docs.docker.com/engine/install/ubuntu/)),
+  `curl` and `jq`. No Python environment is needed on the host.
+- About 50 GB of free disk: the image, the default models and their downloaded
+  originals (which can be deleted afterwards).
+- Access to Hugging Face for the first run, which downloads the models. Behind a
+  proxy, export `http_proxy`/`https_proxy` and configure the Docker daemon's
+  proxy for image pulls. If Hugging Face is not reachable, set `HF_ENDPOINT` to a
+  mirror.
+
+### Step 1: Deploy
+
+Run the one-click script:
 
 ```bash
-docker network inspect "${ENGINE_NETWORK:-data-intelligence-network}" >/dev/null 2>&1 \
-  || docker network create "${ENGINE_NETWORK:-data-intelligence-network}"
-docker compose -f docker-compose-milvus.yml up -d
-# Optional, only for OKF concept graphs:
-docker compose -f docker-compose-nebula.yml up -d
-docker compose build \
-  --build-arg http_proxy --build-arg https_proxy --build-arg no_proxy \
-  --build-arg HTTP_PROXY --build-arg HTTPS_PROXY --build-arg NO_PROXY
-docker compose up -d
-curl "http://localhost:${ENGINE_PORT:-16022}/health"
+bash scripts/quickstart.sh
 ```
 
-Builds require Docker BuildKit (the default with current Docker Compose).
-Dependencies are installed in a layer keyed by `pyproject.toml`, before copying
-source, so code-only rebuilds reuse the installed packages. The engine itself is
-then installed without dependency resolution, build isolation, or index access.
-BuildKit also retains pip's download cache outside the image, so dependency
-changes can reuse cached downloads. The optional OKF extractor uses the same
-approach with its `requirements.txt`. Compose embeds inline
-cache metadata in each Python service image and imports that image as a cache
-source; on a new builder, pull a previously built image first to reuse its layers.
-The first build populates the caches. Avoid `--no-cache` and build-cache pruning
-for routine rebuilds; base-image or build-instruction changes can invalidate
-otherwise unchanged dependency layers.
+The first run builds the image, prepares the default models (GME,
+bge-reranker-large, PP-DocLayoutV3, ViCLIP-B, Whisper and the Qwen3-VL INT8
+media reranker), starts Milvus and the engine, and registers Milvus as
+`local-milvus`. Later runs just start the services. The script also takes
+`--models "LIST"` to prepare other models, `--build` to rebuild the image,
+`--gpu` to run embedding and reranking on an Intel GPU, and `--down` to stop and
+remove the services while keeping the data and models; run it with `--help` for
+details. Host-specific settings go in `deployment/docker/.env`, which the script
+writes on the first run; a value exported in the shell, such as `ENGINE_PORT`,
+overrides it.
 
-If the network or host port is customized in `.env`, export the same
-`ENGINE_NETWORK` / `ENGINE_PORT` values for shell commands; Compose reads `.env`
-itself, but the shell does not. `ENGINE_CONTAINER_PORT`
-controls the internal listener and healthcheck independently of the host port.
-All runtime `ENGINE_*` settings in the [configuration reference](docs/user-guide.md#configuration)
-can be set in `.env`; unspecified values use the defaults in `src/config.py`.
+### Step 2: Verify
 
-All model capabilities share `ENGINE_MODEL_ROOT_PATH`, defaulting to
-`$ENGINE_WORKSPACE/models` (`/workspace/models` in Compose). Set it to the parent
-directory containing your model folders; model IDs determine their subdirectories.
-Document embedding uses `ENGINE_DOC_EMBEDDING_*`. Each source can select its own
-prepared model with `operator_options.embedding_model` under the shared root.
-
-A fresh workspace has no database registrations. Register the bundled Milvus so
-pools have somewhere to index to. A content store is optional — without one,
-asset content goes to `$ENGINE_WORKSPACE/content` through a registration the
-engine writes down on first use — but register one explicitly to choose where it
-goes or to share it between deployments:
+The helper scripts in `scripts/` wrap the HTTP API. Check that the engine is up
+and can reach Milvus:
 
 ```bash
-curl -X POST http://localhost:16022/v1/databases \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "id":"local-milvus",
-    "type":"vector",
-    "backend":"milvus",
-    "options":{"uri":"http://milvus-standalone:19530"}
-  }'
-
-curl -X POST http://localhost:16022/v1/databases \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "id":"local-content",
-    "type":"object",
-    "backend":"filesystem",
-    "options":{"root":"/workspace/content"}
-  }'
-
-curl -X POST \
-  http://localhost:16022/v1/databases/local-milvus/check
+cd scripts
+./status.sh health
+./status.sh check local-milvus
 ```
 
-Open [http://localhost:16022/console/](http://localhost:16022/console/). To stop all services while preserving
-workspace state:
+Then create a library with a text source and a pool, ingest a sentence, and
+search it:
 
 ```bash
-docker compose down
-docker compose -f docker-compose-nebula.yml down
-docker compose -f docker-compose-milvus.yml down
+./library.sh create '{"name":"demo"}'
+./sources.sh create demo '{"name":"docs","database_id":"local-milvus","collection_name":"demo_docs"}'
+./pools.sh create demo '{"id":"docs","name":"Docs","sources":["docs"]}'
+./assets.sh create demo '{"asset_pool_ids":["docs"],"text":"Milvus stores the vectors; NebulaGraph stores OKF concept graphs."}' --wait
+./retrieve.sh query demo "Where are the vectors stored?" --pool docs --top-k 3
 ```
 
-#### When attaching a source fails
+The response lists the ingested sentence as a chunk with its score. Open
+[http://localhost:16022/console/](http://localhost:16022/console/) to browse the
+library and run the same search.
 
-Attaching a source to a pool is the first operation that dials a backend and
-loads the embedding model, so it is where a deployment problem usually surfaces
-— as a `503` from `PUT /v1/libraries/{library}/asset_pools/{pool}/sources`.
-Two common causes, both reported in the response body:
+## Optional: Media, PDFs and Concept Graphs
 
-- `MilvusException: Fail connecting to server on ...` — the engine cannot
-  resolve or reach Milvus. Check they share a network:
+Each content type needs its models prepared and a source configured for it; see
+[How to ingest multimodal data](docs/user-guide/how-to-guides/how-to-ingest-mm-data.md):
 
-  ```bash
-  docker network inspect data-intelligence-network -f '{{range .Containers}}{{.Name}} {{end}}'
-  ```
+- [Videos](docs/user-guide/how-to-guides/how-to-ingest-mm-data.md#videos),
+  [images](docs/user-guide/how-to-guides/how-to-ingest-mm-data.md#images) and
+  [audio](docs/user-guide/how-to-guides/how-to-ingest-mm-data.md#audio) for text-to-media
+  search, with [media reranking](docs/user-guide/how-to-guides/how-to-ingest-mm-data.md#7-media-reranking)
+  across them.
+- [PDFs](docs/user-guide/how-to-guides/how-to-ingest-mm-data.md#pdfs) with figure detection
+  (PP-DocLayoutV3) and OCR for scanned pages.
+- [OKF knowledge graphs](docs/user-guide/how-to-guides/how-to-ingest-mm-data.md#okf-knowledge-graphs)
+  in NebulaGraph, started from `deployment/docker/docker-compose-nebula.yml`.
 
-  Both containers should be listed. A Milvus stack started by another compose
-  project joins that project's network instead, and
-  `docker network connect data-intelligence-network milvus-standalone`
-  attaches it without a restart — until it is recreated, so prefer bringing it
-  up from `docker-compose-milvus.yml`.
-- `[GPU] Can't get PERFORMANCE_HINT property as no supported devices found` —
-  the devices are passed through but not readable, which is the `.env` group ids
-  above being absent or wrong. Confirm with:
+## Learn More
 
-  ```bash
-  docker exec data-intelligence-engine python3 -c \
-    "import openvino as ov; print(ov.Core().available_devices)"
-  ```
-
-  A GPU-capable PTL host should report `GPU` and not just `['CPU']`. Fix `.env`
-  and `docker compose up -d` to recreate the container. Setting
-  `ENGINE_DOC_EMBEDDING_DEVICE=CPU` and `ENGINE_RERANK_DEVICE=CPU` is the fallback
-  if the host has no usable GPU.
-
-### Local Development
-
-Data Intelligence Engine requires Python 3.11 or newer. From `data-intelligence-engine/`, create a
-virtual environment and install the project. The extra index supplies the pinned
-CPU-only PyTorch wheels declared in `pyproject.toml`.
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python3 -m pip install -e '.[test]' \
-  --extra-index-url https://download.pytorch.org/whl/cpu
-data-intelligence-engine
-```
-
-A fresh workspace starts with no database registrations. Register a reachable
-Milvus instance using `http://localhost:19530`, then open the console. A
-filesystem content store at an absolute writable path is optional; content goes
-to the workspace store otherwise. Existing registrations and libraries are
-restored from `ENGINE_WORKSPACE/configs` at startup.
-
-Run the test suite from the standalone project root:
-
-```bash
-python3 -m pytest
-```
-
-Configuration is environment-driven. `ENGINE_WORKSPACE` defaults to
-`data-intelligence-engine/workspace`; container deployments set it to `/workspace`. See the
-[user guide](docs/user-guide.md#configuration) for all settings and the
-[API reference](docs/api.md) for the complete HTTP surface.
+- [Get Started guide](docs/user-guide/get-start.md) — deploy, ingest a sample file and
+  retrieve it.
+- [How to ingest multimodal data](docs/user-guide/how-to-guides/how-to-ingest-mm-data.md) —
+  PDFs, images, videos, audio, OKF, status checks and media reranking.
+- [User guide](docs/user-guide/user-guide.md) — data model, processing pipeline,
+  configuration, models, operations and troubleshooting.
+- [API reference](docs/user-guide/api.md) — every endpoint.
+- [Text-to-media retrieval and media reranking](docs/user-guide/text-to-media-retrieval.md).
+- [How to prepare models](docs/user-guide/how-to-guides/how-to-prepare-models.md).
+- [Scripts](scripts/README.md) — the deployment scripts and API helpers.
 
 ## Security
 

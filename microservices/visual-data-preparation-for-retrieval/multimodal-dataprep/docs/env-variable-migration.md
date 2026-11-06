@@ -56,6 +56,10 @@ now set via `MM_DATAPREP_EMBEDDING_DEVICE` and object detection via
 container env line `EMBEDDING_DEVICE` was removed from the dataprep service; it
 now belongs solely to the standalone MME service.
 
+`MM_DATAPREP_ENABLE_PARALLEL_PIPELINE` was removed from the docs: it was only
+read by an unused code path (now deleted) and never affected ingestion.
+`CONFIG_FILEPATH` was removed together with `src/config.yaml`.
+
 ---
 
 ## 1. Full environment-variable contract (final `MM_DATAPREP_*` names)
@@ -126,11 +130,15 @@ All variables below are read as `MM_DATAPREP_<NAME>`.
 | Env var | Default | Purpose |
 |---|---|---|
 | `MM_DATAPREP_FRAME_INTERVAL` | `15` | Frame sampling interval. |
-| `MM_DATAPREP_ENABLE_OBJECT_DETECTION` | `true` | Enable YOLOX object detection. |
+| `MM_DATAPREP_ENABLE_OBJECT_DETECTION` | `true` | Enable object detection. |
 | `MM_DATAPREP_DETECTION_CONFIDENCE` | `0.85` | Detection confidence threshold. |
 | `MM_DATAPREP_DETECTION_DEVICE` | `CPU` | Dedicated device for object detection (set independently; no baseline fallback). |
-| `MM_DATAPREP_DETECTION_MODEL_DIR` | `/app/models/yolox` | YOLOX model directory. |
+| `MM_DATAPREP_DETECTION_MODEL_DIR` | `/app/models/object-detection` | Download/cache directory for detection models. |
+| `MM_DATAPREP_DETECTION_MODEL_NAME` | _(none, required when detection is enabled)_ | Hugging Face OpenVINO detection model repo (`OpenVINO/` namespace only), e.g. `OpenVINO/yolox_s-int8-ov`. |
+| `MM_DATAPREP_DETECTION_CLASSES` | _(empty)_ | Optional comma-separated class filter, e.g. `person,car`; empty keeps all classes. |
 | `MM_DATAPREP_FRAMES_TEMP_DIR` | `/tmp/dataprep` | Temp dir for extracted frames. |
+| `MM_DATAPREP_VIDEOS_TEMP_DIR` | `/tmp/dataprep/videos` | Temp dir for videos. |
+| `MM_DATAPREP_METADATA_TEMP_DIR` | `/tmp/dataprep/metadata` | Temp dir for metadata files. |
 | `MM_DATAPREP_ROI_CONSOLIDATION_ENABLED` | `false` | Consolidate overlapping detection ROIs. |
 | `MM_DATAPREP_ROI_CONSOLIDATION_IOU_THRESHOLD` | `0.2` | IoU threshold for ROI consolidation. |
 | `MM_DATAPREP_ROI_CONSOLIDATION_CLASS_AWARE` | `false` | Class-aware ROI consolidation. |
@@ -200,7 +208,7 @@ These are set by `setup.sh` and are intentionally left unprefixed because they
 are shared or host-scoped,
 e.g.: `MINIO_HOST`, `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `INDEX_NAME`,
 `VS_INDEX_NAME`, `DEFAULT_BUCKET_NAME`, `EMBEDDING_MODEL_NAME`,
-`OV_MODELS_DIR`, `YOLOX_MODELS_MOUNT_PATH`, `VDMS_VDB_HOST`,
+`OV_MODELS_DIR`, `DETECTION_MODELS_VOLUME_NAME`, `DETECTION_MODELS_MOUNT_PATH`, `VDMS_VDB_HOST`,
 `VDMS_VDB_HOST_PORT`, `HOST_IP`, `REGISTRY`, `TAG`, `PROJECT_NAME`.
 
 The dataprep-branded wrapper vars WERE renamed to their `MM_DATAPREP_` form in
@@ -244,3 +252,4 @@ compose host-port wrapper `VDMS_VDB_HOST_PORT` stays unprefixed.
 | 2026-08-02 | **`MM_DATAPREP_INGEST_DATA_ROOT_HOST` is now read by the app** (previously Compose-only). Directory ingest records a `source_path` on every embedding, expressed in host terms when this var is set, so consumers sharing the ingest mount can read the original media in place. Related additions (no new env vars): `store_copy` and `metadata` on `POST /media/ingest-dir`, user-metadata passthrough from `meta/<basename>.json` sidecars, `content_type` on video embeddings, and `DELETE /media/{bucket_name}`. | integration |
 | 2026-08-03 | **Media ingested by reference is now served like stored media** (no new env vars). A `store_copy=false` ingest writes a `.source_ref` path sidecar next to the existing dedup markers, so `GET /media` lists the item with `"stored": false` + its host-visible `source_path`, and `GET /media/download` streams it from the ingest mount with full HTTP Range support. The recorded path is re-validated against `MM_DATAPREP_INGEST_DATA_ROOT` on every read, so nothing outside the mount can be served. | integration |
 | 2026-07-20 | **Added batch ingestion** (async job engine + `POST /media/upload/batch`, `POST /media/process/batch`, `POST /media/ingest-dir`, `GET`/`DELETE /media/jobs/{job_id}`). New env vars: `MM_DATAPREP_INGEST_DATA_ROOT` (default `/tmp/dataprep/ingest`; traversal-constrained root for directory ingest), `MM_DATAPREP_BATCH_MAX_ITEMS` (default `100`), `MM_DATAPREP_BATCH_JOB_RETENTION` (default `200`). Compose-only helper `MM_DATAPREP_INGEST_DATA_ROOT_HOST` bind-mounts a host dir to the ingest root. | integration |
+| 2026-10-28 | **Object detection moved to Hugging Face OpenVINO models via OpenVINO Model API.** `MM_DATAPREP_DETECTION_MODEL_NAME` now takes an `OpenVINO/<repo>` id (e.g. `OpenVINO/yolox_s-int8-ov`) instead of a GitHub YOLOX name (`yolox_s`, …). `MM_DATAPREP_DETECTION_MODEL_DIR` default `/app/models/yolox` → `/app/models/object-detection`. New `MM_DATAPREP_DETECTION_CLASSES`, `MM_DATAPREP_VIDEOS_TEMP_DIR`, `MM_DATAPREP_METADATA_TEMP_DIR`. **Removed `src/config.yaml` and `CONFIG_FILEPATH`**: all configuration is env-only (ROI consolidation only via `MM_DATAPREP_ROI_CONSOLIDATION_*`). Compose vars renamed `YOLOX_MODELS_VOLUME_NAME` → `DETECTION_MODELS_VOLUME_NAME`, `YOLOX_MODELS_MOUNT_PATH` → `DETECTION_MODELS_MOUNT_PATH`; volume `dataprep-yolox-models` → `dataprep-detection-models`. | integration |

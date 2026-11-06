@@ -46,7 +46,7 @@ from src.core.jobs.batch_jobs import BatchJob
 from src.core.media import SUPPORTED_MEDIA_EXTENSIONS, detect_media_kind
 from src.core.media_ref import register_source_ref
 from src.core.utils.common_utils import get_minio_client
-from src.core.utils.config_utils import read_config
+from src.core.utils.config_utils import get_config
 from src.core.utils.file_utils import resolve_under_ingest_root, to_host_path
 from src.core.vectorstores.metadata import CANONICAL_FIELDS
 from src.core.validation import (
@@ -70,18 +70,15 @@ _METADATA_KEY_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
 def _resolve_defaults(
     frame_interval: Optional[int],
     enable_object_detection: Optional[bool],
-    detection_confidence: Optional[float],
-) -> tuple[int, bool, float]:
-    """Fill batch-level processing defaults from config/settings (mirrors single endpoints)."""
-    config = read_config(settings.CONFIG_FILEPATH, type="yaml") or {}
-    fi = frame_interval or config.get("frame_interval", settings.FRAME_INTERVAL)
+) -> tuple[int, bool]:
+    """Fill batch-level processing defaults from settings (mirrors single endpoints)."""
+    config = get_config()
+    fi = frame_interval or config["frame_interval"]
     if enable_object_detection is not None:
         od = bool(enable_object_detection)
     else:
-        od = config.get("enable_object_detection", settings.ENABLE_OBJECT_DETECTION)
-        od = bool(True if od is None else od)
-    dc = detection_confidence or config.get("detection_confidence", settings.DETECTION_CONFIDENCE)
-    return fi, od, dc
+        od = bool(config["enable_object_detection"])
+    return fi, od
 
 
 def _check_batch_size(count: int) -> None:
@@ -192,15 +189,12 @@ async def upload_and_process_video_batch(
     enable_object_detection: Annotated[
         Optional[bool], Query(description="Enable object detection and crop extraction.")
     ] = None,
-    detection_confidence: Annotated[
-        Optional[float], Query(ge=0.1, le=1.0, description="Object detection confidence threshold.")
-    ] = None,
     tags: Annotated[Optional[List[str]], Query(description="Tags for all uploaded videos.")] = None,
 ) -> BatchSubmitResponse:
     """Accept multiple media uploads (videos and/or images), stash them to storage, and submit one async job."""
     try:
         _check_batch_size(len(files or []))
-        fi, od, dc = _resolve_defaults(frame_interval, enable_object_detection, detection_confidence)
+        fi, od = _resolve_defaults(frame_interval, enable_object_detection)
         bucket = sanitize_bucket_name(bucket_name) if bucket_name else settings.DEFAULT_BUCKET_NAME
         clean_tags = [sanitize_string(t) for t in (tags or []) if isinstance(t, str)]
 
@@ -218,7 +212,6 @@ async def upload_and_process_video_batch(
                     video_id=video_id,
                     frame_interval=fi,
                     enable_object_detection=od,
-                    detection_confidence=dc,
                     tags=clean_tags,
                 )
             )
@@ -258,9 +251,7 @@ async def process_video_batch_existing(
 
         if request.items:
             for req in request.items:
-                fi, od, dc = _resolve_defaults(
-                    req.frame_interval, req.enable_object_detection, req.detection_confidence
-                )
+                fi, od = _resolve_defaults(req.frame_interval, req.enable_object_detection)
                 bucket = (
                     sanitize_bucket_name(req.bucket_name)
                     if req.bucket_name
@@ -276,14 +267,11 @@ async def process_video_batch_existing(
                         video_id=req.video_id,
                         frame_interval=fi,
                         enable_object_detection=od,
-                        detection_confidence=dc,
                         tags=item_tags,
                     )
                 )
         elif request.bucket_name:
-            fi, od, dc = _resolve_defaults(
-                request.frame_interval, request.enable_object_detection, request.detection_confidence
-            )
+            fi, od = _resolve_defaults(request.frame_interval, request.enable_object_detection)
             bucket = sanitize_bucket_name(request.bucket_name)
             prefix = sanitize_string(request.prefix) if request.prefix else None
             minio_client = get_minio_client()
@@ -301,7 +289,6 @@ async def process_video_batch_existing(
                         video_id=video_id,
                         frame_interval=fi,
                         enable_object_detection=od,
-                        detection_confidence=dc,
                         tags=selector_tags,
                     )
                 )
@@ -405,9 +392,7 @@ async def ingest_directory(
     """Walk a mounted directory, stash each supported media file into storage, and submit one async job."""
     try:
         target = resolve_under_ingest_root(request.dir_path, must_be_dir=True)
-        fi, od, dc = _resolve_defaults(
-            request.frame_interval, request.enable_object_detection, request.detection_confidence
-        )
+        fi, od = _resolve_defaults(request.frame_interval, request.enable_object_detection)
         bucket = (
             sanitize_bucket_name(request.bucket_name)
             if request.bucket_name
@@ -461,7 +446,6 @@ async def ingest_directory(
                     video_id=video_id,
                     frame_interval=fi,
                     enable_object_detection=od,
-                    detection_confidence=dc,
                     tags=sidecar_tags + req_tags,
                     local_path=None if request.store_copy else str(media_file),
                     source_path=to_host_path(media_file),

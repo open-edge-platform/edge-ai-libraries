@@ -58,7 +58,6 @@ def _run(**overrides):
         video_id="dp_image_1",
         filename="pic.png",
         enable_object_detection=False,
-        detection_confidence=0.85,
         tags=["t1"],
     )
     kwargs.update(overrides)

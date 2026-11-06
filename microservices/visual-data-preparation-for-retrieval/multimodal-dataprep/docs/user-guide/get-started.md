@@ -30,7 +30,7 @@ The table below lists the core configuration knobs. `setup.sh` seeds defaults, b
 | `MM_DATAPREP_LOCAL_STORAGE_PATH` | Optional | `/tmp/dataprep/storage` | Root directory for the `local` storage backend; each bucket maps to a subdirectory. Used only when `STORAGE_BACKEND=local`. |
 | `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` | ✅ | _(none)_ | Credentials used to bootstrap MinIO. Required only when `STORAGE_BACKEND=minio`. |
 | `MM_DATAPREP_MINIO_ENDPOINT` | ✅ | `minio-server:9000` | Host:port string DataPrep uses to communicate with MinIO from inside the container. Required only when `STORAGE_BACKEND=minio`. |
-| `MM_DATAPREP_DEFAULT_BUCKET_NAME` | ✅ | `video-summary` (via `setup.sh`) | Destination bucket for uploaded media and generated manifests. Override with `MM_DATAPREP_PM_MINIO_BUCKET` when running alongside pipeline-manager. |
+| `MM_DATAPREP_DEFAULT_BUCKET_NAME` | ✅ | `video-summary` (via `setup.sh`) | Destination bucket for uploaded media and generated manifests. When running alongside pipeline-manager, set it to the same bucket pipeline-manager uses. |
 | `MM_DATAPREP_VDMS_VDB_HOST` / `MM_DATAPREP_VDMS_VDB_PORT` | ✅ | `vdms-vector-db` / `55555` | Connection information for VDMS Vector DB. Used only when `VECTORDB_BACKEND=vdms`. |
 | `MM_DATAPREP_DB_COLLECTION` | ✅ | `video-rag-test` | Vector-database collection/index that stores embeddings and metadata (applies to both VDMS and Milvus). |
 | `MM_DATAPREP_EMBEDDING_MODEL_NAME` | ✅ | _(none)_ | Model identifier used by the in-process embedding pipeline (for example `CLIP/clip-vit-b-32` for multimodal or `QwenText/qwen3-embedding-0.6b` for text-only embeddings). |
@@ -59,7 +59,10 @@ The table below lists the core configuration knobs. `setup.sh` seeds defaults, b
 | `MM_DATAPREP_LIVE_RETENTION_SWEEP_MINUTES` | Optional | `15` | How often the retention sweeper runs when retention is enabled. |
 | `MM_DATAPREP_LIVE_CLOCK_CHECK_ENABLED` | Optional | `true` | On starting a live stream, probe the camera's HTTP `Date` header and log a warning when its clock is adrift from the host. Purely diagnostic — ingestion timestamps always come from the host clock. |
 | `MM_DATAPREP_LIVE_CLOCK_SKEW_WARN_SECONDS` | Optional | `2` | Camera-to-host drift, in seconds, above which the clock check warns. |
-| `MM_DATAPREP_ENABLE_OBJECT_DETECTION` | Optional | `true` | Toggles YOLOX-based crop extraction. |
+| `MM_DATAPREP_ENABLE_OBJECT_DETECTION` | Optional | `true` | Toggles object-detection crop extraction. |
+| `MM_DATAPREP_DETECTION_MODEL_NAME` | ✅ (when detection is enabled) | _(none)_ | Hugging Face OpenVINO detection model repo, for example `OpenVINO/yolox_s-int8-ov`; `OpenVINO/yolox_tiny-fp16-ov`, `OpenVINO/yolox_l-int8-ov` and `OpenVINO/YOLO11n-fp16-ov` are also verified on CPU, GPU and NPU (see [Device selection](#device-selection-mm_dataprep_embedding_device-mm_dataprep_detection_device) and <https://huggingface.co/OpenVINO>). Only the `OpenVINO/` namespace is accepted, and the model must be an object-detection model supported by OpenVINO Model API. The image ships no detection models: only the selected one is downloaded on first use into `MM_DATAPREP_DETECTION_MODEL_DIR/<repo id>` and reused from the volume afterwards. Each model keeps its own license (for example YOLOX is Apache-2.0, YOLO11 is AGPL-3.0); review the model card. |
+| `MM_DATAPREP_DETECTION_CLASSES` | Optional | _(empty)_ | Comma-separated class filter, for example `person,car`. Case-insensitive; spaces and hyphens are normalized to `_` (Hugging Face OpenVINO models use labels such as `traffic_light`, `cell_phone`). The tested OpenVINO detection models use the 80 [COCO classes](https://github.com/ultralytics/ultralytics/blob/main/ultralytics/cfg/datasets/coco.yaml); the model's own labels are authoritative. Classes the model does not have make detector initialization fail, and the error lists the available classes. __Empty keeps all classes__. |
+| `MM_DATAPREP_DETECTION_MODEL_DIR` | Optional | `/app/models/object-detection` | Download/cache directory for detection models (backed by the `dataprep-detection-models` volume). |
 | `MM_DATAPREP_DETECTION_CONFIDENCE` | Optional | `0.85` | Minimum confidence threshold for detections. |
 | `MM_DATAPREP_ROI_CONSOLIDATION_ENABLED` | Optional | `false` | Enables ROI consolidation (merging overlapping detections). |
 | `MM_DATAPREP_ROI_CONSOLIDATION_IOU_THRESHOLD` | Optional | `0.2` | IoU threshold used to group overlapping boxes into a single ROI. |
@@ -73,6 +76,7 @@ The table below lists the core configuration knobs. `setup.sh` seeds defaults, b
 | `MM_DATAPREP_DETECTION_WORKER_THREADS` | Optional | `2` | Local thread count used by object-detection worker stage. |
 | `MM_DATAPREP_EMBED_WORKER_THREADS` | Optional | `2` | Local thread count used by embedding worker stage. |
 | `MM_DATAPREP_PIPELINE_QUEUE_GET_TIMEOUT_S` | Optional | `1.0` | Timeout in seconds for pipeline queue reads before retry loops. |
+| `MM_DATAPREP_PIPELINE_STALL_TIMEOUT_S` | Optional | `300` | Fails a video ingestion when no pipeline stage makes progress for this many seconds (for example a detection or embedding inference hung by a GPU hang), instead of leaving the job `running` forever. `0` disables the watchdog. |
 | `MM_DATAPREP_SAVE_RUNTIME_PIPELINE_STATS` | Optional | `false` | Persist batch/stream runtime stats JSON artifacts for debugging and profiling. |
 | `MM_DATAPREP_ENABLE_TRACING` | Optional | `false` | Enables trace emission for decode/detect/embed/store stages. |
 | `MM_DATAPREP_VIDEO_FRAME_DECODER_WORKERS` | Optional | `2` | Number of decoder workers used in frame extraction utilities. |
@@ -113,6 +117,17 @@ export MM_DATAPREP_DETECTION_DEVICE=CPU
 
 When targeting `NPU`, confirm the selected model supports NPU inference via the
 [OpenVINO Supported Models](https://docs.openvino.ai/2026/documentation/compatibility-and-support/supported-models.html) page.
+For detection, these models have been verified on CPU, GPU and NPU:
+
+| Model | License | Notes |
+|---|---|---|
+| `OpenVINO/yolox_s-int8-ov` | Apache-2.0 | Recommended default; balanced accuracy and speed, fastest on CPU and NPU |
+| `OpenVINO/yolox_tiny-fp16-ov` | Apache-2.0 | Lightest; fastest on GPU |
+| `OpenVINO/yolox_l-int8-ov` | Apache-2.0 | Higher accuracy (more and smaller objects) at a higher compute cost; best on GPU or NPU |
+| `OpenVINO/YOLO11n-fp16-ov` | AGPL-3.0 | Small YOLO11 model; review the AGPL-3.0 terms before use |
+
+On GPU, the FP16 variants of YOLOX (for example `OpenVINO/yolox_s-fp16-ov`) run faster
+than the INT8 variants. Verify other models on your target device before relying on them.
 
 > **Running everything on NPU:** Setting both embedding and detection to `NPU`
 > (via `MM_DATAPREP_EMBEDDING_DEVICE=NPU` and `MM_DATAPREP_DETECTION_DEVICE=NPU`) is
@@ -126,7 +141,6 @@ When targeting `NPU`, confirm the selected model supports NPU inference via the
 
 Additional environment variables are available for high-throughput scenarios:
 
-- `MM_DATAPREP_ENABLE_PARALLEL_PIPELINE` (default `true`) — disable to force single-threaded embedding.
 - `MM_DATAPREP_MAX_PARALLEL_WORKERS` — hard cap on worker threads (auto-calculated when unset).
 - `MM_DATAPREP_OV_PERFORMANCE_MODE`, `OV_PERFORMANCE_HINT_NUM_REQUESTS`, `OV_NUM_STREAMS` — forward performance hints to OpenVINO when running on CPU or GPU.
 - `MM_DATAPREP_VIDEO_SHM_MAX_BLOCKS`, `MM_DATAPREP_VIDEO_SHM_BLOCK_SIZE` — tune shared-memory capacity for frame transport.
@@ -142,6 +156,7 @@ export MINIO_ROOT_USER="minioadmin"
 export MINIO_ROOT_PASSWORD="minioadmin"
 export MM_DATAPREP_EMBEDDING_DEVICE="CPU"
 export MM_DATAPREP_DETECTION_DEVICE="CPU"
+export MM_DATAPREP_DETECTION_MODEL_NAME="OpenVINO/yolox_s-int8-ov"
 source ./setup.sh --nosetup
 ```
 
@@ -152,18 +167,18 @@ source ./setup.sh --nosetup
 
 ROI consolidation merges overlapping detections into a single crop and optionally expands that crop for more context. This can reduce duplicate crops and improve embedding coverage when multiple detections overlap the same object.
 
-Enable it via environment variable (recommended for quick toggles):
+To enable it:
 
 ```bash
 export MM_DATAPREP_ROI_CONSOLIDATION_ENABLED=true
 ```
 
-Or configure it in `src/config.yaml` under `object_detection.roi_consolidation`:
+The following environment variables control ROI consolidation:
 
-- `enabled`: Master switch for ROI consolidation logic.
-- `iou_threshold`: IoU threshold used to cluster overlapping boxes. IoU is $\frac{\text{intersection area}}{\text{union area}}$ for two boxes; higher values mean only tighter overlaps merge, lower values merge more aggressively.
-- `class_aware`: When `true`, only boxes of the same class can be merged. When `false`, overlapping boxes across classes can merge (useful for mixed-class clusters).
-- `context_scale`: Expand merged ROI by this fraction of its size. Higher values include more surrounding context; lower values keep crops tighter to the merged box.
+- `MM_DATAPREP_ROI_CONSOLIDATION_ENABLED`: Master switch for ROI consolidation logic.
+- `MM_DATAPREP_ROI_CONSOLIDATION_IOU_THRESHOLD`: IoU threshold used to cluster overlapping boxes. IoU is $\frac{\text{intersection area}}{\text{union area}}$ for two boxes; higher values mean only tighter overlaps merge, lower values merge more aggressively.
+- `MM_DATAPREP_ROI_CONSOLIDATION_CLASS_AWARE`: When `true`, only boxes of the same class can be merged. When `false`, overlapping boxes across classes can merge (useful for mixed-class clusters).
+- `MM_DATAPREP_ROI_CONSOLIDATION_CONTEXT_SCALE`: Expand merged ROI by this fraction of its size. Higher values include more surrounding context; lower values keep crops tighter to the merged box.
 
 Use `source ./setup.sh --conf` to print the resolved Docker Compose configuration with your overrides applied.
 
@@ -195,9 +210,16 @@ export TAG=latest
    export MINIO_ROOT_USER="minioadmin"
    export MINIO_ROOT_PASSWORD="minioadmin"
    export EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-32"
+   export MM_DATAPREP_DETECTION_MODEL_NAME="OpenVINO/yolox_s-int8-ov"   # any https://huggingface.co/OpenVINO detection model
+   # Also verified on CPU/GPU/NPU: OpenVINO/yolox_tiny-fp16-ov (lightest), OpenVINO/yolox_l-int8-ov (more accurate),
+   # OpenVINO/YOLO11n-fp16-ov (AGPL-3.0)
+   # Optional: keep only some classes (COCO class names: https://github.com/ultralytics/ultralytics/blob/main/ultralytics/cfg/datasets/coco.yaml)
+   # export MM_DATAPREP_DETECTION_CLASSES="person,car"
    ```
 
-   For text-only scenarios replace the last line with:
+   Object detection has no default model. Set `MM_DATAPREP_DETECTION_MODEL_NAME`, or set `MM_DATAPREP_ENABLE_OBJECT_DETECTION=false` to skip object crops. The selected model is downloaded from Hugging Face on first start; for offline hosts, pre-populate the `dataprep-detection-models` volume (or set `HF_HUB_OFFLINE=1` with a populated cache directory).
+
+   For text-only scenarios replace the `EMBEDDING_MODEL_NAME` line with:
 
    ```bash
    export EMBEDDING_MODEL_NAME="QwenText/qwen3-embedding-0.6b"
