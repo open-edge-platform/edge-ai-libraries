@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Generate (or optionally download) a small sample image set for exercising the
 encoder/decoder REST pipeline end-to-end.

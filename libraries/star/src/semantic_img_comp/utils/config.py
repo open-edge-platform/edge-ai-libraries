@@ -1,10 +1,12 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 File: utils/config.py
 Version: 0.2
 Authors: Omid Semiari, Hosein Nikopour
 Date: 2026-04-10
 Description: config loader. It uses default parameter values which can be overwritten by yaml config file.
-Copyright: © 2026 Intel Corp. All rights reserved.
 """
 from __future__ import annotations
 from dataclasses import dataclass

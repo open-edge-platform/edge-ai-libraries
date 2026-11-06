@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """Integration tests for SemanticImageManager with image pipeline."""
 
 import importlib.util
@@ -24,7 +27,7 @@ for path in (IMAGE_SRC, SEMANTIC_IMAGE_SRC, CORE_SRC):
         sys.path.insert(0, str(path))
 
 
-def _bootstrap_fluid_image_image_manager() -> None:
+def _bootstrap_image_image_manager() -> None:
     """Load image.image_manager without executing image.__init__."""
 
     if "image.image_manager" in sys.modules:
@@ -71,7 +74,7 @@ def _bootstrap_fluid_image_image_manager() -> None:
     setattr(sys.modules["image"], "SemanticImageManager", SemanticImageManager)
 
 
-_bootstrap_fluid_image_image_manager()
+_bootstrap_image_image_manager()
 
 
 def _create_test_jpeg(width: int = 8, height: int = 6, color: str = "red") -> bytes:
@@ -484,7 +487,7 @@ def test_semantic_image_manager_skips_json_logs_when_disabled(tmp_path):
 
 
 def test_image_readiness_status_transitions():
-    from fluid_image.status import ImageReadiness
+    from image.status import ImageReadiness
 
     readiness = ImageReadiness(service_name="image-transform", transform_name="d3x-image-transform")
     assert readiness.as_dict()["ready"] is False

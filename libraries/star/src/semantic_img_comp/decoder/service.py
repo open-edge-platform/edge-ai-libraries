@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 File: decoder/service.py
 Description: REST service that exposes the semantic decoder to multiple encoder

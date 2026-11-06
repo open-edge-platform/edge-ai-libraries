@@ -1,9 +1,11 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 File: image_feeder/feeder.py
 Description: background thread that releases images into a queue at a configured
 data rate, fully decoupled from encoder processing time. Used by the TCP batch
 encoder runner (semantic_img_comp.encoder.runner).
-Copyright: © 2026 Intel Corp. All rights reserved.
 """
 
 import math

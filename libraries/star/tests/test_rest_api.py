@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Fast in-process smoke tests for the encoder/decoder REST services -- no docker,
 no real sockets, no YOLO weights required. These exercise the new multi-client

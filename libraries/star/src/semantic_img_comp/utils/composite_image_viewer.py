@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 File: utils/composite_image_viewer.py
 Version: 1.0
@@ -5,7 +8,6 @@ Authors: Omid Semiari
 Date: 2026-05-20
 Description: Creates 2x1 composite images comparing original and reconstructed images
              using mapping information from log files.
-Copyright: © 2026 Intel Corp. All rights reserved.
 
 This script:
 1. Reads a log JSON file containing frame/image mappings

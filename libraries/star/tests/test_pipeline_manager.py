@@ -1,8 +1,10 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 File: tests/test_pipeline_manager.py
 Version: 0.1
 Description: Unit tests for EncoderPipelineManager.
-Copyright: © 2026 Intel Corp. All rights reserved.
 """
 
 from types import SimpleNamespace

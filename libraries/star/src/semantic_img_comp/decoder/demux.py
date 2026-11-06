@@ -1,10 +1,12 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 File: decoder/demux.py
 Version: 0.2
 Authors: Omid Semiari, Hosein Nikopour
 Date: 2026-04-10
 Description: demultiplexing received data stream.
-Copyright: © 2026 Intel Corp. All rights reserved.
 """
 
 import struct

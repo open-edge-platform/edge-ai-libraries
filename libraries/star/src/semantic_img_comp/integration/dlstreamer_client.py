@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 File: integration/dlstreamer_client.py
 Description: REST client bridging the star-image encoder to a running DL Streamer
@@ -5,7 +8,6 @@ Pipeline Server (https://github.com/open-edge-platform/edge-ai-libraries/tree/ma
 microservices/dlstreamer-pipeline-server) instance. Used to run object detection
 (via the server's `gvadetect` GStreamer element) instead of loading a YOLO model
 locally in-process; see `utils/yolo_wrapper.run_yolo` for the backend it replaces.
-Copyright: © 2026 Intel Corp. All rights reserved.
 """
 from __future__ import annotations
 

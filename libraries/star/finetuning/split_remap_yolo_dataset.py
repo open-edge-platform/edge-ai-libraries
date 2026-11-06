@@ -1,10 +1,12 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 File: finetune_det_model.py
 Version: 0.2
 Authors: Omid Semiari, Hosein Nikopour
 Date: 2026-07-07
 Description: Module to split the data into train/val/test subsets and remap class IDs.
-Copyright: © 2026 Intel Corp. All rights reserved.
 """
 
 

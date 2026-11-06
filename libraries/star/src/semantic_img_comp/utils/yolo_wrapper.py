@@ -1,10 +1,12 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 File: utils/yolo_wrapper.py
 Version: 0.2
 Authors: Omid Semiari, Hosein Nikopour
 Date: 2026-04-10
 Description: wrapper function to run yolo on images. Tiling is optional and supported.
-Copyright: © 2026 Intel Corp. All rights reserved.
 """
 
 from typing import Any, List, Tuple

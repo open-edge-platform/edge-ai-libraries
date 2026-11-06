@@ -1,10 +1,12 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 File: encoder/pipeline_manager.py
 Version: 0.1
 Authors: Omid Semiari, Hosein Nikopour
 Date: 2026-05-25
 Description: Pipeline manager for adaptive encoding based on queue backlog.
-Copyright: © 2026 Intel Corp. All rights reserved.
 """
 
 import logging

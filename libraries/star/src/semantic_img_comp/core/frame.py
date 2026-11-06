@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 from dataclasses import dataclass
 
 from semantic_img_comp.core.background import BgData

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 File: tests/test_skip_bboxes_payload_size.py
 Description: Compare background and total wire-payload sizes when

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Sample sender client: reads local images and submits them to the encoder's
 REST endpoint (POST /v1/streams/{stream_id}/frames), one raw JPEG body per

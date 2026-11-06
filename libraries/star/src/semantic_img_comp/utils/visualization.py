@@ -1,10 +1,12 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 File: utils/visualization.py
 Version: 0.2
 Authors: Omid Semiari, Hosein Nikopour
 Date: 2026-04-10
 Description: functions that might be used for plots or image visualization
-Copyright: © 2026 Intel Corp. All rights reserved.
 """
 
 import numpy as np

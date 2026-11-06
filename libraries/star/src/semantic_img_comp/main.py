@@ -1,10 +1,12 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 File: main.py
 Version: 0.2
 Authors: Omid Semiari, Hosein Nikopour
 Date: 2026-04-10
 Description: main wrapper to parse input args and run encoder or decoder.
-Copyright: © 2026 Intel Corp. All rights reserved.
 """
 import argparse
 import importlib

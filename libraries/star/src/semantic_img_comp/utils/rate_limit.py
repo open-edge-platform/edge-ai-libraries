@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 File: utils/rate_limit.py
 Description: frame-rate / data-rate throttling helpers shared by the batch encoder

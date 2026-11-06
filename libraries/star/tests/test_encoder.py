@@ -1,10 +1,12 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 File: tests/test_encoder.py
 Version: 0.1
 Authors: Generated for production testing
 Date: 2026-04-09
 Description: Unit tests for encoder helper methods and error handling.
-Copyright: © 2026 Intel Corp. All rights reserved.
 """
 import pytest
 import numpy as np

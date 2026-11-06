@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 from types import SimpleNamespace
 
 from semantic_img_comp.utils.logging_helpers import build_encoder_log_record

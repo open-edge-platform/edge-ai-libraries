@@ -1,10 +1,12 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 File: encoder/mux.py
 Version: 0.2
 Authors: Omid Semiari, Hosein Nikopour
 Date: 2026-04-10
 Description: multiplexes encoded data into a payload and send as a tcp data frame.
-Copyright: © 2026 Intel Corp. All rights reserved.
 """
 from __future__ import annotations
 

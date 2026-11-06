@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """Queue wiring smoke test for TUNInterface -> SemanticImageManager pipeline decisions."""
 
 from __future__ import annotations

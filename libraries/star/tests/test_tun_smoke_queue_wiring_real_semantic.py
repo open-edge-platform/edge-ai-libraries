@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """Integration smoke: verify queue length wiring through the real SemanticCodecBridge."""
 
 from __future__ import annotations

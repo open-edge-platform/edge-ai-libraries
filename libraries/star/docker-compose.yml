@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 # Compose stack for star-image: encoder, decoder, and (optionally) the DL
 # Streamer Pipeline Server for object detection, sharing one Docker network,
 # build/image, and volumes via the `x-*` anchors below.

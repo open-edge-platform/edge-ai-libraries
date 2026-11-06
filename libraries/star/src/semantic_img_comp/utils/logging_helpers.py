@@ -1,10 +1,12 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 File: utils/logging_helpers.py
 Version: 0.2
 Authors: Omid Semiari, Hosein Nikopour
 Date: 2026-04-10
 Description: set up the logger that writes to stdout and optionally to a JSON file.
-Copyright: © 2026 Intel Corp. All rights reserved.
 """
 
 import json

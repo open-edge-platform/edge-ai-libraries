@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 File: tests/test_dlstreamer_client.py
 Description: Unit tests for the DL Streamer Pipeline Server REST client that

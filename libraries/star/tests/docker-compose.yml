@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 # Brings up the encoder and decoder as independently deployable services,
 # plus sample sender/receiver clients, all on one bridge network -- a stand-in
 # for "deployed on separate machines" that's reachable from a single host.

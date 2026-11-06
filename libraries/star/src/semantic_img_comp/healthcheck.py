@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 File: healthcheck.py
 Description: Docker HEALTHCHECK probe for the encoder/decoder image. This confirms PID 1 in the container

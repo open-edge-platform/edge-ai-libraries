@@ -1,10 +1,12 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 File: decoder/codecs.py
 Version: 0.2
 Authors: Omid Semiari, Hosein Nikopour
 Date: 2026-04-10
 Description: Low-level decoder codec implementations.
-Copyright: © 2026 Intel Corp. All rights reserved.
 """
 
 import subprocess  # nosec B404 - used only to invoke the fixed 'avifdec' binary with an argv list, no shell

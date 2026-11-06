@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 File: tests/test_encoder_runner.py
 Description: Unit tests for encoder/runner.py's current multi-client TCP server

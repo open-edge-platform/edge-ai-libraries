@@ -1,10 +1,12 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 File: utils/img_restorer.py
 Version: 0.2
 Authors: Omid Semiari, Hosein Nikopour
 Date: 2026-04-10
 Description: "optional" wrapper for using realESRGAN model to enhance the quality of decoded image.
-Copyright: © 2026 Intel Corp. All rights reserved.
 """
 
 def enhance_image(pil_img, gpuid=-1, model=4):

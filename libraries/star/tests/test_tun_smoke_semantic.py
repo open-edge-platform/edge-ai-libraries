@@ -1,12 +1,5 @@
-"""Filename: test_tun_smoke.py
-Version: 0.1
-Author: George Noel (D3X Systems)
-Date: 2026-04-21
-Description: End-to-end smoke test for Image over the SVRED TUNInterface
-gRPC path.
-
-Copyright (c) D3X Systems, Anduril 2026
-"""
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 
 from __future__ import annotations
 

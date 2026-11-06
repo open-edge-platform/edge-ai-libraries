@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Sample receiver client: polls the decoder's REST endpoint
 (GET /v1/streams/{stream_id}/frames/next) and saves each decoded JPEG to disk.

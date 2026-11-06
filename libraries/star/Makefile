@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 .PHONY: tests-image tests-run image dirs decoder encoder run rm dlstreamer-up dlstreamer-down certs certs-trust certs-clean fuzz-services pull-model
 
 .DEFAULT_GOAL := image

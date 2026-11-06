@@ -1,10 +1,12 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """
 File: utils/coco.py
 Version: 0.2
 Authors: Omid Semiari, Hosein Nikopour
 Date: 2026-04-10
 Description: helper function to load annotations and store detections in coco compliant format.
-Copyright: © 2026 Intel Corp. All rights reserved.
 """
 
 from pycocotools.coco import COCO
