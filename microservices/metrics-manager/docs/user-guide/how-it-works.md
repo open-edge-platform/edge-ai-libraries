@@ -92,9 +92,11 @@ entrypoint.sh
   │
   ├── Create directory: /app/custom-metrics
   ├── Create named pipe: /app/qmassa.fifo
+  ├── Rebuild /etc/telegraf/active.d with only the drop-ins enabled by ENABLE_*
+  │   (empty by default; see Hardware Telemetry Collectors below)
   └── Start supervisord
         │
-        ├── [priority 10] telegraf --config telegraf.conf
+        ├── [priority 10] telegraf --config telegraf.conf --config-directory active.d
         │   └── Starts immediately
         │       ├── Reads /proc/stat, /proc/meminfo, /sys/class/thermal/
         │       ├── Listens on :9273 (Prometheus output)
@@ -196,6 +198,52 @@ See [Environment Variables](./get-started/environment-variables.md#security) for
 
 - Listens on `:9273` and exposes all metrics in Prometheus text format
 - Metrics include a `host=` tag (hostname or `METRICS_MANAGER_HOSTNAME` override)
+
+Additional, opt-in inputs (power, DRAM bandwidth, disk, network, interrupts, turbostat) are described in [Hardware Telemetry Collectors](#hardware-telemetry-collectors).
+
+---
+
+## Hardware Telemetry Collectors
+
+The optional collectors described in [Hardware Telemetry Collectors](./get-started/hardware-telemetry.md) are shipped as Telegraf drop-in files in `/etc/telegraf/telegraf.d/` and switched on with `ENABLE_*` environment variables.
+
+```
+/etc/telegraf/telegraf.d/        read-only; all shipped drop-ins (10-power.conf, 20-dram-bw.conf, ...)
+        │
+        │  entrypoint.sh, at every start:
+        │    1. delete and recreate /etc/telegraf/active.d
+        │    2. copy a drop-in only if its ENABLE_* variable is on
+        │       (and, for turbostat and DRAM bandwidth, only if the binary it needs is usable)
+        ▼
+/etc/telegraf/active.d/          writable; only the enabled drop-ins
+
+telegraf --config /etc/telegraf/telegraf.conf --config-directory /etc/telegraf/active.d
+```
+
+- **Why a separate directory.** The source directory is bind-mounted read-only from the host, so the entrypoint cannot rename or delete files in it. Assembling the active set elsewhere also means the directory always reflects the current environment: changing a toggle and recreating the container is the whole procedure, and there is no hot reload.
+- **Nothing loads by default.** With every toggle off, `active.d` is empty and Telegraf runs on `telegraf.conf` alone. This holds for a custom `telegraf.conf` too, because `--config-directory` is merged with whichever base config is mounted.
+- **Only shipped names are copied.** A file you add to the mounted `telegraf.d/` directory is not loaded. Put your own inputs in a custom `telegraf.conf`.
+- **A missing dependency never takes Telegraf down.** The entrypoint skips turbostat (a service input that makes Telegraf fail at startup if its binary cannot run) and `ENABLE_DRAM_BW=auto` without `perf`, and logs a `[WARN]` or `[INFO]` line. The `execd` readers idle quietly and log why when their hardware source is absent.
+
+### Native inputs and `execd` readers
+
+Telegraf pulls metrics from native plugins on its own clock. `execd` readers are long-running Python scripts that Telegraf starts once and that print InfluxDB Line Protocol on stdout whenever they choose (`signal = "none"`). Both end up in the same buffer and look identical on `:9273`.
+
+The design prefers native plugins (`intel_powerstat`, `diskio`, `net`, `ethtool`, `interrupts`, `temp`, `turbostat`) and uses a small `execd` reader only where no plugin reaches the data:
+
+| Reader | Why a reader |
+|--------|--------------|
+| `rapl_reader.py` | `intel_powerstat` exposes the package and DRAM RAPL domains but not the platform (`psys`) domain, the best proxy for whole-board power |
+| `dram_bw_reader.py` | `inputs.intel_pmu` needs per-model perfmon event files that the image does not ship, returns raw multiplexed cache-line counts rather than GB/s, and its `*_CAS_COUNT_FREERUN` events read zero in our tests. `perf stat` on the IMC free-running counters gives GB/s directly and matched the `intel_pmu` CAS counts on Meteor Lake. See [Hardware Telemetry Collectors](./get-started/hardware-telemetry.md) |
+| `gpu_throttle_reader.py` | The existing GPU reader reports requested frequency but not achieved frequency or throttle reasons |
+
+Each reader follows the same contract as the NPU reader: if its tool, counter or permission is missing, it parks itself and logs the reason to its trace log instead of exiting, because Telegraf restarts an `execd` child that exits and that would flood the log.
+
+Other choices worth knowing:
+
+- **Interrupts keep only numbered IRQs** (`irq = ["[0-9]*"]`) and the per-IRQ `total` field. Device interrupts are numbered on x86, while kernel housekeeping counters are symbolic and differ by SoC, so a denylist would need constant maintenance. The per-CPU fields scale with core count and are dropped.
+- **Visualization stays outside the service.** Metrics Manager exposes Prometheus metrics and ships a scrape-job snippet (`dashboards/prometheus-scrape-job.yml`). It does not ship Grafana dashboards or a Prometheus stack.
+- **Counters vs gauges.** `diskio_*`, `net_bytes_*` and `interrupts_total` are monotonic counters; wrap them in `rate()`. Power, temperature, frequency and bandwidth are gauges.
 
 ---
 
@@ -410,6 +458,7 @@ Used for:
 
 ## Supporting Resources
 
+- [Hardware Telemetry Collectors](./get-started/hardware-telemetry.md)
 - [API Reference](./api-reference.md)
 - [Architecture Overview](./index.md)
 - [Environment Variables](./get-started/environment-variables.md)

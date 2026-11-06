@@ -43,6 +43,7 @@ authoritative schema for the version you are running:
 | `GET` | [/validate/status](#get-validatestatus) | Return the status of all validation requests. | Yes |
 | `GET` | [/validate/status/{validation_id}](#get-validatestatusvalidation_id) | Return the status of a specific validation request. | Yes |
 | `GET` | [/elements](#get-elements) | List available GStreamer elements. | Yes |
+| `GET` | [/devices](#get-devices) | List OpenVINO devices and read-only properties discovered at startup. | Yes |
 | `GET` | [/elements/{element_name}](#get-elementselement_name) | Get details about a specific GStreamer element. | Yes |
 
 ### Differences from DLSPS 1.0
@@ -547,6 +548,57 @@ curl http://localhost:8080/elements/gvadetect
 ```
 
 ---
+## `GET` /devices
+
+Lists the OpenVINO devices available inside the DLSPS runtime, with their
+read-only properties (for example `FULL_DEVICE_NAME`, `DEVICE_TYPE`,
+`DEVICE_ARCHITECTURE`, `DEVICE_ID`, `OPTIMIZATION_CAPABILITIES`). The list is
+probed once at service startup and cached, so this endpoint reads memory only
+and does not interfere with running pipelines. Restart the service to refresh it.
+
+### Responses
+
+#### `200 OK`: array of [DeviceInfo](#deviceinfo)
+
+```json
+[
+  {
+    "name": "CPU",
+    "properties": {
+      "FULL_DEVICE_NAME": "Intel(R) Core(TM) Ultra processor",
+      "DEVICE_TYPE": "INTEGRATED",
+      "DEVICE_ARCHITECTURE": "intel64"
+    }
+  },
+  {
+    "name": "GPU",
+    "properties": {
+      "FULL_DEVICE_NAME": "Intel(R) Graphics [0x7d55] (iGPU)",
+      "DEVICE_TYPE": "INTEGRATED",
+      "DEVICE_ID": "0"
+    }
+  }
+]
+```
+
+#### `503 Service Unavailable`
+
+Returned when OpenVINO device discovery failed or did not run at startup.
+
+```json
+{
+  "detail": "OpenVINO device discovery unavailable"
+}
+```
+
+### Example
+
+```bash
+curl http://localhost:8080/devices
+```
+
+---
+
 ## Schemas
 
 ### StartPipelineRequest
@@ -774,3 +826,10 @@ curl http://localhost:8080/validate/status/3f1c0d2e-8a4b-4d6c-9e1f-2a3b4c5d6e7f
 | `plugin` | string | Plugin group name. |
 | `description` | string | One-line description. |
 | `details` | string | Full output from `gst-inspect-1.0`, including factory properties, pad templates, capabilities, and element hierarchy. |
+
+### DeviceInfo
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | OpenVINO device name (for example `CPU`, `GPU`, `NPU`). |
+| `properties` | object | Read-only OpenVINO properties of the device, keyed by property name. Values are JSON-safe; enum values are shown by name. |

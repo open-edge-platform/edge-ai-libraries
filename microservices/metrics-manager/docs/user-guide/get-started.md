@@ -414,6 +414,7 @@ See [Troubleshooting](./troubleshooting.md) for more issues.
 - **Stream live**: Open `http://localhost:9090/metrics/stream` in a browser
 - **Configure**: See [Environment Variables](./get-started/environment-variables.md)
 - **Custom metrics**: See [Custom Metrics Scripts](./get-started/custom-metrics.md)
+- **Hardware telemetry** (power, DRAM bandwidth, disk, network, interrupts): See [Hardware Telemetry Collectors](./get-started/hardware-telemetry.md)
 - **Kubernetes**: See [Helm Deployment](./get-started/deploy-with-helm.md)
 
 ## Supporting Resources
@@ -436,6 +437,7 @@ SPDX-License-Identifier: Apache-2.0
 ./get-started/build-from-source.md
 ./get-started/deploy-with-helm.md
 ./get-started/environment-variables.md
+./get-started/hardware-telemetry.md
 ./get-started/custom-metrics.md
 ./get-started/testing.md
 
