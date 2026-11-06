@@ -26,7 +26,7 @@ EXPERIMENTAL_COMPOSE_FILE := compose.experimental.yml
 # skips the server, so it never overwrites the tag; `run` pulls it.
 BUILD_SERVICES := $(if $(DLSPS2_IMAGE),vippet vippet-ui sensor-manager)
 # DLSPS 2.0 image used by `run-prebuilt` unless DLSPS2_IMAGE is set.
-PREBUILT_DLSPS2_IMAGE ?= intel/dlstreamer-pipeline-server:2026.3.0-20261103-weekly-ubuntu24-2.0
+PREBUILT_DLSPS2_IMAGE ?= intel/dlstreamer-pipeline-server:2026.3.0-ubuntu24-2.0-rc1
 
 # Set GIGE=1 to run vippet with host networking for GigE Vision camera streaming (see compose.gige.yml).
 GIGE ?= 0

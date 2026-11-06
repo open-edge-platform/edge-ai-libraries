@@ -110,7 +110,7 @@ To use a published server image instead of building one, set `DLSPS2_IMAGE` to o
 `make build` then skips the server, and `make run` pulls the image:
 
 ```bash
-export DLSPS2_IMAGE=intel/dlstreamer-pipeline-server:2026.3.0-20261103-weekly-ubuntu24-2.0
+export DLSPS2_IMAGE=intel/dlstreamer-pipeline-server:2026.3.0-ubuntu24-2.0-rc1
 make build run
 ```
 

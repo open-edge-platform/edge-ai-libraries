@@ -220,7 +220,7 @@ services:
       pull: true
       args:
         # Keep in sync with vippet/Dockerfile so both backends run the same DLStreamer.
-        BASE_IMAGE: ${DLSPS2_BASE_IMAGE:-${DLSTREAMER_IMAGE:-intel/dlstreamer:latest}}
+        BASE_IMAGE: ${DLSPS2_BASE_IMAGE:-${DLSTREAMER_IMAGE:-intel/dlstreamer:2026.3.0-ubuntu24-rc1}}
         UID: ${DLSPS2_UID:-1000}
         USER: ${DLSPS2_USER:-pipeline-server}
         http_proxy:
