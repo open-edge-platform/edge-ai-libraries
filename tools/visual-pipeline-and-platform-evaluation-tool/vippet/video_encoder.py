@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import logging
 import os
 import re
@@ -6,6 +9,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from explore import GstInspector
+from gst_properties import quote_property
 from utils import slugify_text
 from video_decoder import render_node_element
 
@@ -164,9 +168,7 @@ class VideoEncoder:
         output_path = str(Path(output_dir) / "main_output.mp4")
 
         # Create sub-pipeline string with all required elements for replacing fakesink
-        video_output_subpipeline = (
-            f"{encoder_element} ! h264parse ! mp4mux ! filesink location={output_path}"
-        )
+        video_output_subpipeline = f"{encoder_element} ! h264parse ! mp4mux ! filesink location={quote_property(output_path)}"
 
         self.logger.debug(
             f"Created video output sub-pipeline: {video_output_subpipeline}"

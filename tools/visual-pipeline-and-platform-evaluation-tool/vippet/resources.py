@@ -1,17 +1,19 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import os
 import sys
 import logging
 from pathlib import Path
 from typing import Optional
+from platform_paths import data_path, LEGACY_PUBLIC_MODEL_PROC
 
 logger = logging.getLogger("resources")
 
 # Default directories for resources
-DEFAULT_LABELS_DIR = "/home/dlstreamer/dlstreamer/samples/labels"
-DEFAULT_SCRIPTS_DIR = "/scripts"
-DEFAULT_PUBLIC_MODEL_PROC_DIR = (
-    "/home/dlstreamer/dlstreamer/samples/gstreamer/model_proc/public"
-)
+DEFAULT_LABELS_DIR = data_path("labels", "/home/dlstreamer/dlstreamer/samples/labels")
+DEFAULT_SCRIPTS_DIR = data_path("scripts", "/scripts")
+DEFAULT_PUBLIC_MODEL_PROC_DIR = data_path("model-proc/public", LEGACY_PUBLIC_MODEL_PROC)
 
 # Read resource paths from environment variables if set
 LABELS_PATH = os.path.normpath(os.environ.get("LABELS_PATH", DEFAULT_LABELS_DIR))

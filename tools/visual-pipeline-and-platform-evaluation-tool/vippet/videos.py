@@ -1,7 +1,11 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import json
 import logging
 import os
 import shutil
+import tempfile
 import time
 import threading
 import urllib.request
@@ -14,6 +18,8 @@ import cv2
 import yaml
 
 from pipeline_runner import PipelineRunner
+from platform_paths import data_path
+from gst_properties import quote_property
 
 # Allowed video file extensions (lowercase, without dot)
 VIDEO_EXTENSIONS = (
@@ -37,9 +43,9 @@ VideoSourceKind = Literal["auto", "uploaded"]
 #   - UPLOADED_VIDEO_DIR  - videos uploaded by the user via the API
 # Both are independently configurable. Defaults match the shared volume
 # layout declared in compose.yml.
-_OUTPUT_VIDEO_DIR = "/videos/output"
-_AUTO_VIDEO_DIR = "/videos/input/auto"
-_UPLOADED_VIDEO_DIR = "/videos/input/uploaded"
+_OUTPUT_VIDEO_DIR = data_path("videos/output", "/videos/output")
+_AUTO_VIDEO_DIR = data_path("videos/input/auto", "/videos/input/auto")
+_UPLOADED_VIDEO_DIR = data_path("videos/input/uploaded", "/videos/input/uploaded")
 
 # Read paths from environment variables, falling back to defaults.
 OUTPUT_VIDEO_DIR: str = os.path.normpath(
@@ -57,7 +63,7 @@ UPLOADED_VIDEO_DIR: str = os.path.normpath(
 # default shipped with the image.
 DEFAULT_RECORDINGS_FILE: str = os.environ.get(
     "DEFAULT_RECORDINGS_FILE",
-    "/videos/default_recordings.yaml",
+    data_path("videos/default_recordings.yaml", "/videos/default_recordings.yaml"),
 )
 
 logger = logging.getLogger("videos")
@@ -381,8 +387,7 @@ class VideosManager:
             logger.debug(f"Video '{filename}' already exists, skipping download.")
             return target_path
 
-        # Download to temp file first, then move to target
-        tmp_path = f"/tmp/{filename}"
+        tmp_path: str | None = None
 
         logger.info(f"Downloading '{filename}' from {url}...")
         t0 = time.perf_counter()
@@ -406,7 +411,14 @@ class VideosManager:
 
                 # Download to temp file in chunks (8KB chunks)
                 chunk_size = 8192
-                with open(tmp_path, "wb") as f:
+                with tempfile.NamedTemporaryFile(
+                    mode="wb",
+                    prefix=".vippet-download-",
+                    suffix=".part",
+                    dir=AUTO_VIDEO_DIR,
+                    delete=False,
+                ) as f:
+                    tmp_path = f.name
                     while True:
                         chunk = response.read(chunk_size)
                         if not chunk:
@@ -416,6 +428,12 @@ class VideosManager:
             # Move from temp to target location
             if not self._move_file(tmp_path, target_path):
                 return None
+
+            # Keep staging private, then allow nginx to read the completed recording.
+            try:
+                os.chmod(target_path, 0o644)
+            except OSError as exc:
+                logger.warning(f"Could not set permissions on '{target_path}': {exc}")
 
             t1 = time.perf_counter()
             file_size = (
@@ -429,20 +447,19 @@ class VideosManager:
 
         except urllib.error.HTTPError as e:
             logger.error(f"Failed to download '{filename}': HTTP {e.code} - {e.reason}")
-            self._cleanup_file(tmp_path)
             return None
         except urllib.error.URLError as e:
             logger.error(f"Failed to download '{filename}': URL error - {e.reason}")
-            self._cleanup_file(tmp_path)
             return None
         except TimeoutError:
             logger.error(f"Download timeout for '{filename}' from {url}")
-            self._cleanup_file(tmp_path)
             return None
         except Exception as e:
             logger.error(f"Failed to download '{filename}': {e}")
-            self._cleanup_file(tmp_path)
             return None
+        finally:
+            if tmp_path is not None:
+                self._cleanup_file(tmp_path)
 
     @staticmethod
     def _move_file(src: str, dst: str) -> bool:
@@ -821,13 +838,13 @@ class VideosManager:
             runner = PipelineRunner(mode="normal", max_runtime=0.0)
             if demuxer:
                 pipeline_command = (
-                    f"filesrc location={source_path} ! {demuxer} ! {parser} ! {caps} "
-                    f"! mpegtsmux ! filesink location={ts_path}"
+                    f"filesrc location={quote_property(source_path)} ! {demuxer} ! {parser} ! {caps} "
+                    f"! mpegtsmux ! filesink location={quote_property(ts_path)}"
                 )
             else:
                 pipeline_command = (
-                    f"filesrc location={source_path} ! {parser} ! {caps} "
-                    f"! mpegtsmux ! filesink location={ts_path}"
+                    f"filesrc location={quote_property(source_path)} ! {parser} ! {caps} "
+                    f"! mpegtsmux ! filesink location={quote_property(ts_path)}"
                 )
             runner.run(pipeline_command)
             return True
