@@ -185,6 +185,26 @@ spec:
               value: /app/custom-metrics
             - name: TELEGRAF_CONFIG_PATH
               value: /etc/telegraf/telegraf.conf
+            - name: ENABLE_RAPL_POWER
+              value: {{ .Values.config.enableRaplPower | toString | quote }}
+            - name: ENABLE_DRAM_BW
+              value: {{ .Values.config.enableDramBw | toString | quote }}
+            - name: ENABLE_DISK_IO
+              value: {{ .Values.config.enableDiskIo | toString | quote }}
+            - name: ENABLE_NET_IO
+              value: {{ .Values.config.enableNetIo | toString | quote }}
+            - name: ENABLE_INTERRUPTS
+              value: {{ .Values.config.enableInterrupts | toString | quote }}
+            - name: ENABLE_TEMP_STATS
+              value: {{ .Values.config.enableTempStats | toString | quote }}
+            - name: ENABLE_PSYS_POWER
+              value: {{ .Values.config.enablePsysPower | toString | quote }}
+            - name: ENABLE_GPU_THROTTLE
+              value: {{ .Values.config.enableGpuThrottle | toString | quote }}
+            - name: ENABLE_TURBOSTAT
+              value: {{ .Values.config.enableTurbostat | toString | quote }}
+            - name: TURBOSTAT_INTERVAL
+              value: {{ .Values.config.turbostatInterval | toString | quote }}
             {{- with .Values.config.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

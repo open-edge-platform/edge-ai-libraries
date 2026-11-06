@@ -80,8 +80,10 @@ def _fetch_metrics_manager(url: str) -> dict[str, float]:
     """Fetch latest metrics from VIPPET metrics-manager JSON API.
 
     Returns flat dict of metric_key -> value.
-    Tagged metrics use composite keys (e.g. gpu_power__gpu_cur_power).
-    Only gpu_id=0 is collected for GPU metrics with multiple IDs.
+    Tagged metrics use composite keys (e.g. gpu_power_power_w__gpu_cur_power).
+    Only gpu_id=0 is collected for GPU metrics with multiple IDs. Metrics
+    reported per GPU tile (e.g. gt0 render + gt1 media) keep only the
+    primary, lowest-named tile, so tiles never overwrite each other.
 
     Handles two response formats:
       - SSE stream (``data: {json}\\n``) — reads the last complete event
@@ -106,6 +108,15 @@ def _fetch_metrics_manager(url: str) -> dict[str, float]:
         data = json.loads(raw)
         metrics = data.get("metrics", data)
         result: dict[str, float] = {}
+        tile_of: dict[str, str] = {}
+
+        def _store(composite: str, value: float, tile: str | None) -> None:
+            if tile is not None:
+                kept = tile_of.get(composite)
+                if kept is not None and kept <= tile:
+                    return
+                tile_of[composite] = tile
+            result[composite] = value
 
         if isinstance(metrics, list):
             for entry in metrics:
@@ -121,7 +132,7 @@ def _fetch_metrics_manager(url: str) -> dict[str, float]:
 
                 type_tag = labels.get("type") or labels.get("engine")
                 composite = f"{name}__{type_tag}" if type_tag else name
-                result[composite] = float(val)
+                _store(composite, float(val), labels.get("tile"))
         elif isinstance(metrics, dict):
             for key, entry in metrics.items():
                 if isinstance(entry, dict):
@@ -137,7 +148,7 @@ def _fetch_metrics_manager(url: str) -> dict[str, float]:
 
                     type_tag = tags.get("type") or tags.get("engine")
                     composite = f"{name}__{type_tag}" if type_tag else name
-                    result[composite] = float(val)
+                    _store(composite, float(val), tags.get("tile"))
                 elif isinstance(entry, (int, float)):
                     result[key] = float(entry)
 
@@ -315,9 +326,9 @@ class HardwareMonitor:
         for key in ("cpu_usage_user", "cpu_usage_system", "mem_used_percent"):
             if key in mm:
                 sample[key] = mm[key]
-        freq = mm.get("cpu_frequency_avg_frequency")
+        freq = mm.get("cpu_frequency_avg_frequency_hz")
         if freq is not None:
-            sample["cpu_freq_mhz"] = round(freq / 1000.0, 0)
+            sample["cpu_freq_mhz"] = round(freq / 1e6, 0)
         temp = mm.get("temp_temp")
         if temp is not None:
             sample["cpu_temperature"] = temp
@@ -345,35 +356,37 @@ class HardwareMonitor:
                     sample[label] = round(val, 2)
                     break
 
-        # GPU frequency
-        val = mm.get("gpu_frequency__cur_freq")
+        # GPU frequency (Hz -> MHz), primary tile only
+        val = mm.get("gpu_frequency_cur_freq_hz__cur_freq")
         if val is not None:
-            sample["gpu_freq_mhz"] = val
+            sample["gpu_freq_mhz"] = round(val / 1e6, 0)
 
         # GPU power
-        val = mm.get("gpu_power__gpu_cur_power")
+        val = mm.get("gpu_power_power_w__gpu_cur_power")
         if val is not None:
             sample["gpu_power_w"] = round(val, 3)
-        val = mm.get("gpu_power__pkg_cur_power")
+        val = mm.get("gpu_power_power_w__pkg_cur_power")
         if val is not None:
             sample["pkg_power_w"] = round(val, 3)
 
-        # NPU frequency: metrics-manager reports npu_frequency in Hz; the
+        # NPU frequency: metrics-manager reports npu_frequency_hz in Hz; the
         # report KPI is in MHz like cpu_freq_mhz / gpu_freq_mhz.
-        val = mm.get("npu_frequency")
+        val = mm.get("npu_frequency_hz")
         if val is not None:
             sample["npu_frequency_mhz"] = round(val / 1e6, 1)
 
-        # NPU (other KPIs pass through unchanged)
-        for key in (
-            "npu_utilization",
-            "npu_power",
-            "npu_temperature",
-            "npu_memory_mb",
-            "npu_bandwidth",
+        # NPU: report KPI keys and units are kept from earlier releases
+        # (memory in MiB, bandwidth in MB/s) so reports stay comparable.
+        for kpi, source, divisor in (
+            ("npu_utilization", "npu_utilization", 1.0),
+            ("npu_power", "npu_power_w", 1.0),
+            ("npu_temperature", "npu_temperature_c", 1.0),
+            ("npu_memory_mb", "npu_memory_bytes", 1024.0 * 1024.0),
+            ("npu_bandwidth", "npu_bandwidth_bytes_per_second", 1e6),
         ):
-            if key in mm:
-                sample[key] = mm[key]
+            val = mm.get(source)
+            if val is not None:
+                sample[kpi] = val / divisor
 
         return sample
 

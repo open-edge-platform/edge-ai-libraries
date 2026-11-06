@@ -86,7 +86,7 @@ MC_ERROR_CODE FbGearInPos::onRisingEdgeExecution()
 {
   start_sync_ = mcFALSE;
   in_sync_    = mcFALSE;
-  if (velocity_ == 0 || acceleration_ == 0 || deceleration_ == 0)
+  if (velocity_ == 0 || acceleration_ == 0 || deceleration_ == 0 || jerk_ == 0)
     return mcErrorCodeMotionLimitError;
   if (ratio_denominator_ == 0)
     return mcErrorCodeGearRatioDenominatorSetZero;
