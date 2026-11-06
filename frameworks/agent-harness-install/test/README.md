@@ -33,6 +33,12 @@ component checks. The final **Agent Harness required static gate** runs with
 and Hermes image runtime remain separate conditional checks; their results do
 not affect this static-analysis merge gate.
 
+This is an intentional change from the earlier recommendation to require
+static, offline and Hermes checks together: this PR provides a static-only
+merge-protection policy. Offline/Hermes failures remain visible but are not
+merge blockers under this policy unless separately required by administrators.
+Existing required checks must not be removed automatically.
+
 | Decision | Required outcomes |
 |---|---|
 | Relevant changes | Static analysis must succeed (ShellCheck and production `node --check`) |

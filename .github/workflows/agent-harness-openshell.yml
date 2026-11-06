@@ -36,7 +36,7 @@ jobs:
       - name: Detect component changes
         id: filter
         if: github.event_name == 'pull_request' && github.event.pull_request.changed_files < 3000
-        uses: dorny/paths-filter@4512585405083f25c027a35db413c2b3b9006d50
+        uses: dorny/paths-filter@4512585405083f25c027a35db413c2b3b9006d50 # v2.11.1
         with:
           filters: |
             harness:

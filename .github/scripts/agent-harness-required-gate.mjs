@@ -1,7 +1,7 @@
 // Copyright (C) 2026 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 import fs from "node:fs";
-import {pathToFileURL} from "node:url";
+import {fileURLToPath} from "node:url";
 
 export function evaluateGate(env) {
   if (env.CHANGE_RESULT !== "success")
@@ -17,7 +17,8 @@ export function evaluateGate(env) {
     : "Not applicable: no Agent Harness changes; static analysis was skipped.";
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] &&
+    fs.realpathSync(fileURLToPath(import.meta.url)) === fs.realpathSync(process.argv[1])) {
   try {
     const message = evaluateGate(process.env);
     console.log(message);

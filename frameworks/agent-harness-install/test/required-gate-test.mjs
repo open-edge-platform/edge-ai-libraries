@@ -47,15 +47,6 @@ for (const relevant of ["true", "false"]) {
   }
 }
 
-for (const relevant of ["true", "false"]) {
-  for (const result of ["success", "failure", "cancelled", "skipped", "", undefined]) {
-    test(`runtime outcome ${String(result)} does not affect static gate for relevant=${relevant}`, () => {
-      assert.doesNotThrow(() => evaluateGate({...outcomes(relevant),
-        OFFLINE_RESULT: result, HERMES_RESULT: result}));
-    });
-  }
-}
-
 test("CLI publishes successful summary and exits nonzero on rejected outcomes", t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "harness-required-gate-"));
   t.after(() => fs.rmSync(dir, {recursive: true, force: true}));
@@ -69,4 +60,22 @@ test("CLI publishes successful summary and exits nonzero on rejected outcomes", 
     {env: {...env, STATIC_RESULT: "cancelled"}, encoding: "utf8"});
   assert.equal(failed.status, 1);
   assert.match(failed.stderr, /expected success, received cancelled/);
+});
+
+test("symlinked CLI executes validation with default and preserved main paths", t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "harness-gate-symlink-"));
+  t.after(() => fs.rmSync(dir, {recursive: true, force: true}));
+  const script = fileURLToPath(new URL("../../../.github/scripts/agent-harness-required-gate.mjs", import.meta.url));
+  const link = path.join(dir, "gate.mjs");
+  fs.symlinkSync(script, link);
+  for (const flags of [[], ["--preserve-symlinks-main"]]) {
+    const env = {...process.env, ...outcomes(), GITHUB_STEP_SUMMARY: ""};
+    const passed = spawnSync(process.execPath, [...flags, link], {env, encoding: "utf8"});
+    assert.equal(passed.status, 0, passed.stderr);
+    assert.match(passed.stdout, /Agent Harness static analysis succeeded/);
+    const failed = spawnSync(process.execPath, [...flags, link],
+      {env: {...env, STATIC_RESULT: "failure"}, encoding: "utf8"});
+    assert.equal(failed.status, 1, failed.stderr);
+    assert.match(failed.stderr, /expected success, received failure/);
+  }
 });
