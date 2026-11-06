@@ -241,7 +241,7 @@ subcommand_list () {
 }
 
 subcommand_setup () {
-  [[ " $* " != *" --help "* ]] || return
+  ensure_parse_option --help "$@" && return
 
   local installer_misc_functions=(@@INSTALLER_MISC_FUNCTIONS@@)
   local installer_completion_text="@@INSTALLER_COMPLETION_TEXT@@"
