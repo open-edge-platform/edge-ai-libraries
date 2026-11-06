@@ -28,6 +28,7 @@ A unified metrics collection, ingestion, and relay service that combines Telegra
 - **REST API**: Push custom metrics via JSON, InfluxDB Line Protocol, or OpenTelemetry format
 - **SSE Streaming**: Real-time metrics streaming via Server-Sent Events (`GET /metrics/stream`)
 - **Prometheus Compatible**: Metrics endpoint for Prometheus scraping
+- **Terminal dashboard**: Responsive Overview, Trends, Details and Alerts with five-minute history, configurable thresholds and process limits. Build and run the standalone [TUI](./docs/user-guide/get-started/terminal-dashboard.md) against the same telemetry endpoint.
 - **Custom Telegraf Config**: Mount your own Telegraf configuration
 - **Additional native Docker collectors**: Opt in to RAPL, per-CPU powerstat, Turbostat, temperature statistics, IRQ, network and storage with `ENABLE_*=true`; additions default off and mounted drop-ins are loaded at startup ([setup guide](./docs/user-guide/get-started/native-docker-collectors.md))
 - **Rate Limiting**: IP-based request throttling with configurable limits

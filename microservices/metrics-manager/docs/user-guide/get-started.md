@@ -446,6 +446,7 @@ See [Troubleshooting](./troubleshooting.md) for more issues.
 - **Configure**: See [Environment Variables](./get-started/environment-variables.md)
 - **Custom metrics**: See [Custom Metrics Scripts](./get-started/custom-metrics.md)
 - **Kubernetes**: See [Helm Deployment](./get-started/deploy-with-helm.md)
+- **Terminal dashboard**: Build and run the [standalone TUI](./get-started/terminal-dashboard.md)
 
 ## Supporting Resources
 
@@ -468,6 +469,7 @@ SPDX-License-Identifier: Apache-2.0
 ./get-started/deploy-with-helm.md
 ./get-started/environment-variables.md
 ./get-started/custom-metrics.md
+./get-started/terminal-dashboard.md
 ./get-started/testing.md
 
 :::

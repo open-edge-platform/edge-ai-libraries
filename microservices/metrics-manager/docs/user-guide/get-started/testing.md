@@ -296,6 +296,23 @@ Unit tests use synthetic kernel files, qmassa fixtures and mocked performance
 counters; they do not require GPU/NPU devices or privileged hardware access.
 Passing these tests does not replace real-hardware validation of each collector.
 
+### Terminal dashboard tests
+
+The same Go test command also covers the Prometheus parser, HTTP poller and
+terminal dashboard: responsive layouts, process limits/CPU modes, thresholds,
+alert lifecycles, chart history, missing data, and network/storage counter rates.
+Configuration examples are checked against built-in defaults.
+Linux CLI regressions run the real entry point in a pseudo-terminal and verify
+clean SIGINT/SIGTERM exits, restored terminal attributes and alternate-screen
+cleanup.
+
+Build the standalone dashboard using the
+[terminal guide](./terminal-dashboard.md#build-and-start). Check `--help`,
+`--version` and `-once` output, then exercise all four tabs and resize a real
+terminal across single-, two- and three-column layouts. Verify that the terminal
+is restored after quitting or interrupting the process. A one-frame rendering
+does not test keyboard interaction or accumulated history.
+
 ## Release validation scope
 
 Build both image variants with explicit `INSTALL_OPENVINO` values and distinct

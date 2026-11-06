@@ -86,6 +86,7 @@ For details, see [How It Works](./how-it-works.md).
 - [API Reference](./api-reference.md)
 - [Environment Variables](./get-started/environment-variables.md)
 - [Additional Native Docker Collectors](./get-started/native-docker-collectors.md)
+- [Terminal Dashboard](./get-started/terminal-dashboard.md)
 - [Custom Metrics Scripts](./get-started/custom-metrics.md)
 - [Helm Deployment](./get-started/deploy-with-helm.md)
 - [Building from Source](./get-started/build-from-source.md)

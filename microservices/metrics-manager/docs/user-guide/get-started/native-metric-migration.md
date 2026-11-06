@@ -89,3 +89,15 @@ decimal places of MiB before export.
    configurations are not automatically overwritten.
 4. Verify the new metric families at `/metrics`, check device/tile labels and
    missing-data behavior, and compare dashboard values after display conversion.
+
+## TUI configuration migration
+
+Upgrade `mm-tui` with the native collectors. The
+[terminal dashboard](./terminal-dashboard.md) performs display conversions;
+do not pre-convert the Prometheus endpoint or it will scale the values twice.
+
+For retained custom chart configuration, replace the old DRAM chart IDs
+`memory.bandwidthMiBps`, `memory.readMiBps` and `memory.writeMiBps` with
+`memory.bandwidthGBps`, `memory.readGBps` and `memory.writeGBps`. Use `GB/s`
+as the display unit and convert any fixed MiB/s bounds by multiplying by
+`1048576 / 1e9`. Merge the current examples rather than discarding local settings.
