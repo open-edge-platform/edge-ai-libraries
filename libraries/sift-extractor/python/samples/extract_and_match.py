@@ -3,14 +3,16 @@
 # SPDX-License-Identifier: Apache-2.0
 """Extract and match SIFT features on real image(s) with the Python bindings.
 
+Always runs extract on both views, then Lowe-ratio match.
+
 Examples:
+  # One image → affine pair (30° / 0.85), extract both, then match:
+  python python/samples/extract_and_match.py scene.pgm
+
   # Two real views:
-  python python/samples/extract_image.py left.png right.png
+  python python/samples/extract_and_match.py left.png right.png
 
-  # One image + synthetic affine pair (30deg / 0.85), then match:
-  python python/samples/extract_image.py scene.pgm --affine-pair
-
-  python python/samples/extract_image.py a.pgm b.pgm --backend opencl --ratio 0.8
+  python python/samples/extract_and_match.py a.pgm b.pgm --backend opencl --ratio 0.8
 """
 
 from __future__ import annotations
@@ -126,12 +128,12 @@ def main() -> int:
         nargs="?",
         type=Path,
         default=None,
-        help="Optional second image for matching (omit with --affine-pair)",
+        help="Optional second image; if omitted, warp image1 (30° / 0.85) and match",
     )
     parser.add_argument(
         "--affine-pair",
         action="store_true",
-        help="Build second image as rot=30° / scale=0.85 warp of the first",
+        help="Force affine warp of image1 even if image2 is omitted (default when alone)",
     )
     parser.add_argument(
         "--backend",
@@ -156,9 +158,6 @@ def main() -> int:
     if not args.image.is_file():
         print(f"image not found: {args.image}", file=sys.stderr)
         return 2
-    if args.image2 is None and not args.affine_pair:
-        print("provide image2 or pass --affine-pair for extract+match", file=sys.stderr)
-        return 2
     if args.image2 is not None and args.affine_pair:
         print("use either image2 or --affine-pair, not both", file=sys.stderr)
         return 2
@@ -166,21 +165,20 @@ def main() -> int:
         print(f"image not found: {args.image2}", file=sys.stderr)
         return 2
 
+    # Single image ⇒ affine pair so the sample always demonstrates extract+match.
+    use_affine = args.affine_pair or args.image2 is None
+
     print("version:", sift_extractor.__version__)
     print("system_requirements:", sift_extractor.system_requirements())
     print("available_backends:", list(sift_extractor.available_backends()))
     print("has_opencl_matcher:", bool(sift_extractor.has_opencl_matcher))
 
     image1 = maybe_downscale(load_image(args.image), args.max_side)
-    if args.affine_pair:
+    if use_affine:
         image2 = affine_warp(image1)
         pair_desc = f"{args.image} + affine(30deg,0.85)"
     else:
         image2 = maybe_downscale(load_image(args.image2), args.max_side)
-        if image2.shape != image1.shape:
-            # Match requires same extractor shape only per image; different sizes OK
-            # if we build separate extractors — keep as-is.
-            pass
         pair_desc = f"{args.image} ↔ {args.image2}"
 
     h1, w1 = image1.shape
@@ -188,6 +186,7 @@ def main() -> int:
     print(f"pair: {pair_desc}")
     print(f"image1 shape={w1}x{h1}  image2 shape={w2}x{h2}")
 
+    print("--- extract ---")
     try:
         feats1, resolved1 = extract(image1, args.backend)
         feats2, resolved2 = extract(image2, args.backend)
@@ -196,7 +195,7 @@ def main() -> int:
         return 1
 
     print(
-        f"extract backend_request={args.backend!r} "
+        f"backend_request={args.backend!r} "
         f"resolved=({resolved1!r},{resolved2!r}) "
         f"features=({len(feats1)},{len(feats2)})"
     )
@@ -207,15 +206,17 @@ def main() -> int:
             f"scale={f0['scale']:.3f} response={f0['response']:.4f}"
         )
 
+    print("--- match ---")
     try:
         matches = list(sift_extractor.match(feats1, feats2, ratio=args.ratio))
     except Exception as exc:  # noqa: BLE001
         print(f"match FAILED: {exc}", file=sys.stderr)
         return 1
 
+    matcher = "opencl" if sift_extractor.has_opencl_matcher else "host"
     print(
-        f"matches (ratio={args.ratio}): {len(matches)} "
-        f"of {len(feats1)} queries"
+        f"matcher={matcher} ratio={args.ratio}: {len(matches)} "
+        f"accepted of {len(feats1)} queries"
     )
     for match in matches[:5]:
         q = feats1[int(match["query_index"])]
@@ -224,6 +225,10 @@ def main() -> int:
             f"t[{match['train_index']}] ({match['match_x']:.1f},{match['match_y']:.1f}) "
             f"score={match['score']:.4f} ambiguity={match['ambiguity']:.4f}"
         )
+    print(
+        f"done: extract features=({len(feats1)},{len(feats2)}) "
+        f"+ match accepted={len(matches)}"
+    )
     return 0
 
 

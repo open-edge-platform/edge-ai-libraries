@@ -54,7 +54,7 @@ Useful CMake options:
 | `SIFT_ENABLE_SYCL` | ON | SYCL reference + extract |
 | `SIFT_ENABLE_OPENCL` | OFF | OpenCL runtime + extract + matcher |
 | `SIFT_BUILD_TESTS` | ON when `BUILD_TESTING` | CTest targets |
-| `SIFT_BUILD_SAMPLES` | ON | `extract_sift`, timing/soak helpers |
+| `SIFT_BUILD_SAMPLES` | ON | `extract_and_match`, timing/soak helpers |
 | `SIFT_BUILD_PYTHON` | OFF | `sift_extractor` Python package (`_native` extension) |
 | `SIFT_BUILD_OPENCV_ADAPTER` | OFF | Thin OpenCV type adapters |
 | `SIFT_ENABLE_OPENCV_VALIDATION` | OFF | `validate_sift_pair` diagnostic |
@@ -100,10 +100,13 @@ pkg-config --libs --cflags sift_extractor
 Native samples after build/install:
 
 ```bash
-./build/extract_sift [auto|opencl|sycl]
+./build/extract_and_match [auto|opencl|sycl]  # extract two views + Lowe-ratio match
 ./build/time_sift_extract [backend] [W] [H] [warmups] [samples] [seed] [image.pgm]
 ./build/soak_sift_extract [--release] [--calls N] [--minutes M] [--concurrency N]
 ```
+
+`extract_and_match` prints feature counts for both images and ratio-accepted matches
+(OpenCL `OpenCLMatcher` when built; otherwise a host dot-product fallback).
 
 `--release` targets ≥10 000 mixed calls (no wall-clock floor unless `--minutes`
 is set).
@@ -112,12 +115,17 @@ Optional OpenCV adapters (`-DSIFT_BUILD_OPENCV_ADAPTER=ON`):
 
 ```cpp
 #include <sift_extractor/opencv_adapter.hpp>
+#if SIFT_EXTRACTOR_HAS_OPENCL
+#include <sift_extractor/opencl_matcher.hpp>
+#endif
 
 sift_extractor::Extractor extractor(w, h, backend);
 std::vector<cv::KeyPoint> keypoints;
 cv::Mat descriptors;
 sift_extractor::opencv::detect_and_compute(
     extractor, gray_u8_or_f32, keypoints, descriptors);
+// Match via sift_extractor::OpenCLMatcher (or host) on SiftFeature lists from
+// Extractor::extract — same Lowe-ratio convention as the Python wheel.
 ```
 
 `KeyPoint::size` is `2 * SiftFeature::scale` (diameter). The core library does
@@ -135,8 +143,8 @@ bash python/build_wheel.sh            # writes python/dist/sift_extractor-*-linu
 python3 -m venv --system-site-packages /tmp/sift-venv
 source /tmp/sift-venv/bin/activate
 pip install python/dist/sift_extractor-*.whl   # also needs numpy
-python python/samples/extract_image.py left.png right.png
-python python/samples/extract_image.py scene.pgm --affine-pair --backend opencl
+python python/samples/extract_and_match.py scene.pgm          # affine pair + match
+python python/samples/extract_and_match.py left.png right.png # two views + match
 ```
 
 After `cmake --install` with `-DSIFT_BUILD_PYTHON=ON`, the same package also

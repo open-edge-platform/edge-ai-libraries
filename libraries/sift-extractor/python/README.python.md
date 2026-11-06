@@ -25,12 +25,12 @@ pip install sift_extractor-*.whl
 Real-image extract + match sample (recommended):
 
 ```bash
-python python/samples/extract_image.py left.png right.png
-python python/samples/extract_image.py scene.pgm --affine-pair --backend opencl
+python python/samples/extract_and_match.py scene.pgm          # affine pair + match
+python python/samples/extract_and_match.py left.png right.png # two views + match
 ```
 
 PNG/JPEG need OpenCV or Pillow; binary `.pgm` works with NumPy only.
-`--affine-pair` needs OpenCV for `warpAffine`.
+A single image builds a 30° / 0.85 affine pair (needs OpenCV for `warpAffine`) then matches.
 
 Library usage:
 
